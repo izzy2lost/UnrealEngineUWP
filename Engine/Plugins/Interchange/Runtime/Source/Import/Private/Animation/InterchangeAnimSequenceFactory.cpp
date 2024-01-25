@@ -13,6 +13,7 @@
 #include "InterchangeMeshNode.h"
 #include "InterchangeSceneNode.h"
 #include "InterchangeSkeletonFactoryNode.h"
+#include "InterchangeSkeletalMeshFactoryNode.h"
 #include "InterchangeSourceData.h"
 #include "InterchangeTranslatorBase.h"
 #include "Nodes/InterchangeBaseNode.h"
@@ -913,6 +914,68 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Beg
 		return ImportAssetResult;
 	}
 
+	FString SkeletonUid;
+	if (!AnimSequenceFactoryNode->GetCustomSkeletonFactoryNodeUid(SkeletonUid))
+	{
+		UE_LOG(LogInterchangeImport, Error, TEXT("Could not create AnimSequence asset %s, because there is no skeleton."), *Arguments.AssetName);
+		return ImportAssetResult;
+	}
+
+	const UInterchangeSkeletonFactoryNode* SkeletonFactoryNode = Cast<UInterchangeSkeletonFactoryNode>(Arguments.NodeContainer->GetNode(SkeletonUid));
+	if (!SkeletonFactoryNode)
+	{
+		UE_LOG(LogInterchangeImport, Error, TEXT("Invalid skeleton factory node, the skeleton factory node is obligatory to import this animsequence [%s]!"), *Arguments.AssetName);
+		return ImportAssetResult;
+	}
+
+	FString SkeletalMeshFactoryNodeUid;
+	if (SkeletonFactoryNode->GetCustomSkeletalMeshFactoryNodeUid(SkeletalMeshFactoryNodeUid))
+	{
+		const UInterchangeSkeletalMeshFactoryNode* SkeletalMeshFactoryNode = Cast<const UInterchangeSkeletalMeshFactoryNode>(Arguments.NodeContainer->GetFactoryNode(SkeletalMeshFactoryNodeUid));
+
+		FSoftObjectPath SkeletalMesh;
+		SkeletalMeshFactoryNode->GetCustomReferenceObject(SkeletalMesh);
+
+		if (!SkeletalMesh.IsValid())
+		{
+			UE_LOG(LogInterchangeImport, Error, TEXT("SkeletalMesh does not exist, the skeleton and skeletal mesh is obligatory to import this animsequence [%s]!"), *Arguments.AssetName);
+			return ImportAssetResult;
+		}
+	}
+
+	FSoftObjectPath SkeletonFactoryNodeReferenceObject;
+	SkeletonFactoryNode->GetCustomReferenceObject(SkeletonFactoryNodeReferenceObject);
+
+	USkeleton* Skeleton = nullptr;
+
+	FSoftObjectPath SpecifiedSkeleton;
+	AnimSequenceFactoryNode->GetCustomSkeletonSoftObjectPath(SpecifiedSkeleton);
+	if (Skeleton == nullptr)
+	{
+		UObject* SkeletonObject = nullptr;
+
+		if (SpecifiedSkeleton.IsValid())
+		{
+			SkeletonObject = SpecifiedSkeleton.TryLoad();
+		}
+		else if (SkeletonFactoryNodeReferenceObject.IsValid())
+		{
+			SkeletonObject = SkeletonFactoryNodeReferenceObject.TryLoad();
+		}
+
+		if (SkeletonObject)
+		{
+			Skeleton = Cast<USkeleton>(SkeletonObject);
+
+		}
+
+		if (!ensure(Skeleton))
+		{
+			UE_LOG(LogInterchangeImport, Error, TEXT("Invalid Skeleton when importing animation sequence asset %s"), *Arguments.AssetName);
+			return ImportAssetResult;
+		}
+	}
+
 	//Verify if the bone track animation is valid (sequence length versus framerate ...)
 	if(!IsBoneTrackAnimationValid(AnimSequenceFactoryNode, Arguments))
 	{
@@ -949,58 +1012,6 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeAnimSequenceFactory::Beg
 	AnimSequenceFactoryNode->SetCustomReferenceObject(FSoftObjectPath(NewAnimSequence));
 
 	NewAnimSequence->PreEditChange(nullptr);
-
-	//Verify if the bone track animation is valid (sequence length versus framerate ...)
-	if (!IsBoneTrackAnimationValid(AnimSequenceFactoryNode, Arguments))
-	{
-		return ImportAssetResult;
-	}
-
-	FString SkeletonUid;
-	if (!AnimSequenceFactoryNode->GetCustomSkeletonFactoryNodeUid(SkeletonUid))
-	{
-		UE_LOG(LogInterchangeImport, Warning, TEXT("Could not create AnimSequence asset %s, because there is no skeleton."), *Arguments.AssetName);
-		return ImportAssetResult;
-	}
-
-	const UInterchangeSkeletonFactoryNode* SkeletonFactoryNode = Cast<UInterchangeSkeletonFactoryNode>(Arguments.NodeContainer->GetNode(SkeletonUid));
-	if (!SkeletonFactoryNode)
-	{
-		UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid skeleton factory node, the skeleton factory node is obligatory to import this animsequence [%s]!"), *Arguments.AssetName);
-		return ImportAssetResult;
-	}
-	FSoftObjectPath SkeletonFactoryNodeReferenceObject;
-	SkeletonFactoryNode->GetCustomReferenceObject(SkeletonFactoryNodeReferenceObject);
-
-	USkeleton* Skeleton = nullptr;
-
-	FSoftObjectPath SpecifiedSkeleton;
-	AnimSequenceFactoryNode->GetCustomSkeletonSoftObjectPath(SpecifiedSkeleton);
-	if (Skeleton == nullptr)
-	{
-		UObject* SkeletonObject = nullptr;
-
-		if (SpecifiedSkeleton.IsValid())
-		{
-			SkeletonObject = SpecifiedSkeleton.TryLoad();
-		}
-		else if (SkeletonFactoryNodeReferenceObject.IsValid())
-		{
-			SkeletonObject = SkeletonFactoryNodeReferenceObject.TryLoad();
-		}
-
-		if (SkeletonObject)
-		{
-			Skeleton = Cast<USkeleton>(SkeletonObject);
-
-		}
-
-		if (!ensure(Skeleton))
-		{
-			UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid Skeleton when importing animation sequence asset %s"), *Arguments.AssetName);
-			return ImportAssetResult;
-		}
-	}
 
 	NewAnimSequence->SetSkeleton(Skeleton);
 

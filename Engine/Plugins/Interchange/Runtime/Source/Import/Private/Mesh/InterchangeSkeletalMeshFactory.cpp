@@ -1848,6 +1848,10 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 		UE::Interchange::FFactoryCommon::ApplyReimportStrategyToAsset(SkeletalMesh, PreviousNode, CurrentNode, SkeletalMeshFactoryNode);
 	}
 
+	//For UAnimSequences we also have to check the existance of USkeletalMeshes not just USkeletons.
+	// (USkeletalMesh creation can fail while USkeletons can succeed still)
+	SkeletalMeshFactoryNode->SetCustomReferenceObject(FSoftObjectPath(SkeletalMesh));
+
 	ImportAssetResult.ImportedObject = SkeletalMesh;
 	return ImportAssetResult;
 
