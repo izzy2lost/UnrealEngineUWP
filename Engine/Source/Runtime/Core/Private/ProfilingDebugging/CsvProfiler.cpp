@@ -3610,6 +3610,11 @@ void FCsvProfiler::RecordEvent(int32 CategoryIndex, const FString& EventText)
 	}
 }
 
+void FCsvProfiler::RecordEventAtFrameStart(int32 CategoryIndex, const FString& EventText)
+{
+	RecordEventAtTimestamp(CategoryIndex, EventText, FCsvProfiler::Get()->LastEndFrameTimestamp);
+}
+
 void FCsvProfiler::SetMetadata(const TCHAR* Key, const TCHAR* Value)
 {
 	FCsvProfiler::Get()->SetMetadataInternal(Key, Value, true, EMetadataPersistenceType::Persistent);
