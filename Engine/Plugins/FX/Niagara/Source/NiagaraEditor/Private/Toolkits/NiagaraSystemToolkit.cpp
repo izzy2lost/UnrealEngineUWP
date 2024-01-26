@@ -1328,7 +1328,6 @@ bool FNiagaraSystemToolkit::OnRequestClose(EAssetEditorCloseReason InCloseReason
 	}
 
 	SystemViewModel->NotifyPreClose();
-	SystemViewModel->GetSystem().ReportAnalyticsData(false);
 
 	bool bHasUnappliedScratchPadChanges = false;
 	for (TSharedRef<FNiagaraScratchPadScriptViewModel> ScratchPadViewModel : SystemViewModel->GetScriptScratchPadViewModel()->GetScriptViewModels())

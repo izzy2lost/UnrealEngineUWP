@@ -3,7 +3,6 @@
 #include "CascadeToNiagaraConverterModule.h"
 #include "ContentBrowserModule.h"
 #include "IPythonScriptPlugin.h"
-#include "NiagaraAnalytics.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "NiagaraMessageManager.h"
 #include "NiagaraStackGraphUtilitiesAdapterLibrary.h"
@@ -75,9 +74,6 @@ void ICascadeToNiagaraConverterModule::ExecuteConvertCascadeSystemToNiagaraSyste
 {
 	UConvertCascadeToNiagaraResults* Results = NewObject<UConvertCascadeToNiagaraResults>();
 
-	bool bCancelled = false;
-	bool bSuccess = true;
-	double StartTime = FPlatformTime::Seconds();
 	for (UParticleSystem* CascadeSystem : CascadeSystems)
 	{
 		Results->Init();
@@ -92,24 +88,16 @@ void ICascadeToNiagaraConverterModule::ExecuteConvertCascadeSystemToNiagaraSyste
 
 		if (Results->bCancelledByUser)
 		{
-			bCancelled = true;
-			break;
+			// raise modal dialog of status
+			return;
 		}
-		if (Results->bCancelledByPythonError)
+		else if (Results->bCancelledByPythonError)
 		{
 			// raise modal dialog of status
 			//PythonCommand.CommandResult
-			bSuccess = false;
-			break;
+			return;
 		}
 	}
-
-	TArray<FAnalyticsEventAttribute> Attributes;
-	Attributes.Emplace(TEXT("DurationSeconds"), FPlatformTime::Seconds() - StartTime);
-	Attributes.Emplace(TEXT("Cancelled"), bCancelled);
-	Attributes.Emplace(TEXT("Error"), bSuccess == false);
-	Attributes.Emplace(TEXT("AssetCount"), CascadeSystems.Num());
-	NiagaraAnalytics::RecordEvent("Cascade.Conversion", Attributes);
 }
 
 #undef LOCTEXT_NAMESPACE //"CascadeToNiagaraConverterModule"

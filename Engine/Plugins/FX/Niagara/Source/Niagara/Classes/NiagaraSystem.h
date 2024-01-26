@@ -501,8 +501,6 @@ public:
 
 	FORCEINLINE bool IsInitialOwnerVelocityFromActor() const { return bInitialOwnerVelocityFromActor; }
 
-	NIAGARA_API void ReportAnalyticsData(bool bIsCooking);
-
 #if WITH_EDITORONLY_DATA
 	NIAGARA_API bool UsesEmitter(UNiagaraEmitter* Emitter) const;
 	NIAGARA_API bool UsesEmitter(const FVersionedNiagaraEmitter& VersionedEmitter) const;
@@ -829,6 +827,7 @@ private:
 #endif
 
 
+	void ResolveRequiresScripts();
 	NIAGARA_API void ResolveScalabilitySettings();
 	NIAGARA_API void UpdatePostCompileDIInfo();
 	NIAGARA_API void UpdateDITickFlags();

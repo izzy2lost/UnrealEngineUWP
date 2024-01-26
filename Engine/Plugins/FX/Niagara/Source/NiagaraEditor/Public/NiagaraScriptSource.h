@@ -15,7 +15,7 @@ struct FNiagaraScriptHashCollector;
 struct FNiagaraVMExecutableDataId;
 
 UCLASS(MinimalAPI)
-class UNiagaraScriptSource final : public UNiagaraScriptSourceBase
+class UNiagaraScriptSource : public UNiagaraScriptSourceBase
 {
 	GENERATED_UCLASS_BODY()
 
@@ -46,8 +46,6 @@ class UNiagaraScriptSource final : public UNiagaraScriptSourceBase
 
 	// Will conditionally refresh the graph's CompileId
 	virtual void RefreshGraphCompileId() override;
-	
-	virtual void ReportAnalyticsData(FNiagaraScriptSourceAnalytics& InData) const override;
 
 	virtual FGuid GetCompileBaseId(ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
 
