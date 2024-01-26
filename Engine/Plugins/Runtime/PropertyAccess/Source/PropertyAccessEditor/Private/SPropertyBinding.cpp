@@ -270,7 +270,7 @@ bool SPropertyBinding::HasBindablePropertiesRecursive(UStruct* InStruct, TSet<US
 	VisitedStructs.Add(InStruct);
 	
 	// Arbitrary cut off to avoid infinite loops.
-	if (BindingChain.Num() > 10)
+	if (BindingChain.Num() > Args.MaxDepth)
 	{
 		return false;
 	}

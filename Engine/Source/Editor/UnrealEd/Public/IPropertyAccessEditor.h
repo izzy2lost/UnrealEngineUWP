@@ -227,6 +227,9 @@ struct FPropertyBindingWidgetArgs
 
 	/** Optional style override for bind button */
 	const FButtonStyle* BindButtonStyle = nullptr;
+
+	/** The maximum level of depth to generate */
+	uint8 MaxDepth = 10;
 	
 	/** Whether to generate pure bindings */
 	bool bGeneratePureBindings = true;
