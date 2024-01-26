@@ -3281,6 +3281,15 @@ void APlayerController::ServerRestartPlayer_Implementation()
 	if ( IsInState(NAME_Inactive) || (IsInState(NAME_Spectating) && bPlayerIsWaiting) )
 	{
 		AGameModeBase* const GameMode = GetWorld()->GetAuthGameMode();
+
+		// This can happen if you do something like delete a bunch of stuff at runtime in PIE or something like that.
+		// We need to check here to prevent a crash
+		if (!IsValid(GameMode))
+		{
+			UE_LOG(LogPlayerController, Warning, TEXT("[APlayerController::ServerRestartPlayer_Implementation] Player Controller '%s' requested restart but the game mode is null! Nothing will happen."), *GetNameSafe(this));
+			return;
+		}
+		
 		if ( !GameMode->PlayerCanRestart(this) )
 		{
 			return;
