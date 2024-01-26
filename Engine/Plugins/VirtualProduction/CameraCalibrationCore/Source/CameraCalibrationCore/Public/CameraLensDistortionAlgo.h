@@ -86,7 +86,7 @@ public:
 	};
 
 	/** Launches an asynchronous task to perform the distortion calibration. The task will contain the calibration result when it finishes. */
-	virtual FDistortionCalibrationTask BeginCalibration() { return {}; };
+	virtual FDistortionCalibrationTask BeginCalibration(FText& OutErrorMessage) { return {}; };
 
 	/** Cancel an in-progress async calibration task */
 	virtual void CancelCalibration() { };

@@ -609,14 +609,14 @@ bool UCameraLensDistortionAlgoCheckerboard::ValidateNewRow(TSharedPtr<FLensDisto
 	return true;
 }
 
-FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibration()
+FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibration(FText& OutErrorMessage)
 {
 	FDistortionCalibrationTask CalibrationTask = {};
 
 	// Validate that enough points were gathered to attempt a calibration
 	if (CalibrationRows.Num() < 1)
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. At least 1 calibration row is required."));
+		OutErrorMessage = LOCTEXT("NotEnoughCalibrationRowsError", "Could not initiate distortion calibration. At least 1 calibration row is required.");
 		return CalibrationTask;
 	}
 
@@ -630,19 +630,19 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 	}
 
 	ULensDistortionTool* LensDistortionTool = Tool.Get();
-	if (!LensDistortionTool)
+	if (!ensureMsgf((LensDistortionTool != nullptr), TEXT("The Lens Distortion Tool was invalid.")))
 	{
 		return CalibrationTask;
 	}
 
 	FCameraCalibrationStepsController* StepsController = LensDistortionTool->GetCameraCalibrationStepsController();
-	if (!StepsController)
+	if (!ensureMsgf((StepsController != nullptr), TEXT("The Calibration Steps Controller was invalid.")))
 	{
 		return CalibrationTask;
 	}
 
 	ULensFile* LensFile = StepsController->GetLensFile();
-	if (!LensFile)
+	if (!ensureMsgf((LensFile != nullptr), TEXT("The Lens File was invalid.")))
 	{
 		return CalibrationTask;
 	}
@@ -657,7 +657,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 
 	if (FMath::IsNearlyZero(PixelAspect))
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. The pixel aspect ratio of the CineCamera is zero, which is invalid."));
+		OutErrorMessage = LOCTEXT("PixelAspectZeroError", "The pixel aspect ratio of the CineCamera is zero, which is invalid.");
 		return CalibrationTask;
 	}
 
@@ -666,11 +666,18 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoCheckerboard::BeginCalibrati
 
 	if (FMath::IsNearlyZero(DesqueezeSensorWidth))
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. The sensor width of the CineCamera is zero, which is invalid."));
+		OutErrorMessage = LOCTEXT("SensorWidthZeroError", "One of the filmback dimensions of the CineCamera is zero, which is invalid.");
 		return CalibrationTask;
 	}
 
-	const double Fx = (FocalLengthEstimate / DesqueezeSensorWidth) * ImageSize.X;
+	if (!FocalLengthEstimate.IsSet() || FMath::IsNearlyZero(FocalLengthEstimate.GetValue()))
+	{
+		OutErrorMessage = LOCTEXT("FocalLengthEstimateError", "Enter a non-zero value (in mm) for the focal length estimate.");
+		return CalibrationTask;
+	}
+
+	const float FocalLengthEstimateValue = FocalLengthEstimate.GetValue();
+	const double Fx = (FocalLengthEstimateValue / DesqueezeSensorWidth) * ImageSize.X;
 
 	// When operating on a desqueezed image, we expect our pixel aspect to be square, so horizontal and vertical field of view are assumed to be equal (i.e. Fx == Fy)
 	FVector2D FocalLength = FVector2D(Fx, Fx);
@@ -885,9 +892,9 @@ TSharedRef<SWidget> UCameraLensDistortionAlgoCheckerboard::BuildFocalLengthEstim
 	.FillWidth(0.8)
 	.Padding(0, 0, 10, 0)
 	[
-		SNew(SNumericEntryBox<double>)
-		.Value(MakeAttributeLambda([this]() { return TOptional<double>(FocalLengthEstimate); }))
-		.OnValueChanged(SNumericEntryBox<double>::FOnValueChanged::CreateLambda([this](double NewValue) { FocalLengthEstimate = NewValue; }))
+		SNew(SNumericEntryBox<float>)
+		.Value_UObject(this, &UCameraLensDistortionAlgoCheckerboard::GetFocalLengthEstimate)
+		.OnValueChanged_UObject(this, &UCameraLensDistortionAlgoCheckerboard::SetFocalLengthEstimate)
 	]
 
 	+ SHorizontalBox::Slot()
@@ -895,19 +902,32 @@ TSharedRef<SWidget> UCameraLensDistortionAlgoCheckerboard::BuildFocalLengthEstim
 	[
 		SNew(SCheckBox)
 		.Padding(FMargin(5, 0, 15, 0))
-		.IsChecked_Lambda([&]() -> ECheckBoxState
-		{
-			return bFixFocalLength ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-		})
-		.OnCheckStateChanged_Lambda([&](ECheckBoxState NewState) -> void
-		{
-			bFixFocalLength = (NewState == ECheckBoxState::Checked);
-		})
+		.IsChecked_UObject(this, &UCameraLensDistortionAlgoCheckerboard::IsFixFocalLengthChecked)
+		.OnCheckStateChanged_UObject(this, &UCameraLensDistortionAlgoCheckerboard::OnFixFocalLengthCheckStateChanged)
 		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("FixText", "Fix?"))
+			SNew(STextBlock).Text(LOCTEXT("FixText", "Fix?"))
 		]
 	];
+}
+
+TOptional<float> UCameraLensDistortionAlgoCheckerboard::GetFocalLengthEstimate() const
+{
+	return FocalLengthEstimate;
+}
+
+void UCameraLensDistortionAlgoCheckerboard::SetFocalLengthEstimate(float NewValue)
+{
+	FocalLengthEstimate = NewValue;
+}
+
+ECheckBoxState UCameraLensDistortionAlgoCheckerboard::IsFixFocalLengthChecked() const
+{
+	return bFixFocalLength ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void UCameraLensDistortionAlgoCheckerboard::OnFixFocalLengthCheckStateChanged(ECheckBoxState NewState)
+{
+	bFixFocalLength = (NewState == ECheckBoxState::Checked);
 }
 
 TSharedRef<SWidget> UCameraLensDistortionAlgoCheckerboard::BuildFixImageCenterWidget()

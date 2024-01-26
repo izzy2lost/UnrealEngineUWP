@@ -384,15 +384,23 @@ void ULensDistortionTool::OnSaveCurrentCalibrationData()
 	}
 
 	const FText TitleError = LOCTEXT("LensCalibrationError", "Lens Calibration Error");
-	const FText UnknownError = LOCTEXT("UnknownError", "An error occurred initiating the distortion calibration. Check the output log for details.");
+	const FText UnknownError = LOCTEXT("UnknownError", "An unknown error occurred initiating the distortion calibration. Check the output log for details.");
 
 	if (CurrentAlgo->SupportsAsyncCalibration())
 	{
-		CalibrationTask = CurrentAlgo->BeginCalibration();
+		FText ErrorMessage;
+		CalibrationTask = CurrentAlgo->BeginCalibration(ErrorMessage);
 
 		if (!CalibrationTask.IsValid())
 		{
-			FMessageDialog::Open(EAppMsgType::Ok, UnknownError, TitleError);
+			if (!ErrorMessage.IsEmpty())
+			{
+				FMessageDialog::Open(EAppMsgType::Ok, ErrorMessage, TitleError);
+			}
+			else
+			{
+				FMessageDialog::Open(EAppMsgType::Ok, UnknownError, TitleError);
+			}
 			return;
 		}
 

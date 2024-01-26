@@ -264,30 +264,30 @@ bool UCameraLensDistortionAlgoAruco::OnViewportClicked(const FGeometry& MyGeomet
 	return true;
 }
 
-FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration()
+FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration(FText& OutErrorMessage)
 {
 	FDistortionCalibrationTask CalibrationTask = {};
 
 	if (CalibrationRows.Num() < 1)
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. At least 1 calibration row is required."));
+		OutErrorMessage = LOCTEXT("NotEnoughCalibrationRowsError", "Could not initiate distortion calibration. At least 1 calibration row is required.");
 		return CalibrationTask;
 	}
 
 	ULensDistortionTool* LensDistortionTool = WeakTool.Get();
-	if (!LensDistortionTool)
+	if (!ensureMsgf((LensDistortionTool != nullptr), TEXT("The Lens Distortion Tool was invalid.")))
 	{
 		return CalibrationTask;
 	}
 
 	FCameraCalibrationStepsController* StepsController = LensDistortionTool->GetCameraCalibrationStepsController();
-	if (!StepsController)
+	if (!ensureMsgf((StepsController != nullptr), TEXT("The Calibration Steps Controller was invalid.")))
 	{
 		return CalibrationTask;
 	}
 
 	ULensFile* LensFile = StepsController->GetLensFile();
-	if (!LensFile)
+	if (!ensureMsgf((LensFile != nullptr), TEXT("The Lens File was invalid.")))
 	{
 		return CalibrationTask;
 	}
@@ -304,7 +304,7 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration()
 
 	if (FMath::IsNearlyZero(PixelAspect))
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. The pixel aspect ratio of the CineCamera is zero, which is invalid."));
+		OutErrorMessage = LOCTEXT("PixelAspectZeroError", "The pixel aspect ratio of the CineCamera is zero, which is invalid.");
 		return CalibrationTask;
 	}
 
@@ -313,13 +313,13 @@ FDistortionCalibrationTask UCameraLensDistortionAlgoAruco::BeginCalibration()
 
 	if (FMath::IsNearlyZero(DesqueezeSensorWidth))
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. The sensor width of the CineCamera is zero, which is invalid."));
+		OutErrorMessage = LOCTEXT("SensorWidthZeroError", "One of the filmback dimensions of the CineCamera is zero, which is invalid.");
 		return CalibrationTask;
 	}
 
-	if (!FocalLengthEstimate.IsSet())
+	if (!FocalLengthEstimate.IsSet() || FMath::IsNearlyZero(FocalLengthEstimate.GetValue()))
 	{
-		UE_LOG(LogCameraCalibrationEditor, Error, TEXT("Could not initiate distortion calibration. Please enter a value (in mm) for the focal length estimate."));
+		OutErrorMessage = LOCTEXT("FocalLengthEstimateError", "Enter a non-zero value (in mm) for the focal length estimate.");
 		return CalibrationTask;
 	}
 
