@@ -22,6 +22,9 @@
   #endif
 #endif
 
+
+#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush" 
+//#include "HeterogeneousVolumes/HeterogeneousVolumesVoxelGridTypes.ush"
 #include "HairStrands/HairStrandsVisibilityCommonStruct.ush" 
 #include "Common.ush"
 
@@ -54,6 +57,13 @@
 #if USE_VIRTUAL_SHADOW_MAP_MASK
 #include "VirtualShadowMaps/VirtualShadowMapMaskBitsCommon.ush"
 #endif
+
+#if USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
+
+//#include "HeterogeneousVolumes/HeterogeneousVolumesVoxelGridUtils2.ush"
+//#include "HeterogeneousVolumes/HeterogeneousVolumesRayMarchingUtils.ush"
+#endif // USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
 // Remap light shape permutation into light type
 #if LIGHT_SOURCE_SHAPE == 0
@@ -284,6 +294,10 @@ void DeferredLightPixelMain(
 			SubstrateShadowTermInputParameters.PrecomputedShadowFactors				= SubstrateReadPrecomputedShadowFactors(SubstratePixelHeader, PixelPos, SceneTexturesStruct.GBufferETexture);
 			SubstrateShadowTermInputParameters.TranslatedWorldPosition				= DerivedParams.TranslatedWorldPosition;
 			SubstrateShadowTermInputParameters.LightAttenuation						= GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
+#if USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+			//SubstrateShadowTermInputParameters.LightAttenuation *= Luminance(ComputeTransmittance(DerivedParams.TranslatedWorldPosition, LightData.TranslatedWorldPosition, 256));
+			SubstrateShadowTermInputParameters.LightAttenuation *= AVSM_SampleTransmittance(DerivedParams.TranslatedWorldPosition, LightData.TranslatedWorldPosition);
+#endif // USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 			SubstrateShadowTermInputParameters.Dither								= InterleavedGradientNoise(InputParams.PixelPos, View.StateFrameIndexMod8);
 
 			FSubstrateDeferredLighting SubstrateLighting = SubstrateDeferredLighting(
@@ -333,6 +347,24 @@ void DeferredLightPixelMain(
 		float SurfaceShadow = 1.0f;
 		
 		float4 LightAttenuation = GetLightAttenuationFromShadow(InputParams, SceneDepth, DerivedParams.TranslatedWorldPosition);
+#if USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+		float3 WorldPosition = DFFastSubtractDemote(DerivedParams.TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+		float3 WorldToLight = LightData.Direction * 10000;
+		if (LightData.bSpotLight || LightData.bRectLight)
+		{
+			float3 WorldLightPosition = DFFastSubtractDemote(LightData.TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+			WorldToLight = WorldLightPosition - WorldPosition;
+		}
+
+		if (!AVSM.bIsEmpty)
+		{
+			LightAttenuation *= AVSM_SampleTransmittance(DerivedParams.TranslatedWorldPosition, LightData.TranslatedWorldPosition);
+		}
+		else
+		{
+			//LightAttenuation *= Luminance(ComputeTransmittance(WorldPosition, WorldToLight, 512));
+		}
+#endif // USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 		float4 Radiance = GetDynamicLighting(DerivedParams.TranslatedWorldPosition, DerivedParams.CameraVector, ScreenSpaceData.GBuffer, ScreenSpaceData.AmbientOcclusion, ScreenSpaceData.GBuffer.ShadingModelID, LightData, LightAttenuation, Dither, uint2(InputParams.PixelPos), SurfaceShadow);
 
 		OutColor += Radiance;

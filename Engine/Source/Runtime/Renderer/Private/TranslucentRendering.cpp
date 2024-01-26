@@ -1006,6 +1006,8 @@ TRDGUniformBufferRef<FTranslucentBasePassUniformParameters> CreateTranslucentBas
 		BasePassParameters.BlueNoise = GetBlueNoiseDummyParameters();
 	}
 
+	BasePassParameters.AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricCameraMapParameters(GraphBuilder, View.ViewState);
+
 	return GraphBuilder.CreateUniformBuffer(&BasePassParameters);
 }
 

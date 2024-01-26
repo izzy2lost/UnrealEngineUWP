@@ -1447,6 +1447,7 @@ struct FAddSubjectPrimitiveResult
 			uint32 bOverflowed : 1;
 			uint32 bDynamicSubjectPrimitive : 1;
 			uint32 bTranslucentSubjectPrimitive : 1;
+			uint32 bHeterogeneousVolumeSubjectPrimitive : 1;
 			uint32 bNeedUniformBufferUpdate : 1;
 			uint32 bNeedPrimitiveFadingStateUpdate : 1;
 			uint32 bFadingIn : 1;
@@ -1609,6 +1610,7 @@ struct FAddSubjectPrimitiveStats
 	int32 NumMDCBuildRequests;
 	int32 NumDynamicSubs;
 	int32 NumTranslucentSubs;
+	int32 NumHeterogeneousVolumeSubs;
 	int32 NumDeferredPrimitives;
 
 	FAddSubjectPrimitiveStats()
@@ -1616,6 +1618,7 @@ struct FAddSubjectPrimitiveStats
 		, NumMDCBuildRequests(0)
 		, NumDynamicSubs(0)
 		, NumTranslucentSubs(0)
+		, NumHeterogeneousVolumeSubs(0)
 		, NumDeferredPrimitives(0)
 	{}
 
@@ -1636,6 +1639,10 @@ struct FAddSubjectPrimitiveStats
 		if (Other.NumTranslucentSubs > 0)
 		{
 			FPlatformAtomics::InterlockedAdd(&NumTranslucentSubs, Other.NumTranslucentSubs);
+		}
+		if (Other.NumHeterogeneousVolumeSubs > 0)
+		{
+			FPlatformAtomics::InterlockedAdd(&NumHeterogeneousVolumeSubs, Other.NumHeterogeneousVolumeSubs);
 		}
 		if (Other.NumDeferredPrimitives > 0)
 		{
@@ -1923,6 +1930,7 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 		bool bTranslucentRelevance = false;
 		bool bShadowRelevance = false;
 		bool bDynamicRelevance = false;
+		bool bHeterogeneousVolumeRelevance = false;
 
 		int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
 
@@ -1973,6 +1981,7 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 			bTranslucentRelevance |= ViewRelevance.HasTranslucency();
 			bShadowRelevance |= ViewRelevance.bShadowRelevance;
 			bDynamicRelevance = bDynamicRelevance || ViewRelevance.bDynamicRelevance;
+			bHeterogeneousVolumeRelevance = ViewRelevance.bHasVolumeMaterialDomain && PrimitiveSceneInfo->Proxy->IsHeterogeneousVolume();
 		}
 
 		if (bShadowRelevance)
@@ -2039,6 +2048,12 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 		if (bTranslucentShadow && bTranslucentRelevance && bShadowRelevance)
 		{
 			SubjectTranslucentPrimitives.Add(PrimitiveSceneInfo);
+			bWasAdded = true;
+		}
+
+		if (bHeterogeneousVolumeRelevance)
+		{
+			SubjectHeterogeneousVolumePrimitives.Add(PrimitiveSceneInfo);
 			bWasAdded = true;
 		}
 	}
@@ -2134,6 +2149,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 		bool bStaticRelevance = false;
 		bool bMayBeFading = false;
 		bool bDynamicRelevance = false;
+		bool bHeterogeneousVolumeRelevance = false;
 
 		const int32 PrimitiveId = PrimitiveSceneInfo->GetIndex();
 		FPrimitiveViewRelevance& ViewRelevance = CurrentView->PrimitiveViewRelevanceMap[PrimitiveId];
@@ -2189,6 +2205,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 		bShadowRelevance = ViewRelevance.bShadowRelevance;
 		bStaticRelevance = ViewRelevance.bStaticRelevance;
 		bDynamicRelevance = ViewRelevance.bDynamicRelevance;
+		bHeterogeneousVolumeRelevance = ViewRelevance.bHasVolumeMaterialDomain && PrimitiveSceneInfo->Proxy->IsHeterogeneousVolume();
 
 		if (!bShadowRelevance)
 		{
@@ -2245,6 +2262,12 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 			Result.bTranslucentSubjectPrimitive = true;
 			++OutStats.NumTranslucentSubs;
 		}
+
+		if (bHeterogeneousVolumeRelevance)
+		{
+			Result.bHeterogeneousVolumeSubjectPrimitive = true;
+			++OutStats.NumHeterogeneousVolumeSubs;
+		}
 	}
 
 	return Result.Qword;
@@ -2257,6 +2280,7 @@ void FProjectedShadowInfo::PresizeSubjectPrimitiveArrays(const FAddSubjectPrimit
 	SubjectMeshCommandBuildFlags.Reserve(SubjectMeshCommandBuildFlags.Num() + Stats.NumMDCBuildRequests);
 	DynamicSubjectPrimitives.Reserve(DynamicSubjectPrimitives.Num() + Stats.NumDeferredPrimitives + Stats.NumDynamicSubs);
 	SubjectTranslucentPrimitives.Reserve(SubjectTranslucentPrimitives.Num() + Stats.NumTranslucentSubs);
+	SubjectHeterogeneousVolumePrimitives.Reserve(SubjectHeterogeneousVolumePrimitives.Num() + Stats.NumHeterogeneousVolumeSubs);
 }
 
 void FProjectedShadowInfo::FinalizeAddSubjectPrimitive(
@@ -2376,12 +2400,18 @@ void FProjectedShadowInfo::FinalizeAddSubjectPrimitive(
 	{
 		SubjectTranslucentPrimitives.Add(PrimitiveSceneInfo);
 	}
+
+	if (Result.bHeterogeneousVolumeSubjectPrimitive)
+	{
+		SubjectHeterogeneousVolumePrimitives.Add(PrimitiveSceneInfo);
+	}
 }
 
 bool FProjectedShadowInfo::HasSubjectPrims() const
 {
 	return DynamicSubjectPrimitives.Num() > 0
 		|| SubjectTranslucentPrimitives.Num() > 0
+		|| SubjectHeterogeneousVolumePrimitives.Num() > 0
 		|| ShadowDepthPass.HasAnyDraw()
 		|| SubjectMeshCommandBuildRequests.Num() > 0
 		|| ShadowDepthPassVisibleCommands.Num() > 0
@@ -2634,7 +2664,7 @@ bool FProjectedShadowInfo::GatherDynamicMeshElements(
 
 	bool bProcessedAllPrimitives = true;
 
-	if (DynamicSubjectPrimitives.Num() > 0 || ReceiverPrimitives.Num() > 0 || SubjectTranslucentPrimitives.Num() > 0)
+	if (DynamicSubjectPrimitives.Num() > 0 || ReceiverPrimitives.Num() > 0 || SubjectTranslucentPrimitives.Num() > 0 || SubjectHeterogeneousVolumePrimitives.Num() > 0)
 	{
 		ReusedViewsArray[0] = ShadowDepthView;
 
@@ -2667,6 +2697,11 @@ bool FProjectedShadowInfo::GatherDynamicMeshElements(
 		int32 NumDynamicSubjectTranslucentMeshElements = 0;
 		ShadowDepthView->SetDynamicMeshElementsShadowCullFrustum(&CasterOuterFrustum);
 		bProcessedAllPrimitives &= GatherDynamicMeshElementsArray(MeshCollector, SubjectTranslucentPrimitives, ReusedViewsArray, Renderer.ViewFamily, DynamicSubjectTranslucentMeshElements, NumDynamicSubjectTranslucentMeshElements, Pass);
+
+		int32 NumDynamicSubjectHeterogeneousVolumeMeshElements = 0;
+		bProcessedAllPrimitives &= GatherDynamicHeterogeneousVolumeMeshElementsArray(Renderer, MeshCollector, SubjectHeterogeneousVolumePrimitives, ReusedViewsArray, Renderer.ViewFamily, DynamicSubjectHeterogeneousVolumeMeshElements, NumDynamicSubjectHeterogeneousVolumeMeshElements, Pass);
+
+		MeshCollector.ClearViewMeshArrays();
 	}
 
 	return bProcessedAllPrimitives;
@@ -2731,7 +2766,48 @@ bool FProjectedShadowInfo::GatherDynamicMeshElementsArray(
 	}
 
 	OutNumDynamicSubjectMeshElements += MeshCollector.GetMeshElementCount(0);
-	MeshCollector.ClearViewMeshArrays();
+	return bProcessedAllPrimitives;
+}
+
+bool FProjectedShadowInfo::GatherDynamicHeterogeneousVolumeMeshElementsArray(
+	FSceneRenderer& Renderer,
+	FMeshElementCollector& MeshCollector,
+	const PrimitiveArrayType& Primitives,
+	const TArray<const FSceneView*>& Views,
+	const FSceneViewFamily& ViewFamily,
+	TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>& OutDynamicMeshElements,
+	int32& OutNumDynamicSubjectMeshElements,
+	EGatherDynamicMeshElementsPass Pass)
+{
+	int32 Zero = 0;
+	TArray<int32> MeshElementsPerView(&Zero, Views.Num());
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	{
+		MeshElementsPerView[ViewIndex] = MeshCollector.GetMeshElementCount(ViewIndex);
+	}
+
+	bool bProcessedAllPrimitives = GatherDynamicMeshElementsArray(
+		MeshCollector,
+		Primitives,
+		Views,
+		ViewFamily,
+		OutDynamicMeshElements,
+		OutNumDynamicSubjectMeshElements,
+		Pass
+	);
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
+	{
+		uint32 MeshElementCount = MeshCollector.GetMeshElementCount(ViewIndex);
+		for (uint32 Index = MeshElementsPerView[ViewIndex]; Index < MeshElementCount; ++Index)
+		{
+			FMeshBatchAndRelevance MeshBatchAndRelevance = (*MeshCollector.MeshBatches[ViewIndex])[Index];
+			OutDynamicMeshElements.Add(MeshBatchAndRelevance);
+		}
+
+		OutNumDynamicSubjectMeshElements += MeshElementCount - MeshElementsPerView[ViewIndex];
+	}
+
 	return bProcessedAllPrimitives;
 }
 
@@ -2763,10 +2839,12 @@ void FProjectedShadowInfo::ClearTransientArrays()
 	NumSubjectMeshCommandBuildRequestElements = 0;
 
 	SubjectTranslucentPrimitives.Empty();
+	SubjectHeterogeneousVolumePrimitives.Empty();
 	DynamicSubjectPrimitives.Empty();
 	ReceiverPrimitives.Empty();
 	DynamicSubjectMeshElements.Empty();
 	DynamicSubjectTranslucentMeshElements.Empty();
+	DynamicSubjectHeterogeneousVolumeMeshElements.Empty();
 
 	ShadowDepthPassVisibleCommands.Empty();
 	ShadowDepthPass.WaitForTasksAndEmpty();

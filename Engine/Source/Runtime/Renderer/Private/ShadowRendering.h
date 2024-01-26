@@ -804,6 +804,8 @@ public:
 	/** Check if we need to set the scissor rect to exclude portion of the CSM slices outside the view frustum */
 	bool ShouldUseCSMScissorOptim() const;
 
+	const TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>& GetDynamicSubjectHeterogeneousVolumeMeshElements() const { return DynamicSubjectHeterogeneousVolumeMeshElements; }
+
 private:
 	// 0 if Setup...() wasn't called yet
 	FLightSceneInfo* LightSceneInfo;
@@ -821,11 +823,15 @@ private:
 	PrimitiveArrayType ReceiverPrimitives;
 	/** Subject primitives with translucent relevance. */
 	PrimitiveArrayType SubjectTranslucentPrimitives;
+	/** Subject primitives for heterogeneous volume shadows. */
+	PrimitiveArrayType SubjectHeterogeneousVolumePrimitives;
 
 	/** Dynamic mesh elements for subject primitives. */
 	TArray<FMeshBatchAndRelevance,SceneRenderingAllocator> DynamicSubjectMeshElements;
 	/** Dynamic mesh elements for translucent subject primitives. */
 	TArray<FMeshBatchAndRelevance,SceneRenderingAllocator> DynamicSubjectTranslucentMeshElements;
+	/** Dynamic mesh elements for heterogeneous volume primitives. */
+	TArray<FMeshBatchAndRelevance, SceneRenderingAllocator> DynamicSubjectHeterogeneousVolumeMeshElements;
 
 	TArray<const FStaticMeshBatch*, SceneRenderingAllocator> SubjectMeshCommandBuildRequests;
 	TArray<EMeshDrawCommandCullingPayloadFlags, SceneRenderingAllocator> SubjectMeshCommandBuildFlags;
@@ -950,6 +956,16 @@ private:
 		const TArray<const FSceneView*>& Views,
 		const FSceneViewFamily& ViewFamily,
 		TArray<FMeshBatchAndRelevance,SceneRenderingAllocator>& OutDynamicMeshElements,
+		int32& OutNumDynamicSubjectMeshElements,
+		EGatherDynamicMeshElementsPass Pass);
+
+	bool GatherDynamicHeterogeneousVolumeMeshElementsArray(
+		FSceneRenderer& Renderer,
+		FMeshElementCollector& Collector,
+		const PrimitiveArrayType& PrimitiveArray,
+		const TArray<const FSceneView*>& Views,
+		const FSceneViewFamily& ViewFamily,
+		TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>& OutDynamicMeshElements,
 		int32& OutNumDynamicSubjectMeshElements,
 		EGatherDynamicMeshElementsPass Pass);
 

@@ -8,7 +8,17 @@
 #define UE_DF_FORCE_FP32_OPS 1
 #endif
 
+#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush" 
 #include "Common.ush"
+
+#ifndef ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#define ADAPTIVE_VOLUMETRIC_SHADOW_MAP 0
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#define AVSM TranslucentBasePass.AVSM
+#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
 // Reroute SceneTexturesStruct uniform buffer references to the appropriate base pass uniform buffer
 #if MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE
@@ -1333,6 +1343,13 @@ void FPixelShaderInOut_MainPS(
 		Fogging = CombineVolumetricFog(HeightFogging, VolumeUV, EyeIndex, GBuffer.Depth);
 	}
 #endif
+
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+	float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
+	float Transmittance = saturate(AVSM_SampleTransmittance(TranslatedWorldPosition, ResolvedView.TranslatedWorldCameraOrigin));
+	Opacity *= Transmittance;
+
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
 #if NEEDS_BASEPASS_PIXEL_FOGGING
 	const float OneOverPreExposure = ResolvedView.OneOverPreExposure;
