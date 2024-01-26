@@ -527,6 +527,23 @@ void FActorBrowsingMode::InitializeViewMenuExtender(TSharedPtr<FExtender> Extend
 			EUserInterfaceActionType::ToggleButton
 		);
 
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("FolderDoubleClickToggleCurrentFolderLabel", "Double Click toggles Current Folder"),
+			LOCTEXT(
+				"FolderDoubleClickToggleCurrentFolderTooltip",
+				"When enabled, double clicking on a folder will result in it toggling its Current Folder state"
+				"instead of its expansion."
+			),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &FActorBrowsingMode::OnToggleFolderDoubleClickMarkCurrentFolder),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateRaw(this, &FActorBrowsingMode::DoesFolderDoubleClickMarkCurrentFolder)
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+		);
+
 		MenuBuilder.EndSection();
 
 		MenuBuilder.BeginSection("World", LOCTEXT("ShowWorldHeading", "World"));
@@ -1137,6 +1154,60 @@ void FActorBrowsingMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item)
 	{
 		ActorDescItem->FocusActorBounds();
 	}
+	else if (const FActorFolderTreeItem* FolderItem = Item->CastTo<FActorFolderTreeItem>())
+	{
+		if (DoesFolderDoubleClickMarkCurrentFolder())
+		{
+			if (UWorld* World = FolderItem->World.Get())
+			{
+				const FScopedTransaction Transaction(
+					LOCTEXT("ToggleCurrentActorFolder", "Toggle Current Actor Folder")
+				);
+
+				const FFolder CurrentContextFolder = FActorFolders::Get().GetActorEditorContextFolder(*World);
+				if (CurrentContextFolder == FolderItem->GetFolder())
+				{
+					FActorFolders::Get().SetActorEditorContextFolder(*World, FFolder::GetWorldRootFolder(World));
+				}
+				else
+				{
+					FActorFolders::Get().SetActorEditorContextFolder(*World, FolderItem->GetFolder());
+				}
+			}
+		}
+	}
+}
+
+bool FActorBrowsingMode::HasCustomFolderDoubleClick() const
+{
+	return DoesFolderDoubleClickMarkCurrentFolder();
+}
+
+void FActorBrowsingMode::OnToggleFolderDoubleClickMarkCurrentFolder()
+{
+	if (FActorBrowsingModeConfig* Settings = GetMutableConfig())
+	{
+		if (Settings->FolderDoubleClickMethod == EActorBrowsingFolderDoubleClickMethod::ToggleCurrentFolder)
+		{
+			Settings->FolderDoubleClickMethod = EActorBrowsingFolderDoubleClickMethod::ToggleExpansion;
+		}
+		else
+		{
+			Settings->FolderDoubleClickMethod = EActorBrowsingFolderDoubleClickMethod::ToggleCurrentFolder;
+		}
+
+		SaveConfig();
+	}
+}
+
+bool FActorBrowsingMode::DoesFolderDoubleClickMarkCurrentFolder() const
+{
+	if (const FActorBrowsingModeConfig* Settings = GetConstConfig())
+	{
+		return Settings->FolderDoubleClickMethod == EActorBrowsingFolderDoubleClickMethod::ToggleCurrentFolder;
+	}
+
+	return false;
 }
 
 void FActorBrowsingMode::OnFilterTextCommited(FSceneOutlinerItemSelection& Selection, ETextCommit::Type CommitType)

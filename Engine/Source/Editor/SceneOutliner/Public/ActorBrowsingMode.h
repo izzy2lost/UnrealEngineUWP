@@ -28,6 +28,7 @@ public:
 	SCENEOUTLINER_API virtual void OnItemPassesFilters(const ISceneOutlinerTreeItem& Item) override;
 	SCENEOUTLINER_API virtual FReply OnKeyDown(const FKeyEvent& InKeyEvent) override;
 	SCENEOUTLINER_API virtual void OnDuplicateSelected() override;
+	SCENEOUTLINER_API virtual bool HasCustomFolderDoubleClick() const override;
 	SCENEOUTLINER_API virtual bool CanRenameItem(const ISceneOutlinerTreeItem& Item) const override;
 	SCENEOUTLINER_API virtual FText GetStatusText() const override;
 	SCENEOUTLINER_API virtual FSlateColor GetStatusTextColor() const override;
@@ -139,6 +140,9 @@ private:
 
 	void OnToggleHideLevelInstanceHierarchy();
 	bool ShouldHideLevelInstanceHierarchy() const;
+
+	void OnToggleFolderDoubleClickMarkCurrentFolder();
+	bool DoesFolderDoubleClickMarkCurrentFolder() const;
 
 	/**
 	 * Get a mutable version of the ActorBrowser config for setting values.
