@@ -156,7 +156,13 @@ namespace UE::Chaos::ClothAsset
 
 		if (PathStringProperty)
 		{
-			PathStringProperty->SetValue(FinalPath);
+			// The value can be set twice from pressing enter and losing the focus, most likely triggering two reentrant evaluations if not avoided
+			FString OldPath;
+			PathStringProperty->GetValue(OldPath);
+			if (OldPath != FinalPath)
+			{
+				PathStringProperty->SetValue(FinalPath);
+			}
 		}
 		FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_OPEN, FPaths::GetPath(PickedPath));
 	}
