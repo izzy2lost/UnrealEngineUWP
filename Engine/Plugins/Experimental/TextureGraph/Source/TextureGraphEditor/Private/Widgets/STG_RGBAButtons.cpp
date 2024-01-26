@@ -16,7 +16,7 @@ void STG_RGBAButtons::Construct(const FArguments& InArgs)
 
 TSharedRef<SWidget> STG_RGBAButtons::MakeChannelControlWidget()
 {
-	CheckedBrush = new FSlateRoundedBoxBrush(FStyleColors::Input, CoreStyleConstants::InputFocusRadius);
+	CheckedBrush = new FSlateRoundedBoxBrush(FLinearColor(0.039, 0.039, 0.039, 1), CoreStyleConstants::InputFocusRadius);
 
 	TSharedRef<SWidget> ChannelControl =
 		SNew(SHorizontalBox)

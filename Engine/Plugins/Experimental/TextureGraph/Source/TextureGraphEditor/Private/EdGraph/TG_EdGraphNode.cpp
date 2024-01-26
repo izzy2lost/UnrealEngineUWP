@@ -405,7 +405,7 @@ FString UTG_EdGraphNode::GetTitleDetail()
 				Args.Add(TEXT("IsSRGB"), Desc.bIsSRGB ? "sRGB" : "Linear");
 				Args.Add(TEXT("Width"), FString::FromInt(Desc.Width));
 				Args.Add(TEXT("Height"), FString::FromInt(Desc.Height));
-				Details = FString::Format(TEXT("{Channels}_{Format}, {IsSRGB}\r\n{Width}x{Height}"), Args);
+				Details = FString::Format(TEXT("{Channels}_{Format}, {IsSRGB}\n{Width}x{Height}"), Args);
 			}
 		}
 	}
