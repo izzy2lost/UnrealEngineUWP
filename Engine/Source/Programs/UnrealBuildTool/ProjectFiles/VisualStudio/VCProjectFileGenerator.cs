@@ -18,7 +18,6 @@ namespace UnrealBuildTool
 	enum VCProjectFileFormat
 	{
 		Default,          // Default to the best installed version, but allow SDKs to override
-		VisualStudio2019,
 		VisualStudio2022,
 	}
 
@@ -138,11 +137,7 @@ namespace UnrealBuildTool
 				Settings.ProjectFileFormat = InProjectFileFormat;
 			}
 
-			if (InArguments.HasOption("-2019"))
-			{
-				BuildToolOverride = "-2019";
-			}
-			else if (InArguments.HasOption("-2022"))
+			if (InArguments.HasOption("-2022"))
 			{
 				BuildToolOverride = "-2022";
 			}
@@ -226,8 +221,6 @@ namespace UnrealBuildTool
 		{
 			switch (ProjectFileFormat)
 			{
-				case VCProjectFileFormat.VisualStudio2019:
-					return "16.0";
 				case VCProjectFileFormat.VisualStudio2022:
 					return "17.0";
 			}
@@ -239,8 +232,6 @@ namespace UnrealBuildTool
 		{
 			switch (ProjectFileFormat)
 			{
-				case VCProjectFileFormat.VisualStudio2019:
-					return "v142";
 				case VCProjectFileFormat.VisualStudio2022:
 					return "v143";
 
@@ -254,11 +245,8 @@ namespace UnrealBuildTool
 			{
 				case VCProjectFileFormat.VisualStudio2022:
 					return WindowsCompiler.VisualStudio2022;
-				case VCProjectFileFormat.VisualStudio2019:
-					return WindowsCompiler.VisualStudio2019;
-				default:
-					return WindowsCompiler.VisualStudio2019;
 			}
+			return WindowsCompiler.VisualStudio2022;
 		}
 
 		public static void AppendPlatformToolsetProperty(StringBuilder VCProjectFileContent, VCProjectFileFormat ProjectFileFormat)
@@ -304,14 +292,6 @@ namespace UnrealBuildTool
 					Settings.ProjectFileFormat = VCProjectFileFormat.Default;
 				}
 			}
-			else if (Settings.ProjectFileFormat == VCProjectFileFormat.VisualStudio2019)
-			{
-				if (!WindowsPlatform.HasCompiler(WindowsCompiler.VisualStudio2019, UnrealArch.X64, Logger))
-				{
-					Logger.LogWarning("Visual Studio C++ 2019 installation not found - ignoring preferred project file format.");
-					Settings.ProjectFileFormat = VCProjectFileFormat.Default;
-				}
-			}
 
 			// Certain platforms override the project file format because their debugger add-ins may not yet support the latest
 			// version of Visual Studio.  This is their chance to override that.
@@ -330,15 +310,10 @@ namespace UnrealBuildTool
 						Format = VCProjectFileFormat.VisualStudio2022;
 						break;
 					}
-					else if (Installation.Compiler == WindowsCompiler.VisualStudio2019)
-					{
-						Format = VCProjectFileFormat.VisualStudio2019;
-						break;
-					}
 				}
 				Settings.ProjectFileFormat = Format;
 
-				bool Vs2019Available = Installations.Any(x => x.Compiler == WindowsCompiler.VisualStudio2019);
+				bool DowngradeAvailable = false; // ex: Installations.Any(x => x.Compiler == WindowsCompiler.VisualStudio2022);
 
 				// Allow the SDKs to override
 				foreach (UnrealTargetPlatform SupportedPlatform in SupportedPlatforms)
@@ -362,16 +337,16 @@ namespace UnrealBuildTool
 									{
 										Logger.LogInformation("Please update {SupportedPlatform} SDK to {Version} if Visual Studio 2022 support is desired.", SupportedPlatform, Version);
 									}
-									if (!Vs2019Available)
+									if (!DowngradeAvailable)
 									{
-										Logger.LogInformation("Generated solution cannot be downgraded to Visual Studio 2019 as it is not installed. Please install Visual Studio 2019 if {SupportedPlatform} SDK support is required.", SupportedPlatform);
+										Logger.LogInformation("Generated solution cannot be downgraded as no prior Visual Studio version is not installed. Please install the prior version of Visual Studio if {SupportedPlatform} SDK support is required.", SupportedPlatform);
 									}
 									else
 									{
+										Logger.LogInformation("Downgrading generated solution to {ProposedFormat}.", ProposedFormat);
+										Logger.LogInformation("To force {ProjectFileFormat} solutions to always be generated add the following to BuildConfiguration.xml:", Settings.ProjectFileFormat);
+										Logger.LogInformation("  <VCProjectFileGenerator>\r\n    <Version>{ProposedFormat}</Version>\r\n  </VCProjectFileGenerator>", Settings.ProjectFileFormat);
 										Settings.ProjectFileFormat = ProposedFormat;
-										Logger.LogInformation("Downgrading generated solution to Visual Studio 2019.");
-										Logger.LogInformation("To force Visual Studio 2022 solutions to always be generated add the following to BuildConfiguration.xml:");
-										Logger.LogInformation("  <VCProjectFileGenerator>\r\n    <Version>VisualStudio2022</Version>\r\n  </VCProjectFileGenerator>");
 									}
 									Logger.LogInformation(String.Empty);
 								}
@@ -379,13 +354,6 @@ namespace UnrealBuildTool
 						}
 					}
 				}
-			}
-
-			if (bIncludeDotNetPrograms && Settings.ProjectFileFormat == VCProjectFileFormat.VisualStudio2019)
-			{
-				Logger.LogInformation("Visual Studio 2019 does not support .NET 6.0 C# projects, these projects will not be added to the generated solution.");
-				Logger.LogInformation("Please generate the Visual Studio 2022 solution if .NET 6.0 C# project support is required.");
-				bIncludeDotNetPrograms = false;
 			}
 		}
 
@@ -677,14 +645,6 @@ namespace UnrealBuildTool
 				VCSolutionFileContent.AppendLine("VisualStudioVersion = 17.0.31314.256");
 				VCSolutionFileContent.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
 			}
-			else if (Settings.ProjectFileFormat == VCProjectFileFormat.VisualStudio2019)
-			{
-				VCSolutionFileContent.AppendLine();
-				VCSolutionFileContent.AppendLine("Microsoft Visual Studio Solution File, Format Version 12.00");
-				VCSolutionFileContent.AppendLine("# Visual Studio Version 16");
-				VCSolutionFileContent.AppendLine("VisualStudioVersion = 16.0.28315.86");
-				VCSolutionFileContent.AppendLine("MinimumVisualStudioVersion = 10.0.40219.1");
-			}
 			else
 			{
 				throw new BuildException("Unexpected ProjectFileFormat");
@@ -950,9 +910,6 @@ namespace UnrealBuildTool
 				FileReference SolutionOptionsFileName;
 				switch (Settings.ProjectFileFormat)
 				{
-					case VCProjectFileFormat.VisualStudio2019:
-						SolutionOptionsFileName = FileReference.Combine(PrimaryProjectPath, ".vs", Path.GetFileNameWithoutExtension(SolutionFileName), "v16", ".suo");
-						break;
 					case VCProjectFileFormat.VisualStudio2022:
 						SolutionOptionsFileName = FileReference.Combine(PrimaryProjectPath, ".vs", Path.GetFileNameWithoutExtension(SolutionFileName), "v17", ".suo");
 						break;
@@ -986,10 +943,6 @@ namespace UnrealBuildTool
 
 					// Mark all the projects as closed by default, apart from the startup project
 					VCSolutionExplorerState ExplorerState = new VCSolutionExplorerState();
-					if (Settings.ProjectFileFormat >= VCProjectFileFormat.VisualStudio2019)
-					{
-						BuildSolutionExplorerState_VS2019(RootFolder, "", ExplorerState, DefaultProject);
-					}
 					Options.SetExplorerState(ExplorerState);
 
 					// Write the file
@@ -1159,36 +1112,6 @@ namespace UnrealBuildTool
 				string ConfigFilePath = FileReference.Combine(IntermediateProjectFilesPath, "UnrealVS.xml").FullName;
 				/* bool bSuccess = */
 				ProjectFileGenerator.WriteFileIfChanged(ConfigFilePath, UnrealVSContent.ToString(), Logger);
-			}
-		}
-
-		static void BuildSolutionExplorerState_VS2019(PrimaryProjectFolder Folder, string Suffix, VCSolutionExplorerState ExplorerState, ProjectFile? DefaultProject)
-		{
-			foreach (ProjectFile Project in Folder.ChildProjects)
-			{
-				string ProjectIdentifier = String.Format("{0}{1}", Project.ProjectFilePath.GetFileNameWithoutExtension(), Suffix);
-				if (Project == DefaultProject)
-				{
-					ExplorerState.OpenProjects.Add(new Tuple<string, string[]>(ProjectIdentifier, new string[] { ProjectIdentifier }));
-				}
-				else
-				{
-					ExplorerState.OpenProjects.Add(new Tuple<string, string[]>(ProjectIdentifier, new string[] { }));
-				}
-			}
-
-			foreach (PrimaryProjectFolder SubFolder in Folder.SubFolders)
-			{
-				string SubFolderName = SubFolder.FolderName + Suffix;
-				if (SubFolderName == "Automation;Programs")
-				{
-					ExplorerState.OpenProjects.Add(new Tuple<string, string[]>(SubFolderName, new string[] { }));
-				}
-				else
-				{
-					ExplorerState.OpenProjects.Add(new Tuple<string, string[]>(SubFolderName, new string[] { SubFolderName }));
-				}
-				BuildSolutionExplorerState_VS2019(SubFolder, ";" + SubFolderName, ExplorerState, DefaultProject);
 			}
 		}
 
