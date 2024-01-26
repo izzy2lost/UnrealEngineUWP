@@ -23,7 +23,6 @@ using Horde.Server.Streams;
 using Horde.Server.Issues;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
-using Horde.Server.Logs.Builder;
 using Horde.Server.Notifications;
 using Horde.Server.Server;
 using Horde.Server.Storage;
@@ -91,6 +90,7 @@ namespace Horde.Server.Tests
 		public IIssueCollection IssueCollection => ServiceProvider.GetRequiredService <IIssueCollection>();
 		public IPoolCollection PoolCollection => ServiceProvider.GetRequiredService <IPoolCollection>();
 		public ILeaseCollection LeaseCollection => ServiceProvider.GetRequiredService <ILeaseCollection>();
+		public ILogFileCollection LogFileCollection => ServiceProvider.GetRequiredService<ILogFileCollection>();
 		public ISessionCollection SessionCollection => ServiceProvider.GetRequiredService <ISessionCollection>();
 		public ITestDataCollection TestDataCollection => ServiceProvider.GetRequiredService<ITestDataCollection>();
 		public IUserCollection UserCollection => ServiceProvider.GetRequiredService<IUserCollection>();
@@ -258,7 +258,6 @@ namespace Horde.Server.Tests
 			services.AddSingleton<JobService>();
 			services.AddSingleton<LifetimeService>();
 			services.AddSingleton<ILogStorage, NullLogStorage>();
-			services.AddSingleton<ILogBuilder, LocalLogBuilder>();
 			services.AddSingleton<ILogFileService, LogFileService>();
 			services.AddSingleton<LogTailService>();
 			services.AddSingleton<INotificationService, NotificationService>();

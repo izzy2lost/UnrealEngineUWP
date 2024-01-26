@@ -26,7 +26,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <inheritdoc/>
 		public override async Task<LeaseResult> ExecuteAsync(ISession session, string leaseId, UpgradeTask task, CancellationToken cancellationToken)
 		{
-			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session, task.LogId, null, null);
+			await using IServerLogger logger = _serverLoggerFactory.CreateLogger(session, task.LogId, null);
 
 			string requiredVersion = task.SoftwareId;
 

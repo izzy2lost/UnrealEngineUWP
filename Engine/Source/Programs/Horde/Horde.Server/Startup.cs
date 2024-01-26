@@ -51,7 +51,6 @@ using Horde.Server.Jobs.Templates;
 using Horde.Server.Jobs.TestData;
 using Horde.Server.Jobs.Timing;
 using Horde.Server.Logs;
-using Horde.Server.Logs.Builder;
 using Horde.Server.Logs.Storage;
 using Horde.Server.Notifications;
 using Horde.Server.Secrets;
@@ -100,7 +99,6 @@ using Horde.Server.Notifications.Sinks;
 using StatusCode = Grpc.Core.StatusCode;
 using Horde.Server.Artifacts;
 using Horde.Server.Compute;
-using OpenTelemetry.Trace;
 using Polly;
 using Polly.Extensions.Http;
 using Horde.Server.Jobs.Bisect;
@@ -824,11 +822,6 @@ namespace Horde.Server
 					services.AddHostedService(provider => provider.GetRequiredService<ReplicationService>());
 				}
 
-				if (settings.EnableLogService)
-				{
-					services.AddHostedService(provider => (LogFileService)provider.GetRequiredService<ILogFileService>());
-				}
-				
 				if (!settings.DisableSchedules)
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<ScheduleService>());
@@ -974,63 +967,16 @@ namespace Horde.Server
 
 		private static void ConfigureLogStorage(IServiceCollection services)
 		{
-			services.AddSingleton<ILogBuilder>(provider =>
-			{
-				RedisService? redisService = provider.GetService<RedisService>();
-				if(redisService == null)
-				{
-					return new LocalLogBuilder();
-				}
-				else
-				{
-					return new RedisLogBuilder(
-						redisService.ConnectionPool,
-						provider.GetRequiredService<Tracer>(),
-						provider.GetRequiredService<ILogger<RedisLogBuilder>>());
-				}
-			});
-
 			services.AddSingleton<PersistentLogStorage>();
 
 			services.AddSingleton<ILogStorage>(provider =>
 			{
 				ILogStorage storage = provider.GetRequiredService<PersistentLogStorage>();
-
-//				IDatabase? RedisDb = Provider.GetService<IDatabase>();
-//				if (RedisDb != null)
-//				{
-//					Storage = new RedisLogStorage(RedisDb, Provider.GetService<ILogger<RedisLogStorage>>(), Storage);
-//				}
-
 				storage = new SequencedLogStorage(storage);
 				storage = new LocalLogStorage(50, storage);
 				return storage;
 			});
 		}
-		/*
-				private static void ConfigureLogFileWriteCache(IServiceCollection Services, ServerSettings Settings)
-				{
-					bool RedisConfigured = !String.IsNullOrEmpty(Settings.RedisConnectionConfig);
-					string CacheType = Settings.LogServiceWriteCacheType.ToLower(CultureInfo.CurrentCulture);
-
-					if (CacheType == "inmemory")
-					{
-						Services.AddSingleton<ILogFileWriteCache2>(Sp => new InMemoryLogFileWriteCache2());
-					}
-					else if (CacheType == "redis" && RedisConfigured)
-					{
-						Services.AddSingleton<ILogFileWriteCache2>(Sp => new RedisLogFileWriteCache2(Sp.GetService<ILogger<RedisLogFileWriteCache>>(), Sp.GetService<IDatabase>()));
-					}
-					else if (CacheType == "redis" && !RedisConfigured)
-					{
-						throw new Exception("Redis must be configured to use the Redis-backed log write cache");
-					}
-					else
-					{
-						throw new Exception("Unknown value set for LogServiceWriteCacheType in config: " + Settings.LogServiceWriteCacheType);
-					}
-				}
-		*/
 
 		private static IAsyncPolicy<HttpResponseMessage> GetDefaultHttpRetryPolicy()
 		{

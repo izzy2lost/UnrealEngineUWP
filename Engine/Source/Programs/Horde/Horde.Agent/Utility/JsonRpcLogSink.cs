@@ -21,63 +21,16 @@ namespace Horde.Agent.Utility
 		Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken);
 	}
 
-	sealed class JsonRpcLogSink : IJsonRpcLogSink
-	{
-		readonly IRpcConnection _rpcClient;
-		readonly string? _jobId;
-		readonly string? _jobBatchId;
-		readonly string? _jobStepId;
-		readonly ILogger _logger;
-
-		public JsonRpcLogSink(IRpcConnection rpcClient, string? jobId, string? jobBatchId, string? jobStepId, ILogger logger)
-		{
-			_rpcClient = rpcClient;
-			_jobId = jobId;
-			_jobBatchId = jobBatchId;
-			_jobStepId = jobStepId;
-			_logger = logger;
-		}
-
-		public ValueTask DisposeAsync() => new ValueTask();
-
-		/// <inheritdoc/>
-		public async Task WriteEventsAsync(List<CreateEventRequest> events, CancellationToken cancellationToken)
-		{
-			await _rpcClient.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateEventsAsync(new CreateEventsRequest(events)), cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public async Task WriteOutputAsync(WriteOutputRequest request, CancellationToken cancellationToken)
-		{
-			await _rpcClient.InvokeAsync((JobRpc.JobRpcClient x) => x.WriteOutputAsync(request), cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		public async Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken)
-		{
-			// Update the outcome of this jobstep
-			if (_jobId != null && _jobBatchId != null && _jobStepId != null)
-			{
-				try
-				{
-					await _rpcClient.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new UpdateStepRequest(_jobId, _jobBatchId, _jobStepId, JobStepState.Unspecified, outcome)), cancellationToken);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogWarning(ex, "Unable to update step outcome to {NewOutcome}", outcome);
-				}
-			}
-		}
-	}
-
 	class JsonRpcAndStorageLogSink : IJsonRpcLogSink, IAsyncDisposable
 	{
 		const int FlushLength = 1024 * 1024;
 
 		readonly IRpcConnection _connection;
+		readonly string? _jobId;
+		readonly string? _jobBatchId;
+		readonly string? _jobStepId;
 		readonly string _logId;
 		readonly LogBuilder _builder;
-		readonly IJsonRpcLogSink? _inner;
 		readonly IStorageClient _store;
 		readonly IBlobWriter _writer;
 		readonly ILogger _logger;
@@ -92,12 +45,14 @@ namespace Horde.Agent.Utility
 		AsyncEvent _tailTaskStop;
 		readonly AsyncEvent _newTailDataEvent = new AsyncEvent();
 
-		public JsonRpcAndStorageLogSink(IRpcConnection connection, string logId, IJsonRpcLogSink? inner, IStorageClient store, ILogger logger)
+		public JsonRpcAndStorageLogSink(IRpcConnection connection, string logId, string? jobId, string? jobBatchId, string? jobStepId, IStorageClient store, ILogger logger)
 		{
 			_connection = connection;
 			_logId = logId;
+			_jobId = jobId;
+			_jobBatchId = jobBatchId;
+			_jobStepId = jobStepId;
 			_builder = new LogBuilder(LogFormat.Json, logger);
-			_inner = inner;
 			_store = store;
 			_writer = store.CreateBlobWriter();
 			_logger = logger;
@@ -117,11 +72,6 @@ namespace Horde.Agent.Utility
 
 				await _tailTask;
 				_tailTaskStop = null!;
-			}
-
-			if (_inner != null)
-			{
-				await _inner.DisposeAsync();
 			}
 
 			if (_writer != null)
@@ -216,19 +166,24 @@ namespace Horde.Agent.Utility
 		/// <inheritdoc/>
 		public async Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken)
 		{
-			if (_inner != null)
+			// Update the outcome of this jobstep
+			if (_jobId != null && _jobBatchId != null && _jobStepId != null)
 			{
-				await _inner.SetOutcomeAsync(outcome, cancellationToken);
+				try
+				{
+					await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new UpdateStepRequest(_jobId, _jobBatchId, _jobStepId, JobStepState.Unspecified, outcome)), cancellationToken);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogWarning(ex, "Unable to update step outcome to {NewOutcome}", outcome);
+				}
 			}
 		}
 
 		/// <inheritdoc/>
 		public async Task WriteEventsAsync(List<CreateEventRequest> events, CancellationToken cancellationToken)
 		{
-			if (_inner != null)
-			{
-				await _inner.WriteEventsAsync(events, cancellationToken);
-			}
+			await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.CreateEventsAsync(new CreateEventsRequest(events)), cancellationToken);
 		}
 
 		/// <inheritdoc/>

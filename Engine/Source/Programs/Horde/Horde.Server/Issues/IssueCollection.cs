@@ -40,6 +40,7 @@ namespace Horde.Server.Issues
 			public int NextId { get; set; }
 		}
 
+		[DebuggerDisplay("{Id}: {Summary}")]
 		class Issue : IIssue
 		{
 			[BsonId]

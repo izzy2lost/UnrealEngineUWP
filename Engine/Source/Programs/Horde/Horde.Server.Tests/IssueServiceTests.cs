@@ -35,6 +35,9 @@ using System.Buffers;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using Horde.Server.Storage;
+using EpicGames.Horde.Storage;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Horde.Server.Tests
 {
@@ -45,12 +48,18 @@ namespace Horde.Server.Tests
 		{
 			readonly ILogFileService _logFileService;
 			readonly LogId _logId;
+			readonly LogBuilder _builder;
 			readonly List<(LogLevel, ReadOnlyMemory<byte>)> _events = new List<(LogLevel, ReadOnlyMemory<byte>)>();
+			readonly IStorageClient _storageClient;
+			
+			int _lineIndex;
 
-			public TestJsonLogger(ILogFileService logFileService, LogId logId)
+			public TestJsonLogger(ILogFileService logFileService, LogId logId, IStorageClient storageClient)
 			{
 				_logFileService = logFileService;
 				_logId = logId;
+				_builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
+				_storageClient = storageClient;
 			}
 
 			public async ValueTask DisposeAsync()
@@ -62,6 +71,15 @@ namespace Horde.Server.Tests
 					lineWithNewLine[^1] = (byte)'\n';
 					await WriteAsync(level, lineWithNewLine);
 				}
+
+				await using (IBlobWriter writer = _storageClient.CreateBlobWriter())
+				{
+					IBlobHandle<LogNode> handle = await _builder.FlushAsync(writer, true, null, CancellationToken.None);
+					ILogFile? logFile = await _logFileService.GetLogFileAsync(_logId, CancellationToken.None);
+					await _storageClient.WriteRefAsync(logFile!.RefName, handle);
+				}
+
+				_storageClient.Dispose();
 			}
 
 			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
@@ -76,19 +94,19 @@ namespace Horde.Server.Tests
 
 			private async Task WriteAsync(LogLevel level, byte[] line)
 			{
-				ILogFile logFile = (await _logFileService.GetLogFileAsync(_logId, CancellationToken.None))!;
-				LogMetadata metadata = await _logFileService.GetMetadataAsync(logFile, CancellationToken.None);
-				await _logFileService.WriteLogDataAsync(logFile, metadata.Length, metadata.MaxLineIndex, line, false);
+				_builder.WriteData(line);
 
 				if (level >= LogLevel.Warning)
 				{
-					LogEvent @event = ParseEvent(line);
-					if (@event.LineIndex == 0)
+					LogEvent ev = ParseEvent(line);
+					if (ev.LineIndex == 0)
 					{
 						EventSeverity severity = (level == LogLevel.Warning) ? EventSeverity.Warning : EventSeverity.Error;
-						await _logFileService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = _logId, LineIndex = metadata.MaxLineIndex, LineCount = @event.LineCount, Severity = severity } }, CancellationToken.None);
+						await _logFileService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = _logId, LineIndex = _lineIndex, LineCount = ev.LineCount, Severity = severity } }, CancellationToken.None);
 					}
 				}
+
+				_lineIndex++;
 			}
 
 			static LogEvent ParseEvent(byte[] line)
@@ -138,6 +156,8 @@ namespace Horde.Server.Tests
 
 			GlobalConfig globalConfig = new GlobalConfig();
 			globalConfig.Projects.Add(projectConfig);
+			globalConfig.Storage.Backends.Add(new BackendConfig { Id = new BackendId("default-backend"), Type = StorageBackendType.Memory });
+			globalConfig.Storage.Namespaces.Add(new NamespaceConfig { Id = new NamespaceId("horde-logs"), Backend = new BackendId("default-backend"), GcDelayHrs = 0.0 });
 
 			SetConfig(globalConfig);
 
@@ -228,7 +248,7 @@ namespace Horde.Server.Tests
 				{
 					JobStepId stepId = new JobStepId((ushort)((groupIdx * 100) + nodeIdx));
 
-					ILogFile logFile = LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Json, false).Result;
+					ILogFile logFile = LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Json).Result;
 
 					Mock<IJobStep> step = new Mock<IJobStep>(MockBehavior.Strict);
 					step.SetupGet(x => x.Id).Returns(stepId);
@@ -306,23 +326,35 @@ namespace Horde.Server.Tests
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 
 			ILogFile logFile = (await LogFileService.GetLogFileAsync(logId, CancellationToken.None))!;
-			LogMetadata metadata = await LogFileService.GetMetadataAsync(logFile, CancellationToken.None);
-			await LogFileService.WriteLogDataAsync(logFile, metadata.Length, metadata.MaxLineIndex, data, false);
 
-			await LogFileService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = logId, LineIndex = metadata.MaxLineIndex, LineCount = 1, Severity = severity } }, CancellationToken.None);
+			using (IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs))
+			{
+				await using (IBlobWriter writer = storageClient.CreateBlobWriter())
+				{
+					LogBuilder builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
+					builder.WriteData(data);
+
+					IBlobHandle<LogNode> handle = await builder.FlushAsync(writer, true, null, CancellationToken.None);
+					await storageClient.WriteRefAsync(logFile!.RefName, handle);
+				}
+			}
+
+			await LogFileService.CreateEventsAsync(new List<NewLogEventData> { new NewLogEventData { LogId = logId, LineIndex = 0, LineCount = 1, Severity = severity } }, CancellationToken.None);
 		}
 
 		private TestJsonLogger CreateLogger(IJob job, int batchIdx, int stepIdx)
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
-			return new TestJsonLogger(LogFileService, logId);
+			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
+			return new TestJsonLogger(LogFileService, logId, storageClient);
 		}
 
 		private async Task ParseEventsAsync(IJob job, int batchIdx, int stepIdx, string[] lines)
 		{
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 
-			await using (TestJsonLogger logger = new TestJsonLogger(LogFileService, logId))
+			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
+			await using (TestJsonLogger logger = new TestJsonLogger(LogFileService, logId, storageClient))
 			{
 				PerforceLogger perforceLogger = new PerforceLogger(logger);
 				perforceLogger.AddClientView(_autoSdkDir, "//depot/CarefullyRedist/...", 12345);

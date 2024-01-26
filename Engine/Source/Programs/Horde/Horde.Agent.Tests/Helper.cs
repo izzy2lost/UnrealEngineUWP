@@ -153,13 +153,6 @@ namespace Horde.Agent.Tests
 			return Wrap(res);
 		}
 
-		public override AsyncUnaryCall<Empty> WriteOutputAsync(WriteOutputRequest request, CallOptions options)
-		{
-			_logger.LogDebug("WriteOutputAsync: {Data}", request.Data);
-			Empty res = new Empty();
-			return Wrap(res);
-		}
-
 		public override AsyncUnaryCall<Empty> UpdateStepAsync(UpdateStepRequest request, CallOptions options)
 		{
 			_logger.LogDebug("UpdateStepAsync(Request: {Request})", request);

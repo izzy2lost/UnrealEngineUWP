@@ -9,8 +9,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Logs;
 using Horde.Agent.Utility;
-using HordeCommon;
-using HordeCommon.Rpc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -106,8 +104,8 @@ namespace Horde.Agent.Tests
 		{
 			public IBlobHandle? Target { get; private set; }
 
-			public FakeJsonRpcLoggerBackend(IRpcConnection connection, string logId, IJsonRpcLogSink inner, IStorageClient store, ILogger logger)
-				: base(connection, logId, inner, store, logger)
+			public FakeJsonRpcLoggerBackend(IRpcConnection connection, string logId, string? jobId, string? batchId, string? stepId, IStorageClient store, ILogger logger)
+				: base(connection, logId, jobId, batchId, stepId, store, logger)
 			{
 			}
 
@@ -124,17 +122,6 @@ namespace Horde.Agent.Tests
 			}
 		}
 
-		class FakeLogSink : IJsonRpcLogSink
-		{
-			public ValueTask DisposeAsync() => new ValueTask();
-
-			public Task SetOutcomeAsync(JobStepOutcome outcome, CancellationToken cancellationToken) => Task.CompletedTask;
-
-			public Task WriteEventsAsync(List<CreateEventRequest> events, CancellationToken cancellationToken) => Task.CompletedTask;
-
-			public Task WriteOutputAsync(WriteOutputRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
-		}
-
 		[TestMethod]
 		public async Task StorageLoggerTestAsync()
 		{
@@ -143,12 +130,10 @@ namespace Horde.Agent.Tests
 
 			BundleReader reader = new BundleReader(store, cache, NullLogger.Instance);
 
-			await using FakeLogSink innerSink = new FakeLogSink();
-
 			const int Count = 20000;
 
 			LogNode file;
-			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(null!, "foo", innerSink, store, NullLogger.Instance))
+			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(null!, "foo", null, null, null, store, NullLogger.Instance))
 			{
 				await using (JsonRpcLogger logger = new JsonRpcLogger(sink, "foo", null, LogLevel.Information, NullLogger.Instance))
 				{

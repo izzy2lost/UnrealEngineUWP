@@ -238,9 +238,6 @@ namespace Horde.Server.Jobs
 		public override Task<Empty> CreateEvents(CreateEventsRequest request, ServerCallContext context) => _jobRpcCommon.CreateEventsAsync(request, context);
 
 		/// <inheritdoc/>
-		public override Task<Empty> WriteOutput(WriteOutputRequest request, ServerCallContext context) => _jobRpcCommon.WriteOutputAsync(request, context);
-
-		/// <inheritdoc/>
 		public override Task<UploadArtifactResponse> UploadArtifact(IAsyncStreamReader<UploadArtifactRequest> reader, ServerCallContext context) => _jobRpcCommon.UploadArtifactAsync(reader, context);
 
 		/// <inheritdoc/>
@@ -499,7 +496,7 @@ namespace Horde.Server.Jobs
 			}
 
 			// Create a log file if necessary
-			log.Value ??= await _logFileService.CreateLogFileAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json, job.JobOptions?.UseNewLogStorage ?? true);
+			log.Value ??= await _logFileService.CreateLogFileAsync(job.Id, batch.LeaseId, batch.SessionId, LogType.Json);
 
 			// Get the node for this step
 			IGraph graph = await _jobService.GetGraphAsync(job);
@@ -883,28 +880,6 @@ namespace Horde.Server.Jobs
 				newEvents.Add(newEvent);
 			}
 			await _logFileService.CreateEventsAsync(newEvents, context.CancellationToken);
-			return new Empty();
-		}
-
-		/// <summary>
-		/// Writes output to a log file
-		/// </summary>
-		/// <param name="request">Request arguments</param>
-		/// <param name="context">Context for the RPC call</param>
-		/// <returns>Information about the new agent</returns>
-		public async Task<Empty> WriteOutputAsync(WriteOutputRequest request, ServerCallContext context)
-		{
-			ILogFile? logFile = await _logFileService.GetLogFileAsync(LogId.Parse(request.LogId), context.CancellationToken);
-			if (logFile == null)
-			{
-				throw new StructuredRpcException(StatusCode.NotFound, "Resource not found");
-			}
-			if (!LogFileService.AuthorizeForSession(logFile, context.GetHttpContext().User))
-			{
-				throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
-			}
-
-			await _logFileService.WriteLogDataAsync(logFile, request.Offset, request.LineIndex, request.Data.ToArray(), request.Flush, cancellationToken: context.CancellationToken);
 			return new Empty();
 		}
 
