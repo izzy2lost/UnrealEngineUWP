@@ -28,6 +28,7 @@ struct FWorldPartitionHLODEditorData
 {
 public:
 	FWorldPartitionHLODEditorData(UWorldPartition* InWorldPartition);
+	~FWorldPartitionHLODEditorData();
 	
 	void ClearLoadedActorsState();
 	void UpdateLoadedActorsState();

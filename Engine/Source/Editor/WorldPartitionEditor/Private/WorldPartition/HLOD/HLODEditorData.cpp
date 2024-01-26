@@ -27,6 +27,12 @@ FWorldPartitionHLODEditorData::FWorldPartitionHLODEditorData(UWorldPartition* In
 	});	
 }
 
+FWorldPartitionHLODEditorData::~FWorldPartitionHLODEditorData()
+{
+	WorldPartition->OnActorDescContainerInstanceRegistered.RemoveAll(this);
+	WorldPartition->OnActorDescContainerInstanceUnregistered.RemoveAll(this);
+}
+
 void FWorldPartitionHLODEditorData::OnActorDescContainerInstanceRegistered(UActorDescContainerInstance* InContainerInstance)
 {
 	check(!PerContainerInstanceHLODActorDataMap.Contains(InContainerInstance));
