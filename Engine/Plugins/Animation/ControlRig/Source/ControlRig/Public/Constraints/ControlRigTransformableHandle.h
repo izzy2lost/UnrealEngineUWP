@@ -74,6 +74,13 @@ public:
 	/** Tick any skeletal mesh related to the bound component. */ 
 	virtual void TickTarget() const override;
 
+	/**
+	 * Perform any pre-evaluation of the handle to ensure that the transform data is up to date.
+	 * @param bTick to force any pre-evaluation ticking. The rig will still be pre-evaluated even
+	 * if bTick is false (it just won't tick the bound skeletal meshes) Default is false.
+	*/
+	virtual void PreEvaluate(const bool bTick = false) const override;
+
 	/** Registers/Unregisters useful delegates to track changes in the control's transform. */
 	void UnregisterDelegates() const;
 	void RegisterDelegates();

@@ -61,6 +61,14 @@ void UTransformableHandle::OnBindingIDsUpdated(const TMap<UE::MovieScene::FFixed
 	}
 }
 
+void UTransformableHandle::PreEvaluate(const bool bTick) const
+{
+	if (bTick)
+	{
+		TickTarget();
+	}
+}
+
 /**
  * UTransformableComponentHandle
  */
