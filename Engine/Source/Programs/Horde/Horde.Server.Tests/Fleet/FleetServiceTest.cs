@@ -87,7 +87,7 @@ namespace Horde.Server.Tests.Fleet
 			_fleetManager = fleetManager;
 		}
 
-		public IFleetManager CreateFleetManager(FleetManagerType type, string config = "{}")
+		public IFleetManager CreateFleetManager(FleetManagerType type, string? config = null)
 		{
 			return _fleetManager;
 		}

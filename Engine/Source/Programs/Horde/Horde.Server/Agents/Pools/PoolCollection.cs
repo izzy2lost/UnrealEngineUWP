@@ -116,7 +116,10 @@ namespace Horde.Server.Agents.Pools
 				Id = other.Id;
 				Name = String.IsNullOrEmpty(other.Name) ? other.Id.ToString() : other.Name;
 				Condition = other.Condition;
-				Properties = new Dictionary<string, string>(other.Properties);
+				if (other.Properties != null && other.Properties.Count > 0)
+				{
+					Properties = new Dictionary<string, string>(other.Properties);
+				}
 				EnableAutoscaling = other.EnableAutoscaling;
 				MinAgents = other.MinAgents;
 				NumReserveAgents = other.NumReserveAgents;
@@ -187,7 +190,7 @@ namespace Horde.Server.Agents.Pools
 
 			public string Name => _config.Name;
 			public Condition? Condition => _config.Condition;
-			public IReadOnlyDictionary<string, string> Properties => _config.Properties;
+			public IReadOnlyDictionary<string, string>? Properties => _config.Properties;
 			public PoolColor Color => _config.Color;
 			public bool EnableAutoscaling => _config.EnableAutoscaling;
 			public IReadOnlyList<AgentWorkspace> Workspaces => _config.Workspaces;

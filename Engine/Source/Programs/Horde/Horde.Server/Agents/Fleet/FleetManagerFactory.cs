@@ -26,7 +26,7 @@ public interface IFleetManagerFactory
 	/// <param name="config">Config as a serialized JSON string</param>
 	/// <returns>An instantiated fleet manager with parameters loaded from config</returns>
 	/// <exception cref="ArgumentException">If fleet manager could not be instantiated</exception>
-	public IFleetManager CreateFleetManager(FleetManagerType type, string config = "{}");
+	public IFleetManager CreateFleetManager(FleetManagerType type, string? config = null);
 }
 
 /// <summary>
@@ -60,7 +60,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	}
 	
 	/// <inheritdoc/>
-	public IFleetManager CreateFleetManager(FleetManagerType type, string config)
+	public IFleetManager CreateFleetManager(FleetManagerType type, string? config)
 	{
 		return type switch
 		{
@@ -80,7 +80,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 		};
 	}
 	
-	private static T DeserializeSettings<T>(string config)
+	private static T DeserializeSettings<T>(string? config)
 	{
 		if (String.IsNullOrEmpty(config))
 		{ 
