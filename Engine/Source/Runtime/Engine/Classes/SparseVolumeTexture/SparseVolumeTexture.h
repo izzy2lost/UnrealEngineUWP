@@ -6,12 +6,13 @@
 
 #include "Engine/VolumeTexture.h"
 
-#include "Serialization/EditorBulkData.h"
 #include "Containers/Array.h"
 #include "Containers/StaticArray.h"
+#include "Engine/TextureDefines.h"
+#include "Interfaces/Interface_AssetUserData.h"
+#include "Serialization/EditorBulkData.h"
 #include "UnrealClient.h"
 #include "UObject/ObjectSaveContext.h"
-#include "Engine/TextureDefines.h"
 
 #include "SparseVolumeTexture.generated.h"
 
@@ -366,7 +367,7 @@ private:
 
 // Represents a streamable SparseVolumeTexture asset and serves as base class for UStaticSparseVolumeTexture and UAnimatedSparseVolumeTexture. It has an array of USparseVolumeTextureFrame.
 UCLASS(MinimalAPI, ClassGroup = Rendering, BlueprintType)
-class UStreamableSparseVolumeTexture : public USparseVolumeTexture
+class UStreamableSparseVolumeTexture : public USparseVolumeTexture, public IInterface_AssetUserData
 {
 	GENERATED_UCLASS_BODY()
 
@@ -414,6 +415,10 @@ public:
 	TObjectPtr<class UAssetImportData> AssetImportData;
 #endif // WITH_EDITORONLY_DATA
 
+	/** Array of user data stored with the asset */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Instanced, Category = "Texture")
+	TArray<TObjectPtr<class UAssetUserData>> AssetUserData;
+
 	UStreamableSparseVolumeTexture();
 	virtual ~UStreamableSparseVolumeTexture() = default;
 
@@ -443,6 +448,13 @@ public:
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	ENGINE_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 	//~ End UObject Interface.
+
+	//~ Begin IInterface_AssetUserData Interface
+	ENGINE_API virtual void AddAssetUserData(UAssetUserData* InUserData) override;
+	ENGINE_API virtual void RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass) override;
+	ENGINE_API virtual UAssetUserData* GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass) override;
+	ENGINE_API virtual const TArray<UAssetUserData*>* GetAssetUserDataArray() const override;
+	//~ End IInterface_AssetUserData Interface
 
 	//~ Begin USparseVolumeTexture Interface.
 	virtual int32 GetNumFrames() const override { return Frames.Num(); }
