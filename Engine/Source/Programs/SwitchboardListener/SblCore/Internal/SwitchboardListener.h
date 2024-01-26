@@ -282,6 +282,7 @@ private:
 	TSharedPtr<FSBLHelperClient> SBLHelper;
 
 	bool bIsNvAPIInitialized;
+	bool bProcessorSMT;
 
 	TSharedPtr<FRWLock> CachedMosaicToposLock;
 	TSharedPtr<TArray<struct FMosaicTopo>> CachedMosaicTopos;

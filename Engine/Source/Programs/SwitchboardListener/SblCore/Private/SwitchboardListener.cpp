@@ -326,6 +326,10 @@ FSwitchboardListener::FSwitchboardListener(const FSwitchboardCommandLineOptions&
 	}
 #endif // PLATFORM_WINDOWS
 
+	const int32 NumLogicalProcessors = FPlatformMisc::NumberOfCoresIncludingHyperthreads();
+	const int32 NumCores = FPlatformMisc::NumberOfCores();
+	bProcessorSMT = NumLogicalProcessors > NumCores;
+
 	const FIPv4Address DefaultIp = FIPv4Address(0, 0, 0, 0);
 	if (!Options.Address.IsSet())
 	{
@@ -1767,7 +1771,7 @@ QUIC_STATUS FSwitchboardListener::QuicConnectionCallback(HQUIC QuicConn, QUIC_CO
 
 				FPlatformMisc::GetOSVersions(StatePacket.OsVersionLabel, StatePacket.OsVersionLabelSub);
 				StatePacket.OsVersionNumber = FPlatformMisc::GetOSVersion();
-
+				StatePacket.bProcessorSMT = bProcessorSMT;
 				StatePacket.TotalPhysicalMemory = FPlatformMemory::GetConstants().TotalPhysical;
 				StatePacket.PlatformBinaryDirectory = FPlatformProcess::GetBinariesSubdirectory();
 
