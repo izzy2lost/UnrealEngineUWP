@@ -43,6 +43,8 @@ namespace UE::Audio::Insights
 
 	private:
 		void UpdatePlotsWidgetsData();
+		void UpdateSoloMuteState();
+
 		// Column information used by plot widgets, keyed by column name. These keys should be a subset of the keys in GetColumns(). 
 		const TMap<FName, FPlotColumnInfo>& GetPlotColumnInfo();
 		const TFunctionRef<float(const IDashboardDataViewEntry& InData)> GetPlotColumnDataFunc(const FName& ColumnName);
@@ -86,5 +88,12 @@ namespace UE::Audio::Insights
 		const static int32 NumPlotWidgets = 2;
 		TArray<FName> SelectedPlotColumnNames;
 		TArray<TSharedPtr<SAudioCurveView>> PlotWidgets;
+
+		// State of the mute and solo buttons
+#if ENABLE_AUDIO_DEBUG
+		ECheckBoxState MuteState = ECheckBoxState::Unchecked;
+		ECheckBoxState SoloState = ECheckBoxState::Unchecked;
+		FString CurrentFilterString;
+#endif
 	};
 } // namespace UE::Audio::Insights
