@@ -39,6 +39,8 @@ class STG_SelectionPreview : public SCompoundWidget
 public:
 	
 	void Construct(const FArguments& InArgs);
+	ECheckBoxState IsPreviewLocked() const;
+	FText GetLockPreviewToolTip() const;
 	void OnCheckBoxStateChanged(ECheckBoxState NewState);
 	ECheckBoxState GetCheckBoxState() const;
 	void ConstructBlobView(BlobPtr InBlob = nullptr);
@@ -88,6 +90,7 @@ private:
 	TSharedRef<SWidget> OnGenerateOutputMenu();
 	FText HandleOutputText() const;
 	void HandleOutputChanged(FString OuputName);
+	void OnLockChanged(ECheckBoxState NewCheckState);
 	bool GetIsLockedNode() { return IsLocked && LockedNode != nullptr; }
 	bool IsLockButtonEnable() { return SelectedNode || LockedNode; }
 	
@@ -116,7 +119,7 @@ private:
 	FString BufferDescriptionString = "";
 	FString PixelInfo = "";
 	int32 MaxOutputs;
-	bool IsLocked;
+	bool IsLocked = false;
 	bool IsSingleChannel = false;
 	bool bSRGB = false;
 
@@ -125,6 +128,7 @@ private:
 	/** Viewport */
 	TSharedPtr<STG_TexturePreviewViewport> TextureViewport;
 	FSlateRoundedBoxBrush* CheckedBrush;
+	FSlateRoundedBoxBrush* UncheckedBrush;
 
 	/** The maximum width/height at which the texture will render in the preview window */
 	int32 PreviewEffectiveTextureWidth;

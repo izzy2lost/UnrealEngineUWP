@@ -8,6 +8,7 @@
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SButton.h"
+#include <Widgets/Input/SCheckBox.h>
 #include "Engine/Texture2D.h"
 #include "EdGraph/TG_EdGraph.h"
 #include "EdGraph/TG_PinSelectionManager.h"
@@ -21,6 +22,8 @@
 #include "TG_Texture.h"
 #include "TG_Editor.h"
 #include "TG_HelperFunctions.h"
+#include "Styling/StyleColors.h"
+#include "Brushes/SlateNoResource.h"
 #include "Transform/Utility/T_TextureHistogram.h"
 #include "STextureHistogram.h"
 #include "SPrimaryButton.h"
@@ -29,6 +32,8 @@
 void STG_SelectionPreview::Construct(const FArguments& InArgs)
 {
 	const float TEXT_PADDING = 2.0;
+	UncheckedBrush = new FSlateRoundedBoxBrush(FStyleColors::Input, CoreStyleConstants::InputFocusRadius);
+	CheckedBrush = new FSlateRoundedBoxBrush(FStyleColors::InputOutline, CoreStyleConstants::InputFocusRadius);
 	OnBlobSelectionChanged = InArgs._OnBlobSelectionChanged;
 	ChildSlot
 		[
@@ -51,17 +56,7 @@ void STG_SelectionPreview::Construct(const FArguments& InArgs)
 			[
 				SNew(SHorizontalBox)
 
-				//RGBA buttons
-				+ SHorizontalBox::Slot()
-				.Padding(4.0f, 0.0f, 2.0f, 0.0f)
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Left)
-				.FillWidth(0.1)
-				[
-					SAssignNew(RGBAButtons, STG_RGBAButtons)
-				]
-
-					/// DEBUG ONLY
+				/// DEBUG ONLY
 #if UE_BUILD_DEBUG
 					+ SHorizontalBox::Slot()
 					.VAlign(VAlign_Center)
@@ -79,10 +74,30 @@ void STG_SelectionPreview::Construct(const FArguments& InArgs)
 				+ SHorizontalBox::Slot()
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Right)
-				.Padding(1.0f)
-				.FillWidth(0.9)
+				.AutoWidth()
 				[
-					SNew(SHorizontalBox)
+					 SNew(SBox)
+						.HAlign(HAlign_Right)
+						.VAlign(VAlign_Center)
+						[
+							SNew(SCheckBox)
+								.Style(&FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckBoxAlt"))
+								.Type(ESlateCheckBoxType::ToggleButton)
+								.UncheckedImage(UncheckedBrush)
+								.UncheckedHoveredImage(UncheckedBrush)
+								.CheckedHoveredImage(CheckedBrush)
+								.CheckedImage(CheckedBrush)
+								.Padding(FMargin(4))
+								.ToolTipText(NSLOCTEXT("STG_SelectionPreview", "LockSelectionButton_ToolTip", "Locks the output of current selected node"))
+								.OnCheckStateChanged(this, &STG_SelectionPreview::OnLockChanged)
+								.IsChecked(this, &STG_SelectionPreview::IsPreviewLocked)
+								[
+									SNew(SImage)
+										.ColorAndOpacity(FSlateColor::UseForeground())
+										.Image(this, &STG_SelectionPreview::OnGetLockButtonImageResource)
+								]
+						]
+				]
 
 					//Zoom Dropdown Menu
 					+ SHorizontalBox::Slot()
@@ -94,40 +109,46 @@ void STG_SelectionPreview::Construct(const FArguments& InArgs)
 						MakeZoomControlWidget()
 					]
 
-					//Zoom Plus button
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Right)
-					.Padding(1.0f)
+				//Zoom Plus button
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.Padding(1.0f)
+				[
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), "TextureEditor.MipmapButtonStyle")
+					.OnClicked(this, &STG_SelectionPreview::HandleZoomPlusButtonClicked)
 					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "TextureEditor.MipmapButtonStyle")
-						.OnClicked(this, &STG_SelectionPreview::HandleZoomPlusButtonClicked)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
+						SNew(SImage)
+						.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
+						.ColorAndOpacity(FSlateColor::UseForeground())
 					]
+				]
 
-					//Zoom Minus button
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Right)
-					.Padding(1.0f)
+				//Zoom Minus button
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.Padding(1.0f)
+				[
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), "TextureEditor.MipmapButtonStyle")
+					.OnClicked(this, &STG_SelectionPreview::HandleZoomMinusButtonClicked)
 					[
-						SNew(SButton)
-						.ButtonStyle(FAppStyle::Get(), "TextureEditor.MipmapButtonStyle")
-						.OnClicked(this, &STG_SelectionPreview::HandleZoomMinusButtonClicked)
-						[
-							SNew(SImage)
-							.Image(FAppStyle::Get().GetBrush("Icons.Minus"))
-							.ColorAndOpacity(FSlateColor::UseForeground())
-						]
+						SNew(SImage)
+						.Image(FAppStyle::Get().GetBrush("Icons.Minus"))
+						.ColorAndOpacity(FSlateColor::UseForeground())
 					]
-
+				]
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.Padding(1.0f)
+				.FillWidth(0.9)
+				[
+					SNew(SHorizontalBox)
 
 					//Output selection menu
 					//+ SHorizontalBox::Slot()
@@ -150,37 +171,34 @@ void STG_SelectionPreview::Construct(const FArguments& InArgs)
 					//	]
 					//]
 
-					//Lock button
+					//RGBA buttons
 					+ SHorizontalBox::Slot()
-
+					.Padding(4.0f, 0.0f, 2.0f, 0.0f)
 					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Right)
-					.Padding(2.0f, 0.0f, 4.0f, 0.0f)
-					.AutoWidth()
+					.HAlign(HAlign_Left)
+					.FillWidth(0.1)
 					[
-						SAssignNew(LockButton,SButton)
-						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-						.OnClicked(this, &STG_SelectionPreview::OnLockClick)
-						.ContentPadding(FMargin(4, 2))
-						.HAlign(HAlign_Center)
-						.VAlign(VAlign_Center)
-						.ToolTipText(NSLOCTEXT("STG_SelectionPreview", "LockSelectionButton_ToolTip", "Locks the output of current selected node"))
-						.IsEnabled_Lambda([this]() { return IsLockButtonEnable(); })
-						[
-							SNew(SImage)
-							.ColorAndOpacity(FSlateColor::UseForeground())
-							.Image(this, &STG_SelectionPreview::OnGetLockButtonImageResource)
-						]
+						SAssignNew(RGBAButtons, STG_RGBAButtons)
 					]
 				]
-				
 			]
 		];
-
 
 	//Update the ViewPort Texture
 	ConstructBlobView();
 	ZoomMode = ETSZoomMode::Fill;
+}
+
+ECheckBoxState STG_SelectionPreview::IsPreviewLocked() const
+{
+	if (IsLocked)
+	{
+		return ECheckBoxState::Checked;
+	}
+	else
+	{
+		return ECheckBoxState::Unchecked;
+	}
 }
 
 FReply STG_SelectionPreview::HandleZoomPlusButtonClicked()
@@ -447,6 +465,20 @@ FReply STG_SelectionPreview::OnLockClick()
 
 	return FReply::Handled();
 }
+void STG_SelectionPreview::OnLockChanged(const ECheckBoxState NewCheckState)
+{
+	IsLocked = NewCheckState == ECheckBoxState::Checked;
+	if (IsLocked)
+	{
+		LockedNode = SelectedNode;
+	}
+	else
+	{
+		LockedNode = nullptr;
+		//Need to update the preview because to show the output of current selected node
+		UpdatePreview();
+	}
+}
 
 const FSlateBrush* STG_SelectionPreview::OnGetLockButtonImageResource() const
 {
@@ -583,8 +615,9 @@ void STG_SelectionPreview::UpdatePixelInfo()
 				Buffer->Raw()
 					.then([=, this](RawBufferPtr raw)
 					{
-						auto Color = TextureHelper::GetPixelValueFromRaw(raw, Width, Height, X, Y);
-						PixelInfo = "UV : (" + FString::Printf(TEXT("%f"), TextureCoordinates.X) + " , " + FString::Printf(TEXT("%f"), TextureCoordinates.Y) + ")" + " Color :" + Color.ToString();
+						FLinearColor LinearColor = TextureHelper::GetPixelValueFromRaw(raw, Width, Height, X, Y);
+						FString ColorString = raw->GetDescriptor().Format == BufferFormat::Byte ? LinearColor.ToFColorSRGB().ToString() : LinearColor.ToString();   
+						PixelInfo = FString::Printf(TEXT("XY: (%d, %d), RGBA: %s"), X, Y, *ColorString);
 					});
 			}
 		}

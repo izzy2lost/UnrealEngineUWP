@@ -54,6 +54,7 @@
 #include "WorkflowOrientedApp/WorkflowTabManager.h"
 #include <Toolkits/AssetEditorToolkit.h>
 
+#include "EngineAnalytics.h"
 #include "GraphEditorActions.h"
 #include "IMessageLogListing.h"
 #include "MessageLogInitializationOptions.h"
@@ -88,7 +89,7 @@ void FTG_Editor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabM
 		.SetGroup(WorkspaceMenuCategoryRef);
 
 	InTabManager->RegisterTabSpawner(FTG_EditorTabs::ViewportTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_Viewport))
-		.SetDisplayName(LOCTEXT("ViewportTab", "Viewport"))
+		.SetDisplayName(LOCTEXT("ViewportTab", "3D Preview"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 
@@ -118,7 +119,7 @@ void FTG_Editor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabM
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
 	InTabManager->RegisterTabSpawner(FTG_EditorTabs::SelectionPreviewTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_SelectionPreview))
-		.SetDisplayName(LOCTEXT("SelectionPreviewTab", "Selection Preview"))
+		.SetDisplayName(LOCTEXT("SelectionPreviewTab", "Node Preview"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 
@@ -128,7 +129,7 @@ void FTG_Editor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabM
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));*/
 
 	InTabManager->RegisterTabSpawner(FTG_EditorTabs::PreviewSettingsTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_Settings))
-		.SetDisplayName(LOCTEXT("PreviewSettingsTab", "Preview Settings"))
+		.SetDisplayName(LOCTEXT("PreviewSettingsTab", "3D Preview Settings"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
@@ -139,7 +140,7 @@ void FTG_Editor::RegisterTabSpawners(const TSharedRef<class FTabManager>& InTabM
 		.SetIcon(FSlateIcon(FAppStyle::Get().GetStyleSetName(), "MaterialEditor.TogglePlatformStats.Tab"));
 
 	InTabManager->RegisterTabSpawner(FTG_EditorTabs::TextureDetailsTabId, FOnSpawnTab::CreateSP(this, &FTG_Editor::SpawnTab_TextureDetails))
-		.SetDisplayName(LOCTEXT("TextureDetailsTab", "Texture Details"))
+		.SetDisplayName(LOCTEXT("TextureDetailsTab", "Node Histogram"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 }
@@ -321,6 +322,16 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 
 	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, TG_EditorAppIdentifier, StandaloneDefaultLayout, /*bCreateDefaultToolbar*/ true, /*bCreateDefaultStandaloneMenu*/ true, InTextureGraph);
 
+	RegenerateMenusAndToolbars();
+
+	bool bViewportIsOff = !ViewportTabContent.IsValid();
+	TSharedPtr<SDockTab> ViewportTab; 
+	// check here if 3d viewport is turned off, we need to turn it on temporarily to initialize our systems correctly
+	if (bViewportIsOff)
+	{
+		ViewportTab = GetTabManager()->TryInvokeTab(FTG_EditorTabs::ViewportTabId);	
+	}
+	
 	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
 	if (!SetPreviewAssetByName(*EditedTextureGraph->PreviewMesh.ToString()))
 	{
@@ -328,9 +339,23 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 		GetEditorViewport()->InitPreviewMesh();
 	}
 
-	RegenerateMenusAndToolbars();
+	if (bViewportIsOff)
+	{
+		// turn the viewporttab back off
+		ViewportTab->RequestCloseTab();
+	}
 	
+	bShowPaletteView = PaletteTab.IsValid();
+	bShowNodeHistogram = NodeHistogramTab.IsValid();
+
 	EditedTextureGraph->GetPackage()->ClearDirtyFlag();
+
+	// Add analytics tag
+	if (FEngineAnalytics::IsAvailable())
+	{
+		SessionStartTime = FDateTime::Now();
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph"), TEXT("SessionStarted"), OriginalTextureGraph.GetName());
+	}
 }
 
 FTG_Editor::FTG_Editor()
@@ -430,74 +455,62 @@ void FTG_Editor::RegisterToolbar()
 
 	const FTG_EditorCommands& TG_EditorCommands = FTG_EditorCommands::Get();
 
-	auto AutoRun = MakeAutoRunWidget();
-
 	const FToolMenuInsert InsertAfterAssetSection("Asset", EToolMenuInsertType::After);
 	{
 		FToolMenuSection& Section = ToolBar->AddSection("TG_Toolbar", TAttribute<FText>(), InsertAfterAssetSection);
-
-		Section.AddEntry(FToolMenuEntry::InitWidget("Auto Run", AutoRun.ToSharedRef(), FText::FromString("Auto Run")));
-
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
-			FTG_EditorCommands::Get().RunGraph,
-			TAttribute<FText>(),
-			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Refresh")));
-
-#if !UE_BUILD_SHIPPING
-		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
-			FTG_EditorCommands::Get().LogGraph,
-			TAttribute<FText>(),
-			FText::FromString("Log current state of Texture Graph (only available in non-shipping builds)"),
-			FSlateIcon(FAppStyle::GetAppStyleSetName(), "SourceControl.Actions.Refresh")));
-#endif
-
+		
 		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
 			FTG_EditorCommands::Get().ExportAsUAsset,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon()));
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Toolbar.Export")));
+		
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			FTG_EditorCommands::Get().RunGraph,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "FontEditor.Update")));
+
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			FTG_EditorCommands::Get().AutoUpdateGraph,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "FontEditor.Update")));
+		// Section.AddEntry(FToolMenuEntry::InitWidget("Auto Update", AutoRun.ToSharedRef(), FText::FromString("Auto Update")));
+
+#if UE_BUILD_DEBUG
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			FTG_EditorCommands::Get().LogGraph,
+			TAttribute<FText>(),
+			FText::FromString("Log current state of Texture Graph (only available in debug builds)"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "FontEditor.Update")));
+#endif
+
+		{
+			FToolMenuSection& TabsSection = ToolBar->AddSection("TabWindows", TAttribute<FText>(), InsertAfterAssetSection);
+			TabsSection.AddEntry(FToolMenuEntry::InitToolBarButton(
+				FTG_EditorCommands::Get().TogglePaletteTab,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details")));
+
+			TabsSection.AddEntry(FToolMenuEntry::InitToolBarButton(
+				FTG_EditorCommands::Get().ToggleNodeHistogramTab,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.Palette")));
+		}
 	}
 }
 
-TSharedPtr<class SWidget> FTG_Editor::MakeAutoRunWidget()
+bool FTG_Editor::IsShowingAutoUpdate() const
 {
-	TSharedPtr<class SWidget> AutoRun = SNew(SBox)
-		.WidthOverride(100.0f)
-		[
-			SNew(SHorizontalBox)
-				//.IsEnabled(this, &FTG_Editor::HandleMipLevelCheckBoxIsEnabled)
-				+ SHorizontalBox::Slot()
-				.Padding(4.0f, 0.0f, 2.0f, 0.0f)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					SNew(SCheckBox)
-						.IsChecked(this, &FTG_Editor::HandleAutoRunActionIsChecked)
-						.OnCheckStateChanged(this, &FTG_Editor::HandleAutoRunActionExecute)
-				]
-
-				+ SHorizontalBox::Slot()
-
-				.VAlign(VAlign_Center)
-				.Padding(2.0f, 0.0f, 4.0f, 0.0f)
-				[
-					SNew(STextBlock)
-						.Text(FText::FromString("Auto Run"))
-				]
-		];
-
-	return AutoRun;
+	return bAutoRunGraph;
 }
 
-ECheckBoxState FTG_Editor::HandleAutoRunActionIsChecked() const
+void FTG_Editor::ToggleAutoUpdate()
 {
-	return bAutoRunGraph ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-}
-
-void FTG_Editor::HandleAutoRunActionExecute(ECheckBoxState InNewState)
-{
-	bAutoRunGraph = InNewState == ECheckBoxState::Checked;
+	bAutoRunGraph = !bAutoRunGraph;
 	if (bAutoRunGraph)
 	{
 		OnRunGraph_Clicked();
@@ -520,6 +533,7 @@ void FTG_Editor::PostInitAssetEditor()
 	}
 }
 
+
 void FTG_Editor::BindCommands()
 {
 	const FTG_EditorCommands& TGEditorCommands = FTG_EditorCommands::Get();
@@ -528,6 +542,13 @@ void FTG_Editor::BindCommands()
 		TGEditorCommands.RunGraph,
 		FExecuteAction::CreateSP(this, &FTG_Editor::OnRunGraph_Clicked),
 		FCanExecuteAction::CreateSP(this, &FTG_Editor::CanEnableOnRun));
+
+	ToolkitCommands->MapAction(
+		TGEditorCommands.AutoUpdateGraph,
+		FExecuteAction::CreateSP(this, &FTG_Editor::ToggleAutoUpdate),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FTG_Editor::IsShowingAutoUpdate));
+	
 	ToolkitCommands->MapAction(
 		TGEditorCommands.LogGraph,
 		FExecuteAction::CreateSP(this, &FTG_Editor::OnLogGraph_Clicked));
@@ -543,7 +564,19 @@ void FTG_Editor::BindCommands()
 	ToolkitCommands->MapAction(
 		FGenericCommands::Get().Redo,
 		FExecuteAction::CreateSP(this, &FTG_Editor::RedoGraphAction));
+	
+	ToolkitCommands->MapAction(
+		TGEditorCommands.TogglePaletteTab,
+		FExecuteAction::CreateSP(this, &FTG_Editor::TogglePaletteView),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FTG_Editor::IsShowingPaletteView));
 
+	ToolkitCommands->MapAction(
+		TGEditorCommands.ToggleNodeHistogramTab,
+		FExecuteAction::CreateSP(this, &FTG_Editor::ToggleNodeHistogramView),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FTG_Editor::IsShowingNodeHistogramView));
+	
 	GraphEditorCommands->MapAction(
 		TGEditorCommands.ConvertInputParameterToConstant,
 		FExecuteAction::CreateSP(this, &FTG_Editor::OnConvertInputParameterToFromConstant));
@@ -552,6 +585,63 @@ void FTG_Editor::BindCommands()
 		TGEditorCommands.ConvertInputParameterFromConstant,
 		FExecuteAction::CreateSP(this, &FTG_Editor::OnConvertInputParameterToFromConstant));
 
+	GraphEditorCommands->MapAction(
+		FGenericCommands::Get().Rename,
+		FExecuteAction::CreateSP(this, &FTG_Editor::OnRenameNodeClicked),
+		FCanExecuteAction::CreateSP(this, &FTG_Editor::CanRenameNode));
+
+}
+
+void FTG_Editor::SetShowNodeHistogramView(const bool bValue)
+{
+	bShowNodeHistogram = bValue;
+
+	// open/close 3DPreview tab
+	DisplayNodeHistogramView(bShowNodeHistogram);
+}
+
+void FTG_Editor::SetShowPaletteView(const bool bValue)
+{
+	bShowPaletteView = bValue;
+
+	// open/close 3DPreview tab
+	DisplayPaletteView(bShowPaletteView);
+}
+
+void FTG_Editor::ToggleNodeHistogramView()
+{
+	// Toggle the showing of material Texture Details each time the user presses the show 3DPreview button
+	SetShowNodeHistogramView(!bShowNodeHistogram);
+}
+
+void FTG_Editor::TogglePaletteView()
+{
+	// Toggle the showing of material 3DPreview each time the user presses the show 3DPreview button
+	SetShowPaletteView(!bShowPaletteView);
+}
+
+void FTG_Editor::DisplayPaletteView(const bool bShow)
+{
+	if (bShow)
+	{
+		GetTabManager()->TryInvokeTab(FTG_EditorTabs::PaletteTabId);
+	}
+	else if (!bShowPaletteView && PaletteTab.IsValid())
+	{
+		PaletteTab.Pin()->RequestCloseTab();
+	}
+}
+
+void FTG_Editor::DisplayNodeHistogramView(const bool bShow)
+{
+	if (bShow)
+	{
+		GetTabManager()->TryInvokeTab(FTG_EditorTabs::TextureDetailsTabId);
+	}
+	else if (!bShowNodeHistogram && NodeHistogramTab.IsValid())
+	{
+		NodeHistogramTab.Pin()->RequestCloseTab();
+	}
 }
 
 void FTG_Editor::OnRunGraph_Clicked()
@@ -562,7 +652,6 @@ void FTG_Editor::OnRunGraph_Clicked()
 		EditedTextureGraph->TriggerUpdate(false);
 	}
 }
-
 void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details)
 {
 	if (TextureGraph != nullptr)
@@ -704,6 +793,31 @@ TArray<UTG_EdGraphNode*>	FTG_Editor::GetCurrentSelectedTG_EdGraphNodes() const
 	return EdGraphNodes;
 }
 
+void FTG_Editor::OnRenameNodeClicked()
+{
+	const FGraphPanelSelectionSet SelectedNodes = GraphEditorWidget->GetSelectedNodes();
+	for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
+	{
+		UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(*NodeIt);
+		if (SelectedNode != nullptr && SelectedNode->GetCanRenameNode())
+		{
+			bool ToRename = true;
+			GraphEditorWidget->IsNodeTitleVisible(SelectedNode, ToRename);
+			break;
+		}
+	}
+}
+
+bool FTG_Editor::CanRenameNode() const
+{
+	TArray<UTG_EdGraphNode*> SelectedNodes = GetCurrentSelectedTG_EdGraphNodes();
+	if ( SelectedNodes.Num() == 1)
+	{
+		return SelectedNodes[0]->bCanRenameNode;
+	}
+
+	return false;
+}
 void FTG_Editor::OnConvertInputParameterToFromConstant()
 {
 	TArray<UTG_EdGraphNode*> EdGraphNodes = GetCurrentSelectedTG_EdGraphNodes();
@@ -791,6 +905,7 @@ TSharedRef<class SGraphEditor> FTG_Editor::CreateGraphEditorWidget()
 		.ShowGraphStateOverlay(false)
 		.AutoExpandActionMenu(true)
 		.AssetEditorToolkit(this->AsShared());
+	
 }
 
 FActionMenuContent FTG_Editor::OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
@@ -837,7 +952,6 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_GraphEditor(const FSpawnTabArgs& Args)
 	check(Args.GetTabId() == FTG_EditorTabs::GraphEditorId);
 
 	return SNew(SDockTab)
-		.Label(LOCTEXT("TextureGraphTitle", "Graph"))
 		.TabColorScale(GetTabColorScale())
 		[
 			GraphEditorWidget.ToSharedRef()
@@ -864,7 +978,14 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Viewport(const FSpawnTabArgs& Args)
 
 	const FString LayoutId = FString("TG_EditorViewport");
 	ViewportTabContent->Initialize(MakeViewportFunc, DockableTab, LayoutId);
-
+	
+	// Set the preview mesh for the material.  This call must occur after the toolbar is initialized.
+	if (!SetPreviewAssetByName(*EditedTextureGraph->PreviewMesh.ToString()))
+	{
+		// The material preview mesh couldn't be found or isn't loaded.  Default to the one of the primitive types.
+		GetEditorViewport()->InitPreviewMesh();
+	
+	}
 	return DockableTab;
 }
 
@@ -873,7 +994,6 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_TG_Properties(const FSpawnTabArgs& Arg
 	check(Args.GetTabId() == FTG_EditorTabs::PropertiesTabId);
 
 	TSharedPtr<SDockTab> DetailsTab = SNew(SDockTab)
-		.Label(LOCTEXT("TSDetailsTitle", "Details"))
 		[
 			DetailsView.ToSharedRef()
 		];
@@ -887,19 +1007,19 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Palette(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == FTG_EditorTabs::PaletteTabId);
 
-	return SNew(SDockTab)
-		.Label(LOCTEXT("TSPaletteTitle", "Palette"))
+	TSharedRef<SDockTab> DockableTab = SNew(SDockTab)
 		[
 			Palette.ToSharedRef()
 		];
+	PaletteTab = DockableTab;
+	return DockableTab;
 }
 
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_Find(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == FTG_EditorTabs::FindTabId);
 
-	return SNew(SDockTab)
-		.Label(LOCTEXT("TSFindTitle", "Find Results"));
+	return SNew(SDockTab);
 }
 
 TSharedRef<SDockTab> FTG_Editor::SpawnTab_PreviewSettings(const FSpawnTabArgs& Args)
@@ -915,14 +1035,13 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_PreviewSettings(const FSpawnTabArgs& A
 	}
 
 	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
-		.Label(LOCTEXT("TG_PreviewSceneSettingsTab", "Preview Scene Settings"))
 		[
 			SNew(SBox)
 				[
 					InWidget
 				]
 		];
-
+	
 	return SpawnedTab;
 }
 
@@ -931,7 +1050,6 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_ParameterDefaults(const FSpawnTabArgs&
 	check(Args.GetTabId() == FTG_EditorTabs::ParameterDefaultsTabId);
 
 	return SNew(SDockTab)
-		.Label(LOCTEXT("Parameters", "Parameters"))
 		[
 			SNew(SBox)
 				[
@@ -944,12 +1062,14 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_SelectionPreview(const FSpawnTabArgs& 
 {
 	check(Args.GetTabId() == FTG_EditorTabs::SelectionPreviewTabId);
 
-	return SNew(SDockTab)
-		.Label(LOCTEXT("SelectionView", "Selection Preview"))
+	TSharedPtr<SDockTab> Tab = SNew(SDockTab)
 		.TabColorScale(GetTabColorScale())
 		[
 			SelectionPreview.ToSharedRef()
 		];
+	NodeHistogramTab = Tab;
+
+	return Tab.ToSharedRef();
 
 }
 
@@ -1035,7 +1155,6 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Settings(const FSpawnTabArgs& Args)
 	check(Args.GetTabId() == FTG_EditorTabs::PreviewSettingsTabId);
 
 	TSharedPtr<SDockTab> SettingsTab = SNew(SDockTab)
-		.Label(LOCTEXT("Preview Settings", "Preview Settings"))
 		[
 			SettingsView.ToSharedRef()
 		];
@@ -1050,7 +1169,6 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Errors(const FSpawnTabArgs& Args)
 	check(Args.GetTabId() == FTG_EditorTabs::ErrorsTabId);
 
 	TSharedPtr<SDockTab> ErrorTab = SNew(SDockTab)
-		.Label(LOCTEXT("Errors", "Errors"))
 		[
 			ErrorsWidget.ToSharedRef()
 		];
@@ -1062,13 +1180,14 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_TextureDetails(const FSpawnTabArgs& Ar
 {
 	check(Args.GetTabId() == FTG_EditorTabs::TextureDetailsTabId);
 
-	return SNew(SDockTab)
-		.Label(LOCTEXT("TextureDetails", "Texture Details"))
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 		.TabColorScale(GetTabColorScale())
 		[
 			TextureDetails.ToSharedRef()
 		];
 
+	NodeHistogramTab = SpawnedTab;
+	return SpawnedTab;
 }
 
 TSharedPtr<STG_EditorViewport> FTG_Editor::GetEditorViewport() const
@@ -1466,6 +1585,23 @@ bool FTG_Editor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 
 	return true;
 }
+
+void FTG_Editor::OnClose()
+{
+	// Add analytics tag
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("GraphName"), OriginalTextureGraph.GetName()));
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("TimeActive"),  (FDateTime::Now() - SessionStartTime).ToString()));
+				
+		// Send Analytics event 
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.TextureGraph.SessionEnded"), Attributes);
+				
+	}
+	ITG_Editor::OnClose();
+}
+
 bool FTG_Editor::UpdateOriginalTextureGraph()
 {
 	// TODO : We should cancel saving when TextureGraph has errors.

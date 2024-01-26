@@ -277,6 +277,8 @@ void STG_EditorViewport::Construct(const FArguments& InArgs)
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &STG_EditorViewport::OnObjectPropertyChanged);
 	
 	GenerateRendermodeToolbar();
+	
+	TogglePreviewBackground();
 }
 
 STG_EditorViewport::STG_EditorViewport()
@@ -329,6 +331,7 @@ TSharedRef<FEditorViewportClient> STG_EditorViewport::MakeEditorViewportClient()
 	EditorViewportClient->SetViewLocationForOrbiting(FVector::ZeroVector, 500);
 	EditorViewportClient->bSetListenerPosition = false;
 	EditorViewportClient->EngineShowFlags.EnableAdvancedFeatures();
+	EditorViewportClient->EngineShowFlags.SetGrid(false);
 	EditorViewportClient->EngineShowFlags.SetLighting(true);
 	EditorViewportClient->EngineShowFlags.SetIndirectLightingCache(true);
 	EditorViewportClient->EngineShowFlags.SetPostProcessing(true);

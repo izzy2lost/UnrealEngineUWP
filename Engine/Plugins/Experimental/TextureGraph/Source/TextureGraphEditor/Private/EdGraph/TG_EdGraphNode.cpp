@@ -124,6 +124,10 @@ void UTG_EdGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, class UGraphNod
 
 	{
 		FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaGeneral", LOCTEXT("GeneralHeader", "General"));
+		if (this->GetCanRenameNode())
+		{
+			Section.AddMenuEntry(FGenericCommands::Get().Rename);
+		}
 		Section.AddMenuEntry(FGenericCommands::Get().Delete);
 		// TODO: Add also Copy, Paste, Duplicate...
 		Section.AddMenuEntry(FGenericCommands::Get().Cut);
@@ -395,13 +399,13 @@ FString UTG_EdGraphNode::GetTitleDetail()
 			if (Texture.RasterBlob)
 			{
 				const auto Desc = Texture.RasterBlob->GetDescriptor();
-				const FString FormatString = Desc.FormatToString(Desc.Format);
-				const FString Channel = TextureHelper::GetChannelsTextFromItemsPerPoint(Desc.ItemsPerPoint);
-				FString BufferString = Desc.bIsSRGB ? "sRGB" : "Linear";
-				BufferString += " - " + Channel + "_" + FormatString + "\n";
-				BufferString += FString::FromInt(Desc.Width) + "x" + FString::FromInt(Desc.Height);
-				Details = BufferString;
-				return Details;
+				FStringFormatNamedArguments Args;
+				Args.Add(TEXT("Channels"), TextureHelper::GetChannelsTextFromItemsPerPoint(Desc.ItemsPerPoint));
+				Args.Add(TEXT("Format"), Desc.FormatToString(Desc.Format));
+				Args.Add(TEXT("IsSRGB"), Desc.bIsSRGB ? "sRGB" : "Linear");
+				Args.Add(TEXT("Width"), FString::FromInt(Desc.Width));
+				Args.Add(TEXT("Height"), FString::FromInt(Desc.Height));
+				Details = FString::Format(TEXT("{Channels}_{Format}, {IsSRGB}\r\n{Width}x{Height}"), Args);
 			}
 		}
 	}

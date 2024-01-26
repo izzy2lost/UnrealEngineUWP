@@ -15,8 +15,11 @@ public:
 	// ~End TCommands<> interface
 
 	TSharedPtr<FUICommandInfo>									RunGraph;
+	TSharedPtr<FUICommandInfo>									AutoUpdateGraph;
 	TSharedPtr<FUICommandInfo>									LogGraph;
 	TSharedPtr<FUICommandInfo>									ExportAsUAsset;
+	TSharedPtr<FUICommandInfo>									TogglePaletteTab;
+	TSharedPtr<FUICommandInfo>									ToggleNodeHistogramTab;
 
 	/**
 	 * Node Actions

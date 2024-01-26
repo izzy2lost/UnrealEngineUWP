@@ -41,7 +41,6 @@ void STG_TexturePreviewViewport::Construct( const FArguments& InArgs, const TSha
 				.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute())
 				.ShowEffectWhenDisabled(false)
 				.EnableBlending(true)
-				.ToolTip(SNew(SToolTip).Text(this, &STG_TexturePreviewViewport::GetDisplayedResolution))
 			]
 			+ SOverlay::Slot()
 			.HAlign(HAlign_Right)
