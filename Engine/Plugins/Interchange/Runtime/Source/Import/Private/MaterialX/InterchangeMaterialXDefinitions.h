@@ -23,6 +23,99 @@ THIRD_PARTY_INCLUDES_END
 
 MATERIALX_NAMESPACE_BEGIN
 
+	namespace OpenPBRSurface
+	{
+		namespace Input
+		{
+			static constexpr const char* BaseWeight = "base_weight";
+			static constexpr const char* BaseColor = "base_color";
+			static constexpr const char* BaseRoughness = "base_roughness";
+			static constexpr const char* BaseMetalness = "base_metalness";
+			static constexpr const char* SpecularWeight = "specular_weight";
+			static constexpr const char* SpecularColor = "specular_color";
+			static constexpr const char* SpecularRoughness = "specular_roughness";
+			static constexpr const char* SpecularIOR = "specular_ior";
+			static constexpr const char* SpecularIORLevel = "specular_ior_level";
+			static constexpr const char* SpecularAnisotropy = "specular_anisotropy";
+			static constexpr const char* SpecularRotation = "specular_rotation";
+			static constexpr const char* TransmissionWeight = "transmission_weight";
+			static constexpr const char* TransmissionColor = "transmission_color";
+			static constexpr const char* TransmissionDepth = "transmission_depth";
+			static constexpr const char* TransmissionScatter = "transmission_scatter";
+			static constexpr const char* TransmissionScatterAnisotropy= "transmission_scatter_anisotropy";
+			static constexpr const char* TransmissionDispersion = "transmission_dispersion";
+			static constexpr const char* SubsurfaceWeight = "subsurface_weight";
+			static constexpr const char* SubsurfaceColor = "subsurface_color";
+			static constexpr const char* SubsurfaceRadius = "subsurface_radius";
+			static constexpr const char* SubsurfaceRadiusScale = "subsurface_radius_scale";
+			static constexpr const char* SubsurfaceAnisotropy = "subsurface_anisotropy";
+			static constexpr const char* FuzzWeight = "fuzz_weight";
+			static constexpr const char* FuzzColor = "fuzz_color";
+			static constexpr const char* FuzzRoughness = "fuzz_roughness";
+			static constexpr const char* CoatWeight = "coat_weight";
+			static constexpr const char* CoatColor = "coat_color";
+			static constexpr const char* CoatRoughness = "coat_roughness";
+			static constexpr const char* CoatAnisotropy = "coat_anisotropy";
+			static constexpr const char* CoatRotation = "coat_rotation";
+			static constexpr const char* CoatIOR = "coat_ior";
+			static constexpr const char* CoatIORLevel = "coat_ior_level";
+			static constexpr const char* ThinFilmThickness = "thin_film_thickness";
+			static constexpr const char* ThinFilmIOR = "thin_film_ior";
+			static constexpr const char* EmissionLuminance = "emission_luminance";
+			static constexpr const char* EmissionColor = "emission_color";
+			static constexpr const char* GeometryOpacity = "geometry_opacity";
+			static constexpr const char* GeometryThinWalled = "geometry_thin_walled";
+			static constexpr const char* GeometryNormal = "geometry_normal";
+			static constexpr const char* GeometryCoatNormal = "geometry_coat_normal";
+			static constexpr const char* GeometryTangent = "geometry_tangent";
+		}
+
+		namespace DefaultValue
+		{
+			static constexpr float BaseWeight = 1.f;
+			static constexpr FLinearColor BaseColor{ 0.8, 0.8, 0.8 };
+			static constexpr float BaseRoughness = 0.f;
+			static constexpr float BaseMetalness = 0.f;
+			static constexpr float SpecularWeight = 1.f;
+			static constexpr FLinearColor SpecularColor{ 1, 1, 1 };
+			static constexpr float SpecularRoughness = 0.3f;
+			static constexpr float SpecularIOR = 1.5f;
+			static constexpr float SpecularIORLevel = 0.5f;
+			static constexpr float SpecularAnisotropy = 0.f;
+			static constexpr float SpecularRotation = 0.f;
+			static constexpr float TransmissionWeight = 0.f;
+			static constexpr FLinearColor TransmissionColor{ 1, 1, 1 };
+			static constexpr float TransmissionDepth = 0.f;
+			static constexpr FLinearColor TransmissionScatter{ 0, 0, 0 };
+			static constexpr float TransmissionScatterAnisotropy = 0.f;
+			static constexpr float TransmissionDispersion = 0.f;
+			static constexpr float SubsurfaceWeight = 0.f;
+			static constexpr FLinearColor SubsurfaceColor{ 0.8, 0.8, 0.8 };
+			static constexpr float SubsurfaceRadius = 1.f;
+			static constexpr FLinearColor SubsurfaceRadiusScale{1, 0.5, 0.25};
+			static constexpr float SubsurfaceAnisotropy = 0.f;
+			static constexpr float FuzzWeight = 0.f;
+			static constexpr FLinearColor FuzzColor{ 1, 1, 1 };
+			static constexpr float FuzzRoughness = 0.5f;
+			static constexpr float CoatWeight = 0.f;
+			static constexpr FLinearColor CoatColor{ 1, 1, 1 };
+			static constexpr float CoatRoughness = 0.f;
+			static constexpr float CoatAnisotropy = 0.f;
+			static constexpr float CoatRotation = 0.f;
+			static constexpr float CoatIOR = 1.6f;
+			static constexpr float CoatIORLevel = 0.5f;
+			static constexpr float ThinFilmThickness = 0.f;
+			static constexpr float ThinFilmIOR = 1.5f;
+			static constexpr float EmissionLuminance = 0.f;
+			static constexpr FLinearColor EmissionColor{ 1, 1, 1 };
+			static constexpr FLinearColor GeometryOpacity{ 1, 1, 1 };
+			static constexpr bool GeometryThinWalled = false;
+			static const FVector GeometryNormal{ 0, 0, 1 };
+			static const FVector GeometryCoatNormal{ 0, 0, 1 };
+			static const FVector GeometryTangent{ 0, 1, 0 };
+		}
+	}
+
 	namespace StandardSurface
 	{
 		namespace Input
@@ -403,6 +496,7 @@ MATERIALX_NAMESPACE_BEGIN
 		static constexpr const char* GltfPbr = "gltf_pbr";
 		static constexpr const char* DisneyBSDF2012 = "disney_brdf_2012";
 		static constexpr const char* DisneyBSDF2015 = "disney_bsdf_2015";
+		static constexpr const char* OpenPBRSurface = "open_pbr_surface";
 		static constexpr const char* StandardSurface = "standard_surface";
 		static constexpr const char* Surface = "surface";
 		static constexpr const char* UsdPreviewSurface = "UsdPreviewSurface";
@@ -415,6 +509,7 @@ MATERIALX_NAMESPACE_BEGIN
 
 	namespace NodeDefinition
 	{
+		static constexpr const char* OpenPBRSurface = "ND_open_pbr_surface_surfaceshader";
 		static constexpr const char* StandardSurface = "ND_standard_surface_surfaceshader";
 		static constexpr const char* SurfaceUnlit = "ND_surface_unlit";
 		static constexpr const char* UsdPreviewSurface = "ND_UsdPreviewSurface_surfaceshader";

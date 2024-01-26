@@ -33,7 +33,11 @@ bool FMaterialXSurfaceShaderAbstract::AddAttribute(MaterialX::InputPtr Input, co
 	using namespace UE::Interchange::Materials::Standard::Nodes;
 	if(Input)
 	{
-		if(Input->getType() == mx::Type::Float)
+		if(Input->getType() == mx::Type::Boolean)
+		{
+			return AddBooleanAttribute(Input, InputChannelName, ShaderNode);
+		}
+		else if(Input->getType() == mx::Type::Float)
 		{
 			return AddFloatAttribute(Input, InputChannelName, ShaderNode);
 		}
@@ -97,6 +101,26 @@ bool FMaterialXSurfaceShaderAbstract::AddAttributeFromValueOrInterface(MaterialX
 	return bAttribute;
 }
 
+bool FMaterialXSurfaceShaderAbstract::AddBooleanAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode)
+{
+	using namespace UE::Interchange::Materials::Standard::Nodes;
+	if(Input && Input->hasValue())
+	{
+		bool Value = mx::fromValueString<bool>(Input->getValueString());
+
+		// The parent is either a node, or it's an interfacename and we just take the name of the input
+		mx::NodePtr Node = Input->getParent()->asA<mx::Node>();
+		FString NodeName = Node ? Node->getName().c_str() + FString{ TEXT("_") } : FString{};
+		NodeName += Input->getName().c_str();
+
+		UInterchangeShaderNode* StaticBoolParameterNode = CreateShaderNode(NodeName, StaticBoolParameter::Name.ToString());
+		StaticBoolParameterNode->AddBooleanAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(StaticBoolParameter::Attributes::DefaultValue.ToString()), Value);
+		return UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderNode, InputChannelName, StaticBoolParameterNode->GetUniqueID());
+	}
+
+	return false;
+}
+
 bool FMaterialXSurfaceShaderAbstract::AddFloatAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode, float DefaultValue)
 {
 	using namespace UE::Interchange::Materials::Standard::Nodes;
@@ -112,7 +136,7 @@ bool FMaterialXSurfaceShaderAbstract::AddFloatAttribute(MaterialX::InputPtr Inpu
 			NodeName += Input->getName().c_str();
 
 			UInterchangeShaderNode* ScalarParameterNode = CreateShaderNode(NodeName, ScalarParameter::Name.ToString());
-			ScalarParameterNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), mx::fromValueString<float>(Input->getValueString()));
+			ScalarParameterNode->AddFloatAttribute(UInterchangeShaderPortsAPI::MakeInputParameterKey(ScalarParameter::Attributes::DefaultValue.ToString()), Value);
 			return UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(ShaderNode, InputChannelName, ScalarParameterNode->GetUniqueID());
 		}
 	}
@@ -638,16 +662,13 @@ void FMaterialXSurfaceShaderAbstract::ConnectIfGreaterInputToOutput(const FConne
 	mx::InputPtr Input = Connect.UpstreamNode->getInput("in2");
 	if(Input)
 	{
-		bool bHasValue = AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
+		AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
 		AddAttributeFromValueOrInterface(Input, TEXT("AEqualsB"), NodeIf);
 
-		if(bHasValue)
-		{
-			//Let's add a new input that is a copy of in2 to connect it to the equal input
-			mx::InputPtr Input3 = Connect.UpstreamNode->addInput("in3");
-			Input3->copyContentFrom(Input);
-			SetAttributeNewName(Input3, "AEqualsB");
-		}
+		//Let's add a new input that is a copy of in2 to connect it to the equal input
+		mx::InputPtr Input3 = Connect.UpstreamNode->addInput("in3");
+		Input3->copyContentFrom(Input);
+		SetAttributeNewName(Input3, "AEqualsB");
 	}
 }
 
@@ -675,16 +696,13 @@ void FMaterialXSurfaceShaderAbstract::ConnectIfGreaterEqInputToOutput(const FCon
 	mx::InputPtr Input = Connect.UpstreamNode->getInput("in1");
 	if(Input)
 	{
-		bool bHasValue = AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
+		AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
 		AddAttributeFromValueOrInterface(Input, TEXT("AEqualsB"), NodeIf);
 
-		if(bHasValue)
-		{
-			//Let's add a new input that is a copy of in2 to connect it to the equal input
-			mx::InputPtr Input3 = Connect.UpstreamNode->addInput("in3");
-			Input3->copyContentFrom(Input);
-			SetAttributeNewName(Input3, "AEqualsB");
-		}
+		//Let's add a new input that is a copy of in2 to connect it to the equal input
+		mx::InputPtr Input3 = Connect.UpstreamNode->addInput("in3");
+		Input3->copyContentFrom(Input);
+		SetAttributeNewName(Input3, "AEqualsB");
 	}
 }
 
@@ -693,17 +711,17 @@ void FMaterialXSurfaceShaderAbstract::ConnectIfEqualInputToOutput(const FConnect
 	UInterchangeShaderNode* NodeIf = CreateShaderNode(Connect.UpstreamNode->getName().c_str(), TEXT("If"));
 	UInterchangeShaderPortsAPI::ConnectDefaultOuputToInput(Connect.ParentShaderNode, Connect.InputChannelName, NodeIf->GetUniqueID());
 
-	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("value1"); Input && Input->hasValue())
+	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("value1"))
 	{
 		AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
 	}
 
-	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("value2"); Input && Input->hasValue())
+	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("value2"))
 	{
 		AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
 	}
 
-	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("in1"); Input && Input->hasValue())
+	if(mx::InputPtr Input = Connect.UpstreamNode->getInput("in1"))
 	{
 		AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
 	}
@@ -712,16 +730,13 @@ void FMaterialXSurfaceShaderAbstract::ConnectIfEqualInputToOutput(const FConnect
 	mx::InputPtr Input = Connect.UpstreamNode->getInput("in2");
 	if(Input)
 	{
-		bool bHasValue = AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
+		AddAttributeFromValueOrInterface(Input, GetInputName(Input), NodeIf);
 		AddAttributeFromValueOrInterface(Input, TEXT("AGreaterThanB"), NodeIf);
 
-		if(bHasValue)
-		{
-			//Let's add a new input that is a copy of in2 to connect it to the equal input
-			mx::InputPtr Input3 = Connect.UpstreamNode->addInput("in3");
-			Input3->copyContentFrom(Input);
-			SetAttributeNewName(Input3, "AGreaterThanB");
-		}
+		//Let's add a new input that is a copy of in2 to connect it to the equal input
+		mx::InputPtr Input3 = Connect.UpstreamNode->addInput("in3");
+		Input3->copyContentFrom(Input);
+		SetAttributeNewName(Input3, "AGreaterThanB");
 	}
 }
 

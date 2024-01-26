@@ -183,7 +183,7 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 	using namespace mx::StandardSurface;
 	constexpr bool bInputInTangentSpace = true;
 
-	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), TEXT("/Engine/Functions/Strata/Substrate-StandardSurface-Opaque.Substrate-StandardSurface-Opaque"));
+	UInterchangeFunctionCallShaderNode* StandardSurfaceShaderNode = CreateFunctionCallShaderNode(SurfaceShaderNode->getName().c_str(), TEXT("/Engine/Functions/Substrate/Substrate-StandardSurface-Opaque.Substrate-StandardSurface-Opaque"));
 
 	// Inputs
 	//Base
@@ -285,7 +285,7 @@ void FMaterialXStandardSurfaceShader::ConnectToSubstrateStandardSurface()
 	// Outputs
 	if(UInterchangeShaderPortsAPI::HasInput(StandardSurfaceShaderNode, StandardSurface::Parameters::Transmission))
 	{
-		StandardSurfaceShaderNode->SetCustomMaterialFunction(TEXT("/Engine/Functions/Strata/Substrate-StandardSurface-Translucent.Substrate-StandardSurface-Translucent"));
+		StandardSurfaceShaderNode->SetCustomMaterialFunction(TEXT("/Engine/Functions/Substrate/Substrate-StandardSurface-Translucent.Substrate-StandardSurface-Translucent"));
 		ShaderGraphNode->SetCustomBlendMode(EBlendMode::BLEND_TranslucentColoredTransmittance);
 		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, PBRMR::Parameters::Opacity.ToString(), StandardSurfaceShaderNode->GetUniqueID(), PBRMR::Parameters::Opacity.ToString());
 		UInterchangeShaderPortsAPI::ConnectOuputToInputByName(ShaderGraphNode, SubstrateMaterial::Parameters::FrontMaterial.ToString(), StandardSurfaceShaderNode->GetUniqueID(), StandardSurface::SubstrateMaterial::Outputs::Translucent.ToString());

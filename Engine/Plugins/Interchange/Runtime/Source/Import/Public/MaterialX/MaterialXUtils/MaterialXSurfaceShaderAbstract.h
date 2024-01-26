@@ -63,6 +63,18 @@ protected:
 	bool AddAttributeFromValueOrInterface(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode);
 
 	/**
+	 * Add a bool attribute to a shader node only if its value taken from the input is not equal to its default value. Return false if the attribute does not exist or if we cannot add it
+	 *
+	 * @param Input - The MaterialX input to retrieve and add the value from, must be of type bool
+	 * @param InputChannelName - The name of the shader node's input to add the attribute
+	 * @param ShaderNode - The shader node to which we want to add the attribute
+	 * @param DefaultValue - the default value to test the input against
+	 *
+	 * @return true if the attribute was successfully added
+	 */
+	bool AddBooleanAttribute(MaterialX::InputPtr Input, const FString& InputChannelName, UInterchangeShaderNode* ShaderNode);
+
+	/**
 	 * Add a float attribute to a shader node only if its value taken from the input is not equal to its default value. Return false if the attribute does not exist or if we cannot add it
 	 *
 	 * @param Input - The MaterialX input to retrieve and add the value from, must be of type float
@@ -105,7 +117,7 @@ protected:
 	 * @param ShaderNode - The Interchange shader node to connect the MaterialX's node or node graph to
 	 * @param InputShaderName - The name of the input of the shader node to connect to
 	 * @param DefaultValue - The default value of the MaterialX input
-	 * @param OptionalTextureCompression - Set the texture compression for all textures along the path of an input
+	 * @param bIsTangentSpaceInput - Set the tangent space along the path of an input
 	 */
 	template<typename T>
 	bool ConnectNodeOutputToInput(const char* InputName, UInterchangeShaderNode* ShaderNode, const FString& InputShaderName, T DefaultValue, bool bIsTangentSpaceInput = false)

@@ -7,6 +7,7 @@
 
 #if WITH_EDITOR
 #include "MaterialX/InterchangeMaterialXDefinitions.h"
+#include "MaterialX/MaterialXUtils/MaterialXOpenPBRSurfaceShader.h"
 #include "MaterialX/MaterialXUtils/MaterialXSurfaceShader.h"
 #include "MaterialX/MaterialXUtils/MaterialXStandardSurfaceShader.h"
 #include "MaterialX/MaterialXUtils/MaterialXUsdPreviewSurfaceShader.h"
@@ -207,6 +208,7 @@ FMaterialXManager::FMaterialXManager()
 		TEXT("Y")
 	}
 	, MaterialXContainerDelegates{
+		{mx::Category::OpenPBRSurface, FMaterialXManager::FOnGetMaterialXInstance::CreateStatic(&FMaterialXOpenPBRSurfaceShader::MakeInstance)},
 		{mx::Category::Surface, FMaterialXManager::FOnGetMaterialXInstance::CreateStatic(&FMaterialXSurfaceShader::MakeInstance)},
 		{mx::Category::SurfaceUnlit, FMaterialXManager::FOnGetMaterialXInstance::CreateStatic(&FMaterialXSurfaceUnlitShader::MakeInstance)},
 		{mx::Category::StandardSurface, FMaterialXManager::FOnGetMaterialXInstance::CreateStatic(&FMaterialXStandardSurfaceShader::MakeInstance)},

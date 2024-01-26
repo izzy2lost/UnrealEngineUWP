@@ -16,14 +16,19 @@
 	constexpr const TCHAR* Name##SubstratePath = TEXT("/Interchange/Substrate/") TEXT("MX_") TEXT(#Name) TEXT(".") TEXT("MX_") TEXT(#Name);
 
 #define MATERIALX_MATERIALFUNCTION_PATH(Name) \
-	MaterialXSettings->bIsSubstrateEnabled ? Name##FunctionsPath : Name##SubstratePath
+	!MaterialXSettings->bIsSubstrateEnabled ? Name##FunctionsPath : Name##SubstratePath
 
 namespace
 {
+	constexpr const TCHAR* OpenPBRSurfaceFunctionsPath = TEXT("/Interchange/Functions/MX_OpenPBR_Opaque.MX_OpenPBR_Opaque");
+	constexpr const TCHAR* OpenPBRSurfaceSubstratePath = TEXT("/Engine/Functions/Substrate/MF_Substrate_OpenPBR_Opaque.MF_Substrate_OpenPBR_Opaque");
+	constexpr const TCHAR* OpenPBRTransmissionSurfaceFunctionsPath = TEXT("/Interchange/Functions/MX_OpenPBR_Translucent.MX_OpenPBR_Translucent");
+	constexpr const TCHAR* OpenPBRTransmissionSurfaceSubstratePath = TEXT("/Engine/Functions/Substrate/MF_Substrate_OpenPBR_Translucent.MF_Substrate_OpenPBR_Translucent");
+
 	constexpr const TCHAR* StandardSurfaceFunctionsPath = TEXT("/Interchange/Functions/MX_StandardSurface.MX_StandardSurface");
-	constexpr const TCHAR* StandardSurfaceSubstratePath = TEXT("/Engine/Functions/Strata/Substrate-StandardSurface-Opaque.Substrate-StandardSurface-Opaque");
+	constexpr const TCHAR* StandardSurfaceSubstratePath = TEXT("/Engine/Functions/Substrate/Substrate-StandardSurface-Opaque.Substrate-StandardSurface-Opaque");
 	constexpr const TCHAR* TransmissionSurfaceFunctionsPath = TEXT("/Interchange/Functions/MX_TransmissionSurface.MX_TransmissionSurface");
-	constexpr const TCHAR* TransmissionSurfaceSubstratePath = TEXT("/Engine/Functions/Strata/Substrate-StandardSurface-Translucent.Substrate-StandardSurface-Translucent");
+	constexpr const TCHAR* TransmissionSurfaceSubstratePath = TEXT("/Engine/Functions/Substrate/Substrate-StandardSurface-Translucent.Substrate-StandardSurface-Translucent");
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(SurfaceUnlit);
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(Surface);
 	MATERIALX_FUNCTIONS_SUBSTRATE_PATH(UsdPreviewSurface);
@@ -60,6 +65,133 @@ UMaterialXPipelineSettings::UMaterialXPipelineSettings()
 
 		SettingsInputsOutputs = {
 			//Surface Shaders
+						{
+				UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurface),
+				{
+				// OpenPBRSurface Inputs
+				TSet<FName>{
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseWeight,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseColor,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseRoughness,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseMetalness,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularWeight,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularColor,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularRoughness,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularIOR,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularIORLevel,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularAnisotropy,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularRotation,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SubsurfaceWeight,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SubsurfaceColor,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SubsurfaceRadius,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SubsurfaceRadiusScale,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::SubsurfaceAnisotropy,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::FuzzWeight,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::FuzzColor,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::FuzzRoughness,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatWeight,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatColor,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatRoughness,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatAnisotropy,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatRotation,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatIOR,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatIORLevel,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryCoatNormal,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::ThinFilmThickness,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::ThinFilmIOR,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::EmissionLuminance,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::EmissionColor,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryNormal,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryTangent,
+					UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryOpacity,
+				},
+				// OpenPBRSurface Outputs
+				!bIsSubstrateEnabled ?
+				TSet<FName>{
+					UE::Interchange::Materials::PBRMR::Parameters::BaseColor,
+						UE::Interchange::Materials::PBRMR::Parameters::Metallic,
+						UE::Interchange::Materials::PBRMR::Parameters::Specular,
+						UE::Interchange::Materials::PBRMR::Parameters::Roughness,
+						UE::Interchange::Materials::PBRMR::Parameters::Anisotropy,
+						UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
+						UE::Interchange::Materials::PBRMR::Parameters::Opacity,
+						UE::Interchange::Materials::PBRMR::Parameters::Normal,
+						UE::Interchange::Materials::PBRMR::Parameters::Tangent,
+						UE::Interchange::Materials::Sheen::Parameters::SheenRoughness,
+						UE::Interchange::Materials::Sheen::Parameters::SheenColor,
+						UE::Interchange::Materials::Subsurface::Parameters::SubsurfaceColor,
+						UE::Interchange::Materials::ClearCoat::Parameters::ClearCoat,
+						UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatRoughness,
+						UE::Interchange::Materials::ClearCoat::Parameters::ClearCoatNormal
+					}	:
+					TSet<FName>{
+						UE::Interchange::Materials::OpenPBRSurface::SubstrateMaterial::Outputs::FrontMaterial,
+						UE::Interchange::Materials::OpenPBRSurface::SubstrateMaterial::Outputs::OpacityMask
+					}
+				}
+			},
+			{
+				UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurfaceTransmission),
+				{
+					// OpenPBRSurfaceTransmission Inputs
+					TSet<FName>{
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseWeight,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseColor,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseRoughness,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::BaseMetalness,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularWeight,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularColor,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularRoughness,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularIOR,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularIORLevel,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularAnisotropy,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::SpecularRotation,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::TransmissionWeight,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::TransmissionColor,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::TransmissionDepth,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::TransmissionDispersion,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::TransmissionScatter,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::TransmissionScatterAnisotropy,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::FuzzWeight,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::FuzzColor,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::FuzzRoughness,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatWeight,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatColor,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatRoughness,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatAnisotropy,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatRotation,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatIOR,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::CoatIORLevel,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryCoatNormal,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::ThinFilmThickness,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::ThinFilmIOR,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::EmissionLuminance,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::EmissionColor,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryNormal,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryTangent,
+						UE::Interchange::Materials::OpenPBRSurface::Parameters::GeometryOpacity,
+					},
+					// OpenPBRSurfaceTransmission Outputs
+					!bIsSubstrateEnabled ?
+					TSet<FName>{
+						UE::Interchange::Materials::PBRMR::Parameters::BaseColor,
+						UE::Interchange::Materials::PBRMR::Parameters::Metallic,
+						UE::Interchange::Materials::PBRMR::Parameters::Specular,
+						UE::Interchange::Materials::PBRMR::Parameters::Roughness,
+						UE::Interchange::Materials::PBRMR::Parameters::Anisotropy,
+						UE::Interchange::Materials::PBRMR::Parameters::EmissiveColor,
+						UE::Interchange::Materials::PBRMR::Parameters::Opacity,
+						UE::Interchange::Materials::PBRMR::Parameters::Normal,
+						UE::Interchange::Materials::PBRMR::Parameters::Tangent,
+						UE::Interchange::Materials::PBRMR::Parameters::Refraction,
+						UE::Interchange::Materials::ThinTranslucent::Parameters::TransmissionColor
+					}	:
+					TSet<FName>{
+						UE::Interchange::Materials::OpenPBRSurface::SubstrateMaterial::Outputs::FrontMaterial,
+						UE::Interchange::Materials::OpenPBRSurface::SubstrateMaterial::Outputs::OpacityMask
+					}
+				}
+			},
 			{
 				UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurface),
 				{
@@ -497,28 +629,30 @@ UInterchangeMaterialXPipeline::UInterchangeMaterialXPipeline()
 	{
 #if WITH_EDITOR
 		PathToEnumMapping =	{
-			{MATERIALX_MATERIALFUNCTION_PATH(StandardSurface),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurface)},
-			{MATERIALX_MATERIALFUNCTION_PATH(TransmissionSurface),	  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurfaceTransmission)},
-			{MATERIALX_MATERIALFUNCTION_PATH(SurfaceUnlit),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::SurfaceUnlit)},
-			{MATERIALX_MATERIALFUNCTION_PATH(Surface),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::Surface)},
-			{MATERIALX_MATERIALFUNCTION_PATH(UsdPreviewSurface),	  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::UsdPreviewSurface)},
-
-			{MATERIALX_MATERIALFUNCTION_PATH(OrenNayarBSDF),	      UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::OrenNayarDiffuse)},
-			{MATERIALX_MATERIALFUNCTION_PATH(BurleyDiffuseBSDF),	  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::BurleyDiffuse)},
-			{MATERIALX_MATERIALFUNCTION_PATH(DielectricBSDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Dielectric)},
-			{MATERIALX_MATERIALFUNCTION_PATH(ConductorBSDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Conductor)},
-			{MATERIALX_MATERIALFUNCTION_PATH(SheenBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Sheen)},
-			{MATERIALX_MATERIALFUNCTION_PATH(SubsurfaceBSDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Subsurface)},
-			{MATERIALX_MATERIALFUNCTION_PATH(ThinFilmBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::ThinFilm)},
-			{MATERIALX_MATERIALFUNCTION_PATH(GeneralizedSchlickBSDF), UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::GeneralizedSchlick)},
-			{MATERIALX_MATERIALFUNCTION_PATH(TranslucentBSDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Translucent)},
-
-			{MATERIALX_MATERIALFUNCTION_PATH(UniformEDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXEDF::Uniform)},
-			{MATERIALX_MATERIALFUNCTION_PATH(ConicalEDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXEDF::Conical)},
-			{MATERIALX_MATERIALFUNCTION_PATH(MeasuredEDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXEDF::Measured)},
-
-			{MATERIALX_MATERIALFUNCTION_PATH(AbsorptionVDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXVDF::Absorption)},
-			{MATERIALX_MATERIALFUNCTION_PATH(AnisotropicVDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXVDF::Anisotropic)},
+			{MATERIALX_MATERIALFUNCTION_PATH(OpenPBRSurface),		      UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurface)},
+			{MATERIALX_MATERIALFUNCTION_PATH(OpenPBRTransmissionSurface), UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurfaceTransmission)},
+			{MATERIALX_MATERIALFUNCTION_PATH(StandardSurface),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurface)},
+			{MATERIALX_MATERIALFUNCTION_PATH(TransmissionSurface),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurfaceTransmission)},
+			{MATERIALX_MATERIALFUNCTION_PATH(SurfaceUnlit),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::SurfaceUnlit)},
+			{MATERIALX_MATERIALFUNCTION_PATH(Surface),					  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::Surface)},
+			{MATERIALX_MATERIALFUNCTION_PATH(UsdPreviewSurface),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::UsdPreviewSurface)},
+																		  
+			{MATERIALX_MATERIALFUNCTION_PATH(OrenNayarBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::OrenNayarDiffuse)},
+			{MATERIALX_MATERIALFUNCTION_PATH(BurleyDiffuseBSDF),		  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::BurleyDiffuse)},
+			{MATERIALX_MATERIALFUNCTION_PATH(DielectricBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Dielectric)},
+			{MATERIALX_MATERIALFUNCTION_PATH(ConductorBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Conductor)},
+			{MATERIALX_MATERIALFUNCTION_PATH(SheenBSDF),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Sheen)},
+			{MATERIALX_MATERIALFUNCTION_PATH(SubsurfaceBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Subsurface)},
+			{MATERIALX_MATERIALFUNCTION_PATH(ThinFilmBSDF),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::ThinFilm)},
+			{MATERIALX_MATERIALFUNCTION_PATH(GeneralizedSchlickBSDF),	  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::GeneralizedSchlick)},
+			{MATERIALX_MATERIALFUNCTION_PATH(TranslucentBSDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXBSDF::Translucent)},
+																		  
+			{MATERIALX_MATERIALFUNCTION_PATH(UniformEDF),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXEDF::Uniform)},
+			{MATERIALX_MATERIALFUNCTION_PATH(ConicalEDF),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXEDF::Conical)},
+			{MATERIALX_MATERIALFUNCTION_PATH(MeasuredEDF),				  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXEDF::Measured)},
+																		  
+			{MATERIALX_MATERIALFUNCTION_PATH(AbsorptionVDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXVDF::Absorption)},
+			{MATERIALX_MATERIALFUNCTION_PATH(AnisotropicVDF),			  UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXVDF::Anisotropic)},
 		};
 
 		MaterialXSettings->InitPredefinedAssets();
@@ -657,6 +791,9 @@ void UMaterialXPipelineSettings::InitPredefinedAssets()
 	{
 		TArray<TTuple<EMaterialXSettings, FString, FString>> MappingToSubstrate
 		{
+			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurface), OpenPBRSurfaceFunctionsPath, OpenPBRSurfaceSubstratePath},
+			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::OpenPBRSurfaceTransmission), OpenPBRTransmissionSurfaceFunctionsPath, OpenPBRTransmissionSurfaceSubstratePath},
+			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::Surface), SurfaceFunctionsPath, SurfaceSubstratePath},
 			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::Surface), SurfaceFunctionsPath, SurfaceSubstratePath},
 			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurface), StandardSurfaceFunctionsPath, StandardSurfaceSubstratePath},
 			{UMaterialXPipelineSettings::ToEnumKey(EInterchangeMaterialXShaders::StandardSurfaceTransmission), TransmissionSurfaceFunctionsPath, TransmissionSurfaceSubstratePath},
