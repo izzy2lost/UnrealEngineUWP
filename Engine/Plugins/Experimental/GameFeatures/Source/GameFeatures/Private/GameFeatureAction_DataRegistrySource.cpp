@@ -10,6 +10,8 @@
 
 #if WITH_EDITOR
 #include "Misc/DataValidation.h"
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameFeatureAction_DataRegistrySource)
@@ -240,6 +242,30 @@ EDataValidationResult UGameFeatureAction_DataRegistrySource::IsDataValid(FDataVa
 		{
 			Context.AddError(FText::Format(LOCTEXT("DataRegistrySourceMissingSource", "No valid data table or curve table specified at index {0} in SourcesToAdd"), FText::AsNumber(EntryIndex)));
 			Result = EDataValidationResult::Invalid;
+		}
+
+		if (!Entry.CurveTableToAdd.IsNull())
+		{
+			FAssetData TableAssetData = IAssetRegistry::Get()->GetAssetByObjectPath(Entry.CurveTableToAdd.ToSoftObjectPath());
+
+			// This will catch normal curve tables, composites, and any reasonably named subclass without doing a slow load
+			if (!TableAssetData.IsValid() || !TableAssetData.AssetClassPath.GetAssetName().ToString().Contains(TEXT("CurveTable")))
+			{
+				Context.AddError(FText::Format(LOCTEXT("DataRegistrySourceMissingCurveTable", "Path {0} does not point to valid curvetable at index {1} in SourcesToAdd"), FText::FromString(Entry.CurveTableToAdd.ToString()), FText::AsNumber(EntryIndex)));
+				Result = EDataValidationResult::Invalid;
+			}
+		}
+
+		if (!Entry.DataTableToAdd.IsNull())
+		{
+			FAssetData TableAssetData = IAssetRegistry::Get()->GetAssetByObjectPath(Entry.DataTableToAdd.ToSoftObjectPath());
+
+			// This will catch normal data tables, composites, and any reasonably named subclass without doing a slow load
+			if (!TableAssetData.IsValid() || !TableAssetData.AssetClassPath.GetAssetName().ToString().Contains(TEXT("DataTable")))
+			{
+				Context.AddError(FText::Format(LOCTEXT("DataRegistrySourceMissingDataTable", "Path {0} does not point to valid datatable at index {1} in SourcesToAdd"), FText::FromString(Entry.DataTableToAdd.ToString()), FText::AsNumber(EntryIndex)));
+				Result = EDataValidationResult::Invalid;
+			}
 		}
 
 		if (Entry.bServerSource == false && Entry.bClientSource == false)
