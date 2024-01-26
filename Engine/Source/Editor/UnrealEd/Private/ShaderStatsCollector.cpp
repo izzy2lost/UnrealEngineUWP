@@ -123,7 +123,14 @@ void FShaderStatsReporter::LogStats()
 	}
 	
 	AggregateStats(LocalStats);
-	LocalStats.WriteStatSummary();
+
+	static uint32 PreviousTotalShadersCompiled = 0;
+	const uint32 CurrentTotalShadersCompiled = LocalStats.GetTotalShadersCompiled();
+	if (CurrentTotalShadersCompiled > PreviousTotalShadersCompiled)
+	{
+		LocalStats.WriteStatSummary();
+		PreviousTotalShadersCompiled = CurrentTotalShadersCompiled;
+	}
 }
 
 void FShaderStatsReporter::AggregateStats(FShaderCompilerStats& OutStats) const
