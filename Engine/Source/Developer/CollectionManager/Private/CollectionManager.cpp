@@ -1635,22 +1635,36 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-bool FCollectionManager::HandleRedirectorDeleted(const FSoftObjectPath& ObjectPath)
+bool FCollectionManager::HandleRedirectorsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths)
 {
 	bool bSavedAllCollections = true;
 
 	FTextBuilder AllErrors;
 
 	TArray<FCollectionNameType> UpdatedCollections;
+	TSet<FCollectionNameType> CollectionsToSave;
 
-	// We don't have a cache for on-disk objects, so we have to do this the slower way and query each collection in turn
-	for (const auto& AvailableCollection : AvailableCollections)
+	for (const FSoftObjectPath& ObjectPath : ObjectPaths)
 	{
-		const FCollectionNameType& CollectionKey = AvailableCollection.Key;
-		const TSharedRef<FCollection>& Collection = AvailableCollection.Value;
-
-		if (Collection->IsRedirectorInCollection(ObjectPath))
+		// We don't have a cache for on-disk objects, so we have to do this the slower way and query each collection in turn
+		for (const auto& AvailableCollection : AvailableCollections)
 		{
+			const FCollectionNameType& CollectionKey = AvailableCollection.Key;
+			const TSharedRef<FCollection>& Collection = AvailableCollection.Value;
+
+			if (Collection->IsRedirectorInCollection(ObjectPath))
+			{
+				CollectionsToSave.Add(CollectionKey);
+			}
+		}
+	}
+
+	for (const FCollectionNameType& CollectionKey : CollectionsToSave)
+	{
+		if (TSharedRef<FCollection>* const CollectionRefPtr = AvailableCollections.Find(CollectionKey))
+		{
+			const TSharedRef<FCollection>& Collection = *CollectionRefPtr;
+
 			FText SaveError;
 			if (InternalSaveCollection(Collection, SaveError))
 			{
@@ -1666,19 +1680,16 @@ bool FCollectionManager::HandleRedirectorDeleted(const FSoftObjectPath& ObjectPa
 		}
 	}
 
-	TArray<FSoftObjectPath> RemovedObjects;
-	RemovedObjects.Add(ObjectPath);
-
 	// Notify every collection that changed
 	for (const FCollectionNameType& UpdatedCollection : UpdatedCollections)
 	{
-		AssetsRemovedFromCollectionDelegate.Broadcast(UpdatedCollection, RemovedObjects);
+		AssetsRemovedFromCollectionDelegate.Broadcast(UpdatedCollection, ObjectPaths);
 	}
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if( AssetsRemovedEvent.IsBound())
 	{
-		TArray<FName> RemovedObjectPathNames = UE::SoftObjectPath::Private::ConvertSoftObjectPaths(RemovedObjects);
+		TArray<FName> RemovedObjectPathNames = UE::SoftObjectPath::Private::ConvertSoftObjectPaths(ObjectPaths);
 		for (const FCollectionNameType& UpdatedCollection : UpdatedCollections)
 		{
 			AssetsRemovedEvent.Broadcast(UpdatedCollection, RemovedObjectPathNames);
@@ -1692,6 +1703,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	return bSavedAllCollections;
+}
+
+bool FCollectionManager::HandleRedirectorDeleted(const FSoftObjectPath& ObjectPath)
+{
+	return HandleRedirectorsDeleted(MakeArrayView(&ObjectPath, 1));
 }
 
 void FCollectionManager::HandleObjectRenamed(const FSoftObjectPath& OldObjectPath, const FSoftObjectPath& NewObjectPath)
@@ -1731,13 +1747,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
-void FCollectionManager::HandleObjectDeleted(const FSoftObjectPath& ObjectPath)
+void FCollectionManager::HandleObjectsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths)
 {
 	TArray<FCollectionNameType> UpdatedCollections;
-	RemoveObjectFromCollections(ObjectPath, UpdatedCollections);
-
-	TArray<FSoftObjectPath> RemovedObjects;
-	RemovedObjects.Add(ObjectPath);
+	for (const FSoftObjectPath& ObjectPath : ObjectPaths)
+	{
+		RemoveObjectFromCollections(ObjectPath, UpdatedCollections);
+	}
 
 	if (UpdatedCollections.Num() > 0)
 	{
@@ -1746,13 +1762,13 @@ void FCollectionManager::HandleObjectDeleted(const FSoftObjectPath& ObjectPath)
 		// Notify every collection that changed
 		for (const FCollectionNameType& UpdatedCollection : UpdatedCollections)
 		{
-			AssetsRemovedFromCollectionDelegate.Broadcast(UpdatedCollection, RemovedObjects);
+			AssetsRemovedFromCollectionDelegate.Broadcast(UpdatedCollection, ObjectPaths);
 		}
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (AssetsRemovedEvent.IsBound())
 		{
-			TArray<FName> RemovedObjectPathNames = UE::SoftObjectPath::Private::ConvertSoftObjectPaths(RemovedObjects);
+			TArray<FName> RemovedObjectPathNames = UE::SoftObjectPath::Private::ConvertSoftObjectPaths(ObjectPaths);
 			for (const FCollectionNameType& UpdatedCollection : UpdatedCollections)
 			{
 				AssetsRemovedEvent.Broadcast(UpdatedCollection, RemovedObjectPathNames);
@@ -1760,6 +1776,11 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
+}
+
+void FCollectionManager::HandleObjectDeleted(const FSoftObjectPath& ObjectPath)
+{
+	HandleObjectsDeleted(MakeArrayView(&ObjectPath, 1));
 }
 
 bool FCollectionManager::TickFileCache(float InDeltaTime)
