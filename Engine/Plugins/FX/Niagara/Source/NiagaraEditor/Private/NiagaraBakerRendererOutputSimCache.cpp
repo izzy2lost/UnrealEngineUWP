@@ -91,7 +91,7 @@ void FNiagaraBakerRendererOutputSimCache::EndBake(FNiagaraBakerFeedbackContext& 
 		return;
 	}
 
-	BakeSimCache->EndWrite();
+	BakeSimCache->EndWrite(true);
 
 	BakeSimCache->RemoveFromRoot();
 }
