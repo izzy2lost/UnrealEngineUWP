@@ -233,12 +233,34 @@ FLinearColor UTG_BlueprintFunctionLibrary::GetColorParameterValue(UObject* World
 	return ParameterValue;
 }
 
-void UTG_BlueprintFunctionLibrary::SetOutputSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, int Width, int Height, FString FileName /*= "None"*/, FString FolderPath /*= "None"*/, ETG_TextureFormat Format /*= ETG_TextureFormat::BGRA8*/)
+void UTG_BlueprintFunctionLibrary::SetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, int Width, int Height, 
+	FString FileName /*= "None"*/, FString FolderPath /*= "None"*/, ETG_TextureFormat Format /*= ETG_TextureFormat::BGRA8*/, ETG_TexturePresetType TextureType /*= ETG_TexturePresetType::None*/,
+	TextureCompressionSettings Compression /*= TextureCompressionSettings::TC_Default*/, TextureGroup LodGroup /*= TextureGroup::TEXTUREGROUP_World*/, bool bSRGB /*= false*/)
 {
 	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull))
 	{
-		auto bFoundParameter = false;
-		if (InTextureGraph)
+		bool bFoundParameter = false;
+		bool bSizeError = false;
+		bool bPathError = false;
+		bool bNameError = false;
+
+		const FString FunctionName = "SetSettingsParameterValue";
+
+		if (Width <= 0 || Height <= 0)
+		{
+			bSizeError = true;
+		}
+		if (FolderPath.IsEmpty() || FolderPath == "None")
+		{
+			bPathError = true;
+		}
+		if (FileName.IsEmpty() || FolderPath == "None")
+		{
+			bNameError = true;
+		}
+
+
+		if (InTextureGraph && !bSizeError && !bPathError && !bNameError)
 		{
 			auto PinParam = InTextureGraph->Graph()->FindParamPin(ParameterName);
 			if (PinParam)
@@ -247,22 +269,37 @@ void UTG_BlueprintFunctionLibrary::SetOutputSettingsParameterValue(UObject* Worl
 				if (ExpressionPtr)
 				{
 					FTG_OutputSettings ParameterValue;
-					ParameterValue.Set(Width, Height, FileName, FolderPath, Format);
+					ParameterValue.Set(Width, Height, FileName, FolderPath, Format, TextureType, Compression, LodGroup, bSRGB);
 					ExpressionPtr->Settings = ParameterValue;
 					PinParam->EditSelfVar()->EditAs<FTG_OutputSettings>() = ParameterValue;
 					bFoundParameter = true;
 				}
 			}
+
+			if (!bFoundParameter)
+			{
+				AddParamWarning(ParameterName, InTextureGraph, FunctionName);
+			}
 		}
 
-		if (!bFoundParameter)
+		if (bSizeError)
 		{
-			AddParamWarning(ParameterName, InTextureGraph, "SetOutputSettingsParameterValue");
+			AddError(InTextureGraph, FunctionName, "Invalid size try to set non zero size");
+		}
+
+		if (bPathError)
+		{
+			AddError(InTextureGraph, FunctionName, "Invalid path try to set a valid path , path connot be empty or none");
+		}
+
+		if (bNameError)
+		{
+			AddError(InTextureGraph, FunctionName, "Invalid file name , file name cannot be empty or None");
 		}
 	}
 }
 
-FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetOutputSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
+FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName)
 {
 	FTG_OutputSettings ParameterValue;
 
@@ -281,7 +318,7 @@ FTG_OutputSettings UTG_BlueprintFunctionLibrary::GetOutputSettingsParameterValue
 
 		if (!bFoundParameter)
 		{
-			AddParamWarning(ParameterName, InTextureGraph, "GetOutputSettingsParameterValue");
+			AddParamWarning(ParameterName, InTextureGraph, "GetSettingsParameterValue");
 		}
 	}
 
@@ -296,6 +333,14 @@ void UTG_BlueprintFunctionLibrary::AddParamWarning(FName ParamName, UObject* Obj
 		->AddToken(FTextToken::Create(FText::Format(LOCTEXT("{FunctionName}", "{FunctionName} called on"), FText::FromString(FunctionName))))
 		->AddToken(FUObjectToken::Create(ObjectPtr))
 		->AddToken(FTextToken::Create(FText::Format(LOCTEXT("WithInvalidParam", "with invalid ParameterName '{ParamName}'. This is likely due to a Blueprint error."), Arguments)));
+}
+
+void UTG_BlueprintFunctionLibrary::AddError( UObject* ObjectPtr, FString FunctionName , FString Error)
+{
+	FMessageLog("PIE").Error()
+		->AddToken(FTextToken::Create(FText::Format(LOCTEXT("{FunctionName}", "{FunctionName} called on"), FText::FromString(FunctionName))))
+		->AddToken(FUObjectToken::Create(ObjectPtr))
+		->AddToken(FTextToken::Create(FText::FromString(Error)));
 }
 #undef LOCTEXT_NAMESPACE
 

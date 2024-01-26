@@ -46,7 +46,7 @@ void STG_GraphPinOutputSettings::OnOutputSettingsChanged(const FTG_OutputSetting
 	}
 }
 
-FProperty* STG_GraphPinOutputSettings::GetPinProperty()
+FProperty* STG_GraphPinOutputSettings::GetPinProperty() const
 {
 	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GraphPinObj->GetOwningNode()->GetSchema());
 	UTG_Pin* TSPin = Schema->GetTGPinFromEdPin(GraphPinObj);
@@ -54,7 +54,7 @@ FProperty* STG_GraphPinOutputSettings::GetPinProperty()
 	return Property;
 }
 
-bool STG_GraphPinOutputSettings::ShowChildProperties()
+bool STG_GraphPinOutputSettings::ShowChildProperties() const
 {
 	FProperty* Property = GetPinProperty();
 	bool ShowChildProperties = true;
@@ -66,7 +66,7 @@ bool STG_GraphPinOutputSettings::ShowChildProperties()
 	return ShowChildProperties;
 }
 
-bool STG_GraphPinOutputSettings::CollapsibleChildProperties()
+bool STG_GraphPinOutputSettings::CollapsibleChildProperties() const
 {
 	FProperty* Property = GetPinProperty();
 	bool Collapsible = false;
@@ -76,6 +76,18 @@ bool STG_GraphPinOutputSettings::CollapsibleChildProperties()
 		Collapsible = true;
 	}
 	return Collapsible;
+}
+
+EVisibility STG_GraphPinOutputSettings::ShowLabel() const
+{
+	bool bHide = ShowChildProperties();
+
+	if ((GraphPinObj->GetOwningNode()->AdvancedPinDisplay == ENodeAdvancedPins::Type::Hidden && GraphPinObj->LinkedTo.Num() > 0))
+	{
+		bHide = false;
+	}
+
+	return bHide ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 TSharedRef<SWidget>	STG_GraphPinOutputSettings::GetDefaultValueWidget()
@@ -99,14 +111,11 @@ TSharedRef<SWidget>	STG_GraphPinOutputSettings::GetDefaultValueWidget()
 
 TSharedRef<SWidget> STG_GraphPinOutputSettings::GetLabelWidget(const FName& InLabelStyle)
 {
-	if(ShowChildProperties() && CollapsibleChildProperties())
-	{
-		return SNew(SHorizontalBox);
-	}
-	else
-	{
-		return SGraphPin::GetLabelWidget(InLabelStyle);
-	}
+	return SNew(STextBlock)
+			.Text(this, &STG_GraphPinOutputSettings::GetPinLabel)
+			.TextStyle(FAppStyle::Get(), InLabelStyle)
+			.Visibility(this, &STG_GraphPinOutputSettings::ShowLabel)
+			.ColorAndOpacity(this, &STG_GraphPinOutputSettings::GetPinTextColor);
 }
 
 void STG_GraphPinOutputSettings::OnAdvancedViewChanged(const ECheckBoxState NewCheckedState)

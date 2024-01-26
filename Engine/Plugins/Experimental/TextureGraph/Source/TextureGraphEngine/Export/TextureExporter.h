@@ -31,6 +31,7 @@ struct TEXTUREGRAPHENGINE_API FExportMapSettings
 	int32 Width;
 	int32 Height;
 	TextureCompressionSettings Compression;
+	TextureGroup LODGroup;
 
 	DECLARE_DELEGATE_OneParam(OnExportMapDone, FExportMapSettings MapSettings);
 	OnExportMapDone OnDone;

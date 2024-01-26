@@ -14,9 +14,10 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj);
-	FProperty* GetPinProperty();
-	bool ShowChildProperties();
-	bool CollapsibleChildProperties();
+	FProperty* GetPinProperty() const;
+	bool ShowChildProperties() const;
+	bool CollapsibleChildProperties() const;
+	EVisibility ShowLabel() const;
 	//~ Begin SGraphPin Interface
 	virtual TSharedRef<SWidget>	GetDefaultValueWidget() override;
 	virtual TSharedRef<SWidget> GetLabelWidget(const FName& InLabelStyle) override;
