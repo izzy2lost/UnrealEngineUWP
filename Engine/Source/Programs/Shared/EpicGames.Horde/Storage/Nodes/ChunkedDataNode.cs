@@ -38,11 +38,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		public static async Task CopyToStreamAsync(IBlobHandle handle, Stream outputStream, CancellationToken cancellationToken)
 		{
 			using BlobData blobData = await handle.ReadBlobDataAsync(cancellationToken);
-			if (blobData.Type.Guid == LeafChunkedDataNodeConverter.BlobType.Guid)
+			if (blobData.Type.Guid == LeafChunkedDataNode.BlobTypeGuid)
 			{
 				await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 			}
-			else if (blobData.Type.Guid == InteriorChunkedDataNodeConverter.BlobTypeGuid)
+			else if (blobData.Type.Guid == InteriorChunkedDataNode.BlobTypeGuid)
 			{
 				await InteriorChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 			}
@@ -92,11 +92,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public override ChunkedDataNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			if (reader.Type.Guid == LeafChunkedDataNodeConverter.BlobType.Guid)
+			if (reader.Type.Guid == LeafChunkedDataNode.BlobTypeGuid)
 			{
 				return options.GetConverter<LeafChunkedDataNode>().Read(reader, options);
 			}
-			else if (reader.Type.Guid == InteriorChunkedDataNodeConverter.BlobTypeGuid)
+			else if (reader.Type.Guid == InteriorChunkedDataNode.BlobTypeGuid)
 			{
 				return options.GetConverter<InteriorChunkedDataNode>().Read(reader, options);
 			}
@@ -202,6 +202,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	[BlobConverter(typeof(LeafChunkedDataNodeConverter))]
 	public sealed class LeafChunkedDataNode : ChunkedDataNode
 	{
+		/// <summary>
+		/// Guid for the blob type
+		/// </summary>
+		public static Guid BlobTypeGuid { get; } = new Guid("{B27AFB68-4A4B-9E20-8A78-D8A439D49840}");
+
 		/// <summary>
 		/// Data for this node
 		/// </summary>
@@ -387,7 +392,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Static accessor for the blob type
 		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType("{B27AFB68-4A4B-9E20-8A78-D8A439D49840}", 1);
+		public static BlobType BlobType { get; } = new BlobType(LeafChunkedDataNode.BlobTypeGuid, 1);
 
 		public override LeafChunkedDataNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
@@ -431,6 +436,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	[BlobConverter(typeof(InteriorChunkedDataNodeConverter))]
 	public class InteriorChunkedDataNode : ChunkedDataNode
 	{
+		/// <summary>
+		/// Static accessor for the blob type guid
+		/// </summary>
+		public static Guid BlobTypeGuid { get; } = Guid.Parse("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}");
+
 		/// <summary>
 		/// Child nodes
 		/// </summary>
@@ -567,11 +577,6 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// </summary>
 	public class InteriorChunkedDataNodeConverter : BlobConverter<InteriorChunkedDataNode>
 	{
-		/// <summary>
-		/// Static accessor for the blob type guid
-		/// </summary>
-		public static Guid BlobTypeGuid { get; } = Guid.Parse("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}");
-
 		readonly int _writeVersion;
 
 		/// <summary>
@@ -631,7 +636,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					writer.WriteUnsignedVarInt((ulong)child.Length);
 				}
 			}
-			return new BlobType(BlobTypeGuid, _writeVersion);
+			return new BlobType(InteriorChunkedDataNode.BlobTypeGuid, _writeVersion);
 		}
 	}
 }

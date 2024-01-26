@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Serialization;
+using System;
 using System.Collections.Generic;
 
 namespace EpicGames.Horde.Storage.Nodes
@@ -12,6 +13,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	[BlobConverter(typeof(CbNodeConverter))]
 	public class CbNode
 	{
+		/// <summary>
+		/// Static accessor for the blob type guid
+		/// </summary>
+		public static Guid BlobTypeGuid { get; } = new Guid("{34A0793F-42F4-8364-A798-32862932841C}");
+
 		/// <summary>
 		/// The compact binary object
 		/// </summary>
@@ -68,7 +74,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		public static BlobType BlobType { get; } = new BlobType("{34A0793F-42F4-8364-A798-32862932841C}", 1);
+		public static BlobType BlobType { get; } = new BlobType(CbNode.BlobTypeGuid, 1);
 
 		/// <inheritdoc/>
 		public override CbNode Read(IBlobReader reader, BlobSerializerOptions options)

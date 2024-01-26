@@ -154,7 +154,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Type of serialized directory node blobs
 		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType("{0714EC11-4D07-291A-8AE7-7F86799980D6}", 2);
+		public static Guid BlobTypeGuid { get; } = new Guid("{0714EC11-4D07-291A-8AE7-7F86799980D6}");
 
 		readonly SortedDictionary<string, FileEntry> _nameToFileEntry = new SortedDictionary<string, FileEntry>(StringComparer.Ordinal);
 		readonly SortedDictionary<string, DirectoryEntry> _nameToDirectoryEntry = new SortedDictionary<string, DirectoryEntry>(StringComparer.Ordinal);
@@ -931,6 +931,11 @@ namespace EpicGames.Horde.Storage.Nodes
 
 	class DirectoryNodeConverter : BlobConverter<DirectoryNode>
 	{
+		/// <summary>
+		/// Type of serialized directory node blobs
+		/// </summary>
+		public static BlobType BlobType { get; } = new BlobType(DirectoryNode.BlobTypeGuid, 2);
+
 		/// <inheritdoc/>
 		public override DirectoryNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
@@ -1008,7 +1013,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				writer.WriteString(directoryEntry.Name);
 			}
 
-			return DirectoryNode.BlobType;
+			return BlobType;
 		}
 	}
 
