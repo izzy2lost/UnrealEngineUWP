@@ -853,7 +853,12 @@ bool FVirtualizationManager::PullData(TArrayView<FPullRequest> Requests)
 		{
 			checkf(Request.GetIdentifier() == Request.GetPayload().GetRawHash(), TEXT("Invalid payload for '%s'"), *LexToString(Request.GetIdentifier()));
 		}
-	}	
+	}
+
+	if (bSuccess)
+	{
+		UnattendedFailureMsgCount = 0;
+	}
 
 	return bSuccess;
 }
@@ -1212,6 +1217,20 @@ void FVirtualizationManager::ApplySettingsFromConfigFiles(const FConfigFile& Con
 	{
 		ConfigFile.GetBool(ConfigSection, TEXT("ForceCachingOnPull"), bForceCachingOnPull);
 		UE_LOG(LogVirtualization, Display, TEXT("\tForceCachingOnPull : %s"), bForceCachingOnPull ? TEXT("true") : TEXT("false"));
+	}
+
+	{
+		ConfigFile.GetInt(ConfigSection, TEXT("UnattendedRetryTimer"), UnattendedRetryTimer);
+		ConfigFile.GetInt(ConfigSection, TEXT("UnattendedRetryCount"), UnattendedRetryCount);
+		
+		if (ShouldRetryWhenUnattended())
+		{
+			UE_LOG(LogVirtualization, Display, TEXT("\tUnattendedRetryTimer : %d retries every %d(s)"), UnattendedRetryCount, UnattendedRetryTimer);
+		}
+		else
+		{
+			UE_LOG(LogVirtualization, Display, TEXT("\tUnattendedRetries : disabled"));
+		}
 	}
 
 	// Deprecated
@@ -2000,9 +2019,9 @@ void FVirtualizationManager::PullDataFromBackend(IVirtualizationBackend& Backend
 	COOK_STAT(FCookStats::CallStats & Stats = Profiling::GetPullStats(Backend));
 	COOK_STAT(FCookStats::FScopedStatsCounter Timer(Stats));
 	COOK_STAT(Timer.TrackCyclesOnly());
-	
+
 	Backend.PullData(Requests, IVirtualizationBackend::EPullFlags::None, OutErrors);
-	
+
 #if ENABLE_COOK_STATS
 	const bool bIsInGameThread = IsInGameThread();
 
@@ -2028,7 +2047,7 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 
 	for (const FIoHash& FailedPayload : Requests.GetFailedPayloads())
 	{
-		UE_LOG(LogVirtualization, Error, TEXT("Payload '%s' failed to be pulled from any backend'"), *LexToString(FailedPayload));
+		UE_LOG(LogVirtualization, Error, TEXT("Failed to pull payload '%s'"), *LexToString(FailedPayload));
 	}
 
 	static FCriticalSection CriticalSection;
@@ -2069,7 +2088,27 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 		else
 		{
 			const FText Message = MsgBuilder.ToText();
-			UE_LOG(LogVirtualization, Error, TEXT("%s"), *Message.ToString());
+
+			if (!ShouldRetryWhenUnattended() || UnattendedFailureMsgCount >= UnattendedRetryCount)
+			{
+				UE_LOG(LogVirtualization, Error, TEXT("%s"), *Message.ToString());
+			}
+			else
+			{
+				// Only log as a warning while we are retrying so that if we do recover out logging will
+				// not cause the running process to be considered a failure due to an error.
+				UE_LOG(LogVirtualization, Warning, TEXT("Failed to pull payload(s) on attempt (%d/%d)"), UnattendedFailureMsgCount.load(), UnattendedRetryCount);
+
+				Result = EAppReturnType::Yes; // Attempt to retry the failed pull
+
+				if (UnattendedRetryTimer > 0)
+				{
+					UE_LOG(LogVirtualization, Warning, TEXT("Waiting for %d seconds before trying to pull again..."), UnattendedRetryTimer);
+					FPlatformProcess::SleepNoStats(static_cast<float>(UnattendedRetryTimer));
+				}
+
+				UnattendedFailureMsgCount++;
+			}
 		}
 
 		if (Result == EAppReturnType::No)
@@ -2217,6 +2256,11 @@ bool FVirtualizationManager::ShouldVirtualizeAsDefault() const
 			checkNoEntry();
 			return false;
 	}
+}
+
+bool FVirtualizationManager::ShouldRetryWhenUnattended() const
+{
+	return UnattendedRetryCount > 0;
 }
 
 void FVirtualizationManager::BroadcastEvent(TConstArrayView<FPullRequest> Requests, ENotification Event)
