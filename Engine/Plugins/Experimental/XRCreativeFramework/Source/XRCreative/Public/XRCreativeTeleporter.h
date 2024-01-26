@@ -5,7 +5,6 @@
 #include "GameFramework/Actor.h"
 #include "XRCreativeTeleporter.generated.h"
 
-class UXRDeviceVisualizationComponent;
 class UMotionControllerComponent;
 class UStaticMeshComponent;
 
@@ -52,9 +51,5 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="XR Creative Teleporter")
 	TObjectPtr<UStaticMeshComponent> HMDVisual;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="XR Creative Teleporter")
-	TObjectPtr<UXRDeviceVisualizationComponent> TestVisual;
-
-	
+		
 };
