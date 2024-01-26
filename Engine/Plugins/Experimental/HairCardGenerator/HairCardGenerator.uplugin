@@ -1,0 +1,58 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Hair Card Generator",
+	"Description": "Procedurally generate hair cards from hair strands",
+	"Category": "Geometry",
+	"CreatedBy": "Epic Games, Inc.",
+	"CreatedByURL": "https://epicgames.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "https://forums.unrealengine.com/",
+	"EnabledByDefault": false,
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "HairCardGeneratorEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default",
+			"PlatformAllowList": [
+				"Win64",
+				"Linux"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "HairStrands",
+			"Enabled": true
+		},
+		{
+			"Name": "PythonFoundationPackages",
+			"Enabled": true
+		}
+	],
+	"PythonRequirements":
+	[
+		{
+			"Platform": "All",
+			"Requirements": 
+			[
+				"addict==2.4.0",
+				"glcontext==2.3.6",
+				"joblib==1.1.0",
+				"moderngl==5.6.4",
+				"multipledispatch==0.6.0",
+				"PyOpenGL==3.1.6",
+				"pyrr==0.10.3",
+				"pyyaml==6.0",
+				"scikit_learn==1.1.1",
+				"six==1.16.0"
+			]
+		}
+	]
+}
