@@ -419,9 +419,9 @@ void SNiagaraOverviewStackNode::Tick(const FGeometry& AllottedGeometry, const do
 			OverviewStackNode->RenameStarted();
 		}
 
-		if (bTopContentBarRefreshPending)
+		if (bTopContentBarRefreshPending && TopContentBarSlot != nullptr)
 		{
-			CreateTopContentBar();
+			TopContentBarSlot->AttachWidget(CreateTopContentBar());
 			bTopContentBarRefreshPending = false;
 		}
 
@@ -610,6 +610,7 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateNodeContentArea_Default()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Center)
 			.Padding(2.f)
+			.Expose(TopContentBarSlot)
 			[
 				CreateTopContentBar()
 			]
