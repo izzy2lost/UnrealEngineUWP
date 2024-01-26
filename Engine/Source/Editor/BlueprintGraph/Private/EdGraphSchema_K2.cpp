@@ -640,7 +640,6 @@ UEdGraphSchema_K2::FPinTypeTreeInfo::FPinTypeTreeInfo(const FText& InFriendlyNam
 	PinType.PinCategory = CategoryName;
 
 	SubCategoryObjectAssetReference = SubCategoryObject;
-	PinType.PinSubCategoryObject = SubCategoryObjectAssetReference.ResolveObject();
 
 	bReadOnly = bInReadOnly;
 	CachedDescription = GenerateDescription();

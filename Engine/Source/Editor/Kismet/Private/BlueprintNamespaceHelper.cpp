@@ -102,8 +102,7 @@ public:
 			return true;
 		}
 
-		const bool bForceLoadSubCategoryObject = false;
-		const FEdGraphPinType& PinType = InItem->GetPinType(bForceLoadSubCategoryObject);
+		const FEdGraphPinType& PinType = InItem->GetPinTypeNoResolve();
 
 		if (PinType.PinSubCategoryObject.IsValid() && !CachedNamespaceHelper->IsImportedObject(PinType.PinSubCategoryObject.Get()))
 		{
