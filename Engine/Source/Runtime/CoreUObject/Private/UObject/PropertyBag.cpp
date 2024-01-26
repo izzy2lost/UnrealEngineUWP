@@ -109,7 +109,7 @@ void FPropertyBag::LoadPropertyByTag(const FPropertyPathName& Path, const FPrope
 	}
 
 	// Construct a property from the tag and try to use it to serialize the value.
-	FField* Field = FField::Construct(Tag.Type, {}, Tag.Name, RF_NoFlags);
+	FField* Field = FField::TryConstruct(Tag.Type, {}, Tag.Name, RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field); Property && Property->LoadFromTag(Value.Tag))
 	{
 		Property->Link(UnderlyingArchive);

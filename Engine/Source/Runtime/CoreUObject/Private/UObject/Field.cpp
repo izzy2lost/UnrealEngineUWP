@@ -972,6 +972,15 @@ FField* FField::Construct(const FName& FieldTypeName, const FFieldVariant& InOwn
 	return Instance;
 }
 
+FField* FField::TryConstruct(const FName& FieldTypeName, const FFieldVariant& InOwner, const FName& InName, EObjectFlags InFlags)
+{
+	if (FFieldClass* FieldClassPtr = FFieldClass::GetNameToFieldClassMap().FindRef(FieldTypeName))
+	{
+		return FieldClassPtr->Construct(InOwner, InName, InFlags);
+	}
+	return nullptr;
+}
+
 FName FField::GenerateFFieldName(FFieldVariant InOwner /** Unused yet */, FFieldClass* InClass)
 {
 	check(InClass);
