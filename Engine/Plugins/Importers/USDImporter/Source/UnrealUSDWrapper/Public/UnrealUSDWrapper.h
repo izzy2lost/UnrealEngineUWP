@@ -245,6 +245,19 @@ public:
 	 * These are the extensions for the file formats built into USD (i.e. "usd", "usda", "usdc", and "usdz").
 	 */
 	UNREALUSDWRAPPER_API static TArray<FString> GetNativeFileFormats();
+	UNREALUSDWRAPPER_API static void GetNativeFileFormats(TArray<FString>& OutTextFormats, TArray<FString>& OutPossiblyBinaryFormats);
+
+	/**
+	 * Internally used by all the export factories, this will query the supported export USD file formats and fill out
+	 * OutFormatExtensions with entries like "usd", "usda", "usdc", etc., and OutFormatDescriptions with entries like
+	 * "Universal Scene Description binary file" or "Universal Scene Description text file"
+	 */
+	UNREALUSDWRAPPER_API static void AddUsdExportFileFormatDescriptions(TArray<FString>& OutFormatExtensions, TArray<FString>& OutFormatDescriptions);
+	/**
+	 * Internally used by all the import factories, this will query the supported export USD file formats and fill out
+	 * OutFormats with entries like "usda; Universal Scene Description text files", "usdc; Universal Scene Description binary files", etc.
+	 */
+	UNREALUSDWRAPPER_API static void AddUsdImportFileFormatDescriptions(TArray<FString>& OutFormats);
 
 	/**
 	 * Opens a USD stage from a file on disk or existing layers, with a population mask or not.
