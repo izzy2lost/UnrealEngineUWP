@@ -66,6 +66,8 @@
 #include "DerivedDataRequestOwner.h"
 #include "TextureCompiler.h"
 #include "Rendering/StaticLightingSystemInterface.h"
+#include "DirectoryWatcherModule.h"
+#include "IDirectoryWatcher.h"
 #endif
 
 #if WITH_ODSC
@@ -84,6 +86,13 @@ DEFINE_LOG_CATEGORY(LogShaderCompilers);
 #define UE_SHADERCOMPILER_FIFO_JOB_EXECUTION  1
 
 LLM_DEFINE_TAG(ShaderCompiler);
+
+static TAutoConsoleVariable<bool> CVarRecompileShadersOnSave(
+	TEXT("r.ShaderCompiler.RecompileShadersOnSave"),
+	false,
+	TEXT("When enabled, the editor will attempt to recompile any shader files that have changed when saved.  Useful for iterating on shaders in the editor.\n")
+	TEXT("Default: false"),
+	ECVF_ReadOnly);
 
 int32 GShaderCompilerJobCache = 1;
 static FAutoConsoleVariableRef CVarShaderCompilerJobCache(
@@ -5651,6 +5660,93 @@ FShaderCompilingManager::FShaderCompilingManager() :
 	OutOfMemoryDelegateHandle = FCoreDelegates::GetOutOfMemoryDelegate().AddRaw(this, &FShaderCompilingManager::ReportMemoryUsage);
 
 	FAssetCompilingManager::Get().RegisterManager(this);
+
+#if WITH_EDITOR
+	static const bool bAllowShaderRecompileOnSave = CVarRecompileShadersOnSave.GetValueOnAnyThread();
+	if (bAllowShaderRecompileOnSave)
+	{
+		if (IDirectoryWatcher* DirectoryWatcher = FModuleManager::LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher")).Get())
+		{
+			// Handle if we are watching a directory for changes.
+			{
+				UE_LOG(LogShaderCompilers, Display, TEXT("Register directory watchers for shader files."));
+
+				const TMap<FString, FString>& ShaderSourceDirectoryMappings = AllShaderSourceDirectoryMappings();
+
+				DirectoryWatcherHandles.Reserve(ShaderSourceDirectoryMappings.Num());
+
+				for (const auto& It : ShaderSourceDirectoryMappings)
+				{
+					FString DirectoryToWatch = It.Value;
+					if (FPaths::IsRelative(DirectoryToWatch))
+					{
+						DirectoryToWatch = FPaths::ConvertRelativePathToFull(DirectoryToWatch);
+					}
+
+					FDelegateHandle& DirectoryWatcherHandle = DirectoryWatcherHandles.Add(DirectoryToWatch, FDelegateHandle());
+
+					DirectoryWatcher->RegisterDirectoryChangedCallback_Handle(
+						DirectoryToWatch,
+						IDirectoryWatcher::FDirectoryChanged::CreateLambda([](const TArray<FFileChangeData>& InFileChangeDatas) {
+
+							TRACE_CPUPROFILER_EVENT_SCOPE(HandleDirectoryChanged);
+
+							if (!bAllowShaderRecompileOnSave)
+							{
+								return;
+							}
+
+							TArray<FString> ChangedShaderFiles;
+							for (const FFileChangeData& It : InFileChangeDatas)
+							{
+								if (It.Filename.EndsWith(TEXT(".usf")) || It.Filename.EndsWith(TEXT(".ush")) || It.Filename.EndsWith(TEXT(".h")))
+								{
+									UE_LOG(LogShaderCompilers, Display, TEXT("Detected change on %s"), *It.Filename);
+
+									ChangedShaderFiles.AddUnique(It.Filename);
+								}
+							}
+
+							if (ChangedShaderFiles.Num())
+							{
+								// Mappings from:
+								// Key:   /Engine to
+								// Value: ../../../Engine/Shaders
+								const TMap<FString, FString>& ShaderSourceDirectoryMappings = AllShaderSourceDirectoryMappings();
+
+								FString RemappedShaderFileName;
+								for (const auto& It : ShaderSourceDirectoryMappings)
+								{
+									// ChangedShaderFiles will be of format: ../../../Engine/Shaders/Private/PostProcessGBufferHints.usf
+									if (ChangedShaderFiles[0].StartsWith(It.Value))
+									{
+										// Change from relative path to Engine absolute path.
+										// i.e. change `../../../Engine/Shaders/Private/PostProcessGBufferHints.usf` to `/Engine/Shaders/Private/PostProcessGBufferHints.usf`
+										RemappedShaderFileName = ChangedShaderFiles[0].Replace(*It.Value, *It.Key);
+									}
+								}
+
+								// Issue a `recompileshaders /Engine/Shaders/Private/PostProcessGBufferHints.usf` command, which will just compile that shader source file.
+								RecompileShaders(*RemappedShaderFileName, *GLog);
+
+								UE_LOG(LogShaderCompilers, Display, TEXT("Ready for new shader file changes"));
+							}
+						}),
+						DirectoryWatcherHandle);
+
+					if (DirectoryWatcherHandle.IsValid())
+					{
+						UE_LOG(LogShaderCompilers, Display, TEXT("Watching %s -> %s"), *It.Key, *DirectoryToWatch);
+					}
+					else
+					{
+						UE_LOG(LogShaderCompilers, Error, TEXT("Failed to set up directory watcher %s -> %s"), *It.Key, *DirectoryToWatch);
+					}
+				}
+			}
+		}
+	}
+#endif // WITH_EDITOR
 }
 
 FShaderCompilingManager::~FShaderCompilingManager()
@@ -5668,6 +5764,20 @@ FShaderCompilingManager::~FShaderCompilingManager()
 	}
 
 	FCoreDelegates::GetOutOfMemoryDelegate().Remove(OutOfMemoryDelegateHandle);
+
+#if WITH_EDITOR
+	const bool bAllowShaderRecompileOnSave = CVarRecompileShadersOnSave.GetValueOnAnyThread();
+	if (bAllowShaderRecompileOnSave)
+	{
+		if (IDirectoryWatcher* DirectoryWatcher = FModuleManager::LoadModuleChecked<FDirectoryWatcherModule>(TEXT("DirectoryWatcher")).Get())
+		{
+			for (const auto& It : DirectoryWatcherHandles)
+			{
+				DirectoryWatcher->UnregisterDirectoryChangedCallback_Handle(It.Key, It.Value);
+			}
+		}
+	}
+#endif // WITH_EDITOR
 
 	FAssetCompilingManager::Get().UnregisterManager(this);
 }
