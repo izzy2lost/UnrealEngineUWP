@@ -523,6 +523,9 @@ DECLARE_DELEGATE_OneParam(FDataRegistryBatchAcquireCallback, EDataRegistryAcquir
 /** Multicast delegate broadcast called when a data registry's cache version has changed */
 DECLARE_MULTICAST_DELEGATE_OneParam(FDataRegistryCacheVersionCallback, class UDataRegistry*);
 
+/** Multicast delegate broadcast called when the data registry subsystem has finished scanning for and initializing all known data registries */
+DECLARE_MULTICAST_DELEGATE(FDataRegistrySubsystemInitializedCallback);
+
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDataRegistry, Log, All);
 
