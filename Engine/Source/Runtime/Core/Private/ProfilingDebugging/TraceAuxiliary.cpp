@@ -1866,7 +1866,7 @@ static bool LaunchTraceServerCommand(ELaunchTraceServerCommand Command, bool bAd
 ////////////////////////////////////////////////////////////////////////////////
 bool FTraceServerControls::Start()
 {
-	return LaunchTraceServerCommand(ELaunchTraceServerCommand::Fork, false);
+	return LaunchTraceServerCommand(ELaunchTraceServerCommand::Fork, true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
