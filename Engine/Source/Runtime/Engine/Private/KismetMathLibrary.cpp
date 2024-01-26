@@ -1386,12 +1386,12 @@ FBox UKismetMathLibrary::MakeBoxWithOrigin(const FVector& Origin, const FVector&
 
 bool UKismetMathLibrary::Box_IsInside(const FBox& InnerTest, const FBox& OuterTest)
 {
-	return InnerTest.IsInside(OuterTest);
+	return OuterTest.IsInside(InnerTest);
 }
 
 bool UKismetMathLibrary::Box_IsInsideOrOn(const FBox& InnerTest, const FBox& OuterTest)
 {
-	return InnerTest.IsInsideOrOn(OuterTest);
+	return OuterTest.IsInsideOrOn(InnerTest);
 }
 
 bool UKismetMathLibrary::Box_IsPointInside(const FBox& Box, const FVector& Point)
