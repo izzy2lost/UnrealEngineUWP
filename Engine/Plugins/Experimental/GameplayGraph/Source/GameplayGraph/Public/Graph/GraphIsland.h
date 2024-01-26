@@ -28,11 +28,10 @@ enum class EGraphIslandOperations : int32
 {
 	None = 0,
 	Add = 1 << 0,
-	Remove = 1 << 1,
-	Split = 1 << 2,
-	Merge = 1 << 3,
-	Destroy = 1 << 4,
-	All = Add | Remove | Split | Merge | Destroy
+	Split = 1 << 1,
+	Merge = 1 << 2,
+	Destroy = 1 << 3,
+	All = Add | Split | Merge | Destroy
 };
 ENUM_CLASS_FLAGS(EGraphIslandOperations);
 

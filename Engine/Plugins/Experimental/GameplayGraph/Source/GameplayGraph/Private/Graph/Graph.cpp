@@ -84,10 +84,16 @@ void UGraph::LoadFromSerializedGraph(const FSerializableGraph& Input)
 			continue;
 		}
 
-		TArray<FGraphVertexHandle> IslandVertices = Kvp.Value.Vertices;
-		for (FGraphVertexHandle& VertexHandle : IslandVertices)
+		TArray<FGraphVertexHandle> IslandVertices;
+		IslandVertices.Reserve(Kvp.Value.Vertices.Num());
+		
+		for (const FGraphVertexHandle& VertexHandle : Kvp.Value.Vertices)
 		{
-			VertexHandle = GetCompleteNodeHandle(VertexHandle);
+			FGraphVertexHandle CompleteHandle = GetCompleteNodeHandle(VertexHandle);
+			if (CompleteHandle.IsComplete())
+			{
+				IslandVertices.Add(CompleteHandle);
+			}
 		}
 
 		CreateIsland(IslandVertices, Kvp.Key.GetUniqueIndex());
@@ -551,11 +557,6 @@ void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
 			{
 				if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
 				{
-					if (!Island->IsOperationAllowed(EGraphIslandOperations::Remove))
-					{
-						continue;
-					}
-
 					AffectedIslands.Add(Node->GetParentIsland());
 					Island->RemoveVertex(NodeHandle);
 				}
