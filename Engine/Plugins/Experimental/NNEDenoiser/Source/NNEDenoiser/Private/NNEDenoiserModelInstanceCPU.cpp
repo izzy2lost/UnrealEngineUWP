@@ -88,11 +88,11 @@ namespace UE::NNEDenoiser::Private
 		return ModelInstance->GetOutputTensorShapes();
 	}
 
-	FModelInstanceCPU::ESetInputTensorShapeStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	FModelInstanceCPU::ESetInputTensorShapesStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
-		NNE::IModelInstanceCPU::ESetInputTensorShapeStatus Status = ModelInstance->SetInputTensorShapes(InInputShapes);
+		NNE::IModelInstanceCPU::ESetInputTensorShapesStatus Status = ModelInstance->SetInputTensorShapes(InInputShapes);
 
-		return Status == NNE::IModelInstanceCPU::ESetInputTensorShapeStatus::Ok ? ESetInputTensorShapeStatus::Ok : ESetInputTensorShapeStatus::Fail;
+		return Status == NNE::IModelInstanceCPU::ESetInputTensorShapesStatus::Ok ? ESetInputTensorShapesStatus::Ok : ESetInputTensorShapesStatus::Fail;
 	}
 
 	FModelInstanceCPU::EEnqueueRDGStatus FModelInstanceCPU::EnqueueRDG(FRDGBuilder &GraphBuilder, TConstArrayView<NNE::FTensorBindingRDG> Inputs, TConstArrayView<NNE::FTensorBindingRDG> Outputs)

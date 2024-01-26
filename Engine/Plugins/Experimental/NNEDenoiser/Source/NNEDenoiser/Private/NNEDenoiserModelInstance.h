@@ -10,7 +10,7 @@ namespace UE::NNEDenoiser::Private
 class IModelInstance : public NNE::IModelInstanceRDG
 {
 public:
-	using ESetInputTensorShapeStatus = NNE::IModelInstanceRDG::ESetInputTensorShapeStatus;
+	using ESetInputTensorShapesStatus = NNE::IModelInstanceRDG::ESetInputTensorShapesStatus;
 	using EEnqueueRDGStatus = NNE::IModelInstanceRDG::EEnqueueRDGStatus;
 
 	virtual ~IModelInstance() = default;

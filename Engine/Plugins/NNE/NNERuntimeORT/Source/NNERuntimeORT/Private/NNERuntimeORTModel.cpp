@@ -161,7 +161,7 @@ namespace UE::NNERuntimeORT::Private
 	}
 
 	template <class ModelInterface, class TensorBinding> 
-	typename ModelInterface::ESetInputTensorShapeStatus FModelInstanceORTBase<ModelInterface, TensorBinding>::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	typename ModelInterface::ESetInputTensorShapesStatus FModelInstanceORTBase<ModelInterface, TensorBinding>::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
 		using ModelInstanceBase = NNE::Internal::FModelInstanceBase<ModelInterface>;
 
@@ -170,7 +170,7 @@ namespace UE::NNERuntimeORT::Private
 		ModelInstanceBase::OutputTensorShapes.Reset();
 
 		// Verify input shape are valid for the model and set InputTensorShapes
-		if (typename ModelInterface::ESetInputTensorShapeStatus Status = ModelInstanceBase::SetInputTensorShapes(InInputShapes); Status != ModelInterface::ESetInputTensorShapeStatus::Ok)
+		if (typename ModelInterface::ESetInputTensorShapesStatus Status = ModelInstanceBase::SetInputTensorShapes(InInputShapes); Status != ModelInterface::ESetInputTensorShapesStatus::Ok)
 		{
 			return Status;
 		}
@@ -198,7 +198,7 @@ namespace UE::NNERuntimeORT::Private
 			ModelInstanceBase::OutputTensorShapes.Reset();
 		}
 
-		return ModelInterface::ESetInputTensorShapeStatus::Ok;
+		return ModelInterface::ESetInputTensorShapesStatus::Ok;
 	}
 
 	template <class ModelInterface, class TensorBinding>

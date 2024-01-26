@@ -13,8 +13,8 @@ NNE_API DECLARE_LOG_CATEGORY_EXTERN(LogNNE, Log, All);
 
 namespace UE::NNE
 {
-	using ERegisterRuntimeResultStatus = EResultStatus;
-	using EUnregisterRuntimeResultStatus = EResultStatus;
+	using ERegisterRuntimeStatus = EResultStatus;
+	using EUnregisterRuntimeStatus = EResultStatus;
 
 	/**
 	 * Register a runtime to make it accessible to NNE clients.
@@ -24,7 +24,7 @@ namespace UE::NNE
 	 * @param Runtime A weak interface pointer to the runtime to be registered.
 	 * @return Status indicating success or failure (e.g. if the runtime already has been registered).
 	 */
-	NNE_API ERegisterRuntimeResultStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
+	NNE_API ERegisterRuntimeStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
 
 	/**
 	 * Unregister a registered runtime.
@@ -32,7 +32,7 @@ namespace UE::NNE
 	 * @param Runtime A weak interface pointer to the runtime to be unregistered.
 	 * @return Status indicating success or failure (e.g. if the runtime has not been registered).
 	 */
-	NNE_API EUnregisterRuntimeResultStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
+	NNE_API EUnregisterRuntimeStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
 	
 	/**
 	 * List and return all registered runtime names.

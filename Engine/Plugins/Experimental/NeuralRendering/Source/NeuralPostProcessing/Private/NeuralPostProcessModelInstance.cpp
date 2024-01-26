@@ -261,7 +261,7 @@ void UNeuralPostProcessModelInstance::CreateDefaultNNEModel(UNNEModelData* NNEMo
 		// All dynamic dimensions are set to 1 by default.
 		ResolvedInputTensorShape = UE::NNE::FTensorShape::MakeFromSymbolic(InputShape);
 
-		if (ModelInstanceRDG->SetInputTensorShapes({ ResolvedInputTensorShape }) != UE::NNE::IModelInstanceRDG::ESetInputTensorShapeStatus::Ok)
+		if (ModelInstanceRDG->SetInputTensorShapes({ ResolvedInputTensorShape }) != UE::NNE::IModelInstanceRDG::ESetInputTensorShapesStatus::Ok)
 		{
 			ModelInstanceRDG.Reset();
 #if WITH_EDITOR

@@ -100,12 +100,12 @@ bool FModelInstanceRDG::LoadModel(TConstArrayView<uint8> ModelData, FNNERuntimeF
 
 
 
-FModelInstanceRDG::ESetInputTensorShapeStatus FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 {
 	OutputTensorShapes.Reset(OutputTensorIndices.Num());
 
 	//Verify input shape are valid for the model and set InputTensorShapes
-	if (ESetInputTensorShapeStatus Status = FModelInstanceBase<NNE::IModelInstanceRDG>::SetInputTensorShapes(InInputShapes); Status != ESetInputTensorShapeStatus::Ok)
+	if (ESetInputTensorShapesStatus Status = FModelInstanceBase<NNE::IModelInstanceRDG>::SetInputTensorShapes(InInputShapes); Status != ESetInputTensorShapesStatus::Ok)
 	{
 		return Status;
 	}
@@ -160,7 +160,7 @@ FModelInstanceRDG::ESetInputTensorShapeStatus FModelInstanceRDG::SetInputTensorS
 	//Allow the specific runtime to run shape inference if supported
 	if (PrepareTensorShapesAndData() != 0)
 	{
-		return ESetInputTensorShapeStatus::Fail;
+		return ESetInputTensorShapesStatus::Fail;
 	}
 
 	checkCode(
@@ -182,7 +182,7 @@ FModelInstanceRDG::ESetInputTensorShapeStatus FModelInstanceRDG::SetInputTensorS
 	check(WeightTensorIndices.Num() == WeightTensorRDGs.Num());
 	check(AllTensorRDGRefs.Num() == AllSymbolicTensorDescs.Num());
 	
-	return ESetInputTensorShapeStatus::Ok;
+	return ESetInputTensorShapesStatus::Ok;
 }
 
 FRDGBufferDesc CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
