@@ -135,6 +135,9 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 				MapSettings.Path = Path;
 				MapSettings.UseOverridePath = OverrideExportPath;
 				MapSettings.OverwriteTextures = OverwriteTextures;
+				MapSettings.LODGroup = OutputSetting.LODGroup;
+				MapSettings.Compression = OutputSetting.Compression;
+				MapSettings.IsSRGB = OutputSetting.bSRGB;
 				TargetExportSettings.ExportPreset.push_back(std::pair<FName, FExportMapSettings>{ MapSettings.Name, MapSettings });
 			}
 			else

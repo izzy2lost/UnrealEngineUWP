@@ -177,6 +177,10 @@ AsyncInt TextureExporter::ExportRawAsUAsset(RawBufferPtr RawObj,const FExportMap
 			return;
 		}
 		
+		NewTexture->SRGB = Setting.IsSRGB;
+		NewTexture->LODGroup = Setting.LODGroup;
+		NewTexture->CompressionSettings = Setting.Compression;
+
 		NewTexture->Source.Init(WidthToUse, HeightToUse, 1,1, SourceFormat, RawBufferData);
 		NewTexture->UpdateResource();
 		FAssetRegistryModule::AssetCreated(NewTexture);

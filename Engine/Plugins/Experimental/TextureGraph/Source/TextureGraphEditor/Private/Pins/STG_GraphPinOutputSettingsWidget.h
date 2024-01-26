@@ -5,6 +5,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/Input/SCheckbox.h"
 #include "TG_OutputSettings.h"
 #include "EditorUndoClient.h"
 #include "EdGraph/EdGraphPin.h"
@@ -53,10 +54,14 @@ public:
 	TSharedRef<SWidget> AddEditBoxWithBrowseButton(FText Label, FGetTextDelegate GetText, FTextCommitted OnTextCommitted);
 	TSharedRef<SWidget> AddEditBox(FText Label, FGetTextDelegate GetText, FTextCommitted OnTextCommitted);
 	TSharedRef<SWidget> AddEnumComobox(FText Label, FGetTextDelegate GetText, FGenerateEnumMenu OnGenerateEnumMenu);
+	TSharedPtr<SWidget> AddSRGBWidget();
 	FTG_OutputSettings GetSettings() const;
 	void GenerateStringsFromEnum(TArray<FString>& OutEnumNames, const FString& EnumPathName);
+	void GenerateValuesFromEnum(TArray<uint8>& OutEnumValues, const FString& EnumPathName) const;
 	int GetValueFromIndex(const FString& EnumPathName, int Index) const;
 	FString GetEnumValueDisplayName(const FString& EnumPathName, int EnumValue) const;
+	EVisibility ShowParameters() const;
+	EVisibility ShowPinLabel() const;
 
 protected:
 	//~ Begin FEditorUndoClient Interface
@@ -75,6 +80,10 @@ private:
 	int SelectedWidthIndex;
 	int SelectedHeightIndex;
 	int SelectedFormatIndex;
+	int SelectedTextureTypeIndex;
+	int SelectedLodGroupIndex;
+	int SelectedCompressionIndex;
+	bool bSRGB = false;
 
 	FGetTextDelegate GetPathDelegate;
 	FTextCommitted PathCommitted;
@@ -86,6 +95,12 @@ private:
 	FGetTextDelegate GetHeightDelegate;
 	FGenerateEnumMenu OnGenerateFormatMenu;
 	FGetTextDelegate GetFormatDelegate;
+	FGenerateEnumMenu OnGenerateTexturePresetTypeMenu;
+	FGetTextDelegate GetTexturePresetTypeDelegate;
+	FGenerateEnumMenu OnGenerateLodGroupMenu;
+	FGetTextDelegate GetLodGroupDelegate;
+	FGenerateEnumMenu OnGenerateCompressionMenu;
+	FGetTextDelegate GetCompressionDelegate;
 
 	FText GetNameAsText() const;
 	void OnNameCommitted(const FText& NewText, ETextCommit::Type CommitInfo);
@@ -105,5 +120,24 @@ private:
 	void HandleFormatChanged(FString OuputName, int Index);
 	FText HandleFormatText() const;
 
+	TSharedRef<SWidget> OnGenerateTexturePresetTypeEnumMenu();
+	void HandleTexturePresetTypeChanged(FString OuputName, int Index);
+	FText HandleTexturePresetTypeText() const;
+
+	TSharedRef<SWidget> OnGenerateLodGroupEnumMenu();
+	void HandleLodGroupChanged(FString OuputName, int Index);
+	FText HandleLodGroupText() const;
+
+	TSharedRef<SWidget> OnGenerateCompressionEnumMenu();
+	void HandleCompressionChanged(FString OuputName, int Index);
+	FText HandleCompressionText() const;
+
+	ECheckBoxState HandleSRGBIsChecked() const;
+	void HandleSRGBExecute(ECheckBoxState InNewState);
+
 	FReply OnBrowseClick();
+
+	bool IsDefaultPreset() const;
+
+	const int LabelSize = 150;
 };

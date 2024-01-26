@@ -69,6 +69,19 @@ enum class ETG_TextureFormat : uint8
 	RGBA32F		UMETA(DisplayName = "32-bit (float) per-pixel RGBA")
 };
 
+UENUM(BlueprintType)
+enum class ETG_TexturePresetType : uint8
+{
+	None		UMETA(DisplayName = "None"), // None exposes the other settings like srgb, compression and Lod Texture group */
+	Diffuse		UMETA(DisplayName = "Diffuse"),
+	Emissive	UMETA(DisplayName = "Emissive"),
+	FX			UMETA(DisplayName = "FX"),
+	Normal		UMETA(DisplayName = "Normal"),
+	MaskComp	UMETA(DisplayName = "Mask Comp"),
+	Specular	UMETA(DisplayName = "Specular"),
+	Tangent		UMETA(DisplayName = "Tangent")
+};
+
 class UMixInterface;
 
 class RenderMesh;

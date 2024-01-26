@@ -34,6 +34,18 @@ public:
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Advanced", DisplayName = "Texture Format", Meta = (NoResetToDefault))
 		ETG_TextureFormat TextureFormat = ETG_TextureFormat::BGRA8;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "Texture Type", Meta = (NoResetToDefault))
+		ETG_TexturePresetType TexturePresetType = ETG_TexturePresetType::None;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "LOD Texture Group", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None"))
+		TEnumAsByte<enum TextureGroup> LODGroup;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "Compression", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None") )
+		TEnumAsByte <enum TextureCompressionSettings> Compression;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "sRGB", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None"))
+		bool bSRGB = false;
+
 	FString GetFullOutputName() { return  FString::Format(TEXT("{0}"), { BaseName.ToString()});}
 
 	bool operator==(const FTG_OutputSettings& Other) const
@@ -54,14 +66,10 @@ public:
 		return ExportString;
 	}
 
-	void Set(int InWidth, int InHeight, FString Name = "None", FString Path = "None", ETG_TextureFormat Format = ETG_TextureFormat::BGRA8)
-	{
-		BaseName = *Name;
-		FolderPath = *Path;
-		Width = (EResolution)InWidth;
-		Height = (EResolution)InHeight;
-		TextureFormat = Format;
-	}
+	void Set(int InWidth, int InHeight, FString Name = "None", FString Path = "None", ETG_TextureFormat Format = ETG_TextureFormat::BGRA8, ETG_TexturePresetType InTextureType = ETG_TexturePresetType::None,
+		TextureCompressionSettings InCompression = TextureCompressionSettings::TC_Default, TextureGroup InLodGroup = TextureGroup::TEXTUREGROUP_World, bool InbSRGB = false);
+
+	void OnSetTexturePresetType(ETG_TexturePresetType Type);
 };
 
 USTRUCT()

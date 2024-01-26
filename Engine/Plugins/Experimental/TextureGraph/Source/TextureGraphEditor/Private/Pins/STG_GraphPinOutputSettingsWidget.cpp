@@ -56,6 +56,12 @@ void STG_GraphPinOutputSettingsWidget::Construct(const FArguments& InArgs, UEdGr
 	GetHeightDelegate.BindRaw(this, &STG_GraphPinOutputSettingsWidget::HandleHeightText);
 	OnGenerateFormatMenu.BindRaw(this, &STG_GraphPinOutputSettingsWidget::OnGenerateFormatEnumMenu);
 	GetFormatDelegate.BindRaw(this, &STG_GraphPinOutputSettingsWidget::HandleFormatText);
+	OnGenerateTexturePresetTypeMenu.BindRaw(this, &STG_GraphPinOutputSettingsWidget::OnGenerateTexturePresetTypeEnumMenu);
+	GetTexturePresetTypeDelegate.BindRaw(this, &STG_GraphPinOutputSettingsWidget::HandleTexturePresetTypeText);
+	OnGenerateLodGroupMenu.BindRaw(this, &STG_GraphPinOutputSettingsWidget::OnGenerateLodGroupEnumMenu);
+	GetLodGroupDelegate.BindRaw(this, &STG_GraphPinOutputSettingsWidget::HandleLodGroupText);
+	OnGenerateCompressionMenu.BindRaw(this, &STG_GraphPinOutputSettingsWidget::OnGenerateCompressionEnumMenu);
+	GetCompressionDelegate.BindRaw(this, &STG_GraphPinOutputSettingsWidget::HandleCompressionText);
 
 	GraphPinObj = InGraphPinObj;
 
@@ -63,162 +69,229 @@ void STG_GraphPinOutputSettingsWidget::Construct(const FArguments& InArgs, UEdGr
 
 	OutputSettingsAttribute.Assign(*this, InArgs._OutputSettings);
 
+	const int UniformPadding = 2;
+
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-
-		//Path Slot
-		+ SVerticalBox::Slot()
-		.Padding(2)
-		.AutoHeight()
+		//Param Box hidden when pin is connected and Advanced view is collapsed
+		SNew(SBox)
+		.MinDesiredWidth(250)
+		.MaxDesiredWidth(450)
+		.Visibility(this, &STG_GraphPinOutputSettingsWidget::ShowParameters)
 		[
-			AddEditBoxWithBrowseButton(LOCTEXT("OutputPath", "Path"), GetPathDelegate, PathCommitted)
-		]
+			SNew(SVerticalBox)
 
-		//Name Slot
-		+ SVerticalBox::Slot()
-		//.HAlign(HAlign_Fill)
-		.Padding(2)
-		.AutoHeight()
-		[
-			AddEditBox(LOCTEXT("OutputName", "File Name"), GetNameDelegate, NameCommitted)
-		]
+			//Path Slot
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			.AutoHeight()
+			[
+				AddEditBoxWithBrowseButton(LOCTEXT("OutputPath", "Path"), GetPathDelegate, PathCommitted)
+			]
 
-		//Path Width
-		+ SVerticalBox::Slot()
-		.Padding(2)
-		[
-			AddEnumComobox(LOCTEXT("OutputWidth", "Width"), GetWidthDelegate, OnGenerateWidthMenu)
-		]
+			//Name Slot
+			+ SVerticalBox::Slot()
+			//.HAlign(HAlign_Fill)
+			.Padding(UniformPadding)
+			.AutoHeight()
+			[
+				AddEditBox(LOCTEXT("OutputName", "File Name"), GetNameDelegate, NameCommitted)
+			]
 
-		//Path Height
-		+ SVerticalBox::Slot()
-		.Padding(2)
-		[
-			AddEnumComobox(LOCTEXT("OutputHeight", "Height"), GetHeightDelegate, OnGenerateHeightMenu)
-		]
+			//Path Width
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				AddEnumComobox(LOCTEXT("OutputWidth", "Width"), GetWidthDelegate, OnGenerateWidthMenu)
+			]
 
-		//Path Format
-		+ SVerticalBox::Slot()
-		.Padding(2)
-		[
-			AddEnumComobox(LOCTEXT("OutputFormat", "Format"), GetFormatDelegate, OnGenerateFormatMenu)
+			//Path Height
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				AddEnumComobox(LOCTEXT("OutputHeight", "Height"), GetHeightDelegate, OnGenerateHeightMenu)
+			]
+
+			//Path Format
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				AddEnumComobox(LOCTEXT("OutputFormat", "Format"), GetFormatDelegate, OnGenerateFormatMenu)
+			]
+
+			//Texture Preset Type
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				AddEnumComobox(LOCTEXT("TextureType", "Texture Type"), GetTexturePresetTypeDelegate, OnGenerateTexturePresetTypeMenu)
+			]
+
+			//Lod Group
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				SNew(SHorizontalBox)
+				.IsEnabled(this, &STG_GraphPinOutputSettingsWidget::IsDefaultPreset)
+
+				+ SHorizontalBox::Slot()
+				[
+					AddEnumComobox(LOCTEXT("LodGroup", "LOD Group"), GetLodGroupDelegate, OnGenerateLodGroupMenu)
+		
+				]
+			]
+
+			//Compression Settings
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				SNew(SHorizontalBox)
+				.IsEnabled(this, &STG_GraphPinOutputSettingsWidget::IsDefaultPreset)
+
+				+ SHorizontalBox::Slot()
+				[
+					AddEnumComobox(LOCTEXT("CompressionSettings", "Compression Settings"), GetCompressionDelegate, OnGenerateCompressionMenu)
+				]
+			]
+
+			//SRGB
+			+ SVerticalBox::Slot()
+			.Padding(UniformPadding)
+			[
+				SNew(SHorizontalBox)
+				.IsEnabled(this, &STG_GraphPinOutputSettingsWidget::IsDefaultPreset)
+
+				+ SHorizontalBox::Slot()
+				[
+					AddSRGBWidget().ToSharedRef()
+				]
+			]			
 		]
 	];
 }
 
-TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::AddEditBoxWithBrowseButton(FText Label, FGetTextDelegate GetText, FTextCommitted OnTextCommitted)
+EVisibility STG_GraphPinOutputSettingsWidget::ShowPinLabel() const
 {
-	return SNew(SBox)
-		.MinDesiredWidth(150)
-		.MaxDesiredWidth(350)
-		[
-			SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.FillWidth(0.4)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(Label)
-				.TextStyle(FAppStyle::Get(), TEXT("Graph.Node.PinName"))
-			]
-
-			+ SHorizontalBox::Slot()
-			[
-				SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Fill)
-				.FillWidth(1)
-				[
-					SNew(SEditableTextBox)
-					.Text_Lambda([GetText]() { return GetText.Execute(); })
-					.SelectAllTextWhenFocused(true)
-					.SelectAllTextOnCommit(true)
-					.OnTextCommitted_Lambda([OnTextCommitted](const FText& InText, ETextCommit::Type InCommitType) {
-						OnTextCommitted.ExecuteIfBound(InText, InCommitType);
-					})
-				]
-
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Fill)
-				.AutoWidth()
-				[
-					SNew(SButton)
-					.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-					.OnClicked(this, &STG_GraphPinOutputSettingsWidget::OnBrowseClick)
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Center)
-					.ToolTipText(LOCTEXT("Browsepath_ToolTip", "Select the path for the output"))
-					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::GetBrush("Icons.BrowseContent"))
-					]
-				]
-			]
-		];
+	return ShowParameters() == EVisibility::Collapsed ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::AddEditBox(FText Label, FGetTextDelegate GetText, FTextCommitted OnTextCommitted)
+EVisibility STG_GraphPinOutputSettingsWidget::ShowParameters() const
 {
-	return SNew(SBox)
-	.MinDesiredWidth(150)
-	.MaxDesiredWidth(350)
-	[
-		SNew(SHorizontalBox)
+	return (GraphPinObj->GetOwningNode()->AdvancedPinDisplay == ENodeAdvancedPins::Type::Hidden && GraphPinObj->LinkedTo.Num() > 0) ? EVisibility::Collapsed : EVisibility::Visible;
+}
 
-		+ SHorizontalBox::Slot()
-		.FillWidth(0.4)
-		.VAlign(VAlign_Center)
+TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::AddEditBoxWithBrowseButton(FText Label, FGetTextDelegate GetText, FTextCommitted OnTextCommitted)
+{
+	return SNew(SHorizontalBox)
+
+	+ SHorizontalBox::Slot()
+	.VAlign(VAlign_Center)
+	.AutoWidth()
+	[
+		SNew(SBox)
+		.MinDesiredWidth(LabelSize)
+		.MaxDesiredWidth(LabelSize)
 		[
 			SNew(STextBlock)
 			.Text(Label)
 			.TextStyle(FAppStyle::Get(), TEXT("Graph.Node.PinName"))
 		]
+	]
+
+	+ SHorizontalBox::Slot()
+	.FillWidth(1.0)
+	[
+		SNew(SHorizontalBox)
 
 		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Fill)
 		[
-
 			SNew(SEditableTextBox)
 			.Text_Lambda([GetText]() { return GetText.Execute(); })
 			.SelectAllTextWhenFocused(true)
 			.SelectAllTextOnCommit(true)
 			.OnTextCommitted_Lambda([OnTextCommitted](const FText& InText, ETextCommit::Type InCommitType) {
-					OnTextCommitted.ExecuteIfBound(InText, InCommitType);
+				OnTextCommitted.ExecuteIfBound(InText, InCommitType);
 			})
+		]
+
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Right)
+		.AutoWidth()
+		[
+			SNew(SButton)
+			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			.OnClicked(this, &STG_GraphPinOutputSettingsWidget::OnBrowseClick)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.ToolTipText(LOCTEXT("Browsepath_ToolTip", "Select the path for the output"))
+			[
+				SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(FAppStyle::GetBrush("Icons.BrowseContent"))
+			]
 		]
 	];
 }
 
-TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::AddEnumComobox(FText Label, FGetTextDelegate GetText, FGenerateEnumMenu OnGenerateEnumMenu)
+TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::AddEditBox(FText Label, FGetTextDelegate GetText, FTextCommitted OnTextCommitted)
 {
-	return SNew(SBox)
-	.MinDesiredWidth(150)
-	.MaxDesiredWidth(350)
+	return SNew(SHorizontalBox)
+
+	+ SHorizontalBox::Slot()
+	.VAlign(VAlign_Center)
+	.AutoWidth()
 	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(0.4)
-		.VAlign(VAlign_Center)
+		SNew(SBox)
+		.MinDesiredWidth(LabelSize)
+		.MaxDesiredWidth(LabelSize)
 		[
 			SNew(STextBlock)
 			.Text(Label)
 			.TextStyle(FAppStyle::Get(), TEXT("Graph.Node.PinName"))
 		]
+	]
 
-		+ SHorizontalBox::Slot()
+	+ SHorizontalBox::Slot()
+	[
+		SNew(SEditableTextBox)
+		.Text_Lambda([GetText]() { return GetText.Execute(); })
+		.SelectAllTextWhenFocused(true)
+		.SelectAllTextOnCommit(true)
+		.OnTextCommitted_Lambda([OnTextCommitted](const FText& InText, ETextCommit::Type InCommitType) {
+				OnTextCommitted.ExecuteIfBound(InText, InCommitType);
+		})
+	];
+}
+
+TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::AddEnumComobox(FText Label, FGetTextDelegate GetText, FGenerateEnumMenu OnGenerateEnumMenu)
+{
+	return SNew(SHorizontalBox)
+
+	+ SHorizontalBox::Slot()
+	.VAlign(VAlign_Center)
+	.HAlign(HAlign_Left)
+	.AutoWidth()
+	[
+		SNew(SBox)
+		.MinDesiredWidth(LabelSize)
+		.MaxDesiredWidth(LabelSize)
 		[
-			SNew(SComboButton)
-			.OnGetMenuContent(OnGenerateEnumMenu)
-			.ButtonContent()
-			[
-				SNew(STextBlock)
-				.Text_Lambda([GetText]() { return GetText.Execute(); })
-			]
+			SNew(STextBlock)
+			.Text(Label)
+			.TextStyle(FAppStyle::Get(), TEXT("Graph.Node.PinName"))
+		]
+	]
+
+	+ SHorizontalBox::Slot()
+	[
+		SNew(SComboButton)
+		.OnGetMenuContent(OnGenerateEnumMenu)
+		.ButtonContent()
+		[
+			SNew(STextBlock)
+			.Text_Lambda([GetText]() { return GetText.Execute(); })
 		]
 	];
 }
@@ -231,6 +304,48 @@ FReply STG_GraphPinOutputSettingsWidget::OnBrowseClick()
 	Settings.FolderPath = *PackagePath;
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 	return FReply::Handled();
+}
+
+TSharedPtr<SWidget> STG_GraphPinOutputSettingsWidget::AddSRGBWidget()
+{
+	TSharedPtr<SWidget> SRGB = SNew(SHorizontalBox)
+
+	+ SHorizontalBox::Slot()
+	.VAlign(VAlign_Center)
+	.HAlign(HAlign_Left)
+	.AutoWidth()
+	[
+		SNew(SBox)
+		.MinDesiredWidth(LabelSize)
+		.MaxDesiredWidth(LabelSize)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString("sRGB"))
+		]
+	]
+
+	+ SHorizontalBox::Slot()
+	[
+		SNew(SCheckBox)
+		.IsChecked(this, &STG_GraphPinOutputSettingsWidget::HandleSRGBIsChecked)
+		.OnCheckStateChanged(this, &STG_GraphPinOutputSettingsWidget::HandleSRGBExecute)
+	];
+
+	return SRGB;
+}
+
+ECheckBoxState STG_GraphPinOutputSettingsWidget::HandleSRGBIsChecked() const
+{
+	auto Settings = GetSettings();
+	return Settings.bSRGB ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void STG_GraphPinOutputSettingsWidget::HandleSRGBExecute(ECheckBoxState InNewState)
+{
+	bSRGB = InNewState == ECheckBoxState::Checked;
+	auto Settings = GetSettings();
+	Settings.bSRGB = bSRGB;
+	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 }
 
 FTG_OutputSettings STG_GraphPinOutputSettingsWidget::GetSettings() const
@@ -260,13 +375,36 @@ void STG_GraphPinOutputSettingsWidget::GenerateStringsFromEnum(TArray<FString>& 
 	}
 }
 
-int STG_GraphPinOutputSettingsWidget::GetValueFromIndex(const FString& EnumPathName, int Index) const
+void STG_GraphPinOutputSettingsWidget::GenerateValuesFromEnum(TArray<uint8>& OutEnumValues, const FString& EnumPathName) const
 {
-	int Value = 0;
 	UEnum* EnumPtr = FindObject<UEnum>(nullptr, *EnumPathName);
 	if (EnumPtr)
 	{
-		Value = EnumPtr->GetValueByIndex(Index);
+		for (int32 i = 0; i < EnumPtr->NumEnums() - 1; ++i)
+		{
+			if (!EnumPtr->HasMetaData(TEXT("Hidden"), i))
+			{
+				FString DisplayName = EnumPtr->GetDisplayNameTextByIndex(i).ToString();
+				uint8 EnumValue = EnumPtr->GetValueByIndex(i);
+				UE_LOG(LogTemp, Warning, TEXT("Enum Value: %d, Display Name: %s"), EnumValue, *DisplayName);
+				OutEnumValues.Add(EnumValue);
+			}
+		}
+	}
+}
+
+int STG_GraphPinOutputSettingsWidget::GetValueFromIndex(const FString& EnumPathName, int Index) const
+{
+	int Value = 0;
+	TArray<uint8> EnumValues;
+	UEnum* EnumPtr = FindObject<UEnum>(nullptr, *EnumPathName);
+	if (EnumPtr)
+	{
+		GenerateValuesFromEnum(EnumValues, EnumPathName);
+		if (EnumValues.Num() > Index)
+		{
+			Value = EnumValues[Index];
+		}
 	}
 	return Value;
 }
@@ -400,9 +538,128 @@ FText STG_GraphPinOutputSettingsWidget::HandleFormatText() const
 	return FText::FromString(GetEnumValueDisplayName(StaticEnum<ETG_TextureFormat>()->GetPathName(), (int)GetSettings().TextureFormat));
 }
 
+TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateTexturePresetTypeEnumMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+	//Get list for Enum
+	TArray<FString> EnumItems;
+	GenerateStringsFromEnum(EnumItems, StaticEnum<ETG_TexturePresetType>()->GetPathName());
+
+	for (int i = 0; i < EnumItems.Num(); i++)
+	{
+		auto Item = EnumItems[i];
+		MenuBuilder.AddMenuEntry(
+			FText::FromString(Item),
+			FText::FromString(Item),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &STG_GraphPinOutputSettingsWidget::HandleTexturePresetTypeChanged, Item, i),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this, i]() {return SelectedTextureTypeIndex == i; })
+			));
+	}
+
+	return MenuBuilder.MakeWidget();
+}
+
+void STG_GraphPinOutputSettingsWidget::HandleTexturePresetTypeChanged(FString Name, int Index)
+{
+	auto Settings = GetSettings();
+	Settings.TexturePresetType = (ETG_TexturePresetType)GetValueFromIndex(StaticEnum<ETG_TexturePresetType>()->GetPathName(), Index);
+
+	Settings.OnSetTexturePresetType(Settings.TexturePresetType);
+
+	OnOutputSettingsChanged.ExecuteIfBound(Settings);
+
+	SelectedFormatIndex = Index;
+}
+
+FText STG_GraphPinOutputSettingsWidget::HandleTexturePresetTypeText() const
+{
+	return FText::FromString(GetEnumValueDisplayName(StaticEnum<ETG_TexturePresetType>()->GetPathName(), (int)GetSettings().TexturePresetType));
+}
+
+TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateLodGroupEnumMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+	//Get list for Enum
+	TArray<FString> EnumItems;
+	GenerateStringsFromEnum(EnumItems, StaticEnum<TextureGroup>()->GetPathName());
+
+	for (int i = 0; i < EnumItems.Num(); i++)
+	{
+		auto Item = EnumItems[i];
+		MenuBuilder.AddMenuEntry(
+			FText::FromString(Item),
+			FText::FromString(Item),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &STG_GraphPinOutputSettingsWidget::HandleLodGroupChanged, Item, i),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this, i]() {return SelectedLodGroupIndex == i; })
+			));
+	}
+
+	return MenuBuilder.MakeWidget();
+}
+
+void STG_GraphPinOutputSettingsWidget::HandleLodGroupChanged(FString Name, int Index)
+{
+	auto Settings = GetSettings();
+	Settings.LODGroup = (TextureGroup)GetValueFromIndex(StaticEnum<TextureGroup>()->GetPathName(), Index);
+
+	OnOutputSettingsChanged.ExecuteIfBound(Settings);
+
+	SelectedFormatIndex = Index;
+}
+
+FText STG_GraphPinOutputSettingsWidget::HandleLodGroupText() const
+{
+	return FText::FromString(GetEnumValueDisplayName(StaticEnum<TextureGroup>()->GetPathName(), (int)GetSettings().LODGroup));
+}
+
 FText STG_GraphPinOutputSettingsWidget::GetNameAsText() const
 {
 	return FText::FromName(GetSettings().BaseName);
+}
+
+TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateCompressionEnumMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+	//Get list for Enum
+	TArray<FString> EnumItems;
+	GenerateStringsFromEnum(EnumItems, StaticEnum<TextureCompressionSettings>()->GetPathName());
+
+	for (int i = 0; i < EnumItems.Num(); i++)
+	{
+		auto Item = EnumItems[i];
+		MenuBuilder.AddMenuEntry(
+			FText::FromString(Item),
+			FText::FromString(Item),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &STG_GraphPinOutputSettingsWidget::HandleCompressionChanged, Item, i),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateLambda([this, i]() {return SelectedCompressionIndex == i; })
+			));
+	}
+
+	return MenuBuilder.MakeWidget();
+}
+
+void STG_GraphPinOutputSettingsWidget::HandleCompressionChanged(FString Name, int Index)
+{
+	auto Settings = GetSettings();
+	Settings.Compression = (TextureCompressionSettings)GetValueFromIndex(StaticEnum<TextureCompressionSettings>()->GetPathName(), Index);
+
+	OnOutputSettingsChanged.ExecuteIfBound(Settings);
+
+	SelectedFormatIndex = Index;
+}
+
+FText STG_GraphPinOutputSettingsWidget::HandleCompressionText() const
+{
+	return FText::FromString(GetEnumValueDisplayName(StaticEnum<TextureCompressionSettings>()->GetPathName(), (int)GetSettings().Compression));
 }
 
 void STG_GraphPinOutputSettingsWidget::OnNameCommitted(const FText& NewText, ETextCommit::Type /*CommitInfo*/)
@@ -425,6 +682,12 @@ void STG_GraphPinOutputSettingsWidget::OnPathCommitted(const FText& NewText, ETe
 	auto Settings = GetSettings(); 
 	Settings.FolderPath = PathName;
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
+}
+
+bool STG_GraphPinOutputSettingsWidget::IsDefaultPreset() const
+{
+	auto Settings = GetSettings();
+	return Settings.TexturePresetType == ETG_TexturePresetType::None;
 }
 
 void STG_GraphPinOutputSettingsWidget::PostUndo(bool bSuccess)

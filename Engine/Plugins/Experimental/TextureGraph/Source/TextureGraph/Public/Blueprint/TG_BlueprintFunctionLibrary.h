@@ -50,12 +50,15 @@ public:
 	static FLinearColor GetColorParameterValue(UObject* WorldContextObject, UTextureGraph* TextureScript, FName ParameterName);
 
 	/** Sets a FTG_OutputSettings parameter value on the TextureGraph instance. Logs if ParameterName is invalid. */
-	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "SetOutputSettingsParameterValue", WorldContext = "WorldContextObject"))
-	static void SetOutputSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* TextureScript, FName ParameterName, int Width,int Height, FString FileName = "None", FString FolderPath = "None", ETG_TextureFormat Format = ETG_TextureFormat::BGRA8);
+	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "SetSettingsParameterValue", WorldContext = "WorldContextObject"))
+	static void SetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* TextureScript, FName ParameterName, int Width,int Height, FString FileName = "None",
+		FString FolderPath = "None", ETG_TextureFormat Format = ETG_TextureFormat::BGRA8 , ETG_TexturePresetType TextureType = ETG_TexturePresetType::None,
+		TextureCompressionSettings Compression = TextureCompressionSettings::TC_Default, TextureGroup LodGroup = TextureGroup::TEXTUREGROUP_World, bool bSRGB = false);
 
 	/** Gets a FOutputSettings parameter value from the TextureGraph instance. Logs if ParameterName is invalid. */
 	UFUNCTION(BlueprintCallable, Category = "TextureGraph", meta = (Keywords = "GetOutputSettingsParameterValue", WorldContext = "WorldContextObject"))
-	static FTG_OutputSettings GetOutputSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* TextureScript, FName ParameterName);
+	static FTG_OutputSettings GetSettingsParameterValue(UObject* WorldContextObject, UTextureGraph* TextureScript, FName ParameterName);
 
 	static void AddParamWarning(FName ParamName, UObject* ObjectPtr, FString FunctionName);
+	static void AddError(UObject* ObjectPtr, FString FunctionName, FString Error);
 };

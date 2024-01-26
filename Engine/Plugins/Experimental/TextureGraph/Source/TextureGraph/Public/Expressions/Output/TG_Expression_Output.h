@@ -28,7 +28,7 @@ public:
 	FTG_Variant Output = 0;
 
 	//When we will work on Node UI for FOutputSettings we will set the category as TG_Setting
-	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", CollapsableChildProperties,ShowOnlyInnerProperties, FullyExpand, NoResetToDefault) )
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", CollapsableChildProperties,ShowOnlyInnerProperties, FullyExpand, NoResetToDefault, PinDisplayName = "Settings") )
 	FTG_OutputSettings OutputSettings;
 	
 	virtual FTG_Name GetDefaultName() const override { return TEXT("Output");}
