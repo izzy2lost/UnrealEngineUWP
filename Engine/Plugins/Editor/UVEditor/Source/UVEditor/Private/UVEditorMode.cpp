@@ -39,6 +39,7 @@
 #include "UVEditorSeamTool.h"
 #include "UVEditorRecomputeUVsTool.h"
 #include "UVSelectTool.h"
+#include "UVEditorTexelDensityTool.h"
 #include "UVEditorInitializationContext.h"
 #include "UVEditorModeToolkit.h"
 #include "UVEditorSubsystem.h"
@@ -519,6 +520,10 @@ void UUVEditorMode::RegisterTools()
 	UUVEditorDistributeToolBuilder* UVEditorDistributeToolBuilder = NewObject<UUVEditorDistributeToolBuilder>();
 	UVEditorDistributeToolBuilder->Targets = &ToolInputObjects;
 	RegisterTool(CommandInfos.BeginDistributeTool, TEXT("BeginDistributeTool"), UVEditorDistributeToolBuilder);
+
+	UUVEditorTexelDensityToolBuilder* UVEditorTexelDensityToolBuilder = NewObject<UUVEditorTexelDensityToolBuilder>();
+	UVEditorTexelDensityToolBuilder->Targets = &ToolInputObjects;
+	RegisterTool(CommandInfos.BeginTexelDensityTool, TEXT("BeginTexelDensityTool"), UVEditorTexelDensityToolBuilder);
 
 	UUVEditorParameterizeMeshToolBuilder* UVEditorParameterizeMeshToolBuilder = NewObject<UUVEditorParameterizeMeshToolBuilder>();
 	UVEditorParameterizeMeshToolBuilder->Targets = &ToolInputObjects;
