@@ -777,13 +777,6 @@ namespace Gauntlet
 				{
 					throw new AutomationException("Node already has a null UnrealApp, was PrepareUnrealSession or IsReadyToStart called?");
 				}
-				else
-				{
-					bool bReacquireDevicesPerPass = Globals.Params.ParseParam("ReacquireDevicesPerPass");
-					bool ShouldRetain = (!bReacquireDevicesPerPass && InNumPasses > 1 && Pass + 1 < InNumPasses) ? true : false;
-					UnrealApp.ShouldRetainDevices = ShouldRetain;
-					Log.Verbose("ShouldRetainDevices: {0}", UnrealApp.ShouldRetainDevices);
-				}
 			}
 
 			// ensure we reset things
@@ -809,8 +802,13 @@ namespace Gauntlet
 
 			// Launch the test
 			TestInstance = UnrealApp.LaunchSession();
+			if(TestInstance == null)
+			{
+				return false;
+			}
+
 			// Add info from test context to device usage log
-			foreach(IAppInstance AppInstance in TestInstance.ClientApps)
+			foreach (IAppInstance AppInstance in TestInstance.ClientApps)
 			{
 				if (AppInstance != null)
 				{
@@ -818,8 +816,6 @@ namespace Gauntlet
 					IDeviceUsageReporter.RecordComment(AppInstance.Device.Name, AppInstance.Device.Platform, IDeviceUsageReporter.EventType.Test, this.GetType().Name);
 				}
 			}
-			
-			
 
 			// track the overall session time
 			if (SessionStartTime == DateTime.MinValue)
@@ -827,16 +823,13 @@ namespace Gauntlet
 				SessionStartTime = DateTime.Now;
 			}
 
-			if (TestInstance != null)
-			{
-				// Update these for the executor
-				MaxDuration = Config.MaxDuration;
-				MaxDurationReachedResult = Config.MaxDurationReachedResult;
-				MaxRetries = Config.MaxRetries;
-				MarkTestStarted();
-			}
-			
-			return TestInstance != null;
+			// Update these for the executor
+			MaxDuration = Config.MaxDuration;
+			MaxDurationReachedResult = Config.MaxDurationReachedResult;
+			MaxRetries = Config.MaxRetries;
+			MarkTestStarted();
+
+			return true;
 		}
 
 		public virtual void PopulateCommandlineInfo()
