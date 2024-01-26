@@ -725,6 +725,60 @@ void FRichCurveEditorModel::GetNeighboringKeys(const FKeyHandle InKeyHandle, TOp
 	}
 }
 
+TPair<ERichCurveInterpMode, ERichCurveTangentMode> FRichCurveEditorModel::GetInterpolationMode(const double& InTime, ERichCurveInterpMode DefaultInterpolationMode, ERichCurveTangentMode DefaultTangentMode) const
+{
+	if (IsValid())
+	{
+		const FRichCurve& RichCurve = GetReadOnlyRichCurve();
+
+		if (!RichCurve.Keys.IsEmpty())
+		{
+			FKeyHandle ReferenceKeyHandle;
+			for (auto It = RichCurve.GetKeyHandleIterator(); It; ++It)
+			{
+				if (RichCurve.IsKeyHandleValid(*It))
+				{
+					const FRichCurveKey& Key = RichCurve.GetKeyRef(*It);
+					if (Key.Time < InTime)
+					{
+						ReferenceKeyHandle = *It;
+					}
+					else
+					{
+						// we try to get the key just before the reference time, if it does not exist, we use the key right after
+						if (!RichCurve.IsKeyHandleValid(ReferenceKeyHandle))
+						{
+							ReferenceKeyHandle = *It;
+						}
+						break;
+					}
+				}
+			}
+
+			if (RichCurve.IsKeyHandleValid(ReferenceKeyHandle))
+			{
+				TArray<FKeyAttributes> KeyAttributes;
+				KeyAttributes.SetNum(1);
+				GetKeyAttributes({ ReferenceKeyHandle }, KeyAttributes);
+
+				ERichCurveInterpMode InterpMode = KeyAttributes[0].GetInterpMode();
+				ERichCurveTangentMode TangentMode = KeyAttributes[0].HasTangentMode() ? KeyAttributes[0].GetTangentMode() : DefaultTangentMode;
+				
+				//if we are cubic, with anything but auto tangents we use the default instead, since they will give us flat tangents which aren't good
+				if (InterpMode == ERichCurveInterpMode::RCIM_Cubic &&
+					(TangentMode != ERichCurveTangentMode::RCTM_Auto && TangentMode != ERichCurveTangentMode::RCTM_SmartAuto))
+				{
+					TangentMode = DefaultTangentMode;
+				}
+
+				return TPair<ERichCurveInterpMode, ERichCurveTangentMode>(InterpMode, TangentMode);
+			}
+		}
+	}
+
+	return TPair<ERichCurveInterpMode, ERichCurveTangentMode>(DefaultInterpolationMode, DefaultTangentMode);
+}
+
 FRichCurveEditorModelRaw::FRichCurveEditorModelRaw(FRichCurve* InRichCurve, UObject* InOwner)
 	: FRichCurveEditorModel(InOwner)
 	, RichCurve(InRichCurve)
