@@ -81,6 +81,11 @@ namespace PCGActorAndComponentMapping
 		TEXT("pcg.ActorModifiedPreviousDataCheckDelayMS"),
 		1000,
 		TEXT("Delay in MS between cleanup checks on previous data from modified actors."));
+
+	static TAutoConsoleVariable<bool> CVarDisablePCGDataInterdependencyOptimization(
+		TEXT("pcg.DisablePCGDataInterdependencyOptimization"),
+		false,
+		TEXT("Disable the optimization that keep track of components depending on others, as a safety measure."));
 #endif // WITH_EDITOR
 
 	static TAutoConsoleVariable<bool> CVarDisableDelayedUnregister(
@@ -190,6 +195,11 @@ void FPCGActorAndComponentMapping::Tick()
 				ActorToPreviousDataMap.Remove(Key);
 			}
 		}
+	}
+
+	if (PCGActorAndComponentMapping::CVarDisablePCGDataInterdependencyOptimization.GetValueOnAnyThread() && !ComponentsToDependencyMap.IsEmpty())
+	{
+		ComponentsToDependencyMap.Empty();
 	}
 #endif // WITH_EDITOR
 }
@@ -877,6 +887,8 @@ void FPCGActorAndComponentMapping::RegisterTracking(UPCGComponent* InComponent)
 	{
 		InComponent->OnPCGGraphGeneratedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
 		InComponent->OnPCGGraphCleanedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
+		InComponent->OnPCGGraphStartGeneratingDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphStartsGenerating);
+		InComponent->OnPCGGraphCancelledDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphCancelled);
 	}
 }
 
@@ -964,11 +976,27 @@ void FPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldCompo
 	ReplaceInMap(CulledTrackedKeysToComponentsMap);
 	ReplaceInMap(AlwaysTrackedKeysToComponentsMap);
 
+	// If this component has dependencies, we transfer them.
+	if (ComponentsToDependencyMap.Contains(InOldComponent))
+	{
+		TArray<TObjectKey<UPCGComponent>> Temp;
+		ComponentsToDependencyMap.RemoveAndCopyValue(InOldComponent, Temp);
+		ComponentsToDependencyMap.Emplace(InNewComponent, std::move(Temp));
+	}
+
+	// If this component was a dependency to any other component, just remove it. New one will register itself when generating if needed.
+	for (TPair<TObjectKey<UPCGComponent>, TArray<TObjectKey<UPCGComponent>>>& It : ComponentsToDependencyMap)
+	{
+		It.Value.RemoveSwap(InOldComponent);
+	}
+
 	// Old component will probably die, but we'll force removing the delegates even if it is const.
 	if (UPCGComponent* MutableOldComponent = const_cast<UPCGComponent*>(InOldComponent))
 	{
 		MutableOldComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
 		MutableOldComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
+		MutableOldComponent->OnPCGGraphStartGeneratingDelegate.RemoveAll(this);
+		MutableOldComponent->OnPCGGraphCancelledDelegate.RemoveAll(this);
 	}
 
 	// And just making sure we are not registering multiple times
@@ -976,6 +1004,8 @@ void FPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldCompo
 	{
 		InNewComponent->OnPCGGraphGeneratedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
 		InNewComponent->OnPCGGraphCleanedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
+		InNewComponent->OnPCGGraphStartGeneratingDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphStartsGenerating);
+		InNewComponent->OnPCGGraphCancelledDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphCancelled);
 	}
 }
 
@@ -1043,6 +1073,8 @@ void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent
 
 	InComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
 	InComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
+	InComponent->OnPCGGraphStartGeneratingDelegate.RemoveAll(this);
+	InComponent->OnPCGGraphCancelledDelegate.RemoveAll(this);
 }
 
 bool FPCGActorAndComponentMapping::IsKeyTracked(const FPCGSelectionKey& InKey) const
@@ -1756,6 +1788,7 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 	}
 
 	ULevelInstanceSubsystem* LevelInstanceSubsystem = (PCGSubsystem && PCGSubsystem->GetWorld()) ? PCGSubsystem->GetWorld()->GetSubsystem<ULevelInstanceSubsystem>() : nullptr;
+	const UPCGComponent* OriginatingComponent = Cast<const UPCGComponent>(InOriginatingChangeObject);
 
 	// And refresh all dirtied components
 	for (UPCGComponent* Component : DirtyComponents)
@@ -1763,6 +1796,24 @@ void FPCGActorAndComponentMapping::OnObjectChanged(UObject* InObject, const FAct
 		if (!ensure(Component))
 		{
 			continue;
+		}
+
+		// This part checks if the change originates from a PCG Component. If so, we check the dirty component has no more other PCG dependencies.
+		// In that case we can proceed for the refresh, otherwise early out, this will be woken up by another dependency change.
+		if (OriginatingComponent)
+		{
+			if (TArray<TObjectKey<UPCGComponent>>* Dependencies = ComponentsToDependencyMap.Find(Component))
+			{
+				Dependencies->RemoveSwap(OriginatingComponent);
+				if (Dependencies->IsEmpty())
+				{
+					ComponentsToDependencyMap.Remove(Component);
+				}
+				else
+				{
+					continue;
+				}
+			}
 		}
 
 		const bool bOwnerHasChanged = Component->GetOwner() == InObject;
@@ -1825,6 +1876,75 @@ void FPCGActorAndComponentMapping::ApplyLandscapeChanges(ALandscapeProxy* InLand
 	}
 	
 	OnObjectChanged(InLandscape, /*InPreviousData=*/nullptr, InLandscape);
+}
+
+void FPCGActorAndComponentMapping::OnPCGGraphStartsGenerating(UPCGComponent* InComponent)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::OnPCGGraphStartsGenerating);
+
+	if (!InComponent || !InComponent->GetOwner() || PCGActorAndComponentMapping::CVarDisablePCGDataInterdependencyOptimization.GetValueOnAnyThread())
+	{
+		return;
+	}
+
+	// When a graph starts generating, look for component that depends on it and keep a count.
+	// When this graph will be done generating, we'll trigger a dependency generation. But if multiple graphs are generated at the same time and 
+	// they all contribute to the same dependency, we'll trigger the dependency only when all the graphs are done generating
+	TSet<UPCGComponent*> TrackedComponents;
+	TSet<FName> RemovedTags;
+
+	const FBox ComponentBounds = InComponent->GetGridBounds();
+
+	for (auto& It : CulledTrackedKeysToComponentsMap)
+	{
+		TSet<UPCGComponent*> TempTrackedComponents;
+		It.Key.IsMatching(InComponent->GetOwner(), RemovedTags, It.Value, &TempTrackedComponents);
+
+		// Removing all components that aren't intersecting with it, since it won't contribute to refresh
+		for (UPCGComponent* TrackedComponent : TempTrackedComponents)
+		{
+			if (ensure(TrackedComponent) && TrackedComponent->GetOwner() && PCGActorAndComponentMapping::GetActorBounds(TrackedComponent->GetOwner()).Intersect(ComponentBounds))
+			{
+				TrackedComponents.Add(TrackedComponent);
+			}
+		}
+	}
+
+	for (auto& It : AlwaysTrackedKeysToComponentsMap)
+	{
+		It.Key.IsMatching(InComponent->GetOwner(), RemovedTags, It.Value, &TrackedComponents);
+	}
+
+	for (UPCGComponent* Component : TrackedComponents)
+	{
+		if (Component == InComponent)
+		{
+			continue;
+		}
+
+		TArray<TObjectKey<UPCGComponent>>& CurrentDependencies = ComponentsToDependencyMap.FindOrAdd(Component);
+		CurrentDependencies.AddUnique(InComponent);
+	}
+}
+
+void FPCGActorAndComponentMapping::OnPCGGraphCancelled(UPCGComponent* InComponent)
+{
+	if (!InComponent)
+	{
+		return;
+	}
+
+	TArray<TObjectKey<UPCGComponent>> Keys;
+	ComponentsToDependencyMap.GetKeys(Keys);
+	for (const TObjectKey<UPCGComponent>& Key : Keys)
+	{
+		TArray<TObjectKey<UPCGComponent>>& Value = ComponentsToDependencyMap[Key];
+		Value.Remove(InComponent);
+		if (Value.IsEmpty())
+		{
+			ComponentsToDependencyMap.Remove(Key);
+		}
+	}
 }
 
 void FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned(UPCGComponent* InComponent)

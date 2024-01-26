@@ -35,6 +35,8 @@ class UClass;
 struct FPCGContext;
 
 #if WITH_EDITOR
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphStartGenerating, UPCGComponent*);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphCancelled, UPCGComponent*);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphGenerated, UPCGComponent*);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPCGGraphCleaned, UPCGComponent*);
 #endif
@@ -247,7 +249,9 @@ public:
 	bool bForceGenerateOnBPAddedToWorld = false;
 
 	FOnPCGGraphGenerated OnPCGGraphGeneratedDelegate;
+	FOnPCGGraphStartGenerating OnPCGGraphStartGeneratingDelegate;
 	FOnPCGGraphCleaned OnPCGGraphCleanedDelegate;
+	FOnPCGGraphCancelled OnPCGGraphCancelledDelegate;
 #endif
 
 	/** Flag to indicate whether this component has run in the editor. Note that for partitionable actors, this will always be false. */
