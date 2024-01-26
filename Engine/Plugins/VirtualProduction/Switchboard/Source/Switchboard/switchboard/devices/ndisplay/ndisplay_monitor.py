@@ -71,7 +71,10 @@ class nDisplayMonitor(QAbstractTableModel):
             'CpuUtilization':
                 'CPU utilization average. The number of overloaded cores (>'
                 f'{self.CORE_OVERLOAD_THRESH}% load) will be displayed in '
-                'parentheses.',
+                'parentheses.\n\n'
+                'in addition, simultaneous multi-threading (SMT), also known\n'
+                'as Hyper-Threading, is known to potentially cause hitches.\n'
+                'If SMT is enabled, that will also be flagged as a warning.',
             'MemUtilization': 'Physical memory, utilized / total.',
             'GpuUtilization':
                 'GPU utilization. The GPU clock speed is displayed in '
@@ -112,8 +115,9 @@ class nDisplayMonitor(QAbstractTableModel):
             return self.COLOR_NORMAL if is_normal else self.COLOR_WARNING
 
         if colname == 'CpuUtilization':
-            no_overload = '(' not in value  # "(# cores > threshold%)"
-            return self.COLOR_NORMAL if no_overload else self.COLOR_WARNING
+            # "(# cores > threshold%)" or "(SMT ENABLED)"
+            no_caveats = '(' not in value
+            return self.COLOR_NORMAL if no_caveats else self.COLOR_WARNING
 
         return self.COLOR_NORMAL
 
@@ -456,6 +460,9 @@ class nDisplayMonitor(QAbstractTableModel):
             if num_overloaded_cores > 0:
                 data['CpuUtilization'] += f' ({num_overloaded_cores} cores >' \
                     f' {self.CORE_OVERLOAD_THRESH}%)'
+
+            if device.processor_smt:
+                data['CpuUtilization'] += ' (SMT ENABLED)'
         except (KeyError, ValueError):
             data['CpuUtilization'] = self.DATA_MISSING
 

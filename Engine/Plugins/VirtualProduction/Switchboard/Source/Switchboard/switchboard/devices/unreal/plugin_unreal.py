@@ -2577,6 +2577,7 @@ class DeviceUnreal(Device):
         self.os_version_label = message.get('osVersionLabel', '')
         self.os_version_label_sub = message.get('osVersionLabelSub', '')
         self.os_version_number = message.get('osVersionNumber', '')
+        self.processor_smt = message.get('bProcessorSMT', False)
         self.total_phys_mem = message.get('totalPhysicalMemory', 0)
         self.platform_binary_directory = message.get('platformBinaryDirectory', '')
 

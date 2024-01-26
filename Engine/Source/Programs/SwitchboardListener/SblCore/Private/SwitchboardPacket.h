@@ -64,21 +64,31 @@ struct FSwitchboardStatePacket : public FSwitchboardPacket
 		Version = (Major << 16) | (Minor << 8) | (Patch);
 	}
 
+	/** All active child processes launched via this Listener. */
 	UPROPERTY()
 	TArray<FSwitchboardStateRunningProcess> RunningProcesses;
 
+	/** Reports the SwitchboardListener version back to the client. */
 	UPROPERTY()
 	uint32 Version;
 
+	/** Whether simultaneous multi-threading (aka Hyper-Threading) is enabled. */
+	UPROPERTY()
+	bool bProcessorSMT;
+
+	/** Operating system version "label". See FPlatformMisc::GetOSVersions. */
 	UPROPERTY()
 	FString OsVersionLabel;
 
+	/** Operating system version "sub-label". See FPlatformMisc::GetOSVersions. */
 	UPROPERTY()
 	FString OsVersionLabelSub;
 
+	/** Operating system version, returned by FPlatformMisc::GetOSVersion. */
 	UPROPERTY()
 	FString OsVersionNumber;
 
+	/** Total physical memory (used + available) in bytes. */
 	UPROPERTY()
 	uint64 TotalPhysicalMemory;
 
