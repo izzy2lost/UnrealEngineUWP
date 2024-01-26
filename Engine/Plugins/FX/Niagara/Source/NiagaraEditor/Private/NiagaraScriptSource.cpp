@@ -5,6 +5,7 @@
 #include "EdGraphUtilities.h"
 #include "GraphEditAction.h"
 #include "INiagaraEditorTypeUtilities.h"
+#include "NiagaraAnalytics.h"
 #include "NiagaraCommon.h"
 #include "NiagaraComponent.h"
 #include "NiagaraConstants.h"
@@ -96,6 +97,42 @@ void UNiagaraScriptSource::RefreshGraphCompileId()
 	if (NodeGraph)
 	{
 		NodeGraph->ConditionalRebuildCompileIdCache();
+	}
+}
+
+void UNiagaraScriptSource::ReportAnalyticsData(FNiagaraScriptSourceAnalytics& InData) const
+{
+	static const UEnum* EnumType = StaticEnum<ENiagaraScriptUsage>();
+
+	TArray<UNiagaraNodeOutput*> OutputNodes;
+	NodeGraph->GetNodesOfClass<UNiagaraNodeOutput>(OutputNodes);	
+	for (UNiagaraNodeOutput* OutputNode : OutputNodes)
+	{
+		FString UsageString = TEXT("Script.") + EnumType->GetNameStringByValue(static_cast<uint64>(OutputNode->GetUsage()));
+
+		// gather module data
+		TArray<UNiagaraNodeFunctionCall*> ModuleNodes;
+		FNiagaraStackGraphUtilities::GetOrderedModuleNodes(*OutputNode, ModuleNodes);
+
+		for (UNiagaraNodeFunctionCall* Node : ModuleNodes)
+		{
+			if (!Node->FunctionScript || !Node->GetScriptData())
+			{
+				continue;
+			}
+			
+			if (!Node->IsNodeEnabled())
+			{
+				InData.DisabledModules++;
+				continue;
+			}
+			InData.ActiveModules++;
+			if (NiagaraAnalytics::IsPluginAsset(Node->FunctionScript))
+			{
+				FNiagaraAssetVersion AssetVersion = Node->GetScriptData()->Version;
+				InData.UsedNiagaraModules.Add(FString::Format(TEXT("{0}:{1}.{2}"), {GetPathNameSafe(Node->FunctionScript->GetPackage()), AssetVersion.MajorVersion, AssetVersion.MinorVersion}));
+			}
+		}
 	}
 }
 

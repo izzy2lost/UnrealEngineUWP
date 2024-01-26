@@ -2,6 +2,8 @@
 
 #include "NiagaraSimCache.h"
 
+#include "EngineAnalytics.h"
+#include "NiagaraAnalytics.h"
 #include "Engine/World.h"
 #include "Misc/LargeWorldRenderPosition.h"
 #include "NiagaraConstants.h"
@@ -324,6 +326,7 @@ bool UNiagaraSimCache::BeginWrite(FNiagaraSimCacheCreateParameters InCreateParam
 	CacheLayout = FNiagaraSimCacheLayout();
 	CacheFrames.Empty();
 	CaptureTickCount = INDEX_NONE;
+	CaptureStartTime = FPlatformTime::Seconds();
 
 	for ( auto it=DataInterfaceStorage.CreateIterator(); it; ++it )
 	{
@@ -548,6 +551,7 @@ bool UNiagaraSimCache::BeginAppend(FNiagaraSimCacheCreateParameters InCreatePara
 	{
 		CaptureTickCount = SimulationTickCount - 1;
 	}
+	CaptureStartTime = FPlatformTime::Seconds();
 
 	return true;
 }
@@ -717,7 +721,7 @@ bool UNiagaraSimCache::WriteFrame(UNiagaraComponent* NiagaraComponent, FNiagaraS
 	return true;
 }
 
-bool UNiagaraSimCache::EndWrite()
+bool UNiagaraSimCache::EndWrite(bool bAllowAnalytics)
 {
 	check(PendingCommandsInFlight == 0);
 	if ( CacheFrames.Num() == 0 )
@@ -801,6 +805,29 @@ bool UNiagaraSimCache::EndWrite()
 			ClearInterpMapping(CacheLayout.EmitterLayouts[iEmitter], CacheFrames.Last().EmitterData[iEmitter].ParticleDataBuffers);
 		}
 	}
+
+#if WITH_EDITORONLY_DATA
+	if (FEngineAnalytics::IsAvailable() && bAllowAnalytics)
+	{		
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(TEXT("DurationSeconds"), FPlatformTime::Seconds() - CaptureStartTime);
+		Attributes.Emplace(TEXT("ValidResult"), IsCacheValid());
+		Attributes.Emplace(TEXT("NumFrames"), GetNumFrames());
+		Attributes.Emplace(TEXT("NumEmitters"), GetNumEmitters());
+		Attributes.Emplace(TEXT("NumDataInterfaces"), GetStoredDataInterfaces().Num());
+		int64 StoredBytes = 0;
+		for (const FNiagaraSimCacheFrame& Frame : CacheFrames)
+		{
+			StoredBytes += Frame.SystemData.SystemDataBuffers.DataBuffer.GetView().Num();
+			for (const FNiagaraSimCacheEmitterFrame& EmitterFrame : Frame.EmitterData)
+			{
+				StoredBytes += EmitterFrame.ParticleDataBuffers.DataBuffer.GetView().Num();
+			}
+		}
+		Attributes.Emplace(TEXT("ParticleStorageBytes"), StoredBytes);
+		NiagaraAnalytics::RecordEvent("SimCache.Capture", Attributes);
+	}
+#endif
 
 	OnCacheEndWrite.Broadcast(this);
 	return IsCacheValid();
