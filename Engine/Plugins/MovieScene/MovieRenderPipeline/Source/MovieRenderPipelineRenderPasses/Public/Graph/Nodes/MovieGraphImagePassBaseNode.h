@@ -7,6 +7,7 @@
 #include "Graph/Renderers/MovieGraphImagePassBase.h"
 #include "Graph/Renderers/MovieGraphShowFlags.h"
 #include "Graph/Nodes/MovieGraphRenderPassNode.h"
+#include "MoviePipelineDeferredPasses.h"
 #include "MovieGraphImagePassBaseNode.generated.h"
 
 // Forward Declare
@@ -40,6 +41,9 @@ public:
 	/** Should each individual sample rendered be written out for debugging? */
 	virtual bool GetWriteAllSamples() const { return false; }
 
+	/** Get an array of user-added post-process materials for the render */
+	virtual TArray<FMoviePipelinePostProcessPass> GetAdditionalPostProcessMaterials() const { return {}; }
+
 	/** How many spatial samples should be rendered each frame? */
 	virtual int32 GetNumSpatialSamples() const { return 1; }
 
@@ -69,7 +73,7 @@ protected:
 	virtual void SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData) override;
 	virtual void TeardownImpl() override;
 	virtual void RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) override;
-	virtual void GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const override;
+	virtual void GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const override;
 	// ~UMovieGraphRenderPassNode Interface
 
 	virtual TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> CreateInstance() const { return nullptr; }

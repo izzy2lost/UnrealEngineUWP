@@ -28,7 +28,6 @@ public:
 	{
 	}
 
-	// UMovieGraphRenderPassNode Interface
 	/** Get the name of this renderer. Deferred, Path Tracer, Panoramic, etc. Called on the CDO. */
 	FString GetRendererName() const { return GetRendererNameImpl(); }
 	
@@ -47,8 +46,7 @@ public:
 	* Output Merger to ensure all of the render data for a given frame has been generated before passing it on to write to disk.
 	* Called on the CDO.
 	*/
-	void GatherOutputPasses(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const { GatherOutputPassesImpl(OutExpectedPasses); }
-	// ~UMovieGraphRenderPassNode Interface
+	void GatherOutputPasses(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const { GatherOutputPassesImpl(InConfig, OutExpectedPasses); }
 
 #if WITH_EDITOR
 	virtual FText GetMenuCategory() const override
@@ -74,5 +72,5 @@ protected:
 	virtual void SetupImpl(const FMovieGraphRenderPassSetupData& InSetupData) {}
 	virtual void TeardownImpl() {}
 	virtual void RenderImpl(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) {}
-	virtual void GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const {}
+	virtual void GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const {}
 };

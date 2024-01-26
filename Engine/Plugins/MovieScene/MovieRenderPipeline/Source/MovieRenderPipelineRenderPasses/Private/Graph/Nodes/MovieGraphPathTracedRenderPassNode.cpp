@@ -66,6 +66,11 @@ bool UMovieGraphPathTracedRenderPassNode::GetWriteAllSamples() const
 	return bWriteAllSamples;
 }
 
+TArray<FMoviePipelinePostProcessPass> UMovieGraphPathTracedRenderPassNode::GetAdditionalPostProcessMaterials() const
+{
+	return AdditionalPostProcessMaterials;
+}
+
 int32 UMovieGraphPathTracedRenderPassNode::GetNumSpatialSamples() const
 {
 	return SpatialSampleCount;

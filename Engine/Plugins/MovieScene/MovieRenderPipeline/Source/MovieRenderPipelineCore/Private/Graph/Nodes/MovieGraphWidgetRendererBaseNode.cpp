@@ -61,7 +61,7 @@ void UMovieGraphWidgetRendererBaseNode::RenderImpl(const FMovieGraphTraversalCon
 	}
 }
 
-void UMovieGraphWidgetRendererBaseNode::GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
+void UMovieGraphWidgetRendererBaseNode::GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
 {
 	for (const TUniquePtr<FMovieGraphWidgetPass>& Instance : CurrentInstances)
     {

@@ -26,6 +26,7 @@ public:
 
 	// UMovieGraphImagePassBaseNode Interface
 	virtual bool GetWriteAllSamples() const override;
+	virtual TArray<FMoviePipelinePostProcessPass> GetAdditionalPostProcessMaterials() const override;
 	virtual int32 GetNumSpatialSamples() const override;
 	virtual bool GetDisableToneCurve() const override;
 	virtual bool GetAllowOCIO() const override;
@@ -56,13 +57,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_bWriteAllSamples : 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_AdditionalPostProcessMaterials : 1;
+
 	/**
 	* How many sub-pixel jitter renders should we do per temporal sample? This can be used to achieve high
 	* sample counts without Temporal Sub-Sampling (allowing high sample counts without motion blur being enabled),
 	* but we generally recommend using Temporal Sub-Samples when possible. It can also be combined with
 	* temporal samples and you will get SpatialSampleCount many renders per temporal sample.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 1, ClampMin = 1), Category = "Settings", meta = (EditCondition = "bOverride_SpatialSampleCount"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 1, ClampMin = 1), Category = "Sampling", meta = (EditCondition = "bOverride_SpatialSampleCount"))
 	int32 SpatialSampleCount;
 
 	/**
@@ -84,8 +88,14 @@ public:
 	* which allows you to see which images are being accumulated together. Can be useful for debugging incorrect looking
 	* frames to see which sub-frame evaluations were incorrect.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug", meta = (EditCondition = "bOverride_bWriteAllsamples"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sampling", meta = (EditCondition = "bOverride_bWriteAllsamples"))
 	bool bWriteAllSamples;
+
+	/**
+	* An array of additional post-processing materials to run after the frame is rendered. Using this feature may add a notable amount of render time.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Process Materials", meta=(EditCondition="bOverride_AdditionalPostProcessMaterials"))
+	TArray<FMoviePipelinePostProcessPass> AdditionalPostProcessMaterials;
 
 private:
 	/**

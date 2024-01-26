@@ -535,6 +535,83 @@ void FMovieGraphImagePassBase::PostRendererSubmission(
 		});
 }
 
+TFunction<void(TUniquePtr<FImagePixelData>&&)> FMovieGraphImagePassBase::MakeForwardingEndpoint(
+	const FMovieGraphSampleState& InSampleState, const FMovieGraphTimeStepData& InTimeData)
+{
+	// We have a pool of accumulators - we multi-thread the accumulation on the task graph, and for each frame,
+	// the task has the previous samples as pre-reqs to keep the accumulation in order. However, each accumulator
+	// can only work on one frame at a time, so we create a pool of them to work concurrently. This needs a limit
+	// as large accumulations (16k) can take a lot of system RAM.
+	TObjectPtr<UMovieGraphDefaultRenderer> GraphRenderer = GetRenderer().Get();
+	if (!GraphRenderer)
+	{
+		return nullptr;
+	}
+	
+	FMoviePipelineAccumulatorPoolPtr SampleAccumulator = GraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
+	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance =
+		SampleAccumulator->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(
+			InTimeData.RenderedFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+	
+	FMovieGraphRenderDataAccumulationArgs AccumulationArgs;
+	{
+		AccumulationArgs.OutputMerger = GraphRenderer->GetOwningGraph()->GetOutputMerger();
+		AccumulationArgs.ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
+		AccumulationArgs.bIsFirstSample = InTimeData.bIsFirstTemporalSampleForFrame;
+		AccumulationArgs.bIsLastSample = InTimeData.bIsLastTemporalSampleForFrame;
+	}
+
+	// The legacy surface reader takes the payload just so it can shuffle it into our callback, but we can just include the data
+	// directly in the callback, so this is just a dummy payload.
+	TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> FramePayload = MakeShared<FImagePixelDataPayload, ESPMode::ThreadSafe>();
+	auto Callback = [this, InSampleState, FramePayload, AccumulationArgs, AccumulatorInstance](TUniquePtr<FImagePixelData>&& InPixelData)
+	{
+		// Transfer the framePayload to the returned data
+		TUniquePtr<FImagePixelData> PixelDataWithPayload = nullptr;
+		switch (InPixelData->GetType())
+		{
+		case EImagePixelType::Color:
+		{
+			TImagePixelData<FColor>* SourceData = static_cast<TImagePixelData<FColor>*>(InPixelData.Get());
+			PixelDataWithPayload = MakeUnique<TImagePixelData<FColor>>(InPixelData->GetSize(), MoveTemp(SourceData->Pixels), FramePayload);
+			break;
+		}
+		case EImagePixelType::Float16:
+		{
+			TImagePixelData<FFloat16Color>* SourceData = static_cast<TImagePixelData<FFloat16Color>*>(InPixelData.Get());
+			PixelDataWithPayload = MakeUnique<TImagePixelData<FFloat16Color>>(InPixelData->GetSize(), MoveTemp(SourceData->Pixels), FramePayload);
+			break;
+		}
+		case EImagePixelType::Float32:
+		{
+			TImagePixelData<FLinearColor>* SourceData = static_cast<TImagePixelData<FLinearColor>*>(InPixelData.Get());
+			PixelDataWithPayload = MakeUnique<TImagePixelData<FLinearColor>>(InPixelData->GetSize(), MoveTemp(SourceData->Pixels), FramePayload);
+			break;
+		}
+		default:
+			checkNoEntry();
+		}
+
+		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(PixelDataWithPayload), InSampleState, AccumulationArgs, AccumulatorInstance]() mutable
+		{
+			// Enqueue a encode for this frame onto our worker thread.
+			AccumulateSample_TaskThread(MoveTemp(PixelData), InSampleState, AccumulationArgs);
+
+			// We have to defer clearing the accumulator until after sample accumulation has finished
+			if (AccumulationArgs.bIsLastSample)
+			{
+				// Final sample has now been executed, free the accumulator for reuse.
+				AccumulatorInstance->bIsActive = false;
+			}
+		}, AccumulatorInstance->TaskPrereq);
+
+		// Make the next accumulation task that uses this accumulator use the task we just created as a pre-req.
+		AccumulatorInstance->TaskPrereq = Task;
+	};
+
+	return Callback;
+}
+
 void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const FMovieGraphRenderDataAccumulationArgs& InAccumulationParams)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(MoviePipeline_AccumulateSample);
