@@ -397,6 +397,12 @@ private:
 		SetVisualizeTSR(false);
 		SetEditingLevelInstance(false);
 		SetSelectionOutline(false);
+		SetSelectionOutlineColor0(false);
+		SetSelectionOutlineColor1(false);
+		SetSelectionOutlineColor2(false);
+		SetSelectionOutlineColor3(false);
+		SetSelectionOutlineColor4(false);
+		SetSelectionOutlineColor5(false);
 		SetDebugAI(false);
 		SetNavigation(false);
 		SetLightComplexity(false);
