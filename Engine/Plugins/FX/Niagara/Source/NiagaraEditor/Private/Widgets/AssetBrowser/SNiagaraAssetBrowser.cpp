@@ -188,6 +188,10 @@ bool SNiagaraAssetBrowser::ShouldFilterAsset(const FAssetData& AssetData) const
 		{
 			return MainFilter->DoesAssetHaveTag(AssetData) == false;
 		}
+		else if(MainFilter->FilterMode == FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTagDefinitionsAsset)
+		{
+			return MainFilter->DoesAssetHaveAnyTagFromTagDefinitionsAsset(AssetData) == false;
+		}
 		else if(MainFilter->FilterMode == FNiagaraAssetBrowserMainFilter::EFilterMode::Custom)
 		{
 			return MainFilter->CustomShouldFilterAsset.Execute(AssetData);
@@ -302,43 +306,98 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> TagFilters;
 	{
 		TArray<UClass*> DisplayedAssetTypes = GetDisplayedAssetTypes();
-		TArray<FNiagaraAssetTagDefinition> AssetTagDefinitions;
+		TArray<UNiagaraAssetTagDefinitions*> DisplayedAssetTagDefinitionAssets;
+		TArray<FNiagaraAssetTagDefinition> DisplayedFlatAssetTagDefinitionsList;
+
+		auto IsAssetTagDefinitionValid = [DisplayedAssetTypes](const FNiagaraAssetTagDefinition& AssetTagDefinition) -> bool
+		{
+			if(AssetTagDefinition.DisplayType != ENiagaraAssetTagDefinitionImportance::Primary)
+			{
+				return false;
+			}
+				
+			TArray<UClass*> SupportedClasses = AssetTagDefinition.GetSupportedClasses();
+	
+			bool bCanAssetTagContainDisplayedAssetType = false;
+			for(UClass* SupportedClass : SupportedClasses)
+			{
+				if(DisplayedAssetTypes.Contains(SupportedClass))
+				{
+					bCanAssetTagContainDisplayedAssetType = true;
+					break;
+				}
+			}
+	
+			if(bCanAssetTagContainDisplayedAssetType == false)
+			{
+				return false;
+			}
+
+			return true;
+		};
 		
 		for(const FStructuredAssetTagDefinitionLookupData& AssetTagDefinitionData : GetStructuredSortedAssetTagDefinitions())
 		{
-			for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionData.AssetTagDefinitions)
+			// If there is no definitions asset, the tags have been declared internally
+			if(AssetTagDefinitionData.DefinitionsAsset == nullptr)
 			{
-				if(AssetTagDefinition.DisplayType != ENiagaraAssetTagDefinitionImportance::Primary)
+				for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionData.AssetTagDefinitions)
 				{
-					continue;
-				}
-				
-				TArray<UClass*> SupportedClasses = AssetTagDefinition.GetSupportedClasses();
-	
-				bool bCanAssetTagContainDisplayedAssetType = false;
-				for(UClass* SupportedClass : SupportedClasses)
-				{
-					if(DisplayedAssetTypes.Contains(SupportedClass))
+					if(IsAssetTagDefinitionValid(AssetTagDefinition))
 					{
-						bCanAssetTagContainDisplayedAssetType = true;
-						break;
+						DisplayedFlatAssetTagDefinitionsList.Add(AssetTagDefinition);
+					}	
+				}
+			}
+			// If there is an asset, we check if we want to display a parent-entry per asset first
+			else
+			{
+				// If we only want to display the tags or we only have 1 tag defined, we add the tags directly to a flat list
+				if(AssetTagDefinitionData.DefinitionsAsset->DisplayTagsAsFlatList() || AssetTagDefinitionData.AssetTagDefinitions.Num() == 1)
+				{
+					for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionData.AssetTagDefinitions)
+					{
+						if(IsAssetTagDefinitionValid(AssetTagDefinition))
+						{
+							DisplayedFlatAssetTagDefinitionsList.Add(AssetTagDefinition);
+						}	
 					}
 				}
-	
-				if(bCanAssetTagContainDisplayedAssetType == false)
+				// If not, we keep track of the asset here so we can construct a hierarchy of filters per asset
+				else
 				{
-					continue;
+					DisplayedAssetTagDefinitionAssets.Add(AssetTagDefinitionData.DefinitionsAsset);
 				}
-	
-				AssetTagDefinitions.Add(AssetTagDefinition);
-			}
+			}			
 		}
 
-		for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitions)
+		// First we add all 'flat list' entries at the top
+		for(const FNiagaraAssetTagDefinition& AssetTagDefinition : DisplayedFlatAssetTagDefinitionsList)
 		{
-			TSharedRef<FNiagaraAssetBrowserMainFilter> NiagaraAssetTagFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag);
-			NiagaraAssetTagFilter->AssetTagDefinition = AssetTagDefinition;
-			TagFilters.Add(NiagaraAssetTagFilter);
+			TSharedRef<FNiagaraAssetBrowserMainFilter> AssetTagFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag);
+			AssetTagFilter->AssetTagDefinition = AssetTagDefinition;
+			TagFilters.Add(AssetTagFilter);
+		}
+
+		for(const UNiagaraAssetTagDefinitions* AssetTagDefinitionsAsset : DisplayedAssetTagDefinitionAssets)
+		{
+			// This code should only execute for assets with > 1 tag. If there is only 1 tag, it should have been automatically added to the flat list instead
+			if(ensure(AssetTagDefinitionsAsset->GetAssetTagDefinitions().Num() > 1))
+			{
+				TSharedRef<FNiagaraAssetBrowserMainFilter> AssetTagDefinitionsAssetsFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTagDefinitionsAsset);
+				AssetTagDefinitionsAssetsFilter->AssetTagDefinitionsAsset = AssetTagDefinitionsAsset;
+				TagFilters.Add(AssetTagDefinitionsAssetsFilter);
+
+				TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> TagChildFilters;
+				for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionsAsset->GetAssetTagDefinitions())
+				{
+					TSharedRef<FNiagaraAssetBrowserMainFilter> AssetTagFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag);
+					AssetTagFilter->AssetTagDefinition = AssetTagDefinition;
+					TagChildFilters.Add(AssetTagFilter);
+				}
+
+				AssetTagDefinitionsAssetsFilter->ChildFilters = TagChildFilters;
+			}			
 		}
 	}
 	
@@ -432,10 +491,15 @@ TSharedRef<ITableRow> SNiagaraAssetBrowser::GenerateWidgetRowForMainFilter(TShar
 		SNew(STextBlock)
 		.Text(MainFilter->GetDisplayName())
 	];
-
+	
 	if(MainFilter->FilterMode == FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag)
 	{
 		Widget->SetToolTipText(MainFilter->AssetTagDefinition.Description);	
+	}
+
+	if(MainFilter->FilterMode == FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTagDefinitionsAsset)
+	{
+		Widget->SetToolTipText(MainFilter->AssetTagDefinitionsAsset->GetDescription());	
 	}
 	
 	return SNew(STableRow<TSharedRef<FNiagaraAssetBrowserMainFilter>>, OwningTable)

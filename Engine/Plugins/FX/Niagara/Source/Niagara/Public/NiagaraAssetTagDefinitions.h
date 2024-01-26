@@ -122,11 +122,31 @@ class NIAGARA_API UNiagaraAssetTagDefinitions : public UObject
 public:	
 	const TArray<FNiagaraAssetTagDefinition>& GetAssetTagDefinitions() const { return TagDefinitions; }
 
+	FText GetDisplayName() const;
+	
+	FText GetDescription() const;
+
+	bool DisplayTagsAsFlatList() const { return bDisplayTagsAsFlatList; }
+	
+	bool DoesAssetDataContainAnyTag(const FAssetData& AssetData) const;
+
 	int32 GetSortOrder() const { return SortOrder; }
 private:
 	UPROPERTY(EditAnywhere, Category="Properties", meta=(TitleProperty="AssetTag"))
 	TArray<FNiagaraAssetTagDefinition> TagDefinitions;
 
+	/** The display name to use when listing this asset in the Niagara Asset Browser */
+	UPROPERTY(EditAnywhere, Category="Properties")
+	FText DisplayName;
+
+	/** A description for this group of tags. Used for tooltips. */
+	UPROPERTY(EditAnywhere, Category="Properties")
+	FText Description;
+	
+	/** If true, no 'parent' entry for this asset will be displayed in the Niagara Asset Browser. Instead a flat list of the contained tags will be added. */
+	UPROPERTY(EditAnywhere, Category="Properties")
+	bool bDisplayTagsAsFlatList = false;
+	
 	/** Tags are sorted by asset sort order first, then individually. That means tags of asset with sort order [0] come before tags of asset with sort order [1]. */
 	UPROPERTY(EditAnywhere, Category="Properties")
 	int32 SortOrder = INDEX_NONE;
