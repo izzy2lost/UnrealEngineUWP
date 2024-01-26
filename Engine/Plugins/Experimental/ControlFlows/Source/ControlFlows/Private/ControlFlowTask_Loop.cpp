@@ -53,7 +53,7 @@ void FControlFlowTask_ConditionalLoop::Execute()
 
 void FControlFlowTask_ConditionalLoop::Cancel()
 {
-	if (ensureAlways(ConditionalLoop.IsValid()) && ConditionalLoop->FlowLoop->IsRunning())
+	if (ConditionalLoop.IsValid() && ConditionalLoop->FlowLoop->IsRunning())
 	{
 		ConditionalLoop->FlowLoop->CancelFlow();
 	}

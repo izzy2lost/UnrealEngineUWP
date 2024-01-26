@@ -117,7 +117,7 @@ void FControlFlow::HandleControlFlowNodeCompleted(TSharedRef<const FControlFlowN
 						Activity->Update(*CurrentNode->GetNodeName());
 
 					FlowQueue.RemoveAt(0);
-					CurrentNode->CancelFlow();
+					CurrentNode->CancelFlow(); // This cancel might be completely unnecessary because the next node in Queue has not yet fired
 				}
 				else
 				{
