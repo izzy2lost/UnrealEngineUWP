@@ -492,6 +492,11 @@ void FUsdShadeMaterialTranslator::PostImportMaterial(const FString& PrefixedMate
 				Context->MetadataOptions.bCollectFromEntireSubtrees
 			);
 		}
+		else
+		{
+			// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the AssetUserData
+			UserData->StageIdentifierToMetadata.Remove(GetPrim().GetStage().GetRootLayer().GetIdentifier());
+		}
 	}
 
 	// Note that this needs to run even if we found this material in the asset cache already, otherwise we won't
