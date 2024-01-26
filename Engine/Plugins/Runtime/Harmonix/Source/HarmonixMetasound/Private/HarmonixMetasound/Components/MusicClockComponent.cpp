@@ -2,6 +2,7 @@
 #include "HarmonixMetasound/Components/MusicClockComponent.h"
 #include "HarmonixMetasound/Components/MetasoundMusicClockDriver.h"
 #include "HarmonixMetasound/Components/WallClockMusicClockDriver.h"
+#include "HarmonixMetasound/Subsystems/MidiClockUpdateSubsystem.h"
 #include "Harmonix.h"
 #include "HarmonixMidi/MusicTimeSpan.h"
 #include "Components/AudioComponent.h"
@@ -72,8 +73,16 @@ void UMusicClockComponent::ConnectToWallClockForMidi(UMidiFile* InTempoMap)
 	ConnectToWallClock();
 }
 
+// TODO: Cleanup task - UE-205069 - If we find we are able to use the new MidiClock/MusicClockComponent
+// ticking methods, this function should be deleted and all of the call sites cleaned up... 
+// as only the non-const "Ensure" function will be required.
 void UMusicClockComponent::EnsureClockIsValidForGameFrame() const
 {
+	if (MidiClockUpdateSubsystem::UpdateMethod != MidiClockUpdateSubsystem::EUpdateMethod::EngineTickableObjectAndTickComponent)
+	{
+		return;
+	}
+
 	//	Not for use outside the game thread.
 	if (ensureMsgf(
 		IsInGameThread(),
@@ -98,6 +107,28 @@ void UMusicClockComponent::EnsureClockIsValidForGameFrame() const
 		// that is reasonable. But sometimes we have to update our internal state before returning
 		// from those functions. All of those state changes happen as a result of this call to the
 		// current ClockDriver.
+		ClockDriver->EnsureClockIsValidForGameFrame();
+	}
+}
+
+void UMusicClockComponent::EnsureClockIsValidForGameFrameFromSubsystem()
+{
+	//	Not for use outside the game thread.
+	if (ensureMsgf(
+		IsInGameThread(),
+		TEXT("%hs called from non-game thread.  This is not supported!"), __FUNCTION__) == false)
+	{
+		return;
+	}
+
+	if (GFrameCounter == LastUpdateFrame)
+	{
+		return;
+	}
+
+	//	Run the actual clock update.
+	if (State == EMusicClockState::Running && ClockDriver)
+	{
 		ClockDriver->EnsureClockIsValidForGameFrame();
 	}
 }
@@ -180,12 +211,14 @@ void UMusicClockComponent::BeginPlay()
 	{
 		CreateClockDriver();
 	}
+	UMidiClockUpdateSubsystem::TrackMusicClockComponent(this);
 	Super::BeginPlay();
 }
 
 void UMusicClockComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
+	UMidiClockUpdateSubsystem::StopTrackingMusicClockComponent(this);
 	if (ClockDriver)
 	{
 		ClockDriver->Disconnect();

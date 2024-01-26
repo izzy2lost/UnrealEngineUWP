@@ -6,7 +6,6 @@
 #include "HarmonixMidi/MidiSongPos.h"
 #include "Delegates/DelegateCombinations.h"
 #include "HarmonixMidi/SmoothedMidiPlayCursor.h"
-
 #include "Templates/UniquePtr.h"
 
 #include "MusicClockComponent.generated.h"
@@ -325,6 +324,7 @@ private:
 	friend struct FMusicClockDriverBase;
 	friend struct FMetasoundMusicClockDriver;
 	friend struct FWallClockMusicClockDriver;
+	friend class  UMidiClockUpdateSubsystem;
 
 	TUniquePtr<FMusicClockDriverBase> ClockDriver;
 
@@ -356,8 +356,11 @@ private:
 	void ConnectToWallClock();
 
 	// Ensures the clock will be updated once per frame.  Should only get called on the game thread.
-	void EnsureClockIsValidForGameFrame() const;
-	//void CalcDelta() const;
+	void EnsureClockIsValidForGameFrame() const;// TODO: Cleanup task - UE-205069 - If we find we are able to use the new 
+												// MidiClock/MusicClockComponent ticking methods, this function should be
+												// deleted and all of the call sites cleaned up... as only this next, 
+												// non-const "Ensure" function will be required...
+	void EnsureClockIsValidForGameFrameFromSubsystem();
 };
 
 struct FMusicClockDriverBase
