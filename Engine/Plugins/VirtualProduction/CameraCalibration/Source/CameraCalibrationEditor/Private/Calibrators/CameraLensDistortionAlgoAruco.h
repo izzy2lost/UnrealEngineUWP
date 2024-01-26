@@ -56,7 +56,7 @@ public:
 	virtual FName FriendlyName() const override { return TEXT("Lens Distortion Aruco"); };
 	virtual FName ShortName() const override { return TEXT("Aruco"); };
 	virtual void OnDistortionSavedToLens() override;
-	virtual FDistortionCalibrationTask BeginCalibration() override;
+	virtual FDistortionCalibrationTask BeginCalibration(FText& OutErrorMessage) override;
 	virtual bool SupportsAsyncCalibration() override { return true; };
 	virtual bool HasCalibrationData() const override;
 	virtual void PreImportCalibrationData() override;

@@ -135,7 +135,7 @@ public:
 	virtual UMaterialInterface* GetOverlayMaterial() const override;
 	virtual bool IsOverlayEnabled() const override { return bShouldShowOverlay; };
 	virtual void OnDistortionSavedToLens() override;
-	virtual FDistortionCalibrationTask BeginCalibration() override;
+	virtual FDistortionCalibrationTask BeginCalibration(FText& OutErrorMessage) override;
 	virtual void CancelCalibration() override;
 	virtual bool GetCalibrationStatus(FText& StatusText) const override;
 	virtual bool SupportsAsyncCalibration() override { return true; };
@@ -182,8 +182,8 @@ private:
 	/** If true, the solver will not solve for image center, and will just use the input value */
 	bool bFixImageCenter = false;
 
-	/** Estimated focal length to initialize the distortion solver */
-	double FocalLengthEstimate = 0.0;
+	/** Estimate for the focal length to provide to the solver. If not set, user will be warned to set before continuing calibration */
+	TOptional<float> FocalLengthEstimate;
 
 	/** If true, the solver will use the current camera pose to initialize the camera extrinsic parameters for each image */
 	bool bUseExtrinsicsGuess = false;
@@ -225,6 +225,18 @@ private:
 
 	/** Builds the UI for the action buttons (RemoveLast, ClearAll) */
 	TSharedRef<SWidget> BuildCalibrationActionButtons();
+
+	/** Get the current value of the focal length estimate */
+	TOptional<float> GetFocalLengthEstimate() const;
+
+	/** Set the current value of the focal length estimate */
+	void SetFocalLengthEstimate(float NewValue);
+
+	/** Returns the state of the fix focal length checkbox */
+	ECheckBoxState IsFixFocalLengthChecked() const;
+
+	/** Changes the state of the fix focal length checkbox */
+	void OnFixFocalLengthCheckStateChanged(ECheckBoxState NewState);
 
 private:
 
