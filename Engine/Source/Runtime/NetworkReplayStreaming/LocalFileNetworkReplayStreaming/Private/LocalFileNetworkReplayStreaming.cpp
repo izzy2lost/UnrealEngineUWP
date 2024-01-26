@@ -3666,13 +3666,13 @@ void FGenericQueuedLocalFileRequest::IssueRequest()
 
 void FGenericQueuedLocalFileRequest::FinishRequest()
 {
-	if (CompletionCallback)
-	{
-		CompletionCallback();
-	}
-
 	if (!bCancelled && Streamer.IsValid())
 	{
+		if (CompletionCallback)
+		{
+			CompletionCallback();
+		}
+
 		Streamer->OnFileRequestComplete(AsShared());
 	}
 }
