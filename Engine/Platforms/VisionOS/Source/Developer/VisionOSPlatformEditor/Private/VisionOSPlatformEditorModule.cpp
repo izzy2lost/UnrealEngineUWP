@@ -23,8 +23,8 @@ class FVisionOSPlatformEditorModule
 		if (SettingsModule != nullptr)
 		{
 			SettingsModule->RegisterSettings("Project", "Platforms", "VisionOS",
-				LOCTEXT("VisionOSSettingsName", "VisionOS"),
-				LOCTEXT("VisionOSSettingsDescription", "Settings for VisionOS projects"),
+				LOCTEXT("VisionOSSettingsName", "visionOS"),
+				LOCTEXT("VisionOSSettingsDescription", "Settings for visionOS projects"),
 				GetMutableDefault<UVisionOSRuntimeSettings>());
 
 		}
