@@ -329,6 +329,13 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 
 	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, /*bSave=*/bForce, Dependencies);
 
+#if WITH_EDITOR
+	if (CurrentGenerationTask != InvalidPCGTaskId)
+	{
+		OnPCGGraphStartGeneratingDelegate.Broadcast(this);
+	}
+#endif // WITH_EDITOR
+
 	return CurrentGenerationTask;
 }
 
@@ -397,13 +404,6 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 
 		CurrentGenerationTask = InvalidPCGTaskId;
 
-#if WITH_EDITOR
-		// Reset this flag to avoid re-generating on further refreshes.
-		bForceGenerateOnBPAddedToWorld = false;
-
-		bDirtyGenerated = false;
-		OnPCGGraphGeneratedDelegate.Broadcast(this);
-#endif
 		// After a successful generation, we also want to call PostGenerateFunctions
 		// if we have any. We also need a context.
 
@@ -415,14 +415,17 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 			//GeneratedGraphOutput = Context->InputData;
 			for (const FPCGTaggedData& TaggedData : Context->InputData.TaggedData)
 			{
-				// TODO: outering the first layer might not be sufficient here - might need to expose
-				// some methods in the data to traverse all the data to outer everything for serialization
-				if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData())
+				if (ensure(TaggedData.Data))
 				{
-					FPCGTaggedData& DuplicatedTaggedData = GeneratedGraphOutput.TaggedData.Add_GetRef(TaggedData);
-					DuplicatedTaggedData.Data = DuplicatedData;
-					DuplicatedData->Rename(nullptr, this);
-					DuplicatedData->Flatten();
+					// TODO: outering the first layer might not be sufficient here - might need to expose
+					// some methods in the data to traverse all the data to outer everything for serialization
+					if (UPCGData* DuplicatedData = TaggedData.Data->DuplicateData())
+					{
+						FPCGTaggedData& DuplicatedTaggedData = GeneratedGraphOutput.TaggedData.Add_GetRef(TaggedData);
+						DuplicatedTaggedData.Data = DuplicatedData;
+						DuplicatedData->Rename(nullptr, this);
+						DuplicatedData->Flatten();
+					}
 				}
 			}
 
@@ -436,6 +439,12 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 		}
 
 #if WITH_EDITOR
+		// Reset this flag to avoid re-generating on further refreshes.
+		bForceGenerateOnBPAddedToWorld = false;
+
+		bDirtyGenerated = false;
+		OnPCGGraphGeneratedDelegate.Broadcast(this);
+
 		UpdateDynamicTracking();
 #endif // WITH_EDITOR
 	}
@@ -551,6 +560,8 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	// the component is still considered dirty if we aborted processing, hence it should stay this way.
 
 	StopGenerationInProgress();
+
+	OnPCGGraphCancelledDelegate.Broadcast(this);
 
 	GetSubsystem()->OnComponentGenerationCompleteOrCancelled.Broadcast();
 #endif

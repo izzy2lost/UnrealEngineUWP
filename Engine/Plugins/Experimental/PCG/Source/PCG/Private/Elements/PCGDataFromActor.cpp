@@ -610,9 +610,12 @@ void FPCGDataFromActorElement::ProcessActor(FPCGContext* Context, const UPCGData
 			// this not to be a problem, as these intersections should be garbage collected, but this requires more investigation
 			for (const FPCGTaggedData& TaggedData : Component->GetGeneratedGraphOutput().TaggedData)
 			{
-				FPCGTaggedData& DuplicatedTaggedData = Outputs.Add_GetRef(TaggedData);
-				DuplicatedTaggedData.Data = Cast<UPCGData>(StaticDuplicateObject(TaggedData.Data, GetTransientPackage()));
-				DuplicatedTaggedData.Tags.Add(PCGDataFromActorConstants::PCGComponentDataGridSizeTagPrefix + FString::FromInt(PCGHiGenGrid::GridToGridSize(Component->GetGenerationGrid())));
+				if (ensure(TaggedData.Data))
+				{
+					FPCGTaggedData& DuplicatedTaggedData = Outputs.Add_GetRef(TaggedData);
+					DuplicatedTaggedData.Data = Cast<UPCGData>(StaticDuplicateObject(TaggedData.Data, GetTransientPackage()));
+					DuplicatedTaggedData.Tags.Add(PCGDataFromActorConstants::PCGComponentDataGridSizeTagPrefix + FString::FromInt(PCGHiGenGrid::GridToGridSize(Component->GetGenerationGrid())));
+				}
 			}
 			//Outputs.Append(Component->GetGeneratedGraphOutput().TaggedData);
 		}

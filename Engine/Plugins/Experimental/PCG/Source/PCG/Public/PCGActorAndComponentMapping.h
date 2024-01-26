@@ -153,7 +153,9 @@ private:
 	void OnObjectModified(UObject* InObject);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InEvent);
 	void OnObjectSaved(UObject* InObject, FObjectPreSaveContext InObjectSaveContext);
+	void OnPCGGraphStartsGenerating(UPCGComponent* InComponent);
 	void OnPCGGraphGeneratedOrCleaned(UPCGComponent* InComponent);
+	void OnPCGGraphCancelled(UPCGComponent* InComponent);
 
 	/** Remap the tracking in case of BP components. */
 	void RemapTracking(const UPCGComponent* InOldComponent, UPCGComponent* InNewComponent);
@@ -223,6 +225,9 @@ private:
 
 	/** Transient map of actors and their previous data, it's set in the pre object change to be able to track changes (such as tags or positions) */
 	TMap<TObjectKey<AActor>, FActorPreviousData> ActorToPreviousDataMap;
+
+	/** Transient map that keep track of all components that depends on another component currently generating, to trigger the refresh only once, when all are done. */
+	TMap<TObjectKey<UPCGComponent>, TArray<TObjectKey<UPCGComponent>>> ComponentsToDependencyMap;
 
 #if WITH_EDITOR
 	// Part for the delayed landscape change update
