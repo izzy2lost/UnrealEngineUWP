@@ -36,6 +36,10 @@ FText FNiagaraAssetBrowserMainFilter::GetDisplayName() const
 	{
 		return FText::FromString(AssetTagDefinition.AssetTag.ToString());
 	}
+	else if(FilterMode == EFilterMode::NiagaraAssetTagDefinitionsAsset)
+	{
+		return AssetTagDefinitionsAsset->GetDisplayName();
+	}
 	else if(FilterMode == EFilterMode::Recent)
 	{
 		return LOCTEXT("NiagaraMainFilterLabel_Recent", "Recent");
@@ -61,6 +65,11 @@ bool FNiagaraAssetBrowserMainFilter::ShouldCustomFilterAsset(const FAssetData& A
 bool FNiagaraAssetBrowserMainFilter::DoesAssetHaveTag(const FAssetData& AssetCandidate) const
 {
 	return AssetTagDefinition.DoesAssetDataContainTag(AssetCandidate);
+}
+
+bool FNiagaraAssetBrowserMainFilter::DoesAssetHaveAnyTagFromTagDefinitionsAsset(const FAssetData& AssetCandidate) const
+{
+	return AssetTagDefinitionsAsset->DoesAssetDataContainAnyTag(AssetCandidate);
 }
 
 #undef LOCTEXT_NAMESPACE

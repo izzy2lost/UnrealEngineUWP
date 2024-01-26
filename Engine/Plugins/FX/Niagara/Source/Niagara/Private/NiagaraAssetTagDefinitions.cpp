@@ -109,3 +109,31 @@ void FNiagaraAssetTagDefinitionReference::AddTagToAssetRegistryTags(FAssetRegist
 		Context.AddTag(UObject::FAssetRegistryTag(FName(GetGuidAsString()), "  ", UObject::FAssetRegistryTag::TT_Alphabetical));
 	}
 }
+
+FText UNiagaraAssetTagDefinitions::GetDisplayName() const
+{
+	if(DisplayName.IsEmptyOrWhitespace())
+	{
+		return FText::FromString(GetName());
+	}
+
+	return DisplayName;
+}
+
+FText UNiagaraAssetTagDefinitions::GetDescription() const
+{
+	return Description;
+}
+
+bool UNiagaraAssetTagDefinitions::DoesAssetDataContainAnyTag(const FAssetData& AssetData) const
+{
+	for(const FNiagaraAssetTagDefinition& AssetTagDefinition : TagDefinitions)
+	{
+		if(AssetTagDefinition.DoesAssetDataContainTag(AssetData))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}

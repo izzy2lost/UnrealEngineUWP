@@ -47,6 +47,7 @@ struct FNiagaraAssetBrowserMainFilter
 	{
 		All,
 		NiagaraAssetTag,
+		NiagaraAssetTagDefinitionsAsset,
 		Recent,
 		Custom
 	};
@@ -56,16 +57,20 @@ struct FNiagaraAssetBrowserMainFilter
 	EFilterMode FilterMode;
 	TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> ChildFilters;
 
+	// If in mode Asset Tag, this is the tag to filter against
 	FNiagaraAssetTagDefinition AssetTagDefinition;
+	// If in mode Asset Tag Definitions Asset, this is the asset to filter against (should include all assets that match any tag within the asset)
+	TObjectPtr<const UNiagaraAssetTagDefinitions> AssetTagDefinitionsAsset;
+	// If in mode Recent, this is set and used to determine if an asset is recent
+	FIsAssetRecent IsAssetRecentDelegate;
+	// If in mode Custom, this needs to be set
+	FOnShouldFilterAsset CustomShouldFilterAsset;
 
 	/** The custom guid should always be set the same for a specific main filter.
 	 * Should be used if there are multiple items with the same filter mode that aren't niagara tags (i.e. set to Custom) */
 	FGuid CustomGuid;
-
-	FIsAssetRecent IsAssetRecentDelegate;
 	
 	FText CustomDisplayName;
-	FOnShouldFilterAsset CustomShouldFilterAsset;
 
 	FName GetIdentifier() const;
 	FText GetDisplayName() const;
@@ -73,6 +78,7 @@ struct FNiagaraAssetBrowserMainFilter
 	bool IsAssetRecent(const FAssetData& AssetCandidate) const;
 	bool ShouldCustomFilterAsset(const FAssetData& AssetCandidate) const;
 	bool DoesAssetHaveTag(const FAssetData& AssetCandidate) const;
+	bool DoesAssetHaveAnyTagFromTagDefinitionsAsset(const FAssetData& AssetCandidate) const;
 
 	bool operator==(const FNiagaraAssetBrowserMainFilter& Other) const
 	{
@@ -84,6 +90,11 @@ struct FNiagaraAssetBrowserMainFilter
 		if(FilterMode == EFilterMode::NiagaraAssetTag)
 		{
 			return AssetTagDefinition == Other.AssetTagDefinition;
+		}
+
+		if(FilterMode == EFilterMode::NiagaraAssetTagDefinitionsAsset)
+		{
+			return AssetTagDefinitionsAsset == Other.AssetTagDefinitionsAsset;
 		}
 
 		if(CustomGuid.IsValid())
