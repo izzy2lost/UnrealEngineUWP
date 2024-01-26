@@ -51,13 +51,13 @@ public:
 	FChaosVDSceneUpdatedDelegate& OnSceneUpdated() { return SceneUpdatedDelegate; }
 
 	/** Updates, Adds and Remove actors to match the provided Step Data */
-	void UpdateFromRecordedStepData(const int32 SolverID, const FString& SolverName, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData);
+	void UpdateFromRecordedStepData(const int32 SolverID, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData);
 
 	void UpdateParticlesCollisionData(const FChaosVDStepData& InRecordedStepData, int32 SolverID);
 
 	// No need to deprecate the old version since it is not a public API nor inline 
 	void HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& Geometry, const uint32 GeometryID) const;
-	
+
 	void HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData);
 
 	/** Deletes all actors of the Scene and underlying UWorld */
@@ -120,9 +120,13 @@ private:
 
 	/** Returns the ID used to track this recorded particle data */
 	int32 GetIDForRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData) const;
+
 	void CreateBaseLights(UWorld* TargetWorld) const;
 
 	void CreateSceneQueriesContainer(UWorld* TargetWorld);
+
+	/** Creates an actor that will contain all solver data for the provided Solver ID*/
+	void CreateSolverInfoActor(int32 SolverID);
 
 	AActor* CreateMeshComponentsContainer(UWorld* TargetWorld);
 

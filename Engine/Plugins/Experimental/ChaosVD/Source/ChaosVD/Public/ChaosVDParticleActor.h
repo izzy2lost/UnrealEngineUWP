@@ -56,7 +56,7 @@ public:
 
 	virtual void SetScene(TWeakPtr<FChaosVDScene> InScene) override;
 
-	virtual void BeginDestroy() override;
+	virtual void Destroyed() override;
 
 	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return ParticleDataPtr.Get(); }
 	virtual void GetVisualizationContext(FChaosVDVisualizationContext& OutVisualizationContext) override;
@@ -108,7 +108,7 @@ protected:
 	void UpdateShapeDataComponents();
 
 	template<typename TTaskCallback>
-	void PerformTaskOnGeometry(const TTaskCallback& TaskToPerform);
+	void VisitGeometryInstances(const TTaskCallback& VisitorCallback);
 	
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
 	uint8 LocalParticleDataVisualizationFlags;
@@ -137,14 +137,14 @@ protected:
 	friend FChaosVDParticleActorCustomization;
 };
 
-template <typename TTaskCallback>
-void AChaosVDParticleActor::PerformTaskOnGeometry(const TTaskCallback& TaskToPerform)
+template <typename TVisitorCallback>
+void AChaosVDParticleActor::VisitGeometryInstances(const TVisitorCallback& VisitorCallback)
 {
 	for (TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle : MeshDataHandles)
 	{
 		if (MeshDataHandle)
 		{
-			TaskToPerform(MeshDataHandle);
+			VisitorCallback(MeshDataHandle.ToSharedRef());
 		}
 	}
 }

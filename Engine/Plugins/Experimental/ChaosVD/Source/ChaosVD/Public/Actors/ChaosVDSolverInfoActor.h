@@ -10,6 +10,8 @@
 class AChaosVDParticleActor;
 class UChaosVDSolverCollisionDataComponent;
 
+enum class EChaosVDParticleType : uint8;
+
 UCLASS()
 class AChaosVDSolverInfoActor : public AActor, public FChaosVDSceneObjectBase, public FChaosVDSceneSelectionObserver
 {
@@ -21,6 +23,9 @@ public:
 
 	void SetSolverID(int32 InSolverID) { SolverID = InSolverID; }
 	int32 GetSolverID() const { return SolverID; }
+
+	void SetSolverName(const FString& InSolverName) { SolverName = InSolverName; }
+	const FString& GetSolverName() { return SolverName; }
 
 	void SetIsServer(bool bInIsServer) { bIsServer = bInIsServer; }
 	bool GetIsServer() const { return bIsServer; }
@@ -41,18 +46,24 @@ public:
 
 	void HandleVisibilitySettingsUpdated();
 	void HandleColorsSettingsUpdated();
+	void RemoveSolverFolders(UWorld* World);
 
-	virtual void BeginDestroy() override;
+	virtual void Destroyed() override;
 
 protected:
 
 	virtual void HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet) override;
+
+	FName GetFolderPathForParticleType(EChaosVDParticleType ParticleType);
 
 	UPROPERTY(VisibleAnywhere, Category="Solver Data")
 	int32 SolverID = INDEX_NONE;
 
 	UPROPERTY(VisibleAnywhere, Category="Solver Data")
 	FTransform SimulationTransform;
+
+	UPROPERTY(VisibleAnywhere, Category="Solver Data")
+	FString SolverName;
 
 	UPROPERTY()
 	TObjectPtr<UChaosVDSolverCollisionDataComponent> CollisionDataComponent;
@@ -61,6 +72,10 @@ protected:
 	TMap<int32, AChaosVDParticleActor*> SolverParticlesByID;
 
 	TArray<int32> SelectedParticlesID;
+
+	TSortedMap<EChaosVDParticleType, FName> FolderPathByParticlePath;
+
+	TSet<FFolder> CreatedFolders;
 
 	bool bIsServer;
 };

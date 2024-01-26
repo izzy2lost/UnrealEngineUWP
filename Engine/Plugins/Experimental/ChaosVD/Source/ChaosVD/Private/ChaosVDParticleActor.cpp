@@ -95,7 +95,7 @@ void AChaosVDParticleActor::UpdateFromRecordedParticleData(const TSharedPtr<FCha
 
 	if (bHasNewTransform)
 	{
-		PerformTaskOnGeometry([NewParticleTransform](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+		VisitGeometryInstances([NewParticleTransform](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 		{
 			MeshDataHandle->SetWorldTransform(NewParticleTransform);
 		});
@@ -197,18 +197,13 @@ void AChaosVDParticleActor::UpdateGeometry(const Chaos::FConstImplicitObjectPtr&
 	// If the new implicit object is empty, then we can just clear all the mesh components and early out
 	if (ObjectsToGenerateNum == 0)
 	{
-		for (const TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle : MeshDataHandles)
+		VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 		{
-			if (!MeshDataHandle.IsValid())
-			{
-				continue;
-			}
-
 			if (IChaosVDGeometryComponent* AsGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshDataHandle->GetMeshComponent()))
 			{
 				AsGeometryComponent->RemoveMeshInstance(MeshDataHandle);
 			}
-		}
+		});
 
 		MeshDataHandles.Reset();
 		return;
@@ -308,14 +303,24 @@ void AChaosVDParticleActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 	}
 }
 
-void AChaosVDParticleActor::BeginDestroy()
+void AChaosVDParticleActor::Destroyed()
 {
 	if (const TSharedPtr<FChaosVDScene>& ScenePtr = SceneWeakPtr.Pin())
 	{
 		ScenePtr->OnNewGeometryAvailable().Remove(GeometryUpdatedDelegate);
 	}
 
-	Super::BeginDestroy();
+	VisitGeometryInstances([](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	{
+		if (IChaosVDGeometryComponent* AsGeometryComponent = Cast<IChaosVDGeometryComponent>(MeshDataHandle->GetMeshComponent()))
+		{
+			AsGeometryComponent->RemoveMeshInstance(MeshDataHandle);
+		}
+	});
+
+	MeshDataHandles.Empty();
+
+	Super::Destroyed();
 }
 
 void AChaosVDParticleActor::GetVisualizationContext(FChaosVDVisualizationContext& OutVisualizationContext)
@@ -362,7 +367,7 @@ void AChaosVDParticleActor::SetIsTemporarilyHiddenInEditor(bool bIsHidden)
 {
 	Super::SetIsTemporarilyHiddenInEditor(bIsHidden);
 
-	PerformTaskOnGeometry([this, bIsHidden](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	VisitGeometryInstances([this, bIsHidden](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		FChaosVDGeometryComponentUtils::UpdateMeshVisibility(MeshDataHandle, ParticleDataPtr ? *ParticleDataPtr.Get() : FChaosVDParticleDataWrapper(), IsActive() && !bIsHidden);
 	});
@@ -434,7 +439,7 @@ void AChaosVDParticleActor::PushSelectionToProxies()
 {
 	Super::PushSelectionToProxies();
 
-	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		const bool bIsSelectedInEditor = IsSelectedInEditor();
 		MeshDataHandle->SetIsSelected(bIsSelectedInEditor);
@@ -467,7 +472,7 @@ const TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>* AChaosVDParticleActor::G
 
 void AChaosVDParticleActor::UpdateShapeDataComponents()
 {
-	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		if (ParticleDataPtr)
 		{
@@ -478,7 +483,7 @@ void AChaosVDParticleActor::UpdateShapeDataComponents()
 
 void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
 {
-	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		if (ParticleDataPtr)
 		{
@@ -489,7 +494,7 @@ void AChaosVDParticleActor::UpdateGeometryComponentsVisibility()
 
 void AChaosVDParticleActor::UpdateGeometryColors()
 {
-	PerformTaskOnGeometry([this](TSharedPtr<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
+	VisitGeometryInstances([this](const TSharedRef<FChaosVDMeshDataInstanceHandle>& MeshDataHandle)
 	{
 		if (ParticleDataPtr)
 		{
