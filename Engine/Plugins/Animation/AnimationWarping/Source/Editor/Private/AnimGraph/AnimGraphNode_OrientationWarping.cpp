@@ -57,6 +57,11 @@ void UAnimGraphNode_OrientationWarping::CustomizePinData(UEdGraphPin* Pin, FName
 	{
 		Pin->bHidden = (Node.Mode == EWarpingEvaluationMode::Manual);
 	}
+
+	if (Pin->PinName == GET_MEMBER_NAME_STRING_CHECKED(FAnimNode_OrientationWarping, WarpingSpace))
+	{
+		Pin->bHidden = (Node.WarpingSpace == EOrientationWarpingSpace::CustomTransform);
+	}
 }
 
 void UAnimGraphNode_OrientationWarping::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
@@ -114,6 +119,11 @@ void UAnimGraphNode_OrientationWarping::CustomizeDetails(IDetailLayoutBuilder& D
 		DetailBuilder.HideProperty(NodeHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAnimNode_OrientationWarping, LocomotionAngleDeltaThreshold)));
 		DetailBuilder.HideProperty(NodeHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAnimNode_OrientationWarping, MinRootMotionSpeedThreshold)));
 	}
+	
+	if (Node.WarpingSpace != EOrientationWarpingSpace::CustomTransform)
+   	{
+    	DetailBuilder.HideProperty(NodeHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAnimNode_OrientationWarping, WarpingSpaceTransform)));
+    }
 }
 
 void UAnimGraphNode_OrientationWarping::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)

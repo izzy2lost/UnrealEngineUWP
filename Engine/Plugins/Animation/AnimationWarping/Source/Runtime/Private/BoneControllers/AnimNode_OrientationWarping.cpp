@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BoneControllers/AnimNode_OrientationWarping.h"
+
 #include "Animation/AnimInstanceProxy.h"
 #include "Animation/AnimNodeFunctionRef.h"
 #include "Animation/AnimRootMotionProvider.h"
@@ -106,6 +107,18 @@ void FAnimNode_OrientationWarping::UpdateInternal(const FAnimationUpdateContext&
 	}
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
 	BlendWeight = Context.GetFinalBlendWeight();
+
+	if (WarpingSpace == EOrientationWarpingSpace::RootBoneTransform)
+	{
+		if (USkeletalMeshComponent* SkelMeshComponent = Context.AnimInstanceProxy->GetSkelMeshComponent())
+		{
+			WarpingSpaceTransform = SkelMeshComponent->GetBoneTransform(0);
+		}
+		else
+		{
+			WarpingSpaceTransform = Context.AnimInstanceProxy->GetComponentTransform();
+		}
+	}
 }
 
 void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
@@ -153,6 +166,11 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 	// speed information about the motion. It may also allow us to do more complex orienting behavior 
 	// when multiple degrees of freedom can be considered.
 
+	if (WarpingSpace == EOrientationWarpingSpace::ComponentTransform)
+	{
+		WarpingSpaceTransform = Output.AnimInstanceProxy->GetComponentTransform();
+	}
+
 	if (bGraphDrivenWarping)
 	{
 #if !ENABLE_ANIM_DEBUG
@@ -182,9 +200,7 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			if (LocomotionDirection.SquaredLength() > UE_SMALL_NUMBER)
 			{
 				// if we have a LocomotionDirection vector, transform into root bone local space
-				const FCompactPoseBoneIndex RootBoneIndex(0);
-				FTransform RootBoneWorldTransform(Output.Pose.GetComponentSpaceTransform(RootBoneIndex) * Output.AnimInstanceProxy->GetComponentTransform());
-				LocomotionForward = RootBoneWorldTransform.InverseTransformVector(LocomotionDirection);
+				LocomotionForward = WarpingSpaceTransform.InverseTransformVector(LocomotionDirection);
 				LocomotionForward.Normalize();
 			}
 			else
