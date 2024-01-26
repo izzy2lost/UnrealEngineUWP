@@ -506,11 +506,6 @@ namespace RemoteControlPropertyUtilities
 			{
 				SetterFunction = OwnerClass->FindFunctionByName(*CommonPropertiesToFunctions[Property->GetFName()].ToString());
 			}
-
-			if (!SetterFunction)
-			{
-				return nullptr;
-			}
 		}
 #endif
 
