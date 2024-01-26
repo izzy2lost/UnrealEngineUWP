@@ -162,19 +162,33 @@ void FCollectionAssetRegistryBridge::OnAssetsRemoved(TConstArrayView<FAssetData>
 {
 	FCollectionManagerModule& CollectionManagerModule = FCollectionManagerModule::GetModule();
 
+	TArray<FSoftObjectPath> RedirectorObjectsRemoved;
+	TArray<FSoftObjectPath> ObjectsRemoved;
+	ObjectsRemoved.Reserve(AssetDatas.Num());
+
 	for (const FAssetData& AssetData : AssetDatas)
 	{
 		if (AssetData.IsRedirector())
 		{
-			// Notify the collections manager that a redirector has been removed
-			// This will attempt to re-save any collections that still have a reference to this redirector in their on-disk collection data
-			CollectionManagerModule.Get().HandleRedirectorDeleted(AssetData.GetSoftObjectPath());
+			RedirectorObjectsRemoved.Add(AssetData.GetSoftObjectPath());
 		}
 		else
 		{
-			// Notify the collections manager that an asset has been removed
-			CollectionManagerModule.Get().HandleObjectDeleted(AssetData.GetSoftObjectPath());
+			ObjectsRemoved.Add(AssetData.GetSoftObjectPath());
 		}
+	}
+
+	// Notify the collections manager that a redirector has been removed
+	// This will attempt to re-save any collections that still have a reference to this redirector in their on-disk collection data
+	if (!RedirectorObjectsRemoved.IsEmpty())
+	{
+		CollectionManagerModule.Get().HandleRedirectorsDeleted(RedirectorObjectsRemoved);
+	}
+
+	// Notify the collections manager that an asset has been removed
+	if (!ObjectsRemoved.IsEmpty())
+	{
+		CollectionManagerModule.Get().HandleObjectsDeleted(ObjectsRemoved);
 	}
 }
 

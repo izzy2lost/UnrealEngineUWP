@@ -255,8 +255,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual FText GetLastError() const override { return LastError; }
 	virtual void HandleFixupRedirectors(ICollectionRedirectorFollower& InRedirectorFollower) override;
 	virtual bool HandleRedirectorDeleted(const FSoftObjectPath& ObjectPath) override;
+	virtual bool HandleRedirectorsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths) override;
 	virtual void HandleObjectRenamed(const FSoftObjectPath& OldObjectPath, const FSoftObjectPath& NewObjectPath) override;
 	virtual void HandleObjectDeleted(const FSoftObjectPath& ObjectPath) override;
+	virtual void HandleObjectsDeleted(TConstArrayView<FSoftObjectPath> ObjectPaths) override;
 
 	/** Event for when collections are created */
 	DECLARE_DERIVED_EVENT( FCollectionManager, ICollectionManager::FCollectionCreatedEvent, FCollectionCreatedEvent );
