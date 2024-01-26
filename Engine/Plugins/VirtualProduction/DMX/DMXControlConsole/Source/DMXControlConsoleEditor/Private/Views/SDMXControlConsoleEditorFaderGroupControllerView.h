@@ -8,7 +8,6 @@ enum class EDMXControlConsoleEditorViewMode : uint8;
 struct FOptionalSize;
 struct FSlateBrush;
 struct FSlateColor;
-class SDMXControlConsoleEditorExpandArrowButton;
 class SHorizontalBox;
 class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleElementController;
@@ -19,6 +18,7 @@ namespace UE::DMX::Private
 {
 	class FDMXControlConsoleElementControllerModel;
 	class FDMXControlConsoleFaderGroupControllerModel;
+	class SDMXControlConsoleEditorExpandArrowButton;
 	class SDMXControlConsoleEditorFaderGroupControllerToolbar;
 
 	/** A widget which displays a collection of Element Controllers */

@@ -7,12 +7,14 @@
 enum class ECheckBoxState : uint8;
 enum class EDMXControlConsoleEditorViewMode : uint8;
 enum class EDMXControlConsoleLayoutMode : uint8;
+struct FCustomTextFilterData;
 class FExtender;
 struct FSlateIcon;
 class FToolBarBuilder;
 class SDMXControlConsoleEditorPortSelector;
-class SSearchBox;
+class SFilterSearchBox;
 class SWidget;
+class SWindow;
 
 
 namespace UE::DMX::Private
@@ -29,6 +31,9 @@ namespace UE::DMX::Private
 
 		/** Builds the toolbar */
 		void BuildToolbar(TSharedPtr<FExtender> Extender);
+
+		/** Gets the toolbar's global filter searchbox widget */
+		const TSharedPtr<SFilterSearchBox>& GetFilterSearchBox() const { return GlobalFilterSearchBox; }
 
 	private:
 		/** Callback, raised when the menu extender requests to build the toolbar */
@@ -54,6 +59,12 @@ namespace UE::DMX::Private
 
 		/** Called when the search text has changed */
 		void OnSearchTextChanged(const FText& SearchText);
+
+		/** Called when the save search button is clicked */
+		void OnSaveSearchButtonClicked(const FText& InSearchText);
+
+		/** Called to create a custom filter from the filtering data */
+		void OnCreateCustomTextFilter(const FCustomTextFilterData& InFilterData, bool bApplyFilter);
 
 		/** Called when the Port selection has changed */
 		void OnSelectedPortsChanged();
@@ -89,10 +100,13 @@ namespace UE::DMX::Private
 		FSlateIcon GetSendDMXButtonIcon() const;
 
 		/** Reference to the Control Console's searchbox used for global filtering */
-		TSharedPtr<SSearchBox> GlobalFilterSearchBox;
+		TSharedPtr<SFilterSearchBox> GlobalFilterSearchBox;
 
 		/** Widget to handle the Port selection */
 		TSharedPtr<SDMXControlConsoleEditorPortSelector> PortSelector;
+
+		/** Weak reference to the window containing the custom text filter dialog */
+		TWeakPtr<SWindow> WeakCustomTextFilterWindow;
 
 		/** Weak reference to the Control Console editor toolkit */
 		TWeakPtr<FDMXControlConsoleEditorToolkit> WeakToolkit;

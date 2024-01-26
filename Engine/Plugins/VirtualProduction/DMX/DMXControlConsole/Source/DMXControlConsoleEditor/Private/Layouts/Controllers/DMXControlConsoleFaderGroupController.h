@@ -118,7 +118,6 @@ public:
 
 	//~ Begin UObject interface
 	virtual void PostInitProperties() override;
-	virtual void PostLoad() override;
 	//~ End UObject interface
 
 	/** Called when all the Fader Groups in this Controller have been grouped */

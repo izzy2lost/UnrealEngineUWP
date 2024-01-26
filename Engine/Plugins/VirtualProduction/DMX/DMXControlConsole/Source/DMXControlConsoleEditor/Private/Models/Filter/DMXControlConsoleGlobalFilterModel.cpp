@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "FilterModel.h"
+#include "DMXControlConsoleGlobalFilterModel.h"
 
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
@@ -9,8 +9,8 @@
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
+#include "DMXControlConsoleFaderGroupFilterModel.h"
 #include "DMXEditorUtils.h"
-#include "FilterModelFaderGroup.h"
 #include "Internationalization/Regex.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Misc/TransactionObjectEvent.h"
@@ -119,17 +119,17 @@ namespace UE::DMX::Private
 		return TOptional<int32>();
 	}
 
-	FFilterModel::FFilterModel(UDMXControlConsoleEditorModel* InEditorModel)
+	FDMXControlConsoleGlobalFilterModel::FDMXControlConsoleGlobalFilterModel(UDMXControlConsoleEditorModel* InEditorModel)
 		: EditorModel(InEditorModel)
 	{
 	}
 
-	void FFilterModel::Initialize()
+	void FDMXControlConsoleGlobalFilterModel::Initialize()
 	{
 		InitializeInternal();
 	}
 
-	void FFilterModel::SetGlobalFilter(const FString& NewFilter)
+	void FDMXControlConsoleGlobalFilterModel::SetGlobalFilter(const FString& NewFilter)
 	{
 		UDMXControlConsoleData* ControlConsoleData = WeakControlConsoleData.Get();
 		if (ControlConsoleData)
@@ -146,10 +146,10 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::SetFaderGroupFilter(UDMXControlConsoleFaderGroup* FaderGroup, const FString& InString)
+	void FDMXControlConsoleGlobalFilterModel::SetFaderGroupFilter(UDMXControlConsoleFaderGroup* FaderGroup, const FString& InString)
 	{
-		const TSharedRef<FFilterModelFaderGroup>* FaderGroupModelPtr = Algo::FindBy(FaderGroupModels, FaderGroup,
-			[](const TSharedRef<FFilterModelFaderGroup>& Model)
+		const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>* FaderGroupModelPtr = Algo::FindBy(FaderGroupModels, FaderGroup,
+			[](const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>& Model)
 			{
 				return Model->GetFaderGroup();
 			});
@@ -162,7 +162,7 @@ namespace UE::DMX::Private
 		}
 	}
 
-	bool FFilterModel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
+	bool FDMXControlConsoleGlobalFilterModel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
 	{
 		const TArray<UClass*> MatchingClasses = { UDMXControlConsoleData::StaticClass(), UDMXControlConsoleFaderGroup::StaticClass(), UDMXControlConsoleFaderBase::StaticClass() };
 
@@ -188,7 +188,7 @@ namespace UE::DMX::Private
 		return bMatchesContext;
 	}
 
-	void FFilterModel::PostUndo(bool bSuccess)
+	void FDMXControlConsoleGlobalFilterModel::PostUndo(bool bSuccess)
 	{
 		if (WeakControlConsoleData.IsValid())
 		{
@@ -198,7 +198,7 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::PostRedo(bool bSuccess)
+	void FDMXControlConsoleGlobalFilterModel::PostRedo(bool bSuccess)
 	{
 		if (WeakControlConsoleData.IsValid())
 		{
@@ -208,11 +208,11 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::UpdateNameFilterMode()
+	void FDMXControlConsoleGlobalFilterModel::UpdateNameFilterMode()
 	{
 		bool bGroupMatchesGlobalFilterNames = false;
 		bool bHasFadersMatchingGlobalFilterNames = false;
-		for (const TSharedRef<FFilterModelFaderGroup>& FaderGroupModel : FaderGroupModels)
+		for (const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>& FaderGroupModel : FaderGroupModels)
 		{
 			bGroupMatchesGlobalFilterNames |= 
 				FaderGroupModel->MatchesGlobalFilterUniverseAndAddress(GlobalFilter) ||
@@ -241,7 +241,7 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::InitializeInternal()
+	void FDMXControlConsoleGlobalFilterModel::InitializeInternal()
 	{
 		UpdateControlConsoleData();
 
@@ -254,9 +254,9 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::UpdateFaderGroupModels()
+	void FDMXControlConsoleGlobalFilterModel::UpdateFaderGroupModels()
 	{
-		Algo::ForEach(FaderGroupModels, [this](const TSharedRef<FFilterModelFaderGroup>& Model)
+		Algo::ForEach(FaderGroupModels, [this](const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>& Model)
 			{
 				if (UDMXControlConsoleFaderGroup* FaderGroup = Model->GetFaderGroup())
 				{
@@ -270,39 +270,41 @@ namespace UE::DMX::Private
 		const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = WeakControlConsoleData.IsValid() ? WeakControlConsoleData->GetAllFaderGroups() : TArray<UDMXControlConsoleFaderGroup*>{};
 		Algo::Transform(FaderGroups, FaderGroupModels, [this](UDMXControlConsoleFaderGroup* FaderGroup)
 			{
-				FaderGroup->GetOnElementAdded().AddSP(AsShared(), &FFilterModel::OnFaderGroupElementsChanged);
-				FaderGroup->GetOnElementRemoved().AddSP(AsShared(), &FFilterModel::OnFaderGroupElementsChanged);
-				FaderGroup->GetOnFixturePatchChanged().AddSP(AsShared(), &FFilterModel::OnFaderGroupFixturePatchChanged);
-				return MakeShared<FFilterModelFaderGroup>(FaderGroup);
+				FaderGroup->GetOnElementAdded().AddSP(AsShared(), &FDMXControlConsoleGlobalFilterModel::OnFaderGroupElementsChanged);
+				FaderGroup->GetOnElementRemoved().AddSP(AsShared(), &FDMXControlConsoleGlobalFilterModel::OnFaderGroupElementsChanged);
+				FaderGroup->GetOnFixturePatchChanged().AddSP(AsShared(), &FDMXControlConsoleGlobalFilterModel::OnFaderGroupFixturePatchChanged);
+				return MakeShared<FDMXControlConsoleFaderGroupFilterModel>(FaderGroup);
 			});
 	}
 
-	void FFilterModel::UpdateControlConsoleData()
+	void FDMXControlConsoleGlobalFilterModel::UpdateControlConsoleData()
 	{
-		if (WeakControlConsoleData.IsValid())
+		UDMXControlConsoleData* ControlConsoleData = WeakControlConsoleData.Get();
+		if (ControlConsoleData)
 		{
 			WeakControlConsoleData->GetOnFaderGroupAdded().RemoveAll(this);
 			WeakControlConsoleData->GetOnFaderGroupRemoved().RemoveAll(this);
 		}
 
-		WeakControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-		if (WeakControlConsoleData.IsValid())
+		ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		WeakControlConsoleData = ControlConsoleData;
+		if (ControlConsoleData)
 		{
-			WeakControlConsoleData->GetOnFaderGroupAdded().AddSP(AsShared(), &FFilterModel::OnEditorConsoleDataChanged);
-			WeakControlConsoleData->GetOnFaderGroupRemoved().AddSP(AsShared(), &FFilterModel::OnEditorConsoleDataChanged);
+			WeakControlConsoleData->GetOnFaderGroupAdded().AddSP(AsShared(), &FDMXControlConsoleGlobalFilterModel::OnEditorConsoleDataChanged);
+			WeakControlConsoleData->GetOnFaderGroupRemoved().AddSP(AsShared(), &FDMXControlConsoleGlobalFilterModel::OnEditorConsoleDataChanged);
 		}
 	}
 
-	void FFilterModel::ApplyFilter()
+	void FDMXControlConsoleGlobalFilterModel::ApplyFilter()
 	{
 		TArray<UDMXControlConsoleFaderBase*> MatchingFaders;
-		for (const TSharedRef<FFilterModelFaderGroup>& FaderGroupModel : FaderGroupModels)
+		for (const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>& FaderGroupModel : FaderGroupModels)
 		{
 			FaderGroupModel->Apply(GlobalFilter, NameFilterMode);
 		}
 	}
 
-	void FFilterModel::OnEditorConsoleDataChanged(const UDMXControlConsoleFaderGroup* FaderGroup)
+	void FDMXControlConsoleGlobalFilterModel::OnEditorConsoleDataChanged(const UDMXControlConsoleFaderGroup* FaderGroup)
 	{
 		if (FaderGroup && WeakControlConsoleData.IsValid())
 		{
@@ -312,13 +314,13 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::OnFaderGroupElementsChanged(IDMXControlConsoleFaderGroupElement* Element)
+	void FDMXControlConsoleGlobalFilterModel::OnFaderGroupElementsChanged(IDMXControlConsoleFaderGroupElement* Element)
 	{
 		if (Element)
 		{
 			const UDMXControlConsoleFaderGroup& FaderGroup = Element->GetOwnerFaderGroupChecked();
-			const TSharedRef<FFilterModelFaderGroup>* FaderGroupModelPtr = Algo::FindBy(FaderGroupModels, &FaderGroup,
-				[](const TSharedRef<FFilterModelFaderGroup>& Model)
+			const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>* FaderGroupModelPtr = Algo::FindBy(FaderGroupModels, &FaderGroup,
+				[](const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>& Model)
 				{
 					return Model->GetFaderGroup();
 				});
@@ -331,12 +333,12 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModel::OnFaderGroupFixturePatchChanged(UDMXControlConsoleFaderGroup* FaderGroup, UDMXEntityFixturePatch* FixturePatch)
+	void FDMXControlConsoleGlobalFilterModel::OnFaderGroupFixturePatchChanged(UDMXControlConsoleFaderGroup* FaderGroup, UDMXEntityFixturePatch* FixturePatch)
 	{
 		if (FaderGroup)
 		{
-			const TSharedRef<FFilterModelFaderGroup>* FaderGroupModelPtr = Algo::FindBy(FaderGroupModels, FaderGroup,
-				[](const TSharedRef<FFilterModelFaderGroup>& Model)
+			const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>* FaderGroupModelPtr = Algo::FindBy(FaderGroupModels, FaderGroup,
+				[](const TSharedRef<FDMXControlConsoleFaderGroupFilterModel>& Model)
 				{
 					return Model->GetFaderGroup();
 				});

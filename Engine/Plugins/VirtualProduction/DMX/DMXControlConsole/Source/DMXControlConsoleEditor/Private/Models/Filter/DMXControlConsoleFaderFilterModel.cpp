@@ -1,23 +1,23 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "FilterModelFader.h"
+#include "DMXControlConsoleFaderFilterModel.h"
 
 #include "Algo/Find.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
-#include "FilterModel.h"
-#include "FilterModelFaderGroup.h"
+#include "DMXControlConsoleFaderGroupFilterModel.h"
+#include "DMXControlConsoleGlobalFilterModel.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
 
 
 namespace UE::DMX::Private
 {
-	FFilterModelFader::FFilterModelFader(UDMXControlConsoleFaderBase* InFader)
+	FDMXControlConsoleFaderFilterModel::FDMXControlConsoleFaderFilterModel(UDMXControlConsoleFaderBase* InFader)
 		: WeakFader(InFader)
 	{}
 
-	bool FFilterModelFader::MatchesAnyName(const TArray<FString>& Names) const
+	bool FDMXControlConsoleFaderFilterModel::MatchesAnyName(const TArray<FString>& Names) const
 	{
 		if (UDMXControlConsoleFaderBase* Fader = WeakFader.Get())
 		{
@@ -31,7 +31,7 @@ namespace UE::DMX::Private
 		return false;
 	}
 
-	bool FFilterModelFader::MatchesGlobalFilter(const FGlobalFilter& GlobalFilter, ENameFilterMode NameFilterMode)
+	bool FDMXControlConsoleFaderFilterModel::MatchesGlobalFilter(const FGlobalFilter& GlobalFilter, ENameFilterMode NameFilterMode)
 	{
 		if (GlobalFilter.String.IsEmpty())
 		{
@@ -122,14 +122,14 @@ namespace UE::DMX::Private
 		}
 	}
 
-	bool FFilterModelFader::MatchesFaderGroupFilter(const FFaderGroupFilter& FaderGroupFilter)
+	bool FDMXControlConsoleFaderFilterModel::MatchesFaderGroupFilter(const FFaderGroupFilter& FaderGroupFilter)
 	{
 		return 
 			FaderGroupFilter.Names.IsEmpty() || 
 			MatchesAnyName(FaderGroupFilter.Names);
 	}
 
-	UDMXControlConsoleFaderBase* FFilterModelFader::GetFader() const
+	UDMXControlConsoleFaderBase* FDMXControlConsoleFaderFilterModel::GetFader() const
 	{
 		return WeakFader.Get();
 	}

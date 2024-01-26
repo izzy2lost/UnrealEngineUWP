@@ -6,11 +6,13 @@
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
+#include "Filters/SCustomTextFilterDialog.h"
+#include "Filters/SFilterSearchBox.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
-#include "Models/Filter/FilterModel.h"
+#include "Models/Filter/DMXControlConsoleGlobalFilterModel.h"
 #include "ScopedTransaction.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Toolkits/DMXControlConsoleEditorToolkit.h"
@@ -206,13 +208,20 @@ namespace UE::DMX::Private
 
 				// SearchBox section
 				+ SHorizontalBox::Slot()
+				.Padding(2.f)
 				[
-					SAssignNew(GlobalFilterSearchBox, SSearchBox)
+					SNew(SBox)
+					.VAlign(VAlign_Center)
+					.WidthOverride(300.f)
+					[	
+						SAssignNew(GlobalFilterSearchBox, SFilterSearchBox)
 						.DelayChangeNotificationsWhileTyping(true)
-						.DelayChangeNotificationsWhileTypingSeconds(.5f)
-						.MinDesiredWidth(300.f)
+						.ShowSearchHistory(true)
 						.OnTextChanged(this, &FDMXControlConsoleEditorToolbar::OnSearchTextChanged)
+						.OnSaveSearchClicked(this, &FDMXControlConsoleEditorToolbar::OnSaveSearchButtonClicked)
+						.HintText(LOCTEXT("SearchBarHintText", "Search"))
 						.ToolTipText(LOCTEXT("SearchBarTooltip", "Searches for Fader Name, Attributes, Fixture ID, Universe or Patch. Examples:\n\n* FaderName\n* Dimmer\n* Pan, Tilt\n* 1\n* 1.\n* 1.1\n* Universe 1\n* Uni 1-3\n* Uni 1, 3\n* Uni 1, 4-5'."))
+					]
 				]
 
 				// Autoselection CheckBox section
@@ -227,6 +236,7 @@ namespace UE::DMX::Private
 						SNew(SCheckBox)
 						.IsChecked(this, &FDMXControlConsoleEditorToolbar::IsFilteredElementsAutoSelectChecked)
 						.OnCheckStateChanged(this, &FDMXControlConsoleEditorToolbar::OnFilteredElementsAutoSelectStateChanged)
+						.ToolTipText(LOCTEXT("SearchBarCheckBoxToolTipText", "Checked if filtered elements must be automatically selected."))
 					]
 					+ SHorizontalBox::Slot()
 					.Padding(4.f, 0.f, 2.f, 0.f)
@@ -236,6 +246,7 @@ namespace UE::DMX::Private
 						SNew(STextBlock)
 						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 						.Text(LOCTEXT("SearchBarAutoselectText", "Auto-Select"))
+						.ToolTipText(LOCTEXT("SearchBarAutoselectLabelToolTipText", "Checked if filtered elements must be automatically selected."))
 					]
 				];
 
@@ -575,9 +586,9 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TSharedRef<FFilterModel> FilterModel = EditorModel->GetFilterModel();
-		const FString& SearchString = SearchText.ToString();
-		FilterModel->SetGlobalFilter(SearchString);
+		const TSharedRef<FDMXControlConsoleGlobalFilterModel> GlobalFilterModel = EditorModel->GetGlobalFilterModel();
+		const FString SearchString = SearchText.ToString();
+		GlobalFilterModel->SetGlobalFilter(SearchString);
 
 		if (EditorData->GetAutoSelectFilteredElements() &&
 			!SearchString.IsEmpty())
@@ -589,6 +600,56 @@ namespace UE::DMX::Private
 			constexpr bool bSelectOnlyFiltered = true;
 			SelectionHandler->SelectAll(bSelectOnlyFiltered);
 		}
+	}
+
+	void FDMXControlConsoleEditorToolbar::OnSaveSearchButtonClicked(const FText& InSearchText)
+	{
+		/** If we already have a window, delete it */
+		if (WeakCustomTextFilterWindow.IsValid())
+		{
+			WeakCustomTextFilterWindow.Pin()->RequestDestroyWindow();
+		}
+
+		const FText WindowTitle = LOCTEXT("CreateCustomTextFilterWindow", "Create Custom Filter");
+
+		const TSharedRef<SWindow> NewTextFilterWindow = SNew(SWindow)
+			.Title(WindowTitle)
+			.HasCloseButton(true)
+			.SupportsMaximize(false)
+			.SupportsMinimize(false)
+			.SizingRule(ESizingRule::FixedSize)
+			.ClientSize(FVector2D(724, 183));
+
+		FCustomTextFilterData TextFilterData;
+		TextFilterData.FilterString = InSearchText;
+
+		const TSharedRef<SCustomTextFilterDialog> CustomTextFilterDialog =
+			SNew(SCustomTextFilterDialog)
+			.FilterData(TextFilterData)
+			.InEditMode(false)
+			.OnCreateFilter(this, &FDMXControlConsoleEditorToolbar::OnCreateCustomTextFilter);
+
+		NewTextFilterWindow->SetContent(CustomTextFilterDialog);
+		FSlateApplication::Get().AddWindow(NewTextFilterWindow);
+
+		WeakCustomTextFilterWindow = NewTextFilterWindow;
+	}
+
+	void FDMXControlConsoleEditorToolbar::OnCreateCustomTextFilter(const FCustomTextFilterData& InFilterData, bool bApplyFilter)
+	{
+		const TSharedPtr<SWindow> CustomTextFilterWindow = WeakCustomTextFilterWindow.Pin();
+		if (!CustomTextFilterWindow.IsValid())
+		{
+			return;
+		}
+
+		UDMXControlConsoleEditorData* EditorData = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetControlConsoleEditorData() : nullptr;
+		if (EditorData)
+		{
+			EditorData->AddUserFilter(InFilterData.FilterLabel.ToString(), InFilterData.FilterString.ToString(), InFilterData.FilterColor);
+		}
+
+		CustomTextFilterWindow->RequestDestroyWindow();
 	}
 
 	void FDMXControlConsoleEditorToolbar::OnSelectedPortsChanged()

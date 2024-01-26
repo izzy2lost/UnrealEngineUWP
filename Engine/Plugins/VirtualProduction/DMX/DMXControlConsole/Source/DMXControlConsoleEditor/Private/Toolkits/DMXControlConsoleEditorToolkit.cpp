@@ -24,6 +24,7 @@
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Views/SDMXControlConsoleEditorDetailsView.h"
 #include "Views/SDMXControlConsoleEditorDMXLibraryView.h"
+#include "Views/SDMXControlConsoleEditorFiltersView.h"
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
 #include "Widgets/Docking/SDockTab.h"
 
@@ -35,6 +36,7 @@ namespace UE::DMX::Private
 	const FName FDMXControlConsoleEditorToolkit::DMXLibraryViewTabID(TEXT("DMXControlConsoleEditorToolkit_DMXLibraryViewTabID"));
 	const FName FDMXControlConsoleEditorToolkit::LayoutViewTabID(TEXT("DMXControlConsoleEditorToolkit_LayoutViewTabID"));
 	const FName FDMXControlConsoleEditorToolkit::DetailsViewTabID(TEXT("DMXControlConsoleEditorToolkit_DetailsViewTabID"));
+	const FName FDMXControlConsoleEditorToolkit::FiltersViewTabID(TEXT("DMXControlConsoleEditorToolkit_FiltersViewTabID"));
 
 	FDMXControlConsoleEditorToolkit::FDMXControlConsoleEditorToolkit()
 		: ControlConsole(nullptr)
@@ -129,46 +131,58 @@ namespace UE::DMX::Private
 		for (const TWeakObjectPtr<UObject>& SelectedFaderGroupControllerObject : SelectedFaderGroupControllersObjects)
 		{
 			UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(SelectedFaderGroupControllerObject);
-			if (SelectedFaderGroupController &&
-				SelectionHandler->GetSelectedElementControllersFromFaderGroupController(SelectedFaderGroupController).IsEmpty())
+			if (!SelectedFaderGroupController)
 			{
-				// If there's only one fader group controller to delete, replace it in selection
-				if (SelectedFaderGroupControllersObjects.Num() == 1)
-				{
-					SelectionHandler->ReplaceInSelection(SelectedFaderGroupController);
-				}
-
-				constexpr bool bNotifySelectedFaderGroupControllerChange = false;
-				SelectionHandler->RemoveFromSelection(SelectedFaderGroupController, bNotifySelectedFaderGroupControllerChange);
-
-				// Destroy all unpatched fader groups in the controller
-				const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = SelectedFaderGroupController->GetFaderGroups();
-				for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
-				{
-					if (FaderGroup.IsValid() && !FaderGroup->HasFixturePatch())
-					{
-						FaderGroup->Destroy();
-					}
-				}
-				
-				SelectedFaderGroupController->PreEditChange(nullptr);
-				SelectedFaderGroupController->Destroy();
-				SelectedFaderGroupController->PostEditChange();
-
-				ActiveLayout->PreEditChange(nullptr);
-				ActiveLayout->RemoveFromActiveFaderGroupControllers(SelectedFaderGroupController);
-				ActiveLayout->PostEditChange();
+				continue;
 			}
+
+			// Remove the controller only if there's no selected element controller or if all its element controllers are selected
+			const TArray<UDMXControlConsoleElementController*> SelectedElementControllersFromController = SelectionHandler->GetSelectedElementControllersFromFaderGroupController(SelectedFaderGroupController);
+			const bool bRemoveController =
+				SelectedElementControllersFromController.IsEmpty() ||
+				SelectedElementControllersFromController.Num() == SelectedFaderGroupController->GetElementControllers().Num();
+			
+			if (!bRemoveController)
+			{
+				continue;
+			}
+
+			// If there's only one fader group controller to delete, replace it in selection
+			if (SelectedFaderGroupControllersObjects.Num() == 1)
+			{
+				SelectionHandler->ReplaceInSelection(SelectedFaderGroupController);
+			}
+
+			constexpr bool bNotifySelectedFaderGroupControllerChange = false;
+			SelectionHandler->RemoveFromSelection(SelectedFaderGroupController, bNotifySelectedFaderGroupControllerChange);
+
+			// Destroy all unpatched fader groups in the controller
+			const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = SelectedFaderGroupController->GetFaderGroups();
+			for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
+			{
+				if (FaderGroup.IsValid() && !FaderGroup->HasFixturePatch())
+				{
+					FaderGroup->Destroy();
+				}
+			}
+				
+			SelectedFaderGroupController->PreEditChange(nullptr);
+			SelectedFaderGroupController->Destroy();
+			SelectedFaderGroupController->PostEditChange();
+
+			ActiveLayout->PreEditChange(nullptr);
+			ActiveLayout->RemoveFromActiveFaderGroupControllers(SelectedFaderGroupController);
+			ActiveLayout->PostEditChange();
 		}
 
 		// Delete all selected element controllers
 		const TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
 		if (!SelectedElementControllers.IsEmpty())
 		{
-			for (TWeakObjectPtr<UObject> SelectedElementControllerObject : SelectedElementControllers)
+			for (const TWeakObjectPtr<UObject>& SelectedElementControllerObject : SelectedElementControllers)
 			{
 				UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectedElementControllerObject);
-				if (!SelectedElementController)
+				if (!SelectedElementController || SelectedElementController->GetOwnerFaderGroupControllerChecked().HasFixturePatch())
 				{
 					continue;
 				}
@@ -183,7 +197,7 @@ namespace UE::DMX::Private
 				SelectionHandler->RemoveFromSelection(SelectedElementController, bNotifyFaderSelectionChange);
 
 				// Destroy all elements in the selected element controller
-				const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = SelectedElementController->GetElements();
+				const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = SelectedElementController->GetElements();
 				for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 				{
 					if (Element && !Element->GetOwnerFaderGroupChecked().HasFixturePatch())
@@ -358,6 +372,11 @@ namespace UE::DMX::Private
 			.SetDisplayName(LOCTEXT("Tab_EditorView", "Details"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Details"));
+
+		InTabManager->RegisterTabSpawner(FiltersViewTabID, FOnSpawnTab::CreateSP(this, &FDMXControlConsoleEditorToolkit::SpawnTab_FiltersView))
+			.SetDisplayName(LOCTEXT("Tab_FiltersView", "Filters"))
+			.SetGroup(WorkspaceMenuCategoryRef)
+			.SetIcon(FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Filter"));
 	}
 
 	void FDMXControlConsoleEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -367,6 +386,7 @@ namespace UE::DMX::Private
 		InTabManager->UnregisterTabSpawner(DMXLibraryViewTabID);
 		InTabManager->UnregisterTabSpawner(LayoutViewTabID);
 		InTabManager->UnregisterTabSpawner(DetailsViewTabID);
+		InTabManager->UnregisterTabSpawner(FiltersViewTabID);
 	}
 
 	const FSlateBrush* FDMXControlConsoleEditorToolkit::GetDefaultTabIcon() const
@@ -407,9 +427,10 @@ namespace UE::DMX::Private
 			return;
 		}
 
+		ExtendToolbar();
 		GenerateInternalViews();
 
-		TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_ControlConsole_Layout_1.2")
+		TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_ControlConsole_Layout_1.5")
 			->AddArea
 			(
 				FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
@@ -435,6 +456,13 @@ namespace UE::DMX::Private
 						->AddTab(DetailsViewTabID, ETabState::SidebarTab, ESidebarLocation::Right, .2f)
 						->SetSizeCoefficient(.2f)
 					)
+
+					->Split
+					(
+						FTabManager::NewStack()
+						->AddTab(FiltersViewTabID, ETabState::SidebarTab, ESidebarLocation::Right, .1f)
+						->SetSizeCoefficient(.1f)
+					)
 				)
 			);
 
@@ -444,7 +472,6 @@ namespace UE::DMX::Private
 			StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ControlConsole);
 
 		SetupCommands();
-		ExtendToolbar();
 		RegenerateMenusAndToolbars();
 	}
 
@@ -453,6 +480,7 @@ namespace UE::DMX::Private
 		GenerateDMXLibraryView();
 		GenerateLayoutView();
 		GenerateDetailsView();
+		GenerateFiltersView();
 	}
 
 	TSharedRef<SDMXControlConsoleEditorDMXLibraryView> FDMXControlConsoleEditorToolkit::GenerateDMXLibraryView()
@@ -485,11 +513,21 @@ namespace UE::DMX::Private
 		return DetailsView.ToSharedRef();
 	}
 
+	TSharedRef<SDMXControlConsoleEditorFiltersView> FDMXControlConsoleEditorToolkit::GenerateFiltersView()
+	{
+		if (!FiltersView.IsValid())
+		{
+			FiltersView = SNew(SDMXControlConsoleEditorFiltersView, Toolbar, EditorModel);
+		}
+
+		return FiltersView.ToSharedRef();
+	}
+
 	TSharedRef<SDockTab> FDMXControlConsoleEditorToolkit::SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args)
 	{
 		check(Args.GetTabId() == DMXLibraryViewTabID);
 
-		TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		const TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 			.Label(LOCTEXT("DMXLibraryViewTabID", "DMX Library"))
 			[
 				DMXLibraryView.ToSharedRef()
@@ -502,7 +540,7 @@ namespace UE::DMX::Private
 	{
 		check(Args.GetTabId() == LayoutViewTabID);
 
-		TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		const TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 			.Label(LOCTEXT("LayoutViewTabID", "Layout Editor"))
 			[
 				LayoutView.ToSharedRef()
@@ -515,10 +553,23 @@ namespace UE::DMX::Private
 	{
 		check(Args.GetTabId() == DetailsViewTabID);
 
-		TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		const TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
 			.Label(LOCTEXT("DetailsViewTabID", "Details"))
 			[
 				DetailsView.ToSharedRef()
+			];
+
+		return SpawnedTab;
+	}
+
+	TSharedRef<SDockTab> FDMXControlConsoleEditorToolkit::SpawnTab_FiltersView(const FSpawnTabArgs& Args)
+	{
+		check(Args.GetTabId() == FiltersViewTabID);
+
+		const TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+			.Label(LOCTEXT("FiltersViewTabID", "Filters"))
+			[
+				FiltersView.ToSharedRef()
 			];
 
 		return SpawnedTab;
@@ -574,7 +625,7 @@ namespace UE::DMX::Private
 	{
 		Toolbar = MakeShared<FDMXControlConsoleEditorToolbar>(SharedThis(this));
 
-		TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
+		const TSharedRef<FExtender> ToolbarExtender = MakeShareable(new FExtender);
 		Toolbar->BuildToolbar(ToolbarExtender);
 		AddToolbarExtender(ToolbarExtender);
 	}

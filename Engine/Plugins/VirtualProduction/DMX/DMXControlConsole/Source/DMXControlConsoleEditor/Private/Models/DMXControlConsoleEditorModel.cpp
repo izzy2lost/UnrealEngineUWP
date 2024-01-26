@@ -10,8 +10,8 @@
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXLibrary.h"
-#include "Models/Filter/FilterModel.h"
 #include "Misc/CoreDelegates.h"
+#include "Models/Filter/DMXControlConsoleGlobalFilterModel.h"
 #include "TimerManager.h"
 #include "Toolkits/DMXControlConsoleEditorToolkit.h"
 
@@ -55,16 +55,16 @@ TSharedRef<FDMXControlConsoleEditorSelection> UDMXControlConsoleEditorModel::Get
 	return SelectionHandler.ToSharedRef();
 }
 
-TSharedRef<UE::DMX::Private::FFilterModel> UDMXControlConsoleEditorModel::GetFilterModel()
+TSharedRef<UE::DMX::Private::FDMXControlConsoleGlobalFilterModel> UDMXControlConsoleEditorModel::GetGlobalFilterModel()
 {
 	using namespace UE::DMX::Private;
-	if (!FilterModel.IsValid())
+	if (!GlobalFilterModel.IsValid())
 	{
-		FilterModel = MakeShared<FFilterModel>(this);
-		FilterModel->Initialize();
+		GlobalFilterModel = MakeShared<FDMXControlConsoleGlobalFilterModel>(this);
+		GlobalFilterModel->Initialize();
 	}
 
-	return FilterModel.ToSharedRef();
+	return GlobalFilterModel.ToSharedRef();
 }
 
 void UDMXControlConsoleEditorModel::ScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController) const
@@ -140,6 +140,8 @@ void UDMXControlConsoleEditorModel::InitializeEditorData() const
 		ControlConsoleEditorData = NewObject<UDMXControlConsoleEditorData>(ControlConsole.Get(), NAME_None, RF_Transactional);
 		ControlConsole->ControlConsoleEditorData = ControlConsoleEditorData;
 	}
+
+	ControlConsoleEditorData->UpdateFilters(ControlConsole->GetControlConsoleData());
 }
 
 void UDMXControlConsoleEditorModel::InitializeEditorLayouts() const
@@ -196,14 +198,15 @@ void UDMXControlConsoleEditorModel::UnregisterEditorLayouts() const
 void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
+	UDMXControlConsoleEditorData* ControlConsoleEditorData = GetControlConsoleEditorData();
 	UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = GetControlConsoleLayouts();
-	if (!ControlConsoleData || !ControlConsoleLayouts)
+	if (!ControlConsoleData || !ControlConsoleEditorData || !ControlConsoleLayouts)
 	{
 		return;
 	}
 
-	// Clear user layouts from patched fader groups
-	const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = ControlConsoleLayouts->GetUserLayouts();
+	// Clear all the user layouts from patched fader groups
+	const TArray<UDMXControlConsoleEditorGlobalLayoutBase*>& UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 	for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 	{
 		if (!UserLayout)
@@ -217,12 +220,17 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		UserLayout->PostEditChange();
 	}
 
-	// Regenerate control console data with new library data
+	// Regenerate control console data with the new library data
 	ControlConsoleData->PreEditChange(nullptr);
 	ControlConsoleData->GenerateFromDMXLibrary();
 	ControlConsoleData->PostEditChange();
 
-	// Update current console default layout
+	// Update the default filters in the editor data
+	ControlConsoleEditorData->PreEditChange(nullptr);
+	ControlConsoleEditorData->UpdateFilters(ControlConsoleData);
+	ControlConsoleEditorData->PostEditChange();
+
+	// Update the current console default layout
 	ControlConsoleLayouts->PreEditChange(nullptr);
 	ControlConsoleLayouts->UpdateDefaultLayout();
 	ControlConsoleLayouts->PostEditChange();

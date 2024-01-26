@@ -116,7 +116,7 @@ void UDMXControlConsoleFaderGroupController::Group()
 			continue;
 		}
 
-		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = FaderGroup->GetElements();
+		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = FaderGroup->GetElements();
 		for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 		{
 			if (!Element)
@@ -126,7 +126,7 @@ void UDMXControlConsoleFaderGroupController::Group()
 
 			if (UDMXControlConsoleFixturePatchFunctionFader* FunctionFader = Cast<UDMXControlConsoleFixturePatchFunctionFader>(Element.GetObject()))
 			{
-				const FName AttributeName = FunctionFader->GetAttributeName().Name;
+				const FName& AttributeName = FunctionFader->GetAttributeName().Name;
 				if (AttributeNameToElementsMap.Contains(AttributeName))
 				{
 					AttributeNameToElementsMap[AttributeName].Add(Element);
@@ -350,7 +350,7 @@ TArray<UDMXControlConsoleElementController*> UDMXControlConsoleFaderGroupControl
 		return AllElementControllers;
 	}
 
-	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = FaderGroup->GetElements();
+	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = FaderGroup->GetElements();
 	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 	{
 		if (!Element)
@@ -489,13 +489,6 @@ void UDMXControlConsoleFaderGroupController::PostInitProperties()
 	UserName = GetName();
 }
 
-void UDMXControlConsoleFaderGroupController::PostLoad()
-{
-	Super::PostLoad();
-
-	UpdateElementControllers();
-}
-
 void UDMXControlConsoleFaderGroupController::ClearFaderGroups()
 {
 	for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
@@ -536,7 +529,7 @@ void UDMXControlConsoleFaderGroupController::GenerateElementControllers(UDMXCont
 		return;
 	}
 
-	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = FaderGroup->GetElements();
+	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = FaderGroup->GetElements();
 	// Create element controllers for elements with no controller
 	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 	{
