@@ -1265,7 +1265,7 @@ bool FArrayProperty::LoadFromTag(const FPropertyTag& Tag)
 		return false;
 	}
 
-	FField* Field = FField::Construct(Tag.InnerType, {}, Tag.Name, RF_NoFlags);
+	FField* Field = FField::TryConstruct(Tag.InnerType, {}, Tag.Name, RF_NoFlags);
 	if (FProperty* Property = CastField<FProperty>(Field))
 	{
 		FPropertyTag InnerTag = Tag;

@@ -511,6 +511,8 @@ public:
 	static COREUOBJECT_API FField* Construct(const FFieldVariant& InOwner, const FName& InName, EObjectFlags InFlags);
 	/** Constructs a new field given the name of its class */
 	static COREUOBJECT_API FField* Construct(const FName& FieldTypeName, const FFieldVariant& InOwner, const FName& InName, EObjectFlags InFlags);
+	/** Tries to construct a new field given the name of its class. Returns null if the type does not exist. */
+	static COREUOBJECT_API FField* TryConstruct(const FName& FieldTypeName, const FFieldVariant& InOwner, const FName& InName, EObjectFlags InFlags);
 
 	/** Fixups after duplicating a Field */
 	COREUOBJECT_API virtual void PostDuplicate(const FField& InField);
