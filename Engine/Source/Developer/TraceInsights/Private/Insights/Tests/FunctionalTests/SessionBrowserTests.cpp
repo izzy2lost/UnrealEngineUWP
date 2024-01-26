@@ -17,7 +17,7 @@ DECLARE_LOG_CATEGORY_EXTERN(UnrealInsightsHubTests, Log, All);
 
 #if !WITH_EDITOR
 
-BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsSessionBrowserTest, "Insights.Hub.SessionBrowser", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
+BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsSessionBrowserTest, "System.Insights.Hub.SessionBrowser", EAutomationTestFlags::ApplicationContextMask | EAutomationTestFlags::ProductFilter)
 FAutomationDriverPtr Driver;
 TSharedPtr<SWindow> AutomationWindow;
 END_DEFINE_SPEC(FAutomationDriverUnrealInsightsSessionBrowserTest)
