@@ -1350,22 +1350,27 @@ namespace Horde.Server
 				{
 					return LogEventLevel.Verbose;
 				}
+
 				if (requestPath.Equals("/Horde.HordeRpc/UpdateSession", StringComparison.OrdinalIgnoreCase))
 				{
 					return LogEventLevel.Verbose;
 				}
+
 				if (requestPath.Equals("/Horde.HordeRpc/CreateEvents", StringComparison.OrdinalIgnoreCase))
 				{
 					return LogEventLevel.Verbose;
 				}
+
 				if (requestPath.Equals("/Horde.HordeRpc/WriteOutput", StringComparison.OrdinalIgnoreCase))
 				{
 					return LogEventLevel.Information;
 				}
+
 				if (requestPath.StartsWith("/Horde.HordeRpc", StringComparison.OrdinalIgnoreCase))
 				{
 					return LogEventLevel.Debug;
 				}
+
 				if (requestPath.Equals("/Horde.Relay.RelayRpc/GetPortMappings", StringComparison.OrdinalIgnoreCase))
 				{
 					return LogEventLevel.Verbose;
@@ -1387,6 +1392,11 @@ namespace Horde.Server
 				}
 
 				if (requestPath.StartsWith("/ugs/api", StringComparison.OrdinalIgnoreCase))
+				{
+					return LogEventLevel.Verbose;
+				}
+
+				if (IsSpaRequest(context))
 				{
 					return LogEventLevel.Verbose;
 				}
