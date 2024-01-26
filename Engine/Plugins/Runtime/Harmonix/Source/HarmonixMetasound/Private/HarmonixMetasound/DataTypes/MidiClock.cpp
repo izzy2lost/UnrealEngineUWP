@@ -200,42 +200,13 @@ namespace HarmonixMetasound
 
 	void FMidiClock::RegisterForGameThreadUpdates()
 	{
-		if (nullptr == GEngine)
-		{
-			UE_LOG(LogHarmonixMidiClock, Error, TEXT("GEngine didn't exist. Failed to register a MIDI clock for game thread updates."))
-			return;
-		}
-
-		UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>();
-
-		if (nullptr == UpdateSubsystem)
-		{
-			UE_LOG(LogHarmonixMidiClock, Error, TEXT("Failed to get UMidiClockUpdateSubsystem. Low resolution MIDI clock updates won't happen."));
-			return;
-		}
-
-		UpdateSubsystem->TrackClock(this);
+		UMidiClockUpdateSubsystem::TrackMidiClock(this);
 	}
 
 	void FMidiClock::UnregisterForGameThreadUpdates()
 	{
-		if (nullptr == GEngine)
-		{
-			UE_LOG(LogHarmonixMidiClock, Warning, TEXT("GEngine didn't exist while attempting to unregister a MIDI clock with the game thread updater."))
-			return;
-		}
-
-		UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>();
-
-		if (nullptr == UpdateSubsystem)
-		{
-			UE_LOG(LogHarmonixMidiClock, Warning, TEXT("Failed to get UMidiClockUpdateSubsystem while attempting to unregister a MIDI clock with the game thread updater."));
-			return;
-		}
-
-		UpdateSubsystem->StopTrackingClock(this);
+		UMidiClockUpdateSubsystem::StopTrackingMidiClock(this);
 	}
-
 
 	void FMidiClock::ResetAndStart(int32 FrameIndex, bool SeekToStart)
 	{
