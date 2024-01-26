@@ -9,6 +9,8 @@ import pathlib
 import shutil
 import socket
 import sys
+import threading
+import time
 from typing import Any, Callable, Optional, Tuple, Type, Union
 from enum import Enum
 
@@ -21,7 +23,7 @@ from switchboard.switchboard_logging import LOGGER
 from switchboard.switchboard_widgets import (
     DropDownMenuComboBox, NonScrollableComboBox)
 from switchboard import ue_plugin_utils, ugs_utils
-
+from switchboard.sbcache import SBCache, Map
 
 ROOT_CONFIGS_PATH = pathlib.Path(__file__).parent.with_name('configs')
 CONFIG_SUFFIX = '.json'
@@ -456,7 +458,7 @@ class Setting(QtCore.QObject):
             if override_device_name is None:
                 self._base_widget = None
             else:
-                del self._override_widgets[override_device_name]
+                self._override_widgets.pop(override_device_name, None)
         else:
             if override_device_name is None:
                 self._base_widget = widget
@@ -2091,7 +2093,6 @@ class Config(object):
 
         # MISC SETTINGS
         self.CURRENT_LEVEL = data.get('current_level', DEFAULT_MAP_TEXT)
-        self.LEVELS = data.get('levels', None)
 
         # Devices
         self._device_data_from_config = {}
@@ -2159,7 +2160,6 @@ class Config(object):
         self.init_muserver()
 
         self.CURRENT_LEVEL = DEFAULT_MAP_TEXT
-        self.LEVELS = None
 
         self._device_data_from_config = {}
         self._plugin_data_from_config = {}
@@ -2271,8 +2271,15 @@ class Config(object):
         elif data.get('build_engine', False):
             self.basic_project_settings["engine_sync_method"].update_value(EngineSyncMethod.Build_Engine.value)
 
-        self.PROJECT_NAME = self.basic_project_settings["project_name"]
         self.UPROJECT_PATH = self.basic_project_settings["uproject"]
+
+        # Take note if this project had a cache when opened, as devices may want to trigger a cache
+        if SBCache().query_project(self.UPROJECT_PATH.get_value()):
+            self.PROJECTWASINCACHE = True
+        else:
+            self.PROJECTWASINCACHE = False
+
+        self.PROJECT_NAME = self.basic_project_settings["project_name"]
         self.ENGINE_DIR = self.basic_project_settings["engine_dir"]
         self.ENGINE_SYNC_METHOD = self.basic_project_settings["engine_sync_method"]
         self.MAPS_PATH = self.basic_project_settings["maps_path"]
@@ -2577,9 +2584,8 @@ class Config(object):
 
         self.save_muserver(data)
 
-        # Levels
+        # Level
         data["current_level"] = self.CURRENT_LEVEL
-        data["levels"] = self.LEVELS
 
         # Devices
         data["devices"] = {}
@@ -2722,9 +2728,47 @@ class Config(object):
 
         return path_name
 
-    def maps(self):
+    def find_levels(self) -> list[str]:
+
+        # show a progress bar if it is taking more a trivial amount of time
+        progressDiag = QtWidgets.QProgressDialog(
+            'Finding levels...', 'Cancel', 0, 0, parent=None)
+
+        progressDiag.setWindowTitle('Unreal Level Finder')
+        progressDiag.setModal(True)
+        progressDiag.setMinimumDuration(1000)  # time before it shows up
+        progressDiag.setCancelButton(None)
+
+        # Looks much better without the window frame.
+        progressDiag.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+
+        # create an event object to signal when the function is done
+        done_event = threading.Event()
+        levels = []
+
+        # our convenience worker function
+        def find_level_work():
+            self._find_levels(levels)
+            done_event.set()
+
+        thread = threading.Thread(target=find_level_work)
+        thread.start()
+
+        # wait for the event to be set or the progress dialog to be canceled
+        while not done_event.is_set() and not progressDiag.wasCanceled():
+            progressDiag.setValue(progressDiag.value() + 1)
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.050)  # The worker thread will run faster if we sleep.
+
+        progressDiag.close()
+
+        thread.join()
+
+        return levels
+
+    def _find_levels(self, levels: list[str]) -> None:
         '''
-        Returns a list of full map paths in an Unreal Engine project and
+        Returns a list of full level paths in an Unreal Engine project and
         in plugins such as:
             [
                 "/Game/Maps/MapName",
@@ -2771,12 +2815,15 @@ class Config(object):
                     umap_files.extend(get_umap_files(entry.path))  # recursive
             return umap_files
 
-        maps = []
         maps_filter = self.MAPS_FILTER.get_value()
 
         for (unreal_content_plugin, maps_path) in search_paths:
 
-            umaps = get_umap_files(maps_path)
+            try:
+                umaps = get_umap_files(maps_path)
+            except FileNotFoundError:
+                LOGGER.error(f"Could not get levels from {maps_path}")
+                continue
 
             for umap in umaps:
                 if not fnmatch.fnmatch(umap.name, maps_filter):
@@ -2789,11 +2836,21 @@ class Config(object):
                     file_path_to_map,
                     unreal_content_plugin=unreal_content_plugin)
 
-                if content_path_to_map not in maps:
-                    maps.append(content_path_to_map)
+                if content_path_to_map not in levels:
+                    levels.append(content_path_to_map)
 
-        maps.sort()
-        return maps
+        levels.sort()
+
+        # cache updated list of maps
+        project = SBCache().query_or_create_project(self.UPROJECT_PATH.get_value())
+        cmaps = [Map(id=None, project=None, gamepath=map) for map in levels]
+        SBCache().update_project_maps(project=project, maps=cmaps)
+
+    def get_levels(self) -> list[str]:
+        ''' Returns a list with all *.map files from the cache '''
+        project = SBCache().query_or_create_project(self.UPROJECT_PATH.get_value())
+        maps = SBCache().query_maps(project)
+        return [map.gamepath for map in maps]
 
     def multiuser_server_path(self):
         if self.MUSERVER_SLATE_MODE.get_value():

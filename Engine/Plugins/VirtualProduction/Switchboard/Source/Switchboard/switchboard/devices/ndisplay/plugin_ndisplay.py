@@ -26,6 +26,7 @@ from switchboard.devices.unreal.plugin_unreal import DeviceUnreal, \
 from switchboard.devices.unreal.uassetparser import UassetParser
 from switchboard.devices.device_base import DeviceStatus
 from switchboard.switchboard_logging import LOGGER
+from switchboard.sbcache import SBCache, Asset
 
 from .ndisplay_monitor_ui import nDisplayMonitorUI
 from .ndisplay_monitor import nDisplayMonitor
@@ -99,31 +100,22 @@ class AddnDisplayDialog(AddDeviceDialog):
         having to re-find every time.
         '''
 
-         # cache the current value of the combo box (currently selected preset for this device)
+        # cache the current value of the combo box (currently selected preset for this device)
         cur_item = self.cbConfigs.currentData()
 
         self.cbConfigs.clear()
 
-        itemDatas = DeviceUnreal.csettings['asset_itemDatas'].get_value()
+        project = SBCache().query_or_create_project(CONFIG.UPROJECT_PATH.get_value())
+        assets = SBCache().query_assets_by_classname(project=project, classnames=DeviceUnreal.NDISPLAY_CLASS_NAMES)
 
-        def asset_is_nDisplay_config(itemData:dict) -> bool:
-            ''' Convenience function to filter the nDisplay configs '''
-
-            # Only return assets of the correct class
-            return itemData['classname'] in DeviceUnreal.NDISPLAY_CLASS_NAMES
-
-        try:
-            for itemData in [itemData for itemData in itemDatas if asset_is_nDisplay_config(itemData)]:
-                self.cbConfigs.addItem(itemData['name'], itemData)
-        except Exception:
-            LOGGER.error('Error recalling config itemDatas')
+        for asset in assets:
+            self.cbConfigs.addItem(asset.name, asset)
 
         # restore selected item
         for item_idx in range(self.cbConfigs.count()):
-            if cur_item and (cur_item['name'] == self.cbConfigs.itemData(item_idx)['name']):
+            if cur_item and (cur_item.name == self.cbConfigs.itemData(item_idx).name):
                 self.cbConfigs.setCurrentIndex(item_idx)
                 break
-
 
     def current_config_path(self):
         ''' Get currently selected config path in the combobox '''
@@ -131,13 +123,13 @@ class AddnDisplayDialog(AddDeviceDialog):
         # Detect if this is a manual entry using the itemData
 
         itemText = self.cbConfigs.currentText()
-        itemData = self.cbConfigs.currentData()
+        asset: Asset = self.cbConfigs.currentData()
 
         if (self.cbConfigs.currentData() is None or
-                itemData['name'] != itemText):
+                asset.name != itemText):
             config_path = itemText.replace('"', '').strip()
         else:
-            config_path = itemData['path'].replace('"', '').strip()
+            config_path = asset.localpath.replace('"', '').strip()
 
         # normalize the path
         config_path = os.path.normpath(config_path)
