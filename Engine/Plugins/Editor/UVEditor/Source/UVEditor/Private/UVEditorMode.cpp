@@ -1366,17 +1366,23 @@ void UUVEditorMode::FocusLivePreviewCameraOnSelection()
 
 	for (const FUVToolSelection& Selection : CurrentSelections)
 	{
-		SelectionBoundingBox.Contain(Selection.GetConvertedSelectionForAppliedMesh().ToBoundingBox(*Selection.Target->AppliedCanonical));
+		FTransform3d Transform = Selection.Target->AppliedPreview->PreviewMesh->GetTransform();
+		SelectionBoundingBox.Contain(Selection.GetConvertedSelectionForAppliedMesh().ToBoundingBox(*Selection.Target->AppliedCanonical, Transform));
 	}
 	for (const FUVToolSelection& Selection : CurrentUnsetSelections)
 	{
-		SelectionBoundingBox.Contain(Selection.ToBoundingBox(*Selection.Target->AppliedCanonical));
+		FTransform3d Transform = Selection.Target->AppliedPreview->PreviewMesh->GetTransform();
+		SelectionBoundingBox.Contain(Selection.ToBoundingBox(*Selection.Target->AppliedCanonical, Transform));
 	}
 	if (CurrentSelections.Num() == 0 && CurrentUnsetSelections.Num() == 0)
 	{
 		for (int32 AssetID = 0; AssetID < ToolInputObjects.Num(); ++AssetID)
 		{
-			SelectionBoundingBox.Contain(ToolInputObjects[AssetID]->AppliedCanonical->GetBounds());
+			FTransform3d Transform = ToolInputObjects[AssetID]->AppliedPreview->PreviewMesh->GetTransform();
+			FAxisAlignedBox3d ObjectBoundingBox = ToolInputObjects[AssetID]->AppliedCanonical->GetBounds();
+			ObjectBoundingBox.Max = Transform.TransformPosition(ObjectBoundingBox.Max);
+			ObjectBoundingBox.Min = Transform.TransformPosition(ObjectBoundingBox.Min);
+			SelectionBoundingBox.Contain(ObjectBoundingBox);
 		}
 	}
 	

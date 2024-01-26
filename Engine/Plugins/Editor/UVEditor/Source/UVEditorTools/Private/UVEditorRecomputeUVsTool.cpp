@@ -224,12 +224,27 @@ void UUVEditorRecomputeUVsTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 bool UUVEditorRecomputeUVsTool::CanAccept() const
 {
-	bool bPreviewsHaveValidResults = true;
-	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
+	if (UVToolSelectionAPI->HaveSelections())
 	{
-		bPreviewsHaveValidResults = bPreviewsHaveValidResults && Target->AppliedPreview->HaveValidResult();
+		for (FUVToolSelection Selection : UVToolSelectionAPI->GetSelections())
+		{
+			if (!Selection.Target->AppliedPreview->HaveValidResult())
+			{
+				return false;
+			}
+		}
 	}
-	return bPreviewsHaveValidResults;
+	else
+	{
+		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
+		{
+			if (!Target->AppliedPreview->HaveValidResult())
+			{
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 
