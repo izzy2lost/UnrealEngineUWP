@@ -10,8 +10,9 @@
 	"DocsURL": "",
 	"MarketplaceURL": "",
 	"SupportURL": "",
+    "EnabledByDefault": true,
 	"CanContainContent": true,
-	"IsExperimentalVersion": true,
+	"IsBetaVersion": true,
 	"Installed": false,
 	"Modules": [
 		{
