@@ -221,7 +221,7 @@ struct FHullConnectivity
 		{
 			if (MaxIdx == SourcePointIdx)
 			{
-				MaxValue = 0;
+				MaxValue = -FMathd::MaxReal;
 				MaxIdx = -1;
 				for (int32 SubIdx = 0; SubIdx < Indices.Num(); ++SubIdx)
 				{
