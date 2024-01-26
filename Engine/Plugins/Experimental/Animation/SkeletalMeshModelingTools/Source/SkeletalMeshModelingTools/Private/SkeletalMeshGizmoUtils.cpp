@@ -76,6 +76,10 @@ UTransformGizmo* UE::SkeletalMeshGizmoUtils::CreateTransformGizmo(UInteractiveTo
 	if (ensure(NewGizmo))
 	{
 		GizmoManager->OnGizmosParametersChangedDelegate().AddUObject(NewGizmo, &UTransformGizmo::OnParametersChanged);
+		if (GizmoManager->GetDefaultGizmosParameters())
+		{
+			NewGizmo->OnParametersChanged(*GizmoManager->GetDefaultGizmosParameters());
+		}
 	}
 	
 	return NewGizmo;

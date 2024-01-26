@@ -161,6 +161,11 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGizmosParametersChanged, const FGizmosParameters& InParameters);
     static FOnGizmosParametersChanged& OnGizmosParametersChangedDelegate();
 
+	/**
+	 * Returns the default gizmos parameters if set
+	 */
+    static const TOptional<FGizmosParameters>& GetDefaultGizmosParameters();
+
 protected:
 
 	/**
