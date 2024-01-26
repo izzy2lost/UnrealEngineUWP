@@ -285,6 +285,7 @@ public:
 	// set the world transform ( this needs to be called on the game thread ) 
 	CHAOS_API void SetWorldTransform_External(const FTransform& WorldTransform);
 	CHAOS_API const FTransform& GetPreviousWorldTransform_External() const { return PreviousWorldTransform_External; }
+	CHAOS_API const FTransform& GetWorldTransform_External() { return WorldTransform_External; }
 
 	// todo(chaos): Remove this and move to a cook time approach of the SM data based on the GC property
 	// Set whether the GC should be using collision from the Static Mesh or the GC itself for game thread traces ( this needs to be called on the game thread )

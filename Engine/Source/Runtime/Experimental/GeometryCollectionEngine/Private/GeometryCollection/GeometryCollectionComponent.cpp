@@ -3896,10 +3896,11 @@ void UGeometryCollectionComponent::RegisterAndInitializePhysicsProxy()
 			AddParams.bDoubleSided = BodySetup->bDoubleSidedGeometry;
 			AddParams.CollisionData = BodyCollisionData;
 			AddParams.CollisionTraceType = BodySetup->GetCollisionTraceFlag();
-			AddParams.Scale = BodyInstance.Scale3D;
-			AddParams.SimpleMaterial = BodyInstance.GetSimplePhysicalMaterial();
+			AddParams.WorldTransform = PhysicsProxy->GetWorldTransform_External();
+			AddParams.Scale = AddParams.WorldTransform.GetScale3D();
+			AddParams.SimpleMaterial = GetPhysicalMaterial();
 			AddParams.LocalTransform = InToLocal;
-			AddParams.WorldTransform = PhysicsProxy->GetSimParameters().WorldTransform;
+			
 			AddParams.Geometry = &BodySetup->AggGeom;
 			ChaosInterface::CreateGeometry(AddParams, OutGeoms, OutShapes);
 		}
