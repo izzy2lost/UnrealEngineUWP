@@ -539,9 +539,13 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 			CommonlyReplicatedTags.Empty();
 			for (FName TagName : MutableDefault->CommonlyReplicatedTags)
 			{
-				CommonlyReplicatedTags.Add(FGameplayTag(TagName));
+				if (TagName.IsNone())
+				{
+					// Still being added to the UI
+					continue;
+				}
 
-				FGameplayTag Tag = RequestGameplayTag(TagName);
+				FGameplayTag Tag = RequestGameplayTag(TagName, false);
 				if (Tag.IsValid())
 				{
 					CommonlyReplicatedTags.Add(Tag);
