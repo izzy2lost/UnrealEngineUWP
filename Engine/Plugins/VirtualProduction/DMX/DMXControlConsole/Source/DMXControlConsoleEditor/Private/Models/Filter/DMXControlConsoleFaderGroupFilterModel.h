@@ -12,9 +12,8 @@ class UDMXControlConsoleFaderGroup;
 namespace UE::DMX::Private
 {
 	enum class ENameFilterMode : uint8;
-	class FFilterModelFader;
+	class FDMXControlConsoleFaderFilterModel;
 	struct FGlobalFilter;
-
 
 	/** Filter of a fader group */
 	struct FFaderGroupFilter
@@ -27,12 +26,12 @@ namespace UE::DMX::Private
 	};
 
 	/** Filter model for a single fader group */
-	class FFilterModelFaderGroup
-		: public TSharedFromThis<FFilterModelFaderGroup>
+	class FDMXControlConsoleFaderGroupFilterModel
+		: public TSharedFromThis<FDMXControlConsoleFaderGroupFilterModel>
 	{
 	public:
-		FFilterModelFaderGroup() = delete;
-		FFilterModelFaderGroup(UDMXControlConsoleFaderGroup* InFaderGroup);
+		FDMXControlConsoleFaderGroupFilterModel() = delete;
+		FDMXControlConsoleFaderGroupFilterModel(UDMXControlConsoleFaderGroup* InFaderGroup);
 
 		/** Returns the fader group of this model */
 		UDMXControlConsoleFaderGroup* GetFaderGroup() const;
@@ -72,7 +71,7 @@ namespace UE::DMX::Private
 		FFaderGroupFilter FaderGroupFilter;
 
 		/** Fader Filter Models used in this model */
-		TArray<TSharedRef<FFilterModelFader>> FaderModels;
+		TArray<TSharedRef<FDMXControlConsoleFaderFilterModel>> FaderModels;
 
 		/** Fader group of this model */
 		TWeakObjectPtr<UDMXControlConsoleFaderGroup> WeakFaderGroup;

@@ -17,8 +17,8 @@ class UDMXEntityFixturePatch;
 
 namespace UE::DMX::Private
 { 
-	class FFilterModelFader;
-	class FFilterModelFaderGroup;
+	class FDMXControlConsoleFaderFilterModel;
+	class FDMXControlConsoleFaderGroupFilterModel;
 
 	/** Utility to parse a filter string into an array */
 	TArray<FString> ParseStringIntoArray(const FString& InString);
@@ -50,18 +50,18 @@ namespace UE::DMX::Private
 	};
 
 
-	/** Model for control console filtering */
-	class FFilterModel
-		: public TSharedFromThis<FFilterModel>
+	/** Model for the global control console filtering */
+	class FDMXControlConsoleGlobalFilterModel
+		: public TSharedFromThis<FDMXControlConsoleGlobalFilterModel>
 		, public FSelfRegisteringEditorUndoClient
 	{
 		// Allow the DMXControlConsoleFaderGroupFilterModel to read Data
-		friend FFilterModelFaderGroup;
-		friend FFilterModelFader;
+		friend FDMXControlConsoleFaderGroupFilterModel;
+		friend FDMXControlConsoleFaderFilterModel;
 
 	public:
 		/** Constructor */
-		FFilterModel(UDMXControlConsoleEditorModel* InEditorModel);
+		FDMXControlConsoleGlobalFilterModel(UDMXControlConsoleEditorModel* InEditorModel);
 
 		/** Initializes the model */
 		void Initialize();
@@ -110,11 +110,11 @@ namespace UE::DMX::Private
 		/** The global filter used in this model */
 		FGlobalFilter GlobalFilter;
 
-		/** Mode in which the filter currently shoudl be applied */
+		/** Mode in which the filter currently should be applied */
 		ENameFilterMode NameFilterMode = ENameFilterMode::None;
 
 		/** Fader Group Models used in this model */
-		TArray<TSharedRef<FFilterModelFaderGroup>> FaderGroupModels;
+		TArray<TSharedRef<FDMXControlConsoleFaderGroupFilterModel>> FaderGroupModels;
 
 		/** Control console data used in this model */
 		TWeakObjectPtr<UDMXControlConsoleData> WeakControlConsoleData;

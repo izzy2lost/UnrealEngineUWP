@@ -17,7 +17,7 @@
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Models/DMXControlConsoleEditorModel.h"
-#include "Models/Filter/FilterModel.h"
+#include "Models/Filter/DMXControlConsoleGlobalFilterModel.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
@@ -49,8 +49,8 @@ namespace UE::DMX::Private
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 		SelectionHandler->GetOnSelectionChanged().AddSP(this, &SDMXControlConsoleEditorDetailsView::RequestUpdateDetailsViews);
 
-		const TSharedRef<FFilterModel> FilterModel = EditorModel->GetFilterModel();
-		FilterModel->OnFilterChanged.AddSP(this, &SDMXControlConsoleEditorDetailsView::RequestUpdateDetailsViews);
+		const TSharedRef<FDMXControlConsoleGlobalFilterModel> GlobalFilterModel = EditorModel->GetGlobalFilterModel();
+		GlobalFilterModel->OnFilterChanged.AddSP(this, &SDMXControlConsoleEditorDetailsView::RequestUpdateDetailsViews);
 
 		FDetailsViewArgs DetailsViewArgs;
 		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
@@ -206,16 +206,16 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		bool bDisableThrottle = false;
-		if (IsWidgetInTab(PreviouslyActive, FadersDetailsView))
+		if (IsWidgetInTab(PreviouslyActive, FadersDetailsView) && bThrottleDisabled)
 		{
-			FSlateThrottleManager::Get().DisableThrottle(bDisableThrottle);
+			bThrottleDisabled = false;
+			FSlateThrottleManager::Get().DisableThrottle(bThrottleDisabled);
 		}
 
-		if (IsWidgetInTab(NewlyActivated, FadersDetailsView))
+		if (IsWidgetInTab(NewlyActivated, FadersDetailsView) && !bThrottleDisabled)
 		{
-			bDisableThrottle = true;
-			FSlateThrottleManager::Get().DisableThrottle(bDisableThrottle);
+			bThrottleDisabled = true;
+			FSlateThrottleManager::Get().DisableThrottle(bThrottleDisabled);
 		}
 	}
 
@@ -224,7 +224,7 @@ namespace UE::DMX::Private
 		if (InDockTab.IsValid())
 		{
 			// Tab content that should be a parent of this widget on some level
-			TSharedPtr<SWidget> TabContent = InDockTab->GetContent();
+			const TSharedRef<SWidget>& TabContent = InDockTab->GetContent();
 			// Current parent being checked against
 			TSharedPtr<SWidget> CurrentParent = InWidget;
 

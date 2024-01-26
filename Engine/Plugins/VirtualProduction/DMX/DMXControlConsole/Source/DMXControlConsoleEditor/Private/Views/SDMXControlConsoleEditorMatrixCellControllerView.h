@@ -6,7 +6,6 @@
 
 struct FOptionalSize;
 struct FSlateColor;
-class SDMXControlConsoleEditorExpandArrowButton;
 class SHorizontalBox;
 class UDMXControlConsoleCellAttributeController;
 class UDMXControlConsoleEditorModel;
@@ -18,6 +17,7 @@ namespace UE::DMX::Private
 {
 	class FDMXControlConsoleElementControllerModel;
 	class SDMXControlConsoleEditorElementControllerView;
+	class SDMXControlConsoleEditorExpandArrowButton;
 
 	/** A widget which displays a collection of Cell Attribute Controllers */
 	class SDMXControlConsoleEditorMatrixCellControllerView

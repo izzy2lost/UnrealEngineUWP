@@ -50,10 +50,6 @@ public:
 	/** Gets an array of all Cell Attribute Controllers which posses Faders of the given Element */
 	TArray<UDMXControlConsoleCellAttributeController*> GetAllCellAttributeControllersFromElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement) const;
 
-	//~ Begin UObject interface
-	virtual void PostLoad() override;
-	//~ End UObject interface
-
 	// Property Name getters
 	FORCEINLINE static FName GetCellAttributeControllersPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleMatrixCellController, CellAttributeControllers); }
 

@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "FilterModelFaderGroup.h"
+#include "DMXControlConsoleFaderGroupFilterModel.h"
 
 #include "Algo/Find.h"
 #include "Algo/Transform.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderBase.h"
+#include "DMXControlConsoleFaderFilterModel.h"
 #include "DMXControlConsoleFaderGroup.h"
-#include "FilterModel.h"
-#include "FilterModelFader.h"
+#include "DMXControlConsoleGlobalFilterModel.h"
 #include "Library/DMXEntityFixturePatch.h"
 
 
@@ -28,7 +28,7 @@ namespace UE::DMX::Private
 		Names.Reset();
 	}
 
-	FFilterModelFaderGroup::FFilterModelFaderGroup(UDMXControlConsoleFaderGroup* InFaderGroup)
+	FDMXControlConsoleFaderGroupFilterModel::FDMXControlConsoleFaderGroupFilterModel(UDMXControlConsoleFaderGroup* InFaderGroup)
 		: WeakFaderGroup(InFaderGroup)
 	{
 		if (WeakFaderGroup.IsValid())
@@ -38,12 +38,12 @@ namespace UE::DMX::Private
 		}
 	}
 
-	UDMXControlConsoleFaderGroup* FFilterModelFaderGroup::GetFaderGroup() const
+	UDMXControlConsoleFaderGroup* FDMXControlConsoleFaderGroupFilterModel::GetFaderGroup() const
 	{
 		return WeakFaderGroup.Get();
 	}
 
-	void FFilterModelFaderGroup::SetFilter(const FString& InString)
+	void FDMXControlConsoleFaderGroupFilterModel::SetFilter(const FString& InString)
 	{
 		UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (FaderGroup && FaderGroupFilter.String != InString)
@@ -55,7 +55,7 @@ namespace UE::DMX::Private
 		}
 	}
 
-	bool FFilterModelFaderGroup::MatchesGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::MatchesGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const
 	{
 		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup || GlobalFilter.Universes.IsEmpty())
@@ -83,7 +83,7 @@ namespace UE::DMX::Private
 		return MatchingUniversePtr != nullptr;
 	}
 
-	bool FFilterModelFaderGroup::MatchesGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::MatchesGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
 	{
 		if (const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get())
 		{
@@ -97,7 +97,7 @@ namespace UE::DMX::Private
 		return false;
 	}
 
-	bool FFilterModelFaderGroup::MatchesGlobalFilterFixtureIDs(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::MatchesGlobalFilterFixtureIDs(const FGlobalFilter& GlobalFilter) const
 	{
 		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup )
@@ -125,10 +125,10 @@ namespace UE::DMX::Private
 		return false;
 	}
 
-	bool FFilterModelFaderGroup::HasFadersMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::HasFadersMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
 	{
-		const TSharedRef<FFilterModelFader>* MatchingFaderModelPtr = Algo::FindByPredicate(FaderModels,
-			[GlobalFilter](const TSharedRef<FFilterModelFader>& FaderModel)
+		const TSharedRef<FDMXControlConsoleFaderFilterModel>* MatchingFaderModelPtr = Algo::FindByPredicate(FaderModels,
+			[GlobalFilter](const TSharedRef<FDMXControlConsoleFaderFilterModel>& FaderModel)
 			{
 				return FaderModel->MatchesAnyName(GlobalFilter.Names);
 			});
@@ -136,7 +136,7 @@ namespace UE::DMX::Private
 		return MatchingFaderModelPtr != nullptr;
 	}
 
-	void FFilterModelFaderGroup::Apply(const FGlobalFilter& GlobalFilter, ENameFilterMode NameFilterMode)
+	void FDMXControlConsoleFaderGroupFilterModel::Apply(const FGlobalFilter& GlobalFilter, ENameFilterMode NameFilterMode)
 	{
 		UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup)
@@ -148,7 +148,7 @@ namespace UE::DMX::Private
 		if (GlobalFilter.String.IsEmpty())
 		{
 			FaderGroup->SetIsMatchingFilter(true);
-			for (const TSharedRef<FFilterModelFader>& FaderModel : FaderModels)
+			for (const TSharedRef<FDMXControlConsoleFaderFilterModel>& FaderModel : FaderModels)
 			{
 				UDMXControlConsoleFaderBase* Fader = FaderModel->GetFader();
 				if (!Fader)
@@ -185,7 +185,7 @@ namespace UE::DMX::Private
 			FaderGroup->SetIsMatchingFilter(true);
 		}
 
-		for (const TSharedRef<FFilterModelFader>& FaderModel : FaderModels)
+		for (const TSharedRef<FDMXControlConsoleFaderFilterModel>& FaderModel : FaderModels)
 		{
 			UDMXControlConsoleFaderBase* Fader = FaderModel->GetFader();
 			if (!Fader)
@@ -220,18 +220,18 @@ namespace UE::DMX::Private
 		}
 	}
 
-	void FFilterModelFaderGroup::UpdateFaderModels()
+	void FDMXControlConsoleFaderGroupFilterModel::UpdateFaderModels()
 	{
 		FaderModels.Reset();
 
 		const TArray<UDMXControlConsoleFaderBase*> Faders = WeakFaderGroup.IsValid() ? WeakFaderGroup->GetAllFaders() : TArray<UDMXControlConsoleFaderBase*>{};
 		Algo::Transform(Faders, FaderModels, [](UDMXControlConsoleFaderBase* Fader)
 			{
-				return MakeShared<FFilterModelFader>(Fader);
+				return MakeShared<FDMXControlConsoleFaderFilterModel>(Fader);
 			});
 	}
 
-	bool FFilterModelFaderGroup::IsMatchingGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::IsMatchingGlobalFilterUniverseAndAddress(const FGlobalFilter& GlobalFilter) const
 	{
 		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup || GlobalFilter.Universes.IsEmpty())
@@ -261,7 +261,7 @@ namespace UE::DMX::Private
 		return bMatchesFaderGroupUniverse;
 	}
 
-	bool FFilterModelFaderGroup::IsMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::IsMatchingGlobalFilterNames(const FGlobalFilter& GlobalFilter) const
 	{
 		if (const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get())
 		{
@@ -276,7 +276,7 @@ namespace UE::DMX::Private
 		return false;
 	}
 
-	bool FFilterModelFaderGroup::IsMatchingGlobalFilterFixtureIDs(const FGlobalFilter& GlobalFilter) const
+	bool FDMXControlConsoleFaderGroupFilterModel::IsMatchingGlobalFilterFixtureIDs(const FGlobalFilter& GlobalFilter) const
 	{
 		const UDMXControlConsoleFaderGroup* FaderGroup = WeakFaderGroup.Get();
 		if (!FaderGroup || GlobalFilter.FixtureIDs.IsEmpty())

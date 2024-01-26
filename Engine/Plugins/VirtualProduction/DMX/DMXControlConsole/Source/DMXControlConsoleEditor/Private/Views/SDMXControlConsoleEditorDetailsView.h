@@ -43,6 +43,15 @@ namespace UE::DMX::Private
 		/** Searches this widget's parents to see if it's a child of InDockTab */
 		bool IsWidgetInTab(TSharedPtr<SDockTab> InDockTab, TSharedPtr<SWidget> InWidget) const;
 
+		/** True if slate throttling is currently disabled */
+		bool bThrottleDisabled = false;
+
+		/** Delegate handle bound to the FGlobalTabmanager::OnActiveTabChanged delegate */
+		FDelegateHandle OnActiveTabChangedDelegateHandle;
+
+		/** Timer handle in use while updating details views is requested but not carried out yet */
+		FTimerHandle UpdateDetailsViewTimerHandle;
+
 		/** Shows details of the current selected Fader Group Controllers */
 		TSharedPtr<IDetailsView> FaderGroupControllersDetailsView;
 
@@ -54,12 +63,6 @@ namespace UE::DMX::Private
 
 		/** Shows details of the current selected Faders */
 		TSharedPtr<IDetailsView> FadersDetailsView;
-
-		/** Delegate handle bound to the FGlobalTabmanager::OnActiveTabChanged delegate */
-		FDelegateHandle OnActiveTabChangedDelegateHandle;
-
-		/** Timer handle in use while updating details views is requested but not carried out yet */
-		FTimerHandle UpdateDetailsViewTimerHandle;
 
 		/** Weak reference to the Control Console editor model */
 		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;

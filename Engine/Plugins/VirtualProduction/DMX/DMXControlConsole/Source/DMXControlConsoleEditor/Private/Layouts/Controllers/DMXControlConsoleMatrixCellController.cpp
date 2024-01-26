@@ -66,12 +66,12 @@ void UDMXControlConsoleMatrixCellController::Group()
 			continue;
 		}
 
-		const TArray<UDMXControlConsoleFaderBase*> Faders = MatrixCell->GetFaders();
+		const TArray<UDMXControlConsoleFaderBase*>& Faders = MatrixCell->GetFaders();
 		for (UDMXControlConsoleFaderBase* Fader : Faders)
 		{
 			if (UDMXControlConsoleFixturePatchCellAttributeFader* CellAttributeFader = Cast<UDMXControlConsoleFixturePatchCellAttributeFader>(Fader))
 			{
-				const FName AttributeName = CellAttributeFader->GetAttributeName().Name;
+				const FName& AttributeName = CellAttributeFader->GetAttributeName().Name;
 				if (AttributeNameToElementsMap.Contains(AttributeName))
 				{
 					AttributeNameToElementsMap[AttributeName].Add(Fader);
@@ -224,7 +224,7 @@ TArray<UDMXControlConsoleCellAttributeController*> UDMXControlConsoleMatrixCellC
 		return AllCellAttributeControllers;
 	}
 
-	const TArray<UDMXControlConsoleFaderBase*> Faders = MatrixCell->GetFaders();
+	const TArray<UDMXControlConsoleFaderBase*>& Faders = MatrixCell->GetFaders();
 	for (const UDMXControlConsoleFaderBase* Fader : Faders)
 	{
 		if (!Fader)
@@ -247,13 +247,6 @@ TArray<UDMXControlConsoleCellAttributeController*> UDMXControlConsoleMatrixCellC
 	return AllCellAttributeControllers;
 }
 
-void UDMXControlConsoleMatrixCellController::PostLoad()
-{
-	Super::PostLoad();
-
-	UpdateCellAttributeControllers();
-}
-
 void UDMXControlConsoleMatrixCellController::ClearCellAttributeControllers()
 {
 	for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
@@ -265,7 +258,7 @@ void UDMXControlConsoleMatrixCellController::ClearCellAttributeControllers()
 
 		CellAttributeController->ClearElements();
 	}
-	CellAttributeControllers.Reset(CellAttributeControllers.Num());
+	CellAttributeControllers.Reset();
 }
 
 void UDMXControlConsoleMatrixCellController::GenerateCellAttributeControllers(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement)

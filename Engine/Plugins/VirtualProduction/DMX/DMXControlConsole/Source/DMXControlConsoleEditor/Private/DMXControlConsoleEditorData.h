@@ -7,6 +7,8 @@
 
 #include "DMXControlConsoleEditorData.generated.h"
 
+class UDMXControlConsoleData;
+
 
 /** Enum for DMX Control Console control modes */
 UENUM()
@@ -32,6 +34,48 @@ enum class EDMXControlConsoleEditorValueType : uint8
 	Normalized
 };
 
+/** Struct which describes a User Filter */
+USTRUCT()
+struct FDMXControlConsoleEditorUserFilter
+{
+	GENERATED_BODY()
+
+	/** The filter name displayed in the editor */
+	UPROPERTY()
+	FString FilterLabel;
+
+	/** The filter string used in the filtering system */
+	UPROPERTY()
+	FString FilterString;
+
+	/** The color showed by the filter in the editor */
+	UPROPERTY()
+	FLinearColor FilterColor = FLinearColor::White;
+};
+
+/** Struct for collecting DMX Control Console filter strings */
+USTRUCT()
+struct FDMXControlConsoleEditorFiltersCollection
+{
+	GENERATED_BODY()
+
+	/** The array of custom filters created by the user */
+	UPROPERTY()
+	TArray<FDMXControlConsoleEditorUserFilter> UserFilters;
+
+	/** The array of attribute name filter strings based on the current Control Console Data */
+	UPROPERTY()
+	TArray<FString> AttributeNameFilterStrings;
+
+	/** The array of universe id filter strings based on the current Control Console Data */
+	UPROPERTY()
+	TArray<FString> UniverseIDFilterStrings;
+
+	/** The array of fixture id filter strings based on the current Control Console Data */
+	UPROPERTY()
+	TArray<FString> FixtureIDFilterStrings;
+};
+
 /** Control Console container class for editor data */
 UCLASS()
 class UDMXControlConsoleEditorData
@@ -40,41 +84,65 @@ class UDMXControlConsoleEditorData
 	GENERATED_BODY()
 
 public:
-	/** Gets the current Control Mode for Faders. */
+	/** Adds a new User Filter with the given parameters */
+	void AddUserFilter(const FString& FilterLabel, const FString& FilterString, const FLinearColor FilterColor);
+
+	/** Removes all the User Filters with the given filter name */
+	void RemoveUserFilter(const FString& FilterLabel);
+
+	/** Updates the filters collection based on the given Control Console Data */
+	void UpdateFilters(UDMXControlConsoleData* ControlConsoleData);
+
+	/** Gets the array of the User created filter strings. */
+	const TArray<FDMXControlConsoleEditorUserFilter>& GetUserFilters() const;
+
+	/** Gets the array of Attribute Name filter strings besed on the current Control Console Data */
+	const TArray<FString>& GetAttributeNameFilters() const;
+
+	/** Gets the array of Universe ID filter strings besed on the current Control Console Data */
+	const TArray<FString>& GetUniverseIDFilters() const;
+
+	/** Gets the array of Fixture ID filter strings besed on the current Control Console Data */
+	const TArray<FString>& GetFixtureIDFilters() const;
+
+	/** Gets the current Control Mode for Faders */
 	EDMXControlConsoleEditorControlMode GetControlMode() const { return ControlMode; }
 
-	/** Sets the current Control Mode for Faders. */
+	/** Sets the current Control Mode for Faders */
 	void SetControlMode(EDMXControlConsoleEditorControlMode NewControlMode) { ControlMode = NewControlMode; }
 
-	/** Gets the current View Mode for Fader Groups. */
+	/** Gets the current View Mode for Fader Groups */
 	EDMXControlConsoleEditorViewMode GetFaderGroupsViewMode() const { return FaderGroupsViewMode; }
 
-	/** Sets the current View Mode for Fader Groups. */
+	/** Sets the current View Mode for Fader Groups */
 	void SetFaderGroupsViewMode(EDMXControlConsoleEditorViewMode ViewMode);
 
-	/** Gets the current View Mode for Faders. */
+	/** Gets the current View Mode for Faders */
 	EDMXControlConsoleEditorViewMode GetFadersViewMode() const { return FadersViewMode; }
 
-	/** Sets the current View Mode for Faders. */
+	/** Sets the current View Mode for Faders */
 	void SetFadersViewMode(EDMXControlConsoleEditorViewMode ViewMode);
 
-	/** Gets the current Value Type for Faders. */
+	/** Gets the current Value Type for Faders */
 	EDMXControlConsoleEditorValueType GetValueType() const { return ValueType; }
 
-	/** Sets the current Value Type for Faders. */
+	/** Sets the current Value Type for Faders */
 	void SetValueType(EDMXControlConsoleEditorValueType NewValueType) { ValueType = NewValueType; }
 
-	/** Gets the current auto-selection state for the activated Fader Groups. */
+	/** Gets the current auto-selection state for the activated Fader Groups */
 	bool GetAutoSelectActivePatches() const { return bAutoSelectActivePatches; }
 
-	/** Gets the current auto-selection state for the filtered Elements. */
+	/** Gets the current auto-selection state for the filtered Elements */
 	bool GetAutoSelectFilteredElements() const { return bAutoSelectFilteredElements; }
 
-	/** Toggles the auto-selection state for the activated Fader Groups. */
+	/** Toggles the auto-selection state for the activated Fader Groups */
 	void ToggleAutoSelectActivePatches();
 
-	/** Toggles the auto-selection state for the filtered Elements. */
+	/** Toggles the auto-selection state for the filtered Elements */
 	void ToggleAutoSelectFilteredElements();
+
+	/** Returns a delegate broadcast whenever the list of User Filters has been changed */
+	FSimpleMulticastDelegate& GetOnUserFiltersChanged() { return OnUserFiltersChanged; }
 
 	/** Returns a delegate broadcast whenever the Fader Groups view mode is changed */
 	FSimpleMulticastDelegate& GetOnFaderGroupsViewModeChanged() { return OnFaderGroupsViewModeChanged; }
@@ -87,11 +155,18 @@ public:
 	FDMXReadOnlyFixturePatchListDescriptor FixturePatchListDescriptor;
 
 private:
+	/** Called when the list of User Filters has changed */
+	FSimpleMulticastDelegate OnUserFiltersChanged;
+
 	/** Called when the Fader Groups view mode is changed */
 	FSimpleMulticastDelegate OnFaderGroupsViewModeChanged;
 
 	/** Called when the Faders view mode is changed */
 	FSimpleMulticastDelegate OnFadersViewModeChanged;
+
+	/** Collection of filters based on the Control Console Data */
+	UPROPERTY()
+	FDMXControlConsoleEditorFiltersCollection FiltersCollection;
 
 	/** Current control mode for Faders widgets */
 	UPROPERTY()

@@ -9,6 +9,7 @@
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXEditorStyle.h"
+#include "Filters/SFilterSearchBox.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
@@ -18,7 +19,7 @@
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleFaderGroupControllerModel.h"
-#include "Models/Filter/FilterModel.h"
+#include "Models/Filter/DMXControlConsoleGlobalFilterModel.h"
 #include "ScopedTransaction.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
 #include "Styling/SlateColor.h"
@@ -123,11 +124,18 @@ namespace UE::DMX::Private
 				.MaxWidth(250.f)
 				.Padding(4.f, 8.f)
 				[
-					SAssignNew(ToolbarSearchBox, SSearchBox)
-					.MinDesiredWidth(100.f)
-					.OnTextChanged(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::OnSearchTextChanged)
-					.ToolTipText(LOCTEXT("SearchBarTooltip", "Searches for Fader Name, Attributes, Fixture ID, Universe or Patch. Examples:\n\n* FaderName\n* Dimmer\n* Pan, Tilt\n* 1\n* 1.\n* 1.1\n* Universe 1\n* Uni 1-3\n* Uni 1, 3\n* Uni 1, 4-5'."))
+					SNew(SBox)
+					.VAlign(VAlign_Center)
+					.WidthOverride(150.f)
 					.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::GetExpandedViewModeVisibility))
+					[
+						SAssignNew(ToolbarSearchBox, SFilterSearchBox)
+						.DelayChangeNotificationsWhileTyping(true)
+						.ShowSearchHistory(true)
+						.OnTextChanged(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::OnSearchTextChanged)
+						.HintText(LOCTEXT("SearchBarHintText", "Search"))
+						.ToolTipText(LOCTEXT("SearchBarTooltip", "Searches for Fader Name, Attributes, Fixture ID, Universe or Patch. Examples:\n\n* FaderName\n* Dimmer\n* Pan, Tilt\n* 1\n* 1.\n* 1.1\n* Universe 1\n* Uni 1-3\n* Uni 1, 3\n* Uni 1, 4-5'."))
+					]
 				]
 
 				// Add New button
@@ -450,13 +458,13 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TSharedRef<FFilterModel> FilterModel = EditorModel->GetFilterModel();
+		const TSharedRef<FDMXControlConsoleGlobalFilterModel> GlobalFilterModel = EditorModel->GetGlobalFilterModel();
 		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = FaderGroupController->GetFaderGroups();
 		for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
 		{
 			if (FaderGroup.IsValid())
 			{
-				FilterModel->SetFaderGroupFilter(FaderGroup.Get(), SearchText.ToString());
+				GlobalFilterModel->SetFaderGroupFilter(FaderGroup.Get(), SearchText.ToString());
 			}
 		}
 
@@ -722,7 +730,7 @@ namespace UE::DMX::Private
 		FirstSelectedFaderGroupController->PreEditChange(nullptr);
 
 		FirstSelectedFaderGroupController->Possess(FaderGroupsToGroup);
-		const FString& UserName = FirstSelectedFaderGroupController->GenerateUserNameByFaderGroupsNames();
+		const FString UserName = FirstSelectedFaderGroupController->GenerateUserNameByFaderGroupsNames();
 		FirstSelectedFaderGroupController->SetUserName(UserName);
 		FirstSelectedFaderGroupController->Group();
 
@@ -810,7 +818,7 @@ namespace UE::DMX::Private
 		}
 
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllers = SelectionHandler->GetSelectedFaderGroupControllers();
+		const TArray<TWeakObjectPtr<UObject>>& SelectedFaderGroupControllers = SelectionHandler->GetSelectedFaderGroupControllers();
 		if (SelectedFaderGroupControllers.Num() <= 1)
 		{
 			return false;
@@ -818,7 +826,7 @@ namespace UE::DMX::Private
 
 		// Group selected elements only if they all belong to the same fader group
 		const bool bAreAllControllersPatched = Algo::AllOf(SelectedFaderGroupControllers,
-			[](const TWeakObjectPtr<UObject> FaderGroupControllerObject)
+			[](const TWeakObjectPtr<UObject>& FaderGroupControllerObject)
 			{
 				const UDMXControlConsoleFaderGroupController* FaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(FaderGroupControllerObject);
 				return FaderGroupController && FaderGroupController->HasFixturePatch();
@@ -836,9 +844,9 @@ namespace UE::DMX::Private
 
 		// Ungroup only if one of the selected controllers has multiple elements
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllers = SelectionHandler->GetSelectedFaderGroupControllers();
+		const TArray<TWeakObjectPtr<UObject>>& SelectedFaderGroupControllers = SelectionHandler->GetSelectedFaderGroupControllers();
 		const bool bHasAnySelectedControllerMultipleFaderGroups = Algo::AnyOf(SelectedFaderGroupControllers, 
-			[](const TWeakObjectPtr<UObject> FaderGroupControllerObject)
+			[](const TWeakObjectPtr<UObject>& FaderGroupControllerObject)
 			{
 				const UDMXControlConsoleFaderGroupController* FaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(FaderGroupControllerObject);
 				return FaderGroupController && FaderGroupController->GetFaderGroups().Num() > 1;
@@ -856,7 +864,7 @@ namespace UE::DMX::Private
 		}
 
 		const FScopedTransaction ResetFaderGroupControllerOptionTransaction(LOCTEXT("ResetFaderGroupControllerOptionTransaction", "Fader Group reset to default"));
-		const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetElementControllers();
+		const TArray<UDMXControlConsoleElementController*>& ElementControllers = FaderGroupController->GetElementControllers();
 		for (UDMXControlConsoleElementController* ElementController : ElementControllers)
 		{
 			if (!ElementController)

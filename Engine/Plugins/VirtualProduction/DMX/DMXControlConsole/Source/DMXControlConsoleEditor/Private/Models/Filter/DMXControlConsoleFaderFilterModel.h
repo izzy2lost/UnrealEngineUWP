@@ -16,13 +16,13 @@ namespace UE::DMX::Private
 	struct FGlobalFilter;
 
 
-	/** Filter model for a single fader group */
-	class FFilterModelFader
-		: public TSharedFromThis<FFilterModelFader>
+	/** Filter model for a single fader */
+	class FDMXControlConsoleFaderFilterModel
+		: public TSharedFromThis<FDMXControlConsoleFaderFilterModel>
 	{
 	public:
-		FFilterModelFader() = delete;
-		FFilterModelFader(UDMXControlConsoleFaderBase* InFader);
+		FDMXControlConsoleFaderFilterModel() = delete;
+		FDMXControlConsoleFaderFilterModel(UDMXControlConsoleFaderBase* InFader);
 
 		/** returns true if the fader name contains one of the names in the Names array */
 		[[nodiscard]] bool MatchesAnyName(const TArray<FString>& Names) const;

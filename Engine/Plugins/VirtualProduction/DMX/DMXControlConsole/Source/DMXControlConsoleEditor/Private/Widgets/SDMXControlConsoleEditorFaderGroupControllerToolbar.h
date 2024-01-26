@@ -5,7 +5,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SDMXControlConsoleEditorExpandArrowButton.h"
 
-class SSearchBox;
+class SFilterSearchBox;
 class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroupController;
 
@@ -121,7 +121,7 @@ namespace UE::DMX::Private
 		TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton;
 
 		/** Reference to the Fader Group Controller toolbar searchbox used for filtering */
-		TSharedPtr<SSearchBox> ToolbarSearchBox;
+		TSharedPtr<SFilterSearchBox> ToolbarSearchBox;
 
 		/** A ComboBox for showing all active Fixture Patches in the current DMX Library */
 		TSharedPtr<SDMXControlConsoleEditorFaderGroupControllerComboBox> ControllerComboBox;

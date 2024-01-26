@@ -31,8 +31,8 @@ namespace UE::DMX::Private
 	{
 		namespace Private
 		{
-			constexpr float CollapsedViewModeHeight = 200.f;
-			constexpr float ExpandedViewModeHeight = 280.f;
+			constexpr float CollapsedViewModeHeight = 230.f;
+			constexpr float ExpandedViewModeHeight = 310.f;
 		}
 	}
 
@@ -184,7 +184,6 @@ namespace UE::DMX::Private
 		}
 
 		const TArray<UDMXControlConsoleCellAttributeController*>& CellAttributeControllers = MatrixCellController->GetCellAttributeControllers();
-
 		for (UDMXControlConsoleCellAttributeController* CellAttributeController : CellAttributeControllers)
 		{
 			if (!CellAttributeController)
@@ -261,7 +260,7 @@ namespace UE::DMX::Private
 			}
 		}
 
-		CellAttributeControllerViews.RemoveAll([&CellAttributeControllerViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorElementControllerView> CellAttributeControllerView)
+		CellAttributeControllerViews.RemoveAll([&CellAttributeControllerViewsToRemove](const TWeakPtr<SDMXControlConsoleEditorElementControllerView>& CellAttributeControllerView)
 			{
 				return !CellAttributeControllerView.IsValid() || CellAttributeControllerViewsToRemove.Contains(CellAttributeControllerView);
 			});
@@ -269,7 +268,7 @@ namespace UE::DMX::Private
 
 	bool SDMXControlConsoleEditorMatrixCellControllerView::ContainsCellAttributeController(UDMXControlConsoleCellAttributeController* InCellAttributeController)
 	{
-		auto IsCellAttributeControllerInUseLambda = [InCellAttributeController](const TWeakPtr<SDMXControlConsoleEditorElementControllerView> CellAttributeControllerView)
+		auto IsCellAttributeControllerInUseLambda = [InCellAttributeController](const TWeakPtr<SDMXControlConsoleEditorElementControllerView>& CellAttributeControllerView)
 			{
 				if (!CellAttributeControllerView.IsValid())
 				{
@@ -297,7 +296,7 @@ namespace UE::DMX::Private
 		}
 
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
+		const TArray<TWeakObjectPtr<UObject>>& SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
 
 		const TArray<UDMXControlConsoleCellAttributeController*>& CellAttributeControllers = MatrixCellController->GetCellAttributeControllers();
 		const bool bIsAnyCellAttributeControllerSelected = Algo::AnyOf(CellAttributeControllers,
@@ -347,7 +346,7 @@ namespace UE::DMX::Private
 
 	EVisibility SDMXControlConsoleEditorMatrixCellControllerView::GetCellAttributeControllerWidgetVisibility(TSharedPtr<FDMXControlConsoleElementControllerModel> ControllerModel) const
 	{
-		const UDMXControlConsoleElementController* ElementController = MatrixCellControllerModel.IsValid() ? MatrixCellControllerModel->GetElementController() : nullptr;
+		const UDMXControlConsoleElementController* ElementController = ControllerModel.IsValid() ? ControllerModel->GetElementController() : nullptr;
 		const bool bIsVisible = ElementController && ElementController->IsMatchingFilter();
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}

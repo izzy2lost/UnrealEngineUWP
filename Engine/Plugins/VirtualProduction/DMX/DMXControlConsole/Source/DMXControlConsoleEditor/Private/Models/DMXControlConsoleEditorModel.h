@@ -15,7 +15,7 @@ class UDMXControlConsoleEditorLayouts;
 class UDMXControlConsoleFaderGroupController;
 
 namespace UE::DMX::Private { class FDMXControlConsoleEditorToolkit; }
-namespace UE::DMX::Private { class FFilterModel; }
+namespace UE::DMX::Private { class FDMXControlConsoleGlobalFilterModel; }
 
 
 /** Model of the console currently being edited in the control console editor.  */
@@ -47,7 +47,7 @@ public:
 	TSharedRef<FDMXControlConsoleEditorSelection> GetSelectionHandler();
 
 	/** Gets a reference to the Filter Model */
-	TSharedRef<UE::DMX::Private::FFilterModel> GetFilterModel();
+	TSharedRef<UE::DMX::Private::FDMXControlConsoleGlobalFilterModel> GetGlobalFilterModel();
 
 	/** Scrolls the given Fader Group Controller into view */
 	void ScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController) const;
@@ -103,8 +103,8 @@ private:
 	/** Timer handle in use while updating Editor Model is requested but not carried out yet */
 	FTimerHandle UpdateEditorModelTimerHandle;
 
-	/** The filter model for the current edited Control Console */
-	TSharedPtr<UE::DMX::Private::FFilterModel> FilterModel;
+	/** The global filter model for the current edited Control Console */
+	TSharedPtr<UE::DMX::Private::FDMXControlConsoleGlobalFilterModel> GlobalFilterModel;
 
 	/** Selection handler for the current edited Control Console */
 	TSharedPtr<FDMXControlConsoleEditorSelection> SelectionHandler;

@@ -37,6 +37,7 @@ public class DMXControlConsoleEditor : ModuleRules
 				"Slate",
 				"SlateCore",
 				"ToolMenus",
+				"ToolWidgets",
 				"UnrealEd",
 			}
 		);

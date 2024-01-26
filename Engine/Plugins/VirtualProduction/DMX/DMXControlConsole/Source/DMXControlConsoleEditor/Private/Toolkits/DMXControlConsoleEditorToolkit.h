@@ -19,6 +19,7 @@ namespace UE::DMX::Private
 {
 	class SDMXControlConsoleEditorDetailsView;
 	class SDMXControlConsoleEditorDMXLibraryView;
+	class SDMXControlConsoleEditorFiltersView;
 	class SDMXControlConsoleEditorLayoutView;
 	class FDMXControlConsoleEditorToolbar;
 
@@ -82,6 +83,9 @@ namespace UE::DMX::Private
 		/** Name of the Details View Tab */
 		static const FName DetailsViewTabID;
 
+		/** Name of the Filters View Tab */
+		static const FName FiltersViewTabID;
+
 	protected:
 		//~ Begin FAssetEditorToolkit Interface
 		virtual void RegisterTabSpawners(const TSharedRef<FTabManager>& TabManager) override;
@@ -117,6 +121,9 @@ namespace UE::DMX::Private
 		/** Generates the Details View for this Control Console instance */
 		TSharedRef<SDMXControlConsoleEditorDetailsView> GenerateDetailsView();
 
+		/** Generates the Filters View for this Control Console instance */
+		TSharedRef<SDMXControlConsoleEditorFiltersView> GenerateFiltersView();
+
 		/** Spawns the DMX Library View */
 		TSharedRef<SDockTab> SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args);
 
@@ -125,6 +132,9 @@ namespace UE::DMX::Private
 
 		/** Spawns the Details View */
 		TSharedRef<SDockTab> SpawnTab_DetailsView(const FSpawnTabArgs& Args);
+
+		/** Spawns the Filters View */
+		TSharedRef<SDockTab> SpawnTab_FiltersView(const FSpawnTabArgs& Args);
 
 		/** Setups the asset toolkit's commands */
 		void SetupCommands();
@@ -143,6 +153,9 @@ namespace UE::DMX::Private
 
 		/** The Details View instance */
 		TSharedPtr<SDMXControlConsoleEditorDetailsView> DetailsView;
+
+		/** The Filters View instance */
+		TSharedPtr<SDMXControlConsoleEditorFiltersView> FiltersView;
 
 		/** The Editor Model for the Control Console this toolkit is based on */
 		TObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
