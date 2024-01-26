@@ -56,7 +56,7 @@ FRayTracingGeometryManager::~FRayTracingGeometryManager()
 	check(GeometryBuildRequests.IsEmpty());
 	check(RegisteredGeometries.IsEmpty());
 
-	check(CachedRayTracingStateProxiesMap.IsEmpty());
+	check(RegisteredGroups.IsEmpty());
 }
 
 static float GetInitialBuildPriority(ERTAccelerationStructureBuildPriority InBuildPriority)
@@ -101,6 +101,22 @@ void FRayTracingGeometryManager::RemoveBuildRequest(BuildRequestIndex InRequestI
 	DEC_DWORD_STAT_BY(STAT_RayTracingPendingBuildPrimitives, GeometryBuildRequests[InRequestIndex].Owner->Initializer.TotalPrimitiveCount);
 
 	GeometryBuildRequests.RemoveAt(InRequestIndex);
+}
+
+RayTracing::GeometryGroupHandle FRayTracingGeometryManager::RegisterRayTracingGeometryGroup()
+{
+	checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
+
+	RayTracing::GeometryGroupHandle Handle = RegisteredGroups.Add({});
+	return Handle;
+}
+
+void FRayTracingGeometryManager::ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle)
+{
+	checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
+
+	check(RegisteredGroups.IsValidIndex(Handle));
+	RegisteredGroups.RemoveAt(Handle);
 }
 
 FRayTracingGeometryManager::RayTracingGeometryHandle FRayTracingGeometryManager::RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry)
@@ -176,11 +192,11 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 		}
 
 		{
-			checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
+			checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
 
-			for (TPair<const UStaticMesh*, TSet<FPrimitiveSceneProxy*>>& ProxiesSet : CachedRayTracingStateProxiesMap)
+			for (FRayTracingGeometryGroup& RayTracingGroup : RegisteredGroups)
 			{
-				for (FPrimitiveSceneProxy* Proxy : ProxiesSet.Value)
+				for (FPrimitiveSceneProxy* Proxy : RayTracingGroup.ProxiesWithCachedRayTracingState)
 				{
 					Proxy->GetScene().UpdateCachedRayTracingState(Proxy);
 				}
@@ -327,44 +343,33 @@ void FRayTracingGeometryManager::SetupBuildParams(const FBuildRequest& InBuildRe
 	DEC_DWORD_STAT_BY(STAT_RayTracingPendingBuildPrimitives, InBuildRequest.Owner->Initializer.TotalPrimitiveCount);
 }
 
-void FRayTracingGeometryManager::RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh)
+void FRayTracingGeometryManager::RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle)
 {
-	checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
+	checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
+	checkf(RegisteredGroups.IsValidIndex(InRayTracingGeometryGroupHandle), TEXT("InRayTracingGeometryGroupHandle must be valid"));
 
-	TSet<FPrimitiveSceneProxy*>& ProxiesSet = CachedRayTracingStateProxiesMap.FindOrAdd(StaticMesh);
+	TSet<FPrimitiveSceneProxy*>& ProxiesSet = RegisteredGroups[InRayTracingGeometryGroupHandle].ProxiesWithCachedRayTracingState;
 	check(!ProxiesSet.Contains(Proxy));
 
 	ProxiesSet.Add(Proxy);
 }
 
-void FRayTracingGeometryManager::UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh)
+void FRayTracingGeometryManager::UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle)
 {
-	checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
+	checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
 
-	check(CachedRayTracingStateProxiesMap.Contains(StaticMesh));
-
-	TSet<FPrimitiveSceneProxy*>& ProxiesSet = *CachedRayTracingStateProxiesMap.Find(StaticMesh);
+	TSet<FPrimitiveSceneProxy*>& ProxiesSet = RegisteredGroups[InRayTracingGeometryGroupHandle].ProxiesWithCachedRayTracingState;
 
 	verify(ProxiesSet.Remove(Proxy) == 1);
-
-	if (ProxiesSet.IsEmpty())
-	{
-		verify(CachedRayTracingStateProxiesMap.Remove(StaticMesh) == 1);
-	}
 }
 
-void FRayTracingGeometryManager::RequestUpdateCachedRenderState(const UStaticMesh* StaticMesh)
+void FRayTracingGeometryManager::RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle)
 {
-	checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
+	checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
 
-	const TSet<FPrimitiveSceneProxy*>* ProxiesSet = CachedRayTracingStateProxiesMap.Find(StaticMesh);
+	const TSet<FPrimitiveSceneProxy*>& ProxiesSet = RegisteredGroups[InRayTracingGeometryGroupHandle].ProxiesWithCachedRayTracingState;
 
-	if (ProxiesSet == nullptr)
-	{
-		return;
-	}
-
-	for (FPrimitiveSceneProxy* Proxy : *ProxiesSet)
+	for (FPrimitiveSceneProxy* Proxy : ProxiesSet)
 	{
 		Proxy->GetScene().UpdateCachedRayTracingState(Proxy);
 	}
