@@ -5,6 +5,7 @@
 #include "FloatingPropertiesSettings.h"
 #include "LevelEditor.h"
 #include "LevelEditor/FloatingPropertiesLevelEditorWidgetController.h"
+#include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
 #include "Widgets/CustomPropertyWidgets/SFloatingPropertiesColorPropertyEditor.h"
@@ -27,6 +28,8 @@ void FFloatingPropertiesModule::StartupModule()
 	LevelEditorModule.OnLevelEditorCreated().AddRaw(this, &FFloatingPropertiesModule::OnLevelEditorCreated);
 
 	AddDefaultStructPropertyValueWidgetDelegates();
+
+	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FFloatingPropertiesModule::OnEnginePreExit);
 }
 
 void FFloatingPropertiesModule::ShutdownModule()
@@ -41,6 +44,8 @@ void FFloatingPropertiesModule::ShutdownModule()
 	DestroyLevelEditorWidgetController();
 
 	UFloatingPropertiesSettings::OnChange.RemoveAll(this);
+
+	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 }
 
 void FFloatingPropertiesModule::RegiserStructPropertyValueWidgetDelegate(UScriptStruct* InStruct,
@@ -160,6 +165,12 @@ void FFloatingPropertiesModule::AddDefaultStructPropertyValueWidgetDelegates()
 		TBaseStructure<FLinearColor>::Get(),
 		FCreateStructPropertyValueWidgetDelegate::CreateStatic(&SFloatingPropertiesLinearColorPropertyEditor::CreateWidget)
 	);
+}
+
+void FFloatingPropertiesModule::OnEnginePreExit()
+{
+	PropertyValueWidgetDelegates.Empty();
+	LevelEditorWidgetController.Reset();
 }
 
 IMPLEMENT_MODULE(FFloatingPropertiesModule, FloatingProperties)
