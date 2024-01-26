@@ -40,6 +40,33 @@ using Horde.Server.Utilities;
 namespace Horde.Server.Server
 {
 	/// <summary>
+	/// Global version number for running the server. As new features are introduced that require data migrations, this version number indicates the backwards compatibility functionality that must be enabled.
+	/// When adding a new version here, also add a message to <see cref="ConfigService.CreateSnapshotAsync"/> describing the steps that need to be taken to upgrade the deployment.
+	/// </summary>
+	public enum GlobalVersion
+	{
+		/// <summary>
+		/// Initial version number
+		/// </summary>
+		Initial = 0,
+
+		/// <summary>
+		/// Ability to add/remove pools via the REST API is removed. Pools should be configured through globals.json instead.
+		/// </summary>
+		PoolsInConfigFiles,
+
+		/// <summary>
+		/// One after the last defined version number
+		/// </summary>
+		LatestPlusOne,
+
+		/// <summary>
+		/// Latest version number
+		/// </summary>
+		Latest = (int)LatestPlusOne - 1,
+	}
+
+	/// <summary>
 	/// Directive to merge config data from another source
 	/// </summary>
 	[ConfigIncludeContext]
@@ -96,6 +123,18 @@ namespace Horde.Server.Server
 		/// </summary>
 		[JsonIgnore]
 		public string Revision { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Version number for the server. Values are indicated by the <see cref="GlobalVersion"/>.
+		/// </summary>
+		[JsonIgnore]
+		public GlobalVersion Version => (GlobalVersion)VersionNumber;
+
+		/// <summary>
+		/// Serialized version number
+		/// </summary>
+		[JsonPropertyName("Version")]
+		public int VersionNumber { get; set; }
 
 		/// <summary>
 		/// Other paths to include
