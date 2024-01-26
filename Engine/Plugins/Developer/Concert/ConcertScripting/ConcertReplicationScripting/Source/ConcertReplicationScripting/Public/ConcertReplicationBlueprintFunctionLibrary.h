@@ -40,6 +40,24 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Concert|Replication", meta = (KeyWords = "Get Properties In Find Enumerate List"))
 	static TArray<FConcertPropertyChainWrapper> GetPropertiesIn(const TSubclassOf<UObject>& Class, FPropertyChainPredicate Filter);
+
+	/**
+	 * Gets all properties in the class that are valid for replicating.
+	 * @param Class The class in which to search
+	 * @return All properties in the class that are valid for replicating.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Concert|Replication")
+	static TArray<FConcertPropertyChainWrapper> GetAllProperties(const TSubclassOf<UObject>& Class);
+	
+	/**
+	 * Returns all child properties of Parent that are valid for replicating.
+	 * @param Parent The property of which to find child properties
+	 * @param Class The class in which to search
+	 * @param bOnlyDirect Whether you only want direct children of Parent
+	 * @return All child properties of Parent that are valid for replicating.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Concert|Replication", meta = (ScriptMethod))
+	static TArray<FConcertPropertyChainWrapper> GetChildProperties(const FConcertPropertyChainWrapper& Parent, const TSubclassOf<UObject>& Class, bool bOnlyDirect = false);
 	
 	/******************** Getters ********************/
 	
