@@ -21,11 +21,6 @@
 			"LoadingPhase": "PreDefault"
 		},
 		{
-			"Name": "GameFeatureSet",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
-		},
-		{
 			"Name": "GameFeaturesEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
