@@ -64,7 +64,7 @@ struct FMaterialIDMaskInfo
 	UPROPERTY()
 	int32 MaterialIdReferenceId = 0;
 
-	UPROPERTY(VisibleAnywhere, Category = MaterialIDInfo)
+	UPROPERTY(VisibleAnywhere, Category = MaterialIDInfo, meta = (NoResetToDefault))
 	FColor Color = FColor::Black;
 
 	UPROPERTY(EditAnywhere, Category = MaterialIDInfo)

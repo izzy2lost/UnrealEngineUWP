@@ -21,7 +21,7 @@ public:
 	UPROPERTY(meta = (TGType = "TG_Input"))
 	FTG_Texture MaterialIDMap;
 
-	UPROPERTY(EditAnywhere, EditFixedSize, Category = NoCategory, meta = (TGType = "TG_InputParam"))
+	UPROPERTY(EditAnywhere, EditFixedSize, Category = NoCategory, meta = (TGType = "TG_InputParam", NoResetToDefault))
 	TArray<FMaterialIDMaskInfo> MaterialIDMaskInfos;
 
 	UPROPERTY()
