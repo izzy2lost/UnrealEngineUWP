@@ -4,8 +4,7 @@
 
 #include "PCGContext.h"
 #include "PCGSettings.h"
-
-#include "Engine/StreamableManager.h"
+#include "Async/PCGAsyncLoadingContext.h"
 
 #include "PCGGetPropertyFromObjectPath.generated.h"
 
@@ -73,11 +72,9 @@ public:
 	bool bSilenceErrorOnEmptyObjectPath = false;
 };
 
-struct FPCGGetPropertyFromObjectPathContext : public FPCGContext
+struct FPCGGetPropertyFromObjectPathContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
-	TSharedPtr<FStreamableHandle> LoadHandle;
 	TArray<TTuple<FSoftObjectPath, int32>> PathsToObjectsToExtractAndIncomingDataIndex;
-	bool bRequestSent = false;
 };
 
 class FPCGGetPropertyFromObjectPathElement : public IPCGElement
