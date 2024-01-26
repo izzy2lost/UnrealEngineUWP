@@ -236,18 +236,21 @@ TSharedRef<SWidget> SLensDistortionToolPanel::BuildSolverList()
 		{
 			ULensDistortionSolver* SolverCDO = Cast<ULensDistortionSolver>(SolverClass->GetDefaultObject());
 
-			MenuBuilder.AddMenuEntry(
-				SolverCDO->GetDisplayName(),
-				SolverCDO->GetDisplayName(), // TODO: If this remains a user-facing option, then it may be better to have the solver implement a class description text field to use as the tooltip instead
-				FSlateIcon(),
-				FUIAction(
-					FExecuteAction::CreateSP(this, &SLensDistortionToolPanel::OnSolverClassSelected, SolverClass),
-					FCanExecuteAction(),
-					FIsActionChecked::CreateSP(this, &SLensDistortionToolPanel::IsSolverClassSelected, SolverClass)
-				),
-				NAME_None,
-				EUserInterfaceActionType::RadioButton
-			);
+			if (SolverCDO->IsEnabled())
+			{
+				MenuBuilder.AddMenuEntry(
+					SolverCDO->GetDisplayName(),
+					SolverCDO->GetDisplayName(), // TODO: If this remains a user-facing option, then it may be better to have the solver implement a class description text field to use as the tooltip instead
+					FSlateIcon(),
+					FUIAction(
+						FExecuteAction::CreateSP(this, &SLensDistortionToolPanel::OnSolverClassSelected, SolverClass),
+						FCanExecuteAction(),
+						FIsActionChecked::CreateSP(this, &SLensDistortionToolPanel::IsSolverClassSelected, SolverClass)
+					),
+					NAME_None,
+					EUserInterfaceActionType::RadioButton
+				);
+			}
 		}
 	}
 

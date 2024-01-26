@@ -40,6 +40,18 @@
 		{
 			"Name": "OpenCVLensDistortion",
 			"Enabled": true
+		},
+		{
+			"Name": "PythonFoundationPackages",
+			"Enabled": true
+		}
+	],
+	"PythonRequirements": [
+		{
+			"Platform": "All",
+			"Requirements": [
+				"nerfacc"
+			]
 		}
 	]
 }

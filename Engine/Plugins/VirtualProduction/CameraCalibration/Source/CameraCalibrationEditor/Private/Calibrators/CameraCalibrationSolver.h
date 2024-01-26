@@ -85,6 +85,10 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Calibration")
 	FText GetDisplayName() const;
 
+	/** Get the name of this solver class for displaying in the editor UI */
+	UFUNCTION(BlueprintNativeEvent, Category = "Calibration")
+	bool IsEnabled() const;
+
 public:
 	/** Get the latest status of the solve and marks the status as old. Returns true if this status was new, or false if this status was old. */
 	bool GetStatusText(FText& OutStatusText);
@@ -105,8 +109,11 @@ public:
 
 	virtual FText GetDisplayName_Implementation() const PURE_VIRTUAL(ULensDistortionSolver::GetDisplayName_Implementation, return FText::GetEmpty(););
 
+	virtual bool IsEnabled_Implementation() const { return true; }
+
 protected:
 	/** Returns true if the solver is currently running, and false if it has been cancelled. The solver should call this in critical loops in order to respond to cancellation requests. */
+	UFUNCTION(BlueprintCallable, Category = "Calibration")
 	bool IsRunning() const { return bIsRunning; }
 
 	/** Sets the latest status text and marks bIsStatusNew to true */
