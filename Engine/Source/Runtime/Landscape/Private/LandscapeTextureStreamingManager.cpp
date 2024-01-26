@@ -140,6 +140,32 @@ void FLandscapeTextureStreamingManager::CleanupInvalidEntries()
 	}
 }
 
+void FLandscapeTextureStreamingManager::CheckRequestedTextures()
+{
+#if WITH_EDITOR
+	if (UndoDetector.bUndoRedoPerformed)
+	{
+		// the force mip levels resident flag sometimes gets cleared on an undo after landscape creation, but we can fix it
+		// (otherwise we may wait forever for them to become resident)
+		for (auto It = TextureStates.CreateIterator(); It; ++It)
+		{
+			if (UTexture* Texture = It.Key().Get())
+			{
+				FTextureState& State = It.Value();
+				if (State.bForever || State.RequestCount > 0)
+				{
+					if (!Texture->bForceMiplevelsToBeResident)
+					{
+						Texture->bForceMiplevelsToBeResident = true;
+					}
+				}
+			}
+		}
+		UndoDetector.bUndoRedoPerformed = false;
+	}
+#endif // WITH_EDITOR
+}
+
 bool FLandscapeTextureStreamingManager::IsTextureFullyStreamedIn(UTexture* InTexture)
 {
 	return InTexture &&

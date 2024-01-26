@@ -4,6 +4,29 @@
 #include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
 
+#if WITH_EDITOR
+
+#include "EditorUndoClient.h"
+
+class FLandscapeTextureStreamingManagerUndoDetector : FSelfRegisteringEditorUndoClient
+{
+public:
+	bool bUndoRedoPerformed = false;
+
+private:
+	virtual void PostUndo(bool bSuccess) override
+	{
+		bUndoRedoPerformed = true;
+	};
+
+	virtual void PostRedo(bool bSuccess) override
+	{
+		bUndoRedoPerformed = true;
+	};
+};
+
+#endif // WITH_EDITOR
+
 class UTexture;
 
 class FLandscapeTextureStreamingManager
@@ -37,6 +60,9 @@ public:
 	// Call this clean up any old entries in tracked TextureStates for textures that have been unloaded without first being Unrequested.
 	void CleanupInvalidEntries();
 
+	// Check that all requested textures are still requested.
+	void CheckRequestedTextures();
+
 	static bool IsTextureFullyStreamedIn(UTexture* Texture);
 
 	~FLandscapeTextureStreamingManager();
@@ -49,4 +75,9 @@ private:
 	};
 
 	TMap<TWeakObjectPtr<UTexture>, FTextureState, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<TWeakObjectPtr<UTexture>, FTextureState>> TextureStates;
+
+#if WITH_EDITOR
+	FLandscapeTextureStreamingManagerUndoDetector UndoDetector;
+#endif // WITH_EDITOR
+
 };
