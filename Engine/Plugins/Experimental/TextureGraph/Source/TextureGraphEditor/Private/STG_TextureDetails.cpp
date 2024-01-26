@@ -11,7 +11,6 @@
 
 void STG_TextureDetails::Construct(const FArguments& InArgs)
 {
-	const float TEXT_PADDING = 2.0;
 	CheckedBrush = new FSlateRoundedBoxBrush(FLinearColor(0.039, 0.039, 0.039, 1), CoreStyleConstants::InputFocusRadius);
 
 	ChildSlot
@@ -24,12 +23,22 @@ void STG_TextureDetails::Construct(const FArguments& InArgs)
 
 void STG_TextureDetails::MakeControls()
 {
+	const float TEXT_PADDING = 2.0;
 	VerticalBox->AddSlot()
+	.Padding(TEXT_PADDING)
 	.AutoHeight()
-	.Padding(6, 3, 3, 0)
+	.HAlign(HAlign_Fill)
 	[
-		SAssignNew(RGBAButtons,STG_RGBAButtons)
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Right)
+		.Padding(5.0f, 1.0f, 3.0f, 1.0f)
+		[
+			SAssignNew(RGBAButtons,STG_RGBAButtons)
+		]
 	];
+			
 
 	AddHistogramWidget();
 
@@ -50,23 +59,10 @@ void STG_TextureDetails::AddHistogramWidget()
 		SNew(SBox)
 		.MinDesiredHeight(300) // Set your desired minimum height here
 		[
-			SNew(SBorder)
-			.BorderBackgroundColor(FLinearColor::White)  // Set the border color to white
-			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.Padding(FMargin(1))
-			[
 				SNew(SOverlay)
 
 				+
 
-				SOverlay::Slot()
-				[
-					SNew(SImage)
-					.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
-					.ColorAndOpacity(FLinearColor::Black)
-				]
-
-				+
 
 				SOverlay::Slot()
 				.Padding(2, 10, 2, 2)
@@ -105,7 +101,7 @@ void STG_TextureDetails::AddHistogramWidget()
 					.Curves(ETG_HistogramCurves::Luma)
 					.Visibility(this, &STG_TextureDetails::ShowLuma)
 				]
-			]
+			
 		]
 	];
 }

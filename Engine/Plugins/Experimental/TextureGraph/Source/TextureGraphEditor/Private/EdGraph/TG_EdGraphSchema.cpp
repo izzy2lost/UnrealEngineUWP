@@ -91,7 +91,6 @@ void UTG_EdGraphSchema::GetTG_ExpressionsActions(FGraphActionMenuBuilder& Action
 		if (const UTG_Expression* TG_Expression = TG_ExpressionClass->GetDefaultObject<UTG_Expression>())
 		{
 			static const FName DefaultCategory = TG_Category::Default;
-			FString testName("Test");
 
 			const FText MenuDesc = FText::FromString(TG_Expression->GetDefaultName().ToString());
 			FName Category = TG_Expression->GetCategory();

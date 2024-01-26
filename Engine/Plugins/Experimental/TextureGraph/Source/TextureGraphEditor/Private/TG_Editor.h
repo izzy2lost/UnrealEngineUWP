@@ -131,6 +131,7 @@ protected:
 	virtual void									SaveAsset_Execute() override;
 	virtual void									SaveAssetAs_Execute() override;
 	virtual bool									OnRequestClose(EAssetEditorCloseReason InCloseReason) override;
+	virtual void									OnClose() override;
 	// ~End FAssetEditorToolkit interface
 
 	bool											UpdateOriginalTextureGraph();
@@ -141,8 +142,12 @@ private:
 
 	virtual void									PostInitAssetEditor() override;
 
+	void 											OnRenameNodeClicked();
+	bool 											CanRenameNode() const;
 	/** Bind commands to delegates */
 	void											BindCommands();
+	void 											SetShowNodeHistogramView(bool bValue);
+	void 											SetShowPaletteView(bool bValue);
 
 	void											OnGraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweaking);
 
@@ -155,10 +160,10 @@ private:
 	void											OnPinSelectionUpdated(UEdGraphPin* Pin);
 	/** Run Graph by invoking the graph notifications  */
 	void											OnRunGraph_Clicked();
-	TSharedPtr<class SWidget>						MakeAutoRunWidget();
 
-	ECheckBoxState									HandleAutoRunActionIsChecked() const;
-	void											HandleAutoRunActionExecute(ECheckBoxState InNewState);
+	
+	void											ToggleAutoUpdate();
+	bool											IsShowingAutoUpdate() const;
 
 	void											OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details);
 	void											OnViewportSettingsChanged();
@@ -189,8 +194,6 @@ private:
 
 	/** Create Texture details widget */
 	TSharedRef<class STG_TextureDetails>			CreateTextureDetailsWidget();
-
-	TSharedRef<class STG_GraphParametersOverviewPanel>	CreateGraphParametersOverviewWidget();
 
 	/** Gets the current TG_ Graph's appearance */
 	FGraphAppearanceInfo							GetGraphAppearance() const;
@@ -254,19 +257,28 @@ private:
 	TSharedRef<SDockTab>							SpawnTab_Settings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_Errors(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab>							SpawnTab_TextureDetails(const FSpawnTabArgs& Args);
-
+	void 											DisplayNodeHistogramView(bool bShow3DPreview);
+	
+	void 											ToggleNodeHistogramView();
+	void 											TogglePaletteView();
+	void 											DisplayPaletteView(bool bShowSelectionPreview);
 	void											ExportAsUAsset();
 	FReply											OnExportClick();
 
 	TSharedPtr<class STG_EditorViewport>			GetEditorViewport() const;	
-	void											GeneratorRowsRefreshed();
+	
 	bool											CanEnableOnRun();
 
 	void											UpdateGenerator();
 	void											RunGraph(bool Tweaking);
 	void											JumpToNode(const UEdGraphNode* Node);
 	void											OnMessageLogLinkActivated(const class TSharedRef<IMessageToken>& Token);
+	// FEditorUndoClient Interface
+	virtual void 									PostUndo(bool bSuccess) override;
+	virtual void 									PostRedo(bool bSuccess) override { PostUndo(bSuccess); }
 	
+	FORCEINLINE bool 								IsShowingNodeHistogramView() const { return bShowNodeHistogram; }
+	FORCEINLINE bool 								IsShowingPaletteView() const { return bShowPaletteView; };
 public:
 	/** Original Texture Graph */
 	TObjectPtr<UTextureGraph>						OriginalTextureGraph;
@@ -274,13 +286,13 @@ public:
 	/** Duplicated Texture Graph used in the editor */
 	TObjectPtr<UTextureGraph>						EditedTextureGraph;
 	TObjectPtr<UTG_EdGraph>							TG_EdGraph;
+	FDateTime										SessionStartTime;
+	bool 											bShowNodeHistogram = false;
+	bool 											bShowPaletteView = false;
 
 private:
 	TObjectPtr<UTG_Parameters>						TG_Parameters;
 	FExportSettings                                 TargetExportSettings;
-	// FEditorUndoClient Interface
-	virtual void PostUndo(bool bSuccess) override;
-	virtual void PostRedo(bool bSuccess) override { PostUndo(bSuccess); }
 
 	/** Property View */
 	TSharedPtr<class IDetailsView>					DetailsView;
@@ -314,6 +326,8 @@ private:
 
 	/** Tab that holds the details panel */
 	TWeakPtr<SDockTab>								SpawnedDetailsTab;	
+	TWeakPtr<SDockTab>								NodeHistogramTab;	
+	TWeakPtr<SDockTab>								PaletteTab;	
 
 	/** Stats log, with the log listing that it reflects */
 	TSharedPtr<class SWidget>						ErrorsWidget;

@@ -37,7 +37,7 @@ void STG_GraphActionMenu::Construct(const FArguments& InArgs)
 
 	if (bSpwanOnSelect)
 	{
-		Brush = *FTG_Style::Get().GetBrush("TG.Palette.Backgorund");
+		Brush = *FTG_Style::Get().GetBrush("TG.Palette.Background");
 		Brush.OutlineSettings.Color = FSlateColor(FillColor * UTG_EdGraphSchema::NodeOutlineColorMultiplier);
 	}
 	else

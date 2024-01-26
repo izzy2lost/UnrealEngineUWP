@@ -152,7 +152,7 @@ void STG_PaletteTileItem::Construct(const FArguments& InArgs, FCreateWidgetForAc
 
 	FLinearColor Color = UTG_EdGraphSchema::GetCategoryColor(FName(GraphAction->GetCategory().ToString()));
 
-	BackgroundBrush = *(FTG_Style::Get().GetBrush("TG.Palette.Backgorund"));
+	BackgroundBrush = *(FTG_Style::Get().GetBrush("TG.Palette.Background"));
 	BackgroundBrush.OutlineSettings.Color = FSlateColor(Color);
 	
 	const int IconWidth = 16;
@@ -172,8 +172,7 @@ void STG_PaletteTileItem::Construct(const FArguments& InArgs, FCreateWidgetForAc
 			.HeightOverride(ItemHeight)
 			[
 				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("UniformShadow"))
-				.Padding(2)
+				.BorderImage(FAppStyle::GetBrush("ProjectBrowser.ProjectTile.DropShadow"))
 				[
 					SNew(SImage)
 					.Image(&BackgroundBrush)
