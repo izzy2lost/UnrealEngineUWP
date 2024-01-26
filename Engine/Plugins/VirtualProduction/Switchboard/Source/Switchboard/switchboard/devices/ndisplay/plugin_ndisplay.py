@@ -1031,8 +1031,7 @@ class DevicenDisplay(DeviceUnreal):
             dp_cvars.append('Slate.bAllowNotifications=0')
 
         # Insights traces parameters
-        if CONFIG.INSIGHTS_TRACE_ENABLE.get_value():
-
+        if CONFIG.INSIGHTS_TRACE_ENABLE.get_value() and not self.exclude_from_insights.get_value():
             LOGGER.warning(f"Unreal Insight Tracing is enabled for '{self.name}'. This may affect Unreal Engine performance.")
 
             remote_utrace_path = self.get_utrace_filepath()
