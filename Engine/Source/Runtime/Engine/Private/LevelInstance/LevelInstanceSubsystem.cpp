@@ -90,6 +90,7 @@ void ULevelInstanceSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		FEditorDelegates::OnAssetsPreDelete.AddUObject(this, &ULevelInstanceSubsystem::OnAssetsPreDelete);
 		FEditorDelegates::PreSaveWorldWithContext.AddUObject(this, &ULevelInstanceSubsystem::OnPreSaveWorldWithContext);
 		FWorldDelegates::OnPreWorldRename.AddUObject(this, &ULevelInstanceSubsystem::OnPreWorldRename);
+		FWorldDelegates::OnWorldCleanup.AddUObject(this, &ULevelInstanceSubsystem::OnWorldCleanup);
 	}
 #endif
 }
@@ -100,6 +101,7 @@ void ULevelInstanceSubsystem::Deinitialize()
 	FEditorDelegates::OnAssetsPreDelete.RemoveAll(this);
 	FEditorDelegates::PreSaveWorldWithContext.RemoveAll(this);
 	FWorldDelegates::OnPreWorldRename.RemoveAll(this);
+	FWorldDelegates::OnWorldCleanup.RemoveAll(this);
 #endif
 }
 
@@ -412,6 +414,68 @@ void ULevelInstanceSubsystem::OnPreWorldRename(UWorld* InWorld, const TCHAR* InN
 		}
 	}
 }
+
+void ULevelInstanceSubsystem::OnWorldCleanup(UWorld* InWorld, bool bSessionEnded, bool bCleanupResources)
+{
+	if (InWorld == GetWorld() && !InWorld->IsGameWorld() && bCleanupResources)
+	{
+		// LevelInstanceSubsystem doesn't support being Deinitialized and then Initialized without doing the following cleanup code (which happens with UWorld::ReInitWorld())
+		// because UWorld::CleanupWorldInternal doesn't do a clean Streaming out of StreamingLevels which is fine for regular StreamingLevels but since LevelInstance StreamingLevels are tied to Actors being registered/unregistered
+		// We need to do a cleanup here to make sure a call to UWorld::ReInitWorld() can properly reinitialize/stream in those levels instances again.
+		TArray<ULevelStreaming*> StreamingLevels;
+		ForEachLevelStreaming([&StreamingLevels](ULevelStreaming* LevelStreaming)
+		{
+			if (ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel())
+			{
+				// Avoid GC Leak by restoring OwningWorld to its original value (stop pointing to World being cleaned up)
+				LoadedLevel->OwningWorld = LoadedLevel->GetTypedOuter<UWorld>();
+				// Level Streaming isn't going to be properly RemovedFromWorld so here we remove the annotation
+				ULevelStreaming::RemoveLevelAnnotation(LoadedLevel);
+				// Make sure Level can't be reused if world gets re-initialized through UWorld::ReInitWorld()
+				// This will make sure that the Level Package and its OFPA actor packages get trashed so they can't get reused (ULevel::CleanupLevel)
+				LoadedLevel->SetForceCantReuseUnloadedButStillAround(true);
+			}
+			StreamingLevels.Add(LevelStreaming);
+			return true;
+		});
+
+		if (StreamingLevels.Num())
+		{
+			InWorld->RemoveStreamingLevels(StreamingLevels);
+		}
+
+		LoadedLevelInstances.Empty();
+		if (LevelInstanceEdit)
+		{
+			// If we are inside an Edit, null out streaming pointer so that destructor doesn't cause a call to RemoveLevelsFromWorld
+			LevelInstanceEdit->LevelStreaming = nullptr;
+			LevelInstanceEdit.Reset();
+
+			if (ILevelInstanceEditorModule* EditorModule = (ILevelInstanceEditorModule*)FModuleManager::Get().GetModule("LevelInstanceEditor"))
+			{
+				EditorModule->DeactivateEditorMode();
+			}
+		}	
+	}
+}
+
+void ULevelInstanceSubsystem::ForEachLevelStreaming(TFunctionRef<bool(ULevelStreaming*)> Operation) const
+{
+	// Make sure Levels are properly trashed when cleaning up world (can't be reused)
+	for (auto& [LevelInstanceID, LoadedLevelInstance] : LoadedLevelInstances)
+	{
+		if (!Operation(LoadedLevelInstance.LevelStreaming))
+		{
+			return;
+		}
+	}
+
+	if (LevelInstanceEdit)
+	{
+		Operation(LevelInstanceEdit->LevelStreaming);
+	}
+}
+
 
 void ULevelInstanceSubsystem::RegisterLoadedLevelStreamingLevelInstanceEditor(ULevelStreamingLevelInstanceEditor* LevelStreaming)
 {
@@ -1771,7 +1835,10 @@ ULevelInstanceSubsystem::FLevelInstanceEdit::FLevelInstanceEdit(ULevelStreamingL
 ULevelInstanceSubsystem::FLevelInstanceEdit::~FLevelInstanceEdit()
 {
 	EditorObject->ExitEdit();
-	ULevelStreamingLevelInstanceEditor::Unload(LevelStreaming);
+	if (LevelStreaming)
+	{
+		ULevelStreamingLevelInstanceEditor::Unload(LevelStreaming);
+	}
 }
 
 UWorld* ULevelInstanceSubsystem::FLevelInstanceEdit::GetEditWorld() const
