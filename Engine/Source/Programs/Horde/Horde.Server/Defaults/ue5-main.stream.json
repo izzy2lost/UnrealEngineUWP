@@ -61,6 +61,17 @@
 	"templates":
 	[
 		{
+            "id": "create-pcbs",
+            "name": "Create PCBs",
+            "initialAgentType": "Win64",
+            "arguments":
+            [
+                "-Script=Engine/Build/Graph/Examples/BuildEditorAndTools.xml",
+				"-Target=Submit To Horde For UGS",
+				"-set:UProjectPath=$(ProjectPath)"
+            ]
+		},
+		{
 			"id": "build-project",
 			"name": "Build $(Project)",
 			"initialAgentType": "Win64",
