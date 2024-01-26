@@ -467,6 +467,7 @@ public:
 
 	public:
 		const FEdGraphPinType& GetPinType(bool bForceLoadedSubCategoryObject);
+		const FEdGraphPinType& GetPinTypeNoResolve() const { return PinType; }
 		void SetPinSubTypeCategory(const FName SubCategory)
 		{
 			PinType.PinSubCategory = SubCategory;

@@ -428,7 +428,7 @@ namespace BlueprintEditorImpl
 			}
 
 			// First check pin type permissions
-			if (!FBlueprintActionDatabase::IsPinTypeAllowed(InItem->GetPinType(false), TopLevelAssetPath))
+			if (!FBlueprintActionDatabase::IsPinTypeAllowed(InItem->GetPinTypeNoResolve(), TopLevelAssetPath))
 			{
 				return false;
 			}

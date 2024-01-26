@@ -1441,7 +1441,7 @@ bool SPinTypeSelector::GetChildrenWithSupportedTypes(const TArray<FPinTypeTreeIt
 
 		if (!bHasChildrenWithValidTypes)
 		{
-			bSupportsType = Schema->SupportsPinType(SchemaAction, Item->GetPinType(false));
+			bSupportsType = Schema->SupportsPinType(SchemaAction, Item->GetPinTypeNoResolve());
 		}
 		
 		if (bHasChildrenWithValidTypes || bSupportsType)
