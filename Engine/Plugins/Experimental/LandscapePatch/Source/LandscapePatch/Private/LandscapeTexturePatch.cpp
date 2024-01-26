@@ -79,6 +79,16 @@ namespace LandscapeTexturePatchLocals
 UTextureRenderTarget2D* ULandscapeTexturePatch::RenderLayer_Native(const FLandscapeBrushParameters& InParameters)
 {
 	using namespace UE::Landscape;
+
+	// If we're getting a RenderLayer_Native call, then we're inside some patch manager, and we
+	// expect our pointer to be properly initialized. This assumption could be violated if we
+	// were not consistent in saving both the manager and the patch. However the manager should
+	// be catching this case for us.
+	if (!ensure(PatchManager.IsValid()))
+	{
+		return InParameters.CombinedResult;
+	}
+
 	const bool bIsHeightmapTarget = InParameters.LayerType == ELandscapeToolTargetType::Heightmap;
 	const bool bIsWeightmapTarget = InParameters.LayerType == ELandscapeToolTargetType::Weightmap;
 	const bool bIsVisibilityLayerTarget = InParameters.LayerType == ELandscapeToolTargetType::Visibility;
