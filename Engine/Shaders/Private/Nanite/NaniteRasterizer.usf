@@ -42,6 +42,8 @@ ALLOW_NO_PS_EXPORT
 #define NANITE_TWO_SIDED 0
 #endif
 
+#define NANITE_HW_RASTER_INTERPOLATE_DEPTH (DEPTH_ONLY)
+
 #if NANITE_VERT_REUSE_BATCH
 	#define THREADGROUP_SIZE 32
 #else
@@ -829,8 +831,11 @@ void MicropolyRasterize(
 
 struct VSOut
 {
-	float2 ClipZW								: TEXCOORD0;	// TODO: Only needed for !NearClip? Remove it for non-shadow permutations?
-	nointerpolation uint3 PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset : TEXCOORD1;
+#if NANITE_HW_RASTER_INTERPOLATE_DEPTH
+	float2 ClipZW								: TEXCOORD0;
+#endif
+
+	nointerpolation uint3 PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset : TEXCOORD1;
 	nointerpolation int4 ViewRect				: TEXCOORD2;
 #if VERTEX_TO_TRIANGLE_MASKS
 #if NANITE_VERT_REUSE_BATCH
@@ -912,34 +917,31 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	Out.ViewRect = NaniteView.ViewRect;
 #endif
 
-	Out.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset = uint3(PixelValue,
-																	VisibleCluster.ViewId,
-																	0u);
+	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset = uint3(PixelValue, VisibleCluster.ViewId, 0u);
 
 #if BARYCENTRIC_MODE_SV_BARYCENTRICS || BARYCENTRIC_MODE_EXPORT
 	// Set SwapVW flag to indicate that the V and W barycentrics need to be swapped in the PS to compensate for the swapping of the i1 and i2 vertices.
 	// BARYCENTRIC_MODE_EXPORT doesn't need this as it compensates by flipping the exported barycentrics instead.
-	Out.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y |= (bReverseWindingOrder ? (1u << 16) : 0u);
+	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y |= (bReverseWindingOrder ? (1u << 16) : 0u);
 #endif
-
-	const bool bNearClip = ((NaniteView.Flags & NANITE_VIEW_FLAG_NEAR_CLIP) != 0u);
-	Out.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y |= (bNearClip ? (1u << 17) : 0u);
 
 #if VIRTUAL_TEXTURE_TARGET
 	const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
 	const uint ArrayIndex = bCacheAsStatic ? GetVirtualShadowMapStaticArrayIndex() : 0;
-	Out.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y |= (NaniteView.TargetMipLevel << 18) | (ArrayIndex << 23);
-	Out.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.z = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel).LevelOffset;
+	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y |= (NaniteView.TargetMipLevel << 18) | (ArrayIndex << 23);
+	Out.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.z = CalcPageTableLevelOffset(NaniteView.TargetLayerIndex, NaniteView.TargetMipLevel).LevelOffset;
 #endif
 
 #if !PIXELSHADER
 	Out.Position = PointClip;
 
-	Out.ClipZW = 0.0f;
+#if NANITE_HW_RASTER_INTERPOLATE_DEPTH
+	Out.ClipZW = PointClip.zw;
+#endif
+
+	const bool bNearClip = ((NaniteView.Flags & NANITE_VIEW_FLAG_NEAR_CLIP) != 0u);
 	if (!bNearClip)
 	{
-		Out.ClipZW = PointClip.zw;
-
 		// Shader workaround to avoid HW depth clipping. Should be replaced with rasterizer state ideally.
 		Out.Position.z = 0.5f * Out.Position.w;
 	}
@@ -1449,9 +1451,24 @@ void HWRasterizePS(VSOut In
 #endif
 )
 {
-	uint2 PixelPos = (uint2)In.Position.xy;	// Interpolating SV_Position manually can be faster, but it is not accurate enough for extremely long and thin triangles on some hardware.
+#if NANITE_HW_RASTER_INTERPOLATE_DEPTH
+	// Interpolating SV_Position attributes manually can be significantly faster than having the hardware set up the registers.
+	// Unfortunately, it has also shown to have precision problems on some hardware for extremely long and narrow trinagles.
+	
+	// The compromise is to always use SV_Position for .xy, so it is guaranteed to always hit the right pixels,
+	// but interpolate depth for shadow rendering, which is usually the more HW raster heavy pass.
+	// For visibility buffer rendering the depth imprecision alone has shown to cause issues for extremely narrow triangles (UE-177564),
+	// so there SV_Position is also used for depth.
 
-	uint PixelValue = In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.x;
+	// TODO: Have the builder detect and fix the problematic cases, so we can always safely interpolate?
+
+	float4 SvPosition = float4(In.Position.xy, In.ClipZW.x / In.ClipZW.y, In.ClipZW.y);
+#else
+	float4 SvPosition = In.Position;
+#endif
+
+	uint2 PixelPos = (uint2)SvPosition.xy;
+	uint PixelValue = In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.x;
 
 #if VERTEX_TO_TRIANGLE_MASKS
 #if NANITE_VERT_REUSE_BATCH
@@ -1492,24 +1509,21 @@ void HWRasterizePS(VSOut In
 	if( all( (PixelPos >= In.ViewRect.xy) & (PixelPos < In.ViewRect.zw) ) )
 #endif
 	{
-		const uint ViewId		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y, 16, 0);
-		const bool bSwapVW		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y, 1, 16);
-		const bool bNearClip	= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y, 1, 17);
-
-		const float DeviceZ 	= CondMask(bNearClip, In.Position.z, In.ClipZW.x / In.ClipZW.y);
+		const uint ViewId		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y, 16, 0);
+		const bool bSwapVW		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y, 1, 16);
 
 		float MaterialMask = 1.0f;
 
-		FVisBufferPixel Pixel = CreateVisBufferPixel( PixelPos, PixelValue, DeviceZ );
+		FVisBufferPixel Pixel = CreateVisBufferPixel( PixelPos, PixelValue, SvPosition.z );
 	#if VISUALIZE
 		Pixel.VisualizeValues = GetVisualizeValues();
 	#endif
 		
 
 	#if VIRTUAL_TEXTURE_TARGET
-		const uint MipLevel		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y, 5, 18);
-		const uint ArrayIndex	= In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.y >> 23;
-		const uint LevelOffset	= In.PixelValue_ViewId_SwapVW_NearClip_Mip_ArrayIndex_LevelOffset.z;
+		const uint MipLevel		= BitFieldExtractU32(In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y, 5, 18);
+		const uint ArrayIndex	= In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.y >> 23;
+		const uint LevelOffset	= In.PixelValue_ViewId_SwapVW_Mip_ArrayIndex_LevelOffset.z;
 
 		if( !VirtualToPhysicalTexel_PageTableLevelOffset( InitVirtualMLevelOffset(LevelOffset), MipLevel, Pixel.Position, Pixel.PhysicalPosition.xy ) )
 		{
@@ -1537,7 +1551,7 @@ void HWRasterizePS(VSOut In
 
 		ResolvedView = ResolveView(NaniteView);
 
-		const uint DepthInt = asuint(DeviceZ);
+		const uint DepthInt = asuint(SvPosition.z);
 		const UlongType PackedPixel = PackUlongType(uint2(PixelValue, DepthInt));
 
 		FVertexFactoryInterpolantsVSToPS Interpolants = (FVertexFactoryInterpolantsVSToPS)0;
@@ -1593,12 +1607,12 @@ void HWRasterizePS(VSOut In
 		Barycentrics.Value = float3(In.BarycentricsUV, 1.0f - In.BarycentricsUV.x - In.BarycentricsUV.y);
 	#endif
 		
-		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, In.Position /*SvPosition*/ );
+		FMaterialPixelParameters MaterialParameters = FetchNaniteMaterialPixelParameters(NaniteView, PackedPixel, VIRTUAL_TEXTURE_TARGET, Barycentrics, false, VertIndexes, bCalcVertIndexes, Interpolants, SvPosition );
 		FPixelMaterialInputs PixelMaterialInputs;
 #if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
-		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, In.Position /*SvPosition*/, MaterialParameters.ScreenPosition, true, MaterialParameters.WorldPosition_CamRelative, MaterialParameters.WorldPosition_NoOffsets_CamRelative);
+		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, MaterialParameters.ScreenPosition, true, MaterialParameters.WorldPosition_CamRelative, MaterialParameters.WorldPosition_NoOffsets_CamRelative);
 #else
-		CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, In.Position /*SvPosition*/, true /*bIsFrontFace*/);
+		CalcMaterialParameters(MaterialParameters, PixelMaterialInputs, SvPosition, true /*bIsFrontFace*/);
 #endif
 
 		// NOTE: Disable PDO in shadow passes (it does undesirable things and has always been disabled in these passes in Unreal)
