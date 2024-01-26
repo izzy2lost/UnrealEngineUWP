@@ -935,7 +935,7 @@ void UDataRegistry::RefreshRuntimeSources()
 	for (int32 i = 0; i < OldRuntimeSources.Num(); i++)
 	{
 		UDataRegistrySource* OldSource = OldRuntimeSources[i];
-		if (OldSource && OldSource->IsInitialized() && !RuntimeSources.Contains(OldSource))
+		if (IsValid(OldSource) && OldSource->GetOuter() == this && OldSource->IsInitialized() && !RuntimeSources.Contains(OldSource))
 		{
 			OldSource->Deinitialize();
 
