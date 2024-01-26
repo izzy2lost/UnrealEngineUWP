@@ -97,6 +97,11 @@ namespace AudioModulation
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	bool FAudioModulationManager::IsBusMixActive(const USoundControlBusMix& InBusMix)
+	{
+		return ModSystem->IsControlBusMixActive(InBusMix);
+	}
+
 #if !UE_BUILD_SHIPPING
 	void FAudioModulationManager::SetDebugBusFilter(const FString* InNameFilter)
 	{

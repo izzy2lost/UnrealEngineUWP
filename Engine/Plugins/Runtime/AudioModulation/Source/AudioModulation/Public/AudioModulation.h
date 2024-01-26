@@ -76,6 +76,8 @@ namespace AudioModulation
 		UE_DEPRECATED(5.4, "Deactivation of modulators in this manner is now deprecated. Use USoundModulationWatchers to safety activate and track a given modulator")
 		void DeactivateGenerator(const USoundModulationGenerator& InGenerator);
 
+		bool IsBusMixActive(const USoundControlBusMix& InBusMix);
+
 		void SaveMixToProfile(const USoundControlBusMix& InBusMix, const int32 InProfileIndex);
 		TArray<FSoundControlBusMixStage> LoadMixFromProfile(const int32 InProfileIndex, USoundControlBusMix& OutBusMix);
 

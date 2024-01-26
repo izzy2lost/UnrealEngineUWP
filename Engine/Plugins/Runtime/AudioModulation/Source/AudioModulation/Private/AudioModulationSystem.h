@@ -114,6 +114,8 @@ namespace AudioModulation
 
 		void UnregisterModulator(const Audio::FModulatorHandle& InHandle);
 
+		bool IsControlBusMixActive(const USoundControlBusMix& InBusMix);
+
 		/* Saves mix to .ini profile for fast iterative development that does not require re-cooking a mix */
 		void SaveMixToProfile(const USoundControlBusMix& InBusMix, const int32 InProfileIndex);
 
@@ -223,6 +225,8 @@ namespace AudioModulation
 		mutable FCriticalSection ThreadSafeModValueCritSection;
 		TMap<Audio::FModulatorId, float> ThreadSafeModValueMap;
 
+		TSet<FBusMixId> ActiveBusMixIds;
+
 		TSet<FBusHandle> ManuallyActivatedBuses;
 		TSet<FBusMixHandle> ManuallyActivatedBusMixes;
 		TSet<FGeneratorHandle> ManuallyActivatedGenerators;
@@ -305,6 +309,8 @@ namespace AudioModulation
 
 		Audio::FDeviceId GetAudioDeviceId() const { return 0; }
 
+		bool IsControlBusMixActive(const USoundControlBusMix& InBusMix) { return false; }
+
 		void SaveMixToProfile(const USoundControlBusMix& InBusMix, const int32 InProfileIndex) { }
 		TArray<FSoundControlBusMixStage> LoadMixFromProfile(const int32 InProfileIndex, USoundControlBusMix& OutBusMix) { return { }; }
 
@@ -324,6 +330,11 @@ namespace AudioModulation
 		bool GetModulatorValueThreadSafe(const Audio::FModulatorHandle& ModulatorHandle, float& OutValue) const { return false; }
 		bool GetModulatorValueThreadSafe(uint32 ModulatorID, float& OutValue) const { return false; }
 		void UnregisterModulator(const Audio::FModulatorHandle& InHandle) { }
+
+		inline bool FAudioModulationSystem::IsControlBusMixActive(const USoundControlBusMix* InBusMix)
+		{
+			return false;
+		}
 
 		void UpdateMix(const USoundControlBusMix& InMix, float InFadeTime = -1.0f) { }
 		void UpdateMix(const TArray<FSoundControlBusMixStage>& InStages, USoundControlBusMix& InOutMix, bool bUpdateObject = false, float InFadeTime = -1.0f) { }

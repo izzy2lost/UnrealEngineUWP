@@ -391,6 +391,19 @@ void UAudioModulationStatics::DeactivateGenerator(const UObject* WorldContextObj
 	}
 }
 
+bool UAudioModulationStatics::IsControlBusMixActive(const UObject* WorldContextObject, USoundControlBusMix* Mix)
+{
+	UWorld* World = GetAudioWorld(WorldContextObject);
+	if (AudioModulation::FAudioModulationManager* ModSystem = GetModulation(World))
+	{
+		if (Mix)
+		{
+			return ModSystem->IsBusMixActive(*Mix);
+		}
+	}
+	return false;
+}
+
 void UAudioModulationStatics::SaveMixToProfile(const UObject* WorldContextObject, USoundControlBusMix* BusMix, int32 ProfileIndex)
 {
 	UWorld* World = GetAudioWorld(WorldContextObject);

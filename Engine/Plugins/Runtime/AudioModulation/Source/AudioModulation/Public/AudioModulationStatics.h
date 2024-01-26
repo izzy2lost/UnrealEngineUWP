@@ -236,6 +236,16 @@ public:
 	)
 	static void DeactivateGenerator(const UObject* WorldContextObject, USoundModulationGenerator* Generator);
 
+	/** Returns whether or not a Control Bus Mix is currently active.
+	 * @param Mix - the Control Bus Mix to check.
+	 * @return Whether or not the Bus Mix is currently active.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Audio|Modulation", DisplayName = "Is Control Bus Mix Active", meta = (
+		WorldContext = "WorldContextObject",
+		Keywords = "bus modulation modulator generator")
+		)
+	static UPARAM(DisplayName = "Is Active") bool IsControlBusMixActive(const UObject * WorldContextObject, USoundControlBusMix * Mix);
+
 	/** Saves control bus mix to a profile, serialized to an ini file.  If mix is loaded, uses current proxy's state.
 	 * If not, uses default UObject representation.
 	 * @param BusMix - Mix object to serialize to profile .ini.
