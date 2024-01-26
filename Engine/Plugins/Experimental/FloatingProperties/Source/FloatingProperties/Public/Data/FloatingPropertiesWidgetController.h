@@ -24,12 +24,24 @@ struct FFloatingPropertiesPropertyTypes
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 	FProperty* Property;
 	TSharedPtr<IDetailTreeNode> TreeNode;
+
+	~FFloatingPropertiesPropertyTypes()
+	{
+		PropertyHandle.Reset();
+		TreeNode.Reset();
+	}
 };
 
 struct FFloatingPropertiesPropertyList
 {
 	TSharedPtr<IPropertyRowGenerator> Generator;
 	TArray<FFloatingPropertiesPropertyTypes> Properties;
+
+	~FFloatingPropertiesPropertyList()
+	{
+		Properties.Empty();
+		Generator.Reset();
+	}
 };
 
 DECLARE_DELEGATE_RetVal(bool, FIsVisibleDelegate);

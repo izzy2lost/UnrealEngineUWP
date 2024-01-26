@@ -52,4 +52,6 @@ protected:
 	void OnSettingsChanged(const UFloatingPropertiesSettings* InSettings, FName InSetting);
 
 	void AddDefaultStructPropertyValueWidgetDelegates();
+
+	void OnEnginePreExit();
 };
