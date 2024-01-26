@@ -58,7 +58,7 @@ public:
 public:
 	// ~Begin UDMXPixelMappingBaseComponent interface
 	virtual const FName& GetNamePrefix() override;
-	virtual void ResetDMX() override;
+	virtual void ResetDMX(EDMXPixelMappingResetDMXMode ResetMode = EDMXPixelMappingResetDMXMode::SendDefaultValues) override;
 	virtual void SendDMX() override;
 	virtual bool CanBeMovedTo(const UDMXPixelMappingBaseComponent* Component) const override;
 	virtual FString GetUserName() const override;

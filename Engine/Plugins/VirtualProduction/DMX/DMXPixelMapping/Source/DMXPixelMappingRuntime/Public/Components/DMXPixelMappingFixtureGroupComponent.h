@@ -36,7 +36,7 @@ public:
 	virtual const FName& GetNamePrefix() override;
 	virtual void AddChild(UDMXPixelMappingBaseComponent* InComponent) override;
 	virtual bool CanBeMovedTo(const UDMXPixelMappingBaseComponent* Component) const override;
-	virtual void ResetDMX() override;
+	virtual void ResetDMX(EDMXPixelMappingResetDMXMode ResetMode = EDMXPixelMappingResetDMXMode::SendDefaultValues) override;
 	virtual void SendDMX() override;
 	virtual FString GetUserName() const override;
 	//~ End UDMXPixelMappingBaseComponent implementation

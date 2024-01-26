@@ -169,7 +169,7 @@ void UDMXPixelMappingFixtureGroupItemComponent::PostEditChangeProperty(FProperty
 			if (ColorSpace)
 			{
 				ColorSpace->GetOnPostEditChangedProperty().RemoveAll(this);
-				ResetDMX();
+				ResetDMX(EDMXPixelMappingResetDMXMode::DoNotSendValues);
 			}
 
 			ColorSpace = NewObject<UDMXPixelMappingColorSpace>(this, ColorSpaceClass);
@@ -225,39 +225,20 @@ bool UDMXPixelMappingFixtureGroupItemComponent::IsVisible() const
 }
 #endif // WITH_EDITOR
 
-void UDMXPixelMappingFixtureGroupItemComponent::ResetDMX()
+void UDMXPixelMappingFixtureGroupItemComponent::ResetDMX(EDMXPixelMappingResetDMXMode ResetMode)
 {
-	UDMXPixelMappingRendererComponent* RendererComponent = GetRendererComponent();
-	if (!ensure(RendererComponent))
-	{
-		return;
-	}
-
 	UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.GetFixturePatch();
-	if (!FixturePatch)
-	{
-		return;
-	}
 
-	UDMXLibrary* Library = FixturePatch->GetParentLibrary();
-	if (!Library)
+	if (FixturePatch)
 	{
-		return;
-	}
-	
-	ColorSpace->ResetToBlack();
-	TMap<FDMXAttributeName, float> AttributeToValueMap = ColorSpace->GetAttributeNameToValueMap();
-
-	TMap<int32, uint8> ChannelToValueMap;
-	for (const TTuple<FDMXAttributeName, float>& AttributeValuePair : AttributeToValueMap)
-	{
-		FDMXPixelMappingRuntimeUtils::ConvertNormalizedAttributeValueToChannelValue(FixturePatch, AttributeValuePair.Key, AttributeValuePair.Value, ChannelToValueMap);
-	}
-
-	// Send DMX
-	for (const FDMXOutputPortSharedRef& OutputPort : Library->GetOutputPorts())
-	{
-		OutputPort->SendDMX(FixturePatch->GetUniverseID(), ChannelToValueMap);
+		if (ResetMode == EDMXPixelMappingResetDMXMode::SendZeroValues)
+		{
+			FixturePatch->SendZeroValues();
+		}
+		else if (ResetMode == EDMXPixelMappingResetDMXMode::SendDefaultValues)
+		{
+			FixturePatch->SendDefaultValues();
+		}
 	}
 }
 
@@ -453,7 +434,7 @@ void UDMXPixelMappingFixtureGroupItemComponent::OnColorSpacePostEditChangeProper
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(FDMXAttributeName, Name))
 	{
 		// Reset DMX when an attribute of the color space changed
-		ResetDMX();
+		ResetDMX(EDMXPixelMappingResetDMXMode::DoNotSendValues);
 	}
 }
 #endif // WITH_EDITOR

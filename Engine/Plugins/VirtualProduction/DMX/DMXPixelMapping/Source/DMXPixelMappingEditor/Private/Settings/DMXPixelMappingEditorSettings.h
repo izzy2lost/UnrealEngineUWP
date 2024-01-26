@@ -4,6 +4,7 @@
 
 #include "DMXPixelMappingEditorSettings.generated.h"
 
+enum class EDMXPixelMappingResetDMXMode : uint8;
 struct FPropertyChangedEvent;
 
 
@@ -87,6 +88,10 @@ public:
 	/** Settings for the designer tab */
 	UPROPERTY(Config)
 	FDMXPixelMappingDesignerSettings DesignerSettings;
+
+	/** Reset DMX mode to be used in editor */
+	UPROPERTY(Config)
+	EDMXPixelMappingResetDMXMode EditorResetDMXMode;
 
 	/** Raised by the pixel mapping toolkit when settings changed */
 	static FSimpleMulticastDelegate OnEditorSettingsChanged;

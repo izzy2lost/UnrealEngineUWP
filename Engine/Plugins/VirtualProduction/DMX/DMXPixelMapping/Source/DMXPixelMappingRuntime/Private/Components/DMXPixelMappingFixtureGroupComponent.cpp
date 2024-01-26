@@ -81,13 +81,13 @@ void UDMXPixelMappingFixtureGroupComponent::AddChild(UDMXPixelMappingBaseCompone
 	}
 }
 
-void UDMXPixelMappingFixtureGroupComponent::ResetDMX()
+void UDMXPixelMappingFixtureGroupComponent::ResetDMX(EDMXPixelMappingResetDMXMode ResetMode)
 {
 	ForEachChild([&](UDMXPixelMappingBaseComponent* InComponent)
 	{
 		if (UDMXPixelMappingOutputComponent * Component = Cast<UDMXPixelMappingOutputComponent>(InComponent))
 		{
-			Component->ResetDMX();
+			Component->ResetDMX(ResetMode);
 		}
 	}, false);
 }

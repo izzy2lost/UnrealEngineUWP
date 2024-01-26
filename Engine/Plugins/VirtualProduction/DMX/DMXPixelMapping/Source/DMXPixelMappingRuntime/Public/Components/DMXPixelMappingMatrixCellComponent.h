@@ -45,7 +45,6 @@ public:
 
 	//~ Begin UDMXPixelMappingBaseComponent implementation
 	virtual const FName& GetNamePrefix() override;
-	virtual void ResetDMX() override;
 	virtual FString GetUserName() const override;
 	//~ End UDMXPixelMappingBaseComponent implementation
 

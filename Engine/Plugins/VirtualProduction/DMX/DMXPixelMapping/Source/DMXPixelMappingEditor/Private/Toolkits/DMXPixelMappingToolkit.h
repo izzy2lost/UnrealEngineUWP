@@ -10,6 +10,8 @@
 #include "UObject/GCObject.h"
 #include "Widgets/Views/SHeaderRow.h"
 
+enum class ECheckBoxState : uint8;
+enum class EDMXPixelMappingResetDMXMode : uint8;
 class FDMXPixelMappingComponentTemplate;
 class FDMXPixelMappingToolbar;
 class FSpawnTabArgs;
@@ -26,7 +28,6 @@ class UDMXPixelMappingBaseComponent;
 class UDMXPixelMappingMatrixComponent;
 class UDMXPixelMappingOutputComponent;
 class UDMXPixelMappingRendererComponent;
-enum class ECheckBoxState : uint8;
 
 namespace UE::DMX
 {
@@ -172,9 +173,23 @@ private:
 	/** Called when a component object was renamed */
 	void OnComponentRenamed(UDMXPixelMappingBaseComponent* Component);
 
+	/** Starts to play DMX on editor tick */
 	void PlayDMX();
 
+	/** Pauses playing DMX. Current DMX values will still be sent at a lower rate. */
+	void PauseDMX();
+
+	/** Stops playing DMX */
 	void StopPlayingDMX();
+
+	/** Toggles between playing and pausing DMX */
+	void TogglePlayPauseDMX();
+
+	/** Toggles between playing and stopping DMX */
+	void TogglePlayStopDMX();
+
+	/** Sets the reset DMX mode used by the editor */
+	void SetEditorResetDMXMode(EDMXPixelMappingResetDMXMode NewMode);
 
 	/** Updates blueprint nodes */
 	void UpdateBlueprintNodes() const;
@@ -205,6 +220,9 @@ private:
 	void ExtendToolbar();
 
 	void CreateInternalViews();
+
+	/** Returns the check box state for the compared reset DMX mode */
+	ECheckBoxState GetEditorResetDMXModeCheckboxState(EDMXPixelMappingResetDMXMode CompareMode) const;
 
 	/** Returns the checkbox state for a transform handle mode, checked if the mode equals the current mode. */
 	ECheckBoxState GetTransformHandleModeCheckboxState(EDMXPixelMappingTransformHandleMode CompareTransformHandleMode) const;
@@ -246,11 +264,8 @@ private:
 	/** True while playing DMX */
 	bool bIsPlayingDMX = false;
 
-	/** Toggles if DMX should be sent for all components */
-	bool bTogglePlayDMXAll = true;
-
-	/** True while stop DMX is requested, but not carried out yet */
-	bool bRequestStopSendingDMX = false;
+	/** True if paused */
+	bool bIsPaused = false;
 
 	/** True while adding components (to avoid needlessly updating blueprint nodes on each component added via our own methods) */
 	bool bAddingComponents = false;

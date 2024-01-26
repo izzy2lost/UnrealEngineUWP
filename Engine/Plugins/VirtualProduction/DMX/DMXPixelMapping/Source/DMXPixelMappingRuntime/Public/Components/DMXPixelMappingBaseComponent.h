@@ -15,6 +15,14 @@ class UDMXPixelMapping;
 class UDMXPixelMappingRootComponent;
 
 
+UENUM(BlueprintType)
+enum class EDMXPixelMappingResetDMXMode : uint8
+{
+	SendDefaultValues UMETA(DisplayName = "Send Default Values"),
+	SendZeroValues UMETA(DisplayName = "Send Zero Values"),
+	DoNotSendValues UMETA(DisplayName = "Keep Last Mapped Values")
+};
+
 /**
  * Base class for all DMX Pixel Mapping components. 
  */
@@ -172,7 +180,7 @@ public:
 
 	/** Reset all sending DMX channels to 0 for this component and all children */
 	UFUNCTION(BlueprintCallable, Category = "DMX|PixelMapping")
-	virtual void ResetDMX() {};
+	virtual void ResetDMX(EDMXPixelMappingResetDMXMode ResetMode = EDMXPixelMappingResetDMXMode::SendDefaultValues) {};
 
 	/** Send DMX values of this component and all children. */
 	UFUNCTION(BlueprintCallable, Category = "DMX|PixelMapping")

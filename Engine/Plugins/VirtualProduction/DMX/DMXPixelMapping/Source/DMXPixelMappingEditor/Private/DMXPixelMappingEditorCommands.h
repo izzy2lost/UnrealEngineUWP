@@ -14,9 +14,18 @@ public:
 
 	virtual void RegisterCommands() override;
 
+	// Toolbar related
 	TSharedPtr<FUICommandInfo> AddMapping;
 	TSharedPtr<FUICommandInfo> PlayDMX;
-	TSharedPtr<FUICommandInfo> StopPlayingDMX;
+	TSharedPtr<FUICommandInfo> PauseDMX;
+	TSharedPtr<FUICommandInfo> ResumeDMX;
+	TSharedPtr<FUICommandInfo> StopDMX;
+	TSharedPtr<FUICommandInfo> TogglePlayPauseDMX;
+	TSharedPtr<FUICommandInfo> TogglePlayStopDMX;
+
+	TSharedPtr<FUICommandInfo> EditorStopSendsDefaultValues;
+	TSharedPtr<FUICommandInfo> EditorStopSendsZeroValues;
+	TSharedPtr<FUICommandInfo> EditorStopKeepsLastValues;
 
 	// Designer related
 	TSharedPtr<FUICommandInfo> EnableResizeMode;
