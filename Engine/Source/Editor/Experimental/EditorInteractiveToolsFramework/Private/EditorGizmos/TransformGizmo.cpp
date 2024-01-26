@@ -51,17 +51,6 @@ static FAutoConsoleVariableRef CVarProjectIndirect(
 	ProjectIndirect,
 	TEXT("Project to the nearest point of the curve when handling indirect rotation.")
 	);
-
-static int32 cvRotateMode = 0;
-static FAutoConsoleVariableRef CVarRotateMode(
-	TEXT("Gizmos.RotateMode"),
-	cvRotateMode,
-	TEXT("Rotation mode to choose between Pull = 0 and Arc = 1."),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
-	{
-		cvRotateMode = FMath::Clamp(cvRotateMode, 0, 1);
-	})
-	);
 }
 
 void UTransformGizmo::SetDisallowNegativeScaling(bool bDisallow)
@@ -109,7 +98,7 @@ void UTransformGizmo::SetupBehaviors()
 	AddInputBehavior(HoverBehavior);
 
 	// Add default mouse input behavior
-	MouseBehavior = NewObject<UClickDragInputBehavior>();
+	UClickDragInputBehavior* MouseBehavior = NewObject<UClickDragInputBehavior>();
 	MouseBehavior->Initialize(this);
 	MouseBehavior->SetDefaultPriority(FInputCapturePriority(FInputCapturePriority::DEFAULT_GIZMO_PRIORITY));
 	AddInputBehavior(MouseBehavior);
@@ -151,34 +140,30 @@ void UTransformGizmo::SetupIndirectBehaviors()
 		bIndirectManipulation = false;
 		return OnTerminateDragSequence();
 	};
-	if (bCtrlMiddleDoesY)
+	// disable ctrl + mmb for that behavior?
+	MiddleClickDragBehavior->ModifierCheckFunc = [this](const FInputDeviceState& InputState)
 	{
-		// disable ctrl + mmb for that behavior
-		MiddleClickDragBehavior->ModifierCheckFunc = [](const FInputDeviceState& InputState)
-		{
-			return !FInputDeviceState::IsCtrlKeyDown(InputState);
-		};
-	}
+		return !bCtrlMiddleDoesY || !FInputDeviceState::IsCtrlKeyDown(InputState);
+	};
 	AddInputBehavior(MiddleClickDragBehavior);
 
-	
 	// Add left/right mouse input behavior for indirect manipulation
-	UMultiButtonClickDragBehavior* LeftRightClickDragBehavior = NewObject<UMultiButtonClickDragBehavior>();
-	LeftRightClickDragBehavior->Initialize();
-	LeftRightClickDragBehavior->EnableButton(EKeys::LeftMouseButton);
+	MultiIndirectClickDragBehavior = NewObject<UMultiButtonClickDragBehavior>();
+	MultiIndirectClickDragBehavior->Initialize();
+	MultiIndirectClickDragBehavior->EnableButton(EKeys::LeftMouseButton);
 	if (bCtrlMiddleDoesY)
 	{
-		LeftRightClickDragBehavior->EnableButton(EKeys::MiddleMouseButton);
+		MultiIndirectClickDragBehavior->EnableButton(EKeys::MiddleMouseButton);
 	}
-	LeftRightClickDragBehavior->EnableButton(EKeys::RightMouseButton);
-	LeftRightClickDragBehavior->ModifierCheckFunc = FInputDeviceState::IsCtrlKeyDown;
-	LeftRightClickDragBehavior->CanBeginClickDragFunc = [this](const FInputDeviceRay&)
+	MultiIndirectClickDragBehavior->EnableButton(EKeys::RightMouseButton);
+	MultiIndirectClickDragBehavior->ModifierCheckFunc = FInputDeviceState::IsCtrlKeyDown;
+	MultiIndirectClickDragBehavior->CanBeginClickDragFunc = [this](const FInputDeviceRay&)
 	{
 		static const FInputRayHit InvalidRayHit;
 		static const FInputRayHit ValidRayHit(TNumericLimits<double>::Max());
 		return CanInteract() ? ValidRayHit : InvalidRayHit;
 	};
-	LeftRightClickDragBehavior->OnClickPressFunc = [this](const FInputDeviceRay& InPressPos)
+	MultiIndirectClickDragBehavior->OnClickPressFunc = [this](const FInputDeviceRay& InPressPos)
 	{
 		bIndirectManipulation = true;
 		if (LastHitPart == ETransformGizmoPartIdentifier::Default)
@@ -187,17 +172,17 @@ void UTransformGizmo::SetupIndirectBehaviors()
 		}
 		return OnClickPress(InPressPos);
 	};
-	LeftRightClickDragBehavior->OnClickDragFunc = [this](const FInputDeviceRay& InDragPos)
+	MultiIndirectClickDragBehavior->OnClickDragFunc = [this](const FInputDeviceRay& InDragPos)
 	{
 		bIndirectManipulation = true;
 		return OnClickDrag(InDragPos);
 	};
-	LeftRightClickDragBehavior->OnClickReleaseFunc = [this](const FInputDeviceRay& InReleasePos)
+	MultiIndirectClickDragBehavior->OnClickReleaseFunc = [this](const FInputDeviceRay& InReleasePos)
 	{
 		bIndirectManipulation = false;
 		return OnClickRelease(InReleasePos);
 	};
-	LeftRightClickDragBehavior->OnTerminateFunc = [this]()
+	MultiIndirectClickDragBehavior->OnTerminateFunc = [this]()
 	{
 		bIndirectManipulation = false;
 		return OnTerminateDragSequence();
@@ -246,7 +231,7 @@ void UTransformGizmo::SetupIndirectBehaviors()
 		return ETransformGizmoPartIdentifier::Default;
 	};
 	
-	LeftRightClickDragBehavior->OnStateUpdated = [this, GetAxis, GetHitPart, LeftRightClickDragBehavior](const FInputDeviceState& Input)
+	MultiIndirectClickDragBehavior->OnStateUpdated = [this, GetAxis, GetHitPart](const FInputDeviceState& Input)
 	{
 		// disable indirect if the current axis is none 
 		const EAxis::Type Axis = GetAxis(Input);
@@ -271,11 +256,11 @@ void UTransformGizmo::SetupIndirectBehaviors()
 			const uint8 HitPartIndex = static_cast<uint8>(LastHitPart);
 			if (OnClickPressFunctions.IsValidIndex(HitPartIndex) && OnClickPressFunctions[HitPartIndex])
 			{
-				OnClickPressFunctions[HitPartIndex](this, LeftRightClickDragBehavior->GetDeviceRay(Input));
+				OnClickPressFunctions[HitPartIndex](this, MultiIndirectClickDragBehavior->GetDeviceRay(Input));
 			}
 		}
 	};
-	AddInputBehavior(LeftRightClickDragBehavior);
+	AddInputBehavior(MultiIndirectClickDragBehavior);
 }
 
 void UTransformGizmo::SetupMaterials()
@@ -994,6 +979,29 @@ void UTransformGizmo::HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMo
 			UpdateInteractingState(true, DefaultHitPart, true);
 		}
 	}
+}
+
+void UTransformGizmo::OnParametersChanged(const FGizmosParameters& InParameters)
+{
+	if (InParameters.bCtrlMiddleDoesY != bCtrlMiddleDoesY)
+	{
+		bCtrlMiddleDoesY = InParameters.bCtrlMiddleDoesY;
+
+		// update CTRL + LMB/MMB/RMB indirect behavior
+		if (MultiIndirectClickDragBehavior)
+		{
+			if (bCtrlMiddleDoesY)
+			{
+				MultiIndirectClickDragBehavior->EnableButton(EKeys::MiddleMouseButton);
+			}
+			else
+			{
+				MultiIndirectClickDragBehavior->DisableButton(EKeys::MiddleMouseButton);
+			}
+		}
+	}
+	
+	DefaultRotateMode = InParameters.RotateMode;
 }
 
 UGizmoElementArrow* UTransformGizmo::MakeTranslateAxis(ETransformGizmoPartIdentifier InPartId, const FVector& InAxisDir, const FVector& InSideDir, UMaterialInterface* InMaterial)
@@ -2050,7 +2058,7 @@ void UTransformGizmo::OnClickPressRotateAxis(const FInputDeviceRay& InPressPos)
 	RotateMode = EAxisRotateMode::Pull;
 
 	// initialize arc/mixed data
-	const bool bRotatePull = bIndirectManipulation || GizmoLocals::cvRotateMode == 0;
+	const bool bRotatePull = bIndirectManipulation || DefaultRotateMode == EAxisRotateMode::Pull;
 	if (!bRotatePull)
 	{
 		static const TArray RotateAxis({FVector::XAxisVector, FVector::YAxisVector, FVector::ZAxisVector});

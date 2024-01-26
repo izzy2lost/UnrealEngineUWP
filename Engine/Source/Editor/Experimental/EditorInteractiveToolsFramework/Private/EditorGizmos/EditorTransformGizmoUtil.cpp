@@ -163,7 +163,7 @@ void UEditorTransformGizmoContextObject::Initialize(FEditorModeTools* InModeTool
 	if (ensure(InModeTools && !ModeTools))
 	{
 		ModeTools = InModeTools;
-		InitializeCVarBinding();
+		InitializeGizmoManagerBinding();
 
 		DataBinder = MakeShared<FEditorTransformGizmoDataBinder>();
 		DataBinder->BindToGizmoContextObject(this);
@@ -181,7 +181,7 @@ void UEditorTransformGizmoContextObject::Shutdown()
 	{
 		UpdateGizmo({});
 		RemoveViewportsBinding();
-		RemoveCVarBinding();
+		RemoveGizmoManagerBinding();
 		
 		ModeTools = nullptr;
 	}
@@ -201,6 +201,7 @@ UTransformGizmo* UEditorTransformGizmoContextObject::CreateTransformGizmo(
 	if (ensure(NewGizmo))
 	{
 		OnGizmoCreated.Broadcast(NewGizmo);
+		InGizmoManager->OnGizmosParametersChangedDelegate().AddUObject(NewGizmo, &UTransformGizmo::OnParametersChanged);
 	}
 	
 	return NewGizmo;
@@ -271,41 +272,36 @@ void UEditorTransformGizmoContextObject::UpdateGizmo(const TArray<FEditorViewpor
 	}
 }
 
-void UEditorTransformGizmoContextObject::InitializeCVarBinding()
+void UEditorTransformGizmoContextObject::InitializeGizmoManagerBinding()
 {
-	static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-	if (ensure(UseLegacyWidgetCVar))
+	auto OnGizmoVariableChanged = [this](const bool bUseNewTRSGizmos)
 	{
-		auto OnGizmoVariableChanged = [this](IConsoleVariable* InLegacyWidgetCVar)
+		if (!bUseNewTRSGizmos)
 		{
-			const bool bUseLegacyGizmo = InLegacyWidgetCVar ? UseLegacyWidgetCVar->GetInt() > 0 : false;
-			if (bUseLegacyGizmo)
-			{
-				// swap back default mode
-				(void)SwapDefaultMode(FAssetEdModes::EM_AssetDefault, FBuiltinEditorModes::EM_Default);
-				
-				// remove viewports' binding + gizmos as they are useless
-				const UModeManagerInteractiveToolsContext* ToolsContext = ModeTools->GetInteractiveToolsContext();
-				const TObjectPtr<UInteractiveToolManager> ToolManager = ToolsContext->ToolManager;
-				UE::EditorTransformGizmoUtil::RemoveDefaultTransformGizmo(ToolManager);
-				
-				RemoveViewportsBinding();
-				
-				return;
-			}
-
-			InitializeViewportsBinding();
-		};
-
-		// bind cvar change delegate
-		if (!UseLegacyChangedHandled.IsValid())
-		{
-			UseLegacyChangedHandled = UseLegacyWidgetCVar->OnChangedDelegate().AddLambda(OnGizmoVariableChanged);
+			// swap back default mode
+			(void)SwapDefaultMode(FAssetEdModes::EM_AssetDefault, FBuiltinEditorModes::EM_Default);
+			
+			// remove viewports' binding + gizmos as they are useless
+			const UModeManagerInteractiveToolsContext* ToolsContext = ModeTools->GetInteractiveToolsContext();
+			const TObjectPtr<UInteractiveToolManager> ToolManager = ToolsContext->ToolManager;
+			UE::EditorTransformGizmoUtil::RemoveDefaultTransformGizmo(ToolManager);
+			
+			RemoveViewportsBinding();
+			
+			return;
 		}
-		
-		// initialize default viewport list change binding
-		OnGizmoVariableChanged(UseLegacyWidgetCVar);
+
+		InitializeViewportsBinding();
+	};
+
+	// bind UseNewGizmosChangedHandled if needed
+	if (!UseNewGizmosChangedHandled.IsValid())
+	{
+		UEditorInteractiveGizmoManager::OnUsesNewTRSGizmosChangedDelegate().AddLambda(OnGizmoVariableChanged);
 	}
+	
+	// initialize default viewport list change binding
+	OnGizmoVariableChanged(UEditorInteractiveGizmoManager::UsesNewTRSGizmos());
 }
 
 void UEditorTransformGizmoContextObject::InitializeViewportsBinding()
@@ -324,7 +320,7 @@ void UEditorTransformGizmoContextObject::InitializeViewportsBinding()
 			UpdateGizmo(ViewportClients);
 		};
 
-		// bind if needed
+		// bind ViewportClientsChangedHandle if needed
         if (!ViewportClientsChangedHandle.IsValid())
         {
         	ViewportClientsChangedHandle = GEditor->OnViewportClientListChanged().AddLambda(OnViewportClientsChanged);
@@ -335,16 +331,12 @@ void UEditorTransformGizmoContextObject::InitializeViewportsBinding()
 	}
 }
 
-void UEditorTransformGizmoContextObject::RemoveCVarBinding()
+void UEditorTransformGizmoContextObject::RemoveGizmoManagerBinding()
 {
-	static IConsoleVariable* UseLegacyWidgetCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Gizmos.UseLegacyWidget"));
-	if (ensure(UseLegacyWidgetCVar))
+	if (UseNewGizmosChangedHandled.IsValid())
 	{
-		if (UseLegacyChangedHandled.IsValid())
-		{
-			UseLegacyWidgetCVar->OnChangedDelegate().Remove(UseLegacyChangedHandled);
-			UseLegacyChangedHandled.Reset();
-		}
+		UEditorInteractiveGizmoManager::OnUsesNewTRSGizmosChangedDelegate().Remove(UseNewGizmosChangedHandled);
+		UseNewGizmosChangedHandled.Reset();
 	}
 }
 

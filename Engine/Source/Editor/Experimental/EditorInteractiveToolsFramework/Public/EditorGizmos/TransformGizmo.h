@@ -34,7 +34,7 @@ class IGizmoStateTarget;
 class IGizmoTransformSource;
 class IToolContextTransactionProvider;
 class IToolsContextRenderAPI;
-class UClickDragInputBehavior;
+class UMultiButtonClickDragBehavior;
 class UGizmoConstantFrameAxisSource;
 class UGizmoElementArrow;
 class UGizmoElementBase;
@@ -93,6 +93,7 @@ enum class ETransformGizmoPartIdentifier
 	Max
 };
 
+UENUM()
 namespace EAxisRotateMode
 {
 	enum Type
@@ -102,6 +103,19 @@ namespace EAxisRotateMode
 	};
 }
 
+USTRUCT()
+struct FGizmosParameters
+{
+	GENERATED_BODY()
+
+	/** Rotate mode used when manipulating axis rotation handles. */
+	UPROPERTY(EditAnywhere, Category = NewTRSGizmo)
+	TEnumAsByte<EAxisRotateMode::Type> RotateMode = EAxisRotateMode::Pull;
+	
+	/** Property used to define whether the Y axis is indirectly controlled via CTRL+MMB or CTRL+RMB (and Z via CTRL+RMB or CTRL+LMB+RMB). */
+	UPROPERTY(EditAnywhere, Category = NewTRSGizmo)
+	bool bCtrlMiddleDoesY = true;
+};
 
 /**
  * UTransformGizmo provides standard Transformation Gizmo interactions,
@@ -220,6 +234,11 @@ public:
 	 * Handle widget mode changed.
 	 */
 	void HandleWidgetModeChanged(UE::Widget::EWidgetMode InWidgetMode);
+
+	/**
+	 * Handle user parameters changes
+	 */
+	void OnParametersChanged(const FGizmosParameters& InParameters);
 	
 public:
 
@@ -231,9 +250,9 @@ public:
 	UPROPERTY()
 	TObjectPtr<UGizmoElementHitMultiTarget> HitTarget;
 
-	/** The mouse click behavior of the gizmo is accessible so that it can be modified to use different mouse keys. */
+	/** The multi button mouse click behavior is accessible so that it can be modified to use different mouse keys. */
 	UPROPERTY()
-	TObjectPtr<UClickDragInputBehavior> MouseBehavior;
+	TObjectPtr<UMultiButtonClickDragBehavior> MultiIndirectClickDragBehavior;
 
 	/** Transform Gizmo Source */
 	UPROPERTY()
@@ -872,8 +891,13 @@ protected:
 	UPROPERTY()
 	bool bCtrlMiddleDoesY = true;
 
+	/** Default rotate mode used when using axis rotation handles. */
+	UPROPERTY()
+	TEnumAsByte<EAxisRotateMode::Type> DefaultRotateMode = EAxisRotateMode::Pull;
+
+	/** Actual rotate mode used (based on view dependant information). */
 	TEnumAsByte<EAxisRotateMode::Type> RotateMode = EAxisRotateMode::Pull;
-	
+
 private:
 	/** Debug attributes to display the pull direction */
 	bool bDebugRotate = false;
