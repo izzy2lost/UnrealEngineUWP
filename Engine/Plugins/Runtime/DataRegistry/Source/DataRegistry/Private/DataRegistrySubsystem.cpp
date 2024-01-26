@@ -370,6 +370,11 @@ bool UDataRegistrySubsystem::IsConfigEnabled(bool bWarnIfNotEnabled /*= false*/)
 	return true;
 }
 
+FDataRegistrySubsystemInitializedCallback& UDataRegistrySubsystem::OnSubsystemInitialized()
+{
+	return OnSubsystemInitializedCallback;
+}
+
 void UDataRegistrySubsystem::InitializeAllRegistries(bool bResetIfInitialized)
 {
 	for (const FRegistryMapPair& RegistryPair : RegistryMap)
@@ -386,6 +391,8 @@ void UDataRegistrySubsystem::InitializeAllRegistries(bool bResetIfInitialized)
 	}
 
 	bFullyInitialized = true;
+
+	OnSubsystemInitialized().Broadcast();
 }
 
 void UDataRegistrySubsystem::DeinitializeAllRegistries()
