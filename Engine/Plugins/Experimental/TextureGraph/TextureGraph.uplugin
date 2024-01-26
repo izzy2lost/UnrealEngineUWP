@@ -23,7 +23,7 @@
 			]
 		},
 		{
-			"Name": "MixerInsight",
+			"Name": "TextureGraphInsight",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [
@@ -31,7 +31,7 @@
 			]
 		},
 		{
-			"Name": "MixerInsightEditor",
+			"Name": "TextureGraphInsightEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
 			"PlatformAllowList": [

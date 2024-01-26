@@ -12,6 +12,7 @@ public class UnrealEditorVMTarget : UnrealEditorTarget
 		bUseAutoRTFMCompiler = true;
 		BuildEnvironment = TargetBuildEnvironment.Unique;
 		bLegalToDistributeBinary = true;
+		Type = TargetType.Program;
 
 		DisablePlugins.AddRange(
 			new string[] {
