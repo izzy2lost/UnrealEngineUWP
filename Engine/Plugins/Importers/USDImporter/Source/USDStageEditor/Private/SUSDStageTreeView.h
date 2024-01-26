@@ -64,6 +64,8 @@ private:
 	void OnToggleAllPayloads(EPayloadsTrigger PayloadsTrigger);
 
 	void FillDuplicateSubmenu(FMenuBuilder& MenuBuilder);
+	void FillAddSchemaSubmenu(FMenuBuilder& MenuBuilder);
+	void FillRemoveSchemaSubmenu(FMenuBuilder& MenuBuilder);
 
 	void OnAddChildPrim();
 	void OnCutPrim();
