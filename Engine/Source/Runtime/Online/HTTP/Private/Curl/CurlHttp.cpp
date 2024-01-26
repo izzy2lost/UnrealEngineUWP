@@ -1107,6 +1107,11 @@ void FCurlHttpRequest::TickThreadedRequest(float DeltaSeconds)
 
 void FCurlHttpRequest::AbortRequest()
 {
+	if (bCurlRequestCompleted)
+	{
+		return;
+	}
+
 	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
 	if (HttpManager.IsValidRequest(this))
 	{

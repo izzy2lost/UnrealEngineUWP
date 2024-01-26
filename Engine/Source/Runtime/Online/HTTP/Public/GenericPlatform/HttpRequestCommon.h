@@ -35,6 +35,8 @@ public:
 
 	HTTP_API virtual void Shutdown() override;
 
+	HTTP_API virtual void ProcessRequestUntilComplete() override;
+
 protected:
 	/**
 	 * Check if this request is valid or allowed, before actually process the request
