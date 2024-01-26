@@ -652,8 +652,7 @@ void UTypedElementDatabaseCompatibility::TickObjectSync()
 					}
 				}
 				const int32 RowHandleCount = RowHandleIndex;
-				const bool bAllowShrinking = false;
-				RowHandles.SetNum(RowHandleCount, bAllowShrinking);
+				RowHandles.SetNum(RowHandleCount, EAllowShrinking::No);
 			}
 
 			ObjectsNeedingFullSync.Reset();

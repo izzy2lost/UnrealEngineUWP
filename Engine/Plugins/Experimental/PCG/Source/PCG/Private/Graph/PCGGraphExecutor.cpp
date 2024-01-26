@@ -1380,7 +1380,7 @@ void FPCGGraphExecutor::CullInactiveDownstreamNodes(FPCGTaskId InCompletedTaskId
 
 	while (!PinIdsToDeactivate.IsEmpty())
 	{
-		const FPCGPinId PinId = PinIdsToDeactivate.Pop(/*bAllowShrinking=*/false);
+		const FPCGPinId PinId = PinIdsToDeactivate.Pop(EAllowShrinking::No);
 		const FPCGTaskId PinTaskId = PCGPinIdHelpers::GetNodeIdFromPinId(PinId);
 
 		PCGGraphExecutionLogging::LogTaskCullingBeginLoop(PinTaskId, PCGPinIdHelpers::GetPinIndexFromPinId(PinId), PinIdsToDeactivate);

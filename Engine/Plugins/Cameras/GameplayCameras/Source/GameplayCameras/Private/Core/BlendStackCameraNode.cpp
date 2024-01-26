@@ -175,7 +175,7 @@ void UBlendStackCameraNode::OnRun(const FCameraNodeRunParams& Params, FCameraNod
 	// Pop out camera modes that have been blended out.
 	if (bAutoPop && PopEntriesBelow != INDEX_NONE)
 	{
-		Entries.RemoveAt(0, PopEntriesBelow, false);
+		Entries.RemoveAt(0, PopEntriesBelow, EAllowShrinking::No);
 	}
 
 	// Reset first frame flags.
