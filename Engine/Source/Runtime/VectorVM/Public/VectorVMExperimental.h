@@ -235,6 +235,7 @@ struct FVectorVMOptimizeContext
 	uint32                                NumTempRegisters;
 	uint16                                NumConstsRemapped;
 	uint16                                NumInputsRemapped;
+	uint16                                NumOutputsAliasedToTempRegisters; //@TODO: REMOVE THIS
 	uint16                                NumNoAdvanceInputs;
 	uint16                                NumInputDataSets;
 	uint16                                NumOutputsRemapped;
@@ -246,7 +247,6 @@ struct FVectorVMOptimizeContext
 	uint32                                Flags;
 	uint64                                HashId;
 
-#if WITH_EDITORONLY_DATA
 	struct
 	{
 		VectorVMReallocFn *               ReallocFn;
@@ -272,7 +272,6 @@ struct FVectorVMOptimizeContext
 		uint32                            NumInstructionsAlloced;
 		uint32                            NumRegistersUsed;
 	} Intermediate;                                           //these are freed and NULL after optimize() unless SaveIntermediateData is true when calling OptimizeVectorVMScript
-#endif
 };
 
 enum EVectorVMStateError
@@ -440,14 +439,12 @@ VECTORVM_API FVectorVMState * AllocVectorVMState                     (FVectorVMO
 VECTORVM_API void             FreeVectorVMState                      (FVectorVMState *VectorVMState);
 VECTORVM_API void             ExecVectorVMState                      (FVectorVMExecContext *ExecCtx, FVectorVMSerializeState *SerializeState, FVectorVMSerializeState *CmpSerializeState);
 
-#if WITH_EDITORONLY_DATA
 //optimize functions
 VECTORVM_API uint32           OptimizeVectorVMScript                 (const uint8 *Bytecode, int BytecodeLen, FVectorVMExtFunctionData *ExtFnIOData, int NumExtFns, FVectorVMOptimizeContext *OptContext, uint64 HashId, uint32 Flags); //OutContext must be zeroed except the Init struct
 VECTORVM_API void             FreeVectorVMOptimizeContext            (FVectorVMOptimizeContext *Context);
 VECTORVM_API void             FreezeVectorVMOptimizeContext          (const FVectorVMOptimizeContext& Context, TArray<uint8>& ContextData);
-VECTORVM_API void             GenerateHumanReadableVectorVMScript    (const FVectorVMOptimizeContext& Context, FString& VMScript);
-#endif
 VECTORVM_API void             ReinterpretVectorVMOptimizeContextData (TConstArrayView<uint8> ContextData, FVectorVMOptimizeContext& Context);
+VECTORVM_API void             GenerateHumanReadableVectorVMScript    (const FVectorVMOptimizeContext& Context, FString& VMScript);
 
 //serialize functions
 VECTORVM_API uint32           SerializeVectorVMInputDataSets         (FVectorVMSerializeState *SerializeState, FVectorVMExecContext *ExecContext);
