@@ -42,6 +42,7 @@ struct FCurvePointHandle;
 struct FGeometry;
 struct FOptionalSize;
 struct FPointerEvent;
+struct FKeyAttributes;
 
 namespace CurveViewConstants
 {
@@ -188,6 +189,8 @@ private:
 	bool CanBufferedCurves() const;
 	/** Check if it's legal to apply any of the buffered curves to our currently selected curves. */
 	bool CanApplyBufferedCurves() const;
+	/** Returns interpolation mode and tangent mode based on neighbours or default curve editor if no neighbours . */
+	FKeyAttributes GetDefaultKeyAttributesForCurveTime(const FCurveEditor& CurveEditor, const FCurveModel& CurveModel, double EvalTime) const;
 
 protected:
 
