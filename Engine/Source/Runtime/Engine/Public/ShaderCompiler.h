@@ -741,6 +741,10 @@ private:
 	/** Delegate handle for delegate used to report memory usage during out-of-memory conditions. */
 	FDelegateHandle OutOfMemoryDelegateHandle;
 
+#if WITH_EDITOR
+	TMap<FString, FDelegateHandle> DirectoryWatcherHandles;
+#endif // WITH_EDITOR
+
 	/** Calculate NumShaderCompilingThreads, during construction or OnMachineResourcesChanged */
 	void CalculateNumberOfCompilingThreads(int32 NumberOfCores, int32 NumberOfCoresIncludingHyperthreads);
 
