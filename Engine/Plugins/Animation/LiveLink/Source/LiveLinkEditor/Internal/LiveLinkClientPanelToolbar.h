@@ -21,8 +21,21 @@ struct FAssetData;
 
 class LIVELINKEDITOR_API SLiveLinkClientPanelToolbar : public SCompoundWidget, public FGCObject
 {
-	SLATE_BEGIN_ARGS(SLiveLinkClientPanelToolbar){}
+	SLATE_BEGIN_ARGS(SLiveLinkClientPanelToolbar)
+		: _SourceButtonAlignment(HAlign_Fill)
+		, _ShowPresetPicker(true)
+		, _ShowSettings(true)
+		{}
+	/** Horizontal alignment of the add source button. */
+	SLATE_ARGUMENT(EHorizontalAlignment, SourceButtonAlignment)
+	/** Parent window override. */
 	SLATE_ARGUMENT(TSharedPtr<SWindow>, ParentWindow)
+	/** (Optional) Custom header displayed on the left side of the toolbar.  */
+	SLATE_ARGUMENT(TSharedPtr<SWidget>, CustomHeader)
+	/** Whether to show the preset picker button. */
+	SLATE_ARGUMENT(bool, ShowPresetPicker)
+	/** Whether to show the settings button. */
+	SLATE_ARGUMENT(bool, ShowSettings)
 	SLATE_END_ARGS()
 
 
