@@ -18,14 +18,9 @@ FGLTFJsonScene* FGLTFSceneConverter::Convert(const UWorld* World)
 	{
 		for (const ULevel* Level : Levels)
 		{
-			if (Level->IsInstancedLevel() && !Level->IsCurrentLevel())
+			if (Level == nullptr || (Level->IsInstancedLevel() && !Level->IsCurrentLevel()))
 			{
 				//LevelInstances are handled in FGLTFComponentConverter::ConvertComponentSpecialization in the ULevelInstanceComponent handling branch.
-				continue;
-			}
-
-			if (Level == nullptr)
-			{
 				continue;
 			}
 

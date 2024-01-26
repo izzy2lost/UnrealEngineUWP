@@ -398,10 +398,9 @@ void FGLTFDelayedSplineMeshTask::Process()
 		FGLTFJsonPrimitive& JsonPrimitive = JsonMesh->Primitives[MaterialIndex];
 		JsonPrimitive.Indices = Builder.AddUniqueIndexAccessor(ConvertedSection);
 
-		FPositionVertexBuffer* TransformedPositionBuffer = nullptr;
+		FPositionVertexBuffer* TransformedPositionBuffer = new FPositionVertexBuffer();
 		
 		{//fix for Splines:
-			TransformedPositionBuffer = new FPositionVertexBuffer();
 			TransformedPositionBuffer->Init(PositionBuffer.GetNumVertices(), true);
 
 			const uint32 VertexCount = PositionBuffer.GetNumVertices();
@@ -422,7 +421,7 @@ void FGLTFDelayedSplineMeshTask::Process()
 			}
 		}
 
-		JsonPrimitive.Attributes.Position = Builder.AddUniquePositionAccessor(ConvertedSection, TransformedPositionBuffer != nullptr ? TransformedPositionBuffer : &PositionBuffer);
+		JsonPrimitive.Attributes.Position = Builder.AddUniquePositionAccessor(ConvertedSection, TransformedPositionBuffer);
 		if (JsonPrimitive.Attributes.Position == nullptr)
 		{
 			Builder.LogError(

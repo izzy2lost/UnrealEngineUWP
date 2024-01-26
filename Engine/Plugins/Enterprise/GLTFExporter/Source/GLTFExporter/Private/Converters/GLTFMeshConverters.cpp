@@ -110,7 +110,7 @@ void FGLTFSplineMeshConverter::Sanitize(const UStaticMesh*& StaticMesh, const US
 FGLTFJsonMesh* FGLTFSplineMeshConverter::Convert(const UStaticMesh* StaticMesh, const USplineMeshComponent* SplineMeshComponent, FGLTFMaterialArray Materials, int32 LODIndex)
 {
 #if !WITH_EDITOR
-	if (!StaticMesh->bAllowCPUAccess)
+	if (StaticMesh && !StaticMesh->bAllowCPUAccess)
 	{
 		Builder.LogSuggestion(FString::Printf(
 			TEXT("Export of mesh %s can in runtime be speed-up by checking 'Allow CPU Access' in asset settings"),
@@ -118,7 +118,7 @@ FGLTFJsonMesh* FGLTFSplineMeshConverter::Convert(const UStaticMesh* StaticMesh, 
 	}
 #endif
 
-	const int32 MaterialCount = FGLTFMeshUtilities::GetMaterials(StaticMesh).Num();
+	const int32 MaterialCount = StaticMesh ? FGLTFMeshUtilities::GetMaterials(StaticMesh).Num() : 0;
 	FGLTFJsonMesh* JsonMesh = Builder.AddMesh();
 	JsonMesh->Primitives.AddDefaulted(MaterialCount);
 
