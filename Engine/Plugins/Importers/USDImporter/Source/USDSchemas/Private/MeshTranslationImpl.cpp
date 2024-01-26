@@ -52,16 +52,6 @@ namespace UE::MeshTranslationImplInternal::Private
 			return nullptr;
 		}
 
-		UUsdMaterialAssetUserData* OneSidedUserData = OneSidedMat->GetAssetUserData<UUsdMaterialAssetUserData>();
-		if (!ensureMsgf(
-				OneSidedUserData,
-				TEXT("Expected one-sided material '%s' to have an UUsdMaterialAssetUserData at this point!"),
-				*OneSidedMat->GetPathName()
-			))
-		{
-			return nullptr;
-		}
-
 		UMaterialInterface* TwoSidedMat = nullptr;
 
 		UMaterialInstance* OneSidedMaterialInstance = Cast<UMaterialInstance>(OneSidedMat);
@@ -142,12 +132,6 @@ namespace UE::MeshTranslationImplInternal::Private
 
 				TwoSidedMat = TwoSidedMID;
 			}
-
-		if (TwoSidedMat)
-		{
-			UUsdMaterialAssetUserData* UserData = DuplicateObject(OneSidedUserData, TwoSidedMat, TEXT("USDAssetUserData"));
-			TwoSidedMat->AddAssetUserData(UserData);
-		}
 
 		return TwoSidedMat;
 	}
@@ -326,16 +310,17 @@ namespace UE::MeshTranslationImplInternal::Private
 			CompatibleMaterial = ExistingCompatibleMaterial;
 		}
 
+		TMap<FString, int32> CompatiblePrimvarToUVIndex;
+		CompatiblePrimvarToUVIndex.Reserve(CompatiblePrimvarAndUVIndexPairs.Num());
+		for (const TPair<FString, int32>& Pair : CompatiblePrimvarAndUVIndexPairs)
+		{
+			CompatiblePrimvarToUVIndex.Add(Pair);
+		}
+
 		// We have to create a brand new compatible material instance
+		bool bCreatedNew = false;
 		if (!CompatibleMaterial)
 		{
-			TMap<FString, int32> CompatiblePrimvarToUVIndex;
-			CompatiblePrimvarToUVIndex.Reserve(CompatiblePrimvarAndUVIndexPairs.Num());
-			for (const TPair<FString, int32>& Pair : CompatiblePrimvarAndUVIndexPairs)
-			{
-				CompatiblePrimvarToUVIndex.Add(Pair);
-			}
-
 			const FName NewInstanceName = MakeUniqueObjectName(GetTransientPackage(), UMaterialInstance::StaticClass(), Material.GetFName());
 
 			UE_LOG(
@@ -369,41 +354,51 @@ namespace UE::MeshTranslationImplInternal::Private
 				CompatibleMaterial = CompatibleMID;
 			}
 
-			UUsdMaterialAssetUserData* CompatibleUserData = DuplicateObject(MaterialAssetUserData, CompatibleMaterial, TEXT("USDAssetUserData"));
+			bCreatedNew = true;
+		}
+
+		// Update the AssetUserData whether we created a new material instance or reused one from the asset cache.
+		// The compatible AssetUserData should always match the original except for the different PrimvarToUVIndex
+		UUsdMaterialAssetUserData* CompatibleUserData = nullptr;
+		if (CompatibleMaterial)
+		{
+			CompatibleUserData = DuplicateObject(MaterialAssetUserData, CompatibleMaterial, TEXT("USDAssetUserData"));
 			CompatibleUserData->PrimvarToUVIndex = CompatiblePrimvarToUVIndex;
-			CompatibleMaterial->AddAssetUserData(CompatibleUserData);
 
-			if (UMaterialInstance* CompatibleInstance = Cast<UMaterialInstance>(CompatibleMaterial))
+			UsdUtils::SetAssetUserData(CompatibleMaterial, CompatibleUserData);
+		}
+
+		// Now that the AssetUserData is done, actually set the UV index material parameters with the target indices
+		UMaterialInstance* CompatibleInstance = Cast<UMaterialInstance>(CompatibleMaterial);
+		if (bCreatedNew && CompatibleInstance && CompatibleUserData)
+		{
+			for (const TPair<FString, FString>& ParameterPair : CompatibleUserData->ParameterToPrimvar)
 			{
-				// Actually set the parameters with the target UV indices
-				for (const TPair<FString, FString>& ParameterPair : CompatibleUserData->ParameterToPrimvar)
-				{
-					const FString& Parameter = ParameterPair.Key;
-					const FString& Primvar = ParameterPair.Value;
+				const FString& Parameter = ParameterPair.Key;
+				const FString& Primvar = ParameterPair.Value;
 
-					if (int32* UVIndex = CompatibleUserData->PrimvarToUVIndex.Find(Primvar))
+				if (int32* UVIndex = CompatibleUserData->PrimvarToUVIndex.Find(Primvar))
+				{
+					// Force-disable using the texture at all if the mesh doesn't provide the primvar that should be
+					// used to sample it with
+					if (*UVIndex == UNUSED_UV_INDEX)
 					{
-						// Force-disable using the texture at all if the mesh doesn't provide the primvar that should be
-						// used to sample it with
-						if (*UVIndex == UNUSED_UV_INDEX)
-						{
-							UsdUtils::SetScalarParameterValue(*CompatibleInstance, *FString::Printf(TEXT("Use%sTexture"), *Parameter), 0.0f);
-						}
-						else
-						{
-							UsdUtils::SetScalarParameterValue(
-								*CompatibleInstance,
-								*FString::Printf(TEXT("%sUVIndex"), *Parameter),
-								static_cast<float>(*UVIndex)
-							);
-						}
+						UsdUtils::SetScalarParameterValue(*CompatibleInstance, *FString::Printf(TEXT("Use%sTexture"), *Parameter), 0.0f);
+					}
+					else
+					{
+						UsdUtils::SetScalarParameterValue(
+							*CompatibleInstance,
+							*FString::Printf(TEXT("%sUVIndex"), *Parameter),
+							static_cast<float>(*UVIndex)
+						);
 					}
 				}
+			}
 
 #if WITH_EDITOR
-				CompatibleInstance->PostEditChange();
+			CompatibleInstance->PostEditChange();
 #endif	  // WITH_EDITOR
-			}
 		}
 
 		if (CompatibleMaterial && CompatibleMaterial != &Material)
@@ -579,6 +574,15 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 
 						if (TwoSidedMat)
 						{
+							// Update AssetUserData whether we generated a new material or reused one from the asset cache
+							{
+								UUsdMaterialAssetUserData* OneSidedUserData = OneSidedMat->GetAssetUserData<UUsdMaterialAssetUserData>();
+								ensure(OneSidedUserData);
+
+								UUsdMaterialAssetUserData* UserData = DuplicateObject(OneSidedUserData, TwoSidedMat, TEXT("USDAssetUserData"));
+								UsdUtils::SetAssetUserData(TwoSidedMat, UserData);
+							}
+
 							TwoSidedMat->SetFlags(RF_Transient);
 							Material = TwoSidedMat;
 							PrefixedMaterialHash = PrefixedTwoSidedHash;

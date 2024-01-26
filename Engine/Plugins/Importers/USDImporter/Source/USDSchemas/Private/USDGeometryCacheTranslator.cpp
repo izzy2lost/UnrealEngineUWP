@@ -902,6 +902,11 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 							Context->MetadataOptions.bCollectFromEntireSubtrees
 						);
 					}
+					else
+					{
+						// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the AssetUserData
+						UserData->StageIdentifierToMetadata.Remove(GetPrim().GetStage().GetRootLayer().GetIdentifier());
+					}
 
 					MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
 				}

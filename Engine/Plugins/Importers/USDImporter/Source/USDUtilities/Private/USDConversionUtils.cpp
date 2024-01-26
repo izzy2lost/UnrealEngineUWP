@@ -1816,7 +1816,7 @@ bool UsdUtils::SetAssetUserData(UObject* Object, UUsdAssetUserData* AssetUserDat
 
 	while (AssetUserDataInterface->HasAssetUserDataOfClass(UUsdAssetUserData::StaticClass()))
 	{
-		UE_LOG(LogUsd, Log, TEXT("Removing old AssetUserData from object '%s' before adding a new one"), *Object->GetPathName());
+		UE_LOG(LogUsd, Verbose, TEXT("Removing old AssetUserData from object '%s' before adding a new one"), *Object->GetPathName());
 		AssetUserDataInterface->RemoveUserDataOfClass(UUsdAssetUserData::StaticClass());
 	}
 

@@ -573,6 +573,11 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubc
 			bCollectMetadataFromSubtree
 		);
 	}
+	else if (UUsdAssetUserData* UserData = UsdUtils::GetAssetUserData(SceneComponent))
+	{
+		// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the AssetUserData
+		UserData->StageIdentifierToMetadata.Remove(Prim.GetStage().GetRootLayer().GetIdentifier());
+	}
 
 	if (SceneComponent)
 	{

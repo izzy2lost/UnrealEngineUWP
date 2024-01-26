@@ -1562,7 +1562,15 @@ namespace UsdSkelSkeletonTranslatorImpl
 
 						// For the skel task chain we always collect skeletal mesh metadata when first parsing the prims directly, as it
 						// allows us to do it while we're flipping through LOD variants, if any
-						UserData->StageIdentifierToMetadata.Add(GetSkeletonPrim().GetStage().GetRootLayer().GetIdentifier(), LODMetadata);
+						if (Context->MetadataOptions.bCollectMetadata)
+						{
+							UserData->StageIdentifierToMetadata.Add(GetSkeletonPrim().GetStage().GetRootLayer().GetIdentifier(), LODMetadata);
+						}
+						else
+						{
+							// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the AssetUserData
+							UserData->StageIdentifierToMetadata.Remove(GetSkeletonPrim().GetStage().GetRootLayer().GetIdentifier());
+						}
 
 						MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
 					}
@@ -1588,6 +1596,12 @@ namespace UsdSkelSkeletonTranslatorImpl
 									Context->MetadataOptions.bInvertFilters,
 									bCollectFromEntireSubtrees
 								);
+							}
+							else
+							{
+								// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the
+								// AssetUserData
+								UserData->StageIdentifierToMetadata.Remove(GetSkeletonPrim().GetStage().GetRootLayer().GetIdentifier());
 							}
 						}
 					}
@@ -1789,6 +1803,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 				FString PrefixedSkelAnimHash = UsdUtils::GetAssetHashPrefix(SkelAnimationPrim, Context->bReuseIdenticalAssets) + Hash.ToString();
 				UAnimSequence* AnimSequence = Cast<UAnimSequence>(Context->AssetCache->GetCachedAsset(PrefixedSkelAnimHash));
 
+				TOptional<float> LayerStartOffsetSeconds;
 				if (!AnimSequence || AnimSequence->GetSkeleton() != SkeletalMesh->GetSkeleton())
 				{
 					FScopedUnrealAllocs UEAllocs;
@@ -1815,7 +1830,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 					AnimSequence->SetPreviewMesh(SkeletalMesh);
 
 					TUsdStore<pxr::VtArray<pxr::UsdSkelSkinningQuery>> SkinningTargets = SkeletonBinding.Get().GetSkinningTargets();
-					float LayerStartOffsetSeconds = 0.0f;
+					LayerStartOffsetSeconds = 0.0f;
 					const bool bSuccess = UsdToUnreal::ConvertSkelAnim(
 						SkeletonQuery.Get(),
 						&SkinningTargets.Get(),
@@ -1823,39 +1838,56 @@ namespace UsdSkelSkeletonTranslatorImpl
 						Context->bAllowInterpretingLODs,
 						RootMotionPrim,
 						AnimSequence,
-						&LayerStartOffsetSeconds
+						&LayerStartOffsetSeconds.GetValue()
 					);
 
 					if (bSuccess
 						&& (AnimSequence->GetDataModel()->GetNumBoneTracks() != 0 || AnimSequence->GetDataModel()->GetNumberOfFloatCurves() != 0))
 					{
-						if (UUsdAnimSequenceAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdAnimSequenceAssetUserData>(AnimSequence))
-						{
-							UserData->PrimPaths.AddUnique(SkelAnimationPrimPath);
-							UserData->LayerStartOffsetSeconds = LayerStartOffsetSeconds;
-
-							if (Context->MetadataOptions.bCollectMetadata)
-							{
-								// Since we never collapse, we'll spawn assets components for any child prim that happens to be inside
-								// the skeleton itself, and the SkelAnimation type doesn't have any relevant "child prim" type (like for
-								// Mesh prims and UsdGeomSubsets), so we're probably safe in never collecting metadata from the SkelAnimation
-								// prim subtree
-								const bool bCollectFromEntireSubtrees = false;
-								UsdToUnreal::ConvertMetadata(
-									SkelAnimationPrim,
-									UserData,
-									Context->MetadataOptions.BlockedPrefixFilters,
-									Context->MetadataOptions.bInvertFilters,
-									bCollectFromEntireSubtrees
-								);
-							}
-						}
-
 						Context->AssetCache->CacheAsset(PrefixedSkelAnimHash, AnimSequence);
 					}
 					else
 					{
 						AnimSequence->MarkAsGarbage();
+						AnimSequence = nullptr;
+					}
+				}
+
+				if (UUsdAnimSequenceAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdAnimSequenceAssetUserData>(AnimSequence))
+				{
+					UserData->PrimPaths.AddUnique(SkelAnimationPrimPath);
+
+					// It should be fine that we won't fetch/set this again in case we're reusing an AnimSequence from the asset cache
+					// because the LayerStartOffsetSeconds value is influenced by the animation start time codes, which should always
+					// affect the asset hash. This means that if the correct value for this were to change, we'd end up generating a
+					// new AnimSequence and computing it anyway
+					if (LayerStartOffsetSeconds.IsSet())
+					{
+						UserData->LayerStartOffsetSeconds = LayerStartOffsetSeconds.GetValue();
+					}
+
+					if (Context->MetadataOptions.bCollectMetadata)
+					{
+						// Since we never collapse, we'll spawn assets components for any child prim that happens to be inside
+						// the skeleton itself, and the SkelAnimation type doesn't have any relevant "child prim" type (like for
+						// Mesh prims and UsdGeomSubsets), so we're probably safe in never collecting metadata from the SkelAnimation
+						// prim subtree
+						const bool bCollectFromEntireSubtrees = false;
+						UsdToUnreal::ConvertMetadata(
+							SkelAnimationPrim,
+							UserData,
+							Context->MetadataOptions.BlockedPrefixFilters,
+							Context->MetadataOptions.bInvertFilters,
+							bCollectFromEntireSubtrees
+						);
+					}
+					else
+					{
+						// Strip the metadata from this prim, so that if we uncheck "Collect Metadata" it actually disappears on the
+						// AssetUserData
+						UserData->StageIdentifierToMetadata.Remove(
+							UsdToUnreal::ConvertString(SkelAnimationPrim.GetStage()->GetRootLayer()->GetIdentifier())
+						);
 					}
 				}
 
