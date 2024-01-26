@@ -884,12 +884,15 @@ void FDefaultInstallBundleManager::TryReserveCache(FContentRequestRef Request)
 	ReserveResults.Reserve(BundleCaches.Num());
 
 	TSet<FName> EnabledBundleCaches;
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : GetEnabledBundleSourcesForRequest(Request))
 	{
-		FName* BundleCacheName = BundleSourceCaches.Find(Pair.Key);
-		if (BundleCacheName != nullptr)
+		TArray<TSharedPtr<IInstallBundleSource>> EnabledBundleSources = GetEnabledBundleSourcesForRequest(Request);
+		for (const TSharedPtr<IInstallBundleSource>& Source : EnabledBundleSources)
 		{
-			EnabledBundleCaches.Add(*BundleCacheName);
+			FName* BundleCacheName = BundleSourceCaches.Find(Source->GetSourceType());
+			if (BundleCacheName)
+			{
+				EnabledBundleCaches.Add(*BundleCacheName);
+			}
 		}
 	}
 	// we will try reserve cache space for only enabled bundle sources.  Each bundle source knows how much cache it should require for the bundle. 
@@ -1135,9 +1138,21 @@ void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBund
 	}
 }
 
-TMap<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>> FDefaultInstallBundleManager::GetEnabledBundleSourcesForRequest(FContentRequestRef Request) const
+TArray<TSharedPtr<IInstallBundleSource>> FDefaultInstallBundleManager::GetEnabledBundleSourcesForRequest(FContentRequestRef Request) const
 {
-	return BundleSources;
+	const FBundleInfo& BundleInfo = BundleInfoMap.FindChecked(Request->BundleName);
+	return GetEnabledBundleSourcesForRequest(BundleInfo);
+}
+
+TArray<TSharedPtr<IInstallBundleSource>> FDefaultInstallBundleManager::GetEnabledBundleSourcesForRequest(const FBundleInfo& BundleInfo) const
+{
+	TArray<TSharedPtr<IInstallBundleSource>> EnabledSources;
+	EnabledSources.Reserve(BundleInfo.ContributingSources.Num());
+	for (const FBundleSourceRelevance& SourceRel : BundleInfo.ContributingSources)
+	{
+		EnabledSources.Add(BundleSources.FindChecked(SourceRel.SourceType));
+	}
+	return EnabledSources;
 }
 
 void FDefaultInstallBundleManager::UpdateBundleSources(FContentRequestRef Request)
@@ -1145,11 +1160,11 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentRequestRef Reques
 	StatsBegin(Request->BundleName, EContentRequestState::UpdatingBundleSources);
 
 	Request->StepResult = EContentRequestStepResult::Waiting;
-	TMap<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>> EnabledBundleSources = GetEnabledBundleSourcesForRequest(Request);
+	TArray<TSharedPtr<IInstallBundleSource>> EnabledBundleSources = GetEnabledBundleSourcesForRequest(Request);
 	Request->RequiredSourceRequestResultsCount = EnabledBundleSources.Num();
-	for (const TPair<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>>& Pair : EnabledBundleSources)
+	for (const TSharedPtr<IInstallBundleSource>& Source : EnabledBundleSources)
 	{
-		Request->SourcePauseFlags.Emplace(Pair.Key, EInstallBundlePauseFlags::None);
+		Request->SourcePauseFlags.Emplace(Source->GetSourceType(), EInstallBundlePauseFlags::None);
 
 		IInstallBundleSource::FRequestUpdateContentBundleContext Context;
 		Context.BundleName = Request->BundleName;
@@ -1159,7 +1174,7 @@ void FDefaultInstallBundleManager::UpdateBundleSources(FContentRequestRef Reques
 		Context.CompleteCallback.BindRaw(this, &FDefaultInstallBundleManager::UpdateBundleSourceComplete, Request);
 		Context.RequestSharedContext = Request->RequestSharedContext;
 
-		Pair.Value->RequestUpdateContent(MoveTemp(Context));
+		Source->RequestUpdateContent(MoveTemp(Context));
 	}
 
 	// Release shared context here.  We want to free it ASAP so we aren't pinning items added by

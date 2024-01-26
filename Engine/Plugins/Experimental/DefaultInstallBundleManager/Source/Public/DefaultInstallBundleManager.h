@@ -688,7 +688,9 @@ protected:
 	void PersistentTimingStatsBegin(TSharedRef<FContentRequest> ContentRequest, InstallBundleUtil::PersistentStats::ETimingStatNames TimerStatName);
 	void PersistentTimingStatsEnd(TSharedRef<FContentRequest> ContentRequest, InstallBundleUtil::PersistentStats::ETimingStatNames TimerStatName);
 	
-	virtual TMap<EInstallBundleSourceType, TSharedPtr<IInstallBundleSource>> GetEnabledBundleSourcesForRequest(FContentRequestRef Request) const;
+	TArray<TSharedPtr<IInstallBundleSource>> GetEnabledBundleSourcesForRequest(FContentRequestRef Request) const;
+	virtual TArray<TSharedPtr<IInstallBundleSource>> GetEnabledBundleSourcesForRequest(const FBundleInfo& BundleInfo) const;
+
 	// Initialization state machine
 protected:
 	EInstallBundleManagerInitResult Init_DefaultBundleSources();
