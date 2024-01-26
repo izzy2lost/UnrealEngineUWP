@@ -280,7 +280,7 @@ bool FRewindData::RewindToFrame(int32 Frame)
 	}
 
 	//If we need to save and we are right on the edge of the buffer, we can't go back to earliest frame
-	if(Frame == EarliestFrame && bNeedsSave && FramesSaved == Managers.Capacity())
+	if (Frame == EarliestFrame && bNeedsSave && FramesSaved == Managers.Capacity())
 	{
 #if DEBUG_REWIND_DATA
 		UE_LOG(LogTemp, Log, TEXT("COMMON | PT | RewindToFrame | Failed due to rewinding to last available frame and bNeedsSave is set to true"));
@@ -940,7 +940,7 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 	}
 
 	// First frame of the history datas
-	const int32 EarliestFrame = FMath::Max(GetEarliestFrame_Internal(), BlockResimFrame + 1);
+	const int32 EarliestFrame = FMath::Max(GetEarliestFrame_Internal(), BlockResimFrame);
 	bool bHasTargetHistory = false;
 
 	for (ValidFrame = RequestedFrame; ValidFrame > EarliestFrame; ValidFrame--)

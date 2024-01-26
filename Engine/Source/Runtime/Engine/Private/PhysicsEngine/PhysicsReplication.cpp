@@ -1712,7 +1712,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 
 	const int32 LocalFrame = Target.ServerFrame - Target.FrameOffset;
 
-	if (LocalFrame > RewindData->CurrentFrame() || LocalFrame < RewindData->GetEarliestFrame_Internal())
+	if (LocalFrame >= RewindData->CurrentFrame() || LocalFrame < RewindData->GetEarliestFrame_Internal())
 	{
 		if (LocalFrame > 0 && (RewindData->CurrentFrame() - RewindData->GetEarliestFrame_Internal()) == RewindData->Capacity())
 		{
@@ -1759,7 +1759,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 	}
 #endif
 
-	if (Target.TickCount == 0 && LocalFrame > RewindData->GetBlockedResimFrame() && ShouldTriggerResim)
+	if (ShouldTriggerResim && Target.TickCount == 0 && LocalFrame > RewindData->GetBlockedResimFrame())
 	{
 		// Trigger resimulation
 		RigidsSolver->GetEvolution()->GetIslandManager().SetParticleResimFrame(Handle, LocalFrame);
@@ -1772,7 +1772,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 	{
 		const int32 NumPredictedFrames = RigidsSolver->GetCurrentFrame() - LocalFrame - Target.TickCount;
 
-		if (Target.TickCount <= NumPredictedFrames)
+		if (Target.TickCount <= NumPredictedFrames && NumPredictedFrames > 0)
 		{
 			// Calculate correction to position
 			const float CorrectionAmountX = PhysicsReplicationCVars::ResimulationCVars::PosStabilityMultiplier / NumPredictedFrames; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
@@ -1794,10 +1794,10 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 			// Apply correction
 			Handle->SetX(CorrectedX);
 			Handle->SetR(CorrectedR);
-
-			// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received
-			bClearTarget = Target.TickCount >= NumPredictedFrames;
 		}
+
+		// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received
+		bClearTarget = Target.TickCount >= NumPredictedFrames;
 	}
 
 	return bClearTarget;
