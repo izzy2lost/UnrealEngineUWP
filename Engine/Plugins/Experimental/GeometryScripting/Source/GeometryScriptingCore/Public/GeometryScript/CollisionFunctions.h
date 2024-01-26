@@ -20,7 +20,8 @@ enum class EGeometryScriptCollisionGenerationMethod : uint8
 	Capsules = 3,
 	ConvexHulls = 4,
 	SweptHulls = 5,
-	MinVolumeShapes = 6
+	MinVolumeShapes = 6,
+	LevelSets = 7
 };
 
 

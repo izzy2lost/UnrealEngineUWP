@@ -136,6 +136,9 @@ void ComputeCollisionFromMesh(
 	case EGeometryScriptCollisionGenerationMethod::MinVolumeShapes:
 		ShapeGenerator.Generate_MinVolume(NewCollision.Geometry);
 		break;
+	case EGeometryScriptCollisionGenerationMethod::LevelSets:
+		ShapeGenerator.Generate_LevelSets(NewCollision.Geometry);
+		break;
 	}
 
 	if (Options.bRemoveFullyContainedShapes && Components.Num() > 1)
