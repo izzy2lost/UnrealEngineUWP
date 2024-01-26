@@ -1278,7 +1278,8 @@ void FCurlHttpRequest::FinishRequest()
 			UE_LOG(LogHttp, Warning, TEXT("%p: request failed, libcurl error: %d (%s)"), this, (int32)CurlCompletionResult, ANSI_TO_TCHAR(curl_easy_strerror(CurlCompletionResult)));
 		}
 
-		if (!bCanceled)
+		const bool bAborted = (bCanceled || bTimedOut || bActivityTimedOut);
+		if (!bAborted)
 		{
 			const FScopeLock CacheLock(&InfoMessageCacheCriticalSection);
 			for (int32 i = 0; i < InfoMessageCache.Num(); ++i)
