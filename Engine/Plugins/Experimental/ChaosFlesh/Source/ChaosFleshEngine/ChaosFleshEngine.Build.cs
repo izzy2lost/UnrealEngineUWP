@@ -38,7 +38,6 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Chaos",
 					"ChaosCaching",
-					"ChaosCachingUSD",
 					"ChaosFlesh",
 					"DataflowCore",
 					"DataflowEngine",
@@ -50,11 +49,24 @@ namespace UnrealBuildTool.Rules
 					"RenderCore",
                     "RHI",
 					"Renderer",
-					"UnrealUSDWrapper",
-					"USDClasses",
-					"USDUtilities",
 				}
 				);
+
+			if (Target.Platform == UnrealTargetPlatform.Win64)
+			{
+				PrivateDependencyModuleNames.AddRange(
+					new string[]
+					{
+						"ChaosCachingUSD",
+						"UnrealUSDWrapper",
+						"USDClasses",
+						"USDUtilities",
+					});
+			}
+			else
+			{
+				PrivateDefinitions.Add("USE_USD_SDK=0");
+			}
 
 			DynamicallyLoadedModuleNames.AddRange(
 				new string[]
