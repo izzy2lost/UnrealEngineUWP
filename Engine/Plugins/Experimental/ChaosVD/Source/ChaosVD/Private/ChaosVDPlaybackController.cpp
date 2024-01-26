@@ -119,7 +119,7 @@ void FChaosVDPlaybackController::PlayFromClosestKeyFrame_AssumesLocked(const int
 
 	if (CollapsedFrameData.SolverSteps.Num() > 0)
 	{
-		InSceneToControl.UpdateFromRecordedStepData(InTrackID, CollapsedFrameData.DebugName, CollapsedFrameData.SolverSteps[0], CollapsedFrameData);
+		InSceneToControl.UpdateFromRecordedStepData(InTrackID, CollapsedFrameData.SolverSteps[0], CollapsedFrameData);
 	}
 }
 
@@ -188,7 +188,7 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 					{
 						if (SolverFrameData && SolverFrameData->SolverSteps.IsValidIndex(CurrentTrackInfo->LockedOnStep))
 						{
-							SceneToControlSharedPtr->UpdateFromRecordedStepData(InTrackID, SolverFrameData->DebugName, SolverFrameData->SolverSteps[StepIndex], *SolverFrameData);
+							SceneToControlSharedPtr->UpdateFromRecordedStepData(InTrackID, SolverFrameData->SolverSteps[StepIndex], *SolverFrameData);
 						}
 						else
 						{
@@ -202,7 +202,7 @@ void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int3
 				{
 					if (SolverFrameData && SolverFrameData->SolverSteps.IsValidIndex(Step))
 					{
-						SceneToControlSharedPtr->UpdateFromRecordedStepData(InTrackID, SolverFrameData->DebugName, SolverFrameData->SolverSteps[Step], *SolverFrameData);
+						SceneToControlSharedPtr->UpdateFromRecordedStepData(InTrackID, SolverFrameData->SolverSteps[Step], *SolverFrameData);
 					}
 					else
 					{

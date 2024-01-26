@@ -57,8 +57,6 @@ void FChaosVDRuntimeModule::StartupModule()
 	// Make sure it is off until we support auto trace
 	UE::Trace::ToggleChannel(TEXT("ChaosVDChannel"), false);
 #endif
-
-	FTraceAuxiliary::OnTraceStopped.AddRaw(this, &FChaosVDRuntimeModule::HandleTraceStopRequest);
 }
 
 void FChaosVDRuntimeModule::ShutdownModule()
@@ -113,6 +111,9 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 	{
 		return;
 	}
+
+	// Start Listening for Trace Stopped events, in case Trace is stopped outside our control so we can gracefully stop CVD recording and log a warning 
+	FTraceAuxiliary::OnTraceStopped.AddRaw(this, &FChaosVDRuntimeModule::HandleTraceStopRequest);
 
 	{
 		FReadScopeLock ReadLock(DelegatesRWLock);
@@ -189,6 +190,8 @@ void FChaosVDRuntimeModule::StopRecording()
 	{
 		return;
 	}
+	
+	FTraceAuxiliary::OnTraceStopped.RemoveAll(this);
 
 #if UE_TRACE_ENABLED
 	

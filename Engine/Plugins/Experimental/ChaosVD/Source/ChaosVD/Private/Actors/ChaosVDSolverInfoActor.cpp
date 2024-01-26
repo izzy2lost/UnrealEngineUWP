@@ -4,9 +4,13 @@
 
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
+#include "EditorActorFolders.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/World.h"
+#include "Misc/ScopedSlowTask.h"
+
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
 AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -26,10 +30,18 @@ void AChaosVDSolverInfoActor::SetScene(TWeakPtr<FChaosVDScene> InScene)
 
 void AChaosVDSolverInfoActor::RegisterParticleActor(int32 ParticleID, AChaosVDParticleActor* ParticleActor)
 {
+	if (!ensure(ParticleActor) || !ensure(ParticleActor->GetParticleData()))
+	{
+		return;
+	}
+
 	if (!SolverParticlesByID.Contains(ParticleID))
 	{
 		SolverParticlesByID.Add(ParticleID, ParticleActor);
 	}
+
+	ParticleActor->SetFolderPath(GetFolderPathForParticleType(ParticleActor->GetParticleData()->Type));
+	CreatedFolders.Add(ParticleActor->GetFolder());
 }
 
 AChaosVDParticleActor* AChaosVDSolverInfoActor::GetParticleActor(int32 ParticleID)
@@ -61,20 +73,56 @@ void AChaosVDSolverInfoActor::HandleColorsSettingsUpdated()
 	}
 }
 
-void AChaosVDSolverInfoActor::BeginDestroy()
+void AChaosVDSolverInfoActor::RemoveSolverFolders(UWorld* World)
 {
-	Super::BeginDestroy();
+	if (!World)
+	{
+		return;
+	}
 
+	TOptional<FFolder> ParentFolder;
+
+	for (const FFolder& Folder : CreatedFolders)
+	{
+		FActorFolders::Get().DeleteFolder(*World, Folder);
+
+		// All folders for the particles from this solver will have the same parent
+		if (!ParentFolder.IsSet())
+		{
+			ParentFolder = Folder.GetParent();
+		}
+	}
+	
+	if (ParentFolder.IsSet())
+	{
+		FActorFolders::Get().DeleteFolder(*World, ParentFolder.GetValue());
+	}
+}
+
+void AChaosVDSolverInfoActor::Destroyed()
+{
 	UWorld* World = GetWorld();
 	if (!World)
 	{
 		return;
 	}
+
+	constexpr float AmountOfWork = 1.0f;
+	const float PercentagePerElement = 1.0f / SolverParticlesByID.Num();
+
+	FScopedSlowTask CleaningParticleDataSlowTask(AmountOfWork, LOCTEXT("CleaningParticleDataMessage", "Cleaning Up Particle Data ..."));
+	CleaningParticleDataSlowTask.MakeDialog();
 	
 	for (const TPair<int32, AChaosVDParticleActor*>& ParticleVDInstanceWithID : SolverParticlesByID)
 	{
 		World->DestroyActor(ParticleVDInstanceWithID.Value);
+
+		CleaningParticleDataSlowTask.EnterProgressFrame(PercentagePerElement);
 	}
+
+	RemoveSolverFolders(World);
+
+	Super::Destroyed();
 }
 
 void AChaosVDSolverInfoActor::HandlePostSelectionChange(const UTypedElementSelectionSet* ChangesSelectionSet)
@@ -95,3 +143,21 @@ void AChaosVDSolverInfoActor::HandlePostSelectionChange(const UTypedElementSelec
 		}
 	}
 }
+
+FName AChaosVDSolverInfoActor::GetFolderPathForParticleType(EChaosVDParticleType ParticleType)
+{
+	if (const FName* FoundPathPtr = FolderPathByParticlePath.Find(ParticleType))
+	{
+		return *FoundPathPtr;
+	}
+	else
+	{
+		const FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
+		const FName ParticleFolderPath = *FPaths::Combine(FString::Format(TEXT("Solver {0} | ID {1}"), Args), UEnum::GetDisplayValueAsText(ParticleType).ToString());
+
+		FolderPathByParticlePath.Add(ParticleType, ParticleFolderPath);
+		return ParticleFolderPath;
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

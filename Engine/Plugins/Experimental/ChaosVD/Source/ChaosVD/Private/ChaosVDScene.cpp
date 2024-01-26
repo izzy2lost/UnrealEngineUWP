@@ -27,6 +27,7 @@
 #include "Selection.h"
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
+#include "Engine/Level.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -36,7 +37,7 @@ FChaosVDScene::~FChaosVDScene() = default;
 
 namespace ChaosVDSceneUIOptions
 {
-	constexpr float DelayToShowProgressDialogThreshold = 1.5f;
+	constexpr float DelayToShowProgressDialogThreshold = 1.0f;
 	constexpr bool bShowCancelButton = false;
 	constexpr bool bAllowInPIE = false;
 }
@@ -76,6 +77,10 @@ void FChaosVDScene::Initialize()
 
 void FChaosVDScene::DeInitialize()
 {
+	constexpr float AmountOfWork = 1.0f;
+	FScopedSlowTask ClosingSceneSlowTask(AmountOfWork, LOCTEXT("ClosingSceneMessage", "Closing Scene ..."));
+	ClosingSceneSlowTask.MakeDialog();
+
 	if (!ensure(bIsInitialized))
 	{
 		return;
@@ -87,11 +92,11 @@ void FChaosVDScene::DeInitialize()
 		Settings->OnColorSettingsChanged().RemoveAll(this);
 	}
 
+	CleanUpScene();
+
 	DeInitializeSelectionSets();
 
 	GeometryGenerator.Reset();
-
-	CleanUpScene();
 
 	if (PhysicsVDWorld)
 	{
@@ -103,8 +108,15 @@ void FChaosVDScene::DeInitialize()
 		PhysicsVDWorld->MarkAsGarbage();
 		PhysicsVDWorld = nullptr;
 	}
-	
-	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+	{
+		FScopedSlowTask CollectingGarbageSlowTask(1, LOCTEXT("CollectingGarbageDataMessage", "Collecting Garbage ..."));
+		CollectingGarbageSlowTask.MakeDialog();
+
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+
+		CollectingGarbageSlowTask.EnterProgressFrame();
+	}
 
 	bIsInitialized = false;
 }
@@ -118,7 +130,7 @@ void FChaosVDScene::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(ComponentSelection);
 }
 
-void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FString& SolverName, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
+void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChaosVDStepData& InRecordedStepData, const FChaosVDSolverFrameData& InFrameData)
 {
 	AChaosVDSolverInfoActor* SolverSceneData = SolverDataContainerBySolverID.FindChecked(SolverID);
 
@@ -134,7 +146,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 		constexpr float AmountOfWork = 1.0f;
 		const float PercentagePerElement = 1.0f / InRecordedStepData.RecordedParticlesData.Num();
 
-		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromString(SolverName), FText::AsNumber(SolverID));
+		const FText ProgressBarTitle = FText::Format(FTextFormat(LOCTEXT("ProcessingParticleData", "Processing Particle Data for {0} Solver with ID {1} ...")), FText::FromString(SolverSceneData->GetSolverName()), FText::AsNumber(SolverID));
 		FScopedSlowTask UpdatingSceneSlowTask(AmountOfWork, ProgressBarTitle);
 		UpdatingSceneSlowTask.MakeDialogDelayed(ChaosVDSceneUIOptions::DelayToShowProgressDialogThreshold, ChaosVDSceneUIOptions::bShowCancelButton, ChaosVDSceneUIOptions::bAllowInPIE);
 	
@@ -164,11 +176,6 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FStri
 			{
 				if (AChaosVDParticleActor* NewParticleVDInstance = SpawnParticleFromRecordedData(Particle, InFrameData))
 				{
-					FStringFormatOrderedArguments Args {SolverName, FString::FromInt(SolverID)};
-					const FName FolderPath = *FPaths::Combine(FString::Format(TEXT("Solver {0} | ID {1}"), Args), UEnum::GetDisplayValueAsText(NewParticleVDInstance->GetParticleData()->Type).ToString());
-
-					NewParticleVDInstance->SetFolderPath(FolderPath);
-
 					// TODO: Precalculate the max num of entries we would see in the loaded file, and use that number to pre-allocate this map
 					SolverSceneData->RegisterParticleActor(ParticleVDInstanceID, NewParticleVDInstance);
 				}
@@ -231,6 +238,29 @@ void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& 
 	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
 }
 
+void FChaosVDScene::CreateSolverInfoActor(int32 SolverID)
+{
+	if (!SolverDataContainerBySolverID.Contains(SolverID))
+	{
+		AChaosVDSolverInfoActor* SolverDataInfo = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
+		check(SolverDataInfo);
+
+		const FName FolderPath("ChaosVisualDebugger/SolverDataContainer");
+		SolverDataInfo->SetFolderPath(FolderPath);
+
+		const bool bIsServer = IsSolverForServer(SolverID);
+		FString SolverName = LoadedRecording->GetSolverName_AssumedLocked(SolverID);
+
+		SolverDataInfo->SetSolverID(SolverID);
+		SolverDataInfo->SetSolverName(SolverName);
+		SolverDataInfo->SetScene(AsWeak());
+		SolverDataInfo->SetIsServer(bIsServer);
+
+		SolverDataContainerBySolverID.Add(SolverID, SolverDataInfo);
+	}
+}
+
+
 void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData)
 {
 	// Currently the particle actors from all the solvers are in the same level, and we manage them by keeping track
@@ -246,18 +276,7 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 	{
 		AvailableSolversSet.Add(SolverID);
 
-		if (!SolverDataContainerBySolverID.Contains(SolverID))
-		{
-			AChaosVDSolverInfoActor* CollisionDataContainer = PhysicsVDWorld->SpawnActor<AChaosVDSolverInfoActor>();
-			check(CollisionDataContainer);
-
-			const bool bIsServer = LoadedRecording->GetSolverName_AssumedLocked(SolverID).Contains(TEXT("Server"));
-
-			CollisionDataContainer->SetSolverID(SolverID);
-			CollisionDataContainer->SetScene(AsWeak());
-			CollisionDataContainer->SetIsServer(bIsServer);
-			SolverDataContainerBySolverID.Add(SolverID, CollisionDataContainer);
-		}
+		CreateSolverInfoActor(SolverID);
 	}
 
 	int32 AmountRemoved = 0;
@@ -294,6 +313,12 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 
 void FChaosVDScene::CleanUpScene()
 {
+	constexpr float AmountOfWork = 1.0f;
+	const float PercentagePerElement = 1.0f / SolverDataContainerBySolverID.Num();
+
+	FScopedSlowTask CleaningSceneSlowTask(AmountOfWork, LOCTEXT("CleaningupSceneSolverMessage", "Clearing Solver Data ..."));
+	CleaningSceneSlowTask.MakeDialog();
+
 	ClearSelectionAndNotify();
 
 	if (PhysicsVDWorld)
@@ -301,6 +326,7 @@ void FChaosVDScene::CleanUpScene()
 		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverDataInfoWithID : SolverDataContainerBySolverID)
 		{
 			PhysicsVDWorld->DestroyActor(SolverDataInfoWithID.Value);
+			CleaningSceneSlowTask.EnterProgressFrame(PercentagePerElement);
 		}
 	}
 
@@ -468,6 +494,11 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 										  .ShouldSimulatePhysics( false )
 										  .SetTransactional( false )
 	);
+
+	if (ULevel* Level = NewWorld->GetCurrentLevel())
+	{
+		Level->SetUseActorFolders(true);
+	}
 
 	CreateBaseLights(NewWorld);
 	CreateSceneQueriesContainer(NewWorld);
