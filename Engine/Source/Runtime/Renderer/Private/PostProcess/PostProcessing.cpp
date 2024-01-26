@@ -2728,7 +2728,10 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 	if (IsPostProcessingEnabled(View))
 	{
-		AddPostProcessMaterialPass(BL_SceneColorAfterTonemapping, true);
+		if (PassSequence.IsEnabled(EPass::PostProcessMaterialAfterTonemapping))
+		{
+			AddPostProcessMaterialPass(BL_SceneColorAfterTonemapping, true);
+		}
 
 		if (PassSequence.IsEnabled(EPass::FXAA))
 		{
