@@ -30,7 +30,7 @@ public:
 
 	virtual TConstArrayView<NNE::FTensorShape> GetOutputTensorShapes() const override;
 
-	virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+	virtual ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
 	virtual EEnqueueRDGStatus EnqueueRDG(FRDGBuilder &GraphBuilder, TConstArrayView<NNE::FTensorBindingRDG> Inputs, TConstArrayView<NNE::FTensorBindingRDG> Outputs) override;
 

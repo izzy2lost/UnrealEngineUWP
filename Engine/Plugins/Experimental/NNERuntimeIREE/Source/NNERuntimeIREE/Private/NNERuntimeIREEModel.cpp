@@ -638,7 +638,7 @@ namespace UE::NNERuntimeIREE
 				}
 
 			public:
-				using ESetInputTensorShapeStatus = UE::NNE::IModelInstanceCPU::ESetInputTensorShapeStatus;
+				using ESetInputTensorShapesStatus = UE::NNE::IModelInstanceCPU::ESetInputTensorShapesStatus;
 				using ERunSyncStatus = UE::NNE::IModelInstanceCPU::ERunSyncStatus;
 
 				~FSession()
@@ -724,12 +724,12 @@ namespace UE::NNERuntimeIREE
 					return OutputTensorShapes;
 				}
 
-				ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
+				ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
 				{
 					check(InputTensorDescs.Num() == InInputShapes.Num());
 					checkCode(for (int32 i = 0; i < InputTensorDescs.Num(); i++) { check(InInputShapes[i].IsCompatibleWith(InputTensorDescs[i].GetShape())); });
 					InputTensorShapes = InInputShapes;
-					return ESetInputTensorShapeStatus::Ok;
+					return ESetInputTensorShapesStatus::Ok;
 				}
 
 				ERunSyncStatus RunSyncCPU(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings)
@@ -898,7 +898,7 @@ namespace UE::NNERuntimeIREE
 			return Session->GetOutputTensorShapes();
 		}
 
-		FModelInstance::ESetInputTensorShapeStatus FModelInstance::SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
+		FModelInstance::ESetInputTensorShapesStatus FModelInstance::SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
 		{
 			return Session->SetInputTensorShapes(InInputShapes);
 		}

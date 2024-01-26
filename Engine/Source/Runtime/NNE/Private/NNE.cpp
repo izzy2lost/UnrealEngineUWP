@@ -81,9 +81,9 @@ namespace UE::NNE
 		TMap<FString, TWeakInterfacePtr<INNERuntime>> Runtimes;
 	};
 
-	ERegisterRuntimeResultStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
+	ERegisterRuntimeStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
 	{
-		const ERegisterRuntimeResultStatus Result = FRegistry::GetInstance().Add(Runtime);
+		const ERegisterRuntimeStatus Result = FRegistry::GetInstance().Add(Runtime);
 
 #ifdef WITH_EDITOR
 		FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
@@ -106,7 +106,7 @@ namespace UE::NNE
 		return Result;
 	}
 
-	EUnregisterRuntimeResultStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
+	EUnregisterRuntimeStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
 	{
 		return FRegistry::GetInstance().Remove(Runtime);
 	}

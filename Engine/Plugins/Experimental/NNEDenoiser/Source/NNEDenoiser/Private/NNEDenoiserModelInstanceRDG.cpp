@@ -84,7 +84,7 @@ namespace UE::NNEDenoiser::Private
 		return ModelInstance->GetOutputTensorShapes();
 	}
 
-	FModelInstanceRDG::ESetInputTensorShapeStatus FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
 		return ModelInstance->SetInputTensorShapes(InInputShapes);
 	}

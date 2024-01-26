@@ -26,7 +26,7 @@ namespace UE::NNERuntimeORT::Private
 		FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedPtr<Ort::Env> InEnvironment);
 		virtual ~FModelInstanceORTBase() = default;
 
-		virtual typename ModelInterface::ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+		virtual typename ModelInterface::ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
 		bool Init(TConstArrayView<uint8> ModelData);
 

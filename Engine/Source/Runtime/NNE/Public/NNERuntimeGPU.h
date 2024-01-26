@@ -35,7 +35,7 @@ class NNE_API IModelInstanceGPU
 {
 public:
 
-	using ESetInputTensorShapeStatus = EResultStatus;
+	using ESetInputTensorShapesStatus = EResultStatus;
 	using ERunSyncStatus = EResultStatus;
 
 	virtual ~IModelInstanceGPU() = default;
@@ -83,7 +83,7 @@ public:
 	 * @param InInputShapes The input shapes to prepare the model with.
 	 * @return Status indicating success or failure.
 	 */
-	virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
+	virtual ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
 
 	/**
 	 * Evaluate the model synchronously.

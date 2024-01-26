@@ -20,7 +20,7 @@ public:
 	virtual TConstArrayView<NNE::FTensorDesc> GetOutputTensorDescs() const override;
 	virtual TConstArrayView<NNE::FTensorShape> GetInputTensorShapes() const override;
 	virtual TConstArrayView<NNE::FTensorShape> GetOutputTensorShapes() const override;
-	virtual typename ModelInterface::ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+	virtual typename ModelInterface::ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
 protected:
 
@@ -57,14 +57,14 @@ TConstArrayView<FTensorShape> FModelInstanceBase<T>::GetOutputTensorShapes() con
 }
 
 template <class T>
-typename T::ESetInputTensorShapeStatus FModelInstanceBase<T>::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
+typename T::ESetInputTensorShapesStatus FModelInstanceBase<T>::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
 {
 	InputTensorShapes.Reset(InInputShapes.Num());
 
 		if (InInputShapes.Num() != InputSymbolicTensors.Num())
 		{
 			UE_LOG(LogNNE, Error, TEXT("Number of input shapes does not match number of input tensors"));
-			return T::ESetInputTensorShapeStatus::Fail;
+			return T::ESetInputTensorShapesStatus::Fail;
 		}
 
 		for (int32 i = 0; i < InInputShapes.Num(); ++i)
@@ -73,7 +73,7 @@ typename T::ESetInputTensorShapeStatus FModelInstanceBase<T>::SetInputTensorShap
 			if (!InInputShapes[i].IsCompatibleWith(SymbolicDesc.GetShape()))
 			{
 				UE_LOG(LogNNE, Error, TEXT("Input shape does not match input tensor %s of index %d"), *SymbolicDesc.GetName(), i);
-				return T::ESetInputTensorShapeStatus::Fail;
+				return T::ESetInputTensorShapesStatus::Fail;
 			}
 		}
 		
@@ -81,7 +81,7 @@ typename T::ESetInputTensorShapeStatus FModelInstanceBase<T>::SetInputTensorShap
 
 	//Implementations are responsible to handle output and intermediate tensor shape inference.
 	//This base implementation only validate that all inputs are matching what the model can support.
-	return T::ESetInputTensorShapeStatus::Ok;
+	return T::ESetInputTensorShapesStatus::Ok;
 }
 
 } // namespace UE::NNE::Internal

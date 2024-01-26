@@ -3383,20 +3383,20 @@ namespace UE::NNE::RuntimeBasic
 		, Instance(Model->Layer->MakeInstance())
 	{}
 
-	FModelInstanceCPU::ESetInputTensorShapeStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
+	FModelInstanceCPU::ESetInputTensorShapesStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
 	{
 		NNE_RUNTIME_BASIC_TRACE_SCOPE(NNE::RuntimeBasic::FModelInstanceCPU::SetInputTensorShapes);
 
 		if (!ensureMsgf(InInputShapes.Num() == 1, TEXT("Basic CPU Inference only supports single input tensor.")))
 		{
-			return ESetInputTensorShapeStatus::Fail;
+			return ESetInputTensorShapesStatus::Fail;
 		}
 
 		const FTensorShape& InputShape = InInputShapes[0];
 
 		if (!ensureMsgf(InputShape.Rank() == 2, TEXT("Basic CPU Inference only supports rank 2 input tensors.")))
 		{
-			return ESetInputTensorShapeStatus::Fail;
+			return ESetInputTensorShapesStatus::Fail;
 		}
 
 		const uint32 InputBatchSize = InputShape.GetData()[0];
@@ -3406,7 +3406,7 @@ namespace UE::NNE::RuntimeBasic
 
 		if (!ensureMsgf(InputInputSize == ModelInputSize, TEXT("Input tensor shape does not match model input size. Got %i, expected %i."), InputInputSize, ModelInputSize))
 		{
-			return ESetInputTensorShapeStatus::Fail;
+			return ESetInputTensorShapesStatus::Fail;
 		}
 
 		BatchSize = InputBatchSize;
@@ -3421,7 +3421,7 @@ namespace UE::NNE::RuntimeBasic
 			Instance->SetMaxBatchSize(BatchSize);
 		}
 
-		return ESetInputTensorShapeStatus::Ok;
+		return ESetInputTensorShapesStatus::Ok;
 	}
 
 	FModelInstanceCPU::ERunSyncStatus FModelInstanceCPU::RunSync(TConstArrayView<FTensorBindingCPU> InInputBindings, TConstArrayView<FTensorBindingCPU> InOutputBindings)

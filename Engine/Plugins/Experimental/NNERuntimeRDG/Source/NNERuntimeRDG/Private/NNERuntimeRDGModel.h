@@ -14,13 +14,13 @@ namespace UE::NNERuntimeRDG::Private
 	class FModelInstanceRDG : public NNE::Internal::FModelInstanceBase<NNE::IModelInstanceRDG>
 	{
 	public:
-		using ESetInputTensorShapeStatus = IModelInstanceRDG::ESetInputTensorShapeStatus;
+		using ESetInputTensorShapesStatus = IModelInstanceRDG::ESetInputTensorShapesStatus;
 		using EEnqueueRDGStatus = IModelInstanceRDG::EEnqueueRDGStatus;
 
 		FModelInstanceRDG() {};
 		virtual ~FModelInstanceRDG() = default;
 
-		virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+		virtual ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 		virtual EEnqueueRDGStatus EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<NNE::FTensorBindingRDG> InInputBindings, TConstArrayView<NNE::FTensorBindingRDG> InOutputBindings) override;
 		
 	protected:

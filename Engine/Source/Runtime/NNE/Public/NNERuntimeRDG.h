@@ -35,7 +35,7 @@ class NNE_API IModelInstanceRDG
 {
 public:
 
-	using ESetInputTensorShapeStatus = EResultStatus;
+	using ESetInputTensorShapesStatus = EResultStatus;
 	using EEnqueueRDGStatus = EResultStatus;
 
 	virtual ~IModelInstanceRDG() = default;
@@ -84,7 +84,7 @@ public:
 	 * @param InInputShapes The input shapes to prepare the model with.
 	 * @return Status indicating success or failure.
 	 */
-	virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
+	virtual ESetInputTensorShapesStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
 
 	/**
 	 * Enqueue the model graph to a FRDGBuilder.
