@@ -9,7 +9,6 @@
 #include "EditorInteractiveGizmoSelectionBuilder.h"
 #include "EditorInteractiveGizmoSubsystem.h"
 #include "EditorModeManager.h"
-#include "Elements/Framework/TypedElementSelectionSet.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformCrt.h"
@@ -29,24 +28,38 @@ class FCanvas;
 
 namespace GizmoManagerLocals
 {
-	static int32 UseLegacyWidget = 1;
+	static bool UseNewTRSWidget = false;
+	static UEditorInteractiveGizmoManager::FOnUsesNewTRSGizmosChanged OnUsesNewTRSGizmosChanged;
+	static UEditorInteractiveGizmoManager::FOnGizmosParametersChanged OnGizmosParametersChanged;
 }
-
-static FAutoConsoleVariableRef CVarUseLegacyWidget(
-	TEXT("Gizmos.UseLegacyWidget"),
-	GizmoManagerLocals::UseLegacyWidget,
-	TEXT("Specify whether to use selection-based gizmos or legacy widget\n")
-	TEXT("0 = enable UE5 transform and other selection-based gizmos.\n")
-	TEXT("1 = enable legacy UE4 transform widget."),
-	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
-	{
-		GizmoManagerLocals::UseLegacyWidget = FMath::Clamp(GizmoManagerLocals::UseLegacyWidget, 0, 1);
-	}),
-	ECVF_RenderThreadSafe);
 
 bool UEditorInteractiveGizmoManager::UsesNewTRSGizmos()
 {
-	return (GizmoManagerLocals::UseLegacyWidget == 0);
+	return GizmoManagerLocals::UseNewTRSWidget;
+}
+
+void UEditorInteractiveGizmoManager::SetUsesNewTRSGizmos(const bool bUseNewTRSGizmos)
+{
+	if (bUseNewTRSGizmos != GizmoManagerLocals::UseNewTRSWidget)
+	{
+		GizmoManagerLocals::UseNewTRSWidget = bUseNewTRSGizmos;
+		GizmoManagerLocals::OnUsesNewTRSGizmosChanged.Broadcast(GizmoManagerLocals::UseNewTRSWidget);
+	}
+}
+
+UEditorInteractiveGizmoManager::FOnUsesNewTRSGizmosChanged& UEditorInteractiveGizmoManager::OnUsesNewTRSGizmosChangedDelegate()
+{
+	return GizmoManagerLocals::OnUsesNewTRSGizmosChanged;
+}
+
+void UEditorInteractiveGizmoManager::SetGizmosParameters(const FGizmosParameters& InParameters)
+{
+	GizmoManagerLocals::OnGizmosParametersChanged.Broadcast(InParameters);
+}
+
+UEditorInteractiveGizmoManager::FOnGizmosParametersChanged& UEditorInteractiveGizmoManager::OnGizmosParametersChangedDelegate()
+{
+	return GizmoManagerLocals::OnGizmosParametersChanged;
 }
 
 UEditorInteractiveGizmoManager::UEditorInteractiveGizmoManager() :
@@ -112,6 +125,8 @@ bool UEditorInteractiveGizmoManager::DestroyEditorGizmo(UInteractiveGizmo* Gizmo
 		return false;
 	}
 
+	OnGizmosParametersChangedDelegate().RemoveAll(Gizmo);
+	
 	InputRouter->ForceTerminateSource(Gizmo);
 
 	Gizmo->Shutdown();
@@ -172,6 +187,20 @@ UInteractiveGizmo* UEditorInteractiveGizmoManager::CreateGizmo(const FString& Bu
 	return Super::CreateGizmo(BuilderIdentifier, InstanceIdentifier, Owner);
 }
 
+bool UEditorInteractiveGizmoManager::DestroyGizmo(UInteractiveGizmo* InGizmo)
+{
+	const bool bHasGizmo = ActiveGizmos.ContainsByPredicate([InGizmo](const FActiveGizmo& ActiveGizmo)
+	{
+		return ActiveGizmo.Gizmo == InGizmo;
+	});
+	if (bHasGizmo)
+	{
+		OnGizmosParametersChangedDelegate().RemoveAll(InGizmo);
+	}
+	
+	return Super::DestroyGizmo(InGizmo);
+}
+
 // @todo move this to a gizmo context object
 bool UEditorInteractiveGizmoManager::GetShowEditorGizmos()
 {
@@ -203,6 +232,7 @@ void UEditorInteractiveGizmoManager::UpdateActiveEditorGizmos()
 		bShowEditorGizmos = false;
 		return;
 	}
+	
 	
 	const bool bEditorModeToolsSupportsWidgetDrawing = EditorModeManager ? EditorModeManager->GetShowWidget() : true;
 	const bool bNewShowEditorGizmos = bEditorModeToolsSupportsWidgetDrawing && bEnableEditorGizmos;

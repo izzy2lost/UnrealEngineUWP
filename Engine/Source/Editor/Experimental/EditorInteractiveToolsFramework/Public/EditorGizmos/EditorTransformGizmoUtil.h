@@ -95,10 +95,10 @@ private:
 
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void UpdateGizmo(const TArray<FEditorViewportClient*>& InViewportClients) const;
 	
-	EDITORINTERACTIVETOOLSFRAMEWORK_API void InitializeCVarBinding();
+	EDITORINTERACTIVETOOLSFRAMEWORK_API void InitializeGizmoManagerBinding();
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void InitializeViewportsBinding();
 	
-	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveCVarBinding();
+	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveGizmoManagerBinding();
 	EDITORINTERACTIVETOOLSFRAMEWORK_API void RemoveViewportsBinding();
 
 	typedef FName FEditorModeID;
@@ -108,7 +108,7 @@ private:
 	
 	FEditorModeTools* ModeTools = nullptr;
 	FDelegateHandle ViewportClientsChangedHandle;
-	FDelegateHandle UseLegacyChangedHandled;
+	FDelegateHandle UseNewGizmosChangedHandled;
 	bool bGizmosRegistered = false;
 
 	TSharedPtr<FEditorTransformGizmoDataBinder> DataBinder;

@@ -26,6 +26,7 @@ class UObject;
 class UTypedElementSelectionSet;
 struct FToolBuilderState;
 class UTransformGizmo;
+struct FGizmosParameters;
 
 USTRUCT()
 struct FActiveEditorGizmo
@@ -126,6 +127,9 @@ public:
 	virtual UInteractiveGizmo* CreateGizmo(
 		const FString& BuilderIdentifier, const FString& InstanceIdentifier = FString(), void* Owner = nullptr) override;
 
+	/** Shutdown and remove a Gizmo (UInteractiveGizmoManager override) */
+	virtual bool DestroyGizmo(UInteractiveGizmo* InGizmo) override;
+
 	/** instance/builder identifiers for transform gizmo */
 	static const FString& TransformInstanceIdentifier();
 	static const FString& TransformBuilderIdentifier();
@@ -134,7 +138,29 @@ public:
 	 * Returns true if the new TRS gizmos are used.
 	 */
 	static bool UsesNewTRSGizmos();
-	
+
+	/**
+	 * Updates the current New TRS Gizmo state and notifies that change using OnUsesNewTRSGizmosChangedDelegate  
+	 */
+	static void SetUsesNewTRSGizmos(const bool bUseNewTRSGizmos);
+
+	/**
+	 * Delegate to notify from bUseNewTRSGizmos changes  
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnUsesNewTRSGizmosChanged, const bool bUseNewTRSGizmos);
+	static FOnUsesNewTRSGizmosChanged& OnUsesNewTRSGizmosChangedDelegate();
+
+	/**
+	 * Notifies FGizmosParameters changes across bound transform gizmos
+	 */
+	static void SetGizmosParameters(const FGizmosParameters& InParameters);
+
+	/**
+	 * Delegate to notify from FGizmosParameters changes  
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGizmosParametersChanged, const FGizmosParameters& InParameters);
+    static FOnGizmosParametersChanged& OnGizmosParametersChangedDelegate();
+
 protected:
 
 	/**
