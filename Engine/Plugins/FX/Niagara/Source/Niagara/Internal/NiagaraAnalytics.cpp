@@ -4,7 +4,6 @@
 #include "EngineAnalytics.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
-#include "UObject/Class.h"
 
 void NiagaraAnalytics::RecordEvent(FString&& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
@@ -27,16 +26,6 @@ bool NiagaraAnalytics::IsPluginAsset(const UObject* Obj)
 	{
 		FString Name = Obj->GetPackage()->GetName();
 		return Name.StartsWith(TEXT("/Niagara/"), ESearchCase::CaseSensitive) || Name.StartsWith(TEXT("/NiagaraFluids/"), ESearchCase::CaseSensitive);
-	}
-	return false;
-}
-
-bool NiagaraAnalytics::IsPluginClass(const UClass* Class)
-{
-	if (Class)
-	{
-		FString Name = Class->GetPackage()->GetName();
-		return Name == TEXT("/Script/Niagara") || Name == TEXT("/Script/NiagaraFluids");
 	}
 	return false;
 }

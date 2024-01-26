@@ -13,7 +13,4 @@ namespace NiagaraAnalytics
 
 	// Checks if the provided object is part of a Niagara plugin and can safely be reported on (e.g. the asset name)
 	NIAGARA_API bool IsPluginAsset(const UObject* Obj);
-
-	// Checks if the provided class is part of a Niagara plugin and can safely be reported on (e.g. the asset name)
-	NIAGARA_API bool IsPluginClass(const UClass* Class);
 };

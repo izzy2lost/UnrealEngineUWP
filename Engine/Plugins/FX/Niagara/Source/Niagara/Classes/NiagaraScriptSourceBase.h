@@ -29,13 +29,6 @@ struct EditorExposedVectorCurveConstant
 	class UCurveVector *Value;
 };
 
-struct FNiagaraScriptSourceAnalytics
-{
-	int32 ActiveModules = 0;
-	int32 DisabledModules = 0;
-	TSet<FString> UsedNiagaraModules;
-};
-
 /** External reference to the compile request data generated.*/
 class FNiagaraCompileRequestDataBase
 {
@@ -126,13 +119,12 @@ class UNiagaraScriptSourceBase : public UObject
 
 	virtual FGuid GetChangeID() { return FGuid(); }
 
-	virtual void RegisterVMCompilationIdDependencies(FNiagaraScriptHashCollector& Collector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {}
+	virtual void RegisterVMCompilationIdDependencies(FNiagaraScriptHashCollector& Collector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {};
 	virtual void ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, FNiagaraScriptHashCollector& HashCollector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {};
 
 #if WITH_EDITORONLY_DATA
 	// Will conditionally refresh the graph's CompileId
 	virtual void RefreshGraphCompileId() {};
-	virtual void ReportAnalyticsData(FNiagaraScriptSourceAnalytics& InData) const {};
 #endif
 
 	virtual TMap<FName, UNiagaraDataInterface*> ComputeObjectNameMap(UNiagaraSystem& System, ENiagaraScriptUsage Usage, FGuid UsageId, FString EmitterUniqueName) const { return TMap<FName, UNiagaraDataInterface*>(); }
