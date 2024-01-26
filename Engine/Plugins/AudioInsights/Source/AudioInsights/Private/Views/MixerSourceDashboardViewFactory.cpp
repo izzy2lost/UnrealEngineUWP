@@ -388,22 +388,10 @@ namespace UE::Audio::Insights
 	void FMixerSourceDashboardViewFactory::ToggleMuteForAllItems(ECheckBoxState NewState)
 	{
 #if ENABLE_AUDIO_DEBUG
-		if (FilteredEntriesListView.IsValid())
+		if (MuteState != NewState)
 		{
-			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-			{
-				const TArrayView<const TSharedPtr<IDashboardDataViewEntry>> TableItems = FilteredEntriesListView->GetItems();
-
-				for (const TSharedPtr<IDashboardDataViewEntry>& Item : TableItems)
-				{
-					if (Item.IsValid())
-					{
-						const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(Item).Get();
-
-						AudioDeviceManager->GetDebugger().SetMuteSoundWave(FName { SoundAssetDashboardEntry.Name }, NewState == ECheckBoxState::Checked);
-					}
-				}
-			}
+			MuteState = NewState;
+			UpdateSoloMuteState();
 		}
 #endif
 	}
@@ -411,22 +399,10 @@ namespace UE::Audio::Insights
 	void FMixerSourceDashboardViewFactory::ToggleSoloForAllItems(ECheckBoxState NewState)
 	{
 #if ENABLE_AUDIO_DEBUG
-		if (FilteredEntriesListView.IsValid())
+		if (SoloState != NewState)
 		{
-			if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
-			{
-				const TArrayView<const TSharedPtr<IDashboardDataViewEntry>> TableItems = FilteredEntriesListView->GetItems();
-
-				for (const TSharedPtr<IDashboardDataViewEntry>& Item : TableItems)
-				{
-					if (Item.IsValid())
-					{
-						const FSoundAssetDashboardEntry& SoundAssetDashboardEntry = *StaticCastSharedPtr<FSoundAssetDashboardEntry>(Item).Get();
-
-						AudioDeviceManager->GetDebugger().SetSoloSoundWave(FName { SoundAssetDashboardEntry.Name }, NewState == ECheckBoxState::Checked);
-					}
-				}
-			}
+			SoloState = NewState;
+			UpdateSoloMuteState();
 		}
 #endif
 	}
@@ -532,6 +508,33 @@ namespace UE::Audio::Insights
 
 			MuteToggleButton->SetIsChecked(ECheckBoxState::Unchecked);
 			SoloToggleButton->SetIsChecked(ECheckBoxState::Unchecked);
+		}
+#endif
+	}
+
+	void FMixerSourceDashboardViewFactory::UpdateSoloMuteState()
+	{
+#if ENABLE_AUDIO_DEBUG
+		if (FAudioDeviceManager* AudioDeviceManager = FAudioDeviceManager::Get())
+		{
+			FName CurrentFilterStringName = FName{ CurrentFilterString };
+			if (MuteState == ECheckBoxState::Checked && !CurrentFilterString.IsEmpty())
+			{
+				AudioDeviceManager->GetDebugger().ToggleMuteSoundWave(CurrentFilterStringName, true);
+			}
+			else
+			{
+				AudioDeviceManager->GetDebugger().ToggleMuteSoundWave(NAME_None, true);
+			}
+
+			if (SoloState == ECheckBoxState::Checked && !CurrentFilterString.IsEmpty())
+			{
+				AudioDeviceManager->GetDebugger().ToggleSoloSoundWave(CurrentFilterStringName, true);
+			}
+			else
+			{
+				AudioDeviceManager->GetDebugger().ToggleSoloSoundWave(NAME_None, true);
+			}
 		}
 #endif
 	}
@@ -966,6 +969,15 @@ namespace UE::Audio::Insights
 		});
 
 		UpdatePlotsWidgetsData();
+
+#if ENABLE_AUDIO_DEBUG
+		// Update the mute and solo states if the filter string changes
+		if (CurrentFilterString != FilterString)
+		{
+			CurrentFilterString = FilterString;
+			UpdateSoloMuteState();
+		}
+#endif
 	}
 
 #if WITH_EDITOR
