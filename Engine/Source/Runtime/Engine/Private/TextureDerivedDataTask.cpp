@@ -1007,7 +1007,17 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 				}
 			}
 		
-			int64 CurrentBlockTopMipNumPixels = (int64)SourceBlock.SizeX * SourceBlock.SizeY * SourceBlock.NumSlices;;
+			// assume pow2 options are the same for all layers, just use layer 0 here :
+			const FTextureBuildSettings & BuildSettings = InSettingsPerLayerFetchFirst[0];
+
+			int32 TargetSizeX, TargetSizeY, TargetSizeZ;
+			UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(SourceBlock.SizeX,SourceBlock.SizeY,SourceBlock.NumSlices,
+				BuildSettings.bVolume, (ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode, 
+				BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, 
+				TargetSizeX, TargetSizeY, TargetSizeZ);
+
+			int64 CurrentBlockTopMipNumPixels = (int64)TargetSizeX * TargetSizeY * TargetSizeZ;
+
 			TotalTopMipNumPixelsPerLayer += CurrentBlockTopMipNumPixels;
 
 			LargestBlockTopMipNumPixels = FMath::Max( CurrentBlockTopMipNumPixels , LargestBlockTopMipNumPixels );
@@ -1135,7 +1145,6 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 
 		// Compute the memory it should take to uncompress the bulkdata in memory
 		int64 TotalSourceBytes = 0;
-		int64 TotalTopMipNumPixels = 0;
 
 		FTextureSourceBlock SourceBlock;
 		Source.GetBlock(0, SourceBlock);
@@ -1145,12 +1154,20 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 			TotalSourceBytes += Source.CalcMipSize(0, 0, MipIndex);
 		}
 		
-		TotalTopMipNumPixels += (int64)SourceBlock.SizeX * SourceBlock.SizeY * SourceBlock.NumSlices;
-	
 		if ( TotalSourceBytes <= 0 )
 		{
 			return -1; /* Unknown */
 		}
+		
+		const FTextureBuildSettings & BuildSettings = InSettingsPerLayerFetchFirst[0];
+		
+		int32 TargetSizeX, TargetSizeY, TargetSizeZ;
+		UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(SourceBlock.SizeX,SourceBlock.SizeY,SourceBlock.NumSlices,
+			BuildSettings.bVolume, (ETexturePowerOfTwoSetting::Type)BuildSettings.PowerOfTwoMode, 
+			BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, 
+			TargetSizeX, TargetSizeY, TargetSizeZ);
+
+		int64 TotalTopMipNumPixels = (int64)TargetSizeX * TargetSizeY * TargetSizeZ;
 
 		// assume full mip chain :
 		int64 TotalNumPixels = (TotalTopMipNumPixels * 4)/3;
@@ -1161,8 +1178,6 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 		
 		int64 MemoryEstimate = TotalSourceBytes + IntermediateFloatColorBytes;
 	
-		const FTextureBuildSettings & BuildSettings = InSettingsPerLayerFetchFirst[0];
-
 		EPixelFormat PixelFormat = GetOutputPixelFormat(BuildSettings,bHasAlpha);
 
 		if ( PixelFormat == PF_Unknown )
@@ -1205,6 +1220,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 			}
 			else if ( TextureFormatName == "BC4" || TextureFormatName == "BC5" )
 			{
+				// changed: TFO uses 2_U16 now (4 byte intermediate)
 				IntermediateBytesPerPixel = 8; // RGBA16
 			}
 			else
@@ -1220,6 +1236,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 			if ( bRDO )
 			{
 				// activity map for whole image :
+				// (this has changed in newer versions of Oodle Texture)
 
 				// Phase1 = computing activity map
 				int ActivityBytesPerPixel;
@@ -1260,10 +1277,13 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 		{
 			// ASTCenc does an entermediate copy to RGBA16F for HDR formats and RGBA8 for LDR
 			MemoryEstimate += (IsHDR(PixelFormat) ? 8 : 4) * TotalNumPixels;
+			// internal memory use of ASTCenc is not estimated
+			// @todo : fix me
 		}
 		else
 		{
 			// note: memory ues of non-Oodle encoders is not estimated
+			// @todo : fix me
 		}
 		
 		MemoryEstimate += 64 * 1024; // overhead room
@@ -1273,6 +1293,7 @@ static int64 GetBuildRequiredMemoryEstimate(UTexture* InTexture,
 		return MemoryEstimate;
 
 		// @todo Oodle : not right for volumes & latlong cubes
+		// @todo Oodle : not right with Composite , CPU textures
 	}
 }
 
