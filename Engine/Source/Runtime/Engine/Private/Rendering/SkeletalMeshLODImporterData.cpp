@@ -1430,44 +1430,84 @@ void FSkeletalMeshImportData::ComputeSmoothGroupFromNormals()
 	}
 }
 
-void FSkeletalMeshImportData::SetMorphTargets(
-	const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets,
-	int32 InLODIndex,
+void FSkeletalMeshImportData::AddMorphTarget(
+	FName InMorphTargetName,
+	const FMorphTargetLODModel& InMorphTargetModel,
 	const TArray<uint32>& InVertexMap
 	)
 {
-	MorphTargets.Reset();
-	MorphTargetNames.Reset();
-	MorphTargetModifiedPoints.Reset();
+	MorphTargetNames.Add(InMorphTargetName.ToString());
 
-	for (UMorphTarget* MorphTargetSrc: InMorphTargets)
+	FSkeletalMeshImportData& MorphTargetDst = MorphTargets.AddDefaulted_GetRef();
+	TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints.AddDefaulted_GetRef();
+
+	for (const FMorphTargetDelta& Delta: InMorphTargetModel.Vertices)
 	{
-		if (!MorphTargetSrc->HasDataForLOD(InLODIndex))
+		if (InVertexMap.IsValidIndex(Delta.SourceIdx))
 		{
-			continue;
-		}
-
-		const FMorphTargetLODModel& MorphTargetModel = MorphTargetSrc->GetMorphLODModels()[InLODIndex];
-
-		MorphTargetNames.Add(MorphTargetSrc->GetName());
-
-		FSkeletalMeshImportData& MorphTargetDst = MorphTargets.AddDefaulted_GetRef();
-		TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints.AddDefaulted_GetRef();
-
-		for (const FMorphTargetDelta& Delta: MorphTargetModel.Vertices)
-		{
-			if (InVertexMap.IsValidIndex(Delta.SourceIdx))
+			const int32 MappedIndex = InVertexMap[Delta.SourceIdx];
+			if (Points.IsValidIndex(MappedIndex))
 			{
-				const int32 MappedIndex = InVertexMap[Delta.SourceIdx];
-				if (Points.IsValidIndex(MappedIndex))
-				{
-					ModifiedPoints.Add(MappedIndex);
-					MorphTargetDst.Points.Add(Delta.PositionDelta + Points[MappedIndex]);
-				}
+				ModifiedPoints.Add(MappedIndex);
+				MorphTargetDst.Points.Add(Delta.PositionDelta + Points[MappedIndex]);
 			}
 		}
 	}
 }
+
+void FSkeletalMeshImportData::AddSkinWeightProfile(
+	FName InProfileName,
+	const FImportedSkinWeightProfileData& InProfileData,
+	const TArray<int32>& InVertexMap,
+	const TArray<FBoneIndexType>& InBoneIndexMap
+	)
+{
+	AlternateInfluenceProfileNames.Add(InProfileName.ToString());
+	FSkeletalMeshImportData& TargetProfileData = AlternateInfluences.AddDefaulted_GetRef();
+
+	TargetProfileData.Points = Points;
+	TargetProfileData.Wedges = Wedges;
+	TargetProfileData.Faces = Faces;
+	TargetProfileData.RefBonesBinary = RefBonesBinary;
+	TargetProfileData.Influences.Reserve(InProfileData.SourceModelInfluences.Num());
+
+	// We can't use the SourceModelInfluences since it may come from a alt skin mesh that didn't have the exact
+	// same point location and was therefore projected onto base base mesh. However, those points no longer exist
+	// and so we can't rely on them. Instead we reverse map back the LOD model influences onto the import model
+	// using the vertex map. We need to keep track of which target point we've set since points may have gotten split,
+	// and the vertex map can point to the same point multiple times, and we don't want to end up with double weights.
+	TSet<int32> ProcessedVertex;
+	for (int32 VertexIndex = 0; VertexIndex < InProfileData.SkinWeights.Num(); VertexIndex++)
+	{
+		const FRawSkinWeight& SourceWeights = InProfileData.SkinWeights[VertexIndex];
+		const int32 TargetVertexIndex = InVertexMap[VertexIndex];
+		if (ProcessedVertex.Contains(TargetVertexIndex))
+		{
+			continue;
+		}
+
+		ProcessedVertex.Add(TargetVertexIndex);
+		
+		for (int32 InfluenceIndex = 0; InfluenceIndex < MAX_TOTAL_INFLUENCES; InfluenceIndex++)
+		{
+			if (SourceWeights.InfluenceWeights[InfluenceIndex] == 0)
+			{
+				continue;
+			}
+
+			if (InBoneIndexMap.IsValidIndex(SourceWeights.InfluenceBones[InfluenceIndex]))
+			{
+				SkeletalMeshImportData::FRawBoneInfluence TargetInfluence;
+				TargetInfluence.VertexIndex = TargetVertexIndex;
+				TargetInfluence.BoneIndex = InBoneIndexMap[SourceWeights.InfluenceBones[InfluenceIndex]];
+				TargetInfluence.Weight = SourceWeights.InfluenceWeights[InfluenceIndex] / 65535.0f;
+				TargetProfileData.Influences.Add(TargetInfluence);
+			}
+		}
+	}
+}
+
+
 
 void FSkeletalMeshImportData::CleanUpUnusedMaterials()
 {

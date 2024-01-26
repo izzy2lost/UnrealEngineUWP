@@ -1381,6 +1381,11 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 		MeshAttributes.RegisterMorphTargetAttribute(Name);
 	}
 
+	for (const TPair<FName, FImportedSkinWeightProfileData>& SkinWeightProfileInfo: SkinWeightProfiles)
+	{
+		MeshAttributes.RegisterSkinWeightAttribute(SkinWeightProfileInfo.Key);
+	}
+
 	const int32 NumTriangles = IndexBuffer.Num() / 3;
 
 	const FReferenceSkeleton& RefSkeleton = InSkeletalMesh->GetRefSkeleton();
@@ -1539,11 +1544,29 @@ void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMe
 		}
 	}
 
-	// Set Bone Attributes
-	for (int Idx = 0; Idx < NumBones; ++Idx)
+	for (const TPair<FName, FImportedSkinWeightProfileData>& SkinWeightProfileInfo: SkinWeightProfiles)
 	{
-		const FMeshBoneInfo& BoneInfo = RefSkeleton.GetRawRefBoneInfo()[Idx];
-		const FTransform& BoneTransform = RefSkeleton.GetRawRefBonePose()[Idx];
+		FSkinWeightsVertexAttributesRef SkinWeightAttribute = MeshAttributes.GetVertexSkinWeights(SkinWeightProfileInfo.Key);
+		const FImportedSkinWeightProfileData& SkinWeightProfileData = SkinWeightProfileInfo.Value;
+
+		check(SkinWeightProfileData.SkinWeights.Num() == NumVertices);
+		
+		for (int32 Index = 0; Index < SkinWeightProfileData.SkinWeights.Num(); Index++)
+		{
+			const FRawSkinWeight& RawSkinWeights = SkinWeightProfileData.SkinWeights[Index];
+			const int32 TargetVertexIndex = SourceToTargetVertexMap[Index];
+			const FVertexID VertexID = VertexIDs[TargetVertexIndex];
+			
+			FBoneWeights Weights = FBoneWeights::Create(RawSkinWeights.InfluenceBones, RawSkinWeights.InfluenceWeights);
+			SkinWeightAttribute.Set(VertexID, Weights);
+		}
+	}
+	
+	// Set Bone Attributes
+	for (int Index = 0; Index < NumBones; ++Index)
+	{
+		const FMeshBoneInfo& BoneInfo = RefSkeleton.GetRawRefBoneInfo()[Index];
+		const FTransform& BoneTransform = RefSkeleton.GetRawRefBonePose()[Index];
 
 		const FBoneID BoneID = MeshAttributes.CreateBone();
 		
