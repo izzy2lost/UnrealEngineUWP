@@ -140,13 +140,26 @@ void FSwitchboardListenerMainWindow::CustomizeToolMenus()
 	static const FName MenuName = "OutputLog.SettingsMenu";
 	UToolMenu* Menu = ToolMenus->ExtendMenu(MenuName);
 
+	FCustomizedToolMenu* CustomizedMenu = ToolMenus->AddRuntimeMenuCustomization(MenuName);
+	CustomizedMenu->AddEntry("Separator")->Visibility = ECustomizedToolMenuVisibility::Hidden;
+
 	CustomizeToolMenus_AddGeneralSection(Menu);
 	CustomizeToolMenus_AddPasswordSection(Menu);
+#if UE_BUILD_DEBUG
 	CustomizeToolMenus_AddDevelopmentSection(Menu);
+#endif
 
-	FToolMenuSection* DefaultSection = Menu->FindSection(NAME_None);
-	DefaultSection->Label = LOCTEXT("SettingsMenu_OutputLogSection_Label", "Output Log");
+	if (FToolMenuSection* DefaultSection = Menu->FindSection(NAME_None); ensure(DefaultSection))
+	{
+		DefaultSection->Label = LOCTEXT("SettingsMenu_OutputLogSection_Label", "Output Log");
+
+		if (FToolMenuEntry* BrowseLogsEntry = DefaultSection->FindEntry("BrowseLogDirectory"); ensure(BrowseLogsEntry))
+		{
+			BrowseLogsEntry->Label = LOCTEXT("SettingsMenu_BrowseLogDirectory_Label", "Open Logs Folder");
+		}
+	}
 }
+
 
 void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddGeneralSection(UToolMenu* InMenu)
 {
@@ -205,45 +218,12 @@ void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddGeneralSection(UToolM
 #endif // #if SWITCHBOARD_LISTENER_AUTOLAUNCH
 }
 
+
 void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddPasswordSection(UToolMenu* InMenu)
 {
 	FToolMenuSection& PasswordSection = InMenu->AddSection("SBL_Password", LOCTEXT("SettingsMenu_PasswordSection_Label", "Password"), FToolMenuInsert("SBL_General", EToolMenuInsertType::After));
 
-	PasswordSection.AddDynamicEntry("ShowPasswordDynamic", FNewToolMenuSectionDelegate::CreateLambda([this](FToolMenuSection& InSection)
-		{
-			// Reset to false every time menu is opened.
-			bPasswordRevealedInMenu = false;
-
-			FToolUIAction ShowPasswordAction;
-			ShowPasswordAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda([this](const FToolMenuContext&)
-				{
-					return bPasswordRevealedInMenu ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-				});
-			ShowPasswordAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda([this](const FToolMenuContext&)
-				{
-					bPasswordRevealedInMenu = !bPasswordRevealedInMenu;
-				});
-
-			InSection.AddMenuEntry("ShowPassword",
-				TAttribute<FText>::CreateLambda([this]()
-					{
-						return bPasswordRevealedInMenu
-							? FText::FromString(Listener.GetAuthPassword())
-							: LOCTEXT("SettingsMenu_ShowPassword_Placeholder", "••••••");
-					}),
-				FText(),
-				TAttribute<FSlateIcon>::CreateLambda([this]()
-				{
-					return bPasswordRevealedInMenu
-						? FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Visible")
-						: FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Hidden");
-				}),
-				ShowPasswordAction,
-				EUserInterfaceActionType::ToggleButton
-			).bShouldCloseWindowAfterMenuSelection = false;
-		}));
-
-	PasswordSection.AddMenuEntry("ResetPassword", LOCTEXT("SettingsMenu_ResetPassword_Label", "Reset Password"), FText(), FSlateIcon(),
+	PasswordSection.AddMenuEntry("PasswordPanel", LOCTEXT("SettingsMenu_PasswordPanel_Label", "Show/Change Password"), FText(), FSlateIcon(),
 		FExecuteAction::CreateLambda([this]()
 			{
 				PasswordTextBox->SetText(FText::FromString(Listener.GetAuthPassword()));
@@ -252,6 +232,8 @@ void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddPasswordSection(UTool
 	);
 }
 
+
+#if UE_BUILD_DEBUG
 void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddDevelopmentSection(UToolMenu* InMenu)
 {
 	FToolMenuSection& DevelopmentSection = InMenu->AddSection("SBL_Development", LOCTEXT("SettingsMenu_DevelopmentSection_Label", "Development"), FToolMenuInsert(NAME_None, EToolMenuInsertType::After));
@@ -262,6 +244,7 @@ void FSwitchboardListenerMainWindow::CustomizeToolMenus_AddDevelopmentSection(UT
 			})
 	);
 }
+#endif // #if UE_BUILD_DEBUG
 
 
 TSharedRef<SWidget> FSwitchboardListenerMainWindow::CreateRootSwitcher()
@@ -327,7 +310,7 @@ TSharedRef<SWidget> FSwitchboardListenerMainWindow::CreateSetPasswordPanel()
 			[
 				SAssignNew(IntroTextBlock, STextBlock)
 				.Text(LOCTEXT("PasswordPanel_WelcomeIntro", "Please set a password for Switchboard Listener on this machine. This password will be used to authenticate and establish a secure connection with Switchboard."))
-				.Font(FCoreStyle::GetDefaultFontStyle("Medium", 12))
+				.Font(FCoreStyle::GetDefaultFontStyle("Regular", 12))
 			]
 			+ SVerticalBox::Slot()
 			.AutoHeight()
@@ -488,6 +471,24 @@ TSharedRef<SWidget> FSwitchboardListenerMainWindow::CreateMainPanel()
 						{
 							return LOCTEXT("ConnectionStatusText_ConnectedMulti", "Connected to multiple clients");
 						}
+					})
+				.ToolTipText_Lambda([this]()
+					{
+						const TArray<FIPv4Address> ConnectedAddrs = Listener.GetConnectedClientAddresses().Array();
+						if (ConnectedAddrs.Num() > 1)
+						{
+							FFormatOrderedArguments TextAddrs;
+							TextAddrs.Reserve(ConnectedAddrs.Num());
+							for (const FIPv4Address& Addr : ConnectedAddrs)
+							{
+								TextAddrs.Emplace(Addr.ToText());
+							}
+							const FText ConnectedAddrListText = FText::Join(LOCTEXT("ConnectionStatusTooltip_AddrDelimiter", ", "), TextAddrs);
+							return FText::Format(LOCTEXT("ConnectionStatusTooltip_ConnectedMulti", "Connected to multiple clients: {0}"),
+								ConnectedAddrListText);
+						}
+
+						return FText::GetEmpty();
 					})
 			]
 			+ SHorizontalBox::Slot()

@@ -36,7 +36,9 @@ private:
 	void CustomizeToolMenus();
 	void CustomizeToolMenus_AddGeneralSection(UToolMenu* InMenu);
 	void CustomizeToolMenus_AddPasswordSection(UToolMenu* InMenu);
+#if UE_BUILD_DEBUG
 	void CustomizeToolMenus_AddDevelopmentSection(UToolMenu* InMenu);
+#endif
 
 	TSharedRef<SWidget> CreateRootSwitcher();
 	TSharedRef<SWidget> CreateSetPasswordPanel();
