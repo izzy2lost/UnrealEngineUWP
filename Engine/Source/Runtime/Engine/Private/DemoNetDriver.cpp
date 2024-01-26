@@ -88,7 +88,6 @@ static TAutoConsoleVariable<float> CVarDemoMinimumRepPrioritizeTime(TEXT("demo.M
 static TAutoConsoleVariable<float> CVarDemoMaximumRepPrioritizeTime(TEXT("demo.MaximumRepPrioritizePercent"), 0.7, TEXT("Maximum percent of time that may be spent prioritizing actors, regardless of throttling."));
 
 static TAutoConsoleVariable<int32> CVarFastForwardLevelsPausePlayback(TEXT("demo.FastForwardLevelsPausePlayback"), 0, TEXT("If true, pause channels and playback while fast forward levels task is running."));
-static TAutoConsoleVariable<bool> CVarDemoPlaybackDoNotDropPackets(TEXT("demo.DoNotDropPackets"), false, TEXT("If true, will prefer to wait to advance the demo until prerequisites such as level streaming have completed."));
 
 namespace ReplayTaskNames
 {
@@ -2616,24 +2615,6 @@ bool UDemoNetDriver::ProcessPacket(const uint8* Data, int32 Count)
 	}
 
 	return true;
-}
-
-bool UDemoNetDriver::ProcessPacket(const FPlaybackPacket& PlaybackPacket)
-{
-	// This is a bit unfortunate. In order to guarantee performance for when this is used in a shipping game
-	// we need to be willing to drop packets on the floor if we're not ready for them (e.g., because a level hasn't streamed in yet)
-	// But on the other hand, to get reliable behavior for debug/perf analysis we need to do the opposite and wait for the level to stream
-	// in if needed
-	if (CVarDemoPlaybackDoNotDropPackets.GetValueOnGameThread())
-	{
-		return !ShouldSkipPlaybackPacket(PlaybackPacket) &&
-			ProcessPacket(PlaybackPacket.Data.GetData(), PlaybackPacket.Data.Num());
-	}
-	else
-	{
-		return ShouldSkipPlaybackPacket(PlaybackPacket) ||
-			ProcessPacket(PlaybackPacket.Data.GetData(), PlaybackPacket.Data.Num());
-	}
 }
 
 void UDemoNetDriver::WriteDemoFrameFromQueuedDemoPackets(FArchive& Ar, TArray<FQueuedDemoPacket>& QueuedPackets, float FrameTime, EWriteDemoFrameFlags Flags)
