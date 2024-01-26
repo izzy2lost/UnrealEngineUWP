@@ -202,6 +202,10 @@ UTransformGizmo* UEditorTransformGizmoContextObject::CreateTransformGizmo(
 	{
 		OnGizmoCreated.Broadcast(NewGizmo);
 		InGizmoManager->OnGizmosParametersChangedDelegate().AddUObject(NewGizmo, &UTransformGizmo::OnParametersChanged);
+		if (InGizmoManager->GetDefaultGizmosParameters())
+		{
+			NewGizmo->OnParametersChanged(*InGizmoManager->GetDefaultGizmosParameters());
+		}
 	}
 	
 	return NewGizmo;

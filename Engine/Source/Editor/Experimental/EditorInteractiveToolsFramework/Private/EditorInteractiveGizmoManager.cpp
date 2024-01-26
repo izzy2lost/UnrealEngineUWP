@@ -29,6 +29,7 @@ class FCanvas;
 namespace GizmoManagerLocals
 {
 	static bool UseNewTRSWidget = false;
+	static TOptional<FGizmosParameters> OptDefaultParameters;
 	static UEditorInteractiveGizmoManager::FOnUsesNewTRSGizmosChanged OnUsesNewTRSGizmosChanged;
 	static UEditorInteractiveGizmoManager::FOnGizmosParametersChanged OnGizmosParametersChanged;
 }
@@ -54,12 +55,19 @@ UEditorInteractiveGizmoManager::FOnUsesNewTRSGizmosChanged& UEditorInteractiveGi
 
 void UEditorInteractiveGizmoManager::SetGizmosParameters(const FGizmosParameters& InParameters)
 {
+	GizmoManagerLocals::OptDefaultParameters = InParameters;
 	GizmoManagerLocals::OnGizmosParametersChanged.Broadcast(InParameters);
 }
 
 UEditorInteractiveGizmoManager::FOnGizmosParametersChanged& UEditorInteractiveGizmoManager::OnGizmosParametersChangedDelegate()
 {
 	return GizmoManagerLocals::OnGizmosParametersChanged;
+}
+
+const TOptional<FGizmosParameters>& UEditorInteractiveGizmoManager::GetDefaultGizmosParameters()
+{
+	static const TOptional<FGizmosParameters> Invalid;
+	return GizmoManagerLocals::OptDefaultParameters.IsSet() ? GizmoManagerLocals::OptDefaultParameters : Invalid;
 }
 
 UEditorInteractiveGizmoManager::UEditorInteractiveGizmoManager() :
