@@ -10,8 +10,6 @@
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
-#include "Engine/AssetManager.h"
-
 #define LOCTEXT_NAMESPACE "PCGGetPropertyFromObjectPathElement"
 
 #if WITH_EDITOR
@@ -141,10 +139,11 @@ bool FPCGGetPropertyFromObjectPathElement::PrepareDataInternal(FPCGContext* Cont
 	check(Settings);
 
 	FPCGGetPropertyFromObjectPathContext* ThisContext = static_cast<FPCGGetPropertyFromObjectPathContext*>(Context);
+	IPCGAsyncLoadingContext* AsyncLoadContext = static_cast<IPCGAsyncLoadingContext*>(ThisContext);
 
 	bool bIsDone = true;
 
-	if (!ThisContext->bRequestSent)
+	if (!AsyncLoadContext->WasLoadRequested())
 	{
 		const UPCGNode* Node = Context->Node;
 		const bool InPinIsConnected = Node ? Node->IsInputPinConnected(PCGPinConstants::DefaultInputLabel) : false;
@@ -252,19 +251,8 @@ bool FPCGGetPropertyFromObjectPathElement::PrepareDataInternal(FPCGContext* Cont
 
 		if (!ObjectsToLoad.IsEmpty())
 		{
-			if (Settings->bSynchronousLoad)
-			{
-				ThisContext->LoadHandle = UAssetManager::GetStreamableManager().RequestSyncLoad(std::move(ObjectsToLoad));
-			}
-			else
-			{
-				bIsDone = false;
-				ThisContext->bIsPaused = true;
-				ThisContext->LoadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(std::move(ObjectsToLoad), [Context]() { Context->bIsPaused = false; });
-			}
+			bIsDone = AsyncLoadContext->RequestResourceLoad(ThisContext, std::move(ObjectsToLoad), !Settings->bSynchronousLoad);
 		}
-
-		ThisContext->bRequestSent = true;
 	}
 
 	return bIsDone;
