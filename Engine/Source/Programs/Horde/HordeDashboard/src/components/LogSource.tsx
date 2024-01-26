@@ -3,7 +3,7 @@
 import { action, makeObservable, observable } from "mobx";
 import moment, { Moment } from 'moment-timezone';
 import backend from '../backend';
-import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetLogEventResponse, IssueData, LeaseData, LogData, NodeData, StepData, StreamData } from "../backend/Api";
+import { AgentData, BatchData, EventSeverity, GetArtifactResponseV2, GetLogEventResponse, GetLogFileResponse, IssueData, LeaseData, LogData, NodeData, StepData, StreamData } from "../backend/Api";
 import { getBatchSummaryMarkdown, getStepSummaryMarkdown, JobDetails } from "../backend/JobDetails";
 import { getLeaseElapsed, getStepPercent } from '../base/utilities/timeUtils';
 import { BreadcrumbItem } from './Breadcrumbs';
@@ -284,7 +284,14 @@ export abstract class LogSource {
 
       return new Promise<LogSource>(async (resolve, reject) => {
 
-         const data = await backend.getLogData(logId);
+         let data: GetLogFileResponse | undefined;
+         
+         try {
+            data = await backend.getLogData(logId);
+         } catch (reason) {
+            reject(reason)
+            return;
+         }         
 
          const value = Number(`0x${data.jobId}`);
 

@@ -5,7 +5,7 @@ import { action, makeObservable, observable } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import moment from 'moment-timezone';
 import React, { useEffect, useId, useState } from 'react';
-import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import backend from '../backend';
 import { ArtifactContextType, ArtifactData, EventSeverity, GetChangeSummaryResponse, GetJobStepRefResponse, GetLogEventResponse, LogLevel } from '../backend/Api';
 import { CommitCache } from '../backend/CommitCache';
@@ -14,6 +14,9 @@ import { JobDetails } from '../backend/JobDetails';
 import { Markdown } from '../base/components/Markdown';
 import { useWindowSize } from '../base/utilities/hooks';
 import { displayTimeZone, getElapsedString } from '../base/utilities/timeUtils';
+import { getHordeStyling } from '../styles/Styles';
+import { getHordeTheme } from '../styles/theme';
+import { JobArtifactsModal } from './artifacts/ArtifactsModal';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ChangeContextMenu, ChangeContextMenuTarget } from './ChangeButton';
 import { HistoryModal } from './HistoryModal';
@@ -26,9 +29,6 @@ import { getLogStyles, logMetricNormal, logMetricSmall } from "./LogStyle";
 import { PrintException } from './PrintException';
 import { StepRefStatusIcon } from './StatusIcon';
 import { TopNav } from './TopNav';
-import { JobArtifactsModal } from './artifacts/ArtifactsModal';
-import { getHordeTheme } from '../styles/theme';
-import { getHordeStyling } from '../styles/Styles';
 
 class LogHandler {
 
@@ -468,6 +468,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    const [issueHistory, setIssueHistory] = useState(false);
    const [logHistory, setLogHistory] = useState(false);
    const [logArtifacts, setLogArtifacts] = useState("");
+   const [logError, setLogError] = useState("")
 
    let [historyAgentId, setHistoryAgentId] = useState<string | undefined>(undefined);
 
@@ -477,8 +478,6 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    const artifactContext = !!query.get("artifactContext") ? query.get("artifactContext")! as ArtifactContextType : undefined;
    const artifactPath = !!query.get("artifactPath") ? query.get("artifactPath")! : undefined;
-
-
 
    globalHandler = handler;
    globalSearchState = searchState;
@@ -516,6 +515,12 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    }, []);
 
+   if (logError) {
+      return <Stack horizontalAlign='center' style={{paddingTop: 24}} >
+            <Text variant='mediumPlus'>{`Unable to load log data - ${logError}`}</Text>
+         </Stack>      
+   }
+
    if (handler && handler.logSource && handler.logSource.logId !== logId) {
       selection.setItems([], true);
       LogHandler.clear();
@@ -552,6 +557,8 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
          handler.logSource = source;
          setHandler(handler);
+      }).catch((reason) => {
+         setLogError(reason);
       });
 
       return <Spinner size={SpinnerSize.large} />;
