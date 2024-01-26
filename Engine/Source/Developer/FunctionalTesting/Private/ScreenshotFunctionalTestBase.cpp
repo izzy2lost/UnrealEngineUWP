@@ -90,7 +90,7 @@ void AScreenshotFunctionalTestBase::OnScreenshotTakenAndCompared()
 
 void AScreenshotFunctionalTestBase::FinishTest(EFunctionalTestResult TestResult, const FString& Message)
 {
-	if (bScreenshotCompleted)
+	if (!IsReady() ||  bScreenshotCompleted)
 	{
 		RestoreViewSettings();
 
