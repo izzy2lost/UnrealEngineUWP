@@ -2,7 +2,6 @@
 
 #include "XRCreativeTeleporter.h"
 #include "MotionControllerComponent.h"
-#include "XRDeviceVisualizationComponent.h"
 #include "Components/StaticMeshComponent.h"
 
 
