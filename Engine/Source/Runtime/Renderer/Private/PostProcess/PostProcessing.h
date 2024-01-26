@@ -6,11 +6,10 @@
 #include "RHIFwd.h"
 #include "TranslucentRendering.h"
 #include "PathTracing.h"
+#include "PostProcess/PostProcessInputs.h"
 
 enum class EReflectionsMethod;
 
-class FSceneTextureParameters;
-class FSceneTextureUniformParameters;
 class FScreenPassVS;
 class FViewInfo;
 class FVirtualShadowMapArray;
@@ -30,25 +29,6 @@ bool IsPostProcessingWithComputeEnabled(ERHIFeatureLevel::Type FeatureLevel);
 bool IsPostProcessingWithAlphaChannelSupported();
 
 using FPostProcessVS = FScreenPassVS;
-
-struct FPostProcessingInputs
-{
-	TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTextures = nullptr;
-	FRDGTextureRef ViewFamilyTexture = nullptr;
-	FRDGTextureRef CustomDepthTexture = nullptr;
-	FRDGTextureRef ExposureIlluminance = nullptr;
-	FTranslucencyViewResourcesMap TranslucencyViewResourcesMap;
-	FPathTracingResources PathTracingResources;
-
-	bool bSeparateCustomStencil = false;
-
-	void Validate() const
-	{
-		check(SceneTextures);
-		check(ViewFamilyTexture);
-		check(TranslucencyViewResourcesMap.IsValid());
-	}
-};
 
 void AddPostProcessingPasses(
 	FRDGBuilder& GraphBuilder,
