@@ -30,9 +30,9 @@ public:
 	virtual void PostInitProperties() override;
 #endif // WITH_EDITOR
 
-    // When building for VisionOS, default to Full Immersion mode.  If disabled, switches to Window mode. Note: when enabled,
+    // When building for visionOS, default to Full Immersion mode.  If disabled, switches to Window mode. Note: when enabled,
 	// the @main struct in UESwift.swift becomes the new main(). Plus, UIApplicationSceneManifest is auto-generation for Info.plist
-    UPROPERTY(config, EditAnywhere, Category = Build, Meta = (DisplayName = "Enable VisionOS's Immersion Mode (Experimental)", ConfigRestartRequired = true))
+    UPROPERTY(config, EditAnywhere, Category = Build, Meta = (DisplayName = "Enable visionOS's Immersion Mode (Experimental)", ConfigRestartRequired = true))
     bool bUseSwiftUIMain;
 
 	// If checked, the Swift/ObjC bridging headers will be created.

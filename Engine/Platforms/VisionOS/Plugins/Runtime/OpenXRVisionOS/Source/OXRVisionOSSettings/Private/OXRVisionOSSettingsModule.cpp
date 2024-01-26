@@ -16,46 +16,30 @@
 
 class FOXRVisionOSSettings : public IOXRVisionOSSettingsModule
 {
-public:
-	virtual void StartupModule() override
-	{				
-		RegisterSettings();
-	}
-
-	virtual void ShutdownModule() override
-	{
-		if (UObjectInitialized())
-		{
-			UnregisterSettings();  
-		}		
-	}
-private:
-	
-	void RegisterSettings()
-	{
-		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
-		{
-			SettingsModule->RegisterSettings("Project", "Plugins", "OXRVisionOS",
-				LOCTEXT("RuntimeSettingsName", "OXRVisionOS"),
-				LOCTEXT("RuntimeSettingsDescription", "Configure the OXRVisionOS plugin"),
-				GetMutableDefault<UOXRVisionOSRuntimeSettings>()
-			);
-		}
-	}
-
-	void UnregisterSettings()
-	{
-		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
-		{
-			SettingsModule->UnregisterSettings("Project", "Plugins", "OXRVisionOS");
-		}
-	}
 };
 
 //////////////////////////////////////////////////////////////////////////
 
 IMPLEMENT_MODULE(FOXRVisionOSSettings, OXRVisionOSSettings);
 
+//Note: this one is required to get the setting to show up in Editor->Project Settings->Plugins
+FName UOXRVisionOSRuntimeSettings::GetCategoryName() const
+{
+	return TEXT("Plugins");
+}
+
+#if WITH_EDITOR
+FText UOXRVisionOSRuntimeSettings::GetSectionText() const
+{
+	return NSLOCTEXT("OXRVisionOSSettings", "OpenXRVisionOSRuntimeSettingsSection", "OpenXR visionOS");
+}
+
+FText UOXRVisionOSRuntimeSettings::GetSectionDescription() const
+{
+	return NSLOCTEXT("OXRVisionOSSettings", "OpenXRVisionOSRuntimeSettingsSectionDescription", "OpenXR visionOS Settings");
+}
+
+#endif
 //////////////////////////////////////////////////////////////////////////
 
 #undef LOCTEXT_NAMESPACE
