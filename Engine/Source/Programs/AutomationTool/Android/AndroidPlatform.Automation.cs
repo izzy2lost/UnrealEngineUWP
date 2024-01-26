@@ -4066,7 +4066,13 @@ public class AndroidPlatform : Platform
 			var CommandLine = "shell am start -n " + PackageName + "/" + GetLaunchableActivityName();
 			if (canReadClientCmdLineViaAmStart)
 			{
-				var ClientSessionCmdLineEscaped = ClientCmdLine.Replace(" ", "\\ ").Replace("\"", "\\\\\\\"");
+				var ToScapeChars = new string[]{" ", "(", ")", "`", "$", "%", "&"};
+				
+				var ClientSessionCmdLineEscaped = ClientCmdLine.Replace("\"", "\\\\\\\"");
+				foreach( var ToScape in ToScapeChars )
+				{
+					ClientSessionCmdLineEscaped = ClientSessionCmdLineEscaped.Replace(ToScape, "\\" + ToScape);
+				}
 				CommandLine += " --es cmdline \"" + ClientSessionCmdLineEscaped + "\"";
 			}
 			RunAdbCommand(DeviceName, CommandLine);
