@@ -57,7 +57,7 @@ Name | Type | Description
 `showDeviceManager` | `boolean` | Show the device manager on the server menu
 `showTests` | `boolean` | Show automated tests on the server menu
 `agentCategories` | [`DashboardAgentCategoryConfig`](#dashboardagentcategoryconfig)`[]` | Configuration for different agent pages
-`telemetry` | [`TelemetryViewConfig`](#telemetryviewconfig)`[]` | Configuration for telemetry views
+`analytics` | [`TelemetryViewConfig`](#telemetryviewconfig)`[]` | Configuration for telemetry views
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
 
 ## DashboardAgentCategoryConfig
