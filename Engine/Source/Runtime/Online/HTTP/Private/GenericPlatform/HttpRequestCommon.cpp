@@ -2,6 +2,7 @@
 
 #include "GenericPlatform/HttpRequestCommon.h"
 #include "GenericPlatform/HttpResponseCommon.h"
+#include "HAL/Event.h"
 #include "Http.h"
 #include "HttpManager.h"
 #include "Misc/CommandLine.h"
@@ -284,7 +285,7 @@ void FHttpRequestCommon::OnActivityTimeoutTimerTaskTrigger()
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
 	bActivityTimedOut = true;
 	AbortRequest();
-	UE_LOG(LogHttp, Warning, TEXT("Request [%s] timed out at [%s] because of no responding for %0.2f seconds"), *GetURL(), *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), FHttpModule::Get().GetHttpActivityTimeout());
+	UE_LOG(LogHttp, Log, TEXT("Request [%s] timed out at [%s] because of no responding for %0.2f seconds"), *GetURL(), *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), FHttpModule::Get().GetHttpActivityTimeout());
 }
 
 void FHttpRequestCommon::ResetActivityTimeoutTimer(FStringView Reason)
@@ -391,6 +392,21 @@ void FHttpRequestCommon::Shutdown()
 
 	StopActivityTimeoutTimer();
 	StopTotalTimeoutTimer();
+}
+
+void FHttpRequestCommon::ProcessRequestUntilComplete()
+{
+	checkf(!OnProcessRequestComplete().IsBound(), TEXT("OnProcessRequestComplete is not supported for sync call"));
+
+	SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+
+	FEvent* Event = FPlatformProcess::GetSynchEventFromPool(true);
+	OnProcessRequestComplete().BindLambda([Event](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		Event->Trigger();
+	});
+	ProcessRequest();
+	Event->Wait();
+	FPlatformProcess::ReturnSynchEventToPool(Event);
 }
 
 void FHttpRequestCommon::TriggerStatusCodeReceivedDelegate(int32 StatusCode)

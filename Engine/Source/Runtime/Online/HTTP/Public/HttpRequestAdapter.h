@@ -39,6 +39,7 @@ public:
 	virtual void SetTimeout(float InTimeoutSecs) override { HttpRequest->SetTimeout(InTimeoutSecs); }
 	virtual void ClearTimeout() override { HttpRequest->ClearTimeout(); }
 	virtual TOptional<float> GetTimeout() const override { return HttpRequest->GetTimeout(); }
+	virtual void ProcessRequestUntilComplete() override { return HttpRequest->ProcessRequestUntilComplete(); }
 	virtual const FHttpResponsePtr GetResponse() const override { return HttpRequest->GetResponse(); }
 	virtual float GetElapsedTime() const override { return HttpRequest->GetElapsedTime(); }
 	virtual EHttpRequestStatus::Type GetStatus() const override { return HttpRequest->GetStatus(); }

@@ -140,6 +140,10 @@ namespace BuildPatchServices
 			return TOptional<float>();
 		}
 
+		virtual void ProcessRequestUntilComplete() override
+		{
+		}
+
 		virtual bool ProcessRequest() override
 		{
 			++RxProcessRequest;

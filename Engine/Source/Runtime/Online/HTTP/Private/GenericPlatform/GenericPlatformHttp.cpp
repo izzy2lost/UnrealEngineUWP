@@ -127,6 +127,7 @@ public:
 	virtual void SetTimeout(float InTimeoutSecs) override {}
 	virtual void ClearTimeout() override {}
 	virtual TOptional<float> GetTimeout() const override { return TOptional<float>(); }
+	virtual void ProcessRequestUntilComplete() override {}
 };
 
 FDefaultUserAgentBuilder::FDefaultUserAgentBuilder()

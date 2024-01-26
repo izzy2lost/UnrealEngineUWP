@@ -219,6 +219,10 @@ TOptional<float> FNullHttpRequest::GetTimeout() const
 	return TimeoutSecs; 
 }
 
+void FNullHttpRequest::ProcessRequestUntilComplete()
+{
+}
+
 // FNullHttpResponse
 
 FString FNullHttpResponse::GetURL() const

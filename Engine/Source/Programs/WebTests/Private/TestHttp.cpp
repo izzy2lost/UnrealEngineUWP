@@ -274,7 +274,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods", HTTP_TAG)
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can process https request", HTTP_TAG)
 {
-	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetURL(TEXT("https://www.unrealengine.com/"));
 	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
@@ -282,6 +282,18 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can process https request", HTT
 		REQUIRE(HttpResponse != nullptr);
 	});
 	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can do blocking call", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlToTestMethods());
+	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+	});
+	HttpRequest->ProcessRequestUntilComplete();
+	CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Succeeded);
 }
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content without chunks", HTTP_TAG)
@@ -1341,6 +1353,23 @@ TEST_CASE_METHOD(FThreadedBatchRequestsFixture, "Retry manager and http manager 
 
 	LaunchBatchRequests(10);
 	BlockUntilFlushed();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Flush while activity timeout shouldn't dead lock", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	HttpModule->HttpActivityTimeout = 2.0f;
+
+	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 5/*ChunkLatency*/));
+	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
+	});
+	HttpRequest->ProcessRequest();
+
+	HttpModule->GetHttpManager().Flush(EHttpFlushReason::FullFlush);
 }
 
 #if (PLATFORM_WINDOWS && !WITH_CURL_XCURL) || PLATFORM_MAC || PLATFORM_UNIX

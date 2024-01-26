@@ -356,6 +356,11 @@ public:
 	 */
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const = 0;
 
+	/**
+	 * Blocking call to wait the request until it's completed, without calling the callback
+	 */
+	virtual void ProcessRequestUntilComplete() = 0;
+
 	/** 
 	 * Destructor for overrides 
 	 */
