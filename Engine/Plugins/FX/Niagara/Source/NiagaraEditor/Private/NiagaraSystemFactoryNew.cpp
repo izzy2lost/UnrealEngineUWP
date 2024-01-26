@@ -9,6 +9,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "ContentBrowserModule.h"
 #include "ImageUtils.h"
+#include "NiagaraAnalytics.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "Misc/MessageDialog.h"
 #include "ViewModels/NiagaraSystemViewModel.h"

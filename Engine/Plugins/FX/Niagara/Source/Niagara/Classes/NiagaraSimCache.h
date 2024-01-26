@@ -420,7 +420,7 @@ public:
 	NIAGARA_API bool WriteFrame(UNiagaraComponent* NiagaraComponent);
 	NIAGARA_API bool WriteFrame(UNiagaraComponent* NiagaraComponent, FNiagaraSimCacheFeedbackContext& FeedbackContext);
 
-	NIAGARA_API bool EndWrite();
+	NIAGARA_API bool EndWrite(bool bAllowAnalytics = false);
 
 	NIAGARA_API bool CanRead(UNiagaraSystem* NiagaraSystem);
 	NIAGARA_API bool Read(float TimeSeconds, FNiagaraSystemInstance* SystemInstance) const;
@@ -600,6 +600,7 @@ private:
 	TMap<FNiagaraVariableBase, TObjectPtr<UObject>> DataInterfaceStorage;
 
 	int32 CaptureTickCount = INDEX_NONE;
+	double CaptureStartTime = 0;
 
 	mutable std::atomic<int32> PendingCommandsInFlight;
 
