@@ -70,6 +70,23 @@ namespace UE::MovieGraph::Private
 
 		return Params;
 	}
+
+	/** Determine whether this token should be added based on the number of unique SubResourceNames in ExpectedRenderPasses. */
+	bool ShouldIncludeSubRendererName(const TArray<FMovieGraphRenderDataIdentifier>& ExpectedRenderPasses)
+	{
+		TSet<FString> PassNames;
+		for (const FMovieGraphRenderDataIdentifier& Pass : ExpectedRenderPasses)
+		{
+			PassNames.Add(Pass.SubResourceName);
+
+			if (PassNames.Num() > 1)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 	
 #if WITH_OCIO
 	struct FOpenColorIOPixelPreProcessor
@@ -290,8 +307,10 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	// Previous method is preserved for output frame number validation.
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;
-	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber);
-
+	constexpr bool bIncludeCameraName = false;
+	const bool bIncludeSubRendererName = UE::MovieGraph::Private::ShouldIncludeSubRendererName(InRawFrameData->ExpectedRenderPasses);
+	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber,bIncludeCameraName, bIncludeSubRendererName);
+	
 	// Map the .ext to be specific to our output data.
 	TMap<FString, FString> AdditionalFormatArgs;
 	AdditionalFormatArgs.Add(TEXT("ext"), Extension);
@@ -831,8 +850,10 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	// overwrite the same file multiple times. Burn In overlays don't count because they get composited on top of an existing file.
 	constexpr bool bIncludeRenderPass = false;
 	constexpr bool bTestFrameNumber = true;
-	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber);
-
+	constexpr bool bIncludeCameraName = false;
+	const bool bIncludeSubRendererName = UE::MovieGraph::Private::ShouldIncludeSubRendererName(InRawFrameData->ExpectedRenderPasses);
+	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber, bIncludeCameraName, bIncludeSubRendererName);
+	
 	// Create specific data that needs to override 
 	TMap<FString, FString> FormatOverrides;
 	FormatOverrides.Add(TEXT("render_pass"), TEXT("")); // Render Passes are included inside the exr file by named layers.

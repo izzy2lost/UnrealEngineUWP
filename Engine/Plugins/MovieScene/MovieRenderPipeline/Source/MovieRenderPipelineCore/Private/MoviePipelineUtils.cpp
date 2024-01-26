@@ -695,7 +695,7 @@ namespace UE
 			}
 		}
 
-		void ValidateOutputFormatString(FString& InOutFilenameFormatString, const bool bTestRenderPass, const bool bTestFrameNumber, const bool bTestCameraName)
+		void ValidateOutputFormatString(FString& InOutFilenameFormatString, const bool bTestRenderPass, const bool bTestFrameNumber, const bool bTestCameraName, const bool bIncludeSubRendererName)
 		{
 			const FString FrameNumberIdentifiers[] = { TEXT("{frame_number}"), TEXT("{frame_number_shot}"), TEXT("{frame_number_rel}"), TEXT("{frame_number_shot_rel}") };
 
@@ -790,6 +790,14 @@ namespace UE
 					// The user had already specified a frame number identifier, so we need to insert the
 					// file_dup tag before it.
 					InOutFilenameFormatString.InsertAt(FrameNumberIndex, TEXT("{file_dup}"));
+				}
+			}
+
+			if (bIncludeSubRendererName)
+			{
+				if (!InOutFilenameFormatString.Contains(TEXT("{renderer_sub_name}"), ESearchCase::IgnoreCase))
+				{
+					InOutFilenameFormatString.Append(TEXT(".{renderer_sub_name}"));
 				}
 			}
 

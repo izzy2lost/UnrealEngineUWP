@@ -10,12 +10,14 @@
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "MovieRenderOverlappedImage.h"
 #include "MoviePipelineSurfaceReader.h"
+
 #include "EngineModule.h"
 #include "SceneManagement.h"
 #include "CanvasTypes.h"
 #include "Engine/EngineBaseTypes.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "LegacyScreenPercentageDriver.h"
+#include "Materials/MaterialInterface.h"
 #include "OpenColorIODisplayExtension.h"
 #include "TextureResource.h"
 #include "Tasks/Task.h"
@@ -56,12 +58,29 @@ void FMovieGraphDeferredPass::Teardown()
 	SceneViewState.Destroy();
 }
 
-void FMovieGraphDeferredPass::GatherOutputPasses(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
+void FMovieGraphDeferredPass::GatherOutputPasses(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
 {
-	FMovieGraphImagePassBase::GatherOutputPasses(OutExpectedPasses);
+	FMovieGraphImagePassBase::GatherOutputPasses(InConfig,OutExpectedPasses);
 	
 	// Add our pre-calculated identifier
 	OutExpectedPasses.Add(RenderDataIdentifier);
+
+	if (const UMovieGraphImagePassBaseNode* ParentNode = GetParentNode(InConfig))
+	{
+		for (const FMoviePipelinePostProcessPass& AdditionalPass : ParentNode->GetAdditionalPostProcessMaterials())
+		{
+			if (AdditionalPass.bEnabled)
+			{
+				UMaterialInterface* Material = AdditionalPass.Material.LoadSynchronous();
+				if (Material)
+				{
+					FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
+					Identifier.SubResourceName = Material->GetName();
+					OutExpectedPasses.Add(Identifier);
+				}
+			}
+		}
+	}
 }
 
 void FMovieGraphDeferredPass::AddReferencedObjects(FReferenceCollector& Collector)
@@ -229,9 +248,6 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		const float DPIScale = 1.0f;
 		FCanvas Canvas = FCanvas(RenderTargetResource, HitProxyConsumer, GraphRenderer->GetWorld(), GraphRenderer->GetWorld()->GetFeatureLevel(), FCanvas::CDM_DeferDrawing, DPIScale);
 		
-		// Submit the renderer to be rendered
-		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.ToSharedPtr().Get());
-
 		// Construct the sample state that reflects the current render sample
 		UE::MovieGraph::FMovieGraphSampleState SampleState;
 		{
@@ -254,13 +270,49 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 			SampleState.SceneCaptureSource = SceneCaptureSource;
 		}
 
+		if (UMovieGraphImagePassBaseNode* ParentNode = GetParentNode(InFrameTraversalContext.Time.EvaluatedConfig))
+		{
+			for (const FMoviePipelinePostProcessPass& PostProcessPass : ParentNode->GetAdditionalPostProcessMaterials())
+			{
+				if (PostProcessPass.bEnabled)
+				{
+					UMaterialInterface* Material = PostProcessPass.Material.LoadSynchronous();
+					if (Material)
+					{
+						NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(Material);
+					}
+				}
+			}
+
+			for (UMaterialInterface* VisMaterial : NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials)
+			{
+				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
+				
+				FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
+				Identifier.SubResourceName = VisMaterial->GetName();
+				
+				UE::MovieGraph::FMovieGraphSampleState PassSampleState = SampleState;
+				PassSampleState.TraversalContext.RenderDataIdentifier = Identifier;
+				
+				BufferPipe->AddEndpoint(MakeForwardingEndpoint(PassSampleState, InTimeData));
+
+				NewView->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);
+			}
+		}
+
+		int32 NumValidMaterials = NewView->FinalPostProcessSettings.BufferVisualizationPipes.Num();
+		NewView->FinalPostProcessSettings.bBufferVisualizationDumpRequired = NumValidMaterials > 0;
+
+		// Submit the renderer to be rendered
+		GetRendererModule().BeginRenderingViewFamily(&Canvas, ViewFamily.ToSharedPtr().Get());
+
 		// If this was just to contribute to the history buffer, no need to go any further.
 		bool bDiscardOutput = InTimeData.bDiscardOutput || ShouldDiscardOutput(ViewFamily, CameraInfo);
 		if (bDiscardOutput)
 		{
 			continue;
 		}
-
+		
 		// Readback + Accumulate.
 		PostRendererSubmission(SampleState, RenderTargetInitParams, Canvas, CameraInfo);
 	}

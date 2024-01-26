@@ -222,7 +222,7 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 
 		for (const TObjectPtr<UMovieGraphRenderPassNode>& RenderPass : RenderPassesInUse)
 		{
-			RenderPass->GatherOutputPasses(NewOutputFrame.ExpectedRenderPasses);
+			RenderPass->GatherOutputPasses(InTimeStepData.EvaluatedConfig, NewOutputFrame.ExpectedRenderPasses);
 		}
 
 		// Register the frame with our render statistics as being worked on

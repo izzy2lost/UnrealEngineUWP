@@ -87,11 +87,11 @@ void UMovieGraphImagePassBaseNode::RenderImpl(const FMovieGraphTraversalContext&
 	}
 }
 
-void UMovieGraphImagePassBaseNode::GatherOutputPassesImpl(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
+void UMovieGraphImagePassBaseNode::GatherOutputPassesImpl(UMovieGraphEvaluatedConfig* InConfig, TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const
 {
 	for (const TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase>& Instance : CurrentInstances)
 	{
-		Instance->GatherOutputPasses(OutExpectedPasses);
+		Instance->GatherOutputPasses(InConfig, OutExpectedPasses);
 	}
 }
 

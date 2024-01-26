@@ -88,14 +88,6 @@ namespace UE::MovieGraph
 		// Put the new data inside this output frame.
 		OutputFrame->ImageOutputData.FindOrAdd(NewLayerId) = MoveTemp(InData);
 		
-		// ToDo:
-		// Merge the metadata from each output state. Metadata is part of the output state but gets forked when
-		// we submit different render passes, so we need to merge it again. Doesn't handle conflicts.
-		//for (const TPair<FString, FString>& KVP : Payload->SampleState.OutputState.FileMetadata)
-		//{
-		//	OutputFrame->FrameOutputState.FileMetadata.Add(KVP.Key, KVP.Value);
-		//}
-		
 		// Check to see if this was the last piece of data needed for this frame.
 		int32 TotalPasses = OutputFrame->ExpectedRenderPasses.Num();
 		int32 FinishedPasses = OutputFrame->ImageOutputData.Num();
