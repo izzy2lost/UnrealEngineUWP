@@ -109,4 +109,7 @@ class UConsoleSettings
 	/** The autocomplete color used for command descriptions and read-only CVars. */
 	UPROPERTY(config, EditAnywhere, Category=Colors)
 	FColor AutoCompleteFadedColor;
+
+	/** Returns an array with the auto-complete command names that match all the words in the substring. */
+	ENGINESETTINGS_API TArray<FString> GetFilteredManualAutoCompleteCommands(FStringView Substring) const;
 };
