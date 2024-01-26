@@ -1874,6 +1874,8 @@ namespace Chaos
 
 			if (ResimStep < 0)
 			{
+				// Clear ResimFrame if no valid resim frame was found
+				MRewindData->SetResimFrame(INDEX_NONE);
 				return;
 			}
 
