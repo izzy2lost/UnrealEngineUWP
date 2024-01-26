@@ -224,7 +224,7 @@ FGlobalDirtyNetObjectTracker::FPimpl::~FPimpl()
 
 void FGlobalDirtyNetObjectTracker::FPimpl::ResetDirtyNetObjects()
 {
-	if (!ensureMsgf(Pollers.IsNoBitSet(), TEXT("FGlobalDirtyNetObjectTracker poller %u forgot to call ResetDirtNetObjects."), Pollers.FindFirstOne()))
+	if (!ensureMsgf(Pollers.IsNoBitSet(), TEXT("FGlobalDirtyNetObjectTracker poller %u forgot to call ResetDirtyNetObjects."), Pollers.FindFirstOne()))
 	{
 		Pollers.Reset();
 

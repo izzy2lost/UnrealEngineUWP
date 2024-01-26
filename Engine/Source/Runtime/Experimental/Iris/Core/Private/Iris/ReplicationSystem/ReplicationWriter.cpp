@@ -800,7 +800,7 @@ void FReplicationWriter::InternalUpdateDirtyChangeMasks(const FChangeMaskCache& 
 			continue;
 		}
 
-		// We want to accumulate dirty changes even if we are going out of scope in case we get readded to scope before repliation has ended.
+		// We want to accumulate dirty changes even if we are going out of scope in case we get re-added to scope before replication has ended.
 		const bool bMarkScopedObjectDirty = ObjectsInScope.GetBit(Entry.InternalIndex);
 		if (bMarkScopedObjectDirty)
 		{
