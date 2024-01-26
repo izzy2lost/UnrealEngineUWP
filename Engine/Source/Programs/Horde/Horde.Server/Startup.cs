@@ -1229,13 +1229,11 @@ namespace Horde.Server
 
 			app.UseExceptionHandler("/api/v1/exception");
 
-			app.UseDefaultFiles();
-			app.UseStaticFiles();
-
 			DirectoryReference dashboardDir = DirectoryReference.Combine(ServerApp.AppDir, "DashboardApp");
-
 			if (DirectoryReference.Exists(dashboardDir)) 
 			{
+				app.UseDefaultFiles();
+				app.UseStaticFiles();
 				app.UseWhen(IsSpaRequest, builder => builder.UseSpaStaticFiles());
 			}
 
