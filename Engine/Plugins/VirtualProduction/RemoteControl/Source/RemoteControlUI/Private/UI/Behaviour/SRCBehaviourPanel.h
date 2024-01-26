@@ -88,7 +88,7 @@ private:
 	void OnAddBehaviourClicked(UClass* InClass);
 
 	/** Check if the controller can add the behaviour requested */
-	bool CanExecuteAddBehaviour(UClass* InClass, URCBehaviour* InBehaviour) const;
+	bool CanExecuteAddBehaviour(UClass* InClass, URCController* InController) const;
 
 	/** Handles click event for "Empty" button; clears all Behaviours from the panel*/
 	FReply OnClickEmptyButton();

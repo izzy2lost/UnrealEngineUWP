@@ -153,7 +153,7 @@ TSharedRef<SWidget> SRCBehaviourPanel::GetBehaviourMenuContentWidget()
 					}
 
 					FUIAction Action(FExecuteAction::CreateSP(this, &SRCBehaviourPanel::OnAddBehaviourClicked, Class));
-					Action.CanExecuteAction.BindSP(this, &SRCBehaviourPanel::CanExecuteAddBehaviour, Class, Behaviour);
+					Action.CanExecuteAction.BindSP(this, &SRCBehaviourPanel::CanExecuteAddBehaviour, Class, Controller);
 
 					MenuBuilder.AddMenuEntry(
 						FText::Format(LOCTEXT("AddBehaviourNode", "{0}"), Behaviour->GetDisplayName()),
@@ -187,10 +187,19 @@ void SRCBehaviourPanel::OnAddBehaviourClicked(UClass* InClass)
 	}
 }
 
-bool SRCBehaviourPanel::CanExecuteAddBehaviour(UClass* InClass, URCBehaviour* InBehaviour) const
+bool SRCBehaviourPanel::CanExecuteAddBehaviour(UClass* InClass, URCController* InController) const
 {
+	if (!InClass || !InController)
+	{
+		return false;
+	}
 	const URCBehaviourNode* DefaultBehaviourNode = Cast<URCBehaviourNode>(InClass->GetDefaultObject());
-	return DefaultBehaviourNode->IsSupported(InBehaviour);
+	TObjectPtr<URCBehaviour> Behaviour = InController->CreateBehaviourWithoutCheck(InClass);
+	if (!Behaviour)
+	{
+		return false;
+	}
+	return DefaultBehaviourNode->IsSupported(Behaviour);
 }
 
 FReply SRCBehaviourPanel::OnClickEmptyButton()

@@ -10,12 +10,25 @@
 #include "RemoteControlPreset.h"
 #include "RemoteControlPropertyIdRegistry.h"
 
+TSet<FName> URCPropertyIdAction::AllowedStructNameToCopy
+{
+	NAME_Color,
+	NAME_LinearColor,
+	NAME_Vector,
+	NAME_Vector2D,
+	NAME_Rotation,
+	NAME_Rotator
+};
+
 URCPropertyIdAction::~URCPropertyIdAction()
 {
 	if (PresetWeakPtr.IsValid())
 	{
 		PresetWeakPtr->OnEntityUnexposed().RemoveAll(this);
-		PresetWeakPtr->GetPropertyIdRegistry()->OnPropertyIdUpdated().RemoveAll(this);
+		if (const TObjectPtr<URemoteControlPropertyIdRegistry> Registry = PresetWeakPtr->GetPropertyIdRegistry())
+		{
+			Registry->OnPropertyIdUpdated().RemoveAll(this);
+		}
 	}
 }
 
@@ -107,8 +120,7 @@ void URCPropertyIdAction::UpdatePropertyId()
 	if (URemoteControlPreset* Preset = PresetWeakPtr.Get())
 	{
 		PropertySelfContainer.Empty();
-		// todo: This can be improved to not Empty it everytime
-		RealPropertySelfContainer.Empty();
+		TArray<FGuid> CurrentRCGuidsInAction;
 		const TObjectPtr<URemoteControlPropertyIdRegistry> PropertyIdRegistry = Preset->GetPropertyIdRegistry();
 
 		for (const FGuid& TargetProperty : PropertyIdRegistry->GetEntityIdsList())
@@ -147,16 +159,27 @@ void URCPropertyIdAction::UpdatePropertyId()
 						}
 
 						const FName& PropertyName = TargetRCProperty->GetProperty()->GetFName();
-						RealPropertySelfContainer.Add(TargetRCProperty->GetId(), NewObject<URCVirtualPropertySelfContainer>(this));
-
 						const uint8* RealPropAddress = (uint8*)ObjectRefReading.ContainerAdress;
-						if (PropToDuplicate != Property)
+
+						if (RealPropAddress && PropToDuplicate != Property)
 						{
 							RealPropAddress = PropToDuplicate->ContainerPtrToValuePtr<uint8>(ObjectRefReading.ContainerAdress);
 						}
 
-						RealPropertySelfContainer[TargetRCProperty->GetId()]->DuplicatePropertyWithCopy(PropertyName, PropToDuplicate, RealPropAddress);
-						
+						if (!RealPropAddress)
+						{
+							continue;
+						}
+
+						FGuid RCGuid = TargetRCProperty->GetId();
+						CurrentRCGuidsInAction.Add(RCGuid);
+						if (!RealPropertySelfContainer.Contains(RCGuid))
+						{
+							RealPropertySelfContainer.Add(RCGuid, NewObject<URCVirtualPropertySelfContainer>(this));
+							RealPropertySelfContainer[RCGuid]->DuplicateProperty(PropertyName, PropToDuplicate);
+							RealPropertySelfContainer[RCGuid]->PresetWeakPtr = PresetWeakPtr;
+						}
+
 						if (CachedPropertySelfContainer.Contains(CurrentKey))
 						{
 							PropertySelfContainer.Add(CurrentKey, CachedPropertySelfContainer[CurrentKey]);
@@ -166,6 +189,7 @@ void URCPropertyIdAction::UpdatePropertyId()
 							CachedPropertySelfContainer.Add(CurrentKey, NewObject<URCVirtualPropertySelfContainer>(this));
 
 							bool bIsSpecialCase = false;
+							FName StructName = NAME_None;
 
 							// float property and double ones are treated as one the same goes for FLinearColor and FColor
 							if (PropToDuplicate->IsA<FFloatProperty>())
@@ -180,7 +204,7 @@ void URCPropertyIdAction::UpdatePropertyId()
 							{
 								if (StructProp->Struct)
 								{
-									const FName& StructName = StructProp->Struct->GetFName();
+									StructName = StructProp->Struct->GetFName();
 									if (StructName == NAME_LinearColor ||
 										StructName == NAME_Color)
 									{
@@ -208,8 +232,22 @@ void URCPropertyIdAction::UpdatePropertyId()
 
 							// Do this the first time it is created so that it will have a better default value except for Object
 							// Some ObjectProperty won't work correctly with this copy for example the Material one, so we skip it
-							const bool bIsObject = PropToDuplicate->IsA<FObjectProperty>();
-							if (!bIsObject)
+							// The same for some struct so we copy only the AllowedOnes
+							bool bCanCopyValue = true;
+							if (PropToDuplicate->IsA<FObjectProperty>())
+							{
+								bCanCopyValue = false;
+							}
+
+							if (StructName != NAME_None)
+							{
+								if (!AllowedStructNameToCopy.Contains(StructName))
+								{
+									bCanCopyValue = false;
+								}
+							}
+
+							if (bCanCopyValue)
 							{
 								CachedPropertySelfContainer[CurrentKey]->UpdateValueWithProperty(PropToDuplicate, RealPropAddress);
 							}
@@ -220,6 +258,17 @@ void URCPropertyIdAction::UpdatePropertyId()
 				}
 			}
 		}
+
+		// Remove RealContainers that are not anymore part of this action
+		TArray<FGuid> CurrentRealPropertyGuids;
+		RealPropertySelfContainer.GetKeys(CurrentRealPropertyGuids);
+
+		CurrentRealPropertyGuids.RemoveAll([CurrentRCGuidsInAction] (const FGuid& InGuid) { return CurrentRCGuidsInAction.Contains(InGuid); });
+		for (const FGuid& Guid : CurrentRealPropertyGuids)
+		{
+			RealPropertySelfContainer.Remove(Guid);
+		}
+
 #if WITH_EDITOR
 		if (PresetWeakPtr.IsValid())
 		{
@@ -234,7 +283,10 @@ void URCPropertyIdAction::Initialize()
 	if (PresetWeakPtr.IsValid())
 	{
 		PresetWeakPtr->OnEntityUnexposed().AddUObject(this, &URCPropertyIdAction::OnEntityUnexposed);
-		PresetWeakPtr->GetPropertyIdRegistry()->OnPropertyIdUpdated().AddUObject(this, &URCPropertyIdAction::UpdatePropertyId);
+		if (const TObjectPtr<URemoteControlPropertyIdRegistry> Registry = PresetWeakPtr->GetPropertyIdRegistry())
+		{
+			Registry->OnPropertyIdUpdated().AddUObject(this, &URCPropertyIdAction::UpdatePropertyId);
+		}
 	}
 }
 

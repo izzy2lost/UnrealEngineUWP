@@ -987,6 +987,9 @@ private:
 	/** Whether there is an ongoing remote modification happening. */
 	bool bOngoingRemoteModification = false;
 
+	/** Used for OnObjectPropertyChanged to avoid being called by itself. */
+	bool bReentryGuard = false;
+
 	/** Holds manager that handles rebinding unbound entities upon load or map change. */
 	TPimplPtr<FRemoteControlPresetRebindingManager> RebindingManager;
 
