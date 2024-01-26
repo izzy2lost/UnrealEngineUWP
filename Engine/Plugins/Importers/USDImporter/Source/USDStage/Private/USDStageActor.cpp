@@ -1074,7 +1074,7 @@ AUsdStageActor::AUsdStageActor()
 			FProperty* Property = *PropertyIterator;
 			if (Property && Property->GetFName() == GET_MEMBER_NAME_CHECKED(AUsdStageActor, RootLayer))
 			{
-				TArray<FString> SupportedExtensions = UnrealUSDWrapper::GetAllSupportedFileFormats();
+				TArray<FString> SupportedExtensions = UnrealUSDWrapper::GetNativeFileFormats();
 				if (SupportedExtensions.Num() > 0)
 				{
 					FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT("; *."));	// Combine "usd" and "usda" into "usd; *.usda"

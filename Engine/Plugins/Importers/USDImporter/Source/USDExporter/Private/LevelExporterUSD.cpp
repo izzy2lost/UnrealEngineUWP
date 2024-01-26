@@ -13,17 +13,7 @@
 ULevelExporterUSD::ULevelExporterUSD()
 {
 #if USE_USD_SDK
-	for (const FString& Extension : UnrealUSDWrapper::GetNativeFileFormats())
-	{
-		// USDZ is not supported for writing for now
-		if (Extension.Equals(TEXT("usdz")))
-		{
-			continue;
-		}
-
-		FormatExtension.Add(Extension);
-		FormatDescription.Add(TEXT("Universal Scene Description file"));
-	}
+	UnrealUSDWrapper::AddUsdExportFileFormatDescriptions(FormatExtension, FormatDescription);
 	SupportedClass = UWorld::StaticClass();
 	bText = false;
 #endif	  // #if USE_USD_SDK

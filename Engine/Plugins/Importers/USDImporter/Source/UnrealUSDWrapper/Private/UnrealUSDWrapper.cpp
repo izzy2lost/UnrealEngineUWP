@@ -6,6 +6,7 @@
 #include "USDLog.h"
 #include "USDMemory.h"
 #include "USDProjectSettings.h"
+#include "USDReferenceOptions.h"
 
 #include "UsdWrappers/SdfLayer.h"
 #include "UsdWrappers/UsdAttribute.h"
@@ -612,8 +613,7 @@ TArray<FString> UnrealUSDWrapper::GetNativeFileFormats()
 		pxr::UsdUsdFileFormatTokens->Id,
 		pxr::UsdUsdaFileFormatTokens->Id,
 		pxr::UsdUsdcFileFormatTokens->Id,
-		pxr::UsdUsdzFileFormatTokens->Id
-	};
+		pxr::UsdUsdzFileFormatTokens->Id};
 
 	std::set<std::string> FileExtensions;
 
@@ -638,6 +638,102 @@ TArray<FString> UnrealUSDWrapper::GetNativeFileFormats()
 #endif	  // #if USE_USD_SDK
 
 	return Result;
+}
+
+void UnrealUSDWrapper::GetNativeFileFormats(TArray<FString>& OutTextFormats, TArray<FString>& OutPossiblyBinaryFormats)
+{
+#if USE_USD_SDK
+	FScopedUsdAllocs Allocs;
+
+	std::set<std::string> TextExtensions;
+	const pxr::SdfFileFormatConstPtr TextFormat = pxr::SdfFileFormat::FindById(pxr::UsdUsdaFileFormatTokens->Id);
+	if (TextFormat)
+	{
+		for (const std::string& FileExtension : TextFormat->GetFileExtensions())
+		{
+			TextExtensions.insert(FileExtension);
+		}
+	}
+
+	OutTextFormats.Reset(TextExtensions.size());
+	for (const std::string& Extension : TextExtensions)
+	{
+		OutTextFormats.Emplace(ANSI_TO_TCHAR(Extension.c_str()));
+	}
+
+	const static std::vector<pxr::TfToken> BinaryFormatIds{
+		pxr::UsdUsdFileFormatTokens->Id,
+		pxr::UsdUsdcFileFormatTokens->Id,
+		pxr::UsdUsdzFileFormatTokens->Id};
+
+	std::set<std::string> PossiblyBinaryExtensions;
+	for (const pxr::TfToken& FormatId : BinaryFormatIds)
+	{
+		const pxr::SdfFileFormatConstPtr Format = pxr::SdfFileFormat::FindById(FormatId);
+		if (!Format)
+		{
+			continue;
+		}
+
+		for (const std::string& FileExtension : Format->GetFileExtensions())
+		{
+			PossiblyBinaryExtensions.insert(FileExtension);
+		}
+	}
+
+	OutPossiblyBinaryFormats.Reset(PossiblyBinaryExtensions.size());
+	for (const std::string& Extension : PossiblyBinaryExtensions)
+	{
+		OutPossiblyBinaryFormats.Emplace(ANSI_TO_TCHAR(Extension.c_str()));
+	}
+#endif	  // #if USE_USD_SDK
+}
+
+void UnrealUSDWrapper::AddUsdExportFileFormatDescriptions(TArray<FString>& OutFormatExtensions, TArray<FString>& OutFormatDescriptions)
+{
+	TArray<FString> TextExtensions;
+	TArray<FString> PossiblyBinaryExtensions;
+	UnrealUSDWrapper::GetNativeFileFormats(TextExtensions, PossiblyBinaryExtensions);
+
+	for (const FString& Extension : PossiblyBinaryExtensions)
+	{
+		// USDZ is not supported for writing for now
+		if (Extension.Equals(TEXT("usdz")))
+		{
+			continue;
+		}
+
+		OutFormatExtensions.Add(Extension);
+		OutFormatDescriptions.Add(TEXT("Universal Scene Description binary file"));
+	}
+
+	for (const FString& Extension : TextExtensions)
+	{
+		OutFormatExtensions.Add(Extension);
+		OutFormatDescriptions.Add(TEXT("Universal Scene Description text file"));
+	}
+}
+
+void UnrealUSDWrapper::AddUsdImportFileFormatDescriptions(TArray<FString>& OutFormats)
+{
+	TArray<FString> TextExtensions;
+	TArray<FString> PossiblyBinaryExtensions;
+	UnrealUSDWrapper::GetNativeFileFormats(TextExtensions, PossiblyBinaryExtensions);
+
+	// Ideally we'd generate a combined entry that allows all USD file types at once, but it seems that
+	// GenerateFactoryFileExtensions and InternalGetFormatInfo on ObjectTools.cpp are really hard-coded
+	// to only accept a single extension at a time... I guess the user can still just pick *.* to see
+	// all file types at once
+
+	// Add isolated entries for each supported file type
+	for (const FString& Extension : PossiblyBinaryExtensions)
+	{
+		OutFormats.Add(FString::Printf(TEXT("%s; Universal Scene Description binary files"), *Extension));
+	}
+	for (const FString& Extension : TextExtensions)
+	{
+		OutFormats.Add(FString::Printf(TEXT("%s; Universal Scene Description text files"), *Extension));
+	}
 }
 
 namespace UE::UnrealUSDWrapper::Private
@@ -1074,6 +1170,27 @@ public:
 
 		FUsdMemoryManager::Initialize();
 		UnrealUSDWrapper::SetupDiagnosticDelegate();
+
+#if WITH_EDITOR
+		// Update the supported filetype filters for reference/payload picker dialogs
+		for (TFieldIterator<FProperty> PropertyIterator(UUsdReferenceOptions::StaticClass()); PropertyIterator; ++PropertyIterator)
+		{
+			FProperty* Property = *PropertyIterator;
+			if (Property && Property->GetFName() == GET_MEMBER_NAME_CHECKED(UUsdReferenceOptions, TargetFile))
+			{
+				TArray<FString> SupportedExtensions = UnrealUSDWrapper::GetAllSupportedFileFormats();
+				if (SupportedExtensions.Num() > 0)
+				{
+					FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT("; *."));	// Combine "usd" and "usda" into "usd; *.usda"
+					Property->SetMetaData(
+						TEXT("FilePathFilter"),
+						FString::Printf(TEXT("Universal Scene Description files|*.%s"), *JoinedExtensions, *JoinedExtensions)
+					);
+				}
+				break;
+			}
+		}
+#endif	  // WITH_EDITOR
 	}
 
 	virtual void ShutdownModule() override

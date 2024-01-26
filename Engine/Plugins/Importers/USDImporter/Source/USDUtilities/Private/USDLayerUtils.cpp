@@ -198,13 +198,29 @@ TOptional<FString> UsdUtils::BrowseUsdFile(EBrowseFileMode Mode)
 
 	TArray<FString> OutFiles;
 
+	TArray<FString> NativeTextExtensions;
+	TArray<FString> NativePossiblyBinaryExtensions;
+	UnrealUSDWrapper::GetNativeFileFormats(NativeTextExtensions, NativePossiblyBinaryExtensions);
+
+	TSet<FString> NativeTextExtensionsSet{NativeTextExtensions};
+	TSet<FString> NativePossiblyBinaryExtensionsSet{NativePossiblyBinaryExtensions};
+
 	// When browsing files for the purposes of opening a stage or saving layers,
 	// we offer the native USD file formats as options. Browsing files in order
 	// to use them as the targets of composition arcs (e.g. sublayers,
 	// references, payloads, etc.) also offers any plugin file formats that are
 	// registered.
-	TArray<FString> SupportedExtensions = (Mode == EBrowseFileMode::Composition) ? UnrealUSDWrapper::GetAllSupportedFileFormats()
-																				 : UnrealUSDWrapper::GetNativeFileFormats();
+	TArray<FString> SupportedExtensions;
+	if (Mode == EBrowseFileMode::Composition)
+	{
+		SupportedExtensions = UnrealUSDWrapper::GetAllSupportedFileFormats();
+	}
+	else
+	{
+		SupportedExtensions = NativeTextExtensions;
+		SupportedExtensions.Append(NativePossiblyBinaryExtensions);
+	}
+
 	if (SupportedExtensions.Num() == 0)
 	{
 		UE_LOG(LogUsd, Error, TEXT("No file extensions supported by the USD SDK!"));
@@ -221,9 +237,19 @@ TOptional<FString> UsdUtils::BrowseUsdFile(EBrowseFileMode Mode)
 	FString FileTypes = FString::Printf(TEXT("Universal Scene Description files (*.%s)|*.%s|"), *JoinedExtensions, *JoinedExtensions);
 	for (const FString& SupportedExtension : SupportedExtensions)
 	{
+		const bool bIsTextNative = NativeTextExtensionsSet.Contains(SupportedExtension);
+		const bool bIsBinaryNative = NativePossiblyBinaryExtensionsSet.Contains(SupportedExtension);
+
 		// The '(*.%s)' on the actual name (before the '|') is not optional: We need the name part to be different for each format
 		// or else the options will overwrite each other on the Mac
-		FileTypes += FString::Printf(TEXT("Universal Scene Description file (*.%s)|*.%s|"), *SupportedExtension, *SupportedExtension);
+		FileTypes += FString::Printf(
+			TEXT("Universal Scene Description %sfile (*.%s)|*.%s|"),
+			bIsTextNative	  ? TEXT("text ")
+			: bIsBinaryNative ? TEXT("binary ")
+							  : TEXT(""),
+			*SupportedExtension,
+			*SupportedExtension
+		);
 	}
 
 	switch (Mode)
