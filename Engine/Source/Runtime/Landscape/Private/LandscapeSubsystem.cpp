@@ -318,6 +318,9 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 	}
 #endif // WITH_EDITOR
 	
+	// Double check requested textures are in the right state
+	TextureStreamingManager->CheckRequestedTextures();
+
 	static TArray<FVector> OldCameras;
 	TArray<FVector>* Cameras = nullptr;
 	if (GUseStreamingManagerForCameras == 0)
