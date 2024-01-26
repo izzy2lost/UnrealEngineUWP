@@ -42,7 +42,7 @@ TArray<FConcertPropertyChainWrapper> UConcertReplicationBlueprintFunctionLibrary
 {
 	if (!Class)
 	{
-		UE_LOG(LogConcert, Error, TEXT("UConcertReplicationBlueprintFunctionLibrary::GetPropertiesIn: Invalid class!"))
+		UE_LOG(LogConcert, Error, TEXT("UConcertReplicationBlueprintFunctionLibrary::GetPropertiesIn: No class set!"))
 		return {};
 	}
 
@@ -55,6 +55,47 @@ TArray<FConcertPropertyChainWrapper> UConcertReplicationBlueprintFunctionLibrary
 			if (!Filter.IsBound() || Filter.Execute(Wrapper))
 			{
 				Result.Emplace(MoveTemp(Wrapper.PropertyChain));
+			}
+			return EBreakBehavior::Continue;
+		});
+	return Result;
+}
+
+TArray<FConcertPropertyChainWrapper> UConcertReplicationBlueprintFunctionLibrary::GetAllProperties(const TSubclassOf<UObject>& Class)
+{
+	if (!Class)
+	{
+		UE_LOG(LogConcert, Error, TEXT("UConcertReplicationBlueprintFunctionLibrary::GetPropertiesIn: No class set!"))
+		return {};
+	}
+
+	TArray<FConcertPropertyChainWrapper> Result;  
+	UE::ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(
+		**Class,
+		[&Result](FConcertPropertyChain&& PropertyChain)
+		{
+			Result.Emplace(MoveTemp(PropertyChain));
+			return EBreakBehavior::Continue;
+		});
+	return Result;
+}
+
+TArray<FConcertPropertyChainWrapper> UConcertReplicationBlueprintFunctionLibrary::GetChildProperties(const FConcertPropertyChainWrapper& Parent, const TSubclassOf<UObject>& Class, bool bOnlyDirect)
+{
+	if (!Class)
+	{
+		UE_LOG(LogConcert, Error, TEXT("UConcertReplicationBlueprintFunctionLibrary::GetPropertiesIn: No class set!"))
+		return {};
+	}
+
+	TArray<FConcertPropertyChainWrapper> Result;  
+	UE::ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(
+		**Class,
+		[bOnlyDirect, &Result, &Parent](FConcertPropertyChain&& PropertyChain)
+		{
+			if ((bOnlyDirect && PropertyChain.IsDirectChildOf(Parent.PropertyChain)) || (!bOnlyDirect && PropertyChain.IsChildOf(Parent.PropertyChain)))
+			{
+				Result.Emplace(MoveTemp(PropertyChain));
 			}
 			return EBreakBehavior::Continue;
 		});
