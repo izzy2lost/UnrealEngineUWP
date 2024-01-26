@@ -111,6 +111,7 @@ void UNiagaraStackRenderItemGroup::Initialize(FRequiredEntryData InRequiredEntry
 	FText DisplayName = LOCTEXT("RenderGroupName", "Render");
 	FText ToolTip = LOCTEXT("RendererGroupTooltip", "Describes how we should display/present each particle. Note that this doesn't have to be visual. Multiple renderers are supported. Order in this stack is not necessarily relevant to draw order.");
 	RenderersOwner = InRenderersOwner;
+	RenderersOwner->OnRenderersChanged().BindUObject(this, &UNiagaraStackRenderItemGroup::OwnerRenderersChanged);
 	AddUtilities = MakeShared<FRenderItemGroupAddUtilities>(RenderersOwner, FRenderItemGroupAddUtilities::FOnItemAdded::CreateUObject(this, &UNiagaraStackRenderItemGroup::OnRendererAdded));
 	Super::Initialize(InRequiredEntryData, DisplayName, ToolTip, AddUtilities.Get());
 }
@@ -199,7 +200,7 @@ void UNiagaraStackRenderItemGroup::RefreshChildrenInternal(const TArray<UNiagara
 	Super::RefreshChildrenInternal(CurrentChildren, NewChildren, NewIssues);
 }
 
-void UNiagaraStackRenderItemGroup::EmitterRenderersChanged()
+void UNiagaraStackRenderItemGroup::OwnerRenderersChanged()
 {
 	if (IsFinalized() == false)
 	{
@@ -228,7 +229,11 @@ void UNiagaraStackRenderItemGroup::OnRendererAdded(UNiagaraRendererProperties* R
 
 void UNiagaraStackRenderItemGroup::FinalizeInternal()
 {
-	RenderersOwner.Reset();
+	if (RenderersOwner.IsValid())
+	{
+		RenderersOwner->OnRenderersChanged().Unbind();
+		RenderersOwner.Reset();
+	}
 	Super::FinalizeInternal();
 }
 
