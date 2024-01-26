@@ -101,9 +101,9 @@ namespace UE::ConcertSharedSlate
 		void RequestPropertyDataRefresh() { bHasRequestedPropertyRefresh = true; }
 
 		/** Selects the given objects. */
-		void SelectObjects(TConstArrayView<FSoftObjectPath> Objects);
+		void SelectObjects(TConstArrayView<FSoftObjectPath> Objects, bool bAtEndOfTick = false);
 		/** Expands the given objects, recursively if desired. */
-		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive);
+		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive, bool bAtEndOfTick = false);
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
 		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const;
@@ -142,6 +142,9 @@ namespace UE::ConcertSharedSlate
 
 		bool bHasRequestedObjectRefresh = false;
 		bool bHasRequestedPropertyRefresh = false;
+		TArray<FSoftObjectPath> PendingToSelect;
+		TArray<FSoftObjectPath> PendingToExpand;
+		bool bPendingExpandRecursively;
 
 		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
 

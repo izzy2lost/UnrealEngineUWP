@@ -198,12 +198,6 @@ namespace UE::ConcertSharedSlate
 			}
 		}
 		
-		void OnItemsChanged()
-		{
-			// Re-filter everything. There should not be many items so filtering everything again should be fine
-			bFilterChanged = true;
-			bRequestedSort = true;
-		}
 		void RequestRefilter()
 		{
 			bFilterChanged = true;

@@ -56,8 +56,14 @@ namespace UE::ConcertSharedSlate
 		return PropertySection->GetObjectsSelectedForPropertyEditing();
 	}
 
-	void SReplicationStreamViewer::SelectObjects(TConstArrayView<FSoftObjectPath> Objects)
+	void SReplicationStreamViewer::SelectObjects(TConstArrayView<FSoftObjectPath> Objects, bool bAtEndOfTick)
 	{
+		if (bHasRequestedObjectRefresh || bAtEndOfTick)
+		{
+			PendingToSelect = Objects;
+			return;
+		}
+		
 		TArray<TSharedPtr<FReplicatedObjectData>> NewSelectedItems; 
 		Algo::TransformIf(AllObjectRowData, NewSelectedItems, [&Objects](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 			{
@@ -71,10 +77,17 @@ namespace UE::ConcertSharedSlate
 		}
 	}
 
-	void SReplicationStreamViewer::ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive)
+	void SReplicationStreamViewer::ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive, bool bAtEndOfTick)
 	{
 		if (Objects.IsEmpty())
 		{
+			return;
+		}
+
+		if (bHasRequestedObjectRefresh || bAtEndOfTick)
+		{
+			PendingToExpand = Objects;
+			bPendingExpandRecursively = bRecursive;
 			return;
 		}
 		
@@ -112,7 +125,10 @@ namespace UE::ConcertSharedSlate
 		// Items may have been removed this tick. However, selected items may not have been updated yet because STreeView processes item changes at the end of tick. 
 		SelectedItems.SetNum(Algo::RemoveIf(SelectedItems, [this](const TSharedPtr<FReplicatedObjectData>& ObjectData)
 		{
-			return !PropertiesModel->ContainsObjects({ ObjectData->GetObjectPath() });
+			const bool bIsInModel = PropertiesModel->ContainsObjects({ ObjectData->GetObjectPath() });
+			const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(ObjectData->GetObjectPath());
+			const bool bHierarchyIsInModel = OwningActor.IsSet() && PropertiesModel->ContainsObjects({ *OwningActor });
+			return !bIsInModel && !bHierarchyIsInModel;
 		}));
 		return SelectedItems;
 	}
@@ -130,6 +146,18 @@ namespace UE::ConcertSharedSlate
 		{
 			bHasRequestedPropertyRefresh = false;
 			RefreshPropertyData();
+		}
+
+		if (!PendingToSelect.IsEmpty())
+		{
+			SelectObjects(PendingToSelect);
+			PendingToSelect.Reset();
+		}
+
+		if (!PendingToExpand.IsEmpty())
+		{
+			ExpandObjects(PendingToExpand, bPendingExpandRecursively);
+			PendingToExpand.Reset();
 		}
 		
 		IReplicationStreamViewer::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
@@ -289,7 +317,7 @@ namespace UE::ConcertSharedSlate
 
 			// The tree view requires the item source to only contain the root items. Children are discovered via GetObjectRowChildren. We re-use GetObjectRowChildren to remove any non-root nodes.
 			BuildRootObjectRowData();
-			ReplicatedObjects->OnItemsChanged();
+			ReplicatedObjects->RequestRefilter();
 		}
 	}
 

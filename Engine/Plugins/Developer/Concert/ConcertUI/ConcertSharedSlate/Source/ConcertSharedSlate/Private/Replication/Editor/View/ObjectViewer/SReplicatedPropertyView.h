@@ -6,6 +6,7 @@
 #include "Replication/Editor/View/SelectionViewerColumns.h"
 
 #include "Misc/Optional.h"
+#include "Property/SFilteredPropertyTreeView.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -13,9 +14,12 @@ class SWidgetSwitcher;
 
 namespace UE::ConcertSharedSlate
 {
-	class SPropertyTreeView;
+	class SFilteredPropertyTreeView;
 
-	/** Displays the SPropertyTreeView and decorates it with messages that prompt the user for action, e.g. to select an object to view properties. */
+	/**
+	 * Determines which properties are to be displayed based on an IReplicationStreamModel.
+	 * Uses a property tree for displaying. If no properties are displayed, this widget displays a message instead, e.g. to select an object.
+	 */
 	class SReplicatedPropertyView : public SCompoundWidget
 	{
 	public:
@@ -47,18 +51,17 @@ namespace UE::ConcertSharedSlate
 		
 		void RefreshPropertyData();
 		/** Requests that the given column be resorted, if it currently affects the row sorting. */
-		void RequestResortForColumn(const FName& ColumnId);
+		void RequestResortForColumn(const FName& ColumnId) const { ReplicatedProperties->RequestResortForColumn(ColumnId); }
 		
-		const TArray<TSharedPtr<FReplicatedPropertyData>>& GetPropertyRowData() const { return PropertyRowData; }
 		TArray<FSoftObjectPath> GetObjectsSelectedForPropertyEditing() const;
 
 	private:
 		
+		/** Tree view for replicated properties. Content depends on the current object selected. */
+		TSharedPtr<SFilteredPropertyTreeView> ReplicatedProperties;
+		
 		/** The model this view is visualizing. */
 		TSharedPtr<IReplicationStreamModel> PropertiesModel;
-		
-		/** Tree view for replicated properties. Content depends on the current object selected. */
-		TSharedPtr<SPropertyTreeView> ReplicatedProperties;
 		
 		enum class EReplicatedPropertyContent
 		{
@@ -74,33 +77,15 @@ namespace UE::ConcertSharedSlate
 		
 		/** Gets the root objects selected in the object outliner. */
 		FGetSelectedRootObjects GetSelectedRootObjectsDelegate;
-		
-		/**
-		 * These instances can be subclasses of FReplicatedPropertyData, e.g. FReplicatedPropertyData_Editor.
-		 * Their type can be overridden by subclasses.
-		 * They only have the FReplicatedPropertyData type so they can be passed efficiently to SObjectToPropertyView.
-		 * @see GetPropertyData
-		 */
-		TArray<TSharedPtr<FReplicatedPropertyData>> PropertyRowData;
-		/** The instances of ObjectRowData which do not have any parents. This acts as the item source for the tree view. */
-		TArray<TSharedPtr<FReplicatedPropertyData>> RootPropertyRowData;
-		/** Inverse map of PropertyRowData using FReplicatedPropertyData::GetProperty as key. Contains all elements of PropertyRowData. */
-		TMap<FConcertPropertyChain, TSharedPtr<FReplicatedPropertyData>> ChainToPropertyDataCache;
 
 		/** Used to determine whether to rebuild the entire property data. */
 		TArray<FSoftObjectPath> PreviousSelectedObjects;
 
 		TSharedRef<SWidget> CreatePropertiesView(const FArguments& InArgs);
 		
-		TSharedRef<FReplicatedPropertyData> AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);
-
-		/** Inits RootPropertyRowData from PropertyRowData. */
-		void BuildRootPropertyRowData();
 		/** Given the selected objects, determines whether they all have the same class and returns it if so. */
 		TOptional<FSoftClassPath> GetClassForPropertiesFromSelection(const TArray<FSoftObjectPath>& Objects) const;
-		void GetPropertyRowChildren(TSharedPtr<FReplicatedPropertyData> ReplicatedPropertyData, TFunctionRef<void(TSharedPtr<FReplicatedPropertyData>)> ProcessChild);
-		
-		// Utils
+		/** Sets how to display this widget */
 		void SetPropertyContent(EReplicatedPropertyContent Content) const;
 	};
 }

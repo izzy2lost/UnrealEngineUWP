@@ -7,8 +7,6 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Templates/SharedPointer.h"
 
-struct FConcertPropertyChain;
-
 namespace UE::ConcertSharedSlate
 {
 	class IEditableReplicationStreamModel;
