@@ -69,7 +69,7 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNativeElement::PerformAction(UEdGra
 	NewPCGNode->PositionX = Location.X;
 	NewPCGNode->PositionY = Location.Y;
 
-	if (FromPin)
+	if (FromPin && ensure(FromPin->GetOwningNode()))
 	{
 		NewNode->AutowireNewNode(FromPin);
 	}
