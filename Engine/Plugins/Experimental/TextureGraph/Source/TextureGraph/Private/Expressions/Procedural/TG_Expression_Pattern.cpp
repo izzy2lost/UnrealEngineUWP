@@ -57,12 +57,11 @@ void UTG_Expression_Pattern::Evaluate(FTG_EvaluationContext* InContext)
 	const FString Name = FString::Printf(TEXT("[%s].[%d].[%llu] Pattern"), *GetDefaultName().ToString(), InContext->TargetId, InContext->Cycle->GetBatch()->GetBatchId());
 
 	BufferDescriptor Desc = Output.GetBufferDescriptor();
-
+	// Default format to RGBA8
 	if (Desc.Format == BufferFormat::Auto)
 		Desc.Format = BufferFormat::Byte;
-
 	if (Desc.ItemsPerPoint == 0)
-		Desc.ItemsPerPoint = 1;
+		Desc.ItemsPerPoint = 4;
 
 	Desc.DefaultValue = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 

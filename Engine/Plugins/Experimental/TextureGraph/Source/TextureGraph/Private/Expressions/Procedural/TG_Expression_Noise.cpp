@@ -34,12 +34,12 @@ void UTG_Expression_Noise::Evaluate(FTG_EvaluationContext* InContext)
 	const FString Name = TEXT("Noise"); /// FString::Printf(TEXT("[%s].[%d].[%llu] Noise"), GetDefaultName(), InContext->TargetId, InContext->Cycle->Batch()->BatchId());
 
 	BufferDescriptor Desc = Output.GetBufferDescriptor();
-
+	
+	// Default format to RGBA8
 	if (Desc.Format == BufferFormat::Auto)
 		Desc.Format = BufferFormat::Byte;
-
 	if (Desc.ItemsPerPoint == 0)
-		Desc.ItemsPerPoint = 1;
+		Desc.ItemsPerPoint = 4;
 
 	Desc.DefaultValue = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
