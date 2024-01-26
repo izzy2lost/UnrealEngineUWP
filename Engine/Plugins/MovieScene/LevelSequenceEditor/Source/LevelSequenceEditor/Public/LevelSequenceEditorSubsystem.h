@@ -5,7 +5,7 @@
 
 #include "EditorSubsystem.h"
 
-#include "SequenceTimeUnit.h"
+#include "MovieSceneTimeUnit.h"
 #include "Containers/SortedMap.h"
 #include "UObject/StructOnScope.h"
 #include "UniversalObjectLocator.h"
@@ -44,7 +44,7 @@ struct FMovieSceneScriptingParams
 	FMovieSceneScriptingParams() {}
 
 	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
-	ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate;
+	EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate;
 };
 
 // Helper struct for Binding Properties UI for locators.
