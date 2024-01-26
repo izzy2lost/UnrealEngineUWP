@@ -27,12 +27,15 @@ public:
 	ENGINE_API virtual RayTracingGeometryHandle RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry) override;
 	ENGINE_API virtual void ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle) override;
 
+	ENGINE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup() override;
+	ENGINE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) override;
+
 	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList) override;
 
-	ENGINE_API void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
-	ENGINE_API void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
+	ENGINE_API void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
+	ENGINE_API void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
 
-	void RequestUpdateCachedRenderState(const UStaticMesh* StaticMesh);
+	void RequestUpdateCachedRenderState(RayTracing::GeometryGroupHandle InRayTracingGeometryGroupHandle);
 
 private:
 
@@ -43,6 +46,8 @@ private:
 		float BuildPriority = 0.0f;
 		FRayTracingGeometry* Owner;
 		EAccelerationStructureBuildMode BuildMode;
+
+		// TODO: Implement use-after-free checks in BuildRequestIndex using some bits to identify generation
 	};
 
 	void SetupBuildParams(const FBuildRequest& InBuildRequest, TArray<FRayTracingGeometryBuildParams>& InBuildParams, bool bRemoveFromRequestArray = true);
@@ -58,7 +63,14 @@ private:
 	TArray<FBuildRequest> SortedRequests;
 	TArray<FRayTracingGeometryBuildParams> BuildParams;
 
-	TMap<const UStaticMesh*, TSet<FPrimitiveSceneProxy*>> CachedRayTracingStateProxiesMap;
+	struct FRayTracingGeometryGroup
+	{
+		TSet<FPrimitiveSceneProxy*> ProxiesWithCachedRayTracingState;
+
+		// TODO: Implement use-after-free checks in RayTracing::GeometryGroupHandle using some bits to identify generation
+	};
+
+	TSparseArray<FRayTracingGeometryGroup> RegisteredGroups;
 };
 
 #endif // RHI_RAYTRACING
