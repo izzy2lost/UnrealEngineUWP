@@ -319,6 +319,18 @@ void UMovieGraphConfig::PostLoad()
 				OnGraphVariablesChangedDelegate.Broadcast();
 			});
 		}
+
+		// Remove all null nodes
+		AllNodes.RemoveAll(
+			[](UMovieGraphNode* Node)
+			{
+				if (!Node)
+				{
+					UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Encountered invalid source node (nullptr) when building Movie Pipeline Editor graph, skipping creating an editor graph node for the invalid source node."))
+					return true;
+				}
+				return false;
+			});
 #endif
 	}
 }
