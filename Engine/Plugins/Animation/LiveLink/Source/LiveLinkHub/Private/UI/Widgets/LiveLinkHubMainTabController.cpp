@@ -14,6 +14,7 @@ void FLiveLinkHubMainTabController::Init(const FLiveLinkHubComponentInitParams& 
 {
 	FGlobalTabmanager::Get()->RegisterTabSpawner(LiveLinkHubTabID, FOnSpawnTab::CreateRaw(this, &FLiveLinkHubMainTabController::SpawnMainTab, Params.WindowController->GetRootWindow()))
 		.SetDisplayName(LOCTEXT("LiveLinkHubTabLabel", "LiveLink Hub"))
+		.SetIcon(FSlateIcon("LiveLinkStyle", "LiveLinkHub.Icon.Small"))
 		.SetTooltipText(LOCTEXT("MainTabTooltipText", "LiveLink Hub Main Tab"));
 	
 	Params.MainStack->AddTab(LiveLinkHubTabID, ETabState::OpenedTab);
@@ -29,6 +30,10 @@ TSharedRef<SDockTab> FLiveLinkHubMainTabController::SpawnMainTab(const FSpawnTab
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.Label(LOCTEXT("LiveLinkHubTitle", "LiveLink Hub"))
 		.TabRole(MajorTab)
+		.OnCanCloseTab_Lambda([]()
+		{
+			return false;
+		})
 		.CanEverClose(false);
 
 	DockTab->SetContent(

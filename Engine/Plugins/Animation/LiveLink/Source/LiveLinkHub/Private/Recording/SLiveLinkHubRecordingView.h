@@ -7,7 +7,11 @@
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
 #include "Styling/SlateTypes.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 class FLiveLinkHub;
 
@@ -40,8 +44,28 @@ public:
 		ChildSlot
 		[
 			SNew(SButton)
-				.Text(TAttribute<FText>::CreateSP(this, &SLiveLinkHubRecordingView::GetRecordingText))
 				.OnClicked(this, &SLiveLinkHubRecordingView::OnClickRecordButton)
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SImage)
+						.Image(FAppStyle::Get().GetBrush("Animation.Record"))
+						.ColorAndOpacity(FSlateColor::UseForeground())
+					]
+					+ SHorizontalBox::Slot()
+					.Padding(FMargin(3, 0, 0, 0))
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Text(TAttribute<FText>::CreateSP(this, &SLiveLinkHubRecordingView::GetRecordingText))
+						.TextStyle(FAppStyle::Get(), "NormalText")
+					]
+				]
 		];
 	}
 
@@ -65,7 +89,7 @@ public:
 			OnStartRecordingDelegate.Execute();
 		}
 
-		return FReply::Handled();
+		return FReply::Handled(); 
 	}
 
 	/** Returns whether we're currently recording. */
