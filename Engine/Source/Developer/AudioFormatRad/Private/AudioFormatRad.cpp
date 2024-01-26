@@ -98,7 +98,7 @@ public:
 			UE_LOG(LogAudioFormatRad, Warning, TEXT("Failed to encode RAD Audio: %hs"),  RadAErrorString(RadCompressError));
 			if (RadCompressError == RADA_COMPRESS_ERROR_RATE)
 			{
-				UE_LOG(LogAudioFormatRad, Warning, TEXT("Sample rate provided: %u"), InQualityInfo.SampleRate);
+				UE_LOG(LogAudioFormatRad, Warning, TEXT("Sample rate provided: %u - please reimport at a valid sample rate."), InQualityInfo.SampleRate);
 			}
 			else if (RadCompressError == RADA_COMPRESS_ERROR_CHANS)
 			{

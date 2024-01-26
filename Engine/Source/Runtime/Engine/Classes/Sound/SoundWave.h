@@ -338,7 +338,7 @@ enum class ESoundAssetCompressionType : uint8
 	// The project defines the codec used for this asset.
 	ProjectDefined,
 
-	// As BinkAudio, except better quality. Comparable CPU usage.
+	// As BinkAudio, except better quality. Comparable CPU usage. Only valid sample rates are: 48000, 44100, 32000, and 24000.
 	RADAudio UMETA(DisplayName = "RAD Audio"),
 };
 
