@@ -33,7 +33,14 @@ namespace UE::UsdIntegrationUtils::Private
 		FScopedUsdAllocs UsdAllocs;
 
 		pxr::TfType Schema = pxr::UsdSchemaRegistry::GetTypeFromSchemaTypeName(SchemaName);
-		if (!ensure(static_cast<bool>(Schema)))
+		if (!Schema)
+		{
+			return false;
+		}
+
+		// Query via this function first, because if we're given something like "Material", the following calls
+		// will emit USD errors when it tries checking if it can apply a non-single-apply API schema
+		if (!pxr::UsdSchemaRegistry::IsAppliedAPISchema(Schema))
 		{
 			return false;
 		}
@@ -119,7 +126,10 @@ bool UsdUtils::ApplySchema(const pxr::UsdPrim& Prim, const pxr::TfToken& SchemaT
 	FScopedUsdAllocs Allocs;
 
 	pxr::TfType Schema = pxr::UsdSchemaRegistry::GetTypeFromSchemaTypeName(SchemaToken);
-	ensure(static_cast<bool>(Schema));
+	if (!Schema)
+	{
+		return false;
+	}
 
 	return Prim.ApplyAPI(Schema);
 }
@@ -140,7 +150,10 @@ bool UsdUtils::RemoveSchema(const pxr::UsdPrim& Prim, const pxr::TfToken& Schema
 	FScopedUsdAllocs Allocs;
 
 	pxr::TfType Schema = pxr::UsdSchemaRegistry::GetTypeFromSchemaTypeName(SchemaToken);
-	ensure(static_cast<bool>(Schema));
+	if (!Schema)
+	{
+		return false;
+	}
 
 	return Prim.RemoveAPI(Schema);
 }

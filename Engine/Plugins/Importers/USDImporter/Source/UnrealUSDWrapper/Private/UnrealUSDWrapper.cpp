@@ -103,6 +103,15 @@ namespace UnrealIdentifiers
 	const TfToken UnrealUseFKControlRig = TfToken("unreal:controlRig:useFKControlRig");
 	const TfToken UnrealControlRigReduceKeys = TfToken("unreal:controlRig:reduceKeys");
 	const TfToken UnrealControlRigReductionTolerance = TfToken("unreal:controlRig:reductionTolerance");
+
+	const TfToken SparseVolumeTextureAPI = TfToken("SparseVolumeTextureAPI");
+	const TfToken UnrealSVTMappedFields = TfToken("unreal:SVT:mappedFields");
+	const TfToken UnrealSVTMappedMaterialParameters = TfToken("unreal:SVT:mappedMaterialParameters");
+	const TfToken UnrealSVTMappedGridComponents = TfToken("unreal:SVT:mappedGridComponents");
+	const TfToken UnrealSVTMappedAttributeChannels = TfToken("unreal:SVT:mappedAttributeChannels");
+	const TfToken UnrealSVTAttributesADataType = TfToken("unreal:SVT:attributesAdataType");
+	const TfToken UnrealSVTAttributesBDataType = TfToken("unreal:SVT:attributesBdataType");
+
 	const TfToken DiffuseColor = TfToken("diffuseColor");
 	const TfToken EmissiveColor = TfToken("emissiveColor");
 	const TfToken Metallic = TfToken("metallic");

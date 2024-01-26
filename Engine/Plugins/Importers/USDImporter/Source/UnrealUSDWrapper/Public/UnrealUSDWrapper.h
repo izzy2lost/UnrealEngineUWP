@@ -382,6 +382,14 @@ namespace UnrealIdentifiers
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealControlRigReduceKeys;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealControlRigReductionTolerance;
 
+	extern UNREALUSDWRAPPER_API const pxr::TfToken SparseVolumeTextureAPI;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealSVTMappedFields;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealSVTMappedMaterialParameters;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealSVTMappedGridComponents;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealSVTMappedAttributeChannels;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealSVTAttributesADataType;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealSVTAttributesBDataType;
+
 	extern UNREALUSDWRAPPER_API const pxr::TfToken DiffuseColor;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken EmissiveColor;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken Metallic;
