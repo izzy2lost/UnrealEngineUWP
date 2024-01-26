@@ -3201,18 +3201,39 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 					check(RawSkeletalMeshBulkData_DEPRECATED);
 					if (!RawSkeletalMeshBulkData_DEPRECATED->IsEmpty())
 					{
-						FSkeletalMeshImportData SerializeMeshData;
-						RawSkeletalMeshBulkData_DEPRECATED->LoadRawMesh(SerializeMeshData);
+						FSkeletalMeshImportData SkeletalMeshImportData;
+						RawSkeletalMeshBulkData_DEPRECATED->LoadRawMesh(SkeletalMeshImportData);
 
-						// Some older versions of the bulk data did not store the morph targets, but they're available on the skeletal
-						// mesh itself. Try to back-fill from the skeletal mesh.
-						if (SerializeMeshData.MorphTargets.IsEmpty() && !GetMorphTargets().IsEmpty())
+						// Some older versions of the bulk data did not store the morph targets or alternate skin profiles, but they're 
+						// available on the skeletal mesh's LOD model. Try to back-fill from the LOD model.
+						if (SkeletalMeshImportData.MorphTargets.IsEmpty() && !GetMorphTargets().IsEmpty())
 						{
-							SerializeMeshData.SetMorphTargets(GetMorphTargets(), LODIndex, ThisLODModel.GetRawPointIndices());
+							for (UMorphTarget* MorphTarget: GetMorphTargets())
+							{
+								if (!MorphTarget->HasDataForLOD(LODIndex))
+								{
+									continue;
+								}
+
+								const FMorphTargetLODModel& MorphTargetModel = MorphTarget->GetMorphLODModels()[LODIndex];
+
+								// Confusingly, morph targets need FSkeletalMeshLODModel::RawPointIndices2 to map back to the import model, whereas
+								// skin weight profiles need MeshToImportVertexMap.
+								SkeletalMeshImportData.AddMorphTarget(MorphTarget->GetFName(), MorphTargetModel, ThisLODModel.GetRawPointIndices());
+							}
+						}
+
+						if (SkeletalMeshImportData.AlternateInfluences.IsEmpty() && !GetSkinWeightProfiles().IsEmpty() && !ThisLODModel.SkinWeightProfiles.IsEmpty())
+						{
+							for (const TPair<FName, FImportedSkinWeightProfileData>& SkinWeightProfileInfo: ThisLODModel.SkinWeightProfiles)
+							{
+								SkeletalMeshImportData.AddSkinWeightProfile(SkinWeightProfileInfo.Key, SkinWeightProfileInfo.Value,
+									ThisLODModel.MeshToImportVertexMap, ThisLODModel.ActiveBoneIndices);
+							}
 						}
 
 						FMeshDescription MeshDescription;
-						if (SerializeMeshData.GetMeshDescription(this, MeshDescription))
+						if (SkeletalMeshImportData.GetMeshDescription(this, MeshDescription))
 						{
 							CreateMeshDescription(LODIndex, MoveTemp(MeshDescription));
 							CommitMeshDescription(LODIndex);

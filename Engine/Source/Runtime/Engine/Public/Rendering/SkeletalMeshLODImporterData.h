@@ -13,6 +13,7 @@
 #include "Animation/MorphTarget.h"
 #include "Templates/DontCopy.h"
 
+struct FImportedSkinWeightProfileData;
 struct FMeshDescription;
 class FSkeletalMeshLODModel;
 
@@ -421,8 +422,14 @@ public:
 	/*
 	 * Add morph target data from UMorphTarget in case there was none on the mesh itself.
 	 */
-	ENGINE_API void SetMorphTargets(const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets, int32 InLODIndex, const TArray<uint32>& InVertexMap);
+	ENGINE_API void AddMorphTarget(FName InMorphTargetName, const FMorphTargetLODModel& InMorphTargetModel, const TArray<uint32>& InVertexMap);
 
+	/*
+	 * Add alternate skin profile from FImportedSkinWeightProfileData
+	 */
+	ENGINE_API void AddSkinWeightProfile(FName InProfileName, const FImportedSkinWeightProfileData& InProfileData, const TArray<int32>& InVertexMap, const TArray<FBoneIndexType>& InBoneIndexMap);
+	
+	
 	/**
 	 * Returns a mesh description from the import data. If logging on failures is required, pass in a pointer 
 	 * to the owning skeletal mesh. Otherwise leave as a \c nullptr. 
