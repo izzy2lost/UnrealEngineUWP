@@ -174,7 +174,9 @@ void FSkeletalMeshModelingToolsEditorModeToolkit::RegisterPalettes()
 		Commands.BeginSkinWeightsBindingTool,
 		Commands.BeginSkinWeightsPaintTool,
 		Commands.BeginAttributeEditorTool,
-		Commands.BeginMeshAttributePaintTool
+		Commands.BeginMeshAttributePaintTool,
+		Commands.BeginPolyGroupsTool,
+		Commands.BeginMeshGroupPaintTool
 	});
 	ToolkitBuilder->AddPalette(
 		MakeShareable( new FToolPalette( Commands.LoadSkinTools.ToSharedRef(), SkinCommands ) ) );
