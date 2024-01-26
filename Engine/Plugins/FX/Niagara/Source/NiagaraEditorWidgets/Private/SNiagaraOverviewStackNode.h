@@ -153,4 +153,6 @@ private:
 
 	TSharedPtr<SBox> ThumbnailContainer;
 	TSharedPtr<FAssetThumbnail> PreviewThumbnail;
+	
+	SVerticalBox::FSlot* TopContentBarSlot = nullptr;
 };
