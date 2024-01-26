@@ -65,7 +65,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Tested compiler toolchains that should not be allowed.
 		/// </summary>
-		static readonly VersionNumberRange[] BannedVisualCppVersions = System.Array.Empty<VersionNumberRange>();
+		static readonly VersionNumberRange[] BannedVisualCppVersions = Array.Empty<VersionNumberRange>();
 
 		/// <summary>
 		/// The minimum supported MSVC compiler
@@ -87,35 +87,35 @@ namespace UnrealBuildTool
 		static readonly VersionNumber MinimumIntelOneApiVersion = new VersionNumber(2024, 0, 0);
 
 		/// <inheritdoc/>
-		protected override void GetValidSoftwareVersionRange(out string? MinVersion, out string? MaxVersion)
+		protected override void GetValidSoftwareVersionRange(out string? minVersion, out string? maxVersion)
 		{
-			MinVersion = MinimumWindowsSDKVersion?.ToString();
-			MaxVersion = MaximumWindowsSDKVersion?.ToString();
+			minVersion = MinimumWindowsSDKVersion?.ToString();
+			maxVersion = MaximumWindowsSDKVersion?.ToString();
 		}
 
 		/// <summary>
 		/// The minimum supported Clang version for a given MSVC toolchain
 		/// </summary>
-		/// <param name="VcVersion"></param>
+		/// <param name="vcVersion"></param>
 		/// <returns></returns>
-		public static VersionNumber GetMinimumClangVersionForVcVersion(VersionNumber VcVersion)
+		public static VersionNumber GetMinimumClangVersionForVcVersion(VersionNumber vcVersion)
 		{
-			return MinimumRequiredClangVersion.FirstOrDefault(x => VcVersion >= x.Item1)?.Item2 ?? MinimumClangVersion;
+			return MinimumRequiredClangVersion.FirstOrDefault(x => vcVersion >= x.Item1)?.Item2 ?? MinimumClangVersion;
 		}
 
 		/// <summary>
 		/// The base Clang version for a given Intel toolchain
 		/// </summary>
-		/// <param name="IntelCompilerPath"></param>
+		/// <param name="intelCompilerPath"></param>
 		/// <returns></returns>
-		public static VersionNumber GetClangVersionForIntelCompiler(FileReference IntelCompilerPath)
+		public static VersionNumber GetClangVersionForIntelCompiler(FileReference intelCompilerPath)
 		{
-			FileReference LdLLdPath = FileReference.Combine(IntelCompilerPath.Directory, "compiler", "ld.lld.exe");
-			if (FileReference.Exists(LdLLdPath))
+			FileReference ldLLdPath = FileReference.Combine(intelCompilerPath.Directory, "compiler", "ld.lld.exe");
+			if (FileReference.Exists(ldLLdPath))
 			{
-				FileVersionInfo VersionInfo = FileVersionInfo.GetVersionInfo(LdLLdPath.FullName);
-				VersionNumber Version = new VersionNumber(VersionInfo.FileMajorPart, VersionInfo.FileMinorPart, VersionInfo.FileBuildPart);
-				return Version;
+				FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(ldLLdPath.FullName);
+				VersionNumber version = new VersionNumber(versionInfo.FileMajorPart, versionInfo.FileMinorPart, versionInfo.FileBuildPart);
+				return version;
 			}
 
 			return MinimumClangVersion;
@@ -126,6 +126,6 @@ namespace UnrealBuildTool
 		/// as components such as the recommended toolchain can be installed by opening the generated solution via the .vsconfig file.
 		/// If enabled the error will be downgraded to a warning.
 		/// </summary>
-		public static bool IgnoreToolchainErrors = false;
+		public static bool IgnoreToolchainErrors { get; set; } = false;
 	}
 }

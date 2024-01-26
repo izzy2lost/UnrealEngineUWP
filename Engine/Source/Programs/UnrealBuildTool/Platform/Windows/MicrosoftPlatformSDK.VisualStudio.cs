@@ -1,5 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 
@@ -8,20 +9,23 @@ namespace UnrealBuildTool
 	partial class MicrosoftPlatformSDK : UEBuildPlatformSDK
 	{
 		/// <summary>
-		/// The default set of components that should be suggested to be installed for Visual Studio 2019 or 2022.
-		/// This or the 2019\2022 specific components should be updated if the preferred visual cpp version changes
+		/// The default set of components that should be suggested to be installed for Visual Studio
+		/// This or the 2022 specific components should be updated if the preferred visual cpp version changes
 		/// </summary>
 		static readonly string[] VisualStudioSuggestedComponents = new string[]
 		{
-			"Microsoft.VisualStudio.Workload.CoreEditor",
-			"Microsoft.VisualStudio.Workload.NativeDesktop",
-			"Microsoft.VisualStudio.Workload.NativeGame",
+			"Microsoft.Net.Component.4.6.2.TargetingPack",
+			"Microsoft.VisualStudio.Component.VC.14.38.17.8.x86.x64",
 			"Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
 			"Microsoft.VisualStudio.Component.Windows10SDK.22000",
+			"Microsoft.VisualStudio.Workload.CoreEditor",
+			"Microsoft.VisualStudio.Workload.ManagedDesktop",
+			"Microsoft.VisualStudio.Workload.NativeDesktop",
+			"Microsoft.VisualStudio.Workload.NativeGame",
 		};
 
 		/// <summary>
-		/// Additional set of components that should be suggested to be installed for Visual Studio 2019 or 2022
+		/// Additional set of components that should be suggested to be installed for Visual Studio
 		/// to support the Linux platform.
 		/// </summary>
 		static readonly string[] VisualStudioSuggestedLinuxComponents = new string[]
@@ -30,49 +34,36 @@ namespace UnrealBuildTool
 		};
 
 		/// <summary>
-		/// Additional set of components that should be suggested to be installed for Visual Studio 2019.
-		/// </summary>
-		static readonly string[] VisualStudio2019SuggestedComponents = System.Array.Empty<string>();
-
-		/// <summary>
 		/// Additional set of components that should be suggested to be installed for Visual Studio 2022.
 		/// </summary>
-		static readonly string[] VisualStudio2022SuggestedComponents = new string[]
-		{
-			"Microsoft.VisualStudio.Workload.ManagedDesktop",
-			"Microsoft.VisualStudio.Component.VC.14.38.17.8.x86.x64",
-			"Microsoft.Net.Component.4.6.2.TargetingPack",
-		};
+		static readonly string[] VisualStudio2022SuggestedComponents = Array.Empty<string>();
 
 		/// <summary>
 		/// Returns the list of suggested of components that should be suggested to be installed for Visual Studio.
 		/// Used to generate a .vsconfig file which will prompt Visual Studio to ask the user to install these components.
 		/// </summary>
-		public static IEnumerable<string> GetVisualStudioSuggestedComponents(VCProjectFileFormat Format)
+		public static IEnumerable<string> GetVisualStudioSuggestedComponents(VCProjectFileFormat format)
 		{
-			bool LinuxValid = InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.Linux) && UEBuildPlatform.IsPlatformAvailable(UnrealTargetPlatform.Linux);
+			bool platformLinuxValid = (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.Linux) && UEBuildPlatform.IsPlatformAvailable(UnrealTargetPlatform.Linux))
+				|| (InstalledPlatformInfo.IsValidPlatform(UnrealTargetPlatform.LinuxArm64) && UEBuildPlatform.IsPlatformAvailable(UnrealTargetPlatform.LinuxArm64));
 
-			SortedSet<string> Components = new SortedSet<string>();
-			Components.UnionWith(VisualStudioSuggestedComponents);
+			SortedSet<string> components = new(VisualStudioSuggestedComponents);
 
-			switch (Format)
+			switch (format)
 			{
-				case VCProjectFileFormat.VisualStudio2019:
-					Components.UnionWith(VisualStudio2019SuggestedComponents);
-					break;
 				case VCProjectFileFormat.VisualStudio2022:
-					Components.UnionWith(VisualStudio2022SuggestedComponents);
+					components.UnionWith(VisualStudio2022SuggestedComponents);
 					break;
 				default:
-					throw new BuildException("Unsupported Visual Studio version");
+					throw new BuildException("Unsupported Visual Studio version {0}", format);
 			}
 
-			if (LinuxValid)
+			if (platformLinuxValid)
 			{
-				Components.UnionWith(VisualStudioSuggestedLinuxComponents);
+				components.UnionWith(VisualStudioSuggestedLinuxComponents);
 			}
 
-			return Components;
+			return components;
 		}
 	}
 }

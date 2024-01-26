@@ -481,7 +481,7 @@ namespace UnrealBuildTool
 
 				if (!WindowsPlatform.TryGetToolChainDir(ToolChain, ToolchainVersion, Architecture, Logger, out SelectedToolChainVersion, out SelectedToolChainDir, out SelectedRedistDir))
 				{
-					throw new BuildException("{0} or {1} must be installed in order to build this target.", WindowsPlatform.GetCompilerName(WindowsCompiler.VisualStudio2019), WindowsPlatform.GetCompilerName(WindowsCompiler.VisualStudio2022));
+					throw new BuildException("{0} must be installed in order to build this target.", WindowsPlatform.GetCompilerName(WindowsCompiler.VisualStudio2022));
 				}
 			}
 			else

@@ -133,14 +133,16 @@ namespace UnrealBuildTool
 		Intel,
 
 		/// <summary>
-		/// Visual Studio 2019 (Visual C++ 16.0)
-		/// </summary>
-		VisualStudio2019,
-
-		/// <summary>
 		/// Visual Studio 2022 (Visual C++ 17.0)
 		/// </summary>
 		VisualStudio2022,
+
+		/// <summary>
+		/// Unsupported Visual Studio
+		/// Must be the last entry in WindowsCompiler enum and should only be used in limited circumstances
+		/// </summary>
+		[Obsolete("Unsupported Visual Studio WindowsCompiler, do not use this enum")]
+		VisualStudioUnsupported,
 	}
 
 	/// <summary>
@@ -155,7 +157,7 @@ namespace UnrealBuildTool
 	}
 
 	/// <summary>
-	/// Extension methods for WindowsCompilier enum
+	/// Extension methods for WindowsCompiler enum
 	/// </summary>
 	public static class WindowsCompilerExtensions
 	{
@@ -186,7 +188,7 @@ namespace UnrealBuildTool
 		/// <returns>true if MSVC based</returns>
 		public static bool IsMSVC(this WindowsCompiler Compiler)
 		{
-			return Compiler >= WindowsCompiler.VisualStudio2019;
+			return Compiler >= WindowsCompiler.VisualStudio2022;
 		}
 	}
 
@@ -258,7 +260,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "Compiler")]
 		[XmlConfigFile(Category = "WindowsPlatform")]
-		[CommandLine("-2019", Value = nameof(WindowsCompiler.VisualStudio2019))]
 		[CommandLine("-2022", Value = nameof(WindowsCompiler.VisualStudio2022))]
 		[CommandLine("-Compiler=")]
 		public WindowsCompiler Compiler = WindowsCompiler.Default;
@@ -271,7 +272,7 @@ namespace UnrealBuildTool
 		[CommandLine("-VCToolchain=")]
 		public WindowsCompiler ToolChain
 		{
-			get => ToolChainPrivate ?? (Compiler.IsMSVC() ? Compiler : WindowsPlatform.GetDefaultCompiler(Target.ProjectFile, Architecture, Target.Logger));
+			get => ToolChainPrivate ?? (Compiler.IsMSVC() ? Compiler : WindowsPlatform.GetDefaultCompiler(Target.ProjectFile, Architecture, Target.Logger, true));
 			set => ToolChainPrivate = value;
 		}
 		private WindowsCompiler? ToolChainPrivate = null;
@@ -703,7 +704,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// When using a Visual Studio compiler, returns the version name as a string
 		/// </summary>
-		/// <returns>The Visual Studio compiler version name (e.g. "2019")</returns>
+		/// <returns>The Visual Studio compiler version name (e.g. "2022")</returns>
 		public string GetVisualStudioCompilerVersionName()
 		{
 			switch (Compiler)
@@ -711,7 +712,6 @@ namespace UnrealBuildTool
 				case WindowsCompiler.Clang:
 				case WindowsCompiler.ClangRTFM:
 				case WindowsCompiler.Intel:
-				case WindowsCompiler.VisualStudio2019:
 				case WindowsCompiler.VisualStudio2022:
 					return "2015"; // VS2022 is backwards compatible with VS2015 compiler
 
@@ -1113,7 +1113,7 @@ namespace UnrealBuildTool
 			// Set the compiler version if necessary
 			if (Target.WindowsPlatform.Compiler == WindowsCompiler.Default)
 			{
-				Target.WindowsPlatform.Compiler = GetDefaultCompiler(Target.ProjectFile, Target.WindowsPlatform.Architecture, Logger);
+				Target.WindowsPlatform.Compiler = GetDefaultCompiler(Target.ProjectFile, Target.WindowsPlatform.Architecture, Logger, !Platform.IsInGroup(UnrealPlatformGroup.Microsoft));
 			}
 
 			// Disable linking and ignore build outputs if we're using a static analyzer
@@ -1179,24 +1179,6 @@ namespace UnrealBuildTool
 			Target.WindowsPlatform.ToolchainVersion = Target.WindowsPlatform.Environment.ToolChainVersion.ToString();
 			Target.WindowsPlatform.WindowsSdkVersion = Target.WindowsPlatform.Environment.WindowsSdkVersion.ToString();
 
-			// If we're enabling support for C++ modules, make sure the compiler supports it. VS 16.8 changed which command line arguments are used to enable modules support.
-			if (Target.bEnableCppModules && !ProjectFileGenerator.bGenerateProjectFiles && Target.WindowsPlatform.Environment.ToolChainVersion < new VersionNumber(14, 28, 29304))
-			{
-				throw new BuildException("Support for C++20 modules requires Visual Studio 2019 16.8 Preview 3 (MSVC 17.28.29304) or later. The current compiler version was detected as: {0}", Target.WindowsPlatform.Environment.ToolChainVersion);
-			}
-
-			// Ensure we're using recent enough version of Visual Studio to support ASan builds.
-			if (Target.WindowsPlatform.bEnableAddressSanitizer && Target.WindowsPlatform.Environment.ToolChainVersion < new VersionNumber(14, 27, 0))
-			{
-				throw new BuildException("Address sanitizer requires Visual Studio 2019 16.7 (MSVC 17.27.x) or later. The current compiler version was detected as: {0}", Target.WindowsPlatform.Environment.ToolChainVersion);
-			}
-
-			// Ensure we're using recent enough version of Visual Studio to support LibFuzzer.
-			if (Target.WindowsPlatform.bEnableLibFuzzer && Target.WindowsPlatform.Environment.ToolChainVersion < new VersionNumber(14, 30, 0))
-			{
-				throw new BuildException("LibFuzzer MSVC support requires Visual Studio 2022 17.0 (MSVC 14.30.x) or later. The current compiler version was detected as: {0}", Target.WindowsPlatform.Environment.ToolChainVersion);
-			}
-
 			// Ensure we're using a recent enough version of Clang given the MSVC version
 			if (Target.WindowsPlatform.Compiler.IsClang() && !MicrosoftPlatformSDK.IgnoreToolchainErrors)
 			{
@@ -1206,12 +1188,6 @@ namespace UnrealBuildTool
 				{
 					throw new BuildException("MSVC toolchain version {0} requires Clang compiler version {1} or later. The current Clang compiler version was detected as: {2}", Target.WindowsPlatform.Environment.ToolChainVersion, MinimumClang, ClangVersion);
 				}
-			}
-
-			// Ensure we're using VS2022 when compiling for the installed engine.
-			if (Unreal.IsEngineInstalled() && (Target.WindowsPlatform.ToolChain == WindowsCompiler.VisualStudio2019 || Target.WindowsPlatform.Environment.ToolChainVersion < new VersionNumber(14, 34, 0)))
-			{
-				throw new BuildException("Microsoft platform targets must be compiled with Visual Studio 2022 17.4 (MSVC 14.34.x) or later for the installed engine. Please update Visual Studio 2022 and ensure no configuration is forcing WindowsTargetRules.Compiler to VisualStudio2019. The current compiler version was detected as: {0}", Target.WindowsPlatform.Environment.ToolChainVersion);
 			}
 
 			//			@Todo: Still getting reports of frequent OOM issues with this enabled as of 15.7.
@@ -1242,10 +1218,6 @@ namespace UnrealBuildTool
 					{
 						return WindowsCompiler.VisualStudio2022;
 					}
-					else if (Format == ProjectFileFormat.VisualStudio2019)
-					{
-						return WindowsCompiler.VisualStudio2019;
-					}
 				}
 			}
 
@@ -1258,10 +1230,6 @@ namespace UnrealBuildTool
 				{
 					return WindowsCompiler.VisualStudio2022;
 				}
-				else if (ProjectFormat == VCProjectFileFormat.VisualStudio2019)
-				{
-					return WindowsCompiler.VisualStudio2019;
-				}
 			}
 
 			// Check the editor settings too
@@ -1272,20 +1240,12 @@ namespace UnrealBuildTool
 				{
 					return WindowsCompiler.VisualStudio2022;
 				}
-				else if (PreferredAccessor == ProjectFileFormat.VisualStudio2019)
-				{
-					return WindowsCompiler.VisualStudio2019;
-				}
 			}
 
 			// Second, default based on what's installed, test for 2022 first
 			if (MicrosoftPlatformSDK.HasValidCompiler(WindowsCompiler.VisualStudio2022, Architecture, Logger))
 			{
 				return WindowsCompiler.VisualStudio2022;
-			}
-			else if (MicrosoftPlatformSDK.HasValidCompiler(WindowsCompiler.VisualStudio2019, Architecture, Logger))
-			{
-				return WindowsCompiler.VisualStudio2019;
 			}
 
 			if (!bSkipWarning)
@@ -1298,16 +1258,9 @@ namespace UnrealBuildTool
 						"MSVC v143 - VS 2022 C++ ARM64 build tools (Latest)";
 					Logger.LogWarning("Visual Studio 2022 is installed, but is missing the C++ toolchain. Please verify that the \"{Component}\" component is selected in the Visual Studio 2022 installation options.", ToolSetWarning);
 				}
-				else if (TryGetVSInstallDirs(WindowsCompiler.VisualStudio2019, Logger) != null)
-				{
-					string ToolSetWarning = Architecture == UnrealArch.X64 ?
-						"MSVC v142 - VS 2019 C++ x64/x86 build tools (Latest)" :
-						"MSVC v142 - VS 2019 C++ ARM64 build tools (Latest)";
-					Logger.LogWarning("Visual Studio 2019 is installed, but is missing the C++ toolchain. Please verify that the \"{Component}\" component is selected in the Visual Studio 2019 installation options.", ToolSetWarning);
-				}
 				else
 				{
-					Logger.LogWarning("No Visual C++ installation was found. Please download and install Visual Studio 2022 or 2019 with C++ components.");
+					Logger.LogWarning("No Visual C++ installation was found. Please download and install Visual Studio 2022 with C++ components.");
 				}
 			}
 

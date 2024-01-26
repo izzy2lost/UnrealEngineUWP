@@ -86,10 +86,6 @@ namespace UnrealBuildTool
 
 				switch (InVSSettings.ProjectFileFormat)
 				{
-					case VCProjectFileFormat.VisualStudio2019:
-						VSCompiler = WindowsCompiler.VisualStudio2019;
-						VCVersion = "v160";
-						break;
 					case VCProjectFileFormat.VisualStudio2022:
 						VSCompiler = WindowsCompiler.VisualStudio2022;
 						VCVersion = "v170";

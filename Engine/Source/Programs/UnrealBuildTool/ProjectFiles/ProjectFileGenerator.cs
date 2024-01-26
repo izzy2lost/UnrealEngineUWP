@@ -142,7 +142,6 @@ namespace UnrealBuildTool
 		KDevelop,
 		CodeLite,
 		VisualStudio,
-		VisualStudio2019,
 		VisualStudio2022,
 		XCode,
 		Eddie,
@@ -853,11 +852,6 @@ namespace UnrealBuildTool
 				else if (PreferredAccessor == "visualstudiosourcecodeaccessor")
 				{
 					Format = ProjectFileFormat.VisualStudio;
-					return true;
-				}
-				else if (PreferredAccessor == "visualstudio2019")
-				{
-					Format = ProjectFileFormat.VisualStudio2019;
 					return true;
 				}
 				else if (PreferredAccessor == "visualstudio2022")

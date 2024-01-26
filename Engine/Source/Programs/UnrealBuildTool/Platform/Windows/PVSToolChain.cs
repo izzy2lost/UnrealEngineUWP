@@ -765,7 +765,7 @@ namespace UnrealBuildTool
 				ConfigFileContents.Append("skip-cl-exe=yes\n");
 
 				WindowsCompiler WindowsCompiler = Target.WindowsPlatform.Compiler;
-				bool isVisualCppCompiler = WindowsCompiler == WindowsCompiler.VisualStudio2022 || WindowsCompiler == WindowsCompiler.VisualStudio2019;
+				bool isVisualCppCompiler = WindowsCompiler.IsMSVC();
 				if (AnalyzerVersion.CompareTo(new Version("7.07")) >= 0 && !shouldCompileAsC)
 				{
 					VersionNumber compilerVersion = Target.WindowsPlatform.Environment.CompilerVersion;

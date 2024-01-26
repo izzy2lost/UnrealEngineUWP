@@ -109,11 +109,6 @@ namespace UnrealBuildTool
 			{
 				Lines.Add($"Using {WindowsPlatform.GetCompilerName(EnvVars.Compiler)} {EnvVars.CompilerVersion} compiler ({EnvVars.CompilerDir}) with {WindowsPlatform.GetCompilerName(EnvVars.ToolChain)} {EnvVars.ToolChainVersion} runtime ({EnvVars.ToolChainDir}) and Windows {EnvVars.WindowsSdkVersion} SDK ({EnvVars.WindowsSdkDir}).");
 			}
-
-			if (EnvVars.ToolChain == WindowsCompiler.VisualStudio2019)
-			{
-				Lines.Add($"Notice: {WindowsPlatform.GetCompilerName(WindowsCompiler.VisualStudio2019)} will no longer be supported for the installed engine in UE 5.3. Compiling code for Microsoft platforms will require {WindowsPlatform.GetCompilerName(WindowsCompiler.VisualStudio2022)} in UE 5.4 and beyond.");
-			}
 		}
 
 		public override void GetExternalDependencies(HashSet<FileItem> ExternalDependencies)
@@ -430,10 +425,7 @@ namespace UnrealBuildTool
 				//Arguments.Add("/analyze:only");
 
 				// Re-evalulate new analysis warnings at a later time
-				if (EnvVars.CompilerVersion >= new VersionNumber(14, 32))
-				{
-					Arguments.Add("/wd6031"); // return value ignored: called-function could return unexpected value
-				}
+				Arguments.Add("/wd6031"); // return value ignored: called-function could return unexpected value
 			}
 
 			// Prevents the compiler from displaying its logo for each invocation.
@@ -512,10 +504,6 @@ namespace UnrealBuildTool
 
 					Arguments.Add("/permissive-");
 					Arguments.Add("/Zc:strictStrings-"); // Have to disable strict const char* semantics due to Windows headers not being compliant.
-					if (EnvVars.CompilerVersion >= new VersionNumber(14, 32) && EnvVars.CompilerVersion < new VersionNumber(14, 33, 31629))
-					{
-						Arguments.Add("/Zc:lambda-");
-					}
 				}
 				else
 				{
@@ -537,7 +525,7 @@ namespace UnrealBuildTool
 					Arguments.Add("/Zc:preprocessor");
 				}
 
-				if (Target.WindowsPlatform.bStrictEnumTypesConformance && EnvVars.CompilerVersion >= new VersionNumber(14, 34, 31931))
+				if (Target.WindowsPlatform.bStrictEnumTypesConformance)
 				{
 					Arguments.Add("/Zc:enumTypes");
 				}
@@ -1102,14 +1090,6 @@ namespace UnrealBuildTool
 				// e.g. http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2020/p2139r2.html
 				// Until the path forward is clearer, it seems reasonable to leave things as they are.
 				Arguments.Add("/wd5054");
-
-				// Disable VS2019 C++20 warnings fixed with VS2022
-				if (Target.WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2019)
-				{
-					Arguments.Add("/wd4005");
-					Arguments.Add("/wd4668");
-					Arguments.Add("/wd5105");
-				}
 			}
 
 			if (CompileEnvironment.bEnableCoroutines)
@@ -1812,7 +1792,7 @@ namespace UnrealBuildTool
 				}
 
 				// Write cl errors and warnings to a file if supported
-				if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bWriteSarif && EnvVars.CompilerVersion >= new VersionNumber(14, 34, 31933))
+				if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bWriteSarif)
 				{
 					if (Target.StaticAnalyzer == StaticAnalyzer.Default && !CompileEnvironment.bDisableStaticAnalysis)
 					{
@@ -2445,47 +2425,6 @@ namespace UnrealBuildTool
 				foreach (string ExcludedLibrary in LinkEnvironment.ExcludedLibraries)
 				{
 					Arguments.Add($"/NODEFAULTLIB:\"{ExcludedLibrary}\"");
-				}
-			}
-
-			// If we're building either an executable or a DLL, make sure we link in the 
-			// correct address sanitizer helper libs.
-			// Note: As of MSVC 16.9, this is automatically done if the /fsanitize=address flag is used.
-			if (!bBuildImportLibraryOnly && !LinkEnvironment.bIsBuildingLibrary && Target.WindowsPlatform.bEnableAddressSanitizer &&
-				EnvVars.CompilerVersion < new VersionNumber(14, 28, 0))
-			{
-				String ASanArchSuffix = "";
-				if (EnvVars.Architecture == UnrealArch.X64)
-				{
-					ASanArchSuffix = "x86_64";
-				}
-				else
-				{
-					throw new BuildException("Unsupported build architecture for Address Sanitizer");
-				}
-
-				String ASanDebugInfix = "";
-				if (LinkEnvironment.bUseDebugCRT)
-				{
-					ASanDebugInfix = "_dbg";
-				}
-
-				if (LinkEnvironment.bUseStaticCRT)
-				{
-					if (LinkEnvironment.bIsBuildingDLL)
-					{
-						Arguments.Add($"/wholearchive:clang_rt.asan{ASanDebugInfix}_dll_thunk-{ASanArchSuffix}.lib");
-					}
-					else
-					{
-						Arguments.Add($"/wholearchive:clang_rt.asan{ASanDebugInfix}-{ASanArchSuffix}.lib");
-						Arguments.Add($"/wholearchive:clang_rt.asan_cxx{ASanDebugInfix}-{ASanArchSuffix}.lib");
-					}
-				}
-				else
-				{
-					Arguments.Add($"/wholearchive:clang_rt.asan{ASanDebugInfix}_dynamic-{ASanArchSuffix}.lib");
-					Arguments.Add($"/wholearchive:clang_rt.asan{ASanDebugInfix}_dynamic_runtime_thunk-{ASanArchSuffix}.lib");
 				}
 			}
 

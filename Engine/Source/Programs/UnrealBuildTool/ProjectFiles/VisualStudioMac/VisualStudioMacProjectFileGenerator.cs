@@ -67,8 +67,8 @@ namespace UnrealBuildTool
 		protected override bool WriteProjectFiles(PlatformProjectGeneratorCollection PlatformProjectGenerators, ILogger Logger)
 		{
 			// This can be reset by higher level code when it detects that we don't have
-			// VS2019 installed (TODO - add custom format for Mac?)
-			Settings.ProjectFileFormat = VCProjectFileFormat.VisualStudio2019;
+			// VS2022 installed (TODO - add custom format for Mac?)
+			Settings.ProjectFileFormat = VCProjectFileFormat.VisualStudio2022;
 
 			// we can't generate native projects so clear them here, we will just
 			// write out OtherProjectFiles and AutomationProjectFiles

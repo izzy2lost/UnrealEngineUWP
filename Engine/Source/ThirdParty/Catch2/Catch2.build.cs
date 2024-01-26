@@ -71,11 +71,7 @@ public class Catch2 : ModuleRules
 			{
 				RelativeLibPath = "Win64";
 				Arch = "x64";
-				if (Target.WindowsPlatform.ToolChain == WindowsCompiler.VisualStudio2019)
-				{
-					Variation = "VS2019";
-				}
-				else if (Target.WindowsPlatform.ToolChain == WindowsCompiler.VisualStudio2022)
+				if (Target.WindowsPlatform.ToolChain == WindowsCompiler.VisualStudio2022)
 				{
 					Variation = "VS2022";
 				}
