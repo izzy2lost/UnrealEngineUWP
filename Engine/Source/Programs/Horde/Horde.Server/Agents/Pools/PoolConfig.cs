@@ -196,12 +196,6 @@ namespace Horde.Server.Agents.Pools
 		public TimeSpan? ConformInterval { get; set; }
 
 		/// <inheritdoc/>
-		public DateTime? LastScaleUpTime { get; set; }
-
-		/// <inheritdoc/>
-		public DateTime? LastScaleDownTime { get; set; }
-
-		/// <inheritdoc/>
 		public TimeSpan? ScaleOutCooldown { get; set; }
 
 		/// <inheritdoc/>
