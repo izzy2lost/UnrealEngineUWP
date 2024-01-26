@@ -91,6 +91,8 @@ namespace AudioModulation
 
 	void FAudioModulationSystem::ActivateBusMix(FModulatorBusMixSettings&& InSettings)
 	{
+		ActiveBusMixIds.Add(InSettings.GetId());
+
 		RunCommandOnProcessingThread([this, Settings = MoveTemp(InSettings)]() mutable
 		{
 			FBusMixHandle BusMixHandle = FBusMixHandle::Get(Settings.GetId(), RefProxies.BusMixes);
@@ -159,6 +161,9 @@ namespace AudioModulation
 
 	void FAudioModulationSystem::DeactivateBusMix(const USoundControlBusMix& InBusMix)
 	{
+		FBusMixHandle MixHandle = FBusMixHandle::Get(InBusMix.GetUniqueID(), RefProxies.BusMixes);
+		ActiveBusMixIds.Remove(MixHandle.GetId());
+		
 		RunCommandOnProcessingThread([this, BusMixId = static_cast<FBusMixId>(InBusMix.GetUniqueID())]()
 		{
 			FBusMixHandle MixHandle = FBusMixHandle::Get(BusMixId, RefProxies.BusMixes);
@@ -173,6 +178,8 @@ namespace AudioModulation
 	void FAudioModulationSystem::DeactivateAllBusMixes()
 	{
 		ClearAllGlobalBusMixValues();
+
+		ActiveBusMixIds.Empty();
 
 		RunCommandOnProcessingThread([this]()
 		{
@@ -516,6 +523,12 @@ namespace AudioModulation
 #if !UE_BUILD_SHIPPING
  		Debugger->UpdateDebugData(InElapsed, RefProxies);
 #endif // !UE_BUILD_SHIPPING
+	}
+
+	bool FAudioModulationSystem::IsControlBusMixActive(const USoundControlBusMix& InBusMix)
+	{
+		FBusMixId BusMixId = static_cast<FBusMixId>(InBusMix.GetUniqueID());		
+		return ActiveBusMixIds.Contains(BusMixId);
 	}
 
 	void FAudioModulationSystem::SaveMixToProfile(const USoundControlBusMix& InBusMix, const int32 InProfileIndex)
