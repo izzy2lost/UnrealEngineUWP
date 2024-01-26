@@ -13,7 +13,7 @@ void UTG_Expression_Shape::Evaluate(FTG_EvaluationContext* InContext)
 	/// If it's auto then make it grey scale as we don't need more than a single channel output
 	if (DesiredDescriptor.TextureFormat == ETG_TextureFormat::Auto)
 	{
-		DesiredDescriptor.TextureFormat = ETG_TextureFormat::G8;
+		DesiredDescriptor.TextureFormat = ETG_TextureFormat::BGRA8;
 	}
 
 	T_ShapeMask::FParams Params{

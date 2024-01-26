@@ -53,11 +53,11 @@ TiledBlobPtr T_MaterialIDMask::Create(MixUpdateCyclePtr InCycle, TiledBlobPtr In
 
 	BufferDescriptor Desc = DesiredDesc;
 
+	// Default format to RGBA8
 	if (Desc.Format == BufferFormat::Auto)
 		Desc.Format = BufferFormat::Byte;
-
 	if (Desc.ItemsPerPoint == 0)
-		Desc.ItemsPerPoint = 1;
+		Desc.ItemsPerPoint = 4;
 
 	Desc.DefaultValue = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
 
