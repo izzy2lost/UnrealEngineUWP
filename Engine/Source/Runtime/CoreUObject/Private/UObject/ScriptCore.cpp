@@ -2208,8 +2208,7 @@ IMPLEMENT_VM_FUNCTION( EX_LocalVariable, execLocalVariable );
 
 DEFINE_FUNCTION(UObject::execInstanceVariable)
 {
-	FProperty* VarProperty = (FProperty*)Stack.ReadObject();
-	Stack.MostRecentProperty = VarProperty;
+	FProperty* VarProperty = (FProperty*)Stack.ReadPropertyUnchecked();
 
 	if (VarProperty == nullptr || !P_THIS->IsA((UClass*)VarProperty->InternalGetOwnerAsUObjectUnsafe()))
 	{
@@ -2235,8 +2234,7 @@ IMPLEMENT_VM_FUNCTION( EX_InstanceVariable, execInstanceVariable );
 
 DEFINE_FUNCTION(UObject::execClassSparseDataVariable)
 {
-	FProperty* VarProperty = (FProperty*)Stack.ReadObject();
-	Stack.MostRecentProperty = VarProperty;
+	FProperty* VarProperty = (FProperty*)Stack.ReadPropertyUnchecked();
 
 	if (VarProperty == nullptr || P_THIS->GetSparseClassDataStruct() == nullptr)
 	{
@@ -2262,8 +2260,7 @@ IMPLEMENT_VM_FUNCTION(EX_ClassSparseDataVariable, execClassSparseDataVariable);
 
 DEFINE_FUNCTION(UObject::execDefaultVariable)
 {
-	FProperty* VarProperty = (FProperty*)Stack.ReadObject();
-	Stack.MostRecentProperty = VarProperty;
+	FProperty* VarProperty = (FProperty*)Stack.ReadPropertyUnchecked();
 	Stack.MostRecentPropertyAddress = nullptr;
 	Stack.MostRecentPropertyContainer = nullptr;
 
@@ -3478,7 +3475,7 @@ IMPLEMENT_VM_FUNCTION( EX_TextConst, execTextConst );
 
 DEFINE_FUNCTION(UObject::execPropertyConst)
 {
-	*(FProperty**)RESULT_PARAM = (FProperty*)Stack.ReadObject();
+	*(FProperty**)RESULT_PARAM = (FProperty*)Stack.ReadPropertyUnchecked();
 }
 IMPLEMENT_VM_FUNCTION(EX_PropertyConst, execPropertyConst);
 
@@ -3724,7 +3721,7 @@ IMPLEMENT_VM_FUNCTION( EX_SetMap, execSetMap );
 
 DEFINE_FUNCTION(UObject::execArrayConst)
 {
-	FProperty* InnerProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadObject());
+	FProperty* InnerProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadPropertyUnchecked());
 	int32 Num = Stack.ReadInt<int32>();
 	check(RESULT_PARAM);
 	FScriptArrayHelper ArrayHelper = FScriptArrayHelper::CreateHelperFormInnerProperty(InnerProperty, RESULT_PARAM);
@@ -3744,7 +3741,7 @@ IMPLEMENT_VM_FUNCTION(EX_ArrayConst, execArrayConst);
 
 DEFINE_FUNCTION(UObject::execSetConst)
 {
-	FProperty* InnerProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadObject());
+	FProperty* InnerProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadPropertyUnchecked());
 	int32 Num = Stack.ReadInt<int32>();
 	check(RESULT_PARAM);
 
@@ -3764,8 +3761,8 @@ IMPLEMENT_VM_FUNCTION(EX_SetConst, execSetConst);
 
 DEFINE_FUNCTION(UObject::execMapConst)
 {
-	FProperty* KeyProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadObject());
-	FProperty* ValProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadObject());
+	FProperty* KeyProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadPropertyUnchecked());
+	FProperty* ValProperty = CastFieldChecked<FProperty>((FField*)Stack.ReadPropertyUnchecked());
 	int32 Num = Stack.ReadInt<int32>();
 	check(RESULT_PARAM);
 
@@ -3786,7 +3783,7 @@ IMPLEMENT_VM_FUNCTION(EX_MapConst, execMapConst);
 
 DEFINE_FUNCTION(UObject::execBitFieldConst)
 {
-	FBoolProperty* BitProperty = CastFieldChecked<FBoolProperty>((FField*)Stack.ReadObject());
+	FBoolProperty* BitProperty = CastFieldChecked<FBoolProperty>((FField*)Stack.ReadPropertyUnchecked());
 	uint8 ByteValue = Stack.Read<uint8>();
 	// we could pack the bit into the lower bits of the FProperty pointer, but this instruction is rarely used
 	// and it's likely that a simple implementation will be appreciated by readers, debuggers, and even optimizers:
