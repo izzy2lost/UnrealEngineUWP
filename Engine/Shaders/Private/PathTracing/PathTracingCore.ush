@@ -386,7 +386,7 @@ void ApplyDecal(FDecalShaderPayload DecalPayload, inout FPackedPathTracingPayloa
 #endif
 }
 
-void EvaluateDecals(FPathState PathState, uint InstanceInclusionMask, float HitT, inout FDecalShaderPayload DecalPayload)
+void EvaluateDecals(FPathState PathState, float HitT, inout FDecalShaderPayload DecalPayload)
 {
 	if (PathState.GetPathRoughness() < MeshDecalRoughnessCutoff)
 	{
@@ -397,6 +397,7 @@ void EvaluateDecals(FPathState PathState, uint InstanceInclusionMask, float HitT
 		DecalRay.TMin = 0.0f;
 		DecalRay.TMax = HitT + MeshDecalBias;
 
+		const uint InstanceInclusionMask = PathState.GetFirstScatterType() == PATHTRACER_SCATTER_CAMERA ? PATHTRACER_MASK_CAMERA : PATHTRACER_MASK_INDIRECT;
 		const uint MissShaderIndex = 0; // TODO
 
 		for (;;)
@@ -653,10 +654,10 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 			break;
 		}
 
-		if (PackedPayload.IsDecalReceiver())
+		if (PackedPayload.IsDecalReceiver() && PathState.GetPathRoughness() < max(MeshDecalRoughnessCutoff, DecalRoughnessCutoff))
 		{
 			FDecalShaderPayload DecalPayload = InitDecalShaderPayload(PathState.Ray.Origin + PackedPayload.HitT * PathState.Ray.Direction);
-			EvaluateDecals(PathState, InstanceInclusionMask, PackedPayload.HitT, DecalPayload);
+			EvaluateDecals(PathState, PackedPayload.HitT, DecalPayload);
 #if USE_DBUFFER
 			if (PackedPayload.UsesDBufferLookup() && HasDecalData(DecalPayload))
 			{
