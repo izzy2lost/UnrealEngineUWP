@@ -919,7 +919,7 @@ void ULevelSequenceEditorSubsystem::BakeTransformInternal()
 		.OnBake_Lambda([this, &BindingProxies, Sequencer](FBakingAnimationKeySettings InSettings)
 			{
 				FMovieSceneScriptingParams Params;
-				Params.TimeUnit = ESequenceTimeUnit::TickResolution;
+				Params.TimeUnit = EMovieSceneTimeUnit::TickResolution;
 				BakeTransformWithSettings(BindingProxies, InSettings, Params);
 				return FReply::Handled();
 			});
@@ -958,7 +958,7 @@ void ULevelSequenceEditorSubsystem::BakeTransform(const TArray<FMovieSceneBindin
 	FFrameTime OutFrame = BakeOutTime;
 	FFrameTime Interval = BakeInterval;
 
-	if (Params.TimeUnit == ESequenceTimeUnit::DisplayRate)
+	if (Params.TimeUnit == EMovieSceneTimeUnit::DisplayRate)
 	{
 		InFrame = ConvertFrameTime(BakeInTime, DisplayRate, TickResolution);
 		OutFrame = ConvertFrameTime(BakeOutTime, DisplayRate, TickResolution);
@@ -974,7 +974,7 @@ void ULevelSequenceEditorSubsystem::BakeTransform(const TArray<FMovieSceneBindin
 	Settings.EndFrame = OutFrame.GetFrame();
 	Settings.BakingKeySettings = EBakingKeySettings::AllFrames;
 	FMovieSceneScriptingParams NewParams;
-	NewParams.TimeUnit = ESequenceTimeUnit::TickResolution;
+	NewParams.TimeUnit = EMovieSceneTimeUnit::TickResolution;
 	BakeTransformWithSettings(ObjectBindings, Settings, NewParams);
 }
 
@@ -1067,7 +1067,7 @@ bool ULevelSequenceEditorSubsystem::BakeTransformWithSettings(const TArray<FMovi
 
 	FBakingAnimationKeySettings SettingsInTick = InSettings;
 	
-	if (Params.TimeUnit == ESequenceTimeUnit::DisplayRate)
+	if (Params.TimeUnit == EMovieSceneTimeUnit::DisplayRate)
 	{
 		SettingsInTick.StartFrame = ConvertFrameTime(SettingsInTick.StartFrame, DisplayRate, TickResolution).GetFrame();
 		SettingsInTick.EndFrame = ConvertFrameTime(SettingsInTick.EndFrame, DisplayRate, TickResolution).GetFrame();

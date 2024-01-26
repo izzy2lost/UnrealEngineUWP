@@ -17,6 +17,7 @@
 #include "EditorModeManager.h"
 #include "Misc/QualifiedFrameTime.h"
 #include "Modules/ModuleManager.h"
+#include "MovieSceneTimeUnit.h"
 #include "ControlRig.h"
 #include "ControlRigSequencerEditorLibrary.h"
 #include "LevelSequence.h"
@@ -455,7 +456,7 @@ bool USequencerPivotTool::SetGizmoBasedOnSelection(bool bUseSaved)
 			{
 				UControlRig* RealControlRig = Cast<UControlRig>(ControlRig.Get());
 				GizmoTransform = UControlRigSequencerEditorLibrary::GetControlRigWorldTransform(LevelSequence, RealControlRig, Name, FrameTime.RoundToFrame(),
-					ESequenceTimeUnit::TickResolution);
+					EMovieSceneTimeUnit::TickResolution);
 				AverageLocation += GizmoTransform.GetLocation();
 				NumLocations++;
 			}
@@ -480,13 +481,13 @@ bool USequencerPivotTool::SetGizmoBasedOnSelection(bool bUseSaved)
 			else
 			{
 				GizmoTransform = UControlRigSequencerEditorLibrary::GetActorWorldTransform(LevelSequence, SelectedActor, FrameTime.RoundToFrame(),
-					ESequenceTimeUnit::TickResolution);
+					EMovieSceneTimeUnit::TickResolution);
 			}
 		}
 		else
 		{
 			GizmoTransform = UControlRigSequencerEditorLibrary::GetActorWorldTransform(LevelSequence,SelectedActor, FrameTime.RoundToFrame(),
-				ESequenceTimeUnit::TickResolution);
+				EMovieSceneTimeUnit::TickResolution);
 			AverageLocation += GizmoTransform.GetLocation();
 			NumLocations++;
 		}
@@ -646,7 +647,7 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 						}
 						UControlRig* RealControlRig = Cast<UControlRig>(ControlRig.Get());
 						FTransform Transform = UControlRigSequencerEditorLibrary::GetControlRigWorldTransform(LevelSequence, RealControlRig, Name, FrameNumber,
-							ESequenceTimeUnit::TickResolution);
+							EMovieSceneTimeUnit::TickResolution);
 
 						FControlRigSelectionDuringDrag ControlDrag;
 						ControlDrag.LevelSequence = LevelSequence;
@@ -677,7 +678,7 @@ void USequencerPivotTool::GizmoTransformStarted(UTransformProxy* Proxy)
 			}
 
 			FTransform Transform = UControlRigSequencerEditorLibrary::GetActorWorldTransform(LevelSequence, Actor.Get(), FrameNumber,
-				ESequenceTimeUnit::TickResolution);
+				EMovieSceneTimeUnit::TickResolution);
 
 			FActorSelectonDuringDrag ActorDrag;
 			ActorDrag.LevelSequence = LevelSequence;
@@ -802,7 +803,7 @@ void USequencerPivotTool::GizmoTransformChanged(UTransformProxy* Proxy, FTransfo
 						ControlDrag.CurrentTransform.SetRotation(OptQuat);
 					}
 					UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, RealControlRig, ControlDrag.ControlName,
-						ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, ESequenceTimeUnit::TickResolution, bSetKey);
+						ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, EMovieSceneTimeUnit::TickResolution, bSetKey);
 					
 				}
 				else if (bTranslationChanged)
@@ -810,13 +811,13 @@ void USequencerPivotTool::GizmoTransformChanged(UTransformProxy* Proxy, FTransfo
 					FVector DiffTranslation = StartDragTransform.GetRotation().RotateVector(Diff.GetTranslation());
 					ControlDrag.CurrentTransform.AddToTranslation(DiffTranslation);
 					UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, RealControlRig, ControlDrag.ControlName,
-						ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, ESequenceTimeUnit::TickResolution, bSetKey);
+						ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, EMovieSceneTimeUnit::TickResolution, bSetKey);
 				}
 			}
 			else //last one with shift we keep locked!
 			{
 				UControlRigSequencerEditorLibrary::SetControlRigWorldTransform(ControlDrag.LevelSequence, RealControlRig, ControlDrag.ControlName,
-					ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, ESequenceTimeUnit::TickResolution, bSetKey);
+					ControlDrag.CurrentFrame, ControlDrag.CurrentTransform, EMovieSceneTimeUnit::TickResolution, bSetKey);
 			}
 			
 			++Index;
