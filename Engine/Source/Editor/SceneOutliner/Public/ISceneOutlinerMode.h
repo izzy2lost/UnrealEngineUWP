@@ -159,6 +159,8 @@ public:
 	virtual bool ReparentItemToFolder(const FFolder& FolderPath, const FSceneOutlinerTreeItemPtr& Item) { return false; }
 	/** Select all descendants of a folder. Optionally select only immediate descendants. */
 	virtual void SelectFoldersDescendants(const TArray<FFolderTreeItem*>& FolderItems, bool bSelectImmediateChildrenOnly) {}
+	/** Returns true if this mode overrides the default folder double click behavior (expanding the subtree) */
+	virtual bool HasCustomFolderDoubleClick() const { return false; }
 public:
 	/** Pins an item list in the outliner */
 	virtual void PinItems(const TArray<FSceneOutlinerTreeItemPtr>& InItems) {}

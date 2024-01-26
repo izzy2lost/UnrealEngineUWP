@@ -1945,9 +1945,12 @@ void SSceneOutliner::OnOutlinerTreeSelectionChanged( FSceneOutlinerTreeItemPtr T
 
 void SSceneOutliner::OnOutlinerTreeDoubleClick( FSceneOutlinerTreeItemPtr TreeItem )
 {
-	if (TreeItem->IsA<FFolderTreeItem>())
+	if (!Mode->HasCustomFolderDoubleClick())
 	{
-		SetItemExpansion(TreeItem, !IsItemExpanded(TreeItem));
+		if (TreeItem->IsA<FFolderTreeItem>())
+		{
+			SetItemExpansion(TreeItem, !IsItemExpanded(TreeItem));
+		}
 	}
 
 	Mode->OnItemDoubleClick(TreeItem);
