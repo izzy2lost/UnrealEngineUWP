@@ -69,8 +69,26 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
 	void MovePatchToIndex(ULandscapePatchComponent* Patch, int32 Index);
-	
+
 #if WITH_EDITOR
+	/**
+	 * A helper cleanup method to fix things if something goes wrong in saving and owned patches do not have
+	 * the correct patch manager pointer back. Public so that it can be called from a console command.
+	 */
+	void FixOwnedPatchBackPointers();
+
+	/**
+	 * Marks that the patch manager was modified during a construction script rerun where it might 
+	 * not be able to mark itself dirty (if it was done during loading).
+	 */
+	void MarkModifiedInConstructionScript();
+
+	/**
+	 * Dirties the manager if it was modified in a construction script but was unable to mark itself
+	 * dirty. Meant to be used by cleanup commands.
+	 */
+	void MarkDirtyIfModifiedInConstructionScript();
+
 	// ALandscapeBlueprintBrushBase
 	UE_DEPRECATED(5.3, "Use AffectsWeightmapLayer")
 	virtual bool IsAffectingWeightmapLayer(const FName& InLayerName) const override;
@@ -78,8 +96,12 @@ public:
 	virtual bool AffectsVisibilityLayer() const override;
 	virtual void SetOwningLandscape(class ALandscape* InOwningLandscape) override;
 
+	// AActor
+	virtual void CheckForErrors() override;
+
 	// UObject
 	virtual void PostEditUndo() override;
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	virtual bool IsEditorOnly() const override { return true; }
@@ -101,6 +123,15 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Category = Landscape, Transient, meta = (DisplayName = "Landscape"))
 	TObjectPtr<ALandscape> DetailPanelLandscape = nullptr;
+
+private:
+	bool bIssuedPatchOwnershipWarning = false;
+
+	// The interaction of automatic patch registration and construction script reruns could end
+	// up modifying the manager during a load if things had to be fixed up, but the manager might
+	// not end up being marked dirty. This is dangerous as it can result in unstable patch ordering,
+	// so we want to detect this case.
+	bool bDirtiedByConstructionScript = false;
 #endif
 };
 
