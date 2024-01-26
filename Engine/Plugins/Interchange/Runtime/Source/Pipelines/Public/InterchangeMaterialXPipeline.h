@@ -29,6 +29,12 @@ class UMaterialInterface;
 UENUM(BlueprintType)
 enum class EInterchangeMaterialXShaders : uint8
 {
+	/** Default settings for Open PBR Surface shader	*/
+	OpenPBRSurface,
+
+	/** Open PBR Surface shader	used for translucency*/
+	OpenPBRSurfaceTransmission,
+
 	/** Default settings for Autodesk's Standard Surface shader	*/
 	StandardSurface,
 

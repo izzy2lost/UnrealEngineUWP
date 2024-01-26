@@ -19,6 +19,7 @@ void FMaterialXBase::UpdateDocumentRecursively(MaterialX::GraphElementPtr Graph)
 
 	static std::set<std::string> SkippedCategories{
 		mx::Category::Extract,
+		mx::Category::OpenPBRSurface,
 		mx::Category::Place2D,
 		mx::Category::Ramp4,
 		mx::Category::Saturate,

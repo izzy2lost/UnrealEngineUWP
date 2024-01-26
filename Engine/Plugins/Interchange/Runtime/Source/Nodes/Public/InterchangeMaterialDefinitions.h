@@ -336,6 +336,65 @@ namespace Interchange
 			}
 		}
 
+		namespace OpenPBRSurface
+		{
+			const FName Name = TEXT("open_pbr_surface");
+
+			namespace Parameters
+			{
+				const FName BaseWeight = TEXT("base_weight");
+				const FName BaseColor = TEXT("base_color");
+				const FName BaseRoughness = TEXT("base_roughness");
+				const FName BaseMetalness = TEXT("base_metalness");
+				const FName SpecularWeight = TEXT("specular_weight");
+				const FName SpecularColor = TEXT("specular_color");
+				const FName SpecularRoughness = TEXT("specular_roughness");
+				const FName SpecularIOR = TEXT("specular_ior");
+				const FName SpecularIORLevel = TEXT("specular_ior_level");
+				const FName SpecularAnisotropy = TEXT("specular_anisotropy");
+				const FName SpecularRotation = TEXT("specular_rotation");
+				const FName TransmissionWeight = TEXT("transmission_weight");
+				const FName TransmissionColor = TEXT("transmission_color");
+				const FName TransmissionDepth = TEXT("transmission_depth");
+				const FName TransmissionScatter = TEXT("transmission_scatter");
+				const FName TransmissionScatterAnisotropy = TEXT("transmission_scatter_anisotropy");
+				const FName TransmissionDispersion = TEXT("transmission_dispersion");
+				const FName SubsurfaceWeight = TEXT("subsurface_weight");
+				const FName SubsurfaceColor = TEXT("subsurface_color");
+				const FName SubsurfaceRadius = TEXT("subsurface_radius");
+				const FName SubsurfaceRadiusScale = TEXT("subsurface_radius_scale");
+				const FName SubsurfaceAnisotropy = TEXT("subsurface_anisotropy");
+				const FName FuzzWeight = TEXT("fuzz_weight");
+				const FName FuzzColor = TEXT("fuzz_color");
+				const FName FuzzRoughness = TEXT("fuzz_roughness");
+				const FName CoatWeight = TEXT("coat_weight");
+				const FName CoatColor = TEXT("coat_color");
+				const FName CoatRoughness = TEXT("coat_roughness");
+				const FName CoatAnisotropy = TEXT("coat_anisotropy");
+				const FName CoatRotation = TEXT("coat_rotation");
+				const FName CoatIOR = TEXT("coat_ior");
+				const FName CoatIORLevel = TEXT("coat_ior_level");
+				const FName ThinFilmThickness = TEXT("thin_film_thickness");
+				const FName ThinFilmIOR = TEXT("thin_film_ior");
+				const FName EmissionLuminance = TEXT("emission_luminance");
+				const FName EmissionColor = TEXT("emission_color");
+				const FName GeometryOpacity = TEXT("geometry_opacity");
+				const FName GeometryThinWalled = TEXT("geometry_thin_walled");
+				const FName GeometryNormal = TEXT("geometry_normal");
+				const FName GeometryCoatNormal = TEXT("geometry_coat_normal");
+				const FName GeometryTangent = TEXT("geometry_tangent");
+			}
+
+			namespace SubstrateMaterial
+			{
+				namespace Outputs
+				{
+					const FName FrontMaterial = TEXT("OpenPBR_FrontMaterial");
+					const FName OpacityMask = TEXT("OpacityMask");
+				}
+			}
+		}
+
 		namespace Phong
 		{
 			namespace Parameters
