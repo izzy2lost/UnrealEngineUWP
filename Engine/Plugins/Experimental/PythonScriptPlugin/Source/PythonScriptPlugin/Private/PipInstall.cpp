@@ -162,7 +162,7 @@ FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonP
 	FFileHelper::SaveStringArrayToFile(PipPluginPaths, *PyPluginsListingFile);
 
 	// Create .pth file in PipInstall/Lib/site-packages to account for plugins with packaged dependencies
-	const FString PyPluginsSitePackageFile = PipInstallPath / TEXT("Lib") / TEXT("site-packages") / PluginsSitePackageFilename;
+	const FString PyPluginsSitePackageFile = GetPipSitePackagesPath() / PluginsSitePackageFilename;
 	FFileHelper::SaveStringArrayToFile(PluginSitePackagePaths, *PyPluginsSitePackageFile);
 
     return PyPluginsListingFile;
