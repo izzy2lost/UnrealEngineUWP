@@ -1881,6 +1881,7 @@ void UEdGraphSchema_K2::GetContextMenuActions(UToolMenu* Menu, UGraphNodeContext
 					}
 					
 					// Add breakpoint actions
+					if (K2Node->CanPlaceBreakpoints())
 					{
 						FToolMenuSection& Section = Menu->AddSection("EdGraphSchemaBreakpoints", LOCTEXT("BreakpointsHeader", "Breakpoints"));
 						Section.AddMenuEntry( FGraphEditorCommands::Get().ToggleBreakpoint );
