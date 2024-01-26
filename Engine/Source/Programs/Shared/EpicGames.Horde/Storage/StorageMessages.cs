@@ -122,23 +122,6 @@ namespace EpicGames.Horde.Storage
 		public BlobLocator Target { get; set; }
 
 		/// <summary>
-		/// Locator for the target blob
-		/// </summary>
-		[Obsolete("Use Target instead")]
-		public BlobLocator? Blob { get; set; }
-
-		/// <summary>
-		/// Export index for the ref
-		/// </summary>
-		[Obsolete("Use ExportIdx instead")]
-		public int? ExportIdx { get; set; }
-
-		/// <summary>
-		/// Inline data stored with the ref
-		/// </summary>
-		public byte[] Data { get; set; } = Array.Empty<byte>();
-
-		/// <summary>
 		/// Link to information about the target node
 		/// </summary>
 		public string Link { get; set; } = String.Empty;
