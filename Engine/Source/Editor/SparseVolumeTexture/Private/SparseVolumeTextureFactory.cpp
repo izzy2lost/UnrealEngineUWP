@@ -17,6 +17,7 @@
 #include "Async/Async.h"
 #include "Async/ParallelFor.h"
 
+#include "AssetImportTask.h"
 #include "Editor.h"
 #include "EditorFramework/AssetImportData.h"
 #include "ObjectTools.h"
@@ -239,17 +240,7 @@ static TArray<FString> FindOpenVDBSequenceFileNames(const FString& Filename)
 	return SequenceFilenames;
 }
 
-struct FOpenVDBPreviewData
-{
-	TArray64<uint8> LoadedFile;
-	TArray<FOpenVDBGridInfo> GridInfo;
-	TArray<TSharedPtr<FOpenVDBGridInfo>> GridInfoPtrs;
-	TArray<TSharedPtr<FOpenVDBGridComponentInfo>> GridComponentInfoPtrs;
-	TArray<FString> SequenceFilenames;
-	FOpenVDBImportOptions DefaultImportOptions;
-};
-
-static bool LoadOpenVDBPreviewData(const FString& Filename, FOpenVDBPreviewData* OutPreviewData)
+bool LoadOpenVDBPreviewData(const FString& Filename, FOpenVDBPreviewData* OutPreviewData)
 {
 	FOpenVDBPreviewData& Result = *OutPreviewData;
 	check(Result.LoadedFile.IsEmpty());
@@ -574,11 +565,26 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 		|| IsRunningCommandlet()
 		|| GIsRunningUnattendedScript);
 
-	// Load file and get info about each contained grid
 	FOpenVDBPreviewData PreviewData;
-	if (!LoadOpenVDBPreviewData(Filename, &PreviewData))
+
+	// Use the provided preview data, if any
+	bool bCollectedData = false;
+	if (bIsUnattended && AssetImportTask)
 	{
-		return nullptr;
+		if (UOpenVDBImportOptionsObject* TaskOptions = Cast<UOpenVDBImportOptionsObject>(AssetImportTask->Options))
+		{
+			PreviewData = TaskOptions->PreviewData;
+			bCollectedData = true;
+		}
+	}
+
+	// Otherwise, load file and get info about each contained grid
+	if (!bCollectedData)
+	{
+		if (!LoadOpenVDBPreviewData(Filename, &PreviewData))
+		{
+			return nullptr;
+		}
 	}
 
 	FOpenVDBImportOptions ImportOptions = PreviewData.DefaultImportOptions;
