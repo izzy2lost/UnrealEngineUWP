@@ -10,6 +10,8 @@
 
 #include "SparseVolumeTextureFactory.generated.h"
 
+struct FOpenVDBPreviewData;
+
 // Responsible for creating and importing Sparse Volume Texture objects
 UCLASS(hidecategories = Object, MinimalAPI)
 class USparseVolumeTextureFactory : public UFactory, public FReimportHandler
@@ -55,5 +57,7 @@ protected:
 private:
 	UObject* ImportInternal(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, const FString& Filename, const TCHAR* Parms, bool& bOutOperationCanceled, bool bIsReimport);
 };
+
+bool SPARSEVOLUMETEXTURE_API LoadOpenVDBPreviewData(const FString& Filename, FOpenVDBPreviewData* OutPreviewData);
 
 #endif // WITH_EDITOR

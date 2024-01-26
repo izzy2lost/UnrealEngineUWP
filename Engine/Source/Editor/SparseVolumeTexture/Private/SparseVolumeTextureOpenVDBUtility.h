@@ -13,39 +13,8 @@ namespace UE
 		struct FTextureData;
 	}
 }
-
-enum class EOpenVDBGridType : uint8
-{
-	Unknown = 0,
-	Half,
-	Half2,
-	Half3,
-	Half4,
-	Float,
-	Float2,
-	Float3,
-	Float4,
-	Double,
-	Double2,
-	Double3,
-	Double4,
-};
-
-struct FOpenVDBGridInfo
-{
-	FMatrix44f Transform;
-	FIntVector3 VolumeActiveAABBMin;
-	FIntVector3 VolumeActiveAABBMax;
-	FIntVector3 VolumeActiveDim;
-	FVector VolumeVoxelSize;
-	FString Name;
-	FString DisplayString; // Contains Index (into source file grids), Type and Name
-	uint32 Index;
-	uint32 NumComponents;
-	EOpenVDBGridType Type;
-	bool bIsInWorldSpace;
-	bool bHasUniformVoxels;
-};
+struct FOpenVDBGridInfo;
+enum class EOpenVDBGridType : uint8;
 
 struct FOpenVDBToSVTConversionResult
 {
