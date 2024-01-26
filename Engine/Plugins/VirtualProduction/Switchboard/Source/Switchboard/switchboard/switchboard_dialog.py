@@ -486,7 +486,7 @@ class SwitchboardDialog(QtCore.QObject):
 
         if CONFIG.file_path:
             self.toggle_p4_controls(CONFIG.P4_ENABLED.get_value())
-            self.refresh_levels(CONFIG.LEVELS)
+            self.refresh_levels(CONFIG.get_levels())
         else:
             self.menu_new_config()
 
@@ -952,7 +952,7 @@ class SwitchboardDialog(QtCore.QObject):
 
         self.p4_refresh_project_cl()
         self.p4_refresh_engine_cl()
-        self.refresh_levels(levels=CONFIG.LEVELS)
+        self.refresh_levels(CONFIG.get_levels())
         self.update_current_config_text()
         self.refresh_muserver_autojoin()
         self.refresh_trace_settings()
@@ -1041,7 +1041,7 @@ class SwitchboardDialog(QtCore.QObject):
 
         # Update the UI
         self.toggle_p4_controls(CONFIG.P4_ENABLED.get_value())
-        self.refresh_levels()
+        self.refresh_levels(CONFIG.get_levels())
         self.update_current_config_text()
         self.refresh_muserver_autojoin()
         self.refresh_trace_settings()
@@ -1990,12 +1990,8 @@ class SwitchboardDialog(QtCore.QObject):
 
     def refresh_levels(self, levels: Optional[List[str]] = None):
 
-        if levels is None:
-            levels = CONFIG.maps()
-
-            # Update and save the CONFIG with the updated list of levels
-            CONFIG.LEVELS = levels
-            CONFIG.save()
+        if levels is None or len(levels) == 0:
+            levels = CONFIG.find_levels()
 
         current_level = CONFIG.CURRENT_LEVEL
 
@@ -2082,7 +2078,7 @@ class SwitchboardDialog(QtCore.QObject):
 
         current_level: str = CONFIG.CURRENT_LEVEL
         prev_levels_list: List[str] = self.get_current_level_list()
-        updated_levels_list: List[str] = CONFIG.maps()
+        updated_levels_list: List[str] = CONFIG.find_levels()
 
         prev_levels: Set[str] = set(prev_levels_list)
         updated_levels: Set[str] = set(updated_levels_list)

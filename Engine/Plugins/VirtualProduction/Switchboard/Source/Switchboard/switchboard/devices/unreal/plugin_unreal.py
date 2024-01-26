@@ -18,6 +18,7 @@ import sys
 import threading
 from typing import Callable, Generator, Optional, Union
 import uuid
+import time
 
 from PySide2 import QtCore, QtGui, QtWidgets
 
@@ -39,6 +40,7 @@ from switchboard.util import p4_changelist_inspection
 from . import version_helpers
 from .listener_watcher import ListenerWatcher
 from .redeploy_dialog import RedeployListenerDialog
+from switchboard.sbcache import SBCache, Asset
 
 
 class ProgramStartQueueItem:
@@ -294,7 +296,7 @@ class LiveLinkPresetSetting(Setting):
             allow_reset=allow_reset,
             migrate_data=migrate_data)
 
-    def _create_widgets(self, override_device_name = None):
+    def _create_widgets(self, override_device_name=None):
 
         # create combo with livelink preset options
 
@@ -340,31 +342,16 @@ class LiveLinkPresetSetting(Setting):
 
     def _validate_and_commit_value(self, combo: QtWidgets.QComboBox, override_device_name:Optional[str] = None):
 
-        itemData = combo.currentData()
+        asset: Asset = combo.currentData()
 
         value_str = ''
 
-        if itemData:
-            value_str = itemData['gamepath'] # we use path and not name because it is unambiguous
+        if asset:
+            value_str = asset.gamepath  # we use path and not name because it is unambiguous
 
         self._on_widget_value_changed(value_str, override_device_name=override_device_name)
 
-
-    def asset_is_relevant(self, itemData) -> bool:
-        ''' Convenience function to filter the relevant assets for this setting '''
-
-        # Only return assets of the correct live link preset class
-        if itemData['classname'] not in DeviceUnreal.LIVELINKPRESET_CLASS_NAMES:
-            return False
-            
-        # Only return live link presets that have a valid gamepath. 
-        # We wouldn't be able to build the command line otherwise
-        if itemData['gamepath'] == '':
-            return False
-
-        return True
-
-    def _update_combo_items(self, combo:QtWidgets.QComboBox, override_device_name):
+    def _update_combo_items(self, combo: QtWidgets.QComboBox, override_device_name):
         '''
         Populate the combobox itself with known list of live link presets available.
         Makes sure that the currently selected preset is preserved, unless it is not found,
@@ -378,30 +365,27 @@ class LiveLinkPresetSetting(Setting):
         combo.clear()
 
         # add the empty/none choice
-        combo.addItem('', {'name':'', 'gamepath':''})
+        noneasset = Asset(id=0, project=None, assettype=None, gamepath='', name='', localpath='')
+        combo.addItem(noneasset.name, noneasset)
 
-        itemDatas = DeviceUnreal.csettings['asset_itemDatas'].get_value()
+        project = SBCache().query_or_create_project(CONFIG.UPROJECT_PATH.get_value())
+        assets = SBCache().query_assets_by_classname(
+            project=project,
+            classnames=self._classnames())
 
         # generate the combo box items
-        try:
-            for itemData in [itemData for itemData in itemDatas if self.asset_is_relevant(itemData)]:
-                name = itemData['name']
-
-                # trim the expected .uasset extension
-                ext = '.uasset'
-                if name.endswith(ext):
-                    name = name[:len(name)-len(ext)]
-
-                combo.addItem(name, itemData)
-
-        except Exception as e:
-            LOGGER.error(f'Error recalling asset itemDatas: {e}')
+        for asset in assets:
+            combo.addItem(asset.name.replace('.uasset', ''), asset)
 
         # set the current index to the live link preset that was already selected
         for item_idx in range(combo.count()):
-            if cur_value == combo.itemData(item_idx)['gamepath']:
+            if cur_value == combo.itemData(item_idx).gamepath:
                 combo.setCurrentIndex(item_idx)
                 break
+
+    def _classnames(self) -> list[str]:
+        ''' Return the valid class names of this type of asset '''
+        return DeviceUnreal.LIVELINKPRESET_CLASS_NAMES
 
     def _on_setting_changed(self, new_value: str, override_device_name: Optional[str] = None):
 
@@ -411,8 +395,9 @@ class LiveLinkPresetSetting(Setting):
             return
 
         try:
-            old_value = combo.currentData()['gamepath']
-        except (KeyError, TypeError):
+            asset: Asset = combo.currentData()
+            old_value = asset.gamepath
+        except (AttributeError, TypeError):
             old_value = ''
 
         new_str_value = new_value
@@ -420,7 +405,8 @@ class LiveLinkPresetSetting(Setting):
         # if the value changed, find the new index in the combo box based on gamepath
         if new_str_value != old_value:
             for item_idx in range(combo.count()):
-                if new_str_value == combo.itemData(item_idx)['gamepath']:
+                asset: Asset = combo.itemData(item_idx)
+                if new_str_value == asset.gamepath:
                     combo.setCurrentIndex(item_idx)
                     break
 
@@ -428,19 +414,9 @@ class LiveLinkPresetSetting(Setting):
 class MediaProfileSetting(LiveLinkPresetSetting):
     ''' Container of the MediaProfile setting.
     '''
-
-    #@override
-    def asset_is_relevant(self, itemData) -> bool:
-        # Only return assets of the correct live link preset class
-        if itemData['classname'] not in DeviceUnreal.MEDIAPROFILE_CLASS_NAMES:
-            return False
-            
-        # Only return live link presets that have a valid gamepath. 
-        # We wouldn't be able to build the command line otherwise
-        if itemData['gamepath'] == '':
-            return False
-
-        return True
+    def _classnames(self) -> list[str]:
+        ''' Return the valid class names of this type of asset '''
+        return DeviceUnreal.MEDIAPROFILE_CLASS_NAMES
 
 
 class SyncCategoryOption:
@@ -653,13 +629,6 @@ class DeviceUnreal(Device):
             value='',
             tool_tip=(
                 'Adds the selected LiveLink preset to the command line \n')
-        ),
-        'asset_itemDatas': Setting(
-            attr_name='asset_itemDatas',
-            nice_name="Asset files",
-            value=[],
-            tool_tip="Remember the last analyzed list of project and plugin assets",
-            show_ui=False,
         ),
         'mediaprofile': MediaProfileSetting(
             attr_name='mediaprofile',
@@ -2867,9 +2836,21 @@ class DeviceUnreal(Device):
             self.last_launch_command.get_value())
 
     @classmethod
+    def all_devices_added(cls):
+        ''' Device interface implementation '''
+
+        super().all_devices_added()
+
+        # Trigger a project cache if this is a DeviceUnreal class (not a subclass)
+        # and the project was not cached when opened
+        if cls == DeviceUnreal:
+            if not CONFIG.PROJECTWASINCACHE:
+                DeviceUnreal.analyze_project_assets()
+
+    @classmethod
     def analyze_project_assets(cls):
-        ''' Traverses project and content plugins and caches a list of assets of interest. 
-        That list is currently nDisplay configs and live link presets.
+        ''' Traverses project and content plugins and caches a list of assets of interest.
+        e.g. nDisplay configs, live link presets, and media profiles.
         '''
 
         project_configs_path = os.path.normpath(
@@ -2893,29 +2874,62 @@ class DeviceUnreal(Device):
 
         assets = []
 
-        for (unreal_content_plugin, configs_path) in search_paths:
-            for dirpath, _, file_names in os.walk(configs_path):
-                for file_name in file_names:
-                    if not file_name.lower().endswith(('.uasset', '.ndisplay')):
-                        continue
+        # show a progress bar if it is taking more a trivial amount of time
+        progressDiag = QtWidgets.QProgressDialog(
+            'Finding assets...', 'Cancel', 0, 0, parent=None)
 
-                    if file_name not in asset_names:
-                        asset_path = os.path.join(dirpath, file_name)
-                        ext = os.path.splitext(file_name)[1]
+        progressDiag.setWindowTitle('Unreal Asset Finder')
+        progressDiag.setModal(True)
+        progressDiag.setMinimumDuration(1000)  # time before it shows up
+        progressDiag.setCancelButton(None)
 
-                        # Since .uasset is a generic asset container, only add
-                        # assets of the right class.
-                        if ext.lower() == '.uasset':
-                            assets.append({
-                                'name': file_name,
-                                'path': asset_path,
-                                'plugin': unreal_content_plugin,
-                            })
-                        else:
-                            asset_names.append(file_name)
-                            asset_paths.append(asset_path)
-                            asset_plugins.append(unreal_content_plugin)
-                            asset_classnames.append(DeviceUnreal.NDISPLAY_CLASS_NAMES[0]) # so that it passes the filter later on
+        # Looks much better without the window frame.
+        progressDiag.setWindowFlag(QtCore.Qt.FramelessWindowHint)
+
+        # create an event object to signal when the function is done
+        done_event = threading.Event()
+
+        # convenience find assets worker. This is a step before parsing the assets, and can
+        # also take some time depending on the number of assets in the project.
+        def find_assets_work():
+            for (unreal_content_plugin, configs_path) in search_paths:
+                for dirpath, _, file_names in os.walk(configs_path):
+                    for file_name in file_names:
+                        if not file_name.lower().endswith(('.uasset', '.ndisplay')):
+                            continue
+
+                        if file_name not in asset_names:
+                            asset_path = os.path.join(dirpath, file_name)
+                            ext = os.path.splitext(file_name)[1]
+
+                            # Since .uasset is a generic asset container, only add
+                            # assets of the right class.
+                            if ext.lower() == '.uasset':
+                                assets.append({
+                                    'name': file_name,
+                                    'path': asset_path,
+                                    'plugin': unreal_content_plugin,
+                                })
+                            else:
+                                asset_names.append(file_name)
+                                asset_paths.append(asset_path)
+                                asset_plugins.append(unreal_content_plugin)
+                                asset_classnames.append(DeviceUnreal.NDISPLAY_CLASS_NAMES[0]) # so that it passes the filter later on
+
+            done_event.set()
+
+        thread = threading.Thread(target=find_assets_work)
+        thread.start()
+
+        # wait for the event to be set or the progress dialog to be canceled
+        while not done_event.is_set() and not progressDiag.wasCanceled():
+            progressDiag.setValue(progressDiag.value() + 1)
+            QtWidgets.QApplication.processEvents()
+            time.sleep(0.050)  # The worker thread will run faster if we sleep.
+
+        progressDiag.close()
+
+        thread.join()
 
         # process the assets in a multi-threaded fashion
 
@@ -2936,7 +2950,7 @@ class DeviceUnreal(Device):
             DeviceUnreal.NDISPLAY_CLASS_NAMES \
             + DeviceUnreal.LIVELINKPRESET_CLASS_NAMES \
             + DeviceUnreal.MEDIAPROFILE_CLASS_NAMES
-        
+
         def validateInterestingAsset(asset):                                                                                                
             ''' Returns the asset if it is an interesting asset '''
 
@@ -2982,7 +2996,7 @@ class DeviceUnreal(Device):
                     asset_paths.append(path)
                     asset_plugins.append(plugin)
                     asset_classnames.append(classname)
-                    
+
                 except Exception:
                     pass
 
@@ -2993,36 +3007,35 @@ class DeviceUnreal(Device):
             config_path = CONFIG.shrink_path(config_path)
             return sb_dialog.SwitchboardDialog.filter_empty_abiguated_path(config_path, file_name)
 
-        asset_names, _ = sb_dialog.SwitchboardDialog.generate_disambiguated_names(asset_paths, generate_short_unique_config_name)
+        asset_names, _ = sb_dialog.SwitchboardDialog.generate_disambiguated_names(
+            asset_paths, generate_short_unique_config_name)
 
-        # collect the found config files into the itemDatas list
+        # collect the found config files into the assets list
 
-        itemDatas = []
+        assets = []
+
+        project = SBCache().query_or_create_project(CONFIG.UPROJECT_PATH.get_value())
 
         for idx, asset_name in enumerate(asset_names):
-            
-            uplugin_file_path = (
-                str(asset_plugins[idx].uplugin_file_path) if asset_plugins[idx]
-                else None)
 
             gamepath = CONFIG.resolve_content_path(
                 file_path=asset_paths[idx], 
                 unreal_content_plugin=asset_plugins[idx])
 
-            itemData = {
-                'name': asset_name,
-                'path': asset_paths[idx],
-                'uplugin_file_path': uplugin_file_path,
-                'classname': asset_classnames[idx],
-                'gamepath': gamepath,
-            }
-            itemDatas.append(itemData)
+            assettype = SBCache().query_or_create_assettype(asset_classnames[idx])
+            asset = Asset(
+                id=0,
+                project=project,
+                assettype=assettype,
+                gamepath=gamepath,
+                name=asset_name,
+                localpath=asset_paths[idx])
 
-        # sort by name
-        itemDatas.sort(key=lambda itemData: itemData['name'])
+            assets.append(asset)
 
-        # update settings that should survive device removal and addition
-        DeviceUnreal.csettings['asset_itemDatas'].update_value(itemDatas)
+        # save to the cache
+        SBCache().update_project_assets(project=project, assets=assets)
+
 
 def parse_unreal_tag_file(file_content):
     tags = []
