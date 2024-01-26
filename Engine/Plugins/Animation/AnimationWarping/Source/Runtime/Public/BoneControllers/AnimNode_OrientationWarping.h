@@ -10,6 +10,18 @@ struct FAnimationInitializeContext;
 struct FComponentSpacePoseContext;
 struct FNodeDebugData;
 
+
+UENUM(BlueprintType)
+enum class EOrientationWarpingSpace : uint8
+{
+	// apply warping relative to current component transform
+	ComponentTransform,
+	// Apply warping relative to previous frame's root bone transform. Use this mode when using an OffsetRootBone node which allows the root bone and component transforms to differ. 
+	RootBoneTransform,
+	// Provide a custom transform pin
+	CustomTransform
+};
+
 USTRUCT(BlueprintInternalUseOnly)
 struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNode_SkeletalControlBase
 {
@@ -99,6 +111,13 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Experimental, meta=(PinHiddenByDefault))
 	FVector ManualRootMotionVelocity = FVector::ZeroVector;
+
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinHiddenByDefault))
+	EOrientationWarpingSpace WarpingSpace;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinHiddenByDefault))
+	FTransform WarpingSpaceTransform;
 
 #if WITH_EDITORONLY_DATA
 	// Scale all debug drawing visualization by a factor
