@@ -41,8 +41,13 @@ FDMXPixelMappingEditorStyle::FDMXPixelMappingEditorStyle()
 	{
 		Set("Icons.Preview", new IMAGE_BRUSH_SVG("Preview", Icon16x16));
 		Set("Icons.AddSource",new CORE_IMAGE_BRUSH("Icons/PlusSymbol_12x", Icon12x12));
-		Set("Icons.PlayDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
-		Set("Icons.StopPlayingDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/stop", Icon16x16, FStyleColors::AccentRed));
+		Set("Icons.PlayDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon20x20));
+		Set("Icons.StopDMX", new CORE_IMAGE_BRUSH_SVG("Starship/Common/stop", Icon20x20));
+
+		SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
+		Set("Icons.ResumeDMX", new CORE_IMAGE_BRUSH_SVG("Starship/MainToolbar/simulate", Icon20x20));
+		Set("Icons.PauseDMX", new CORE_IMAGE_BRUSH_SVG("Starship/MainToolbar/pause", Icon20x20));
+		SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 	}
 
 	// Component border style

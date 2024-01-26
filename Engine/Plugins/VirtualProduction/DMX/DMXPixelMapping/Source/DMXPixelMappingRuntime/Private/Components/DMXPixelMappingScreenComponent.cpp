@@ -214,11 +214,6 @@ UDMXPixelMappingRendererComponent* UDMXPixelMappingScreenComponent::GetRendererC
 	return Cast<UDMXPixelMappingRendererComponent>(GetParent());
 }
 
-void UDMXPixelMappingScreenComponent::ResetDMX()
-{
-	SendDMX();
-}
-
 void UDMXPixelMappingScreenComponent::SendDMX()
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS

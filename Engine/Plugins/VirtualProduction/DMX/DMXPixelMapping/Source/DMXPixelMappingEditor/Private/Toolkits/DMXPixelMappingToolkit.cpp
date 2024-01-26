@@ -10,6 +10,7 @@
 #include "DMXPixelMappingEditorStyle.h"
 #include "DMXPixelMappingEditorUtils.h"
 #include "DMXPixelMappingToolbar.h"
+#include "Engine/Texture.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "K2Node_PixelMappingBaseComponent.h"
@@ -252,26 +253,13 @@ void FDMXPixelMappingToolkit::Tick(float DeltaTime)
 		return;
 	}
 
-	// Render Output and Send DMX if required
-	if (!bRequestStopSendingDMX)
+	// Render, send DMX if required
+	RootComponent->Render();
+	if (bIsPlayingDMX && !bIsPaused)
 	{
-		if (bIsPlayingDMX)
-		{
-			RootComponent->RenderAndSendDMX();
-		}
-		else
-		{
-			RootComponent->Render();
-		}
+		RootComponent->SendDMX();
 	}
-	else if (bRequestStopSendingDMX)
-	{
-		RootComponent->ResetDMX();
-			
-		bIsPlayingDMX = false;
-		bRequestStopSendingDMX = false; 
-	}
-	
+
 	// Detect and broadcast editor setting changes
 	if (FMemory::Memcmp(EditorSettingsDump.GetData(), GetDefault<UDMXPixelMappingEditorSettings>(), sizeof(UDMXPixelMappingEditorSettings)) != 0)
 	{
@@ -403,12 +391,66 @@ void FDMXPixelMappingToolkit::AddRenderer()
 
 void FDMXPixelMappingToolkit::PlayDMX()
 {
+	bIsPaused = false;
 	bIsPlayingDMX = true;
+}
+
+void FDMXPixelMappingToolkit::PauseDMX()
+{
+	bIsPaused = true;
+	bIsPlayingDMX = false;
 }
 
 void FDMXPixelMappingToolkit::StopPlayingDMX()
 {
-	bRequestStopSendingDMX = true;
+	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
+	if (!PixelMapping)
+	{
+		return;
+	}
+
+	UDMXPixelMappingRootComponent* RootComponent = PixelMapping->RootComponent;
+	if (!ensure(RootComponent))
+	{
+		return;
+	}
+
+	const UDMXPixelMappingEditorSettings* Settings = GetDefault<UDMXPixelMappingEditorSettings>();
+	RootComponent->ResetDMX(Settings->EditorResetDMXMode);
+
+	bIsPaused = false;
+	bIsPlayingDMX = false;
+}
+
+void FDMXPixelMappingToolkit::TogglePlayPauseDMX()
+{
+	if (bIsPlayingDMX)
+	{
+		PauseDMX();
+	}
+	else
+	{
+		PlayDMX();
+	}
+}
+
+void FDMXPixelMappingToolkit::TogglePlayStopDMX()
+{
+	if (bIsPlayingDMX)
+	{
+		StopPlayingDMX();
+	}
+	else
+	{
+		PlayDMX();
+	}
+}
+
+void FDMXPixelMappingToolkit::SetEditorResetDMXMode(EDMXPixelMappingResetDMXMode NewMode)
+{
+	UDMXPixelMappingEditorSettings* EditorSettings = GetMutableDefault<UDMXPixelMappingEditorSettings>();
+	EditorSettings->EditorResetDMXMode = NewMode;
+	EditorSettings->SaveConfig();
 }
 
 void FDMXPixelMappingToolkit::UpdateBlueprintNodes() const
@@ -425,9 +467,13 @@ void FDMXPixelMappingToolkit::UpdateBlueprintNodes() const
 void FDMXPixelMappingToolkit::SaveThumbnailImage()
 {
 	UDMXPixelMapping* PixelMapping = GetDMXPixelMapping();
-	if (PixelMapping && ActiveRendererComponent.IsValid())
+	if (PixelMapping)
 	{
-		PixelMapping->ThumbnailImage = ActiveRendererComponent->GetRenderedInputTexture();
+		UTexture* Texture = ActiveRendererComponent.IsValid() ? ActiveRendererComponent->GetRenderedInputTexture() : nullptr;
+		if (IsValid(Texture) && Texture->IsFullyStreamedIn())
+		{
+			PixelMapping->ThumbnailImage = Texture;
+		}
 	}
 }
 
@@ -849,29 +895,83 @@ void FDMXPixelMappingToolkit::SetupCommands()
 	GetToolkitCommands()->MapAction(
 		FDMXPixelMappingEditorCommands::Get().PlayDMX,
 		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::PlayDMX),
-		FCanExecuteAction::CreateLambda([this] 
-			{ 
-				return !bIsPlayingDMX;
+		FCanExecuteAction::CreateLambda([this]
+			{
+				return !bIsPlayingDMX && !bIsPaused;
 			}),
 		FIsActionChecked(),
-		FIsActionButtonVisible::CreateLambda([this] 
-			{ 
-				return !bIsPlayingDMX; 
+		FIsActionButtonVisible::CreateLambda([this]
+			{
+				return !bIsPlayingDMX && !bIsPaused;
 			})
 	);
 
 	GetToolkitCommands()->MapAction(
-		FDMXPixelMappingEditorCommands::Get().StopPlayingDMX,
-		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::StopPlayingDMX),
+		FDMXPixelMappingEditorCommands::Get().PauseDMX,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::PauseDMX),
 		FCanExecuteAction::CreateLambda([this] 
 			{ 
 				return bIsPlayingDMX; 
 			}),
 		FIsActionChecked(),
-		FIsActionButtonVisible::CreateLambda([this] 
-			{ 
+		FIsActionButtonVisible::CreateLambda([this]
+			{
 				return bIsPlayingDMX;
 			})
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().ResumeDMX,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::PlayDMX),
+		FCanExecuteAction::CreateLambda([this]
+			{
+				return !bIsPlayingDMX && bIsPaused;
+			}),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateLambda([this]
+			{
+				return !bIsPlayingDMX && bIsPaused;
+			})
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().StopDMX,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::StopPlayingDMX),
+		FCanExecuteAction::CreateLambda([this]
+			{
+				return bIsPlayingDMX || bIsPaused;
+			})
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().TogglePlayPauseDMX,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::TogglePlayPauseDMX)
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().TogglePlayStopDMX,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::TogglePlayStopDMX)
+		);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().EditorStopSendsDefaultValues,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetEditorResetDMXMode, EDMXPixelMappingResetDMXMode::SendDefaultValues),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetEditorResetDMXModeCheckboxState, EDMXPixelMappingResetDMXMode::SendDefaultValues)
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().EditorStopSendsZeroValues,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetEditorResetDMXMode, EDMXPixelMappingResetDMXMode::SendZeroValues),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetEditorResetDMXModeCheckboxState, EDMXPixelMappingResetDMXMode::SendZeroValues)
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().EditorStopKeepsLastValues,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetEditorResetDMXMode, EDMXPixelMappingResetDMXMode::DoNotSendValues),
+		FCanExecuteAction(),
+		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetEditorResetDMXModeCheckboxState, EDMXPixelMappingResetDMXMode::DoNotSendValues)
 	);
 
 	GetToolkitCommands()->MapAction(
@@ -915,16 +1015,20 @@ void FDMXPixelMappingToolkit::SetupCommands()
 
 void FDMXPixelMappingToolkit::ExtendToolbar()
 {
-	FDMXPixelMappingEditorModule& DMXPixelMappingEditorModule = FModuleManager::LoadModuleChecked<FDMXPixelMappingEditorModule>("DMXPixelMappingEditor");
 	Toolbar = MakeShared<FDMXPixelMappingToolbar>(SharedThis(this));
 
-	TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
-	Toolbar->BuildToolbar(ToolbarExtender);
-	AddToolbarExtender(ToolbarExtender);
+	Toolbar->ExtendToolbar();
 
 	// Let other part of the plugin extend DMX Pixel Maping Editor toolbar
+	FDMXPixelMappingEditorModule& DMXPixelMappingEditorModule = FModuleManager::LoadModuleChecked<FDMXPixelMappingEditorModule>("DMXPixelMappingEditor");
 	AddMenuExtender(DMXPixelMappingEditorModule.GetMenuExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
 	AddToolbarExtender(DMXPixelMappingEditorModule.GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
+}
+
+ECheckBoxState FDMXPixelMappingToolkit::GetEditorResetDMXModeCheckboxState(EDMXPixelMappingResetDMXMode CompareMode) const
+{
+	const UDMXPixelMappingEditorSettings* EditorSettings = GetDefault<UDMXPixelMappingEditorSettings>();
+	return EditorSettings->EditorResetDMXMode == CompareMode ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 ECheckBoxState FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState(EDMXPixelMappingTransformHandleMode CompareTransformHandleMode) const

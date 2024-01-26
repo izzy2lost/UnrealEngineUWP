@@ -102,20 +102,6 @@ const FName& UDMXPixelMappingMatrixCellComponent::GetNamePrefix()
 	return NamePrefix;
 }
 
-void UDMXPixelMappingMatrixCellComponent::ResetDMX()
-{
-	UDMXPixelMappingMatrixComponent* ParentMatrix = Cast<UDMXPixelMappingMatrixComponent>(GetParent());
-	if (!ParentMatrix)
-	{
-		return;
-	}
-
-	UDMXPixelMappingColorSpace* ColorSpace = ParentMatrix->ColorSpace;
-	ColorSpace->SetRGBA(FLinearColor::Black);
-
-	// No need to send dmx, that is done by the parent matrix
-}
-
 FString UDMXPixelMappingMatrixCellComponent::GetUserName() const
 {
 	UDMXPixelMappingMatrixComponent* MatrixComponent = Cast<UDMXPixelMappingMatrixComponent>(GetParent());

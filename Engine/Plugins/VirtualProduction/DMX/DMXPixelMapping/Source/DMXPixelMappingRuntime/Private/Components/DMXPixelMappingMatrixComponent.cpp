@@ -237,17 +237,21 @@ const FName& UDMXPixelMappingMatrixComponent::GetNamePrefix()
 	return NamePrefix;
 }
 
-void UDMXPixelMappingMatrixComponent::ResetDMX()
+void UDMXPixelMappingMatrixComponent::ResetDMX(EDMXPixelMappingResetDMXMode ResetMode)
 {
-	ForEachChild([&](UDMXPixelMappingBaseComponent* InComponent)
-	{
-		if (UDMXPixelMappingOutputComponent* Component = Cast<UDMXPixelMappingOutputComponent>(InComponent))
-		{
-			Component->ResetDMX();
-		}
-	}, false);
+	UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.GetFixturePatch();
 
-	SendDMX();
+	if (FixturePatch)
+	{
+		if (ResetMode == EDMXPixelMappingResetDMXMode::SendZeroValues)
+		{
+			FixturePatch->SendZeroValues();
+		}
+		else if (ResetMode == EDMXPixelMappingResetDMXMode::SendDefaultValues)
+		{
+			FixturePatch->SendDefaultValues();
+		}
+	}
 }
 
 void UDMXPixelMappingMatrixComponent::SendDMX()

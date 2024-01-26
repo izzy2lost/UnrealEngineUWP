@@ -204,7 +204,7 @@ void UDMXPixelMappingBaseComponent::RemoveChild(UDMXPixelMappingBaseComponent* C
 {
 	if (ChildComponent)
 	{
-		ChildComponent->ResetDMX();
+		ChildComponent->ResetDMX(EDMXPixelMappingResetDMXMode::SendDefaultValues);
 
 		Children.Remove(ChildComponent);
 		ChildComponent->NotifyRemovedFromParent();

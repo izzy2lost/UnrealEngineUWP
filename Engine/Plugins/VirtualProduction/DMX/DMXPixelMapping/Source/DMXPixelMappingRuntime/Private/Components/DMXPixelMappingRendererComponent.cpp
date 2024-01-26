@@ -217,13 +217,13 @@ TArray<TSharedRef<UE::DMXPixelMapping::Rendering::FPixelMapRenderElement>> UDMXP
 	return PixelMapRenderElements;
 }
 
-void UDMXPixelMappingRendererComponent::ResetDMX()
+void UDMXPixelMappingRendererComponent::ResetDMX(EDMXPixelMappingResetDMXMode ResetMode)
 {
 	ForEachChild([&](UDMXPixelMappingBaseComponent* InComponent)
 		{
 			if (UDMXPixelMappingOutputComponent* Component = Cast<UDMXPixelMappingOutputComponent>(InComponent))
 			{
-				Component->ResetDMX();
+				Component->ResetDMX(ResetMode);
 			}
 		}, false);
 }
