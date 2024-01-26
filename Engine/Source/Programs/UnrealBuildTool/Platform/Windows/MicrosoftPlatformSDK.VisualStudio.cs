@@ -32,9 +32,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Additional set of components that should be suggested to be installed for Visual Studio 2019.
 		/// </summary>
-		static readonly string[] VisualStudio2019SuggestedComponents = new string[]
-		{
-		};
+		static readonly string[] VisualStudio2019SuggestedComponents = System.Array.Empty<string>();
 
 		/// <summary>
 		/// Additional set of components that should be suggested to be installed for Visual Studio 2022.
@@ -42,7 +40,7 @@ namespace UnrealBuildTool
 		static readonly string[] VisualStudio2022SuggestedComponents = new string[]
 		{
 			"Microsoft.VisualStudio.Workload.ManagedDesktop",
-			"Microsoft.VisualStudio.Component.VC.14.37.17.7.x86.x64",
+			"Microsoft.VisualStudio.Component.VC.14.38.17.8.x86.x64",
 			"Microsoft.Net.Component.4.6.2.TargetingPack",
 		};
 
