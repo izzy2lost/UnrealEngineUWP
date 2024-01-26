@@ -10,8 +10,6 @@ namespace UnrealBuildTool.Rules
 
 			PublicIncludePaths.AddRange(
 				new string[] {
-				"Runtime/AIModule/Public",
-				ModuleDirectory + "/Public",
 				}
 			);
 
@@ -25,14 +23,7 @@ namespace UnrealBuildTool.Rules
 				new string[] {
 					"Core",
 					"CoreUObject",
-					"Engine",
-					"MassEntity",
-					"MassActors",
-					"MassRepresentation",
-					"MassSignals",
-					"MassSpawner",
-					"MassLOD",
-					"StructUtils",
+					"Engine"
 				}
 			);
 
