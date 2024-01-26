@@ -188,7 +188,7 @@ void UUVEditorTransformTool::Setup()
 		int32 TargetIndex = Targets.Find(&Target);
 
 		TObjectPtr<UUVEditorUVTransformOperatorFactory> Factory = NewObject<UUVEditorUVTransformOperatorFactory>();
-		Factory->TargetTransform = Target.AppliedPreview->PreviewMesh->GetTransform();
+		Factory->TargetTransform = Target.UnwrapPreview->PreviewMesh->GetTransform();
 		Factory->Settings = Settings;
 		Factory->TransformType = ToolMode.Get(EUVEditorUVTransformType::Transform);
 		Factory->OriginalMesh = Target.UnwrapCanonical;
@@ -222,10 +222,10 @@ void UUVEditorTransformTool::Setup()
 			Target.UpdateAppliedPreviewFromUnwrapPreview();
 			
 
-			this->UVToolSelectionAPI->RebuildUnwrapHighlight(Preview->PreviewMesh->GetTransform());
+			this->UVToolSelectionAPI->RebuildUnwrapHighlight(Target.UnwrapPreview->PreviewMesh->GetTransform());
 			});
 
-		Target.UnwrapPreview->OnOpCompleted.AddLambda(
+		Target.UnwrapPreview->OnOpCompleted.AddWeakLambda(this,
 			[this, TargetIndex](const FDynamicMeshOperator* Op)
 			{
 				const FUVEditorUVTransformBaseOp* TransformBaseOp = (const FUVEditorUVTransformBaseOp*)(Op);
@@ -268,6 +268,7 @@ void UUVEditorTransformTool::Shutdown(EToolShutdownType ShutdownType)
 	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
 	{
 		Target->UnwrapPreview->OnMeshUpdated.RemoveAll(this);
+		Target->UnwrapPreview->OnOpCompleted.RemoveAll(this);
 	}
 
 	if (ShutdownType == EToolShutdownType::Accept)
@@ -350,11 +351,25 @@ void UUVEditorTransformTool::OnPropertyModified(UObject* PropertySet, FProperty*
 
 bool UUVEditorTransformTool::CanAccept() const
 {
-	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
+
+	if (UVToolSelectionAPI->HaveSelections())
 	{
-		if (!Target->UnwrapPreview->HaveValidResult())
+		for (FUVToolSelection Selection : UVToolSelectionAPI->GetSelections())
 		{
-			return false;
+			if (!Selection.Target->UnwrapPreview->HaveValidResult())
+			{
+				return false;
+			}
+		}
+	}
+	else
+	{
+		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
+		{
+			if (!Target->UnwrapPreview->HaveValidResult())
+			{
+				return false;
+			}
 		}
 	}
 	return true;

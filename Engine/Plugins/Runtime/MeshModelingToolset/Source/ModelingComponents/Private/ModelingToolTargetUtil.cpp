@@ -51,7 +51,6 @@ UPrimitiveComponent* UE::ToolTarget::GetTargetComponent(UToolTarget* Target)
 	{
 		return TargetComponent->GetOwnerComponent();
 	}
-	ensure(false);
 	return nullptr;
 }
 
@@ -117,7 +116,6 @@ FTransform3d UE::ToolTarget::GetLocalToWorldTransform(UToolTarget* Target)
 	{
 		return (FTransform3d)TargetComponent->GetWorldTransform();
 	}
-	ensure(false);
 	return FTransform3d();
 }
 

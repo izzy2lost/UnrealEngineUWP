@@ -175,9 +175,9 @@ void UUVEditorLayoutTool::Shutdown(EToolShutdownType ShutdownType)
 		Target->AppliedPreview->ClearOpFactory();
 	}
 
-	for (int32 TargetIndex = 0; TargetIndex < Targets.Num(); ++TargetIndex)
+	for (int32 FactoryIndex = 0; FactoryIndex < Factories.Num(); ++FactoryIndex)
 	{
-		Factories[TargetIndex] = nullptr;
+		Factories[FactoryIndex] = nullptr;
 	}
 
 	Settings = nullptr;
@@ -204,11 +204,24 @@ void UUVEditorLayoutTool::OnPropertyModified(UObject* PropertySet, FProperty* Pr
 
 bool UUVEditorLayoutTool::CanAccept() const
 {
-	for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
+	if (UVToolSelectionAPI->HaveSelections())
 	{
-		if (!Target->AppliedPreview->HaveValidResult())
+		for (FUVToolSelection Selection : UVToolSelectionAPI->GetSelections())
 		{
-			return false;
+			if (!Selection.Target->AppliedPreview->HaveValidResult())
+			{
+				return false;
+			}
+		}
+	}
+	else
+	{
+		for (const TObjectPtr<UUVEditorToolMeshInput>& Target : Targets)
+		{
+			if (!Target->AppliedPreview->HaveValidResult())
+			{
+				return false;
+			}
 		}
 	}
 	return true;
