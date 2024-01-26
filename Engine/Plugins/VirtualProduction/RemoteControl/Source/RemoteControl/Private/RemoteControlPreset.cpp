@@ -2039,6 +2039,13 @@ void URemoteControlPreset::OnObjectPropertyChanged(UObject* Object, struct FProp
 	// Objects modified should have run through the preobjectmodified. If interesting, they will be cached
 	TRACE_CPUPROFILER_EVENT_SCOPE(URemoteControlPreset::OnObjectPropertyChanged);
 
+	// ResetToDefaultValue will recall this function but re-executing it will cause a crash so we guard it to avoid this scenario
+	if (bReentryGuard)
+	{
+		return;
+	}
+	TGuardValue<bool> Guard(bReentryGuard, true);
+
 	// Handle enter / exit Multi-User session
 	if (Object == this->GetPackage() && Event.ChangeType == EPropertyChangeType::Redirected)
 	{

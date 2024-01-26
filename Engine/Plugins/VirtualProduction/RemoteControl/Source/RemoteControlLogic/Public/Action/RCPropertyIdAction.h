@@ -93,4 +93,7 @@ public:
 	/** Contains the real property container */
 	UPROPERTY()
 	TMap<FGuid, TObjectPtr<URCVirtualPropertySelfContainer>> RealPropertySelfContainer;
+
+private:
+	static TSet<FName> AllowedStructNameToCopy;
 };

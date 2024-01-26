@@ -79,8 +79,11 @@ void SRCActionPanel::Construct(const FArguments& InArgs, const TSharedRef<SRemot
 	{
 		Preset->Layout.OnFieldAdded().AddSP(this, &SRCActionPanel::OnRemoteControlFieldAdded);
 		Preset->Layout.OnFieldDeleted().AddSP(this, &SRCActionPanel::OnRemoteControlFieldDeleted);
-		Preset->GetPropertyIdRegistry()->OnPropertyIdUpdated().AddLambda([this](){ bAddActionMenuNeedsRefresh = true; });
-		Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().AddLambda([this](){ bAddActionMenuNeedsRefresh = true; });
+		if (const TObjectPtr<URemoteControlPropertyIdRegistry> Registry = Preset->GetPropertyIdRegistry())
+		{
+			Registry->OnPropertyIdUpdated().AddSPLambda(this, [this](){ bAddActionMenuNeedsRefresh = true; });
+			Registry->OnPropertyIdActionNeedsRefresh().AddSPLambda(this, [this](){ bAddActionMenuNeedsRefresh = true; });
+		}
 	}
 }
 
