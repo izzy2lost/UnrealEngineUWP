@@ -214,6 +214,10 @@ void FGameFeatureDataDetailsCustomization::ChangeDesiredState(EGameFeaturePlugin
 
 EGameFeaturePluginState FGameFeatureDataDetailsCustomization::GetCurrentState() const
 {
+	if (PluginURL.IsEmpty())
+	{
+		return EGameFeaturePluginState::Uninitialized;
+	}
 	return UGameFeaturesSubsystem::Get().GetPluginState(PluginURL);
 }
 
@@ -231,6 +235,11 @@ FText FGameFeatureDataDetailsCustomization::GetInitialStateText() const
 
 FText FGameFeatureDataDetailsCustomization::GetTagConfigPathText() const
 {
+	if (PluginURL.IsEmpty())
+	{
+		return LOCTEXT("TagConfigPathInvalid", "Invalid Plugin");
+	}
+
 	FString PluginFile = UGameFeaturesSubsystem::Get().GetPluginFilenameFromPluginURL(PluginURL);
 	FString PluginFolder = FPaths::GetPath(PluginFile);
 	FString TagFolder = PluginFolder / TEXT("Config") / TEXT("Tags");
