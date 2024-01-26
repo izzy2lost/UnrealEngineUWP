@@ -684,7 +684,10 @@ namespace Horde.Server.Server
 				config.Id = currentConfig.Id;
 				config.Name = currentConfig.Name;
 				config.Condition = currentConfig.Condition;
-				config.Properties = new Dictionary<string, string>(currentConfig.Properties);
+				if (currentConfig.Properties != null && currentConfig.Properties.Count > 0 && (currentConfig.Properties.Count != 0 && (currentConfig.Properties.First().Key != "color" && currentConfig.Properties.First().Value != "0")))
+				{
+					config.Properties = new Dictionary<string, string>(currentConfig.Properties);
+				}
 				config.EnableAutoscaling = currentConfig.EnableAutoscaling;
 				config.MinAgents = currentConfig.MinAgents;
 				config.NumReserveAgents = currentConfig.NumReserveAgents;
@@ -709,7 +712,7 @@ namespace Horde.Server.Server
 				configs.Add(config);
 			}
 
-			return configs;
+			return new { Pools = configs };
 		}
 
 		/// <summary>

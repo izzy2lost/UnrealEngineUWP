@@ -62,7 +62,7 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Arbitrary properties related to this pool
 		/// </summary>
-		IReadOnlyDictionary<string, string> Properties { get; }
+		IReadOnlyDictionary<string, string>? Properties { get; }
 
 		/// <summary>
 		/// Whether to enable autoscaling for this pool
@@ -162,13 +162,15 @@ namespace Horde.Server.Agents.Pools
 		public Condition? Condition { get; set; }
 
 		/// <inheritdoc cref="IPoolConfig.Properties"/>
-		public Dictionary<string, string> Properties { get; set; } = new Dictionary<string, string>();
+		public Dictionary<string, string>? Properties { get; set; }
 
 		/// <inheritdoc/>
-		IReadOnlyDictionary<string, string> IPoolConfig.Properties => Properties;
+		IReadOnlyDictionary<string, string>? IPoolConfig.Properties => Properties;
 
 		/// <inheritdoc/>
-		public PoolColor Color { get; set; }
+		public PoolColor? Color { get; set; }
+
+		PoolColor IPoolConfig.Color => Color ?? PoolColor.Default;
 
 		/// <inheritdoc/>
 		[JsonIgnore]
@@ -284,7 +286,7 @@ namespace Horde.Server.Agents.Pools
 			if (poolConfig.Color == PoolColor.Default)
 			{
 				// Get the desired color from the properties object on the pool config
-				if (poolConfig.Properties.TryGetValue("Color", out string? colorText) && uint.TryParse(colorText, out uint colorInt))
+				if (poolConfig.Properties != null && poolConfig.Properties.TryGetValue("Color", out string? colorText) && uint.TryParse(colorText, out uint colorInt))
 				{
 					return GetColorValue(colorInt / 600.0f, s_colorTable);
 				}
@@ -321,7 +323,7 @@ namespace Horde.Server.Agents.Pools
 		{
 			return condition.Evaluate(propKey =>
 			{
-				if (poolConfig.Properties.TryGetValue(propKey, out string? propValue))
+				if (poolConfig.Properties != null && poolConfig.Properties.TryGetValue(propKey, out string? propValue))
 				{
 					return new[] { propValue };
 				}

@@ -38,7 +38,7 @@ namespace Horde.Server.Tests
 			Assert.IsNotNull(pool);
             Assert.AreEqual("create-pool", pool!.Id.ToString());
             Assert.AreEqual("create-pool", pool.Name);
-            Assert.AreEqual(_fixtureProps.Count, pool.Properties.Count);
+            Assert.AreEqual(_fixtureProps.Count, pool.Properties!.Count);
             Assert.AreEqual(_fixtureProps["foo"], pool.Properties["foo"]);
             Assert.AreEqual(_fixtureProps["lorem"], pool.Properties["lorem"]);
         }
@@ -89,7 +89,7 @@ namespace Horde.Server.Tests
 			Assert.IsNotNull(updatedPool);
             Assert.AreEqual(pool.Id, updatedPool!.Id);
             Assert.AreEqual($"update-pool-new-name-{uniqueSuffix}", updatedPool.Name);
-            Assert.AreEqual(updatedPool.Properties.Count, 2);
+            Assert.AreEqual(updatedPool.Properties!.Count, 2);
             Assert.AreEqual(updatedProps["foo"], updatedPool.Properties["foo"]);
             Assert.AreEqual(updatedProps["cookies"], updatedPool.Properties["cookies"]);
         }

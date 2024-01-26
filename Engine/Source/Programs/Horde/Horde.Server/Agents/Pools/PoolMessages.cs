@@ -76,7 +76,7 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
-		public string Config { get; set; } = "";
+		public string? Config { get; set; }
 		
 		/// <summary>
 		/// Empty constructor for JSON serialization
@@ -549,7 +549,7 @@ namespace Horde.Server.Agents.Pools
 			NumReserveAgents = pool.NumReserveAgents;
 			Workspaces = pool.Workspaces.Select(x => AgentsController.CreateGetAgentWorkspaceResponse(x)).ToList();
 			AutoSdkConfig = pool.AutoSdkConfig;
-			Properties = pool.Properties;
+			Properties = pool.Properties ?? new Dictionary<string, string>();
 		}
 	}
 }

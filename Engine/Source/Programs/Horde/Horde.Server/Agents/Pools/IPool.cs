@@ -78,7 +78,7 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
-		public string Config { get; set; } = "{}";
+		public string? Config { get; set; }
 
 		/// <summary>
 		/// Empty constructor for BSON/JSON serialization
