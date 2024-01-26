@@ -57,6 +57,15 @@ bool UTransformableControlHandle::IsValid(const bool bDeepCheck) const
 	return true;
 }
 
+void UTransformableControlHandle::PreEvaluate(const bool bTick) const
+{
+	if (!ControlRig.IsValid())
+	{
+		return;
+	}
+	return bTick ? TickTarget() : ControlRig->Evaluate_AnyThread();
+}
+
 void UTransformableControlHandle::TickTarget() const
 {
 	if (const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMesh())

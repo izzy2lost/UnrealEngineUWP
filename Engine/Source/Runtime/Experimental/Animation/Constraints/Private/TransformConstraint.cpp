@@ -197,6 +197,33 @@ private:
 	
 }
 
+namespace ConstraintLocals
+{
+
+static bool	bPreEvaluateChild = true;
+static FAutoConsoleVariableRef CVarPreEvaluateChild(
+	TEXT("Constraints.PreEvaluateChild"),
+	bPreEvaluateChild,
+	TEXT("Force child evaluation before constraint computation.")
+	);
+	
+static bool	bPreTickChild = false;
+static FAutoConsoleVariableRef CVarPreTickChild(
+	TEXT("Constraints.PreTickChild"),
+	bPreTickChild,
+	TEXT("Force child ticking before constraint computation.")
+	);
+
+void PreEvaluateHandle(const TObjectPtr<UTransformableHandle>& InHandle) 
+{
+	if ((bPreEvaluateChild || bPreTickChild) && ::IsValid(InHandle))
+	{
+		InHandle->PreEvaluate(bPreTickChild);
+	}
+}
+
+}
+
 /** 
  * UTickableTransformConstraint
  **/
@@ -747,6 +774,8 @@ FConstraintTickFunction::ConstraintFunction UTickableTranslationConstraint::GetF
 			return;
 		}
 
+		ConstraintLocals::PreEvaluateHandle(ChildTRSHandle);
+		
 		const FVector ParentTranslation = GetParentGlobalTransform().GetLocation();
 		FTransform Transform = GetChildGlobalTransform();
 		const FVector ChildTranslation = Transform.GetLocation();
@@ -888,6 +917,8 @@ FConstraintTickFunction::ConstraintFunction UTickableRotationConstraint::GetFunc
 			return;
 		}
 
+		ConstraintLocals::PreEvaluateHandle(ChildTRSHandle);
+		
 		const FQuat ParentRotation = GetParentGlobalTransform().GetRotation();
 		FTransform Transform = GetChildGlobalTransform();
 		const FQuat ChildRotation = Transform.GetRotation();
@@ -1034,6 +1065,8 @@ FConstraintTickFunction::ConstraintFunction UTickableScaleConstraint::GetFunctio
 		{
 			return;
 		}
+
+		ConstraintLocals::PreEvaluateHandle(ChildTRSHandle);
 		
 		const FVector ParentScale = GetParentGlobalTransform().GetScale3D();
 		FTransform Transform = GetChildGlobalTransform();
@@ -1199,7 +1232,9 @@ FConstraintTickFunction::ConstraintFunction UTickableParentConstraint::GetFuncti
 			OutTransform.SetRotation(NewRotation);
 			OutTransform.SetScale3D(NewScale);
 		};
-	
+
+		ConstraintLocals::PreEvaluateHandle(ChildTRSHandle);
+		
 		const FTransform ParentTransform = GetParentGlobalTransform();
 		
 		FTransform TargetTransform = (!bMaintainOffset) ? ParentTransform : OffsetTransform * ParentTransform;
@@ -1347,6 +1382,8 @@ FConstraintTickFunction::ConstraintFunction UTickableLookAtConstraint::GetFuncti
 		{
 			return;
 		}
+
+		ConstraintLocals::PreEvaluateHandle(ChildTRSHandle);
 		
 		const FTransform ParentTransform = GetParentGlobalTransform();
 		const FTransform ChildTransform = GetChildGlobalTransform();

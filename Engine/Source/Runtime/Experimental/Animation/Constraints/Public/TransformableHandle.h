@@ -79,6 +79,12 @@ public:
 	
 	/** Perform any special ticking needed for this handle, by default it does nothing, todo need to see if we need to tick control rig also*/
 	virtual void TickTarget() const {};
+
+	/**
+	 * Perform any pre-evaluation of the handle to ensure that the transform data are up to date.
+	 * @param bTick to force any pre-evaluation ticking. Default is false.
+	*/
+	virtual void PreEvaluate(const bool bTick = false) const;
 	
 	/** Get the array of float channels for the specified section*/
 	CONSTRAINTS_API virtual TArrayView<FMovieSceneFloatChannel*>  GetFloatChannels(const UMovieSceneSection* InSection) const PURE_VIRTUAL(GetFloatChannels, return TArrayView<FMovieSceneFloatChannel*>(); );
