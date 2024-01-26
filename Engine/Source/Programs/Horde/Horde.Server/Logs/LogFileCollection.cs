@@ -94,14 +94,14 @@ namespace Horde.Server.Logs
 			{
 			}
 
-			public LogFileDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, bool newStorageBackend, LogId? logId, NamespaceId namespaceId)
+			public LogFileDocument(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId, NamespaceId namespaceId)
 			{
 				Id = logId ?? LogIdUtils.GenerateNewId();
 				JobId = jobId;
 				LeaseId = leaseId;
 				SessionId = sessionId;
 				Type = type;
-				UseNewStorageBackend = newStorageBackend;
+				UseNewStorageBackend = true;
 				MaxLineIndex = 0;
 				NamespaceId = namespaceId;
 				RefName = new RefName(Id.ToString());
@@ -136,9 +136,9 @@ namespace Horde.Server.Logs
 		}
 
 		/// <inheritdoc/>
-		public async Task<ILogFile> CreateLogFileAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, bool newStorageBackend, LogId? logId, CancellationToken cancellationToken)
+		public async Task<ILogFile> CreateLogFileAsync(JobId jobId, LeaseId? leaseId, SessionId? sessionId, LogType type, LogId? logId, CancellationToken cancellationToken)
 		{
-			LogFileDocument newLogFile = new LogFileDocument(jobId, leaseId, sessionId, type, newStorageBackend, logId, Namespace.Logs);
+			LogFileDocument newLogFile = new LogFileDocument(jobId, leaseId, sessionId, type, logId, Namespace.Logs);
 			await _logFiles.InsertOneAsync(newLogFile, null, cancellationToken);
 			return newLogFile;
 		}

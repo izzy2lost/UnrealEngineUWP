@@ -45,17 +45,6 @@ namespace Horde.Server.Logs.Storage
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteIndexAsync(LogId logId, long length, LogIndexData indexData)
-		{
-			_logger.LogDebug("Writing log {LogId} index length {Length} to persistent storage", logId, length);
-
-			ObjectKey key = new ObjectKey($"{logId}/index_{length}");
-
-			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(indexData.ToByteArray());
-			await _objectStore.WriteAsync(key, stream);
-		}
-
-		/// <inheritdoc/>
 		public async Task<LogChunkData?> ReadChunkAsync(LogId logId, long offset, int lineIndex)
 		{
 			_logger.LogDebug("Reading log {LogId} chunk offset {Offset} from persistent storage", logId, offset);
@@ -72,20 +61,6 @@ namespace Horde.Server.Logs.Storage
 			}
 
 			return chunkData;
-		}
-
-		/// <inheritdoc/>
-		public async Task WriteChunkAsync(LogId logId, long offset, LogChunkData chunkData)
-		{
-			_logger.LogDebug("Writing log {LogId} chunk offset {Offset} to persistent storage", logId, offset);
-
-			ObjectKey key = new ObjectKey($"{logId}/offset_{offset}");
-			byte[] data = new byte[chunkData.GetSerializedSize(_logger)];
-			MemoryWriter writer = new MemoryWriter(data);
-			writer.WriteLogChunkData(chunkData, _logger);
-			writer.CheckEmpty();
-
-			await _objectStore.WriteAsync(key, data);
 		}
 	}
 }

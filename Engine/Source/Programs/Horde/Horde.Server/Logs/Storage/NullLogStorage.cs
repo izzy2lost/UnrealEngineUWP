@@ -23,21 +23,9 @@ namespace Horde.Server.Logs.Storage
 		}
 
 		/// <inheritdoc/>
-		public Task WriteIndexAsync(LogId logId, long length, LogIndexData index)
-		{
-			return Task.CompletedTask;
-		}
-
-		/// <inheritdoc/>
 		public Task<LogChunkData?> ReadChunkAsync(LogId logId, long offset, int lineIndex)
 		{
 			return Task.FromResult<LogChunkData?>(null);
-		}
-
-		/// <inheritdoc/>
-		public Task WriteChunkAsync(LogId logId, long offset, LogChunkData chunkData)
-		{
-			return Task.CompletedTask;
 		}
 	}
 }

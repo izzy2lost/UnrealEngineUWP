@@ -12,58 +12,18 @@ using EpicGames.Core;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
-using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.ObjectStores;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
-using Horde.Server.Logs.Builder;
 using Horde.Server.Logs.Data;
-using Horde.Server.Logs.Storage;
 using Horde.Server.Utilities;
-using HordeCommon;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OpenTelemetry.Trace;
 
 namespace Horde.Server.Tests
 {
 	[TestClass]
-    public sealed class LogFileServiceTest : DatabaseIntegrationTest, IAsyncDisposable
-    {
-		private readonly FakeClock _clock;
-        private readonly LogFileService _logFileService;
-		private readonly ILoggerFactory _loggerFactory;
-		private readonly MemoryObjectStore _logObjectStore;
-		private readonly ILogStorage _logStorage;
-
-		public LogFileServiceTest()
-        {
-            LogFileCollection logFileCollection = new LogFileCollection(GetMongoServiceSingleton());
-
-			_loggerFactory = new LoggerFactory();
-            ILogger<LogFileService> logger = _loggerFactory.CreateLogger<LogFileService>();
-
-            Tracer tracer = TracerProvider.Default.GetTracer("LogFileServiceTest");
-            ILogBuilder logBuilder = new RedisLogBuilder(GetRedisServiceSingleton().ConnectionPool, tracer, NullLogger.Instance);
-			_logObjectStore = new MemoryObjectStore();
-			_logStorage = new PersistentLogStorage(_logObjectStore.ForType<PersistentLogStorage>(), NullLogger<PersistentLogStorage>.Instance);
-			_clock = new FakeClock();
-			TestOptions<ServerSettings> settingsOpts = new (new ServerSettings());
-			_logFileService = new LogFileService(logFileCollection, null!, logBuilder, _logStorage, _clock, null!, null!, settingsOpts, tracer, logger);
-        }
-
-		public override async ValueTask DisposeAsync()
-		{
-			await base.DisposeAsync();
-
-			GC.SuppressFinalize(this);
-			await _logFileService.DisposeAsync();
-			_logStorage.Dispose();
-			_loggerFactory.Dispose();
-		}
-
+	public sealed class LogFileServiceTest : TestSetup
+	{
 		[TestMethod]
 		public void PlainTextDecoder()
 		{
@@ -79,65 +39,46 @@ namespace Horde.Server.Tests
 		}
 
 		[TestMethod]
-        public async Task WriteLogLifecycleOldTestAsync()
-        {
+		public async Task WriteLogLifecycleOldTestAsync()
+		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-            ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
+			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 
-            logFile = (await ((ILogFileService)_logFileService).WriteLogDataAsync(logFile, 0, 0, Encoding.ASCII.GetBytes("hello\n"), true))!;
-			logFile = (await ((ILogFileService)_logFileService).WriteLogDataAsync(logFile, 6, 1, Encoding.ASCII.GetBytes("foo\nbar\n"), true))!;
-			logFile = (await ((ILogFileService)_logFileService).WriteLogDataAsync(logFile, 6 + 8, 3, Encoding.ASCII.GetBytes("baz\n"), false))!;
+			await using (TestLogWriter writer = new TestLogWriter(logFile, LogFileCollection, StorageService))
+			{
+				await writer.WriteDataAsync(Encoding.ASCII.GetBytes("hello\n"));
+				await writer.FlushAsync(false);
 
-            Assert.AreEqual("hello", await ReadLogFileAsync(_logFileService, logFile, 0, 5));
-            Assert.AreEqual("foo\nbar\nbaz\n", await ReadLogFileAsync(_logFileService, logFile, 6, 12));
+				await writer.WriteDataAsync(Encoding.ASCII.GetBytes("foo\nbar\n"));
+				await writer.FlushAsync(false);
 
-            LogMetadata metadata = await _logFileService.GetMetadataAsync(logFile, CancellationToken.None);
-            Assert.AreEqual(6 + 8 + 4, metadata.Length);
-            Assert.AreEqual(4, metadata.MaxLineIndex);
+				await writer.WriteDataAsync(Encoding.ASCII.GetBytes("baz\n"));
+				await writer.FlushAsync(true);
+			}
 
-			List<Utf8String> lines = await _logFileService.ReadLinesAsync(logFile, 0, 100, CancellationToken.None);
+			logFile = (await LogFileService.GetLogFileAsync(logFile.Id, CancellationToken.None))!;
+
+			Assert.AreEqual("hello", await ReadLogFileAsync(LogFileService, logFile, 0, 5));
+			Assert.AreEqual("foo\nbar\nbaz\n", await ReadLogFileAsync(LogFileService, logFile, 6, 12));
+
+			List<Utf8String> lines = await LogFileService.ReadLinesAsync(logFile, 0, 100, CancellationToken.None);
 			Assert.AreEqual("hello", lines[0].ToString());
 			Assert.AreEqual("foo", lines[1].ToString());
 			Assert.AreEqual("bar", lines[2].ToString());
 			Assert.AreEqual("baz", lines[3].ToString());
-        }
-        
-        [TestMethod]
-        public async Task WriteLogLifecycleTestAsync()
-        {
-	        await WriteLogLifecycleAsync(_logFileService, 30);
-        }
-        
-        private static async Task AssertMetadataAsync(ILogFileService logFileService, ILogFile logFile, long expectedLength, long expectedMaxLineIndex)
-        {
-	        LogMetadata metadata = await logFileService.GetMetadataAsync(logFile, CancellationToken.None);
-	        Assert.AreEqual(expectedLength, metadata.Length);
-	        Assert.AreEqual(expectedMaxLineIndex, metadata.MaxLineIndex);
-        }
+		}
 
-        private static async Task AssertChunkAsync(ILogFileService logFileService, LogId logFileId, long numChunks, int chunkId, long offset, long length,
-	        long lineIndex)
-        {
-	        ILogFile? logFile = await logFileService.GetLogFileAsync(logFileId, CancellationToken.None);
-	        Assert.AreEqual(numChunks, logFile!.Chunks.Count);
-
-	        ILogChunk chunk = logFile.Chunks[chunkId];
-	        Assert.AreEqual(offset, chunk.Offset);
-	        Assert.AreEqual(length, chunk.Length);
-	        Assert.AreEqual(lineIndex, chunk.LineIndex);
-        }
-
-        private static async Task AssertLineOffsetAsync(ILogFileService logFileService, LogId logFileId, int lineIndex, int clampedLineIndex, long offset)
-        {
-	        ILogFile? logFile = await logFileService.GetLogFileAsync(logFileId, CancellationToken.None);
+		private static async Task AssertLineOffsetAsync(ILogFileService logFileService, LogId logFileId, int lineIndex, int clampedLineIndex, long offset)
+		{
+			ILogFile? logFile = await logFileService.GetLogFileAsync(logFileId, CancellationToken.None);
 
 			List<Utf8String> lines = await logFileService.ReadLinesAsync(logFile!, 0, lineIndex + 1, CancellationToken.None);
 			Assert.AreEqual(clampedLineIndex, Math.Min(lineIndex, lines.Count));
 			Assert.AreEqual(offset, lines.Take(lineIndex).Sum(x => x.Length + 1));
-        }
-        
-        static async Task<string> ReadLogFileAsync(ILogFileService logFileService, ILogFile logFile, long offset, long length)
-        {
+		}
+
+		static async Task<string> ReadLogFileAsync(ILogFileService logFileService, ILogFile logFile, long offset, long length)
+		{
 			using Stream stream = await logFileService.OpenRawStreamAsync(logFile);
 
 			byte[] prefix = new byte[(int)offset];
@@ -147,205 +88,158 @@ namespace Horde.Server.Tests
 			int actualLength = await stream.ReadGreedyAsync(data);
 
 			return Encoding.UTF8.GetString(data.AsSpan(0, actualLength));
-        }
-        
-        public async Task WriteLogLifecycleAsync(ILogFileService lfs, int maxChunkLength)
-        {
+		}
+
+		[TestMethod]
+		public async Task WriteLogLifecycleAsync()
+		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-            ILogFile logFile = await lfs.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false);
+			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text);
 
-            string str1 = "hello\n";
-            string str2 = "foo\nbar\n";
-            string str3 = "baz\nqux\nquux\n";
-            string str4 = "quuz\n";
+			string str1 = "hello\n";
+			string str2 = "foo\nbar\n";
+			string str3 = "baz\nqux\nquux\n";
+			string str4 = "quuz\n";
 
-            int lineIndex = 0;
-            int offset = 0;
+			int lineIndex = 0;
+			int offset = 0;
 
-            // First write with flush. Will become chunk #1
-            logFile = (await lfs.WriteLogDataAsync(logFile, offset, lineIndex, Encoding.ASCII.GetBytes(str1), true, maxChunkLength))!;
-			await _clock.AdvanceAsync(TimeSpan.FromSeconds(2.0));
-            Assert.AreEqual(str1, await ReadLogFileAsync(lfs, logFile, 0, str1.Length));
-            Assert.AreEqual(str1, await ReadLogFileAsync(lfs, logFile, 0, str1.Length + 100)); // Reading too far is valid?
-            await AssertMetadataAsync(lfs, logFile, str1.Length, 1);
-            await AssertChunkAsync(lfs, logFile.Id, 1, 0, 0, str1.Length, lineIndex);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 0, 0, 0);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 1, 1, 6);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 1, 1, 6);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 1, 1, 6);
+			await using TestLogWriter logWriter = new TestLogWriter(logFile, LogFileCollection, StorageService);
 
-            // Second write without flushing. Will become chunk #2
-            offset += str1.Length;
-            lineIndex += str1.Count(f => f == '\n');
-            logFile = (await lfs.WriteLogDataAsync(logFile, offset, lineIndex, Encoding.ASCII.GetBytes(str2), false, maxChunkLength))!;
-			await _clock.AdvanceAsync(TimeSpan.FromSeconds(2.0));
-			Assert.AreEqual(str1 + str2, await ReadLogFileAsync(lfs, logFile, 0, str1.Length + str2.Length));
-            await AssertMetadataAsync(lfs, logFile, str1.Length + str2.Length, 3); // FIXME: what are max line index?
-            await AssertChunkAsync(lfs, logFile.Id, 2, 0, 0, str1.Length, 0);
-            await AssertChunkAsync(lfs, logFile.Id, 2, 1, str1.Length, 0, 1); // Last chunk have length zero as it's being written
-            await AssertLineOffsetAsync(lfs, logFile.Id, 0, 0, 0);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 1, 1, 6);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 2, 2, 10);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 3, 3, 14);
+			// First write with flush. Will become chunk #1
+			logFile = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str1));
+			Assert.AreEqual(str1, await ReadLogFileAsync(LogFileService, logFile, 0, str1.Length));
+			Assert.AreEqual(str1, await ReadLogFileAsync(LogFileService, logFile, 0, str1.Length + 100)); // Reading too far is valid?
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 1, 1, 6);
 
-            // Third write without flushing. Will become chunk #2
-            offset += str2.Length;
-            lineIndex += str3.Count(f => f == '\n');
-            logFile = (await lfs.WriteLogDataAsync(logFile, offset, lineIndex, Encoding.ASCII.GetBytes(str3), false, maxChunkLength))!;
-			await _clock.AdvanceAsync(TimeSpan.FromSeconds(2.0));
-			Assert.AreEqual(str1 + str2 + str3, await ReadLogFileAsync(lfs, logFile, 0, str1.Length + str2.Length + str3.Length));
-            //await AssertMetadata(Lfs, LogFile, Str1.Length + Str2.Length + Str3.Length, 8);
-            // Since no flush has happened, chunks should be identical to last write
-            await AssertChunkAsync(lfs, logFile.Id, 2, 0, 0, str1.Length, 0);
-            await AssertChunkAsync(lfs, logFile.Id, 2, 1, str1.Length, 0, 1);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 0, 0, 0);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 1, 1, 6);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 2, 2, 10);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 3, 3, 14);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 4, 4, 18);
+			// Second write without flushing. Will become chunk #2
+			offset += str1.Length;
+			lineIndex += str1.Count(f => f == '\n');
+			logFile = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str2));
 
-            // Fourth write with flush. Will become chunk #2
-            offset += str3.Length;
-            lineIndex += str4.Count(f => f == '\n');
-            logFile = (await lfs.WriteLogDataAsync(logFile, offset, lineIndex, Encoding.ASCII.GetBytes(str4), true, maxChunkLength))!;
-			await _clock.AdvanceAsync(TimeSpan.FromSeconds(2.0));
+			Assert.AreEqual(str1 + str2, await ReadLogFileAsync(LogFileService, logFile, 0, str1.Length + str2.Length));
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 2, 2, 10);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 3, 3, 14);
+
+			// Third write without flushing. Will become chunk #2
+			offset += str2.Length;
+			lineIndex += str3.Count(f => f == '\n');
+			logFile = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str3));
+			Assert.AreEqual(str1 + str2 + str3, await ReadLogFileAsync(LogFileService, logFile, 0, str1.Length + str2.Length + str3.Length));
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 2, 2, 10);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 3, 3, 14);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 4, 4, 18);
+
+			// Fourth write with flush. Will become chunk #2
+			offset += str3.Length;
+			lineIndex += str4.Count(f => f == '\n');
+			logFile = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(str4));
 			Assert.AreEqual(str1 + str2 + str3 + str4,
-                await ReadLogFileAsync(lfs, logFile, 0, str1.Length + str2.Length + str3.Length + str4.Length));
-            Assert.AreEqual(str3 + str4,
-                await ReadLogFileAsync(lfs, logFile, str1.Length + str2.Length, str3.Length + str4.Length));
-            await AssertMetadataAsync(lfs, logFile, str1.Length + str2.Length + str3.Length + str4.Length, 7);
-            await AssertChunkAsync(lfs, logFile.Id, 2, 0, 0, str1.Length, 0);
-            await AssertChunkAsync(lfs, logFile.Id, 2, 1, str1.Length, str2.Length + str3.Length + str4.Length, 1);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 0, 0, 0);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 1, 1, 6);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 2, 2, 10);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 3, 3, 14);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 4, 4, 18);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 5, 5, 22);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 6, 6, 27);
-            await AssertLineOffsetAsync(lfs, logFile.Id, 7, 7, 32);
-            
-            // Fifth write with flush and data that will span more than chunk. Will become chunk #3
-            string a = "Lorem ipsum dolor sit amet\n";
-            string b = "consectetur adipiscing\n";
-            string str5 = a + b;
-            
-            offset += str4.Length;
-            lineIndex += str5.Count(f => f == '\n');
-            
-            // Using this single write below will fail the ReadLogFile assert below. A bug?
-            //await LogFileService.WriteLogDataAsync(LogFile, Offset, LineIndex, Encoding.ASCII.GetBytes(Str5), true);
-            
-            // Dividing it in two like this will work however
-            logFile = (await lfs.WriteLogDataAsync(logFile, offset, lineIndex, Encoding.ASCII.GetBytes(a), false, maxChunkLength))!;
-			logFile = (await lfs.WriteLogDataAsync(logFile, offset + a.Length, lineIndex + 1, Encoding.ASCII.GetBytes(b), true, maxChunkLength))!;
+			await ReadLogFileAsync(LogFileService, logFile, 0, str1.Length + str2.Length + str3.Length + str4.Length));
+			Assert.AreEqual(str3 + str4,
+			await ReadLogFileAsync(LogFileService, logFile, str1.Length + str2.Length, str3.Length + str4.Length));
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 0, 0, 0);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 1, 1, 6);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 2, 2, 10);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 3, 3, 14);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 4, 4, 18);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 5, 5, 22);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 6, 6, 27);
+			await AssertLineOffsetAsync(LogFileService, logFile.Id, 7, 7, 32);
 
-			await _clock.AdvanceAsync(TimeSpan.FromSeconds(2.0));
-			await AssertMetadataAsync(lfs, logFile, str1.Length + str2.Length + str3.Length + str4.Length + str5.Length, 9);
-            await AssertChunkAsync(lfs, logFile.Id, 4, 0, 0, str1.Length, 0);
-            await AssertChunkAsync(lfs, logFile.Id, 4, 1, str1.Length, str2.Length + str3.Length + str4.Length, 1);
-            await AssertChunkAsync(lfs, logFile.Id, 4, 2, offset, a.Length, 7);
-            await AssertChunkAsync(lfs, logFile.Id, 4, 3, offset + a.Length, b.Length, 8);
+			// Fifth write with flush and data that will span more than chunk. Will become chunk #3
+			string a = "Lorem ipsum dolor sit amet\n";
+			string b = "consectetur adipiscing\n";
+			string str5 = a + b;
 
-            Assert.AreEqual(str5, await ReadLogFileAsync(lfs, logFile, offset, str5.Length));
-        }
+			offset += str4.Length;
+			lineIndex += str5.Count(f => f == '\n');
 
-        [TestMethod]
-        public async Task GetLogFileTestAsync()
-        {
-            await GetMongoServiceSingleton().Database.DropCollectionAsync("LogFiles");
-            Assert.AreEqual(0, (await _logFileService.GetLogFilesAsync()).Count);
+			// Using this single write below will fail the ReadLogFile assert below. A bug?
+			//await LogFileService.WriteLogDataAsync(LogFile, Offset, LineIndex, Encoding.ASCII.GetBytes(Str5), true);
+
+			// Dividing it in two like this will work however
+			logFile = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(a));
+			logFile = await logWriter.WriteDataAsync(Encoding.ASCII.GetBytes(b));
+
+			Assert.AreEqual(str5, await ReadLogFileAsync(LogFileService, logFile, offset, str5.Length));
+		}
+
+		[TestMethod]
+		public async Task GetLogFileTestAsync()
+		{
+			await GetMongoServiceSingleton().Database.DropCollectionAsync("LogFiles");
+			Assert.AreEqual(0, (await LogFileService.GetLogFilesAsync()).Count);
 
 			// Will implicitly test GetLogFileAsync(), AddCachedLogFile()
 			JobId jobId = JobIdUtils.GenerateNewId();
-            SessionId sessionId = SessionIdUtils.GenerateNewId();
-            ILogFile a = await _logFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, useNewStorageBackend: false, logId: null, CancellationToken.None);
-            ILogFile b = (await _logFileService.GetLogFileAsync(a.Id, CancellationToken.None))!;
-            Assert.AreEqual(a.JobId, b.JobId);
-            Assert.AreEqual(a.SessionId, b.SessionId);
-            Assert.AreEqual(a.Type, b.Type);
+			SessionId sessionId = SessionIdUtils.GenerateNewId();
+			ILogFile a = await LogFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, logId: null, CancellationToken.None);
+			ILogFile b = (await LogFileService.GetLogFileAsync(a.Id, CancellationToken.None))!;
+			Assert.AreEqual(a.JobId, b.JobId);
+			Assert.AreEqual(a.SessionId, b.SessionId);
+			Assert.AreEqual(a.Type, b.Type);
 
-            ILogFile? notFound = await _logFileService.GetLogFileAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
-            Assert.IsNull(notFound);
+			ILogFile? notFound = await LogFileService.GetLogFileAsync(LogIdUtils.GenerateNewId(), CancellationToken.None);
+			Assert.IsNull(notFound);
 
-            await _logFileService.CreateLogFileAsync(JobIdUtils.GenerateNewId(), null, SessionIdUtils.GenerateNewId(), LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
-            Assert.AreEqual(2, (await _logFileService.GetLogFilesAsync()).Count);
-        }
+			await LogFileService.CreateLogFileAsync(JobIdUtils.GenerateNewId(), null, SessionIdUtils.GenerateNewId(), LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			Assert.AreEqual(2, (await LogFileService.GetLogFilesAsync()).Count);
+		}
 
-        [TestMethod]
-        public async Task AuthorizeForSessionAsync()
-        {
+		[TestMethod]
+		public async Task AuthorizeForSessionAsync()
+		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-            SessionId sessionId = SessionIdUtils.GenerateNewId();
-            ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
-            ILogFile logFileNoSession = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
+			SessionId sessionId = SessionIdUtils.GenerateNewId();
+			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, sessionId, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			ILogFile logFileNoSession = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
 
 			ClaimsPrincipal hasClaim = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-            {
-                new Claim(HordeClaimTypes.AgentSessionId, sessionId.ToString()),
-            }, "TestAuthType"));
-            ClaimsPrincipal hasNoClaim = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
-            {
-                new Claim(HordeClaimTypes.AgentSessionId, "invalid-session-id"),
-            }, "TestAuthType"));
+			{
+				new Claim(HordeClaimTypes.AgentSessionId, sessionId.ToString()),
+			}, "TestAuthType"));
+			ClaimsPrincipal hasNoClaim = new ClaimsPrincipal(new ClaimsIdentity(new List<Claim>
+			{
+				new Claim(HordeClaimTypes.AgentSessionId, "invalid-session-id"),
+			}, "TestAuthType"));
 
-            Assert.IsTrue(LogFileService.AuthorizeForSession(logFile, hasClaim));
-            Assert.IsFalse(LogFileService.AuthorizeForSession(logFile, hasNoClaim));
-            Assert.IsFalse(LogFileService.AuthorizeForSession(logFileNoSession, hasClaim));
-        }
+			Assert.IsTrue(Horde.Server.Logs.LogFileService.AuthorizeForSession(logFile, hasClaim));
+			Assert.IsFalse(Horde.Server.Logs.LogFileService.AuthorizeForSession(logFile, hasNoClaim));
+			Assert.IsFalse(Horde.Server.Logs.LogFileService.AuthorizeForSession(logFileNoSession, hasClaim));
+		}
 
 		[TestMethod]
 		public async Task ChunkSplittingAsync()
 		{
 			JobId jobId = JobIdUtils.GenerateNewId();
-			ILogFile logFile = await _logFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, useNewStorageBackend: false, logId: null, cancellationToken: CancellationToken.None);
-
-			long offset = 0;
-
-			const int MaxChunkSize = 4;
-			const int MaxSubChunkLineCount = 128;
+			ILogFile logFile = await LogFileService.CreateLogFileAsync(jobId, null, null, LogType.Text, logId: null, cancellationToken: CancellationToken.None);
+			await using TestLogWriter logWriter = new TestLogWriter(logFile, LogFileCollection, StorageService);
 
 			byte[] line1 = Encoding.UTF8.GetBytes("hello world\n");
-			await _logFileService.WriteLogDataAsync(logFile, offset, 0, line1, false, MaxChunkSize, MaxSubChunkLineCount, CancellationToken.None);
-			offset += line1.Length;
+			await logWriter.WriteDataAsync(line1);
 
 			byte[] line2 = Encoding.UTF8.GetBytes("ab\n");
-			await _logFileService.WriteLogDataAsync(logFile, offset, 1, line2, false, MaxChunkSize, MaxSubChunkLineCount, CancellationToken.None);
-			offset += line2.Length;
+			await logWriter.WriteDataAsync(line2);
 
 			byte[] line3 = Encoding.UTF8.GetBytes("a\n");
-			await _logFileService.WriteLogDataAsync(logFile, offset, 2, line3, false, MaxChunkSize, MaxSubChunkLineCount, CancellationToken.None);
-			offset += line3.Length;
+			await logWriter.WriteDataAsync(line3);
 
 			byte[] line4 = Encoding.UTF8.GetBytes("b\n");
-			await _logFileService.WriteLogDataAsync(logFile, offset, 3, line4, false, MaxChunkSize, MaxSubChunkLineCount, CancellationToken.None);
-			offset += line4.Length;
+			await logWriter.WriteDataAsync(line4);
 
 			byte[] line5 = Encoding.UTF8.GetBytes("a\nb\n");
-			await _logFileService.WriteLogDataAsync(logFile, offset, 4, line5, false, MaxChunkSize, MaxSubChunkLineCount, CancellationToken.None);
-			// offset += line5.Length;
+			await logWriter.WriteDataAsync(line5);
 
-			await _logFileService.FlushAsync();
-			logFile = (await _logFileService.GetLogFileAsync(logFile.Id, CancellationToken.None))!;
-			Assert.AreEqual(4, logFile.Chunks.Count);
-			Assert.AreEqual(6, logFile.MaxLineIndex);
-
-			Assert.AreEqual(0, logFile.Chunks[0].LineIndex);
-			Assert.AreEqual(1, logFile.Chunks[1].LineIndex);
-			Assert.AreEqual(2, logFile.Chunks[2].LineIndex);
-			Assert.AreEqual(4, logFile.Chunks[3].LineIndex);
-
-			Assert.AreEqual(12, logFile.Chunks[0].Length);
-			Assert.AreEqual(3, logFile.Chunks[1].Length);
-			Assert.AreEqual(4, logFile.Chunks[2].Length);
-			Assert.AreEqual(4, logFile.Chunks[3].Length);
-
-			Assert.AreEqual(0, logFile.Chunks.GetChunkForLine(0));
-			Assert.AreEqual(1, logFile.Chunks.GetChunkForLine(1));
-			Assert.AreEqual(2, logFile.Chunks.GetChunkForLine(2));
-			Assert.AreEqual(2, logFile.Chunks.GetChunkForLine(3));
-			Assert.AreEqual(3, logFile.Chunks.GetChunkForLine(4));
-			Assert.AreEqual(3, logFile.Chunks.GetChunkForLine(5));
+			logFile = await logWriter.FlushAsync();
+			Assert.AreEqual(6, logFile.LineCount);
 		}
 	}
 }
