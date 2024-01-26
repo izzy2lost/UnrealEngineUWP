@@ -1519,6 +1519,9 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 		return;
 	}
 	
+	// legacy/bad path , not used for new textures that have UseNewMipFilter set
+	//	left as-is to prevent changing old content
+
 	// what this function does is 2X downsamples with the mip filter
 	//	and then a final bilinear resize to the desired final size
 	// instead just use ResizeImage to go directly from source size to final size in one step
@@ -1612,8 +1615,8 @@ static void DownscaleImage(const FImage& SrcImage, FImage& DstImage, const FText
 	FImageView2D SrcImageData(*ImageChain[0], 0);
 	FImageView2D DstImageData(*ImageChain[1], 0);
 				
-	// @todo OodleImageResize : not sure this is a correct image resize without shift; does it get pixel center offsets right?
-	//	use FImageCore::ResizeImage here instead
+	// this is not a correct image resize without shift; does not get pixel center offsets right
+	//	this is in the legacy/deprecated path so leave as-is ; new path is correct
 	for (int32 Y = 0; Y < FinalSizeY; ++Y)
 	{
 		float SourceY = (float)Y * Downscale;
@@ -3588,68 +3591,6 @@ static void NormalizeMip(FImage& InOutMip)
 }
 
 
-// Returns true if the target texture size is different and padding/stretching is required.
-static bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, bool bInIsVolume, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, int32& OutTargetSizeX, int32& OutTargetSizeY, int32& OutTargetSizeZ)
-{
-	check(InPow2Setting != ETexturePowerOfTwoSetting::None);
-
-	int32 TargetTextureSizeX = InMip0SizeX;
-	int32 TargetTextureSizeY = InMip0SizeY;
-	int32 TargetTextureSizeZ = bInIsVolume ? InMip0NumSlices : 1; // Only used for volume texture.
-
-	const int32 PowerOfTwoTextureSizeX = FMath::RoundUpToPowerOfTwo(TargetTextureSizeX);
-	const int32 PowerOfTwoTextureSizeY = FMath::RoundUpToPowerOfTwo(TargetTextureSizeY);
-	const int32 PowerOfTwoTextureSizeZ = FMath::RoundUpToPowerOfTwo(TargetTextureSizeZ);
-
-	switch (InPow2Setting)
-	{
-	// None should not get here
-
-	case ETexturePowerOfTwoSetting::PadToPowerOfTwo:
-	case ETexturePowerOfTwoSetting::StretchToPowerOfTwo:
-		TargetTextureSizeX = PowerOfTwoTextureSizeX;
-		TargetTextureSizeY = PowerOfTwoTextureSizeY;
-		TargetTextureSizeZ = PowerOfTwoTextureSizeZ;
-		break;
-
-	case ETexturePowerOfTwoSetting::PadToSquarePowerOfTwo:
-	case ETexturePowerOfTwoSetting::StretchToSquarePowerOfTwo:
-		TargetTextureSizeX = TargetTextureSizeY = TargetTextureSizeZ =
-			FMath::Max3<int32>(PowerOfTwoTextureSizeX, PowerOfTwoTextureSizeY, PowerOfTwoTextureSizeZ);
-		break;
-
-	case ETexturePowerOfTwoSetting::ResizeToSpecificResolution:
-		if (InResizeDuringBuildX)
-		{
-			TargetTextureSizeX = InResizeDuringBuildX;
-		}
-		if (InResizeDuringBuildY)
-		{
-			TargetTextureSizeY = InResizeDuringBuildY;
-		}
-		break;
-
-	default:
-		checkf(false, TEXT("Unknown entry in ETexturePowerOfTwoSetting::Type"));
-		break;
-	}
-
-	// Z only matters as a sampling dimension if we are a volume texture.
-	if (bInIsVolume == false)
-	{
-		TargetTextureSizeZ = InMip0NumSlices;
-	}
-
-	OutTargetSizeX = TargetTextureSizeX;
-	OutTargetSizeY = TargetTextureSizeY;
-	OutTargetSizeZ = TargetTextureSizeZ;
-
-	return (TargetTextureSizeX != InMip0SizeX) ||
-		(TargetTextureSizeY != InMip0SizeY) ||
-		(bInIsVolume && TargetTextureSizeZ != InMip0NumSlices);
-}
-
-
 int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 	int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices,
 	int32 InExistingMipCount,
@@ -3681,7 +3622,7 @@ int32 ITextureCompressorModule::GetMipCountForBuildSettings(
 			PowerOfTwoMode != ETexturePowerOfTwoSetting::None)
 		{
 			int32 TargetSizeX, TargetSizeY, TargetSizeZ;
-			bool NeedsAdjustment = GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
+			bool NeedsAdjustment = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(BaseSizeX, BaseSizeY, BaseSizeZ, BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY, TargetSizeX, TargetSizeY, TargetSizeZ);
 			if (NeedsAdjustment)
 			{
 				// In this case we are regenerating the entire mip chain.
@@ -3792,9 +3733,6 @@ public:
 		TArray<UE::Tasks::TTask<FXxHash64>, TInlineAllocator<16>> MipHashTasks;
 		MipHashTasks.Reserve(IntermediateMipChain.Num());
 
-		//double start_time = FPlatformTime::Seconds();
-		//uint64 raw_bytes_hashed = 0;
-
 		// Hash the mips before we compress them. This gets saved as part of the derived data and then added to the
 		// diff tags during cook so we can catch determinism issues.
 		FXxHash64Builder MipHashBuilder;
@@ -3811,10 +3749,6 @@ public:
 			check( Mip.RawData.Num() != 0 );
 
 			MipHashTasks.Add(UE::Tasks::Launch(TEXT("ComputeMipChainHash"), [&Mip] { return FXxHash64::HashBufferChunked(MakeMemoryView(Mip.RawData), 256 << 10); }));
-
-			//raw_bytes_hashed += Mip.RawData.Num();
-
-			//Blake3 is ~3.5 GB/s , around 4X slower than xxHash.
 		}
 
 		for (UE::Tasks::TTask<FXxHash64>& HashTask : MipHashTasks)
@@ -3822,11 +3756,6 @@ public:
 			FXxHash64 MipHash = HashTask.GetResult();
 			MipHashBuilder.Update(&MipHash.Hash, sizeof(MipHash.Hash));
 		}
-
-		//double end_time = FPlatformTime::Seconds();
-
-		//UE_LOG(LogTextureCompressor, Display, TEXT("Hashed %lld bytes in %.3f millis = %.3f GB/s"), raw_bytes_hashed, (end_time - start_time) * 1000, (raw_bytes_hashed / (end_time - start_time)) / (1000 * 1000 * 1000));
-		// Threaded chunked xxHash with 256kb blocks ~120 GB / s, has a lot of tiny hashes in this timing scope though.
 
 		return MipHashBuilder.Finalize().Hash;
 	}
@@ -4102,7 +4031,7 @@ private:
 			int32 TargetTextureSizeX = 0;
 			int32 TargetTextureSizeY = 0;
 			int32 TargetTextureSizeZ = 0;			
-			bool bPadOrStretchTexture = GetPowerOfTwoTargetTextureSize(
+			bool bPadOrStretchTexture = UE::TextureBuildUtilities::GetPowerOfTwoTargetTextureSize(
 				FirstSourceMipImage.SizeX, FirstSourceMipImage.SizeY, FirstSourceMipImage.NumSlices,
 				BuildSettings.bVolume, PowerOfTwoMode, BuildSettings.ResizeDuringBuildX, BuildSettings.ResizeDuringBuildY,
 				TargetTextureSizeX, TargetTextureSizeY, TargetTextureSizeZ);
@@ -4298,7 +4227,7 @@ private:
 				GenerateMipChain(BuildSettings, BaseMip, BuildSourceImageMips, 1);
 
 				// mip data not needed anymore
-				// todo: this could free "BaseMip" image instead, if it's ok with caller (currently const type used)
+				// @todo: this could free "BaseMip" image instead, if it's ok with caller (currently const type used)
 				Temp.RawData.Empty();
 
 				while( BuildSourceImageMips.Last().SizeX > MaxTextureResolution || 
@@ -4454,7 +4383,7 @@ private:
 						{
 							UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Copy: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
 						}
-						//@@CB todo : when Mip format == Image format, we can Move instead of Copy
+						//@todo : when Mip format == Image format, we can Move instead of Copy
 						//	have to make sure that's okay with SourceMips/TextureData
 					}
 				}

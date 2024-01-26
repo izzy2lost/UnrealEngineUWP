@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "ImageCore.h"
 #include "Interfaces/ITextureFormat.h"
+#include "Engine/TextureDefines.h"
 
 struct FTextureBuildSettings;
 
@@ -80,6 +81,10 @@ TEXTUREBUILDUTILITIES_API ERawImageFormat::Type GetVirtualTextureBuildIntermedia
 
 TEXTUREBUILDUTILITIES_API void GetPlaceholderTextureImageInfo(FImageInfo* OutImageInfo);
 TEXTUREBUILDUTILITIES_API void GetPlaceholderTextureImage(FImage* OutImage);
+
+// Returns true if the target texture size is different and padding/stretching is required.
+//	if InPow2Setting == None, the Out sizes match the In sizes, and false is returned
+TEXTUREBUILDUTILITIES_API bool GetPowerOfTwoTargetTextureSize(int32 InMip0SizeX, int32 InMip0SizeY, int32 InMip0NumSlices, bool bInIsVolume, ETexturePowerOfTwoSetting::Type InPow2Setting, int32 InResizeDuringBuildX, int32 InResizeDuringBuildY, int32& OutTargetSizeX, int32& OutTargetSizeY, int32& OutTargetSizeZ);
 
 } // namespace TextureBuildUtilities
 } // namespace UE
