@@ -14,6 +14,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Acls;
+using Horde.Server.Ddc;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Microsoft.AspNetCore.Authorization;
@@ -348,6 +349,21 @@ namespace Horde.Server.Storage
 			}
 		}
 
+		static readonly IReadOnlyDictionary<Guid, Type> s_blobGuidToType = GetBlobGuidTypeMap();
+
+		static Dictionary<Guid, Type> GetBlobGuidTypeMap()
+		{
+			Dictionary<Guid, Type> guidTypeMap = new Dictionary<Guid, Type>();
+			guidTypeMap.Add(CbNode.BlobTypeGuid, typeof(CbNode));
+			guidTypeMap.Add(LeafChunkedDataNode.BlobTypeGuid, typeof(LeafChunkedDataNode));
+			guidTypeMap.Add(InteriorChunkedDataNode.BlobTypeGuid, typeof(InteriorChunkedDataNode));
+			guidTypeMap.Add(CommitNode.BlobTypeGuid, typeof(CommitNode));
+			guidTypeMap.Add(DdcRefNode.BlobTypeGuid, typeof(DdcRefNode));
+			guidTypeMap.Add(DirectoryNode.BlobTypeGuid, typeof(DirectoryNode));
+			guidTypeMap.Add(RedirectNode<object>.BlobTypeGuid, typeof(RedirectNode<object>));
+			return guidTypeMap;
+		}
+
 		/// <summary>
 		/// Gets information about a particular bundle in storage
 		/// </summary>
@@ -390,7 +406,7 @@ namespace Horde.Server.Storage
 			object content;
 
 			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadBlobDataAsync(cancellationToken);
-			if (blobData.Type.Guid == DirectoryNode.BlobType.Guid)
+			if (blobData.Type.Guid == DirectoryNode.BlobTypeGuid)
 			{
 				DirectoryNode directoryNode = BlobSerializer.Deserialize<DirectoryNode>(blobData);
 
@@ -413,7 +429,13 @@ namespace Horde.Server.Storage
 				content = new { references = blobData.Refs.Select(x => GetNodeLink(namespaceId, x)) };
 			}
 
-			return new { type = blobData.Type.Guid, content = content };
+			string? typeName = null;
+			if (s_blobGuidToType.TryGetValue(blobData.Type.Guid, out Type? type))
+			{
+				typeName = type.Name;
+			}
+
+			return new { type = blobData.Type.Guid, typeName = typeName, content = content };
 		}
 
 		static string GetNodeLink(NamespaceId namespaceId, IBlobHandle handle) => GetNodeLink(namespaceId, handle.GetLocator());

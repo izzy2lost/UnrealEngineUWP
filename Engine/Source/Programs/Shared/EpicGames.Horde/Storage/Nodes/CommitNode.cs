@@ -13,6 +13,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	public class CommitNode
 	{
 		/// <summary>
+		/// Static accessor for the blob type guid
+		/// </summary>
+		public static Guid BlobTypeGuid { get; } = new Guid("{64D50724-41C0-6B22-1CB5-90A8171824D6}");
+
+		/// <summary>
 		/// The commit number
 		/// </summary>
 		public int Number { get; set; }
@@ -82,7 +87,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 	class CommitNodeConverter : BlobConverter<CommitNode>
 	{
-		static readonly BlobType s_blobType = new BlobType("{64D50724-41C0-6B22-1CB5-90A8171824D6}", 1);
+		static readonly BlobType s_blobType = new BlobType(CommitNode.BlobTypeGuid, 1);
 
 		public override CommitNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{

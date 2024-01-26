@@ -704,7 +704,7 @@ namespace Horde.Server.Server
 				}
 				if (currentConfig.FleetManagers != null && currentConfig.FleetManagers.Count > 0)
 				{
-					config.FleetManagers = currentConfig.FleetManagers?.ToList();
+					config.FleetManagers = currentConfig.FleetManagers.ToList();
 				}
 				config.LeaseUtilizationSettings = currentConfig.LeaseUtilizationSettings;
 				config.JobQueueSettings = currentConfig.JobQueueSettings;

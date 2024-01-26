@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using EpicGames.Core;
@@ -13,6 +14,11 @@ namespace Horde.Server.Ddc
 	[BlobConverter(typeof(DdcRefNodeConverter))]
 	public class DdcRefNode
 	{
+		/// <summary>
+		/// Static accessor for the blob type guid
+		/// </summary>
+		public static Guid BlobTypeGuid { get; } = new Guid("{0C7E5F25-4B55-454B-63F4-4A9B74D00651}");
+		
 		/// <summary>
 		/// Hash of the root node
 		/// </summary>
@@ -35,7 +41,7 @@ namespace Horde.Server.Ddc
 
 	class DdcRefNodeConverter : BlobConverter<DdcRefNode>
 	{
-		static BlobType s_blobType = new BlobType("{0C7E5F25-4B55-454B-63F4-4A9B74D00651}", 1);
+		static BlobType s_blobType = new BlobType(DdcRefNode.BlobTypeGuid, 1);
 
 		public override DdcRefNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
