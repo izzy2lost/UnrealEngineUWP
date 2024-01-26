@@ -1,0 +1,21 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#define AVSM_NULL_PTR 0xFF
+
+struct FAVSMLinkedListPackedData
+{
+	int Data;
+	int Ptr;
+};
+
+struct FAVSMSamplePackedData
+{
+	uint Data;
+};
+
+struct FAVSMIndirectionPackedData
+{
+	uint Data[2];
+};

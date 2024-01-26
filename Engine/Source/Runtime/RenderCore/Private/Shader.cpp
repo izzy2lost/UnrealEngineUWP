@@ -2279,6 +2279,21 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 			CVarTextureLod && CVarTextureLod->GetBool() ? 1 : 0);
 	}
 
+	if (DoesPlatformSupportHeterogeneousVolumes(Platform))
+	{
+		static const auto ShadowCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.HeterogeneousVolumes.Shadows"));
+		if (ShadowCVar && ShadowCVar->GetValueOnAnyThread() != 0)
+		{
+			KeyString += TEXT("_HVSHADOW");
+		}
+
+		static const auto CompTranslucencyCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Translucency.HeterogeneousVolumes"));
+		if (CompTranslucencyCVar && CompTranslucencyCVar->GetValueOnAnyThread() != 0)
+		{
+			KeyString += TEXT("_HVCOMPTRANSL");
+		}
+	}
+
 	if (ForceSimpleSkyDiffuse(Platform))
 	{
 		KeyString += TEXT("_SSD");

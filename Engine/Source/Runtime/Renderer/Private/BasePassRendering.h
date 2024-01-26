@@ -37,6 +37,7 @@
 #include "LightFunctionAtlas.h"
 #include "RenderUtils.h"
 #include "SceneTexturesConfig.h"
+#include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 
 class FScene;
 
@@ -137,6 +138,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FTranslucentBasePassUniformParameters,)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneColorCopyTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, SceneColorCopySampler)
 	SHADER_PARAMETER_STRUCT(FBlueNoiseParameters, BlueNoise)
+	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 DECLARE_GPU_DRAWCALL_STAT_EXTERN(Basepass);
@@ -630,6 +632,12 @@ public:
 		const bool bSingleLayerWaterUsesLightFunctionAtlas = bIsSingleLayerWater && GetSingleLayerWaterUsesLightFunctionAtlas();
 		const bool bTranslucentUsesLightFunctionAtlas = bTranslucent && GetTranslucentUsesLightFunctionAtlas();
 		OutEnvironment.SetDefine(TEXT("USE_LIGHT_FUNCTION_ATLAS"), (bSingleLayerWaterUsesLightFunctionAtlas || bTranslucentUsesLightFunctionAtlas) ? TEXT("1") : TEXT("0"));
+
+		const bool bIsTranslucent = IsTranslucentBlendMode(Parameters.MaterialParameters);
+		if (bIsTranslucent && DoesPlatformSupportHeterogeneousVolumes(Parameters.Platform) && ShouldCompositeHeterogeneousVolumesWithTranslucency())
+		{
+			OutEnvironment.SetDefine(TEXT("ADAPTIVE_VOLUMETRIC_SHADOW_MAP"), TEXT("1"));
+		}
 
 		TBasePassPixelShaderBaseType<LightMapPolicyType>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 	}

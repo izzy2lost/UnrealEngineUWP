@@ -994,6 +994,18 @@ class URendererSettings : public UDeveloperSettings
 		ConfigRestartRequired = false))
 	uint32 bEnableHeterogeneousVolumes : 1;
 
+	UPROPERTY(config, EditAnywhere, Category = Experimental, meta = (
+		ConsoleVariable = "r.Translucency.HeterogeneousVolumes", DisplayName = "Composite Heterogeneous Volumes with Translucency",
+		ToolTip = "Enable compositing with heterogeneous volumes when rendering translucency.",
+		ConfigRestartRequired = true))
+	uint32 bCompositeHeterogeneousVolumesWithTranslucency : 1;
+
+	UPROPERTY(config, EditAnywhere, Category = Experimental, meta = (
+		ConsoleVariable = "r.HeterogeneousVolumes.Shadows", DisplayName = "Enable shadow-casting with Heterogeneous Volumes",
+		ToolTip = "Enable heterogeneous volumes to cast shadows onto the environment.",
+		ConfigRestartRequired = true))
+		uint32 bShouldHeterogeneousVolumesCastShadows : 1;
+
 	UPROPERTY(config, EditAnywhere, Category=Editor, meta=(
 		ConsoleVariable="r.WireframeCullThreshold",DisplayName="Wireframe Cull Threshold",
 		ToolTip="Screen radius at which wireframe objects are culled. Larger values can improve performance when viewing a scene in wireframe."))

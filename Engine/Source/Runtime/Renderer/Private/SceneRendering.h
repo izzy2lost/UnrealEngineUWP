@@ -838,6 +838,16 @@ struct FVolumetricMeshBatch
 {
 	const FMeshBatch* Mesh;
 	const FPrimitiveSceneProxy* Proxy;
+
+	FVolumetricMeshBatch(const FMeshBatch* M, const FPrimitiveSceneProxy* P)
+		: Mesh(M)
+		, Proxy(P)
+	{}
+
+	FORCEINLINE bool operator==(const FVolumetricMeshBatch& rhs) const
+	{
+		return (Mesh->MeshIdInPrimitive == rhs.Mesh->MeshIdInPrimitive) && (Proxy == rhs.Proxy);
+	}
 };
 
 struct FSkyMeshBatch

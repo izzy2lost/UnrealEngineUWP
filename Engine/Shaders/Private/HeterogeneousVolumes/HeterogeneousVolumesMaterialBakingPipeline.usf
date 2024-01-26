@@ -149,6 +149,7 @@ int FixedBottomLevelResolution;
 //RWBuffer<uint> RWHashToVoxelBuffer;
 
 // Sampling mode
+int bJitter;
 int bSampleAtVertices;
 
 float HomogeneousThreshold;
@@ -241,8 +242,11 @@ void RasterizeBottomLevelOrthoGridCS(
 		int2 BottomLevelVoxelIndexAs2D = int2(BottomLevelVoxelIndex.y * BottomLevelVoxelResolution.x + BottomLevelVoxelIndex.x, BottomLevelVoxelIndex.z);
 
 		float3 Jitter = 0.5;
-		Jitter.xy = BlueNoiseVec2(BottomLevelVoxelIndexAs2D, View.StateFrameIndex);
-		Jitter.z = BlueNoiseScalar(BottomLevelVoxelIndexAs2D, View.StateFrameIndex);
+		if (bJitter)
+		{
+			Jitter.xy = BlueNoiseVec2(BottomLevelVoxelIndexAs2D, View.StateFrameIndex);
+			Jitter.z = BlueNoiseScalar(BottomLevelVoxelIndexAs2D, View.StateFrameIndex);
+		}
 
 		float3 Extinction = 0;
 		float3 Emission = 0;
@@ -456,10 +460,11 @@ void RasterizeBottomLevelFrustumGridCS(
 	float3 TopLevelVoxelPos = GetVoxelIndex(TopLevelGridLinearIndex, TopLevelGridResolution);
 	float3 BottomLevelVoxelPos = TopLevelVoxelPos * BottomLevelVoxelResolution + GroupThreadId;
 
-	float2 JitterXY = 0.5;
-	//float JitterZ = 0.5;
-	float JitterZ = BlueNoiseScalar(BottomLevelVoxelPos.xy, View.StateFrameIndex);
-	float3 Jitter = float3(JitterXY, JitterZ);
+	float3 Jitter = 0.5;
+	if (bJitter)
+	{
+		Jitter.z = BlueNoiseScalar(BottomLevelVoxelPos.xy, View.StateFrameIndex);
+	}
 
 	float3 LocalVoxelPos = GroupThreadId + Jitter;
 	float3 VoxelPosition = TopLevelVoxelPos + LocalVoxelPos / BottomLevelVoxelResolution;

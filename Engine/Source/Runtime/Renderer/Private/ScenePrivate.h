@@ -57,6 +57,7 @@
 #include "UObject/Package.h"
 #include "LightFunctionAtlas.h"
 #include "SceneExtensions.h"
+#include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 
 /** Factor by which to grow occlusion tests **/
 #define OCCLUSION_SLOP (1.0f)
@@ -1021,6 +1022,13 @@ public:
 
 	FLumenViewState Lumen;
 	FManyLightsViewState ManyLights;
+
+	// Heterogeneous Volumes cached data stores
+	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoVoxelGridUniformBuffer = nullptr;
+	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumVoxelGridUniformBuffer = nullptr;
+
+	TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters> AdaptiveVolumetricCameraMapUniformBuffer = nullptr;
+	TMap<int32, TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters>> AdaptiveVolumetricShadowMapUniformBufferMap;
 
 	// Map from Light ID in GPU Scene to index in the View's ForwardLightData array
 	// This is stored in ViewState so we can access previous frame mapping

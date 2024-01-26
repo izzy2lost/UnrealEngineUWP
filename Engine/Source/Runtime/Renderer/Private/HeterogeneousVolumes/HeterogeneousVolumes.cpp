@@ -18,6 +18,19 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumes(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadows(
+	TEXT("r.HeterogeneousVolumes.Shadows"),
+	0,
+	TEXT("Enables heterogeneous volume-casting shadows (default = 0)"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly);
+
+static TAutoConsoleVariable<int32> CVarTranslucencyHeterogeneousVolumes(
+	TEXT("r.Translucency.HeterogeneousVolumes"),
+	0,
+	TEXT("Enables composting with heterogeneous volumes when rendering translucency (Default = 0)\n"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesDebug(
 	TEXT("r.HeterogeneousVolumes.Debug"),
 	0,
@@ -160,6 +173,13 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesLightingCache(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesLightingCacheUseAVSM(
+	TEXT("r.HeterogeneousVolumes.LightingCache.UseAVSM"),
+	0,
+	TEXT("Enables use of AVSMs when evaluating self-shadowing (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesLightingCacheDownsampleFactor(
 	TEXT("r.HeterogeneousVolumes.LightingCache.DownsampleFactor"),
 	0,
@@ -176,11 +196,22 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesDepthSort(
 	ECVF_RenderThreadSafe
 );
 
+DECLARE_GPU_STAT_NAMED(HeterogeneousVolumeShadowsStat, TEXT("HeterogeneousVolumeShadows"));
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumesStat, TEXT("HeterogeneousVolumes"));
 
 static bool IsHeterogeneousVolumesEnabled()
 {
 	return CVarHeterogeneousVolumes.GetValueOnRenderThread() != 0;
+}
+
+bool ShouldHeterogeneousVolumesCastShadows()
+{
+	return CVarHeterogeneousVolumesShadows.GetValueOnAnyThread() != 0;
+}
+
+bool ShouldCompositeHeterogeneousVolumesWithTranslucency()
+{
+	return CVarTranslucencyHeterogeneousVolumes.GetValueOnAnyThread() != 0;
 }
 
 bool ShouldRenderHeterogeneousVolumes(
@@ -212,14 +243,6 @@ bool ShouldRenderHeterogeneousVolumesForView(
 		&& !View.HeterogeneousVolumesMeshBatches.IsEmpty()
 		&& View.Family
 		&& !View.bIsReflectionCapture;
-}
-
-bool DoesPlatformSupportHeterogeneousVolumes(EShaderPlatform Platform)
-{
-	return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5)
-		// TODO:
-		// && FDataDrivenShaderPlatformInfo::GetSupportsHeterogeneousVolumes(Platform)
-		&& !IsForwardShadingEnabled(Platform);
 }
 
 bool DoesMaterialShaderSupportHeterogeneousVolumes(const FMaterialShaderParameters& MaterialShaderParameters)
@@ -335,6 +358,11 @@ namespace HeterogeneousVolumes
 		return CVarHeterogeneousVolumesLightingCache.GetValueOnRenderThread();
 	}
 
+	bool UseAdaptiveVolumetricShadowMapForSelfShadowing()
+	{
+		return ShouldHeterogeneousVolumesCastShadows() && CVarHeterogeneousVolumesLightingCacheUseAVSM.GetValueOnRenderThread();
+	}
+
 	bool UseLightingCacheForInscattering()
 	{
 		return CVarHeterogeneousVolumesLightingCache.GetValueOnRenderThread() == 2;
@@ -395,6 +423,120 @@ namespace HeterogeneousVolumes
 	}
 }
 
+bool ShouldBuildVoxelGrids(const FScene* Scene)
+{
+	// TODO: Build the light list once
+	if (ShouldHeterogeneousVolumesCastShadows())
+	{
+		for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
+		{
+			if (LightIt->LightSceneInfo->Proxy->CastsVolumetricShadow())
+			{
+				return true;
+			}
+		}
+	}
+
+	if (ShouldCompositeHeterogeneousVolumesWithTranslucency())
+	{
+		return true;
+	}
+
+	if (HeterogeneousVolumes::GetDebugMode() != 0)
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool ShouldCacheVoxelGrids(const FScene* Scene, FSceneViewState* ViewState)
+{
+	// If the caching structure exists
+	if (ViewState == nullptr)
+	{
+		return false;
+	}
+
+	if (HeterogeneousVolumes::GetDebugMode() != 0)
+	{
+		return true;
+	}
+	
+	// TODO: If any light supports ray tracing
+
+	return false;
+}
+
+void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
+	FRDGBuilder& GraphBuilder,
+	const FSceneTextures& SceneTextures
+)
+{
+	if (!ShouldBuildVoxelGrids(Scene))
+	{
+		return;
+	}
+
+	RDG_EVENT_SCOPE(GraphBuilder, "HeterogeneousVolumeShadows");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, HeterogeneousVolumeShadowsStat);
+	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
+
+	FVoxelGridBuildOptions BuildOptions;
+	BuildOptions.bJitter = false;
+	BuildOptions.MinimumVoxelSizeOutsideFrustum = 2.0;
+
+	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = nullptr;
+	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = nullptr;
+	BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, VisibleLightInfos, BuildOptions, OrthoGridUniformBuffer);
+	BuildFrustumVoxelGrid(GraphBuilder, Scene, Views[0], BuildOptions, FrustumGridUniformBuffer);
+
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		FViewInfo& View = Views[ViewIndex];
+
+		if (ShouldCompositeHeterogeneousVolumesWithTranslucency())
+		{
+			RenderAdaptiveVolumetricCameraMapWithVoxelGrid(
+				GraphBuilder,
+				// Scene data
+				SceneTextures,
+				Scene,
+				ViewFamily,
+				View,
+				// Volume data
+				OrthoGridUniformBuffer,
+				FrustumGridUniformBuffer
+			);
+		}
+
+		if (ShouldHeterogeneousVolumesCastShadows())
+		{
+			RenderAdaptiveVolumetricShadowMapWithVoxelGrid(
+				GraphBuilder,
+				// Scene data
+				SceneTextures,
+				Scene,
+				ViewFamily,
+				View,
+				// Shadow Data
+				VisibleLightInfos,
+				VirtualShadowMapArray,
+				// Volume data
+				OrthoGridUniformBuffer,
+				FrustumGridUniformBuffer
+			);
+		}
+	}
+
+	FSceneViewState* ViewState = Views[0].ViewState;
+	if (ShouldCacheVoxelGrids(Scene, ViewState))
+	{
+		ViewState->OrthoVoxelGridUniformBuffer = OrthoGridUniformBuffer;
+		ViewState->FrustumVoxelGridUniformBuffer = FrustumGridUniformBuffer;
+	}
+}
+
 void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures
@@ -404,15 +546,8 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HeterogeneousVolumesStat);
 	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
 
-	// Build global transmittance structure
-	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer;
-	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer;
-
-	if (HeterogeneousVolumes::GetDebugMode() != 0)
-	{
-		BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, OrthoGridUniformBuffer);
-		BuildFrustumVoxelGrid(GraphBuilder, Scene, Views[0], FrustumGridUniformBuffer);
-	}
+	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = HeterogeneousVolumes::GetOrthoVoxelGridUniformBuffer(GraphBuilder, Views[0].ViewState);
+	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = HeterogeneousVolumes::GetFrustumVoxelGridUniformBuffer(GraphBuilder, Views[0].ViewState);
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
@@ -429,6 +564,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 		{
 			if (HeterogeneousVolumes::GetDebugMode() != 0)
 			{
+				// TODO: Replace with single-scattering voxel grid implementation.
 				RenderTransmittanceWithVoxelGrid(
 					GraphBuilder,
 					SceneTextures,
@@ -512,21 +648,25 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 						const FPersistentPrimitiveIndex PrimitiveId = PrimitiveSceneInfo->GetPersistentIndex();
 						const FBoxSphereBounds LocalBoxSphereBounds = HeterogeneousVolume->GetLocalBounds();
 
-						RDG_EVENT_SCOPE(GraphBuilder, "%s [%d]", *PrimitiveSceneProxy->GetResourceName().ToString(), VolumeIndex);
+						RDG_EVENT_SCOPE(GraphBuilder, "%s [%d]", *HeterogeneousVolume->GetReadableName(), VolumeIndex);
 
 						// Allocate transmittance volume
-						// TODO: Allow option for scalar transmittance to conserve bandwidth
-						FIntVector LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolume);
-						uint32 NumMips = FMath::Log2(float(FMath::Min(FMath::Min(LightingCacheResolution.X, LightingCacheResolution.Y), LightingCacheResolution.Z))) + 1;
-						FRDGTextureDesc LightingCacheDesc = FRDGTextureDesc::Create3D(
-							LightingCacheResolution,
-                            !IsMetalPlatform(GShaderPlatformForFeatureLevel[View.FeatureLevel]) ? PF_FloatR11G11B10 : PF_FloatRGBA,
-							FClearValueBinding::Black,
-							TexCreate_ShaderResource | TexCreate_UAV | TexCreate_3DTiling,
-							NumMips
-						);
-						FRDGTextureRef LightingCacheTexture = GraphBuilder.CreateTexture(LightingCacheDesc, TEXT("HeterogeneousVolumes.LightingCacheTexture"));
-						AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(LightingCacheTexture), FLinearColor::Black);
+						FRDGTextureRef LightingCacheTexture = GSystemTextures.GetBlackDummy(GraphBuilder);
+						if (HeterogeneousVolumes::GetLightingCacheMode() != 0)
+						{
+							// TODO: Allow option for scalar transmittance to conserve bandwidth
+							FIntVector LightingCacheResolution = HeterogeneousVolumes::GetLightingCacheResolution(HeterogeneousVolume);
+							uint32 NumMips = FMath::Log2(float(FMath::Min(FMath::Min(LightingCacheResolution.X, LightingCacheResolution.Y), LightingCacheResolution.Z))) + 1;
+							FRDGTextureDesc LightingCacheDesc = FRDGTextureDesc::Create3D(
+								LightingCacheResolution,
+								!IsMetalPlatform(GShaderPlatformForFeatureLevel[View.FeatureLevel]) ? PF_FloatR11G11B10 : PF_FloatRGBA,
+								FClearValueBinding::Black,
+								TexCreate_ShaderResource | TexCreate_UAV | TexCreate_3DTiling,
+								NumMips
+							);
+							LightingCacheTexture = GraphBuilder.CreateTexture(LightingCacheDesc, TEXT("HeterogeneousVolumes.LightingCacheTexture"));
+							AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(LightingCacheTexture), FLinearColor::Black);
+						}
 
 						// Material baking executes a pre-shading pipeline
 						if (CVarHeterogeneousVolumesPreshading.GetValueOnRenderThread())
@@ -667,6 +807,27 @@ void FDeferredShadingSceneRenderer::CompositeHeterogeneousVolumes(
 				ComputeShader,
 				PassParameters,
 				GroupCount);
+		}
+	}
+}
+
+namespace HeterogeneousVolumes
+{
+	void PostRender(FScene& Scene, TArray<FViewInfo>& Views)
+	{
+		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+		{
+			FSceneViewState* ViewState = Views[ViewIndex].ViewState;
+			if (ViewState)
+			{
+				DestroyAdaptiveVolumetricShadowMapUniformBuffer(ViewState->AdaptiveVolumetricCameraMapUniformBuffer);
+
+				for (auto Itr = ViewState->AdaptiveVolumetricShadowMapUniformBufferMap.begin(); Itr != ViewState->AdaptiveVolumetricShadowMapUniformBufferMap.end(); ++Itr)
+				{
+					DestroyAdaptiveVolumetricShadowMapUniformBuffer(Itr->Value);
+				}
+				ViewState->AdaptiveVolumetricShadowMapUniformBufferMap.Empty();
+			}
 		}
 	}
 }

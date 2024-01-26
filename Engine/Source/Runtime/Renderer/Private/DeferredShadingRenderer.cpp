@@ -2520,6 +2520,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 		}
 
+		if (ShouldRenderHeterogeneousVolumes(Scene) && !bHasRayTracedOverlay)
+		{
+			RenderHeterogeneousVolumeShadows(GraphBuilder, SceneTextures);
+		}
+
 		// Post base pass for material classification
 		// This needs to run before virtual shadow map, in order to have ready&cleared classified SSS data
 		if (Substrate::IsSubstrateEnabled() && !bHasRayTracedOverlay)
@@ -3377,6 +3382,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	::Substrate::PostRender(*Scene);
 	HairStrands::PostRender(*Scene);
+	HeterogeneousVolumes::PostRender(*Scene, Views);
 
 	// Release the view's previous frame histories so that their memory can be reused at the graph's execution.
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)

@@ -2754,8 +2754,9 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 				!PathTracingState->AdaptiveOrthoGridParameterCache.TopLevelGridBuffer;
 			if (bCreateVolumeGrids)
 			{
-				BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, OrthoGridUniformBuffer);
-				BuildFrustumVoxelGrid(GraphBuilder, Scene, Views[0], FrustumGridUniformBuffer);
+				FVoxelGridBuildOptions BuildOptions;
+				BuildOrthoVoxelGrid(GraphBuilder, Scene, Views, VisibleLightInfos, BuildOptions, OrthoGridUniformBuffer);
+				BuildFrustumVoxelGrid(GraphBuilder, Scene, Views[0], BuildOptions, FrustumGridUniformBuffer);
 			}
 			else
 			{

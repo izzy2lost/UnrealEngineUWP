@@ -1398,6 +1398,14 @@ bool IsWaterVirtualShadowMapFilteringEnabled(const FStaticShaderPlatform Platfor
 	return !IsForwardShadingEnabled(Platform) && bWaterVSMFilteringSupported && bVirtualShadowMapsSupported;
 }
 
+bool DoesPlatformSupportHeterogeneousVolumes(EShaderPlatform Platform)
+{
+	return IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5)
+		// TODO:
+		// && FDataDrivenShaderPlatformInfo::GetSupportsHeterogeneousVolumes(Platform)
+		&& !IsForwardShadingEnabled(Platform);
+}
+
 bool IsSingleLayerWaterDepthPrepassEnabled(const FStaticShaderPlatform Platform, const FStaticFeatureLevel FeatureLevel)
 {
 	static const auto CVarWaterSingleLayerDepthPrepass = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.SingleLayer.DepthPrepass"));

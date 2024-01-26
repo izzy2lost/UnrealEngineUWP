@@ -65,7 +65,11 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	: FPrimitiveSceneProxy(InComponent)
 	, MaterialInterface(InComponent->GetMaterial(0))
 	, VertexFactory(GetScene().GetFeatureLevel(), "FHeterogeneousVolumeSceneProxy")
+#if ACTOR_HAS_LABELS
+	, HeterogeneousVolumeData(this, InComponent->GetReadableName())
+#else
 	, HeterogeneousVolumeData(this)
+#endif
 {
 	bIsHeterogeneousVolume = true;
 
@@ -164,6 +168,11 @@ void FHeterogeneousVolumeSceneProxy::GetDynamicMeshElements(
 	uint32 VisibilityMap,
 	FMeshElementCollector& Collector) const
 {
+	if (Views.IsEmpty())
+	{
+		return;
+	}
+
 	// Create a dummy MeshBatch to make the system happy..
 	if (MaterialInterface)
 	{
@@ -597,6 +606,7 @@ AHeterogeneousVolume::AHeterogeneousVolume(const FObjectInitializer& ObjectIniti
 
 	PrimaryActorTick.bCanEverTick = true;
 	SetHidden(false);
+	HeterogeneousVolumeComponent->bCastDynamicShadow = true;
 }
 
 #undef LOCTEXT_NAMESPACE

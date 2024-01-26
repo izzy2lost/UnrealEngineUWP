@@ -19,6 +19,17 @@
 #include "LightFunctionAtlas/LightFunctionAtlasCommon.usf"
 #endif
 
+#ifndef ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#define ADAPTIVE_VOLUMETRIC_SHADOW_MAP 0
+#endif
+
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
+
+//#include "HeterogeneousVolumes/HeterogeneousVolumesVoxelGridUtils2.ush"
+//#include "HeterogeneousVolumes/HeterogeneousVolumesRayMarchingUtils.ush"
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+
 // This Substrate include assumes that if inline shading is required, it needs to 
 // be defined prior to DeferredLightingCommong.ush
 // SubstrateStruct.MaterialTextureArray is only available to translucent materials or global shaders computing contact shadows.
@@ -320,6 +331,10 @@ FLightAccumulator AccumulateDynamicLighting(
 	if (LightData.bRadialLight)
 	{
 		LightMask = GetLocalLightAttenuation( TranslatedWorldPosition, LightData, ToLight, L );
+#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+		//LightAttenuation *= ComputeTransmittance(DerivedParams.TranslatedWorldPosition, LightData.TranslatedWorldPosition, 256);
+		LightAttenuation *= AVSM_SampleTransmittance(TranslatedWorldPosition, LightData.TranslatedWorldPosition);
+#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 		MaskedLightColor *= LightMask;
 	}
 
