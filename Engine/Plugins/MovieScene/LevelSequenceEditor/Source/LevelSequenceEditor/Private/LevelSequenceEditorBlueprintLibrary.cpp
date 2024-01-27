@@ -146,6 +146,32 @@ void ULevelSequenceEditorBlueprintLibrary::SetCurrentTime(int32 NewFrame)
 	}
 }
 
+void ULevelSequenceEditorBlueprintLibrary::SetGlobalPosition(FMovieSceneSequencePlaybackParams PlaybackParams, EMovieSceneTimeUnit TimeUnit)
+{
+	if (CurrentSequencer.IsValid())
+	{
+		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
+		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
+
+		UMovieSceneSequence* Sequence = CurrentSequencer.Pin()->GetFocusedMovieSceneSequence();
+
+		FFrameTime Position = PlaybackParams.GetPlaybackPosition(Sequence);
+		if (TimeUnit == EMovieSceneTimeUnit::DisplayRate)
+		{
+			Position = ConvertFrameTime(Position, DisplayRate, TickResolution);
+		}
+
+		if (Position == CurrentSequencer.Pin()->GetGlobalTime().Time)
+		{
+			CurrentSequencer.Pin()->ForceEvaluate();
+		}
+		else
+		{
+			CurrentSequencer.Pin()->SetGlobalTime(Position);
+		}
+	}
+}
+
 int32 ULevelSequenceEditorBlueprintLibrary::GetCurrentTime()
 {
 	if (CurrentSequencer.IsValid())
@@ -156,6 +182,25 @@ int32 ULevelSequenceEditorBlueprintLibrary::GetCurrentTime()
 		return ConvertFrameTime(CurrentSequencer.Pin()->GetGlobalTime().Time, TickResolution, DisplayRate).FloorToFrame().Value;
 	}
 	return 0;
+}
+
+FMovieSceneSequencePlaybackParams ULevelSequenceEditorBlueprintLibrary::GetGlobalPosition(EMovieSceneTimeUnit TimeUnit)
+{
+	FMovieSceneSequencePlaybackParams Params;
+	if (CurrentSequencer.IsValid())
+	{
+		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
+		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
+
+		FQualifiedFrameTime GlobalTime = CurrentSequencer.Pin()->GetGlobalTime();
+
+		Params.Frame = TimeUnit == EMovieSceneTimeUnit::DisplayRate ? ConvertFrameTime(GlobalTime.Time, TickResolution, DisplayRate) : GlobalTime.Time;
+		Params.Timecode = GlobalTime.ToTimecode();
+		Params.Time = GlobalTime.AsSeconds();
+		
+		return Params;
+	}
+	return Params;
 }
 
 void ULevelSequenceEditorBlueprintLibrary::SetCurrentLocalTime(int32 NewFrame)
@@ -177,6 +222,31 @@ void ULevelSequenceEditorBlueprintLibrary::SetCurrentLocalTime(int32 NewFrame)
 	}
 }
 
+void ULevelSequenceEditorBlueprintLibrary::SetLocalPosition(FMovieSceneSequencePlaybackParams PlaybackParams, EMovieSceneTimeUnit TimeUnit)
+{
+	if (CurrentSequencer.IsValid())
+	{
+		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
+		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
+
+		UMovieSceneSequence* Sequence = CurrentSequencer.Pin()->GetFocusedMovieSceneSequence();
+		FFrameTime Position = PlaybackParams.GetPlaybackPosition(Sequence);
+		if (TimeUnit == EMovieSceneTimeUnit::DisplayRate)
+		{
+			Position = ConvertFrameTime(Position, DisplayRate, TickResolution);
+		}
+
+		if (Position == CurrentSequencer.Pin()->GetLocalTime().Time)
+		{
+			CurrentSequencer.Pin()->ForceEvaluate();
+		}
+		else
+		{
+			CurrentSequencer.Pin()->SetLocalTime(Position);
+		}
+	}
+}
+
 int32 ULevelSequenceEditorBlueprintLibrary::GetCurrentLocalTime()
 {
 	if (CurrentSequencer.IsValid())
@@ -187,6 +257,25 @@ int32 ULevelSequenceEditorBlueprintLibrary::GetCurrentLocalTime()
 		return ConvertFrameTime(CurrentSequencer.Pin()->GetLocalTime().Time, TickResolution, DisplayRate).FloorToFrame().Value;
 	}
 	return 0;
+}
+
+FMovieSceneSequencePlaybackParams ULevelSequenceEditorBlueprintLibrary::GetLocalPosition(EMovieSceneTimeUnit TimeUnit)
+{
+	FMovieSceneSequencePlaybackParams Params;
+	if (CurrentSequencer.IsValid())
+	{
+		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
+		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
+
+		FQualifiedFrameTime LocalTime = CurrentSequencer.Pin()->GetLocalTime();
+
+		Params.Frame = TimeUnit == EMovieSceneTimeUnit::DisplayRate ? ConvertFrameTime(LocalTime.Time, TickResolution, DisplayRate) : LocalTime.Time;
+		Params.Timecode = LocalTime.ToTimecode();
+		Params.Time = LocalTime.AsSeconds();
+
+		return Params;
+	}
+	return Params;
 }
 
 void ULevelSequenceEditorBlueprintLibrary::SetPlaybackSpeed(float NewPlaybackSpeed)
@@ -225,10 +314,18 @@ ESequencerLoopMode ULevelSequenceEditorBlueprintLibrary::GetLoopMode()
 	return ESequencerLoopMode::SLM_NoLoop;
 }
 
-void ULevelSequenceEditorBlueprintLibrary::PlayTo(FMovieSceneSequencePlaybackParams PlaybackParams)
+void ULevelSequenceEditorBlueprintLibrary::PlayTo(FMovieSceneSequencePlaybackParams PlaybackParams, EMovieSceneTimeUnit TimeUnit)
 {
 	if (CurrentSequencer.IsValid())
 	{
+		FFrameRate DisplayRate = CurrentSequencer.Pin()->GetFocusedDisplayRate();
+		FFrameRate TickResolution = CurrentSequencer.Pin()->GetFocusedTickResolution();
+
+		if (TimeUnit == EMovieSceneTimeUnit::DisplayRate)
+		{
+			PlaybackParams.Frame = ConvertFrameTime(PlaybackParams.Frame, DisplayRate, TickResolution);
+		}
+
 		CurrentSequencer.Pin()->PlayTo(PlaybackParams);
 	}
 }

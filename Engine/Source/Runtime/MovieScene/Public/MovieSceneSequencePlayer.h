@@ -85,6 +85,7 @@ enum class EMovieScenePositionType : uint8
 	Frame,
 	Time,
 	MarkedFrame,
+	Timecode
 };
 
 USTRUCT(BlueprintType)
@@ -122,7 +123,19 @@ struct FMovieSceneSequencePlaybackParams
 		, bHasJumped(false)
 	{}
 
-	FFrameTime GetPlaybackPosition(UMovieSceneSequencePlayer* Player) const;
+	FMovieSceneSequencePlaybackParams(const FTimecode& InTimecode, EUpdatePositionMethod InUpdateMethod)
+		: Time(0.f)
+		, Timecode(InTimecode)
+		, PositionType(EMovieScenePositionType::Timecode)
+		, UpdateMethod(InUpdateMethod)
+		, bHasJumped(false)
+	{}
+
+	// Get the playback position using the player's tick resolution and display rate	
+	MOVIESCENE_API FFrameTime GetPlaybackPosition(UMovieSceneSequencePlayer* Player) const;
+
+	// Get the playback position using the sequence's tick resolution and display rate
+	MOVIESCENE_API FFrameTime GetPlaybackPosition(UMovieSceneSequence* Sequence) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Cinematic", meta=(EditCondition="PositionType == EMovieScenePositionType::Frame"))
 	FFrameTime Frame;
@@ -132,6 +145,9 @@ struct FMovieSceneSequencePlaybackParams
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Cinematic", meta=(EditCondition="PositionType == EMovieScenePositionType::MarkedFrame"))
 	FString MarkedFrame;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cinematic", meta=(EditCondition="PositionType == EMovieScenePositionType::Timecode"))
+	FTimecode Timecode;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Cinematic")
 	EMovieScenePositionType PositionType;
