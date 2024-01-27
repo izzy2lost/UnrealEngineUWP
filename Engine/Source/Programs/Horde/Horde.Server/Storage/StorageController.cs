@@ -461,7 +461,12 @@ namespace Horde.Server.Storage
 			}
 			else
 			{
-				content = new { length = blobData.Data.Length, references = blobData.Refs.Select(x => GetNodeLink(namespaceId, x)) };
+				IEnumerable<string>? references = null;
+				if (blobData.Refs.Count > 0)
+				{
+					references = blobData.Refs.Select(x => GetNodeLink(namespaceId, x));
+				}
+				content = new { length = blobData.Data.Length, references };
 			}
 
 			string? typeName = null;
