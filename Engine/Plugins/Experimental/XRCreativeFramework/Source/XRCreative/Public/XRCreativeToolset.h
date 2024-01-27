@@ -92,10 +92,10 @@ protected:
 	TSubclassOf<AXRCreativeToolActor> ToolActor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="XR Creative")
-	TObjectPtr<UInputMappingContext> DefaultToolInputMappingContext;
+	TObjectPtr<UInputMappingContext> RightHandedInputMappingContext;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="XR Creative")
-	TObjectPtr<UInputMappingContext> LeftToolInputMappingContext;
+	TObjectPtr<UInputMappingContext> LeftHandedInputMappingContext;
 
 	
 };
@@ -145,11 +145,11 @@ public:
 
 	/** Default Input Mapping is used for Right-Handed users, or if no LeftInputMappingContext is provided. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="XR Creative")
-	TObjectPtr<UInputMappingContext> DefaultInputMappingContext;
+	TObjectPtr<UInputMappingContext> RightHandedInputMappingContext;
 	
 	/** If Handedness is selected in XRCreative Settings, uses this entry in place of Default/Right  */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="XR Creative")
-	TObjectPtr<UInputMappingContext> LeftInputMappingContext;
+	TObjectPtr<UInputMappingContext> LeftHandedInputMappingContext;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="XR Creative")
 	TArray<FXRCreativeToolEntry> Tools;

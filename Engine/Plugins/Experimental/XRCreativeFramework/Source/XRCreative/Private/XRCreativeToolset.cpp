@@ -14,19 +14,19 @@ DEFINE_LOG_CATEGORY(LogXRCreativeToolset);
 
 UInputMappingContext* UXRCreativeBlueprintableTool::GetToolInputMappingContext()
 {
-	UInputMappingContext* InputMappingContext = DefaultToolInputMappingContext;
+	UInputMappingContext* InputMappingContext = RightHandedInputMappingContext;
 	
 	#if WITH_EDITOR
 		UXRCreativeEditorSettings* Settings = UXRCreativeEditorSettings::GetXRCreativeEditorSettings();
 
-		if (Settings->Handedness == EXRCreativeHandedness::Left && LeftToolInputMappingContext)
+		if (Settings->Handedness == EXRCreativeHandedness::Left && LeftHandedInputMappingContext)
 		{
-			InputMappingContext = LeftToolInputMappingContext;
+			InputMappingContext = LeftHandedInputMappingContext;
 		}
-		else if (Settings->Handedness == EXRCreativeHandedness::Left && !LeftToolInputMappingContext)
+		else if (Settings->Handedness == EXRCreativeHandedness::Left && !LeftHandedInputMappingContext)
 		{
-			InputMappingContext = DefaultToolInputMappingContext;
-			UE_LOG(LogXRCreativeToolset, Warning, TEXT("Handedness is Left but no Left Input Mapping Context found in Toolset - Using Default."));
+			InputMappingContext = RightHandedInputMappingContext;
+			UE_LOG(LogXRCreativeToolset, Warning, TEXT("Handedness is Left but no Left Handed Input Mapping Context found in Toolset - Using RightHand."));
 		}
 	
 	#endif
