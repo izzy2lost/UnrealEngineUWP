@@ -14,9 +14,7 @@ class FSequencer;
 class UMovieSceneSequence;
 struct FSequencerHostCapabilities;
 
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
 class FSequenceModel;
@@ -78,6 +76,7 @@ protected:
 	virtual TSharedPtr<FOutlinerViewModel> CreateOutlinerImpl() override;
 	virtual TSharedPtr<FTrackAreaViewModel> CreateTrackAreaImpl() override;
 	virtual TSharedPtr<FSequencerCoreSelection> CreateSelectionImpl() override;
+	virtual USequencerScriptingLayer* CreateScriptingLayerImpl() override;
 	virtual bool IsReadOnly() const override;
 
 	void OnTrackAreaHotspotChanged(TSharedPtr<ITrackAreaHotspot> NewHotspot);
@@ -104,6 +103,5 @@ protected:
 	TArray<FSequencerCustomizationInfo> ActiveCustomizationInfos;
 };
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
