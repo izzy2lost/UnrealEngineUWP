@@ -11,3 +11,8 @@ void USequencerModuleScriptingLayer::Initialize(TSharedPtr<UE::Sequencer::FEdito
 	Outliner = NewObject<USequencerModuleOutlinerScriptingObject>(this, "Outliner");
 	Outliner->Initialize(InViewModel->GetOutliner());
 }
+
+USequencerModuleOutlinerScriptingObject* USequencerModuleScriptingLayer::GetOutliner()
+{
+	return Cast<USequencerModuleOutlinerScriptingObject>(Outliner);
+}

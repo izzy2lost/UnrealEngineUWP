@@ -32,7 +32,7 @@ class UMovieSceneCompiledDataManager;
 class UMovieSceneFolder;
 class UMovieSceneSection;
 class UMovieSceneSequence;
-class USequencerScriptingLayer;
+class USequencerModuleScriptingLayer;
 class IStructureDetailsView;
 class USequencerCurveEditorObject;
 
@@ -89,9 +89,9 @@ public:
 
 	void OnSequencerCreated(TSharedRef<ISequencer> InSequencer);
 
-	/** Retrieve the outliner */
+	/** Retrieve the scripting layer */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
-	USequencerScriptingLayer* GetScriptingLayer();
+	USequencerModuleScriptingLayer* GetScriptingLayer();
 
 	/** Retrieve the curve editor */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")

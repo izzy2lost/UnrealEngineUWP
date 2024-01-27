@@ -2,7 +2,7 @@
 
 #include "LevelSequenceEditorSubsystem.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
-#include "Scripting/SequencerScriptingLayer.h"
+#include "Scripting/SequencerModuleScriptingLayer.h"
 #include "SequencerCurveEditorObject.h"
 #include "Evaluation/MovieScenePlayback.h"
 #include "ISequencerModule.h"
@@ -249,12 +249,12 @@ TSharedPtr<ISequencer> ULevelSequenceEditorSubsystem::GetActiveSequencer()
 	return nullptr;
 }
 
-USequencerScriptingLayer* ULevelSequenceEditorSubsystem::GetScriptingLayer()
+USequencerModuleScriptingLayer* ULevelSequenceEditorSubsystem::GetScriptingLayer()
 {
 	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
 	if (Sequencer)
 	{
-		return Sequencer->GetViewModel()->GetScriptingLayer();
+		return Cast<USequencerModuleScriptingLayer>(Sequencer->GetViewModel()->GetScriptingLayer());
 	}
 	return nullptr;
 }
