@@ -233,14 +233,14 @@ void UXRCreativeVREditorMode::EnableStereo()
 
 	if (const UXRCreativeToolset* Toolset = Avatar->GetToolset())
 	{
-		if (Toolset->DefaultInputMappingContext)
+		if (Toolset->RightHandedInputMappingContext)
 		{
-			Contexts.Add(Toolset->DefaultInputMappingContext);
+			Contexts.Add(Toolset->RightHandedInputMappingContext);
 		}
 
-		if (Toolset->LeftInputMappingContext)
+		if (Toolset->LeftHandedInputMappingContext)
 		{
-			Contexts.Add(Toolset->LeftInputMappingContext);
+			Contexts.Add(Toolset->LeftHandedInputMappingContext);
 		}
 	}
 	
