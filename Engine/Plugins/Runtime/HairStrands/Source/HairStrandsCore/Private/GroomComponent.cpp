@@ -1067,7 +1067,6 @@ public:
 		}
 
 		FPrimitiveViewRelevance Result;
-		Result.bHairStrands = IsShown(View) || bForceDrawRelevance;
 
 		// Special pass for hair strands geometry (not part of the base pass, and shadowing is handlded in a custom fashion). When cards rendering is enabled we reusethe base pass
 		Result.bDrawRelevance		= IsShown(View) || bForceDrawRelevance;
@@ -1085,6 +1084,9 @@ public:
 		}
 		#endif
 		MaterialRelevance.SetPrimitiveViewRelevance(Result);
+
+		// Override the MaterialRelevance output
+		Result.bHairStrands = IsShown(View) || bForceDrawRelevance;
 		return Result;
 	}
 

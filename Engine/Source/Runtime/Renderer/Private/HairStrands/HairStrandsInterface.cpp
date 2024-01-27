@@ -169,11 +169,7 @@ bool IsHairStrandsSupported(EHairStrandsShaderType Type, EShaderPlatform Platfor
 {
 	if (!IsGroomEnabled()) return false;
 
-	// Important:
-	// EHairStrandsShaderType::All: Mobile is excluded as we don't need any interpolation/simulation code for this. It only do rigid transformation. 
-	//                              The runtime setting in these case are r.HairStrands.Binding=0 & r.HairStrands.Simulation=0
 	const bool Cards_Meshes_All = true;
-	const bool bIsMobile = IsMobilePlatform(Platform);
 
 	switch (Type)
 	{
@@ -181,7 +177,7 @@ bool IsHairStrandsSupported(EHairStrandsShaderType Type, EShaderPlatform Platfor
 	case EHairStrandsShaderType::Cards:	  return Cards_Meshes_All;
 	case EHairStrandsShaderType::Meshes:  return Cards_Meshes_All;
 	case EHairStrandsShaderType::Tool:	  return (IsD3DPlatform(Platform) || IsVulkanPlatform(Platform)) && IsPCPlatform(Platform) && IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5);
-	case EHairStrandsShaderType::All:	  return Cards_Meshes_All && !bIsMobile;
+	case EHairStrandsShaderType::All:	  return Cards_Meshes_All;
 	}
 	return false;
 }
@@ -191,10 +187,6 @@ bool IsHairStrandsEnabled(EHairStrandsShaderType Type, EShaderPlatform Platform)
 	const bool HairStrandsGlobalEnable = IsGroomEnabled();
 	if (!HairStrandsGlobalEnable) return false;
 
-	// Important:
-	// EHairStrandsShaderType::All: Mobile is excluded as we don't need any interpolation/simulation code for this. It only do rigid transformation. 
-	//                              The runtime setting in these case are r.HairStrands.Binding=0 & r.HairStrands.Simulation=0
-	const bool bIsMobile = Platform != EShaderPlatform::SP_NumPlatforms ? IsMobilePlatform(Platform) : false;
 	const int32 HairStrandsEnable = CVarHairStrandsEnable.GetValueOnAnyThread();
 	const int32 HairCardsEnable   = CVarHairCardsEnable.GetValueOnAnyThread();
 	const int32 HairMeshesEnable  = CVarHairMeshesEnable.GetValueOnAnyThread();
@@ -208,7 +200,7 @@ bool IsHairStrandsEnabled(EHairStrandsShaderType Type, EShaderPlatform Platform)
 #else
 	case EHairStrandsShaderType::Tool:		return false;
 #endif
-	case EHairStrandsShaderType::All :		return HairStrandsGlobalEnable && (HairCardsEnable > 0 || HairMeshesEnable > 0 || HairStrandsEnable > 0) && !bIsMobile;
+	case EHairStrandsShaderType::All :		return HairStrandsGlobalEnable && (HairCardsEnable > 0 || HairMeshesEnable > 0 || HairStrandsEnable > 0);
 	}
 	return false;
 }

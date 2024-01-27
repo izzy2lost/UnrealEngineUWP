@@ -37,7 +37,8 @@ struct FVertexFactoryInput
 #if MANUAL_VERTEX_FETCH
 	uint VertexId : SV_VertexID;
 #else
-	float4 Position  : ATTRIBUTE0; 
+	float4 Position      : ATTRIBUTE0; 
+	float4 PrevPosition  : ATTRIBUTE5;
 
 	// TangentZ.w contains sign of tangent basis determinant
   #if METAL_PROFILE
@@ -145,7 +146,7 @@ float3 GetVertexPreviousPosition(FVertexFactoryInput Input)
 	const uint VertexFetchId = GetHairVertexFetchId(Input);
 	const float4 Data = HairCardsVF.PreviousPositionBuffer[VertexFetchId];
 #else
-	const float4 Data = Input.Position;
+	const float4 Data = Input.PrevPosition;
 #endif
 	return Data.xyz;
 }
