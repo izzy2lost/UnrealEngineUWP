@@ -112,8 +112,8 @@ public:
 	* @param Direction  Whether to return the next key or previous key from that time
 	* @return (Optional)  Frame number of the key that's next or previous from that time 
 	*/
-	SEQUENCER_API TOptional<FFrameNumber> GetNextKey(FFrameNumber FrameNumber, EFindKeyDirection Direction) const;
-	SEQUENCER_API TOptional<FFrameNumber> GetNextSectionKey(FFrameNumber FrameNumber, EFindKeyDirection Direction) const;
+	SEQUENCER_API TOptional<FFrameNumber> GetNextKey(FFrameNumber FrameNumber, EFindKeyDirection Direction, const TRange<FFrameNumber>& Range) const;
+	SEQUENCER_API TOptional<FFrameNumber> GetNextSectionKey(FFrameNumber FrameNumber, EFindKeyDirection Direction, const TRange<FFrameNumber>& Range) const;
 
 	/**
 	 * Access the signature this collection was generated with

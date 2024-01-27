@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Containers/ContainersFwd.h"
+#include "MovieSceneTimeUnit.h"
 #include "Scripting/OutlinerScriptingObject.h"
 
 #include "SequencerModuleOutlinerScriptingObject.generated.h"
@@ -17,4 +18,10 @@ class USequencerModuleOutlinerScriptingObject : public USequencerOutlinerScripti
 public:
 
 	GENERATED_BODY()
+
+	UFUNCTION(BlueprintCallable, Category = "Sequencer Editor")
+	FFrameNumber GetNextKey(const TArray<FSequencerViewModelScriptingStruct>& InNodes, FFrameNumber FrameNumber, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Sequencer Editor")
+	FFrameNumber GetPreviousKey(const TArray<FSequencerViewModelScriptingStruct>& InNodes, FFrameNumber FrameNumber, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate) const;
 };

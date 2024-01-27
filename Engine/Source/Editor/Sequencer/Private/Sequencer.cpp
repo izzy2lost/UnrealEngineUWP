@@ -1332,8 +1332,18 @@ void FSequencer::GetKeysFromSelection(TUniquePtr<FSequencerKeyCollection>& KeyCo
 	{
 		ThresholdFrames.Value = TotalMaxSeconds;
 	}
-
+	
 	KeyCollection->Update(FSequencerKeyCollectionSignature::FromNodesRecursive(SelectedItems, ThresholdFrames));
+}
+
+FSequencerKeyCollection* FSequencer::GetKeyCollection()
+{
+	if (!SelectedKeyCollection.IsValid())
+	{
+		SelectedKeyCollection.Reset(new FSequencerKeyCollection);
+	}
+
+	return SelectedKeyCollection.Get();
 }
 
 void FSequencer::GetAllKeys(TUniquePtr<FSequencerKeyCollection>& KeyCollection, float DuplicateThresholdSeconds) const
@@ -3218,7 +3228,7 @@ void FSequencer::PlayTo(FMovieSceneSequencePlaybackParams PlaybackParams)
 
 	if (PlaybackParams.PositionType == EMovieScenePositionType::Frame)
 	{
-		PlayToTime = (PlaybackParams.Frame / GetFocusedDisplayRate()) * GetFocusedTickResolution();
+		PlayToTime = PlaybackParams.Frame;
 	}
 	else if (PlaybackParams.PositionType == EMovieScenePositionType::Time)
 	{
@@ -4773,8 +4783,9 @@ FReply FSequencer::JumpToPreviousKey()
 
 	if (SelectedKeyCollection.IsValid())
 	{
+		TRange<FFrameNumber> Range = GetTimeBounds();
 		FFrameNumber FrameNumber = GetLocalTime().Time.FloorToFrame();
-		TOptional<FFrameNumber> NewTime = SelectedKeyCollection->GetNextKey(FrameNumber, EFindKeyDirection::Backwards);
+		TOptional<FFrameNumber> NewTime = SelectedKeyCollection->GetNextKey(FrameNumber, EFindKeyDirection::Backwards, Range);
 		if (NewTime.IsSet())
 		{
 			SetPlaybackStatus(EMovieScenePlayerStatus::Stepping);
@@ -4802,8 +4813,9 @@ FReply FSequencer::JumpToNextKey()
 
 	if (SelectedKeyCollection.IsValid())
 	{
+		TRange<FFrameNumber> Range = GetTimeBounds();
 		FFrameNumber FrameNumber = GetLocalTime().Time.FloorToFrame();
-		TOptional<FFrameNumber> NewTime = SelectedKeyCollection->GetNextKey(FrameNumber, EFindKeyDirection::Forwards);
+		TOptional<FFrameNumber> NewTime = SelectedKeyCollection->GetNextKey(FrameNumber, EFindKeyDirection::Forwards, Range);
 		if (NewTime.IsSet())
 		{
 			SetPlaybackStatus(EMovieScenePlayerStatus::Stepping);
