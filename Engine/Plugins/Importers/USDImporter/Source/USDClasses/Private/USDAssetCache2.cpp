@@ -1022,7 +1022,7 @@ bool UUsdAssetCache2::AddAssetReference(const UObject* Asset, const UObject* Ref
 
 bool UUsdAssetCache2::RemoveAssetReference(const UObject* Asset, const UObject* Referencer)
 {
-	if (!Asset || !Referencer)
+	if (!Asset)
 	{
 		return false;
 	}
@@ -1032,12 +1032,27 @@ bool UUsdAssetCache2::RemoveAssetReference(const UObject* Asset, const UObject* 
 	bool bRemovedSomething = false;
 	if (FCachedAssetInfo* Info = LRUCache.Find(Asset))
 	{
-		const int32 NumRemoved = Info->Referencers.Remove(FObjectKey{Referencer});
-		if (NumRemoved > 0)
+		if (Referencer)
 		{
-			UE_LOG(LogUsd, Verbose, TEXT("Removed referencer '%s' from asset '%s'"), *Referencer->GetPathName(), *Asset->GetPathName());
+			const int32 NumRemoved = Info->Referencers.Remove(FObjectKey{Referencer});
+			if (NumRemoved > 0)
+			{
+				UE_LOG(LogUsd, Verbose, TEXT("Removed referencer '%s' from asset '%s'"), *Referencer->GetPathName(), *Asset->GetPathName());
 
-			bRemovedSomething = true;
+				bRemovedSomething = true;
+			}
+		}
+		else
+		{
+			const int32 NumRemoved = Info->Referencers.Num();
+			Info->Referencers.Reset();
+
+			if (NumRemoved > 0)
+			{
+				UE_LOG(LogUsd, Verbose, TEXT("Removed all '%d' referencers for asset '%s'"), NumRemoved, *Asset->GetPathName());
+
+				bRemovedSomething = true;
+			}
 		}
 	}
 

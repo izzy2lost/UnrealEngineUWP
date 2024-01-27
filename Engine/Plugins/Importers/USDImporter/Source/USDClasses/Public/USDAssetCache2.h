@@ -88,9 +88,10 @@ public:
 
 	/**
 	 * Removes an UObject referencer from a particular asset, returning true if the operation succeeded.
+	 * If no specific Referencer is provided, all referencers to Asset will be removed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Caching", meta = (CallInEditor = "true"))
-	bool RemoveAssetReference(const UObject* Asset, const UObject* Referencer);
+	bool RemoveAssetReference(const UObject* Asset, const UObject* Referencer = nullptr);
 
 	/**
 	 * Removes the particular referencer to all assets tracked by the cache, if it was a referencer to any of them.

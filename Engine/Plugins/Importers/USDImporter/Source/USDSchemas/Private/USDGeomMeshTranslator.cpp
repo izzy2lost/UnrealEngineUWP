@@ -584,6 +584,10 @@ namespace UsdGeomMeshTranslatorImpl
 		// the worst of both worlds as some of these will be arbitrarily recomputed anyway, and some will be left invalid
 		EComputeNTBsFlags Options = GSkipMeshTangentComputation ? EComputeNTBsFlags::None
 																: EComputeNTBsFlags::UseMikkTSpace | EComputeNTBsFlags::Tangents;
+
+		// Repairing can take a long time for degenerate triangles (UE-194839)
+		Options |= EComputeNTBsFlags::IgnoreDegenerateTriangles;
+
 		if (InvalidNormalFraction >= GMeshNormalRepairThreshold)
 		{
 			Options |= EComputeNTBsFlags::Normals;
@@ -701,6 +705,7 @@ namespace UsdGeomMeshTranslatorImpl
 				SourceModel.BuildSettings.bRecomputeNormals = false;
 				SourceModel.BuildSettings.bRecomputeTangents = false;
 				SourceModel.BuildSettings.bBuildReversedIndexBuffer = false;
+				SourceModel.BuildSettings.bRemoveDegenerates = true;	// Note: This may get rid of the entire mesh if it is all invalid
 
 				FMeshDescription* StaticMeshDescription = StaticMesh->CreateMeshDescription(LODIndex);
 				check(StaticMeshDescription);
@@ -1315,7 +1320,7 @@ namespace UE::UsdCollision::Private
 	// Approximation types from PhysicsMeshCollisionAPI and UE-specific approximations
 	enum class EUsdCollisionType : uint8
 	{
-		None, // no approximation so equivalent to CTF_UseComplexAsSimple
+		None,	 // no approximation so equivalent to CTF_UseComplexAsSimple
 		ConvexDecomposition,
 		ConvexHull,
 		Sphere,
@@ -1795,10 +1800,45 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 				FeatureLevel = World->GetFeatureLevel();
 			}
 
-			if (!UsdGeomMeshTranslatorImpl::BuildStaticMesh(*StaticMesh, FeatureLevel, LODIndexToMeshDescription))
+			bool bSuccess = UsdGeomMeshTranslatorImpl::BuildStaticMesh(*StaticMesh, FeatureLevel, LODIndexToMeshDescription);
+			if (bSuccess)
 			{
-				// Build failed, discard the mesh
-				StaticMesh = nullptr;
+				FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+
+				// We want to discard our StaticMesh if it generated no valid RenderData (e.g. was compeletely degenerate).
+				// They are not really going to be useful, and this is also handy as in some cases the StaticMeshComponents that use them
+				// may get confused as to why they have a StaticMesh with no valid RenderData at points where they expected to have them
+				// (e.g. see UE-201946)
+				bSuccess = RenderData && !RenderData->Bounds.ContainsNaN() && RenderData->GetCurrentFirstLODIdx(0) != INDEX_NONE;
+			}
+
+			// Build failed, abandon mesh
+			if (!bSuccess)
+			{
+				Context->InfoCache->RemoveAllAssetPrimLinks(StaticMesh);
+
+				FString Hash = Context->AssetCache->GetHashForAsset(StaticMesh);
+				if (!Hash.IsEmpty())
+				{
+					Context->AssetCache->RemoveAssetReference(StaticMesh);
+					UObject* RemovedAsset = Context->AssetCache->RemoveAsset(Hash);
+					if (ensure(RemovedAsset))
+					{
+						const TCHAR* NewName = nullptr;
+						UObject* NewOuter = GetTransientPackage();
+						RemovedAsset->Rename(NewName, NewOuter);
+
+						StaticMesh = nullptr;
+
+						UE_LOG(
+							LogUsd,
+							Warning,
+							TEXT("Discarding StaticMesh generated for prim '%s' as it didn't produce any valid RenderData (likely all triangles "
+								 "were degenerate)"),
+							*PrimPath.GetString()
+						);
+					}
+				}
 
 				return false;
 			}
