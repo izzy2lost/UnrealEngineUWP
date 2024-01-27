@@ -15,7 +15,7 @@ namespace UE::Sequencer
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSequencerOutlinerSelectionChanged);
 
-UCLASS()
+UCLASS(MinimalAPI)
 class USequencerOutlinerScriptingObject : public UObject
 {
 public:
@@ -25,7 +25,7 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Sequencer Editor")
 	FSequencerOutlinerSelectionChanged OnSelectionChanged;
 
-	void Initialize(UE::Sequencer::TViewModelPtr<UE::Sequencer::FOutlinerViewModel> InOutliner);
+	SEQUENCERCORE_API void Initialize(UE::Sequencer::TViewModelPtr<UE::Sequencer::FOutlinerViewModel> InOutliner);
 
 	UFUNCTION(BlueprintCallable, Category="Sequencer Editor")
 	FSequencerViewModelScriptingStruct GetRootNode() const;
