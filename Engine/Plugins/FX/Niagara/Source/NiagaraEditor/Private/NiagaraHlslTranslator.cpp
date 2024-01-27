@@ -3086,6 +3086,8 @@ void TNiagaraHlslTranslator<GraphBridge>::DefineMainGPUFunctions(
 	DataSetReads.GetKeys(ReadDataSetIDs);
 	DataSetWrites.GetKeys(WriteDataSetIDs);
 
+	FNiagaraEmitterID EmitterID = GetEmitterID();
+
 	// Whether Alive is used and must be set at each run
 	bool bUsesAlive = false;
 	TArray<FName> DataSetNames;
@@ -3193,6 +3195,8 @@ void TNiagaraHlslTranslator<GraphBridge>::DefineMainGPUFunctions(
 			HlslOutput += ContextName + TEXT("Particles.ID.Index = IDIndex;\n");
 			HlslOutput += ContextName + TEXT("Particles.ID.AcquireTag = IDAcquireTag;\n");
 		}
+
+		HlslOutput += FString::Printf(TEXT("\t%sEngine.Emitter.ID.ID = %d;\n"), *ContextName, EmitterID.ID);
 	}
 	HlslOutput += TEXT("}\n\n");
 
@@ -3285,6 +3289,8 @@ void TNiagaraHlslTranslator<GraphBridge>::DefineMainGPUFunctions(
 			{
 				HlslOutput += ContextName + TEXT("DataInstance.Alive=true;\n");
 			}
+
+			HlslOutput += FString::Printf(TEXT("\t%sEngine.Emitter.ID.ID = %d;\n"), *ContextName, EmitterID.ID);
 		}
 	}
 	HlslOutput += TEXT("}\n\n");
