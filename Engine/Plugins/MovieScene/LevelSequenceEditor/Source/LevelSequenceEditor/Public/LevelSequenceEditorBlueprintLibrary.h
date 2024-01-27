@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "MovieSceneTimeUnit.h"
 #include "SequencerCurveEditorObject.h"
 #include "SequencerSettings.h"
 #include "LevelSequenceEditorBlueprintLibrary.generated.h"
@@ -82,29 +83,45 @@ public:
 
 public:
 
-	/**
-	 * Set global playback position for the current level sequence in frames. If the requested time is the same as the current time, an evaluation will be forced.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use SetCurrentTime that takes a FMovieSceneSequencePlaybackParams")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", meta = (DeprecatedFunction, DeprecationMessage = "Use SetCurrentTime that takes a FMovieSceneSequencePlaybackParams"))
 	static void SetCurrentTime(int32 NewFrame);
-
-	/**
-	 * Get the current global playback position in frames
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	
+	UE_DEPRECATED(5.4, "Use GetCurrentTime that returns a FMovieSceneSequencePlaybackParams")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", meta = (DeprecatedFunction, DeprecationMessage = "Use GetCurrentTime that returns a FMovieSceneSequencePlaybackParams"))
 	static int32 GetCurrentTime();
 
-	/**
-	 * Set local playback position for the current level sequence in frames. If the requested time is the same as the current time, an evaluation will be forced.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use SetCurrentLocalTime that takes a FMovieSceneSequencePlaybackParams")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", meta = (DeprecatedFunction, DeprecationMessage = "Use SetCurrentLocalTime that takes a FMovieSceneSequencePlaybackParams"))
 	static void SetCurrentLocalTime(int32 NewFrame);
 
-	/**
-	 * Get the current local playback position in frames
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	UE_DEPRECATED(5.4, "Use GetCurrentLocalTime that takes a FMovieSceneSequencePlaybackParams")
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", meta = (DeprecatedFunction, DeprecationMessage = "Use GetCurrentLocalTime that returns a FMovieSceneSequencePlaybackParams"))
 	static int32 GetCurrentLocalTime();
+
+	/**
+	 * Set global playhead position for the current level sequence. If the requested time is the same as the current time, an evaluation will be forced.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", DisplayName = "Set Current Time")
+	static void SetGlobalPosition(FMovieSceneSequencePlaybackParams PlaybackParams, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
+
+	/**
+	 * Get the current global playhead position
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", DisplayName = "Get Current Time")
+	static FMovieSceneSequencePlaybackParams GetGlobalPosition(EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
+
+	/**
+	 * Set local playhead position for the current level sequence. If the requested time is the same as the current time, an evaluation will be forced.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", DisplayName = "Set Current Local Time")
+	static void SetLocalPosition(FMovieSceneSequencePlaybackParams PlaybackParams, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
+
+	/**
+	 * Get the current local playhead position
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor", DisplayName = "Get Current Local Time")
+	static FMovieSceneSequencePlaybackParams GetLocalPosition(EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
 
 	/**
 	 * Set playback speed of the current level sequence
@@ -134,7 +151,7 @@ public:
 	 * Play from the current time to the requested time in frames
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
-	static void PlayTo(FMovieSceneSequencePlaybackParams PlaybackParams);
+	static void PlayTo(FMovieSceneSequencePlaybackParams PlaybackParams, EMovieSceneTimeUnit TimeUnit = EMovieSceneTimeUnit::DisplayRate);
 
 public:
 

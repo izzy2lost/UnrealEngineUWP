@@ -14,6 +14,7 @@
 #include "GameFramework/PlayerController.h"
 #include "LevelSequence.h"
 #include "MovieScene.h"
+#include "MovieSceneSequencePlayer.h"
 #include "Slate/SceneViewport.h"
 
 #if WITH_EDITOR
@@ -94,7 +95,9 @@ void UVCamBlueprintFunctionLibrary::PauseCurrentLevelSequence()
 void UVCamBlueprintFunctionLibrary::SetCurrentLevelSequenceCurrentFrame(int32 NewFrame)
 {
 #if WITH_EDITOR
-	ULevelSequenceEditorBlueprintLibrary::SetCurrentTime(NewFrame);
+	FMovieSceneSequencePlaybackParams Params(FFrameTime(NewFrame), EUpdatePositionMethod::Play);
+	
+	ULevelSequenceEditorBlueprintLibrary::SetGlobalPosition(Params);
 #endif
 
 }
@@ -102,7 +105,8 @@ void UVCamBlueprintFunctionLibrary::SetCurrentLevelSequenceCurrentFrame(int32 Ne
 int32 UVCamBlueprintFunctionLibrary::GetCurrentLevelSequenceCurrentFrame()
 {
 #if WITH_EDITOR
-	return ULevelSequenceEditorBlueprintLibrary::GetCurrentTime();
+	FMovieSceneSequencePlaybackParams Position = ULevelSequenceEditorBlueprintLibrary::GetGlobalPosition();
+	return Position.Frame.FloorToFrame().Value;
 #else
 	return 0;
 #endif

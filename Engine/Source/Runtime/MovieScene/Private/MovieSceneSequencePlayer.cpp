@@ -116,6 +116,48 @@ FFrameTime FMovieSceneSequencePlaybackParams::GetPlaybackPosition(UMovieSceneSeq
 			}
 		}
 	}
+	else if (PositionType == EMovieScenePositionType::Timecode)
+	{
+		PlaybackPosition = Timecode.ToFrameNumber(Player->GetFrameRate());
+	}
+
+	return PlaybackPosition;
+}
+
+FFrameTime FMovieSceneSequencePlaybackParams::GetPlaybackPosition(UMovieSceneSequence* Sequence) const
+{
+	FFrameTime PlaybackPosition;
+
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return PlaybackPosition;
+	}
+
+	FFrameRate DisplayRate = MovieScene->GetDisplayRate();
+	FFrameRate TickResolution = MovieScene->GetTickResolution();
+
+	if (PositionType == EMovieScenePositionType::Frame)
+	{
+		PlaybackPosition = Frame;
+	}
+	else if (PositionType == EMovieScenePositionType::Time)
+	{
+		PlaybackPosition = Time * DisplayRate;
+	}
+	else if (PositionType == EMovieScenePositionType::MarkedFrame)
+	{
+		int32 MarkedIndex = MovieScene->FindMarkedFrameByLabel(MarkedFrame);
+		
+		if (MarkedIndex != INDEX_NONE)
+		{
+			PlaybackPosition = ConvertFrameTime(MovieScene->GetMarkedFrames()[MarkedIndex].FrameNumber, TickResolution, DisplayRate);
+		}
+	}
+	else if (PositionType == EMovieScenePositionType::Timecode)
+	{
+		PlaybackPosition = Timecode.ToFrameNumber(DisplayRate);
+	}
 
 	return PlaybackPosition;
 }
