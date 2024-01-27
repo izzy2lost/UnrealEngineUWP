@@ -32,6 +32,7 @@ UEditorStyleSettings::UEditorStyleSettings( const FObjectInitializer& ObjectInit
 		FStyleColors::AccentYellow.GetSpecifiedColor(),
 		FStyleColors::AccentGreen.GetSpecifiedColor(),
 	}
+	, ViewportToolOverlayColor(FLinearColor::White)
 {
 	bEnableUserEditorLayoutManagement = true;
 

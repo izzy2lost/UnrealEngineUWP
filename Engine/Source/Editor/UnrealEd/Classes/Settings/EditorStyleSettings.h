@@ -84,6 +84,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category=UserInterface, meta=(DisplayName="Additional Viewport Selection Colors"))
 	FLinearColor AdditionalSelectionColors[6];
 
+	/** The color used for overlay tools inside of the viewport, like the measure tool */
+	UPROPERTY(EditAnywhere, config, Category = UserInterface)
+	FLinearColor ViewportToolOverlayColor;
+
 	UPROPERTY(config)
 	bool bEnableEditorWindowBackgroundColor;
 
