@@ -39,9 +39,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Sequencer Editor")
 	void SetSelection(const TArray<FSequencerViewModelScriptingStruct>& InSelection);
 
+protected:
+
+	UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::FOutlinerViewModel> WeakOutliner;
+
 private:
 
 	void BroadcastSelectionChanged();
-
-	UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::FOutlinerViewModel> WeakOutliner;
 };

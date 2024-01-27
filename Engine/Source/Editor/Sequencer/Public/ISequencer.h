@@ -615,6 +615,7 @@ public:
 
 	/** Get all the keys for the current sequencer selection */
 	virtual void GetKeysFromSelection(TUniquePtr<FSequencerKeyCollection>& KeyCollection, float DuplicateThresoldTime) = 0;
+	virtual FSequencerKeyCollection* GetKeyCollection() = 0;
 
 	virtual TArray<FMovieSceneMarkedFrame> GetMarkedFrames() const = 0;
 

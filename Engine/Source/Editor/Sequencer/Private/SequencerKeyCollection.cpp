@@ -248,35 +248,38 @@ TArrayView<const FFrameNumber> GetKeysInRangeInternal(const TArray<FFrameNumber>
 	return TArrayView<const FFrameNumber>();
 }
 
-TOptional<FFrameNumber> GetNextKeyInternal(const TArray<FFrameNumber>& Times, FFrameNumber FrameNumber, EFindKeyDirection Direction)
+TOptional<FFrameNumber> GetNextKeyInternal(const TArray<FFrameNumber>& Times, FFrameNumber FrameNumber, EFindKeyDirection Direction, const TRange<FFrameNumber>& Range)
 {
+	TArrayView<const FFrameNumber> KeysInRange = GetKeysInRangeInternal(Times, Range);
+
 	int32 Index = INDEX_NONE;
 	if (Direction == EFindKeyDirection::Forwards)
 	{
-		Index = Algo::UpperBound(Times, FrameNumber);
+		Index = Algo::UpperBound(KeysInRange, FrameNumber);
 	}
 	else
 	{
-		Index = Algo::LowerBound(Times, FrameNumber) - 1;
+		Index = Algo::LowerBound(KeysInRange, FrameNumber) - 1;
 	}
 
-	if (Times.IsValidIndex(Index))
+	if (KeysInRange.IsValidIndex(Index))
 	{
-		return Times[Index];
+		return KeysInRange[Index];
 	}
-	else if (Times.Num() > 0)
+	else if (KeysInRange.Num() > 0)
 	{
 		if (Direction == EFindKeyDirection::Forwards)
 		{
-			return Times[0];
+			return KeysInRange[0];
 		}
 		else
 		{
-			return Times.Last();
+			return KeysInRange.Last();
 		}
 	}
 
 	return TOptional<FFrameNumber>();
+
 }
 
 TOptional<FFrameNumber> FindFirstKeyInRangeInternal(const TArray<FFrameNumber>& Times, const TRange<FFrameNumber>& Range, EFindKeyDirection Direction)
@@ -309,12 +312,12 @@ TArrayView<const FFrameNumber> FSequencerKeyCollection::GetSectionKeysInRange(co
 	return GetKeysInRangeInternal(GroupedSectionTimes, Range);
 }
 
-TOptional<FFrameNumber> FSequencerKeyCollection::GetNextKey(FFrameNumber FrameNumber, EFindKeyDirection Direction) const
+TOptional<FFrameNumber> FSequencerKeyCollection::GetNextKey(FFrameNumber FrameNumber, EFindKeyDirection Direction, const TRange<FFrameNumber>& Range) const
 {
-	return GetNextKeyInternal(GroupedTimes, FrameNumber, Direction);
+	return GetNextKeyInternal(GroupedTimes, FrameNumber, Direction, Range);
 }
 
-TOptional<FFrameNumber> FSequencerKeyCollection::GetNextSectionKey(FFrameNumber FrameNumber, EFindKeyDirection Direction) const
+TOptional<FFrameNumber> FSequencerKeyCollection::GetNextSectionKey(FFrameNumber FrameNumber, EFindKeyDirection Direction, const TRange<FFrameNumber>& Range) const
 {
-	return GetNextKeyInternal(GroupedSectionTimes, FrameNumber, Direction);
+	return GetNextKeyInternal(GroupedSectionTimes, FrameNumber, Direction, Range);
 }
