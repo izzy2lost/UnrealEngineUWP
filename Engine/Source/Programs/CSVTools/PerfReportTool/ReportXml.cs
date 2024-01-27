@@ -186,7 +186,15 @@ namespace PerfReportTool
 				throw new Exception("No reporttypes element found in report XML " + reportTypeXmlFilename);
 			}
 
+			// Read the global element set
 			globalVariableSetElement = rootElement.Element("globalVariableSet");
+			if (globalVariableSetElement != null)
+			{
+				// Read static variable mappings. That is all the variables which don't depend on CSV metadata (anything with a metadata query will be stripped)
+                // These variables are independent of CSVs and can be used outside of individual reports (e.g in summary tables)
+				staticVariableMappings = new XmlVariableMappings();
+				staticVariableMappings.ApplyVariableSet(globalVariableSetElement, null);
+			}
 
 			// Read the graph XML
 			string graphsXMLFilename;
@@ -207,7 +215,7 @@ namespace PerfReportTool
 				}
 
 			}
-			defaultReportTypeName = reportTypesElement.GetSafeAttribute<string>("default");
+			defaultReportTypeName = reportTypesElement.GetSafeAttribute<string>(staticVariableMappings, "default");
 
 			Console.Out.WriteLine("GraphXML:  " + graphsXMLFilename+"\n");
 			XDocument reportGraphsDoc = XDocument.Load(graphsXMLFilename);
@@ -325,7 +333,7 @@ namespace PerfReportTool
 				summaryTables = new Dictionary<string, SummaryTableInfo>();
 				foreach (XElement summaryElement in summaryTablesElement.Elements("summaryTable"))
 				{
-					SummaryTableInfo table = new SummaryTableInfo(summaryElement, substitutionsDict, appendList, rowSortAppendList);
+					SummaryTableInfo table = new SummaryTableInfo(summaryElement, substitutionsDict, appendList, rowSortAppendList, staticVariableMappings);
 					summaryTables.Add(summaryElement.GetRequiredAttribute<string>("name").ToLower(), table);
 				}
 			}
@@ -562,6 +570,7 @@ namespace PerfReportTool
 		XElement graphGroupsElement;
 		XElement summaryTablesElement;
 		XElement globalVariableSetElement;
+		XmlVariableMappings staticVariableMappings;
 		string defaultReportTypeName;
 		Dictionary<string, XElement> sharedSummaries;
 		Dictionary<string, GraphSettings> graphs;
