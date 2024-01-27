@@ -64,12 +64,12 @@ namespace PerfSummaries
 
 	class SummaryTableInfo
 	{
-		public SummaryTableInfo(XElement tableElement, Dictionary<string,string> substitutionsDict, string[] appendList, string[] rowSortAppendList)
+		public SummaryTableInfo(XElement tableElement, Dictionary<string,string> substitutionsDict, string[] appendList, string[] rowSortAppendList, XmlVariableMappings variableMappings )
 		{
-			XAttribute rowSortAt = tableElement.Attribute("rowSort");
-			if (rowSortAt != null)
+			string rowSortStr = tableElement.GetSafeAttribute<string>(variableMappings, "rowSort");
+			if (rowSortStr != null)
 			{
-				rowSortList.AddRange(rowSortAt.Value.Split(','));
+				rowSortList.AddRange(rowSortStr.Split(',').Select(s => s.Trim()));
 				ApplySubstitutionsToList(rowSortList, substitutionsDict);
 			}
 			if (rowSortAppendList != null)
@@ -77,16 +77,16 @@ namespace PerfSummaries
 				rowSortList.AddRange(rowSortAppendList);
 			}
 
-			XAttribute weightByColumnAt = tableElement.Attribute("weightByColumn");
-			if (weightByColumnAt != null)
+			weightByColumn = tableElement.GetSafeAttribute<string>(variableMappings, "weightByColumn");
+			if (weightByColumn != null)
 			{
-				weightByColumn = weightByColumnAt.Value.ToLower();
+				weightByColumn = weightByColumn.ToLower();
 			}
 
 			XElement filterEl = tableElement.Element("filter");
 			if (filterEl != null)
 			{
-				columnFilterList.AddRange(filterEl.Value.Split(','));
+				columnFilterList.AddRange(filterEl.GetValue(variableMappings).Split(',').Select(s => s.Trim()));
 				ApplySubstitutionsToList(columnFilterList, substitutionsDict);
 			}
 
@@ -95,10 +95,10 @@ namespace PerfSummaries
 				columnFilterList.AddRange(appendList);
 			}
 
-			bReverseSortRows = tableElement.GetSafeAttribute<bool>("reverseSortRows", false);
-			bScrollableFormatting = tableElement.GetSafeAttribute<bool>("scrollableFormatting", false);
+			bReverseSortRows = tableElement.GetSafeAttribute<bool>(variableMappings, "reverseSortRows", false);
+			bScrollableFormatting = tableElement.GetSafeAttribute<bool>(variableMappings, "scrollableFormatting", false);
 
-			string colorizeModeStr = tableElement.GetSafeAttribute<string>("colorizeMode", "").ToLower();
+			string colorizeModeStr = tableElement.GetSafeAttribute<string>(variableMappings, "colorizeMode", "").ToLower();
 			if (colorizeModeStr != "")
 			{
 				if (colorizeModeStr == "auto")
@@ -115,22 +115,22 @@ namespace PerfSummaries
 				}
 			}
 
-			statThreshold = tableElement.GetSafeAttribute<float>("statThreshold", 0.0f);
-			hideStatPrefix = tableElement.GetSafeAttribute<string>("hideStatPrefix");
+			statThreshold = tableElement.GetSafeAttribute<float>(variableMappings, "statThreshold", 0.0f);
+			hideStatPrefix = tableElement.GetSafeAttribute<string>(variableMappings, "hideStatPrefix");
 
 			foreach (XElement sectionBoundaryEl in tableElement.Elements("sectionBoundary"))
 			{
 				if (sectionBoundaryEl != null)
 				{
-					string statName = ApplySubstitution(sectionBoundaryEl.GetSafeAttribute<string>("statName"), substitutionsDict);
+					string statName = ApplySubstitution(sectionBoundaryEl.GetSafeAttribute<string>(variableMappings, "statName"), substitutionsDict);
 
 					SummarySectionBoundaryInfo sectionBoundary = new SummarySectionBoundaryInfo(
 						statName,
-						sectionBoundaryEl.GetSafeAttribute<string>("startToken"),
-						sectionBoundaryEl.GetSafeAttribute<string>("endToken"),
-						sectionBoundaryEl.GetSafeAttribute<int>("level", 0),
-						sectionBoundaryEl.GetSafeAttribute<bool>("inCollatedTable", true),
-						sectionBoundaryEl.GetSafeAttribute<bool>("inFullTable", true)
+						sectionBoundaryEl.GetSafeAttribute<string>(variableMappings, "startToken"),
+						sectionBoundaryEl.GetSafeAttribute<string>(variableMappings, "endToken"),
+						sectionBoundaryEl.GetSafeAttribute<int>(variableMappings, "level", 0),
+						sectionBoundaryEl.GetSafeAttribute<bool>(variableMappings, "inCollatedTable", true),
+						sectionBoundaryEl.GetSafeAttribute<bool>(variableMappings, "inFullTable", true)
 						);
 					sectionBoundaries.Add(sectionBoundary);
 				}
@@ -165,8 +165,8 @@ namespace PerfSummaries
 
 		public SummaryTableInfo(string filterListStr, string rowSortStr)
 		{
-			columnFilterList.AddRange(filterListStr.Split(','));
-			rowSortList.AddRange(rowSortStr.Split(','));
+			columnFilterList.AddRange(filterListStr.Split(',').Select(s => s.Trim()));
+			rowSortList.AddRange(rowSortStr.Split(',').Select(s => s.Trim()));
 		}
 
 		public SummaryTableInfo()
