@@ -821,6 +821,11 @@ bool UsdUtils::IsSessionLayerWithinStage(const pxr::SdfLayerRefPtr& Layer, const
 
 void UsdUtils::ConvertAssetRelativePathsToAbsolute(UE::FSdfLayer& LayerToConvert, const UE::FSdfLayer& AnchorLayer)
 {
+	if (!LayerToConvert || !AnchorLayer)
+	{
+		return;
+	}
+
 	FScopedUsdAllocs Allocs;
 
 	pxr::SdfLayerRefPtr UsdLayer{LayerToConvert};

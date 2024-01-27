@@ -43,6 +43,12 @@ namespace UE::USDLayersTreeViewImpl::Private
 
 		// Clone the layer so that we don't modify the currently opened stage when we do the remapping below
 		UE::FSdfLayer OutputLayer = UE::FSdfLayer::CreateNew(*TargetPath);
+		if (!OutputLayer)
+		{
+			UE_LOG(LogUsd, Warning, TEXT("Failed to export USD layer to path '%s'"), *TargetPath);
+			return;
+		}
+
 		OutputLayer.TransferContent(LayerToExport);
 
 		// Update references to assets (e.g. textures) so that they're absolute and also work from the new file
