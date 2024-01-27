@@ -520,22 +520,25 @@ void MainPS(
 	OutDepthTest = OutDepth;
 	OutTriangleMask = 1;
 
-	WriteValue3(LayoutIndex, EHairCardsVFAttribute_Color,      OutColor);
-	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Depth,      OutDepth);
-	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Seed,       OutSeed);
-	WriteValue1(LayoutIndex, EHairCardsVFAttribute_CoordU,     OutCoordU);
-	WriteValue1(LayoutIndex, EHairCardsVFAttribute_GroupIndex, OutGroupIndex);
-	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Roughness,  OutRoughness);
-	WriteValue2(LayoutIndex, EHairCardsVFAttribute_RootUV,     OutRootUV);
-	WriteValue3(LayoutIndex, EHairCardsVFAttribute_Tangent,    OutTangent);
-	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Coverage,   OutCoverage);
+	if (bValidCount > 0)
+	{
+		WriteValue3(LayoutIndex, EHairCardsVFAttribute_Color,      OutColor);
+		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Depth,      OutDepth);
+		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Seed,       OutSeed);
+		WriteValue1(LayoutIndex, EHairCardsVFAttribute_CoordU,     OutCoordU);
+		WriteValue1(LayoutIndex, EHairCardsVFAttribute_GroupIndex, OutGroupIndex);
+		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Roughness,  OutRoughness);
+		WriteValue2(LayoutIndex, EHairCardsVFAttribute_RootUV,     OutRootUV);
+		WriteValue3(LayoutIndex, EHairCardsVFAttribute_Tangent,    OutTangent);
+		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Coverage,   OutCoverage);
 
-	OutTexture[uint3(PixelCoord, 0)] = OutTexture0;
-	OutTexture[uint3(PixelCoord, 1)] = OutTexture1;
-	OutTexture[uint3(PixelCoord, 2)] = OutTexture2;
-	OutTexture[uint3(PixelCoord, 3)] = OutTexture3;
-	OutTexture[uint3(PixelCoord, 4)] = OutTexture4;
-	OutTexture[uint3(PixelCoord, 5)] = OutTexture5;
+		OutTexture[uint3(PixelCoord, 0)] = OutTexture0;
+		OutTexture[uint3(PixelCoord, 1)] = OutTexture1;
+		OutTexture[uint3(PixelCoord, 2)] = OutTexture2;
+		OutTexture[uint3(PixelCoord, 3)] = OutTexture3;
+		OutTexture[uint3(PixelCoord, 4)] = OutTexture4;
+		OutTexture[uint3(PixelCoord, 5)] = OutTexture5;
+	}
 }
 
 #endif // SHADER_PIXEL
@@ -552,6 +555,7 @@ uint TextureCount;
 int2 Resolution;
 int ClearDistance;
 Texture2D<float> DepthTestTexture;
+Texture2D<uint> OriginalTriangleMaskTexture;
 Texture2D<uint> SourceTriangleMaskTexture;
 RWTexture2D<uint> TargetTriangleMaskTexture;
 Texture2DArray<float4> SourceTexture;
@@ -620,6 +624,9 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 			}
 		}
 
+		// For coverage dialation, we only allow dilation outside of the triangles
+		const bool bIsInsideTriangle = OriginalTriangleMaskTexture.Load(uint3(PixelCoord,0)) > 0;
+
 		// If a valid neighbord has been bound, update pixel value
 		if (bIsDilatedPixelValid)
 		{
@@ -627,7 +634,7 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 			{
 				// Write all attributes but coverage, as coverage should remain untouched.
 				float4 WriteOut = Values[TextureIt];
-				if (TextureIt == CoverageTextureIndex)
+				if (bIsInsideTriangle && TextureIt == CoverageTextureIndex)
 				{
 					switch (CoverageChannelIndex)
 					{

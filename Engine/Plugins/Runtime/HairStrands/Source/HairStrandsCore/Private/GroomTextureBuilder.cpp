@@ -579,6 +579,7 @@ class FHairStrandTextureDilationCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTestTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SourceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, TargetTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, OriginalTriangleMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SourceTriangleMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, TargetTriangleMaskTexture)
 	END_SHADER_PARAMETER_STRUCT()
@@ -601,6 +602,7 @@ static void AddTextureDilationPass(
 	const EHairTextureLayout Layout,
 	const bool bClearPass,
 	FRDGTextureRef& DepthTestTexture,
+	FRDGTextureRef& OriginalTriangleMaskTexture,
 	FRDGTextureRef& SourceTriangleMaskTexture,
 	FRDGTextureRef& TargetTriangleMaskTexture,
 	FRDGTextureRef& SourceTexture,
@@ -612,8 +614,9 @@ static void AddTextureDilationPass(
 	Parameters->bClearPass				= bClearPass ? 1u : 0u;
 	Parameters->Resolution				= Resolution;
 	Parameters->DepthTestTexture		= DepthTestTexture;
-	Parameters->SourceTriangleMaskTexture = SourceTriangleMaskTexture;
-	Parameters->TargetTriangleMaskTexture = GraphBuilder.CreateUAV(TargetTriangleMaskTexture);
+	Parameters->OriginalTriangleMaskTexture= OriginalTriangleMaskTexture;
+	Parameters->SourceTriangleMaskTexture  = SourceTriangleMaskTexture;
+	Parameters->TargetTriangleMaskTexture  = GraphBuilder.CreateUAV(TargetTriangleMaskTexture);
 	Parameters->SourceTexture 			= SourceTexture;
 	Parameters->TargetTexture 			= GraphBuilder.CreateUAV(TargetTexture);
 
@@ -1200,6 +1203,7 @@ static FHairStrandsRDGTextures DilateTextures(FRDGBuilder& GraphBuilder, FGlobal
 			In.Layout,
 			DilationIt == 0,
 			In.DepthTestTexture,
+			In.TriangleMaskTexture,
 			Out[SourceIndex].TriangleMaskTexture,
 			Out[TargetIndex].TriangleMaskTexture,
 			Out[SourceIndex].Texture,
@@ -1320,7 +1324,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 		{
 			if (R)
 			{
-			#if DEBUG_TEXTURE_GENERATION && DEBUG_TEXTURE_RENDERDOC
+			#if DEBUG_TEXTURE_RENDERDOC
 				RenderCaptureInterface::FScopedCapture RenderCapture(true, GraphBuilder, TEXT("PassX"));
 			#endif
 				FHairStrandsRDGTextures Textures = RegisterTextures(GraphBuilder, R->InProgress);
@@ -1380,7 +1384,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 			R->Output = Q.Output;
 			R->Info = Q.Info;
 
-		#if DEBUG_TEXTURE_GENERATION && DEBUG_TEXTURE_RENDERDOC
+		#if DEBUG_TEXTURE_RENDERDOC
 			RenderCaptureInterface::FScopedCapture RenderCapture(true, GraphBuilder, TEXT("Pass0"));
 		#endif
 
