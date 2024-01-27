@@ -183,11 +183,6 @@ void SPathView::Construct( const FArguments& InArgs )
 				Delegate.Execute(AllPluginPathFilters);
 			}
 		}
-
-		for (const TSharedRef<FContentBrowserPluginFilter>& Filter : AllPluginPathFilters)
-		{
-			SetPluginPathFilterActive(Filter, false);
-		}
 	}
 
 	if (!TreeViewPtr.IsValid())
