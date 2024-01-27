@@ -1111,6 +1111,36 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			PendingRDGResources.CommitToSceneAndViewUniformBuffers(GraphBuilder, /* out */ ExternalAccessQueue);
 		}
 
+		// Hair update
+		if (IsHairStrandsEnabled(EHairStrandsShaderType::All, Scene->GetShaderPlatform()) && RendererOutput == ERendererOutput::FinalSceneColor)
+		{
+			FHairStrandsBookmarkParameters& HairStrandsBookmarkParameters = *GraphBuilder.AllocObject<FHairStrandsBookmarkParameters>();
+			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, HairStrandsBookmarkParameters);
+			check(Scene->HairStrandsSceneData.TransientResources);
+			HairStrandsBookmarkParameters.TransientResources = Scene->HairStrandsSceneData.TransientResources;
+
+			// Not need for hair uniform buffer, as this is only used for strands rendering
+			// If some shader refers to it, we can create a default one with HairStrands::CreateDefaultHairStrandsViewUniformBuffer(GraphBuilder, View);
+			for (FViewInfo& View : Views)
+			{
+				View.HairStrandsViewData.UniformBuffer = nullptr;
+			}
+
+			// Interpolation needs to happen after the skin cache run as there is a dependency 
+			// on the skin cache output.
+			const bool bRunHairStrands = HairStrandsBookmarkParameters.HasInstances() && (Views.Num() > 0);
+			if (bRunHairStrands)
+			{
+				// 1. Update groom visible in primary views
+				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessCardsAndMeshesInterpolation_PrimaryView, HairStrandsBookmarkParameters);
+
+				// 2. Update groom only visible in shadow 
+				// For now, not running on mobile to keep computation light
+				// UpdateHairStrandsBookmarkParameters(Scene, Views, HairStrandsBookmarkParameters);
+				// RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessCardsAndMeshesInterpolation_ShadowView, HairStrandsBookmarkParameters);
+			}
+		}
+
 		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Shadows));
 		RenderShadowDepthMaps(GraphBuilder, nullptr, InstanceCullingManager, ExternalAccessQueue);
 		GraphBuilder.AddDispatchHint();

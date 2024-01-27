@@ -15,6 +15,26 @@
 class FMaterial;
 class FSceneView;
 
+// Wrapper to reinterepet FRDGPooledBuffer as a FVertexBuffer
+class FRDGWrapperVertexBuffer : public FVertexBuffer
+{
+public:
+	FRDGWrapperVertexBuffer() {}
+	FRDGWrapperVertexBuffer(FRDGExternalBuffer& In): ExternalBuffer(In) { check(ExternalBuffer.Buffer); }
+	virtual void InitRHI(FRHICommandListBase& RHICmdList) override
+	{
+		check(ExternalBuffer.Buffer && ExternalBuffer.Buffer->GetRHI());
+		VertexBufferRHI = ExternalBuffer.Buffer->GetRHI();
+	}
+
+	virtual void ReleaseRHI() override
+	{
+		VertexBufferRHI = nullptr;
+	}
+
+	FRDGExternalBuffer ExternalBuffer;
+};
+
 /**
  * A vertex factory which simply transforms explicit vertex attributes from local to world space.
  */
@@ -54,6 +74,7 @@ public:
 	void Copy(const FHairCardsVertexFactory& Other);
 
 	void InitResources(FRHICommandListBase& RHICmdList);
+	virtual void ReleaseResource() override;
 
 	// FRenderResource interface.
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
@@ -63,6 +84,9 @@ public:
 protected:
 
 	bool bIsInitialized = false;
+
+	FRDGWrapperVertexBuffer DeformedPositionVertexBuffer[2];
+	FRDGWrapperVertexBuffer DeformedNormalVertexBuffer;
 
 	struct FDebugName
 	{
