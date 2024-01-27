@@ -3,7 +3,7 @@
 #include "Scripting/SequencerModuleOutlinerScriptingObject.h"
 #include "Scripting/ViewModelScriptingStruct.h"
 
-#include "MVVM/ViewModels/SequencerOutlinerviewModel.h"
+#include "MVVM/ViewModels/SequencerOutlinerViewModel.h"
 #include "MVVM/ViewModels/ViewModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
