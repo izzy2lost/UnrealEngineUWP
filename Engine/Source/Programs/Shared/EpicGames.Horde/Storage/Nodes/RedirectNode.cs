@@ -5,16 +5,22 @@ using System;
 namespace EpicGames.Horde.Storage.Nodes
 {
 	/// <summary>
-	/// A node containing arbitrary compact binary data
+	/// Shared definitions for <see cref="RedirectNode{T}"/>
 	/// </summary>
-	[BlobConverter(typeof(RedirectNodeConverter<>))]
-	public class RedirectNode<T>
+	public static class RedirectNode
 	{
 		/// <summary>
 		/// Static accessor for the blob type guid
 		/// </summary>
 		public static Guid BlobTypeGuid { get; } = new Guid("{BE09E54F-47CA-7A6B-2A97-AFBC183B1538}");
+	}
 
+	/// <summary>
+	/// A node containing arbitrary compact binary data
+	/// </summary>
+	[BlobConverter(typeof(RedirectNodeConverter<>))]
+	public class RedirectNode<T>
+	{
 		/// <summary>
 		/// The target handle
 		/// </summary>
@@ -29,7 +35,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 	class RedirectNodeConverter<T> : BlobConverter<RedirectNode<T>>
 	{
-		static readonly BlobType s_blobType = new BlobType(RedirectNode<T>.BlobTypeGuid, 1);
+		static readonly BlobType s_blobType = new BlobType(RedirectNode.BlobTypeGuid, 1);
 
 		/// <inheritdoc/>
 		public override RedirectNode<T> Read(IBlobReader reader, BlobSerializerOptions options)
