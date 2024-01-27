@@ -4,6 +4,8 @@
 
 #include "NiagaraCompileHashVisitor.h"
 #include "ShaderCompilerCore.h"
+#include "RenderGraphUtils.h"
+#include "SystemTextures.h"
 #include "NiagaraModule.h"
 #include "NiagaraShaderParametersBuilder.h"
 
@@ -82,6 +84,29 @@ namespace NDIDataChannelReadLocal
 		return Sig;
 	}
 
+	const FNiagaraFunctionSignature& GetFunctionSig_GetNDCSpawnData()
+	{
+		static FNiagaraFunctionSignature Sig;
+		if (!Sig.IsValid())
+		{
+			Sig.Name = NDIDataChannelUtilities::GetNDCSpawnDataName;
+#if WITH_EDITORONLY_DATA
+			Sig.Description = LOCTEXT("GetNDCSpawnInfoFunctionDescription", "Returns useful data in relation the the NDC item that spawned this particle.");
+			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
+#endif		
+			Sig.bMemberFunction = true;
+			Sig.bExperimental = true;
+			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Particle;
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Spawned Particle Exec Index")), LOCTEXT("GetNDCSpawnData_InExecIndexDesc","The execution index of the spawned particle."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Index")), LOCTEXT("GetNDCSpawnData_OutNDCIndexDesc","Index of the NDC item that spawned this particle."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Index")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnIndexDesc","The index of this particle in relation to all the particle spawned by the same NDC item."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Count")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnCountDesc","The number of particles spawned by the same NDC item."));
+		}
+		return Sig;
+	}
+
 	const FNiagaraFunctionSignature& GetFunctionSig_Read()
 	{
 		static FNiagaraFunctionSignature Sig;
@@ -155,7 +180,7 @@ namespace NDIDataChannelReadLocal
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInput(EnabledVar, LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.Index."));
+			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
 			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave."));
 			Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "The comparison operator to use when comparing values in the data channel to conditional parameters."));
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
@@ -185,6 +210,7 @@ namespace NDIDataChannelReadLocal
 		SHADER_PARAMETER(int32, FloatStride)
 		SHADER_PARAMETER(int32, Int32Stride)
 		SHADER_PARAMETER(int32, HalfStride)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int32>, NDCSpawnDataBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 }
 
@@ -211,8 +237,11 @@ struct FNDIDataChannelReadInstanceData_RT
 	*/
 	TMap<FNiagaraCompileHash, uint32> GPUScriptParameterTableOffsets;
 
-	/** Signal we have updated data from the GT this frame we should process. */
-	bool bHasUpdate = false;
+	/** Signal we have updated function binding data from the GT this frame we should process. */
+	bool bHasFunctionBindingUpdate = false;
+
+	/** Buffer containing packed data for all emitters NDC spawning data for use on the GPU. */
+	TArray<int32> NDCSpawnData;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -251,9 +280,9 @@ bool FNDIDataChannelReadInstanceData::Init(UNiagaraDataInterfaceDataChannelRead*
 bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance, bool bIsInit)
 {
 	ConsumeIndex = 0;
-	for(auto& ConditionalSpawnPair : PerEmitterConditionalSpawns)
+	for(auto& EmitterInstDataPair : EmitterInstanceData)
 	{
-		ConditionalSpawnPair.Value.Reset();
+		EmitterInstDataPair.Value.Reset();
 	}
 
 	const FNDIDataChannelCompiledData& CompiledData = Interface->GetCompiledData();
@@ -389,7 +418,7 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 
 				//We can likely be more targeted here.
 				//Could probably only update the RT when the GPU data changes and only update the bindings if the function hashes change etc.
-				bUpdateRTData = CompiledData.UsedByGPU();
+				bUpdateFunctionBindingRTData = CompiledData.UsedByGPU();
 				int32 NumFuncs = CompiledData.GetFunctionInfo().Num();
 				FuncToDataSetBindingInfo.SetNum(NumFuncs);
 				//FuncToDataSetLayoutKeys.SetNumZeroed(NumFuncs);
@@ -566,28 +595,104 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 	FNDIDataChannelReadInstanceData* InstanceData = Context.GetPerInstanceData<FNDIDataChannelReadInstanceData>();
 
 	check(InstanceData);
-	for (auto& ConditionalSpawnPair : InstanceData->PerEmitterConditionalSpawns)
+	check(Context.Usage == ENiagaraScriptUsage::EmitterUpdateScript || Context.Usage == ENiagaraScriptUsage::SystemUpdateScript);
+
+	for (auto& EmitterInstanceDataPair : InstanceData->EmitterInstanceData)
 	{
-		if(FNiagaraEmitterInstance* TargetEmitter = ConditionalSpawnPair.Key)
+		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstanceDataPair.Value;
+
+		TArray<int32> PerNDCSpawnCounts = MoveTemp(EmitterInstData.NDCSpawnCounts);
+	
+		EmitterInstData.Reset();
+
+		if(FNiagaraEmitterInstance* TargetEmitter = EmitterInstanceDataPair.Key)
 		{
-			for (int32 i = 0; i < ConditionalSpawnPair.Value.Num(); ++i)
+			//-TODO:Stateless:
+			if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
 			{
-				FNiagaraSpawnInfo& SpawnInfo = ConditionalSpawnPair.Value[i];
-				if (SpawnInfo.Count > 0)
+				if (bOverrideSpawnGroupToDataChannelIndex)
 				{
-					if (bOverrideSpawnGroupToDataChannelIndex)
+					//If we're overriding the spawn group then we must submit one SpawnInfo per NDC entry.
+					FNiagaraSpawnInfo NewSpawnInfo(0,0.0f,0.0f,0);
+					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
 					{
-						SpawnInfo.SpawnGroup = i;
+						int32 SpawnCount = PerNDCSpawnCounts[i];
+						if (SpawnCount > 0)
+						{
+							NewSpawnInfo.Count = SpawnCount;
+							NewSpawnInfo.SpawnGroup = i;
+							StatefulEmitter->GetSpawnInfo().Emplace(NewSpawnInfo);
+						}
 					}
-					//-TODO:Stateless: We need to handle the stateless path here
-					if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
+				}
+				else 
+				{
+					//No need for indirection table but we're not overriding the spawn group either so still push a single combined spawn info.
+					FNiagaraSpawnInfo NewSpawnInfo(0, 0.0f, 0.0f, 0);
+					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
 					{
-						StatefulEmitter->GetSpawnInfo().Emplace(SpawnInfo);
+						NewSpawnInfo.Count += PerNDCSpawnCounts[i];
+					}
+					StatefulEmitter->GetSpawnInfo().Emplace(NewSpawnInfo);
+				}
+
+				if(CompiledData.NeedSpawnDataTable())
+				{
+					//Build an indirection table that allows us to map from ExecIndex back to the NDCIndex that generated it.
+					//The indirection table is arranged in power of two buckets.
+					//An NDC that spawns say 37 particles would add an entry to the 32, 4 and 1 buckets.
+					//This allows us to spawn any number of particles from each NDC and only have a max of 16 indirection table entries.
+					//Vs the naive per particle approach of 1 entry per particle.
+					//Buckets are processed in descending size order.
+
+					//TODO: It should be possible to write this from the GPU too as long as we allocate fixed size buckets.
+					int32* SpawnDataBuckets = EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets;					
+
+					TArray<int32>& NDCSpawnData = EmitterInstData.NDCSpawnData.NDCSpawnData;
+
+					//Start of the buffer is the per NDC spawn counts.
+					uint32 TotalNDCSpawnDataSize = PerNDCSpawnCounts.Num();
+
+					for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
+					{						
+						uint32 Count = PerNDCSpawnCounts[i];
+
+						//First section is the per NDC counts.
+						NDCSpawnData.Add(Count);
+
+						for (uint32 Bucket = 0; Bucket < 16; ++Bucket)
+						{
+							uint32 BucketSize = (1<<15) >> Bucket;
+							uint32 Mask = (0xFFFF >> (Bucket + 1));
+							uint32 CountMasked = Count & ~Mask;
+							Count &= Mask;
+							uint32 NumBucketEntries = CountMasked / BucketSize;
+							SpawnDataBuckets[Bucket] += NumBucketEntries;
+							TotalNDCSpawnDataSize += NumBucketEntries;
+						}
+					}
+
+					//Second part is the counts decomposed into power of two buckets that allows us to map ExecIndex at runtime to an NDCIndex entry in this table.
+					for (int32 Bucket = 0; Bucket < 16; ++Bucket)
+					{
+						uint32 BucketSize = (1 << 15) >> Bucket;
+						uint32 StartSize = NDCSpawnData.Num();
+						for (int32 i = 0; i < PerNDCSpawnCounts.Num(); ++i)
+						{
+							int32& Count = PerNDCSpawnCounts[i];
+							while ((uint32)Count >= BucketSize)
+							{
+								Count -= BucketSize;
+								NDCSpawnData.Add(i);
+							}
+						}
+
+						uint32 EndSize = NDCSpawnData.Num();
+						check(EndSize - StartSize == SpawnDataBuckets[Bucket]);
 					}
 				}
 			}
 		}
-		ConditionalSpawnPair.Value.Reset();
 	}
 }
 
@@ -602,11 +707,11 @@ void UNiagaraDataInterfaceDataChannelRead::ProvidePerInstanceDataForRenderThread
 	bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
 	TargetData->bReadPrevFrame = bReadPrevFrame;
 
-	if (SourceData.bUpdateRTData && INiagaraModule::DataChannelsEnabled())
+	if (SourceData.bUpdateFunctionBindingRTData && INiagaraModule::DataChannelsEnabled())
 	{
-		SourceData.bUpdateRTData = false;
+		SourceData.bUpdateFunctionBindingRTData = false;
 
-		TargetData->bHasUpdate = true;
+		TargetData->bHasFunctionBindingUpdate = true;
 		
 		const FNiagaraDataSetCompiledData& GPUCompiledData = SourceData.DataChannel->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
 
@@ -637,6 +742,74 @@ void UNiagaraDataInterfaceDataChannelRead::ProvidePerInstanceDataForRenderThread
 					TargetData->GPUScriptParameterOffsetTable.Add(INDEX_NONE);
 				}
 			}
+		}
+	}
+
+	//Always need to fill in the NDCSpawnData array as it will change every frame and be pushed into an RDG buffer.
+
+	//New buffer is every emitter continuous NDCSpawnDataArray. We need to store an offset that we pass in as a uniform.
+	//The buckets come first, then the per NDC SpawnCounts, Then the bucket back ptrs.
+
+	//Do one pass to calculate size.
+	auto GetEmitterNDCSpawnDataSize = [](const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData)
+	{
+		return 16 + EmitterInstData.NDCSpawnCounts.Num() + EmitterInstData.NDCSpawnData.NDCSpawnData.Num();
+	};
+
+	uint32 NumEmitters = SourceData.EmitterInstanceData.Num();
+	uint32 TotalPacckedNDCSpawnDataSize = 0;
+	int32 MaxEmitterIndex = 0;
+	for (const TPair<FNiagaraEmitterInstance*, FNDIDataChannelRead_EmitterInstanceData>& EmitterInstDataPair : SourceData.EmitterInstanceData)
+	{
+		if (const FNiagaraEmitterInstance* EmitterInst = EmitterInstDataPair.Key)
+		{
+			const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstDataPair.Value;
+
+			TotalPacckedNDCSpawnDataSize += GetEmitterNDCSpawnDataSize(EmitterInstData);
+			FNiagaraEmitterID ID = EmitterInst->GetEmitterID();
+			MaxEmitterIndex = FMath::Max(MaxEmitterIndex, ID.ID);
+		}
+	}
+
+	//First section of the NDCSpawnDataBuffer is an offset into the buffer for each emitter.
+	TotalPacckedNDCSpawnDataSize += MaxEmitterIndex;
+
+	TargetData->NDCSpawnData.Reset(TotalPacckedNDCSpawnDataSize);
+	TArray<int32>& TargetNDCSpawnData = TargetData->NDCSpawnData;
+
+	//First grab space for the per emitter offset table. We'll fill this in as we go.
+	TargetNDCSpawnData.AddZeroed(MaxEmitterIndex + 1);
+
+	uint32 CurrentSpawnDataOffset = TargetNDCSpawnData.Num();
+
+	for (const TPair<FNiagaraEmitterInstance*, FNDIDataChannelRead_EmitterInstanceData>& EmitterInstDataPair : SourceData.EmitterInstanceData)
+	{
+		if (const FNiagaraEmitterInstance* EmitterInst = EmitterInstDataPair.Key)
+		{
+			const FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = EmitterInstDataPair.Value;
+			if(EmitterInst->GetGPUContext() == nullptr)
+			{
+				continue;
+			}
+
+
+			uint32 EmitterNDCSpawnDataSize = GetEmitterNDCSpawnDataSize(EmitterInstData);
+
+			//First fill in the current offset for this emitter.
+			FNiagaraEmitterID EmitterID = EmitterInst->GetEmitterID();
+			TargetNDCSpawnData[EmitterID.ID] = CurrentSpawnDataOffset;
+
+			CurrentSpawnDataOffset += EmitterNDCSpawnDataSize;
+
+			//Next fill in bucket counts
+			for (int32 i = 0; i < 16; ++i)
+			{
+				TargetNDCSpawnData.Add(EmitterInstData.NDCSpawnData.NDCSpawnDataBuckets[i]);
+			}
+			//Next the per NDC Spawn Counts
+			TargetNDCSpawnData.Append(EmitterInstData.NDCSpawnCounts);
+			//Finally the exec index to NDC index mapping table
+			TargetNDCSpawnData.Append(EmitterInstData.NDCSpawnData.NDCSpawnData);
 		}
 	}
 }
@@ -910,6 +1083,7 @@ bool UNiagaraDataInterfaceDataChannelRead::CopyToInternal(UNiagaraDataInterface*
 void UNiagaraDataInterfaceDataChannelRead::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Num());
+	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_GetNDCSpawnData());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Read());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_Consume());
 	OutFunctions.Add(NDIDataChannelReadLocal::GetFunctionSig_SpawnConditional());
@@ -921,6 +1095,10 @@ void UNiagaraDataInterfaceDataChannelRead::GetVMExternalFunction(const FVMExtern
 	if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_Num().Name)
 	{
 		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->Num(Context); });
+	}
+	else if (BindingInfo.Name == NDIDataChannelReadLocal::GetFunctionSig_GetNDCSpawnData().Name)
+	{
+		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->GetNDCSpawnData(Context); });
 	}
 	else
 	{
@@ -962,6 +1140,188 @@ void UNiagaraDataInterfaceDataChannelRead::Num(FVectorVMExternalFunctionContext&
 	for (int32 i = 0; i < Context.GetNumInstances(); ++i)
 	{
 		OutNum.SetAndAdvance(Num);
+	}
+}
+
+/** 
+GetNDCSpawnData - Retrieves spawn data about the NDC that spawned a particular particle.
+Uses an indirection table that decomposes each NDC spawn into power of 2 buckets of particles.
+We do this to strike a balance between allowing many particles per NDC entry and allowing many NDC entires to spawn particles.
+We have a max of 16 buckets with the highest being for spawns with 1<15 particles or more and the lowest being for individual particles.
+An example with two NDC entries. The first spawning 10 and the second 8.
+The first's spawn count decomposes into an entry in the 8 bucket and 2 bucket.
+The seconds just has an entry in the 8 bucket.
+We have 16 buckets so the bucket counts array looks like
+0,0,0,0,0,0,0,0,0,0,0,0,2,0,1,0
+This means the we have 2 buckets with data so the rest of our buffer is.
+0,1,0,
+
+We have two entires in the 8 bucket. 
+As we spawn particles we use our bucket sizes counts and the exec index to see which bucket entry each exec index should use.
+The first 8 particles processed, exec index 0-7 will lookup the first entry and so use NDC 0.
+THe next 8 particles, exec index 8-15 will use the next and so use NDC 1.
+Finally the last two particle spawned will use the next entry and so also use NDC 0.
+
+So in total we do have 10 particles from NDC 0 and 8 from NDC 1.
+However they will not be processed all together with their own spawning NDC.
+
+In the worst case an NDC entry could add to all 16 buckets and so we'd have 16 entries for that NDC entry.
+Which may seem like a lot but consider that is spawning 1<<15 particles so not all that bad really.
+
+It also means the lookup does not need to search an arbitrary sized list.
+It just has to loop over a size 16 array and do some math to get an index into the main buffer from which to retreive the NDC Index.
+
+Once we have the NDCIndex we the do another similar pass and use the total spawn counts for that NDC to work out a SpawnIndex within the NDC.
+*/
+void UNiagaraDataInterfaceDataChannelRead::GetNDCSpawnData(FVectorVMExternalFunctionContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIDataChannelReadInstanceData> InstData(Context);
+
+	FNDIInputParam<FNiagaraEmitterID> InEmitterID(Context);
+	FNDIInputParam<int32> InExecIndex(Context);
+	FNDIOutputParam<int32> OutNDCIndex(Context);
+	FNDIOutputParam<int32> OutNDCSpawnIndex(Context);
+	FNDIOutputParam<int32> OutNDCSpawnCount(Context);
+
+	FNiagaraSystemInstance* SystemInstance = InstData->Owner;
+	check(SystemInstance);
+
+	bool bReadPrevFrame = bReadCurrentFrame == false || GNDCReadForcePrevFrame;
+	FNiagaraDataBuffer* Buffer = InstData->GetReadBufferCPU(bReadPrevFrame);
+
+	if(Buffer && INiagaraModule::DataChannelsEnabled())
+	{
+		uint32 NumNDCEntries = Buffer->GetNumInstances();
+
+		auto CalculateNDCSpawnInfo = [&](const FNDIDataChannelRead_EmitterInstanceData& EmitterInstanceData)
+		{
+			const int32* NDCSpawnBukets = EmitterInstanceData.NDCSpawnData.NDCSpawnDataBuckets;
+			TConstArrayView<int32> NDCSpawnData(EmitterInstanceData.NDCSpawnData.NDCSpawnData);
+
+			uint32 ExecIndex = InExecIndex.GetAndAdvance();
+			uint32 NDCIndex = INDEX_NONE;
+
+			//First we find which bucket this exec index is in.	
+			uint32 MaxBucketExecIndex = 0;
+			uint32 BucketEntryStart = NumNDCEntries;
+			for (uint32 BucketIdx = 0; BucketIdx < 16; ++BucketIdx)
+			{
+				uint32 BucketSize = (1 << 15) >> BucketIdx;
+				uint32 NumEntriesInBucket = NDCSpawnBukets[BucketIdx];
+				uint32 MinBucketExecIndex = MaxBucketExecIndex;
+				MaxBucketExecIndex += BucketSize * NumEntriesInBucket;
+				if (ExecIndex < MaxBucketExecIndex)
+				{
+					//We found our bucket.
+					//Now we need to find our NDCIndex Entry Index.
+					uint32 NDCIndexEntry = (ExecIndex - MinBucketExecIndex) >> (15 - BucketIdx);
+
+					NDCIndex = NDCSpawnData[BucketEntryStart + NDCIndexEntry];
+					break;
+				}
+
+				BucketEntryStart += NumEntriesInBucket;
+			}
+
+			if (NDCIndex >= 0 && NDCIndex < NumNDCEntries)
+			{
+				OutNDCIndex.SetAndAdvance(NDCIndex);
+
+				uint32 NDCSpawnCount = NDCSpawnData[NDCIndex];
+				OutNDCSpawnCount.SetAndAdvance(NDCSpawnCount);
+
+				//Do another pass to calculate our SpawnIndex for this NDC within the total count for this NDC.
+				if (OutNDCSpawnIndex.IsValid())
+				{
+					uint32 NDCSpawnIndex = 0;
+					uint32 Count = NDCSpawnCount;
+					MaxBucketExecIndex = 0;
+					for (int32 BucketIdx = 0; BucketIdx < 16; ++BucketIdx)
+					{
+						uint32 BucketSize = (1 << 15) >> BucketIdx;
+						uint32 Mask = (0xFFFF >> (BucketIdx + 1));
+						uint32 CountMasked = Count & ~Mask;
+						Count &= Mask;
+						uint32 NumNDCEntriesInBucket = CountMasked >> (15 - BucketIdx);
+						uint32 NumEntriesInBucket = NDCSpawnBukets[BucketIdx];
+						uint32 NumNDCInstancesInBucket = NumNDCEntriesInBucket * BucketSize;
+
+						int32 MinBucketExecIndex = MaxBucketExecIndex;
+						MaxBucketExecIndex += BucketSize * NumEntriesInBucket;
+						if (ExecIndex < MaxBucketExecIndex && NumNDCInstancesInBucket > 0)
+						{
+							uint32 NDCIndexEntry = (ExecIndex - MinBucketExecIndex) >> (15 - BucketIdx);
+
+							uint32 MinNDCBucketExecIndex = MinBucketExecIndex + (BucketSize * NDCIndexEntry);
+
+							NDCSpawnIndex += (ExecIndex - MinNDCBucketExecIndex);
+							break;
+						}
+						else
+						{
+							NDCSpawnIndex += NumNDCInstancesInBucket;
+						}
+					}
+					OutNDCSpawnIndex.SetAndAdvance(NDCSpawnIndex);
+				}
+			}
+			else
+			{
+				OutNDCIndex.SetAndAdvance(INDEX_NONE);
+				OutNDCSpawnCount.SetAndAdvance(INDEX_NONE);
+				OutNDCSpawnIndex.SetAndAdvance(INDEX_NONE);
+			}
+		};
+		
+		if(InEmitterID.IsConstant())
+		{		
+			//TODO: Can likely vectorize all this.
+			const FNiagaraEmitterID EmitterID = InEmitterID.GetAndAdvance();
+			FNiagaraEmitterInstance* EmitterInst = SystemInstance->GetEmitterByID(EmitterID);
+			if(const FNDIDataChannelRead_EmitterInstanceData* EmitterInstData = InstData->EmitterInstanceData.Find(EmitterInst))
+			{
+				for (int32 i = 0; i < Context.GetNumInstances(); ++i)
+				{
+					CalculateNDCSpawnInfo(*EmitterInstData);
+				}
+			}
+			else
+			{
+				for (int32 i = 0; i < Context.GetNumInstances(); ++i)
+				{
+					OutNDCIndex.SetAndAdvance(INDEX_NONE);
+					OutNDCSpawnCount.SetAndAdvance(INDEX_NONE);
+					OutNDCSpawnIndex.SetAndAdvance(INDEX_NONE);
+				}
+			}
+		}
+		else
+		{
+			for (int32 i = 0; i < Context.GetNumInstances(); ++i)
+			{
+				const FNiagaraEmitterID EmitterID = InEmitterID.GetAndAdvance();
+				FNiagaraEmitterInstance* EmitterInst = SystemInstance->GetEmitterByID(EmitterID);
+				if (const FNDIDataChannelRead_EmitterInstanceData* EmitterInstData = InstData->EmitterInstanceData.Find(EmitterInst))
+				{
+					CalculateNDCSpawnInfo(*EmitterInstData);
+				}
+				else
+				{
+					OutNDCIndex.SetAndAdvance(INDEX_NONE);
+					OutNDCSpawnCount.SetAndAdvance(INDEX_NONE);
+					OutNDCSpawnIndex.SetAndAdvance(INDEX_NONE);
+				}
+			}			
+		}
+	}	
+	else
+	{
+		for (int32 i = 0; i < Context.GetNumInstances(); ++i)
+		{
+			OutNDCIndex.SetAndAdvance(INDEX_NONE);
+			OutNDCSpawnCount.SetAndAdvance(INDEX_NONE);
+			OutNDCSpawnIndex.SetAndAdvance(INDEX_NONE);
+		}
 	}
 }
 
@@ -1166,7 +1526,8 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 		int32 SpawnMax = InSpawnMax.GetAndAdvance();
 
 		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
-		TArray<FNiagaraSpawnInfo>& EmitterConditionalSpawns = InstData->PerEmitterConditionalSpawns.FindOrAdd(EmitterInst);
+		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
+		TArray<int32>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
 		EmitterConditionalSpawns.SetNumZeroed(NumDataChannelInstances);
 
 		for (int32 DataChannelIdx = 0; DataChannelIdx < NumDataChannelInstances; ++DataChannelIdx)
@@ -1195,11 +1556,11 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 				int32 Count = RandHelper.RandRange(DataChannelIdx, SpawnMin, SpawnMax);
 				if (Mode == ENDIDataChannelSpawnMode::Accumulate)
 				{
-					EmitterConditionalSpawns[DataChannelIdx].Count += Count;
+					EmitterConditionalSpawns[DataChannelIdx] += Count;
 				}
 				else if (Mode == ENDIDataChannelSpawnMode::Override)
 				{
-					EmitterConditionalSpawns[DataChannelIdx].Count = Count;
+					EmitterConditionalSpawns[DataChannelIdx] = Count;
 				}
 			}
 		}
@@ -1228,6 +1589,7 @@ void UNiagaraDataInterfaceDataChannelRead::GetCommonHLSL(FString& OutHLSL)
 bool UNiagaraDataInterfaceDataChannelRead::GetFunctionHLSL(FNiagaraDataInterfaceHlslGenerationContext& HlslGenContext, FString& OutHLSL)
 {
 	return	HlslGenContext.GetFunctionInfo().DefinitionName == GET_FUNCTION_NAME_CHECKED(UNiagaraDataInterfaceDataChannelRead, Num) ||
+		HlslGenContext.GetFunctionInfo().DefinitionName == GET_FUNCTION_NAME_CHECKED(UNiagaraDataInterfaceDataChannelRead, GetNDCSpawnData) ||
 		HlslGenContext.GetFunctionInfo().DefinitionName == GET_FUNCTION_NAME_CHECKED(UNiagaraDataInterfaceDataChannelRead, Read) ||
 		HlslGenContext.GetFunctionInfo().DefinitionName == GET_FUNCTION_NAME_CHECKED(UNiagaraDataInterfaceDataChannelRead, Consume);
 }
@@ -1570,7 +1932,8 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 			{
 				const FReadBuffer& ParameterLayoutBuffer = InstanceData->ParameterLayoutBuffer;
 
-				if (ParameterLayoutBuffer.SRV.IsValid() && ParameterLayoutBuffer.NumBytes > 0)
+				FRDGBufferSRVRef NDCSpawnDataBufferSRV = Context.GetGraphBuilder().CreateSRV(InstanceData->NDCSpawnDataBuffer, PF_R32_SINT);
+				if (NDCSpawnDataBufferSRV && ParameterLayoutBuffer.SRV.IsValid() && ParameterLayoutBuffer.NumBytes > 0)
 				{
 					InstParameters->ParamOffsetTable = ParameterLayoutBuffer.SRV.IsValid() ? ParameterLayoutBuffer.SRV.GetReference() : FNiagaraRenderer::GetDummyUIntBuffer();
 					InstParameters->DataFloat = Data->GetGPUBufferFloat().SRV.IsValid() ? Data->GetGPUBufferFloat().SRV.GetReference() : FNiagaraRenderer::GetDummyFloatBuffer();
@@ -1582,6 +1945,7 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 					InstParameters->Int32Stride = Data->GetInt32Stride() / sizeof(int32);
 					InstParameters->HalfStride = Data->GetHalfStride() / sizeof(FFloat16);
 
+					InstParameters->NDCSpawnDataBuffer = NDCSpawnDataBufferSRV;
 					bSuccess = true;
 				}
 			}
@@ -1599,6 +1963,22 @@ void UNiagaraDataInterfaceDataChannelRead::SetShaderParameters(const FNiagaraDat
 		InstParameters->FloatStride = 0;
 		InstParameters->Int32Stride = 0;
 		InstParameters->HalfStride = 0;
+		
+		FRDGBufferRef DummyBuffer = GSystemTextures.GetDefaultBuffer(Context.GetGraphBuilder(), 4, 0u);
+		InstParameters->NDCSpawnDataBuffer = Context.GetGraphBuilder().CreateSRV(DummyBuffer);		
+	}
+}
+
+void FNiagaraDataInterfaceProxy_DataChannelRead::PreStage(const FNDIGpuComputePreStageContext& Context)
+{
+	FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
+
+	if(InstanceData->NDCSpawnDataBuffer == nullptr)
+	{
+		InstanceData->NDCSpawnDataBuffer = CreateUploadBuffer<int32>(
+			Context.GetGraphBuilder(),
+			TEXT("Niagara_NDCReadDI_NDCSpawnData"),
+			InstanceData->NDCSpawnData);
 	}
 }
 
@@ -1612,7 +1992,10 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::ConsumePerInstanceDataFromGameT
 	InstData.ChannelDataRTProxy = SourceData.ChannelDataRTProxy;
 	InstData.bReadPrevFrame = SourceData.bReadPrevFrame;
 
-	if (SourceData.bHasUpdate)
+	InstData.NDCSpawnData = SourceData.NDCSpawnData;
+	InstData.NDCSpawnDataBuffer = nullptr;//Clear the RDG buffer ready for re-up to the GPU.
+
+	if (SourceData.bHasFunctionBindingUpdate) 
 	{
 		//Take the offset map from the source data.
 		//This maps from GPU script to that scripts offset into the ParameterLayoutBuffer.
