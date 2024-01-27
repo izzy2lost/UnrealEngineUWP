@@ -159,6 +159,15 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 		}
 	}
 
+	// Clean-up Python object handles
+	// The handles are instances of UPythonObjectHandle
+	{
+		ForEachObjectOfClass(UPythonObjectHandle::StaticClass(), [&FlagObjectForPurge](UObject* InObject)
+		{
+			FlagObjectForPurge(InObject, /*bMarkPendingKill*/false);
+		}, false, RF_ClassDefaultObject, EInternalObjectFlags::Native);
+	}
+
 	if (PurgingReferenceCollector.HasObjectToPurge())
 	{
 		Py_BEGIN_ALLOW_THREADS
