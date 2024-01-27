@@ -16,7 +16,6 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Serialization;
 using Horde.Server.Acls;
-using Horde.Server.Agents;
 using Horde.Server.Ddc;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -363,7 +362,7 @@ namespace Horde.Server.Storage
 			guidTypeMap.Add(CommitNode.BlobTypeGuid, typeof(CommitNode));
 			guidTypeMap.Add(DdcRefNode.BlobTypeGuid, typeof(DdcRefNode));
 			guidTypeMap.Add(DirectoryNode.BlobTypeGuid, typeof(DirectoryNode));
-			guidTypeMap.Add(RedirectNode<object>.BlobTypeGuid, typeof(RedirectNode<object>));
+			guidTypeMap.Add(RedirectNode.BlobTypeGuid, typeof(RedirectNode));
 			return guidTypeMap;
 		}
 
@@ -474,7 +473,7 @@ namespace Horde.Server.Storage
 			return new { type = typeName, guid = blobData.Type.Guid, content = content };
 		}
 
-		object? GetCbNodeObject(NamespaceId namespaceId, CbField field, IEnumerator<IBlobHandle> references)
+		static object? GetCbNodeObject(NamespaceId namespaceId, CbField field, IEnumerator<IBlobHandle> references)
 		{
 			if (field.IsAttachment())
 			{
