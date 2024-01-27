@@ -1581,6 +1581,30 @@ void FUsdInfoCache::LinkAssetToPrim(const UE::FSdfPath& Path, UObject* Asset)
 	ImplPtr->AssetToPrimPaths.FindOrAdd(Asset).AddUnique(Path);
 }
 
+void FUsdInfoCache::UnlinkAssetFromPrim(const UE::FSdfPath& Path, UObject* Asset)
+{
+	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
+	if (!ImplPtr)
+	{
+		return;
+	}
+	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
+
+	UE_LOG(LogUsd, Verbose, TEXT("Unlinking asset '%s' to prim '%s'"),
+		*Asset->GetPathName(),
+		*Path.GetString()
+	);
+
+	if (TArray<TWeakObjectPtr<UObject>>* FoundAssetsForPrim = ImplPtr->PrimPathToAssets.Find(Path))
+	{
+		FoundAssetsForPrim->Remove(Asset);
+	}
+	if (TArray<UE::FSdfPath>* FoundPrimPathsForAsset = ImplPtr->AssetToPrimPaths.Find(Asset))
+	{
+		FoundPrimPathsForAsset->Remove(Path);
+	}
+}
+
 TArray<TWeakObjectPtr<UObject>> FUsdInfoCache::RemoveAllAssetPrimLinks(const UE::FSdfPath& Path)
 {
 	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
@@ -1604,6 +1628,31 @@ TArray<TWeakObjectPtr<UObject>> FUsdInfoCache::RemoveAllAssetPrimLinks(const UE:
 	}
 
 	return Assets;
+}
+
+TArray<UE::FSdfPath> FUsdInfoCache::RemoveAllAssetPrimLinks(const UObject* Asset)
+{
+	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
+	if (!ImplPtr)
+	{
+		return {};
+	}
+	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
+
+	UE_LOG(LogUsd, Verbose, TEXT("Removing asset prim links for asset '%s'"), *Asset->GetPathName());
+
+	TArray<UE::FSdfPath> PrimPaths;
+	ImplPtr->AssetToPrimPaths.RemoveAndCopyValue(const_cast<UObject*>(Asset), PrimPaths);
+
+	for (const UE::FSdfPath& Path : PrimPaths)
+	{
+		if (TArray<TWeakObjectPtr<UObject>>* Assets = ImplPtr->PrimPathToAssets.Find(Path))
+		{
+			Assets->Remove(const_cast<UObject*>(Asset));
+		}
+	}
+
+	return PrimPaths;
 }
 
 void FUsdInfoCache::RemoveAllAssetPrimLinks()
