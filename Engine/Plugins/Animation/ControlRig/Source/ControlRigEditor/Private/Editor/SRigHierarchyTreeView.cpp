@@ -591,6 +591,18 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 									Delegates.RequestDetailsInspection(ConnectorKey);
 								});
 
+								if (!ControlRig->IsModularRig())
+								{
+									TagArguments.OnRenamed_Lambda([ConnectorKey, this](const FText& InNewName, ETextCommit::Type InCommitType)
+									{
+										Delegates.HandleRenameElement(ConnectorKey, InNewName.ToString());
+									});
+									TagArguments.OnVerifyRename_Lambda([ConnectorKey, this](const FText& InText, FText& OutError)
+									{
+										return Delegates.HandleVerifyElementNameChanged(ConnectorKey, InText.ToString(), OutError);
+									});
+								}
+
 								TargetElementPtr->Get()->Tags.Add(TagArguments);
 
 								AddConnectorResolveWarningTag(*TargetElementPtr, InElement, Hierarchy);

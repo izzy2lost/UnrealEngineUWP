@@ -7,6 +7,7 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "DetailLayoutBuilder.h"
 #include "ControlRigDragOps.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SRigHierarchyTagWidget"
 
@@ -25,6 +26,8 @@ void SRigHierarchyTagWidget::Construct(const FArguments& InArgs)
 	Identifier = InArgs._Identifier;
 	bAllowDragDrop = InArgs._AllowDragDrop;
 	OnClicked = InArgs._OnClicked;
+	OnRenamed = InArgs._OnRenamed;
+	OnVerifyRename = InArgs._OnVerifyRename;
 
 	const FMargin CombinedPadding = ContentPadding + Padding;
 
@@ -53,10 +56,13 @@ void SRigHierarchyTagWidget::Construct(const FArguments& InArgs)
 		.VAlign(VAlign_Center)
 		.Padding(TAttribute<FMargin>::CreateSP(this, &SRigHierarchyTagWidget::GetTextPadding))
 		[
-			SNew(STextBlock)
+			SNew(SInlineEditableTextBlock)
 			.Text(Text)
 			.ColorAndOpacity(InArgs._TextColor)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.IsReadOnly_Lambda([this](){ return !OnRenamed.IsBound(); })
+			.OnTextCommitted(this, &SRigHierarchyTagWidget::HandleElementRenamed)
+			.OnVerifyTextChanged(this, &SRigHierarchyTagWidget::HandleVerifyRename)
 		]
 	];
 }
@@ -126,6 +132,26 @@ FMargin SRigHierarchyTagWidget::GetTextPadding() const
 		}
 	}
 	return CombinedPadding;
+}
+
+void SRigHierarchyTagWidget::HandleElementRenamed(const FText& InNewName, ETextCommit::Type InCommitType)
+{
+	if (InCommitType == ETextCommit::OnEnter)
+	{
+		if (OnRenamed.IsBound())
+		{
+			OnRenamed.Execute(InNewName, InCommitType);
+		}
+	}
+}
+
+bool SRigHierarchyTagWidget::HandleVerifyRename(const FText& InText, FText& OutError)
+{
+	if (OnVerifyRename.IsBound())
+	{
+		return OnVerifyRename.Execute(InText, OutError);
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

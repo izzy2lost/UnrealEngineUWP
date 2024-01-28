@@ -26,6 +26,8 @@ public:
 		, _Identifier()
 		, _AllowDragDrop(false)
 		, _OnClicked()
+		, _OnRenamed()
+		, _OnVerifyRename()
 	{}
 		SLATE_ATTRIBUTE(FText, Text)
 		SLATE_ATTRIBUTE(FText, TooltipText)
@@ -38,6 +40,8 @@ public:
 		SLATE_ATTRIBUTE(FString, Identifier)
 		SLATE_ARGUMENT(bool, AllowDragDrop)
 		SLATE_EVENT(FSimpleDelegate, OnClicked)
+		SLATE_EVENT(FOnTextCommitted, OnRenamed)
+		SLATE_EVENT(FOnVerifyTextChanged, OnVerifyRename)
 	SLATE_END_ARGS()
 	
 	void Construct(const FArguments& InArgs);
@@ -49,6 +53,8 @@ public:
 private:
 
 	FMargin GetTextPadding() const;
+	void HandleElementRenamed(const FText& InNewName, ETextCommit::Type InCommitType);
+	bool HandleVerifyRename(const FText& InText, FText& OutError);
 
 	TAttribute<FText> Text;
 	TAttribute<const FSlateBrush*> Icon;
@@ -60,6 +66,8 @@ private:
 	bool bAllowDragDrop = false;
 	FSimpleDelegate OnClicked;
 	FOnRigTreeElementKeyTagDragDetected OnElementKeyDragDetectedDelegate;
+	FOnTextCommitted OnRenamed;
+	FOnVerifyTextChanged OnVerifyRename;
 
 	friend class FRigHierarchyTagDragDropOp;
 };
