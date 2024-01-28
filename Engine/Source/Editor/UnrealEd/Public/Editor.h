@@ -225,6 +225,8 @@ struct FEditorDelegates
 	/** Called when an editor mode ID is being exited */
 	UE_DEPRECATED(5.0, "Use the asset editor's mode manager to scope mode exit notifications.")
 	static UNREALED_API FOnEditorModeIDTransitioned EditorModeIDExit;
+	/** Sent when a PIE session has been requested to Start */
+	static UNREALED_API FOnPIEEvent StartPIE;
 	/** Sent when a PIE session is beginning (before we decide if PIE can run - allows clients to avoid blocking PIE) */
 	static UNREALED_API FOnPIEEvent PreBeginPIE;
 	/** Sent when a PIE session is beginning (but hasn't actually started yet) */
@@ -235,6 +237,8 @@ struct FEditorDelegates
 	static UNREALED_API FOnPIEEvent PrePIEEnded;
 	/** Sent when a PIE session is ending */
 	static UNREALED_API FOnPIEEvent EndPIE;
+	/** Sent when a PIE session has completely shutdown */
+	static UNREALED_API FOnPIEEvent ShutdownPIE;
 	/** Sent when a PIE session is paused */
 	static UNREALED_API FOnPIEEvent PausePIE;
 	/** Sent when a PIE session is resumed */

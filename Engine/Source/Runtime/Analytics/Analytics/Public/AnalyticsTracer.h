@@ -13,21 +13,22 @@ class FAnalyticsSpan : public IAnalyticsSpan
 {
 public:
 
-	FAnalyticsSpan(){};
+	FAnalyticsSpan(FName SpanName): IAnalyticsSpan(SpanName), Name(SpanName) {};
 	~FAnalyticsSpan(){};
 
 	// Public IAnalyticsSpan implementation
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) override;
-	virtual void Start(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+	virtual void Start(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 	virtual void End(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual void AddAttributes(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes) override;
 	virtual void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual const FName& GetName() const override;
 	virtual const TArray<FAnalyticsEventAttribute>& GetAttributes() const override;
-	virtual uint32 GetScopeDepth() const override;
+	virtual void SetStackDepth(uint32 Depth) override;
+	virtual uint32 GetStackDepth() const override;
+	virtual void SetParentSpan(TSharedPtr<IAnalyticsSpan> ParentSpan) override;
 	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const override;
 	virtual double GetDuration() const override;
-	virtual void AddChildSpan(TSharedPtr<IAnalyticsSpan> ChildSpan) override;
 	virtual bool GetIsActive() const override;
 
 private:
@@ -37,13 +38,12 @@ private:
 	FDateTime							StartTime = 0;
 	FDateTime							EndTime = 0;
 	FThreadId							ThreadId = 0;
-	uint32								ScopeDepth = 0;
+	uint32								StackDepth = 0;
 	double								Duration = 0;
 	bool								IsActive = false;
 	TSharedPtr<IAnalyticsProvider>		AnalyticsProvider;
 	TArray<FAnalyticsEventAttribute>	Attributes;
 	TWeakPtr<IAnalyticsSpan>			ParentSpan;
-	TArray<TSharedPtr<IAnalyticsSpan>>	ChildSpans;
 };
 
 /**
@@ -61,27 +61,22 @@ public:
 	virtual void EndSession() override;
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) override;
 	virtual TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
+	virtual bool StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual bool EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual TSharedPtr<IAnalyticsSpan> GetCurrentSpan() const override;
 	virtual TSharedPtr<IAnalyticsSpan> GetSessionSpan() const override;
 	virtual TSharedPtr<IAnalyticsSpan> GetSpan(const FName Name) override;
 
-protected:
-
-	// Protected IAnalyticsTracer implementation
-	virtual void SetCurrentSpan(TSharedPtr<IAnalyticsSpan> Span) override;
-
 private:
 
-	TSharedPtr<IAnalyticsSpan> StartSpanInternal(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
+	bool StartSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
 	bool EndSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes);
 	TSharedPtr<IAnalyticsSpan> GetSpanInternal(const FName Name);
 
-	TSharedPtr<IAnalyticsProvider>			AnalyticsProvider;
-	TSharedPtr<IAnalyticsSpan>				SessionSpan;
-	TSharedPtr<IAnalyticsSpan>				CurrentSpan;
-	TMap<FName,TWeakPtr<IAnalyticsSpan>>	SpanRegistry;
-	FCriticalSection						CriticalSection;
+	TSharedPtr<IAnalyticsProvider>			AnalyticsProvider;	// The Analytics provider we will send our span events to
+	TSharedPtr<IAnalyticsSpan>				SessionSpan;		// The root span, this will always be present in an active session
+	TArray<TSharedPtr<IAnalyticsSpan>>		ActiveSpanStack;	// Stack of active spans as WeakPtrs
+	FCriticalSection						CriticalSection;	
 };
 
 

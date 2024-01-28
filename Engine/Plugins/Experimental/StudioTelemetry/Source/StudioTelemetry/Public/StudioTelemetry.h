@@ -58,6 +58,9 @@ public:
 	/** Start a new span specifying the parent*/
 	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 
+	/** Start an existing span*/
+	STUDIOTELEMETRY_API bool StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+
 	/** End an existing span*/
 	STUDIOTELEMETRY_API bool EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 
@@ -69,6 +72,29 @@ public:
 
 	/** Callback for interception of telemetry events recording that can be used by Developers to send telemetry events to their own back end, though it is recommended that Developers implement their own IAnalyticsProvider via their own IAnalyticsProviderModule*/
 	STUDIOTELEMETRY_API void SetRecordEventCallback(OnRecordEvent);
+
+	class ScopedSpan
+	{
+	public:
+		ScopedSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {} )
+		{
+			if (FStudioTelemetry::Get().IsAvailable())
+			{
+				Span = FStudioTelemetry::Get().StartSpan(Name, AdditionalAttributes);
+			}
+		}
+
+		~ScopedSpan()
+		{
+			if (FStudioTelemetry::Get().IsAvailable())
+			{
+				FStudioTelemetry::Get().EndSpan(Span);
+			}
+		}
+	private:
+
+		TSharedPtr<IAnalyticsSpan> Span;
+	};
 
 private:
 
@@ -88,3 +114,7 @@ private:
 	OnRecordEvent							RecordEventCallback;
 	FGuid									SessionGUID;
 };
+
+#define STUDIO_TELEMETRY_SPAN_SCOPE(Name) FStudioTelemetry::ScopedSpan PREPROCESSOR_JOIN(ScopedSpan, __LINE__)(TEXT(#Name));
+#define STUDIO_TELEMETRY_START_SPAN(Name) if (FStudioTelemetry::Get().IsAvailable()) { FStudioTelemetry::Get().StartSpan(TEXT(#Name));}
+#define STUDIO_TELEMETRY_END_SPAN(Name) if (FStudioTelemetry::Get().IsAvailable()) { FStudioTelemetry::Get().EndSpan(TEXT(#Name));}

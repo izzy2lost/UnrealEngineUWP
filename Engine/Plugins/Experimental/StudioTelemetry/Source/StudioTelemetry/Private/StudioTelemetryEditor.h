@@ -43,9 +43,11 @@ private:
 	TSharedPtr<IAnalyticsSpan> EditorInitilizeSpan;
 	TSharedPtr<IAnalyticsSpan> EditorLoadMapSpan;
 	TSharedPtr<IAnalyticsSpan> PIESpan;
+	TSharedPtr<IAnalyticsSpan> PIEPreBeginSpan;
 	TSharedPtr<IAnalyticsSpan> PIEStartupSpan;
 	TSharedPtr<IAnalyticsSpan> PIELoadMapSpan;
-	TSharedPtr<IAnalyticsSpan> PIEWorldStreamingSpan;
+	TSharedPtr<IAnalyticsSpan> PIEInteractSpan;		
+	TSharedPtr<IAnalyticsSpan> PIEShutdownSpan;
 	TSharedPtr<IAnalyticsSpan> CookingSpan;
 	TSharedPtr<IAnalyticsSpan> HitchingSpan;
 	TSharedPtr<IAnalyticsSpan> AssetRegistryScanSpan;
@@ -57,8 +59,10 @@ private:
 	const FName EditorLoadMapSpanName = TEXT("Editor.LoadMap");
 	const FName PIESpanName = TEXT("PIE");
 	const FName PIEStartupSpanName = TEXT("PIE.Startup");
+	const FName PIEPreBeginSpanName = TEXT("PIE.PreBegin");
 	const FName PIELoadMapSpanName = TEXT("PIE.LoadMap");
-	const FName PIEWorldStreamingSpanName = TEXT("PIE.WorldStreaming");
+	const FName PIEInteractSpanName = TEXT("PIE.Interact");
+	const FName PIEShutdownSpanName = TEXT("PIE.Shutdown");
 	const FName CookingSpanName = TEXT("Cooking");
 	const FName HitchingSpanName = TEXT("Hitching");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
