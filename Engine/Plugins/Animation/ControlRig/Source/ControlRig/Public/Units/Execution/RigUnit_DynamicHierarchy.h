@@ -652,6 +652,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddControlInteger_Settings : public FRig
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	ERigControlAxis PrimaryAxis;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	TObjectPtr<UEnum> ControlEnum;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	FRigUnit_HierarchyAddControlInteger_LimitSettings Limits;;
@@ -1293,7 +1296,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelScaleFloat : public F
  * Adds a new animation channel to the hierarchy
  * Note: This node only runs as part of the construction event.
  */
-USTRUCT(meta=(DisplayName="Spawn Integer Animation Channel", TemplateName="SpawnAnimationChannel", Keywords="Construction,Create,New,AddAnimationChannel,NewAnimationChannel,CreateAnimationChannel,AddChannel,NewChannel,CreateChannel,SpawnChannel", Varying))
+USTRUCT(meta=(DisplayName="Spawn Integer Animation Channel", Keywords="Construction,Create,New,AddAnimationChannel,NewAnimationChannel,CreateAnimationChannel,AddChannel,NewChannel,CreateChannel,SpawnChannel", Varying))
 struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelInteger : public FRigUnit_HierarchyAddElement
 {
 	GENERATED_BODY()
@@ -1329,6 +1332,12 @@ struct CONTROLRIG_API FRigUnit_HierarchyAddAnimationChannelInteger : public FRig
 	 */
 	UPROPERTY(meta = (Input))
 	FRigUnit_HierarchyAddAnimationChannelSingleLimitSettings LimitsEnabled;
+
+	/*
+	 * The enum to use to find valid values
+	 */
+	UPROPERTY(meta = (Input))
+	TObjectPtr<UEnum> ControlEnum;
 
 	RIGVM_METHOD()
 	virtual void Execute() override;
