@@ -1629,7 +1629,15 @@ void SRigVMGraphNode::UpdatePinTreeView()
 					}
 					break;
 				}
-				case 1: // IO pins
+				case 1: // output pins
+				{
+					if(RootPin->GetDirection() == ERigVMPinDirection::Output)
+					{
+						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
+					}
+					break;
+				}
+				case 2: // IO pins
 				{
 					if(!RootPin->IsExecuteContext() && RootPin->GetDirection() == ERigVMPinDirection::IO)
 					{
@@ -1637,18 +1645,10 @@ void SRigVMGraphNode::UpdatePinTreeView()
 					}
 					break;
 				}
-				case 2: // input / visible pins
-				{
-					if(RootPin->GetDirection() == ERigVMPinDirection::Input || RootPin->GetDirection() == ERigVMPinDirection::Visible)
-					{
-						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
-					}
-					break;
-				}
-				case 3: // output pins
+				case 3: // input / visible pins
 				default:
 				{
-					if(RootPin->GetDirection() == ERigVMPinDirection::Output)
+					if(RootPin->GetDirection() == ERigVMPinDirection::Input || RootPin->GetDirection() == ERigVMPinDirection::Visible)
 					{
 						Local::VisitPinRecursively(RootPin, ModelPins, bSupportSubPins);
 					}
