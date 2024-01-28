@@ -466,7 +466,7 @@ void FStudioTelemetryEditor::Initialize()
 	
 	// Start Editor and Editor Boot span. Note : this will only start when the plugin is loaded and as such will miss any activity that runs beforehand
 	EditorSpan = FStudioTelemetry::Get().StartSpan(EditorSpanName);
-	EditorBootSpan = FStudioTelemetry::Get().StartSpan(EditorBootSpanName);
+	EditorBootSpan = FStudioTelemetry::Get().StartSpan(EditorBootSpanName, EditorSpan);
 	EditorMapName = TEXT("None");
 
 	TArray<FAnalyticsEventAttribute> Attributes;
@@ -526,7 +526,7 @@ void FStudioTelemetryEditor::Initialize()
 	FEditorDelegates::OnMapLoad.AddLambda([this](const FString& MapName, FCanLoadMap& OutCanLoadMap)
 		{
 			// The Editor loads a new map
-			EditorLoadMapSpan = FStudioTelemetry::Get().StartSpan(EditorLoadMapSpanName);
+			EditorLoadMapSpan = FStudioTelemetry::Get().StartSpan(EditorLoadMapSpanName, EditorSpan);
 		});
 
 	FEditorDelegates::OnMapOpened.AddLambda([this](const FString& MapName, bool Unused)
@@ -554,7 +554,7 @@ void FStudioTelemetryEditor::Initialize()
 			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("BootEditor"), EditorBootSpan->GetDuration(), EditorBootSpan->GetAttributes());
 			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("BootEditor"), EditorBootSpan->GetAttributes());
 
-			EditorInitilizeSpan = FStudioTelemetry::Get().StartSpan(EditorInitilizeSpanName);
+			EditorInitilizeSpan = FStudioTelemetry::Get().StartSpan(EditorInitilizeSpanName, EditorSpan);
 		});
 
 	FEditorDelegates::OnEditorInitialized.AddLambda([this](double TimeToInitializeEditor)
@@ -567,7 +567,7 @@ void FStudioTelemetryEditor::Initialize()
 			
 			// Editor has finished initializing so start the Editor Interact span
 			FStudioTelemetry::Get().EndSpan(EditorInitilizeSpan);
-			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName);
+			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName, EditorSpan);
 						
 			FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TotalEditorStartup"), TimeToInitializeEditor, Attributes);
 			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TotalEditorStartup"), Attributes);
@@ -621,7 +621,7 @@ void FStudioTelemetryEditor::Initialize()
 		});
 
 	// Install PIE Mode callbacks
-	FEditorDelegates::BeginPIE.AddLambda([this](bool)
+	FEditorDelegates::StartPIE.AddLambda([this](bool)
 		{
 			// PIE mode has been started. The user has pressed the Start PIE button.
 			// Finish the Editor span
@@ -629,18 +629,28 @@ void FStudioTelemetryEditor::Initialize()
 
 			// Start PIE span
 			PIESpan = FStudioTelemetry::Get().StartSpan(PIESpanName);
-			PIEStartupSpan = FStudioTelemetry::Get().StartSpan(PIEStartupSpanName);		
-
+			PIEStartupSpan = FStudioTelemetry::Get().StartSpan(PIEStartupSpanName, PIESpan);
+			
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(TEXT("MapName"), EditorMapName);
 
 			PIESpan->AddAttributes(Attributes);
 		});
 
+	FEditorDelegates::PreBeginPIE.AddLambda([this](bool)
+		{	
+			PIEPreBeginSpan = FStudioTelemetry::Get().StartSpan(PIEPreBeginSpanName, PIEStartupSpan);
+		});
+
+	FEditorDelegates::BeginPIE.AddLambda([this](bool)
+		{				
+			FStudioTelemetry::Get().EndSpan(PIEPreBeginSpan);
+		});
+
 	FWorldDelegates::OnPIEMapCreated.AddLambda([this](UGameInstance* GameInstance)
 		{
 			// A new PIE map was created
-			PIELoadMapSpan = FStudioTelemetry::Get().StartSpan(PIELoadMapSpanName);
+			PIELoadMapSpan = FStudioTelemetry::Get().StartSpan(PIELoadMapSpanName, PIEStartupSpan);
 		});
 
 	FWorldDelegates::OnPIEMapReady.AddLambda([this](UGameInstance* GameInstance)
@@ -662,29 +672,34 @@ void FStudioTelemetryEditor::Initialize()
 
 	FWorldDelegates::OnPIEReady.AddLambda([this](UGameInstance* GameInstance)
 		{
-			if ( PIEStartupSpan.IsValid() )
+			if (PIESpan.IsValid())
 			{
-				// PIE is now ready for user interaction
-				static bool IsFirstTimeToPIE = true;
-
-				FStudioTelemetry::Get().EndSpan(PIEStartupSpan);
-
-				// Record the time from start PIE to PIE
-				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
-				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetAttributes());
-
-				if (IsFirstTimeToPIE == true)
+				if ( PIEStartupSpan.IsValid() )
 				{
-					const double TimeInEditor = EditorLoadMapSpan.IsValid() ? EditorLoadMapSpan->GetDuration() : 0.0;
-					const double TimeToStartPIE = PIEStartupSpan->GetDuration();
-					const double TimeToBootToPIE = TimeToBootEditor + TimeInEditor + TimeToStartPIE;
+					// PIE is now ready for user interaction
+					static bool IsFirstTimeToPIE = true;
 
-					// Record the absolute time from editor boot to PIE
-					FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToBootToPIE, PIEStartupSpan->GetAttributes());
-					FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
+					FStudioTelemetry::Get().EndSpan(PIEStartupSpan);
 
-					IsFirstTimeToPIE = false;
+					// Record the time from start PIE to PIE
+					FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
+					FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.TotalStartupTime"), PIEStartupSpan->GetAttributes());
+
+					if (IsFirstTimeToPIE == true)
+					{
+						const double TimeInEditor = EditorLoadMapSpan.IsValid() ? EditorLoadMapSpan->GetDuration() : 0.0;
+						const double TimeToStartPIE = PIEStartupSpan->GetDuration();
+						const double TimeToBootToPIE = TimeToBootEditor + TimeInEditor + TimeToStartPIE;
+
+						// Record the absolute time from editor boot to PIE
+						FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToBootToPIE, PIEStartupSpan->GetAttributes());
+						FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
+
+						IsFirstTimeToPIE = false;
+					}
 				}
+
+				PIEInteractSpan = FStudioTelemetry::Get().StartSpan(PIEInteractSpanName, PIESpan);
 			}
 		});
 
@@ -692,7 +707,17 @@ void FStudioTelemetryEditor::Initialize()
 		{
 			if (PIESpan.IsValid())
 			{
-				// PIE has ended, ie. the user has pressed the Stop PIE button, and we are going back to interactive Editor mode	
+				// PIE his ending so no longer interactive
+				FStudioTelemetry::Get().EndSpan(PIEInteractSpan);
+				PIEShutdownSpan = FStudioTelemetry::Get().StartSpan(PIEShutdownSpanName, PIESpan);
+			}
+		});
+
+	FEditorDelegates::ShutdownPIE.AddLambda([this](bool)
+		{
+			if (PIESpan.IsValid())
+			{
+				// PIE has shutdown, ie. the user has pressed the Stop PIE button, and we are going back to interactive Editor mode	
 				FStudioTelemetry::Get().EndSpan(PIESpan);
 
 				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.EndTime"), PIESpan->GetDuration(), PIESpan->GetAttributes());
@@ -704,7 +729,7 @@ void FStudioTelemetryEditor::Initialize()
 
 			// Restart the Editor span
 			EditorSpan = FStudioTelemetry::Get().StartSpan(EditorSpanName, Attributes);
-			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName);
+			EditorInteractSpan = FStudioTelemetry::Get().StartSpan(EditorInteractSpanName, EditorSpan);
 		});
 
 	
@@ -899,6 +924,7 @@ void FStudioTelemetryEditor::Initialize()
 
 void FStudioTelemetryEditor::Shutdown()
 {
+	FStudioTelemetry::Get().EndSpan(EditorSpan);
 }
 
 UE_ENABLE_OPTIMIZATION_SHIP

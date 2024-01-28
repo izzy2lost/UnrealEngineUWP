@@ -667,6 +667,8 @@ void UEditorEngine::EndPlayMap()
 		}
 	}
 	GEditor->GetSelectedActors()->EndBatchSelectOperation(true);
+	
+	FEditorDelegates::ShutdownPIE.Broadcast(bIsSimulatingInEditor);
 }
 
 void UEditorEngine::CleanupPIEOnlineSessions(TArray<FName> OnlineIdentifiers)
@@ -1141,6 +1143,8 @@ void UEditorEngine::StartQueuedPlaySessionRequestImpl()
 		CancelRequestPlaySession();
 		return;
 	}
+
+	FEditorDelegates::StartPIE.Broadcast(PlayInEditorSessionInfo->OriginalRequestParams.WorldType == EPlaySessionWorldType::SimulateInEditor);
 
 	// We'll branch primarily based on the Session Destination, because it affects which settings we apply and how.
 	switch (PlaySessionRequest->SessionDestination)

@@ -21,14 +21,14 @@ class IAnalyticsSpan : FNoncopyable
 {
 public:
 
-	IAnalyticsSpan() {};
+	IAnalyticsSpan(const FName Name) {};
 	virtual ~IAnalyticsSpan() {};
 
 	/** Sets the analytics provider for the tracer */
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) = 0;
-
+	
 	/** Start this span */
-	virtual void Start(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
+	virtual void Start(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
 
 	/** End this span */
 	virtual void End(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
@@ -45,8 +45,11 @@ public:
 	/** Get context attributes for the span */
 	virtual const TArray<FAnalyticsEventAttribute>& GetAttributes()const = 0;
 
-	/** Get the scope depth span */
-	virtual uint32 GetScopeDepth() const = 0;
+	/** Set the scope depth for the span*/
+	virtual void SetStackDepth(uint32 Depth)=0;
+
+	/** Get the scope depth for the span */
+	virtual uint32 GetStackDepth() const = 0;
 
 	/** Get the span duration in seconds */
 	virtual double GetDuration() const = 0;
@@ -54,11 +57,11 @@ public:
 	// Is the span active?
 	virtual bool GetIsActive() const = 0;
 
+	/** Set the parent span */
+	virtual void SetParentSpan(TSharedPtr<IAnalyticsSpan> ParentSpan) = 0;
+
 	/** Get the parent span */
 	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const = 0;
-
-	// Add a child span
-	virtual void AddChildSpan(TSharedPtr<IAnalyticsSpan> ChildSpan) = 0;
 };
 
 /**
@@ -85,8 +88,11 @@ public:
 	/** Sets the analytics provider for the tracer */
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) =0;
 
-	/** Start a new span specifying an optional parent, null parent will attach new span under the current span */
+	/** Start a new span specifying an optional parent. EndSpan is called recursively on children. Parent attributes are passed onto children  */
 	virtual TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan=TSharedPtr<IAnalyticsSpan>(), const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
+
+	/** Start a an existing span*/
+	virtual bool StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
 
 	/** End an existing span*/
 	virtual bool EndSpan(TSharedPtr<IAnalyticsSpan>, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
@@ -111,10 +117,6 @@ public:
 	{
 		return EndSpan(GetSpan(Name), AdditionalAttributes);
 	}
-
-protected:
-	/** Set the currently active span */
-	virtual void SetCurrentSpan(TSharedPtr<IAnalyticsSpan> Span) = 0;
 
 private:
 };
