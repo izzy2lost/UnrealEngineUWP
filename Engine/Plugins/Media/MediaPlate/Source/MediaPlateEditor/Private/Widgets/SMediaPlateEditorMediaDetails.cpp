@@ -20,6 +20,9 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 {
 	MediaPlate = &InMediaPlate;
 
+	const ISlateStyle& SlateStyle = FAppStyle::Get();
+	const FName StyleName = TEXT("SmallText");
+
 	ChildSlot
 		[
 			SNew(SScrollBox)
@@ -41,6 +44,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(MediaPlayerName, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// Resolution.
@@ -50,6 +54,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(ResolutionText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// Frame rate.
@@ -59,6 +64,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(FrameRateText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// Resource size.
@@ -68,6 +74,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(ResourceSizeText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// Method.
@@ -77,6 +84,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(MethodText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 						]
 
@@ -92,6 +100,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(FormatText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// LOD bias.
@@ -101,6 +110,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(LODBiasText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// Num mips.
@@ -110,6 +120,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(NumMipsText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 
 							// Num tiles.
@@ -119,6 +130,7 @@ void SMediaPlateEditorMediaDetails::Construct(const FArguments& InArgs,
 								.Padding(4.0f)
 								[
 									SAssignNew(NumTilesText, STextBlock)
+									.TextStyle(SlateStyle, StyleName)
 								]
 						]
 				]
@@ -190,9 +202,9 @@ void SMediaPlateEditorMediaDetails::UpdateDetails()
 	LODBiasText->SetText(FText::Format(LOCTEXT("LODBias", "Combined LOD Bias: {0}"),
 		FText::AsNumber(LODBias)));
 	MethodText->SetText(FText::Format(LOCTEXT("Method", "Method: {0}"), Method));
-	NumMipsText->SetText(FText::Format(LOCTEXT("NumberOfMips", "Number Of Mips: {0}"),
+	NumMipsText->SetText(FText::Format(LOCTEXT("NumberOfMips", "Mips: {0}"),
 		FText::AsNumber(NumMips)));
-	NumTilesText->SetText(FText::Format(LOCTEXT("NumberOfTiles", "Number Of Tiles: {0}"),
+	NumTilesText->SetText(FText::Format(LOCTEXT("NumberOfTiles", "Tiles: {0}"),
 		FText::AsNumber(NumTotalTiles)));
 	ResolutionText->SetText(FText::Format(LOCTEXT("Resolution", "Resolution: {0}x{1}"),
 		FText::AsNumber(SurfaceWidth), FText::AsNumber(SurfaceHeight)));

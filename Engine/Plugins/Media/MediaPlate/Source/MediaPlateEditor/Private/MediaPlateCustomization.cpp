@@ -8,7 +8,6 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "IDetailGroup.h"
 #include "IMediaAssetsModule.h"
 #include "LevelEditorViewport.h"
 #include "MediaPlate.h"
@@ -61,15 +60,12 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	// Get style.
 	const ISlateStyle* Style = &FMediaPlateEditorStyle::Get().Get();
 
-	// Hide the static mesh.
-	IDetailCategoryBuilder& StaticMeshCategory = DetailBuilder.EditCategory("StaticMesh");
-	StaticMeshCategory.SetCategoryVisibility(false);
+	CustomizeCategories(DetailBuilder);
 
 	IDetailCategoryBuilder& ControlCategory = DetailBuilder.EditCategory("Control");
-	IDetailCategoryBuilder& MediaPlateCategory = DetailBuilder.EditCategory("MediaPlate");
-	// The sort order number places these categories after the transform in the detail pane.
-	ControlCategory.SetSortOrder(2010);
-	MediaPlateCategory.SetSortOrder(2020);
+	IDetailCategoryBuilder& PlaylistCategory = DetailBuilder.EditCategory("Playlist");
+	IDetailCategoryBuilder& GeometryCategory = DetailBuilder.EditCategory("Geometry");
+	IDetailCategoryBuilder& MediaDetailsCategory = DetailBuilder.EditCategory("MediaDetails");
 
 	// Get objects we are editing.
 	TArray<TWeakObjectPtr<UObject>> Objects;
@@ -90,14 +86,10 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	UpdateMediaPath();
 
 	// Add mesh customization.
-	AddMeshCustomization(MediaPlateCategory);
-	
-	// Create playlist group.
-	IDetailGroup& PlaylistGroup = MediaPlateCategory.AddGroup(TEXT("Playlist"),
-		LOCTEXT("Playlist", "Playlist"));
+	AddMeshCustomization(GeometryCategory);
 
 	// Add playlist.
-	PlaylistGroup.AddWidgetRow()
+	PlaylistCategory.AddCustomRow(FText::FromString("Playlist Asset"))
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -117,7 +109,7 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	// Add media source type.
 	TAttribute<EVisibility> MediaSourceAssetVisibility(this, &FMediaPlateCustomization::ShouldShowMediaSourceAsset);
 	TAttribute<EVisibility> MediaSourceFileVisibility(this, &FMediaPlateCustomization::ShouldShowMediaSourceFile);
-	PlaylistGroup.AddWidgetRow()
+	PlaylistCategory.AddCustomRow(FText::FromString("First Item In Playlist"))
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -149,7 +141,7 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 		];
 
 	// Add media asset.
-	PlaylistGroup.AddWidgetRow()
+	PlaylistCategory.AddCustomRow(FText::FromString("Media Source Asset"))
 		.Visibility(MediaSourceAssetVisibility)
 		.NameContent()
 		[
@@ -168,7 +160,7 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 
 	// Add media path.
 	FString FileTypeFilter = TEXT("All files (*.*)|*.*");
-	PlaylistGroup.AddWidgetRow()
+	PlaylistCategory.AddCustomRow(FText::FromString("Media Path"))
 		.Visibility(MediaSourceFileVisibility)
 		.NameContent()
 		[
@@ -193,7 +185,6 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	ControlCategory.AddCustomRow(LOCTEXT("MediaPlateControls", "MediaPlate Controls"))
 		[
 			SNew(SHorizontalBox)
-
 			// Rewind button.
 			+ SHorizontalBox::Slot()
 				.VAlign(VAlign_Center)
@@ -203,20 +194,13 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 						.VAlign(VAlign_Center)
 						.IsEnabled_Lambda([this]
 						{
-							for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
 							{
-								UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-								if (MediaPlate != nullptr)
-								{
-									UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer();
-									if (MediaPlayer != nullptr)
-									{
-										return MediaPlayer->IsReady() &&
-											MediaPlayer->SupportsSeeking() &&
-											MediaPlayer->GetTime() > FTimespan::Zero();
-									}
-								}
+								return MediaPlayer->IsReady() &&
+									MediaPlayer->SupportsSeeking() &&
+									MediaPlayer->GetTime() > FTimespan::Zero();
 							}
+
 							return false;
 						})
 						.OnClicked_Lambda([this]() -> FReply
@@ -239,19 +223,13 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 						.VAlign(VAlign_Center)
-						.IsEnabled_Lambda([this] {
-							for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+						.IsEnabled_Lambda([this]
+						{
+							if (UMediaPlayer* MediaPlayer = GetMediaPlayer())
 							{
-								UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-								if (MediaPlate != nullptr)
-								{
-									UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer();
-									if (MediaPlayer != nullptr)
-									{
-										return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetReverseRate(MediaPlayer), false);
-									}
-								}
+								return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetReverseRate(MediaPlayer), false);
 							}
+
 							return false;
 						})
 						.OnClicked_Lambda([this]() -> FReply
@@ -276,19 +254,23 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 						.VAlign(VAlign_Center)
 						.IsEnabled_Lambda([this]
 						{
-							for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+							// Is the player paused or fast forwarding/rewinding?
+							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
 							{
-								UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-								if (MediaPlate != nullptr)
-								{
-									// Is the player paused or fast forwarding/rewinding?
-									UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer();
-									return ((MediaPlayer != nullptr) &&
-										(MediaPlayer->IsReady()) &&
-										((!MediaPlayer->IsPlaying() || (MediaPlayer->GetRate() != 1.0f))));
-								}
+								return MediaPlayer->IsReady()
+									&& (!MediaPlayer->IsPlaying() || (MediaPlayer->GetRate() != 1.0f));
 							}
+
 							return false;
+						})
+						.Visibility_Lambda([this]
+						{
+							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							{
+								return MediaPlayer->IsPlaying() ? EVisibility::Collapsed : EVisibility::Visible;
+							}
+
+							return EVisibility::Visible;
 						})
 						.OnClicked_Lambda([this]() -> FReply
 						{
@@ -312,19 +294,22 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 						.VAlign(VAlign_Center)
 						.IsEnabled_Lambda([this]
 						{
-							for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
 							{
-								UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-								if (MediaPlate != nullptr)
-								{
-									UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer();
-									if (MediaPlayer != nullptr)
-									{
-										return (MediaPlayer->CanPause()) && (!MediaPlayer->IsPaused());
-									}
-								}
+								return MediaPlayer->CanPause() && !MediaPlayer->IsPaused();
 							}
+
 							return false;
+						})
+						.Visibility_Lambda([this]
+						{
+							if (const UMediaPlayer* MediaPlayer = GetMediaPlayer())
+							{
+								const bool bIsVisible = MediaPlayer->CanPause() && !MediaPlayer->IsPaused();
+								return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+							}
+
+							return EVisibility::Collapsed;
 						})
 						.OnClicked_Lambda([this]() -> FReply
 						{
@@ -346,19 +331,13 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				[
 					SNew(SButton)
 					.VAlign(VAlign_Center)
-					.IsEnabled_Lambda([this] {
-						for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+					.IsEnabled_Lambda([this]
+					{
+						if (UMediaPlayer* MediaPlayer = GetMediaPlayer())
 						{
-							UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-							if (MediaPlate != nullptr)
-							{
-								UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer();
-								if (MediaPlayer != nullptr)
-								{
-									return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetForwardRate(MediaPlayer), false);
-								}
-							}
+							return MediaPlayer->IsReady() && MediaPlayer->SupportsRate(UMediaPlateComponent::GetForwardRate(MediaPlayer), false);
 						}
+
 						return false;
 					})
 					.OnClicked_Lambda([this]() -> FReply
@@ -403,18 +382,11 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 						.VAlign(VAlign_Center)
 						.IsEnabled_Lambda([this]
 						{
-							for (TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+							if (UMediaPlayer* MediaPlayer = GetMediaPlayer())
 							{
-								UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get();
-								if (MediaPlate != nullptr)
-								{
-									UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer();
-									if (MediaPlayer != nullptr)
-									{
-										return !MediaPlayer->GetUrl().IsEmpty();
-									}
-								}
+								return !MediaPlayer->GetUrl().IsEmpty();
 							}
+
 							return false;
 						})
 						.OnClicked_Lambda([this]() -> FReply
@@ -435,10 +407,9 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	// Add button to open the media plate editor.
 	if (bIsMediaPlateWindow == false)
 	{
-		MediaPlateCategory.AddCustomRow(LOCTEXT("OpenMediaPlate", "Open Media Plate"))
+		PlaylistCategory.AddCustomRow(LOCTEXT("OpenMediaPlate", "Open Media Plate"))
 			[
 				SNew(SHorizontalBox)
-
 				+ SHorizontalBox::Slot()
 					.FillWidth(1.f)
 					.Padding(0, 5, 10, 5)
@@ -466,11 +437,7 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 
 		if (FirstMediaPlate != nullptr)
 		{
-			// Create media details group.
-			IDetailGroup& MediaDetailsGroup = MediaPlateCategory.AddGroup(TEXT("MediaDetails"),
-				LOCTEXT("MediaDetails", "Media Details"));
-
-			MediaDetailsGroup.AddWidgetRow()
+			MediaDetailsCategory.AddCustomRow(FText::FromString(TEXT("Media Details")))
 			[
 				SNew(SMediaPlateEditorMediaDetails, *FirstMediaPlate)
 			];
@@ -478,37 +445,33 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 	}
 }
 
-void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& MediaPlateCategory)
+void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& InParentCategory)
 {
-	// Create detail group.
-	IDetailGroup& DetailGroup = MediaPlateCategory.AddGroup(TEXT("Mesh"),
-		LOCTEXT("Mesh", "Mesh"));
-
 	// Add radio buttons for mesh type.
-	DetailGroup.AddWidgetRow()
-		[
-			SNew(SSegmentedControl<EMediaTextureVisibleMipsTiles>)
-				.Value_Lambda([this]()
-				{
-					return MeshMode;
-				})
-				.OnValueChanged(this, &FMediaPlateCustomization::SetMeshMode)
+	InParentCategory.AddCustomRow(FText::FromString("Mesh Selection"))
+	[
+		SNew(SSegmentedControl<EMediaTextureVisibleMipsTiles>)
+			.Value_Lambda([this]()
+			{
+				return MeshMode;
+			})
+			.OnValueChanged(this, &FMediaPlateCustomization::SetMeshMode)
 
-			+ SSegmentedControl<EMediaTextureVisibleMipsTiles>::Slot(EMediaTextureVisibleMipsTiles::Plane)
-				.Text(LOCTEXT("Plane", "Plane"))
-				.ToolTip(LOCTEXT("Plane_ToolTip",
-					"Select this if you want to use a standard plane for the mesh."))
+		+ SSegmentedControl<EMediaTextureVisibleMipsTiles>::Slot(EMediaTextureVisibleMipsTiles::Plane)
+			.Text(LOCTEXT("Plane", "Plane"))
+			.ToolTip(LOCTEXT("Plane_ToolTip",
+				"Select this if you want to use a standard plane for the mesh."))
 
-			+ SSegmentedControl<EMediaTextureVisibleMipsTiles>::Slot(EMediaTextureVisibleMipsTiles::Sphere)
-				.Text(LOCTEXT("Sphere", "Sphere"))
-				.ToolTip(LOCTEXT("Sphere_ToolTip",
-					"Select this if you want to use a spherical object for the mesh."))
+		+ SSegmentedControl<EMediaTextureVisibleMipsTiles>::Slot(EMediaTextureVisibleMipsTiles::Sphere)
+			.Text(LOCTEXT("Sphere", "Sphere"))
+			.ToolTip(LOCTEXT("Sphere_ToolTip",
+				"Select this if you want to use a spherical object for the mesh."))
 
-			+ SSegmentedControl<EMediaTextureVisibleMipsTiles>::Slot(EMediaTextureVisibleMipsTiles::None)
-				.Text(LOCTEXT("Custom", "Custom"))
-				.ToolTip(LOCTEXT("Custom_ToolTip",
-					"Select this if you want to provide your own mesh."))
-		];
+		+ SSegmentedControl<EMediaTextureVisibleMipsTiles>::Slot(EMediaTextureVisibleMipsTiles::None)
+			.Text(LOCTEXT("Custom", "Custom"))
+			.ToolTip(LOCTEXT("Custom_ToolTip",
+				"Select this if you want to provide your own mesh."))
+	];
 
 	// Visibility attributes.
 	TAttribute<EVisibility> MeshCustomVisibility(this, &FMediaPlateCustomization::ShouldShowMeshCustomWidgets);
@@ -516,7 +479,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 	TAttribute<EVisibility> MeshSphereVisibility(this, &FMediaPlateCustomization::ShouldShowMeshSphereWidgets);
 
 	// Add aspect ratio.
-	DetailGroup.AddWidgetRow()
+	InParentCategory.AddCustomRow(FText::FromString("Mesh Selection"))
 		.Visibility(MeshPlaneVisibility)
 		.NameContent()
 		[
@@ -549,7 +512,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 			+ SHorizontalBox::Slot()
 				.AutoWidth()
 				[
-					SNew(SNumericEntryBox<float>)
+					SNew(SSpinBox<float>)
 						.Value(this, &FMediaPlateCustomization::GetAspectRatio)
 						.MinValue(0.0f)
 						.OnValueChanged(this, &FMediaPlateCustomization::SetAspectRatio)
@@ -557,7 +520,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 		];
 
 		// Add letterbox aspect ratio.
-		DetailGroup.AddWidgetRow()
+		InParentCategory.AddCustomRow(FText::FromString("Aspect Ratio"))
 			.Visibility(MeshPlaneVisibility)
 			.NameContent()
 			[
@@ -591,7 +554,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 		+ SHorizontalBox::Slot()
 			.AutoWidth()
 			[
-				SNew(SNumericEntryBox<float>)
+				SNew(SSpinBox<float>)
 					.Value(this, &FMediaPlateCustomization::GetLetterboxAspectRatio)
 					.MinValue(0.0f)
 					.OnValueChanged(this, &FMediaPlateCustomization::SetLetterboxAspectRatio)
@@ -599,7 +562,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 		];
 
 	// Add auto aspect ratio.
-	DetailGroup.AddWidgetRow()
+	InParentCategory.AddCustomRow(FText::FromString("Aspect Ratio"))
 		.Visibility(MeshPlaneVisibility)
 		.NameContent()
 		[
@@ -617,7 +580,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 		];
 
 	// Add sphere horizontal arc.
-	DetailGroup.AddWidgetRow()
+	InParentCategory.AddCustomRow(FText::FromString("Horizontal Arc"))
 		.Visibility(MeshSphereVisibility)
 		.NameContent()
 		[
@@ -635,7 +598,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 		];
 
 	// Add sphere vertical arc.
-	DetailGroup.AddWidgetRow()
+	InParentCategory.AddCustomRow(FText::FromString("Vertical Arc"))
 		.Visibility(MeshSphereVisibility)
 		.NameContent()
 		[
@@ -653,7 +616,7 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 		];
 
 	// Add static mesh.
-	DetailGroup.AddWidgetRow()
+	InParentCategory.AddCustomRow(FText::FromString("Static Mesh"))
 		.Visibility(MeshCustomVisibility)
 		.NameContent()
 		[
@@ -670,7 +633,6 @@ void FMediaPlateCustomization::AddMeshCustomization(IDetailCategoryBuilder& Medi
 				.ObjectPath(this, &FMediaPlateCustomization::GetStaticMeshPath)
 				.OnObjectChanged(this, &FMediaPlateCustomization::OnStaticMeshChanged)
 		];
-	
 }
 
 EVisibility FMediaPlateCustomization::ShouldShowMeshCustomWidgets() const
@@ -821,8 +783,7 @@ void FMediaPlateCustomization::SetAspectRatio(float AspectRatio)
 	}
 }
 
-
-TOptional<float> FMediaPlateCustomization::GetAspectRatio() const
+float FMediaPlateCustomization::GetAspectRatio() const
 {
 	// Loop through our objects.
 	for (const TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
@@ -834,7 +795,7 @@ TOptional<float> FMediaPlateCustomization::GetAspectRatio() const
 		}
 	}
 
-	return TOptional<float>();
+	return 1.0f;
 }
 
 void FMediaPlateCustomization::SetLetterboxAspectRatio(float AspectRatio)
@@ -856,7 +817,7 @@ void FMediaPlateCustomization::SetLetterboxAspectRatio(float AspectRatio)
 }
 
 
-TOptional<float> FMediaPlateCustomization::GetLetterboxAspectRatio() const
+float FMediaPlateCustomization::GetLetterboxAspectRatio() const
 {
 	for (const TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
 	{
@@ -867,7 +828,7 @@ TOptional<float> FMediaPlateCustomization::GetLetterboxAspectRatio() const
 		}
 	}
 
-	return TOptional<float>();
+	return 0.0f;
 }
 
 void FMediaPlateCustomization::SetMeshHorizontalRange(float HorizontalRange)
@@ -1316,5 +1277,124 @@ void FMediaPlateCustomization::StopMediaPlates()
 	OnButtonEvent(EMediaPlateEventState::Close);
 }
 
+UMediaPlayer* FMediaPlateCustomization::GetMediaPlayer() const
+{
+	for (const TWeakObjectPtr<UMediaPlateComponent>& MediaPlatePtr : MediaPlatesList)
+	{
+		if (UMediaPlateComponent* MediaPlate = MediaPlatePtr.Get())
+		{
+			if (UMediaPlayer* MediaPlayer = MediaPlate->GetMediaPlayer())
+			{
+				return MediaPlayer;
+			}
+		}
+	}
 
+	return nullptr;
+}
+
+void FMediaPlateCustomization::CustomizeCategories(IDetailLayoutBuilder& InDetailBuilder)
+{
+	static const FName PropertyEditor("PropertyEditor");
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditor);
+
+	// Rearrange Categories
+
+	const FName MediaPlateComponentName = UMediaPlateComponent::StaticClass()->GetFName();
+
+	const TSharedRef<FPropertySection> GeneralSection = PropertyModule.FindOrCreateSection(MediaPlateComponentName, TEXT("General"), LOCTEXT("General", "General"));
+	GeneralSection->AddCategory(TEXT("Control"));
+	GeneralSection->AddCategory(TEXT("Geometry"));
+	GeneralSection->AddCategory(TEXT("Playlist"));
+	GeneralSection->AddCategory(TEXT("MediaDetails"));
+	GeneralSection->AddCategory(TEXT("MediaTexture"));
+	GeneralSection->AddCategory(TEXT("Materials"));
+	GeneralSection->AddCategory(TEXT("EXR Tiles & Mips"));
+	GeneralSection->AddCategory(TEXT("Media Cache"));
+	GeneralSection->AddCategory(TEXT("Advanced"));
+
+	const TSharedRef<FPropertySection> MediaSection = PropertyModule.FindOrCreateSection(MediaPlateComponentName, TEXT("Media"), LOCTEXT("Media", "Media"));
+	MediaSection->AddCategory(TEXT("Playlist"));
+	MediaSection->AddCategory(TEXT("MediaDetails"));
+	MediaSection->AddCategory(TEXT("Media Cache"));
+
+	const TSharedRef<FPropertySection> EXRSection = PropertyModule.FindOrCreateSection(MediaPlateComponentName, TEXT("EXR"), LOCTEXT("EXR", "EXR"));
+	EXRSection->AddCategory(TEXT("MediaDetails"));
+	EXRSection->AddCategory(TEXT("EXR Tiles & Mips"));
+	EXRSection->AddCategory(TEXT("Media Cache"));
+
+	const TSharedRef<FPropertySection> RenderingSection = PropertyModule.FindOrCreateSection(MediaPlateComponentName, TEXT("Rendering"), LOCTEXT("Rendering", "Rendering"));
+	RenderingSection->AddCategory(TEXT("Geometry"));
+	RenderingSection->AddCategory(TEXT("Materials"));
+	RenderingSection->AddCategory(TEXT("MediaTexture"));
+	RenderingSection->AddCategory(TEXT("Mobility"));
+	RenderingSection->AddCategory(TEXT("Transform"));
+	RenderingSection->AddCategory(TEXT("TransformCommon"));
+	RenderingSection->RemoveCategory(TEXT("Lighting"));
+	RenderingSection->AddCategory(TEXT("MediaTexture"));
+	RenderingSection->RemoveCategory(TEXT("MaterialParameters"));
+	RenderingSection->RemoveCategory(TEXT("Mobile"));
+	RenderingSection->RemoveCategory(TEXT("RayTracing"));
+	RenderingSection->RemoveCategory(TEXT("Rendering"));
+	RenderingSection->RemoveCategory(TEXT("TextureStreaming"));
+	RenderingSection->RemoveCategory(TEXT("VirtualTexture"));
+
+	// Hide unwanted Categories
+
+	const FName MediaPlateName = AMediaPlate::StaticClass()->GetFName();
+
+	const TSharedRef<FPropertySection> MediaPlateMiscSection = PropertyModule.FindOrCreateSection(MediaPlateName, TEXT("Misc"), LOCTEXT("Misc", "Misc"));
+	MediaPlateMiscSection->RemoveCategory("AssetUserData");
+	MediaPlateMiscSection->RemoveCategory("Cooking");
+	MediaPlateMiscSection->RemoveCategory("Input");
+	MediaPlateMiscSection->RemoveCategory("Navigation");
+	MediaPlateMiscSection->RemoveCategory("Replication");
+	MediaPlateMiscSection->RemoveCategory("Tags");
+
+	const TSharedRef<FPropertySection> MediaPlateStreamingSection = PropertyModule.FindOrCreateSection(MediaPlateName, TEXT("Streaming"), LOCTEXT("Streaming", "Streaming"));
+	MediaPlateStreamingSection->RemoveCategory("Data Layers");
+	MediaPlateStreamingSection->RemoveCategory("HLOD");
+	MediaPlateStreamingSection->RemoveCategory("World Partition");
+
+	const TSharedRef<FPropertySection> MediaPlateLODSection = PropertyModule.FindOrCreateSection(MediaPlateName, TEXT("LOD"), LOCTEXT("LOD", "LOD"));
+	MediaPlateLODSection->RemoveCategory("HLOD");
+	MediaPlateLODSection->RemoveCategory("LOD");
+
+	const TSharedRef<FPropertySection> MediaPlatePhysicsSection = PropertyModule.FindOrCreateSection(MediaPlateName, TEXT("Physics"), LOCTEXT("Physics", "Physics"));
+	MediaPlatePhysicsSection->RemoveCategory("Collision");
+	MediaPlatePhysicsSection->RemoveCategory("Physics");
+
+	// Hide the static mesh.
+	IDetailCategoryBuilder& StaticMeshCategory = InDetailBuilder.EditCategory("StaticMesh");
+	StaticMeshCategory.SetCategoryVisibility(false);
+
+	IDetailCategoryBuilder& ControlCategory = InDetailBuilder.EditCategory("Control");
+	IDetailCategoryBuilder& MediaDetailsCategory = InDetailBuilder.EditCategory("MediaDetails");
+	IDetailCategoryBuilder& PlaylistCategory = InDetailBuilder.EditCategory("Playlist");
+	IDetailCategoryBuilder& GeometryCategory = InDetailBuilder.EditCategory("Geometry");
+	IDetailCategoryBuilder& MediaTextureCategory = InDetailBuilder.EditCategory("MediaTexture");
+	IDetailCategoryBuilder& MaterialsCategory = InDetailBuilder.EditCategory("Materials");
+	IDetailCategoryBuilder& TilesMipsCategory = InDetailBuilder.EditCategory("EXR Tiles & Mips");
+	IDetailCategoryBuilder& MediaCacheCategory = InDetailBuilder.EditCategory("Media Cache");
+
+	// Rename Media Cache category and look ahead property
+	MediaCacheCategory.SetDisplayName(FText::FromString(TEXT("Cache")));
+
+	const TSharedRef<IPropertyHandle> CacheSettingsProperty = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMediaPlateComponent, CacheSettings));
+	if (const auto LookAheadTimeProperty = CacheSettingsProperty->GetChildHandle(TEXT("TimeToLookAhead")))
+	{
+		LookAheadTimeProperty->SetPropertyDisplayName(FText::FromString("Look Ahead Time"));
+	}
+
+	// Start from a Priority value which places these categories after the Transform one
+	uint32 Priority = 2010;
+	ControlCategory.SetSortOrder(Priority++);
+	GeometryCategory.SetSortOrder(Priority++);
+	PlaylistCategory.SetSortOrder(Priority++);
+	MediaDetailsCategory.SetSortOrder(Priority++);
+	MediaTextureCategory.SetSortOrder(Priority++);
+	MaterialsCategory.SetSortOrder(Priority++);
+	TilesMipsCategory.SetSortOrder(Priority++);
+	MediaCacheCategory.SetSortOrder(Priority);
+}
 #undef LOCTEXT_NAMESPACE
