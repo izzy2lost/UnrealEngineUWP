@@ -143,7 +143,7 @@ namespace Horde.Server.Ddc
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			IBlobHandle blobHandle;
+			IBlobRef blobRef;
 			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
 			{
 				int contentLength = (int)content.Length;
@@ -153,11 +153,11 @@ namespace Horde.Server.Ddc
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
 				writer.Advance(contentLength);
 
-				blobHandle = await writer.CompleteAsync(s_rawBlobType, cancellationToken);
+				blobRef = await writer.CompleteAsync(s_rawBlobType, cancellationToken);
 				await writer.FlushAsync(cancellationToken);
 			}
 
-			await storageClient.AddAliasAsync(GetAlias(identifier), blobHandle, data: identifier.Hash.ToByteArray(), cancellationToken: cancellationToken);
+			await storageClient.AddAliasAsync(GetAlias(identifier), blobRef, data: identifier.Hash.ToByteArray(), cancellationToken: cancellationToken);
 			return identifier;
 		}
 	}

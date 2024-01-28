@@ -4,6 +4,7 @@ using EpicGames.Core;
 using EpicGames.Serialization;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace EpicGames.Horde.Storage.Nodes
 {
@@ -26,65 +27,29 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Imported nodes
 		/// </summary>
-		public IReadOnlyList<IBlobHandle<object>> References { get; }
+		public IReadOnlyList<IBlobHandle> Imports { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="obj">The compact binary object</param>
-		/// <param name="references">List of references to attachments</param>
-		public CbNode(CbObject obj, IReadOnlyList<IBlobHandle<object>> references)
+		/// <param name="imports">List of imports for attachments</param>
+		public CbNode(CbObject obj, IReadOnlyList<IBlobHandle> imports)
 		{
 			Object = obj;
-			References = references;
+			Imports = imports;
 		}
 	}
 
 	class CbNodeConverter : BlobConverter<CbNode>
 	{
-		class HandleMapper
-		{
-			readonly IBlobReader _reader;
-			readonly List<IBlobHandle<object>> _refs;
-			int _refIdx;
-
-			public HandleMapper(IBlobReader reader, List<IBlobHandle<object>> refs)
-			{
-				_reader = reader;
-				_refs = refs;
-			}
-
-			public void IterateField(CbField field)
-			{
-				if (field.IsAttachment())
-				{
-					IBlobHandle handle = _reader.References[_refIdx++];
-					_refs.Add(handle.ForType<object>(field.AsAttachment()));
-				}
-				else if (field.IsArray())
-				{
-					CbArray array = field.AsArray();
-					array.IterateAttachments(IterateField);
-				}
-				else if (field.IsObject())
-				{
-					CbObject obj = field.AsObject();
-					obj.IterateAttachments(IterateField);
-				}
-			}
-		}
-
 		public static BlobType BlobType { get; } = new BlobType(CbNode.BlobTypeGuid, 1);
 
 		/// <inheritdoc/>
 		public override CbNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
 			CbObject obj = new CbObject(reader.GetMemory().ToArray());
-
-			List<IBlobHandle<object>> references = new List<IBlobHandle<object>>();
-			obj.IterateAttachments(new HandleMapper(reader, references).IterateField);
-
-			return new CbNode(obj, references);
+			return new CbNode(obj, reader.Imports.ToArray());
 		}
 
 		/// <inheritdoc/>

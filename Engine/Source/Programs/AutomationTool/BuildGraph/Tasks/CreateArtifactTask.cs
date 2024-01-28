@@ -125,7 +125,7 @@ namespace AutomationTool.Tasks
 					int totalCount = files.Count;
 					long totalSize = files.Sum(x => x.Length);
 
-					IBlobHandle<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new CopyStatsLogger(totalCount, totalSize, Logger));
+					IBlobRef<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new CopyStatsLogger(totalCount, totalSize, Logger));
 					await writer.FlushAsync();
 
 					await client.WriteRefAsync(response.RefName, outputNodeRef);

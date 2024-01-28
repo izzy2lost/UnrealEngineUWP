@@ -52,7 +52,7 @@ namespace Horde.Server.Tests
 
 		public async Task<ILogFile> FlushAsync(bool complete = true)
 		{
-			IBlobHandle<LogNode> handle = await _builder.FlushAsync(_blobWriter, complete, null, CancellationToken.None);
+			IBlobRef<LogNode> handle = await _builder.FlushAsync(_blobWriter, complete, CancellationToken.None);
 			await _storageClient.WriteRefAsync(_logFile.RefName, handle);
 			_logFile = await _logCollection.UpdateLineCountAsync(_logFile, _lineCount, complete, CancellationToken.None);
 			return _logFile;

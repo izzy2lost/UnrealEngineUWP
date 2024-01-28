@@ -338,7 +338,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		async ValueTask FlushLeafNodeAsync(CancellationToken cancellationToken)
 		{
 			int leafLength = _writer.WrittenMemory.Length;
-			IBlobHandle<LeafChunkedDataNode> leafHandle = await _writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
+			IBlobRef<LeafChunkedDataNode> leafHandle = await _writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
 			_leafHandles.Add(new ChunkedDataNodeRef(leafLength, leafHandle));
 			ResetLeafState();
 		}
@@ -358,7 +358,6 @@ namespace EpicGames.Horde.Storage.Nodes
 	{
 		readonly IBlobWriter _writer;
 		readonly ChunkingOptions _chunkingOptions;
-		readonly BlobSerializerOptions _blobSerializerOptions;
 		readonly LeafChunkedDataWriter _leafWriter;
 
 		/// <summary>
@@ -369,11 +368,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ChunkedDataWriter(IBlobWriter writer, ChunkingOptions chunkingOptions, BlobSerializerOptions blobSerializerOptions)
+		public ChunkedDataWriter(IBlobWriter writer, ChunkingOptions chunkingOptions)
 		{
 			_writer = writer;
 			_chunkingOptions = chunkingOptions;
-			_blobSerializerOptions = blobSerializerOptions;
 			_leafWriter = new LeafChunkedDataWriter(writer, chunkingOptions.LeafOptions);
 		}
 		
@@ -400,7 +398,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			Reset();
 			LeafChunkedData leafChunkedData = await _leafWriter.CreateAsync(fileInfo, cancellationToken);
-			return await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, _chunkingOptions.InteriorOptions, _writer, _blobSerializerOptions, cancellationToken);
+			return await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, _chunkingOptions.InteriorOptions, _writer, cancellationToken);
 		}
 
 		/// <summary>
@@ -433,7 +431,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public async Task<ChunkedData> CompleteAsync(CancellationToken cancellationToken = default)
 		{
 			LeafChunkedData leafChunkedData = await _leafWriter.CompleteAsync(cancellationToken);
-			return await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, _chunkingOptions.InteriorOptions, _writer, _blobSerializerOptions, cancellationToken);
+			return await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, _chunkingOptions.InteriorOptions, _writer, cancellationToken);
 		}
 
 		/// <summary>

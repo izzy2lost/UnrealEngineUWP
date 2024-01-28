@@ -518,12 +518,12 @@ namespace Horde.Agent.Execution
 
 					Stopwatch timer = Stopwatch.StartNew();
 
-					IBlobHandle<DirectoryNode> rootNodeRef;
+					IBlobRef<DirectoryNode> rootNodeRef;
 					await using (IBlobWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
 						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, treeWriter, cancellationToken: cancellationToken);
-						IBlobHandle<DirectoryNode> outputNodeRef = await treeWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
+						IBlobRef<DirectoryNode> outputNodeRef = await treeWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
 
 						DirectoryNode rootNode = new DirectoryNode();
 						rootNode.AddDirectory(new DirectoryEntry(BuildGraphTempStorageDir, buildGraphNode.Length, outputNodeRef));
@@ -848,7 +848,7 @@ namespace Horde.Agent.Execution
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
-				IBlobHandle<DirectoryNode> rootRef;
+				IBlobRef<DirectoryNode> rootRef;
 				await using (IBlobWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger))
 				{
 					try
@@ -1051,7 +1051,7 @@ namespace Horde.Agent.Execution
 				// Upload the data
 				Stopwatch timer = Stopwatch.StartNew();
 
-				IBlobHandle<DirectoryNode> outputNodeRef;
+				IBlobRef<DirectoryNode> outputNodeRef;
 				await using (IBlobWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 				{
 					DirectoryNode outputNode = new DirectoryNode();

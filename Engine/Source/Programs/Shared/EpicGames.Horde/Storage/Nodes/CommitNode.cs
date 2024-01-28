@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Reference to the parent commit
 		/// </summary>
-		public IBlobHandle<CommitNode>? Parent { get; set; }
+		public IBlobRef<CommitNode>? Parent { get; set; }
 
 		/// <summary>
 		/// Human readable name of the author of this change
@@ -65,12 +65,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Metadata for this commit, keyed by arbitrary GUID
 		/// </summary>
-		public Dictionary<Guid, IBlobHandle<object>> Metadata { get; } = new Dictionary<Guid, IBlobHandle<object>>();
+		public Dictionary<Guid, IBlobRef> Metadata { get; } = new Dictionary<Guid, IBlobRef>();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CommitNode(int number, IBlobHandle<CommitNode>? parent, string author, string? authorId, string? committer, string? commiterId, string message, DateTime time, DirectoryNodeRef contents, Dictionary<Guid, IBlobHandle<object>> metadata)
+		public CommitNode(int number, IBlobRef<CommitNode>? parent, string author, string? authorId, string? committer, string? commiterId, string message, DateTime time, DirectoryNodeRef contents, Dictionary<Guid, IBlobRef> metadata)
 		{
 			Number = number;
 			Parent = parent;
@@ -93,10 +93,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			int number = (int)reader.ReadUnsignedVarInt();
 
-			IBlobHandle<CommitNode>? parent;
+			IBlobRef<CommitNode>? parent;
 			if (reader.ReadBoolean())
 			{
-				parent = reader.ReadBlobHandle<CommitNode>();
+				parent = reader.ReadBlobRef<CommitNode>();
 			}
 			else
 			{
@@ -110,11 +110,11 @@ namespace EpicGames.Horde.Storage.Nodes
 			string message = reader.ReadString();
 			DateTime time = reader.ReadDateTime();
 
-			IBlobHandle<DirectoryNode> contentsNode = reader.ReadBlobHandle<DirectoryNode>();
+			IBlobRef<DirectoryNode> contentsNode = reader.ReadBlobRef<DirectoryNode>();
 			long length = (long)reader.ReadUnsignedVarInt();
 			DirectoryNodeRef contents = new DirectoryNodeRef(length, contentsNode);
 
-			Dictionary<Guid, IBlobHandle<object>> metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadBlobHandle<object>());
+			Dictionary<Guid, IBlobRef> metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadBlobRef());
 
 			return new CommitNode(number, parent, author, authorId, committer, committerId, message, time, contents, metadata);
 		}
@@ -126,7 +126,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteBoolean(value.Parent != null);
 			if (value.Parent != null)
 			{
-				writer.WriteBlobHandle(value.Parent);
+				writer.WriteBlobRef(value.Parent);
 			}
 			writer.WriteString(value.Author);
 			writer.WriteOptionalString(value.AuthorId);
@@ -135,10 +135,10 @@ namespace EpicGames.Horde.Storage.Nodes
 			writer.WriteString(value.Message);
 			writer.WriteDateTime(value.Time);
 
-			writer.WriteBlobHandle(value.Contents.Handle);
+			writer.WriteBlobRef(value.Contents.Handle);
 			writer.WriteUnsignedVarInt((ulong)value.Contents.Length);
 
-			writer.WriteDictionary(value.Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteBlobHandle(value));
+			writer.WriteDictionary(value.Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteBlobRef(value));
 
 			return s_blobType;
 		}

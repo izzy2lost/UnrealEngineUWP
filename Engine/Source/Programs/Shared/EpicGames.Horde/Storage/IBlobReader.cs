@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 
+#pragma warning disable CA1716 // Do not use 'Imports' as identifier
+
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
@@ -24,12 +26,17 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Locations of all referenced nodes. These handles do not have valid hashes.
 		/// </summary>
-		IReadOnlyList<IBlobHandle> References { get; }
+		IReadOnlyList<IBlobHandle> Imports { get; }
 
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		IBlobHandle<T> ReadBlobHandle<T>();
+		IBlobRef ReadBlobRef();
+
+		/// <summary>
+		/// Gets the next serialized blob handle
+		/// </summary>
+		IBlobRef<T> ReadBlobRef<T>();
 	}
 
 	/// <summary>
@@ -65,28 +72,40 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Locations of all referenced nodes.
 		/// </summary>
-		public IReadOnlyList<IBlobHandle> References => _blobData.Refs;
+		public IReadOnlyList<IBlobHandle> Imports => _blobData.Imports;
 
 		readonly BlobData _blobData;
-		int _refIdx;
+		readonly BlobSerializerOptions _options;
+		int _importIdx;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BlobReader(BlobData blobData)
+		public BlobReader(BlobData blobData, BlobSerializerOptions? options)
 			: base(blobData.Data)
 		{
 			_blobData = blobData;
+			_options = options ?? BlobSerializerOptions.Default;
 		}
 
 		/// <summary>
-		/// Gets the next serialized blob handle
+		/// Gets the next serialized blob reference
 		/// </summary>
-		public IBlobHandle<T> ReadBlobHandle<T>()
+		public IBlobRef ReadBlobRef()
 		{
-			IBlobHandle handle = References[_refIdx++];
+			IBlobHandle import = Imports[_importIdx++];
 			IoHash hash = this.ReadIoHash();
-			return handle.ForType<T>(hash);
+			return BlobRef.Create(hash, import);
+		}
+
+		/// <summary>
+		/// Gets the next serialized blob reference
+		/// </summary>
+		public IBlobRef<T> ReadBlobRef<T>()
+		{
+			IBlobHandle import = Imports[_importIdx++];
+			IoHash hash = this.ReadIoHash();
+			return BlobRef.Create<T>(hash, import, _options);
 		}
 	}
 }

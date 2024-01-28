@@ -165,25 +165,25 @@ namespace AutomationTool.Tasks
 			ToolId toolId = new ToolId(Parameters.Id);
 
 			using IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
-			await using (IBlobWriter treeWriter = storageClient.CreateBlobWriter())
+			await using (IBlobWriter blobWriter = storageClient.CreateBlobWriter(serializerOptions: serializerOptions))
 			{
 				DirectoryNode sandbox = new DirectoryNode();
 				if (Parameters.File != null)
 				{
 					using FileStream stream = FileReference.Open(ResolveFile(Parameters.File), FileMode.Open, FileAccess.Read);
-					await sandbox.CopyFromZipStreamAsync(stream, treeWriter, new ChunkingOptions(), serializerOptions);
+					await sandbox.CopyFromZipStreamAsync(stream, blobWriter, new ChunkingOptions());
 				}
 				else if (Parameters.Directory != null)
 				{
 					DirectoryInfo directoryInfo = ResolveDirectory(Parameters.Directory).ToDirectoryInfo();
-					await sandbox.AddFilesAsync(directoryInfo, treeWriter, serializerOptions: serializerOptions);
+					await sandbox.AddFilesAsync(directoryInfo, blobWriter);
 				}
 				else
 				{
 					throw new AutomationException("Either File=... or Directory=... must be specified");
 				}
-				handle = await treeWriter.WriteBlobAsync(sandbox, serializerOptions);
-				await treeWriter.FlushAsync();
+				handle = await blobWriter.WriteBlobAsync(sandbox);
+				await blobWriter.FlushAsync();
 			}
 
 			double? duration = null;

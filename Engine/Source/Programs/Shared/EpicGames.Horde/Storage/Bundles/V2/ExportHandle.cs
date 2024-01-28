@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// <summary>
 	/// Handle class for blobs exported from a bundle
 	/// </summary>
-	public class ExportHandle : IBlobHandle
+	public class ExportHandle : IBlobRef
 	{
 		static readonly Utf8String s_fragmentPrefix = new Utf8String("exp=");
 
@@ -26,14 +26,22 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		public int ExportIdx => _exportIdx;
 
+		readonly IoHash _hash;
 		readonly PacketHandle _packet;
 		readonly int _exportIdx;
+
+		/// <inheritdoc/>
+		public IBlobHandle Innermost => this;
+
+		/// <inheritdoc/>
+		public IoHash Hash => _hash;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ExportHandle(PacketHandle packet, int exportIdx)
+		public ExportHandle(IoHash hash, PacketHandle packet, int exportIdx)
 		{
+			_hash = hash;
 			_packet = packet;
 			_exportIdx = exportIdx;
 		}

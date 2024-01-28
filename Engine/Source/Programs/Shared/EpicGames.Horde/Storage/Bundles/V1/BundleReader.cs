@@ -546,7 +546,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 			Dictionary<BlobLocator, BundleHandle> locatorToBundleHandle = new Dictionary<BlobLocator, BundleHandle>();
 
-			List<IBlobHandle> refs = new List<IBlobHandle>(export.References.Count);
+			List<IBlobHandle> imports = new List<IBlobHandle>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
 			{
 				BlobLocator importBlob;
@@ -567,7 +567,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 				}
 
 				Debug.Assert(importBlob.IsValid());
-				refs.Add(new FlushedNodeHandle(this, importBlob, importBundle, reference.NodeIdx));
+				imports.Add(new FlushedNodeHandle(this, importBlob, importBundle, reference.NodeIdx));
 			}
 
 			ReadOnlyMemory<byte> nodeData = ReadOnlyMemory<byte>.Empty;
@@ -578,7 +578,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			BlobType nodeType = header.Types[export.TypeIdx];
-			return new BlobData(nodeType, nodeData, refs);
+			return new BlobData(nodeType, nodeData, imports);
 		}
 
 		/// <summary>

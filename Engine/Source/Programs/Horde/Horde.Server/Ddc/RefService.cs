@@ -78,15 +78,15 @@ namespace Horde.Server.Ddc
 				// TODO: We resolved all these blobs above... Need to just have GetReferencedBlobs just return the appropriate handles directly.
 				RefName refName = GetRefName(bucket, key);
 
-				IBlobHandle<DdcRefNode> refNodeRef;
+				IBlobRef<DdcRefNode> refNodeRef;
 				await using (IBlobWriter writer = storageClient.CreateBlobWriter(refName))
 				{
 					DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
-					refNode.References.Add((blobHash.Hash, blobHandle));
+					refNode.References.Add(BlobRef.Create(blobHash.Hash, blobHandle));
 					foreach (BlobId referencedBlob in referencedBlobs)
 					{
 						BlobAlias? alias = await storageClient.FindAliasAsync(BlobService.GetAlias(referencedBlob), cancellationToken);
-						refNode.References.Add((referencedBlob.Hash, alias!.Target));
+						refNode.References.Add(BlobRef.Create(referencedBlob.Hash, alias!.Target));
 					}
 					refNodeRef = await writer.WriteBlobAsync(refNode, cancellationToken: cancellationToken);
 				}
@@ -138,7 +138,7 @@ namespace Horde.Server.Ddc
 				throw new RefNotFoundException(ns, bucket, key);
 			}
 
-			BlobData data = await node.References.First(x => x.Hash == node.RootHash).Handle.ReadBlobDataAsync(cancellationToken);
+			BlobData data = await node.References.First(x => x.Hash == node.RootHash).ReadBlobDataAsync(cancellationToken);
 			BlobContents contents = new BlobContents(data.Data.ToArray());
 
 			RefRecord record = new RefRecord(ns, bucket, key, DateTime.UtcNow, null, new BlobId(node.RootHash), true);

@@ -88,7 +88,7 @@ namespace Horde.Commands.Bundles
 				List<FileInfo> fileInfos = files.ConvertAll(x => x.ToFileInfo());
 				CopyStatsLogger copyStatsLogger = new CopyStatsLogger(files.Count, fileInfos.Sum(x => x.Length), logger);
 
-				IBlobHandle<DirectoryNode> nodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), fileInfos, options, copyStatsLogger, CancellationToken.None);
+				IBlobRef<DirectoryNode> nodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), fileInfos, options, copyStatsLogger, CancellationToken.None);
 
 				await writer.FlushAsync();
 

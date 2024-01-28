@@ -102,14 +102,14 @@ namespace Horde.Agent.Tests
 
 		class FakeJsonRpcLoggerBackend : JsonRpcAndStorageLogSink
 		{
-			public IBlobHandle? Target { get; private set; }
+			public IBlobRef? Target { get; private set; }
 
 			public FakeJsonRpcLoggerBackend(IRpcConnection connection, string logId, string? jobId, string? batchId, string? stepId, IStorageClient store, ILogger logger)
 				: base(connection, logId, jobId, batchId, stepId, store, logger)
 			{
 			}
 
-			protected override Task UpdateLogAsync(IBlobHandle target, int lineCount, bool complete, CancellationToken cancellationToken)
+			protected override Task UpdateLogAsync(IBlobRef target, int lineCount, bool complete, CancellationToken cancellationToken)
 			{
 				Target = target;
 				return Task.CompletedTask;

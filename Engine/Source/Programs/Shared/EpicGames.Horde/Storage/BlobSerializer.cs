@@ -24,7 +24,7 @@ namespace EpicGames.Horde.Storage
 		public static T Deserialize<T>(BlobData blobData, BlobSerializerOptions? options = null)
 		{
 			options ??= BlobSerializerOptions.Default;
-			BlobReader reader = new BlobReader(blobData);
+			BlobReader reader = new BlobReader(blobData, options);
 			return options.GetConverter<T>().Read(reader, options);
 		}
 
@@ -135,12 +135,11 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <typeparam name="T">Return type for the deserialized object</typeparam>
 		/// <param name="handle">Handle to the blob to deserialize</param>
-		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobHandle<T> handle, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
+		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobRef<T> handle, CancellationToken cancellationToken = default)
 		{
 			BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
-			return BlobSerializer.Deserialize<T>(data, options);
+			return BlobSerializer.Deserialize<T>(data, handle.Options);
 		}
 
 		/// <summary>
@@ -150,22 +149,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="value">The object to serialize</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the serialized blob</returns>
-		public static ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, CancellationToken cancellationToken)
+		public static async ValueTask<IBlobRef<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, CancellationToken cancellationToken = default)
 		{
-			return WriteBlobAsync<T>(writer, value, null, cancellationToken);
-		}
-
-		/// <summary>
-		/// Serialize an object to storage
-		/// </summary>
-		/// <param name="writer">Writer for serialized data</param>
-		/// <param name="value">The object to serialize</param>
-		/// <param name="options">Options to control serialization</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Handle to the serialized blob</returns>
-		public static async ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
-		{
-			BlobType blobType = BlobSerializer.Serialize<T>(writer, value, options);
+			BlobType blobType = BlobSerializer.Serialize<T>(writer, value, writer.Options);
 			return await writer.CompleteAsync<T>(blobType, cancellationToken);
 		}
 

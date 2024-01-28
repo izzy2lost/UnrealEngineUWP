@@ -54,13 +54,13 @@ namespace Horde.Server.Tests
 		{
 			using (BlobData blobData = await store.CreateBlobHandle(locator).ReadBlobDataAsync())
 			{
-				BlobReader reader = new BlobReader(blobData);
+				BlobReader reader = new BlobReader(blobData, null);
 				ReadOnlyMemory<byte> data = reader.ReadVariableLengthBytes();
 
-				List<IBlobHandle> handles = new List<IBlobHandle>();
+				List<IBlobRef> handles = new List<IBlobRef>();
 				while (reader.RemainingMemory.Length > 0)
 				{
-					handles.Add(reader.ReadBlobHandle<object>());
+					handles.Add(reader.ReadBlobRef<object>());
 				}
 
 				List<BlobLocator> locators = handles.ConvertAll(x => x.GetLocator());
@@ -75,10 +75,10 @@ namespace Horde.Server.Tests
 
 			foreach (BlobLocator reference in blob.References)
 			{
-				writer.WriteBlobHandle(store.CreateBlobHandle(reference).ForType<object>(IoHash.Zero));
+				writer.WriteBlobRef(BlobRef.Create(IoHash.Zero, store.CreateBlobHandle(reference)));
 			}
 
-			IBlobHandle handle = await writer.CompleteAsync(s_blobType);
+			IBlobRef handle = await writer.CompleteAsync(s_blobType);
 			await handle.FlushAsync();
 
 			return handle.GetLocator();

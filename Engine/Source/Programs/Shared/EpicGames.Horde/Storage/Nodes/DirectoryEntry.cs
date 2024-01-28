@@ -8,7 +8,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// Entry for a directory within a directory node
 	/// </summary>
 	[DebuggerDisplay("{Name}")]
-	public record class DirectoryEntry(string Name, long Length, IBlobHandle<DirectoryNode> Handle) : DirectoryNodeRef(Length, Handle)
+	public record class DirectoryEntry(string Name, long Length, IBlobRef<DirectoryNode> Handle) : DirectoryNodeRef(Length, Handle)
 	{
 	}
 }

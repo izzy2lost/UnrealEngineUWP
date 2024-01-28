@@ -453,7 +453,7 @@ namespace Horde.Server.Storage
 				if (commitNode.Metadata.Count > 0)
 				{
 					metadata = new Dictionary<Guid, object>();
-					foreach ((Guid blobGuid, IBlobHandle<object> handle) in commitNode.Metadata)
+					foreach ((Guid blobGuid, IBlobRef handle) in commitNode.Metadata)
 					{
 						metadata.Add(blobGuid, GetNodeHandleLink(namespaceId, handle));
 					}
@@ -464,14 +464,14 @@ namespace Horde.Server.Storage
 			else if (blobData.Type.Guid == CbNode.BlobTypeGuid)
 			{
 				CbNode cbNode = BlobSerializer.Deserialize<CbNode>(blobData);
-				content = GetCbNodeObject(namespaceId, cbNode.Object.AsField(), cbNode.References.GetEnumerator()) ?? new object();
+				content = GetCbNodeObject(namespaceId, cbNode.Object.AsField(), cbNode.Imports.GetEnumerator()) ?? new object();
 			}
 			else
 			{
 				IEnumerable<string>? references = null;
-				if (blobData.Refs.Count > 0)
+				if (blobData.Imports.Count > 0)
 				{
-					references = blobData.Refs.Select(x => GetNodeLink(namespaceId, x));
+					references = blobData.Imports.Select(x => GetNodeLink(namespaceId, x));
 				}
 				content = new { length = blobData.Data.Length, references };
 			}
@@ -485,12 +485,12 @@ namespace Horde.Server.Storage
 			return new { type = typeName, guid = blobData.Type.Guid, data = $"{GetNodeLink(namespaceId, locator)}&data=true", content = content };
 		}
 
-		static object? GetCbNodeObject(NamespaceId namespaceId, CbField field, IEnumerator<IBlobHandle> references)
+		static object? GetCbNodeObject(NamespaceId namespaceId, CbField field, IEnumerator<IBlobHandle> imports)
 		{
 			if (field.IsAttachment())
 			{
-				object? link = GetNodeLink(namespaceId, references.Current);
-				references.MoveNext();
+				object? link = GetNodeLink(namespaceId, imports.Current);
+				imports.MoveNext();
 				return link;
 			}
 			else if (field.IsObject())
@@ -500,7 +500,7 @@ namespace Horde.Server.Storage
 				CbObject obj = field.AsObject();
 				foreach (CbField member in obj)
 				{
-					fields[member.Name.ToString()] = GetCbNodeObject(namespaceId, member, references);
+					fields[member.Name.ToString()] = GetCbNodeObject(namespaceId, member, imports);
 				}
 
 				return fields;
@@ -512,7 +512,7 @@ namespace Horde.Server.Storage
 				CbArray arr = field.AsArray();
 				foreach (CbField member in arr)
 				{
-					elements.Add(GetCbNodeObject(namespaceId, member, references));
+					elements.Add(GetCbNodeObject(namespaceId, member, imports));
 				}
 
 				return elements;
@@ -527,9 +527,7 @@ namespace Horde.Server.Storage
 		static object? GetNodeObject(NamespaceId namespaceId, DirectoryNodeRef? nodeRef) => (nodeRef == null) ? null : new { nodeRef.Length, nodeRef.Handle.Hash, link = GetNodeLink(namespaceId, nodeRef.Handle.GetLocator()) };
 
 		[return: NotNullIfNotNull("handle")]
-		static object? GetNodeHandleLink<T>(NamespaceId namespaceId, IBlobHandle<T>? handle) => (handle == null) ? null : GetNodeHandleLink(namespaceId, handle.Hash, handle);
-
-		static object GetNodeHandleLink(NamespaceId namespaceId, IoHash hash, IBlobHandle handle) => new { hash, link = GetNodeLink(namespaceId, handle.GetLocator()) };
+		static object? GetNodeHandleLink(NamespaceId namespaceId, IBlobRef? handle) => (handle == null)? null : new { handle.Hash, link = GetNodeLink(namespaceId, handle.GetLocator()) };
 
 		static string GetNodeLink(NamespaceId namespaceId, IBlobHandle handle) => GetNodeLink(namespaceId, handle.GetLocator());
 		

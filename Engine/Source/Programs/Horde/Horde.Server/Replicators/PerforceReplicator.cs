@@ -54,12 +54,12 @@ namespace Horde.Server.Replicators
 		{
 			public int Change { get; }
 			public int ParentChange { get; }
-			public IBlobHandle<CommitNode>? ParentHandle { get; }
+			public IBlobRef<CommitNode>? ParentHandle { get; }
 			public long CopiedSize { get; set; }
-			public IBlobHandle<DirectoryNode>? Contents { get; set; }
+			public IBlobRef<DirectoryNode>? Contents { get; set; }
 			public List<string> Paths { get; }
 
-			public StateNode(int number, int parentNumber, IBlobHandle<CommitNode>? parentHandle, long copiedSize, IBlobHandle<DirectoryNode>? contents, List<string>? paths = null)
+			public StateNode(int number, int parentNumber, IBlobRef<CommitNode>? parentHandle, long copiedSize, IBlobRef<DirectoryNode>? contents, List<string>? paths = null)
 			{
 				Change = number;
 				ParentChange = parentNumber;
@@ -79,10 +79,10 @@ namespace Horde.Server.Replicators
 				int change = (int)reader.ReadUnsignedVarInt();
 				int parentChange = (int)reader.ReadUnsignedVarInt();
 
-				IBlobHandle<CommitNode>? parentHandle = null;
+				IBlobRef<CommitNode>? parentHandle = null;
 				if (reader.ReadBoolean())
 				{
-					parentHandle = reader.ReadBlobHandle<CommitNode>();
+					parentHandle = reader.ReadBlobRef<CommitNode>();
 				}
 
 				long copiedSize = 0;
@@ -91,10 +91,10 @@ namespace Horde.Server.Replicators
 					copiedSize = (long)reader.ReadUnsignedVarInt();
 				}
 
-				IBlobHandle<DirectoryNode>? contents = null;
+				IBlobRef<DirectoryNode>? contents = null;
 				if (reader.ReadBoolean())
 				{
-					contents = reader.ReadBlobHandle<DirectoryNode>();
+					contents = reader.ReadBlobRef<DirectoryNode>();
 				}
 
 				List<string> paths = reader.ReadList(() => reader.ReadString());
@@ -110,7 +110,7 @@ namespace Horde.Server.Replicators
 				writer.WriteBoolean(value.ParentHandle != null);
 				if (value.ParentHandle != null)
 				{
-					writer.WriteBlobHandle(value.ParentHandle);
+					writer.WriteBlobRef(value.ParentHandle);
 				}
 
 				writer.WriteUnsignedVarInt((ulong)value.CopiedSize);
@@ -118,7 +118,7 @@ namespace Horde.Server.Replicators
 				writer.WriteBoolean(value.Contents != null);
 				if (value.Contents != null)
 				{
-					writer.WriteBlobHandle(value.Contents);
+					writer.WriteBlobRef(value.Contents);
 				}
 
 				writer.WriteList(value.Paths, x => writer.WriteString(x));
@@ -425,7 +425,7 @@ namespace Horde.Server.Replicators
 			}
 			else
 			{
-				stateNode = await store.TryReadRefAsync<StateNode>(incRefName, cancellationToken: cancellationToken);
+				stateNode = await store.TryReadRefAsync<StateNode>(incRefName, options: blobOptions, cancellationToken: cancellationToken);
 				if (stateNode != null)
 				{
 					if (stateNode.Change != change)
@@ -443,10 +443,10 @@ namespace Horde.Server.Replicators
 					RedirectNode<CommitNode>? lastCommit = await store.TryReadRefAsync<RedirectNode<CommitNode>>(refName, options: blobOptions, cancellationToken: cancellationToken);
 
 					CommitNode? parent = null;
-					IBlobHandle<CommitNode>? parentHandle = lastCommit?.Target;
+					IBlobRef<CommitNode>? parentHandle = lastCommit?.Target;
 					while (parentHandle != null)
 					{
-						CommitNode parentBlob = await parentHandle.ReadBlobAsync(blobOptions, cancellationToken);
+						CommitNode parentBlob = await parentHandle.ReadBlobAsync(cancellationToken);
 						if (parentBlob.Number < change)
 						{
 							parent = parentBlob;
@@ -669,7 +669,7 @@ namespace Horde.Server.Replicators
 						{
 							UnpackUnlinkPayload(io.Payload, out string path);
 							string file = GetClientRelativePath(path, clientInfo.Client.Root);
-							await root.DeleteFileByPathAsync(file, blobOptions, cancellationToken);
+							await root.DeleteFileByPathAsync(file, cancellationToken);
 						}
 						else
 						{
@@ -719,13 +719,13 @@ namespace Horde.Server.Replicators
 
 				await leafNodeWriter.FlushAsync(cancellationToken);
 
-				await rootUpdate.WriteInteriorNodesAsync(interiorChunkWriter, options.ChunkingOptions.InteriorOptions, blobOptions, cancellationToken);
+				await rootUpdate.WriteInteriorNodesAsync(interiorChunkWriter, options.ChunkingOptions.InteriorOptions, cancellationToken);
 				await interiorChunkWriter.FlushAsync(cancellationToken);
 
-				await root.UpdateAsync(rootUpdate, directoryWriter, blobOptions, cancellationToken);
-				stateNode.Contents = await directoryWriter.WriteBlobAsync(root, blobOptions, cancellationToken);
+				await root.UpdateAsync(rootUpdate, directoryWriter, cancellationToken);
+				stateNode.Contents = await directoryWriter.WriteBlobAsync(root, cancellationToken);
 
-				IBlobHandle<StateNode> stateNodeRef = await directoryWriter.WriteBlobAsync(stateNode, blobOptions, cancellationToken);
+				IBlobRef<StateNode> stateNodeRef = await directoryWriter.WriteBlobAsync(stateNode, cancellationToken);
 				await directoryWriter.FlushAsync(cancellationToken);
 
 				await store.WriteRefTargetAsync(incRefName, stateNodeRef, cancellationToken: cancellationToken);
@@ -747,11 +747,11 @@ namespace Horde.Server.Replicators
 			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, stateNode.Contents!);
 
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
-			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobHandle<object>>());
-			IBlobHandle<CommitNode> commitNodeRef = await commitWriter.WriteBlobAsync(commitNode, blobOptions, cancellationToken);
+			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobRef>());
+			IBlobRef<CommitNode> commitNodeRef = await commitWriter.WriteBlobAsync(commitNode, cancellationToken);
 
 			RedirectNode<CommitNode> redirectNode = new RedirectNode<CommitNode>(commitNodeRef);
-			IBlobHandle<RedirectNode<CommitNode>> redirectNodeRef = await commitWriter.WriteBlobAsync(redirectNode, blobOptions, cancellationToken);
+			IBlobRef<RedirectNode<CommitNode>> redirectNodeRef = await commitWriter.WriteBlobAsync(redirectNode, cancellationToken);
 
 			await commitWriter.FlushAsync(cancellationToken);
 			await store.WriteRefTargetAsync(refName, redirectNodeRef, options.RefOptions, cancellationToken: cancellationToken);

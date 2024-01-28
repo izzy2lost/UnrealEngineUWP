@@ -20,16 +20,16 @@ namespace EpicGames.Horde.Storage
 		{
 			readonly int _maxKeys;
 			readonly Queue<BlobKey> _blobKeys = new Queue<BlobKey>();
-			readonly Dictionary<BlobKey, IBlobHandle> _blobKeyToHandle = new Dictionary<BlobKey, IBlobHandle>();
+			readonly Dictionary<BlobKey, IBlobRef> _blobKeyToHandle = new Dictionary<BlobKey, IBlobRef>();
 
 			public DedupeCache(int maxKeys)
 			{
 				_maxKeys = maxKeys;
 				_blobKeys = new Queue<BlobKey>(maxKeys);
-				_blobKeyToHandle = new Dictionary<BlobKey, IBlobHandle>(maxKeys);
+				_blobKeyToHandle = new Dictionary<BlobKey, IBlobRef>(maxKeys);
 			}
 
-			internal void Add(BlobKey key, IBlobHandle handle)
+			internal void Add(BlobKey key, IBlobRef handle)
 			{
 				BlobKey? prevKey;
 				if (_blobKeys.Count == _maxKeys && _blobKeys.TryDequeue(out prevKey))
@@ -39,13 +39,21 @@ namespace EpicGames.Horde.Storage
 				_blobKeyToHandle.TryAdd(key, handle);
 			}
 
-			internal bool TryGetValue(BlobKey key, [NotNullWhen(true)] out IBlobHandle? handle) => _blobKeyToHandle.TryGetValue(key, out handle);
+			internal bool TryGetValue(BlobKey key, [NotNullWhen(true)] out IBlobRef? handle) => _blobKeyToHandle.TryGetValue(key, out handle);
 		}
 
-		class WrappedHandle : IBlobHandle
+		class WrappedHandle : IBlobRef
 		{
 			public object _lockObject = new object();
-			public IBlobHandle? _inner;
+			public IBlobRef? _inner;
+
+			/// <inheritdoc/>
+			public IBlobHandle Innermost
+				=> _inner!.Innermost;
+
+			/// <inheritdoc/>
+			public IoHash Hash 
+				=> _inner!.Hash;
 
 			/// <inheritdoc/>
 			public bool TryGetLocator(out BlobLocator locator)
@@ -80,12 +88,14 @@ namespace EpicGames.Horde.Storage
 		/// <param name="inner"></param>
 		/// <param name="maxKeys"></param>
 		public DedupeStorageWriter(IBlobWriter inner, int maxKeys = DefaultMaxKeys)
+			: base(inner.Options)
 		{
 			_inner = (BlobWriter)inner;
 			_cache = new DedupeCache(maxKeys);
 		}
 
 		private DedupeStorageWriter(IBlobWriter inner, DedupeCache cache)
+			: base(inner.Options)
 		{
 			_inner = (BlobWriter)inner;
 			_cache = cache;
@@ -104,7 +114,7 @@ namespace EpicGames.Horde.Storage
 		public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize) => _inner.GetOutputBuffer(usedSize, desiredSize);
 
 		/// <inheritdoc/>
-		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			ReadOnlyMemory<byte> data = _inner.GetOutputBuffer(size, size).Slice(0, size);
 			IoHash hash = IoHash.Compute(data.Span);
@@ -113,7 +123,7 @@ namespace EpicGames.Horde.Storage
 			WrappedHandle? wrappedHandle;
 			lock (_cache)
 			{
-				IBlobHandle? handle;
+				IBlobRef? handle;
 				if (_cache.TryGetValue(key, out handle))
 				{
 					return handle;
@@ -123,7 +133,7 @@ namespace EpicGames.Horde.Storage
 				_cache.Add(key, wrappedHandle);
 			}
 
-			wrappedHandle._inner = await _inner.WriteBlobAsync(type, size, references.ConvertAll(x => ((WrappedHandle)x.Unwrap())._inner!), aliases, cancellationToken);
+			wrappedHandle._inner = await _inner.WriteBlobAsync(type, size, imports.ConvertAll(x => x.Innermost), aliases, cancellationToken);
 			return wrappedHandle;
 		}
 	}

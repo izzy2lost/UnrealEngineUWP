@@ -114,7 +114,7 @@ namespace RemoteClient
 
 				await using (IBlobWriter writer = storage.CreateBlobWriter())
 				{
-					IBlobHandle<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
+					IBlobRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
 					await writer.FlushAsync();
 					await channel.UploadFilesAsync("", sandbox.GetLocator(), storage.Backend);
 				}

@@ -17,6 +17,8 @@ namespace EpicGames.Horde.Tests
 		{
 			readonly BlobLocator _locator;
 
+			public IBlobHandle Innermost => this;
+
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
@@ -46,12 +48,12 @@ namespace EpicGames.Horde.Tests
 
 			Assert.AreEqual(blobData.Type.Guid, packet.Type.Guid);
 			Assert.AreEqual(blobData.Type.Version, packet.Type.Version);
-			Assert.AreEqual(blobData.Refs.Count, packet.Refs.Count);
+			Assert.AreEqual(blobData.Imports.Count, packet.Imports.Count);
 
-			for (int idx = 0; idx < packet.Refs.Count; idx++)
+			for (int idx = 0; idx < packet.Imports.Count; idx++)
 			{
-				string locator = blobData.Refs[idx].GetLocator().ToString();
-				string encoded = packet.Refs[idx].ToString();
+				string locator = blobData.Imports[idx].GetLocator().ToString();
+				string encoded = packet.Imports[idx].ToString();
 				Assert.AreEqual(locator, encoded);
 			}
 		}
