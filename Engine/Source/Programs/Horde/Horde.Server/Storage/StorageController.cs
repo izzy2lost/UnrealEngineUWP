@@ -249,7 +249,7 @@ namespace Horde.Server.Storage
 			}
 #pragma warning restore CS0618 // Type or member is obsolete
 
-			await backend.WriteRefAsync(refName, request.Target, request.Options, cancellationToken);
+			await backend.WriteRefAsync(refName, new BlobRefValue(request.Hash, request.Target), request.Options, cancellationToken);
 			return Ok();
 		}
 

@@ -31,7 +31,7 @@ namespace Horde.Commands.Vcs
 
 			List<CommitNode> commits = new List<CommitNode>();
 
-			CommitNode? tip = await store.TryReadRefAsync<CommitNode>(workspaceState.Branch);
+			CommitNode? tip = await store.TryReadRefTargetAsync<CommitNode>(workspaceState.Branch);
 			if (tip != null)
 			{
 				for (int idx = 0; idx < Count; idx++)

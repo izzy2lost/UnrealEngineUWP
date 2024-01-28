@@ -37,8 +37,8 @@ namespace Horde.Server.Tests
 				int blobIdx = (int)(random.NextDouble() * blobs.Length);
 				if (roots.Add(blobs[blobIdx]))
 				{
-					IBlobHandle handle = blobs[blobIdx];
-					await store.WriteRefTargetAsync(new RefName($"ref-{idx}"), handle);
+					IBlobRef handle = blobs[blobIdx];
+					await store.WriteRefAsync(new RefName($"ref-{idx}"), handle);
 				}
 			}
 

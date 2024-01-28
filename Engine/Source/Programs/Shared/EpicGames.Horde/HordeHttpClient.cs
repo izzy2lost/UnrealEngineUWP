@@ -330,11 +330,11 @@ namespace EpicGames.Horde
 		/// <param name="version">Version string for the new deployment</param>
 		/// <param name="duration">Duration over which to deploy the tool</param>
 		/// <param name="createPaused">Whether to create the deployment, but do not start rolling it out yet</param>
-		/// <param name="node">Location of a directory node describing the deployment</param>
+		/// <param name="target">Location of a directory node describing the deployment</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, BlobLocator node, CancellationToken cancellationToken = default)
+		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, BlobRefValue target, CancellationToken cancellationToken = default)
 		{
-			CreateToolDeploymentRequest request = new CreateToolDeploymentRequest(version ?? String.Empty, duration, createPaused, node);
+			CreateToolDeploymentRequest request = new CreateToolDeploymentRequest(version ?? String.Empty, duration, createPaused, target);
 			CreateToolDeploymentResponse response = await PostAsync<CreateToolDeploymentResponse, CreateToolDeploymentRequest>(_httpClient, $"api/v2/tools/{id}/deployments", request, cancellationToken);
 			return response.Id;
 		}

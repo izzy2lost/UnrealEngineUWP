@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Storage.Backends
 		record class AliasListNode(BlobLocator Locator, int Rank, ReadOnlyMemory<byte> Data, AliasListNode? Next);
 
 		readonly ConcurrentDictionary<BlobLocator, ReadOnlyMemory<byte>> _blobs = new ConcurrentDictionary<BlobLocator, ReadOnlyMemory<byte>>();
-		readonly ConcurrentDictionary<RefName, BlobLocator> _refs = new ConcurrentDictionary<RefName, BlobLocator>();
+		readonly ConcurrentDictionary<RefName, BlobRefValue> _refs = new ConcurrentDictionary<RefName, BlobRefValue>();
 		readonly ConcurrentDictionary<string, AliasListNode?> _aliases = new ConcurrentDictionary<string, AliasListNode?>(StringComparer.Ordinal);
 
 		/// <summary>
@@ -29,7 +29,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Accessor for all refs stored by the client
 		/// </summary>
-		public IReadOnlyDictionary<RefName, BlobLocator> Refs => _refs;
+		public IReadOnlyDictionary<RefName, BlobRefValue> Refs => _refs;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -167,23 +167,23 @@ namespace EpicGames.Horde.Storage.Backends
 		public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
 
 		/// <inheritdoc/>
-		public Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator locator;
-			if (_refs.TryGetValue(name, out locator))
+			BlobRefValue? value;
+			if (_refs.TryGetValue(name, out value))
 			{
-				return Task.FromResult<BlobLocator?>(locator);
+				return Task.FromResult<BlobRefValue?>(value);
 			}
 			else
 			{
-				return Task.FromResult<BlobLocator?>(null);
+				return Task.FromResult<BlobRefValue?>(null);
 			}
 		}
 
 		/// <inheritdoc/>
-		public Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			_refs[name] = locator;
+			_refs[name] = value;
 			return Task.CompletedTask;
 		}
 

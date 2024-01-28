@@ -252,22 +252,18 @@ namespace Horde.Server.Tools
 		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, Stream stream, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
-			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
 
 			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
 
 			IBlobRef<DirectoryNode> nodeRef;
-			await using (IBlobWriter writer = client.CreateBlobWriter(refName))
+			await using (IBlobWriter writer = client.CreateBlobWriter($"{tool.Id}/{deploymentId}"))
 			{
 				DirectoryNode directoryNode = new DirectoryNode();
 				await directoryNode.CopyFromZipStreamAsync(stream, writer, new ChunkingOptions(), cancellationToken: cancellationToken);
 				nodeRef = await writer.WriteBlobAsync(directoryNode, cancellationToken: cancellationToken);
 			}
 
-			IBlobRef target = nodeRef;
-			await client.WriteRefTargetAsync(refName, target, cancellationToken: cancellationToken);
-
-			return await CreateDeploymentAsync(tool, options, target.GetLocator(), globalConfig, cancellationToken);
+			return await CreateDeploymentInternalAsync(tool, deploymentId, options, client, nodeRef, globalConfig, cancellationToken);
 		}
 
 		/// <summary>
@@ -279,29 +275,27 @@ namespace Horde.Server.Tools
 		/// <param name="globalConfig">The current configuration</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated tool document, or null if it does not exist</returns>
-		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobLocator target, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		public async Task<ITool?> CreateDeploymentAsync(ITool tool, ToolDeploymentConfig options, BlobRefValue target, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			NamespaceId namespaceId = tool.Config.NamespaceId;
-			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
-
-			using IStorageClient client = _storageService.CreateClient(namespaceId);
-			IBlobHandle targetHandle = client.CreateBlobHandle(target);
-			await client.WriteRefTargetAsync(refName, targetHandle, cancellationToken: cancellationToken);
-
-			return await CreateDeploymentInternalAsync(tool, deploymentId, options, namespaceId, refName, globalConfig, cancellationToken);
+			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
+			return await CreateDeploymentInternalAsync(tool, deploymentId, options, client, client.CreateBlobRef(target), globalConfig, cancellationToken);
 		}
 
-		async Task<ITool?> CreateDeploymentInternalAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentConfig options, NamespaceId namespaceId, RefName refName, GlobalConfig globalConfig, CancellationToken cancellationToken)
+		async Task<ITool?> CreateDeploymentInternalAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageClient storageClient, IBlobRef content, GlobalConfig globalConfig, CancellationToken cancellationToken)
 		{
 			if (tool.Config is BundledToolConfig)
 			{
 				throw new InvalidOperationException("Cannot update the state of bundled tools.");
 			}
 
+			// Write a ref for the deployment so the blobs aren't GC'd
+			RefName refName = new RefName($"{tool.Id}/{deploymentId}");
+			await storageClient.WriteRefAsync(refName, content, cancellationToken: cancellationToken);
+
 			// Create the new deployment object
-			ToolDeployment deployment = new ToolDeployment(deploymentId, options, namespaceId, refName);
+			ToolDeployment deployment = new ToolDeployment(deploymentId, options, tool.Config.NamespaceId, refName);
 
 			// Start the deployment
 			DateTime utcNow = _clock.UtcNow;
@@ -462,7 +456,7 @@ namespace Horde.Server.Tools
 			IStorageClient client = CreateStorageClient(tool);
 			try
 			{
-				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+				DirectoryNode node = await client.ReadRefTargetAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 				return node.AsZipStream().WrapOwnership(client);
 			}
 			catch

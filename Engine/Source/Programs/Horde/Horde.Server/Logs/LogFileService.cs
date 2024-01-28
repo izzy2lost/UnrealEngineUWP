@@ -576,7 +576,7 @@ namespace Horde.Server.Logs
 				int maxIndex = index + count;
 				bool complete = logFile.Complete;
 
-				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
+				LogNode? root = await storageClient.TryReadRefTargetAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root != null)
 				{
 					int chunkIdx = root.TextChunkRefs.GetChunkForLine(index);
@@ -755,7 +755,7 @@ namespace Horde.Server.Logs
 			{
 				using IStorageClient storageClient = _storageService.CreateClient(logFile.NamespaceId);
 
-				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
+				LogNode? root = await storageClient.TryReadRefTargetAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root == null || root.TextChunkRefs.Count == 0)
 				{
 					return new MemoryStream(Array.Empty<byte>(), false);
@@ -899,7 +899,7 @@ namespace Horde.Server.Logs
 			{
 				using IStorageClient storageClient = _storageService.CreateClient(logFile.NamespaceId);
 
-				LogNode? root = await storageClient.TryReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
+				LogNode? root = await storageClient.TryReadRefTargetAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if (root == null)
 				{
 					return (0, 0);
@@ -1103,7 +1103,7 @@ namespace Horde.Server.Logs
 			// Search the index
 			if (logFile.LineCount > 0)
 			{
-				LogNode? root = await storageClient.ReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
+				LogNode? root = await storageClient.ReadRefTargetAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if(root != null)
 				{
 					LogIndexNode index = await root.IndexRef.ReadBlobAsync(cancellationToken: cancellationToken);

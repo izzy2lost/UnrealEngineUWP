@@ -176,7 +176,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions options)
+		public IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? options)
 		{
 			return BlobRef.Create<T>(hash, CreateBlobHandle(locator), options);
 		}
@@ -244,21 +244,21 @@ namespace EpicGames.Horde.Storage.Bundles
 			=> _backend.DeleteRefAsync(name, cancellationToken);
 
 		/// <inheritdoc/>
-		public async Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<IBlobRef?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobLocator? target = await _backend.TryReadRefAsync(name, cacheTime, cancellationToken);
+			BlobRefValue? target = await _backend.TryReadRefAsync(name, cacheTime, cancellationToken);
 			if (target == null)
 			{
 				return null;
 			}
-			return CreateBlobHandle(target.Value);
+			return CreateBlobRef(target.Hash, target.Locator);
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, IBlobRef target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
-			await _backend.WriteRefAsync(name, target.GetLocator(), options, cancellationToken);
+			await _backend.WriteRefAsync(name, new BlobRefValue(target.Hash, target.GetLocator()), options, cancellationToken);
 		}
 
 		#endregion

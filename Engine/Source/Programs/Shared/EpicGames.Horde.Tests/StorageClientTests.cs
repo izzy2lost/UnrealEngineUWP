@@ -82,7 +82,7 @@ namespace EpicGames.Horde.Tests
 			}
 			await store.WriteRefAsync("hello", nodeRef);
 
-			TestNode output = await store.ReadRefAsync<TestNode>("hello");
+			TestNode output = await store.ReadRefTargetAsync<TestNode>("hello");
 			Assert.AreEqual(123, output.Value);
 		}
 
@@ -101,7 +101,7 @@ namespace EpicGames.Horde.Tests
 			}
 			await store.WriteRefAsync("hello", nodeRef2);
 
-			TestNode output2 = await store.ReadRefAsync<TestNode>("hello");
+			TestNode output2 = await store.ReadRefTargetAsync<TestNode>("hello");
 			Assert.AreEqual(456, output2.Value);
 			Assert.AreEqual(1, output2.Refs.Length);
 

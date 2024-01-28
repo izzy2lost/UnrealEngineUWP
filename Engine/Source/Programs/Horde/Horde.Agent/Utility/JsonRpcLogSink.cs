@@ -211,7 +211,8 @@ namespace Horde.Agent.Utility
 			UpdateLogRequest request = new UpdateLogRequest();
 			request.LogId = _logId;
 			request.LineCount = lineCount;
-			request.Target = target.GetLocator().ToString();
+			request.TargetHash = target.Hash.ToString();
+			request.TargetLocator = target.GetLocator().ToString();
 			request.Complete = complete;
 			await _connection.InvokeAsync((LogRpcClient client) => client.UpdateLogAsync(request, cancellationToken: cancellationToken), cancellationToken);
 		}

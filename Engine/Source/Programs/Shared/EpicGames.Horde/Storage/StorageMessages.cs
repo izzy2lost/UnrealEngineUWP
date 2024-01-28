@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using EpicGames.Core;
 
 #pragma warning disable CA2227 // Collection properties should be read only
 
@@ -84,6 +85,11 @@ namespace EpicGames.Horde.Storage
 	public class WriteRefRequest
 	{
 		/// <summary>
+		/// Hash of the target blob
+		/// </summary>
+		public IoHash Hash { get; set; }
+
+		/// <summary>
 		/// Path to the target blob
 		/// </summary>
 		public BlobLocator Target { get; set; }
@@ -116,6 +122,11 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public class ReadRefResponse
 	{
+		/// <summary>
+		/// Hash of the target node
+		/// </summary>
+		public IoHash Hash { get; set; }
+
 		/// <summary>
 		/// The target blob
 		/// </summary>

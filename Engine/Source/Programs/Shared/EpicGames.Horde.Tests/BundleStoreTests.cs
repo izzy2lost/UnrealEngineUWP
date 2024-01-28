@@ -166,7 +166,7 @@ namespace EpicGames.Horde.Tests
 				IBlobRef<SimpleNode> rootRef = await writer.WriteBlobAsync(root);
 				await writer.FlushAsync();
 
-				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
+				await store.WriteRefAsync(new RefName("test"), rootRef);
 			
 				BundleReader reader = new BundleReader(store, BundleCache.None, NullLogger.Instance);
 				await CheckTreeAsync(root);
@@ -174,7 +174,7 @@ namespace EpicGames.Horde.Tests
 
 			// Check we can read it back in
 			{
-				SimpleNode root = await store.ReadRefAsync<SimpleNode>(new RefName("test"));
+				SimpleNode root = await store.ReadRefTargetAsync<SimpleNode>(new RefName("test"));
 				await CheckTreeAsync(root);
 			}
 		}
@@ -226,7 +226,7 @@ namespace EpicGames.Horde.Tests
 			}
 			await store.WriteRefAsync(refName, inputRef);
 
-			SimpleNode node = await store.ReadRefAsync<SimpleNode>(refName);
+			SimpleNode node = await store.ReadRefTargetAsync<SimpleNode>(refName);
 
 			Assert.AreEqual(123, node.Data.FirstSpan[0]);
 		}
@@ -253,13 +253,13 @@ namespace EpicGames.Horde.Tests
 
 					await writer.FlushAsync();
 
-					await store.WriteRefTargetAsync(new RefName("test"), rootRef);
+					await store.WriteRefAsync(new RefName("test"), rootRef);
 				}
 			}
 
 			// Check we can read it back in
 			{
-				DirectoryNode root = await store.ReadRefAsync<DirectoryNode>(new RefName("test"));
+				DirectoryNode root = await store.ReadRefTargetAsync<DirectoryNode>(new RefName("test"));
 				await CheckDirectoryTreeAsync(root);
 			}
 		}
@@ -298,14 +298,14 @@ namespace EpicGames.Horde.Tests
 				await root.UpdateAsync(fileUpdates, writer);
 
 				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
-				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
+				await store.WriteRefAsync(new RefName("test"), rootRef);
 
 				await CheckFileTreeAsync(root);
 			}
 
 			// Check we can read it back in
 			{
-				DirectoryNode root = await store.ReadRefAsync<DirectoryNode>(new RefName("test"));
+				DirectoryNode root = await store.ReadRefTargetAsync<DirectoryNode>(new RefName("test"));
 				await CheckFileTreeAsync(root);
 			}
 		}
@@ -397,14 +397,14 @@ namespace EpicGames.Horde.Tests
 				root.AddFile("test", FileEntryFlags.None, fileWriter.Length, chunkedData);
 
 				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
-				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
+				await store.WriteRefAsync(new RefName("test"), rootRef);
 
 				await CheckLargeFileTreeAsync(root, data);
 			}
 
 			// Check we can read it back in
 			{
-				DirectoryNode newRoot = await store.ReadRefAsync<DirectoryNode>(new RefName("test"));
+				DirectoryNode newRoot = await store.ReadRefTargetAsync<DirectoryNode>(new RefName("test"));
 				await CompareTreesAsync(root, newRoot);
 				await CheckLargeFileTreeAsync(root, data);
 

@@ -46,7 +46,7 @@ namespace Horde.Commands
 				target = await writer.WriteFilesAsync(InputDir);
 			}
 
-			ToolDeploymentId deploymentId = await _hordeHttpClient.CreateToolDeploymentAsync(ToolId, Version, null, null, target.GetLocator());
+			ToolDeploymentId deploymentId = await _hordeHttpClient.CreateToolDeploymentAsync(ToolId, Version, null, null, target.GetRefValue());
 			logger.LogInformation("Created deployment {DeploymentId}", deploymentId);
 
 			return 0;

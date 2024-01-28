@@ -530,7 +530,7 @@ namespace Horde.Agent.Execution
 
 						rootNodeRef = await treeWriter.WriteBlobAsync(rootNode, cancellationToken);
 					}
-					await storage.WriteRefTargetAsync(artifact.RefName, rootNodeRef, new RefOptions(), cancellationToken);
+					await storage.WriteRefAsync(artifact.RefName, rootNodeRef, new RefOptions(), cancellationToken);
 
 					logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 				}
@@ -768,7 +768,7 @@ namespace Horde.Agent.Execution
 
 					using IStorageClient storage = CreateStorageClient(namespaceId, artifact.Token);
 
-					DirectoryNode node = await storage.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
+					DirectoryNode node = await storage.ReadRefTargetAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 					DirectoryNode? buildGraphDir = await node.TryOpenDirectoryAsync(BuildGraphTempStorageDir, cancellationToken: cancellationToken);
 					if (buildGraphDir != null)
 					{
@@ -863,7 +863,7 @@ namespace Horde.Agent.Execution
 						throw;
 					}
 				}
-				await storage.WriteRefTargetAsync(new RefName(artifact.RefName), rootRef, cancellationToken: cancellationToken);
+				await storage.WriteRefAsync(new RefName(artifact.RefName), rootRef, cancellationToken: cancellationToken);
 
 				Logger.LogInformation("Uploaded artifact {ArtifactId}", artifact.Id);
 			}
@@ -1092,7 +1092,7 @@ namespace Horde.Agent.Execution
 				}
 
 				// Write the final node
-				await storage.WriteRefTargetAsync(artifact.RefName, outputNodeRef, new RefOptions(), cancellationToken: cancellationToken);
+				await storage.WriteRefAsync(artifact.RefName, outputNodeRef, new RefOptions(), cancellationToken: cancellationToken);
 				logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 			}
 

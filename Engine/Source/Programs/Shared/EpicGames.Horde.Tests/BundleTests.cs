@@ -211,7 +211,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			RefName refName = new RefName("testref");
-			await store.WriteRefTargetAsync(refName, rootRef);
+			await store.WriteRefAsync(refName, rootRef);
 
 			// Should be stored inline
 			Assert.AreEqual(1, _memoryStore.Refs.Count);
@@ -228,7 +228,7 @@ namespace EpicGames.Horde.Tests
 //			Assert.AreEqual(3, bundleHeader.Exports.Count);
 
 			// Create a new bundle and read it back in again
-			DirectoryNode newRoot = await store.ReadRefAsync<DirectoryNode>(refName);
+			DirectoryNode newRoot = await store.ReadRefTargetAsync<DirectoryNode>(refName);
 
 			Assert.AreEqual(0, newRoot.Files.Count);
 			Assert.AreEqual(1, newRoot.Directories.Count);
@@ -265,7 +265,7 @@ namespace EpicGames.Horde.Tests
 
 				RefName refName = new RefName("ref");
 				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
-				await _storage.WriteRefTargetAsync(refName, rootRef);
+				await _storage.WriteRefAsync(refName, rootRef);
 			}
 
 			Assert.AreEqual(1, _memoryStore.Refs.Count);
@@ -290,7 +290,7 @@ namespace EpicGames.Horde.Tests
 						next.AddDirectory(new DirectoryEntry($"node{idx}", 0, rootRef));
 						rootRef = await writer.WriteBlobAsync(next);
 					}
-					await _storage.WriteRefTargetAsync(refName, rootRef);
+					await _storage.WriteRefAsync(refName, rootRef);
 				}
 
 				Assert.AreEqual(1, _memoryStore.Refs.Count);
@@ -298,7 +298,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			{
-				DirectoryNode root = await _storage.ReadRefAsync<DirectoryNode>(refName);
+				DirectoryNode root = await _storage.ReadRefTargetAsync<DirectoryNode>(refName);
 
 				DirectoryNode? newNode1 = await root.TryOpenDirectoryAsync("node1");
 				Assert.IsNotNull(newNode1);

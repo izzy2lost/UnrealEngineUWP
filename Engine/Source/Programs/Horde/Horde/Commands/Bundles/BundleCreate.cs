@@ -100,7 +100,7 @@ namespace Horde.Commands.Bundles
 				else
 				{
 					logger.LogInformation("Writing ref {Ref}", Ref);
-					await store.WriteRefTargetAsync(new RefName(Ref!), nodeRef);
+					await store.WriteRefAsync(new RefName(Ref!), nodeRef);
 				}
 			}
 
