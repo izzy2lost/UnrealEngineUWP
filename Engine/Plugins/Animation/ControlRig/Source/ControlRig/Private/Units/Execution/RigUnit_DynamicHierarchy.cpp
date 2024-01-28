@@ -514,6 +514,7 @@ void FRigUnit_HierarchyAddControlInteger_Settings::ConfigureFrom(const FRigContr
 	FRigUnit_HierarchyAddControl_Settings::ConfigureFrom(InControlElement, InSettings);
 
 	PrimaryAxis = InSettings.PrimaryAxis;
+	ControlEnum = InSettings.ControlEnum;
 
 	Proxy.ConfigureFrom(InControlElement, InSettings);
 	Limits.ConfigureFrom(InControlElement, InSettings);
@@ -526,6 +527,7 @@ void FRigUnit_HierarchyAddControlInteger_Settings::Configure(FRigControlSettings
 	
 	OutSettings.ControlType = ERigControlType::Integer;
 	OutSettings.PrimaryAxis = PrimaryAxis;
+	OutSettings.ControlEnum = ControlEnum;
 
 	Proxy.Configure(OutSettings);
 	Limits.Configure(OutSettings);
@@ -1048,6 +1050,7 @@ FRigUnit_HierarchyAddAnimationChannelInteger_Execute()
 		ControlSettings.MinimumValue = FRigControlValue::Make<int32>(MinimumValue);
 		ControlSettings.MaximumValue = FRigControlValue::Make<int32>(MaximumValue);
 		ControlSettings.DisplayName = Controller->GetHierarchy()->GetSafeNewDisplayName(Parent, Name);
+		ControlSettings.ControlEnum = ControlEnum;
 		const FRigControlValue Value = FRigControlValue::Make<int32>(InitialValue);
 		
 		FRigHierarchyControllerInstructionBracket InstructionBracket(Controller, ExecuteContext.GetInstructionIndex());

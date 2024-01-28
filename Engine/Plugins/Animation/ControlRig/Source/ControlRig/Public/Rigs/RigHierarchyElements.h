@@ -1191,7 +1191,7 @@ struct CONTROLRIG_API FRigControlSettings
 	UPROPERTY(BlueprintReadWrite, Category = Control)
 	bool bIsTransientControl;
 
-	/** If the control is 4transient and only visible in the control rig editor */
+	/** If the control is integer it can use this enum to choose values */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Control)
 	TObjectPtr<UEnum> ControlEnum;
 
