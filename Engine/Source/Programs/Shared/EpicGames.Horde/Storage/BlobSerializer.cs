@@ -234,7 +234,7 @@ namespace EpicGames.Horde.Storage
 		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobRef<T> handle, CancellationToken cancellationToken = default)
 		{
 			BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
-			return BlobSerializer.Deserialize<T>(data, handle.Options);
+			return BlobSerializer.Deserialize<T>(data, handle.SerializerOptions);
 		}
 
 		/// <summary>
@@ -259,16 +259,14 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Node for the given ref, or null if it does not exist</returns>
-		public static async Task<TNode?> TryReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		public static async Task<IBlobRef<TNode>?> TryReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
 		{
-			IBlobHandle? refTarget = await store.TryReadRefTargetAsync(name, cacheTime, cancellationToken);
+			IBlobRef? refTarget = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			if (refTarget == null)
 			{
 				return null;
 			}
-
-			using BlobData blobData = await refTarget.ReadBlobDataAsync(cancellationToken);
-			return BlobSerializer.Deserialize<TNode>(blobData, options);
+			return BlobRef.Create<TNode>(refTarget.Hash, refTarget, options ?? BlobSerializerOptions.Default);
 		}
 
 		/// <summary>
@@ -280,14 +278,48 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The blob instance</returns>
-		public static async Task<TNode> ReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		public static async Task<IBlobRef<TNode>> ReadRefAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
 		{
-			TNode? refValue = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
+			IBlobRef<TNode>? refValue = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
 			if (refValue == null)
 			{
 				throw new RefNameNotFoundException(name);
 			}
 			return refValue;
+		}
+
+		/// <summary>
+		/// Reads data for a ref from the store, along with the node's contents.
+		/// </summary>
+		/// <param name="store">Store instance to write to</param>
+		/// <param name="name">The ref name</param>
+		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
+		/// <param name="options">Options to control serialization</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Node for the given ref, or null if it does not exist</returns>
+		public static async Task<TNode?> TryReadRefTargetAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		{
+			IBlobRef<TNode>? refTarget = await store.TryReadRefAsync<TNode>(name, cacheTime, options, cancellationToken);
+			if (refTarget == null)
+			{
+				return null;
+			}
+			return await refTarget.ReadBlobAsync(cancellationToken);
+		}
+
+		/// <summary>
+		/// Reads a ref from the store, throwing an exception if it does not exist
+		/// </summary>
+		/// <param name="store">Store instance to write to</param>
+		/// <param name="name">Id for the ref</param>
+		/// <param name="cacheTime">Minimum coherency of any cached result</param>
+		/// <param name="options">Options to control serialization</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>The blob instance</returns>
+		public static async Task<TNode> ReadRefTargetAsync<TNode>(this IStorageClient store, RefName name, DateTime cacheTime = default, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) where TNode : class
+		{
+			IBlobRef<TNode> blobRef = await ReadRefAsync<TNode>(store, name, cacheTime, options, cancellationToken);
+			return await blobRef.ReadBlobAsync(cancellationToken);
 		}
 	}
 }

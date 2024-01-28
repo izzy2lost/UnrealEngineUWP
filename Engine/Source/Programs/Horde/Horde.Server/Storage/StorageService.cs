@@ -140,12 +140,19 @@ namespace Horde.Server.Storage
 			#region Refs
 
 			/// <inheritdoc/>
-			public async Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken)
-				=> (await _outer.TryReadRefAsync(NamespaceId, name, cacheTime, cancellationToken))?.Target;
+			public async Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken)
+			{
+				RefInfo? refInfo = await _outer.TryReadRefAsync(NamespaceId, name, cacheTime, cancellationToken);
+				if (refInfo == null)
+				{
+					return null;
+				}
+				return new BlobRefValue(refInfo.Hash, refInfo.Target);
+			}
 
 			/// <inheritdoc/>
-			public Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
-				=> _outer.WriteRefAsync(NamespaceId, name, locator, options, cancellationToken);
+			public Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+				=> _outer.WriteRefAsync(NamespaceId, name, value, options, cancellationToken);
 
 			/// <inheritdoc/>
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) 
@@ -266,6 +273,9 @@ namespace Horde.Server.Storage
 			[BsonElement("name")]
 			public RefName Name { get; set; }
 
+			[BsonElement("hash")]
+			public IoHash Hash { get; set; }
+
 			[BsonElement("tgt")]
 			public BlobLocator Target { get; set; }
 
@@ -289,10 +299,11 @@ namespace Horde.Server.Storage
 				Name = RefName.Empty;
 			}
 
-			public RefInfo(NamespaceId namespaceId, RefName name, BlobLocator target, ObjectId targetBlobId)
+			public RefInfo(NamespaceId namespaceId, RefName name, IoHash hash, BlobLocator target, ObjectId targetBlobId)
 			{
 				NamespaceId = namespaceId;
 				Name = name;
+				Hash = hash;
 				Target = target;
 				TargetBlobId = targetBlobId;
 			}
@@ -818,9 +829,9 @@ namespace Horde.Server.Storage
 		}
 
 		/// <inheritdoc/>
-		async Task WriteRefAsync(NamespaceId namespaceId, RefName name, BlobLocator target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		async Task WriteRefAsync(NamespaceId namespaceId, RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			string path = target.BaseLocator.ToString();
+			string path = value.Locator.BaseLocator.ToString();
 
 			BlobInfo? newBlobInfo = await _blobCollection.Find(x => x.NamespaceId == namespaceId && x.Path == path).FirstOrDefaultAsync(cancellationToken);
 			if (newBlobInfo == null)
@@ -828,7 +839,7 @@ namespace Horde.Server.Storage
 				throw new Exception($"Invalid/unknown blob identifier '{path}' in namespace {namespaceId}");
 			}
 
-			RefInfo newRefInfo = new RefInfo(namespaceId, name, target, newBlobInfo.Id);
+			RefInfo newRefInfo = new RefInfo(namespaceId, name, value.Hash, value.Locator, newBlobInfo.Id);
 
 			if (options != null && options.Lifetime.HasValue)
 			{

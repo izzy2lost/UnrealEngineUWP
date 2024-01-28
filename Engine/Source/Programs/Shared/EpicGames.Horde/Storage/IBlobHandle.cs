@@ -57,7 +57,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Options for deserializing the blob
 		/// </summary>
-		BlobSerializerOptions Options { get; }
+		BlobSerializerOptions SerializerOptions { get; }
 	}
 
 	/// <summary>
@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Storage
 		{
 			readonly BlobSerializerOptions _options;
 
-			public BlobSerializerOptions Options => _options;
+			public BlobSerializerOptions SerializerOptions => _options;
 
 			public BlobRefImpl(IoHash hash, IBlobHandle handle, BlobSerializerOptions options)
 				: base(hash, handle)
@@ -119,9 +119,14 @@ namespace EpicGames.Horde.Storage
 		/// <param name="handle">Imported blob interface</param>
 		/// <param name="options">Options for deserializing the target blob</param>
 		/// <returns>Handle to the blob</returns>
-		public static IBlobRef<T> Create<T>(IoHash hash, IBlobHandle handle, BlobSerializerOptions options)
-			=> new BlobRefImpl<T>(hash, handle, options);
+		public static IBlobRef<T> Create<T>(IoHash hash, IBlobHandle handle, BlobSerializerOptions? options)
+			=> new BlobRefImpl<T>(hash, handle, options ?? BlobSerializerOptions.Default);
 	}
+
+	/// <summary>
+	/// Contains the value for a blob ref
+	/// </summary>
+	public record class BlobRefValue(IoHash Hash, BlobLocator Locator);
 
 	/// <summary>
 	/// Extension methods for <see cref="IBlobHandle"/>
@@ -140,6 +145,14 @@ namespace EpicGames.Horde.Storage
 				throw new InvalidOperationException("Blob has not yet been written to storage");
 			}
 			return locator;
+		}
+
+		/// <summary>
+		/// Gets a BlobRefValue from an IBlobRef
+		/// </summary>
+		public static BlobRefValue GetRefValue(this IBlobRef blobRef)
+		{
+			return new BlobRefValue(blobRef.Hash, blobRef.GetLocator());
 		}
 	}
 }

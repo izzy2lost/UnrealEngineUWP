@@ -67,8 +67,8 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode directory = new DirectoryNode();
 				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
 
-				IBlobHandle handle = await writer.WriteBlobAsync(directory);
-				await store.WriteRefTargetAsync(RefName, handle);
+				IBlobRef handle = await writer.WriteBlobAsync(directory);
+				await store.WriteRefAsync(RefName, handle);
 			}
 		}
 

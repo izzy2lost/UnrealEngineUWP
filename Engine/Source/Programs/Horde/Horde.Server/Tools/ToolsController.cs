@@ -118,7 +118,7 @@ namespace Horde.Server.Tools
 
 			ToolDeploymentConfig options = new ToolDeploymentConfig { Version = request.Version, Duration = TimeSpan.FromMinutes(request.Duration ?? 0.0), CreatePaused = request.CreatePaused ?? false };
 
-			tool = await _toolCollection.CreateDeploymentAsync(tool, options, request.Node, _globalConfig.Value, cancellationToken);
+			tool = await _toolCollection.CreateDeploymentAsync(tool, options, request.Content, _globalConfig.Value, cancellationToken);
 			if (tool == null)
 			{
 				return NotFound(id);
@@ -330,7 +330,7 @@ namespace Horde.Server.Tools
 			IStorageClient client = _toolCollection.CreateStorageClient(tool);
 			try
 			{
-				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+				DirectoryNode node = await client.ReadRefTargetAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 
 				if (node.Directories.Count == 0 && node.Files.Count == 1 && action != GetToolAction.Zip)
 				{
@@ -363,7 +363,7 @@ namespace Horde.Server.Tools
 		private async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
 			using IStorageClient client = _toolCollection.CreateStorageClient(tool);
-			IBlobHandle rootHandle = await client.ReadRefTargetAsync(deployment.RefName, cancellationToken: cancellationToken);
+			IBlobHandle rootHandle = await client.ReadRefAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment.Id, deployment.Version, deployment.State, deployment.Progress, deployment.StartedAt, deployment.Duration, deployment.RefName, rootHandle.GetLocator());
 		}

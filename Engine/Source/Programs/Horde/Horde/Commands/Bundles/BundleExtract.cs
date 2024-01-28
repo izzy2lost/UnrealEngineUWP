@@ -62,7 +62,7 @@ namespace Horde.Commands.Bundles
 			else if (Ref != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				IBlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
+				IBlobHandle handle = await store.ReadRefAsync(new RefName(Ref));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)

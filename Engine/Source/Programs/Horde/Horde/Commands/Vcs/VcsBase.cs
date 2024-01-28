@@ -343,7 +343,7 @@ namespace Horde.Commands.Vcs
 
 		protected static async Task<CommitNode?> GetCommitAsync(IStorageClient storageClient, RefName branchName, int change = 0)
 		{
-			CommitNode tip = await storageClient.ReadRefAsync<CommitNode>(branchName);
+			CommitNode tip = await storageClient.ReadRefTargetAsync<CommitNode>(branchName);
 			if (change != 0)
 			{
 				while (tip.Number != change)

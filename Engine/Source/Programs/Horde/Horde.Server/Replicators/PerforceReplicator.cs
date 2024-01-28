@@ -425,7 +425,7 @@ namespace Horde.Server.Replicators
 			}
 			else
 			{
-				stateNode = await store.TryReadRefAsync<StateNode>(incRefName, options: blobOptions, cancellationToken: cancellationToken);
+				stateNode = await store.TryReadRefTargetAsync<StateNode>(incRefName, options: blobOptions, cancellationToken: cancellationToken);
 				if (stateNode != null)
 				{
 					if (stateNode.Change != change)
@@ -440,7 +440,7 @@ namespace Horde.Server.Replicators
 				}
 				if (stateNode == null)
 				{
-					RedirectNode<CommitNode>? lastCommit = await store.TryReadRefAsync<RedirectNode<CommitNode>>(refName, options: blobOptions, cancellationToken: cancellationToken);
+					RedirectNode<CommitNode>? lastCommit = await store.TryReadRefTargetAsync<RedirectNode<CommitNode>>(refName, options: blobOptions, cancellationToken: cancellationToken);
 
 					CommitNode? parent = null;
 					IBlobRef<CommitNode>? parentHandle = lastCommit?.Target;
@@ -728,7 +728,7 @@ namespace Horde.Server.Replicators
 				IBlobRef<StateNode> stateNodeRef = await directoryWriter.WriteBlobAsync(stateNode, cancellationToken);
 				await directoryWriter.FlushAsync(cancellationToken);
 
-				await store.WriteRefTargetAsync(incRefName, stateNodeRef, cancellationToken: cancellationToken);
+				await store.WriteRefAsync(incRefName, stateNodeRef, cancellationToken: cancellationToken);
 				rootUpdate.Clear();
 
 				if (replicator.Clean || !String.IsNullOrEmpty(replicator.CurrentError))
@@ -754,7 +754,7 @@ namespace Horde.Server.Replicators
 			IBlobRef<RedirectNode<CommitNode>> redirectNodeRef = await commitWriter.WriteBlobAsync(redirectNode, cancellationToken);
 
 			await commitWriter.FlushAsync(cancellationToken);
-			await store.WriteRefTargetAsync(refName, redirectNodeRef, options.RefOptions, cancellationToken: cancellationToken);
+			await store.WriteRefAsync(refName, redirectNodeRef, options.RefOptions, cancellationToken: cancellationToken);
 
 			// Update the replicator state
 			UpdateReplicatorOptions completeUpdateOptions = new UpdateReplicatorOptions 

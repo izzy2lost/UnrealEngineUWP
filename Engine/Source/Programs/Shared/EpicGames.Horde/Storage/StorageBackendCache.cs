@@ -151,11 +151,11 @@ namespace EpicGames.Horde.Storage
 
 			#region Refs
 
-			public Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+			public Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 				=> _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
 
-			public Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
-				=> _inner.WriteRefAsync(name, locator, options, cancellationToken);
+			public Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+				=> _inner.WriteRefAsync(name, value, options, cancellationToken);
 
 			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
 				=> _inner.DeleteRefAsync(name, cancellationToken);

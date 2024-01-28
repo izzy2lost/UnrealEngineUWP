@@ -34,8 +34,7 @@ namespace Horde.Server.Ddc
 		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
-			IBlobHandle? handle = await storageClient.TryReadRefTargetAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
-			return handle != null;
+			return await storageClient.RefExistsAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
 		}
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
@@ -91,7 +90,7 @@ namespace Horde.Server.Ddc
 					refNodeRef = await writer.WriteBlobAsync(refNode, cancellationToken: cancellationToken);
 				}
 
-				await storageClient.WriteRefTargetAsync(refName, refNodeRef, cancellationToken: cancellationToken);
+				await storageClient.WriteRefAsync(refName, refNodeRef, cancellationToken: cancellationToken);
 			}
 
 			return (missingReferences, missingBlobs);
@@ -132,7 +131,7 @@ namespace Horde.Server.Ddc
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);
@@ -149,7 +148,7 @@ namespace Horde.Server.Ddc
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			DdcRefNode? node = await storageClient.TryReadRefAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
+			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
 			{
 				throw new RefNotFoundException(ns, bucket, key);

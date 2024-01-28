@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using System.Threading;
 using System;
 using EpicGames.Horde.Logs;
+using EpicGames.Core;
 
 namespace Horde.Server.Logs
 {
@@ -52,8 +53,17 @@ namespace Horde.Server.Logs
 			}
 
 			using IStorageClient store = _storageService.CreateClient(Namespace.Logs);
-			_logger.LogInformation("Updating {LogId} to node {RefTarget} (lines: {LineCount}, complete: {Complete})", request.LogId, request.Target, request.LineCount, request.Complete);
-			await store.WriteRefTargetAsync(new RefName(request.LogId), store.CreateBlobHandle(new BlobLocator(request.Target)));
+
+			_logger.LogInformation("Updating {LogId} to node {RefTarget} (lines: {LineCount}, complete: {Complete})", request.LogId, request.TargetLocator, request.LineCount, request.Complete);
+
+			IoHash hash;
+			if (!IoHash.TryParse(request.TargetHash, out hash))
+			{
+				hash = IoHash.Zero;
+			}
+
+			IBlobRef target = store.CreateBlobRef(hash, new BlobLocator(request.TargetLocator));
+			await store.WriteRefAsync(new RefName(request.LogId), target);
 
 			await _logFileCollection.UpdateLineCountAsync(logFile, request.LineCount, request.Complete, CancellationToken.None);
 

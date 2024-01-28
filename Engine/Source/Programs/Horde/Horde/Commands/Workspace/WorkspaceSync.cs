@@ -58,7 +58,7 @@ namespace Horde.Commands.Workspace
 			else if (Ref != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				IBlobHandle handle = await store.ReadRefTargetAsync(new RefName(Ref));
+				IBlobHandle handle = await store.ReadRefAsync(new RefName(Ref));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
