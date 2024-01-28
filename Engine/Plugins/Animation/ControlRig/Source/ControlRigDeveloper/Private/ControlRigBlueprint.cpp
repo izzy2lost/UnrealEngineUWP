@@ -2432,7 +2432,16 @@ void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InN
 		case ERigHierarchyNotification::ElementRenamed:
 		{
 			Modify();
-			Influences.OnKeyRenamed(FRigElementKey(InHierarchy->GetPreviousName(InElement->GetKey()), InElement->GetType()), InElement->GetKey());
+			const FRigElementKey OldKey(InHierarchy->GetPreviousName(InElement->GetKey()), InElement->GetType());
+			Influences.OnKeyRenamed(OldKey, InElement->GetKey());
+			if (IsControlRigModule() && InElement->IsTypeOf(ERigElementType::Connector))
+			{
+				if (FRigElementKey* Target = ConnectionMap.Find(OldKey))
+				{
+					ConnectionMap.FindOrAdd(InElement->GetKey(), *Target);
+					ConnectionMap.Remove(OldKey);
+				}
+			}
 			PropagateHierarchyFromBPToInstances();
 			break;
 		}
