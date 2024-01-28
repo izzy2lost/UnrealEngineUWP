@@ -160,7 +160,7 @@ namespace AutomationTool.Tasks
 
 			BlobSerializerOptions serializerOptions = BlobSerializerOptions.Create(infoResponse.ApiVersion);
 
-			IBlobHandle handle;
+			IBlobRef handle;
 
 			ToolId toolId = new ToolId(Parameters.Id);
 
@@ -198,7 +198,7 @@ namespace AutomationTool.Tasks
 				createPaused = true;
 			}
 
-			BlobLocator locator = handle.GetLocator();
+			BlobRefValue locator = handle.GetRefValue();
 			ToolDeploymentId deploymentId = await hordeHttpClient.CreateToolDeploymentAsync(toolId, Parameters.Version, duration, createPaused, locator);
 			Logger.LogInformation("Created {ToolId} deployment {DeploymentId}", toolId, deploymentId);
 		}
