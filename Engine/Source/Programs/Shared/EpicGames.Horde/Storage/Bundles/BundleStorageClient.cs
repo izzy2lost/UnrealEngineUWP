@@ -170,26 +170,38 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public IBlobWriter CreateBlobWriter(string? basePath = null, BundleOptions? options = null)
+		public IBlobRef CreateBlobRef(IoHash hash, BlobLocator locator)
 		{
-			options ??= BundleOptions.Default;
+			return BlobRef.Create(hash, CreateBlobHandle(locator));
+		}
 
-			if (options.MaxVersion == BundleVersion.LatestV1)
+		/// <inheritdoc/>
+		public IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions options)
+		{
+			return BlobRef.Create<T>(hash, CreateBlobHandle(locator), options);
+		}
+
+		/// <inheritdoc/>
+		public IBlobWriter CreateBlobWriter(string? basePath = null, BundleOptions? bundleOptions = null, BlobSerializerOptions? serializerOptions = null)
+		{
+			bundleOptions ??= BundleOptions.Default;
+
+			if (bundleOptions.MaxVersion == BundleVersion.LatestV1)
 			{
-				return new Bundles.V1.BundleWriter(this, _bundleReader, basePath, options);
+				return new Bundles.V1.BundleWriter(this, _bundleReader, basePath, bundleOptions);
 			}
-			else if(options.MaxVersion == BundleVersion.LatestV2)
+			else if(bundleOptions.MaxVersion == BundleVersion.LatestV2)
 			{
-				return new Bundles.V2.BundleWriter(this, basePath, _cache, options);
+				return new Bundles.V2.BundleWriter(this, basePath, _cache, bundleOptions, serializerOptions);
 			}
 			else
 			{
-				throw new InvalidOperationException($"Unsupported bundle version: {(int)options.MaxVersion}");
+				throw new InvalidOperationException($"Unsupported bundle version: {(int)bundleOptions.MaxVersion}");
 			}
 		}
 
 		/// <inheritdoc/>
-		IBlobWriter IStorageClient.CreateBlobWriter(string? basePath) => CreateBlobWriter(basePath);
+		IBlobWriter IStorageClient.CreateBlobWriter(string? basePath, BlobSerializerOptions? options) => CreateBlobWriter(basePath, serializerOptions: options);
 
 		#endregion
 

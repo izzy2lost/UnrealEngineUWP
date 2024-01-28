@@ -62,10 +62,10 @@ namespace EpicGames.Horde.Tests
 		{
 			MemoryStorageBackend memoryStore = new MemoryStorageBackend();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
-			await using IBlobWriter writer = store.CreateBlobWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
+			await using IBlobWriter writer = store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
-			IBlobHandle<TextNode> handle = await writer.WriteBlobAsync(node);
+			IBlobRef<TextNode> handle = await writer.WriteBlobAsync(node);
 			await writer.FlushAsync();
 
 			IReadOnlyMemoryOwner<byte> owner = await memoryStore.ReadBlobAsync(handle.GetLocator().BaseLocator, 0, null);
@@ -125,9 +125,9 @@ namespace EpicGames.Horde.Tests
 			public static BlobType BlobType { get; } = new BlobType("{F63606D4-4061-5DBB-446F-55A69F22654F}", 1);
 
 			public ReadOnlySequence<byte> Data { get; }
-			public IReadOnlyList<IBlobHandle<SimpleNode>> Refs { get; }
+			public IReadOnlyList<IBlobRef<SimpleNode>> Refs { get; }
 
-			public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<IBlobHandle<SimpleNode>> refs)
+			public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<IBlobRef<SimpleNode>> refs)
 			{
 				Data = data;
 				Refs = refs;
@@ -139,14 +139,14 @@ namespace EpicGames.Horde.Tests
 			public override SimpleNode Read(IBlobReader reader, BlobSerializerOptions options)
 			{
 				ReadOnlyMemory<byte> data = reader.ReadVariableLengthBytes();
-				IReadOnlyList<IBlobHandle<SimpleNode>> refs = reader.ReadVariableLengthArray(() => reader.ReadBlobHandle<SimpleNode>());
+				IReadOnlyList<IBlobRef<SimpleNode>> refs = reader.ReadVariableLengthArray(() => reader.ReadBlobRef<SimpleNode>());
 				return new SimpleNode(new ReadOnlySequence<byte>(data), refs);
 			}
 
 			public override BlobType Write(IBlobWriter writer, SimpleNode value, BlobSerializerOptions options)
 			{
 				writer.WriteVariableLengthBytes(value.Data);
-				writer.WriteVariableLengthArray(value.Refs, x => writer.WriteBlobHandle(x));
+				writer.WriteVariableLengthArray(value.Refs, x => writer.WriteBlobRef(x));
 				return SimpleNode.BlobType;
 			}
 		}
@@ -157,13 +157,13 @@ namespace EpicGames.Horde.Tests
 			{
 				await using IBlobWriter writer = store.CreateBlobWriter("test", options);
 
-				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<IBlobHandle<SimpleNode>>());
+				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<IBlobRef<SimpleNode>>());
 				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteBlobAsync(node1) });
 				SimpleNode node3 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 3 }), new[] { await writer.WriteBlobAsync(node2) });
-				SimpleNode node4 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 4 }), Array.Empty<IBlobHandle<SimpleNode>>());
+				SimpleNode node4 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 4 }), Array.Empty<IBlobRef<SimpleNode>>());
 
 				SimpleNode root = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 5 }), new[] { await writer.WriteBlobAsync(node4), await writer.WriteBlobAsync(node3) });
-				IBlobHandle<SimpleNode> rootRef = await writer.WriteBlobAsync(root);
+				IBlobRef<SimpleNode> rootRef = await writer.WriteBlobAsync(root);
 				await writer.FlushAsync();
 
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
@@ -184,31 +184,31 @@ namespace EpicGames.Horde.Tests
 			SimpleNode node5 = root;
 			byte[] data5 = node5.Data.ToArray();
 			Assert.IsTrue(data5.SequenceEqual(new byte[] { 5 }));
-			IReadOnlyList<IBlobHandle<SimpleNode>> refs5 = node5.Refs;
+			IReadOnlyList<IBlobRef<SimpleNode>> refs5 = node5.Refs;
 			Assert.AreEqual(2, refs5.Count);
 
 			SimpleNode node4 = await refs5[0].ReadBlobAsync();
 			byte[] data4 = node4.Data.ToArray();
 			Assert.IsTrue(data4.SequenceEqual(new byte[] { 4 }));
-			IReadOnlyList<IBlobHandle<SimpleNode>> refs4 = node4.Refs;
+			IReadOnlyList<IBlobRef<SimpleNode>> refs4 = node4.Refs;
 			Assert.AreEqual(0, refs4.Count);
 
 			SimpleNode node3 = await refs5[1].ReadBlobAsync();
 			byte[] data3 = node3.Data.ToArray();
 			Assert.IsTrue(data3.SequenceEqual(new byte[] { 3 }));
-			IReadOnlyList<IBlobHandle<SimpleNode>> refs3 = node3.Refs;
+			IReadOnlyList<IBlobRef<SimpleNode>> refs3 = node3.Refs;
 			Assert.AreEqual(1, refs3.Count);
 
 			SimpleNode node2 = await refs3[0].ReadBlobAsync();
 			byte[] data2 = node2.Data.ToArray();
 			Assert.IsTrue(data2.SequenceEqual(new byte[] { 2 }));
-			IReadOnlyList<IBlobHandle<SimpleNode>> refs2 = node2.Refs;
+			IReadOnlyList<IBlobRef<SimpleNode>> refs2 = node2.Refs;
 			Assert.AreEqual(1, refs2.Count);
 
 			SimpleNode node1 = await refs2[0].ReadBlobAsync();
 			byte[] data1 = node1.Data.ToArray();
 			Assert.IsTrue(data1.SequenceEqual(new byte[] { 1 }));
-			IReadOnlyList<IBlobHandle<SimpleNode>> refs1 = node1.Refs;
+			IReadOnlyList<IBlobRef<SimpleNode>> refs1 = node1.Refs;
 			Assert.AreEqual(0, refs1.Count);
 		}
 
@@ -219,10 +219,10 @@ namespace EpicGames.Horde.Tests
 
 			RefName refName = new RefName("test");
 
-			IBlobHandle<SimpleNode> inputRef;
+			IBlobRef<SimpleNode> inputRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter(refName))
 			{
-				inputRef = await writer.WriteBlobAsync(new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<IBlobHandle<SimpleNode>>()));
+				inputRef = await writer.WriteBlobAsync(new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<IBlobRef<SimpleNode>>()));
 			}
 			await store.WriteRefAsync(refName, inputRef);
 
@@ -241,15 +241,15 @@ namespace EpicGames.Horde.Tests
 				await using (IBlobWriter writer = store.CreateBlobWriter(new RefName("test")))
 				{
 					DirectoryNode world = new DirectoryNode();
-					IBlobHandle<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
+					IBlobRef<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
 
 					DirectoryNode hello = new DirectoryNode();
 					hello.AddDirectory(new DirectoryEntry("world", 0, worldRef));
-					IBlobHandle<DirectoryNode> helloRef = await writer.WriteBlobAsync(hello);
+					IBlobRef<DirectoryNode> helloRef = await writer.WriteBlobAsync(hello);
 
 					DirectoryNode root = new DirectoryNode(DirectoryFlags.None);
 					root.AddDirectory(new DirectoryEntry("hello", 0, helloRef));
-					IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
+					IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 
 					await writer.FlushAsync();
 
@@ -288,7 +288,7 @@ namespace EpicGames.Horde.Tests
 			{
 				await using IBlobWriter writer = store.CreateBlobWriter();
 
-				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, new ChunkingOptions(), BlobSerializerOptions.Default);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, new ChunkingOptions());
 				ChunkedData fileHandle = await fileWriter.CreateAsync(Encoding.UTF8.GetBytes("world"), CancellationToken.None);
 
 				List<FileUpdate> fileUpdates = new List<FileUpdate>();
@@ -297,7 +297,7 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode root = new DirectoryNode();
 				await root.UpdateAsync(fileUpdates, writer);
 
-				IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
+				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 
 				await CheckFileTreeAsync(root);
@@ -339,12 +339,12 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			ChunkedDataNodeRef nodeRef;
 			{
-				await using IBlobWriter writer = store.CreateBlobWriter(options: new BundleOptions { MaxBlobSize = 1024 });
+				await using IBlobWriter writer = store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxBlobSize = 1024 });
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
 
-				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
 				for (int idx = 0; idx < chunk.Length / 16; idx++)
 				{
 					await fileWriter.AppendAsync(chunk.AsMemory(idx * 16, 16), CancellationToken.None);
@@ -385,18 +385,18 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			DirectoryNode root;
 			{
-				await using DedupeStorageWriter writer = new DedupeStorageWriter(store.CreateBlobWriter(options: new BundleOptions { MaxBlobSize = 1024 }));
+				await using DedupeStorageWriter writer = new DedupeStorageWriter(store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxBlobSize = 1024 }));
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
 
-				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
 				ChunkedData chunkedData = await fileWriter.CreateAsync(data, CancellationToken.None);
 
 				root = new DirectoryNode(DirectoryFlags.None);
 				root.AddFile("test", FileEntryFlags.None, fileWriter.Length, chunkedData);
 
-				IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
+				IBlobRef<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 
 				await CheckLargeFileTreeAsync(root, data);
@@ -423,9 +423,9 @@ namespace EpicGames.Horde.Tests
 			using BlobData data = await handle.ReadBlobDataAsync();
 			locatorToSize[handle.GetLocator()] = data.Data.Length;
 
-			foreach (IBlobHandle reference in data.Refs)
+			foreach (IBlobHandle import in data.Imports)
 			{
-				await GetUniqueBlobsAsync(reference, locatorToSize);
+				await GetUniqueBlobsAsync(import, locatorToSize);
 			}
 		}
 

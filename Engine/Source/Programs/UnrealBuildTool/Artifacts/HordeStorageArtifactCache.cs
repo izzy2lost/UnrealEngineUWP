@@ -31,7 +31,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Collection of output file references.  There should be exactly the same number
 		/// of file references as outputs in the action
 		/// </summary>
-		public readonly IBlobHandle<ChunkedDataNode>[] OutputRefs;
+		public readonly IBlobRef<ChunkedDataNode>[] OutputRefs;
 
 		/// <summary>
 		/// Construct a new horde artifact number
@@ -41,7 +41,7 @@ namespace UnrealBuildTool.Artifacts
 		public HordeArtifactAction(ArtifactAction artifactAction)
 		{
 			ArtifactAction = artifactAction;
-			OutputRefs = new IBlobHandle<ChunkedDataNode>[ArtifactAction.Outputs.Length];
+			OutputRefs = new IBlobRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
 		}
 
 		/// <summary>
@@ -51,7 +51,7 @@ namespace UnrealBuildTool.Artifacts
 		public HordeArtifactAction(IBlobReader reader)
 		{
 			ArtifactAction = reader.ReadArtifactAction();
-			OutputRefs = reader.ReadVariableLengthArray(() => reader.ReadBlobHandle<ChunkedDataNode>());
+			OutputRefs = reader.ReadVariableLengthArray(() => reader.ReadBlobRef<ChunkedDataNode>());
 		}
 
 		/// <summary>
@@ -61,7 +61,7 @@ namespace UnrealBuildTool.Artifacts
 		public void Serialize(IBlobWriter writer)
 		{
 			writer.WriteArtifactAction(ArtifactAction);
-			writer.WriteVariableLengthArray(OutputRefs, x => writer.WriteBlobHandle(x));
+			writer.WriteVariableLengthArray(OutputRefs, x => writer.WriteBlobRef(x));
 		}
 
 		/// <summary>
@@ -83,7 +83,7 @@ namespace UnrealBuildTool.Artifacts
 				string outputName = artifact.GetFullPath(ArtifactAction.DirectoryMapping);
 				using FileStream stream = new(outputName, FileMode.Open, FileAccess.Read, FileShare.Read);
 				LeafChunkedData leafChunkedData = await fileWriter.CreateAsync(stream, leafOptions.TargetSize, cancellationToken);
-				ChunkedData chunkedData = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, interiorOptions, writer, null, cancellationToken);
+				ChunkedData chunkedData = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, interiorOptions, writer, cancellationToken);
 				OutputRefs[index++] = chunkedData.Root.Handle;
 			}
 		}
@@ -310,7 +310,7 @@ namespace UnrealBuildTool.Artifacts
 						output[index] = true;
 
 						int refIndex = 0;
-						foreach (IBlobHandle<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
+						foreach (IBlobRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
 						{
 							if (artifactRef == null)
 							{
@@ -479,7 +479,7 @@ namespace UnrealBuildTool.Artifacts
 					// Save the artifact action file
 					await using IBlobWriter writer = _store!.CreateBlobWriter();
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
-					IBlobHandle<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
+					IBlobRef<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
 					await writer.FlushAsync();
 
 					// Save the collection

@@ -22,11 +22,11 @@ namespace EpicGames.Horde.Storage
 
 		static readonly Version s_currentVersion = Enum.GetValues(typeof(Version)).Cast<Version>().Max();
 
-		struct RefCollection : IReadOnlyList<BlobLocator>
+		struct LocatorCollection : IReadOnlyList<BlobLocator>
 		{
 			public readonly JaggedReadOnlyMemoryArray Array;
 
-			public RefCollection(JaggedReadOnlyMemoryArray array) => Array = array;
+			public LocatorCollection(JaggedReadOnlyMemoryArray array) => Array = array;
 			public BlobLocator this[int index] => new BlobLocator(new Utf8String(Array[index]));
 			public int Count => Array.Count;
 			public IEnumerator<BlobLocator> GetEnumerator() => Array.Select(x => new BlobLocator(new Utf8String(x))).GetEnumerator();
@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Storage
 			IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 		}
 
-		readonly RefCollection _refs;
+		readonly LocatorCollection _imports;
 
 		/// <summary>
 		/// Type of the blob
@@ -49,7 +49,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// References to other blobs
 		/// </summary>
-		public IReadOnlyList<BlobLocator> Refs => _refs;
+		public IReadOnlyList<BlobLocator> Imports => _imports;
 
 		/// <summary>
 		/// Constructor
@@ -71,8 +71,8 @@ namespace EpicGames.Horde.Storage
 				Type = BlobType.Read(span.Slice(offset));
 				offset += BlobType.NumBytes;
 
-				_refs = new RefCollection(new JaggedReadOnlyMemoryArray(memory.Slice(offset)));
-				offset += _refs.Array.Data.Length;
+				_imports = new LocatorCollection(new JaggedReadOnlyMemoryArray(memory.Slice(offset)));
+				offset += _imports.Array.Data.Length;
 
 				Payload = memory.Slice(offset);
 			}
@@ -87,10 +87,10 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public static byte[] Create(BlobData blobData)
 		{
-			BlobLocator[] locators = new BlobLocator[blobData.Refs.Count];
-			for (int idx = 0; idx < blobData.Refs.Count; idx++)
+			BlobLocator[] locators = new BlobLocator[blobData.Imports.Count];
+			for (int idx = 0; idx < blobData.Imports.Count; idx++)
 			{
-				locators[idx] = blobData.Refs[idx].GetLocator();
+				locators[idx] = blobData.Imports[idx].GetLocator();
 			}
 
 			return Create(blobData.Type, locators, blobData.Data);

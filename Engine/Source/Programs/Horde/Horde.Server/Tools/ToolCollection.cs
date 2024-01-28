@@ -256,7 +256,7 @@ namespace Horde.Server.Tools
 
 			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
 
-			IBlobHandle<DirectoryNode> nodeRef;
+			IBlobRef<DirectoryNode> nodeRef;
 			await using (IBlobWriter writer = client.CreateBlobWriter(refName))
 			{
 				DirectoryNode directoryNode = new DirectoryNode();
@@ -264,7 +264,7 @@ namespace Horde.Server.Tools
 				nodeRef = await writer.WriteBlobAsync(directoryNode, cancellationToken: cancellationToken);
 			}
 
-			IBlobHandle target = nodeRef;
+			IBlobRef target = nodeRef;
 			await client.WriteRefTargetAsync(refName, target, cancellationToken: cancellationToken);
 
 			return await CreateDeploymentAsync(tool, options, target.GetLocator(), globalConfig, cancellationToken);

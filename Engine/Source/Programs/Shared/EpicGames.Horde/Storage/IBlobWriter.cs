@@ -6,6 +6,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
+#pragma warning disable CA1716 // Do not use 'imports' as variable name
+
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
@@ -13,6 +15,11 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IBlobWriter : IMemoryWriter, IAsyncDisposable
 	{
+		/// <summary>
+		/// Options for serialization
+		/// </summary>
+		BlobSerializerOptions Options { get; }
+
 		/// <summary>
 		/// Accessor for the memory written to the current blob
 		/// </summary>
@@ -44,7 +51,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="type">Type of the node that was written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		ValueTask<IBlobHandle> CompleteAsync(BlobType type, CancellationToken cancellationToken = default);
+		ValueTask<IBlobRef> CompleteAsync(BlobType type, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finish writing a blob that has been written into the output buffer.
@@ -52,13 +59,13 @@ namespace EpicGames.Horde.Storage
 		/// <param name="type">Type of the node that was written</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		ValueTask<IBlobHandle<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default);
+		ValueTask<IBlobRef<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a reference to another blob. The blob's hash is serialized to the output stream.
 		/// </summary>
-		/// <param name="handle">Referenced blob</param>
-		void WriteBlobHandle<T>(IBlobHandle<T> handle);
+		/// <param name="blobRef">Referenced blob</param>
+		void WriteBlobRef(IBlobRef blobRef);
 	}
 
 	/// <summary>
@@ -76,21 +83,27 @@ namespace EpicGames.Horde.Storage
 	{
 		Memory<byte> _memory;
 		readonly List<AliasInfo> _aliases = new List<AliasInfo>();
-		readonly List<IBlobHandle> _refs = new List<IBlobHandle>();
+		readonly List<IBlobHandle> _imports = new List<IBlobHandle>();
+		readonly BlobSerializerOptions _options;
 		int _length;
-
-		/// <summary>
-		/// List of serialized references
-		/// </summary>
-		public IReadOnlyList<IBlobHandle> References => _refs;
 
 		/// <inheritdoc/>
 		public int Length => _length;
 
-		/// <summary>
-		/// Memory that has been written
-		/// </summary>
+		/// <inheritdoc/>
+		public BlobSerializerOptions Options => _options;
+
+		/// <inheritdoc/>
 		public ReadOnlyMemory<byte> WrittenMemory => _memory.Slice(0, _length);
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="options"></param>
+		protected BlobWriter(BlobSerializerOptions? options)
+		{
+			_options = options ?? BlobSerializerOptions.Default;
+		}
 
 		/// <summary>
 		/// Computes the hash of the written data
@@ -100,10 +113,10 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Writes a handle to another node
 		/// </summary>
-		public void WriteBlobHandle<T>(IBlobHandle<T> target)
+		public void WriteBlobRef(IBlobRef target)
 		{
 			this.WriteIoHash(target.Hash);
-			_refs.Add(target);
+			_imports.Add(target);
 		}
 
 		/// <inheritdoc/>
@@ -137,11 +150,11 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="type">Type of the blob</param>
 		/// <param name="size">Size of the blob to write</param>
-		/// <param name="references">References to other blobs</param>
+		/// <param name="imports">References to other blobs</param>
 		/// <param name="aliases">Aliases for the new blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New buffer</returns>
-		public abstract ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken);
+		public abstract ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken);
 
 		/// <inheritdoc/>
 		public void AddAlias(string name, int rank, ReadOnlyMemory<byte> data)
@@ -154,24 +167,24 @@ namespace EpicGames.Horde.Storage
 		public abstract IBlobWriter Fork();
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> CompleteAsync(BlobType type, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobRef> CompleteAsync(BlobType type, CancellationToken cancellationToken = default)
 		{
-			IBlobHandle handle = await WriteBlobAsync(type, _length, _refs, _aliases, cancellationToken);
+			IBlobRef blobRef = await WriteBlobAsync(type, _length, _imports, _aliases, cancellationToken);
 
 			_memory = default;
 			_length = 0;
-			_refs.Clear();
+			_imports.Clear();
 			_aliases.Clear();
 
-			return handle;
+			return blobRef;
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobRef<T>> CompleteAsync<T>(BlobType type, CancellationToken cancellationToken = default)
 		{
 			IoHash hash = IoHash.Compute(_memory.Span.Slice(0, _length));
-			IBlobHandle handle = await CompleteAsync(type, cancellationToken);
-			return handle.ForType<T>(hash);
+			IBlobRef blobRef = await CompleteAsync(type, cancellationToken);
+			return BlobRef.Create<T>(hash, blobRef, _options);
 		}
 
 		/// <inheritdoc/>

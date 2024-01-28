@@ -9,10 +9,15 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
-	/// Handle to a node. Can be used to reference nodes that have not been flushed yet.
+	/// Reference to another node in storage. This type is similar to <see cref="IBlobRef"/>, but without a hash.
 	/// </summary>
 	public interface IBlobHandle
 	{
+		/// <summary>
+		/// Accessor for the innermost import
+		/// </summary>
+		IBlobHandle Innermost { get; }
+
 		/// <summary>
 		/// Flush the referenced data to underlying storage
 		/// </summary>
@@ -33,10 +38,9 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Typed interface to a particular blob handle
+	/// Handle to a node. Can be used to reference nodes that have not been flushed yet.
 	/// </summary>
-	/// <typeparam name="T">Type of the deserialized blob</typeparam>
-	public interface IBlobHandle<out T> : IBlobHandle
+	public interface IBlobRef : IBlobHandle
 	{
 		/// <summary>
 		/// Hash of the target node
@@ -45,61 +49,93 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Extension methods for blob handles
+	/// Typed interface to a particular blob handle
+	/// </summary>
+	/// <typeparam name="T">Type of the deserialized blob</typeparam>
+	public interface IBlobRef<out T> : IBlobRef
+	{
+		/// <summary>
+		/// Options for deserializing the blob
+		/// </summary>
+		BlobSerializerOptions Options { get; }
+	}
+
+	/// <summary>
+	/// Helper methods for creating blob handles
+	/// </summary>
+	public static class BlobRef
+	{
+		class BlobRefImpl : IBlobRef
+		{
+			readonly IoHash _hash;
+			readonly IBlobHandle _handle;
+
+			public IBlobHandle Innermost => _handle.Innermost;
+			public IoHash Hash => _hash;
+
+			public BlobRefImpl(IoHash hash, IBlobHandle handle)
+			{
+				_hash = hash;
+				_handle = handle;
+			}
+
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default)
+				=> _handle.FlushAsync(cancellationToken);
+
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+				=> _handle.ReadBlobDataAsync(cancellationToken);
+
+			public bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+				=> _handle.TryGetLocator(out locator);
+		}
+
+		class BlobRefImpl<T> : BlobRefImpl, IBlobRef<T>
+		{
+			readonly BlobSerializerOptions _options;
+
+			public BlobSerializerOptions Options => _options;
+
+			public BlobRefImpl(IoHash hash, IBlobHandle handle, BlobSerializerOptions options)
+				: base(hash, handle)
+			{
+				_options = options;
+			}
+		}
+
+		/// <summary>
+		/// Create an untyped blob handle
+		/// </summary>
+		/// <param name="handle">Imported blob interface</param>
+		/// <param name="hash">Hash of the blob</param>
+		/// <returns>Handle to the blob</returns>
+		public static IBlobRef Create(IoHash hash, IBlobHandle handle)
+			=> new BlobRefImpl(hash, handle);
+
+		/// <summary>
+		/// Create a typed blob handle
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="hash">Hash of the blob</param>
+		/// <param name="handle">Imported blob interface</param>
+		/// <param name="options">Options for deserializing the target blob</param>
+		/// <returns>Handle to the blob</returns>
+		public static IBlobRef<T> Create<T>(IoHash hash, IBlobHandle handle, BlobSerializerOptions options)
+			=> new BlobRefImpl<T>(hash, handle, options);
+	}
+
+	/// <summary>
+	/// Extension methods for <see cref="IBlobHandle"/>
 	/// </summary>
 	public static class BlobHandleExtensions
 	{
-		interface IWrappedBlobHandle
-		{
-			public IBlobHandle Inner { get; }
-		}
-
-		class TypedBlobHandle<T> : IWrappedBlobHandle, IBlobHandle<T>
-		{
-			readonly IBlobHandle _inner;
-			readonly IoHash _hash;
-
-			public TypedBlobHandle(IBlobHandle inner, IoHash hash)
-			{
-				_inner = inner;
-				_hash = hash;
-			}
-
-			public IBlobHandle Inner => _inner;
-			public IoHash Hash => _hash;
-
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _inner.ReadBlobDataAsync(cancellationToken);
-			public bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator) => _inner.TryGetLocator(out locator);
-		}
-
-		/// <summary>
-		/// Creates a typed blob handle
-		/// </summary>
-		public static IBlobHandle<T> ForType<T>(this IBlobHandle handle, IoHash hash) => new TypedBlobHandle<T>(handle, hash);
-
-		/// <summary>
-		/// 
-		/// </summary>
-		/// <param name="handle"></param>
-		/// <returns></returns>
-		public static IBlobHandle Unwrap(this IBlobHandle handle)
-		{
-			while (handle is IWrappedBlobHandle wrappedHandle)
-			{
-				handle = wrappedHandle.Inner;
-			}
-			return handle;
-		}
-
 		/// <summary>
 		/// Gets a path to this blob that can be used to describe blob references over the wire.
 		/// </summary>
-		/// <param name="handle">Handle to query</param>
-		public static BlobLocator GetLocator(this IBlobHandle handle)
+		/// <param name="import">Handle to query</param>
+		public static BlobLocator GetLocator(this IBlobHandle import)
 		{
 			BlobLocator locator;
-			if (!handle.TryGetLocator(out locator))
+			if (!import.TryGetLocator(out locator))
 			{
 				throw new InvalidOperationException("Blob has not yet been written to storage");
 			}

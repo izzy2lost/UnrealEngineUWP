@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
@@ -27,7 +26,7 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// References to attachments. We embed this in the ref node to ensure any aliased blobs have a hard reference from the root.
 		/// </summary>
-		public List<(IoHash Hash, IBlobHandle Handle)> References { get; }
+		public List<IBlobRef> References { get; }
 
 		/// <summary>
 		/// Constructor
@@ -35,7 +34,16 @@ namespace Horde.Server.Ddc
 		public DdcRefNode(IoHash rootHash)
 		{
 			RootHash = rootHash;
-			References = new List<(IoHash, IBlobHandle)>();
+			References = new List<IBlobRef>();
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public DdcRefNode(IoHash rootHash, IEnumerable<IBlobRef> references)
+		{
+			RootHash = rootHash;
+			References = new List<IBlobRef>(references);
 		}
 	}
 
@@ -46,17 +54,14 @@ namespace Horde.Server.Ddc
 		public override DdcRefNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
 			IoHash rootHash = reader.ReadIoHash();
-			List<IBlobHandle<object>> references = reader.ReadList(x => reader.ReadBlobHandle<object>());
-
-			DdcRefNode refNode = new DdcRefNode(rootHash);
-			refNode.References.AddRange(references.Select(x => (x.Hash, (IBlobHandle)x)));
-			return refNode;
+			List<IBlobRef> references = reader.ReadList(x => reader.ReadBlobRef());
+			return new DdcRefNode(rootHash, references);
 		}
 
 		public override BlobType Write(IBlobWriter writer, DdcRefNode value, BlobSerializerOptions options)
 		{
 			writer.WriteIoHash(value.RootHash);
-			writer.WriteList(value.References, x => writer.WriteBlobHandle(x.Handle.ForType<object>(x.Hash)));
+			writer.WriteList(value.References, x => writer.WriteBlobRef(x));
 			return s_blobType;
 		}
 	}

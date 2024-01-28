@@ -28,6 +28,8 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <inheritdoc/>
 		public BundleHandle Outer { get; }
 
+		public IBlobHandle Innermost => this;
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -91,7 +93,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	public sealed class BundleWriter : BlobWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
-		internal class PendingNode : IBlobHandle
+		internal class PendingNode : IBlobRef
 		{
 			readonly BundleReader _reader;
 
@@ -101,26 +103,29 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			PendingBundle? _pendingBundle;
 
 			public readonly BlobType BlobType;
+			public IoHash Hash { get; }
 			public readonly int Packet;
 			public readonly int Offset;
 			public readonly int Length;
-			public readonly IBlobHandle[] Refs;
+			public readonly IBlobHandle[] Imports;
 			public readonly AliasInfo[] Aliases;
 
+			public IBlobHandle Innermost => this;
 			public PendingBundle? PendingBundle => _pendingBundle;
 			public FlushedNodeHandle? FlushedNodeHandle => _flushedHandle;
 
 			public BundleHandle Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
 
-			public PendingNode(BundleReader reader, BlobType blobType, int packet, int offset, int length, IReadOnlyList<IBlobHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
+			public PendingNode(BundleReader reader, BlobType blobType, IoHash hash, int packet, int offset, int length, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 			{
 				_reader = reader;
 
 				BlobType = blobType;
+				Hash = hash;
 				Packet = packet;
 				Offset = offset;
 				Length = length;
-				Refs = refs.Select(x => x.Unwrap()).ToArray();
+				Imports = imports.Select(x => x.Innermost).ToArray();
 				Aliases = aliases.ToArray();
 
 				_pendingBundle = pendingBundle;
@@ -152,7 +157,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 						if (_flushedHandle == null)
 						{
 							ReadOnlyMemory<byte> data = _pendingBundle!.GetNodeData(Packet, Offset, Length);
-							return new BlobData(BlobType, data, Refs);
+							return new BlobData(BlobType, data, Imports);
 						}
 					}
 				}
@@ -168,9 +173,9 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					return;
 				}
 
-				foreach (IBlobHandle nodeRef in Refs)
+				foreach (IBlobHandle import in Imports)
 				{
-					await nodeRef.FlushAsync(cancellationToken);
+					await import.FlushAsync(cancellationToken);
 				}
 
 				PendingBundle? pendingBundle = _pendingBundle;
@@ -318,12 +323,14 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			// Finish a node write
 			public PendingNode WriteNode(BlobType blobType, int size, IReadOnlyList<IBlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
 			{
-				PendingNode pendingNode = new PendingNode(_treeReader, blobType, _currentPacketIdx, _currentPacketLength, (int)size, refs, aliases, this);
+				IoHash hash = IoHash.Compute(GetBuffer(size, size).Span);
+
+				PendingNode pendingNode = new PendingNode(_treeReader, blobType, hash, _currentPacketIdx, _currentPacketLength, (int)size, refs, aliases, this);
 				_currentPacketLength += pendingNode.Length;
 				UncompressedLength += pendingNode.Length;
 
 				_queue.Add(pendingNode);
-				_queuedRefs += pendingNode.Refs.Length;
+				_queuedRefs += pendingNode.Imports.Length;
 
 				return pendingNode;
 			}
@@ -512,18 +519,18 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					int typeIdx = FindOrAddItemIndex(nodeInfo.BlobType, types, typeToIndex);
 
 					List<BundleExportRef> exportRefs = new List<BundleExportRef>();
-					foreach (IBlobHandle handle in nodeInfo.Refs)
+					foreach (IBlobHandle import in nodeInfo.Imports)
 					{
 						BundleExportRef exportRef;
-						if (!nodeHandleToExportRef.TryGetValue(handle, out exportRef))
+						if (!nodeHandleToExportRef.TryGetValue(import, out exportRef))
 						{
-							FlushedNodeHandle? flushedHandle = handle as FlushedNodeHandle;
+							FlushedNodeHandle? flushedHandle = import as FlushedNodeHandle;
 							if (flushedHandle == null)
 							{
-								flushedHandle = (handle as PendingNode)?.FlushedNodeHandle;
+								flushedHandle = (import as PendingNode)?.FlushedNodeHandle;
 								if (flushedHandle == null)
 								{
-									throw new InvalidOperationException($"Node {handle.GetLocator()} is not a bundle node");
+									throw new InvalidOperationException($"Node {import.GetLocator()} is not a bundle node");
 								}
 							}
 							
@@ -662,7 +669,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		readonly BundleStorageClient _store;
 		readonly BundleReader _reader;
-		readonly BundleOptions _options;
+		readonly BundleOptions _bundleOptions;
 		readonly string? _basePath;
 
 		readonly WriteQueue _writeQueue;
@@ -679,10 +686,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="store">Store to write data to</param>
 		/// <param name="reader">Reader for serialized node data</param>
 		/// <param name="basePath">Base path for new nodes</param>
-		/// <param name="options">Options for the writer</param>
+		/// <param name="bundleOptions">Options for the writer</param>
+		/// <param name="blobSerializerOptions"></param>
 		/// <param name="traceLogger">Optional logger for trace information</param>
-		public BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options = null, ILogger? traceLogger = null)
-			: this(store, reader, basePath, options, null, traceLogger)
+		public BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? bundleOptions = null, BlobSerializerOptions? blobSerializerOptions = null, ILogger? traceLogger = null)
+			: this(store, reader, basePath, bundleOptions, null, blobSerializerOptions, traceLogger)
 		{
 		}
 
@@ -691,7 +699,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// </summary>
 		/// <param name="other"></param>
 		public BundleWriter(BundleWriter other)
-			: this(other._store, other._reader, other._basePath, other._options, other._writeQueue, other.TraceLogger)
+			: this(other._store, other._reader, other._basePath, other._bundleOptions, other._writeQueue, other.Options, other.TraceLogger)
 		{
 			_writeQueue.AddRef();
 		}
@@ -699,13 +707,14 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <summary>
 		/// Internal constructor
 		/// </summary>
-		private BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
+		private BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? bundleOptions, WriteQueue? writeQueue, BlobSerializerOptions? blobSerializerOptions, ILogger? traceLogger = null)
+			: base(blobSerializerOptions)
 		{
 			_store = store;
 			_reader = reader;
 			_basePath = basePath;
-			_options = options ?? s_defaultOptions;
-			_writeQueue = writeQueue ?? new WriteQueue(store, basePath, _options.MaxWriteQueueLength, traceLogger);
+			_bundleOptions = bundleOptions ?? s_defaultOptions;
+			_writeQueue = writeQueue ?? new WriteQueue(store, basePath, _bundleOptions.MaxWriteQueueLength, traceLogger);
 			TraceLogger = traceLogger;
 		}
 
@@ -758,22 +767,22 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// </summary>
 		/// <param name="type">Type of the node that was written</param>
 		/// <param name="size">Used size of the buffer</param>
-		/// <param name="references">References to other nodes</param>
+		/// <param name="imports">References to other nodes</param>
 		/// <param name="aliases">Aliases for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 
 			// Append this node data
-			PendingNode pendingNode = currentBundle.WriteNode(type, size, references, aliases);
+			PendingNode pendingNode = currentBundle.WriteNode(type, size, imports, aliases);
 			TraceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", pendingNode, currentBundle.BundleId);
 
 			// Add dependencies on all bundles containing a dependent node
-			foreach (IBlobHandle reference in references)
+			foreach (IBlobHandle import in imports)
 			{
-				PendingNode? pendingReference = reference.Unwrap() as PendingNode;
+				PendingNode? pendingReference = import.Innermost as PendingNode;
 				if (pendingReference?.PendingBundle != null)
 				{
 					currentBundle.AddDependencyOn(pendingReference.PendingBundle, TraceLogger);
@@ -781,7 +790,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			// If the bundle is full, start the process of writing it to disk
-			if (currentBundle.UncompressedLength > _options.MaxBlobSize || currentBundle.IsFull())
+			if (currentBundle.UncompressedLength > _bundleOptions.MaxBlobSize || currentBundle.IsFull())
 			{
 				await CompleteAsync(cancellationToken);
 			}
@@ -793,8 +802,8 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		{
 			if (_currentBundle == null)
 			{
-				int bufferSize = (int)(_options.MinCompressionPacketSize * 1.2);
-				_currentBundle = new PendingBundle(_reader, this, bufferSize, _options.CompressionFormat);
+				int bufferSize = (int)(_bundleOptions.MinCompressionPacketSize * 1.2);
+				_currentBundle = new PendingBundle(_reader, this, bufferSize, _bundleOptions.CompressionFormat);
 			}
 			return _currentBundle;
 		}

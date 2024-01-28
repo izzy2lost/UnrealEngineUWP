@@ -58,7 +58,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Index for this log
 		/// </summary>
-		public IBlobHandle<LogIndexNode> IndexRef { get; }
+		public IBlobRef<LogIndexNode> IndexRef { get; }
 
 		/// <summary>
 		/// Whether this log is complete
@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Deserializing constructor
 		/// </summary>
-		public LogNode(LogFormat format, int lineCount, long length, IReadOnlyList<LogChunkRef> textChunkRefs, IBlobHandle<LogIndexNode> indexRef, bool complete)
+		public LogNode(LogFormat format, int lineCount, long length, IReadOnlyList<LogChunkRef> textChunkRefs, IBlobRef<LogIndexNode> indexRef, bool complete)
 		{
 			Format = format;
 			LineCount = lineCount;
@@ -95,7 +95,7 @@ namespace EpicGames.Horde.Logs
 			LogFormat format = (LogFormat)reader.ReadUInt8();
 			int lineCount = (int)reader.ReadUnsignedVarInt();
 			long length = (long)reader.ReadUnsignedVarInt();
-			IBlobHandle<LogIndexNode> indexRef = reader.ReadBlobHandle<LogIndexNode>();
+			IBlobRef<LogIndexNode> indexRef = reader.ReadBlobRef<LogIndexNode>();
 			List<LogChunkRef> textChunkRefs = reader.ReadList(() => new LogChunkRef(reader));
 			bool complete = reader.ReadBoolean();
 
@@ -108,7 +108,7 @@ namespace EpicGames.Horde.Logs
 			writer.WriteUInt8((byte)value.Format);
 			writer.WriteUnsignedVarInt(value.LineCount);
 			writer.WriteUnsignedVarInt((ulong)value.Length);
-			writer.WriteBlobHandle(value.IndexRef);
+			writer.WriteBlobRef(value.IndexRef);
 			writer.WriteList(value.TextChunkRefs, x => x.Serialize(writer));
 			writer.WriteBoolean(value.Complete);
 
@@ -261,9 +261,8 @@ namespace EpicGames.Horde.Logs
 		/// </summary>
 		/// <param name="writer">Writer for the output nodes</param>
 		/// <param name="complete">Whether the log is complete</param>
-		/// <param name="options">Options for serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<IBlobHandle<LogNode>> FlushAsync(IBlobWriter writer, bool complete, BlobSerializerOptions? options, CancellationToken cancellationToken)
+		public async Task<IBlobRef<LogNode>> FlushAsync(IBlobWriter writer, bool complete, CancellationToken cancellationToken)
 		{
 			// Capture the new data that needs to be written
 			IReadOnlyList<LogChunkNode> writeTextChunks;
@@ -279,22 +278,22 @@ namespace EpicGames.Horde.Logs
 			}
 
 			// Flush any complete chunks to storage
-			LogIndexNode newIndex = await _index.AppendAsync(writer, writeIndexTextChunks, null, cancellationToken);
-			IBlobHandle<LogIndexNode> newIndexRef = await writer.WriteBlobAsync(newIndex, options, cancellationToken);
+			LogIndexNode newIndex = await _index.AppendAsync(writer, writeIndexTextChunks, cancellationToken);
+			IBlobRef<LogIndexNode> newIndexRef = await writer.WriteBlobAsync(newIndex, cancellationToken);
 
 			List<LogChunkRef> newJsonChunkRefs = new List<LogChunkRef>(_root?.TextChunkRefs ?? Array.Empty<LogChunkRef>());
 			int lineCount = _root?.LineCount ?? 0;
 			long length = _root?.Length ?? 0;
 			foreach (LogChunkNode writeTextChunk in writeTextChunks)
 			{
-				IBlobHandle<LogChunkNode> writeTextChunkRef = await writer.WriteBlobAsync(writeTextChunk, options, cancellationToken);
+				IBlobRef<LogChunkNode> writeTextChunkRef = await writer.WriteBlobAsync(writeTextChunk, cancellationToken);
 				newJsonChunkRefs.Add(new LogChunkRef(lineCount, writeTextChunk.LineCount, length, writeTextChunk.Length, writeTextChunkRef));
 				lineCount += writeTextChunk.LineCount;
 				length += writeTextChunk.Length;
 			}
 
 			LogNode newRoot = new LogNode(_format, lineCount, length, newJsonChunkRefs, newIndexRef, complete);
-			IBlobHandle<LogNode> newRootRef = await writer.WriteBlobAsync(newRoot, options, cancellationToken);
+			IBlobRef<LogNode> newRootRef = await writer.WriteBlobAsync(newRoot, cancellationToken);
 
 			await writer.FlushAsync(cancellationToken);
 
@@ -320,14 +319,13 @@ namespace EpicGames.Horde.Logs
 		/// Reads lines from a line
 		/// </summary>
 		/// <param name="logNode">Log to read from</param>
-		/// <param name="options">Options for deserialization</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Sequence of line buffers</returns>
-		public static async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadLogAsync(this LogNode logNode, BlobSerializerOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public static async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadLogAsync(this LogNode logNode, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			foreach (LogChunkRef textChunkRef in logNode.TextChunkRefs)
 			{
-				LogChunkNode textChunk = await textChunkRef.Target.ReadBlobAsync(options, cancellationToken);
+				LogChunkNode textChunk = await textChunkRef.Target.ReadBlobAsync(cancellationToken);
 				yield return textChunk.Data;
 			}
 		}
@@ -337,17 +335,16 @@ namespace EpicGames.Horde.Logs
 		/// </summary>
 		/// <param name="logNode">Log to read from</param>
 		/// <param name="index">Zero-based index of the first line to read from</param>
-		/// <param name="options">Options for deserialization</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Sequence of line buffers</returns>
-		public static async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadLogLinesAsync(this LogNode logNode, int index, BlobSerializerOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public static async IAsyncEnumerable<ReadOnlyMemory<byte>> ReadLogLinesAsync(this LogNode logNode, int index, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			foreach (LogChunkRef textChunkRef in logNode.TextChunkRefs)
 			{
 				int lineIdx = Math.Max(index - textChunkRef.LineIndex, 0);
 				if (lineIdx < textChunkRef.LineCount)
 				{
-					LogChunkNode textChunk = await textChunkRef.Target.ReadBlobAsync(options, cancellationToken);
+					LogChunkNode textChunk = await textChunkRef.Target.ReadBlobAsync(cancellationToken);
 
 					int offset = textChunk.LineOffsets[lineIdx];
 					for (; lineIdx < textChunk.LineCount; lineIdx++)

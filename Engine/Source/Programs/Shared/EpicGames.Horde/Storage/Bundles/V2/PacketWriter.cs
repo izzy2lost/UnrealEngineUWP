@@ -88,13 +88,13 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		/// <param name="size"></param>
 		/// <param name="type"></param>
-		/// <param name="references"></param>
-		public int CompleteExport(int size, BlobType type, IReadOnlyList<IBlobHandle> references)
+		/// <param name="imports"></param>
+		public int CompleteExport(int size, BlobType type, IReadOnlyList<IBlobHandle> imports)
 		{
-			int[] importIndices = new int[references.Count];
-			for (int idx = 0; idx < references.Count; idx++)
+			int[] importIndices = new int[imports.Count];
+			for (int idx = 0; idx < imports.Count; idx++)
 			{
-				importIndices[idx] = FindOrAddImport(references[idx].Unwrap());
+				importIndices[idx] = FindOrAddImport(imports[idx].Innermost);
 			}
 
 			int typeIdx = FindOrAddType(type);

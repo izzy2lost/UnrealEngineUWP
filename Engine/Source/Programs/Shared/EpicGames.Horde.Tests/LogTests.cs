@@ -69,10 +69,10 @@ namespace EpicGames.Horde.Tests
 			}
 
 			// Flush it to storage, and read the finished log node
-			IBlobHandle<LogNode> logRef;
+			IBlobRef<LogNode> logRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
-				logRef = await builder.FlushAsync(writer, true, null, CancellationToken.None);
+				logRef = await builder.FlushAsync(writer, true, CancellationToken.None);
 			}
 			LogNode log = await logRef.ReadBlobAsync();
 
@@ -118,10 +118,10 @@ namespace EpicGames.Horde.Tests
 				builder.WriteData(Encoding.UTF8.GetBytes(lines[lineIdx]));
 			}
 
-			IBlobHandle<LogNode> rootNodeRef;
+			IBlobRef<LogNode> rootNodeRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
-				rootNodeRef = await builder.FlushAsync(writer, true, null, CancellationToken.None);
+				rootNodeRef = await builder.FlushAsync(writer, true, CancellationToken.None);
 			}
 
 			// Read it back in and test the index
@@ -205,7 +205,7 @@ namespace EpicGames.Horde.Tests
 		static async Task SearchLogDataTestAsync(LogIndexNode index, string text, int firstLine, int count, int[] expectedLines)
 		{
 			SearchStats stats = new SearchStats();
-			List<int> lines = await index.SearchAsync(firstLine, new SearchTerm(text), stats, null, CancellationToken.None).Take(count).ToListAsync();
+			List<int> lines = await index.SearchAsync(firstLine, new SearchTerm(text), stats, CancellationToken.None).Take(count).ToListAsync();
 			Assert.IsTrue(lines.SequenceEqual(expectedLines));
 		}
 	}

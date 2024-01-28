@@ -135,13 +135,13 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			IBlobHandle? blobHandle = _cachedImportHandles[blobIdx] as IBlobHandle;
 			if (blobHandle is null)
 			{
-				PacketImport blobImport = _decodedPacket.GetImport(blobIdx);
-				Trace.Assert(blobImport.BaseIdx != -1);
+				PacketImport blobImportInfo = _decodedPacket.GetImport(blobIdx);
+				Trace.Assert(blobImportInfo.BaseIdx != -1);
 
-				int packetIdx = blobImport.BaseIdx;
+				int packetIdx = blobImportInfo.BaseIdx;
 				PacketHandle packetHandle = GetImportedPacketHandle(packetIdx);
 
-				blobHandle = new ExportHandle(packetHandle, blobImport.Fragment);
+				blobHandle = new ExportHandle(packetHandle, blobImportInfo.Fragment);
 				_cachedImportHandles[blobIdx] = blobHandle;
 			}
 			return blobHandle;

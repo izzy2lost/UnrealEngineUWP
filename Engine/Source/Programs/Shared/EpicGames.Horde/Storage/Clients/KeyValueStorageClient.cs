@@ -21,6 +21,9 @@ namespace EpicGames.Horde.Storage.Clients
 			readonly KeyValueStorageClient _keyValueStorageClient;
 			readonly BlobLocator _locator;
 
+			/// <inheritdoc/>
+			public IBlobHandle Innermost => this;
+
 			/// <summary>
 			/// Constructor
 			/// </summary>
@@ -60,7 +63,8 @@ namespace EpicGames.Horde.Storage.Clients
 			/// <summary>
 			/// Constructor
 			/// </summary>
-			public Writer(KeyValueStorageClient outer, string? basePath)
+			public Writer(KeyValueStorageClient outer, string? basePath, BlobSerializerOptions? options)
+				: base(options)
 			{
 				_outer = outer;
 				_basePath = basePath ?? String.Empty;
@@ -78,7 +82,7 @@ namespace EpicGames.Horde.Storage.Clients
 			public override Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
 			/// <inheritdoc/>
-			public override IBlobWriter Fork() => new Writer(_outer, _basePath);
+			public override IBlobWriter Fork() => new Writer(_outer, _basePath, Options);
 
 			/// <inheritdoc/>
 			public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
@@ -94,14 +98,14 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+			public override async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 			{
 				ReadOnlyMemory<byte> data = _data.AsMemory(_offset, size);
 				_offset += size;
 
 				using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
 
-				IBlobHandle handle = await _outer.WriteBlobAsync(type, stream, references, _basePath, cancellationToken);
+				IBlobRef handle = await _outer.WriteBlobAsync(type, stream, imports, _basePath, cancellationToken);
 				foreach (AliasInfo aliasInfo in aliases)
 				{
 					await _outer.AddAliasAsync(aliasInfo.Name, handle, aliasInfo.Rank, aliasInfo.Data, cancellationToken);
@@ -142,7 +146,19 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public IBlobWriter CreateBlobWriter(string? basePath = null) => new Writer(this, basePath);
+		public IBlobRef CreateBlobRef(IoHash hash, BlobLocator locator)
+		{
+			return BlobRef.Create(hash, CreateBlobHandle(locator));
+		}
+
+		/// <inheritdoc/>
+		public IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions options)
+		{
+			return BlobRef.Create<T>(hash, CreateBlobHandle(locator), options);
+		}
+
+		/// <inheritdoc/>
+		public IBlobWriter CreateBlobWriter(string? basePath = null, BlobSerializerOptions? options = null) => new Writer(this, basePath, options);
 
 		/// <inheritdoc/>
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
@@ -150,20 +166,21 @@ namespace EpicGames.Horde.Storage.Clients
 			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadBlobAsync(locator, cancellationToken);
 			EncodedBlobData encodedData = new EncodedBlobData(owner.Memory.ToArray());
 
-			return new BlobDataWithOwner(encodedData.Type, encodedData.Payload, encodedData.Refs.Select(x => CreateBlobHandle(x)).ToArray(), owner);
+			return new BlobDataWithOwner(encodedData.Type, encodedData.Payload, encodedData.Imports.Select(x => CreateBlobHandle(x)).ToArray(), owner);
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		public async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> imports, string? basePath = null, CancellationToken cancellationToken = default)
 		{
-			BlobLocator[] locators = references.ConvertAll(x => x.GetLocator()).ToArray();
+			BlobLocator[] locators = imports.ConvertAll(x => x.GetLocator()).ToArray();
 			byte[] payload = await stream.ReadAllBytesAsync(cancellationToken);
 			byte[] encodedData = EncodedBlobData.Create(type, locators, payload);
 
 			using ReadOnlyMemoryStream encodedStream = new ReadOnlyMemoryStream(encodedData);
-			BlobLocator output = await _backend.WriteBlobAsync(encodedStream, basePath, cancellationToken);
+			BlobLocator locator = await _backend.WriteBlobAsync(encodedStream, basePath, cancellationToken);
 
-			return CreateBlobHandle(output);
+			IoHash hash = IoHash.Compute(payload);
+			return BlobRef.Create(hash, CreateBlobHandle(locator));
 		}
 
 		#endregion

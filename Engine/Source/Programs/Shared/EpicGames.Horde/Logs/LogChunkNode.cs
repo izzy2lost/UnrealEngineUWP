@@ -220,7 +220,7 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Handle to the target chunk
 		/// </summary>
-		public IBlobHandle<LogChunkNode> Target { get; }
+		public IBlobRef<LogChunkNode> Target { get; }
 
 		/// <summary>
 		/// Constructor
@@ -230,7 +230,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="offset">Offset within the log file</param>
 		/// <param name="length">Length of the chunk</param>
 		/// <param name="target">Referenced log text</param>
-		public LogChunkRef(int lineIndex, int lineCount, long offset, int length, IBlobHandle<LogChunkNode> target)
+		public LogChunkRef(int lineIndex, int lineCount, long offset, int length, IBlobRef<LogChunkNode> target)
 		{
 			LineIndex = lineIndex;
 			LineCount = lineCount;
@@ -245,7 +245,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="reader"></param>
 		public LogChunkRef(IBlobReader reader)
 		{
-			Target = reader.ReadBlobHandle<LogChunkNode>();
+			Target = reader.ReadBlobRef<LogChunkNode>();
 			LineIndex = (int)reader.ReadUnsignedVarInt();
 			LineCount = (int)reader.ReadUnsignedVarInt();
 			Offset = (long)reader.ReadUnsignedVarInt();
@@ -255,7 +255,7 @@ namespace EpicGames.Horde.Logs
 		/// <inheritdoc/>
 		public void Serialize(IBlobWriter writer)
 		{
-			writer.WriteBlobHandle(Target);
+			writer.WriteBlobRef(Target);
 			writer.WriteUnsignedVarInt(LineIndex);
 			writer.WriteUnsignedVarInt(LineCount);
 			writer.WriteUnsignedVarInt((ulong)Offset);

@@ -53,7 +53,7 @@ namespace Horde.Server.Commands.Generate
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
-					IBlobHandle<DirectoryNode> dirNodeRef;
+					IBlobRef<DirectoryNode> dirNodeRef;
 					await using (IBlobWriter writer = client.CreateBlobWriter(refName))
 					{
 						DirectoryNode dirNode = new DirectoryNode();

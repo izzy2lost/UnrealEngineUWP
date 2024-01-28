@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage
@@ -24,18 +25,36 @@ namespace EpicGames.Horde.Storage
 		#region Blobs
 
 		/// <summary>
-		/// Creates a new blob handle by parsing a blob id
+		/// Creates a new blob handle by parsing a locator
 		/// </summary>
 		/// <param name="locator">Path to the blob</param>
 		/// <returns>New handle to the blob</returns>
 		IBlobHandle CreateBlobHandle(BlobLocator locator);
 
 		/// <summary>
+		/// Creates a new blob reference from a locator and hash
+		/// </summary>
+		/// <param name="hash">Hash of the target blob</param>
+		/// <param name="locator">Path to the blob</param>
+		/// <returns>New handle to the blob</returns>
+		IBlobRef CreateBlobRef(IoHash hash, BlobLocator locator);
+
+		/// <summary>
+		/// Creates a new blob reference from a locator and hash
+		/// </summary>
+		/// <param name="hash">Hash of the target blob</param>
+		/// <param name="locator">Path to the blob</param>
+		/// <param name="options">Options for deserializing the blob</param>
+		/// <returns>New handle to the blob</returns>
+		IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions options);
+
+		/// <summary>
 		/// Creates a new writer for storage blobs
 		/// </summary>
 		/// <param name="basePath">Base path for any nodes written from the writer.</param>
+		/// <param name="serializerOptions">Options for serializing classes</param>
 		/// <returns>New writer instance. Must be disposed after use.</returns>
-		IBlobWriter CreateBlobWriter(string? basePath = null);
+		IBlobWriter CreateBlobWriter(string? basePath = null, BlobSerializerOptions? serializerOptions = null);
 
 		#endregion
 

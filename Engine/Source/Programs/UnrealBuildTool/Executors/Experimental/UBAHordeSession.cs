@@ -358,10 +358,10 @@ namespace UnrealBuildTool
 			BlobSerializerOptions serializerOptions = new BlobSerializerOptions();
 			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(2)); // Lock to v2 for now. Could change based on protocol version.
 
-			await using IBlobWriter writer = _storage.CreateBlobWriter();
+			await using IBlobWriter writer = _storage.CreateBlobWriter(serializerOptions: serializerOptions);
 			DirectoryNode sandbox = new();
-			await sandbox.AddFilesAsync(baseDir, files, writer, serializerOptions: serializerOptions, cancellationToken: cancellationToken);
-			IBlobHandle<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox, cancellationToken);
+			await sandbox.AddFilesAsync(baseDir, files, writer, cancellationToken: cancellationToken);
+			IBlobRef<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox, cancellationToken);
 			await writer.FlushAsync(cancellationToken);
 			return handle.GetLocator();
 		}

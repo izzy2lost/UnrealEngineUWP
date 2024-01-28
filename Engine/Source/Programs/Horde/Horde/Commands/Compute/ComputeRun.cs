@@ -159,7 +159,7 @@ namespace Horde.Commands.Compute
 		{
 			await using IBlobWriter writer = storage.CreateBlobWriter();
 
-			IBlobHandle<DirectoryNode> sandbox = await writer.WriteFilesAsync(taskFile.Directory, cancellationToken: cancellationToken);
+			IBlobRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(taskFile.Directory, cancellationToken: cancellationToken);
 			await writer.FlushAsync(cancellationToken);
 
 			return sandbox.GetLocator();
