@@ -6,6 +6,7 @@
 #include "SchematicGraphTag.h"
 #include "SchematicGraphNode.h"
 #include "SchematicGraphLink.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 
 class SSchematicGraphPanel;
 
@@ -113,6 +114,7 @@ public:
 	virtual TOptional<bool> GetInteractivityForChildNode(const FSchematicGraphNode* InParentNode, const FSchematicGraphNode* InChildNode) const;
 	bool IsDragSupportedForNode(const FGuid& InNodeGuid) const;
 	virtual bool IsDragSupportedForNode(const FSchematicGraphNode* InNode) const;
+	virtual bool GetContextMenuForNode(const FSchematicGraphNode* InNode, FMenuBuilder& OutMenu) const;
 
 	FLinearColor GetBackgroundColorForTag(const FGuid& InNodeGuid, const FGuid& InTagGuid) const;
 	virtual FLinearColor GetBackgroundColorForTag(const FSchematicGraphTag* InTag) const;

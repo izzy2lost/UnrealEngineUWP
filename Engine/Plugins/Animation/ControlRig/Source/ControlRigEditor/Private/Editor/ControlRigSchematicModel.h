@@ -106,6 +106,7 @@ public:
 	virtual ESchematicGraphVisibility::Type GetVisibilityForTag(const FSchematicGraphTag* InTag) const override;
 	virtual const FText GetToolTipForTag(const FSchematicGraphTag* InTag) const override;
 	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const override;
+	virtual bool GetContextMenuForNode(const FSchematicGraphNode* InNode, FMenuBuilder& OutMenu) const override;
 
 	static TArray<FRigElementKey> GetElementKeysFromDragDropEvent(const FDragDropOperation& InDragDropOperation, const UControlRig* InControlRig);
 
@@ -122,7 +123,6 @@ private:
 	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
 	void HandlePostConstruction(UControlRig* Subject, const FName& InEventName);
 	bool IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey = nullptr) const;
-
 	void OnShowCandidatesForConnector(const FRigElementKey& InConnectorKey);
 	void OnShowCandidatesForConnector(const FRigModuleConnector* InModuleConnector);
 	void OnShowCandidatesForMatches(const FModularRigResolveResult& InMatches);

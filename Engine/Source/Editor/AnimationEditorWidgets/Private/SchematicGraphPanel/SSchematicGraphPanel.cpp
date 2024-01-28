@@ -461,6 +461,27 @@ FReply SSchematicGraphNode::OnMouseButtonDown(const FGeometry& MyGeometry, const
 		OnClickedDelegate.ExecuteIfBound(this, MouseEvent);
 	}
 
+	if (MouseEvent.GetPressedButtons().Contains(EKeys::RightMouseButton))
+	{
+		if(SchematicGraphPanel && GetNodeData())
+		{
+			if(const FSchematicGraphModel* Graph = SchematicGraphPanel->GetSchematicGraph())
+			{
+				FMenuBuilder MenuBuilder(true, nullptr);
+				if(Graph->GetContextMenuForNode(GetNodeData(), MenuBuilder))
+				{
+					TSharedPtr<SWidget> MenuContent = MenuBuilder.MakeWidget();
+					if ( MenuContent.IsValid() )
+					{
+						FVector2D SummonLocation = MouseEvent.GetScreenSpacePosition();
+						FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
+						FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, MenuContent.ToSharedRef(), SummonLocation, FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+					}
+				}
+			}
+		}
+	}
+
 	const bool bFadedOut = IsFadedOut();
 	
 	if(NodeData)

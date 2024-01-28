@@ -1093,6 +1093,81 @@ bool FControlRigSchematicModel::GetForwardedNodeForDrag(FGuid& InOutGuid) const
 	return Super::GetForwardedNodeForDrag(InOutGuid);
 }
 
+bool FControlRigSchematicModel::GetContextMenuForNode(const FSchematicGraphNode* InNode, FMenuBuilder& OutMenu) const
+{
+	bool bSuccess = false;
+	if(Super::GetContextMenuForNode(InNode, OutMenu))
+	{
+		bSuccess = true;
+	}
+	
+	if(ControlRigBlueprint.IsValid())
+	{
+		if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
+		{
+			const URigHierarchy* Hierarchy = ControlRigBlueprint->GetDebuggedControlRig()->GetHierarchy();
+			check(Hierarchy);
+			const FModularRigConnections& Connections = ControlRigBlueprint->ModularRigModel.Connections;
+			const TArray<FRigElementKey>& Connectors = Connections.FindConnectorsFromTarget(ElementKeyNode->Key);
+			if(!Connectors.IsEmpty())
+			{
+				OutMenu.BeginSection(TEXT("DisconnectConnectors"), LOCTEXT("DisconnectConnectors", "Disconnect"));
+
+				// note: this is a copy on purpose since it is passed into the lambda
+				for(const FRigElementKey Connector : Connectors)
+				{
+					FString Label = *Connector.Name.ToString();
+
+					const FName ModulePath = Hierarchy->GetModulePathFName(Connector);
+					if(!ModulePath.IsNone())
+					{
+						if(const FRigModuleReference* Module = ControlRigBlueprint->ModularRigModel.FindModule(ModulePath.ToString()))
+						{
+							const FName DesiredName = Hierarchy->GetNameMetadata(Connector, URigHierarchy::DesiredNameMetadataName, NAME_None);
+							if(!DesiredName.IsNone())
+							{
+								Label = DesiredName.ToString();
+
+								if(const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy))
+								{
+									if(PrimaryConnector->GetKey() == Connector)
+									{
+										Label = Module->GetShortName();
+									}
+									else
+									{
+										Label = URigHierarchy::JoinNameSpace(Module->GetShortName(), Label);
+									}
+								}
+							}
+						}
+					}
+					
+					const FText Description = FText::FromString(FString::Printf(TEXT("Disconnect %s"), *Label));
+					
+					OutMenu.AddMenuEntry(Description, Description, FSlateIcon(), FUIAction(
+						FExecuteAction::CreateLambda([this, Connector]()
+						{
+							if(ControlRigBlueprint.IsValid())
+							{
+								if (UModularRigController* Controller = ControlRigBlueprint->GetModularRigController())
+								{
+									FScopedTransaction Transaction(LOCTEXT("DisconnectConnector", "Disconnect Connector"));
+									ControlRigBlueprint->Modify();
+									Controller->DisconnectConnector(Connector);
+								}
+							}								
+						})
+					));
+				}
+				OutMenu.EndSection();
+				bSuccess = true;
+			}
+		}
+	}
+	return bSuccess;
+}
+
 TArray<FRigElementKey> FControlRigSchematicModel::GetElementKeysFromDragDropEvent(const FDragDropOperation& InDragDropOperation, const UControlRig* InControlRig)
 {
 	TArray<FRigElementKey> DraggedKeys;
