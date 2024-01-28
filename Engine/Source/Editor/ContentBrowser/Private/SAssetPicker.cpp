@@ -358,6 +358,7 @@ void SAssetPicker::Construct( const FArguments& InArgs )
 		.HiddenColumnNames(InArgs._AssetPickerConfig.HiddenColumnNames)
 		.CustomColumns(InArgs._AssetPickerConfig.CustomColumns)
 		.OnSearchOptionsChanged(this, &SAssetPicker::HandleSearchSettingsChanged)
+		.InitialThumbnailSize(InArgs._AssetPickerConfig.InitialThumbnailSize)
 	];
 
 
