@@ -439,6 +439,11 @@ bool FSchematicGraphModel::IsDragSupportedForNode(const FSchematicGraphNode* InN
 	return InNode->IsDragSupported();
 }
 
+bool FSchematicGraphModel::GetContextMenuForNode(const FSchematicGraphNode* InNode, FMenuBuilder& OutMenu) const
+{
+	return false;
+}
+
 FLinearColor FSchematicGraphModel::GetBackgroundColorForTag(const FGuid& InNodeGuid, const FGuid& InTagGuid) const
 {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
