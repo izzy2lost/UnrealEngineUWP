@@ -16,11 +16,11 @@ FRigModuleAssetBrowserTabSummoner::FRigModuleAssetBrowserTabSummoner(const TShar
 {
 	bIsSingleton = true; // only allow a single instance of this tab
 	
-	TabLabel = LOCTEXT("RigModuleAssetBrowserTabLabel", "Rig Module Asset Browser");
+	TabLabel = LOCTEXT("RigModuleAssetBrowserTabLabel", "Module Assets");
 	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "ContentBrowser.TabIcon");
 
-	ViewMenuDescription = LOCTEXT("RigModuleAssetBrowser_ViewMenu_Desc", "Rig Module Asset Browser");
-	ViewMenuTooltip = LOCTEXT("RigModuleAssetBrowser_ViewMenu_ToolTip", "Show the Rig Module Asset Browser Tab");
+	ViewMenuDescription = LOCTEXT("RigModuleAssetBrowser_ViewMenu_Desc", "Module Assets");
+	ViewMenuTooltip = LOCTEXT("RigModuleAssetBrowser_ViewMenu_ToolTip", "Show the Module Assets Tab");
 }
 
 TSharedPtr<SToolTip> FRigModuleAssetBrowserTabSummoner::CreateTabToolTipWidget(const FWorkflowTabSpawnInfo& Info) const

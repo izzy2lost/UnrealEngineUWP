@@ -51,6 +51,7 @@ void SRigModuleAssetBrowser::RefreshView()
 	AssetPickerConfig.bAllowRename = false;
 	AssetPickerConfig.bForceShowPluginContent = true;
 	AssetPickerConfig.bForceShowEngineContent = true;
+	AssetPickerConfig.InitialThumbnailSize = EThumbnailSize::Small;
 
 	// hide all asset registry columns by default (we only really want the name and path)
 	UObject* DefaultControlRigBlueprint = UControlRigBlueprint::StaticClass()->GetDefaultObject();

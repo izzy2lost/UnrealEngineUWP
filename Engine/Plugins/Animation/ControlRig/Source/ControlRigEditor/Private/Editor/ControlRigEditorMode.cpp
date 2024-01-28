@@ -165,63 +165,42 @@ FModularRigEditorMode::FModularRigEditorMode(const TSharedRef<FControlRigEditor>
 					->SetSizeCoefficient(0.2f)
 					->Split
 					(
-						//	Left top - viewport
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.5f)
-						->SetHideTabWell(true)
-						->AddTab(FPersonaTabs::PreviewViewportID, ETabState::OpenedTab)
-					
-					)
-					->Split
-					(
-						//	Left bottom - rig/hierarchy/modules
-						FTabManager::NewSplitter()
-						->SetOrientation(Orient_Horizontal)
-						->SetSizeCoefficient(0.5f)
-						->Split
-						(
-							// Left bottom left
-							FTabManager::NewStack()
-							->SetSizeCoefficient(0.5f)
-							->SetForegroundTab(FRigHierarchyTabSummoner::TabID)
-							->AddTab(FBlueprintEditorTabs::CompilerResultsID, ETabState::ClosedTab)
-							->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FRigCurveContainerTabSummoner::TabID, ETabState::OpenedTab)
-							->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
-						)
-						->Split(
-							// Left bottom right
-							FTabManager::NewStack()
-							->SetSizeCoefficient(0.5f)
-							->AddTab(FModularRigModelTabSummoner::TabID, ETabState::OpenedTab)
-						)
-					)
-				)
-				->Split
-				(
-					// Right side
-					FTabManager::NewSplitter()
-					->SetOrientation(Orient_Vertical)
-					->SetSizeCoefficient(0.2f)
-					->Split
-					(
-						// Right top
-						FTabManager::NewStack()
-						->SetHideTabWell(false)
-						->SetSizeCoefficient(0.5f )
-						->AddTab(FBlueprintEditorTabs::DetailsID, ETabState::OpenedTab)
-						->AddTab(FPersonaTabs::AdvancedPreviewSceneSettingsID, ETabState::OpenedTab)
-						->AddTab(FRigAnimAttributeTabSummoner::TabID, ETabState::OpenedTab)
-						->SetForegroundTab(FBlueprintEditorTabs::DetailsID)
-					)
-					->Split(
-						// Right bottom
+						// Left top - Module Library
 						FTabManager::NewStack()
 						->SetHideTabWell(false)
 						->SetSizeCoefficient(0.5f)
 						->AddTab(FRigModuleAssetBrowserTabSummoner::TabID, ETabState::OpenedTab)
 						->SetForegroundTab(FBlueprintEditorTabs::DetailsID)
 					)
+					->Split
+					(
+						//	Left bottom - rig/hierarchy/modules
+						FTabManager::NewStack()
+						->SetHideTabWell(false)
+						->SetSizeCoefficient(0.5f)
+						->SetForegroundTab(FModularRigModelTabSummoner::TabID)
+						->AddTab(FModularRigModelTabSummoner::TabID, ETabState::OpenedTab)
+						->AddTab(FBlueprintEditorTabs::MyBlueprintID, ETabState::OpenedTab)
+					)
+				)
+				->Split
+				(
+					//	Center - viewport
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.6f)
+					->SetHideTabWell(true)
+					->AddTab(FPersonaTabs::PreviewViewportID, ETabState::OpenedTab)
+				)
+				->Split
+				(
+					// Right side
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.2f)
+					->SetHideTabWell(false)
+					->SetForegroundTab(FBlueprintEditorTabs::DetailsID)
+					->AddTab(FBlueprintEditorTabs::DetailsID, ETabState::OpenedTab)
+					->AddTab(FPersonaTabs::AdvancedPreviewSceneSettingsID, ETabState::OpenedTab)
+					->AddTab(FRigHierarchyTabSummoner::TabID, ETabState::OpenedTab)
 				)
 			)
 		);

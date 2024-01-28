@@ -187,6 +187,9 @@ struct FAssetPickerConfig
 	/** The default scale for thumbnails. [0-1] range */
 	TAttribute< float > ThumbnailScale;
 
+	/** Initial thumbnail size */
+	EThumbnailSize InitialThumbnailSize;
+
 	/** Only display results in these collections */
 	TArray<FCollectionNameType> Collections;
 
@@ -313,6 +316,7 @@ struct FAssetPickerConfig
 		: SelectionMode( ESelectionMode::Multi )
 		, ThumbnailLabel( EThumbnailLabel::ClassName )
 		, ThumbnailScale(0.1f)
+		, InitialThumbnailSize(EThumbnailSize::Medium)
 		, InitialAssetViewType(EAssetViewType::Tile)
 		, bFocusSearchBoxWhenOpened(true)
 		, bAllowNullSelection(false)
