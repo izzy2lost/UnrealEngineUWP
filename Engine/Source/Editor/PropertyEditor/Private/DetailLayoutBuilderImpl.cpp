@@ -208,9 +208,27 @@ IDetailPropertyRow* FDetailLayoutBuilderImpl::EditDefaultProperty(TSharedPtr<IPr
 				}
 			}
 		}
-
 	}
+	return nullptr;
+}
 
+IDetailPropertyRow* FDetailLayoutBuilderImpl::EditPropertyFromRoot(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	for (const TSharedRef<FDetailTreeNode>& RootTreeNode : AllRootTreeNodes)
+	{
+		FDetailNodeList ChildNodes;
+		RootTreeNode->GetChildren(ChildNodes, true/*bIgnoreVisibility*/);
+		for (const TSharedRef<FDetailTreeNode>& ChildNode : ChildNodes)
+		{
+			if (TSharedPtr<IDetailPropertyRow> PropertyRow = ChildNode->GetRow())
+			{
+				if (PropertyRow->GetPropertyHandle() == InPropertyHandle)
+				{
+					return PropertyRow.Get();
+				}
+			}
+		}
+	}
 	return nullptr;
 }
 

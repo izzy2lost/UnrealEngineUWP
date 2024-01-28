@@ -175,10 +175,19 @@ public:
 	 * The property will remain in the default location but the widget or other attributes for the property can be changed 
 	 * Note This cannot be used to customize other customizations
 
-	 * @param InPropertyHandle	The handle to the property that you want to add to its own category.
+	 * @param InPropertyHandle	The handle to the property that you want to edit
 	 * @return					The property row to edit or nullptr if the property row does not exist
 	 */
 	virtual IDetailPropertyRow* EditDefaultProperty(TSharedPtr<IPropertyHandle> InPropertyHandle) = 0;
+
+	/**
+	 * Get the property row from the root of the details panel after it's been constructed, so this will work with default or custom 
+	 * properties
+	 * @param InPropertyHandle	The handle to the property that you want to edit
+	 * @return					The property row to edit or nullptr if the property row does not exist, which may happen if not 
+	 * constructed yet
+	 */
+	virtual IDetailPropertyRow* EditPropertyFromRoot(TSharedPtr<IPropertyHandle> InPropertyHandle) = 0;
 
 	/**
 	 * @return true if the category contains child rows. 
