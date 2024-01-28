@@ -251,6 +251,13 @@ public:
 	virtual IDetailPropertyRow& DragDropHandler(TSharedPtr<IDetailDragDropHandler> InDragDropHandler) = 0;
 
 	/**
+	 * Returns the property row expansion state
+	 *
+	 * @return Will return true if the row is expanded, false if not
+	 */
+	virtual bool IsExpanded() const = 0;
+
+	/**
 	 * Returns the name and value widget of this property row.  You can use this widget to apply further customization to existing widgets (by using this  with CustomWidget)
 	 *
 	 * @param OutNameWidget		The default name widget

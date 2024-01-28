@@ -178,6 +178,15 @@ IDetailPropertyRow& FDetailPropertyRow::DragDropHandler(TSharedPtr<IDetailDragDr
 	return *this;
 }
 
+bool FDetailPropertyRow::IsExpanded() const
+{
+	if (GetPropertyNode())
+	{
+		return GetPropertyNode()->HasNodeFlags(EPropertyNodeFlags::Expanded);
+	}
+	return false;
+}
+
 void FDetailPropertyRow::GetDefaultWidgets( TSharedPtr<SWidget>& OutNameWidget, TSharedPtr<SWidget>& OutValueWidget, bool bAddWidgetDecoration )
 {
 	FDetailWidgetRow Row;
