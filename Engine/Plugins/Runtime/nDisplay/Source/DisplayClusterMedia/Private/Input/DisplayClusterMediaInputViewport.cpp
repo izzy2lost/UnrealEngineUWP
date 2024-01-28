@@ -26,10 +26,6 @@ bool FDisplayClusterMediaInputViewport::Play()
 	if (FDisplayClusterMediaInputBase::Play())
 	{
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostCrossGpuTransfer_RenderThread().AddRaw(this, &FDisplayClusterMediaInputViewport::PostCrossGpuTransfer_RenderThread);
-
-		// Subscribes to viewport callback to raise media flags for viewport.
-		// Note: viewport is unaware of the media's configurations.
-		// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaInputViewport::OnUpdateViewportMediaState);
 
 		return true;
@@ -57,9 +53,9 @@ void FDisplayClusterMediaInputViewport::OnUpdateViewportMediaState(IDisplayClust
 	if (InViewport && InViewport->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
 	{
 		// Raise flags that this viewport texture will be overridden by media.
-		InOutMediaState |= EDisplayClusterViewportMediaState::Input;
+		InOutMediaState = EDisplayClusterViewportMediaState::Input;
 
-		if (ForceLateOCIOPass)
+		if (bForceLateOCIOPass)
 		{
 			// Raise flags that this viewport requires ForceLateOCIOPass.
 			InOutMediaState |= EDisplayClusterViewportMediaState::Input_ForceLateOCIOPass;

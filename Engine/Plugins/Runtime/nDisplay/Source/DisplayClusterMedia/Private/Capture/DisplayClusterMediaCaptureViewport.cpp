@@ -2,13 +2,19 @@
 
 #include "Capture/DisplayClusterMediaCaptureViewport.h"
 
-#include "Config/IDisplayClusterConfigManager.h"
-#include "DisplayClusterConfigurationTypes_Viewport.h"
 #include "IDisplayCluster.h"
 #include "IDisplayClusterCallbacks.h"
 
+#include "DisplayClusterConfigurationTypes_Viewport.h"
+
+#include "Config/IDisplayClusterConfigManager.h"
+
+#include "Render/IDisplayClusterRenderManager.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
+#include "Render/Viewport/IDisplayClusterViewportManager.h"
 #include "Render/Viewport/IDisplayClusterViewportManagerProxy.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Context.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_RenderSettings.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
 
@@ -22,15 +28,12 @@ FDisplayClusterMediaCaptureViewport::FDisplayClusterMediaCaptureViewport(const F
 
 bool FDisplayClusterMediaCaptureViewport::StartCapture()
 {
-	// If capturing has started successfully, subscribe for rendering callbacks
+	// If capturing has started successfully, subscribe for the pipeline callbacks
 	if (FDisplayClusterMediaCaptureBase::StartCapture())
 	{
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread);
-
-		// Subscribes to viewport callback to raise media flags for viewport.
-		// Note: viewport is unaware of the media's configurations.
-		// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState);
+
 		return true;
 	}
 
@@ -56,9 +59,9 @@ void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClu
 	if (InViewport && InViewport->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
 	{
 		// Raise flags that this viewport will be captured by media.
-		InOutMediaState |= EDisplayClusterViewportMediaState::Capture;
+		InOutMediaState = EDisplayClusterViewportMediaState::Capture;
 
-		if (ForceLateOCIOPass)
+		if (bForceLateOCIOPass)
 		{
 			// Raise flags that this capture requires ForceLateOCIOPass.
 			InOutMediaState |= EDisplayClusterViewportMediaState::Capture_ForceLateOCIOPass;
@@ -68,12 +71,20 @@ void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClu
 
 FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const
 {
-	if (IDisplayCluster::Get().GetConfigMgr())
+	// We need to get actual texture size for the viewport
+	if (const IDisplayClusterRenderManager* const RenderMgr = IDisplayCluster::Get().GetRenderMgr())
 	{
-		const UDisplayClusterConfigurationViewport* Viewport = IDisplayCluster::Get().GetConfigMgr()->GetLocalViewport(ViewportId);
-		if (ensure(Viewport))
+		if (const IDisplayClusterViewportManager* const ViewportMgr = RenderMgr->GetViewportManager())
 		{
-			return { Viewport->Region.W, Viewport->Region.H };
+			if (const IDisplayClusterViewport* const Viewport = ViewportMgr->FindViewport(ViewportId))
+			{
+				const TArray<FDisplayClusterViewport_Context>& Contexts = Viewport->GetContexts();
+				if (Contexts.Num() > 0)
+				{
+					const FIntPoint Size = Contexts[0].RenderTargetRect.Size();
+					return Size;
+				}
+			}
 		}
 	}
 

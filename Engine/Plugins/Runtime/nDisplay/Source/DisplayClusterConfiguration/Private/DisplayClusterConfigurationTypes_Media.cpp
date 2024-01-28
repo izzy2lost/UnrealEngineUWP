@@ -2,26 +2,39 @@
 
 #include "DisplayClusterConfigurationTypes_Media.h"
 
-///////////////////////////////////////////////////
-// FDisplayClusterConfigurationMedia
 
-bool FDisplayClusterConfigurationMedia::IsMediaInputAssigned() const
+///////////////////////////////////////////////////
+// FDisplayClusterConfigurationMediaNodeBackbuffer
+
+bool FDisplayClusterConfigurationMediaNodeBackbuffer::IsMediaOutputAssigned() const
+{
+	// Just see if any media output instances are assigned
+	const bool bAnyMediaAssigned = MediaOutputs.ContainsByPredicate([](const FDisplayClusterConfigurationMediaOutput& Item)
+		{
+			return IsValid(Item.MediaOutput);
+		});
+
+	return bAnyMediaAssigned;
+}
+
+
+///////////////////////////////////////////////////
+// FDisplayClusterConfigurationMediaViewport
+
+bool FDisplayClusterConfigurationMediaViewport::IsMediaInputAssigned() const
 {
 	return IsValid(MediaInput.MediaSource);
 }
 
-bool FDisplayClusterConfigurationMedia::IsMediaOutputAssigned() const
+bool FDisplayClusterConfigurationMediaViewport::IsMediaOutputAssigned() const
 {
-	// Return true if we have at least one media output set
-	for (const FDisplayClusterConfigurationMediaOutput& MediaOutputItem : MediaOutputs)
-	{
-		if (IsValid(MediaOutputItem.MediaOutput))
+	// Just see if any media output instances are assigned
+	const bool bAnyMediaAssigned = MediaOutputs.ContainsByPredicate([](const FDisplayClusterConfigurationMediaOutput& Item)
 		{
-			return true;
-		}
-	}
+			return IsValid(Item.MediaOutput);
+		});
 
-	return false;
+	return bAnyMediaAssigned;
 }
 
 
@@ -80,34 +93,48 @@ TArray<FDisplayClusterConfigurationMediaOutputGroup> FDisplayClusterConfiguratio
 		});
 }
 
-UMediaSource* FDisplayClusterConfigurationMediaICVFX::GetMediaSourceForTiles(const FString& NodeId, TArray<FIntPoint>& OutTiles) const
+/** Returns all tiles bound to a specific cluster node. */
+bool FDisplayClusterConfigurationMediaICVFX::GetMediaInputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileInput>& OutInputTiles) const
 {
-	OutTiles.Empty();
-
-	// Look up for a group that contains node ID specified
-	for (const FDisplayClusterConfigurationMediaInputGroup& MediaInputGroup : MediaInputGroups)
+	// Here we iterate through tiled media input groups, and look for a group that contains a cluster node ID specified.
+	for (const FDisplayClusterConfigurationMediaTiledInputGroup& TiledInputGroup : TiledMediaInputGroups)
 	{
-		if (IsValid(MediaInputGroup.MediaSource))
-		{
-			if (const FDisplayClusterConfigurationClusterNodeTilesReferenceList* TilesReferenceList = MediaInputGroup.ClusterNodesWithTiles.Find(NodeId))
+		// Look for NodeId in the group
+		const bool bFoundGroupWithNodeId = TiledInputGroup.ClusterNodes.ItemNames.ContainsByPredicate([NodeId](const FString& Item)
 			{
-				for(const FDisplayClusterConfigurationTileIndex& TileIndexIt : TilesReferenceList->Tiles)
-				{
-					OutTiles.AddUnique(FIntPoint(TileIndexIt.TileX, TileIndexIt.TileY));
-				}
-			}
+				return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+			});
 
-			return MediaInputGroup.MediaSource;
+		// If found
+		if (bFoundGroupWithNodeId)
+		{
+			OutInputTiles = TiledInputGroup.Tiles;
+			return true;
 		}
 	}
 
-	return nullptr;
+	return false;
 }
 
-TArray<FDisplayClusterConfigurationMediaOutputGroup> FDisplayClusterConfigurationMediaICVFX::GetMediaOutputGroupsForTiles(const FString& NodeId) const
+/** Returns all tiles bound to a specific cluster node. */
+bool FDisplayClusterConfigurationMediaICVFX::GetMediaOutputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileOutput>& OutOutputTiles) const
 {
-	return MediaOutputGroups.FilterByPredicate([NodeId](const FDisplayClusterConfigurationMediaOutputGroup& Item)
+	// Here we iterate through tiled media output groups, and look for a group that contains a cluster node ID specified.
+	for (const FDisplayClusterConfigurationMediaTiledOutputGroup& TiledOutputGroup : TiledMediaOutputGroups)
+	{
+		// Look for NodeId in the group
+		const bool bFoundGroupWithNodeId = TiledOutputGroup.ClusterNodes.ItemNames.ContainsByPredicate([NodeId](const FString& Item)
+			{
+				return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+			});
+
+		// If found
+		if (bFoundGroupWithNodeId)
 		{
-			return Item.ClusterNodesWithTiles.Contains(NodeId);
-		});
+			OutOutputTiles = TiledOutputGroup.Tiles;
+			return true;
+		}
+	}
+
+	return false;
 }

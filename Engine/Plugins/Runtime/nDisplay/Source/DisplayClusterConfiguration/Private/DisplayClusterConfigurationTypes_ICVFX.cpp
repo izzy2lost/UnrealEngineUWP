@@ -213,7 +213,7 @@ bool FDisplayClusterConfigurationICVFX_CameraSettings::IsICVFXEnabled(const UDis
 
 	// Get backbuffer media settings
 	const UDisplayClusterConfigurationClusterNode* const NodeCfg = InConfigurationData.Cluster->GetNode(InClusterNodeId);
-	const FDisplayClusterConfigurationMedia* BackbufferMediaSettings = NodeCfg ? &NodeCfg->Media : nullptr;
+	const FDisplayClusterConfigurationMediaNodeBackbuffer* BackbufferMediaSettings = NodeCfg ? &NodeCfg->MediaSettings : nullptr;
 
 	// Second condition to render offscreen: the backbuffer has media output assigned.
 	// This means the whole frame including ICVFX cameras need to be rendered.

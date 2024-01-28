@@ -26,9 +26,6 @@
 
 #include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 
-#include "IDisplayCluster.h"
-#include "IDisplayClusterCallbacks.h"
-
 #include "EngineUtils.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -55,13 +52,6 @@ void FDisplayClusterViewport::ResetRuntimeParameters()
 
 	OverscanRuntimeSettings = FDisplayClusterViewport_OverscanRuntimeSettings();
 	CustomFrustumRuntimeSettings = FDisplayClusterViewport_CustomFrustumRuntimeSettings();
-	
-	// Obtain viewport media state from external multicast delegates.
-	EDisplayClusterViewportMediaState NewMediaStates = EDisplayClusterViewportMediaState::None;
-	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().Broadcast(this, NewMediaStates);
-
-	// Update the media state for the new frame.
-	RenderSettings.AssignMediaStates(NewMediaStates);
 }
 
 bool FDisplayClusterViewport::IsInternalViewport() const
@@ -134,6 +124,12 @@ bool FDisplayClusterViewport::IsRenderEnabled() const
 	if (RenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Source)
 	{
 		// The source viewport is not rendered by itself, because the rendering is done on tiles.
+		return false;
+	}
+
+	if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::Inactive))
+	{
+		// Don't render inactive tiles
 		return false;
 	}
 
@@ -355,4 +351,3 @@ uint8 FDisplayClusterViewport::GetPriority() const
 
 	return OutOrder;
 }
-
