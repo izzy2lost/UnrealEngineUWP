@@ -182,6 +182,36 @@ struct RIGVM_API FRigVMFunction_MathTransformToEulerTransform : public FRigVMFun
 };
 
 /**
+ * Retrieves the forward, right and up vectors of a transform's quaternion
+ */
+USTRUCT(meta=(DisplayName="To Vectors", TemplateName="ToVectors", Keywords="Forward,Right,Up"))
+struct RIGVM_API FRigVMFunction_MathTransformToVectors : public FRigVMFunction_MathTransformBase
+{
+	GENERATED_BODY()
+
+	FRigVMFunction_MathTransformToVectors()
+	{
+		Value = FTransform::Identity;
+		Forward = Right = Up = FVector(0.f, 0.f, 0.f);
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	UPROPERTY(meta=(Input))
+	FTransform Value;
+
+	UPROPERTY(meta=(Output))
+	FVector Forward;
+
+	UPROPERTY(meta=(Output))
+	FVector Right;
+
+	UPROPERTY(meta=(Output))
+	FVector Up;
+};
+
+/**
  * Returns the product of the two values
  */
 USTRUCT(meta=(DisplayName="Multiply", TemplateName="Multiply", Keywords="Product,*,Global"))
