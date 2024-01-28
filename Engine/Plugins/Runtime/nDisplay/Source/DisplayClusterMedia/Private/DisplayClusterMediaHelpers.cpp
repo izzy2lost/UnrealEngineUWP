@@ -33,7 +33,7 @@ namespace DisplayClusterMediaHelpers
 						: FString::Printf(TEXT("%s_%s_%s_icvfx_input"), *NodeId, *DCRAName, *OwnerName);
 
 				default:
-					unimplemented();
+					checkNoEntry();
 				}
 			}
 			else if (DeviceType == EMediaDeviceType::Output)

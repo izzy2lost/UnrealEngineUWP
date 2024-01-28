@@ -358,8 +358,8 @@ public:
 	TMap<FString, FDisplayClusterConfigurationPostprocess> Postprocess;
 
 	// Media settings
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
-	FDisplayClusterConfigurationMedia Media;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media"))
+	FDisplayClusterConfigurationMediaNodeBackbuffer MediaSettings;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditDefaultsOnly, Category = "Configuration", meta = (HideProperty))
@@ -371,6 +371,14 @@ public:
 	/** Binds a background preview image for easier output mapping */
 	UPROPERTY(EditDefaultsOnly, Category = "Configuration")
 	FDisplayClusterConfigurationExternalImage PreviewImage;
+#endif
+
+public:
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "This property has been deprecated. Please use 'MediaSettings'.")
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property has been deprecated. Please use 'MediaSettings'."))
+	FDisplayClusterConfigurationMediaViewport Media;
 #endif
 
 protected:

@@ -3,21 +3,23 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Tile.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers.h"
 
-#include "DisplayClusterConfigurationTypes_Tile.h"
+#include "Misc/DisplayClusterGlobals.h"
+#include "Misc/DisplayClusterLog.h"
 
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportStrings.h"
 #include "Render/Viewport/DisplayClusterViewportHelpers.h"
-
-#include "DisplayClusterProjectionStrings.h"
-
-#include "Render/Viewport/DisplayClusterViewportStrings.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 
+#include "DisplayClusterEnums.h"
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
+#include "DisplayClusterConfigurationTypes_Tile.h"
+#include "DisplayClusterProjectionStrings.h"
 
-#include "Misc/DisplayClusterLog.h"
+#include "IDisplayCluster.h"
+#include "IDisplayClusterCallbacks.h"
+
 
 ////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfigurationHelpers_Tile
@@ -186,6 +188,27 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 
 		// Setup as tile.
 		InOutRenderSettings.TileSettings = FDisplayClusterViewport_TileSettings(InSourceViewport.GetId(), InTilePos, InTileSize);
+
+		// Allow external customers to configure media state
+		{
+			// By default, we set 'None' so the tiles can be rendered in editor for camera preview.
+			EDisplayClusterViewportMediaState NewMediaStates = EDisplayClusterViewportMediaState::None;
+
+			// But in cluster mode, we set 'Inactive' by default. When tiling is used, the tile viewport must either be rendered for media output
+			// or preserve internal buffer for a media input texture. However, it's possible the tile viewport has wrong or completely
+			// missing media output settings, or corresponding media device was not able to start properly for some reason.
+			// In this case the tile should not be rendered at all.
+			if (GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster)
+			{
+				NewMediaStates = EDisplayClusterViewportMediaState::Inactive;
+			}
+			
+			// Now allow to override media state if anyone wants
+			IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().Broadcast(TileViewport, NewMediaStates);
+
+			// Update the media state for the new frame.
+			InOutRenderSettings.AssignMediaStates(NewMediaStates);
+		}
 
 		// Copy internal render settings from the source:
 		TileViewport->GetVisibilitySettingsImpl() = InSourceViewport.GetVisibilitySettingsImpl();

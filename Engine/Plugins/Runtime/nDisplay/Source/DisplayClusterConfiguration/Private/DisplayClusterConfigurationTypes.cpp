@@ -325,6 +325,14 @@ void UDisplayClusterConfigurationClusterNode::PostLoad()
 			Media.MediaOutput = nullptr;
 			Media.OutputSyncPolicy = nullptr;
 		}
+
+		if (MediaSettings.MediaOutputs.IsEmpty() && Media.MediaOutputs.Num() > 0)
+		{
+			MediaSettings.bEnable = Media.bEnable;
+			MediaSettings.MediaOutputs = Media.MediaOutputs;
+			Media.bEnable = false;
+			Media.MediaOutputs.Empty();
+		}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITOR
 }

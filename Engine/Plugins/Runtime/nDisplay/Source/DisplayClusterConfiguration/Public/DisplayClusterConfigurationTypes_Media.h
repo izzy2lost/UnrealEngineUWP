@@ -16,6 +16,17 @@
 
 
 /*
+ * Media frame split types
+ */
+UENUM(BlueprintType)
+enum class EDisplayClusterConfigurationMediaSplitType : uint8
+{
+	FullFrame     UMETA(DisplayName = "Full Frame"),
+	UniformTiles  UMETA(DisplayName = "Uniform Tiles"),
+};
+
+
+/*
  * Media input item
  */
 USTRUCT(Blueprintable)
@@ -48,14 +59,37 @@ public:
 	TObjectPtr<UDisplayClusterMediaOutputSynchronizationPolicy> OutputSyncPolicy;
 };
 
+/*
+ * Media settings for node backbuffer
+ */
+USTRUCT(Blueprintable)
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaNodeBackbuffer
+{
+	GENERATED_BODY()
+
+public:
+	/** Enable/disable media */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	bool bEnable = false;
+
+	/** Media outputs to use */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	TArray<FDisplayClusterConfigurationMediaOutput> MediaOutputs;
+
+public:
+
+	/** Returns true if at least one media output assigned */
+	bool IsMediaOutputAssigned() const;
+};
+
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 /*
- * Media settings for viewports and backbuffer
+ * Media settings for viewports
  */
 USTRUCT(Blueprintable)
-struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMedia
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaViewport
 {
 	GENERATED_BODY()
 
@@ -109,7 +143,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 /*
- * Media input group (ICVFX)
+ * Media input group (ICVFX, Full frame)
  */
 USTRUCT(Blueprintable)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaInputGroup
@@ -121,15 +155,11 @@ public:
 	/** Cluster nodes that use media source below */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
 	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
-
-	/** Cluster nodes with tiles that use the media source below */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
-	FDisplayClusterConfigurationClusterTileItemReferenceList ClusterNodesWithTiles;
 };
 
 
 /*
- * Media output group (ICVFX)
+ * Media output group (ICVFX, Full Frame)
  */
 USTRUCT(Blueprintable)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaOutputGroup
@@ -141,10 +171,94 @@ public:
 	/** Cluster nodes that export media via MediaOutput below */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
 	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
+};
 
-	/** Cluster nodes with tiles that export media via MediaOutput below */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
-	FDisplayClusterConfigurationClusterTileItemReferenceList ClusterNodesWithTiles;
+
+/**
+ * Uniform tile media input item. Maps a tile to a media source.
+ */
+USTRUCT(BlueprintType)
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaUniformTileInput
+{
+	GENERATED_BODY()
+
+public:
+	/** Tile X location */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
+	int32 TileX = 0;
+
+	/** Tile Y location */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
+	int32 TileY = 0;
+
+	/** Media source to use */
+	UPROPERTY(Instanced, EditAnywhere, BlueprintReadWrite, Category = "Media")
+	TObjectPtr<UMediaSource> MediaSource;
+};
+
+
+/**
+ * Uniform tile media output item. Maps a tile to a media output.
+ */
+USTRUCT(BlueprintType)
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaUniformTileOutput
+{
+	GENERATED_BODY()
+
+public:
+	/** Tile X location */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
+	int32 TileX = 0;
+
+	/** Tile Y location */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Media", meta = (UIMin = 0, ClampMin = 0, UIMax = 4, ClampMax = 4))
+	int32 TileY = 0;
+
+	/** Media output to use */
+	UPROPERTY(Instanced, EditAnywhere, BlueprintReadWrite, Category = "Media")
+	TObjectPtr<UMediaOutput> MediaOutput;
+};
+
+
+/*
+ * Media input group (ICVFX, Tiled)
+ */
+USTRUCT(Blueprintable)
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaTiledInputGroup
+{
+	GENERATED_BODY()
+
+public:
+	/** Cluster nodes that use media source below */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes))
+	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
+
+	/** Tile mapping. Maps tiles to media sources. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes))
+	TArray<FDisplayClusterConfigurationMediaUniformTileInput> Tiles;
+};
+
+
+/*
+ * Media output group (ICVFX, Tiled)
+ */
+USTRUCT(Blueprintable)
+struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaTiledOutputGroup
+{
+	GENERATED_BODY()
+
+public:
+	/** Cluster nodes that export media via MediaOutput below */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes))
+	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
+
+	/** Tile mapping. Maps tiles to media outputs. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (ClusterItemType = ClusterNodes))
+	TArray<FDisplayClusterConfigurationMediaUniformTileOutput> Tiles;
+
+	/** Media output synchronization policy */
+	UPROPERTY(Instanced, EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Capture Synchronization"))
+	TObjectPtr<UDisplayClusterMediaOutputSynchronizationPolicy> OutputSyncPolicy;
 };
 
 
@@ -161,13 +275,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
 	bool bEnable = false;
 
-	/** Media input mapping */
+	/** Media frame split type */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	EDisplayClusterConfigurationMediaSplitType SplitType = EDisplayClusterConfigurationMediaSplitType::FullFrame;
+
+	/** Media input mapping (Full frame) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Input Groups (Full Frame)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame"))
 	TArray<FDisplayClusterConfigurationMediaInputGroup> MediaInputGroups;
 
-	/** Media output mapping */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	/** Media output mapping (Full frame) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups (Full Frame)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame"))
 	TArray<FDisplayClusterConfigurationMediaOutputGroup> MediaOutputGroups;
+
+	/** Media input mapping (Tiled) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Input Groups (Tiled)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles"))
+	TArray<FDisplayClusterConfigurationMediaTiledInputGroup> TiledMediaInputGroups;
+
+	/** Media output mapping (Tiled) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Media Output Groups (Tiled)", EditCondition = "SplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles"))
+	TArray<FDisplayClusterConfigurationMediaTiledOutputGroup> TiledMediaOutputGroups;
 
 	/** Force late OCIO pass */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Late OCIO Pass"))
@@ -186,12 +312,11 @@ public:
 	/** Returns media outputs bound to a specific cluster node */
 	TArray<FDisplayClusterConfigurationMediaOutputGroup> GetMediaOutputGroups(const FString& NodeId) const;
 
+	/** Returns all the tiles bound to a specific cluster node. */
+	bool GetMediaInputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileInput>& OutInputTiles) const;
 
-	/** Returns media source bound to a specific cluster node with tiles. */
-	UMediaSource* GetMediaSourceForTiles(const FString& NodeId, TArray<FIntPoint>& OutTiles) const;
-
-	/** Returns media outputs bound to a specific cluster node */
-	TArray<FDisplayClusterConfigurationMediaOutputGroup> GetMediaOutputGroupsForTiles(const FString& NodeId) const;
+	/** Returns all the tiles bound to a specific cluster node. */
+	bool GetMediaOutputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileOutput>& OutOutputTiles) const;
 
 public:
 	UE_DEPRECATED(5.3, "This function has beend deprecated. Please use GetMediaOutputGroups.")

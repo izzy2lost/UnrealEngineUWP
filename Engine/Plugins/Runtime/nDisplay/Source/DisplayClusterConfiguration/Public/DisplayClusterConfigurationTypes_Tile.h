@@ -28,11 +28,11 @@ public:
 
 	/** The viewport will be horizontally partitioned into the specified number of tiles.  */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering", meta = (DisplayName = "Tile X", ClampMin = "1", UIMin = "1", ClampMax = "4", UIMax = "4"))
-	int TileX = 1;
+	int32 TileX = 1;
 
 	/** The viewport will be vertically partitioned into the specified number of tiles.  */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Rendering", meta = (DisplayName = "Tile Y", ClampMin = "1", UIMin = "1", ClampMax = "4", UIMax = "4"))
-	int TileY = 1;
+	int32 TileY = 1;
 };
 
 USTRUCT(Blueprintable)

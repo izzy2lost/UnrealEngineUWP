@@ -191,69 +191,8 @@ USTRUCT(BlueprintType)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationClusterItemReferenceList
 {
 	GENERATED_BODY()
-public:
-	bool Contains(const FString& InName) const
-	{
-		return ItemNames.ContainsByPredicate([InName](const FString& ItemIt)
-			{
-				return ItemIt.Equals(InName, ESearchCase::IgnoreCase);
-			});
-	}
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = NDisplay)
 	TArray<FString> ItemNames;
-};
-
-USTRUCT(BlueprintType)
-struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationTileIndex
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = NDisplay)
-	int TileX;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = NDisplay)
-	int TileY;
-};
-
-USTRUCT(BlueprintType)
-struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationClusterNodeTilesReferenceList
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = NDisplay)
-	FString NodeId;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = NDisplay)
-	TArray<FDisplayClusterConfigurationTileIndex> Tiles;
-};
-
-USTRUCT(BlueprintType)
-struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationClusterTileItemReferenceList
-{
-	GENERATED_BODY()
-
-public:
-	bool Contains(const FString& InName) const
-	{
-		return Items.ContainsByPredicate([InName](const FDisplayClusterConfigurationClusterNodeTilesReferenceList& ItemIt)
-			{
-				return ItemIt.NodeId.Equals(InName, ESearchCase::IgnoreCase);
-			});
-	}
-
-	const FDisplayClusterConfigurationClusterNodeTilesReferenceList* Find(const FString& InNodeId) const
-	{
-		return Items.FindByPredicate([InNodeId](const FDisplayClusterConfigurationClusterNodeTilesReferenceList& Item)
-			{
-				return Item.NodeId.Equals(InNodeId, ESearchCase::IgnoreCase);
-			});
-	}
-
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = NDisplay)
-	TArray<FDisplayClusterConfigurationClusterNodeTilesReferenceList> Items;
 };

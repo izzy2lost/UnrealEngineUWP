@@ -225,7 +225,7 @@ void FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandler::
 				/////////////////////
 				// Backbuffer capture
 				{
-					const FDisplayClusterConfigurationMedia& MediaSettings = NodeIt.Value->Media;
+					const FDisplayClusterConfigurationMediaNodeBackbuffer& MediaSettings = NodeIt.Value->MediaSettings;
 
 					if (MediaSettings.bEnable)
 					{
@@ -257,7 +257,7 @@ void FDisplayClusterMediaOutputSynchronizationPolicyEthernetBarrierBaseHandler::
 					// Iterate over viewports
 					for (const TPair<FString, TObjectPtr<UDisplayClusterConfigurationViewport>>& ViewportIt : NodeIt.Value->Viewports)
 					{
-						const FDisplayClusterConfigurationMedia& MediaSettings = ViewportIt.Value->RenderSettings.Media;
+						const FDisplayClusterConfigurationMediaViewport& MediaSettings = ViewportIt.Value->RenderSettings.Media;
 
 						if (MediaSettings.bEnable)
 						{
