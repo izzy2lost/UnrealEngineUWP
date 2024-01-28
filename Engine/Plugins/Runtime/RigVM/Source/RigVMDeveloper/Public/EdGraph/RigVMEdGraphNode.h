@@ -116,6 +116,9 @@ public:
 	virtual bool IsSelectedInEditor() const;
 	virtual bool ShouldDrawNodeAsControlPointOnly(int32& OutInputPinIndex, int32& OutOutputPinIndex) const override;
 	virtual void BeginDestroy() override;
+#if WITH_EDITOR
+	virtual void AddPinSearchMetaDataInfo(const UEdGraphPin* Pin, TArray<FSearchTagDataPair>& OutTaggedMetaData) const override;
+#endif
 
 	virtual bool IsDeprecated() const override;
 	bool IsOutDated() const;

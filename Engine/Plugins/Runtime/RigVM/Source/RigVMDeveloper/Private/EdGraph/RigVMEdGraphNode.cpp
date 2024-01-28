@@ -1758,6 +1758,26 @@ void URigVMEdGraphNode::BeginDestroy()
 	Super::BeginDestroy();
 }
 
+#if WITH_EDITOR
+void URigVMEdGraphNode::AddPinSearchMetaDataInfo(const UEdGraphPin* Pin, TArray<FSearchTagDataPair>& OutTaggedMetaData) const
+{
+	Super::AddPinSearchMetaDataInfo(Pin, OutTaggedMetaData);
+	if (const URigVMNode* Node = GetModelNode())
+	{
+		const FString PinName = Pin->GetName();
+		FString Left, Right = PinName;
+		URigVMPin::SplitPinPathAtStart(PinName, Left, Right);
+		if (URigVMPin* ModelPin = Node->FindPin(Right))
+		{
+			if (ModelPin->IsBoundToVariable())
+			{
+				OutTaggedMetaData.Add(FSearchTagDataPair(FText::FromString(TEXT("Binding")), FText::FromString(ModelPin->GetBoundVariablePath())));
+			}
+		}
+	}
+}
+#endif
+
 FEdGraphPinType URigVMEdGraphNode::GetPinTypeForModelPin(const URigVMPin* InModelPin)
 {
 	FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromCPPType(*InModelPin->GetCPPType(), InModelPin->GetCPPTypeObject());
