@@ -701,6 +701,8 @@ public:
 		TSet<FPrimitiveComponentId> HiddenPrimitives;
 		TOptional<TSet<FPrimitiveComponentId>> ShowOnlyPrimitives;
 		const AActor* ViewActor = nullptr;
+		class FSceneViewStateInterface* ViewStateInterface = nullptr;
+		bool bIsSceneCapture = false;
 
 		class FCustomRenderPassBase* CustomRenderPass = nullptr;
 	};

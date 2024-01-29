@@ -2772,10 +2772,11 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		}
 	}
 
+	// Prepare custom render passes and their views:
 	CustomRenderPassInfos.Empty(Scene->CustomRenderPassRendererInputs.Num());
 	CustomRenderPassInfos.AddDefaulted(Scene->CustomRenderPassRendererInputs.Num());
 
-	int32 NumSceneCaptureViews = 0;
+	int32 NumAdditionalViews = 0;
 	for (int32 i = 0; i < Scene->CustomRenderPassRendererInputs.Num(); i++)
 	{
 		const FScene::FCustomRenderPassRendererInput& PassInput = Scene->CustomRenderPassRendererInputs[i];
@@ -2784,11 +2785,12 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		CustomRenderPassInfos[i].CustomRenderPass = CustomRenderPass;
 
 		FSceneViewInitOptions ViewInitOptions;
+		ViewInitOptions.SceneViewStateInterface = PassInput.ViewStateInterface;
 		ViewInitOptions.SetViewRectangle(FIntRect(0, 0, CustomRenderPass->GetRenderTargetSize().X, CustomRenderPass->GetRenderTargetSize().Y));
 		ViewInitOptions.ViewOrigin = PassInput.ViewLocation;
 		ViewInitOptions.ViewRotationMatrix = PassInput.ViewRotationMatrix;
 		ViewInitOptions.ProjectionMatrix = PassInput.ProjectionMatrix;
-		ViewInitOptions.bIsSceneCapture = true;
+		ViewInitOptions.bIsSceneCapture = PassInput.bIsSceneCapture;
 		ViewInitOptions.ViewFamily = &ViewFamily;
 		ViewInitOptions.ViewActor = PassInput.ViewActor;
 		ViewInitOptions.ShowOnlyPrimitives = PassInput.ShowOnlyPrimitives;
@@ -2803,10 +2805,10 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		ViewInfo->CustomRenderPass = CustomRenderPass;
 		CustomRenderPass->Views.Add(ViewInfo);
 
-		NumSceneCaptureViews++;
+		NumAdditionalViews++;
 	}
 
-	AllViews.Empty(Views.Num() + NumSceneCaptureViews);
+	AllViews.Empty(Views.Num() + NumAdditionalViews);
 	for (int32 i = 0; i < Views.Num(); ++i)
 	{
 		AllViews.Add(&Views[i]);
@@ -2818,6 +2820,19 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 			AllViews.Add(&View);
 		}
 	}
+
+#if !UE_BUILD_SHIPPING
+	// Validate the views
+	TSet<FSceneViewStateInterface*> UniqueViewStates;
+	for (FViewInfo* View : AllViews)
+	{
+		if (View->State != nullptr)
+		{
+			checkf(!UniqueViewStates.Contains(View->State), TEXT("2 views sharing a view state is currently forbidden, please make sure each FViewInfo is using a separate FSceneViewStateInterface or none at all"));
+			UniqueViewStates.Add(View->State);
+		}
+	}
+#endif // !UE_BUILD_SHIPPING
 
 	check(!ViewFamily.AllViews.Num());
 	ViewFamily.AllViews.Append(AllViews);

@@ -922,6 +922,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			PassInput.ViewRotationMatrix = ViewRotationMatrix;
 			PassInput.ProjectionMatrix = ProjectionMatrix;
 			PassInput.ViewActor = CaptureComponent->GetViewOwner();
+			PassInput.bIsSceneCapture = true;
 
 			FString DebugName = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? TEXT("SceneCapturePass_SceneDepth") : TEXT("SceneCapturePass_DeviceDepth");
 			FCustomRenderPassBase::ERenderOutput RenderOutput = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? FCustomRenderPassBase::ERenderOutput::SceneDepth : FCustomRenderPassBase::ERenderOutput::DeviceDepth;
