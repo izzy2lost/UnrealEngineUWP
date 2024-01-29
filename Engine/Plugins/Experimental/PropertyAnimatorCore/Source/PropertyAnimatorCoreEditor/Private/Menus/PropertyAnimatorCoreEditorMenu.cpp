@@ -181,8 +181,8 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillDeleteAnimatorSection(UToolMenu* 
 
 	ActorAnimatorsSection.AddMenuEntry(
 		TEXT("DeleteActorAnimator")
-		, LOCTEXT("DeleteActorAnimator.Label", "Delete actor animators")
-		, LOCTEXT("DeleteActorAnimator.Tooltip", "Delete selected actor animators")
+		, LOCTEXT("DeleteActorAnimators.Label", "Delete actor animators")
+		, LOCTEXT("DeleteActorAnimators.Tooltip", "Delete selected actor animators")
 		, FSlateIcon()
 		, FUIAction(
 		  FExecuteAction::CreateLambda(&ExecuteDeleteActorAnimatorAction, InMenuData)
@@ -207,8 +207,8 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillDeleteAnimatorSection(UToolMenu* 
 
 		ActorAnimatorsSection.AddMenuEntry(
 			FName(Animator->GetAnimatorDisplayName())
-			, FText::Format(LOCTEXT("DeleteActorAnimator.Label", "Delete {0}"), FText::FromString(Animator->GetAnimatorDisplayName()))
-			, LOCTEXT("DeleteActorAnimator.Tooltip", "Delete selected animator")
+			, FText::Format(LOCTEXT("DeleteSingleActorAnimator.Label", "Delete {0}"), FText::FromString(Animator->GetAnimatorDisplayName()))
+			, LOCTEXT("DeleteSingleActorAnimator.Tooltip", "Delete selected animator")
 			, FSlateIcon()
 			, FUIAction(
 			  FExecuteAction::CreateLambda(&ExecuteDeleteAnimatorAction, Animator, InMenuData)

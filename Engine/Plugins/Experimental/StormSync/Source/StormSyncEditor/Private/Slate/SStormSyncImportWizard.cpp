@@ -99,8 +99,8 @@ void SStormSyncImportWizard::Construct(const FArguments& InArgs, const TArray<FS
 					.ToolTip(LOCTEXT("Tab_FilesToImport_Tooltip", "Click to see the list of files to import due to mismatched file state (File not existing locally or mismatched File Size or Hash)"))
 					+SSegmentedControl<EStormSyncImportWizardActiveTab>::Slot(EStormSyncImportWizardActiveTab::BufferFiles)
 					.Icon(FAppStyle::Get().GetBrush("Icons.Save"))
-					.Text(LOCTEXT("Tab_FilesToImport", "Full list of files from buffer"))
-					.ToolTip(LOCTEXT("Tab_FilesToImport_Tooltip", "Click to see the original list of files included in buffer"))
+					.Text(LOCTEXT("Tab_FilesToImportFullList", "Full list of files from buffer"))
+					.ToolTip(LOCTEXT("Tab_FilesToImportFullList_Tooltip", "Click to see the original list of files included in buffer"))
 				]
 
 				+SVerticalBox::Slot()

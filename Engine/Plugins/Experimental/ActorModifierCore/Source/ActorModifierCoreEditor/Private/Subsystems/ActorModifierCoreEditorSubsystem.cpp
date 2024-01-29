@@ -232,7 +232,7 @@ bool UActorModifierCoreEditorSubsystem::RemoveActorsModifiers(TSet<AActor*>& InA
 
 	// create transaction
 	const FText TransactionText = FText::Format(
-		LOCTEXT("AddModifier", "Remove all modifiers from {0} actor(s)"),
+		LOCTEXT("RemoveModifier", "Remove all modifiers from {0} actor(s)"),
 		FText::FromString(FString::FromInt(InActors.Num())));
 	FScopedTransaction Transaction(TransactionText, bInShouldTransact);
 
@@ -334,14 +334,14 @@ bool UActorModifierCoreEditorSubsystem::InsertModifier(const FName& InModifierNa
 		if (IsValid(InPositionModifier))
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Insert {0} modifier before {1}"),
+				LOCTEXT("InsertModifierBefore", "Insert {0} modifier before {1}"),
 				FText::FromName(InModifierName),
 				FText::FromName(InPositionModifier->GetModifierName()));
 		}
 		else
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Insert {0} modifier at the end of stack"),
+				LOCTEXT("InsertModifierAtEnd", "Insert {0} modifier at the end of stack"),
 				FText::FromName(InModifierName));
 		}
 	}
@@ -350,14 +350,14 @@ bool UActorModifierCoreEditorSubsystem::InsertModifier(const FName& InModifierNa
 		if (IsValid(InPositionModifier))
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Insert {0} modifier after {1}"),
+				LOCTEXT("InsertModifierAfter", "Insert {0} modifier after {1}"),
 				FText::FromName(InModifierName),
 				FText::FromName(InPositionModifier->GetModifierName()));
 		}
 		else
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Insert {0} modifier at the start of stack"),
+				LOCTEXT("InsertModifierAtStart", "Insert {0} modifier at the start of stack"),
 				FText::FromName(InModifierName));
 		}
 	}
@@ -399,14 +399,14 @@ bool UActorModifierCoreEditorSubsystem::MoveModifier(UActorModifierCoreBase* InM
 		if (IsValid(InPositionModifier))
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Move {0} modifier before {1}"),
+				LOCTEXT("MoveModifierBefore", "Move {0} modifier before {1}"),
 				FText::FromName(MoveModifierName),
 				FText::FromName(InPositionModifier->GetModifierName()));
 		}
 		else
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Move {0} modifier at the end of stack"),
+				LOCTEXT("MoveModifierToEnd", "Move {0} modifier at the end of stack"),
 				FText::FromName(MoveModifierName));
 		}
 	}
@@ -415,14 +415,14 @@ bool UActorModifierCoreEditorSubsystem::MoveModifier(UActorModifierCoreBase* InM
 		if (IsValid(InPositionModifier))
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Move {0} modifier after {1}"),
+				LOCTEXT("MoveModifierAfter", "Move {0} modifier after {1}"),
 				FText::FromName(MoveModifierName),
 				FText::FromName(InPositionModifier->GetModifierName()));
 		}
 		else
 		{
 			TransactionText = FText::Format(
-				LOCTEXT("InsertModifier", "Move {0} modifier at the start of stack"),
+				LOCTEXT("MoveModifierToStart", "Move {0} modifier at the start of stack"),
 				FText::FromName(MoveModifierName));
 		}
 	}

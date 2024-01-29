@@ -166,7 +166,7 @@ void SStormSyncStatusWidget::Construct(const FArguments& InArgs, const TSharedRe
 					[
 						SNew(STextBlock)
 						.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
-						.Text(LOCTEXT("Remote_InstanceId", "Remote Instance Type:"))
+						.Text(LOCTEXT("Remote_InstanceType", "Remote Instance Type:"))
 					]
 					+SHorizontalBox::Slot()
 					.HAlign(HAlign_Left)

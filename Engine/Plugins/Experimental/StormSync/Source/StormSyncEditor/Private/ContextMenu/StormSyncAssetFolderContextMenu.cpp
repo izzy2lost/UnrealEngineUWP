@@ -75,7 +75,7 @@ void FStormSyncAssetFolderContextMenu::BuildCompareWithMenuSection(FMenuBuilder&
 
 		const FText RemoteDescription = FText::FromString(FString::Printf(TEXT("%s (%s)"), *Connection.HostName, *Connection.ProjectDir));
 		FText LabelText = FText::Format(
-			LOCTEXT("PushPullAssetMenuAction", "Compare {0} selected asset(s) with {1}"),
+			LOCTEXT("CompareAssetMenuAction", "Compare {0} selected asset(s) with {1}"),
 			InPackageNames.Num(),
 			RemoteDescription
 		);
@@ -309,7 +309,7 @@ void FStormSyncAssetFolderContextMenu::AddFileMenuOptions(UToolMenu* InMenu, con
 		if (!bIsServerRunning)
 		{
 			MenuTooltipTexts.Add(LOCTEXT(
-				"PullAssetsMenuEntry_ServerDisabled",
+				"PullAssetsMenuEntry_ServerDisabledTooltip",
 				"\n\nThis action is disabled because Storm Sync Server is not running.\nRun `StormSync.Server.Start` or configure the server with auto-start setting enabled."
 			));
 		}
@@ -344,7 +344,7 @@ void FStormSyncAssetFolderContextMenu::AddFileMenuOptions(UToolMenu* InMenu, con
 		Section.AddSubMenu(
 			TEXT("StormSync_CompareAssets"),
 			LOCTEXT("CompareAssetsMenuEntry", "Compare Asset(s) with"),
-			FText::Format(LOCTEXT("CompareAssetsMenuEntry", "Compare asset(s) with a specific remote and see if files (and inner dependencies) are either missing or in mismatched state.{0}"), DisabledTooltipReason),
+			FText::Format(LOCTEXT("CompareAssetsMenuEntryTooltip", "Compare asset(s) with a specific remote and see if files (and inner dependencies) are either missing or in mismatched state.{0}"), DisabledTooltipReason),
 			FNewMenuDelegate::CreateRaw(
 				this,
 				&FStormSyncAssetFolderContextMenu::BuildCompareWithMenuSection,
@@ -364,8 +364,8 @@ void FStormSyncAssetFolderContextMenu::AddFileMenuOptions(UToolMenu* InMenu, con
 	{
 		Section.AddMenuEntry(
 			TEXT("StormSync_ExportAssets"),
-			LOCTEXT("ExportAsAssetsMenuEntry", "Export"),
-			FText::Format(LOCTEXT("ExportAsAssetsMenuEntryTooltip", "Export assets (and all inner dependencies) locally.{0}"), DisabledTooltipReason),
+			LOCTEXT("FolderExportAsAssetsMenuEntry", "Export"),
+			FText::Format(LOCTEXT("FolderExportAsAssetsMenuEntryTooltip", "Export assets (and all inner dependencies) locally.{0}"), DisabledTooltipReason),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Save"),
 			FUIAction(
 				FExecuteAction::CreateStatic(&FStormSyncAssetFolderContextMenu::ExecuteExportAction, InSelectedPackageNames),
@@ -402,8 +402,8 @@ void FStormSyncAssetFolderContextMenu::AddFolderMenuOptions(UToolMenu* InMenu, c
 	{
 		Section.AddMenuEntry(
 			TEXT("StormSync_ExportAssets"),
-			LOCTEXT("ExportAsAssetsMenuEntry", "Export"),
-			LOCTEXT("ExportAsAssetsMenuEntryTooltip", "Export assets (and all inner dependencies) locally"),
+			LOCTEXT("FileExportAsAssetsMenuEntry", "Export"),
+			LOCTEXT("FileExportAsAssetsMenuEntryTooltip", "Export assets (and all inner dependencies) locally"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Save"),
 			FUIAction(
 				FExecuteAction::CreateStatic(&FStormSyncAssetFolderContextMenu::ExecuteExportAction, SelectedPackageNames)

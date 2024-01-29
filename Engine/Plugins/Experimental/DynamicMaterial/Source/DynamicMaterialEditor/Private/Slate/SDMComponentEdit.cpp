@@ -216,7 +216,7 @@ FText SDMComponentEdit::GetInputChannelMapDescription(UDMMaterialStageThroughput
 	}
 
 	static const FText Separator = LOCTEXT("ChannelSeparator", ",");
-	static const FText MaskedChannelFormat = LOCTEXT("WholeChannelFormat", "{0}: {1}");
+	static const FText MaskedChannelFormat = LOCTEXT("MaskedChannelFormat", "{0}: {1}");
 	const FText ChannelName = FText::Join(Separator, Channels);
 
 	return FText::Format(MaskedChannelFormat, SourceName, ChannelName);
