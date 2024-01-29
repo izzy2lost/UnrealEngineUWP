@@ -43,6 +43,22 @@ export void NNERuntimeBasicCPUOperatorDenormalize(
 	}
 }
 
+export void NNERuntimeBasicCPUOperatorClamp(
+	uniform float Output[],
+	uniform const float Input[],
+	uniform const float MinValues[],
+	uniform const float MaxValues[],
+	uniform const int BatchNum,
+	uniform const int InputOutputNum,
+	uniform const int OutputStride,
+	uniform const int InputStride)
+{
+	foreach(BatchIdx = 0 ... BatchNum, Idx = 0 ... InputOutputNum)
+	{
+		Output[BatchIdx * OutputStride + Idx] = clamp(Input[BatchIdx * InputStride + Idx], MinValues[Idx], MaxValues[Idx]);
+	}
+}
+
 export void NNERuntimeBasicCPUOperatorLinear(
 	uniform float Output[],
 	uniform const float Input[],
