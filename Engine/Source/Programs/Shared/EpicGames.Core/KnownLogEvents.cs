@@ -335,6 +335,11 @@ namespace EpicGames.Core
 		/// Invalid preflight change
 		/// </summary>
 		public static EventId Horde_InvalidPreflight { get; } = new EventId(1001);
+
+		/// <summary>
+		/// Information about blobs being read
+		/// </summary>
+		public static EventId Horde_BlobRead { get; } = new EventId(1002);
 	}
 #pragma warning restore CA1707 // Identifiers should not contain underscores
 }

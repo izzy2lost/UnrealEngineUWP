@@ -713,7 +713,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		static void TraceBlobRead(string type, string path, IBlobHandle handle, ILogger logger)
 		{
-			logger.LogInformation("Blob [{Type,-20}] Path=\"{Path}\", Locator={Locator}", type, path, handle.GetLocator());
+			logger.LogTrace(KnownLogEvents.Horde_BlobRead, "Blob [{Type,-20}] Path=\"{Path}\", Locator={Locator}", type, path, handle.GetLocator());
 		}
 
 		/// <summary>
