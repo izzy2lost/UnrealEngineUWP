@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
+using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using Horde.Server.Jobs.Graphs;
 using Horde.Server.Streams;
@@ -46,7 +47,7 @@ namespace Horde.Server.Jobs
 		/// The stream that this job belongs to
 		/// </summary>
 		[Required]
-		public string StreamId { get; set; }
+		public StreamId StreamId { get; set; }
 
 		/// <summary>
 		/// The template for this job
@@ -112,7 +113,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Private constructor for serialization
 		/// </summary>
-		public CreateJobRequest(string streamId, TemplateId templateId)
+		public CreateJobRequest(StreamId streamId, TemplateId templateId)
 		{
 			StreamId = streamId;
 			TemplateId = templateId;

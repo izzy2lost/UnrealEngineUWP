@@ -21,6 +21,7 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Jobs;
+using Amazon.EC2.Model;
 
 namespace Horde.Server.Tests
 {
@@ -642,6 +643,81 @@ namespace Horde.Server.Tests
 			Assert.AreEqual(1, jobs3.Count);
 			Assert.AreEqual(102, jobs3[0].Change);
 			Assert.AreEqual(100, jobs3[0].CodeChange);
+		}
+
+		[TestMethod]
+		public async Task ScheduleOverrideTestAsync()
+		{
+			await ScheduleService.ResetAsync();
+
+			TemplateRefConfig templateConfig = new TemplateRefConfig();
+			templateConfig.Id = TemplateId;
+			templateConfig.Name = "Test";
+			templateConfig.Parameters.Add(
+				new TextParameterData
+				{
+					Argument = "-Text=",
+					Default = "Default",
+					ScheduleOverride = "Scheduled"
+				});
+			templateConfig.Parameters.Add(
+				new ListParameterData
+				{
+					Items = new List<ListParameterItemData>
+					{
+						new ListParameterItemData
+						{
+							ArgumentIfEnabled = "-List=Default",
+							ArgumentIfDisabled = "-List=Scheduled",
+							Default = true,
+							ScheduleOverride = false
+						}
+					}
+				});
+			templateConfig.Parameters.Add(
+				new BoolParameterData
+				{
+					ArgumentIfEnabled = "-Bool=Default",
+					ArgumentIfDisabled = "-Bool=Scheduled",
+					Default = true,
+					ScheduleOverride = false
+				});
+			templateConfig.Schedule = new ScheduleConfig
+			{
+				Enabled = true,
+				Patterns = new List<SchedulePatternConfig> { new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 } }
+			};
+
+			StreamConfig streamConfig = new StreamConfig();
+			streamConfig.Id = StreamId;
+			streamConfig.Name = "//UE5/Main";
+			streamConfig.Tabs.Add(new JobsTabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
+			streamConfig.Templates.Add(templateConfig);
+			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { streamConfig });
+
+			// Make sure we don't have any jobs to start with
+			await ScheduleService.TickForTestingAsync();
+			List<IJob> jobs1 = await GetNewJobsAsync();
+			Assert.AreEqual(0, jobs1.Count);
+
+			// Trigger a manual build and check the arguments
+			await JobsController.CreateJobAsync(new CreateJobRequest(StreamId, TemplateId));
+			List<IJob> jobs2 = await GetNewJobsAsync();
+			Assert.AreEqual(1, jobs2.Count);
+			Assert.AreEqual(3, jobs2[0].Arguments.Count);
+			Assert.AreEqual("-Text=Default", jobs2[0].Arguments[0]);
+			Assert.AreEqual("-List=Default", jobs2[0].Arguments[1]);
+			Assert.AreEqual("-Bool=Default", jobs2[0].Arguments[2]);
+
+			// Trigger a scheduled build and check the arguments
+			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
+			await ScheduleService.TickForTestingAsync();
+			List<IJob> jobs3 = await GetNewJobsAsync();
+			Assert.AreEqual(1, jobs3.Count);
+			Assert.AreEqual(3, jobs3[0].Arguments.Count);
+			Assert.AreEqual("-Text=Scheduled", jobs3[0].Arguments[0]);
+			Assert.AreEqual("-List=Scheduled", jobs3[0].Arguments[1]);
+			Assert.AreEqual("-Bool=Scheduled", jobs3[0].Arguments[2]);
 		}
 
 		async Task<List<IJob>> GetNewJobsAsync()
