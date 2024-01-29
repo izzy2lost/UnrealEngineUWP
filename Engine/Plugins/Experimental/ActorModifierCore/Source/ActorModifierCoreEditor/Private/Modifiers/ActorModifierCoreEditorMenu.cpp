@@ -443,8 +443,8 @@ void UE::ActorModifierCoreEditor::OnExtendEnableModifierMenu(UToolMenu* InToolMe
 		
 		if (InData.Context.ContainsEnabledModifier())
 		{
-			static const FText DisableModifierLabel = LOCTEXT("EnableModifier.Label", "Disable selected modifier");
-			static const FText DisableModifierTooltip = LOCTEXT("EnableModifier.Tooltip", "Disable selected modifier");
+			static const FText DisableModifierLabel = LOCTEXT("DisableModifier.Label", "Disable selected modifier");
+			static const FText DisableModifierTooltip = LOCTEXT("DisableModifier.Tooltip", "Disable selected modifier");
 			static const FName DisableModifierEntryName(TEXT("DisableModifier"));
 		
 			const FUIAction DisableModifierAction = FUIAction(FExecuteAction::CreateLambda(&UE::ActorModifierCoreEditor::OnEnableModifierMenuAction, InData, false, false));

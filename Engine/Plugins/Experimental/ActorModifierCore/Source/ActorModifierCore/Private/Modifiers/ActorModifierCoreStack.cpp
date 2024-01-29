@@ -382,7 +382,7 @@ UActorModifierCoreBase* UActorModifierCoreStack::CloneModifier(FActorModifierCor
 		if (InCloneOp.FailReason)
 		{
 			*InCloneOp.FailReason = FText::Format(
-				LOCTEXT("InsertModifierNotFound", "Could not clone modifier {0} in this stack"),
+				LOCTEXT("CloneModifierNotFound", "Could not clone modifier {0} in this stack"),
 				FText::FromName(InCloneOp.CloneModifier->GetModifierName()));
 		}
 
@@ -719,7 +719,7 @@ bool UActorModifierCoreStack::MoveModifier(FActorModifierCoreStackMoveOp& InMove
 		if (InMoveOp.FailReason)
 		{
 			*InMoveOp.FailReason = FText::Format(
-			LOCTEXT("MoveModifierNotFound", "Could not move modifier {0} in this stack"),
+			LOCTEXT("MoveSourceModifierNotFound", "Could not move modifier {0} in this stack"),
 				FText::FromName(InMoveOp.MoveModifier->GetModifierName()));
 		}
 
@@ -770,7 +770,7 @@ bool UActorModifierCoreStack::MoveModifier(FActorModifierCoreStackMoveOp& InMove
 		if (InMoveOp.FailReason)
 		{
 			*InMoveOp.FailReason = FText::Format(
-				LOCTEXT("MoveModifierNotFound", "Could not move modifier {0} in this stack"),
+				LOCTEXT("MoveTargetModifierNotFound", "Could not move modifier {0} in this stack"),
 				FText::FromName(InMoveOp.MoveModifier->GetModifierName()));
 		}
 
@@ -1387,7 +1387,7 @@ void UActorModifierCoreStack::CheckModifierOptimization(bool bInInvalidateAll)
 				{
 					UnoptimizedModifiers.Add(Modifier);
 
-					const FText Message = FText::Format(LOCTEXT("AvoidBeforeCategory", "Should be moved above {0} modifiers"), FText::FromName(Category));
+					const FText Message = FText::Format(LOCTEXT("AvoidAfterCategory", "Should be moved above {0} modifiers"), FText::FromName(Category));
 					Modifier->Status = FActorModifierCoreStatus(EActorModifierCoreStatus::Warning, Message);
 
 					LogModifier(FString::Printf(TEXT("Optimisation possible for modifier %s : %s"), *Modifier->GetModifierName().ToString(), *Message.ToString()), true);

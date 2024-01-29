@@ -13,7 +13,7 @@ UDMMaterialStageExpressionDeltaTime::UDMMaterialStageExpressionDeltaTime()
 {
 	Menus.Add(EDMExpressionMenu::Time);
 
-	OutputConnectors.Add({0, LOCTEXT("DeltaTime", "Delta Time"), EDMValueType::VT_Float1});
+	OutputConnectors.Add({0, LOCTEXT("DeltaTimeLabel", "Delta Time"), EDMValueType::VT_Float1});
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -158,7 +158,7 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 	FStormSyncPackageDescriptor PackageDescriptor = InPackageDescriptor;
 	
 	float InitialAmountOfWork = 1.f;
-	FScopedSlowTask SlowTask(InitialAmountOfWork, LOCTEXT("ImportPackages_Extracting", "Figuring out file states..."));
+	FScopedSlowTask SlowTask(InitialAmountOfWork, LOCTEXT("FiguringOutFileStates", "Figuring out file states..."));
 	SlowTask.MakeDialog();
 
 	FStormSyncCoreExtractArgs ExtractArgs;
@@ -210,7 +210,7 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 			SplitImportFiles(FilesToImport, ExistingFiles, NewFiles);
 
 			FScopedSlowTask SlowTaskExtract(FilesToImport.Num() + ExistingFiles.Num() + NewFiles.Num()
-				, LOCTEXT("ImportPackages_Extracting", "Importing files to project..."));
+				, LOCTEXT("ImportingFilesToProject", "Importing files to project..."));
 
 			// Step 1: Prompt for Checkout (for existing assets)
 			SlowTaskExtract.EnterProgressFrame(ExistingFiles.Num());
@@ -308,7 +308,7 @@ bool UStormSyncImportSubsystem::FillFilesToImport(const FStormSyncImportFileInfo
 		FString ShortPath = InDestFilepath;
 		ShortPath.RemoveFromStart(FPaths::ProjectContentDir());
 		FileInfo.ImportReason = FText::Format(LOCTEXT("FileInfo_MissingFile", "Missing file in local project ({0})"), FText::FromString(ShortPath));
-		FileInfo.ImportReasonTooltip = FText::Format(LOCTEXT("FileInfo_MissingFile", "File {0} does not exist locally"), FText::FromString(InDestFilepath));
+		FileInfo.ImportReasonTooltip = FText::Format(LOCTEXT("FileInfo_MissingFile_Tooltip", "File {0} does not exist locally"), FText::FromString(InDestFilepath));
 		OutFilesToImport.Add(FileInfo);
 		return true;
 	}
@@ -328,7 +328,7 @@ bool UStormSyncImportSubsystem::FillFilesToImport(const FStormSyncImportFileInfo
 	if (!bSameSize)
 	{
 		FileInfo.ImportReason = FText::Format(
-			LOCTEXT("FileInfo_MismatchedSize_Tooltip", "Files have different sizes ({0} vs {1})"),
+			LOCTEXT("FileInfo_MismatchedSize", "Files have different sizes ({0} vs {1})"),
 			FText::FromString(FStormSyncCoreUtils::GetHumanReadableByteSize(DestFileSize)),
 			FText::FromString(FStormSyncCoreUtils::GetHumanReadableByteSize(FileDependency.FileSize))
 		);

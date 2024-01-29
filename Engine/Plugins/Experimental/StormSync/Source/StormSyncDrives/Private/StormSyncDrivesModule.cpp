@@ -148,7 +148,7 @@ bool FStormSyncDrivesModule::ValidateMountPoint(const FStormSyncMountPointConfig
 	if (!FStormSyncDrivesUtils::ValidateMountPoint(InMountPoint, ErrorText))
 	{
 		const FText ErrorLog = FText::Format(
-			LOCTEXT("ValidationError_MountPoint", "Validation failed for MountPoint at index {0} (MountPoint: {1}, MountDirectory: {2}) - {3}"),
+			LOCTEXT("ValidationError_MountPointIndex", "Validation failed for MountPoint at index {0} (MountPoint: {1}, MountDirectory: {2}) - {3}"),
 			FText::AsNumber(Index),
 			FText::FromString(RootPath),
 			FText::FromString(Directory),

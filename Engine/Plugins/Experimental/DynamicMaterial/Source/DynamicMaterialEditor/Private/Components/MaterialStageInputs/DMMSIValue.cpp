@@ -45,14 +45,14 @@ FText UDMMaterialStageInputValue::GetComponentDescription() const
 	{
 		if (Value->IsLocal())
 		{
-			static const FText Template = LOCTEXT("ValueLocalNamed", "{0}");
+			static const FText Template = LOCTEXT("ComponentDescriptionLocalNamed", "{0}");
 
 			return FText::Format(Template, Value->GetTypeName());
 
 		}
 		else
 		{
-			static const FText Template = LOCTEXT("ValueXGlobalNamed", "{0} (Global)");
+			static const FText Template = LOCTEXT("ComponentDescriptionGlobalNamed", "{0} (Global)");
 
 			return FText::Format(Template, Value->GetTypeName());
 		}
@@ -61,14 +61,14 @@ FText UDMMaterialStageInputValue::GetComponentDescription() const
 	{
 		if (Value->IsLocal())
 		{
-			static const FText Template = LOCTEXT("ValueLocal", "{0}");
+			static const FText Template = LOCTEXT("ComponentDescriptionLocal", "{0}");
 
 			return FText::Format(Template, Value->GetTypeName());
 
 		}
 		else
 		{
-			static const FText Template = LOCTEXT("ValueXGlobal", "{0} (Global)");
+			static const FText Template = LOCTEXT("ComponentDescriptionGlobal", "{0} (Global)");
 
 			return FText::Format(Template, Value->GetTypeName());
 		}
@@ -89,7 +89,7 @@ FText UDMMaterialStageInputValue::GetChannelDescription(const FDMMaterialStageCo
 
 	if (Value->GetParameter())
 	{
-		static const FText FormatTemplateNamed = LOCTEXT("ValueXGlobalNamed", "{0} (Global)");
+		static const FText FormatTemplateNamed = LOCTEXT("ChannelDescriptionGlobalNamed", "{0} (Global)");
 
 		return FText::Format(
 			FormatTemplateNamed,
@@ -98,7 +98,7 @@ FText UDMMaterialStageInputValue::GetChannelDescription(const FDMMaterialStageCo
 	}
 	else
 	{
-		static const FText FormatTemplate = LOCTEXT("ValueXGlobal", "Value {0} (Global)");
+		static const FText FormatTemplate = LOCTEXT("ChannelDescriptionGlobal", "Value {0} (Global)");
 
 		return FText::Format(
 			FormatTemplate,

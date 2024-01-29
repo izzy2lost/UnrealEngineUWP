@@ -106,7 +106,7 @@ TSharedRef<SWidget> SDMLayerEffectsItem::CreateLayerRemoveButton()
 		SNew(SButton)
 		.ContentPadding(2.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
-		.ToolTipText(LOCTEXT("RemoveEffect", "Remove Effect"))
+		.ToolTipText(LOCTEXT("RemoveEffectTooltip", "Remove Effect"))
 		.OnClicked(this, &SDMLayerEffectsItem::OnLayerRemoveButtonClick)
 		[
 			SNew(SImage)

@@ -342,7 +342,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputPreviousStageTooltip", "Change the source of this input to a previous Material Stage."),
+			LOCTEXT("ChangeInputPreviousStageOutputsTooltip", "Change the source of this input to a previous Material Stage."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStage_Outputs,
 				InThroughput,
@@ -359,7 +359,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputPreviousStageTooltip", "Change the source of this input to a previous Material Stage."),
+			LOCTEXT("ChangeInputPreviousStageOutputChannelsTooltip", "Change the source of this input to a previous Material Stage."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStage_Output_Channels,
 				InThroughput,
@@ -377,7 +377,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddMenuEntry(
 			InMenuName,
-			LOCTEXT("ChangeInputPreviousStageTooltip", "Change the source of this input to a previous Material Stage."),
+			LOCTEXT("ChangeInputPreviousStageOutputChannelTooltip", "Change the source of this input to a previous Material Stage."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				InStage,
@@ -397,7 +397,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputPreviousStageTooltip", "Change the source of this input to a previous Material Stage."),
+			LOCTEXT("ChangeInputPreviousStageOutputChannelChannelsTooltip", "Change the source of this input to a previous Material Stage."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_PreviousStage_Output_Channels,
 				InThroughput,
@@ -776,7 +776,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputGlobalValueTooltip", "Change the source of this input to this Global Material Value."),
+			LOCTEXT("ChangeInputGlobalValueChannelsTooltip", "Change the source of this input to this Global Material Value."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_GlobalValue_Channels,
 				InThroughput,
@@ -793,7 +793,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{		
 		InChildMenuBuilder.AddMenuEntry(
 			InMenuName,
-			LOCTEXT("ChangeInputGlobalValueTooltip", "Change the source of this input to this Global Material Value."),
+			LOCTEXT("ChangeInputGlobalValueChannelTooltip", "Change the source of this input to this Global Material Value."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				InStage,
@@ -817,7 +817,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputGlobalValueTooltip", "Change the source of this input to this Global Material Value."),
+			LOCTEXT("ChangeInputGlobalValueValueChannelsTooltip", "Change the source of this input to this Global Material Value."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_GlobalValue_Channels,
 				InThroughput,
@@ -1062,7 +1062,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from this Material Slot."),
+			LOCTEXT("ChangeInputSlotPropertiesTooltip", "Change the source of this input to the output from this Material Slot."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Properties,
 				InThroughput,
@@ -1079,7 +1079,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from this Material Slot."),
+			LOCTEXT("ChangeInputSlotPropertyOutputsTooltip", "Change the source of this input to the output from this Material Slot."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Property_Outputs,
 				InThroughput,
@@ -1097,7 +1097,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from this Material Slot."),
+			LOCTEXT("ChangeInputSlotPropertyOutputChannelsTooltip", "Change the source of this input to the output from this Material Slot."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Property_Output_Channels,
 				InThroughput,
@@ -1116,7 +1116,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddMenuEntry(
 			InMenuName,
-			LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from this Material Slot."),
+			LOCTEXT("ChangeInputSlotPropertyOutputChannelTooltip", "Change the source of this input to the output from this Material Slot."),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateWeakLambda(
 				InStage,
@@ -1140,7 +1140,7 @@ namespace UE::DynamicMaterialEditor::Private
 	{
 		InChildMenuBuilder.AddSubMenu(
 			InMenuName,
-			LOCTEXT("ChangeInputSlotTooltip", "Change the source of this input to the output from this Material Slot."),
+			LOCTEXT("ChangeInputSlotPropertyOutputChannelChannelsTooltip", "Change the source of this input to the output from this Material Slot."),
 			FNewMenuDelegate::CreateStatic(
 				&FDMMaterialStageInputMenus::GenerateChangeInputMenu_Slot_Property_Output_Channels,
 				InThroughput,

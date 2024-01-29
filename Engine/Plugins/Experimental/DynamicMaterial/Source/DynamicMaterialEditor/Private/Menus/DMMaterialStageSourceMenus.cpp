@@ -1061,7 +1061,7 @@ namespace UE::DynamicMaterialEditor::Private
 
 		InSection.AddMenuEntry("TextureSample_EdgeColor",
 			LOCTEXT("AddTextureSampleEgdeColor", "Texture Edge Color"),
-			LOCTEXT("ChangeSourceTextureSampleTooltip", "Change the source of this stage to the edge color of a texture."),
+			LOCTEXT("ChangeSourceTextureSampleEdgeColorTooltip", "Change the source of this stage to the edge color of a texture."),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateStatic(
@@ -1144,8 +1144,8 @@ namespace UE::DynamicMaterialEditor::Private
 						[](FToolMenuSection& InSection)
 						{
 							InSection.AddSubMenu("SlotOutput",
-							LOCTEXT("ChangeSourceSlot", "Slot Output"),
-							LOCTEXT("ChangeSourceSlotTooltip", "Change the source of this stage to the output from another Material Slot."),
+							LOCTEXT("ChangeSourceSlotOuptut", "Slot Output"),
+							LOCTEXT("ChangeSourceSlotOutputTooltip", "Change the source of this stage to the output from another Material Slot."),
 							FNewToolMenuDelegate::CreateStatic(&GenerateChangeSourceMenu_Slots)
 							);
 						}));

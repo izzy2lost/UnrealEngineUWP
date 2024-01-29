@@ -508,7 +508,7 @@ bool UPropertyAnimatorCoreSubsystem::LinkAnimatorProperties(UPropertyAnimatorCor
 			const FText AnimatorName = FText::FromName(InAnimator->GetAnimatorOriginalName());
 
 			TransactionText = FText::Format(
-				LOCTEXT("UnlinkAnimatorProperties", "Linking {0} properties to {1} animator")
+				LOCTEXT("LinkAnimatorProperties", "Linking {0} properties to {1} animator")
 				, PropertyCount
 				, AnimatorName
 			);
