@@ -60,7 +60,8 @@ class FAnimDetailValueCustomization
 			TOptional<double>& SliderMaxValue,
 			double& SliderExponent,
 			double& Delta,
-			int32& ShiftMouseMovePixelPerDelta,
+			float& ShiftMultiplier,
+			float& CtrlMultiplier,
 			bool& SupportDynamicSliderMaxValue,
 			bool& SupportDynamicSliderMinValue);
 		void OnDynamicSliderMaxValueChanged(double NewMaxSliderValue, TWeakPtr<SWidget> InValueChangedSourceWidget, bool IsOriginator, bool UpdateOnlyIfHigher);
