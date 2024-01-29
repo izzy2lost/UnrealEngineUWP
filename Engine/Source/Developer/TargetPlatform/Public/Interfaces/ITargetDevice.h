@@ -8,6 +8,7 @@
 
 class ITargetDevice;
 class ITargetDeviceOutput;
+class ITargetPlatform;
 
 /**
  * Enumerates features that may be supported by target devices.
@@ -326,7 +327,17 @@ public:
 	/**
 	 * Gets the TargetPlatform that this device belongs to.
 	 */
-	virtual const class ITargetPlatform& GetTargetPlatform() const = 0;
+protected:
+	// Temporary until we get rid of this.
+	virtual const class ITargetPlatform& GetTargetPlatform() const
+	{
+		ITargetPlatform* DummyReference = nullptr;
+		return *DummyReference;
+	};
+public:
+
+	TARGETPLATFORM_API const class ITargetPlatformSettings& GetPlatformSettings() const;
+	TARGETPLATFORM_API const class ITargetPlatformControls& GetPlatformControls() const;
 
 	/**
 	 * Checks whether this device is connected.

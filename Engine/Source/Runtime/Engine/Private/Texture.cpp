@@ -3458,7 +3458,7 @@ static FName CachedGetLatestOodleSdkVersion()
 	return Once.Value;
 }
 
-static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITargetPlatform* TargetPlatform, bool bOodleTextureSdkVersionIsNone)
+static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITargetPlatformSettings* TargetPlatformSettings, bool bOodleTextureSdkVersionIsNone)
 {
 #if WITH_EDITOR
 
@@ -3470,7 +3470,7 @@ static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITarget
 	// TextureCompressionFormat is required, TextureCompressionFormatWithVersion is optional
 
 	FString TextureCompressionFormat;
-	bool bHasFormat = TargetPlatform->GetConfigSystem()->GetString(TEXT("AlternateTextureCompression"), TEXT("TextureCompressionFormat"), TextureCompressionFormat, GEngineIni);
+	bool bHasFormat = TargetPlatformSettings->GetConfigSystem()->GetString(TEXT("AlternateTextureCompression"), TEXT("TextureCompressionFormat"), TextureCompressionFormat, GEngineIni);
 	bHasFormat = bHasFormat && ! TextureCompressionFormat.IsEmpty();
 	
 	if ( bHasFormat )
@@ -3479,7 +3479,7 @@ static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITarget
 		{
 			//	new (optional) pref : TextureCompressionFormatWithVersion
 			FString TextureCompressionFormatWithVersion;
-			bool bHasFormatWithVersion = TargetPlatform->GetConfigSystem()->GetString(TEXT("AlternateTextureCompression"), TEXT("TextureCompressionFormatWithVersion"), TextureCompressionFormatWithVersion, GEngineIni);
+			bool bHasFormatWithVersion = TargetPlatformSettings->GetConfigSystem()->GetString(TEXT("AlternateTextureCompression"), TEXT("TextureCompressionFormatWithVersion"), TextureCompressionFormatWithVersion, GEngineIni);
 			bHasFormatWithVersion = bHasFormatWithVersion && ! TextureCompressionFormatWithVersion.IsEmpty();
 			if ( bHasFormatWithVersion )
 			{
@@ -3540,8 +3540,12 @@ static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITarget
 
 	return TextureFormatName;
 }
+static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITargetPlatform* TargetPlatform, bool bOodleTextureSdkVersionIsNone)
+{
+	return ConditionalGetPrefixedFormat(TextureFormatName, &TargetPlatform->GetPlatformSettings(), bOodleTextureSdkVersionIsNone);
+}
 
-void UTexture::GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int32 & OutSizeX, int32 & OutSizeY ) const
+void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatformSettings, const ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY ) const
 {
 	// @todo Oodle : SizeZ
 	// @todo Oodle : verify against TextureCompressorModule
@@ -3601,9 +3605,9 @@ void UTexture::GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int3
 	}
 
 	static const auto CVarVirtualTexturesEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTextures")); check(CVarVirtualTexturesEnabled);
-	const bool bVirtualTextureStreaming = CVarVirtualTexturesEnabled->GetValueOnAnyThread() && TargetPlatform->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming) && VirtualTextureStreaming;
+	const bool bVirtualTextureStreaming = CVarVirtualTexturesEnabled->GetValueOnAnyThread() && TargetPlatformSettings->SupportsFeature(ETargetPlatformFeatures::VirtualTextureStreaming) && VirtualTextureStreaming;
 
-	const UTextureLODSettings& LODSettings = TargetPlatform->GetTextureLODSettings();
+	const UTextureLODSettings& LODSettings = TargetPlatformSettings->GetTextureLODSettings();
  	const uint32 LODBiasNoCinematics = FMath::Max<int32>(LODSettings.CalculateLODBias(SizeX, SizeY, MaxTextureSize, LODGroup, LODBias, 0, MipGenSettings, bVirtualTextureStreaming), 0);
 	SizeX = FMath::Max<int32>(SizeX >> LODBiasNoCinematics, 1);
 	SizeY = FMath::Max<int32>(SizeY >> LODBiasNoCinematics, 1);
@@ -3636,10 +3640,13 @@ void UTexture::GetBuiltTextureSize( const ITargetPlatform* TargetPlatform , int3
 	OutSizeX = SizeX;
 	OutSizeY = SizeY;
 }
-
+void UTexture::GetBuiltTextureSize(const ITargetPlatform* TargetPlatform, int32& OutSizeX, int32& OutSizeY) const
+{
+	return GetBuiltTextureSize(&TargetPlatform->GetPlatformSettings(), &TargetPlatform->GetPlatformControls(), OutSizeX, OutSizeY);
+}
 // this should not be called directly; it is called from TargetPlatform GetTextureFormats
 //	entry point API is GetPlatformTextureFormatNamesWithPrefix
-FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const UTexture* Texture, int32 LayerIndex, 
+FName GetDefaultTextureFormatName( const ITargetPlatformSettings* TargetPlatformSettings, const ITargetPlatformControls* TargetPlatformControls, const UTexture* Texture, int32 LayerIndex, 
 	bool bSupportCompressedVolumeTexture, int32 Unused_BlockSize, bool bSupportFilteredFloat32Textures )
 {
 	FName TextureFormatName = NAME_None;
@@ -3671,7 +3678,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 	static FName NameA1RGB555(TEXT("A1RGB555"));
 	
 
-	check(TargetPlatform);
+	check(TargetPlatformSettings);
 
 	FTextureFormatSettings FormatSettings;
 	Texture->GetLayerFormatSettings(LayerIndex, FormatSettings);
@@ -3682,7 +3689,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 
 	// see if compression needs to be forced off even if requested :
 	bool bNoCompression = FormatSettings.CompressionNone				// Code wants the texture uncompressed.
-		|| (TargetPlatform->HasEditorOnlyData() && Texture->DeferCompression)	// The user wishes to defer compression, this is ok for the Editor only.
+		|| (TargetPlatformControls->HasEditorOnlyData() && Texture->DeferCompression)	// The user wishes to defer compression, this is ok for the Editor only.
 		|| (FormatSettings.CompressionSettings == TC_EditorIcon) // TC_EditorIcon is "UserInterface2D"
 		|| (Texture->LODGroup == TEXTUREGROUP_ColorLookupTable)	// Textures in certain LOD groups should remain uncompressed.
 		|| (Texture->LODGroup == TEXTUREGROUP_Bokeh)
@@ -3693,7 +3700,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 	if (!bNoCompression)
 	{
 		int32 SizeX,SizeY;
-		Texture->GetBuiltTextureSize(TargetPlatform,SizeX,SizeY);
+		Texture->GetBuiltTextureSize(TargetPlatformSettings, TargetPlatformControls,SizeX,SizeY);
 
 	
 		// Don't compress textures smaller than the DXT block size.
@@ -3712,7 +3719,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 
 	FString UseDXT5NormalMapsString;
 
-	if (TargetPlatform->GetConfigSystem()->GetString(TEXT("SystemSettings"), TEXT("Compat.UseDXT5NormalMaps"), UseDXT5NormalMapsString, GEngineIni))
+	if (TargetPlatformSettings->GetConfigSystem()->GetString(TEXT("SystemSettings"), TEXT("Compat.UseDXT5NormalMaps"), UseDXT5NormalMapsString, GEngineIni))
 	{
 		bUseDXT5NormalMap = FCString::ToBool(*UseDXT5NormalMapsString);
 	}
@@ -3721,7 +3728,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 
 	if (FormatSettings.CompressionSettings == TC_LQ)
 	{
-		bool bLQCompressionSupported = TargetPlatform->SupportsLQCompressionTextureFormat();
+		bool bLQCompressionSupported = TargetPlatformControls->SupportsLQCompressionTextureFormat();
 		if(bLQCompressionSupported)
 		{
 			TextureFormatName = FormatSettings.CompressionNoAlpha ? NameR5G6B5 : NameA1RGB555;
@@ -3882,7 +3889,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 	// note: GrayscaleSRGB is off on all targetplatforms currently
 	// someday: I think this could use G16 instead and be half the size
 	//	 (that's doing the gamma->linear in the G8->G16 conversion)
-	if ((TextureFormatName == NameG8) && FormatSettings.SRGB && !TargetPlatform->SupportsFeature(ETargetPlatformFeatures::GrayscaleSRGB))
+	if ((TextureFormatName == NameG8) && FormatSettings.SRGB && !TargetPlatformSettings->SupportsFeature(ETargetPlatformFeatures::GrayscaleSRGB))
 	{
 		TextureFormatName = NameBGRA8;
 	}
@@ -3893,7 +3900,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 	{
 		// Texture::Filter can be manually set to TF_Nearest , if it's Default it comes from LOD Group
 		//   eg. Nearest for TEXTUREGROUP_ColorLookupTable and TEXTUREGROUP_Pixels2D
-		const UTextureLODSettings& LODSettings = TargetPlatform->GetTextureLODSettings();
+		const UTextureLODSettings& LODSettings = TargetPlatformSettings->GetTextureLODSettings();
 		ETextureSamplerFilter Filter = LODSettings.GetSamplerFilter(Texture);
 
 		if ( Filter != ETextureSamplerFilter::Point )
@@ -3927,6 +3934,11 @@ FName GetDefaultTextureFormatName( const ITargetPlatform* TargetPlatform, const 
 	//	will be done by GetPlatformTextureFormatNamesWithPrefix, after target platform remaps
 
 	return TextureFormatName;
+}
+FName GetDefaultTextureFormatName(const ITargetPlatform* TargetPlatform, const UTexture* Texture, int32 LayerIndex,
+	bool bSupportCompressedVolumeTexture, int32 Unused_BlockSize, bool bSupportFilteredFloat32Textures)
+{
+	return GetDefaultTextureFormatName(&TargetPlatform->GetPlatformSettings(), &TargetPlatform->GetPlatformControls(), Texture, LayerIndex, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures);
 }
 
 #if WITH_EDITOR
@@ -3994,19 +4006,24 @@ void UTexture::GetPlatformTextureFormatNamesWithPrefix(const class ITargetPlatfo
 }
 #endif
 
-void GetDefaultTextureFormatNamePerLayer(TArray<FName>& OutFormatNames, const class ITargetPlatform* TargetPlatform, const class UTexture* Texture, 
+void GetDefaultTextureFormatNamePerLayer(TArray<FName>& OutFormatNames, const class ITargetPlatformSettings* TargetPlatformSettings, const class ITargetPlatformControls* TargetPlatformControls, const class UTexture* Texture,
 	bool bSupportCompressedVolumeTexture, int32 Unused_BlockSize, bool bSupportFilteredFloat32Textures )
 {
 #if WITH_EDITOR
 	OutFormatNames.Reserve(Texture->Source.GetNumLayers());
 	for (int32 LayerIndex = 0; LayerIndex < Texture->Source.GetNumLayers(); ++LayerIndex)
 	{
-		OutFormatNames.Add(GetDefaultTextureFormatName(TargetPlatform, Texture, LayerIndex, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures));
+		OutFormatNames.Add(GetDefaultTextureFormatName(TargetPlatformSettings, TargetPlatformControls, Texture, LayerIndex, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures));
 	}
 #endif // WITH_EDITOR
 }
+void GetDefaultTextureFormatNamePerLayer(TArray<FName>& OutFormatNames, const class ITargetPlatform* TargetPlatform, const class UTexture* Texture,
+	bool bSupportCompressedVolumeTexture, int32 Unused_BlockSize, bool bSupportFilteredFloat32Textures)
+{
+	GetDefaultTextureFormatNamePerLayer(OutFormatNames, &TargetPlatform->GetPlatformSettings(), &TargetPlatform->GetPlatformControls(), Texture, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures);
+}
 
-void GetAllDefaultTextureFormats(const class ITargetPlatform* TargetPlatform, TArray<FName>& OutFormats)
+void GetAllDefaultTextureFormats(const class ITargetPlatformSettings* TargetPlatformSettings, TArray<FName>& OutFormats)
 {
 	// this is only used by CookOnTheFlyServer, it could be removed entirely
 
@@ -4054,14 +4071,19 @@ void GetAllDefaultTextureFormats(const class ITargetPlatform* TargetPlatform, TA
 	int NumBaseFormats = OutFormats.Num();
 	for (int Index = 0; Index < NumBaseFormats; Index++)
 	{
-		OutFormats.Add(ConditionalGetPrefixedFormat(OutFormats[Index], TargetPlatform, true));
-		OutFormats.Add(ConditionalGetPrefixedFormat(OutFormats[Index], TargetPlatform, false));
+		OutFormats.Add(ConditionalGetPrefixedFormat(OutFormats[Index], TargetPlatformSettings, true));
+		OutFormats.Add(ConditionalGetPrefixedFormat(OutFormats[Index], TargetPlatformSettings, false));
 	}
 	
 	// make unique:		
 	OutFormats.Sort( FNameFastLess() );
 	OutFormats.SetNum( Algo::Unique( OutFormats ) );
 #endif
+}
+
+void GetAllDefaultTextureFormats(const class ITargetPlatform* TargetPlatform, TArray<FName>& OutFormats)
+{
+	GetAllDefaultTextureFormats(&TargetPlatform->GetPlatformSettings(), OutFormats);
 }
 
 #if WITH_EDITOR

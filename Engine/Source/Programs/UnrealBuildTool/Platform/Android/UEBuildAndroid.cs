@@ -341,6 +341,8 @@ namespace UnrealBuildTool
 						if (Target.bBuildDeveloperTools)
 						{
 							Rules.DynamicallyLoadedModuleNames.Add("AndroidTargetPlatform");
+							Rules.DynamicallyLoadedModuleNames.Add("AndroidTargetPlatformSettings");
+							Rules.DynamicallyLoadedModuleNames.Add("AndroidTargetPlatformControls");
 						}
 					}
 					else if (ModuleName == "TargetPlatform")
@@ -362,6 +364,8 @@ namespace UnrealBuildTool
 					if (Target.bForceBuildTargetPlatforms)
 					{
 						Rules.DynamicallyLoadedModuleNames.Add("AndroidTargetPlatform");
+						Rules.DynamicallyLoadedModuleNames.Add("AndroidTargetPlatformSettings");
+						Rules.DynamicallyLoadedModuleNames.Add("AndroidTargetPlatformControls");
 					}
 
 					if (bBuildShaderFormats)

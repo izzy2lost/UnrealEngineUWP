@@ -46,11 +46,11 @@ public:
 	/**
 	 * Creates and initializes a new Android target device.
 	 *
-	 * @param InTargetPlatform - The target platform.
+	 * @param InTargetPlatformControls - The target platform controls.
 	 * @param InSerialNumber - The ADB serial number of the target device.
 	 * @param InAndroidVariant - The variant of the Android platform, i.e. ETC2, DXT or ASTC.
 	 */
-	FAndroidTargetDevice(const ITargetPlatform& InTargetPlatform, const FString& InSerialNumber, const FString& InAndroidVariant)
+	FAndroidTargetDevice(const ITargetPlatformControls& InTargetPlatformControls, const FString& InSerialNumber, const FString& InAndroidVariant)
 		: AndroidVariant(InAndroidVariant)
 		, bConnected(false)
 		, bIsDeviceAuthorized(false)
@@ -58,7 +58,7 @@ public:
 		, DeviceName(InSerialNumber)
 		, Model(InSerialNumber)
 		, SerialNumber(InSerialNumber)
-		, TargetPlatform(InTargetPlatform)
+		, TargetPlatformControls(InTargetPlatformControls)
 	{ }
 
 public:
@@ -140,7 +140,7 @@ public:
 
 	virtual FTargetDeviceId GetId() const override
 	{
-		return FTargetDeviceId(TargetPlatform.PlatformName(), SerialNumber);
+		return FTargetDeviceId(TargetPlatformControls.PlatformName(), SerialNumber);
 	}
 
 	virtual FString GetName() const override
@@ -162,11 +162,6 @@ public:
 	virtual FString GetOperatingSystemName() override;
 
 	virtual int32 GetProcessSnapshot( TArray<FTargetDeviceProcessInfo>& OutProcessInfos ) override;
-
-	virtual const class ITargetPlatform& GetTargetPlatform( ) const override
-	{
-		return TargetPlatform;
-	}
 
 	virtual bool IsConnected() override
 	{
@@ -260,7 +255,7 @@ protected:
 	FString SerialNumber;
 
 	// Holds a reference to the device's target platform.
-	const ITargetPlatform& TargetPlatform;
+	const ITargetPlatformControls& TargetPlatformControls;
 };
 
 

@@ -277,7 +277,7 @@ void SDeviceOutputLog::AddDeviceEntry(ITargetDeviceRef TargetDevice)
 		return;
 	}
 	using namespace PlatformInfo;
-	FName DeviceIconStyleName = TargetDevice->GetTargetPlatform().GetPlatformInfo().GetIconStyleName(EPlatformIconSize::Normal);
+	FName DeviceIconStyleName = TargetDevice->GetPlatformControls().GetPlatformInfo().GetIconStyleName(EPlatformIconSize::Normal);
 	
 	TSharedPtr<FTargetDeviceEntry> DeviceEntry = MakeShareable(new FTargetDeviceEntry());
 	
