@@ -2271,7 +2271,7 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 		{
 			if (Blueprint->IsModularRig())
 			{
-				TSharedRef<SSchematicGraphPanel> SchematicPanel = SNew(SSchematicGraphPanel)
+				SchematicViewport = SNew(SSchematicGraphPanel)
 																.GraphData(&SchematicModel)
 																.IsOverlay(true)
 																.PaddingLeft(30)
@@ -2280,7 +2280,19 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 																.PaddingBottom(60)
 																.PaddingInterNode(5)
 				;
-				InViewport->AddOverlayWidget(SchematicPanel);
+				InViewport->AddOverlayWidget(SchematicViewport.ToSharedRef());
+
+				
+				InViewport->AddToolbarExtender(TEXT("ControlRig"), FMenuExtensionDelegate::CreateLambda([&](FMenuBuilder& InMenuBuilder)
+					{
+						InMenuBuilder.AddMenuSeparator(TEXT("Modular Rig"));
+						InMenuBuilder.BeginSection("ModularRig", LOCTEXT("ModularRig_Label", "Modular Rig"));
+						{
+							InMenuBuilder.AddMenuEntry(FControlRigEditorCommands::Get().ToggleSchematicViewportVisibility);
+						}
+						InMenuBuilder.EndSection();
+					}
+				));
 			}
 		}
 	}
@@ -2348,8 +2360,17 @@ void FControlRigEditor::HandleToggleSchematicViewport()
 	if(SchematicViewport.IsValid())
 	{
 		SchematicModel.UpdateControlRigContent();
-		SchematicViewport.Pin()->ToggleVisibility();
+		SchematicViewport->ToggleVisibility();
 	}
+}
+
+bool FControlRigEditor::IsSchematicViewportActive() const
+{
+	if (SchematicViewport.IsValid())
+	{
+		return SchematicViewport->GetVisibility() != EVisibility::Hidden;
+	}
+	return false;
 }
 
 ECheckBoxState FControlRigEditor::GetToolbarDrawAxesOnSelection() const
@@ -3339,7 +3360,8 @@ void FControlRigEditor::BindCommands()
 	GetToolkitCommands()->MapAction(
 		FControlRigEditorCommands::Get().ToggleSchematicViewportVisibility,
 		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleSchematicViewport),
-		FCanExecuteAction());
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &FControlRigEditor::IsSchematicViewportActive));
 }
 
 void FControlRigEditor::OnHierarchyChanged()
