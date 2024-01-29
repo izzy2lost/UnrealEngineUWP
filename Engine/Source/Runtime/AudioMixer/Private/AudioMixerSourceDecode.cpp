@@ -28,14 +28,6 @@ FAutoConsoleVariableRef CVarForceSynchronizedAudioTaskKick(
 	TEXT("0: Don't Force, 1: Force"),
 	ECVF_Default);
 
-static int32 UseBackgroundThreadPoolForProceduralAudioDecodeCvar = 1;
-FAutoConsoleVariableRef CVarUseBackgroundThreadPoolForProceduralAudioDecode(
-	TEXT("au.UseBackgroundThreadPoolForProceduralAudioDecode"),
-	UseBackgroundThreadPoolForProceduralAudioDecodeCvar,
-	TEXT("Use background thread pool for procedural audio decode tasks. This is affected by AudioThread.UseBackgroundThreadPool.\n")
-	TEXT("0: Don't use background thread pool, 1: Use background thread pool"),
-	ECVF_Default);
-
 namespace Audio
 {
 
@@ -303,16 +295,11 @@ public:
             Task->StartSynchronousTask();
             return;
         }
-
-		if (UseBackgroundThreadPoolForProceduralAudioDecodeCvar)
-		{
-			const bool bUseBackground = ShouldUseBackgroundPoolFor_FAsyncRealtimeAudioTask();
-			Task->StartBackgroundTask(bUseBackground ? GBackgroundPriorityThreadPool : GThreadPool);
-		}
-		else
-		{
-			Task->StartBackgroundTask();
-		}
+        
+		// We tried using the background priority thread pool
+		// like other async audio decodes
+		// but that resulted in underruns, see FORT-700578
+		Task->StartBackgroundTask();
 	}
 
 	virtual EAudioTaskType GetType() const override
