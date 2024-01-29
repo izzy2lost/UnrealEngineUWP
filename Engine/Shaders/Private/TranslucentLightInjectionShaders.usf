@@ -4,7 +4,6 @@
  * TranslucentLightInjectionShaders.usf: Shaders for calculating lighting in a volume to use on translucency
  */
 
-#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush"
 #include "Common.ush"
 #include "SHCommon.ush"
 

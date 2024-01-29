@@ -300,7 +300,7 @@ void RegisterExternalOrthoVoxelGridUniformBuffer(
 
 struct FAVSMLinkedListPackedData
 {
-	int32 Data[2];
+	uint32 Data[2];
 };
 
 struct FAVSMIndirectionPackedData
@@ -324,7 +324,7 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMapUniformBufferParameters,
 	SHADER_PARAMETER(int32, bIsEmpty)
 	SHADER_PARAMETER(int32, bIsDirectionalLight)
 
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<int2>, LinkedListBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LinkedListBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, IndirectionBuffer)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SampleBuffer)
 END_UNIFORM_BUFFER_STRUCT()
