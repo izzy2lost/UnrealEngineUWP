@@ -944,6 +944,12 @@ void FSkeletonEditingToolDetailCustomization::CustomizeComponentSelection(IDetai
 				const bool bCreate = Tool.IsValid() && Tool->GetOperation() == EEditingOperation::Create;
 				return bCreate ? LOCTEXT("SnapCreateButtonLabel", "Create") : LOCTEXT("SnapButtonLabel", "Snap");
 			})
+			.ToolTipText_Lambda([this]
+			{
+				const bool bCreate = Tool.IsValid() && Tool->GetOperation() == EEditingOperation::Create;
+				return bCreate ? LOCTEXT("SnapCreateButtonTooltip", "Create a new bone and snap it to the selected components. (V)") :
+								LOCTEXT("SnapButtonTooltip", "Snap the selected bone to the selected components. (V)");
+			})
 			.IsEnabled_Lambda([this]()
 			{
 				return Tool->HasSelectedComponent(); 
