@@ -7,6 +7,7 @@
 #include "MuR/Image.h"
 #include "Templates/SharedPointer.h"
 #include "HAL/PlatformMath.h"
+#include "Tasks/Task.h"
 
 namespace mu
 {
@@ -30,7 +31,7 @@ namespace mu
     class Node;
     class NodeTransformedObject;
 
-	typedef TFunction<Ptr<Image>(int32)> FReferencedResourceFunc;
+	typedef TFunction<UE::Tasks::FTaskEvent(int32, TSharedPtr<Ptr<Image>>)> FReferencedResourceFunc;
 
     //! \brief Options used to compile the models with a compiler.
     class MUTABLETOOLS_API CompilerOptions : public RefCounted

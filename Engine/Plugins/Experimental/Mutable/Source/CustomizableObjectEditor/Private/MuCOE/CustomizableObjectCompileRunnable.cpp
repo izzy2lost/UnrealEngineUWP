@@ -11,6 +11,7 @@
 #include "MuT/UnrealPixelFormatOverride.h"
 #include "Serialization/MemoryWriter.h"
 #include "Async/Async.h"
+#include "Containers/Ticker.h"
 #include "Trace/Trace.inl"
 
 class ITargetPlatform;
@@ -25,6 +26,42 @@ FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<m
 	, bThreadCompleted(false)
 {
 	PrepareUnrealCompression();
+}
+
+
+mu::Ptr<mu::Image> FCustomizableObjectCompileRunnable::LoadResourceReferenced(int32 ID)
+{
+	check(IsInGameThread());
+
+	MUTABLE_CPUPROFILER_SCOPE(LoadResourceReferenced);
+
+	mu::Ptr<mu::Image> Image;
+	if (!ReferencedTextures.IsValidIndex(ID))
+	{
+		// The id is not valid for this CO
+		check(false);
+		return Image;
+	}
+
+	// Find the texture id
+	TSoftObjectPtr<UTexture> TexturePtr = ReferencedTextures[ID];
+
+	// This can cause a stall because of loading the asset.
+	UTexture2D* Texture = Cast<UTexture2D>(TexturePtr.LoadSynchronous());
+	if (!Texture)
+	{
+		// Failed to load the texture
+		check(false);
+		return Image;
+	}
+
+	// In the editor the src data can be directly accessed
+	Image = new mu::Image();
+	int32 MipmapsToSkip = 0;
+	bool bIsNormalComposite = false; // TODO?
+	EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), Texture, bIsNormalComposite, MipmapsToSkip);
+	check(Error == EUnrealToMutableConversionError::Success);
+	return Image;
 }
 
 
@@ -81,68 +118,58 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 		CompilerOptions->SetImagePixelFormatOverride( UnrealPixelFormatFunc );
 	}
 
-	CompilerOptions->SetReferencedResourceCallback([this](int32 ID) 
+	CompilerOptions->SetReferencedResourceCallback([this](int32 ID, TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage)
 		{
-			mu::Ptr<mu::Image> Image;
-
-			auto LoadFunc = [this,ID]() 
-			{
-				check(IsInGameThread());
-
-				mu::Ptr<mu::Image> Image;
-				if (!ReferencedTextures.IsValidIndex(ID))
-				{
-					// The id is not valid for this CO
-					check(false);
-					return Image;
-				}
-
-				// Find the texture id
-				TSoftObjectPtr<UTexture> TexturePtr = ReferencedTextures[ID];
-
-				// This can cause a stall because of loading the asset.
-				UTexture2D* Texture = Cast<UTexture2D>(TexturePtr.LoadSynchronous());
-				if (!Texture)
-				{
-					// Failed to load the texture
-					check(false);
-					return Image;
-				}
-
-				// In the editor the src data can be directly accessed
-				Image = new mu::Image();
-				int32 MipmapsToSkip = 0;
-				bool bIsNormalComposite = false; // TODO?
-				EUnrealToMutableConversionError Error = ConvertTextureUnrealSourceToMutable(Image.get(), Texture, bIsNormalComposite, MipmapsToSkip);
-				check(Error == EUnrealToMutableConversionError::Success);
-				return Image;
-			};
-
 			// This runs in a random thread
+			UE::Tasks::FTaskEvent CompletionEvent(TEXT("ReferencedResourceCallbackCompletion"));			
+
 			if (IsInGameThread())
 			{
-				Image = LoadFunc();
+				// Do everything now
+				mu::Ptr<mu::Image> Result = LoadResourceReferenced(ID);
+				*ResolvedImage = Result;
+				CompletionEvent.Trigger();
 			}
 			else
 			{
-				UE::Tasks::FTaskEvent Completion(TEXT("SetReferencedResourceCallback"));
-
-				AsyncTask(ENamedThreads::GameThread, [&Image, &Completion, LoadFunc]() 
-					{
-						Image = LoadFunc();
-						Completion.Trigger();
-					});
-
-				Completion.Wait();
+				PendingResourceReferenceRequests.Enqueue(FReferenceResourceRequest(ID, ResolvedImage, MakeShared<UE::Tasks::FTaskEvent>(CompletionEvent)));
 			}
-			return Image;
+
+			return CompletionEvent;
 		});
 
+	// Register the tick function that will process the game-thread image reference resolve requests.
+	FTSTicker::FDelegateHandle ResolveReferenceResourcesTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+		FTickerDelegate::CreateLambda([this](float)
+			{
+				check(IsInGameThread());
+
+				constexpr double MaxSecondsPerFrame = 0.4;
+
+				double MaxTime = FPlatformTime::Seconds() + MaxSecondsPerFrame;
+
+				FReferenceResourceRequest Request;
+				while (PendingResourceReferenceRequests.Dequeue(Request))
+				{
+					*Request.ResolvedImage = LoadResourceReferenced(Request.ID);
+					Request.CompletionEvent->Trigger();
+
+					// Simple time limit enforcement to avoid blocking the game thread if there are many requests.
+					double CurrentTime = FPlatformTime::Seconds();
+					if (CurrentTime >= MaxTime)
+					{
+						break;
+					}
+				}
+
+				return true;
+			}));
+
 	// Minimum resident mip count.
-	const int MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
+	const int32 MinResidentMips = UTexture::GetStaticMinTextureResidentMipCount();
 	// Data smaller than this will always be loaded, as part of the customizable object compiled model.
-	const int MinRomSize = 128;
-	CompilerOptions->SetDataPackingStrategy(MinRomSize, MinResidentMips);
+	const int32 MinRomSizeBytes = 128;
+	CompilerOptions->SetDataPackingStrategy(MinRomSizeBytes, MinResidentMips);
 
 	// At object compilation time we don't know if we will want progressive images or not. Assume we will. 
 	// TODO: Per-state setting?
@@ -193,6 +220,8 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 	Compiler = nullptr;
 
 	bThreadCompleted = true;
+
+	FTSTicker::GetCoreTicker().RemoveTicker( ResolveReferenceResourcesTickerHandle );
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable::Run end."), FPlatformTime::Seconds());
 

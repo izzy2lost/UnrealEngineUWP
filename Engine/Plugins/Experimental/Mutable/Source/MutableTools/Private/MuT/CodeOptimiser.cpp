@@ -1,15 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuT/CodeOptimiser.h"
+
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/AST.h"
 #include "MuT/StreamsPrivate.h"
-
-#include "MuR/ModelPrivate.h"
-#include "MuR/SystemPrivate.h"
-#include "MuR/Operations.h"
-#include "MuR/OpMeshMerge.h"
-
 #include "MuT/ASTOpInstanceAdd.h"
 #include "MuT/ASTOpConditional.h"
 #include "MuT/ASTOpSwitch.h"
@@ -20,10 +15,19 @@
 #include "MuT/ASTOpMeshClipMorphPlane.h"
 #include "MuT/ASTOpMeshApplyPose.h"
 #include "MuT/ASTOpImageRasterMesh.h"
+#include "MuT/ASTOpReferenceResource.h"
+
+#include "MuR/ModelPrivate.h"
+#include "MuR/SystemPrivate.h"
+#include "MuR/Operations.h"
+#include "MuR/OpMeshMerge.h"
+#include "MuR/MutableRuntimeModule.h"
+
+#include "Tasks/Task.h"
+#include "Tasks/Pipe.h"
 
 #include <unordered_set>
 
-#include "MuR/MutableRuntimeModule.h"
 
 namespace mu
 {
@@ -449,24 +453,45 @@ namespace mu
 	{
 	private:
 
-		//
-		mu::Ptr<ASTOp> m_result;
+		// input
+		Ptr<ASTOp> Source;
+		bool bUseDiskCache = false;
+		int32 ImageCompressionQuality = 0;
+		int32 OptimizationPass = 0;
+		FReferencedResourceFunc ReferencedResourceProvider;
+
+		// Intermediate
+		Ptr<ASTOp> SourceCloned;
+
+		// Result
+		Ptr<ASTOp> Result;
 
 	public:
-		// input
-		mu::Ptr<ASTOp> m_source;
-		bool bUseDiskCache = false;
-		int ImageCompressionQuality = 0;
 
+		ConstantTask( const Ptr<ASTOp>& InSource, const CompilerOptions::Private* InOptions, int32 InOptimizationPass )
+		{
+			OptimizationPass = InOptimizationPass;
+			Source = InSource;
+			bUseDiskCache = InOptions->OptimisationOptions.bUseDiskCache;
+			ImageCompressionQuality = InOptions->ImageCompressionQuality;
+			ReferencedResourceProvider = InOptions->OptimisationOptions.ReferencedResourceProvider;
+		}
+
+		void Prepare()
+		{
+			// This runs in the AST managing thread.
+
+			// We need the clone because linking modifies ASTOp state and also to be safe for concurrency.
+			SourceCloned = ASTOp::DeepClone(Source);
+		}
 
 		void Run(FImageOperator ImOp)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ConstantTask_Run);
 
-			// We need the clone because linking modifies ASTOp state
-			mu::Ptr<ASTOp> cloned = ASTOp::DeepClone( m_source );
+			// This runs in a worker thread
 
-			OP_TYPE type = cloned->GetOpType();
+			OP_TYPE type = SourceCloned->GetOpType();
 			DATATYPE dtype = GetOpDataType(type);
 
 			Ptr<Settings> pSettings = new Settings;
@@ -476,19 +501,19 @@ namespace mu
 
 			pSystem->GetPrivate()->ImagePixelFormatOverride = ImOp.FormatImageOverride;
 
-			// Don't generate mips suring linking here.
+			// Don't generate mips during linking here.
 			FLinkerOptions LinkerOptions(ImOp);
 			LinkerOptions.MinTextureResidentMipCount = 255;
 
 			TSharedPtr<const Model> model = MakeShared<Model>();
-			ASTOp::FullLink( cloned, model->GetPrivate()->m_program, &LinkerOptions);
-			OP::ADDRESS at = cloned->linkedAddress;
+			ASTOp::FullLink(SourceCloned, model->GetPrivate()->m_program, &LinkerOptions);
+			OP::ADDRESS at = SourceCloned->linkedAddress;
 
 			FProgram::FState state;
 			state.m_root = at;
 			model->GetPrivate()->m_program.m_states.Add(state);
 
-			ParametersPtr localParams = Model::NewParameters(model);
+			Ptr<Parameters> LocalParams = Model::NewParameters(model);
 			pSystem->GetPrivate()->BeginBuild( model );
 
 			// Calculate the value and replace this op by a constant
@@ -498,14 +523,14 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantMesh);
 
-				mu::Ptr<const Mesh> pMesh = pSystem->GetPrivate()->BuildMesh( model, localParams.get(), at );
+				mu::Ptr<const Mesh> pMesh = pSystem->GetPrivate()->BuildMesh( model, LocalParams.get(), at );
 
 				if (pMesh)
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
 					constantOp->type = OP_TYPE::ME_CONSTANT;
 					constantOp->SetValue( pMesh, bUseDiskCache );
-					m_result = constantOp;
+					Result = constantOp;
 				  }
 				break;
 			}
@@ -514,14 +539,14 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantImage);
 
-				mu::Ptr<const Image> pImage = pSystem->GetPrivate()->BuildImage( model, localParams.get(), at, 0, 0 );
+				mu::Ptr<const Image> pImage = pSystem->GetPrivate()->BuildImage( model, LocalParams.get(), at, 0, 0 );
 
 				if (pImage)
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
 					constantOp->type = OP_TYPE::IM_CONSTANT;
 					constantOp->SetValue( pImage, bUseDiskCache );
-					m_result = constantOp;
+					Result = constantOp;
 				}
 				break;
 			}
@@ -530,14 +555,14 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantLayout);
 
-				mu::Ptr<const Layout> pLayout = pSystem->GetPrivate()->BuildLayout( model, localParams.get(), at );
+				mu::Ptr<const Layout> pLayout = pSystem->GetPrivate()->BuildLayout( model, LocalParams.get(), at );
 
 				if (pLayout)
 				{
 					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
 					constantOp->type = OP_TYPE::LA_CONSTANT;
 					constantOp->SetValue( pLayout, bUseDiskCache );
-					m_result = constantOp;
+					Result = constantOp;
 				}
 				break;
 			}
@@ -546,12 +571,12 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantBool);
 
-				bool value = pSystem->GetPrivate()->BuildBool( model, localParams.get(), at );
+				bool value = pSystem->GetPrivate()->BuildBool( model, LocalParams.get(), at );
 
 				{
 					mu::Ptr<ASTOpConstantBool> constantOp = new ASTOpConstantBool();
 					constantOp->value = value;
-					m_result = constantOp;
+					Result = constantOp;
 				}
 				break;
 			}
@@ -560,17 +585,17 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantBool);
 
-				FVector4f Result(0, 0, 0, 0);
-				Result = pSystem->GetPrivate()->BuildColour( model, localParams.get(), at );
+				FVector4f ResultColor(0, 0, 0, 0);
+				ResultColor = pSystem->GetPrivate()->BuildColour( model, LocalParams.get(), at );
 
 				{
 					mu::Ptr<ASTOpFixed> constantOp = new ASTOpFixed();
 					constantOp->op.type = OP_TYPE::CO_CONSTANT;
-					constantOp->op.args.ColourConstant.value[0] = Result[0];
-					constantOp->op.args.ColourConstant.value[1] = Result[1];
-					constantOp->op.args.ColourConstant.value[2] = Result[2];
-					constantOp->op.args.ColourConstant.value[3] = Result[3];
-					m_result = constantOp;
+					constantOp->op.args.ColourConstant.value[0] = ResultColor[0];
+					constantOp->op.args.ColourConstant.value[1] = ResultColor[1];
+					constantOp->op.args.ColourConstant.value[2] = ResultColor[2];
+					constantOp->op.args.ColourConstant.value[3] = ResultColor[3];
+					Result = constantOp;
 				}
 				break;
 			}
@@ -588,227 +613,282 @@ namespace mu
 
 			pSystem->GetPrivate()->EndBuild();
 
+			SourceCloned = nullptr;
 		}
 
 		void Complete()
 		{
-			// This runs in the managing thread
-			ASTOp::Replace( m_source, m_result );
+			// This runs in the AST managing thread.
+			ASTOp::Replace(Source, Result);
+			Source = nullptr;
+			Result = nullptr;
 		}
 	};
 
 
 	//---------------------------------------------------------------------------------------------
-	bool ConstantGeneratorAST( const CompilerOptions::Private* options, Ptr<ASTOp>& root )
+	bool ConstantGeneratorAST( const CompilerOptions::Private* InOptions, Ptr<ASTOp>& Root, int32 Pass )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator);
 
-		bool modified = false;
+		UE::Tasks::FPipe ASTPipe(TEXT("ASTPipe"));
 
 		// don't do this if constant optimization has been disabled, usually for debugging.
-		if (!options->OptimisationOptions.bConstReduction)
+		if (!InOptions->OptimisationOptions.bConstReduction)
 		{
 			return false;
 		}
 
-
-		// Calculate constant-subtree and special-op flags
+		// Gather the roots of all constant operations
+		struct FConstantSubgraph
 		{
-			MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_CalculateFlags);
+			Ptr<ASTOp> Root;
+			UE::Tasks::FTaskEvent CompletedEvent;
+		};
+		TArray< FConstantSubgraph > ConstantSubgraphs;
+		ConstantSubgraphs.Reserve(256);
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_GenerateTasks);
 
-			ASTOp::Traverse_BottomUp_Unique( root, [&](Ptr<ASTOp>& n)
-			{
-				bool constantSubtree = true;
-				switch (n->GetOpType())
+			ASTOp::Traverse_BottomUp_Unique(Root,
+				[&ConstantSubgraphs, Pass]
+				(Ptr<ASTOp>& SubgraphRoot)
 				{
-				case OP_TYPE::BO_PARAMETER:
-				case OP_TYPE::NU_PARAMETER:
-				case OP_TYPE::SC_PARAMETER:
-				case OP_TYPE::CO_PARAMETER:
-				case OP_TYPE::PR_PARAMETER:
-				case OP_TYPE::IM_PARAMETER:
-					constantSubtree = false;
-					break;
-				default:
-					// Propagate from children
-					n->ForEachChild( [&constantSubtree](ASTChild& c)
+					OP_TYPE SubgraphType = SubgraphRoot->GetOpType();
+
+					bool bIsConstantSubgraph = true;
+					switch (SubgraphType)
 					{
-						if (c)
-						{
-							constantSubtree = constantSubtree && c->m_constantSubtree;
-						}
-					});
-					break;
-				}
-				n->m_constantSubtree = constantSubtree;
+					case OP_TYPE::BO_PARAMETER:
+					case OP_TYPE::NU_PARAMETER:
+					case OP_TYPE::SC_PARAMETER:
+					case OP_TYPE::CO_PARAMETER:
+					case OP_TYPE::PR_PARAMETER:
+					case OP_TYPE::IM_PARAMETER:
+						bIsConstantSubgraph = false;
+						break;
+					default:
+						// Propagate from children
+						SubgraphRoot->ForEachChild([&bIsConstantSubgraph](ASTChild& c)
+							{
+								if (c)
+								{
+									bIsConstantSubgraph = bIsConstantSubgraph && c->bIsConstantSubgraph;
+								}
+							});
+						break;
+					}
+					SubgraphRoot->bIsConstantSubgraph = bIsConstantSubgraph;
 
-				// We avoid generating constants for these operations, to avoid the memory
-				// explosion.
-				// TODO: Make compiler options for some of them
-				// TODO: Some of them are worth if the code below them is unique.
-				bool hasSpecialOpInSubtree = false;
-				switch (n->GetOpType())
-				{
-				case OP_TYPE::IM_BLANKLAYOUT:
-				case OP_TYPE::IM_REFERENCE:
-				case OP_TYPE::IM_COMPOSE:
-				//case OP_TYPE::IM_RASTERMESH:            // TODO review this one
-				case OP_TYPE::ME_MERGE:
-				case OP_TYPE::ME_CLIPWITHMESH:
-				case OP_TYPE::ME_CLIPMORPHPLANE:
-				case OP_TYPE::ME_APPLYPOSE:
-				case OP_TYPE::ME_REMOVEMASK:
-				case OP_TYPE::ME_ADDTAGS:
-				case OP_TYPE::IM_PLAINCOLOUR:
-					hasSpecialOpInSubtree = true;
-					break;
-
-				default:
-					// Propagate from children
-					n->ForEachChild( [&](ASTChild& c)
+					// We avoid generating constants for these operations, to avoid the memory explosion.
+					// TODO: Make compiler options for some of them
+					// TODO: Some of them are worth if the code below them is unique.
+					bool bHasSpecialOpInSubgraph = false;
+					switch (SubgraphType)
 					{
-						if (c)
-						{
-							hasSpecialOpInSubtree = hasSpecialOpInSubtree || c->m_hasSpecialOpInSubtree;
-						}
-					});
-					break;
-				}
-				n->m_hasSpecialOpInSubtree = hasSpecialOpInSubtree;
-			});
+					case OP_TYPE::IM_BLANKLAYOUT:
+					case OP_TYPE::IM_COMPOSE:
+					case OP_TYPE::ME_MERGE:
+					case OP_TYPE::ME_CLIPWITHMESH:
+					case OP_TYPE::ME_CLIPMORPHPLANE:
+					case OP_TYPE::ME_APPLYPOSE:
+					case OP_TYPE::ME_REMOVEMASK:
+					case OP_TYPE::ME_ADDTAGS:
+					case OP_TYPE::IM_PLAINCOLOUR:
+						bHasSpecialOpInSubgraph = true;
+						break;
 
+					case OP_TYPE::IM_RASTERMESH:
+					{
+						const ASTOpImageRasterMesh* Raster = static_cast<const ASTOpImageRasterMesh*>(SubgraphRoot.get());
+						// If this operation is only rastering the mesh UVs, reduce it to constant. Otherwise avoid reducing it
+						// for the case of a constant projector of a large set of possible images. We don't want to generate all the
+						// projected version of the images beforehand. TODO: Make it a comptile-time option?
+						bHasSpecialOpInSubgraph = Raster->image.child().get() != nullptr;
+						break;
+					}
+
+					case OP_TYPE::IM_REFERENCE:
+						// If we are in a reference-resolution optimization phase, then the ops are not special.
+						if (Pass < 2)
+						{
+							bHasSpecialOpInSubgraph = true;
+						}
+						else
+						{
+							const ASTOpReferenceResource* Typed = static_cast<const ASTOpReferenceResource*>(SubgraphRoot.get());
+							bHasSpecialOpInSubgraph = !Typed->bForceLoad;
+						}
+						break;
+
+					default:
+						// Propagate from children
+						SubgraphRoot->ForEachChild([&](ASTChild& c)
+							{
+								if (c)
+								{
+									bHasSpecialOpInSubgraph = bHasSpecialOpInSubgraph || c->bHasSpecialOpInSubgraph;
+								}
+							});
+						break;
+					}
+					SubgraphRoot->bHasSpecialOpInSubgraph = bHasSpecialOpInSubgraph;
+
+					bool bIsDataTypeThanCanTurnIntoConst = false;
+					DATATYPE dtype = GetOpDataType(SubgraphType);
+					switch (dtype)
+					{
+					case DT_MESH:
+					case DT_IMAGE:
+					case DT_LAYOUT:
+					case DT_BOOL:
+					case DT_COLOUR:
+						bIsDataTypeThanCanTurnIntoConst = true;
+						break;
+					default:
+						break;
+					}
+
+					// See if it is worth generating this as constant
+					// ---------------------------------------------
+					if (SubgraphRoot->bIsConstantSubgraph
+						&& !SubgraphRoot->bHasSpecialOpInSubgraph
+						&& !SubgraphRoot->IsConstantOp()
+						&& bIsDataTypeThanCanTurnIntoConst
+						)
+					{
+						ConstantSubgraphs.Add({ SubgraphRoot, UE::Tasks::FTaskEvent(TEXT("MutableConstantSubgraph")) });
+					}
+				});
 		}
 
-		TArray< Ptr<ASTOp> > roots;
-		roots.Add(root);
-
-		// Generate constant operations
-		ASTOp::Traverse_TopDown_Unique_Imprecise( roots, [&](Ptr<ASTOp>& n)
-		{
-			bool recurse = true;
-
-			OP_TYPE type = n->GetOpType();
-			DATATYPE dtype = GetOpDataType(type);
-
-			bool constant = false;
-			if (dtype!=DT_INSTANCE)
+		// Launch the tasks. Dot it from a task in the ASTPipe to make sure we "lock" modifications of the AST.
+		UE::Tasks::FTaskEvent EverythingComplete(TEXT("ConstantGenerator_EverythingComplete"));
+		UE::Tasks::FTask LaunchTask = ASTPipe.Launch(TEXT("ConstantGeneratorLaunchTasks"),
+			[&ConstantSubgraphs, &ASTPipe, &EverythingComplete, Pass, InOptions]()
 			{
-				constant = n->m_constantSubtree;
-			}
+				MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_LaunchTasks);
 
-			// See if it is a case of instructions we want to avoid, but with special parameters that make
-			// them ok
-			bool specialCase = false;
-			if (constant)
-			{
-				//const OP& op = program.m_code[at];
-				// TODO
-	//                if (n->GetOpType()==OP_TYPE::IM_COMPOSE)
-	//                {
-	//                    // Get the layout
-	//                    // In case we fill all of the target image anyway
-	//                    ParametersPtr pParams = m_pModel->NewParameters();
+				FImageOperator ImOp = FImageOperator::GetDefault(InOptions->ImageFormatFunc);
 
-	//                    const auto& args = op.args.ImageCompose;
-	//                    LayoutPtrConst pLayout = m_pSystem->GetPrivate()->BuildLayout
-	//                        ( m_pModel.get(), pParams.get(), args.layout );
-
-	//                    if ( pLayout &&
-	//                         pLayout->GetPrivate()->IsSingleBlockAndFull() )
-	//                    {
-	//                        specialCase = true;
-	//                    }
-	//                }
-
-	//                else
-				if (n->GetOpType()==OP_TYPE::IM_RASTERMESH)
+				// Traverse list of contants to generate in reverse order, for a more top-down approach that is better for memory usage.
+				for (int32 Index = ConstantSubgraphs.Num() - 1; Index >= 0; --Index)
 				{
-					const ASTOpImageRasterMesh* Raster = static_cast<const ASTOpImageRasterMesh*>(n.get());
-					if ( !Raster->image )
+					Ptr<ASTOp> SubgraphRoot = ConstantSubgraphs[Index].Root;
+					UE::Tasks::FTaskEvent& SubgraphCompletionEvent = ConstantSubgraphs[Index].CompletedEvent;
+
+					// Referenced images are resolved in its own task to prevent requesting them twice (and loading them twice)
+					bool bIsCompileTimeReferenceImage = (SubgraphRoot->GetOpType() == OP_TYPE::IM_REFERENCE);
+
+					// Launch the task with its dependencies
+					if (bIsCompileTimeReferenceImage)
 					{
-						specialCase = true;
+						// Instead of generating the constant we resolve the reference, which also replaces the ASTOp.
+						TSharedPtr< Ptr<Image> > ResolveImage = MakeShared<Ptr<Image>>();
+
+						const ASTOpReferenceResource* Typed = static_cast<const ASTOpReferenceResource*>(SubgraphRoot.get());
+						UE::Tasks::FTaskEvent ReferenceCompletionEvent = InOptions->OptimisationOptions.ReferencedResourceProvider(Typed->ID, ResolveImage);
+
+						UE::Tasks::FTask CompleteTask = ASTPipe.Launch(TEXT("MutableResolveComplete"),
+							[SubgraphRoot, InOptions, ResolveImage]()
+							{
+								Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
+								ConstantOp->type = OP_TYPE::IM_CONSTANT;
+								ConstantOp->SetValue(ResolveImage->get(), InOptions->OptimisationOptions.bUseDiskCache);
+								ASTOp::Replace(SubgraphRoot, ConstantOp);
+							},
+							ReferenceCompletionEvent,
+							LowLevelTasks::ETaskPriority::BackgroundNormal);
+
+						SubgraphCompletionEvent.AddPrerequisites(CompleteTask);
 					}
-				}
-			}
 
-			// See if the subtree contains operations that we don't want to collapse even if
-			// they are constant
-			if ( constant && !specialCase)
-			{
-				if ( n->m_hasSpecialOpInSubtree )
-				{
-					constant = false;
-				}
-			}
+					else
+					{
+						// Scan for requisites
+						TArray< UE::Tasks::FTask, TInlineAllocator<8> > Requisites;
+						TArray< Ptr<ASTOp> > ScanRoots;
+						ScanRoots.Add(SubgraphRoot);
+						ASTOp::Traverse_TopDown_Unique_Imprecise(ScanRoots, [&SubgraphRoot, &Requisites, &ConstantSubgraphs](Ptr<ASTOp>& ChildNode)
+							{
+								bool bRecurse = true;
 
-			// If children are constant
-			if ( constant
-				 && type!=OP_TYPE::BO_CONSTANT
-				 && type!=OP_TYPE::NU_CONSTANT
-				 && type!=OP_TYPE::SC_CONSTANT
-				 && type!=OP_TYPE::CO_CONSTANT
-				 && type!=OP_TYPE::IM_CONSTANT
-				 && type!=OP_TYPE::ME_CONSTANT
-				 && type!=OP_TYPE::LA_CONSTANT
-				 && type!=OP_TYPE::PR_CONSTANT
-				 && type!=OP_TYPE::NONE
-				)
-			{
-				switch( dtype )
-				{
-				case DT_MESH:
-				case DT_IMAGE:
-				case DT_LAYOUT:
-				case DT_BOOL:
-				case DT_COLOUR:
-				{
-					recurse = false;
-					modified = true;
+								// Subgraph root?
+								if (SubgraphRoot == ChildNode)
+								{
+									return bRecurse;
+								}
 
-					ConstantTask* constantTask = new ConstantTask;
-					constantTask->bUseDiskCache = options->OptimisationOptions.bUseDiskCache;
-					constantTask->m_source = n;
-					constantTask->ImageCompressionQuality = options->ImageCompressionQuality;
+								FConstantSubgraph* DependencyFound = ConstantSubgraphs.FindByPredicate([&ChildNode](const FConstantSubgraph& Candidate) { return Candidate.Root == ChildNode; });
+								if (DependencyFound)
+								{
+									bRecurse = false;
+									Requisites.Add(DependencyFound->CompletedEvent);
+								}
 
-					FImageOperator ImOp = FImageOperator::GetDefault(options->ImageFormatFunc);
-					constantTask->Run(ImOp);
-					constantTask->Complete();
-					delete constantTask;
+								return bRecurse;
+							});
 
-					break;
-				}
+						TUniquePtr<ConstantTask> Task(new ConstantTask(SubgraphRoot, InOptions, Pass));
+						ConstantTask* TaskPtr = Task.Get();
 
-				case DT_INT:
-				case DT_SCALAR:
-				case DT_STRING:
-				case DT_PROJECTOR:
-					// TODO
-					break;
+						// Launch the preparation on the AST-modification pipe
+						UE::Tasks::FTask PrepareTask = ASTPipe.Launch(TEXT("MutableConstantPrepare"), [TaskPtr]()
+							{
+								TaskPtr->Prepare();
+							},
+							Requisites,
+							LowLevelTasks::ETaskPriority::BackgroundHigh);
 
-				case DT_INSTANCE:
-					// nothing to do
-					break;
+						// Launch constant generation on any thread
+						UE::Tasks::FTask RunTask = UE::Tasks::Launch(TEXT("MutableConstantGeneration"), [TaskPtr, ImOp]()
+							{
+								TaskPtr->Run(ImOp);
+							},
+							PrepareTask,
+							LowLevelTasks::ETaskPriority::BackgroundHigh );
 
-				default:
-					break;
+						// Launch the completion on the AST-modification pipe
+						UE::Tasks::FTask CompleteTask = ASTPipe.Launch(TEXT("MutableConstantComplete"), [TaskPtr = MoveTemp(Task)]()
+							{
+								TaskPtr->Complete();
+							},
+							RunTask,
+							LowLevelTasks::ETaskPriority::BackgroundHigh);
+
+						SubgraphCompletionEvent.AddPrerequisites(CompleteTask);
+					}
+
+					ConstantSubgraphs[Index].Root = nullptr;
+					SubgraphCompletionEvent.Trigger();
+					EverythingComplete.AddPrerequisites(SubgraphCompletionEvent);
 				}
 
-			}
+			});
 
-			return recurse;
-		});
+		EverythingComplete.AddPrerequisites(LaunchTask);
 
-		return modified;
+		// Wait for pending tasks
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_WaitPending);
+			EverythingComplete.Trigger();
+
+			// Wait without executing tasks, since this is an independent thread.
+			EverythingComplete.Wait();
+		}
+
+		bool bSomethingModified = ConstantSubgraphs.Num() > 0;
+		return bSomethingModified;
 	}
 
 
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------------------
-	CodeOptimiser::CodeOptimiser(Ptr<CompilerOptions> options, TArray<FStateCompilationData>& states )
-		: m_states( states )
+	CodeOptimiser::CodeOptimiser(Ptr<CompilerOptions> InOptions, TArray<FStateCompilationData>& InStates )
+		: m_states( InStates )
 	{
-		m_options = options;
+		m_options = InOptions;
 	}
 
 
@@ -870,13 +950,13 @@ namespace mu
 		ASTOp::LogHistogram(roots);
 
 		// Generate constants
-		for ( auto& r: roots )
+		for ( Ptr<ASTOp>& Root: roots )
 		{
 			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - constant generator"));
 
 			// Constant subtree generation
-			modified = ConstantGeneratorAST( m_options->GetPrivate(), r );
+			modified = ConstantGeneratorAST( m_options->GetPrivate(), Root, Pass );
 		}
 
 		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
@@ -1238,7 +1318,19 @@ namespace mu
 			// Constant resolution stage: resolve referenced assets.
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ReferenceResolution);
-				FullOptimiseAST(roots, 2);
+				
+				constexpr int32 Pass = 2;
+
+				//FullOptimiseAST(roots, 2);
+
+				// Generate constants
+				for (Ptr<ASTOp>& Root : roots)
+				{
+					// Constant subtree generation
+					modified = ConstantGeneratorAST(m_options->GetPrivate(), Root, Pass);
+				}
+
+				DuplicatedDataRemoverAST(roots);
 			}
 
 			// Main optimisation stage again for data-aware optimizations
@@ -1310,8 +1402,10 @@ namespace mu
 
 			for ( int32 s=0;  s<m_states.Num(); ++s )
 			{
+				constexpr int32 Pass = 1;
+
 				UE_LOG(LogMutableCore, Verbose, TEXT(" - constant generator"));
-				ConstantGeneratorAST( m_options->GetPrivate(), m_states[s].root );
+				ConstantGeneratorAST( m_options->GetPrivate(), m_states[s].root, Pass );
 				//AXE_INT_VALUE("Mutable", Verbose, "ast size", (int64_t)ASTOp::CountNodes(roots));
 			}
 
