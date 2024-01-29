@@ -132,7 +132,7 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 			}
 			else
 			{
-				PendingResourceReferenceRequests.Enqueue(FReferenceResourceRequest(ID, ResolvedImage, MakeShared<UE::Tasks::FTaskEvent>(CompletionEvent)));
+				PendingResourceReferenceRequests.Enqueue({ ID, ResolvedImage, MakeShared<UE::Tasks::FTaskEvent>(CompletionEvent) });
 			}
 
 			return CompletionEvent;
