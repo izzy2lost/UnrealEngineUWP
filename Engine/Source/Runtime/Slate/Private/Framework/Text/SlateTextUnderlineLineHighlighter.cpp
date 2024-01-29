@@ -60,7 +60,7 @@ int32 ISlateTextLineHighlighter::OnPaint(const FPaintArgs& Args, const FTextLayo
 				);
 		}
 
-		// Draw underline
+		// Draw underline/strike
 		FSlateDrawElement::MakeBox(
 			OutDrawElements,
 			++LayerId,

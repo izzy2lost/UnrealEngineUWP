@@ -179,6 +179,9 @@ struct FFontData
 	/** Returns the overridden value of the descend. This value will be used only if IsDescendOverridden returns true. */
 	SLATECORE_API int32 GetDescendOverriddenValue() const;
 
+	/** Gets the percentage of the font height that's used as the height of the strike brush. */
+	SLATECORE_API int32 GetStrikeBrushHeightPercentage() const;
+
 	/** Get the data buffer containing the data for the current font face. */
 	SLATECORE_API FFontFaceDataConstPtr GetFontFaceData() const;
 

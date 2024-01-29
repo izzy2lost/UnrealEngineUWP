@@ -264,8 +264,8 @@ void FSlateFontRenderer::GetStrikeMetrics(const FSlateFontInfo& InFontInfo, cons
 	{
 		FreeTypeUtils::ApplySizeAndScale(FontFace, InFontInfo.Size, InScale);
 
-		// Place the strike 2/5th down the text by height (the code below does 3/5th as it counts from the bottom, not the top)
-		OutStrikeLinePos = FreeTypeUtils::Convert26Dot6ToRoundedPixel<int16>(FT_MulFix(FT_MulFix(FT_DivFix(FontFace->height, 5), 3), FontFace->size->metrics.y_scale));
+		// Place the strike at the given percent of the font's full height (the default is 60% from the bottom).
+		OutStrikeLinePos = FreeTypeUtils::Convert26Dot6ToRoundedPixel<int16>(FT_MulFix(FT_DivFix(FT_MulFix(FreeTypeUtils::GetHeight(FontFace, FontData.GetLayoutMethod()), FontData.GetStrikeBrushHeightPercentage()), 100), FontFace->size->metrics.y_scale));
 		OutStrikeLineThickness = FreeTypeUtils::Convert26Dot6ToRoundedPixel<int16>(FT_MulFix(FontFace->underline_thickness, FontFace->size->metrics.y_scale));
 	}
 	else

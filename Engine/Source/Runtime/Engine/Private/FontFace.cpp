@@ -22,6 +22,7 @@ UFontFace::UFontFace()
 	, bIsAscendOverridden(false)
 	, DescendOverriddenValue(0)
 	, bIsDescendOverridden(false)
+	, StrikeBrushHeightPercentage(60)
 	, FontFaceData(FFontFaceData::MakeFontFaceData())
 
 {
@@ -234,6 +235,11 @@ bool UFontFace::IsDescendOverridden() const
 int32 UFontFace::GetDescendOverriddenValue() const
 {
 	return DescendOverriddenValue;
+}
+
+int32 UFontFace::GetStrikeBrushHeightPercentage() const
+{
+	return StrikeBrushHeightPercentage;
 }
 
 FFontFaceDataConstRef UFontFace::GetFontFaceData() const

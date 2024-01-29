@@ -52,6 +52,7 @@ public:
 	virtual int32 GetAscendOverriddenValue() const override;
 	virtual bool IsDescendOverridden() const override;
 	virtual int32 GetDescendOverriddenValue() const override;
+	virtual int32 GetStrikeBrushHeightPercentage() const override;
 	virtual FFontFaceDataConstRef GetFontFaceData() const override;
 	//~ End IFontFaceInterface interface
 
@@ -96,6 +97,12 @@ public:
 	/** Activate this option to use the specified descend value instead of the value from the font. */
 	UPROPERTY(EditAnywhere, Category=FontFace, AdvancedDisplay)
 	bool bIsDescendOverridden;
+
+	/** The percentage of the font height to draw the strike brush at.
+	 * 0% is the bottom, 100% is the top.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = FontFace, AdvancedDisplay, meta = (ClampMin = "0", ClampMax = "100", ForceUnits = "%"))
+	int32 StrikeBrushHeightPercentage;
 
 	/** The data associated with the font face. This should always be filled in providing the source filename is valid. CacheSubFaces should be called after manually changing this property. */
 	FFontFaceDataRef FontFaceData;

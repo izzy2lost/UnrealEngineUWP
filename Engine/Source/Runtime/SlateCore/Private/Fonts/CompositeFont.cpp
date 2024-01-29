@@ -167,6 +167,16 @@ int32 FFontData::GetDescendOverriddenValue() const
 	return 0;
 }
 
+int32 FFontData::GetStrikeBrushHeightPercentage() const
+{
+	if (FontFaceAsset)
+	{
+		const IFontFaceInterface* FontFace = CastChecked<const IFontFaceInterface>(FontFaceAsset);
+		return FontFace->GetStrikeBrushHeightPercentage();
+	}
+	return 60;
+}
+
 FFontFaceDataConstPtr FFontData::GetFontFaceData() const
 {
 	if (FontFaceAsset)
