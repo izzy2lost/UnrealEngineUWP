@@ -102,7 +102,6 @@ public:
 	virtual bool HandleMotionDetectedEvent(FSlateApplication& SlateApp, const FMotionEvent& MotionEvent) override;
 
 private:
-	EOS_HUI GetDefaultUIHandle();
 	virtual void HandleInput(const FEOSInputState& NewInputState);
 	bool ShouldConsumeInput(FSlateApplication& SlateApp);
 	bool ProcessInputEvent(FSlateApplication& SlateApp, const FEOSInputState& NewInputState);
