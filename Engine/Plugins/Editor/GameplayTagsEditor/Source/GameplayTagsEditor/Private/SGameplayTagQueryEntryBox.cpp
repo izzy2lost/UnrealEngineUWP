@@ -34,6 +34,7 @@ SGameplayTagQueryEntryBox::SGameplayTagQueryEntryBox()
 
 void SGameplayTagQueryEntryBox::Construct(const FArguments& InArgs)
 {
+	Filter = InArgs._Filter;
 	bIsReadOnly = InArgs._ReadOnly;
 	OnTagQueryChanged = InArgs._OnTagQueryChanged;
 	PropertyHandle = InArgs._PropertyHandle;
@@ -195,8 +196,6 @@ FReply SGameplayTagQueryEntryBox::OnEditButtonClicked()
 	
 	if (PropertyHandle.IsValid())
 	{
-		Args.Filter = UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(PropertyHandle);
-
 		TArray<UObject*> OuterObjects;
 		PropertyHandle->GetOuterObjects(OuterObjects);
 
