@@ -468,7 +468,7 @@ void FEOSSDKManager::ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptio
 			PlatformOptions.ApiVersion = 1;
 			UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_OPTIONS_API_LATEST, 1);
 			PlatformOptions.Type = GetIntegratedPlatformType();
-			PlatformOptions.Flags = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_LibraryManagedByApplication | EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_ApplicationManagedIdentityLogin | EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_DisableSDKManagedSessions;
+			PlatformOptions.Flags = IntegratedPlatformManagementFlags;
 			PlatformOptions.InitOptions = GetIntegratedPlatformOptions();
 
 			EOS_IntegratedPlatformOptionsContainer_AddOptions AddOptions = {};
@@ -612,6 +612,8 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FEOSSDKPlatformConfig
 
 IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& PlatformOptions)
 {
+	check(IsInGameThread());
+
 	IEOSPlatformHandlePtr SharedPlatform;
 
 	if (IsInitialized())
@@ -627,15 +629,17 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 			EOS_IntegratedPlatformOptionsContainer_Release(PlatformOptions.IntegratedPlatformOptionsContainerHandle);
 
 			SharedPlatform = MakeShared<FEOSPlatformHandle, ESPMode::ThreadSafe>(*this, PlatformHandle);
-			ActivePlatforms.Emplace(PlatformHandle, SharedPlatform);
+			{
+				FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_Write);
+				ActivePlatforms.Emplace(PlatformHandle, SharedPlatform);
+			}
+
 			SetupTicker();
 
 			EOS_Platform_SetApplicationStatus(PlatformHandle, CachedApplicationStatus);
 			EOS_Platform_SetNetworkStatus(PlatformHandle, ConvertNetworkStatus(FPlatformMisc::GetNetworkConnectionStatus()));
-			if (bEnablePlatformIntegration)
-			{
-				SetInvokeOverlayButton(PlatformHandle);
-			}
+			
+			SetInvokeOverlayButton(PlatformHandle);
 
 			// Tick the platform once to work around EOSSDK error logging that occurs if you create then immediately destroy a platform.
 			SharedPlatform->Tick();
@@ -655,6 +659,8 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 
 TArray<IEOSPlatformHandlePtr> FEOSSDKManager::GetActivePlatforms()
 {
+	FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_ReadOnly);
+
 	TArray<IEOSPlatformHandlePtr> Result;
 
 	for (const TPair<EOS_HPlatform, IEOSPlatformHandleWeakPtr>& Entry : ActivePlatforms)
@@ -701,20 +707,39 @@ void FEOSSDKManager::LoadConfig()
 		}
 	}
 
+	TArray<FString> ManagementFlags;
+	if (GConfig->GetArray(SectionName, TEXT("IntegratedPlatformManagementFlags"), ManagementFlags, GEngineIni))
+	{
+		IntegratedPlatformManagementFlags = {};
+		for (const FString& ManagementFlagStr : ManagementFlags)
+		{
+			EOS_EIntegratedPlatformManagementFlags NewManagementFlag = {};
+			if (!LexFromString(NewManagementFlag, *ManagementFlagStr))
+			{
+				UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] Unable to parse a valid EOS_EIntegratedPlatformManagementFlags value from string: %s"), __FUNCTION__, *ManagementFlagStr);
+			}
+			
+			IntegratedPlatformManagementFlags |= NewManagementFlag;
+		}
+	}
+
 	SetupTicker();
 }
 
 void FEOSSDKManager::SetupTicker()
 {
+	check(IsInGameThread());
+
 	if (TickerHandle.IsValid())
 	{
 		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 		TickerHandle.Reset();
 	}
 
-	if (ActivePlatforms.Num() > 0)
+	int NumActivePlatforms = ActivePlatforms.Num();
+	if (NumActivePlatforms > 0)
 	{
-		const double TickIntervalSeconds = ConfigTickIntervalSeconds > SMALL_NUMBER ? ConfigTickIntervalSeconds / ActivePlatforms.Num() : 0.f;
+		const double TickIntervalSeconds = ConfigTickIntervalSeconds > SMALL_NUMBER ? ConfigTickIntervalSeconds / NumActivePlatforms : 0.f;
 		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FEOSSDKManager::Tick), TickIntervalSeconds);
 	}
 }
@@ -722,6 +747,33 @@ void FEOSSDKManager::SetupTicker()
 void FEOSSDKManager::OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& InBackBuffer)
 {
 	UE_CALL_ONCE([]() {	UE_LOG(LogEOSSDK, VeryVerbose, TEXT("[%hs] The method is not implemented for this platform."), __FUNCTION__) });
+}
+
+void FEOSSDKManager::CallUIPrePresent(const EOS_UI_PrePresentOptions& Options)
+{
+	// This call only returns valid platforms, so we can skip validity checks
+	static TMap<EOS_HUI, EOS_EResult> LastResults;
+	TArray<IEOSPlatformHandlePtr> ActivePlatformsChecked = GetActivePlatforms();
+	for (const IEOSPlatformHandlePtr& ActivePlatform : ActivePlatformsChecked)
+	{
+		if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(*ActivePlatform))
+		{
+			EOS_EResult Result = EOS_UI_PrePresent(UIHandle, &Options);
+			EOS_EResult& LastResult = LastResults.FindOrAdd(UIHandle);
+			if (LastResult != Result)
+			{
+				LastResult = Result;
+				if (Result == EOS_EResult::EOS_Success)
+				{
+					UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_PrePresent is succeeding again."), __FUNCTION__);
+				}
+				else
+				{
+					UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_PrePresent failed with error: %s"), __FUNCTION__, *LexToString(Result));
+				}
+			}
+		}
+	}
 }
 
 bool FEOSSDKManager::IsRenderReady()
@@ -749,23 +801,28 @@ bool FEOSSDKManager::IsRenderReady()
 
 void FEOSSDKManager::SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle)
 {
-	if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(PlatformHandle))
+	if (bEnablePlatformIntegration)
 	{
-		EOS_UI_SetToggleFriendsButtonOptions Options = { };
-		Options.ApiVersion = 1;
-		UE_EOS_CHECK_API_MISMATCH(EOS_UI_SETTOGGLEFRIENDSBUTTON_API_LATEST, 1);
-		Options.ButtonCombination = InvokeOverlayButtonCombination;
-
-		const EOS_EResult Result = EOS_UI_SetToggleFriendsButton(UIHandle, &Options);
-		if (Result != EOS_EResult::EOS_Success)
+		if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(PlatformHandle))
 		{
-			UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_SetToggleFriendsButton failed with error: %s"), __FUNCTION__, *LexToString(Result));
+			EOS_UI_SetToggleFriendsButtonOptions Options = { };
+			Options.ApiVersion = 1;
+			UE_EOS_CHECK_API_MISMATCH(EOS_UI_SETTOGGLEFRIENDSBUTTON_API_LATEST, 1);
+			Options.ButtonCombination = InvokeOverlayButtonCombination;
+
+			const EOS_EResult Result = EOS_UI_SetToggleFriendsButton(UIHandle, &Options);
+			if (Result != EOS_EResult::EOS_Success)
+			{
+				UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_SetToggleFriendsButton failed with error: %s"), __FUNCTION__, *LexToString(Result));
+			}
 		}
 	}
 }
 
 bool FEOSSDKManager::Tick(float)
 {
+	check(IsInGameThread());
+
 	IsRenderReady();
 
 	ReleaseReleasedPlatforms();
@@ -816,6 +873,8 @@ EOS_ENetworkStatus FEOSSDKManager::ConvertNetworkStatus(ENetworkConnectionStatus
 
 void FEOSSDKManager::OnNetworkConnectionStatusChanged(ENetworkConnectionStatus LastConnectionState, ENetworkConnectionStatus ConnectionState)
 {
+	check(IsInGameThread());
+
 	const EOS_ENetworkStatus OldNetworkStatus = ConvertNetworkStatus(LastConnectionState);
 	const EOS_ENetworkStatus NewNetworkStatus = ConvertNetworkStatus(ConnectionState);
 
@@ -829,6 +888,8 @@ void FEOSSDKManager::OnNetworkConnectionStatusChanged(ENetworkConnectionStatus L
 
 void FEOSSDKManager::OnApplicationStatusChanged(EOS_EApplicationStatus ApplicationStatus)
 {
+	check(IsInGameThread());
+
 	UE_LOG(LogEOSSDK, Log, TEXT("OnApplicationStatusChanged [%s] -> [%s]"), LexToString(CachedApplicationStatus), LexToString(ApplicationStatus));
 	CachedApplicationStatus = ApplicationStatus;
 	for (const TPair<EOS_HPlatform, IEOSPlatformHandleWeakPtr>& Entry : ActivePlatforms)
@@ -902,27 +963,37 @@ FString FEOSSDKManager::GetOverrideLocaleCode(const EOS_HPlatform Platform) cons
 
 void FEOSSDKManager::ReleasePlatform(EOS_HPlatform PlatformHandle)
 {
+	check(IsInGameThread());
+
 	if(ActivePlatforms.Contains(PlatformHandle) && !ReleasedPlatforms.Contains(PlatformHandle))
 	{
+		FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_Write);
+
 		ReleasedPlatforms.Emplace(PlatformHandle);
 	}
 }
 
 void FEOSSDKManager::ReleaseReleasedPlatforms()
 {
+	check(IsInGameThread());
+
 	if (ReleasedPlatforms.Num() > 0)
 	{
-		for (EOS_HPlatform PlatformHandle : ReleasedPlatforms)
 		{
-			if (ensure(ActivePlatforms.Contains(PlatformHandle)))
+			FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_Write);
+
+			for (EOS_HPlatform PlatformHandle : ReleasedPlatforms)
 			{
-				EOS_Platform_Release(PlatformHandle);
+				if (ensure(ActivePlatforms.Contains(PlatformHandle)))
+				{
+					EOS_Platform_Release(PlatformHandle);
 
-				ActivePlatforms.Remove(PlatformHandle);
+					ActivePlatforms.Remove(PlatformHandle);
+				}
 			}
-		}
 
-		ReleasedPlatforms.Empty();
+			ReleasedPlatforms.Empty();
+		}
 
 		SetupTicker();
 	}
@@ -930,6 +1001,8 @@ void FEOSSDKManager::ReleaseReleasedPlatforms()
 
 void FEOSSDKManager::Shutdown()
 {
+	check(IsInGameThread());
+
 	if (IsInitialized())
 	{
 		// Release already released platforms
@@ -937,6 +1010,8 @@ void FEOSSDKManager::Shutdown()
 
 		if (ActivePlatforms.Num() > 0)
 		{
+			FRWScopeLock ScopeLock(ActivePlatformsCS, SLT_Write);
+
 			UE_LOG(LogEOSSDK, Warning, TEXT("FEOSSDKManager::Shutdown Releasing %d remaining platforms"), ActivePlatforms.Num());
 
 			TArray<EOS_HPlatform> ActivePlatformHandles;
@@ -1002,6 +1077,8 @@ bool FEOSSDKManager::Exec_Runtime(class UWorld* InWorld, const TCHAR* Cmd, FOutp
 
 void FEOSSDKManager::LogInfo(int32 Indent) const
 {
+	check(IsInGameThread());
+
 	UE_LOG_EOSSDK_INFO("ProductName=%s", *GetProductName());
 	UE_LOG_EOSSDK_INFO("ProductVersion=%s", *GetProductVersion());
 	UE_LOG_EOSSDK_INFO("CacheDirBase=%s", *GetCacheDirBase());

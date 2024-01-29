@@ -158,44 +158,38 @@ FEOSInputState& FEOSOverlayInputProviderPreProcessor::GetCurrentInputState(uint3
 	}
 }
 
-EOS_HUI FEOSOverlayInputProviderPreProcessor::GetDefaultUIHandle()
-{
-	// This call only returns valid platforms, so we can skip validity checks
-	TArray<IEOSPlatformHandlePtr> ActivePlatforms = IEOSSDKManager::Get()->GetActivePlatforms();
-	if(!ActivePlatforms.IsEmpty())
-	{ 
-		return EOS_Platform_GetUIInterface(*ActivePlatforms.Last());
-	}
-
-	return nullptr;
-}
-
 void FEOSOverlayInputProviderPreProcessor::HandleInput(const FEOSInputState& NewInputState)
 {
-	if (EOS_HUI UIHandle = GetDefaultUIHandle())
+	if (bIsReportInputStateSupported)
 	{
-		if (bIsReportInputStateSupported)
+		FEOSInputState& CurrentInputState = GetCurrentInputState(NewInputState.GamepadIndex);
+
+		const bool bButtonEvent = (
+			CurrentInputState.bAcceptIsFaceButtonRight != NewInputState.bAcceptIsFaceButtonRight ||
+			CurrentInputState.ButtonDownFlags != NewInputState.ButtonDownFlags
+			);
+
+		const bool bMouseEvent = (
+			CurrentInputState.bMouseButtonDown != NewInputState.bMouseButtonDown ||
+			CurrentInputState.MousePosX != NewInputState.MousePosX ||
+			CurrentInputState.MousePosY != NewInputState.MousePosY
+			);
+
+		// Only send if mouse or button changed
+		if (bMouseEvent || bButtonEvent)
 		{
-			FEOSInputState& CurrentInputState = GetCurrentInputState(NewInputState.GamepadIndex);
+			CurrentInputState = NewInputState;
 
-			const bool bButtonEvent = (
-				CurrentInputState.bAcceptIsFaceButtonRight != NewInputState.bAcceptIsFaceButtonRight ||
-				CurrentInputState.ButtonDownFlags != NewInputState.ButtonDownFlags
-				);
-
-			const bool bMouseEvent = (
-				CurrentInputState.bMouseButtonDown != NewInputState.bMouseButtonDown ||
-				CurrentInputState.MousePosX != NewInputState.MousePosX ||
-				CurrentInputState.MousePosY != NewInputState.MousePosY
-				);
-
-			// Only send if mouse or button changed
-			if (bMouseEvent || bButtonEvent)
+			bool bIsReportInputStateSupportedInAnyPlatform = false;
+			TArray<IEOSPlatformHandlePtr> ActivePlatforms = IEOSSDKManager::Get()->GetActivePlatforms();
+			for (const IEOSPlatformHandlePtr& ActivePlatform : ActivePlatforms)
 			{
-				CurrentInputState = NewInputState;
-
-				bIsReportInputStateSupported = EOS_UI_ReportInputState(UIHandle, &NewInputState) != EOS_EResult::EOS_NotImplemented;
+				if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(*ActivePlatform))
+				{
+					bIsReportInputStateSupportedInAnyPlatform |= EOS_UI_ReportInputState(UIHandle, &NewInputState) != EOS_EResult::EOS_NotImplemented;
+				}
 			}
+			bIsReportInputStateSupported = bIsReportInputStateSupportedInAnyPlatform;
 		}
 	}
 }

@@ -87,8 +87,9 @@ protected:
 	void SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle);
 	EOS_HIntegratedPlatformOptionsContainer CreateIntegratedPlatformOptionsContainer();
 	void ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptionsContainer& Container);
-	void ApplySystemSpecificOptions(const void*& SystemSpecificOptions);
-	
+	virtual void ApplySystemSpecificOptions(const void*& SystemSpecificOptions);
+	void CallUIPrePresent(const EOS_UI_PrePresentOptions& Options);
+
 	static EOS_ENetworkStatus ConvertNetworkStatus(ENetworkConnectionStatus Status);
 	void OnNetworkConnectionStatusChanged(ENetworkConnectionStatus LastConnectionState, ENetworkConnectionStatus ConnectionState);
 	void OnApplicationStatusChanged(EOS_EApplicationStatus ApplicationStatus);
@@ -106,6 +107,9 @@ protected:
 #if EOSSDK_RUNTIME_LOAD_REQUIRED
 	void* SDKHandle = nullptr;
 #endif
+
+	/** Critical Section to make sure the ActivePlatforms and ReleasedPlatforms arrays are thread safe */
+	mutable FRWLock ActivePlatformsCS;
 
 	/** Are we currently initialized */
 	bool bInitialized = false;
@@ -139,6 +143,9 @@ protected:
 
 	/** Button combination to bring up the overlay (only used in certain platforms) */
 	EOS_UI_EInputStateButtonFlags InvokeOverlayButtonCombination;
+
+	/** Management flags passed on as options in integrated platform setup */
+	EOS_EIntegratedPlatformManagementFlags IntegratedPlatformManagementFlags = {};
 };
 
 struct FEOSPlatformHandle : public IEOSPlatformHandle

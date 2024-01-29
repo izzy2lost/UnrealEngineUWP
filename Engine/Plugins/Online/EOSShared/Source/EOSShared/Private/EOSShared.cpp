@@ -392,4 +392,48 @@ bool LexFromString(EOS_UI_EInputStateButtonFlags& OutEnum, const TCHAR* InString
 
 	return true;
 }
+
+bool LexFromString(EOS_EIntegratedPlatformManagementFlags& OutEnum, const TCHAR* InString)
+{
+	if (FCString::Stricmp(InString, TEXT("ApplicationManagedIdentityLogin")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_ApplicationManagedIdentityLogin;
+	}
+	else if (FCString::Stricmp(InString, TEXT("Disabled")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_Disabled;
+	}
+	else if (FCString::Stricmp(InString, TEXT("DisablePresenceMirroring")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_DisablePresenceMirroring;
+	}
+	else if (FCString::Stricmp(InString, TEXT("DisableSDKManagedSessions")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_DisableSDKManagedSessions;
+	}
+	else if (FCString::Stricmp(InString, TEXT("LibraryManagedByApplication")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_LibraryManagedByApplication;
+	}
+	else if (FCString::Stricmp(InString, TEXT("LibraryManagedBySDK")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_LibraryManagedBySDK;
+	}
+	else if (FCString::Stricmp(InString, TEXT("PreferEOSIdentity")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_PreferEOSIdentity;
+	}
+	else if (FCString::Stricmp(InString, TEXT("PreferIntegratedIdentity")) == 0)
+	{
+		OutEnum = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_PreferIntegratedIdentity;
+	}
+	else
+	{
+		checkNoEntry();
+		return false;
+	}
+
+	return true;
+}
+
 #endif // WITH_EOS_SDK
