@@ -595,11 +595,18 @@ void SControlRigEditModeTools::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 
 bool SControlRigEditModeTools::IsPropertyKeyable(const UClass* InObjectClass, const IPropertyHandle& InPropertyHandle) const
 {
-	if (InObjectClass && InObjectClass->IsChildOf(UControlRigTransformNoScaleControlProxy::StaticClass()) && InObjectClass->IsChildOf(UControlRigEulerTransformControlProxy::StaticClass()) && InPropertyHandle.GetProperty()
-		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UControlRigTransformControlProxy, Transform)) 
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyTransform::StaticClass()))
 	{
 		return true;
 	}
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyTransform::StaticClass()) && InPropertyHandle.GetProperty()
+		&& (InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Location) ||
+		InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Rotation) ||
+		InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Scale)))
+	{
+		return true;
+	}
+
 	FCanKeyPropertyParams CanKeyPropertyParams(InObjectClass, InPropertyHandle);
 	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (Sequencer.IsValid() && Sequencer->CanKeyProperty(CanKeyPropertyParams))
@@ -651,12 +658,14 @@ void SControlRigEditModeTools::OnKeyPropertyClicked(const IPropertyHandle& Keyed
 
 	TArray<UObject*> Objects;
 	KeyedPropertyHandle.GetOuterObjects(Objects);
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+
 	for (UObject *Object : Objects)
 	{
 		UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object);
 		if (Proxy)
 	{
-			Proxy->SetKey(KeyedPropertyHandle);
+			Proxy->SetKey(SequencerPtr,KeyedPropertyHandle);
 		}
 	}
 }
@@ -675,16 +684,6 @@ bool SControlRigEditModeTools::ShouldShowPropertyOnDetailCustomization(const FPr
 		// Always show settings properties
 		const UClass* OwnerClass = InProperty.GetOwner<UClass>();
 		bShow |= OwnerClass == UControlRigEditModeSettings::StaticClass();
-		bShow |= OwnerClass == UControlRigTransformControlProxy::StaticClass();		
-		bShow |= OwnerClass == UControlRigTransformNoScaleControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEulerTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigFloatControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVectorControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVector2DControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigBoolControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEnumControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigIntegerControlProxy::StaticClass();
-
 		return bShow;
 	};
 
@@ -714,17 +713,6 @@ bool SControlRigEditModeTools::IsReadOnlyPropertyOnDetailCustomization(const FPr
 		// Always show settings properties
 		const UClass* OwnerClass = InProperty.GetOwner<UClass>();
 		bShow |= OwnerClass == UControlRigEditModeSettings::StaticClass();
-		bShow |= OwnerClass == UControlRigTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigTransformNoScaleControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEulerTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigFloatControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVectorControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVector2DControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigBoolControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEnumControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigIntegerControlProxy::StaticClass();
-
-
 		return bShow;
 	};
 

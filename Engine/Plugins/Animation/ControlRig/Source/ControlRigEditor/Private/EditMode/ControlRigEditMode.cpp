@@ -36,7 +36,7 @@
 #include "ControlRigGizmoActor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SEditorViewport.h"
-#include "EditMode/ControlRigControlsProxy.h"
+#include "EditMode/AnimDetailsProxy.h"
 #include "ScopedTransaction.h"
 #include "RigVMModel/RigVMController.h"
 #include "Rigs/AdditiveControlRig.h"
@@ -47,6 +47,7 @@
 #include "Units/Execution/RigUnit_InteractionExecution.h"
 #include "IPersonaPreviewScene.h"
 #include "PersonaSelectionProxies.h"
+#include "PropertyHandle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/UnrealEdEngine.h"
@@ -72,6 +73,7 @@
 #include "DragTool_FrustumSelect.h"
 #include "AnimationEditorViewportClient.h"
 #include "EditorInteractiveGizmoManager.h"
+#include "Tools/BakingHelper.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
@@ -164,6 +166,7 @@ FControlRigEditMode::FControlRigEditMode()
 {
 	ControlProxy = NewObject<UControlRigDetailPanelControlProxies>(GetTransientPackage(), NAME_None);
 	ControlProxy->SetFlags(RF_Transactional);
+	DetailKeyFrameCache = MakeShared<FDetailKeyFrameCacheAndHandler>();
 
 	UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>();
 	bShowControlsAsOverlay = Settings->bShowControlsAsOverlay;
@@ -213,6 +216,9 @@ bool FControlRigEditMode:: SetSequencer(TWeakPtr<ISequencer> InSequencer)
 	if (InSequencer != WeakSequencer)
 	{
 		WeakSequencer = InSequencer;
+
+		DetailKeyFrameCache->UnsetDelegates();
+
 		DestroyShapesActors(nullptr);
 		TArray<TWeakObjectPtr<UControlRig>> PreviousRuntimeRigs = RuntimeControlRigs;
 		for (int32 PreviousRuntimeRigIndex = 0; PreviousRuntimeRigIndex < PreviousRuntimeRigs.Num(); PreviousRuntimeRigIndex++)
@@ -238,6 +244,8 @@ bool FControlRigEditMode:: SetSequencer(TWeakPtr<ISequencer> InSequencer)
 				}
 			}
 			LastMovieSceneSig = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetSignature();
+			DetailKeyFrameCache->SetDelegates(WeakSequencer, this);
+			ControlProxy->SetSequencer(WeakSequencer);
 		}
 		SetObjects_Internal();
 	}
@@ -383,6 +391,10 @@ void FControlRigEditMode::Enter()
 	LastMovieSceneSig = FGuid();
 	if (UsesToolkits())
 	{
+		if (WeakSequencer.IsValid() == false)
+		{
+			SetSequencer(FBakingHelper::GetSequencer());
+		}
 		if (!Toolkit.IsValid())
 		{
 			Toolkit = MakeShareable(new FControlRigEditModeToolkit(*this));
@@ -491,7 +503,7 @@ void FControlRigEditMode::Exit()
 	ModeManager->OnCoordSystemChanged().RemoveAll(this);
 
 	//clear proxies
-	ControlProxy->RemoveAllProxies(nullptr);
+	ControlProxy->RemoveAllProxies();
 
 	//make sure the widget is reset
 	ResetControlShapeSize();
@@ -585,10 +597,9 @@ void FControlRigEditMode::Tick(FEditorViewportClient* ViewportClient, float Delt
 							{
 								if (!ControlRig->IsCurveControl(ControlElement))
 								{
-									ControlProxy->AddProxy(ControlRig, SelectedKey.Name, ControlElement);
+									ControlProxy->AddProxy(ControlRig, ControlElement);
 								}
 							}
-							
 						}
 					}
 				}
@@ -4077,7 +4088,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 				if (FRigControlElement* ControlElement = InHierarchy->Find<FRigControlElement>(InElement->GetKey()))
 				{
 					UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>();
-					if(ControlProxy->IsSelected(ControlRig, ControlElement->GetFName()))
+					if(ControlProxy->IsSelected(ControlRig, ControlElement))
 					{
 						// reselect the control - to affect the details panel / sequencer
 						if(URigHierarchyController* Controller = InHierarchy->GetController())
@@ -4149,9 +4160,9 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 						}
 						if (!AreEditingControlRigDirectly())
 						{
-							if (const FRigControlElement* ControlElement = ControlRig->GetHierarchy()->Find<FRigControlElement>(Key))
+							if (FRigControlElement* ControlElement = ControlRig->GetHierarchy()->Find<FRigControlElement>(Key))
 							{
-								ControlProxy->SelectProxy(ControlRig,Key.Name, bSelected);
+								ControlProxy->SelectProxy(ControlRig, ControlElement, bSelected);
 
 								if(ControlElement->CanDriveControls())
 								{
@@ -4160,9 +4171,9 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 									const TArray<FRigElementKey>& DrivenKeys = ControlElement->Settings.DrivenControls;
 									for(const FRigElementKey& DrivenKey : DrivenKeys)
 									{
-										if (const FRigControlElement* DrivenControl = ControlRig->GetHierarchy()->Find<FRigControlElement>(DrivenKey))
+										if (FRigControlElement* DrivenControl = ControlRig->GetHierarchy()->Find<FRigControlElement>(DrivenKey))
 										{
-											ControlProxy->SelectProxy(ControlRig, DrivenControl->GetFName(), bSelected);
+											ControlProxy->SelectProxy(ControlRig, DrivenControl, bSelected);
 
 											if (AControlRigShapeActor* DrivenShapeActor = GetControlShapeFromControlName(ControlRig,DrivenControl->GetFName()))
 											{
@@ -4189,7 +4200,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 													if(DrivenKeys.Contains(ParentControlElement->GetKey()) ||
 														ParentControlElement->GetKey() == ControlElement->GetKey())
 													{
-														ControlProxy->SelectProxy(ControlRig, AnimationChannelControl->GetFName(), bSelected);
+														ControlProxy->SelectProxy(ControlRig, AnimationChannelControl, bSelected);
 													}
 												}
 											}
@@ -4281,7 +4292,7 @@ void FControlRigEditMode::OnControlModified(UControlRig* Subject, FRigControlEle
 {
 	//this makes sure the details panel ui get's updated, don't remove
 	const bool bModify = Context.SetKey != EControlRigSetKey::Never;
-	ControlProxy->ProxyChanged(Subject,InControlElement->GetFName(), bModify);
+	ControlProxy->ProxyChanged(Subject, InControlElement, bModify);
 
 	/*
 	FScopedTransaction ScopedTransaction(LOCTEXT("ModifyControlTransaction", "Modify Control"),!GIsTransacting && Context.SetKey != EControlRigSetKey::Never);
@@ -5309,6 +5320,258 @@ bool FControlRigEditMode::GetOnlySelectRigControls()const
 	const UControlRigEditModeSettings* Settings = GetDefault<UControlRigEditModeSettings>();
 	return Settings->bOnlySelectRigControls;
 }
+
+/**
+* FDetailKeyFrameCacheAndHandler
+*/
+
+bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectClass, const IPropertyHandle& InPropertyHandle) const
+{
+	TArray<UObject*> OuterObjects;
+	InPropertyHandle.GetOuterObjects(OuterObjects);
+	if (OuterObjects.Num() == 1)
+	{
+		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(OuterObjects[0]))
+		{
+			for (const TPair<UControlRig*, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
+			{
+				if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
+				{
+					for (FRigControlElement* ControlElement : Items.Value.ControlElements)
+					{
+						if (ControlElement)
+						{
+							if (!ControlRig->GetHierarchy()->IsAnimatable(ControlElement))
+							{
+								return false;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (InObjectClass
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyTransform::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyLocation::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyRotation::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyScale::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyVector2D::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyFloat::StaticClass())
+		&& InObjectClass->IsChildOf(UAnimDetailControlsProxyBool::StaticClass())
+		)
+	{
+		return true;
+	}
+
+	if ((InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyTransform::StaticClass()) && InPropertyHandle.GetProperty())
+		&& (InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Location) ||
+		InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Rotation) ||
+		InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyTransform, Scale)))
+	{
+		return true;
+	}
+
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyLocation::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyLocation, Location))
+	{
+		return true;
+	}
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyRotation::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyRotation, Rotation))
+	{
+		return true;
+	}
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyScale::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyScale, Scale))
+	{
+		return true;
+	}
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyVector2D::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyVector2D, Vector2D))
+	{
+		return true;
+	}
+
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyBool::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyBool, Bool))
+	{
+		return true;
+	}
+	if (InObjectClass && InObjectClass->IsChildOf(UAnimDetailControlsProxyFloat::StaticClass()) && InPropertyHandle.GetProperty()
+		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimDetailControlsProxyFloat, Float))
+	{
+		return true;
+	}
+	FCanKeyPropertyParams CanKeyPropertyParams(InObjectClass, InPropertyHandle);
+	if (WeakSequencer.IsValid() && WeakSequencer.Pin()->CanKeyProperty(CanKeyPropertyParams))
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyingEnabled() const
+{
+	if (WeakSequencer.IsValid() &&  WeakSequencer.Pin()->GetFocusedMovieSceneSequence())
+	{
+		return true;
+	}
+
+	return false;
+}
+
+bool FDetailKeyFrameCacheAndHandler::IsPropertyAnimated(const IPropertyHandle& PropertyHandle, UObject* ParentObject) const
+{
+	if (WeakSequencer.IsValid() && WeakSequencer.Pin()->GetFocusedMovieSceneSequence())
+	{
+		TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+		constexpr bool bCreateHandleIfMissing = false;
+		FGuid ObjectHandle = Sequencer->GetHandleToObject(ParentObject, bCreateHandleIfMissing);
+		if (ObjectHandle.IsValid())
+		{
+			UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+			FProperty* Property = PropertyHandle.GetProperty();
+			TSharedRef<FPropertyPath> PropertyPath = FPropertyPath::CreateEmpty();
+			PropertyPath->AddProperty(FPropertyInfo(Property));
+			FName PropertyName(*PropertyPath->ToString(TEXT(".")));
+			TSubclassOf<UMovieSceneTrack> TrackClass; //use empty @todo find way to get the UMovieSceneTrack from the Property type.
+			return MovieScene->FindTrack(TrackClass, ObjectHandle, PropertyName) != nullptr;
+		}
+	}
+	return false;
+}
+
+void FDetailKeyFrameCacheAndHandler::OnKeyPropertyClicked(const IPropertyHandle& KeyedPropertyHandle)
+{
+	if (WeakSequencer.IsValid() && !WeakSequencer.Pin()->IsAllowedToChange())
+	{
+		return;
+	}
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+
+	TArray<UObject*> Objects;
+	KeyedPropertyHandle.GetOuterObjects(Objects);
+	for (UObject* Object : Objects)
+	{
+		UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object);
+		if (Proxy)
+		{
+			Proxy->SetKey(SequencerPtr, KeyedPropertyHandle);
+		}
+	}
+}
+
+EPropertyKeyedStatus FDetailKeyFrameCacheAndHandler::GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle) const
+{
+	if (WeakSequencer.IsValid() == false)
+	{
+		return EPropertyKeyedStatus::NotKeyed;
+	}		
+
+	if (const EPropertyKeyedStatus* ExistingKeyedStatus = CachedPropertyKeyedStatusMap.Find(&PropertyHandle))
+	{
+		return *ExistingKeyedStatus;
+	}
+
+	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+	UMovieSceneSequence* Sequence = SequencerPtr->GetFocusedMovieSceneSequence();
+	EPropertyKeyedStatus KeyedStatus = EPropertyKeyedStatus::NotKeyed;
+
+	UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+	if (!MovieScene)
+	{
+		return KeyedStatus;
+	}
+
+	TArray<UObject*> OuterObjects;
+	PropertyHandle.GetOuterObjects(OuterObjects);
+	if (OuterObjects.IsEmpty())
+	{
+		return EPropertyKeyedStatus::NotKeyed;
+	}
+	
+	for (UObject* Object : OuterObjects)
+	{
+		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object))
+		{
+			KeyedStatus = Proxy->GetPropertyKeyedStatus(SequencerPtr,PropertyHandle);
+		}
+		//else check to see if it's in sequencer
+	}
+	CachedPropertyKeyedStatusMap.Add(&PropertyHandle, KeyedStatus);
+
+	return KeyedStatus;
+}
+
+void FDetailKeyFrameCacheAndHandler::SetDelegates(TWeakPtr<ISequencer>& InWeakSequencer, FControlRigEditMode* InEditMode)
+{
+	WeakSequencer = InWeakSequencer;
+	EditMode = InEditMode;
+	if (TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+	{
+		Sequencer->OnMovieSceneDataChanged().AddRaw(this, &FDetailKeyFrameCacheAndHandler::OnMovieSceneDataChanged);
+		Sequencer->OnGlobalTimeChanged().AddRaw(this, &FDetailKeyFrameCacheAndHandler::OnGlobalTimeChanged);
+		Sequencer->OnEndScrubbingEvent().AddRaw(this, &FDetailKeyFrameCacheAndHandler::ResetCachedData);
+		Sequencer->OnChannelChanged().AddRaw(this, &FDetailKeyFrameCacheAndHandler::OnChannelChanged);
+		Sequencer->OnStopEvent().AddRaw(this, &FDetailKeyFrameCacheAndHandler::ResetCachedData);
+	}
+}
+
+void FDetailKeyFrameCacheAndHandler::UnsetDelegates()
+{
+	if (TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+	{
+		Sequencer->OnMovieSceneDataChanged().RemoveAll(this);
+		Sequencer->OnGlobalTimeChanged().RemoveAll(this);
+		Sequencer->OnEndScrubbingEvent().RemoveAll(this);
+		Sequencer->OnChannelChanged().RemoveAll(this);
+		Sequencer->OnStopEvent().RemoveAll(this);
+	}
+}
+
+void FDetailKeyFrameCacheAndHandler::OnGlobalTimeChanged()
+{
+	// Only reset cached data when not playing
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (Sequencer.IsValid() && Sequencer->GetPlaybackStatus() != EMovieScenePlayerStatus::Playing)
+	{
+		ResetCachedData();
+	}
+}
+
+void FDetailKeyFrameCacheAndHandler::OnMovieSceneDataChanged(EMovieSceneDataChangeType DataChangeType)
+{
+	if (DataChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemAdded
+		|| DataChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemRemoved
+		|| DataChangeType == EMovieSceneDataChangeType::MovieSceneStructureItemsChanged
+		|| DataChangeType == EMovieSceneDataChangeType::ActiveMovieSceneChanged
+		|| DataChangeType == EMovieSceneDataChangeType::RefreshAllImmediately)
+	{
+		ResetCachedData();
+	}
+}
+
+void FDetailKeyFrameCacheAndHandler::OnChannelChanged(const FMovieSceneChannelMetaData*, UMovieSceneSection*)
+{
+	ResetCachedData();
+}
+
+void FDetailKeyFrameCacheAndHandler::ResetCachedData()
+{
+	CachedPropertyKeyedStatusMap.Reset();
+	if (EditMode && EditMode->GetControlProxy())
+	{
+		EditMode->GetControlProxy()->ValuesChanged();
+	}
+}
+
 
 
 #undef LOCTEXT_NAMESPACE

@@ -21,6 +21,7 @@
 #include "EditorModeManager.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 #include "Sequencer/MovieSceneControlRigSectionDetailsCustomization.h"
+#include "EditMode/ControlsProxyDetailCustomization.h"
 #include "EditMode/ControlRigEditModeCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "ToolMenus.h"
@@ -129,12 +130,112 @@ void FControlRigEditorModule::StartupModule()
 
 	ClassesToUnregisterOnShutdown.Add(UControlRig::StaticClass()->GetFName());
 
+	// proxies
+	const FName PropertyEditorModuleName("PropertyEditor");
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorModuleName);
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyFloat::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyFloat::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Float"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+
+	{	
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyFloat", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyBool::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyBool::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Bool"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+
+	{
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyBool", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyTransform::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyTransform::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Transform"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+
+	{
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyTransform", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyLocation::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyLocation::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Location"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+
+	{
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyLocation", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyRotation::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyRotation::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Rotation"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+
+	{
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyRotation", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyScale::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyScale::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Scale"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+	{
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyScale", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+
+	ClassesToUnregisterOnShutdown.Add(UAnimDetailControlsProxyVector2D::StaticClass()->GetFName());
+	PropertyEditorModule.RegisterCustomClassLayout(UAnimDetailControlsProxyVector2D::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateLambda([]() {
+		FName CategoryName = FName(TEXT("Vector2D"));
+		return FAnimDetailProxyDetails::MakeInstance(CategoryName);
+		}));
+
+	{
+		TSharedRef<FPropertySection> Section = RegisterPropertySection(PropertyModule, "AnimDetailControlsProxyVector2D", "General", LOCTEXT("General", "General"));
+		Section->AddCategory("Attributes");
+	}
+	
 	// same as ClassesToUnregisterOnShutdown but for properties, there is none right now
 	PropertiesToUnregisterOnShutdown.Reset();
-
 	PropertiesToUnregisterOnShutdown.Add(FRigVMCompileSettings::StaticStruct()->GetFName());
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FRigVMCompileSettingsDetails::MakeInstance));
 
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyFloat::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyInteger::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyBool::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyVector2D::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyLocation::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyRotation::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+
+	PropertiesToUnregisterOnShutdown.Add(FAnimDetailProxyScale::StaticStruct()->GetFName());
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FAnimDetailValueCustomization::MakeInstance));
+	
 	PropertiesToUnregisterOnShutdown.Add(FRigVMPythonSettings::StaticStruct()->GetFName());
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout(PropertiesToUnregisterOnShutdown.Last(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FControlRigPythonLogDetails::MakeInstance));
 
@@ -292,11 +393,40 @@ void FControlRigEditorModule::ShutdownModule()
 		}
 	}
 	WorkflowHandles.Reset();
+
+	UnregisterPropertySectionMappings();
 }
 
 UClass* FControlRigEditorModule::GetRigVMBlueprintClass() const
 {
 	return UControlRigBlueprint::StaticClass();
+}
+
+TSharedRef<FPropertySection> FControlRigEditorModule::RegisterPropertySection(FPropertyEditorModule& PropertyModule, FName ClassName, FName SectionName, FText DisplayName)
+{
+	TSharedRef<FPropertySection> PropertySection = PropertyModule.FindOrCreateSection(ClassName, SectionName, DisplayName);
+	RegisteredPropertySections.Add(ClassName, SectionName);
+
+	return PropertySection;
+}
+
+void FControlRigEditorModule::UnregisterPropertySectionMappings()
+{
+	const FName PropertyEditorModuleName("PropertyEditor");
+	FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>(PropertyEditorModuleName);
+
+	if (!PropertyModule)
+	{
+		return;
+	}
+
+	for (TMultiMap<FName, FName>::TIterator PropertySectionIterator = RegisteredPropertySections.CreateIterator(); PropertySectionIterator; ++PropertySectionIterator)
+	{
+		PropertyModule->RemoveSection(PropertySectionIterator->Key, PropertySectionIterator->Value);
+		PropertySectionIterator.RemoveCurrent();
+	}
+
+	RegisteredPropertySections.Empty();
 }
 
 void FControlRigEditorModule::GetNodeContextMenuActions(IRigVMClientHost* RigVMClientHost,

@@ -21,6 +21,8 @@ class FUICommandList;
 class UMovieSceneTrack;
 class FRigVMEdGraphPanelNodeFactory;
 class FControlRigGraphPanelPinFactory;
+class FPropertySection;
+class FPropertyEditorModule;
 
 class FControlRigEditorModule : public IControlRigEditorModule
 {
@@ -51,6 +53,11 @@ public:
 	void GetDirectManipulationMenuActions(IRigVMClientHost* RigVMClientHost, URigVMNode* InNode, URigVMPin* ModelPin, UToolMenu* Menu) const;
 
 private:
+	//property sections
+	TSharedRef<FPropertySection> RegisterPropertySection(FPropertyEditorModule& PropertyModule, FName ClassName, FName SectionName, FText DisplayName);
+	void UnregisterPropertySectionMappings();
+	TMultiMap<FName, FName> RegisteredPropertySections;
+
 
 	/** Handle for our sequencer control rig parameter track editor */
 	FDelegateHandle ControlRigParameterTrackCreateEditorHandle;
