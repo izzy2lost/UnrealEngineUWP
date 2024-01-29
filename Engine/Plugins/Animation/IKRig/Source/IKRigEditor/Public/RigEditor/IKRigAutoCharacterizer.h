@@ -28,6 +28,7 @@ struct FCharacterizationStandard
 	static const FName Spine;
 	static const FName Neck;
 	static const FName Head;
+	static const FName Tail;
 	// legs
 	static const FName LeftLeg;
 	static const FName RightLeg;
@@ -194,8 +195,7 @@ struct FAutoCharacterizeResults
 	// bones that do not have the same parent as the equivalent in the template
 	TArray<FName> BonesWithMissingParent;
 	// number of bones we extended the spine/neck chains beyond what the template provides
-	int32 NumBonesAddedToSpineChain = 0;
-	int32 NumBonesAddedToNeckChain = 0;
+	TMap<FName,int32> ExpandedChains;
 };
 
 struct FBoneSettingsForIK
