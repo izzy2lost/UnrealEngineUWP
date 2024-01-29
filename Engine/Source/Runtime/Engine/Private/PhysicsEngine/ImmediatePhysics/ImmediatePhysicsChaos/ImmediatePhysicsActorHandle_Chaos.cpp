@@ -16,7 +16,7 @@
 #include "PhysicsEngine/BodyUtils.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 
-//PRAGMA_DISABLE_OPTIMIZATION
+//UE_DISABLE_OPTIMIZATION
 
 namespace ImmediatePhysics_Chaos
 {
@@ -336,6 +336,15 @@ namespace ImmediatePhysics_Chaos
 		}
 	}
 
+	bool FActorHandle::GetHasCollision() const
+	{
+		return ParticleHandle->HasCollision();
+	}
+
+	void FActorHandle::SetHasCollision(bool bCollision)
+	{
+		ParticleHandle->SetHasCollision(bCollision);
+	}
 
 	void FActorHandle::InitWorldTransform(const FTransform& WorldTM)
 	{
@@ -451,6 +460,11 @@ namespace ImmediatePhysics_Chaos
 	bool FActorHandle::IsSimulated() const
 	{
 		return ParticleHandle->CastToRigidParticle() != nullptr && ParticleHandle->ObjectState() == Chaos::EObjectStateType::Dynamic;
+	}
+
+	bool FActorHandle::CouldBeDynamic() const
+	{
+		return ParticleHandle->CastToRigidParticle() != nullptr;
 	}
 
 	bool FActorHandle::IsGravityEnabled() const
