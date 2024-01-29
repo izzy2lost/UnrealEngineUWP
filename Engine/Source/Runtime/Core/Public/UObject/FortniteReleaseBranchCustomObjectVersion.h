@@ -4,7 +4,7 @@
 #include "DevObjectVersion.h"
 #include "Containers/Map.h"
 
-// Custom serialization version for changes made in the //Fortnite/Main stream
+// Custom serialization version for changes made in the //Fortnite/Release-XX.XX stream
 struct FFortniteReleaseBranchCustomObjectVersion
 {
 	enum Type
