@@ -66,7 +66,6 @@ public class OpenColorIOLib : ModuleRules
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibDirectory, DylibName));
 			RuntimeDependencies.Add(
-				Path.Combine(ProjectBinariesDir, DylibName),
 				Path.Combine(LibDirectory, DylibName)
 			);
 
