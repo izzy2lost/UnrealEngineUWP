@@ -464,11 +464,10 @@ namespace Horde.Server.Jobs.Schedules
 			foreach ((int change, int codeChange) in triggerChanges.OrderBy(x => x.Change))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
-				List<string> defaultArguments = template.GetDefaultArguments();
 
 				CreateJobOptions options = new CreateJobOptions(templateRef.Config);
 				options.Priority = template.Priority;
-				options.Arguments.AddRange(template.GetDefaultArguments());
+				options.Arguments.AddRange(template.GetDefaultArguments(true));
 
 				IJob newJob = await _jobService.CreateJobAsync(null, stream.Config, templateId, template.Hash, graph, template.Name, change, codeChange, options);
 				_logger.LogInformation("Started new job for {StreamId} template {TemplateId} at CL {Change} (Code CL {CodeChange}): {JobId}", stream.Id, templateId, change, codeChange, newJob.Id);

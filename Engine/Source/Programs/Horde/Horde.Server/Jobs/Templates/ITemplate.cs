@@ -19,7 +19,8 @@ namespace Horde.Server.Jobs.Templates
 		/// Gets the default arguments for this parameter and its children
 		/// </summary>
 		/// <param name="defaultArguments">List of default arguments</param>
-		public abstract void GetDefaultArguments(List<string> defaultArguments);
+		/// <param name="scheduledBuild">Whether the arguments are being queried for a scheduled build</param>
+		public abstract void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild);
 
 		/// <summary>
 		/// Convert this parameter to data for serialization
@@ -70,15 +71,12 @@ namespace Horde.Server.Jobs.Templates
 			Children = children;
 		}
 
-		/// <summary>
-		/// Gets the default arguments for this parameter and its children
-		/// </summary>
-		/// <param name="defaultArguments">List of default arguments</param>
-		public override void GetDefaultArguments(List<string> defaultArguments)
+		/// <inheritdoc/>
+		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
 			foreach (Parameter child in Children)
 			{
-				child.GetDefaultArguments(defaultArguments);
+				child.GetDefaultArguments(defaultArguments, scheduledBuild);
 			}
 		}
 
@@ -111,6 +109,11 @@ namespace Horde.Server.Jobs.Templates
 		/// Default value for this argument
 		/// </summary>
 		public string Default { get; set; }
+
+		/// <summary>
+		/// Override for this argument in scheduled builds. 
+		/// </summary>
+		public string? ScheduleOverride { get; set; }
 
 		/// <summary>
 		/// Hint text to display when the field is empty
@@ -150,28 +153,27 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="label">Parameter to pass this value to the BuildGraph script with</param>
 		/// <param name="argument">Label to show next to the parameter</param>
 		/// <param name="defaultValue">Default value for this argument</param>
+		/// <param name="scheduleOverride">Override for this argument in scheduled builds</param>
 		/// <param name="hint">Hint text to display</param>
 		/// <param name="validation">Regex used to validate entries</param>
 		/// <param name="description">Message displayed for invalid values</param>
 		/// <param name="toolTip">Tool tip text to display</param>
-		public TextParameter(string label, string argument, string defaultValue, string? hint, string? validation, string? description, string? toolTip)
+		public TextParameter(string label, string argument, string defaultValue, string? scheduleOverride, string? hint, string? validation, string? description, string? toolTip)
 		{
 			Label = label;
 			Argument = argument;
 			Default = defaultValue;
+			ScheduleOverride = scheduleOverride;
 			Hint = hint;
 			Validation = validation;
 			Description = description;
 			ToolTip = toolTip;
 		}
 
-		/// <summary>
-		/// Gets the default arguments for this parameter and its children
-		/// </summary>
-		/// <param name="defaultArguments">List of default arguments</param>
-		public override void GetDefaultArguments(List<string> defaultArguments)
+		/// <inheritdoc/>
+		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
-			defaultArguments.Add(Argument + Default);
+			defaultArguments.Add(Argument + (scheduledBuild ? (ScheduleOverride ?? Default) : Default));
 		}
 
 		/// <summary>
@@ -180,7 +182,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>Serializable parameter data</returns>
 		public override ParameterData ToData()
 		{
-			return new TextParameterData(Label, Argument, Default, Hint, Validation, Description, ToolTip);
+			return new TextParameterData(Label, Argument, Default, ScheduleOverride, Hint, Validation, Description, ToolTip);
 		}
 	}
 
@@ -219,6 +221,11 @@ namespace Horde.Server.Jobs.Templates
 		public bool Default { get; set; }
 
 		/// <summary>
+		/// Whether this item is selected by default
+		/// </summary>
+		public bool? ScheduleOverride { get; set; }
+
+		/// <summary>
 		/// Default constructor for JSON serializer
 		/// </summary>
 		public ListParameterItem()
@@ -234,13 +241,15 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="argumentIfEnabled">Argument to add if this option is enabled</param>
 		/// <param name="argumentIfDisabled">Argument to add if this option is disabled</param>
 		/// <param name="defaultValue">Whether this item is selected by default</param>
-		public ListParameterItem(string? group, string text, string? argumentIfEnabled, string? argumentIfDisabled, bool defaultValue)
+		/// <param name="scheduleOverride">Override for this value in scheduled builds</param>
+		public ListParameterItem(string? group, string text, string? argumentIfEnabled, string? argumentIfDisabled, bool defaultValue, bool? scheduleOverride)
 		{
 			Group = group;
 			Text = text;
 			ArgumentIfEnabled = argumentIfEnabled;
 			ArgumentIfDisabled = argumentIfDisabled;
 			Default = defaultValue;
+			ScheduleOverride = scheduleOverride;
 		}
 
 		/// <summary>
@@ -249,7 +258,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>Serializable parameter data</returns>
 		public ListParameterItemData ToData()
 		{
-			return new ListParameterItemData(Group, Text, ArgumentIfEnabled, ArgumentIfDisabled, Default);
+			return new ListParameterItemData(Group, Text, ArgumentIfEnabled, ArgumentIfDisabled, Default, ScheduleOverride);
 		}
 	}
 
@@ -302,15 +311,13 @@ namespace Horde.Server.Jobs.Templates
 			ToolTip = toolTip;
 		}
 
-		/// <summary>
-		/// Gets the default arguments for this parameter and its children
-		/// </summary>
-		/// <param name="defaultArguments">List of default arguments</param>
-		public override void GetDefaultArguments(List<string> defaultArguments)
+		/// <inheritdoc/>
+		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
 			foreach(ListParameterItem item in Items)
 			{
-				if (item.Default)
+				bool value = scheduledBuild ? (item.ScheduleOverride ?? item.Default) : item.Default;
+				if (value)
 				{
 					if (item.ArgumentIfEnabled != null)
 					{
@@ -366,6 +373,12 @@ namespace Horde.Server.Jobs.Templates
 		public bool Default { get; set; }
 
 		/// <summary>
+		/// Whether this option should be enabled by default
+		/// </summary>
+		[BsonIgnoreIfNull]
+		public bool? ScheduleOverride { get; set; }
+
+		/// <summary>
 		/// Tool tip text to display
 		/// </summary>
 		public string? ToolTip { get; set; }
@@ -385,23 +398,24 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="argumentIfEnabled">Value if enabled</param>
 		/// <param name="argumentIfDisabled">Value if disabled</param>
 		/// <param name="defaultValue">Default value for this argument</param>
+		/// <param name="scheduleOverride">Override for this argument in scheduled builds</param>
 		/// <param name="toolTip">Tool tip text to display</param>
-		public BoolParameter(string label, string? argumentIfEnabled, string? argumentIfDisabled, bool defaultValue, string? toolTip)
+		public BoolParameter(string label, string? argumentIfEnabled, string? argumentIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
 		{
 			Label = label;
 			ArgumentIfEnabled = argumentIfEnabled;
 			ArgumentIfDisabled = argumentIfDisabled;
 			Default = defaultValue;
+			ScheduleOverride = scheduleOverride;
 			ToolTip = toolTip;
 		}
 
-		/// <summary>
-		/// Gets the default arguments for this parameter and its children
-		/// </summary>
-		/// <param name="defaultArguments">List of default arguments</param>
-		public override void GetDefaultArguments(List<string> defaultArguments)
+		/// <inheritdoc/>
+		public override void GetDefaultArguments(List<string> defaultArguments, bool scheduledBuild)
 		{
-			string? defaultArgument = Default ? ArgumentIfEnabled : ArgumentIfDisabled;
+			bool value = scheduledBuild ? (ScheduleOverride ?? Default) : Default;
+
+			string? defaultArgument = value ? ArgumentIfEnabled : ArgumentIfDisabled;
 			if (!String.IsNullOrEmpty(defaultArgument))
 			{
 				defaultArguments.Add(defaultArgument);
@@ -413,7 +427,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns><see cref="BoolParameterData"/> instance</returns>
 		public override ParameterData ToData()
 		{
-			return new BoolParameterData(Label, ArgumentIfEnabled, ArgumentIfDisabled, Default, ToolTip);
+			return new BoolParameterData(Label, ArgumentIfEnabled, ArgumentIfDisabled, Default, ScheduleOverride, ToolTip);
 		}
 	}
 
@@ -492,12 +506,12 @@ namespace Horde.Server.Jobs.Templates
 		/// Gets the arguments for default options in this template. Does not include the standard template arguments.
 		/// </summary>
 		/// <returns>List of default arguments</returns>
-		public static List<string> GetDefaultArguments(this ITemplate template)
+		public static List<string> GetDefaultArguments(this ITemplate template, bool scheduledBuild)
 		{
 			List<string> defaultArguments = new List<string>(template.Arguments);
 			foreach (Parameter parameter in template.Parameters)
 			{
-				parameter.GetDefaultArguments(defaultArguments);
+				parameter.GetDefaultArguments(defaultArguments, scheduledBuild);
 			}
 			return defaultArguments;
 		}

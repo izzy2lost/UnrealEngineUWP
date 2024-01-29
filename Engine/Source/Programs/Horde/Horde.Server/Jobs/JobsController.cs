@@ -77,7 +77,7 @@ namespace Horde.Server.Jobs
 		public async Task<ActionResult<CreateJobResponse>> CreateJobAsync([FromBody] CreateJobRequest create)
 		{
 			StreamConfig? streamConfig;
-			if (!_globalConfig.Value.TryGetStream(new StreamId(create.StreamId), out streamConfig))
+			if (!_globalConfig.Value.TryGetStream(create.StreamId, out streamConfig))
 			{
 				return NotFound(create.StreamId);
 			}
@@ -173,7 +173,7 @@ namespace Horde.Server.Jobs
 			int codeChange = lastCodeCommit?.Number ?? change;
 
 			// New properties for the job
-			List<string> arguments = create.Arguments ?? template.GetDefaultArguments();
+			List<string> arguments = create.Arguments ?? template.GetDefaultArguments(false);
 
 			bool? updateIssues = null;
 			if (template.UpdateIssues)
