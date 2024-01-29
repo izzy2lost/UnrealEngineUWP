@@ -462,13 +462,7 @@ static void UpdatePlanarReflectionContentsWithoutRendering_RenderThread(
 
 	if (bIsInAnyFrustum)
 	{
-#if WANTS_DRAW_MESH_EVENTS
-		FString EventName;
-		OwnerName.ToString(EventName);
-		SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("PlanarReflection %s"), *EventName);
-#else
-		SCOPED_DRAW_EVENT(RHICmdList, UpdatePlanarReflectionContent_RenderThread);
-#endif
+		SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("PlanarReflection %s"), OwnerName);
 
 		// Reflection view late update
 		if (SceneRenderer->Views.Num() > 1)
@@ -892,7 +886,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredPlanarReflections(FRDGBuilder&
 				continue;
 			}
 
-			SCOPED_DRAW_EVENTF(RHICmdList, PlanarReflection, *ReflectionSceneProxy->OwnerName.ToString());
+			SCOPED_DRAW_EVENTF(RHICmdList, PlanarReflection, TEXT("PlanarReflection: %s"), ReflectionSceneProxy->OwnerName);
 
 			FDeferredLightVS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FDeferredLightVS::FRadialLight>(false);

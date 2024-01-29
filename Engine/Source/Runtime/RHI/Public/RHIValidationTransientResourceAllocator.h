@@ -39,24 +39,10 @@ private:
 
 		FString DebugName;
 		EType ResourceType = EType::Texture;
-
-		struct FTexture
-		{
-			ETextureCreateFlags Flags = TexCreate_None;
-			EPixelFormat Format = PF_Unknown;
-			uint16 ArraySize = 0;
-			uint8 NumMips = 0;
-		} Texture;
 	};
 
-	using FAllocatedResourceDataMap = TMap<FRHIResource*, FAllocatedResourceData>;
-	using FAllocatedResourceDataArray = TArray<TPair<FRHIResource*, FAllocatedResourceData>>;
-
-	friend class FValidationContext;
-	static void InitBarrierTracking(const FAllocatedResourceDataArray& AllocatedResourcesToInit);
-
-	FAllocatedResourceDataMap AllocatedResourceMap;
-	FAllocatedResourceDataArray AllocatedResourcesToInit;
+	TMap<FRHIResource*, FAllocatedResourceData> AllocatedResourceMap;
+	TRHIPipelineArray<TArray<RHIValidation::FOperation>> PendingPipelineOps;
 };
 
 #endif	// ENABLE_RHI_VALIDATION

@@ -5,6 +5,7 @@
 #include "ProfilingDebugging/RealtimeGPUProfiler.h"
 #include "RenderGraphAllocator.h"
 #include "RenderGraphFwd.h"
+#include "RHIBreadcrumbs.h"
 
 /** DEFINES */
 
@@ -52,34 +53,10 @@
 	#else
 		#define RDG_EVENTS RDG_EVENTS_STRING_COPY
 	#endif
-#elif RHI_WANT_BREADCRUMB_EVENTS
+#elif WITH_RHI_BREADCRUMBS
 	#define RDG_EVENTS RDG_EVENTS_STRING_REF
 #else
 	#define RDG_EVENTS RDG_EVENTS_NONE
-#endif
-
-#define RDG_GPU_DEBUG_SCOPES (RDG_EVENTS || HAS_GPU_STATS)
-
-#if RDG_GPU_DEBUG_SCOPES
-	#define IF_RDG_GPU_DEBUG_SCOPES(Op) Op
-#else
-	#define IF_RDG_GPU_DEBUG_SCOPES(Op)
-#endif
-
-#define RDG_CPU_SCOPES (CSV_PROFILER)
-
-#if RDG_CPU_SCOPES
-	#define IF_RDG_CPU_SCOPES(Op) Op
-#else
-	#define IF_RDG_CPU_SCOPES(Op)
-#endif
-
-#define RDG_CMDLIST_STATS (STATS || ENABLE_STATNAMEDEVENTS)
-
-#if RDG_CMDLIST_STATS
-	#define IF_RDG_CMDLIST_STATS(Op) Op
-#else
-	#define IF_RDG_CMDLIST_STATS(Op)
 #endif
 
 /** ENUMS */
@@ -122,8 +99,6 @@ enum class ERDGPassFlags : uint16
 
 	/** Pass will never run off the render thread. */
 	NeverParallel = 1 << 7,
-
-	ParallelTranslate = 1 << 8,
 
 	/** Pass uses copy commands but writes to a staging resource. */
 	Readback = Copy | NeverCull
@@ -685,8 +660,6 @@ struct FRDGTextureDesc : public FRHITextureDesc
 class FRDGBlackboard;
 
 class FRDGAsyncComputeBudgetScopeGuard;
-class FRDGEventScopeGuard;
-class FRDGGPUStatScopeGuard;
 class FRDGScopedCsvStatExclusive;
 class FRDGScopedCsvStatExclusiveConditional;
 

@@ -965,18 +965,11 @@ struct FSendAllEndOfFrameUpdates
 	
 	FGPUSkinCache* GPUSkinCache = nullptr;
 	ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
-
-#if WANTS_DRAW_MESH_EVENTS
-	FDrawEvent DrawEvent;
-#endif // WANTS_DRAW_MESH_EVENTS
 };
 
 void BeginSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
 {
-	BEGIN_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, SendAllEndOfFrameUpdates.DrawEvent, TEXT("SendAllEndOfFrameUpdates"));
-
-	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
+	ENQUEUE_RENDER_COMMAND(BeginDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh, [GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandList& RHICmdList)
 	{
 		if (GPUSkinCache != nullptr)
 		{
@@ -989,16 +982,13 @@ DECLARE_GPU_STAT(EndOfFrameUpdates);
 DECLARE_GPU_STAT(GPUSkinCacheRayTracingGeometry);
 void EndSendEndOfFrameUpdatesDrawEvent(FSendAllEndOfFrameUpdates& SendAllEndOfFrameUpdates)
 {
-	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh,
-		[GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache]
+	ENQUEUE_RENDER_COMMAND(EndDrawEventCommand)(UE::RenderCommandPipe::SkeletalMesh, [GPUSkinCache = SendAllEndOfFrameUpdates.GPUSkinCache](FRHICommandList& RHICmdList)
 	{
 		if (GPUSkinCache != nullptr)
 		{
 			GPUSkinCache->EndBatchDispatch();
 		}
 	});
-
-	STOP_DRAW_EVENT_GAMETHREAD(SendAllEndOfFrameUpdates.DrawEvent);
 }
 
 /**
@@ -1056,6 +1046,10 @@ void UWorld::SendAllEndOfFrameUpdates()
 			}
 		}
 	}
+
+#if WANTS_DRAW_MESH_EVENTS
+	SCOPED_DRAW_EVENTF_GAMETHREAD(SendAllEndOfFrameUpdates, TEXT("SendAllEndOfFrameUpdates"))
+#endif
 
 	// Issue a GPU event to wrap GPU work done during SendAllEndOfFrameUpdates, like skin cache updates
 	FSendAllEndOfFrameUpdates SendAllEndOfFrameUpdates(Scene);

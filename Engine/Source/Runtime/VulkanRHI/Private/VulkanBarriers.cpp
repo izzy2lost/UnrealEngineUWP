@@ -1488,12 +1488,6 @@ static TArray<VulkanRHI::FSemaphore*> ExtractTransitionSemaphores(TArrayView<con
 
 void FVulkanCommandListContext::RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions)
 {
-	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
-	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
-	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIBeginTransitions, bShowTransitionEvents, TEXT("RHIBeginTransitions"));
-
-	TRACE_CPUPROFILER_EVENT_SCOPE(RHIBeginTransitions);
-
 	if (Device->SupportsParallelRendering())
 	{
 		FTransitionProcessor<VkMemoryBarrier2, VkBufferMemoryBarrier2, VkImageMemoryBarrier2> Processor(*this, true);
@@ -1516,12 +1510,6 @@ void FVulkanCommandListContext::RHIBeginTransitions(TArrayView<const FRHITransit
 
 void FVulkanCommandListContext::RHIEndTransitions(TArrayView<const FRHITransition*> Transitions)
 {
-	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
-	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
-	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIEndTransitions, bShowTransitionEvents, TEXT("RHIEndTransitions"));
-
-	TRACE_CPUPROFILER_EVENT_SCOPE(RHIEndTransitions);
-
 	const ERHIPipeline CurrentPipeline = Device->IsRealAsyncComputeContext(this) ? ERHIPipeline::AsyncCompute : ERHIPipeline::Graphics;
 	TArray<VulkanRHI::FSemaphore*> WaitSemaphores = ExtractTransitionSemaphores(Transitions, CurrentPipeline);
 	if (WaitSemaphores.Num() > 0)

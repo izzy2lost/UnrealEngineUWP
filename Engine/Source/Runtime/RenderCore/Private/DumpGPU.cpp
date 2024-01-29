@@ -1977,18 +1977,15 @@ public:
 			bDumpPass = WildcardFilter.IsMatch(Pass->GetEventName().GetTCHAR());
 		}
 
-		#if RDG_GPU_DEBUG_SCOPES
-		if (!bDumpPass)
+#if RDG_EVENTS
+		for (FRDGScope const* ParentScope = Pass->GetScope(); !bDumpPass && ParentScope; ParentScope = ParentScope->Parent)
 		{
-			const FRDGEventScope* ParentScope = Pass->GetGPUScopes().Event;
-
-			while (ParentScope)
+			if (FRDGScope_RHI const* RHIScope = ParentScope->Get<FRDGScope_RHI>())
 			{
-				bDumpPass = bDumpPass || WildcardFilter.IsMatch(ParentScope->Name.GetTCHAR());
-				ParentScope = ParentScope->ParentScope;
+				bDumpPass = WildcardFilter.IsMatch(RHIScope->Name.GetTCHAR());
 			}
 		}
-		#endif
+#endif // RDG_EVENTS
 
 		return bDumpPass;
 	}
@@ -2625,18 +2622,17 @@ void FRDGBuilder::DumpResourcePassOutputs(const FRDGPass* Pass)
 	// Dump the pass informations
 	{
 		TArray<TSharedPtr<FJsonValue>> ParentEventScopeNames;
-		#if RDG_GPU_DEBUG_SCOPES
 		{
-			const FRDGEventScope* ParentScope = Pass->GetGPUScopes().Event;
-
-			while (ParentScope)
+#if RDG_EVENTS
+			for (FRDGScope const* ParentScope = Pass->GetScope(); ParentScope; ParentScope = ParentScope->Parent)
 			{
-				ParentEventScopeNames.Add(MakeShareable(new FJsonValueString(ParentScope->Name.GetTCHAR())));
-				ParentScope = ParentScope->ParentScope;
+				if (FRDGScope_RHI const* RHIScope = ParentScope->Get<FRDGScope_RHI>())
+				{
+					ParentEventScopeNames.Add(MakeShareable(new FJsonValueString(RHIScope->Name.GetTCHAR())));
+				}
 			}
-		}
-		#endif
-		{
+#endif // RDG_EVENTS
+
 			ParentEventScopeNames.Add(MakeShareable(new FJsonValueString(FString::Printf(TEXT("Frame %llu (Delta=%fs)"), GFrameCounterRenderThread, ResourceDumpContext->DeltaTime))));
 		}
 

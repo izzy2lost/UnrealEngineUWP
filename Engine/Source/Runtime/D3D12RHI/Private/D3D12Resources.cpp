@@ -129,10 +129,7 @@ FD3D12Resource::FD3D12Resource(FD3D12Device* ParentDevice,
 	InitalizeResourceState(InInitialState, InResourceStateMode, InDefaultResourceState);
 
 #if NV_AFTERMATH
-	if (GDX12NVAfterMathTrackResources)
-	{
-		GFSDK_Aftermath_DX12_RegisterResource(InResource, &AftermathHandle);
-	}
+	AftermathHandle = UE::RHICore::Nvidia::Aftermath::D3D12::RegisterResource(InResource);
 #endif
 
 	if (Desc.bReservedResource)
@@ -153,10 +150,7 @@ FD3D12Resource::~FD3D12Resource()
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 
 #if NV_AFTERMATH
-	if (GDX12NVAfterMathTrackResources)
-	{
-		GFSDK_Aftermath_DX12_UnregisterResource(AftermathHandle);
-	}
+	UE::RHICore::Nvidia::Aftermath::D3D12::UnregisterResource(AftermathHandle);
 #endif
 
 	if (Desc.bBackBuffer)

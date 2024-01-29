@@ -387,6 +387,8 @@ HRESULT FD3D12Viewport::PresentInternal(int32 SyncInterval)
 
 	if (SwapChain1)
 	{
+		// Ignore time spent waiting in Present. This function blocks based on GPU progress and space in the swap chain.
+		FRenderThreadIdleScope Scope(ERenderThreadIdleTypes::WaitingForGPUPresent);
 		return SwapChain1->Present(SyncInterval, Flags);
 	}
 

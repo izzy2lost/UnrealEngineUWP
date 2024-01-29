@@ -521,8 +521,6 @@ private:
 	uint32 ValidFrameNumber;
 };
 
-DECLARE_STATS_GROUP(TEXT("Parallel Command List Markers"), STATGROUP_ParallelCommandListMarkers, STATCAT_Advanced);
-
 /** Helper class to marshal data from your RDG pass into the parallel command list set. */
 class FParallelCommandListBindings
 {
@@ -559,7 +557,6 @@ public:
 	const FRDGPass* Pass;
 	const FViewInfo& View;
 	FRHICommandListImmediate& ParentCmdList;
-	TStatId	ExecuteStat;
 	int32 Width;
 	int32 NumAlloc;
 	int32 MinDrawsPerCommandList;
@@ -575,7 +572,13 @@ protected:
 	bool bHasRenderPasses;
 
 public:
-	FParallelCommandListSet(const FRDGPass* InPass, TStatId InExecuteStat, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true);
+	FParallelCommandListSet(const FRDGPass* InPass, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true);
+
+	UE_DEPRECATED(5.4, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
+	FParallelCommandListSet(const FRDGPass* InPass, TStatId InExecuteStat, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true)
+		: FParallelCommandListSet(InPass, InView, InParentCmdList, bHasRenderPasses)
+	{}
+
 	virtual ~FParallelCommandListSet();
 
 	int32 NumParallelCommandLists() const
@@ -601,13 +604,17 @@ public:
 	FRDGParallelCommandListSet(
 		const FRDGPass* InPass,
 		FRHICommandListImmediate& InParentCmdList,
-		TStatId InStatId,
 		const FViewInfo& InView,
 		const FParallelCommandListBindings& InBindings,
 		float InViewportScale = 1.0f)
-		: FParallelCommandListSet(InPass, InStatId, InView, InParentCmdList, InBindings.bHasRenderPassInfo)
+		: FParallelCommandListSet(InPass, InView, InParentCmdList, InBindings.bHasRenderPassInfo)
 		, Bindings(InBindings)
 		, ViewportScale(InViewportScale)
+	{}
+
+	UE_DEPRECATED(5.4, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
+	FRDGParallelCommandListSet(const FRDGPass* InPass, FRHICommandListImmediate& InParentCmdList, TStatId InStatId, const FViewInfo& InView, const FParallelCommandListBindings& InBindings, float InViewportScale = 1.0f)
+		: FRDGParallelCommandListSet(InPass, InParentCmdList, InView, InBindings, InViewportScale)
 	{}
 
 	~FRDGParallelCommandListSet() override

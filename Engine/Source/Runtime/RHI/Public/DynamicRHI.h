@@ -678,14 +678,12 @@ public:
 	// FlushType: Thread safe
 	virtual void RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Viewport) = 0;
 
-	/*
-	* Acquires or releases ownership of the platform-specific rendering context for the calling thread
-	*/
-	// FlushType: Flush RHI Thread
-	virtual void RHIAcquireThreadOwnership() = 0;
-
-	// FlushType: Flush RHI Thread
-	virtual void RHIReleaseThreadOwnership() = 0;
+	//
+	// Acquires or releases ownership of the platform-specific rendering context for the calling thread.
+	// Only required by OpenGL RHI.
+	//
+	virtual void RHIAcquireThreadOwnership() {}
+	virtual void RHIReleaseThreadOwnership() {}
 
 	// Flush driver resources. Typically called when switching contexts/threads
 	// FlushType: Flush RHI Thread
@@ -732,10 +730,6 @@ public:
 	// Blocks the CPU until the GPU catches up and goes idle.
 	// FlushType: Flush Immediate (seems wrong)
 	virtual void RHIBlockUntilGPUIdle() = 0;
-
-	// Kicks the current frame and makes sure GPU is actively working on them
-	// FlushType: Flush Immediate (copied from RHIBlockUntilGPUIdle)
-	virtual void RHISubmitCommandsAndFlushGPU() {};
 
 	// Tells the RHI we're about to suspend it
 	virtual void RHIBeginSuspendRendering() {};
@@ -785,15 +779,6 @@ public:
 	*/
 	// FlushType: Wait RHI Thread
 	RHI_API virtual void RHIVirtualTextureSetFirstMipVisible(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture, uint32 FirstMip);
-
-	/**
-	* Called once per frame just before deferred deletion in FRHIResource::FlushPendingDeletes
-	*/
-	// FlushType: called from render thread when RHI thread is flushed 
-	virtual void RHIPerFrameRHIFlushComplete()
-	{
-
-	}
 
 	/**
 	* Provides access to the native device. Generally this should be avoided but is useful for third party plugins.
@@ -848,15 +833,6 @@ public:
 	// FlushType: Thread safe
 	virtual IRHICommandContext* RHIGetDefaultContext() = 0;
 
-	// FlushType: Thread safe
-	virtual IRHIComputeContext* RHIGetDefaultAsyncComputeContext()
-	{
-		IRHIComputeContext* ComputeContext = RHIGetDefaultContext();
-		// On platforms that support non-async compute we set this to the normal context.  It won't be async, but the high level
-		// code can be agnostic if it wants to be.
-		return ComputeContext;
-	}
-
 	//
 	// Retrieves a new command context to begin the recording of a new platform command list.
 	// The returned context is specific to the given pipeline. It can later be converted to an IRHIPlatformCommandList
@@ -874,7 +850,11 @@ public:
 	//
 	// Called by parallel worker threads, and the RHI thread. Platform implementations must be thread safe.
 	//
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* Context) = 0;
+	struct FRHIFinalizeContextArgs
+	{
+		IRHIComputeContext* Context;
+	};
+	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) = 0;
 
 	//
 	// Submits a batch of previously recorded/finalized command lists to the GPU. 
@@ -882,7 +862,17 @@ public:
 	//
 	// Called by the RHI thread. 
 	//
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources) = 0;
+	struct FRHISubmitCommandListsArgs
+	{
+		TArray<IRHIPlatformCommandList*> CommandLists;
+	};
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) = 0;
+
+	//
+	// Platform RHIs should implement this function to process their internal GPU resource/memory delete queues.
+	// Called only from RHI command list management code. Do not call directly.
+	//
+	virtual void RHIProcessDeleteQueue() {}
 
 	RHI_API virtual FTexture2DRHIRef AsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, int32 NewMipCount, int32 NewSizeX, int32 NewSizeY, FThreadSafeCounter* RequestStatus);
 	RHI_API virtual ETextureReallocationStatus FinalizeAsyncReallocateTexture2D_RenderThread(class FRHICommandListImmediate& RHICmdList, FRHITexture2D* Texture2D, bool bBlockUntilCompleted);
@@ -924,22 +914,15 @@ public:
 	}
 
 	//Utilities
-	RHI_API virtual void EnableIdealGPUCaptureOptions(bool bEnable);
-	
-	//checks if the GPU is still alive.
-	virtual bool CheckGpuHeartbeat() const { return true; }
+	static RHI_API void EnableIdealGPUCaptureOptions(bool bEnable);
 
 	virtual FRHIFlipDetails RHIWaitForFlip(double TimeoutInSeconds) { return FRHIFlipDetails(); }
 	virtual void RHISignalFlipEvent() { }
 
-	virtual void RHICalibrateTimers() {}
-	virtual void RHIPollRenderQueryResults() {}
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() { return 8; };
 
 	virtual bool RHIRequiresComputeGenerateMips() const { return false; };
-
-	virtual bool RHIIncludeOptionalFlushes() const { return true; }
 
 #if RHI_RAYTRACING
 
@@ -1401,11 +1384,6 @@ FORCEINLINE class IRHICommandContext* RHIGetDefaultContext()
 	return GDynamicRHI->RHIGetDefaultContext();
 }
 
-FORCEINLINE class IRHIComputeContext* RHIGetDefaultAsyncComputeContext()
-{
-	return GDynamicRHI->RHIGetDefaultAsyncComputeContext();
-}
-
 RHI_API FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint32 NumQueries = UINT32_MAX);
 
 FORCEINLINE const FRHITransition* RHICreateTransition(const FRHITransitionCreateInfo& CreateInfo)
@@ -1545,3 +1523,31 @@ FDynamicRHI* PlatformCreateDynamicRHI();
 extern RHI_API const TCHAR* GetSelectedDynamicRHIModuleName(bool bCleanup = true);
 
 extern RHI_API bool GDynamicRHIFailedToInitializeAdvancedPlatform;
+
+//
+// Helper for acquiring and releasing thread ownership of the RHI within a scope.
+// For private use by the RHI and render thread management code only.
+//
+struct FScopedRHIThreadOwnership
+{
+	bool const bCondition;
+
+	FScopedRHIThreadOwnership(bool bCondition)
+		: bCondition(bCondition)
+	{
+		if (bCondition)
+		{
+			SCOPED_NAMED_EVENT(RHIAcquireThreadOwnership, FColor::Red);
+			GDynamicRHI->RHIAcquireThreadOwnership();
+		}
+	}
+
+	~FScopedRHIThreadOwnership()
+	{
+		if (bCondition)
+		{
+			SCOPED_NAMED_EVENT(RHIReleaseThreadOwnership, FColor::Red);
+			GDynamicRHI->RHIReleaseThreadOwnership();
+		}
+	}
+};

@@ -489,7 +489,7 @@ void RHIExit()
 		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 	}
 
-	FRHICommandListImmediate::CleanupGraphEvents();
+	GRHICommandList.CleanupGraphEvents();
 }
 
 void FDynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
@@ -538,44 +538,25 @@ void FDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* Texture, FIntRect Rect,
 
 void FDynamicRHI::EnableIdealGPUCaptureOptions(bool bEnabled)
 {
-	static IConsoleVariable* RHICmdBypassVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.rhicmdbypass"));
-	static IConsoleVariable* ShowMaterialDrawEventVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));	
-	static IConsoleObject* RHIThreadEnableObj = IConsoleManager::Get().FindConsoleObject(TEXT("r.RHIThread.Enable"));
-	static IConsoleCommand* RHIThreadEnableCommand = RHIThreadEnableObj ? RHIThreadEnableObj->AsCommand() : nullptr;
-
-	const bool bShouldEnableDrawEvents = bEnabled;
-	const bool bShouldEnableMaterialDrawEvents = bEnabled;
-	const bool bShouldEnableRHIThread = !bEnabled;
-	const bool bShouldRHICmdBypass = bEnabled;	
-
-	const bool bDrawEvents = GetEmitDrawEvents() != 0;
-	const bool bMaterialDrawEvents = ShowMaterialDrawEventVar ? ShowMaterialDrawEventVar->GetInt() != 0 : false;
-	const bool bRHIThread = IsRunningRHIInSeparateThread();
-	const bool bRHIBypass = RHICmdBypassVar ? RHICmdBypassVar->GetInt() != 0 : false;
-
 	UE_LOG(LogRHI, Display, TEXT("Setting GPU Capture Options: %i"), bEnabled ? 1 : 0);
-	if (bShouldEnableDrawEvents != bDrawEvents)
+
+	// Draw Events
+	if (bEnabled != (GetEmitDrawEvents() != 0))
 	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling draw events: %i"), bShouldEnableDrawEvents ? 1 : 0);
-		SetEmitDrawEvents(bShouldEnableDrawEvents);
+		UE_LOG(LogRHI, Display, TEXT("Toggling draw events: %i"), bEnabled ? 1 : 0);
+		SetEmitDrawEvents(bEnabled);
 	}
-	if (bShouldEnableMaterialDrawEvents != bMaterialDrawEvents && ShowMaterialDrawEventVar)
+
+	// Material Draw Events
+	static IConsoleVariable* ShowMaterialDrawEventVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
+	if (ShowMaterialDrawEventVar)
 	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling showmaterialdrawevents: %i"), bShouldEnableDrawEvents ? 1 : 0);
-		ShowMaterialDrawEventVar->Set(bShouldEnableDrawEvents ? -1 : 0);		
+		if (bEnabled != (ShowMaterialDrawEventVar->GetInt() != 0))
+		{
+			UE_LOG(LogRHI, Display, TEXT("Toggling showmaterialdrawevents: %i"), bEnabled ? 1 : 0);
+			ShowMaterialDrawEventVar->Set(bEnabled ? -1 : 0);
+		}
 	}
-	if (bRHIThread != bShouldEnableRHIThread && RHIThreadEnableCommand)
-	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling rhi thread: %i"), bShouldEnableRHIThread ? 1 : 0);
-		TArray<FString> Args;
-		Args.Add(FString::Printf(TEXT("%i"), bShouldEnableRHIThread ? 1 : 0));
-		RHIThreadEnableCommand->Execute(Args, nullptr, *GLog);
-	}
-	if (bRHIBypass != bShouldRHICmdBypass && RHICmdBypassVar)
-	{
-		UE_LOG(LogRHI, Display, TEXT("Toggling rhi bypass: %i"), bEnabled ? 1 : 0);
-		RHICmdBypassVar->Set(bShouldRHICmdBypass ? 1 : 0, ECVF_SetByConsole);		
-	}	
 }
 
 FTextureReferenceRHIRef FDynamicRHI::RHICreateTextureReference(FRHICommandListBase& RHICmdList, FRHITexture* InReferencedTexture)

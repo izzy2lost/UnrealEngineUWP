@@ -518,7 +518,7 @@ void DrawBasePass(
 
 					FParallelCommandListBindings CmdListBindings(&ParamsAndInfo->Params[PassIndex]);
 					TConstArrayView<FNaniteMaterialPassCommand> PassCommands = MakeArrayView(MaterialPassCommands.GetData() + ParamsAndInfo->PassInfo[PassIndex].CommandOffset, ParamsAndInfo->PassInfo[PassIndex].NumCommands);
-					FRDGParallelCommandListSet ParallelCommandListSet(Pass, RHICmdList, GET_STATID(STAT_CLP_NaniteBasePass), View, CmdListBindings);
+					FRDGParallelCommandListSet ParallelCommandListSet(Pass, RHICmdList, View, CmdListBindings);
 					ParallelCommandListSet.SetHighPriority();
 					DrawNaniteMaterialPass(&ParallelCommandListSet, RHICmdList, ViewRect, TileCount, NaniteVertexShader, MaterialIndirectArgs, PassCommands);
 				});

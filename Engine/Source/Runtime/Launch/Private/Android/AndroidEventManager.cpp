@@ -293,38 +293,6 @@ void FAppEventManager::SetEmptyQueueHandlerEvent(FEvent* InEventHandlerEvent)
 	EmptyQueueHandlerEvent = InEventHandlerEvent;
 }
 
-void FAppEventManager::PauseRendering()
-{
-	if(GUseThreadedRendering )
-	{
-		if (GIsThreadedRendering)
-		{
-			StopRenderingThread(); 
-		}
-	}
-	else
-	{
-		RHIReleaseThreadOwnership();
-	}
-}
-
-
-void FAppEventManager::ResumeRendering()
-{
-	if( GUseThreadedRendering )
-	{
-		if (!GIsThreadedRendering)
-		{
-			StartRenderingThread();
-		}
-	}
-	else
-	{
-		RHIAcquireThreadOwnership();
-	}
-}
-
-
 void FAppEventManager::ExecWindowCreated()
 {
 	UE_LOG(LogAndroidEvents, Display, TEXT("ExecWindowCreated"));

@@ -63,7 +63,7 @@ static void ReportMetalCommandBufferFailure(MTL::CommandBuffer* CompletedBuffer,
 	UE_LOG(LogMetal, Warning, TEXT("%s"), *FString(Desc->cString(NS::UTF8StringEncoding)));
 	
 #if PLATFORM_IOS
-    if (bDoCheck && !GIsSuspended && !GIsRenderingThreadSuspended)
+    if (bDoCheck && !GIsSuspended)
 #endif
     {
         // Dump GPU fault information for the GPU encoders

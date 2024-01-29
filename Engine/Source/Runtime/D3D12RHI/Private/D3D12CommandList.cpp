@@ -156,7 +156,7 @@ FD3D12CommandList::FD3D12CommandList(FD3D12CommandAllocator* CommandAllocator, F
 	{
 	case ED3D12QueueType::Direct:
 	case ED3D12QueueType::Async:
-		VERIFYD3D12RESULT(Device->GetDevice()->CreateCommandList(
+		VERIFYD3D12RESULT(Device->CreateCommandList(
 			Device->GetGPUMask().GetNative(),
 			GetD3DCommandListType(QueueType),
 			*CommandAllocator,
@@ -220,13 +220,7 @@ FD3D12CommandList::FD3D12CommandList(FD3D12CommandAllocator* CommandAllocator, F
 	INC_DWORD_STAT(STAT_D3D12NumCommandLists);
 
 #if NV_AFTERMATH
-	if (GDX12NVAfterMathEnabled)
-	{
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_DX12_CreateContextHandle(Interfaces.CommandList, &Interfaces.AftermathHandle);
-
-		check(Result == GFSDK_Aftermath_Result_Success);
-		Device->GetGPUProfiler().RegisterCommandList(Interfaces.GraphicsCommandList, Interfaces.AftermathHandle);
-	}
+	Interfaces.AftermathHandle = UE::RHICore::Nvidia::Aftermath::D3D12::RegisterCommandList(Interfaces.CommandList);
 #endif
 
 #if NAME_OBJECTS
@@ -243,13 +237,7 @@ FD3D12CommandList::~FD3D12CommandList()
 	D3DX12Residency::DestroyResidencySet(Device->GetResidencyManager(), ResidencySet);
 
 #if NV_AFTERMATH
-	if (Interfaces.AftermathHandle)
-	{
-		Device->GetGPUProfiler().UnregisterCommandList(Interfaces.AftermathHandle);
-
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_ReleaseContextHandle(Interfaces.AftermathHandle);
-		check(Result == GFSDK_Aftermath_Result_Success);
-	}
+	UE::RHICore::Nvidia::Aftermath::D3D12::UnregisterCommandList(Interfaces.AftermathHandle);
 #endif
 
 	DEC_DWORD_STAT(STAT_D3D12NumCommandLists);

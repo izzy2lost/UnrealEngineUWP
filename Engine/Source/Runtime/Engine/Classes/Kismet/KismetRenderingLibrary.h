@@ -15,7 +15,6 @@
 class UCanvas;
 class UMaterialInterface;
 class UTexture2D;
-struct FDrawEvent;
 
 USTRUCT(BlueprintType)
 struct FDrawToRenderTargetContext
@@ -26,7 +25,7 @@ struct FDrawToRenderTargetContext
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget = nullptr;
 
 #if WANTS_DRAW_MESH_EVENTS
-	FDrawEvent* DrawEvent = nullptr;
+	TOptional<FRHIBreadcrumbEventManual>* Breadcrumb = nullptr;
 #endif // WANTS_DRAW_MESH_EVENTS
 };
 

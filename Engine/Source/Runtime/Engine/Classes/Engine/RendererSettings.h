@@ -946,10 +946,10 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bSupportRectLightOnTranslucent : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = Debugging, meta = (
-		ConsoleVariable = "r.GPUCrashDebugging", DisplayName = "Enable vendor specific GPU crash analysis tools",
-		ToolTip = "Enables vendor specific GPU crash analysis tools.",
+		ConsoleVariable = "r.GPUCrashDebugging", DisplayName = "Enable vendor specific and in-engine GPU crash analysis tools.",
+		ToolTip = "Enables vendor specific and in-engine GPU crash analysis tools.",
 		ConfigRestartRequired = true))
-		uint32 bNvidiaAftermathEnabled : 1;
+		uint32 bGpuCrashDebugging : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = VR, meta = (
 		ConsoleVariable = "vr.InstancedStereo", DisplayName = "Instanced Stereo",

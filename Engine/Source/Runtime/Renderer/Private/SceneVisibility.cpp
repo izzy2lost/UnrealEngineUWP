@@ -373,9 +373,6 @@ static TAutoConsoleVariable<float> CVarFreezeTemporalHistoriesProgress(
 
 #endif
 
-DECLARE_CYCLE_STAT(TEXT("Occlusion Readback"), STAT_CLMM_OcclusionReadback, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("After Occlusion Readback"), STAT_CLMM_AfterOcclusionReadback, STATGROUP_CommandListMarkers);
-
 TRACE_DECLARE_INT_COUNTER(Scene_Visibility_NumProcessedPrimitives, TEXT("Scene/Visibility/NumProcessedPrimitives"));
 TRACE_DECLARE_INT_COUNTER(Scene_Visibility_FrustumCull_NumCulledPrimitives, TEXT("Scene/Visibility/FrustumCull/NumCulledPrimitives"));
 TRACE_DECLARE_INT_COUNTER(Scene_Visibility_FrustumCull_NumPrimitivesPerTask, TEXT("Scene/Visibility/FrustumCull/NumPrimitivesPerTask"));
@@ -2806,7 +2803,6 @@ FGPUOcclusion::FGPUOcclusion(FVisibilityViewPacket& InViewPacket)
 void FGPUOcclusion::Map(FRHICommandListImmediate& RHICmdListImmediate)
 {
 	SCOPED_NAMED_EVENT(MapOcclusionResults, FColor::Magenta);
-	RHICmdListImmediate.SetCurrentStat(GET_STATID(STAT_CLMM_OcclusionReadback));
 
 	if (ViewState.OcclusionFeedback.IsInitialized())
 	{
@@ -2827,8 +2823,6 @@ void FGPUOcclusion::Map(FRHICommandListImmediate& RHICmdListImmediate)
 		ViewState.IsRoundRobinEnabled() && !View.bIsSceneCapture && IStereoRendering::IsStereoEyeView(View));
 
 	ViewState.Occlusion.NumRequestedQueries = 0;
-
-	RHICmdListImmediate.SetCurrentStat(GET_STATID(STAT_CLMM_AfterOcclusionReadback));
 }
 
 void FGPUOcclusion::Unmap(FRHICommandListImmediate& RHICmdListImmediate)

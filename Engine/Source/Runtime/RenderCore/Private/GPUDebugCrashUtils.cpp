@@ -65,15 +65,17 @@ void ScheduleGPUDebugCrash(FRDGBuilder& GraphBuilder)
 		CrashTypeString = TEXT("PlatformBreak");
 	}
 
+	RDG_EVENT_SCOPE(GraphBuilder, "GPUDebugCrash_%s_%s",
+		EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Queue_Compute) ? TEXT("ComputeQueue") : TEXT("DirectQueue"),
+		*CrashTypeString);
+
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("GPUDebugCrash_%s_%s", 
-			EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Queue_Compute) ? TEXT("ComputeQueue") : TEXT("DirectQueue"),
-			 *CrashTypeString),
+		RDG_EVENT_NAME("GPUDebugCrash"),
 		(EnumHasAnyFlags(GRHIGlobals.TriggerGPUCrash, ERequestedGPUCrash::Queue_Compute) ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute) | ERDGPassFlags::NeverCull,
 		ComputeShader,
 		PassParameters,
-		FIntVector(FComputeShaderUtils::kGolden2DGroupSize, FComputeShaderUtils::kGolden2DGroupSize, 1)
+		FIntVector(1, 1, 1)
 	);
 	GRHIGlobals.TriggerGPUCrash = ERequestedGPUCrash::None;
 }

@@ -47,12 +47,11 @@ FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(co
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-    FMetalGraphicsPipelineState* State = new FMetalGraphicsPipelineState(Initializer);
+    TRefCountPtr<FMetalGraphicsPipelineState> State = new FMetalGraphicsPipelineState(Initializer);
 
     if(!State->Compile())
     {
         // Compilation failures are propagated up to the caller.
-        State->Delete();
         return nullptr;
     }
 
@@ -66,7 +65,7 @@ FGraphicsPipelineStateRHIRef FMetalDynamicRHI::RHICreateGraphicsPipelineState(co
     State->DepthStencilState = ResourceCast(Initializer.DepthStencilState);
     State->RasterizerState = ResourceCast(Initializer.RasterizerState);
 
-    return State;
+    return FGraphicsPipelineStateRHIRef(MoveTemp(State));
 }
 
 TRefCountPtr<FRHIComputePipelineState> FMetalDynamicRHI::RHICreateComputePipelineState(FRHIComputeShader* ComputeShader)

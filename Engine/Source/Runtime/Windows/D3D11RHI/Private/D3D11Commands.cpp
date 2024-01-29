@@ -1259,18 +1259,11 @@ void FD3D11DynamicRHI::RHIClearMRTImpl(const bool* bClearColorArray, int32 NumCl
 // Blocks the CPU until the GPU catches up and goes idle.
 void FD3D11DynamicRHI::RHIBlockUntilGPUIdle()
 {
-	if (IsRunningRHIInSeparateThread())
-	{
-		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-	}
-	
 	D3D11_QUERY_DESC Desc = {};
 	Desc.Query = D3D11_QUERY_EVENT;
 
 	TRefCountPtr<ID3D11Query> Query;
 	VERIFYD3D11RESULT_EX(Direct3DDevice->CreateQuery(&Desc, Query.GetInitReference()), Direct3DDevice);
-	
-	FScopedD3D11RHIThreadStaller StallRHIThread;
 	
 	Direct3DDeviceIMContext->End(Query.GetReference());
 	Direct3DDeviceIMContext->Flush();
@@ -1388,10 +1381,6 @@ void FD3D11DynamicRHI::EnableDepthBoundsTest(bool bEnable,float MinDepth,float M
 	StateCache.DepthBoundsMax = MaxDepth;
 }
 
-void FD3D11DynamicRHI::RHISubmitCommandsHint()
-{
-}
-
 IRHICommandContext* FD3D11DynamicRHI::RHIGetDefaultContext()
 {
 	return this;
@@ -1403,17 +1392,29 @@ IRHIComputeContext* FD3D11DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FD3D11DynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+IRHIPlatformCommandList* FD3D11DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
 {
 	// "Context" will always be the default context, since we don't implement parallel execution.
-	// D3D11 uses an immediate context, there's nothing to do here. Executed commands will have already reached the driver.
+	check(Args.Context == this);
 
-	// Returning nullptr indicates that we don't want RHISubmitCommandLists to be called.
+	// Reset some context state
+	for (int32 Frequency = 0; Frequency < SF_NumStandardFrequencies; ++Frequency)
+	{
+		DirtyUniformBuffers[Frequency] = 0;
+
+		for (int32 BindIndex = 0; BindIndex < MAX_UNIFORM_BUFFERS_PER_SHADER_STAGE; ++BindIndex)
+		{
+			BoundUniformBuffers[Frequency][BindIndex] = nullptr;
+		}
+	}
+
 	return nullptr;
 }
 
-void FD3D11DynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FD3D11DynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
+	// Attempt to readback completed queries
+	PollQueryResults();
 }
 
 void FD3D11DynamicRHI::EnableUAVOverlap()

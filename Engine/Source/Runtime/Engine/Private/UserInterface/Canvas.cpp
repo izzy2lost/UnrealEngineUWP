@@ -859,8 +859,6 @@ void FCanvas::Flush_GameThread(bool bForce)
 	};
 	// sort the array of FCanvasSortElement entries so that higher sort keys render first (back-to-front)
 	SortedElements.Sort(FCompareFCanvasSortElement());
-	
-	bool bEmitCanvasDrawEvents = GetEmitDrawEvents();
 
 	// Only create these render commands if we actually have something to draw.
 	if(SortedElements.Num() > 0 && !GUsingNullRHI)

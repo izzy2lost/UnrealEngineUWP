@@ -51,7 +51,7 @@ static TAutoConsoleVariable<int32> GProfileGPUShowEvents(
 	TEXT("Allows profileGPU to display event-only leaf nodes with no draws associated."),
 	ECVF_Default);
 
-static TAutoConsoleVariable<int32> GProfileGPUTransitions(
+RHI_API TAutoConsoleVariable<int32> GProfileGPUTransitions(
 	TEXT("r.ProfileGPU.ShowTransitions"),
 	0,
 	TEXT("Allows profileGPU to display resource transition events."),
@@ -608,6 +608,10 @@ void FGPUProfilerEventNodeFrame::DumpEventTree()
 		}
 #endif
 	}
+
+#if WITH_PROFILEGPU
+	GRHIGlobals.GPUProfile_ForceNoParallelTranslate = false;
+#endif
 }
 
 void FGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)

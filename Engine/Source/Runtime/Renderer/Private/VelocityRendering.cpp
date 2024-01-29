@@ -55,11 +55,6 @@ static TAutoConsoleVariable<int32> CVarParallelVelocity(
 	ECVF_RenderThreadSafe
 	);
 
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksVelocityPass(
-	TEXT("r.RHICmdFlushRenderThreadTasksVelocityPass"),
-	0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of the velocity pass.  A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksVelocityPass is > 0 we will flush."));
-
 DECLARE_GPU_DRAWCALL_STAT_NAMED(RenderVelocities, TEXT("Render Velocities"));
 
 /** Validate that deprecated CVars are no longer set. */
@@ -173,8 +168,6 @@ EMeshPass::Type GetMeshPassFromVelocityPass(EVelocityPass VelocityPass)
 	return EMeshPass::Velocity;
 }
 
-DECLARE_CYCLE_STAT(TEXT("Velocity"), STAT_CLP_Velocity, STATGROUP_ParallelCommandListMarkers);
-
 bool FDeferredShadingSceneRenderer::ShouldRenderVelocities() const
 {
 	if (!FVelocityRendering::IsVelocityPassSupported(ShaderPlatform) || ViewFamily.UseDebugViewPS())
@@ -267,7 +260,6 @@ void FSceneRenderer::RenderVelocities(
 		: ERenderTargetLoadAction::EClear;
 
 	RDG_GPU_STAT_SCOPE(GraphBuilder, RenderVelocities);
-	RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, FVelocityRendering::IsVelocityWaitForTasksEnabled(ShaderPlatform));
 
 	const EMeshPass::Type MeshPass = GetMeshPassFromVelocityPass(VelocityPass);
 	FExclusiveDepthStencil ExclusiveDepthStencil = (VelocityPass == EVelocityPass::Opaque && !(Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity))
@@ -333,7 +325,7 @@ void FSceneRenderer::RenderVelocities(
 					ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 					[this, &View, &ParallelMeshPass, VelocityPass, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_Velocity), View, FParallelCommandListBindings(PassParameters));
+					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 					ParallelMeshPass.DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 			}
@@ -424,11 +416,6 @@ bool FVelocityRendering::IsParallelVelocity(EShaderPlatform ShaderPlatform)
 	return GRHICommandList.UseParallelAlgorithms() && CVarParallelVelocity.GetValueOnRenderThread()
 		// Parallel dispatch is not supported on mobile platform
 		&& !IsMobilePlatform(ShaderPlatform);
-}
-
-bool FVelocityRendering::IsVelocityWaitForTasksEnabled(EShaderPlatform ShaderPlatform)
-{
-	return FVelocityRendering::IsParallelVelocity(ShaderPlatform) && (CVarRHICmdFlushRenderThreadTasksVelocityPass.GetValueOnRenderThread() > 0 || CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() > 0);
 }
 
 bool FVelocityMeshProcessor::PrimitiveHasVelocityForView(const FViewInfo& View, const FPrimitiveSceneProxy* PrimitiveSceneProxy)

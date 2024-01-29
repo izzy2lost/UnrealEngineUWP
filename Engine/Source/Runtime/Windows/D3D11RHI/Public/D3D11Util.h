@@ -269,7 +269,7 @@ inline bool ShouldNotEnqueueRHICommand()
 struct FScopedD3D11RHIThreadStaller : public FScopedRHIThreadStaller
 {
 	FScopedD3D11RHIThreadStaller(bool bDoStall = true)
-		: FScopedRHIThreadStaller(FRHICommandListExecutor::GetImmediateCommandList(), bDoStall && IsInRenderingThread() && GRHICommandList.IsRHIThreadActive())
+		: FScopedRHIThreadStaller(FRHICommandListExecutor::GetImmediateCommandList(), bDoStall && IsInRenderingThread() && GRHICommandList.AreRHITasksActive())
 	{
 	}
 };

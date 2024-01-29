@@ -36,8 +36,9 @@ struct FResolveTextureInfo
 RHICORE_API void ResolveRenderPassTargets(const FRHIRenderPassInfo& Info, TFunction<void(FResolveTextureInfo)> Function);
 RHICORE_API FRHIViewDesc::EDimension AdjustViewInfoDimensionForNarrowing(const FRHIViewDesc::FTexture::FViewInfo& ViewInfo, const FRHITextureDesc& TextureDesc);
 
-} //! UE::RHICore
+RHICORE_API bool AllowVendorDevice();
 
+} //! UE::RHICore
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "RHI.h"
 #include "RHIContext.h"

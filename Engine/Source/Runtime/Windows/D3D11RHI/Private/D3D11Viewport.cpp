@@ -257,7 +257,6 @@ void FD3D11Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 
 	// Flush the outstanding GPU work and wait for it to complete.
 	FlushRenderingCommands();
-	FRHICommandListExecutor::CheckNoOutstandingCmdLists();
 
 	// Make sure we use a format the current device supports.
 	PreferredPixelFormat = D3DRHI->GetDisplayFormat(PreferredPixelFormat);
@@ -380,7 +379,11 @@ bool FD3D11Viewport::PresentChecked(int32 SyncInterval)
 			{
 				Flags |= DXGI_PRESENT_ALLOW_TEARING;
 			}
-			Result = SwapChain->Present(SyncInterval, Flags);
+
+			{
+				FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUPresent);
+				Result = SwapChain->Present(SyncInterval, Flags);
+			}
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 			extern int32 GLogDX11RTRebinds;

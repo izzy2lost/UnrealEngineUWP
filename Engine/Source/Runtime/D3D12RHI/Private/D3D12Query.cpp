@@ -400,16 +400,6 @@ void FD3D12BufferedGPUTiming::CalibrateTimers(FD3D12Adapter* ParentAdapter)
 	}
 }
 
-void FD3D12DynamicRHI::RHICalibrateTimers()
-{
-	check(IsInRenderingThread());
-
-	FScopedRHIThreadStaller StallRHIThread(FRHICommandListExecutor::GetImmediateCommandList());
-
-	FD3D12Adapter& Adapter = GetAdapter();
-	FD3D12BufferedGPUTiming::CalibrateTimers(&Adapter);
-}
-
 /**
  * Start a GPU timing measurement.
  */

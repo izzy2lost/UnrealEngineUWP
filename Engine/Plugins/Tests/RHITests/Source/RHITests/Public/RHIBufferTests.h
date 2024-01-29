@@ -28,7 +28,7 @@ private:
 
 		while (NumTestsLaunched < NumTests)
 		{
-			FRHICommandList* RHICmdListUpload = new FRHICommandList(FRHIGPUMask::All(), FRHICommandList::ERecordingThread::Any);
+			FRHICommandList* RHICmdListUpload = new FRHICommandList();
 
 			const int32 NumTestsInTask = FMath::Min(NumTestsPerTask, NumTests - NumTestsLaunched);
 

@@ -268,9 +268,6 @@ struct FGenericPlatformProcess
 	/** Allow the platform to do anything it needs for render thread */
 	static void SetupRenderThread() { }
 
-	/** Allow the platform to do anything it needs for the RHI thread */
-	static void SetupRHIThread() { }
-
 	/** Allow the platform to do anything it needs for audio thread */
 	static void SetupAudioThread() { }
 
@@ -725,9 +722,6 @@ struct FGenericPlatformProcess
 	 * @return true if the platform can use multiple threads, false otherwise.
 	 */
 	static CORE_API bool SupportsMultithreading();
-	
-	/** Enables Real Time Mode on the current thread. */
-	static void SetRealTimeMode() { }
 
 	/**
 	 * Creates or opens an interprocess synchronization object.

@@ -1582,21 +1582,25 @@ public:
 		checkSlow(RHICmdList.IsInsideRenderPass());
 
 		// check for the multithreaded shader creation has been moved to FShaderCodeArchive::CreateShader() 
+		{
+			SCOPED_DRAW_EVENTF(RHICmdList, ParallelDraw, TEXT("ParallelDraw (Index: %d, Num: %d)"), TaskIndex, TaskNum);
 
-		// Recompute draw range.
-		const int32 DrawNum = VisibleMeshDrawCommands.Num();
-		const int32 NumDrawsPerTask = TaskIndex < DrawNum ? FMath::DivideAndRoundUp(DrawNum, TaskNum) : 0;
-		const int32 StartIndex = TaskIndex * NumDrawsPerTask;
-		const int32 NumDraws = FMath::Min(NumDrawsPerTask, DrawNum - StartIndex);
+			// Recompute draw range.
+			const int32 DrawNum = VisibleMeshDrawCommands.Num();
+			const int32 NumDrawsPerTask = TaskIndex < DrawNum ? FMath::DivideAndRoundUp(DrawNum, TaskNum) : 0;
+			const int32 StartIndex = TaskIndex * NumDrawsPerTask;
+			const int32 NumDraws = FMath::Min(NumDrawsPerTask, DrawNum - StartIndex);
 
-		InstanceCullingContext.SubmitDrawCommands(
-			VisibleMeshDrawCommands,
-			GraphicsMinimalPipelineStateSet,
-			OverrideArgs,
-			StartIndex,
-			NumDraws,
-			InstanceFactor,
-			RHICmdList);
+			InstanceCullingContext.SubmitDrawCommands(
+				VisibleMeshDrawCommands,
+				GraphicsMinimalPipelineStateSet,
+				OverrideArgs,
+				StartIndex,
+				NumDraws,
+				InstanceFactor,
+				RHICmdList);
+		}
+
 		RHICmdList.EndRenderPass();
 		RHICmdList.FinishRecording();
 	}

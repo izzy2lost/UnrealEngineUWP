@@ -37,14 +37,27 @@ enum class EClearBinding;
 
 typedef TArray<FGraphEventRef, TInlineAllocator<4> > FGraphEventArray;
 
-
 /** The base type of RHI resources. */
 class FRHIResource
 {
 public:
 	RHI_API FRHIResource(ERHIResourceType InResourceType);
+
+protected:
+	// RHI resources should only be destructed via the deletion queue,
+	// so this is protected to prevent others from 'delete'ing these directly.
 	RHI_API virtual ~FRHIResource();
 
+private:
+	// Separate function to avoid force inlining this everywhere. Helps both for code size and performance.
+	RHI_API void MarkForDelete() const;
+
+	friend class FDynamicRHI;
+	friend class FRHICommandListExecutor;
+	static RHI_API void DeleteResources(TArray<FRHIResource*> const& Resources);
+	static RHI_API void GatherResourcesToDelete(TArray<FRHIResource*>& OutResources, bool bIncludeExtendedLifetimeResources);
+
+public:
 	FORCEINLINE_DEBUGGABLE uint32 AddRef() const
 	{
 		int32 NewValue = AtomicFlags.AddRef(std::memory_order_acquire);
@@ -52,11 +65,6 @@ public:
 		return uint32(NewValue);
 	}
 
-private:
-	// Separate function to avoid force inlining this everywhere. Helps both for code size and performance.
-	RHI_API void Destroy() const;
-
-public:
 	FORCEINLINE_DEBUGGABLE uint32 Release() const
 	{
 		int32 NewValue = AtomicFlags.Release(std::memory_order_release);
@@ -64,7 +72,7 @@ public:
 
 		if (NewValue == 0)
 		{
-			Destroy();
+			MarkForDelete();
 		}
 		checkSlow(NewValue >= 0);
 		return uint32(NewValue);
@@ -78,20 +86,14 @@ public:
 	}
 
 	UE_DEPRECATED(5.3, "FlushPendingDeletes is deprecated, please use FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources)")
-	RHI_API static int32 FlushPendingDeletes(FRHICommandListImmediate& RHICmdList);
+	static inline int32 FlushPendingDeletes(FRHICommandListImmediate& RHICmdList) { return 0; }
 
+	UE_DEPRECATED(5.4, "Don't call Bypass() on an FRHIResource. Use the Bypass() function on an FRHICommandList instance, or the FRHICommmandListExecutor.")
 	RHI_API static bool Bypass();
 
 	bool IsValid() const
 	{
 		return AtomicFlags.IsValid(std::memory_order_relaxed);
-	}
-
-	void Delete()
-	{
-		verify(!AtomicFlags.MarkForDelete(std::memory_order_acquire));
-		CurrentlyDeleting = this;
-		delete this;
 	}
 
 	void DisableLifetimeExtension()
@@ -160,7 +162,7 @@ private:
 			return OldMarkedForDelete;
 		}
 
-		bool Deleteing()
+		bool Deleting()
 		{
 			uint32 LocalPacked = Packed.load(std::memory_order_acquire);
 			check((LocalPacked & MarkedForDeleteBit) != 0);
@@ -207,7 +209,7 @@ private:
 	FName OwnerName;
 #endif
 
-	RHI_API static FRHIResource* CurrentlyDeleting;
+	static thread_local FRHIResource const* CurrentlyDeleting;
 
 	friend FRHICommandListImmediate;
 };
@@ -2799,32 +2801,6 @@ public:
 	{
 		check(ViewDesc.IsSRV());
 	}
-};
-
-/**
- * A type used only for printing a string for debugging/profiling.
- * Adds Number as a suffix to the printed string even if the base name includes a number, so may prints a string like: Base_1_1
- * This type will always store a numeric suffix explicitly inside itself and never in the name table so it will always be at least 12 bytes
- * regardless of the value of UE_FNAME_OUTLINE_NUMBER.
- * It is not comparable or convertible to other name types to encourage its use only for debugging and avoid using more storage than necessary
- * for the primary use cases of FName (names of objects, assets etc which are widely used and therefor deduped in the name table).
- */
-class FDebugName
-{
-public:
-	RHI_API FDebugName();
-	RHI_API FDebugName(FName InName);
-	RHI_API FDebugName(FName InName, int32 InNumber);
-
-	RHI_API FDebugName& operator=(FName Other);
-
-	RHI_API FString ToString() const;
-	bool IsNone() const { return Name.IsNone() && Number == NAME_NO_NUMBER_INTERNAL; }
-	RHI_API void AppendString(FStringBuilderBase& Builder) const;
-
-private:
-	FName Name;
-	uint32 Number;
 };
 
 //

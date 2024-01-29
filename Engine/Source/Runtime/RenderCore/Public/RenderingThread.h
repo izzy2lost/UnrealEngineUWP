@@ -52,7 +52,8 @@ extern RENDERCORE_API bool GIsThreadedRendering;
  */
 extern RENDERCORE_API bool GUseThreadedRendering;
 
-extern RENDERCORE_API void SetRHIThreadEnabled(bool bEnableDedicatedThread, bool bEnableRHIOnTaskThreads);
+// Global for handling the "togglerenderthread" command.
+extern RENDERCORE_API TOptional<bool> GPendingUseThreadedRendering;
 
 #if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	static FORCEINLINE void CheckNotBlockedOnRenderThread() {}
@@ -65,11 +66,14 @@ extern RENDERCORE_API void SetRHIThreadEnabled(bool bEnableDedicatedThread, bool
 #endif // #if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 
-/** Starts the rendering thread. */
-extern RENDERCORE_API void StartRenderingThread();
+// Called during engine init to setup the rendering thread.
+extern RENDERCORE_API void InitRenderingThread();
 
-/** Stops the rendering thread. */
-extern RENDERCORE_API void StopRenderingThread();
+// Called during engine shutdown to stop the rendering thread.
+extern RENDERCORE_API void ShutdownRenderingThread();
+
+// Called once per frame by the game thread to latch the latest render thread config.
+extern RENDERCORE_API void LatchRenderThreadConfiguration();
 
 /**
  * Checks if the rendering thread is healthy and running.
@@ -107,38 +111,6 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnFlushRenderingCommandsEnd);
 	static RENDERCORE_API FOnFlushRenderingCommandsEnd OnFlushRenderingCommandsEnd;
 };
-////////////////////////////////////
-// Render thread suspension
-////////////////////////////////////
-
-/**
- * Encapsulates stopping and starting the renderthread so that other threads can manipulate graphics resources.
- */
-class FSuspendRenderingThread
-{
-public:
-	/**
-	 *	Constructor that flushes and suspends the renderthread
-	 *	@param bRecreateThread	- Whether the rendering thread should be completely destroyed and recreated, or just suspended.
-	 */
-	RENDERCORE_API FSuspendRenderingThread( bool bRecreateThread );
-
-	/** Destructor that starts the renderthread again */
-	RENDERCORE_API ~FSuspendRenderingThread();
-
-private:
-	/** Whether we should use a rendering thread or not */
-	bool bUseRenderingThread;
-
-	/** Whether the rendering thread was currently running or not */
-	bool bWasRenderingThreadRunning;
-
-	/** Whether the rendering thread should be completely destroyed and recreated, or just suspended */
-	bool bRecreateThread;
-};
-
-/** Helper macro for safely flushing and suspending the rendering thread while manipulating graphics resources */
-#define SCOPED_SUSPEND_RENDERING_THREAD(bRecreateThread)	FSuspendRenderingThread SuspendRenderingThread(bRecreateThread)
 
 ////////////////////////////////////
 // Render commands
@@ -612,7 +584,7 @@ class FRHIAsyncCommandList
 {
 public:
 	FRHIAsyncCommandList(FRHIGPUMask InGPUMask = FRHIGPUMask::All())
-		: RHICmdListStack(InGPUMask, FRHICommandList::ERecordingThread::Any)
+		: RHICmdListStack(InGPUMask)
 	{}
 
 	FRHICommandList& GetCommandList()

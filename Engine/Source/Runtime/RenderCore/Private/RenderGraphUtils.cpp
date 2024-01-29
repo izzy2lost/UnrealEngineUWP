@@ -943,27 +943,6 @@ FRDGBufferRef CreateVertexBuffer(
 	return Buffer;
 }
 
-FRDGWaitForTasksScope::~FRDGWaitForTasksScope()
-{
-	if (bCondition)
-	{
-		AddPass(GraphBuilder, RDG_EVENT_NAME("WaitForTasks"), [](FRHICommandListImmediate& RHICmdList)
-		{
-			if (IsRunningRHIInSeparateThread())
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_FRDGWaitForTasksScope_WaitAsync);
-				RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
-			}
-			else
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(STAT_FRDGWaitForTasksScope_Flush);
-				CSV_SCOPED_TIMING_STAT(RHITFlushes, FRDGWaitForTasksDtor);
-				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-			}
-		});
-	}
-}
-
 void FRDGExternalAccessQueue::Submit(FRDGBuilder& GraphBuilder)
 {
 	for (FResource Resource : Resources)

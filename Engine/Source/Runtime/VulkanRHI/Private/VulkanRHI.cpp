@@ -44,10 +44,6 @@ void VulkanProfilePrint(const char* Msg)
 
 static_assert(sizeof(VkStructureType) == sizeof(int32), "ZeroVulkanStruct() assumes VkStructureType is int32!");
 
-#if NV_AFTERMATH
-bool GVulkanNVAftermathModuleLoaded = false;
-#endif
-
 TAtomic<uint64> GVulkanBufferHandleIdCounter{ 0 };
 TAtomic<uint64> GVulkanBufferViewHandleIdCounter{ 0 };
 TAtomic<uint64> GVulkanImageViewHandleIdCounter{ 0 };
@@ -115,8 +111,6 @@ static TAutoConsoleVariable<bool> CVarEnableVulkanPSOFileCacheWhenPrecachingActi
 	TEXT("false: If precaching is available (r.PSOPrecaching=1, r.Vulkan.UseChunkedPSOCache=1) then disable the PSO filecache. (default)\n")
 	TEXT("true: Allow both PSO file cache and precaching."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-bool GGPUCrashDebuggingEnabled = false;
 
 extern TAutoConsoleVariable<int32> GVulkanRayTracingCVar;
 
@@ -529,13 +523,6 @@ FVulkanDynamicRHI::FVulkanDynamicRHI()
 
 	UE_LOG(LogVulkanRHI, Display, TEXT("Built with Vulkan header version %u.%u.%u"), VK_API_VERSION_MAJOR(VK_HEADER_VERSION_COMPLETE), VK_API_VERSION_MINOR(VK_HEADER_VERSION_COMPLETE), VK_API_VERSION_PATCH(VK_HEADER_VERSION_COMPLETE));
 
-	{
-		IConsoleVariable* GPUCrashDebuggingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging"));
-		GGPUCrashDebuggingEnabled = (GPUCrashDebuggingCVar && GPUCrashDebuggingCVar->GetInt() != 0) || FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging"));
-	}
-
-
-
 	CreateInstance();
 	SelectDevice();
 }
@@ -627,15 +614,8 @@ void FVulkanDynamicRHI::Shutdown()
 		Device->CleanUpRayTracing();
 #endif // VULKAN_RHI_RAYTRACING
 
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
 		// Flush all pending deletes before destroying the device.
-		RHICmdList.FlushPendingDeletes();
-		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-
-		// And again since some might get on a pending queue
-		RHICmdList.FlushPendingDeletes();
-		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 	}
 
 	Device->Destroy();
@@ -906,7 +886,6 @@ void FVulkanDynamicRHI::InitInstance()
 		FVulkanPlatform::OverridePlatformHandlers(true);
 
 		GRHISupportsAsyncTextureCreation = false;
-		GEnableAsyncCompute = false;
 
 		Device->InitGPU();
 
@@ -1029,8 +1008,7 @@ void FVulkanDynamicRHI::InitInstance()
 			UE_LOG(LogVulkanRHI, Display, TEXT("Wave Operations have been DISABLED (missing stages=0x%x operations=0x%x)."), MissingStageFlags, MissingOperationFlags);
 		}
 
-
-		if (GGPUCrashDebuggingEnabled && !Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
+		if (UE::RHI::UseGPUCrashDebugging() && !Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
 		{
 			UE_LOG(LogVulkanRHI, Warning, TEXT("Tried to enable GPU crash debugging but no extension found! Will use local tracepoints."));
 		}
@@ -1099,8 +1077,6 @@ void FVulkanDynamicRHI::InitInstance()
 		);
 
 #endif
-
-		GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
 
 		FRenderResource::InitPreRHIResources();
 		GIsRHIInitialized = true;
@@ -1206,68 +1182,100 @@ void FVulkanCommandListContext::RHIEndFrame()
 	++FrameCounter;
 }
 
-void FVulkanCommandListContext::RHIPushEvent(const TCHAR* Name, FColor Color)
-{
-#if VULKAN_ENABLE_DRAW_MARKERS
-	if (auto CmdBeginLabel = Device->GetCmdBeginDebugLabel())
+#if WITH_RHI_BREADCRUMBS
+	void FVulkanCommandListContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
-		FTCHARToUTF8 Converter(Name);
-		VkDebugUtilsLabelEXT Label;
-		ZeroVulkanStruct(Label, VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT);
-		Label.pLabelName = Converter.Get();
-		FLinearColor LColor(Color);
-		Label.color[0] = LColor.R;
-		Label.color[1] = LColor.G;
-		Label.color[2] = LColor.B;
-		Label.color[3] = LColor.A;
-		CmdBeginLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &Label);
-	}
-#endif
+		const TCHAR* NameStr = nullptr;
+		FRHIBreadcrumb::FBuffer Buffer;
+		auto GetNameStr = [&]()
+		{
+			if (!NameStr)
+			{
+				NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+			}
+			return NameStr;
+		};
 
-#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GpuProfiler.bTrackingGPUCrashData)
+		const FColor Color = FColor::White;
+
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if VULKAN_ENABLE_DRAW_MARKERS
+			if (auto CmdBeginLabel = Device->GetCmdBeginDebugLabel())
+			{
+				FTCHARToUTF8 Converter(GetNameStr());
+				VkDebugUtilsLabelEXT Label;
+				ZeroVulkanStruct(Label, VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT);
+				Label.pLabelName = Converter.Get();
+				FLinearColor LColor(Color);
+				Label.color[0] = LColor.R;
+				Label.color[1] = LColor.G;
+				Label.color[2] = LColor.B;
+				Label.color[3] = LColor.A;
+				CmdBeginLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), &Label);
+			}
+		#endif
+
+		#if VULKAN_ENABLE_DUMP_LAYER
+			// only valid on immediate context currently.  needs to be fixed for parallel rhi execute
+			if (IsImmediate())
+			{
+				VulkanRHI::DumpLayerPushMarker(GetNameStr());
+			}
+		#endif
+		}
+		
+		if (IsImmediate())
+		{
+		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
+			if (GpuProfiler.bTrackingGPUCrashData)
+			{
+				GpuProfiler.PushMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer(), GetNameStr());
+			}
+		#endif
+			if (GpuProfiler.IsProfilingGPU())
+			{
+				GpuProfiler.PushEvent(GetNameStr(), Color);
+			}
+		}
+	}
+
+	void FVulkanCommandListContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
-		GpuProfiler.PushMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer(), Name);
+		//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
+		if (IsImmediate())
+		{
+			if (GpuProfiler.IsProfilingGPU())
+			{
+				GpuProfiler.PopEvent();
+			}
+
+		#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
+			if (GpuProfiler.bTrackingGPUCrashData)
+			{
+				GpuProfiler.PopMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer());
+			}
+		#endif
+		}
+
+		if (ShouldEmitBreadcrumbs())
+		{
+		#if VULKAN_ENABLE_DUMP_LAYER
+			if (IsImmediate())
+			{
+				VulkanRHI::DumpLayerPopMarker();
+			}
+		#endif
+
+		#if VULKAN_ENABLE_DRAW_MARKERS
+			if (auto CmdEndLabel = Device->GetCmdEndDebugLabel())
+			{
+				CmdEndLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle());
+			}
+		#endif
+		}
 	}
-#endif
-
-	//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
-	if (IsImmediate())
-	{
-#if VULKAN_ENABLE_DUMP_LAYER
-		VulkanRHI::DumpLayerPushMarker(Name);
-#endif
-
-		GpuProfiler.PushEvent(Name, Color);
-	}
-}
-
-void FVulkanCommandListContext::RHIPopEvent()
-{
-#if VULKAN_ENABLE_DRAW_MARKERS
-	if (auto CmdEndLabel = Device->GetCmdEndDebugLabel())
-	{
-		CmdEndLabel(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle());
-	}
-#endif
-
-#if VULKAN_SUPPORTS_GPU_CRASH_DUMPS
-	if (GpuProfiler.bTrackingGPUCrashData)
-	{
-		GpuProfiler.PopMarkerForCrash(GetCommandBufferManager()->GetActiveCmdBuffer()->GetHandle(), Device->GetCrashMarkerBuffer());
-	}
-#endif
-
-	//only valid on immediate context currently.  needs to be fixed for parallel rhi execute
-	if (IsImmediate())
-	{
-#if VULKAN_ENABLE_DUMP_LAYER
-		VulkanRHI::DumpLayerPopMarker();
-#endif
-
-		GpuProfiler.PopEvent();
-	}
-}
+#endif // WITH_RHI_BREADCRUMBS
 
 void FVulkanDynamicRHI::RHIGetSupportedResolution( uint32 &Width, uint32 &Height )
 {
@@ -1279,14 +1287,6 @@ bool FVulkanDynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resol
 }
 
 void FVulkanDynamicRHI::RHIFlushResources()
-{
-}
-
-void FVulkanDynamicRHI::RHIAcquireThreadOwnership()
-{
-}
-
-void FVulkanDynamicRHI::RHIReleaseThreadOwnership()
 {
 }
 
@@ -1548,20 +1548,10 @@ IRHICommandContext* FVulkanDynamicRHI::RHIGetDefaultContext()
 	return &Device->GetImmediateContext();
 }
 
-IRHIComputeContext* FVulkanDynamicRHI::RHIGetDefaultAsyncComputeContext()
-{
-	return &Device->GetImmediateComputeContext();
-}
-
 uint64 FVulkanDynamicRHI::RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat Format)
 {
 	const VkPhysicalDeviceLimits& Limits = Device->GetLimits();
 	return Limits.minTexelBufferOffsetAlignment;
-}
-
-void FVulkanDynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
-	Device->SubmitCommandsAndFlushGPU();
 }
 
 FTexture2DRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)

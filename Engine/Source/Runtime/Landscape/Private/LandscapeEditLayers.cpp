@@ -1543,7 +1543,7 @@ public:
 	void Copy(FRHICommandListImmediate& InRHICmdList)
 	{
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_CopyTexture);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Copy %s -> %s, Mip (%d -> %d), Array Index (%d -> %d)"), *Params.SourceResourceDebugName, *Params.DestResourceDebugName, Params.SourceMip, Params.DestMip, Params.SourceArrayIndex, Params.DestArrayIndex);
+		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Copy %s -> %s, Mip (%d -> %d), Array Index (%d -> %d)"), Params.SourceResourceDebugName, Params.DestResourceDebugName, Params.SourceMip, Params.DestMip, Params.SourceArrayIndex, Params.DestArrayIndex);
 
 		FIntPoint SourceSize(Params.SourceResource->GetSizeX() >> Params.SourceMip, Params.SourceResource->GetSizeY() >> Params.SourceMip);
 		FIntPoint DestSize(Params.DestResource->GetSizeX() >> Params.DestMip, Params.DestResource->GetSizeY() >> Params.DestMip);
@@ -1596,7 +1596,7 @@ public:
 	void Clear(FRHICommandListImmediate& InRHICmdList)
 	{
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_Clear);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Clear %s"), DebugName.Len() > 0 ? *DebugName : TEXT(""));
+		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Clear %s"), DebugName);
 		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayersWeightmapClear_RenderThread::Clear);
 
 		check(IsInRenderingThread());
@@ -1639,7 +1639,7 @@ public:
 	void Render(FRHICommandListImmediate& InRHICmdList, bool InClearRT)
 	{
 		SCOPED_GPU_STAT(InRHICmdList, LandscapeLayers_Render);
-		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Render %s"), DebugName.Len() > 0 ? *DebugName : TEXT(""));
+		SCOPED_DRAW_EVENTF(InRHICmdList, LandscapeLayers, TEXT("LandscapeLayers_Render %s"), DebugName);
 		INC_DWORD_STAT(STAT_LandscapeLayersRegenerateDrawCalls);
 		TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeLayersRender_RenderThread::Render);
 
@@ -2650,7 +2650,7 @@ void ALandscape::CopyTexturePS(const FString& InSourceDebugName, FTextureResourc
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_RT_CopyTexturePS);
 		SCOPED_GPU_STAT(RHICmdList, LandscapeLayers_CopyTexturePS);
-		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("LandscapeLayers_CopyTexturePS %s -> %s"), *InSourceDebugName, *InDestDebugName);
+		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("LandscapeLayers_CopyTexturePS %s -> %s"), InSourceDebugName, InDestDebugName);
 
 		check(InSourceResource->GetSizeX() == InDestResource->GetSizeX());
 		check(InSourceResource->GetSizeY() == InDestResource->GetSizeY());
@@ -2758,7 +2758,7 @@ void ALandscape::DrawWeightmapComponentsToRenderTarget(const FString& InDebugNam
 	ENQUEUE_RENDER_COMMAND(LandscapeLayers_Cmd_RenderWeightmap)(
 		[LayersRender, InDebugName, InDrawType, InClearRTWrite](FRHICommandListImmediate& RHICmdList) mutable
 	{
-		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("DrawWeightmapComponentsToRenderTarget %s (%s)"), *InDebugName, *StaticEnum<EWeightmapRTType>()->GetDisplayValueAsText(InDrawType).ToString());
+		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("DrawWeightmapComponentsToRenderTarget %s (%s)"), InDebugName, StaticEnum<EWeightmapRTType>()->GetDisplayValueAsText(InDrawType).ToString());
 		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_RT_RenderWeightmap);
 		LayersRender.Render(RHICmdList, InClearRTWrite);
 	});
@@ -2939,7 +2939,7 @@ void ALandscape::DrawHeightmapComponentsToRenderTarget(const FString& InDebugNam
 	ENQUEUE_RENDER_COMMAND(LandscapeLayers_Cmd_RenderHeightmap)(
 		[LayersRender, InDebugName, InDrawType, InClearRTWrite](FRHICommandListImmediate& RHICmdList) mutable
 	{
-		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("DrawHeightmapComponentsToRenderTarget %s (%s)"), *InDebugName, *StaticEnum<EHeightmapRTType>()->GetDisplayValueAsText(InDrawType).ToString());
+		SCOPED_DRAW_EVENTF(RHICmdList, LandscapeLayers, TEXT("DrawHeightmapComponentsToRenderTarget %s (%s)"), InDebugName, StaticEnum<EHeightmapRTType>()->GetDisplayValueAsText(InDrawType).ToString());
 		TRACE_CPUPROFILER_EVENT_SCOPE(LandscapeLayers_RT_RenderHeightmap);
 		LayersRender.Render(RHICmdList, InClearRTWrite);
 	});
@@ -7228,8 +7228,7 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 					int32 LayerIndex = LayerInfoObject.Value;
 					ULandscapeLayerInfoObject* LayerInfoObj = LayerInfoObject.Key;
 
-					FString ProfilingEventName = FString::Printf(TEXT("LS Weight: %s PaintLayer: %s"), *Layer.Name.ToString(), *LayerInfoObj->LayerName.ToString());
-					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, *ProfilingEventName);
+					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("LS Weight: %s PaintLayer: %s"), Layer.Name, LayerInfoObj->LayerName);
 
 					// Copy the layer we are working on
 					SourceDebugName = FString::Printf(TEXT("Weight: %s PaintLayer: %s, CurrentProcLayerWeightmapAllLayersResource"), *Layer.Name.ToString(), *LayerInfoObj->LayerName.ToString());
@@ -10189,8 +10188,10 @@ UTextureRenderTarget2D* FLandscapeLayerBrush::RenderLayer(const FIntRect& InLand
 			check(false);
 		}
 
-		FString ProfilingEventName = FString::Format(TEXT("LandscapeLayers_RenderLayerBrush {0}: {1}"), { LayerName , BlueprintBrush->GetName() });
-		SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, *ProfilingEventName);
+		SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("LandscapeLayers_RenderLayerBrush %s: %s")
+			, RHI_BREADCRUMB_FORCE_STRING_LITERAL(LayerName)
+			, BlueprintBrush->GetFName()
+		);
 
 		TGuardValue<bool> AutoRestore(GAllowActorScriptExecutionInEditor, true);
 		UTextureRenderTarget2D* Result = BlueprintBrush->RenderLayer(InParameters);

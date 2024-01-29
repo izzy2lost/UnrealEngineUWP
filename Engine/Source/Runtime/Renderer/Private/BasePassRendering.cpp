@@ -59,11 +59,6 @@ static TAutoConsoleVariable<int32> CVarVertexFoggingForOpaque(
 	TEXT("Causes opaque materials to use per-vertex fogging, which costs less and integrates properly with MSAA.  Only supported with forward shading."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksBasePass(
-	TEXT("r.RHICmdFlushRenderThreadTasksBasePass"),
-	0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of the base pass. A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksBasePass is > 0 we will flush."));
-
 static TAutoConsoleVariable<int32> CVarSupportStationarySkylight(
 	TEXT("r.SupportStationarySkylight"),
 	1,
@@ -178,19 +173,8 @@ DEFINE_GPU_DRAWCALL_STAT(Basepass);
 
 DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer ClearGBufferAtMaxZ"), STAT_FDeferredShadingSceneRenderer_ClearGBufferAtMaxZ, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer ViewExtensionPostRenderBasePass"), STAT_FDeferredShadingSceneRenderer_ViewExtensionPostRenderBasePass, STATGROUP_SceneRendering);
-DECLARE_CYCLE_STAT(TEXT("BasePass"), STAT_CLM_BasePass, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterBasePass"), STAT_CLM_AfterBasePass, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AnisotropyPass"), STAT_CLM_AnisotropyPass, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterAnisotropyPass"), STAT_CLM_AfterAnisotropyPass, STATGROUP_CommandListMarkers);
-
-DECLARE_CYCLE_STAT(TEXT("BasePass"), STAT_CLP_BasePass, STATGROUP_ParallelCommandListMarkers);
 
 DEFINE_GPU_STAT(NaniteBasePass);
-
-static bool IsBasePassWaitForTasksEnabled()
-{
-	return CVarRHICmdFlushRenderThreadTasksBasePass.GetValueOnRenderThread() > 0 || CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() > 0;
-}
 
 static bool IsStandardTranslucenyPassSeparated()
 {
@@ -1159,10 +1143,8 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 	}
 	ForwardBasePassTextures.bIs24BitUnormDepthStencil = ForwardBasePassTextures.SceneDepthIfResolved ? GPixelFormats[ForwardBasePassTextures.SceneDepthIfResolved->Desc.Format].bIs24BitUnormDepthStencil : 1;
 
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_BasePass));
 	RenderBasePassInternal(GraphBuilder, InViews, SceneTextures, BasePassRenderTargets, BasePassDepthStencilAccess, ForwardBasePassTextures, DBufferTextures, bDoParallelBasePass, bRenderLightmapDensity, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterBasePass));
-
+	
 	for (const TSharedRef<ISceneViewExtension>& ViewExtension : ViewFamily.ViewExtensions)
 	{
 		for (FViewInfo& View : InViews)
@@ -1178,9 +1160,7 @@ void FDeferredShadingSceneRenderer::RenderBasePass(
 
 	if (ShouldRenderAnisotropyPass(InViews))
 	{
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AnisotropyPass));
 		RenderAnisotropyPass(GraphBuilder, SceneTextures, bEnableParallelBasePasses);
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterAnisotropyPass));
 	}
 
 #if !(UE_BUILD_SHIPPING)
@@ -1470,8 +1450,6 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 		const bool bDrawSceneViewsInOneNanitePass = InViews.Num() > 1 && Nanite::ShouldDrawSceneViewsInOneNanitePass(InViews[0]);
 		if (bParallelBasePass)
 		{
-			RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, IsBasePassWaitForTasksEnabled());
-
 			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
 				FViewInfo& View = InViews[ViewIndex];
@@ -1502,7 +1480,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 						[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 					{
-						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_BasePass), View, FParallelCommandListBindings(PassParameters));
+						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 						View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
 					});
 				}
@@ -1534,7 +1512,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 						[this, &View, SkyPassPassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 					{
-						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_BasePass), View, FParallelCommandListBindings(SkyPassPassParameters));
+						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(SkyPassPassParameters));
 						View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &SkyPassPassParameters->InstanceCullingDrawParams);
 					});
 				}

@@ -395,7 +395,6 @@ void FD3D12Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 
 	// Flush the outstanding GPU work and wait for it to complete.
 	FlushRenderingCommands();
-	FRHICommandListExecutor::CheckNoOutstandingCmdLists();
 	Adapter->BlockUntilIdle();
 
 	// Unbind any dangling references to resources.
@@ -483,7 +482,6 @@ void FD3D12Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 
 	// Flush the outstanding GPU work and wait for it to complete.
 	FlushRenderingCommands();
-	FRHICommandListExecutor::CheckNoOutstandingCmdLists();
 	Adapter->BlockUntilIdle();
 
 	// Keep the current pixel format if one wasn't specified.
@@ -786,7 +784,7 @@ void FD3D12Viewport::IssueFrameEvent()
 		FrameSyncPoints.Emplace(MoveTemp(SyncPoint));
 	}
 
-	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(Payloads);
+	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(MoveTemp(Payloads));
 }
 
 bool FD3D12Viewport::CheckHDRSupport()
@@ -858,9 +856,6 @@ void FD3D12DynamicRHI::RHITick(float DeltaTime)
 
 void FD3D12CommandContextBase::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
 {
-	ensure(!bDrawingViewport);
-	bDrawingViewport = true;
-
 	FD3D12Viewport* Viewport = FD3D12DynamicRHI::ResourceCast(ViewportRHI);
 
 	SCOPE_CYCLE_COUNTER(STAT_D3D12PresentTime);
@@ -897,9 +892,6 @@ void FD3D12CommandContextBase::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI
 void FD3D12CommandContextBase::RHIEndDrawingViewport(FRHIViewport* ViewportRHI, bool bPresent, bool bLockToVsync)
 {
 	FD3D12Viewport* Viewport = FD3D12DynamicRHI::ResourceCast(ViewportRHI);
-
-	ensure(bDrawingViewport);
-	bDrawingViewport = false;
 
 #if !UE_BUILD_SHIPPING
 	if (RHIConsoleVariables::LogViewportEvents)

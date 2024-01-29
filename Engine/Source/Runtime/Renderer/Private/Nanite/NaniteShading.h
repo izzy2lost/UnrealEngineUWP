@@ -10,8 +10,6 @@
 
 struct FNaniteShadingCommands;
 
-DECLARE_CYCLE_STAT_EXTERN(TEXT("NaniteBasePass]"), STAT_CLP_NaniteBasePass, STATGROUP_ParallelCommandListMarkers, );
-
 namespace Nanite
 {
 

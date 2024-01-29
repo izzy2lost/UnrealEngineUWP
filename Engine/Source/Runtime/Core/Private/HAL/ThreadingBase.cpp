@@ -239,8 +239,6 @@ CORE_API bool IsInAudioThread()
 	return (GIsAudioThreadRunning.load(std::memory_order_acquire) && !GIsAudioThreadSuspended.load(std::memory_order_acquire)) ? GAudioPipe.IsInContext() : IsInGameThread();
 }
 
-CORE_API TAtomic<int32> GIsRenderingThreadSuspended(0);
-
 CORE_API FRunnableThread* GRenderingThread = nullptr;
 
 CORE_API bool IsInActualRenderingThread()
@@ -262,9 +260,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 CORE_API bool IsInRenderingThread()
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const bool bLocalIsLoadingThreadSuspended = GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) != 0;
-
-	bool newValue = (GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended
+	bool newValue = (GRenderThreadId == 0)
 		? FTaskTagScope::IsCurrentTag(ETaskTag::EGameThread) || FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread) || FTaskTagScope::IsRunningDuringStaticInit()
 		: FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread);
 
@@ -274,8 +270,8 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
-		bool oldValue = ((GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended) ? (CurrentThreadId == GGameThreadId) || FTaskTagScope::IsRunningDuringStaticInit() : (CurrentThreadId == GRenderThreadId);
-		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x), GIsRenderingThreadSuspended(%d)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread, bLocalIsLoadingThreadSuspended);
+		bool oldValue = (GRenderThreadId == 0) ? (CurrentThreadId == GGameThreadId) || FTaskTagScope::IsRunningDuringStaticInit() : (CurrentThreadId == GRenderThreadId);
+		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread);
 		newValue = oldValue;
 	}
 #endif
@@ -286,10 +282,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 CORE_API bool IsInParallelRenderingThread()
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const bool bLocalIsLoadingThreadSuspended = GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) != 0;
-
 	bool newValue = false;
-	if ((GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended)
+	if (GRenderThreadId == 0)
 	{
 		newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ERenderingThread) || FTaskTagScope::IsCurrentTag(ETaskTag::EGameThread) || FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRenderingThread);
 	}
@@ -307,8 +301,8 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		!UE::Tasks::Private::IsThreadRetractingTask())
 	{
 		const uint32 CurrentThreadId = FPlatformTLS::GetCurrentThreadId();
-		bool oldValue = ((GRenderThreadId == 0) || bLocalIsLoadingThreadSuspended) ?  true : CurrentThreadId != GGameThreadId;
-		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::EParallelRenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x), GIsRenderingThreadSuspended(%d)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread, bLocalIsLoadingThreadSuspended);
+		bool oldValue = (GRenderThreadId == 0) ?  true : CurrentThreadId != GGameThreadId;
+		ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::EParallelRenderingThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x), GRenderingThread(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag(), GRenderingThread);
 		newValue = oldValue;
 	}
 #endif
@@ -316,32 +310,18 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-CORE_API uint32 GRHIThreadId = 0;
-CORE_API FRunnableThread* GRHIThread_InternalUseOnly = nullptr;
+CORE_API bool GIsRunningRHIInSeparateThread_InternalUseOnly  = false;
+CORE_API bool GIsRunningRHIInDedicatedThread_InternalUseOnly = false;
+CORE_API bool GIsRunningRHIInTaskThread_InternalUseOnly      = false;
 
 CORE_API bool IsRHIThreadRunning()
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return GRHIThreadId != 0;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	return GIsRunningRHIInDedicatedThread_InternalUseOnly;
 }
 
 CORE_API bool IsInRHIThread()
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	bool newValue = FTaskTagScope::IsCurrentTag(ETaskTag::ERhiThread);
-#if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
-	bool oldValue = GRHIThreadId && FPlatformTLS::GetCurrentThreadId() == GRHIThreadId;	
-	ensureMsgf(oldValue == newValue, TEXT("oldValue(%i) newValue(%i) If this check fails make sure that there is a FTaskTagScope(ETaskTag::ERhiThread) as deep as possible on the current callstack, you can see the current value in ActiveNamedThreads(%x)"), oldValue, newValue, FTaskTagScope::GetCurrentTag());
-	newValue = oldValue;
-#endif
-	return newValue;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-CORE_API bool IsInParallelRHIThread()
-{
-	return FTaskTagScope::IsCurrentTag(ETaskTag::EParallelRhiThread);
+	return FTaskTagScope::IsCurrentTag(ETaskTag::ERhiThread);
 }
 // Fake threads
 

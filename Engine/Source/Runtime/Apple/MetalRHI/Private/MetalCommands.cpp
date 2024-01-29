@@ -475,7 +475,7 @@ void FMetalRHICommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 Nu
     
 	SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
 		
-	uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+	EPrimitiveType PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
 	//checkf(NumInstances == 1, TEXT("Currently only 1 instance is supported"));
 	
 	NumInstances = FMath::Max(NumInstances,1u);
@@ -496,7 +496,7 @@ void FMetalRHICommandContext::RHIDrawPrimitiveIndirect(FRHIBuffer* ArgumentBuffe
     if (GetMetalDeviceContext().SupportsFeature(EMetalFeaturesIndirectBuffer))
     {
         SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
-        uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+        EPrimitiveType PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
         
         
         RHI_DRAW_CALL_STATS(PrimitiveType,1);
@@ -519,7 +519,7 @@ void FMetalRHICommandContext::RHIDrawIndexedPrimitive(FRHIBuffer* IndexBufferRHI
 	//checkf(NumInstances == 1, TEXT("Currently only 1 instance is supported"));
 	checkf(GRHISupportsBaseVertexIndex || BaseVertexIndex == 0, TEXT("BaseVertexIndex must be 0, see GRHISupportsBaseVertexIndex"));
 	checkf(GRHISupportsFirstInstance || FirstInstance == 0, TEXT("FirstInstance must be 0, see GRHISupportsFirstInstance"));
-	uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+	EPrimitiveType PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
 	
 		
 	RHI_DRAW_CALL_STATS(PrimitiveType,FMath::Max(NumInstances,1u)*NumPrimitives);
@@ -536,7 +536,7 @@ void FMetalRHICommandContext::RHIDrawIndexedIndirect(FRHIBuffer* IndexBufferRHI,
 	{
 		SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
 		
-		uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+		EPrimitiveType PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
 		
 
 		RHI_DRAW_CALL_STATS(PrimitiveType,1);
@@ -559,7 +559,7 @@ void FMetalRHICommandContext::RHIDrawIndexedPrimitiveIndirect(FRHIBuffer* IndexB
 	{
 		SCOPE_CYCLE_COUNTER(STAT_MetalDrawCallTime);
 		
-		uint32 PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
+		EPrimitiveType PrimitiveType = Context->GetCurrentState().GetPrimitiveType();
 		
 
 		RHI_DRAW_CALL_STATS(PrimitiveType,1);
@@ -582,12 +582,6 @@ void FMetalRHICommandContext::RHIClearMRT(bool bClearColor,int32 NumClearColors,
 void FMetalRHICommandContext::RHISetDepthBounds(float MinDepth, float MaxDepth)
 {
 	METAL_IGNORED(FMetalRHICommandContextSetDepthBounds);
-}
-
-void FMetalRHICommandContext::RHISubmitCommandsHint()
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-    Context->SubmitCommandsHint();
 }
 
 void FMetalRHICommandContext::RHIDiscardRenderTargets(bool Depth, bool Stencil, uint32 ColorBitMask)

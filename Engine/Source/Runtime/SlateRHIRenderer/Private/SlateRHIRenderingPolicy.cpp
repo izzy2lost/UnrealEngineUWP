@@ -57,11 +57,11 @@ static FAutoConsoleVariableRef CVarSlateDrawBatchNum(TEXT("Slate.DrawBatchNum"),
 #endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	#define SLATE_DRAW_EVENT(RHICmdList, EventName) SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, EventName, SlateEnableDrawEvents);
-	#define SLATE_DRAW_EVENTF(RHICmdList, EventName, Format, ...) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventName, SlateEnableDrawEvents, Format, ##__VA_ARGS__);
+	#define SLATE_DRAW_EVENT( RHICmdList, EventName             ) SCOPED_CONDITIONAL_DRAW_EVENT( RHICmdList, EventName, (SlateEnableDrawEvents != 0));
+	#define SLATE_DRAW_EVENTF(RHICmdList, EventName, Format, ...) SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, EventName, (SlateEnableDrawEvents != 0), Format, ##__VA_ARGS__);
 #else
-	#define SLATE_DRAW_EVENT(RHICmdList, EventName)
-	#define SLATE_DRAW_EVENTF(RHICmdList, EventName, Format, ...);
+	#define SLATE_DRAW_EVENT( RHICmdList, EventName             )
+	#define SLATE_DRAW_EVENTF(RHICmdList, EventName, Format, ...)
 #endif
 
 TAutoConsoleVariable<int32> CVarSlateAbsoluteIndices(
@@ -1111,7 +1111,7 @@ void FSlateRHIRenderingPolicy::DrawElements(
 				FSlateMaterialResource* MaterialShaderResource = (FSlateMaterialResource*)ShaderResource;
 				if (const FMaterialRenderProxy* MaterialRenderProxy = MaterialShaderResource->GetRenderProxy())
 				{
-					SLATE_DRAW_EVENTF(RHICmdList, MaterialBatch, TEXT("Slate Material: %s"), *MaterialRenderProxy->GetMaterialName());
+					SLATE_DRAW_EVENTF(RHICmdList, MaterialBatch, TEXT("Slate Material: %s"), MaterialRenderProxy->GetMaterialName());
 
 					MaterialShaderResource->CheckForStaleResources();
 

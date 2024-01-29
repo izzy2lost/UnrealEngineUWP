@@ -163,13 +163,7 @@ static void DrawUVDisplacementToRenderTarget_RenderThread(
 {
 	check(IsInRenderingThread());
 
-#if WANTS_DRAW_MESH_EVENTS
-	FString EventName;
-	TextureRenderTargetName.ToString(EventName);
-	SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("LensDistortionDisplacementGeneration %s"), *EventName);
-#else
-	SCOPED_DRAW_EVENT(RHICmdList, DrawUVDisplacementToRenderTarget_RenderThread);
-#endif
+	SCOPED_DRAW_EVENTF(RHICmdList, SceneCapture, TEXT("LensDistortionDisplacementGeneration %s"), TextureRenderTargetName);
 
 	FRHITexture2D* RenderTargetTexture = OutTextureRenderTargetResource->GetRenderTargetTexture();
 

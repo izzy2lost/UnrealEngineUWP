@@ -874,17 +874,6 @@ void FVulkanCommandListContext::PrepareForCPURead()
 	}
 }
 
-void FVulkanCommandListContext::RHISubmitCommandsHint()
-{
-	RequestSubmitCurrentCommands();
-	FVulkanCmdBuffer* CmdBuffer = CommandBufferManager->GetActiveCmdBuffer();
-	if (CmdBuffer && CmdBuffer->HasBegun() && CmdBuffer->IsOutsideRenderPass())
-	{
-		SafePointSubmit();
-	}
-	CommandBufferManager->RefreshFenceStatus();
-}
-
 void FVulkanCommandListContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI, FRHIStagingBuffer* StagingBufferRHI, uint32 Offset, uint32 NumBytes)
 {
 	FVulkanCmdBuffer* CmdBuffer = CommandBufferManager->GetActiveCmdBuffer();
@@ -965,26 +954,33 @@ IRHIComputeContext* FVulkanDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipelin
 	return CmdContext;
 }
 
-IRHIPlatformCommandList* FVulkanDynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+IRHIPlatformCommandList* FVulkanDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
 {
 	FVulkanPlatformCommandList* PlatformCmdList = new FVulkanPlatformCommandList();
-	PlatformCmdList->CmdContext = static_cast<FVulkanCommandListContext*>(Context);
+	PlatformCmdList->CmdContext = static_cast<FVulkanCommandListContext*>(Args.Context);
 	return PlatformCmdList;
 }
 
-void FVulkanDynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FVulkanDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
-	for (IRHIPlatformCommandList* Ptr : CommandLists)
+	for (IRHIPlatformCommandList* Ptr : Args.CommandLists)
 	{
 		FVulkanPlatformCommandList* PlatformCmdList = ResourceCast(Ptr);
 
+		FVulkanCommandBufferManager* CmdBufMgr = PlatformCmdList->CmdContext->GetCommandBufferManager();
+
 		if (PlatformCmdList->CmdContext->IsImmediate())
 		{
-			PlatformCmdList->CmdContext->RHISubmitCommandsHint();
+			PlatformCmdList->CmdContext->RequestSubmitCurrentCommands();
+			FVulkanCmdBuffer* CmdBuffer = CmdBufMgr->GetActiveCmdBuffer();
+			if (CmdBuffer && CmdBuffer->HasBegun() && CmdBuffer->IsOutsideRenderPass())
+			{
+				PlatformCmdList->CmdContext->SafePointSubmit();
+			}
+			CmdBufMgr->RefreshFenceStatus();
 		}
 		else
 		{
-			FVulkanCommandBufferManager* CmdBufMgr = PlatformCmdList->CmdContext->GetCommandBufferManager();
 			check(!CmdBufMgr->HasPendingUploadCmdBuffer());  // todo-jn
 			FVulkanCmdBuffer* CmdBuffer = CmdBufMgr->GetActiveCmdBuffer();
 			check(!CmdBuffer->IsInsideRenderPass());

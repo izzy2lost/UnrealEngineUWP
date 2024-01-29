@@ -480,21 +480,7 @@ void FD3D12StateCache::ApplyState(ERHIPipeline HardwarePipe, ED3D12PipelineType 
 
 	if (bRootSignatureChanged)
 	{
-		const int8 DiagnosticBufferSlot = PSOCommonData->RootSignature->GetDiagnosticBufferSlot();
-		const FD3D12Queue& Queue = GetParentDevice()->GetQueue(CmdContext.QueueType);
-		const D3D12_GPU_VIRTUAL_ADDRESS DiagnosticBufferAddress = Queue.GetDiagnosticBufferGPUAddress();
-
-		if (DiagnosticBufferSlot >= 0 && DiagnosticBufferAddress)
-		{
-			if (PipelineType == ED3D12PipelineType::Compute)
-			{
-				CmdContext.GraphicsCommandList()->SetComputeRootUnorderedAccessView(DiagnosticBufferSlot, DiagnosticBufferAddress);
-			}
-			else
-			{
-				CmdContext.GraphicsCommandList()->SetGraphicsRootUnorderedAccessView(DiagnosticBufferSlot, DiagnosticBufferAddress);
-			}
-		}
+		CmdContext.BindDiagnosticBuffer(PSOCommonData->RootSignature, PipelineType);
 	}
 
 	// Need to cache compute budget, as we need to reset after PSO changes

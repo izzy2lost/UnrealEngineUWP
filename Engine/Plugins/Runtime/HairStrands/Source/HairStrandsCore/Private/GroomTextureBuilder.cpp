@@ -933,12 +933,6 @@ static void InternalGenerateHairStrandsTextures(
 			if (OutputResolution.X < TileSize)
 			{
 				RHICmdList.DrawIndexedPrimitive(InMeshIndexBuffer, VertexBaseIndex, 0, VertexCount, IndexBaseIndex, PrimitiveCount, 1);
-
-				// Flush, to ensure that all texture generation is done (TDR)
-				#if 0
-				GDynamicRHI->RHISubmitCommandsAndFlushGPU();
-				GDynamicRHI->RHIBlockUntilGPUIdle();
-				#endif
 			}
 			else
 			{
@@ -946,12 +940,6 @@ static void InternalGenerateHairStrandsTextures(
 				const uint32 OffsetY = OutTileCoord.Y * TileSize;
 				RHICmdList.SetScissorRect(true, OffsetX, OffsetY, OffsetX + TileSize, OffsetY + TileSize);
 				RHICmdList.DrawIndexedPrimitive(InMeshIndexBuffer, VertexBaseIndex, 0, VertexCount, IndexBaseIndex, PrimitiveCount, 1);
-
-				// Flush, to ensure that all texture generation is done (TDR)
-				#if 0
-				GDynamicRHI->RHISubmitCommandsAndFlushGPU();
-				GDynamicRHI->RHIBlockUntilGPUIdle();
-				#endif
 			}
 		});
 }

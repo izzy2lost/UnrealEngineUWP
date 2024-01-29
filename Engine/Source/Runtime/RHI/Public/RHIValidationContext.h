@@ -96,6 +96,12 @@ public:
 		return *RHIContext;
 	}
 
+	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList) override final
+	{
+		IRHIComputeContext::SetExecutingCommandList(InCmdList);
+		RHIContext->SetExecutingCommandList(InCmdList);
+	}
+
 	virtual void RHISetComputePipelineState(FRHIComputePipelineState* ComputePipelineState) override final
 	{
 		State.bComputePSOSet = true;
@@ -145,7 +151,7 @@ public:
 
 		for (const FRHITransition* Transition : Transitions)
 		{
-			Tracker->AddOps(Transition->PendingSignals);
+			Tracker->AddOps(Transition->PendingSignals[GetPipeline()]);
 		}
 
 		RHIContext->RHIBeginTransitions(Transitions);
@@ -155,7 +161,7 @@ public:
 	{
 		for (const FRHITransition* Transition : Transitions)
 		{
-			Tracker->AddOps(Transition->PendingWaits);
+			Tracker->AddOps(Transition->PendingWaits[GetPipeline()]);
 		}
 
 		for (const FRHITransition* Transition : Transitions)
@@ -258,12 +264,6 @@ public:
 		RHIContext->RHIEndUAVOverlap(UAVs);
 	}
 
-	virtual void RHISubmitCommandsHint() override final
-	{
-		RHIValidation::FTracker::ReplayOpQueue(ERHIPipeline::AsyncCompute, Tracker->Finalize());
-		RHIContext->RHISubmitCommandsHint();
-	}
-
 	virtual void RHISetShaderParameters(FRHIComputeShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) final override
 	{
 		checkf(State.bComputePSOSet, TEXT("A Compute PSO has to be set to set resources into a shader!"));
@@ -286,17 +286,18 @@ public:
 		RHIContext->RHISetStaticUniformBuffers(InUniformBuffers);
 	}
 
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) override final
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
-		Tracker->PushBreadcrumb(Name);
-		RHIContext->RHIPushEvent(Name, Color);
+		Tracker->BeginBreadcrumbGPU(Breadcrumb);
+		RHIContext->RHIBeginBreadcrumbGPU(Breadcrumb);
 	}
-
-	virtual void RHIPopEvent() override final
+	virtual void RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
-		Tracker->PopBreadcrumb();
-		RHIContext->RHIPopEvent();
+		Tracker->EndBreadcrumbGPU(Breadcrumb);
+		RHIContext->RHIEndBreadcrumbGPU(Breadcrumb);
 	}
+#endif // WITH_RHI_BREADCRUMBS
 
 	virtual void RHIWriteGPUFence(FRHIGPUFence* FenceRHI) override final
 	{
@@ -407,6 +408,12 @@ public:
 	{
 		checkSlow(RHIContext);
 		return *RHIContext;
+	}
+
+	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList) override final
+	{
+		IRHICommandContext::SetExecutingCommandList(InCmdList);
+		RHIContext->SetExecutingCommandList(InCmdList);
 	}
 
 	virtual void RHISetComputePipelineState(FRHIComputePipelineState* ComputePipelineState) override final
@@ -563,7 +570,7 @@ public:
 
 		for (const FRHITransition* Transition : Transitions)
 		{
-			Tracker->AddOps(Transition->PendingSignals);
+			Tracker->AddOps(Transition->PendingSignals[GetPipeline()]);
 		}
 
 		RHIContext->RHIBeginTransitions(Transitions);
@@ -575,7 +582,7 @@ public:
 
 		for (const FRHITransition* Transition : Transitions)
 		{
-			Tracker->AddOps(Transition->PendingWaits);
+			Tracker->AddOps(Transition->PendingWaits[GetPipeline()]);
 		}
 
 		for (const FRHITransition* Transition : Transitions)
@@ -595,10 +602,6 @@ public:
 	{
 		check(Info.Resource != nullptr);
 		check(Info.Access != ERHIAccess::Unknown);
-		checkf(Type != EType::Parallel,
-			TEXT("SetTrackedAccess(%s, %s) was called from a parallel translate context. This is not allowed. This is most likely a call to RHICmdList.Transition on a command list queued for parallel dispatch."),
-			*Info.Resource->GetName().ToString(),
-			*GetRHIAccessName(Info.Access));
 
 		Tracker->SetTrackedAccess(Info.Resource->GetValidationTrackerResource(), Info.Access);
 
@@ -618,13 +621,6 @@ public:
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery) override final
 	{
 		RHIContext->RHICalibrateTimers(CalibrationQuery);
-	}
-
-	virtual void RHISubmitCommandsHint() override final
-	{
-		ensureMsgf(!State.bInsideBeginRenderPass, TEXT("Submitting inside a RenderPass is not efficient!"));
-		RHIContext->RHISubmitCommandsHint();
-		RHIValidation::FTracker::ReplayOpQueue(ERHIPipeline::Graphics, Tracker->Finalize());
 	}
 
 	// Used for OpenGL to check and see if any occlusion queries can be read back on the RHI thread. If they aren't ready when we need them, then we end up stalling.
@@ -904,17 +900,18 @@ public:
 		RHIContext->RHISetShadingRate(ShadingRate, Combiner);
 	}
 
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) override final
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) override final
 	{
-		Tracker->PushBreadcrumb(Name);
-		RHIContext->RHIPushEvent(Name, Color);
+		Tracker->BeginBreadcrumbGPU(Breadcrumb);
+		RHIContext->RHIBeginBreadcrumbGPU(Breadcrumb);
 	}
-
-	virtual void RHIPopEvent() override final
+	virtual void RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) override final
 	{
-		Tracker->PopBreadcrumb();
-		RHIContext->RHIPopEvent();
+		Tracker->EndBreadcrumbGPU(Breadcrumb);
+		RHIContext->RHIEndBreadcrumbGPU(Breadcrumb);
 	}
+#endif // WITH_RHI_BREADCRUMBS
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) override final
 	{
@@ -1157,11 +1154,6 @@ public:
 		RHIContext->RHISetRayTracingMissShader(Scene, ShaderSlotInScene, Pipeline, ShaderIndexInPipeline, NumUniformBuffers, UniformBuffers, UserData);
 	}
 
-	virtual void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID) final override
-	{
-		RHIContext->StatsSetCategory(InStats, InCategoryID);
-	}
-
 	void SetupDrawing()
 	{
 		// nothing to validate right now
@@ -1174,11 +1166,6 @@ public:
 		RHIContext = PlatformContext;
 		PlatformContext->WrappingContext = this;
 		PlatformContext->Tracker = &State.TrackerInstance;
-	}
-
-	inline void FlushValidationOps()
-	{
-		RHIValidation::FTracker::ReplayOpQueue(ERHIPipeline::Graphics, Tracker->Finalize());
 	}
 
 protected:

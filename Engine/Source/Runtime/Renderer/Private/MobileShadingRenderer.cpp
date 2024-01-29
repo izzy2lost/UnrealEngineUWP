@@ -115,20 +115,6 @@ static bool IsMobileTonemapSubpassEnabled(const FStaticShaderPlatform Platform)
 
 DECLARE_GPU_STAT_NAMED(MobileSceneRender, TEXT("Mobile Scene Render"));
 
-DECLARE_CYCLE_STAT(TEXT("SceneStart"), STAT_CLMM_SceneStart, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("SceneEnd"), STAT_CLMM_SceneEnd, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("InitViews"), STAT_CLMM_InitViews, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterInitViews"), STAT_CLMM_AfterInitViews, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Opaque"), STAT_CLMM_Opaque, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Occlusion"), STAT_CLMM_Occlusion, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Post"), STAT_CLMM_Post, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Translucency"), STAT_CLMM_Translucency, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Shadows"), STAT_CLMM_Shadows, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("SceneSimulation"), STAT_CLMM_SceneSim, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("PrePass"), STAT_CLM_MobilePrePass, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Velocity"), STAT_CLMM_Velocity, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("TranslucentVelocity"), STAT_CLMM_TranslucentVelocity, STATGROUP_CommandListMarkers);
-
 extern bool IsMobileEyeAdaptationEnabled(const FViewInfo& View);
 
 struct FMobileCustomDepthStencilUsage
@@ -828,7 +814,6 @@ void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TAr
 
 				if (bDoOcclusionQueries)
 				{
-					RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Occlusion));
 					RenderOcclusion(RHICmdList);
 				}
 			});
@@ -883,7 +868,6 @@ void FMobileSceneRenderer::RenderCustomRenderPassBasePass(FRDGBuilder& GraphBuil
 			[this, PassParameters, ViewContext, &SceneTextures](FRHICommandList& RHICmdList)
 			{
 				FViewInfo& View = *ViewContext.ViewInfo;
-				RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
 				RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 			});
 
@@ -907,8 +891,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	const ERendererOutput RendererOutput = GetRendererOutput();
 	const bool bRendererOutputFinalSceneColor = (RendererOutput == ERendererOutput::FinalSceneColor);
-
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneStart));
 
 	RDG_RHI_EVENT_SCOPE(GraphBuilder, MobileSceneRender);
 	RDG_RHI_GPU_STAT_SCOPE(GraphBuilder, MobileSceneRender);
@@ -1017,13 +999,9 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	FInitViewTaskDatas InitViewTaskDatas(VisibilityTaskData);
 
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_InitViews));
-
 	// Find the visible primitives and prepare targets and buffers for rendering
 	FInstanceCullingManager& InstanceCullingManager = *GraphBuilder.AllocObject<FInstanceCullingManager>(GetSceneUniforms(), Scene->GPUScene.IsEnabled(), GraphBuilder);
 	InitViews(GraphBuilder, SceneTexturesConfig, InstanceCullingManager, VirtualTextureUpdater.Get(), InitViewTaskDatas);
-
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_AfterInitViews));
 
 	if (bRendererOutputFinalSceneColor)
 	{
@@ -1040,8 +1018,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	GetSceneExtensionsRenderers().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
-	
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneSim));
 
 	FSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily);
 	FSceneTextures& SceneTextures = GetActiveSceneTextures();
@@ -1141,7 +1117,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 		}
 
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Shadows));
 		RenderShadowDepthMaps(GraphBuilder, nullptr, InstanceCullingManager, ExternalAccessQueue);
 		GraphBuilder.AddDispatchHint();
 
@@ -1322,17 +1297,12 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (bShouldRenderVelocities)
 		{
 			// Render the velocities of movable objects
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Velocity));
 			RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Opaque, false);
-
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_TranslucentVelocity));
 			RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Translucent, false);
 
 			SceneTextures.MobileSetupMode = EMobileSceneTextureSetupMode::All;
 			SceneTextures.MobileUniformBuffer = CreateMobileSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, SceneTextures.MobileSetupMode);
 		}
-	
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_Post));
 
 		FRendererModule& RendererModule = static_cast<FRendererModule&>(GetRendererModule());
 		RendererModule.RenderPostOpaqueExtensions(GraphBuilder, Views, SceneTextures);
@@ -1403,8 +1373,6 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	GEngine->GetPostRenderDelegateEx().Broadcast(GraphBuilder);
 	GetSceneExtensionsRenderers().PostRender(GraphBuilder);
-
-	GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLMM_SceneEnd));
 
 	OnRenderFinish(GraphBuilder, ViewFamilyTexture);
 
@@ -1593,17 +1561,14 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		}
 
 		// Depth pre-pass
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_MobilePrePass));
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
 		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
 		PostRenderBasePass(RHICmdList, View);
 		// scene depth is read only and can be fetched
 		RHICmdList.NextSubpass();
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
 		RenderDecals(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderModulatedShadowProjections(RHICmdList, ViewContext.ViewIndex, View);
 		if (GMaxRHIShaderPlatform != SP_METAL_SIM)
@@ -1616,7 +1581,6 @@ void FMobileSceneRenderer::RenderForwardSinglePass(FRDGBuilder& GraphBuilder, FM
 		if (bDoOcclusionQueries)
 		{
 			// Issue occlusion queries
-			RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Occlusion));
 			const bool bAdrenoOcclusionMode = (CVarMobileAdrenoOcclusionMode.GetValueOnRenderThread() != 0 && IsOpenGLPlatform(ShaderPlatform));
 			if (bAdrenoOcclusionMode)
 			{
@@ -1658,10 +1622,8 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 		}
 
 		// Depth pre-pass
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_MobilePrePass));
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
 		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
@@ -1710,7 +1672,6 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 		FViewInfo& View = *ViewContext.ViewInfo;
 			
 		// scene depth is read only and can be fetched
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
 		RenderDecals(RHICmdList, View, &SecondPassParameters->InstanceCullingDrawParams);
 		RenderModulatedShadowProjections(RHICmdList, ViewContext.ViewIndex, View);
 		RenderFog(RHICmdList, View);
@@ -1720,7 +1681,6 @@ void FMobileSceneRenderer::RenderForwardMultiPass(FRDGBuilder& GraphBuilder, FMo
 		if (bDoOcclusionQueries)
 		{
 			// Issue occlusion queries
-			RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Occlusion));
 			RenderOcclusion(RHICmdList);
 		}
 
@@ -1944,17 +1904,14 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, c
 		FViewInfo& View = *ViewContext.ViewInfo;
 			
 		// Depth pre-pass
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_MobilePrePass));
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
 		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
 		PostRenderBasePass(RHICmdList, View);
 		// SceneColor + GBuffer write, SceneDepth is read only
 		RHICmdList.NextSubpass();
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
 		RenderDecals(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		// SceneColor write, SceneDepth is read only
 		RHICmdList.NextSubpass();
@@ -1970,7 +1927,6 @@ void FMobileSceneRenderer::RenderDeferredSinglePass(FRDGBuilder& GraphBuilder, c
 		if (bDoOcclusionQueires)
 		{
 			// Issue occlusion queries
-			RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Occlusion));
 			RenderOcclusion(RHICmdList);
 		}
 	});
@@ -1987,10 +1943,8 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, cl
 		FViewInfo& View = *ViewContext.ViewInfo;
 		
 		// Depth pre-pass
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLM_MobilePrePass));
 		RenderMaskedPrePass(RHICmdList, View);
 		// Opaque and masked
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Opaque));
 		RenderMobileBasePass(RHICmdList, View, &PassParameters->InstanceCullingDrawParams);
 		RenderMobileDebugView(RHICmdList, View);
 		RHICmdList.PollOcclusionQueries();
@@ -2042,8 +1996,7 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, cl
 		[this, ThirdPassParameters, ViewContext, bDoOcclusionQueires, &SceneTextures, &SortedLightSet](FRHICommandList& RHICmdList)
 	{
 		FViewInfo& View = *ViewContext.ViewInfo;
-			
-		RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Translucency));
+
 		MobileDeferredShadingPass(RHICmdList, ViewContext.ViewIndex, Views.Num(), View, *Scene, SortedLightSet, VisibleLightInfos);
 		RenderFog(RHICmdList, View);
 
@@ -2053,7 +2006,6 @@ void FMobileSceneRenderer::RenderDeferredMultiPass(FRDGBuilder& GraphBuilder, cl
 		if (bDoOcclusionQueires)
 		{
 			// Issue occlusion queries
-			RHICmdList.SetCurrentStat(GET_STATID(STAT_CLMM_Occlusion));
 			RenderOcclusion(RHICmdList);
 		}
 	});

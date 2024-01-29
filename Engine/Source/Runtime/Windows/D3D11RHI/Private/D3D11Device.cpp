@@ -41,32 +41,28 @@ TAutoConsoleVariable<int32> CVarD3D11ZeroBufferSizeInMB(
 	);
 
 
-FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LEVEL InFeatureLevel, const FD3D11Adapter& InAdapter) :
-	DXGIFactory1(InDXGIFactory1),
-#if NV_AFTERMATH
-	NVAftermathIMContextHandle(nullptr),
-#endif
+FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LEVEL InFeatureLevel, const FD3D11Adapter& InAdapter)
+	: DXGIFactory1(InDXGIFactory1)
 #if INTEL_METRICSDISCOVERY
-	IntelMetricsDiscoveryHandle(nullptr),
+	, IntelMetricsDiscoveryHandle(nullptr)
 #endif
-	FeatureLevel(InFeatureLevel),
-	AmdAgsContext(NULL),
+	, FeatureLevel(InFeatureLevel)
+	, AmdAgsContext(NULL)
 #if INTEL_EXTENSIONS
-	IntelExtensionContext(nullptr),
-	bIntelSupportsUAVOverlap(false),
+	, IntelExtensionContext(nullptr)
+	, bIntelSupportsUAVOverlap(false)
 #endif
-	bCurrentDepthStencilStateIsReadOnly(false),
-	CurrentDepthTexture(NULL),
-	NumSimultaneousRenderTargets(0),
-	NumUAVs(0),
-	SceneFrameCounter(0),
-	PresentCounter(0),
-	ResourceTableFrameCounter(INDEX_NONE),
-	CurrentDSVAccessType(FExclusiveDepthStencil::DepthWrite_StencilWrite),
-	bDiscardSharedConstants(false),	
-	GPUProfilingData(this),
-	Adapter(InAdapter),
-	bAllowVendorDevice(!FParse::Param(FCommandLine::Get(), TEXT("novendordevice")))
+	, bCurrentDepthStencilStateIsReadOnly(false)
+	, CurrentDepthTexture(NULL)
+	, NumSimultaneousRenderTargets(0)
+	, NumUAVs(0)
+	, SceneFrameCounter(0)
+	, PresentCounter(0)
+	, ResourceTableFrameCounter(INDEX_NONE)
+	, CurrentDSVAccessType(FExclusiveDepthStencil::DepthWrite_StencilWrite)
+	, bDiscardSharedConstants(false)
+	, GPUProfilingData(this)
+	, Adapter(InAdapter)
 {
 	// This should be called once at the start 
 	check(Adapter.IsValid());
@@ -201,7 +197,7 @@ FD3D11DynamicRHI::FD3D11DynamicRHI(IDXGIFactory1* InDXGIFactory1, D3D_FEATURE_LE
 	GMaxTextureArrayLayers = D3D11_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
 	GRHIMaxConstantBufferByteSize = MAX_GLOBAL_CONSTANT_BUFFER_BYTE_SIZE;
 	GRHISupportsMSAADepthSampleAccess = true;
-	GRHISupportsRHIThread = !!EXPERIMENTAL_D3D11_RHITHREAD;
+	GRHISupportsRHIThread = true;
 
 	GMaxTextureMipCount = FMath::CeilLogTwo( GMaxTextureDimensions ) + 1;
 	GMaxTextureMipCount = FMath::Min<int32>( MAX_TEXTURE_MIP_COUNT, GMaxTextureMipCount );
@@ -258,15 +254,35 @@ void FD3D11DynamicRHI::Shutdown()
 	ZeroBufferSize = 0;
 }
 
-void FD3D11DynamicRHI::RHIPushEvent(const TCHAR* Name, FColor Color)
-{ 
-	GPUProfilingData.PushEvent(Name, Color);
-}
+#if WITH_RHI_BREADCRUMBS
+	void FD3D11DynamicRHI::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::D3D11::BeginBreadcrumb(AftermathHandle, Breadcrumb);
+	#endif
 
-void FD3D11DynamicRHI::RHIPopEvent()
-{ 
-	GPUProfilingData.PopEvent(); 
-}
+		if (ShouldEmitBreadcrumbs())
+		{
+			// @todo dev-pr avoid TCHAR -> ANSI conversion
+			FRHIBreadcrumb::FBuffer Buffer;
+			TCHAR const* Name = Breadcrumb->Name.GetTCHAR(Buffer);
+
+			GPUProfilingData.PushEvent(Name, FColor::White);
+		}
+	}
+
+	void FD3D11DynamicRHI::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		if (ShouldEmitBreadcrumbs())
+		{
+			GPUProfilingData.PopEvent();
+		}
+
+	#if NV_AFTERMATH
+		UE::RHICore::Nvidia::Aftermath::D3D11::EndBreadcrumb(AftermathHandle, Breadcrumb);
+	#endif
+	}
+#endif // WITH_RHI_BREADCRUMBS
 
 
 /**
@@ -591,23 +607,15 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 		StateCache.SetContext(nullptr);
 
 		// Flush all pending deletes before destroying the device.
-		int32 NumDeletes = 0;
-		do
-		{
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-			NumDeletes = RHICmdList.FlushPendingDeletes();
-			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-		} while (NumDeletes > 0);
+		FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 
 		ReleasePooledUniformBuffers();
-		ReleaseCachedQueries();
-
 
 #if WITH_AMD_AGS
 		// Clean up the AMD extensions and shut down the AMD AGS utility library
 		if (AmdAgsContext != NULL)
 		{
-			check(bAllowVendorDevice);
+			check(UE::RHICore::AllowVendorDevice());
 
 			// AGS is holding an extra reference to the immediate context. Release it before calling DestroyDevice.
 			Direct3DDeviceIMContext->Release();
@@ -619,14 +627,14 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 #endif // WITH_AMD_AGS
 
 #if INTEL_EXTENSIONS
-		if (IsRHIDeviceIntel() && bAllowVendorDevice)
+		if (IsRHIDeviceIntel() && UE::RHICore::AllowVendorDevice())
 		{
 			StopIntelExtensions();
 		}
 #endif // INTEL_EXTENSIONS
 
 #if INTEL_METRICSDISCOVERY
-		if (GDX11IntelMetricsDiscoveryEnabled && bAllowVendorDevice)
+		if (GDX11IntelMetricsDiscoveryEnabled && UE::RHICore::AllowVendorDevice())
 		{
 			StopIntelMetricsDiscovery();
 		}
@@ -690,15 +698,6 @@ void FD3D11DynamicRHI::CleanupD3DDevice()
 void FD3D11DynamicRHI::RHIFlushResources()
 {
 	// Nothing to do (yet!)
-}
-
-void FD3D11DynamicRHI::RHIAcquireThreadOwnership()
-{
-	// Nothing to do
-}
-void FD3D11DynamicRHI::RHIReleaseThreadOwnership()
-{
-	// Nothing to do
 }
 
 void* FD3D11DynamicRHI::RHIGetNativeDevice()

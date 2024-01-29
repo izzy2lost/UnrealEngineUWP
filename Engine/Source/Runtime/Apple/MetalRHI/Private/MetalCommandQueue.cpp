@@ -153,11 +153,10 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 		Features |= EMetalFeaturesTileShaders;
                         
 		// The below implies tile shaders which are necessary to order the draw calls and generate a buffer that shows what PSOs/draws ran on each tile.
-		IConsoleVariable* GPUCrashDebuggingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging"));
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
-		GMetalCommandBufferDebuggingEnabled = (GPUCrashDebuggingCVar && GPUCrashDebuggingCVar->GetInt() != 0) || FParse::Param(FCommandLine::Get(), TEXT("metalgpudebug"));
+		GMetalCommandBufferDebuggingEnabled = UE::RHI::UseGPUCrashDebugging() || FParse::Param(FCommandLine::Get(), TEXT("metalgpudebug"));
 #else
-        GMetalCommandBufferDebuggingEnabled = true;
+		GMetalCommandBufferDebuggingEnabled = true;
 #endif
 	}
                     
@@ -209,14 +208,13 @@ FMetalCommandQueue::FMetalCommandQueue(MTL::Device* InDevice, uint32 const MaxNu
 				Features |= EMetalFeaturesTier2IABs;
 			}
 		}
-            
-		IConsoleVariable* GPUCrashDebuggingCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUCrashDebugging"));
+
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
-        GMetalCommandBufferDebuggingEnabled = (GPUCrashDebuggingCVar && GPUCrashDebuggingCVar->GetInt() != 0) || FParse::Param(FCommandLine::Get(), TEXT("metalgpudebug"));
+        GMetalCommandBufferDebuggingEnabled = UE::RHI::UseGPUCrashDebugging() || FParse::Param(FCommandLine::Get(),TEXT("metalgpudebug"));
 #else
-        GMetalCommandBufferDebuggingEnabled = true;
+		GMetalCommandBufferDebuggingEnabled = true;
 #endif
-            
+
 		// The editor spawns so many viewports and preview icons that we can run out of hardware fences!
 		// Need to figure out a way to safely flush the rendering and reuse the fences when that happens.
 #if WITH_EDITORONLY_DATA

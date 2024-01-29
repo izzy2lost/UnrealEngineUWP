@@ -559,9 +559,6 @@ extern CORE_API uint32 GSlateLoadingThreadId;
 /** Has GGameThreadId been set yet? */
 extern CORE_API bool GIsGameThreadIdInitialized;
 
-/** Whether we want the rendering thread to be suspended, used e.g. for tracing. */
-extern CORE_API bool GShouldSuspendRenderingThread;
-
 /** Determines what kind of trace should occur, NAME_None for none. */
 extern CORE_API FLazyName GCurrentTraceName;
 
@@ -744,25 +741,15 @@ extern CORE_API bool (*IsInAsyncLoadingThread)();
 UE_DEPRECATED(4.26, "Please use `GIsThreadedRendering` or `IsInActualRenderingThread()`")
 extern CORE_API FRunnableThread* GRenderingThread;
 
-/** Whether the rendering thread is suspended (not even processing the tickables) */
-extern CORE_API TAtomic<int32> GIsRenderingThreadSuspended;
-
 /** @return True if RHI thread is running */
 extern CORE_API bool IsRHIThreadRunning();
 
 /** @return True if called from the RHI thread, or if called from ANY thread during single threaded rendering */
 extern CORE_API bool IsInRHIThread();
 
-/** @return True if called from any parallel RHI thread, or if called from ANY thread during single threaded rendering */
-extern CORE_API bool IsInParallelRHIThread();
-
-/** Thread used for RHI */
-UE_DEPRECATED(4.26, "Please use `IsRHIThreadRunning()`")
-extern CORE_API FRunnableThread* GRHIThread_InternalUseOnly;
-
-/** Thread ID of the the thread we are executing RHI commands on. This could either be a constant dedicated thread or changing every task if we run the rhi thread on tasks. */
-UE_DEPRECATED(4.26, "Please use `IsRHIThreadRunning()` or `IsInRHIThread()`")
-extern CORE_API uint32 GRHIThreadId;
+extern CORE_API bool GIsRunningRHIInSeparateThread_InternalUseOnly;
+extern CORE_API bool GIsRunningRHIInDedicatedThread_InternalUseOnly;
+extern CORE_API bool GIsRunningRHIInTaskThread_InternalUseOnly;
 
 /** Boot loading timers */
 #if !UE_BUILD_SHIPPING

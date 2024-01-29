@@ -735,13 +735,6 @@ static TAutoConsoleVariable<int32> CVarParallelShadowsNonWholeScene(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksShadowPass(
-	TEXT("r.RHICmdFlushRenderThreadTasksShadowPass"),
-	0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of each shadow pass.  A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksShadowPass is > 0 we will flush."));
-
-DECLARE_CYCLE_STAT(TEXT("Shadow"), STAT_CLP_Shadow, STATGROUP_ParallelCommandListMarkers);
-
 class FShadowParallelCommandListSet final : public FParallelCommandListSet
 {
 public:
@@ -751,7 +744,7 @@ public:
 		const FViewInfo& InView,
 		const FProjectedShadowInfo& InProjectedShadowInfo,
 		const FParallelCommandListBindings& InBindings)
-		: FParallelCommandListSet(InPass, GET_STATID(STAT_CLP_Shadow), InView, InParentCmdList)
+		: FParallelCommandListSet(InPass, InView, InParentCmdList)
 		, ProjectedShadowInfo(InProjectedShadowInfo)
 		, Bindings(InBindings)
 	{}
@@ -1057,11 +1050,6 @@ void FProjectedShadowInfo::BeginRenderView(FRDGBuilder& GraphBuilder, FScene* Sc
 	}
 }
 
-static bool IsShadowDepthPassWaitForTasksEnabled()
-{
-	return CVarRHICmdFlushRenderThreadTasksShadowPass.GetValueOnRenderThread() > 0 || CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() > 0;
-}
-
 BEGIN_SHADER_PARAMETER_STRUCT(FShadowDepthPassParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FMobileShadowDepthPassUniformParameters, MobilePassUniformBuffer)
@@ -1166,8 +1154,6 @@ void FProjectedShadowInfo::RenderDepth(
 
 	if (bDoParallelDispatch)
 	{
-		RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, IsShadowDepthPassWaitForTasksEnabled());
-
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("ShadowDepthPassParallel"),
 			PassParameters,
@@ -1608,35 +1594,36 @@ void FSceneRenderer::RenderShadowDepthMapAtlases(FRDGBuilder& GraphBuilder)
 			}
 		}
 
-	#if WANTS_DRAW_MESH_EVENTS
+	#if WANTS_DRAW_MESH_EVENTS && RDG_EVENTS
 		FLightSceneProxy* CurrentLightForDrawEvent = nullptr;
-		FDrawEvent LightEvent;
+		TOptional<TRDGEventScopeGuard<FRDGScope_RHI>> RDGScope;
 	#endif
 
 		const auto SetLightEventForShadow = [&](FProjectedShadowInfo* ProjectedShadowInfo)
 		{
-		#if WANTS_DRAW_MESH_EVENTS
+		#if WANTS_DRAW_MESH_EVENTS && RDG_EVENTS
 			if (!CurrentLightForDrawEvent || ProjectedShadowInfo->GetLightSceneInfo().Proxy != CurrentLightForDrawEvent)
 			{
 				if (CurrentLightForDrawEvent)
 				{
-					GraphBuilder.EndEventScope();
+					RDGScope.Reset();
 				}
 
 				CurrentLightForDrawEvent = ProjectedShadowInfo->GetLightSceneInfo().Proxy;
 				FString LightNameWithLevel;
 				GetLightNameForDrawEvent(CurrentLightForDrawEvent, LightNameWithLevel);
-				GraphBuilder.BeginEventScope(RDG_EVENT_NAME("%s", *LightNameWithLevel));
+
+				RDGScope.Emplace(GraphBuilder, ERDGScopeFlags::None, RDG_EVENT_NAME("%s", *LightNameWithLevel));
 			}
 		#endif
 		};
 
 		const auto EndLightEvent = [&]()
 		{
-		#if WANTS_DRAW_MESH_EVENTS
+		#if WANTS_DRAW_MESH_EVENTS && RDG_EVENTS
 			if (CurrentLightForDrawEvent)
 			{
-				GraphBuilder.EndEventScope();
+				RDGScope.Reset();
 				CurrentLightForDrawEvent = nullptr;
 			}
 		#endif

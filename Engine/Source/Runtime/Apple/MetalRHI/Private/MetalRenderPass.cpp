@@ -65,10 +65,6 @@ void FMetalRenderPass::Begin()
 
 TRefCountPtr<FMetalFence> const& FMetalRenderPass::Submit(EMetalSubmitFlags Flags)
 {
-    // Must be on the render thread if there's no RHI thread
-    // Must be on the RHI thread otherwise
-    CheckMetalThread();
-    
     if (Flags & EMetalSubmitFlagsLastCommandBuffer)
     {
         check(CurrentEncoder.GetCommandBuffer());

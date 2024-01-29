@@ -52,9 +52,6 @@ struct FVelocityRendering
 
 	/** Returns true if the velocity pass is using parallel dispatch. */
 	static bool IsParallelVelocity(EShaderPlatform ShaderPlatform);
-
-	/** Returns true if we wait for outstanding tasks in velocity pass. */
-	static bool IsVelocityWaitForTasksEnabled(EShaderPlatform ShaderPlatform);
 };
 
 /**

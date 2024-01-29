@@ -176,13 +176,6 @@ static FAutoConsoleVariableRef CVarD3D12FastAllocatorMinPagesToRetain(
 	TEXT("Minimum number of pages to retain. Pages below this limit will never be released. Pages above can be released after being unused for a certain number of frames."),
 	ECVF_Default);
 
-static int32 GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB = 1;
-static FAutoConsoleVariableRef CVarD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB(
-	TEXT("d3d12.UploadAllocator.PendingDeleteSizeForceFlushInGB"),
-	GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB,
-	TEXT("If given threshold of GBs in the pending delete is queue is reached, then a force GPU flush is triggered to reduce memory load (1 by default, 0 to disable)"),
-	ECVF_Default);
-
 namespace ED3D12AllocatorID
 {
 	enum Type
@@ -1104,38 +1097,6 @@ void* FD3D12UploadHeapAllocator::AllocUploadResource(uint32 InSize, uint32 InAli
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12UploadHeapAllocator::AllocUploadResource);
 
-	// Clean up the release queue of resources which are currently not used by the GPU anymore
-	// @todo d3d12 rhi - begin: do we need to do any of this still?
-	/*FD3D12Adapter* Adapter = GetParentAdapter();
-	bool bFlushDeferredDeletionQueue = Adapter->GetDeferredDeletionQueue().QueueSize() > 128;
-	bool bFlushPendingDeleteRequests = GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB > 0 && BigBlockAllocator.GetPendingDeleteRequestSize() > (GD3D12UploadAllocatorPendingDeleteSizeForceFlushInGB * 1024 * 1024 * 1024);
-	if ((bFlushDeferredDeletionQueue || bFlushPendingDeleteRequests) && IsInRenderingThread())
-	{
-		if (bFlushPendingDeleteRequests)
-		{
-			UE_LOG(LogD3D12RHI, Warning, TEXT("Force flushing GPU because pending upload allocations reached its limit"));
-
-			// Flush to GPU & Wait (stall the RHI thread)
-			FScopedRHIThreadStaller StallRHIThread(FRHICommandListExecutor::GetImmediateCommandList());
-			for (uint32 GPUIndex = 0; GPUIndex < GNumExplicitGPUsForRendering; GPUIndex++)
-			{
-				Adapter->GetDevice(GPUIndex)->GetDefaultCommandContext().FlushCommands(true);	// Don't wait yet, since we're stalling the RHI thread.
-			}
-
-			// Waited for GPU to finish so all sync points are ready so can force free all pending deletes (done while RHI thread is stalled)
-			bool bForceFreePendingDeletes = true;
-			BigBlockAllocator.CleanUpAllocations(0, bForceFreePendingDeletes);
-		}
-		else
-		{
-			BigBlockAllocator.CleanUpAllocations(0);
-		}
-		
-		SmallBlockAllocator.CleanUpAllocations(0); // 0 - no FrameLag, delete all unsued pages
-		Adapter->GetDeferredDeletionQueue().ReleaseResources(true, false);
-	}*/
-	// @todo d3d12 rhi - end
-
 	check(InSize > 0);
 	ResourceLocation.Clear();
 
@@ -1614,10 +1575,11 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
 	}
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingBufferCopyOps);
-
 		FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
-		CommandContext.RHIPushEvent(TEXT("BufferPoolCopyOps"), FColor::Emerald);
+
+		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingBufferCopyOps);
+		RHI_BREADCRUMB_EVENT(CommandContext, BufferPoolCopyOps);
+
 		for (FD3D12BufferPool* DefaultBufferPool : DefaultBufferPools)
 		{
 			if (DefaultBufferPool)
@@ -1625,7 +1587,6 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FRHICommandListBase& RHICmdList)
 				DefaultBufferPool->FlushPendingCopyOps(CommandContext);
 			}
 		}
-		CommandContext.RHIPopEvent();
 	}
 #endif // USE_BUFFER_POOL_ALLOCATOR
 }
@@ -1813,16 +1774,15 @@ void FD3D12TextureAllocatorPool::BeginFrame(FRHICommandListBase& RHICmdList)
 	}
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingTextureCopyOps);
-
 		FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
 
-		CommandContext.RHIPushEvent(TEXT("TexturePoolCopyOps"), FColor::Emerald);
+		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingTextureCopyOps);
+		RHI_BREADCRUMB_EVENT(CommandContext, TexturePoolCopyOps);
+		
 		for (uint32 PoolIndex = 0; PoolIndex < (uint32)EPoolType::Count; ++PoolIndex)
 		{
 			PoolAllocators[PoolIndex]->FlushPendingCopyOps(CommandContext);
 		}
-		CommandContext.RHIPopEvent();
 	}
 }
 

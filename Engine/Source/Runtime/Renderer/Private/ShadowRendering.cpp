@@ -1456,15 +1456,6 @@ void FProjectedShadowInfo::RenderMobileModulatedShadowProjection(
 		}
 	}
 
-	FString EventName;
-
-#if WANTS_DRAW_MESH_EVENTS
-	if (GetEmitDrawEvents())
-	{
-		GetShadowTypeNameForDrawEvent(EventName);
-	}
-#endif
-
 	const bool bProjectingForForwardShading = false;
 	const bool bMobileModulatedProjections = true;
 

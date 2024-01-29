@@ -16,6 +16,7 @@
 #include "HAL/PlatformStackWalk.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/Optional.h"
+#include "Misc/SecureHash.h"
 #include "Misc/Timespan.h"
 #include "Templates/Function.h"
 #include "Templates/UnrealTemplate.h"
@@ -291,26 +292,63 @@ struct FThreadCallStack
 };
 
 /** GPU breadcrumbs. */
-enum class EBreadcrumbState : uint8
+struct FGPUBreadcrumbCrashData
 {
-	NotStarted = 0,
-	Active = 1,
-	Finished = 2,
-	Overflow = 3,
-	Invalid = 4,
-};
-const TCHAR* const EBreadcrumbStateStrings[] = { TEXT("Not started"), TEXT("Active"), TEXT("Finished"), TEXT("Overflow"), TEXT("Invalid") };
+	/**
+	 * This must be changed whenever the format of the breadcrumb string
+	 * changes, in order to help parsers in dealing with strings from multiple
+	 * versions.
+	 */
+	static constexpr TCHAR const Version[] = TEXT("526BDA74-7A81-44C3-B0FD-9DBF80973C25");
 
-struct FBreadcrumbNode
-{
-	EBreadcrumbState State = EBreadcrumbState::Invalid;
-	FString Name;
-	TArray<FBreadcrumbNode> Children;
-
-	const TCHAR* const GetStateString() const
+	enum class EState : uint8
 	{
-		return EBreadcrumbStateStrings[static_cast<uint32>(FMath::Min(State, EBreadcrumbState::Invalid))];
-	}
+		NotStarted = 0,
+		Active     = 1,
+		Finished   = 2
+	};
+
+	// These are serialized. Do not change this array without bumping the Version.
+	TCHAR const static constexpr StateChars[] =
+	{
+		TEXT('N'),
+		TEXT('A'),
+		TEXT('F'),
+	};
+
+	struct FQueueData
+	{
+		FString BreadcrumbString;
+		FSHAHash FullHash;
+		FSHAHash ActiveHash;
+
+		operator bool() const { return !BreadcrumbString.IsEmpty(); }
+	};
+	TMap<FString, FQueueData> Queues;
+	FString SourceName;
+
+	class FSerializer
+	{
+		FString String;
+		FSHA1 FullHash, ActiveHash;
+		TArray<bool> ChildStack;
+
+		// Sanitize the event name string to remove characters that are used as delimiters for parsing.
+		static FString Sanitize(FString const& Name);
+
+		// Event names include parameters, mostly numeric (e.g. "Frame 1234"), that should be ignored when computing the hash.
+		static FString SanitizeForHash(FString const& Name);
+
+	public:
+		CORE_API void BeginNode(FString const& Name, EState State);
+		CORE_API void EndNode();
+
+		CORE_API FQueueData GetResult();
+	};
+
+	FGPUBreadcrumbCrashData(TCHAR const* SourceName)
+		: SourceName(SourceName)
+	{}
 };
 
 /**
@@ -497,17 +535,8 @@ public:
 	/** Updates (or adds if not already present) arbitrary engine data to the crash context (will remove the key if passed an empty string) */
 	CORE_API static void SetEngineData(const FString& Key, const FString& Value);
 
-	/** Updates (or adds if not already present) GPU breadcrumb data for a given GPU queue. */
-	CORE_API static void SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs);
-
-	/** Sets a named source for the GPU breadcrumbs, mainly used to identify which system produced them. */
-	CORE_API static void SetGPUBreadcrumbsSource(const FString& GPUBreadcrumbsSource);
-
-	/** Gets the named source for the GPU breadcrumbs. */
-	CORE_API static const FString& GetGPUBreadcrumbsSource();
-
-	/** Clears all the GPU breadcrumb data. */
-	CORE_API static void ResetGPUBreadcrumbsData();
+	/** Updates (or adds if not already present) GPU breadcrumb data. */
+	CORE_API static void SetGPUBreadcrumbs(FGPUBreadcrumbCrashData&& Data);
 
 	/** Accessor for engine data change callback delegate */
 	static FEngineDataSetDelegate& OnEngineDataSetDelegate() { return OnEngineDataSet; }
@@ -690,7 +719,7 @@ private:
 	}
 
 	/** Serializes platform specific properties to the buffer. */
-	virtual void AddPlatformSpecificProperties() const;
+	CORE_API virtual void AddPlatformSpecificProperties() const;
 
 	/** Add callstack information to the crash report xml */
 	void AddPortableCallStack() const;

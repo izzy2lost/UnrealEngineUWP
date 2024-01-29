@@ -1548,7 +1548,6 @@ void FSceneRenderer::FenceOcclusionTestsInternal(FRHICommandListImmediate& RHICm
 	OcclusionSubmittedFence[0].ViewStateUniqueID = GetViewStateUniqueID(this);
 
 	RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-	RHICmdList.PollRenderQueryResults();
 }
 
 void FSceneRenderer::FenceOcclusionTests(FRDGBuilder& GraphBuilder)

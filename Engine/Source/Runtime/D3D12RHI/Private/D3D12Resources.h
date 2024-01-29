@@ -175,7 +175,7 @@ private:
 	void* ResourceBaseAddress{};
 
 #if NV_AFTERMATH
-	GFSDK_Aftermath_ResourceHandle AftermathHandle{};
+	UE::RHICore::Nvidia::Aftermath::D3D12::FResource AftermathHandle{};
 #endif
 
 	const FD3D12ResourceDesc Desc;
@@ -631,6 +631,12 @@ public:
 	};
 
 	FD3D12ResourceLocation(FD3D12Device* Parent);
+	FD3D12ResourceLocation(FD3D12ResourceLocation&& Other)
+		: FD3D12ResourceLocation(Other.GetParentDevice())
+	{
+		TransferOwnership(*this, Other);
+	}
+
 	~FD3D12ResourceLocation();
 
 	void Clear();

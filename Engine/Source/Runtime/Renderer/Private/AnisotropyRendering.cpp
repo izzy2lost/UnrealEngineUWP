@@ -81,8 +81,6 @@ IMPLEMENT_SHADER_TYPE(, FAnisotropyVS, TEXT("/Engine/Private/AnisotropyPassShade
 IMPLEMENT_SHADER_TYPE(, FAnisotropyPS, TEXT("/Engine/Private/AnisotropyPassShader.usf"), TEXT("MainPixelShader"), SF_Pixel);
 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(AnisotropyPipeline, FAnisotropyVS, FAnisotropyPS, true);
 
-DECLARE_CYCLE_STAT(TEXT("AnisotropyPass"), STAT_CLP_AnisotropyPass, STATGROUP_ParallelCommandListMarkers);
-
 FAnisotropyMeshProcessor::FAnisotropyMeshProcessor(
 	const FScene* Scene, 
 	ERHIFeatureLevel::Type InFeatureLevel,
@@ -367,7 +365,7 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 					ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 					[this, &View, &ParallelMeshPass, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_AnisotropyPass), View, FParallelCommandListBindings(PassParameters));
+					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 
 					ParallelMeshPass.DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});

@@ -122,7 +122,9 @@ void FRenderResource::ReleaseRHIForAllResources()
 /** Initialize all resources initialized before the RHI was initialized */
 void FRenderResource::InitPreRHIResources()
 {
-	FRHICommandListBase& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	check(IsInRenderingThread());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	RHICmdList.InitializeImmediateContexts();
 
 	FRenderResourceList& PreResourceList = FRenderResourceList::Get<FRenderResource::EInitPhase::Pre>();
 	FRenderResourceList& DefaultResourceList = FRenderResourceList::Get<FRenderResource::EInitPhase::Default>();

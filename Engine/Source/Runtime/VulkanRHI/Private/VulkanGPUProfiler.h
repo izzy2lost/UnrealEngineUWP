@@ -60,7 +60,7 @@ public:
 		return true;
 	}
 
-	static void CalibrateTimers(FVulkanCommandListContext& InCmdContext);
+	static void CalibrateTimers(FVulkanDevice& Device);
 
 private:
 

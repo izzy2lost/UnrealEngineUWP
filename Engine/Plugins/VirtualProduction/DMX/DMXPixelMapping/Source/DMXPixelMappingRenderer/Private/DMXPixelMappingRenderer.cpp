@@ -23,15 +23,15 @@
 
 namespace DMXPixelMappingRenderer
 {
-	static constexpr auto RenderPassName = TEXT("RenderPixelMapping");
-	static constexpr auto RenderPassHint = TEXT("Render Pixel Mapping");
+	static constexpr TCHAR RenderPassName[] = TEXT("RenderPixelMapping");
+	static constexpr TCHAR RenderPassHint[] = TEXT("Render Pixel Mapping");
 };
 
 #if WITH_EDITOR
 namespace DMXPixelMappingRenderer
 {
-	static constexpr auto RenderPreviewPassName = TEXT("PixelMappingPreview");
-	static constexpr auto RenderPreviewPassHint = TEXT("Pixel Mapping Preview");
+	static constexpr TCHAR RenderPreviewPassName[] = TEXT("PixelMappingPreview");
+	static constexpr TCHAR RenderPreviewPassHint[] = TEXT("Pixel Mapping Preview");
 };
 
 DECLARE_GPU_STAT_NAMED(DMXPixelMappingPreviewStat, DMXPixelMappingRenderer::RenderPreviewPassHint);

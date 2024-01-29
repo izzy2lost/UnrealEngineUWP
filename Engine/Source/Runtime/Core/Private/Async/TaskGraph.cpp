@@ -702,7 +702,9 @@ public:
 		{
 			StatName = GET_STATID(STAT_TaskGraph_OtherTasks);
 			StallStatId = GET_STATID(STAT_TaskGraph_OtherStalls);
-			bCountAsStall = true;
+
+			// Don't count RHI thread waits as stalls.
+			bCountAsStall = ThreadId != ENamedThreads::RHIThread;
 		}
 		bool bTasksOpen = false;
 		if (FThreadStats::IsCollectingData(StatName))

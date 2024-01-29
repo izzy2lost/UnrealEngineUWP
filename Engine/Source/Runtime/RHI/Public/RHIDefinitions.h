@@ -12,6 +12,7 @@
 #include "Misc/AssertionMacros.h"
 #include "Misc/EnumClassFlags.h"
 #include "ProfilingDebugging/CsvProfilerConfig.h" // TODO Move defines into RHIDefinitions
+#include "UObject/NameTypes.h"
 
 #ifndef USE_STATIC_SHADER_PLATFORM_ENUMS
 #define USE_STATIC_SHADER_PLATFORM_ENUMS 0
@@ -33,10 +34,6 @@ static_assert(sizeof(void*) <= SHADER_PARAMETER_POINTER_ALIGNMENT, "The alignmen
 	#define PLATFORM_DISPATCH_INDIRECT_ARGUMENT_BOUNDARY_SIZE	0
 #endif
 
-#ifndef RHI_COMMAND_LIST_DEBUG_TRACES
-#define RHI_COMMAND_LIST_DEBUG_TRACES 0
-#endif
-
 #ifndef USE_STATIC_SHADER_PLATFORM_INFO
 #define USE_STATIC_SHADER_PLATFORM_INFO 0
 #endif
@@ -48,6 +45,40 @@ static_assert(sizeof(void*) <= SHADER_PARAMETER_POINTER_ALIGNMENT, "The alignmen
 #ifndef HAS_GPU_STATS
 #define HAS_GPU_STATS ((STATS || CSV_PROFILER || GPUPROFILERTRACE_ENABLED) && (!UE_BUILD_SHIPPING))
 #endif
+
+/**
+ * A type used only for printing a string for debugging/profiling.
+ * Adds Number as a suffix to the printed string even if the base name includes a number, so may prints a string like: Base_1_1
+ * This type will always store a numeric suffix explicitly inside itself and never in the name table so it will always be at least 12 bytes
+ * regardless of the value of UE_FNAME_OUTLINE_NUMBER.
+ * It is not comparable or convertible to other name types to encourage its use only for debugging and avoid using more storage than necessary
+ * for the primary use cases of FName (names of objects, assets etc which are widely used and therefor deduped in the name table).
+ */
+class FDebugName
+{
+public:
+	RHI_API FDebugName();
+	RHI_API FDebugName(FName InName);
+	RHI_API FDebugName(FName InName, int32 InNumber);
+
+	RHI_API FDebugName& operator=(FName Other);
+
+	RHI_API FString ToString() const;
+	RHI_API uint32 ToString(TCHAR* Out, uint32 OutSize) const;
+
+	template<int N>
+	uint32 ToString(TCHAR(&Out)[N]) const
+	{
+		return ToString(Out, N);
+	}
+
+	bool IsNone() const { return Name.IsNone() && Number == NAME_NO_NUMBER_INTERNAL; }
+	RHI_API void AppendString(FStringBuilderBase& Builder) const;
+
+private:
+	FName Name;
+	uint32 Number;
+};
 
 enum class ERHIInterfaceType
 {

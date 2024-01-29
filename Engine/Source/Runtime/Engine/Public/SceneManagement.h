@@ -2750,24 +2750,6 @@ extern ENGINE_API bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
  */
 extern ENGINE_API bool IsRichView(const FSceneViewFamily& ViewFamily);
 
-#if WANTS_DRAW_MESH_EVENTS
-	/**
-	 * true if we debug material names with SCOPED_DRAW_EVENT.
-	 * Toggle with "r.ShowMaterialDrawEvents" cvar.
-	 */
-	extern ENGINE_API void BeginMeshDrawEvent_Inner(FRHICommandList& RHICmdList, const class FPrimitiveSceneProxy* PrimitiveSceneProxy, const struct FMeshBatch& Mesh, struct FDrawEvent& DrawEvent);
-#endif
-
-FORCEINLINE void BeginMeshDrawEvent(FRHICommandList& RHICmdList, const class FPrimitiveSceneProxy* PrimitiveSceneProxy, const struct FMeshBatch& Mesh, struct FDrawEvent& DrawEvent, bool ShowMaterialDrawEvent)
-{
-#if WANTS_DRAW_MESH_EVENTS
-	if (ShowMaterialDrawEvent)
-	{
-		BeginMeshDrawEvent_Inner(RHICmdList, PrimitiveSceneProxy, Mesh, DrawEvent);
-	}
-#endif
-}
-
 extern ENGINE_API void ApplyViewModeOverrides(
 	int32 ViewIndex,
 	const FEngineShowFlags& EngineShowFlags,

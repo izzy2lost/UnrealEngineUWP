@@ -28,7 +28,6 @@ DECLARE_GPU_STAT_NAMED(RayTracingWaterReflections, TEXT("Ray Tracing Water Refle
 
 DECLARE_GPU_DRAWCALL_STAT(SingleLayerWaterDepthPrepass);
 DECLARE_GPU_DRAWCALL_STAT(SingleLayerWater);
-DECLARE_CYCLE_STAT(TEXT("WaterSingleLayer"), STAT_CLP_WaterSingleLayerPass, STATGROUP_ParallelCommandListMarkers);
 
 static TAutoConsoleVariable<int32> CVarWaterSingleLayer(
 	TEXT("r.Water.SingleLayer"), 1,
@@ -107,10 +106,6 @@ static TAutoConsoleVariable<int32> CVarParallelSingleLayerWaterPass(
 	TEXT("r.ParallelSingleLayerWaterPass"), 1,
 	TEXT("Toggles parallel single layer water pass rendering. Parallel rendering must be enabled for this to have an effect."),
 	ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksSingleLayerWater(
-	TEXT("r.RHICmdFlushRenderThreadTasksSingleLayerWater"), 0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of Single layer water. A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksSingleLayerWater is > 0 we will flush."));
 
 static TAutoConsoleVariable<int32> CVarWaterSingleLayerDepthPrepass(
 	TEXT("r.Water.SingleLayer.DepthPrepass"), 1,
@@ -647,7 +642,7 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 				[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_WaterSingleLayerPass), View, FParallelCommandListBindings(PassParameters));
+					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
@@ -1332,7 +1327,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 				[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 			{
-				FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_WaterSingleLayerPass), View, FParallelCommandListBindings(PassParameters));
+				FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 		}

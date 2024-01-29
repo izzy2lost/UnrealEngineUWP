@@ -295,9 +295,10 @@ void FAppleARKitVideoOverlay::RenderVideoOverlayWithMaterial(FRHICommandList& RH
 	//const auto DelayMS = ([[NSProcessInfo processInfo] systemUptime] - LastUpdateTimestamp) * 1000.0;
 	//SET_FLOAT_STAT(STAT_ARKitFrameToRenderDelay, DelayMS);
 #endif
-	
-	SCOPED_DRAW_EVENTF(RHICmdList, RenderVideoOverlay, bRenderingOcclusion ? TEXT("VideoOverlay (Occlusion)") : TEXT("VideoOverlay (Background)"));
-	
+
+	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, RenderVideoOverlay_Occlusion ,  bRenderingOcclusion, TEXT("VideoOverlay (Occlusion)"));
+	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, RenderVideoOverlay_Background, !bRenderingOcclusion, TEXT("VideoOverlay (Background)"));
+
 	if (!OverlayVertexBufferRHI)
 	{
 		// Setup vertex buffer

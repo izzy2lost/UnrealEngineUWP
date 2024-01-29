@@ -900,12 +900,6 @@ public:
 	static void CustomNamedStat(const ANSICHAR* Text, float Value, const ANSICHAR* Graph, const ANSICHAR* Unit) {}
 
 	/**
-	 * Profiler color stack - this overrides the color for named events with undefined colors (e.g stat namedevents)
-	 */
-	static void BeginProfilerColor(const struct FColor& Color) {}
-	static void EndProfilerColor() {}
-
-	/**
 	 * Profiler enter background events. These are for timing backgrounding. Some platforms have a timeout for this
 	 */
 	static void BeginEnterBackgroundEvent(const TCHAR* Text) {}

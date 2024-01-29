@@ -717,7 +717,7 @@ FRDGTextureRef FVisualizeTexture::AddVisualizeTexturePass(
 		TShaderMapRef<FVisualizeTexturePS> PixelShader(ShaderMap, PermutationVector);
 
 		FString ExtendedDrawEvent;
-		if (GetEmitRDGEvents())
+		if (GraphBuilder.ShouldEmitEvents())
 		{
 			if (InputDesc.IsTexture3D())
 			{

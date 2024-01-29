@@ -470,7 +470,7 @@ private:
 	/** Test whether a batch flags are compatible with a given task. Used to know if the task can be merged in the batch.  */
 	static FORCEINLINE bool TestBatchFlags(EGPUSortFlags BatchFlags, EGPUSortFlags TaskFlags);
 	/** Convert the precision flags into a string, used for GPU markers. */
-	static FORCEINLINE const TCHAR* GetPrecisionString(EGPUSortFlags BatchFlags);
+	static FORCEINLINE auto GetPrecisionString(EGPUSortFlags BatchFlags) -> TCHAR const(*)[1];
 
 	/**
 	 * Find an unused buffer to assign to a newly created FSortBatch. 

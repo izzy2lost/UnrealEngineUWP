@@ -405,14 +405,15 @@ static bool UseAsyncComputeForShadowMaps(const FViewFamilyInfo& ViewFamily)
 }
 
 #if WANTS_DRAW_MESH_EVENTS
-static FORCEINLINE const TCHAR* GetRasterMaterialName(const FMaterialRenderProxy* InRasterMaterial, const FMaterialRenderProxy* InFixedFunction)
+static FORCEINLINE const FString& GetRasterMaterialName(const FMaterialRenderProxy* InRasterMaterial, const FMaterialRenderProxy* InFixedFunction)
 {
 	if ((InRasterMaterial == nullptr) || (InRasterMaterial == InFixedFunction))
 	{
-		return TEXT("Fixed Function");
+		static const FString Default = TEXT("Fixed Function");
+		return Default;
 	}
 
-	return *InRasterMaterial->GetMaterialName();
+	return InRasterMaterial->GetMaterialName();
 }
 #endif
 

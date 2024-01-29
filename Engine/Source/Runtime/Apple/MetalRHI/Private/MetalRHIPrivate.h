@@ -168,18 +168,12 @@ FMetalSurface* GetMetalSurfaceFromRHITexture(FRHITexture* Texture);
 
 #define NOT_SUPPORTED(Func) UE_LOG(LogMetal, Fatal, TEXT("'%s' is not supported"), TEXT(Func));
 
-// Verifies we are on the correct thread to mutate internal MetalRHI resources.
-FORCEINLINE void CheckMetalThread()
-{
-    check((IsInRenderingThread() && (!IsRunningRHIInSeparateThread() || !FRHICommandListExecutor::IsRHIThreadActive())) || IsInRHIThread());
-}
-
 FORCEINLINE bool MetalIsSafeToUseRHIThreadResources()
 {
 	// we can use RHI thread resources if we are on the RHIThread or on RenderingThread when there's no RHI thread, or the RHI thread is stalled or inactive
-	return (GIsMetalInitialized && !GIsRHIInitialized) ||
-			IsInRHIThread() ||
-			(IsInRenderingThread() && (!IsRunningRHIInSeparateThread() || !FRHICommandListExecutor::IsRHIThreadActive() || FRHICommandListImmediate::IsStalled() || FRHICommandListExecutor::IsRHIThreadCompletelyFlushed()));
+	return (GIsMetalInitialized && !GIsRHIInitialized)
+		|| IsInRHIThread()
+		|| (IsInRenderingThread() && (!IsRunningRHIInSeparateThread() || !FRHICommandListExecutor::AreRHITasksActive() || FRHICommandListImmediate::IsStalled()));
 }
 
 FORCEINLINE int32 GetMetalCubeFace(ECubeFace Face)

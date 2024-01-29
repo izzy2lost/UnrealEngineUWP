@@ -231,16 +231,18 @@ void FOpenGLDynamicRHI::RHIEndFrame()
 	OpenGLCommands_OnEndFrame();
 }
 
-void FOpenGLDynamicRHI::RHIPerFrameRHIFlushComplete()
+void FOpenGLDynamicRHI::RHIAdvanceFrameFence()
 {
+	//
+	// This function was previously RHIPerFrameRHIFlushComplete. Changed to RHIAdvanceFrameFence to be called by the render thread on RHICmdList.EndFrame().
+	// @todo dev-pr clean up threading in OpenGL so buffer / query pool management can happen on the RHI thread.
+	//
+
 	BeginFrame_UniformBufferPoolCleanup();
 	BeginFrame_VertexBufferCleanup();
 	BeginFrame_QueryBatchCleanup();
 
 	OpenGL_PollAllFences();
-
-	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
-	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
 }
 
 
@@ -1499,8 +1501,6 @@ void FOpenGLDynamicRHI::Init()
 	FOpenGL::Flush();
 
 	FHardwareInfo::RegisterHardwareInfo( NAME_RHI, TEXT( "OpenGL" ) );
-
-	GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
 
 	FRenderResource::InitPreRHIResources();
 	GIsRHIInitialized = true;

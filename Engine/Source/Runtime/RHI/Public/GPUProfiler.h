@@ -326,4 +326,6 @@ struct FGPUProfiler
 
 	RHI_API virtual void PushEvent(const TCHAR* Name, FColor Color);
 	RHI_API virtual void PopEvent();
+
+	bool IsProfilingGPU() const { return bTrackingEvents; }
 };

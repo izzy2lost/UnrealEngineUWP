@@ -7,6 +7,8 @@
 #include "IHeadMountedDisplayVulkanExtensions.h"
 #include "Misc/CommandLine.h"
 
+#include "RHICore.h"
+#include "RHICoreNvidiaAftermath.h"
 
 // ADDING A NEW EXTENSION:
 // 
@@ -877,8 +879,7 @@ public:
 	FVulkanAMDBufferMarkerExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_AMD_BUFFER_MARKER_EXTENSION_NAME, VULKAN_SUPPORTS_AMD_BUFFER_MARKER)
 	{
-		const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-		bEnabledInCode = bEnabledInCode && GGPUCrashDebuggingEnabled && bAllowVendorDevice;
+		bEnabledInCode = bEnabledInCode && UE::RHI::UseGPUCrashDebugging() && UE::RHICore::AllowVendorDevice();
 	}
 
 	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
@@ -897,8 +898,7 @@ public:
 	FVulkanNVDeviceDiagnosticCheckpointsExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME, VULKAN_SUPPORTS_NV_DIAGNOSTICS)
 	{
-		const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-		bEnabledInCode = bEnabledInCode && GGPUCrashDebuggingEnabled && bAllowVendorDevice;
+		bEnabledInCode = bEnabledInCode && UE::RHI::UseGPUCrashDebugging() && UE::RHICore::AllowVendorDevice();
 	}
 
 	virtual void PostPhysicalDeviceFeatures(FOptionalVulkanDeviceExtensions& ExtensionFlags) override final
@@ -917,8 +917,7 @@ public:
 	FVulkanNVDeviceDiagnosticConfigExtension(FVulkanDevice* InDevice)
 		: FVulkanDeviceExtension(InDevice, VK_NV_DEVICE_DIAGNOSTICS_CONFIG_EXTENSION_NAME, VULKAN_SUPPORTS_NV_DIAGNOSTICS)
 	{
-		const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-		bEnabledInCode = bEnabledInCode && GGPUCrashDebuggingEnabled && bAllowVendorDevice;
+		bEnabledInCode = bEnabledInCode && UE::RHI::UseGPUCrashDebugging() && UE::RHICore::AllowVendorDevice();
 	}
 
 
@@ -943,6 +942,16 @@ public:
 			ZeroVulkanStruct(DeviceDiagnosticsConfigCreateInfoNV, VK_STRUCTURE_TYPE_DEVICE_DIAGNOSTICS_CONFIG_CREATE_INFO_NV);
 			DeviceDiagnosticsConfigCreateInfoNV.flags = VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_SHADER_DEBUG_INFO_BIT_NV | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_RESOURCE_TRACKING_BIT_NV | VK_DEVICE_DIAGNOSTICS_CONFIG_ENABLE_AUTOMATIC_CHECKPOINTS_BIT_NV;
 			AddToPNext(DeviceCreateInfo, DeviceDiagnosticsConfigCreateInfoNV);
+
+#if NV_AFTERMATH
+			// Vulkan's breadcrumb / markers implementation differs from the one provided by RHICore.
+			// @todo unify the implementation so this isn't necessary
+			extern void AftermathResolveMarkerCallback(const void* Marker, void** ResolvedMarkerData, uint32_t * MarkerSize);
+			UE::RHICore::Nvidia::Aftermath::InitializeBeforeDeviceCreation([](const void* MarkerData, const uint32_t MarkerDataSize, void* UserData, void** ResolvedMarkerData, uint32_t* ResolvedMarkerDataSize) -> void
+			{
+				AftermathResolveMarkerCallback(MarkerData, ResolvedMarkerData, ResolvedMarkerDataSize);
+			});
+#endif
 		}
 	}
 

@@ -279,10 +279,6 @@ class FFeedbackContext;
 	#define USE_LOCALIZED_PACKAGE_CACHE 0
 #endif
 
-#ifndef RHI_COMMAND_LIST_DEBUG_TRACES
-	#define RHI_COMMAND_LIST_DEBUG_TRACES 0
-#endif
-
 #if WITH_ENGINE
 	CSV_DECLARE_CATEGORY_MODULE_EXTERN(CORE_API, Basic);
 #endif
@@ -765,24 +761,6 @@ static TUniquePtr<FOutputDeviceConsole>	GScopedLogConsole;
 #endif
 static TUniquePtr<FOutputDeviceStdOutput> GScopedStdOut;
 static TUniquePtr<FOutputDeviceTestExit> GScopedTestExit;
-
-
-#if WITH_ENGINE
-static void StopRHIThread()
-{
-#if HAS_GPU_STATS
-	FRealtimeGPUProfiler::SafeRelease();
-#endif
-
-	// Stop the RHI Thread (using IsRHIThreadRunning() is unreliable since RT may be stopped)
-	if (FTaskGraphInterface::IsRunning() && FTaskGraphInterface::Get().IsThreadProcessingTasks(ENamedThreads::RHIThread))
-	{
-		DECLARE_CYCLE_STAT(TEXT("Wait For RHIThread Finish"), STAT_WaitForRHIThreadFinish, STATGROUP_TaskGraphTasks);
-		FGraphEventRef QuitTask = TGraphTask<FReturnGraphTask>::CreateTask(nullptr, ENamedThreads::GameThread).ConstructAndDispatchWhenReady(ENamedThreads::RHIThread);
-		FTaskGraphInterface::Get().WaitUntilTaskCompletes(QuitTask, ENamedThreads::GameThread_Local);
-	}
-}
-#endif
 
 /**
  * Initializes std out device and adds it to GLog
@@ -3391,25 +3369,7 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 			PostInitRHI();
 		}
 
-		if (GUseThreadedRendering)
-		{
-			if (GRHISupportsRHIThread)
-			{
-				const bool DefaultUseRHIThread = true;
-				GUseRHIThread_InternalUseOnly = DefaultUseRHIThread;
-				if (FParse::Param(FCommandLine::Get(), TEXT("rhithread")))
-				{
-					GUseRHIThread_InternalUseOnly = true;
-				}
-				else if (FParse::Param(FCommandLine::Get(), TEXT("norhithread")))
-				{
-					GUseRHIThread_InternalUseOnly = false;
-				}
-			}
-				
-			SCOPED_BOOT_TIMING("StartRenderingThread");
-			StartRenderingThread();
-		}
+		InitRenderingThread();
 #endif
 
 		FEmbeddedCommunication::ForceTick(4);
@@ -3929,25 +3889,9 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 	{
 		SCOPED_BOOT_TIMING("PostInitRHI etc");
 		PostInitRHI();
-
-		if (GUseThreadedRendering)
-		{
-			if (GRHISupportsRHIThread)
-			{
-				const bool DefaultUseRHIThread = true;
-				GUseRHIThread_InternalUseOnly = DefaultUseRHIThread;
-				if (FParse::Param(FCommandLine::Get(), TEXT("rhithread")))
-				{
-					GUseRHIThread_InternalUseOnly = true;
-				}
-				else if (FParse::Param(FCommandLine::Get(), TEXT("norhithread")))
-				{
-					GUseRHIThread_InternalUseOnly = false;
-				}
-			}
-			StartRenderingThread();
-		}
 	}
+
+	InitRenderingThread();
 #endif // !PLATFORM_SUPPORTS_EARLY_MOVIE_PLAYBACK
 
 	// Playing a movie can only happen after the rendering thread is started.
@@ -4537,6 +4481,8 @@ void FEngineLoop::LoadPreInitModules()
 #endif
 
 	FModuleManager::Get().LoadModule(TEXT("Landscape"));
+
+	FModuleManager::Get().LoadModule(TEXT("RHICore"));
 
 	// Initialize ShaderCore before loading or compiling any shaders,
 	// But after Renderer and any other modules which implement shader types.
@@ -5153,7 +5099,7 @@ void FEngineLoop::Exit()
 #endif
 
 	// Stop the rendering thread.
-	StopRenderingThread();
+	ShutdownRenderingThread();
 	
 	// Disable the PSO cache
 	FShaderPipelineCache::Shutdown();
@@ -5198,7 +5144,9 @@ void FEngineLoop::Exit()
 
 	IStreamingManager::Shutdown();
 
-	StopRHIThread();
+#if HAS_GPU_STATS
+	FRealtimeGPUProfiler::SafeRelease();
+#endif
 
 	DestroyMoviePlayer();
 
@@ -5494,9 +5442,8 @@ uint64 FScopedSampleMallocChurn::DumpFrame = 0;
 
 #endif
 
-#if CPUPROFILERTRACE_ENABLED
-static uint32 TraceFrameEventThreadId = (uint32) -1;
-static uint32 TraceFrameEventSpecId = 0;
+#if WITH_RHI_BREADCRUMBS
+TOptional<FRHIBreadcrumbEventManual> GRHIFrameBreadcrumb;
 #endif
 
 static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, uint64 CurrentFrameCounter)
@@ -5509,54 +5456,33 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 	}
 
 	TRACE_BEGIN_FRAME(TraceFrameType_Rendering);
-
-	GRHICommandList.LatchBypass();
 	GFrameNumberRenderThread++;
 
 #if !UE_BUILD_SHIPPING 
-	// If we are profiling, kick off a long GPU task to make the GPU always behind the CPU so that we
-	// won't get GPU idle time measured in profiling results
-#if WITH_PROFILEGPU 
-	if (GTriggerGPUProfile && !GTriggerGPUHitchProfile)
-	{
-		IssueScalableLongGPUTask(RHICmdList);
-	}
-#endif
 
-#if CPUPROFILERTRACE_ENABLED
-	TraceFrameEventThreadId = (uint32) -1;
-	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(CpuChannel) && !UE_TRACE_CHANNELEXPR_IS_ENABLED(RenderCommandsChannel))
-	{
-		TraceFrameEventThreadId = FPlatformTLS::GetCurrentThreadId();
-		if (TraceFrameEventSpecId == 0)
+		// If we are profiling, kick off a long GPU task to make the GPU always behind the CPU so that we
+		// won't get GPU idle time measured in profiling results
+	#if WITH_PROFILEGPU 
+		if (GTriggerGPUProfile && !GTriggerGPUHitchProfile)
 		{
-			TraceFrameEventSpecId = FCpuProfilerTrace::OutputEventType(TEXT("RenderingFrame"), __FILE__, __LINE__);
+			IssueScalableLongGPUTask(RHICmdList);
 		}
-		FCpuProfilerTrace::OutputBeginEvent(TraceFrameEventSpecId);
-	}
-#endif //CPUPROFILERTRACE_ENABLED
+	#endif
 
-	FString FrameString;
+#endif // !UE_BUILD_SHIPPING
+
+#if WITH_RHI_BREADCRUMBS
 #if CSV_PROFILER
 	if (FCsvProfiler::Get()->IsCapturing_Renderthread())
 	{
-		FrameString = FString::Printf(TEXT("CsvFrame %d"), FCsvProfiler::Get()->GetCaptureFrameNumberRT());
+		GRHIFrameBreadcrumb.Emplace(RHICmdList, TEXT("CsvFrame %d"), FCsvProfiler::Get()->GetCaptureFrameNumberRT());
 	}
 	else
 #endif
 	{
-		FrameString = FString::Printf(TEXT("Frame %d"), CurrentFrameCounter);
+		GRHIFrameBreadcrumb.Emplace(RHICmdList, TEXT("Frame %d"), CurrentFrameCounter);
 	}
-#if ENABLE_NAMED_EVENTS
-#if PLATFORM_LIMIT_PROFILER_UNIQUE_NAMED_EVENTS
-	FPlatformMisc::BeginNamedEvent(FColor::Yellow, TEXT("Frame"));
-#else
-	FPlatformMisc::BeginNamedEvent(FColor::Yellow, *FrameString);
 #endif
-#endif // ENABLE_NAMED_EVENTS 
-
-	RHICmdList.PushEvent(*FrameString, FColor::Green);
-#endif // !UE_BUILD_SHIPPING
 
 	GPU_STATS_BEGINFRAME(RHICmdList);
 	RHICmdList.BeginFrame();
@@ -5597,18 +5523,12 @@ static inline void EndFrameRenderThread(FRHICommandListImmediate& RHICmdList, ui
 	RHICmdList.EndFrame();
 
 	GPU_STATS_ENDFRAME(RHICmdList);
-#if !UE_BUILD_SHIPPING 
-	RHICmdList.PopEvent();
-#if ENABLE_NAMED_EVENTS
-	FPlatformMisc::EndNamedEvent();
+
+#if WITH_RHI_BREADCRUMBS
+	GRHIFrameBreadcrumb->End(RHICmdList);
+	GRHIFrameBreadcrumb.Reset();
 #endif
-#if CPUPROFILERTRACE_ENABLED
-	if (TraceFrameEventThreadId == FPlatformTLS::GetCurrentThreadId())
-	{
-		FCpuProfilerTrace::OutputEndEvent();
-	}
-#endif // CPUPROFILERTRACE_ENABLED
-#endif // !UE_BUILD_SHIPPING 
+
 	TRACE_END_FRAME(TraceFrameType_Rendering);
 }
 
@@ -5651,8 +5571,11 @@ void FEngineLoop::Tick()
 		FPlatformMisc::TickHotfixables();
 	}
 
+	// Must be called on the game thread outside of any frame breadcrumbs.
+	LatchRenderThreadConfiguration();
+
 	// Make sure something is ticking the rendering tickables in -onethread mode to avoid leaks/bugs.
-	if (!GUseThreadedRendering && !GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed))
+	if (!GUseThreadedRendering)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(TickRenderingTickables);
 		TickRenderingTickables();
@@ -5669,7 +5592,7 @@ void FEngineLoop::Tick()
 	{
 		ActiveProfiler->FrameSync();
 	}
-#endif		// UE_EXTERNAL_PROFILING_ENABLED
+#endif // UE_EXTERNAL_PROFILING_ENABLED
 
 	FPlatformMisc::BeginNamedEventFrame();
 

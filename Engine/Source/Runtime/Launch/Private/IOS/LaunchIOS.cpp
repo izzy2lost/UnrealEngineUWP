@@ -417,8 +417,6 @@ void FAppEntry::Init()
 {
 	SCOPED_BOOT_TIMING("FAppEntry::Init()");
 	
-	FPlatformProcess::SetRealTimeMode();
-	
 	//extern TCHAR GCmdLine[16384];
 	GEngineLoop.PreInit(FCommandLine::Get());
 
@@ -495,11 +493,7 @@ static double GPreviousSuspendTime = FPlatformTime::Seconds();
 void FAppEntry::Tick()
 {
 #if BUILD_EMBEDDED_APP
-	if (GWasTickSuspended)
-	{
-		FPlatformProcess::SetRealTimeMode();
-		GWasTickSuspended = false;
-	}
+	GWasTickSuspended = false;
 #endif
     
 	if (AudioContextResumeTime != 0)

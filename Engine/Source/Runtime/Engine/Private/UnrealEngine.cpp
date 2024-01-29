@@ -5028,10 +5028,6 @@ bool UEngine::Exec_Dev( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 	else if( FParse::Command(&Cmd,TEXT("ToggleRenderingThread")) )
 	{
 		return HandleToggleRenderingThreadCommand( Cmd, Ar );
-	}	
-	else if (FParse::Command(&Cmd, TEXT("ToggleAsyncCompute")))
-	{
-		return HandleToggleAsyncComputeCommand(Cmd, Ar);
 	}
 	else if( FParse::Command(&Cmd,TEXT("RecompileShaders")) )				    
 	{
@@ -5799,42 +5795,12 @@ bool UEngine::HandleProfileGPUHitchesCommand( const TCHAR* Cmd, FOutputDevice& A
 
 bool UEngine::HandleToggleRenderingThreadCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 {
-	if(GIsThreadedRendering)
-	{
-		StopRenderingThread();
-		GUseThreadedRendering = false;
-	}
-	else
-	{
-		GUseThreadedRendering = true;
-		StartRenderingThread();
-	}
-	Ar.Logf( TEXT("RenderThread is now in %s threaded mode."), GUseThreadedRendering ? TEXT("multi") : TEXT("single"));
+	check(IsInGameThread());
+	GPendingUseThreadedRendering = !GIsThreadedRendering;
+
+	Ar.Logf(TEXT("RenderThread will be %s."), !GIsThreadedRendering ? TEXT("enabled") : TEXT("disabled"));
 	return true;
 }
-
-bool UEngine::HandleToggleAsyncComputeCommand(const TCHAR* Cmd, FOutputDevice& Ar)
-{
-	if (GDynamicRHI)
-	{
-		bool bWasAsyncCompute = GEnableAsyncCompute;
-		bool bWasThreadedRendering = GIsThreadedRendering;
-		if (bWasThreadedRendering)
-		{
-			StopRenderingThread();
-		}
-
-		GEnableAsyncCompute = !bWasAsyncCompute;
-
-		if (bWasThreadedRendering)
-		{
-			StartRenderingThread();
-		}
-		Ar.Logf(TEXT("AsyncCompute is now %s."), GEnableAsyncCompute ? TEXT("active") : TEXT("inactive"));
-	}
-	return true;
-}
-
 
 bool UEngine::HandleRecompileShadersCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 {
@@ -5888,6 +5854,7 @@ bool UEngine::HandleDumpShaderCompileStatsCommand(const TCHAR* Cmd, FOutputDevic
 
 bool UEngine::HandleProfileCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 {
+#if WITH_PROFILEGPU
 	if ( FParse::Command(&Cmd,TEXT("GPU")) )
 	{
 		if (!FApp::CanEverRender())
@@ -5900,6 +5867,8 @@ bool UEngine::HandleProfileCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 			ENQUEUE_RENDER_COMMAND(HandleProfileCommand)(
 				[](FRHICommandListImmediate& RHICmdList)
 			{
+				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+				GRHIGlobals.GPUProfile_ForceNoParallelTranslate = true;
 				GTriggerGPUProfile = true;
 			});
 			Ar.Logf(TEXT("Profiling the next GPU frame"));
@@ -5910,6 +5879,7 @@ bool UEngine::HandleProfileCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 		}
 		return true;
 	}
+#endif
 	return false;
 }
 
@@ -5937,6 +5907,8 @@ bool UEngine::HandleProfileGPUCommand( const TCHAR* Cmd, FOutputDevice& Ar )
 			ENQUEUE_RENDER_COMMAND(HandleProfileGPUCommand)(
 				[](FRHICommandListImmediate& RHICmdList)
 			{
+				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+				GRHIGlobals.GPUProfile_ForceNoParallelTranslate = true;
 				GTriggerGPUProfile = true;
 			});
 			Ar.Logf(TEXT("Profiling the next GPU frame"));
@@ -10375,6 +10347,26 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 			}
 		};
 		ENQUEUE_RENDER_COMMAND(CauseRenderThreadCrash)(&FRender::GPF);
+		return true;
+	}
+	if (FParse::Command(&Cmd, TEXT("RHICRASH")))
+	{
+		struct FCrash
+		{
+			static void RHIThreadCrash(FRHICommandList& CmdList)
+			{
+				// Test breadcrumb system
+				RHI_BREADCRUMB_EVENTF(CmdList, Event, TEXT("Debug RHI Thread Crash"));
+
+				CmdList.EnqueueLambda([](FRHICommandListBase& ExecutingCmdList)
+				{
+					UE_LOG(LogEngine, Warning, TEXT("Printed warning to log."));
+					FGenericCrashContext::SetCrashTrigger(ECrashTrigger::Debug);
+					UE_LOG(LogEngine, Fatal, TEXT("Crashing the RHI thread at your request."));
+				});
+			}
+		};
+		ENQUEUE_RENDER_COMMAND(CauseRHIThreadCrash)(&FCrash::RHIThreadCrash);
 		return true;
 	}
 	if (FParse::Command(&Cmd, TEXT("RENDERFATAL")))
@@ -18217,13 +18209,13 @@ int32 UEngine::RenderStatDrawCount(UWorld* World, FViewport* Viewport, FCanvas* 
 	int32 TotalCount[MAX_NUM_GPUS] = { 0 };
 	// Display all the categories of draw counts. This may always report 0 in some modes if AreGPUStatsEnabled is not enabled.
 	// Most likely because we are not currently capturing a CSV.
-	FDrawCallCategoryName::FManager const& Manager = FDrawCallCategoryName::GetManager();
+	FRHIDrawStatsCategory::FManager const& Manager = FRHIDrawStatsCategory::GetManager();
 	for (int32 Index = 0; Index < Manager.NumCategory; ++Index)
 	{
 		for (uint32 GPUIndex : FRHIGPUMask::All())
 		{
 			TotalCount[GPUIndex] += Manager.DisplayCounts[Index][GPUIndex];
-			FDrawCallCategoryName* CategoryName = Manager.Array[Index];
+			FRHIDrawStatsCategory* CategoryName = Manager.Array[Index];
 
 			Canvas->DrawShadowedString(
 				X - 100, Y,
@@ -18630,7 +18622,7 @@ void SetPriorityAndAffinityOnRenderThread()
 void SetPriorityAndAffinityOnRHIThread()
 {
 	if (RHIThreadConfig.Priority != EThreadPriority::TPri_Num)
-		{
+	{
 		FPlatformProcess::SetThreadPriority(RHIThreadConfig.Priority);
 		UE_LOG(LogConsoleResponse, Display, TEXT("RHI Priority %s"), *ThreadPriorityToString(RHIThreadConfig.Priority));
 	}
@@ -18646,7 +18638,7 @@ static void SetupThreadConfig(const TArray<FString>& Args)
 	{
 		UE_LOG(LogConsoleResponse, Warning, TEXT("SetupThreadConfig called, but this requires the new task backend. Ignoring"));
 		return;
-		}
+	}
 
 	UE_LOG(LogConsoleResponse, Display, TEXT("Setting thread configurations"));
 
@@ -18654,10 +18646,10 @@ static void SetupThreadConfig(const TArray<FString>& Args)
 	static bool bLoadedDefaults = false;
 	bool bResetToDefaults = (Args.Num() && Args[0] == TEXT("default"));
 	if (!bLoadedDefaults || bResetToDefaults)
-		{
+	{
 		GetDefaultThreadConfigs();
 		bLoadedDefaults = true;
-		}
+	}
 
 	if (!bResetToDefaults)
 	{
@@ -18666,41 +18658,41 @@ static void SetupThreadConfig(const TArray<FString>& Args)
 			TArray<FString> ThreadConfigEntries;
 			ThreadConfigStr.ParseIntoArray(ThreadConfigEntries, TEXT(":"), true);
 			if (ThreadConfigEntries.Num() >= 2)
-		{
+			{
 				FString ThreadName = ThreadConfigEntries[0];
 				FThreadConfig* ThreadConfigToSet = nullptr;
 				if (ThreadName == TEXT("GT"))
 				{
 					ThreadConfigToSet = &GameThreadConfig;
-		}
+				}
 				else if (ThreadName == TEXT("RT"))
-		{
+				{
 					ThreadConfigToSet = &RenderThreadConfig;
-		}
+				}
 				else if (ThreadName == TEXT("RHI"))
-		{
+				{
 					ThreadConfigToSet = &RHIThreadConfig;
-		}
+				}
 				else if (ThreadName == TEXT("Task"))
-		{
+				{
 					ThreadConfigToSet = &TaskThreadConfig;
-		}
+				}
 				else if (ThreadName == TEXT("TaskBP"))
 				{
 					ThreadConfigToSet = &TaskBPThreadConfig;
-	}
+				}
 				if (ThreadConfigToSet == nullptr)
-	{
+				{
 					UE_LOG(LogConsoleResponse, Warning, TEXT("Thread name not found: %s"), *ThreadName);
 					continue;
-	}
+				}
 				// Read the rest of the thread config args
 				for (int i = 1; i < ThreadConfigEntries.Num(); i++)
-	{
+				{
 					// if the arg is a hex number we are setting affinity
 					const FString& Value = ThreadConfigEntries[i];
 					if (Value.StartsWith(TEXT("0x")))
-		{
+					{
 						ThreadConfigToSet->Affinity = FParse::HexNumber64(*Value);
 					}
 					// if the arg starts with TPri we are setting priority
@@ -18708,8 +18700,8 @@ static void SetupThreadConfig(const TArray<FString>& Args)
 					{
 						ThreadConfigToSet->Priority = StringToThreadPriority(Value);
 					}
-		}
-	}
+				}
+			}
 		}
 	}
 
@@ -18769,33 +18761,6 @@ void UEngine::SetPriorityAndAffinityOnGameThread()
 {
 	::SetPriorityAndAffinityOnGameThread();
 }
-
-// Flush async loading before disabling rhi thread when executing r.RHISetGPUCaptureOptions console command to avoid a race condition
-// Handling of this console command is part of unrealengine translation unit instead of RHI ones because
-// FlushAsyncLoad shouldn't be invoked from RHI cpp files
-static void BaseRHISetGPUCaptureOptions(const TArray<FString>& Args, UWorld* World)
-{
-	if (Args.Num() > 0)
-	{
-		// Make sure there isnt any loading asset in flight that would possibly need rendering thread in post init
-		FlushAsyncLoading();
-
-		const bool bEnabled = Args[0].ToBool();
-		GDynamicRHI->EnableIdealGPUCaptureOptions(bEnabled);
-	}
-	else
-	{
-		UE_LOG(LogRHI, Display, TEXT("Usage: r.RHISetGPUCaptureOptions 0 or r.RHISetGPUCaptureOptions 1"));
-	}
-}
-
-static FAutoConsoleCommandWithWorldAndArgs GBaseRHISetGPUCaptureOptions(
-	TEXT("r.RHISetGPUCaptureOptions"),
-	TEXT("Utility function to change multiple CVARs useful when profiling or debugging GPU rendering. Setting to 1 or 0 will guarantee all options are in the appropriate state.\n")
-	TEXT("r.rhithread.enable, r.rhicmdbypass, r.showmaterialdrawevents, toggledrawevents\n")
-	TEXT("Platform RHI's may implement more feature toggles."),
-	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&BaseRHISetGPUCaptureOptions)
-);
 
 #if !UE_BUILD_SHIPPING
 

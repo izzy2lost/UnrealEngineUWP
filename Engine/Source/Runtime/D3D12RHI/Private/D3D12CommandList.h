@@ -143,7 +143,7 @@ private:
 		TRefCountPtr<ID3D12DebugCommandList>     DebugCommandList;
 #endif
 #if NV_AFTERMATH
-		GFSDK_Aftermath_ContextHandle AftermathHandle = nullptr;
+		UE::RHICore::Nvidia::Aftermath::D3D12::FCommandList AftermathHandle = nullptr;
 #endif
 	} Interfaces;
 
@@ -230,7 +230,7 @@ public:
 	auto RayTracingCommandList() { return BuildRValuePtr(&FInterfaces::GraphicsCommandList4); }
 #endif
 #if NV_AFTERMATH
-	auto AftermathHandle      () { return Interfaces.AftermathHandle; } // @todo - should this increment NumCommands?
+	auto AftermathHandle      () { return Interfaces.AftermathHandle; }
 #endif
 
 private:

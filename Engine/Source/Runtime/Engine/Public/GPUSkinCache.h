@@ -478,6 +478,7 @@ protected:
 
 	void PrintMemorySummary() const;
 	FString GetSkeletalMeshObjectName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const;
+	FDebugName GetSkeletalMeshObjectDebugName(const FSkeletalMeshObjectGPUSkin* GPUSkin) const;
 };
 
 DECLARE_STATS_GROUP(TEXT("GPU Skin Cache"), STATGROUP_GPUSkinCache, STATCAT_Advanced);

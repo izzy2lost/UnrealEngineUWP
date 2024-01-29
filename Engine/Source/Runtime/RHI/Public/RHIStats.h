@@ -68,21 +68,21 @@ extern RHI_API int32 GNumPrimitivesDrawnRHI[MAX_NUM_GPUS];
 
 #if HAS_GPU_STATS
 
-struct FDrawCallCategoryName
+struct FRHIDrawStatsCategory
 {
-	RHI_API FDrawCallCategoryName();
-	RHI_API FDrawCallCategoryName(FName InName);
+	RHI_API FRHIDrawStatsCategory();
+	RHI_API FRHIDrawStatsCategory(FName InName);
 
 	bool ShouldCountDraws() const { return Index != -1; }
 
 	FName  const Name;
 	uint32 const Index;
 
-	static constexpr int32 MAX_DRAWCALL_CATEGORY = 256;
+	static constexpr int32 MAX_DRAWCALL_CATEGORY = 31;
 
 	struct FManager
 	{
-		TStaticArray<FDrawCallCategoryName*, MAX_DRAWCALL_CATEGORY> Array;
+		TStaticArray<FRHIDrawStatsCategory*, MAX_DRAWCALL_CATEGORY> Array;
 
 		// A backup of the counts that can be used to display on screen to avoid flickering.
 		TStaticArray<TStaticArray<int32, MAX_NUM_GPUS>, MAX_DRAWCALL_CATEGORY> DisplayCounts;
@@ -102,85 +102,71 @@ DECLARE_DWORD_COUNTER_STAT_EXTERN(TEXT("Lines drawn"), STAT_RHILines, STATGROUP_
 
 #else
 
-struct FDrawCallCategoryName {};
+struct FRHIDrawStatsCategory
+{
+	static constexpr uint32 Index = 0;
+};
 
 #endif
 
 // Macros for use inside RHI context Draw functions.
-// Updates the Stats structure on the underlying RHI context class (IRHICommandContext)
-
-#define RHI_DRAW_CALL_INC() do { Stats->Draws++; } while (false)
-#define RHI_DRAW_CALL_STATS(PrimitiveType,NumPrimitives)                  \
-	do                                                                    \
-	{												                      \
-		switch (PrimitiveType)                                            \
-		{                                                                 \
-		case PT_TriangleList : Stats->Triangles  += NumPrimitives; break; \
-		case PT_TriangleStrip: Stats->Triangles  += NumPrimitives; break; \
-		case PT_LineList     : Stats->Lines      += NumPrimitives; break; \
-		case PT_QuadList     : Stats->Quads      += NumPrimitives; break; \
-		case PT_PointList    : Stats->Points     += NumPrimitives; break; \
-		case PT_RectList     : Stats->Rectangles += NumPrimitives; break; \
-		}                                                                 \
-		Stats->Draws++;                                                   \
-	} while(false)
-
-struct FRHIPerCategoryDrawStats
-{
-	uint32 Draws;
-	uint32 Triangles;
-	uint32 Lines;
-	uint32 Quads;
-	uint32 Points;
-	uint32 Rectangles;
-
-	uint32 GetTotalPrimitives() const
-	{
-		return Triangles
-			+ Lines
-			+ Quads
-			+ Points
-			+ Rectangles;
-	}
-
-	FRHIPerCategoryDrawStats& operator += (FRHIPerCategoryDrawStats const& RHS)
-	{
-		Draws += RHS.Draws;
-		Triangles += RHS.Triangles;
-		Lines += RHS.Lines;
-		Quads += RHS.Quads;
-		Points += RHS.Points;
-		Rectangles += RHS.Rectangles;
-		return *this;
-	}
-};
+// Updates the Stats structure on the executing RHI command list
+#if HAS_GPU_STATS
+	#define RHI_DRAW_CALL_INC()                              do { GetExecutingCommandList().Stats_AddDraw();                                          } while (false)
+	#define RHI_DRAW_CALL_STATS(PrimitiveType,NumPrimitives) do { GetExecutingCommandList().Stats_AddDrawAndPrimitives(PrimitiveType, NumPrimitives); } while (false)
+#else
+	#define RHI_DRAW_CALL_INC()
+	#define RHI_DRAW_CALL_STATS(PrimitiveType,NumPrimitives)
+#endif
 
 struct FRHIDrawStats
 {
 #if HAS_GPU_STATS
 	// The +1 is for "uncategorised"
-	static constexpr int32 NumCategories = FDrawCallCategoryName::MAX_DRAWCALL_CATEGORY + 1;
+	static constexpr int32 NumCategories = FRHIDrawStatsCategory::MAX_DRAWCALL_CATEGORY + 1;
 #else
 	static constexpr int32 NumCategories = 1;
 #endif
 
 	static constexpr int32 NoCategory = NumCategories - 1;
 
-	using FPerCategoryStats = FRHIPerCategoryDrawStats;
-
-	struct FPerGPUStats
+	struct FPerCategory
 	{
-		FPerCategoryStats& GetCategory(uint32 Category)
+		uint32 Draws;
+		uint32 Triangles;
+		uint32 Lines;
+		uint32 Quads;
+		uint32 Points;
+		uint32 Rectangles;
+
+		uint32 GetTotalPrimitives() const
 		{
-			checkSlow(Category < UE_ARRAY_COUNT(Categories));
-			return Categories[Category];
+			return Triangles
+				+ Lines
+				+ Quads
+				+ Points
+				+ Rectangles;
 		}
 
-	private:
-		FPerCategoryStats Categories[NumCategories];
+		FPerCategory& operator += (FPerCategory const& RHS)
+		{
+			Draws      += RHS.Draws;
+			Triangles  += RHS.Triangles;
+			Lines      += RHS.Lines;
+			Quads      += RHS.Quads;
+			Points     += RHS.Points;
+			Rectangles += RHS.Rectangles;
+			return *this;
+		}
 	};
 
-	FPerGPUStats& GetGPU(uint32 GPUIndex)
+	struct FPerGPU
+	{
+		friend struct FRHIDrawStats;
+		FPerCategory Categories[NumCategories];
+	};
+
+	FPerGPU& GetGPU(uint32 GPUIndex)
 	{
 		checkSlow(GPUIndex < UE_ARRAY_COUNT(GPUs));
 		return GPUs[GPUIndex];
@@ -196,10 +182,41 @@ struct FRHIDrawStats
 		FMemory::Memzero(*this);
 	}
 
+	void AddDraw(FRHIGPUMask GPUMask, FRHIDrawStatsCategory const* Category)
+	{
+		uint32 CategoryIndex = Category ? Category->Index : NoCategory;
+		for (uint32 GPUIndex : GPUMask)
+		{
+			FPerCategory& Stats = GPUs[GPUIndex].Categories[CategoryIndex];
+			Stats.Draws++;
+		}
+	}
+
+	void AddDrawAndPrimitives(FRHIGPUMask GPUMask, FRHIDrawStatsCategory const* Category, EPrimitiveType PrimitiveType, uint32 NumPrimitives)
+	{
+		uint32 CategoryIndex = Category ? Category->Index : NoCategory;
+		for (uint32 GPUIndex : GPUMask)
+		{
+			FPerCategory& Stats = GPUs[GPUIndex].Categories[CategoryIndex];
+			Stats.Draws++;
+
+			switch (PrimitiveType)
+			{
+			case PT_TriangleList : Stats.Triangles  += NumPrimitives; break;
+			case PT_TriangleStrip: Stats.Triangles  += NumPrimitives; break;
+			case PT_LineList     : Stats.Lines      += NumPrimitives; break;
+			case PT_QuadList     : Stats.Quads      += NumPrimitives; break;
+			case PT_PointList    : Stats.Points     += NumPrimitives; break;
+			case PT_RectList     : Stats.Rectangles += NumPrimitives; break;
+			}
+		}
+	}
+
 	RHI_API void Accumulate(FRHIDrawStats& RHS);
+	RHI_API void ProcessAsFrameStats();
 
 private:
-	FPerGPUStats GPUs[MAX_NUM_GPUS];
+	FPerGPU GPUs[MAX_NUM_GPUS];
 };
 
 // RHI memory stats.

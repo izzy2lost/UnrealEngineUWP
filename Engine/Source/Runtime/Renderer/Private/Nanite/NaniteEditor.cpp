@@ -210,7 +210,6 @@ static void GetEditorSelectionVisBuffer(
 
 static void AddEditorSelectionDepthPass(
 	FRDGBuilder& GraphBuilder,
-	FRDGEventName&& EventName,
 	FRDGTextureRef DepthTarget,
 	FScene& Scene,
 	const FViewInfo& SceneView,
@@ -223,7 +222,6 @@ static void AddEditorSelectionDepthPass(
 {
 	LLM_SCOPE_BYTAG(Nanite);
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteEditor);
-	FRDGEventScopeGuard RDGEventScope(GraphBuilder, MoveTemp(EventName));
 
 	auto& MaterialsExtension = Scene.GetExtension<Nanite::FMaterialsSceneExtension>();
 	auto PassParameters = GraphBuilder.AllocParameters<FNaniteSelectionOutlineParameters>();
@@ -281,9 +279,9 @@ void DrawEditorSelection(
 		return;
 	}
 
+	RDG_EVENT_SCOPE(GraphBuilder, "NaniteEditorSelection");
 	AddEditorSelectionDepthPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("NaniteEditorSelection"),
 		DepthTarget,
 		Scene,
 		SceneView,
@@ -310,9 +308,9 @@ void DrawEditorVisualizeLevelInstance(
 		return;
 	}
 
+	RDG_EVENT_SCOPE(GraphBuilder, "NaniteVisualizeLevelInstances");
 	AddEditorSelectionDepthPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("NaniteVisualizeLevelInstances"),
 		DepthTarget,
 		Scene,
 		SceneView,

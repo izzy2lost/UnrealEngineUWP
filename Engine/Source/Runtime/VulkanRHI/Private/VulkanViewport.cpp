@@ -833,6 +833,8 @@ void FVulkanViewport::DestroySwapchain(FVulkanSwapChainRecreateInfo* RecreateInf
 
 inline static void CopyImageToBackBuffer(FVulkanCommandListContext* Context, FVulkanCmdBuffer* CmdBuffer, FVulkanTexture& SrcSurface, VkImage DstSurface, int32 SizeX, int32 SizeY, int32 WindowSizeX, int32 WindowSizeY)
 {
+	RHI_BREADCRUMB_EVENT(*Context, CopyImageToBackBuffer);
+
 	FVulkanLayoutManager& LayoutManager = CmdBuffer->GetLayoutManager();
 	const VkImageLayout PreviousSrcLayout = FVulkanLayoutManager::SetExpectedLayout(CmdBuffer, SrcSurface, ERHIAccess::CopySrc);
 
@@ -918,9 +920,7 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 				uint32 WindowSizeX = FMath::Min(SizeX, SwapChain->InternalWidth);
 				uint32 WindowSizeY = FMath::Min(SizeY, SwapChain->InternalHeight);
 
-				Context->RHIPushEvent(TEXT("CopyImageToBackBuffer"), FColor::Blue);
 				CopyImageToBackBuffer(Context, CmdBuffer, *RenderingBackBuffer.GetReference(), BackBufferImages[AcquiredImageIndex], SizeX, SizeY, WindowSizeX, WindowSizeY);
-				Context->RHIPopEvent();
 			}
 			else
 			{

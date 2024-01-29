@@ -265,12 +265,6 @@ VULKANRHI_API DECLARE_LOG_CATEGORY_EXTERN(LogVulkanRHI, Log, All);
 	#define VULKAN_SUPPORTS_TRANSIENT_RESOURCE_ALLOCATOR		1
 #endif
 
-
-#if !defined(NV_AFTERMATH)
-	#define NV_AFTERMATH 0
-#endif
-
-
 #ifndef VK_TYPE_TO_STRING
 #	define VK_TYPE_TO_STRING(Type, Value) *FString::Printf(TEXT("%u"), (uint32)Value)
 #endif

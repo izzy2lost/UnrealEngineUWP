@@ -881,16 +881,12 @@ public:
 	{
 		RHI->RHIAdvanceFrameForGetViewportBackBuffer(Viewport);
 	}
-	/*
-	* Acquires or releases ownership of the platform-specific rendering context for the calling thread
-	*/
-	// FlushType: Flush RHI Thread
+
 	virtual void RHIAcquireThreadOwnership() override final
 	{
 		RHI->RHIAcquireThreadOwnership();
 	}
 
-	// FlushType: Flush RHI Thread
 	virtual void RHIReleaseThreadOwnership() override final
 	{
 		RHI->RHIReleaseThreadOwnership();
@@ -964,13 +960,6 @@ public:
 	virtual void RHIBlockUntilGPUIdle() override final
 	{
 		RHI->RHIBlockUntilGPUIdle();
-	}
-
-	// Kicks the current frame and makes sure GPU is actively working on them
-	// FlushType: Flush Immediate (copied from RHIBlockUntilGPUIdle)
-	virtual void RHISubmitCommandsAndFlushGPU() override final
-	{
-		RHI->RHISubmitCommandsAndFlushGPU();
 	}
 
 	// Tells the RHI we're about to suspend it
@@ -1047,15 +1036,6 @@ public:
 	}
 
 	/**
-	* Called once per frame just before deferred deletion in FRHIResource::FlushPendingDeletes
-	*/
-	// FlushType: called from render thread when RHI thread is flushed 
-	virtual void RHIPerFrameRHIFlushComplete() override final
-	{
-		RHI->RHIPerFrameRHIFlushComplete();
-	}
-
-	/**
 	* Provides access to the native device. Generally this should be avoided but is useful for third party plugins.
 	*/
 	// FlushType: Flush RHI Thread
@@ -1110,10 +1090,14 @@ public:
 	}
 
 	virtual IRHICommandContext* RHIGetDefaultContext() override final;
-	virtual IRHIComputeContext* RHIGetDefaultAsyncComputeContext() override final;
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) override final;
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* OuterContext) override final;
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> OuterCommandLists, bool bFlushResources) override final;
+	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) override final;
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) override final;
+	
+	virtual void RHIProcessDeleteQueue() override final
+	{
+		RHI->RHIProcessDeleteQueue();
+	}
 
 	virtual uint64 RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat Format) override final
 	{
@@ -1205,18 +1189,6 @@ public:
 		RHI->RHIReadSurfaceFloatData_RenderThread(RHICmdList, Texture, Rect, OutData, CubeFace, ArrayIndex, MipIndex);
 	}
 
-	//Utilities
-	virtual void EnableIdealGPUCaptureOptions(bool bEnable) override final
-	{
-		RHI->EnableIdealGPUCaptureOptions(bEnable);
-	}
-
-	//checks if the GPU is still alive.
-	virtual bool CheckGpuHeartbeat() const override final
-	{
-		return RHI->CheckGpuHeartbeat();
-	}
-
 	virtual FRHIFlipDetails RHIWaitForFlip(double TimeoutInSeconds) override final
 	{
 		return RHI->RHIWaitForFlip(TimeoutInSeconds);
@@ -1225,16 +1197,6 @@ public:
 	virtual void RHISignalFlipEvent() override final
 	{
 		RHI->RHISignalFlipEvent();
-	}
-
-	virtual void RHICalibrateTimers() override final
-	{
-		RHI->RHICalibrateTimers();
-	}
-
-	virtual void RHIPollRenderQueryResults() override final
-	{
-		RHI->RHIPollRenderQueryResults();
 	}
 
 	virtual uint16 RHIGetPlatformTextureMaxSampleCount() override final

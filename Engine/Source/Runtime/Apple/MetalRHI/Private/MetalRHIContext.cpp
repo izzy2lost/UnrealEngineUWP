@@ -201,6 +201,17 @@ void FMetalRHICommandContext::RHINextSubpass()
 #endif
 }
 
+void FMetalRHICommandContext::RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
+{
+    MTL::Device* MTLDevice = GetMetalDeviceContext().GetDevice();
+    
+    MTL::Timestamp CPUTimeStamp, GPUTimestamp;
+    MTLDevice->sampleTimestamps(&CPUTimeStamp, &GPUTimestamp);
+
+    CalibrationQuery->CPUMicroseconds[0] = uint64(CPUTimeStamp / 1000.0);
+    CalibrationQuery->GPUMicroseconds[0] = uint64(GPUTimestamp / 1000.0);
+}
+
 void FMetalRHICommandContext::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
 {
     MTL_SCOPED_AUTORELEASE_POOL;

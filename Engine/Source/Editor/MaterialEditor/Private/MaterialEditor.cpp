@@ -936,7 +936,6 @@ FMaterialEditor::~FMaterialEditor()
 	MaterialDetailsView.Reset();
 
 	{
-		//SCOPED_SUSPEND_RENDERING_THREAD(true);
 		FMaterial::DeferredDeleteArray(ExpressionPreviews);
 	}
 	
@@ -7190,9 +7189,6 @@ void FMaterialEditor::RefreshExpressionPreviews(bool bForceRefreshAll /*= false*
 
 	if ( bAlwaysRefreshAllPreviews || bForceRefreshAll)
 	{
-		// we need to make sure the rendering thread isn't drawing these tiles
-		//SCOPED_SUSPEND_RENDERING_THREAD(true);
-
 		// Refresh all expression previews.
 		FMaterial::DeferredDeleteArray(ExpressionPreviews);
 

@@ -25,7 +25,7 @@ DECLARE_CYCLE_STAT(TEXT("Blur Image"), STAT_BlurImage, STATGROUP_ARKIT);
 
 static bool InRenderThread()
 {
-	if (GIsThreadedRendering && !GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed))
+	if (GIsThreadedRendering)
 	{
 		return IsInActualRenderingThread();
 	}

@@ -13,8 +13,8 @@
 
 namespace UE::DMXPixelMapping::Rendering::Private
 {
-	static constexpr auto RenderPassName = TEXT("RenderPixelMapping");
-	static constexpr auto RenderPassHint = TEXT("Render Pixel Mapping");
+	static constexpr TCHAR RenderPassName[] = TEXT("RenderPixelMapping");
+	static constexpr TCHAR RenderPassHint[] = TEXT("Render Pixel Mapping");
 };
 
 DECLARE_GPU_STAT_NAMED(DMXPixelMappingShadersStat, UE::DMXPixelMapping::Rendering::Private::RenderPassHint);

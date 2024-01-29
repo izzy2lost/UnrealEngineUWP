@@ -111,100 +111,6 @@ struct FRHICommandRenameUploadBuffer final : public FRHICommand<FRHICommandRenam
 	}
 };
 
-struct FD3D12RHICommandInitializeBufferString
-{
-	static const TCHAR* TStr() { return TEXT("FD3D12RHICommandInitializeBuffer"); }
-};
-struct FD3D12RHICommandInitializeBuffer final : public FRHICommand<FD3D12RHICommandInitializeBuffer, FD3D12RHICommandInitializeBufferString>
-{
-	TRefCountPtr<FD3D12Buffer> Buffer;
-	FD3D12ResourceLocation SrcResourceLoc;
-	uint32 Size;
-	D3D12_RESOURCE_STATES DestinationState;
-
-	FORCEINLINE_DEBUGGABLE FD3D12RHICommandInitializeBuffer(TRefCountPtr<FD3D12Buffer>&& InBuffer, FD3D12ResourceLocation& InSrcResourceLoc, uint32 InSize, D3D12_RESOURCE_STATES InDestinationState)
-		: Buffer(MoveTemp(InBuffer))
-		, SrcResourceLoc(InSrcResourceLoc.GetParentDevice())
-		, Size(InSize)
-		, DestinationState(InDestinationState)
-	{
-		FD3D12ResourceLocation::TransferOwnership(SrcResourceLoc, InSrcResourceLoc);
-	}
-
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		const uint32 GPUIndex = 0; // @todo mgpu - why isn't this using the RHICmdList GPU mask?
-		FD3D12CommandContext& CommandContext = FD3D12CommandContext::Get(CmdList, GPUIndex);
-		ExecuteOnCommandContext(CommandContext);
-	}
-
-	void ExecuteOnCommandContext(FD3D12CommandContext& CommandContext)
-	{
-#if WITH_MGPU
-		// With multiple GPU support, we need to issue staging buffer upload commands on the command context for the same device (GPU) that the
-		// resource is on.  So we always use the default command context per GPU, and ignore the command context passed in.  In practice, the
-		// caller will already be passing the default command context in, but if we run into a situation where that's not the case, it would
-		// require some sort of higher level refactor of the code (for example, moving the linked object iterator loop to a higher level, or
-		// introducing a cross GPU fence sync at the end of an initialization batch).  This assert is to identify if we've encountered such a
-		// case, so we know we need to solve it.
-		//
-		// We only run the assert for resources that are on the first GPU, as certain callers (like GPU Lightmass) create single GPU resources,
-		// and don't attempt to pass in a specific GPU context.  The goal of the assert is to catch unexpected use cases where something other
-		// than the default command context is passed in, and it's good enough to catch that just on the first GPU, assuming any multi-GPU
-		// client will be using resources on all GPUs at some point.
-		if (Buffer->GetParentDevice()->GetGPUIndex() == 0)
-		{
-			check(&CommandContext == &Buffer->GetParentDevice()->GetDefaultCommandContext());
-		}
-#endif
-
-		for (FD3D12Buffer::FLinkedObjectIterator CurrentBuffer(Buffer); CurrentBuffer; ++CurrentBuffer)
-		{
-			FD3D12Resource* Destination = CurrentBuffer->ResourceLocation.GetResource();
-			FD3D12Device* Device = Destination->GetParentDevice();
-#if WITH_MGPU
-			FD3D12CommandContext& CurrentCommandContext = Device->GetDefaultCommandContext();
-#else
-			FD3D12CommandContext& CurrentCommandContext = CommandContext;
-#endif
-
-			// Copy from the temporary upload heap to the default resource
-			{
-				// if resource doesn't require state tracking then transition to copy dest here (could have been suballocated from shared resource) - not very optimal and should be batched
-				if (!Destination->RequiresResourceStateTracking())
-				{
-					CurrentCommandContext.AddTransitionBarrier(Destination, Destination->GetDefaultResourceState(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-				}
-
-				CurrentCommandContext.FlushResourceBarriers();
-
-				CurrentCommandContext.GraphicsCommandList()->CopyBufferRegion(
-					Destination->GetResource(),
-					CurrentBuffer->ResourceLocation.GetOffsetFromBaseOfResource(),
-					SrcResourceLoc.GetResource()->GetResource(),
-					SrcResourceLoc.GetOffsetFromBaseOfResource(), Size);
-
-				// Update the resource state after the copy has been done (will take care of updating the residency as well)
-				if (DestinationState != D3D12_RESOURCE_STATE_COPY_DEST)
-				{
-					CurrentCommandContext.AddTransitionBarrier(Destination, D3D12_RESOURCE_STATE_COPY_DEST, DestinationState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-				}
-
-				CurrentCommandContext.UpdateResidency(SrcResourceLoc.GetResource());
-
-				CurrentCommandContext.ConditionalSplitCommandList();
-
-				// If the resource is untracked, the destination state must match the default state of the resource.
-				check(Destination->RequiresResourceStateTracking() || (Destination->GetDefaultResourceState() == DestinationState));
-			}
-
-			// Buffer is now written and ready, so unlock the block (locked after creation and can be defragmented if needed)
-			CurrentBuffer->ResourceLocation.UnlockPoolData();
-		}
-	}
-};
-
-
 void FD3D12Buffer::UploadResourceData(FRHICommandListBase& RHICmdList, FResourceArrayInterface* InResourceArray, D3D12_RESOURCE_STATES InDestinationState, const TCHAR* AssetName, const FName& ClassName, const FName& PackageName)
 {
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(AssetName, ClassName, PackageName);
@@ -240,17 +146,53 @@ void FD3D12Buffer::UploadResourceData(FRHICommandListBase& RHICmdList, FResource
 		check(pData);
 		FMemory::Memcpy(pData, InResourceArray->GetResourceData(), BufferSize);
 
-		if (RHICmdList.IsBottomOfPipe())
+		RHICmdList.EnqueueLambda(
+			[
+				  Buffer = static_cast<FRHIBuffer*>(this)
+				, SrcResourceLoc = MoveTemp(SrcResourceLoc)
+				, Size = BufferSize
+				, DestinationState = InDestinationState
+			](FRHICommandListBase& ExecutingCmdList)
 		{
-			// On RHIT or RT (when bypassing), we can access immediate context directly
-			FD3D12RHICommandInitializeBuffer Command(this, SrcResourceLoc, BufferSize, InDestinationState);
-			FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
-			Command.ExecuteOnCommandContext(CommandContext);
-		}
-		else
-		{
-			new (RHICmdList.AllocCommand<FD3D12RHICommandInitializeBuffer>()) FD3D12RHICommandInitializeBuffer(this, SrcResourceLoc, BufferSize, InDestinationState);
-		}
+			for (uint32 GPUIndex : ExecutingCmdList.GetGPUMask())
+			{
+				FD3D12CommandContext& CommandContext = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
+				FD3D12Buffer* CurrentBuffer = FD3D12DynamicRHI::ResourceCast(Buffer, GPUIndex);
+				FD3D12Resource* Destination = CurrentBuffer->ResourceLocation.GetResource();
+
+				// Copy from the temporary upload heap to the default resource
+				
+				// if resource doesn't require state tracking then transition to copy dest here (could have been suballocated from shared resource) - not very optimal and should be batched
+				if (!Destination->RequiresResourceStateTracking())
+				{
+					CommandContext.AddTransitionBarrier(Destination, Destination->GetDefaultResourceState(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+				}
+
+				CommandContext.FlushResourceBarriers();
+
+				CommandContext.GraphicsCommandList()->CopyBufferRegion(
+					Destination->GetResource(),
+					CurrentBuffer->ResourceLocation.GetOffsetFromBaseOfResource(),
+					SrcResourceLoc.GetResource()->GetResource(),
+					SrcResourceLoc.GetOffsetFromBaseOfResource(), Size);
+
+				// Update the resource state after the copy has been done (will take care of updating the residency as well)
+				if (DestinationState != D3D12_RESOURCE_STATE_COPY_DEST)
+				{
+					CommandContext.AddTransitionBarrier(Destination, D3D12_RESOURCE_STATE_COPY_DEST, DestinationState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+				}
+
+				CommandContext.UpdateResidency(SrcResourceLoc.GetResource());
+
+				CommandContext.ConditionalSplitCommandList();
+
+				// If the resource is untracked, the destination state must match the default state of the resource.
+				check(Destination->RequiresResourceStateTracking() || (Destination->GetDefaultResourceState() == DestinationState));
+
+				// Buffer is now written and ready, so unlock the block (locked after creation and can be defragmented if needed)
+				CurrentBuffer->ResourceLocation.UnlockPoolData();
+			}
+		});
 	}
 
 	// Discard the resource array's contents.

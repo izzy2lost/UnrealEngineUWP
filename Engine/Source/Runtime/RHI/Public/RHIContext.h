@@ -218,8 +218,9 @@ struct FTransferResourceParams
 };
 
 //
-// Opaque type representing a finalized platform GPU command list, which can be submitted to the GPU via RHISubmitCommandLists().
+// Type representing a finalized platform GPU command list, which can be submitted to the GPU via RHISubmitCommandLists().
 // This type is intended only for use by RHI command list management. Platform RHIs provide the implementation.
+// Also contains RHI breadcrumb allocators and ranges that platform RHIs must use if they implement GPU crash debugging.
 //
 class IRHIPlatformCommandList
 {
@@ -235,6 +236,12 @@ protected:
 	// This type is only usable by derived types (platform RHI implementations)
 	IRHIPlatformCommandList() = default;
 	~IRHIPlatformCommandList() = default;
+
+public:
+#if WITH_RHI_BREADCRUMBS
+	FRHIBreadcrumbAllocatorArray BreadcrumbAllocators {};
+	FRHIBreadcrumbRange BreadcrumbRange {};
+#endif
 };
 
 /** Context that is capable of doing Compute work.  Can be async or compute on the gfx pipe. */
@@ -337,14 +344,10 @@ public:
 		/* empty default implementation */
 	}
 
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) = 0;
-
-	virtual void RHIPopEvent() = 0;
-
-	/**
-	* Submit the current command buffer to the GPU if possible.
-	*/
-	virtual void RHISubmitCommandsHint() = 0;
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) = 0;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) = 0;
+#endif
 
 	/**
 	 * Some RHI implementations (OpenGL) cache render state internally
@@ -471,16 +474,16 @@ public:
 	virtual IRHIComputeContext& GetLowestLevelContext() { return *this; }
 
 	// Returns the validation RHI context if the validation RHI is active, otherwise returns the platform RHI context.
-	virtual IRHIComputeContext& GetHighestLevelContext()
-	{
-		return WrappingContext ? *WrappingContext : *this;
-	}
+	IRHIComputeContext const& GetHighestLevelContext() const { return WrappingContext ? *WrappingContext : *this; }
+	IRHIComputeContext      & GetHighestLevelContext()       { return WrappingContext ? *WrappingContext : *this; }
 
 #else
 
 	// Fast implementations when the RHI validation layer is disabled.
-	inline IRHIComputeContext& GetLowestLevelContext () { return *this; }
-	inline IRHIComputeContext& GetHighestLevelContext() { return *this; }
+	IRHIComputeContext& GetLowestLevelContext() { return *this; }
+
+	IRHIComputeContext const& GetHighestLevelContext() const { return *this; }
+	IRHIComputeContext      & GetHighestLevelContext()       { return *this; }
 
 #endif
 
@@ -503,19 +506,31 @@ public:
 	virtual void* RHIGetNativeCommandBuffer() { return nullptr; }
 	virtual void RHIPostExternalCommandsReset() { }
 
-protected:
-	FRHIPerCategoryDrawStats* Stats = nullptr;
+private:
+	// Pointer to the RHI command list that is replaying commands into this context.
+	class FRHICommandListBase* ExecutingCmdList = nullptr;
 
 public:
-	RHI_API void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID, uint32 InGPUIndex);
-
-#if WITH_MGPU || ENABLE_RHI_VALIDATION
-	virtual
-#endif
-	void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID)
+	// Returns the RHI command list that is currently replaying commands into this context.
+	FRHICommandListBase& GetExecutingCommandList() const
 	{
-		StatsSetCategory(InStats, InCategoryID, 0);
+		check(ExecutingCmdList);
+		return *ExecutingCmdList;
 	}
+
+	// Used within FRHICommandListBase::SwitchPipeline to setup a context for command execution.
+	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList)
+	{
+		ExecutingCmdList = InCmdList;
+	}
+
+#if WITH_RHI_BREADCRUMBS
+	//
+	// Returns true if RHI breadcrumb strings should be emitted to platform GPU profiling APIs.
+	// Platform RHI implementations should check for this inside RHIBeginBreadcrumbGPU and RHIEndBreadcrumbGPU.
+	//
+	inline bool ShouldEmitBreadcrumbs() const;
+#endif
 };
 
 // Utility function to generate pre-transfer sync points to pass to CrossGPUTransferSignal and CrossGPUTransfer
@@ -603,11 +618,6 @@ public:
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) = 0;
 
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) = 0;
-
-	virtual void RHICalibrateTimers()
-	{
-		/* empty default implementation */
-	}
 
 	virtual void RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
 	{

@@ -215,8 +215,6 @@ void RecompileRenderer(const TArray<FString>& Args)
 	{
 		// Deregister all components from their renderer scenes
 		FGlobalComponentReregisterContext ReregisterContext;
-		// Shut down the rendering thread so that the game thread will process all rendering commands during this scope
-		SCOPED_SUSPEND_RENDERING_THREAD(true);
 
 		TMap<UWorld*, bool> WorldsToUpdate;
 		TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > > ShaderMapToSerializedShaderData;

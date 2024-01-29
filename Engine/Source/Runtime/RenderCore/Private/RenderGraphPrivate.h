@@ -210,14 +210,6 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("Flush RHI Resources"), STAT_RDG_FlushRHIResource
 
 DECLARE_MEMORY_STAT_EXTERN(TEXT("Builder Watermark"), STAT_RDG_MemoryWatermark, STATGROUP_RDG, RENDERCORE_API);
 
-#if RDG_GPU_DEBUG_SCOPES
-extern int32 GRDGEvents;
-#endif
-
-#if RDG_EVENTS != RDG_EVENTS_NONE
-extern int32 GRDGEmitDrawEvents_RenderThread;
-#endif
-
 inline const TCHAR* GetEpilogueBarriersToBeginDebugName(ERHIPipeline Pipelines)
 {
 #if RDG_ENABLE_DEBUG

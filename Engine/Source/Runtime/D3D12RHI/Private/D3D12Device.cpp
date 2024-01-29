@@ -13,7 +13,7 @@ static TAutoConsoleVariable<int32> CVarD3D12GPUTimeout(
 	ECVF_ReadOnly
 );
 
-static TAutoConsoleVariable<int32> CVarD3D12ExtraDiagnosticBufferMemory(
+TAutoConsoleVariable<int32> CVarD3D12ExtraDiagnosticBufferMemory(
 	TEXT("r.D3D12.DiagnosticBufferExtraMemory"),
 	0,
 	TEXT("Extra allocated memory for diagnostic buffer"),
@@ -39,13 +39,12 @@ FD3D12Queue::FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType)
 	, bSupportsTileMapping(FD3D12DynamicRHI::GetD3DRHI()->QueueSupportsTileMapping(QueueType))
 {
 	FD3D12Adapter* Adapter = Device->GetParentAdapter();
-	const bool bFullGPUCrashDebugging = (Adapter->GetGPUCrashDebuggingModes() == ED3D12GPUCrashDebuggingModes::All);
 
 	D3D12_COMMAND_QUEUE_DESC CommandQueueDesc = {};
 	CommandQueueDesc.Type = GetD3DCommandListType((ED3D12QueueType)QueueType);
 	CommandQueueDesc.Priority = 0;
 	CommandQueueDesc.NodeMask = Device->GetGPUMask().GetNative();
-	CommandQueueDesc.Flags = (bFullGPUCrashDebugging || CVarD3D12GPUTimeout.GetValueOnAnyThread() == 0)
+	CommandQueueDesc.Flags = (CVarD3D12GPUTimeout.GetValueOnAnyThread() == 0)
 		? D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT
 		: D3D12_COMMAND_QUEUE_FLAG_NONE;
 
@@ -60,57 +59,8 @@ FD3D12Queue::FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType)
 	Fence.D3DFence->SetName(*FString::Printf(TEXT("%s Queue Fence (GPU %d)"), GetD3DCommandQueueTypeName(QueueType), Device->GetGPUIndex()));
 }
 
-void FD3D12Queue::SetupAfterDeviceCreation()
-{
-	// setup the bread crumb data to track GPU progress on this command queue when GPU crash debugging is enabled
-	if (EnumHasAnyFlags(Device->GetParentAdapter()->GetGPUCrashDebuggingModes(), ED3D12GPUCrashDebuggingModes::BreadCrumbs))
-	{
-		// QI for the ID3DDevice3 - manual buffer write from command line only supported on 1709+
-		TRefCountPtr<ID3D12Device3> D3D12Device3;
-		HRESULT hr = Device->GetDevice()->QueryInterface(IID_PPV_ARGS(D3D12Device3.GetInitReference()));
-		if (SUCCEEDED(hr))
-		{
-			const uint32 ShaderDiagnosticBufferSize = sizeof(FD3D12DiagnosticBufferData) + FMath::Max(0, CVarD3D12ExtraDiagnosticBufferMemory.GetValueOnAnyThread());
-
-			// Allocate persistent CPU readable memory which will still be valid after a device lost and wrap this data in a placed resource
-			// so the GPU command list can write to it
-			int32 MaxBreadcrumbsContexts = MAX_GPU_BREADCRUMB_CONTEXTS;
-			int32 MaxBreadcrumbsSize = MAX_GPU_BREADCRUMB_SIZE;
-			const uint32 EventBufferSize = MaxBreadcrumbsSize * MaxBreadcrumbsContexts * sizeof(uint32);
-			const uint32 TotalBufferSize = EventBufferSize + ShaderDiagnosticBufferSize;
-
-			// Create the platform-specific diagnostic buffer
-			FString Name = FString::Printf(TEXT("DiagnosticBuffer (%s)"), GetD3DCommandQueueTypeName(QueueType));
-
-			const D3D12_RESOURCE_DESC BufferDesc = CD3DX12_RESOURCE_DESC::Buffer(TotalBufferSize, D3D12_RESOURCE_FLAG_ALLOW_CROSS_ADAPTER);
-			DiagnosticBuffer = Device->CreateDiagnosticBuffer(BufferDesc, *Name);
-
-			if (DiagnosticBuffer)
-			{
-				// Diagnostic buffer is split between breadcrumb events and diagnostic messages.
-				DiagnosticBuffer->BreadCrumbsOffset = 0;
-				DiagnosticBuffer->BreadCrumbsSize = EventBufferSize;
-
-				DiagnosticBuffer->BreadCrumbsContextSize = EventBufferSize / MaxBreadcrumbsContexts;
-
-				for (uint16 Idx = 0; Idx < MaxBreadcrumbsContexts; ++Idx)
-				{
-					DiagnosticBuffer->FreeContextIds.Add(MaxBreadcrumbsContexts - Idx);
-				}
-
-				DiagnosticBuffer->DiagnosticsOffset = DiagnosticBuffer->BreadCrumbsOffset + DiagnosticBuffer->BreadCrumbsSize;
-				DiagnosticBuffer->DiagnosticsSize = ShaderDiagnosticBufferSize;
-			}
-		}
-	}
-}
-
 FD3D12Queue::~FD3D12Queue()
 {
-	// The diagnostic buffer would be implicitly destroyed before the context pool, which can lead to a situation where there
-	// are still some FBreadcrumbStack objects owned by a context, and their destructor tries to use the diagnostic buffer
-	// after it's been freed. Explicitly freeing the buffer now and setting it to null works around this problem.
-	DiagnosticBuffer = nullptr;
 	check(PendingSubmission.IsEmpty());
 	check(PendingInterrupt.IsEmpty());
 }
@@ -225,11 +175,6 @@ static D3D12_FEATURE_DATA_FORMAT_SUPPORT GetFormatSupport(ID3D12Device* InDevice
 
 void FD3D12Device::SetupAfterDeviceCreation()
 {
-	for (FD3D12Queue& Queue : Queues)
-	{
-		Queue.SetupAfterDeviceCreation();
-	}
-
 	ID3D12Device* Direct3DDevice = GetParentAdapter()->GetD3DDevice();
 
 	for (uint32 FormatIndex = PF_Unknown; FormatIndex < PF_MAX; FormatIndex++)
@@ -364,9 +309,9 @@ void FD3D12Device::SetupAfterDeviceCreation()
 	}
 #endif // USE_PIX
 
-	if(bUnderGPUCapture)
+	if (bUnderGPUCapture)
 	{
-		GDynamicRHI->EnableIdealGPUCaptureOptions(true);
+		FDynamicRHI::EnableIdealGPUCaptureOptions(true);
 	}
 #endif // PLATFORM_WINDOWS
 
@@ -429,6 +374,15 @@ void FD3D12Device::SetupAfterDeviceCreation()
 
 	check(!ImmediateCommandContext);
 	ImmediateCommandContext = FD3D12DynamicRHI::GetD3DRHI()->CreateCommandContext(this, ED3D12QueueType::Direct, true);
+
+	// setup the bread crumb data to track GPU progress on this command queue when GPU crash debugging is enabled
+	if (UE::RHI::UseGPUCrashBreadcrumbs())
+	{
+		for (FD3D12Queue& Queue : Queues)
+		{
+			Queue.DiagnosticBuffer = MakeUnique<FD3D12DiagnosticBuffer>(Queue);
+		}
+	}
 }
 
 void FD3D12Device::CleanupResources()
@@ -557,7 +511,9 @@ void FD3D12Device::RegisterGPUDispatch(FIntVector GroupCount)
 void FD3D12Device::BlockUntilIdle()
 {
 	// Submit a new sync point to each queue
-	TArray<FD3D12Payload*, TInlineAllocator<(uint32)ED3D12QueueType::Count>> Payloads;
+	TArray<FD3D12Payload*> Payloads;
+	Payloads.Reserve(int32(ED3D12QueueType::Count));
+
 	TArray<FD3D12SyncPointRef, TInlineAllocator<(uint32)ED3D12QueueType::Count>> SyncPoints;
 
 	for (uint32 QueueTypeIndex = 0; QueueTypeIndex < (uint32)ED3D12QueueType::Count; ++QueueTypeIndex)
@@ -572,7 +528,7 @@ void FD3D12Device::BlockUntilIdle()
 		SyncPoints.Add(SyncPoint);
 	}
 
-	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(Payloads);
+	FD3D12DynamicRHI::GetD3DRHI()->SubmitPayloads(MoveTemp(Payloads));
 
 	// Block this thread until the sync points have signaled.
 	for (FD3D12SyncPointRef& SyncPoint : SyncPoints)

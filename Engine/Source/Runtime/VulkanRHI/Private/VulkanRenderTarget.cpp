@@ -591,7 +591,7 @@ void FVulkanCommandListContext::RHIBeginRenderPass(const FRHIRenderPassInfo& InI
 	}
 
 	RenderPassInfo = InInfo;
-	RHIPushEvent(InName ? InName : TEXT("<unnamed RenderPass>"), FColor::Green);
+
 	if (InInfo.NumOcclusionQueries > 0)
 	{
 		BeginOcclusionQueryBatch(CmdBuffer, InInfo.NumOcclusionQueries);
@@ -703,8 +703,6 @@ void FVulkanCommandListContext::RHIEndRenderPass()
 
 	check(CurrentRenderPass);
 	CurrentRenderPass = nullptr;
-
-	RHIPopEvent();
 
 	// Sync point for passes with occlusion queries
 	if (bHasOcclusionQueries && GSubmitOcclusionBatchCmdBufferCVar.GetValueOnAnyThread())

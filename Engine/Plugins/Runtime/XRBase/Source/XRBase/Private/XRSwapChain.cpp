@@ -25,7 +25,7 @@ FORCEINLINE void CheckInRenderThread()
 
 bool InRHIOrValidThread()
 {
-	if (GIsThreadedRendering && !GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed))
+	if (GIsThreadedRendering)
 	{
 		if (IsRHIThreadRunning())
 		{

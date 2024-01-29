@@ -435,7 +435,7 @@ void FGPUSortManager::FSortBatch::GenerateKeys(FRHICommandListImmediate& RHICmdL
 	{
 		if (EnumHasAnyFlags(KeyGenLocation & Callback.Flags, EGPUSortFlags::AnyKeyGenLocation))
 		{
-			SCOPED_DRAW_EVENTF(RHICmdList, GPUSortBatch, TEXT("KeyGen_%s"), *Callback.Name.ToString());
+			SCOPED_DRAW_EVENTF(RHICmdList, GPUSortBatch, TEXT("KeyGen_%s"), Callback.Name);
 			const bool bAsInt32 = EnumHasAnyFlags(Callback.Flags, EGPUSortFlags::ValuesAsInt32);
 			FRHIUnorderedAccessView* TypedValueUAV = bAsInt32 ? DynamicValueBuffer->ValueBuffers.Last().Int32UAV : DynamicValueBuffer->ValueBuffers.Last().G16R16UAV;
 			// TR-KeyGen : TypedValueUAV is the same as ValueUAVs[1] but with a different type. The callback needs to do an BeginUAVOverlap / EndUAVOverlap between each dispatch updating partially the content.
@@ -538,9 +538,9 @@ bool FGPUSortManager::TestBatchFlags(EGPUSortFlags BatchFlags, EGPUSortFlags Tas
 	return EnumHasAnyFlags(BatchFlags, TaskFlags & EGPUSortFlags::AnyKeyPrecision) && EnumHasAnyFlags(BatchFlags, TaskFlags & EGPUSortFlags::AnySortLocation);
 }
 
-const TCHAR* FGPUSortManager::GetPrecisionString(EGPUSortFlags BatchFlags)
+auto FGPUSortManager::GetPrecisionString(EGPUSortFlags BatchFlags) -> TCHAR const(*)[1]
 {
-	return EnumHasAnyFlags(BatchFlags, EGPUSortFlags::LowPrecisionKeys) ? TEXT("LowPrecision") : TEXT("HighPrecision");
+	return RHI_BREADCRUMB_FORCE_STRING_LITERAL(EnumHasAnyFlags(BatchFlags, EGPUSortFlags::LowPrecisionKeys) ? TEXT("LowPrecision") : TEXT("HighPrecision"));
 }
 
 FGPUSortManager::FGPUSortManager(ERHIFeatureLevel::Type InFeatureLevel) 

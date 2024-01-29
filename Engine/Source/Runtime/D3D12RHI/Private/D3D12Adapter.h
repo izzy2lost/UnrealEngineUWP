@@ -121,17 +121,6 @@ private:
 	FD3D12Adapter* Adapter = nullptr;
 };
 
-enum class ED3D12GPUCrashDebuggingModes
-{
-	None				= 0x0,
-	BreadCrumbs			= 0x1,
-	NvAftermath			= 0x2,
-	DRED				= 0x4,
-
-	All					= BreadCrumbs | NvAftermath | DRED,
-};
-ENUM_CLASS_FLAGS(ED3D12GPUCrashDebuggingModes)
-
 // Represents a set of linked D3D12 device nodes (LDA i.e 1 or more identical GPUs). In most cases there will be only 1 node, however if the system supports
 // SLI/Crossfire and the app enables it an Adapter will have 2 or more nodes. This class will own anything that can be shared
 // across LDA including: System Pool Memory,.Pipeline State Objects, Root Signatures etc.
@@ -210,7 +199,6 @@ public:
 
 	FORCEINLINE const bool IsDebugDevice() const { return bDebugDevice; }
 
-	FORCEINLINE const ED3D12GPUCrashDebuggingModes GetGPUCrashDebuggingModes() const { return GPUCrashDebuggingModes; }
 	FORCEINLINE const D3D12_RESOURCE_HEAP_TIER     GetResourceHeapTier      () const { return Desc.ResourceHeapTier; }
 	FORCEINLINE const D3D12_RESOURCE_BINDING_TIER  GetResourceBindingTier   () const { return Desc.ResourceBindingTier; }
 	FORCEINLINE const D3D_ROOT_SIGNATURE_VERSION   GetRootSignatureVersion  () const { return RootSignatureVersion; }
@@ -461,8 +449,6 @@ protected:
 	// Creates default root and execute indirect signatures
 	virtual void CreateCommandSignatures();
 
-	void SetupGPUCrashDebuggingModesCommon();
-
 	// LDA setups have one ID3D12Device
 	TRefCountPtr<ID3D12Device> RootDevice;
 #if D3D12_MAX_DEVICE_INTERFACE >= 1
@@ -541,9 +527,6 @@ protected:
 
 	/** Running with debug device */
 	bool bDebugDevice = false;
-
-	/** GPU Crash debugging modes */
-	ED3D12GPUCrashDebuggingModes GPUCrashDebuggingModes = ED3D12GPUCrashDebuggingModes::None;
 
 	FD3D12AdapterDesc Desc;
 

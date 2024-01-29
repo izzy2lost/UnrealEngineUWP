@@ -1229,25 +1229,6 @@ inline const TRefCountPtr<FRDGPooledBuffer>& ConvertToExternalAccessBuffer(
 	return GraphBuilder.ConvertToExternalBuffer(Buffer);
 }
 
-/** Scope used to wait for outstanding tasks when the scope destructor is called. Used for command list recording tasks. */
-class FRDGWaitForTasksScope
-{
-public:
-	FRDGWaitForTasksScope(FRDGBuilder& InGraphBuilder, bool InbCondition = true)
-		: GraphBuilder(InGraphBuilder)
-		, bCondition(InbCondition)
-	{}
-
-	RENDERCORE_API ~FRDGWaitForTasksScope();
-
-private:
-	FRDGBuilder& GraphBuilder;
-	bool bCondition;
-};
-
-#define RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, bCondition) FRDGWaitForTasksScope PREPROCESSOR_JOIN(RDGWaitForTasksScope, __LINE__){ GraphBuilder, bCondition }
-#define RDG_WAIT_FOR_TASKS(GraphBuilder) RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, true)
-
 // Allocates an RDG pooled buffer instance. Attempts to reuse allocation if Out has a value. Returns true a new instance was allocated, or false if the existing allocation was reused.
 RENDERCORE_API bool AllocatePooledBuffer(
 	const FRDGBufferDesc& Desc,

@@ -195,74 +195,33 @@ void FRDGTrace::OutputGraphEnd(const FRDGBuilder& GraphBuilder)
 
 #if RDG_EVENTS
 	{
-		struct FScopeInfo
+		auto DumpScopes = [&](FRDGScope* Current, auto& DumpScopes)
 		{
-			const TCHAR* Name{};
-			FRDGPassHandle FirstPass;
-			FRDGPassHandle LastPass;
-			uint16 Depth{};
-		};
-		TArray<FScopeInfo> Scopes;
-		TMap<const FRDGEventScope*, int32> ScopeToIndex;
-		int32 Depth = 0;
+			if (!Current || Current->bVisited)
+				return;
 
-		TRDGScopeStackHelper<FRDGEventScopeOp> ScopeStackHelper;
+			Current->bVisited = true;
+			DumpScopes(Current->Parent, DumpScopes);
+
+			if (FRDGScope_RHI* RHIScope = Current->Get<FRDGScope_RHI>())
+			{
+				if (Current->CPUFirstPass && Current->CPULastPass)
+				{
+					const TCHAR* Name = RHIScope->Name.GetTCHAR();
+
+					UE_TRACE_LOG(RDGTrace, ScopeMessage, RDGChannel)
+						<< ScopeMessage.Name(Name, uint16(FCString::Strlen(Name)))
+						<< ScopeMessage.FirstPass(Current->CPUFirstPass->GetHandle().GetIndexUnchecked())
+						<< ScopeMessage.LastPass(Current->CPULastPass->GetHandle().GetIndexUnchecked())
+						<< ScopeMessage.Depth(Current->Depth);
+				}
+			}
+		};
 
 		for (FRDGPassHandle Handle = Passes.Begin(); Handle != Passes.End(); ++Handle)
 		{
-			const auto Replay = [&](const TRDGScopeOpArray<FRDGEventScopeOp>& Ops)
-			{
-				for (int32 Index = 0; Index < Ops.Num(); ++Index)
-				{
-					FRDGEventScopeOp Op = Ops[Index];
-
-					if (Op.IsScope())
-					{
-						if (Op.IsPush())
-						{
-							ScopeToIndex.Emplace(Op.Scope, Scopes.Num());
-
-							FScopeInfo ScopeInfo;
-							ScopeInfo.Name = Op.Scope->Name.GetTCHAR();
-							ScopeInfo.FirstPass = Handle;
-							check(Depth >= 0 && Depth <= TNumericLimits<uint16>::Max());
-							ScopeInfo.Depth = static_cast<uint16>(Depth);
-							Scopes.Add(ScopeInfo);
-
-							Depth++;
-						}
-						else
-						{
-							FScopeInfo& ScopeInfo = Scopes[ScopeToIndex.FindChecked(Op.Scope)];
-							ScopeInfo.LastPass = FRDGPassHandle(Handle.GetIndex() - 1);
-
-							Depth--;
-						}
-					}
-				}
-			};
-
 			const FRDGPass* Pass = Passes[Handle];
-
-			const FRDGEventScope* ParentScope = Pass->TraceEventScope;
-
-			Replay(ScopeStackHelper.CompilePassPrologue(ParentScope, nullptr));
-
-			if (Handle == Passes.Last())
-			{
-				Replay(ScopeStackHelper.EndCompile());
-			}
-		}
-
-		check(Depth == 0);
-
-		for (const FScopeInfo& ScopeInfo : Scopes)
-		{
-			UE_TRACE_LOG(RDGTrace, ScopeMessage, RDGChannel)
-				<< ScopeMessage.Name(ScopeInfo.Name, uint16(FCString::Strlen(ScopeInfo.Name)))
-				<< ScopeMessage.FirstPass(ScopeInfo.FirstPass.GetIndexUnchecked())
-				<< ScopeMessage.LastPass(ScopeInfo.LastPass.GetIndexUnchecked())
-				<< ScopeMessage.Depth(ScopeInfo.Depth);
+			DumpScopes(Pass->Scope, DumpScopes);
 		}
 	}
 #endif

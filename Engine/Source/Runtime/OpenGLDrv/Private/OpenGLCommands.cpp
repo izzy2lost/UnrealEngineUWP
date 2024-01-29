@@ -2727,16 +2727,13 @@ void FOpenGLDynamicRHI::RHIClearMRT(const bool* bClearColorArray,int32 NumClearC
 // Blocks the CPU until the GPU catches up and goes idle.
 void FOpenGLDynamicRHI::RHIBlockUntilGPUIdle()
 {
-	// Not really supported
-}
-
-void FOpenGLDynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
 	RunOnGLRenderContextThread([&]()
 	{
 		FOpenGL::Flush();
 		RHIPollOcclusionQueries();
 	});
+	
+	// @todo dev-pr use a render query to determine when the GPU is done
 }
 
 /**
@@ -2921,11 +2918,6 @@ void FOpenGLDynamicRHI::RHISetDepthBounds(float MinDepth, float MaxDepth)
 	}
 }
 
-void FOpenGLDynamicRHI::RHISubmitCommandsHint()
-{
-	FOpenGL::Flush();
-}
-
 IRHICommandContext* FOpenGLDynamicRHI::RHIGetDefaultContext()
 {
 	return this;
@@ -2937,17 +2929,25 @@ IRHIComputeContext* FOpenGLDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipelin
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FOpenGLDynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+IRHIPlatformCommandList* FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
 {
 	// "Context" will always be the default context, since we don't implement parallel execution.
-	// OpenGL uses an immediate context, so there's nothing to do here. Executed commands will have already reached the driver.
+	check(Args.Context == this);
 
-	// Returning nullptr indicates that we don't want RHISubmitCommandLists to be called.
+	// Flush the context to ensure recorded commands will reach the driver.
+	VERIFY_GL_SCOPE();
+	FOpenGL::Flush();
+
+	// Clear some context state
+	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
+	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
+
 	return nullptr;
 }
 
-void FOpenGLDynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FOpenGLDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
+	// Nothing to do
 }
 
 void FOpenGLDynamicRHI::RHIInvalidateCachedState()

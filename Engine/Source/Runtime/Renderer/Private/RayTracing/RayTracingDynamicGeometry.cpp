@@ -27,9 +27,6 @@ static FAutoConsoleVariableRef CVarRTDynGeomSharedVertexBufferGarbageCollectLate
 	ECVF_RenderThreadSafe
 );
 
-DECLARE_CYCLE_STAT(TEXT("RTDynGeomDispatch"), STAT_CLM_RTDynGeomDispatch, STATGROUP_ParallelCommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("RTDynGeomBuild"), STAT_CLM_RTDynGeomBuild, STATGROUP_ParallelCommandListMarkers);
-
 // Workaround for outstanding memory corruption on some platforms when parallel command list translation is used.
 #define USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS 0
 
@@ -384,16 +381,9 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 
 void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmediate& ParentCmdList, FRHIBuffer* ScratchBuffer)
 {
-#if WANTS_DRAW_MESH_EVENTS
-#define SCOPED_DRAW_OR_COMPUTE_EVENT(ParentCmdList, Name) FDrawEvent PREPROCESSOR_JOIN(Event_##Name,__LINE__); if(GetEmitDrawEvents()) PREPROCESSOR_JOIN(Event_##Name,__LINE__).Start(&ParentCmdList, FColor(0), TEXT(#Name));
-#else
-#define SCOPED_DRAW_OR_COMPUTE_EVENT(...)
-#endif
-
 	if (DispatchCommands.Num() > 0)
 	{
-		SCOPED_DRAW_OR_COMPUTE_EVENT(ParentCmdList, RayTracingDynamicGeometryUpdate)
-
+		SCOPED_DRAW_EVENT(ParentCmdList, RayTracingDynamicGeometryUpdate);
 		{
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(SortDispatchCommands);
@@ -469,7 +459,7 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmedi
 			}
 
 			TArray<FRHICommandListImmediate::FQueuedCommandList, TInlineAllocator<1>> QueuedCommandLists;
-			auto AllocateCommandList = [&ParentCmdList, &QueuedCommandLists](uint32 ExpectedNumDraws, TStatId StatId) -> FRHIComputeCommandList&
+			auto AllocateCommandList = [&ParentCmdList, &QueuedCommandLists](uint32 ExpectedNumDraws) -> FRHIComputeCommandList&
 			{
 			#if USE_RAY_TRACING_DYNAMIC_GEOMETRY_PARALLEL_COMMAND_LISTS
 				if (ParentCmdList.Bypass())
@@ -480,7 +470,6 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmedi
 				{
 					FRHIComputeCommandList* RHICmdList = new FRHIComputeCommandList(ParentCmdList.GetGPUMask());
 					RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
-					RHICmdList->SetExecuteStat(StatId);
 
 					QueuedCommandLists.Emplace(RHICmdList, ExpectedNumDraws);
 
@@ -492,7 +481,7 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmedi
 			};
 
 			{
-				FRHIComputeCommandList& RHICmdList = AllocateCommandList(DispatchCommands.Num(), GET_STATID(STAT_CLM_RTDynGeomDispatch));
+				FRHIComputeCommandList& RHICmdList = AllocateCommandList(DispatchCommands.Num());
 
 				FRHIComputeShader* CurrentShader = nullptr;
 				FRWBuffer* CurrentBuffer = nullptr;
@@ -556,7 +545,7 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmedi
 				// on the same RTGeometry on multiple threads at the same time. Ideally move the build
 				// requests over to the RaytracingGeometry manager so they can be correctly scheduled
 				// with other build requests in the engine (see UE-106982)
-				SCOPED_DRAW_OR_COMPUTE_EVENT(ParentCmdList, Build);
+				SCOPED_DRAW_EVENT(ParentCmdList, Build);
 
 				FRHIBufferRange ScratchBufferRange;
 				ScratchBufferRange.Buffer = ScratchBuffer;
@@ -566,8 +555,6 @@ void FRayTracingDynamicGeometryCollection::DispatchUpdates(FRHICommandListImmedi
 
 		}
 	}
-		
-#undef SCOPED_DRAW_OR_COMPUTE_EVENT
 }
 
 void FRayTracingDynamicGeometryCollection::EndUpdate(FRHICommandListImmediate& RHICmdList)

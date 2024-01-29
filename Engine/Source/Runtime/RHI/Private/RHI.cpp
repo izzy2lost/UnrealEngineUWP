@@ -68,6 +68,24 @@ static TAutoConsoleVariable<int32> CVarGraphicsAdapter(
 	TEXT("  1: Adapter #1, ..."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static FAutoConsoleCommandWithWorldAndArgs CVarRHISetGPUCaptureOptions(
+	TEXT("r.RHISetGPUCaptureOptions"),
+	TEXT("Utility function to change multiple CVARs useful when profiling or debugging GPU rendering. Setting to 1 or 0 will guarantee all options are in the appropriate state.\n")
+	TEXT("r.showmaterialdrawevents, toggledrawevents."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateStatic([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() > 0)
+		{
+			const bool bEnabled = Args[0].ToBool();
+			FDynamicRHI::EnableIdealGPUCaptureOptions(bEnabled);
+		}
+		else
+		{
+			UE_LOG(LogRHI, Display, TEXT("Usage: r.RHISetGPUCaptureOptions 0 or r.RHISetGPUCaptureOptions 1"));
+		}
+	})
+);
+
 #if STATS
 #include "ProfilingDebugging/CsvProfilerConfig.h"
 #include "Stats/StatsData.h"
@@ -116,12 +134,12 @@ const FClearValueBinding FClearValueBinding::DefaultNormal8Bit(FLinearColor(128.
 
 #if HAS_GPU_STATS
 
-	FDrawCallCategoryName::FDrawCallCategoryName()
+	FRHIDrawStatsCategory::FRHIDrawStatsCategory()
 		: Name(NAME_None)
 		, Index(-1)
 	{}
 
-	FDrawCallCategoryName::FDrawCallCategoryName(FName InName)
+	FRHIDrawStatsCategory::FRHIDrawStatsCategory(FName InName)
 		: Name(InName)
 		, Index(GetManager().NumCategory++)
 	{
@@ -132,14 +150,14 @@ const FClearValueBinding FClearValueBinding::DefaultNormal8Bit(FLinearColor(128.
 		}
 	}
 
-	FDrawCallCategoryName::FManager::FManager()
+	FRHIDrawStatsCategory::FManager::FManager()
 		: NumCategory(0)
 	{
 		FMemory::Memzero(Array);
 		FMemory::Memzero(DisplayCounts);
 	}
 
-	FDrawCallCategoryName::FManager& FDrawCallCategoryName::GetManager()
+	FRHIDrawStatsCategory::FManager& FRHIDrawStatsCategory::GetManager()
 	{
 		// Categories are global scope objects, so the initialization order is undefined.
 		// Lazy init the manager on first use.
@@ -1115,52 +1133,10 @@ static TAutoConsoleVariable<int32> GCVarRHIRenderPass(
 	TEXT(""),
 	ECVF_Default);
 
-static TAutoConsoleVariable<int32> CVarGPUCrashDebugging(
-	TEXT("r.GPUCrashDebugging"),
-	0,
-	TEXT("Enable vendor specific GPU crash analysis tools"),
-	ECVF_ReadOnly
-	);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDump(
-	TEXT("r.GPUCrashDump"),
-	0,
-	TEXT("Enable vendor specific GPU crash dumps"),
-	ECVF_ReadOnly
-);
-
 static TAutoConsoleVariable<int32> CVarGPUCrashOnOutOfMemory(
 	TEXT("r.GPUCrashOnOutOfMemory"),
 	0,
 	TEXT("Enable crash reporting on GPU OOM"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathMarkers(
-	TEXT("r.GPUCrashDebugging.Aftermath.Markers"),
-	0,
-	TEXT("Enable draw event markers in Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathCallstack(
-	TEXT("r.GPUCrashDebugging.Aftermath.Callstack"),
-	0,
-	TEXT("Enable callstack capture in Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathResourceTracking(
-	TEXT("r.GPUCrashDebugging.Aftermath.ResourceTracking"),
-	0,
-	TEXT("Enable resource tracking for Aftermath dumps"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingAftermathTrackAll(
-	TEXT("r.GPUCrashDebugging.Aftermath.TrackAll"),
-	1,
-	TEXT("Enable maximum tracking for Aftermath dumps"),
 	ECVF_ReadOnly
 );
 
@@ -1317,13 +1293,13 @@ void FRHIDrawStats::Accumulate(FRHIDrawStats& Other)
 {
 	for (uint32 GPUIndex = 0; GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
 	{
-		FPerGPUStats& LeftGPU = GetGPU(GPUIndex);
-		FPerGPUStats& RightGPU = Other.GetGPU(GPUIndex);
+		FPerGPU& LeftGPU = GetGPU(GPUIndex);
+		FPerGPU& RightGPU = Other.GetGPU(GPUIndex);
 
 		for (int32 CategoryIndex = 0; CategoryIndex < NumCategories; ++CategoryIndex)
 		{
-			FPerCategoryStats& LeftCategory = LeftGPU.GetCategory(CategoryIndex);
-			FPerCategoryStats& RightCategory = RightGPU.GetCategory(CategoryIndex);
+			FPerCategory& LeftCategory = LeftGPU.Categories[CategoryIndex];
+			FPerCategory& RightCategory = RightGPU.Categories[CategoryIndex];
 
 			LeftCategory += RightCategory;
 		}
@@ -1331,7 +1307,7 @@ void FRHIDrawStats::Accumulate(FRHIDrawStats& Other)
 }
 
 // Called from RHIBeginFrame
-void FRHICommandListImmediate::ProcessStats()
+RHI_API void FRHIDrawStats::ProcessAsFrameStats()
 {
 #if HAS_GPU_STATS
 	// Only copy the display counters every half second keep things more stable.
@@ -1347,23 +1323,20 @@ void FRHICommandListImmediate::ProcessStats()
 		bCopyDisplayFrames = true;
 	}
 
-	FDrawCallCategoryName::FManager& Manager = FDrawCallCategoryName::GetManager();
+	FRHIDrawStatsCategory::FManager& Manager = FRHIDrawStatsCategory::GetManager();
 #endif
 
 	// Summed stats across all GPUs
-	FRHIDrawStats::FPerCategoryStats Total = {};
-	TStaticArray<FRHIDrawStats::FPerCategoryStats, FRHIDrawStats::NumCategories> TotalPerCategory;
+	FPerCategory Total = {};
+	TStaticArray<FPerCategory, FRHIDrawStats::NumCategories> TotalPerCategory;
 	FMemory::Memzero(TotalPerCategory);
 
 	for (int32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS; ++GPUIndex)
 	{
-		FRHIDrawStats::FPerCategoryStats TotalPerGPU = {};
-
-		FRHIDrawStats::FPerGPUStats& GPUStats = FrameDrawStats.GetGPU(GPUIndex);
-
+		FPerCategory TotalPerGPU = {};
 		for (int32 CategoryIndex = 0; CategoryIndex < FRHIDrawStats::NumCategories; ++CategoryIndex)
 		{
-			FRHIDrawStats::FPerCategoryStats& Category = GPUStats.GetCategory(CategoryIndex);
+			FPerCategory& Category = GPUs[GPUIndex].Categories[CategoryIndex];
 
 			TotalPerCategory[CategoryIndex] += Category;
 			TotalPerGPU                     += Category;
@@ -1398,7 +1371,7 @@ void FRHICommandListImmediate::ProcessStats()
 	#endif
 #endif // HAS_GPU_STATS
 
-	FrameDrawStats.Reset();
+	Reset();
 }
 
 //
@@ -2177,6 +2150,16 @@ FDebugName& FDebugName::operator=(FName Other)
 	return *this;
 }
 
+uint32 FDebugName::ToString(TCHAR* Out, uint32 OutSize) const
+{
+	uint32 NumChars = Name.ToString(Out, OutSize);
+	if (Number != NAME_NO_NUMBER_INTERNAL)
+	{
+		NumChars += FCString::Snprintf(Out + NumChars, OutSize - NumChars, TEXT("_%u"), Number);
+	}
+	return NumChars;
+}
+
 FString FDebugName::ToString() const
 {
 	FString Out;
@@ -2199,6 +2182,86 @@ void FDebugName::AppendString(FStringBuilderBase& Builder) const
 
 namespace UE::RHI
 {
+	static TAutoConsoleVariable<int32> CVarGPUCrashDebugging(
+		TEXT("r.GPUCrashDebugging"),
+		0,
+		TEXT("Enable vendor specific GPU crash analysis tools"),
+		ECVF_ReadOnly
+	);
+
+	RHI_API bool UseGPUCrashDebugging()
+	{
+		static const bool bNoGpuCrashDebugging = FParse::Param(FCommandLine::Get(), TEXT("nogpucrashdebugging"));
+		static const bool bGpuCrashDebugging   = FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging"));
+
+		// Command line takes precedence
+		if (bNoGpuCrashDebugging)
+		{
+			return false;
+		}
+		else if (bGpuCrashDebugging)
+		{
+			return true;
+		}
+		else
+		{
+			return CVarGPUCrashDebugging.GetValueOnAnyThread() != 0;
+		}
+	}
+
+	RHI_API bool ShouldEnableGPUCrashFeature(IConsoleVariable& CVar, TCHAR const* CommandLineSwitch)
+	{
+		static const bool bNoGpuCrashDebugging = FParse::Param(FCommandLine::Get(), TEXT("nogpucrashdebugging"));
+		static const bool bGpuCrashDebugging   = FParse::Param(FCommandLine::Get(), TEXT("gpucrashdebugging"));
+
+		bool bEnabled;
+		if (bNoGpuCrashDebugging)
+		{
+			// Command line switch is forcing everything off
+			bEnabled = false;
+		}
+		else if (bGpuCrashDebugging)
+		{
+			// Command line switch is forcing everything on
+			bEnabled = true;
+		}
+		else if (CVarGPUCrashDebugging->GetInt() > 0)
+		{
+			// Otherwise, switch everything on when opt-ed in via the r.GPUCrashDebugging cvar.
+			bEnabled = true;
+		}
+		else
+		{
+			// If none of the above apply, check the individual feature cvar.
+			bEnabled = CVar.GetInt() > 0;
+		}
+
+		// Allow additional command line switches to force on/off the feature via "-feature=1" / "-feature=0", or simply "-feature".
+		int32 Value = 0;
+		if (FParse::Value(FCommandLine::Get(), *FString::Printf(TEXT("%s="), CommandLineSwitch), Value))
+		{
+			bEnabled = Value > 0;
+		}
+		else if (FParse::Param(FCommandLine::Get(), CommandLineSwitch))
+		{
+			bEnabled = true;
+		}
+
+		return bEnabled;
+	}
+
+	static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingBreadcrumbs(
+		TEXT("r.GPUCrashDebugging.Breadcrumbs"),
+		0,
+		TEXT("Enable vendor specific GPU crash analysis tools"),
+		ECVF_ReadOnly
+	);
+
+	RHI_API bool UseGPUCrashBreadcrumbs()
+	{
+		static bool bEnabled = ShouldEnableGPUCrashFeature(*CVarGPUCrashDebuggingBreadcrumbs, TEXT("gpubreadcrumbs"));
+		return bEnabled;
+	}
 
 	RHI_API void CopySharedMips(FRHICommandList& RHICmdList, FRHITexture* SrcTexture, FRHITexture* DstTexture)
 	{

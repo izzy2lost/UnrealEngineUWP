@@ -1578,18 +1578,6 @@ void FMeshDrawCommand::SubmitDraw(
 	FRHICommandList& RHICmdList,
 	FMeshDrawCommandStateCache& RESTRICT StateCache)
 {
-#if MESH_DRAW_COMMAND_DEBUG_DATA && RHI_WANT_BREADCRUMB_EVENTS
-	if (MeshDrawCommand.DebugData.ResourceName.IsValid())
-	{
-		TCHAR NameBuffer[FName::StringBufferSize];
-		const uint32 NameLen = MeshDrawCommand.DebugData.ResourceName.ToString(NameBuffer);
-		BREADCRUMB_EVENTF(RHICmdList, MeshDrawCommand, TEXT("%s %.*s"), *MeshDrawCommand.DebugData.MaterialName, NameLen, NameBuffer);
-	}
-	else
-	{
-		BREADCRUMB_EVENTF(RHICmdList, MeshDrawCommand, TEXT("%s"), *MeshDrawCommand.DebugData.MaterialName);
-	}
-#endif
 #if WANTS_DRAW_MESH_EVENTS
 	FMeshDrawEvent MeshEvent(MeshDrawCommand, InstanceFactor, RHICmdList);
 #endif
@@ -2267,39 +2255,17 @@ void FPassProcessorManager::SetPassFlags(EShadingPath ShadingPath, EMeshPass::Ty
 	}
 }
 
-
-
 #if WANTS_DRAW_MESH_EVENTS
 FMeshDrawCommand::FMeshDrawEvent::FMeshDrawEvent(const FMeshDrawCommand& MeshDrawCommand, const uint32 InstanceFactor, FRHICommandList& RHICmdList)
-{
-	if (GShowMaterialDrawEvents)
-	{
-		const FString& MaterialName = MeshDrawCommand.DebugData.MaterialName;
-		FName ResourceName = MeshDrawCommand.DebugData.ResourceName;
-
-		FString DrawEventName = FString::Printf(
-			TEXT("%s %s"),
-			// Note: this is the parent's material name, not the material instance
-			*MaterialName,
-			ResourceName.IsValid() ? *ResourceName.ToString() : TEXT(""));
-
-		const uint32 Instances = MeshDrawCommand.NumInstances * InstanceFactor;
-		if (Instances > 1)
-		{
-			BEGIN_DRAW_EVENTF(
-				RHICmdList,
-				MaterialEvent,
-				*this,
-				TEXT("%s %u instances"),
-				*DrawEventName,
-				Instances);
-		}
-		else
-		{
-			BEGIN_DRAW_EVENTF(RHICmdList, MaterialEvent, *this, *DrawEventName);
-		}
-	}
-}
+	: Breadcrumb(
+		  RHICmdList
+		, GShowMaterialDrawEvents != 0
+		, TEXT("%s %s (%u instances)")
+		, MeshDrawCommand.DebugData.MaterialName
+		, MeshDrawCommand.DebugData.ResourceName
+		, MeshDrawCommand.NumInstances * InstanceFactor
+	)
+{}
 #endif
 
 void AddRenderTargetInfo(

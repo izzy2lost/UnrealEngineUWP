@@ -163,200 +163,75 @@ static FString GetD3D12TextureFlagString(uint32 TextureFlags)
 	return TextureFormatText;
 }
 
-/* Export GPU breadcrumbs data as part of the crash payload. RHI breadcrumbs are preferred over other types and will overwrite if necessary. */
-static void ExportBreadcrumbDataAsCrashPayload(const FString& BreadcrumbSource, const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs)
-{
-	const FString& CurrentSource = FGenericCrashContext::GetGPUBreadcrumbsSource();
-
-	if (CurrentSource.IsEmpty() || BreadcrumbSource == CurrentSource || BreadcrumbSource == TEXT("RHI"))
-	{
-		if (CurrentSource != BreadcrumbSource)
-		{
-			FGenericCrashContext::ResetGPUBreadcrumbsData();
-		}
-
-		FGenericCrashContext::SetGPUBreadcrumbsSource(BreadcrumbSource);
-		FGenericCrashContext::SetGPUBreadcrumbs(GPUQueueName, Breadcrumbs);
-	}
-}
-
-FBreadcrumbNode CollectBreadcrumbNode(
-	D3D12RHI::FD3DGPUProfiler& GPUProfiler,
-	const TSharedPtr<FBreadcrumbStack>& Stack,
-	const FBreadcrumbStack::FScope& Scope)
-{
-	FBreadcrumbNode Node;
-
-	const volatile uint32* Markers = reinterpret_cast<uint32*>(Stack->CPUAddress);
-	const bool bHaveMarkerIndex = (Scope.MarkerIndex < Stack->MaxMarkers);
-	Node.State = bHaveMarkerIndex ? (EBreadcrumbState)Markers[Scope.MarkerIndex] : EBreadcrumbState::Overflow;
-
-	const FString* EventName = GPUProfiler.FindEventString(Scope.NameCRC);
-	Node.Name = EventName ? *EventName : TEXT("Unknown");
-
-	if (Node.State == EBreadcrumbState::Active)
-	{
-		for (uint32 Child = Scope.Child; Child != 0; Child = Stack->Scopes[Child].Sibling)
-		{
-			Node.Children.Emplace(CollectBreadcrumbNode(GPUProfiler, Stack, Stack->Scopes[Child]));
-		}
-	}
-
-	return Node;
-};
-
-void BuildBreadcrumbsDumpString(const FBreadcrumbNode& Breadcrumb, FString& OutString, uint32 Indent)
-{
-	const TCHAR* Prefix = TEXT("  ");
-	if (Breadcrumb.State == EBreadcrumbState::Finished)
-	{
-		Prefix = TEXT("| ");
-	}
-	else if (Breadcrumb.State == EBreadcrumbState::Active)
-	{
-		Prefix = TEXT("> ");
-	}
-
-	const TCHAR* Suffix = TEXT("");
-	if (Breadcrumb.State == EBreadcrumbState::Overflow)
-	{
-		Suffix = TEXT(" [overflow]");
-	}
-
-	for (uint32 Idx = 0; Idx < Indent * 2; ++Idx)
-	{
-		OutString.AppendChar(' ');
-	}
-
-	OutString.Append(FString::Printf(TEXT("Breadcrumbs: %s%s [%s]%s\n"), Prefix, *Breadcrumb.Name, Breadcrumb.GetStateString(), Suffix));
-
-	for (const FBreadcrumbNode& Child : Breadcrumb.Children)
-	{
-		BuildBreadcrumbsDumpString(Child, OutString, Indent + 1);
-	}
-}
-
 /** Log the GPU progress of the given queue to the Error log if breadcrumb data is available */
-static bool LogBreadcrumbData(D3D12RHI::FD3DGPUProfiler& GPUProfiler, FD3D12Queue& Queue)
+FString FD3D12DiagnosticBuffer::LogShaderAsserts(uint32 DeviceIndex, uint32 QueueIndex)
 {
-	FString GPUQueueName = FString::Printf(TEXT("%s Queue %d"), GetD3DCommandQueueTypeName(Queue.QueueType),
-		Queue.Device->GetGPUIndex());
+	FString ShaderDiagnostics = FString::Printf(TEXT("\r\n\r\n\tDevice: %d, Queue %s:"), DeviceIndex, GetD3DCommandQueueTypeName(ED3D12QueueType(QueueIndex)));
 
-	FString GpuProgress = FString::Printf(TEXT("[GPUBreadCrumb]\t%s\n"), *GPUQueueName);
-
-	TArray<TSharedPtr<FBreadcrumbStack>, TInlineAllocator<8>> UniqueStacks;
-
-	while (const FD3D12Payload* Payload = Queue.PendingInterrupt.Peek())
+	bool bFound = false;
+	FString LanesString;
+	for (int32 LaneIndex = 0; LaneIndex < UE_ARRAY_COUNT(Data->Lanes); ++LaneIndex)
 	{
-		for (const TSharedPtr<FBreadcrumbStack>& Stack : Payload->BreadcrumbStacks)
-		{
-			UniqueStacks.AddUnique(Stack);
-		}
-		Queue.PendingInterrupt.Pop();
-	}
+		FLane& Lane = Data->Lanes[LaneIndex];
 
-	TArray<FBreadcrumbNode> Nodes;
-	for (const TSharedPtr<FBreadcrumbStack>& Stack : UniqueStacks)
-	{
-		if (!Stack->Scopes.IsEmpty())
+		LanesString += FString::Printf(TEXT("\r\n\t\tLane %02d: "), LaneIndex);
+
+		if (Lane.Counter)
 		{
-			if (Stack->ContextId > 0)
+			bFound = true;
+
+			const uint32 Line = Lane.Payload.AsUint[0];
+			const FString* File = UE::RHICore::GetDiagnosticMessage(Lane.Payload.AsUint[1]);
+			const FString* Message = UE::RHICore::GetDiagnosticMessage(Lane.Payload.AsUint[2]);
+
+			if (File && Message)
 			{
-				uint32 Scope = 0;
-				do
-				{
-					Nodes.Emplace(CollectBreadcrumbNode(GPUProfiler, Stack, Stack->Scopes[Scope]));
-					Scope = Stack->Scopes[Scope].Sibling;
-				} while (Scope != 0);
+				LanesString += FString::Printf(TEXT("Shader assertion failed - %s:%d - %s"), **File, Line, **Message);
 			}
-		}
-	}
+			else
+			{
+				LanesString += FString::Printf(TEXT("Shader assertion failed - ID: 0x%08X (%d)"), Lane.MessageID, Lane.MessageID);
+			}
 
-	for (const FBreadcrumbNode& Node : Nodes)
-	{
-		BuildBreadcrumbsDumpString(Node, GpuProgress, 0);
-	}
+			{
+				const int32* Payload = Lane.Payload.AsInt;
+				if (Payload[0] < 0 || Payload[1] < 0 || Payload[2] < 0 || Payload[3] < 0)
+				{
+					LanesString += FString::Printf(TEXT("\r\n\t\t\tPayload [ int32]: %d %d %d %d"), Payload[0], Payload[1], Payload[2], Payload[3]);
+				}
+			}
 
-	UE_LOG(LogD3D12RHI, Error, TEXT("%s"), *GpuProgress);
+			{
+				const uint32* Payload = Lane.Payload.AsUint;
+				LanesString += FString::Printf(TEXT("\r\n\t\t\tPayload [uint32]: %u %u %u %u"), Payload[0], Payload[1], Payload[2], Payload[3]);
+			}
 
-	if (!Nodes.IsEmpty())
-	{
-		ExportBreadcrumbDataAsCrashPayload(TEXT("RHI"), GPUQueueName, MoveTemp(Nodes));
-	}
+			{
+				const uint32* Payload = Lane.Payload.AsUint;
+				LanesString += FString::Printf(TEXT("\r\n\t\t\tPayload [   hex]: 0x%08X 0x%08X 0x%08X 0x%08X"), Payload[0], Payload[1], Payload[2], Payload[3]);
+			}
 
-	const FD3D12DiagnosticBufferData* DiagnosticData = Queue.GetDiagnosticBufferData();
-	if (DiagnosticData && DiagnosticData->Counter)
-	{
-		const uint32 Line = DiagnosticData->Payload.AsUint[0];
-		const FString* File = UE::RHICore::GetDiagnosticMessage(DiagnosticData->Payload.AsUint[1]);
-		const FString* Message = UE::RHICore::GetDiagnosticMessage(DiagnosticData->Payload.AsUint[2]);
-		if (File && Message)
-		{
-			UE_LOG(LogD3D12RHI, Error, TEXT("[GPUBreadCrumb]\t\tShader assertion failed - %s:%d - %s"), **File, Line, **Message);
+			{
+				const float* Payload = Lane.Payload.AsFloat;
+				LanesString += FString::Printf(TEXT("\r\n\t\t\tPayload [ float]: %f %f %f %f"), Payload[0], Payload[1], Payload[2], Payload[3]);
+			}
 		}
 		else
 		{
-			UE_LOG(LogD3D12RHI, Error, TEXT("[GPUBreadCrumb]\t\tShader assertion failed! ID: 0x%08X (%d)"), DiagnosticData->MessageID, DiagnosticData->MessageID);
-		}
-
-		{
-			const int32* Payload = DiagnosticData->Payload.AsInt;
-			if (Payload[0] < 0 || Payload[1] < 0 || Payload[2] < 0 || Payload[3] < 0)
-			{
-				UE_LOG(LogD3D12RHI, Error,
-					TEXT("[GPUBreadCrumb]\t\tPayload  [int32]: %d %d %d %d"),
-					Payload[0], Payload[1], Payload[2], Payload[3]);
-			}
-		}
-
-		{
-			const uint32* Payload = DiagnosticData->Payload.AsUint;
-			UE_LOG(LogD3D12RHI, Error,
-				TEXT("[GPUBreadCrumb]\t\tPayload [uint32]: %u %u %u %u"),
-				Payload[0], Payload[1], Payload[2], Payload[3]);
-		}
-
-		{
-			const uint32* Payload = DiagnosticData->Payload.AsUint;
-			UE_LOG(LogD3D12RHI, Error,
-				TEXT("[GPUBreadCrumb]\t\tPayload    [hex]: 0x%08X 0x%08X 0x%08X 0x%08X"),
-				Payload[0], Payload[1], Payload[2], Payload[3]);
-		}
-
-		{
-			const float* Payload = DiagnosticData->Payload.AsFloat;
-			UE_LOG(LogD3D12RHI, Error,
-				TEXT("[GPUBreadCrumb]\t\tPayload  [float]: %f %f %f %f"),
-				Payload[0], Payload[1], Payload[2], Payload[3]);
+			LanesString += TEXT("OK");
 		}
 	}
 
-	GLog->Panic();
-
-	return true;
-}
-
-/** Log the GPU progress of the given Device to the Error log if breadcrumb data is available */
-static void LogBreadcrumbData(ID3D12Device* Device)
-{
-	UE_LOG(LogD3D12RHI, Error, TEXT("[GPUBreadCrumb] Last tracked GPU operations:"));
-
-	bool bValidData = true;
-
-	// Check all the devices
-	FD3D12DynamicRHI* D3D12RHI = FD3D12DynamicRHI::GetD3DRHI();
-	D3D12RHI->ForEachDevice(Device, [&](FD3D12Device* Device)
+	if (bFound)
 	{
-		for (uint32 QueueTypeIndex = 0; QueueTypeIndex < (uint32)ED3D12QueueType::Count; ++QueueTypeIndex)
-		{
-			bValidData = bValidData && LogBreadcrumbData(Device->GetGPUProfiler(), Device->GetQueue((ED3D12QueueType)QueueTypeIndex));
-		}
-	});
-
-	if (!bValidData)
-	{
-		UE_LOG(LogD3D12RHI, Error, TEXT("No Valid GPU Breadcrumb data found. Use -gpucrashdebugging to collect GPU progress when debugging GPU crashes."));
+		ShaderDiagnostics += LanesString;
 	}
+	else
+	{
+		ShaderDiagnostics += TEXT("\r\n\t\tNo shader diagnostics found for this queue.");
+	}
+
+	return ShaderDiagnostics;
 }
 
 #if PLATFORM_WINDOWS
@@ -485,7 +360,7 @@ static uint32 CalculateDREDUnknownActiveScopes(const FDredNode_T* DredNode)
 }
 
 template <typename FDredNode_T>
-static TArray<FBreadcrumbNode> CollectDREDBreadcrumbNodes(const FDredNode_T* DredNode)
+static FGPUBreadcrumbCrashData::FQueueData CollectDREDBreadcrumbNodes(const FDredNode_T* DredNode)
 {
 	check(DredNode && DredNode->pLastBreadcrumbValue);
 	uint32 LastCompletedOp = *DredNode->pLastBreadcrumbValue;
@@ -500,11 +375,16 @@ static TArray<FBreadcrumbNode> CollectDREDBreadcrumbNodes(const FDredNode_T* Dre
 		ContextStrings.Add(Context.BreadcrumbIndex, Context.pContextString);
 	}
 
+	using EState = FGPUBreadcrumbCrashData::EState;
+	struct FBreadcrumbNode
+	{
+		TOptional<EState> State {};
+		FString Name;
+		TArray<FBreadcrumbNode> Children;
+	};
+
 	// Create a root node that will hold all events as children. The root itself will be discarded.
 	FBreadcrumbNode Root;
-	Root.Name = TEXT("");
-	Root.State = EBreadcrumbState::Invalid;
-
 	TArray<FBreadcrumbNode*> ParentChain = { &Root };
 
 	// If we have open scopes, create them now as "Unknown events".
@@ -513,7 +393,7 @@ static TArray<FBreadcrumbNode> CollectDREDBreadcrumbNodes(const FDredNode_T* Dre
 	{
 		FBreadcrumbNode& UnknownNode = ParentChain.Last()->Children.Emplace_GetRef();
 		UnknownNode.Name = TEXT("Unknown event");
-		UnknownNode.State = EBreadcrumbState::Active;
+		UnknownNode.State = EState::Active;
 		ParentChain.Push(&UnknownNode);
 	}
 
@@ -528,14 +408,14 @@ static TArray<FBreadcrumbNode> CollectDREDBreadcrumbNodes(const FDredNode_T* Dre
 			// This is a begin event, potentially with children events.
 			FBreadcrumbNode& BreadcrumbNode = ParentChain.Last()->Children.Emplace_GetRef();
 			BreadcrumbNode.Name = OpContextStr ? *OpContextStr : TEXT("Unknown event");
-			BreadcrumbNode.State = bCompleted ? EBreadcrumbState::Active : EBreadcrumbState::NotStarted;
+			BreadcrumbNode.State = bCompleted ? EState::Active : EState::NotStarted;
 
 			ParentChain.Push(&BreadcrumbNode);
 		}
 		else if (BreadcrumbOp == D3D12_AUTO_BREADCRUMB_OP_ENDEVENT)
 		{
 			FBreadcrumbNode* Parent = ParentChain.Pop();
-			if (Parent->State == EBreadcrumbState::Invalid)
+			if (!Parent->State.IsSet())
 			{
 				// If we reach this point, the DRED breadcrumbs are malformed, and some
 				// basic invariants around matching BeginEvent/EndEvent do not hold.
@@ -545,9 +425,9 @@ static TArray<FBreadcrumbNode> CollectDREDBreadcrumbNodes(const FDredNode_T* Dre
 
 			// This is the end event for the parent node. Mark the whole event as finished
 			// if this end event was completed.
-			if (bCompleted && Parent->State == EBreadcrumbState::Active)
+			if (bCompleted && Parent->State == EState::Active)
 			{
-				Parent->State = EBreadcrumbState::Finished;
+				Parent->State = EState::Finished;
 			}
 		}
 		else
@@ -564,11 +444,35 @@ static TArray<FBreadcrumbNode> CollectDREDBreadcrumbNodes(const FDredNode_T* Dre
 			{
 				BreadcrumbNode.Name = OpName;
 			}
-			BreadcrumbNode.State = bCompleted ? EBreadcrumbState::Finished : EBreadcrumbState::NotStarted;
+			BreadcrumbNode.State = bCompleted ? EState::Finished : EState::NotStarted;
 		}
 	}
 
-	return Root.Children;
+	FGPUBreadcrumbCrashData::FQueueData Result {};
+
+	if (!Root.Children.IsEmpty())
+	{
+		FGPUBreadcrumbCrashData::FSerializer Serializer;
+		for (FBreadcrumbNode const& ActualRoot : Root.Children)
+		{
+			auto Recurse = [&](FBreadcrumbNode const& Current, auto& Recurse) -> void
+			{
+				Serializer.BeginNode(Current.Name, *Current.State);
+
+				for (FBreadcrumbNode const& Child : Current.Children)
+				{
+					Recurse(Child, Recurse);
+				}
+
+				Serializer.EndNode();
+			};
+			Recurse(ActualRoot, Recurse);
+		}
+
+		Result = Serializer.GetResult();
+	}	
+
+	return Result;
 }
 
 /** Log the DRED data to Error log if available */
@@ -618,6 +522,8 @@ static bool LogDREDData(ID3D12Device* Device, bool bTrackingAllAllocations, D3D1
 		{
 			UE_LOG(LogD3D12RHI, Error, TEXT("DRED: Last tracked GPU operations:"));
 
+			FGPUBreadcrumbCrashData CrashData(TEXT("DRED"));
+
 			FString ContextStr;
 			TMap<int32, const wchar_t*> ContextStrings;
 
@@ -663,14 +569,18 @@ static bool LogDREDData(ID3D12Device* Device, bool bTrackingAllAllocations, D3D1
 					}
 
 					// Collect and export breadcrumb data separately as part of the crash payload.
-					TArray<FBreadcrumbNode> Breadcrumbs = CollectDREDBreadcrumbNodes(Node);
-					if (!Breadcrumbs.IsEmpty())
+					if (FGPUBreadcrumbCrashData::FQueueData QueueData = CollectDREDBreadcrumbNodes(Node))
 					{
-						ExportBreadcrumbDataAsCrashPayload(TEXT("DRED"), Node->pCommandQueueDebugNameW, MoveTemp(Breadcrumbs));
+						CrashData.Queues.FindOrAdd(Node->pCommandQueueDebugNameW, MoveTemp(QueueData));
 					}
 				}
 
 				Node = Node->pNext;
+			}
+
+			if (CrashData.Queues.Num())
+			{
+				FGenericCrashContext::SetGPUBreadcrumbs(MoveTemp(CrashData));
 			}
 
 			if (TracedCommandLists == 0)
@@ -867,25 +777,26 @@ void LogMemoryInfo(FD3D12Adapter* InAdapter)
 
 extern CORE_API bool GIsGPUCrashed;
 
-static void TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3DResult, bool bCreatingTextures)
+void FD3D12DynamicRHI::TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3DResult, bool bCreatingTextures)
 {
 #if PLATFORM_WINDOWS
 	// send telemetry event with current adapter's memory info
-	FD3D12DynamicRHI* D3D12RHI = FD3D12DynamicRHI::GetD3DRHI();
 	FD3D12Adapter* Adapter = nullptr;
-	D3D12RHI->ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
+	ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
+	{
+		if (InDevice == IterationDevice->GetDevice())
 		{
-			if (InDevice == IterationDevice->GetDevice())
-			{
-				Adapter = IterationDevice->GetParentAdapter();
-			}
-		});
+			Adapter = IterationDevice->GetParentAdapter();
+		}
+	});
+
 	// if InDevice == nullptr, just pick the first available adapter
-	if (!Adapter && D3D12RHI->GetNumAdapters() == 1)
+	if (!Adapter && GetNumAdapters() == 1)
 	{
 		check(!InDevice);
-		Adapter = &D3D12RHI->GetAdapter(0);
+		Adapter = &GetAdapter(0);
 	}
+
 	if (Adapter)
 	{
 		const auto& MemoryInfo = Adapter->GetMemoryInfo().LocalMemoryInfo;
@@ -913,14 +824,15 @@ static void TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3DResult, bo
 	if (bGPUCrashOOM)
 	{
 		// If no device provided then try and log the DRED status of each device
-		D3D12RHI->ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
+		ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
+		{
+			if (InDevice == nullptr || InDevice == IterationDevice->GetDevice())
 			{
-				if (InDevice == nullptr || InDevice == IterationDevice->GetDevice())
-				{
-					FD3D12Adapter* Adapter = IterationDevice->GetParentAdapter();
-					LogMemoryInfo(Adapter);
-				}
-			});
+				FD3D12Adapter* Adapter = IterationDevice->GetParentAdapter();
+				LogMemoryInfo(Adapter);
+			}
+		});
+		UE_LOG(LogD3D12RHI, Fatal, TEXT("Out of video memory trying to allocate a rendering resource"));
 	}
 	
 	UE_LOG(LogD3D12RHI, Fatal, TEXT("Out of video memory trying to allocate a rendering resource"));
@@ -935,124 +847,188 @@ static void TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3DResult, bo
 #endif // !PLATFORM_WINDOWS
 }
 
-namespace D3D12RHI
+void FD3D12DynamicRHI::OutputGPUCrashReport(FTextBuilder& ErrorMessage)
 {
-	void TerminateOnGPUCrash(ID3D12Device* InDevice)
-	{		
-		// This function can be called outside of VerifyD3D12Result & co, so it uses its own critical section to make sure it's not re-entered.
-		static FCriticalSection cs;
-		cs.Lock();
+	// Mark critical and gpu crash
+	GIsCriticalError = true;
+	GIsGPUCrashed = true;
 
-		// Mark critical and gpu crash
-		GIsCriticalError = true;
-		GIsGPUCrashed = true;
-
-		// Check GPU heartbeat - will trace Aftermath state
-		if (GDynamicRHI)
+	// Log which devices were removed and their reason strings
+	{
+		FString RemovedReasons;
+		TConstArrayView<FD3D12Device*> Devices = GetAdapter().GetDevices();
+		for (int32 DeviceIndex = 0; DeviceIndex < Devices.Num(); ++DeviceIndex)
 		{
-			GDynamicRHI->CheckGpuHeartbeat();
-		}
-
-		// Log RHI independent breadcrumbing data
-		LogBreadcrumbData(InDevice);
-
-		FD3D12DynamicRHI* D3D12RHI = FD3D12DynamicRHI::GetD3DRHI();
-#if PLATFORM_WINDOWS
-		// If no device provided then try and log the DRED status of each device
-		D3D12RHI->ForEachDevice(InDevice, [&](FD3D12Device* IterationDevice)
+			HRESULT Reason = Devices[DeviceIndex]->GetDevice()->GetDeviceRemovedReason();
+			if (FAILED(Reason))
 			{
-				if (InDevice == nullptr || InDevice == IterationDevice->GetDevice())
-				{
-					D3D12_GPU_VIRTUAL_ADDRESS PageFaultAddress = 0;
-					bool bIsTrackingAllAllocations = IterationDevice->GetParentAdapter()->IsTrackingAllAllocations();
-					if (!LogDREDData<FDred_1_2>(IterationDevice->GetDevice(), bIsTrackingAllAllocations, PageFaultAddress))
-					{
-						if (!LogDREDData<FDred_1_1>(IterationDevice->GetDevice(), bIsTrackingAllAllocations, PageFaultAddress))
-						{
-							UE_LOG(LogD3D12RHI, Error, TEXT("DRED: could not find DRED data (might not be enabled or available). Run with -dred or -gpucrashdebugging to enable dred if available."));
-						}						
-					}
-
-					FD3D12Adapter* Adapter = IterationDevice->GetParentAdapter();
-					LogPageFaultData(Adapter, IterationDevice, PageFaultAddress);
-					LogMemoryInfo(Adapter);
-				}
-			});
-#endif  // PLATFORM_WINDOWS
-
-#if NV_AFTERMATH
-		GFSDK_Aftermath_CrashDump_Status AftermathStatus{};
-		if (GDX12NVAfterMathEnabled)
-		{
-			GFSDK_Aftermath_GetCrashDumpStatus(&AftermathStatus);
-			if (AftermathStatus != GFSDK_Aftermath_CrashDump_Status_Unknown && AftermathStatus != GFSDK_Aftermath_CrashDump_Status_NotStarted)
+				FString ReasonString = GetD3D12DeviceHungErrorString(Reason);
+				RemovedReasons += FString::Printf(TEXT("\r\n\t- Device %d Removed: %s"), DeviceIndex, *ReasonString);
+			}
+			else
 			{
-				const float StartTime = FPlatformTime::Seconds();
-				const float EndTime = StartTime + GDX12NVAfterMathDumpWaitTime;
-				while (AftermathStatus != GFSDK_Aftermath_CrashDump_Status_CollectingDataFailed
-					&& AftermathStatus != GFSDK_Aftermath_CrashDump_Status_Finished
-					&& FPlatformTime::Seconds() < EndTime)
-				{
-					FPlatformProcess::Sleep(0.01f);
-					GFSDK_Aftermath_GetCrashDumpStatus(&AftermathStatus);
-				}
+				RemovedReasons += FString::Printf(TEXT("\r\n\t- Device %d OK (no device removed reason)"), DeviceIndex);
 			}
 		}
-#endif
-		
-		// Build the error message
-		FTextBuilder ErrorMessage;
-		ErrorMessage.AppendLine(LOCTEXT("GPU Crashed", "GPU Crashed or D3D Device Removed.\n"));
-		if (!D3D12RHI->GetAdapter().IsDebugDevice())
-		{
-			ErrorMessage.AppendLine(LOCTEXT("D3D Debug Device", "Use -d3ddebug to enable the D3D debug device."));
-		}
-		if (D3D12RHI->GetAdapter().GetGPUCrashDebuggingModes() != ED3D12GPUCrashDebuggingModes::None)
-		{
-			ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging enabled", "Check log for GPU state information."));
-		}
-		else
-		{
-			ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging disabled", "Use -gpucrashdebugging to track current GPU state."));
-		}
 
-		// And info on gpu crash dump as well
-#if NV_AFTERMATH
-		if (AftermathStatus == GFSDK_Aftermath_CrashDump_Status_Finished)
-		{
-			ErrorMessage.AppendLine(LOCTEXT("GPU CrashDump", "\nA GPU mini dump was be saved in the Logs folder."));
-		}
-#endif
-		
-		// Make sure the log is flushed!
-		GLog->Panic();
-
-		// Show message box or trace information
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		if (!FApp::IsUnattended() && !IsDebuggerPresent())
-		{
-			FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, *ErrorMessage.ToText().ToString(), TEXT("Error"));
-		}
-		else
-#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		{
-			UE_LOG(LogD3D12RHI, D3D12RHI_GPU_CRASH_LOG_VERBOSITY, TEXT("%s"), *ErrorMessage.ToText().ToString());
-		}
-
-		// hard break here when the debugger is attached
-		if (IsDebuggerPresent())
-		{
-			UE_DEBUG_BREAK();
-		}
-
-#if PLATFORM_WINDOWS
-		ReportGPUCrash(TEXT("GPU Crash dump Triggered"), nullptr);
-#endif
-
-		// Force shutdown, we can't do anything useful anymore.
-		FPlatformMisc::RequestExit(true, TEXT("D3D12Util.TerminateOnGPUCrash"));
+		UE_LOG(LogD3D12RHI, Error, TEXT("GPU crash detected:%s\r\n"), *RemovedReasons);
 	}
 
+	// Log RHI breadcrumb data and shader asserts / prints
+	{
+#if WITH_RHI_BREADCRUMBS
+		TMap<FRHIBreadcrumbState::FQueueID, TArray<FRHIBreadcrumbRange>> QueueRanges;
+		FRHIBreadcrumbState BreadcrumbState;
+#endif
+		FString ShaderDiagnostics;
+
+		for (uint32 DeviceIndex = 0; DeviceIndex < GNumExplicitGPUsForRendering; ++DeviceIndex)
+		{
+			FD3D12Device* Device = GetAdapter().GetDevices()[DeviceIndex];
+			for (int32 QueueIndex = 0; QueueIndex < Device->GetQueues().Num(); ++QueueIndex)
+			{
+				FD3D12Queue& Queue = Device->GetQueues()[QueueIndex];
+
+				if (!Queue.DiagnosticBuffer)
+					continue;
+
+				ShaderDiagnostics += Queue.DiagnosticBuffer->LogShaderAsserts(DeviceIndex, QueueIndex);
+
+#if WITH_RHI_BREADCRUMBS
+				ERHIPipeline Pipeline;
+				switch (Queue.QueueType)
+				{
+				default: continue; // Skip pipelines that the RHI doesn't handle
+				case ED3D12QueueType::Direct: Pipeline = ERHIPipeline::Graphics; break;
+				case ED3D12QueueType::Async : Pipeline = ERHIPipeline::AsyncCompute; break;
+				}
+
+				TArray<FRHIBreadcrumbRange>& Ranges = QueueRanges.Add({ DeviceIndex, Pipeline });
+
+				// Pull all incomplete payloads from the pending interrupt queue.
+				TArray<FD3D12Payload*> Payloads;
+				{
+					FD3D12Payload* Payload;
+					while (Queue.PendingInterrupt.Dequeue(Payload))
+						Payloads.Add(Payload);
+				}
+
+				// Extract the breadcrumb ranges for these payloads.
+				for (FD3D12Payload* Payload : Payloads)
+				{
+					if (Payload->BreadcrumbRange)
+					{
+						Ranges.AddUnique(Payload->BreadcrumbRange);
+					}
+				}
+
+				BreadcrumbState.Devices[DeviceIndex].Pipelines[Pipeline].MarkerOut = Queue.DiagnosticBuffer->ReadMarkerOut();
+				BreadcrumbState.Devices[DeviceIndex].Pipelines[Pipeline].MarkerIn  = Queue.DiagnosticBuffer->ReadMarkerIn();
+#endif
+			}
+		}
+
+#if WITH_RHI_BREADCRUMBS
+		// Traverse the breadcrumb tree and log active GPU work
+		BreadcrumbState.DumpActiveBreadcrumbs(QueueRanges);
+#endif // WITH_RHI_BREADCRUMBS
+
+		if (!ShaderDiagnostics.IsEmpty())
+		{
+			UE_LOG(LogD3D12RHI, Error, TEXT("Shader diagnostic messages and asserts:%s\r\n"), *ShaderDiagnostics);
+		}
+	}
+
+#if NV_AFTERMATH
+	UE::RHICore::Nvidia::Aftermath::FCrashResult AftermathResult = UE::RHICore::Nvidia::Aftermath::OnGPUCrash();
+	if (AftermathResult.GPUFaultAddress.IsSet())
+	{
+		ForEachDevice(nullptr, [&](FD3D12Device* Device)
+		{
+			D3D12RHI::LogPageFaultData(Device->GetParentAdapter(), Device, D3D12_GPU_VIRTUAL_ADDRESS(*AftermathResult.GPUFaultAddress));
+		});
+	}
+#endif
+
+#if PLATFORM_WINDOWS
+	ForEachDevice(nullptr, [&](FD3D12Device* Device)
+	{
+		D3D12_GPU_VIRTUAL_ADDRESS PageFaultAddress = 0;
+		bool bIsTrackingAllAllocations = Device->GetParentAdapter()->IsTrackingAllAllocations();
+		if (!LogDREDData<FDred_1_2>(Device->GetDevice(), bIsTrackingAllAllocations, PageFaultAddress))
+		{
+			if (!LogDREDData<FDred_1_1>(Device->GetDevice(), bIsTrackingAllAllocations, PageFaultAddress))
+			{
+				UE_LOG(LogD3D12RHI, Error, TEXT("DRED: could not find DRED data (might not be enabled or available). Run with -dred or -gpucrashdebugging to enable dred if available."));
+			}						
+		}
+
+		FD3D12Adapter* Adapter = Device->GetParentAdapter();
+		LogPageFaultData(Adapter, Device, PageFaultAddress);
+		LogMemoryInfo(Adapter);
+	});
+#endif  // PLATFORM_WINDOWS
+
+	// Make sure the log is flushed
+	GLog->Panic();
+
+	// Build the error message
+	ErrorMessage.AppendLine(LOCTEXT("GPU Crashed", "GPU Crashed or D3D Device Removed.\n"));
+	if (!GetAdapter().IsDebugDevice())
+	{
+		ErrorMessage.AppendLine(LOCTEXT("D3D Debug Device", "Use -d3ddebug to enable the D3D debug device."));
+	}
+	if (UE::RHI::UseGPUCrashDebugging())
+	{
+		ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging enabled", "Check log for GPU state information."));
+	}
+	else
+	{
+		ErrorMessage.AppendLine(LOCTEXT("GPU Crash Debugging disabled", "Use -gpucrashdebugging to track current GPU state."));
+	}
+#if NV_AFTERMATH
+	if (AftermathResult.DumpPath.IsSet())
+	{
+		FFormatOrderedArguments Args;
+		Args.Add(FText::FromString(*AftermathResult.DumpPath));
+		ErrorMessage.AppendLineFormat(LOCTEXT("GPU CrashDump", "\nA GPU mini dump has been written to \"{0}\"."), Args);
+	}
+#endif
+}
+
+void FD3D12DynamicRHI::TerminateOnGPUCrash()
+{
+	FTextBuilder ErrorMessage;
+	OutputGPUCrashReport(ErrorMessage);
+
+	// Show message box or trace information
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	if (!FApp::IsUnattended() && !IsDebuggerPresent())
+	{
+		FPlatformMisc::MessageBoxExt(EAppMsgType::Ok, *ErrorMessage.ToText().ToString(), TEXT("Error"));
+	}
+	else
+#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	{
+		UE_LOG(LogD3D12RHI, D3D12RHI_GPU_CRASH_LOG_VERBOSITY, TEXT("%s"), *ErrorMessage.ToText().ToString());
+	}
+
+	// hard break here when the debugger is attached
+	if (IsDebuggerPresent())
+	{
+		UE_DEBUG_BREAK();
+	}
+
+#if PLATFORM_WINDOWS
+	ReportGPUCrash(TEXT("GPU Crash dump Triggered"), nullptr);
+#endif
+
+	// Force shutdown, we can't do anything useful anymore.
+	FPlatformMisc::RequestExit(true, TEXT("D3D12Util.TerminateOnGPUCrash"));
+}
+
+namespace D3D12RHI
+{
 	// It's possible for multiple threads to catch GPU crashes or other D3D errors at the same time. Make sure we only log the error once by acquiring
 	// this critical section inside VerifyD3D12Result and VerifyD3D12CreateTextureResult (and never releasing it, because those functions don't return).
 	static FCriticalSection GD3DCallFailedCS;
@@ -1068,11 +1044,11 @@ namespace D3D12RHI
 		
 		if (D3DResult == E_OUTOFMEMORY)
 		{
-			TerminateOnOutOfMemory(Device, D3DResult, false);
+			FD3D12DynamicRHI::GetD3DRHI()->TerminateOnOutOfMemory(Device, D3DResult, false);
 		}
 		else if (D3DResult == DXGI_ERROR_DEVICE_REMOVED || D3DResult == DXGI_ERROR_DEVICE_HUNG || D3DResult == DXGI_ERROR_DEVICE_RESET)
 		{
-			TerminateOnGPUCrash(Device);
+			FD3D12DynamicRHI::GetD3DRHI()->ProcessInterruptQueueOnGPUCrash();
 		}
 
 		// Make sure the log is flushed!
@@ -1110,11 +1086,11 @@ namespace D3D12RHI
 		// Terminate with device removed but we don't have any GPU crash dump information
 		if (D3DResult == DXGI_ERROR_DEVICE_REMOVED || D3DResult == DXGI_ERROR_DEVICE_HUNG || D3DResult == DXGI_ERROR_DEVICE_RESET)
 		{
-			TerminateOnGPUCrash(Device);
+			FD3D12DynamicRHI::GetD3DRHI()->ProcessInterruptQueueOnGPUCrash();
 		}
 		else if (D3DResult == E_OUTOFMEMORY)
 		{
-			TerminateOnOutOfMemory(Device, D3DResult, true);
+			FD3D12DynamicRHI::GetD3DRHI()->TerminateOnOutOfMemory(Device, D3DResult, true);
 
 #if STATS
 			GetRendererModule().DebugLogOnCrash();

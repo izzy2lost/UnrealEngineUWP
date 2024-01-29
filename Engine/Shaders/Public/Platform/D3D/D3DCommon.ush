@@ -32,30 +32,37 @@ SamplerState D3DStaticTrilinearClampedSampler   : register(s5, space1000);
 #if PLATFORM_SUPPORTS_DIAGNOSTIC_BUFFER && (PIXELSHADER || COMPUTESHADER || RAYGENSHADER)
 
 // Diagnostic buffer which will be automatically bound by the RHI as a root parameter
-// Counterpart to FD3D12DiagnosticBufferData in D3D12DirectCommandListManager.h
+// Counterpart to FD3D12DiagnosticBuffer::FQueue.Lanes in D3D12Adapter.h
 // Diagnostic message layout: [uint counter, uint message_id, uint4 payload] (6 DWORDs total)
 RWStructuredBuffer<uint> UEDiagnosticBuffer : UE_HLSL_REGISTER(u, 0, UE_HLSL_SPACE_DIAGNOSTIC);
 
 void UEReportAssertWithPayload(uint AssertID, uint4 Payload)
 {
-	if (WaveIsFirstLane())
+	// Counterpart to FD3D12DiagnosticBuffer::FQueue::MaxLanes in D3D12Adapter.h
+	static const uint UEDiagnosticMaxLanes = 64;
+	static const uint NumUints = 6;
+
+	uint LaneIndex = WaveGetLaneIndex();
+	if (LaneIndex < UEDiagnosticMaxLanes)
 	{
 		// Write some diagnostic data if we're first
 		uint OldValue = 0;
-		InterlockedAdd(UEDiagnosticBuffer[0], 1, OldValue);
+		InterlockedAdd(UEDiagnosticBuffer[LaneIndex * NumUints], 1, OldValue);
+
 		if (OldValue == 0)
 		{
-			UEDiagnosticBuffer[1] = AssertID;
-			UEDiagnosticBuffer[2] = Payload.x;
-			UEDiagnosticBuffer[3] = Payload.y;
-			UEDiagnosticBuffer[4] = Payload.z;
-			UEDiagnosticBuffer[5] = Payload.w;
+			UEDiagnosticBuffer[(LaneIndex * NumUints) + 1] = AssertID;
+			UEDiagnosticBuffer[(LaneIndex * NumUints) + 2] = Payload.x;
+			UEDiagnosticBuffer[(LaneIndex * NumUints) + 3] = Payload.y;
+			UEDiagnosticBuffer[(LaneIndex * NumUints) + 4] = Payload.z;
+			UEDiagnosticBuffer[(LaneIndex * NumUints) + 5] = Payload.w;
 		}
+
 		// Try to trigger a crash (timeout) using a deliberate infinite loop
 		// TODO: use PLATFORM_BREAK
 		for (;;)
 		{
-			InterlockedAdd(UEDiagnosticBuffer[0], 0, OldValue);
+			InterlockedAdd(UEDiagnosticBuffer[LaneIndex * NumUints], 0, OldValue);
 			if (OldValue == 0)
 			{
 				break;

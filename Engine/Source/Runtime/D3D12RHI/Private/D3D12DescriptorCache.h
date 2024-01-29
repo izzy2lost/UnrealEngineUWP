@@ -174,7 +174,7 @@ public:
 	uint32 ReserveSlots(uint32 NumSlotsRequested);
 
 	void SetNextSlot(uint32 NextSlot);
-	uint32 GetNextSlotIndex() const { return NextSlotIndex;  }
+	uint32 GetNextSlotIndex() const { return NextSlotIndex; }
 
 	// Function which can/should be implemented by the derived classes
 	virtual bool RollOver() = 0;
@@ -182,8 +182,6 @@ public:
 	virtual void OpenCommandList () { }
 	virtual void CloseCommandList() { }
 	virtual uint32 GetTotalSize() { return Heap->GetNumDescriptors(); }
-
-	static const uint32 HeapExhaustedValue = uint32(-1);
 
 protected:
 	// Keeping this ptr around is basically just for lifetime management
@@ -258,53 +256,29 @@ public:
 	// Override FD3D12OnlineHeap functions
 	virtual bool RollOver() final override;
 	virtual void HeapLoopedAround() final override;
+	virtual void OpenCommandList () final override;
 	virtual void CloseCommandList() final override;
 
 private:
-	struct SyncPointEntry
+	struct FSyncPointEntry
 	{
 		FD3D12SyncPointRef SyncPoint;
-		uint32 LastSlotInUse;
-
-		SyncPointEntry() : LastSlotInUse(0)
-		{}
-
-		SyncPointEntry(const SyncPointEntry& InSyncPoint) : SyncPoint(InSyncPoint.SyncPoint), LastSlotInUse(InSyncPoint.LastSlotInUse)
-		{}
-
-		SyncPointEntry& operator = (const SyncPointEntry& InSyncPoint)
-		{
-			SyncPoint = InSyncPoint.SyncPoint;
-			LastSlotInUse = InSyncPoint.LastSlotInUse;
-
-			return *this;
-		}
+		uint32 LastSlotInUse = 0;
 	};
-	TQueue<SyncPointEntry> SyncPoints;
+	TQueue<FSyncPointEntry> SyncPoints;
 
-	struct PoolEntry
+	struct FPoolEntry
 	{
 		TRefCountPtr<FD3D12DescriptorHeap> Heap;
 		FD3D12SyncPointRef SyncPoint;
-
-		PoolEntry() 
-		{}
-
-		PoolEntry(const PoolEntry& InPoolEntry) : Heap(InPoolEntry.Heap), SyncPoint(InPoolEntry.SyncPoint)
-		{}
-
-		PoolEntry& operator = (const PoolEntry& InPoolEntry)
-		{
-			Heap = InPoolEntry.Heap;
-			SyncPoint = InPoolEntry.SyncPoint;
-			return *this;
-		}
 	};
-	PoolEntry Entry;
-	TQueue<PoolEntry> ReclaimPool;
+	FPoolEntry Entry {};
+	TQueue<FPoolEntry> ReclaimPool;
 
 	FD3D12DescriptorCache& DescriptorCache;
 	FD3D12CommandContext& Context;
+
+	void RecycleSlots();
 };
 
 class FD3D12DescriptorCache : public FD3D12DeviceChild, public FD3D12SingleNodeGPUObject
@@ -422,6 +396,7 @@ private:
 
 	TSharedPtr<FD3D12SamplerSet> LocalSamplerSet;
 	bool bHeapsOverridden = false;
+	bool bLocalSamplerHeapOpen = false;
 	bool bUsingViewHeap = true;
 
 	uint32 NumLocalViewDescriptors = 0;

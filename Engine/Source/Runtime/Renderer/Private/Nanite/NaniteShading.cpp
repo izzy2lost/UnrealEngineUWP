@@ -20,22 +20,21 @@
 #include "PSOPrecacheMaterial.h"
 #include "PSOPrecacheValidation.h"
 
-DEFINE_STAT(STAT_CLP_NaniteBasePass);
-
 extern TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents;
 
 extern int32 GSkipDrawOnPSOPrecaching;
 extern int32 GNaniteShowStats;
 
 #if WANTS_DRAW_MESH_EVENTS
-static FORCEINLINE const TCHAR* GetShadingMaterialName(const FMaterialRenderProxy* InShadingMaterial)
+static FORCEINLINE const FString& GetShadingMaterialName(const FMaterialRenderProxy* InShadingMaterial)
 {
 	if (InShadingMaterial == nullptr)
 	{
-		return TEXT("<Invalid>");
+		static FString Invalid = TEXT("<Invalid>");
+		return Invalid;
 	}
 
-	return *InShadingMaterial->GetMaterialName();
+	return InShadingMaterial->GetMaterialName();
 }
 #endif
 
@@ -1365,7 +1364,7 @@ void DispatchBasePass(
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
-				FRDGParallelCommandListSet ParallelCommandListSet(RDGPass, RHICmdList, GET_STATID(STAT_CLP_NaniteBasePass), View, CmdListBindings);
+				FRDGParallelCommandListSet ParallelCommandListSet(RDGPass, RHICmdList, View, CmdListBindings);
 				ParallelCommandListSet.SetHighPriority();
 
 				ShadePassWork(

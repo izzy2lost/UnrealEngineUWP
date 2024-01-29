@@ -1878,7 +1878,7 @@ TGlobalResource<FParticleInjectionVertexDeclaration> GParticleInjectionVertexDec
 template<bool StaticPropertiesOnly>
 void InjectNewParticles(FRHICommandList& RHICmdList, FGraphicsPipelineStateInitializer& GraphicsPSOInit,  ERHIFeatureLevel::Type FeatureLevel, const TArray<FNewParticle>& NewParticles, const FParticleSimulationResources* ParticleSimulationResources)
 {
-	if (GIsRenderingThreadSuspended.Load(EMemoryOrder::Relaxed) || !CVarSimulateGPUParticles.GetValueOnAnyThread())
+	if (!CVarSimulateGPUParticles.GetValueOnAnyThread())
 	{
 		return;
 	}

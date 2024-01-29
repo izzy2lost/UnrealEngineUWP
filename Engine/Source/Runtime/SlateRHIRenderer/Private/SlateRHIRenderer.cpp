@@ -1086,7 +1086,14 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 	{
 		const FRHIGPUMask PresentingGPUMask = FRHIGPUMask::FromIndex(RHIGetViewportNextPresentGPUIndex(ViewportInfo.ViewportRHI));
 		SCOPED_GPU_MASK(RHICmdList, PresentingGPUMask);
-		SCOPED_DRAW_EVENTF(RHICmdList, SlateUI, TEXT("SlateUI Title = %s"), DrawCommandParams.WindowTitle.IsEmpty() ? TEXT("<none>") : *DrawCommandParams.WindowTitle);
+
+#if WANTS_DRAW_MESH_EVENTS
+		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SlateUI,  DrawCommandParams.WindowTitle.IsEmpty(), TEXT("SlateUI Title = <none>"));
+		SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SlateUI, !DrawCommandParams.WindowTitle.IsEmpty(), TEXT("SlateUI Title = %s"), DrawCommandParams.WindowTitle);
+#else
+		SCOPED_DRAW_EVENT(RHICmdList, SlateUI);
+#endif
+
 		SCOPED_GPU_STAT(RHICmdList, SlateUI);
 		SCOPED_NAMED_EVENT_TEXT("Slate::DrawWindow_RenderThread", FColor::Magenta);
 
@@ -1617,27 +1624,31 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 	// Reset the idle stats
 	RenderThread.Reset();
 	
+	static TOptional<uint32> RHITCycles;
 	if (IsRunningRHIInSeparateThread())
 	{
 		RHICmdList.EnqueueLambda([](FRHICommandListImmediate&)
 		{
-			// Restart the RHI thread timer, so we don't count time spent in Present twice when this command list finishes.
-			uint32 ThisCycles = FPlatformTime::Cycles();
-			GWorkingRHIThreadTime += (ThisCycles - GWorkingRHIThreadStartCycles);
-			GWorkingRHIThreadStartCycles = ThisCycles;
-
+			// Update RHI thread time
 			FThreadIdleStats& RHIThreadStats = FThreadIdleStats::Get();
 
-			uint32 NewVal = GWorkingRHIThreadTime;
-			if (NewVal > RHIThreadStats.Waits)
+			if (!RHITCycles.IsSet())
 			{
-				NewVal -= RHIThreadStats.Waits;
+				RHITCycles = FPlatformTime::Cycles();
 			}
 
-			FPlatformAtomics::AtomicStore((int32*)&GRHIThreadTime, (int32)NewVal);
-			GWorkingRHIThreadTime = 0;
+			uint32 Next = FPlatformTime::Cycles();
+
+			int32 Result = int32(Next - RHITCycles.GetValue() - RHIThreadStats.Waits);
+			RHITCycles = Next;
+
+			FPlatformAtomics::AtomicStore((int32*)&GRHIThreadTime, FMath::Max(Result, 0));
 			RHIThreadStats.Reset();
 		});
+	}
+	else
+	{
+		RHITCycles.Reset();
 	}
 }
 

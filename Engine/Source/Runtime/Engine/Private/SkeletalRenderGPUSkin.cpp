@@ -1205,12 +1205,13 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 
 		SCOPED_GPU_STAT(RHICmdList, MorphTargets);
 
-		const FString RayTracingTag = (Mode == EGPUSkinCacheEntryMode::RayTracing ? TEXT("[RT]") : TEXT(""));
-		const FString LODName = OwnerName.ToString() + TEXT("_LOD") + FString::FromInt(LODIndex);
-		SCOPED_DRAW_EVENTF(RHICmdList, MorphUpdate,
-			TEXT("MorphUpdate%s_%s LodVertices=%d Batches=%d"), *RayTracingTag, *LODName,
-			LodData.GetNumVertices(),
-			MorphTargetVertexInfoBuffers.GetNumBatches());
+		SCOPED_DRAW_EVENTF(RHICmdList, MorphUpdate, TEXT("MorphUpdate%s_%s_LOD%d LodVertices=%d Batches=%d")
+			, RHI_BREADCRUMB_FORCE_STRING_LITERAL(Mode == EGPUSkinCacheEntryMode::RayTracing ? TEXT("[RT]") : TEXT(""))
+			, OwnerName
+			, LODIndex
+			, LodData.GetNumVertices()
+			, MorphTargetVertexInfoBuffers.GetNumBatches()
+		);
 
 		RHICmdList.Transition(FRHITransitionInfo(MorphVertexBuffer.GetUAV(), ERHIAccess::Unknown, ERHIAccess::UAVCompute));
 		if (bClearMorphVertexBuffer)

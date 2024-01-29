@@ -1585,10 +1585,7 @@ void FViewport::EndRenderFrame(FRHICommandListImmediate& RHICmdList, bool bPrese
 		UEngine::SetPresentLatencyMarkerStart(CurrentFrameCounter);
 	});
 
-	{
-		FRenderThreadIdleScope IdleScope(ERenderThreadIdleTypes::WaitingForGPUPresent);
-		RHICmdList.EndDrawingViewport(GetViewportRHI(), bPresent, bLockToVsync);
-	}
+	RHICmdList.EndDrawingViewport(GetViewportRHI(), bPresent, bLockToVsync);
 
 	RHICmdList.EnqueueLambda([CurrentFrameCounter = GFrameCounterRenderThread](FRHICommandListImmediate& InRHICmdList)
 	{

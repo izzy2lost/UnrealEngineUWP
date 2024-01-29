@@ -463,7 +463,7 @@ static void RenderDirectionalLight(FRHICommandList& RHICmdList, const FScene& Sc
 {
 	FString LightNameWithLevel;
 	FSceneRenderer::GetLightNameForDrawEvent(DirectionalLight.Proxy, LightNameWithLevel);
-	SCOPED_DRAW_EVENTF(RHICmdList, DirectionalLight, TEXT("%s"), *LightNameWithLevel);
+	SCOPED_DRAW_EVENTF(RHICmdList, DirectionalLight, TEXT("%s"), LightNameWithLevel);
 
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
 	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
@@ -726,7 +726,7 @@ static void RenderLocalLight(
 
 	FString LightNameWithLevel;
 	FSceneRenderer::GetLightNameForDrawEvent(LightSceneInfo.Proxy, LightNameWithLevel);
-	SCOPED_DRAW_EVENTF(RHICmdList, LocalLight, TEXT("%s"), *LightNameWithLevel);
+	SCOPED_DRAW_EVENTF(RHICmdList, LocalLight, TEXT("%s"), LightNameWithLevel);
 	check(LightSceneInfo.Proxy->IsLocalLight());
 	
 	if (GMobileUseLightStencilCulling != 0)

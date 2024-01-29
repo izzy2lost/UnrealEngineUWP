@@ -1165,8 +1165,6 @@ uint64 FMetalDynamicRHI::RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat F
 
 void FMetalDynamicRHI::Init()
 {
-	GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
-
 	FRenderResource::InitPreRHIResources();
 	GIsRHIInitialized = true;
 }
@@ -1221,30 +1219,59 @@ void FMetalRHICommandContext::RHIEndScene()
 	check(false);
 }
 
-void FMetalRHICommandContext::RHIPushEvent(const TCHAR* Name, FColor Color)
-{
-#if ENABLE_METAL_GPUEVENTS
-    MTL_SCOPED_AUTORELEASE_POOL;
-    FPlatformMisc::BeginNamedEvent(Color, Name);
-#if ENABLE_METAL_GPUPROFILE
-    Profiler->PushEvent(Name, Color);
-#endif
-    Context->GetCurrentRenderPass().PushDebugGroup(NS::String::string(TCHAR_TO_UTF8(Name), NS::UTF8StringEncoding));
-#endif
-}
+#if WITH_RHI_BREADCRUMBS
+	void FMetalRHICommandContext::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		const TCHAR* NameStr = nullptr;
+		FRHIBreadcrumb::FBuffer Buffer;
+		auto GetNameStr = [&]()
+		{
+			if (!NameStr)
+			{
+				NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+			}
+			return NameStr;
+		};
 
-void FMetalRHICommandContext::RHIPopEvent()
-{
+		if (ShouldEmitBreadcrumbs())
+		{
 #if ENABLE_METAL_GPUEVENTS
-    MTL_SCOPED_AUTORELEASE_POOL;
-    
-	FPlatformMisc::EndNamedEvent();
-	Context->GetCurrentRenderPass().PopDebugGroup();
+			MTL_SCOPED_AUTORELEASE_POOL;
+			{
+				// @todo dev-pr avoid TCHAR -> ANSI conversion
+				Context->GetCurrentRenderPass().PushDebugGroup(NS::String::string(TCHAR_TO_UTF8(GetNameStr()), NS::UTF8StringEncoding));
+			}
+#endif
+		}
+
 #if ENABLE_METAL_GPUPROFILE
-	Profiler->PopEvent();
+		if (Profiler && Profiler->IsProfilingGPU())
+		{
+			Profiler->PushEvent(GetNameStr(), FColor::White);
+		}
 #endif
+	}
+
+	void FMetalRHICommandContext::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+#if ENABLE_METAL_GPUPROFILE
+		if (Profiler && Profiler->IsProfilingGPU())
+		{
+			Profiler->PopEvent();
+		}
 #endif
-}
+
+		if (ShouldEmitBreadcrumbs())
+		{
+#if ENABLE_METAL_GPUEVENTS
+			MTL_SCOPED_AUTORELEASE_POOL;
+			{
+				Context->GetCurrentRenderPass().PopDebugGroup();
+			}
+#endif
+		}
+	}
+#endif // WITH_RHI_BREADCRUMBS
 
 void FMetalDynamicRHI::RHIGetSupportedResolution( uint32 &Width, uint32 &Height )
 {
@@ -1344,14 +1371,6 @@ void FMetalDynamicRHI::RHIFlushResources()
     ImmediateContext.Context->GetCurrentState().Reset();
 }
 
-void FMetalDynamicRHI::RHIAcquireThreadOwnership()
-{
-}
-
-void FMetalDynamicRHI::RHIReleaseThreadOwnership()
-{
-}
-
 void* FMetalDynamicRHI::RHIGetNativeDevice()
 {
 	return (void*)ImmediateContext.Context->GetDevice();
@@ -1397,14 +1416,8 @@ uint16 FMetalDynamicRHI::RHIGetPlatformTextureMaxSampleCount()
 
 void FMetalDynamicRHI::RHIBlockUntilGPUIdle()
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
+	MTL_SCOPED_AUTORELEASE_POOL;
 	ImmediateContext.Context->SubmitCommandBufferAndWait();
-}
-
-void FMetalDynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
-    MTL_SCOPED_AUTORELEASE_POOL;
-    ImmediateContext.Context->SubmitCommandBufferAndWait();
 }
 
 uint32 FMetalDynamicRHI::RHIGetGPUFrameCycles(uint32 GPUIndex)
@@ -1424,15 +1437,17 @@ IRHIComputeContext* FMetalDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FMetalDynamicRHI::RHIFinalizeContext(IRHIComputeContext* Context)
+IRHIPlatformCommandList* FMetalDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
 {
-	// "Context" will always be the default context, since we don't implement parallel execution.
-	// Metal uses an immediate context, there's nothing to do here. Executed commands will have already reached the driver.
+	MTL_SCOPED_AUTORELEASE_POOL;
 
-	// Returning nullptr indicates that we don't want RHISubmitCommandLists to be called.
+	// "Context" will always be the default context, since we don't implement parallel execution.
+	static_cast<FMetalRHICommandContext*>(Args.Context)->GetInternalContext().SubmitCommandsHint();
+
 	return nullptr;
 }
 
-void FMetalDynamicRHI::RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources)
+void FMetalDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 {
+	// Nothing to do
 }

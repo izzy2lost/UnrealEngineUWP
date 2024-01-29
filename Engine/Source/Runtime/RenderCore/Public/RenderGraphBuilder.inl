@@ -444,14 +444,6 @@ inline void FRDGBuilder::QueueBufferExtraction(FRDGBufferRef Buffer, TRefCountPt
 	SetBufferAccessFinal(Buffer, AccessFinal);
 }
 
-inline void FRDGBuilder::SetCommandListStat(TStatId StatId)
-{
-#if RDG_CMDLIST_STATS
-	CommandListStatScope = StatId;
-	RHICmdList.SetCurrentStat(StatId);
-#endif
-}
-
 inline void FRDGBuilder::AddDispatchHint()
 {
 	if (Passes.Num() > 0)
@@ -704,18 +696,4 @@ inline void FRDGBuilder::RemoveUnusedTextureWarning(FRDGTextureRef Texture)
 inline void FRDGBuilder::RemoveUnusedBufferWarning(FRDGBufferRef Buffer)
 {
 	IF_RDG_ENABLE_DEBUG(UserValidation.RemoveUnusedWarning(Buffer));
-}
-
-inline void FRDGBuilder::BeginEventScope(FRDGEventName&& ScopeName)
-{
-#if RDG_GPU_DEBUG_SCOPES
-	GPUScopeStacks.BeginEventScope(MoveTemp(ScopeName), RHICmdList.GetGPUMask(), ERDGEventScopeFlags::None);
-#endif
-}
-
-inline void FRDGBuilder::EndEventScope()
-{
-#if RDG_GPU_DEBUG_SCOPES
-	GPUScopeStacks.EndEventScope();
-#endif
 }

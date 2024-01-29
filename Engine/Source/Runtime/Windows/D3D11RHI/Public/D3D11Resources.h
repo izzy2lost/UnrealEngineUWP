@@ -311,27 +311,43 @@ private:
 class FD3D11RenderQuery : public FRHIRenderQuery
 {
 public:
-
 	/** The query resource. */
 	TRefCountPtr<ID3D11Query> Resource;
 
 	/** The cached query result. */
-	uint64 Result;
+	uint64 Result = 0;
 
-	/** true if the query's result is cached. */
-	bool bResultIsCached : 1;
+	enum class EState
+	{
+		None,
+		Ended,
+		Cached
+	};
+	std::atomic<EState> State { EState::None };
 
 	// todo: memory optimize
 	ERenderQueryType QueryType;
 
+	// Linked list pointers. Used to build a list of "active" queries, i.e. queries that need data to be polled from the GPU.
+	FD3D11RenderQuery** Prev = nullptr;
+	FD3D11RenderQuery* Next = nullptr;
+
 	/** Initialization constructor. */
-	FD3D11RenderQuery(ID3D11Query* InResource, ERenderQueryType InQueryType):
-		Resource(InResource),
-		Result(0),
-		bResultIsCached(false),
-		QueryType(InQueryType)
+	FD3D11RenderQuery(ID3D11Query* InResource, ERenderQueryType InQueryType)
+		: Resource(InResource)
+		, QueryType(InQueryType)
 	{}
 
+	virtual ~FD3D11RenderQuery()
+	{
+		Unlink();
+	}
+
+	bool CacheResult(class FD3D11DynamicRHI& RHI, bool bWait);
+
+	bool IsLinked() const { return Prev != nullptr; }
+	void Link();
+	void Unlink();
 };
 
 /** Forward declare the constants ring buffer. */

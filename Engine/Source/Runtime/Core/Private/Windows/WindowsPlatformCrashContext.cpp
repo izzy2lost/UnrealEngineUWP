@@ -180,7 +180,7 @@ struct FAssertInfo
 	}
 };
 
-const TCHAR* const FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName = TEXT("UEAftermathD3D12.nv-gpudmp");
+static constexpr TCHAR const NvAftermathDumpExtension[] = TEXT(".nv-gpudmp");
 
 namespace UE::Core::Private
 {
@@ -205,9 +205,6 @@ void FGenericCrashContext::CleanupPlatformSpecificFiles()
 	// Manually delete any potential leftover gpu dumps because the crash reporter will upload any leftover crash data from last session
 	const FString CrashVideoPath = FPaths::ProjectLogDir() + TEXT("CrashVideo.avi");
 	IFileManager::Get().Delete(*CrashVideoPath);
-
-	const FString GPUMiniDumpPath = FPaths::Combine(FPaths::ProjectLogDir(), FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName);
-	IFileManager::Get().Delete(*GPUMiniDumpPath);
 }
 
 void FWindowsPlatformCrashContext::AddPlatformSpecificProperties() const
@@ -283,13 +280,27 @@ void FWindowsPlatformCrashContext::CopyPlatformSpecificFiles(const TCHAR* Output
 		static_cast<void>(IFileManager::Get().Copy(*CrashVideoDstAbsolute, *CrashVideoPath));	// best effort, so don't care about result: couldn't copy -> tough, no video
 	}
 
-	// If present, include the gpu crash minidump
-	const FString GPUMiniDumpPath = FPaths::Combine(FPaths::ProjectLogDir(), FWindowsPlatformCrashContext::UEGPUAftermathMinidumpName);
-	if (IFileManager::Get().FileExists(*GPUMiniDumpPath))
+	// Find the newest GPU crash dump file
+	// Best effort, so don't care about result: couldn't copy -> tough, no GPU crash dump
+	TArray<FString> GPUDumpFiles;
+	IFileManager::Get().FindFiles(GPUDumpFiles, *FPaths::ProjectLogDir(), NvAftermathDumpExtension);
+	if (GPUDumpFiles.Num())
 	{
-		FString GPUMiniDumpFilename = FPaths::GetCleanFilename(GPUMiniDumpPath);
-		const FString GPUMiniDumpDstAbsolute = FPaths::Combine(OutputDirectory, *GPUMiniDumpFilename);
-		static_cast<void>(IFileManager::Get().Copy(*GPUMiniDumpDstAbsolute, *GPUMiniDumpPath));	// best effort, so don't care about result: couldn't copy -> tough, no video
+		GPUDumpFiles.Sort([](FString LHS, FString RHS)
+		{
+			double LHSAge = IFileManager::Get().GetFileAgeSeconds(*LHS);
+			double RHSAge = IFileManager::Get().GetFileAgeSeconds(*RHS);
+
+			return LHSAge < RHSAge;
+		});
+		FString SelectedGPUCrashDump = GPUDumpFiles[0];
+
+		if (IFileManager::Get().FileExists(*SelectedGPUCrashDump))
+		{
+			FString GPUMiniDumpFilename = FPaths::GetCleanFilename(SelectedGPUCrashDump);
+			const FString GPUMiniDumpDstAbsolute = FPaths::Combine(OutputDirectory, *GPUMiniDumpFilename);
+			static_cast<void>(IFileManager::Get().Copy(*GPUMiniDumpDstAbsolute, *SelectedGPUCrashDump));
+		}
 	}
 }
 

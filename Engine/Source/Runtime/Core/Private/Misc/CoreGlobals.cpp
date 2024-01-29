@@ -436,8 +436,6 @@ bool					GIsGameThreadIdInitialized		= false;
 void					(*GFlushStreamingFunc)(void)	  = &appNoop;
 /** Whether to emit begin/ end draw events.																	*/
 bool					GEmitDrawEvents					= false;
-/** Whether we want the rendering thread to be suspended, used e.g. for tracing.							*/
-bool					GShouldSuspendRenderingThread	= false;
 /** Determines what kind of trace should occur, NAME_None for none.											*/
 FLazyName				GCurrentTraceName;
 /** How to print the time in log output																		*/

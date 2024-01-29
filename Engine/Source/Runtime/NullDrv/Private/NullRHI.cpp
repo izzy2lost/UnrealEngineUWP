@@ -52,8 +52,6 @@ void FNullDynamicRHI::Init()
 	if (!IsRunningDedicatedServer())
 #endif
 	{
-		GRHICommandList.GetImmediateCommandList().InitializeImmediateContexts();
-
 		FRenderResource::InitPreRHIResources();
 	}
 

@@ -8,8 +8,6 @@
 
 struct FWindowsPlatformCrashContext : public FMicrosoftPlatformCrashContext
 {
-	static CORE_API const TCHAR* const UEGPUAftermathMinidumpName;
-	
 	FWindowsPlatformCrashContext(ECrashContextType InType, const TCHAR* InErrorMessage)
 		: FMicrosoftPlatformCrashContext(InType, InErrorMessage)
 	{

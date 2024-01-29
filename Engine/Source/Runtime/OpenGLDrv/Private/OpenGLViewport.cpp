@@ -82,8 +82,6 @@ FViewportRHIRef FOpenGLDynamicRHI::RHICreateViewport(void* WindowHandle,uint32 S
 {
 	check(IsInGameThread());
 
-//	SCOPED_SUSPEND_RENDERING_THREAD(true);
-
 	// Use a default pixel format if none was specified	
 	PreferredPixelFormat = RHIPreferredPixelFormatHint(PreferredPixelFormat);
 
@@ -94,8 +92,6 @@ void FOpenGLDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI,uint32 SizeX
 {
 	FOpenGLViewport* Viewport = ResourceCast(ViewportRHI);
 	check( IsInGameThread() );
-
-//	SCOPED_SUSPEND_RENDERING_THREAD(true);
 
 	Viewport->Resize(SizeX,SizeY,bIsFullscreen);
 }

@@ -44,11 +44,6 @@ static TAutoConsoleVariable<int32> CVarParallelPrePass(
 	TEXT("Toggles parallel zprepass rendering. Parallel rendering must be enabled for this to have an effect."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksPrePass(
-	TEXT("r.RHICmdFlushRenderThreadTasksPrePass"),
-	0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of the pre pass.  A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksPrePass is > 0 we will flush."));
-
 static int32 GEarlyZSortMasked = 1;
 static FAutoConsoleVariableRef CVarSortPrepassMasked(
 	TEXT("r.EarlyZSortMasked"),
@@ -155,13 +150,6 @@ IMPLEMENT_SHADERPIPELINE_TYPE_VS(DepthNoPixelPipeline, TDepthOnlyVS<false>, true
 IMPLEMENT_SHADERPIPELINE_TYPE_VS(DepthPosOnlyNoPixelPipeline, TDepthOnlyVS<true>, true);
 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(DepthPipeline, TDepthOnlyVS<false>, FDepthOnlyPS, true);
 
-static bool IsDepthPassWaitForTasksEnabled()
-{
-	return CVarRHICmdFlushRenderThreadTasksPrePass.GetValueOnRenderThread() > 0 || CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() > 0;
-}
-
-
-
 template <bool bPositionOnly>
 bool GetDepthPassShaders(
 	const FMaterial& Material,
@@ -255,8 +243,6 @@ void SetDepthPassDitheredLODTransitionState(const FSceneView* SceneView, const F
 		}
 	}
 }
-
-DECLARE_CYCLE_STAT(TEXT("Prepass"), STAT_CLP_Prepass, STATGROUP_ParallelCommandListMarkers);
 
 /** A pixel shader used to fill the stencil buffer with the current dithered transition mask. */
 class FDitheredTransitionStencilPS : public FGlobalShader
@@ -508,8 +494,6 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 
 		if (bParallelDepthPass)
 		{
-			RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, IsDepthPassWaitForTasksEnabled());
-
 			for (int32 ViewIndex = 0; ViewIndex < InViews.Num(); ++ViewIndex)
 			{
 				FViewInfo& View = InViews[ViewIndex];
@@ -533,7 +517,7 @@ void FDeferredShadingSceneRenderer::RenderPrePass(FRDGBuilder& GraphBuilder, TAr
 						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 						[this, &View, PassParameters, DepthMeshPass](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 					{
-						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_Prepass), View, FParallelCommandListBindings(PassParameters));
+						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
 						ParallelCommandListSet.SetHighPriority();
 						View.ParallelMeshDrawCommandPasses[DepthMeshPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
 					});

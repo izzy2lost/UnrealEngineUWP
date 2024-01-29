@@ -26,7 +26,6 @@
 
 DECLARE_CYCLE_STAT(TEXT("TranslucencyTimestampQueryFence Wait"), STAT_TranslucencyTimestampQueryFence_Wait, STATGROUP_SceneRendering);
 DECLARE_CYCLE_STAT(TEXT("TranslucencyTimestampQuery Wait"), STAT_TranslucencyTimestampQuery_Wait, STATGROUP_SceneRendering);
-DECLARE_CYCLE_STAT(TEXT("Translucency"), STAT_CLP_Translucency, STATGROUP_ParallelCommandListMarkers);
 DECLARE_FLOAT_COUNTER_STAT(TEXT("Translucency GPU Time (MS)"), STAT_TranslucencyGPU, STATGROUP_SceneRendering);
 DEFINE_GPU_DRAWCALL_STAT(Translucency);
 
@@ -99,11 +98,6 @@ static FAutoConsoleVariableRef CVarSeparateTranslucencyUpsampleMode(
 	TEXT("Upsample method to use on separate translucency.  These are only used when r.SeparateTranslucencyScreenPercentage is less than 100.\n")
 	TEXT("0: bilinear 1: Nearest-Depth Neighbor (only when r.SeparateTranslucencyScreenPercentage is 50)"),
 	ECVF_Scalability | ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarRHICmdFlushRenderThreadTasksTranslucentPass(
-	TEXT("r.RHICmdFlushRenderThreadTasksTranslucentPass"),
-	0,
-	TEXT("Wait for completion of parallel render thread tasks at the end of the translucent pass.  A more granular version of r.RHICmdFlushRenderThreadTasks. If either r.RHICmdFlushRenderThreadTasks or r.RHICmdFlushRenderThreadTasksTranslucentPass is > 0 we will flush."));
 
 static TAutoConsoleVariable<int32> CVarParallelTranslucency(
 	TEXT("r.ParallelTranslucency"),
@@ -212,11 +206,6 @@ static bool IsMainTranslucencyPass(ETranslucencyPass::Type TranslucencyPass)
 static bool IsParallelTranslucencyEnabled()
 {
 	return GRHICommandList.UseParallelAlgorithms() && CVarParallelTranslucency.GetValueOnRenderThread();
-}
-
-static bool IsTranslucencyWaitForTasksEnabled()
-{
-	return IsParallelTranslucencyEnabled() && (CVarRHICmdFlushRenderThreadTasksTranslucentPass.GetValueOnRenderThread() > 0 || CVarRHICmdFlushRenderThreadTasks.GetValueOnRenderThread() > 0);
 }
 
 bool IsSeparateTranslucencyEnabled(ETranslucencyPass::Type TranslucencyPass, float DownsampleScale)
@@ -1276,7 +1265,7 @@ static void RenderTranslucencyViewInner(
 			ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
 			[&SceneRenderer, &View, PassParameters, ViewportScale, Viewport, TranslucencyPass](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 		{
-			FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, GET_STATID(STAT_CLP_Translucency), View, FParallelCommandListBindings(PassParameters), ViewportScale);
+			FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters), ViewportScale);
 			RenderViewTranslucencyInner(RHICmdList, SceneRenderer, View, Viewport, ViewportScale, TranslucencyPass, &ParallelCommandListSet, PassParameters->InstanceCullingDrawParams);
 		});
 	}
@@ -1317,8 +1306,6 @@ void FDeferredShadingSceneRenderer::RenderTranslucencyInner(
 	{
 		return;
 	}
-
-	RDG_WAIT_FOR_TASKS_CONDITIONAL(GraphBuilder, IsTranslucencyWaitForTasksEnabled());
 
 	const bool bIsModulate = TranslucencyPass == ETranslucencyPass::TPT_TranslucencyAfterDOFModulate || TranslucencyPass == ETranslucencyPass::TPT_TranslucencyStandardModulate;
 	const bool bDepthTest = TranslucencyPass != ETranslucencyPass::TPT_TranslucencyAfterMotionBlur;

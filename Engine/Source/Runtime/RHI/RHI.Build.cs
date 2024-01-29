@@ -17,11 +17,6 @@ public class RHI : ModuleRules
 
 			if (Target.Type != TargetRules.TargetType.Server)   // Dedicated servers should skip loading everything but NullDrv
 			{
-				if (Target.Platform.IsInGroup(UnrealPlatformGroup.Desktop))
-                {
-					PublicDefinitions.Add("RHI_WANT_BREADCRUMB_EVENTS=1");
-				}
-
 				if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Configuration != UnrealTargetConfiguration.Test)
                 {
 					PublicDefinitions.Add("RHI_WANT_RESOURCE_INFO=1");

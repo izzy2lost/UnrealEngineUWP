@@ -14,5 +14,10 @@ public class RHICore : ModuleRules
 		{
 			PublicDefinitions.Add("RHICORE_PLATFORM_DXGI_H=<dxgi.h>");
 		}
+
+		if (Target.Platform.IsInGroup(UnrealPlatformGroup.Windows))
+		{
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
+		}
 	}
 }

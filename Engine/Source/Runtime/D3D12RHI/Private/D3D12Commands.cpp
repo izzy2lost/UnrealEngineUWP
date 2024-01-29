@@ -570,10 +570,6 @@ void FD3D12CommandContext::HandleResourceTransitions(const FD3D12TransitionData*
 
 void FD3D12CommandContext::RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions)
 {
-	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
-	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
-	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIBeginTransitions, bShowTransitionEvents, TEXT("RHIBeginTransitions"));
-
 	for (const FRHITransition* Transition : Transitions)
 	{
 		const FD3D12TransitionData* Data = Transition->GetPrivateData<FD3D12TransitionData>();
@@ -643,10 +639,6 @@ void FD3D12CommandContext::RHIEndTransitions(TArrayView<const FRHITransition*> T
 			}
 		}
 	}
-
-	static IConsoleVariable* CVarShowTransitions = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ProfileGPU.ShowTransitions"));
-	const bool bShowTransitionEvents = CVarShowTransitions->GetInt() != 0;
-	SCOPED_RHI_CONDITIONAL_DRAW_EVENTF(*this, RHIEndTransitions, bShowTransitionEvents, TEXT("RHIEndTransitions"));
 
 	// Update reserved resource memory mapping
 	for (const FRHITransition* Transition : Transitions)
@@ -1889,21 +1881,10 @@ void FD3D12CommandContext::RHIClearMRTImpl(bool* bClearColorArray, int32 NumClea
 // Blocks the CPU until the GPU catches up and goes idle.
 void FD3D12DynamicRHI::RHIBlockUntilGPUIdle()
 {
-	RHISubmitCommandsAndFlushGPU();
-
 	const int32 NumAdapters = ChosenAdapters.Num();
 	for (int32 Index = 0; Index < NumAdapters; ++Index)
 	{
 		GetAdapter(Index).BlockUntilIdle();
-	}
-}
-
-void FD3D12DynamicRHI::RHISubmitCommandsAndFlushGPU()
-{
-	FD3D12Adapter& Adapter = GetAdapter();
-	for (uint32 GPUIndex : FRHIGPUMask::All())
-	{
-		Adapter.GetDevice(GPUIndex)->GetDefaultCommandContext().RHISubmitCommandsHint();
 	}
 }
 
@@ -1978,11 +1959,6 @@ void FD3D12CommandContext::SetShadingRateImage(FD3D12Resource* RateImageTexture)
 		}
 	}
  #endif
-}
-
-void FD3D12CommandContext::RHISubmitCommandsHint()
-{
-	// Nothing to do
 }
 
 void FD3D12CommandContext::UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 DestOffset, FD3D12ResourceLocation* Source, uint32 SourceOffset, uint32 NumBytes)

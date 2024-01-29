@@ -30,16 +30,7 @@ void FRayTracingValidateGeometryBuildParamsCS::Dispatch(FRHICommandList& RHICmdL
 		return;
 	}
 
-	TWideStringBuilder<256> EventName;
-	EventName.Append(TEXT("RTGeometryValidation"));
-	if (!Initializer.DebugName.IsNone())
-	{
-		FString DebugNameString = Initializer.DebugName.ToString();
-		EventName.Append(TEXT(" - "));
-		EventName.Append(*DebugNameString);
-	}
-
-	RHICmdList.PushEvent(EventName.ToString(), FColor::Black);
+	SCOPED_DRAW_EVENTF(RHICmdList, RTGeometryValidation, TEXT("RTGeometryValidation - %s"), Initializer.DebugName);
 
 	const uint32 IndexStride = Initializer.IndexBuffer->GetStride();
 
@@ -89,8 +80,6 @@ void FRayTracingValidateGeometryBuildParamsCS::Dispatch(FRHICommandList& RHICmdL
 
 		RHICmdList.SetBatchedShaderUnbinds(ShaderRHI, BatchedUnbinds);
 	}
-
-	RHICmdList.PopEvent();
 }
 
 // FRayTracingValidateSceneBuildParamsCS
@@ -111,7 +100,7 @@ void FRayTracingValidateSceneBuildParamsCS::Dispatch(FRHICommandList& RHICmdList
 	FRHIComputeShader* ShaderRHI = ComputeShader.GetComputeShader();
 	SetComputePipelineState(RHICmdList, ShaderRHI);
 
-	RHICmdList.PushEvent(TEXT("RTSceneValidation"), FColor::Black);
+	SCOPED_DRAW_EVENT(RHICmdList, RTSceneValidation);
 
 	{
 		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
@@ -136,8 +125,6 @@ void FRayTracingValidateSceneBuildParamsCS::Dispatch(FRHICommandList& RHICmdList
 	FRHIBatchedShaderUnbinds& BatchedUnbinds = RHICmdList.GetScratchShaderUnbinds();
 	UnsetSRVParameter(BatchedUnbinds, ComputeShader->InstanceBufferParam);
 	RHICmdList.SetBatchedShaderUnbinds(ShaderRHI, BatchedUnbinds);
-
-	RHICmdList.PopEvent();
 }
 
 #endif // RHI_RAYTRACING

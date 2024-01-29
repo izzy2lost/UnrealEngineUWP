@@ -59,7 +59,7 @@ void FD3D12DescriptorCache::Init(uint32 InNumLocalViewDescriptors, uint32 InNumS
 	NumLocalViewDescriptors = bUsingViewHeap ? InNumLocalViewDescriptors : 0;
 
 	CurrentViewHeap = bUsingViewHeap  ? &SubAllocatedViewHeap : nullptr;
-	CurrentSamplerHeap = IsUsingBindlessSamplers() ? nullptr : &LocalSamplerHeap;
+	CurrentSamplerHeap = nullptr;
 }
 
 bool FD3D12DescriptorCache::SetDescriptorHeaps(bool bForceHeapChanged)
@@ -186,7 +186,11 @@ void FD3D12DescriptorCache::CloseCommandList()
 	if (!IsUsingBindlessSamplers())
 #endif
 	{
-		LocalSamplerHeap.CloseCommandList();
+		if (bLocalSamplerHeapOpen)
+		{
+			LocalSamplerHeap.CloseCommandList();
+			bLocalSamplerHeapOpen = false;
+		}
 
 		GetParentDevice()->GetGlobalSamplerHeap().ConsolidateUniqueSamplerTables(UniqueTables);
 		UniqueTables.Reset();
@@ -714,6 +718,9 @@ bool FD3D12DescriptorCache::SwitchToContextLocalSamplerHeap()
 {
 	check(!IsUsingBindlessSamplers());
 
+	LocalSamplerHeap.OpenCommandList();
+	bLocalSamplerHeapOpen = true;
+
 	CurrentSamplerHeap = &LocalSamplerHeap;
 
 	bool bDescriptorHeapsChanged = SetDescriptorHeaps();
@@ -725,6 +732,7 @@ bool FD3D12DescriptorCache::SwitchToContextLocalSamplerHeap()
 void FD3D12DescriptorCache::SwitchToGlobalSamplerHeap()
 {
 	check(!IsUsingBindlessSamplers());
+	check(!bLocalSamplerHeapOpen);
 
 	FD3D12GlobalOnlineSamplerHeap& GlobalSamplerHeap = GetParentDevice()->GetGlobalSamplerHeap();
 	LocalSamplerSet = GlobalSamplerHeap.GetUniqueDescriptorTables();
@@ -799,18 +807,16 @@ bool FD3D12OnlineHeap::CanReserveSlots(uint32 NumSlots)
 	const uint32 HeapSize = GetTotalSize();
 
 	// Sanity checks
-	if (0 == NumSlots)
+	if (NumSlots == 0)
 	{
 		return true;
 	}
+
 	if (NumSlots > HeapSize)
 	{
-#if !defined(_HAS_EXCEPTIONS) || _HAS_EXCEPTIONS == 1
-		throw E_OUTOFMEMORY;
-#else
-		UE_LOG(LogD3D12RHI, Fatal, TEXT("Unable to reserve slot"));
-#endif
+		return false;
 	}
+
 	uint32 FirstRequestedSlot = NextSlotIndex;
 	uint32 SlotAfterReservation = NextSlotIndex + NumSlots;
 
@@ -855,14 +861,7 @@ uint32 FD3D12OnlineHeap::ReserveSlots(uint32 NumSlotsRequested)
 	const uint32 HeapSize = GetTotalSize();
 
 	// Sanity checks
-	if (NumSlotsRequested > HeapSize)
-	{
-#if !defined(_HAS_EXCEPTIONS) || _HAS_EXCEPTIONS == 1
-		throw E_OUTOFMEMORY;
-#else
-		return HeapExhaustedValue;
-#endif
-	}
+	check(NumSlotsRequested <= HeapSize);
 
 	// CanReserveSlots should have been called first
 	check(CanReserveSlots(NumSlotsRequested));
@@ -975,18 +974,16 @@ void FD3D12GlobalOnlineSamplerHeap::ConsolidateUniqueSamplerTables(TArrayView<FD
 				}
 
 				uint32 HeapSlot = ReserveSlots(Table.Key.Count);
-				if (HeapSlot != FD3D12OnlineHeap::HeapExhaustedValue)
-				{
-					D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor = GetCPUSlotHandle(HeapSlot);
 
-					GetParentDevice()->GetDevice()->CopyDescriptors(
-						1, &DestDescriptor, &Table.Key.Count,
-						Table.Key.Count, Table.CPUTable, nullptr /* sizes */,
-						FD3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+				D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor = GetCPUSlotHandle(HeapSlot);
 
-					Table.GPUHandle = GetGPUSlotHandle(HeapSlot);
-					UniqueDescriptorTables->Add(Table);
-				}
+				GetParentDevice()->GetDevice()->CopyDescriptors(
+					1, &DestDescriptor, &Table.Key.Count,
+					Table.Key.Count, Table.CPUTable, nullptr /* sizes */,
+					FD3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+				Table.GPUHandle = GetGPUSlotHandle(HeapSlot);
+				UniqueDescriptorTables->Add(Table);
 			}
 		}
 	}
@@ -1181,24 +1178,35 @@ void FD3D12LocalOnlineHeap::HeapLoopedAround()
 	DescriptorCache.HeapLoopedAround(Heap->GetType());
 }
 
+void FD3D12LocalOnlineHeap::RecycleSlots()
+{
+	// Free up slots for finished command lists
+	FSyncPointEntry SyncPoint;
+	while (SyncPoints.Peek(SyncPoint) && SyncPoint.SyncPoint->IsComplete())
+	{
+		SyncPoints.Dequeue(SyncPoint);
+		FirstUsedSlot = SyncPoint.LastSlotInUse + 1;
+	}
+}
+
+void FD3D12LocalOnlineHeap::OpenCommandList()
+{
+	RecycleSlots();
+}
+
 void FD3D12LocalOnlineHeap::CloseCommandList()
 {
 	if (NextSlotIndex > 0)
 	{
 		// Track the previous command list
-		SyncPointEntry SyncPoint;
+		FSyncPointEntry SyncPoint;
 		SyncPoint.SyncPoint = Context.GetContextSyncPoint();
 		SyncPoint.LastSlotInUse = NextSlotIndex - 1;
 		SyncPoints.Enqueue(SyncPoint);
 
 		Entry.SyncPoint = Context.GetContextSyncPoint();
 
-		// Free up slots for finished command lists
-		while (SyncPoints.Peek(SyncPoint) && SyncPoint.SyncPoint->IsComplete())
-		{
-			SyncPoints.Dequeue(SyncPoint);
-			FirstUsedSlot = SyncPoint.LastSlotInUse + 1;
-		}
+		RecycleSlots();
 	}
 }
 

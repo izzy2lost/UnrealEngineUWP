@@ -31,21 +31,12 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D11RHI, Log, All);
 #include "D3D11Viewport.h"
 #include "D3D11ConstantBuffer.h"
 #include "D3D11StateCache.h"
+#include "D3D11NvidiaAftermath.h"
 #include "RHIValidationCommon.h"
 #include "RHICoreShader.h"
 
 #ifndef WITH_DX_PERF
 #define WITH_DX_PERF	1
-#endif
-
-#if NV_AFTERMATH
-#define GFSDK_Aftermath_WITH_DX11 1
-#include "GFSDK_Aftermath.h"
-#include "GFSDK_Aftermath_GpuCrashdump.h"
-#undef GFSDK_Aftermath_WITH_DX11
-extern bool GDX11NVAfterMathEnabled;
-extern bool GDX11NVAfterMathMarkers;
-extern float GDX11NVAfterMathDumpWaitTime;
 #endif
 
 #if INTEL_METRICSDISCOVERY
@@ -91,16 +82,6 @@ THIRD_PARTY_INCLUDES_END
 
 // DX11 doesn't support higher MSAA count
 #define DX_MAX_MSAA_COUNT 8
-
-#ifndef EXPERIMENTAL_D3D11_RHITHREAD
-#define EXPERIMENTAL_D3D11_RHITHREAD 0
-#endif
-
-#if EXPERIMENTAL_D3D11_RHITHREAD
-#define D3D11_NUM_THREAD_LOCAL_CACHES 2
-#else
-#define D3D11_NUM_THREAD_LOCAL_CACHES 1
-#endif
 
 #ifndef WITH_NV_API
 #define WITH_NV_API 0
@@ -352,14 +333,7 @@ struct FD3DGPUProfiler : public FGPUProfiler
 	virtual void PopEvent() override;
 
 	void BeginFrame(class FD3D11DynamicRHI* InRHI);
-
 	void EndFrame();
-
-	bool CheckGpuHeartbeat(bool bShowActiveStatus) const;
-
-private:
-	TMap<uint32, FString> CachedStrings;
-	TArray<uint32> PushPopStack;
 };
 
 struct FD3D11TransitionData
@@ -539,8 +513,6 @@ public:
 	virtual void RHIAliasTextureResources(FTextureRHIRef& DestTexture, FTextureRHIRef& SrcTexture) final override;
 	virtual FTextureRHIRef RHICreateAliasedTexture(FTextureRHIRef& SourceTexture) final override;
 	virtual void RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Viewport) final override;
-	virtual void RHIAcquireThreadOwnership() final override;
-	virtual void RHIReleaseThreadOwnership() final override;
 	virtual void RHIFlushResources() final override;
 	virtual uint32 RHIGetGPUFrameCycles(uint32 GPUIndex = 0) final override;
 	virtual FViewportRHIRef RHICreateViewport(void* WindowHandle, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat) override;
@@ -557,8 +529,8 @@ public:
 	virtual void* RHIGetNativeCommandBuffer() final override;
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override;
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) final override;
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* Context) final override;
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources) final override;
+	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) final override;
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) final override;
 
 	// SRV / UAV creation functions
 	virtual FShaderResourceViewRHIRef  RHICreateShaderResourceView (class FRHICommandListBase& RHICmdList, FRHIViewableResource* Resource, FRHIViewDesc const& ViewDesc) final override;
@@ -578,11 +550,12 @@ public:
 	virtual void RHIReleaseTransition(FRHITransition* Transition) final override;
 	virtual void RHIBeginTransitions(TArrayView<const FRHITransition*> Transitions) override final;
 	virtual void RHIEndTransitions(TArrayView<const FRHITransition*> Transitions) override final;
+
+	virtual void RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
+	virtual void RHIEndRenderQuery_TopOfPipe  (FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery) override final;
 	virtual void RHIBeginRenderQuery(FRHIRenderQuery* RenderQuery) final override;
-	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
-	void RHIBeginOcclusionQueryBatch(uint32 NumQueriesInBatch);
-	void RHIEndOcclusionQueryBatch();
-	virtual void RHISubmitCommandsHint() final override;
+	virtual void RHIEndRenderQuery  (FRHIRenderQuery* RenderQuery) final override;
+
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
 	using FDynamicRHI::RHIBeginFrame;
@@ -629,11 +602,12 @@ public:
 			EnableDepthBoundsTest(true, MinDepth, MaxDepth);
 		}
 	}
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
-	virtual void RHIPopEvent() final override;
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) final override;
+#endif
 
-	virtual void RHIPerFrameRHIFlushComplete() final override;
-	virtual void RHIPollRenderQueryResults() final override;
+	void PollQueryResults();
 
 	// *_RenderThread functions. Command lists call these functions on RT. You can implement your own behavior inside these functions.
 	// For example, deferring the actual creation to RHI thread by sending an RHI command.
@@ -651,8 +625,6 @@ public:
 	virtual void RHIEndRenderPass() final override;
 
 	void ResolveTexture(UE::RHICore::FResolveTextureInfo Info);
-
-	virtual void RHICalibrateTimers() override;
 
 	// ID3D11DynamicRHI interface
 	virtual ID3D11Device*         RHIGetDevice() const final override;
@@ -683,21 +655,9 @@ public:
 		return Direct3DDeviceIMContext;
 	}
 
-#if NV_AFTERMATH
-	GFSDK_Aftermath_ContextHandle GetNVAftermathContext()
-	{
-		return NVAftermathIMContextHandle;
-	}
-#endif
-
 	IDXGIFactory1* GetFactory() const
 	{
 		return DXGIFactory1;
-	}
-
-	bool CheckGpuHeartbeat() const override
-	{
-		return GPUProfilingData.CheckGpuHeartbeat(false);
 	}
 
 	void AddLockedData(const FD3D11LockedKey& Key, const FD3D11LockedData& LockedData)
@@ -793,7 +753,7 @@ protected:
 	TRefCountPtr<FD3D11DeviceContext> Direct3DDeviceIMContext;
 
 #if NV_AFTERMATH
-	GFSDK_Aftermath_ContextHandle NVAftermathIMContextHandle;
+	UE::RHICore::Nvidia::Aftermath::D3D11::FCommandList AftermathHandle = nullptr;
 #endif
 
 #if INTEL_METRICSDISCOVERY
@@ -870,8 +830,13 @@ protected:
 	/** Internal frame counter that just counts calls to Present */
 	uint32 PresentCounter;
 
-	uint32 RequestedOcclusionQueriesInBatch = 0;
-	uint32 ActualOcclusionQueriesInBatch = 0;
+	// Render queries that should be polled by the RHI thread.
+	struct
+	{
+		FD3D11RenderQuery* First = nullptr;
+		FD3D11RenderQuery* Last = nullptr;
+	} ActiveQueries;
+	friend class FD3D11RenderQuery;
 
 	/**
 	 * Internal counter used for resource table caching.
@@ -933,9 +898,6 @@ protected:
 
 	FD3D11Adapter Adapter;
 
-	// If this is false, disable any IHV optimization/libs
-	bool bAllowVendorDevice;
-
 	FD3D11Texture* CreateD3D11Texture2D(FRHITextureCreateDesc const& CreateDesc, TConstArrayView<D3D11_SUBRESOURCE_DATA> InitialData = {});
 	FD3D11Texture* CreateD3D11Texture3D(FRHITextureCreateDesc const& CreateDesc);
 
@@ -988,7 +950,6 @@ protected:
 	virtual void CleanupD3DDevice();
 
 	void ReleasePooledUniformBuffers();
-	void ReleaseCachedQueries();
 
 	template<typename TPixelShader>
 	static void ResolveTextureUsingShader(
@@ -1016,12 +977,6 @@ protected:
 	void ReadSurfaceDataNoMSAARaw(FRHITexture* TextureRHI,FIntRect Rect,TArray<uint8>& OutData, FReadSurfaceDataFlags InFlags);
 
 	void ReadSurfaceDataMSAARaw(FRHITexture* TextureRHI, FIntRect Rect, TArray<uint8>& OutData, FReadSurfaceDataFlags InFlags);
-
-#if NV_AFTERMATH
-	void StartNVAftermath();
-
-	void StopNVAftermath();
-#endif
 
 #if INTEL_EXTENSIONS
 	void StartIntelExtensions();
@@ -1055,7 +1010,6 @@ class FD3D11DynamicRHIModule : public IDynamicRHIModule
 public:
 	// IModuleInterface	
 	virtual bool SupportsDynamicReloading() override { return false; }
-	virtual void StartupModule() override;
 
 	// IDynamicRHIModule
 	virtual bool IsSupported() override;

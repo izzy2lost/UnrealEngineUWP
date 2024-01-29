@@ -442,11 +442,6 @@ public:
 
 	FVulkanCommandListContextImmediate& GetImmediateContext();
 
-	inline FVulkanCommandListContext& GetImmediateComputeContext()
-	{
-		return *ComputeContext;
-	}
-
 	void NotifyDeletedImage(VkImage Image, bool bRenderTarget);
 
 #if VULKAN_ENABLE_DRAW_MARKERS

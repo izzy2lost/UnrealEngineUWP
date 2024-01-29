@@ -772,12 +772,12 @@ public:
 			uint64 HistoryEntryId = Heuristic.CreateNewPreviousFrameTimings_RenderThread(
 				PrevFrameTimeMs, PrevGameThreadTimeMs, PrevRenderThreadTimeMs, PrevRHIThreadTimeMs);
 
-			const DynamicRenderScaling::TMap<uint64>& LattestTimings = DynamicRenderScaling::GetLastestTimings();
+			const DynamicRenderScaling::TMap<uint64>& LatestTimings = DynamicRenderScaling::GetLatestTimings();
 			DynamicRenderScaling::TMap<float> BudgetTimingMs;
 			for (TLinkedList<DynamicRenderScaling::FBudget*>::TIterator BudgetIt(DynamicRenderScaling::FBudget::GetGlobalList()); BudgetIt; BudgetIt.Next())
 			{
 				const DynamicRenderScaling::FBudget& Budget = **BudgetIt;
-				BudgetTimingMs[Budget] = TimeStampQueryResultToMiliSeconds(LattestTimings[Budget]);
+				BudgetTimingMs[Budget] = TimeStampQueryResultToMiliSeconds(LatestTimings[Budget]);
 			}
 			BudgetTimingMs[GDynamicPrimaryResolutionFraction] = PrevFrameGPUTimeMs;
 

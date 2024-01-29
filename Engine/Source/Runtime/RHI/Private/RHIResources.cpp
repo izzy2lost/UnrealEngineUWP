@@ -13,7 +13,7 @@
 UE::TConsumeAllMpmcQueue<FRHIResource*> PendingDeletes;
 UE::TConsumeAllMpmcQueue<FRHIResource*> PendingDeletesWithLifetimeExtension;
 
-FRHIResource* FRHIResource::CurrentlyDeleting = nullptr;
+thread_local FRHIResource const* FRHIResource::CurrentlyDeleting = nullptr;
 
 FRHIResource::FRHIResource(ERHIResourceType InResourceType)
 	: ResourceType(InResourceType)
@@ -39,29 +39,96 @@ FRHIResource::~FRHIResource()
 #endif
 }
 
-void FRHIResource::Destroy() const
+void FRHIResource::MarkForDelete() const
 {
-	if (!AtomicFlags.MarkForDelete(std::memory_order_release))
+	if (CurrentlyDeleting)
 	{
-		if (bAllowExtendLifetime)
+		if (!AtomicFlags.IsMarkedForDelete(std::memory_order_release))
 		{
-			PendingDeletesWithLifetimeExtension.ProduceItem(const_cast<FRHIResource*>(this));
-		}
-		else
-		{
-			PendingDeletes.ProduceItem(const_cast<FRHIResource*>(this));
+			// We hit refcount zero while destructing another RHI resource, and we're not already marked for delete.
+			// The current resource is nested inside the previous one, so can be destructed immediately.
+			FRHIResource const* Previous = CurrentlyDeleting;
+
+			CurrentlyDeleting = this;
+			delete this;
+
+			check(CurrentlyDeleting == nullptr);
+			CurrentlyDeleting = Previous;
 		}
 	}
+	else
+	{
+		if (!AtomicFlags.MarkForDelete(std::memory_order_release))
+		{
+			if (bAllowExtendLifetime)
+			{
+				PendingDeletesWithLifetimeExtension.ProduceItem(const_cast<FRHIResource*>(this));
+			}
+			else
+			{
+				PendingDeletes.ProduceItem(const_cast<FRHIResource*>(this));
+			}
+		}
+	}
+}
+
+void FRHIResource::DeleteResources(TArray<FRHIResource*> const& Resources)
+{
+	for (FRHIResource* Resource : Resources)
+	{
+		if (Resource->AtomicFlags.Deleting())
+		{
+			CurrentlyDeleting = Resource;
+			delete Resource;
+
+			check(CurrentlyDeleting == nullptr);
+		}
+	}
+}
+
+DECLARE_CYCLE_STAT(TEXT("Gather Deleted Resources"), STAT_GatherDeletedResources, STATGROUP_RHICMDLIST);
+
+int32 GRHIResourceLifetimeRefCount = 0;
+
+void RHIResourceLifetimeAddRef(int32 NumRefs)
+{
+	check(IsInRenderingThread());
+	GRHIResourceLifetimeRefCount += NumRefs;
+}
+
+void RHIResourceLifetimeReleaseRef(FRHICommandListImmediate& RHICmdList, int32 NumRefs)
+{
+	check(IsInRenderingThread());
+
+	int32 RefCount = GRHIResourceLifetimeRefCount -= NumRefs;
+	check(RefCount >= 0);
+
+	if (!RefCount)
+	{
+		RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::DeleteResources);
+	}
+}
+
+void FRHIResource::GatherResourcesToDelete(TArray<FRHIResource*>& OutResources, bool bIncludeExtendedLifetimeResources)
+{
+	SCOPE_CYCLE_COUNTER(STAT_GatherDeletedResources);
+	if (bIncludeExtendedLifetimeResources)
+	{
+		PendingDeletesWithLifetimeExtension.ConsumeAllLifo([&OutResources](FRHIResource* Resource)
+		{
+			OutResources.Emplace(Resource);
+		});
+	}
+
+	PendingDeletes.ConsumeAllLifo([&OutResources](FRHIResource* Resource)
+	{
+		OutResources.Emplace(Resource);
+	});
 }
 
 bool FRHIResource::Bypass()
 {
 	return GRHICommandList.Bypass();
-}
-
-int32 FRHIResource::FlushPendingDeletes(FRHICommandListImmediate& RHICmdList)
-{
-	return RHICmdList.FlushPendingDeletes();
 }
 
 FRHITexture::FRHITexture(const FRHITextureCreateDesc& InDesc)

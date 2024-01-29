@@ -1319,8 +1319,11 @@ private:
 #if WANTS_DRAW_MESH_EVENTS
 public:
 	friend struct FMeshDrawEvent;
-	struct FMeshDrawEvent : FDrawEvent
+	struct FMeshDrawEvent
 	{
+	private:
+		FRHIBreadcrumbEventScope Breadcrumb;
+	public:
 		FMeshDrawEvent(const FMeshDrawCommand& MeshDrawCommand, const uint32 InstanceFactor, FRHICommandList& RHICmdList);
 	};
 #endif

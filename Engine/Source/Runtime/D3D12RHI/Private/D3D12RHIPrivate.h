@@ -174,7 +174,14 @@ public:
 
 	static FD3D12DynamicRHI* GetD3DRHI() { return SingleD3DRHI; }
 
+	void TerminateOnOutOfMemory(ID3D12Device* InDevice, HRESULT D3DResult, bool bCreatingTextures);
+
+	// Dump & Log all the information we have on a GPU crash (NvAfterMath, DRED, Breadcrumbs, ...)
+	void OutputGPUCrashReport(FTextBuilder& ErrorMessage);
+
 private:
+	// Calls OutputGpuCrashReport, and also forces a quit.
+	void TerminateOnGPUCrash();
 
 	/** Texture pool size */
 	int64 RequestedTexturePoolSize;
@@ -201,6 +208,8 @@ private:
 		uint32 WaitTimeout = INFINITE;
 	};
 
+	TQueue<TArray<FD3D12Payload*>*, EQueueMode::Mpsc> PendingPayloadsForSubmission;
+
 	FCriticalSection SubmissionCS;
 	FCriticalSection InterruptCS;
 
@@ -221,11 +230,14 @@ public:
 	}
 
 	void SubmitCommands(TConstArrayView<struct FD3D12FinalizedCommands*> Commands);
-	void SubmitPayloads(TArrayView<FD3D12Payload*> Payloads);
+	void SubmitPayloads(TArray<FD3D12Payload*>&& Payloads);
 
 	// Processes the interrupt queue on the calling thread, until the specified GraphEvent is signaled.
 	// If the GraphEvent is nullptr, processes the queue until no further progress is made.
 	void ProcessInterruptQueueUntil(FGraphEvent* GraphEvent);
+
+	// Called when the GPU has crashed. This function will not return.
+	void ProcessInterruptQueueOnGPUCrash();
 
 	TUniquePtr<TIndirectArray<FD3D12Timing>> CurrentTiming;
 	void FlushTiming(bool bCreateNew);
@@ -357,8 +369,6 @@ public:
 	virtual bool RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateInitializer& LHS, const FGraphicsPipelineStateInitializer& RHS) final override;
 	virtual void RHIAdvanceFrameFence() final override;
 	virtual void RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* Viewport) final override;
-	virtual void RHIAcquireThreadOwnership() final override;
-	virtual void RHIReleaseThreadOwnership() final override;
 	virtual void RHIFlushResources() final override;
 	virtual uint32 RHIGetGPUFrameCycles(uint32 GPUIndex = 0) final override;
 	virtual FViewportRHIRef RHICreateViewport(void* WindowHandle, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat) final override;
@@ -369,7 +379,6 @@ public:
 #endif
 	virtual void RHITick(float DeltaTime) final override;
 	virtual void RHIBlockUntilGPUIdle() final override;
-	virtual void RHISubmitCommandsAndFlushGPU() final override;
 	virtual bool RHIGetAvailableResolutions(FScreenResolutionArray& Resolutions, bool bIgnoreRefreshRate) final override;
 	virtual void RHIGetSupportedResolution(uint32& Width, uint32& Height) final override;
 	virtual void* RHIGetNativeDevice() final override;
@@ -377,10 +386,10 @@ public:
 	virtual void* RHIGetNativeComputeQueue() final override;
 	virtual void* RHIGetNativeInstance() final override;
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override;
-	virtual class IRHIComputeContext* RHIGetDefaultAsyncComputeContext() final override;
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) final override;
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* Context) final override;
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources) final override;
+	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) final override;
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) final override;
+	virtual void RHIProcessDeleteQueue() final override;
 
 	virtual void RHIRunOnQueue(ED3D12RHIRunOnQueueType QueueType, TFunction<void(ID3D12CommandQueue*)>&& CodeToRun, bool bWaitForSubmission) final override;
 
@@ -439,8 +448,6 @@ public:
 		return RHICancelAsyncReallocateTexture2D(Texture2D, bBlockUntilCompleted);
 	}
 
-	void RHICalibrateTimers() override;
-
 #if D3D12_RHI_RAYTRACING
 
 	virtual FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint32 MaxInstances, ERayTracingAccelerationStructureFlags Flags) final override;
@@ -455,12 +462,9 @@ public:
 
 	virtual FShaderBundleRHIRef RHICreateShaderBundle(uint32 NumRecords) override;
 
-	bool CheckGpuHeartbeat() const override;
-
 	virtual void HandleGpuTimeout(FD3D12Payload* Payload, double SecondsSinceSubmission);
 
 	bool RHIRequiresComputeGenerateMips() const override { return true; };
-	bool RHIIncludeOptionalFlushes() const override { return false; }
 
 	bool IsQuadBufferStereoEnabled() const;
 	void DisableQuadBufferStereo();
@@ -588,11 +592,8 @@ protected:
 
 	HANDLE FlipEvent;
 
-	const bool bAllowVendorDevice;
-
 	FDisplayInformationArray DisplayList;
 
-	void ProcessDeferredDeletionQueue();
 	void ProcessDeferredDeletionQueue_Platform();
 };
 

@@ -460,12 +460,6 @@ void FRHICommandCalibrateTimers::Execute(FRHICommandListBase& CmdList)
 	INTERNAL_DECORATOR(RHICalibrateTimers)(CalibrationQuery);
 }
 
-void FRHICommandSubmitCommandsHint::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(SubmitCommandsHint);
-	INTERNAL_DECORATOR_COMPUTE(RHISubmitCommandsHint)();
-}
-
 void FRHICommandPostExternalCommandsReset::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(PostExternalCommandsReset);
@@ -632,7 +626,6 @@ void FRHICommandEndScene::Execute(FRHICommandListBase& CmdList)
 void FRHICommandBeginFrame::Execute(FRHICommandListBase& CmdList)
 {
 	RHISTAT(BeginFrame);
-	CmdList.GetAsImmediate().ProcessStats();
 	INTERNAL_DECORATOR(RHIBeginFrame)();
 }
 
@@ -653,26 +646,6 @@ void FRHICommandEndDrawingViewport::Execute(FRHICommandListBase& CmdList)
 	RHISTAT(EndDrawingViewport);
 	INTERNAL_DECORATOR(RHIEndDrawingViewport)(Viewport, bPresent, bLockToVsync);
 }
-
-void FRHICommandPushEvent::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(PushEvent);
-	INTERNAL_DECORATOR_COMPUTE(RHIPushEvent)(Name, Color);
-}
-
-void FRHICommandPopEvent::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(PopEvent);
-	INTERNAL_DECORATOR_COMPUTE(RHIPopEvent)();
-}
-
-#if RHI_WANT_BREADCRUMB_EVENTS
-void FRHICommandSetBreadcrumbStackTop::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(RHISetBreadcrumbStackTop);
-	CmdList.Breadcrumbs.SetStackTop(Breadcrumb);
-}
-#endif
 
 void FRHICommandInvalidateCachedState::Execute(FRHICommandListBase& CmdList)
 {

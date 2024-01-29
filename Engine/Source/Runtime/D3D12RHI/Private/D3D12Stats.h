@@ -279,27 +279,5 @@ namespace D3D12RHI
 
 		void BeginFrame();
 		void EndFrame();
-
-		bool CheckGpuHeartbeat() const;
-		
-		static FString EventDeepString;
-		static const uint32 EventDeepCRC;
-
-		uint32 GetOrAddEventStringHash(const TCHAR* Name);
-		const FString* FindEventString(uint32 CRC);
-
-#if NV_AFTERMATH
-		void RegisterCommandList(ID3D12GraphicsCommandList* CommandList, GFSDK_Aftermath_ContextHandle ContextHandle);
-		void UnregisterCommandList(GFSDK_Aftermath_ContextHandle ContextHandle);
-
-		TArray<GFSDK_Aftermath_ContextHandle> AftermathContexts;
-		TArray<ID3D12GraphicsCommandList*> AftermathCommandLists;
-		FCriticalSection AftermathLock;
-#endif
-
-	private:
-		/** Map containing all the currently hashed event strings */
-		FRWLock	CacheEventStringsRWLock;
-		TMap<uint32, FString> CachedEventStrings;
 	};
 }

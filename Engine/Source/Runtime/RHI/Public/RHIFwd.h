@@ -34,6 +34,10 @@ class FRHIComputeCommandList;
 class FRHICommandList;
 class FRHICommandListImmediate;
 
+// Contexts
+class IRHIComputeContext;
+class IRHICommandContext;
+
 struct FRHIResourceUpdateInfo;
 struct FRHIResourceUpdateBatcher;
 

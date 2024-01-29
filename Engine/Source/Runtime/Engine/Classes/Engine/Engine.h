@@ -2285,7 +2285,6 @@ public:
 	ENGINE_API bool HandleFreezeAllCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorld* InWorld );			// Smedis
 
 	ENGINE_API bool HandleToggleRenderingThreadCommand( const TCHAR* Cmd, FOutputDevice& Ar );	
-	ENGINE_API bool HandleToggleAsyncComputeCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleRecompileShadersCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleRecompileGlobalShadersCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	ENGINE_API bool HandleDumpShaderStatsCommand( const TCHAR* Cmd, FOutputDevice& Ar );

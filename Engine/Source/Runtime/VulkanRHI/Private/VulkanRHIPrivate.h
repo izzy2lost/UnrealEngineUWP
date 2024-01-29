@@ -929,9 +929,6 @@ inline bool ValidateShadingRateDataType()
 extern int32 GVulkanSubmitAfterEveryEndRenderPass;
 extern int32 GWaitForIdleOnSubmit;
 
-// Vendor-specific GPU crash dumps
-extern bool GGPUCrashDebuggingEnabled;
-
 #if VULKAN_HAS_DEBUGGING_ENABLED
 extern bool GRenderDocFound;
 #endif
@@ -945,7 +942,3 @@ extern TAtomic<uint64> GVulkanBufferViewHandleIdCounter;
 extern TAtomic<uint64> GVulkanImageViewHandleIdCounter;
 extern TAtomic<uint64> GVulkanSamplerHandleIdCounter;
 extern TAtomic<uint64> GVulkanDSetLayoutHandleIdCounter;
-
-#if NV_AFTERMATH
-extern bool GVulkanNVAftermathModuleLoaded;
-#endif

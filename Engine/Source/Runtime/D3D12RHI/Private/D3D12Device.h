@@ -7,6 +7,8 @@ D3D12Device.h: D3D12 Device Interfaces
 #pragma once
 
 #include "CoreMinimal.h"
+#include "RHIBreadcrumbs.h"
+
 #include "D3D12BindlessDescriptors.h"
 #include "D3D12Descriptors.h"
 
@@ -18,49 +20,69 @@ class FD3D12RayTracingPipelineCache;
 class FD3D12RayTracingCompactionRequestHandler;
 struct FD3D12RayTracingPipelineInfo;
 
-// Counterpart to UEDiagnosticBuffer in D3DCommon.ush
-struct FD3D12DiagnosticBufferData
+//
+// Diagnostic buffer, backed by a virtual heap. Stays accessible after a GPU crash to allow readback of diagnostic messages.
+// Also used to track the progress of the GPU via breadcrumb markers.
+//
+class FD3D12DiagnosticBuffer
 {
-	uint32 Counter;
-	uint32 MessageID;
-	union
+private:
+	// Counterpart to UEDiagnosticBuffer in D3DCommon.ush
+	struct FLane
 	{
-		int32  AsInt[4];
-		uint32 AsUint[4];
-		float  AsFloat[4];
-	} Payload;
-};
+		uint32 Counter;
+		uint32 MessageID;
+		union
+		{
+			int32  AsInt[4];
+			uint32 AsUint[4];
+			float  AsFloat[4];
+		} Payload;
+	};
 
-static_assert(sizeof(FD3D12DiagnosticBufferData) == 6 * sizeof(uint32),
-	"Remember to change UEDiagnosticBuffer layout in the shaders when changing FD3D12DiagnosticBufferData");
+	static_assert(sizeof(FLane) == 6 * sizeof(uint32), "Remember to change UEDiagnosticBuffer layout in the shaders when changing FLane");
 
-// Helper data used to track GPU progress on this command queue
-struct FD3D12DiagnosticBuffer
-{
+	struct FQueue
+	{
+		// Counterpart to UEDiagnosticMaxLanes in D3DCommon.ush
+		static constexpr uint32 MaxLanes = 64;
+		FLane Lanes[MaxLanes];
+
+#if WITH_RHI_BREADCRUMBS
+		// GPU breadcrumb markers
+		uint32 MarkerIn;
+		uint32 MarkerOut;
+#endif
+	} *Data = nullptr;
+
+	static constexpr uint32 SizeInBytes = sizeof(FQueue);
+
 	TRefCountPtr<FD3D12Heap> Heap;
 	TRefCountPtr<FD3D12Resource> Resource;
 
-	void* CpuAddress = nullptr;
 	D3D12_GPU_VIRTUAL_ADDRESS GpuAddress = 0;
+	D3D12_GPU_VIRTUAL_ADDRESS ToGPUAddress(void* Ptr) const
+	{
+		return GpuAddress + (uintptr_t(Ptr) - uintptr_t(Data));
+	}
 
-	FD3D12DiagnosticBuffer(TRefCountPtr<FD3D12Heap>&& Heap, TRefCountPtr<FD3D12Resource>&& Resource, void* CpuAddress, D3D12_GPU_VIRTUAL_ADDRESS GpuAddress)
-		: Heap(MoveTemp(Heap))
-		, Resource(MoveTemp(Resource))
-		, CpuAddress(CpuAddress)
-		, GpuAddress(GpuAddress)
-	{}
-
-	TArray<uint16> FreeContextIds;
-	FCriticalSection CriticalSection;
-	uint32 BreadCrumbsContextSize = 0;
-
-	uint32 BreadCrumbsOffset = 0;
-	uint32 BreadCrumbsSize = 0;
-
-	uint32 DiagnosticsOffset = 0;
-	uint32 DiagnosticsSize = 0;
-
+public:
+	FD3D12DiagnosticBuffer(FD3D12Queue& Queue);
 	~FD3D12DiagnosticBuffer();
+
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUQueueData     () const { return ToGPUAddress(Data); }
+
+#if WITH_RHI_BREADCRUMBS
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUQueueMarkerIn () const { return ToGPUAddress(&Data->MarkerIn ); }
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUQueueMarkerOut() const { return ToGPUAddress(&Data->MarkerOut); }
+
+	uint32 ReadMarkerIn () const { return Data->MarkerIn;  }
+	uint32 ReadMarkerOut() const { return Data->MarkerOut; }
+#endif
+
+	bool IsValid() const { return Resource.IsValid(); }
+
+	FString LogShaderAsserts(uint32 DeviceIndex, uint32 QueueIndex);
 };
 
 // Encapsulates the state required for tracking GPU queue performance across a frame.
@@ -97,6 +119,12 @@ public:
 	FD3D12Device* const Device;
 	ED3D12QueueType const QueueType;
 
+	// The underlying D3D queue object
+	TRefCountPtr<ID3D12CommandQueue> D3DCommandQueue;
+
+	// A single D3D fence to manage completion of work on this queue
+	FD3D12Fence Fence;
+
 	struct : public TQueue<FD3D12Payload*, EQueueMode::Mpsc>
 	{
 		FD3D12Payload* Peek()
@@ -108,8 +136,9 @@ public:
 		}		
 	} PendingSubmission, PendingInterrupt;
 
-	FD3D12Payload*          PayloadToSubmit    = nullptr;
-	FD3D12CommandAllocator* BarrierAllocator   = nullptr;
+	TArray<FD3D12Payload*>  PayloadsToSubmit;
+	FD3D12Payload*          PayloadToSubmit  = nullptr;
+	FD3D12CommandAllocator* BarrierAllocator = nullptr;
 	FD3D12QueryAllocator    BarrierTimestamps;
 
 	uint32 NumCommandListsInBatch = 0;
@@ -120,79 +149,6 @@ public:
 	TArray<FD3D12QueryLocation> PendingOcclusionQueries;
 	TArray<FD3D12QueryLocation> PendingPipelineStatsQueries;
 
-	// Executes the current payload, returning the latest fence value signaled for this queue.
-	uint64 ExecutePayload();
-
-	bool bRequiresSignal = false;
-
-	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
-	bool bSupportsTileMapping = true;
-
-	// The underlying D3D queue object
-	TRefCountPtr<ID3D12CommandQueue> D3DCommandQueue;
-
-	// A single D3D fence to manage completion of work on this queue
-	FD3D12Fence Fence;
-
-	// Tracks what fence values this queue has awaited on other queues.
-	struct FRemoteFenceState
-	{
-		uint64 MaxValueAwaited = 0;
-		uint64 NextValueToAwait = 0;
-	};
-	TMap<FD3D12Fence*, FRemoteFenceState> RemoteFenceStates;
-
-	uint64 SignalFence()
-	{
-		if (bRequiresSignal)
-		{
-			bRequiresSignal = false;
-			uint64 ValueToSignal = ++Fence.LastSignaledValue;
-			VERIFYD3D12RESULT(D3DCommandQueue->Signal(
-				Fence.D3DFence,
-				ValueToSignal
-			));
-
-			return ValueToSignal;
-		}
-		else
-		{
-			return Fence.LastSignaledValue;
-		}
-	}
-
-	TArray<FD3D12Fence*, TInlineAllocator<GD3D12MaxNumQueues>> FencesToAwait;
-	void EnqueueFenceWait(FD3D12Fence* RemoteFence, uint64 Value)
-	{
-		uint64& NextValueToAwait = RemoteFenceStates.FindOrAdd(RemoteFence).NextValueToAwait;
-		NextValueToAwait = FMath::Max(NextValueToAwait, Value);
-		FencesToAwait.AddUnique(RemoteFence);
-	}
-
-	void FlushFenceWaits()
-	{
-		for (FD3D12Fence* FenceToAwait : FencesToAwait)
-		{
-			FRemoteFenceState& RemoteFenceState = RemoteFenceStates.FindChecked(FenceToAwait);
-
-			// Skip issuing the fence wait if we've previously awaited the same fence with a higher value.
-			if (RemoteFenceState.NextValueToAwait > RemoteFenceState.MaxValueAwaited)
-			{
-				VERIFYD3D12RESULT(D3DCommandQueue->Wait(
-					FenceToAwait->D3DFence,
-					RemoteFenceState.NextValueToAwait
-				));
-
-				RemoteFenceState.MaxValueAwaited = FMath::Max(
-					RemoteFenceState.MaxValueAwaited,
-					RemoteFenceState.NextValueToAwait
-				);
-			}
-		}
-
-		FencesToAwait.Reset();
-	}
-
 	// A pool of reusable command list/allocator/context objects
 	struct
 	{
@@ -201,41 +157,32 @@ public:
 		TD3D12ObjectPool<FD3D12CommandList     > Lists;
 	} ObjectPool;
 
-	TUniquePtr<FD3D12DiagnosticBuffer> DiagnosticBuffer;
-
-	const D3D12_GPU_VIRTUAL_ADDRESS GetDiagnosticBufferGPUAddress() const
-	{
-		return DiagnosticBuffer
-			? DiagnosticBuffer->GpuAddress + DiagnosticBuffer->DiagnosticsOffset
-			: 0;
-	}
-
-	const FD3D12DiagnosticBufferData* GetDiagnosticBufferData() const
-	{
-		const uint8* Address = DiagnosticBuffer
-			? reinterpret_cast<const uint8*>(DiagnosticBuffer->CpuAddress) + DiagnosticBuffer->DiagnosticsOffset
-			: nullptr;
-		return reinterpret_cast<const FD3D12DiagnosticBufferData*>(Address);
-	}
-
-	// Get the CPU readable data from the breadcrumb data - this data is still valid after the Device is Lost
-	const void* GetBreadCrumbBufferData() const
-	{
-		return DiagnosticBuffer
-			? reinterpret_cast<const uint8*>(DiagnosticBuffer->CpuAddress) + DiagnosticBuffer->BreadCrumbsOffset
-			: nullptr;
-	}
-
 	// The active timing struct on this queue. Updated / accessed by the interrupt thread.
 	FD3D12Timing* Timing = nullptr;
 
 	uint64 CumulativeIdleTicks = 0;
 	uint64 LastEndTime = 0;
 
+	TUniquePtr<FD3D12DiagnosticBuffer> DiagnosticBuffer;
+
+	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
+	bool bSupportsTileMapping = true;
+
+	// Batches the current payload's command lists, returning the latest fence value signaled for this queue.
+	uint64 FinalizePayload(bool bRequiresSignal);
+
+	// Ensures all prior batched command lists have reached the driver ID3D12Queue object.
+	void FlushBatchedPayloads();
+
+	// Call the underlying ID3D12Queue::ExecuteCommandLists function
+	void ExecuteCommandLists(TArrayView<ID3D12CommandList*> D3DCommandLists
+#if ENABLE_RESIDENCY_MANAGEMENT
+		, TArrayView<FD3D12ResidencySet*> ResidencySets
+#endif
+	);
+
 	FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType);
 	~FD3D12Queue();
-
-	void SetupAfterDeviceCreation();
 };
 
 class FD3D12Device final : public FD3D12SingleNodeGPUObject, public FNoncopyable, public FD3D12AdapterChild
@@ -259,7 +206,6 @@ public:
 	void BlockUntilIdle();
 	D3D12_RESOURCE_ALLOCATION_INFO GetResourceAllocationInfoUncached(const FD3D12ResourceDesc& InDesc);
 	D3D12_RESOURCE_ALLOCATION_INFO GetResourceAllocationInfo(const FD3D12ResourceDesc& InDesc);
-	TUniquePtr<FD3D12DiagnosticBuffer> CreateDiagnosticBuffer(const D3D12_RESOURCE_DESC& Desc, const TCHAR* Name);
 
 	void									  InitExplicitDescriptorHeap();
 	FD3D12ExplicitDescriptorHeapCache*		  GetExplicitDescriptorHeapCache() { return ExplicitDescriptorHeapCache; }
@@ -345,6 +291,16 @@ public:
 	// after device creation and GRHISupportsAsyncTextureCreation was set and before resource init
 	void SetupAfterDeviceCreation();
 	void CleanupResources();
+
+	// Wrapper of ID3D12Device::CreateCommandList
+	HRESULT CreateCommandList(
+		UINT                    nodeMask,
+		D3D12_COMMAND_LIST_TYPE type,
+		ID3D12CommandAllocator* pCommandAllocator,
+		ID3D12PipelineState*    pInitialState,
+		REFIID                  riid,
+		void**                  ppCommandList
+	);
 
 	TRefCountPtr<ID3D12CommandQueue> TileMappingQueue;
 	FD3D12Fence TileMappingFence;

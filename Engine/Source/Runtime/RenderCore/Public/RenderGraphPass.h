@@ -312,16 +312,9 @@ public:
 		return GraphicsJoinPass;
 	}
 
-#if RDG_CPU_SCOPES
-	FRDGCPUScopes GetCPUScopes() const
+	FRDGScope const* GetScope() const
 	{
-		return CPUScopes;
-	}
-#endif
-
-	FRDGGPUScopes GetGPUScopes() const
-	{
-		return GPUScopes;
+		return Scope;
 	}
 
 #if WITH_MGPU
@@ -398,9 +391,6 @@ protected:
 
 			/** If set, dispatches to the RHI thread after executing this pass. */
 			uint32 bDispatchAfterExecute : 1;
-
-			/** If set, the pass should set its command list stat. */
-			uint32 bSetCommandListStat : 1;
 		};
 		uint32 PackedBits1 = 0;
 	};
@@ -521,20 +511,7 @@ protected:
 	FRHIGPUMask GPUMask;
 #endif
 
-	IF_RDG_CMDLIST_STATS(TStatId CommandListStat);
-
-#if RDG_CPU_SCOPES
-	FRDGCPUScopes CPUScopes;
-	FRDGCPUScopeOpArrays CPUScopeOps;
-#endif
-
-	FRDGGPUScopes GPUScopes;
-	FRDGGPUScopeOpArrays GPUScopeOpsPrologue;
-	FRDGGPUScopeOpArrays GPUScopeOpsEpilogue;
-
-#if RDG_GPU_DEBUG_SCOPES && RDG_ENABLE_TRACE
-	const FRDGEventScope* TraceEventScope = nullptr;
-#endif
+	FRDGScope* Scope = nullptr;
 
 #if RDG_ENABLE_TRACE
 	TArray<FRDGTextureHandle, FRDGArrayAllocator> TraceTextures;

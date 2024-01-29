@@ -16,13 +16,6 @@ void D3D12RHI::FD3DGPUProfiler::BeginFrame()
 	check(!bTrackingEvents);
 	check(!CurrentEventNodeFrame); // this should have already been cleaned up and the end of the previous frame
 
-	// update the crash tracking variables
-	static auto* CrashCollectionEnableCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.gpucrash.collectionenable"));
-	static auto* CrashCollectionDataDepth = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.gpucrash.datadepth"));
-
-	bTrackingGPUCrashData = CrashCollectionEnableCvar ? (FD3D12DynamicRHI::GetD3DRHI()->GetAdapter().GetGPUCrashDebuggingModes() != ED3D12GPUCrashDebuggingModes::None && CrashCollectionEnableCvar->GetValueOnRenderThread() != 0) : false;
-	GPUCrashDataDepth = CrashCollectionDataDepth ? CrashCollectionDataDepth->GetValueOnRenderThread() : -1;
-
 	// latch the bools from the game thread into our private copy
 	bLatchedGProfilingGPU = GTriggerGPUProfile;
 	bLatchedGProfilingGPUHitches = GTriggerGPUHitchProfile;
@@ -178,47 +171,6 @@ void D3D12RHI::FD3DGPUProfiler::EndFrame()
 	CurrentEventNodeFrame = NULL;
 }
 
-FString D3D12RHI::FD3DGPUProfiler::EventDeepString(TEXT("EventTooDeep"));
-const uint32 D3D12RHI::FD3DGPUProfiler::EventDeepCRC = FCrc::StrCrc32<TCHAR>(*EventDeepString);
-
-/** Get the CRC of the given event Name and cache the lookup internally so it can be retrieved again later */
-uint32 D3D12RHI::FD3DGPUProfiler::GetOrAddEventStringHash(const TCHAR* Name)
-{
-	if (bTrackingGPUCrashData)
-	{
-		uint32 CRC = FCrc::StrCrc32<TCHAR>(Name);
-
-		// make sure the Name is cached
-		FRWScopeLock RWScopeLock(CacheEventStringsRWLock, SLT_ReadOnly);
-		if (!CachedEventStrings.Contains(CRC))
-		{
-			RWScopeLock.ReleaseReadOnlyLockAndAcquireWriteLock_USE_WITH_CAUTION();
-
-			if (CachedEventStrings.Num() > 10000)
-			{
-				CachedEventStrings.Empty(10000);
-				CachedEventStrings.Emplace(EventDeepCRC, EventDeepString);
-			}
-
-			if (CachedEventStrings.Find(CRC) == nullptr)
-			{
-				CachedEventStrings.Emplace(CRC, FString(Name));
-			}
-		}
-
-		return CRC;
-	}
-	else
-		return 0;
-}
-
-/** Try and find the cached event string for given CRC */
-const FString* D3D12RHI::FD3DGPUProfiler::FindEventString(uint32 CRC)
-{
-	FReadScopeLock ReadScopeLock(CacheEventStringsRWLock);
-	return CachedEventStrings.Find(CRC);
-}
-
 /** Start this frame of per tracking */
 void FD3D12EventNodeFrame::StartFrame()
 {
@@ -308,118 +260,4 @@ void D3D12BufferStats::UpdateBufferStats(FD3D12Buffer& Buffer, bool bAllocating)
 		MemoryTrace_Free(GPUAddress, EMemoryTraceRootHeap::VideoMemory);
 	}
 #endif
-}
-
-#if NV_AFTERMATH
-void D3D12RHI::FD3DGPUProfiler::RegisterCommandList(ID3D12GraphicsCommandList* CommandList, GFSDK_Aftermath_ContextHandle ContextHandle)
-{
-	FScopeLock Lock(&AftermathLock);
-
-	AftermathContexts.Push(ContextHandle);
-	AftermathCommandLists.Push(CommandList);
-}
-
-void D3D12RHI::FD3DGPUProfiler::UnregisterCommandList(GFSDK_Aftermath_ContextHandle ContextHandle)
-{
-	FScopeLock Lock(&AftermathLock);
-
-	int32 Item = AftermathContexts.Find(ContextHandle);
-	check(Item != INDEX_NONE);
-
-	AftermathContexts.RemoveAt(Item);
-	AftermathCommandLists.RemoveAt(Item);
-}
-#endif
-
-extern CORE_API bool GIsGPUCrashed;
-bool D3D12RHI::FD3DGPUProfiler::CheckGpuHeartbeat() const
-{
-#if NV_AFTERMATH
-	if (GDX12NVAfterMathEnabled)
-	{
-		GFSDK_Aftermath_Device_Status Status;
-		GFSDK_Aftermath_Result Result = GFSDK_Aftermath_GetDeviceStatus(&Status);
-		if (Result == GFSDK_Aftermath_Result_Success)
-		{
-			if (Status != GFSDK_Aftermath_Device_Status_Active)
-			{
-				GIsGPUCrashed = true;
-				const TCHAR* AftermathReason[] = { TEXT("Active"), TEXT("Timeout"), TEXT("OutOfMemory"), TEXT("PageFault"), TEXT("Stopped"), TEXT("Reset"), TEXT("Unknown"), TEXT("DmaFault") };
-				if (Status < UE_ARRAY_COUNT(AftermathReason))
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Status: %s"), AftermathReason[Status]);
-				}
-				else
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Invalid Status result value: %u"), Status);
-				}
-
-
-				TArray<GFSDK_Aftermath_ContextData> ContextDataOut;
-				ContextDataOut.AddUninitialized(AftermathContexts.Num());
-				Result = GFSDK_Aftermath_GetData(AftermathContexts.Num(), AftermathContexts.GetData(), ContextDataOut.GetData());
-				if (Result == GFSDK_Aftermath_Result_Success)
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Scanning %d command lists for dumps"), ContextDataOut.Num());
-					for (int ContextIdx = 0; ContextIdx < ContextDataOut.Num(); ++ContextIdx)
-					{
-						GFSDK_Aftermath_ContextData& ContextData = ContextDataOut[ContextIdx];
-						uint32 NumMarkers = ContextData.markerSize / sizeof(uint32);
-						uint32* Data = (uint32*)ContextData.markerData;
-
-						const TCHAR* StatusNames[] = { TEXT("NotStarted"), TEXT("Executing"), TEXT("Finished"), TEXT("Invalid") };
-						const TCHAR* ContextStatusName = ContextData.status < UE_ARRAY_COUNT(StatusNames) ? StatusNames[ContextData.status] : TEXT("UNKNOWN");
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] Context %d, command list %016llX, status %s, %u markers. Begin GPU Stack Dump"), ContextIdx, AftermathCommandLists[ContextIdx], ContextStatusName, NumMarkers);
-						for (uint32 MarkerIdx = 0; MarkerIdx < NumMarkers; ++MarkerIdx)
-						{
-							const FString* MarkerName = CachedEventStrings.Find(Data[MarkerIdx]);
-							UE_LOG(LogRHI, Error, TEXT("[Aftermath] %d: %s"), MarkerIdx, MarkerName ? *(*MarkerName) : TEXT("NULL"));
-						}
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] End GPU Stack Dump"));
-					}
-				}
-				else
-				{
-					UE_LOG(LogRHI, Error, TEXT("[Aftermath] Failed to get Aftermath stack data"));
-				}
-
-				if (Status == GFSDK_Aftermath_Device_Status_PageFault)
-				{
-					GFSDK_Aftermath_PageFaultInformation FaultInformation;
-					Result = GFSDK_Aftermath_GetPageFaultInformation(&FaultInformation);
-
-					if (Result == GFSDK_Aftermath_Result_Success)
-					{
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] Faulting address: 0x%016llx"), FaultInformation.faultingGpuVA);
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] Faulting resource dims: %d x %d x %d"), FaultInformation.resourceDesc.width, FaultInformation.resourceDesc.height, FaultInformation.resourceDesc.depth);
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] Faulting result size: %llu bytes"), FaultInformation.resourceDesc.size);
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] Faulting resource mips: %d"), FaultInformation.resourceDesc.mipLevels);
-
-						DXGI_FORMAT ResourceFormat = (DXGI_FORMAT)FaultInformation.resourceDesc.format;
-						const TCHAR* FormatStr = LexToString(ResourceFormat);
-						const TCHAR* FormatPrefix = TEXT("DXGI_FORMAT_");
-						if (FCString::Strstr(FormatStr, FormatPrefix) == FormatStr)
-						{
-							FormatStr += FCString::Strlen(FormatPrefix);
-						}
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] Faulting resource format: %s (0x%x)"), FormatStr, (int32)ResourceFormat);
-
-						if (FaultInformation.faultingGpuVA)
-						{
-							FD3D12Device* Device = GetParentDevice();
-							FD3D12Adapter* Adapter = Device->GetParentAdapter();
-							D3D12RHI::LogPageFaultData(Adapter, Device, D3D12_GPU_VIRTUAL_ADDRESS(FaultInformation.faultingGpuVA));
-						}
-					}
-					else
-					{
-						UE_LOG(LogRHI, Error, TEXT("[Aftermath] No information on faulting address"));
-					}
-				}
-				return false;
-			}
-		}
-	}
-#endif
-	return true;
 }

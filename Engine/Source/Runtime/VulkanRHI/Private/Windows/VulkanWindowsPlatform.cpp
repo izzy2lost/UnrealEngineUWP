@@ -37,30 +37,6 @@ bool FVulkanWindowsPlatform::LoadVulkanLibrary()
 	}
 	bAttemptedLoad = true;
 
-#if NV_AFTERMATH
-	GVulkanNVAftermathModuleLoaded = false;
-	const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
-	if (bAllowVendorDevice)
-	{
-		// Note - can't check device type here, we'll check for that before actually initializing Aftermath
-		const FString AftermathBinariesRoot = FPaths::EngineDir() / TEXT("Binaries/ThirdParty/NVIDIA/NVaftermath/Win64/");
-
-		FPlatformProcess::PushDllDirectory(*AftermathBinariesRoot);
-		void* Handle = FPlatformProcess::GetDllHandle(TEXT("GFSDK_Aftermath_Lib.x64.dll"));
-		FPlatformProcess::PopDllDirectory(*AftermathBinariesRoot);
-
-		if (Handle == nullptr)
-		{
-			UE_LOG(LogVulkanRHI, Warning, TEXT("Failed to load GFSDK_Aftermath_Lib.x64.dll"));
-		}
-		else
-		{
-			UE_LOG(LogVulkanRHI, Log, TEXT("Loaded GFSDK_Aftermath_Lib.x64.dll"));
-			GVulkanNVAftermathModuleLoaded = true;
-		}
-	}
-#endif
-
 #if VULKAN_HAS_DEBUGGING_ENABLED
 	const FString VulkanSDK = FPlatformMisc::GetEnvironmentVariable(TEXT("VULKAN_SDK"));
 	UE_LOG(LogVulkanRHI, Warning, TEXT("Found VULKAN_SDK=%s"), *VulkanSDK);

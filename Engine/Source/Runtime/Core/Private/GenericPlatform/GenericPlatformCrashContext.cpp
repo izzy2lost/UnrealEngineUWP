@@ -87,94 +87,89 @@ static const TCHAR* AttendedStatusToString(EUnattendedStatus Status)
 	}
 }
 
-/* GPU breadcrumbs */
-class FGPUBreadcrumbCrashData
+#if WITH_ADDITIONAL_CRASH_CONTEXTS
+
+// Sanitize the event name string to remove characters that are used as delimiters for parsing.
+FString FGPUBreadcrumbCrashData::FSerializer::Sanitize(FString const& Name)
 {
-public:
-	FGPUBreadcrumbCrashData(const TArray<FBreadcrumbNode>& Breadcrumbs)
+	return Name.Replace(TEXT("{"), TEXT("(")).Replace(TEXT("}"), TEXT(")"));
+}
+
+// Event names include parameters, mostly numeric (e.g. "Frame 1234"), that should be ignored when computing the hash.
+FString FGPUBreadcrumbCrashData::FSerializer::SanitizeForHash(FString const& Name)
+{
+	FString SanitizedName;
+	SanitizedName.Reserve(Name.Len());
+	for (TCHAR Char : Name)
 	{
-		for (const FBreadcrumbNode& Node : Breadcrumbs)
+		if (!FChar::IsDigit(Char))
 		{
-			ProcessBreadcrumbNode(Node);
+			SanitizedName.AppendChar(Char);
 		}
-
-		FinalizedFullHash = FullHash.Finalize();
-		FinalizedActiveHash = ActiveHash.Finalize();
 	}
+	return SanitizedName;
+}
 
-	const FString& GetProcessedBreadcrumbString() const { return ProcessedBreadcrumbString; }
-	const FSHAHash GetFullHash() const { return FinalizedFullHash; }
-	const FSHAHash GetActiveHash() const { return FinalizedActiveHash; }
-	
-	/** 
-	 * This must be incremented whenever the format of the breadcrumb string
-	 * changes, in order to help parsers in dealing with strings from multiple
-	 * versions.
-	 */
-	static const TCHAR* const GetBreadcrumbStringFormatVersion() { return TEXT("1.0"); }
-
-private:
-	void ProcessBreadcrumbNode(const FBreadcrumbNode& Node)
+CORE_API void FGPUBreadcrumbCrashData::FSerializer::BeginNode(FString const& Name, EState State)
+{
+	// Update hashes using the node name
 	{
-		HashNode(Node);
-
-		ProcessedBreadcrumbString.Append(FString::Printf(TEXT("{{%s},%c"), *SanitizeBreadcrumbEventName(Node.Name), Node.GetStateString()[0]));
-		if (!Node.Children.IsEmpty())
+		FString HashName = SanitizeForHash(Name);
+		FullHash.UpdateWithString(*HashName, HashName.Len());
+		if (State == EState::Active)
 		{
-			ProcessedBreadcrumbString.Append(TEXT(",{"));
-			for (int32 Child = 0; Child < Node.Children.Num(); Child++)
-			{
-				ProcessBreadcrumbNode(Node.Children[Child]);
-				if (Child != Node.Children.Num() - 1)
-				{
-					ProcessedBreadcrumbString.AppendChar(',');
-				}
-			}
-			ProcessedBreadcrumbString.AppendChar('}');
-		}
-		ProcessedBreadcrumbString.AppendChar('}');
-	}
-
-	void HashNode(const FBreadcrumbNode& Node)
-	{
-		FString NameForHash = SanitizeBreadcrumbEventNameForHash(Node.Name);
-		FullHash.UpdateWithString(*NameForHash, NameForHash.Len());
-		if (Node.State == EBreadcrumbState::Active)
-		{
-			ActiveHash.UpdateWithString(*NameForHash, NameForHash.Len());
+			ActiveHash.UpdateWithString(*HashName, HashName.Len());
 		}
 	}
 
-	// Sanitize the event name string to remove characters that are used
-	// as delimiters for parsing.
-	static FString SanitizeBreadcrumbEventName(const FString& EventName)
+	if (ChildStack.Num() > 0)
 	{
-		return EventName.Replace(TEXT("{"), TEXT("(")).Replace(TEXT("}"), TEXT(")"));
-	}
-
-	// Event names include parameters, mostly numeric (e.g. "Frame 1234"), that should
-	// be ignored when computing the hash.
-	static FString SanitizeBreadcrumbEventNameForHash(const FString& EventName)
-	{
-		FString SanitizedName;
-		SanitizedName.Reserve(EventName.Len());
-		for (const TCHAR& Char : EventName)
+		if (ChildStack.Top())
 		{
-			if (!FChar::IsDigit(Char))
-			{
-				SanitizedName.AppendChar(Char);
-			}
+			// Current node already has children, so we need a comma separator
+			String.Append(TEXT(","));
 		}
-		return SanitizedName;
+		else
+		{
+			// Current node does not yet have a child list.
+			String.Append(TEXT(",{"));
+			ChildStack.Top() = true;
+		}
 	}
 
-	FString ProcessedBreadcrumbString;	
+	String += FString::Printf(TEXT("{{%s},%c"), *Sanitize(Name), StateChars[int32(State)]);
+	ChildStack.Push(false);
+}
 
-	FSHA1 FullHash;
-	FSHAHash FinalizedFullHash;
-	FSHA1 ActiveHash;
-	FSHAHash FinalizedActiveHash;
-};
+CORE_API void FGPUBreadcrumbCrashData::FSerializer::EndNode()
+{
+	check(ChildStack.Num() > 0);
+	if (ChildStack.Pop())
+	{
+		// Need to end the child list
+		String.Append(TEXT("}}"));
+	}
+	else
+	{
+		// Ending a node with no children
+		String.AppendChar(TEXT('}'));
+	}
+}
+
+CORE_API FGPUBreadcrumbCrashData::FQueueData FGPUBreadcrumbCrashData::FSerializer::GetResult()
+{
+	check(ChildStack.Num() == 0);
+
+	FGPUBreadcrumbCrashData::FQueueData Result{};
+
+	Result.BreadcrumbString = MoveTemp(String);
+	Result.FullHash         = FullHash.Finalize();
+	Result.ActiveHash       = ActiveHash.Finalize();
+
+	return Result;
+}
+
+#endif // WITH_ADDITIONAL_CRASH_CONTEXTS
 
 /*-----------------------------------------------------------------------------
 	FGenericCrashContext
@@ -236,8 +231,7 @@ namespace NCached
 	static TArray<FString> EnabledPluginsList;
 	static TMap<FString, FString> EngineData;
 	static TMap<FString, FString> GameData;
-	static TMap<FString, FGPUBreadcrumbCrashData> GPUBreadcrumbsByQueue;
-	static FString GPUBreadcrumbsSource;
+	static TOptional<FGPUBreadcrumbCrashData> GPUBreadcrumbs;
 
 	template <size_t CharCount, typename CharType>
 	void Set(CharType(&Dest)[CharCount], const CharType* pSrc)
@@ -1087,7 +1081,7 @@ void FGenericCrashContext::AddPortableCallStack() const
 
 void FGenericCrashContext::AddGPUBreadcrumbs() const
 {
-	if (NCached::GPUBreadcrumbsByQueue.IsEmpty())
+	if (!NCached::GPUBreadcrumbs.IsSet())
 	{
 		return;
 	}
@@ -1097,18 +1091,17 @@ void FGenericCrashContext::AddGPUBreadcrumbs() const
 	// We use a version indicator for the format used by the breadcrumbs
 	// string, so that parsers can know what to expect and don't break
 	// if changes are made in the format exported by the engine.
-	AddSection(CommonBuffer, TEXT("FormatVersion"), FGPUBreadcrumbCrashData::GetBreadcrumbStringFormatVersion());
+	AddSection(CommonBuffer, TEXT("FormatVersion"), FGPUBreadcrumbCrashData::Version);
+	AddSection(CommonBuffer, TEXT("Source"), NCached::GPUBreadcrumbs->SourceName);
 
-	AddSection(CommonBuffer, TEXT("Source"), NCached::GPUBreadcrumbsSource);
-
-	for (auto& [Queue, Breadcrumbs] : NCached::GPUBreadcrumbsByQueue)
+	for (auto& [Queue, Breadcrumbs] : NCached::GPUBreadcrumbs->Queues)
 	{
 		BeginSection(CommonBuffer, TEXT("Queue"));
 
 		AddSection(CommonBuffer, TEXT("Name"), Queue);
-		AddSection(CommonBuffer, TEXT("FullHash"), Breadcrumbs.GetFullHash().ToString());
-		AddSection(CommonBuffer, TEXT("ActiveHash"), Breadcrumbs.GetActiveHash().ToString());
-		AddSection(CommonBuffer, TEXT("Breadcrumbs"), Breadcrumbs.GetProcessedBreadcrumbString());
+		AddSection(CommonBuffer, TEXT("FullHash"), Breadcrumbs.FullHash.ToString());
+		AddSection(CommonBuffer, TEXT("ActiveHash"), Breadcrumbs.ActiveHash.ToString());
+		AddSection(CommonBuffer, TEXT("Breadcrumbs"), Breadcrumbs.BreadcrumbString);
 
 		EndSection(CommonBuffer, TEXT("Queue"));
 	}
@@ -1313,25 +1306,13 @@ void FGenericCrashContext::SetEngineData(const FString& Key, const FString& Valu
 	OnEngineDataSet.Broadcast(Key, Value);
 }
 
-void FGenericCrashContext::SetGPUBreadcrumbs(const FString& GPUQueueName, const TArray<FBreadcrumbNode>& Breadcrumbs)
+void FGenericCrashContext::SetGPUBreadcrumbs(FGPUBreadcrumbCrashData&& Data)
 {
-	NCached::GPUBreadcrumbsByQueue.Emplace(GPUQueueName, FGPUBreadcrumbCrashData(Breadcrumbs));
-}
-
-void FGenericCrashContext::SetGPUBreadcrumbsSource(const FString& GPUBreadcrumbsSource)
-{
-	NCached::GPUBreadcrumbsSource = GPUBreadcrumbsSource;
-}
-
-const FString& FGenericCrashContext::GetGPUBreadcrumbsSource()
-{
-	return NCached::GPUBreadcrumbsSource;
-}
-
-void FGenericCrashContext::ResetGPUBreadcrumbsData()
-{
-	NCached::GPUBreadcrumbsByQueue.Empty();
-	NCached::GPUBreadcrumbsSource.Empty();
+	// Always prefer data from the "RHI" source
+	if (!NCached::GPUBreadcrumbs.IsSet() || NCached::GPUBreadcrumbs->SourceName != TEXT("RHI") || Data.SourceName == TEXT("RHI"))
+	{
+		NCached::GPUBreadcrumbs.Emplace(MoveTemp(Data));
+	}
 }
 
 const TMap<FString, FString>& FGenericCrashContext::GetEngineData()

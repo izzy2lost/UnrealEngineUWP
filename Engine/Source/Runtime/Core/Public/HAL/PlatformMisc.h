@@ -32,6 +32,12 @@
 // Master switch for scoped named events
 #define ENABLE_NAMED_EVENTS (!UE_BUILD_SHIPPING && 1)
 
+#if PLATFORM_USES_ANSI_STRING_FOR_EXTERNAL_PROFILING
+	#define NAMED_EVENT_STR(x) x
+#else
+	#define NAMED_EVENT_STR(x) TEXT(x)
+#endif
+
 #if ENABLE_NAMED_EVENTS
 
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -89,22 +95,6 @@ public:
 	}	
 };
 
-class FScopedProfilerColor
-{
-public:
-
-	FScopedProfilerColor(const struct FColor& Color)
-	{
-		FPlatformMisc::BeginProfilerColor(Color);
-	}
-
-	~FScopedProfilerColor()
-	{
-		FPlatformMisc::EndProfilerColor();
-	}
-};
-
-
 //
 // Scoped named event class for constant (compile-time) strings literals.
 //
@@ -143,12 +133,6 @@ public:
 // Lightweight scoped named event separate from stats system.  Will be available in test builds.  
 // Events cost profiling overhead so use them judiciously in final code.
 
-#if PLATFORM_USES_ANSI_STRING_FOR_EXTERNAL_PROFILING
-#define NAMED_EVENT_STR(x) x
-#else
-#define NAMED_EVENT_STR(x) TEXT(x)
-#endif
-
 #define SCOPED_NAMED_EVENT(Name, Color)\
 	FScopedNamedEventStatic ANONYMOUS_VARIABLE(NamedEvent_##Name##_)(Color, NAMED_EVENT_STR(#Name));\
 	TRACE_CPUPROFILER_EVENT_SCOPE(Name);
@@ -172,9 +156,6 @@ public:
 #define SCOPED_NAMED_EVENT_TCHAR_CONDITIONAL(Text, Color, bCondition)\
 	FScopedNamedEventConditional ANONYMOUS_VARIABLE(NamedEvent_)(Color, Text, (bCondition));\
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(Text, (bCondition));
-
-#define SCOPED_PROFILER_COLOR(Color)			 FScopedProfilerColor    ANONYMOUS_VARIABLE(ProfilerColor_##Name##_)(Color);
-
 
 #else
 
@@ -212,9 +193,10 @@ public:
 #define SCOPED_NAMED_EVENT_TEXT(...)
 #define SCOPED_NAMED_EVENT_F(...)
 #define SCOPED_NAMED_EVENT_TCHAR_CONDITIONAL(...)
-#define SCOPED_PROFILER_COLOR(...)
 
 #endif
+
+#define SCOPED_PROFILER_COLOR(...) UE_DEPRECATED_MACRO(5.4, "SCOPED_PROFILER_COLOR is deprecated and there is no replacement.")
 
 // For timing OnEnterBackground tasks. This can be time sensitive on some platforms
 class FScopedEnterBackgroundEvent

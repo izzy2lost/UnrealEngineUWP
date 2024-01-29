@@ -15,36 +15,6 @@
 #include "UnrealClient.h"
 #include "SceneManagement.h"
 
-/** Emits draw events for a given FMeshBatch and the FPrimitiveSceneProxy corresponding to that mesh element. */
-#if WANTS_DRAW_MESH_EVENTS
-
-void BeginMeshDrawEvent_Inner(FRHICommandList& RHICmdList, const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FMeshBatch& Mesh, FDrawEvent& MeshEvent)
-{
-	// Only show material and resource name at the top level
-	if (PrimitiveSceneProxy)
-	{
-		BEGIN_DRAW_EVENTF(
-			RHICmdList, 
-			MaterialEvent, 
-			MeshEvent, 
-			TEXT("%s %s"), 
-			// Note: this is the parent's material name, not the material instance
-			*Mesh.MaterialRenderProxy->GetIncompleteMaterialWithFallback(PrimitiveSceneProxy ? PrimitiveSceneProxy->GetScene().GetFeatureLevel() : GMaxRHIFeatureLevel).GetFriendlyName(),
-			PrimitiveSceneProxy->GetResourceName().IsValid() ? *PrimitiveSceneProxy->GetResourceName().ToString() : TEXT(""));
-	}
-	else
-	{
-		BEGIN_DRAW_EVENTF(
-			RHICmdList, 
-			MaterialEvent, 
-			MeshEvent, 
-			// Note: this is the parent's material name, not the material instance
-			*Mesh.MaterialRenderProxy->GetIncompleteMaterialWithFallback(GMaxRHIFeatureLevel).GetFriendlyName());
-	}
-}
-
-#endif
-
 void DrawPlane10x10(class FPrimitiveDrawInterface* PDI,const FMatrix& ObjectToWorld, float Radii, FVector2D UVMin, FVector2D UVMax, const FMaterialRenderProxy* MaterialRenderProxy, uint8 DepthPriorityGroup)
 {
 	// -> TileCount * TileCount * 2 triangles

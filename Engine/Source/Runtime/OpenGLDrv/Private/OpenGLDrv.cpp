@@ -115,28 +115,54 @@ void FOpenGLDynamicRHI::RHIEGLTerminateContext()
 }
 #endif
 
+#if WITH_RHI_BREADCRUMBS
+	void FOpenGLDynamicRHI::RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		const TCHAR* NameStr = nullptr;
+		FRHIBreadcrumb::FBuffer Buffer;
+		auto GetNameStr = [&]()
+		{
+			if (!NameStr)
+			{
+				NameStr = Breadcrumb->Name.GetTCHAR(Buffer);
+			}
+			return NameStr;
+		};
 
-void FOpenGLDynamicRHI::RHIPushEvent(const TCHAR* Name, FColor Color)
-{
-#if ENABLE_OPENGL_DEBUG_GROUPS
-	// @todo-mobile: Fix string conversion ASAP!
-	FOpenGL::PushGroupMarker(TCHAR_TO_ANSI(Name));
-#endif
-	GPUProfilingData.PushEvent(Name, Color);
-}
+		if (ShouldEmitBreadcrumbs())
+		{
+	#if ENABLE_OPENGL_DEBUG_GROUPS
+			// @todo-mobile: Fix string conversion ASAP!
+			// @todo dev-pr avoid TCHAR -> ANSI conversion
+			FOpenGL::PushGroupMarker(TCHAR_TO_ANSI(GetNameStr()));
+	#endif
+		}
+
+		if (GPUProfilingData.IsProfilingGPU())
+		{
+			GPUProfilingData.PushEvent(GetNameStr(), FColor::White);
+		}
+	}
+
+	void FOpenGLDynamicRHI::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
+	{
+		if (GPUProfilingData.IsProfilingGPU())
+		{
+			GPUProfilingData.PopEvent();
+		}
+
+		if (ShouldEmitBreadcrumbs())
+		{
+	#if ENABLE_OPENGL_DEBUG_GROUPS
+			FOpenGL::PopGroupMarker();
+	#endif
+		}
+	}
+#endif // WITH_RHI_BREADCRUMBS
 
 void FOpenGLGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)
 {
 	FGPUProfiler::PushEvent(Name, Color);
-}
-
-void FOpenGLDynamicRHI::RHIPopEvent()
-{
-#if ENABLE_OPENGL_DEBUG_GROUPS
-	FOpenGL::PopGroupMarker();
-#endif
-
-	GPUProfilingData.PopEvent();
 }
 
 void FOpenGLGPUProfiler::PopEvent()

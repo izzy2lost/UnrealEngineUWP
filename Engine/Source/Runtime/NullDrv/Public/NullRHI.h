@@ -327,10 +327,6 @@ public:
 		return true; 
 	}
 
-	virtual void RHISubmitCommandsHint() final override
-	{
-	}
-
 
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override
 	{
@@ -376,15 +372,6 @@ public:
 	{
 
 	}
-	virtual void RHIAcquireThreadOwnership() final override
-	{
-
-	}
-	virtual void RHIReleaseThreadOwnership() final override
-	{
-
-	}
-
 
 	virtual void RHIFlushResources() final override
 	{
@@ -525,12 +512,16 @@ public:
 	{
 		return 0;
 	}
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override
+
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
 	}
-	virtual void RHIPopEvent()
+	virtual void RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
 	}
+#endif
+
 	virtual class IRHICommandContext* RHIGetDefaultContext() final override
 	{ 
 		return this; 
@@ -541,12 +532,12 @@ public:
 		return nullptr;
 	}
 
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(IRHIComputeContext* Context) final override
+	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) final override
 	{
 		return nullptr;
 	}
 
-	virtual void RHISubmitCommandLists(TArrayView<IRHIPlatformCommandList*> CommandLists, bool bFlushResources) final override
+	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) final override
 	{
 	}
 

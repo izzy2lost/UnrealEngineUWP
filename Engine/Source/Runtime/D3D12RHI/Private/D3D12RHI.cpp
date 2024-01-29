@@ -52,7 +52,6 @@ FD3D12DynamicRHI::FD3D12DynamicRHI(const TArray<TSharedPtr<FD3D12Adapter>>& Chos
 	, AmdAgsContext(nullptr)
 	, AmdSupportedExtensionFlags(0)
 	, FlipEvent(INVALID_HANDLE_VALUE)
-	, bAllowVendorDevice(!FParse::Param(FCommandLine::Get(), TEXT("novendordevice")))
 {
 	// The FD3D12DynamicRHI must be a singleton
 	check(SingleD3DRHI == nullptr);
@@ -244,9 +243,6 @@ FD3D12DynamicRHI::FD3D12DynamicRHI(const TArray<TSharedPtr<FD3D12Adapter>>& Chos
 		}
 	}
 
-	// Enable async compute by default
-	GEnableAsyncCompute = true;
-
 	// Manually enable Async BVH build for D3D12 RHI
 	GRHISupportsRayTracingAsyncBuildAccelerationStructure = true;
 
@@ -337,18 +333,7 @@ void FD3D12DynamicRHI::Shutdown()
 	}
 
 	// Flush all pending deletes before destroying the device or any command contexts.
-	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-		int32 DeletedCount;
-		do
-		{
-			DeletedCount = RHICmdList.FlushPendingDeletes();
-			RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
-		} while (DeletedCount);
-
-		RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	}
+	FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 
 	RHIShutdownFlipTracking();
 	ShutdownSubmissionPipe();
@@ -403,13 +388,6 @@ IRHICommandContext* FD3D12DynamicRHI::RHIGetDefaultContext()
 	return DefaultCommandContext;
 }
 
-IRHIComputeContext* FD3D12DynamicRHI::RHIGetDefaultAsyncComputeContext()
-{
-	// This should never be called. There is no "default" async compute context anymore.
-	checkNoEntry(); 
-	return nullptr;
-}
-
 void FD3D12DynamicRHI::RHIFlushResources()
 {
 	// Nothing to do (yet!)
@@ -424,7 +402,9 @@ void FD3D12DynamicRHI::EnqueueEndOfPipeTask(TUniqueFunction<void()> TaskFunc, TU
 		Prereqs.Add(EopTask);
 	}
 
-	TArray<FD3D12Payload*, TInlineAllocator<GD3D12MaxNumQueues>> Payloads;
+	TArray<FD3D12Payload*> Payloads;
+	Payloads.Reserve(GD3D12MaxNumQueues);
+
 	ForEachQueue([&](FD3D12Queue& Queue)
 	{
 		FD3D12Payload* Payload = new FD3D12Payload(Queue.Device, Queue.QueueType);
@@ -439,7 +419,7 @@ void FD3D12DynamicRHI::EnqueueEndOfPipeTask(TUniqueFunction<void()> TaskFunc, TU
 		Payloads.Add(Payload);
 	});
 
-	SubmitPayloads(Payloads);
+	SubmitPayloads(MoveTemp(Payloads));
 
 	EopTask = FFunctionGraphTask::CreateAndDispatchWhenReady(
 		MoveTemp(TaskFunc),
@@ -479,7 +459,7 @@ void FD3D12DynamicRHI::FlushTiming(bool bCreateNew)
 	});
 }
 
-void FD3D12DynamicRHI::ProcessDeferredDeletionQueue()
+void FD3D12DynamicRHI::RHIProcessDeleteQueue()
 {
 	ProcessDeferredDeletionQueue_Platform();
 
@@ -532,6 +512,12 @@ void FD3D12DynamicRHI::ProcessDeferredDeletionQueue()
 						ObjectToDelete.VirtualAllocDescriptor.CommittedTextureSize);
 					break;
 #endif
+
+				case FD3D12DeferredDeleteObject::EType::Func:
+					(*ObjectToDelete.Func)();
+					delete ObjectToDelete.Func;
+					break;
+
 				default:
 					checkf(false, TEXT("Unknown ED3D12DeferredDeleteObjectType"));
 					break;
@@ -551,15 +537,6 @@ void FD3D12DynamicRHI::ProcessDeferredDeletionQueue()
 			Device->GetDefaultCommandContext().ClearState(FD3D12ContextCommon::EClearStateMode::TransientOnly);
 		}
 	}
-}
-
-void FD3D12DynamicRHI::RHIAcquireThreadOwnership()
-{
-}
-
-void FD3D12DynamicRHI::RHIReleaseThreadOwnership()
-{
-	// Nothing to do
 }
 
 TArray<FD3D12MinimalAdapterDesc> FD3D12DynamicRHI::RHIGetAdapterDescs() const
@@ -834,16 +811,6 @@ void FD3D12DynamicRHI::GetBestSupportedMSAASetting(DXGI_FORMAT PlatformFormat, u
 	return;
 }
 
-bool FD3D12DynamicRHI::CheckGpuHeartbeat() const
-{
-	bool bResult = false;
-	for (uint32 GPUIndex : FRHIGPUMask::All())
-	{
-		bResult |= ChosenAdapters[0]->GetDevice(GPUIndex)->GetGPUProfiler().CheckGpuHeartbeat();
-	}
-	return bResult;
-}
-
 void FD3D12DynamicRHI::HandleGpuTimeout(FD3D12Payload* Payload, double SecondsSinceSubmission)
 {
 	UE_LOG(LogD3D12RHI, Warning, TEXT("GPU timeout: A payload (0x%p) on the [0x%p, %s] queue has not completed after %f seconds.")
@@ -883,7 +850,10 @@ void FD3D12DynamicRHI::RHIRunOnQueue(ED3D12RHIRunOnQueueType QueueType, TFunctio
 {
 	FGraphEventRef SubmissionEvent;
 
+	TArray<FD3D12Payload*> Payloads;
 	FD3D12Payload* Payload = new FD3D12Payload(GetRHIDevice(0), (QueueType == ED3D12RHIRunOnQueueType::Graphics) ?  ED3D12QueueType::Direct : ED3D12QueueType::Copy);
+	Payloads.Add(Payload);
+
 	Payload->PreExecuteCallback = MoveTemp(CodeToRun);
 
 	if (bWaitForSubmission)
@@ -892,8 +862,8 @@ void FD3D12DynamicRHI::RHIRunOnQueue(ED3D12RHIRunOnQueueType QueueType, TFunctio
 		Payload->SubmissionEvent = SubmissionEvent;
 	}
 
-	SubmitPayloads(MakeArrayView(&Payload, 1));
-
+	SubmitPayloads(MoveTemp(Payloads));
+	
 	if (SubmissionEvent && !SubmissionEvent->IsComplete())
 	{
 		SubmissionEvent->Wait();

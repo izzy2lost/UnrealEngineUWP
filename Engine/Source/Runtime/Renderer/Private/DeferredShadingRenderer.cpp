@@ -392,24 +392,6 @@ FDeferredShadingSceneRenderer::FDeferredShadingSceneRenderer(const FSceneViewFam
 /** 
 * Renders the view family. 
 */
-
-DEFINE_STAT(STAT_CLM_PrePass);
-DECLARE_CYCLE_STAT(TEXT("FXPreRender"), STAT_CLM_FXPreRender, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterPrePass"), STAT_CLM_AfterPrePass, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Lighting"), STAT_CLM_Lighting, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterLighting"), STAT_CLM_AfterLighting, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("WaterPass"), STAT_CLM_WaterPass, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Translucency"), STAT_CLM_Translucency, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Distortion"), STAT_CLM_Distortion, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterTranslucency"), STAT_CLM_AfterTranslucency, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("RenderDistanceFieldLighting"), STAT_CLM_RenderDistanceFieldLighting, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("LightShaftBloom"), STAT_CLM_LightShaftBloom, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("PostProcessing"), STAT_CLM_PostProcessing, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("Velocity"), STAT_CLM_Velocity, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterVelocity"), STAT_CLM_AfterVelocity, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("TranslucentVelocity"), STAT_CLM_TranslucentVelocity, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("RenderFinish"), STAT_CLM_RenderFinish, STATGROUP_CommandListMarkers);
-DECLARE_CYCLE_STAT(TEXT("AfterFrame"), STAT_CLM_AfterFrame, STATGROUP_CommandListMarkers);
 DECLARE_CYCLE_STAT(TEXT("Wait RayTracing Add Mesh Batch"), STAT_WaitRayTracingAddMesh, STATGROUP_SceneRendering);
 
 FGlobalDynamicIndexBuffer FDeferredShadingSceneRenderer::DynamicIndexBufferForInitShadows;
@@ -1673,11 +1655,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		: FExclusiveDepthStencil::DepthWrite_StencilWrite;
 
 	// Find the visible primitives.
-	if (GDynamicRHI->RHIIncludeOptionalFlushes())
-	{
-		GraphBuilder.RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-	}
-
 	FInstanceCullingManager& InstanceCullingManager = *GraphBuilder.AllocObject<FInstanceCullingManager>(GetSceneUniforms(), Scene->GPUScene.IsEnabled(), GraphBuilder);
 
 	::Substrate::PreInitViews(*Scene);
@@ -1796,7 +1773,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (FXSystem && Views.IsValidIndex(0))
 		{
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_FXSystem_PreRender);
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_FXPreRender));
 			FXSystem->PreRender(GraphBuilder, GetSceneViews(), GetSceneUniforms(), bIsFirstSceneRenderer /*bAllowGPUParticleUpdate*/);
 			if (FGPUSortManager* GPUSortManager = FXSystem->GetGPUSortManager())
 			{
@@ -2008,8 +1984,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	{
 		FRDGTextureRef FirstStageDepthBuffer = nullptr;
 		{
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_PrePass));
-
 			// Both compute approaches run earlier, so skip clearing stencil here, just load existing.
 			const ERenderTargetLoadAction StencilLoadAction = DepthPass.IsComputeStencilDitherEnabled()
 				? ERenderTargetLoadAction::ELoad
@@ -2029,15 +2003,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				RenderPrePassHMD(GraphBuilder, InViews, SceneTextures.Depth.Target);
 			}
 
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterPrePass));
-
 			// special pass for DDM_AllOpaqueNoVelocity, which uses the velocity pass to finish the early depth pass write
 			if (bShouldRenderVelocities && Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity && RendererOutput == ERendererOutput::FinalSceneColor)
 			{
 				// Render the velocities of movable objects
-				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Velocity));
 				RenderVelocities(GraphBuilder, InViews, SceneTextures, EVelocityPass::Opaque, bForceVelocityOutput);
-				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterVelocity));
 			}
 		}
 
@@ -2664,9 +2634,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		// If we are not rendering velocities in depth or base pass then do that here.
 		if (bShouldRenderVelocities && !bBasePassCanOutputVelocity && (Scene->EarlyZPassMode != DDM_AllOpaqueNoVelocity))
 		{
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Velocity));
 			RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Opaque, bHairStrandsEnable);
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterVelocity));
 		}
 
 		// Pre-lighting composition lighting stage
@@ -2745,9 +2713,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 #endif
 
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Lighting));
 			RenderLights(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, LightingChannelsTexture, SortedLightSet);
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterLighting));
 
 			if (SortedLightSet.ManyLightsLightStart < SortedLightSet.SortedLights.Num())
 			{
@@ -2942,13 +2908,11 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, RenderTranslucency);
 				SCOPED_NAMED_EVENT(RenderTranslucency, FColor::Emerald);
 				SCOPE_CYCLE_COUNTER(STAT_TranslucencyDrawTime);
-				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Translucency));
 				const bool bStandardTranslucentCanRenderSeparate = false;
 				RenderTranslucency(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, &TranslucencyResourceMap, ETranslucencyView::UnderWater, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
 				EnumRemoveFlags(TranslucencyViewsToRender, ETranslucencyView::UnderWater);
 			}
 
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_WaterPass));
 			RenderSingleLayerWater(GraphBuilder, SceneTextures, SingleLayerWaterPrePassResult, bShouldRenderVolumetricCloud, SceneWithoutWaterTextures, LumenFrameTemporaries, bIsCameraUnderWater);
 
 			// Replace main depth texture with the output of the SLW depth prepass which contains the scene + water.
@@ -3047,7 +3011,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			{
 				// Render all remaining translucency views.
-				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Translucency));
 				const bool bStandardTranslucentCanRenderSeparate = bShouldRenderDistortion; // It is only needed to render standard translucent as separate when there is distortion (non self distortion of transmittance/specular/etc.)
 				RenderTranslucency(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, &TranslucencyResourceMap, TranslucencyViewsToRender, InstanceCullingManager, bStandardTranslucentCanRenderSeparate);
 				TranslucencyViewsToRender = ETranslucencyView::None;
@@ -3063,7 +3026,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			if (bShouldRenderDistortion)
 			{
-				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_Distortion));
 				RenderDistortion(GraphBuilder, SceneTextures.Color.Target, SceneTextures.Depth.Target, SceneTextures.Velocity, TranslucencyResourceMap);
 			}
 
@@ -3071,7 +3033,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			{
 				const bool bRecreateSceneTextures = !HasBeenProduced(SceneTextures.Velocity);
 
-				GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_TranslucentVelocity));
 				RenderVelocities(GraphBuilder, Views, SceneTextures, EVelocityPass::Translucent, false);
 
 				if (bRecreateSceneTextures)
@@ -3080,8 +3041,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
 				}
 			}
-
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterTranslucency));
 		}
 		else if (GetHairStrandsComposition() == EHairStrandsCompositionType::AfterTranslucent)
 		{
@@ -3130,7 +3089,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (!bHasRayTracedOverlay && ViewFamily.EngineShowFlags.LightShafts)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderLightShaftBloom);
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_LightShaftBloom));
 			RenderLightShaftBloom(GraphBuilder, SceneTextures, /* inout */ TranslucencyResourceMap);
 		}
 
@@ -3180,8 +3138,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		if (ViewFamily.EngineShowFlags.VisualizeDistanceFieldAO && ShouldRenderDistanceFieldLighting())
 		{
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_RenderDistanceFieldLighting));
-
 			// Use the skylight's max distance if there is one, to be consistent with DFAO shadowing on the skylight
 			const float OcclusionMaxDistance = Scene->SkyLight && !Scene->SkyLight->bWantsStaticShadowing ? Scene->SkyLight->OcclusionMaxDistance : Scene->DefaultMaxDistanceFieldOcclusionDistance;
 			TArray<FRDGTextureRef> DummyOutput;
@@ -3260,8 +3216,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			RDG_EVENT_SCOPE(GraphBuilder, "PostProcessing");
 			RDG_GPU_STAT_SCOPE(GraphBuilder, Postprocessing);
 			SCOPED_NAMED_EVENT(PostProcessing, FColor::Emerald);
-
-			GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_PostProcessing));
 
 			FPostProcessingInputs PostProcessingInputs;
 			PostProcessingInputs.ViewFamilyTexture = ViewFamilyTexture;
@@ -3371,9 +3325,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_RenderFinish);
 		RDG_GPU_STAT_SCOPE(GraphBuilder, FrameRenderFinish);
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_RenderFinish));
 		OnRenderFinish(GraphBuilder, ViewFamilyTexture);
-		GraphBuilder.SetCommandListStat(GET_STATID(STAT_CLM_AfterFrame));
 		GraphBuilder.AddDispatchHint();
 		GraphBuilder.FlushSetupQueue();
 	}

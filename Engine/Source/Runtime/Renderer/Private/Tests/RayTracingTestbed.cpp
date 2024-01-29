@@ -304,8 +304,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 
 	if (bValidateResults)
 	{
-		GDynamicRHI->RHISubmitCommandsAndFlushGPU();
-		GDynamicRHI->RHIBlockUntilGPUIdle();
+		RHICmdList.BlockUntilGPUIdle();
 
 		// Read back and validate occlusion trace results
 

@@ -5,11 +5,6 @@
 #include "RHI.h"
 #include "RHIStats.h"
 
-void IRHIComputeContext::StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID, uint32 InGPUIndex)
-{
-	Stats = &InStats->GetGPU(InGPUIndex).GetCategory(InCategoryID);
-}
-
 void RHIGenerateCrossGPUPreTransferFences(const TArrayView<const FTransferResourceParams> Params, TArray<FCrossGPUTransferFence*>& OutPreTransfer)
 {
 	// Generate destination GPU masks by source GPU

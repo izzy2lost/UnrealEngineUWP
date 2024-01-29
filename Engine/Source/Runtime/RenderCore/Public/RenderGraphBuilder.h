@@ -45,6 +45,7 @@ struct TStatId;
  *  destruction.
  */
 class FRDGBuilder
+	: public FRDGScopeState
 {
 	struct
 	{
@@ -235,7 +236,8 @@ public:
 	RENDERCORE_API void AddPassDependency(FRDGPass* Producer, FRDGPass* Consumer);
 
 	/** Sets the current command list stat for all subsequent passes. */
-	RENDERCORE_API void SetCommandListStat(TStatId StatId);
+	UE_DEPRECATED(5.4, "SetCommandListStat is deprecated. The underlying stats have been removed. Consider marking up rendering code with RDG event scopes.")
+	inline void SetCommandListStat(TStatId StatId) {}
 
 	/** A hint to the builder to flush work to the RHI thread after the last queued pass on the execution timeline. */
 	RENDERCORE_API void AddDispatchHint();
@@ -388,12 +390,6 @@ public:
 	RENDERCORE_API void RemoveUnusedTextureWarning(FRDGTextureRef Texture);
 	RENDERCORE_API void RemoveUnusedBufferWarning(FRDGBufferRef Buffer);
 
-	/** Manually begins a new GPU event scope. */
-	RENDERCORE_API void BeginEventScope(FRDGEventName&& Name);
-
-	/** Manually ends the current GPU event scope. */
-	RENDERCORE_API void EndEventScope();
-
 	/** Flushes all queued passes to an async task to perform setup work. */
 	RENDERCORE_API void FlushSetupQueue();
 
@@ -405,9 +401,6 @@ public:
 
 	/** Whether RDG is running in immediate mode. */
 	static RENDERCORE_API bool IsImmediateMode();
-
-	/** The RHI command list used for the render graph. */
-	FRHICommandListImmediate& RHICmdList;
 
 	/** The blackboard used to hold common data tied to the graph lifetime. */
 	FRDGBlackboard Blackboard;
@@ -461,13 +454,6 @@ private:
 	EAsyncComputeBudget AsyncComputeBudgetScope = EAsyncComputeBudget::EAll_4;
 	EAsyncComputeBudget AsyncComputeBudgetState = EAsyncComputeBudget(~0u);
 
-	IF_RDG_CMDLIST_STATS(TStatId CommandListStatScope);
-	IF_RDG_CMDLIST_STATS(TStatId CommandListStatState);
-
-	IF_RDG_CPU_SCOPES(FRDGCPUScopeStacks CPUScopeStacks);
-	FRDGGPUScopeStacksByPipeline GPUScopeStacks;
-	IF_RHI_WANT_BREADCRUMB_EVENTS(FRDGBreadcrumbState* BreadcrumbState{});
-
 	static RENDERCORE_API ERDGPassFlags OverridePassFlags(const TCHAR* PassName, ERDGPassFlags Flags);
 
 	FORCEINLINE FRDGPass* GetProloguePass() const
@@ -514,6 +500,10 @@ private:
 	void ExecutePassPrologue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
 	void ExecutePassEpilogue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
 
+	void PushPreScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* FirstPass);
+	void PushPassScopes(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	void PopPassScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	void PopPreScopes  (FRHIComputeCommandList& RHICmdListPass, FRDGPass* LastPass);
 	//////////////////////////////////////////////////////////////////////////////
 	// Resource Registries
 
@@ -1054,9 +1044,6 @@ private:
 	/////////////////////////////////////////////////////////////////////////////
 
 	friend FRDGTrace;
-	friend DynamicRenderScaling::FRDGScope;
-	friend FRDGEventScopeGuard;
-	friend FRDGGPUStatScopeGuard;
 	friend FRDGAsyncComputeBudgetScopeGuard;
 	friend FRDGScopedCsvStatExclusive;
 	friend FRDGScopedCsvStatExclusiveConditional;

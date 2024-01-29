@@ -2877,27 +2877,29 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 
 		InstanceCullingMergedContext.MergeBatches();
 
-		GraphBuilder.BeginEventScope(RDG_EVENT_NAME("CullingPasses"));
-		FCullingResult CullingResult = AddCullingPasses(
-			GraphBuilder,
-			InstanceCullingMergedContext.IndirectArgs,
-			InstanceCullingMergedContext.DrawCommandDescs,
-			InstanceCullingMergedContext.InstanceIdOffsets,
-			&InstanceCullingMergedContext.LoadBalancers[uint32(EBatchProcessingMode::Generic)],
-			InstanceCullingMergedContext.BatchInfos,
-			VSMCullingBatchInfos,
-			InstanceCullingMergedContext.BatchInds[uint32(EBatchProcessingMode::Generic)],
-			InstanceCullingMergedContext.TotalInstances,
-			TotalViewScaledInstanceCount,
-			TotalPrimaryViews,
-			VirtualShadowViewsRDG,
-			HZBShaderParameters,
-			*this,
-			SceneUniformBuffer,
-			GPUScene.GetFeatureLevel(),
-			PrimitiveRevealedMask
-		);
-		GraphBuilder.EndEventScope();
+		FCullingResult CullingResult;
+		{
+		    RDG_EVENT_SCOPE(GraphBuilder, "CullingPasses");
+		    CullingResult = AddCullingPasses(
+			    GraphBuilder,
+			    InstanceCullingMergedContext.IndirectArgs,
+			    InstanceCullingMergedContext.DrawCommandDescs,
+			    InstanceCullingMergedContext.InstanceIdOffsets,
+			    &InstanceCullingMergedContext.LoadBalancers[uint32(EBatchProcessingMode::Generic)],
+			    InstanceCullingMergedContext.BatchInfos,
+			    VSMCullingBatchInfos,
+			    InstanceCullingMergedContext.BatchInds[uint32(EBatchProcessingMode::Generic)],
+			    InstanceCullingMergedContext.TotalInstances,
+			    TotalViewScaledInstanceCount,
+			    TotalPrimaryViews,
+			    VirtualShadowViewsRDG,
+			    HZBShaderParameters,
+			    *this,
+			    SceneUniformBuffer,
+			    GPUScene.GetFeatureLevel(),
+			    PrimitiveRevealedMask
+		    );
+		}
 
 		TRDGUniformBufferRef<FShadowDepthPassUniformParameters> ShadowDepthPassUniformBuffer = CreateShadowDepthPassUniformBuffer(false);
 
@@ -2959,7 +2961,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 							{
 								FSceneRenderer::GetLightNameForDrawEvent(ProjectedShadowInfo->GetLightSceneInfo().Proxy, LightNameWithLevel);
 							}
-							SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, BatchedNonNanite, GVSMShowLightDrawEvents != 0, TEXT("%s"), *LightNameWithLevel);
+							SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, BatchedNonNanite, GVSMShowLightDrawEvents != 0, TEXT("%s"), LightNameWithLevel);
 #endif
 							MeshCommandPass.DispatchDraw(nullptr, RHICmdList, &InstanceCullingDrawParams);
 						}

@@ -56,6 +56,18 @@ RHI_API bool IsRHIDeviceNVIDIA();
 // to trigger GPU specific optimizations and fallbacks
 RHI_API bool IsRHIDeviceApple();
 
+namespace UE::RHI
+{
+	// Returns true when GPU crash debugging is enabled.
+	RHI_API bool UseGPUCrashDebugging();
+
+	// True when using engine-managed GPU breadcrumb tracking
+	RHI_API bool UseGPUCrashBreadcrumbs();
+
+	// Used to determine whether specific GPU crash debugging features are enabled given the combination of command line switches and console variable settings
+	RHI_API bool ShouldEnableGPUCrashFeature(IConsoleVariable& CVar, TCHAR const* CommandLineSwitch);
+}
+
 // helper to return the shader language version for Metal shader.
 RHI_API uint32 RHIGetMetalShaderLanguageVersion(const FStaticShaderPlatform Platform);
 

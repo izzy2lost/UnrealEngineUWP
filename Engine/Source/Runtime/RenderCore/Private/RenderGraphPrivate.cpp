@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RenderGraphPrivate.h"
+#include "RenderGraphEvent.h"
+#include "RenderGraphTrace.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Misc/CommandLine.h"
 #include "RHICommandList.h"
@@ -321,15 +323,15 @@ FAutoConsoleVariableRef CVarRDGTransientExtractedResource(
 	TEXT(" 2: force enables all external transient resources (not recommended);"),
 	ECVF_RenderThreadSafe);
 
-#if RDG_GPU_DEBUG_SCOPES
-int32 GRDGEvents = 1;
-FAutoConsoleVariableRef CVarRDGEvents(
+#if RDG_EVENTS
+TAutoConsoleVariable<int32> CVarRDGEvents(
 	TEXT("r.RDG.Events"),
-	GRDGEvents,
+	1,
 	TEXT("Controls how RDG events are emitted.\n")
 	TEXT(" 0: off;\n")
 	TEXT(" 1: events are enabled and RDG_EVENT_SCOPE_FINAL is respected; (default)\n")
-	TEXT(" 2: all events are enabled (RDG_EVENT_SCOPE_FINAL is ignored);"),
+	TEXT(" 2: all events are enabled (RDG_EVENT_SCOPE_FINAL is ignored);\n")
+	TEXT(" 3: same as 2, but RDG pass names are also included."),
 	ECVF_RenderThreadSafe);
 #endif
 
@@ -509,10 +511,6 @@ DEFINE_STAT(STAT_RDG_ClearTime);
 DEFINE_STAT(STAT_RDG_FlushRHIResources);
 DEFINE_STAT(STAT_RDG_MemoryWatermark);
 
-#if RDG_EVENTS != RDG_EVENTS_NONE
-int32 GRDGEmitDrawEvents_RenderThread = 0;
-#endif
-
 void InitRenderGraph()
 {
 #if RDG_ENABLE_DEBUG_WITH_ENGINE
@@ -617,7 +615,7 @@ void InitRenderGraph()
 		CVarRDGAsyncCompute->Set(AsyncComputeValue);
 	}
 
-#if RDG_GPU_DEBUG_SCOPES
+#if RDG_EVENTS
 	int32 RDGEventValue = 0;
 	if (FParse::Value(FCommandLine::Get(), TEXT("rdgevents="), RDGEventValue))
 	{
@@ -664,3 +662,39 @@ bool IsParallelSetupEnabled()
 		&& IsInActualRenderingThread()
 		;
 }
+
+FRDGScopeState::FState::FState(bool bImmediate)
+	: bImmediate(bImmediate)
+#if RDG_EVENTS
+	, ScopeMode([]
+	{
+		bool bRDGChannelEnabled = false;
+		IF_RDG_ENABLE_TRACE(bRDGChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(RDGChannel));
+
+		// This is polled once as a workaround for a race condition since the underlying global is not always changed on the render thread.
+		ERDGScopeMode LocalScopeMode = static_cast<ERDGScopeMode>(CVarRDGEvents.GetValueOnRenderThread());
+
+		switch (LocalScopeMode)
+		{
+		case ERDGScopeMode::Disabled:
+		case ERDGScopeMode::TopLevelOnly:
+		case ERDGScopeMode::AllEvents:
+			// Override to a higher level in some cases
+			if (GRDGDebug != 0 || bRDGChannelEnabled != 0)
+			{
+				LocalScopeMode = ERDGScopeMode::AllEventsAndPassNames;
+			}
+			break;
+
+		case ERDGScopeMode::AllEventsAndPassNames:
+			break;
+
+		default:
+			LocalScopeMode = ERDGScopeMode::Disabled;
+			break;
+		}
+
+		return LocalScopeMode;
+	}())
+#endif // RDG_EVENTS
+{}

@@ -38,7 +38,8 @@ struct FD3D12DeferredDeleteObject
 #endif
 		CPUAllocation,
 		DescriptorBlock,
-		VirtualAllocation
+		VirtualAllocation,
+		Func
 	} Type;
 
 	union
@@ -47,6 +48,8 @@ struct FD3D12DeferredDeleteObject
 		FD3D12Heap* Heap;
 		FD3D12DescriptorHeap* DescriptorHeap;
 		ID3D12Object* D3DObject;
+
+		TUniqueFunction<void()>* Func;
 
 		struct
 		{
@@ -113,6 +116,11 @@ struct FD3D12DeferredDeleteObject
 	explicit FD3D12DeferredDeleteObject(FPlatformMemory::FPlatformVirtualMemoryBlock& VirtualBlock, ETextureCreateFlags Flags, uint64 CommittedTextureSize, void* RawMemory)
 		: Type(EType::VirtualAllocation)
 		, VirtualAllocDescriptor({ VirtualBlock, Flags, CommittedTextureSize, RawMemory })
+	{}
+
+	explicit FD3D12DeferredDeleteObject(TUniqueFunction<void()>&& Func)
+		: Type(EType::Func)
+		, Func(new TUniqueFunction<void()>(MoveTemp(Func)))
 	{}
 };
 
@@ -226,6 +234,8 @@ public:
 		TArray<FD3D12SyncPointRef> ToSignal;
 	} BatchedSyncPoints;
 
+	void BindDiagnosticBuffer(FD3D12RootSignature const* RootSignature, ED3D12PipelineType PipelineType);
+
 private:
 	// Allocators to manage query heaps
 	FD3D12QueryAllocator TimestampQueries, OcclusionQueries, PipelineStatsQueries;
@@ -248,9 +258,6 @@ private:
 	// A sync point signaled when all payloads in this context have completed.
 	FD3D12SyncPointRef ContextSyncPoint;
 
-	// Stack containing GPU breadcrumbs for crash debugging
-	TSharedPtr<FBreadcrumbStack> BreadcrumbStack;
-
 	// Returns the current command list (or creates a new one if the command list was not open).
 	FD3D12CommandList& GetCommandList()
 	{
@@ -266,10 +273,8 @@ public:
 	}
 
 protected:
-	void WriteGPUEventStackToBreadCrumbData(const TCHAR* Name, int32 CRC);
-	void WriteGPUEventToBreadCrumbData(FBreadcrumbStack* Breadcrumbs, uint32 MarkerIndex, bool bBeginEvent);
-	[[nodiscard]] bool InitPayloadBreadcrumbs();
-	void PopGPUEventStackFromBreadCrumbData();
+	enum class EMarkerType { In, Out };
+	void WriteMarker(D3D12_GPU_VIRTUAL_ADDRESS Address, uint32 Value, EMarkerType Type);
 
 	enum class EPhase
 	{
@@ -311,34 +316,34 @@ public:
 	auto CopyCommandList      () { return GetCommandList().CopyCommandList(); }
 	auto GraphicsCommandList  () { return GetCommandList().GraphicsCommandList(); }
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 1
-	auto GraphicsCommandList1() { return GetCommandList().GraphicsCommandList1(); }
+	auto GraphicsCommandList1 () { return GetCommandList().GraphicsCommandList1(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 2
-	auto GraphicsCommandList2() { return GetCommandList().GraphicsCommandList2(); }
+	auto GraphicsCommandList2 () { return GetCommandList().GraphicsCommandList2(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 3
-	auto GraphicsCommandList3() { return GetCommandList().GraphicsCommandList3(); }
+	auto GraphicsCommandList3 () { return GetCommandList().GraphicsCommandList3(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 4
-	auto GraphicsCommandList4() { return GetCommandList().GraphicsCommandList4(); }
+	auto GraphicsCommandList4 () { return GetCommandList().GraphicsCommandList4(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 5
-	auto GraphicsCommandList5() { return GetCommandList().GraphicsCommandList5(); }
+	auto GraphicsCommandList5 () { return GetCommandList().GraphicsCommandList5(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 6
-	auto GraphicsCommandList6() { return GetCommandList().GraphicsCommandList6(); }
+	auto GraphicsCommandList6 () { return GetCommandList().GraphicsCommandList6(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 7
-	auto GraphicsCommandList7() { return GetCommandList().GraphicsCommandList7(); }
+	auto GraphicsCommandList7 () { return GetCommandList().GraphicsCommandList7(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 8
-	auto GraphicsCommandList8() { return GetCommandList().GraphicsCommandList8(); }
+	auto GraphicsCommandList8 () { return GetCommandList().GraphicsCommandList8(); }
 #endif
 #if D3D12_MAX_COMMANDLIST_INTERFACE >= 9
-	auto GraphicsCommandList9() { return GetCommandList().GraphicsCommandList9(); }
+	auto GraphicsCommandList9 () { return GetCommandList().GraphicsCommandList9(); }
 #endif
 #if D3D12_PLATFORM_SUPPORTS_ASSERTRESOURCESTATES			    
-	auto DebugCommandList() { return GetCommandList().DebugCommandList(); }
+	auto DebugCommandList     () { return GetCommandList().DebugCommandList(); }
 #endif
 #if D3D12_RHI_RAYTRACING
 	auto RayTracingCommandList() { return GetCommandList().RayTracingCommandList(); }
@@ -445,8 +450,6 @@ public:
 
 	virtual void RHISetAsyncComputeBudget(EAsyncComputeBudget Budget) {}
 
-	bool IsDrawingSceneOrViewport() const {	return bDrawingScene || bDrawingViewport; }
-
 	virtual class FD3D12CommandContextRedirector* AsRedirector() { return nullptr; }
 
 	static FD3D12CommandContextBase& Get(FRHICommandListBase& RHICmdList)
@@ -462,9 +465,6 @@ protected:
 
 	FRHIGPUMask GPUMask;
 	FRHIGPUMask PhysicalGPUMask;
-
-	bool bDrawingViewport = false;
-	bool bDrawingScene = false;
 };
 
 // RHI Context type used for graphics and async compute command lists.
@@ -597,9 +597,10 @@ public:
 	virtual void RHISetShaderParameters(FRHIComputeShader* Shader, TConstArrayView<uint8> InParametersData, TConstArrayView<FRHIShaderParameter> InParameters, TConstArrayView<FRHIShaderParameterResource> InResourceParameters, TConstArrayView<FRHIShaderParameterResource> InBindlessParameters) final override;
 	virtual void RHISetShaderUnbinds(FRHIComputeShader* Shader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds) final override;
 	virtual void RHISetShaderUnbinds(FRHIGraphicsShader* Shader, TConstArrayView<FRHIShaderParameterUnbind> InUnbinds) final override;
-	virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override;
-	virtual void RHIPopEvent() final override;
-	virtual void RHISubmitCommandsHint() final override;
+#if WITH_RHI_BREADCRUMBS
+	virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override;
+	virtual void RHIEndBreadcrumbGPU  (FRHIBreadcrumbNode* Breadcrumb) final override;
+#endif
 
 	// IRHICommandContext interface
 	virtual void RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data) final override;
@@ -849,18 +850,25 @@ public:
 	{
 		ContextRedirect(RHISetShaderUnbinds(Shader, InUnbinds));
 	}
-	FORCEINLINE virtual void RHIPushEvent(const TCHAR* Name, FColor Color) final override
+
+#if WITH_RHI_BREADCRUMBS
+	FORCEINLINE virtual void RHIBeginBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
-		ContextRedirect(RHIPushEvent(Name, Color));
+		// Always forward to all sub-contexts, regardless of mask
+		for (uint32 GPUIndex : PhysicalGPUMask)
+		{
+			PhysicalContexts[GPUIndex]->RHIBeginBreadcrumbGPU(Breadcrumb);
+		}
 	}
-	FORCEINLINE virtual void RHIPopEvent() final override
+	FORCEINLINE virtual void RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb) final override
 	{
-		ContextRedirect(RHIPopEvent());
+		// Always forward to all sub-contexts, regardless of mask
+		for (uint32 GPUIndex : PhysicalGPUMask)
+		{
+			PhysicalContexts[GPUIndex]->RHIEndBreadcrumbGPU(Breadcrumb);
+		}
 	}
-	FORCEINLINE virtual void RHISubmitCommandsHint() final override
-	{
-		ContextRedirect(RHISubmitCommandsHint());
-	}
+#endif // WITH_RHI_BREADCRUMBS
 
 	// IRHICommandContext interface
 	FORCEINLINE virtual void RHISetMultipleViewports(uint32 Count, const FViewportBounds* Data) final override
@@ -1119,15 +1127,14 @@ public:
 		return PhysicalContexts[GPUIndex];
 	}
 
-#if WITH_MGPU // @todo mgpu - remove the whole redirector when WITH_MGPU is false
-	virtual void StatsSetCategory(FRHIDrawStats* InStats, uint32 InCategoryID) final override
+	virtual void SetExecutingCommandList(FRHICommandListBase* InCmdList) final override
 	{
-		for (uint32 GPUIndex : PhysicalGPUMask)
+		FD3D12CommandContextBase::SetExecutingCommandList(InCmdList);
+		for (uint32 Index : PhysicalGPUMask)
 		{
-			PhysicalContexts[GPUIndex]->StatsSetCategory(InStats, InCategoryID, GPUIndex);
+			PhysicalContexts[Index]->SetExecutingCommandList(InCmdList);
 		}
 	}
-#endif
 
 private:
 	TStaticArray<FD3D12CommandContext*, MAX_NUM_GPUS> PhysicalContexts;
