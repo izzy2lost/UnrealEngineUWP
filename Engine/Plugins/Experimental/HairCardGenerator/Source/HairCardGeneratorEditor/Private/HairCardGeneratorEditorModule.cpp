@@ -219,7 +219,7 @@ static bool HairCardGeneratorEditor_Impl::LoadGroomData(UGroomAsset* NewGroomAss
 		if ( !HairCardGeneratorEditor_Impl::BuildHairCardGenGroomData(CardGenController->GetPointsPerCurve(), NewGroomAsset->GetHairDescription(), RestructuredData))
 			return false;
 
-		FScopedSlowTask SlowTask(0, LOCTEXT("GeneratingHairCards", "Loading Groom..."));
+		FScopedSlowTask SlowTask(0, LOCTEXT("GeneratingHairCards.LoadGroom", "Loading Groom..."));
 		SlowTask.MakeDialog(/*bShowCancelButton =*/true);
 
 		FString CachedGroomsPath = FPaths::ProjectIntermediateDir() / TEXT("GroomHairCardGen") / TEXT("CachedGrooms");
@@ -418,7 +418,7 @@ static bool HairCardGeneratorEditor_Impl::GenerateCardsForCardGroup(TObjectPtr<c
 		return false;
 	}
 
-	FScopedSlowTask SlowTask(10, FText::Format(LOCTEXT("GeneratingHairCards", "Generating Hair Cards for settings group {0}..."), index));
+	FScopedSlowTask SlowTask(10, FText::Format(LOCTEXT("GeneratingHairCards.GenerateGroup", "Generating Hair Cards for settings group {0}..."), index));
 	SlowTask.MakeDialog(/*bShowCancelButton =*/true);
 
 	SlowTask.EnterProgressFrame(1);
@@ -818,7 +818,7 @@ bool FHairCardGeneratorEditorModule::GenerateHairCardsForLOD(UGroomAsset* NewGro
 	// Generate static mesh from cards and add to destination package
 	if ( GenerationSettings->CheckGenerationFlags(AllGenFlags, EHairCardGenerationPipeline::GenerateMesh) )
 	{
-		FScopedSlowTask SlowTask(0, LOCTEXT("GeneratingHairCards", "Building mesh..."));
+		FScopedSlowTask SlowTask(0, LOCTEXT("GeneratingHairCards.BuildMesh", "Building mesh..."));
 		SlowTask.MakeDialog(/*bShowCancelButton =*/true);
 
 		// Don't bother adding _PG# at end of mesh name if there's only one physics group

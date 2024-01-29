@@ -312,7 +312,7 @@ TSharedRef<SWidget> SGroupSettingsListRow::GenerateWidgetForColumn(const FName& 
 			.Value(this, &SGroupSettingsListRow::ReadTargetNumTextures)
 			.OnValueChanged(this, &SGroupSettingsListRow::WriteTargetNumTextures)
 			.IsEnabled(this, &SGroupSettingsListRow::CheckDisabledOnReducePrevLOD)
-			.ToolTipText(LOCTEXT("HairCardSettings.CardGroupFilter.ToolTip", "The number of textures to generate (must be <= number of cards)"));
+			.ToolTipText(LOCTEXT("HairCardSettings.TargetNumTextures.ToolTip.InvalidTextureNum", "The number of textures to generate (must be <= number of cards)"));
 	}
 	else if ( ColumnName == TEXT("MaxFlyaways") )
 	{
@@ -331,19 +331,19 @@ TSharedRef<SWidget> SGroupSettingsListRow::GenerateWidgetForColumn(const FName& 
 			.Value(this, &SGroupSettingsListRow::ReadTargetNumTriangles)
 			.OnValueChanged(this, &SGroupSettingsListRow::WriteTargetNumTriangles)
 			.IsEnabled(this, &SGroupSettingsListRow::CheckEditableTriangles)
-			.ToolTipText(LOCTEXT("HairCardSettings.CardGroupFilter.ToolTip", "The total number of triangles to use for all cards (approximate)"));
+			.ToolTipText(LOCTEXT("HairCardSettings.TargetTriangles.ToolTip", "The total number of triangles to use for all cards (approximate)"));
 	}
 	else if ( ColumnName == TEXT("NumStrands") )
 	{
 		return SNew(STextBlock)
 			.Text(this, &SGroupSettingsListRow::GetStrandCountText)
-			.ToolTipText(LOCTEXT("HairCardSettings.CardGroupFilter.ToolTip", "The number of strands these settings will apply to"));
+			.ToolTipText(LOCTEXT("HairCardSettings.NumStrands.ToolTip", "The number of strands these settings will apply to"));
 	}
 	else if ( ColumnName == TEXT("IsGenerated") )
 	{
 		return SNew(STextBlock)
 			.Text(this, &SGroupSettingsListRow::GetGeneratedStateText)
-			.ToolTipText(LOCTEXT("HairCardSettings.CardGroupFilter.ToolTip", "Indicates whether cards and textures have already been generated using these settings"));
+			.ToolTipText(LOCTEXT("HairCardSettings.IsGenerated.ToolTip", "Indicates whether cards and textures have already been generated using these settings"));
 	}
 	else if ( ColumnName == TEXT("AddDeleteRow") )
 	{
