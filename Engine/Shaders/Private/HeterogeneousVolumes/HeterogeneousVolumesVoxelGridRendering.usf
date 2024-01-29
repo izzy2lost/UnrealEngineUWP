@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HeterogeneousVolumesVoxelGridTypes.ush"
-#include "HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush"
 
 #include "../Common.ush"
 #include "../DeferredShadingCommon.ush"

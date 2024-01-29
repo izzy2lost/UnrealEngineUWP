@@ -8,7 +8,6 @@
 #define UE_DF_FORCE_FP32_OPS 1
 #endif
 
-#include "HeterogeneousVolumes/HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush" 
 #include "Common.ush"
 
 #ifndef ADAPTIVE_VOLUMETRIC_SHADOW_MAP

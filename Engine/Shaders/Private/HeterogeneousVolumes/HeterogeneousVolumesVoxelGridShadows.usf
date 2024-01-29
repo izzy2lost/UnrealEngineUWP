@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "HeterogeneousVolumesVoxelGridTypes.ush"
-#include "HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush"
 
 #include "../Common.ush"
 #include "../DeferredShadingCommon.ush"
@@ -190,7 +189,7 @@ float AbsoluteErrorThreshold;
 float RelativeErrorThreshold;
 
 RWBuffer<int> RWVolumetricShadowLinkedListAllocatorBuffer;
-RWStructuredBuffer<int2> RWVolumetricShadowLinkedListBuffer;
+RWStructuredBuffer<uint2> RWVolumetricShadowLinkedListBuffer;
 
 // Debug
 struct FVolumetricShadowMapDebugData
@@ -449,7 +448,7 @@ void RenderVolumetricShadowMapForLightWithVoxelGridCS(
 	}
 }
 
-StructuredBuffer<int2> VolumetricShadowLinkedListBuffer;
+StructuredBuffer<uint2> VolumetricShadowLinkedListBuffer;
 
 RWBuffer<int> RWVolumetricShadowIndirectionAllocatorBuffer;
 RWStructuredBuffer<uint2> RWVolumetricShadowIndirectionBuffer;

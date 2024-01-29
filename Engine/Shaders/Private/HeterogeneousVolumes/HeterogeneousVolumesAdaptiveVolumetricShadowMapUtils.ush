@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "HeterogeneousVolumesAdaptiveVolumetricShadowMapTypes.ush"
+#define AVSM_NULL_PTR 0xFF
 
 struct FAVSMSampleData
 {
