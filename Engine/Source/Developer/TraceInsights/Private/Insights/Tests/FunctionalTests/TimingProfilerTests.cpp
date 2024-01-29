@@ -230,7 +230,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncAllTracks, "System.Insig
 bool EnumerateByEndTimeAsyncAllTracks::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
-	Params.Interval = 24.0 * 3600; //A day - Should be big enought to contain any valid session in [0, 0 + interval]
+	Params.Interval = 24.0 * 3600; //A day - Should be big enough to contain any valid session in [0, 0 + interval]
 	Params.NumEnumerations = 1;
 	Params.SortOrder = TraceServices::EEventSortOrder::ByEndTime;
 
@@ -243,7 +243,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByEndTimeAsyncGameThreadTrack, "System
 bool EnumerateByEndTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
-	Params.Interval = 24.0 * 3600; //A day - Should be big enought to contain any valid session in [0, 0 + interval]
+	Params.Interval = 24.0 * 3600; //A day - Should be big enough to contain any valid session in [0, 0 + interval]
 	Params.NumEnumerations = 1;
 	Params.SortOrder = TraceServices::EEventSortOrder::ByEndTime;
 
@@ -286,7 +286,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncAllTracks, "System.Ins
 bool EnumerateByStartTimeAsyncAllTracks::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
-	Params.Interval = 24.0 * 3600; //A day - Should be big enought to contain any valid session in [0, 0 + interval]
+	Params.Interval = 24.0 * 3600; //A day - Should be big enough to contain any valid session in [0, 0 + interval]
 	Params.NumEnumerations = 1;
 	Params.SortOrder = TraceServices::EEventSortOrder::ByStartTime;
 
@@ -299,7 +299,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(EnumerateByStartTimeAsyncGameThreadTrack, "Syst
 bool EnumerateByStartTimeAsyncGameThreadTrack::RunTest(const FString& Parameters)
 {
 	FTimingProfilerTests::FEnumerateTestParams Params;
-	Params.Interval = 24.0 * 3600; //A day - Should be big enought to contain any valid session in [0, 0 + interval]
+	Params.Interval = 24.0 * 3600; //A day - Should be big enough to contain any valid session in [0, 0 + interval]
 	Params.NumEnumerations = 1;
 	Params.SortOrder = TraceServices::EEventSortOrder::ByStartTime;
 
