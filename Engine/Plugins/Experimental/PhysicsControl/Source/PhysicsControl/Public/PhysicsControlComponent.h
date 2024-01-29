@@ -5,6 +5,7 @@
 #include "PhysicsControlData.h"
 #include "PhysicsControlLimbData.h"
 #include "PhysicsControlNameRecords.h"
+#include "PhysicsControlProfileAsset.h"
 #include "PhysicsControlRecord.h"
 
 #include "UObject/ObjectMacros.h"
@@ -17,7 +18,7 @@
 class FPrimitiveDrawInterface;
 struct FPhysicsControlComponentImpl;
 struct FPhysicsControlRecord;
-struct FPhysicsBodyModifier;
+struct FPhysicsBodyModifierRecord;
 struct FConstraintInstance;
 
 /**
@@ -1357,6 +1358,8 @@ public:
 	 * - "ControlType - i.e. "WorldSpace" or "ParentSpace", each of which will end up containing all controls of that type
 	 * - "ControlType_LimbName" - e.g. "WorldSpace_ArmLeft" or "ParentSpace_Head"
 	 * Each body modifier is added to "All" and a set named after the limb - e.g. "Spine" or "LegRight".
+	 * It is also possible to specify a mesh component to use for the "world" object - so that the world controls can 
+	 * be made to work in the space of another object (or a bone if that is a skeletal mesh component)
 	 */
 	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
 	void CreateControlsAndBodyModifiersFromLimbBones(
@@ -1373,6 +1376,24 @@ public:
 		const FPhysicsControlModifierData           BodyModifierData,
 		UMeshComponent*                             WorldComponent = nullptr,
 		FName                                       WorldBoneName = NAME_None);
+
+	/**
+	 * This uses the control profile asset (that should have already been set) to create
+	 * controls and body modifiers
+	 * It is also possible to specify a mesh component to use for the "world" object - so that the world controls can
+	 * be made to work in the space of another object (or a bone if that is a skeletal mesh component)
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void CreateControlsAndBodyModifiersFromControlProfileAsset(
+		USkeletalMeshComponent* SkeletalMeshComponent,
+		UMeshComponent*         WorldComponent,
+		FName                   WorldBoneName);
+
+	/**
+	 * Looks up the profile which should exist in the registered control profile asset, and invokes it.
+	 */
+	UFUNCTION(BlueprintCallable, Category = PhysicsControl)
+	void InvokeControlProfile(FName ProfileName);
 
 	/**
 	 * Adds a Control to a Set. This will add a new set if necessary. For example, you might
@@ -1627,6 +1648,9 @@ public:
 public:
 	// Public property data
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControlProfile)
+	TSoftObjectPtr<UPhysicsControlProfileAsset> PhysicsControlProfileAsset;
+
 	/**
 	 * If the component moves by more than this distance then it is treated as a teleport,
 	 * which prevents velocities being used for a frame. It is also used as the threshold for
@@ -1818,26 +1842,26 @@ protected:
 		bool                         bCalculateVelocity) const;
 
 	/** Updates the body based on the modifier */
-	void ApplyBodyModifier(FPhysicsBodyModifier& BodyModifier);
+	void ApplyBodyModifier(FPhysicsBodyModifierRecord& BodyModifier);
 
 	/**
 	 * This will set the kinematic target for the appropriate body based on the weighted target position and 
 	 * orientation (and whether any were found) for any controls that are related to the body modifier.
 	 */
-	void ApplyKinematicTarget(const FPhysicsBodyModifier& BodyModifier) const;
+	void ApplyKinematicTarget(const FPhysicsBodyModifierRecord& BodyModifier) const;
 
 	/**
 	 * Sets the body (simulated or kinematic) to have the position/velocity etc state that has been cached. 
 	 * Has no effect if there is no cached target data.
 	 */
-	void ResetToCachedTarget(const FPhysicsBodyModifier& BodyModifier) const;
+	void ResetToCachedTarget(const FPhysicsBodyModifierRecord& BodyModifier) const;
 
 	/**
 	 * Retrieves the body modifier for the name. Note that if Name is blank then the first modifier will be returned,
 	 * assuming there is one.
 	 */
-	FPhysicsBodyModifier* FindBodyModifier(const FName Name);
-	const FPhysicsBodyModifier* FindBodyModifier(const FName Name) const;
+	FPhysicsBodyModifierRecord* FindBodyModifierRecord(const FName Name);
+	const FPhysicsBodyModifierRecord* FindBodyModifierRecord(const FName Name) const;
 
 	/** 
 	 * When destroying a control or modifier, the record will normally be removed, but it can be retained if you
@@ -1855,11 +1879,9 @@ protected:
 	/** Destroys the modifier. It will optionally be removed from the array of records too */
 	bool DestroyBodyModifier(const FName Name, const EDestroyBehavior DestroyBehavior);
 
-	/** Calculates and returns a unique name based on the bone names and any existing records */
-	FName GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName, const FString& NamePrefix) const;
-
-	/** Calculates and returns a unique name based on the bone name and any existing records */
-	FName GetUniqueBodyModifierName(const FName BoneName) const;
+	/** Applies the updates to controls and body modifiers */
+	void ApplyControlAndModifierUpdates(
+		const FPhysicsControlControlAndModifierUpdates& ControlAndModifierUpdates);
 
 protected:
 
@@ -1871,8 +1893,8 @@ protected:
 	// and then need to be restored when the last body modifier is destroyed.
 	TMap<TWeakObjectPtr<USkeletalMeshComponent>, FModifiedSkeletalMeshData> ModifiedSkeletalMeshDatas;
 
-	TMap<FName, FPhysicsControlRecord> PhysicsControlRecords;
-	TMap<FName, FPhysicsBodyModifier> PhysicsBodyModifiers;
+	TMap<FName, FPhysicsControlRecord>      ControlRecords;
+	TMap<FName, FPhysicsBodyModifierRecord> BodyModifierRecords;
 
 	// Keep track of the names of everything we have created
 	FPhysicsControlNameRecords NameRecords;

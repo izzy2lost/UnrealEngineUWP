@@ -29,7 +29,6 @@ uint32 FPhysicsControlProfileAssetActions::GetCategories()
 	return EAssetTypeCategories::Physics;
 }
 
-#if ENABLE_PHYSICS_CONTROL_PROFILE_EDITOR
 //======================================================================================================================
 void FPhysicsControlProfileAssetActions::OpenAssetEditor(
 	const TArray<UObject*>& InObjects, TSharedPtr<IToolkitHost> EditWithinLevelEditor)
@@ -46,4 +45,3 @@ void FPhysicsControlProfileAssetActions::OpenAssetEditor(
 		}
 	}
 }
-#endif

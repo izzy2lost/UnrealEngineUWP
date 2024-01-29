@@ -9,6 +9,23 @@
 #define SET_ENABLED_PARAM(NAME) Output.bEnable##NAME = A.bEnable##NAME && B.bEnable##NAME
 
 //======================================================================================================================
+FPhysicsControlSetUpdates& FPhysicsControlSetUpdates::operator+=(const FPhysicsControlSetUpdates& Other)
+{
+	ControlSetUpdates.Append(Other.ControlSetUpdates);
+	ModifierSetUpdates.Append(Other.ModifierSetUpdates);
+	return *this;
+}
+
+//======================================================================================================================
+FPhysicsControlAndBodyModifierCreationDatas& FPhysicsControlAndBodyModifierCreationDatas::operator+=(
+	const FPhysicsControlAndBodyModifierCreationDatas& Other)
+{
+	Controls.Append(Other.Controls);
+	Modifiers.Append(Other.Modifiers);
+	return *this;
+}
+
+//======================================================================================================================
 FPhysicsControlData Interpolate(
 	const FPhysicsControlData& A, const FPhysicsControlData& B, const float Weight)
 {

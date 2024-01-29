@@ -100,3 +100,23 @@ struct PHYSICSCONTROL_API FPhysicsControlNames
 	TArray<FName> Names;
 };
 
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlCharacterSetupData
+{
+	GENERATED_BODY();
+
+	FPhysicsControlCharacterSetupData& operator+=(const FPhysicsControlCharacterSetupData& other);
+
+	UPROPERTY(EditAnywhere, Category = ControlSetup)
+	TArray<FPhysicsControlLimbSetupData> LimbSetupData;
+
+	UPROPERTY(EditAnywhere, Category = ControlSetup)
+	FPhysicsControlData DefaultWorldSpaceControlData;
+
+	UPROPERTY(EditAnywhere, Category = ControlSetup)
+	FPhysicsControlData DefaultParentSpaceControlData;
+
+	UPROPERTY(EditAnywhere, Category = ControlSetup)
+	FPhysicsControlModifierData DefaultBodyModifierData;
+};
+

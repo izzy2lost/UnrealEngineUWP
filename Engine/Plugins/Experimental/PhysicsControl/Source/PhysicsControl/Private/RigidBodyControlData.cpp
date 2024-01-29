@@ -5,12 +5,12 @@
 
 //======================================================================================================================
 FRigidBodyControlRecord::FRigidBodyControlRecord(
-	const FRigidBodyControl& InControl, ImmediatePhysics::FJointHandle* InJointHandle)
+	const FPhysicsControl& InControl, ImmediatePhysics::FJointHandle* InJointHandle)
 	: Control(InControl)
-	, JointHandle(InJointHandle)
 	, ControlData(Control.ControlData)
 	, ChildBodyIndex(-1)
 	, ParentBodyIndex(-1)
+	, JointHandle(InJointHandle)
 {
 }
 
@@ -18,6 +18,7 @@ FRigidBodyControlRecord::FRigidBodyControlRecord(
 void FRigidBodyControlRecord::ResetCurrent(bool bResetTarget)
 {
 	ControlData = Control.ControlData;
+	ControlMultiplier = Control.ControlMultiplier;
 
 	if (bResetTarget)
 	{
@@ -37,10 +38,10 @@ FVector FRigidBodyControlRecord::GetControlPoint(const ImmediatePhysics::FActorH
 
 //======================================================================================================================
 FRigidBodyModifierRecord::FRigidBodyModifierRecord(
-	const FRigidBodyModifier& InModifier, ImmediatePhysics::FActorHandle* InActorHandle)
+	const FPhysicsBodyModifier& InModifier, ImmediatePhysics::FActorHandle* InActorHandle)
 	: Modifier(InModifier)
-	, ActorHandle(InActorHandle)
 	, ModifierData(Modifier.ModifierData)
+	, ActorHandle(InActorHandle)
 {
 }
 

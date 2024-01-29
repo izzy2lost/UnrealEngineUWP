@@ -992,7 +992,7 @@ void ComputeBodyInsertionOrder(TArray<FBoneIndexType>& InsertionOrder, const USk
 
 UPhysicsAsset* FAnimNode_RigidBody::GetPhysicsAssetToBeUsed(const UAnimInstance* InAnimInstance) const
 {
-	if (OverridePhysicsAsset)
+	if (IsValid(OverridePhysicsAsset))
 	{
 		return ToRawPtr(OverridePhysicsAsset);
 	}

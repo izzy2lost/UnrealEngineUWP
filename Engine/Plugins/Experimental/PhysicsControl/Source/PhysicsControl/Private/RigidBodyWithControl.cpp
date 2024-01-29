@@ -2,6 +2,11 @@
 
 #include "AnimNode_RigidBodyWithControl.h"
 
+#include "PhysicsControlOperatorNameGeneration.h"
+#include "PhysicsControlLog.h"
+#include "PhysicsControlProfileAsset.h"
+#include "PhysicsControlComponentHelpers.h"
+
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Chaos/PBDJointConstraints.h"
@@ -13,11 +18,9 @@
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "Chaos/ChaosConstraintSettings.h"
-#include "PhysicsControlLog.h"
 #include "Logging/StructuredLog.h"
-#include "PhysicsControlOperatorNameGeneration.h"
 
-//UE_DISABLE_OPTIMIZATION;
+//UE_DISABLE_OPTIMIZATION
 
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_InitControlsAndBodyModifiers"), STAT_RigidBodyNodeWithControl_InitControlsAndBodyModifiers, STATGROUP_Anim);
 DECLARE_CYCLE_STAT(TEXT("RigidBodyNodeWithControl_LogControlsModifiersAndSets"), STAT_RigidBodyNodeWithControl_LogControlsModifiersAndSets, STATGROUP_Anim);
@@ -45,6 +48,16 @@ static void SetConstraintEnabled(ImmediatePhysics::FJointHandle* const JointHand
 		if (ImmediatePhysics::FJointHandle::FChaosConstraintHandle* ConstraintHandle = JointHandle->GetConstraint())
 		{
 			ConstraintHandle->SetConstraintEnabled(bIsEnabled);
+
+			if (!bIsEnabled)
+			{
+				// The call above disables the constraint, but if any actor in the simulation is
+				// flagged as dirty, it gets re-enabled! See UE-204006 TODO remove this workaround
+				// when the bug has been fixed.
+				ConstraintHandle->SetDriveParams(
+					Chaos::FVec3::ZeroVector, Chaos::FVec3::ZeroVector, Chaos::FVec3::ZeroVector, 
+					Chaos::FVec3::ZeroVector, Chaos::FVec3::ZeroVector, Chaos::FVec3::ZeroVector);
+			}
 		}
 	}
 }
@@ -59,7 +72,7 @@ static void SetRecordParameters(
 	}
 	else
 	{
-		UE_LOG(LogRigidBodyWithControl, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("SetRecordParameters: Failed to find modifier with name %s"), *Name.ToString());
 	}
 }
@@ -74,7 +87,22 @@ static void SetRecordParameters(
 	}
 	else
 	{
-		UE_LOG(LogRigidBodyWithControl, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
+			TEXT("SetRecordParameters: Failed to find control with name %s"), *Name.ToString());
+	}
+}
+
+//======================================================================================================================
+static void SetRecordParameters(
+	const FName Name, const FPhysicsControlSparseMultiplier& Data, TMap<FName, FRigidBodyControlRecord>& Records)
+{
+	if (FRigidBodyControlRecord* const RecordSearchResult = Records.Find(Name))
+	{
+		RecordSearchResult->ControlMultiplier.UpdateFromSparseData(Data);
+	}
+	else
+	{
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("SetRecordParameters: Failed to find control with name %s"), *Name.ToString());
 	}
 }
@@ -114,27 +142,19 @@ const FTransform FAnimNode_RigidBodyWithControl::GetBodyTransform(const int32 Bo
 }
 
 //======================================================================================================================
-const FTransform FAnimNode_RigidBodyWithControl::GetWorldSpaceControlRootTransform() const
-{
-	if (WorldSpaceControlActorHandle)
-	{
-		return WorldSpaceControlActorHandle->GetWorldTransform();
-	}
-	return FTransform::Identity;
-}
-
-//======================================================================================================================
 void FAnimNode_RigidBodyWithControl::CreateWorldSpaceControlRootBody(UPhysicsAsset* const PhysicsAsset)
 {
+	// Note that this never moves - it's just defined as being an actor at the root of the world
 	WorldSpaceControlActorHandle = PhysicsSimulation->CreateActor(
-		ImmediatePhysics::EActorType::KinematicActor, nullptr, FTransform());
+		ImmediatePhysics::EActorType::StaticActor, nullptr, FTransform());
 	if (WorldSpaceControlActorHandle)
 	{
 		WorldSpaceControlActorHandle->SetName(FName("WorldSpaceControlHandle"));
+		PhysicsSimulation->SetHasCollision(WorldSpaceControlActorHandle, false);
 	}
 	else
 	{
-		UE_LOG(LogRigidBodyWithControl, Error, TEXT("Failed to create world space control root actor"));
+		UE_LOG(LogPhysicsControl, Error, TEXT("Failed to create world space control root actor"));
 	}
 }
 
@@ -230,16 +250,17 @@ void FAnimNode_RigidBodyWithControl::UpdateBodyIndicesInControlRecord(FRigidBody
 FName FAnimNode_RigidBodyWithControl::CreateControl(
 	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
 {
-	FRigidBodyControl Control;
+	FPhysicsControl Control;
 	Control.ParentBoneName = ParentBoneName;
 	Control.ChildBoneName = ChildBoneName;
 	Control.ControlData = ControlData;
 
 	ImmediatePhysics::FJointHandle* JointHandle = nullptr;
-	ImmediatePhysics::FActorHandle* ParentBodyHandle;
+	ImmediatePhysics::FActorHandle* ParentBodyHandle = nullptr;
 
 	if (ParentBoneName.IsNone())
 	{
+		// A parent actor is needed. Without it, the constraint doesn't work (though there's no error)
 		ParentBodyHandle = WorldSpaceControlActorHandle;
 	}
 	else
@@ -251,7 +272,7 @@ FName FAnimNode_RigidBodyWithControl::CreateControl(
 
 	if (!JointHandle)
 	{
-		UE_LOG(LogRigidBodyWithControl, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Unable to create world space control constraint for bone %s"), *ChildBoneName.ToString());
 		return FName();
 	}
@@ -275,15 +296,12 @@ FName FAnimNode_RigidBodyWithControl::GetBodyFromBoneName(const FName BoneName) 
 //======================================================================================================================
 FName FAnimNode_RigidBodyWithControl::GetUniqueBodyModifierName(const FName BoneName) const
 {
-	TSet<FName> Keys;
-	ModifierRecords.GetKeys(Keys);
-	const FName UniqueName = FindUniqueBodyModifierName(GetBodyFromBoneName(BoneName), Keys);
+	const FName UniqueName = UE::PhysicsControl::GetUniqueBodyModifierName(
+		GetBodyFromBoneName(BoneName), ModifierRecords, TEXT(""));
 
 	if (UniqueName.IsNone())
 	{
-		UE_LOG(LogRigidBodyWithControl, Warning,
-			TEXT("Unable to find a suitable Body Modifier name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
-			MaxNumControlsOrModifiersPerName);
+		UE_LOG(LogPhysicsControl, Warning, TEXT("Unable to find a suitable Body Modifier name"));
 	}
 
 	return UniqueName;
@@ -292,15 +310,12 @@ FName FAnimNode_RigidBodyWithControl::GetUniqueBodyModifierName(const FName Bone
 //======================================================================================================================
 FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBoneName, const FName ChildBoneName) const
 {
-	TSet<FName> Keys;
-	ControlRecords.GetKeys(Keys);
-	const FName UniqueName = FindUniqueControlName(GetBodyFromBoneName(ParentBoneName), GetBodyFromBoneName(ChildBoneName), Keys);
+	const FName UniqueName = UE::PhysicsControl::GetUniqueControlName(
+		GetBodyFromBoneName(ParentBoneName), GetBodyFromBoneName(ChildBoneName), ControlRecords, TEXT(""));
 
 	if (UniqueName.IsNone())
 	{
-		UE_LOG(LogRigidBodyWithControl, Warning,
-			TEXT("Unable to find a suitable Control name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
-			MaxNumControlsOrModifiersPerName);
+		UE_LOG(LogPhysicsControl, Warning, TEXT("Unable to find a suitable Control name"));
 	}
 
 	return UniqueName;
@@ -310,15 +325,11 @@ FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBon
 FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FPhysicsControlModifierData& ModifierData)
 {
 	FName Name;
-
 	ImmediatePhysics::FActorHandle* const ActorHandle = FindBodyFromBoneName(BoneName);
 	if (ActorHandle)
 	{
 		Name = GetUniqueBodyModifierName(BoneName);
-
-		FRigidBodyModifier BodyModifier;
-		BodyModifier.BoneName = BoneName;
-		BodyModifier.ModifierData = ModifierData;
+		FPhysicsBodyModifier BodyModifier(BoneName, ModifierData);
 		FRigidBodyModifierRecord& Modifier = ModifierRecords.Add(Name, FRigidBodyModifierRecord(BodyModifier, ActorHandle));
 	}
 
@@ -332,11 +343,30 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 
 	check(ControlRecords.IsEmpty()); // Controls should not exist when this function is called.
 
+	FPhysicsControlCharacterSetupData SetupData;
+	if (IsValid(PhysicsControlProfileAsset))
+	{
+		SetupData = PhysicsControlProfileAsset->CharacterSetupData;
+	}
+	if (bEnableCharacterSetupData)
+	{
+		SetupData += CharacterSetupData;
+	}
+
 	// These functions will create the base set of controls and modifiers from SetupData
 	TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
-		GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
+		UE::PhysicsControl::GetLimbBones(SetupData.LimbSetupData, RefSkeleton, GetPhysicsAsset());
 
-	CreateOperatorsForNode(this, AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
+	FPhysicsControlAndBodyModifierCreationDatas AdditionalOperators;
+	if (IsValid(PhysicsControlProfileAsset))
+	{
+		AdditionalOperators = PhysicsControlProfileAsset->AdditionalControlsAndModifiers;
+	}
+	AdditionalOperators += AdditionalControlsAndBodyModifiers;
+
+	// An "operator" is a control or a body modifier. This will also add them to sets etc.
+	UE::PhysicsControl::CreateOperatorsForNode(
+		this, SetupData, AdditionalControlsAndBodyModifiers, AllLimbBones, RefSkeleton, GetPhysicsAsset(), NameRecords);
 
 	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 	{
@@ -345,11 +375,17 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 	}
 
 	// Create any additional sets that have been requested
-	CreateAdditionalSets(AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
+	if (IsValid(PhysicsControlProfileAsset))
+	{
+		UE::PhysicsControl::CreateAdditionalSets(
+			PhysicsControlProfileAsset->AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
+	}
+	UE::PhysicsControl::CreateAdditionalSets(AdditionalSets, ModifierRecords, ControlRecords, NameRecords);
 
 	// Apply control and modifier parameters on a single-use basis
 	ApplyControlAndBodyModifierDatas(
 		InitialControlAndBodyModifierUpdates.ControlParameters,
+		InitialControlAndBodyModifierUpdates.ControlMultiplierParameters,
 		InitialControlAndBodyModifierUpdates.ModifierParameters);
 
 	// Tell the poor user what we've done
@@ -360,11 +396,9 @@ void FAnimNode_RigidBodyWithControl::InitControlsAndBodyModifiers(const FReferen
 void FAnimNode_RigidBodyWithControl::DestroyControlsAndBodyModifiers()
 {
 	// TODO - make sure this fn is complete
-
 	ControlRecords.Reset();
 	ModifierRecords.Reset();
 	NameRecords.Reset();
-
 	bHaveSetupControls = false;
 }
 
@@ -376,56 +410,56 @@ void FAnimNode_RigidBodyWithControl::LogControlsModifiersAndSets()
 
 #define RBWC_LOG_LEVEL Display
 
-	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Controls:"));
+	UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("Controls:"));
 	for (TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : ControlRecords)
 	{
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *NameRecordPair.Key.ToString());
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *NameRecordPair.Key.ToString());
 		const FRigidBodyControlRecord& Record = NameRecordPair.Value;
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Parent bone: %s Child bone: %s"), 
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    Parent bone: %s Child bone: %s"), 
 			*Record.Control.ParentBoneName.ToString(), *Record.Control.ChildBoneName.ToString());
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Enabled %d"),
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    Enabled %d"),
 			Record.IsEnabled());
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Linear: Strength %f DampingRatio %f ExtraDamping %f"),
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    Linear: Strength %f DampingRatio %f ExtraDamping %f"),
 			Record.Control.ControlData.LinearStrength, 
 			Record.Control.ControlData.LinearDampingRatio, 
 			Record.Control.ControlData.LinearExtraDamping);
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Angular: Strength %f DampingRatio %f ExtraDamping %f"),
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    Angular: Strength %f DampingRatio %f ExtraDamping %f"),
 			Record.Control.ControlData.AngularStrength, 
 			Record.Control.ControlData.AngularDampingRatio, 
 			Record.Control.ControlData.AngularExtraDamping);
 	}
 
-	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Body Modifiers:"));
+	UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("Body Modifiers:"));
 	for (TMap<FName, FRigidBodyModifierRecord>::ElementType& NameRecordPair : ModifierRecords)
 	{
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *NameRecordPair.Key.ToString());
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *NameRecordPair.Key.ToString());
 		const FRigidBodyModifierRecord& Record = NameRecordPair.Value;
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Bone: %s Body: %s"),
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    Bone: %s Body: %s"),
 			*Record.Modifier.BoneName.ToString(), *GetBodyFromBoneName(Record.Modifier.BoneName).ToString());
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    Movement: %s GravityMultiplier: %f"),
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    Movement: %s GravityMultiplier: %f"),
 			*GetPhysicsMovementTypeName(Record.Modifier.ModifierData.MovementType).ToString(),
 			Record.Modifier.ModifierData.GravityMultiplier);
 	}
 
-	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Control sets:"));
+	UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("Control sets:"));
 	for (TMap<FName, TArray<FName>>::ElementType& Pair : NameRecords.ControlSets)
 	{
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *Pair.Key.ToString());
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *Pair.Key.ToString());
 		const TArray<FName>& Names = Pair.Value;
 		for (FName Name : Names)
 		{
-			UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    %s:"), *Name.ToString());
+			UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    %s:"), *Name.ToString());
 		}
 	}
 
-	UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("Body Modifier sets:"));
+	UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("Body Modifier sets:"));
 	for (TMap<FName, TArray<FName>>::ElementType& Pair : NameRecords.BodyModifierSets)
 	{
-		UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *Pair.Key.ToString());
+		UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("  %s:"), *Pair.Key.ToString());
 		const TArray<FName>& Names = Pair.Value;
 		for (FName Name : Names)
 		{
-			UE_LOG(LogRigidBodyWithControl, RBWC_LOG_LEVEL, TEXT("    %s:"), *Name.ToString());
+			UE_LOG(LogPhysicsControl, RBWC_LOG_LEVEL, TEXT("    %s:"), *Name.ToString());
 		}
 	}
 #undef RBWC_LOG_LEVEL
@@ -439,7 +473,6 @@ static void ConvertStrengthToSpringParams(
 {
 	TOut AngularFrequency = TOut(InStrength * UE_DOUBLE_TWO_PI);
 	TOut Stiffness = AngularFrequency * AngularFrequency;
-
 	OutSpring = Stiffness;
 	OutDamping = TOut(InExtraDamping + 2 * InDampingRatio * AngularFrequency);
 }
@@ -450,24 +483,55 @@ static void ConvertStrengthToSpringParams(
 static bool UpdateDriveSpringDamperSettings(
 	Chaos::FPBDJointConstraintHandle* Constraint,
 	const Chaos::FPBDJointSettings&   Settings, 
-	const FPhysicsControlData&        ControlData)
+	const FPhysicsControlData&        Data,
+	const FPhysicsControlMultiplier&  Multiplier)
 {
-	float LinearSpring;
-	float LinearDamping;
 	float AngularSpring;
 	float AngularDamping;
+	const float MaxTorque = Data.MaxTorque * Multiplier.MaxTorqueMultiplier;
 
-	ConvertStrengthToSpringParams(LinearSpring, LinearDamping, 
-		ControlData.LinearStrength, ControlData.LinearDampingRatio, ControlData.LinearExtraDamping);
-	ConvertStrengthToSpringParams(AngularSpring, AngularDamping, 
-		ControlData.AngularStrength, ControlData.AngularDampingRatio, ControlData.AngularExtraDamping);
+	FVector LinearSpring;
+	FVector LinearDamping;
+	const FVector MaxForce = Data.MaxForce * Multiplier.MaxForceMultiplier;
+
+	UE::PhysicsControl::ConvertStrengthToSpringParams(
+		AngularSpring, AngularDamping,
+		Data.AngularStrength * Multiplier.AngularStrengthMultiplier,
+		Data.AngularDampingRatio * Multiplier.AngularDampingRatioMultiplier,
+		Data.AngularExtraDamping * Multiplier.AngularExtraDampingMultiplier);
+	UE::PhysicsControl::ConvertStrengthToSpringParams(
+		LinearSpring, LinearDamping,
+		Data.LinearStrength * Multiplier.LinearStrengthMultiplier,
+		Data.LinearDampingRatio * Multiplier.LinearDampingRatioMultiplier,
+		Data.LinearExtraDamping * Multiplier.LinearExtraDampingMultiplier);
+
+	if (Multiplier.MaxTorqueMultiplier <= 0)
+	{
+		AngularSpring = 0;
+		AngularDamping = 0;
+	}
+	if (Multiplier.MaxForceMultiplier.X <= 0)
+	{
+		LinearSpring.X = 0;
+		LinearDamping.X = 0;
+	}
+	if (Multiplier.MaxForceMultiplier.Y <= 0)
+	{
+		LinearSpring.Y = 0;
+		LinearDamping.Y = 0;
+	}
+	if (Multiplier.MaxForceMultiplier.Z <= 0)
+	{
+		LinearSpring.Z = 0;
+		LinearDamping.Z = 0;
+	}
 
 	Constraint->SetDriveParams(
-		Chaos::FVec3(LinearSpring), Chaos::FVec3(LinearDamping), Chaos::FVec3(ControlData.MaxForce),
-		Chaos::FVec3(AngularSpring), Chaos::FVec3(AngularDamping), Chaos::FVec3(ControlData.MaxTorque));
+		LinearSpring, LinearDamping, MaxForce,
+		Chaos::FVec3(AngularSpring), Chaos::FVec3(AngularDamping), Chaos::FVec3(Data.MaxTorque));
 
 	bool bHaveAngular = (AngularSpring + AngularDamping) > 0;
-	bool bHaveLinear = (LinearSpring + LinearDamping) > 0;
+	bool bHaveLinear = (LinearSpring + LinearDamping).GetMax() > 0;
 	return bHaveLinear || bHaveAngular;
 
 }
@@ -515,7 +579,8 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 			Constraint->SetParentInvMassScale(ControlRecord.Control.ControlData.bOnlyControlChildObject ? 0 : 1);
 
 			const Chaos::FPBDJointSettings& JointSettings = Constraint->GetSettings();
-			if (UpdateDriveSpringDamperSettings(Constraint, JointSettings, ControlRecord.ControlData))
+			if (UpdateDriveSpringDamperSettings(
+				Constraint, JointSettings, ControlRecord.ControlData, ControlRecord.ControlMultiplier))
 			{
 				const FActorHandle* ChildActorHandle = JointHandle->GetActorHandles()[ConstraintChildIndex];
 				const FActorHandle* ParentActorHandle = JointHandle->GetActorHandles()[ConstraintParentIndex];
@@ -595,12 +660,13 @@ void FAnimNode_RigidBodyWithControl::ApplyControl(FRigidBodyControlRecord& Contr
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyModifier(
 	const FRigidBodyModifierRecord& BodyModifierRecord, 
-	const FVector&             SimSpaceGravity)
+	const FVector&                  SimSpaceGravity)
 {
 	if (BodyModifierRecord.ActorHandle)
 	{
 		// Note that there's an early out if there's no change needed, so this should be OK.
-		BodyModifierRecord.ActorHandle->SetIsKinematic(
+		PhysicsSimulation->SetIsKinematic(
+			BodyModifierRecord.ActorHandle,
 			BodyModifierRecord.ModifierData.MovementType != EPhysicsMovementType::Simulated);
 
 		// Note that the actual kinematic targets will be set separately, since they need to be set
@@ -617,7 +683,7 @@ void FAnimNode_RigidBodyWithControl::ApplyModifier(
 
 		// Set collision
 		Chaos::FGeometryParticleHandle* ParticleHandle = BodyModifierRecord.ActorHandle->GetParticle();
-		ParticleHandle->SetHasCollision(CollisionEnabledHasPhysics(BodyModifierRecord.ModifierData.CollisionType));
+		//ParticleHandle->SetHasCollision(CollisionEnabledHasPhysics(BodyModifierRecord.ModifierData.CollisionType));
 	}
 }
 
@@ -629,7 +695,7 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlAndModifierUpdatesAndParametersToRecords);
 
 	// Apply control and modifier parameters on a single-use basis
-	ApplyControlAndBodyModifierDatas(Updates.ControlUpdates, Updates.ModifierUpdates);
+	ApplyControlAndBodyModifierDatas(Updates.ControlUpdates, Updates.ControlMultiplierUpdates, Updates.ModifierUpdates);
 
 	// This goes through the records, resetting the update parts.
 	// Then the update structures get adjusted based on the parameters.
@@ -656,12 +722,15 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndModifierUpdatesAndParameters
 	::ApplyControlAndModifierParametersToRecords(
 		ControlRecords, Parameters.ControlParameters, NameRecords.ControlSets);
 	::ApplyControlAndModifierParametersToRecords(
+		ControlRecords, Parameters.ControlMultiplierParameters, NameRecords.ControlSets);
+	::ApplyControlAndModifierParametersToRecords(
 		ModifierRecords, Parameters.ModifierParameters, NameRecords.BodyModifierSets);
 }
 
 //======================================================================================================================
 void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 	const TArray<FPhysicsControlNamedControlParameters>&           InControlParameters,
+	const TArray<FPhysicsControlNamedControlMultiplierParameters>& InControlMultiplierParameters,
 	const TArray<FPhysicsControlNamedModifierParameters>&          InModifierParameters)
 {
 	SCOPE_CYCLE_COUNTER(STAT_RigidBodyNodeWithControl_ApplyControlsAndModifierDatas);
@@ -669,17 +738,35 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 	// This updates the "original" controls and modifiers based on the parameters.
 	for (const FPhysicsControlNamedControlParameters& ControlParameters : InControlParameters)
 	{
+		const FPhysicsControlSparseData& ControlData = ControlParameters.Data;
 		TArray<FName> Names = ExpandName(ControlParameters.Name, NameRecords.ControlSets);
 		for (FName Name : Names)
 		{
-			const FPhysicsControlSparseData& ControlData = ControlParameters.Data;
 			if (FRigidBodyControlRecord* ControlRecord = ControlRecords.Find(Name))
 			{
 				ControlRecord->Control.ControlData.UpdateFromSparseData(ControlData);
 			}
 			else
 			{
-				UE_LOG(LogRigidBodyWithControl, Warning,
+				UE_LOG(LogPhysicsControl, Warning,
+					TEXT("ApplyControlAndBodyModifierDatas: Failed to find control with name %s"), *Name.ToString());
+			}
+		}
+	}
+
+	for (const FPhysicsControlNamedControlMultiplierParameters& MultiplierParameters : InControlMultiplierParameters)
+	{
+		const FPhysicsControlSparseMultiplier& MultiplierData = MultiplierParameters.Data;
+		TArray<FName> Names = ExpandName(MultiplierParameters.Name, NameRecords.ControlSets);
+		for (FName Name : Names)
+		{
+			if (FRigidBodyControlRecord* ControlRecord = ControlRecords.Find(Name))
+			{
+				ControlRecord->Control.ControlMultiplier.UpdateFromSparseData(MultiplierData);
+			}
+			else
+			{
+				UE_LOG(LogPhysicsControl, Warning,
 					TEXT("ApplyControlAndBodyModifierDatas: Failed to find control with name %s"), *Name.ToString());
 			}
 		}
@@ -687,17 +774,17 @@ void FAnimNode_RigidBodyWithControl::ApplyControlAndBodyModifierDatas(
 
 	for (const FPhysicsControlNamedModifierParameters& ModifierParameters : InModifierParameters)
 	{
+		const FPhysicsControlModifierSparseData& ModifierData = ModifierParameters.Data;
 		TArray<FName> Names = ExpandName(ModifierParameters.Name, NameRecords.BodyModifierSets);
 		for (FName Name : Names)
 		{
-			const FPhysicsControlModifierSparseData& ModifierData = ModifierParameters.Data;
 			if (FRigidBodyModifierRecord* ModifierRecord = ModifierRecords.Find(Name))
 			{
 				ModifierRecord->Modifier.ModifierData.UpdateFromSparseData(ModifierData);
 			}
 			else
 			{
-				UE_LOG(LogRigidBodyWithControl, Warning,
+				UE_LOG(LogPhysicsControl, Warning,
 					TEXT("ApplyControlAndBodyModifierDatas: Failed to find modifier with name %s"), *Name.ToString());
 			}
 		}
@@ -719,13 +806,6 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 		}
 	}
 
-	// Update world space control root object transform.
-	if (WorldSpaceControlActorHandle)
-	{
-		// This should be ok as we have no collisions on our root body
-		WorldSpaceControlActorHandle->SetWorldTransform(PoseData.WorldCoordinateFrame); 
-	}
-
 	if (!PoseData.IsEmpty())
 	{
 		// Apply Controls.
@@ -739,7 +819,6 @@ void FAnimNode_RigidBodyWithControl::ApplyControlsAndModifiers(const FVector& Si
 				{
 					ApplyControl(ControlRecord, DeltaTime);
 				}
-
 				SetConstraintEnabled(ControlRecord.JointHandle, ControlRecord.IsEnabled());
 			}
 		}
@@ -858,8 +937,9 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 
 					FPBDJointSettings JointSettings = ConstraintHandle->GetSettings();
 					
-					// See ImmediatePhysics_Chaos::TransferJointSettings
-					// TODO avoid code duplication with that function.
+					// See ImmediatePhysics_Chaos::TransferJointSettings TODO avoid code duplication
+					// with that function. However, it uses ConstraintInstance, but we don't have
+					// one of those.
 
 					JointSettings.Stiffness = ConstraintSettings::JointStiffness();
 					JointSettings.LinearProjection = Profile.bEnableProjection ? Profile.ProjectionLinearAlpha : 0.0f;
@@ -899,12 +979,18 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 					JointSettings.AngularSoftForceMode = (ConstraintSettings::SoftAngularForceMode() == 0) ? 
 						EJointForceMode::Acceleration : EJointForceMode::Force;
 
-					JointSettings.SoftLinearStiffness = Profile.LinearLimit.Stiffness;
-					JointSettings.SoftLinearDamping = Profile.LinearLimit.Damping;
-					JointSettings.SoftTwistStiffness = Profile.TwistLimit.Stiffness;
-					JointSettings.SoftTwistDamping = Profile.TwistLimit.Damping;
-					JointSettings.SoftSwingStiffness = Profile.ConeLimit.Stiffness;
-					JointSettings.SoftSwingDamping = Profile.ConeLimit.Damping;
+					JointSettings.SoftLinearStiffness = 
+						Chaos::ConstraintSettings::SoftLinearStiffnessScale() * Profile.LinearLimit.Stiffness;
+					JointSettings.SoftLinearDamping = 
+						Chaos::ConstraintSettings::SoftLinearDampingScale() * Profile.LinearLimit.Damping;
+					JointSettings.SoftTwistStiffness = 
+						Chaos::ConstraintSettings::SoftAngularStiffnessScale() * Profile.TwistLimit.Stiffness;
+					JointSettings.SoftTwistDamping = 
+						Chaos::ConstraintSettings::SoftAngularDampingScale() * Profile.TwistLimit.Damping;
+					JointSettings.SoftSwingStiffness = 
+						Chaos::ConstraintSettings::SoftAngularStiffnessScale() * Profile.ConeLimit.Stiffness;
+					JointSettings.SoftSwingDamping = 
+						Chaos::ConstraintSettings::SoftAngularDampingScale() * Profile.ConeLimit.Damping;
 
 					JointSettings.LinearRestitution = Profile.LinearLimit.Restitution;
 					JointSettings.TwistRestitution = Profile.TwistLimit.Restitution;
@@ -923,18 +1009,14 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 					JointSettings.bLinearVelocityDriveEnabled[1] = Profile.LinearDrive.YDrive.bEnableVelocityDrive;
 					JointSettings.bLinearVelocityDriveEnabled[2] = Profile.LinearDrive.ZDrive.bEnableVelocityDrive;
 					JointSettings.LinearDriveForceMode = EJointForceMode::Acceleration; // hardcoded!
-					JointSettings.LinearDriveStiffness[0] = 
-						ConstraintSettings::LinearDriveStiffnessScale() * Profile.LinearDrive.XDrive.Stiffness;
-					JointSettings.LinearDriveStiffness[1] = 
-						ConstraintSettings::LinearDriveStiffnessScale() * Profile.LinearDrive.YDrive.Stiffness;
-					JointSettings.LinearDriveStiffness[2] = 
-						ConstraintSettings::LinearDriveStiffnessScale() * Profile.LinearDrive.ZDrive.Stiffness;
-					JointSettings.LinearDriveDamping[0] = 
-						ConstraintSettings::LinearDriveDampingScale() * Profile.LinearDrive.XDrive.Stiffness;
-					JointSettings.LinearDriveDamping[1] = 
-						ConstraintSettings::LinearDriveDampingScale() * Profile.LinearDrive.YDrive.Stiffness;
-					JointSettings.LinearDriveDamping[2] = 
-						ConstraintSettings::LinearDriveDampingScale() * Profile.LinearDrive.ZDrive.Stiffness;
+					JointSettings.LinearDriveStiffness = Chaos::ConstraintSettings::LinearDriveStiffnessScale() * FVec3(
+							Profile.LinearDrive.XDrive.Stiffness, 
+							Profile.LinearDrive.YDrive.Stiffness, 
+							Profile.LinearDrive.ZDrive.Stiffness);
+					JointSettings.LinearDriveDamping = Chaos::ConstraintSettings::LinearDriveDampingScale() * FVec3(
+							Profile.LinearDrive.XDrive.Damping, 
+							Profile.LinearDrive.YDrive.Damping, 
+							Profile.LinearDrive.ZDrive.Damping);
 					JointSettings.LinearDriveMaxForce[0] = Profile.LinearDrive.XDrive.MaxForce;
 					JointSettings.LinearDriveMaxForce[1] = Profile.LinearDrive.YDrive.MaxForce;
 					JointSettings.LinearDriveMaxForce[2] = Profile.LinearDrive.ZDrive.MaxForce;
@@ -946,9 +1028,9 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 					if (Profile.AngularDrive.AngularDriveMode == EAngularDriveMode::SLERP)
 					{
 						JointSettings.AngularDriveStiffness = FVec3(
-							ConstraintSettings::LinearDriveStiffnessScale() * Profile.AngularDrive.SlerpDrive.Stiffness);
+							ConstraintSettings::AngularDriveStiffnessScale() * Profile.AngularDrive.SlerpDrive.Stiffness);
 						JointSettings.AngularDriveDamping = FVec3(
-							ConstraintSettings::LinearDriveDampingScale() * Profile.AngularDrive.SlerpDrive.Damping);
+							ConstraintSettings::AngularDriveDampingScale() * Profile.AngularDrive.SlerpDrive.Damping);
 						JointSettings.AngularDriveMaxTorque = FVec3(
 							Profile.AngularDrive.SlerpDrive.MaxForce);
 						JointSettings.bAngularSLerpPositionDriveEnabled = Profile.AngularDrive.SlerpDrive.bEnablePositionDrive;
@@ -960,18 +1042,14 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 					}
 					else
 					{
-						JointSettings.AngularDriveStiffness[0] = 
-							ConstraintSettings::LinearDriveStiffnessScale() * Profile.AngularDrive.TwistDrive.Stiffness;
-						JointSettings.AngularDriveStiffness[1] = 
-							ConstraintSettings::LinearDriveStiffnessScale() * Profile.AngularDrive.SwingDrive.Stiffness;
-						JointSettings.AngularDriveStiffness[2] = 
-							ConstraintSettings::LinearDriveStiffnessScale() * Profile.AngularDrive.SwingDrive.Stiffness;
-						JointSettings.AngularDriveDamping[0] = 
-							ConstraintSettings::LinearDriveDampingScale() * Profile.AngularDrive.TwistDrive.Damping;
-						JointSettings.AngularDriveDamping[1] = 
-							ConstraintSettings::LinearDriveDampingScale() * Profile.AngularDrive.SwingDrive.Damping;
-						JointSettings.AngularDriveDamping[2] = 
-							ConstraintSettings::LinearDriveDampingScale() * Profile.AngularDrive.SwingDrive.Damping;
+						JointSettings.AngularDriveStiffness = ConstraintSettings::AngularDriveStiffnessScale() * FVec3(
+							Profile.AngularDrive.TwistDrive.Stiffness, 
+							Profile.AngularDrive.SwingDrive.Stiffness, 
+							Profile.AngularDrive.SwingDrive.Stiffness);
+						JointSettings.AngularDriveDamping = ConstraintSettings::AngularDriveDampingScale() * FVec3(
+							Profile.AngularDrive.TwistDrive.Damping, 
+							Profile.AngularDrive.SwingDrive.Damping, 
+							Profile.AngularDrive.SwingDrive.Damping);
 						JointSettings.AngularDriveMaxTorque[0] = Profile.AngularDrive.TwistDrive.MaxForce;
 						JointSettings.AngularDriveMaxTorque[1] = Profile.AngularDrive.SwingDrive.MaxForce;
 						JointSettings.AngularDriveMaxTorque[2] = Profile.AngularDrive.SwingDrive.MaxForce;
@@ -1005,6 +1083,39 @@ void FAnimNode_RigidBodyWithControl::ApplyCurrentConstraintProfile()
 }
 
 //======================================================================================================================
+void FAnimNode_RigidBodyWithControl::InvokeControlProfile(FName ControlProfileName)
+{
+	CurrentControlProfile = ControlProfileName;
+	ApplyCurrentControlProfile();
+}
+
+//======================================================================================================================
+void FAnimNode_RigidBodyWithControl::ApplyCurrentControlProfile()
+{
+	// We shouldn't have a hitch here, since the asset (if set) will already have been loaded 
+	if (IsValid(PhysicsControlProfileAsset))
+	{
+		const FPhysicsControlControlAndModifierUpdates* Updates = 
+			PhysicsControlProfileAsset->Profiles.Find(CurrentControlProfile);
+		if (Updates)
+		{
+			ApplyControlAndBodyModifierDatas(
+				Updates->ControlUpdates, Updates->ControlMultiplierUpdates, Updates->ModifierUpdates);
+		}
+		else
+		{
+			UE_LOG(LogPhysicsControl, Warning,
+				TEXT("ApplyCurrentControlProfile: Profile %s not found"), *CurrentControlProfile.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogPhysicsControl, Warning,
+			TEXT("ApplyCurrentControlProfile: No control profile asset loaded"));
+	}
+}
+
+//======================================================================================================================
 void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 	const USkeletalMesh*          const SkeletalMeshAsset, 
 	TArray<FConstraintInstance*>& ConstraintInstances)
@@ -1016,7 +1127,7 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 	{
 		if (SkeletalMeshAsset != PhysicsAssetAuthoredSkeletalMesh)
 		{
-			UE_LOGFMT(LogRigidBodyWithControl, Log, 
+			UE_LOGFMT(LogPhysicsControl, Log, 
 				"Modify Constraint parent transforms to correct for the difference between the Skeleton used to create the Physics asset \"{0}\" and the current skeleton \"{1}\".", 
 				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
 
@@ -1046,7 +1157,7 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 				ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, CurrentRefFrame);
 
 #if !NO_LOGGING
-				UE_LOGFMT(LogRigidBodyWithControl, Log, 
+				UE_LOGFMT(LogPhysicsControl, Log, 
 					"Matched Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
 					ConstraintInstance->ConstraintBone1.ToString(), 
 					ConstraintInstance->ConstraintBone2.ToString(), 
@@ -1058,7 +1169,7 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 #if !NO_LOGGING
 		else
 		{
-			UE_LOGFMT(LogRigidBodyWithControl, Log, 
+			UE_LOGFMT(LogPhysicsControl, Log, 
 				"Do not modify constraint parent transforms as the Skeleton used to create the Physics asset \"{0}\" matches the current skeleton \"{1}\".", 
 				PhysicsAssetAuthoredSkeletalMesh->GetName(), SkeletalMeshAsset->GetName());
 		}
@@ -1066,7 +1177,7 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 	}
 	else if (SkeletalMeshAsset)
 	{
-		UE_LOGFMT(LogRigidBodyWithControl, Log, 
+		UE_LOGFMT(LogPhysicsControl, Log, 
 			"Snap Constraint parent transforms to the current skeleton \"{0}\" (Authored Skeleton is undefined in node details).", 
 			SkeletalMeshAsset->GetName());
 
@@ -1084,7 +1195,7 @@ void FAnimNode_RigidBodyWithControl::TransformConstraintsToMatchSkeletalMesh(
 			ConstraintInstance->SetRefFrame(EConstraintFrame::Frame2, ParentRelChildTM);
 
 #if !NO_LOGGING
-			UE_LOGFMT(LogRigidBodyWithControl, Log, 
+			UE_LOGFMT(LogPhysicsControl, Log, 
 				"Snapped Constraint {0} - {1} Parent Transform - position was {2} now {3}.", 
 				ConstraintInstance->ConstraintBone1.ToString(), 
 				ConstraintInstance->ConstraintBone2.ToString(), 

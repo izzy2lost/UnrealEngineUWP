@@ -2,10 +2,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
 #include "PhysicsControlLimbData.h"
+#include "PhysicsControlData.h"
+#include "RigidBodyPoseData.h"
+
 #include "Physics/ImmediatePhysics/ImmediatePhysicsDeclares.h"
 #include "Animation/AnimTypes.h"
-#include "RigidBodyPoseData.h"
+
 #include "RigidBodyControlData.generated.h"
 
 /**
@@ -13,113 +17,6 @@
  * also use structures defined in PhysicsControlData.h Some structures defined here may end up being shared with 
  * PhysicsControlComponent, so have a PhysicsControl prefix in anticipation of that.
  */
-
-/**
- * Setup data for all the bodies controlled by the node. Contains info to split the skeleton up into limbs, 
- * and default control and modifier settings for each of them.
- */
-USTRUCT(BlueprintType)
-struct FRigidBodySetupData
-{
-	GENERATED_BODY();
-
-	UPROPERTY(EditAnywhere, Category = ControlSetup)
-	TArray<FPhysicsControlLimbSetupData> LimbSetupData;
-
-	UPROPERTY(EditAnywhere, Category = ControlSetup)
-	FPhysicsControlData DefaultWorldSpaceControlData;
-
-	UPROPERTY(EditAnywhere, Category = ControlSetup)
-	FPhysicsControlData DefaultParentSpaceControlData;
-
-	UPROPERTY(EditAnywhere, Category = ControlSetup)
-	FPhysicsControlModifierData DefaultBodyModifierData;
-};
-
-
-/** 
- * Specifies a single/individual control between parent/child bodies, with the control data
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FRigidBodyControl
-{
-	GENERATED_BODY();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FName ParentBoneName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FName ChildBoneName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FPhysicsControlData ControlData;
-
-	bool IsEnabled() const { return ControlData.bEnabled; }
-};
-
-/**
- * Used on creation, to allow requesting the control to be in certain sets
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FRigidBodyControlCreation
-{
-	GENERATED_BODY();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FRigidBodyControl Control;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FName> Sets;
-};
-
-/**
- * Used to create a single/individual body modifier, with the modifier data,
- * and what sets it should be added to.
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FRigidBodyModifier
-{
-	GENERATED_BODY();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FName BoneName;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FPhysicsControlModifierData ModifierData;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FName> Sets;
-};
-
-/**
- * Used on creation, to allow requesting the modifier to be in certain sets
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FRigidBodyModifierCreation
-{
-	GENERATED_BODY();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FRigidBodyModifier Modifier;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FName> Sets;
-};
-
-/**
- * Collection of controls and body modifiers, used for creation
- */
-USTRUCT(BlueprintType)
-struct PHYSICSCONTROL_API FRigidBodyControlAndBodyModifierCreations
-{
-	GENERATED_BODY();
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FRigidBodyControlCreation> Controls;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TArray<FRigidBodyModifierCreation> Modifiers;
-};
 
 /**
  * A single target for a control, which may be defined as an offset from the (implicit) animation target.
@@ -205,7 +102,7 @@ struct PHYSICSCONTROL_API FRigidBodyKinematicTargets
  */
 struct FRigidBodyControlRecord
 {
-	FRigidBodyControlRecord(const FRigidBodyControl& InControl, ImmediatePhysics::FJointHandle* InJointHandle);
+	FRigidBodyControlRecord(const FPhysicsControl& InControl, ImmediatePhysics::FJointHandle* InJointHandle);
 
 	void ResetCurrent(bool bResetTarget);
 
@@ -215,13 +112,8 @@ struct FRigidBodyControlRecord
 	/** Returns the control point, which may be custom or automatic (centre of mass) */
 	FVector GetControlPoint(const ImmediatePhysics::FActorHandle* ChildActorHandle) const;
 
-	// TODO - might benefit from smaller - non-blueprint data members here ?
-	FRigidBodyControl               Control;
-	ImmediatePhysics::FJointHandle* JointHandle;
-
-	// This contains the currently active control data. It will be updated just prior to
-	// applying the controls, by setting it to the default, and then updating it with any parameters.
-	FPhysicsControlData ControlData;
+	// The configuration data
+	FPhysicsControl Control;
 
 	// Contains any control target that has been set
 	FRigidBodyControlTarget ControlTarget;
@@ -234,11 +126,24 @@ struct FRigidBodyControlRecord
 	// TODO just store the count we're interested in rather than the whole structure
 	FGraphTraversalCounter ExpectedUpdateCounter;
 
+	// This is the currently active control data. It will be updated just prior to applying
+	// the controls, by setting it to the default, and then updating it with any parameters. This is
+	// so that control updates can be made ephemeral.
+	FPhysicsControlData ControlData;
+
+	// This is the currently active control multiplier. It will be updated just prior to applying
+	// the controls, by setting it to the default, and then updating it with any parameters. This is
+	// so that control multiplier updates can be made ephemeral.
+	FPhysicsControlMultiplier ControlMultiplier;
+
 	// Cached child body index - needs to be updated whenever the bone name changes
 	int32 ChildBodyIndex;
 
 	// Cached parent body index - needs to be updated whenever the bone name changes
 	int32 ParentBodyIndex;
+
+	// The low-level physics representation
+	ImmediatePhysics::FJointHandle* JointHandle;
 };
 
 /**
@@ -248,16 +153,16 @@ struct FRigidBodyControlRecord
  */
 struct FRigidBodyModifierRecord
 {
-	FRigidBodyModifierRecord(const FRigidBodyModifier& InModifier, ImmediatePhysics::FActorHandle* InActorHandle);
+	FRigidBodyModifierRecord(const FPhysicsBodyModifier& InModifier, ImmediatePhysics::FActorHandle* InActorHandle);
 
 	void ResetCurrent();
 
-	// TODO - might benefit from smaller - non-blueprint data members here ?
-	FRigidBodyModifier              Modifier;
-	ImmediatePhysics::FActorHandle* ActorHandle;
+	FPhysicsBodyModifier            Modifier;
 
 	// This contains the currently active modifier data. It will be updated just prior to
 	// applying the controls, by setting it to the default, and then updating it with any parameters.
 	FPhysicsControlModifierData ModifierData;
+
+	ImmediatePhysics::FActorHandle* ActorHandle;
 };
 

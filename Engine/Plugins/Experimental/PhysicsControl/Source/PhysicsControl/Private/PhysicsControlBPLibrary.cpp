@@ -5,10 +5,6 @@
 #include "RigidBodyControlData.h"
 #include "AnimNode_RigidBodyWithControl.h"
 
-//UE_DISABLE_OPTIMIZATION
-
-#if 1
-
 //======================================================================================================================
 template<typename TParameterType> const TArray<FName>* FindNamesInSet(
 	const FPhysicsControlNameRecords& NameRecords, const FName SetName)
@@ -17,14 +13,14 @@ template<typename TParameterType> const TArray<FName>* FindNamesInSet(
 }
 
 //======================================================================================================================
-template<> const TArray<FName>* FindNamesInSet<FRigidBodyControl>(
+template<> const TArray<FName>* FindNamesInSet<FPhysicsControl>(
 	const FPhysicsControlNameRecords& NameRecords, const FName SetName)
 {
 	return NameRecords.ControlSets.Find(SetName);
 }
 
 //======================================================================================================================
-template<> const TArray<FName>* FindNamesInSet<FRigidBodyModifier>(
+template<> const TArray<FName>* FindNamesInSet<FPhysicsBodyModifier>(
 	const FPhysicsControlNameRecords& NameRecords, const FName SetName)
 {
 	return NameRecords.BodyModifierSets.Find(SetName);
@@ -214,7 +210,7 @@ TArray<FName> UPhysicsControlBPLibrary::GetControlNamesInSet(
 	const FRigidBodyWithControlReference& RigidBodyWithControl, 
 	const FName                           SetName)
 {
-	return GetNamesInSet<FRigidBodyControl>(RigidBodyWithControl, SetName);
+	return GetNamesInSet<FPhysicsControl>(RigidBodyWithControl, SetName);
 }
 
 //======================================================================================================================
@@ -223,7 +219,6 @@ TArray<FName> UPhysicsControlBPLibrary::GetBodyModifierNamesInSet(
 	const FRigidBodyWithControlReference& RigidBodyWithControl,
 	const FName                           SetName)
 {
-	return GetNamesInSet<FRigidBodyModifier>(RigidBodyWithControl, SetName);
+	return GetNamesInSet<FPhysicsBodyModifier>(RigidBodyWithControl, SetName);
 }
 
-#endif

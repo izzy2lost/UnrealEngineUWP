@@ -25,8 +25,8 @@ FVector FPhysicsControlRecord::GetControlPoint() const
 		return PhysicsControl.ControlData.CustomControlPoint;
 	}
 
-	FBodyInstance* ChildBodyInstance = UE::PhysicsControlComponent::GetBodyInstance(
-		PhysicsControl.ChildMeshComponent.Get(), PhysicsControl.ChildBoneName);
+	FBodyInstance* ChildBodyInstance = UE::PhysicsControl::GetBodyInstance(
+		ChildMeshComponent.Get(), PhysicsControl.ChildBoneName);
 
 	return ChildBodyInstance ? ChildBodyInstance->GetMassSpaceLocal().GetTranslation() : FVector::ZeroVector;
 }
@@ -40,22 +40,22 @@ bool FPhysicsControlRecord::InitConstraint(UObject* ConstraintDebugOwner, FName 
 	}
 	check(ConstraintInstance);
 
-	FBodyInstance* ParentBody = UE::PhysicsControlComponent::GetBodyInstance(
-		PhysicsControl.ParentMeshComponent.Get(), PhysicsControl.ParentBoneName);
-	FBodyInstance* ChildBody = UE::PhysicsControlComponent::GetBodyInstance(
-		PhysicsControl.ChildMeshComponent.Get(), PhysicsControl.ChildBoneName);
+	FBodyInstance* ParentBody = UE::PhysicsControl::GetBodyInstance(
+		ParentMeshComponent.Get(), PhysicsControl.ParentBoneName);
+	FBodyInstance* ChildBody = UE::PhysicsControl::GetBodyInstance(
+		ChildMeshComponent.Get(), PhysicsControl.ChildBoneName);
 
-	if (PhysicsControl.ParentMeshComponent.IsValid() && !PhysicsControl.ParentBoneName.IsNone() && !ParentBody)
+	if (ParentMeshComponent.IsValid() && !PhysicsControl.ParentBoneName.IsNone() && !ParentBody)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Failed to find expected parent body %s when making constraint for control %s"),
 			*PhysicsControl.ParentBoneName.ToString(),
 			*ControlName.ToString());
 		return false;
 	}
-	if (PhysicsControl.ChildMeshComponent.IsValid() && !PhysicsControl.ChildBoneName.IsNone() && !ChildBody)
+	if (ChildMeshComponent.IsValid() && !PhysicsControl.ChildBoneName.IsNone() && !ChildBody)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Failed to find expected child body %s when making constraint for control %s"),
 			*PhysicsControl.ChildBoneName.ToString(),
 			*ControlName.ToString());

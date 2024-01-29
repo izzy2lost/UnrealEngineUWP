@@ -15,10 +15,16 @@ class UMeshComponent;
  */
 struct FPhysicsControlRecord
 {
-	FPhysicsControlRecord(const FPhysicsControl& InControl) : PhysicsControl(InControl) {}
-
-	// Indicates if the control is enabled
-	bool Enabled() const { return PhysicsControl.ControlData.bEnabled; }
+	FPhysicsControlRecord(
+		const FPhysicsControl&       InControl,
+		const FPhysicsControlTarget& InControlTarget,
+		UMeshComponent*              InParentMeshComponent,
+		UMeshComponent*              InChildMeshComponent)
+		: PhysicsControl(InControl)
+		, ControlTarget(InControlTarget)
+		, ParentMeshComponent(InParentMeshComponent)
+		, ChildMeshComponent(InChildMeshComponent)
+	{}
 
 	/** Removes any constraint and resets the state */
 	void ResetConstraint();
@@ -40,23 +46,35 @@ struct FPhysicsControlRecord
 	/** The configuration data */
 	FPhysicsControl PhysicsControl;
 
+	/**
+	 * The position/orientation etc targets for the controls. These are procedural/explicit control targets -
+	 * skeletal meshes have the option to use skeletal animation as well, in which case these targets are 
+	 * expressed as relative to that animation.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	FPhysicsControlTarget ControlTarget;
+
+	/**  The mesh that will be doing the driving. Blank/non-existent means it will happen in world space */
+	TWeakObjectPtr<UMeshComponent> ParentMeshComponent;
+
+	/** The mesh that the control will be driving. */
+	TWeakObjectPtr<UMeshComponent> ChildMeshComponent;
+
 	/** The underlying constraint used to implement the control. */
 	TSharedPtr<FConstraintInstance> ConstraintInstance;
-
 };
 
 /**
  * There will be a PhysicsBodyModifier created at runtime for every BodyInstance involved in the component
  */
-struct FPhysicsBodyModifier
+struct FPhysicsBodyModifierRecord
 {
-	FPhysicsBodyModifier(
+	FPhysicsBodyModifierRecord(
 		TWeakObjectPtr<UMeshComponent>  InMeshComponent, 
-		const FName&                InBoneName, 
-		FPhysicsControlModifierData InBodyModifierData)
+		const FName&                    InBoneName, 
+		FPhysicsControlModifierData     InBodyModifierData)
 		: MeshComponent(InMeshComponent)
-		, BoneName(InBoneName)
-		, BodyModifierData(InBodyModifierData)
+		, BodyModifier(InBoneName, InBodyModifierData)
 		, KinematicTargetPosition(FVector::ZeroVector)
 		, KinematicTargetOrientation(FQuat::Identity)
 		, bResetToCachedTarget(false)
@@ -65,11 +83,8 @@ struct FPhysicsBodyModifier
 	/**  The mesh that will be modified. */
 	TWeakObjectPtr<UMeshComponent> MeshComponent;
 
-	/** The name of the skeletal mesh bone or the name of the static mesh body that will be modified. */
-	FName BoneName;
-
-	/** Basic data about how the body should be modified */
-	FPhysicsControlModifierData BodyModifierData;
+	// The core data
+	FPhysicsBodyModifier BodyModifier;
 
 	/** 
 	 * The target position when kinematic. Note that this is applied on top of any animation 

@@ -12,7 +12,6 @@
 #include "Physics/ImmediatePhysics/ImmediatePhysicsDeclares.h"
 #include "PhysicsControlLimbData.h"
 #include "PhysicsControlNameRecords.h"
-#include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsProxy/PerSolverFieldSystem.h"
 #include "RigidBodyControlData.h"
 #include "RigidBodyPoseData.h"
@@ -25,11 +24,23 @@
 
 struct FBodyInstance;
 struct FConstraintInstance;
+
 class FEvent;
+class UPhysicsControlProfileAsset;
+class UPhysicsAsset;
 
 extern TAutoConsoleVariable<int32> CVarEnableRigidBodyNodeWithControl;
 extern TAutoConsoleVariable<int32> CVarEnableRigidBodyNodeWithControlSimulation;
 extern TAutoConsoleVariable<int32> CVarRigidBodyNodeWithControlLODThreshold;
+
+struct FSimulationSpaceData
+{
+	FTransform Transform;
+	FVector    LinearVel;
+	FVector    AngularVel;
+	FVector    LinearAcc;
+	FVector    AngularAcc;
+};
 
 /**
  * Controller that simulates physics based on the physics asset of the skeletal mesh component
@@ -74,10 +85,19 @@ struct PHYSICSCONTROL_API FAnimNode_RigidBodyWithControl : public FAnimNode_Skel
 	 */
 	void SetOverridePhysicsAsset(UPhysicsAsset* PhysicsAsset);
 
+	/**
+	 * Invoke the profile stored in the control profile asset, and sets the current profile. Note that 
+	 * this produces permanent changes to the control and modifier values.
+	 */
+	void InvokeControlProfile(FName ControlProfileName);
+
 	UPhysicsAsset* GetPhysicsAsset() const { return PhysicsAssetToUse; }
 
 public:
-	/** Physics asset to use. If empty use the skeletal mesh's default physics asset */
+	/**
+	 * Physics asset to use. If empty use the skeletal mesh's default physics asset. Note that this can be
+	 * changed at runtime using SetOverridePhysicsAsset in the Animation Node Functions
+	 */
 	UPROPERTY(EditAnywhere, Category = Settings)
 	TObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
 
@@ -98,7 +118,7 @@ private:
 	FTransform PreviousCompWorldSpaceTM;
 	FTransform CurrentTransform;
 	FTransform PreviousTransform;
-
+	
 	UPhysicsAsset* PhysicsAssetToUse;
 public:
 
@@ -135,7 +155,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	FSimSpaceSettings SimSpaceSettings;
 
-
 	/**
 	 * Scale of cached bounds (vs. actual bounds) used for obtaining the list of objects we might collide with.
 	 * Increasing this may improve performance, but overlaps may not work as well.
@@ -150,7 +169,7 @@ public:
 	 * moving, otherwise the cache will only be updated if/when we move.
 	 */
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
-	bool UpdateCacheEveryFrame;
+	bool bUpdateCacheEveryFrame;
 
 	/** Matters if SimulationSpace is BaseBone */
 	UPROPERTY(EditAnywhere, Category = Settings)
@@ -159,6 +178,15 @@ public:
 	/** The channel we use to find static geometry to collide with */
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (editcondition = "bEnableWorldGeometry"))
 	TEnumAsByte<ECollisionChannel> OverlapChannel;
+
+	/** 
+	 * Whether or not to calculate velocities for world geometry. Note that if the simulation space is
+	 * not set to world, then even static objects "should" have velocities calculated. There is a cost 
+	 * associated with calculating velocities, but without them there may be more penetration between
+	 * the simulated objects and the world. 
+	 */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (editcondition = "bEnableWorldGeometry"))
+	uint8 bCalculateVelocitiesForWorldGeometry : 1;
 
 	/** What space to simulate the bodies in. This affects how velocities are generated */
 	UPROPERTY(EditAnywhere, Category = Settings)
@@ -226,6 +254,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (PinHiddenByDefault))
 	bool bEnableControls;
 
+	/** 
+	 * Physics control profile asset to use. This is optional, but if it has been set, then it will be used 
+	 * during creation of controls/body modifiers. Note that this can be modified at runtime in the Animation 
+	 * Blueprint via the Animation Node functions.
+	 */
+	UPROPERTY(EditAnywhere, Category = ControlSetup)
+	TObjectPtr<UPhysicsControlProfileAsset> PhysicsControlProfileAsset;
+
 	/**
 	 * A map of bone names to "body" names, the latter being used to assign names to controls/modifiers. 
 	 * This is optional - so if there is no mapping for a bone, then its name will be used directly when 
@@ -240,14 +276,17 @@ public:
 	 * Setup data for creating the main controls (world- and parent-space) and modifiers, based on splitting the 
 	 * skeleton up into limbs.
 	 */
-	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (PinHiddenByDefault))
-	FRigidBodySetupData SetupData;
+	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (PinHiddenByDefault, editcondition = "bEnableCharacterSetupData"))
+	FPhysicsControlCharacterSetupData CharacterSetupData;
+
+	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (InlineEditConditionToggle))
+	bool bEnableCharacterSetupData = true;
 
 	/**
 	 * Controls and modifiers that should be created, in addition to those made as part of the limb setup.
 	 */
 	UPROPERTY(EditAnywhere, Category = ControlSetup, meta = (PinHiddenByDefault))
-	FRigidBodyControlAndBodyModifierCreations AdditionalControlsAndBodyModifiers;
+	FPhysicsControlAndBodyModifierCreationDatas AdditionalControlsAndBodyModifiers;
 
 	/**
 	 * Allows additional sets of controls or modifiers to be created, and existing sets to be modified
@@ -302,10 +341,18 @@ public:
 	USkeletalMesh* PhysicsAssetAuthoredSkeletalMesh;
 
 	/**
-	 * The constraint profile to use on all the joints in the physics asset
+	 * The constraint profile to use on all the joints in the physics asset. Will be applied when 
+	 * the profile name changes.
 	 */
 	UPROPERTY(EditAnywhere, Category = Controls, meta = (PinHiddenByDefault))
 	FName ConstraintProfile;
+
+	/**
+	 * The control profile to use. Will be applied when the profile name changes. To force it to be invoked again, 
+	 * either change the profile to something else for a frame, or call InvokeControlProfile.
+	 */
+	UPROPERTY(EditAnywhere, Category = Controls, meta = (PinHiddenByDefault))
+	FName ControlProfile;
 
 private:
 	uint8 bEnabled : 1;
@@ -332,7 +379,6 @@ private:
 
 public:
 	const FTransform GetBodyTransform(const int32 BodyIndex) const;
-	const FTransform GetWorldSpaceControlRootTransform() const;
 
 	FName CreateControl(const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData);
 
@@ -361,8 +407,8 @@ private:
 	// This applies the desired constraint profile, if necessary
 	void ApplyCurrentConstraintProfile();
 
-	TMap<FName, int32> BodyNameToIndexMap;
-	ImmediatePhysics::FActorHandle* WorldSpaceControlActorHandle;
+	// This applies the desired control profile, if necessary
+	void ApplyCurrentControlProfile();
 
 	FName GetBodyFromBoneName(const FName BoneName) const;
 
@@ -382,8 +428,9 @@ private:
 
 	// Applies the overrides to the underlying controls and modifiers
 	void ApplyControlAndBodyModifierDatas(
-		const TArray<FPhysicsControlNamedControlParameters>& ControlParameters,
-		const TArray<FPhysicsControlNamedModifierParameters>& ModifierParameters);
+		const TArray<FPhysicsControlNamedControlParameters>& InControlParameters,
+		const TArray<FPhysicsControlNamedControlMultiplierParameters>& InControlMultiplierParameters,
+		const TArray<FPhysicsControlNamedModifierParameters>& InModifierParameters);
 
 	// Applies the parameters to control and modifier records
 	void ApplyControlAndModifierUpdatesAndParametersToRecords(
@@ -397,16 +444,13 @@ private:
 
 	// Calculate simulation space transform, velocity etc to pass into the solver
 	void CalculateSimulationSpace(
-		ESimulationSpace Space,
-		const FTransform& ComponentToWorld,
-		const FTransform& BoneToComponent,
-		const float Dt,
+		ESimulationSpace         Space,
+		const FTransform&        ComponentToWorld,
+		const FTransform&        BoneToComponent,
+		const float              Dt,
 		const FSimSpaceSettings& Settings,
-		FTransform& SpaceTransform,
-		FVector& SpaceLinearVel,
-		FVector& SpaceAngularVel,
-		FVector& SpaceLinearAcc,
-		FVector& SpaceAngularAcc);
+		FSimulationSpaceData&    OutSimulationSpaceData
+	);
 
 	// Modify Constraint transforms relative to the parent bone to correct for the difference
 	// between the Skeleton used to create the Physics asset and the current skeleton.
@@ -421,7 +465,7 @@ private:
 	void RemoveClothColliderObjects();
 
 	// Update the sim-space transforms of all cloth collider objects.
-	void UpdateClothColliderObjects(const FTransform& SpaceTransform);
+	void UpdateClothColliderObjects(const FSimulationSpaceData& SimulationSpaceData);
 
 	// Gather nearby world objects and add them to the sim
 	void CollectWorldObjects();
@@ -433,7 +477,7 @@ private:
 	void PurgeExpiredWorldObjects();
 
 	// Update sim-space transforms of world objects
-	void UpdateWorldObjects(const FTransform& SpaceTransform, const float DeltaSeconds);
+	void UpdateWorldObjects(const FSimulationSpaceData& SimulationSpaceData, const float DeltaSeconds);
 
 	// Advances the simulation by a given timestep
 	void RunPhysicsSimulation(float DeltaSeconds, const FVector& SimSpaceGravity);
@@ -470,6 +514,9 @@ private:
 
 	friend class FRigidBodyNodeWithControlSimulationTask;
 	UE::Tasks::FTask SimulationTask;
+
+	TMap<FName, int32> BodyNameToIndexMap;
+	ImmediatePhysics::FActorHandle* WorldSpaceControlActorHandle;
 
 	struct FBodyAnimData
 	{
@@ -523,6 +570,8 @@ private:
 
 	FName CurrentConstraintProfile;
 
+	FName CurrentControlProfile;
+
 	TArray<USkeletalMeshComponent::FPendingRadialForces> PendingRadialForces;
 
 	FPerSolverFieldSystem PerSolverField;
@@ -559,8 +608,6 @@ private:
 	FSphere CachedBounds;
 
 	FCollisionQueryParams QueryParams;
-
-	FPhysScene* PhysScene;
 
 	// Used by CollectWorldObjects and UpdateWorldGeometry in the Task Thread. Typically, World
 	// should never be accessed off the Game Thread. However, since we're just doing overlaps this
