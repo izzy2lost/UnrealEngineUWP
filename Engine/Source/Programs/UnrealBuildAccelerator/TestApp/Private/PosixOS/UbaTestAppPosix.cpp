@@ -144,9 +144,11 @@ int main()
 	if (stat("FileWF", &attrWF) == -1)
 		return LogError("stat for FileW failed");
 
+#if !PLATFORM_LINUX // Farm linux machines do not have clang installed... need to revisit this
 	char fullPath[PATH_MAX];
 	if (realpath("/usr/bin/clang", fullPath) == nullptr)
 		return LogError("realpath for 'clang' failed");
+#endif
 
 	struct stat attrRoot;
 	if (stat("/", &attrRoot) != 0)
