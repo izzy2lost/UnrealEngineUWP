@@ -1,29 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OnlineIdentityInterfaceGooglePlay.h"
+#include "AndroidRuntimeSettings.h"
+#include "OnlineAsyncTaskGooglePlayLogin.h"
 #include "OnlineSubsystemGooglePlay.h"
 
-FOnlineIdentityGooglePlay::FPendingConnection FOnlineIdentityGooglePlay::PendingConnectRequest;
-
 FOnlineIdentityGooglePlay::FOnlineIdentityGooglePlay(FOnlineSubsystemGooglePlay* InSubsystem)
-	: bPrevLoggedIn(false)
-	, bLoggedIn(false)
-	, PlayerAlias("")
-	, AuthToken("NONE")
-	, MainSubsystem(InSubsystem)
-	, bRegisteringUser(false)
-	, bLoggingInUser(false)
+	: MainSubsystem(InSubsystem)
 {
 	UE_LOG_ONLINE_IDENTITY(Display, TEXT("FOnlineIdentityGooglePlay::FOnlineIdentityGooglePlay()"));
 	check(MainSubsystem != nullptr);
-	PendingConnectRequest.ConnectionInterface = this;
+
+	ClearIdentity();
+}
+
+void FOnlineIdentityGooglePlay::ClearIdentity()
+{
+	UniqueNetId = FUniqueNetIdGooglePlay::EmptyId();
+	PlayerAlias.Empty();
+	AuthCode.Empty();
 }
 
 TSharedPtr<FUserOnlineAccount> FOnlineIdentityGooglePlay::GetUserAccount(const FUniqueNetId& UserId) const
 {
 	return nullptr;
 }
-
 
 TArray<TSharedPtr<FUserOnlineAccount> > FOnlineIdentityGooglePlay::GetAllUserAccounts() const
 {
@@ -34,81 +35,85 @@ TArray<TSharedPtr<FUserOnlineAccount> > FOnlineIdentityGooglePlay::GetAllUserAcc
 
 bool FOnlineIdentityGooglePlay::Login(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials) 
 {
-	bool bStartedLogin = false;
-	if (bLoggedIn)
+	if (LocalUserNum > 0)
 	{
-		// already logged in so just report all is ok!
-		// Now logged in
-		bStartedLogin = true;
-
-		static const int32 MAX_TEXT_LINE_LEN = 32;
-		TCHAR Line[MAX_TEXT_LINE_LEN + 1] = { 0 };
-		int32 Len = FCString::Snprintf(Line, MAX_TEXT_LINE_LEN, TEXT("%d"), LocalUserNum);
-
-		const FString PlayerId(Line);
-		UniqueNetId = FUniqueNetIdGooglePlay::Create(PlayerId);
-		TriggerOnLoginCompleteDelegates(LocalUserNum, true, *UniqueNetId, TEXT(""));
-	}
-	else if (!PendingConnectRequest.IsConnectionPending)
-	{
-		// Kick the login sequence...
-		bStartedLogin = true;
-		PendingConnectRequest.IsConnectionPending = true;
-	}
-	else
-	{
-		TriggerOnLoginCompleteDelegates(LocalUserNum, false, *FUniqueNetIdGooglePlay::EmptyId(), FString("Already trying to login"));
+		TriggerOnLoginCompleteDelegates(LocalUserNum, false, *FUniqueNetIdGooglePlay::EmptyId(), FString("FOnlineIdentityGooglePlay does not support more than 1 local player"));
+		return false;
 	}
 	
-	return bStartedLogin;
-}
+	if (UniqueNetId->IsValid())
+	{
+		TriggerOnLoginCompleteDelegates(0, true, *UniqueNetId, TEXT(""));
+		return false;
+	}
 
+	auto Settings = GetDefault<UAndroidRuntimeSettings>();
 
-bool FOnlineIdentityGooglePlay::Logout(int32 LocalUserNum)
-{
-	MainSubsystem->StartLogoutTask(LocalUserNum);
+	MainSubsystem->QueueAsyncTask(new FOnlineAsyncTaskGooglePlayLogin(MainSubsystem, Settings->PlayGamesClientId, Settings->bForceRefreshToken));
+	
 	return true;
 }
 
+void FOnlineIdentityGooglePlay::SetIdentityData(FUniqueNetIdGooglePlayPtr InPlayerNetId, FString InPlayerAlias, FString InAuthCode)
+{
+	UniqueNetId = MoveTemp(InPlayerNetId);
+	PlayerAlias = MoveTemp(InPlayerAlias);
+	AuthCode = MoveTemp(InAuthCode);
+}
+
+bool FOnlineIdentityGooglePlay::Logout(int32 LocalUserNum)
+{
+	if (LocalUserNum == 0)
+	{
+		bool bWasLoggedIn = UniqueNetId->IsValid();
+		ClearIdentity();
+		if(bWasLoggedIn)
+		{
+			TriggerOnLoginStatusChangedDelegates(0, ELoginStatus::LoggedIn, ELoginStatus::NotLoggedIn, *UniqueNetId);
+			TriggerOnLoginChangedDelegates(0);
+		}
+	}
+	return false;
+}
 
 bool FOnlineIdentityGooglePlay::AutoLogin(int32 LocalUserNum)
 {
 	return Login(LocalUserNum, FOnlineAccountCredentials());
 }
 
-
 ELoginStatus::Type FOnlineIdentityGooglePlay::GetLoginStatus(int32 LocalUserNum) const
 {
-	if (LocalUserNum < MAX_LOCAL_PLAYERS && MainSubsystem->GetGameServices() != nullptr && MainSubsystem->GetGameServices()->IsAuthorized())
+	if (LocalUserNum == 0 && UniqueNetId->IsValid())
 	{
-		return ELoginStatus::LoggedIn;
+		return  ELoginStatus::LoggedIn;
 	}
-
-	return ELoginStatus::NotLoggedIn;
+	else
+	{
+		return ELoginStatus::NotLoggedIn;
+	}
 }
-
 
 ELoginStatus::Type FOnlineIdentityGooglePlay::GetLoginStatus(const FUniqueNetId& UserId) const
 {
-	if (MainSubsystem->GetGameServices() != nullptr && MainSubsystem->GetGameServices()->IsAuthorized())
+	if (UserId.IsValid() && UserId == *UniqueNetId)
 	{
 		return ELoginStatus::LoggedIn;
 	}
-
-	return ELoginStatus::NotLoggedIn;
+	else
+	{
+		return ELoginStatus::NotLoggedIn;
+	}
 }
-
 
 FUniqueNetIdPtr FOnlineIdentityGooglePlay::GetUniquePlayerId(int32 LocalUserNum) const
 {
-	if (UniqueNetId.IsValid())
+	if (LocalUserNum == 0)
 	{
 		return UniqueNetId;
 	}
 
 	return FUniqueNetIdGooglePlay::EmptyId();
 }
-
 
 FUniqueNetIdPtr FOnlineIdentityGooglePlay::CreateUniquePlayerId(uint8* Bytes, int32 Size)
 {
@@ -124,29 +129,45 @@ FUniqueNetIdPtr FOnlineIdentityGooglePlay::CreateUniquePlayerId(uint8* Bytes, in
 	return NULL;
 }
 
-
 FUniqueNetIdPtr FOnlineIdentityGooglePlay::CreateUniquePlayerId(const FString& Str)
 {
 	return FUniqueNetIdGooglePlay::Create(Str);
 }
 
-
 FString FOnlineIdentityGooglePlay::GetPlayerNickname(int32 LocalUserNum) const
 {
-	UE_LOG_ONLINE_IDENTITY(Display, TEXT("FOnlineIdentityGooglePlay::GetPlayerNickname"));
-	return PlayerAlias;
+	if (LocalUserNum == 0)
+	{ 
+		return PlayerAlias;
+	}
+	else
+	{
+		return FString();
+	}
 }
 
 FString FOnlineIdentityGooglePlay::GetPlayerNickname(const FUniqueNetId& UserId) const
 {
-	UE_LOG_ONLINE_IDENTITY(Display, TEXT("FOnlineIdentityGooglePlay::GetPlayerNickname"));
-	return PlayerAlias;
+	if (UserId.IsValid() && UserId == *UniqueNetId)
+	{
+		return GetPlayerNickname(0);
+	}
+	else
+	{
+		return FString();
+	}
 }
 
 FString FOnlineIdentityGooglePlay::GetAuthToken(int32 LocalUserNum) const
 {
-	UE_LOG_ONLINE_IDENTITY(Display, TEXT("FOnlineIdentityGooglePlay::GetAuthToken"));
-	return AuthToken;
+	if (LocalUserNum == 0)
+	{ 
+		return AuthCode;
+	}
+	else
+	{
+		return FString();
+	}
 }
 
 void FOnlineIdentityGooglePlay::RevokeAuthToken(const FUniqueNetId& UserId, const FOnRevokeAuthTokenCompleteDelegate& Delegate)
@@ -157,23 +178,6 @@ void FOnlineIdentityGooglePlay::RevokeAuthToken(const FUniqueNetId& UserId, cons
 	{
 		Delegate.ExecuteIfBound(*UserIdRef, FOnlineError(FString(TEXT("RevokeAuthToken not implemented"))));
 	});
-}
-
-void FOnlineIdentityGooglePlay::Tick(float DeltaTime)
-{
-}
-
-void FOnlineIdentityGooglePlay::OnLoginCompleted(const int playerID, const gpg::AuthStatus errorCode)
-{
-	static const int32 MAX_TEXT_LINE_LEN = 32;
-	TCHAR Line[MAX_TEXT_LINE_LEN + 1] = { 0 };
-	int32 Len = FCString::Snprintf(Line, MAX_TEXT_LINE_LEN, TEXT("%d"), playerID);
-
-	UniqueNetId = FUniqueNetIdGooglePlay::Create(Line);
-	bLoggedIn = errorCode == gpg::AuthStatus::VALID;
-	TriggerOnLoginCompleteDelegates(playerID, bLoggedIn, *UniqueNetId, TEXT(""));
-
-	PendingConnectRequest.IsConnectionPending = false;
 }
 
 void FOnlineIdentityGooglePlay::GetUserPrivilege(const FUniqueNetId& UserId, EUserPrivileges::Type Privilege, const FOnGetUserPrivilegeCompleteDelegate& Delegate, EShowPrivilegeResolveUI ShowResolveUI)
@@ -198,16 +202,4 @@ FPlatformUserId FOnlineIdentityGooglePlay::GetPlatformUserIdFromUniqueNetId(cons
 FString FOnlineIdentityGooglePlay::GetAuthType() const
 {
 	return TEXT("");
-}
-
-void FOnlineIdentityGooglePlay::SetPlayerDataFromFetchSelfResponse(const gpg::Player& PlayerData)
-{
-	const FString PlayerId(PlayerData.Id().c_str());
-	UniqueNetId = FUniqueNetIdGooglePlay::Create(PlayerId);
-	PlayerAlias = PlayerData.Name().c_str();
-}
-
-void FOnlineIdentityGooglePlay::SetAuthTokenFromGoogleConnectResponse(const FString& NewAuthToken)
-{
-	AuthToken = NewAuthToken;
 }

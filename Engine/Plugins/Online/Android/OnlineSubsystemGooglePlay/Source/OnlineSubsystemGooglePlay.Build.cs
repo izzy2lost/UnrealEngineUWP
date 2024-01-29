@@ -29,8 +29,7 @@ public class OnlineSubsystemGooglePlay : ModuleRules
 				"OnlineSubsystem", 
                 "HTTP",
 				"AndroidRuntimeSettings",
-				"Launch",
-				"GpgCppSDK"
+				"Launch"
             }
 			);
 

@@ -168,8 +168,6 @@ import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.games.Games;
 
-import com.google.android.gms.plus.Plus;
-
 import com.google.vr.sdk.samples.permission.PermissionHelper;
 
 import java.nio.charset.StandardCharsets;
@@ -240,8 +238,6 @@ import com.epicgames.unreal.psoservices.PSOProgramServiceAccessor;
 //  to them in this class.
 
 public class GameActivity extends $${gameActivitySuperClass}$$ implements SurfaceHolder.Callback2,
-															GoogleApiClient.ConnectionCallbacks,
-															GoogleApiClient.OnConnectionFailedListener,
 															SensorEventListener,
 															Logger.ILoggerCallback,
 //$${gameActivityImplementsAdditions}$$
@@ -431,8 +427,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	/** AssetManger reference - populated on start up and used when the OBB is packed into the APK */
 	protected AssetManager			AssetManagerReference;
 	
-	private GoogleApiClient googleClient;
-
 	// layout required by popups, e.g ads, native controls
 	LinearLayout activityLayout;
 
@@ -4566,142 +4560,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 	}
 
-	public void AndroidThunkJava_ResetAchievements()
-	{
-		/* Disable so don't need GET_ACCOUNTS - we don't need this
-		try
-        {
-			String accesstoken = GetAccessToken();
-			          
-			if(!accesstoken.equals(""))
-			{
-				String ResetURL = "https://www.googleapis.com/games/v1management/achievements/reset?access_token=" + accesstoken;
-				Log.debug("AndroidThunkJava_ResetAchievements: using URL " + ResetURL);
-
-				URL url = new URL(ResetURL);
-				HttpURLConnection urlConnection = (HttpURLConnection)url.openConnection();
-
-				try
-				{
-					urlConnection.setRequestMethod("POST");
-					int status = urlConnection.getResponseCode();
-					Log.debug("AndroidThunkJava_ResetAchievements: HTTP response is " + status);
-				}
-				finally
-				{
-					urlConnection.disconnect();
-				}
-			}
-			else
-			{
-				Log.debug("AndroidThunkJava_ResetAchievements: Access Token not returned.  Possible reason is that android.permission.GET_ACCOUNTS is not granted.  Make sure to add in by going to Project settings > Android > Advanced Project Settings and check the box for \"Request Access Token On Connect\". ");
-			}
-        }
-        catch(Exception e)
-        {
-            Log.debug("AndroidThunkJava_ResetAchievements failed: " + e.getMessage());
-        }
-		*/
-		Log.debug("AndroidThunkJava_ResetAchievements: disabled");
-	}
-
-	// TODO: replace this with non-depreciated method (OK now for up to API-25)
-	@TargetApi(23)
-	private String GetAccessToken()
-	{
-		String accesstoken = "";
-
-		try
-        {
-			if (PermissionHelper.checkPermission("android.permission.GET_ACCOUNTS") && googleClient != null)
-			{
-				String email = Plus.AccountApi.getAccountName(googleClient);
-				Log.debug("GetAccessToken: using email " + email);
-
-				accesstoken = GoogleAuthUtil.getToken(this, email, "oauth2:https://www.googleapis.com/auth/games");
-			}
-		}
-		catch(Exception e)
-        {
-            Log.debug("GetAccessToken failed: " + e.getMessage());
-        }
-
-		return accesstoken;
-	}
-
-	public void AndroidThunkJava_GoogleClientConnect()
-	{
-		if (googleClient != null)
-		{
-			googleClient.connect();
-		}
-	}
-
-	public void AndroidThunkJava_GoogleClientDisconnect()
-	{
-		if (googleClient != null)
-		{
-			googleClient.disconnect();
-		}
-	}
-
-	// Google Client connected successfully
-	@Override
-	public void onConnected(Bundle connectionHint)
-	{
-		if (googleClient != null && googleClient.isConnected())
-		{
-			new Thread(new Runnable()
-			{
-				public void run()
-				{
-					/* Don't do this since deprecated and don't want to request GET_ACCOUNTS permission
-					try
-					{
-						String accesstoken = GetAccessToken();
-						if(!accesstoken.equals(""))
-						{
-							Log.debug("Google Client Connect using Access Token " + accesstoken);
-							nativeGoogleClientConnectCompleted(true, accesstoken);
-						}
-						else
-						{
-							Log.debug("Google Client Connect succeeded but no access token returned");
-							nativeGoogleClientConnectCompleted(true, "");
-						}
-					}
-					catch (Exception e)
-					{
-						Log.debug("Google Client Connect failed: " + e.getMessage());
-
-						nativeGoogleClientConnectCompleted(false, "");
-					}
-					*/
-					nativeGoogleClientConnectCompleted(true, "NOT_ACQUIRED");
-				}
-			}).start();
-		}
-		else
-		{
-			nativeGoogleClientConnectCompleted(false, "");
-		}
-	}
-
-	// Google Client connection failed
-	@Override
-	public void onConnectionFailed(ConnectionResult connectionResult)
-	{
-		Log.debug("Google Client Connect failed. Error Code: " + connectionResult.getErrorCode() + " Description: " + connectionResult.getErrorMessage());
-		nativeGoogleClientConnectCompleted(false, "");
-	}
-
-	// Google Client connection suspended
-	@Override
-	public void onConnectionSuspended(int cause)
-	{
-		Log.debug("Google Client Connect Suspended: " + cause);
-	}
-
 	public AssetManager AndroidThunkJava_GetAssetManager()
 	{
 		if(AssetManagerReference == null)
@@ -7079,8 +6937,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public native static void nativeResumeMainInit();
 
 	public native void nativeOnActivityResult(GameActivity activity, int requestCode, int resultCode, Intent data);
-
-	public native void nativeGoogleClientConnectCompleted(boolean bSuccess, String accessToken);
 
 	public native void nativeVirtualKeyboardShown(int left, int top, int right, int bottom);
 	public native void nativeVirtualKeyboardVisible(boolean bShown);

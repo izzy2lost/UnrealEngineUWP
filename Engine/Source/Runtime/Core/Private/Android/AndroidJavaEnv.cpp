@@ -191,10 +191,23 @@ jclass AndroidJavaEnv::FindJavaClass(const char* name)
 	{
 		return nullptr;
 	}
+
 	jstring ClassNameObj = Env->NewStringUTF(name);
 	jclass FoundClass = static_cast<jclass>(Env->CallObjectMethod(ClassLoader, FindClassMethod, ClassNameObj));
-	CheckJavaException();
+
+	if (!FoundClass)
+	{
+		// Clear exception because we failed to find the class and try again using JNIEnv
+		if (Env->ExceptionCheck())
+		{
+			Env->ExceptionClear();
+		}
+
+		FoundClass = static_cast<jclass>(Env->FindClass(name));
+		CheckJavaException();
+	}
 	Env->DeleteLocalRef(ClassNameObj);
+	
 	return FoundClass;
 }
 
@@ -205,9 +218,23 @@ jclass AndroidJavaEnv::FindJavaClassGlobalRef(const char* name)
 	{
 		return nullptr;
 	}
-	auto ClassNameObj = FJavaHelper::ToJavaString(Env, FString(ANSI_TO_TCHAR(name)));
-	auto FoundClass = NewScopedJavaObject(Env, static_cast<jclass>(Env->CallObjectMethod(ClassLoader, FindClassMethod, *ClassNameObj)));
-	CheckJavaException();
+
+	jstring ClassNameObj = Env->NewStringUTF(name);
+	auto FoundClass = NewScopedJavaObject(Env, static_cast<jclass>(Env->CallObjectMethod(ClassLoader, FindClassMethod, ClassNameObj)));
+	
+	if (!FoundClass)
+	{
+		// Clear exception because we failed to find the class and try again using JNIEnv
+		if (Env->ExceptionCheck())
+		{
+			Env->ExceptionClear();
+		}
+
+		FoundClass = NewScopedJavaObject(Env, static_cast<jclass>(Env->FindClass(name)));
+		CheckJavaException();
+	}
+	Env->DeleteLocalRef(ClassNameObj);
+
 	auto GlobalClass = (jclass)Env->NewGlobalRef(*FoundClass);
 	return GlobalClass;
 }

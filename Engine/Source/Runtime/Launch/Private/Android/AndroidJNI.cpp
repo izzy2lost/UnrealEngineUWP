@@ -207,7 +207,6 @@ void FJavaWrapper::FindGooglePlayMethods(JNIEnv* Env)
 	// @todo split GooglePlay
 	//	GoogleServicesClassID = FindClass(Env, "com/epicgames/unreal/GoogleServices", bIsOptional);
 	GoogleServicesClassID = GameActivityClassID;
-	AndroidThunkJava_ResetAchievements = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_ResetAchievements", "()V", bIsOptional);
 	AndroidThunkJava_ShowAdBanner = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_ShowAdBanner", "(Ljava/lang/String;Z)V", bIsOptional);
 	AndroidThunkJava_HideAdBanner = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_HideAdBanner", "()V", bIsOptional);
 	AndroidThunkJava_CloseAdBanner = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_CloseAdBanner", "()V", bIsOptional);
@@ -216,8 +215,6 @@ void FJavaWrapper::FindGooglePlayMethods(JNIEnv* Env)
 	AndroidThunkJava_IsInterstitialAdRequested = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_IsInterstitialAdRequested", "()Z", bIsOptional);
 	AndroidThunkJava_ShowInterstitialAd = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_ShowInterstitialAd", "()V", bIsOptional);
 	AndroidThunkJava_GetAdvertisingId = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_GetAdvertisingId", "()Ljava/lang/String;", bIsOptional);
-	AndroidThunkJava_GoogleClientConnect = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_GoogleClientConnect", "()V", bIsOptional);
-	AndroidThunkJava_GoogleClientDisconnect = FindMethod(Env, GoogleServicesClassID, "AndroidThunkJava_GoogleClientDisconnect", "()V", bIsOptional);
 }
 void FJavaWrapper::FindGooglePlayBillingMethods(JNIEnv* Env)
 {
@@ -382,6 +379,109 @@ bool FJavaWrapper::CallBooleanMethod(JNIEnv* Env, jobject Object, jmethodID Meth
 	return (bool)Return;
 }
 
+void FJavaWrapper::CallStaticVoidMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	Env->CallStaticVoidMethodV(Clazz, Method, Args);
+	va_end(Args);
+}
+
+jobject FJavaWrapper::CallStaticObjectMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return nullptr;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	jobject Return = Env->CallStaticObjectMethodV(Clazz, Method, Args);
+	va_end(Args);
+
+	return Return;
+}
+
+int32 FJavaWrapper::CallStaticIntMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return 0;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	jint Return = Env->CallStaticIntMethod(Clazz, Method, Args);
+	va_end(Args);
+
+	return (int32)Return;
+}
+
+int64 FJavaWrapper::CallStaticLongMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return 0;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	jlong Return = Env->CallStaticLongMethod(Clazz, Method, Args);
+	va_end(Args);
+
+	return (int64)Return;
+}
+
+float FJavaWrapper::CallStaticFloatMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return 0.f;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	jfloat Return = Env->CallStaticFloatMethod(Clazz, Method, Args);
+	va_end(Args);
+
+	return (float)Return;
+}
+
+double FJavaWrapper::CallStaticDoubleMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return 0.;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	jdouble Return = Env->CallStaticDoubleMethod(Clazz, Method, Args);
+	va_end(Args);
+
+	return (double)Return;
+}
+
+bool FJavaWrapper::CallStaticBooleanMethod(JNIEnv* Env, jclass Clazz, jmethodID Method, ...)
+{
+	if (Method == NULL || Clazz == NULL)
+	{
+		return false;
+	}
+
+	va_list Args;
+	va_start(Args, Method);
+	jboolean Return = Env->CallStaticBooleanMethod(Clazz, Method, Args);
+	va_end(Args);
+
+	return (bool)Return;
+}
+
 //Declare all the static members of the class defs 
 jclass FJavaWrapper::GameActivityClassID;
 jobject FJavaWrapper::GameActivityThis;
@@ -452,7 +552,6 @@ jfieldID FJavaWrapper::InputDeviceInfo_FeedbackMotorCount;
 
 jclass FJavaWrapper::GoogleServicesClassID;
 jobject FJavaWrapper::GoogleServicesThis;
-jmethodID FJavaWrapper::AndroidThunkJava_ResetAchievements;
 jmethodID FJavaWrapper::AndroidThunkJava_ShowAdBanner;
 jmethodID FJavaWrapper::AndroidThunkJava_HideAdBanner;
 jmethodID FJavaWrapper::AndroidThunkJava_CloseAdBanner;
@@ -461,8 +560,6 @@ jmethodID FJavaWrapper::AndroidThunkJava_IsInterstitialAdAvailable;
 jmethodID FJavaWrapper::AndroidThunkJava_IsInterstitialAdRequested;
 jmethodID FJavaWrapper::AndroidThunkJava_ShowInterstitialAd;
 jmethodID FJavaWrapper::AndroidThunkJava_GetAdvertisingId;
-jmethodID FJavaWrapper::AndroidThunkJava_GoogleClientConnect;
-jmethodID FJavaWrapper::AndroidThunkJava_GoogleClientDisconnect;
 
 jclass FJavaWrapper::JavaStringClass;
 jmethodID FJavaWrapper::AndroidThunkJava_IapSetupService;
@@ -1133,14 +1230,6 @@ void AndroidThunkCpp_LaunchURL(const FString& URL)
 	}
 }
 
-void AndroidThunkCpp_ResetAchievements()
-{
-	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
-	{
-		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GoogleServicesThis, FJavaWrapper::AndroidThunkJava_ResetAchievements);
-	}
-}
-
 void AndroidThunkCpp_ShowAdBanner(const FString& AdUnitID, bool bShowOnBottomOfScreen)
 {
 	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
@@ -1274,22 +1363,6 @@ bool AndroidThunkCpp_SendBroadcast(const FString& PackageName, const FString& Ex
 		result = FJavaWrapper::CallBooleanMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_SendBroadcast, *PackageNameArg, *ExtraKeyArg, *ExtraValueArg, bExit);
 	}
 	return result;
-}
-
-void AndroidThunkCpp_GoogleClientConnect()
-{
-	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
-	{
-		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GoogleServicesThis, FJavaWrapper::AndroidThunkJava_GoogleClientConnect);
-	}
-}
-
-void AndroidThunkCpp_GoogleClientDisconnect()
-{
-	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
-	{
-		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GoogleServicesThis, FJavaWrapper::AndroidThunkJava_GoogleClientDisconnect);
-	}
 }
 
 namespace
