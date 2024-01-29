@@ -260,7 +260,7 @@ namespace UE::StateTreeEditor::Internal
 						[
 							SNew(SBorder)
 							.Padding(FMargin(6, 1))
-							.BorderImage(new FSlateRoundedBoxBrush(FStyleColors::Hover, 6))
+							.BorderImage(FStateTreeEditorStyle::Get().GetBrush("StateTree.Param.Background"))
 							.Visibility(Label.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible)
 							[
 								SNew(STextBlock)
