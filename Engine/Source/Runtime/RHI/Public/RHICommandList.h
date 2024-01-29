@@ -434,7 +434,7 @@ public:
 	//
 	RHI_API void FinishRecording();
 
-	UE_DEPRECATED(5.4, "SetCurrentStat is deprecated and there is no replacement. Consider marking up rendering code with RDG event scopes or RHI breadcrumbs.")
+	UE_DEPRECATED(5.5, "SetCurrentStat is deprecated and there is no replacement. Consider marking up rendering code with RDG event scopes or RHI breadcrumbs.")
 	inline void SetCurrentStat(TStatId Stat) {}
 
 	FORCEINLINE_DEBUGGABLE void* Alloc(int64 AllocSize, int64 Alignment)
@@ -2961,12 +2961,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 #endif // WITH_RHI_BREADCRUMBS
 
-	UE_DEPRECATED(5.4, "RHIPushEvent is deprecated. All events and markers now use the RHI breadcrumb system. Use RDG_EVENT_SCOPE or SCOPED_DRAW_EVENT macros to mark up rendering code, rather than calling this function directly.")
+	UE_DEPRECATED(5.5, "RHIPushEvent is deprecated. All events and markers now use the RHI breadcrumb system. Use RDG_EVENT_SCOPE or SCOPED_DRAW_EVENT macros to mark up rendering code, rather than calling this function directly.")
 	FORCEINLINE_DEBUGGABLE void PushEvent(const TCHAR* Name, FColor Color)
 	{
 	}
 
-	UE_DEPRECATED(5.4, "RHIPopEvent is deprecated. All events and markers now use the RHI breadcrumb system. Use RDG_EVENT_SCOPE or SCOPED_DRAW_EVENT macros to mark up rendering code, rather than calling this function directly.")
+	UE_DEPRECATED(5.5, "RHIPopEvent is deprecated. All events and markers now use the RHI breadcrumb system. Use RDG_EVENT_SCOPE or SCOPED_DRAW_EVENT macros to mark up rendering code, rather than calling this function directly.")
 	FORCEINLINE_DEBUGGABLE void PopEvent()
 	{
 	}
@@ -4441,11 +4441,11 @@ public:
 		GDynamicRHI->RHIRead3DSurfaceFloatData(Texture,Rect,ZMinMax,OutData,Flags);
 	}
 	
-	UE_DEPRECATED(5.4, "FRHICommandListImmediate::AcquireThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
+	UE_DEPRECATED(5.5, "FRHICommandListImmediate::AcquireThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
 	FORCEINLINE void AcquireThreadOwnership()
 	{}
 	
-	UE_DEPRECATED(5.4, "FRHICommandListImmediate::ReleaseThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
+	UE_DEPRECATED(5.5, "FRHICommandListImmediate::ReleaseThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
 	FORCEINLINE void ReleaseThreadOwnership()
 	{}
 	
@@ -4457,7 +4457,7 @@ public:
 		return GDynamicRHI->RHIFlushResources();
 	}
 
-	UE_DEPRECATED(5.4, "FlushPendingDeletes is deprecated and removed. Use RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources)")
+	UE_DEPRECATED(5.5, "FlushPendingDeletes is deprecated and removed. Use RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources)")
 	inline int32 FlushPendingDeletes() { return 0; }
 	
 	FORCEINLINE uint32 GetGPUFrameCycles()
@@ -4550,7 +4550,7 @@ public:
 		return GDynamicRHI->RHIGetNativeCommandBuffer();
 	}
 
-	UE_DEPRECATED(5.4, "RHIPollRenderQueryResults is deprecated. Platform RHIs that require query polling now do this automatically as part of RHI command list submission.")
+	UE_DEPRECATED(5.5, "RHIPollRenderQueryResults is deprecated. Platform RHIs that require query polling now do this automatically as part of RHI command list submission.")
 	FORCEINLINE void PollRenderQueryResults() {}
 
 	/**
@@ -4832,7 +4832,7 @@ public:
 	//
 	// Blocks the calling thread until the RHI thread is idle.
 	//
-	UE_DEPRECATED(5.4, "FRHICommandListExecutor::WaitForRHIThreadTasks() is deprecated. Call FRHICommandListImmediate::ImmediateFlush(EImmediateFlushType::FlushRHIThread) instead.")
+	UE_DEPRECATED(5.5, "FRHICommandListExecutor::WaitForRHIThreadTasks() is deprecated. Call FRHICommandListImmediate::ImmediateFlush(EImmediateFlushType::FlushRHIThread) instead.")
 	inline void WaitForRHIThreadTasks()
 	{
 		FRHICommandListImmediate::Get().ImmediateFlush(EImmediateFlushType::FlushRHIThread);
@@ -4867,13 +4867,13 @@ public:
 	//
 	RHI_API static bool AreRHITasksActive();
 
-	UE_DEPRECATED(5.4, "FRHICommandListExecutor::IsRHIThreadActive() is deprecated. Use FRHICommandListExecutor::AreRHITasksActive() instead.")
+	UE_DEPRECATED(5.5, "FRHICommandListExecutor::IsRHIThreadActive() is deprecated. Use FRHICommandListExecutor::AreRHITasksActive() instead.")
 	static inline bool IsRHIThreadActive()
 	{
 		return AreRHITasksActive();
 	}
 
-	UE_DEPRECATED(5.4, "FRHICommandListExecutor::IsRHIThreadCompletelyFlushed() is deprecated. Use FRHICommandListExecutor::AreRHITasksActive() instead.")
+	UE_DEPRECATED(5.5, "FRHICommandListExecutor::IsRHIThreadCompletelyFlushed() is deprecated. Use FRHICommandListExecutor::AreRHITasksActive() instead.")
 	static inline bool IsRHIThreadCompletelyFlushed()
 	{
 		return !AreRHITasksActive();
@@ -5297,11 +5297,11 @@ FORCEINLINE void RHIUnlockTextureCubeFace(FRHITextureCube* Texture, uint32 FaceI
 	 FRHICommandListExecutor::GetImmediateCommandList().UnlockTextureCubeFace(Texture, FaceIndex, ArrayIndex, MipIndex, bLockWithinMiptail);
 }
 
-UE_DEPRECATED(5.4, "RHIAcquireThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
+UE_DEPRECATED(5.5, "RHIAcquireThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
 FORCEINLINE void RHIAcquireThreadOwnership()
 {}
 
-UE_DEPRECATED(5.4, "RHIReleaseThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
+UE_DEPRECATED(5.5, "RHIReleaseThreadOwnership() is deprecated. Thread ownership of the RHI is automatic, so this function is redundant.")
 FORCEINLINE void RHIReleaseThreadOwnership()
 {}
 

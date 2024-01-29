@@ -88,7 +88,7 @@ public:
 	UE_DEPRECATED(5.3, "FlushPendingDeletes is deprecated, please use FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources)")
 	static inline int32 FlushPendingDeletes(FRHICommandListImmediate& RHICmdList) { return 0; }
 
-	UE_DEPRECATED(5.4, "Don't call Bypass() on an FRHIResource. Use the Bypass() function on an FRHICommandList instance, or the FRHICommmandListExecutor.")
+	UE_DEPRECATED(5.5, "Don't call Bypass() on an FRHIResource. Use the Bypass() function on an FRHICommandList instance, or the FRHICommmandListExecutor.")
 	RHI_API static bool Bypass();
 
 	bool IsValid() const

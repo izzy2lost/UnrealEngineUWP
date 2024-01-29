@@ -236,7 +236,7 @@ public:
 	RENDERCORE_API void AddPassDependency(FRDGPass* Producer, FRDGPass* Consumer);
 
 	/** Sets the current command list stat for all subsequent passes. */
-	UE_DEPRECATED(5.4, "SetCommandListStat is deprecated. The underlying stats have been removed. Consider marking up rendering code with RDG event scopes.")
+	UE_DEPRECATED(5.5, "SetCommandListStat is deprecated. The underlying stats have been removed. Consider marking up rendering code with RDG event scopes.")
 	inline void SetCommandListStat(TStatId StatId) {}
 
 	/** A hint to the builder to flush work to the RHI thread after the last queued pass on the execution timeline. */

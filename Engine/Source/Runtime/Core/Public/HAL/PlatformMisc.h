@@ -196,7 +196,7 @@ public:
 
 #endif
 
-#define SCOPED_PROFILER_COLOR(...) UE_DEPRECATED_MACRO(5.4, "SCOPED_PROFILER_COLOR is deprecated and there is no replacement.")
+#define SCOPED_PROFILER_COLOR(...) UE_DEPRECATED_MACRO(5.5, "SCOPED_PROFILER_COLOR is deprecated and there is no replacement.")
 
 // For timing OnEnterBackground tasks. This can be time sensitive on some platforms
 class FScopedEnterBackgroundEvent

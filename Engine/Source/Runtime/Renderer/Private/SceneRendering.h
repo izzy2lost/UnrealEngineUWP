@@ -574,7 +574,7 @@ protected:
 public:
 	FParallelCommandListSet(const FRDGPass* InPass, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true);
 
-	UE_DEPRECATED(5.4, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
+	UE_DEPRECATED(5.5, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
 	FParallelCommandListSet(const FRDGPass* InPass, TStatId InExecuteStat, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true)
 		: FParallelCommandListSet(InPass, InView, InParentCmdList, bHasRenderPasses)
 	{}
@@ -612,7 +612,7 @@ public:
 		, ViewportScale(InViewportScale)
 	{}
 
-	UE_DEPRECATED(5.4, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
+	UE_DEPRECATED(5.5, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
 	FRDGParallelCommandListSet(const FRDGPass* InPass, FRHICommandListImmediate& InParentCmdList, TStatId InStatId, const FViewInfo& InView, const FParallelCommandListBindings& InBindings, float InViewportScale = 1.0f)
 		: FRDGParallelCommandListSet(InPass, InParentCmdList, InView, InBindings, InViewportScale)
 	{}
