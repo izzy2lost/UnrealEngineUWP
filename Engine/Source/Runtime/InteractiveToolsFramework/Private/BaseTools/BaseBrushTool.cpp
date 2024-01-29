@@ -105,6 +105,9 @@ void UBrushAdjusterInputBehavior::OnDragUpdate(FVector2D InScreenPosition)
 		NewRadius = FMath::Max(NewRadius, 0.01f);
 		BrushTool->BrushProperties->BrushRadius = NewRadius;
 		BrushTool->LastBrushStamp.Radius = NewRadius;
+		
+		FPropertyChangedEvent PropertyChangedEvent(UBrushBaseProperties::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushRadius)));
+		BrushTool->BrushProperties->PostEditChangeProperty(PropertyChangedEvent);
 	}
 	else
 	{
@@ -112,6 +115,9 @@ void UBrushAdjusterInputBehavior::OnDragUpdate(FVector2D InScreenPosition)
 		float NewStrength = StartBrushStrength + VerticalDelta * -(StrengthAdjustSpeed * DPIScale);
 		NewStrength = FMath::Min(1.0f,FMath::Max(NewStrength, 0.f));
 		BrushTool->BrushProperties->BrushStrength = NewStrength;
+		
+		FPropertyChangedEvent PropertyChangedEvent(UBrushBaseProperties::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UBrushBaseProperties, BrushStrength)));
+		BrushTool->BrushProperties->PostEditChangeProperty(PropertyChangedEvent);
 	}	
 }
 

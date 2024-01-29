@@ -2114,6 +2114,19 @@ void USkinWeightsPaintTool::OnPropertyModified(UObject* ModifiedObject, FPropert
 {
 	Super::OnPropertyModified(ModifiedObject, ModifiedProperty);
 
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, BrushStrength))
+	{
+		WeightToolProperties->GetBrushConfig().Strength = WeightToolProperties->BrushStrength;
+	}
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, BrushRadius))
+	{
+		WeightToolProperties->GetBrushConfig().Radius = WeightToolProperties->BrushRadius;
+	}
+	if (ModifiedProperty->GetName() == GET_MEMBER_NAME_STRING_CHECKED(USkinWeightsPaintToolProperties, BrushFalloffAmount))
+	{
+		WeightToolProperties->GetBrushConfig().Falloff = WeightToolProperties->BrushFalloffAmount;
+	}
+	
 	const FString NameOfModifiedProperty = ModifiedProperty->GetNameCPP();
 
 	// invalidate vertex color cache when any weight color properties are modified
