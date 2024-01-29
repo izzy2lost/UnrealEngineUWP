@@ -10,34 +10,26 @@
 #include "PixelStreamingPrivate.h"
 #include "Engine/GameEngine.h"
 
-TSharedPtr<FPixelStreamingVideoInputMediaCapture> FPixelStreamingVideoInputMediaCapture::Create()
+TSharedPtr<FPixelStreamingVideoInputMediaCapture> FPixelStreamingVideoInputMediaCapture::CreateActiveViewportCapture()
 {
-	TSharedPtr<FPixelStreamingVideoInputMediaCapture> NewInput = TSharedPtr<FPixelStreamingVideoInputMediaCapture>(new FPixelStreamingVideoInputMediaCapture());
-
-	if (GEngine == nullptr)
-	{
-		// this is usually hit via the blueprint implementations of this class. the editor creates these objects
-		// on startup which causes CaptureActiveSceneViewport() to crash trying to access GEngine
-
-		// delay this until GEngine is ready
-		TWeakPtr<FPixelStreamingVideoInputMediaCapture> WeakInput = NewInput;
-		FCoreDelegates::OnPostEngineInit.AddLambda([WeakInput]() {
-			if (TSharedPtr<FPixelStreamingVideoInputMediaCapture> Input = WeakInput.Pin()) {
-				Input->StartCapture();
-			}
-			});
-	}
-	else
-	{
-		// otherwise start capture
-		NewInput->StartCapture();
-	}
-
+	TSharedPtr<FPixelStreamingVideoInputMediaCapture> NewInput = MakeShared<FPixelStreamingVideoInputMediaCapture>();
+	NewInput->LateStartActiveViewportCapture();
 	return NewInput;
 }
 
+TSharedPtr<FPixelStreamingVideoInputMediaCapture> FPixelStreamingVideoInputMediaCapture::Create(TObjectPtr<UPixelStreamingMediaIOCapture> MediaCapture)
+{
+	TSharedPtr<FPixelStreamingVideoInputMediaCapture> VideoInput = MakeShared<FPixelStreamingVideoInputMediaCapture>(MediaCapture);
+	MediaCapture->SetVideoInput(VideoInput);
+	return VideoInput;
+}
+
+FPixelStreamingVideoInputMediaCapture::FPixelStreamingVideoInputMediaCapture(TObjectPtr<UPixelStreamingMediaIOCapture> InMediaCapture)
+	: MediaCapture(InMediaCapture)
+{
+}
+
 FPixelStreamingVideoInputMediaCapture::FPixelStreamingVideoInputMediaCapture()
-	:MediaOutput(NewObject<UPixelStreamingMediaIOOutput>())
 {
 }
 
@@ -50,8 +42,15 @@ FPixelStreamingVideoInputMediaCapture::~FPixelStreamingVideoInputMediaCapture()
 	}
 }
 
-void FPixelStreamingVideoInputMediaCapture::StartCapture()
+void FPixelStreamingVideoInputMediaCapture::StartActiveViewportCapture()
 {
+	// If we were bound to the OnFrameEnd delegate to ensure a frame was rendered before starting, then we can unset it here.
+	if(OnFrameEndDelegateHandle.IsSet())
+	{
+		FCoreDelegates::OnEndFrame.Remove(OnFrameEndDelegateHandle.GetValue());
+		OnFrameEndDelegateHandle.Reset();
+	}
+
 	if (MediaCapture)
 	{
 		MediaCapture->OnStateChangedNative.RemoveAll(this);
@@ -60,10 +59,23 @@ void FPixelStreamingVideoInputMediaCapture::StartCapture()
 
 	MediaCapture = NewObject<UPixelStreamingMediaIOCapture>();
 	MediaCapture->AddToRoot(); // prevent GC on this
-	MediaCapture->SetMediaOutput(MediaOutput);
+	MediaCapture->SetMediaOutput(NewObject<UPixelStreamingMediaIOOutput>());
 	MediaCapture->SetVideoInput(AsShared());
-	MediaCapture->OnStateChangedNative.AddSP(this, &FPixelStreamingVideoInputMediaCapture::OnCaptureStateChanged);
-	MediaCapture->CaptureActiveSceneViewport({});
+	MediaCapture->OnStateChangedNative.AddSP(this, &FPixelStreamingVideoInputMediaCapture::OnCaptureActiveViewportStateChanged);
+
+	FMediaCaptureOptions Options;
+	Options.bSkipFrameWhenRunningExpensiveTasks = false;
+	Options.OverrunAction = EMediaCaptureOverrunAction::Skip;
+	Options.ResizeMethod = EMediaCaptureResizeMethod::ResizeSource;
+
+	// Start capturing the active viewport
+	MediaCapture->CaptureActiveSceneViewport(Options);
+}
+
+void FPixelStreamingVideoInputMediaCapture::LateStartActiveViewportCapture()
+{
+	// Bind the OnEndFrame delegate to ensure we only start capture once a frame has been rendered
+	OnFrameEndDelegateHandle = FCoreDelegates::OnEndFrame.AddSP(this, &FPixelStreamingVideoInputMediaCapture::StartActiveViewportCapture);
 }
 
 FString FPixelStreamingVideoInputMediaCapture::ToString()
@@ -116,7 +128,7 @@ TSharedPtr<FPixelCaptureCapturer> FPixelStreamingVideoInputMediaCapture::CreateC
 	}
 }
 
-void FPixelStreamingVideoInputMediaCapture::OnCaptureStateChanged()
+void FPixelStreamingVideoInputMediaCapture::OnCaptureActiveViewportStateChanged()
 {
 	if (!MediaCapture)
 	{
@@ -133,7 +145,7 @@ void FPixelStreamingVideoInputMediaCapture::OnCaptureStateChanged()
 		{
 			UE_LOG(LogPixelStreaming, Log, TEXT("Pixel Streaming capture was stopped due to resize, going to restart capture."));
 			// If it was stopped and viewport resized we assume resize caused the stop, so try a restart of capture here.
-			StartCapture();
+			StartActiveViewportCapture();
 		}
 		else
 		{

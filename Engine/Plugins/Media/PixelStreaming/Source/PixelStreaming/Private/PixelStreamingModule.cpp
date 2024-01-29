@@ -427,7 +427,7 @@ namespace UE::PixelStreaming
 			// in that case, set up the video input for them (as long as we're not in editor)
 			if (Settings::CVarPixelStreamingUseMediaCapture.GetValueOnAnyThread())
 			{
-				DefaultStreamer->SetVideoInput(FPixelStreamingVideoInputMediaCapture::Create());
+				DefaultStreamer->SetVideoInput(FPixelStreamingVideoInputMediaCapture::CreateActiveViewportCapture());
 			}
 			else
 			{
