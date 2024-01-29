@@ -12,7 +12,6 @@ public class SurfaceEffects : ModuleRules
 			new string[]
 			{
 				"Core",
-				"DeveloperSettings",
 			}
 			);
 			
@@ -21,7 +20,15 @@ public class SurfaceEffects : ModuleRules
 			new string[]
 			{
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
+			}
+			);
+		
+		
+		DynamicallyLoadedModuleNames.AddRange(
+			new string[]
+			{
 			}
 			);
 	}

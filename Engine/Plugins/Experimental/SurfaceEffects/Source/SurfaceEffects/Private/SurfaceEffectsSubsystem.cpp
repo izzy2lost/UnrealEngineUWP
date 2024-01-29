@@ -2,34 +2,16 @@
 
 #include "SurfaceEffectsSubsystem.h"
 
-#include "HAL/IConsoleManager.h"
 #include "SurfaceEffectsSettings.h"
-
-#include UE_INLINE_GENERATED_CPP_BY_NAME(SurfaceEffectsSubsystem)
-
-namespace SurfaceEffectConsoleVariables
-{
-	int32 bEnabled = 1;
-	FAutoConsoleVariableRef CVarEnabled(
-	TEXT("SurfaceEffects.Enabled"), bEnabled,
-	TEXT("Enables the Surface Effects System.\n")
-		TEXT("0: Disabled, 1: Enabled"),
-	ECVF_Default);
-} // namespace SurfaceEffectConsoleVariables
 
 void USurfaceEffectsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	const USurfaceEffectsSettings* Settings = GetDefault<USurfaceEffectsSettings>();
+	const USurfaceEffectsSettings* MutableDefault = GetMutableDefault<USurfaceEffectsSettings>();
 
-	if(Settings)
+	if(MutableDefault)
 	{
-		SurfaceEffectsData = LoadObject<UDataTable>(nullptr, *Settings->SurfaceEffectsDataTable.ToString(), nullptr, LOAD_None, nullptr);
+		SurfaceEffectsData = LoadObject<UDataTable>(nullptr, *MutableDefault->SurfaceEffectsDataTable.ToString(), nullptr, LOAD_None, nullptr);
 	}
-}
-
-bool USurfaceEffectsSubsystem::IsEnabled()
-{
-	return SurfaceEffectConsoleVariables::bEnabled != 0;
 }

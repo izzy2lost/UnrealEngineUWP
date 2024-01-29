@@ -5,15 +5,16 @@
 
 #include "SurfaceEffectsSettings.generated.h"
 
+/**
+ * Surface Effects Settings.
+ */
 UCLASS(config=Engine, defaultconfig, meta=(DisplayName="Surface Effects"))
 class SURFACEEFFECTS_API USurfaceEffectsSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
-	/**
-	 * Data table for storing surface effect rules @see FSurfaceEffectTableRow
-	 */
-	UPROPERTY(config, EditAnywhere, Category = GameplayTags, meta = (AllowedClasses = "/Script/Engine.DataTable", RowType = "/Script/SurfaceEffects.SurfaceEffectTableRow"))
+	/** List of data tables to load tags from */
+	UPROPERTY(config, EditAnywhere, Category = GameplayTags, meta = (AllowedClasses = "/Script/Engine.DataTable"))
 	FSoftObjectPath SurfaceEffectsDataTable;
 };
