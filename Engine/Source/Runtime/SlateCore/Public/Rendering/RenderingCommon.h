@@ -107,7 +107,7 @@ enum class ESlateDrawEffect : uint8
 ENUM_CLASS_FLAGS(ESlateDrawEffect);
 
 /** Flags for drawing a batch */
-enum class ESlateBatchDrawFlag : uint8
+enum class ESlateBatchDrawFlag : uint16
 {
 	/** No draw flags */
 	None					= 0,
@@ -129,7 +129,9 @@ enum class ESlateBatchDrawFlag : uint8
 	/** The element should be tiled vertically */
 	TileV				= 1 << 6,
 	/** Reverse gamma correction */
-	ReverseGamma			 = 1 << 7
+	ReverseGamma		= 1 << 7,
+	/** Potentially apply to HDR batch when composition is active*/
+	HDR					= 1 << 8
 };
 
 ENUM_CLASS_FLAGS(ESlateBatchDrawFlag);
@@ -160,6 +162,12 @@ enum class ESlateVertexRounding : uint8
 {
 	Disabled,
 	Enabled
+};
+
+enum class ESlateViewportDynamicRange : uint8
+{
+	SDR,
+	HDR
 };
 
 class FSlateRenderBatch;
@@ -482,6 +490,14 @@ public:
 	virtual bool IsViewportTextureAlphaOnly() const
 	{
 		return false;
+	}
+
+	/**
+	 * Does the texture contain SDR/HDR information
+	 */
+	virtual ESlateViewportDynamicRange GetViewportDynamicRange() const
+	{
+		return ESlateViewportDynamicRange::SDR;
 	}
 
 	/**
