@@ -130,22 +130,36 @@ namespace EpicGames.Horde.Storage.Nodes
 			try
 			{
 				await ChunkedDataNode.CopyToFileAsync(Target.Handle, file, cancellationToken);
-
-				if ((Flags & FileEntryFlags.Executable) != 0)
-				{
-					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-					{
-						FileUtils.SetFileMode_Linux(file.FullName, 0b_111_111_111);
-					}
-					else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-					{
-						FileUtils.SetFileMode_Mac(file.FullName, 0b_111_111_111);
-					}
-				}
+				ApplyPermissions(file, Flags);
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
 				throw new Exception($"Unable to extract file {file.FullName}", ex);
+			}
+		}
+
+		/// <summary>
+		/// Applies the correct permissions to a file for a particular set of file entry flags
+		/// </summary>
+		/// <param name="fileInfo">File to modify</param>
+		/// <param name="flags">Flags for the file</param>
+		public static void ApplyPermissions(FileInfo fileInfo, FileEntryFlags flags)
+		{
+			if ((flags & FileEntryFlags.ReadOnly) != 0)
+			{
+				fileInfo.Attributes |= FileAttributes.ReadOnly;
+			}
+
+			if ((flags & FileEntryFlags.Executable) != 0)
+			{
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+				{
+					FileUtils.SetFileMode_Linux(fileInfo.FullName, 0b_111_111_111);
+				}
+				else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					FileUtils.SetFileMode_Mac(fileInfo.FullName, 0b_111_111_111);
+				}
 			}
 		}
 

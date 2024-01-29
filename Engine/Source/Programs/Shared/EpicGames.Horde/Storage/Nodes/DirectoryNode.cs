@@ -789,41 +789,46 @@ namespace EpicGames.Horde.Storage.Nodes
 					fileInfo.Attributes &= ~FileAttributes.ReadOnly;
 				}
 
-				await using FileStream stream = fileInfo.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
-				stream.SetLength(file.FileEntry.Length);
-
-				// If this file is empty, don't write anything and just move to the next chunk
-				if (file.FileEntry.Length == 0)
+				await using (FileStream stream = fileInfo.Open(FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite))
 				{
-					chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
-					continue;
+					stream.SetLength(file.FileEntry.Length);
+					if (file.FileEntry.Length == 0)
+					{
+						// If this file is empty, don't write anything and just move to the next chunk
+						chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
+					}
+					else
+					{
+						// Process as many chunks as we can for this file
+						using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
+						using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
+
+						while (chunk != null && chunk.File == file)
+						{
+							// Write this chunk
+							using (BlobData data = await chunk.Handle.ReadBlobDataAsync(cancellationToken))
+							{
+								TraceBlobRead("Leaf", CombinePaths(chunk.File.Directory.Path, chunk.File.FileEntry.Name), chunk.Handle, logger);
+								data.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, data.Data.Length));
+							}
+
+							// Update the stats
+							int numCompleteFiles = 0;
+							if (chunk.Offset + chunk.Length == file.FileEntry.Length)
+							{
+								numCompleteFiles = 1;
+							}
+
+							copyStats?.Update(numCompleteFiles, chunk.Length);
+
+							// Read the next chunk
+							chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
+						}
+					}
 				}
 
-				// Process as many chunks as we can for this file
-				using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
-				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
-
-				while (chunk != null && chunk.File == file)
-				{
-					// Write this chunk
-					using (BlobData data = await chunk.Handle.ReadBlobDataAsync(cancellationToken))
-					{
-						TraceBlobRead("Leaf", CombinePaths(chunk.File.Directory.Path, chunk.File.FileEntry.Name), chunk.Handle, logger);
-						data.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, data.Data.Length));
-					}
-
-					// Update the stats
-					int numCompleteFiles = 0;
-					if (chunk.Offset + chunk.Length == file.FileEntry.Length)
-					{
-						numCompleteFiles = 1;
-					}
-
-					copyStats?.Update(numCompleteFiles, chunk.Length);
-
-					// Read the next chunk
-					chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
-				}
+				// Set correct permissions on the output file
+				FileEntry.ApplyPermissions(fileInfo, file.FileEntry.Flags);
 			}
 		}
 
