@@ -744,7 +744,7 @@ bool FCustomizableInstanceDetails::IsVisible(int32 ParamIndexInObject)
 	{
 		FString* Value = UIData.ParamUIMetadata.ExtraInformation.Find(FString("__DisplayWhenParentValueEquals"));
 
-		if (Value && CustomInstance->GetIntParameterSelectedOption(*ParentName) != *Value)
+		if (Value && CustomizableObject->FindParameter(*ParentName) != INDEX_NONE && CustomInstance->GetIntParameterSelectedOption(*ParentName) != *Value)
 		{
 			return false;
 		}
