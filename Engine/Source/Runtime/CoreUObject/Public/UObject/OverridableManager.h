@@ -68,6 +68,7 @@ enum class EOverriddenState : uint8
 	HasOverrides, // has overrides in the object properties
 	AllOverridden, // all properties are overridden for this object and its subobjects
 	SubObjectsHasOverrides, // at least one of its subobjects has overrides
+	Added, // This object was added
 };
 
 
