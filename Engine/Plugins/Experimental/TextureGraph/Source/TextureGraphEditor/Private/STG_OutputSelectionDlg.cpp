@@ -97,6 +97,8 @@ void STG_OutputSelectionDlg::AddExportItems()
 				ThumbBlob->OnFinalise()
 					.then([ThumbBlob, NodeThumbnail]
 					{
+						// NOTE: If later, "this" were to be captured here, we should check DoesSharedInstanceExist()
+						// as there is a chance this might be invoked when the slate widgets have already been destroyed
 						if (NodeThumbnail.IsValid())
 						{
 							NodeThumbnail->UpdateBlob(ThumbBlob);

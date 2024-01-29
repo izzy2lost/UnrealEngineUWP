@@ -37,11 +37,19 @@ void STG_TextureHistogram::SetTexture(FTG_Texture& Source, UTextureGraph* InText
 		Source.RasterBlob->OnFinalise()
 		.then([this, InTextureGraph, Source]() mutable
 		{
-			T_TextureHistogram::CreateOnService(InTextureGraph, std::static_pointer_cast<TiledBlob>(Source.RasterBlob), 0);
-			return  Source->GetHistogram()->OnFinalise();
+			// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+			// deallocate all corresponding slate objects
+			if (DoesSharedInstanceExist())
+			{
+				T_TextureHistogram::CreateOnService(InTextureGraph, std::static_pointer_cast<TiledBlob>(Source.RasterBlob), 0);
+				return  Source->GetHistogram()->OnFinalise();
+			}
+			return (AsyncBlobResultPtr)(cti::make_ready_continuable<const Blob*>(nullptr));
 		})
 		.then([this, Source]() mutable
 		{
+			// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+			// deallocate all corresponding slate objects
 			if (DoesSharedInstanceExist())
             {
 				TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(Source.RasterBlob->GetHistogram());

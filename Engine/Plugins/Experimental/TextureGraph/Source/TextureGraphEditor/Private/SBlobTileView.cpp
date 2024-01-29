@@ -52,8 +52,13 @@ void SBlobTileView::Construct(const FArguments& InArgs)
 		{
 			Blob->OnFinalise().then([this, InArgs, Blob, GridPanel]()
 			{
-				InArgs._OnFinalizeBlob.ExecuteIfBound();
-				CreateTiles(Blob, GridPanel, InArgs._padding);
+				// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+				// deallocate all corresponding slate objects
+				if (DoesSharedInstanceExist())
+				{		
+					InArgs._OnFinalizeBlob.ExecuteIfBound();
+					CreateTiles(Blob, GridPanel, InArgs._padding);
+				}
 			});
 		}
 		else

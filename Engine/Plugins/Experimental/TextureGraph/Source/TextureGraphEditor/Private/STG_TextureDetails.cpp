@@ -154,7 +154,9 @@ void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTex
 	InBlob->OnFinalise()
 		.then([this, InTextureGraph, InBlob]() mutable
 		{
-			if (!InBlob->IsTransient())
+			// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+			// deallocate all corresponding slate objects
+			if (DoesSharedInstanceExist() && !InBlob->IsTransient())
 			{
 				T_TextureHistogram::CreateOnService(InTextureGraph, std::static_pointer_cast<TiledBlob>(InBlob), 0);
 				return InBlob->GetHistogram()->OnFinalise();

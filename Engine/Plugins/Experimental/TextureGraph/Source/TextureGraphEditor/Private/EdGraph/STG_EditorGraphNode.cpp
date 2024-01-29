@@ -885,6 +885,8 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleRightWidget()
 			{
 				CachedThumb->OnFinalise().then([CachedThumb, ThumbnailWidget]()
 				{
+					// NOTE: If later, "this" were to be captured here, we should check DoesSharedInstanceExist()
+					// as there is a chance this might be invoked when the slate widgets have already been destroyed
 					if (ThumbnailWidget.IsValid())
 					{
 						ThumbnailWidget->UpdateBlob(CachedThumb);
@@ -1010,15 +1012,26 @@ void STG_EditorGraphNode::UpdateThumbnail(const FTG_EvaluationContext* InContext
 				ThumbBlob->OnFinalise()
 					.then([=, this](const Blob* FinalisedBlob) mutable
 						{
-							return ThumbBlob->CombineTiles(true, false);
+							// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+							// deallocate all corresponding slate objects
+							if (DoesSharedInstanceExist())
+							{
+								return ThumbBlob->CombineTiles(true, false);
+							}
+							return static_cast<AsyncBufferResultPtr>(cti::make_ready_continuable<BufferResultPtr>(std::make_shared<BufferResult>()));
 						})
 					.then([=, this](BufferResultPtr) mutable
 						{
-							auto ThumbWidget = FindOrCreateThumbWidget(Pin->GetId());
-
-							if (ThumbWidget.IsValid())
+							// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+							// deallocate all corresponding slate objects
+							if (DoesSharedInstanceExist())
 							{
-								ThumbWidget->UpdateBlob(ThumbBlob);
+								auto ThumbWidget = FindOrCreateThumbWidget(Pin->GetId());
+
+								if (ThumbWidget.IsValid())
+								{
+									ThumbWidget->UpdateBlob(ThumbBlob);
+								}
 							}
 						});
 			}
