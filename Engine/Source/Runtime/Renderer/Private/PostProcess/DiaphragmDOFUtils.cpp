@@ -147,11 +147,13 @@ void DiaphragmDOF::FPhysicalCocModel::Compile(const FViewInfo& View)
 			// so clamp the in focus radius to always be positive
 			InFocusRadius = FMath::Max(InfinityBackgroundCocRadius * (1 - FocusDistance / View.InFocusDistance), 0.0f);
 			bEnableDynamicOffset = View.bEnableDynamicCocOffset;
+			DynamicRadiusOffsetLUT = View.bEnableDynamicCocOffset ? View.DynamicCocOffsetLUT : nullptr;
 		}
 		else
 		{
 			InFocusRadius = 0.0;
 			bEnableDynamicOffset = false;
+			DynamicRadiusOffsetLUT = nullptr;
 		}
 	}
 	else
@@ -160,6 +162,7 @@ void DiaphragmDOF::FPhysicalCocModel::Compile(const FViewInfo& View)
 		MinForegroundCocRadius = 0.0;
 		InFocusRadius = 0.0;
 		bEnableDynamicOffset = false;
+		DynamicRadiusOffsetLUT = nullptr;
 	}
 }
 

@@ -37,6 +37,9 @@ struct FPhysicalCocModel
 	/** When dynamic offset is enabled, this is the coc radius at which objects will be perfectly sharp */
 	float InFocusRadius;
 
+	/** Radius offset lookup table */
+	FRHITexture2D* DynamicRadiusOffsetLUT;
+
 	// Resolution less minimal foreground coc radius < 0.
 	float MinForegroundCocRadius;
 
