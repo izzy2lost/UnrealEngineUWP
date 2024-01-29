@@ -33,6 +33,7 @@
 #include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/ViewModels/TrackAreaViewModel.h"
 #include "MVVM/ViewModels/ViewModel.h"
+#include "MVVM/ViewModels/EditorSharedViewModelData.h"
 #include "MVVM/Views/ITrackAreaHotspot.h"
 
 namespace UE
@@ -83,6 +84,8 @@ UE_SEQUENCER_DEFINE_CASTABLE(FOutlinerSpacer);
 UE_SEQUENCER_DEFINE_CASTABLE(FOutlinerViewModel);
 UE_SEQUENCER_DEFINE_CASTABLE(FTrackAreaViewModel);
 UE_SEQUENCER_DEFINE_CASTABLE(FViewModel);
+UE_SEQUENCER_DEFINE_CASTABLE(FSharedViewModelData);
+UE_SEQUENCER_DEFINE_CASTABLE(FEditorSharedViewModelData);
 
 // Views
 UE_SEQUENCER_DEFINE_CASTABLE(ITrackAreaHotspot);

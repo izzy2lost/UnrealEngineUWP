@@ -42,6 +42,7 @@ public class DMXEditor : ModuleRules
 				"MainFrame",
 				"MovieScene",
 				"PropertyEditor",
+				"SequencerCore",
 				"Slate",
 				"SlateCore",
 				"TakesCore",

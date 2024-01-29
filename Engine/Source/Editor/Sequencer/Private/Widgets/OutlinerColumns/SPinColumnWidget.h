@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Widgets/OutlinerColumns/SColumnToggleWidget.h"
+#include "MVVM/Views/OutlinerColumns/SColumnToggleWidget.h"
 
 namespace UE::Sequencer
 {
@@ -19,7 +19,7 @@ public:
 	SLATE_BEGIN_ARGS(SPinColumnWidget) {}
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams);
+	void Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams);
 
 public:
 

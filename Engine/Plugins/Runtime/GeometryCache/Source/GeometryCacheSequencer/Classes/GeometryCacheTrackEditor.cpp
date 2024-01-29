@@ -9,7 +9,7 @@
 #include "SequencerSectionPainter.h"
 #include "MovieSceneGeometryCacheTrack.h"
 #include "MovieSceneGeometryCacheSection.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "Fonts/FontMeasure.h"
 #include "GeometryCacheComponent.h"
 #include "GeometryCache.h"
@@ -20,7 +20,7 @@
 namespace GeometryCacheEditorConstants
 {
 	// @todo Sequencer Allow this to be customizable
-	const uint32 AnimationTrackHeight = 20;
+	const uint32 AnimationTrackHeight = 28;
 }
 
 #define LOCTEXT_NAMESPACE "FGeometryCacheTrackEditor"
@@ -399,13 +399,7 @@ TSharedPtr<SWidget> FGeometryCacheTrackEditor::BuildOutlinerEditWidget(const FGu
 			return MenuBuilder.MakeWidget();
 		};
 
-		return SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			[
-				FSequencerUtilities::MakeAddButton(LOCTEXT("GeomCacheText", "Geometry Cache"), FOnGetContent::CreateLambda(SubMenuCallback), Params.NodeIsHovered, GetSequencer())
-			];
+		return UE::Sequencer::MakeAddButton(LOCTEXT("GeomCacheText", "Geometry Cache"), FOnGetContent::CreateLambda(SubMenuCallback), Params.ViewModel);
 	}
 	else
 	{

@@ -6,7 +6,7 @@
 #include "Sections/MovieSceneLevelVisibilitySection.h"
 #include "Sections/LevelVisibilitySection.h"
 #include "Tracks/MovieSceneLevelVisibilityTrack.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/World.h"
 #include "Misc/PackageName.h"
@@ -60,11 +60,10 @@ void FLevelVisibilityTrackEditor::BuildAddTrackMenu( FMenuBuilder& MenuBuilder )
 
 TSharedPtr<SWidget> FLevelVisibilityTrackEditor::BuildOutlinerEditWidget( const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params )
 {
-	// Create a container edit box
-	return FSequencerUtilities::MakeAddButton( 
+	return UE::Sequencer::MakeAddButton(
 		LOCTEXT( "AddVisibilityTrigger", "Visibility Trigger" ),
 		FOnGetContent::CreateSP( this, &FLevelVisibilityTrackEditor::BuildAddVisibilityTriggerMenu, Track ),
-		Params.NodeIsHovered, GetSequencer() );
+		Params.ViewModel);
 }
 
 void FLevelVisibilityTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track )

@@ -23,7 +23,7 @@
 #include "MovieSceneTrackEditor.h"
 #include "Sections/BindingLifetimeSection.h"
 #include "Widgets/SBoxPanel.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 
 class ISequencerTrackEditor;
 
@@ -181,13 +181,7 @@ TSharedPtr<SWidget> FBindingLifetimeTrackEditor::BuildOutlinerEditWidget(const F
 		return FReply::Handled();
 	};
 
-	return SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		[
-			FSequencerUtilities::MakeAddButton(LOCTEXT("AddSection", "Section"), FOnClicked::CreateLambda(OnClickedCallback), Params.NodeIsHovered, GetSequencer())
-		];
+	return UE::Sequencer::MakeAddButton(LOCTEXT("AddSection", "Section"), FOnClicked::CreateLambda(OnClickedCallback), Params.ViewModel);
 }
 
 

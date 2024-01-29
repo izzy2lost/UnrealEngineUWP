@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/OutlinerColumns/SSoloColumnWidget.h"
+#include "MVVM/Views/OutlinerColumns/SSoloColumnWidget.h"
 
 #include "MVVM/SharedViewModelData.h"
-#include "MVVM/Selection/Selection.h"
+#include "MVVM/Selection/SequencerCoreSelection.h"
+#include "MVVM/Selection/SequencerOutlinerSelection.h"
 #include "MVVM/Extensions/ISoloableExtension.h"
-#include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/EditorViewModel.h"
-#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
 
 namespace UE::Sequencer
 {
@@ -18,7 +18,7 @@ void SSoloColumnWidget::OnToggleOperationComplete()
 	RefreshSequencerTree();
 }
 
-void SSoloColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const UE::Sequencer::FCreateOutlinerColumnParams& InParams)
+void SSoloColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
 {
 	SColumnToggleWidget::Construct(
 		SColumnToggleWidget::FArguments(),
@@ -42,13 +42,8 @@ bool SSoloColumnWidget::IsActive() const
 void SSoloColumnWidget::SetIsActive(const bool bInIsActive)
 {
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-	if (!OutlinerItem)
-	{
-		return;
-	}
-
-	TSharedPtr<FSequenceModel> SequenceModel = OutlinerItem.AsModel()->FindAncestorOfType<FSequenceModel>();
-	if (!SequenceModel)
+	TSharedPtr<FEditorViewModel>      Editor       = WeakEditor.Pin();
+	if (!OutlinerItem || !Editor)
 	{
 		return;
 	}
@@ -58,7 +53,7 @@ void SSoloColumnWidget::SetIsActive(const bool bInIsActive)
 	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
 	{
 		// if selected, modify all selected items
-		for (TViewModelPtr<ISoloableExtension> Soloable : SequenceModel->GetEditor()->GetSelection()->Outliner.Filter<ISoloableExtension>())
+		for (TViewModelPtr<ISoloableExtension> Soloable : Editor->GetSelection()->GetOutlinerSelection()->Filter<ISoloableExtension>())
 		{
 			Soloable->SetIsSoloed(bInIsActive);
 		}

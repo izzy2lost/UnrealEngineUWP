@@ -11,7 +11,9 @@
 #include "Sections/CinematicShotSection.h"
 #include "Sections/MovieSceneCinematicShotSection.h"
 #include "SequencerSettings.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
+#include "MVVM/Extensions/ITrackExtension.h"
 #include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
 #include "TrackInstances/MovieSceneCameraCutTrackInstance.h"
 #include "Tracks/MovieSceneCinematicShotTrack.h"
@@ -72,40 +74,50 @@ void FCinematicShotTrackEditor::OnRelease()
 /* ISequencerTrackEditor interface
  *****************************************************************************/
 
-TSharedPtr<SWidget> FCinematicShotTrackEditor::BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params)
+TSharedPtr<SWidget> FCinematicShotTrackEditor::BuildOutlinerColumnWidget(const FBuildColumnWidgetParams& Params, const FName& ColumnName)
 {
-	// Create a container edit box
-	return SNew(SHorizontalBox)
+	using namespace UE::Sequencer;
 
-	// Add the camera combo box
-	+ SHorizontalBox::Slot()
-	.AutoWidth()
-	.VAlign(VAlign_Center)
-	[
-		FSequencerUtilities::MakeAddButton(LOCTEXT("CinematicShotText", "Shot"), FOnGetContent::CreateSP(this, &FCinematicShotTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent, Track), Params.NodeIsHovered, GetSequencer())
-	]
+	if (ColumnName == FCommonOutlinerNames::Add)
+	{
+		return UE::Sequencer::MakeAddButton(
+			LOCTEXT("CinematicShotText", "Shot"),
+			FOnGetContent::CreateSP(this, &FCinematicShotTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent, Params.TrackModel->GetTrack()),
+			Params.ViewModel);
+	}
 
-	+ SHorizontalBox::Slot()
-	.VAlign(VAlign_Center)
-	.HAlign(HAlign_Right)
-	.AutoWidth()
-	.Padding(4, 0, 0, 0)
-	[
-		SNew(SCheckBox)
-        .Style( &FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckBoxAlt"))
-		.Type(ESlateCheckBoxType::CheckBox)
-		.Padding(FMargin(0.f))
+	// Show the camera lock button in the Edit area if the nav column is disabled
+	const bool bEditColumn = (ColumnName == FCommonOutlinerNames::Edit && !Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav));
+	if (ColumnName == FCommonOutlinerNames::Nav || bEditColumn)
+	{
+		TSharedRef<SWidget> Button = SNew(SCheckBox)
+		.Style(FAppStyle::Get(), "Sequencer.Outliner.ToggleButton")
+		.Type(ESlateCheckBoxType::ToggleButton)
 		.IsFocusable(false)
 		.IsChecked(this, &FCinematicShotTrackEditor::AreShotsLocked)
 		.OnCheckStateChanged(this, &FCinematicShotTrackEditor::OnLockShotsClicked)
 		.ToolTipText(this, &FCinematicShotTrackEditor::GetLockShotsToolTip)
-		.CheckedImage(FAppStyle::GetBrush("Sequencer.LockCamera"))
-		.CheckedHoveredImage(FAppStyle::GetBrush("Sequencer.LockCamera"))
-		.CheckedPressedImage(FAppStyle::GetBrush("Sequencer.LockCamera"))
-		.UncheckedImage(FAppStyle::GetBrush("Sequencer.UnlockCamera"))
-		.UncheckedHoveredImage(FAppStyle::GetBrush("Sequencer.UnlockCamera"))
-		.UncheckedPressedImage(FAppStyle::GetBrush("Sequencer.UnlockCamera"))
-	];
+		[
+			SNew(SImage)
+				.Image(FAppStyle::GetBrush("Sequencer.Outliner.CameraLock"))
+		];
+
+		if (bEditColumn)
+		{
+			return SNew(SBox)
+			.HAlign(HAlign_Left)
+			.Padding(4.f, 0.f)
+			[
+				Button
+			];
+		}
+		else
+		{
+			return Button;
+		}
+	}
+
+	return FMovieSceneTrackEditor::BuildOutlinerColumnWidget(Params, ColumnName);
 }
 
 TSharedRef<ISequencerSection> FCinematicShotTrackEditor::MakeSectionInterface(UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding)

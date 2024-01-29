@@ -4,6 +4,7 @@
 #include "KeyParams.h"
 #include "ISequencer.h"
 #include "SSequencer.h"
+#include "MVVM/ViewModels/ViewDensity.h"
 
 USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitializer )
 	: Super( ObjectInitializer )
@@ -66,6 +67,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	TreeViewWidth = 0.3f;
 	bShowTickLines = true;
 	bShowSequencerToolbar = true;
+	ViewDensity = "Relaxed";
 
 	SectionColorTints.Add(FColor(88, 102, 142, 255)); // blue
 	SectionColorTints.Add(FColor(99, 137, 132, 255)); // blue-green
@@ -975,6 +977,30 @@ void USequencerSettings::SetTreeViewWidth(float InTreeViewWidth)
 	if (InTreeViewWidth != TreeViewWidth)
 	{
 		TreeViewWidth = InTreeViewWidth;
+		SaveConfig();
+	}
+}
+
+UE::Sequencer::EViewDensity USequencerSettings::GetViewDensity() const
+{
+	static FName NAME_Relaxed("Relaxed");
+	static FName NAME_Expanded("Expanded");
+	if (ViewDensity == NAME_Relaxed)
+	{
+		return UE::Sequencer::EViewDensity::Relaxed;
+	}
+	if (ViewDensity == NAME_Expanded)
+	{
+		return UE::Sequencer::EViewDensity::Expanded;
+	}
+	return UE::Sequencer::EViewDensity::Compact;
+}
+
+void USequencerSettings::SetViewDensity(FName InViewDensity)
+{
+	if (InViewDensity != ViewDensity)
+	{
+		ViewDensity = InViewDensity;
 		SaveConfig();
 	}
 }

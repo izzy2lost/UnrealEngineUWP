@@ -13,6 +13,7 @@
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/ViewModels/ViewModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
+#include "MVVM/ViewModels/EditorSharedViewModelData.h"
 
 #include "MovieScene.h"
 #include "MovieSceneFolder.h"
@@ -42,7 +43,7 @@ FSequenceModel::FSequenceModel(TWeakPtr<FSequencerEditorViewModel> InEditorViewM
 
 void FSequenceModel::InitializeExtensions()
 {
-	TSharedPtr<FSharedViewModelData> NewSharedData = MakeShared<FSharedViewModelData>();
+	TSharedPtr<FSharedViewModelData> NewSharedData = MakeShared<FEditorSharedViewModelData>(WeakEditor.Pin().ToSharedRef());
 	SetSharedData(NewSharedData);
 
 	// Re-generate hierarchical caches when the sequence changes

@@ -20,6 +20,17 @@ FSequencerOutlinerViewModel::FSequencerOutlinerViewModel()
 {
 }
 
+void FSequencerOutlinerViewModel::RequestUpdate()
+{
+	FSequencerEditorViewModel* EditorViewModel = GetEditor()->CastThisChecked<FSequencerEditorViewModel>();
+	TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+
+	if (Sequencer)
+	{
+		Sequencer->RefreshTree();
+	}
+}
+
 TSharedPtr<SWidget> FSequencerOutlinerViewModel::CreateContextMenuWidget()
 {
 	FSequencerEditorViewModel* EditorViewModel = GetEditor()->CastThisChecked<FSequencerEditorViewModel>();

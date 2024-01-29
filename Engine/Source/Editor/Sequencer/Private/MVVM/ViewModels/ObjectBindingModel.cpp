@@ -11,6 +11,7 @@
 #include "MVVM/ObjectBindingModelStorageExtension.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/ViewModels/OutlinerViewModelDragDropOp.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
 #include "MVVM/Views/SOutlinerObjectBindingView.h"
 #include "MVVM/Views/STrackLane.h"
 #include "MVVM/Selection/Selection.h"
@@ -45,16 +46,14 @@
 #include "SequencerCommands.h"
 #include "SequencerNodeTree.h"
 #include "SequencerSettings.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/SSequencerBindingLifetimeOverlay.h"
 
 #define LOCTEXT_NAMESPACE "ObjectBindingModel"
 
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
 namespace
@@ -266,7 +265,9 @@ FGuid FObjectBindingModel::GetObjectGuid() const
 
 FOutlinerSizing FObjectBindingModel::GetOutlinerSizing() const
 {
-	return FOutlinerSizing(20.f, 4.f);
+	const float CompactHeight = 28.f;
+	FViewDensityInfo Density = GetEditor()->GetViewDensity();
+	return FOutlinerSizing(Density.UniformHeight.Get(CompactHeight));
 }
 
 void FObjectBindingModel::GetIdentifierForGrouping(TStringBuilder<128>& OutString) const
@@ -274,19 +275,75 @@ void FObjectBindingModel::GetIdentifierForGrouping(TStringBuilder<128>& OutStrin
 	FOutlinerItemModel::GetIdentifier().ToString(OutString);
 }
 
-TSharedRef<SWidget> FObjectBindingModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)
+TSharedPtr<SWidget> FObjectBindingModel::CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {
 	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel->GetSequencerImpl();
+	TSharedPtr<FSequencer>                Sequencer       = EditorViewModel->GetSequencerImpl();
 
-	const FMovieSceneSequenceID SequenceID = OwnerModel->GetSequenceID();
-	const MovieScene::FFixedObjectBindingID FixedObjectBindingID(ObjectBindingID, SequenceID);
+	if (InColumnName == FCommonOutlinerNames::Label)
+	{
+		const FMovieSceneSequenceID SequenceID = OwnerModel->GetSequenceID();
+		const MovieScene::FFixedObjectBindingID FixedObjectBindingID(ObjectBindingID, SequenceID);
 
-	return SNew(SOutlinerObjectBindingView, SharedThis(this), EditorViewModel, InParams.TreeViewRow)
-		.AdditionalLabelContent()
-		[
-			SNew(SObjectBindingTags, FixedObjectBindingID, Sequencer->GetObjectBindingTagCache())
-		];
+		return SNew(SOutlinerItemViewBase, SharedThis(this), EditorViewModel, InParams.TreeViewRow)
+			.AdditionalLabelContent()
+			[
+				SNew(SObjectBindingTags, FixedObjectBindingID, Sequencer->GetObjectBindingTagCache())
+			];
+	}
+
+	if (InColumnName == FCommonOutlinerNames::Add)
+	{
+		return UE::Sequencer::MakeAddButton(
+			LOCTEXT("TrackText", "Track"),
+			FOnGetContent::CreateSP(this, &FObjectBindingModel::GetAddTrackMenuContent),
+			SharedThis(this));
+	}
+
+
+	// Ask track editors to populate the column.
+	// @todo: this is potentially very slow and will not scale as the number of track editors increases.
+	const bool bIsEditColumn = InColumnName == FCommonOutlinerNames::Edit;
+	TSharedPtr<SHorizontalBox> Box;
+
+	auto GetEditBox = [&Box]
+	{
+		if (!Box)
+		{
+			Box = SNew(SHorizontalBox);
+
+			auto CollapsedIfAllSlotsCollapsed = [Box]() -> EVisibility
+			{
+				for (int32 Index = 0; Index < Box->NumSlots(); ++Index)
+				{
+					EVisibility SlotVisibility = Box->GetSlot(Index).GetWidget()->GetVisibility();
+					if (SlotVisibility != EVisibility::Collapsed)
+					{
+						return EVisibility::SelfHitTestInvisible;
+					}
+				}
+				return EVisibility::Collapsed;
+			};
+
+			// Make the edit box collapsed if all of its slots are collapsed (or it has none)
+			Box->SetVisibility(MakeAttributeLambda(CollapsedIfAllSlotsCollapsed));
+		}
+		return Box.ToSharedRef();
+	};
+
+	for (const TSharedPtr<ISequencerTrackEditor>& TrackEditor : Sequencer->GetTrackEditors())
+	{
+		TrackEditor->BuildObjectBindingColumnWidgets(GetEditBox, SharedThis(this), InParams, InColumnName);
+
+		if (bIsEditColumn)
+		{
+			// Backwards compat
+			GetEditBox();
+			TrackEditor->BuildObjectBindingEditButtons(Box, ObjectBindingID, FindObjectClass());
+		}
+	}
+
+	return Box && Box->NumSlots() != 0 ? Box : nullptr;
 }
 
 bool FObjectBindingModel::GetDefaultExpansionState() const
@@ -1274,8 +1331,7 @@ void FObjectBindingModel::Delete()
 	}
 }
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE
 

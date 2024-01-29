@@ -31,10 +31,15 @@
 #include "MVVM/ViewModels/SequenceModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 
-#include "OutlinerColumns/LockOutlinerColumn.h"
-#include "OutlinerColumns/MuteOutlinerColumn.h"
-#include "OutlinerColumns/PinOutlinerColumn.h"
-#include "OutlinerColumns/SoloOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/LockOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/MuteOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/PinOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/SoloOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/LabelOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/EditOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/AddOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/NavOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/ColorPickerOutlinerColumn.h"
 
 #include "ToolMenus.h"
 #include "ContentBrowserMenuContexts.h"
@@ -380,11 +385,20 @@ public:
 			FPropertyEditorModule& EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 			OnGetGlobalRowExtensionHandle = EditModule.GetGlobalRowExtensionDelegate().AddStatic(&RegisterKeyframeExtensionHandler);
 
-			// Register built-in outliner columns (default order is pin, mute, lock, solo)
-			PinOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FPinOutlinerColumn::CreateOutlinerColumn));
-			MuteOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FMuteOutlinerColumn::CreateOutlinerColumn));
-			LockOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FLockOutlinerColumn::CreateOutlinerColumn));
-			SoloOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic(&FSoloOutlinerColumn::CreateOutlinerColumn));
+			// Register left gutter columns
+			PinOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FPinOutlinerColumn>()); }));
+			MuteOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FMuteOutlinerColumn>()); }));
+			LockOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FLockOutlinerColumn>()); }));
+			SoloOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FSoloOutlinerColumn>()); }));
+
+			// Register center columns
+			LabelOutlinerColumnHandle = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FLabelOutlinerColumn>()); }));
+			EditOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FEditOutlinerColumn>()); }));
+			AddOutlinerColumnHandle   = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FAddOutlinerColumn>()); }));
+
+			// Register right gutter columns
+			NavOutlinerColumnHandle          = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FNavOutlinerColumn>()); }));
+			ColorPickerOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FColorPickerOutlinerColumn>()); }));
 
 			RegisterObjectSchemas();
 		}
@@ -435,6 +449,11 @@ public:
 			UnregisterOutlinerColumn(MuteOutlinerColumnHandle);
 			UnregisterOutlinerColumn(LockOutlinerColumnHandle);
 			UnregisterOutlinerColumn(SoloOutlinerColumnHandle);
+			UnregisterOutlinerColumn(LabelOutlinerColumnHandle);
+			UnregisterOutlinerColumn(EditOutlinerColumnHandle);
+			UnregisterOutlinerColumn(AddOutlinerColumnHandle);
+			UnregisterOutlinerColumn(NavOutlinerColumnHandle);
+			UnregisterOutlinerColumn(ColorPickerOutlinerColumnHandle);
 		}
 	}
 
@@ -621,6 +640,11 @@ private:
 	FDelegateHandle MuteOutlinerColumnHandle;
 	FDelegateHandle LockOutlinerColumnHandle;
 	FDelegateHandle SoloOutlinerColumnHandle;
+	FDelegateHandle LabelOutlinerColumnHandle;
+	FDelegateHandle EditOutlinerColumnHandle;
+	FDelegateHandle AddOutlinerColumnHandle;
+	FDelegateHandle NavOutlinerColumnHandle;
+	FDelegateHandle ColorPickerOutlinerColumnHandle;
 };
 
 IMPLEMENT_MODULE(FSequencerModule, Sequencer);

@@ -89,7 +89,7 @@ public:
 
 	/*~ IOutlinerExtension */
 	FOutlinerSizing GetOutlinerSizing() const override;
-	TSharedRef<SWidget> CreateOutlinerView(const FCreateOutlinerViewParams& InParams) override;
+	TSharedPtr<SWidget> CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName) override;
 	FSlateFontInfo GetLabelFont() const override;
 	const FSlateBrush* GetIconBrush() const override;
 	FText GetLabel() const override;

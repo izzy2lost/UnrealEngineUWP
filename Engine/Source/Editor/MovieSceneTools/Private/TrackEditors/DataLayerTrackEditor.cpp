@@ -9,7 +9,7 @@
 #include "Styling/AppStyle.h"
 #include "Sections/MovieSceneDataLayerSection.h"
 #include "Tracks/MovieSceneDataLayerTrack.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "LevelUtils.h"
 #include "MovieSceneTimeHelpers.h"
 #include "MovieSceneToolHelpers.h"
@@ -301,10 +301,10 @@ void FDataLayerTrackEditor::BuildAddTrackMenu(FMenuBuilder& MenuBuilder)
 
 TSharedPtr<SWidget> FDataLayerTrackEditor::BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params)
 {
-	return FSequencerUtilities::MakeAddButton(
+	return UE::Sequencer::MakeAddButton(
 		LOCTEXT("AddDataLayer_ButtonLabel", "Data Layer"),
 		FOnGetContent::CreateSP(this, &FDataLayerTrackEditor::BuildAddDataLayerMenu, Track),
-		Params.NodeIsHovered, GetSequencer());
+		Params.ViewModel);
 }
 
 UMovieSceneDataLayerSection* FDataLayerTrackEditor::AddNewSection(UMovieScene* MovieScene, UMovieSceneTrack* DataLayerTrack, EDataLayerRuntimeState DesiredState)

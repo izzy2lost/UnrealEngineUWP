@@ -10,19 +10,20 @@ class SWidget;
 class UMovieSceneSequence;
 
 namespace UE::Sequencer 
-{ 
+{
+
+struct FOutlinerColumnPosition;
+struct FOutlinerColumnLayout;
+
+class ISequencerTreeViewRow;
 class IOutlinerExtension;
 class FEditorViewModel;
-}
 
-namespace UE::Sequencer
-{
 
 /** Parameters for creating an outliner column widget. */
-struct SEQUENCERCORE_API FCreateOutlinerColumnParams
+struct FCreateOutlinerColumnParams
 {
-
-	FCreateOutlinerColumnParams(const TViewModelPtr<IOutlinerExtension> InOutlinerExtension, const TSharedPtr<FEditorViewModel> InEditor)
+	FCreateOutlinerColumnParams(const TViewModelPtr<IOutlinerExtension>& InOutlinerExtension, const TSharedPtr<FEditorViewModel> InEditor)
 		: OutlinerExtension(InOutlinerExtension)
 		, Editor(InEditor)
 	{}
@@ -31,12 +32,10 @@ struct SEQUENCERCORE_API FCreateOutlinerColumnParams
 	const TSharedPtr<FEditorViewModel> Editor;
 };
 
-}
-
 /**
 * Interface for sequencer outliner columns.
 */
-class SEQUENCERCORE_API ISequencerOutlinerColumn
+class SEQUENCERCORE_API IOutlinerColumn : public TSharedFromThis<IOutlinerColumn>
 {
 
 public:
@@ -47,6 +46,12 @@ public:
 	/** Returns the label of the column to display in visibility settings. */
 	virtual FText GetColumnLabel() const = 0;
 
+	/** Get this columns position data relative to other columns */
+	virtual FOutlinerColumnPosition GetPosition() const = 0;
+
+	/** Get the layout information for this column's cells */
+	virtual FOutlinerColumnLayout GetLayout() const = 0;
+
 	/* The default visibility state of this column when loaded for the first time. */
 	virtual bool IsColumnVisibleByDefault() const { return true; }
 
@@ -54,14 +59,17 @@ public:
 	virtual bool SupportsSequence(UMovieSceneSequence* InSequence) const { return true; }
 
 	/* Gets whether or not a widget should be generated for a given item in the outliner column. */
-	virtual bool IsItemCompatibleWithColumn(const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;
+	virtual bool IsItemCompatibleWithColumn(const FCreateOutlinerColumnParams& InParams) const = 0;
 
 	/* Gets the widget created for each item within the SOutlinerView, column widgets must be fixed width. */
-	virtual TSharedRef<SWidget> CreateColumnWidget(const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const UE::Sequencer::FCreateOutlinerColumnParams& InParams) const = 0;
+	virtual TSharedPtr<SWidget> CreateColumnWidget(const FCreateOutlinerColumnParams& InParams, const TSharedRef<ISequencerTreeViewRow>& TreeViewRow) = 0;
 
 public:
 
 	/** Virtual destructor. */
-	virtual ~ISequencerOutlinerColumn() { }
+	virtual ~IOutlinerColumn() { }
 
 };
+
+
+} // namespace UE::Sequencer

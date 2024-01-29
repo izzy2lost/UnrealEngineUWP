@@ -1,16 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/OutlinerColumns/SLockColumnWidget.h"
+#include "MVVM/Views/OutlinerColumns/SLockColumnWidget.h"
+
 #include "MVVM/SharedViewModelData.h"
-#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/ViewModelIterators.h"
+#include "MVVM/ViewModels/EditorViewModel.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
 #include "MVVM/Extensions/ILockableExtension.h"
-#include "MVVM/ViewModels/SequenceModel.h"
-#include "MVVM/Selection/Selection.h"
+#include "MVVM/Selection/SequencerCoreSelection.h"
+#include "MVVM/Selection/SequencerOutlinerSelection.h"
 
 namespace UE::Sequencer
 {
 
-void SLockColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const UE::Sequencer::FCreateOutlinerColumnParams& InParams)
+void SLockColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
 {
 	SColumnToggleWidget::Construct(
 		SColumnToggleWidget::FArguments(),
@@ -34,13 +37,8 @@ bool SLockColumnWidget::IsActive() const
 void SLockColumnWidget::SetIsActive(const bool bInIsActive)
 {
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-	if (!OutlinerItem)
-	{
-		return;
-	}
-
-	TSharedPtr<FSequenceModel> SequenceModel = OutlinerItem.AsModel()->FindAncestorOfType<FSequenceModel>();
-	if (!SequenceModel)
+	TSharedPtr<FEditorViewModel>      Editor       = WeakEditor.Pin();
+	if (!OutlinerItem || !Editor)
 	{
 		return;
 	}
@@ -50,7 +48,7 @@ void SLockColumnWidget::SetIsActive(const bool bInIsActive)
 	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
 	{
 		// modify all selected items
-		for (FViewModelPtr OutlinerNode : SequenceModel->GetEditor()->GetSelection()->Outliner)
+		for (FViewModelPtr OutlinerNode : *Editor->GetSelection()->GetOutlinerSelection())
 		{
 			for (TSharedPtr<ILockableExtension> Lockable : OutlinerNode->GetDescendantsOfType<ILockableExtension>(true))
 			{

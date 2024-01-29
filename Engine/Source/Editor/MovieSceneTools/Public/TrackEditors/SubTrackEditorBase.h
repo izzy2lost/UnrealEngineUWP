@@ -137,7 +137,7 @@ public:
     virtual FText GetSectionTitle() const override;
 	virtual FText GetSectionToolTip() const override;
 	virtual TOptional<FFrameTime> GetSectionTime(FSequencerSectionPainter& InPainter) const override;
-	virtual float GetSectionHeight() const override;
+	virtual float GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const override;
     virtual bool IsReadOnly() const override;
     virtual int32 OnPaintSection( FSequencerSectionPainter& InPainter ) const override;
     virtual FReply OnSectionDoubleClicked(const FGeometry& SectionGeometry, const FPointerEvent& MouseEvent) override;
@@ -288,7 +288,7 @@ TOptional<FFrameTime> TSubSectionMixin<ParentSectionClass>::GetSectionTime(FSequ
 #undef LOCTEXT_NAMESPACE
 
 template<typename ParentSectionClass>
-float TSubSectionMixin<ParentSectionClass>::GetSectionHeight() const
+float TSubSectionMixin<ParentSectionClass>::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
 	if (UMovieSceneSubTrack* Track = SubSectionObject.GetTypedOuter<UMovieSceneSubTrack>())
 	{

@@ -19,7 +19,6 @@ class FExtensibilityManager;
 class FMenuBuilder;
 class FSequencerCustomizationManager;
 class ISequencerTrackEditor;
-class ISequencerOutlinerColumn;
 class ISequencerEditorObjectBinding;
 class IToolkitHost;
 class UMovieSceneSequence;
@@ -29,6 +28,7 @@ namespace UE::Sequencer
 {
 	class FTrackModel;
 	class IObjectSchema;
+	class IOutlinerColumn;
 } // namespace UE::Sequencer
 
 enum class ECurveEditorTreeFilterType : uint32;
@@ -61,7 +61,7 @@ DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<ISequencerEditorObjectBinding>, FOnC
 DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<UE::Sequencer::FTrackModel>, FOnCreateTrackModel, UMovieSceneTrack*);
 
 /** A delegate which will create an outliner column */
-DECLARE_DELEGATE_RetVal(TSharedRef<ISequencerOutlinerColumn>, FOnCreateOutlinerColumn);
+DECLARE_DELEGATE_RetVal(TSharedRef<UE::Sequencer::IOutlinerColumn>, FOnCreateOutlinerColumn);
 
 /** A delegate that is executed when adding menu content. */
 DECLARE_DELEGATE_OneParam(FOnGetContextMenuContent, FMenuBuilder& /*MenuBuilder*/);

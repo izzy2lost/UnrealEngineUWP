@@ -17,6 +17,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Layout/SBox.h"
 #include "SequencerSectionPainter.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Styling/AppStyle.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Sound/SoundCue.h"
@@ -30,7 +31,7 @@
 #include "AudioDecompress.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ISectionLayoutBuilder.h"
 #include "MovieSceneToolHelpers.h"
@@ -705,13 +706,13 @@ FText FAudioSection::GetSectionToolTip() const
 	return FText::GetEmpty();
 }
 
-float FAudioSection::GetSectionHeight() const
+float FAudioSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
 	if (UMovieSceneAudioTrack* Track = Section.GetTypedOuter<UMovieSceneAudioTrack>())
 	{
 		return Track->GetRowHeight();
 	}
-	return ISequencerSection::GetSectionHeight();
+	return ISequencerSection::GetSectionHeight(ViewDensity);
 }
 
 int32 FAudioSection::OnPaintSection( FSequencerSectionPainter& Painter ) const
@@ -724,7 +725,7 @@ int32 FAudioSection::OnPaintSection( FSequencerSectionPainter& Painter ) const
 		FSlateDrawElement::MakeViewport(
 			Painter.DrawElements,
 			++LayerId,
-			Painter.SectionGeometry.ToPaintGeometry(FVector2f(StoredXSize, GetSectionHeight() + 8.f), FSlateLayoutTransform(FVector2f(StoredXOffset, 0))),
+			Painter.SectionGeometry.ToPaintGeometry(FVector2f(StoredXSize, Painter.SectionGeometry.GetLocalSize().Y), FSlateLayoutTransform(FVector2f(StoredXOffset, 0))),
 			WaveformThumbnail,
 			(Painter.bParentEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect) | ESlateDrawEffect::NoGamma,
 			FLinearColor::White
@@ -836,7 +837,7 @@ void FAudioSection::Tick( const FGeometry& AllottedGeometry, const FGeometry& Pa
 			!FMath::IsNearlyEqual(DrawRange.GetUpperBoundValue(), StoredDrawRange.GetUpperBoundValue()) ||
 			XOffset != StoredXOffset || XSize != StoredXSize || Track->GetColorTint() != StoredColor ||
 			StoredSoundWave != SoundWave ||
-			StoredSectionHeight != GetSectionHeight() ||
+			StoredSectionHeight != GetSectionHeight(SequencerPin->GetViewModel()->GetViewDensity()) ||
 			StoredStartOffset != AudioSection->GetStartOffset() ||
 			bStoredLooping != AudioSection->GetLooping())
 		{
@@ -909,13 +910,18 @@ void FAudioSection::SlipSection(FFrameNumber SlipTime)
 void FAudioSection::RegenerateWaveforms(TRange<float> DrawRange, int32 XOffset, int32 XSize, const FColor& ColorTint, float DisplayScale)
 {
 	UMovieSceneAudioSection* AudioSection = Cast<UMovieSceneAudioSection>(&Section);
+	TSharedPtr<ISequencer> SequencerPin = Sequencer.Pin();
+	if (!SequencerPin)
+	{
+		return;
+	}
 
 	StoredDrawRange = DrawRange;
 	StoredXOffset = XOffset;
 	StoredXSize = XSize;
 	StoredColor = ColorTint;
 	StoredStartOffset = AudioSection->GetStartOffset();
-	StoredSectionHeight = GetSectionHeight();
+	StoredSectionHeight = GetSectionHeight(SequencerPin->GetViewModel()->GetViewDensity());
 	bStoredLooping = AudioSection->GetLooping();
 
 	if (DrawRange.IsDegenerate() || DrawRange.IsEmpty() || AudioSection->GetSound() == NULL)
@@ -1144,16 +1150,7 @@ TSharedRef<ISequencerSection> FAudioTrackEditor::MakeSectionInterface( UMovieSce
 
 TSharedPtr<SWidget> FAudioTrackEditor::BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params)
 {
-	// Create a container edit box
-	return SNew(SHorizontalBox)
-
-	// Add the audio combo box
-	+ SHorizontalBox::Slot()
-	.AutoWidth()
-	.VAlign(VAlign_Center)
-	[
-		FSequencerUtilities::MakeAddButton(LOCTEXT("AudioText", "Audio"), FOnGetContent::CreateSP(this, &FAudioTrackEditor::BuildAudioSubMenu, FOnAssetSelected::CreateRaw(this, &FAudioTrackEditor::OnAudioAssetSelected, Track), FOnAssetEnterPressed::CreateRaw(this, &FAudioTrackEditor::OnAudioAssetEnterPressed, Track)), Params.NodeIsHovered, GetSequencer())
-	];
+	return UE::Sequencer::MakeAddButton(LOCTEXT("AudioText", "Audio"), FOnGetContent::CreateSP(this, &FAudioTrackEditor::BuildAudioSubMenu, FOnAssetSelected::CreateRaw(this, &FAudioTrackEditor::OnAudioAssetSelected, Track), FOnAssetEnterPressed::CreateRaw(this, &FAudioTrackEditor::OnAudioAssetEnterPressed, Track)), Params.ViewModel);
 }
 
 bool FAudioTrackEditor::HandleAssetAdded(UObject* Asset, const FGuid& TargetObjectGuid)

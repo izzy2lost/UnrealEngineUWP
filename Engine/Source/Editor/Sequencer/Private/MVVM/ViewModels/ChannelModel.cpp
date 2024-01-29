@@ -21,10 +21,12 @@
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
 #include "MVVM/ViewModels/TrackModel.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/Views/SOutlinerView.h"
 #include "MVVM/Views/SOutlinerItemViewBase.h"
 #include "MVVM/Views/SSequencerKeyNavigationButtons.h"
+#include "MVVM/Views/SOutlinerTrackColorPicker.h"
 #include "MVVM/Views/STrackLane.h"
 #include "Math/UnrealMathUtility.h"
 #include "Misc/AssertionMacros.h"
@@ -49,9 +51,7 @@ class SWidget;
 
 #define LOCTEXT_NAMESPACE "SequencerChannelModel"
 
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
 FChannelModel::FChannelModel(FName InChannelName, TWeakPtr<ISequencerSection> InSection, FMovieSceneChannelHandle InChannel)
@@ -99,15 +99,19 @@ UMovieSceneSection* FChannelModel::GetSection() const
 
 FOutlinerSizing FChannelModel::GetDesiredSizing() const
 {
+	FOutlinerSizing Sizing(15.f);
+
 	if (KeyArea->ShouldShowCurve())
 	{
 		TViewModelPtr<FSequenceModel> Sequence = FindAncestorOfType<FSequenceModel>();
 		if (Sequence)
 		{
-			return Sequence->GetSequencer()->GetSequencerSettings()->GetKeyAreaHeightWithCurves();
+			Sizing.Height = Sequence->GetSequencer()->GetSequencerSettings()->GetKeyAreaHeightWithCurves();
+			Sizing.Flags  |= EOutlinerSizingFlags::CustomHeight;
 		}
 	}
-	return FOutlinerSizing(15.f);
+
+	return Sizing;
 }
 
 TSharedPtr<ITrackLaneWidget> FChannelModel::CreateTrackLaneView(const FCreateTrackLaneViewParams& InParams)
@@ -812,35 +816,46 @@ FOutlinerSizing FChannelGroupOutlinerModel::GetOutlinerSizing() const
 	{
 		const_cast<FChannelGroupOutlinerModel*>(this)->RecomputeSizing();
 	}
-	return ComputedSizing;
+
+	FOutlinerSizing FinalSizing = ComputedSizing;
+	if (!EnumHasAnyFlags(ComputedSizing.Flags, EOutlinerSizingFlags::CustomHeight))
+	{
+		FViewDensityInfo Density = GetEditor()->GetViewDensity();
+		FinalSizing.Height = Density.UniformHeight.Get(FinalSizing.Height);
+	}
+	return FinalSizing;
 }
 
-TSharedRef<SWidget> FChannelGroupOutlinerModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)
+TSharedPtr<SWidget> FChannelGroupOutlinerModel::CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	TViewModelPtr<FSequencerEditorViewModel> Editor = InParams.Editor->CastThisShared<FSequencerEditorViewModel>();
+	if (!Editor)
+	{
+		return SNullWidget::NullWidget;
+	}
 
-	return SNew(SOutlinerItemViewBase, SharedThis(this), InParams.Editor, InParams.TreeViewRow)
-	.CustomContent()
-	[
-		// Even if this key area node doesn't have any key areas right now, it may in the future
-		// so we always create the switcher, and just hide it if it is not relevant
-		SNew(SHorizontalBox)
-		.Visibility(this, &FChannelGroupOutlinerModel::GetKeyEditorVisibility)
+	if (InColumnName == FCommonOutlinerNames::Label)
+	{
+		return SNew(SOutlinerItemViewBase, SharedThis(this), InParams.Editor, InParams.TreeViewRow);
+	}
 
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SKeyAreaEditorSwitcher, SharedThis(this), EditorViewModel->GetSequencer())
-		]
+	if (InColumnName == FCommonOutlinerNames::Edit)
+	{
+		return SNew(SKeyAreaEditorSwitcher, SharedThis(this), Editor)
+			.Visibility(this, &FChannelGroupOutlinerModel::GetKeyEditorVisibility);
+	}
 
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		[
-			SNew(SSequencerKeyNavigationButtons, SharedThis(this), EditorViewModel->GetSequencer())
-		]
-	];
+	if (InColumnName == FCommonOutlinerNames::Nav)
+	{
+		return SNew(SSequencerKeyNavigationButtons, SharedThis(this), Editor->GetSequencer());
+	}
+
+	if (InColumnName == FCommonOutlinerNames::ColorPicker)
+	{
+		return SNew(SOutlinerTrackColorPicker, SharedThis(this), InParams.Editor);
+	}
+
+	return nullptr;
 }
 
 EVisibility FChannelGroupOutlinerModel::GetKeyEditorVisibility() const
@@ -908,8 +923,7 @@ void FChannelGroupOutlinerModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	BuildChannelOverrideMenu(MenuBuilder);
 }
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE
 

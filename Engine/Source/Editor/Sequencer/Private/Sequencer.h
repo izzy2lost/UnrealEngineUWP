@@ -308,7 +308,7 @@ public:
 	/**
 	* @return Outliner Columns registered to the sequencer by column name
 	*/
-	const TMap<FName, TSharedPtr<ISequencerOutlinerColumn>>& GetOutlinerColumns() const
+	const TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerColumn>>& GetOutlinerColumns() const
 	{
 		return OutlinerColumns;
 	}
@@ -461,15 +461,6 @@ public:
 	 * @param ObjectClass	The class of the selected object
 	 */
 	void BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass);
-
-	/**
-	 * Builds up the edit buttons for object binding nodes in the outliner
-	 * 
-	 * @param EditBox	    The edit box to add things to
-	 * @param ObjectBinding	The object binding of the selected node
-	 * @param ObjectClass	The class of the selected object
-	 */
-	void BuildObjectBindingEditButtons(TSharedPtr<SHorizontalBox> EditBox, const FGuid& ObjectBinding, const UClass* ObjectClass);
 
 	/**
 	 * Builds up the menu of folders to add selected nodes to
@@ -1193,7 +1184,7 @@ private:
 	TMap<FObjectKey, TSharedPtr<ISequencerTrackEditor>> TrackEditorsByType;
 
 	/** List of Outliner column creators that are supported by the Sequencer. */
-	TMap<FName, TSharedPtr<ISequencerOutlinerColumn>> OutlinerColumns;
+	TMap<FName, TSharedPtr<UE::Sequencer::IOutlinerColumn>> OutlinerColumns;
 
 	/** List of object bindings we can use */
 	TArray<TSharedPtr<ISequencerEditorObjectBinding>> ObjectBindings;

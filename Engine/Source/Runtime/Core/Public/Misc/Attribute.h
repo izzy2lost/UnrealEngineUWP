@@ -498,6 +498,17 @@ template<typename T, typename SourceType, typename SourceTypeOrBase, typename...
 {
 	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateSP(InObject, InMethod, MoveTemp(InputPayload)...));
 }
+template<typename T, typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
+[[nodiscard]] FORCEINLINE TAttribute<T> MakeAttributeSP(TSharedRef<SourceType> InObject, T (SourceTypeOrBase::*InMethod)(PayloadTypes...) const, typename TDecay<PayloadTypes>::Type...  InputPayload)
+{
+	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateSP(InObject, InMethod, MoveTemp(InputPayload)...));
+}
+
+template<typename T, typename SourceType, typename SourceTypeOrBase, typename... PayloadTypes>
+[[nodiscard]] FORCEINLINE TAttribute<T> MakeAttributeUObject(const SourceType* InObject, T (SourceTypeOrBase::*InMethod)(PayloadTypes...) const, typename TDecay<PayloadTypes>::Type... InputPayload)
+{
+	return TAttribute<T>::Create(TAttribute<T>::FGetter::CreateUObject(InObject, InMethod, MoveTemp(InputPayload)...));
+}
 
 /**
  * Helper function for creating TAttributes from a lambda

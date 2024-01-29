@@ -1,8 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MVVM/Views/SOutlinerView.h"
+#include "MVVM/Views/SOutlinerViewRow.h"
 
 #include "Algo/BinarySearch.h"
+#include "Algo/Find.h"
 #include "Containers/ArrayView.h"
 #include "Framework/Layout/Overscroll.h"
 #include "Framework/SlateDelegates.h"
@@ -12,7 +14,6 @@
 #include "InputCoreTypes.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
-#include "ISequencerOutlinerColumn.h"
 #include "Layout/ChildrenBase.h"
 #include "Layout/Geometry.h"
 #include "Layout/Margin.h"
@@ -28,9 +29,10 @@
 #include "MVVM/ViewModels/OutlinerViewModelDragDropOp.h"
 #include "MVVM/ViewModels/ViewModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypesPrivate.h"
 #include "MVVM/Selection/SequencerCoreSelection.h"
 #include "MVVM/Selection/SequencerOutlinerSelection.h"
-#include "MVVM/Views/SOutlinerColumnBorder.h"
 #include "MVVM/Views/STrackAreaView.h"
 #include "MVVM/Views/STrackLane.h"
 #include "MVVM/Views/TreeViewTraits.h"
@@ -53,213 +55,16 @@
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SHeaderRow.h"
 
-class FPaintArgs;
-class FSlateRect;
-class ITableRow;
-class SWidget;
-namespace UE::Sequencer { class FEditorViewModel; }
-namespace UE::Sequencer { class FOutlinerSpacer; }
-
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
-const FName SOutlinerView::TrackNameColumn("TrackArea");
+SOutlinerView::SOutlinerView()
+{}
 
-void SOutlinerViewRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTableView, TWeakViewModelPtr<IOutlinerExtension> InWeakModel)
+SOutlinerView::~SOutlinerView()
 {
-	WeakModel = InWeakModel;
-
-	OnDetectDrag = InArgs._OnDetectDrag;
-	OnGenerateWidgetForColumn = InArgs._OnGenerateWidgetForColumn;
-
-	SMultiColumnTableRow::Construct(
-		SMultiColumnTableRow::FArguments()
-			.Style(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("Sequencer.TableView.Row"))
-			.OnDragDetected(this, &SOutlinerViewRow::OnDragDetected)
-			.OnCanAcceptDrop(this, &SOutlinerViewRow::OnCanAcceptDrop)
-			.OnAcceptDrop(this, &SOutlinerViewRow::OnAcceptDrop)
-			.ShowSelection(IsSelectable())
-			.Padding(FMargin(0.f)),
-		OwnerTableView);
-}
-
-SOutlinerViewRow::~SOutlinerViewRow()
-{
-}
-
-TSharedRef<SWidget> SOutlinerViewRow::GenerateWidgetForColumn(const FName& ColumnId)
-{
-	TViewModelPtr<IOutlinerExtension> DataModel = WeakModel.Pin();
-	return DataModel ? OnGenerateWidgetForColumn.Execute(DataModel, ColumnId, SharedThis(this)) : SNullWidget::NullWidget;
-}
-
-void SOutlinerViewRow::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	StaticCastSharedPtr<SOutlinerView>(OwnerTablePtr.Pin())->ReportChildRowGeometry(WeakModel.Pin(), AllottedGeometry);
-}
-
-bool SOutlinerViewRow::IsSelectable() const
-{
-	TSharedPtr<ISelectableExtension> Selectable = WeakModel.ImplicitPin();
-	return !Selectable || Selectable->IsSelectable() != ESelectionIntent::Never;
-}
-
-FReply SOutlinerViewRow::OnDragDetected( const FGeometry& InGeometry, const FPointerEvent& InPointerEvent )
-{
-	if (OnDetectDrag.IsBound())
-	{
-		return OnDetectDrag.Execute(InGeometry, InPointerEvent, SharedThis(this));
-	}
-	return FReply::Unhandled();
-}
-
-int32 SOutlinerViewRow::OnPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
-{
-	// Draw feedback for user dropping an item above, below, or onto a row.
-	const FSlateBrush* DropIndicatorBrush = GetDropIndicatorBrush(InItemDropZone);
-
-	// Offset by the indentation amount
-	static float OffsetX = 10.0f;
-	FVector2D Offset(OffsetX * GetIndentLevel(), 0.f);
-	FSlateDrawElement::MakeBox
-	(
-		OutDrawElements,
-		LayerId++,
-		AllottedGeometry.ToPaintGeometry(FVector2D(AllottedGeometry.GetLocalSize() - Offset), FSlateLayoutTransform(Offset)),
-		DropIndicatorBrush,
-		ESlateDrawEffect::None,
-		DropIndicatorBrush->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint()
-	);
-
-	return LayerId;
-}
-
-TOptional<EItemDropZone> SOutlinerViewRow::OnCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone InItemDropZone, TWeakViewModelPtr<IOutlinerExtension> InDataModel)
-{
-	TViewModelPtr<IOutlinerExtension> ThisModel = InDataModel.Pin();
-	if (!ThisModel)
-	{
-		return TOptional<EItemDropZone>();
-	}
-	else if (InItemDropZone == EItemDropZone::BelowItem && ThisModel->IsExpanded())
-	{
-		// Cannot drop immediately below items that are expanded since
-		// it looks like you are dropping into the item, but the object
-		// will end up below all its expanded children.
-		return TOptional<EItemDropZone>();
-	}
-
-	// The model we are indirectly dropping into (either this model, or its parent)
-	FViewModelPtr DropModel = ThisModel;
-	// The model we are directly interacting with - only set when attaching before/after
-	FViewModelPtr TargetModel;
-
-	if (!DropModel)
-	{
-		return TOptional<EItemDropZone>();
-	}
-
-	// When dropping above or below an item, we always forward to its parent
-	if (InItemDropZone == EItemDropZone::AboveItem || InItemDropZone == EItemDropZone::BelowItem)
-	{
-		TargetModel = DropModel;
-		DropModel = DropModel->CastParent<IOutlinerDropTargetOutlinerExtension>();
-	}
-
-	TViewModelPtr<IOutlinerDropTargetOutlinerExtension> DropTarget = DropModel.ImplicitCast();
-	if (!DropTarget)
-	{
-		return TOptional<EItemDropZone>();
-	}
-
-	return DropTarget->CanAcceptDrop(TargetModel, DragDropEvent, InItemDropZone);
-}
-
-FReply SOutlinerViewRow::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone InItemDropZone, TWeakViewModelPtr<IOutlinerExtension> InDataModel)
-{
-	TViewModelPtr<IOutlinerExtension> ThisModel = InDataModel.Pin();
-	if (!ThisModel)
-	{
-		return FReply::Unhandled();
-	}
-	else if (InItemDropZone == EItemDropZone::BelowItem && ThisModel->IsExpanded())
-	{
-		// Cannot drop immediately below items that are expanded since
-		// it looks like you are dropping into the item, but the object
-		// will end up below all its expanded children.
-		return FReply::Unhandled();
-	}
-
-	// The model we are indirectly dropping into (either this model, or its parent)
-	FViewModelPtr DropModel = ThisModel;
-	// The model we are directly interacting with - only set when attaching before/after
-	FViewModelPtr TargetModel;
-
-	// When dropping above or below an item, we always forward to its parent
-	if (InItemDropZone == EItemDropZone::AboveItem || InItemDropZone == EItemDropZone::BelowItem)
-	{
-		TargetModel = DropModel;
-		DropModel = DropModel->CastParent<IOutlinerDropTargetOutlinerExtension>();
-	}
-
-	TViewModelPtr<IOutlinerDropTargetOutlinerExtension> DropTarget = DropModel.ImplicitCast();
-	if (DropTarget)
-	{
-		DropTarget->PerformDrop(TargetModel, DragDropEvent, InItemDropZone);
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
-}
-
-FVector2D SOutlinerViewRow::ComputeDesiredSize(float LayoutScaleMultiplier) const
-{
-	FVector2D ReturnDesiredSize = SBorder::ComputeDesiredSize(LayoutScaleMultiplier);
-	if (TrackLane && TrackLane->GetOutlinerItem())
-	{
-		// Ensure our height properly matches the height of the outliner item.
-		ReturnDesiredSize.Y = TrackLane->GetOutlinerItem()->GetOutlinerSizing().GetTotalHeight();
-	}
-	return ReturnDesiredSize;
-}
-
-TViewModelPtr<IOutlinerExtension> SOutlinerViewRow::GetDataModel() const
-{
-	return WeakModel.Pin();
-}
-
-TSharedPtr<STrackLane> SOutlinerViewRow::GetTrackLane(bool bOnlyOwnTrackLane) const
-{
-	if (!bOnlyOwnTrackLane)
-	{
-		// Return the track lane, regardless of it being created by our own outliner item, or
-		// being a reference to a parent outliner item's track lane.
-		return TrackLane;
-	}
-	if (TrackLane && TrackLane->GetOutlinerItem() == GetDataModel())
-	{
-		// Return the track lane only if it was created by our own outliner item.
-		return TrackLane;
-	}
-	return nullptr;
-}
-
-void SOutlinerViewRow::SetTrackLane(const TSharedPtr<STrackLane>& InTrackLane)
-{
-	TrackLane = InTrackLane;
-}
-
-const FSlateBrush* SOutlinerViewRow::GetBorder() const 
-{
-	TSharedPtr<IOutlinerExtension> OutlinerItem = WeakModel.ImplicitPin();
-	if (OutlinerItem && !OutlinerItem->HasBackground())
-	{
-		return nullptr;
-	}
-
-	return SMultiColumnTableRow::GetBorder();
+	TrackArea.Reset();
+	PinnedTreeViews.Empty();
 }
 
 void SOutlinerView::Construct(const FArguments& InArgs, TWeakPtr<FOutlinerViewModel> InWeakOutliner, const TSharedRef<STrackAreaView>& InTrackArea)
@@ -283,7 +88,11 @@ void SOutlinerView::Construct(const FArguments& InArgs, TWeakPtr<FOutlinerViewMo
 		}
 	}
 
-	HeaderRow = SNew(SHeaderRow).Visibility(EVisibility::Collapsed);
+	ColumnMetaData = MakeShared<FOutlinerHeaderRowWidgetMetaData>();
+
+	HeaderRow = SNew(SHeaderRow)
+	.Visibility(EVisibility::Collapsed)
+	.AddMetaData(ColumnMetaData.ToSharedRef());
 
 	UpdateOutlinerColumns();
 
@@ -309,15 +118,6 @@ void SOutlinerView::Construct(const FArguments& InArgs, TWeakPtr<FOutlinerViewMo
 	);
 
 	UpdateViewSelectionFromModel();
-}
-
-SOutlinerView::SOutlinerView()
-{}
-
-SOutlinerView::~SOutlinerView()
-{
-	TrackArea.Reset();
-	PinnedTreeViews.Empty();
 }
 
 void SOutlinerView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -482,145 +282,136 @@ float SOutlinerView::VirtualToPhysical(float InVirtual) const
 	return InVirtual;
 }
 
-void SOutlinerView::AddOutlinerColumnCallback(TSharedPtr<ISequencerOutlinerColumn> InColumn, TSharedPtr<FEditorViewModel> InEditorViewModel)
+int32 SOutlinerView::CreateOutlinerColumnsForGroup(int32 ColumnIndex, EOutlinerColumnGroup Group)
 {
-	auto GenerateToolColumn = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+	const int32 NumColumns = OutlinerColumns.Num();
+
+	int32 NumAdded = 0;
+	for ( ; ColumnIndex < NumColumns; ++ColumnIndex, ++NumAdded)
 	{
-		if (TViewModelPtr<IOutlinerExtension> OutlinerExtension = InWeakModel.ImplicitPin())
+		const TSharedPtr<IOutlinerColumn>& Column = OutlinerColumns[ColumnIndex];
+
+		FOutlinerColumnPosition Position = Column->GetPosition();
+		if (Position.Group != Group)
 		{
-			if (!OutlinerExtension.AsModel()->IsA<FOutlinerSpacer>())
-			{
-				const FCreateOutlinerColumnParams ColumnParams = FCreateOutlinerColumnParams(OutlinerExtension, InEditorViewModel);
-				const bool bIsCompatible = InColumn->IsItemCompatibleWithColumn(ColumnParams);
-
-				TSharedRef<SWidget> InnerContent = bIsCompatible ? InColumn->CreateColumnWidget(InColumn, ColumnParams) : SNullWidget::NullWidget;
-
-				return SNew(SOutlinerColumnBorder, ColumnParams, bIsCompatible)
-					[
-						InnerContent
-					];
-			}
-			else
-			{
-				return SNew(SBox).HeightOverride(10.f);
-			}
+			// OutlinerColumns is sorted so if we encountered the wrong group we should stop immediately
+			break;
 		}
 
-		ensureMsgf(false, TEXT("Attempting to create an outliner column for a view model that is either dead, or not an outliner item."));
-		return SNew(SBox).HeightOverride(10.f);
-	};
+		FName                 ColumnName = Column->GetColumnName();
+		FOutlinerColumnLayout Layout     = Column->GetLayout();
 
-	Columns.Add(InColumn->GetColumnName(), FOutlinerViewColumn(GenerateToolColumn, 22.f, true));
-}
+		// Add the meta-data required for our custom row panel
+		ColumnMetaData->Columns.Add(Layout);
 
-void SOutlinerView::UpdateTrackGutterColumns(TSharedPtr<FEditorViewModel> InEditorViewModel)
-{
-	// Padding columns callback, used to provide apropriately colored padding to the left and right of the track gutter
-	auto GeneratePadding = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
-	{
-		if (TViewModelPtr<IOutlinerExtension> OutlinerExtension = InWeakModel.ImplicitPin())
+		// Keep track of how to create widgets for this column
+		ColumnGenerators.Add(ColumnName, [Column](const FCreateOutlinerColumnParams& Params, const TSharedRef<SOutlinerViewRow>& Row){
+			return Column->IsItemCompatibleWithColumn(Params)
+				? Column->CreateColumnWidget(Params, Row)
+				: nullptr;
+		});
+
+		// Add the column itself to the header row
+		if (Layout.SizeMode == EOutlinerColumnSizeMode::Fixed)
 		{
-			if (!OutlinerExtension.AsModel()->IsA<FOutlinerSpacer>())
-			{
-				const FCreateOutlinerColumnParams ColumnParams = FCreateOutlinerColumnParams(OutlinerExtension, InEditorViewModel);
-				return SNew(SOutlinerColumnBorder, ColumnParams, false);
-			}
-			else
-			{
-				return SNew(SBox).HeightOverride(10.f);
-			}
+			HeaderRow->AddColumn(
+				SHeaderRow::Column(ColumnName)
+				.FixedWidth(Layout.Width)
+			);
 		}
-		ensureMsgf(false, TEXT("Attempting to create an outliner column for a view model that is either dead, or not an outliner item."));
-		return SNew(SBox).HeightOverride(10.f);
-	};
-
-	// Spacer column callback, generates a line to separate the track gutter from the outliner
-	auto GenerateSpacer = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
-	{
-		return SNew(SBorder).BorderImage(FAppStyle::Get().GetBrush("Separator"));
-	};
-
-	// Left padding
-	Columns.Add(FName(TEXT("OutlinerColumnLeftPadding")), FOutlinerViewColumn(GeneratePadding, 2.f, true));
-
-	// Create Visible Outliner Columns in the Track Gutter (Pin/Mute/Solo...)
-	for (TSharedPtr<ISequencerOutlinerColumn> Column : OutlinerColumns)
-	{
-		AddOutlinerColumnCallback(Column, InEditorViewModel);
+		else
+		{
+			HeaderRow->AddColumn(
+				SHeaderRow::Column(ColumnName)
+				.FillWidth(Layout.Width)
+			);
+		}
 	}
 
-	// Right padding
-	Columns.Add(FName(TEXT("OutlinerColumnRightPadding")), FOutlinerViewColumn(GeneratePadding, 2.f, true));
+	return NumAdded;
+}
 
-	// Spacer between Track Gutter and Outliner View
-	Columns.Add(FName(TEXT("OutlinerColumnSpacer")), FOutlinerViewColumn(GenerateSpacer, 1.f, true));
+void SOutlinerView::InsertSeparatorColumn(int32 InsertIndex, int32 SeparatorID)
+{
+	static const FName NAME_Separator("Separator");
+
+	FOutlinerColumnLayout SeparatorLayout(
+		1.f, /* Width */
+		FMargin(0.f),
+		HAlign_Fill,
+		VAlign_Fill,
+		EOutlinerColumnSizeMode::Fixed,
+		EOutlinerColumnFlags::Hidden
+	);
+	FName SeparatorName(NAME_Separator, SeparatorID);
+
+	// Add a 1px separator column
+	ColumnMetaData->Columns.Insert(SeparatorLayout, InsertIndex);
+	HeaderRow->InsertColumn(
+		SHeaderRow::Column(SeparatorName)
+		.FixedWidth(1.f),
+		InsertIndex
+	);
+	ColumnGenerators.Add(SeparatorName,
+		[](const FCreateOutlinerColumnParams&, const TSharedRef<SOutlinerViewRow>&)->TSharedPtr<SWidget>
+		{
+			return SNew(SImage)
+			.Image(FAppStyle::Get().GetBrush("Sequencer.Outliner.Separator"));
+		}
+	);
 }
 
 void SOutlinerView::UpdateOutlinerColumns()
 {
+	// Sort the columns by position
+	Algo::SortBy(OutlinerColumns, &IOutlinerColumn::GetPosition);
+
 	// Clear columns to ensure consistent order when building UI from Map
 	HeaderRow->ClearColumns();
-	Columns.Empty();
-	Columns.Compact();
+	ColumnMetaData->Columns.Empty();
+	ColumnGenerators.Empty();
 
-	TSharedPtr<FEditorViewModel> EditorViewModel = WeakOutliner.Pin()->GetEditor();
+	// ----------------------------------------------------------------------------------------------------------
+	// Populate columns
+	const int32 NumLeftGutter  = CreateOutlinerColumnsForGroup(0,                         EOutlinerColumnGroup::LeftGutter);
+	const int32 NumCenter      = CreateOutlinerColumnsForGroup(NumLeftGutter,             EOutlinerColumnGroup::Center);
+	const int32 NumRightGutter = CreateOutlinerColumnsForGroup(NumLeftGutter + NumCenter, EOutlinerColumnGroup::RightGutter);
 
-	if (OutlinerColumns.Num() > 0)
+	// ----------------------------------------------------------------------------------------------------------
+	// Add some padding to the leading and trailing edge of the first and last columns in each group respectively
+	//    This is implemented this way because columns can be turned on and off dynamically, but we must
+	//    always have a consistent padding within the group. Separators dynamically appear based on the presence of
+	//    each group so we can't put padding on those
+	if (NumLeftGutter > 0)
 	{
-		UpdateTrackGutterColumns(EditorViewModel);
+		ColumnMetaData->Columns[0              ].CellPadding.Left  += 4.f;
+		ColumnMetaData->Columns[NumLeftGutter-1].CellPadding.Right += 4.f;
+	}
+	if (NumCenter > 0)
+	{
+		ColumnMetaData->Columns[NumLeftGutter            ].CellPadding.Left  += 4.f;
+		ColumnMetaData->Columns[NumLeftGutter+NumCenter-1].CellPadding.Right += 4.f;
 	}
 
-	// Create Column for Outliner View (Track name / Keying)
-	auto GenerateOutliner = [=](const TWeakViewModelPtr<IOutlinerExtension>& InWeakModel, const TSharedRef<SOutlinerViewRow>& InRow) -> TSharedRef<SWidget>
+	// No additional padding on the right gutter intentionally
+
+	// ----------------------------------------------------------------------------------------------------------
+	// Add separators between the groups.
+	//      Only add separators if they actually separate columns.
+	int32 NumSeparators = 0;
+
+	int32 InsertIndex = NumLeftGutter;
+	if (InsertIndex < ColumnMetaData->Columns.Num())
 	{
-		if (TSharedPtr<IOutlinerExtension> OutlinerItem = InWeakModel.ImplicitPin())
+		InsertSeparatorColumn(InsertIndex++, NumSeparators++);
+		if (NumCenter > 0)
 		{
-			return OutlinerItem->CreateOutlinerView(FCreateOutlinerViewParams{ InRow, EditorViewModel });
-		}
-
-		ensureMsgf(false, TEXT("Attempting to create an outliner widget for a view model that is either dead, or not an outliner item."));
-		return SNew(SBox).HeightOverride(10.f);
-	};
-
-	Columns.Add("Outliner", FOutlinerViewColumn(GenerateOutliner, 1.f));
-
-	// Now populate the header row with the columns
-	for (TTuple<FName, FOutlinerViewColumn>& Pair : Columns)
-	{
-		if (Pair.Key != TrackNameColumn)
-		{
-			if (Pair.Value.bIsFixedWidth)
+			InsertIndex += NumCenter;
+			if (InsertIndex < ColumnMetaData->Columns.Num())
 			{
-				TOptional<float> FixedWidth;
-				if (Pair.Value.Width.IsSet())
-				{
-					FixedWidth = Pair.Value.Width.Get();
-				}
-				HeaderRow->AddColumn(
-					SHeaderRow::Column(Pair.Key)
-					.FixedWidth(FixedWidth)
-				);
-			}
-			else
-			{
-				HeaderRow->AddColumn(
-					SHeaderRow::Column(Pair.Key)
-					.FillWidth(Pair.Value.Width)
-				);
+				InsertSeparatorColumn(InsertIndex++, NumSeparators++);
 			}
 		}
-	}
-}
-
-void SOutlinerView::UpdateTrackArea()
-{
-	// Add or remove the column
-	if (const FOutlinerViewColumn* Column = Columns.Find(TrackNameColumn))
-	{
-		HeaderRow->AddColumn(
-			SHeaderRow::Column(TrackNameColumn)
-			.FillWidth(Column->Width)
-		);
 	}
 }
 
@@ -630,7 +421,7 @@ void SOutlinerView::AddPinnedTreeView(TSharedPtr<SOutlinerView> PinnedTreeView)
 	PinnedTreeView->SetPrimaryTreeView(SharedThis(this));
 }
 
-void SOutlinerView::SetOutlinerColumns(const TArray<TSharedPtr<ISequencerOutlinerColumn>>& InOutlinerColumns)
+void SOutlinerView::SetOutlinerColumns(const TArray<TSharedPtr<IOutlinerColumn>>& InOutlinerColumns)
 {
 	// Reset the way rows are constructed with an updated list of Outliner Columns
 	OutlinerColumns = InOutlinerColumns;
@@ -1378,6 +1169,7 @@ TSharedRef<ITableRow> SOutlinerView::OnGenerateRow(TWeakViewModelPtr<IOutlinerEx
 	TSharedRef<SOutlinerViewRow> Row =
 		SNew(SOutlinerViewRow, OwnerTable, InWeakModel)
 		.OnDetectDrag(this, &SOutlinerView::OnDragRow)
+		.OnGetColumnVisibility(this, &SOutlinerView::IsColumnVisible)
 		.OnGenerateWidgetForColumn(this, &SOutlinerView::GenerateWidgetForColumn);
 
 	if (TViewModelPtr<IOutlinerExtension> ViewModel = InWeakModel.Pin())
@@ -1389,16 +1181,36 @@ TSharedRef<ITableRow> SOutlinerView::OnGenerateRow(TWeakViewModelPtr<IOutlinerEx
 
 TSharedRef<SWidget> SOutlinerView::GenerateWidgetForColumn(TViewModelPtr<IOutlinerExtension> InDataModel, const FName& ColumnId, const TSharedRef<SOutlinerViewRow>& Row) const
 {
-	const FOutlinerViewColumn* Definition = Columns.Find(ColumnId);
-
-	if (ensureMsgf(Definition, TEXT("Invalid column name specified")))
+	TSharedPtr<FEditorViewModel> Editor = GetOutlinerModel()->GetEditor();
+	if (!Editor)
 	{
-		return Definition->Generator(InDataModel, Row);
+		return SNullWidget::NullWidget;
+	}
+
+	// First of all, see if the model wants to create a widget
+	TSharedPtr<SWidget> ViewModelWidget = InDataModel->CreateOutlinerViewForColumn(FCreateOutlinerViewParams{ Row, Editor.ToSharedRef() }, ColumnId);
+	if (ViewModelWidget)
+	{
+		return ViewModelWidget.ToSharedRef();
+	}
+
+	// Next see if we have a column generator function for this column
+	if (const FColumnGenerator* Generator = ColumnGenerators.Find(ColumnId))
+	{
+		FCreateOutlinerColumnParams Params{ InDataModel, Editor };
+		if (TSharedPtr<SWidget> Result = (*Generator)(Params, Row))
+		{
+			return Result.ToSharedRef();
+		}
 	}
 
 	return SNullWidget::NullWidget;
 }
 
-} // namespace Sequencer
-} // namespace UE
+bool SOutlinerView::IsColumnVisible(const FName& InName) const
+{
+	return Algo::FindBy(OutlinerColumns, InName, &IOutlinerColumn::GetColumnName) != nullptr;
+}
+
+} // namespace UE::Sequencer
 

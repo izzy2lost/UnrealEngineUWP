@@ -23,6 +23,9 @@
 #include "Editor.h"
 #include "Sections/TransformPropertySection.h"
 #include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
+#include "MVVM/ViewModels/ObjectBindingModel.h"
 #include "MovieSceneToolHelpers.h"
 #include "Animation/AnimData/IAnimationDataModel.h"
 
@@ -495,31 +498,32 @@ void F3DTransformTrackEditor::OnAddTransformKeysForSelectedObjects( EMovieSceneT
 	}
 }
 
-void F3DTransformTrackEditor::BuildObjectBindingEditButtons(TSharedPtr<SHorizontalBox> EditBox, const FGuid& ObjectGuid, const UClass* ObjectClass)
+void F3DTransformTrackEditor::BuildObjectBindingColumnWidgets(TFunctionRef<TSharedRef<SHorizontalBox>()> GetEditBox, const UE::Sequencer::TViewModelPtr<UE::Sequencer::FObjectBindingModel>& ObjectBinding, const UE::Sequencer::FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {
-	// If this is a camera track, add a button to lock the viewport to the camera
-	EditBox.Get()->AddSlot()
+	using namespace UE::Sequencer;
+
+	if (InColumnName == FCommonOutlinerNames::Nav || (InColumnName == FCommonOutlinerNames::Edit && !InParams.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav)))
+	{
+		FGuid ObjectGuid = ObjectBinding->GetObjectGuid();
+		GetEditBox()->AddSlot()
 		.VAlign(VAlign_Center)
-		.HAlign(HAlign_Right)
+		.HAlign(HAlign_Center)
 		.AutoWidth()
-		.Padding(4, 0, 0, 0)
 		[
-			SNew(SCheckBox)		
-				.Style( &FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckBoxAlt"))
-				.Type(ESlateCheckBoxType::CheckBox)
-				.Padding(FMargin(0.f))
-				.IsFocusable(false)
-				.Visibility(this, &F3DTransformTrackEditor::IsCameraVisible, ObjectGuid)
-				.IsChecked(this, &F3DTransformTrackEditor::IsCameraLocked, ObjectGuid)
-				.OnCheckStateChanged(this, &F3DTransformTrackEditor::OnLockCameraClicked, ObjectGuid)
-				.ToolTipText(this, &F3DTransformTrackEditor::GetLockCameraToolTip, ObjectGuid)
-				.CheckedImage(FAppStyle::GetBrush("Sequencer.LockCamera"))
-				.CheckedHoveredImage(FAppStyle::GetBrush("Sequencer.LockCamera"))
-				.CheckedPressedImage(FAppStyle::GetBrush("Sequencer.LockCamera"))
-				.UncheckedImage(FAppStyle::GetBrush("Sequencer.UnlockCamera"))
-				.UncheckedHoveredImage(FAppStyle::GetBrush("Sequencer.UnlockCamera"))
-				.UncheckedPressedImage(FAppStyle::GetBrush("Sequencer.UnlockCamera"))
+			SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "Sequencer.Outliner.ToggleButton")
+			.Type(ESlateCheckBoxType::ToggleButton)
+			.IsFocusable(false)
+			.Visibility(this, &F3DTransformTrackEditor::IsCameraVisible, ObjectGuid)
+			.IsChecked(this, &F3DTransformTrackEditor::IsCameraLocked, ObjectGuid)
+			.OnCheckStateChanged(this, &F3DTransformTrackEditor::OnLockCameraClicked, ObjectGuid)
+			.ToolTipText(this, &F3DTransformTrackEditor::GetLockCameraToolTip, ObjectGuid)
+			[
+				SNew(SImage)
+				.Image(FAppStyle::GetBrush("Sequencer.Outliner.CameraLock"))
+			]
 		];
+	}
 };
 void F3DTransformTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
 {

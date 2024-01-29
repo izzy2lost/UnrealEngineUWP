@@ -41,16 +41,8 @@
 
 #define LOCTEXT_NAMESPACE "TrackModel"
 
-namespace UE
+namespace UE::Sequencer
 {
-namespace Sequencer
-{
-
-namespace LayoutConstants
-{
-	extern const float CommonPadding;
-	const float CommonPadding = 4.f;
-}
 
 FTrackModel::FTrackModel(UMovieSceneTrack* Track)
 	: SectionList(EViewModelListType::TrackArea)
@@ -337,13 +329,15 @@ void FTrackModel::ForceUpdate()
 
 FOutlinerSizing FTrackModel::GetOutlinerSizing() const
 {
-	float Height = SequencerLayoutConstants::SectionAreaDefaultHeight;
+	FViewDensityInfo Density = GetEditor()->GetViewDensity();
+
+	float Height = Density.UniformHeight.Get(SequencerLayoutConstants::SectionAreaDefaultHeight);
 	for (TSharedPtr<FSectionModel> Section : SectionList.Iterate<FSectionModel>())
 	{
-		Height = Section->GetSectionInterface()->GetSectionHeight();
+		Height = Section->GetSectionInterface()->GetSectionHeight(Density);
 		break;
 	}
-	return FOutlinerSizing(Height + 2 * LayoutConstants::CommonPadding);
+	return FOutlinerSizing(Height);
 }
 
 void FTrackModel::GetIdentifierForGrouping(TStringBuilder<128>& OutString) const
@@ -590,12 +584,10 @@ FText FTrackModel::GetLabelToolTipText() const
 	return FText();
 }
 
-TSharedRef<SWidget> FTrackModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)
+TSharedPtr<SWidget> FTrackModel::CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {
-	return SNew(SOutlinerTrackView, 
-			TWeakViewModelPtr<IOutlinerExtension>(SharedThis(this)),
-			InParams.Editor->CastThisSharedChecked<FSequencerEditorViewModel>(), 
-			InParams.TreeViewRow);
+	FBuildColumnWidgetParams Params(SharedThis(this), InParams);
+	return TrackEditor->BuildOutlinerColumnWidget(Params, InColumnName);
 }
 
 bool FTrackModel::IsResizable() const
@@ -607,14 +599,6 @@ bool FTrackModel::IsResizable() const
 void FTrackModel::Resize(float NewSize)
 {
 	UMovieSceneTrack* Track = GetTrack();
-
-	float PaddingAmount = 2 * LayoutConstants::CommonPadding;
-	if (Track)
-	{
-		PaddingAmount *= (Track->GetMaxRowIndex() + 1);
-	}
-	
-	NewSize -= PaddingAmount;
 
 	if (Track && TrackEditor->IsResizable(Track))
 	{
@@ -829,8 +813,7 @@ bool FTrackModel::FindBoundObjects(TArray<UObject*>& OutBoundObjects) const
 	return true;
 }
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE
 

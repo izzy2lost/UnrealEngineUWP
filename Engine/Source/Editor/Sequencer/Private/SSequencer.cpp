@@ -72,6 +72,8 @@
 #include "DragAndDrop/CompositeDragDropOp.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "MVVM/Views/SSequencerOutlinerView.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
 #include "MovieSceneTrackEditor.h"
 #include "SSequencerSplitterOverlay.h"
 #include "SequencerHotspots.h"
@@ -125,6 +127,16 @@
 #include "UniversalObjectLocators/ActorLocatorFragment.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
+
+FSequencerOutlinerColumnVisibility::FSequencerOutlinerColumnVisibility(TSharedPtr<UE::Sequencer::IOutlinerColumn> InColumn)
+	: Column(InColumn)
+	, bIsColumnVisible(InColumn->IsColumnVisibleByDefault())
+{}
+
+FSequencerOutlinerColumnVisibility::FSequencerOutlinerColumnVisibility(TSharedPtr<UE::Sequencer::IOutlinerColumn> InColumn, bool bInIsColumnVisible)
+	: Column(InColumn)
+	, bIsColumnVisible(bInIsColumnVisible)
+{}
 
 /* SSequencer interface
  *****************************************************************************/
@@ -319,6 +331,12 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 	SequencerViewModel->GetTrackArea()->CastThisChecked<FSequencerTrackAreaViewModel>()->InitializeDefaultEditTools(*TrackArea);
 	SequencerViewModel->GetPinnedTrackArea()->CastThisChecked<FSequencerTrackAreaViewModel>()->InitializeDefaultEditTools(*PinnedTrackArea);
+
+
+	if (USequencerSettings* Settings = GetSequencerSettings())
+	{
+		SequencerViewModel->SetViewDensity(Settings->GetViewDensity());
+	}
 
 	PlayTimeDisplay = StaticCastSharedRef<STemporarilyFocusedSpinBox<double>>(SequencerPtr.Pin()->MakePlayTimeDisplay(GetNumericTypeInterface()));
 
@@ -1088,6 +1106,8 @@ void SSequencer::InitializeTrackFilters()
 
 void SSequencer::UpdateOutlinerViewColumns()
 {
+	using namespace UE::Sequencer;
+
 	// Save updated column list in settings
 	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
 
@@ -1099,7 +1119,7 @@ void SSequencer::UpdateOutlinerViewColumns()
 	GetSequencerSettings()->SetOutlinerColumnVisibility(ColumnVisibilitySettings);
 
 	// Filter out hidden columns to create a list of visible columns for the outliner views
-	TArray<TSharedPtr<ISequencerOutlinerColumn>> VisibleColumns;
+	TArray<TSharedPtr<IOutlinerColumn>> VisibleColumns;
 	for (FSequencerOutlinerColumnVisibility ColumnVisibility : OutlinerColumnVisibilities)
 	{
 		if (ColumnVisibility.bIsColumnVisible)
@@ -1123,7 +1143,7 @@ void SSequencer::InitializeOutlinerColumns()
 		return;
 	}
 
-	const TMap<FName, TSharedPtr<ISequencerOutlinerColumn>>& RegisteredColumns = Sequencer->GetOutlinerColumns();
+	const TMap<FName, TSharedPtr<IOutlinerColumn>>& RegisteredColumns = Sequencer->GetOutlinerColumns();
 	
 	// Retrieve previously saved column names and visibilities
 	TArray<FColumnVisibilitySetting> ColumnSettings = GetSequencerSettings()->GetOutlinerColumnSettings();
@@ -1132,7 +1152,7 @@ void SSequencer::InitializeOutlinerColumns()
 	// Add registered columns found in settings with their saved visibility state
 	for (const FColumnVisibilitySetting& ColumnVisibility : ColumnSettings)
 	{
-		const TSharedPtr<ISequencerOutlinerColumn>* OutlinerColumn = RegisteredColumns.Find(ColumnVisibility.ColumnName);
+		const TSharedPtr<IOutlinerColumn>* OutlinerColumn = RegisteredColumns.Find(ColumnVisibility.ColumnName);
 		if (OutlinerColumn)
 		{
 			ColumnNamesFoundInSettings.Add(ColumnVisibility.ColumnName);
@@ -1141,13 +1161,17 @@ void SSequencer::InitializeOutlinerColumns()
 	}
 
 	// Add registered columns not found in settings with their default visibility state
-	for (const TTuple<FName, TSharedPtr<ISequencerOutlinerColumn>>& RegisteredColumn : RegisteredColumns)
+	for (const TTuple<FName, TSharedPtr<IOutlinerColumn>>& RegisteredColumn : RegisteredColumns)
 	{
 		if (!ColumnNamesFoundInSettings.Contains(RegisteredColumn.Key))
 		{
 			OutlinerColumnVisibilities.Add(FSequencerOutlinerColumnVisibility(RegisteredColumn.Value));
 		}
 	}
+
+	Algo::Sort(OutlinerColumnVisibilities, [](const FSequencerOutlinerColumnVisibility& A, const FSequencerOutlinerColumnVisibility& B){
+		return A.Column->GetPosition() < B.Column->GetPosition();
+	});
 
 	UpdateOutlinerViewColumns();
 }
@@ -2181,6 +2205,8 @@ TSharedRef<SWidget> SSequencer::MakeViewMenu()
 		GetSequencerSettings()->SetZeroPadFrames(NewValue);
 	};
 
+	MenuBuilder.AddSubMenu(LOCTEXT("ViewDensityMenuLabel", "View Density"), FText::GetEmpty(), FNewMenuDelegate::CreateRaw(this, &SSequencer::FillViewDensityMenu));
+
 	// Menu Entry for Outliner Column Visibilities
 	if (OutlinerColumnVisibilities.Num() > 0)
 	{
@@ -2312,6 +2338,75 @@ void SSequencer::FillPlaybackSpeedMenu(FMenuBuilder& InMenuBarBuilder)
 			);
 	}
 	InMenuBarBuilder.EndSection();
+}
+
+void SSequencer::FillViewDensityMenu(FMenuBuilder& InMenuBuilder)
+{
+	using namespace UE::Sequencer;
+
+	auto SetViewDensity = [this](EViewDensity InViewDensity){
+		TSharedPtr<FEditorViewModel> Editor = this->SequencerPtr.Pin()->GetViewModel();
+		Editor->SetViewDensity(InViewDensity);
+
+		if (USequencerSettings* Settings = this->GetSequencerSettings())
+		{
+			if (InViewDensity == EViewDensity::Relaxed)
+			{
+				Settings->SetViewDensity("Relaxed");
+			}
+			else if (InViewDensity == EViewDensity::Expanded)
+			{
+				Settings->SetViewDensity("Expanded");
+			}
+			else
+			{
+				Settings->SetViewDensity("Compact");
+			}
+		}
+	};
+	auto IsCurrentViewDensity = [this](EViewDensity InViewDensity){
+		TSharedPtr<FEditorViewModel> Editor = this->SequencerPtr.Pin()->GetViewModel();
+		return Editor->GetViewDensity().Density == InViewDensity;
+	};
+
+	InMenuBuilder.AddMenuEntry(
+		LOCTEXT("CompactViewDensity_Label", "Compact"),
+		LOCTEXT("CompactViewDensity_Tooltip", "Change Sequencer to use a compact view mode"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Compact),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda(IsCurrentViewDensity, EViewDensity::Compact)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	InMenuBuilder.AddMenuEntry(
+		LOCTEXT("RelaxedViewDensity_Label", "Relaxed"),
+		LOCTEXT("RelaxedViewDensity_Tooltip", "Change Sequencer to use a relaxed view mode with uniform track heights"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Relaxed),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda(IsCurrentViewDensity, EViewDensity::Relaxed)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	InMenuBuilder.AddMenuEntry(
+		LOCTEXT("ExpandedViewDensity_Label", "Expanded"),
+		LOCTEXT("ExpandedViewDensity_Tooltip", "Change Sequencer to use an expanded view mode with larger uniform track heights"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(SetViewDensity, EViewDensity::Expanded),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateLambda(IsCurrentViewDensity, EViewDensity::Expanded)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
 }
 
 void SSequencer::FillColumnVisibilityMenu(FMenuBuilder& InMenuBuilder)
@@ -3626,8 +3721,6 @@ void SSequencer::OnCurveEditorVisibilityChanged(bool bShouldBeVisible)
 	{
 		CurveEditorExtension->CloseCurveEditor();
 	}
-
-	TreeView->UpdateTrackArea();
 }
 
 
