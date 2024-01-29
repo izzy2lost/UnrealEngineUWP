@@ -20,6 +20,8 @@
 #include "Chaos/ConvexOptimizer.h"
 #include "ProfilingDebugging/CountersTrace.h"
 
+//UE_DISABLE_OPTIMIZATION
+
 TRACE_DECLARE_INT_COUNTER_EXTERN(ChaosTraceCounter_MidPhase_NumShapePair);
 TRACE_DECLARE_INT_COUNTER_EXTERN(ChaosTraceCounter_MidPhase_NumGeneric);
 

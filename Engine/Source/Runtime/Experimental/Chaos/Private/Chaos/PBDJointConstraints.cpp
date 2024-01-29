@@ -285,7 +285,7 @@ namespace Chaos
 
 	void FPBDJointConstraintHandle::SetConstraintEnabled(bool bInEnabled)
 	{
-		return ConcreteContainer()->SetConstraintEnabled(ConstraintIndex, bInEnabled);
+		ConcreteContainer()->SetConstraintEnabled(ConstraintIndex, bInEnabled);
 	}
 
 

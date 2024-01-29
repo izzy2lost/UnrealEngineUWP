@@ -2613,6 +2613,27 @@ FVector FBodyInstance::GetUnrealWorldVelocity() const
 	return OutVelocity;
 }
 
+FTransform FBodyInstance::GetKinematicTarget_AssumesLocked() const
+{
+	FTransform TM;
+	if (FPhysicsInterface::IsValid(ActorHandle))
+	{
+		TM = FPhysicsInterface::GetKinematicTarget_AssumesLocked(ActorHandle);
+	}
+	return TM;
+}
+
+FTransform FBodyInstance::GetKinematicTarget() const
+{
+	FTransform TM;
+	FPhysicsCommand::ExecuteRead(ActorHandle, [&](const FPhysicsActorHandle& Actor)
+		{
+			TM = FPhysicsInterface::GetKinematicTarget_AssumesLocked(Actor);
+		});
+
+	return TM;
+}
+
 FVector FBodyInstance::GetUnrealWorldVelocity_AssumesLocked() const
 {
 	FVector LinVel(EForceInit::ForceInitToZero);

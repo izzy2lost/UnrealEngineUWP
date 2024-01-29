@@ -41,6 +41,12 @@ namespace ImmediatePhysics_Chaos
 
 		ENGINE_API void DestroyActorCollisions(FActorHandle* ActorHandle);
 
+		ENGINE_API void SetIsKinematic(FActorHandle* ActorHandle, bool bKinematic);
+
+		ENGINE_API void SetEnabled(FActorHandle* ActorHandle, bool bEnable);
+
+		ENGINE_API void SetHasCollision(FActorHandle* ActorHandle, bool bHasCollision);
+
 		/** Create a physical joint and add it to the simulation */
 		ENGINE_API FJointHandle* CreateJoint(FConstraintInstance* ConstraintInstance, FActorHandle* Body1, FActorHandle* Body2);
 

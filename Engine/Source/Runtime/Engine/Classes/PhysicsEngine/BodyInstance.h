@@ -973,6 +973,12 @@ public:
 	/** Get current transform in world space from physics body. */
 	ENGINE_API FTransform GetUnrealWorldTransform_AssumesLocked(bool bWithProjection = true, bool bForceGlobalPose = false) const;
 
+	/** Get the kinematic target transform in world space from physics body. Will only be relevant/useful if the body is kinematic */
+	ENGINE_API FTransform GetKinematicTarget() const;
+
+	/** Get the kinematic target transform in world space from physics body. Will only be relevant/useful if the body is kinematic */
+	ENGINE_API FTransform GetKinematicTarget_AssumesLocked() const;
+
 	/**
 	 *	Move the physics body to a new pose.
 	 *	@param	bTeleport	If true, no velocity is inferred on the kinematic body from this movement, but it moves right away.
