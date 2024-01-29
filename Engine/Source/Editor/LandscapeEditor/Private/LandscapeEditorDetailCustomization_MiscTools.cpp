@@ -86,7 +86,6 @@ void FLandscapeEditorDetailCustomization_MiscTools::CustomizeDetails(IDetailLayo
 					.MaxValue(32768.0f)
 					.SliderExponentNeutralValue(0.0f)
 					.SliderExponent(5.0f)
-					.ShiftMouseMovePixelPerDelta(20)
 					.MinSliderValue(-32768.0f)
 					.MaxSliderValue(32768.0f)
 					.MinDesiredValueWidth(75.0f)

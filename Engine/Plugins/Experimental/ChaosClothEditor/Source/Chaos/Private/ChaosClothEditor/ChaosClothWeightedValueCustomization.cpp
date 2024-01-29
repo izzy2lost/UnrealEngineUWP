@@ -43,11 +43,12 @@ TSharedRef<SWidget> FChaosClothWeightedValueCustomization::MakeNumericWidget(
 {
 	TOptional<NumericType> MinValue, MaxValue, SliderMinValue, SliderMaxValue;
 	NumericType SliderExponent, Delta;
-	int32 ShiftMouseMovePixelPerDelta = 1;
+	float ShiftMultiplier = 10.f;
+	float CtrlMultiplier = 0.1;
 	bool SupportDynamicSliderMaxValue = false;
 	bool SupportDynamicSliderMinValue = false;
 
-	ExtractNumericMetadata(StructurePropertyHandle, MinValue, MaxValue, SliderMinValue, SliderMaxValue, SliderExponent, Delta, ShiftMouseMovePixelPerDelta, SupportDynamicSliderMaxValue, SupportDynamicSliderMinValue);
+	ExtractNumericMetadata(StructurePropertyHandle, MinValue, MaxValue, SliderMinValue, SliderMaxValue, SliderExponent, Delta, ShiftMultiplier, CtrlMultiplier, SupportDynamicSliderMaxValue, SupportDynamicSliderMinValue);
 
 	TWeakPtr<IPropertyHandle> WeakHandlePtr = PropertyHandle;
 
@@ -64,7 +65,8 @@ TSharedRef<SWidget> FChaosClothWeightedValueCustomization::MakeNumericWidget(
 		.LabelVAlign(VAlign_Center)
 		// Only allow spin on handles with one object.  Otherwise it is not clear what value to spin
 		.AllowSpin(PropertyHandle->GetNumOuterObjects() < 2)
-		.ShiftMouseMovePixelPerDelta(ShiftMouseMovePixelPerDelta)
+		.ShiftMultiplier(ShiftMultiplier)
+		.CtrlMultiplier(CtrlMultiplier)
 		.SupportDynamicSliderMaxValue(SupportDynamicSliderMaxValue)
 		.SupportDynamicSliderMinValue(SupportDynamicSliderMinValue)
 		.OnDynamicSliderMaxValueChanged(this, &FChaosClothWeightedValueCustomization::OnDynamicSliderMaxValueChanged<NumericType>)
@@ -86,7 +88,7 @@ TSharedRef<SWidget> FChaosClothWeightedValueCustomization::MakeNumericWidget(
 // The following code is just a plain copy of FMathStructCustomization which
 // would need changes to be able to serve as a base class for this customization.
 template<typename NumericType>
-void FChaosClothWeightedValueCustomization::ExtractNumericMetadata(TSharedRef<IPropertyHandle>& PropertyHandle, TOptional<NumericType>& MinValue, TOptional<NumericType>& MaxValue, TOptional<NumericType>& SliderMinValue, TOptional<NumericType>& SliderMaxValue, NumericType& SliderExponent, NumericType& Delta, int32 &ShiftMouseMovePixelPerDelta, bool& SupportDynamicSliderMaxValue, bool& SupportDynamicSliderMinValue)
+void FChaosClothWeightedValueCustomization::ExtractNumericMetadata(TSharedRef<IPropertyHandle>& PropertyHandle, TOptional<NumericType>& MinValue, TOptional<NumericType>& MaxValue, TOptional<NumericType>& SliderMinValue, TOptional<NumericType>& SliderMaxValue, NumericType& SliderExponent, NumericType& Delta, float& ShiftMultiplier, float& CtrlMultiplier, bool& SupportDynamicSliderMaxValue, bool& SupportDynamicSliderMinValue)
 {
 	FProperty* Property = PropertyHandle->GetProperty();
 
@@ -94,7 +96,8 @@ void FChaosClothWeightedValueCustomization::ExtractNumericMetadata(TSharedRef<IP
 	const FString& MetaUIMaxString = Property->GetMetaData(TEXT("UIMax"));
 	const FString& SliderExponentString = Property->GetMetaData(TEXT("SliderExponent"));
 	const FString& DeltaString = Property->GetMetaData(TEXT("Delta"));
-	const FString& ShiftMouseMovePixelPerDeltaString = Property->GetMetaData(TEXT("ShiftMouseMovePixelPerDelta"));
+	const FString& ShiftMultiplierString = Property->GetMetaData(TEXT("ShiftMultiplier"));
+	const FString& CtrlMultiplierString = Property->GetMetaData(TEXT("CtrlMultiplier"));
 	const FString& SupportDynamicSliderMaxValueString = Property->GetMetaData(TEXT("SupportDynamicSliderMaxValue"));
 	const FString& SupportDynamicSliderMinValueString = Property->GetMetaData(TEXT("SupportDynamicSliderMinValue"));
 	const FString& ClampMinString = Property->GetMetaData(TEXT("ClampMin"));
@@ -136,16 +139,16 @@ void FChaosClothWeightedValueCustomization::ExtractNumericMetadata(TSharedRef<IP
 		TTypeFromString<NumericType>::FromString(Delta, *DeltaString);
 	}
 
-	ShiftMouseMovePixelPerDelta = 1;
-	if (ShiftMouseMovePixelPerDeltaString.Len())
+	ShiftMultiplier = 10.f;
+	if (ShiftMultiplierString.Len())
 	{
-		TTypeFromString<int32>::FromString(ShiftMouseMovePixelPerDelta, *ShiftMouseMovePixelPerDeltaString);
-		//The value should be greater or equal to 1
-		// 1 is neutral since it is a multiplier of the mouse drag pixel
-		if (ShiftMouseMovePixelPerDelta < 1)
-		{
-			ShiftMouseMovePixelPerDelta = 1;
-		}
+		TTypeFromString<float>::FromString(ShiftMultiplier, *ShiftMultiplierString);
+	}
+
+	CtrlMultiplier = 0.1f;
+	if (CtrlMultiplierString.Len())
+	{
+		TTypeFromString<float>::FromString(CtrlMultiplier, *CtrlMultiplierString);
 	}
 
 	const NumericType ActualUIMin = FMath::Max(UIMin, ClampMin);

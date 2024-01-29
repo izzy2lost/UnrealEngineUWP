@@ -35,7 +35,8 @@ namespace UE::Chaos::ClothAsset
 			TOptional<float>& SliderMaxValue,
 			float& SliderExponent,
 			float& Delta,
-			int32& ShiftMouseMovePixelPerDelta,
+			float& ShiftMultiplier,
+			float& CtrlMultiplier,
 			bool& SupportDynamicSliderMaxValue,
 			bool& SupportDynamicSliderMinValue);
 		TSharedRef<SWidget> MakeFloatWidget(TSharedRef<IPropertyHandle>& StructurePropertyHandle, TSharedRef<IPropertyHandle>& PropertyHandle);
