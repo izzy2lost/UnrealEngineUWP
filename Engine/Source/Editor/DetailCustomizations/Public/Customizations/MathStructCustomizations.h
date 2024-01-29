@@ -72,7 +72,8 @@ public:
 		NumericType SliderExponent;
 		NumericType Delta;
 		int32 LinearDeltaSensitivity;
-		int32 ShiftMouseMovePixelPerDelta;
+		float ShiftMultiplier;
+		float CtrlMultiplier;
 		bool bSupportDynamicSliderMaxValue;
 		bool bSupportDynamicSliderMinValue;
 		bool bAllowSpinBox;
@@ -84,10 +85,10 @@ public:
 
 	template <typename NumericType>
 	UE_DEPRECATED(5.0, "Use ExtractNumericMetadata overload with struct argument instead.")
-	DETAILCUSTOMIZATIONS_API static void ExtractNumericMetadata(TSharedRef<IPropertyHandle>& PropertyHandle, TOptional<NumericType>& MinValue, 
-		TOptional<NumericType>& MaxValue, TOptional<NumericType>& SliderMinValue, TOptional<NumericType>& SliderMaxValue,
-		NumericType& SliderExponent, NumericType& Delta, int32& ShiftMouseMovePixelPerDelta, 
-		bool& bSupportDynamicSliderMaxValue, bool& bSupportDynamicSliderMinValue);
+		DETAILCUSTOMIZATIONS_API static void ExtractNumericMetadata(TSharedRef<IPropertyHandle>& PropertyHandle, TOptional<NumericType>& MinValue,
+			TOptional<NumericType>& MaxValue, TOptional<NumericType>& SliderMinValue, TOptional<NumericType>& SliderMaxValue,
+			NumericType& SliderExponent, NumericType& Delta, int32& ShiftMouseMovePixelPerDelta,
+			bool& bSupportDynamicSliderMaxValue, bool& bSupportDynamicSliderMinValue);
 
 protected:
 

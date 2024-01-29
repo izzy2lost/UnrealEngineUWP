@@ -563,7 +563,7 @@ TSharedRef<SWidget> SUsdObjectFieldRow::GenerateSpinboxWidgets(
 			TSharedRef<SWidget> EntryBox = SNew(SNumericEntryBox<T>)
 				.AllowSpin(true)
 				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-				.ShiftMouseMovePixelPerDelta(1)
+				.ShiftMultiplier(10.f)
 				.SupportDynamicSliderMaxValue(true)
 				.SupportDynamicSliderMinValue(true)
 				.OnValueChanged(this, &SUsdObjectFieldRow::OnSpinboxValueChanged<T>, ComponentIndex)

@@ -154,7 +154,8 @@ void FMathStructCustomization::MakeHeaderRow(TSharedRef<class IPropertyHandle>& 
 		ChildHandle->SetInstanceMetaData(TEXT("SliderExponent"), StructPropertyHandle->GetMetaData(TEXT("SliderExponent")));
 		ChildHandle->SetInstanceMetaData(TEXT("Delta"), StructPropertyHandle->GetMetaData(TEXT("Delta")));
 		ChildHandle->SetInstanceMetaData(TEXT("LinearDeltaSensitivity"), StructPropertyHandle->GetMetaData(TEXT("LinearDeltaSensitivity")));
-		ChildHandle->SetInstanceMetaData(TEXT("ShiftMouseMovePixelPerDelta"), StructPropertyHandle->GetMetaData(TEXT("ShiftMouseMovePixelPerDelta")));
+		ChildHandle->SetInstanceMetaData(TEXT("ShiftMultiplier"), StructPropertyHandle->GetMetaData(TEXT("ShiftMultiplier")));
+		ChildHandle->SetInstanceMetaData(TEXT("CtrlMultiplier"), StructPropertyHandle->GetMetaData(TEXT("CtrlMultiplier")));
 		ChildHandle->SetInstanceMetaData(TEXT("SupportDynamicSliderMaxValue"), StructPropertyHandle->GetMetaData(TEXT("SupportDynamicSliderMaxValue")));
 		ChildHandle->SetInstanceMetaData(TEXT("SupportDynamicSliderMinValue"), StructPropertyHandle->GetMetaData(TEXT("SupportDynamicSliderMinValue")));
 		ChildHandle->SetInstanceMetaData(TEXT("ClampMin"), StructPropertyHandle->GetMetaData(TEXT("ClampMin")));
@@ -287,7 +288,6 @@ void FMathStructCustomization::ExtractNumericMetadata(TSharedRef<IPropertyHandle
 	SliderMaxValue = Metadata.SliderMaxValue;
 	SliderExponent = Metadata.SliderExponent;
 	Delta = Metadata.Delta;
-	ShiftMouseMovePixelPerDelta = Metadata.ShiftMouseMovePixelPerDelta;
 	bSupportDynamicSliderMaxValue = Metadata.bSupportDynamicSliderMaxValue;
 	bSupportDynamicSliderMinValue = Metadata.bSupportDynamicSliderMinValue;
 }
@@ -322,7 +322,8 @@ void FMathStructCustomization::ExtractNumericMetadata(TSharedRef<IPropertyHandle
 	const FString& SliderExponentString = Property->GetMetaData(TEXT("SliderExponent"));
 	const FString& DeltaString = Property->GetMetaData(TEXT("Delta"));
 	const FString& LinearDeltaSensitivityString = Property->GetMetaData(TEXT("LinearDeltaSensitivity"));
-	const FString& ShiftMouseMovePixelPerDeltaString = Property->GetMetaData(TEXT("ShiftMouseMovePixelPerDelta"));
+	const FString& ShiftMultiplierString = Property->GetMetaData(TEXT("ShiftMultiplier"));
+	const FString& CtrlMultiplierString = Property->GetMetaData(TEXT("CtrlMultiplier"));
 	const FString& SupportDynamicSliderMaxValueString = Property->GetMetaData(TEXT("SupportDynamicSliderMaxValue"));
 	const FString& SupportDynamicSliderMinValueString = Property->GetMetaData(TEXT("SupportDynamicSliderMinValue"));
 	const FString& ClampMinString = Property->GetMetaData(TEXT("ClampMin"));
@@ -373,16 +374,16 @@ void FMathStructCustomization::ExtractNumericMetadata(TSharedRef<IPropertyHandle
 	// LinearDeltaSensitivity only works in SSpinBox if delta is provided, so add it in if it wasn't.
 	MetadataOut.Delta = (MetadataOut.LinearDeltaSensitivity != 0 && MetadataOut.Delta == NumericType(0)) ? NumericType(1) : MetadataOut.Delta;
 
-	MetadataOut.ShiftMouseMovePixelPerDelta = 1;
-	if (ShiftMouseMovePixelPerDeltaString.Len())
+	MetadataOut.ShiftMultiplier = 10.f;
+	if (ShiftMultiplierString.Len())
 	{
-		TTypeFromString<int32>::FromString(MetadataOut.ShiftMouseMovePixelPerDelta, *ShiftMouseMovePixelPerDeltaString);
-		//The value should be greater or equal to 1
-		// 1 is neutral since it is a multiplier of the mouse drag pixel
-		if (MetadataOut.ShiftMouseMovePixelPerDelta < 1)
-		{
-			MetadataOut.ShiftMouseMovePixelPerDelta = 1;
-		}
+		TTypeFromString<float>::FromString(MetadataOut.ShiftMultiplier, *ShiftMultiplierString);
+	}
+
+	MetadataOut.CtrlMultiplier = 0.1f;
+	if (CtrlMultiplierString.Len())
+	{
+		TTypeFromString<float>::FromString(MetadataOut.CtrlMultiplier, *CtrlMultiplierString);
 	}
 
 	if (ClampMin >= ClampMax && (ClampMinString.Len() || ClampMaxString.Len()))
@@ -432,7 +433,8 @@ TSharedRef<SWidget> FMathStructCustomization::MakeNumericWidget(
 			.OnEndSliderMovement(this, &FMathStructCustomization::OnEndSliderMovement<NumericType>)
 			// Only allow spin on handles with one object.  Otherwise it is not clear what value to spin
 			.AllowSpin(PropertyHandle->GetNumOuterObjects() < 2 && Metadata.bAllowSpinBox)
-			.ShiftMouseMovePixelPerDelta(Metadata.ShiftMouseMovePixelPerDelta)
+			.ShiftMultiplier(Metadata.ShiftMultiplier)
+			.CtrlMultiplier(Metadata.CtrlMultiplier)
 			.SupportDynamicSliderMaxValue(Metadata.bSupportDynamicSliderMaxValue)
 			.SupportDynamicSliderMinValue(Metadata.bSupportDynamicSliderMinValue)
 			.OnDynamicSliderMaxValueChanged(this, &FMathStructCustomization::OnDynamicSliderMaxValueChanged<NumericType>)
