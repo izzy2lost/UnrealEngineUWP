@@ -86,8 +86,8 @@ bool SkeletalMesUtilsImpl::SkeletonsAreCompatible(const FReferenceSkeleton& NewS
 				if (!bFailNoError)
 				{
 					UnFbx::FFbxImporter* FFbxImporter = UnFbx::FFbxImporter::GetInstance();
-					FFbxImporter->AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Error, FText::Format(LOCTEXT("MeshHasDifferentRoot", "Root Bone is '{0}' instead of '{1}'.\nDiscarding existing LODs."),
-						FText::FromName(NewBoneName), FText::FromName(NewParentName))), FFbxErrors::SkeletalMesh_DifferentRoots);
+					FFbxImporter->AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Error, FText::Format(LOCTEXT("MeshHasDifferentParent", "Parent Bone of '{0}' is '{1}' instead of '{2}'. Discarding existing LODs."),
+						FText::FromName(NewBoneName), FText::FromName(NewParentName), FText::FromName(ExistParentName))), FFbxErrors::SkeletalMesh_DifferentRoots);
 				}
 				return false;
 			}

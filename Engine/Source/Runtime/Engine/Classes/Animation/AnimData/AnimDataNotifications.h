@@ -78,6 +78,9 @@ enum class EAnimDataModelNotifyType : uint8
 	/** Indicates all data stored on the model has been reset. Type of payload: FEmptyPayload */
 	Reset,
 
+	/** Indicates that the skeleton changed. Type of payload: FEmptyPayload */
+	SkeletonChanged,
+
 	Invalid // The max for this enum (used for guarding)
 };
 

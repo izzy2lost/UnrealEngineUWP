@@ -253,6 +253,7 @@ namespace FReferenceSkeletonLocals
 					if (Element.Parent)
 					{
 						Transforms[Element.RawIndex] *= GetGlobalTransformArg(*Element.Parent, GetGlobalTransformArg);
+						Transforms[Element.RawIndex].NormalizeRotation();
 					}
 
 					TransformCached[Element.RawIndex] = true;
@@ -424,6 +425,7 @@ int32 FReferenceSkeleton::SetParent(const FName InBoneName, const FName InParent
 		if (NewParentIdx != INDEX_NONE)
 		{
 			Pose = Transforms[NewIndex].GetRelativeTransform(Transforms[Element.Parent->RawIndex]);
+			Pose.NormalizeRotation();
 		}
 
 		// update name to index map
