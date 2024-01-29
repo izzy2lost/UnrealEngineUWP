@@ -104,18 +104,18 @@ FOpResult VMapBase::Copy(FRunningContext Context, TranslationFunc&& Func)
 	for (TPair<Verse::TWriteBarrier<Verse::VValue>, Verse::TWriteBarrier<Verse::VValue>>& Pair : InternalMap)
 	{
 		FOpResult KeyResult = Func(Context, Pair.Key.Get());
-		if (KeyResult.Kind == FOpResult::ShouldSuspend)
+		if (KeyResult.Kind == FOpResult::Block)
 		{
 			return KeyResult;
 		}
 		FOpResult ValueResult = Func(Context, Pair.Value.Get());
-		if (ValueResult.Kind == FOpResult::ShouldSuspend)
+		if (ValueResult.Kind == FOpResult::Block)
 		{
 			return ValueResult;
 		}
 		MapCopy.Add(Context, KeyResult.Value, ValueResult.Value);
 	}
-	return {FOpResult::Normal, VValue(MapCopy)};
+	V_RETURN(VValue(MapCopy));
 }
 
 FOpResult VMapBase::MeltImpl(FRunningContext Context)

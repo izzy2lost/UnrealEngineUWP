@@ -763,6 +763,10 @@ namespace UnrealBuildTool
 			Inst("EndFailureContext")
 				.Jump("Done");
 
+			Inst("BeginTask")
+				.Jump("OnYield");
+			Inst("EndTask");
+
 			Inst("Call")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Callee", Role.Use)
@@ -829,6 +833,7 @@ namespace UnrealBuildTool
 			Inst("ArrayAdd")
 				.Arg("Container", Role.Use)
 				.Arg("ValueToAdd", Role.Use)
+				.CapturesEffectToken()
 				.Suspends();
 
 			// This in place converts a VMutableArray into a VArray.

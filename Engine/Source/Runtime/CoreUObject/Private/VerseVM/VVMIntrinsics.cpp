@@ -19,7 +19,7 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VIntrinsics);
 TGlobalTrivialEmergentTypePtr<&VIntrinsics::StaticCppClassInfo> VIntrinsics::GlobalTrivialEmergentType;
 
-FNativeCallResult VIntrinsics::AbsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
+FNativeCallResult VIntrinsics::AbsImpl(FRunningContext Context, VTask*, VValue Scope, VNativeFunction::Args Arguments)
 {
 	checkSlow(Arguments.Num() == 1); // The interpreter already checks this
 	V_REQUIRE_CONCRETE(Arguments[0]);
@@ -28,7 +28,7 @@ FNativeCallResult VIntrinsics::AbsImpl(FRunningContext Context, VValue Scope, VN
 				 : VValue(VInt::Abs(Context, VInt(Arguments[0]))));
 }
 
-FNativeCallResult VIntrinsics::CeilImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
+FNativeCallResult VIntrinsics::CeilImpl(FRunningContext Context, VTask*, VValue Scope, VNativeFunction::Args Arguments)
 {
 	checkSlow(Arguments.Num() == 1); // The interpreter already checks this
 	V_REQUIRE_CONCRETE(Arguments[0]);
@@ -36,7 +36,7 @@ FNativeCallResult VIntrinsics::CeilImpl(FRunningContext Context, VValue Scope, V
 	V_RETURN(Argument.Ceil(Context));
 }
 
-FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
+FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VTask*, VValue Scope, VNativeFunction::Args Arguments)
 {
 	checkSlow(Arguments.Num() == 1); // The interpreter already checks this
 	V_REQUIRE_CONCRETE(Arguments[0]);
@@ -44,7 +44,7 @@ FNativeCallResult VIntrinsics::FloorImpl(FRunningContext Context, VValue Scope, 
 	V_RETURN(Argument.Floor(Context));
 }
 
-FNativeCallResult VIntrinsics::ConcatenateMapsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
+FNativeCallResult VIntrinsics::ConcatenateMapsImpl(FRunningContext Context, VTask*, VValue Scope, VNativeFunction::Args Arguments)
 {
 	checkSlow(Arguments.Num() == 2); // The interpreter already checks this
 	V_REQUIRE_CONCRETE(Arguments[0]);

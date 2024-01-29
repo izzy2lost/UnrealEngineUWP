@@ -48,7 +48,7 @@ FOpResult VMutableArray::FreezeImpl(FRunningContext Context)
 		FOpResult ValueResult = VValue::Freeze(Context, GetValue(I));
 		FrozenArray.SetValue(Context, I, ValueResult.Value);
 	}
-	return {FOpResult::Normal, VValue(FrozenArray)};
+	return {FOpResult::Return, VValue(FrozenArray)};
 }
 
 } // namespace Verse

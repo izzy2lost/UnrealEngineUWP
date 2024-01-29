@@ -7,6 +7,7 @@
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMTask.h"
 
 namespace Verse
 {
@@ -17,10 +18,8 @@ TGlobalTrivialEmergentTypePtr<&VFailureContext::StaticCppClassInfo> VFailureCont
 template <typename TVisitor>
 void VFailureContext::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(FirstChild, TEXT("FirstChild"));
-	Visitor.Visit(Next, TEXT("Next"));
-	Visitor.Visit(Prev, TEXT("Prev"));
-	Visitor.Visit(Parent, TEXT("Parent"));
+	TIntrusiveTree<VFailureContext>::VisitReferencesImpl(Visitor);
+	Visitor.Visit(Task, TEXT("Task"));
 	Visitor.Visit(Frame, TEXT("Frame"));
 	Visitor.Visit(IncomingEffectToken, TEXT("IncomingEffectToken"));
 	Visitor.Visit(BeforeThenEffectToken, TEXT("BeforeThenEffectToken"));

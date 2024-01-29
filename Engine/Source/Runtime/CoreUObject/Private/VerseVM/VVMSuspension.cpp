@@ -10,6 +10,7 @@
 #include "VerseVM/VVMFailureContext.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMProcedure.h"
+#include "VerseVM/VVMTask.h"
 
 namespace Verse
 {
@@ -24,6 +25,7 @@ template <typename TVisitor>
 void VSuspension::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(FailureContext, TEXT("FailureContext"));
+	Visitor.Visit(Task, TEXT("Task"));
 	Visitor.Visit(Next, TEXT("Next"));
 }
 

@@ -19,13 +19,9 @@ void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 {
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.Visit(ReturnEffectToken, TEXT("ReturnEffectToken"));
-		Visitor.Visit(Procedure, TEXT("Procedure"));
-		if (ReturnKind == EReturnKind::Value)
-		{
-			Visitor.Visit(Return.Value, TEXT("ReturnSlot"));
-		}
 		Visitor.Visit(CallerFrame, TEXT("CallerFrame"));
+		ReturnSlot.Visit(Visitor);
+		Visitor.Visit(Procedure, TEXT("Procedure"));
 		uint64 ScratchNumRegisters = NumRegisters;
 		Visitor.BeginArray(TEXT("Registers"), ScratchNumRegisters);
 		Visitor.Visit(Registers, Registers + NumRegisters);
@@ -33,13 +29,9 @@ void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 	}
 	else
 	{
-		Visitor.Visit(ReturnEffectToken, TEXT("ReturnEffectToken"));
-		Visitor.Visit(Procedure, TEXT("Procedure"));
-		if (ReturnKind == EReturnKind::Value)
-		{
-			Visitor.Visit(Return.Value, TEXT("ReturnSlot"));
-		}
 		Visitor.Visit(CallerFrame, TEXT("CallerFrame"));
+		ReturnSlot.Visit(Visitor);
+		Visitor.Visit(Procedure, TEXT("Procedure"));
 		Visitor.Visit(Registers, Registers + NumRegisters);
 	}
 }

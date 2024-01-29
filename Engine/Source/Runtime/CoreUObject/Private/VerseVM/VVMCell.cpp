@@ -80,14 +80,14 @@ FOpResult VCell::MeltImpl(FRunningContext Context)
 {
 	V_DIE("VCell subtype without `MeltImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being melted.");
-	return {FOpResult::RuntimeError};
+	return {FOpResult::Error};
 }
 
 FOpResult VCell::FreezeImpl(FRunningContext Context)
 {
 	V_DIE("VCell subtype without `FreezeImpl` override called! Either this type should have an override "
 		  "or an invalid subtype is being frozen.");
-	return {FOpResult::RuntimeError};
+	return {FOpResult::Error};
 }
 
 uint32 VCell::GetTypeHashImpl()

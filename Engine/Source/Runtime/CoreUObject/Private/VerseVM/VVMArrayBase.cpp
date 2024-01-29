@@ -45,13 +45,13 @@ FOpResult VArrayBase::MeltImpl(FRunningContext Context)
 	for (uint32 I = 0; I < Num(); ++I)
 	{
 		FOpResult ValueResult = VValue::Melt(Context, GetValue(I));
-		if (ValueResult.Kind == FOpResult::ShouldSuspend)
+		if (ValueResult.Kind == FOpResult::Block)
 		{
 			return ValueResult;
 		}
 		MeltedArray.AddValue(Context, ValueResult.Value);
 	}
-	return {FOpResult::Normal, VValue(MeltedArray)};
+	V_RETURN(VValue(MeltedArray));
 }
 
 uint32 VArrayBase::GetTypeHashImpl()
