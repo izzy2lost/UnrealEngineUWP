@@ -15,6 +15,3 @@ void FPPMChainGraphEditorModule::ShutdownModule()
 
 IMPLEMENT_MODULE(FPPMChainGraphEditorModule, PPMChainGraphEditor);
 DEFINE_LOG_CATEGORY(LogPPMChainGraphEditor);
-
-
-#undef LOCTEXT_NAMESPACE
