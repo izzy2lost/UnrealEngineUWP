@@ -670,7 +670,7 @@ void UWidgetBlueprintLibrary::GetSafeZonePadding(UObject* WorldContextObject, FV
 
 void UWidgetBlueprintLibrary::SetColorVisionDeficiencyType(EColorVisionDeficiency Type, float Severity, bool CorrectDeficiency, bool ShowCorrectionWithDeficiency)
 {
-	int32 AdjustedSeverity = FMath::Clamp(Severity, 0.f, 1.f) * 10;
+	int32 AdjustedSeverity = FMath::TruncToInt32(FMath::Clamp(Severity, 0.f, 1.f) * 10);
 	FSlateApplicationBase::Get().GetRenderer()->SetColorVisionDeficiencyType(Type, AdjustedSeverity, CorrectDeficiency, ShowCorrectionWithDeficiency);
 }
 

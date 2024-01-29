@@ -145,12 +145,12 @@ void USlateBlueprintLibrary::ScreenToViewport(UObject* WorldContextObject, FVect
 
 float USlateBlueprintLibrary::TransformScalarAbsoluteToLocal(const FGeometry& Geometry, float AbsoluteScalar)
 {
-	return Geometry.GetAccumulatedRenderTransform().TransformVector(FVector2D(AbsoluteScalar, 0)).Size();
+	return Geometry.GetAccumulatedRenderTransform().TransformVector(FVector2f(AbsoluteScalar, 0.0f)).Size();
 }
 
 float USlateBlueprintLibrary::TransformScalarLocalToAbsolute(const FGeometry& Geometry, float LocalScalar)
 {
-	return Inverse(Geometry.GetAccumulatedRenderTransform()).TransformVector(FVector2D(LocalScalar, 0)).Size();
+	return Inverse(Geometry.GetAccumulatedRenderTransform()).TransformVector(FVector2f(LocalScalar, 0.0f)).Size();
 }
 
 FVector2D USlateBlueprintLibrary::TransformVectorAbsoluteToLocal(const FGeometry& Geometry, FVector2D AbsoluteVector)

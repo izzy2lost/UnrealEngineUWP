@@ -46,7 +46,7 @@ TSharedRef<ISlateRun> FRichTextDecorator::Create(const TSharedRef<class FTextLay
 		TAttribute<int16> GetBaseline = TAttribute<int16>::CreateLambda([Font, ShadowOffsetY]()
 		{
 			const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-			return FontMeasure->GetBaseline(Font) - ShadowOffsetY;
+			return static_cast<int16>(FontMeasure->GetBaseline(Font) - ShadowOffsetY);
 		});
 
 		FSlateWidgetRun::FWidgetRunInfo WidgetRunInfo(DecoratorWidget.ToSharedRef(), GetBaseline);

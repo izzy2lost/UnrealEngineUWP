@@ -109,7 +109,7 @@ void UGridPanel::SetColumnFill(int32 ColumnIndex, float Coefficient)
 {
 	while (ColumnFill.Num() <= ColumnIndex)
 	{
-		ColumnFill.Emplace(0);
+		ColumnFill.Emplace(0.0f);
 	}
 	ColumnFill[ColumnIndex] = Coefficient;
 
@@ -123,7 +123,7 @@ void UGridPanel::SetRowFill(int32 RowIndex, float Coefficient)
 {
 	while (RowFill.Num() <= RowIndex)
 	{
-		RowFill.Emplace(0);
+		RowFill.Emplace(0.0f);
 	}
 	RowFill[RowIndex] = Coefficient;
 

@@ -429,9 +429,9 @@ private:
 	{
 		if (SListView<ItemType>* MyListView = GetMyListView())
 		{
-			const FVector2D DistanceRemaining = MyListView->GetScrollDistanceRemaining();
-			OnListViewScrolledInternal(OffsetInItems, DistanceRemaining.Y);
-			OnListViewScrolled().Broadcast(OffsetInItems, DistanceRemaining.Y);
+			const FVector2f DistanceRemaining = UE::Slate::CastToVector2f(MyListView->GetScrollDistanceRemaining());
+			OnListViewScrolledInternal(static_cast<float>(OffsetInItems), DistanceRemaining.Y);
+			OnListViewScrolled().Broadcast(static_cast<float>(OffsetInItems), DistanceRemaining.Y);
 		}
 	}
 

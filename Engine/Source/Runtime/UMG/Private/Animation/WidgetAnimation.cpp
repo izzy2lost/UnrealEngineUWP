@@ -91,12 +91,12 @@ ETrackSupport UWidgetAnimation::IsTrackSupported(TSubclassOf<class UMovieSceneTr
 
 float UWidgetAnimation::GetStartTime() const
 {
-	return MovieScene->GetPlaybackRange().GetLowerBoundValue() / MovieScene->GetTickResolution();
+	return static_cast<float>(MovieScene->GetPlaybackRange().GetLowerBoundValue() / MovieScene->GetTickResolution());
 }
 
 float UWidgetAnimation::GetEndTime() const
 {
-	return MovieScene->GetPlaybackRange().GetUpperBoundValue() / MovieScene->GetTickResolution();
+	return static_cast<float>(MovieScene->GetPlaybackRange().GetUpperBoundValue() / MovieScene->GetTickResolution());
 }
 
 void UWidgetAnimation::BindToAnimationStarted(UUserWidget* Widget, FWidgetAnimationDynamicEvent Delegate)
