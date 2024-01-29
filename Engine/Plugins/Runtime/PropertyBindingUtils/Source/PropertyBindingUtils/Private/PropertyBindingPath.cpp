@@ -16,6 +16,21 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PropertyBindingPath)
 
 //----------------------------------------------------------------//
+//  FBindableStructDesc
+//----------------------------------------------------------------//
+
+FString FBindableStructDesc::ToString() const
+{
+	FStringBuilderBase Result;
+
+	Result += TEXT(" '");
+	Result += Name.ToString();
+	Result += TEXT("'");
+
+	return Result.ToString();
+}
+
+//----------------------------------------------------------------//
 //  FPropertyBindingPath
 //----------------------------------------------------------------//
 

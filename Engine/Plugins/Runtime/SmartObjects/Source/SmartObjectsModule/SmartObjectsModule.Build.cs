@@ -24,7 +24,8 @@ namespace UnrealBuildTool.Rules
 				"StructUtils",
 				"WorldConditions",
 				"NavigationSystem",
-				"TargetingSystem"
+				"TargetingSystem",
+				"PropertyBindingUtils",
 			}
 			);
 
@@ -34,6 +35,16 @@ namespace UnrealBuildTool.Rules
 				"InputCore"
 			}
 			);
+
+			if (Target.bBuildEditor)
+			{
+				PublicDependencyModuleNames.AddRange(
+					new string[] {
+						"UnrealEd",
+						"BlueprintGraph",
+					}
+				);
+			}
 
 			SetupGameplayDebuggerSupport(Target);
 		}
