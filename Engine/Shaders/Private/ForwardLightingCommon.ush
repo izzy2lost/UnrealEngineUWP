@@ -402,7 +402,10 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 
 #if (TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING || TRANSLUCENCY_LIGHTING_SURFACE_LIGHTINGVOLUME) && MATERIALBLENDING_ANY_TRANSLUCENT && PROJECT_SUPPORTS_LUMEN && !FORWARD_SHADING
 	
-	bUseLumenFrontLayerReflection = UseFrontLayerReflection(MaterialParameters.ViewBufferUV, MaterialParameters.ScreenPosition.w);
+	// For translucent rendered after motion blur, we cannot use Lumen front layer reflection because depth test is disabled in this case 
+	// (depth is jittered and post motion blur composition can happen at a different resolution with dynamic resolution scaling).
+	// Such Lumen reflections would look different on translucent meshes when occluded by opaque meshes.
+	bUseLumenFrontLayerReflection = UseFrontLayerReflection(MaterialParameters.ViewBufferUV, MaterialParameters.ScreenPosition.w) && !MATERIAL_TRANSLUCENT_PASS_AFTERMOTIONBLUR;
 
 	FRadianceCacheCoverage LumenRadianceCacheCoverage = InitRadianceCacheCoverage();
 	LumenRadianceCacheCoverage.bValid = false;

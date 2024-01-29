@@ -151,7 +151,7 @@ enum EMaterialTranslucencyPass : int
 	MTP_BeforeDOF UMETA(DisplayName="Before DOF"),
 	/** Render after depth of field. */
 	MTP_AfterDOF UMETA(DisplayName="After DOF"),
-	/** Render after motion blur. */
+	/** Render after motion blur. Disables depth test (the reconstruction post MB and TSR would otherwise flicker due to the TSR camera jittering making the depth buffer unstable). Because of that Lumen high quality reflections is also disabled to avoid visual discrepancy at depth intersection. */
 	MTP_AfterMotionBlur UMETA(DisplayName="After Motion Blur"),
 	MTP_MAX
 };
