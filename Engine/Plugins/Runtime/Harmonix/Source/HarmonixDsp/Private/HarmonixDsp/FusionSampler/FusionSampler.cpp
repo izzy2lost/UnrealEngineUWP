@@ -47,11 +47,6 @@ FFusionSampler::FFusionSampler()
 	, MinPitchBendCents(Defaults::kMinPitchBend)
 	, MaxPitchBendCents(Defaults::kMaxPitchBend)
 	, VoicePool(nullptr)
-	, DelayEnabled(false)
-	, BitCrusherEnabled(false)
-	, DistortionEnabled(false)
-	, VocoderEnabled(false)
-	, VocoderModulatorIndex(0)
 	, CurrentTempoBPM(120.0f)
 	, RawPitchMultiplier(1.0f)
 	, Transposition(0)
@@ -243,9 +238,6 @@ void FFusionSampler::SetSpeed(float InSpeed, bool InMaintainPitch)
 	// this line applies Speed to portamento time
 	SetPortamentoTime(GetPortamentoTime());   
 
-	Delay.SetSpeed(Speed);
-	Delay.SetDelaySeconds(Delay.GetDelaySeconds());
-
 	MaintainPitchWhenSpeedChanges = InMaintainPitch;
 }
 
@@ -265,7 +257,6 @@ void FFusionSampler::SetTempo(float InBPM)
 	}
 	
 	UpdateVoiceLfos();
-	Delay.SetTempo(InBPM * Speed);
 }
 
 void FFusionSampler::SetBeat(float Beat)
@@ -732,80 +723,7 @@ void FFusionSampler::ApplyPatchSettings()
 		SetPortamentoMode(Portamento.Mode);
 		SetPortamentoTime(Portamento.Seconds);
 	}
-	//-------------------------------------
-	// read in delay settings
-	//-------------------------------------
-	{
-		const FDelaySettings& DelaySettings = Settings.Delay;
-		SetDelayEnabled(DelaySettings.IsEnabled);
-		Delay.SetTimeSyncOption(DelaySettings.TimeSyncOption);
-		Delay.SetDelaySeconds(DelaySettings.TimeSeconds);
-		Delay.SetDryGain(DelaySettings.DryGain);
-		Delay.SetWetGain(DelaySettings.WetGain);
-		Delay.SetFeedbackGain(DelaySettings.FeedbackGain);
-		Delay.SetFilterFreq(DelaySettings.EQFreq);
-		Delay.SetFilterType(DelaySettings.EQType);
-		Delay.SetWetFilterEnabled(DelaySettings.EQEnabled);
-		Delay.SetFilterQ(DelaySettings.EQQ);
-		Delay.SetLfoEnabled(DelaySettings.LfoEnabled);
-		Delay.SetLfoTimeSyncOption(DelaySettings.LfoTimeSyncOption);
-		Delay.SetLfoFreq(DelaySettings.LfoRate);
-		Delay.SetLfoDepth(DelaySettings.LfoDepth);
-		Delay.SetStereoSpreadLeft(DelaySettings.PanLeft);
-		Delay.SetStereoSpreadRight(DelaySettings.PanRight);
-		Delay.SetStereoType(DelaySettings.StereoType);
-		// snap settings immediately
-		Delay.SetParamsToTargets();
-	}
 
-	//-------------------------------------
-	// read in bitcrusher settings
-	//-------------------------------------
-	{
-		const FBitCrusherSettings& CrushSettings = Settings.BitCrusher;
-		SetBitCrusherEnabled(CrushSettings.IsEnabled);
-		BitCrusher.Reset();
-		BitCrusher.SetWetGain(CrushSettings.WetGain);
-		BitCrusher.SetCrush(CrushSettings.Crush);
-		BitCrusher.SetSampleHoldFactor(CrushSettings.SampleHoldFactor);
-	}
-
-	//-------------------------------------
-	// read in vocoder settings
-	//-------------------------------------
-	{
-		const FVocoderSettings& VocoderSettings = Settings.Vocoder;
-		VocoderEnabled = VocoderSettings.IsEnabled;
-		Vocoder.SetBandConfig(VocoderSettings.BandConfig);
-		Vocoder.SetSoloing(VocoderSettings.Soloing);
-		Vocoder.SetWet(VocoderSettings.Wet);
-		Vocoder.SetCarrierGain(VocoderSettings.CarrierGain);
-		Vocoder.SetModulatorGain(VocoderSettings.ModulatorGain);
-		Vocoder.SetCarrierThin(VocoderSettings.CarrierThin);
-		Vocoder.SetModulatorThin(VocoderSettings.ModulatorThin);
-		Vocoder.SetAttack(VocoderSettings.Attack);
-		Vocoder.SetRelease(VocoderSettings.Release);
-		Vocoder.SetHighEmphasis(VocoderSettings.HighEmphasis);
-		Vocoder.SetOutputGain(VocoderSettings.OutputGain);
-		Vocoder.SetPerBandSettings(VocoderSettings.Bands);
-	}
-
-	//-------------------------------------
-	// read in distortion settings
-	//-------------------------------------
-	{
-		const FDistortionSettingsV1& DistortionSettings = Settings.Distortion;
-		DistortionEnabled = DistortionSettings.IsEnabled;
-		Distortion.SetSampleRate((int32)GetSamplesPerSecond());
-		Distortion.SetInputGainDb(DistortionSettings.InputGainDb);
-		Distortion.SetOutputGainDb(DistortionSettings.OutputGainDb);
-		Distortion.SetType(DistortionSettings.Type);
-		Distortion.SetOversample(DistortionSettings.Oversample, AudioRendering::kFramesPerRenderBuffer);
-		for (int32 Idx = 0; Idx < FDistortionSettingsV1::kNumFilters; ++Idx)
-		{
-			Distortion.SetupFilter(Idx, DistortionSettings.Filters[Idx]);
-		}
-	}
 }
 
 void FFusionSampler::Prepare(float InSampleRateHz, EAudioBufferChannelLayout InChannelLayout, uint32 InMaxSamples, bool bInAllocateBuffer /*= true*/)
@@ -851,15 +769,6 @@ void FFusionSampler::SetSampleRate(float InSampleRateHz)
 	}
 
 	SetPortamentoTime(GetPortamentoTime());
-
-	if (DelayEnabled)
-	{
-		Delay.Prepare(InSampleRateHz, kScratchBufferChannels, 2500.0f);
-	}
-
-	BitCrusher.Setup(kScratchBufferChannels, InSampleRateHz);
-	Vocoder.Setup(kScratchBufferChannels, InSampleRateHz, AudioRendering::kFramesPerRenderBuffer);
-
 }
 
 void FFusionSampler::ResetInstrumentStateImpl()
@@ -947,10 +856,6 @@ void FFusionSampler::ResetPatchRelatedState()
 	PortamentoPitchRamper.SnapTo(60);
 	SetPortamentoMode(EPortamentoMode::Legato);
 	SetPortamentoTime(Defaults::kPortamentoTimeMs / 1000.0f);
-
-	SetDelayEnabled(false);
-	SetBitCrusherEnabled(false);
-	DistortionEnabled = false;
 
 	FMemory::Memset(LastStartLayerSelect, -1, sizeof(int8) * MidiConstants::kMaxNumNotes);
 	FMemory::Memset(LastStopLayerSelect, -1, sizeof(int8) * MidiConstants::kMaxNumNotes);
@@ -1273,20 +1178,6 @@ void FFusionSampler::Process(uint32 InSliceIdx, uint32 InSubSliceIdx, TAudioBuff
 	{
 		VoiceUsage.Merge(0.0);
 		Output.FillData(0);
-
-		// don't cut off delay or buffers, even if no voices are running
-		if (DelayEnabled && DelaySilenceCountdown > 0.0f)
-		{
-			Output.SetIsSilent(false);
-			Delay.Process(Output);
-			DelaySilenceCountdown -= GetSecondsPerSample() * (double)Output.GetNumValidFrames();
-		}
-
-		if (BitCrusherEnabled)
-		{
-			BitCrusher.Reset();
-		}
-
 		return;
 	}
 
@@ -1344,36 +1235,8 @@ void FFusionSampler::Process(uint32 InSliceIdx, uint32 InSubSliceIdx, TAudioBuff
 	// mix in any pre-fx children now
 	for (int32 ChildIdx = 0; ChildIdx < FusionPreChildren.Num(); ++ChildIdx)
 	{
-		if (VocoderEnabled && ChildIdx == VocoderModulatorIndex)
-		{
-			continue;
-		}
 		FusionPreChildren[ChildIdx]->Process(InSliceIdx, InSubSliceIdx, ChildMixBuffer);
 		Output.Accumulate(ChildMixBuffer);
-	}
-
-	if (!IsChildRenderer() && FusionPreChildren.Num() > 0 && VocoderEnabled)
-	{
-		FusionPreChildren[VocoderModulatorIndex]->Process(InSliceIdx, InSubSliceIdx, ChildMixBuffer);
-		Vocoder.Process(Output, ChildMixBuffer);
-	}
-
-	// apply effects
-	if (DistortionEnabled)
-	{
-		Distortion.Process(Output);
-	}
-
-	if (BitCrusherEnabled)
-	{
-		BitCrusher.Process(Output);
-	}
-
-	if (DelayEnabled)
-	{
-		Delay.Process(Output);
-		DelaySilenceCountdown = Delay.CalculateSecsToIdle();
-		Output.SetIsSilent(false);
 	}
 
 	// de-activate portamento if we're in legato mode
@@ -1511,98 +1374,80 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 
 	case MidiConstants::EControllerID::BitCrushWetMix:
 	{
-		Msb = (int8)(BitCrusher.GetWetGain() * 127.0f);
 		break;
 	}
 
 	case MidiConstants::EControllerID::BitCrushLevel:
 	{
-		Msb = (int8)(((float)BitCrusher.GetCrush() / 15.0f) * 127.0f);
 		break;
 	}
 
 	case MidiConstants::EControllerID::BitCrushSampleHold:
 	{
-		Msb = (int8)((((float)BitCrusher.GetSampleHoldFactor() - 1.0f) / 15.0f) * 127.0f);
 		break;
 	}
 
 	case MidiConstants::EControllerID::DelayTime:
 	{
-		Msb = (int8)(gDelayTimeInterp.InverseClamped(Delay.GetDelaySeconds()) * 127.0f);
 		break;
 	}
 
 	case MidiConstants::EControllerID::DelayDryGain:
 	{
-		Msb = (int8)(Delay.GetDryGain() * 127.0f);
 		break;
 	}
 
 	case MidiConstants::EControllerID::DelayWetGain:
 	{
-		Msb = (int8)(Delay.GetWetGain() * 127.0f);
 		break;
 	}
 
 	case MidiConstants::EControllerID::DelayFeedback:
 	{
-		Msb = (int8)(Delay.GetFeedbackGain() * 127.0f);
 		break;
 	}
 	case MidiConstants::EControllerID::DelayEQEnabled:
 	{
-		Msb = Delay.GetWetFilterEnabled() ? 127 : 0;
 		break;
 	}
 	case MidiConstants::EControllerID::DelayEQType:
 	{
-		Msb = (int8)Delay.GetFilterType();
 		break;
 	}
 	case MidiConstants::EControllerID::DelayEQFreq:
 	{
-		Msb = (int8)(Delay.GetFilterFreq() * 127.0f);
 		break;
 	}
 	case MidiConstants::EControllerID::DelayEQQ:
 	{
-		Msb = (int8)(Delay.GetFilterQ() * 127.0f);
 		break;
 	}
 	case MidiConstants::EControllerID::DelayLFOEnabled:
 	{
-		Msb = Delay.GetLfoEnabled() ? 127 : 0;
 		break;
 	}
 	case MidiConstants::EControllerID::DelayLFOBeatSync:
 	{
-		Msb = Delay.GetLfoTimeSyncOption() == ETimeSyncOption::TempoSync ? 127 : 0;
 		break;
 	}
 	case MidiConstants::EControllerID::DelayLFORate:
 	{
-		Msb = (int8)(Delay.GetLfoFreq() * 127.0f);
 		break;
 	}
 	case MidiConstants::EControllerID::DelayLFODepth:
 	{
-		Msb = (int8)(Delay.GetLfoDepth() * 127.0f);
 		break;
 	}
 	case MidiConstants::EControllerID::DelayStereoType:
 	{
-		Msb = (int8)Delay.GetStereoType();
 		break;
 	}
 	case MidiConstants::EControllerID::DelayPanLeft:
 	{
-		Msb = (int8)(Delay.GetStereoSpreadLeft() * 127.0f);
 		break;
 	}
 	case MidiConstants::EControllerID::DelayPanRight:
 	{
-		Msb = (int8)(Delay.GetStereoSpreadRight() * 127.0f);
 	}
 	default:
 		break;
@@ -1706,93 +1551,75 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 		break; 
 	}
 	case MidiConstants::EControllerID::BitCrushWetMix: 
-	{ 
-		BitCrusher.SetWetGain(InValue);
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::BitCrushLevel: 
-	{ 
-		BitCrusher.SetCrush(InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::BitCrushSampleHold: 
-	{ 
-		BitCrusher.SetSampleHoldFactor((uint16)InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayTime: 
-	{ 
-		Delay.SetDelaySeconds(gDelayTimeInterp.EvalClamped(InValue)); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayDryGain: 
-	{ 
-		Delay.SetDryGain(InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayWetGain: 
-	{ 
-		Delay.SetWetGain(InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayFeedback: 
-	{ 
-		Delay.SetFeedbackGain(InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayEQEnabled: 
-	{ 
-		Delay.SetWetFilterEnabled(InValue > 0); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayEQType: 
-	{ 
-		Delay.SetFilterType((EBiquadFilterType)(InValue * 2.0f)); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayEQFreq: 
-	{ 
-		Delay.SetFilterFreq(20.0f + 17980.0f * InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayEQQ: 
-	{ 
-		Delay.SetFilterQ(0.1f + 29.9f * InValue); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayLFOEnabled: 
-	{ 
-		Delay.SetLfoEnabled(InValue > 0); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayLFOBeatSync: 
-	{ 
-		Delay.SetLfoTimeSyncOption(InValue > 0 ? ETimeSyncOption::TempoSync : ETimeSyncOption::None); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayLFORate: 
-	{ 
-		Delay.SetLfoFreq(InValue * 5.0f); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayLFODepth: 
-	{ 
-		Delay.SetLfoDepth(InValue * 40.0f);
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayStereoType: 
-	{ 
-		Delay.SetStereoType(EDelayStereoType(InValue * 4.0f));
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayPanLeft: 
-	{ 
-		Delay.SetStereoSpreadLeft(InValue * 100.0f); 
+	{
 		break; 
 	}
 	case MidiConstants::EControllerID::DelayPanRight: 
 	{
-		Delay.SetStereoSpreadRight(InValue * 100.0f); 
 		break; 
 	}
 	case MidiConstants::EControllerID::TimeStretchEnvelopeOrder:
@@ -2137,30 +1964,6 @@ void FFusionSampler::UpdateVoicesForEnvelopeOrderChange()
 			Shifter->ApplyOptions(Options);
 		}
 	}
-}
-
-void FFusionSampler::SetDelayEnabled(bool InEnabled)
-{
-	FScopeLock Lock(&GetBusLock());
-	DelayEnabled = InEnabled;
-
-	if (InEnabled)
-	{
-		Delay.Prepare((float)GetSamplesPerSecond(), kScratchBufferChannels, 2500.0f);
-	}
-	else
-	{
-		Delay.Unprepare();
-	}
-}
-
-void FFusionSampler::SetBitCrusherEnabled(bool InEnabled)
-{
-	if (BitCrusherEnabled != InEnabled && InEnabled)
-	{
-		BitCrusher.Reset();
-	}
-	BitCrusherEnabled = InEnabled;
 }
 
 // TODO: Needs to be reimplemented without FHarmonixGeneratorHandle

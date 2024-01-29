@@ -17,6 +17,8 @@ struct HARMONIXDSP_API FFusionPatchCustomVersion
 
 		DeprecatedPresets = 4,
 
+		DeprecatedUnusedEffectsSettings = 5,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

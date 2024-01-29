@@ -26,15 +26,5 @@ public:
 
 	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FModulatorSettings& ModulatorSettings);
 
-	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FDelaySettings& DelaySettings);
-
-	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FBitCrusherSettings& BitCrusherSettings);
-
-	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FVocoderSettings& VocoderSettings);
-
-	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FDistortionSettingsV1& DistortionSettings);
-
-	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FDistortionFilterSettings& DistortionFilterSettings);
-
 	static bool TryParseJson(TSharedPtr<FJsonObject> JsonObj, struct FPortamentoSettings& PortamentoSettings);
 };
