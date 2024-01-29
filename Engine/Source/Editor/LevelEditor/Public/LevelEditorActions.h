@@ -1179,6 +1179,9 @@ public:
 	/** Focuses the outliner on the selected actors */
 	static void OnFocusOutlinerToSelection(TWeakPtr<SLevelEditor> LevelEditor);
 
+	/** Focuses the outliner on the context folder if it's currently set */
+	static void OnFocusOutlinerToContextFolder(TWeakPtr<SLevelEditor> LevelEditor);
+
 	/** Open the Place Actors Panel */
 	static void OpenPlaceActors();
 

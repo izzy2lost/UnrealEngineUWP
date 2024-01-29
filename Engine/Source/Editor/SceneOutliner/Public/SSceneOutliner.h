@@ -473,6 +473,12 @@ public:
 	virtual void FrameSelectedItems() override;
 
 	/**
+	 * Scrolls the outliner to the specified item if it's found.
+	 * No action is done otherwise.
+	 */
+	virtual void FrameItem(const FSceneOutlinerTreeItemID& Item) override;
+
+	/**
 	 * Returns the parent tree item for a given item if it exists, nullptr otherwise.
 	 */
 	FSceneOutlinerTreeItemPtr FindParent(const ISceneOutlinerTreeItem& InItem) const;

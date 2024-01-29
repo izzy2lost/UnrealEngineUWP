@@ -104,6 +104,7 @@
 #include "ActorGroupingUtils.h"
 #include "LevelUtils.h"
 #include "ISceneOutliner.h"
+#include "SceneOutlinerStandaloneTypes.h"
 #include "ISettingsModule.h"
 #include "PlatformInfo.h"
 #include "Misc/CoreMisc.h"
@@ -2458,6 +2459,27 @@ void FLevelEditorActionCallbacks::OnFocusOutlinerToSelection(TWeakPtr<SLevelEdit
 			if (const TSharedPtr<ISceneOutliner> Outliner = SceneOutliner.Pin())
 			{
 				Outliner->FrameSelectedItems();
+			}
+		}
+	}
+}
+
+void FLevelEditorActionCallbacks::OnFocusOutlinerToContextFolder(TWeakPtr<SLevelEditor> LevelEditor)
+{
+	if (const TSharedPtr<SLevelEditor> Editor = LevelEditor.Pin())
+	{
+		if (UWorld* World = Editor->GetWorld())
+		{
+			const FFolder ContextFolder = FActorFolders::Get().GetActorEditorContextFolder(*World);
+			if (ContextFolder.IsValid())
+			{
+				for (TWeakPtr<ISceneOutliner> SceneOutliner : Editor->GetAllSceneOutliners())
+				{
+					if (const TSharedPtr<ISceneOutliner> Outliner = SceneOutliner.Pin())
+					{
+						Outliner->FrameItem(ContextFolder);
+					}
+				}
 			}
 		}
 	}

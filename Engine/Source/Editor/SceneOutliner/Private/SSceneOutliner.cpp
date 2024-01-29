@@ -2483,6 +2483,14 @@ void SSceneOutliner::FrameSelectedItems()
 	}
 }
 
+void SSceneOutliner::FrameItem(const FSceneOutlinerTreeItemID& Item)
+{
+	if (const TSharedPtr<ISceneOutlinerTreeItem>* TreeItem = TreeItemMap.Find(Item))
+	{
+		ScrollItemIntoView(*TreeItem);
+	}
+}
+
 FSceneOutlinerTreeItemPtr SSceneOutliner::FindParent(const ISceneOutlinerTreeItem& InItem) const
 {
 	FSceneOutlinerTreeItemPtr Parent = Mode->GetHierarchy()->FindOrCreateParentItem(InItem, TreeItemMap, /*bCreate=*/false);

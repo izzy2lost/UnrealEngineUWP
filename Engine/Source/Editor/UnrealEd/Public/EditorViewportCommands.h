@@ -215,6 +215,7 @@ public:
 	TSharedPtr< FUICommandInfo > FocusAllViewportsToSelection;
 	TSharedPtr< FUICommandInfo > FocusViewportToSelection;
 	TSharedPtr< FUICommandInfo > FocusOutlinerToSelection;
+	TSharedPtr< FUICommandInfo > FocusOutlinerToContextFolder;
 
 	/** Toggle automatic exposure */
 	TSharedPtr< FUICommandInfo > ToggleAutoExposure;

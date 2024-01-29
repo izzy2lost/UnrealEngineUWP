@@ -183,6 +183,11 @@ void SLevelEditor::BindCommands()
 		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::OnFocusOutlinerToSelection, TWeakPtr< SLevelEditor >( SharedThis( this ) ) )
 		);
 
+	LevelEditorCommands->MapAction(
+		FEditorViewportCommands::Get().FocusOutlinerToContextFolder,
+		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::OnFocusOutlinerToContextFolder, TWeakPtr< SLevelEditor >( SharedThis( this ) ) )
+		);
+
 	if (FPlayWorldCommands::GlobalPlayWorldActions.IsValid())
 	{
 		FUICommandList& PlayWorldActionList = *FPlayWorldCommands::GlobalPlayWorldActions;

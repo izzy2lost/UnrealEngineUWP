@@ -160,6 +160,9 @@ public:
 	/** Scrolls the outliner to the selected item(s). If more are selected, the chosen item is undeterministic. */
 	virtual void FrameSelectedItems() = 0;
 
+	/** Scrolls the outliner to the specified item if it's found. No action is done otherwise. */
+	virtual void FrameItem(const FSceneOutlinerTreeItemID& Item) = 0;
+
 	/** Get the active SceneOutlinerMode */
 	const ISceneOutlinerMode* GetMode() const { return Mode; }
 
