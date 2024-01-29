@@ -4388,6 +4388,7 @@ static void FinishCleanUp(FRHICommandListImmediate& RHICmdList)
 	GlobalDynamicBuffer::GarbageCollect();
 	GPrimitiveIdVertexBufferPool.DiscardAll();
 	FGraphicsMinimalPipelineStateId::ResetLocalPipelineIdTableSize();
+	FRDGBuilder::WaitForAsyncDeleteTask();
 }
 
 static void DeleteSceneRenderers(const TArray<FSceneRenderer*>& SceneRenderers, FParallelMeshDrawCommandPass::EWaitThread WaitThread)
@@ -4663,7 +4664,7 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 				ViewFamily.EngineShowFlags.HitProxies ? TEXT("RenderHitProxies") : TEXT("Render"),
 				ViewFamily.bResolveScene ? TEXT("Primary") : TEXT("Auxiliary")
 			),
-			FSceneRenderer::GetRDGParalelExecuteFlags(FeatureLevel)
+			ERDGBuilderFlags::AllowParallelExecute
 		);
 
 #if WITH_GPUDEBUGCRASH

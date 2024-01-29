@@ -388,6 +388,7 @@ void FRDGBuilder::EndFlushResourcesRHI()
 	}
 
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(STAT_RDG_FlushResourcesRHI);
+	CSV_SCOPED_SET_WAIT_STAT(FlushResourcesRHI);
 	SCOPED_NAMED_EVENT(EndFlushResourcesRHI, FColor::Emerald);
 	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 	PipelineStateCache::FlushResources();
@@ -621,11 +622,27 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 #endif
 }
 
+UE::Tasks::FTask FRDGBuilder::FAsyncDeleter::LastTask;
+
+FRDGBuilder::FAsyncDeleter::~FAsyncDeleter()
+{
+	if (Function)
+	{
+		// Launch the task with a prerequisite on any previously launched RDG async delete task.
+		LastTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [Function = MoveTemp(Function)]() mutable {}, LastTask);
+	}
+}
+
+void FRDGBuilder::WaitForAsyncDeleteTask()
+{
+	FAsyncDeleter::LastTask.Wait();
+}
+
 FRDGBuilder::~FRDGBuilder()
 {
 	if (ParallelExecute.bEnabled && GRDGParallelDestruction > 0)
 	{
-		UE::Tasks::Launch(UE_SOURCE_LOCATION, [
+		AsyncDeleter.Function = [
 			Allocators				= MoveTemp(Allocators),
 			Passes					= MoveTemp(Passes),
 			Textures				= MoveTemp(Textures),
@@ -636,7 +653,7 @@ FRDGBuilder::~FRDGBuilder()
 			ActivePooledTextures	= MoveTemp(ActivePooledTextures),
 			ActivePooledBuffers		= MoveTemp(ActivePooledBuffers),
 			UploadedBuffers			= MoveTemp(UploadedBuffers)
-		] () mutable {});
+		] () mutable {};
 	}
 }
 
@@ -1637,7 +1654,13 @@ void FRDGBuilder::SubmitParallelSetupTasks()
 void FRDGBuilder::Execute()
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RDG);
-	SCOPED_NAMED_EVENT_TEXT("FRDGBuilder::Execute", FColor::Magenta);
+	SCOPED_DRAW_EVENTF(RHICmdList, FRDGBuilder_Execute, TEXT("FRDGBuilder::Execute"));
+	CSV_SCOPED_SET_WAIT_STAT(RDG);
+
+#if WITH_RHI_BREADCRUMBS
+	check(LocalCurrentBreadcrumb == FRHIBreadcrumbNode::Sentinel);
+	LocalCurrentBreadcrumb = RHICmdList.GetCurrentBreadcrumbRef();
+#endif
 
 	GRDGTransientResourceAllocator.ReleasePendingDeallocations();
 
