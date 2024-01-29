@@ -2024,7 +2024,10 @@ void UStaticMesh::RequestUpdateCachedRenderState() const
 	}
 
 #if RHI_RAYTRACING
-	((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
+	if (IsRayTracingEnabled())
+	{
+		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
+	}
 #endif
 
 	// TODO: Need to mark all DynamicRayTracingGeometries used in FStaticMeshSceneProxy referencing this StaticMesh as either invalid or request a recreation (UE-139474)
