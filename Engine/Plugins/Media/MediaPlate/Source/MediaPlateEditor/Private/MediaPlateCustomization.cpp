@@ -15,6 +15,7 @@
 #include "MediaPlateEditorModule.h"
 #include "MediaPlateEditorStyle.h"
 #include "MediaPlayer.h"
+#include "MediaPlayerEditorModule.h"
 #include "MediaPlaylist.h"
 #include "MediaSource.h"
 #include "PropertyCustomizationHelpers.h"
@@ -180,6 +181,21 @@ void FMediaPlateCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuil
 				.FileTypeFilter(FileTypeFilter)
 				.OnPathPicked(this, &FMediaPlateCustomization::HandleMediaPathPicked)
 		];
+
+	// Add media player playback slider
+	if (IMediaPlayerEditorModule* MediaPlayerEditorModule = FModuleManager::LoadModulePtr<IMediaPlayerEditorModule>("MediaPlayerEditor"))
+	{
+		const TSharedRef<IMediaPlayerSlider> MediaPlayerSlider =
+			MediaPlayerEditorModule->CreateMediaPlayerSliderWidget(GetMediaPlayer());
+
+		MediaPlayerSlider->SetSliderHandleColor(FSlateColor(EStyleColor::AccentBlue));
+		MediaPlayerSlider->SetVisibleWhenInactive(EVisibility::Visible);
+
+		ControlCategory.AddCustomRow(LOCTEXT("MediaPlatePlaybackPosition", "Playback Position"))
+		[
+			MediaPlayerSlider
+		];
+	}
 
 	// Add media control buttons.
 	ControlCategory.AddCustomRow(LOCTEXT("MediaPlateControls", "MediaPlate Controls"))
