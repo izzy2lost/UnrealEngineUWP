@@ -19,7 +19,7 @@ CSV_DEFINE_CATEGORY_MODULE(RENDERCORE_API, GPU, true);
 
 static TAutoConsoleVariable<int> CVarGPUStatsEnabled(
 	TEXT("r.GPUStatsEnabled"),
-	1,
+	0,
 	TEXT("Enables or disables GPU stat recording"));
 
 
