@@ -14,7 +14,11 @@
 #include "Misc/MonitoredProcess.h"
 #include "Modules/ModuleManager.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "Interfaces/ITargetPlatformControls.h"
+#include "Interfaces/ITargetPlatformSettings.h"
 #include "Interfaces/ITargetPlatformModule.h"
+#include "Interfaces/ITargetPlatformControlsModule.h"
+#include "Interfaces/ITargetPlatformSettingsModule.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/IAudioFormat.h"
 #include "Interfaces/IAudioFormatModule.h"
@@ -106,8 +110,10 @@ static const size_t MaxPlatformCount = 64;		// In the unlikely event that someon
 												// uint64 per platform.
 
 static const ITargetPlatform* TargetPlatformArray[MaxPlatformCount];
+static const ITargetPlatformControls* TargetPlatformControlsArray[MaxPlatformCount];
 
 static int32 PlatformCounter = 0;
+static int32 PlatformControlsCounter = 0;
 
 int32 ITargetPlatform::AssignPlatformOrdinal(const ITargetPlatform& Platform)
 {
@@ -120,12 +126,32 @@ int32 ITargetPlatform::AssignPlatformOrdinal(const ITargetPlatform& Platform)
 
 	return Ordinal;
 }
-
-const ITargetPlatform* ITargetPlatform::GetPlatformFromOrdinal(int32 Ordinal)
+int32 ITargetPlatformControls::AssignPlatformOrdinal(const ITargetPlatformControls& Platform)
 {
-	check(Ordinal < PlatformCounter);
+	check(PlatformControlsCounter < MaxPlatformCount);
 
-	return TargetPlatformArray[Ordinal];
+	const int32 Ordinal = PlatformControlsCounter++;
+
+	check(TargetPlatformControlsArray[Ordinal] == nullptr);
+	TargetPlatformControlsArray[Ordinal] = &Platform;
+
+	return Ordinal;
+}
+
+const ITargetPlatformControls* ITargetPlatformControls::GetPlatformFromOrdinal(int32 Ordinal)
+{
+	check(Ordinal < PlatformControlsCounter);
+
+	return TargetPlatformControlsArray[Ordinal];
+}
+
+const class ITargetPlatformSettings& ITargetDevice::GetPlatformSettings() const
+{
+	return GetTargetPlatform().GetPlatformSettings();
+}
+const class ITargetPlatformControls& ITargetDevice::GetPlatformControls() const
+{
+	return GetTargetPlatform().GetPlatformControls();
 }
 
 ITargetPlatform::FOnTargetDeviceDiscovered& ITargetPlatform::OnDeviceDiscovered()
@@ -140,6 +166,17 @@ ITargetPlatform::FOnTargetDeviceLost& ITargetPlatform::OnDeviceLost()
 	return Delegate;
 }
 
+ITargetPlatformControls::FOnTargetDeviceDiscovered& ITargetPlatformControls::OnDeviceDiscovered()
+{
+	static FOnTargetDeviceDiscovered Delegate;
+	return Delegate;
+}
+
+ITargetPlatformControls::FOnTargetDeviceLost& ITargetPlatformControls::OnDeviceLost()
+{
+	static FOnTargetDeviceLost Delegate;
+	return Delegate;
+}
 
 /**
  * Module for the target platform manager
@@ -259,6 +296,26 @@ public:
 		}
 
 		return Platforms;
+	}
+
+	virtual const TArray<ITargetPlatformControls*>& GetTargetPlatformControls() override
+	{
+		if (PlatformControls.Num() == 0 || bForceCacheUpdate)
+		{
+			DiscoverAvailablePlatforms();
+		}
+
+		return PlatformControls;
+	}
+
+	virtual const TArray<ITargetPlatformSettings*>& GetTargetPlatformSettings() override
+	{
+		if (PlatformSettings.Num() == 0 || bForceCacheUpdate)
+		{
+			DiscoverAvailablePlatforms();
+		}
+
+		return PlatformSettings;
 	}
 
 	virtual ITargetDevicePtr FindTargetDevice(const FTargetDeviceId& DeviceId) override
@@ -703,8 +760,13 @@ protected:
 
 		// try the incoming name as a module name, or as a platform name
 		FName PlatformModuleName = PlatformName;
+		//@todo Custom TargetPlatforms
+		FName PlatformControlsModuleName = *(PlatformName.ToString() + TEXT("TargetPlatformControls"));;
+		FName PlatformSettingsModuleName = *(PlatformName.ToString() + TEXT("TargetPlatformSettings"));;
 
 		ITargetPlatformModule* Module = nullptr;
+		ITargetPlatformControlsModule* ModuleControls = nullptr;
+		ITargetPlatformSettingsModule* ModuleSettings = nullptr;
 
 		if (!FModuleManager::Get().ModuleExists(*PlatformModuleName.ToString()))
 		{
@@ -714,6 +776,26 @@ protected:
 		if (FModuleManager::Get().ModuleExists(*PlatformModuleName.ToString()))
 		{
 			Module = FModuleManager::LoadModulePtr<ITargetPlatformModule>(PlatformModuleName);
+		}
+
+		if (FModuleManager::Get().ModuleExists(*PlatformSettingsModuleName.ToString()))
+		{
+			ModuleSettings = FModuleManager::LoadModulePtr<ITargetPlatformSettingsModule>(PlatformSettingsModuleName);
+		}
+
+		if (FModuleManager::Get().ModuleExists(*PlatformControlsModuleName.ToString()))
+		{
+			ModuleControls = FModuleManager::LoadModulePtr<ITargetPlatformControlsModule>(PlatformControlsModuleName);
+		}
+
+		if(ModuleSettings != nullptr)
+		{
+			TArray<ITargetPlatformSettings*> TargetPlatformSettings = ModuleSettings->GetTargetPlatformSettings();
+			for (ITargetPlatformSettings* Platform : TargetPlatformSettings)
+			{
+				PlatformSettings.Add(Platform);
+				Module->PlatformSettings.Add(Platform);
+			}
 		}
 
 		// original logic for module loading here
@@ -726,6 +808,17 @@ protected:
 		RETRY_SETUPANDVALIDATE:
 			if (AutoSDKPath == TEXT("") || SetupAndValidateAutoSDK(AutoSDKPath))
 			{
+
+				if (ModuleControls != nullptr)
+				{
+					TArray<ITargetPlatformControls*> TargetPlatformControls = ModuleControls->GetTargetPlatformControls(PlatformSettingsModuleName);
+					for (ITargetPlatformControls* Platform : TargetPlatformControls)
+					{
+						PlatformControls.Add(Platform);
+						Module->PlatformControls.Add(Platform);
+					}
+				}
+
 				TArray<ITargetPlatform*> TargetPlatforms = Module->GetTargetPlatforms();
 				for (ITargetPlatform* Platform : TargetPlatforms)
 				{
@@ -1264,6 +1357,8 @@ private:
 
 	// Holds the list of discovered platforms.
 	TArray<ITargetPlatform*> Platforms;
+	TArray<ITargetPlatformControls*> PlatformControls;
+	TArray<ITargetPlatformSettings*> PlatformSettings;
 
 	// Map for fast lookup of platforms by name.
 	TMap<FName, ITargetPlatform*> PlatformsByName;

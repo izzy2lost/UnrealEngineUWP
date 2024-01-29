@@ -356,9 +356,8 @@ namespace IncludeTool
 			"/Engine/Source/Runtime/Online/SSL/Private/PlatformSslCertificateManager.h",
 
 			// Weird Android multiple target platform through INL file stuff
-			"/Engine/Source/Developer/Android/AndroidTargetPlatform/Private/AndroidTargetDevice.h",
-			"/Engine/Source/Developer/Android/AndroidTargetPlatform/Private/AndroidTargetDeviceOutput.h",
-			"/Engine/Source/Developer/Android/AndroidTargetPlatform/Private/AndroidTargetPlatform.h",
+			"/Engine/Source/Developer/Android/AndroidTargetPlatformControls/Private/AndroidTargetDevice.h",
+			"/Engine/Source/Developer/Android/AndroidTargetPlatformControls/Private/AndroidTargetDeviceOutput.h",
 
 			// Platform specific
 			"/Engine/Source/Runtime/Slate/Public/Framework/Text/GenericPlatformTextField.h",

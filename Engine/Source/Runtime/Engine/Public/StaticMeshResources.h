@@ -159,6 +159,7 @@ public:
 	 * @param IniFile Preloaded ini file object to load from
 	 */
 	ENGINE_API void Initialize(const ITargetPlatform* TargetPlatform);
+	ENGINE_API void Initialize(const class ITargetPlatformSettings* TargetPlatform);
 
 	/** Retrieve the settings for the specified LOD group. */
 	const FStaticMeshLODGroup& GetLODGroup(FName LODGroup) const

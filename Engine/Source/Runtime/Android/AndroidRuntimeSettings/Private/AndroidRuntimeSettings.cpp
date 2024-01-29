@@ -13,6 +13,7 @@
 
 #if WITH_EDITOR
 #include "IAndroidTargetPlatformModule.h"
+#include "IAndroidTargetPlatformControlsModule.h"
 #endif
 
 DEFINE_LOG_CATEGORY(LogAndroidRuntimeSettings);
@@ -218,7 +219,7 @@ void UAndroidRuntimeSettings::PostEditChangeProperty(struct FPropertyChangedEven
 		}
 
 		// Notify the AndroidTargetPlatform module if it's loaded
-		IAndroidTargetPlatformModule* Module = FModuleManager::GetModulePtr<IAndroidTargetPlatformModule>("AndroidTargetPlatform");
+		IAndroidTargetPlatformControlsModule* Module = FModuleManager::GetModulePtr<IAndroidTargetPlatformControlsModule>("AndroidTargetPlatformControls");
 		if (Module)
 		{
 			Module->NotifyMultiSelectedFormatsChanged();
@@ -230,7 +231,7 @@ void UAndroidRuntimeSettings::PostEditChangeProperty(struct FPropertyChangedEven
 		UpdateSinglePropertyInConfigFile(PropertyChangedEvent.Property, GetDefaultConfigFilename());
 
 		// Notify the AndroidTargetPlatform module if it's loaded
-		IAndroidTargetPlatformModule* Module = FModuleManager::GetModulePtr<IAndroidTargetPlatformModule>("AndroidTargetPlatform");
+		IAndroidTargetPlatformControlsModule* Module = FModuleManager::GetModulePtr<IAndroidTargetPlatformControlsModule>("AndroidTargetPlatformControls");
 		if (Module)
 		{
 			Module->NotifyMultiSelectedFormatsChanged();
