@@ -252,6 +252,12 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FWorldPartitionGenerateStreamingDelegate, TArray<FString>*);
 	FWorldPartitionGenerateStreamingDelegate OnPreGenerateStreaming;
 
+	/**
+	 * Experimental: event used to gather actor descriptor mutators.
+	 */
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FWorldPartitionGenerateStreamingActorDescsMutatePhase, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FActorDescViewMutatorInstance>& ActorDescsMutatorsInstances);
+	FWorldPartitionGenerateStreamingActorDescsMutatePhase OnGenerateStreamingActorDescsMutatePhase;
+
 	ENGINE_API void RemapSoftObjectPath(FSoftObjectPath& ObjectPath) const;
 	ENGINE_API bool IsValidPackageName(const FString& InPackageName);
 

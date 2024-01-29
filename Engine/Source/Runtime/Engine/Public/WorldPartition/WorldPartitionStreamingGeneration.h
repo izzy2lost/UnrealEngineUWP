@@ -245,4 +245,22 @@ public:
 
 using FActorDescViewMap UE_DEPRECATED(5.4, "Use FStreamingGenerationActorDescViewMap instead") = FStreamingGenerationActorDescViewMap;
 
+/**
+ * Experimental: an actor descriptor mutator used by external code to change properties on actor descriptors.
+ */
+struct FActorDescViewMutator
+{
+	TOptional<bool> bIsSpatiallyLoaded;
+	TOptional<FName> RuntimeGrid;
+};
+
+struct FActorDescViewMutatorInstance : FActorDescViewMutator
+{
+	/** The actor GUID to mutate */
+	FGuid ActorGuid;
+
+	/** Target container ID to mutate this actor */
+	FActorContainerID ContainerId;
+};
+
 #endif // WITH_EDITOR
