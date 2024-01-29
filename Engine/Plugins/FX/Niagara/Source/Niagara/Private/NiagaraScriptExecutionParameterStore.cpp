@@ -245,7 +245,10 @@ void FNiagaraScriptExecutionParameterStore::AddScriptParams(UNiagaraScript* Scri
 	{
 		int32 VarOffset = INDEX_NONE;
 		bAdded |= AddParameter(ResolvedDataInterface.ParameterStoreVariable, false, false, &VarOffset);
-		SetDataInterface(ResolvedDataInterface.ResolvedDataInterface, VarOffset);
+		if (GetDataInterfaces().IsValidIndex(VarOffset))
+		{
+			SetDataInterface(ResolvedDataInterface.ResolvedDataInterface, VarOffset);
+		}
 	}
 
 	check(Script->GetVMExecutableData().UObjectInfos.Num() == Script->GetCachedDefaultUObjects().Num());
@@ -253,7 +256,10 @@ void FNiagaraScriptExecutionParameterStore::AddScriptParams(UNiagaraScript* Scri
 	{
 		int32 VarOffset = INDEX_NONE;
 		bAdded |= AddParameter(Info.ResolvedVariable, false, false, &VarOffset);
-		SetUObject(Info.Object, VarOffset);
+		if (GetUObjects().IsValidIndex(VarOffset))
+		{
+			SetUObject(Info.Object, VarOffset);
+		}
 	}
 
 	if (bAdded && bTriggerRebind)
