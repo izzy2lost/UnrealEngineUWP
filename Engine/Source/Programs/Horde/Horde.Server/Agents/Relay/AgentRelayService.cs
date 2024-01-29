@@ -203,7 +203,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 				.OrderBy(x => x)
 				.Zip(ports, (newRelayPort, port) => new Port { RelayPort = newRelayPort, AgentPort = port.AgentPort, Protocol = port.Protocol });
 			
-			PortMapping newPortMapping = new () { LeaseId = leaseId.ToString(), AgentIp = agentIp.ToString() };
+			PortMapping newPortMapping = new () { LeaseId = leaseId.ToString(), AgentIp = agentIp.ToString(), CreatedAt = Timestamp.FromDateTime(_clock.UtcNow) };
 			newPortMapping.Ports.AddRange(newPorts);
 
 			if (clientIp != null)
