@@ -1220,8 +1220,7 @@ extern void SerializeInlineShaderMaps(
 	const TMap<const class ITargetPlatform*, TArray<FMaterialResource*>>* PlatformMaterialResourcesToSave,
 	FArchive& Ar,
 	TArray<FMaterialResource>& OutLoadedResources,
-	const FName& SerializingAsset = NAME_None,
-	uint32* OutOffsetToFirstResource = nullptr);
+	const FName& SerializingAsset = NAME_None);
 /** Helper function to process (register) serialized inline shader maps for the given material resources. */
 extern void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMaterialResource>& LoadedResources, TArray<FMaterialResource*>& OutMaterialResourcesLoaded);
 

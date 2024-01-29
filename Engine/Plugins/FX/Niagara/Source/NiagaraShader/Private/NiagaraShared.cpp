@@ -290,14 +290,6 @@ void FNiagaraShaderScript::AddReferencedObjects(FReferenceCollector& Collector)
 {
 }
 
-void  FNiagaraShaderScript::DiscardShaderMap()
-{
-	if (GameThreadShaderMap)
-	{
-		//GameThreadShaderMap->DiscardSerializedShaders();
-	}
-}
-
 void FNiagaraShaderScript::ReleaseShaderMap()
 {
 	if (GameThreadShaderMap)
@@ -379,10 +371,6 @@ void FNiagaraShaderScript::SerializeShaderMap(FArchive& Ar)
 					GameThreadShaderMap->GetResource()->SetOwnerName(GetOwnerFName());
 
 					UpdateCachedData_PostCompile(true);
-				}
-				else
-				{
-					//LoadedShaderMap->DiscardSerializedShaders();
 				}
 			}
 		}

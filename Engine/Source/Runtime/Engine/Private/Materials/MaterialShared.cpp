@@ -244,70 +244,7 @@ int32 GetCmdLineMaterialQualityToCache()
 }
 #endif
 
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-const FMaterialResourceLocOnDisk* FindMaterialResourceLocOnDisk(
-	const TArray<FMaterialResourceLocOnDisk>& DiskLocations,
-	ERHIFeatureLevel::Type FeatureLevel,
-	EMaterialQualityLevel::Type QualityLevel)
-{
-	for (const FMaterialResourceLocOnDisk& Loc : DiskLocations)
-	{
-		if (Loc.QualityLevel == QualityLevel && Loc.FeatureLevel == FeatureLevel)
-		{
-			return &Loc;
-		}
-	}
-	return nullptr;
-}
 
-static void GetReloadInfo(const FString& PackageName, FString* OutFilename)
-{
-	check(!GIsEditor);
-	check(!PackageName.IsEmpty());
-	FString& Filename = *OutFilename;
-
-	// Handle name redirection and localization
-	const FCoreRedirectObjectName RedirectedName =
-		FCoreRedirects::GetRedirectedName(
-			ECoreRedirectFlags::Type_Package,
-			FCoreRedirectObjectName(NAME_None, NAME_None, *PackageName));
-	FString LocalizedName;
-	LocalizedName = FPackageName::GetDelegateResolvedPackagePath(RedirectedName.PackageName.ToString());
-	LocalizedName = FPackageName::GetLocalizedPackagePath(LocalizedName);
-	bool bSucceed = FPackageName::DoesPackageExist(LocalizedName, &Filename);
-	Filename = FPaths::ChangeExtension(Filename, TEXT(".uexp"));
-
-	// Dynamic material resource loading requires split export to work
-	check(bSucceed && IFileManager::Get().FileExists(*Filename));
-}
-
-bool ReloadMaterialResource(
-	FMaterialResource* InOutMaterialResource,
-	const FString& PackageName,
-	uint32 OffsetToFirstResource,
-	ERHIFeatureLevel::Type FeatureLevel,
-	EMaterialQualityLevel::Type QualityLevel)
-{
-	LLM_SCOPE(ELLMTag::Shaders);
-	SCOPED_LOADTIMER(SerializeInlineShaderMaps);
-
-	FString Filename;
-	GetReloadInfo(PackageName, &Filename);
-
-	UE_LOG(LogMaterial, VeryVerbose, TEXT("Attempting to load material resources for package %s (file name: %s)."), *PackageName, *Filename);
-
-	FMaterialResourceProxyReader Ar(*Filename, OffsetToFirstResource, FeatureLevel, QualityLevel);
-	FMaterialResource& Tmp = *InOutMaterialResource;
-	Tmp.SerializeInlineShaderMap(Ar);
-	if (Tmp.GetGameThreadShaderMap())
-	{
-		//Tmp.GetGameThreadShaderMap()->RegisterSerializedShaders(false);
-		return true;
-	}
-	UE_LOG(LogMaterial, Warning, TEXT("Failed to reload material resources for package %s (file name: %s)."), *PackageName, *Filename);
-	return false;
-}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
 
 int32 FMaterialCompiler::Errorf(const TCHAR* Format,...)
 {
@@ -1622,7 +1559,6 @@ void FMaterial::RegisterInlineShaderMap(bool bLoadedByCookedMaterial)
 			RenderingThreadShaderMap = GameThreadShaderMap;
 			bRenderingThreadShaderMapIsComplete = GameThreadShaderMap->IsValidForRendering();
 		}
-		//GameThreadShaderMap->RegisterSerializedShaders(bLoadedByCookedMaterial);
 	}
 }
 
@@ -1701,7 +1637,6 @@ void FMaterial::DiscardShaderMap()
 	check(RenderingThreadShaderMap == nullptr);
 	if (GameThreadShaderMap)
 	{
-		//GameThreadShaderMap->DiscardSerializedShaders();
 		GameThreadShaderMap = nullptr;
 	}
 }
@@ -4490,40 +4425,6 @@ void FMaterial::UpdateEditorLoadedMaterialResources(EShaderPlatform InShaderPlat
 		}
 	}
 }
-
-void FMaterial::BackupEditorLoadedMaterialShadersToMemory(TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData)
-{
-	for (TSet<FMaterial*>::TIterator It(EditorLoadedMaterialResources); It; ++It)
-	{
-		FMaterial* CurrentMaterial = *It;
-		FMaterialShaderMap* ShaderMap = CurrentMaterial->GetGameThreadShaderMap();
-
-		if (ShaderMap && !ShaderMapToSerializedShaderData.Contains(ShaderMap))
-		{
-			TArray<uint8>* ShaderData = ShaderMap->BackupShadersToMemory();
-			ShaderMapToSerializedShaderData.Emplace(ShaderMap, ShaderData);
-		}
-	}
-}
-
-void FMaterial::RestoreEditorLoadedMaterialShadersFromMemory(const TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData)
-{
-	for (TSet<FMaterial*>::TIterator It(EditorLoadedMaterialResources); It; ++It)
-	{
-		FMaterial* CurrentMaterial = *It;
-		FMaterialShaderMap* ShaderMap = CurrentMaterial->GetGameThreadShaderMap();
-
-		if (ShaderMap)
-		{
-			const TUniquePtr<TArray<uint8> >* ShaderData = ShaderMapToSerializedShaderData.Find(ShaderMap);
-
-			if (ShaderData)
-			{
-				ShaderMap->RestoreShadersFromMemory(**ShaderData);
-			}
-		}
-	}
-}
 #endif // WITH_EDITOR
 
 void FMaterial::DumpDebugInfo(FOutputDevice& OutputDevice)
@@ -5184,35 +5085,6 @@ void FMaterialResourceMemoryWriter::SerializeToParentArchive()
 	Ar.Serialize(&Bytes[0], NumBytes);
 }
 
-static inline void AdjustForSingleRead(
-	FArchive* RESTRICT ArPtr,
-	const TArray<FMaterialResourceLocOnDisk>& Locs,
-	int64 OffsetToFirstResource,
-	ERHIFeatureLevel::Type FeatureLevel,
-	EMaterialQualityLevel::Type QualityLevel)
-{
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	FArchive& Ar = *ArPtr;
-
-	if (FeatureLevel != ERHIFeatureLevel::Num)
-	{
-		check(QualityLevel != EMaterialQualityLevel::Num);
-		const FMaterialResourceLocOnDisk* RESTRICT Loc =
-			FindMaterialResourceLocOnDisk(Locs, FeatureLevel, QualityLevel);
-		if (!Loc)
-		{
-			Loc = FindMaterialResourceLocOnDisk(Locs, FeatureLevel, EMaterialQualityLevel::Num);
-			check(Loc);
-		}
-		if (Loc->Offset)
-		{
-			const int64 ActualOffset = OffsetToFirstResource + Loc->Offset;
-			Ar.Seek(ActualOffset);
-		}
-	}
-#endif
-}
-
 FMaterialResourceProxyReader::FMaterialResourceProxyReader(
 	FArchive& Ar,
 	ERHIFeatureLevel::Type FeatureLevel,
@@ -5287,7 +5159,6 @@ void FMaterialResourceProxyReader::Initialize(
 	InnerArchive << NumBytes;
 
 	OffsetToFirstResource = InnerArchive.Tell();
-	AdjustForSingleRead(&InnerArchive, Locs, OffsetToFirstResource, FeatureLevel, QualityLevel);
 
 	if (bSeekToEnd)
 	{

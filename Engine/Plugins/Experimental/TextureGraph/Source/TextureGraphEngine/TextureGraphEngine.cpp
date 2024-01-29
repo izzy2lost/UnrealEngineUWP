@@ -92,11 +92,6 @@ FString FTextureGraphEngineModule::GetParentPluginName()
 	return _pluginName;
 }
 
-void FTextureGraphEngineModule::ShutdownModule()
-{
-	FShaderType::Uninitialize();
-}
-
 IMPLEMENT_MODULE(FTextureGraphEngineModule, TextureGraphEngine)
 
 //////////////////////////////////////////////////////////////////////////

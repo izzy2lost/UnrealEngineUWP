@@ -734,8 +734,7 @@ void SerializeInlineShaderMaps(
 	const TMap<const ITargetPlatform*, TArray<FMaterialResource*>>* PlatformMaterialResourcesToSavePtr,
 	FArchive& Ar,
 	TArray<FMaterialResource>& OutLoadedResources,
-	const FName& SerializingAsset,
-	uint32* OutOffsetToFirstResource)
+	const FName& SerializingAsset)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 	SCOPED_LOADTIMER(SerializeInlineShaderMaps);
@@ -779,23 +778,8 @@ void SerializeInlineShaderMaps(
 		int32 NumLoadedResources = 0;
 		Ar << NumLoadedResources;
 
-		if (OutOffsetToFirstResource)
-		{
-			const FLinker* Linker = Ar.GetLinker();
-			int64 Tmp = Ar.Tell() - (Linker ? Linker->Summary.TotalHeaderSize : 0);
-			check(Tmp >= 0 && Tmp <= 0xffffffffLL);
-			*OutOffsetToFirstResource = uint32(Tmp);
-		}
-
 		if (NumLoadedResources > 0)
 		{
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			ERHIFeatureLevel::Type FeatureLevel = GMaxRHIFeatureLevel;
-			EMaterialQualityLevel::Type QualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-			FMaterialResourceProxyReader ResourceAr(Ar, FeatureLevel, QualityLevel);
-			OutLoadedResources.Empty(1);
-			OutLoadedResources[OutLoadedResources.AddDefaulted()].SerializeInlineShaderMap(ResourceAr);
-#else
 			ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::Num;
 			EMaterialQualityLevel::Type QualityLevel = EMaterialQualityLevel::Num;
 			OutLoadedResources.Empty(NumLoadedResources);
@@ -805,7 +789,6 @@ void SerializeInlineShaderMaps(
 				FMaterialResource& LoadedResource = OutLoadedResources[OutLoadedResources.AddDefaulted()];
 				LoadedResource.SerializeInlineShaderMap(ResourceAr, SerializingAsset);
 			}
-#endif
 		}
 	}
 }
@@ -843,9 +826,6 @@ void ProcessSerializedInlineShaderMaps(UMaterialInterface* Owner, TArray<FMateri
 
 	const bool bDiscardUnusedQualityLevels = CVarDiscardUnusedQualityLevels.GetValueOnAnyThread() != 0;
 	const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
-
-	checkf(!(STORE_ONLY_ACTIVE_SHADERMAPS && LoadedResources.Num() > 1),
-		TEXT("STORE_ONLY_ACTIVE_SHADERMAPS is set, but %d shader maps were loaded, expected at most 1"), LoadedResources.Num());
 
 	for (int32 ResourceIndex = 0; ResourceIndex < LoadedResources.Num(); ResourceIndex++)
 	{
@@ -2363,14 +2343,6 @@ void UMaterial::CacheResourceShadersForRendering(bool bRegenerateId, EMaterialSh
 		ReleaseResourcesAndMutateDDCKey();
 	}
 
-	// Resources cannot be deleted before uniform expressions are recached because
-	// UB layouts will be accessed and they are owned by material resources
-	FMaterialResourceDeferredDeletionArray ResourcesToFree;
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	ResourcesToFree = MoveTemp(MaterialResources);
-	MaterialResources.Reset();
-#endif
-
 	if (FApp::CanEverRender())
 	{
 		const EMaterialQualityLevel::Type ActiveQualityLevel = GetCachedScalabilityCVars().MaterialQualityLevel;
@@ -2387,23 +2359,6 @@ void UMaterial::CacheResourceShadersForRendering(bool bRegenerateId, EMaterialSh
 			// to register the loaded shadermap
 			FMaterialResource* CurrentResource = FindOrCreateMaterialResource(MaterialResources, this, nullptr, FeatureLevel, ActiveQualityLevel);
 			check(CurrentResource);
-
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			if (CurrentResource && !CurrentResource->GetGameThreadShaderMap())
-			{
-				// Load the shader map for this resource, if needed
-				FMaterialResource Tmp;
-				FName PackageFileName = GetOutermost()->FileName;
-				UE_CLOG(PackageFileName.IsNone(), LogMaterial, Warning,
-					TEXT("UMaterial::CacheResourceShadersForRendering - Can't reload material resource '%s'. File system based reload is unsupported in this build."),
-					*GetFullName());
-				if (!PackageFileName.IsNone() && ReloadMaterialResource(&Tmp, PackageFileName.ToString(), OffsetToFirstResource, FeatureLevel, ActiveQualityLevel))
-				{
-					CurrentResource->SetInlineShaderMap(Tmp.GetGameThreadShaderMap());
-					CurrentResource->UpdateInlineShaderMapIsComplete();
-				}
-			}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
 
 			ResourcesToCache.Reset();
 			ResourcesToCache.Add(CurrentResource);
@@ -2429,8 +2384,6 @@ void UMaterial::CacheResourceShadersForRendering(bool bRegenerateId, EMaterialSh
 
 		RecacheUniformExpressions(true);
 	}
-
-	FMaterial::DeferredDeleteArray(ResourcesToFree);
 }
 
 void UMaterial::CacheResourceShadersForCooking(EShaderPlatform ShaderPlatform, TArray<FMaterialResource*>& OutCachedMaterialResources, const ITargetPlatform* TargetPlatform, bool bBlocking)
@@ -2766,7 +2719,6 @@ void UMaterial::Serialize(FArchive& Ar)
 	if (Ar.UEVer() >= VER_UE4_PURGED_FMATERIAL_COMPILE_OUTPUTS)
 	{
 #if WITH_EDITOR
-		static_assert(!STORE_ONLY_ACTIVE_SHADERMAPS, "Only discard unused SMs in cooked build");
 		SerializeInlineShaderMaps(&CachedMaterialResourcesForCooking, Ar, LoadedMaterialResources);
 #else
 		SerializeInlineShaderMaps(
@@ -2774,9 +2726,6 @@ void UMaterial::Serialize(FArchive& Ar)
 			Ar,
 			LoadedMaterialResources,
 			GetFName()
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			, &OffsetToFirstResource
-#endif
 		);
 #endif
 	}
@@ -5530,110 +5479,6 @@ void UMaterial::UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToF
 	}
 }
 
-void UMaterial::BackupMaterialShadersToMemory(TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData)
-{
-	// Process FMaterialShaderMap's referenced by UObjects (UMaterial, UMaterialInstance)
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
-	{
-		UMaterialInterface* Material = *It;
-		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material);
-		UMaterial* BaseMaterial = Cast<UMaterial>(Material);
-
-		if (MaterialInstance)
-		{
-			if (MaterialInstance->bHasStaticPermutationResource)
-			{
-				TArray<FMaterialShaderMap*> MIShaderMaps;
-				MaterialInstance->GetAllShaderMaps(MIShaderMaps);
-
-				for (int32 ShaderMapIndex = 0; ShaderMapIndex < MIShaderMaps.Num(); ShaderMapIndex++)
-				{
-					FMaterialShaderMap* ShaderMap = MIShaderMaps[ShaderMapIndex];
-
-					if (ShaderMap && !ShaderMapToSerializedShaderData.Contains(ShaderMap))
-					{
-						TArray<uint8>* ShaderData = ShaderMap->BackupShadersToMemory();
-						ShaderMapToSerializedShaderData.Emplace(ShaderMap, ShaderData);
-					}
-				}
-			}
-		}
-		else if (BaseMaterial)
-		{
-			for (FMaterialResource* CurrentResource : BaseMaterial->MaterialResources)
-			{
-				FMaterialShaderMap* ShaderMap = CurrentResource->GetGameThreadShaderMap();
-				if (ShaderMap && !ShaderMapToSerializedShaderData.Contains(ShaderMap))
-				{
-					TArray<uint8>* ShaderData = ShaderMap->BackupShadersToMemory();
-					ShaderMapToSerializedShaderData.Emplace(ShaderMap, ShaderData);
-				}
-			}
-		}
-	}
-
-#if WITH_EDITOR
-	// Process FMaterialShaderMap's referenced by the editor
-	FMaterial::BackupEditorLoadedMaterialShadersToMemory(ShaderMapToSerializedShaderData);
-#endif
-}
-
-void UMaterial::RestoreMaterialShadersFromMemory(const TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData)
-{
-	// Process FMaterialShaderMap's referenced by UObjects (UMaterial, UMaterialInstance)
-	for (TObjectIterator<UMaterialInterface> It; It; ++It)
-	{
-		UMaterialInterface* Material = *It;
-		UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material);
-		UMaterial* BaseMaterial = Cast<UMaterial>(Material);
-
-		if (MaterialInstance)
-		{
-			if (MaterialInstance->bHasStaticPermutationResource)
-			{
-				TArray<FMaterialShaderMap*> MIShaderMaps;
-				MaterialInstance->GetAllShaderMaps(MIShaderMaps);
-
-				for (int32 ShaderMapIndex = 0; ShaderMapIndex < MIShaderMaps.Num(); ShaderMapIndex++)
-				{
-					FMaterialShaderMap* ShaderMap = MIShaderMaps[ShaderMapIndex];
-
-					if (ShaderMap)
-					{
-						const TUniquePtr<TArray<uint8> >* ShaderData = ShaderMapToSerializedShaderData.Find(ShaderMap);
-
-						if (ShaderData)
-						{
-							ShaderMap->RestoreShadersFromMemory(**ShaderData);
-						}
-					}
-				}
-			}
-		}
-		else if (BaseMaterial)
-		{
-			for(FMaterialResource* CurrentResource : BaseMaterial->MaterialResources)
-			{
-				FMaterialShaderMap* ShaderMap = CurrentResource->GetGameThreadShaderMap();
-				if (ShaderMap)
-				{
-					const TUniquePtr<TArray<uint8>>* ShaderData = ShaderMapToSerializedShaderData.Find(ShaderMap);
-
-					if (ShaderData)
-					{
-						ShaderMap->RestoreShadersFromMemory(**ShaderData);
-					}
-				}
-			}
-		}
-	}
-
-#if WITH_EDITOR
-	// Process FMaterialShaderMap's referenced by the editor
-	FMaterial::RestoreEditorLoadedMaterialShadersFromMemory(ShaderMapToSerializedShaderData);
-#endif // WITH_EDITOR
-}
-
 #if WITH_EDITOR
 void UMaterial::CompileMaterialsForRemoteRecompile(
 	const TArray<UMaterialInterface*>& MaterialsToCompile,
@@ -6629,19 +6474,6 @@ UMaterial::FMaterialCompilationFinished& UMaterial::OnMaterialCompilationFinishe
 
 void UMaterial::AllMaterialsCacheResourceShadersForRendering(bool bUpdateProgressDialog, bool bCacheAllRemainingShaders)
 {
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	TArray<UMaterial*> Materials;
-	for (TObjectIterator<UMaterial> It; It; ++It)
-	{
-		Materials.Add(*It);
-	}
-	Materials.Sort([](const UMaterial& A, const UMaterial& B) { return A.OffsetToFirstResource < B.OffsetToFirstResource; });
-	for (UMaterial* Material : Materials)
-	{
-		Material->CacheResourceShadersForRendering(false);
-		FThreadHeartBeat::Get().HeartBeat();
-	}
-#else
 #if WITH_EDITOR
 	FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "CacheMaterialShadersMessage", "Caching material shaders"), true);
 	if (bUpdateProgressDialog)
@@ -6674,7 +6506,6 @@ void UMaterial::AllMaterialsCacheResourceShadersForRendering(bool bUpdateProgres
 		}
 #endif // WITH_EDITOR
 	}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
 }
 
 /**

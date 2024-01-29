@@ -25,8 +25,6 @@ public:
 	{
 		return IsPCPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
 	}
-
-	~VSH_MeshTexture() { FShaderType::Uninitialize(); }
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -46,8 +44,6 @@ public:
 	{
 		return IsPCPlatform(Parameters.Platform) && EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData);
 	}
-
-	~VSH_MeshTexture_WorldPos() { FShaderType::Uninitialize(); }
 };
 
 //////////////////////////////////////////////////////////////////////////

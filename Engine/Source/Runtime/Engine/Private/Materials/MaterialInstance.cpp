@@ -2265,11 +2265,6 @@ void UMaterialInstance::CacheResourceShadersForRendering(EMaterialShaderPrecompi
 
 	UpdateOverridableBaseProperties();
 
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	OutResourcesToFree = MoveTemp(StaticPermutationMaterialResources);
-	StaticPermutationMaterialResources.Reset();
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
-	
 	if (bHasStaticPermutationResource && FApp::CanEverRender())
 	{
 		check(IsA(UMaterialInstanceConstant::StaticClass()));
@@ -2312,23 +2307,6 @@ void UMaterialInstance::CacheResourceShadersForRendering(EMaterialShaderPrecompi
 					}
 				}
 			}
-
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-			if (!CurrentResource->GetGameThreadShaderMap())
-			{
-				// Load the shader map for this resource, if needed
-				FMaterialResource Tmp;
-				FName PackageFileName = GetPackage()->FileName;
-				UE_CLOG(PackageFileName.IsNone(), LogMaterial, Warning,
-					TEXT("UMaterialInstance::CacheResourceShadersForRendering - Can't reload material resource '%s'. File system based reload is unsupported in this build."),
-					*GetFullName());
-				if (!PackageFileName.IsNone() && ReloadMaterialResource(&Tmp, PackageFileName.ToString(), OffsetToFirstResource, FeatureLevel, ActiveQualityLevel))
-				{
-					CurrentResource->SetInlineShaderMap(Tmp.GetGameThreadShaderMap());
-					CurrentResource->UpdateInlineShaderMapIsComplete();
-				}
-			}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
 
 			ResourcesToCache.Reset();
 			ResourcesToCache.Add(CurrentResource);
@@ -2904,7 +2882,6 @@ void UMaterialInstance::Serialize(FArchive& Ar)
 				GetEditorOnlyData()->StaticParameters = MoveTemp(StaticParameters_DEPRECATED.EditorOnly);
 			}
 
-			static_assert(!STORE_ONLY_ACTIVE_SHADERMAPS, "Only discard unused SMs in cooked build");
 			SerializeInlineShaderMaps(&CachedMaterialResourcesForCooking, Ar, LoadedMaterialResources);
 #else
 			SerializeInlineShaderMaps(
@@ -2912,9 +2889,6 @@ void UMaterialInstance::Serialize(FArchive& Ar)
 				Ar,
 				LoadedMaterialResources,
 				GetFName()
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-				, &OffsetToFirstResource
-#endif
 			);
 #endif
 		}
@@ -4358,19 +4332,6 @@ FPostProcessMaterialNode* IteratePostProcessMaterialNodes(const FFinalPostProces
 
 void UMaterialInstance::AllMaterialsCacheResourceShadersForRendering(bool bUpdateProgressDialog, bool bCacheAllRemainingShaders)
 {
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	TArray<UMaterialInstance*> MaterialInstances;
-	for (TObjectIterator<UMaterialInstance> It; It; ++It)
-	{
-		MaterialInstances.Add(*It);
-	}
-	MaterialInstances.Sort([](const UMaterialInstance& A, const UMaterialInstance& B) { return A.OffsetToFirstResource < B.OffsetToFirstResource; });
-	for (UMaterialInstance* MaterialInstance : MaterialInstances)
-	{
-		MaterialInstance->CacheResourceShadersForRendering();
-		FThreadHeartBeat::Get().HeartBeat();
-	}
-#else
 #if WITH_EDITOR
 	FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "CacheMaterialInstanceShadersMessage", "Caching material instance shaders"), true);
 	if (bUpdateProgressDialog)
@@ -4397,7 +4358,6 @@ void UMaterialInstance::AllMaterialsCacheResourceShadersForRendering(bool bUpdat
 		}
 #endif // WITH_EDITOR
 	}
-#endif // STORE_ONLY_ACTIVE_SHADERMAPS
 }
 
 

@@ -601,12 +601,6 @@ public:
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
 	void SaveToDerivedDataCache(const FNiagaraShaderScript* Script);
-
-	/** Backs up any FShaders in this shader map to memory through serialization and clears FShader references. */
-	TArray<uint8>* BackupShadersToMemory();
-
-	/** Recreates FShaders from the passed in memory, handling shader key changes. */
-	void RestoreShadersFromMemory(const TArray<uint8>& ShaderData);
 #endif // WITH_EDITOR
 
 	// Accessors.
@@ -811,8 +805,6 @@ public:
 		checkSlow(IsInGameThread() || IsInAsyncLoadingThread());
 		return GameThreadShaderMap;
 	}
-
-	NIAGARASHADER_API void DiscardShaderMap();
 
 	/** Note: SetRenderingThreadShaderMap must also be called with the same value, but from the rendering thread. */
 	void SetGameThreadShaderMap(FNiagaraShaderMap* InShaderMap)

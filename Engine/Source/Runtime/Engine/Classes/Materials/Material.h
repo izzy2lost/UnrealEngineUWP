@@ -1060,11 +1060,6 @@ public:
 	UPROPERTY()
 	FGuid StateId;
 
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	// Relative offset to the beginning of the package containing this
-	uint32 OffsetToFirstResource;
-#endif
-
 	/** 
 	 * FMaterialRenderProxy derivative that represent this material to the renderer, when the renderer needs to fetch parameter values.
 	 */
@@ -1578,17 +1573,6 @@ public:
 	 * Go through every material, flush the specified types and re-initialize the material's shader maps.
 	 */
 	ENGINE_API static void UpdateMaterialShaders(TArray<const FShaderType*>& ShaderTypesToFlush, TArray<const FShaderPipelineType*>& ShaderPipelineTypesToFlush, TArray<const FVertexFactoryType*>& VFTypesToFlush, EShaderPlatform ShaderPlatform);
-
-	/** 
-	 * Backs up all material shaders to memory through serialization, organized by FMaterialShaderMap. 
-	 * This will also clear all FMaterialShaderMap references to FShaders.
-	 */
-	ENGINE_API static void BackupMaterialShadersToMemory(TMap<class FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData);
-
-	/** 
-	 * Recreates FShaders for FMaterialShaderMap's from the serialized data.  Shader maps may not be complete after this due to changes in the shader keys.
-	 */
-	ENGINE_API static void RestoreMaterialShadersFromMemory(const TMap<class FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData);
 
 #if WITH_EDITOR
 	/** Builds a map from UMaterialInterface name to the shader maps that are needed for rendering on the given platform. */
