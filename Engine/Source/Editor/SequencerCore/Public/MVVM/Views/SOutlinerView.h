@@ -12,6 +12,7 @@
 #include "Delegates/Delegate.h"
 #include "Input/Reply.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
 #include "MVVM/ViewModelPtr.h"
 #include "MVVM/Views/TreeViewTraits.h"
 #include "Misc/Attribute.h"
@@ -32,7 +33,6 @@ class FPaintArgs;
 class FSlateRect;
 class FSlateWindowElementList;
 class FWidgetStyle;
-class ISequencerOutlinerColumn;
 class ITableRow;
 class SHeaderRow;
 class SScrollBar;
@@ -43,43 +43,29 @@ struct FKeyEvent;
 struct FPointerEvent;
 struct FSlateBrush;
 
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
 struct FSelectionEventSuppressor;
+struct FOutlinerHeaderRowWidgetMetaData;
 
 class FViewModel;
 class FSequencerCoreSelection;
 class SOutlinerViewRow;
 class STrackAreaView;
 class STrackLane;
+class IOutlinerColumn;
+
+enum class EOutlinerColumnGroup : uint8;
 
 enum class ETreeRecursion
 {
 	Recursive, NonRecursive
 };
 
-/** Structure used to define a column in the tree view */
-struct SEQUENCERCORE_API FOutlinerViewColumn
-{
-	typedef TFunction<TSharedRef<SWidget>(TViewModelPtr<IOutlinerExtension>, const TSharedRef<SOutlinerViewRow>&)> FOnGenerate;
-
-	FOutlinerViewColumn(const FOnGenerate& InOnGenerate, const TAttribute<float>& InWidth, const bool InIsFixedWidth) : Generator(InOnGenerate), Width(InWidth), bIsFixedWidth(InIsFixedWidth) {}
-	FOutlinerViewColumn(const FOnGenerate& InOnGenerate, const TAttribute<float>& InWidth) : Generator(InOnGenerate), Width(InWidth), bIsFixedWidth(false) {}
-	FOutlinerViewColumn(FOnGenerate&& InOnGenerate, const TAttribute<float>& InWidth) : Generator(MoveTemp(InOnGenerate)), Width(InWidth), bIsFixedWidth(false) {}
-
-	/** Function used to generate a cell for this column */
-	FOnGenerate Generator;
-	/** Attribute specifying the width of this column */
-	TAttribute<float> Width;
-	/** Attribute specifying whether or not to use the Width in percentage or fixed-width values */
-	bool bIsFixedWidth = false;
-};
 
 /** The tree view used in the sequencer */
-class SEQUENCERCORE_API SOutlinerView 
+class SEQUENCERCORE_API SOutlinerView
 	: public STreeView<TWeakViewModelPtr<IOutlinerExtension>>
 {
 public:
@@ -138,6 +124,8 @@ public:
 
 	/** Scroll this tree view by the specified number of slate units */
 	void ScrollByDelta(float DeltaInSlateUnits);
+
+	bool IsColumnVisible(const FName& InName) const;
 
 protected:
 
@@ -216,9 +204,6 @@ public:
 	/** Access all the physical nodes currently visible on the sequencer */
 	const TArray<FCachedGeometry>& GetAllVisibleNodes() const { return PhysicalNodes; }
 
-	/** Ensure that the track area column is either show or hidden, depending on the visibility of the curve editor */
-	void UpdateTrackArea();
-
 	/** Add a SOutlinerView object that should be modified or updated when this Treeview is updated */
 	void AddPinnedTreeView(TSharedPtr<SOutlinerView> PinnedTreeView);
 
@@ -229,21 +214,20 @@ public:
 	void SetShowPinned(bool bShowPinned) { bShowPinnedNodes = bShowPinned; }
 
 	/** Updates the list of visible outliner columns and regenerates columns in the outliner view */
-	void SetOutlinerColumns(const TArray<TSharedPtr<ISequencerOutlinerColumn>>& InOutlinerColumns);
+	void SetOutlinerColumns(const TArray<TSharedPtr<IOutlinerColumn>>& InOutlinerColumns);
 
 protected:
 
 	/** Linear, sorted array of nodes that we currently have generated widgets for */
 	TArray<FCachedGeometry> PhysicalNodes;
 
-	/** Helper function for creating callbacks to generate outliner columns */
-	void AddOutlinerColumnCallback(TSharedPtr<ISequencerOutlinerColumn> InColumn, TSharedPtr<FEditorViewModel> InEditorViewModel);
-
-	/** Helper function for initializing track gutter columns and padding */
-	void UpdateTrackGutterColumns(TSharedPtr<FEditorViewModel> InEditorViewModel);
+	int32 CreateOutlinerColumnsForGroup(int32 ColumnIndex, EOutlinerColumnGroup Group);
 
 	/** Populate the map of column definitions, and add relevant columns to the header row. Must be called when outliner columns change */
 	void UpdateOutlinerColumns();
+
+	/** Insert a separator column at the specified column index, with a unique identifier */
+	void InsertSeparatorColumn(int32 InsertIndex, int32 SeparatorID);
 
 	FReply OnDragRow(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, TSharedRef<SOutlinerViewRow> InRow);
 
@@ -251,8 +235,13 @@ protected:
 
 protected:
 
+	using FColumnGenerator = TFunction<TSharedPtr<SWidget>(const FCreateOutlinerColumnParams& Params, const TSharedRef<SOutlinerViewRow>&)>;
+
 	/** The tree view's header row (hidden) */
 	TSharedPtr<SHeaderRow> HeaderRow;
+
+	/** MetaData pertaining to each column within HeaderRow */
+	TSharedPtr<FOutlinerHeaderRowWidgetMetaData> ColumnMetaData;
 
 	/** The outliner view model */
 	TWeakPtr<FOutlinerViewModel> WeakOutliner;
@@ -261,7 +250,7 @@ protected:
 	TArray<TWeakViewModelPtr<IOutlinerExtension>> RootNodes;
 
 	/** Column definitions for each of the columns in the tree view */
-	TMap<FName, FOutlinerViewColumn> Columns;
+	TMap<FName, FColumnGenerator> ColumnGenerators;
 
 	TSharedPtr<FSequencerCoreSelection> Selection;
 	TUniquePtr<FSelectionEventSuppressor> DelayedEventSuppressor;
@@ -276,7 +265,7 @@ protected:
 	TWeakPtr<SOutlinerView> PrimaryTreeView;
 
 	/** Visible Outliner columns to display in the outliner view */
-	TArray<TSharedPtr<ISequencerOutlinerColumn>> OutlinerColumns;
+	TArray<TSharedPtr<IOutlinerColumn>> OutlinerColumns;
 
 	float VirtualTop;
 
@@ -296,93 +285,5 @@ protected:
 	bool bRefreshPhysicalGeometry;
 };
 
-/** Widget that represents a row in the sequencer's tree control. */
-class SEQUENCERCORE_API SOutlinerViewRow
-	: public ISequencerTreeViewRow
-{
-public:
-	DECLARE_DELEGATE_RetVal_ThreeParams(TSharedRef<SWidget>, FOnGenerateWidgetForColumn, TViewModelPtr<IOutlinerExtension>, const FName&, const TSharedRef<SOutlinerViewRow>&);
-	DECLARE_DELEGATE_RetVal_ThreeParams(FReply, FDetectDrag, const FGeometry&, const FPointerEvent&, TSharedRef<SOutlinerViewRow>);
-
-	SLATE_BEGIN_ARGS(SOutlinerViewRow){}
-
-		/** Delegate to invoke to create a new column for this row */
-		SLATE_EVENT(FOnGenerateWidgetForColumn, OnGenerateWidgetForColumn)
-
-		/** Detect a drag on this tree row */
-		SLATE_EVENT(FDetectDrag, OnDetectDrag)
-
-	SLATE_END_ARGS()
-
-	/** Construct function for this widget */
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, TWeakViewModelPtr<IOutlinerExtension> InDataModel);
-
-	/** Destroy this widget */
-	~SOutlinerViewRow();
-
-	/** Get the model to which this row relates */
-	TViewModelPtr<IOutlinerExtension> GetDataModel() const;
-
-	/**
-	 * Gets the track lane we relate to
-	 * @param bOnlyOwnTrackLane  Whether to return nullptr if our referenced track lane wasn't created
-	 *							 by our own outliner item view-model 
-	 * @return The track lane for this row
-	 */
-	TSharedPtr<STrackLane> GetTrackLane(bool bOnlyOwnTrackLane = false) const;
-
-	/**
-	 * Adds a reference to track lane, either because:
-	 *  - It is a parent row's track lane that we want to be kept alive when the parent row disappears out of view, or
-	 *  - It is a track lane that was created by our outliner view-model
-	 */
-	void SetTrackLane(const TSharedPtr<STrackLane>& InTrackLane);
-
-	/** Whether the underlying data model is selectable */
-	bool IsSelectable() const;
-
-	virtual const FSlateBrush* GetBorder() const override;
-
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	
-	virtual int32 OnPaintDropIndicator(EItemDropZone InItemDropZone, const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
-
-	/** Overridden from SMultiColumnTableRow.  Generates a widget for this column of the tree row. */
-	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnId) override;
-
-	/** Called whenever a drag is detected by the tree view. */
-	FReply OnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent) override;
-
-	/** Called to determine whether a current drag operation is valid for this row. */
-	TOptional<EItemDropZone> OnCanAcceptDrop( const FDragDropEvent& DragDropEvent, EItemDropZone ItemDropZone, TWeakViewModelPtr<IOutlinerExtension> InDataModel);
-
-	/** Called to complete a drag and drop onto this drop. */
-	FReply OnAcceptDrop( const FDragDropEvent& DragDropEvent, EItemDropZone ItemDropZone, TWeakViewModelPtr<IOutlinerExtension> InDataModel);
-
-protected:
-
-	FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
-
-protected:
-
-	/**
-	 * Cached reference to a track lane that we relate to.
-	 * Depending on the situation, this is either the actual track lane originally created
-	 * by the our outliner model, or it's just a reference we use to keep the track lane alive
-	 * (it's a weak widget) as long as we are in view.
-	 */
-	TSharedPtr<STrackLane> TrackLane;
-
-	/** The item associated with this row of data */
-	TWeakViewModelPtr<IOutlinerExtension> WeakModel;
-
-	/** Delegate to call to create a new widget for a particular column. */
-	FOnGenerateWidgetForColumn OnGenerateWidgetForColumn;
-
-	/** Delegate to call when dragging a tree item is detected */
-	FDetectDrag OnDetectDrag;
-};
-
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 

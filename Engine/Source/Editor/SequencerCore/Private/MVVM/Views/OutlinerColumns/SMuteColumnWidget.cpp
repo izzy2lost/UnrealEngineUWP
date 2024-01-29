@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/OutlinerColumns/SMuteColumnWidget.h"
-
+#include "MVVM/Views/OutlinerColumns/SMuteColumnWidget.h"
 
 #include "MVVM/SharedViewModelData.h"
-#include "MVVM/Selection/Selection.h"
+#include "MVVM/Selection/SequencerCoreSelection.h"
+#include "MVVM/Selection/SequencerOutlinerSelection.h"
 #include "MVVM/Extensions/IMutableExtension.h"
-#include "MVVM/ViewModels/SequenceModel.h"
-#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/ViewModelIterators.h"
+#include "MVVM/ViewModels/EditorViewModel.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
+
 
 namespace UE::Sequencer
 {
@@ -18,7 +20,7 @@ void SMuteColumnWidget::OnToggleOperationComplete()
 	RefreshSequencerTree();
 }
 
-void SMuteColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const UE::Sequencer::FCreateOutlinerColumnParams& InParams)
+void SMuteColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
 {
 	SColumnToggleWidget::Construct(
 		SColumnToggleWidget::FArguments(),
@@ -42,13 +44,8 @@ bool SMuteColumnWidget::IsActive() const
 void SMuteColumnWidget::SetIsActive(const bool bInIsActive)
 {
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = WeakOutlinerExtension.Pin();
-	if (!OutlinerItem)
-	{
-		return;
-	}
-
-	TSharedPtr<FSequenceModel> SequenceModel = OutlinerItem.AsModel()->FindAncestorOfType<FSequenceModel>();
-	if (!SequenceModel)
+	TSharedPtr<FEditorViewModel>      Editor       = WeakEditor.Pin();
+	if (!OutlinerItem || !Editor)
 	{
 		return;
 	}
@@ -58,7 +55,7 @@ void SMuteColumnWidget::SetIsActive(const bool bInIsActive)
 	if (OutlinerItem->GetSelectionState() == EOutlinerSelectionState::SelectedDirectly)
 	{
 		// If selected, modify all selected items
-		for (FViewModelPtr Selected : SequenceModel->GetEditor()->GetSelection()->Outliner)
+		for (FViewModelPtr Selected : *Editor->GetSelection()->GetOutlinerSelection())
 		{
 			SetIsActive(Selected, bInIsActive);
 		}

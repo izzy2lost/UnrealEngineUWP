@@ -9,7 +9,7 @@
 #include "Sequencer/DMXLibrarySection.h"
 
 #include "Sections/MovieSceneParameterSection.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "MovieSceneSection.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -161,7 +161,7 @@ TSharedPtr<SWidget> FDMXLibraryTrackEditor::BuildOutlinerEditWidget(const FGuid&
 	// Create combo button "+ Patch" to pick an asset to add
 	// sub menu content callback
 	FOnGetContent AddPatchMenuContent = FOnGetContent::CreateSP(this, &FDMXLibraryTrackEditor::OnGetAddPatchMenuContent, DMXTrack);
-	return FSequencerUtilities::MakeAddButton(LOCTEXT("AddPatchButton", "Patch"), AddPatchMenuContent, Params.NodeIsHovered, GetSequencer());
+	return UE::Sequencer::MakeAddButton(LOCTEXT("AddPatchButton", "Patch"), AddPatchMenuContent, Params.ViewModel);
 }
 
 TSharedRef<SWidget> FDMXLibraryTrackEditor::OnGetAddPatchMenuContent(UMovieSceneDMXLibraryTrack* DMXTrack)

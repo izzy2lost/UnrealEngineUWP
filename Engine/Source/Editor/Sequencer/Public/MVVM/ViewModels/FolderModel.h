@@ -76,7 +76,7 @@ public:
 	const FSlateBrush* GetIconBrush() const override;
 	FSlateColor GetIconTint() const override;
 	FSlateColor GetLabelColor() const override;
-	TSharedRef<SWidget> CreateOutlinerView(const FCreateOutlinerViewParams& InParams) override;
+	TSharedPtr<SWidget> CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName) override;
 
 	/*~ ITrackAreaExtension */
 	FTrackAreaParameters GetTrackAreaParameters() const override;

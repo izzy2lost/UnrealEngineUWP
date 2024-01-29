@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MVVM/Views/SSequencerOutlinerView.h"
+#include "MVVM/Views/SOutlinerViewRow.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
 #include "MVVM/ViewModels/OutlinerSpacer.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
@@ -77,6 +78,7 @@ TSharedRef<ITableRow> SSequencerOutlinerView::OnGenerateRow(TWeakViewModelPtr<IO
 	TSharedRef<SOutlinerViewRow> Row =
 		SNew(SSequencerOutlinerViewRow, OwnerTable, InWeakModel, WeakOutliner)
 		.OnDetectDrag(this, &SSequencerOutlinerView::OnDragRow)
+		.OnGetColumnVisibility(this, &SSequencerOutlinerView::IsColumnVisible)
 		.OnGenerateWidgetForColumn(this, &SSequencerOutlinerView::GenerateWidgetForColumn);
 
 	if (TViewModelPtr<IOutlinerExtension> ViewModel = InWeakModel.Pin())

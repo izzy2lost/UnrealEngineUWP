@@ -24,6 +24,9 @@ class SEQUENCERCORE_API FSharedViewModelData
 	: public FViewModel
 {
 public:
+
+	UE_SEQUENCER_DECLARE_CASTABLE(FSharedViewModelData, FViewModel);
+
 	void PreHierarchicalChange(const TSharedPtr<FViewModel>& InChangedModel);
 	void BroadcastHierarchicalChange(const TSharedPtr<FViewModel>& InChangedModel);
 

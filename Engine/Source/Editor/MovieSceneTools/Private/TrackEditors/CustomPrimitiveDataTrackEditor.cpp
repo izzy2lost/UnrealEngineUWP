@@ -10,6 +10,7 @@
 #include "Tracks/MovieSceneCustomPrimitiveDataTrack.h"
 #include "Sections/ParameterSection.h"
 #include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
 #include "Modules/ModuleManager.h"
 #include "MaterialEditorModule.h"
 #include "Engine/Selection.h"
@@ -41,7 +42,7 @@ TSharedPtr<SWidget> FCustomPrimitiveDataTrackEditor::BuildOutlinerEditWidget(con
 	UMovieSceneCustomPrimitiveDataTrack* CPDTrack = Cast<UMovieSceneCustomPrimitiveDataTrack>(Track);
 	FOnGetContent MenuContent = FOnGetContent::CreateSP(this, &FCustomPrimitiveDataTrackEditor::OnGetAddMenuContent, ObjectBinding, CPDTrack, Params.TrackInsertRowIndex);
 
-	return FSequencerUtilities::MakeAddButton(LOCTEXT("AddParameterButton", "Parameter"), MenuContent, Params.NodeIsHovered, GetSequencer());
+	return UE::Sequencer::MakeAddButton(LOCTEXT("AddParameterButton", "Parameter"), MenuContent, Params.ViewModel);
 }
 
 

@@ -128,7 +128,7 @@
 #include "SequencerKeyActor.h"
 #include "ISequencerChannelInterface.h"
 #include "IMovieRendererInterface.h"
-#include "ISequencerOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
 #include "SequencerKeyCollection.h"
 #include "CurveEditor.h"
 #include "CurveEditorScreenSpace.h"
@@ -502,7 +502,7 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	for (int32 DelegateIndex = 0; DelegateIndex < OutlinerColumnDelegates.Num(); ++DelegateIndex)
 	{
 		check(OutlinerColumnDelegates[DelegateIndex].IsBound());
-		TSharedRef<ISequencerOutlinerColumn> OutlinerColumn = OutlinerColumnDelegates[DelegateIndex].Execute();
+		TSharedRef<IOutlinerColumn> OutlinerColumn = OutlinerColumnDelegates[DelegateIndex].Execute();
 
 		if (OutlinerColumn->SupportsSequence(InitParams.RootSequence))
 		{
@@ -11505,15 +11505,6 @@ void FSequencer::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TA
 	for (int32 i = 0; i < TrackEditors.Num(); ++i)
 	{
 		TrackEditors[i]->BuildObjectBindingTrackMenu(MenuBuilder, InObjectBindings, ObjectClass);
-	}
-}
-
-
-void FSequencer::BuildObjectBindingEditButtons(TSharedPtr<SHorizontalBox> EditBox, const FGuid& ObjectBinding, const UClass* ObjectClass)
-{
-	for (int32 i = 0; i < TrackEditors.Num(); ++i)
-	{
-		TrackEditors[i]->BuildObjectBindingEditButtons(EditBox, ObjectBinding, ObjectClass);
 	}
 }
 

@@ -46,9 +46,7 @@ struct FPointerEvent;
 
 #define LOCTEXT_NAMESPACE "SOutlinerItemViewBase"
 
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
 void SOutlinerItemViewBase::Construct(
@@ -65,6 +63,11 @@ void SOutlinerItemViewBase::Construct(
 	IsReadOnlyAttribute    = InArgs._IsReadOnly;
 	IsRowHoveredAttribute  = MakeAttributeSP(&InTableRow.Get(), &ISequencerTreeViewRow::IsHovered);
 	IsRowSelectedAttribute = MakeAttributeSP(&InTableRow.Get(), &ISequencerTreeViewRow::IsItemSelected);
+
+	if (!IsReadOnlyAttribute.IsSet())
+	{
+		IsReadOnlyAttribute = MakeAttributeSP(InWeakEditor.Pin().ToSharedRef(), &FEditorViewModel::IsReadOnly);
+	}
 
 	TViewModelPtr<IOutlinerExtension> OutlinerExtension = WeakOutlinerExtension.Pin();
 	checkf(OutlinerExtension, TEXT("Attempting to create an outliner node from a null model"));
@@ -92,7 +95,7 @@ void SOutlinerItemViewBase::Construct(
 		InnerNodePadding = FMargin(0.f);
 	}
 
-	TableRowStyle = &FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("Sequencer.TableView.Row");
+	TableRowStyle = &FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("Sequencer.Outliner.Row");
 
 	TSharedPtr<SWidget> LabelContent;
 
@@ -425,8 +428,7 @@ FSlateColor SOutlinerItemViewBase::GetForegroundBasedOnSelection() const
 	return IsRowSelectedAttribute.Get() ? TableRowStyle->SelectedTextColor : TableRowStyle->TextColor;
 }
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE
 

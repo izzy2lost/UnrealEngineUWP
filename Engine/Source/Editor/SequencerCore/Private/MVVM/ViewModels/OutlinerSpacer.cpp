@@ -43,12 +43,9 @@ FName FOutlinerSpacer::GetIdentifier() const
 
 FOutlinerSizing FOutlinerSpacer::GetOutlinerSizing() const
 {
-	return FOutlinerSizing{ DesiredSpacerHeight };
-}
-
-TSharedRef<SWidget> FOutlinerSpacer::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)
-{
-	return SNew(SBox).HeightOverride(DesiredSpacerHeight);
+	FOutlinerSizing Sizing{ DesiredSpacerHeight };
+	Sizing.Flags = EOutlinerSizingFlags::None;
+	return Sizing;
 }
 
 TSharedPtr<SWidget> FOutlinerSpacer::CreateContextMenuWidget(const FCreateOutlinerContextMenuWidgetParams& InParams)

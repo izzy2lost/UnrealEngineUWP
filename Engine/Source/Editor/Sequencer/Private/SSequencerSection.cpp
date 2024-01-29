@@ -6,6 +6,7 @@
 #include "MVVM/ViewModels/CategoryModel.h"
 #include "MVVM/ViewModels/ViewModelIterators.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/EditorSharedViewModelData.h"
 #include "MVVM/Views/ITrackAreaHotspot.h"
 #include "MVVM/Views/STrackAreaView.h"
 #include "MVVM/Views/SCompoundTrackLaneView.h"
@@ -1464,11 +1465,14 @@ int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& Allot
 
 	if (!SectionTitle.IsEmpty())
 	{
+		TViewModelPtr<IGeometryExtension> Geometry = SectionModel->FindAncestorOfType<IOutlinerExtension>().ImplicitCast();
+		const float AllocatedFontHeight = (Geometry ? Geometry->GetVirtualGeometry().GetHeight() : SectionGeometry.Size.Y) - 4.f; // 2px minimum padding
+
+		// Align the section title within the actual track area geometry, excluding any expanded channels
 		FSlateClippingZone ClippingZone(Painter.SectionClippingRect);
 		OutDrawElements.PushClip(ClippingZone);
 
 		FVector2D TopLeft = SectionGeometry.AbsoluteToLocal(Painter.SectionClippingRect.GetTopLeft()) + FVector2D(1.f, -1.f);
-
 		FSlateFontInfo FontInfo = FAppStyle::GetFontStyle("NormalFont");
 
 		TSharedRef<FSlateFontCache> FontCache = FSlateApplication::Get().GetRenderer()->GetFontCache();
@@ -1477,10 +1481,12 @@ int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& Allot
 		{
 			return FontCache->GetMaxCharacterHeight(FontInfo, 1.f) + FontCache->GetBaseline(FontInfo, 1.f);
 		};
-		while (GetFontHeight() > SectionGeometry.Size.Y && FontInfo.Size > 11)
+		while (GetFontHeight() > AllocatedFontHeight && FontInfo.Size > 7.f)
 		{
-			FontInfo.Size = FMath::Max(FMath::FloorToInt(FontInfo.Size - 6.f), 11);
+			FontInfo.Size = FMath::Max(FMath::FloorToInt(FontInfo.Size - 6.f), 7.f);
 		}
+
+		const float TitlePosition = (AllocatedFontHeight - FontInfo.Size) * 0.5f;
 
 		// Drop shadow
 		FSlateDrawElement::MakeText(
@@ -1488,7 +1494,7 @@ int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& Allot
 			LayerId,
 			SectionGeometry.MakeChild(
 				FVector2D(SectionGeometry.Size.X, GetFontHeight()),
-				FSlateLayoutTransform(TopLeft + FVector2D(ContentPadding.Left, ContentPadding.Top) + FVector2D(1.f, 1.f))
+				FSlateLayoutTransform(TopLeft + FVector2D(ContentPadding.Left, TitlePosition) + FVector2D(1.f, 1.f))
 			).ToPaintGeometry(),
 			SectionTitle,
 			FontInfo,
@@ -1501,7 +1507,7 @@ int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& Allot
 			LayerId,
 			SectionGeometry.MakeChild(
 				FVector2D(SectionGeometry.Size.X, GetFontHeight()),
-				FSlateLayoutTransform(TopLeft + FVector2D(ContentPadding.Left, ContentPadding.Top))
+				FSlateLayoutTransform(TopLeft + FVector2D(ContentPadding.Left, TitlePosition))
 			).ToPaintGeometry(),
 			SectionTitle,
 			FontInfo,
@@ -1561,6 +1567,14 @@ void SSequencerSection::PaintEasingHandles( FSequencerSectionPainter& InPainter,
 		return;
 	}
 
+	TSharedPtr<FSectionModel>              SectionModel = WeakSectionModel.Pin();
+	TSharedPtr<FSharedViewModelData>       SharedModelData = SectionModel ? SectionModel->GetSharedData() : nullptr;
+	TSharedPtr<FEditorSharedViewModelData> EditorSharedModelData = SharedModelData ? SharedModelData->CastThisShared<FEditorSharedViewModelData>() : nullptr;
+	if (!SectionModel || !EditorSharedModelData)
+	{
+		return;
+	}
+
 	TArray<TSharedPtr<FSectionModel>> AllUnderlappingSections;
 	if (IsSectionHighlighted(SectionInterface->GetSectionObject(), Hotspot))
 	{
@@ -1580,9 +1594,9 @@ void SSequencerSection::PaintEasingHandles( FSequencerSectionPainter& InPainter,
 	}
 
 	FTimeToPixel TimeToPixelConverter = InPainter.GetTimeConverter();
-	for (const TSharedPtr<FSectionModel>& SectionModel : AllUnderlappingSections)
+	for (const TSharedPtr<FSectionModel>& UnderlappingSectionModel : AllUnderlappingSections)
 	{
-		UMovieSceneSection* UnderlappingSectionObj = SectionModel->GetSection();
+		UMovieSceneSection* UnderlappingSectionObj = UnderlappingSectionModel->GetSection();
 		if (UnderlappingSectionObj->GetRange() == TRange<FFrameNumber>::All())
 		{
 			continue;
@@ -1597,7 +1611,7 @@ void SSequencerSection::PaintEasingHandles( FSequencerSectionPainter& InPainter,
 		{
 			if (const FSectionEasingHandleHotspot* EasingHotspot = Hotspot->CastThis<FSectionEasingHandleHotspot>())
 			{
-				bDrawThisSectionsHandles = (EasingHotspot->WeakSectionModel.Pin() == SectionModel);
+				bDrawThisSectionsHandles = (EasingHotspot->WeakSectionModel.Pin() == UnderlappingSectionModel);
 				bLeftHandleActive = EasingHotspot->HandleType == ESequencerEasingType::In;
 				bRightHandleActive = EasingHotspot->HandleType == ESequencerEasingType::Out;
 			}
@@ -1647,7 +1661,7 @@ void SSequencerSection::PaintEasingHandles( FSequencerSectionPainter& InPainter,
 		// smaller.
 		// If there isn't any "section to key" border, we just draw the handle white.
 		const FLinearColor InactiveHandleColor = bIsSectionToKey ? FStyleColors::Success.GetColor(FWidgetStyle()) : FStyleColors::AccentYellow.GetColor(FWidgetStyle());
-		const float HalfSectionHeight = SectionInterface->GetSectionHeight() / 2.f;
+		const float HalfSectionHeight = SectionInterface->GetSectionHeight(EditorSharedModelData->GetEditor()->GetViewDensity()) / 2.f;
 		const float HandleSize = FMath::Max(MinHandleSize, FMath::Min(HalfSectionHeight, SectionInterface->GetSectionGripSize())) + (bIsSectionToKey ? 3.f : 0.f);
 
 		const FSlateBrush* HandleBrush = FAppStyle::GetBrush("Sequencer.Section.EasingHandle");

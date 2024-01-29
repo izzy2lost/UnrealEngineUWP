@@ -23,6 +23,7 @@
 #include "ISequencerChannelInterface.h"
 #include "ISequencerModule.h"
 #include "Modules/ModuleManager.h"
+#include "MVVM/ViewModels/ViewDensity.h"
 
 struct FMovieSceneChannel;
 
@@ -199,6 +200,25 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 		}
 	}
 }
+
+float ISequencerSection::GetSectionHeight() const
+{
+	return SequencerSectionConstants::DefaultSectionHeight;
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+float ISequencerSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
+{
+	// Call the deprecated method
+	float Height = GetSectionHeight();
+	if (Height != SequencerSectionConstants::DefaultSectionHeight)
+	{
+		// Override the uniform height for some sections
+		return Height;
+	}
+	return ViewDensity.UniformHeight.Get(Height);
+}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void ISequencerSection::ResizeSection(ESequencerSectionResizeMode ResizeMode, FFrameNumber ResizeFrameNumber)
 {

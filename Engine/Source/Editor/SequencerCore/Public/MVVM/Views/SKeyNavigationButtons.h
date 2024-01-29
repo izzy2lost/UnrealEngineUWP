@@ -36,8 +36,7 @@ public:
 	DECLARE_DELEGATE_OneParam(FOnGetNavigatableTimes, TArray<FFrameNumber>&)
 	DECLARE_DELEGATE_TwoParams(FOnAddKey, FFrameTime, TSharedPtr<FViewModel>)
 
-	SLATE_BEGIN_ARGS(SKeyNavigationButtons) : _IsEnabled(true) {}
-		SLATE_ATTRIBUTE(bool, IsEnabled)
+	SLATE_BEGIN_ARGS(SKeyNavigationButtons) {}
 
 		SLATE_ARGUMENT(FText, PreviousKeyToolTip)
 		SLATE_ARGUMENT(FText, NextKeyToolTip)
@@ -53,7 +52,6 @@ public:
 
 	void Construct(const FArguments& InArgs, const TSharedPtr<FViewModel>& InModel);
 
-	FLinearColor GetHoverTint() const;
 	FReply OnPreviousKeyClicked();
 	FReply OnNextKeyClicked();
 	FReply OnAddKeyClicked();

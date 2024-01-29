@@ -25,10 +25,11 @@
 #include "UObject/Package.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "MVVM/ViewModels/ViewDensity.h"
 
 namespace NiagaraCacheEditorConstants
 {
-	constexpr float AnimationTrackHeight = 20.f;
+	constexpr float AnimationTrackHeight = 28.f;
 }
 
 #define LOCTEXT_NAMESPACE "FNiagaraCacheTrackEditor"
@@ -63,9 +64,9 @@ FText FNiagaraCacheSection::GetSectionTitle() const
 	return LOCTEXT("NoNiagaraCacheSection", "No NiagaraCache");
 }
 
-float FNiagaraCacheSection::GetSectionHeight() const
+float FNiagaraCacheSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
-	return NiagaraCacheEditorConstants::AnimationTrackHeight;
+	return ViewDensity.UniformHeight.Get(NiagaraCacheEditorConstants::AnimationTrackHeight);
 }
 
 int32 FNiagaraCacheSection::OnPaintSection(FSequencerSectionPainter& Painter) const

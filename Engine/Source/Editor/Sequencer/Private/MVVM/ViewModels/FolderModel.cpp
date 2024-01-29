@@ -15,6 +15,7 @@
 #include "MVVM/ObjectBindingModelStorageExtension.h"
 #include "MVVM/FolderModelStorageExtension.h"
 #include "MVVM/SharedViewModelData.h"
+#include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
 
 #include "Sequencer.h"
 #include "SequencerNodeTree.h"
@@ -35,9 +36,7 @@
 
 #define LOCTEXT_NAMESPACE "SequencerFolderModel"
 
-namespace UE
-{
-namespace Sequencer
+namespace UE::Sequencer
 {
 
 TMap<TWeakObjectPtr<UMovieSceneFolder>, FColor> FFolderModel::InitialFolderColors;
@@ -229,7 +228,9 @@ void FFolderModel::OnChildFolderRemoved(UMovieSceneFolder* Folder)
 
 FOutlinerSizing FFolderModel::GetOutlinerSizing() const
 {
-	return FOutlinerSizing(20.f, 4.f);
+	const float CompactHeight = 28.f;
+	FViewDensityInfo Density = GetEditor()->GetViewDensity();
+	return FOutlinerSizing(Density.UniformHeight.Get(CompactHeight));
 }
 
 void FFolderModel::GetIdentifierForGrouping(TStringBuilder<128>& OutString) const
@@ -321,7 +322,8 @@ void FFolderModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.EndSection();
 }
 
-TSharedRef<SWidget> FFolderModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)
+
+TSharedPtr<SWidget> FFolderModel::CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {
 	class SOutlinerFolderView
 		: public SOutlinerItemViewBase
@@ -344,7 +346,12 @@ TSharedRef<SWidget> FFolderModel::CreateOutlinerView(const FCreateOutlinerViewPa
 		TAttribute<bool> IsExpandedAttribute;
 	};
 
-	return SNew(SOutlinerFolderView, SharedThis(this), InParams.Editor, InParams.TreeViewRow);
+	if (InColumnName == FCommonOutlinerNames::Label)
+	{
+		return SNew(SOutlinerFolderView, SharedThis(this), InParams.Editor, InParams.TreeViewRow);
+	}
+
+	return nullptr;
 }
 
 void FFolderModel::SetFolderColor()
@@ -800,7 +807,6 @@ void FFolderModel::Delete()
 }
 
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE

@@ -1,13 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/OutlinerColumns/SColumnToggleWidget.h"
+#include "MVVM/Views/OutlinerColumns/SColumnToggleWidget.h"
 
 #include "Delegates/Delegate.h"
-#include "ISequencerOutlinerColumn.h"
-#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/EditorViewModel.h"
 #include "MVVM/ViewModels/OutlinerViewModel.h"
+#include "MVVM/ViewModels/OutlinerColumns/IOutlinerColumn.h"
 #include "MVVM/SharedViewModelData.h"
-#include "Sequencer.h"
 
 #define LOCTEXT_NAMESPACE "SColumnToggleWidget"
 
@@ -63,13 +62,13 @@ public:
 
 void SColumnToggleWidget::Construct(
 	const FArguments& InArgs,
-	const TWeakPtr<ISequencerOutlinerColumn> InOutlinerColumn,
+	const TWeakPtr<IOutlinerColumn> InOutlinerColumn,
 	const FCreateOutlinerColumnParams& InParams)
 {
 	WeakOutlinerColumn = InOutlinerColumn;
 
 	WeakOutlinerExtension = InParams.OutlinerExtension;
-	WeakEditor = InParams.Editor->CastThisSharedChecked<FSequencerEditorViewModel>();
+	WeakEditor = InParams.Editor;
 
 	ModelID = InParams.OutlinerExtension.AsModel()->GetModelID();
 
@@ -164,7 +163,7 @@ const FSlateBrush* SColumnToggleWidget::GetBrush() const
 
 FReply SColumnToggleWidget::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
+	TSharedPtr<IOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton)
 		&& OutlinerColumn)
 	{
@@ -179,7 +178,7 @@ FReply SColumnToggleWidget::OnDragDetected(const FGeometry& MyGeometry, const FP
 void SColumnToggleWidget::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
 	auto ColumnToggleDragOp = DragDropEvent.GetOperationAs<FColumnToggleDragDropOp>();
-	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
+	TSharedPtr<IOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
 	if (ColumnToggleDragOp.IsValid()
 		&& OutlinerColumn
 		&& ColumnToggleDragOp->ColumnName == OutlinerColumn->GetColumnName())
@@ -190,7 +189,7 @@ void SColumnToggleWidget::OnDragEnter(const FGeometry& MyGeometry, const FDragDr
 
 FReply SColumnToggleWidget::HandleClick()
 {
-	TSharedPtr<ISequencerOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
+	TSharedPtr<IOutlinerColumn> OutlinerColumn = WeakOutlinerColumn.Pin();
 
 	// Open an undo transaction
 	if (OutlinerColumn)
@@ -256,11 +255,12 @@ void SColumnToggleWidget::OnMouseLeave(const FPointerEvent& MouseEvent)
 
 void SColumnToggleWidget::RefreshSequencerTree()
 {
-	TSharedPtr<FSequencerEditorViewModel> EditorViewModel = WeakEditor.Pin();
-	TSharedPtr<FSequencer> Sequencer = EditorViewModel ? EditorViewModel->GetSequencerImpl() : nullptr;
-	if (Sequencer)
+	if (TSharedPtr<FEditorViewModel> EditorViewModel = WeakEditor.Pin())
 	{
-		Sequencer->RefreshTree();
+		if (TSharedPtr<FOutlinerViewModel> Outliner = EditorViewModel->GetOutliner())
+		{
+			Outliner->RequestUpdate();
+		}
 	}
 }
 

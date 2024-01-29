@@ -15,6 +15,11 @@ enum class EAllowEditsMode : uint8;
 enum class EKeyGroupMode : uint8;
 enum class EMovieSceneKeyInterpolation : uint8;
 
+namespace UE::Sequencer
+{
+	enum class EViewDensity;
+}
+
 UENUM()
 enum ESequencerSpawnPosition : int
 {
@@ -454,6 +459,11 @@ public:
 	/** Sets the tree view width percentage */
 	void SetTreeViewWidth(float InTreeViewWidth);
 
+	/** Gets the saved view density */
+	UE::Sequencer::EViewDensity GetViewDensity() const;
+	/** Sets the saved view density */
+	void SetViewDensity(FName InViewDensity);
+
 	/** Gets whether the given track filter is enabled */
 	bool IsTrackFilterEnabled(const FString& TrackFilter) const;
 	/** Sets whether the track filter should be enabled/disabled */
@@ -719,6 +729,9 @@ protected:
 	/** The tree view width percentage */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	float TreeViewWidth;
+
+	UPROPERTY(config, EditAnywhere, Category = General)
+	FName ViewDensity;
 
 	/** The track filters that are enabled */
 	UPROPERTY(config, EditAnywhere, Category = General)

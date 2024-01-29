@@ -2024,10 +2024,34 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 		BrighterHeader.B = FMath::Min(1.f, BrighterHeader.B * 2.0f);
 		BrighterHeader = BrighterHeader.HSVToLinearRGB();
 
-		Set("Sequencer.TableView.Row", FTableRowStyle(AlternatingTableRowStyle)
+		Set("Sequencer.Outliner.Row", FTableRowStyle(AlternatingTableRowStyle)
 			.SetUseParentRowBrush(true)
-			.SetParentRowBackgroundBrush(FSlateRoundedBoxBrush(FStyleColors::Header, 2.f, FStyleColors::Transparent, 1.f))
-			.SetParentRowBackgroundHoveredBrush(FSlateRoundedBoxBrush(BrighterHeader, 2.f)));
+			.SetParentRowBackgroundBrush(FSlateColorBrush(FStyleColors::Header))
+			.SetParentRowBackgroundHoveredBrush(FSlateColorBrush(BrighterHeader)));
+
+		Set("Sequencer.Outliner.Separator", new FSlateColorBrush(FStyleColors::Input));
+		Set("Sequencer.Outliner.Plus", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/Plus", Icon14x14));
+		Set("Sequencer.Outliner.AddKey", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/AddKey", Icon14x14));
+		Set("Sequencer.Outliner.NextKey", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/NextKey", Icon14x14));
+		Set("Sequencer.Outliner.PreviousKey", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/PreviousKey", Icon14x14));
+		Set("Sequencer.Outliner.CameraLock", new IMAGE_BRUSH_SVG("Sequencer/Column_Widgets/SequencerCamera", Icon14x14));
+
+		Set("Sequencer.Outliner.ColumnButton", FButtonStyle()
+				.SetNormal(FSlateNoResource())
+				.SetHovered(FSlateNoResource())
+				.SetPressed(FSlateNoResource())
+				.SetNormalPadding(FMargin(0,0,0,1))
+				.SetPressedPadding(FMargin(0,1,0,0)) );
+
+		Set("Sequencer.Outliner.ToggleButton", FCheckBoxStyle( GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox"))
+			.SetUncheckedImage(FSlateRoundedBoxBrush(FStyleColors::Header, 4.0f, FStyleColors::Input, 1.0f))
+			.SetUncheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f, FStyleColors::Input, 1.0f))
+			.SetUncheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f, FStyleColors::Input, 1.0f))
+			.SetCheckedImage(FSlateRoundedBoxBrush(FStyleColors::Primary, 4.0f, FStyleColors::Input, 1.0f))
+			.SetCheckedHoveredImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.0f, FStyleColors::Input, 1.0f))
+			.SetCheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryHover, 4.0f, FStyleColors::Input, 1.0f))
+			.SetPadding(FMargin(6.f, 1.f))
+		);
 
 		Set("Sequencer.IconKeySmartAuto", new IMAGE_BRUSH("Sequencer/IconKeySmartAuto", Icon12x12));
 		Set("Sequencer.IconKeyAuto", new IMAGE_BRUSH("Sequencer/IconKeyAuto", Icon12x12));

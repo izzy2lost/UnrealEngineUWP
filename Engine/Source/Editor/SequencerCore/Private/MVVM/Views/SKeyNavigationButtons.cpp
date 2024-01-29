@@ -8,8 +8,6 @@
 #include "HAL/PlatformCrt.h"
 #include "Layout/Children.h"
 #include "Layout/Margin.h"
-#include "MVVM/Extensions/IHoveredExtension.h"
-#include "MVVM/ICastable.h"
 #include "MVVM/ViewModels/ViewModel.h"
 #include "Math/NumericLimits.h"
 #include "Misc/FrameNumber.h"
@@ -17,14 +15,9 @@
 #include "Misc/Optional.h"
 #include "SlotBase.h"
 #include "Styling/AppStyle.h"
-#include "Styling/ISlateStyle.h"
-#include "Styling/SlateColor.h"
-#include "Templates/TypeHash.h"
-#include "Types/SlateEnums.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Text/STextBlock.h"
+#include "MVVM/Views/OutlinerColumns/SOutlinerColumnButton.h"
+
 
 struct FSlateBrush;
 
@@ -42,10 +35,6 @@ void SKeyNavigationButtons::Construct(const FArguments& InArgs, const TSharedPtr
 	SetTimeEvent = InArgs._OnSetTime;
 	TimeAttribute = InArgs._Time;
 
-	const FSlateBrush* NoBorder = FAppStyle::GetBrush( "NoBorder" );
-
-	TAttribute<FLinearColor> HoverTint(this, &SKeyNavigationButtons::GetHoverTint);
-
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -54,83 +43,38 @@ void SKeyNavigationButtons::Construct(const FArguments& InArgs, const TSharedPtr
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
-		.Padding(3, 0, 0, 0)
 		[
-			SNew(SBorder)
-			.Padding(0)
-			.BorderImage(NoBorder)
-			.ColorAndOpacity(HoverTint)
-			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.ToolTipText(InArgs._PreviousKeyToolTip)
-				.OnClicked(this, &SKeyNavigationButtons::OnPreviousKeyClicked)
-				.ForegroundColor( FSlateColor::UseForeground() )
-				.ContentPadding(2)
-				.IsFocusable(false)
-				[
-					SNew(STextBlock)
-					.Font(FAppStyle::Get().GetFontStyle("FontAwesome.7"))
-					.Text(FText::FromString(FString(TEXT("\xf060"))) /*fa-arrow-left*/)
-				]
-			]
+			SNew(SOutlinerColumnButton)
+			.IsFocusable(false)
+			.ToolTipText(InArgs._PreviousKeyToolTip)
+			.Image(FAppStyle::GetBrush("Sequencer.Outliner.PreviousKey"))
+			.OnClicked(this, &SKeyNavigationButtons::OnPreviousKeyClicked)
 		]
+
 		// Add key slot
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
+		.Padding(8.f, 0.f)
 		.AutoWidth()
 		[
-			SNew(SBorder)
-			.Padding(0)
-			.BorderImage(NoBorder)
-			.ColorAndOpacity(HoverTint)
-			.IsEnabled(InArgs._IsEnabled)
-			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.ToolTipText(InArgs._AddKeyToolTip)
-				.OnClicked(this, &SKeyNavigationButtons::OnAddKeyClicked)
-				.ForegroundColor( FSlateColor::UseForeground() )
-				.ContentPadding(2)
-				.IsFocusable(false)
-				[
-					SNew(STextBlock)
-					.Font(FAppStyle::Get().GetFontStyle("FontAwesome.7"))
-					.Text(FText::FromString(FString(TEXT("\xf055"))) /*fa-plus-circle*/)
-				]
-			]
+			SNew(SOutlinerColumnButton)
+			.IsFocusable(false)
+			.ToolTipText(InArgs._AddKeyToolTip)
+			.Image(FAppStyle::GetBrush("Sequencer.Outliner.AddKey"))
+			.OnClicked(this, &SKeyNavigationButtons::OnAddKeyClicked)
 		]
 		// Next key slot
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
 		[
-			SNew(SBorder)
-			.Padding(0)
-			.BorderImage(NoBorder)
-			.ColorAndOpacity(HoverTint)
-			[
-				SNew(SButton)
-				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-				.ToolTipText(InArgs._NextKeyToolTip)
-				.OnClicked(this, &SKeyNavigationButtons::OnNextKeyClicked)
-				.ContentPadding(2)
-				.ForegroundColor( FSlateColor::UseForeground() )
-				.IsFocusable(false)
-				[
-					SNew(STextBlock)
-					.Font(FAppStyle::Get().GetFontStyle("FontAwesome.7"))
-					.Text(FText::FromString(FString(TEXT("\xf061"))) /*fa-arrow-right*/)
-				]
-			]
+			SNew(SOutlinerColumnButton)
+			.IsFocusable(false)
+			.ToolTipText(InArgs._NextKeyToolTip)
+			.Image(FAppStyle::GetBrush("Sequencer.Outliner.NextKey"))
+			.OnClicked(this, &SKeyNavigationButtons::OnNextKeyClicked)
 		]
 	];
-}
-
-FLinearColor SKeyNavigationButtons::GetHoverTint() const
-{
-	IHoveredExtension* HoveredExtension = ICastable::CastWeakPtr<IHoveredExtension>(WeakModel);
-	return HoveredExtension && HoveredExtension->IsHovered() ? FLinearColor(1,1,1,0.9f) : FLinearColor(1,1,1,0.4f);
 }
 
 FReply SKeyNavigationButtons::OnPreviousKeyClicked()

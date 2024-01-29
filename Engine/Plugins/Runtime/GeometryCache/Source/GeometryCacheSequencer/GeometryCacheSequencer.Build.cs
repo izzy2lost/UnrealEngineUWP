@@ -20,6 +20,7 @@ namespace UnrealBuildTool.Rules
 					"LevelSequence",
                     "MovieScene",
                     "MovieSceneTracks",
+                    "SequencerCore",
                     "Sequencer",
                     "Slate",
                     "SlateCore",

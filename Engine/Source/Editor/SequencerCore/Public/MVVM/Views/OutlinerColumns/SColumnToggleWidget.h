@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "ISequencerOutlinerColumn.h"
 #include "MVVM/Extensions/IOutlinerExtension.h"
 #include "MVVM/ViewModelPtr.h"
 #include "ScopedTransaction.h"
@@ -11,6 +10,9 @@
 namespace UE::Sequencer
 {
 
+struct FCreateOutlinerColumnParams;
+
+class IOutlinerColumn;
 class FSequencerEditorViewModel;
 
 /**
@@ -18,9 +20,9 @@ class FSequencerEditorViewModel;
  * Adjusts image color and transparency based on active state and item hover.
  * Displays an alternate icon when a child is active and the item is not.
  * Column Toggle widgets have 4 States: Active, Inactive, Active Child, and Implicitly Active.
- * Column Toggle widgets will change its brush based on it's state.
+ * Column Toggle widgets will change its brush based on its state.
  */
-class SColumnToggleWidget
+class SEQUENCERCORE_API SColumnToggleWidget
 	: public SImage
 {
 public:
@@ -30,7 +32,7 @@ public:
 
 	void Construct(
 		const FArguments& InArgs,
-		const TWeakPtr<ISequencerOutlinerColumn> InOutlinerColumn,
+		const TWeakPtr<IOutlinerColumn> InOutlinerColumn,
 		const FCreateOutlinerColumnParams& InParams);
 
 public:
@@ -107,13 +109,13 @@ protected:
 
 protected:
 	/** Editor view-model for this view. */
-	TWeakPtr<FSequencerEditorViewModel> WeakEditor;
+	TWeakPtr<FEditorViewModel> WeakEditor;
 
 	/** Outliner item this widget accesses. */
 	TWeakViewModelPtr<IOutlinerExtension> WeakOutlinerExtension;
 
 	/** Reference to column this widget is a member of. */
-	TWeakPtr<ISequencerOutlinerColumn> WeakOutlinerColumn;
+	TWeakPtr<IOutlinerColumn> WeakOutlinerColumn;
 
 private:
 

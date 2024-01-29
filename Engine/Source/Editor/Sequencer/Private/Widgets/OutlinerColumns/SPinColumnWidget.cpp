@@ -4,7 +4,7 @@
 
 #include "MVVM/Extensions/IPinnableExtension.h"
 #include "MVVM/PinEditorExtension.h"
-#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/EditorViewModel.h"
 
 namespace UE::Sequencer
 {
@@ -15,7 +15,7 @@ void SPinColumnWidget::OnToggleOperationComplete()
 	RefreshSequencerTree();
 }
 
-void SPinColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISequencerOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
+void SPinColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<IOutlinerColumn> InWeakOutlinerColumn, const FCreateOutlinerColumnParams& InParams)
 {
 	SColumnToggleWidget::Construct(
 		SColumnToggleWidget::FArguments(),
@@ -26,10 +26,10 @@ void SPinColumnWidget::Construct(const FArguments& InArgs, const TWeakPtr<ISeque
 
 bool SPinColumnWidget::IsActive() const
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
+	if (Editor)
 	{
-		FPinEditorExtension* PinEditorExtension = SequencerEditor->CastDynamic<FPinEditorExtension>();
+		FPinEditorExtension* PinEditorExtension = Editor->CastDynamic<FPinEditorExtension>();
 		if (PinEditorExtension)
 		{
 			return PinEditorExtension->IsNodePinned(WeakOutlinerExtension);
@@ -41,10 +41,10 @@ bool SPinColumnWidget::IsActive() const
 
 void SPinColumnWidget::SetIsActive(const bool bInIsActive)
 {
-	TSharedPtr<FSequencerEditorViewModel> SequencerEditor = WeakEditor.Pin();
-	if (SequencerEditor)
+	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
+	if (Editor)
 	{
-		FPinEditorExtension* PinEditorExtension = SequencerEditor->CastDynamic<FPinEditorExtension>();
+		FPinEditorExtension* PinEditorExtension = Editor->CastDynamic<FPinEditorExtension>();
 		if (PinEditorExtension)
 		{
 			PinEditorExtension->SetNodePinned(WeakOutlinerExtension, bInIsActive);

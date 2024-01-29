@@ -14,7 +14,6 @@
 #include "MovieSceneSequenceID.h"
 #include "ITimeSlider.h"
 #include "ISequencerModule.h"
-#include "ISequencerOutlinerColumn.h"
 #include "ToolMenu.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Widgets/Input/NumericTypeInterface.h"
@@ -51,6 +50,7 @@ namespace Sequencer
 	class SOutlinerView;
 	class STrackAreaView;
 	class FVirtualTrackArea;
+	class IOutlinerColumn;
 	struct FSequencerSelectionCurveFilter;
 
 } // namespace Sequencer
@@ -68,7 +68,7 @@ namespace SequencerLayoutConstants
 	const float ObjectNodeHeight = 20.0f;
 
 	/** Height of each section area if there are no sections (note: section areas may be larger than this if they have children. This is the height of a section area with no children or all children hidden) */
-	const float SectionAreaDefaultHeight = 15.0f;
+	const float SectionAreaDefaultHeight = 27.0f;
 
 	/** Height of each key area */
 	const float KeyAreaHeight = 15.0f;
@@ -116,18 +116,11 @@ struct FSequencerBreadcrumb
  */
 struct FSequencerOutlinerColumnVisibility
 {
-	TSharedPtr<ISequencerOutlinerColumn> Column;
+	TSharedPtr<UE::Sequencer::IOutlinerColumn> Column;
 	bool bIsColumnVisible = false;
 
-	FSequencerOutlinerColumnVisibility(TSharedPtr<ISequencerOutlinerColumn> InColumn)
-		: Column(InColumn)
-		, bIsColumnVisible(InColumn->IsColumnVisibleByDefault())
-	{}
-
-	FSequencerOutlinerColumnVisibility(TSharedPtr<ISequencerOutlinerColumn> InColumn, bool bInIsColumnVisible)
-		: Column(InColumn)
-		, bIsColumnVisible(bInIsColumnVisible)
-	{}
+	FSequencerOutlinerColumnVisibility(TSharedPtr<UE::Sequencer::IOutlinerColumn> InColumn);
+	FSequencerOutlinerColumnVisibility(TSharedPtr<UE::Sequencer::IOutlinerColumn> InColumn, bool bInIsColumnVisible);
 };
 
 
@@ -458,6 +451,9 @@ private:
 
 	/** Makes the playback speed menu for the toolbar. */
 	void FillPlaybackSpeedMenu(FMenuBuilder& InMenuBuilder);
+
+	/** Makes the view density menu for the toolbar. */
+	void FillViewDensityMenu(FMenuBuilder& InMenuBuilder);
 
 	/** Makes the column visibility menu for the toolbar. */
 	void FillColumnVisibilityMenu(FMenuBuilder& InMenuBuilder);

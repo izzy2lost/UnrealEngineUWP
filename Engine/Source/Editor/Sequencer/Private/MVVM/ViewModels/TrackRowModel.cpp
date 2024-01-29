@@ -34,15 +34,8 @@
 
 #define LOCTEXT_NAMESPACE "TrackRowModel"
 
-namespace UE
+namespace UE::Sequencer
 {
-namespace Sequencer
-{
-
-namespace LayoutConstants
-{
-	extern const float CommonPadding;
-}
 
 FTrackRowModel::FTrackRowModel(UMovieSceneTrack* Track, int32 InRowIndex)
 	: SectionList(EViewModelListType::TrackArea)
@@ -96,13 +89,15 @@ FViewModelChildren FTrackRowModel::GetSectionModels()
 
 FOutlinerSizing FTrackRowModel::GetOutlinerSizing() const
 {
-	float Height = SequencerLayoutConstants::SectionAreaDefaultHeight;
+	FViewDensityInfo Density = GetEditor()->GetViewDensity();
+
+	float Height = Density.UniformHeight.Get(SequencerLayoutConstants::SectionAreaDefaultHeight);
 	for (TSharedPtr<FSectionModel> Section : SectionList.Iterate<FSectionModel>())
 	{
-		Height = Section->GetSectionInterface()->GetSectionHeight();
+		Height = Section->GetSectionInterface()->GetSectionHeight(Density);
 		break;
 	}
-	return FOutlinerSizing(Height + 2 * LayoutConstants::CommonPadding);
+	return FOutlinerSizing(Height);
 }
 
 FTrackAreaParameters FTrackRowModel::GetTrackAreaParameters() const
@@ -250,12 +245,10 @@ FSlateColor FTrackRowModel::GetLabelColor() const
 	return Track->GetLabelColor(LabelParams);
 }
 
-TSharedRef<SWidget> FTrackRowModel::CreateOutlinerView(const FCreateOutlinerViewParams& InParams)
+TSharedPtr<SWidget> FTrackRowModel::CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {
-	return SNew(SOutlinerTrackView, 
-			TWeakViewModelPtr<IOutlinerExtension>(SharedThis(this)), 
-			InParams.Editor->CastThisSharedChecked<FSequencerEditorViewModel>(), 
-			InParams.TreeViewRow);
+	FBuildColumnWidgetParams Params(SharedThis(this), InParams);
+	return TrackEditor->BuildOutlinerColumnWidget(Params, InColumnName);
 }
 
 bool FTrackRowModel::CanRename() const
@@ -303,14 +296,6 @@ bool FTrackRowModel::IsResizable() const
 void FTrackRowModel::Resize(float NewSize)
 {
 	UMovieSceneTrack* Track = GetTrack();
-	float PaddingAmount = 2 * LayoutConstants::CommonPadding;
-	if (Track)
-	{
-		PaddingAmount *= (Track->GetMaxRowIndex() + 1);
-	}
-	
-	NewSize -= PaddingAmount;
-
 	TSharedPtr<ISequencerTrackEditor> TrackEditorPtr = GetTrackEditor();
 	if (Track && TrackEditorPtr && TrackEditorPtr->IsResizable(Track))
 	{
@@ -443,8 +428,7 @@ void FTrackRowModel::Delete()
 	Track->FixRowIndices();
 }
 
-} // namespace Sequencer
-} // namespace UE
+} // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE
 

@@ -23,7 +23,8 @@
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
 #include "SequencerSettings.h"
-#include "SequencerUtilities.h"
+#include "MVVM/Views/ViewUtilities.h"
+#include "MVVM/ViewModels/ViewDensity.h"
 #include "ISectionLayoutBuilder.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
@@ -88,7 +89,7 @@ int32 FSkeletalAnimationTrackEditor::NumberActive = 0;
 namespace SkeletalAnimationEditorConstants
 {
 	// @todo Sequencer Allow this to be customizable
-	const uint32 AnimationTrackHeight = 20;
+	const uint32 AnimationTrackHeight = 28;
 }
 
 #define LOCTEXT_NAMESPACE "FSkeletalAnimationTrackEditor"
@@ -715,9 +716,9 @@ TOptional<FFrameTime> FSkeletalAnimationSection::GetSectionTime(FSequencerSectio
 }
 
 
-float FSkeletalAnimationSection::GetSectionHeight() const
+float FSkeletalAnimationSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
-	return (float)SkeletalAnimationEditorConstants::AnimationTrackHeight;
+	return SkeletalAnimationEditorConstants::AnimationTrackHeight;
 }
 
 
@@ -2070,18 +2071,8 @@ TSharedPtr<SWidget> FSkeletalAnimationTrackEditor::BuildOutlinerEditWidget(const
 
 	if (Skeleton)
 	{
-		// Create a container edit box
-		return SNew(SHorizontalBox)
-
-		// Add the animation combo box
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.VAlign(VAlign_Center)
-		[
-			FSequencerUtilities::MakeAddButton(LOCTEXT("AnimationText", "Animation"), FOnGetContent::CreateSP(this, &FSkeletalAnimationTrackEditor::BuildAnimationSubMenu, ObjectBinding, Skeleton, Track), Params.NodeIsHovered, GetSequencer())
-		];
+		return UE::Sequencer::MakeAddButton(LOCTEXT("AnimationText", "Animation"), FOnGetContent::CreateSP(this, &FSkeletalAnimationTrackEditor::BuildAnimationSubMenu, ObjectBinding, Skeleton, Track), Params.ViewModel);
 	}
-
 	else
 	{
 		return TSharedPtr<SWidget>();

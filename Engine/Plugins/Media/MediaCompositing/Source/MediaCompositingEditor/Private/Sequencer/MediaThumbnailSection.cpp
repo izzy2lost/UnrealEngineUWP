@@ -66,9 +66,9 @@ FMargin FMediaThumbnailSection::GetContentPadding() const
 }
 
 
-float FMediaThumbnailSection::GetSectionHeight() const
+float FMediaThumbnailSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
-	return FThumbnailSection::GetSectionHeight() + 2 * 9.0f; // make space for the film border
+	return FThumbnailSection::GetSectionHeight(ViewDensity) + 2 * 9.0f; // make space for the film border
 }
 
 
