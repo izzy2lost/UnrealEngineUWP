@@ -34,7 +34,7 @@ void UPixelStreamingSignallingComponent::Connect(const FString& Url)
 
 void UPixelStreamingSignallingComponent::Disconnect()
 {
-	SignallingConnection->Disconnect();
+	SignallingConnection->Disconnect(TEXT("Pixel Streaming player plugin disconnected"));
 }
 
 void UPixelStreamingSignallingComponent::Subscribe(const FString& StreamerId)

@@ -297,7 +297,7 @@ namespace UE::PixelStreaming
 	{
 		if (OutPlayer)
 		{
-			OutPlayer->Disconnect();
+			OutPlayer->Disconnect(TEXT("Cleaning up tests"));
 			OutPlayer.Reset();
 		}
 

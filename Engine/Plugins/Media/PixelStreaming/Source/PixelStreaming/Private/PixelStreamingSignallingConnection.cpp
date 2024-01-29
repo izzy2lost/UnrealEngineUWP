@@ -39,7 +39,7 @@ FPixelStreamingSignallingConnection::FPixelStreamingSignallingConnection(TShared
 
 FPixelStreamingSignallingConnection::~FPixelStreamingSignallingConnection()
 {
-	Disconnect();
+	Disconnect(TEXT("Streamer destroying websocket connection"));
 
 	WebSocket.Reset();
 	Observer.Reset();
@@ -60,7 +60,7 @@ void FPixelStreamingSignallingConnection::Connect(FString InUrl, bool bIsReconne
 
 	// Reconnecting on an existing websocket can be problematic depending what state it was
 	// left in. Easier and safer to disconnect any existing socket/delegates and start fresh.
-	Disconnect();
+	Disconnect(TEXT("Streamer cleaning up old connection"));
 
 	Url = InUrl;
 
@@ -108,10 +108,20 @@ void FPixelStreamingSignallingConnection::TryConnect(FString InUrl)
 
 void FPixelStreamingSignallingConnection::Disconnect()
 {
+	// Do not call this deprecated method, please call FPixelStreamingSignallingConnection::Disconnect(FString Reason)
+	Disconnect(TEXT("Unknown reason"));
+}
+
+void FPixelStreamingSignallingConnection::Disconnect(FString Reason)
+{
 	if (!IsEngineExitRequested())
 	{
 		StopKeepAliveTimer();
 		StopReconnectTimer();
+	}
+	else
+	{
+		Reason = TEXT("Streamed application is shutting down");
 	}
 
 	if (!WebSocket || !bIsConnected)
@@ -125,7 +135,7 @@ void FPixelStreamingSignallingConnection::Disconnect()
 	WebSocket->OnMessage().Remove(OnMessageHandle);
 	WebSocket->OnBinaryMessage().Remove(OnBinaryMessageHandle);
 
-	WebSocket->Close();
+	WebSocket->Close(1000, Reason);
 	UE_LOG(LogPixelStreamingSS, Log, TEXT("Closing websocket to SS %s"), *Url);
 
 	bIsConnected = false;

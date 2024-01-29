@@ -72,7 +72,7 @@ namespace UE::PixelStreaming
 	public:
 		virtual ~FMockPlayer()
 		{
-			Disconnect();
+			Disconnect(TEXT("Mock player being destroyed"));
 
 			UE::PixelStreaming::DoOnGameThread([]() {
 				Settings::CVarPixelStreamingSuppressICECandidateErrors->Set(false, ECVF_SetByCode);
@@ -98,9 +98,9 @@ namespace UE::PixelStreaming
 			SignallingServerConnection->TryConnect(Url);
 		}
 
-		void Disconnect()
+		void Disconnect(FString Reason)
 		{
-			SignallingServerConnection->Disconnect();
+			SignallingServerConnection->Disconnect(Reason);
 		}
 
 		bool IsSignallingConnected()

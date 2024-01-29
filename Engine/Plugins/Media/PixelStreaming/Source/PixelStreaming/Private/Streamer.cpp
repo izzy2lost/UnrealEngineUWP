@@ -243,7 +243,7 @@ namespace UE::PixelStreaming
 
 		if (SignallingServerConnection)
 		{
-			SignallingServerConnection->Disconnect();
+			SignallingServerConnection->Disconnect(TEXT("Streamer stopped streaming"));
 		}
 		VideoSourceGroup->Stop();
 		TriggerMouseLeave(StreamerId);
