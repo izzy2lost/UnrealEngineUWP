@@ -3,9 +3,9 @@
 #include "UserInterface/Widgets/OverridesComboButtonBuilder.h"
 
 #include "DetailsViewStyle.h"
+#include "SSimpleComboButton.h"
 #include "Styling/SlateBrush.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
-#include "UObject/OverridableManager.h"
 
 FOverridesComboButtonBuilder::FOverridesComboButtonBuilder(
 	TSharedRef<FDetailsDisplayManager> InDetailsDisplayManager,
@@ -46,10 +46,10 @@ TSharedPtr<SWidget> FOverridesComboButtonBuilder::GenerateWidget()
 			   .VAlign(VAlign_Center)
 			   .AutoWidth()
 			[
-				SNew( SComboButton )
-					.ComboButtonStyle( &Key->GetComboButtonStyle(  bIsCategoryOverridesComboButton )  )
+				SNew( SSimpleComboButton )
 					.Visibility( Key->GetVisibilityAttribute(EditPropertyChain, Object ))
-					.HasDownArrow(true)
+					.OnGetMenuContent(OnGetContent)
+					.Icon(&Key->GetConstStyleBrush())
 			];
 		}
 	}
@@ -71,4 +71,9 @@ void FOverridesComboButtonBuilder:: SetEditPropertyChain(TSharedRef<FEditPropert
 {
 	EditPropertyChain = InEditPropertyChain;	
 	bIsCategory = false;
+}
+
+TSharedPtr<FEditPropertyChain> FOverridesComboButtonBuilder::GetEditPropertyChain() const
+{
+	return EditPropertyChain;
 }

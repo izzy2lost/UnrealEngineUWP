@@ -4,55 +4,23 @@
 #include "DetailsViewStyle.h"
 #include "Containers/Map.h"
 #include "Brushes/SlateImageBrush.h"
-#include "Styling/StyleColors.h"
-#include "Styling/StarshipCoreStyle.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "UObject/OverridableManager.h"
 #include "Layout/Visibility.h"
+#include "Styling/AppStyle.h"
 
 TArray< TSharedRef< const FOverridesWidgetStyleKey >> FOverridesWidgetStyleKeys::OverridesWidgetStyleKeys;
 
 const FSlateBrush& FOverridesWidgetStyleKey::GetConstStyleBrush() const
 {
-	return ImageBrush;
-}
-
-const FComboButtonStyle& FOverridesWidgetStyleKey::GetComboButtonStyle( const bool bIsOverridesWidgetForOuterCategory ) const
-{
-	static TMap<const FOverridesWidgetStyleKey*, const FComboButtonStyle> OverridesKeyToComboButtonStyleMap;
-	const FComboButtonStyle* ComboButtonStylePtr = OverridesKeyToComboButtonStyleMap.Find( this );
-
-	if ( ComboButtonStylePtr )
-	{
-		return *ComboButtonStylePtr;
-	}
-	
-	const FSlateColor BackgroundColor = bIsOverridesWidgetForOuterCategory ? FStyleColors::Header : FStyleColors::Panel;
-	static const FSlateColor HoveredBackgroundColor = FStyleColors::Header;
-			
-	const FButtonStyle OverridesButton = FButtonStyle()
-	                                     .SetNormalForeground(FStyleColors::AccentBlue)
-	                                     .SetHoveredForeground(FStyleColors::AccentBlue)
-	                                     .SetPressedForeground(FStyleColors::AccentBlue)
-	                                     .SetHovered(FSlateRoundedBoxBrush(HoveredBackgroundColor, 0.f))
-	                                     .SetNormal(FSlateRoundedBoxBrush(BackgroundColor, 0.f))
-	                                     .SetPressed(FSlateRoundedBoxBrush(BackgroundColor, 0.f))
-	                                     .SetNormalPadding(FMargin(2.f, 0.f, 0.f, 0.f))
-	                                     .SetPressedPadding(FMargin(2.f, 0.f, 0.f, 0.f));
-			
-
-	OverridesKeyToComboButtonStyleMap.Add( this, FComboButtonStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
-												   .SetButtonStyle(OverridesButton)
-												   .SetDownArrowImage(GetConstStyleBrush())
-												   .SetDownArrowPadding(FMargin(2.f, 5.f, 3.f, 5.f)));
-
-		
-	return *OverridesKeyToComboButtonStyleMap.Find( this );
+	const FSlateBrush* ImageBrush = FAppStyle::GetBrush( *(TEXT("Icons.Details") + Name.ToString()) );
+	checkf(ImageBrush, TEXT("Expecting a valid brush"));
+	return *ImageBrush;
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Here()
 {
-	static const FOverridesWidgetStyleKey Here{"OverrideHere", EOverriddenPropertyOperation::Replace, EOverriddenState::AllOverridden };
+	static const FOverridesWidgetStyleKey Here{"OverrideHere", EOverriddenPropertyOperation::Replace, EOverriddenState::AllOverridden, /*bInherited*/false };
 	return Here;
 }
 
@@ -63,19 +31,20 @@ void FOverridesWidgetStyleKeys::Initialize()
 	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(HereInside()));
 	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Added()));
 	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Removed()));
-	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Options()));	
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(None()));
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Inherited()));
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Added()
 {
-	static const FOverridesWidgetStyleKey Added{"OverrideAdded"};
+	static const FOverridesWidgetStyleKey Added{"OverrideAdded", EOverriddenPropertyOperation::Add, EOverriddenState::Added };
 	return Added;
 }
 
-const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Options()
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::None()
 {
-	static const FOverridesWidgetStyleKey Options{"OverrideOptions"};
-	return Options;
+	static const FOverridesWidgetStyleKey None{"OverrideNone", EOverriddenPropertyOperation::None, EOverriddenState::NoOverrides };
+	return None;
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Removed()
@@ -96,21 +65,16 @@ const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::HereInside()
 	return HereInside;
 }
 
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Inherited()
+{
+	static const FOverridesWidgetStyleKey Inherited{"OverrideInherited", EOverriddenPropertyOperation::Replace, TOptional<EOverriddenState>(), /*bInherited*/true };
+	return Inherited;
+}
+
 TArray< TSharedRef< const FOverridesWidgetStyleKey >> FOverridesWidgetStyleKeys::GetKeys()
 {
 	return OverridesWidgetStyleKeys;
 }
-
-void FOverridesWidgetStyleKey::Construct()
-{
-	static const FVector2D Icon16x16{16.0f, 16.0f};
-	static const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::EngineContentDir(), TEXT("Slate/Starship/Common/")));
-		
-	const FSlateVectorImageBrush Brush{Path + Name.ToString() + ".svg", Icon16x16};
-	const FSlateBrush* SlateBrushPtr = &Brush;
-	ImageBrush = *SlateBrushPtr;
-}
-
 
 TAttribute<EVisibility> FOverridesWidgetStyleKey::GetVisibilityAttribute(const TSharedPtr<FEditPropertyChain>& PropertyChain, TWeakObjectPtr<UObject>& OverriddenObjectWeakPtr) const
 {
@@ -122,14 +86,21 @@ TAttribute<EVisibility> FOverridesWidgetStyleKey::GetVisibilityAttribute(const T
 		
 	    if ( OverriddenObjectWeakPtr.IsValid() )
 	    {
-	    	UObject& OverriddenObject = *OverriddenObjectWeakPtr.Get();
+		    UObject& OverriddenObject = *OverriddenObjectWeakPtr.Get();
 
-	    	const bool bIsPropertyVisible = bIsProperty &&
-												VisibleOverriddenPropertyOperation == Manager.GetOverriddenPropertyOperation(OverriddenObject, FPropertyChangedEvent(nullptr), *PropertyChain.Get());
+			bool bIsVisible = false;
+			if (bIsProperty)
+			{
+				bool bInherited = false;
+				bIsVisible =  VisibleOverriddenPropertyOperation == Manager.GetOverriddenPropertyOperation(OverriddenObject, FPropertyChangedEvent(nullptr), *PropertyChain.Get(), &bInherited) &&
+							  (!bStateInherited.IsSet() || bStateInherited.GetValue() == bInherited);
+			}
+			else if (VisibleOverriddenState.IsSet())
+			{
+				bIsVisible = VisibleOverriddenState.GetValue() == Manager.GetOverriddenState(OverriddenObject);
+			}
 
-			const bool bIsComponentVisible = !bIsProperty && VisibleOverriddenState == Manager.GetOverriddenState(OverriddenObject);
-
-			if ( bIsComponentVisible || bIsPropertyVisible )
+			if ( bIsVisible )
 			{
 				return EVisibility::Visible;
 			}
@@ -141,18 +112,18 @@ TAttribute<EVisibility> FOverridesWidgetStyleKey::GetVisibilityAttribute(const T
 
 FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName) : Name{InName}
 {
-     Construct();
 }
 
 FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName,
-																				EOverriddenPropertyOperation InOverriddenPropertyOperation,
-																				EOverriddenState InOverriddenState) :
+													EOverriddenPropertyOperation InOverriddenPropertyOperation,
+													const TOptional<EOverriddenState>& InOverriddenState,
+													const TOptional<bool>& bInStateInherited /*= TOptional<bool>()*/) :
    Name(InName),
    VisibleOverriddenPropertyOperation(InOverriddenPropertyOperation),
    VisibleOverriddenState(InOverriddenState),
+   bStateInherited(bInStateInherited),
    bCanBeVisible(true)
 {
-	Construct();
 }
 
 FDetailsViewStyle::FDetailsViewStyle()

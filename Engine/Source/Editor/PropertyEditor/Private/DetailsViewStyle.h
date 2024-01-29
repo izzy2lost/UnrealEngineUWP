@@ -33,11 +33,12 @@ public:
  * @param InName the FName which is the name of the key
  * @param InOverriddenPropertyOperation the overridden property operation for which this style is visible
  * @param InOverriddenState the overridden state for components for which this style is visible
+ * @param bInStateInherited take into account if the state was inherited or not, not set means anything
  */
-	PROPERTYEDITOR_API FOverridesWidgetStyleKey(FName InName,
-																			EOverriddenPropertyOperation InOverriddenPropertyOperation,
-																			EOverriddenState InOverriddenState
-																			);
+	PROPERTYEDITOR_API FOverridesWidgetStyleKey(FName InName, 
+												EOverriddenPropertyOperation InOverriddenPropertyOperation,
+												const TOptional<EOverriddenState>& InOverriddenState,
+												const TOptional<bool>& bInStateInherited = TOptional<bool>());
 
 	/**
 	 * returns the const FSlateBrush& that creates the icon for this widget style
@@ -52,13 +53,6 @@ public:
 	 * @return 
 	 */
 	TAttribute<EVisibility> GetVisibilityAttribute(const TSharedPtr<FEditPropertyChain>& PropertyChain, TWeakObjectPtr<UObject>& OverriddenObjectWeakPtr) const;
-	
-	/**
-	 * returns the const FComboButtonStyle& for this OverridesWidgetStyleKey
-	 *
-	 * @param bIsForOuterCategory true if this style is for an outer Category
-	 */
-	PROPERTYEDITOR_API const FComboButtonStyle& GetComboButtonStyle(const bool bIsForOuterCategory = false) const;
 
 	/**
 	 * the name of the key
@@ -75,19 +69,12 @@ public:
 	 */
 	const TOptional<EOverriddenState> VisibleOverriddenState;
 
+	/**
+	 * Whetever the state was inherited from a parent node or not
+	 */
+	TOptional<bool> bStateInherited;
+
 	const bool bCanBeVisible = false;
-
-private:
-
-	/**
-	 * The image brush specified by this style key
-	 */
-	FSlateBrush ImageBrush;
-
-	/**
-	 * Construct the style key
-	 */
-	void Construct();
 };
 
 /**s
@@ -111,9 +98,9 @@ public:
 
 	/**
 	 * The style for the override widget when the user hovers over it which shows that they have associated
-	 * action options to choose from
+	 * action no overrides to choose from
 	 */
-	PROPERTYEDITOR_API static const FOverridesWidgetStyleKey& Options();
+	PROPERTYEDITOR_API static const FOverridesWidgetStyleKey& None();
 
 	/**
 	 * The style for the override widget when an item has been removed 
@@ -127,6 +114,11 @@ public:
 	static const FOverridesWidgetStyleKey& Inside();
 
 	static const FOverridesWidgetStyleKey& HereInside();
+
+	/**
+	 * The override state was inherited from a parent node
+	 */
+	static const FOverridesWidgetStyleKey& Inherited();
 
 	static TArray< TSharedRef< const FOverridesWidgetStyleKey >> GetKeys();
 	
