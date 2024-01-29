@@ -15,7 +15,7 @@ UNNERuntimeBasicCpuImpl::ECanCreateModelDataStatus UNNERuntimeBasicCpuImpl::CanC
 {
 	if (FileType.Compare("ubnne", ESearchCase::IgnoreCase) != 0)
 	{
-		return ECanCreateModelDataStatus::Fail;
+		return ECanCreateModelDataStatus::FailFileIdNotSupported;
 	}
 
 	// We require at least a magic number and version number
