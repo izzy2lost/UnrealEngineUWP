@@ -651,6 +651,11 @@ void FSlateDrawElement::MakeViewport( FSlateWindowElementList& ElementList, uint
 	check(Element.RenderTargetResource == nullptr || !Element.RenderTargetResource->Debug_IsDestroyed());
 
 	Element.Init(ElementList, EElementType::ET_Viewport, InLayer, PaintGeometry, InDrawEffects);
+
+	if (Viewport->GetViewportDynamicRange() == ESlateViewportDynamicRange::HDR)
+	{
+		EnumAddFlags(Element.BatchFlags, ESlateBatchDrawFlag::HDR);
+	}
 }
 
 

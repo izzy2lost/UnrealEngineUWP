@@ -1282,6 +1282,11 @@ bool FSceneViewport::GetSceneHDREnabled() const
 	return bHDRViewport;
 }
 
+ESlateViewportDynamicRange FSceneViewport::GetViewportDynamicRange() const
+{
+	return bHDRViewport ? ESlateViewportDynamicRange::HDR : ESlateViewportDynamicRange::SDR;
+}
+
 void FSceneViewport::OnViewportDeactivated(const FWindowActivateEvent& InActivateEvent)
 {
 	// We backup if we have capture for us on activation, however we also maintain "true" if it's already true!

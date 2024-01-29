@@ -119,6 +119,26 @@ void FSlateBatchData::AddCachedBatches(const TSparseArray<FSlateRenderBatch>& In
 	}
 }
 
+void FSlateBatchData::AddCachedBatchesToBatchData(FSlateBatchData* BatchDataSDR, FSlateBatchData* BatchDataHDR, const TSparseArray<FSlateRenderBatch>& InCachedBatches)
+{
+	TArray<FSlateRenderBatch>& RenderBatchesSDR = BatchDataSDR->RenderBatches;
+	TArray<FSlateRenderBatch>& RenderBatchesHDR = BatchDataHDR->RenderBatches;
+
+	RenderBatchesSDR.Reserve(RenderBatchesSDR.Num() + InCachedBatches.Num());
+	RenderBatchesHDR.Reserve(RenderBatchesHDR.Num() + InCachedBatches.Num());
+	for (const FSlateRenderBatch& CachedBatch : InCachedBatches)
+	{
+		if (EnumHasAnyFlags(CachedBatch.GetDrawFlags(), ESlateBatchDrawFlag::HDR))
+		{
+			RenderBatchesHDR.Add(CachedBatch);
+		}
+		else
+		{
+			RenderBatchesSDR.Add(CachedBatch);
+		}
+	}
+}
+
 void FSlateBatchData::FillBuffersFromNewBatch(FSlateRenderBatch& Batch, FSlateVertexArray& FinalVertices, FSlateIndexArray& FinalIndices)
 {
 	if(Batch.HasVertexData())
@@ -549,8 +569,7 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	CachedElementData.ListsWithNewData.Empty();
 
 	// Add the existing and new cached batches.
-	BatchData->AddCachedBatches(CachedElementData.GetCachedBatches());
-
+	FSlateBatchData::AddCachedBatchesToBatchData(BatchData, BatchDataHDR, CachedElementData.GetCachedBatches());
 	CachedElementData.CleanupUnusedClipStates();
 
 #if SLATE_CSV_TRACKER
@@ -2659,7 +2678,11 @@ void FSlateElementBatcher::AddViewportElement( const FSlateViewportElement& Draw
 		// This is a slight hack, but the grayscale font shader is the same as the general shader except it reads alpha only textures and doesn't support tiling
 		ShaderType = ESlateShader::GrayscaleFont;
 	}
-	FSlateBatchData* UsedBatchData = bCompositeHDRViewports ? BatchDataHDR : BatchData;
+
+	bool bIsHDRViewport = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::HDR);
+	bool bUseBatchDataHDR = (bCompositeHDRViewports && bIsHDRViewport);
+
+	FSlateBatchData* UsedBatchData = bUseBatchDataHDR ? BatchDataHDR : BatchData;
 	FSlateRenderBatch& RenderBatch = CreateRenderBatch(UsedBatchData, Layer, FShaderParams(), ViewportResource, ESlateDrawPrimitive::TriangleList, ShaderType, InDrawEffects, DrawFlags, DrawElement);
 
 	// Tag this batch as requiring vsync if the viewport requires it.
@@ -2700,7 +2723,7 @@ void FSlateElementBatcher::AddViewportElement( const FSlateViewportElement& Draw
 	RenderBatch.AddIndex( IndexStart + 1 );
 	RenderBatch.AddIndex( IndexStart + 3 );
 
-	if (bCompositeHDRViewports)
+	if (bUseBatchDataHDR)
 	{
 		// used to poke a hole in the slate tree: in case HDR is enabled, we need to compose the hdr scene with the SDR ui based on UI alpha
 		// The problem is that in editor mode, there's already a few quads already drawn below the viewport that we actually don't want. If we had an easy way to split

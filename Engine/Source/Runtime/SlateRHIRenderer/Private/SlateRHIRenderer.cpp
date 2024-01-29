@@ -548,6 +548,12 @@ void FSlateRHIRenderer::ConditionalResizeViewport(FViewportInfo* ViewInfo, uint3
 
 		// Reset texture streaming texture updates.
 		ResumeTextureStreamingRenderTasks();
+
+		// when the window's state for HDR changed, we need to invalidate the window to make sure the viewport will end up in the appropriate FSlateBatchData, see FSlateElementBatcher::AddViewportElement
+		if (bHDRStale)
+		{
+			Window->Invalidate(EInvalidateWidgetReason::Paint);
+		}
 	}
 }
 
