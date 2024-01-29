@@ -22,10 +22,10 @@ void UAnimBlueprintExtension_AnimNextParameters::ProcessNodePins(UAnimGraphNode_
 			NewRecord.AnimGraphNode = InNode;
 			NewRecord.NodeVariableProperty = NodeProperty;
 
-			for (TPair<FName, FAnimNextAnimGraphNodeParameterBinding>& PropertyBindingPair : Binding->PropertyBindings)
+			for(auto Iter = Binding->PropertyBindings.CreateIterator(); Iter; ++Iter)
 			{
-				FName BindingName = PropertyBindingPair.Key;
-				FAnimNextAnimGraphNodeParameterBinding& ParameterBinding = PropertyBindingPair.Value;
+				FName BindingName = Iter.Key();
+				FAnimNextAnimGraphNodeParameterBinding& ParameterBinding = Iter.Value();
 
 				// for array properties we need to account for the extra FName number 
 				FName ComparisonName = BindingName;
@@ -45,7 +45,8 @@ void UAnimBlueprintExtension_AnimNextParameters::ProcessNodePins(UAnimGraphNode_
 				}
 				else
 				{
-					InCompilationContext.GetMessageLog().Warning(*FString::Printf(TEXT("ICE: @@ Failed to find a property '%s'"), *ComparisonName.ToString()), InNode);
+					// Binding is no longer valid, remove it
+					Iter.RemoveCurrent();
 				}
 			}
 		}

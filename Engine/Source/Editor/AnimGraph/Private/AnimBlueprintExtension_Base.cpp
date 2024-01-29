@@ -400,32 +400,33 @@ void UAnimBlueprintExtension_Base::ProcessNonPosePins(UAnimGraphNode_Base* InNod
 		// Add any property bindings
 		if (UAnimGraphNodeBinding_Base* Binding = Cast<UAnimGraphNodeBinding_Base>(InNode->GetMutableBinding()))
 		{
-			for(const TPair<FName, FAnimGraphNodePropertyBinding>& PropertyBinding : Binding->PropertyBindings)
+			for(auto Iter = Binding->PropertyBindings.CreateIterator(); Iter; ++Iter)
 			{
-				if(PropertyBinding.Value.bIsBound)
+				if(Iter.Value().bIsBound)
 				{
 					FEvaluationHandlerRecord& EvalHandler = PerNodeStructEvalHandlers.FindOrAdd(InNode);
 					EvalHandler.AnimGraphNode = InNode;
 
 					// for array properties we need to account for the extra FName number 
-					FName ComparisonName = PropertyBinding.Key;
+					FName ComparisonName = Iter.Key();
 					ComparisonName.SetNumber(0);
 
 					if (FProperty* Property = FindFProperty<FProperty>(NodeProperty->Struct, ComparisonName))
 					{
 						EvalHandler.NodeVariableProperty = NodeProperty;
 						EvalHandler.bServicesNodeProperties = true;
-						EvalHandler.RegisterPropertyBinding(Property, PropertyBinding.Value);
+						EvalHandler.RegisterPropertyBinding(Property, Iter.Value());
 					}
-					else if(FProperty* ClassProperty = FindFProperty<FProperty>(InCompilationContext.GetBlueprint()->SkeletonGeneratedClass, PropertyBinding.Value.PropertyName))
+					else if(FProperty* ClassProperty = FindFProperty<FProperty>(InCompilationContext.GetBlueprint()->SkeletonGeneratedClass, Iter.Value().PropertyName))
 					{
 						EvalHandler.NodeVariableProperty = NodeProperty;
 						EvalHandler.bServicesInstanceProperties = true;
-						EvalHandler.RegisterPropertyBinding(ClassProperty, PropertyBinding.Value);
+						EvalHandler.RegisterPropertyBinding(ClassProperty, Iter.Value());
 					}
 					else
 					{
-						InCompilationContext.GetMessageLog().Warning(*FString::Printf(TEXT("ICE: @@ Failed to find a property '%s'"), *ComparisonName.ToString()), InNode);
+						// Binding is no longer valid, remove it
+						Iter.RemoveCurrent();
 					}
 				}
 			}

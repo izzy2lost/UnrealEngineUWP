@@ -2301,7 +2301,10 @@ void FAnimationBlueprintEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 			if (InObject->GetWorld()->IsPreviewWorld())
 			{
 				GetPreviewScene()->ShowDefaultMode();
-				GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance->SetDebugSkeletalMeshComponent(nullptr);
+				if(GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance)
+				{
+					GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance->SetDebugSkeletalMeshComponent(nullptr);
+				}
 				GetPreviewScene()->GetPreviewMeshComponent()->bTrackAttachedInstanceLOD = false;
 			}
 			else
@@ -2316,7 +2319,10 @@ void FAnimationBlueprintEditor::HandleSetObjectBeingDebugged(UObject* InObject)
 	{
 		// Clear the copy-pose component and set us back to 'normal'
 		GetPreviewScene()->ShowDefaultMode();
-		GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance->SetDebugSkeletalMeshComponent(nullptr);
+		if(GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance)
+		{
+			GetPreviewScene()->GetPreviewMeshComponent()->PreviewInstance->SetDebugSkeletalMeshComponent(nullptr);
+		}
 		GetPreviewScene()->GetPreviewMeshComponent()->bTrackAttachedInstanceLOD = false;
 	}
 }
