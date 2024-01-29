@@ -1688,6 +1688,10 @@ private:
 		}
 
 		// Accessors.
+		[[nodiscard]] FORCEINLINE FSetElementId GetId() const
+		{
+			return FSetElementId(Index);
+		}
 		FORCEINLINE ItElementType* operator->() const
 		{
 			return &Set.Elements[Index].Value;
