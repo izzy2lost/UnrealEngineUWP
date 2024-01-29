@@ -132,6 +132,9 @@ namespace UE::NNE::RuntimeBasic
 		/** Makes a Copy Layer */
 		FModelBuilderElement MakeCopy(const uint32 InputOutputSize);
 
+		/** Makes a Clamp Layer */
+		FModelBuilderElement MakeClamp(const uint32 InputOutputSize, const TConstArrayView<float> MinValues, const TConstArrayView<float> MaxValues);
+
 		/** Makes a new activation layer with the given activation function */
 		FModelBuilderElement MakeActivation(const uint32 InputOutputSize, const EActivationFunction ActivationFunction);
 
