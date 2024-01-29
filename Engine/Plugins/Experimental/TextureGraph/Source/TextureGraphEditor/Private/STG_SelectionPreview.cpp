@@ -736,17 +736,27 @@ void STG_SelectionPreview::OnSelectionChanged(UTG_EdGraphNode* InNode)
 			if (Blob->IsTiled())
 			{
 				Blob->OnFinalise()
-					.then([=]()
+					.then([=, this]()
 					{
-						TiledBlobPtr BlobTiled = std::static_pointer_cast<TiledBlob>(Blob);
-						return BlobTiled->CombineTiles(false, false);
+						// OnFinalise can sometimes occur after the editor is closed and thus can potentially
+						// deallocate all corresponding slate objects
+						if (DoesSharedInstanceExist())
+						{
+							TiledBlobPtr BlobTiled = std::static_pointer_cast<TiledBlob>(Blob);
+							return BlobTiled->CombineTiles(false, false);
+						}
+						return static_cast<AsyncBufferResultPtr>(cti::make_ready_continuable<BufferResultPtr>(std::make_shared<BufferResult>()));
+						
 					})
 					.then([this, Blob](BufferResultPtr BufferPtr)
 					{
-						SetTexture(Blob);
+						if (DoesSharedInstanceExist())
+						{
+							SetTexture(Blob);
 
-						// Set Texture Properties
-						SetTextureProperties();
+							// Set Texture Properties
+							SetTextureProperties();
+						}
 					});
 			}
 			else
@@ -754,10 +764,13 @@ void STG_SelectionPreview::OnSelectionChanged(UTG_EdGraphNode* InNode)
 				Blob->OnFinalise()
 					.then([this, Blob]()
 					{
-						// Set Texture
-						SetTexture(Blob);
-						// Set Texture Properties
-						SetTextureProperties();
+						if (DoesSharedInstanceExist())
+						{
+							// Set Texture
+							SetTexture(Blob);
+							// Set Texture Properties
+							SetTextureProperties();
+						}
 					});
 			}
 		}
