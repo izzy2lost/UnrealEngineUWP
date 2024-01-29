@@ -6,6 +6,7 @@ Global configuration
 
 Name | Type | Description
 ---- | ---- | -----------
+`versionNumber` | `integer` | Serialized version number
 `include` | [`ConfigInclude`](#configinclude)`[]` | Other paths to include
 `macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within the global scope
 `dashboard` | [`DashboardConfig`](#dashboardconfig) | Settings for the dashboard
@@ -156,8 +157,6 @@ Name | Type | Description
 `minAgents` | `integer` | The minimum number of agents to keep in the pool
 `numReserveAgents` | `integer` | The minimum number of idle agents to hold in reserve
 `conformInterval` | `string` | Interval between conforms. If zero, the pool will not conform on a schedule.
-`lastScaleUpTime` | `string` | 
-`lastScaleDownTime` | `string` | 
 `scaleOutCooldown` | `string` | Cooldown time between scale-out events
 `scaleInCooldown` | `string` | Cooldown time between scale-in events
 `shutdownIfDisabledGracePeriod` | `string` | Time to wait before shutting down an agent that has been disabled

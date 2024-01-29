@@ -52,8 +52,6 @@ Name | Type | Description
 `minAgents` | `integer` | The minimum number of agents to keep in the pool
 `numReserveAgents` | `integer` | The minimum number of idle agents to hold in reserve
 `conformInterval` | `string` | Interval between conforms. If zero, the pool will not conform on a schedule.
-`lastScaleUpTime` | `string` | 
-`lastScaleDownTime` | `string` | 
 `scaleOutCooldown` | `string` | Cooldown time between scale-out events
 `scaleInCooldown` | `string` | Cooldown time between scale-in events
 `shutdownIfDisabledGracePeriod` | `string` | Time to wait before shutting down an agent that has been disabled
@@ -173,7 +171,6 @@ Options for executing a job
 Name | Type | Description
 ---- | ---- | -----------
 `executor` | `string` | Name of the executor to use
-`useNewLogStorage` | `boolean` | Whether to use the new log storage backend
 `useNewTempStorage` | `boolean` | Whether to use the new temp storage backend
 `useWine` | `boolean` | Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean` | Executes the job lease in a separate process
