@@ -718,7 +718,7 @@ TOptional<FFrameTime> FSkeletalAnimationSection::GetSectionTime(FSequencerSectio
 
 float FSkeletalAnimationSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
-	return SkeletalAnimationEditorConstants::AnimationTrackHeight;
+	return ViewDensity.UniformHeight.Get(SkeletalAnimationEditorConstants::AnimationTrackHeight);
 }
 
 
