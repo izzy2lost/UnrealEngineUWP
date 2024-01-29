@@ -2618,6 +2618,10 @@ void UControlRigDetailPanelControlProxies::ValuesChanged()
 
 UControlRigControlsProxy* UControlRigDetailPanelControlProxies::AddProxy(UControlRig* ControlRig, FRigControlElement* ControlElement)
 {
+	if (ControlRig == nullptr || ControlElement == nullptr)
+	{
+		return nullptr;
+	}
 	//check if forced to be individual
 	bool bIsIndividual = (ControlElement->IsAnimationChannel()) ||
 		(ControlElement->Settings.AnimationType == ERigControlAnimationType::ProxyControl);

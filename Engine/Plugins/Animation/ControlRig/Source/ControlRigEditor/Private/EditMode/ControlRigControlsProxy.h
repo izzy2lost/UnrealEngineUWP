@@ -7,7 +7,7 @@
 #include "TransformNoScale.h"
 #include "EulerTransform.h"
 #include "Math/Rotator.h"
-
+#include "MovieSceneTrack.h"
 #include "IDetailKeyframeHandler.h"
 #include "IPropertyTypeCustomization.h"
 #include "Rigs/RigHierarchyDefines.h"
@@ -23,7 +23,6 @@ struct FRigControlModifiedContext;
 class ISequencer;
 class FCurveEditor;
 class IDetailLayoutBuilder;
-class UMovieSceneTrack;
 class FProperty;
 
 //channel selection states for selection matching with curves
