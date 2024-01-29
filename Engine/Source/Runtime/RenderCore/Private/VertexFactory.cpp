@@ -78,6 +78,11 @@ void FVertexFactoryType::Initialize(const TMap<FString, TArray<const TCHAR*> >& 
 	bInitializedSerializationHistory = true;
 }
 
+void FVertexFactoryType::Uninitialize()
+{
+	bInitializedSerializationHistory = false;
+}
+
 FVertexFactoryType::FVertexFactoryType(
 	const TCHAR* InName,
 	const TCHAR* InShaderFilename,

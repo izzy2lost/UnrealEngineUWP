@@ -2927,6 +2927,18 @@ void InitializeShaderTypes()
 	UE_LOG(LogShaders, Log, TEXT("InitializeShaderTypes() end"));
 }
 
+void UninitializeShaderTypes()
+{
+	UE_LOG(LogShaders, Log, TEXT("UninitializeShaderTypes() begin"));
+
+	FShaderPipelineType::Uninitialize();
+
+	FShaderType::Uninitialize();
+	FVertexFactoryType::Uninitialize();
+
+	UE_LOG(LogShaders, Log, TEXT("UninitializeShaderTypes() end"));
+}
+
 /**
  * Flushes the shader file and CRC cache, and regenerates the binary shader files if necessary.
  * Allows shader source files to be re-read properly even if they've been modified since startup.

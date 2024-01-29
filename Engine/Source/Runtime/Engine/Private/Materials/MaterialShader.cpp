@@ -1451,6 +1451,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 
 				// Deserialize from the cached data
 				ShaderMap->Serialize(Ar);
+				//InOutShaderMap->RegisterSerializedShaders(false);
 
 				const FString InDataKey = GetMaterialShaderMapKeyString(ShaderMap->GetShaderMapId(), Platform, true);
 
@@ -1621,6 +1622,52 @@ void FMaterialShaderMap::SaveToDerivedDataCache()
 	AsyncOwner.KeepAlive();
 }
 #endif // WITH_EDITOR
+
+TArray<uint8>* FMaterialShaderMap::BackupShadersToMemory()
+{
+	TArray<uint8>* SavedShaderData = new TArray<uint8>();
+#if 0
+	FMemoryWriter Ar(*SavedShaderData);
+	
+	for (FMeshMaterialShaderMap* MeshShaderMap : Content->OrderedMeshShaderMaps)
+	{
+		if (MeshShaderMap)
+		{
+			// Serialize data needed to handle shader key changes in between the save and the load of the FShaders
+			const bool bHandleShaderKeyChanges = true;
+			MeshShaderMap->SerializeInline(Ar, true, bHandleShaderKeyChanges, false);
+			MeshShaderMap->Empty();
+		}
+	}
+
+	Content->SerializeInline(Ar, true, true, false);
+	Content->Empty();
+#endif
+	check(false);
+	return SavedShaderData;
+}
+
+void FMaterialShaderMap::RestoreShadersFromMemory(const TArray<uint8>& ShaderData)
+{
+	check(false);
+#if 0
+	FMemoryReader Ar(ShaderData);
+
+	for(FMeshMaterialShaderMap* MeshShaderMap : Content->OrderedMeshShaderMaps)
+	{
+		if (MeshShaderMap)
+		{
+			// Use the serialized shader key data to detect when the saved shader is no longer valid and skip it
+			const bool bHandleShaderKeyChanges = true;
+			MeshShaderMap->SerializeInline(Ar, true, bHandleShaderKeyChanges, false);
+			//MeshShaderMaps[Index].RegisterSerializedShaders(false);
+		}
+	}
+
+	Content->SerializeInline(Ar, true, true, false);
+	//RegisterSerializedShaders(false);
+#endif
+}
 
 void FMaterialShaderMap::SaveForRemoteRecompile(FArchive& Ar, const TMap<FString, TArray<TRefCountPtr<FMaterialShaderMap> > >& CompiledShaderMaps)
 {

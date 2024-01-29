@@ -509,6 +509,52 @@ void FGlobalShaderType::SetupCompileEnvironment(EShaderPlatform Platform, int32 
 }
 #endif // WITH_EDITOR
 
+void BackupGlobalShaderMap(FGlobalShaderBackupData& OutGlobalShaderBackup)
+{
+#if 0
+	for (int32 i = (int32)ERHIFeatureLevel::ES2_REMOVED; i < (int32)ERHIFeatureLevel::Num; ++i)
+	{
+		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform((ERHIFeatureLevel::Type)i);
+		if (ShaderPlatform < EShaderPlatform::SP_NumPlatforms && GGlobalShaderMap[ShaderPlatform] != nullptr)
+		{
+			TUniquePtr<TArray<uint8>> ShaderData = MakeUnique<TArray<uint8>>();
+			FMemoryWriter Ar(*ShaderData);
+			GGlobalShaderMap[ShaderPlatform]->SerializeInline(Ar, true, true, false, nullptr);
+			//GGlobalShaderMap[ShaderPlatform]->RegisterSerializedShaders(false);
+			GGlobalShaderMap[ShaderPlatform]->Empty();
+			OutGlobalShaderBackup.FeatureLevelShaderData[i] = MoveTemp(ShaderData);
+		}
+	}
+
+	// Remove cached references to global shaders
+	for (TLinkedList<FGlobalBoundShaderStateResource*>::TIterator It(FGlobalBoundShaderStateResource::GetGlobalBoundShaderStateList()); It; It.Next())
+	{
+		BeginUpdateResourceRHI(*It);
+	}
+#endif
+	check(0);
+}
+
+void RestoreGlobalShaderMap(const FGlobalShaderBackupData& GlobalShaderBackup)
+{
+#if 0
+	for (int32 i = (int32)ERHIFeatureLevel::ES2_REMOVED; i < (int32)ERHIFeatureLevel::Num; ++i)
+	{
+		EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform((ERHIFeatureLevel::Type)i);		
+		if (GlobalShaderBackup.FeatureLevelShaderData[i] != nullptr
+			&& ShaderPlatform < EShaderPlatform::SP_NumPlatforms
+			&& GGlobalShaderMap[ShaderPlatform] != nullptr)
+		{
+			FMemoryReader Ar(*GlobalShaderBackup.FeatureLevelShaderData[i]);
+			GGlobalShaderMap[ShaderPlatform]->SerializeInline(Ar, true, true, false, nullptr);
+			//GGlobalShaderMap[ShaderPlatform]->RegisterSerializedShaders(false);
+		}
+	}
+#endif
+	check(0);
+}
+
+
 FGlobalShaderMap* GetGlobalShaderMap(EShaderPlatform Platform)
 {
 	// If the global shader map hasn't been created yet

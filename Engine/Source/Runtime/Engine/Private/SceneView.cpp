@@ -415,6 +415,11 @@ void FSceneViewStateReference::Allocate(ERHIFeatureLevel::Type FeatureLevel)
 	GlobalListLink.LinkHead(GetSceneViewStateList());
 }
 
+void FSceneViewStateReference::Allocate()
+{
+	Allocate(GMaxRHIFeatureLevel);
+}
+
 ENGINE_API void FSceneViewStateReference::ShareOrigin(FSceneViewStateReference* Target)
 {
 	checkf(ShareOriginTarget == nullptr, TEXT("FSceneViewStateReference:  Cannot call ShareOrigin twice."));
@@ -434,6 +439,42 @@ void FSceneViewStateReference::Destroy()
 		Reference->Destroy();
 		Reference = NULL;
 	}
+}
+
+void FSceneViewStateReference::DestroyAll()
+{
+	for(TLinkedList<FSceneViewStateReference*>::TIterator ViewStateIt(FSceneViewStateReference::GetSceneViewStateList());ViewStateIt;ViewStateIt.Next())
+	{
+		FSceneViewStateReference* ViewStateReference = *ViewStateIt;
+		ViewStateReference->Reference->Destroy();
+		ViewStateReference->Reference = NULL;
+	}
+}
+
+void FSceneViewStateReference::AllocateAll(ERHIFeatureLevel::Type FeatureLevel)
+{
+	for(TLinkedList<FSceneViewStateReference*>::TIterator ViewStateIt(FSceneViewStateReference::GetSceneViewStateList());ViewStateIt;ViewStateIt.Next())
+	{
+		FSceneViewStateReference* ViewStateReference = *ViewStateIt;
+
+		// This view state reference may already have been allocated
+		if (!ViewStateReference->Reference)
+		{
+			// If we have a shared origin target, we need to make sure its view state gets allocated first
+			// (don't want to assume the iterator processes references in the correct order).
+			if (ViewStateReference->ShareOriginTarget && !ViewStateReference->ShareOriginTarget->Reference)
+			{
+				ViewStateReference->ShareOriginTarget->AllocateInternal(FeatureLevel);
+			}
+
+			ViewStateReference->AllocateInternal(FeatureLevel);
+		}
+	}
+}
+
+void FSceneViewStateReference::AllocateAll()
+{
+	AllocateAll(GMaxRHIFeatureLevel);
 }
 
 TLinkedList<FSceneViewStateReference*>*& FSceneViewStateReference::GetSceneViewStateList()

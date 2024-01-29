@@ -48,6 +48,8 @@ private:
 	bool												MapShaders();
 public:
 	virtual void										StartupModule() override;
+
+	virtual void										ShutdownModule() override;
 	virtual FString										GetParentPluginName();
 };
 

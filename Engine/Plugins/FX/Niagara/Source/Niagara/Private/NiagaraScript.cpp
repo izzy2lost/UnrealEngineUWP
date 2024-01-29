@@ -4460,6 +4460,10 @@ void UNiagaraScript::ProcessSerializedShaderMaps()
 			ScriptResourcesByFeatureLevel[LoadedFeatureLevel]->SetShaderMap(LoadedShaderMap);
 			break;
 		}
+		else
+		{
+			LoadedResource.DiscardShaderMap();
+		}
 	}
 #else
 	HasScriptResource = ScriptResource.IsValid();

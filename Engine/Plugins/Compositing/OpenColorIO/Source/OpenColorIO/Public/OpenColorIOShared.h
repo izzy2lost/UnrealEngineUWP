@@ -229,6 +229,10 @@ public:
 	void SaveToDerivedDataCache();
 #endif // WITH_EDITOR
 
+	/** Registers all shaders that have been loaded in Serialize */
+	//virtual void RegisterSerializedShaders(bool bCooked) override;
+	//virtual void DiscardSerializedShaders() override;
+
 	// Accessors.
 	const FOpenColorIOShaderMapId& GetShaderMapId() const	{ return GetContent()->ShaderMapId; }
 	EShaderPlatform GetShaderPlatform() const				{ return GetContent()->GetShaderPlatform(); }

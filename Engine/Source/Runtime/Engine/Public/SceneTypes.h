@@ -65,6 +65,9 @@ public:
 	 */
 	ENGINE_API void Allocate(ERHIFeatureLevel::Type FeatureLevel);
 
+	UE_DEPRECATED(5.0, "Allocate must be called with an appropriate RHI Feature Level")
+	ENGINE_API void Allocate();
+
 	/**
 	  * Mark that a view state shares an origin with another view state, allowing sharing of some internal state, saving memory and performance.
 	  * Typically used for cube map faces.  Must be called before "Allocate" is called on the source view state (best practice is to call
@@ -75,6 +78,15 @@ public:
 
 	/** Destorys the Scene view state. */
 	ENGINE_API void Destroy();
+
+	/** Destroys all view states, but does not remove them from the linked list. */
+	ENGINE_API static void DestroyAll();
+
+	/** Recreates all view states in the global list. */
+	ENGINE_API static void AllocateAll(ERHIFeatureLevel::Type FeatureLevel);
+
+	UE_DEPRECATED(5.0, "AllocateAll must be called with an appropriate RHI Feature Level")
+	ENGINE_API static void AllocateAll();
 
 	FSceneViewStateInterface* GetReference()
 	{

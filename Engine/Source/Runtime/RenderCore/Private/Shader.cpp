@@ -531,6 +531,11 @@ void FShaderType::Initialize(const TMap<FString, TArray<const TCHAR*> >& ShaderF
 	bInitializedSerializationHistory = true;
 }
 
+void FShaderType::Uninitialize()
+{
+	bInitializedSerializationHistory = false;
+}
+
 int32 FShaderMapPointerTable::AddIndexedPointer(const FTypeLayoutDesc& TypeDesc, void* Ptr)
 {
 	int32 Index = INDEX_NONE;
@@ -1102,6 +1107,13 @@ void FShaderPipelineType::Initialize()
 #endif
 
 	bInitialized = true;
+}
+
+void FShaderPipelineType::Uninitialize()
+{
+	check(bInitialized);
+
+	bInitialized = false;
 }
 
 const FShaderPipelineType* FShaderPipelineType::GetShaderPipelineTypeByName(const FHashedName& Name)

@@ -313,6 +313,9 @@ public:
 	/** Initialize FVertexFactoryType static members, this must be called before any VF types are created. */
 	static void Initialize(const TMap<FString, TArray<const TCHAR*> >& ShaderFileToUniformBufferVariables);
 
+	/** Uninitializes FVertexFactoryType cached data. */
+	static void Uninitialize();
+
 	RENDERCORE_API FVertexFactoryType(
 		const TCHAR* InName,
 		const TCHAR* InShaderFilename,

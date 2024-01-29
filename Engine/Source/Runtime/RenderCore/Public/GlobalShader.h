@@ -335,6 +335,21 @@ public:
 };
 
 /**
+* Container for Backup/RestoreGlobalShaderMap functions.
+* Includes shader data from any populated feature levels.
+*/
+struct FGlobalShaderBackupData
+{
+	TUniquePtr<TArray<uint8>> FeatureLevelShaderData[ERHIFeatureLevel::Num];
+};
+
+/** Backs up all global shaders to memory through serialization, and removes all references to FShaders from the global shader map. */
+extern RENDERCORE_API void BackupGlobalShaderMap(FGlobalShaderBackupData& OutGlobalShaderBackup);
+
+/** Recreates shaders in the global shader map from the serialized memory. */
+extern RENDERCORE_API void RestoreGlobalShaderMap(const FGlobalShaderBackupData& GlobalShaderData);
+
+/**
  * Accesses the global shader map.  This is a global FGlobalShaderMap which contains an instance of each global shader type.
  *
  * @param Platform Which platform's global shader map to use

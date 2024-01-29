@@ -1348,6 +1348,12 @@ public:
 	void SaveToDerivedDataCache();
 #endif
 
+	/** Backs up any FShaders in this shader map to memory through serialization and clears FShader references. */
+	TArray<uint8>* BackupShadersToMemory();
+
+	/** Recreates FShaders from the passed in memory, handling shader key changes. */
+	void RestoreShadersFromMemory(const TArray<uint8>& ShaderData);
+
 	/** Serializes a shader map to an archive (used with recompiling shaders for a remote console) */
 	ENGINE_API static void SaveForRemoteRecompile(FArchive& Ar, const TMap<FString, TArray<TRefCountPtr<FMaterialShaderMap> > >& CompiledShaderMaps);
 	ENGINE_API static void LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPlatform, TArray<UMaterialInterface*>& OutLoadedMaterials);
@@ -2318,6 +2324,10 @@ public:
 	/** Recompiles any materials in the EditorLoadedMaterialResources list if they are not complete. */
 	static void UpdateEditorLoadedMaterialResources(EShaderPlatform InShaderPlatform);
 
+	/** Backs up any FShaders in editor loaded materials to memory through serialization and clears FShader references. */
+	static void BackupEditorLoadedMaterialShadersToMemory(TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData);
+	/** Recreates FShaders in editor loaded materials from the passed in memory, handling shader key changes. */
+	static void RestoreEditorLoadedMaterialShadersFromMemory(const TMap<FMaterialShaderMap*, TUniquePtr<TArray<uint8> > >& ShaderMapToSerializedShaderData);
 	/** Allows to associate the shader resources with the asset for load order. */
 	virtual FName GetAssetPath() const { return NAME_None; };
 
@@ -3014,6 +3024,20 @@ private:
 };
 
 ENGINE_API uint8 GetRayTracingMaskFromMaterial(const EBlendMode BlendMode);
+
+#if STORE_ONLY_ACTIVE_SHADERMAPS
+const FMaterialResourceLocOnDisk* FindMaterialResourceLocOnDisk(
+	const TArray<FMaterialResourceLocOnDisk>& DiskLocations,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EMaterialQualityLevel::Type QualityLevel);
+
+bool ReloadMaterialResource(
+	FMaterialResource* InOutMaterialResource,
+	const FString& PackageName,
+	uint32 OffsetToFirstResource,
+	ERHIFeatureLevel::Type FeatureLevel,
+	EMaterialQualityLevel::Type QualityLevel);
+#endif
 
 //
 struct FMaterialShaderParameters

@@ -134,6 +134,9 @@ extern RENDERCORE_API void CheckShaderHashCacheInclude(const FString& VirtualFil
 /** Initializes cached shader type data.  This must be called before creating any FShaderType. */
 extern RENDERCORE_API void InitializeShaderTypes();
 
+/** Uninitializes cached shader type data.  This is needed before unloading modules that contain FShaderTypes. */
+extern RENDERCORE_API void UninitializeShaderTypes();
+
 /** Returns true if debug viewmodes are allowed for the current platform. */
 extern RENDERCORE_API bool AllowDebugViewmodes();
 
