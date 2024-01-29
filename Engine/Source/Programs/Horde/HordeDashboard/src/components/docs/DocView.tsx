@@ -1,7 +1,7 @@
 import { Stack, mergeStyleSets } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
-import { useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import dashboard from "../../backend/Dashboard";
 import { Markdown } from "../../base/components/Markdown";
 import { ISideRailLink, SideRail } from "../../base/components/SideRail";
@@ -225,6 +225,9 @@ const DocCrumbs: React.FC<{ landingPage: boolean }> = observer(({ landingPage })
 })
 
 
+export const LandingDocViewRedirect = () => {
+   return <Navigate to={`/docs/Landing.md`} replace={true} />
+}
 
 export const DocView = () => {
 
