@@ -738,7 +738,7 @@ void BuildNaniteMaterialPassCommands(
 		auto& Command = *Iter;
 		const FMeshDrawCommand& MeshDrawCommand = Command.Key;
 
-		if (!VisibilityResults || !VisibilityResults->IsShadingDrawVisible(FNaniteMaterialEntryMap::ComputeHash(MeshDrawCommand).AsUInt()))
+		if (VisibilityResults && !VisibilityResults->IsShadingDrawVisible(FNaniteMaterialEntryMap::ComputeHash(MeshDrawCommand).AsUInt()))
 		{
 			continue;
 		}
