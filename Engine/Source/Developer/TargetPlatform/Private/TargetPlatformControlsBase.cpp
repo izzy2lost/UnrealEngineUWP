@@ -295,3 +295,5 @@ void FTargetPlatformControlsBase::GetWaveFormatModuleHints(TArray<FName>& OutMod
 }
 
 #endif // WITH_ENGINE
+
+#undef LOCTEXT_NAMESPACE
