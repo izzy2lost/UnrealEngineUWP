@@ -38,6 +38,18 @@ private:
 	mu::Ptr<mu::Node> MutableRoot;
 	TArray<FError> ArrayErrors;
 
+	/** */
+	struct FReferenceResourceRequest
+	{
+		int32 ID = -1;
+		TSharedPtr<mu::Ptr<mu::Image>> ResolvedImage;
+		TSharedPtr<UE::Tasks::FTaskEvent> CompletionEvent;
+	};
+	TQueue<FReferenceResourceRequest, EQueueMode::Mpsc> PendingResourceReferenceRequests;
+
+	mu::Ptr<mu::Image> LoadResourceReferenced(int32 ID);
+
+
 public:
 
 	FCustomizableObjectCompileRunnable(mu::Ptr<mu::Node> Root);
