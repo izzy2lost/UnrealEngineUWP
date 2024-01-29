@@ -140,21 +140,25 @@ bool UMovieGraphVariableNode::ContextHasEnabledAssignmentForVariable(const FMovi
 	TObjectPtr<UMovieJobVariableAssignmentContainer> ShotVariableAssignments = nullptr;
 	TObjectPtr<UMovieJobVariableAssignmentContainer> ShotVariableAssignments_PrimaryOverrides = nullptr;
 	TObjectPtr<UMovieJobVariableAssignmentContainer> JobVariableAssignments = nullptr;
-	
-	if (InContext->Job->ShotInfo.IsValidIndex(InContext->ShotIndex))
-	{
-		const TObjectPtr<UMoviePipelineExecutorShot> ShotJob = InContext->Job->ShotInfo[InContext->ShotIndex];
-		
-		ShotVariableAssignments = ShotJob->GetOrCreateJobVariableAssignmentsForGraph(ShotJob->GetGraphPreset());
 
-		// The shot can also override variables on the primary job's graph
-		constexpr bool bIsForPrimaryOverrides = true;
-		ShotVariableAssignments_PrimaryOverrides = ShotJob->GetOrCreateJobVariableAssignmentsForGraph(InContext->Job->GetGraphPreset(), bIsForPrimaryOverrides);
+	const TObjectPtr<UMoviePipelineExecutorJob> PrimaryJob = InContext->Job;
+	const TObjectPtr<UMoviePipelineExecutorShot> Shot = InContext->Shot;
+	
+	if (Shot)
+	{
+		ShotVariableAssignments = Shot->GetOrCreateJobVariableAssignmentsForGraph(Shot->GetGraphPreset());
+		
+		// The shot can also override variables on the primary job's graph (in addition to the shot-level ones fetched/created above)
+		if (PrimaryJob)
+		{
+			constexpr bool bIsForPrimaryOverrides = true;
+			ShotVariableAssignments_PrimaryOverrides = Shot->GetOrCreateJobVariableAssignmentsForGraph(PrimaryJob->GetGraphPreset(), bIsForPrimaryOverrides);
+		}
 	}
 
-	if (InContext->Job)
+	if (PrimaryJob)
 	{
-		JobVariableAssignments = InContext->Job->GetOrCreateJobVariableAssignmentsForGraph(InContext->Job->GetGraphPreset());
+		JobVariableAssignments = PrimaryJob->GetOrCreateJobVariableAssignmentsForGraph(PrimaryJob->GetGraphPreset());
 	}
 	
 	// Check the shot job first for an enabled job variable assignment for this variable. Shot jobs take precedence over primary jobs.
