@@ -16,6 +16,6 @@ UPixelStreamingStreamerVideoInputMediaCapture::UPixelStreamingStreamerVideoInput
 	}
 	else
 	{
-		VideoInput = FPixelStreamingVideoInputMediaCapture::Create();
+		VideoInput = FPixelStreamingVideoInputMediaCapture::CreateActiveViewportCapture();
 	}
 }
