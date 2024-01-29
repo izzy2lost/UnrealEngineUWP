@@ -219,14 +219,15 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 				const int32 MaxSegments = FMath::Max(4, FMath::CeilToInt(64 * Angle / 360.f));
 				const float AngleIncrement = Angle / MaxSegments;
 				const FVector2D Axis = FVector2D(Shape.GetAxis());
-				const FVector Startup = FRotator(0, -0.5f * Angle, 0).RotateVector(Shape.GetScaledAxis());
-
+				const FVector Startup = FRotator(0, -0.5f * Angle, 0).RotateVector(Shape.GetScaledAxis());				
 				FVector2D LineStart = FVector2D(Startup);
+
 				if (!Shape.IsSphere())
 				{
 					// Draw sector start axis
 					DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + LineStart), Color, 2);
 				}
+
 				// Draw sector Arc
 				for (int32 i = 1; i <= MaxSegments; i++)
 				{
@@ -234,12 +235,22 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 					DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D + LineStart), WorldToScreen(Center2D + LineEnd), Color, 2);
 					LineStart = LineEnd;
 				}
+
 				// If sphere, close circle, else draw sector end axis
 				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D + LineStart), WorldToScreen(Center2D + (Shape.IsSphere() ? FVector2D(Startup) : FVector2D::ZeroVector)), Color, 2);
 
 				// Draw direction vector
-				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Axis * Shape.GetRadius()), Color, 2);
+				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Axis * Shape.GetRadius()), Color, 4);
 			});
+
+			// Draw velocity vector			
+			const FVector2D Velocity2D = FVector2D(Source.Velocity);
+
+			if (!Velocity2D.IsNearlyZero())
+			{
+				const FVector2D Center2D = FVector2D(Source.Location);
+				DrawContext.PushDrawSegment(GridScreenBounds, WorldToScreen(Center2D), WorldToScreen(Center2D + Velocity2D * StreamingData->LoadingRange * 0.5f), Color, 1);
+			}
 		}
 	};
 

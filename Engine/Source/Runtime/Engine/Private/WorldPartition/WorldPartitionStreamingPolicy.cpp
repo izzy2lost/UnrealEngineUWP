@@ -102,6 +102,15 @@ void UWorldPartitionStreamingPolicy::UpdateStreamingSources(bool bCanOptimizeUpd
 	const uint32 NewUpdateStreamingSourcesHash = WorldPartitionSubsystem->GetStreamingSourcesHash();
 	if (bCanOptimizeUpdate && (UpdateStreamingSourcesHash == NewUpdateStreamingSourcesHash))
 	{
+		TArray<FWorldPartitionStreamingSource> LocalStreamingSources;
+		WorldPartitionSubsystem->GetStreamingSources(WorldPartition, LocalStreamingSources);
+		check(LocalStreamingSources.Num() == StreamingSources.Num());
+		const FTransform WorldToLocal = WorldPartition->GetInstanceTransform().Inverse();
+		for (int32 i=0; i<LocalStreamingSources.Num(); i++)
+		{
+			check(StreamingSources[i].Name == LocalStreamingSources[i].Name);
+			StreamingSources[i].Velocity = WorldToLocal.TransformVector(LocalStreamingSources[i].Velocity);
+		}
 		return;
 	}
 

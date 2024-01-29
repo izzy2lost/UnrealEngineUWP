@@ -60,7 +60,8 @@ void UWorldPartitionRuntimeCellData::AppendStreamingSourceInfo(const FWorldParti
 
 	// Compute cosine angle from cell to source direction ratio
 	const FVector CellToSource = SourceShape.GetCenter() - ContentBounds.GetClosestPointTo(SourceShape.GetCenter());
-	const float SourceCosAngle = ContentBounds.IsInsideOrOn(SourceShape.GetCenter()) ? -1.0f : (SourceShape.GetAxis() | CellToSource.GetSafeNormal());
+	const FVector SourceAxis = FVector(SourceShape.GetAxis() + Source.Velocity * (Source.bUseVelocityContributionToCellsSorting ? 1.0f : 0.0f)).GetSafeNormal();
+	const float SourceCosAngle = ContentBounds.IsInsideOrOn(SourceShape.GetCenter()) ? -1.0f : (SourceAxis | CellToSource.GetSafeNormal());
 	const float SourceCosAngleRatio = SourceCosAngle * 0.5f + 0.5f;
 
 	// Compute final cell priority for this source

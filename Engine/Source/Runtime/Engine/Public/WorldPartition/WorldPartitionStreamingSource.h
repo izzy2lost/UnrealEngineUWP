@@ -340,7 +340,8 @@ struct FWorldPartitionStreamingSource
 		, TargetState(EStreamingSourceTargetState::Activated)
 		, bBlockOnSlowLoading(false)
 		, Priority(EStreamingSourcePriority::Default)
-		, Velocity(0.f)
+		, Velocity(FVector::Zero())
+		, bUseVelocityContributionToCellsSorting(false)
 		, DebugColor(ForceInit)
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 		, bReplay(false)
@@ -353,7 +354,7 @@ struct FWorldPartitionStreamingSource
 		, ExtraAngle(0)
 	{}
 
-	FWorldPartitionStreamingSource(FName InName, const FVector& InLocation, const FRotator& InRotation, EStreamingSourceTargetState InTargetState, bool bInBlockOnSlowLoading, EStreamingSourcePriority InPriority, bool bRemote, float InVelocity = 0.f)
+	FWorldPartitionStreamingSource(FName InName, const FVector& InLocation, const FRotator& InRotation, EStreamingSourceTargetState InTargetState, bool bInBlockOnSlowLoading, EStreamingSourcePriority InPriority, bool bRemote, FVector InVelocity = FVector::Zero())
 		: Name(InName)
 		, Location(InLocation)
 		, Rotation(InRotation)
@@ -361,6 +362,7 @@ struct FWorldPartitionStreamingSource
 		, bBlockOnSlowLoading(bInBlockOnSlowLoading)
 		, Priority(InPriority)
 		, Velocity(InVelocity)
+		, bUseVelocityContributionToCellsSorting(false)
 		, DebugColor(ForceInit)
 		, TargetBehavior(EStreamingSourceTargetBehavior::Include)
 		, bReplay(false)
@@ -387,6 +389,7 @@ struct FWorldPartitionStreamingSource
 		TargetState = Other.TargetState;
 		bBlockOnSlowLoading = Other.bBlockOnSlowLoading;
 		Priority = Other.Priority;
+		bUseVelocityContributionToCellsSorting = Other.bUseVelocityContributionToCellsSorting;
 		Velocity = Other.Velocity;
 		DebugColor = Other.DebugColor;
 		TargetBehavior = Other.TargetBehavior;
@@ -435,7 +438,10 @@ struct FWorldPartitionStreamingSource
 	EStreamingSourcePriority Priority;
 
 	/** Source velocity (computed automatically). */
-	float Velocity;
+	FVector Velocity;
+	
+	/** Use velocity contribution to streaming cells priority streaming. */
+	bool bUseVelocityContributionToCellsSorting;
 
 	/** Color used for debugging. */
 	FColor DebugColor;

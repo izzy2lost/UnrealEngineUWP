@@ -959,7 +959,7 @@ void UWorldPartitionSubsystem::UpdateStreamingSources()
 	}
 
 	StreamingSourcesHash = 0;
-	const float CurrentTime = World->GetTimeSeconds();
+	const double CurrentTime = World->GetTimeSeconds();
 	for (FWorldPartitionStreamingSource& StreamingSource : StreamingSources)
 	{
 		// Update streaming sources velocity
@@ -1525,49 +1525,46 @@ void UWorldPartitionSubsystem::DrawStreamingStatusLegend(class UCanvas* Canvas, 
 FStreamingSourceVelocity::FStreamingSourceVelocity(const FName& InSourceName)
 	: bIsValid(false)
 	, SourceName(InSourceName)
-	, LastIndex(INDEX_NONE)
 	, LastUpdateTime(-1.0)
-	, VelocityHistorySum(0.f)
-{
-	VelocityHistory.SetNumZeroed(VELOCITY_HISTORY_SAMPLE_COUNT);
-}
+{}
 
-float FStreamingSourceVelocity::GetAverageVelocity(const FVector& NewPosition, const float CurrentTime)
+FVector FStreamingSourceVelocity::GetAverageVelocity(const FVector& NewPosition, double CurrentTime)
 {
 	bIsValid = true;
 
-	const double TeleportDistance = 100;
-	const float MaxDeltaSeconds = 5.f;
-	const bool bIsFirstCall = (LastIndex == INDEX_NONE);
-	const float DeltaSeconds = bIsFirstCall ? 0.f : (CurrentTime - LastUpdateTime);
-	const double Distance = bIsFirstCall ? 0.f : ((NewPosition - LastPosition) * 0.01).Size();
-	if (bIsFirstCall)
+	const bool bNewSource = (LastUpdateTime <= 0.0);
+	const double DeltaSeconds = bNewSource ? 1.0 : (CurrentTime - LastUpdateTime);
+	LastUpdateTime = CurrentTime;
+
+	const FVector AbsMovement = (NewPosition - LastPosition);
+	const FVector AbsVelocity = AbsMovement / DeltaSeconds;
+	LastPosition = NewPosition;
+
+	const double TeleportDistance = 10000;
+	const double MaxDeltaSeconds = 5.0;
+	const double Distance = AbsMovement.Size();
+
+	if (bNewSource)
 	{
 		UE_LOG(LogWorldPartition, Verbose, TEXT("New Streaming Source: %s -> Position: %s"), *SourceName.ToString(), *NewPosition.ToString());
-		LastIndex = 0;
+		AvgVelocity = FVector::Zero();
+	}
+	else if (Distance > TeleportDistance)
+	{
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Detected Streaming Source Teleport: %s -> Last Position: %s -> New Position: %s"), *SourceName.ToString(), *LastPosition.ToString(), *NewPosition.ToString());
+		AvgVelocity = FVector::Zero();
+	}
+	else if  (DeltaSeconds > MaxDeltaSeconds)
+	{
+		UE_LOG(LogWorldPartition, Verbose, TEXT("Detected Inactive Streaming Source: %s -> Last Position: %s -> New Position: %s"), *SourceName.ToString(), *LastPosition.ToString(), *NewPosition.ToString());
+		AvgVelocity = FVector::Zero();
+	}
+	else
+	{
+		// Compute the new value in a weighted moving average series
+		const double AvgWeight = FMath::Clamp(DeltaSeconds * 100, 0, 1);
+		AvgVelocity = AvgVelocity * (1.0 - AvgWeight) + AbsVelocity * AvgWeight;
 	}
 
-	ON_SCOPE_EXIT
-	{
-		LastUpdateTime = CurrentTime;
-		LastPosition = NewPosition;
-	};
-
-	// Handle invalid cases
-	if (bIsFirstCall || (DeltaSeconds <= 0.f) || (DeltaSeconds > MaxDeltaSeconds) || (Distance > TeleportDistance))
-	{
-		UE_CLOG(Distance > TeleportDistance, LogWorldPartition, Verbose, TEXT("Detected Streaming Source Teleport: %s -> Last Position: %s -> New Position: %s"), *SourceName.ToString(), *LastPosition.ToString(), *NewPosition.ToString());
-		return 0.f;
-	}
-
-	// Compute velocity (m/s)
-	ensureMsgf(Distance < MAX_flt, TEXT("Invalid distance %lf computed using position %s and position %s"), Distance, *NewPosition.ToString(), *LastPosition.ToString());
-	const float Velocity = (float)Distance / DeltaSeconds;
-	// Update velocity history buffer and sum
-	LastIndex = (LastIndex + 1) % VELOCITY_HISTORY_SAMPLE_COUNT;
-	VelocityHistorySum = FMath::Max<float>(0.f, (VelocityHistorySum + Velocity - VelocityHistory[LastIndex]));
-	VelocityHistory[LastIndex] = Velocity;
-
-	// return average
-	return (VelocityHistorySum / (float)VELOCITY_HISTORY_SAMPLE_COUNT);
+	return AvgVelocity;
 }
