@@ -2588,10 +2588,6 @@ namespace UnrealBuildTool
 			ConfigHierarchy Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
 			string PackageName = GetPackageName(ProjectName);
 			string VersionDisplayName = GetVersionDisplayName(bIsEmbedded);
-			bool bEnableGooglePlaySupport;
-			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bEnableGooglePlaySupport", out bEnableGooglePlaySupport);
-			bool bUseGetAccounts;
-			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bUseGetAccounts", out bUseGetAccounts);
 			string DepthBufferPreference;
 			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "DepthBufferPreference", out DepthBufferPreference);
 			float MaxAspectRatioValue;
@@ -2930,10 +2926,6 @@ namespace UnrealBuildTool
 				{
 					StartupPermissions = StartupPermissions + (StartupPermissions.Length > 0 ? "," : "") + "android.permission.WRITE_EXTERNAL_STORAGE";
 				}
-				if (bEnableGooglePlaySupport && bUseGetAccounts)
-				{
-					StartupPermissions = StartupPermissions + (StartupPermissions.Length > 0 ? "," : "") + "android.permission.GET_ACCOUNTS";
-				}
 			}
 
 			Text.AppendLine(String.Format("\t\t<meta-data android:name=\"com.epicgames.unreal.GameActivity.EngineVersion\" android:value=\"{0}\"/>", EngineVersion));
@@ -3070,11 +3062,6 @@ namespace UnrealBuildTool
 				if (bRestoreNotificationsOnReboot)
 				{
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\"/>");
-				}
-
-				if (bEnableGooglePlaySupport && bUseGetAccounts)
-				{
-					Text.AppendLine("\t<uses-permission android:name=\"android.permission.GET_ACCOUNTS\"/>");
 				}
 
 				if(!bPackageForMetaQuest)

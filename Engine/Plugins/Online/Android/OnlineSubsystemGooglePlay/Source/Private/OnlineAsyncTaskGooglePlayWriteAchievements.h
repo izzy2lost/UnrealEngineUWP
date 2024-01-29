@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "OnlineAsyncTaskManager.h"
 #include "OnlineAchievementGooglePlayCommon.h"
-#include "OnlineSubsystemGooglePlayPackage.h"
+#include "Interfaces/OnlineAchievementsInterface.h"
 
 class FOnlineSubsystemGooglePlay;
 
@@ -14,20 +14,31 @@ class FOnlineSubsystemGooglePlay;
  * The GooglePlayGamesWrapper implementation will adapt and set the task result and mark the task as completed when the 
  * Java operation is finished 
  */
-class FOnlineAsyncTaskGooglePlayQueryAchievements : public FOnlineAsyncTaskBasic<FOnlineSubsystemGooglePlay>
+class FOnlineAsyncTaskGooglePlayWriteAchievements : public FOnlineAsyncTaskBasic<FOnlineSubsystemGooglePlay>
 {
 public:
 	/**
-	 * @brief Construct a new FOnlineAsyncTaskGooglePlayQueryAchievements object
+	 * @brief Construct a new FOnlineAsyncTaskGooglePlayWriteAchievements object
 	 * 
 	 * @param InSubsystem Owning subsystem
 	 * @param PlayerId PlayerId to report in the delegate. Only data for local player can be received from GooglePlay
-	 * @param InDelegate Delegate to invoke on task completion
+	 * @param InWriteAchievements Achievement data to send
+	 * @param Delegate Delegate to invoke on task completion
 	 */
-	FOnlineAsyncTaskGooglePlayQueryAchievements(
+	FOnlineAsyncTaskGooglePlayWriteAchievements(
 		FOnlineSubsystemGooglePlay* InSubsystem,
 		const FUniqueNetIdPtr& PlayerId,
-		const FOnQueryAchievementsCompleteDelegate& InDelegate);
+		TArray<FGooglePlayAchievementWriteData>&& InWriteAchievements,
+		const FOnAchievementsWrittenDelegate& Delegate);
+
+	/**
+	 * @brief Notifies the list of achievement writes that succeeded
+	 * 
+	 * @param SucceededIds 
+	 * @return true If all achievements expected to be written succeeded
+	 * @return false Otherwise
+	 */
+	bool SetSucceeded(const TArray<FString>& SucceededIds);
 
 	// FOnlineAsyncTask
 	virtual void Tick() override;
@@ -37,12 +48,9 @@ public:
 	// FOnlineAsyncItem
 	virtual FString ToString() const override { return TEXT("QueryAchievements"); }
 
-	// Set task result data. Accessed trhough GooglePlayGamesWrapper implementation
-	void SetAchievementsData(TArray<FOnlineAchievementGooglePlay>&& InAchievementsData, TArray<FOnlineAchievementDesc>&& InAchievementsDesc);
 private:
 	FUniqueNetIdPtr PlayerId;
-	FOnQueryAchievementsCompleteDelegate Delegate;
-	TArray<FOnlineAchievementGooglePlay> AchievementsData;
-	TArray<FOnlineAchievementDesc> AchievementsDesc;
+	TArray<FGooglePlayAchievementWriteData> WriteAchievementsData;
+	FOnAchievementsWrittenDelegate Delegate;
 	bool bStarted = false;
 };

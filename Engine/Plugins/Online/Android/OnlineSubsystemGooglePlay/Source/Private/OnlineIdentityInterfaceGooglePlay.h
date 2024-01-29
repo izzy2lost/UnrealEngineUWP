@@ -6,11 +6,6 @@
 #include "Interfaces/OnlineIdentityInterface.h"
 #include "OnlineSubsystemGooglePlayPackage.h"
 
-THIRD_PARTY_INCLUDES_START
-#include "gpg/status.h"
-#include "gpg/player.h"
-THIRD_PARTY_INCLUDES_END
-
 // from OnlineSubsystemTypes.h
 TEMP_UNIQUENETIDSTRING_SUBCLASS(FUniqueNetIdGooglePlay, GOOGLEPLAY_SUBSYSTEM);
 
@@ -18,46 +13,19 @@ class FOnlineIdentityGooglePlay :
 	public IOnlineIdentity
 {
 private:
-	
-	bool bPrevLoggedIn;
-	bool bLoggedIn;
 	FString PlayerAlias;
-	FString AuthToken;
-	int32 CurrentLoginUserNum;
+	FString AuthCode;
+	FUniqueNetIdGooglePlayPtr UniqueNetId;
 	class FOnlineSubsystemGooglePlay* MainSubsystem;
 
-	bool bLoggingInUser;
-	bool bRegisteringUser;
-
-	/** UID for this identity */
-	FUniqueNetIdGooglePlayPtr UniqueNetId;
-
-	struct FPendingConnection
-	{
-		FOnlineIdentityGooglePlay * ConnectionInterface;
-		bool IsConnectionPending;
-	};
-
-	/** Instance of the connection context data */
-	static FPendingConnection PendingConnectRequest;
+    static_assert(MAX_LOCAL_PLAYERS == 1, "FOnlineIdentityGooglePlay does not support more than 1 local player");
 
 PACKAGE_SCOPE:
 
-	/**
-	 * Default Constructor
-	 */
 	FOnlineIdentityGooglePlay(FOnlineSubsystemGooglePlay* InSubsystem);
 
-	/** Allow individual interfaces to access the currently signed-in user's id */
-	FUniqueNetIdGooglePlayPtr GetCurrentUserId() const { return UniqueNetId; }
-
-	void SetCurrentUserId(FUniqueNetIdGooglePlayPtr InUniqueNetId) { UniqueNetId = InUniqueNetId; }
-
-	/** Called from ExternalUIInterface to set UniqueId and PlayerAlias after authentication */
-	void SetPlayerDataFromFetchSelfResponse(const gpg::Player& PlayerData);
-
-	/** Called from ExternalUIInterface to set AuthToken after authentication */
-	void SetAuthTokenFromGoogleConnectResponse(const FString& NewAuthToken);
+	void SetIdentityData(FUniqueNetIdGooglePlayPtr PlayerNetId, FString PlayerAlias, FString AuthCode);
+	void ClearIdentity();
 
 public:
 
@@ -79,20 +47,7 @@ public:
 	virtual void GetUserPrivilege(const FUniqueNetId& UserId, EUserPrivileges::Type Privilege, const FOnGetUserPrivilegeCompleteDelegate& Delegate, EShowPrivilegeResolveUI ShowResolveUI=EShowPrivilegeResolveUI::Default) override;
 	virtual FPlatformUserId GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& NetId) const override;
 	virtual FString GetAuthType() const override;
-	//~ End IOnlineIdentity interface
-
-public:
-
-	//~ Begin IOnlineIdentity Interface
-	void Tick(float DeltaTime);
-	//~ End IOnlineIdentity Interface
-	
-	//platform specific
-	void OnLogin(const bool InLoggedIn,  const FString& InPlayerId, const FString& InPlayerAlias);
-	void OnLogout(const bool InLoggedIn);
-
-	void OnLoginCompleted(const int playerID, gpg::AuthStatus errorCode);
-
+	//~ End IOnlineIdentity Interface	
 };
 
 
