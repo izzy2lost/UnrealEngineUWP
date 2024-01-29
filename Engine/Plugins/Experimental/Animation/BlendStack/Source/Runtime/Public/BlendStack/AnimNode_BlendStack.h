@@ -88,32 +88,29 @@ private:
 	float TimeToActivation = 0.f;
 };
 
-USTRUCT(BlueprintInternalUseOnly)
-struct FBlendStack_SampleGraphPoseLink
+namespace UE::BlendStack
 {
-	GENERATED_BODY()
-
-	UPROPERTY()
-	int32 RootNodeIndex = INDEX_NONE;
-
-	UPROPERTY(Transient)
-	FPoseLink Root;
-
+struct FBlendStack_SampleGraphExecutionHelper
+{
 	FBlendStackAnimPlayer* Player = nullptr;
 	FGraphTraversalCounter CacheBoneCounter;
 
 	void SetInputPosePlayer(FBlendStackAnimPlayer& InPlayer);
-	void EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer);
-	void ConditionalCacheBones(const FAnimationBaseContext& Output);
+	void EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer, FPoseLink& SamplePoseLink);
+	void ConditionalCacheBones(const FAnimationBaseContext& Output, FPoseLink& SamplePoseLink);
 };
+} // namespace UE::BlendStack
 
 USTRUCT(BlueprintInternalUseOnly)
 struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPlayerBase
 {
 	GENERATED_BODY()
 
+	TArray<UE::BlendStack::FBlendStack_SampleGraphExecutionHelper> SampleGraphExecutionHelpers;
+
 	UPROPERTY()
-	TArray<FBlendStack_SampleGraphPoseLink> SampleGraphPoseLinks;
+	TArray<FPoseLink> PerSampleGraphPoseLinks;
+
 	int32 CurrentSamplePoseLink = -1;
 
 	UPROPERTY(Transient)

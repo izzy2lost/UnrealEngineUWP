@@ -583,20 +583,12 @@ void FAnimNode_BlendStack_Standalone::Initialize_AnyThread(const FAnimationIniti
 	
 	Reset();
 
-	if (SampleGraphPoseLinks.IsEmpty() == false)
+	if (PerSampleGraphPoseLinks.IsEmpty() == false)
 	{
-		IAnimClassInterface* AnimBlueprintClass = Context.GetAnimClass();
-		check(AnimBlueprintClass);
-
-		// Patch our pose links
-		for (FBlendStack_SampleGraphPoseLink& GraphPoseLink : SampleGraphPoseLinks)
+		SampleGraphExecutionHelpers.SetNum(PerSampleGraphPoseLinks.Num());
+		for (UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& ExecutionHelper : SampleGraphExecutionHelpers)
 		{
-			if (GraphPoseLink.RootNodeIndex != INDEX_NONE)
-			{
-				GraphPoseLink.Root.LinkID = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - GraphPoseLink.RootNodeIndex;
-			}
-
-			GraphPoseLink.CacheBoneCounter.Reset();
+			ExecutionHelper.CacheBoneCounter.Reset();
 		}
 	}
 }
@@ -685,7 +677,7 @@ bool FAnimNode_BlendStack_Standalone::IsSampleGraphAvailableForPlayer(const int3
 {
 	// If we have any sample graphs, our player has been assigned a pose link index.
 	// Players with a stored pose don't need to run the graph.
-	return !SampleGraphPoseLinks.IsEmpty() && !AnimPlayers[PlayerIndex].HasValidPoseContext();
+	return !PerSampleGraphPoseLinks.IsEmpty() && !AnimPlayers[PlayerIndex].HasValidPoseContext();
 }
 
 void FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const int32 PlayerIndex)
@@ -700,21 +692,22 @@ void FAnimNode_BlendStack_Standalone::EvaluateSample(FPoseContext& Output, const
 		return;
 	}
 
-	FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
-	PoseLink.EvaluatePlayer(Output, SamplePlayer);
+	const int32 SampleIndex = SamplePlayer.GetPoseLinkIndex();
+	UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& PoseLink = SampleGraphExecutionHelpers[SampleIndex];
+	PoseLink.EvaluatePlayer(Output, SamplePlayer, PerSampleGraphPoseLinks[SampleIndex]);
 }
 
-void FBlendStack_SampleGraphPoseLink::EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer)
+void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::EvaluatePlayer(FPoseContext& Output, FBlendStackAnimPlayer& SamplePlayer, FPoseLink& SamplePoseLink)
 {
 	SetInputPosePlayer(SamplePlayer);
 
 	// Make sure CacheBones has been called before evaluating.
-	ConditionalCacheBones(Output);
+	ConditionalCacheBones(Output, SamplePoseLink);
 	// The anim player may or may not have its Evaluate_AnyThread called through the graph update. 
-	Root.Evaluate(Output);
+	SamplePoseLink.Evaluate(Output);
 }
 
-void FBlendStack_SampleGraphPoseLink::ConditionalCacheBones(const FAnimationBaseContext& Context)
+void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::ConditionalCacheBones(const FAnimationBaseContext& Context, FPoseLink& SamplePoseLink)
 {
 	// Only call CacheBones when needed.
 	if (!CacheBoneCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
@@ -723,7 +716,7 @@ void FBlendStack_SampleGraphPoseLink::ConditionalCacheBones(const FAnimationBase
 		CacheBoneCounter.SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
 
 		FAnimationCacheBonesContext CacheBoneContext(Context.AnimInstanceProxy);
-		Root.CacheBones(CacheBoneContext);
+		SamplePoseLink.CacheBones(CacheBoneContext);
 	}
 }
 
@@ -736,10 +729,11 @@ void FAnimNode_BlendStack_Standalone::UpdateSample(const FAnimationUpdateContext
 		const bool bHasSampleGraph = IsSampleGraphAvailableForPlayer(PlayerIndex);
 		if (bHasSampleGraph)
 		{
-			FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
-			PoseLink.SetInputPosePlayer(SamplePlayer);
+			const int32 SampleIndex = SamplePlayer.GetPoseLinkIndex();
+			UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& ExecutionHelper = SampleGraphExecutionHelpers[SampleIndex];
+			ExecutionHelper.SetInputPosePlayer(SamplePlayer);
 			// The anim player may or may not have its Update_AnyThread called through the graph update. 
-			PoseLink.Root.Update(Context);
+			PerSampleGraphPoseLinks[SampleIndex].Update(Context);
 		}
 		else
 		{
@@ -758,8 +752,9 @@ void FAnimNode_BlendStack_Standalone::CacheBonesForSample(const FAnimationCacheB
 	const bool bHasSampleGraph = IsSampleGraphAvailableForPlayer(PlayerIndex);
 	if (bHasSampleGraph)
 	{
-		FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
-		PoseLink.ConditionalCacheBones(Context);
+		const int32 SampleIndex = SamplePlayer.GetPoseLinkIndex();
+		UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& ExecutionHelper = SampleGraphExecutionHelpers[SampleIndex];
+		ExecutionHelper.ConditionalCacheBones(Context, PerSampleGraphPoseLinks[SampleIndex]);
 	}
 }
 
@@ -767,10 +762,12 @@ void FAnimNode_BlendStack_Standalone::InitializeSample(const FAnimationInitializ
 {
 	if (SamplePlayer.GetPoseLinkIndex() != INDEX_NONE)
 	{
-		FBlendStack_SampleGraphPoseLink& PoseLink = SampleGraphPoseLinks[SamplePlayer.GetPoseLinkIndex()];
-		PoseLink.SetInputPosePlayer(SamplePlayer);
-		PoseLink.Root.Initialize(Context);
-		PoseLink.ConditionalCacheBones(Context);
+		const int32 SampleIndex = SamplePlayer.GetPoseLinkIndex();
+		FPoseLink& PoseLink = PerSampleGraphPoseLinks[SampleIndex];
+		UE::BlendStack::FBlendStack_SampleGraphExecutionHelper& ExecutionHelper = SampleGraphExecutionHelpers[SampleIndex];
+		ExecutionHelper.SetInputPosePlayer(SamplePlayer);
+		PoseLink.Initialize(Context);
+		ExecutionHelper.ConditionalCacheBones(Context, PoseLink);
 	}
 }
 
@@ -881,12 +878,12 @@ void FAnimNode_BlendStack_Standalone::Reset()
 
 int32 FAnimNode_BlendStack_Standalone::GetNextPoseLinkIndex()
 {
-	if (SampleGraphPoseLinks.IsEmpty())
+	if (PerSampleGraphPoseLinks.IsEmpty())
 	{
 		return INDEX_NONE;
 	}
 
-	const int32 NumPoseLinks = SampleGraphPoseLinks.Num();
+	const int32 NumPoseLinks = PerSampleGraphPoseLinks.Num();
 	++CurrentSamplePoseLink;
 	if (CurrentSamplePoseLink == NumPoseLinks) { CurrentSamplePoseLink = 0; }
 
@@ -1074,7 +1071,7 @@ void FAnimNode_BlendStack::ForceBlendNextUpdate()
 	bForceBlendNextUpdate = true;
 }
 
-void FBlendStack_SampleGraphPoseLink::SetInputPosePlayer(FBlendStackAnimPlayer& InPlayer)
+void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::SetInputPosePlayer(FBlendStackAnimPlayer& InPlayer)
 {
 	// Because our anim players may get reallocated, or change indices due to push/pops,
 	// we must call this before every operation that might end up needing the anim player through the graph's input nodes.

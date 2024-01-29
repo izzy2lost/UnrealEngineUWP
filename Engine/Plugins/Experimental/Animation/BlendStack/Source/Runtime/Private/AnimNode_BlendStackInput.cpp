@@ -36,7 +36,7 @@ void FAnimNode_BlendStackInput::Update_AnyThread(const FAnimationUpdateContext& 
 		const int32 BlendStackNodeIndex = AnimBlueprintClass->GetAnimNodeProperties().Num() - 1 - BlendStackAllocationIndex;
 		check(Context.AnimInstanceProxy);
 		FAnimNode_BlendStack_Standalone* BlendStackNode = GetBlendStackNodeFromIndex(Context, AnimBlueprintClass, BlendStackNodeIndex);
-		Player = &BlendStackNode->SampleGraphPoseLinks[SampleIndex].Player;
+		Player = &BlendStackNode->SampleGraphExecutionHelpers[SampleIndex].Player;
 	}
 
 	check(Player && *Player)
