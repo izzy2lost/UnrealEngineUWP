@@ -514,6 +514,11 @@ void FGenericCrashContext::InitializeFromContext(const FSessionContext& Session,
 	bIsInitialized = true;
 }
 
+const FSessionContext& FGenericCrashContext::GetCachedSessionContext()
+{
+	return NCached::Session;
+}
+
 void FGenericCrashContext::CopySharedCrashContext(FSharedCrashContext& Dst)
 {
 	//Copy the session
