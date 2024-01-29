@@ -23,13 +23,16 @@
 	 * from the delegates methods and through mehthods in FAppleHttpRequest. Once we cancel or have an error this can 
 	 * is nullified as soon as possible to avoid receiving more data after completion delegates were triggered */
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
-	
+
 	/** critical section to properly clear stream */
 	FCriticalSection ResponseStreamLock;
-
+	
 	/** flag meant to reduce locking on ResponseStreamLock*/
-	@public BOOL bInitializedWithValidStream;
-
+	BOOL bInitializedWithValidStream;
+	
+	/** Have we received any data? */
+	BOOL bAnyHttpActivity;
+	
 	/** Delegate invoked after processing URLSession:dataTask:didReceiveData or URLSession:task:didCompleteWithError:*/
 	@public FNewAppleHttpEventDelegate NewAppleHttpEventDelegate;
 }
@@ -46,6 +49,7 @@
 @property EHttpFailureReason FailureReason;
 /** Associated request. Cleared when canceled */
 @property TWeakPtr<FAppleHttpRequest> SourceRequest;
+
 
 /** NSURLSessionDataDelegate delegate methods. Those are called from a thread controlled by the NSURLSession */
 
@@ -77,10 +81,11 @@
 	BytesReceived = 0;
 	RequestStatus = EHttpRequestStatus::NotStarted;
 	FailureReason = EHttpFailureReason::None;
+	bAnyHttpActivity = false;
 	SourceRequest = StaticCastWeakPtr<FAppleHttpRequest>(TWeakPtr<IHttpRequest>(Request.AsShared()));
 	ResponseBodyReceiveStream = Request.GetResponseBodyReceiveStream();
 	bInitializedWithValidStream = (ResponseBodyReceiveStream != nullptr);
-	
+
 	return self;
 }
 
@@ -108,14 +113,44 @@
 	}
 }
 
+- (BOOL) DidValidActivityOcurred:(FStringView) Reason
+{
+	TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin();
+
+	if (!Request)
+	{
+		return FALSE;
+	}
+
+	if (!bAnyHttpActivity)
+	{
+		bAnyHttpActivity = true;
+
+		Request->StartActivityTimeoutTimer();
+	}
+
+	Request->ResetActivityTimeoutTimer(Reason);
+	return TRUE;
+}
+
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
 {
+	if (![self DidValidActivityOcurred: TEXTVIEW("Sent body data")])
+	{
+		return;
+	}
 	UE_LOG(LogHttp, Verbose, TEXT("URLSession:task:didSendBodyData:totalBytesSent:totalBytesExpectedToSend: totalBytesSent = %lld, totalBytesSent = %lld: %p"), totalBytesSent, totalBytesExpectedToSend, self);
 	self.BytesWritten = totalBytesSent;
 }
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition disposition))completionHandler
 {
+	if (![self DidValidActivityOcurred: TEXTVIEW("Received response")])
+	{
+		completionHandler(NSURLSessionResponseCancel);
+		return;
+	}
+
 	UE_LOG(LogHttp, Verbose, TEXT("URLSession:dataTask:didReceiveResponse:completionHandler"));
 	
 	self.Response = (NSHTTPURLResponse*)response;
@@ -132,6 +167,11 @@
 
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data
 {
+	if (![self DidValidActivityOcurred: TEXTVIEW("Received data")])
+	{
+		return;
+	}
+	
 	__block int64 NewBytesReceived = 0;
 	if (bInitializedWithValidStream)
 	{
@@ -168,6 +208,14 @@
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(nullable NSError *)error
 {
+	TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin();
+
+	if (!Request)
+	{
+		return;
+	}
+
+	self.RequestStatus = EHttpRequestStatus::Failed;
 	if (error == nil)
 	{
 		UE_LOG(LogHttp, Verbose, TEXT("URLSession:task:didCompleteWithError. Http request succeeded: %p"), self);
@@ -226,6 +274,8 @@
 			}
 		}
 	}
+
+	Request->StopActivityTimeoutTimer();
 	NewAppleHttpEventDelegate.ExecuteIfBound();
 }
 
@@ -390,11 +440,15 @@ FAppleHttpRequest::FAppleHttpRequest(NSURLSession* InSession)
 ,	LastReportedBytesWritten(0)
 ,	LastReportedBytesRead(0)
 {
+	bUsePlatformActivityTimeout = false;
+	
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::FAppleHttpRequest()"));
 	Request = [[NSMutableURLRequest alloc] init];
 	float HttpConnectionTimeout = FHttpModule::Get().GetHttpConnectionTimeout();
 	check(HttpConnectionTimeout > 0.0f);
 	Request.timeoutInterval = HttpConnectionTimeout;
+	
+	UE_CLOG(HttpConnectionTimeout <= FHttpModule::Get().GetHttpActivityTimeout(), LogHttp, Warning, TEXT("HttpConnectionTimeout should be greater than HttpActivityTimeout. Otherwise requests may complete unexpectedly with ConnectionError after HttpConnectionTimeout seconds without activity"));
 
 	// Disable cache to mimic WinInet behavior
 	Request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
@@ -641,6 +695,11 @@ bool FAppleHttpRequest::SetContentFromStream(TSharedRef<FArchive, ESPMode::Threa
 
 bool FAppleHttpRequest::SetResponseBodyReceiveStream(TSharedRef<FArchive> Stream)
 {
+	if (CompletionStatus == EHttpRequestStatus::Processing)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("FCurlHttpRequest::SetContentFromStream() - attempted to set content on a request that is inflight"));
+		return false;
+	}
 	ResponseBodyReceiveStream = Stream;
 	return true;
 }
@@ -744,9 +803,16 @@ void FAppleHttpRequest::FinishRequest()
 		if (Response)
 		{
 			Reason = Response->GetFailureReasonFromDelegate();
-			if (Reason == EHttpFailureReason::Cancelled && bTimedOut)
+			if (Reason == EHttpFailureReason::Cancelled)
 			{
-				Reason = EHttpFailureReason::TimedOut;
+				if (bTimedOut)
+				{
+					Reason = EHttpFailureReason::TimedOut;
+				}
+				else if (bActivityTimedOut)
+				{
+					Reason = EHttpFailureReason::ConnectionError;
+				}
 			}
 		}
 		SetFailureReason(Reason);

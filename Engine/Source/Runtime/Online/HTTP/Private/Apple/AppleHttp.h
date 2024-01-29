@@ -6,7 +6,7 @@
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "IHttpThreadedRequest.h"
 #include "PlatformHttp.h"
-
+#include "HttpPackage.h"
 
 /**
  * Delegate invoked when in progress Task completes. It is invoked in an out of our control thread
@@ -69,6 +69,11 @@ public:
 	 * Destructor. Clean up any connection/request handles
 	 */
 	virtual ~FAppleHttpRequest();
+
+PACKAGE_SCOPE:
+	using FHttpRequestCommon::StartActivityTimeoutTimer;
+	using FHttpRequestCommon::ResetActivityTimeoutTimer;
+	using FHttpRequestCommon::StopActivityTimeoutTimer;
 
 	const TSharedPtr<FArchive> GetResponseBodyReceiveStream() const;
 

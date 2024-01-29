@@ -691,10 +691,11 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
 
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-#if WITH_CURL_XCURL
-		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
+#if WITH_CURL_XCURL || PLATFORM_MAC || PLATFORM_IOS
+		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't
 		// connect. Had to disable that code, make sure not to treat that event as connected
-		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and 
+		// In a similar way on MacOS/iOS we don't get any notification until some data is received
+		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and
 		// take 3s to response timeout
 		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE));
 #else
