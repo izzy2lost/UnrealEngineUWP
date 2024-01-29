@@ -950,7 +950,10 @@ void FNiagaraDebugHud::GatherSystemInfo()
 
 #if WITH_NIAGARA_GPU_PROFILER
 	// Update Gpu capture state
-	GpuProfilerListener.SetEnabled(Settings.bOverviewEnabled && (Settings.OverviewMode == ENiagaraDebugHUDOverviewMode::GpuComputePerformance));
+	bool bEnableGPUStats = Settings.bOverviewEnabled && 
+		((Settings.OverviewMode == ENiagaraDebugHUDOverviewMode::GpuComputePerformance) || (Settings.OverviewMode == ENiagaraDebugHUDOverviewMode::PerformanceGraph && Settings.PerfGraphMode == ENiagaraDebugHUDPerfGraphMode::GPU));
+							
+	GpuProfilerListener.SetEnabled(bEnableGPUStats);
 #endif
 
 	// When not enabled do nothing
