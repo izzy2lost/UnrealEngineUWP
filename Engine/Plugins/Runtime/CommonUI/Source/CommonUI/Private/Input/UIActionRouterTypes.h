@@ -130,6 +130,8 @@ public:
 	void RemoveScrollRecipient(const UWidget& ScrollRecipient);
 	void AddInputPreprocessor(const TSharedRef<IInputProcessor>& InputPreprocessor, int32 DesiredIndex);
 
+	bool IsWidgetOfClassPresentRecursive(TSubclassOf<UWidget> WidgetClass, bool IncludeChildren, bool IncludeInactive) const;
+
 	FSimpleDelegate OnActivated;
 	FSimpleDelegate OnDeactivated;
 

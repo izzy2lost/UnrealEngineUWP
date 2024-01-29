@@ -516,6 +516,22 @@ bool UCommonUIActionRouterBase::IsWidgetInActiveRoot(const UCommonActivatableWid
 	return false;
 }
 
+bool UCommonUIActionRouterBase::IsWidgetOfClassPresentInTree(TSubclassOf<UWidget> WidgetClass, bool IncludeChildren, bool IncludeInactive)
+{
+	bool IsPresent = false;
+
+	for (const FActivatableTreeRootRef& RootNode : RootNodes)
+	{
+		if(RootNode->IsWidgetOfClassPresentRecursive(WidgetClass, IncludeChildren, IncludeInactive))
+		{
+			IsPresent = true;
+			break;
+		}
+	}
+	
+	return IsPresent;
+}
+
 void UCommonUIActionRouterBase::NotifyUserWidgetConstructed(const UCommonUserWidget& Widget)
 {
 	check(Widget.GetCachedWidget().IsValid());
