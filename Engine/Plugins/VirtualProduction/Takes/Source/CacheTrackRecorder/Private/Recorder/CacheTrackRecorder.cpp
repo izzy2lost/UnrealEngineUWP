@@ -40,6 +40,7 @@
 // LevelEditor includes
 #include "IAssetViewport.h"
 #include "LevelEditor.h"
+#include "SequencerSettings.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CacheTrackRecorder)
@@ -351,7 +352,10 @@ void UCacheTrackRecorder::RecordSelectedTracks(TSharedPtr<ISequencer> Sequencer,
 	{
 		if (IMovieSceneCachedTrack* CacheTrack = Cast<IMovieSceneCachedTrack>(SelectedTrack))
 		{
-			CacheTracks.Add(CacheTrack);
+			if (CacheTrack->IsCacheRecordingAllowed())
+			{
+				CacheTracks.Add(CacheTrack);
+			}
 		}
 	}
 
@@ -463,6 +467,12 @@ bool UCacheTrackRecorder::Initialize(ULevelSequence* RootLevelSequence, const TA
 		TRange<double> NewRange(ViewRangeStartSeconds - 0.5f, ViewRangeStartSeconds + (Range.GetUpperBoundValue() - Range.GetLowerBoundValue()) + 0.5f);
 		Sequencer->SetViewRange(NewRange, EViewRangeInterpolation::Immediate);
 		Sequencer->SetClampRange(TRange(Sequencer->GetViewRange()));
+		ESequencerLoopMode LoopMode = Sequencer->GetSequencerSettings()->GetLoopMode();
+		if (LoopMode != SLM_NoLoop)
+		{
+			Sequencer->GetSequencerSettings()->SetLoopMode(SLM_NoLoop);
+			OnStopCleanup.Add([LoopMode, this] { WeakSequencer.Pin()->GetSequencerSettings()->SetLoopMode(LoopMode); });
+		}
 	}
 
 	return true;
@@ -510,6 +520,20 @@ void UCacheTrackRecorder::InitializeFromParameters()
 			};
 			OnStopCleanup.Add(RestoreImmersiveMode);
 		}
+	}
+
+	int32 MinScalability = -1;
+	for (FCachedTrackSource& CacheTrack : CacheTracks)
+	{
+		MinScalability = FMath::Max(MinScalability, CacheTrack.Track->GetMinimumEngineScalabilitySetting());
+	}
+	if (MinScalability >= 0)
+	{
+		Scalability::FQualityLevels CurrentQualityLevels = Scalability::GetQualityLevels();
+		Scalability::FQualityLevels NewQualityLevels = CurrentQualityLevels;
+		NewQualityLevels.SetFromSingleQualityLevel(MinScalability);
+		SetQualityLevels(NewQualityLevels, true);
+		OnStopCleanup.Add([CurrentQualityLevels] { SetQualityLevels(CurrentQualityLevels, true); });
 	}
 }
 

@@ -357,7 +357,8 @@ void FNiagaraCacheTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, 
 					FExecuteAction::CreateLambda([this]()
 					{
 						UCacheTrackRecorder::RecordSelectedTracks(GetSequencer());
-					})
+					}),
+					FCanExecuteAction::CreateUObject(CacheTrack, &UMovieSceneNiagaraCacheTrack::IsCacheRecordingAllowed)
 				)
 			);
 		}
@@ -515,7 +516,8 @@ TSharedPtr<SWidget> FNiagaraCacheTrackEditor::BuildOutlinerEditWidget(const FGui
 			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
 			.IsEnabled_Lambda([Track]()
 			{
-				return !Track->IsEvalDisabled();
+				IMovieSceneCachedTrack* CachedTrack = Cast<IMovieSceneCachedTrack>(Track);
+				return CachedTrack && CachedTrack->IsCacheRecordingAllowed();
 			})
 			.OnClicked(this, &FNiagaraCacheTrackEditor::RecordCacheTrack, Cast<IMovieSceneCachedTrack>(Track))
 			[
