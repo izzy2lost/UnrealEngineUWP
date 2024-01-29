@@ -910,7 +910,6 @@ namespace Horde.Server.Replicators
 				newClient.Owner = perforce.Settings.UserName;
 				newClient.Host = serverInfo.ClientHost;
 				newClient.Stream = streamConfig.Name;
-				newClient.Type = "readonly";
 				await perforce.CreateClientAsync(newClient);
 				_logger.LogInformation("Created client {ClientName} for {StreamName}", newClient.Name, streamConfig.Name);
 
