@@ -2057,7 +2057,14 @@ bool UAnimDataController::DuplicateAttribute(const FAnimationAttributeIdentifier
 
 void UAnimDataController::UpdateWithSkeleton(USkeleton* TargetSkeleton, bool bShouldTransact)
 {
-	RemoveBoneTracksMissingFromSkeleton(TargetSkeleton);
+	OpenBracket(LOCTEXT("SettingNewskeleton", "Updating Skeleton for Animation Data Model"), bShouldTransact);
+	{
+		RemoveBoneTracksMissingFromSkeleton(TargetSkeleton);
+
+		// Notify of skeleton change
+		Model->GetNotifier().Notify(EAnimDataModelNotifyType::SkeletonChanged);
+	}
+	CloseBracket();
 }
 
 void UAnimDataController::PopulateWithExistingModel(TScriptInterface<IAnimationDataModel> InModel)

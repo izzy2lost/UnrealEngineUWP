@@ -2252,6 +2252,9 @@ void UAnimSequencerController::UpdateWithSkeleton(USkeleton* TargetSkeleton, boo
 
 			// Forcefully re-generate legacy data structures
 			Model->RegenerateLegacyCurveData();
+
+			// Notify of skeleton change
+			Model->GetNotifier().Notify(EAnimDataModelNotifyType::SkeletonChanged);
 		}
 		CloseBracket();
 	}	

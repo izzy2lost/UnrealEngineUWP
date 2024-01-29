@@ -66,6 +66,8 @@ const FName USkeleton::AnimTrackCurveMappingName = FName(TEXT("AnimationTrackCur
 const FName FAnimSlotGroup::DefaultGroupName = FName(TEXT("DefaultGroup"));
 const FName FAnimSlotGroup::DefaultSlotName = FName(TEXT("DefaultSlot"));
 
+TAutoConsoleVariable<bool> CVarAllowIncompatibleSkeletalMeshMerge(TEXT("a.Skeleton.AllowIncompatibleSkeletalMeshMerge"), 0, TEXT("When importing or otherwise merging in skeletal mesh bones, allow 'incompatible' hierarchies with bone insertions."));
+
 void SerializeReferencePose(FArchive& Ar, FReferencePose& P, UObject* Outer)
 {
 	Ar.UsingCustomVersion(FAnimPhysObjectVersion::GUID);
@@ -1024,6 +1026,7 @@ bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const 
 	// see if it needs all animation data to remap - only happens when bone structure CHANGED - added
 	bool bSuccess = false;
 	bool bShouldHandleHierarchyChange = false;
+
 	// clear cache data since it won't work anymore once this is done
 	ClearCacheData();
 
@@ -1035,38 +1038,93 @@ bool USkeleton::MergeBonesToBoneTree(const USkinnedAsset* InSkinnedAsset, const 
 	}
 	else
 	{
-		// can we play? - hierarchy matches
-		if( IsCompatibleMesh(InSkinnedAsset) )
+		// Check if we can merge in the bones
+		const bool bDoParentChainCheck = !CVarAllowIncompatibleSkeletalMeshMerge.GetValueOnGameThread();
+		if( IsCompatibleMesh(InSkinnedAsset, bDoParentChainCheck) )
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(USkeleton::MergeBonesToBoneTree::CompatibleBranch);
 			// Exclude bones who do not have a parent.
 			TArray<int32> FilteredRequiredBones;
 			FAnimationRuntime::ExcludeBonesWithNoParents(RequiredRefBones, InSkinnedAsset->GetRefSkeleton(), FilteredRequiredBones);
 
-			FReferenceSkeletonModifier RefSkelModifier(ReferenceSkeleton, this);
-
-			for (int32 Index=0; Index<FilteredRequiredBones.Num(); Index++)
+			// Two modifier passes: add bones that dont already exist, then set bone parents that have changed
 			{
-				const int32& MeshBoneIndex = FilteredRequiredBones[Index];
-				const int32& SkeletonBoneIndex = ReferenceSkeleton.FindRawBoneIndex(InSkinnedAsset->GetRefSkeleton().GetBoneName(MeshBoneIndex));
-				
-				// Bone doesn't already exist. Add it.
-				if( SkeletonBoneIndex == INDEX_NONE )
-				{
-					FMeshBoneInfo NewMeshBoneInfo = InSkinnedAsset->GetRefSkeleton().GetRefBoneInfo()[MeshBoneIndex];
-					// Fix up ParentIndex for our new Skeleton.
-					if( ReferenceSkeleton.GetRawBoneNum() == 0 )
-					{
-						NewMeshBoneInfo.ParentIndex = INDEX_NONE; // root
-					}
-					else
-					{
-						NewMeshBoneInfo.ParentIndex = ReferenceSkeleton.FindRawBoneIndex(InSkinnedAsset->GetRefSkeleton().GetBoneName(InSkinnedAsset->GetRefSkeleton().GetParentIndex(MeshBoneIndex)));
-					}
+				FReferenceSkeletonModifier RefSkelModifier(ReferenceSkeleton, this);
 
-					RefSkelModifier.Add(NewMeshBoneInfo, InSkinnedAsset->GetRefSkeleton().GetRefBonePose()[MeshBoneIndex]);
-					BoneTree.AddZeroed(1);
-					bShouldHandleHierarchyChange = true;
+				// Check for bone's existence
+				for (const int32 MeshBoneIndex : FilteredRequiredBones)
+				{
+					const int32 SkeletonBoneIndex = ReferenceSkeleton.FindRawBoneIndex(InSkinnedAsset->GetRefSkeleton().GetBoneName(MeshBoneIndex));
+					
+					// Bone doesn't already exist. Add it.
+					if( SkeletonBoneIndex == INDEX_NONE )
+					{
+						FMeshBoneInfo NewMeshBoneInfo = InSkinnedAsset->GetRefSkeleton().GetRefBoneInfo()[MeshBoneIndex];
+						// Fix up ParentIndex for our new Skeleton.
+						if( ReferenceSkeleton.GetRawBoneNum() == 0 )
+						{
+							NewMeshBoneInfo.ParentIndex = INDEX_NONE; // root
+						}
+						else
+						{
+							NewMeshBoneInfo.ParentIndex = ReferenceSkeleton.FindRawBoneIndex(InSkinnedAsset->GetRefSkeleton().GetBoneName(InSkinnedAsset->GetRefSkeleton().GetParentIndex(MeshBoneIndex)));
+						}
+
+						RefSkelModifier.Add(NewMeshBoneInfo, InSkinnedAsset->GetRefSkeleton().GetRefBonePose()[MeshBoneIndex]);
+						BoneTree.AddDefaulted(1);
+						bShouldHandleHierarchyChange = true;
+					}
+				}
+			}
+
+			{
+				FReferenceSkeletonModifier RefSkelModifier(ReferenceSkeleton, this);
+
+				TMap<FName, FBoneNode> NameToBoneNode;
+				const int32 NumBones = BoneTree.Num();
+				check(NumBones == ReferenceSkeleton.GetRawRefBoneInfo().Num());
+
+				// Check for different parents
+				for (const int32 MeshBoneIndex : FilteredRequiredBones)
+				{
+					const FName BoneName = InSkinnedAsset->GetRefSkeleton().GetBoneName(MeshBoneIndex);
+					const int32 SkeletonBoneIndex = ReferenceSkeleton.FindRawBoneIndex(BoneName);
+
+					if(SkeletonBoneIndex != INDEX_NONE)
+					{
+						// Bone exists, check if it is in the same place in the hierarchy
+						const int32 MeshParentIndex = InSkinnedAsset->GetRefSkeleton().GetParentIndex(MeshBoneIndex);
+						const int32 SkeletonParentIndex = ReferenceSkeleton.GetRawParentIndex(SkeletonBoneIndex);
+						const FName MeshParentName = MeshParentIndex != INDEX_NONE ? InSkinnedAsset->GetRefSkeleton().GetBoneName(MeshParentIndex) : NAME_None;
+						const FName SkeletonParentName = SkeletonParentIndex != INDEX_NONE ? ReferenceSkeleton.GetRawRefBoneInfo()[SkeletonParentIndex].Name : NAME_None;
+
+						if(MeshParentName != SkeletonParentName)
+						{
+							// Cache the bone tree if we are going to change the structure
+							if(NameToBoneNode.Num() == 0)
+							{
+								NameToBoneNode.Reserve(NumBones);
+								for(int32 BoneTreeIndex = 0; BoneTreeIndex < NumBones; ++BoneTreeIndex)
+								{
+									NameToBoneNode.Add(ReferenceSkeleton.GetRawRefBoneInfo()[BoneTreeIndex].Name, BoneTree[BoneTreeIndex]);
+								}
+							}
+
+							RefSkelModifier.SetParent(BoneName, MeshParentName);
+							bShouldHandleHierarchyChange = true;
+						}
+					}
+				}
+
+				if(NameToBoneNode.Num() > 0)
+				{
+					// Setting parent can re-order bones, so the skeleton's BoneTree needs to update to reflect that
+					BoneTree.Reset();
+					for(int32 BoneTreeIndex = 0; BoneTreeIndex < NumBones; ++BoneTreeIndex)
+					{
+						FName BoneName = ReferenceSkeleton.GetRawRefBoneInfo()[BoneTreeIndex].Name;
+						BoneTree.Add(NameToBoneNode.FindChecked(BoneName));
+					}
 				}
 			}
 
