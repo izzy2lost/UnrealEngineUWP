@@ -213,6 +213,81 @@ int32 FInstanceDataObjectFixupPanel::Find(UObject* Value) const
 	return Instances.Find(Value);
 }
 
+static bool RemoveCustomizationsWithLooseProperties(const FFieldVariant& FieldVariant, const TSharedPtr<IDetailsView>& DetailsView)
+{
+#if WITH_EDITORONLY_DATA
+	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
+	if (FStructProperty* AsStructProperty = FieldVariant.Get<FStructProperty>())
+	{
+		if (RemoveCustomizationsWithLooseProperties(AsStructProperty->Struct, DetailsView))
+		{
+			return true;
+		}
+	}
+	else if (FObjectProperty* AsObjectProperty = FieldVariant.Get<FObjectProperty>())
+	{
+		if (AsObjectProperty->HasAnyPropertyFlags(CPF_InstancedReference))
+		{
+			if (RemoveCustomizationsWithLooseProperties(AsObjectProperty->PropertyClass, DetailsView))
+			{
+				return true;
+			}
+		}
+	}
+	else if (const FArrayProperty* AsArrayProperty = FieldVariant.Get<FArrayProperty>())
+	{
+		if (RemoveCustomizationsWithLooseProperties(AsArrayProperty->Inner, DetailsView))
+		{
+			return true;
+		}
+	}
+	else if (const FSetProperty* AsSetProperty = FieldVariant.Get<FSetProperty>())
+	{
+		if (RemoveCustomizationsWithLooseProperties(AsSetProperty->ElementProp, DetailsView))
+		{
+			return true;
+		}
+	}
+	else if (const FMapProperty* AsMapProperty = FieldVariant.Get<FMapProperty>())
+	{
+		if (RemoveCustomizationsWithLooseProperties(AsMapProperty->KeyProp, DetailsView))
+		{
+			return true;
+		}
+		if (RemoveCustomizationsWithLooseProperties(AsMapProperty->ValueProp, DetailsView))
+		{
+			return true;
+		}
+	}
+	else if (UStruct* AsStruct = FieldVariant.Get<UStruct>())
+	{
+		bool result = false;
+		for (const FProperty* Property : TFieldRange<FProperty>(AsStruct))
+		{
+			if (RemoveCustomizationsWithLooseProperties(Property, DetailsView))
+			{
+				result = true;
+			}
+		}
+		if (result)
+		{
+			// register an empty delegate to override the global rule of displaying this type with customizations
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout(AsStruct->GetFName(), {});
+		}
+		return result;
+	}
+	
+	if (const FProperty* Property = FieldVariant.Get<FProperty>())
+	{
+		if (Property->HasMetaData(NAME_IsLooseMetadata))
+		{
+			return true;
+		}
+	}
+#endif
+	return false;
+}
+
 TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(bool bScrollbarOnLeft)
 {
 	FDetailsViewArgs DetailsViewArgs;
@@ -223,6 +298,10 @@ TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(boo
 	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+	for (const UObject* Instance : Instances)
+	{
+		RemoveCustomizationsWithLooseProperties(Instance->GetClass(), DetailsView);
+	}
 
 	for (const UObject* Object : Instances)
 	{

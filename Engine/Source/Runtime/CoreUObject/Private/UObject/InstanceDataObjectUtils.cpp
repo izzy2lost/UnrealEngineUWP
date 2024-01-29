@@ -12,7 +12,10 @@ namespace UE
 	using FWildcardPropertyPathName = FPropertyPathName;
 	
 	static FName Name_ValuesSetBySerialization(TEXT("_ValuesSetBySerialization"));
-	static const FName NAME_StructOrignalTypeMetadata(TEXT("OriginalType"));
+	static const FName NAME_StructOriginalTypeMetadata(TEXT("OriginalType"));
+	static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
+	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
+	static const FName NAME_CategoryMetadata(TEXT("Category"));
 	
 	struct ResolvePropertyPathNameHelperParams
 	{
@@ -261,14 +264,16 @@ namespace UE
 			const FString* OriginalType = nullptr;
 #if WITH_EDITORONLY_DATA
 			//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
-			OriginalType = AsStructProperty->FindMetaData(NAME_StructOrignalTypeMetadata);
+			OriginalType = AsStructProperty->FindMetaData(NAME_StructOriginalTypeMetadata);
 			FField* OwnerField = OriginalType == nullptr ? AsStructProperty->Owner.ToField() : nullptr;
-			OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOrignalTypeMetadata) : OriginalType;
+			OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOriginalTypeMetadata) : OriginalType;
 #endif
 			const FName StructOriginalName = OriginalType ? FName(**OriginalType) : AsStructProperty->Struct->GetFName();
 			AsStructProperty->Struct = CreateInstanceDataObjectStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
 #if WITH_EDITORONLY_DATA
-			AsStructProperty->SetMetaData("OriginalType", StructOriginalName.ToString());
+			AsStructProperty->SetMetaData(NAME_StructOriginalTypeMetadata, StructOriginalName.ToString());
+			AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, StructOriginalName.ToString());
+			AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *StructOriginalName.ToString());
 #endif
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
@@ -292,9 +297,9 @@ namespace UE
 		}
 		
 #if WITH_EDITORONLY_DATA
-		if (!Property->HasMetaData(TEXT("category")))
+		if (!Property->HasMetaData(NAME_CategoryMetadata))
 		{
-			Property->SetMetaData(TEXT("category"), TEXT("Verse"));
+			Property->SetMetaData(NAME_CategoryMetadata, TEXT("Verse"));
 		}
 #endif
 	}
@@ -376,8 +381,8 @@ namespace UE
 	static void MarkPropertyAsLoose(FProperty* Property)
 	{
 #if WITH_EDITORONLY_DATA
-		Property->SetMetaData(TEXT("isLoose"), TEXT("True"));
-		Property->SetMetaData(TEXT("category"), TEXT("Loose Properties"));
+		Property->SetMetaData(NAME_IsLooseMetadata, TEXT("True"));
+		Property->SetMetaData(NAME_CategoryMetadata, TEXT("Loose Properties"));
 #endif
 		Property->SetPropertyFlags(CPF_Edit | CPF_EditConst);
 		if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
@@ -418,7 +423,7 @@ namespace UE
 		if (TemplateStruct)
 		{
 			const FName SuperName(TemplateStruct->GetName() + TEXT("_Super"));
-			Super = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, SuperName));
+			Super = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, SuperName));
 			
 			// Gather properties for Super Struct
 			TArray<FProperty*> SuperProperties;
@@ -434,9 +439,9 @@ namespace UE
 				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path);
 				
 #if WITH_EDITORONLY_DATA
-				if (!SuperProperty->HasMetaData(TEXT("category")))
+				if (!SuperProperty->HasMetaData(NAME_CategoryMetadata))
 				{
-					SuperProperty->SetMetaData(TEXT("category"), TEXT("Verse"));
+					SuperProperty->SetMetaData(NAME_CategoryMetadata, TEXT("Verse"));
 				}
 #endif
 				Path.Pop();
@@ -464,7 +469,7 @@ namespace UE
 		}
 
 		const FName InstanceDataObjectName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_InstanceDataObject")) : FName(TEXT("InstanceDataObject"));
-		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, InstanceDataObjectName));
+		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, InstanceDataObjectName));
 
 		// Gather "loose" properties for child Struct
 		TArray<FProperty*> LooseInstanceDataObjectProperties;
