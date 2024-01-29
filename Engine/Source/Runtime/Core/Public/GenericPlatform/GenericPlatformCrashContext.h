@@ -401,6 +401,9 @@ public:
 	/** Initialized crash context, using a crash context (e.g. shared from another process). */
 	CORE_API static void InitializeFromContext(const FSessionContext& Context, const TCHAR* EnabledPlugins, const TCHAR* EngineData, const TCHAR* GameData);
 
+	/** Get the current cached session context */
+	CORE_API static const FSessionContext& GetCachedSessionContext();
+
 	/**
 	 * @return true, if the generic crash context has been initialized.
 	 */
