@@ -35,7 +35,12 @@ class NNE_API INNERuntime
 
 public:
 
-	using ECanCreateModelDataStatus = UE::NNE::EResultStatus;
+	enum class ECanCreateModelDataStatus : uint8
+	{
+		Ok = 0,
+		Fail = 1,
+		FailFileIdNotSupported = 2
+	};
 
 	/**
 	 * Get the name of the runtime.

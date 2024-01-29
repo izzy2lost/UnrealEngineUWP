@@ -115,7 +115,7 @@ using namespace UE::NNERuntimeRDG::Private::Dml;
 UNNERuntimeRDGDmlImpl::ECanCreateModelDataStatus UNNERuntimeRDGDmlImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #ifdef NNE_UTILITIES_AVAILABLE
-	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::Fail;
+	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::FailFileIdNotSupported;
 #else
 	UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
 	return ECanCreateModelDataStatus::Fail;

@@ -136,13 +136,18 @@ namespace UE::NNE::ModelData
 		TWeakInterfacePtr<INNERuntime> NNERuntime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
 		if (NNERuntime.IsValid())
 		{
-			if (NNERuntime->CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) == INNERuntime::ECanCreateModelDataStatus::Ok)
+			INNERuntime::ECanCreateModelDataStatus CanCreateModelDataStatus = NNERuntime->CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
+			if (CanCreateModelDataStatus == INNERuntime::ECanCreateModelDataStatus::Ok)
 			{
 				return NNERuntime->CreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
 			}
+			else if (CanCreateModelDataStatus == INNERuntime::ECanCreateModelDataStatus::FailFileIdNotSupported)
+			{
+				UE_LOG(LogNNE, Display, TEXT("Runtime %s does not support Filetype: %s, skipping the model data creation for model with id %s "), *RuntimeName, *FileType, *FileId.ToString(EGuidFormats::Digits).ToLower());
+			}
 			else
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Runtime %s cannot create the model data with id %s (Filetype: %s)"), *RuntimeName , *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+				UE_LOG(LogNNE, Warning, TEXT("Runtime %s cannot create the model data with id %s (Filetype: %s)"), *RuntimeName, *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
 			}
 		}
 		else
