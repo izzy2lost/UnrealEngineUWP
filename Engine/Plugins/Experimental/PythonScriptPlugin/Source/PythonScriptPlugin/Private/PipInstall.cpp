@@ -315,6 +315,13 @@ void FPipInstall::CheckInvalidPipEnv()
 		return;
 	}
 
+	// If not a venv directory don't delete in case offline packages were added before editor run
+	FString VenvConfig = PipInstallPath / TEXT("pyvenv.cfg");
+	if (!FPaths::FileExists(VenvConfig))
+	{
+		return;
+	}
+
 	const FString VenvVersion = ParseVenvVersion(PipInstallPath);
 	if (VenvVersion == TEXT(PY_VERSION))
 	{
