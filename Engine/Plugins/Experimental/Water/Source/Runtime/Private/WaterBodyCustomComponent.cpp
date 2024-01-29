@@ -47,6 +47,15 @@ TArray<UPrimitiveComponent*> UWaterBodyCustomComponent::GetStandardRenderableCom
 	return Result;
 }
 
+FBoxSphereBounds UWaterBodyCustomComponent::CalcBounds(const FTransform& LocalToWorld) const
+{
+	if (MeshComp)
+	{
+		return MeshComp->CalcBounds(MeshComp->GetRelativeTransform()).TransformBy(LocalToWorld);
+	}
+	return Super::CalcBounds(LocalToWorld);
+}
+
 void UWaterBodyCustomComponent::Reset()
 {
 	AActor* Owner = GetOwner();

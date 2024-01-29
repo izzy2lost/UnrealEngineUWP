@@ -1016,13 +1016,13 @@ ALandscapeProxy* UWaterBodyComponent::FindLandscape() const
 {
 	if (!Landscape.IsValid())
 	{
-		const FVector Location = GetComponentLocation();
+		const FBox ComponentBounds = Bounds.GetBox();
 		for (TObjectIterator<ALandscapeProxy> It; It; ++It)
 		{
 			if (It->GetWorld() == GetWorld())
 			{
-				FBox Box = It->GetComponentsBoundingBox();
-				if (Box.IsInsideOrOnXY(Location))
+				const FBox Box = It->GetComponentsBoundingBox();
+				if (Box.IntersectXY(ComponentBounds))
 				{
 					Landscape = *It;
 					return Landscape.Get();
