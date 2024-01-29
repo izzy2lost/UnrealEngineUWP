@@ -61,7 +61,8 @@ namespace Lumen
 	{
 		return bShouldRenderInMainPass
 			&& ShouldIncludeDomainInMeshPass(Material.GetMaterialDomain())
-			&& Material.IsTranslucencyWritingFrontLayerTransparency();
+			&& Material.IsTranslucencyWritingFrontLayerTransparency()
+			&& !Material.IsTranslucencyAfterMotionBlurEnabled(); // see MTP_AfterMotionBlur
 	}
 }
 
