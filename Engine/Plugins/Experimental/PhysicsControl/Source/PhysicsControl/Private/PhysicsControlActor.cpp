@@ -12,7 +12,6 @@
 FInitialCharacterControls::FInitialCharacterControls() = default;
 FInitialCharacterControls::~FInitialCharacterControls() = default;
 
-
 //======================================================================================================================
 void UPhysicsControlInitializerComponent::CreateInitialCharacterControls(UPhysicsControlComponent* ControlComponent)
 {

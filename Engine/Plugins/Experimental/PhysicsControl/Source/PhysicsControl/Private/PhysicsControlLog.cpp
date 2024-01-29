@@ -2,5 +2,4 @@
 
 #include "PhysicsControlLog.h"
 
-PHYSICSCONTROL_API DEFINE_LOG_CATEGORY(LogPhysicsControlComponent);
-PHYSICSCONTROL_API DEFINE_LOG_CATEGORY(LogRigidBodyWithControl);
+PHYSICSCONTROL_API DEFINE_LOG_CATEGORY(LogPhysicsControl);

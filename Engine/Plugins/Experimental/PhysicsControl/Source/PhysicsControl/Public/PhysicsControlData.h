@@ -93,6 +93,8 @@ struct PHYSICSCONTROL_API FPhysicsControlSetUpdates
 {
 	GENERATED_BODY();
 
+	FPhysicsControlSetUpdates& operator+=(const FPhysicsControlSetUpdates& Other);
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	TArray<FPhysicsControlSetUpdate> ControlSetUpdates;
 
@@ -260,6 +262,41 @@ struct PHYSICSCONTROL_API FPhysicsControlModifierData
 	uint8 bUpdateKinematicFromSimulation : 1;
 };
 
+
+/**
+ * Represents a single/individual body modifier, with the modifier data
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsBodyModifier
+{
+	GENERATED_BODY();
+
+	FPhysicsBodyModifier() {}
+
+	FPhysicsBodyModifier(FName InBoneName, const FPhysicsControlModifierData& InModifierData)
+		: BoneName(InBoneName), ModifierData(InModifierData) {}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	FName BoneName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	FPhysicsControlModifierData ModifierData;
+};
+
+/**
+ * Used on creation, to allow requesting the modifier to be in certain sets
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsBodyModifierCreationData
+{
+	GENERATED_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	FPhysicsBodyModifier Modifier;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TArray<FName> Sets;
+};
 
 /**
  * Strength and damping etc parameters that will affect a control, with flags indicating
@@ -819,32 +856,21 @@ struct PHYSICSCONTROL_API FPhysicsControl
 	FPhysicsControl() {}
 
 	FPhysicsControl(
-		UMeshComponent*              InParentMeshComponent,
 		const FName&                 InParentBoneName,
-		UMeshComponent*              InChildMeshComponent,
 		const FName&                 InChildBoneName,
-		const FPhysicsControlData&   InControlData,
-		const FPhysicsControlTarget& InControlTarget)
-		: ParentMeshComponent(InParentMeshComponent)
-		, ParentBoneName(InParentBoneName)
-		, ChildMeshComponent(InChildMeshComponent)
+		const FPhysicsControlData&   InControlData)
+		: ParentBoneName(InParentBoneName)
 		, ChildBoneName(InChildBoneName)
 		, ControlData(InControlData)
-		, ControlTarget(InControlTarget)
 	{
 	}
 
-	/**  The mesh that will be doing the driving. Blank/non-existent means it will happen in world space */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TWeakObjectPtr<UMeshComponent> ParentMeshComponent;
+	// Indicates if the control is enabled
+	bool IsEnabled() const { return ControlData.bEnabled; }
 
 	/** The name of the skeletal mesh bone or the name of the static mesh body that will be doing the driving. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FName ParentBoneName;
-
-	/** The mesh that the control will be driving. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	TWeakObjectPtr<UMeshComponent> ChildMeshComponent;
 
 	/** 
 	 * The name of the skeletal mesh bone or the name of the static mesh body that the control 
@@ -865,14 +891,21 @@ struct PHYSICSCONTROL_API FPhysicsControl
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
 	FPhysicsControlMultiplier ControlMultiplier;
+};
 
-	/**
-	 * The position/orientation etc targets for the controls. These are procedural/explicit control targets -
-	 * skeletal meshes have the option to use skeletal animation as well, in which case these targets are 
-	 * expressed as relative to that animation.
-	 */
+/**
+ * Used on creation, to allow requesting the control to be in certain sets
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlCreationData
+{
+	GENERATED_BODY();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
-	FPhysicsControlTarget ControlTarget;
+	FPhysicsControl Control;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TArray<FName> Sets;
 };
 
 /**
@@ -954,7 +987,15 @@ struct PHYSICSCONTROL_API FPhysicsControlControlAndModifierParameters
 	 */ 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
 	TArray<FPhysicsControlNamedControlParameters> ControlParameters;
-	
+
+	/**
+	 * Multipliers for existing controls. Each name can be the name of a control, or the name of a 
+	 * set of controls. They will only apply for one tick/update. They will be applied in order (so 
+	 * subsequent entries will override earlier ones if they apply to the same control).
+	 */ 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	TArray<FPhysicsControlNamedControlMultiplierParameters> ControlMultiplierParameters;
+
 	/**
 	 *  Parameters for existing modifiers. Each name can be the name of a modifier, or the name of a 
 	 * set of modifiers. They will only apply for one tick/update.
@@ -963,6 +1004,7 @@ struct PHYSICSCONTROL_API FPhysicsControlControlAndModifierParameters
 	TArray<FPhysicsControlNamedModifierParameters> ModifierParameters;
 
 	void Add(const FPhysicsControlNamedControlParameters& InParameters) { ControlParameters.Add(InParameters); }
+	void Add(const FPhysicsControlNamedControlMultiplierParameters& InParameters) { ControlMultiplierParameters.Add(InParameters); }
 	void Add(const FPhysicsControlNamedModifierParameters& InParameters) { ModifierParameters.Add(InParameters); }
 };
 
@@ -988,6 +1030,23 @@ struct PHYSICSCONTROL_API FPhysicsControlControlAndModifierUpdates
 	TArray<FPhysicsControlNamedModifierParameters> ModifierUpdates;
 };
 
+/**
+ * Collection of controls and body modifiers, used for creation
+ */
+USTRUCT(BlueprintType)
+struct PHYSICSCONTROL_API FPhysicsControlAndBodyModifierCreationDatas
+{
+	GENERATED_BODY();
+
+	FPhysicsControlAndBodyModifierCreationDatas& operator+=(const FPhysicsControlAndBodyModifierCreationDatas& other);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TMap<FName, FPhysicsControlCreationData> Controls;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PhysicsControl)
+	TMap<FName, FPhysicsBodyModifierCreationData> Modifiers;
+};
+
 // Functions to interpolate between various control/modifier datas
 PHYSICSCONTROL_API FPhysicsControlData Interpolate(
 	const FPhysicsControlData& A, const FPhysicsControlData& B, const float Weight);
@@ -998,5 +1057,7 @@ PHYSICSCONTROL_API FPhysicsControlModifierData Interpolate(
 	const FPhysicsControlModifierData& A, const FPhysicsControlModifierData& B, const float Weight);
 PHYSICSCONTROL_API FPhysicsControlModifierSparseData Interpolate(
 	const FPhysicsControlModifierSparseData& A, const FPhysicsControlModifierSparseData& B, const float Weight);
+
+
 
 

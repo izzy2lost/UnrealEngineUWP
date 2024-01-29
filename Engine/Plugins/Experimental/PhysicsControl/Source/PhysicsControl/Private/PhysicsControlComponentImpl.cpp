@@ -26,7 +26,7 @@
 static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlParent(
 	const FPhysicsControlRecord& Record)
 {
-	return Cast<USkeletalMeshComponent>(Record.PhysicsControl.ParentMeshComponent.Get());
+	return Cast<USkeletalMeshComponent>(Record.ParentMeshComponent.Get());
 }
 
 //======================================================================================================================
@@ -34,13 +34,13 @@ static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlParent(
 static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromControlChild(
 	const FPhysicsControlRecord& Record)
 {
-	return Cast<USkeletalMeshComponent>(Record.PhysicsControl.ChildMeshComponent.Get());
+	return Cast<USkeletalMeshComponent>(Record.ChildMeshComponent.Get());
 }
 
 //======================================================================================================================
 // Helper to get a valid skeletal mesh component pointer from a record
 static USkeletalMeshComponent* GetValidSkeletalMeshComponentFromBodyModifier(
-	const FPhysicsBodyModifier& PhysicsBodyModifier)
+	const FPhysicsBodyModifierRecord& PhysicsBodyModifier)
 {
 	return Cast<USkeletalMeshComponent>(PhysicsBodyModifier.MeshComponent.Get());
 }
@@ -57,7 +57,7 @@ bool UPhysicsControlComponent::GetBoneData(
 
 	if (BoneIndex == INDEX_NONE)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Failed to find BoneIndex for %s"), *InBoneName.ToString());
+		UE_LOG(LogPhysicsControl, Warning, TEXT("Failed to find BoneIndex for %s"), *InBoneName.ToString());
 		return false;
 	}
 
@@ -71,10 +71,10 @@ bool UPhysicsControlComponent::GetBoneData(
 			OutBoneData = CachedSkeletalMeshData->BoneData[BoneIndex];
 			return true;
 		}
-		UE_LOG(LogPhysicsControlComponent, Warning, TEXT("BoneIndex is out of range"));
+		UE_LOG(LogPhysicsControl, Warning, TEXT("BoneIndex is out of range"));
 
 	}
-	UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Failed to find bone data for %s"), *InBoneName.ToString());
+	UE_LOG(LogPhysicsControl, Warning, TEXT("Failed to find bone data for %s"), *InBoneName.ToString());
 	return false;
 }
 
@@ -90,7 +90,7 @@ bool UPhysicsControlComponent::GetModifiableBoneData(
 
 	if (BoneIndex == INDEX_NONE)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Failed to find BoneIndex for %s"), *InBoneName.ToString());
+		UE_LOG(LogPhysicsControl, Warning, TEXT("Failed to find BoneIndex for %s"), *InBoneName.ToString());
 		return false;
 	}
 
@@ -104,10 +104,10 @@ bool UPhysicsControlComponent::GetModifiableBoneData(
 			OutBoneData = &CachedSkeletalMeshData->BoneData[BoneIndex];
 			return true;
 		}
-		UE_LOG(LogPhysicsControlComponent, Warning, TEXT("BoneIndex is out of range"));
+		UE_LOG(LogPhysicsControl, Warning, TEXT("BoneIndex is out of range"));
 
 	}
-	UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Failed to find bone data for %s"), *InBoneName.ToString());
+	UE_LOG(LogPhysicsControl, Warning, TEXT("Failed to find bone data for %s"), *InBoneName.ToString());
 	return false;
 }
 
@@ -115,7 +115,7 @@ bool UPhysicsControlComponent::GetModifiableBoneData(
 //======================================================================================================================
 FPhysicsControlRecord* UPhysicsControlComponent::FindControlRecord(const FName Name)
 {
-	if (FPhysicsControlRecord* Record = PhysicsControlRecords.Find(Name))
+	if (FPhysicsControlRecord* Record = ControlRecords.Find(Name))
 	{
 		return Record;
 	}
@@ -125,7 +125,7 @@ FPhysicsControlRecord* UPhysicsControlComponent::FindControlRecord(const FName N
 //======================================================================================================================
 const FPhysicsControlRecord* UPhysicsControlComponent::FindControlRecord(const FName Name) const
 {
-	if (const FPhysicsControlRecord* Record = PhysicsControlRecords.Find(Name))
+	if (const FPhysicsControlRecord* Record = ControlRecords.Find(Name))
 	{
 		return Record;
 	}
@@ -242,7 +242,7 @@ void UPhysicsControlComponent::UpdateCachedSkeletalBoneData(float Dt)
 //======================================================================================================================
 void UPhysicsControlComponent::ResetControls(bool bKeepControlRecords)
 {
-	for (TPair<FName, FPhysicsControlRecord>& PhysicsControlRecordPair : PhysicsControlRecords)
+	for (TPair<FName, FPhysicsControlRecord>& PhysicsControlRecordPair : ControlRecords)
 	{
 		FPhysicsControlRecord& Record = PhysicsControlRecordPair.Value;
 		Record.ResetConstraint();
@@ -250,18 +250,18 @@ void UPhysicsControlComponent::ResetControls(bool bKeepControlRecords)
 
 	if (!bKeepControlRecords)
 	{
-		PhysicsControlRecords.Empty();
+		ControlRecords.Empty();
 	}
 }
 
 //======================================================================================================================
-void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifier& BodyModifier) const
+void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifierRecord& Record) const
 {
 	// Seems like static and skeletal meshes need to be handled differently
-	if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(BodyModifier))
+	if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(Record))
 	{
-		FBodyInstance* BodyInstance = UE::PhysicsControlComponent::GetBodyInstance(
-			BodyModifier.MeshComponent.Get(), BodyModifier.BoneName);
+		FBodyInstance* BodyInstance = UE::PhysicsControl::GetBodyInstance(
+			Record.MeshComponent.Get(), Record.BodyModifier.BoneName);
 		if (!BodyInstance)
 		{
 			return;
@@ -269,12 +269,12 @@ void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifier& 
 
 		const FTransform TM = BodyInstance->GetUnrealWorldTransform(); // Preserve scale
 		FTransform KinematicTarget = TM;
-		KinematicTarget.SetRotation(BodyModifier.KinematicTargetOrientation);
-		KinematicTarget.SetTranslation(BodyModifier.KinematicTargetPosition);
-		if (BodyModifier.BodyModifierData.bUseSkeletalAnimation)
+		KinematicTarget.SetRotation(Record.KinematicTargetOrientation);
+		KinematicTarget.SetTranslation(Record.KinematicTargetPosition);
+		if (Record.BodyModifier.ModifierData.bUseSkeletalAnimation)
 		{
 			FCachedSkeletalMeshData::FBoneData BoneData;
-			if (GetBoneData(BoneData, SkeletalMeshComponent, BodyModifier.BoneName))
+			if (GetBoneData(BoneData, SkeletalMeshComponent, Record.BodyModifier.BoneName))
 			{
 				FTransform BoneTM = BoneData.GetTM();
 				KinematicTarget = KinematicTarget * BoneTM;
@@ -285,31 +285,31 @@ void UPhysicsControlComponent::ApplyKinematicTarget(const FPhysicsBodyModifier& 
 	}
 	else
 	{
-		const FTransform TM = BodyModifier.MeshComponent->GetComponentToWorld();
+		const FTransform TM = Record.MeshComponent->GetComponentToWorld();
 		const ETeleportType TT = DetectTeleport(
 			TM.GetTranslation(), TM.GetRotation(), 
-			BodyModifier.KinematicTargetPosition, BodyModifier.KinematicTargetOrientation) 
+			Record.KinematicTargetPosition, Record.KinematicTargetOrientation)
 			? ETeleportType::ResetPhysics : ETeleportType::None;
 		// Note that calling BodyInstance->SetBodyTransform moves the physics, but not the mesh
-		BodyModifier.MeshComponent->SetWorldLocationAndRotation(
-			BodyModifier.KinematicTargetPosition, BodyModifier.KinematicTargetOrientation, false, nullptr, TT);
+		Record.MeshComponent->SetWorldLocationAndRotation(
+			Record.KinematicTargetPosition, Record.KinematicTargetOrientation, false, nullptr, TT);
 	}
 }
 
 //======================================================================================================================
-void UPhysicsControlComponent::ResetToCachedTarget(const FPhysicsBodyModifier& BodyModifier) const
+void UPhysicsControlComponent::ResetToCachedTarget(const FPhysicsBodyModifierRecord& Record) const
 {
-	FBodyInstance* BodyInstance = UE::PhysicsControlComponent::GetBodyInstance(
-		BodyModifier.MeshComponent.Get(), BodyModifier.BoneName);
+	FBodyInstance* BodyInstance = UE::PhysicsControl::GetBodyInstance(
+		Record.MeshComponent.Get(), Record.BodyModifier.BoneName);
 	if (!BodyInstance)
 	{
 		return;
 	}
 
-	if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(BodyModifier))
+	if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(Record))
 	{
 		FCachedSkeletalMeshData::FBoneData BoneData;
-		if (GetBoneData(BoneData, SkeletalMeshComponent, BodyModifier.BoneName))
+		if (GetBoneData(BoneData, SkeletalMeshComponent, Record.BodyModifier.BoneName))
 		{
 			FTransform BoneTM = BodyInstance->GetUnrealWorldTransform(); // Preserve scale
 			BoneTM.SetLocation(BoneData.Position);
@@ -350,7 +350,7 @@ bool UPhysicsControlComponent::RemoveSkeletalMeshReferenceForCaching(
 	check(InSkeletalMeshComponent);
 	if (!InSkeletalMeshComponent)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Invalid skeletal mesh component"));
+		UE_LOG(LogPhysicsControl, Warning, TEXT("Invalid skeletal mesh component"));
 		return false;
 	}
 
@@ -370,7 +370,7 @@ bool UPhysicsControlComponent::RemoveSkeletalMeshReferenceForCaching(
 			return false;
 		}
 	}
-	UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Failed to remove skeletal mesh component reference for caching"));
+	UE_LOG(LogPhysicsControl, Warning, TEXT("Failed to remove skeletal mesh component reference for caching"));
 	return false;
 }
 
@@ -415,7 +415,7 @@ bool UPhysicsControlComponent::RemoveSkeletalMeshReferenceForModifier(
 	check(InSkeletalMeshComponent);
 	if (!InSkeletalMeshComponent)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Invalid skeletal mesh component"));
+		UE_LOG(LogPhysicsControl, Warning, TEXT("Invalid skeletal mesh component"));
 		return false;
 	}
 
@@ -435,75 +435,8 @@ bool UPhysicsControlComponent::RemoveSkeletalMeshReferenceForModifier(
 			return false;
 		}
 	}
-	UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Failed to remove skeletal mesh component reference for modifier"));
+	UE_LOG(LogPhysicsControl, Warning, TEXT("Failed to remove skeletal mesh component reference for modifier"));
 	return false;
-}
-
-//======================================================================================================================
-FName UPhysicsControlComponent::GetUniqueControlName(
-	const FName ParentBoneName, const FName ChildBoneName, const FString& NamePrefix) const
-{
-	FString NameBase = NamePrefix;
-	if (!ParentBoneName.IsNone())
-	{
-		NameBase += ParentBoneName.ToString() + TEXT("_");
-	}
-	if (!ChildBoneName.IsNone())
-	{
-		NameBase += ChildBoneName.ToString() + TEXT("_");
-	}
-
-	TSet<FName> Keys;
-	PhysicsControlRecords.GetKeys(Keys);
-	// If the number gets too large, almost certainly we're in some nasty situation where this is
-	// getting called in a loop. Better to quit and fail, rather than allow the constraint set to
-	// increase without bound. 
-	for (int32 Index = 0; Index < MaxNumControlsOrModifiersPerName; ++Index)
-	{
-		FString NameStr = FString::Format(TEXT("{0}{1}"), { NameBase, Index });
-		FName Name(NameStr);
-		if (!Keys.Find(Name))
-		{
-			return Name;
-		}
-	}
-	UE_LOG(LogPhysicsControlComponent, Warning,
-		TEXT("Unable to find a suitable Control name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
-		MaxNumControlsOrModifiersPerName);
-	return FName();
-}
-
-//======================================================================================================================
-FName UPhysicsControlComponent::GetUniqueBodyModifierName(const FName BoneName) const
-{
-	FString NameBase = TEXT("");
-	if (!BoneName.IsNone())
-	{
-		NameBase += BoneName.ToString() + TEXT("_");
-	}
-	else
-	{
-		NameBase = TEXT("Body_");
-	}
-
-	TSet<FName> Keys;
-	PhysicsBodyModifiers.GetKeys(Keys);
-	// If the number gets too large, almost certainly we're in some nasty situation where this is
-	// getting called in a loop. Better to quit and fail, rather than allow the modifier set to
-	// increase without bound. 
-	for (int32 Index = 0; Index != MaxNumControlsOrModifiersPerName; ++Index)
-	{
-		FString NameStr = FString::Format(TEXT("{0}{1}"), { NameBase, Index });
-		FName Name(NameStr);
-		if (!Keys.Find(Name))
-		{
-			return Name;
-		}
-	}
-	UE_LOG(LogPhysicsControlComponent, Warning,
-		TEXT("Unable to find a suitable Body Modifier name - the limit of MaxNumControlsOrModifiersPerName (%d) has been exceeded"),
-		MaxNumControlsOrModifiersPerName);
-	return FName();
 }
 
 //======================================================================================================================
@@ -539,13 +472,13 @@ void UPhysicsControlComponent::CalculateControlTargetData(
 			bHaveParentBoneData = GetBoneData(
 				ParentBoneData, ParentSkeletalMeshComponent, Record.PhysicsControl.ParentBoneName);
 		}
-		else if (Record.PhysicsControl.ParentMeshComponent.IsValid())
+		else if (Record.ParentMeshComponent.IsValid())
 		{
-			const FTransform ParentTM = Record.PhysicsControl.ParentMeshComponent->GetComponentTransform();
+			const FTransform ParentTM = Record.ParentMeshComponent->GetComponentTransform();
 			ParentBoneData.Position = ParentTM.GetLocation();
 			ParentBoneData.Orientation = ParentTM.GetRotation();
-			ParentBoneData.Velocity = Record.PhysicsControl.ParentMeshComponent->GetPhysicsLinearVelocity();
-			ParentBoneData.AngularVelocity = Record.PhysicsControl.ParentMeshComponent->GetPhysicsAngularVelocityInRadians();
+			ParentBoneData.Velocity = Record.ParentMeshComponent->GetPhysicsLinearVelocity();
+			ParentBoneData.AngularVelocity = Record.ParentMeshComponent->GetPhysicsAngularVelocityInRadians();
 			bHaveParentBoneData = true;
 			bCalculateVelocity = false;
 		}
@@ -640,7 +573,7 @@ void UPhysicsControlComponent::CalculateControlTargetData(
 	// Now apply the explicit target specified in the record. It operates in the space of the target
 	// transform we (may have) just calculated.
 	{
-		const FPhysicsControlTarget& Target = Record.PhysicsControl.ControlTarget;
+		const FPhysicsControlTarget& Target = Record.ControlTarget;
 
 		// Calculate the authored target position/orientation - i.e. not using the skeletal animation
 		FQuat TargetOrientationQ = Target.TargetOrientation.Quaternion();
@@ -650,7 +583,7 @@ void UPhysicsControlComponent::CalculateControlTargetData(
 		// Incorporate the offset from the control point. If we used animation, then we don't need
 		// to do this.
 		if (!bUsedSkeletalAnimation && 
-			Record.PhysicsControl.ControlTarget.bApplyControlPointToTarget)
+			Record.ControlTarget.bApplyControlPointToTarget)
 		{
 			ExtraTargetPosition = TargetOrientationQ * Record.GetControlPoint();
 		}
@@ -684,12 +617,12 @@ bool UPhysicsControlComponent::ApplyControlStrengths(
 	FVector LinearDamping;
 	const FVector MaxForce = Data.MaxForce * Multiplier.MaxForceMultiplier;
 
-	UE::PhysicsControlComponent::ConvertStrengthToSpringParams(
+	UE::PhysicsControl::ConvertStrengthToSpringParams(
 		AngularSpring, AngularDamping,
 		Data.AngularStrength * Multiplier.AngularStrengthMultiplier,
 		Data.AngularDampingRatio * Multiplier.AngularDampingRatioMultiplier,
 		Data.AngularExtraDamping * Multiplier.AngularExtraDampingMultiplier);
-	UE::PhysicsControlComponent::ConvertStrengthToSpringParams(
+	UE::PhysicsControl::ConvertStrengthToSpringParams(
 		LinearSpring, LinearDamping,
 		Data.LinearStrength * Multiplier.LinearStrengthMultiplier,
 		Data.LinearDampingRatio * Multiplier.LinearDampingRatioMultiplier,
@@ -736,7 +669,7 @@ void UPhysicsControlComponent::ApplyControl(FPhysicsControlRecord& Record)
 		return;
 	}
 
-	if (!Record.Enabled())
+	if (!Record.PhysicsControl.IsEnabled())
 	{
 		// Note that this will disable the constraint elements when strength/damping are zero
 		ConstraintInstance->SetDriveParams(
@@ -750,11 +683,11 @@ void UPhysicsControlComponent::ApplyControl(FPhysicsControlRecord& Record)
 	// constraint-controlled collision doesn't interact nicely when there are multiple constraints.
 	ConstraintInstance->SetDisableCollision(Record.PhysicsControl.ControlData.bDisableCollision);
 
-	FBodyInstance* ParentBodyInstance = UE::PhysicsControlComponent::GetBodyInstance(
-		Record.PhysicsControl.ParentMeshComponent.Get(), Record.PhysicsControl.ParentBoneName);
+	FBodyInstance* ParentBodyInstance = UE::PhysicsControl::GetBodyInstance(
+		Record.ParentMeshComponent.Get(), Record.PhysicsControl.ParentBoneName);
 
-	FBodyInstance* ChildBodyInstance = UE::PhysicsControlComponent::GetBodyInstance(
-		Record.PhysicsControl.ChildMeshComponent.Get(), Record.PhysicsControl.ChildBoneName);
+	FBodyInstance* ChildBodyInstance = UE::PhysicsControl::GetBodyInstance(
+		Record.ChildMeshComponent.Get(), Record.PhysicsControl.ChildBoneName);
 
 	if (!ParentBodyInstance && !ChildBodyInstance)
 	{
@@ -787,36 +720,36 @@ void UPhysicsControlComponent::ApplyControl(FPhysicsControlRecord& Record)
 }
 
 //======================================================================================================================
-void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifier& BodyModifier)
+void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifierRecord& Record)
 {
-	USkeletalMeshComponent* SKM = GetValidSkeletalMeshComponentFromBodyModifier(BodyModifier);
-	FBodyInstance* BodyInstance = UE::PhysicsControlComponent::GetBodyInstance(
-		BodyModifier.MeshComponent.Get(), BodyModifier.BoneName);
+	USkeletalMeshComponent* SKM = GetValidSkeletalMeshComponentFromBodyModifier(Record);
+	FBodyInstance* BodyInstance = UE::PhysicsControl::GetBodyInstance(
+		Record.MeshComponent.Get(), Record.BodyModifier.BoneName);
 	if (BodyInstance)
 	{
-		switch (BodyModifier.BodyModifierData.MovementType)
+		switch (Record.BodyModifier.ModifierData.MovementType)
 		{
 		case EPhysicsMovementType::Static:
 			BodyInstance->SetInstanceSimulatePhysics(false, false, true);
 			break;
 		case EPhysicsMovementType::Kinematic:
 			BodyInstance->SetInstanceSimulatePhysics(false, false, true);
-			ApplyKinematicTarget(BodyModifier);
+			ApplyKinematicTarget(Record);
 			break;
 		case EPhysicsMovementType::Simulated:
 			BodyInstance->SetInstanceSimulatePhysics(true, false, true);
 			break;
 		default:
-			UE_LOG(LogPhysicsControlComponent, Warning, TEXT("Invalid movement type %d"),
-				int(BodyModifier.BodyModifierData.MovementType));
+			UE_LOG(LogPhysicsControl, Warning, TEXT("Invalid movement type %d"),
+				int(Record.BodyModifier.ModifierData.MovementType));
 			break;
 		}
 
 		// We always overwrite the physics blend weight, since the functions above can still modify
 		// it (even though they all use the "maintain physics blending" option), since there is an
 		// expectation that zero blend weight means to disable physics.
-		BodyInstance->PhysicsBlendWeight = BodyModifier.BodyModifierData.PhysicsBlendWeight;
-		BodyInstance->SetUpdateKinematicFromSimulation(BodyModifier.BodyModifierData.bUpdateKinematicFromSimulation);
+		BodyInstance->PhysicsBlendWeight = Record.BodyModifier.ModifierData.PhysicsBlendWeight;
+		BodyInstance->SetUpdateKinematicFromSimulation(Record.BodyModifier.ModifierData.bUpdateKinematicFromSimulation);
 
 		UBodySetup* BodySetup = BodyInstance->GetBodySetup();
 		if (BodySetup)
@@ -824,7 +757,7 @@ void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifier& BodyModif
 			int32 NumShapes = BodySetup->AggGeom.GetElementCount();
 			for (int32 ShapeIndex = 0; ShapeIndex != NumShapes; ++ShapeIndex)
 			{
-				BodyInstance->SetShapeCollisionEnabled(ShapeIndex, BodyModifier.BodyModifierData.CollisionType);
+				BodyInstance->SetShapeCollisionEnabled(ShapeIndex, Record.BodyModifier.ModifierData.CollisionType);
 			}
 		}
 
@@ -832,29 +765,28 @@ void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifier& BodyModif
 		{
 			const float GravityZ = BodyInstance->GetPhysicsScene()->GetOwningWorld()->GetGravityZ();
 			const float AppliedGravityZ = BodyInstance->bEnableGravity ? GravityZ : 0.0f;
-			const float DesiredGravityZ = GravityZ * BodyModifier.BodyModifierData.GravityMultiplier;
+			const float DesiredGravityZ = GravityZ * Record.BodyModifier.ModifierData.GravityMultiplier;
 			const float GravityZToApply = DesiredGravityZ - AppliedGravityZ;
 			BodyInstance->AddForce(FVector(0, 0, GravityZToApply), true, true);
 		}
 	}
-	if (BodyModifier.bResetToCachedTarget)
+	if (Record.bResetToCachedTarget)
 	{
-		BodyModifier.bResetToCachedTarget = false;
-		ResetToCachedTarget(BodyModifier);
+		Record.bResetToCachedTarget = false;
+		ResetToCachedTarget(Record);
 	}
 }
 
-
 //======================================================================================================================
-FPhysicsBodyModifier* UPhysicsControlComponent::FindBodyModifier(const FName Name)
+FPhysicsBodyModifierRecord* UPhysicsControlComponent::FindBodyModifierRecord(const FName Name)
 {
-	return PhysicsBodyModifiers.Find(Name);
+	return BodyModifierRecords.Find(Name);
 }
 
 //======================================================================================================================
-const FPhysicsBodyModifier* UPhysicsControlComponent::FindBodyModifier(const FName Name) const
+const FPhysicsBodyModifierRecord* UPhysicsControlComponent::FindBodyModifierRecord(const FName Name) const
 {
-	return PhysicsBodyModifiers.Find(Name);
+	return BodyModifierRecords.Find(Name);
 }
 
 //======================================================================================================================
@@ -876,13 +808,13 @@ bool UPhysicsControlComponent::DestroyControl(const FName Name, const EDestroyBe
 		NameRecords.RemoveControl(Name);
 		if (DestroyBehavior == EDestroyBehavior::RemoveRecord)
 		{
-			check(PhysicsControlRecords.Remove(Name) == 1);
+			check(ControlRecords.Remove(Name) == 1);
 		}
 		return true;
 	}
 	if (bWarnAboutInvalidNames)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("DestroyControl - invalid name %s"), *Name.ToString());
 	}
 	return false;
@@ -891,7 +823,7 @@ bool UPhysicsControlComponent::DestroyControl(const FName Name, const EDestroyBe
 //======================================================================================================================
 bool UPhysicsControlComponent::DestroyBodyModifier(const FName Name, const EDestroyBehavior DestroyBehavior)
 {
-	FPhysicsBodyModifier* BodyModifier = FindBodyModifier(Name);
+	FPhysicsBodyModifierRecord* BodyModifier = FindBodyModifierRecord(Name);
 	if (BodyModifier)
 	{
 		if (USkeletalMeshComponent* SkeletalMeshComponent = GetValidSkeletalMeshComponentFromBodyModifier(*BodyModifier))
@@ -902,13 +834,13 @@ bool UPhysicsControlComponent::DestroyBodyModifier(const FName Name, const EDest
 		NameRecords.RemoveBodyModifier(Name);
 		if (DestroyBehavior == EDestroyBehavior::RemoveRecord)
 		{
-			check(PhysicsBodyModifiers.Remove(Name) == 1);
+			check(BodyModifierRecords.Remove(Name) == 1);
 		}
 		return true;
 	}
 	if (bWarnAboutInvalidNames)
 	{
-		UE_LOG(LogPhysicsControlComponent, Warning,
+		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("DestroyBodyModifier - invalid name %s"), *Name.ToString());
 	}
 	return false;

@@ -34,12 +34,16 @@ UAnimGraphNode_RigidBodyWithControl::UAnimGraphNode_RigidBodyWithControl(const F
 
 FText UAnimGraphNode_RigidBodyWithControl::GetControllerDescription() const
 {
-	return LOCTEXT("AnimGraphNode_RigidBodyWithControl_ControllerDescription", "Rigid body simulation with Control for physics asset");
+	return LOCTEXT(
+		"AnimGraphNode_RigidBodyWithControl_ControllerDescription", 
+		"Rigid body simulation with Control for physics asset");
 }
 
 FText UAnimGraphNode_RigidBodyWithControl::GetTooltipText() const
 {
-	return LOCTEXT("AnimGraphNode_RigidBodyWithControl_Tooltip", "This simulates based on the skeletal mesh component's physics asset with control options");
+	return LOCTEXT(
+		"AnimGraphNode_RigidBodyWithControl_Tooltip", 
+		"This simulates based on the skeletal mesh component's physics asset with control options");
 }
 
 FText UAnimGraphNode_RigidBodyWithControl::GetNodeTitle(ENodeTitleType::Type TitleType) const
@@ -57,21 +61,29 @@ FString UAnimGraphNode_RigidBodyWithControl::GetNodeCategory() const
 	return TEXT("Animation|Dynamics");
 }
 
-void UAnimGraphNode_RigidBodyWithControl::ValidateAnimNodeDuringCompilation(USkeleton* ForSkeleton, FCompilerResultsLog& MessageLog)
+void UAnimGraphNode_RigidBodyWithControl::ValidateAnimNodeDuringCompilation(
+	USkeleton* ForSkeleton, FCompilerResultsLog& MessageLog)
 {
 	Super::ValidateAnimNodeDuringCompilation(ForSkeleton, MessageLog);
 }
 
-void UAnimGraphNode_RigidBodyWithControl::Draw(FPrimitiveDrawInterface* PDI, USkeletalMeshComponent* PreviewSkelMeshComp, const bool bIsSelected, const bool bIsPoseWatchEnabled) const
+void UAnimGraphNode_RigidBodyWithControl::Draw(
+	FPrimitiveDrawInterface* PDI, 
+	USkeletalMeshComponent*  PreviewSkelMeshComp, 
+	const bool               bIsSelected, 
+	const bool               bIsPoseWatchEnabled) const
 {
-	if (const FAnimNode_RigidBodyWithControl* const RuntimeRigidBodyNode = GetDebuggedAnimNode<FAnimNode_RigidBodyWithControl>())
+	if (const FAnimNode_RigidBodyWithControl* const RuntimeRigidBodyNode = 
+		GetDebuggedAnimNode<FAnimNode_RigidBodyWithControl>())
 	{
 		if (UPhysicsAsset* const PhysicsAsset = RuntimeRigidBodyNode->GetPhysicsAsset())
 		{
-			IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+			IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = 
+				IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 
 			// Draw Bodies.
-			if (bIsSelected || (bIsPoseWatchEnabled && PoseWatchElementBodies.IsValid() && PoseWatchElementBodies->GetIsVisible()))
+			if (bIsSelected || 
+				(bIsPoseWatchEnabled && PoseWatchElementBodies.IsValid() && PoseWatchElementBodies->GetIsVisible()))
 			{
 				FColor PrimitiveColorOverride = FColor::Transparent;
 
@@ -82,11 +94,13 @@ void UAnimGraphNode_RigidBodyWithControl::Draw(FPrimitiveDrawInterface* PDI, USk
 					PrimitiveColorOverride.A = 255;
 				}
 
-				PhysicsAssetRenderInterface.DebugDrawBodies(PreviewSkelMeshComp, PhysicsAsset, PDI, PrimitiveColorOverride);
+				PhysicsAssetRenderInterface.DebugDrawBodies(
+					PreviewSkelMeshComp, PhysicsAsset, PDI, PrimitiveColorOverride);
 			}
 
 			// Draw Constraints.
-			if (bIsSelected || (bIsPoseWatchEnabled && PoseWatchElementConstraints.IsValid() && PoseWatchElementConstraints->GetIsVisible()))
+			if (bIsSelected || 
+				(bIsPoseWatchEnabled && PoseWatchElementConstraints.IsValid() && PoseWatchElementConstraints->GetIsVisible()))
 			{
 				PhysicsAssetRenderInterface.DebugDrawConstraints(PreviewSkelMeshComp, PhysicsAsset, PDI);
 			}
@@ -94,7 +108,9 @@ void UAnimGraphNode_RigidBodyWithControl::Draw(FPrimitiveDrawInterface* PDI, USk
 		
 		
 		// Draw Space Controls
-		if (bIsSelected || (bIsPoseWatchEnabled && PoseWatchElementWorldSpaceControls.IsValid() && PoseWatchElementWorldSpaceControls->GetIsVisible()))
+		if (bIsSelected || 
+			(bIsPoseWatchEnabled && 
+				PoseWatchElementWorldSpaceControls.IsValid() && PoseWatchElementWorldSpaceControls->GetIsVisible()))
 		{
 			for (const TMap<FName, FRigidBodyControlRecord>::ElementType& NameRecordPair : RuntimeRigidBodyNode->ControlRecords)
 			{
@@ -113,7 +129,11 @@ void UAnimGraphNode_RigidBodyWithControl::Draw(FPrimitiveDrawInterface* PDI, USk
 	}
 }
 
-void UAnimGraphNode_RigidBodyWithControl::OnPoseWatchChanged(const bool IsPoseWatchEnabled, TObjectPtr<UPoseWatch> InPoseWatch, FEditorModeTools& InModeTools, FAnimNode_Base* InRuntimeNode)
+void UAnimGraphNode_RigidBodyWithControl::OnPoseWatchChanged(
+	const bool             IsPoseWatchEnabled, 
+	TObjectPtr<UPoseWatch> InPoseWatch, 
+	FEditorModeTools&      InModeTools, 
+	FAnimNode_Base*        InRuntimeNode)
 {
 	Super::OnPoseWatchChanged(IsPoseWatchEnabled, InPoseWatch, InModeTools, InRuntimeNode);
 
@@ -122,10 +142,18 @@ void UAnimGraphNode_RigidBodyWithControl::OnPoseWatchChanged(const bool IsPoseWa
 	if (PoseWatch)
 	{
 		// A new pose watch has been created for this node - add node specific pose watch components.
-		PoseWatchElementBodies = InPoseWatch.Get()->FindOrAddElement(FText(LOCTEXT("PoseWatchElementLabel_RigidBodyWithControl_PhysicsBodies", "Physics Bodies")), TEXT("PhysicsAssetEditor.Tree.Body"));
-		PoseWatchElementConstraints = InPoseWatch.Get()->FindOrAddElement(FText(LOCTEXT("PoseWatchElementLabel__RigidBodyWithControl_PhysicsConstraints", "Physics Constraints")), TEXT("PhysicsAssetEditor.Tree.Constraint"));
-		PoseWatchElementParentSpaceControls = InPoseWatch.Get()->FindOrAddElement(FText(LOCTEXT("PoseWatchElementLabel_RigidBodyWithControl_ParentSpaceControls", "Parent Space Controls")), TEXT("PhysicsAssetEditor.Tree.Body"));
-		PoseWatchElementWorldSpaceControls = InPoseWatch.Get()->FindOrAddElement(FText(LOCTEXT("PoseWatchElementLabel_RigidBodyWithControl_WorldSpaceControls", "World Space Controls")), TEXT("PhysicsAssetEditor.Tree.Body"));
+		PoseWatchElementBodies = InPoseWatch.Get()->FindOrAddElement(FText(
+			LOCTEXT("PoseWatchElementLabel_RigidBodyWithControl_PhysicsBodies", "Physics Bodies")), 
+			TEXT("PhysicsAssetEditor.Tree.Body"));
+		PoseWatchElementConstraints = InPoseWatch.Get()->FindOrAddElement(FText(
+			LOCTEXT("PoseWatchElementLabel__RigidBodyWithControl_PhysicsConstraints", "Physics Constraints")), 
+			TEXT("PhysicsAssetEditor.Tree.Constraint"));
+		PoseWatchElementParentSpaceControls = InPoseWatch.Get()->FindOrAddElement(FText(
+			LOCTEXT("PoseWatchElementLabel_RigidBodyWithControl_ParentSpaceControls", "Parent Space Controls")), 
+			TEXT("PhysicsAssetEditor.Tree.Body"));
+		PoseWatchElementWorldSpaceControls = InPoseWatch.Get()->FindOrAddElement(FText(
+			LOCTEXT("PoseWatchElementLabel_RigidBodyWithControl_WorldSpaceControls", "World Space Controls")), 
+			TEXT("PhysicsAssetEditor.Tree.Body"));
 
 		check(PoseWatchElementConstraints.IsValid()); // Expect to find a valid component;
 		if (PoseWatchElementConstraints.IsValid())
@@ -138,13 +166,12 @@ void UAnimGraphNode_RigidBodyWithControl::OnPoseWatchChanged(const bool IsPoseWa
 void UAnimGraphNode_RigidBodyWithControl::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	Super::CustomizeDetails(DetailBuilder);
-
 	IDetailCategoryBuilder& ViewportCategory = DetailBuilder.EditCategory(TEXT("Debug Visualization"));
-	
 	FAnimNode_RigidBodyWithControl* const RigidBodyNode = static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
 	
 	{
-		FDetailWidgetRow& ControlsEditorWidgetRow = ViewportCategory.AddCustomRow(LOCTEXT("ToggleControlsEditorWidgetRowButtonRow", "ControlsEditor"));
+		FDetailWidgetRow& ControlsEditorWidgetRow = ViewportCategory.AddCustomRow(
+			LOCTEXT("ToggleControlsEditorWidgetRowButtonRow", "ControlsEditor"));
 
 		ControlsEditorWidgetRow
 			[
@@ -167,7 +194,8 @@ void UAnimGraphNode_RigidBodyWithControl::CustomizeDetails(IDetailLayoutBuilder&
 	}
 
 	{
-		FDetailWidgetRow& DebugVisualizationWidgetRow = ViewportCategory.AddCustomRow(LOCTEXT("ToggleDebugVisualizationButtonRow", "DebugVisualization"));
+		FDetailWidgetRow& DebugVisualizationWidgetRow = ViewportCategory.AddCustomRow(
+			LOCTEXT("ToggleDebugVisualizationButtonRow", "DebugVisualization"));
 
 		DebugVisualizationWidgetRow
 			[
@@ -208,7 +236,8 @@ void UAnimGraphNode_RigidBodyWithControl::CustomizeDetails(IDetailLayoutBuilder&
 
 void UAnimGraphNode_RigidBodyWithControl::PostChange()
 {
-	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
+	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
 	PhysicsControlEditorInterface.RequestRefresh();
 }
 
@@ -216,7 +245,8 @@ void UAnimGraphNode_RigidBodyWithControl::PostEditChangeProperty(struct FPropert
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 	PhysicsAssetRenderInterface.SaveConfig();
 
 	PostChange();
@@ -242,9 +272,11 @@ void UAnimGraphNode_RigidBodyWithControl::DestroyNode()
 
 void UAnimGraphNode_RigidBodyWithControl::ToggleBodyVisibility()
 {
-	FAnimNode_RigidBodyWithControl* const RigidBodyNode = static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
+	FAnimNode_RigidBodyWithControl* const RigidBodyNode = 
+		static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
 	
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 
 	if (RigidBodyNode)
 	{
@@ -254,8 +286,10 @@ void UAnimGraphNode_RigidBodyWithControl::ToggleBodyVisibility()
 
 void UAnimGraphNode_RigidBodyWithControl::ToggleConstraintVisibility()
 {
-	FAnimNode_RigidBodyWithControl* const RigidBodyNode = static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	FAnimNode_RigidBodyWithControl* const RigidBodyNode = 
+		static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 
 	if (RigidBodyNode)
 	{
@@ -265,8 +299,10 @@ void UAnimGraphNode_RigidBodyWithControl::ToggleConstraintVisibility()
 
 bool UAnimGraphNode_RigidBodyWithControl::AreAnyBodiesHidden() const
 {
-	FAnimNode_RigidBodyWithControl* const RigidBodyNode = static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	FAnimNode_RigidBodyWithControl* const RigidBodyNode = 
+		static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 
 	if (RigidBodyNode)
 	{
@@ -278,8 +314,10 @@ bool UAnimGraphNode_RigidBodyWithControl::AreAnyBodiesHidden() const
 
 bool UAnimGraphNode_RigidBodyWithControl::AreAnyConstraintsHidden() const
 {
-	FAnimNode_RigidBodyWithControl* const RigidBodyNode = static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
-	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
+	FAnimNode_RigidBodyWithControl* const RigidBodyNode = 
+		static_cast<FAnimNode_RigidBodyWithControl*>(GetDebuggedAnimNode());
+	IPhysicsAssetRenderInterface& PhysicsAssetRenderInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsAssetRenderInterface>("PhysicsAssetRenderInterface");
 
 	if (RigidBodyNode)
 	{
@@ -291,13 +329,15 @@ bool UAnimGraphNode_RigidBodyWithControl::AreAnyConstraintsHidden() const
 
 void UAnimGraphNode_RigidBodyWithControl::ToggleControlEditorTab()
 {
-	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
+	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
 	PhysicsControlEditorInterface.ToggleOperatorNamesTab();
 }
 
 bool UAnimGraphNode_RigidBodyWithControl::IsControlEditorTabOpen() const
 {
-	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
+	IPhysicsControlOperatorEditorInterface& PhysicsControlEditorInterface = 
+		IModularFeatures::Get().GetModularFeature<IPhysicsControlOperatorEditorInterface>("PhysicsControlEditorInterface");
 	return PhysicsControlEditorInterface.IsOperatorNamesTabOpen();
 }
 
@@ -313,18 +353,23 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 
 		// These functions will create the base set of controls and modifiers from SetupData
 		TMap<FName, FPhysicsControlLimbBones> AllLimbBones =
-			GetLimbBones(Node.SetupData.LimbSetupData, RefSkeleton, Node.OverridePhysicsAsset.Get());
+			UE::PhysicsControl::GetLimbBones(
+				Node.CharacterSetupData.LimbSetupData, RefSkeleton, Node.OverridePhysicsAsset.Get());
 
 		TSet<FName> BodyModifierNames;
 		TSet<FName> ControlNames;
 		FPhysicsControlNameRecords NameRecords;
 
-		CollectOperatorNames(&Node, AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset.Get(), BodyModifierNames, ControlNames, NameRecords);
+		// TODO This needs to account for the control profile asset
+		UE::PhysicsControl::CollectOperatorNames(
+			&Node, Node.CharacterSetupData, Node.AdditionalControlsAndBodyModifiers,
+			AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset.Get(), BodyModifierNames, ControlNames, NameRecords);
 
 		// Create any additional sets that have been requested
-		CreateAdditionalSets(Node.AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
+		UE::PhysicsControl::CreateAdditionalSets(Node.AdditionalSets, BodyModifierNames, ControlNames, NameRecords);
 
-		auto TransformOperatorNamesAndTags = [&GeneratedOperatorNames](const FName TypeTag, const TSet<FName>& Names, const TMap<FName, TArray<FName>>& SetToOperatorNameMap)
+		auto TransformOperatorNamesAndTags = [&GeneratedOperatorNames](
+			const FName TypeTag, const TSet<FName>& Names, const TMap<FName, TArray<FName>>& SetToOperatorNameMap)
 		{
 			for (const FName OperatorName : Names)
 			{

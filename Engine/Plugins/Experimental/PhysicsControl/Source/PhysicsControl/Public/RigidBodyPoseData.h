@@ -88,11 +88,6 @@ struct FRigidBodyPoseData
 	 */
 	TArray<FPosQuat> BoneTMs;
 
-	/**
-	 * The origin (in world space). BoneData transforms are relative to this.
-	 */
-	FTransform WorldCoordinateFrame;
-
 	// Track when we were currently/last updated so the user can detect missing updates if calculating
 	// velocity etc
 	FGraphTraversalCounter UpdateCounter;

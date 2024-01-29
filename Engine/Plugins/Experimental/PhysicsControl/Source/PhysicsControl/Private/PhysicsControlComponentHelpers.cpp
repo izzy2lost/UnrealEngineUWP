@@ -9,7 +9,7 @@
 
 namespace UE
 {
-namespace PhysicsControlComponent
+namespace PhysicsControl
 {
 
 //======================================================================================================================
