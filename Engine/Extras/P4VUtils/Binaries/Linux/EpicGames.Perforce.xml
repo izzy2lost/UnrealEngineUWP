@@ -5942,6 +5942,36 @@
             Preview the merge
             </summary>
         </member>
+        <member name="F:EpicGames.Perforce.MergeOptions.Force">
+            <summary>
+            Forces the operation
+            </summary>
+        </member>
+        <member name="F:EpicGames.Perforce.MergeOptions.AsFiles">
+            <summary>
+            Performs the merge with files only
+            </summary>
+        </member>
+        <member name="F:EpicGames.Perforce.MergeOptions.AsStreamSpec">
+            <summary>
+            Performs the merge as a stream spec
+            </summary>
+        </member>
+        <member name="F:EpicGames.Perforce.MergeOptions.Stream">
+            <summary>
+            Use stream based merging
+            </summary>
+        </member>
+        <member name="F:EpicGames.Perforce.MergeOptions.ReverseMapping">
+            <summary>
+            Revere the mapping direction
+            </summary>
+        </member>
+        <member name="F:EpicGames.Perforce.MergeOptions.Source">
+            <summary>
+            Treat the from path as the source
+            </summary>
+        </member>
         <member name="T:EpicGames.Perforce.MergeRecord">
             <summary>
             Response from a merge
