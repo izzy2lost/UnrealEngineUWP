@@ -967,6 +967,8 @@ FProperty* UAnimGraphNode_Base::GetPinProperty(FName InPinName) const
 
 void UAnimGraphNode_Base::PinConnectionListChanged(UEdGraphPin* Pin)
 {
+	Super::PinConnectionListChanged(Pin);
+	
 	if(Pin->LinkedTo.Num() > 0)
 	{
 		if (Binding)
