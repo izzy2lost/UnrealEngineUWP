@@ -260,6 +260,7 @@ namespace UnrealBuildTool
 			if (connectionMode == ConnectionMode.Relay && String.IsNullOrEmpty(_crypto))
 			{
 				_crypto = UBAExecutor.CreateCrypto();
+				_encryption = Encryption.Ssl;
 			}
 		}
 
