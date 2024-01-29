@@ -76,4 +76,9 @@ private:
 
 	FDelegateHandle EngineBeginFrameDelegate;
 	void CoreDelegatesBeginFrame();
+
+public:
+	// Declare a "tick" method that can be used during automated testing so that
+	// the test code doesn't need knowledge of how the low-res clocks are being ticked...
+	void TickForTesting();
 };
