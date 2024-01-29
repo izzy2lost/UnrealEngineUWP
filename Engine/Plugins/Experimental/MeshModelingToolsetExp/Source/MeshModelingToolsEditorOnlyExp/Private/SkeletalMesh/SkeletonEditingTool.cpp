@@ -854,14 +854,18 @@ void USkeletonEditingTool::SnapBoneToComponentSelection(const bool bCreate)
 
 	const FReferenceSkeleton& RefSkeleton = Modifier->GetReferenceSkeleton();
 	const TArray<FName> Bones = GetSelectedBones();
-	const bool bHasValidBone = Bones.ContainsByPredicate([&](const FName& InBoneName)
-	{
-		return RefSkeleton.FindRawBoneIndex(InBoneName) > INDEX_NONE;
-	});
 
-	if (!bHasValidBone)
+	if (!bCreate)
 	{
-		return;
+		const bool bHasValidBone = Bones.ContainsByPredicate([&](const FName& InBoneName)
+	   {
+		   return RefSkeleton.FindRawBoneIndex(InBoneName) > INDEX_NONE;
+	   });
+
+		if (!bHasValidBone)
+		{
+			return;
+		}
 	}
 
 	const int32 BoneIndex = RefSkeleton.FindRawBoneIndex(GetCurrentBone());
