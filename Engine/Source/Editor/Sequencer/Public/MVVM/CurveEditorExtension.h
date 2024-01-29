@@ -48,10 +48,14 @@ public:
 	/** Closes the curve editor */
 	void CloseCurveEditor();
 
+	/** Curve editor tree widget */
+	TSharedPtr<SCurveEditorTree> GetCurveEditorTreeView() const { return CurveEditorTreeView; }
+
 	/**
 	 * Synchronize curve editor selection with sequencer outliner selection on the next update.
 	 */
 	void RequestSyncSelection();
+
 
 public:
 

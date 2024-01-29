@@ -22,204 +22,26 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
-#include "EditMode/ControlRigControlsProxy.h"
+#include "EditMode/AnimDetailsProxy.h"
 #include "EditMode/ControlRigEditModeSettings.h"
 #include "Modules/ModuleManager.h"
 #include "TimerManager.h"
+#include "CurveEditor.h"
+#include "MVVM/CurveEditorExtension.h"
+#include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "Tracks/MovieScenePropertyTrack.h"
+#include "Tracks/MovieScene3DTransformTrack.h"
+#include "MovieSceneCommonHelpers.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigDetails"
 
 void FControlRigEditModeGenericDetails::CustomizeDetails(class IDetailLayoutBuilder& DetailLayout)
 {
-	TArray<TWeakObjectPtr<UObject>> ObjectsBeingCustomized;
-	DetailLayout.GetObjectsBeingCustomized(ObjectsBeingCustomized);
-
-	TArray<UControlRigControlsProxy*> ProxiesBeingCustomized;
-	for (TWeakObjectPtr<UObject> ObjectBeingCustomized : ObjectsBeingCustomized)
-	{
-		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(ObjectBeingCustomized.Get()))
-		{
-			ProxiesBeingCustomized.Add(Proxy);
-		}
-	}
-
-	if (ProxiesBeingCustomized.Num() == 0 || ProxiesBeingCustomized[0]->GetControlElement() == nullptr)
-	{
-		return;
-	}
-	FText ControlText = FText::FromName(ProxiesBeingCustomized[0]->GetName());
-
-	if (ProxiesBeingCustomized.Num() > 1)
-	{
-		if (ProxiesBeingCustomized[0]->GetClass() == UControlRigTransformControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("TransformChannels", "Transform Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigTransformNoScaleControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("TransformNoScaleChannels", "TransformNoScale Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigEulerTransformControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("EulerTransformChannels", "Euler Transform Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigFloatControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("FloatChannels", "Float Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigVectorControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("VectorChannels", "Vector Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigVector2DControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("Vector2DChannels", "Vector2D Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigBoolControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("BoolChannels", "Bool Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigEnumControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("EnumChannels", "Enum Channels");
-		}
-		else if (ProxiesBeingCustomized[0]->GetClass() == UControlRigIntegerControlProxy::StaticClass())
-		{
-			ControlText = LOCTEXT("IntegerChannels", "Integer Channels");
-		}
-	}
-
-	IDetailCategoryBuilder& Category = DetailLayout.EditCategory(TEXT("Control"), ControlText);
-	for (UControlRigControlsProxy* Proxy : ProxiesBeingCustomized)
-	{
-		FRigControlElement* ControlElement = Proxy->GetControlElement();
-		if (ControlElement == nullptr)
-		{
-			continue;
-		}
-
-		FName ValuePropertyName = TEXT("Transform");
-		if (ControlElement->Settings.ControlType == ERigControlType::Float ||
-			ControlElement->Settings.ControlType == ERigControlType::ScaleFloat)
-		{
-			ValuePropertyName = TEXT("Float");
-		}
-		else if (ControlElement->Settings.ControlType == ERigControlType::Integer)
-		{
-			if (ControlElement->Settings.ControlEnum == nullptr)
-			{
-				ValuePropertyName = TEXT("Integer");
-			}
-			else
-			{
-				ValuePropertyName = TEXT("Enum");
-			}
-		}
-		else if (ControlElement->Settings.ControlType == ERigControlType::Bool)
-		{
-			ValuePropertyName = TEXT("Bool");
-		}
-		else if (ControlElement->Settings.ControlType == ERigControlType::Position ||
-			ControlElement->Settings.ControlType == ERigControlType::Scale)
-		{
-			ValuePropertyName = TEXT("Vector");
-		}
-		else if (ControlElement->Settings.ControlType == ERigControlType::Vector2D)
-		{
-			ValuePropertyName = TEXT("Vector2D");
-		}
-		else if (ControlElement->Settings.ControlType == ERigControlType::EulerTransform)
-		{
-			ValuePropertyName = TEXT("EulerTransform");
-		}
-		else if (ControlElement->Settings.ControlType == ERigControlType::TransformNoScale)
-		{
-			ValuePropertyName = TEXT("TransformNoScale");
-		}
-
-		TSharedPtr<IPropertyHandle> ValuePropertyHandle = DetailLayout.GetProperty(ValuePropertyName, Proxy->GetClass());
-		if (ValuePropertyHandle)
-		{
-			ValuePropertyHandle->SetPropertyDisplayName(FText::FromName(Proxy->GetName()));
-		}
-
-		URigHierarchy* Hierarchy = Proxy->ControlRig->GetHierarchy();
-		Hierarchy->ForEach<FRigControlElement>([Hierarchy, Proxy, &Category, this](FRigControlElement* ControlElement) -> bool
-			{
-				FName ParentControlName = NAME_None;
-				FRigControlElement* ParentControlElement = Cast<FRigControlElement>(Hierarchy->GetFirstParent(ControlElement));
-				if (ParentControlElement)
-				{
-					ParentControlName = ParentControlElement->GetFName();
-				}
-
-				if (ParentControlName == ControlElement->GetFName())
-				{
-					if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
-					{
-						UControlRig* ControlRig = Proxy->ControlRig.Get();
-						if (UObject* NestedProxy = EditMode->ControlProxy->FindProxy(ControlRig,ControlElement->GetFName()))
-						{
-							FName PropertyName(NAME_None);
-							switch (ControlElement->Settings.ControlType)
-							{
-							case ERigControlType::Bool:
-							{
-								PropertyName = TEXT("Bool");
-								break;
-							}
-							case ERigControlType::Float:
-							case ERigControlType::ScaleFloat:
-							{
-								PropertyName = TEXT("Float");
-								break;
-							}
-							case ERigControlType::Integer:
-							{
-								if (ControlElement->Settings.ControlEnum == nullptr)
-								{
-									PropertyName = TEXT("Integer");
-								}
-								else
-								{
-									PropertyName = TEXT("Enum");
-								}
-								break;
-							}
-							default:
-							{
-								break;
-							}
-							}
-
-							if (PropertyName.IsNone())
-							{
-								return true;
-							}
-
-							TArray<UObject*> NestedProxies;
-							NestedProxies.Add(NestedProxy);
-
-							FAddPropertyParams Params;
-							Params.CreateCategoryNodes(false);
-							IDetailPropertyRow* NestedRow = Category.AddExternalObjectProperty(
-								NestedProxies,
-								PropertyName,
-								EPropertyLocation::Advanced,
-								Params);
-							NestedRow->DisplayName(FText::FromName(ControlElement->Settings.DisplayName));
-
-							Category.SetShowAdvanced(true);
-						}
-					}
-				}
-				return true;
-			});
-	}
 }
-
 void SControlRigDetails::Construct(const FArguments& InArgs, FControlRigEditMode& InEditMode)
 {
+	using namespace UE::Sequencer;
+
 	ModeTools = InEditMode.GetModeManager();
 	FDetailsViewArgs DetailsViewArgs;
 	{
@@ -231,7 +53,7 @@ void SControlRigDetails::Construct(const FArguments& InArgs, FControlRigEditMode
 		DetailsViewArgs.bShowOptions = false;
 		DetailsViewArgs.bShowModifiedPropertiesOption = true;
 		DetailsViewArgs.bCustomNameAreaLocation = true;
-		DetailsViewArgs.bCustomFilterAreaLocation = true;
+		DetailsViewArgs.bCustomFilterAreaLocation = false;
 		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 		DetailsViewArgs.bAllowMultipleTopLevelObjects = false;
 		DetailsViewArgs.bShowScrollBar = false; // Don't need to show this, as we are putting it in a scroll box
@@ -242,136 +64,33 @@ void SControlRigDetails::Construct(const FArguments& InArgs, FControlRigEditMode
 
 	auto CreateDetailsView = [this](FDetailsViewArgs InDetailsViewArgs) -> TSharedPtr<IDetailsView>
 	{
+		FControlRigEditMode* EditMode = GetEditMode();
 		TSharedPtr<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(InDetailsViewArgs);
-		DetailsView->SetKeyframeHandler(SharedThis(this));
+		DetailsView->SetKeyframeHandler(EditMode->DetailKeyFrameCache);
 		DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &SControlRigDetails::ShouldShowPropertyOnDetailCustomization));
 		DetailsView->SetIsPropertyReadOnlyDelegate(FIsPropertyReadOnly::CreateSP(this, &SControlRigDetails::IsReadOnlyPropertyOnDetailCustomization));
 		DetailsView->SetGenericLayoutDetailsDelegate(FOnGetDetailCustomizationInstance::CreateStatic(&FControlRigEditModeGenericDetails::MakeInstance, ModeTools));
 		return DetailsView;
 	};
 
-	ControlEulerTransformDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlEulerTransformDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlTransformDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlTransformDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlTransformNoScaleDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlTransformNoScaleDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlFloatDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlFloatDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlEnumDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlEnumDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlIntegerDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlIntegerDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlBoolDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlBoolDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlVectorDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlVectorDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
-	ControlVector2DDetailsView = CreateDetailsView(DetailsViewArgs);
-	IndividualControlVector2DDetailsView = CreateDetailsView(IndividualDetailsViewArgs);
+	AllControlsView = CreateDetailsView(IndividualDetailsViewArgs);
 
 	ChildSlot
 		[
 			SNew(SScrollBox)
 			+ SScrollBox::Slot()
 			[
-			SNew(SVerticalBox)
-
-			
-			+ SVerticalBox::Slot()
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
 				.AutoHeight()
 				[
-					ControlEulerTransformDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlTransformDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlTransformNoScaleDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlBoolDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlIntegerDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlEnumDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlVectorDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlVector2DDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					ControlFloatDetailsView.ToSharedRef()
-				]
-
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlEulerTransformDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlTransformDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlTransformNoScaleDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlBoolDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlIntegerDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlEnumDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlVectorDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlVector2DDetailsView.ToSharedRef()
-				]
-			+ SVerticalBox::Slot()
-				.AutoHeight()
-				[
-					IndividualControlFloatDetailsView.ToSharedRef()
+					AllControlsView.ToSharedRef()
 				]
 			]
 		];
 
 	SetEditMode(InEditMode);
+	SequencerTracker.SetSequencerAndDetails(InEditMode.GetWeakSequencer(), this);
 }
 
 SControlRigDetails::~SControlRigDetails()
@@ -379,10 +98,174 @@ SControlRigDetails::~SControlRigDetails()
 	//base class handles control rig related cleanup
 }
 
+void SControlRigDetails::SelectedSequencerObjects(const TMap<UObject*, FArrayOfPropertyTracks>& InObjectsTracked)
+{
+	TMap<UObject*, FArrayOfPropertyTracks> SequencerObjects;
+	for (const TPair<UObject*, FArrayOfPropertyTracks>& Pair : InObjectsTracked)
+	{
+		if (AActor* Actor = Cast<AActor>(Pair.Key))
+		{
+			if (Actor->IsSelectedInEditor())
+			{
+				SequencerObjects.Add(Pair);
+			}
+		}
+		else if (UActorComponent* Component = Cast<UActorComponent>(Pair.Key))
+		{
+			if (Component->IsSelectedInEditor())
+			{
+				SequencerObjects.Add(Pair);
+			}
+		}
+	}
+	//make sure the objects that are selected are actually selected in the world
+
+	HandleSequencerObjects(SequencerObjects);
+	UpdateProxies();
+}
 void SControlRigDetails::HandleControlSelected(UControlRig* Subject, FRigControlElement* InControl, bool bSelected)
 {
 	FControlRigBaseDockableView::HandleControlSelected(Subject, InControl, bSelected);
 	UpdateProxies();
+}
+
+static UControlRigControlsProxy* GetParentProxy(UControlRigControlsProxy* ChildProxy, const TArray<UControlRigControlsProxy*>& Proxies)
+{
+	FRigBaseElement* ChildParent = (ChildProxy && ChildProxy->OwnerControlRig.IsValid()) ?
+		ChildProxy->OwnerControlRig->GetHierarchy()->GetFirstParent(ChildProxy->OwnerControlElement) : nullptr;
+	if (ChildParent == nullptr)
+	{
+		return nullptr;
+	}
+	for (UControlRigControlsProxy* Proxy : Proxies)
+	{
+		if (Proxy && Proxy->OwnerControlRig.IsValid() && (ChildParent == Proxy->OwnerControlElement))
+		{
+			return Proxy;
+		}
+	}
+	return nullptr;
+}
+static UControlRigControlsProxy* GetProxyWithSameType(TArray<TWeakObjectPtr<>>& AllProxies, ERigControlType ControlType, bool bIsEnum)
+{
+	for (TWeakObjectPtr<> ExistingProxy : AllProxies)
+	{
+		if (ExistingProxy.IsValid())
+		{
+			switch (ControlType)
+			{
+			case ERigControlType::Transform:
+			case ERigControlType::TransformNoScale:
+			case ERigControlType::EulerTransform:
+			{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyTransform>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+			}
+			case ERigControlType::Float:
+			case ERigControlType::ScaleFloat:
+			{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyFloat>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+
+			}
+			case ERigControlType::Integer:
+			{
+				if (bIsEnum == false)
+				{
+					if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyInteger>())
+					{
+						return  Cast<UAnimDetailControlsProxyInteger>(ExistingProxy.Get());
+					}
+				}
+				else
+				{
+					if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyEnum>())
+					{
+						return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+					}
+				}
+				break;
+
+			}
+			case ERigControlType::Position:
+			{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyLocation>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+			}
+			case ERigControlType::Rotator:
+				{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyRotation>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+			}
+			case ERigControlType::Scale:
+			{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyScale>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+			}
+			case ERigControlType::Vector2D:
+			{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyVector2D>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+			}
+			case ERigControlType::Bool:
+			{
+				if (ExistingProxy.Get()->IsA<UAnimDetailControlsProxyBool>())
+				{
+					return  Cast<UControlRigControlsProxy>(ExistingProxy.Get());
+				}
+				break;
+			}
+			}
+		}
+	}
+	return nullptr;
+}
+
+void SControlRigDetails::HandleSequencerObjects(TMap<UObject*, FArrayOfPropertyTracks>& SequencerObjects)
+{
+	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
+	{
+		if (UControlRigDetailPanelControlProxies* ControlProxy = EditMode->GetDetailProxies())
+		{
+			TMap<ERigControlType, FSequencerProxyPerType>  ProxyPerType;
+			for (TPair<UObject*, FArrayOfPropertyTracks>& Pair : SequencerObjects)
+			{
+				for (UMovieSceneTrack* Track : Pair.Value.PropertyTracks)
+				{
+					if (UMovieScenePropertyTrack* PropTrack = Cast<UMovieScenePropertyTrack>(Track))
+					{
+						if (PropTrack->IsA<UMovieScene3DTransformTrack>())
+						{
+							FSequencerProxyPerType& Binding = ProxyPerType.FindOrAdd(ERigControlType::Transform);
+							TArray<FBindingAndTrack>& Bindings = Binding.Bindings.FindOrAdd(Pair.Key);
+							TSharedPtr<FTrackInstancePropertyBindings> PropertyBindings = MakeShareable(new FTrackInstancePropertyBindings(PropTrack->GetPropertyName(), PropTrack->GetPropertyPath().ToString()));
+							FBindingAndTrack BindingAndTrack(PropertyBindings, Track);
+							Bindings.Add(BindingAndTrack);
+						}
+					}
+				}
+			}
+			ControlProxy->ResetSequencerProxies(ProxyPerType);
+		}
+	}
 }
 
 void SControlRigDetails::UpdateProxies()
@@ -402,346 +285,86 @@ void SControlRigDetails::UpdateProxies()
 			return;
 		}
 		
-		TArray<TWeakObjectPtr<>> Eulers;
-		TArray<TWeakObjectPtr<>> Transforms;
-		TArray<TWeakObjectPtr<>> TransformNoScales;
-		TArray<TWeakObjectPtr<>> Floats;
-		TArray<TWeakObjectPtr<>> Vectors;
-		TArray<TWeakObjectPtr<>> Vector2Ds;
-		TArray<TWeakObjectPtr<>> Bools;
-		TArray<TWeakObjectPtr<>> Integers;
-		TArray<TWeakObjectPtr<>> Enums;
-		TArray<TWeakObjectPtr<>> IndividualEulers;
-		TArray<TWeakObjectPtr<>> IndividualTransforms;
-		TArray<TWeakObjectPtr<>> IndividualTransformNoScales;
-		TArray<TWeakObjectPtr<>> IndividualFloats;
-		TArray<TWeakObjectPtr<>> IndividualVectors;
-		TArray<TWeakObjectPtr<>> IndividualVector2Ds;
-		TArray<TWeakObjectPtr<>> IndividualBools;
-		TArray<TWeakObjectPtr<>> IndividualIntegers;
-		TArray<TWeakObjectPtr<>> IndividualEnums;
-		TArray<UControlRig*> ControlRigs = StrongThis->GetControlRigs();
-	
+		TArray<TWeakObjectPtr<>> AllProxies;
+		TArray<UControlRigControlsProxy*> ChildProxies; //list of 'child' proxies that will show up as custom attributes
 		if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongThis->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 		{
 			if (UControlRigDetailPanelControlProxies* ControlProxy = EditMode->GetDetailProxies())
 			{
-				const TArray<UControlRigControlsProxy*>& Proxies = ControlProxy->GetSelectedProxies();
+				const TArray<UControlRigControlsProxy*>& Proxies = ControlProxy->GetAllSelectedProxies();
 				for (UControlRigControlsProxy* Proxy : Proxies)
 				{
 					if (Proxy == nullptr)
 					{
 						continue;
 					}
-					if (Proxy->GetClass() == UControlRigTransformControlProxy::StaticClass())
+					Proxy->ResetItems();
+
+					if (Proxy->bIsIndividual)
 					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualTransforms.Add(Proxy);
-						}
-						else
-						{
-							Transforms.Add(Proxy);
-						}
+						ChildProxies.Add(Proxy);
 					}
-					else if (Proxy->GetClass() == UControlRigTransformNoScaleControlProxy::StaticClass())
+					else
 					{
-						if (Proxy->bIsIndividual)
+						TObjectPtr<UEnum> EnumPtr = Proxy->OwnerControlElement ? Proxy->OwnerControlElement->Settings.ControlEnum : nullptr;
+						if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, Proxy->Type, EnumPtr != nullptr))
 						{
-							IndividualTransformNoScales.Add(Proxy);
+							ExistingProxy->AddItem(Proxy);
+							ExistingProxy->ValueChanged();
 						}
 						else
 						{
-							TransformNoScales.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigEulerTransformControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualEulers.Add(Proxy);
-						}
-						else
-						{
-							Eulers.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigFloatControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualFloats.Add(Proxy);
-						}
-						else
-						{
-							Floats.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigVectorControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualVectors.Add(Proxy);
-						}
-						else
-						{
-							Vectors.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigVector2DControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualVector2Ds.Add(Proxy);
-						}
-						else
-						{
-							Vector2Ds.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigBoolControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualBools.Add(Proxy);
-						}
-						else
-						{
-							Bools.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigEnumControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualEnums.Add(Proxy);
-						}
-						else
-						{
-							Enums.Add(Proxy);
-						}
-					}
-					else if (Proxy->GetClass() == UControlRigIntegerControlProxy::StaticClass())
-					{
-						if (Proxy->bIsIndividual)
-						{
-							IndividualIntegers.Add(Proxy);
-						}
-						else
-						{
-							Integers.Add(Proxy);
+							AllProxies.Add(Proxy);
 						}
 					}
 				}
-			}
-			for (TWeakObjectPtr<>& Object : Transforms)
-			{
-				UControlRigControlsProxy* Proxy = Cast<UControlRigControlsProxy>(Object.Get());
-				if (Proxy)
+				//now add child proxies to parents if parents also selected...
+				for (UControlRigControlsProxy* Proxy : ChildProxies)
 				{
-					Proxy->SetIsMultiple(Transforms.Num() > 1);
+					if (UControlRigControlsProxy* ParentProxy = GetParentProxy(Proxy, Proxies))
+					{
+						TObjectPtr<UEnum> EnumPtr = ParentProxy->OwnerControlElement ? ParentProxy->OwnerControlElement->Settings.ControlEnum : nullptr;
+						if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, ParentProxy->Type, EnumPtr != nullptr))
+						{
+							ParentProxy->AddChildProxy(Proxy);
+						}
+					}
+					else
+					{
+						AllProxies.Add(Proxy);
+					}
 				}
-			}
-			for (TWeakObjectPtr<>& Object : Floats)
-			{
-				UControlRigControlsProxy* Proxy = Cast<UControlRigControlsProxy>(Object.Get());
-				if (Proxy)
+				for (UControlRigControlsProxy* Proxy : Proxies)
 				{
-					Proxy->SetIsMultiple(Floats.Num() > 1);
+					Proxy->ValueChanged();
 				}
 			}
 		}
-
-		StrongThis->SetTransformDetailsObjects(Transforms, false);
-		StrongThis->SetTransformNoScaleDetailsObjects(TransformNoScales, false);
-		StrongThis->SetEulerTransformDetailsObjects(Eulers, false);
-		StrongThis->SetVectorDetailsObjects(Vectors, false);
-		StrongThis->SetVector2DDetailsObjects(Vector2Ds, false);
-		StrongThis->SetFloatDetailsObjects(Floats, false);
-		StrongThis->SetBoolDetailsObjects(Bools,false);
-		StrongThis->SetIntegerDetailsObjects(Integers,false);
-		StrongThis->SetEnumDetailsObjects(Enums,false);
-		StrongThis->SetTransformDetailsObjects(IndividualTransforms, true);
-		StrongThis->SetTransformNoScaleDetailsObjects(IndividualTransformNoScales, true);
-		StrongThis->SetEulerTransformDetailsObjects(IndividualEulers, true);
-		StrongThis->SetVectorDetailsObjects(IndividualVectors, true);
-		StrongThis->SetVector2DDetailsObjects(IndividualVector2Ds, true);
-		StrongThis->SetFloatDetailsObjects(IndividualFloats, true);
-		StrongThis->SetBoolDetailsObjects(IndividualBools,true);
-		StrongThis->SetIntegerDetailsObjects(IndividualIntegers,true);
-		StrongThis->SetEnumDetailsObjects(IndividualEnums,true);
+		
+		StrongThis->AllControlsView->SetObjects(AllProxies,true);
+		
 	});
 }
 
-void SControlRigDetails::SetEulerTransformDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
+FReply SControlRigDetails::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlEulerTransformDetailsView : ControlEulerTransformDetailsView; 
-	if (DetailsView)
+	if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 	{
-		DetailsView->SetObjects(InObjects);
-	}
-};
-
-void SControlRigDetails::SetTransformDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlTransformDetailsView : ControlTransformDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetTransformNoScaleDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlTransformNoScaleDetailsView : ControlTransformNoScaleDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetFloatDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlFloatDetailsView : ControlFloatDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetBoolDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlBoolDetailsView : ControlBoolDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetIntegerDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlIntegerDetailsView : ControlIntegerDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetEnumDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlEnumDetailsView : ControlEnumDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetVectorDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlVectorDetailsView : ControlVectorDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-void SControlRigDetails::SetVector2DDetailsObjects(const TArray<TWeakObjectPtr<>>& InObjects, bool bIsIndividual)
-{
-	TSharedPtr<IDetailsView>& DetailsView = bIsIndividual ? IndividualControlVector2DDetailsView : ControlVector2DDetailsView; 
-	if (DetailsView)
-	{
-		DetailsView->SetObjects(InObjects);
-	}
-}
-
-bool SControlRigDetails::IsPropertyKeyable(const UClass* InObjectClass, const IPropertyHandle& InPropertyHandle) const
-{
-	TArray<UObject*> OuterObjects;
-	InPropertyHandle.GetOuterObjects(OuterObjects);
-	if(OuterObjects.Num() == 1)
-	{
-		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(OuterObjects[0]))
+		TWeakPtr<ISequencer> Sequencer = EditMode->GetWeakSequencer();
+		if (Sequencer.IsValid())
 		{
-			if(UControlRig* ControlRig = Proxy->ControlRig.Get())
+			using namespace UE::Sequencer;
+			const TSharedPtr<FSequencerEditorViewModel> SequencerViewModel = Sequencer.Pin()->GetViewModel();
+			const FCurveEditorExtension* CurveEditorExtension = SequencerViewModel->CastDynamic<FCurveEditorExtension>();
+			check(CurveEditorExtension);
+			TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor();
+			if (CurveEditor->GetCommands()->ProcessCommandBindings(InKeyEvent))
 			{
-				const FRigElementKey Key = FRigElementKey(Proxy->ControlName, ERigElementType::Control);
-				if(const FRigControlElement* ControlElement = ControlRig->GetHierarchy()->Find<FRigControlElement>(Key))
-				{
-					if(!ControlRig->GetHierarchy()->IsAnimatable(ControlElement))
-					{
-						return false;
-					}
-				}
+				return FReply::Handled();
 			}
 		}
 	}
-	
-	if (InObjectClass && InObjectClass->IsChildOf(UControlRigTransformNoScaleControlProxy::StaticClass()) && InObjectClass->IsChildOf(UControlRigEulerTransformControlProxy::StaticClass()) && InPropertyHandle.GetProperty()
-		&& InPropertyHandle.GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(UControlRigTransformControlProxy, Transform))
-	{
-		return true;
-	}
-
-	FCanKeyPropertyParams CanKeyPropertyParams(InObjectClass, InPropertyHandle);
-	ISequencer* Sequencer = GetSequencer();
-	if (Sequencer && Sequencer->CanKeyProperty(CanKeyPropertyParams))
-	{
-		return true;
-	}
-
-	return false;
-}
-
-bool SControlRigDetails::IsPropertyKeyingEnabled() const
-{
-	ISequencer* Sequencer = GetSequencer();
-	if (Sequencer && Sequencer->GetFocusedMovieSceneSequence())
-	{
-		return true;
-	}
-
-	return false;
-}
-
-bool SControlRigDetails::IsPropertyAnimated(const IPropertyHandle& PropertyHandle, UObject *ParentObject) const
-{
-	ISequencer* Sequencer = GetSequencer();
-	if (Sequencer && Sequencer->GetFocusedMovieSceneSequence())
-	{
-		constexpr bool bCreateHandleIfMissing = false;
-		FGuid ObjectHandle = Sequencer->GetHandleToObject(ParentObject, bCreateHandleIfMissing);
-		if (ObjectHandle.IsValid())
-		{
-			UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-			FProperty* Property = PropertyHandle.GetProperty();
-			TSharedRef<FPropertyPath> PropertyPath = FPropertyPath::CreateEmpty();
-			PropertyPath->AddProperty(FPropertyInfo(Property));
-			FName PropertyName(*PropertyPath->ToString(TEXT(".")));
-			TSubclassOf<UMovieSceneTrack> TrackClass; //use empty @todo find way to get the UMovieSceneTrack from the Property type.
-			return MovieScene->FindTrack(TrackClass, ObjectHandle, PropertyName) != nullptr;
-		}
-	}
-	return false;
-}
-
-void SControlRigDetails::OnKeyPropertyClicked(const IPropertyHandle& KeyedPropertyHandle)
-{
-	ISequencer* Sequencer = GetSequencer();
-	if (Sequencer && !Sequencer->IsAllowedToChange())
-	{
-		return;
-	}
-
-	TArray<UObject*> Objects;
-	KeyedPropertyHandle.GetOuterObjects(Objects);
-	for (UObject *Object : Objects)
-	{
-		UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(Object);
-		if (Proxy)
-		{
-			Proxy->SetKey(KeyedPropertyHandle);
-		}
-	}
+	return FReply::Unhandled();
 }
 
 bool SControlRigDetails::ShouldShowPropertyOnDetailCustomization(const FPropertyAndParent& InPropertyAndParent) const
@@ -749,19 +372,6 @@ bool SControlRigDetails::ShouldShowPropertyOnDetailCustomization(const FProperty
 	auto ShouldPropertyBeVisible = [](const FProperty& InProperty)
 	{
 		bool bShow = InProperty.HasAnyPropertyFlags(CPF_Interp) || InProperty.HasMetaData(FRigVMStruct::InputMetaName) || InProperty.HasMetaData(FRigVMStruct::OutputMetaName);
-
-		// Always show settings properties
-		const UClass* OwnerClass = InProperty.GetOwner<UClass>();
-		bShow |= OwnerClass == UControlRigTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigTransformNoScaleControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEulerTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigFloatControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVectorControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVector2DControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigBoolControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEnumControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigIntegerControlProxy::StaticClass();
-
 		return bShow;
 	};
 
@@ -787,20 +397,6 @@ bool SControlRigDetails::IsReadOnlyPropertyOnDetailCustomization(const FProperty
 	auto ShouldPropertyBeEnabled = [](const FProperty& InProperty)
 	{
 		bool bShow = InProperty.HasAnyPropertyFlags(CPF_Interp) || InProperty.HasMetaData(FRigVMStruct::InputMetaName);
-
-		// Always show settings properties
-		const UClass* OwnerClass = InProperty.GetOwner<UClass>();
-		bShow |= OwnerClass == UControlRigTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigTransformNoScaleControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEulerTransformControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigFloatControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVectorControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigVector2DControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigBoolControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigEnumControlProxy::StaticClass();
-		bShow |= OwnerClass == UControlRigIntegerControlProxy::StaticClass();
-
-
 		return bShow;
 	};
 
@@ -819,6 +415,69 @@ bool SControlRigDetails::IsReadOnlyPropertyOnDetailCustomization(const FProperty
 
 	return !(ShouldPropertyBeEnabled(InPropertyAndParent.Property) ||
 		(InPropertyAndParent.ParentProperties.Num() > 0 && ShouldPropertyBeEnabled(*InPropertyAndParent.ParentProperties[0])));
+}
+
+
+FSequencerTracker::~FSequencerTracker()
+{
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	if (Sequencer)
+	{
+		Sequencer->GetSelectionChangedObjectGuids().Remove(OnSelectionChangedHandle);
+	}
+}
+
+void FSequencerTracker::SetSequencerAndDetails(TWeakPtr<ISequencer> InWeakSequencer, SControlRigDetails* InControlRigDetails)
+{
+	WeakSequencer = InWeakSequencer;
+	ControlRigDetails = InControlRigDetails;
+	if (WeakSequencer.IsValid() == false || InControlRigDetails == nullptr)
+	{
+		return;
+	}
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+
+	TArray<FGuid> SequencerSelectedObjects;
+	Sequencer->GetSelectedObjects(SequencerSelectedObjects);
+	UpdateSequencerBindings(SequencerSelectedObjects);
+
+	OnSelectionChangedHandle = Sequencer->GetSelectionChangedObjectGuids().AddLambda([this](TArray<FGuid> NewSelection)
+	{
+		UpdateSequencerBindings(NewSelection);
+
+	});
+
+}
+
+void FSequencerTracker::UpdateSequencerBindings(const TArray<FGuid>& SequencerBindings)
+{
+	const FDateTime StartTime = FDateTime::Now();
+
+	TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+	check(Sequencer);
+	ObjectsTracked.Reset();
+	for (FGuid BindingGuid : SequencerBindings)
+	{
+		FArrayOfPropertyTracks Properties;
+		Properties.PropertyTracks = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->FindTracks(UMovieScenePropertyTrack::StaticClass(), BindingGuid);
+		if (Properties.PropertyTracks.Num() == 0)
+		{
+			continue;
+		}
+		for (TWeakObjectPtr<> BoundObject : Sequencer->FindBoundObjects(BindingGuid, Sequencer->GetFocusedTemplateID()))
+		{
+			if (!BoundObject.IsValid())
+			{
+				continue;
+			}
+			ObjectsTracked.FindOrAdd(BoundObject.Get(), Properties);
+
+		}
+	}
+	if (ControlRigDetails)
+	{
+		ControlRigDetails->SelectedSequencerObjects(ObjectsTracked);
+	}
 }
 
 

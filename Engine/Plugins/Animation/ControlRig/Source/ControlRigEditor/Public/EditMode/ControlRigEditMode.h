@@ -14,6 +14,9 @@
 #include "IPersonaEditMode.h"
 #include "Misc/Guid.h"
 #include "EditorDragTools.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "IDetailKeyframeHandler.h"
 #include "ControlRigEditMode.generated.h"
 
 class FEditorViewportClient;
@@ -40,6 +43,9 @@ class ISequencer;
 enum class EControlRigSetKey : uint8;
 class UToolMenu;
 struct FGizmoState;
+enum class EMovieSceneDataChangeType;
+struct FMovieSceneChannelMetaData;
+class UMovieSceneSection;
 
 DECLARE_DELEGATE_RetVal_ThreeParams(FTransform, FOnGetRigElementTransform, const FRigElementKey& /*RigElementKey*/, bool /*bLocal*/, bool /*bOnDebugInstance*/);
 DECLARE_DELEGATE_ThreeParams(FOnSetRigElementTransform, const FRigElementKey& /*RigElementKey*/, const FTransform& /*Transform*/, bool /*bLocal*/);
@@ -80,6 +86,38 @@ public:
 private:
 	FDelegateHandle OnBoneTransformsFinalizedHandle;
 };
+
+
+struct FDetailKeyFrameCacheAndHandler: public IDetailKeyframeHandler
+{
+	FDetailKeyFrameCacheAndHandler() { UnsetDelegates(); }
+
+	/** IDetailKeyframeHandler interface*/
+	virtual bool IsPropertyKeyable(const UClass* InObjectClass, const class IPropertyHandle& PropertyHandle) const override;
+	virtual bool IsPropertyKeyingEnabled() const override;
+	virtual void OnKeyPropertyClicked(const IPropertyHandle& KeyedPropertyHandle) override;
+	virtual bool IsPropertyAnimated(const class IPropertyHandle& PropertyHandle, UObject* ParentObject) const override;
+	virtual EPropertyKeyedStatus GetPropertyKeyedStatus(const IPropertyHandle& PropertyHandle) const override;
+
+	/** Delegates Resetting Cached Data */
+	void OnGlobalTimeChanged();
+	void OnMovieSceneDataChanged(EMovieSceneDataChangeType);
+	void OnChannelChanged(const FMovieSceneChannelMetaData*, UMovieSceneSection*);
+
+	void SetDelegates(TWeakPtr<ISequencer>& InWeakSequencer, FControlRigEditMode* InEditMode);
+	void UnsetDelegates();
+
+	/** Map to the last calculated property keyed status. Resets when Scrubbing, changing Movie Scene Data, etc */
+	mutable TMap<const IPropertyHandle*, EPropertyKeyedStatus> CachedPropertyKeyedStatusMap;
+
+private:
+	TWeakPtr<ISequencer> WeakSequencer;
+	FControlRigEditMode* EditMode = nullptr;
+
+	void ResetCachedData();
+};
+
+
 
 class CONTROLRIGEDITOR_API FControlRigEditMode : public IPersonaEditMode
 {
@@ -301,6 +339,7 @@ protected:
 	TWeakPtr<ISequencer> WeakSequencer;
 	FGuid LastMovieSceneSig;
 
+
 	/** The scope for the interaction, one per manipulated Control rig */
 	TMap<UControlRig*,FControlRigInteractionScope*> InteractionScopes;
 
@@ -407,6 +446,7 @@ public:
 	/** Request a certain transform widget for the next update */
 	void RequestTransformWidgetMode(UE::Widget::EWidgetMode InWidgetMode);
 	
+	UControlRigDetailPanelControlProxies* GetControlProxy() { return ControlProxy; }
 private:
 	/** Whether or not Pivot Transforms have changed, in which case we need to redraw viewport*/
 	bool HasPivotTransformsChanged() const;
@@ -466,6 +506,9 @@ protected:
 
 	//Get if the hosted component is visible
 	bool IsControlRigSkelMeshVisible(UControlRig* ControlRig) const;
+	
+public:  
+		TSharedPtr<FDetailKeyFrameCacheAndHandler> DetailKeyFrameCache;
 
 private:
 
@@ -531,6 +574,7 @@ private:
 	bool bIsConstructionEventRunning;
 	TArray<uint32> LastHierarchyHash;
 	TArray<uint32> LastShapeLibraryHash;
+
 
 	friend class FControlRigEditorModule;
 	friend class FControlRigEditor;
