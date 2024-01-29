@@ -204,10 +204,16 @@ namespace UnrealBuildTool.Modes
 
 		public void RemoveInvalidVenv(FileReference? EnginePython)
 		{
-			// Always delete directory if can't find valid venv config
-			if ( PythonVenvVer == null )
+			// Invalid or non-existent virtual env
+			if (PythonVenvVer == null)
 			{
-				CleanVenvDir();
+				// Only delete virtual environment if version mismatch
+				FileReference VenvConfig = FileReference.Combine(InstallDir, "pyvenv.cfg");
+				if ( FileReference.Exists(VenvConfig) )
+				{
+					CleanVenvDir();
+				}
+
 				return;
 			}
 
@@ -405,9 +411,8 @@ namespace UnrealBuildTool.Modes
 		private string? ParseVenvVersion(DirectoryReference VenvDir)
 		{
 			FileReference VenvConfig = FileReference.Combine(VenvDir, "pyvenv.cfg");
-			if ( !FileReference.Exists(VenvConfig) )
+			if (!FileReference.Exists(VenvConfig))
 			{
-				Logger.LogWarning("PipInstall: Unable to find venv config: {VenvFile}", VenvConfig);
 				return null;
 			}
 
