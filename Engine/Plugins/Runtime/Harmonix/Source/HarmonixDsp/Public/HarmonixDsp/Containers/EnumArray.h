@@ -196,7 +196,9 @@ private:																								\
 																										\
 public:					
 
-// Makes a property with the name "Name", for a TEnumArray or a Struct that uses IMPLEMENT_ENUM_ARRAY
-// The property will then be a reference to the array element indexed by the enum value of the same name
+// Makes a method with the name "Name", for a TEnumArray or a Struct that uses IMPLEMENT_ENUM_ARRAY
+// The method will return a reference to the array element indexed by the enum value of the same name
 // assumes "this" implements the ref by index operator (operator[])
-#define ENUM_PROPERTY(Name) FValueType& Name = this->operator[](EEnumType::Name)
+#define ENUM_PROPERTY(Name)																				\
+	const FValueType& Name() const { return this->operator[](EEnumType::Name); }						\
+		  FValueType& Name()       { return this->operator[](EEnumType::Name); }

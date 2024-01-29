@@ -32,7 +32,7 @@ TSharedPtr<Audio::IProxyData> UFusionPatch::CreateProxyData(const Audio::FProxyD
 UFusionPatch::UFusionPatch() : Super()
 {
 	FFusionPatchSettings& DefaultSettings = FusionPatchData.Settings;
-	FAdsrSettings& VolumeAdsr = DefaultSettings.Adsrs.Volume;
+	FAdsrSettings& VolumeAdsr = DefaultSettings.Adsrs.Volume();
 	VolumeAdsr.Target = EAdsrTarget::Volume;
 	VolumeAdsr.Depth = 1.0f;
 	VolumeAdsr.IsEnabled = true;

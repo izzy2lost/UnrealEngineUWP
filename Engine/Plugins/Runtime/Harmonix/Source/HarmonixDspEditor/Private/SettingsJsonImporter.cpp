@@ -161,7 +161,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(AdsrObj, "adsr", AdsrValue))
 			continue;
 
-		FAdsrSettings& AdsrSettings = AdsrIdx == 0 ? PatchSettings.Adsrs.Volume : PatchSettings.Adsrs.Assignable;
+		FAdsrSettings& AdsrSettings = AdsrIdx == 0 ? PatchSettings.Adsrs.Volume() : PatchSettings.Adsrs.Assignable();
 		if (!TryParseJson(AdsrValue, AdsrSettings))
 			continue;
 
