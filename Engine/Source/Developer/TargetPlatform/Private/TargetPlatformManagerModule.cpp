@@ -794,7 +794,10 @@ protected:
 			for (ITargetPlatformSettings* Platform : TargetPlatformSettings)
 			{
 				PlatformSettings.Add(Platform);
-				Module->PlatformSettings.Add(Platform);
+				if (Module != nullptr)
+				{
+					Module->PlatformSettings.Add(Platform);
+				}
 			}
 		}
 

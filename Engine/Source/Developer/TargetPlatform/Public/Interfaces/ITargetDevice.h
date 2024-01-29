@@ -331,8 +331,10 @@ protected:
 	// Temporary until we get rid of this.
 	virtual const class ITargetPlatform& GetTargetPlatform() const
 	{
-		ITargetPlatform* DummyReference = nullptr;
-		return *DummyReference;
+		unimplemented();
+		static ITargetPlatform* DummyReference = nullptr;
+		// Code should never reach this point, this is just temporary until we port all platforms to new system
+		return *DummyReference; //-V522
 	};
 public:
 
