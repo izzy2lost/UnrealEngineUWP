@@ -78,7 +78,7 @@ namespace Horde.Server.Tests
 		static StreamConfig CreateStream(StreamId streamId, string streamName)
 		{
 			StreamConfig streamConfig = new StreamConfig { Id = streamId, Name = streamName };
-			streamConfig.Tabs.Add(new JobsTabConfig { Title = "General", Templates = new List<TemplateId> { new TemplateId("test-template") } });
+			streamConfig.Tabs.Add(new TabConfig { Title = "General", Templates = new List<TemplateId> { new TemplateId("test-template") } });
 			streamConfig.Templates.Add(new TemplateRefConfig { Id = new TemplateId("test-template") });
 			return streamConfig;
 		}

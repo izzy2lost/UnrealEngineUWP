@@ -171,7 +171,7 @@ namespace Horde.Server.Tests
 				{
 					Id = streamId,
 					Name = streamName,
-					Tabs = new List<TabConfig> { new JobsTabConfig { Title = "General", Templates = new List<TemplateId> { new TemplateId("test-template") } } },
+					Tabs = new List<TabConfig> { new TabConfig { Title = "General", Templates = new List<TemplateId> { new TemplateId("test-template") } } },
 					Templates = new List<TemplateRefConfig> { templateConfig },
 					Workflows = new List<WorkflowConfig> { new WorkflowConfig { Id = new WorkflowId("test-workflow-id"), IssueHandlers = new List<string> { "Scoped" } } }
 				};

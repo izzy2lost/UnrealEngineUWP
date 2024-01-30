@@ -69,7 +69,7 @@ namespace Horde.Server.Tests
 			templates.Add(new TemplateRefConfig { Id = TemplateRefId2, Name = "Test Template" });
 
 			List<TabConfig> tabs = new List<TabConfig>();
-			tabs.Add(new JobsTabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateRefId1, TemplateRefId2 } });
+			tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateRefId1, TemplateRefId2 } });
 
 			Dictionary<string, AgentConfig> agentTypes = new()
 			{

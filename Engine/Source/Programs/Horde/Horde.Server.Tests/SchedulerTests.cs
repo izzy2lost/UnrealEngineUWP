@@ -59,7 +59,7 @@ namespace Horde.Server.Tests
 			StreamConfig streamConfig = new StreamConfig();
 			streamConfig.Id = StreamId;
 			streamConfig.Name = "//UE5/Main";
-			streamConfig.Tabs.Add(new JobsTabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
+			streamConfig.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
 			streamConfig.Templates.Add(new TemplateRefConfig { Id = TemplateId, Name = "Test", Schedule = schedule });
 
 			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { streamConfig });
@@ -434,7 +434,7 @@ namespace Horde.Server.Tests
 			StreamConfig config = new StreamConfig();
 			config.Id = StreamId;
 			config.Name = "//UE5/Main";
-			config.Tabs.Add(new JobsTabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
+			config.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
 			config.Templates = new() { new TemplateRefConfig { Id = newTemplateRefId1 }, new TemplateRefConfig { Id = newTemplateRefId2 }  };
 			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { config });
 
@@ -525,7 +525,7 @@ namespace Horde.Server.Tests
 			StreamConfig config = new StreamConfig();
 			config.Id = StreamId;
 			config.Name = "//UE5/Main";
-			config.Tabs.Add(new JobsTabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
+			config.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { newTemplateRefId1, newTemplateRefId2 } });
 			config.Templates.Add(newTemplate1);
 			config.Templates.Add(newTemplate2);
 			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { config });
@@ -690,7 +690,7 @@ namespace Horde.Server.Tests
 			StreamConfig streamConfig = new StreamConfig();
 			streamConfig.Id = StreamId;
 			streamConfig.Name = "//UE5/Main";
-			streamConfig.Tabs.Add(new JobsTabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
+			streamConfig.Tabs.Add(new TabConfig { Title = "foo", Templates = new List<TemplateId> { TemplateId } });
 			streamConfig.Templates.Add(templateConfig);
 			UpdateConfig(x => x.Projects[0].Streams = new List<StreamConfig> { streamConfig });
 

@@ -20,8 +20,8 @@ namespace Horde.Server.Tests.Streams
 			{
 				Tabs = new()
 				{
-					new JobsTabConfig { Templates = new List<TemplateId> { new ("foo") }},
-					new JobsTabConfig { Templates = new List<TemplateId> { new ("bar") }}
+					new TabConfig { Templates = new List<TemplateId> { new ("foo") }},
+					new TabConfig { Templates = new List<TemplateId> { new ("bar") }}
 				},
 				Templates = new () { new TemplateRefConfig { Id = new TemplateId("foo") } }
 			};
