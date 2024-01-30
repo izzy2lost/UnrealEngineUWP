@@ -2014,6 +2014,7 @@ static FNamePool& GetNamePool()
 
 	FNamePool* Singleton = new (NamePoolData) FNamePool;
 	bNamePoolInitialized = true;
+	LLM(FLowLevelMemTracker::Get().FinishInitialise());
 	return *Singleton;
 }
 

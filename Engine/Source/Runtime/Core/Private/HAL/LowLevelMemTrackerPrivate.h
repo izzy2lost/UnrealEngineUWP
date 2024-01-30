@@ -95,8 +95,8 @@ namespace LLMPrivate
 		bool IsFinishConstructed() const;
 		FName GetName() const;
 		FName GetDisplayName() const;
-		FString GetDisplayPath() const;
-		void AppendDisplayPath(FStringBuilderBase& Result) const;
+		void GetDisplayPath(FStringBuilderBase& Result, int32 MaxLen=-1) const;
+		void AppendDisplayPath(FStringBuilderBase& Result, int32 MaxLen=-1) const;
 		const FTagData* GetParent() const;
 		FName GetParentName() const;
 		FName GetParentNameSafeBeforeFinishConstruct() const;

@@ -11,6 +11,7 @@
 #include "HAL/PlatformMemory.h" // for page allocation association.
 #include "LowLevelMemTrackerPrivate.h"
 #include "MemPro/MemProProfiler.h"
+#include "Math/NumericLimits.h"
 #include "Misc/CString.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Fork.h"
@@ -1255,10 +1256,10 @@ public:
 	void Publish(FLowLevelMemTracker& LLMRef, const FTrackerTagSizeMap& TagSizes,
 		const FTagData* OverrideTrackedTotalName, const FTagData* OverrideUntaggedName, int64 TrackedTotal,
 		UE::LLM::ESizeParams SizeParams);
-	static void TraceGenericTags(FLowLevelMemTracker& LLMRef);
 
 private:
 	static const void* GetTagId(const FTagData* TagData);
+	void SendTagDeclaration(const FTagData* TagData);
 
 	ELLMTracker				Tracker;
 	TFastPointerLLMSet<const FTagData*> DeclaredTags;
@@ -1535,6 +1536,44 @@ protected:
 const TCHAR* ToString(ETagReferenceSource ReferenceSource);
 void SetMemoryStatByFName(FName Name, int64 Amount);
 void ValidateUniqueName(FStringView UniqueName);
+
+typedef TArray<TPair<FLLMInitialisedCallback, UPTRINT>, TInlineAllocator<1>> FInitializedCallbacksArray;
+FInitializedCallbacksArray& GetInitialisedCallbacks()
+{
+	static FInitializedCallbacksArray Array;
+	return Array;
+}
+
+typedef TArray<TPair<FTagCreationCallback, UPTRINT>, TInlineAllocator<1>> FTagCreationCallbacksArray;
+FTagCreationCallbacksArray& GetTagCreationCallbacks()
+{
+	static FTagCreationCallbacksArray Array;
+	return Array;
+}
+
+void FPrivateCallbacks::AddInitialisedCallback(FLLMInitialisedCallback Callback, UPTRINT UserData)
+{
+	FLowLevelMemTracker::Get().BootstrapInitialise();
+
+	FInitializedCallbacksArray& Callbacks = UE::LLMPrivate::GetInitialisedCallbacks();
+	Callbacks.Add(TPair<FLLMInitialisedCallback, UPTRINT> { Callback, UserData });
+}
+
+void FPrivateCallbacks::AddTagCreationCallback(FTagCreationCallback Callback, UPTRINT UserData)
+{
+	FLowLevelMemTracker::Get().BootstrapInitialise();
+
+	FTagCreationCallbacksArray& Callbacks = UE::LLMPrivate::GetTagCreationCallbacks();
+	Callbacks.Add(TPair<FTagCreationCallback, UPTRINT> { Callback, UserData });
+}
+
+void FPrivateCallbacks::RemoveTagCreationCallback(FTagCreationCallback Callback)
+{
+	FLowLevelMemTracker::Get().BootstrapInitialise();
+
+	FTagCreationCallbacksArray& Callbacks = UE::LLMPrivate::GetTagCreationCallbacks();
+	Callbacks.RemoveAll([Callback](TPair<FTagCreationCallback, UPTRINT>& Pair) { return Pair.Key == Callback; });
+}
 
 } // namespace UE::LLMPrivate
 
@@ -2180,7 +2219,6 @@ void FLowLevelMemTracker::ProcessCommandLine(const TCHAR* CmdLine)
 	bIsDisabled = false;
 	bCsvWriterEnabled = bLocalCsvWriterEnabled;
 	bTraceWriterEnabled = bLocalTraceWriterEnabled;
-	BootstrapInitialise();
 	FinishInitialise();
 
 	// activate tag sets (we ignore None set, it's always on)
@@ -2536,6 +2574,8 @@ void FLowLevelMemTracker::FinishInitialise()
 	{
 		return;
 	}
+	BootstrapInitialise();
+
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
 	GTrackArrayDetailedLock = new FCriticalSection();
 #endif
@@ -2545,8 +2585,15 @@ void FLowLevelMemTracker::FinishInitialise()
 	// FName system construction, which will itself trigger Malloc construction.
 	(void)LLMGetTagUniqueName(ELLMTag::Untagged);
 	InitialiseTagDatas();
+
+	UE::LLMPrivate::FInitializedCallbacksArray& Callbacks = UE::LLMPrivate::GetInitialisedCallbacks();
+	for (const TPair<UE::LLMPrivate::FLLMInitialisedCallback, UPTRINT>& Callback : Callbacks)
+	{
+		Callback.Key(Callback.Value);
+	}
+	Callbacks.Empty();
 }
- 
+
 void FLowLevelMemTracker::InitialiseTagDatas_SetLLMTagNames()
 {
 	using namespace UE::LLMPrivate;
@@ -2894,7 +2941,6 @@ void FLowLevelMemTracker::FinishConstruct(UE::LLMPrivate::FTagData* TagData,
 			TagData->SetParent(ParentData);
 		}
 	}
-	TagData->SetFinishConstructed();
 
 	FTagData* ParentData = const_cast<FTagData*>(TagData->GetParent());
 	if (ParentData)
@@ -2902,6 +2948,24 @@ void FLowLevelMemTracker::FinishConstruct(UE::LLMPrivate::FTagData* TagData,
 		// Make sure the parent chain is FinishConstructed as well, since GetContainingEnum or GetDisplayPath will be
 		// called and walk up the parent chain.
 		FinishConstruct(ParentData, ReferenceSource);
+	}
+
+	TagData->SetFinishConstructed();
+
+	// Broadcast the tag creation, except for generic tags which are constructed before any subscriber could
+	// possibly have registered. Subscribers must instead read those from GetTrackedTags.
+	if (!TagData->HasEnumTag() || TagData->GetEnumTag() >= ELLMTag::GenericTagCount)
+	{
+		// Leave the critical section while calling the callback, since the callback could be arbitrary
+		// code that calls back into LLM. The TagData pointer is immutable so we do not have to worry about
+		// it disappearing out from under us.
+		TagDataLock.ReadUnlock();
+		for (const TPair<UE::LLMPrivate::FTagCreationCallback, UPTRINT>& Callback :
+			UE::LLMPrivate::GetTagCreationCallbacks())
+		{
+			Callback.Key(TagData, Callback.Value);
+		}
+		TagDataLock.ReadLock();
 	}
 }
 
@@ -3087,12 +3151,35 @@ FName FLowLevelMemTracker::GetTagDisplayName(const UE::LLMPrivate::FTagData* Tag
 
 FString FLowLevelMemTracker::GetTagDisplayPathName(const UE::LLMPrivate::FTagData* TagData) const
 {
-	return TagData->GetDisplayPath();
+	TStringBuilder<FName::StringBufferSize> Buffer;
+	GetTagDisplayPathName(TagData, Buffer);
+	return FString(Buffer);
+}
+
+void FLowLevelMemTracker::GetTagDisplayPathName(const UE::LLMPrivate::FTagData* TagData,
+	FStringBuilderBase& OutPathName, int32 MaxLen) const
+{
+	TagData->GetDisplayPath(OutPathName, MaxLen);
 }
 
 FName FLowLevelMemTracker::GetTagUniqueName(const UE::LLMPrivate::FTagData* TagData) const
 {
 	return TagData->GetName();
+}
+
+const UE::LLMPrivate::FTagData* FLowLevelMemTracker::GetTagParent(const UE::LLMPrivate::FTagData* TagData) const
+{
+	return TagData->GetParent();
+}
+
+bool FLowLevelMemTracker::GetTagIsEnumTag(const UE::LLMPrivate::FTagData* TagData) const
+{
+	return TagData->HasEnumTag();
+}
+
+ELLMTag FLowLevelMemTracker::GetTagClosestEnumTag(const UE::LLMPrivate::FTagData* TagData) const
+{
+	return TagData->GetEnumTag();
 }
 
 // Deprecated in 5.3
@@ -3760,9 +3847,9 @@ void FLLMTagDeclaration::ConstructUniqueName()
 namespace UE::LLMPrivate::LLMTagDeclarationInternal
 {
 
-TArray<FLLMTagDeclaration::FCreationCallback, TInlineAllocator<2>>& GetCreationCallbacks()
+TArray<FLLMTagDeclaration::FCreationCallback, TInlineAllocator<1>>& GetCreationCallbacks()
 {
-	static TArray<FLLMTagDeclaration::FCreationCallback, TInlineAllocator<2>> CreationCallbacks;
+	static TArray<FLLMTagDeclaration::FCreationCallback, TInlineAllocator<1>> CreationCallbacks;
 	return CreationCallbacks;
 }
 
@@ -3776,7 +3863,7 @@ FLLMTagDeclaration*& GetList()
 
 void FLLMTagDeclaration::AddCreationCallback(FCreationCallback InCallback)
 {
-	TArray<FCreationCallback, TInlineAllocator<2>>& CreationCallbacks =
+	TArray<FCreationCallback, TInlineAllocator<1>>& CreationCallbacks =
 		UE::LLMPrivate::LLMTagDeclarationInternal::GetCreationCallbacks();
 	if (CreationCallbacks.Num() >= CreationCallbacks.Max())
 	{
@@ -3790,7 +3877,7 @@ void FLLMTagDeclaration::AddCreationCallback(FCreationCallback InCallback)
 
 void FLLMTagDeclaration::ClearCreationCallbacks()
 {
-	TArray<FCreationCallback, TInlineAllocator<2>>& CreationCallbacks =
+	TArray<FCreationCallback, TInlineAllocator<1>>& CreationCallbacks =
 		UE::LLMPrivate::LLMTagDeclarationInternal::GetCreationCallbacks();
 	CreationCallbacks.Empty();
 }
@@ -4302,19 +4389,36 @@ FName FTagData::GetDisplayName() const
 	return DisplayName;
 }
 
-FString FTagData::GetDisplayPath() const
+void FTagData::GetDisplayPath(FStringBuilderBase& Result, int32 MaxLen) const
 {
-	TStringBuilder<256> NameBuffer;
-	AppendDisplayPath(NameBuffer);
-	return FString(NameBuffer);
+	Result.Reset();
+	AppendDisplayPath(Result, MaxLen);
 }
 
-void FTagData::AppendDisplayPath(FStringBuilderBase& Result) const
+void FTagData::AppendDisplayPath(FStringBuilderBase& Result, int32 MaxLen) const
 {
 	if (Parent && Parent->IsUsedAsDisplayParent())
 	{
-		Parent->AppendDisplayPath(Result);
+		Parent->AppendDisplayPath(Result, MaxLen);
+		if (MaxLen >= 0 && Result.Len() + 1 >= MaxLen)
+		{
+			return;
+		}
 		Result << TEXT("/");
+	}
+	if (MaxLen >= 0)
+	{
+		int32 MaxRemainingLen = MaxLen - Result.Len();
+		if (static_cast<int32>(DisplayName.GetStringLength() + 1) > MaxRemainingLen)
+		{
+			if (MaxRemainingLen > 1)
+			{
+				TStringBuilder<FName::StringBufferSize> Buffer;
+				DisplayName.AppendString(Buffer);
+				Result << Buffer.ToView().Left(MaxRemainingLen - 1);
+			}
+			return;
+		}
 	}
 	DisplayName.AppendString(Result);
 }
@@ -6046,23 +6150,6 @@ void FLLMTraceWriter::Publish(FLowLevelMemTracker& LLMRef, const FTrackerTagSize
 			<< TrackerSpec.Name(TrackerNames[(uint8)Tracker].Name, NameLen);
 	}
 
-	TStringBuilder<1024> NameBuffer;
-	auto SendTagDeclaration = [this, &NameBuffer](const FTagData* TagData)
-	{
-		if (!TagData || DeclaredTags.Contains(TagData))
-		{
-			return;
-		}
-		DeclaredTags.Add(TagData);
-
-		const FTagData* Parent = TagData->GetParent();
-		NameBuffer.Reset();
-		TagData->AppendDisplayPath(NameBuffer);
-		UE_TRACE_LOG(LLM, TagsSpec, MemTagChannel, NameBuffer.Len() * sizeof(ANSICHAR))
-			<< TagsSpec.TagId(GetTagId(TagData))
-			<< TagsSpec.ParentId(GetTagId(Parent))
-			<< TagsSpec.Name(*NameBuffer, NameBuffer.Len());
-	};
 	SendTagDeclaration(OverrideTrackedTotalTagData);
 	SendTagDeclaration(OverrideUntaggedTagData);
 	for (const TPair<const FTagData*, FTrackerTagSizeData>& It : TagSizes)
@@ -6132,18 +6219,29 @@ void FLLMTraceWriter::Publish(FLowLevelMemTracker& LLMRef, const FTrackerTagSize
 		<< TagValue.Values(TagValues.GetData(), TagCount);
 }
 
-void FLLMTraceWriter::TraceGenericTags(FLowLevelMemTracker& LLMRef)
+void FLLMTraceWriter::SendTagDeclaration(const FTagData* TagData)
 {
-	for (int32 GenericTagIndex = 0; GenericTagIndex < static_cast<int32>(ELLMTag::GenericTagCount); GenericTagIndex++)
+	if (!TagData)
 	{
-		const FTagData* TagData = LLMRef.FindTagData(static_cast<ELLMTag>(GenericTagIndex));
-		FString TagName = TagData->GetDisplayPath();
-		UE_TRACE_LOG(LLM, TagsSpec, MemTagChannel, TagName.Len() * sizeof(ANSICHAR))
-			<< TagsSpec.TagId(GetTagId(TagData))
-			<< TagsSpec.ParentId(GetTagId(TagData->GetParent()))
-			<< TagsSpec.Name(*TagName, TagName.Len());
+		return;
 	}
-}
+	bool bAlreadyInSet;
+	DeclaredTags.Add(TagData, &bAlreadyInSet);
+	if (bAlreadyInSet)
+	{
+		return;
+	}
+
+	const FTagData* Parent = TagData->GetParent();
+	SendTagDeclaration(Parent);
+
+	TStringBuilder<1024> NameBuffer;
+	TagData->AppendDisplayPath(NameBuffer);
+	UE_TRACE_LOG(LLM, TagsSpec, MemTagChannel, NameBuffer.Len() * sizeof(ANSICHAR))
+		<< TagsSpec.TagId(GetTagId(TagData))
+		<< TagsSpec.ParentId(GetTagId(Parent))
+		<< TagsSpec.Name(*NameBuffer, NameBuffer.Len());
+};
 
 // FLLMCsvProfilerWriter implementation.
 FLLMCsvProfilerWriter::FLLMCsvProfilerWriter()
@@ -6211,7 +6309,9 @@ void FLLMCsvProfilerWriter::RecordTagToCsv(int32 CsvCategoryIndex, const FTagDat
 	FName* CsvStatNamePtr = TagDataToCsvStatName.Find(TagData);
 	if (CsvStatNamePtr == nullptr)
 	{
-		NewCsvStatName = FName(TagData->GetDisplayPath());
+		TStringBuilder<FName::StringBufferSize> DisplayPath;
+		TagData->GetDisplayPath(DisplayPath);
+		NewCsvStatName = FName(DisplayPath);
 		TagDataToCsvStatName.Add(TagData, NewCsvStatName);
 		CsvStatNamePtr = &NewCsvStatName;
 	}

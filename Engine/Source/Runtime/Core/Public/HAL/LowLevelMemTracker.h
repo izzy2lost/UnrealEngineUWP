@@ -46,6 +46,7 @@
 
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
+#include "Containers/StringFwd.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/PlatformCrt.h"
 #include "HAL/PlatformMisc.h"
@@ -55,6 +56,8 @@
 #include "UObject/UnrealNames.h"
 
 #include <atomic>
+
+class FTagTrace;
 
 #if DO_CHECK
 
@@ -534,6 +537,25 @@ enum class ETagReferenceSource
 	ImplicitParent
 };
 
+typedef void (*FLLMInitialisedCallback)(UPTRINT UserData);
+typedef void (*FTagCreationCallback)(const UE::LLMPrivate::FTagData* TagData, UPTRINT UserData);
+
+/**
+ * Callbacks that can occur during LLM Initialisation. These happen before main and are therefore
+ * dangerous to use, so they are private.
+ */
+struct FPrivateCallbacks
+{
+private:
+	CORE_API static void AddInitialisedCallback(FLLMInitialisedCallback Callback, UPTRINT UserData);
+	// There is no RemoveInitialiseCallback because it is triggered and cleared before Main is called,
+	// there should be no need to remove a callback before then.
+	CORE_API static void AddTagCreationCallback(FTagCreationCallback Callback, UPTRINT UserData);
+	CORE_API static void RemoveTagCreationCallback(FTagCreationCallback Callback);
+
+	friend class ::FTagTrace;
+};
+
 } // UE::LLMPrivate
 
 struct UE_DEPRECATED(4.27, "FLLMCustomTag was an implementation detail that has been modified, switch to FLLMTagInfo or to your own local struct") FLLMCustomTag
@@ -676,9 +698,23 @@ public:
 
 	/** Get the path name for the given FTagData from a chain of its parents' display names. */
 	CORE_API FString GetTagDisplayPathName(const UE::LLMPrivate::FTagData* TagData) const;
+	CORE_API void GetTagDisplayPathName(const UE::LLMPrivate::FTagData* TagData,
+		FStringBuilderBase& OutPathName, int32 MaxLen=-1) const;
 
 	/** Get the unique identifier name for the given FTagData. */
 	CORE_API FName GetTagUniqueName(const UE::LLMPrivate::FTagData* TagData) const;
+
+	/** Return the TagData that is the parent scope of the given TagData, or nullptr if no parent. */
+	CORE_API const UE::LLMPrivate::FTagData* GetTagParent(const UE::LLMPrivate::FTagData* TagData) const;
+
+	/** Return true if and only if the TagData is an ELLMTag or a custom-declared platform or project ELLMTag. */
+	CORE_API bool GetTagIsEnumTag(const UE::LLMPrivate::FTagData* TagData) const;
+
+	/**
+	 * Return the ELLMTag of closest parent (including possibly TagData) which has true==GetTagIsEnumTag
+	 * For FName tags with no ELLMTag parent, they will return ELLMTag::CustomName.
+	 */
+	CORE_API ELLMTag GetTagClosestEnumTag(const UE::LLMPrivate::FTagData* TagData) const;
 
 	/** Get the amount of memory for an ELLMTag from the given tracker. */
 	CORE_API int64 GetTagAmountForTracker(ELLMTracker Tracker, ELLMTag Tag, UE::LLM::ESizeParams SizeParams = UE::LLM::ESizeParams::Default);
@@ -724,19 +760,27 @@ public:
 	{
 		return bFullyInitialised;
 	}
+	/**
+	 * Initialize the data required for tracking allocations if it has not already been done.
+	 * This can occur after construction of the singleton FLowLevelMemTracker. 
+	 * This function is called automatically by any LLM function that requires it, but can also be triggered
+	 * by external systems that need to carefully manage static initialization order.
+	 * BootstrapInitialize does NOT make GetTagUniqueName available; that requires FinishInitialize.
+	 */
+	CORE_API void BootstrapInitialise();
+
+	/**
+	 * Finish initialization if not already done. Calls BootstrapInitialise if necessary. After being called,
+	 * all functions in LLM including those returning FNames are available.
+	 * This function should be called as soon as possible after FNames are available so that other tracking
+	 * systems reliant on LLM's FName data can start tracking as soon as possible.
+	 */
+	CORE_API void FinishInitialise();
 
 private:
 	CORE_API FLowLevelMemTracker();
 
 	CORE_API ~FLowLevelMemTracker();
-
-	/**
-	 * Allocation and Setup of the data required for tracking allocations is done as late as possible to prevent
-	 * exercising allocation code too early. Note that as late as possible for tracking allocations is still earlier
-	 * than ParseCommandLine, so we do not complete all initialization in this function (e.g. features required only
-	 * for Update are omitted). Initialization done here will be torn down in ParseCommandLine if LLM is disabled.
-	 */
-	CORE_API void BootstrapInitialise();
 
 	bool IsBootstrapping() const { return bIsBootstrapping; }
 
@@ -758,8 +802,6 @@ private:
 	* Creates the subset of tags necessary to record allocations during GMalloc and FName construction
 	*/
 	CORE_API void BootstrapTagDatas();
-	/** Called when we have detected enabled in processcommandline, or as late as possible if callers access features that require full initialisation before then */
-	CORE_API void FinishInitialise();
 	CORE_API void InitialiseTagDatas_SetLLMTagNames();
 	CORE_API void InitialiseTagDatas_FinishRegister();
 	CORE_API void InitialiseTagDatas();
@@ -1001,7 +1043,6 @@ protected:
 	FLLMTagDeclaration* Next = nullptr;
 
 	friend class FLowLevelMemTracker;
-	friend class FTagTrace;
 };
 
 /** Used to filter Tag allocations specifying a Name that matches in a TagSet, or TagSet alone or just by Name. */
