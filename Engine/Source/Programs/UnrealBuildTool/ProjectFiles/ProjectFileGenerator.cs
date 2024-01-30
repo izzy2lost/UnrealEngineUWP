@@ -143,6 +143,7 @@ namespace UnrealBuildTool
 		CodeLite,
 		VisualStudio,
 		VisualStudio2022,
+		VisualStudioWorkspace,
 		XCode,
 		Eddie,
 		VisualStudioCode,
@@ -2688,7 +2689,7 @@ namespace UnrealBuildTool
 		/// <param name="ProgramProjects">Map of program names to all of the program projects we created</param>
 		/// <param name="RulesAssemblies">Map of RuleAssemblies to their base folders</param>
 		/// <param name="Logger">Logger for output</param>
-		private void AddProjectsForAllTargets(
+		protected void AddProjectsForAllTargets(
 			PlatformProjectGeneratorCollection PlatformProjectGenerators,
 			List<FileReference> AllGames,
 			List<FileReference> AllTargetFiles,
@@ -3055,7 +3056,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		/// <param name="BaseName">The base name for the project file</param>
 		/// <returns>Full path to the project file</returns>
-		protected FileReference GetProjectLocation(string BaseName)
+		protected virtual FileReference GetProjectLocation(string BaseName)
 		{
 			return FileReference.Combine(IntermediateProjectFilesPath, BaseName + ProjectFileExtension);
 		}
