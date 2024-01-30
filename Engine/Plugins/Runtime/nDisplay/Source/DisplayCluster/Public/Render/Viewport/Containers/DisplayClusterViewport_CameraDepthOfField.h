@@ -3,10 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UObject/WeakObjectPtr.h"
 
 class FSceneView;
-class UTexture2D;
 
 /**
 * Settings for the camera depth of field blur.
@@ -33,7 +31,4 @@ public:
 
 	/** An offset applied to the distance to wall value */
 	float DistanceToWallOffset = 0.0;
-
-	/** Look-up texture that encodes the specific amount of compensation used for each combination of wall distance and object distance */
-	TWeakObjectPtr<UTexture2D> CompensationLUT;
 };

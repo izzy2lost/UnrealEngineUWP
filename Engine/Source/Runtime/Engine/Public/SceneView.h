@@ -1593,9 +1593,6 @@ public:
 	/** When dynamic CoC offset is enabled, this is the distance from camera at which objects will be in perfect focus (when the CoC offset is maximum so that the final CoC is 0) */
 	float InFocusDistance = 0.0;
 
-	/** Lookup table for the dynamic CoC offset */
-	FTextureRHIRef DynamicCocOffsetLUT;
-
 	/** Feature level for this scene */
 	const ERHIFeatureLevel::Type FeatureLevel;
 

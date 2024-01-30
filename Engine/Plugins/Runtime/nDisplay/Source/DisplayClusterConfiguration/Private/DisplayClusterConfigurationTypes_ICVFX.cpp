@@ -581,40 +581,6 @@ bool FDisplayClusterConfigurationICVFX_ChromakeyRenderSettings::ShouldUseChromak
 	return ShowOnlyList.IsVisibilityListValid();
 }
 
-void FDisplayClusterConfigurationICVFX_CameraDepthOfField::UpdateDynamicCompensationLUT()
-{
-	if (CompensationLUT)
-	{
-		FSharedImageConstRef CPUTextureRef = CompensationLUT->GetCPUCopy();
-		if (CPUTextureRef.IsValid())
-		{
-			TArray64<uint8> Pixels(CPUTextureRef->RawData);
-			for (int32 Index = 0; Index < Pixels.Num(); ++Index)
-			{
-				// Scale the offset encoded in the LUT so that the final CoC when computed in the DoF pipeline is scaled by the gain.
-				// The actual new offset needed to accomplish this comes from the following equation:
-				// c * (CoC_obj + CoC_off) = CoC_obj + newOffset =>
-				// newOffset = (1 - c) * CoC_obj + c * CoC_off
-				const int32 ObjectCoC = Index % CPUTextureRef->GetHeight();
-				const int32 Offset = Pixels[Index] - 128;
-				const int32 ScaledOffset = (1 - DepthOfFieldGain) * ObjectCoC + DepthOfFieldGain * Offset;
-				Pixels[Index] = FMath::Clamp(ScaledOffset + 128, 0, 255);
-			}
-
-			// Texture format is assumed to be greyscale (PF_G8), and we must disable sRGB on the texture to ensure the raw byte value, which encodes
-			// the offset in pixels, is passed unmodified to the depth of field shader
-			if (UTexture2D* NewTexture = UTexture2D::CreateTransient(CPUTextureRef->GetWidth(), CPUTextureRef->GetHeight(), PF_G8, NAME_None, Pixels))
-			{
-				DynamicCompensationLUT = NewTexture;
-				DynamicCompensationLUT->SRGB = 0;
-				return;
-			}
-		}
-	}
-
-	DynamicCompensationLUT = nullptr;
-}
-
 void FDisplayClusterConfigurationICVFX_CameraCustomFrustum::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const
 {
 	// Since Circle of confusion is directly proportional to aperature, with wider FOV focal length needs to be shortened by the same amount as FOV.

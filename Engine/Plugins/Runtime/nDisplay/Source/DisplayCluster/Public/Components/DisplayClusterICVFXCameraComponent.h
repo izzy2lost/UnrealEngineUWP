@@ -80,10 +80,6 @@ public:
 	// UActorComponent interface
 	virtual void OnRegister() override;
 
-	/** Sets new depth of field parameters and updates the dynamically generated compensation LUT if needed */
-	UFUNCTION(BlueprintCallable, Category = "In Camera VFX")
-	void SetDepthOfFieldParameters(const FDisplayClusterConfigurationICVFX_CameraDepthOfField& NewDepthOfFieldParams);
-
 private:
 	void UpdateOverscanEstimatedFrameSize();
 

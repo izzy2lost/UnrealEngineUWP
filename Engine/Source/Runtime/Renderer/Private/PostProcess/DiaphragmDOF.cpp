@@ -638,9 +638,6 @@ END_SHADER_PARAMETER_STRUCT()
 BEGIN_SHADER_PARAMETER_STRUCT(FDOFCocModelShaderParameters, )
 	SHADER_PARAMETER(float, CocInfinityRadius)
 	SHADER_PARAMETER(float, CocInFocusRadius)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DynamicRadiusOffsetLUT)
-	SHADER_PARAMETER_SAMPLER(SamplerState, DynamicRadiusOffsetLUTSampler)
-	SHADER_PARAMETER(FVector2f, DynamicRadiusOffsetLUTInvSize)
 	SHADER_PARAMETER(uint32, bCocEnableDynamicRadiusOffset)
 	SHADER_PARAMETER(float, CocMinRadius)
 	SHADER_PARAMETER(float, CocMaxRadius)
@@ -651,7 +648,6 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDOFCocModelShaderParameters, )
 END_SHADER_PARAMETER_STRUCT()
 
 void SetCocModelParameters(
-	FRDGBuilder& GraphBuilder,
 	FDOFCocModelShaderParameters* OutParameters,
 	const DiaphragmDOF::FPhysicalCocModel& CocModel,
 	float CocRadiusBasis = 1.0f)
@@ -665,23 +661,6 @@ void SetCocModelParameters(
 	OutParameters->CocInvSqueeze = 1.0f / CocModel.Squeeze;
 	OutParameters->DepthBlurRadius = CocRadiusBasis * CocModel.MaxDepthBlurRadius;
 	OutParameters->DepthBlurExponent = CocModel.DepthBlurExponent;
-
-	if (CocModel.DynamicRadiusOffsetLUT)
-	{
-		OutParameters->DynamicRadiusOffsetLUT = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(CocModel.DynamicRadiusOffsetLUT, TEXT("DynamicRadiusOffsetLUT")));
-		OutParameters->DynamicRadiusOffsetLUTInvSize.X = 1.0f / CocModel.DynamicRadiusOffsetLUT->GetDesc().Extent.X;
-		OutParameters->DynamicRadiusOffsetLUTInvSize.Y = 1.0f / CocModel.DynamicRadiusOffsetLUT->GetDesc().Extent.Y;
-	}
-	else
-	{
-		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
-
-		OutParameters->DynamicRadiusOffsetLUT = SystemTextures.Black;
-		OutParameters->DynamicRadiusOffsetLUTInvSize.X = 1.0f;
-		OutParameters->DynamicRadiusOffsetLUTInvSize.Y = 1.0f;
-	}
-
-	OutParameters->DynamicRadiusOffsetLUTSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 }
 
 
@@ -1621,7 +1600,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 		FDiaphragmDOFSetupCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDiaphragmDOFSetupCS::FParameters>();
 		{
 			PassParameters->CommonParameters = CommonParameters;
-			SetCocModelParameters(GraphBuilder, &PassParameters->CocModel, CocModel, EncodedCocRadiusBasis);
+			SetCocModelParameters(&PassParameters->CocModel, CocModel, EncodedCocRadiusBasis);
 			PassParameters->ViewportRect = FIntRect(FIntPoint::ZeroValue, PassViewSize);
 			PassParameters->SceneColorTexture = InputSceneColor;
 			PassParameters->SceneDepthTexture = SceneTextures.SceneDepthTexture;
@@ -2693,7 +2672,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 
 		FDiaphragmDOFRecombineCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDiaphragmDOFRecombineCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
-		SetCocModelParameters(GraphBuilder, &PassParameters->CocModel, CocModel, /* CocRadiusBasis = */ float(GatheringViewSize.X));
+		SetCocModelParameters(&PassParameters->CocModel, CocModel, /* CocRadiusBasis = */ float(GatheringViewSize.X));
 
 		PassParameters->ViewportRect = PassViewRect;
 		PassParameters->ViewportSize = FVector4f(PassViewRect.Width(), PassViewRect.Height(), 1.0f / PassViewRect.Width(), 1.0f / PassViewRect.Height());

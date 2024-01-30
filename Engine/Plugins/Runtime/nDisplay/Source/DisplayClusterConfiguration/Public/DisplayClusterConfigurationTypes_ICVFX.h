@@ -605,22 +605,6 @@ public:
 	/** An offset applied to DistanceToWall (applied regardless of whether DistanceToWall is automatically set) */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
 	float DistanceToWallOffset = 0.0;
-
-	/** A gain factor that scales the amount of depth of field blur rendered on the wall */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay, meta = (UIMin=0.0, UIMax=4.0, ClampMin=0.0, ClampMax=4.0))
-	float DepthOfFieldGain = 1.0;
-
-	/** Look-up texture that encodes the specific amount of compensation used for each combination of wall distance and object distance */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
-	UTexture2D* CompensationLUT = nullptr;
-
-	/** Actual LUT to use with the depth of field pipeline, copied and modified from CompensationLUT */
-	UPROPERTY(Transient)
-	UTexture2D* DynamicCompensationLUT = nullptr;
-
-public:
-	/** Processes the compensation LUT by adding any needed DoF gain and writes the result to the dynamic compensation LUT texture */
-	void UpdateDynamicCompensationLUT();
 };
 
 USTRUCT(BlueprintType)
