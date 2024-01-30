@@ -279,22 +279,25 @@ bool DeviceNativeTask::WaitFor(int32 Seconds)
 	for (auto& PrevTask : Prev)
 	{
 		/// Culled jobs should never be added even though their promise has been resolved
-		check(!PrevTask->IsCulled());
-
-		/// Must be higher TaskPriority than this particular task
-		check(PrevTask->IsHigherPriorityThan(*this));
-
-		UE_LOG(LogDevice, VeryVerbose, TEXT("[%u] Begin Wait::%s"), PrevTask->GetTaskId(), *PrevTask->GetName());
-		std::future_status Status = PrevTask->GetFuture().wait_for(std::chrono::seconds(Seconds));
-
-		if (Status == std::future_status::timeout)
+		if (!PrevTask->IsCulled())
 		{
-			FString WaitChain = DebugWaitChain();
-			UE_LOG(LogDevice, VeryVerbose, TEXT("[%u] Timed out wait for task::%s. Chain: %s"), PrevTask->GetTaskId(), *PrevTask->GetName(), *WaitChain);
-			return false;
-		}
+			check(!PrevTask->IsCulled());
 
-		UE_LOG(LogDevice, VeryVerbose, TEXT("[%u] End Wait::%s"), PrevTask->GetTaskId(), *PrevTask->GetName());
+			/// Must be higher TaskPriority than this particular task
+			check(PrevTask->IsHigherPriorityThan(*this));
+
+			UE_LOG(LogDevice, VeryVerbose, TEXT("[%u] Begin Wait::%s"), PrevTask->GetTaskId(), *PrevTask->GetName());
+			std::future_status Status = PrevTask->GetFuture().wait_for(std::chrono::seconds(Seconds));
+
+			if (Status == std::future_status::timeout)
+			{
+				FString WaitChain = DebugWaitChain();
+				UE_LOG(LogDevice, VeryVerbose, TEXT("[%u] Timed out wait for task::%s. Chain: %s"), PrevTask->GetTaskId(), *PrevTask->GetName(), *WaitChain);
+				return false;
+			}
+
+			UE_LOG(LogDevice, VeryVerbose, TEXT("[%u] End Wait::%s"), PrevTask->GetTaskId(), *PrevTask->GetName());
+		}
 	}
 
 	return true;

@@ -71,8 +71,6 @@ class TEXTUREGRAPHENGINE_API Blobber
 	friend class DeviceBuffer;
 
 public:
-
-
 	struct BlobCacheEntry
 	{
 		BlobPtr						BlobObj;						/// The actual BlobObj object within the cache entry

@@ -123,8 +123,8 @@ HashType DataUtil::Hash(const CHashPtrVec& InSubHashes, HashType InitialValue /*
 {
 	HashTypeVec SubHashes(InSubHashes.size());
 
-	for (size_t hi = 0; hi < InSubHashes.size(); hi++)
-		SubHashes[hi] = InSubHashes[hi]->Value();
+	for (size_t HashIndex = 0; HashIndex < InSubHashes.size(); HashIndex++)
+		SubHashes[HashIndex] = InSubHashes[HashIndex]->Value();
 
 	return Hash(SubHashes, InitialValue, Prime);
 }
@@ -201,13 +201,13 @@ void CHash::CheckLinkCycles(std::unordered_set<CHashPtr>& Chain)
 {
 	for (CHashPtrW link_ : Linked)
 	{
-		CHashPtr link = link_.lock();
+		CHashPtr Link = link_.lock();
 
-		if (link)
+		if (Link)
 		{
-			check(Chain.find(link) == Chain.end());
-			Chain.insert(link);
-			link->CheckLinkCycles(Chain);
+			check(Chain.find(Link) == Chain.end());
+			Chain.insert(Link);
+			Link->CheckLinkCycles(Chain);
 		}
 	}
 }
@@ -241,7 +241,9 @@ bool CHash::TryFinalise(HashType FinalHash /* = DataUtil::s_nullHash */, bool Up
 		check(HashValue == DataUtil::GNullHash);
 
 		/// Save the old Value of the temp HashValue
-		auto OldHash = TempHashValue->HashValue;
+		HashType OldHash = TempHashValue->HashValue;
+		IntermediateHashes = TempHashValue->GetIntermediateHashes();
+
 		bool bDidUpdate = TempHashValue->TryFinalise(FinalHash, false);
 
 		if (bDidUpdate)
@@ -256,8 +258,13 @@ bool CHash::TryFinalise(HashType FinalHash /* = DataUtil::s_nullHash */, bool Up
 
 			if (HashValue != DataUtil::GNullHash && OldHash != HashValue && UpdateBlobber)
 			{
+				CHashPtr ThisHash = shared_from_this();
+
+				IntermediateHashes.push_back(OldHash);
+
 				/// Now we try to update the mapping in blobber
-				TextureGraphEngine::GetBlobber()->UpdateHash(OldHash, shared_from_this());
+				for (HashType IntermediateHash : IntermediateHashes)
+					TextureGraphEngine::GetBlobber()->UpdateHash(IntermediateHash, ThisHash);
 			}
 
 			return true;
@@ -269,19 +276,21 @@ bool CHash::TryFinalise(HashType FinalHash /* = DataUtil::s_nullHash */, bool Up
 	/// Cannot finalise a HashValue that's already been finalised!
 	bool bShouldUpdate = false;
 	bool bDidUpdate = false;
+	HashType CurrentHash = HashValue;
+	bool bIsTemp = IsTemp();
 
 	if (!HashSources.empty())
 	{
 		HashTypeVec Sources(HashSources.size());
 		bool bIsFinalHash = true;
 
-		for (size_t hi = 0; hi < HashSources.size(); hi++)
+		for (size_t HashIndex = 0; HashIndex < HashSources.size(); HashIndex++)
 		{
 			/// Check whether the source HashValue has been finalised or not
-			bIsFinalHash &= HashSources[hi]->IsFinal();
-			Sources[hi] = HashSources[hi]->Value();
+			bIsFinalHash &= HashSources[HashIndex]->IsFinal();
+			Sources[HashIndex] = HashSources[HashIndex]->Value();
 
-			if (HashSources[hi]->GetTimestamp() > Timestamp)
+			if (HashSources[HashIndex]->GetTimestamp() > Timestamp)
 				bShouldUpdate = true;
 		}
 
@@ -322,7 +331,12 @@ bool CHash::TryFinalise(HashType FinalHash /* = DataUtil::s_nullHash */, bool Up
 	}
 
 	if (bDidUpdate)
+	{
+		if (!bIsTemp && CurrentHash != HashValue)
+			IntermediateHashes.push_back(CurrentHash);
+
 		UpdateLinks();
+	}
 
 	return bDidUpdate;
 }
@@ -343,12 +357,12 @@ void CHash::UpdateLinks()
 
 	for (CHashPtrW& Iter : Linked)
 	{ 
-		CHashPtr link = Iter.lock();
+		CHashPtr Link = Iter.lock();
 
-		if (link)
+		if (Link)
 		{
 			/// Call the linked to update itself
-			link->HandleLinkUpdated(ThisHash);
+			Link->HandleLinkUpdated(ThisHash);
 		}
 	}
 
@@ -357,13 +371,26 @@ void CHash::UpdateLinks()
 	Linked.clear();
 }
 
+HashTypeVec CHash::GetIntermediateHashes() const
+{
+	if (!TempHashValue)
+		return IntermediateHashes;
+
+	HashTypeVec CombinedIntermediateHashes = IntermediateHashes;
+	CombinedIntermediateHashes.insert(CombinedIntermediateHashes.end(), TempHashValue->IntermediateHashes.begin(), TempHashValue->IntermediateHashes.end());
+
+	return CombinedIntermediateHashes;
+}
+
 CHashPtr CHash::UpdateHash(CHashPtr NewHash, CHashPtr PrevHash)
 {
 	if (PrevHash)
 	{
 		check(NewHash != PrevHash);
 
-		auto PrevHashValue = PrevHash->Value();
+		HashType PrevHashValue = PrevHash->Value();
+		NewHash->IntermediateHashes = PrevHash->GetIntermediateHashes();
+		NewHash->IntermediateHashes.push_back(PrevHashValue);
 
 		/// Copy some Data over from the previous HashValue
 		NewHash->Linked = PrevHash->Linked;
@@ -382,7 +409,9 @@ CHashPtr CHash::UpdateHash(CHashPtr NewHash, CHashPtr PrevHash)
 
 		if (PrevHashValue != PrevHash->Value() && !TextureGraphEngine::IsDestroying() && TextureGraphEngine::GetBlobber())
 		{
-			TextureGraphEngine::GetBlobber()->UpdateHash(PrevHashValue, NewHash);
+			for (HashType IntermediateHash : NewHash->IntermediateHashes)
+				TextureGraphEngine::GetBlobber()->UpdateHash(IntermediateHash, NewHash);
+
 			NewHash->UpdateLinks();
 		}
 	}
@@ -393,7 +422,7 @@ CHashPtr CHash::UpdateHash(CHashPtr NewHash, CHashPtr PrevHash)
 void CHash::HandleLinkUpdated(CHashPtr LinkUpdated)
 {
 	/// If this has already been finalised then we don't need to do anything. This can happen
-	/// if the BlobHasher service got to a blob before this link got updated
+	/// if the BlobHasher service got to a blob before this Link got updated
 	if (IsFinal())
 		return;
 

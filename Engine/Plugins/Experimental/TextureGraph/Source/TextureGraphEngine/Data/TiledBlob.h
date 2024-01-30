@@ -27,7 +27,7 @@ protected:
 	JobPtrW							JobObj;					/// The job that is potentially generating this tiled BlobObj
 	BlobPtr							SingleBlob;			/// Single BlobObj pointer that we keep to prevent going out of Ref
 
-	void							CalcHash_Now() const;
+	void							CalcHashNow() const;
 	virtual void					ResetBuffer() override;
 
 	virtual void					TouchTiles(uint64 BatchId);
@@ -37,7 +37,7 @@ protected:
 	virtual void					SetHash(CHashPtr Hash) override;
 
 	virtual void					AddLinkedBlob(BlobPtr LinkedBlob) override;
-	virtual void					FinaliseFrom(const Blob* RHS) override;
+	virtual void					FinaliseFrom(Blob* RHS) override;
 
 public:
 	static AsyncBufferResultPtr		TileBuffer(DeviceBufferRef Buffer, BlobPtrTiles& Tiles);
@@ -163,7 +163,7 @@ protected:
 	virtual void					NotifyCallbacks();
 
 	virtual void					AddLinkedBlob(BlobPtr LinkedBlob) override;
-	virtual void					FinaliseFrom(const Blob* RHS) override;
+	virtual void					FinaliseFrom(Blob* RHS) override;
 
 public:
 									TiledBlob_Promise(TiledBlobPtr Source);

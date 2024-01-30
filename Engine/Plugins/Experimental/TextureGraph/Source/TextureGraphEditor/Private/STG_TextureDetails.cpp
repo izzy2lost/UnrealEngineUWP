@@ -163,7 +163,7 @@ void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTex
 			}
 			return (AsyncBlobResultPtr)(cti::make_ready_continuable<const Blob*>(nullptr));
 		})
-		.then([this, InBlob]() mutable
+		.then([this, InBlob](const Blob* Histogram) mutable
 		{
 			if (DoesSharedInstanceExist() && !InBlob->IsTransient())
 			{

@@ -160,8 +160,11 @@ private:
 	/// otherwise we'll have no way of connecting complex-temp hashes to the correct hash and 
 	/// determine whether a job has already been done before or not
 	CHashPtrWVec					Linked;						/// The HashValues that have this HashValue embedded in it. This is kept
-																	/// temporarily if THIS HASH is a temp HashValue. When THIS HASH gets
-																	/// updated, we can update the linked parent HashValues
+																/// temporarily if THIS HASH is a temp HashValue. When THIS HASH gets
+																/// updated, we can update the linked parent HashValues
+
+	HashTypeVec						IntermediateHashes;			/// Intermediate hashes that might have been evaluated before this
+																/// hash became finalised
 
 	FORCEINLINE bool				HasTempDependency_Internal() const { return (IsTemp() && !HashSources.empty() && TempHashValue->IsTemp()); }
 	void							AddLink(CHashPtrW Link);
@@ -178,6 +181,7 @@ public:
 
 	bool							TryFinalise(HashType FinalHash = DataUtil::GNullHash, bool UpdateBlobber = true);
 	bool							operator == (const CHash& RHS) const;
+	HashTypeVec						GetIntermediateHashes() const;
 
 	static CHashPtr					ConstructFromSources(CHashPtrVec Sources);
 	static CHashPtr					UpdateHash(CHashPtr NewHash, CHashPtr PrevHash);
