@@ -111,7 +111,8 @@ namespace PCGHelpers
 		FBox Box(EForceInit::ForceInit);
 
 		const bool bNonColliding = true;
-		const bool bIncludeFromChildActors = true;
+		// FIXME: This option was disabled because of wrong bounds with components attached to other components. (UE-205314)
+		const bool bIncludeFromChildActors = false;
 
 		if (InActor)
 		{
@@ -151,7 +152,8 @@ namespace PCGHelpers
 			else
 			{
 				const bool bNonColliding = true;
-				const bool bIncludeFromChildActors = true;
+				// FIXME: This option was disabled because of wrong bounds with components attached to other components. (UE-205314)
+				const bool bIncludeFromChildActors = false;
 
 				const FTransform& ActorToWorld = InActor->GetTransform();
 				const FTransform WorldToActor = ActorToWorld.Inverse();
