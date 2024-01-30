@@ -35,6 +35,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigControlsProxy)
 
+FRigControlElement* FControlRigProxyItem::GetControlElement(const FName& InName) const
+{
+	FRigControlElement* Element = nullptr;
+	if (ControlRig.IsValid())
+	{
+		Element = ControlRig->FindControl(InName);
+	}
+	return Element;
+}
+
 void UControlRigControlsProxy::AddControlRigControl(UControlRig* InControlRig, const FName& InName)
 {
 	if (InControlRig == nullptr)
@@ -49,9 +59,9 @@ void UControlRigControlsProxy::AddControlRigControl(UControlRig* InControlRig, c
 
 	FControlRigProxyItem& Item = ControlRigItems.FindOrAdd(InControlRig);
 	Item.ControlRig = InControlRig;
-	if (Item.ControlElements.Contains(ControlElement) == false)
+	if (Item.ControlElements.Contains(InName) == false)
 	{
-		Item.ControlElements.Add(ControlElement);
+		Item.ControlElements.Add(InName);
 	}
 	if (ControlRigItems.Num() > 1 || Item.ControlElements.Num() > 1 || SequencerItems.Num() > 0)
 	{
@@ -68,11 +78,18 @@ void UControlRigControlsProxy::AddControlRigControl(UControlRig* InControlRig, c
 TArray<FRigControlElement*> UControlRigControlsProxy::GetControlElements() const
 {
 	TArray<FRigControlElement*> Elements;
-	for (const TPair<UControlRig*, FControlRigProxyItem>& Items : ControlRigItems)
+	for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 	{
-		for (FRigControlElement* Element : Items.Value.ControlElements)
+		if (Items.Key.IsValid() == false)
 		{
-			Elements.Add(Element);
+			continue;
+		}
+		for (const FName& CName : Items.Value.ControlElements)
+		{
+			if (FRigControlElement* Element = Items.Value.GetControlElement(CName))
+			{
+				Elements.Add(Element);
+			}
 		}
 	}
 	return Elements;
@@ -156,8 +173,12 @@ void UControlRigControlsProxy::AddSequencerProxyItem(UObject* InObject, TWeakObj
 TArray<FBindingAndTrack> UControlRigControlsProxy::GetSequencerItems() const
 {
 	TArray<FBindingAndTrack> Elements;
-	for (const TPair<UObject*, FSequencerProxyItem>& Items : SequencerItems)
+	for (const TPair<TWeakObjectPtr<UObject>, FSequencerProxyItem>& Items : SequencerItems)
 	{
+		if (Items.Key.IsValid() == false)
+		{
+			continue;
+		}
 		for (const FBindingAndTrack& Element : Items.Value.Bindings)
 		{
 			Elements.Add(Element);
@@ -232,13 +253,13 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 					}
 				}
 			}
-			for (const TPair<UControlRig*, FControlRigProxyItem>& Items : ControlRigItems)
+			for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 			{
 				if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
 				{
-					for (FRigControlElement* ControlElement : Items.Value.ControlElements)
+					for (const FName& CName : Items.Value.ControlElements)
 					{
-						if (ControlElement)
+						if (FRigControlElement * ControlElement = Items.Value.GetControlElement(CName))
 						{
 							if (InteractionScopes.Contains(ControlElement) == false)
 							{
@@ -275,25 +296,31 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 			Context.SetKey = EControlRigSetKey::DoNotCare;
 			Context.KeyMask = (uint32)GetChannelToKeyFromPropertyName(Property->GetFName());
 
-			for (const TPair<UControlRig*, FControlRigProxyItem>& Items : ControlRigItems)
+			for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 			{
 				if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
 				{
 					//we do this backwards so ValueChanged later is set up correctly since that iterates in the other direction
 					for (int32 Index = Items.Value.ControlElements.Num() - 1; Index >= 0; --Index)
 					{
-						FRigControlElement* ControlElement = Items.Value.ControlElements[Index];
-						SetControlRigElementValueFromCurrent(ControlRig, ControlElement, Context);
+						if (FRigControlElement* ControlElement = Items.Value.GetControlElement(Items.Value.ControlElements[Index]))
+						{
+							SetControlRigElementValueFromCurrent(ControlRig, ControlElement, Context);
+						}
 					}
 				}
 			}
-			for (TPair <UObject*, FSequencerProxyItem>& SItems : SequencerItems)
+			for (TPair <TWeakObjectPtr<UObject>, FSequencerProxyItem>& SItems : SequencerItems)
 			{
+				if (SItems.Key.IsValid() == false)
+				{
+					continue;
+				}
 				//we do this backwards so ValueChanged later is set up correctly since that iterates in the other direction
 				for (int32 Index = SItems.Value.Bindings.Num() - 1; Index >= 0; --Index)
 				{
 					FBindingAndTrack& Binding = SItems.Value.Bindings[Index];
-					SetBindingValueFromCurrent(SItems.Key, Binding.Binding, Context);
+					SetBindingValueFromCurrent(SItems.Key.Get(), Binding.Binding, Context);
 				}
 			}
 		}
@@ -304,15 +331,18 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 #if WITH_EDITOR
 void UControlRigControlsProxy::PostEditUndo()
 {
-	for (const TPair<UControlRig*, FControlRigProxyItem>& Items : ControlRigItems)
+	for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : ControlRigItems)
 	{
 		if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
 		{
-			for (FRigControlElement* ControlElement : Items.Value.ControlElements)
+			for (const FName& CName : Items.Value.ControlElements)
 			{
-				if (ControlElement && ControlRig->GetHierarchy()->Contains(FRigElementKey(ControlElement->GetKey().Name, ERigElementType::Control)))
+				if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
 				{
-					ControlRig->SelectControl(ControlElement->GetKey().Name, bSelected);
+					if (ControlRig->GetHierarchy()->Contains(FRigElementKey(ControlElement->GetKey().Name, ERigElementType::Control)))
+					{
+						ControlRig->SelectControl(ControlElement->GetKey().Name, bSelected);
+					}
 				}
 			}
 		}
