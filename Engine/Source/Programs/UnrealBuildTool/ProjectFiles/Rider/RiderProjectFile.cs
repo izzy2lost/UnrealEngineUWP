@@ -798,10 +798,13 @@ namespace UnrealBuildTool
 				bEnableCoroutines = CompileEnvironment.bEnableCoroutines
 			};
 
+			if (CompileEnvironment.Architectures.Architectures.Count >= 1)
+			{
+				ToolchainInfo.Architecture = CompileEnvironment.Architectures.Architectures[0].ToString();
+			}
+
 			if (CurrentTarget!.Platform.IsInGroup(UnrealPlatformGroup.Windows))
 			{
-				ToolchainInfo.Architecture = CurrentTarget.Rules.WindowsPlatform.Architecture.WindowsToolChain;
-
 				WindowsCompiler WindowsPlatformCompiler = CurrentTarget.Rules.WindowsPlatform.Compiler;
 				ToolchainInfo.bStrictConformanceMode = WindowsPlatformCompiler.IsMSVC() && CurrentTarget.Rules.WindowsPlatform.bStrictConformanceMode;
 				ToolchainInfo.Compiler = WindowsPlatformCompiler.ToString();
