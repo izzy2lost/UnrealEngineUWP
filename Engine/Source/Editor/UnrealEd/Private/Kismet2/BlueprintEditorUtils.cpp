@@ -5845,6 +5845,19 @@ bool FBlueprintEditorUtils::IsVariableUsed(const UBlueprint* Blueprint, const FN
 					return true;
 				}
 
+				// Check for all component bound event nodes. This variable may be referenced by a bound event
+				// (i.e. "On Component Hit" or any of the delegates you can add from the details panel with a "+" button)
+				TArray<UK2Node_ComponentBoundEvent*> ComponentBoundEventNodes;
+				CurrentGraph->GetNodesOfClass(ComponentBoundEventNodes);
+
+				if (Algo::AnyOf(ComponentBoundEventNodes, [&VariableName](const UK2Node_ComponentBoundEvent* EventNode)
+					{
+						return EventNode->GetComponentPropertyName() == VariableName;
+					}))
+				{
+					return true;
+				}
+
 				// Check all K2Node's which specify private/internal function referencing behavior
 				TArray<const UK2Node*> GraphNodes;
 				CurrentGraph->GetNodesOfClass(GraphNodes);
