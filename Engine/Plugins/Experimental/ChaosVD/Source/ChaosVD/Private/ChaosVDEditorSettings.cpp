@@ -86,6 +86,11 @@ void UChaosVDEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	{
 		FarClippingOverrideChangedDelegate.Broadcast(this);
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, bPlaybackAtRecordedFrameRate) ||
+			 PropertyName == GET_MEMBER_NAME_CHECKED(UChaosVDEditorSettings, TargetFrameRateOverride))
+	{
+		PlaybackSettingsChangedDelegate.Broadcast(this);
+	}
 
 	// TODO: If we keep this object as the main setting object,
 	// we should have a single event for what changed and an enum flags that the listener could use to decide if cares about the change

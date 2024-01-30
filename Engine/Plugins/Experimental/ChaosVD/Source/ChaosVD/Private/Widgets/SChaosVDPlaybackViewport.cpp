@@ -189,24 +189,28 @@ void SChaosVDPlaybackViewport::HandlePlaybackControllerDataUpdated(TWeakPtr<FCha
 
 void SChaosVDPlaybackViewport::HandleControllerTrackFrameUpdated(TWeakPtr<FChaosVDPlaybackController> InController, const FChaosVDTrackInfo* UpdatedTrackInfo, FGuid InstigatorGuid)
 {
-	if (TSharedPtr<FChaosVDPlaybackController> ControllerSharedPtr = InController.Pin())
+	if (const TSharedPtr<FChaosVDPlaybackController> ControllerSharedPtr = InController.Pin())
 	{
-		// The frame number we receive could be from a Solver track, so make sure it is converted to the correct game track frame number 
-		int32 GameTrackFrame = ControllerSharedPtr->ConvertCurrentFrameToOtherTrackFrame(UpdatedTrackInfo, ControllerSharedPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID));
-
-		// Something other than us advanced the game track, so make sure the timeline widget is updated
-		if (InstigatorGuid != GetInstigatorID())
+		// The frame number we receive could be from a Solver track, so make sure it is converted to the correct game track frame number
+		if (const FChaosVDTrackInfo* GameTrackInfo = ControllerSharedPtr->GetTrackInfo(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID))
 		{
-			GameFramesTimelineWidget->SetCurrentTimelineFrame(GameTrackFrame, EChaosVDSetTimelineFrameFlags::None);
-		}
+			const int32 GameTrackFrame = ControllerSharedPtr->ConvertCurrentFrameToOtherTrackFrame(UpdatedTrackInfo, GameTrackInfo);
 
-		if (TSharedPtr<FChaosVDRecording> RecordingData = ControllerSharedPtr->GetCurrentRecording().Pin())
-		{
-			if (FChaosVDGameFrameData* FrameData = RecordingData->GetGameFrameData_AssumesLocked(GameTrackFrame))
+			// Something other than us advanced the game track, so make sure the timeline widget is updated
+			if (InstigatorGuid != GetInstigatorID())
 			{
-				PlaybackViewportClient->PerformSelectedTrackingForFrame(FrameData);
-				GameFramesTimelineWidget->SetTargetFrameTime(FrameData->GetFrameTime());
-			}	
+				GameFramesTimelineWidget->SetCurrentTimelineFrame(GameTrackFrame, EChaosVDSetTimelineFrameFlags::None);
+			}
+
+			GameFramesTimelineWidget->SetTargetFrameTime(ControllerSharedPtr->GetFrameTimeForTrack(EChaosVDTrackType::Game, FChaosVDPlaybackController::GameTrackID, *GameTrackInfo));
+
+			if (const TSharedPtr<FChaosVDRecording> RecordingData = ControllerSharedPtr->GetCurrentRecording().Pin())
+			{
+				if (FChaosVDGameFrameData* FrameData = RecordingData->GetGameFrameData_AssumesLocked(GameTrackFrame))
+				{
+					PlaybackViewportClient->PerformSelectedTrackingForFrame(FrameData);
+				}
+			}
 		}
 	}
 }

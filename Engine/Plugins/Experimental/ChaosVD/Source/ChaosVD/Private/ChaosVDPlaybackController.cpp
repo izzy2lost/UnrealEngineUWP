@@ -2,6 +2,7 @@
 
 #include "ChaosVDPlaybackController.h"
 
+#include "ChaosVDEditorSettings.h"
 #include "ChaosVDModule.h"
 #include "ChaosVDPlaybackControllerInstigator.h"
 #include "ChaosVDRecording.h"
@@ -16,6 +17,12 @@ FChaosVDPlaybackController::FChaosVDPlaybackController(const TWeakPtr<FChaosVDSc
 	SceneToControl = InSceneToControl;
 
 	RecordingStoppedHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStopCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateRaw(this, &FChaosVDPlaybackController::HandleDisconnectedFromSession));
+
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		Settings->OnPlaybackSettingsChanged().AddRaw(this, &FChaosVDPlaybackController::HandleFrameRateOverrideSettingsChanged);
+		HandleFrameRateOverrideSettingsChanged(Settings);
+	}
 }
 
 FChaosVDPlaybackController::~FChaosVDPlaybackController()
@@ -24,6 +31,11 @@ FChaosVDPlaybackController::~FChaosVDPlaybackController()
 	if (FChaosVDRuntimeModule::IsLoaded())
 	{
 		FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(RecordingStoppedHandle);
+	}
+	
+	if (UChaosVDEditorSettings* Settings = GetMutableDefault<UChaosVDEditorSettings>())
+	{
+		Settings->OnPlaybackSettingsChanged().RemoveAll(this);
 	}
 
 	UnloadCurrentRecording(EChaosVDUnloadRecordingFlags::Silent);
@@ -140,6 +152,16 @@ void FChaosVDPlaybackController::EnqueueTrackInfoUpdate(const FChaosVDTrackInfo&
 void FChaosVDPlaybackController::EnqueueGeometryDataUpdate(const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID)
 {	
 	GeometryDataUpdateGTQueue.Enqueue({NewGeometry, GeometryID });
+}
+
+void FChaosVDPlaybackController::HandleFrameRateOverrideSettingsChanged(UChaosVDEditorSettings* CVDSettings)
+{
+	if (!CVDSettings)
+	{
+		return;
+	}
+
+	CurrentFrameRateOverride = CVDSettings->bPlaybackAtRecordedFrameRate ? InvalidFrameRateOverride : CVDSettings->TargetFrameRateOverride;
 }
 
 void FChaosVDPlaybackController::GoToRecordedSolverStep_AssumesLocked(const int32 InTrackID, const int32 FrameNumber, const int32 Step, FGuid InstigatorID, int32 Attempts)
@@ -631,6 +653,51 @@ void FChaosVDPlaybackController::HandleDisconnectedFromSession()
 
 	// Queue a general update in the Game Thread
 	bHasPendingGTUpdateBroadcast = true;
+}
+
+float FChaosVDPlaybackController::GetFrameTimeOverride() const
+{
+	constexpr int32 MinimumFrameRateOverride = 1;
+	return CurrentFrameRateOverride >= MinimumFrameRateOverride ? 1.0f / static_cast<float>(CurrentFrameRateOverride) : InvalidFrameRateOverride;
+}
+
+float FChaosVDPlaybackController::GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const
+{
+	const float TargetFrameTimeOverride = GetFrameTimeOverride();
+	const bool bHastFrameRateOverride = !FMath::IsNearlyEqual(TargetFrameTimeOverride, FChaosVDPlaybackController::InvalidFrameRateOverride);
+	if (bHastFrameRateOverride)
+	{
+		return TargetFrameTimeOverride;
+	}
+
+	float CurrentTargetFrameTime = FallbackFrameTime;
+	if (LoadedRecording)
+	{
+		switch(TrackType)
+		{
+			case EChaosVDTrackType::Solver:
+				{
+					if (const FChaosVDSolverFrameData* FrameData = LoadedRecording->GetSolverFrameData_AssumesLocked(TrackID, TrackInfo.CurrentFrame))
+					{
+						CurrentTargetFrameTime = FrameData->GetFrameTime();
+					}
+					break;
+				}
+			case EChaosVDTrackType::Game:
+				{
+					if (const FChaosVDGameFrameData* FrameData = LoadedRecording->GetGameFrameData_AssumesLocked(TrackInfo.CurrentFrame))
+					{
+						CurrentTargetFrameTime = FrameData->GetFrameTime();
+					}
+
+					break;
+				}
+			default:
+				break;
+		}
+	}
+
+	return CurrentTargetFrameTime;
 }
 
 void FChaosVDPlaybackController::UpdateSolverTracksData()
