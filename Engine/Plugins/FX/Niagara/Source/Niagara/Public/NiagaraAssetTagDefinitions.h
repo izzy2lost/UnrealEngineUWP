@@ -59,7 +59,7 @@ public:
 
 	/** The Tag Guid identifies this tag. This makes it possible to change the AssetTag name without it affecting functionality. */
 	UPROPERTY(VisibleAnywhere, Category="Properties")
-	FGuid TagGuid = FGuid();
+	FGuid TagGuid;
 
 	bool operator<(const FNiagaraAssetTagDefinition& Other) const
 	{		
