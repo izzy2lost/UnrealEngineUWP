@@ -2,6 +2,7 @@
 
 #include "Widgets/SChaosVDSolverTracks.h"
 
+#include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
 #include "Widgets/SChaosVDPlaybackViewport.h"
 #include "Widgets/SChaosVDSolverPlaybackControls.h"
@@ -9,8 +10,6 @@
 
 void SChaosVDSolverTracks::Construct(const FArguments& InArgs, TWeakPtr<FChaosVDPlaybackController> InPlaybackController)
 {
-	RegisterNewController(InPlaybackController);
-
 	ChildSlot
 	[
 		SAssignNew(SolverTracksListWidget, SListView<TSharedPtr<FChaosVDTrackInfo>>)
@@ -19,6 +18,10 @@ void SChaosVDSolverTracks::Construct(const FArguments& InArgs, TWeakPtr<FChaosVD
 			.ListViewStyle(&FAppStyle::Get().GetWidgetStyle<FTableViewStyle>("SimpleListView"))
 			.OnGenerateRow(this, &SChaosVDSolverTracks::MakeSolverTrackControlsFromTrackInfo)
 	];
+
+	ensure(InPlaybackController.IsValid());
+
+	RegisterNewController(InPlaybackController);
 	
 	if (const TSharedPtr<FChaosVDPlaybackController> CurrentPlaybackControllerPtr = InPlaybackController.Pin())
 	{
@@ -26,6 +29,10 @@ void SChaosVDSolverTracks::Construct(const FArguments& InArgs, TWeakPtr<FChaosVD
 		{
 			HandleControllerTrackFrameUpdated(InPlaybackController, GameTrackInfo, InvalidGuid);
 		}
+	}
+	else
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Solver tracks contructed with an invalid player controler. The solver tracks widget will not be functional"), ANSI_TO_TCHAR(__FUNCTION__))	
 	}
 }
 

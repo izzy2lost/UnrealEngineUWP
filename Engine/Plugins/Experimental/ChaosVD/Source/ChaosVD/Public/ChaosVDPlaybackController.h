@@ -10,6 +10,7 @@
 #include "Delegates/Delegate.h"
 #include "HAL/ThreadSafeBool.h"
 
+class UChaosVDEditorSettings;
 struct FChaosVDTraceSessionDescriptor;
 struct FChaosVDTrackInfo;
 class FChaosVDScene;
@@ -70,6 +71,8 @@ public:
 
 	/** ID used for the Game Track */
 	static constexpr int32 GameTrackID  = 0 ;
+	static constexpr int32 InvalidFrameRateOverride  = -1 ;
+	static constexpr float FallbackFrameTime = 1.0f / 60.0f ;
 
 	FChaosVDPlaybackController(const TWeakPtr<FChaosVDScene>& InSceneToControl);
 	virtual ~FChaosVDPlaybackController() override;
@@ -223,6 +226,9 @@ public:
 	void RequestUnpause() { bPauseRequested = false; }
 	bool HasPauseRequest() const { return bPauseRequested; }
 
+	float GetFrameTimeOverride() const;
+	float GetFrameTimeForTrack(EChaosVDTrackType TrackType, int32 TrackID, const FChaosVDTrackInfo& TrackInfo) const;
+
 protected:
 
 	/** Updates (or adds) solvers data from the loaded recording to the solver tracks */
@@ -245,6 +251,8 @@ protected:
 
 	/** Add the provided Geometry info data to the queue. The update will be broadcast in the game thread */
 	void EnqueueGeometryDataUpdate(const Chaos::FConstImplicitObjectPtr& NewGeometry, const uint32 GeometryID);
+
+	void HandleFrameRateOverrideSettingsChanged(UChaosVDEditorSettings* CVDSettings);
 
 	/** Map containing all track info, by track type*/
 	TMap<EChaosVDTrackType, TrackInfoByIDMap> TrackInfoPerType;
@@ -274,6 +282,8 @@ protected:
 
 	int32 MaxFramesLaggingBehindDuringLiveSession = 50;
 	int32 MinFramesLaggingBehindDuringLiveSession = 5;
+
+	int32 CurrentFrameRateOverride = InvalidFrameRateOverride;
 
 	bool bPauseRequested = false;
 

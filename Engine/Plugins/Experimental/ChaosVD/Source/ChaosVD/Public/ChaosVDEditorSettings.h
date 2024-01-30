@@ -21,29 +21,43 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSettingChaged, UChaosVDEditorSetting
 UENUM()
 enum class EChaosVDActorTrackingMode
 {
+	/** Follow the selected target keeping the specified distance from it. */
 	ByDistanceOffset,
+	/** Follow the selected target keeping its bounding box inside of CVD's camera view. */
 	ByBoundingBox,
-	MatchTransform
+	/** Snap CVD's camera to the transform of the current selected object */
+	MatchTransform 
 };
 
 UENUM()
 enum class EChaosVDActorTrackingTarget
 {
+	/** Disable Camera Auto-Tracking */
 	Disabled,
+	/** Follow the current selected object */
 	SelectedObject,
+	/** Follow the selected recorded transform ID */
 	RecordedTransform,
-	RecordedLocation,
+	/** Follow the selected recorded location ID */
+	RecordedLocation
 };
 
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class EChaosVDGeometryVisibilityFlags : uint8
 {
+	/** Draws all geometry that is for Query Only */
 	Query = 1 << 1,
+	/** Draws all geometry that is for [Physics Collision] or [Physics Collision and Query only] */
 	Simulated = 1 << 2,
+	/** Draws all simple geometry */
 	Simple = 1 << 3,
+	/** Draws all complex geometry */
 	Complex = 1 << 4,
-	ShowHeightfields = 1 << 5, // Selecting this will show heightfields even if complex is not selected
+	/** Draws heightfields even if complex is not selected */
+	ShowHeightfields = 1 << 5,
+	/** Draws all particles that are in a disabled state */
 	ShowDisabledParticles = 1 << 6,
+	/** Draws all triangle lines that forms each geometry object. Similar to the wireframe view, but the polygons are till filled and shaded */
 	ShowTriangleEdges = 1 << 7,
 };
 ENUM_CLASS_FLAGS(EChaosVDGeometryVisibilityFlags)
@@ -157,10 +171,10 @@ struct FChaosDebugDrawColorsByClientServer
 UENUM()
 enum class EChaosVDParticleDebugColorMode
 {
-	None,
-	State,
-	ShapeType,
-	ClientServer,
+	None, // Draw particles with the default gray color
+	State, // Draw particles with a specific color based on the recorded particle state
+	ShapeType, // Draw particles with a specific color based on their shape type
+	ClientServer, // Draw particles with a specific color based on if they are a Server Particle or Client particle
 };
 
 UCLASS(config = Engine)
@@ -169,18 +183,31 @@ class UChaosVDEditorSettings : public UObject
 	GENERATED_BODY()
 public:
 
-	UPROPERTY(EditAnywhere, Category = "Viewport")
-	float FarClippingOverride = 10000.0f;
+	/** If true, playback will respect the recorded frame times */
+	UPROPERTY(EditAnywhere, Category = "Playback Settings")
+	bool bPlaybackAtRecordedFrameRate = true;
 
+	/** If play at recorded frame rate is disabled, CVD will attempt to play the recording at the specified frame rate */
+	UPROPERTY(EditAnywhere, Category = "Playback Settings", meta=(EditCondition = "!bPlaybackAtRecordedFrameRate", EditConditionHides, ClampMin = 1))
+	int32 TargetFrameRateOverride = 60;
+
+	/** Sets the desired far clipping for CVD's viewport */
+	UPROPERTY(EditAnywhere, Category = "Viewport", meta=(ClampMin = 1))
+	float FarClippingOverride = 20000.0f;
+
+	/** Set of flags to enable/disable visualization of specific particle data as debug draw */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
 	uint32 GlobalParticleDataVisualizationFlags = 0;
-	
+
+	/** Set of flags to enable/disable visualization of specific collision data as debug draw */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
 	uint32 GlobalCollisionDataVisualizationFlags = 0;
 
+	/** Set of flags to enable/disable visualization of specific scene queries data as debug draw */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDSceneQueryVisualizationFlags"))
 	uint32 GlobalSceneQueriesVisualizationFlags = static_cast<uint8>(EChaosVDSceneQueryVisualizationFlags::DrawClientQueries | EChaosVDSceneQueryVisualizationFlags::DrawServerQueries |  EChaosVDSceneQueryVisualizationFlags::DrawHits | EChaosVDSceneQueryVisualizationFlags::DrawLineTraceQueries);
 
+	/** If true, text information (if available) will be drawn alongside any other debug draw shape */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	bool bShowDebugText = false;
 
@@ -199,18 +226,23 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization", meta = (EditCondition = "ParticleColorMode == EChaosVDParticleDebugColorMode::ClientServer", EditConditionHides))
 	FChaosDebugDrawColorsByClientServer ColorsByClientServer;
 
+	/** Sets what should be auto tracked by CVD's Camera */
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking")
 	EChaosVDActorTrackingTarget TrackingTarget;
 
+	/** Sets how tracking should be performed by CVD's Camera */
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
 	EChaosVDActorTrackingMode TrackingOptions;
 
+	/** Distance from the selected tracking target CVD's camera should attempt to be at */
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingOptions == EChaosVDActorTrackingMode::ByDistanceOffset && TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
 	float TrackingDistanceOffset = 1500.0f;
 
+	/** By how much we should expand the bounding box used to track a target by bounding box. Used to see more of the screen while tracking in Bounding Box mode */
 	UPROPERTY(EditAnywhere, Category = "Viewport Tracking", meta=(EditCondition = "TrackingOptions == EChaosVDActorTrackingMode::ByBoundingBox && TrackingTarget != EChaosVDActorTrackingTarget::Disabled", EditConditionHides))
 	float ExpandViewTrackingBy = 60.0f;
 
+	/** Set of flags to enable/disable visibility of specific types of geometry/particles */
 	UPROPERTY(EditAnywhere, Category = "Geometry Visibility", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDGeometryVisibilityFlags"))
 	uint8 GeometryVisibilityFlags = static_cast<uint8>(EChaosVDGeometryVisibilityFlags::Simulated | EChaosVDGeometryVisibilityFlags::Simple |  EChaosVDGeometryVisibilityFlags::ShowHeightfields);
 
@@ -237,6 +269,8 @@ public:
 
 	FChaosVDSettingChaged& OnFarClippingOverrideChanged() { return FarClippingOverrideChangedDelegate; }
 
+	FChaosVDSettingChaged& OnPlaybackSettingsChanged() { return PlaybackSettingsChangedDelegate ; }
+
 	TSharedPtr<FName> SelectedTrackedTransformName;
 	TSharedPtr<FName> SelectedTrackedLocationName;
 
@@ -244,4 +278,5 @@ protected:
 	FChaosVDSettingChaged VisibilitySettingsChangedDelegate;
 	FChaosVDSettingChaged ColorsSettingsChangedDelegate;
 	FChaosVDSettingChaged FarClippingOverrideChangedDelegate;
+	FChaosVDSettingChaged PlaybackSettingsChangedDelegate;
 };

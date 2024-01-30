@@ -163,13 +163,7 @@ void SChaosVDSolverPlaybackControls::HandleControllerTrackFrameUpdated(TWeakPtr<
 				UpdateStepsWidgetForFrame(*CurrentPlaybackControllerPtr.Get(), SolverTrackInfo->CurrentFrame, SolverTrackInfo->CurrentStep);
 			}
 
-			if (const TSharedPtr<FChaosVDRecording> RecordingData = CurrentPlaybackControllerPtr->GetCurrentRecording().Pin())
-			{
-				if (const FChaosVDSolverFrameData* FrameData = RecordingData->GetSolverFrameData_AssumesLocked(SolverID, SolverTrackInfo->CurrentFrame))
-				{
-					FramesTimelineWidget->SetTargetFrameTime(FrameData->GetFrameTime());
-				}	
-			}
+			FramesTimelineWidget->SetTargetFrameTime(CurrentPlaybackControllerPtr->GetFrameTimeForTrack(EChaosVDTrackType::Solver, SolverID, *SolverTrackInfo));
 		}
 	}
 }
