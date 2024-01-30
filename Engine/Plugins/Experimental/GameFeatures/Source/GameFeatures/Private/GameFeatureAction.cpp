@@ -23,3 +23,15 @@ void UGameFeatureAction::OnGameFeatureActivating(FGameFeatureActivatingContext& 
 	// Call older style if not overridden
 	OnGameFeatureActivating();
 }
+
+bool UGameFeatureAction::IsGameFeaturePluginRegistered() const
+{
+	UGameFeatureData* GameFeatureData = GetGameFeatureData();
+	return !!GameFeatureData ? GameFeatureData->IsGameFeaturePluginRegistered() : false;
+}
+
+bool UGameFeatureAction::IsGameFeaturePluginActive() const
+{
+	UGameFeatureData* GameFeatureData = GetGameFeatureData();
+	return !!GameFeatureData ? GameFeatureData->IsGameFeaturePluginActive() : false;
+}

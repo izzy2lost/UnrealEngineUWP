@@ -9,6 +9,7 @@
 #include "WorldPartition/WorldPartitionHandle.h"
 
 class UActorDescContainerInstance;
+class UExternalDataLayerAsset;
 class FWorldPartitionActorDesc;
 class UToolMenu;
 
@@ -70,12 +71,16 @@ public:
 	virtual const FGuid& GetGuid() const override { return ActorGuid; }
 	/* End IActorBaseTreeItem Implementation */
 
+	UExternalDataLayerAsset* GetExternalDataLayerAsset() const;
+
 	void FocusActorBounds() const;
 
 protected:
 	FString DisplayString;
 
 private:
+	mutable TSoftObjectPtr<UExternalDataLayerAsset> CachedExternalDataLayerAsset;
+
 	void CopyActorFilePathtoClipboard() const;
 	FGuid ActorGuid;
 };

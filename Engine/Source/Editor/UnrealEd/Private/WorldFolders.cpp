@@ -228,11 +228,14 @@ bool UWorldFolders::SetActorEditorContextFolder(const FFolder& InFolder)
 	return false;
 }
 
-void UWorldFolders::PushActorEditorContext()
+void UWorldFolders::PushActorEditorContext(bool bDuplicateContext)
 {
 	Modify();
 	CurrentFolderStack.Push(CurrentFolder);
-	CurrentFolder.Reset();
+	if (!bDuplicateContext)
+	{
+		CurrentFolder.Reset();
+	}
 }
 
 void UWorldFolders::PopActorEditorContext()

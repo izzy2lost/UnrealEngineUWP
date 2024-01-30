@@ -35,6 +35,14 @@ protected:
 	{}
 
 public:
+	struct FInvalidReference
+	{
+		FName ActorPackage;
+		FSoftObjectPath ActorSoftPath;
+		FTopLevelAssetPath BaseClass;
+		FTopLevelAssetPath NativeClass;
+	};
+
 	FStreamingGenerationActorDescView(const FStreamingGenerationActorDescViewMap& InActorDescViewMap, const FWorldPartitionActorDescInstance* InActorDescInstance, bool bInUnsaved = false)
 		: FStreamingGenerationActorDescView(InActorDescInstance)
 	{
@@ -49,22 +57,25 @@ public:
 	ENGINE_API virtual bool GetIsSpatiallyLoaded() const override;
 	ENGINE_API virtual FSoftObjectPath GetHLODLayer() const override;
 	ENGINE_API virtual const TArray<FGuid>& GetReferences() const override;
-	ENGINE_API const TArray<FName>& GetDataLayerInstanceNames() const override;
+	ENGINE_API const FDataLayerInstanceNames& GetDataLayerInstanceNames() const override;
+	ENGINE_API virtual bool IsEditorOnlyReference(const FGuid& ReferenceGuid) const override;
 	//~ End FWorldPartitionActorDescInstanceView interface
 
 	bool IsUnsaved() const { return bIsUnsaved; }
 	const FStreamingGenerationActorDescViewMap& GetActorDescViewMap() const { return *ActorDescViewMap; }
 
 	ENGINE_API const TArray<FGuid>& GetEditorReferences() const;
-	ENGINE_API const TArray<FName>& GetRuntimeDataLayerInstanceNames() const;
+	ENGINE_API const FDataLayerInstanceNames& GetRuntimeDataLayerInstanceNames() const;
 
+	ENGINE_API void AddForcedInvalidReference(const FStreamingGenerationActorDescView* ReferenceView);
+	ENGINE_API bool IsInvalidReference(const FGuid& InGuid, FInvalidReference* OutInvalidReference = nullptr) const;
 	ENGINE_API void SetForcedNonSpatiallyLoaded();
 	ENGINE_API void SetForcedNoRuntimeGrid();
 	ENGINE_API void SetForcedNoDataLayers();
-	ENGINE_API void SetRuntimeDataLayerInstanceNames(const TArray<FName>& InRuntimeDataLayerInstanceNames);
+	ENGINE_API void SetRuntimeDataLayerInstanceNames(const FDataLayerInstanceNames& InRuntimeDataLayerInstanceNames);
 	ENGINE_API void SetRuntimeReferences(const TArray<FGuid>& InRuntimeReferences);
 	ENGINE_API void SetEditorReferences(const TArray<FGuid>& InEditorReferences);
-	ENGINE_API void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames);
+	ENGINE_API void SetDataLayerInstanceNames(const FDataLayerInstanceNames& InDataLayerInstanceNames);
 	ENGINE_API void SetParentView(const FStreamingGenerationActorDescView* InParentView);
 
 	ENGINE_API void SetForcedNoHLODLayer();
@@ -89,8 +100,15 @@ private:
 	bool bIsForcedNoDataLayers;
 	bool bIsForceNoHLODLayer;
 	bool bIsUnsaved;
-	TOptional<TArray<FName>> ResolvedDataLayerInstanceNames;
-	TOptional<TArray<FName>> RuntimeDataLayerInstanceNames;
+
+	// Stores invalid actor references
+	TMap<FGuid, FInvalidReference> ForcedInvalidReference;
+	
+	// Used by GetDataLayerInstanceNames() to avoid returning a copy
+	mutable FDataLayerInstanceNames LastReturnedDataLayerInstanceNames; 
+
+	TOptional<FDataLayerInstanceNames> ResolvedDataLayerInstanceNames;
+	TOptional<FDataLayerInstanceNames> RuntimeDataLayerInstanceNames;
 	TOptional<TArray<FGuid>> RuntimeReferences;
 	TOptional<FSoftObjectPath> RuntimedHLODLayer;
 	TArray<FGuid> EditorReferences;
@@ -205,27 +223,40 @@ protected:
 class FStreamingGenerationContainerInstanceCollection : public TActorDescContainerInstanceCollection<TObjectPtr<const UActorDescContainerInstance>>
 {
 public:
-	FStreamingGenerationContainerInstanceCollection() = default;
-	ENGINE_API FStreamingGenerationContainerInstanceCollection(std::initializer_list<TObjectPtr<const UActorDescContainerInstance>> ActorDescContainerInstanceArray);
-	ENGINE_API FStreamingGenerationContainerInstanceCollection(const TArray<const UActorDescContainerInstance*>& ActorDescContainerInstances);
+	enum class ECollectionType
+	{
+		Invalid,
+		BaseAsContentBundle, // Collection contains only one content bundle container
+		BaseAndEDLs,		 // Collection contains the base container and optionally EDL containers
+		BaseAndAny			 // Collection contains the base container and any type of container (base,EDL,CB)
+	};
+
+	FStreamingGenerationContainerInstanceCollection() : CollectionType(ECollectionType::Invalid) {}
+	ENGINE_API FStreamingGenerationContainerInstanceCollection(std::initializer_list<TObjectPtr<const UActorDescContainerInstance>> ActorDescContainerInstanceArray, const ECollectionType& InCollectionType);
+	ENGINE_API FStreamingGenerationContainerInstanceCollection(const TArray<const UActorDescContainerInstance*>& ActorDescContainerInstances, const ECollectionType& InCollectionType);
 
 	ENGINE_API UWorld* GetWorld() const;
-
-	// @todo_ow : Remove once conversion to ExternalDataLayer is complete. 
-	// It is present to handle content bundles streaming generation via the same code path. 
-	ENGINE_API FGuid GetContentBundleGuid() const;
-
-	ENGINE_API const UActorDescContainerInstance* GetMainContainer() const;
-	ENGINE_API FName GetMainContainerPackageName() const;
-	ENGINE_API TArrayView<const UActorDescContainerInstance* const> GetExternalDataLayerContainers();
-
-	ENGINE_API virtual void OnCollectionChanged() override;
+	ENGINE_API const UActorDescContainerInstance* GetBaseContainerInstance() const;
+	ENGINE_API FName GetBaseContainerInstancePackageName() const;
+	ENGINE_API FGuid GetContentBundleGuid() const; // @todo_ow : Remove once conversion to ExternalDataLayer is complete. 
 
 private:
-	ENGINE_API void SortCollection();
+	void SetCollectionType(const ECollectionType& InCollectionType) { check(CollectionType == ECollectionType::Invalid); CollectionType = InCollectionType; }
+	ECollectionType GetCollectionType() const { return CollectionType; }
+	void InitializeCollection();
+	FName GetBaseContainerPackageName() const;
+	TArrayView<const UActorDescContainerInstance* const> GetExternalDataLayerContainerInstances() const;
+	TArrayView<const UActorDescContainerInstance* const> GetContentBundleContainerInstances() const;
+	ENGINE_API virtual void OnCollectionChanged() override;
 
-	static constexpr int MainContainerIdx = 0;
-	static constexpr int ExternalDataLayerContainerStartIdx = MainContainerIdx + 1;
+	ECollectionType CollectionType;
+	int32 ExternalDataLayerStartIdx = INDEX_NONE;
+	int32 ContentBundleStartIdx = INDEX_NONE;
+	static constexpr int BaseContainerIdx = 0;
+
+	friend class UWorldPartition;
+	friend class FWorldPartitionStreamingGenerator;
+	friend struct FGenerateStreamingParams;
 };
 
 class UE_DEPRECATED(5.4, "Use FStreamingGenerationContainerInstanceCollection instead") FStreamingGenerationActorDescCollection : public TActorDescContainerCollection<TObjectPtr<const UActorDescContainer>>

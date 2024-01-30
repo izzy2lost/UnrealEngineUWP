@@ -8,6 +8,8 @@
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "WorldPartition/WorldPartitionRuntimeCellData.h"
 #include "WorldPartition/WorldPartitionRuntimeCellInterface.h"
+#include "WorldPartition/Cook/WorldPartitionCookPackageInterface.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceNames.h"
 #include "ProfilingDebugging/ProfilingHelpers.h"
 #include "Misc/HierarchicalLogArchive.h"
 #include "Algo/AnyOf.h"
@@ -17,8 +19,10 @@
 class UActorContainer;
 class UDataLayerAsset;
 class UDataLayerInstance;
+class UExternalDataLayerInstance;
 class UWorldPartition;
 class UDataLayerManager;
+class UExternalDataLayerAsset;
 class FStreamingGenerationActorDescView;
 struct FHierarchicalLogArchive;
 
@@ -169,7 +173,7 @@ static_assert(EWorldPartitionRuntimeCellState::Unloaded < EWorldPartitionRuntime
  * Represents a PIE/Game streaming cell which points to external actor/data chunk packages
  */
 UCLASS(Abstract, MinimalAPI)
-class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
+class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, public IWorldPartitionCookPackageObject
 {
 	GENERATED_UCLASS_BODY()
 
@@ -210,21 +214,21 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 
 	//~Begin IWorldPartitionCell Interface
 	ENGINE_API virtual TArray<const UDataLayerInstance*> GetDataLayerInstances() const override;
+	ENGINE_API virtual const UExternalDataLayerInstance* GetExternalDataLayerInstance() const override;
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const override;
 	ENGINE_API virtual bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const override;
 	ENGINE_API virtual bool HasContentBundle() const override;
-	virtual const TArray<FName>& GetDataLayers() const override  { return DataLayers; }
+	virtual const TArray<FName>& GetDataLayers() const override { return DataLayers.GetRawArray(); }
+	virtual FName GetExternalDataLayer() const override { return DataLayers.GetExternalDataLayer(); }
 	virtual bool HasAnyDataLayer(const TSet<FName>& InDataLayers) const override
 	{
-		return Algo::AnyOf(DataLayers, [&InDataLayers](const FName& DataLayer) { return InDataLayers.Contains(DataLayer); });
+		return Algo::AnyOf(GetDataLayers(), [&InDataLayers](const FName& DataLayer) { return InDataLayers.Contains(DataLayer); });
 	}
 	ENGINE_API virtual FName GetLevelPackageName() const override;
 	ENGINE_API virtual FString GetDebugName() const override;
 	ENGINE_API virtual UWorld* GetOwningWorld() const override;
 	ENGINE_API virtual UWorld* GetOuterWorld() const override;
 	//~End IWorldPartitionCell Interface
-
-	inline bool HasDataLayers() const { return !DataLayers.IsEmpty(); }
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
 	ENGINE_API EDataLayerRuntimeState GetCellEffectiveWantedState() const;
@@ -254,10 +258,20 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell
 	ENGINE_API virtual int32 GetActorCount() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetActorCount, return 0;);
 
 	// Cook methods
-	virtual bool PrepareCellForCook(UPackage* InPackage) { return false; }
-	ENGINE_API virtual bool PopulateGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) PURE_VIRTUAL(UWorldPartitionRuntimeCell::PopulateGeneratorPackageForCook, return false;);
-	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) PURE_VIRTUAL(UWorldPartitionRuntimeCell::PopulateGeneratedPackageForCook, return false;);
-	ENGINE_API virtual FString GetPackageNameToCreate() const PURE_VIRTUAL(UWorldPartitionRuntimeCell::GetPackageNameToCreate, return FString(""););
+	virtual bool PrepareCellForCook(UPackage* InPackage) { return OnPopulateGeneratorPackageForCook(InPackage); }
+	UE_DEPRECATED(5.4, "PopulateGeneratorPackageForCook is deprecated, it was replaced by OnPrepareGeneratorPackageForCook")
+	ENGINE_API virtual bool PopulateGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) { return OnPrepareGeneratorPackageForCook(OutModifiedPackages); }
+	UE_DEPRECATED(5.4, "PopulateGeneratedPackageForCook is deprecated, it was replaced by OnPopulateGeneratedPackageForCook")
+	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) { return OnPopulateGeneratedPackageForCook(InPackage, OutModifiedPackages); }
+
+	//~Begin IWorldPartitionCookPackageObject
+	ENGINE_API virtual bool IsLevelPackage() const override { return true; }
+	ENGINE_API virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const override { return ExternalDataLayerAsset; }
+	ENGINE_API virtual FString GetPackageNameToCreate() const { return FString(); }
+	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override { return true; }
+	//~End IWorldPartitionCookPackageObject
 
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
 #endif
@@ -294,7 +308,7 @@ protected:
 
 private:
 	UPROPERTY()
-	TArray<FName> DataLayers;
+	FDataLayerInstanceNames DataLayers;
 
 	UPROPERTY()
 	bool bClientOnlyVisible;
@@ -323,6 +337,11 @@ protected:
 
 #if WITH_EDITOR
 	FName LevelPackageName;
+#endif
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 #endif
 
 	mutable EDataLayerRuntimeState EffectiveWantedState;

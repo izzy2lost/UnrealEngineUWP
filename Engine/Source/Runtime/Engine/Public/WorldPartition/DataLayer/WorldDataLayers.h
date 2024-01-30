@@ -8,6 +8,8 @@
 #include "WorldPartition/DataLayer/ActorDataLayer.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayer.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceProviderInterface.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Engine/World.h"
 #include "Engine/Level.h"
@@ -18,6 +20,7 @@ class UDEPRECATED_DataLayer;
 class UDataLayerInstance;
 class UDataLayerInstanceWithAsset;
 class UDataLayerAsset;
+class UExternalDataLayerInstance;
 
 USTRUCT()
 struct FActorPlacementDataLayers
@@ -28,11 +31,19 @@ struct FActorPlacementDataLayers
 	TArray<FName> DataLayerInstanceNames;
 
 	UPROPERTY()
+	FName ExternalDataLayerName;
+
+	UPROPERTY()
+	FName CurrentColorizedDataLayerInstanceName;
+
+	UPROPERTY()
 	int32 ContextID = INT32_MAX;
 
 	void Reset()
 	{
 		DataLayerInstanceNames.Reset();
+		ExternalDataLayerName = NAME_None;
+		CurrentColorizedDataLayerInstanceName = NAME_None;
 	}
 };
 
@@ -40,11 +51,9 @@ struct FActorPlacementDataLayers
  * Actor containing data layers instances within a world.
  */
 UCLASS(hidecategories = (Actor, HLOD, Cooking, Transform, Advanced, Display, Events, Object, Physics, Attachment, Info, Input, Blueprint, Layers, Tags, Replication), notplaceable, MinimalAPI)
-class AWorldDataLayers : public AInfo
+class AWorldDataLayers : public AInfo, public IDataLayerInstanceProvider
 {
 	GENERATED_UCLASS_BODY()
-
-	friend class UDataLayerToAssetCommandlet;
 
 public:
 	ENGINE_API virtual void PostLoad() override;
@@ -55,11 +64,13 @@ public:
 #if WITH_EDITOR
 	ENGINE_API virtual void PreEditUndo() override;
 	ENGINE_API virtual void PostEditUndo() override;
-	virtual bool ShouldLevelKeepRefIfExternal() const override { return true; }
+	virtual bool ShouldLevelKeepRefIfExternal() const override;
+	virtual bool IsEditorOnly() const override;
 	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
 	virtual bool IsLockLocation() const { return true; }
 	virtual bool IsUserManaged() const override { return false; }
-	virtual bool IsDataLayerTypeSupported(TSubclassOf<UDataLayerInstance> DataLayerType) const { return false; }
+	virtual bool ActorTypeSupportsDataLayer() const override { return false; }
+	virtual bool ActorTypeSupportsExternalDataLayer() const override { return false; }
 	ENGINE_API virtual TUniquePtr<class FWorldPartitionActorDesc> CreateClassActorDesc() const override;
 
 	static ENGINE_API AWorldDataLayers* Create(UWorld* World, FName InWorldDataLayerName = NAME_None);
@@ -76,10 +87,11 @@ public:
 	ENGINE_API void SetAllowRuntimeDataLayerEditing(bool bInAllowRuntimeDataLayerEditing);
 	bool GetAllowRuntimeDataLayerEditing() const { return bAllowRuntimeDataLayerEditing; }
 
+	ENGINE_API bool IsActorEditorContextCurrentColorized(const UDataLayerInstance* InDataLayerInstance) const;
 	ENGINE_API bool IsInActorEditorContext(const UDataLayerInstance* InDataLayerInstance) const;
 	ENGINE_API bool AddToActorEditorContext(UDataLayerInstance* InDataLayerInstance);
 	ENGINE_API bool RemoveFromActorEditorContext(UDataLayerInstance* InDataLayerInstance);
-	ENGINE_API void PushActorEditorContext(int32 InContextID);
+	ENGINE_API void PushActorEditorContext(int32 InContextID, bool bDuplicateContext);
 	ENGINE_API void PopActorEditorContext(int32 InContextID);
 	ENGINE_API TArray<UDataLayerInstance*> GetActorEditorContextDataLayers() const;
 
@@ -93,9 +105,8 @@ public:
 	template<class T>
 	void OverwriteDataLayerRuntimeStates(const TArray<T>* InActiveDataLayers, const TArray<T>* InLoadedDataLayers );
 
-	ENGINE_API bool IsReadOnly() const;
+	ENGINE_API bool IsReadOnly(FText* OutReason = nullptr) const;
 	ENGINE_API bool IsSubWorldDataLayers() const;
-	ENGINE_API bool IsRuntimeRelevant() const;
 
 	ENGINE_API bool SupportsExternalPackageDataLayerInstances() const;
 	ENGINE_API bool IsUsingExternalPackageDataLayerInstances() const { return bUseExternalPackageDataLayerInstances; }
@@ -120,6 +131,8 @@ public:
 	ENGINE_API void ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerInstance*)> Func) const;
 
 	ENGINE_API TArray<const UDataLayerInstance*> GetDataLayerInstances(const TArray<FName>& InDataLayerInstanceNames) const;
+	ENGINE_API const UExternalDataLayerInstance* GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset) const;
+	ENGINE_API bool IsExternalDataLayerWorldDataLayers() const;
 
 	// DataLayer Runtime State
 	ENGINE_API void SetDataLayerRuntimeState(const UDataLayerInstance* InDataLayerInstance, EDataLayerRuntimeState InState, bool bIsRecursive = false);
@@ -191,22 +204,38 @@ protected:
 	ENGINE_API void OnRep_EffectiveLoadedDataLayerNames();
 
 private:
+	// External Data Layers
+	bool AddExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
+	bool RemoveExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance);
+	ENGINE_API UExternalDataLayerInstance* GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset);
+
 	ENGINE_API void OnDataLayerManagerInitialized();
 	ENGINE_API void OnDataLayerManagerDeinitialized();
 	ENGINE_API void ResolveEffectiveRuntimeState(const UDataLayerInstance* InDataLayer, bool bInNotifyChange = true);
 	ENGINE_API void DumpDataLayerRecursively(const UDataLayerInstance* DataLayer, FString Prefix, FOutputDevice& OutputDevice) const;
-	ENGINE_API TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances();
-	ENGINE_API const TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() const;
+
+	//~ Begin IDataLayerInstanceProvider interface
+	ENGINE_API virtual TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() override;
+	virtual const TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() const override { return const_cast<AWorldDataLayers*>(this)->GetDataLayerInstances(); }
+	virtual const UExternalDataLayerInstance* GetRootExternalDataLayerInstance() const override { return RootExternalDataLayerInstance; }
+	//~ End IDataLayerInstanceProvider interface
+
+#if !WITH_EDITOR
+	void UpdateAccelerationTable(const UDataLayerInstance* DataLayerInstance, bool bIsAdding);
+#endif
 
 #if WITH_EDITOR
 	virtual bool ActorTypeIsMainWorldOnly() const override { return true; }
 
 	ENGINE_API void AddDataLayerInstance(UDataLayerInstance* InDataLayerInstance);
-	ENGINE_API void ConvertDataLayerToInstancces();
+	ENGINE_API void ConvertDataLayerToInstances();
 	ENGINE_API void UpdateContainsDeprecatedDataLayers();
 	ENGINE_API void ResolveActorDescContainers();
+	ENGINE_API void RemoveEditorDataLayers();
+	void UpdateCurrentColorizedDataLayerInstance();
 
 	friend class UDataLayerInstanceWithAsset;
+	friend class UDataLayerToAssetCommandlet;
 
 	// Used to compare state pre/post undo
 	TSet<TObjectPtr<UDataLayerInstance>> CachedDataLayerInstances;
@@ -232,6 +261,9 @@ private:
 #endif
 
 	UPROPERTY()
+	TObjectPtr<UExternalDataLayerInstance> RootExternalDataLayerInstance;
+
+	UPROPERTY()
 	TSet<TObjectPtr<UDataLayerInstance>> DataLayerInstances;
 
 	/** Data layer instances stored in their external package (only used when UseExternalPackageDataLayerInstances is True) */
@@ -241,6 +273,9 @@ private:
 	/** Temporary array containing data layer instances manually loaded from their external packages */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UDataLayerInstance>> LoadedExternalPackageDataLayerInstances;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UDataLayerInstance>> TransientDataLayerInstances;
 
 	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "DeprecatedDataLayerNameToDataLayerInstance Property is deprecated and needs to be deleted.");
 	UPROPERTY()
@@ -287,7 +322,10 @@ private:
 	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "bHasDeprecatedDataLayers is deprecated and needs to be deleted.");
 	bool bHasDeprecatedDataLayers;
 
+	friend class UWorldPartition;
 	friend class UDataLayerManager;
+	friend class UExternalDataLayerManager;
+	friend class UDataLayerEditorSubsystem;
 
 public:
 	DECLARE_DELEGATE_RetVal_ThreeParams(bool, FDataLayersFilterDelegate, FName /*DataLayerName*/, EDataLayerRuntimeState /*CurrentState*/, EDataLayerRuntimeState /*TargetState*/);
@@ -330,7 +368,8 @@ DataLayerInstanceType* AWorldDataLayers::CreateDataLayer(CreationsArgs... InCrea
 		GloballyUniqueObjectPath += OuterObject->GetPathName();
 		GloballyUniqueObjectPath += TEXT(".");
 		GloballyUniqueObjectPath += ShortName;
-		ExternalPackage = FExternalPackageHelper::CreateExternalPackage(OuterObject, *GloballyUniqueObjectPath);
+
+		ExternalPackage = FExternalPackageHelper::CreateExternalPackage(OuterObject, *GloballyUniqueObjectPath, FExternalPackageHelper::GetDefaultExternalPackageFlags(), GetRootExternalDataLayerAsset());
 		check(ExternalPackage);
 		NewObjectName = *ShortName;
 	}

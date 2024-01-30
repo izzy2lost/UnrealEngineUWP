@@ -591,7 +591,8 @@ void FActorFolders::OnExecuteActorEditorContextAction(UWorld* InWorld, const EAc
 			SetActorEditorContextFolder(*InWorld, FFolder::GetWorldRootFolder(InWorld));
 			break;
 		case EActorEditorContextAction::PushContext:
-			GetOrCreateWorldFolders(*InWorld).PushActorEditorContext();
+		case EActorEditorContextAction::PushDuplicateContext:
+			GetOrCreateWorldFolders(*InWorld).PushActorEditorContext(InType == EActorEditorContextAction::PushDuplicateContext);
 			break;
 		case EActorEditorContextAction::PopContext:
 			if (UWorldFolders** Folders = (UWorldFolders**)WorldFolders.Find(InWorld))

@@ -2,9 +2,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/Optional.h"
 #include "OverrideVoidReturnInvoker.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 
+class UExternalDataLayerAsset;
+class UActorDescContainer;
+class UDataLayerInstance;
+class FGenerateStreamingActorDescCollection;
 class FStreamingGenerationActorDescViewMap;
 class FStreamingGenerationActorDescView;
 class FWorldPartitionStreamingGenerator;
@@ -64,7 +69,7 @@ public:
 	};
 
 	/**
-	 * An actor set instance is an actual intance of an actor set in the world.
+	 * An actor set instance is an actual instance of an actor set in the world.
 	 */
 	struct FActorSetInstance
 	{
@@ -104,6 +109,8 @@ public:
 				}
 			}
 		}
+
+		const UExternalDataLayerAsset* GetExternalDataLayerAsset() const;
 	};
 
 	/**
@@ -126,14 +133,14 @@ public:
 	};
 
 	virtual FBox GetWorldBounds() const = 0;
-
-	virtual const FActorSetContainerInstance* GetMainWorldContainerInstance() const = 0;
+	// Returns the ActorSetContainerInstance that contains the BaseActorDescContainerInstance of this context
+	virtual const FActorSetContainerInstance* GetActorSetContainerForContextBaseContainerInstance() const = 0;
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const = 0;
 	virtual void ForEachActorSetContainerInstance(TFunctionRef<void(const FActorSetContainerInstance&)> Func) const = 0;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
-	UE_DEPRECATED(5.4, "Implement GetMainWorldContainerInstance instead")
+	UE_DEPRECATED(5.4, "Implement GetActorSetContainerForContextBaseContainerInstance instead")
 	virtual const FActorSetContainer* GetMainWorldContainer() const { return nullptr; };
 
 	UE_DEPRECATED(5.4, "Implement ForEachActorSetContainerInstance instead")
@@ -154,14 +161,27 @@ public:
 		return SourceContext->GetWorldBounds();
 	}
 
-	virtual const FActorSetContainerInstance* GetMainWorldContainerInstance() const override
+	virtual const FActorSetContainerInstance* GetActorSetContainerForContextBaseContainerInstance() const override
 	{
-		return SourceContext->GetMainWorldContainerInstance();
+		return SourceContext->GetActorSetContainerForContextBaseContainerInstance();
 	}
 
 	virtual void ForEachActorSetInstance(TFunctionRef<void(const FActorSetInstance&)> Func) const override
 	{
-		SourceContext->ForEachActorSetInstance(Func);
+		if (ActorSetInstanceFilterFunc.IsSet())
+		{
+			SourceContext->ForEachActorSetInstance([this, Func](const FActorSetInstance& ActorSetInstance)
+			{
+				if ((*ActorSetInstanceFilterFunc)(ActorSetInstance))
+				{
+					Func(ActorSetInstance);
+				}
+			});
+		}
+		else
+		{
+			SourceContext->ForEachActorSetInstance(Func);
+		}
 	}
 
 	virtual void ForEachActorSetContainerInstance(TFunctionRef<void(const FActorSetContainerInstance&)> Func) const override
@@ -169,7 +189,11 @@ public:
 		SourceContext->ForEachActorSetContainerInstance(Func);
 	}
 
+	void SetActorSetInstanceFilter(const TFunction<bool(const IStreamingGenerationContext::FActorSetInstance&)>& InActorSetInstanceFilterFunc) { ActorSetInstanceFilterFunc = InActorSetInstanceFilterFunc; }
+
 protected:
+	TOptional<TFunction<bool(const IStreamingGenerationContext::FActorSetInstance&)>> ActorSetInstanceFilterFunc;
+
 	const IStreamingGenerationContext* SourceContext;
 };
 #endif

@@ -50,6 +50,12 @@ public:
 		/* The unique name for the container : defaults to PackageName */
 		FString ContainerName;
 
+		/** The associated Content Bundle Guid */
+		FGuid ContentBundleGuid;
+
+		/** The associated External Data Layer Asset */
+		const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
+
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDesc;
 	};
@@ -67,10 +73,13 @@ public:
 	FName GetContainerPackage() const { return ContainerPackageName; }
 	void SetContainerPackage(const FName& InContainerPackageName) { ContainerPackageName = InContainerPackageName; }
 
+	const UExternalDataLayerAsset* GetExternalDataLayerAsset() const { return ExternalDataLayerAsset; }
+	bool HasExternalContent() const;
+
 	FGuid GetContentBundleGuid() const { return ContentBundleGuid; }
-	void SetContentBundleGuid(const FGuid& InGetContentBundleGuid) { ContentBundleGuid = InGetContentBundleGuid; }
 
 	ENGINE_API FString GetExternalActorPath() const;
+	ENGINE_API FString GetExternalObjectPath() const;
 
 	/** Removes an actor desc without the need to load a package */
 	ENGINE_API bool RemoveActor(const FGuid& ActorGuid);
@@ -160,5 +169,7 @@ private:
 	ENGINE_API bool ShouldRegisterDelegates();
 	ENGINE_API void RegisterEditorDelegates();
 	ENGINE_API void UnregisterEditorDelegates();
+
+	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
 #endif
 };

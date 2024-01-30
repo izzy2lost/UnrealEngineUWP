@@ -51,13 +51,15 @@ namespace WorldPartitionTests
 		}
 		
 		check(WorldPartition);
-		UActorDescContainerInstance* ActorDescMainContainerInstance = WorldPartition->GetActorDescContainerInstance();
-		if (!TestNotNull(TEXT("Missing World Partition Container"), ActorDescMainContainerInstance))
+		UActorDescContainerInstance* BaseActorDescContainerInstance = WorldPartition->GetActorDescContainerInstance();
+		if (!TestNotNull(TEXT("Missing World Partition Container"), BaseActorDescContainerInstance))
 		{
 			return false;
 		}
 
-		UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams().SetActorDescContainerInstance(ActorDescMainContainerInstance);
+		FActorDescContainerInstanceCollection Collection({ TObjectPtr<UActorDescContainerInstance>(BaseActorDescContainerInstance) });
+		UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
+			.SetContainerInstanceCollection(Collection, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs);
 		UWorldPartition::FGenerateStreamingContext Context;
 
 		if (!TestTrue(TEXT("World Partition Generate Streaming"), WorldPartition->GenerateContainerStreaming(Params, Context)))
@@ -65,7 +67,7 @@ namespace WorldPartitionTests
 			return false;
 		}
 
-		FWorldPartitionReference ActorRef(ActorDescMainContainerInstance, FGuid(TEXT("5D9F93BA407A811AFDDDAAB4F1CECC6A")));
+		FWorldPartitionReference ActorRef(BaseActorDescContainerInstance, FGuid(TEXT("5D9F93BA407A811AFDDDAAB4F1CECC6A")));
 		if (!TestTrue(TEXT("Invalid Actor Reference"), ActorRef.IsValid()))
 		{
 			return false;
@@ -77,7 +79,7 @@ namespace WorldPartitionTests
 			return false;
 		}
 
-		FWorldPartitionHandle ActorHandle(ActorDescMainContainerInstance, FGuid(TEXT("0D2B04D240BE5DE58FE437A8D2DBF5C9")));
+		FWorldPartitionHandle ActorHandle(BaseActorDescContainerInstance, FGuid(TEXT("0D2B04D240BE5DE58FE437A8D2DBF5C9")));
 		if (!TestTrue(TEXT("Invalid Actor Handle"), ActorHandle.IsValid()))
 		{
 			return false;

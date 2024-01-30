@@ -76,6 +76,8 @@ protected:
 	virtual uint32 GetSizeOf() const override { return sizeof(FWorldDataLayersActorDesc); }
 	ENGINE_API virtual void Serialize(FArchive& Ar) override;
 	virtual bool IsResaveNeeded() const override { return !IsValid(); }
+	virtual bool IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
+	virtual void OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const override;
 	//~ End FWorldPartitionActorDesc Interface.
 
 private:
@@ -86,6 +88,7 @@ private:
 	TArray<FDataLayerInstanceDesc> DataLayerInstances;
 	mutable TOptional<TArray<FDataLayerInstanceDesc>> ExternalPackageDataLayerInstances;
 	bool bIsValid;
+	bool bIsExternalDataLayerWorldDataLayers;
 	bool bUseExternalPackageDataLayerInstances;
 };
 #endif

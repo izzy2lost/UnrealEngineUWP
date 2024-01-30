@@ -10,9 +10,13 @@
 #include "WorldPartition/WorldPartitionHelpers.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/WorldPartitionActorContainerID.h"
 #include "UObject/FortniteSeasonBranchObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/UE5ReleaseStreamObjectVersion.h"
+#include "UObject/MetaData.h"
 #include "ExternalPackageHelper.h"
 
 FArchive& operator<<(FArchive& Ar, FDataLayerInstanceDesc& Desc)
@@ -203,6 +207,7 @@ void FDataLayerInstanceDesc::Init(UDataLayerInstance* InDataLayerInstance)
 
 FWorldDataLayersActorDesc::FWorldDataLayersActorDesc()
 : bIsValid(false)
+, bIsExternalDataLayerWorldDataLayers(false)
 , bUseExternalPackageDataLayerInstances(false)
 {}
 
@@ -212,6 +217,7 @@ void FWorldDataLayersActorDesc::Init(const AActor* InActor)
 
 	const AWorldDataLayers* WorldDataLayers = CastChecked<AWorldDataLayers>(InActor);
 	bUseExternalPackageDataLayerInstances = WorldDataLayers->IsUsingExternalPackageDataLayerInstances();
+	bIsExternalDataLayerWorldDataLayers = WorldDataLayers->IsExternalDataLayerWorldDataLayers();
 	if (!bUseExternalPackageDataLayerInstances)
 	{
 		WorldDataLayers->ForEachDataLayerInstance([this](UDataLayerInstance* DataLayerInstance)
@@ -231,7 +237,8 @@ bool FWorldDataLayersActorDesc::Equals(const FWorldPartitionActorDesc* Other) co
 	{
 		const FWorldDataLayersActorDesc* OtherDesc = (FWorldDataLayersActorDesc*)Other;
 		return (bUseExternalPackageDataLayerInstances == OtherDesc->bUseExternalPackageDataLayerInstances) && 
-			CompareUnsortedArrays(DataLayerInstances, OtherDesc->DataLayerInstances);
+			   (bIsExternalDataLayerWorldDataLayers == OtherDesc->bIsExternalDataLayerWorldDataLayers) &&
+			   CompareUnsortedArrays(DataLayerInstances, OtherDesc->DataLayerInstances);
 	}
 	return false;
 }
@@ -240,6 +247,7 @@ void FWorldDataLayersActorDesc::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FFortniteSeasonBranchObjectVersion::GUID);
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
+	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
 
 	FWorldPartitionActorDesc::Serialize(Ar);
 
@@ -254,7 +262,47 @@ void FWorldDataLayersActorDesc::Serialize(FArchive& Ar)
 		{
 			Ar << bUseExternalPackageDataLayerInstances;
 		}
+		if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) >= FUE5ReleaseStreamObjectVersion::WorldPartitionExternalDataLayers)
+		{
+			Ar << bIsExternalDataLayerWorldDataLayers;
+		}
 	}
+}
+
+void FWorldDataLayersActorDesc::OnUnloadingInstance(const FWorldPartitionActorDescInstance* InActorDescInstance) const
+{
+	if (AWorldDataLayers* WorldDataLayers = Cast<AWorldDataLayers>(InActorDescInstance->GetActor()))
+	{
+		if (WorldDataLayers->IsUsingExternalPackageDataLayerInstances())
+		{
+			WorldDataLayers->ForEachDataLayerInstance([this](UDataLayerInstance* DataLayerInstance)
+			{
+				check(DataLayerInstance->IsPackageExternal())
+				ForEachObjectWithPackage(DataLayerInstance->GetPackage(), [](UObject* Object)
+				{
+					if (Object->HasAnyFlags(RF_Public | RF_Standalone))
+					{
+						CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
+					}
+					return true;
+				}, false);
+
+				return true;
+			});
+		}
+	}
+	FWorldPartitionActorDesc::OnUnloadingInstance(InActorDescInstance);
+}
+
+bool FWorldDataLayersActorDesc::IsRuntimeRelevant(const FWorldPartitionActorDescInstance* InActorDescInstance) const 
+{
+	if (!FWorldPartitionActorDesc::IsRuntimeRelevant(InActorDescInstance))
+	{
+		return false;
+	}
+
+	// ExternalDataLayer WorldDataLayers (used to store data layers for an ExternalDataLayer) are not used at runtime.
+	return !bIsExternalDataLayerWorldDataLayers;
 }
 
 const TArray<FDataLayerInstanceDesc>& FWorldDataLayersActorDesc::GetExternalPackageDataLayerInstances() const

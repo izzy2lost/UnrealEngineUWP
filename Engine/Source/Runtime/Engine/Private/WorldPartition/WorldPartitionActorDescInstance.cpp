@@ -169,9 +169,9 @@ void FWorldPartitionActorDescInstance::Invalidate()
 	ContainerInstance = nullptr;
 }
 
-const TArray<FName>& FWorldPartitionActorDescInstance::GetDataLayerInstanceNames() const
+const FDataLayerInstanceNames& FWorldPartitionActorDescInstance::GetDataLayerInstanceNames() const
 {
-	static TArray<FName> EmptyDataLayers;
+	static FDataLayerInstanceNames EmptyDataLayers;
 	if (ensure(HasResolvedDataLayerInstanceNames()))
 	{
 		return ResolvedDataLayerInstanceNames.GetValue();

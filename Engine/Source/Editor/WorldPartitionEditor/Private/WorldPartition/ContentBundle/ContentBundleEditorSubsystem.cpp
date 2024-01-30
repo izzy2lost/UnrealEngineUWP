@@ -83,7 +83,8 @@ void UContentBundleEditingSubmodule::OnExecuteActorEditorContextAction(UWorld* I
 		}
 		break;
 	case EActorEditorContextAction::PushContext:
-		PushContentBundleEditing();
+	case EActorEditorContextAction::PushDuplicateContext:
+		PushContentBundleEditing(InType == EActorEditorContextAction::PushDuplicateContext);
 		break;
 	case EActorEditorContextAction::PopContext:
 		PopContentBundleEditing();
@@ -233,12 +234,15 @@ void UContentBundleEditingSubmodule::StopEditing(TSharedPtr<FContentBundleEditor
 	UE_LOG(LogContentBundle, Log, TEXT("[CB: %s] Content Bundle is no longer being edited"), *ContentBundleEditor->GetDescriptor()->GetDisplayName());
 }
 
-void UContentBundleEditingSubmodule::PushContentBundleEditing()
+void UContentBundleEditingSubmodule::PushContentBundleEditing(bool bDuplicateContext)
 {
 	Modify();
 
 	EditingContentBundlesStack.Add(EditingContentBundleGuid);
-	DeactivateCurrentContentBundleEditing();
+	if (!bDuplicateContext)
+	{
+		DeactivateCurrentContentBundleEditing();
+	}
 }
 
 void UContentBundleEditingSubmodule::PopContentBundleEditing()
@@ -399,14 +403,19 @@ bool UContentBundleEditorSubsystem::DeactivateContentBundleEditing(TSharedPtr<FC
 	return ContentBundleEditingSubModule->DeactivateContentBundleEditing(ContentBundleEditor);
 }
 
+bool UContentBundleEditorSubsystem::DeactivateCurrentContentBundleEditing() const
+{
+	return ContentBundleEditingSubModule->DeactivateCurrentContentBundleEditing();
+}
+
 bool UContentBundleEditorSubsystem::IsContentBundleEditingActivated(TSharedPtr<FContentBundleEditor>& ContentBundleEditor) const
 {
 	return ContentBundleEditor.IsValid() && IsEditingContentBundle(ContentBundleEditor->GetDescriptor()->GetGuid());
 }
 
-void UContentBundleEditorSubsystem::PushContentBundleEditing()
+void UContentBundleEditorSubsystem::PushContentBundleEditing(bool bDuplicateContext)
 {
-	ContentBundleEditingSubModule->PushContentBundleEditing();
+	ContentBundleEditingSubModule->PushContentBundleEditing(bDuplicateContext);
 }
 
 void UContentBundleEditorSubsystem::PopContentBundleEditing()

@@ -10,6 +10,9 @@
 
 #if WITH_EDITOR
 
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+
 class AActor;
 class UWorldPartition;
 class UHLODLayer;
@@ -34,6 +37,16 @@ struct FHLODCreationParams
 	uint32 HLODLevel;
 	FGuid ContentBundleGuid;
 	TArray<const UDataLayerInstance*> DataLayerInstances;
+
+	const UExternalDataLayerAsset* GetExternalDataLayerAsset() const
+	{
+		auto IsAnExternalDataLayerPred = [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsA<UExternalDataLayerInstance>(); };
+		if (const UDataLayerInstance* const* ExternalDataLayerInstance = DataLayerInstances.FindByPredicate(IsAnExternalDataLayerPred))
+		{
+			return CastChecked<UExternalDataLayerInstance>(*ExternalDataLayerInstance)->GetExternalDataLayerAsset();
+		}
+		return nullptr;
+	}
 
 	double MinVisibleDistance;
 };

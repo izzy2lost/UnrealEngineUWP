@@ -6,6 +6,7 @@
 #include "Misc/PackageName.h"
 #include "Misc/UObjectToken.h"
 #include "Misc/MapErrors.h"
+#include "WorldPartition/DataLayer/DataLayerAsset.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 
 #define LOCTEXT_NAMESPACE "WorldPartition"
@@ -58,14 +59,27 @@ void ITokenizedMessageErrorHandler::OnInvalidReferenceGridPlacement(const IWorld
 	HandleTokenizedMessage(MoveTemp(Message));
 }
 
-void ITokenizedMessageErrorHandler::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
+void ITokenizedMessageErrorHandler::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView, EDataLayerInvalidReason Reason)
 {
+	FText ReasonText;
+
+	switch (Reason)
+	{
+	case EDataLayerInvalidReason::ReferencedActorDifferentRuntimeDataLayers:
+		ReasonText = LOCTEXT("TokenMessage_WorldPartition_ReferenceActorInOtherDataLayers", "references an actor in a different set of runtime data layers");
+		break;
+	case EDataLayerInvalidReason::ReferencedActorDifferentExternalDataLayer:
+		ReasonText = LOCTEXT("TokenMessage_WorldPartition_ReferenceActorInOtherExternalDataLayer", "references an actor assigned to a different external data layer");
+		break;
+	};
+
 	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+
 	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_Actor", "Actor")))
-		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(),  FText::FromString(GetActorName(ActorDescView))))
-		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_WorldPartition_ReferenceActorInOtherDataLayers", "references an actor in a different set of runtime data layers")))
+		->AddToken(FActorToken::Create(ActorDescView.GetActorSoftPath().ToString(), ActorDescView.GetGuid(), FText::FromString(GetActorName(ActorDescView))))
+		->AddToken(FTextToken::Create(ReasonText))
 		->AddToken(FActorToken::Create(ReferenceActorDescView.GetActorSoftPath().ToString(), ReferenceActorDescView.GetGuid(), FText::FromString(GetActorName(ReferenceActorDescView))))
-		->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_ActorReferenceActorInAnotherDataLayer_CheckForErrors")));
+		->AddToken(FMapErrorToken::Create(TEXT("WorldPartition_ActorInvalidReferenceDataLayers_CheckForErrors")));
 
 	HandleTokenizedMessage(MoveTemp(Message));
 }
@@ -111,6 +125,19 @@ void ITokenizedMessageErrorHandler::OnInvalidReferenceDataLayerAsset(const UData
 		->AddToken(FUObjectToken::Create(DataLayerInstance))
 		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_NullAsset", "Does not have Data Layer Asset")))
 		->AddToken(FMapErrorToken::Create(TEXT("DataLayers_InvalidAsset_CheckForErrors")));
+
+	HandleTokenizedMessage(MoveTemp(Message));
+}
+
+void ITokenizedMessageErrorHandler::OnInvalidDataLayerAssetType(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerAsset* DataLayerAsset)
+{
+	TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Error);
+	Message->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_DataLayer", "Data layer")))
+		->AddToken(FUObjectToken::Create(DataLayerInstance))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_InvalidAssetType_NotCompatible", "is not compatible with its Data Layer Asset")))
+		->AddToken(FUObjectToken::Create(DataLayerAsset))
+		->AddToken(FTextToken::Create(LOCTEXT("TokenMessage_DataLayers_InvalidAssetType_type", "type")))
+		->AddToken(FMapErrorToken::Create(TEXT("DataLayers_InvalidDataLayerAssetType_CheckForErrors")));
 
 	HandleTokenizedMessage(MoveTemp(Message));
 }

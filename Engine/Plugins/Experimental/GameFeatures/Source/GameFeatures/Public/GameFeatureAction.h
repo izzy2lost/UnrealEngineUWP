@@ -39,6 +39,12 @@ public:
 	/** Called when game feature is deactivated, it may be activated again in the near future */
 	virtual void OnGameFeatureDeactivating(FGameFeatureDeactivatingContext& Context) {}
 
+	/** Returns whether the action game feature plugin is registered or not. */
+	bool IsGameFeaturePluginRegistered() const;
+
+	/** Returns whether the action game feature plugin is active or not. */
+	bool IsGameFeaturePluginActive() const;
+
 #if WITH_EDITORONLY_DATA
 	virtual void AddAdditionalAssetBundleData(FAssetBundleData& AssetBundleData) {}
 #endif

@@ -10,6 +10,8 @@
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/DeprecatedDataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "WorldPartition/WorldPartitionRuntimeCellInterface.h"
@@ -107,6 +109,11 @@ void AWorldDataLayers::RewindForReplay()
 
 void AWorldDataLayers::InitializeDataLayerRuntimeStates()
 {
+	if (IsExternalDataLayerWorldDataLayers())
+	{
+		return;
+	}
+
 	check(ActiveDataLayerNames.IsEmpty() && LoadedDataLayerNames.IsEmpty());
 
 	if (GetWorld()->IsGameWorld())
@@ -272,7 +279,7 @@ void AWorldDataLayers::SetDataLayerRuntimeState(const UDataLayerInstance* InData
 
 		++DataLayersStateEpoch;
 
-		UE_LOG(LogWorldPartition, Log, TEXT("Data Layer '%s' state changed: %s -> %s"),
+		UE_LOG(LogWorldPartition, Log, TEXT("Data Layer Instance '%s' state changed: %s -> %s"),
 			*InDataLayerInstance->GetDataLayerShortName(),
 			*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)CurrentState).ToString(),
 			*StaticEnum<EDataLayerRuntimeState>()->GetDisplayNameTextByValue((int64)InState).ToString());
@@ -481,6 +488,67 @@ void AWorldDataLayers::ResolveEffectiveRuntimeState(const UDataLayerInstance* In
 	}
 }
 
+static TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstancesFromProvider(UDataLayerInstance* DataLayerInstance)
+{
+	check(DataLayerInstance);
+#if WITH_EDITOR
+	check(DataLayerInstance->GetRootExternalDataLayerInstance() == DataLayerInstance);
+#endif
+	IDataLayerInstanceProvider* DataLayerInstanceProvider = DataLayerInstance->GetImplementingOuter<IDataLayerInstanceProvider>();
+	if (ensure(DataLayerInstanceProvider))
+	{
+		return DataLayerInstanceProvider->GetDataLayerInstances();
+	}
+
+	static TSet<TObjectPtr<UDataLayerInstance>> Empty;
+	return Empty;
+}
+
+bool AWorldDataLayers::AddExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance)
+{
+#if WITH_EDITOR
+	Modify(/*bDirty*/false);
+#endif
+	check(!IsExternalDataLayerWorldDataLayers());
+	if (!TransientDataLayerInstances.Contains(ExternalDataLayerInstance))
+	{
+		TransientDataLayerInstances.Add(ExternalDataLayerInstance);
+		for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstancesFromProvider(ExternalDataLayerInstance))
+		{
+			SetDataLayerRuntimeState(DataLayerInstance, DataLayerInstance->GetInitialRuntimeState());
+#if !WITH_EDITOR
+			UpdateAccelerationTable(DataLayerInstance, true);
+#endif
+		}
+		return true;
+	}
+	
+	return false;
+}
+
+bool AWorldDataLayers::RemoveExternalDataLayerInstance(UExternalDataLayerInstance* ExternalDataLayerInstance)
+{
+#if WITH_EDITOR
+	Modify(/*bDirty*/false);
+#endif
+	check(!IsExternalDataLayerWorldDataLayers());
+	uint32 Index = TransientDataLayerInstances.IndexOfByKey(ExternalDataLayerInstance);
+	if (Index != INDEX_NONE)
+	{
+		for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstancesFromProvider(ExternalDataLayerInstance))
+		{
+			SetDataLayerRuntimeState(DataLayerInstance, EDataLayerRuntimeState::Unloaded);
+#if !WITH_EDITOR
+			UpdateAccelerationTable(DataLayerInstance, false);
+#endif
+		}
+		TransientDataLayerInstances.RemoveAtSwap(Index);
+		return true;
+	}
+
+	return false;
+}
+
 void AWorldDataLayers::DumpDataLayerRecursively(const UDataLayerInstance* DataLayer, FString Prefix, FOutputDevice& OutputDevice) const
 {
 	auto GetDataLayerRuntimeStateString = [this](const UDataLayerInstance* DataLayer)
@@ -642,7 +710,7 @@ TArray<const UDataLayerInstance*> AWorldDataLayers::GetDataLayerInstances(const 
 
 bool AWorldDataLayers::IsEmpty() const
 {
-	return GetDataLayerInstances().IsEmpty();
+	return GetDataLayerInstances().IsEmpty() && TransientDataLayerInstances.IsEmpty();
 }
 
 void AWorldDataLayers::AddDataLayerInstance(UDataLayerInstance* InDataLayerInstance)
@@ -659,6 +727,12 @@ void AWorldDataLayers::AddDataLayerInstance(UDataLayerInstance* InDataLayerInsta
 	if (InDataLayerInstance->IsPackageExternal())
 	{
 		InDataLayerInstance->MarkPackageDirty();
+	}
+	if (UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(InDataLayerInstance))
+	{
+		check(TransientDataLayerInstances.IsEmpty());
+		check(!RootExternalDataLayerInstance);
+		RootExternalDataLayerInstance = ExternalDataLayerInstance;
 	}
 }
 
@@ -715,39 +789,138 @@ void AWorldDataLayers::SetAllowRuntimeDataLayerEditing(bool bInAllowRuntimeDataL
 	}
 }
 
+bool AWorldDataLayers::IsActorEditorContextCurrentColorized(const UDataLayerInstance* InDataLayerInstance) const
+{
+	return InDataLayerInstance && !CurrentDataLayers.CurrentColorizedDataLayerInstanceName.IsNone() && (InDataLayerInstance->GetDataLayerFName() == CurrentDataLayers.CurrentColorizedDataLayerInstanceName);
+}
+
 bool AWorldDataLayers::IsInActorEditorContext(const UDataLayerInstance* InDataLayerInstance) const
 {
 	for (const FName& DataLayerInstanceName : CurrentDataLayers.DataLayerInstanceNames)
 	{
 		const UDataLayerInstance* DataLayerInstance = GetDataLayerInstance(DataLayerInstanceName);
-		if (DataLayerInstance && (DataLayerInstance == InDataLayerInstance) && !DataLayerInstance->IsLocked())
+		if (DataLayerInstance && (DataLayerInstance == InDataLayerInstance) && !DataLayerInstance->IsReadOnly())
 		{
 			return true;
 		}
 	}
+
+	if (const UDataLayerInstance* ExternalDataLayerInstance = GetDataLayerInstance(CurrentDataLayers.ExternalDataLayerName))
+	{
+		check(ExternalDataLayerInstance->IsA<UExternalDataLayerInstance>());
+		if (ExternalDataLayerInstance && ExternalDataLayerInstance == InDataLayerInstance)
+		{
+			return true;
+		}
+	}
+
 	return false;
+}
+
+void AWorldDataLayers::UpdateCurrentColorizedDataLayerInstance()
+{
+	Modify(/*bDirty*/false);
+	CurrentDataLayers.CurrentColorizedDataLayerInstanceName = NAME_None;
+	TArray<UDataLayerInstance*> ContextDataLayerInstances = GetActorEditorContextDataLayers();
+	if (ContextDataLayerInstances.Num() == 1)
+	{
+		CurrentDataLayers.CurrentColorizedDataLayerInstanceName = ContextDataLayerInstances[0]->GetDataLayerFName();
+	}
+	else if (ContextDataLayerInstances.Num() == 2)
+	{
+		for (UDataLayerInstance* DataLayerInstance : ContextDataLayerInstances)
+		{
+			const UExternalDataLayerInstance* ExternalDataLayerInstance = DataLayerInstance->GetRootExternalDataLayerInstance();
+			if (ExternalDataLayerInstance && (ExternalDataLayerInstance != DataLayerInstance) && ContextDataLayerInstances.Contains(ExternalDataLayerInstance))
+			{
+				CurrentDataLayers.CurrentColorizedDataLayerInstanceName = DataLayerInstance->GetDataLayerFName();
+				break;
+			}
+		}
+	}
 }
 
 bool AWorldDataLayers::AddToActorEditorContext(UDataLayerInstance* InDataLayerInstance)
 {
+	ON_SCOPE_EXIT { UpdateCurrentColorizedDataLayerInstance(); };
+
 	check(InDataLayerInstance->CanBeInActorEditorContext());
 	check(ContainsDataLayer(InDataLayerInstance));
+	
+	bool bSuccess = false;
+	if (UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(InDataLayerInstance))
+	{
+		Modify(/*bDirty*/false);
+		CurrentDataLayers.ExternalDataLayerName = ExternalDataLayerInstance->GetDataLayerFName();
 
-	if (!CurrentDataLayers.DataLayerInstanceNames.Contains(InDataLayerInstance->GetDataLayerFName()))
+		// Adding an EDL Instance replaces the existing (if any) and removes all DataLayerInstances with a different root EDL Instance
+		TArray<FName> ToRemove;
+		for (const FName& DataLayerInstanceName : CurrentDataLayers.DataLayerInstanceNames)
+		{
+			const UDataLayerInstance* DataLayerInstance = GetDataLayerInstance(DataLayerInstanceName);
+			const UExternalDataLayerInstance* RootEDLInstance = DataLayerInstance ? DataLayerInstance->GetRootExternalDataLayerInstance() : nullptr;
+			if (!DataLayerInstance || (RootEDLInstance && RootEDLInstance != ExternalDataLayerInstance))
+			{
+				ToRemove.Add(DataLayerInstanceName);
+			}
+		}
+		for (const FName& DataLayerInstanceName : ToRemove)
+		{
+			CurrentDataLayers.DataLayerInstanceNames.Remove(DataLayerInstanceName);
+		}
+
+		bSuccess = true;
+	}
+	else if (!CurrentDataLayers.DataLayerInstanceNames.Contains(InDataLayerInstance->GetDataLayerFName()))
 	{
 		Modify(/*bDirty*/false);
 		CurrentDataLayers.DataLayerInstanceNames.Add(InDataLayerInstance->GetDataLayerFName());
-		return true;
+		bSuccess = true;
+
+		// Adding a Data Layer with a RootExternalDataLayerInstance will set this Root EDL Instance in the context
+		if (const UExternalDataLayerInstance* RootEDLInstance = InDataLayerInstance->GetRootExternalDataLayerInstance())
+		{
+			if (!AddToActorEditorContext(const_cast<UExternalDataLayerInstance*>(RootEDLInstance)))
+			{
+				bSuccess = false;
+			}
+		}
 	}
-	return false;
+
+	return bSuccess;
 }
 
 bool AWorldDataLayers::RemoveFromActorEditorContext(UDataLayerInstance* InDataLayerInstance)
 {
+	ON_SCOPE_EXIT { UpdateCurrentColorizedDataLayerInstance(); };
+
 	check(InDataLayerInstance->CanBeInActorEditorContext());
 	check(ContainsDataLayer(InDataLayerInstance));
 
-	if (CurrentDataLayers.DataLayerInstanceNames.Contains(InDataLayerInstance->GetDataLayerFName()))
+	const UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(InDataLayerInstance);
+	const FName ExternalDataLayerName = ExternalDataLayerInstance ? ExternalDataLayerInstance->GetDataLayerFName() : NAME_None;
+	if (!ExternalDataLayerName.IsNone() && (CurrentDataLayers.ExternalDataLayerName == ExternalDataLayerName))
+	{
+		Modify(/*bDirty*/false);
+		CurrentDataLayers.ExternalDataLayerName = NAME_None;
+		// Removing an EDL Instance removes all DataLayerInstances with a matching root EDL Instance
+		TArray<FName> ToRemove;
+		for (const FName& DataLayerInstanceName : CurrentDataLayers.DataLayerInstanceNames)
+		{
+			const UDataLayerInstance* DataLayerInstance = GetDataLayerInstance(DataLayerInstanceName);
+			const UExternalDataLayerInstance* RootEDLInstance = DataLayerInstance ? DataLayerInstance->GetRootExternalDataLayerInstance() : nullptr;
+			if (!DataLayerInstance || (RootEDLInstance && RootEDLInstance == ExternalDataLayerInstance))
+			{
+				ToRemove.Add(DataLayerInstanceName);
+			}
+		}
+		for (const FName& DataLayerInstanceName : ToRemove)
+		{
+			CurrentDataLayers.DataLayerInstanceNames.Remove(DataLayerInstanceName);
+		}
+		return true;
+	}
+	else if (CurrentDataLayers.DataLayerInstanceNames.Contains(InDataLayerInstance->GetDataLayerFName()))
 	{
 		Modify(/*bDirty*/false);
 		CurrentDataLayers.DataLayerInstanceNames.Remove(InDataLayerInstance->GetDataLayerFName());
@@ -756,12 +929,15 @@ bool AWorldDataLayers::RemoveFromActorEditorContext(UDataLayerInstance* InDataLa
 	return false;
 }
 
-void AWorldDataLayers::PushActorEditorContext(int32 InContextID)
+void AWorldDataLayers::PushActorEditorContext(int32 InContextID, bool bDuplicateContext)
 {
 	Modify(/*bDirty*/false);
 	CurrentDataLayers.ContextID = InContextID;
 	CurrentDataLayersStack.Push(CurrentDataLayers);
-	CurrentDataLayers.Reset();
+	if (!bDuplicateContext)
+	{
+		CurrentDataLayers.Reset();
+	}
 }
 
 void AWorldDataLayers::PopActorEditorContext(int32 InContextID)
@@ -786,11 +962,18 @@ TArray<UDataLayerInstance*> AWorldDataLayers::GetActorEditorContextDataLayers() 
 	for (const FName& DataLayerInstanceName : CurrentDataLayers.DataLayerInstanceNames)
 	{
 		const UDataLayerInstance* DataLayerInstance = GetDataLayerInstance(DataLayerInstanceName);
-		if (DataLayerInstance && !DataLayerInstance->IsLocked())
+		if (DataLayerInstance && !DataLayerInstance->IsReadOnly())
 		{
 			Result.Add(const_cast<UDataLayerInstance*>(DataLayerInstance));
 		}
 	}
+
+	if (const UDataLayerInstance* ExternalDataLayerInstance = GetDataLayerInstance(CurrentDataLayers.ExternalDataLayerName))
+	{
+		check(ExternalDataLayerInstance->IsA<UExternalDataLayerInstance>());
+		Result.Add(const_cast<UDataLayerInstance*>(ExternalDataLayerInstance));
+	}
+
 	return Result;
 }
 
@@ -798,7 +981,21 @@ TArray<UDataLayerInstance*> AWorldDataLayers::GetActorEditorContextDataLayers() 
 
 bool AWorldDataLayers::ContainsDataLayer(const UDataLayerInstance* InDataLayerInstance) const 
 {
-	return GetDataLayerInstances().Contains(InDataLayerInstance);
+	if (GetDataLayerInstances().Contains(InDataLayerInstance) || TransientDataLayerInstances.Contains(InDataLayerInstance))
+	{
+		return true;
+	}
+	else if (!TransientDataLayerInstances.IsEmpty())
+	{
+		for (UDataLayerInstance* DataLayerInstance : TransientDataLayerInstances)
+		{
+			if (GetDataLayerInstancesFromProvider(DataLayerInstance).Contains(InDataLayerInstance))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const FName& InDataLayerInstanceName) const
@@ -888,6 +1085,26 @@ const UDataLayerInstance* AWorldDataLayers::GetDataLayerInstance(const UDataLaye
 #endif
 }
 
+bool AWorldDataLayers::IsExternalDataLayerWorldDataLayers() const
+{
+	return !!GetRootExternalDataLayerInstance();
+}
+
+UExternalDataLayerInstance* AWorldDataLayers::GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset)
+{
+	if (UDataLayerInstance* DataLayerInstance = const_cast<UDataLayerInstance*>(GetDataLayerInstance(InExternalDataLayerAsset)))
+	{
+		return CastChecked<UExternalDataLayerInstance>(DataLayerInstance);
+	}
+
+	return nullptr;
+}
+
+const UExternalDataLayerInstance* AWorldDataLayers::GetExternalDataLayerInstance(const UExternalDataLayerAsset* InExternalDataLayerAsset) const
+{
+	return const_cast<AWorldDataLayers*>(this)->GetExternalDataLayerInstance(InExternalDataLayerAsset);
+}
+
 void AWorldDataLayers::ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerInstance*)> Func)
 {
 	for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
@@ -895,6 +1112,17 @@ void AWorldDataLayers::ForEachDataLayerInstance(TFunctionRef<bool(UDataLayerInst
 		if (DataLayerInstance && !Func(DataLayerInstance))
 		{
 			return;
+		}
+	}
+
+	for (UDataLayerInstance* DataLayerInstance : TransientDataLayerInstances)
+	{
+		for (UDataLayerInstance* TransientDataLayerInstance : GetDataLayerInstancesFromProvider(DataLayerInstance))
+		{
+			if (TransientDataLayerInstance && !Func(TransientDataLayerInstance))
+			{
+				return;
+			}
 		}
 	}
 }
@@ -937,11 +1165,6 @@ TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances()
 	return DataLayerInstances;
 }
 
-const TSet<TObjectPtr<UDataLayerInstance>>& AWorldDataLayers::GetDataLayerInstances() const
-{
-	return const_cast<AWorldDataLayers*>(this)->GetDataLayerInstances();
-}
-
 void AWorldDataLayers::OnDataLayerManagerInitialized()
 {
 #if WITH_EDITOR
@@ -955,21 +1178,26 @@ void AWorldDataLayers::OnDataLayerManagerInitialized()
 		SetUseExternalPackageDataLayerInstances(false);
 	}
 
-	ConvertDataLayerToInstancces();
+	if (RootExternalDataLayerInstance)
+	{
+		TArray<UDataLayerInstance*> ToDelete;
+		ForEachDataLayerInstance([&ToDelete, this](UDataLayerInstance* DataLayerInstance)
+		{
+			if (DataLayerInstance->IsA<UExternalDataLayerInstance>() && RootExternalDataLayerInstance != DataLayerInstance)
+			{
+				ToDelete.Add(DataLayerInstance);
+			}
+			return true;
+		});
+		RemoveDataLayers(ToDelete);
+	}
+
+	ConvertDataLayerToInstances();
 
 	// Remove all Editor Data Layers when cooking or when in a game world
 	if (IsRunningCookCommandlet() || GetWorld()->IsGameWorld())
 	{
-		TArray<UDataLayerInstance*> EditorDataLayers;
-		ForEachDataLayerInstance([&EditorDataLayers](UDataLayerInstance* DataLayerInstance)
-		{
-			if (!DataLayerInstance->IsRuntime())
-			{
-				EditorDataLayers.Add(DataLayerInstance);
-			}
-			return true;
-		});
-		RemoveDataLayers(EditorDataLayers);
+		RemoveEditorDataLayers();
 	}
 
 	// Setup defaults before overriding with user settings
@@ -1024,54 +1252,98 @@ void AWorldDataLayers::PostLoad()
 {
 	Super::PostLoad();
 
-	GetLevel()->ConditionalPostLoad();
-
-	// Patch WorldDataLayer in UWorld.
-	// Only the "main" world data Layer is named AWorldDataLayers::StaticClass()->GetFName() for a given world.
-	if ((GetTypedOuter<UWorld>()->GetWorldDataLayers() == nullptr) && (GetFName() == GetWorldPartionWorldDataLayersName()))
+	ULevel* Level = GetLevel();
+#if WITH_EDITOR
+	// When duplicating the EDL WorldDataLayers for PIE/Cook, the outer is the GObjTransientPkg.
+	// In this case, there's nothing to do in the PostLoad called by DuplicateObject.
+	// (see UExternalDataLayerManager::CreateExternalStreamingObjectUsingStreamingGeneration for details)
+	check(Level || IsExternalDataLayerWorldDataLayers());
+	if (Level)
+#endif
 	{
-		GetTypedOuter<UWorld>()->SetWorldDataLayers(this);
+		Level->ConditionalPostLoad();
+
+		// Patch WorldDataLayer in UWorld.
+		// Only the "main" world data Layer is named AWorldDataLayers::StaticClass()->GetFName() for a given world.
+		if ((GetTypedOuter<UWorld>()->GetWorldDataLayers() == nullptr) && (GetFName() == GetWorldPartionWorldDataLayersName()))
+		{
+			GetTypedOuter<UWorld>()->SetWorldDataLayers(this);
+		}
+
+#if WITH_EDITOR
+		if (!Level->bWasDuplicated && IsUsingExternalPackageDataLayerInstances())
+		{
+			// Load all folders for this level
+			FExternalPackageHelper::LoadObjectsFromExternalPackages<UDataLayerInstance>(this, [this](UDataLayerInstance* LoadedDataLayerInstance)
+			{
+				check(IsValid(LoadedDataLayerInstance));
+				LoadedExternalPackageDataLayerInstances.Add(LoadedDataLayerInstance);
+			});
+		}
+#endif
 	}
 
 #if WITH_EDITOR
-	ULevel* Level = GetLevel();
-	if (!Level->bWasDuplicated && IsUsingExternalPackageDataLayerInstances())
-	{
-		// Load all folders for this level
-		FExternalPackageHelper::LoadObjectsFromExternalPackages<UDataLayerInstance>(this, [this](UDataLayerInstance* LoadedDataLayerInstance)
-		{
-			check(IsValid(LoadedDataLayerInstance));
-			LoadedExternalPackageDataLayerInstances.Add(LoadedDataLayerInstance);
-		});
-	}
-
 	bListedInSceneOutliner = true;
-#endif
-
-#if !WITH_EDITOR
+#else
 	// Build acceleration tables
 	ForEachDataLayerInstance([this](const UDataLayerInstance* DataLayerInstance)
 	{
-		InstanceNameToInstance.Add(DataLayerInstance->GetDataLayerFName(), DataLayerInstance);
-
-		static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "Remove unnecessary cast. All DataLayerInstance now have assets");
-		if (const UDataLayerInstanceWithAsset* DataLayerInstanceWithAsset = Cast<UDataLayerInstanceWithAsset>(DataLayerInstance))
-		{
-			if (!DataLayerInstanceWithAsset->GetAsset())
-			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("DataLayerWithAsset %s has null asset."), *DataLayerInstanceWithAsset->GetPathName());
-			}
-			else
-			{
-				AssetNameToInstance.Add(DataLayerInstanceWithAsset->GetAsset()->GetFullName(), DataLayerInstance);
-			}
-		}
+		UpdateAccelerationTable(DataLayerInstance, true);
 		return true;
 	});
 #endif
 }
 
+#if !WITH_EDITOR
+void AWorldDataLayers::UpdateAccelerationTable(const UDataLayerInstance* DataLayerInstance, bool bIsAdding)
+{
+	if (bIsAdding)
+	{
+		InstanceNameToInstance.Add(DataLayerInstance->GetDataLayerFName(), DataLayerInstance);
+	}
+	else
+	{
+		InstanceNameToInstance.Remove(DataLayerInstance->GetDataLayerFName());
+	}
+
+	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "Remove unnecessary cast. All DataLayerInstance now have assets");
+	if (const UDataLayerInstanceWithAsset* DataLayerInstanceWithAsset = Cast<UDataLayerInstanceWithAsset>(DataLayerInstance))
+	{
+		if (!DataLayerInstanceWithAsset->GetAsset())
+		{
+			UE_LOG(LogWorldPartition, Warning, TEXT("DataLayerWithAsset %s has null asset."), *DataLayerInstanceWithAsset->GetPathName());
+		}
+		else
+		{
+			if (bIsAdding)
+			{
+				AssetNameToInstance.Add(DataLayerInstanceWithAsset->GetAsset()->GetFullName(), DataLayerInstance);
+			}
+			else
+			{
+				AssetNameToInstance.Remove(DataLayerInstanceWithAsset->GetAsset()->GetFullName());
+			}
+		}
+	}
+}
+#endif
+
 #if WITH_EDITOR
+void AWorldDataLayers::RemoveEditorDataLayers()
+{
+	TArray<UDataLayerInstance*> EditorDataLayers;
+	ForEachDataLayerInstance([&EditorDataLayers](UDataLayerInstance* DataLayerInstance)
+	{
+		if (!DataLayerInstance->IsRuntime())
+		{
+			EditorDataLayers.Add(DataLayerInstance);
+		}
+		return true;
+	});
+	RemoveDataLayers(EditorDataLayers);
+}
+
 bool AWorldDataLayers::IsSubWorldDataLayers() const
 {
 	UWorld* ActorWorld = GetWorld();
@@ -1079,41 +1351,22 @@ bool AWorldDataLayers::IsSubWorldDataLayers() const
 	return ActorWorld != nullptr && OuterWorld != nullptr && (OuterWorld->GetFName() != ActorWorld->GetFName());
 }
 
-bool AWorldDataLayers::IsReadOnly() const
+bool AWorldDataLayers::IsReadOnly(FText* OutReason) const
 {
 	if (IsSubWorldDataLayers())
 	{
 		const UWorld* ActorWorld = GetWorld();
 		const ULevel* CurrentLevel = (ActorWorld && ActorWorld->GetCurrentLevel() && !ActorWorld->GetCurrentLevel()->IsPersistentLevel()) ? ActorWorld->GetCurrentLevel() : nullptr;
 		const bool bIsCurrentLevelWorldDataLayers = CurrentLevel && (CurrentLevel == GetLevel());
-		return !bIsCurrentLevelWorldDataLayers;
-	}
-	return false;
-}
-
-bool AWorldDataLayers::IsRuntimeRelevant() const
-{
-	// This function is only meant to be called on Game worlds
-	check(GetWorld()->IsGameWorld());
-
-	// WorldDataLayers referenced by LevelInstances are not relevant at runtime
-	UWorld* OuterWorld = GetTypedOuter<UWorld>();
-	if (OuterWorld && (OuterWorld->GetWorldDataLayers() == this))
-	{
-		if (!UWorld::IsPartitionedWorld(GetWorld()))
+		if (!bIsCurrentLevelWorldDataLayers)
 		{
+			if (OutReason)
+			{
+				*OutReason = LOCTEXT("WorldDataLayersIsReadOnly", "WorldDataLayers actor is read-only, it's not the Current Level's WorldDataLayers.");
+			}
 			return true;
 		}
-		else
-		{
-			check(OuterWorld->IsPartitionedWorld());
-			ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(GetWorld());
-			ILevelInstanceInterface* LevelInstance = LevelInstanceSubsystem ? LevelInstanceSubsystem->GetOwningLevelInstance(OuterWorld->PersistentLevel) : nullptr;
-			return (LevelInstance == nullptr);
-		}
 	}
-
-	// @todo_ow: revisit that logic for content bundle data layers
 	return false;
 }
 
@@ -1170,11 +1423,12 @@ bool AWorldDataLayers::SetUseExternalPackageDataLayerInstances(bool bInNewValue,
 	}
 
 	Modify();
-	ForEachDataLayerInstance([this, bInNewValue](UDataLayerInstance* DataLayerInstance)
+	// Only change packaging for owned data layer instances
+	for (UDataLayerInstance* DataLayerInstance : GetDataLayerInstances())
 	{
+		check(DataLayerInstance->GetDirectOuterWorldDataLayers() == this);
 		FExternalPackageHelper::SetPackagingMode(DataLayerInstance, this, bInNewValue);
-		return true;
-	});
+	}
 	bUseExternalPackageDataLayerInstances = bInNewValue;
 	Swap(DataLayerInstances, ExternalPackageDataLayerInstances);
 
@@ -1184,9 +1438,9 @@ bool AWorldDataLayers::SetUseExternalPackageDataLayerInstances(bool bInNewValue,
 	return true;
 }
 
-void AWorldDataLayers::ConvertDataLayerToInstancces()
+void AWorldDataLayers::ConvertDataLayerToInstances()
 {
-	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "AWorldDataLayers::ConvertDataLayerToInstancces function is deprecated and needs to be deleted.");
+	static_assert(DATALAYER_TO_INSTANCE_RUNTIME_CONVERSION_ENABLED, "AWorldDataLayers::ConvertDataLayerToInstances function is deprecated and needs to be deleted.");
 	
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	bHasDeprecatedDataLayers = !WorldDataLayers_DEPRECATED.IsEmpty();
@@ -1274,6 +1528,16 @@ void AWorldDataLayers::PostEditUndo()
 		ResolveActorDescContainers();
 	}
 	CachedDataLayerInstances.Empty();
+}
+
+bool AWorldDataLayers::ShouldLevelKeepRefIfExternal() const
+{
+	return !IsExternalDataLayerWorldDataLayers();
+}
+
+bool AWorldDataLayers::IsEditorOnly() const
+{
+	return Super::IsEditorOnly() || IsExternalDataLayerWorldDataLayers();
 }
 
 #endif

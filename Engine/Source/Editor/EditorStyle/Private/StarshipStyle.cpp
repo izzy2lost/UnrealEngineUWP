@@ -1067,6 +1067,7 @@ void FStarshipEditorStyle::FStyle::SetupGeneralStyles()
 		Set("ClassIcon.DataLayer", new IMAGE_BRUSH_SVG("Icons/DataLayerEditor", Icon16x16));
 		Set("DataLayer.Editor", new IMAGE_BRUSH_SVG("Icons/DataLayerEditor", Icon16x16));
 		Set("DataLayer.Runtime", new IMAGE_BRUSH_SVG("Icons/DataLayerRuntime", Icon16x16));
+		Set("DataLayer.External", new IMAGE_BRUSH_SVG("Icons/ExternalDataLayer", Icon16x16));
 		Set("DataLayer.LoadedInEditor", new IMAGE_BRUSH_SVG("Icons/DataLayerLoadedInEditor", Icon16x16));
 		Set("DataLayerBrowser.AddSelection", new IMAGE_BRUSH_SVG("Icons/DataLayerAddSelected", Icon16x16));
 		Set("DataLayerBrowser.RemoveSelection", new IMAGE_BRUSH_SVG("Icons/DataLayerRemoveSelected", Icon16x16));
@@ -5909,6 +5910,7 @@ void FStarshipEditorStyle::FStyle::SetupClassIconsAndThumbnails()
 			{TEXT("Emitter")},
 			{TEXT("EmptyActor")},
 			{TEXT("ExponentialHeightFog")},
+			{TEXT("ExternalDataLayerAsset")},
 			{TEXT("FileMediaOutput")},
 			{TEXT("FileMediaSource")},
 			{TEXT("FoliageType_Actor")},

@@ -65,6 +65,7 @@ void FContentBundleEditor::DoInjectContent()
 		UActorDescContainerInstance::FInitializeParams InitParams(*ActorDescContainerPackage);
 		
 		const FTopLevelAssetPath InjectedWorldAssetPath = FSoftObjectPath(GetInjectedWorld()).GetAssetPath();
+		InitParams.ContentBundleGuid = GetDescriptor()->GetGuid();
 		InitParams.FilterActorDescFunc = [&](const FWorldPartitionActorDesc* ActorDesc)
 		{
 			if (ActorDesc->GetActorSoftPath().GetAssetPath() != InjectedWorldAssetPath)
@@ -80,13 +81,17 @@ void FContentBundleEditor::DoInjectContent()
 			return true;
 		};
 
+		InitParams.OnInitializedFunc = [this](UActorDescContainerInstance* InActorDescContainerInstance)
+		{ 
+			check(InActorDescContainerInstance->GetContentBundleGuid() == GetDescriptor()->GetGuid());
+		};
+
 		ActorDescContainerInstance = WorldPartition->RegisterActorDescContainerInstance(InitParams);
 		if (ActorDescContainerInstance.IsValid() && ActorDescContainerInstance->IsInitialized())
 		{
 			UE_LOG(LogContentBundle, Log, TEXT("%s ExternalActors in %s found. %u actors were injected"), *ContentBundle::Log::MakeDebugInfoString(*this), *ActorDescContainerInstance->GetExternalActorPath(), ActorDescContainerInstance->GetActorDescInstanceCount());
 
 			check(GetDescriptor()->GetGuid().IsValid());
-			ActorDescContainerInstance->GetContainer()->SetContentBundleGuid(GetDescriptor()->GetGuid());
 
 			if (!ActorDescContainerInstance->GetContainer()->IsEmpty())
 			{
@@ -338,11 +343,11 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 		return;
 	}
 
+	FActorDescContainerInstanceCollection Collection({ TObjectPtr<UActorDescContainerInstance>(ActorDescContainerInstance.Get()) });
 	UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
-		.SetActorDescContainerInstance(ActorDescContainerInstance.Get());
-
+		.SetContainerInstanceCollection(Collection, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAsContentBundle);
 	UWorldPartition::FGenerateStreamingContext Context = UWorldPartition::FGenerateStreamingContext()
-		.SetPackagesToGenerate(OutPackageToGenerate);
+		.SetLevelPackagesToGenerate(OutPackageToGenerate);
 
 	UWorldPartition* WorldPartition = GetInjectedWorld()->GetWorldPartition();
 	WorldPartition->GenerateContainerStreaming(Params, Context);
@@ -440,7 +445,7 @@ bool FContentBundleEditor::PopulateGeneratorPackageForCook(class IWorldPartition
 					// Make sure the cell outer is set to the  ExternalStreamingObject so it will be saved in the right package at the end of the cook.
 					check(Cell->GetOuter() == ExternalStreamingObject);
 
-					if (!Cell->PrepareCellForCook(CookPackage->GetPackage()))
+					if (!Cell->OnPopulateGeneratorPackageForCook(CookPackage->GetPackage()))
 					{
 						UE_LOG(LogContentBundle, Error, TEXT("%s[Cook] Failed to prepare cell with package %s for cook."), *ContentBundle::Log::MakeDebugInfoString(*this), *CookPackage->RelativePath);
 						bIsSuccess = false;
@@ -454,7 +459,7 @@ bool FContentBundleEditor::PopulateGeneratorPackageForCook(class IWorldPartition
 			}
 		}
 
-		ExternalStreamingObject->PopulateGeneratorPackageForCook();
+		ExternalStreamingObject->OnPopulateGeneratorPackageForCook(nullptr);
 	}
 	
 
@@ -477,7 +482,7 @@ bool FContentBundleEditor::PopulateGeneratedPackageForCook(class IWorldPartition
 				if (!Cell->IsAlwaysLoaded())
 				{
 					TArray<UPackage*> ModifiedPackages;
-					if (Cell->PopulateGeneratedPackageForCook(PackageToCook.GetPackage(), OutModifiedPackages))
+					if (Cell->OnPopulateGeneratedPackageForCook(PackageToCook.GetPackage(), OutModifiedPackages))
 					{
 						UWorld* CellWorld = FindObject<UWorld>(PackageToCook.GetPackage(), *GetInjectedWorld()->GetName());
 						if (CellWorld != nullptr)

@@ -16,10 +16,12 @@ EPackageFlags FExternalPackageHelper::GetDefaultExternalPackageFlags()
 	return (PKG_EditorOnly | PKG_ContainsMapData | PKG_NewlyCreated);
 }
 
-UPackage* FExternalPackageHelper::CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags)
+UPackage* FExternalPackageHelper::CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags, const UExternalDataLayerAsset* InExternalDataLayerAsset)
 {
-	UPackage* OutermostPackage = InObjectOuter->IsA<UPackage>() ? CastChecked<UPackage>(InObjectOuter) : InObjectOuter->GetOutermostObject()->GetPackage();
-	UPackage* Package = CreatePackage(*FExternalPackageHelper::GetExternalPackageName(OutermostPackage->GetName(), InObjectPath));
+	const UPackage* OutermostPackage = InObjectOuter->IsA<UPackage>() ? CastChecked<UPackage>(InObjectOuter) : InObjectOuter->GetOutermostObject()->GetPackage();
+	const FString RootPath = InExternalDataLayerAsset ? FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(InExternalDataLayerAsset, OutermostPackage->GetName()) : OutermostPackage->GetName();
+	const FString ExternalObjectPackageName = FExternalPackageHelper::GetExternalPackageName(RootPath, InObjectPath);
+	UPackage* Package = CreatePackage(*ExternalObjectPackageName);
 	Package->SetPackageFlags(InFlags);
 	return Package;
 }
@@ -36,7 +38,9 @@ void FExternalPackageHelper::SetPackagingMode(UObject* InObject, UObject* InObje
 
 	if (bInIsPackageExternal)
 	{
-		UPackage* NewObjectPackage = FExternalPackageHelper::CreateExternalPackage(InObjectOuter, InObject->GetPathName(), InExternalPackageFlags);
+		const IDataLayerInstanceProvider* DataLayerInstanceProvider = InObject->GetImplementingOuter<IDataLayerInstanceProvider>();
+		const UExternalDataLayerAsset* ExternalDataLayerAsset = DataLayerInstanceProvider ? DataLayerInstanceProvider->GetRootExternalDataLayerAsset() : nullptr;
+		UPackage* NewObjectPackage = FExternalPackageHelper::CreateExternalPackage(InObjectOuter, InObject->GetPathName(), InExternalPackageFlags, ExternalDataLayerAsset);
 		InObject->SetExternalPackage(NewObjectPackage);
 	}
 	else

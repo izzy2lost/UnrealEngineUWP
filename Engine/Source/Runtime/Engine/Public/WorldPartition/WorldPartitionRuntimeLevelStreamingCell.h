@@ -17,7 +17,7 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 {
 	GENERATED_UCLASS_BODY()
 
-	//~Begin UWorldPartitionRuntimeCell Interface
+	//~Begin UWorldPartitionRuntimeCell interface
 	ENGINE_API virtual void Load() const override;
 	ENGINE_API virtual void Unload() const override;
 	ENGINE_API virtual bool CanUnload() const override;
@@ -28,11 +28,11 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 	ENGINE_API virtual FLinearColor GetDebugColor(EWorldPartitionRuntimeCellVisualizeMode VisualizeMode) const override;
 	ENGINE_API virtual void SetIsAlwaysLoaded(bool bInIsAlwaysLoaded) override;
 	ENGINE_API virtual EStreamingStatus GetStreamingStatus() const override;
-	//~End UWorldPartitionRuntimeCell Interface
+	//~End UWorldPartitionRuntimeCell interface
 
-	//~Begin IWorldPartitionCell Interface
+	//~Begin IWorldPartitionCell interface
 	ENGINE_API FName GetLevelPackageName() const override;
-	//~End IWorldPartitionCell Interface
+	//~End IWorldPartitionCell interface
 
 	ENGINE_API virtual void SetStreamingPriority(int32 InStreamingPriority) const override;
 	ENGINE_API class UWorldPartitionLevelStreamingDynamic* GetLevelStreaming() const;
@@ -46,17 +46,20 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 	
 
 #if WITH_EDITOR
-	//~Begin UWorldPartitionRuntimeCell Interface
+	//~Begin UWorldPartitionRuntimeCell interface
 	ENGINE_API virtual void AddActorToCell(const FStreamingGenerationActorDescView& ActorDescView) override;
 	ENGINE_API virtual void Fixup() override;
 	ENGINE_API virtual int32 GetActorCount() const override;
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;
-	// Cook methods
 	ENGINE_API virtual bool PrepareCellForCook(UPackage* InPackage) override;
-	ENGINE_API virtual bool PopulateGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override;
-	ENGINE_API virtual bool PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
+	//~End UWorldPartitionRuntimeCell interface
+
+	//~Begin IWorldPartitionCookPackageObject interface
 	ENGINE_API virtual FString GetPackageNameToCreate() const override;
-	//~End UWorldPartitionRuntimeCell Interface
+	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override;
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override;
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
+	//~End IWorldPartitionCookPackageObject interface
 
 	//~Begin IWorldPartitionCell Interface
 	ENGINE_API virtual TSet<FName> GetActorPackageNames() const override;

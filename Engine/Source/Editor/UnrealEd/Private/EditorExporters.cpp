@@ -79,7 +79,7 @@
 #include "IMaterialBakingModule.h"
 #include "MaterialBakingStructures.h"
 #include "MaterialOptions.h"
-
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/LightComponent.h"
@@ -563,10 +563,12 @@ bool ULevelExporterT3D::ExportText( const FExportObjectInnerContext* Context, UO
 				FString ActorFolderPath = (Level->IsUsingActorFolders() ? FString::Printf(TEXT(" ActorFolderPath=\"%s\""), *Actor->GetFolderPath().ToString()) : TEXT(""));
 				FString CopyPasteId = (Actor->CopyPasteId != INDEX_NONE) ? FString::Printf(TEXT(" CopyPasteId=%d"), Actor->CopyPasteId ) : TEXT("");
 				FString ContentBundleGuid = (Actor->GetContentBundleGuid().IsValid() ? FString::Printf(TEXT(" ActorContentBundleGuid=%s"), *Actor->GetContentBundleGuid().ToString()) : TEXT(""));
-				Ar.Logf( TEXT("%sBegin Actor Class=%s Name=%s Archetype=%s%s%s%s%s%s%s%s"), 
+				FString ExternalDataLayer = (Actor->GetExternalDataLayerAsset() ? FString::Printf(TEXT(" ExternalDataLayerAsset=%s"), *FSoftObjectPath(Actor->GetExternalDataLayerAsset()).ToString()) : TEXT(""));
+
+				Ar.Logf( TEXT("%sBegin Actor Class=%s Name=%s Archetype=%s%s%s%s%s%s%s%s%s"), 
 					FCString::Spc(TextIndent), *Actor->GetClass()->GetPathName(), *Actor->GetName(),
 					*FObjectPropertyBase::GetExportPath(Actor->GetArchetype(), nullptr, nullptr, (PortFlags | PPF_Delimited) & ~PPF_ExportsNotFullyQualified), 
-					*ParentActorString, *SocketNameString, *GroupActor, *GroupFolder, *ActorFolderPath, *CopyPasteId, *ContentBundleGuid );
+					*ParentActorString, *SocketNameString, *GroupActor, *GroupFolder, *ActorFolderPath, *CopyPasteId, *ContentBundleGuid, *ExternalDataLayer);
 
 				// When exporting for diffs, export paths can cause false positives. since diff files don't get imported, we can
 				// skip adding this info the file.

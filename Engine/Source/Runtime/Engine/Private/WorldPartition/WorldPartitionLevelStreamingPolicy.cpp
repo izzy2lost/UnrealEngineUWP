@@ -120,9 +120,9 @@ void UWorldPartitionLevelStreamingPolicy::RemapSoftObjectPath(FSoftObjectPath& O
 	ConvertEditorPathToRuntimePath(SrcPath, ObjectPath);
 }
 
-bool UWorldPartitionLevelStreamingPolicy::StoreToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase& OutExternalStreamingObject)
+bool UWorldPartitionLevelStreamingPolicy::StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase& OutExternalStreamingObject)
 {
-	if (Super::StoreToExternalStreamingObject(OutExternalStreamingObject))
+	if (Super::StoreStreamingContentToExternalStreamingObject(OutExternalStreamingObject))
 	{
 		OutExternalStreamingObject.SubObjectsToCellRemapping = MoveTemp(SubObjectsToCellRemapping);
 		OutExternalStreamingObject.ContainerResolver = MoveTemp(ContainerResolver);

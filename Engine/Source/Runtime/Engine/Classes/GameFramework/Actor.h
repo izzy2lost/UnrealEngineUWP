@@ -47,6 +47,7 @@ class FActorTransactionAnnotation;
 class FComponentInstanceDataCache;
 class UDEPRECATED_DataLayer;
 class UDataLayerAsset;
+class UExternalDataLayerAsset;
 class UDataLayerInstance;
 class AWorldDataLayers;
 class IWorldPartitionCell;
@@ -971,6 +972,9 @@ protected:
 
 	TArray<TSoftObjectPtr<UDataLayerAsset>> PreEditChangeDataLayers;
 
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = DataLayers, TextExportTransient, NonTransactional)
+	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
+
 public:
 	/** The copy/paste id used to remap actors during copy operations */
 	uint32 CopyPasteId;
@@ -993,8 +997,9 @@ public:
 	 * Set the actor packaging mode.
 	 * @param bExternal will set the actor packaging mode to external if true, to internal otherwise
 	 * @param bShouldDirty should dirty or not the level package
+	 * @param ActorExternalPackage if non-null and bExternal is true, will use the provided package instead of creating one
 	 */
-	ENGINE_API void SetPackageExternal(bool bExternal, bool bShouldDirty = true);
+	ENGINE_API void SetPackageExternal(bool bExternal, bool bShouldDirty = true, UPackage* ActorExternalPackage = nullptr);
 
 	/**
 	 * Determine how this actor should be referenced by the level when external (saved in its own package).
@@ -1307,14 +1312,15 @@ public:
 	// DataLayers functions.
 #if WITH_EDITOR
 protected:
-	virtual bool IsDataLayerTypeSupported(TSubclassOf<UDataLayerInstance> DataLayerType) const { return true; }
+	UE_DEPRECATED(5.4, "Use ActorTypeSupportsDataLayer instead.")
+	virtual bool IsDataLayerTypeSupported(TSubclassOf<UDataLayerInstance> DataLayerType) const final { return false; }
 private:
 	virtual bool ActorTypeIsMainWorldOnly() const { return false; }
 	ENGINE_API TArray<const UDataLayerAsset*> ResolveDataLayerAssets(const TArray<TSoftObjectPtr<UDataLayerAsset>>& InDataLayerAssets) const;
 public:
 	ENGINE_API bool AddDataLayer(const UDataLayerInstance* DataLayerInstance);
 	ENGINE_API bool RemoveDataLayer(const UDataLayerInstance* DataLayerInstance);
-	ENGINE_API bool CanAddDataLayer(const UDataLayerInstance* InDataLayerInstance) const;
+	ENGINE_API bool CanAddDataLayer(const UDataLayerInstance* InDataLayerInstance, FText* OutReason = nullptr) const;
 
 	ENGINE_API TArray<const UDataLayerInstance*> RemoveAllDataLayers();
 	ENGINE_API bool SupportsDataLayerType(TSubclassOf<UDataLayerInstance> DataLayerType) const;
@@ -1326,7 +1332,11 @@ public:
 	static const FName GetDataLayerAssetsPropertyName() { return GET_MEMBER_NAME_CHECKED(AActor, DataLayerAssets); }
 	static const FName GetDataLayerPropertyName() { return GET_MEMBER_NAME_CHECKED(AActor, DataLayers); }
 
-	ENGINE_API TArray<const UDataLayerAsset*> GetDataLayerAssets() const;
+	ENGINE_API TArray<const UDataLayerAsset*> GetDataLayerAssets(bool bIncludeExternalDataLayerAsset = true) const;
+	ENGINE_API bool HasExternalContent() const;
+
+	virtual bool ActorTypeSupportsDataLayer() const { return true; }
+	virtual bool ActorTypeSupportsExternalDataLayer() const { return true; }
 
 	//~ Begin Deprecated
 
@@ -1342,9 +1352,6 @@ public:
 
 	UE_DEPRECATED(5.3, "Use AActor::SupportsDataLayerType(TSubclassOf<UDataLayerInstance>) instead.")
 	ENGINE_API bool SupportsDataLayer() const;
-
-	UE_DEPRECATED(5.3, "Use AActor::IsDataLayerTypeSupported(TSubclassOf<UDataLayerInstance>) instead.")
-	virtual bool ActorTypeSupportsDataLayer() const { return true; }
 
 	UE_DEPRECATED(5.3, "Use UDataLayerInstance::AddActor(AActor*) instead.")
 	bool AddDataLayer(const UDataLayerAsset* DataLayerAsset) { return false; }
@@ -1379,6 +1386,7 @@ public:
 	ENGINE_API bool ContainsDataLayer(const UDataLayerInstance* DataLayerInstance) const;
 	ENGINE_API bool HasDataLayers() const;
 	ENGINE_API bool HasContentBundle() const;
+	ENGINE_API const UExternalDataLayerAsset* GetExternalDataLayerAsset() const;
 
 private:
 	ENGINE_API TArray<const UDataLayerInstance*> GetDataLayerInstancesInternal(bool bUseLevelContext, bool bIncludeParentDataLayers = true) const;
@@ -4415,6 +4423,7 @@ private:
 	friend UWorld;
 	friend class FFoliageHelper;
 	friend class ULevelInstanceSubsystem;
+	friend class UExternalDataLayerInstance;
 };
 
 struct FSetActorGuid
@@ -4480,6 +4489,7 @@ private:
 		InActor->ContentBundleGuid = InContentBundleGuid;
 	}
 	friend class FContentBundleEditor;
+	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 };
 
 struct FAssignActorDataLayer
@@ -4490,6 +4500,7 @@ private:
 
 	friend class UDataLayerInstanceWithAsset;
 	friend class UDataLayerInstancePrivate;
+	friend class UExternalDataLayerInstance;
 	friend class ULevelInstanceSubsystem;
 };
 

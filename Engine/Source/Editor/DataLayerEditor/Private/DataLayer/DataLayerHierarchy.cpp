@@ -298,7 +298,7 @@ void FDataLayerHierarchy::CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItem
 						{
 							if (ActorDescInstance != nullptr && !LoadedActors.Contains(ActorDescInstance->GetGuid()) && FActorDescTreeItem::ShouldDisplayInOutliner(ActorDescInstance))
 							{
-								for (const FName& DataLayerInstanceName : ActorDescInstance->GetDataLayerInstanceNames())
+								for (const FName& DataLayerInstanceName : ActorDescInstance->GetDataLayerInstanceNames().ToArray())
 								{
 									if (const UDataLayerInstance* DataLayerInstance = DataLayerManager->GetDataLayerInstance(DataLayerInstanceName))
 									{
@@ -590,7 +590,7 @@ void FDataLayerHierarchy::OnActorDescInstanceAdded(FWorldPartitionActorDescInsta
 	}
 
 	const UDataLayerManager* const DataLayerManager = UDataLayerManager::GetDataLayerManager(GetOwningWorld());
-	const TArray<FName>& DataLayerInstanceNames = InActorDescInstance->GetDataLayerInstanceNames();
+	const FDataLayerInstanceNames& DataLayerInstanceNames = InActorDescInstance->GetDataLayerInstanceNames();
 
 	if (DataLayerManager && DataLayerInstanceNames.Num() > 0)
 	{
@@ -598,7 +598,7 @@ void FDataLayerHierarchy::OnActorDescInstanceAdded(FWorldPartitionActorDescInsta
 		EventData.Type = FSceneOutlinerHierarchyChangedData::Added;
 
 		EventData.Items.Reserve(DataLayerInstanceNames.Num());
-		for (const FName& DataLayerInstanceName : DataLayerInstanceNames)
+		for (const FName& DataLayerInstanceName : DataLayerInstanceNames.ToArray())
 		{
 			const UDataLayerInstance* const DataLayerInstance = DataLayerManager->GetDataLayerInstance(DataLayerInstanceName);
 			EventData.Items.Add(Mode->CreateItemFor<FDataLayerActorDescTreeItem>(FDataLayerActorDescTreeItemData(InActorDescInstance->GetGuid(), InActorDescInstance->GetContainerInstance(), const_cast<UDataLayerInstance*>(DataLayerInstance))));
@@ -615,7 +615,7 @@ void FDataLayerHierarchy::OnActorDescInstanceRemoved(FWorldPartitionActorDescIns
 	}
 
 	const UDataLayerManager* const DataLayerManager = UDataLayerManager::GetDataLayerManager(GetOwningWorld());
-	const TArray<FName>& DataLayerInstanceNames = InActorDescInstance->GetDataLayerInstanceNames();
+	const FDataLayerInstanceNames& DataLayerInstanceNames = InActorDescInstance->GetDataLayerInstanceNames();
 	
 	if (DataLayerManager && DataLayerInstanceNames.Num() > 0)
 	{
@@ -623,7 +623,7 @@ void FDataLayerHierarchy::OnActorDescInstanceRemoved(FWorldPartitionActorDescIns
 		EventData.Type = FSceneOutlinerHierarchyChangedData::Removed;
 		EventData.ItemIDs.Reserve(DataLayerInstanceNames.Num());
 
-		for (const FName& DataLayerInstanceName : DataLayerInstanceNames)
+		for (const FName& DataLayerInstanceName : DataLayerInstanceNames.ToArray())
 		{
 			const UDataLayerInstance* const DataLayer = DataLayerManager->GetDataLayerInstance(DataLayerInstanceName);
 			EventData.ItemIDs.Add(FDataLayerActorDescTreeItem::ComputeTreeItemID(InActorDescInstance->GetGuid(), InActorDescInstance->GetContainerInstance(), DataLayer));

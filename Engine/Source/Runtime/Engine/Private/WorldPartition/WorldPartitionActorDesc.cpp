@@ -24,6 +24,7 @@
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
 #include "WorldPartition/ErrorHandling/WorldPartitionStreamingGenerationErrorHandler.h"
@@ -107,7 +108,8 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 
 		if (UWorldPartition* ActorWorldPartition = FWorldPartitionHelpers::GetWorldPartition(InActor))
 		{
-			TArray<const UDataLayerAsset*> DataLayerAssets = InActor->GetDataLayerAssets();
+			const bool bIncludeExternalDataLayerAsset = false;
+			TArray<const UDataLayerAsset*> DataLayerAssets = InActor->GetDataLayerAssets(bIncludeExternalDataLayerAsset);
 			LocalDataLayerAssetPaths.Reserve(DataLayerAssets.Num());
 			for (const UDataLayerAsset* DataLayerAsset : DataLayerAssets)
 			{
@@ -141,6 +143,9 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 			bIsUsingDataLayerAsset = true;
 			DataLayers.Empty();
 		}
+
+		// Initialize ExternalDataLayerAsset
+		ExternalDataLayerAsset = InActor->GetExternalDataLayerAsset() ? FSoftObjectPath(InActor->GetExternalDataLayerAsset()->GetPathName()) : FSoftObjectPath();
 	}
 
 	Tags = InActor->Tags;
@@ -290,7 +295,8 @@ bool FWorldPartitionActorDesc::Equals(const FWorldPartitionActorDesc* Other) con
 		CompareUnsortedArrays(References, Other->References) &&
 		CompareUnsortedArrays(EditorOnlyReferences, Other->EditorOnlyReferences) &&
 		CompareUnsortedArrays(Tags, Other->Tags) &&
-		Properties == Other->Properties;
+		Properties == Other->Properties &&
+		ExternalDataLayerAsset == Other->ExternalDataLayerAsset;
 }
 
 bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Other) const
@@ -311,7 +317,8 @@ bool FWorldPartitionActorDesc::ShouldResave(const FWorldPartitionActorDesc* Othe
 		!CompareUnsortedArrays(DataLayers, Other->DataLayers) ||
 		!CompareUnsortedArrays(References, Other->References) ||
 		!CompareUnsortedArrays(EditorOnlyReferences, Other->EditorOnlyReferences) ||
-		Properties != Other->Properties)
+		Properties != Other->Properties ||
+		ExternalDataLayerAsset != Other->ExternalDataLayerAsset)
 	{
 		return true;
 	}
@@ -358,6 +365,27 @@ void FWorldPartitionActorDesc::SerializeTo(TArray<uint8>& OutData) const
 	// Append data
 	OutData = MoveTemp(HeaderData);
 	OutData.Append(PayloadData);
+}
+
+TArray<FName> FWorldPartitionActorDesc::GetDataLayers(bool bIncludeExternalDataLayer) const
+{
+	const FName ExternalDataLayer = GetExternalDataLayer();
+	if (!bIncludeExternalDataLayer || ExternalDataLayer.IsNone())
+	{
+		return DataLayers;
+	}
+
+	TArray<FName> AllDataLayers;
+	AllDataLayers.Reserve(DataLayers.Num() + 1);
+	AllDataLayers.Add(ExternalDataLayer);
+	AllDataLayers.Append(DataLayers);
+	return AllDataLayers;
+}
+
+FName FWorldPartitionActorDesc::GetExternalDataLayer() const
+{
+	const bool bHasExternalDataLayerAsset = bIsUsingDataLayerAsset && ExternalDataLayerAsset.IsValid();
+	return bHasExternalDataLayerAsset ? FName(ExternalDataLayerAsset.GetAssetPath().ToString()) : NAME_None;
 }
 
 void FWorldPartitionActorDesc::TransferFrom(const FWorldPartitionActorDesc* From)
@@ -464,6 +492,11 @@ FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
 			if (DataLayers.Num())
 			{
 				Result.Appendf(TEXT(" DataLayers:%s"), *FString::JoinBy(DataLayers, TEXT(","), [&](const FName& DataLayerName) { return DataLayerName.ToString(); }));
+			}
+
+			if (ExternalDataLayerAsset.IsValid())
+			{
+				Result.Appendf(TEXT(" ExternalDataLayerAsset:%s"), *ExternalDataLayerAsset.ToString());
 			}
 		}
 	}
@@ -678,6 +711,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) >= FUE5ReleaseStreamObjectVersion::WorldPartitionActorDescSerializeActorIsListedInSceneOutliner)
 	{
 		Ar << TDeltaSerialize<bool>(bActorIsListedInSceneOutliner);
+	}
+
+    if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) >= FUE5ReleaseStreamObjectVersion::WorldPartitionExternalDataLayers)
+	{
+		Ar << TDeltaSerialize<FSoftObjectPath>(ExternalDataLayerAsset);
 	}
 
 	// Fixup redirected data layer asset paths
