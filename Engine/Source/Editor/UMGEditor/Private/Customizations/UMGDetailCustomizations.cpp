@@ -839,7 +839,7 @@ void FBlueprintWidgetCustomization::CreateMulticastEventCustomization(IDetailLay
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
-				.Padding(0, 0, 5, 0)
+				.Padding(0.0f, 0.0f, 5.0f, 0.0f)
 				[
 					SNew(SImage)
 					.Image(FAppStyle::Get().GetBrush("GraphEditor.Event_16x"))
@@ -857,10 +857,10 @@ void FBlueprintWidgetCustomization::CreateMulticastEventCustomization(IDetailLay
 				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(0)
+				.Padding(0.0f)
 				[
 					SNew(SButton)
-					.ContentPadding(FMargin(3.0, 2.0))
+					.ContentPadding(FMargin(3.0f, 2.0f))
 					.OnClicked(this, &FBlueprintWidgetCustomization::HandleAddOrViewEventForVariable, EventName, PropertyName, MakeWeakObjectPtr(PropertyClass))
 					[
 						SNew(SWidgetSwitcher)

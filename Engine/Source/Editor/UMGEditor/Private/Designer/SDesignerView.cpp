@@ -420,7 +420,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 	// Outline and text for important state.
 	+ SOverlay::Slot()
-	.Padding(0)
+	.Padding(0.0f)
 	.VAlign(VAlign_Fill)
 	.HAlign(HAlign_Fill)
 	[
@@ -429,7 +429,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 		// Top-right corner text indicating PIE is active
 		+ SOverlay::Slot()
-		.Padding(0)
+		.Padding(0.0f)
 		.VAlign(VAlign_Fill)
 		.HAlign(HAlign_Fill)
 		[
@@ -440,7 +440,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 		// Top-right corner text indicating PIE is active
 		+ SOverlay::Slot()
-		.Padding(20)
+		.Padding(20.0f)
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Right)
 		[
@@ -461,7 +461,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(6, 2, 0, 0)
+		.Padding(6.0f, 2.0f, 0.0f, 0.0f)
 		[
 			SNew(STextBlock)
 			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
@@ -473,7 +473,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(40, 2, 0, 0)
+		.Padding(40.0f, 2.0f, 0.0f, 0.0f)
 		[
 			SNew(STextBlock)
 			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
@@ -486,7 +486,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
-		.Padding(40, 2, 0, 0)
+		.Padding(40.0f, 2.0f, 0.0f, 0.0f)
 		[
 			SNew(STextBlock)
 			.TextStyle(FAppStyle::Get(), "Graph.ZoomText")
@@ -500,7 +500,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		.FillWidth(1.0f)
 		[
 			SNew(SSpacer)
-			.Size(FVector2D(1, 1))
+			.Size(FVector2D(1.0f, 1.0f))
 		]
 
 		+ SHorizontalBox::Slot()
@@ -597,7 +597,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
@@ -607,7 +607,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(SNumericEntryBox<int32>)
@@ -619,12 +619,12 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 			.Value(this, &SDesignerView::GetCustomResolutionWidth)
 			.OnValueChanged(this, &SDesignerView::OnCustomResolutionWidthChanged)
 			.Visibility(this, &SDesignerView::GetCustomResolutionEntryVisibility)
-			.MinDesiredValueWidth(50)
+			.MinDesiredValueWidth(50.0f)
 			.ToolTipText(LOCTEXT("CustomSize_WidthTooltip", "1+\tSets the width of the widget in the designer.\n0\tThe width will match the desired width of the widget."))
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(STextBlock)
@@ -634,7 +634,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(FMargin(2, 0))
+		.Padding(FMargin(2.0f, 0.0f))
 		.VAlign(VAlign_Center)
 		[
 			SNew(SNumericEntryBox<int32>)
@@ -663,7 +663,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 			.BorderBackgroundColor(FLinearColor(0.10, 0.10, 0.10, 0.75))
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
-			.Padding(FMargin(0, 5))
+			.Padding(FMargin(0.0f, 5.0f))
 			.Visibility(this, &SDesignerView::GetInfoBarVisibility)
 			[
 				SNew(STextBlock)
@@ -681,7 +681,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.Padding(6, 0, 0, 2)
+		.Padding(6.0f, 0.0f, 0.0f, 2.0f)
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
@@ -713,7 +713,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.HAlign(HAlign_Right)
-		.Padding(0, 0, 6, 2)
+		.Padding(0.0f, 0.0f, 6.0f, 2.0f)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -728,7 +728,7 @@ TSharedRef<SWidget> SDesignerView::CreateOverlayUI()
 
 			+ SHorizontalBox::Slot()
 			.AutoWidth()
-			.Padding(6, 0, 0, 0)
+			.Padding(6.0f, 0.0f, 0.0f, 0.0f)
 			.VAlign(VAlign_Bottom)
 			[
 				SNew(SButton)

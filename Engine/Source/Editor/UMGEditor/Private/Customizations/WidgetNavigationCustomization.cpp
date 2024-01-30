@@ -228,7 +228,7 @@ void FWidgetNavigationCustomization::MakeNavRow(TWeakPtr<IPropertyHandle> Proper
 				SNew(SComboButton)
 				.Visibility(this, &FWidgetNavigationCustomization::GetExplictWidgetFieldVisibility, PropertyHandle, Nav)
 				.OnGetMenuContent(this, &FWidgetNavigationCustomization::OnGenerateWidgetList, PropertyHandle, Nav)
-				.ContentPadding(1)
+				.ContentPadding(1.0f)
 				.ButtonContent()
 				[
 					SNew(STextBlock)

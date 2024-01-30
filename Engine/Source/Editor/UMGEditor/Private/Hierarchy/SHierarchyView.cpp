@@ -57,7 +57,7 @@ void SHierarchyView::Construct(const FArguments& InArgs, TSharedPtr<FWidgetBluep
 			SNew(SVerticalBox)
 
 			+ SVerticalBox::Slot()
-			.Padding(4)
+			.Padding(4.0f)
 			.AutoHeight()
 			[
 				SAssignNew(SearchBoxPtr, SSearchBox)

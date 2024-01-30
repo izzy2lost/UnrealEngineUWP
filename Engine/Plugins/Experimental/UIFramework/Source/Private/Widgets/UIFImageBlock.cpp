@@ -96,8 +96,8 @@ void UUIFrameworkImageBlock::LocalOnUMGWidgetCreated()
 	{
 		if (UTexture2D* Texture = Cast<UTexture2D>(Resource))
 		{
-			TmpBrush.ImageSize.X = Texture->GetSizeX();
-			TmpBrush.ImageSize.Y = Texture->GetSizeY();
+			TmpBrush.ImageSize.X = static_cast<float>(Texture->GetSizeX());
+			TmpBrush.ImageSize.Y = static_cast<float>(Texture->GetSizeY());
 		}
 	}
 	TmpBrush.SetResourceObject(Resource);
