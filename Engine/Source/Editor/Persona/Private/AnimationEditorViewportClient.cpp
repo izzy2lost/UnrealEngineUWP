@@ -181,6 +181,10 @@ FAnimationViewportClient::~FAnimationViewportClient()
 	OnPhysicsCreatedDelegateHandle.Reset();
 	OnMeshChangedDelegateHandle.Reset();
 
+	// Clear out the preview scene so any subsequent editor object destruction that tries to poke into the
+	// world will not crash.
+	static_cast<FAssetEditorModeManager*>(ModeTools.Get())->SetPreviewScene(nullptr);
+	
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().RemoveAll(this);
 }
 
