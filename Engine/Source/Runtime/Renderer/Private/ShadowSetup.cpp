@@ -5296,6 +5296,7 @@ void FSceneRenderer::FinishGatherShadowPrimitives(FDynamicShadowsTaskData* TaskD
 {
 	SCOPED_NAMED_EVENT_TEXT("FSceneRenderer::FinishGatherShadowPrimitives", FColor::Green);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_RenderThreadFinalize);
+	CSV_SCOPED_SET_WAIT_STAT(Shadows)
 
 	check(TaskData);
 
@@ -6565,7 +6566,8 @@ void FSceneRenderer::FinishDynamicShadowMeshPassSetup(FRDGBuilder& GraphBuilder,
 	{
 		return;
 	}
-
+	
+	CSV_SCOPED_SET_WAIT_STAT(ShadowsSetupMeshPass)
 	TaskData->SetupMeshPassTask.Wait();
 	TaskData->MeshCollectors.Empty();
 

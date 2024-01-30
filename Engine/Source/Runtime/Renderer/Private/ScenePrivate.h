@@ -3661,6 +3661,7 @@ public:
 
 	void WaitForCreateLightPrimitiveInteractionsTask()
 	{
+		CSV_SCOPED_SET_WAIT_STAT(LightPrimitiveInteractions);
 		CreateLightPrimitiveInteractionsTask.Wait();
 	}
 
@@ -3671,6 +3672,7 @@ public:
 
 	void WaitForGPUSkinCacheTask()
 	{
+		CSV_SCOPED_SET_WAIT_STAT(GPUSkinCache);
 		GPUSkinCacheTask.Wait();
 	}
 
@@ -3681,6 +3683,7 @@ public:
 
 	void WaitForCacheMeshDrawCommandsTask()
 	{
+		CSV_SCOPED_SET_WAIT_STAT(CacheMeshDrawCommands);
 		CacheMeshDrawCommandsTask.Wait();
 	}
 
@@ -3691,6 +3694,7 @@ public:
 
 	void WaitForCacheNaniteMaterialBinsTask()
 	{
+		CSV_SCOPED_SET_WAIT_STAT(CacheNaniteMaterialBins);
 		CacheNaniteMaterialBinsTask.Wait();
 	}
 
@@ -3702,6 +3706,7 @@ public:
 #if RHI_RAYTRACING
 	void WaitForCacheRayTracingPrimitivesTask()
 	{
+		CSV_SCOPED_SET_WAIT_STAT(CacheRayTracingPrimitives);
 		CacheRayTracingPrimitivesTask.Wait();
 	}
 

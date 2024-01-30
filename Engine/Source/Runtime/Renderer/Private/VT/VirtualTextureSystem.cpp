@@ -2800,6 +2800,7 @@ void FVirtualTextureSystem::WaitForTasks(FVirtualTextureUpdater* Updater)
 		return;
 	}
 
+	CSV_SCOPED_SET_WAIT_STAT(VirtualTexture);
 	Updater->AsyncTask.Wait();
 	bUpdating = false;
 }

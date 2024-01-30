@@ -1871,6 +1871,7 @@ void FDeferredShadingSceneRenderer::UpdateLumenScene(FRDGBuilder& GraphBuilder, 
 {
 	LLM_SCOPE_BYTAG(Lumen);
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::UpdateLumenScene);
+	CSV_SCOPED_SET_WAIT_STAT(UpdateLumenScene);
 
 	FrameTemporaries.UpdateSceneTask.Wait();
 

@@ -4351,6 +4351,7 @@ void FVisibilityTaskData::ProcessRenderThreadTasks()
 		if (DynamicMeshElements.CommandPipe)
 		{
 			SCOPED_NAMED_EVENT(WaitForGatherDynamicMeshElements, FColor::Magenta);
+			CSV_SCOPED_SET_WAIT_STAT(Visibility);
 
 			// Wait on the command pipe first as it will be continually updating the render thread event (and process tasks while we wait).
 			Tasks.DynamicMeshElementsPipe->Wait(ENamedThreads::GetRenderThread_Local());
