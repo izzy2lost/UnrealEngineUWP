@@ -1224,41 +1224,32 @@ namespace Math
 	TQuat<T> TQuat<T>::Slerp_NotNormalized(const TQuat<T>& Quat1, const TQuat<T>& Quat2, T Slerp)
 	{
 		// Get cosine of angle between quats.
-		const T RawCosom =
+		T RawCosom =
 			Quat1.X * Quat2.X +
 			Quat1.Y * Quat2.Y +
 			Quat1.Z * Quat2.Z +
 			Quat1.W * Quat2.W;
+
 		// Unaligned quats - compensate, results in taking shorter route.
-		const T Cosom = FMath::FloatSelect(RawCosom, RawCosom, -RawCosom);
-
-		T Scale0, Scale1;
-
-		if (Cosom < T(0.9999f))
+		const T Sign = FMath::FloatSelect(RawCosom, static_cast<T>(1.0), static_cast<T>(-1.0));
+		RawCosom *= Sign;
+		
+		T Scale0 = static_cast<T>(1.0) - Slerp;
+		T Scale1 = Slerp * Sign;
+		
+		if (RawCosom < static_cast<T>(0.9999))
 		{
-			const T Omega = FMath::Acos(Cosom);
-			const T InvSin = T(1.f) / FMath::Sin(Omega);
-			Scale0 = FMath::Sin((T(1.f) - Slerp) * Omega) * InvSin;
-			Scale1 = FMath::Sin(Slerp * Omega) * InvSin;
+			const T Omega = FMath::Acos(RawCosom);
+			const T InvSin = static_cast<T>(1.0) / FMath::Sin(Omega);
+			Scale0 = FMath::Sin(Scale0 * Omega) * InvSin;
+			Scale1 = FMath::Sin(Scale1 * Omega) * InvSin;
 		}
-		else
-		{
-			// Use linear interpolation.
-			Scale0 = T(1.0f) - Slerp;
-			Scale1 = Slerp;
-		}
-
-		// In keeping with our flipped Cosom:
-		Scale1 = FMath::FloatSelect(RawCosom, Scale1, -Scale1);
-
-		TQuat<T> Result;
-
-		Result.X = Scale0 * Quat1.X + Scale1 * Quat2.X;
-		Result.Y = Scale0 * Quat1.Y + Scale1 * Quat2.Y;
-		Result.Z = Scale0 * Quat1.Z + Scale1 * Quat2.Z;
-		Result.W = Scale0 * Quat1.W + Scale1 * Quat2.W;
-
-		return Result;
+		
+		return TQuat<T>(
+			Scale0 * Quat1.X + Scale1 * Quat2.X,
+			Scale0 * Quat1.Y + Scale1 * Quat2.Y,
+			Scale0 * Quat1.Z + Scale1 * Quat2.Z,
+			Scale0 * Quat1.W + Scale1 * Quat2.W);
 	}
 
 	template<typename T>
