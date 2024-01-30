@@ -952,6 +952,10 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 
 		check(SceneRenderer != nullptr);
 
+		// When bIsMultipleSceneCapture is true, set bIsFirstSceneRenderer to false, which tells the scene renderer it can skip RHI resource flush, saving performance
+		bool bIsMultipleSceneCapture = CaptureComponent->SetFrameUpdated();
+		SceneRenderer->bIsFirstSceneRenderer = !bIsMultipleSceneCapture;
+
 		SceneRenderer->Views[0].bFogOnlyOnRenderedOpaque = CaptureComponent->bConsiderUnrenderedOpaquePixelAsFullyTranslucent;
 
 		SceneRenderer->ViewFamily.SceneCaptureCompositeMode = CaptureComponent->CompositeMode;
@@ -1204,6 +1208,8 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 
 	if (TextureTarget)
 	{
+		bool bIsMultipleSceneCapture = CaptureComponent->SetFrameUpdated();
+
 		const float FOV = 90 * (float)PI / 360.0f;
 		for (int32 faceidx = 0; faceidx < (int32)ECubeFace::CubeFace_MAX; faceidx++)
 		{
@@ -1231,6 +1237,10 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 				TextureTarget->GameThread_GetRenderTargetResource(), CaptureSize, ViewRotationMatrix,
 				Location, ProjectionMatrix, CaptureComponent->MaxViewDistanceOverride,
 				bCaptureSceneColor, &PostProcessSettings, 0, CaptureComponent->GetViewOwner(), faceidx);
+
+			// When bIsMultipleSceneCapture is true, set bIsFirstSceneRenderer to false, which tells the scene renderer it can skip RHI resource flush, saving performance.
+			// We can also skip RHI resource flush on faces after the first.
+			SceneRenderer->bIsFirstSceneRenderer = (faceidx == 0) && !bIsMultipleSceneCapture;
 
 			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
 			{

@@ -210,6 +210,9 @@ public:
 	/** Whether this component is a USceneCaptureComponentCube */
 	virtual bool IsCube() const { return false; }
 
+	/** Updates "FrameUpdated" field, returns "true" if this is one of multiple scene captures this frame.  Called from FScene::UpdateSceneCaptureContents. */
+	ENGINE_API bool SetFrameUpdated();
+
 protected:
 	/** Update the show flags from our show flags settings (ideally, you'd be able to set this more directly, but currently unable to make FEngineShowFlags a UStruct to use it as a FProperty...) */
 	ENGINE_API void UpdateShowFlags();
@@ -228,6 +231,9 @@ protected:
 	 * NOTE: It is not safe to put a FSceneViewStateReference in a TArray, which moves its contents around without calling element constructors during realloc.
 	 */
 	TIndirectArray<FSceneViewStateReference> ViewStates;
+
+	/** Frame this scene capture was last updated */
+	uint64 FrameUpdated;
 
 #if WITH_EDITORONLY_DATA
 	/** The mesh used by ProxyMeshComponent */

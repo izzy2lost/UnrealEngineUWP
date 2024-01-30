@@ -44,6 +44,9 @@
 static TMultiMap<TWeakObjectPtr<UWorld>, TWeakObjectPtr<USceneCaptureComponent> > SceneCapturesToUpdateMap;
 static FCriticalSection SceneCapturesToUpdateMapCS;
 
+// Tracks the latest frame a scene capture was rendered
+static uint64 GSceneCaptureLatestRenderedFrame = INDEX_NONE;
+
 static TAutoConsoleVariable<bool> CVarSCOverrideOrthographicTilingValues(
 	TEXT("r.SceneCapture.OverrideOrthographicTilingValues"),
 	false,
@@ -424,6 +427,17 @@ void USceneCaptureComponent::UpdateShowFlags()
 			ShowFlags.SetSingleFlag(SettingIndex, ShowFlagSetting.Enabled);
 		}
 	}
+}
+
+bool USceneCaptureComponent::SetFrameUpdated()
+{
+	bool bFirstCaptureThisFrame = GFrameCounter != GSceneCaptureLatestRenderedFrame;
+	bool bRepeatOfThisCapture = GFrameCounter == FrameUpdated;
+	GSceneCaptureLatestRenderedFrame = GFrameCounter;
+	FrameUpdated = GFrameCounter;
+
+	// We consider this a "multiple" capture if it's not the first capture this frame, and not a repeat of the same capture.
+	return !bFirstCaptureThisFrame && !bRepeatOfThisCapture;
 }
 
 #if WITH_EDITOR
