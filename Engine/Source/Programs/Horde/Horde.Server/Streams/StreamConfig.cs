@@ -463,6 +463,11 @@ namespace Horde.Server.Streams
 		public string Title { get; set; } = null!;
 
 		/// <summary>
+		/// Type of this tab
+		/// </summary>
+		public string Type { get; set; } = "Jobs";
+
+		/// <summary>
 		/// Presentation style for this page
 		/// </summary>
 		public TabStyle Style { get; set; }
