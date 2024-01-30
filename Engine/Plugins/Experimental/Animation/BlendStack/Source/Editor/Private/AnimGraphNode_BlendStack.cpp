@@ -162,20 +162,26 @@ void UAnimGraphNode_BlendStack_Base::OnProcessDuringCompilation(IAnimBlueprintCo
 	{
 		// Input Pose is connected to Output Pose, so the sample graph does nothing.
 		// No need to use allocate sample graphs in that case.
-		AnimNode->SampleGraphPoseLinks.Reset();
+		AnimNode->PerSampleGraphPoseLinks.Reset();
 		return;
 	}
 
 	// Allocate one sample graph per-active blend plus an extra one for the stored pose.
-	AnimNode->SampleGraphPoseLinks.SetNum(MaxBlendsNum + 1);
+	const int32 NumSampleGraphs = MaxBlendsNum + 1;
+	AnimNode->PerSampleGraphPoseLinks.SetNum(NumSampleGraphs);
 
 	TArray<UAnimGraphNode_BlendStackInput*> InputNodes;
 	BoundGraph->GetNodesOfClass<UAnimGraphNode_BlendStackInput>(InputNodes);
 
 	int32 BlendStackAllocationIndex = InCompilationContext.GetAllocationIndexOfNode(this);
-	for(int32 Index = 0; Index < AnimNode->SampleGraphPoseLinks.Num(); ++ Index)
+
+	FStructProperty* NodeProperty = GetFNodeProperty();
+	check(NodeProperty);
+	FArrayProperty* PoseLinksProperty = CastFieldChecked<FArrayProperty>(NodeProperty->Struct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FAnimNode_BlendStack_Standalone, PerSampleGraphPoseLinks)));
+	check(PoseLinksProperty);
+
+	for(int32 Index = 0; Index < NumSampleGraphs; ++Index)
 	{
-		FBlendStack_SampleGraphPoseLink& GraphPoseLink = AnimNode->SampleGraphPoseLinks[Index];
 		UAnimGraphNode_Base* ClonedRootNode;
 		TArray<UAnimGraphNode_BlendStackInput*> ClonedInputNodes;
 		ClonedInputNodes.SetNum(InputNodes.Num());
@@ -188,7 +194,8 @@ void UAnimGraphNode_BlendStack_Base::OnProcessDuringCompilation(IAnimBlueprintCo
 			InputNode->Node.BlendStackAllocationIndex = BlendStackAllocationIndex;
 			InputNode->Node.SampleIndex = Index;
 		}
-		GraphPoseLink.RootNodeIndex = InCompilationContext.GetAllocationIndexOfNode(ClonedRootNode);
+
+		InCompilationContext.AddPoseLinkMappingRecord(FPoseLinkMappingRecord::MakeFromArrayEntry(this, ClonedRootNode, PoseLinksProperty, Index));
 	}
 }
 
