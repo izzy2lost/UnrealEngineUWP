@@ -22,6 +22,13 @@ TSharedRef<FTokenizedMessage> FTokenizedMessage::Create(EMessageSeverity::Type I
 	return Message;
 }
 
+TSharedRef<FTokenizedMessage> FTokenizedMessage::Clone() const
+{
+	TSharedRef<FTokenizedMessage> Message = MakeShared<FTokenizedMessage>(FPrivateToken());
+	*Message = *this;
+	return Message;
+}
+
 FText FTokenizedMessage::ToText() const
 {
 	FText OutMessage;
