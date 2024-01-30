@@ -347,7 +347,7 @@ inline FVector TransformPosition(const uniform FTransform &T, const FVector& V)
 	const FVector4 ScaledVec = VectorMultiply(T.Scale3D, InputVectorW0);
 	const FVector4 RotatedVec = VectorQuaternionRotateVector(T.Rotation, ScaledVec);
 
-	const FVector4 TranslatedVec = VectorAdd(RotatedVec, T.Translation);
+	const FVector4 TranslatedVec = VectorAdd(RotatedVec, (const varying FVector4)T.Translation);
 
 	return SetVector(TranslatedVec);
 }
@@ -363,7 +363,7 @@ inline FVector3f TransformPosition(const uniform FTransform3f &T, const FVector3
 	const FVector4f ScaledVec = VectorMultiply(T.Scale3D, InputVectorW0);
 	const FVector4f RotatedVec = VectorQuaternionRotateVector(T.Rotation, ScaledVec);
 
-	const FVector4f TranslatedVec = VectorAdd(RotatedVec, T.Translation);
+	const FVector4f TranslatedVec = VectorAdd(RotatedVec, (const varying FVector4f)SetVector4(T.Translation.V[0], T.Translation.V[1], T.Translation.V[2], 0.f));
 
 	return SetVector(TranslatedVec);
 }
