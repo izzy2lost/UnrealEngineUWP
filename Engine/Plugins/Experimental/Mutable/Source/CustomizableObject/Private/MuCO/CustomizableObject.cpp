@@ -222,6 +222,8 @@ void UCustomizableObject::PostLoad()
 
 	if (!IsRunningCookCommandlet())
 	{
+		GetPrivate()->Status.NextState(FCustomizableObjectStatusTypes::EState::Loading);
+
 		ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
 		const ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
 
