@@ -1227,6 +1227,11 @@ private:
 	// May be UINT64_MAX for regular (non-reserved) buffers or when the entire resource is committed.
 	uint64 CommittedSizeInBytes = UINT64_MAX;
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	// Tracks the number of items in ViewCache when the debug Name was updated, so we know if items were added and we need to propagate the debug name to the new items
+	int32 NameUpdatedViewCacheNum = 0;
+#endif
+
 	const uint32 NumAllocatedElements;
 	uint32 LastUsedFrame = 0;
 

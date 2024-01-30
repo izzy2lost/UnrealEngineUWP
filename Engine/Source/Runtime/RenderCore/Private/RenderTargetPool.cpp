@@ -153,15 +153,20 @@ TRefCountPtr<IPooledRenderTarget> FRenderTargetPool::FindFreeElement(FRHICommand
 		TRACE_COUNTER_SET(RenderTargetPoolSize, (int64)AllocationLevelInKB * 1024);
 
 		FoundIndex = PooledRenderTargets.Num() - 1;
-		Found->Desc.DebugName = Name;
 	}
 
+#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	Found->Desc.DebugName = Name;
-	Found->UnusedForNFrames = 0;
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHICmdList.BindDebugLabelName(Found->GetRHI(), Name);
+#else
+	// For performance, avoid updating name if it happens to be the same (true 90% of the time in testing)
+	if (FCString::Strcmp(Found->Desc.DebugName, Name))
+	{
+		Found->Desc.DebugName = Name;
+		RHICmdList.BindDebugLabelName(Found->GetRHI(), Name);
+	}
 #endif
+
+	Found->UnusedForNFrames = 0;
 
 	return TRefCountPtr<IPooledRenderTarget>(MoveTemp(Found));
 }

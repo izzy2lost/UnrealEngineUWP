@@ -102,12 +102,30 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBas
 		check(PooledBuffer->GetAlignedDesc() == AlignedDesc);
 
 		PooledBuffer->LastUsedFrame = FrameCounter;
-		PooledBuffer->ViewCache.SetDebugName(RHICmdList, InDebugName);
-		PooledBuffer->Name = InDebugName;
 
-	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		RHICmdList.BindDebugLabelName(PooledBuffer->GetRHI(), InDebugName);
-	#endif
+#if (UE_BUILD_SHIPPING || UE_BUILD_TEST)
+		PooledBuffer->Name = InDebugName;
+#else
+		// For performance, avoid updating name if it happens to be the same (true 80% of the time in testing)
+		bool bNameUpdated = false;
+		if (!PooledBuffer->Name || FCString::Strcmp(PooledBuffer->Name, InDebugName))
+		{
+			// Name changed, need to update it
+			PooledBuffer->Name = InDebugName;
+
+			RHICmdList.BindDebugLabelName(PooledBuffer->GetRHI(), InDebugName);
+
+			bNameUpdated = true;
+		}
+
+		// Propagate the debug name to ViewCache if the name was updated, or if any items were added to ViewCache since the debug name was set
+		int32 ViewCacheNum = PooledBuffer->ViewCache.NumItems();
+		if (bNameUpdated || PooledBuffer->NameUpdatedViewCacheNum != ViewCacheNum)
+		{
+			PooledBuffer->NameUpdatedViewCacheNum = ViewCacheNum;
+			PooledBuffer->ViewCache.SetDebugName(RHICmdList, InDebugName);
+		}
+#endif
 
 		// We need the external-facing desc to match what the user requested.
 		const_cast<FRDGBufferDesc&>(PooledBuffer->Desc).NumElements = Desc.NumElements;

@@ -4767,6 +4767,10 @@ public:
 #else
 	void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName) {}
 #endif
+	FORCEINLINE int32 NumItems() const
+	{
+		return UAVs.Num() + SRVs.Num();
+	}
 
 private:
 	TArray<TPair<FRHIBufferUAVCreateInfo, FUnorderedAccessViewRHIRef>, TInlineAllocator<1>> UAVs;
