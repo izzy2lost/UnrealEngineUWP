@@ -34,7 +34,7 @@ public:
 	FName TargetSocket;
 
 	/** Constraint axis filter */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Constraint")
+	UPROPERTY(EditAnywhere, BlueprintSetter=SetTransformFilter, Category = "Constraint")
 	FTransformFilter TransformFilter;
 
 	/** SprintArm component for lag effect */
@@ -72,6 +72,10 @@ public:
 	/** Set RotationLagSpeed*/
 	UFUNCTION(BlueprintSetter)
 	void SetRotationLagSpeed(float Speed);
+
+	/** Set TransformFilter for the internal constraint*/
+	UFUNCTION(BlueprintSetter)
+	void SetTransformFilter(const FTransformFilter& InFilter);
 
 
 #if WITH_EDITORONLY_DATA
@@ -126,7 +130,7 @@ private:
 	bool bConstraintUpdated = false;
 
 	void CreateConstraint();
-	void SetAxisFilter();
+	void UpdateAxisFilter();
 	
 #if WITH_EDITOR
 	void CreatePreviewMesh();
