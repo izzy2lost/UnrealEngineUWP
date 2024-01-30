@@ -394,7 +394,12 @@ protected:
 	void HandlePendingCleanupTimer();
 	/** Free memory that is pending delete */
 	void HandlePendingCleanup();
-	
+
+	/** Set timer to force refresh if one not already set */
+	void SetPendingRefreshTimer();
+	/** Force refresh during editor tick */
+	void HandlePendingRefreshTimer();
+
 	void SavePreSearchExpandedItems();
 	void RestorePreSearchExpandedItems();
 
@@ -516,6 +521,9 @@ protected:
 
 	/** Timer has already been set to be run next tick */
 	bool bPendingCleanupTimerSet : 1;
+
+	/** Refresh timer has already been set to be run next tick */
+	bool bPendingRefreshTimerSet : 1;
 
 	/** Are we currently running deferred actions? */
 	bool bRunningDeferredActions : 1;

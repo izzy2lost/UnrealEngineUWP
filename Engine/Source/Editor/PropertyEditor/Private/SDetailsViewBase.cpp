@@ -29,6 +29,7 @@ SDetailsViewBase::SDetailsViewBase() :
 	, bHasOpenColorPicker(false)
 	, bDisableCustomDetailLayouts(false)
 	, bPendingCleanupTimerSet(false)
+	, bPendingRefreshTimerSet(false)
 	, bRunningDeferredActions(false)
 {
 	UDetailsConfig::Initialize();
@@ -44,8 +45,9 @@ SDetailsViewBase::SDetailsViewBase() :
 		CurrentFilter.bShowOnlyModified = ViewConfig->bShowOnlyModified;
 	}
 
-	PropertyPermissionListChangedDelegate = FPropertyEditorPermissionList::Get().PermissionListUpdatedDelegate.AddLambda([this](TSoftObjectPtr<UStruct> Struct, FName Owner) { ForceRefresh(); });
-	PropertyPermissionListEnabledDelegate = FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddRaw(this, &SDetailsViewBase::ForceRefresh);
+	// Avoid calling ForceRefresh until next tick otherwise the editor can lock up for several minutes in one frame refreshing multiple times
+	PropertyPermissionListChangedDelegate = FPropertyEditorPermissionList::Get().PermissionListUpdatedDelegate.AddLambda([this](TSoftObjectPtr<UStruct> Struct, FName Owner) { SetPendingRefreshTimer(); });
+	PropertyPermissionListEnabledDelegate = FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddRaw(this, &SDetailsViewBase::SetPendingRefreshTimer);
 }
 
 SDetailsViewBase::~SDetailsViewBase()
@@ -1111,6 +1113,24 @@ void SDetailsViewBase::HandlePendingCleanup()
 
 	// Empty all the detail layouts that need to be deleted
 	DetailLayoutsPendingDelete.Empty();
+}
+
+void SDetailsViewBase::SetPendingRefreshTimer()
+{
+	if (!bPendingRefreshTimerSet)
+	{
+		if (GEditor && GEditor->IsTimerManagerValid())
+		{
+			bPendingRefreshTimerSet = true;
+			GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDetailsViewBase::HandlePendingRefreshTimer));
+		}
+	}
+}
+
+void SDetailsViewBase::HandlePendingRefreshTimer()
+{
+	bPendingRefreshTimerSet = false;
+	ForceRefresh();
 }
 
 /** Ticks the property view.  This function performs a data consistency check */
