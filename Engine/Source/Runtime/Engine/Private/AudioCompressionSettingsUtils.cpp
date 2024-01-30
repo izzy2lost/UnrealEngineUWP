@@ -16,10 +16,6 @@
 #include "IOSRuntimeSettings.h"
 #endif
 
-#if PLATFORM_SWITCH && ENABLE_PLATFORM_COMPRESSION_OVERRIDES
-#include "SwitchRuntimeSettings.h"
-#endif
-
 #include "Misc/ConfigCacheIni.h"
 
 static float CookOverrideCachingIntervalCvar = 60.0f;
