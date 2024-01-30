@@ -129,9 +129,6 @@ private:
 
 	// SWidget interface
 
-	void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	void OnMouseLeave(const FPointerEvent& MouseEvent) override;
-
 	FSlateColor GetForegroundBasedOnSelection() const;
 
 	/**
@@ -160,7 +157,6 @@ protected:
 	TWeakPtr<FEditorViewModel> WeakEditor;
 
 	TAttribute<bool> IsReadOnlyAttribute;
-	TAttribute<bool> IsRowHoveredAttribute;
 	TAttribute<bool> IsRowSelectedAttribute;
 
 	/** Default background brush for this node when expanded */
