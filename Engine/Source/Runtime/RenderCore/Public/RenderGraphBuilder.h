@@ -47,6 +47,15 @@ struct TStatId;
 class FRDGBuilder
 	: public FRDGScopeState
 {
+	struct FAsyncDeleter
+	{
+		TUniqueFunction<void()> Function;
+		static UE::Tasks::FTask LastTask;
+
+		RENDERCORE_API ~FAsyncDeleter();
+
+	} AsyncDeleter;
+
 	struct
 	{
 		// Allocator for all root graph allocations on the graph builder thread.
@@ -401,6 +410,9 @@ public:
 
 	/** Whether RDG is running in immediate mode. */
 	static RENDERCORE_API bool IsImmediateMode();
+
+	/** Waits for the last RDG async delete task that was launched. */
+	static RENDERCORE_API void WaitForAsyncDeleteTask();
 
 	/** The blackboard used to hold common data tied to the graph lifetime. */
 	FRDGBlackboard Blackboard;
