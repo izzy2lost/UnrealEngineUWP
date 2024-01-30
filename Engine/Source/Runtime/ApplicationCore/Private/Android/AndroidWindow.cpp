@@ -334,6 +334,14 @@ void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
 #if USE_ANDROID_EVENTS
 	check(IsInAndroidEventThread());
 #endif
+
+#if USE_ANDROID_STANDALONE
+	if (GAndroidWindowOverride && InWindow != GAndroidWindowOverride)
+	{
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("SetHardwareWindow_EventThread -> InWindow(%p) is not current GAndroidWindowOverride(%p)"), InWindow, GAndroidWindowOverride);
+	}
+#endif
+
 	//using raw native window handle for now. Could be changed to use AndroidWindow later if needed
 	NativeWindow = InWindow; 
 }

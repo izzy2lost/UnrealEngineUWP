@@ -278,6 +278,8 @@ bool UAndroidSingleInstanceServiceBPLibrary::EnableButton(const FString& Key, bo
 #define EVENTTYPE_PRE_LOAD_MAP				5
 #define EVENTTYPE_POST_LOAD_MAP				6
 #define EVENTTYPE_ACTION					7
+#define EVENTTYPE_ACTIVITYCHANGED			8
+#define EVENTTYPE_APP_SUSPENDED				9
 
 void UAndroidSingleInstanceServiceBPLibrary::SendAndroidEvent(int32 EventId, const FString& Param1, int32 Param2, int32 Param3, float Param4)
 {

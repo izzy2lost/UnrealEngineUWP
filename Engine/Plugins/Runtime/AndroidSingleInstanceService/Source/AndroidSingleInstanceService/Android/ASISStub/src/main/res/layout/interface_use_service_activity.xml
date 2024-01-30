@@ -101,7 +101,7 @@
 			android:layout_width="wrap_content"
 			android:layout_height="wrap_content"
 			android:layout_weight="1"
-			android:minWidth="48dp"
+			android:minWidth="32dp"
 			android:onClick="onClick"
 			android:text="RestartActivity"
 			android:visibility="visible" />
@@ -128,6 +128,7 @@
 
 	<HorizontalScrollView
 		android:id="@+id/scrollViewMiddle"
+		android:contentDescription="Render Biews"
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
 		android:layout_marginTop="100dp"
@@ -168,8 +169,7 @@
 				android:id="@+id/renderView2"
 				android:layout_width="800dp"
 				android:layout_height="match_parent"
-				android:layout_weight="1"
-				android:background="@android:drawable/checkbox_on_background" />
+				android:layout_weight="1" />
 
 		</LinearLayout>
 	</HorizontalScrollView>

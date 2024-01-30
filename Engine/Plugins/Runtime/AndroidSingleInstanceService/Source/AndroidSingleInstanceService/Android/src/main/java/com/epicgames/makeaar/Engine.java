@@ -36,20 +36,24 @@ import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Queue;
+import java.lang.Math;
 
 import static java.lang.System.loadLibrary;
 
 public class Engine
 {
-	public static int EVENTTYPE_INIT = 0;
-	public static int EVENTTYPE_POST_ENGINE_INIT = 1;
-	public static int EVENTTYPE_ENGINELOOP_INIT_COMPLETE = 2;
-	public static int EVENTTYPE_FRAME_BEGIN = 3;
-	public static int EVENTTYPE_FRAME_END = 4;
-	public static int EVENTTYPE_PRE_LOAD_MAP = 5;
-	public static int EVENTTYPE_POST_LOAD_MAP = 6;
-	public static int EVENTTYPE_ACTION = 7;
-	public static int EVENTTYPE_ACTIVITY_HAS_CHANGED = 8;
+
+	public static final int EVENTTYPE_INIT = 0;
+	public static final int EVENTTYPE_POST_ENGINE_INIT = 1;				// engine preInit and postInit are complete and all config files have been loaded and command lines processed.
+	public static final int EVENTTYPE_ENGINELOOP_INIT_COMPLETE = 2;		//  indicated the engine is ready to start rendering and the RHI will start creating resources and processing app events. This is where external apps can do any special handling and expect the engine to be in a ready state.
+	public static final int EVENTTYPE_FRAME_BEGIN = 3;
+	public static final int EVENTTYPE_FRAME_END = 4;
+	public static final int EVENTTYPE_PRE_LOAD_MAP = 5;					// load pak files is processed before load map is handled such as L_Load
+	public static final int EVENTTYPE_POST_LOAD_MAP = 6;				// map is loaded, this on first use is followed by EVENTTYPE_ENGINELOOP_INIT_COMPLETE to indicate the engine is about to prepare to render it's first frame.
+	public static final int EVENTTYPE_ACTION = 7;
+	public static final int EVENTTYPE_ACTIVITY_HAS_CHANGED = 8;         //activity change was recognized as part of engine init, this can be used to handle language changes and other activity related changes on app side. Activity should not be changed after this until and unless view has lost focus or onPause is issued.
+	public static final int EVENTTYPE_ENGINELOOP_SUSPENDED = 9;         //engine is suspeneded and put in an idle state.
+	
 
 	private static final String TAG = "UE_ASIS_Engine";
 
@@ -79,7 +83,7 @@ public class Engine
 		void Detach();
 	}
 
-	public static class ViewInterface<T> implements IViewInterface, SurfaceHolder.Callback, TextureView.SurfaceTextureListener, ViewTreeObserver.OnWindowFocusChangeListener//, ViewTreeObserver.OnWindowVisibilityChangeListener
+	public static class ViewInterface<T> implements IViewInterface, SurfaceHolder.Callback, TextureView.SurfaceTextureListener, ViewTreeObserver.OnWindowFocusChangeListener, ViewTreeObserver.OnWindowAttachListener//, ViewTreeObserver.OnWindowVisibilityChangeListener
 	{
 		private static final String TAG = "UE_ASIS_ViewInterface";
 		private T view;
@@ -91,7 +95,7 @@ public class Engine
 			this.view = inView;
 
 			((View)inView).getViewTreeObserver().addOnWindowFocusChangeListener(this);
-			//((View)inView).getViewTreeObserver().addOnWindowVisibilityChangeListener(this);
+			((View)inView).getViewTreeObserver().addOnWindowAttachListener(this);
 		}
 
 		public void onWindowVisibilityChanged(int visibility)
@@ -120,18 +124,40 @@ public class Engine
 
 			if (!hasFocus)
 			{
-				if ( !CheckEvent(EVENTTYPE_INIT) ) {
-					QueuePause("ViewInterface::handleViewFocusChange is false and EVENTTYPE_INIT has not been called, hasFocus=" + hasFocus);
-				}
-				else
-				{
-					QueuePause("ViewInterface::handleViewFocusChange, hasFocus=" + hasFocus);
-				}
+				QueuePause("ViewInterface::handleViewFocusChange, hasFocus=" + hasFocus);
 			}
 			else
 			{
 				QueueResume("ViewInterface::handleViewFocusChange, hasFocus=" + hasFocus + ", maskEngineEvents=" + maskEngineEvents);
 			}
+		}
+		@Override
+		public void onWindowAttached() {
+			Engine engine = Get();
+			Log.i(TAG, "** ViewInterface::onWindowAttached"
+				//+ ", bGameActivityNativeMainIsDone=" + bGameActivityNativeMainIsDone
+				+ ", bCalledStart:" + engine.bCalledStart
+				+ ", startCounter:" + startCounter
+				+ ", bResuming:" + bResuming
+				+ ", onPauseCounter:" + onPauseCounter
+				+ ", renderSurfaceValid:" + engine.renderSurfaceValid
+				+ ", renderSurface:" + engine.renderSurface
+				+ ", pendingChangedSurface:" + engine.pendingChangedSurface
+			);
+		}
+		@Override
+		public void onWindowDetached() {
+			Engine engine = Get();
+			Log.i(TAG, "** ViewInterface::onWindowDetached"
+				//+ ", bGameActivityNativeMainIsDone=" + bGameActivityNativeMainIsDone
+				+ ", bCalledStart:" + engine.bCalledStart
+				+ ", startCounter:" + startCounter
+				+ ", bResuming:" + bResuming
+				+ ", onPauseCounter:" + onPauseCounter
+				+ ", renderSurfaceValid:" + engine.renderSurfaceValid
+				+ ", renderSurface:" + engine.renderSurface
+				+ ", pendingChangedSurface:" + engine.pendingChangedSurface
+			);
 		}
 
 		public boolean canAcceptType(Class<?> candidate) {
@@ -166,6 +192,10 @@ public class Engine
 					surfaceView.getHolder().setFormat(PixelFormat.TRANSPARENT);
 				}
 				surfaceView.getHolder().addCallback(this);
+				if (surfaceView.isAttachedToWindow())
+				{
+					surfaceCreated(surfaceView.getHolder());
+				}
 			}
 			else if (view instanceof TextureView)
 			{
@@ -173,6 +203,12 @@ public class Engine
 				textureView.setAlpha(1.0f);
 				textureView.setOpaque(!enablePropagateAlpha);
 				textureView.setSurfaceTextureListener(this);
+				if (textureView.isAttachedToWindow())
+				{
+					if (textureView.getSurfaceTexture() != null) {
+						onSurfaceTextureAvailable(textureView.getSurfaceTexture(), textureView.getWidth(), textureView.getHeight());
+					}
+				}
 			}
 		}
 
@@ -182,24 +218,20 @@ public class Engine
 			int[] surfacePosition = new int[] {holder.getSurfaceFrame().left, holder.getSurfaceFrame().top};
 			int[] surfaceSize = new int[]{holder.getSurfaceFrame().width(), holder.getSurfaceFrame().height()};
 
-			Log.i(TAG, "surfaceCreated, surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize) + ", holder.getSurface().isValid()= " + holder.getSurface().isValid());
+			Log.v(TAG, "surfaceCreated, surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize) + ", holder.getSurface().isValid()= " + holder.getSurface().isValid());
 
 			Engine engine = Get();
 
-			synchronized (syncLock) {
+			synchronized (syncLock) {				
 				engine.renderSurfaceViewPosition = surfacePosition;
 				engine.renderSurfaceViewSize = surfaceSize;
-				if (holder.getSurface().isValid() )//&& engine.renderSurfaceValid && engine.renderSurface != null)
-				{
-					engine.releaseVolatileResources("surfaceCreated and holder has valid surface!");
-				}
 				engine.pendingChangedSurface = holder.getSurface();
 			}
 		}
 
 		@Override
 		public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-			Log.i(TAG, "surfaceChanged, format = " + format + ", width = " + width + ", bResuming=" + bResuming + ", onPauseCounter=" + onPauseCounter + ", renderSurfaceValid=" + Get().renderSurfaceValid + ", renderSurface=" + Get().renderSurface );
+			Log.v(TAG, "surfaceChanged, format = " + format + ", width = " + width);
 
 			int[] surfacePosition = new int[] {holder.getSurfaceFrame().left, holder.getSurfaceFrame().top};
 			int[] surfaceSize = new int[]{width, height};
@@ -207,7 +239,7 @@ public class Engine
 			if (view != null)
 			{
 				GetPosSize(surfacePosition, surfaceSize);
-				Log.i(TAG, "surfaceChanged with view, format = " + format + ", surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize));
+				Log.v(TAG, "surfaceChanged with view, format = " + format + ", surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize));
 			}
 
 			Engine engine = Get();
@@ -223,16 +255,7 @@ public class Engine
 				engine.renderSurfaceViewPosition = surfacePosition;
 				engine.renderSurfaceViewSize = surfaceSize;
 				engine.pendingChangedSurface = holder.getSurface();
-				bResuming |= engine.pendingChangedSurface != null;
-			}
-			// queue the resume if needed at the end of surfaceChanged...
-			if (bResuming)
-			{
-				if (!engine.bCalledStart)
-				{
-					QueueStart("surfaceChanged");
-				}
-				QueueResume("surfaceChanged" );
+				engine.QueueResume("surfaceChanged");
 			}
 		}
 
@@ -241,7 +264,7 @@ public class Engine
 
 			Engine engine = Get();
 
-			Log.i(TAG, "surfaceDestroyed, holder = " + holder
+			Log.v(TAG, "surfaceDestroyed, holder = " + holder
 				+ ", lifecycleContextID=" + lifecycleContextID
 				+ ", bResuming=" + bResuming
 				+ ", surfaceCreatedCounter=" + surfaceCreatedCounter
@@ -253,7 +276,7 @@ public class Engine
 
 			synchronized (syncLock) {
 				if (engine.renderSurfaceValid && engine.renderSurface == holder.getSurface()) {
-					Log.i(TAG, "surfaceDestroyed, doing cleanup and pausing, holder = " + holder
+					Log.v(TAG, "surfaceDestroyed, doing cleanup and pausing, holder = " + holder
 							+ ", lifecycleContextID=" + lifecycleContextID
 							+ ", bResuming=" + bResuming
 							+ ", surfaceCreatedCounter=" + surfaceCreatedCounter
@@ -262,25 +285,11 @@ public class Engine
 							+ ", renderSurface=" + engine.renderSurface
 							+ ", holder.surface=" + holder.getSurface()
 					);
-					Surface pendingSurface = holder.getSurface();
-					GetOverrideGameActivity().nativeSetSurfaceOverride(null, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
-					if (engine.renderSurface != null && (onPauseCounter > 0 || startCounter > 0)) {
-						GetOverrideGameActivity().nativeAppCommand(APP_CMD_TERM_WINDOW);
-					}
 
-					if (engine.renderSurfaceValid && (startCounter > 0 || onPauseCounter > 0)) {
-						bResuming = true;
-					}
-
-					engine.renderSurface = engine.pendingChangedSurface;
-					engine.renderSurfaceValid = engine.renderSurface != null;
-					engine.pendingChangedSurface = pendingSurface;
-
-					engine.onPause(lifecycleContextID, "surfaceDestroyed case 1");
-
+					engine.onPause(lifecycleContextID, "surfaceDestroyed(doing cleanup)" );
 
 				} else if (holder.getSurface() != null && engine.renderSurface != null) {
-					Log.w(TAG, "surfaceDestroyed, re-bind surface, holder = " + holder
+					Log.v(TAG, "surfaceDestroyed, re-bind surface, holder = " + holder
 							+ ", lifecycleContextID=" + lifecycleContextID
 							+ ", bResuming=" + bResuming
 							+ ", surfaceCreatedCounter=" + surfaceCreatedCounter
@@ -294,7 +303,6 @@ public class Engine
 
 					if (engine.pendingChangedSurface != null) {
 						bResuming = true;
-						
 						engine.QueueResume("surfaceDestroyed valid pendingChangedSurface");
 					}
 				}
@@ -312,7 +320,7 @@ public class Engine
 				int[] surfacePosition = new int[]{0, 0};
 				textureView.getLocationOnScreen(surfacePosition);
 				int[] surfaceSize = new int[]{width, height};
-				Log.w(TAG, "onSurfaceTextureAvailable, surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize));
+				Log.v(TAG, "onSurfaceTextureAvailable, surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize));
 
 				renderSurfaceViewPosition = surfacePosition;
 				renderSurfaceViewSize = surfaceSize;
@@ -337,7 +345,7 @@ public class Engine
 				int[] surfacePosition = new int[]{0, 0};
 				textureView.getLocationOnScreen(surfacePosition);
 				int[] surfaceSize = new int[]{width, height};
-				Log.i(TAG, "onSurfaceTextureSizeChanged, surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize));
+				Log.v(TAG, "onSurfaceTextureSizeChanged, surfacePosition = " + Arrays.toString(surfacePosition) + ", surfaceSize = " + Arrays.toString(surfaceSize));
 
 				renderSurfaceViewSize = surfaceSize;
 				GetOverrideGameActivity().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
@@ -353,7 +361,7 @@ public class Engine
 
 			synchronized (syncLock) {
 
-				Log.i(TAG, "onSurfaceTextureDestroyed, surfaceForTextureView = " + surfaceForTextureView + ", renderSurface = " + Engine.Get().renderSurface);
+				Log.v(TAG, "onSurfaceTextureDestroyed, surfaceForTextureView = " + surfaceForTextureView + ", renderSurface = " + Engine.Get().renderSurface);
 
 				Engine.Get().releaseVolatileResources("onSurfaceTextureDestroyed called");
 				if (surfaceForTextureView != null)
@@ -369,6 +377,7 @@ public class Engine
 		@Override
 		public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {
 		}
+
 
 		public void Detach()
 		{
@@ -392,6 +401,7 @@ public class Engine
 			}
 
 			((View)view).getViewTreeObserver().removeOnWindowFocusChangeListener(this);
+            ((View)view).getViewTreeObserver().removeOnWindowAttachListener(this);
 			//((View)view).getViewTreeObserver().removeOnWindowVisibilityChangeListener(this);
 
 			if (surfaceForTextureView != null)
@@ -449,7 +459,42 @@ public class Engine
 		return (GameActivityForMakeAAR)GameActivity.Get();
 	}
 
-	void DoGameActivityNativeMain(String projectModule, String reasonString)
+	private static GameActivityForMakeAAR GetOverrideGameActivityWhenInitComplete()
+	{
+		Log.w(TAG, "GetOverrideGameActivityWhenInitComplete called, maskEngineEvents=" + Long.toBinaryString(maskEngineEvents));
+		return (GameActivityForMakeAAR)GameActivity.Get();
+
+	//assert(GetCurrentActivityContext() != null);
+	//synchronized(GetCurrentActivityContext()) {
+
+	//	try
+	//	{
+	//		while (!CheckEvent(EVENTTYPE_POST_ENGINE_INIT))
+	//		{
+	//			Log.w(TAG, "GetOverrideGameActivityWhenInitComplete waiting for EVENTTYPE_POST_ENGINE_INIT!, maskEngineEvents=" + Long.toBinaryString(maskEngineEvents));
+	//			GetCurrentActivityContext().wait(10);
+	//			if (CheckEvent(EVENTTYPE_ENGINELOOP_SUSPENDED))
+	//			{
+	//				Log.e(TAG, "GetOverrideGameActivityWhenInitComplete is suspended!, maskEngineEvents=" + Long.toBinaryString(maskEngineEvents));
+
+	//				break;
+	//			}
+	//		}
+	//	}
+	//	catch (Exception e)
+	//	{
+	//		Log.e(TAG, "GetOverrideGameActivityWhenInitComplete EXCEPTION!, maskEngineEvents=" + Long.toBinaryString(maskEngineEvents));
+	//		e.printStackTrace();
+	//	}
+	//	finally() {
+	//		Log.i(TAG, "GetOverrideGameActivityWhenInitComplete ready!, maskEngineEvents=" + Long.toBinaryString(maskEngineEvents));
+	//		return (GameActivityForMakeAAR)GameActivity.Get();
+	//	}
+
+	//}
+}
+
+void DoGameActivityNativeMain(String projectModule, String reasonString)
 	{
 		Log.i(TAG, "DoGameActivityNativeMain is called with reasonString=" + reasonString + ", projectModule=" + projectModule);
 	
@@ -557,7 +602,7 @@ public class Engine
 				return false;
 			}
 
-			final boolean isChanging = (pendingChangedSurface != renderSurface) && pendingChangedSurface != null;
+			final boolean isChanging = (pendingChangedSurface != renderSurface) && renderSurface != null;
 
 			Log.i(TAG, "logOrder:" + logOrder + " *** Engine::ApplyPendingSurfaceChanges() - bResuming=" + bResuming
 					+ ", isChanging=" + isChanging
@@ -573,13 +618,29 @@ public class Engine
 				++surfaceCreatedCounter;
 			}
 
-			GetOverrideGameActivity().nativeSetSurfaceOverride(pendingChangedSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
-			GetOverrideGameActivity().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceOverride(pendingChangedSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
 			renderSurface = pendingChangedSurface;
 			renderSurfaceValid = true;
 			pendingChangedSurface = null;
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_INIT_WINDOW);
 
+/*
+			if (!CheckEvent(EVENTTYPE_ENGINELOOP_INIT_COMPLETE)) {
+				GameActivity.GetCurrentActivityContext().runOnUiThread(() ->
+					{
+						synchronized(syncLock)
+						{
+							Log.w(TAG, "FORCED -> Engine::ApplyPendingSurfaceChanges(!EVENTTYPE_ENGINELOOP_INIT_COMPLETE) - renderSurfaceValid=" + renderSurfaceValid + ", renderSurface=" + renderSurface);
+
+							//GetOverrideGameActivity().nativeAppCommand(APP_CMD_INIT_WINDOW);
+							//GetOverrideGameActivity().nativeAppCommand(APP_CMD_GAINED_FOCUS);
+							GetOverrideGameActivity().nativeResumeMainInit();
+						}
+					}
+				);
+
+			}
+*/
 
 			return isChanging;
 		}
@@ -644,7 +705,9 @@ public class Engine
 
 		if (gameActivitySetupInfo.ViewSize.length == 2)
 		{
-			renderSurfaceViewSize = gameActivitySetupInfo.ViewSize;
+			if (gameActivitySetupInfo.ViewSize[0] != 0 && gameActivitySetupInfo.ViewSize[1] != 0) {
+				renderSurfaceViewSize = gameActivitySetupInfo.ViewSize;
+			}
 		}
 
 		if (bAcitivityNeedsSetup)
@@ -678,6 +741,7 @@ public class Engine
 		Log.i(TAG, "* Engine::DoHousekeepingForViewChange(GameActivitySetupInfo) - Before recovery checks, bFirstInit=" + bFirstInit + ", bResuming=" + bResuming + ", renderSurfaceValid=" + renderSurfaceValid + ", renderSurface = " + renderSurface);
 
 		++logOrder;
+		++surfaceCreatedCounter;
 
 		if (renderSurface != null || surfaceCreatedCounter > 1)
 		{
@@ -868,7 +932,6 @@ public class Engine
 			return false;
 		}
 
-
 		Log.i(TAG, "** Engine::AttachExternalRenderSurface() - bFirstInit"
 			+ ", bGameActivityNativeMainIsDone=" + bGameActivityNativeMainIsDone
 			+ ", contextID:" + contextID
@@ -886,25 +949,16 @@ public class Engine
 			+ ", pendingChangedSurface:" + pendingChangedSurface
 		);
 
-
-		if (false == VerifyContextID(contextID, "Engine::AttachExternalRenderSurface()")) {
-			onStop(lifecycleContextID, "Engine::AttachExternalRenderSurface");
-			lifecycleContextID = contextID;
-		}
-
-		else if (renderSurface != null || surfaceCreatedCounter>0)
+		if (renderSurface != null || surfaceCreatedCounter>0)
 		{
-			releaseVolatileResources(contextID, "AttachExternalRenderSurface renderSurface != null || surfaceCreatedCounter>0");
-
+			ReleaseRenderSurfaces("AttachExternalRenderSurface(renderSurface != null || surfaceCreatedCounter>0)");
 		}
 
-		Log.i(TAG, "** Engine::AttachExternalRenderSurface() - CHECK 1A");
 		++logOrder;
+		++surfaceCreatedCounter;
 
-
-		//synchronized(syncLock)
-		{
-		Log.i(TAG, "** Engine::AttachExternalRenderSurface() - CHECK 1B");
+		synchronized (syncLock) {
+			Engine.Get().sendConsoleCommand("a.AllowFrameTimestamps 0");	// needed to avoid E/FrameEvents: updateAcquireFence: Did not find frame. spamming.
 			pendingChangedSurface = externalSurface;
 			if (viewSize.length==2)
 			{
@@ -968,7 +1022,7 @@ public class Engine
 			return;
 		}
 
-		GetOverrideGameActivity().GetCurrentActivityContext().runOnMainThread(() ->
+		GameActivityForMakeAAR.GetCurrentActivityContext().runOnMainThread(() ->
 				{
 					synchronized(syncLock)
 					{
@@ -992,9 +1046,9 @@ public class Engine
 			return;
 		}
 
-		GetOverrideGameActivity().GetCurrentActivityContext().runOnUiThread(() ->
+		GameActivityForMakeAAR.GetCurrentActivityContext().runOnMainThread(() ->
 			{
-				//synchronized (syncLock)
+				synchronized (syncLock)
 				{
 					Log.i(TAG, "QueueResume is calling engine.onResume with lifecycleContextID=" + lifecycleContextID + ", reasonString=" + reasonString);
 					
@@ -1012,7 +1066,7 @@ public class Engine
 			return;
 		}
 
-		GetOverrideGameActivity().GetCurrentActivityContext().runOnMainThread(new Runnable()
+		GameActivityForMakeAAR.GetCurrentActivityContext().runOnMainThread(new Runnable()
 		{
 			@Override
 			public void run()
@@ -1036,17 +1090,11 @@ public class Engine
 			return;
 		}
 
-		GetOverrideGameActivity().GetCurrentActivityContext().runOnMainThread(new Runnable()
-		{
-			@Override
-			public void run()
+		GameActivityForMakeAAR.GetCurrentActivityContext().runOnMainThread(() ->
 			{
-				synchronized(syncLock)
-				{
-					Log.i(TAG, "QueueStop is calling engine.onStop with lifecycleContextID=" + lifecycleContextID + ", reasonString=" + reasonString);
-			Engine.Get().onStop(lifecycleContextID, "QueueStop with reasonString=" + reasonString);
-				}
-	
+				synchronized (syncLock) {
+				Log.i(TAG, "QueueStop is calling engine.onStop with lifecycleContextID=" + lifecycleContextID + ", reasonString=" + reasonString);
+				Engine.Get().onStop(lifecycleContextID, "QueueStop with reasonString=" + reasonString);
 			}
 		});
 	}
@@ -1118,104 +1166,19 @@ public class Engine
 		}
 
 
-		if (!bCalledStart)
-		{
-			QueueStart("Init(context, gameActivitySetupInfo)");
-			QueueResume("Init(context, gameActivitySetupInfo) because started");
-		}
-
-		if (renderSurface != null || pendingChangedSurface != null)
-		{
-			QueueResume("Init(context, gameActivitySetupInfo) refresh surface");
-		}
-
-		return bResuming;
-	}
-
-	public boolean Init(SurfaceView view, String commandline, String projectModule, String[] mountPAKs)
-	{
-		return Init(view.getContext(), new ViewInterface<SurfaceView>(view), this.OBBFilename, commandline, projectModule, _enablePropagateAlpha, mountPAKs);
-	}
-
-	public boolean Init(TextureView view, String commandline, String projectModule, String[] mountPAKs)
-	{
-		return Init(view.getContext(), new ViewInterface<TextureView>(view), this.OBBFilename, commandline, projectModule, _enablePropagateAlpha, mountPAKs);
-	}
-
-	public boolean Init(Context inContext, IViewInterface view, String OBBFilename, String commandline, String projectModule, boolean enablePropagateAlpha, String[] mountPAKs)
-	{
-		incCreateContextID();
-
-		++logOrder;
-		Log.i(TAG, "logOrder:" + logOrder + " * Engine::Init(IViewInterface) -" + ", bLibraryLoaded=" + bLibraryLoaded + ", bResuming=" + bResuming + ", renderSurfaceValid=" + renderSurfaceValid + ", view = " + view);
-		if (renderSurfaceValid || renderSurface != null)
-		{
-			releaseVolatileResources( "Engine::Init(IViewInterface) called so remove old resources");
-		}
-		if (!bLibraryLoaded)
-		{
-			return false;
-		}
-
-		boolean bFirstInit = (GameActivity.Get() == null || renderSurface == null);
-
-
-		if (!DoHousekeepingForViewChange(inContext, view, OBBFilename, enablePropagateAlpha ))
-		{
-			return false;
-		}
-
-		bHasBeenInit = true;
-
-		if (bFirstInit)
-		{
-			Log.i(TAG, "** Engine::Init(ViewInterface) - bFirstInit"
-					+ ", bGameActivityNativeMainIsDone=" + bGameActivityNativeMainIsDone
-					+ ", bCalledStart:" + bCalledStart
-					+ ", startCounter:" + startCounter
-					+ ", bResuming:" + bResuming
-					+ ", onPauseCounter:" + onPauseCounter
-					+ ", renderSurfaceValid:" + renderSurfaceValid
-					+ ", renderSurface:" + renderSurface
-					+ ", commandline:" + commandline
-					+ ", projectModule:" + projectModule
-			);
-
-			if (commandline.isEmpty() || !commandline.startsWith("../../"))
-			{
-				commandline = "../../../" + projectModule + "/" + projectModule + ".uproject " + commandline;
-				Log.i(TAG, "** Engine::Init(ViewInterface) - commandline updated: " + commandline);
-			}
-
-			GetOverrideGameActivity().setCommandline(commandline);
-
-			if (mountPAKs.length > 0) {
-				pendingPakList = mountPAKs.clone();
-			}
-
-			// start game thread
-			if (!bGameActivityNativeMainIsDone)
-			{
-				Log.i(TAG, "** Engine::Init(IViewInterface) - calling GetOverrideGameActivity().nativeMain() with : projectModule = " + projectModule);
-				DoGameActivityNativeMain(projectModule, "Init(IViewInterface)");
-			}
-
-			AndroidThunkJava_Engine_ReceiveEvent(EVENTTYPE_ACTIVITY_HAS_CHANGED, "", 0, 0, 0.0f);
-		}
-
-
-		if (!bCalledStart)
-		{
-			QueueStart("Init(ViewInterface)");
-		}
-
-		if (pendingChangedSurface != null)
-		{
-			QueueResume("Init(ViewInterface)");
-		}
+//		if (!bCalledStart)
+//		{
+//			QueueStart("Init(context, gameActivitySetupInfo)");
+//		}
+//
+//		if (renderSurface != null || pendingChangedSurface != null)
+//		{
+//			QueueResume("Init(context, gameActivitySetupInfo) refresh surface");
+//		}
 
 		return bResuming;
 	}
+
 
 	public String getObbVersion(boolean bFull)
 	{
@@ -1266,8 +1229,14 @@ public class Engine
 
 	public void sendConsoleCommand(String command)
 	{
-		if (GetOverrideGameActivity() != null) {
-			GetOverrideGameActivity().nativeConsoleCommand(command);
+		if (GetOverrideGameActivity() != null) 
+		{
+			if (!CheckEvent(EVENTTYPE_ENGINELOOP_INIT_COMPLETE))
+			{
+				Log.e(TAG, "Engine::sendConsoleCommand(aborted cause not ready), maskEngineEvents=" + Long.toBinaryString(maskEngineEvents) );
+				return;
+			}
+			GetOverrideGameActivityWhenInitComplete().nativeConsoleCommand(command);
 		}
 	}
 
@@ -1305,6 +1274,12 @@ public class Engine
 
 	public void onPause(int contextID, String reasonString)
 	{
+		if (!CheckEvent(EVENTTYPE_ENGINELOOP_INIT_COMPLETE))
+		{
+			Log.e(TAG, "Engine::onPause(aborted cause not ready), maskEngineEvents=" + Long.toBinaryString(maskEngineEvents) );
+			return;
+		}
+		
 		if (contextID != 0 && lifecycleContextID != 0 && contextID != lifecycleContextID) {
 			Log.e(TAG, "[lifecycleContextID=" + lifecycleContextID + "] contextID:" + contextID + " ABNORMAL Engine::onPause(contextID) - onPause called. with contextID change = " + contextID + ", reasonString=" + reasonString);
 			return;
@@ -1317,9 +1292,9 @@ public class Engine
 
 		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onPause - renderSurfaceValid: " + renderSurfaceValid + ", bResuming: " + bResuming + ", bCalledStart = " + bCalledStart + ", onPauseCounter=" + onPauseCounter + ", renderSurface = " + renderSurface + ", pendingChangedSurface=" + pendingChangedSurface + ", reasonString=" + reasonString);
 
-		//if (_gameActivityInstance != null) {
-		//	GetOverrideGameActivity().onPause();
-		//}
+		if (GetOverrideGameActivity() != null) {
+			GetOverrideGameActivityWhenInitComplete().onPause();
+		}
 
 		if (onPauseCounter > 0 || bResuming) {
 			Log.w(TAG, "** Engine::onPause - Already Paused! onPauseCounter=" + onPauseCounter + ", bResuming=" + bResuming + ", reasonString=" + reasonString);
@@ -1328,23 +1303,24 @@ public class Engine
 
 		++onPauseCounter;
 		Log.i(TAG, "** Engine::onPause - DOING a full Pause!" + ", reasonString=" + reasonString);
+		GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_PAUSE);
+		GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_LOST_FOCUS);
 
-		if (renderSurface != null) {
-			--surfaceCreatedCounter;
-		}
+		if (!bResuming && renderSurfaceValid)
+		{
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceOverride(null, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
 
-		if (renderSurface != null || pendingChangedSurface != null) {
-			GetOverrideGameActivity().nativeSetSurfaceOverride(null, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
-			pendingChangedSurface = pendingChangedSurface != null ? pendingChangedSurface : renderSurface;
+			if (renderSurface != null) 
+			{
+				pendingChangedSurface = renderSurface;
+				// com.epicgames.makeaar.GameActivity.nativeAppCommand(APP_CMD_TERM_WINDOW);
+			}
+
+			bResuming |= pendingChangedSurface != null;
+	
 			renderSurface = null;
 			renderSurfaceValid = false;
-			bResuming |= pendingChangedSurface != null;
-			Log.i(TAG, "** Engine::onPause - set SurfaceOverride to null and updated render surfaces" + ", pendingChangedSurface=" + pendingChangedSurface + ", reasonString=" + reasonString);
 		}
-
-		GetOverrideGameActivity().nativeAppCommand(APP_CMD_LOST_FOCUS);
-		GetOverrideGameActivity().nativeAppCommand(APP_CMD_PAUSE);
-		//GetOverrideGameActivity().nativeAppCommand(APP_CMD_TERM_WINDOW);
 
 		//releaseVolatileResources("onPause called with reason=" + reasonString);
 	}
@@ -1353,12 +1329,26 @@ public class Engine
 	{
 		if (contextID != 0 && lifecycleContextID != 0 && contextID != lifecycleContextID) {
 			Log.e(TAG, "[lifecycleContextID=" + lifecycleContextID + "] contextID:" + contextID + " ABNORMAL Engine::onResume - onResume called. with contextID change = " + contextID + ", reasonString=" + reasonString);
-			return;
+			//return;
 		}
+
+		lifecycleContextID = contextID;
+		onResume(reasonString);
+	}
+
+	private void onResume(String reasonString)
+	{
+		if (!CheckEvent(EVENTTYPE_ENGINELOOP_INIT_COMPLETE))
+		{
+			Log.e(TAG, "Engine::onResume(WARNING cause not ready), maskEngineEvents=" + Long.toBinaryString(maskEngineEvents) + ", reasonString=" + reasonString );
+			//ApplyPendingSurfaceChanges();
+			//return;
+		}
+		
 		++logOrder;
-		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onResume - onResume called. bCalledStart was = " + bCalledStart
+		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onResume() - onResume called. bCalledStart was = " + bCalledStart
 			+ ", bHasBeenInit = " + bHasBeenInit
-			+ ", maskEngineEvents= " + maskEngineEvents
+			+ ", maskEngineEvents= " + Long.toBinaryString(maskEngineEvents)
 			+ ", bGameActivityNativeMainIsDone = " + bGameActivityNativeMainIsDone
 			+ ", prev startCounter = " + startCounter
 			+ ", surfaceCreatedCounter = " + surfaceCreatedCounter
@@ -1370,19 +1360,19 @@ public class Engine
 
 		if (bCalledStart == false) {
 			if (surfaceCreatedCounter > 0 && renderSurface != null) {
-				Log.w(TAG, "** Engine::onResume - FORCING onstart from onresume because bCalledStart is false! bResuming=" + bResuming + ", onPauseCounter=" + onPauseCounter + ", width = " + renderSurfaceViewSize[0] + ", height = " + renderSurfaceViewSize[1]);
+				Log.w(TAG, "** Engine::onResume() - FORCING onstart from onresume because bCalledStart is false! bResuming=" + bResuming + ", onPauseCounter=" + onPauseCounter + ", width = " + renderSurfaceViewSize[0] + ", height = " + renderSurfaceViewSize[1]);
 
-				onStart(lifecycleContextID, reasonString + "->onResume");
+				onStart(reasonString + "->onResume");
 
 			} else {
-				Log.w(TAG, "** Engine::onResume - SKIPPING because bCalledStart is false! bResuming=" + bResuming + ", onPauseCounter=" + onPauseCounter + ", width = " + renderSurfaceViewSize[0] + ", height = " + renderSurfaceViewSize[1]);
+				Log.w(TAG, "** Engine::onResume() - SKIPPING because bCalledStart is false! bResuming=" + bResuming + ", onPauseCounter=" + onPauseCounter + ", width = " + renderSurfaceViewSize[0] + ", height = " + renderSurfaceViewSize[1]);
 				return;
 			}
 		}
 
-//		if (GameActivity.Get() != null) {
-//			GameActivity.Get().onResume();
-//		}
+		if (GetOverrideGameActivity() != null && CheckEvent(EVENTTYPE_ENGINELOOP_INIT_COMPLETE)) {
+			GetOverrideGameActivity().onResume();
+		}
 
 
 		bResuming |= ApplyPendingSurfaceChanges();
@@ -1406,25 +1396,27 @@ public class Engine
 		{
 			Log.i(TAG, "** Engine::onResume - setup renderSurface because we already are in a start state! width = " + renderSurfaceViewSize[0] + ", height = " + renderSurfaceViewSize[1]);
 
-			GetOverrideGameActivity().nativeSetSurfaceOverride(renderSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
-			GetOverrideGameActivity().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceOverride(renderSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
 			bResuming = true;
 		}
 
 		if (bResuming && renderSurface != null) {
 			Log.i(TAG, "** Engine::onResume - DOING full Resume! width = " + renderSurfaceViewSize[0] + ", height = " + renderSurfaceViewSize[1] + ", maskEngineEvents= " + maskEngineEvents);
 
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_GAINED_FOCUS);
-			GetOverrideGameActivity().nativeResumeMainInit();
+			GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_INIT_WINDOW);
+			GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_GAINED_FOCUS);
+			GetOverrideGameActivityWhenInitComplete().nativeResumeMainInit();
 			bResuming = false;
 		}
 		else if (renderSurface != null)
 		{
 			Log.e(TAG, "***- Engine::onResume - UNHANDLED case for resume! renderSurfaceValid = " + renderSurfaceValid + ", renderSurface = " + renderSurface);
-			GetOverrideGameActivity().nativeSetSurfaceOverride(renderSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
-			GetOverrideGameActivity().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_GAINED_FOCUS);
-			GetOverrideGameActivity().nativeResumeMainInit();
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceOverride(renderSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
+			GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceViewInfo(renderSurfaceViewSize[0], renderSurfaceViewSize[1]);
+			GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_INIT_WINDOW);
+			GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_GAINED_FOCUS);
+			GetOverrideGameActivityWhenInitComplete().nativeResumeMainInit();
 		}
 		else
 		{
@@ -1436,11 +1428,18 @@ public class Engine
 	{
 		if (contextID != 0 && lifecycleContextID != 0 && contextID != lifecycleContextID) {
 			Log.e(TAG, "[lifecycleContextID=" + lifecycleContextID + "] contextID:" + contextID + " ABNORMAL Engine::onStart(contextID) - onStart called. with contextID change = " + contextID + ", reasonString=" + reasonString);
-			return;
+			//return;
 		}
 
+		lifecycleContextID = contextID;
+		onStart(reasonString);
+	}
+
+	private void onStart(String reasonString)
+	{
 		++logOrder;
 		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onStart - onStart called. bCalledStart was = " + bCalledStart
+			+ "\n\t, maskEngineEvents= " + Long.toBinaryString(maskEngineEvents)
 			+ ", bHasBeenInit = " + bHasBeenInit
 			+ ", prev startCounter = " + startCounter
 			+ ", bResuming was = " + bResuming
@@ -1450,10 +1449,16 @@ public class Engine
 		);
 
 		if (!bHasBeenInit) {
+			//RegisterLifecycleEvent( Lifecycle_Start );
+			//return;
 		}
 
 		++startCounter;
-		if (!bCalledStart) {
+		if (!bCalledStart)
+		{
+			//GetOverrideGameActivity().nativeResumeMainInit();
+			//GetOverrideGameActivity().nativeAppCommand(APP_CMD_INIT_WINDOW);
+			//GetOverrideGameActivity().nativeAppCommand(APP_CMD_GAINED_FOCUS);
 			bCalledStart = true;
 			GetOverrideGameActivity().nativeAppCommand(APP_CMD_START);
 		}
@@ -1463,11 +1468,17 @@ public class Engine
 	{
 		if (contextID != 0 && lifecycleContextID != 0 && contextID != lifecycleContextID) {
 			Log.e(TAG, "[lifecycleContextID=" + lifecycleContextID + "] contextID:" + contextID + " ABNORMAL Engine::onStop(contextID) - onStop called. with contextID change = " + contextID + ", reasonString=" + reasonString);
-			return;
+			//return;
 		}
+		lifecycleContextID = contextID;
+		onStop(reasonString);
+	}
 
+	private void onStop(String reasonString)
+	{
 		++logOrder;
-		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onStop - onStop called. bCalledStart was = " + bCalledStart
+		Log.v(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onStop - onStop called. bCalledStart was = " + bCalledStart
+			+ "\n\t, maskEngineEvents= " + Long.toBinaryString(maskEngineEvents)
 				+ ", reasonString=" + reasonString
 				+ ", bHasBeenInit = " + bHasBeenInit
 				+ ", prev startCounter = " + startCounter
@@ -1478,11 +1489,7 @@ public class Engine
 				+ ", renderSurface = " + renderSurface
 		);
 
-		if (onPauseCounter <= 0 || renderSurface != null) {
-			onPause(contextID, reasonString + "from onStop()");
-		}
-
-		//releaseVolatileResources("onStop() called so release all resources");
+		releaseVolatileResources("onStop withReason <- " + reasonString);
 		synchronized (syncLock) {
 			pendingChangedSurface = null;
 		}
@@ -1493,166 +1500,116 @@ public class Engine
 
 		if (bCalledStart)
 		{
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_STOP);
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_TERM_WINDOW);
+			GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_STOP);
 
 			bCalledStart = false;
 			startCounter = 0;
 			onPauseCounter = 0;
-			lifecycleContextID = 0;
 		}
-
-
 	}
 
 	private void ReleaseRenderSurfaces(int contextID, String reasonString)
 	{
-		Log.i(TAG, "*** Engine::ReleaseRenderSurfaces() : GameActivityForMakeAAR.isValidGameActivity() = " + GameActivityForMakeAAR.isValidGameActivity()
-			+ ", bGameActivityNativeMainIsDone=" + bGameActivityNativeMainIsDone
-			+ ", contextID:" + contextID
-			+ ", lifecycleContextID:" + lifecycleContextID
-			+ ", reasonString:" + reasonString
-			+ ", bCalledStart:" + bCalledStart
-			+ ", startCounter:" + startCounter
-			+ ", bResuming:" + bResuming
-			+ ", onPauseCounter:" + onPauseCounter
-			+ ", renderSurfaceValid:" + renderSurfaceValid
-			+ ", renderSurface:" + renderSurface
-			+ ", surfaceCreatedCounter:" + surfaceCreatedCounter
-			+ ", pendingChangedSurface:" + pendingChangedSurface
 
-		);
-
-		if (GameActivityForMakeAAR.isValidGameActivity() && (onPauseCounter <= 0 || renderSurface != null || pendingChangedSurface != null)) {
-
-			onPause(contextID, reasonString + "->ReleaseRenderSurfaces");
-
-
-			//if (renderSurface != null)
-			{
-				//GetOverrideGameActivity().nativeAppCommand(APP_CMD_PAUSE);
-				//GetOverrideGameActivity().nativeAppCommand(APP_CMD_STOP);
-
-				
-
-				//if (onPauseCounter > 0) {
-				//	QueuePause("ReleaseRenderSurfaces");
-				//}
-
-				//if (startCounter > 0) {
-				//	QueueStop("ReleaseRenderSurfaces");
-				//}
-			}
-			//else if (!CheckEvent(EVENTTYPE_INIT))
-			//{
-			//	GetOverrideGameActivity().nativeAppCommand(APP_CMD_PAUSE);
-			//}
-
-			if (renderSurfaceValid && (startCounter > 0 || onPauseCounter > 0)) {
-				bResuming = true;
-			}
-				
-			if (renderSurface != null) {
-				pendingChangedSurface = renderSurface;
-				bResuming = true;
-			}
-			renderSurface = null;
-			renderSurfaceValid = false;
+		if (contextID != 0 && lifecycleContextID != 0 && contextID != lifecycleContextID) {
+			Log.e(TAG, "[lifecycleContextID=" + lifecycleContextID + "] contextID:" + contextID + " ABNORMAL Engine::releaseVolatileResources() called. with contextID change = " + contextID + ", reasonString=" + reasonString);
+			//return;
 		}
 
+		lifecycleContextID = contextID;
+		ReleaseRenderSurfaces(reasonString);
 	}
 
-	private void releaseVolatileResources(String reasonString)
+	private void ReleaseRenderSurfaces(String reasonString)
 	{
-		releaseVolatileResources(lifecycleContextID, reasonString);
+		synchronized (syncLock) {
+			if (GameActivity.isValidGameActivity()) {
+		        Log.i(TAG, "*** Engine::ReleaseRenderSurfaces() : GameActivityForMakeAAR.isValidGameActivity() = " + GameActivityForMakeAAR.isValidGameActivity()
+					+ "\n\t, maskEngineEvents= " + Long.toBinaryString(maskEngineEvents)
+			        + ", bGameActivityNativeMainIsDone=" + bGameActivityNativeMainIsDone
+			        + ", lifecycleContextID:" + lifecycleContextID
+			        + ", reasonString:" + reasonString
+			        + ", bCalledStart:" + bCalledStart
+			        + ", startCounter:" + startCounter
+			        + ", bResuming:" + bResuming
+			        + ", onPauseCounter:" + onPauseCounter
+			        + ", renderSurfaceValid:" + renderSurfaceValid
+			        + ", renderSurface:" + renderSurface
+			        + ", surfaceCreatedCounter:" + surfaceCreatedCounter
+			        + ", pendingChangedSurface:" + pendingChangedSurface
+
+		        );
+				        
+		        --surfaceCreatedCounter;
+
+		        if (renderView != null) {
+			        renderView.Detach();
+			        renderView = null;
+		        }
+
+				GetOverrideGameActivityWhenInitComplete().nativeSetSurfaceOverride(pendingChangedSurface, renderSurfaceViewPosition[0], renderSurfaceViewPosition[1]);
+		        if (renderSurface != null && (onPauseCounter > 0 || startCounter > 0)) {
+					GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_TERM_WINDOW);
+		        }
+
+				if (renderSurfaceValid && (startCounter > 0 || onPauseCounter > 0)) {
+					bResuming = true;
+				}
+                else {
+	                bCalledStart = false;
+                }
+
+				renderSurface = pendingChangedSurface;
+				renderSurfaceValid = renderSurface != null;
+				pendingChangedSurface = null;
+			}
+		}
 	}
 
 	private void releaseVolatileResources(int contextID, String reasonString)
 	{
-		Log.i(TAG, "logOrder:" + logOrder + " * Engine::releaseVolatileResources() - bCalledStart was = " + bCalledStart + ", contextID=" + contextID + ", reasonString=" + reasonString + ", bResuming was = " + bResuming + ", onPauseCounter=" + onPauseCounter + ", renderSurfaceValid: " + renderSurfaceValid + ", renderSurface = " + renderSurface );
+		if (contextID != 0 && lifecycleContextID != 0 && contextID != lifecycleContextID) {
+			Log.e(TAG, "[lifecycleContextID=" + lifecycleContextID + "] contextID:" + contextID + " ABNORMAL Engine::releaseVolatileResources() called. with contextID change = " + contextID + ", reasonString=" + reasonString);
+			//return;
+		}
 
-		ReleaseRenderSurfaces(contextID, reasonString);
+		lifecycleContextID = contextID;
+		releaseVolatileResources(reasonString);
 	}
 
-	public void onDestroy(int contextID)
+	private void releaseVolatileResources(String reasonString)
 	{
-		onDestroy(contextID, "External");
+		Log.i(TAG, "logOrder:" + logOrder + " * Engine::releaseVolatileResources() - bCalledStart was = " + bCalledStart + ", lifecycleContextID=" + lifecycleContextID + ", reasonString=" + reasonString + ", bResuming was = " + bResuming + ", onPauseCounter=" + onPauseCounter + ", renderSurfaceValid: " + renderSurfaceValid + ", renderSurface = " + renderSurface );
+
+		ReleaseRenderSurfaces(lifecycleContextID, reasonString);
 	}
 
-	private void onDestroy(int customContextID, String reasonString)
+	public void onDestroy(int customContextID, String reasonString)
 	{
 		++logOrder;
 		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onDestroy() - onDestroy called. bCalledStart was = " + bCalledStart + ", bResuming was = " + bResuming + ", onPauseCounter=" + onPauseCounter + ", renderSurfaceValid: " + renderSurfaceValid + ", renderSurface = " + renderSurface );
 
-		//onPause(customContextID, "onDestroy called");
-		ReleaseRenderSurfaces(customContextID, reasonString + "->onDestroy called");
-
-		if (customContextID == 543210 || !CheckEvent(EVENTTYPE_INIT))
+		if (customContextID == 543210)
 		{
-
 			// we don't want to call APP_CMD_DESTROY unless we want to completely terminate the unreal engine instance.
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_DESTROY);
-
-		}
-
-		if (renderSurface != null) {
-			GetOverrideGameActivity().nativeAppCommand(APP_CMD_TERM_WINDOW);
-		}
-
-		if (renderView != null) {
-			renderView.Detach();
-			renderView = null;
+			GetOverrideGameActivityWhenInitComplete().nativeAppCommand(APP_CMD_DESTROY);
 		}
 
 		maskEngineEvents = 0;
 		bHasBeenInit = false;
-		bResuming = false;
-
 
 		lifecycleContextID += 25;
 		if (onPauseCounter>0)
 		{
-			Log.e(TAG, "onDestroy is called with onPauseCounter>0 which should not happen for healthy lifecycle");
+			QueueResume("onDestroy withReason <- " + reasonString);
 		}
-
-		Log.w(TAG, "*** Engine::onDestroy() -> AndroidThunkJava_RestartApplication()");
-		GetOverrideGameActivity().AndroidThunkJava_RestartApplication("");
-
-		Log.w(TAG, "*** Engine::onDestroy() set statics to defaults!");
-
-		surfaceCreatedCounter = 0;
-		activity = null;
-		//bLibraryLoaded = false;
-		renderView = null;
-
-		maskEngineEvents = 0;
-		renderSurfaceValid = false;
-		renderSurface = null;
-		pendingChangedSurface = null;
-		//renderSurfaceViewPosition[] = new int[2];
-		//renderSurfaceViewSize[] = new int[2];
-		//syncLock = new Object();
-		//private GameActivityForMakeAAR gameActivity = null; //TODO remove ref here and use Get() on GameActivity
-		//private String OBBFilename = null;
-		//private boolean bOBBinAPK = true;
-
-		bResuming = false;
-		//private boolean bAllowConsole = false;
-		bGameActivityNativeMainIsDone = false;
-
-
-	
-		Log.i(TAG, "[lifecycleContextID=" + lifecycleContextID + "] logOrder:" + logOrder + " * Engine::onDestroy() - onDestroy completed. bCalledStart was = " + bCalledStart + ", bResuming was = " + bResuming + ", onPauseCounter=" + onPauseCounter + ", renderSurfaceValid: " + renderSurfaceValid + ", renderSurface = " + renderSurface );
-
-
-	
 	}
 
 	public void onConfigurationChanged(Configuration newConfig)
 	{
 		// forward the orientation
 		boolean bPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT;
-		GetOverrideGameActivity().nativeOnOrientationChanged(newConfig.orientation);
+		GetOverrideGameActivityWhenInitComplete().nativeOnOrientationChanged(newConfig.orientation);
 	}
 
 	public void onActivityResult(int requestCode, int resultCode, Intent data)
@@ -1661,8 +1618,8 @@ public class Engine
 		Log.v(TAG, "logOrder:" + logOrder + " * Engine::onActivityResult() - bCalledStart was = " + bCalledStart + ", bResuming was = " + bResuming + ", onPauseCounter=" + onPauseCounter + ", renderSurfaceValid: " + renderSurfaceValid + ", renderSurface = " + renderSurface );
 
 		// only used by FOnlineSubsystemGooglePlay so we changed signature to pass the ContextWrapper instead of activity here because we no longer want to hold onto any activity references...
-		GetOverrideGameActivity().nativeOnActivityResult(GameActivity.Get(), requestCode, resultCode, data);
-//		onResume();
+		GetOverrideGameActivityWhenInitComplete().nativeOnActivityResult(GameActivity.Get(), requestCode, resultCode, data);
+		//		??onResume();
 	}
 
 	public boolean onTouchEvent(MotionEvent event)
@@ -1680,7 +1637,7 @@ public class Engine
 			int pointerId = event.getPointerId(index);
 			int x = (int)event.getX();
 			int y = (int)event.getY();
-			switch (event.getAction()) {
+			switch (event.getActionMasked()) {
 				case MotionEvent.ACTION_DOWN:
 				case MotionEvent.ACTION_POINTER_DOWN:
 					action = TOUCHTYPE_BEGIN;

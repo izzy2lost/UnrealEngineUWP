@@ -24,7 +24,26 @@
 		</if>
 
 
+		<!-- disable embedding ASIS if shipping but "embed in shipping" not checked  -->
+		<setBoolIsEqual result="bIsShipping" arg1="$S(Configuration)" arg2="Shipping"/>
+		<if condition="bIsShipping">
+			<true>
+				<if condition="bIncludeInShipping">
+					<false>
+						<log text="Disabled embedding ASIS because shipping"/>
+						<setBool result="bEmbedASIS" value="false"/>
 
+						<!-- but we need to compile ASISProject to install data if using ASIS -->
+						<setBool result="bCompileASISProject" value="$B(bCreateASISProject)"/>
+					</false>
+				</if>
+				<if condition="bAllowExternalStartInShipping">
+					<false>
+						<setBool result="bExternalStartASIS" value="false"/>
+					</false>
+				</if>
+			</true>
+		</if>
 	
 	</init>
 
@@ -66,8 +85,13 @@
 						<if condition="bExternalStartASIS">
 							<true>
 								<log text="AndroidSingleInstanceService Manifest bExternalStartASIS so add intent filters and service..."/>
+								<!-- runtime permissions for foreground service -->
+								<addPermission android:name="android.permission.FOREGROUND_SERVICE"/>
+								<addPermission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+								<addPermission android:name="android.permission.POST_NOTIFICATIONS"/>
+								
 								<addElements tag="application">
-									<service android:name="com.epicgames.makeaar.UnrealSharedInstanceService" android:exported="true" android:process=":unrealSharedInstanceService" >
+									<service android:name="com.epicgames.makeaar.UnrealSharedInstanceService" android:exported="true" android:foregroundServiceType="dataSync" android:process=":unrealSharedInstanceService" >
 									</service>
 								</addElements>
 							</true>
@@ -113,7 +137,6 @@
 			<true>
 				<log text="AndroidSingleInstanceService resourceCopies copy service helper files. for BuildDirGradle= $S(BuildDir)/gradle/"/>
 				<copyDir src="$S(PluginDir)/Android/buildsystem" dst="$S(BuildDir)/gradle/buildsystem" />
-				<copyFile src="$S(PluginDir)/Android/src/main/java/com/epicgames/unreal/UEInterfaceHelpers.java" dst="$S(BuildDir)/src/com/epicgames/unreal/UEInterfaceHelpers.java" />
 			</true>
 		</if>
 			
@@ -122,13 +145,10 @@
 				<log text="AndroidSingleInstanceService resourceCopies copy service class files..."/>
 				<deleteFiles filespec="$S(BuildDir)/src/com/epicgames/makeaar" />
 				<copyDir src="$S(PluginDir)/Android/src/main/java/com/epicgames/makeaar" dst="$S(BuildDir)/src/com/epicgames/makeaar" />
-				<copyFile src="$S(PluginDir)/Android/src/main/java/com/epicgames/makeaar/UnrealSharedInstanceService.java" dst="$S(BuildDir)/src/com/epicgames/makeaar/UnrealSharedInstanceService.java" />
-
 			</true>
 			<false>
 				<log text="AndroidSingleInstanceService resourceCopies bEmbedASIS is false so remove files..."/>
 				<deleteFiles filespec="$S(BuildDir)/src/com/epicgames/makeaar" />
-				<deleteFiles filespec="$S(BuildDir)/src/com/epicgames/makeaar/UnrealSharedInstanceService*.java" />
 			</false>
 		</if>
 	</resourceCopies>
@@ -138,6 +158,9 @@
 			<true>
 				<log text="AndroidSingleInstanceService create ASISStub project..."/>
 				<log text="AndroidSingleInstanceService bCreateASISProject, AndroidPackageName = $S(AndroidPackageName)"/>
+				<copyDir src="$S(PluginDir)/../ASISStub" dst="$S(BuildDir)/gradle/ASISProject" />
+				<copyDir src="$S(BuildDir)/gradle/app/src/main/res" dst="$S(BuildDir)/gradle/ASISProject/app/src/main/res" />
+				<copyDir src="$S(BuildDir)/gradle/gradle" dst="$S(BuildDir)/gradle/ASISProject/gradle" />
 			</true>
 		</if>
 	</gradleCopies>
@@ -146,27 +169,69 @@
 		<if condition="bCompileASISProject">
 			<true>
 				<log text="AndroidSingleInstanceService buildGradleAdditions bCompileASISProject..."/>
+				<insert>
+<![CDATA[
+// --- Begin ASISProject ---
+tasks.whenTaskAdded { task ->
+	if (task.name == 'assembleRelease') {
+		tasks.create(name:'ueASISProjectAssembleRelease', type: Exec) {
+			description "Compile ASISProject for Release"
+			workingDir "$rootDir" + "/ASISProject"
+			if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+				commandLine 'cmd', '/c', 'gradlew.bat', 'app:assembleRelease'
+			} else {
+				commandLine 'sh', '-c', 'chmod +x ./gradlew && ./gradlew app:assembleRelease'
+			}
+		}
+		task.finalizedBy 'ueASISProjectAssembleRelease'
+	}
+	if (task.name == 'assembleDebug') {
+		tasks.create(name:'ueASISProjectAssembleDebug', type: Exec) {
+			description "Compile ASISProject for Debug"
+			workingDir "$rootDir" + "/ASISProject"
+			if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+				commandLine 'cmd', '/c', 'gradlew.bat', 'app:assembleDebug'
+			} else {
+				commandLine 'sh', '-c', 'chmod +x ./gradlew && ./gradlew app:assembleDebug'
+			}
+		}
+		task.finalizedBy 'ueASISProjectAssembleDebug'
+	}
+	if (task.name == 'bundleRelease') {
+		tasks.create(name:'ueASISProjectBundleRelease', type: Exec) {
+			description "Compile ASISProject for Release"
+			workingDir "$rootDir" + "/ASISProject"
+			if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+				commandLine 'cmd', '/c', 'gradlew.bat', 'app:assembleRelease'
+			} else {
+				commandLine 'sh', '-c', 'chmod +x ./gradlew && ./gradlew app:assembleRelease'
+			}
+		}
+		task.finalizedBy 'ueASISProjectBundleRelease'
+	}
+	if (task.name == 'bundleDebug') {
+		tasks.create(name:'ueASISProjectBundleDebug', type: Exec) {
+			description "Compile ASISProject for Debug"
+			workingDir "$rootDir" + "/ASISProject"
+			if (System.getProperty('os.name').toLowerCase(Locale.ROOT).contains('windows')) {
+				commandLine 'cmd', '/c', 'gradlew.bat', 'app:assembleDebug'
+			} else {
+				commandLine 'sh', '-c', 'chmod +x ./gradlew && ./gradlew app:assembleDebug'
+			}
+		}
+		task.finalizedBy 'ueASISProjectBundleDebug'
+	}
+}
+// --- End ASISProject ---
+]]>
+				</insert>
 			</true>
 		</if>
 
 		<if condition="bEmbedASIS">
 			<true>
 				<log text="AndroidSingleInstanceService buildGradleAdditions bEmbedASIS. for BuildDir= $S(BuildDir)"/>
-				<insert>
-					<![CDATA[
 
-apply from: '../buildsystem/config.gradle'
-apply from: '../buildsystem/dependencies.gradle'
-
-		android {
-		defaultConfig {
-		buildConfigField "String", "OBB_MODULE_NAME", config.obbModuleName
-		buildConfigField "String", "OBB_FILE_NAME", config.obbFileLocation
-		buildConfigField "String", "AAR_VERSION", config.AAR_VERSION
-		}
-		}
-]]>
-				</insert>
 			</true>
 		</if>
 	</buildGradleAdditions>
@@ -174,6 +239,108 @@ apply from: '../buildsystem/dependencies.gradle'
 	<settingsGradleAdditions>
 		<if condition="bCreateASISProject">
 			<true>
+				<insert>
+	<![CDATA[
+	// copy files into ASISStub
+	File asis_infile = new File(rootProject.projectDir, 'gradle.properties')
+	File asis_outfile = new File(rootProject.projectDir, 'ASISProject/gradle.properties')
+	def asis_line = "";
+	asis_outfile.withWriter { writer ->
+		asis_infile.withReader { reader ->
+			while ((asis_line = reader.readLine()) != null) {
+				if (asis_line.startsWith('OUTPUT_FILENAME=')) {
+					writer.writeLine("OUTPUT_FILENAME=ASIS_" + asis_line.substring(16));
+					continue;
+				}
+				else if (asis_line.startsWith('OUTPUT_BUNDLEFILENAME=')) {
+					writer.writeLine("OUTPUT_BUNDLEFILENAME=ASIS_" + asis_line.substring(22));
+					continue;
+				}
+				writer.writeLine("${asis_line}")
+			}
+		}
+	}
+
+	asis_infile = new File(rootProject.projectDir, 'app/buildAdditions.gradle')
+	asis_outfile = new File(rootProject.projectDir, 'ASISProject/app/buildAdditions.gradle')
+	asis_line = "";
+	def bRemovingASISBlock = false;
+	asis_outfile.withWriter { writer ->
+		asis_infile.withReader { reader ->
+			while ((asis_line = reader.readLine()) != null) {
+				if (bRemovingASISBlock)
+				{
+					if (asis_line.startsWith('// --- End ASISProject ---'))
+					{
+						bRemovingASISBlock = false;
+					}
+					continue;
+				}
+				if (asis_line.startsWith('// --- Begin ASISProject ---'))
+				{
+					bRemovingASISBlock = true;
+					continue;
+				}
+				writer.writeLine("${asis_line}")
+			}
+		}
+	}
+
+	asis_infile = new File(rootProject.projectDir, 'app/src/main/AndroidManifest.xml')
+	asis_outfile = new File(rootProject.projectDir, 'ASISProject/app/src/main/AndroidManifest.xml')
+	def asis_hasForeServiceDataPerm = false;
+	def asis_hasForeServicePerm = false;
+	def asis_hasNotificationsPerm = false;
+	def asis_hasService = false
+	def asis_hasActivity = false
+	asis_outfile.withWriter { writer ->
+		asis_infile.withReader { reader ->
+			while ((asis_line = reader.readLine()) != null) {
+				if (asis_line.contains('android.permission.FOREGROUND_SERVICE_DATA_SYNC')) {
+					asis_hasForeServiceDataPerm = true
+				} else if (asis_line.contains('android.permission.FOREGROUND_SERVICE')) {
+					asis_hasForeServicePerm = true
+				} else if (asis_line.contains('android.permission.POST_NOTIFICATIONS')) {
+					asis_hasNotificationsPerm = true
+				} else if (asis_line.contains('com.epicgames.makeaar.UnrealSharedInstanceService')) {
+					asis_hasService = true
+				} else if (asis_line.contains('com.epicgames.makeaar.ASISExampleGameActivity')) {
+					asis_hasActivity = true
+				} else if (asis_line.contains('</application>')) {
+
+					if (asis_hasActivity == false) {
+						writer.writeLine('    <activity android:name="com.epicgames.makeaar.GameActivity" android:exported="true" android:screenOrientation="sensor">')
+						writer.writeLine('    	<intent-filter>')
+						writer.writeLine('    		<action android:name="android.intent.action.MAIN" />')
+						writer.writeLine('    		<category android:name="android.intent.category.LAUNCHER" />')
+						writer.writeLine('    	</intent-filter>')
+						writer.writeLine('    </activity>')
+					}
+				}
+				writer.writeLine("${asis_line}")
+			}
+		}
+	}
+
+	def asis_files = ["app/aar-imports.gradle", "app/abi.gradle", "app/build.gradle",
+		"baseBuildAdditions.gradle", "build.gradle", "buildscriptAdditions.gradle", "local.properties",
+		"gradlew", "gradlew.bat", "rungradle.bat"] as String[]
+	asis_files.eachWithIndex { v, i ->
+		asis_infile = new File(rootProject.projectDir, v)
+		if (asis_infile.exists()) {
+			asis_outfile = new File(rootProject.projectDir, "ASISProject/" + v)
+			asis_outfile.withWriter { writer ->
+				asis_infile.withReader { reader ->
+					while ((asis_line = reader.readLine()) != null) {
+						writer.writeLine("${asis_line}")
+					}
+				}
+			}
+		}
+	}
+
+]]>
+				</insert>
 			</true>
 		</if>
 	</settingsGradleAdditions>
@@ -181,6 +348,10 @@ apply from: '../buildsystem/dependencies.gradle'
 	<gameActivityImportAdditions>
 		<if condition="bEmbedASIS">
 			<true>
+				<insert>
+import java.util.Set;
+
+				</insert>
 			</true>
 		</if>
 	</gameActivityImportAdditions>
@@ -189,12 +360,181 @@ apply from: '../buildsystem/dependencies.gradle'
 		<if condition="bEmbedASIS">
 			<true>
 				<insert>
-				</insert>
-				<insertNewline/>
-				<insert>
+	<![CDATA[
+	public int AndroidThunkJava_AndroidSingleInstanceServer_IsRunning()
+	{
+        Set<Thread> threads = Thread.getAllStackTraces().keySet();
+		int ConnectionType = 0;
+        for (Thread thread : threads) {
+            String name = thread.getName();
+            if (name.equals("UnrealASIS-USB"))
+            {
+                if (thread.isAlive()) {
+					ConnectionType |= 1;
+                }
+            }
+            else if (name.equals("UnrealASIS-WiFi"))
+            {
+                if (thread.isAlive()) {
+					ConnectionType |= 2;
+                }
+            }
+        }
+		
+		return ConnectionType;
+	}
+
+	public boolean AndroidThunkJava_AndroidSingleInstanceServer_Stop(boolean bUSB, boolean bNetwork)
+	{
+        Set<Thread> threads = Thread.getAllStackTraces().keySet();
+        boolean bFoundThread = false;
+        for (Thread thread : threads) {
+            String name = thread.getName();
+            if (bUSB && name.equals("UnrealASIS-USB"))
+            {
+                if (thread.isAlive()) {
+					thread.interrupt();
+                    bFoundThread = true;
+                }
+            }
+            else if (bNetwork && name.equals("UnrealASIS-WiFi"))
+            {
+                if (thread.isAlive()) {
+					thread.interrupt();
+                    bFoundThread = true;
+                }
+            }
+        }
+		
+		return bFoundThread;
+	}
+
+	public boolean AndroidThunkJava_AndroidSingleInstanceServer_Start(boolean bUSB, boolean bNetwork, int port)
+	{
+		boolean bUSBRunning = false;
+		boolean bWiFiRunning = false;
+		
+		if (port == 0)
+		{
+			port = 57099;
+		}
+		
+        Set<Thread> threads = Thread.getAllStackTraces().keySet();
+        boolean bFoundThread = false;
+        for (Thread thread : threads) {
+            String name = thread.getName();
+            if (name.equals("UnrealASIS-USB"))
+            {
+                if (thread.isAlive()) {
+                    bUSBRunning = true;
+                }
+            }
+            else if (name.equals("UnrealASIS-WiFi"))
+            {
+                if (thread.isAlive()) {
+                    bWiFiRunning = true;
+                    break;
+                }
+            }
+        }
+
+		if (bUSBRunning && bWiFiRunning)
+		{
+			return true;
+		}
+
+		String packageName = getPackageName();
+		PackageManager pm = getPackageManager();
+		
+		int versionCode = 0;
+		try
+		{
+			versionCode = pm.getPackageInfo(packageName, 0).versionCode;
+		}
+		catch (Exception e)
+		{
+			// if the above failed, then, we can't use obbs
+		}
+
+		String EngineVersion = "5.0.0";
+		String ProjectName = packageName;
+		ProjectName = ProjectName.substring(ProjectName.lastIndexOf('.') + 1);
+		boolean IsShipping = false;
+		boolean UseExternalFilesDir = false;
+		boolean PublicLogFiles = false;
+		boolean AllowNetworkConnection = false;
+		try {
+			ApplicationInfo ai = pm.getApplicationInfo(packageName, PackageManager.GET_META_DATA);
+			Bundle bundle = ai.metaData;
+
+			if (bundle.containsKey("com.epicgames.unreal.GameActivity.EngineVersion"))
+			{
+				EngineVersion = bundle.getString("com.epicgames.unreal.GameActivity.EngineVersion");
+			}
+			if (bundle.containsKey("com.epicgames.unreal.GameActivity.ProjectName"))
+			{
+				ProjectName = bundle.getString("com.epicgames.unreal.GameActivity.ProjectName");
+			}
+			if (bundle.containsKey("com.epicgames.unreal.GameActivity.BuildConfiguration"))
+			{
+				String Configuration = bundle.getString("com.epicgames.unreal.GameActivity.BuildConfiguration");
+				IsShipping = Configuration.contains("Shipping");
+			}
+			if (bundle.containsKey("com.epicgames.unreal.GameActivity.bUseExternalFilesDir"))
+			{
+				UseExternalFilesDir = bundle.getBoolean("com.epicgames.unreal.GameActivity.bUseExternalFilesDir");
+			}
+			if (bundle.containsKey("com.epicgames.unreal.GameActivity.bPublicLogFiles"))
+			{
+				PublicLogFiles = bundle.getBoolean("com.epicgames.unreal.GameActivity.bPublicLogFiles");
+			}
+			if (bundle.containsKey("com.epicgames.unreal.RemoteFileManager.bAllowNetworkConnection"))
+			{
+				AllowNetworkConnection = bundle.getBoolean("com.epicgames.unreal.RemoteFileManager.bAllowNetworkConnection");
+			}
+		}
+		catch (PackageManager.NameNotFoundException | NullPointerException e)
+		{
+			Log.debug("Error when accessing application metadata");
+		}
+
+		String internal = getFilesDir().getAbsolutePath();
+		String external = getExternalFilesDir(null).getAbsolutePath();
+		String storage = android.os.Environment.getExternalStorageDirectory().getAbsolutePath();
+		String obbdir = getObbDir().getAbsolutePath();
+
+		if (bUSB && !bUSBRunning)
+		{
+			//RemoteFileManager fileManager = new RemoteFileManager(true, port, internal, external, storage, obbdir, packageName, versionCode, ProjectName, EngineVersion, IsShipping, PublicLogFiles);
+			//new Thread(fileManager, "UnrealASIS-USB").start();
+		}
+		if (AllowNetworkConnection && bNetwork && !bWiFiRunning)
+		{
+			//RemoteFileManager fileManager = new RemoteFileManager(false, port, internal, external, storage, obbdir, packageName, versionCode, ProjectName, EngineVersion, IsShipping, PublicLogFiles);
+			//new Thread(fileManager, "UnrealASIS-WiFi").start();
+		}
+		
+		return true;
+	}
+]]>
 				</insert>
 			</true>
 			<false>
+	public boolean AndroidThunkJava_AndroidSingleInstanceServer_IsRunning()
+	{
+	return false;
+	}
+
+	public boolean AndroidThunkJava_AndroidSingleInstanceServer_Start()
+	{
+	return false;
+	}
+
+	public boolean AndroidThunkJava_AndroidSingleInstanceServer_Stop()
+	{
+	return false;
+	}
+
 			</false>
 		</if>
 	</gameActivityClassAdditions>

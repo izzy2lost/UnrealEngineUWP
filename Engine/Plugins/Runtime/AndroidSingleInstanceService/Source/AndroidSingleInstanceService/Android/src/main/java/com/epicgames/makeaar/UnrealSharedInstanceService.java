@@ -317,12 +317,12 @@ public class UnrealSharedInstanceService extends Service {
 
 					//if (bDoPause)
 					{
-						engineInstance.onPause(engineInstance.getCurrentContextID(), "UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
+						engineInstance.QueuePause("UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
 					}
 
 					//if (bDoStop)
 					{
-						engineInstance.onStop(engineInstance.getCurrentContextID(), "UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
+						engineInstance.QueueStop("UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
 					}
 
 					//engineInstance.sendConsoleCommand("t.maxfps 0.001");

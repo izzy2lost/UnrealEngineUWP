@@ -559,6 +559,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return _gameActivityInstance;
 	}
 
+	public static Boolean isValidGameActivity()
+	{
+		return _gameActivityInstance != null;
+	}
+
 	public static SimpleContextWrapper GetCurrentActivityContext()
 	{
 		return _gameActivityInstance.activityContext;
@@ -3480,7 +3485,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			nativeResumeMainInit();
 			InitCompletedOK = true;
 		}
-		else
+		else if (!isStandalone)
 		{
 			nativeOnInitialDownloadStarted();
 
@@ -3514,7 +3519,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	@Override
 	public void onResume()
 	{
-		super.onResume();
+		if (!isStandalone)
+		{
+			super.onResume();
+		}
+
 		bIsActivityPaused.set(false);
 
 		// start memory reporter timer (runs every "memstatLoggingInterval" seconds)
@@ -3713,14 +3722,20 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			});
 		}
 //$${gameActivityOnPauseAdditions}$$
-		super.onPause();
+		if (!isStandalone)
+		{
+			super.onPause();
+		}
 		Log.debug("==============> GameActive.onPause complete!");
 	}
 
 	@Override
 	public void onRestart()
 	{
-		super.onRestart();
+		if (!isStandalone)
+		{
+			super.onRestart();
+		}
 //$${gameActivityOnRestartAdditions}$$
 	}
 
@@ -3987,6 +4002,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public void AndroidThunkJava_KeepScreenOn(boolean Enable)
 	{
+		if (isStandalone)
+		{
+			return;
+		}
+
 		bKeepScreenOn = Enable;
 		if (Enable)
 		{
@@ -4021,6 +4041,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	private void SetDisableScreenCaptureInternal(boolean bDisable)
 	{
+		if (isStandalone)
+		{
+			return;
+		}
+
 		if (bDisable)
 		{
 			activityContext.runOnUiThread(new Runnable()
@@ -5610,16 +5635,19 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 					final int modeid = modes[i].getModeId();
 					if(currentmodeid != modeid)
 					{
-						activityContext.runOnUiThread(new Runnable()
+						if (!isStandalone)
 						{
-							public void run()
+							activityContext.runOnUiThread(new Runnable()
 							{
-								Window w = activityContext.getWindow();
-								WindowManager.LayoutParams l = w.getAttributes();
-								l.preferredDisplayModeId = modeid;
-								w.setAttributes(l);
-							}
-						});
+								public void run()
+								{
+									Window w = activityContext.getWindow();
+									WindowManager.LayoutParams l = w.getAttributes();
+									l.preferredDisplayModeId = modeid;
+									w.setAttributes(l);
+								}
+							});
+						}
 						Log.debug("Found mode " + modeid + " for native refresh rate "+RefreshRate);
 					}
 					return true;
@@ -6115,22 +6143,25 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 					Log.warn("SustainedPerformanceMode is unsupported on this device.");
 				}
 			}
-			activityContext.runOnUiThread(new Runnable()
+			if (!isStandalone)
 			{
-				public void run()
+				activityContext.runOnUiThread(new Runnable()
 				{
-					try
+					public void run()
 					{
-						android.view.Window ActivityWindow = activityContext.getWindow();
-						Method m = android.view.Window.class.getMethod("setSustainedPerformanceMode",Boolean.TYPE);
-						m.invoke(ActivityWindow, bEnable);
+						try
+						{
+							android.view.Window ActivityWindow = activityContext.getWindow();
+							Method m = android.view.Window.class.getMethod("setSustainedPerformanceMode",Boolean.TYPE);
+							m.invoke(ActivityWindow, bEnable);
+						}
+						catch (Exception e)
+						{
+							Log.debug("SetSustainedPerformanceMode: failed "+ e.getMessage());
+						}
 					}
-					catch (Exception e)
-					{
-						Log.debug("SetSustainedPerformanceMode: failed "+ e.getMessage());
-					}
-				}
-			});
+				});
+			}
 		}
 		else
 		{

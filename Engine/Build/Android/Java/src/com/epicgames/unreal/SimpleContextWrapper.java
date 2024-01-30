@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -252,16 +253,25 @@ public final class SimpleContextWrapper extends ContextWrapper {
 	}
 
 
-	public final static void runOnMainThread (Runnable action){
+	public final void runOnMainThread (Runnable action)
+	{
+		//if (threadPoolExecutor == null) {
+		//	initThreadPoolExtractor();
+		//}
+		//threadPoolExecutor.execute(action);
 
-		if (threadPoolExecutor == null) {
-			initThreadPoolExtractor();
+		if (mHandler == null)
+		{
+			getMainExecutor().execute(action);
 		}
-		threadPoolExecutor.execute(action);
+		else
+		{
+			mHandler.post(action);
+		}
 
-//		action.run();
+		//action.run();
 
-//		new Handler(Looper.getMainLooper()).post(action);
+		//mHandler.post(action);
 	}
 
 }
