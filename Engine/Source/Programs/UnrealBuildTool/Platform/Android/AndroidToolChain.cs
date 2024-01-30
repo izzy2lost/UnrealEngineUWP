@@ -24,12 +24,12 @@ namespace UnrealBuildTool
 			{ UnrealArch.X64,   "-x64" },
 		};
 
-		// sh0rt names for the above suffixes
+		// short names for the above suffixes
 		public static readonly Dictionary<string, string> ShortArchNames = new Dictionary<string, string>()
 		{
 			{ "", "" },
-			{ "arm64", "a8" },
-			{ "x64", "x6" },
+			{ "-arm64", "a8" },
+			{ "-x64", "x6" },
 		};
 
 		public enum ClangSanitizer
