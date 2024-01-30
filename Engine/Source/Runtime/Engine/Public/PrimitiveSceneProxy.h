@@ -50,13 +50,6 @@ namespace Nanite
 	using CoarseMeshStreamingHandle = int16;
 }
 
-#if RHI_RAYTRACING
-namespace RayTracing
-{
-	using GeometryGroupHandle = int32;
-}
-#endif
-
 /** Data for a simple dynamic light. */
 class FSimpleLightEntry
 {
@@ -369,9 +362,6 @@ public:
 	 * If the ray tracing data is streaming then get the coarse mesh streaming handle 
 	 */
 	virtual Nanite::CoarseMeshStreamingHandle GetCoarseMeshStreamingHandle() const { return INDEX_NONE; }
-
-	/** @return The handle of the ray tracing geometry group used by this primitive */
-	virtual RayTracing::GeometryGroupHandle GetRayTracingGeometryGroupHandle() const { return INDEX_NONE; }
 #endif // RHI_RAYTRACING
 
 	/** 

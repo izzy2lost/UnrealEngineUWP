@@ -1996,11 +1996,6 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	return ResultFlags;
 }
 
-RayTracing::GeometryGroupHandle FSceneProxy::GetRayTracingGeometryGroupHandle() const
-{
-	return RenderData->RayTracingGeometryGroupHandle;
-}
-
 #endif // RHI_RAYTRACING
 
 #if RHI_RAYTRACING || NANITE_ENABLE_DEBUG_RENDERING
