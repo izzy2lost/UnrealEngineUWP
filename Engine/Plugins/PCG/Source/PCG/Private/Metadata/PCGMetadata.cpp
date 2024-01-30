@@ -129,13 +129,10 @@ void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMet
 		return;
 	}
 
-	Parent = InMetadataToCopy->Parent;
-	OtherParents = InMetadataToCopy->OtherParents;
-	ParentKeys = InMetadataToCopy->ParentKeys;
-	ItemKeyOffset = InMetadataToCopy->ItemKeyOffset;
-
 	const bool bSkipAttributesInFilterList = (InFilterMode == EPCGMetadataFilterMode::ExcludeAttributes);
 
+	// If we have a partial copy, it will flatten the metadata, so we don't need a parent.
+	// Otherwise, we keep the parent hierarchy.
 	const bool bPartialCopy = EntriesToCopy && EntriesToCopy->Num() <= InMetadataToCopy->GetItemCountForChild();
 	TArray<PCGMetadataEntryKey> NewEntryKeys;
 	TArray<PCGMetadataValueKey> NewValueKeys;
@@ -144,10 +141,21 @@ void UPCGMetadata::InitializeAsCopyWithAttributeFilter(const UPCGMetadata* InMet
 		const int32 Count = EntriesToCopy->Num();
 		NewEntryKeys.SetNumUninitialized(Count);
 		NewValueKeys.SetNumUninitialized(Count);
+		ParentKeys.SetNumUninitialized(Count);
 		for (int32 j = 0; j < Count; ++j)
 		{
 			NewEntryKeys[j] = PCGMetadataEntryKey(j);
+			ParentKeys[j] = -1;
 		}
+
+		ItemKeyOffset = 0;
+	}
+	else
+	{
+		ParentKeys = InMetadataToCopy->ParentKeys;
+		ItemKeyOffset = InMetadataToCopy->ItemKeyOffset;
+		Parent = InMetadataToCopy->Parent;
+		OtherParents = InMetadataToCopy->OtherParents;
 	}
 
 	// Copy attributes

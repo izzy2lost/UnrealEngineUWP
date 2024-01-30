@@ -189,6 +189,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	bool HasCommonAttributes(const UPCGMetadata* InMetadata) const;
 
+	/** Return the number of attributes in this metadata. */
+	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata")
 	int32 GetAttributeCount() const;
 
 	template <typename T>
@@ -291,8 +293,11 @@ public:
 	void ComputeWeightedAttribute(PCGMetadataEntryKey& OutKey, const TArrayView<TPair<PCGMetadataEntryKey, float>>& InWeightedKeys, const UPCGMetadata* InMetadata);
 
 	int64 GetItemKeyCountForParent() const;
-	int64 GetItemCountForChild() const;
 	int64 GetLocalItemCount() const;
+
+	/** Return the number of entries in metadata including the parent entries. */
+	UFUNCTION(BlueprintCallable, Category = "PCG|Metadata", meta = (DisplayName = "Get Number of Entries"))
+	int64 GetItemCountForChild() const;
 
 	/**
 	* Create a new attribute. If the attribute already exists, it will raise a warning (use FindOrCreateAttribute if this usecase can arise)
