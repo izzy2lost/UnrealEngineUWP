@@ -717,6 +717,8 @@ bool SModularRigTreeView::AddElement(FString InKey, FString InParentKey)
 			RootElements.Add(NewItem);
 		}
 
+		SetItemExpansion(NewItem, true);
+
 		if (const UModularRig* ModularRig = Delegates.GetModularRig())
 		{
 			if (const FRigModuleInstance* Module = ModularRig->FindModule(NewItem->ModulePath))

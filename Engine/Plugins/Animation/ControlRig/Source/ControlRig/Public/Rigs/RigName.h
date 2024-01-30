@@ -62,24 +62,29 @@ public:
 
 	bool operator ==(const FRigName& InOther) const
 	{
+		return Equals(InOther, ESearchCase::CaseSensitive);
+	}
+
+	bool Equals(const FRigName& InOther, const ESearchCase::Type& InCase) const
+	{
 		if(Name.IsSet() && InOther.Name.IsSet())
 		{
-			return GetFName().IsEqual(InOther.GetFName(), ENameCase::CaseSensitive);
+			return GetFName().IsEqual(InOther.GetFName(), InCase == ESearchCase::CaseSensitive ? ENameCase::CaseSensitive : ENameCase::IgnoreCase);
 		}
 		
 		if(NameString.IsSet() && InOther.NameString.IsSet())
 		{
-			return GetName().Equals(InOther.GetName(), ESearchCase::CaseSensitive);
+			return GetName().Equals(InOther.GetName(), InCase);
 		}
 
 		if(Name.IsSet() && InOther.NameString.IsSet())
 		{
-			return GetName().Equals(InOther.GetName(), ESearchCase::CaseSensitive);
+			return GetName().Equals(InOther.GetName(), InCase);
 		}
 
 		if(NameString.IsSet() && InOther.Name.IsSet())
 		{
-			return GetName().Equals(InOther.GetName(), ESearchCase::CaseSensitive);
+			return GetName().Equals(InOther.GetName(), InCase);
 		}
 
 		return IsNone() == InOther.IsNone();
