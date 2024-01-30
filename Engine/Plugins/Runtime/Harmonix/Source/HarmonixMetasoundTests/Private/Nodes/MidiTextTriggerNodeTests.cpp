@@ -68,7 +68,7 @@ namespace HarmonixMetasoundTests::MidiTextTriggerNode
 		UTEST_TRUE("Transport Out connected to MidiPlayer node", ConnectionSuccess);
 
 		// Midi text trigger node...
-		FNodeHandle TextTriggerNode = Builder.AddNode({ HarmonixMetasound::HarmonixNodeNamespace, "MidiTextTrigger", "" }, 0);
+		FNodeHandle TextTriggerNode = Builder.AddNode({ HarmonixMetasound::HarmonixNodeNamespace, "MidiTextTrigger", "" }, 1);
 		UTEST_TRUE("MidiTextTrigger Node Created", TextTriggerNode.Get().IsValid());
 		// hoist up text to match input...
 		Builder.AddAndConnectDataReferenceInput(TextTriggerNode, "Text", GetMetasoundDataTypeName<FString>());
