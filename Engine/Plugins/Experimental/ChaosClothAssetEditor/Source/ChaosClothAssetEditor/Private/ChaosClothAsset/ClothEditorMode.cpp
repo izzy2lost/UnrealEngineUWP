@@ -454,9 +454,10 @@ bool UChaosClothAssetEditorMode::IsComponentSelected(const UPrimitiveComponent* 
 }
 
 
-void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection)
+void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection)
 {
 	SelectedClothCollection = Collection;
+	SelectedInputClothCollection = InputCollection;
 	ReinitializeDynamicMeshComponents();
 
 	// The first time we get a valid mesh, refocus the camera on it
@@ -466,6 +467,13 @@ void UChaosClothAssetEditorMode::SetSelectedClothCollection(TSharedPtr<FManagedA
 TSharedPtr<FManagedArrayCollection> UChaosClothAssetEditorMode::GetClothCollection()
 {
 	return SelectedClothCollection;
+
+	// TODO: If no cloth collection node is selected, show the ClothAsset's collection. In this case, also ensure that any interactive tools are disabled. (UE-181574)
+}
+
+TSharedPtr<FManagedArrayCollection> UChaosClothAssetEditorMode::GetInputClothCollection()
+{
+	return SelectedInputClothCollection;
 
 	// TODO: If no cloth collection node is selected, show the ClothAsset's collection. In this case, also ensure that any interactive tools are disabled. (UE-181574)
 }
@@ -812,7 +820,7 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 	UClothEditorContextObject* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
 	if (ensure(EditorContextObject))
 	{
-		EditorContextObject->SetClothCollection(ConstructionViewMode, Collection);
+		EditorContextObject->SetClothCollection(ConstructionViewMode, Collection, GetInputClothCollection());
 	}
 }
 
@@ -1286,7 +1294,7 @@ void UChaosClothAssetEditorMode::InitializeContextObject()
 		RestSpaceToolsContext->ContextObjectStore->AddContextObject(EditorContextObject);
 	}
 
-	EditorContextObject->Init(DataflowGraphEditor, ConstructionViewMode, SelectedClothCollection);
+	EditorContextObject->Init(DataflowGraphEditor, ConstructionViewMode, SelectedClothCollection, SelectedInputClothCollection);
 
 	check(EditorContextObject);
 
