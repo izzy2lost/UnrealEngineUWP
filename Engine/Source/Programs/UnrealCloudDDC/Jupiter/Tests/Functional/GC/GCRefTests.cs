@@ -23,6 +23,7 @@ using Jupiter.Common;
 namespace Jupiter.FunctionalTests.GC
 {
 	[TestClass]
+	[DoNotParallelize]
 	public class MemoryGCReferencesTests : GCReferencesTests
 	{
 		protected override NamespaceId TestNamespace { get; } = new NamespaceId("test-namespace-gcref");
