@@ -699,7 +699,7 @@ public:
 	FBoxSphereBounds Bounds;
 
 #if RHI_RAYTRACING
-	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle;
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
 #endif
 
 	bool IsInitialized() const
