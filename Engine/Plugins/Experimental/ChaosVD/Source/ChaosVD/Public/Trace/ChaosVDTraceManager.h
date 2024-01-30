@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "ChaosVDModule.h"
 #include "Containers/StringFwd.h"
 #include "Templates/SharedPointer.h"
+#include "Trace/StoreClient.h"
 
 class FChaosVDEngine;
 class FChaosVDTraceModule;
@@ -48,6 +50,9 @@ public:
 	/** Stops and de-registers a trace session registered with the provided session name */
 	void CloseSession(const FString& InSessionName);
 
+	template<typename TVisitor>
+	static void EnumerateActiveSessions(FStringView InSessionHost, TVisitor Callback);
+
 private:
 
 	/** The trace analysis session. */
@@ -55,3 +60,35 @@ private:
 
 	TSharedPtr<FChaosVDTraceModule> ChaosVDTraceModule;
 };
+
+template <typename TCallback>
+void FChaosVDTraceManager::EnumerateActiveSessions(FStringView InSessionHost, TCallback Callback)
+{
+	if (InSessionHost.IsEmpty())
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to connect to trace store. Provided session host is empty"), ANSI_TO_TCHAR(__FUNCTION__));
+		return;
+	}
+
+	using namespace UE::Trace;
+	const FStoreClient* StoreClient = FStoreClient::Connect(InSessionHost.GetData());
+
+	if (!StoreClient)
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to connect to trace store at [%s]"), ANSI_TO_TCHAR(__FUNCTION__), InSessionHost.GetData())
+		return;
+	}
+
+	const uint32 SessionCount = StoreClient->GetSessionCount();
+
+	for (uint32 SessionIndex = 0; SessionIndex < SessionCount; SessionIndex++)
+	{
+		if (const FStoreClient::FSessionInfo* SessionInfo = StoreClient->GetSessionInfo(SessionIndex))
+		{
+			if (!Callback(*SessionInfo))
+			{
+				return;
+			}
+		}	
+	}
+}

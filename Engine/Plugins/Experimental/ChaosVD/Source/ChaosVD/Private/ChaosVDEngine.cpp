@@ -4,6 +4,7 @@
 
 #include "ChaosVDModule.h"
 #include "ChaosVDPlaybackController.h"
+#include "ChaosVDRuntimeModule.h"
 #include "ChaosVDScene.h"
 #include "Trace/ChaosVDTraceManager.h"
 
@@ -20,6 +21,17 @@ void FChaosVDEngine::Initialize()
 	CurrentScene->Initialize();
 
 	PlaybackController = MakeShared<FChaosVDPlaybackController>(CurrentScene);
+
+	// Listen for the recording stop event to clear the live session flag
+	// TODO: We do something similar for the live flag on the CVD recording instance. We should unify both and have a single place where to check the live state
+	// of a session, so we also have one single place to clear the flag
+	LiveSessionStoppedDelegateHandle = FChaosVDRuntimeModule::Get().RegisterRecordingStopCallback(FChaosVDRecordingStateChangedDelegate::FDelegate::CreateLambda([WeakThis = AsWeak()]()
+	{
+		if (const TSharedPtr<FChaosVDEngine> CVDEngine = WeakThis.Pin())
+		{
+			CVDEngine->CurrentSessionDescriptor.bIsLiveSession = false;
+		}
+	}));
 
 	bIsInitialized = true;
 }
@@ -39,6 +51,13 @@ void FChaosVDEngine::DeInitialize()
 	{
 		CVDTraceManager->CloseSession(CurrentSessionDescriptor.SessionName);
 	}
+
+	if (FChaosVDRuntimeModule::IsLoaded())
+	{
+		FChaosVDRuntimeModule::Get().RemoveRecordingStopCallback(LiveSessionStoppedDelegateHandle);
+	}
+
+	LiveSessionStoppedDelegateHandle = FDelegateHandle();
 
 	CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 

@@ -47,4 +47,6 @@ private:
 	TSharedPtr<FChaosVDPlaybackController> PlaybackController;
 	
 	bool bIsInitialized = false;
+
+	FDelegateHandle LiveSessionStoppedDelegateHandle;
 };

@@ -53,6 +53,8 @@ public:
 	TSharedPtr<FComponentVisualizer> FindComponentVisualizer(FName ClassName);
 
 	TConstArrayView<TSharedPtr<FComponentVisualizer>> GetAllComponentVisualizers() { return ComponentVisualizers; }
+	
+	bool ConnectToLiveSession(int32 SessionID, FString SessionAddress) const;
 
 private:
 

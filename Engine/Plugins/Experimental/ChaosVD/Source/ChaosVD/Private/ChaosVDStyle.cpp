@@ -59,6 +59,8 @@ TSharedRef< FSlateStyleSet > FChaosVDStyle::Create()
 	Style->Set("LockIcon", new IMAGE_BRUSH_SVG(TEXT("lock"), Icon16x16));
 	Style->Set("UnlockedIcon", new IMAGE_BRUSH_SVG(TEXT("lock-unlocked"), Icon16x16));
 	Style->Set("RecordIcon", new IMAGE_BRUSH(TEXT("CircleBox2"), Icon16x16));
+	Style->Set("RecordToFileIcon", new IMAGE_BRUSH(TEXT("RecordToFile"), Icon16x16));
+	Style->Set("RecordToLiveIcon", new IMAGE_BRUSH(TEXT("RecordLiveSession"), Icon16x16));
 	Style->Set("ConnectionIcon", new IMAGE_BRUSH_SVG(TEXT("Connection"), Icon16x16));
 
 	return Style;
