@@ -55,7 +55,7 @@ public class EngineFactory extends HandlerThread {
 		{
 			Log.d("UE", "EngineFactory::Reset() - releasing current engine resources, engine = " + Singleton.INSTANCE.engine);
 			//engine.onDestroy(543210);
-			Singleton.INSTANCE.engine.onDestroy(543210);
+			Singleton.INSTANCE.engine.onDestroy(543210, "EngineFactory::Reset()");
 		}
 		
 //		engineActivity = null;

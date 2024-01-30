@@ -11,12 +11,14 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.ServiceConnection;
+import android.content.res.Configuration;
 import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Debug;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
@@ -30,11 +32,16 @@ import android.widget.Button;
 
 import com.epicgames.makeaar.UnrealMessageType;
 
+import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicReference;
 
 
 public class UseServiceActivity extends Activity implements View.OnClickListener
 {
+
+	Messenger mMessenger;
+//	private static WeakReference<View.OnClickListener> mCallbackRef = new WeakReference<>(IEventCallback.NO_OP);
+
 	private static final Handler.Callback mConnectionStateCallback = (Message msg) -> {
 		final String TAG = "UE-ServiceCallback";
 
@@ -70,7 +77,7 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 
 		int[] surfacePosition = new int[2];
 
-		TextureView prevTextureView = null;
+		TextureView activeTextureView = null;
 
 		final int mTaskID;
 
@@ -129,13 +136,15 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 			//textureView_.setOnTouchListener(this);
 			textureView_.setSurfaceTextureListener(this);
 
+			Log.d(TAG, "SetTextureView: " + textureView_ + ", isAvailable=" + textureView_.isAvailable() + ", isAttachedToWindow=" + textureView_.isAttachedToWindow());
+
 			if (textureView_.isAvailable() && textureView_.isAttachedToWindow())
 			{
 				textureView_.getLocationOnScreen(surfacePosition);
 
 				onSurfaceTextureAvailable(textureView_.getSurfaceTexture(), textureView_.getWidth(), textureView_.getHeight());
 			}
-			prevTextureView = textureView_;
+			activeTextureView = textureView_;
 		}
 
 		public boolean onTouch(View v, MotionEvent event) {
@@ -245,9 +254,9 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 //				//mServiceConnection.setValue( null );
 //			}
 
-			if (prevTextureView != null) {
-				prevTextureView.setSurfaceTextureListener(null);
-				prevTextureView = null;
+			if (activeTextureView != null) {
+				activeTextureView.setSurfaceTextureListener(null);
+				activeTextureView = null;
 			}
 
 			if (externalSurfaceData.get() != null)
@@ -338,8 +347,8 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 				externalSurfaceData.set(null);
 			}
 
-			if (prevTextureView != null) {
-				prevTextureView.setSurfaceTextureListener(null);
+			if (activeTextureView != null) {
+				activeTextureView.setSurfaceTextureListener(null);
 			}
 			return true;
 		}
@@ -480,15 +489,18 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 
 	final static String TAG = "UE-UseServiceActivity";
 
-	final static String obbModuleName = "AndroidPackagingTest";//""ALPHA_POC";
-	final static String servicePackageName = "com.epicgames.AndroidPackagingTest";
+	final static String obbModuleName = "Lyra";//""ALPHA_POC";
+//	final static String obbModuleName = BuildConfig.ASISModuleName; //"Lyra";//""ALPHA_POC";
+//	final static String servicePackageName = "";
+//	final static String servicePackageName = BuildConfig.ASISPackageName;
+	final static String servicePackageName = "com.epicgames.Lyra";
 	final static String obbFileLocation = ""; //"/data/local/tmp/3d/AndroidPackagingTest.main.obb.png";
+//	final static String obbFileLocation = BuildConfig.ASISOBBPath; //"/data/local/tmp/3d/AndroidPackagingTest.main.obb.png";
 
-	final static String commandLineArgs = "-nosound -launchandroidflags=0 -dpcvars='Android.UseGameThread=1'";
+	final static String commandLineArgs = "-nosound";
+//	final static String commandLineArgs = "-nosound -launchandroidflags=0 -dpcvars='Android.UseGameThreadForNativeCommands=0'";
 	final static boolean enablePropagateAlpha = true;
-
-
-
+	
 	private Button activateView1Button, activateView2Button, activateView3Button, restartActivityButton, themeChangeButton, resumeButton;
 	private Button pauseButton, stopButton, bindServiceButton, unbindServiceButton, memReportButton;
 
@@ -506,7 +518,15 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 			case 3:
 				textureView_ = (TextureView) findViewById( R.id.renderView2 );
 				break;
+			default:
+				assert false;
 		}
+
+//		try {
+//			GetServiceConnection("ActivateTextureView cleanup").detachSurfaceFromService(getTaskId(), null);
+//		} catch (Exception e) {
+//			e.printStackTrace();
+//		}
 
 		GetServiceConnection("ActivateTextureView").SetTextureView(textureView_);
 	}
@@ -574,7 +594,7 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 		super.onCreate( savedInstanceState );
 		AppCompatDelegate.setDefaultNightMode(next_theme);
 		getTheme().applyStyle(R.style.Theme_UnrealEngine_NoActionBar, true);
-
+		
 		setContentView( R.layout.interface_use_service_activity );
 
 
@@ -714,6 +734,11 @@ public class UseServiceActivity extends Activity implements View.OnClickListener
 //        AppCompatDelegate.setDefaultNightMode(value);
 		recreate();
 
+	}
+
+	@Override
+	public void onConfigurationChanged(@NonNull Configuration newConfig) {
+		super.onConfigurationChanged(newConfig);
 	}
 
 	void handleThemeChange()

@@ -83,19 +83,20 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 		nativeSetCommandline(inCommandline);
 	}
 
-	public static Boolean isValidGameActivity()
-	{
-		return GameActivity.Get() != null;
-	}
-
 	public static GameActivityForMakeAAR Get()
 	{
 		return (GameActivityForMakeAAR)_gameActivityInstance;
 	}
 
+	// already present in super call and activity!
+	//public final void runOnUiThread(Runnable action)
+	//{
+	//	assert(activityContext != null);
+	//	activityContext.runOnUiThread(action);
+	//}
+
+
 	@Override
-
-
 	protected void RestartApplication(String RestartExtra)
 	{
 		super.RestartApplication(RestartExtra);
@@ -557,5 +558,11 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 		//---- Discovered Vulkan Version and Level from getSystemAvailableFeatures() ---//
 		gameActivitySetupInfo.GetVulkanInfoFromPackage(this);
 
+	}
+
+	@Override
+	public void onPause()
+	{
+		super.onPause();
 	}
 }
