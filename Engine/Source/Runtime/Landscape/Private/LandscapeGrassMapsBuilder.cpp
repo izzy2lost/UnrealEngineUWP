@@ -60,7 +60,13 @@ static FAutoConsoleVariableRef CVarGrassMapMaxComponentsStreaming(
 	GGrassMapMaxComponentsStreaming,
 	TEXT("How many landscape components can be streaming their textures at once for grass map renders, when using amortized runtime generation."));
 
+// Rendering readback takes ~3 frames on average to complete, while streaming usually takes 1 frame.
+// By setting rendering limit higher in editor we can achieve the same average throughput for both streaming and rendering at 1 per frame.
+#if WITH_EDITOR
+static int32 GGrassMapMaxComponentsRendering = 3;
+#else
 static int32 GGrassMapMaxComponentsRendering = 1;
+#endif // WITH_EDITOR
 static FAutoConsoleVariableRef CVarGrassMapMaxComponentsRendering(
 	TEXT("grass.GrassMap.MaxComponentsRendering"),
 	GGrassMapMaxComponentsRendering,
@@ -242,24 +248,28 @@ namespace UE::Landscape
 		return MinSqrDistance;
 	}
 
-	static void SubmitGPUCommands(bool bBlockUntilComplete)
+	static void SubmitGPUCommands(bool bBlockUntilRTComplete, bool bBlockRTUntilGPUComplete)
 	{
 		FEvent* ResultsReadyEvent = nullptr;
-		if (bBlockUntilComplete)
+		if (bBlockUntilRTComplete)
 		{
 			ResultsReadyEvent = FPlatformProcess::GetSynchEventFromPool(true);
 		}
 
 		ENQUEUE_RENDER_COMMAND(FFlushResourcesCommand)(
-			[ResultsReadyEvent](FRHICommandList& RHICmdList)
+			[ResultsReadyEvent, bBlockRTUntilGPUComplete](FRHICommandList& RHICmdList)
 			{
 				FRHICommandListExecutor::GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
 				RHIFlushResources();
 				FRHICommandListExecutor::GetImmediateCommandList().SubmitCommandsAndFlushGPU();
 				if (ResultsReadyEvent)
 				{
-					// block render thread waiting for GPU to complete
-					FRHICommandListExecutor::GetImmediateCommandList().BlockUntilGPUIdle();
+					if (bBlockRTUntilGPUComplete)
+					{
+						// Block render thread waiting for GPU to complete.  Note this can be very expensive on some platforms.
+						FRHICommandListExecutor::GetImmediateCommandList().BlockUntilGPUIdle();
+					}
+					
 					ResultsReadyEvent->Trigger();
 				}
 			});
@@ -288,30 +298,22 @@ FLandscapeGrassMapsBuilder::~FLandscapeGrassMapsBuilder()
 			// This happens when deleting a level, the components are not unregistered before the world is destroyed.
 			UnregisterComponent(Component);
 		}
-		State->TickCount = 7777;	// set to a large number so we don't wait to delete entries
 	}
 
 	// update component state until they all delete themselves
 	// (this should happen on the first update, unless a GPU readback is active.
 	// And it shouldn't take more than 3 update if there is a GPU readback.
+
+	double LastFlush = FPlatformTime::Seconds();
+
 	int32 Iterations = 0;
-	while (Iterations < 6 && ComponentStates.Num() > 0)
+	while (Iterations < 3 && ComponentStates.Num() > 0)
 	{
 		TArray<FVector> EmptyCamerasArray;
 		int32 UpdateAllComponentCount = ComponentStates.Num();
-		UpdateTrackedComponents(EmptyCamerasArray, 0, UpdateAllComponentCount, /* bCancelAndEvictAll = */ true);
+		UpdateTrackedComponents(EmptyCamerasArray, 0, UpdateAllComponentCount, /* bCancelAndEvictAllImmediately = */ true);
 
-		// if we happen to get caught with a GPU readback in flight, submit GPU commands to make sure it moves forward
-		if (RenderingCount > 0)
-		{
-			UE::Landscape::SubmitGPUCommands(/* bBlockUntilComplete =  */ true);
-		}
-
-		// if any async fetch tasks are in flight, force completion
-		if (AsyncFetchCount > 0)
-		{
-			CompleteAllAsyncTasksNow();
-		}
+		ensure(NotReadyCount == 0 && StreamingCount == 0 && RenderingCount == 0 && AsyncFetchCount == 0 && PopulatedCount == 0);
 
 		Iterations++;
 	}
@@ -384,12 +386,13 @@ void FAsyncFetchTask::DoWork()
 	Results = ActiveRender->FetchResults(bFreeAsyncReadback);
 }
 
-bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAll)
+bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& Cameras, int32 LocalMaxRendering, int32 MaxExpensiveUpdateChecksToPerform, bool bCancelAndEvictAllImmediately)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::UpdateTrackedComponents);
 	SCOPE_CYCLE_COUNTER(STAT_UpdateComponentGrassMaps);
 
 	bool bChanged = false;
+	bRenderCommandsQueuedByLastUpdate = false;
 
 	// Array to store components that are updated after the initial update pass (should never be more than max streaming components)
 	static TArray<FComponentState*> StreamingStatesToProcess;
@@ -415,7 +418,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 		ULandscapeComponent* Component = State->Component;
 		State->TickCount++;
 
-		if (bCancelAndEvictAll || (Component == nullptr))
+		if (bCancelAndEvictAllImmediately || (Component == nullptr))
 		{
 			// fallthrough to CancelAndEvict below
 		}
@@ -443,7 +446,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 
 			case EComponentStage::Rendering:
 				check(State->ActiveRender != nullptr);
-				if (State->ActiveRender->CheckAndUpdateAsyncReadback())
+				if (State->ActiveRender->CheckAndUpdateAsyncReadback(bRenderCommandsQueuedByLastUpdate))
 				{
 					if (GGrassMapUseAsyncFetch != 0)
 					{
@@ -523,7 +526,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 		}
 
 		// we only fall through to this statement if the code above didn't invoke `continue` (or if the component was unregistered)
-		if (CancelAndEvict(*State))
+		if (CancelAndEvict(*State, bCancelAndEvictAllImmediately))
 		{
 			if (State->Component == nullptr)
 			{
@@ -560,6 +563,7 @@ bool FLandscapeGrassMapsBuilder::UpdateTrackedComponents(const TArray<FVector>& 
 			if (State->AreTexturesStreamedIn())
 			{
 				KickOffRenderAndReadback(*State);
+				bRenderCommandsQueuedByLastUpdate = true;
 				bChanged = true;
 			}
 		}
@@ -739,8 +743,8 @@ void FLandscapeGrassMapsBuilder::AmortizedUpdateGrassMaps(
 		AmortizedMaxRendering *= GGrassMapPrioritizedMultiplier;
 	}
 
-	const bool bCancelAndEvictAll = !GGrassEnable;
-	UpdateTrackedComponents(Cameras, AmortizedMaxRendering, GGrassMapMaxDiscardChecksPerFrame, bCancelAndEvictAll);
+	const bool bCancelAndEvictAllImmediately = !GGrassEnable;
+	UpdateTrackedComponents(Cameras, AmortizedMaxRendering, GGrassMapMaxDiscardChecksPerFrame, bCancelAndEvictAllImmediately);
 
 	// no point in looking to start new grass map generation if nothing is pending, if grass is disabled or there are no cameras
 	if (bAllowStartGrassMapGeneration && PendingCount > 0 && GGrassEnable && Cameras.Num() > 0)
@@ -782,12 +786,13 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 	int32 UpToDateCount = 0;
 	
 	const double StartTime = FPlatformTime::Seconds();
+	double LastFlush = StartTime;
 	double LastChangeTime = StartTime;
 	while (UpToDateCount != LandscapeComponents.Num())
 	{
 		// ensure we are making progress within a reasonable amount of time TODO [chris.tchou] there should be a better way to detect non-progress here
 		const double CurTime = FPlatformTime::Seconds();
-		if (CurTime > LastChangeTime + 15.0)
+		if (CurTime > LastChangeTime + 30.0)
 		{
 			UE_LOG(LogGrass, Error, TEXT("ERROR: BuildGrassMapsNowForComponents() took too long, grass maps are not up to date"));
 			break;
@@ -795,7 +800,7 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 
 		// update all components that are tracked (without evicting)
 		const int32 UpdateAllComponentCount = ComponentStates.Num();
-		bool bChanged = UpdateTrackedComponents(EmptyCamerasArray, MaxStreamingRendering, UpdateAllComponentCount, /* bCancelAndEvictAll= */ false);
+		bool bChanged = UpdateTrackedComponents(EmptyCamerasArray, MaxStreamingRendering, UpdateAllComponentCount, /* bCancelAndEvictAllImmediately= */ false);
 
 		UpToDateCount = 0;
 		int32 AvailableStreamingSlots = MaxStreamingRendering - StreamingCount; // here we don't limit by overall population count
@@ -841,17 +846,13 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 			LastUpToDateCount = UpToDateCount;
 		}
 
-		if (bChanged)
-		{
-			LastChangeTime = FPlatformTime::Seconds();
-		}
-
 		// If any rendering is in flight, queue up the gpu commands on the render thread, so the GPU can start working on them.
-		if (RenderingCount > 0)
+		if (bRenderCommandsQueuedByLastUpdate || (RenderingCount > 0 && (CurTime - LastFlush > (1.0 / 60.0))))
 		{
 			// TODO [chris.tchou] it currently seems to be faster to block here; otherwise it takes a long time to complete the readback
 			// not sure why this is, something must be getting starved in the non-blocking path.
-			UE::Landscape::SubmitGPUCommands(/* bBlockUntilComplete =  */ true);
+			UE::Landscape::SubmitGPUCommands(/* bBlockUntilRTComplete =  */ true, /* bBlockRTUntilGPUComplete =  */ false);
+			LastFlush = CurTime;
 		}
 		
 		// If any streaming is in flight, do a blocking texture streaming update.
@@ -864,6 +865,11 @@ bool FLandscapeGrassMapsBuilder::BuildGrassMapsNowForComponents(
 		if (AsyncFetchCount > 0)
 		{
 			CompleteAllAsyncTasksNow();
+		}
+
+		if (bChanged)
+		{
+			LastChangeTime = FPlatformTime::Seconds();
 		}
 	}
 
@@ -885,7 +891,7 @@ void FLandscapeGrassMapsBuilder::CompleteAllAsyncTasksNow()
 	}
 }
 
-bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
+bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State, bool bCancelImmediately)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeGrassMapsBuilder::CancelAndEvict);
 
@@ -918,14 +924,23 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 			if (State.ActiveRender != nullptr)
 			{
 				// calling update ensures it is pushed forward if there is still a readback in progress
-				if (!State.ActiveRender->CheckAndUpdateAsyncReadback())
+				bool bNewRenderCommands = false;
+				if (bCancelImmediately)
+				{
+					// release active render from the state, and cancel and self destruct it
+					FLandscapeGrassWeightExporter* Render = State.ActiveRender.Release();
+					Render->CancelAndSelfDestruct();
+				}
+				else if (!State.ActiveRender->CheckAndUpdateAsyncReadback(bNewRenderCommands))
 				{
 					// we can't cancel yet.. must wait for the readback to complete
 					return false;
 				}
-
-				// readback is complete, we can delete the active render
-				State.ActiveRender.Reset();
+				else
+				{
+					// readback is complete, we can delete the active render
+					State.ActiveRender.Reset();
+				}
 			}
 			check(RenderingCount > 0);
 			RenderingCount--;
@@ -938,7 +953,11 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 			FAsyncTask<FAsyncFetchTask>* Task = State.AsyncFetchTask.Get();
 			if (Task != nullptr)
 			{
-				if (!Task->IsDone())
+				if (bCancelImmediately)
+				{
+					Task->EnsureCompletion(/* bDoWorkOnThisThreadIfNotStarted= */ true, /* bIsLatencySensitive= */ true);
+				}
+				else if (!Task->IsDone())
 				{
 					// can't cancel, async task is still in flight
 					return false;
@@ -958,7 +977,7 @@ bool FLandscapeGrassMapsBuilder::CancelAndEvict(FComponentState& State)
 		{
 			ULandscapeComponent* Component = State.Component;
 		
-			if (Component == nullptr)
+			if (!bCancelImmediately && (Component == nullptr))
 			{
 				// component was unregistered. Wait a few ticks to see if it comes back before fully evicting.
 				if (State.TickCount < 2)
@@ -1294,12 +1313,6 @@ bool FLandscapeGrassMapsBuilder::FComponentState::AreTexturesStreamedIn() const
 			return false;
 	}
 	return true;
-}
-
-bool FLandscapeGrassMapsBuilder::FComponentState::IsRenderReadbackComplete() const
-{
-	check(ActiveRender != nullptr);
-	return ActiveRender->CheckAndUpdateAsyncReadback();
 }
 
 bool FLandscapeGrassMapsBuilder::FComponentState::IsBeyondEvictionRange(const TArray<FVector>& Cameras) const

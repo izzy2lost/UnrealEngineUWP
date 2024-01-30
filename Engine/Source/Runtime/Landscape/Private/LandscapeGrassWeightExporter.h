@@ -91,10 +91,10 @@ public:
 
 	// If using the async readback path, check its status and update if needed. Return true when the AsyncReadbackResults are available.
 	// You must call this periodically, or the async readback may not complete.
-	bool CheckAndUpdateAsyncReadback()
+	bool CheckAndUpdateAsyncReadback(bool& bOutRenderCommandsQueued)
 	{
 		check(AsyncReadbackPtr != nullptr);
-		return AsyncReadbackPtr->CheckAndUpdate();
+		return AsyncReadbackPtr->CheckAndUpdate(bOutRenderCommandsQueued);
 	}
 
 	// return true if the async readback is complete.  (Does not update the readback state)
@@ -117,6 +117,8 @@ public:
 	// Fetches the results and applies them to the landscape components
 	// If using async readback, requires AsyncReadback to be complete before calling this.
 	void ApplyResults();
+
+	void CancelAndSelfDestruct();
 };
 
 namespace UE::Landscape::Grass
