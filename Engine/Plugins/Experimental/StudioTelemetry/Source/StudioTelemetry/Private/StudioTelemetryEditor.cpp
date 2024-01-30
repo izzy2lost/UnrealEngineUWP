@@ -707,7 +707,7 @@ void FStudioTelemetryEditor::Initialize()
 		{
 			if (PIESpan.IsValid())
 			{
-				// PIE his ending so no longer interactive
+				// PIE is ending so no longer interactive
 				FStudioTelemetry::Get().EndSpan(PIEInteractSpan);
 				PIEShutdownSpan = FStudioTelemetry::Get().StartSpan(PIEShutdownSpanName, PIESpan);
 			}

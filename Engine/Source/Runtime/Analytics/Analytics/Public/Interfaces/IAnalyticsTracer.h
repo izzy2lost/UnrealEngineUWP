@@ -57,11 +57,8 @@ public:
 	// Is the span active?
 	virtual bool GetIsActive() const = 0;
 
-	/** Set the parent span */
-	virtual void SetParentSpan(TSharedPtr<IAnalyticsSpan> ParentSpan) = 0;
-
-	/** Get the parent span */
-	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const = 0;
+	// Get unique Id?
+	virtual FGuid GetId()  const = 0;
 };
 
 /**

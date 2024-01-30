@@ -238,11 +238,6 @@ TSharedPtr<IAnalyticsSpan> FStudioTelemetry::StartSpan(const FName Name, TShared
 	return AnalyticsTracer.IsValid() ? AnalyticsTracer->StartSpan(Name, ParentSpan, AdditionalAttributes)  : TSharedPtr<IAnalyticsSpan>();
 }
 
-bool FStudioTelemetry::StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
-{
-	return AnalyticsTracer.IsValid() ? AnalyticsTracer->StartSpan(Span, AdditionalAttributes) : false;
-}
-
 bool FStudioTelemetry::EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
 	return AnalyticsTracer.IsValid() ? AnalyticsTracer->EndSpan(Span, AdditionalAttributes) : false;
