@@ -7,8 +7,13 @@
 #include "VisualLogger/VisualLogger.h"
 #include "StateTree.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
+#include "Serialization/CustomVersion.h"
+#include "Serialization/PropertyLocalizationDataGathering.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeInstanceData)
+
+const FGuid FStateTreeInstanceStorageCustomVersion::GUID(0x60C4F0DE, 0x8B264C34, 0xAA937201, 0x5DFF09CC);
+FCustomVersionRegistration GRegisterStateTreeInstanceStorageCustomVersion(FStateTreeInstanceStorageCustomVersion::GUID, FStateTreeInstanceStorageCustomVersion::LatestVersion, TEXT("StateTreeInstanceStorage"));
 
 namespace UE::StateTree
 {
@@ -46,6 +51,30 @@ namespace UE::StateTree
 
 		return DuplicateObject(&Instance, &InOwner);
 	}
+
+#if WITH_EDITORONLY_DATA
+	void GatherForLocalization(const FString& PathToParent, const UScriptStruct* Struct, const void* StructData, const void* DefaultStructData, FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags)
+	{
+		const FStateTreeInstanceData* ThisInstance = static_cast<const FStateTreeInstanceData*>(StructData);
+		const FStateTreeInstanceData* DefaultInstance = static_cast<const FStateTreeInstanceData*>(DefaultStructData);
+
+		PropertyLocalizationDataGatherer.GatherLocalizationDataFromStruct(PathToParent, Struct, StructData, DefaultStructData, GatherTextFlags);
+
+		const uint8* DefaultInstanceMemory = nullptr;
+		if (DefaultInstance)
+		{
+			DefaultInstanceMemory = reinterpret_cast<const uint8*>(&DefaultInstance->GetStorage());
+		}
+		
+		const UScriptStruct* StructTypePtr = FStateTreeInstanceStorage::StaticStruct();
+		PropertyLocalizationDataGatherer.GatherLocalizationDataFromStructWithCallbacks(PathToParent + TEXT(".InstanceStorage"), StructTypePtr, &ThisInstance->GetStorage(), DefaultInstanceMemory, GatherTextFlags);
+	}
+
+	void RegisterInstanceDataForLocalization()
+	{
+		{ static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(TBaseStructure<FStateTreeInstanceData>::Get(), &GatherForLocalization); }
+	}
+#endif // WITH_EDITORONLY_DATA
 
 } // UE::StateTree
 
@@ -172,9 +201,30 @@ void FStateTreeInstanceStorage::SetGlobalParameters(const FInstancedPropertyBag&
 // FStateTreeInstanceData
 //----------------------------------------------------------------//
 
-FStateTreeInstanceData::FStateTreeInstanceData()
+FStateTreeInstanceData::FStateTreeInstanceData() = default;
+
+FStateTreeInstanceData::FStateTreeInstanceData(const FStateTreeInstanceData& Other)
 {
-	InstanceStorage.InitializeAs<FStateTreeInstanceStorage>();
+	InstanceStorage = MakeShared<FStateTreeInstanceStorage>(*Other.InstanceStorage);
+}
+
+FStateTreeInstanceData::FStateTreeInstanceData(FStateTreeInstanceData&& Other)
+{
+	InstanceStorage = Other.InstanceStorage;
+	Other.InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
+}
+
+FStateTreeInstanceData& FStateTreeInstanceData::operator=(const FStateTreeInstanceData& Other)
+{
+	InstanceStorage = MakeShared<FStateTreeInstanceStorage>(*Other.InstanceStorage);
+	return *this;
+}
+
+FStateTreeInstanceData& FStateTreeInstanceData::operator=(FStateTreeInstanceData&& Other)
+{
+	InstanceStorage = Other.InstanceStorage;
+	Other.InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
+	return *this;
 }
 
 FStateTreeInstanceData::~FStateTreeInstanceData()
@@ -184,14 +234,22 @@ FStateTreeInstanceData::~FStateTreeInstanceData()
 
 const FStateTreeInstanceStorage& FStateTreeInstanceData::GetStorage() const
 {
-	check(InstanceStorage.GetMemory() != nullptr);
-	return *reinterpret_cast<const FStateTreeInstanceStorage*>(InstanceStorage.GetMemory());
+	return *InstanceStorage;
+}
+
+TWeakPtr<FStateTreeInstanceStorage> FStateTreeInstanceData::GetWeakMutableStorage()
+{
+	return InstanceStorage;
+}
+
+TWeakPtr<const FStateTreeInstanceStorage> FStateTreeInstanceData::GetWeakStorage() const
+{
+	return InstanceStorage;
 }
 
 FStateTreeInstanceStorage& FStateTreeInstanceData::GetMutableStorage()
 {
-	check(InstanceStorage.GetMemory() != nullptr);
-	return *reinterpret_cast<FStateTreeInstanceStorage*>(InstanceStorage.GetMutableMemory());
+	return *InstanceStorage;
 }
 
 FStateTreeEventQueue& FStateTreeInstanceData::GetMutableEventQueue()
@@ -248,18 +306,6 @@ int32 FStateTreeInstanceData::GetEstimatedMemoryUsage() const
 bool FStateTreeInstanceData::Identical(const FStateTreeInstanceData* Other, uint32 PortFlags) const
 {
 	if (Other == nullptr)
-	{
-		return false;
-	}
-
-	// Identical if both are uninitialized.
-	if (!IsValid() && !Other->IsValid())
-	{
-		return true;
-	}
-
-	// Not identical if one is valid and other is not.
-	if (IsValid() != Other->IsValid())
 	{
 		return false;
 	}
@@ -328,6 +374,65 @@ bool FStateTreeInstanceData::Identical(const FStateTreeInstanceData* Other, uint
 	}
 	
 	return bResult;
+}
+
+void FStateTreeInstanceData::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddPropertyReferencesWithStructARO(FStateTreeInstanceStorage::StaticStruct(), &GetMutableStorage());
+}
+
+bool FStateTreeInstanceData::Serialize(FArchive& Ar)
+{
+	Ar.UsingCustomVersion(FStateTreeInstanceStorageCustomVersion::GUID);
+
+	if (Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FStateTreeInstanceStorageCustomVersion::GUID) < FStateTreeInstanceStorageCustomVersion::AddedCustomSerialization)
+		{
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			StaticStruct()->SerializeTaggedProperties(Ar, (uint8*)this, StaticStruct(), nullptr);
+
+			if (InstanceStorage_DEPRECATED.IsValid())
+			{
+				InstanceStorage = MakeShared<FStateTreeInstanceStorage>(MoveTemp(InstanceStorage_DEPRECATED.GetMutable()));
+				InstanceStorage_DEPRECATED.Reset();
+				return true;
+			}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+
+			InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
+			return true;
+		}
+
+		InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
+	}
+
+	FStateTreeInstanceStorage::StaticStruct()->SerializeItem(Ar, &InstanceStorage.Get(), nullptr);
+
+	return true;
+}
+
+void FStateTreeInstanceData::GetPreloadDependencies(TArray<UObject*>& OutDeps)
+{
+	UScriptStruct* ScriptStruct = FStateTreeInstanceStorage::StaticStruct();
+	OutDeps.Add(ScriptStruct);
+
+	if (UScriptStruct::ICppStructOps* CppStructOps = ScriptStruct->GetCppStructOps())
+	{
+		CppStructOps->GetPreloadDependencies(&GetMutableStorage(), OutDeps);
+	}
+
+	for (TPropertyValueIterator<FStructProperty> It(ScriptStruct, &GetMutableStorage()); It; ++It)
+	{
+		const UScriptStruct* StructType = It.Key()->Struct;
+		if (UScriptStruct::ICppStructOps* CppStructOps = StructType->GetCppStructOps())
+		{
+			void* StructDataPtr = const_cast<void*>(It.Value());
+			CppStructOps->GetPreloadDependencies(StructDataPtr, OutDeps);
+		}
+	}
 }
 
 void FStateTreeInstanceData::CopyFrom(UObject& InOwner, const FStateTreeInstanceData& InOther)
@@ -444,11 +549,6 @@ void FStateTreeInstanceData::ShrinkTo(const int32 NumStructs)
 	FStateTreeInstanceStorage& Storage = GetMutableStorage();
 	check(NumStructs <= Storage.InstanceStructs.Num());  
 	Storage.InstanceStructs.SetNum(NumStructs);
-}
-
-bool FStateTreeInstanceData::IsValid() const
-{
-	return InstanceStorage.IsValid();
 }
 
 void FStateTreeInstanceData::Reset()

@@ -6,6 +6,7 @@
 #include "StateTreeEvents.h"
 #include "StateTreeTypes.h"
 #include "StateTreeExecutionTypes.h"
+#include "Templates/SharedPointer.h"
 #include "StateTreeInstanceData.generated.h"
 
 struct FStateTreeTransitionRequest;
@@ -47,6 +48,27 @@ struct STATETREEMODULE_API FStateTreeTemporaryInstanceData
 	
 	UPROPERTY()
 	FInstancedStruct Instance;
+};
+
+struct STATETREEMODULE_API FStateTreeInstanceStorageCustomVersion
+{
+	enum Type
+	{
+		// Before any version changes were made in the plugin
+		BeforeCustomVersionWasAdded = 0,
+		// Added custom serialization
+		AddedCustomSerialization,
+
+		// -----<new versions can be added above this line>-------------------------------------------------
+		VersionPlusOne,
+		LatestVersion = VersionPlusOne - 1
+	};
+
+	/** The GUID for this custom version number */
+	const static FGuid GUID;
+
+private:
+	FStateTreeInstanceStorageCustomVersion() = default;
 };
 
 /**
@@ -243,6 +265,12 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	GENERATED_BODY()
 
 	FStateTreeInstanceData();
+	FStateTreeInstanceData(const FStateTreeInstanceData& Other);
+	FStateTreeInstanceData(FStateTreeInstanceData&& Other);
+
+	FStateTreeInstanceData& operator=(const FStateTreeInstanceData& Other);
+	FStateTreeInstanceData& operator=(FStateTreeInstanceData&& Other);
+
 	~FStateTreeInstanceData();
 	
 	/** Initializes the array with specified items. */
@@ -264,9 +292,6 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 
 	/** Resets the data to empty. */
 	void Reset();
-
-	/** @return true if the instance is correctly initialized. */
-	bool IsValid() const;
 
 	/** @return Number of items in the instance data. */
 	int32 Num() const
@@ -345,10 +370,16 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	FStateTreeInstanceStorage& GetMutableStorage();
 	const FStateTreeInstanceStorage& GetStorage() const;
 
+	TWeakPtr<FStateTreeInstanceStorage> GetWeakMutableStorage();
+	TWeakPtr<const FStateTreeInstanceStorage> GetWeakStorage() const;
+
 	int32 GetEstimatedMemoryUsage() const;
 	
 	/** Type traits */
 	bool Identical(const FStateTreeInstanceData* Other, uint32 PortFlags) const;
+	void AddStructReferencedObjects(FReferenceCollector& Collector);
+	bool Serialize(FArchive& Ar);
+	void GetPreloadDependencies(TArray<UObject*>& OutDeps);
 
 	/**
 	 * Adds temporary instance data associated with specified frame and data handle.
@@ -404,11 +435,29 @@ struct STATETREEMODULE_API FStateTreeInstanceData
 	UE_DEPRECATED(5.4, "Use Num() instead.")
 	int32 GetNumItems() const { return 0; }
 
+	UE_DEPRECATED(5.4, "InstanceData is always valid.")
+	bool IsValid() const { return true; }
+
 protected:
 	/** Storage for the actual instance data, always stores FStateTreeInstanceStorage. */
+	TSharedRef<FStateTreeInstanceStorage> InstanceStorage = MakeShared<FStateTreeInstanceStorage>();
+
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 	UPROPERTY()
-	TInstancedStruct<FStateTreeInstanceStorage> InstanceStorage;
+	TInstancedStruct<FStateTreeInstanceStorage> InstanceStorage_DEPRECATED;
+	
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
 };
+
+#if WITH_EDITORONLY_DATA
+namespace UE::StateTree
+{
+	void RegisterInstanceDataForLocalization();
+}
+#endif // WITH_EDITORONLY_DATA
 
 template<>
 struct TStructOpsTypeTraits<FStateTreeInstanceData> : public TStructOpsTypeTraitsBase2<FStateTreeInstanceData>
@@ -416,6 +465,9 @@ struct TStructOpsTypeTraits<FStateTreeInstanceData> : public TStructOpsTypeTrait
 	enum
 	{
 		WithIdentical = true,
+		WithAddStructReferencedObjects = true,
+		WithSerializer = true,
+		WithGetPreloadDependencies = true,
 	};
 };
 
@@ -452,7 +504,7 @@ template <typename T>
 struct TStateTreeInstanceDataStructRef
 {
 	TStateTreeInstanceDataStructRef(FStateTreeInstanceData& InInstanceData, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle InDataHandle)
-		: Storage(InInstanceData.GetMutableStorage())
+		: WeakStorage(InInstanceData.GetWeakMutableStorage())
 		, WeakStateTree(CurrentFrame.StateTree)
 		, RootState(CurrentFrame.RootState)
 		, DataHandle(InDataHandle)
@@ -466,6 +518,13 @@ struct TStateTreeInstanceDataStructRef
 
 	T* GetPtr()
 	{
+		if (!WeakStorage.IsValid())
+		{
+			return nullptr;
+		}
+
+		FStateTreeInstanceStorage& Storage = *WeakStorage.Pin();
+
 		const FStateTreeExecutionState& Exec = Storage.GetExecutionState();
 		const UStateTree* StateTree = WeakStateTree.Get();
 		
@@ -477,9 +536,9 @@ struct TStateTreeInstanceDataStructRef
 		FStructView Struct;
 		if (CurrentFrame)
 		{
-			if (IsHandleSourceValid(*CurrentFrame, DataHandle))
+			if (IsHandleSourceValid(Storage, *CurrentFrame, DataHandle))
 			{
-				Struct = GetDataView(*CurrentFrame, DataHandle);
+				Struct = GetDataView(Storage, *CurrentFrame, DataHandle);
 			}
 			else
 			{
@@ -501,7 +560,7 @@ struct TStateTreeInstanceDataStructRef
 
 protected:
 
-	FStructView GetDataView(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
+	FStructView GetDataView(FStateTreeInstanceStorage& Storage, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle)
 	{
 		switch (DataHandle.GetSource())
 		{
@@ -515,7 +574,7 @@ protected:
 		return {};
 	}
 	
-	bool IsHandleSourceValid(const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
+	bool IsHandleSourceValid(FStateTreeInstanceStorage& Storage, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
 	{
 		switch (Handle.GetSource())
 		{
@@ -533,7 +592,7 @@ protected:
 		return false;
 	}
 	
-	FStateTreeInstanceStorage& Storage;
+	TWeakPtr<FStateTreeInstanceStorage> WeakStorage = nullptr;
 	TWeakObjectPtr<const UStateTree> WeakStateTree = nullptr;
 	FStateTreeStateHandle RootState = FStateTreeStateHandle::Invalid;
 	FStateTreeDataHandle DataHandle = FStateTreeDataHandle::Invalid;

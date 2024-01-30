@@ -128,23 +128,6 @@ public:
 
 	/** @return True of the the execution context is valid and initialized. */ 
 	bool IsValid() const { return RootStateTree.IsReadyToRun(); }
-
-	/**
-	 * @param PropertyRef Property's reference to get pointer to.
-	 * @return Pointer to referenced property if succeeded.
-	 */
-	template<class T>
-	T* GetMutablePropertyPtr(const FStateTreePropertyRef& PropertyRef)
-	{
-		const FStateTreePropertyBindings& PropertyBindings = CurrentlyProcessedFrame->StateTree->PropertyBindings;
-		if(const FStateTreePropertyAccess* PropertyAccess = PropertyBindings.GetPropertyAccess(PropertyRef))
-		{
-			FStateTreeDataView SourceView = GetDataView(CurrentlyProcessedParentFrame, *CurrentlyProcessedFrame, PropertyAccess->SourceDataHandle);
-			return PropertyBindings.GetMutablePropertyPtr<T>(SourceView, *PropertyAccess);
-		}
-
-		return nullptr;
-	}
 	
 	/**
 	 * Start executing.
@@ -240,6 +223,12 @@ public:
 
 	/** @return the currently processed state if applicable. */
 	FStateTreeStateHandle GetCurrentlyProcessedState() const { return CurrentlyProcessedState; }
+
+	/** @return the currently processed execution frame if applicable. */
+	const FStateTreeExecutionFrame* GetCurrentlyProcessedFrame() const { return CurrentlyProcessedFrame; }
+
+	/** @return the currently processed execution parent frame if applicable. */
+	const FStateTreeExecutionFrame* GetCurrentlyProcessedParentFrame() const { return CurrentlyProcessedParentFrame; }
 	
 	/** @return Pointer to a State or null if state not found */ 
 	const FCompactStateTreeState* GetStateFromHandle(const FStateTreeStateHandle StateHandle) const
@@ -381,6 +370,9 @@ public:
 	 * @param Request The state to transition to.
 	 */
 	void RequestTransition(const FStateTreeTransitionRequest& Request);
+
+	/** @return data view of the specified handle relative to given frame. */
+	static FStateTreeDataView GetDataView(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, TConstArrayView<FStateTreeDataView> ContextAndExternalDataViews, const FStateTreeDataHandle Handle);
 
 protected:
 
@@ -528,9 +520,12 @@ protected:
 	FString DebugGetEventsAsString() const;
 
 	/** @return data view of the specified handle relative to given frame. */
-	FStateTreeDataView GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
+	FStateTreeDataView GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
+	{
+		return GetDataView(*InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, ParentFrame, CurrentFrame, ContextAndExternalDataViews, Handle);
+	}
 
-	/** @return data view of the specified handle relative to given frame. */
+	/** @return true if handle source is valid cified handle relative to given frame. */
 	bool IsHandleSourceValid(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const;
 
 	/** @return data view of the specified handle relative to the given frame, or tries to find a matching temporary instance. */

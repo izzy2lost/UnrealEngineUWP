@@ -156,6 +156,9 @@ public:
 	/** @return Id of the transition matching a given runtime transition index; invalid Id if transition not found. */
 	FGuid GetTransitionIdFromIndex(const FStateTreeIndex16 Index) const;	
 
+	/** @return Property bindings */
+	const FStateTreePropertyBindings& GetPropertyBindings() const { return PropertyBindings; }
+
 	UE_DEPRECATED(5.4, "Replaced with GetNumContextDataViews() which contains context data and external data only.")
 	int32 GetNumDataViews() const { return 0; }
 
