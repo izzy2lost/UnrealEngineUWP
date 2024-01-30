@@ -28,6 +28,7 @@ namespace UE::Learning
 			SendDecoder			= 10,
 			RecvComplete		= 11,
 			SendStop			= 12,
+			RecvPing			= 13,
 		};
 
 		LEARNINGTRAINING_API ETrainerResponse WaitForConnection(

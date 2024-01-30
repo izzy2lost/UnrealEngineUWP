@@ -4,6 +4,7 @@
 
 #include "LearningTrainer.h"
 
+class FMonitoredProcess;
 class ULearningNeuralNetworkData;
 
 namespace UE::Learning
@@ -24,13 +25,15 @@ namespace UE::Learning
 			DecoderSignal			= 6,
 			CompleteSignal			= 7,
 			StopSignal				= 8,
+			PingSignal				= 9,
 
-			ControlNum				= 9,
+			ControlNum				= 10,
 		};
 
 		LEARNINGTRAINING_API uint8 GetControlNum();
 
 		LEARNINGTRAINING_API ETrainerResponse RecvNetwork(
+			FMonitoredProcess* Process,
 			TLearningArrayView<1, volatile int32> Controls,
 			ULearningNeuralNetworkData& OutNetwork,
 			const EControls Signal,
@@ -45,6 +48,7 @@ namespace UE::Learning
 		LEARNINGTRAINING_API bool HasPolicyOrCompleted(TLearningArrayView<1, volatile int32> Controls);
 
 		LEARNINGTRAINING_API ETrainerResponse SendNetwork(
+			FMonitoredProcess* Process,
 			TLearningArrayView<1, volatile int32> Controls,
 			TLearningArrayView<1, uint8> NetworkData,
 			const EControls Signal,
@@ -54,6 +58,7 @@ namespace UE::Learning
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
+			FMonitoredProcess* Process,
 			TLearningArrayView<1, int32> EpisodeStarts,
 			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
@@ -69,6 +74,7 @@ namespace UE::Learning
 			const ELogSetting LogSettings = Trainer::DefaultLogSettings);
 
 		LEARNINGTRAINING_API ETrainerResponse SendExperience(
+			FMonitoredProcess* Process,
 			TLearningArrayView<1, int32> EpisodeStarts,
 			TLearningArrayView<1, int32> EpisodeLengths,
 			TLearningArrayView<2, float> Observations,

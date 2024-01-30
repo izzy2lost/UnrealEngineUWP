@@ -7,6 +7,7 @@
 #include "LearningExperience.h"
 #include "LearningCompletion.h"
 
+#include "Misc/MonitoredProcess.h"
 #include "HAL/PlatformProcess.h"
 
 namespace UE::Learning::SharedMemoryTraining
@@ -28,6 +29,7 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse RecvNetwork(
+		FMonitoredProcess* Process, 
 		TLearningArrayView<1, volatile int32> Controls,
 		ULearningNeuralNetworkData& OutNetwork,
 		const EControls Signal,
@@ -50,13 +52,28 @@ namespace UE::Learning::SharedMemoryTraining
 				return ETrainerResponse::Completed;
 			}
 
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			// Check if the process has exited
+			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			{
+				return ETrainerResponse::Unexpected;
+			}
 
+			// Check if we've timed out
 			if (WaitTime > Timeout)
 			{
 				return ETrainerResponse::Timeout;
 			}
+
+			// Check if ping has been sent
+			if (Controls[(uint8)EControls::PingSignal])
+			{
+				Controls[(uint8)EControls::PingSignal] = false;
+				WaitTime = 0.0f;
+			}
+
+			// Sleep for some time
+			FPlatformProcess::Sleep(SleepTime);
+			WaitTime += SleepTime;
 		}
 
 		if (LogSettings != ELogSetting::Silent)
@@ -95,6 +112,7 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendNetwork(
+		FMonitoredProcess* Process,
 		TLearningArrayView<1, volatile int32> Controls,
 		TLearningArrayView<1, uint8> NetworkData,
 		const EControls Signal,
@@ -109,13 +127,28 @@ namespace UE::Learning::SharedMemoryTraining
 		// Wait until the policy is requested by the sub-process
 		while (!Controls[(uint8)Signal])
 		{
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			// Check if the process has exited
+			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			{
+				return ETrainerResponse::Unexpected;
+			}
 
+			// Check if we've timed out
 			if (WaitTime > Timeout)
 			{
 				return ETrainerResponse::Timeout;
 			}
+
+			// Check if ping has been sent
+			if (Controls[(uint8)EControls::PingSignal])
+			{
+				Controls[(uint8)EControls::PingSignal] = false;
+				WaitTime = 0.0f;
+			}
+
+			// Sleep for some time
+			FPlatformProcess::Sleep(SleepTime);
+			WaitTime += SleepTime;
 		}
 
 		if (LogSettings != ELogSetting::Silent)
@@ -146,6 +179,7 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendExperience(
+		FMonitoredProcess* Process,
 		TLearningArrayView<1, int32> EpisodeStarts,
 		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<1, ECompletionMode> EpisodeCompletionModes,
@@ -166,13 +200,28 @@ namespace UE::Learning::SharedMemoryTraining
 		// Wait until the sub-process is done reading any experience
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			// Check if the process has exited
+			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			{
+				return ETrainerResponse::Unexpected;
+			}
 
+			// Check if we've timed out
 			if (WaitTime > Timeout)
 			{
 				return ETrainerResponse::Timeout;
 			}
+
+			// Check if ping has been sent
+			if (Controls[(uint8)EControls::PingSignal])
+			{
+				Controls[(uint8)EControls::PingSignal] = false;
+				WaitTime = 0.0f;
+			}
+
+			// Sleep for some time
+			FPlatformProcess::Sleep(SleepTime);
+			WaitTime += SleepTime;
 		}
 
 		if (LogSettings != ELogSetting::Silent)
@@ -203,6 +252,7 @@ namespace UE::Learning::SharedMemoryTraining
 	}
 
 	ETrainerResponse SendExperience(
+		FMonitoredProcess* Process, 
 		TLearningArrayView<1, int32> EpisodeStarts,
 		TLearningArrayView<1, int32> EpisodeLengths,
 		TLearningArrayView<2, float> Observations,
@@ -221,13 +271,28 @@ namespace UE::Learning::SharedMemoryTraining
 		// Wait until the sub-process is done reading any experience
 		while (Controls[(uint8)EControls::ExperienceSignal])
 		{
-			FPlatformProcess::Sleep(SleepTime);
-			WaitTime += SleepTime;
+			// Check if the process has exited
+			if (!Process || !Process->Update() || Process->GetReturnCode() == 1)
+			{
+				return ETrainerResponse::Unexpected;
+			}
 
+			// Check if we've timed out
 			if (WaitTime > Timeout)
 			{
 				return ETrainerResponse::Timeout;
 			}
+
+			// Check if ping has been sent
+			if (Controls[(uint8)EControls::PingSignal])
+			{
+				Controls[(uint8)EControls::PingSignal] = false;
+				WaitTime = 0.0f;
+			}
+
+			// Sleep for some time
+			FPlatformProcess::Sleep(SleepTime);
+			WaitTime += SleepTime;
 		}
 
 		if (LogSettings != ELogSetting::Silent)
