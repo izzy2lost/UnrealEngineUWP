@@ -199,6 +199,8 @@ namespace HarmonixMetasound::Nodes::MidiStreamTrackFilter
 
 	void FOp::Execute()
 	{
+		MidiStreamOutPin->PrepareBlock();
+
 		if (CurrentTrackIndexFilter != *TrackSelectInPin)
 		{
 			CurrentTrackIndexFilter = *TrackSelectInPin;
