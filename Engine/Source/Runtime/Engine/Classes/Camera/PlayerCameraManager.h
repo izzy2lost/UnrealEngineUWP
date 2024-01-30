@@ -283,6 +283,16 @@ protected:
 	TArray<TObjectPtr<UCameraModifier>> ModifierList;
 
 public:
+	/**
+	* Runs the given function on a local copy of the ModifierList of UCameraModifier, with the possibility of early exit
+	* Most easily used with a lambda as follows:
+	* ForEachCameraModifier([](UCameraModifier* Proxy) -> bool
+	* {
+	*     return continueLoop ? true : false;
+	* });
+	*/
+	ENGINE_API void ForEachCameraModifier(TFunctionRef<bool(UCameraModifier*)> Fn);
+
 	/** List of modifiers to create by default for this camera */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = CameraModifier)
 	TArray< TSubclassOf<UCameraModifier> > DefaultModifiers;
