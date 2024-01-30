@@ -330,7 +330,7 @@ private:
 		bool EnqueueHugeObject(const FHugeObjectContext& Context);
 
 		// Returns true if the object is a huge object root object or part of any huge object's payload. The latter is an expensive operation.
-		bool IsObjectInQueue(FInternalNetRefIndex ObjectIndex, bool bIncludeSubObjects) const;
+		bool IsObjectInQueue(FInternalNetRefIndex ObjectIndex, bool bFullSearch) const;
 
 		// Best effort implementation of getting a valid index for trace.
 		FInternalNetRefIndex GetRootObjectInternalIndexForTrace() const;
@@ -508,7 +508,7 @@ private:
 	inline bool IsInitialState(const EReplicatedObjectState State) const { return State == EReplicatedObjectState::PendingCreate || State == EReplicatedObjectState::WaitOnCreateConfirmation; }
 
 	bool IsActiveHugeObject(uint32 InternalIndex) const;
-	bool IsObjectPartOfActiveHugeObject(uint32 InternalIndex, const FReplicationInfo& Info) const;
+	bool IsObjectPartOfActiveHugeObject(uint32 InternalIndex) const;
 
 	bool CanQueueHugeObject() const;
 
