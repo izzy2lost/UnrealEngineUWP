@@ -48,13 +48,6 @@ class FDistanceFieldVolumeData;
 class UBodySetup;
 class USimpleConstructionScript;
 
-#if RHI_RAYTRACING
-namespace RayTracing
-{
-	using GeometryGroupHandle = int32;
-}
-#endif
-
 /** The maximum number of static mesh LODs allowed. */
 #define MAX_STATIC_MESH_LODS 8
 
@@ -697,10 +690,6 @@ public:
 
 	/** Bounds of the renderable mesh. */
 	FBoxSphereBounds Bounds;
-
-#if RHI_RAYTRACING
-	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
-#endif
 
 	bool IsInitialized() const
 	{

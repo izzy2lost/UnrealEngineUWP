@@ -1919,15 +1919,11 @@ void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel,
 		ENQUEUE_RENDER_COMMAND(InitRayTracingGeometryForInlinedLODs)(
 			[this](FRHICommandListImmediate& RHICmdList)
 			{
-				RayTracingGeometryGroupHandle = GRayTracingGeometryManager->RegisterRayTracingGeometryGroup();
-
 				for (int32 LODIndex = 0; LODIndex < LODResources.Num(); ++LODIndex)
 				{
 					// Skip LODs that have their render data stripped
 					if (LODResources[LODIndex].VertexBuffers.StaticMeshVertexBuffer.GetNumVertices() > 0)
 					{
-						LODResources[LODIndex].RayTracingGeometry.GroupHandle = RayTracingGeometryGroupHandle;
-
 						if (LODIndex < CurrentFirstLODIdx)
 						{
 							LODResources[LODIndex].RayTracingGeometry.Initializer.Type = ERayTracingGeometryInitializerType::StreamingDestination;
@@ -1964,17 +1960,6 @@ void FStaticMeshRenderData::ReleaseResources()
 			LODVertexFactories[LODIndex].ReleaseResources();
 		}
 	}
-
-#if RHI_RAYTRACING
-	if (IsRayTracingAllowed())
-	{
-		ENQUEUE_RENDER_COMMAND(CmdReleaseRayTracingGeometryGroup)(
-			[this](FRHICommandListImmediate&)
-			{
-				GRayTracingGeometryManager->ReleaseRayTracingGeometryGroup(RayTracingGeometryGroupHandle);
-			});
-	}
-#endif
 
 	check(NaniteResourcesPtr.IsValid());
 	NaniteResourcesPtr->ReleaseResources();
@@ -2024,10 +2009,7 @@ void UStaticMesh::RequestUpdateCachedRenderState() const
 	}
 
 #if RHI_RAYTRACING
-	if (IsRayTracingEnabled())
-	{
-		((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RequestUpdateCachedRenderState(GetRenderData()->RayTracingGeometryGroupHandle);
-	}
+	((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RequestUpdateCachedRenderState(this);
 #endif
 
 	// TODO: Need to mark all DynamicRayTracingGeometries used in FStaticMeshSceneProxy referencing this StaticMesh as either invalid or request a recreation (UE-139474)

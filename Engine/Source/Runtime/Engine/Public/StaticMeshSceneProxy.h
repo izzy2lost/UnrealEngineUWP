@@ -146,7 +146,6 @@ public:
 		const bool bIsStaticInstance = !bDynamicRayTracingGeometry;
 		return bIsStaticInstance && !HasViewDependentDPG() && !(bAllowStaticLighting && HasStaticLighting() && !HasValidSettingsForStaticLighting());
 	}
-	ENGINE_API virtual RayTracing::GeometryGroupHandle GetRayTracingGeometryGroupHandle() const override;
 #endif // RHI_RAYTRACING
 
 	ENGINE_API virtual void GetLCIs(FLCIArray& LCIs) override;

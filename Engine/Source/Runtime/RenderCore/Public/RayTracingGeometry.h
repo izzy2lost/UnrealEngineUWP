@@ -11,11 +11,6 @@
 
 class FRHICommandListBase;
 
-namespace RayTracing
-{
-	using GeometryGroupHandle = int32;
-}
-
 enum class ERTAccelerationStructureBuildPriority
 {
 	Immediate,
@@ -49,11 +44,6 @@ public:
 	FRayTracingGeometryInitializer Initializer;
 	FRayTracingGeometryRHIRef RayTracingGeometryRHI;
 
-	RayTracing::GeometryGroupHandle GroupHandle = INDEX_NONE;
-
-	/** LOD of the mesh associated with this ray tracing geometry object (-1 if unknown) */
-	int8 LODIndex = -1;
-
 	// Flags for tracking the state of RayTracingGeometryRHI.
 	enum class EGeometryStateFlags : uint32
 	{
@@ -74,6 +64,9 @@ public:
 		Evicted = 1 << 3
 	};
 	FRIEND_ENUM_CLASS_FLAGS(EGeometryStateFlags);
+
+	/** LOD of the mesh associated with this ray tracing geometry object (-1 if unknown) */
+	int8 LODIndex = -1;
 
 	void SetInitializer(FRayTracingGeometryInitializer InInitializer)
 	{
