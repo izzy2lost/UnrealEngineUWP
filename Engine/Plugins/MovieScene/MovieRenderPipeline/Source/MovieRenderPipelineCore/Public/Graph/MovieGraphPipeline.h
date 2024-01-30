@@ -13,6 +13,7 @@
 class UMoviePipelineExecutorJob;
 class UMoviePipelineExecutorShot;
 class UMovieGraphFileOutputNode;
+class UMovieGraphScriptBase;
 class IImageWriteQueue;
 struct FMovieGraphRenderOutputData;
 
@@ -37,8 +38,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void Initialize(UMoviePipelineExecutorJob* InJob, const FMovieGraphInitConfig& InitConfig);
 
+	/**
+	* Returns the internal job being used by the Movie Graph Pipeline, which is a duplicate of
+	* the job provided originaly by Initialize. This allows scripting to mutate the job/configuration
+	* without leaking changes into assets or the original user-defined queue entry.
+	*/
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	UMoviePipelineExecutorJob* GetCurrentJob() const { return CurrentJob; }
+	UMoviePipelineExecutorJob* GetCurrentJob() const { return CurrentJobDuplicate; }
 
 	/**
 	* Returns the time this movie pipeline was initialized at.
@@ -143,6 +149,13 @@ protected:
 	virtual void LoadPreviewWidget();
 	virtual void SetPreviewWidgetVisibleImpl(bool bInIsVisible);
 
+	virtual void DuplicateJobAndConfiguration();
+	virtual void ExecutePreJobScripts();
+	virtual void ExecutePostJobScripts();
+	virtual void ExecutePreShotScripts(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
+	virtual void ExecutePostShotScripts();
+	virtual bool IsPostShotCallbacksNeeded() const;
+
 	// Update our data source to isolate the shot we're currently working on, so that expanded shots don't interfere with each other.
 	virtual void SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
 	
@@ -201,8 +214,22 @@ protected:
 	TObjectPtr<UMovieGraphEvaluatedConfig> PostRenderEvaluatedGraph;
 
 protected:
+	/**
+	* This is the job as was provided to the ::Initialize() call, which we duplicate
+	* to allow modifications to scripting without leaking changes into assets.
+	*/
 	UPROPERTY(Transient)
 	TObjectPtr<UMoviePipelineExecutorJob> CurrentJob;
+
+	/**
+	* This is the duplicated job, parented to the Transient package. The shots inside
+	* have been duplicated as well, and their graph configurations duplicated. Graph
+	* configurations are assets and scripting may want to modify them, or it may want
+	* to modify the variables in a job, so we have to duplicate both to allow a cleanly
+	* mutable version for scripting.
+	*/
+	UPROPERTY(Transient)
+	TObjectPtr<UMoviePipelineExecutorJob> CurrentJobDuplicate;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMoviePipelineExecutorShot>> ActiveShotList;
@@ -212,6 +239,10 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMovieGraphRenderPreviewWidget> PreviewWidget;
+
+
+	UPROPERTY(Transient)
+	TArray<UMovieGraphScriptBase*> CurrentScriptInstances;
 
 	/**
 	* An array of Node CDOs that we sent data through to write data to disk.

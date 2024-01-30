@@ -118,6 +118,44 @@ public:
 	TMap<FMovieGraphRenderDataIdentifier, FMovieGraphRenderLayerOutputData> RenderLayerData;
 };
 
+USTRUCT(BlueprintType)
+struct MOVIERENDERPIPELINECORE_API FMovieGraphPipelineOutputData
+{
+	GENERATED_BODY()
+
+		FMovieGraphPipelineOutputData()
+		: Pipeline(nullptr)
+		, Job(nullptr)
+		, bSuccess(false)
+	{}
+
+	/**
+	* The UMoviePipeline instance that generated this data. This is only provided as an id (in the event you were the one who created
+	* the UMoviePipeline instance.)
+	*
+	* DO NOT CALL FUNCTIONS ON THIS (unless you know what you're doing)
+	*
+	* Provided here for backwards compatibility.
+	*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
+	TObjectPtr<UMovieGraphPipeline> Pipeline;
+
+	/** Job the data is for. Job may still be in progress (if a shot callback) so be careful about modifying properties on it */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, Category = "Movie Pipeline")
+	TObjectPtr<UMoviePipelineExecutorJob> Job;
+
+	/** Did the job succeed, or was it canceled early due to an error (such as failure to write file to disk)? */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	bool bSuccess;
+
+	/**
+	* The file data for each shot that was rendered. If no files were written this will be empty. If this is from the per-shot work
+	* finished callback it will only have one entry (for the just finished shot). Will not include shots that did not get rendered
+	* due to the pipeline encountering an error.
+	*/
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movie Pipeline")
+	TArray<FMovieGraphRenderOutputData> ShotData;
+};
 
 UCLASS(BlueprintType, Abstract)
 class MOVIERENDERPIPELINECORE_API UMovieGraphTimeStepBase : public UObject
