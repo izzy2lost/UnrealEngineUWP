@@ -35,6 +35,7 @@ class UPolyEditInsetOutsetActivity;
 class UPolyEditCutFacesActivity;
 class UPolyEditPlanarProjectionUVActivity;
 class UPolyEditBevelEdgeActivity;
+class UPolyEditExtrudeEdgeActivity;
 class UPolygonSelectionMechanic;
 class UTransformProxy;
 
@@ -131,6 +132,7 @@ enum class EEditMeshPolygonsToolActions
 	StraightenEdge,
 	FillHole,
 	BridgeEdges,
+	ExtrudeEdges,
 	BevelEdges,
 	SimplifyAlongEdges,
 
@@ -420,12 +422,16 @@ public:
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Bridge", DisplayPriority = 5))
 	void Bridge() { PostAction(EEditMeshPolygonsToolActions::BridgeEdges); }
 
-	/** Simplify the underlying triangulation along the selected edges, when doing so won't change the shape or UVs, or make low-quality triangles */
+	/** Duplicate and move boundary edge vertices outwards and connect them to the original boundary to create new faces. */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayPriority = 6))
+	void Extrude() { PostAction(EEditMeshPolygonsToolActions::ExtrudeEdges); }
+
+	/** Simplify the underlying triangulation along the selected edges, when doing so won't change the shape or UVs, or make low-quality triangles */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayPriority = 7))
 	void Simplify() { PostAction(EEditMeshPolygonsToolActions::SimplifyAlongEdges); }
 	
 	/** Delete selected edge, implicitly merging any connected faces */
-	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Delete Edges", DisplayPriority = 7))
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Delete Edges", DisplayPriority = 8))
 	void DeleteEdge() { PostAction(EEditMeshPolygonsToolActions::Delete); }
 };
 
@@ -442,6 +448,10 @@ public:
 	/** Fill the adjacent hole for any selected boundary edges */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Fill Hole", DisplayPriority = 1))
 	void FillHole() { PostAction(EEditMeshPolygonsToolActions::FillHole); }
+
+	/** Duplicate and move boundary vertices outwards and connect them to the original boundary to create new faces. */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Extrude", DisplayPriority = 1))
+	void Extrude() { PostAction(EEditMeshPolygonsToolActions::ExtrudeEdges); }
 
 	/** Collapse the selected edges, deleting the attached triangles and merging its two vertices into one */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Collapse", DisplayPriority = 1))
@@ -567,6 +577,8 @@ protected:
 	TObjectPtr<UPolyEditInsertEdgeLoopActivity> InsertEdgeLoopActivity = nullptr;
 	UPROPERTY()
 	TObjectPtr<UPolyEditBevelEdgeActivity> BevelEdgeActivity = nullptr;
+	UPROPERTY()
+	TObjectPtr<UPolyEditExtrudeEdgeActivity> ExtrudeEdgeActivity = nullptr;
 
 	TMap<UInteractiveToolActivity*, FText> ActivityLabels;
 	TMap<UInteractiveToolActivity*, FName> ActivityIconNames;
