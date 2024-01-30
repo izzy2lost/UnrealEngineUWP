@@ -53,7 +53,7 @@ const getStyles: IStyleFunction<IMarkdownStyleProps, IMarkdownStyles> = () => {
                fontFamily: "Horde Cousine Regular",
                fontSize: "12px",
                padding: "3px 6px",
-               backgroundColor: dashboard.darktheme ? modeColors.header : "#f2f2f2"
+               backgroundColor: dashboard.darktheme ? "#25282A" : "#f2f2f2"
             }
 
          }
