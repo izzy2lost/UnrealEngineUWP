@@ -42,7 +42,7 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 					SelectionGroup == ClothCollectionGroup::SimVertices3D || 
 					SelectionGroup == ClothCollectionGroup::SimFaces)
 				{
-					const FName InMapName(WeightMapName.IsEmpty() ? SelectionName : WeightMapName);
+					const FName InMapName(WeightMapName.IsEmpty() ? InSelectionName : FName(WeightMapName));
 					ClothFacade.AddWeightMap(InMapName);
 					TArrayView<float> OutClothWeights = ClothFacade.GetWeightMap(InMapName);
 					if (OutClothWeights.Num() == ClothFacade.GetNumSimVertices3D())
@@ -125,7 +125,7 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 	}
 	else if (Out->IsA<FString>(&WeightMapName))
 	{
-		SetValue(Context, WeightMapName.IsEmpty() ? SelectionName : WeightMapName, &WeightMapName);
+		SetValue(Context, WeightMapName.IsEmpty() ? GetValue<FString>(Context, &SelectionName) : WeightMapName, &WeightMapName);
 	}
 }
 
