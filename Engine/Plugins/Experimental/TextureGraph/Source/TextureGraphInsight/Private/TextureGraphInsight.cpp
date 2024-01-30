@@ -15,11 +15,6 @@ void FTextureGraphInsightModule::StartupModule()
 	FDefaultGameModuleImpl::StartupModule();
 }
 
-
-void FTextureGraphInsightModule::ShutdownModule()
-{
-	FShaderType::Uninitialize();
-}
 //////////////////////////////////////////////////////////////////////////
 
 TextureGraphInsight* TextureGraphInsight::GInstance = nullptr;

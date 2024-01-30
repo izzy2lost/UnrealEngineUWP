@@ -587,27 +587,6 @@ void FNiagaraShaderMap::SaveToDerivedDataCache(const FNiagaraShaderScript* Scrip
 	COOK_STAT(Timer.AddMiss(SaveData.Num()));
 }
 
-TArray<uint8>* FNiagaraShaderMap::BackupShadersToMemory()
-{
-	TArray<uint8>* SavedShaderData = new TArray<uint8>();
-	FMemoryWriter Ar(*SavedShaderData);
-
-	check(false);
-	//SerializeInline(Ar, true, true, false);
-	//RegisterSerializedShaders(false);
-	//Empty();
-
-	return SavedShaderData;
-}
-
-void FNiagaraShaderMap::RestoreShadersFromMemory(const TArray<uint8>& ShaderData)
-{
-	FMemoryReader Ar(ShaderData);
-	check(false);
-	//SerializeInline(Ar, true, true, false);
-	//RegisterSerializedShaders(false);
-}
-
 /**
 * Compiles the shaders for a script and caches them in this shader map.
 * @param script - The script to compile shaders for.

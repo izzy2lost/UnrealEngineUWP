@@ -69,13 +69,6 @@ ENGINE_API IRendererModule& GetRendererModule()
 	return *CachedRendererModule;
 }
 
-ENGINE_API void ResetCachedRendererModule()
-{
-	CachedRendererModule = NULL;
-}
-
-
-
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 void ReattachMaterialInstances(const TArray<FString>& Args)

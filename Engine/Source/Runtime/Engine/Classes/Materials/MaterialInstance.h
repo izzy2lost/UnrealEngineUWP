@@ -649,11 +649,6 @@ public:
 	UPROPERTY(EditAnywhere, Category=MaterialInstance)
 	struct FMaterialInstanceBasePropertyOverrides BasePropertyOverrides;
 
-#if STORE_ONLY_ACTIVE_SHADERMAPS
-	// Relative offset to the beginning of the package containing this
-	uint32 OffsetToFirstResource;
-#endif
-
 #if WITH_EDITOR
 	/** Flag to detect cycles in the material instance graph, this is only used at content creation time where the hierarchy can be changed. */
 	bool ReentrantFlag[2];

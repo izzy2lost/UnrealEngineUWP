@@ -263,7 +263,6 @@ void FComputeKernelShaderMap::LoadFromDerivedDataCache(const FComputeKernelResou
 
 				// Deserialize from the cached data
 				InOutShaderMap->Serialize(Ar);
-				//InOutShaderMap->RegisterSerializedShaders(false);
 
 				checkSlow(InOutShaderMap->GetShaderMapId() == InShaderMapId);
 

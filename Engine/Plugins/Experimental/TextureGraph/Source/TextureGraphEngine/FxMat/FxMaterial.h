@@ -101,8 +101,6 @@ public:
 	{
 		return true;
 	}
-
-	~VSH_Simple() { FShaderType::Uninitialize();  }
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -126,8 +124,6 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& params, FShaderCompilerEnvironment& env)
 	{
 	}
-
-	~FSH_Simple() { FShaderType::Uninitialize(); }
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -167,8 +163,6 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& params, FShaderCompilerEnvironment& env)
 	{
 	}
-
-	~FSH_SimpleVT() { FShaderType::Uninitialize(); }
 };
 
 //////////////////////////////////////////////////////////////////////////

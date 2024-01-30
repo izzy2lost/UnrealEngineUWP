@@ -1482,7 +1482,7 @@ private:
 	friend void RENDERCORE_API DumpShaderStats( EShaderPlatform Platform, EShaderFrequency Frequency );
 
 	/** Tracks whether serialization history for all shader types has been initialized. */
-	static RENDERCORE_API bool bInitializedSerializationHistory;
+	static bool bInitializedSerializationHistory;
 
 #if WITH_EDITOR
 protected:
@@ -1766,7 +1766,6 @@ public:
 
 	/** Initialize static members, this must be called before any shader types are created. */
 	static RENDERCORE_API void Initialize();
-	static RENDERCORE_API void Uninitialize();
 
 	static RENDERCORE_API TArray<const FShaderPipelineType*> GetShaderPipelineTypesByFilename(const TCHAR* Filename);
 
