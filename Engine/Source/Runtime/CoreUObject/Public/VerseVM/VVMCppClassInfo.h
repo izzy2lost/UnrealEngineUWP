@@ -4,6 +4,8 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#error "Verse VM is still under developement and should not be used in a production environment."
+
 #include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Templates/Function.h"
