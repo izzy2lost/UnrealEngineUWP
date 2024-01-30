@@ -13,7 +13,7 @@
 #include "MuCO/DescriptorHash.h"
 #include "UObject/Package.h"
 
-#include "CustomizableInstancePrivateData.generated.h"
+#include "CustomizableObjectInstancePrivate.generated.h"
 
 namespace mu 
 {

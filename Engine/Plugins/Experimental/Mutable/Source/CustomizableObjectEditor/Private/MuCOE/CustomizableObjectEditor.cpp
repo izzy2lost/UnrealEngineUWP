@@ -52,7 +52,7 @@
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
 #include "MuCOE/SCustomizableInstanceProperties.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "UObject/EnumProperty.h"
 #include "Widgets/Docking/SDockTab.h"

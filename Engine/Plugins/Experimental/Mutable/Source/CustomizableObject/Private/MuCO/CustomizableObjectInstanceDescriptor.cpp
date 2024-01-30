@@ -2,7 +2,8 @@
 
 #include "MuCO/CustomizableObjectInstanceDescriptor.h"
 
-#include "CustomizableObjectSystemPrivate.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "UnrealMutableImageProvider.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"

@@ -2,11 +2,11 @@
 
 #include "MuCO/LogInformationUtil.h"
 
-#include "CustomizableObjectSystemPrivate.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "TextureResource.h"
 #include "MuCO/CustomizableObject.h"
 
