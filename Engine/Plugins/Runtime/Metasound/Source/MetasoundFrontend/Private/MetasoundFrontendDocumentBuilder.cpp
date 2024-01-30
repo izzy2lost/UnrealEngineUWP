@@ -1350,6 +1350,7 @@ bool FMetaSoundFrontendDocumentBuilder::ConvertToPreset(const FMetasoundFrontend
 		InitCacheInternal();
 		return true;
 	}
+
 	return false;
 }
 
@@ -1575,6 +1576,11 @@ TArray<const FMetasoundFrontendVertex*> FMetaSoundFrontendDocumentBuilder::FindN
 	const IDocumentGraphNodeCache& NodeCache = DocumentCache->GetNodeCache();
 
 	const FMetasoundFrontendDocument& Document = GetDocument();
+
+	if (ConnectedInputNodes)
+	{
+		ConnectedInputNodes->Reset();
+	}
 
 	TArray<const FMetasoundFrontendVertex*> Inputs;
 	const TArrayView<const int32> Indices = EdgeCache.FindEdgeIndicesFromNodeOutput(InOutputNodeID, InOutputVertexID);
@@ -2232,6 +2238,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdge(const FMetasoundFrontendEdge&
 		const int32 LastIndex = Edges.Num() - 1;
 		DocumentDelegates->EdgeDelegates.OnRemoveSwappingEdge.Broadcast(Index, LastIndex);
 		Edges.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+		return true;
 	}
 
 	return false;
