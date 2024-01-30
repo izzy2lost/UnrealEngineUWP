@@ -3412,7 +3412,8 @@ int64 UTexture::GetBuildRequiredMemory() const
 
 #endif // #if WITH_EDITOR
 
-static FName GetLatestOodleTextureSdkVersion()
+extern FName GetLatestOodleTextureSdkVersion();
+FName GetLatestOodleTextureSdkVersion()
 {
 
 #if WITH_EDITOR
