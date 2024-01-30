@@ -4,10 +4,8 @@
 
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
-#include "Replication/Editor/View/SelectionViewerColumns.h"
 
 #include "Algo/AllOf.h"
-#include "Property/SFilteredPropertyTreeView.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -15,8 +13,9 @@
 
 namespace UE::ConcertSharedSlate
 {
-	void SReplicatedPropertyView::Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel)
+	void SReplicatedPropertyView::Construct(const FArguments& InArgs, TSharedRef<IPropertyTreeView> InPropertyTreeView, TSharedRef<IReplicationStreamModel> InPropertiesModel)
 	{
+		ReplicatedProperties = MoveTemp(InPropertyTreeView);
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		
 		GetSelectedRootObjectsDelegate = InArgs._GetSelectedRootObjects;
@@ -83,21 +82,6 @@ namespace UE::ConcertSharedSlate
 
 	TSharedRef<SWidget> SReplicatedPropertyView::CreatePropertiesView(const FArguments& InArgs)
 	{
-		TArray Columns
-		{
-			ReplicationColumns::Property::LabelColumn(),
-			ReplicationColumns::Property::TypeColumn()
-		};
-		Columns.Append(InArgs._AdditionalPropertyColumns);
-
-		// Set both primary and secondary in case one is overriden but always use the override.
-		const FColumnSortInfo PrimarySort = InArgs._PrimarySort.IsValid()
-			? InArgs._PrimarySort
-			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
-		const FColumnSortInfo SecondarySort = InArgs._SecondarySort.IsValid()
-			? InArgs._SecondarySort
-			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
-		
 		return SAssignNew(PropertyContent, SWidgetSwitcher)
 			// Make sure the slots are coherent with the order of EReplicatedPropertyContent!
 			.WidgetIndex(static_cast<int32>(EReplicatedPropertyContent::NoSelection))
@@ -105,14 +89,7 @@ namespace UE::ConcertSharedSlate
 			// EReplicatedPropertyContent::Properties
 			+SWidgetSwitcher::Slot()
 			[
-				SAssignNew(ReplicatedProperties, SFilteredPropertyTreeView)
-				.Columns(Columns)
-				.ExpandableColumnLabel(ReplicationColumns::Property::LabelColumnId)
-				.PrimarySort(PrimarySort)
-				.SecondarySort(SecondarySort)
-				.SelectionMode(ESelectionMode::Multi)
-				.LeftOfSearchBar() [ InArgs._LeftOfPropertySearchBar.Widget ]
-				.RightOfSearchBar() [ InArgs._RightOfPropertySearchBar.Widget ]
+				ReplicatedProperties->GetWidget()
 			]
 			
 			// EReplicatedPropertyContent::NoSelection

@@ -36,7 +36,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	 * @param Priority Determines position of this columns relative to the others
 	 */
 	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ReplicatesColumns(
-		TWeakPtr<ConcertSharedSlate::IReplicationStreamViewer> Viewer,
+		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
 		TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Model,
 		ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate = {},
 		TAttribute<FText> DisabledToolTipText = {},

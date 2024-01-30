@@ -7,9 +7,9 @@
 
 #include "UObject/UnrealType.h"
 
-namespace UE::ConcertSharedSlate
+namespace UE::ConcertClientSharedSlate
 {
-	bool FPropertyFilter_ByPropertyType::MatchesFilteredForProperty(const FReplicatedPropertyData& InItem) const
+	bool FPropertyFilter_ByPropertyType::MatchesFilteredForProperty(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const
 	{
 		UClass* Class = InItem.GetOwningClass().TryLoadClass<UObject>();
 		if (!Class)

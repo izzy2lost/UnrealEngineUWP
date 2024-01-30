@@ -6,11 +6,10 @@
 #include "Misc/IFilter.h"
 
 class FFieldClass;
+namespace UE::ConcertSharedSlate { class FReplicatedPropertyData; }
 
-namespace UE::ConcertSharedSlate
+namespace UE::ConcertClientSharedSlate
 {
-	class FReplicatedPropertyData;
-
 	/**
 	 * Base class for property filters.
 	 * 
@@ -19,12 +18,12 @@ namespace UE::ConcertSharedSlate
 	 *
 	 * Subclasses simply implement Matches, which figures out whether the property is contained in some FReplicatedPropertyData.
 	 */
-	class FPropertyFilterBase : public IFilter<const FReplicatedPropertyData&>
+	class FPropertyFilterBase : public IFilter<const ConcertSharedSlate::FReplicatedPropertyData&>
 	{
 	public:
 		
 		//~ Begin IFilter Interface
-		virtual bool PassesFilter(const FReplicatedPropertyData& InItem) const final override
+		virtual bool PassesFilter(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const final override
 		{
 			return MatchesFilteredForProperty(InItem);
 		}
@@ -37,7 +36,7 @@ namespace UE::ConcertSharedSlate
 		FChangedEvent ChangedEventDelegate;
 
 		/** @return Whether this item contains the property this filter is looking for.*/
-		virtual bool MatchesFilteredForProperty(const FReplicatedPropertyData& InItem) const = 0;
+		virtual bool MatchesFilteredForProperty(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const = 0;
 	};
 }
 

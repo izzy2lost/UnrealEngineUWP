@@ -9,19 +9,18 @@
 
 namespace UE::ConcertSharedSlate
 {
-	void SMultiReplicationStreamEditor::Construct(const FArguments& InArgs, FCreateMultiStreamEditorParams Params)
+	void SMultiReplicationStreamEditor::Construct(const FArguments& InArgs, FCreateMultiStreamEditorParams EditorParams, FCreateViewerParams ViewerParams)
 	{
-		MultiStreamModel = MoveTemp(Params.MultiStreamModel);
-		ConsolidatedModel = MakeShared<FConsolidatedMultiStreamModel>(MoveTemp(Params.ConsolidatedObjectModel), MoveTemp(Params.MultiStreamModel), InArgs._GetAutoAssignStream);
+		MultiStreamModel = MoveTemp(EditorParams.MultiStreamModel);
+		ConsolidatedModel = MakeShared<FConsolidatedMultiStreamModel>(MoveTemp(EditorParams.ConsolidatedObjectModel), MoveTemp(EditorParams.MultiStreamModel), EditorParams.GetAutoAssignToStreamDelegate);
 		
-		const FCreateEditorParams BaseEditorParams
+		FCreateEditorParams BaseEditorParams
 		{
 			.DataModel = ConsolidatedModel.ToSharedRef(),
-			.ObjectSource = MoveTemp(Params.ObjectSource),
-			.PropertySource = MoveTemp(Params.PropertySource),
-			.ViewerParams = MoveTemp(Params.ViewerParams)
+			.ObjectSource = MoveTemp(EditorParams.ObjectSource),
+			.PropertySource = MoveTemp(EditorParams.PropertySource),
 		};
-		EditorView = CreateBaseStreamEditor(BaseEditorParams);
+		EditorView = CreateBaseStreamEditor(MoveTemp(BaseEditorParams), MoveTemp(ViewerParams));
 
 		ChildSlot
 		[

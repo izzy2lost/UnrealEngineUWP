@@ -43,12 +43,10 @@ namespace UE::ConcertSharedSlate
 		ChildSlot
 		[
 			SAssignNew(ReplicationViewer, SReplicationStreamViewer, PropertiesModelAdapter.ToSharedRef())
+				.PropertyTreeView(InArgs._PropertyTreeView)
 				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
 				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
 				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
-				.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
-				.PrimaryPropertySort(InArgs._PrimaryPropertySort)
-				.SecondaryPropertySort(InArgs._SecondaryPropertySort)
 				.ObjectHierarchy(InArgs._ObjectHierarchy)
 				.NameModel(InArgs._NameModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
@@ -66,10 +64,6 @@ namespace UE::ConcertSharedSlate
 					[
 						InArgs._LeftOfObjectSearchBar.Widget
 					]
-				]
-				.LeftOfPropertySearchBar()
-				[
-					InArgs._LeftOfPropertySearchBar.Widget
 				]
 				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];

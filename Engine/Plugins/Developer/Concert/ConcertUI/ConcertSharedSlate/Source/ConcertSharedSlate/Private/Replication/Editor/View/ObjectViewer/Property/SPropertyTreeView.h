@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Data/ConcertPropertySelection.h"
+#include "Replication/Editor/View/IPropertyTreeView.h"
 #include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 
 #include "Filters/SBasicFilterBar.h"
@@ -17,7 +18,9 @@ namespace UE::ConcertSharedSlate
 	 * This widget knows how to display a list of properties in a tree view.
 	 * It generates the items and exposes extension points for more advanced UI, such as filtering.
 	 */
-	class SPropertyTreeView : public SCompoundWidget
+	class SPropertyTreeView
+		: public SCompoundWidget
+		, public IPropertyTreeView
 	{
 	public:
 		
@@ -57,21 +60,12 @@ namespace UE::ConcertSharedSlate
 
 		void Construct(const FArguments& InArgs);
 
-		/**
-		 * Rebuilds all property data from the property source.
-		 *
-		 * @param PropertiesToDisplay The properties to display
-		 * @param Class The class from which the PropertiesToDisplay come
-		 * @param bCanReuseExistingRowItems True, will try to reuse rows for properties in the tree already (retains selected rows).
-		 *	Set this to false, if all rows should be regenerated (clears selection).
-		 *	In general, always set this to false if you've changed the object for which you're displaying the class.
-		 */
-		void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems);
-		
-		/** Called when the items need to be refiltered due to the item source changing. */
-		void RequestRefilter() const { TreeView->RequestRefilter(); }
-		/** Requests that the given column be resorted, if it currently affects the row sorting. */
-		void RequestResortForColumn(const FName& ColumnId) { TreeView->RequestResortForColumn(ColumnId); }
+		//~ Begin IPropertyTreeView Interface
+		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems) override;
+		virtual void RequestRefilter() const override { TreeView->RequestRefilter(); }
+		virtual void RequestResortForColumn(const FName& ColumnId) override { TreeView->RequestResortForColumn(ColumnId); }
+		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
+		//~ Begin IPropertyTreeView Interface
 
 	private:
 

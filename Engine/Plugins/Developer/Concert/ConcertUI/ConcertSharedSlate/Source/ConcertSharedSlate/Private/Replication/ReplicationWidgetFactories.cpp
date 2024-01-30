@@ -5,6 +5,7 @@
 #include "Editor/Model/GenericReplicationStreamModel.h"
 #include "Editor/View/MultiEditor/SMultiReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
+#include "Editor/View/ObjectViewer/Property/SPropertyTreeView.h"
 
 namespace UE::ConcertSharedSlate
 {
@@ -16,30 +17,57 @@ namespace UE::ConcertSharedSlate
 		return MakeShared<FGenericReplicationStreamModel>(MoveTemp(ReplicationMapAttribute), MoveTemp(Extender));
 	}
 	
-	TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams Params)
+	TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams EditorParams, FCreateViewerParams ViewerParams)
 	{
-		return SNew(SBaseReplicationStreamEditor, Params.DataModel, Params.ObjectSource, Params.PropertySource)
-			.AdditionalObjectColumns(Params.ViewerParams.AdditionalObjectColumns)
-			.PrimaryObjectSort(Params.ViewerParams.PrimaryObjectSort)
-			.SecondaryObjectSort(Params.ViewerParams.SecondaryObjectSort)
-			.AdditionalPropertyColumns(Params.ViewerParams.AdditionalPropertyColumns)
-			.PrimaryPropertySort(Params.ViewerParams.PrimaryPropertySort)
-			.SecondaryPropertySort(Params.ViewerParams.SecondaryPropertySort)
-			.ObjectHierarchy(Params.ViewerParams.ObjectHierarchy)
-			.NameModel(Params.ViewerParams.NameModel)
-			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
-			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
-			.RightOfObjectSearchBar() [ Params.ViewerParams.RightOfObjectSearchBar.Widget ]
-			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]
-			.RightOfPropertySearchBar() [ Params.ViewerParams.RightOfPropertySearchBar.Widget ]
-			.IsEditingEnabled(Params.IsEditingEnabled)
-			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText);
+		return SNew(SBaseReplicationStreamEditor, MoveTemp(EditorParams.DataModel), MoveTemp(EditorParams.ObjectSource), MoveTemp(EditorParams.PropertySource))
+			.PropertyTreeView(MoveTemp(ViewerParams.PropertyTreeView))
+			.AdditionalObjectColumns(MoveTemp(ViewerParams.AdditionalObjectColumns))
+			.PrimaryObjectSort(ViewerParams.PrimaryObjectSort)
+			.SecondaryObjectSort(ViewerParams.SecondaryObjectSort)
+			.ObjectHierarchy(MoveTemp(ViewerParams.ObjectHierarchy))
+			.NameModel(MoveTemp(ViewerParams.NameModel))
+			.OnExtendObjectsContextMenu(MoveTemp(ViewerParams.OnExtendObjectsContextMenu))
+			.LeftOfObjectSearchBar() [ MoveTemp(ViewerParams.LeftOfObjectSearchBar.Widget) ]
+			.RightOfObjectSearchBar() [ MoveTemp(ViewerParams.RightOfObjectSearchBar.Widget) ]
+			.IsEditingEnabled(MoveTemp(EditorParams.IsEditingEnabled))
+			.EditingDisabledToolTipText(MoveTemp(EditorParams.EditingDisabledToolTipText));
+	}
+	
+	TSharedRef<IPropertyTreeView> CreateSearchablePropertyTreeView(FCreatePropertyTreeViewParams Params)
+	{
+		// The label columns is always required
+		const bool bHasLabel = Params.PropertyColumns.ContainsByPredicate([](const ReplicationColumns::FReplicationPropertyColumn& Column)
+		{
+			return Column.ColumnId == ReplicationColumns::Property::LabelColumnId;
+		});
+		if (!bHasLabel)
+		{
+			Params.PropertyColumns.Add(ReplicationColumns::Property::LabelColumn());
+		}
+
+		SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter FilterDelegate = Params.FilterItem.IsBound()
+			? SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter::CreateLambda([Filter = MoveTemp(Params.FilterItem)](const TSharedPtr<FReplicatedPropertyData>& Item)
+			{
+				return Filter.Execute(*Item.Get()) == EFilterResult::PassesFilter;
+			})
+			: SReplicationTreeView<FReplicatedPropertyData>::FCustomFilter{};
+		
+		return SNew(SPropertyTreeView)
+			.FilterItem(MoveTemp(FilterDelegate))
+			.Columns(MoveTemp(Params.PropertyColumns))
+			.ExpandableColumnLabel(ReplicationColumns::Property::LabelColumnId)
+			.PrimarySort(Params.PrimaryPropertySort)
+			.SecondarySort(Params.SecondaryPropertySort)
+			.SelectionMode(ESelectionMode::Multi)
+			.LeftOfSearchBar() [ MoveTemp(Params.LeftOfPropertySearchBar.Widget) ]
+			.RightOfSearchBar() [ MoveTemp(Params.RightOfPropertySearchBar.Widget) ]
+			.RowBelowSearchBar() [ MoveTemp(Params.RowBelowSearchBar.Widget) ]
+			.NoItemsContent() [ MoveTemp(Params.NoItemsContent.Widget) ];
 	}
 
-	TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams Params)
+	TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams EditorParams, FCreateViewerParams ViewerParams)
 	{
-		return SNew(SMultiReplicationStreamEditor, MoveTemp(Params))
-			.GetAutoAssignStream(MoveTemp(Params.GetAutoAssignToStreamDelegate));
+		return SNew(SMultiReplicationStreamEditor, MoveTemp(EditorParams), MoveTemp(ViewerParams));
 	}
 }
 

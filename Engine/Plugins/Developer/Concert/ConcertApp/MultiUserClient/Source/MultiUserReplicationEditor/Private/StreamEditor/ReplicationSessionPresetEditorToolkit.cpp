@@ -83,7 +83,15 @@ namespace UE::MultiUserReplicationEditor
 		
 		const TSharedRef<FActorSelectionSourceModel> ObjectSourceModel = MakeShared<FActorSelectionSourceModel>();
 		const TSharedRef<FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<FSelectPropertyFromUClassModel>();
-		const TSharedRef<IReplicationStreamEditor> EditorView = CreateDefaultStreamEditor(FCreateEditorParams{ AssetReadWriteModel, ObjectSourceModel, PropertySourceModel });
+		FDefaultStreamEditorParams DefaultParams{
+			.BaseEditorParams =
+			{
+				.DataModel = AssetReadWriteModel,
+				.ObjectSource = ObjectSourceModel,
+				.PropertySource = PropertySourceModel
+			}
+		};
+		const TSharedRef<IReplicationStreamEditor> EditorView = CreateDefaultStreamEditor(MoveTemp(DefaultParams));
 		return SNew(SDockTab)
 			.Label(LOCTEXT("BaseDetailsTitle", "Details"))
 			[

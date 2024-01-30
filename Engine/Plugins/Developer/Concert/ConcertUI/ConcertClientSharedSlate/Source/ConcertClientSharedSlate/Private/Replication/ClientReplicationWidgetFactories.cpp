@@ -2,12 +2,15 @@
 
 #include "Replication/ClientReplicationWidgetFactories.h"
 
+#include "Editor/View/ClientEditorColumns.h"
+#include "Editor/View/PropertyTree/SFilteredPropertyTreeView.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/Object/EditorObjectHierarchyModel.h"
 #include "Replication/Editor/Model/Object/EditorObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicationStreamObject.h"
-#include "Replication/Editor/Model/TransactionalReplicationStreamModel.h"
 #include "Replication/Editor/View/ObjectEditor/SDefaultReplicationStreamEditor.h"
+#include "Replication/Editor/View/SelectionViewerColumns.h"
+#include "Replication/Editor/Model/TransactionalReplicationStreamModel.h"
 
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
@@ -52,8 +55,58 @@ namespace UE::ConcertClientSharedSlate
 		return CreateTransactionalStreamModel(ConcertSharedSlate::CreateBaseStreamModel(MoveTemp(Attribute)), *Object);
 	}
 	
-	TSharedRef<ConcertSharedSlate::IReplicationStreamEditor> CreateDefaultStreamEditor(ConcertSharedSlate::FCreateEditorParams Params)
+	TSharedRef<ConcertSharedSlate::IPropertyTreeView> CreateFilterablePropertyTreeView(FFilterablePropertyTreeViewParams Params)
 	{
-		return SNew(SDefaultReplicationStreamEditor, MoveTemp(Params));
+		return SNew(SFilteredPropertyTreeView, MoveTemp(Params));
+	}
+	
+	TSharedRef<ConcertSharedSlate::IReplicationStreamEditor> CreateDefaultStreamEditor(FDefaultStreamEditorParams Params)
+	{
+		using namespace ConcertSharedSlate;
+		using namespace ConcertSharedSlate::ReplicationColumns;
+
+		// This is a hack.
+		// The architecturally correct way to fix is pass FReplicationPropertyColumn the FSoftObjectPath to the object for which the column is being constructed.
+		struct FEditorIndirection
+		{
+			TSharedPtr<IReplicationStreamEditor> Editor;
+		};
+		TSharedRef<FEditorIndirection> Indirection = MakeShared<FEditorIndirection>();
+		
+		const FReplicationPropertyColumn ReplicatesColumn = ReplicationColumns::Property::ReplicatesColumns(
+			TAttribute<IReplicationStreamViewer*>::CreateLambda([Indirection](){ return Indirection->Editor.Get(); }),
+			Params.BaseEditorParams.DataModel,
+			TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled::CreateLambda([IsEnabled = Params.BaseEditorParams.IsEditingEnabled](const FReplicatedPropertyData&)
+			{
+				return !IsEnabled.IsBound() || IsEnabled.Get();
+			}),
+			Params.BaseEditorParams.EditingDisabledToolTipText
+			);
+		
+		TArray<FReplicationPropertyColumn>& PropertyColumns = Params.AdditionalPropertyColumns;
+		const bool bHasType = PropertyColumns.ContainsByPredicate([](const FReplicationPropertyColumn& Column)
+		{
+			return Column.ColumnId == Property::TypeColumnId;
+		});
+		if (!bHasType)
+		{
+			PropertyColumns.Add(Property::TypeColumn());
+		}
+		PropertyColumns.Add(ReplicatesColumn);
+
+		FCreateViewerParams ViewerParams
+		{
+			.PropertyTreeView = CreateFilterablePropertyTreeView({ .PropertyColumns = PropertyColumns }),
+			.ObjectHierarchy = MoveTemp(Params.ObjectHierarchy),
+			.NameModel = MoveTemp(Params.NameModel),
+			.OnExtendObjectsContextMenu = MoveTemp(Params.OnExtendObjectsContextMenu),
+			.AdditionalObjectColumns = MoveTemp(Params.AdditionalObjectColumns),
+			.PrimaryObjectSort = FColumnSortInfo{ TopLevel::LabelColumnId, EColumnSortMode::Ascending },
+			.SecondaryObjectSort = FColumnSortInfo{ TopLevel::LabelColumnId, EColumnSortMode::Ascending },
+		};
+		
+		TSharedRef<SDefaultReplicationStreamEditor> Editor = SNew(SDefaultReplicationStreamEditor, MoveTemp(Params.BaseEditorParams), MoveTemp(ViewerParams));
+		Indirection->Editor = Editor;
+		return Editor;
 	}
 }

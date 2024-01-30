@@ -83,7 +83,17 @@ namespace UE::MultiUserClient
 			return StreamModel->GetEditableStreams().Contains(LocalStream) ? LocalStream.ToSharedPtr() : nullptr;
 		});
 		
-		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
+		ConcertClientSharedSlate::FFilterablePropertyTreeViewParams TreeViewParams
+		{
+			.PropertyColumns =
+			{
+				ReplicationColumns::Property::LabelColumn(),
+				ReplicationColumns::Property::TypeColumn(),
+				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager)
+			},
+			.PrimaryPropertySort = { MultiStreamColumns::AssignPropertyColumnId, EColumnSortMode::Ascending }
+		};
+		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateFilterablePropertyTreeView(MoveTemp(TreeViewParams));
 		
 		FCreateMultiStreamEditorParams Params
 		{
@@ -91,22 +101,24 @@ namespace UE::MultiUserClient
 			.ConsolidatedObjectModel = ConcertClientSharedSlate::CreateTransactionalStreamModel(),
 			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
 			.PropertySource = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>(),
-			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate),
-			.ViewerParams 
+			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate)
+		};
+		
+		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
+		FCreateViewerParams ViewerParams
+		{
+			.PropertyTreeView = MoveTemp(PropertyTreeView),
+			.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
+			.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
+			.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
+			.AdditionalObjectColumns =
 			{
-				.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
-				.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
-				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
-				.AdditionalObjectColumns =
-				{
-					MultiStreamColumns::ReplicationToggle(InConcertClient, ObjecHierarchyAttribute, InClientManager),
-					MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjecHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
-				},
-				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager) },
-				.PrimaryPropertySort = { MultiStreamColumns::AssignPropertyColumnId, EColumnSortMode::Ascending}
+				MultiStreamColumns::ReplicationToggle(InConcertClient, ObjecHierarchyAttribute, InClientManager),
+				MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjecHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
 			}
 		};
-		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params));
+		
+		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
 		check(StreamEditor);
 		return StreamEditor.ToSharedRef();
 	}

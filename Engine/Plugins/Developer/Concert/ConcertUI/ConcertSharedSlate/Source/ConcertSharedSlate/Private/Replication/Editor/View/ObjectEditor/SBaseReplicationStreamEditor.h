@@ -16,14 +16,14 @@ struct FConcertStreamObjectAutoBindingRules;
 
 namespace UE::ConcertSharedSlate
 {
-	class IEditableReplicationStreamModel;
 	class FFakeObjectToPropertiesEditorModel;
 	class FReplicatedObjectData;
 	class FReplicatedPropertyData;
+	class IEditableReplicationStreamModel;
 	class IObjectNameModel;
 	class IObjectSelectionSourceModel;
+	class IPropertyTreeView;
 	class IPropertySelectionSourceModel;
-	class IReplicationStreamModel;
 	class IReplicationSubobjectView;
 	class IObjectHierarchyModel;
 	class SReplicationStreamViewer;
@@ -52,19 +52,15 @@ namespace UE::ConcertSharedSlate
 		
 		SLATE_BEGIN_ARGS(SBaseReplicationStreamEditor)
 		{}
+			/** Displays the properties in a tree view */
+			SLATE_ARGUMENT(TSharedPtr<IPropertyTreeView>, PropertyTreeView)
+		
 			/** Additional columns to add to the object view */
 			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationTopLevelObjectColumn>, AdditionalObjectColumns)
 			/** Initial primary sort to set. */
 			SLATE_ARGUMENT(FColumnSortInfo, PrimaryObjectSort)
 			/** Initial secondary sort to set. */
 			SLATE_ARGUMENT(FColumnSortInfo, SecondaryObjectSort)
-		
-			/** Additional columns to add to the property view */
-			SLATE_ARGUMENT(TArray<ReplicationColumns::FReplicationPropertyColumn>, AdditionalPropertyColumns)
-			/** Initial primary sort to set. */
-			SLATE_ARGUMENT(FColumnSortInfo, PrimaryPropertySort)
-			/** Initial secondary sort to set. */
-			SLATE_ARGUMENT(FColumnSortInfo, SecondaryPropertySort)
 		
 			/** Optional. If set, this determines the children nested under the root objects. */
 			SLATE_ARGUMENT(TSharedPtr<IObjectHierarchyModel>, ObjectHierarchy)
@@ -78,11 +74,6 @@ namespace UE::ConcertSharedSlate
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
 			/** Optional widget to add to the right of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, RightOfObjectSearchBar)
-		
-			/** Optional widget to add to the left of the property list search bar. */
-			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
-			/** Optional widget to add to the right of the property list search bar. */
-			SLATE_NAMED_SLOT(FArguments, RightOfPropertySearchBar)
 
 			/** Optional. Determines whether all UI for changing the model should be disabled. */
 			SLATE_ATTRIBUTE(bool, IsEditingEnabled)

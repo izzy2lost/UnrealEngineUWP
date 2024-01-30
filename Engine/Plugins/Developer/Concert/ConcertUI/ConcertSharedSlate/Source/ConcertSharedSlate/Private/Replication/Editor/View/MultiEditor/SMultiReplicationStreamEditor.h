@@ -35,11 +35,9 @@ namespace UE::ConcertSharedSlate
 
 		SLATE_BEGIN_ARGS(SMultiReplicationStreamEditor)
 		{}
-			/** Optional. If set, the Add Actor button should automatically assign the added object to stream returned */
-			SLATE_EVENT(FGetAutoAssignTarget, GetAutoAssignStream)
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, FCreateMultiStreamEditorParams Params);
+		void Construct(const FArguments& InArgs, FCreateMultiStreamEditorParams EditorParams, FCreateViewerParams ViewerParams);
 
 		virtual IReplicationStreamEditor& GetEditorBase() const override { return *EditorView; }
 		virtual IEditableMultiReplicationStreamModel& GetMultiStreamModel() const override { return *MultiStreamModel; }
