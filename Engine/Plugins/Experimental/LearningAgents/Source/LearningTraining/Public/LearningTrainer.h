@@ -73,7 +73,7 @@ namespace UE::Learning
 		/**
 		* Default Timeout to use during communication.
 		*/
-		static constexpr float DefaultTimeout = 30.0f;
+		static constexpr float DefaultTimeout = 10.0f;
 
 		/**
 		* Default Log Settings to use during communication.

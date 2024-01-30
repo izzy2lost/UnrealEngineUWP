@@ -250,6 +250,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View,
 			OutNetwork,
 			SharedMemoryTraining::EControls::PolicySignal,
@@ -266,6 +267,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View,
 			OutNetwork,
 			SharedMemoryTraining::EControls::EncoderSignal,
@@ -282,6 +284,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View,
 			OutNetwork,
 			SharedMemoryTraining::EControls::DecoderSignal,
@@ -298,6 +301,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View,
 			Policy.View,
 			SharedMemoryTraining::EControls::PolicySignal,
@@ -314,6 +318,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View,
 			Encoder.View,
 			SharedMemoryTraining::EControls::EncoderSignal,
@@ -330,6 +335,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View,
 			Decoder.View,
 			SharedMemoryTraining::EControls::DecoderSignal,
@@ -348,6 +354,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendExperience(
+			TrainingProcess.Get(),
 			EpisodeStarts.View,
 			EpisodeLengths.View,
 			Observations.View,

@@ -411,6 +411,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
 			SharedMemoryTraining::EControls::PolicySignal,
@@ -427,6 +428,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
 			SharedMemoryTraining::EControls::CriticSignal,
@@ -443,6 +445,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
 			SharedMemoryTraining::EControls::EncoderSignal,
@@ -459,6 +462,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::RecvNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			OutNetwork,
 			SharedMemoryTraining::EControls::DecoderSignal,
@@ -475,6 +479,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Policy.View,
 			SharedMemoryTraining::EControls::PolicySignal,
@@ -491,6 +496,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Critic.View,
 			SharedMemoryTraining::EControls::CriticSignal,
@@ -507,6 +513,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Encoder.View,
 			SharedMemoryTraining::EControls::EncoderSignal,
@@ -523,6 +530,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendNetwork(
+			TrainingProcess.Get(),
 			Controls.View[ProcessIdx],
 			Decoder.View,
 			SharedMemoryTraining::EControls::DecoderSignal,
@@ -538,6 +546,7 @@ namespace UE::Learning
 		const ELogSetting LogSettings)
 	{
 		return SharedMemoryTraining::SendExperience(
+			TrainingProcess.Get(),
 			EpisodeStarts.View[ProcessIdx],
 			EpisodeLengths.View[ProcessIdx],
 			EpisodeCompletionModes.View[ProcessIdx],

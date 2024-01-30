@@ -29,7 +29,7 @@ public:
 
 	/** Time in seconds to wait for the training process before timing out. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float TrainerCommunicationTimeout = 20.0f;
+	float TrainerCommunicationTimeout = 10.0f;
 };
 
 /** The configurable settings for the training process. */

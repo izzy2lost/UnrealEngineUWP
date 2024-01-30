@@ -88,17 +88,27 @@ namespace UE::Learning::SocketTraining
 		}
 
 		uint8 Signal = (uint8)ESignal::Invalid;
-		ETrainerResponse Response = RecvWithTimeout(Socket, &Signal, 1, Timeout);
-		if (Response != ETrainerResponse::Success) { return Response; }
+		ETrainerResponse Response = ETrainerResponse::Unexpected;
 
-		if (Signal == (uint8)ESignal::RecvComplete)
+		while (true)
 		{
-			return ETrainerResponse::Completed;
-		}
+			Response = RecvWithTimeout(Socket, &Signal, 1, Timeout);
+			if (Response != ETrainerResponse::Success) { return Response; }
 
-		if (Signal != (uint8)NetworkSignal)
-		{
-			return ETrainerResponse::Unexpected;
+			if (Signal == (uint8)ESignal::RecvComplete)
+			{
+				return ETrainerResponse::Completed;
+			}
+
+			if (Signal == (uint8)ESignal::RecvPing)
+			{
+				continue;
+			}
+
+			if (Signal != (uint8)NetworkSignal)
+			{
+				return ETrainerResponse::Unexpected;
+			}
 		}
 
 		Response = RecvWithTimeout(Socket, OutNetworkBuffer.GetData(), OutNetworkBuffer.Num(), Timeout);
