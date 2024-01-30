@@ -35,7 +35,7 @@ TArray<UCustomizableObjectNodeMaterial*> FCustomizableObjectNodeParentedMaterial
 	ECustomizableObjectAutomaticLODStrategy LODStrategy = ECustomizableObjectAutomaticLODStrategy::Inherited;
 
 	// Iterate backwards, from the Root CO to the parent CO, to propagate the LODStrategy. 
-	for (int32 Index = ParentObjectNodes.Num() - 1; Index > 0; --Index) // Skip first Object node (Index == 0) since we do not support directly material siblings.
+	for (int32 Index = ParentObjectNodes.Num() - 1; Index > -1; --Index)
 	{
 		const UCustomizableObjectNodeObject* ParentObjectNode = ParentObjectNodes[Index];
 		
