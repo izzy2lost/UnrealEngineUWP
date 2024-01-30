@@ -32,19 +32,19 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 		{
 			UpdateBufferDescriptorValues();
 
-			const BufferDescriptor OutputDesc = Output.EditTexture().GetBufferDescriptor();
-			const BufferDescriptor InputDesc = Source.GetTexture()->GetDescriptor();
+			BufferDescriptor OutputDesc = Output.EditTexture().GetBufferDescriptor();
+			const BufferDescriptor& InputDesc = Source.GetTexture()->GetDescriptor();
 
 			/// If the descriptors are not the same
 			if (OutputDesc != InputDesc)
 			{
-				RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterialOfType_FX<Fx_FullScreenCopy>(TEXT("Tex::FullScreenCopy"));
+				RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterialOfType_FX<Fx_FullScreenCopy>(TEXT("OutputCopy"));
 
 				check(RenderMaterial);
 
 				JobUPtr RenderJob = std::make_unique<Job>(InContext->Cycle->GetMix(), InContext->TargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));
 
-				auto Format = (int32)OutputDesc.Format;
+				int32 Format = (int32)OutputDesc.Format;
 
 				RenderJob
 					->AddArg(ARG_BLOB(Source.GetTexture().RasterBlob, "SourceTexture"))
@@ -52,6 +52,8 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 					->AddArg(WithUnbounded(ARG_INT(Format, "Format")));
 
 				const FString Name = TEXT("Output");
+				OutputDesc.Name = Name;
+
 				Output.EditTexture() = RenderJob->InitResult(Name, &OutputDesc);
 				InContext->Cycle->AddJob(InContext->TargetId, std::move(RenderJob));
 			}
