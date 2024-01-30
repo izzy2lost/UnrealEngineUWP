@@ -13,11 +13,11 @@ namespace MidiClockUpdateSubsystem
 {
 	// TODO: Cleanup task - UE-205069 - Settle on one of these methods while testing Fortnite
 	// and then delete this int32 and the CVar as they will no longer need to be switchable.
-	EUpdateMethod UpdateMethod = EUpdateMethod::EngineSubsystemCoreDelegatesOnBeginFrame;
+	EUpdateMethod UpdateMethod = EUpdateMethod::EngineSubsystemCoreDelegatesOnSamplingInput;
 	FAutoConsoleVariable CVarMusicClockUpdateMethod(
 		TEXT("au.Harmonix.MusicClockUpdateMethod"),
 		(int32)UpdateMethod,
-		TEXT("Where should FMidiClock::UpdateLowResCursors & UMusicClockComponent::EnsureClockIsValidForGameFrame be called? 0 = OLD METHOD - Tickable Object's tick & TickComponent, 1 = NEW METHOD - CoreDelegates::OnBeginFrame, 2 = NEW METHOD - All in TickableObject Tick."),
+		TEXT("Where should FMidiClock::UpdateLowResCursors & UMusicClockComponent::EnsureClockIsValidForGameFrame be called? 0 = OLD METHOD - Tickable Object's tick & TickComponent, 1 = NEW METHOD - CoreDelegates::OnBeginFrame, 2 = NEW METHOD - All in TickableObject Tick, 3 = NEW METHOD - CoreDelegates::OnSamplingInput."),
 		FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* V)
 			{ 
 				int32 NewValue = V->GetInt();
@@ -74,10 +74,12 @@ TStatId UMidiClockUpdateSubsystem::GetStatId() const
 void UMidiClockUpdateSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	EngineBeginFrameDelegate = FCoreDelegates::OnBeginFrame.AddUObject(this, &UMidiClockUpdateSubsystem::CoreDelegatesBeginFrame);
+	EngineSamplingInputDelegate = FCoreDelegates::OnSamplingInput.AddUObject(this, &UMidiClockUpdateSubsystem::CoreDelegatesSamplingInput);
 }
 
 void UMidiClockUpdateSubsystem::Deinitialize()
 {
+	FCoreDelegates::OnSamplingInput.Remove(EngineSamplingInputDelegate);
 	FCoreDelegates::OnBeginFrame.Remove(EngineBeginFrameDelegate);
 }
 
@@ -94,13 +96,13 @@ void UMidiClockUpdateSubsystem::TrackMidiClock(HarmonixMetasound::FMidiClock* Cl
 
 void UMidiClockUpdateSubsystem::StopTrackingMidiClock(HarmonixMetasound::FMidiClock* Clock)
 {
-	check(GEngine);
-
-	UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>();
-
-	check(UpdateSubsystem);
-
-	UpdateSubsystem->StopTrackingMidiClockImpl(Clock);
+	if (GEngine)
+	{
+		if (UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>())
+		{
+			UpdateSubsystem->StopTrackingMidiClockImpl(Clock);
+		}
+	}
 }
 
 void UMidiClockUpdateSubsystem::TrackMidiClockImpl(HarmonixMetasound::FMidiClock* Clock)
@@ -144,13 +146,13 @@ void UMidiClockUpdateSubsystem::TrackMusicClockComponent(UMusicClockComponent* C
 
 void UMidiClockUpdateSubsystem::StopTrackingMusicClockComponent(UMusicClockComponent* Clock)
 {
-	check(GEngine);
-	
-	UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>();
-
-	check(UpdateSubsystem);
-
-	UpdateSubsystem->StopTrackingMusicClockComponentImpl(Clock);
+	if (GEngine)
+	{
+		if (UMidiClockUpdateSubsystem* UpdateSubsystem = GEngine->GetEngineSubsystem<UMidiClockUpdateSubsystem>())
+		{
+			UpdateSubsystem->StopTrackingMusicClockComponentImpl(Clock);
+		}
+	}
 }
 
 void UMidiClockUpdateSubsystem::TrackMusicClockComponentImpl(UMusicClockComponent* Clock)
@@ -166,11 +168,23 @@ void UMidiClockUpdateSubsystem::StopTrackingMusicClockComponentImpl(UMusicClockC
 void UMidiClockUpdateSubsystem::CoreDelegatesBeginFrame()
 {
 	using namespace MidiClockUpdateSubsystem;
-
-	using namespace MidiClockUpdateSubsystem;
 	switch (UpdateMethod)
 	{
 	case EUpdateMethod::EngineSubsystemCoreDelegatesOnBeginFrame:
+		UpdateFMidiClocks();
+		UpdateUMusicClockComponents();
+		return;
+	default:
+		return;
+	}
+}
+
+void UMidiClockUpdateSubsystem::CoreDelegatesSamplingInput()
+{
+	using namespace MidiClockUpdateSubsystem;
+	switch (UpdateMethod)
+	{
+	case EUpdateMethod::EngineSubsystemCoreDelegatesOnSamplingInput:
 		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		return;
@@ -212,6 +226,10 @@ void UMidiClockUpdateSubsystem::TickForTesting()
 		UpdateUMusicClockComponents();
 		break;
 	case MidiClockUpdateSubsystem::EUpdateMethod::EngineTickableObject:
+		UpdateFMidiClocks();
+		UpdateUMusicClockComponents();
+		break;
+	case MidiClockUpdateSubsystem::EUpdateMethod::EngineSubsystemCoreDelegatesOnSamplingInput:
 		UpdateFMidiClocks();
 		UpdateUMusicClockComponents();
 		break;

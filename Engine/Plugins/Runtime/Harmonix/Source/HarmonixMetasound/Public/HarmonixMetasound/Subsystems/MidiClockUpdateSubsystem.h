@@ -22,7 +22,8 @@ namespace MidiClockUpdateSubsystem
 		EngineTickableObjectAndTickComponent = 0,
 		EngineSubsystemCoreDelegatesOnBeginFrame = 1,
 		EngineTickableObject = 2,
-		NumMethods = 3
+		EngineSubsystemCoreDelegatesOnSamplingInput = 3,
+		NumMethods = 4
 	};
 	extern EUpdateMethod UpdateMethod;
 }
@@ -76,6 +77,9 @@ private:
 
 	FDelegateHandle EngineBeginFrameDelegate;
 	void CoreDelegatesBeginFrame();
+
+	FDelegateHandle EngineSamplingInputDelegate;
+	void CoreDelegatesSamplingInput();
 
 public:
 	// Declare a "tick" method that can be used during automated testing so that
