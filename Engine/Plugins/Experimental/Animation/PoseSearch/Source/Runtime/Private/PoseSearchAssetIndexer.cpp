@@ -231,7 +231,7 @@ void FAssetIndexer::Process(int32 AssetIdx)
 	bProcessFailed = false;
 
 	// Generate pose metadata
-	const float PlayLength = AssetSamplers.GetPlayLength();
+	const float PlayLength = GetPlayLength();
 	for (int32 SampleIdx = GetBeginSampleIdx(); SampleIdx != GetEndSampleIdx(); ++SampleIdx)
 	{
 		const float SampleTime = FMath::Min(CalculateSampleTime(SampleIdx), PlayLength);
@@ -293,7 +293,7 @@ void FAssetIndexer::ComputeStats()
 
 		for (int32 SampleIdx = GetBeginSampleIdx(); SampleIdx != GetEndSampleIdx(); ++SampleIdx)
 		{
-			const float SampleTime = FMath::Min(CalculateSampleTime(SampleIdx), AssetSamplers.GetPlayLength());
+			const float SampleTime = FMath::Min(CalculateSampleTime(SampleIdx), GetPlayLength());
 
 			bool AnyClamped = false;
 			const FTransform TrajTransformsPast = GetTransform(SampleTime - FiniteDelta, RoleIndex, AnyClamped, RootBoneReference);
@@ -329,7 +329,7 @@ void FAssetIndexer::ComputeStats()
 
 void FAssetIndexer::GetSampleInfo(float SampleTime, int32 RoleIndex, FTransform& OutRootTransform, float& OutClipTime, bool& bOutClamped) const
 {
-	const float PlayLength = AssetSamplers.GetPlayLength();
+	const float PlayLength = GetPlayLength();
 	const bool bCanWrap = AssetSamplers.IsLoopable();
 
 	float MainRelativeTime = SampleTime;
@@ -413,7 +413,7 @@ FAssetIndexer::FCachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 		Entry->SampleTime = SampleTime;
 
 		const bool bLoopable = AssetSamplers.IsLoopable();
-		const float PlayLength = AssetSamplers.GetPlayLength();
+		const float PlayLength = GetPlayLength();
 		const int32 AssetSamplersNum = AssetSamplers.Num();
 
 		Entry->RootTransform.SetNum(AssetSamplersNum);
@@ -560,7 +560,7 @@ bool FAssetIndexer::GetSampleRotation(FQuat& OutSampleRotation, float SampleTime
 
 	if (SamplingAttributeId >= 0)
 	{
-		if (AssetSamplers.ProcessAllAnimNotifyEvents([&OutSampleRotation, &SampleRole, &OriginRole, SamplingAttributeId, this, OriginTime](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
+		if (ProcessAllAnimNotifyEvents([&OutSampleRotation, &SampleRole, &OriginRole, SamplingAttributeId, this, OriginTime](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
 			{
 				for (const FAnimNotifyEvent& AnimNotifyEvent : AnimNotifyEvents)
 				{
@@ -631,7 +631,7 @@ bool FAssetIndexer::GetSamplePositionInternal(FVector& OutSamplePosition, float 
 
 	if (SamplingAttributeId >= 0)
 	{
-		if (AssetSamplers.ProcessAllAnimNotifyEvents([&OutSamplePosition, OriginTime, &bClamped, SchemaOriginBoneIdx, &SampleRole, OriginRole, SamplingAttributeId, this](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
+		if (ProcessAllAnimNotifyEvents([&OutSamplePosition, OriginTime, &bClamped, SchemaOriginBoneIdx, &SampleRole, OriginRole, SamplingAttributeId, this](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
 			{
 				for (const FAnimNotifyEvent& AnimNotifyEvent : AnimNotifyEvents)
 				{
@@ -715,7 +715,7 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 	
 	if (SamplingAttributeId >= 0)
 	{
-		if (AssetSamplers.ProcessAllAnimNotifyEvents([&OutSampleVelocity, SchemaSampleBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, &SampleRole, &OriginRole, SamplingAttributeId, this, OriginTime](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
+		if (ProcessAllAnimNotifyEvents([&OutSampleVelocity, SchemaSampleBoneIdx, SchemaOriginBoneIdx, bUseCharacterSpaceVelocities, &SampleRole, &OriginRole, SamplingAttributeId, this, OriginTime](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
 			{
 				for (const FAnimNotifyEvent& AnimNotifyEvent : AnimNotifyEvents)
 				{
@@ -796,6 +796,21 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 
 	OutSampleVelocity = FVector::ZeroVector;
 	return false;
+}
+
+bool FAssetIndexer::ProcessAllAnimNotifyEvents(TFunction<bool(TConstArrayView<FAnimNotifyEvent>)> ProcessAnimNotifyEvents) const
+{
+	return AssetSamplers.ProcessAllAnimNotifyEvents(ProcessAnimNotifyEvents);
+}
+
+const FString FAssetIndexer::GetAssetName() const
+{
+	return AssetSamplers.GetAssetName();
+}
+
+float FAssetIndexer::GetPlayLength() const
+{
+	return AssetSamplers.GetPlayLength();
 }
 
 int32 FAssetIndexer::GetBeginSampleIdx() const
