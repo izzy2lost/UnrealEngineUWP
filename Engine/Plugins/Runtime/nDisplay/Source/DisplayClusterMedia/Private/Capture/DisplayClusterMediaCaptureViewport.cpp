@@ -58,8 +58,11 @@ void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClu
 	// In the future, after the media redesign, the DCRA name will also need to be checked here.
 	if (InViewport && InViewport->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
 	{
+		// Reset inactive state explicitly
+		InOutMediaState &= ~(EDisplayClusterViewportMediaState::Inactive);
+
 		// Raise flags that this viewport will be captured by media.
-		InOutMediaState = EDisplayClusterViewportMediaState::Capture;
+		InOutMediaState |= EDisplayClusterViewportMediaState::Capture;
 
 		if (bForceLateOCIOPass)
 		{
