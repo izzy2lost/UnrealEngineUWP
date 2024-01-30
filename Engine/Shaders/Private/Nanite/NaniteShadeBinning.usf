@@ -251,7 +251,7 @@ void BinShadingQuad(uint2 Coord, uint ThreadIndex)
 	const uint BlockFirstThread = WaveLaneIndex & 28u;
 
 #if VARIABLE_SHADING_RATE
-	uint PixelShadingRate = ShadingRateImage[QuadTLCoord.xy >> ShadingRateTileSizeBits] & 0xFu;
+	uint PixelShadingRate = clamp(ShadingRateImage[QuadTLCoord.xy >> ShadingRateTileSizeBits] & 0xFu, D3D12_SHADING_RATE_1X1, D3D12_SHADING_RATE_2X2);
 
 	// Vote across 2x2 quad blocks (4x4 pixels) to pick a shared mode that is at least as high resolution in both x and y.
 	const uint2 FullResXBallot = WaveBallot(PixelShadingRate == D3D12_SHADING_RATE_1X1 || PixelShadingRate == D3D12_SHADING_RATE_1X2);
