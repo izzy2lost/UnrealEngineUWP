@@ -2061,7 +2061,7 @@ static int32 CompareDifferentIdsAlphabetically(FNameEntryId AId, FNameEntryId BI
 
 int32 FNameEntryId::CompareLexical(FNameEntryId Rhs) const
 {
-	return Value != Rhs.Value && CompareDifferentIdsAlphabetically(*this, Rhs);
+	return Value != Rhs.Value ? CompareDifferentIdsAlphabetically(*this, Rhs) : 0;
 }
 
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
