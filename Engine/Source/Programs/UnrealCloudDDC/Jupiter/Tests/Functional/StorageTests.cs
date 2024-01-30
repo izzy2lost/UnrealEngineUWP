@@ -43,12 +43,12 @@ namespace Jupiter.FunctionalTests.Storage
 	public class S3StorageTests : StorageTests
 	{
 		private IAmazonS3? _s3;
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
-				new KeyValuePair<string, string>("S3:BucketName", $"tests-{TestNamespaceName}")
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-{TestNamespaceName}")
 			};
 		}
 
@@ -95,9 +95,9 @@ namespace Jupiter.FunctionalTests.Storage
 		private AzureSettings? _settings;
 		private string? _connectionString;
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] {new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Azure.ToString())};
+			return new[] {new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Azure.ToString())};
 		}
 
 		protected override async Task Seed(IServiceProvider provider)
@@ -156,11 +156,11 @@ namespace Jupiter.FunctionalTests.Storage
 		{
 			_localTestDir = Path.Combine(Path.GetTempPath(), "IoFileSystemTests", Path.GetRandomFileName());
 		}
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[] { 
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
-				new KeyValuePair<string, string>("Filesystem:RootDir", _localTestDir)
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
+				new KeyValuePair<string, string?>("Filesystem:RootDir", _localTestDir)
 			};
 		}
 
@@ -361,7 +361,7 @@ namespace Jupiter.FunctionalTests.Storage
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = server.CreateClient();
@@ -374,7 +374,7 @@ namespace Jupiter.FunctionalTests.Storage
 			}
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task Seed(IServiceProvider serverServices);
 		protected abstract Task Teardown(IServiceProvider serverServices);
@@ -468,7 +468,7 @@ namespace Jupiter.FunctionalTests.Storage
 				HttpResponseMessage resultNew = await _httpClient!.SendAsync(message);
 				Assert.AreEqual(HttpStatusCode.NotFound, resultNew.StatusCode);
 				string content = await resultNew.Content.ReadAsStringAsync();
-				ValidationProblemDetails result = JsonSerializer.Deserialize<ValidationProblemDetails>(content)!;
+				ValidationProblemDetails result = JsonSerializer.Deserialize<ValidationProblemDetails>(content, JsonTestUtils.DefaultJsonSerializerSettings)!;
 				Assert.AreEqual($"Blob {newContent} not found", result.Title);
 			}
 		}

@@ -56,8 +56,8 @@ namespace Jupiter.FunctionalTests.Storage
 				// we are not reading the base appSettings here as we want exact control over what runs in the tests
 				.AddJsonFile("appsettings.Testing.json", true)
 				.AddInMemoryCollection(new[] { 
-					new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()), 
-					new KeyValuePair<string, string>("UnrealCloudDDC:EnableOnDemandReplication", true.ToString()),
+					new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()), 
+					new KeyValuePair<string, string?>("UnrealCloudDDC:EnableOnDemandReplication", true.ToString()),
 				})
 				.AddEnvironmentVariables()
 				.Build();
@@ -69,7 +69,7 @@ namespace Jupiter.FunctionalTests.Storage
 			using TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.ConfigureTestServices(collection =>
 				{
 					collection.Configure<ClusterSettings>(settings =>
@@ -182,7 +182,7 @@ namespace Jupiter.FunctionalTests.Storage
 			IConfigurationRoot configuration = new ConfigurationBuilder()
 				// we are not reading the base appSettings here as we want exact control over what runs in the tests
 				.AddJsonFile("appsettings.Testing.json", true)
-				.AddInMemoryCollection(new[] { new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()) })
+				.AddInMemoryCollection(new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()) })
 				.AddEnvironmentVariables()
 				.Build();
 
@@ -193,7 +193,7 @@ namespace Jupiter.FunctionalTests.Storage
 			using TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.ConfigureTestServices(collection =>
 				{
 					collection.Configure<ClusterSettings>(settings =>

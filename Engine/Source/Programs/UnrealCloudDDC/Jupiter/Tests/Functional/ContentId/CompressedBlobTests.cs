@@ -33,15 +33,15 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettingsAsync()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettingsAsync()
 		{
 			// Use the S3 storage backend so we can handle large blobs
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
-				new KeyValuePair<string, string>("CacheContentId:Enabled", "false"),
-				new KeyValuePair<string, string>("S3:BucketName", $"tests-{TestNamespace}")
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
+				new KeyValuePair<string, string?>("CacheContentId:Enabled", "false"),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-{TestNamespace}")
 			};
 		}
 
@@ -63,15 +63,15 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettingsAsync()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettingsAsync()
 		{
 			// Use the S3 storage backend so we can handle large blobs
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Mongo.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
-				new KeyValuePair<string, string>("CacheContentId:Enabled", "false"),
-				new KeyValuePair<string, string>("S3:BucketName", $"tests-{TestNamespace}")
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Mongo.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
+				new KeyValuePair<string, string?>("CacheContentId:Enabled", "false"),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-{TestNamespace}")
 			};
 		}
 
@@ -115,7 +115,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			Client = server.CreateClient();
@@ -125,7 +125,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 			await SeedAsync(Server.Services);
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettingsAsync();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettingsAsync();
 		protected abstract Task SeedAsync(IServiceProvider serverServices);
 		protected abstract Task TeardownAsync();
 
@@ -255,7 +255,7 @@ namespace Jupiter.FunctionalTests.CompressedBlobs
 						blocksToCompress.Add(block);
 					}
 					Hash blake3Hash = hasher.Finalize();
-					byte[] hash = blake3Hash.AsSpanUnsafe().Slice(0, 20).ToArray();
+					byte[] hash = blake3Hash.AsSpan().Slice(0, 20).ToArray();
 					uncompressedContentHash = new IoHash(hash);
 
 					await using FileStream fs = tempCompressedFile.OpenWrite();

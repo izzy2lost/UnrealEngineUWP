@@ -56,7 +56,7 @@ namespace Jupiter.FunctionalTests.Replication
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			server.CreateClient();
@@ -67,12 +67,12 @@ namespace Jupiter.FunctionalTests.Replication
 			await Task.CompletedTask;
 		}
 
-		private static IEnumerable<KeyValuePair<string, string>> GetSettings()
+		private static IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
 			};
 		}
 		private static async Task TeardownDbAsync(IServiceProvider provider)

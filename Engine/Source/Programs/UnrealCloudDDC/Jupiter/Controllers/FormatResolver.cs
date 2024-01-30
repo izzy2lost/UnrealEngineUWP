@@ -57,8 +57,13 @@ namespace Jupiter.Controllers
 				return defaultContentType;
 			}
 
-			foreach (string header in acceptHeader)
+			foreach (string? header in acceptHeader)
 			{
+				if (header == null)
+			{
+					continue;
+				}
+
 				if (_validContentTypes.Contains(header, StringComparer.OrdinalIgnoreCase))
 				{
 					return header;

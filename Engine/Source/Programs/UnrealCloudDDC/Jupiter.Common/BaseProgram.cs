@@ -98,7 +98,6 @@ namespace Jupiter
 				{
 					webBuilder.UseStartup<T>();
 					webBuilder.UseConfiguration(Configuration);
-					webBuilder.UseSerilog();
 					// configure microsoft.extensions.logging to configure log4net to allow us to set it in our appsettings
 					// Disabled forwarding of log4net logs into serilog, as the AWS sdk is very spammy with its output producing multiple errors for a 404 (which isn't even an error in the first place)
 					// This can be enabled if you need to investigate some more complicated AWS sdk issue
@@ -139,7 +138,7 @@ namespace Jupiter
 							});
 						}
 					});
-				});
+				}).UseSerilog();
 		}
 	}
 

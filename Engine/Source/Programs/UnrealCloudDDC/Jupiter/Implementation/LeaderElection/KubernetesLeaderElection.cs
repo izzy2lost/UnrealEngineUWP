@@ -6,11 +6,11 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using k8s;
+using k8s.Autorest;
 using k8s.LeaderElection;
 using k8s.LeaderElection.ResourceLock;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
-using Microsoft.Rest;
 
 namespace Jupiter.Implementation.LeaderElection
 {
@@ -112,7 +112,7 @@ namespace Jupiter.Implementation.LeaderElection
 				_logger.LogError(e, "Failed to fetch config map lock");
 			}
 
-			await _leaderElector.RunAsync(cancellationToken);
+			await _leaderElector.RunUntilLeadershipLostAsync(cancellationToken);
 
 			return true;
 		}

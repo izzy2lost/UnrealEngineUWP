@@ -84,7 +84,7 @@ namespace Jupiter
 			ThreadState? ts = (ThreadState?)state;
 			if (ts == null)
 			{
-				throw new ArgumentNullException("", "Null thread state passed to polling service");
+				throw new ArgumentNullException(nameof(state), "Null thread state passed to polling service");
 			}
 			ThreadState threadState = ts.Value;
 
@@ -165,7 +165,7 @@ namespace Jupiter
 
 			await OnStopping(_state);
 
-			_stopPolling.Cancel();
+			await _stopPolling.CancelAsync();
 			_hasFinishedRunning.WaitOne();
 		}
 

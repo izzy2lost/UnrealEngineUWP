@@ -56,14 +56,14 @@ namespace Jupiter.FunctionalTests.GC
 
 		protected override NamespaceId TestNamespace { get; } = new NamespaceId("test-namespace-gcref-sharded");
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			List<KeyValuePair<string, string>> baseSettings = base.GetSettings().ToList();
-			return baseSettings.Concat(new List<KeyValuePair<string, string>>()
+			List<KeyValuePair<string, string?>> baseSettings = base.GetSettings().ToList();
+			return baseSettings.Concat(new List<KeyValuePair<string, string?>>()
 			{
-				new KeyValuePair<string, string>("Scylla:UsePerShardScanning", "true"),
-				new KeyValuePair<string, string>("Scylla:CountOfCoresPerNode", "2"),
-				new KeyValuePair<string, string>("Scylla:CountOfNodes", "1"),
+				new KeyValuePair<string, string?>("Scylla:UsePerShardScanning", "true"),
+				new KeyValuePair<string, string?>("Scylla:CountOfCoresPerNode", "2"),
+				new KeyValuePair<string, string?>("Scylla:CountOfNodes", "1"),
 			});
 		}
 	}
@@ -116,7 +116,7 @@ namespace Jupiter.FunctionalTests.GC
 			_server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = _server.CreateClient();
@@ -165,15 +165,15 @@ namespace Jupiter.FunctionalTests.GC
 			await referenceStore.UpdateLastAccessTimeAsync(TestNamespace, DefaultBucket, object6Name, oldTimestamp);
 		}
 
-		protected virtual IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected virtual IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new List<KeyValuePair<string, string>>()
+			return new List<KeyValuePair<string, string?>>()
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", GetImplementation()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
-				new KeyValuePair<string, string>($"Namespaces:Policies:{TestNamespace}:GCMethod", NamespacePolicy.StoragePoolGCMethod.LastAccess.ToString()),
-				new KeyValuePair<string, string>("GC:DefaultGCPolicy", NamespacePolicy.StoragePoolGCMethod.None.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", GetImplementation()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
+				new KeyValuePair<string, string?>($"Namespaces:Policies:{TestNamespace}:GCMethod", NamespacePolicy.StoragePoolGCMethod.LastAccess.ToString()),
+				new KeyValuePair<string, string?>("GC:DefaultGCPolicy", NamespacePolicy.StoragePoolGCMethod.None.ToString()),
 			};
 		}
 

@@ -43,7 +43,7 @@ namespace Jupiter.FunctionalTests.References
 			IWebHostBuilder webHostBuilder = new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 				.UseKestrel(options =>
 				{

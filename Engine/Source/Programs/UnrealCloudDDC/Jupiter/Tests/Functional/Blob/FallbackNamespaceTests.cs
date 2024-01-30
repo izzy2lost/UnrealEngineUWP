@@ -48,7 +48,7 @@ namespace Jupiter.FunctionalTests.Storage
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_server = server;

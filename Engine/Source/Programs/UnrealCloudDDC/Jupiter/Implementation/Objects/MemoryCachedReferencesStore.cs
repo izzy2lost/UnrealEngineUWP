@@ -59,10 +59,10 @@ namespace Jupiter.Implementation.Objects
 
 			MemoryCache cache = GetCacheForNamespace(ns);
 
-			if (cache.TryGetValue(new CachedReferenceKey(bucket, key), out CachedReferenceEntry cachedResult))
+			if (cache.TryGetValue(new CachedReferenceKey(bucket, key), out CachedReferenceEntry? cachedResult))
 			{
 				scope.SetAttribute("Found", true);
-				scope.SetAttribute("BlobIdentifier", cachedResult.BlobIdentifier.ToString());
+				scope.SetAttribute("BlobIdentifier", cachedResult!.BlobIdentifier.ToString());
 				RefRecord record = cachedResult.ToRefRecord(fieldFlags);
 				if (record.IsFinalized)
 				{
@@ -101,9 +101,9 @@ namespace Jupiter.Implementation.Objects
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
 
-			if (cache.TryGetValue(new CachedReferenceKey(bucket, key), out CachedReferenceEntry result))
+			if (cache.TryGetValue(new CachedReferenceKey(bucket, key), out CachedReferenceEntry? result))
 			{
-				result.IsFinalized = true;
+				result!.IsFinalized = true;
 			}
 		}
 

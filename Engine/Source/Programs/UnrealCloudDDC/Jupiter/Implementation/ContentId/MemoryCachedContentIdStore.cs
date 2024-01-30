@@ -34,9 +34,9 @@ namespace Jupiter.Implementation
 		public async Task<BlobId[]?> ResolveAsync(NamespaceId ns, ContentId contentId, bool mustBeContentId)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);
-			if (cache.TryGetValue(contentId, out CachedContentIdEntry cachedResult))
+			if (cache.TryGetValue(contentId, out CachedContentIdEntry? cachedResult))
 			{
-				return cachedResult.ReferencedBlobs;
+				return cachedResult?.ReferencedBlobs;
 			}
 
 			BlobId[]? referencedBlobs = await _actualContentIdStore.ResolveAsync(ns, contentId, mustBeContentId);

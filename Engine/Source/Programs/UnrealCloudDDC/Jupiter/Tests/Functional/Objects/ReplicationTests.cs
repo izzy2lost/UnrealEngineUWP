@@ -35,12 +35,12 @@ namespace Jupiter.FunctionalTests.References
 	[DoNotParallelize]
 	public class ScyllaReplicationTests : ReplicationTests
 	{
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
 			};
 		}
 
@@ -80,12 +80,12 @@ namespace Jupiter.FunctionalTests.References
 	[TestClass]
 	public class MemoryReplicationTests : ReplicationTests
 	{
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory.ToString()),
 			};
 		}
 
@@ -142,7 +142,7 @@ namespace Jupiter.FunctionalTests.References
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = server.CreateClient();
@@ -168,7 +168,7 @@ namespace Jupiter.FunctionalTests.References
 			}
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task SeedDb(IServiceProvider provider);
 		protected abstract Task TeardownDb(IServiceProvider provider);

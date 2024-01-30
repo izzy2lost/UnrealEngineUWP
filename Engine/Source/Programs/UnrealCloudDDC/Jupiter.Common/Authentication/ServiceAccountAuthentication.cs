@@ -34,8 +34,8 @@ namespace Jupiter
 		public const string Prefix = "ServiceAccount";
 
 		public ServiceAccountAuthHandler(IOptionsMonitor<ServiceAccountAuthOptions> options,
-			ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock)
-			: base(options, logger, encoder, clock)
+			ILoggerFactory logger, UrlEncoder encoder)
+			: base(options, logger, encoder)
 		{
 			_options = options;
 		}
@@ -52,14 +52,20 @@ namespace Jupiter
 				return AuthenticateResult.NoResult();
 			}
 
-			if (!headerValue[0].StartsWith(Prefix, StringComparison.Ordinal))
+			string? header = headerValue[0];
+			if (string.IsNullOrEmpty(header))
+			{
+				return AuthenticateResult.NoResult();
+			}
+
+			if (!header.StartsWith(Prefix, StringComparison.Ordinal))
 			{
 				return AuthenticateResult.NoResult();
 			}
 			
 			await Task.CompletedTask;
 			
-			string token = headerValue[0].Replace(Prefix, "", StringComparison.Ordinal).Trim();
+			string token = header.Replace(Prefix, "", StringComparison.Ordinal).Trim();
 			ServiceAccountAuthOptions.ServiceAccounts? serviceAccount = _options.CurrentValue.Accounts.FirstOrDefault(account => account.Token == token);
 			if (serviceAccount == null)
 			{

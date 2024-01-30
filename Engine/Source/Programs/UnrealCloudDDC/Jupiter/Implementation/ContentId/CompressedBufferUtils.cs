@@ -347,7 +347,7 @@ namespace Jupiter.Implementation
 			}
 
 			Hash blake3Hash = hasher.Finalize();
-			byte[] hashData = blake3Hash.AsSpanUnsafe().Slice(0, 20).ToArray();
+			byte[] hashData = blake3Hash.AsSpan().Slice(0, 20).ToArray();
 			IoHash hash = new IoHash(hashData);
 
 			CompressedBufferHeader header = new CompressedBufferHeader

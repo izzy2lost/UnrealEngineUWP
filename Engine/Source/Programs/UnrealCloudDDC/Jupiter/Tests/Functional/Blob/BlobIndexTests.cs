@@ -53,7 +53,7 @@ namespace Jupiter.FunctionalTests.Storage
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = server.CreateClient();
@@ -63,7 +63,7 @@ namespace Jupiter.FunctionalTests.Storage
 			await Seed(_server.Services);
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task Seed(IServiceProvider serverServices);
 		protected abstract Task Teardown(IServiceProvider serverServices);
@@ -204,9 +204,9 @@ namespace Jupiter.FunctionalTests.Storage
 		public MemoryBlobIndexTests() : base("memory")
 		{
 		}
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()) };
+			return new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString()) };
 		}
 
 		protected override Task Seed(IServiceProvider serverServices)
@@ -227,9 +227,9 @@ namespace Jupiter.FunctionalTests.Storage
 		public ScyllaBlobIndexTests() : base("scylla")
 		{
 		}
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()) };
+			return new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()) };
 		}
 
 		protected override Task Seed(IServiceProvider serverServices)
@@ -251,14 +251,14 @@ namespace Jupiter.FunctionalTests.Storage
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("Scylla:ConnectionString", "Contact Points=localhost,scylla;Default Keyspace=jupiter_cassandra"),
-				new KeyValuePair<string, string>("Scylla:UseAzureCosmosDB", "true"),
-				new KeyValuePair<string, string>("Scylla:UseSSL", "false"),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("Scylla:ConnectionString", "Contact Points=localhost,scylla;Default Keyspace=jupiter_cassandra"),
+				new KeyValuePair<string, string?>("Scylla:UseAzureCosmosDB", "true"),
+				new KeyValuePair<string, string?>("Scylla:UseSSL", "false"),
 			};
 		}
 
@@ -283,9 +283,9 @@ namespace Jupiter.FunctionalTests.Storage
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Mongo.ToString()) };
+			return new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Mongo.ToString()) };
 		}
 
 		protected override async Task Seed(IServiceProvider provider)

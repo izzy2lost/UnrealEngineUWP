@@ -93,7 +93,7 @@ namespace Jupiter.Implementation
 
 		protected override async Task OnStopping(SnapshotState state)
 		{
-			_cancellationTokenSource.Cancel();
+			await _cancellationTokenSource.CancelAsync();
 
 			if (_snapshotBuildTask != null)
 			{
