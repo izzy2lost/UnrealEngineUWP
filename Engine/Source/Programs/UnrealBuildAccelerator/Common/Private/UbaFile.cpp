@@ -430,6 +430,13 @@ namespace uba
 			SetLastError(ERROR_FILE_NOT_FOUND);
 			return InvalidFileHandle;
 		}
+
+		if (errno == EACCES)
+		{
+			SetLastError(ERROR_ACCESS_DENIED);
+			return InvalidFileHandle;
+		}
+
 		UBA_ASSERTF(false, TC("CreateFileW failed for %s - Error handling for %u (%s) not implemented"), fileName, errno, strerror(errno));
 		return InvalidFileHandle;
 	#endif

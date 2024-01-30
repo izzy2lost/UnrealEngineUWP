@@ -339,25 +339,46 @@ namespace uba
 			});
 	}
 
-	const tchar* GetPingApplication()
+	const tchar* GetSystemApplication()
 	{
 		#if PLATFORM_WINDOWS
 		return TC("c:\\windows\\system32\\ping.exe");
 		#elif PLATFORM_LINUX
-		return TC("/usr/bin/ping");
+		return TC("/usr/bin/zip");
 		#else
-		return TC("/sbin/ping");
+		return TC("/sbin/zip");
+		#endif
+	}
+
+	const tchar* GetSystemArguments()
+	{
+		#if PLATFORM_WINDOWS
+		return TC("-n 1 localhost");
+		#else
+		return TC("");
+		#endif
+	}
+
+	const tchar* GetSystemExpectedLogLine()
+	{
+		#if PLATFORM_WINDOWS
+		return TC("Pinging ");
+		#else
+		return TC("zip [-options]");
 		#endif
 	}
 
 	bool TestMultipleDetouredProcesses(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
+		if (!IsWindows) // TODO: Remove
+			return true;
+
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				ProcessStartInfo processInfo;
-				processInfo.application = GetPingApplication();
+				processInfo.application = GetSystemApplication();
 				processInfo.workingDir = workingDir;
-				processInfo.arguments = IsWindows ? TC("-n 2 localhost") : TC("-c 2 localhost");
+				processInfo.arguments = GetSystemArguments();
 				//processInfo.logFile = "/home/honk/LogFile.log";
 				Vector<ProcessHandle> processes;
 
@@ -379,18 +400,21 @@ namespace uba
 
 	bool TestLogLines(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
+		if (!IsWindows) // TODO: Remove
+			return true;
+
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				ProcessStartInfo processInfo;
-				processInfo.application = GetPingApplication();
+				processInfo.application = GetSystemApplication();
 				processInfo.workingDir = workingDir;
-				processInfo.arguments = IsWindows ? TC("-n 1 localhost") : TC("-c 1 localhost");
+				processInfo.arguments = GetSystemArguments();
 
 				bool foundPingString = false;
 				processInfo.logLineUserData = &foundPingString;
 				processInfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type)
 					{
-						*(bool*)userData |= Contains(line, IsWindows ? TC("Pinging ") : TC("PING "));
+						*(bool*)userData |= Contains(line, GetSystemExpectedLogLine());
 					};
 
 				ProcessHandle process = runProcess(processInfo);

@@ -1670,7 +1670,7 @@ void CloseCom();
 UBA_EXPORT void UBA_WRAPPER(exit)(int status)
 {
 	//UBA_INIT_DETOUR(exit, status);
-	DEBUG_LOG_TRUE("exit", "");
+	DEBUG_LOG_TRUE("exit", "(%i)", status);
 	Deinit();
 	CloseCom();
 	TRUE_WRAPPER(exit)(status);
