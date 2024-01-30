@@ -125,7 +125,7 @@ void UMovieGraphSchema::InitMoviePipelineNodeClasses()
 	for (TObjectIterator<UClass> It; It; ++It)
 	{
 		if (It->IsChildOf(UMovieGraphNode::StaticClass())
-			&& !It->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+			&& !It->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists | CLASS_Hidden | CLASS_HideDropDown))
 		{
 			MoviePipelineNodeClasses.Add(*It);
 		}
