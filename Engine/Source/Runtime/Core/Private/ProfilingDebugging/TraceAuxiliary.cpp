@@ -112,6 +112,7 @@ public:
 	bool Stop();
 	void ResumeChannels();
 	void PauseChannels();
+	bool IsPaused();
 	void EnableCommandlineChannels();
 	void EnableCommandlineChannelsPostInitialize();
 	void SetTruncateFile(bool bTruncateFile);
@@ -369,6 +370,7 @@ bool FTraceAuxiliaryImpl::Stop()
 
 	FString StopedDest;
 	FTraceAuxiliary::EConnectionType StopedType = FTraceAuxiliary::EConnectionType::None;
+	PausedPreset.Empty();
 
 	{
 		FWriteScopeLock _(CurrentTargetLock);
@@ -420,6 +422,8 @@ void FTraceAuxiliaryImpl::ResumeChannels()
 {
 	// Enable channels from the "paused" preset.
 	ForEachChannel(*PausedPreset, false, &FTraceAuxiliaryImpl::EnableChannel);
+
+	PausedPreset.Empty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,6 +438,12 @@ void FTraceAuxiliaryImpl::PauseChannels()
 
 	// Disable all "paused" channels.
 	ForEachChannel(*PausedPreset, true, &FTraceAuxiliaryImpl::DisableChannel);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool FTraceAuxiliaryImpl::IsPaused()
+{
+	return !PausedPreset.IsEmpty();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1331,6 +1341,16 @@ bool FTraceAuxiliary::Pause()
 	GTraceAuxiliary.PauseChannels();
 #endif
 	return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+bool FTraceAuxiliary::IsPaused()
+{
+#if UE_TRACE_ENABLED
+	return GTraceAuxiliary.IsPaused();
+#else
+	return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
