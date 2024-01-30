@@ -125,10 +125,10 @@ private:
 	/** The currently selected Behaviour (UI model) */
 	TWeakPtr<FRCBehaviourModel>  SelectedBehaviourModelWeakPtr;
 
-	/** Controller name - editable text box */
+	/** Controller id - editable text box */
 	TSharedPtr<SEditableTextBox> ControllerNameTextBox;
 
-	/** Controller name - editable text box */
+	/** Controller description - editable text box */
 	TSharedPtr<SInlineEditableTextBlock> ControllerDescriptionTextBox;
 
 	/** Controller Field Id - editable text box */

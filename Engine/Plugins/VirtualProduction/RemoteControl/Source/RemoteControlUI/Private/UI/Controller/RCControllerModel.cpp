@@ -28,6 +28,8 @@ FRCControllerModel::FRCControllerModel(URCVirtualPropertyBase* InVirtualProperty
 		}
 
 		SAssignNew(ControllerNameTextBox, SEditableTextBox)
+			.RevertTextOnEscape(true)
+			.SelectAllTextWhenFocused(true)
 			.Text(FText::FromName(InVirtualProperty->DisplayName))
 			.OnTextCommitted_Raw(this, &FRCControllerModel::OnControllerNameCommitted);
 
@@ -103,7 +105,9 @@ TSharedRef<SWidget> FRCControllerModel::GetWidget() const
 
 TSharedRef<SWidget> FRCControllerModel::GetNameWidget() const
 {
-	return SNew(SBox).Padding(10.f, 2.f)
+	return SNew(SBox)
+		.VAlign(VAlign_Center)
+		.Padding(10.f, 2.f)
 		[
 			ControllerNameTextBox.ToSharedRef()
 		];
