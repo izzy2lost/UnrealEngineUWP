@@ -13,7 +13,7 @@ class BlobTransform;
 class Blobber;
 struct ResourceBindInfo;
 
-typedef TFunction<void(const Blob*)> BlobReadyCallback;
+typedef TUniqueFunction<void(const Blob*)> BlobReadyCallback;
 typedef cti::continuable<const Blob*> AsyncBlobResultPtr;
 
 typedef std::shared_ptr<Blob>	BlobPtr;
@@ -83,7 +83,8 @@ protected:
 	virtual void					UpdateLinkedBlobs(bool bDoFinalise);
 	virtual void					AddLinkedBlob(BlobPtr LinkedBlob);
 
-	virtual void					FinaliseFrom(const Blob* RHS);
+	virtual void					FinaliseFrom(Blob* RHS);
+	virtual void					SyncWith(Blob* RHS);
 
 public:
 									Blob(DeviceBufferRef InBuffer);

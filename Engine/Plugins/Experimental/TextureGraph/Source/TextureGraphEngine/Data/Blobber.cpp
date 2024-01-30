@@ -219,7 +219,7 @@ void Blobber::UpdateBlobCache()
 	FScopeLock Lock(&BlobLookupLock);
 	auto Iter = BlobCache.GetCache().begin();
 	bool bStop = false;
-	CHashPtrVec HashesToRemove;
+	HashTypeVec HashesToRemove;
 	int32 IterCount = 0;
 	double PrevTimestamp = -1;
 
@@ -232,7 +232,14 @@ void Blobber::UpdateBlobCache()
 		if (Entry->BlobObj.use_count() == 1)
 		{
 			UE_LOG(LogBlob, Log, TEXT("Removing permanent blob %s (Hash: %llu)"), *Entry->BlobObj->DisplayName(), Entry->BlobObj->Hash()->Value());
-			HashesToRemove.push_back(Entry->BlobObj->Hash());
+			HashesToRemove.push_back(Iter.Key());
+
+			HashTypeVec IntermediateHashes = Entry->BlobObj->Hash()->GetIntermediateHashes();
+			if (!IntermediateHashes.empty())
+				HashesToRemove.insert(HashesToRemove.end(), IntermediateHashes.begin(), IntermediateHashes.end());
+
+			if (Entry->BlobObj->Hash()->Value() != Iter.Key())
+				HashesToRemove.push_back(Entry->BlobObj->Hash()->Value());
 		}
 		else
 		{
@@ -255,8 +262,12 @@ void Blobber::UpdateBlobCache()
 		UE_LOG(LogBlob, Log, TEXT("Removing num items from the cache: %llu"), HashesToRemove.size());
 		for (size_t RemoveIndex = 0; RemoveIndex < HashesToRemove.size(); RemoveIndex++)
 		{
-			CHashPtr HashToRemove = HashesToRemove[RemoveIndex];
-			BlobCache.Remove(HashToRemove->Value());
+			HashType HashToRemove = HashesToRemove[RemoveIndex];
+			BlobCache.Remove(HashToRemove);
+			
+			auto MappingIter = HashMappings.find(HashToRemove);
+			if (MappingIter != HashMappings.end())
+				HashMappings.erase(MappingIter);
 		}
 	}
 }
@@ -353,13 +364,13 @@ void Blobber::PrintStats()
 	ThumbnailMemUsage = ThumbnailMemUsage / MBConv;
 	LargeImageMemUsage = LargeImageMemUsage / MBConv;
 	
-	UE_LOG(LogBlob, Log, TEXT("===== BEGIN Blobber STATS ====="));
+	UE_LOG(LogBlob, VeryVerbose, TEXT("===== BEGIN Blobber STATS ====="));
 	
-	UE_LOG(LogBlob, Log, TEXT("Total Objects    : %llu (Transient: %llu, Tiled: %llu)"), NumObjects, NumTransient, NumTiled);
-	UE_LOG(LogBlob, Log, TEXT("Num Large Images	: %llu (Thumbnails: %llu)"), NumLargeImages, NumThumbnails);
-	UE_LOG(LogBlob, Log, TEXT("Large Image Mem  : %0.2f MB (Thumbnail Mem: %0.2f MB)"), LargeImageMemUsage, ThumbnailMemUsage);
+	UE_LOG(LogBlob, VeryVerbose, TEXT("Total Objects    : %llu (Transient: %llu, Tiled: %llu)"), NumObjects, NumTransient, NumTiled);
+	UE_LOG(LogBlob, VeryVerbose, TEXT("Num Large Images	: %llu (Thumbnails: %llu)"), NumLargeImages, NumThumbnails);
+	UE_LOG(LogBlob, VeryVerbose, TEXT("Large Image Mem  : %0.2f MB (Thumbnail Mem: %0.2f MB)"), LargeImageMemUsage, ThumbnailMemUsage);
 	
-	UE_LOG(LogBlob, Log, TEXT("===== END Blobber STATS   ====="));
+	UE_LOG(LogBlob, VeryVerbose, TEXT("===== END Blobber STATS   ====="));
 }
 
 BlobRef Blobber::Create(Device* Dev, RawBufferPtr Raw)
@@ -638,6 +649,11 @@ void Blobber::UpdateHash(HashType OldHash, CHashPtr Hash)
 		else
 			BlobObj->GetBufferRef()->SetHash(Hash);
 	}
+	else
+	{
+		TiledBlobPtr TiledBlobObj = std::static_pointer_cast<TiledBlob>(BlobObj);
+		TiledBlobObj->HashValue = Hash;
+	}
 
 	UpdateBlobHash(OldHash, BlobObj);
 }
@@ -722,12 +738,13 @@ TiledBlobRef Blobber::AddTiledResult(CHashPtr LHash, TiledBlobPtr Result, BlobCa
 {
 	BlobRef Ret = AddResult(LHash, std::static_pointer_cast<Blob>(Result), Options);
 	check(Ret->IsTiled());
+
 	TiledBlobPtr CachedPtr = std::static_pointer_cast<TiledBlob>(Ret.get());
+	check(CachedPtr->IsTiled());
 
 	if (CachedPtr && Result != CachedPtr)
 	{
-		if (typeid(*CachedPtr) == typeid(*Result))
-			CachedPtr->AddLinkedBlob(Result);
+		CachedPtr->AddLinkedBlob(Result);
 	}
 
 	/// If we got a different pointer back from the blobber then that means that this result was already cached into 
@@ -824,6 +841,10 @@ void Blobber::AddBlobEntry(HashType Hash, BlobPtr BlobObj, BlobCacheOptions Opti
 
 	/// Sanity check that we're not adding this multiple times
 	const BlobCacheEntryPtr* ExistingEntry = BlobCache.Find(Hash, false);
+
+	if (ExistingEntry && (*ExistingEntry)->BlobObj == BlobObj)
+		return;
+
 	check(!ExistingEntry || (*ExistingEntry)->BlobObj != BlobObj);
 	
 	BlobCacheEntryPtr Entry = std::make_shared<BlobCacheEntry>();

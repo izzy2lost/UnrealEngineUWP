@@ -305,10 +305,9 @@ AsyncBlobResultPtr Blob::OnFinalise() const
 
 	return cti::make_continuable<const Blob*>([this](auto&& Promise) 
 	{
-		TSharedPtr<cti::promise<const Blob*>> PromisePtr = MakeShared<cti::promise<const Blob*>>(std::move(Promise));
-		OnFinaliseInternal([this, PromisePtr](const Blob* BlobObj) mutable
+		OnFinaliseInternal([this, FWD_PROMISE(Promise)](const Blob* BlobObj) mutable
 		{
-			PromisePtr->set_value(BlobObj);
+			Promise.set_value(BlobObj);
 		});
 	});
 }
@@ -494,24 +493,46 @@ void Blob::AddLinkedBlob(BlobPtr LinkedBlob)
 {
 	if (IsFinalised())
 	{
-		*LinkedBlob = *this;
+		LinkedBlob->FinaliseFrom(this);
 		return;
 	}
 	LinkedBlobs.push_back(LinkedBlob);
 }
 
-void Blob::FinaliseFrom(const Blob* RHS)
+void Blob::SyncWith(Blob* RHS)
+{
+	/// Synchronise the histograms
+	if (!Histogram && RHS->Histogram)
+		Histogram = RHS->Histogram;
+	else if (Histogram && !RHS->Histogram)
+		RHS->Histogram = Histogram;
+	else if (Histogram && RHS->Histogram)
+	{
+		/// Sync based on whatever has been finalised
+		if (RHS->Histogram->IsFinalised() && !Histogram->IsFinalised())
+			Histogram->FinaliseFrom(RHS->Histogram.get());
+		else if (Histogram->IsFinalised() && !RHS->Histogram->IsFinalised())
+			RHS->Histogram->FinaliseFrom(Histogram.get());
+
+		/// If both have been finalised then there's nothing we should do.
+		/// We have two copies within the system and in due course, one
+		/// of these will get deleted
+	}
+}
+
+void Blob::FinaliseFrom(Blob* RHS)
 {
 	Buffer = RHS->Buffer;
 	LODLevels = RHS->LODLevels;
 	MinMax = RHS->MinMax;
 	MinValue = RHS->MinValue;
 	MaxValue = RHS->MaxValue;
-	Histogram = RHS->Histogram;
+
 	LODParent = RHS->LODParent;
 	LODSource = RHS->LODSource;
 	bIsLODLevel = RHS->bIsLODLevel;
 
+	SyncWith(RHS);
 	FinaliseNow(true, nullptr);
 }
 

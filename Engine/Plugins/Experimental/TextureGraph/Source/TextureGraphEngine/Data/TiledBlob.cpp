@@ -27,7 +27,7 @@ TiledBlob::TiledBlob(const BufferDescriptor& InDesc, const BlobPtrTiles& Tiles)
 		Desc.Height = std::max(Desc.Height, static_cast<uint32>(Tiles.Cols()));
 	}
 	
-	CalcHash_Now();
+	CalcHashNow();
 	Buffer.reset();
 
 	bIsFinalised = true;
@@ -123,13 +123,13 @@ TiledBlobPtr TiledBlob::AsTiledBlob(BlobPtr BlobObj)
 	return std::make_shared<TiledBlob>(BlobObj);
 }
 
-void TiledBlob::FinaliseFrom(const Blob* RHS)
+void TiledBlob::FinaliseFrom(Blob* RHS)
 {
 	check(RHS->IsTiled());
-	const TiledBlob* RHSTiled = static_cast<const TiledBlob*>(RHS);
+	TiledBlob* RHSTiled = static_cast<TiledBlob*>(RHS);
 
 	Tiles = RHSTiled->Tiles;
-	HashValue = RHSTiled->HashValue;
+	SetHash(RHSTiled->HashValue);
 
 	bool bIsTransient = Desc.bIsTransient;
 	Desc = RHSTiled->Desc;
@@ -171,7 +171,7 @@ bool TiledBlob::HasBlobAsTile(Blob* BlobObj) const
 void TiledBlob::SetTiles(const BlobPtrTiles& InTiles)
 {
 	Tiles = InTiles;
-	CalcHash_Now();
+	CalcHashNow();
 }
 
 void TiledBlob::SetTile(int32 X, int32 Y, BlobRef Tile)
@@ -199,7 +199,7 @@ TiledBlob& TiledBlob::operator = (const TiledBlob& RHS)
 	ReplayCount = RHS.ReplayCount;
 
 	Tiles = RHS.Tiles;
-	HashValue = RHS.HashValue;
+	SetHash(RHS.HashValue);
 
 	/// Ensure that 1x1 tiled BlobObj hashes are calculated correctly
 	check((Tiles.Rows() > 1 && Tiles.Cols() > 1) ||
@@ -282,7 +282,7 @@ void TiledBlob::CopyResolveLateBound(BlobPtr RHS_)
 
 		Desc = RHS_->GetDescriptor();
 
-		CalcHash_Now();
+		CalcHashNow();
 
 		bReady = true;
 		bTiledTarget = false;
@@ -387,7 +387,7 @@ AsyncBufferResultPtr TiledBlob::CombineTiles(bool bTouch, bool bIsArray, uint64 
 
 	/// If we don't have a hash then calculate it now
 	if (!HashValue)
-		CalcHash_Now();
+		CalcHashNow();
 
 	/// We've already calculated the hash from all the child blobs
 	UE_LOG(LogData, VeryVerbose, TEXT("*** Combine TiledBlob: %s [Hash: %llu] [T0: %s] ***"), *Desc.Name, HashValue->Value(), *Tile0->Name());
@@ -458,24 +458,33 @@ AscynCHashPtr TiledBlob::CalcHash()
 	{
 		return cti::when_all(Promises.begin(), Promises.end()).then([this](std::vector<CHashPtr>) mutable
 		{
-			CalcHash_Now();
+			CalcHashNow();
 			check(HashValue->IsFinal());
 			return HashValue;
 		});
 	}
 
-	CalcHash_Now();
+	CalcHashNow();
 
 	return cti::make_ready_continuable(HashValue);
 }
 
 void TiledBlob::SetHash(CHashPtr InHashValue)
 {
-	check(!HashValue->IsFinal() || *HashValue.get() == *InHashValue.get());
-	HashValue = InHashValue;
+	check(InHashValue);
+	check(IsInGameThread() || InHashValue->IsFinal());
+
+	if (HashValue && *HashValue == *InHashValue)
+		return;
+
+	/// Update the hash in the blobber
+	if (HashValue)
+		HashValue = CHash::UpdateHash(InHashValue, HashValue);
+	else
+		HashValue = InHashValue;
 }
 
-void TiledBlob::CalcHash_Now() const
+void TiledBlob::CalcHashNow() const
 {
 	if (!Tiles.Rows() || !Tiles.Cols() || !Tiles[0][0])
 		return;
@@ -487,12 +496,12 @@ void TiledBlob::CalcHash_Now() const
 			return;
 
 		Desc = Tiles[0][0]->GetDescriptor();
-		HashValue = Tiles[0][0]->Hash();
+		const_cast<TiledBlob*>(this)->SetHash(Tiles[0][0]->Hash());
 
 		return;
 	}
 
-	HashValue = 0;
+	HashValue = nullptr;
 
 	const size_t NumTilesX = Tiles.Rows();
 	const size_t NumTilesY = Tiles.Cols();
@@ -532,13 +541,13 @@ void TiledBlob::CalcHash_Now() const
 		}
 	}
 
-	HashValue = CHash::ConstructFromSources(TileHashes);
+	const_cast<TiledBlob*>(this)->SetHash(CHash::ConstructFromSources(TileHashes));
 }
 
 CHashPtr TiledBlob::Hash() const
 {
 	if (!HashValue)
-		CalcHash_Now();
+		CalcHashNow();
 
 	return HashValue;
 }
@@ -635,7 +644,7 @@ AsyncBufferResultPtr TiledBlob::Bind(const BlobTransform* Transform, const Resou
 
 			///// If we don't have a hash then calculate it now
 			//if (!_hash)
-			//	CalcHash_Now();
+			//	CalcHashNow();
 			//
 			///// We've already calculated the hash from all the child blobs
 			//UE_LOG(LogData, Log, TEXT("*** Combine TiledBlob: %s [Hash: %llu] [T0: %s] ***"), *_desc.name, _hash->Value(), *Tiles[0][0]->Name());
@@ -1045,34 +1054,6 @@ void TiledBlob_Promise::AddLinkedBlob(BlobPtr LinkedBlob)
 	TiledBlob::AddLinkedBlob(LinkedBlob);
 }
 
-//void TiledBlob_Promise::UpdateLinkedBlobs(bool bDoFinalise)
-//{
-//	check(IsInGameThread());
-//
-//	for (BlobPtrW LinkedBlobW : LinkedBlobs)
-//	{
-//		BlobPtr LinkedBlob = LinkedBlobW.lock();
-//
-//		if (LinkedBlob)
-//		{
-//			check(LinkedBlob->IsTiled());
-//			TiledBlobPtr TiledLinkedBlob = std::static_pointer_cast<TiledBlob>(LinkedBlob);
-//			check(TiledLinkedBlob->IsPromise());
-//
-//			TiledBlob_PromisePtr TiledPromiseLinkedBlob = std::static_pointer_cast<TiledBlob_Promise>(TiledLinkedBlob);
-//			*TiledPromiseLinkedBlob = *this;
-//
-//			/// We don't want to keep recursive links
-//			TiledPromiseLinkedBlob->LinkedBlobs.clear();
-//
-//			if (bDoFinalise)
-//			{
-//				TiledPromiseLinkedBlob->FinaliseNow(false, nullptr);
-//			}
-//		}
-//	}
-//}
-
 void TiledBlob_Promise::FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash)
 {
 	check(IsInGameThread());
@@ -1101,14 +1082,14 @@ void TiledBlob_Promise::FinaliseFrom(TiledBlobPtr RHS)
 	FinaliseFrom(std::static_pointer_cast<Blob>(RHS).get());
 }
 
-void TiledBlob_Promise::FinaliseFrom(const Blob* RHS)
+void TiledBlob_Promise::FinaliseFrom(Blob* RHS)
 {
 	check(RHS->IsTiled());
-	const TiledBlob* RHSTiled = static_cast<const TiledBlob*>(RHS);
+	TiledBlob* RHSTiled = static_cast<TiledBlob*>(RHS);
 
 	if (RHSTiled->IsPromise())
 	{
-		const TiledBlob_Promise* RHSTiledPromise = static_cast<const TiledBlob_Promise*>(RHS);
+		TiledBlob_Promise* RHSTiledPromise = static_cast<TiledBlob_Promise*>(RHS);
 		bMakeSingleBlob = RHSTiledPromise->bMakeSingleBlob;
 	}
 
@@ -1118,6 +1099,9 @@ void TiledBlob_Promise::FinaliseFrom(const Blob* RHS)
 AsyncBufferResultPtr TiledBlob_Promise::Finalise(bool bNoCalcHash, CHashPtr FixedHash)
 {
 	check(IsInGameThread());
+
+	if (bIsFinalised)
+		return cti::make_ready_continuable<BufferResultPtr>(std::make_shared<BufferResult>());
 
 	/// cannot re-finalise something that's already been finalised
 	check(!bIsFinalised);
@@ -1200,7 +1184,7 @@ void TiledBlob_Promise::OnFinaliseInternal(BlobReadyCallback Callback) const
 	}
 
 	/// Otherwise we just queue the callbacks
-	Callbacks.push_back(Callback);
+	Callbacks.push_back(std::move(Callback));
 }
 
 void TiledBlob_Promise::SetTile(int32 TileX, int32 TileY, BlobRef InTile)
@@ -1219,7 +1203,7 @@ void TiledBlob_Promise::SetTile(int32 TileX, int32 TileY, BlobRef InTile)
 		Buffer = Tile->GetBufferRef();
 
 	/// Reset the hash
-	HashValue = 0;
+	HashValue = nullptr;
 }
 
 AsyncBufferResultPtr TiledBlob_Promise::MakeSingleBlob()
@@ -1285,9 +1269,13 @@ void TiledBlob_Promise::CopyResolveLateBound(BlobPtr RHS_)
 
 void TiledBlob_Promise::NotifyCallbacks()
 {
+	check(IsInGameThread());
+
 	/// Trigger the callbacks - Should always be the last step of finalize
-	for (auto Callback : Callbacks)
+	for (BlobReadyCallback& Callback : Callbacks)
 		Callback(this);
+
+	Callbacks.clear();
 }
 
 void TiledBlob_Promise::ResetForReplay()

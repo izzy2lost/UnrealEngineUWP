@@ -79,7 +79,7 @@ AsyncJobResultPtr BlobHasherService::Tick()
 					HashType PrevHash = PrevHashes[BlobIndex];
 
 					check(CurrentHash->IsFinal());
-					UE_LOG(LogIdle_Svc, Log, TEXT("Hashed BlobObj: %s => %llu [Total Blobs: %llu]"), *BlobObj->Name(), CurrentHash->Value(), TotalCount);
+					UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Hashed BlobObj: %s => %llu [Total Blobs: %llu]"), *BlobObj->Name(), CurrentHash->Value(), TotalCount);
 
 					if (!TextureGraphEngine::IsDestroying())
 						TextureGraphEngine::GetBlobber()->UpdateBlobHash(PrevHash, BlobObj);

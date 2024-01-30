@@ -8,7 +8,9 @@
 
 DEFINE_LOG_CATEGORY(LogBlobTransform);
 
-BlobTransform::BlobTransform(FString Name_) : Name(!Name_.IsEmpty() ? Name_ : FString("<Unknown>"))
+BlobTransform::BlobTransform(FString Name_) 
+	: Name(!Name_.IsEmpty() ? Name_ : FString("<Unknown>"))
+	, HashValue(std::make_shared<CHash>(DataUtil::Hash_GenericString_Name(Name), true))
 {
 }
 
