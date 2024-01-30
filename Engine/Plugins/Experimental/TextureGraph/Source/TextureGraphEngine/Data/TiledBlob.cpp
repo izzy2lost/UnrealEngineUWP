@@ -1071,6 +1071,9 @@ void TiledBlob_Promise::FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash)
 		}
 	}
 
+	bIsFinalised = true;
+	FinaliseTS = FDateTime::Now();
+
 	/// Trigger the callbacks - Should always be the last step of finalize
 	NotifyCallbacks();
 
