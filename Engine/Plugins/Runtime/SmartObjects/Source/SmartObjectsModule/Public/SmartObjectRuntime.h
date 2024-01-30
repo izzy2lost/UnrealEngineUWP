@@ -302,6 +302,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** @return Pointer to owner actor if present. */
 	AActor* GetOwnerActor() const;
 
+	/** @return Pointer to owning component if present. */
+	USmartObjectComponent* GetOwnerComponent() const;
+
 	/** @return handle of the specified slot. */
 	const FSmartObjectRuntimeSlot& GetSlot(const int32 Index) const
 	{
