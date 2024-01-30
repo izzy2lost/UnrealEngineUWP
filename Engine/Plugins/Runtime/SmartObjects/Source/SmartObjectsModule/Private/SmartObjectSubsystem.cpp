@@ -2505,12 +2505,14 @@ void USmartObjectSubsystem::AddContainerToSimulation(const FSmartObjectContainer
 
 USmartObjectComponent* USmartObjectSubsystem::GetSmartObjectComponent(const FSmartObjectClaimHandle& ClaimHandle) const
 {
-	return SmartObjectContainer.GetSmartObjectComponent(ClaimHandle.SmartObjectHandle);
+	const FSmartObjectRuntime* SmartObjectRuntime = RuntimeSmartObjects.Find(ClaimHandle.SmartObjectHandle);
+	return SmartObjectRuntime != nullptr ? SmartObjectRuntime->GetOwnerComponent() : nullptr;
 }
 
 USmartObjectComponent* USmartObjectSubsystem::GetSmartObjectComponentByRequestResult(const FSmartObjectRequestResult& Result) const
 {
-	return SmartObjectContainer.GetSmartObjectComponent(Result.SmartObjectHandle);
+	const FSmartObjectRuntime* SmartObjectRuntime = RuntimeSmartObjects.Find(Result.SmartObjectHandle);
+	return SmartObjectRuntime != nullptr ? SmartObjectRuntime->GetOwnerComponent() : nullptr;
 }
 
 void USmartObjectSubsystem::InitializeRuntime()

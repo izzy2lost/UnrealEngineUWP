@@ -75,6 +75,11 @@ AActor* FSmartObjectRuntime::GetOwnerActor() const
 	return Component != nullptr ? Component->GetOwner() : nullptr;
 }
 
+USmartObjectComponent* FSmartObjectRuntime::GetOwnerComponent() const
+{
+	return OwnerComponent.Get();
+}
+
 #if WITH_SMARTOBJECT_DEBUG
 FString FSmartObjectRuntime::DebugGetDisableFlagsString() const
 {
