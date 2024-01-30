@@ -2813,18 +2813,27 @@ bool FPluginManager::LoadModulesForEnabledPlugins( const ELoadingPhase::Type Loa
 	}
 	else
 	{
-		FScopedSlowTask SlowTask((float)AllPlugins.Num());
+		const FStringView LoadingPhaseAsString = FStringView(ELoadingPhase::ToString(LoadingPhase));
+		FScopedSlowTask SlowTask((float)AllPlugins.Num(),
+			FText::Format(LOCTEXT("LoadingModulesForEnabledPlugins", "Loading Plugin Modules for Phase {0}"), FText::FromStringView(LoadingPhaseAsString)));
+		SlowTask.Visibility = ESlowTaskVisibility::Important; // this function can be very slow, users will benefit from our messages
 		LLM_SCOPE_BYNAME(TEXT("Modules"));
 
 		// Load plugins!
+		int32 NumProcessedSinceProgress = 0;
 		for (const FDiscoveredPluginMap::ElementType& PluginPair : AllPlugins)
 		{
+			++NumProcessedSinceProgress;
 			const TSharedRef<FPlugin>& Plugin = DiscoveredPluginMapUtils::ResolvePluginFromMapVal(PluginPair.Value);
-
-			SlowTask.EnterProgressFrame(1);
 
 			if (Plugin->bEnabled && !Plugin->Descriptor.bExplicitlyLoaded)
 			{
+				const FText Message = FText::Format(LOCTEXT("LoadingModulesForPlugin", "Loading {0} Modules for Plugin: {1}"),
+					FText::FromStringView(LoadingPhaseAsString),
+					FText::FromString(Plugin->Name));
+				SlowTask.EnterProgressFrame((float)NumProcessedSinceProgress, Message);
+				NumProcessedSinceProgress = 0;
+
 				if (!TryLoadModulesForPlugin(Plugin.Get(), LoadingPhase))
 				{
 					bSuccess = false;
