@@ -259,6 +259,7 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 	virtual void GetDispatchArgs(const FNDIGpuComputeDispatchArgsGenContext& Context) override;
 
 	virtual void PreStage(const FNDIGpuComputePreStageContext& Context)override;
+	virtual void PostSimulate(const FNDIGpuComputePostSimulateContext& Context)override;
 
 	virtual void PostSimulate(const FNDIGpuComputePostSimulateContext& Context) override;
 
