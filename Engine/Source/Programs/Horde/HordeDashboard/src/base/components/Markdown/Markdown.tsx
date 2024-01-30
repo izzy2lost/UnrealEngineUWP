@@ -2,7 +2,7 @@ import * as React from 'react';
 import type MarkdownComponentType from 'markdown-to-jsx';
 import type { MarkdownToJSX } from 'markdown-to-jsx';
 import * as MarkdownModule from 'markdown-to-jsx';
-import { Image, IImageStyles, classNamesFunction, IStyleFunction, styled } from '@fluentui/react';
+import { IImageStyles, classNamesFunction, IStyleFunction, styled } from '@fluentui/react';
 import { DefaultButton } from '@fluentui/react/lib/Button';
 import * as MDTable from '../MarkdownTable/index';
 import { MarkdownHeader } from './MarkdownHeader';
@@ -13,6 +13,7 @@ import { MarkdownPre } from './MarkdownPre';
 import { PropsWithChildren } from 'react';
 import dashboard from '../../../backend/Dashboard';
 import { getHordeStyling } from '../../../styles/Styles';
+import { MarkdownImage } from './MarkdownImage';
 
 // This is to work around inconsistency between the way markdown-to-jsx declares its types
 // (as having a default export) and the way it actually builds its files (for its cjs `main` file,
@@ -116,7 +117,7 @@ function getOverrides(subComponentStyles: IMarkdownSubComponentStyles, props: IM
          props: { className: 'ms-mdLink', styles: subComponentStyles.link },
       },
       img: {
-         component: Image,
+         component: MarkdownImage,
          props: { className: 'ms-mdImage', styles: subComponentStyles.image },
       },
       button: {
