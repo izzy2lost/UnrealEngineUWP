@@ -8,9 +8,6 @@
 #include "MuT/NodeScalar.h"
 #include "MuT/NodeScalarSwitchPrivate.h"
 
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {

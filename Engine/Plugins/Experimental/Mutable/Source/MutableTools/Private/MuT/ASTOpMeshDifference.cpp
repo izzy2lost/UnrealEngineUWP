@@ -12,8 +12,6 @@
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshAddTags.h"
 
-#include <memory>
-
 
 namespace mu
 {

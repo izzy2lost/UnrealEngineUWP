@@ -8,8 +8,6 @@
 #include "MuR/Types.h"
 #include "MuT/StreamsPrivate.h"
 
-#include <utility>
-
 
 namespace mu
 {

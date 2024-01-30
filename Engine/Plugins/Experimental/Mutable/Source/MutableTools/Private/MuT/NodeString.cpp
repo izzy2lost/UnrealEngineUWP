@@ -10,8 +10,6 @@
 #include "MuT/NodeStringConstant.h"
 #include "MuT/NodeStringParameter.h"
 
-#include <stdint.h>
-
 
 namespace mu
 {

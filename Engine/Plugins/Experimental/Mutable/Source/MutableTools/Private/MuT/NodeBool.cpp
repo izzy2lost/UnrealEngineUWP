@@ -7,8 +7,6 @@
 #include "MuR/Serialisation.h"
 #include "MuR/SerialisationPrivate.h"
 
-#include <stdint.h>
-
 
 namespace mu
 {
