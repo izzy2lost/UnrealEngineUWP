@@ -11,8 +11,6 @@
 
 namespace HarmonixMetasound
 {
-	using namespace Metasound;
-
 	enum class EMusicPlayerTransportRequest : uint8
 	{
 		None,
@@ -29,7 +27,7 @@ namespace HarmonixMetasound
 	class HARMONIXMETASOUND_API FMusicTransportEventStream
 	{
 	public:
-		FMusicTransportEventStream(const FOperatorSettings& InSettings);
+		FMusicTransportEventStream(const Metasound::FOperatorSettings& InSettings);
 
 		void AddTransportRequest(EMusicPlayerTransportRequest InRequest, int32 AtSampleIndex);
 		void AddSeekRequest(int32 AtSampleIndex, const FMusicSeekTarget& Target);

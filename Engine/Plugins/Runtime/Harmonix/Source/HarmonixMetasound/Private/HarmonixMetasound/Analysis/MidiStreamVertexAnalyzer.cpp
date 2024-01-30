@@ -19,13 +19,13 @@ namespace HarmonixMetasound::Analysis
 
 	const Metasound::Frontend::FAnalyzerOutput& FMidiStreamVertexAnalyzer::FOutputs::GetValue()
 	{
-		static Metasound::Frontend::FAnalyzerOutput Value = { "LastMidiEvent", GetMetasoundDataTypeName<FMidiEventInfo>() };
+		static Metasound::Frontend::FAnalyzerOutput Value = { "LastMidiEvent", Metasound::GetMetasoundDataTypeName<FMidiEventInfo>() };
 		return Value;
 	}
 
 	const TArray<Metasound::Frontend::FAnalyzerOutput>& FMidiStreamVertexAnalyzer::FFactory::GetAnalyzerOutputs() const
 	{
-		static const TArray<Frontend::FAnalyzerOutput> Outputs { FOutputs::GetValue() };
+		static const TArray<Metasound::Frontend::FAnalyzerOutput> Outputs { FOutputs::GetValue() };
 		return Outputs;
 	}
 
@@ -33,7 +33,7 @@ namespace HarmonixMetasound::Analysis
 		: FVertexAnalyzerBase(InParams.AnalyzerAddress, InParams.VertexDataReference)
 		, LastMidiEvent(FMidiEventInfoWriteRef::CreateNew())
 	{
-		BindOutputData(FOutputs::GetValue().Name, InParams.OperatorSettings, TDataReadReference{ LastMidiEvent });
+		BindOutputData(FOutputs::GetValue().Name, InParams.OperatorSettings, Metasound::TDataReadReference{ LastMidiEvent });
 	}
 
 	void FMidiStreamVertexAnalyzer::Execute()

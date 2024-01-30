@@ -15,6 +15,7 @@ namespace HarmonixMetasoundTests::DelayNode
 {
 	using GraphBuilder = Metasound::Test::FNodeTestGraphBuilder;
 	using namespace HarmonixMetasound;
+	using namespace Metasound;
 	
 	class FTestFixture
 	{

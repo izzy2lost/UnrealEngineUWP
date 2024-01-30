@@ -19,9 +19,11 @@ DEFINE_LOG_CATEGORY_STATIC(LogMidiStreamTrackFilter, Log, All);
 
 namespace HarmonixMetasound::Nodes::MidiStreamTrackFilter
 {
-	const Metasound::FNodeClassName& GetClassName()
+	using namespace Metasound;
+	
+	const FNodeClassName& GetClassName()
 	{
-		static Metasound::FNodeClassName ClassName
+		static FNodeClassName ClassName
 		{
 			HarmonixNodeNamespace,
 			"MidiStreamTrackFilter",

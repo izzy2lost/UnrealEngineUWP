@@ -8,10 +8,10 @@
 
 namespace HarmonixMetasound::Analysis
 {
-	const Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::Timestamp = { "Timestamp", GetMetasoundDataTypeName<FMusicTimestamp>() };
-	const Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::Tempo = { "Tempo", GetMetasoundDataTypeName<float>() };
-	const Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::TimeSignature = { "TimeSignature", GetMetasoundDataTypeName<FTimeSignature>() };
-	const Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::Speed = { "Speed", GetMetasoundDataTypeName<float>() };
+	const Metasound::Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::Timestamp = { "Timestamp", Metasound::GetMetasoundDataTypeName<FMusicTimestamp>() };
+	const Metasound::Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::Tempo = { "Tempo", Metasound::GetMetasoundDataTypeName<float>() };
+	const Metasound::Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::TimeSignature = { "TimeSignature", Metasound::GetMetasoundDataTypeName<FTimeSignature>() };
+	const Metasound::Frontend::FAnalyzerOutput FMidiClockVertexAnalyzer::FOutputs::Speed = { "Speed", Metasound::GetMetasoundDataTypeName<float>() };
 	
 	const Metasound::Frontend::FAnalyzerOutput& FMidiClockVertexAnalyzer::FOutputs::GetValue()
 	{
@@ -20,7 +20,7 @@ namespace HarmonixMetasound::Analysis
 	
 	const TArray<Metasound::Frontend::FAnalyzerOutput>& FMidiClockVertexAnalyzer::FFactory::GetAnalyzerOutputs() const
 	{
-		static const TArray<Frontend::FAnalyzerOutput> Outputs
+		static const TArray<Metasound::Frontend::FAnalyzerOutput> Outputs
 		{
 			FOutputs::Timestamp,
 			FOutputs::Tempo,
@@ -44,9 +44,9 @@ namespace HarmonixMetasound::Analysis
 	FMidiClockVertexAnalyzer::FMidiClockVertexAnalyzer(const Metasound::Frontend::FCreateAnalyzerParams& InParams)
 		: FVertexAnalyzerBase(InParams.AnalyzerAddress, InParams.VertexDataReference)
 		, Timestamp(FMusicTimestampWriteRef::CreateNew())
-		, Tempo(FFloatWriteRef::CreateNew())
+		, Tempo(Metasound::FFloatWriteRef::CreateNew())
 		, TimeSignature(FTimeSignatureWriteRef::CreateNew())
-		, Speed(FFloatWriteRef::CreateNew())
+		, Speed(Metasound::FFloatWriteRef::CreateNew())
 	{
 		BindOutputData<FMusicTimestamp>(FOutputs::Timestamp.Name, InParams.OperatorSettings, Timestamp);
 		BindOutputData<float>(FOutputs::Tempo.Name, InParams.OperatorSettings, Tempo);

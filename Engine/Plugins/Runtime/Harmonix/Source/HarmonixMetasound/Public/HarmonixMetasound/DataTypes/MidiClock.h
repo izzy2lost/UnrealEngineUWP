@@ -58,8 +58,6 @@ int32 SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization Division, int32 C
 
 namespace HarmonixMetasound
 {
-	using namespace Metasound;
-
 	struct HARMONIXMETASOUND_API FMidiTimestampTransportState
 	{
 		int32 BlockSampleFrameIndex = 0;
@@ -86,7 +84,7 @@ namespace HarmonixMetasound
 	class HARMONIXMETASOUND_API FMidiClock
 	{
 	public:
-		explicit FMidiClock(const FOperatorSettings& InSettings);
+		explicit FMidiClock(const Metasound::FOperatorSettings& InSettings);
 		FMidiClock(const FMidiClock& Other);
 		FMidiClock(FMidiClock&& Other);
 
@@ -243,7 +241,7 @@ namespace HarmonixMetasound
 		int32 BlockSize;
 		int32 CurrentBlockFrameIndex;
 		float SampleRate;
-		FSampleCount SampleCount;
+		Metasound::FSampleCount SampleCount;
 		int32 FramesUntilNextProcess = 0;
 		static const int32 kMidiGranularity = 128;
 		FMidiTimestampTransportState CurrentTransportState;
