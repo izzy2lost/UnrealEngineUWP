@@ -849,6 +849,8 @@ class Localize : BuildCommand
 
 	private void AutoGeneratePluginLocalizationFiles(HashSet<string> PluginNames)
 	{
+		string PluginsRootDirectory = Path.Combine(UEProjectRoot, UEProjectDirectory);
+		DirectoryReference PluginsRootDirectoryReference = new DirectoryReference(PluginsRootDirectory);
 		foreach (string PluginName in PluginNames)
 		{
 			PluginInfo Info = Plugins.GetPlugin(PluginName);
@@ -871,7 +873,7 @@ class Localize : BuildCommand
 					LocalizationConfigFileGenerator Generator = LocalizationConfigFileGenerator.GetGeneratorForFileFormat(LocalizationConfigFileFormat.Latest);
 					LocalizationConfigFileGeneratorParams GeneratorParams = new();
 					GeneratorParams.LocalizationTargetName = Target.Name;
-					GeneratorParams.LocalizationTargetRootDirectory = Info.File.Directory.FullName;
+					GeneratorParams.LocalizationTargetRootDirectory = Info.Directory.MakeRelativeTo(PluginsRootDirectoryReference);
 					List<LocalizationConfigFile> PluginLocalizationConfigFiles = Generator.GenerateDefaultSettingsConfigFiles(GeneratorParams);
 					foreach (LocalizationConfigFile PluginLocalizationConfigFile in PluginLocalizationConfigFiles)
 					{
