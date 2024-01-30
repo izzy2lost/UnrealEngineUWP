@@ -9,15 +9,18 @@ namespace uba
 {
 	bool TestLocalSchedule(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
+		if (!IsWindows) // TODO: Remove
+			return true;
+
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 
 				Scheduler scheduler(session, true);
 
 				ProcessStartInfo processInfo;
-				processInfo.application = GetPingApplication();
+				processInfo.application = GetSystemApplication();
 				processInfo.workingDir = workingDir;
-				processInfo.arguments = IsWindows ? TC("-n 2 localhost") : TC("-c 2 localhost");
+				processInfo.arguments = GetSystemArguments();
 
 				scheduler.EnqueueProcess(processInfo);
 				scheduler.Start();

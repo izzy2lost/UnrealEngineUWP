@@ -9,10 +9,10 @@
 namespace uba
 {
 	#if !PLATFORM_WINDOWS
-	inline constexpr u32 ERROR_FILE_NOT_FOUND = 2L;
-	inline constexpr u32 ERROR_PATH_NOT_FOUND = 3L;
-	inline constexpr u32 ERROR_SHARING_VIOLATION = 32L;
-	inline constexpr u32 ERROR_ALREADY_EXISTS = 183L;
+	inline constexpr u32 ERROR_FILE_NOT_FOUND = ENOENT;
+	inline constexpr u32 ERROR_PATH_NOT_FOUND = ENOENT;
+	inline constexpr u32 ERROR_ALREADY_EXISTS = EEXIST;
+	inline constexpr u32 ERROR_ACCESS_DENIED = EACCES;
 	inline constexpr u32 MOVEFILE_REPLACE_EXISTING = 0x00000001;
 	inline constexpr u32 FILE_FLAG_NO_BUFFERING = 0;
 	inline constexpr u32 FILE_FLAG_OVERLAPPED = 0;
@@ -25,7 +25,6 @@ namespace uba
 	inline constexpr u32 FILE_SHARE_READ = 0x00000001;
 	inline constexpr u32 FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;
 	inline constexpr u32 OPEN_EXISTING = 3;
-	inline constexpr u32 ERROR_ACCESS_DENIED = 5L;
 	inline constexpr u32 PAGE_READONLY = 0x02;
 	#endif
 

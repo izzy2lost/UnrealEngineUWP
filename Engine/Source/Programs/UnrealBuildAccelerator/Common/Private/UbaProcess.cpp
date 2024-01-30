@@ -1459,6 +1459,8 @@ namespace uba
 					logFile.Append("UBA_LOGFILE=").Append(m_startInfo.logFile);
 				}
 
+				//envvars.push_back("LD_DEBUG=bindings");
+
 				if (ldLibraryPath.count)
 					envvars.push_back(ldLibraryPath.data);
 				envvars.push_back(detoursVar.data);
