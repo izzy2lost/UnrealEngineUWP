@@ -502,12 +502,31 @@ void F3DTransformTrackEditor::BuildObjectBindingColumnWidgets(TFunctionRef<TShar
 {
 	using namespace UE::Sequencer;
 
-	if (InColumnName == FCommonOutlinerNames::Nav || (InColumnName == FCommonOutlinerNames::Edit && !InParams.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav)))
+	bool bAddCameraLock = false;
+	if (InColumnName == FCommonOutlinerNames::Nav)
 	{
+		bAddCameraLock = true;
+	}
+	else if (InColumnName == FCommonOutlinerNames::KeyFrame)
+	{
+		// Add the camera lock button to the keyframe column if Nav is disabled
+		bAddCameraLock = InParams.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav) == false;
+	}
+	else if (InColumnName == FCommonOutlinerNames::Edit)
+	{
+		// Add the camera lock button to the edit column if both Nav and KeyFrame are disabled
+		bAddCameraLock = InParams.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav) == false &&
+			InParams.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::KeyFrame) == false;
+	}
+
+	if (bAddCameraLock)
+	{
+		const bool bEditColumn = InColumnName == FCommonOutlinerNames::Edit;
 		FGuid ObjectGuid = ObjectBinding->GetObjectGuid();
 		GetEditBox()->AddSlot()
 		.VAlign(VAlign_Center)
-		.HAlign(HAlign_Center)
+		.HAlign(bEditColumn ? HAlign_Left : HAlign_Center)
+		.Padding(bEditColumn ? FMargin(4.f, 0.f) : FMargin(0.f))
 		.AutoWidth()
 		[
 			SNew(SCheckBox)

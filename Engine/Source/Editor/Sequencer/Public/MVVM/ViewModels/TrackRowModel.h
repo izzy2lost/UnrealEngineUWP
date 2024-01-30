@@ -25,7 +25,7 @@ namespace Sequencer
 
 class FSectionModel;
 
-class FTrackRowModel
+class SEQUENCER_API FTrackRowModel
 	: public FMuteSoloOutlinerItemModel
 	, public ITrackAreaExtension
 	, public ILockableExtension

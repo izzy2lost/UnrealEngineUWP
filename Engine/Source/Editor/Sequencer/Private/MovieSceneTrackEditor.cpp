@@ -22,6 +22,28 @@
 #include "MVVM/Views/SOutlinerItemViewBase.h"
 #include "SKeyAreaEditorSwitcher.h"
 
+namespace UE::Sequencer
+{
+	bool HasKeyableAreas(const FViewModel& ViewModel)
+	{
+		for (TSharedPtr<FChannelGroupModel> ChannelGroup : ViewModel.GetDescendantsOfType<FChannelGroupModel>())
+		{
+			for (const TWeakViewModelPtr<FChannelModel>& WeakChannel : ChannelGroup->GetChannels())
+			{
+				if (TViewModelPtr<FChannelModel> Channel = WeakChannel.Pin())
+				{
+					if (Channel->GetKeyArea()->CanCreateKeyEditor())
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+}
+
 FMovieSceneTrackEditor::FMovieSceneTrackEditor(TSharedRef<ISequencer> InSequencer)
 	: Sequencer(InSequencer)
 { 
@@ -245,31 +267,29 @@ TSharedPtr<SWidget> FMovieSceneTrackEditor::BuildOutlinerColumnWidget(const FBui
 		return BuildOutlinerEditWidget(ObjectBinding ? ObjectBinding->GetObjectGuid() : FGuid(), Track, EditWidgetParams);
 	}
 
-	if (ColumnName == FCommonOutlinerNames::Nav)
+	if (ColumnName == FCommonOutlinerNames::KeyFrame)
 	{
-		bool bHasKeyableAreas = false;
-		for (TSharedPtr<FChannelGroupModel> ChannelGroup : Params.ViewModel->GetDescendantsOfType<FChannelGroupModel>())
+		if (HasKeyableAreas(*Params.ViewModel))
 		{
-			for (const TWeakViewModelPtr<FChannelModel>& WeakChannel : ChannelGroup->GetChannels())
-			{
-				if (TViewModelPtr<FChannelModel> Channel = WeakChannel.Pin())
-				{
-					if (Channel->GetKeyArea()->CanCreateKeyEditor())
-					{
-						bHasKeyableAreas = true;
-						break;
-					}
-				}
-			}
-			if (bHasKeyableAreas)
-			{
-				break;
-			}
+			EKeyNavigationButtons Buttons = EKeyNavigationButtons::AddKey;
+
+			return SNew(SSequencerKeyNavigationButtons, Params.ViewModel, Editor->GetSequencer())
+				.Buttons(Buttons);
 		}
 
-		if (bHasKeyableAreas)
+		return nullptr;
+	}
+
+	if (ColumnName == FCommonOutlinerNames::Nav)
+	{
+		if (HasKeyableAreas(*Params.ViewModel))
 		{
-			return SNew(SSequencerKeyNavigationButtons, Params.ViewModel, Editor->GetSequencer());
+			EKeyNavigationButtons Buttons = Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::KeyFrame)
+				? EKeyNavigationButtons::NavOnly
+				: EKeyNavigationButtons::All;
+
+			return SNew(SSequencerKeyNavigationButtons, Params.ViewModel, Editor->GetSequencer())
+				.Buttons(Buttons);
 		}
 
 		return nullptr;

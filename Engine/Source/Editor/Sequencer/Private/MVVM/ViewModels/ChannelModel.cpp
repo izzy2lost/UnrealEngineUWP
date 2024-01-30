@@ -845,9 +845,21 @@ TSharedPtr<SWidget> FChannelGroupOutlinerModel::CreateOutlinerViewForColumn(cons
 			.Visibility(this, &FChannelGroupOutlinerModel::GetKeyEditorVisibility);
 	}
 
+	if (InColumnName == FCommonOutlinerNames::KeyFrame)
+	{
+		EKeyNavigationButtons Buttons = EKeyNavigationButtons::AddKey;
+		return SNew(SSequencerKeyNavigationButtons, SharedThis(this), Editor->GetSequencer())
+			.Buttons(Buttons);
+	}
+
 	if (InColumnName == FCommonOutlinerNames::Nav)
 	{
-		return SNew(SSequencerKeyNavigationButtons, SharedThis(this), Editor->GetSequencer());
+		EKeyNavigationButtons Buttons = InParams.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::KeyFrame)
+			? EKeyNavigationButtons::NavOnly
+			: EKeyNavigationButtons::All;
+
+		return SNew(SSequencerKeyNavigationButtons, SharedThis(this), Editor->GetSequencer())
+			.Buttons(Buttons);
 	}
 
 	if (InColumnName == FCommonOutlinerNames::ColorPicker)

@@ -8,7 +8,9 @@
 #include "HAL/PlatformCrt.h"
 #include "Layout/Children.h"
 #include "Layout/Margin.h"
+#include "MVVM/ViewModelPtr.h"
 #include "MVVM/ViewModels/ViewModel.h"
+#include "MVVM/Extensions/IHoveredExtension.h"
 #include "Math/NumericLimits.h"
 #include "Misc/FrameNumber.h"
 #include "Misc/FrameTime.h"
@@ -30,50 +32,82 @@ void SKeyNavigationButtons::Construct(const FArguments& InArgs, const TSharedPtr
 {
 	WeakModel = InModel;
 
+	TAttribute<bool> IsHovered;
+	if (TSharedPtr<IHoveredExtension> Hoverable = InModel->CastThisShared<IHoveredExtension>())
+	{
+		IsHovered = MakeAttributeSP(Hoverable.ToSharedRef(), &IHoveredExtension::IsHovered);
+	}
+
 	GetNavigatableTimesEvent = InArgs._GetNavigatableTimes;
 	AddKeyEvent = InArgs._OnAddKey;
 	SetTimeEvent = InArgs._OnSetTime;
 	TimeAttribute = InArgs._Time;
 
-	ChildSlot
-	[
-		SNew(SHorizontalBox)
-		
-		// Previous key slot
-		+ SHorizontalBox::Slot()
+	TSharedRef<SHorizontalBox> BoxPanel = SNew(SHorizontalBox);
+
+	const float CommonPadding = 4.f;
+
+	if (EnumHasAnyFlags(InArgs._Buttons, EKeyNavigationButtons::PreviousKey))
+	{
+		BoxPanel->AddSlot()
 		.VAlign(VAlign_Center)
+		.Padding(CommonPadding, 0.f)
 		.AutoWidth()
 		[
 			SNew(SOutlinerColumnButton)
 			.IsFocusable(false)
+			.IsRowHovered(IsHovered)
 			.ToolTipText(InArgs._PreviousKeyToolTip)
 			.Image(FAppStyle::GetBrush("Sequencer.Outliner.PreviousKey"))
 			.OnClicked(this, &SKeyNavigationButtons::OnPreviousKeyClicked)
-		]
+		];
+	}
 
-		// Add key slot
-		+ SHorizontalBox::Slot()
+	if (EnumHasAnyFlags(InArgs._Buttons, EKeyNavigationButtons::AddKey))
+	{
+		BoxPanel->AddSlot()
 		.VAlign(VAlign_Center)
-		.Padding(8.f, 0.f)
+		.Padding(CommonPadding, 0.f)
 		.AutoWidth()
 		[
 			SNew(SOutlinerColumnButton)
 			.IsFocusable(false)
+			.IsRowHovered(IsHovered)
 			.ToolTipText(InArgs._AddKeyToolTip)
 			.Image(FAppStyle::GetBrush("Sequencer.Outliner.AddKey"))
 			.OnClicked(this, &SKeyNavigationButtons::OnAddKeyClicked)
-		]
-		// Next key slot
-		+ SHorizontalBox::Slot()
+		];
+	}
+
+	if (EnumHasAnyFlags(InArgs._Buttons, EKeyNavigationButtons::NextKey))
+	{
+		BoxPanel->AddSlot()
 		.VAlign(VAlign_Center)
+		.Padding(CommonPadding, 0.f)
 		.AutoWidth()
 		[
 			SNew(SOutlinerColumnButton)
 			.IsFocusable(false)
+			.IsRowHovered(IsHovered)
 			.ToolTipText(InArgs._NextKeyToolTip)
 			.Image(FAppStyle::GetBrush("Sequencer.Outliner.NextKey"))
 			.OnClicked(this, &SKeyNavigationButtons::OnNextKeyClicked)
-		]
+		];
+	}
+
+	if (BoxPanel->NumSlots() > 0)
+	{
+		FMargin LeadingPadding = BoxPanel->GetSlot(0).GetPadding();
+		LeadingPadding.Left += CommonPadding;
+		BoxPanel->GetSlot(0).SetPadding(LeadingPadding);
+
+		FMargin TrailingPadding = BoxPanel->GetSlot(BoxPanel->NumSlots()-1).GetPadding();
+		TrailingPadding.Right += CommonPadding;
+		BoxPanel->GetSlot(BoxPanel->NumSlots()-1).SetPadding(TrailingPadding);
+	}
+	ChildSlot
+	[
+		BoxPanel
 	];
 }
 

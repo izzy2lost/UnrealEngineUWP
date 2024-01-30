@@ -12,6 +12,7 @@
 #include "Sections/MovieSceneCinematicShotSection.h"
 #include "SequencerSettings.h"
 #include "MVVM/Views/ViewUtilities.h"
+#include "MVVM/ViewModels/TrackRowModel.h"
 #include "MVVM/ViewModels/OutlinerColumns/OutlinerColumnTypes.h"
 #include "MVVM/Extensions/ITrackExtension.h"
 #include "TrackEditorThumbnail/TrackEditorThumbnailPool.h"
@@ -86,34 +87,53 @@ TSharedPtr<SWidget> FCinematicShotTrackEditor::BuildOutlinerColumnWidget(const F
 			Params.ViewModel);
 	}
 
-	// Show the camera lock button in the Edit area if the nav column is disabled
-	const bool bEditColumn = (ColumnName == FCommonOutlinerNames::Edit && !Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav));
-	if (ColumnName == FCommonOutlinerNames::Nav || bEditColumn)
+	if (!Params.ViewModel->IsA<FTrackRowModel>())
 	{
-		TSharedRef<SWidget> Button = SNew(SCheckBox)
-		.Style(FAppStyle::Get(), "Sequencer.Outliner.ToggleButton")
-		.Type(ESlateCheckBoxType::ToggleButton)
-		.IsFocusable(false)
-		.IsChecked(this, &FCinematicShotTrackEditor::AreShotsLocked)
-		.OnCheckStateChanged(this, &FCinematicShotTrackEditor::OnLockShotsClicked)
-		.ToolTipText(this, &FCinematicShotTrackEditor::GetLockShotsToolTip)
-		[
-			SNew(SImage)
-				.Image(FAppStyle::GetBrush("Sequencer.Outliner.CameraLock"))
-		];
-
-		if (bEditColumn)
+		bool bAddCameraLock = false;
+		if (ColumnName == FCommonOutlinerNames::Nav)
 		{
-			return SNew(SBox)
-			.HAlign(HAlign_Left)
-			.Padding(4.f, 0.f)
-			[
-				Button
-			];
+			bAddCameraLock = true;
 		}
-		else
+		else if (ColumnName == FCommonOutlinerNames::KeyFrame)
 		{
-			return Button;
+			// Add the camera lock button to the keyframe column if Nav is disabled
+			bAddCameraLock = Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav) == false;
+		}
+		else if (ColumnName == FCommonOutlinerNames::Edit)
+		{
+			// Add the camera lock button to the edit column if both Nav and KeyFrame are disabled
+			bAddCameraLock = Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav) == false &&
+				Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::KeyFrame) == false;
+		}
+
+		if (bAddCameraLock)
+		{
+			TSharedRef<SWidget> Button = SNew(SCheckBox)
+			.Style(FAppStyle::Get(), "Sequencer.Outliner.ToggleButton")
+			.Type(ESlateCheckBoxType::ToggleButton)
+			.IsFocusable(false)
+			.IsChecked(this, &FCinematicShotTrackEditor::AreShotsLocked)
+			.OnCheckStateChanged(this, &FCinematicShotTrackEditor::OnLockShotsClicked)
+			.ToolTipText(this, &FCinematicShotTrackEditor::GetLockShotsToolTip)
+			[
+				SNew(SImage)
+				.Image(FAppStyle::GetBrush("Sequencer.Outliner.CameraLock"))
+			];
+
+			if (ColumnName == FCommonOutlinerNames::Edit)
+			{
+				// Needs to be left aligned in the edit column because this column slot is set to fill
+				return SNew(SBox)
+				.HAlign(HAlign_Left)
+				.Padding(4.f, 0.f)
+				[
+					Button
+				];
+			}
+			else
+			{
+				return Button;
+			}
 		}
 	}
 
