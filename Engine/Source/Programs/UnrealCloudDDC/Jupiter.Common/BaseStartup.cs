@@ -259,9 +259,7 @@ namespace Jupiter
 				.AddService("UnrealCloudDDC", serviceNamespace: "Jupiter", serviceVersion: otelServiceVersion)
 				.AddEnvironmentVariableDetector();
 
-			services.AddOpenTelemetry();
-
-			services.ConfigureOpenTelemetryTracerProvider(builder =>
+			services.AddOpenTelemetry().WithTracing(builder =>
 			{
 				builder.AddHttpClientInstrumentation(options =>
 				{
@@ -302,9 +300,7 @@ namespace Jupiter
 				builder.AddOtlpExporter();
 
 				builder.AddSource("UnrealCloudDDC", "ScyllaDB");
-			});
-
-			services.ConfigureOpenTelemetryMeterProvider(builder =>
+			}).WithMetrics(builder =>
 			{
 				builder
 					.AddMeter("UnrealCloudDDC", "ScyllaDB")
@@ -313,7 +309,7 @@ namespace Jupiter
 					.AddAspNetCoreInstrumentation()
 					.AddHttpClientInstrumentation();
 			});
-			
+
 			services.Configure<OpenTelemetryLoggerOptions>(opt =>
 			{
 				opt.IncludeScopes = true;
