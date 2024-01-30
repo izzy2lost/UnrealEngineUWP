@@ -1,0 +1,34 @@
+{
+	"FileVersion": 3,
+	"Version": 0.1,
+	"VersionName": "0.1.0-alpha",
+	"FriendlyName": "SVGImporter",
+	"Description": "Importing and handling SVG files",
+	"Category": "Experimental",
+	"CreatedBy": "Epic Games, Inc.",
+	"CreatedByURL": "http://epicgames.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "SVGImporter",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "SVGImporterEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GeometryScripting",
+			"Enabled":  true
+		}
+	]
+}
