@@ -18,8 +18,6 @@
 
 namespace HarmonixMetasound
 {
-	using namespace Metasound;
-
 	DECLARE_LOG_CATEGORY_EXTERN(LogMidiStreamDataType, Log, All)
 
 	struct HARMONIXMETASOUND_API FMidiStreamEvent
@@ -87,7 +85,7 @@ namespace HarmonixMetasound
 	{
 	public:
 
-		FMidiStream(const FOperatorSettings& InSettings);
+		FMidiStream(const Metasound::FOperatorSettings& InSettings);
 
 		void SetClockSource(const FMidiClockReadRef& ClockSource)
 		{
@@ -130,7 +128,7 @@ namespace HarmonixMetasound
 		}
 
 		// Forward declare the read ref for copying other streams
-		using FMidiStreamReadRef = TDataReadReference<FMidiStream>;
+		using FMidiStreamReadRef = Metasound::TDataReadReference<FMidiStream>;
 
 		// Copies all midi and transport events from the in stream to this stream. Obliterates any
 		// transport/midi events already in this stream!
@@ -391,7 +389,7 @@ namespace HarmonixMetasound
 	private:
 		FMidiFileProxyPtr MidiFileSourceOfEvents;
 		int32 NumFramesPerBlock = 0;
-		FSampleRate SampleRate  = 0;
+		Metasound::FSampleRate SampleRate  = 0;
 		int32 TicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt;
 
 		FMidiTimestampTransportState CurrentTransportState;
