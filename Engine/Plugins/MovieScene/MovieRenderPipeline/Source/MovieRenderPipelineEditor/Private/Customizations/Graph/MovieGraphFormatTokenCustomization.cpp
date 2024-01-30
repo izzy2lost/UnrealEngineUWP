@@ -17,23 +17,39 @@ void FMovieGraphFormatTokenCustomization::CustomizeDetails(IDetailLayoutBuilder&
 
 	// This should work just fine for UMovieGraphFileOutputNode and UMovieGraphCommandLineEncoderNode as long as the property names stay in sync
 	OutputFormatPropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMovieGraphFileOutputNode, FileNameFormat));
-	const bool bShowChildren = false;
-	FText InitialText;
-	OutputFormatPropertyHandle->GetValueAsDisplayText(InitialText);
 
-	DetailBuilder.EditDefaultProperty(OutputFormatPropertyHandle)->CustomWidget(bShowChildren)
+	FText StartingDisplayText;
+	OutputFormatPropertyHandle->GetValueAsDisplayText(StartingDisplayText);
+
+	// Update the text box when the handle value changes
+	OutputFormatPropertyHandle->SetOnPropertyValueChanged(
+		FSimpleDelegate::CreateSP(this, &FMovieGraphFormatTokenCustomization::OnPropertyChange));
+
+	DetailBuilder.EditDefaultProperty(OutputFormatPropertyHandle)->CustomWidget()
 		.NameContent()
 		[
 			OutputFormatPropertyHandle->CreatePropertyNameWidget()
 		]
 		.ValueContent()
 		.MinDesiredWidth(200.0f)
-		[
-			SNew(SMoviePipelineFormatTokenAutoCompleteBox)
-			.Text(this, &FMovieGraphFormatTokenCustomization::GetText)
+	[
+			// We choose not to bind the text box text here because simultaneously setting and getting 
+			// the handle value can cause the binding to stop working, so we manually update it when necessary 
+			SAssignNew(AutoCompleteBox, SMoviePipelineFormatTokenAutoCompleteBox)
+			.InitialText(StartingDisplayText)
 			.Suggestions(this, &FMovieGraphFormatTokenCustomization::GetSuggestions)
 			.OnTextChanged(this, &FMovieGraphFormatTokenCustomization::OnTextChanged)
 		];
+}
+
+void FMovieGraphFormatTokenCustomization::OnPropertyChange()
+{
+	// Sync the text box back to the handle value
+	FText DisplayText;
+	OutputFormatPropertyHandle->GetValueAsDisplayText(DisplayText);
+
+	AutoCompleteBox->SetText(DisplayText);
+	AutoCompleteBox->CloseMenuAndReset();
 }
 
 TArray<FString> FMovieGraphFormatTokenCustomization::GetSuggestions() const
@@ -50,16 +66,9 @@ TArray<FString> FMovieGraphFormatTokenCustomization::GetSuggestions() const
 	return Suggestions;
 }
 
-void FMovieGraphFormatTokenCustomization::OnTextChanged(const FText& InValue) const
+void FMovieGraphFormatTokenCustomization::OnTextChanged(const FText& InValue)
 {
 	OutputFormatPropertyHandle->SetValue(InValue.ToString());
-}
-
-FText FMovieGraphFormatTokenCustomization::GetText() const
-{
-	FText DisplayText;
-	OutputFormatPropertyHandle->GetValueAsDisplayText(DisplayText);
-	return DisplayText;
 }
 
 void FMovieGraphFormatTokenCustomization::GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs)

@@ -15,12 +15,9 @@ class SMoviePipelineFormatTokenAutoCompleteBox : public SCompoundWidget
 {
 public:
 
-	SLATE_BEGIN_ARGS(SMoviePipelineFormatTokenAutoCompleteBox)
-		: _Text()
-		, _Suggestions()
-	{}
+	SLATE_BEGIN_ARGS(SMoviePipelineFormatTokenAutoCompleteBox){}
 
-	SLATE_ATTRIBUTE(FText, Text)
+	SLATE_ARGUMENT(FText, InitialText)
 	SLATE_ATTRIBUTE(TArray<FString>, Suggestions)
 	/** Called whenever the text is changed programmatically or interactively by the user. */
 	SLATE_EVENT(FOnTextChanged, OnTextChanged)
@@ -30,9 +27,10 @@ public:
 
 	// SWidget interface
 	virtual void OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent) override;
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent) override;
 	// End of SWidget interface
 
-	FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& KeyEvent);
+	void SetText(const FText& InText);
 
 	void OnItemClicked(TSharedPtr<FString>) const;
 

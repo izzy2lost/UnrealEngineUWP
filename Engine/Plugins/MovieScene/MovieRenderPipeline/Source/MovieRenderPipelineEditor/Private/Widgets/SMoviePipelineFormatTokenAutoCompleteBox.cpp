@@ -13,7 +13,7 @@ void SMoviePipelineFormatTokenAutoCompleteBox::Construct(const FArguments& InArg
 		.Placement(MenuPlacement_ComboBox)
 		[
 			SAssignNew(TextBox, SMultiLineEditableTextBox)
-			.Text(InArgs._Text)
+			.Text(InArgs._InitialText)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
 			.OnKeyDownHandler(this, &SMoviePipelineFormatTokenAutoCompleteBox::OnKeyDown)
 			.OnTextChanged(this, &SMoviePipelineFormatTokenAutoCompleteBox::HandleTextBoxTextChanged)
@@ -101,6 +101,11 @@ FReply SMoviePipelineFormatTokenAutoCompleteBox::OnKeyDown(const FGeometry& MyGe
 		}
 	}
 	return FReply::Unhandled();
+}
+
+void SMoviePipelineFormatTokenAutoCompleteBox::SetText(const FText& InText)
+{
+	TextBox->SetText(InText);
 }
 
 void SMoviePipelineFormatTokenAutoCompleteBox::OnItemClicked(TSharedPtr<FString> Item) const

@@ -21,14 +21,15 @@ protected:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	//~ End IDetailCustomization interface
 
+	void OnPropertyChange();
+
 	TArray<FString> GetSuggestions() const;
 
-	void OnTextChanged(const FText& InValue) const;
-
-	FText GetText() const;
+	void OnTextChanged(const FText& InValue);
 
 	static void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs);
 	
 	TWeakObjectPtr<UObject> CustomizedObject;
 	TSharedPtr<IPropertyHandle> OutputFormatPropertyHandle;
+	TSharedPtr<class SMoviePipelineFormatTokenAutoCompleteBox> AutoCompleteBox;
 };
