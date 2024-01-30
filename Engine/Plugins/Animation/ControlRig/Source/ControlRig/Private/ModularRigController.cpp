@@ -1329,7 +1329,7 @@ bool UModularRigController::IsNameAvailable(const FString& InParentModulePath, c
 
 	for (const FRigModuleReference* Child : *Children)
 	{
-		if (FRigName(Child->Name) == DesiredName)
+		if (FRigName(Child->Name).Equals(DesiredName, ESearchCase::IgnoreCase))
 		{
 			if(OutErrorMessage)
 			{
