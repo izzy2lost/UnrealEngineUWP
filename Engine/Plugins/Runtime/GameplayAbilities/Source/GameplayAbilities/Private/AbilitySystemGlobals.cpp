@@ -362,14 +362,62 @@ FAttributeSetInitter* UAbilitySystemGlobals::GetAttributeSetInitter() const
 	return GlobalAttributeSetInitter.Get();
 }
 
-void UAbilitySystemGlobals::AddAttributeDefaultTables(const TArray<FSoftObjectPath>& AttribDefaultTableNames)
+void UAbilitySystemGlobals::AddAttributeDefaultTables(const FName OwnerName, const TArray<FSoftObjectPath>& AttribDefaultTableNames)
 {
 	for (const FSoftObjectPath& TableName : AttribDefaultTableNames)
 	{
-		GlobalAttributeSetDefaultsTableNames.AddUnique(TableName);
+		if (TArray<FName>* Found = GlobalAttributeSetDefaultsTableNamesWithOwners.Find(TableName))
+		{
+			Found->Add(OwnerName);
+		}
+		else
+		{
+			TArray<FName> Owners = { OwnerName };
+			GlobalAttributeSetDefaultsTableNamesWithOwners.Add(TableName, MoveTemp(Owners));
+		}
 	}
 
 	InitAttributeDefaults();
+}
+
+void UAbilitySystemGlobals::RemoveAttributeDefaultTables(const FName OwnerName, const TArray<FSoftObjectPath>& AttribDefaultTableNames)
+{
+	bool bModified = false;
+
+	for (const FSoftObjectPath& TableName : AttribDefaultTableNames)
+	{
+		if (TableName.IsValid())
+		{
+			if (TArray<FName>* Found = GlobalAttributeSetDefaultsTableNamesWithOwners.Find(TableName))
+			{
+				Found->RemoveSingle(OwnerName);
+
+				// If no references remain, clear the pointer in GlobalAttributeDefaultsTables to allow GC
+				if (Found->IsEmpty())
+				{
+					GlobalAttributeSetDefaultsTableNamesWithOwners.Remove(TableName);
+
+					// Only if not listed in config file
+					if (!GlobalAttributeSetDefaultsTableNames.Contains(TableName))
+					{
+						// Remove reference to allow GC so package can be unloaded
+						if (UCurveTable* AttribTable = Cast<UCurveTable>(TableName.ResolveObject()))
+						{
+							if (GlobalAttributeDefaultsTables.Remove(AttribTable) > 0)
+							{
+								bModified = true;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (bModified)
+	{
+		ReloadAttributeDefaults();
+	}
 }
 
 void UAbilitySystemGlobals::InitAttributeDefaults()
@@ -401,6 +449,21 @@ void UAbilitySystemGlobals::InitAttributeDefaults()
 		}
  	}
 	
+	// Handle global curve tables for attribute defaults not defined by config file (registered by plugins or other systems calling AddAttributeDefaultTables)
+	for (const TPair<FSoftObjectPath, TArray<FName>>& It : GlobalAttributeSetDefaultsTableNamesWithOwners)
+	{
+		const FSoftObjectPath& AttribDefaultTableName = It.Key;
+		if (AttribDefaultTableName.IsValid() && !GlobalAttributeSetDefaultsTableNames.Contains(AttribDefaultTableName))
+		{
+			UCurveTable* AttribTable = Cast<UCurveTable>(AttribDefaultTableName.TryLoad());
+			if (AttribTable)
+			{
+				GlobalAttributeDefaultsTables.AddUnique(AttribTable);
+				bLoadedAnyDefaults = true;
+			}
+		}
+	}
+
 	if (bLoadedAnyDefaults)
 	{
 		// Subscribe for reimports if in the editor
