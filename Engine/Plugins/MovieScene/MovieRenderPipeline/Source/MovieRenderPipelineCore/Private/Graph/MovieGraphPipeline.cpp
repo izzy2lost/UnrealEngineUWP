@@ -15,6 +15,7 @@
 #include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 #include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphWarmUpSettingNode.h"
+#include "Graph/Nodes/MovieGraphExecuteScriptNode.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Misc/CoreDelegates.h"
@@ -23,7 +24,7 @@
 #include "RenderingThread.h"
 #include "ImageWriteQueue.h"
 #include "Modules/ModuleManager.h"
-
+#include "UObject/Package.h"
 
 FString UMovieGraphPipeline::DefaultPreviewWidgetAsset = TEXT("/MovieRenderPipeline/Blueprints/UI_MovieGraphPipelineScreenOverlay.UI_MovieGraphPipelineScreenOverlay_C");
 
@@ -80,16 +81,19 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 		// Called at the end of the frame after everything has been ticked and rendered for the frame.
 		FCoreDelegates::OnEndFrame.AddUObject(this, &UMovieGraphPipeline::OnEngineTickEndFrame);
 	}
+	CurrentJob = InJob;
+	CurrentShotIndex = 0;
+	GraphInitializationTime = FDateTime::UtcNow();
+	CVarManager = MakeShared<UE::MovieGraph::Private::FMovieGraphCVarManager>();
+
+	DuplicateJobAndConfiguration();
+	ExecutePreJobScripts();
 
 	// Create instances of our different classes from the InitConfig
 	GraphRendererInstance = NewObject<UMovieGraphRendererBase>(this, InitConfig.RendererClass);
 	GraphDataSourceInstance = NewObject<UMovieGraphDataSourceBase>(this, InitConfig.DataSourceClass);
 	GraphAudioRendererInstance = NewObject<UMovieGraphAudioRendererBase>(this, InitConfig.AudioRendererClass);
-	
-	CurrentJob = InJob;
-	CurrentShotIndex = 0;
-	GraphInitializationTime = FDateTime::UtcNow();
-	CVarManager = MakeShared<UE::MovieGraph::Private::FMovieGraphCVarManager>();
+
 
 	// Now that we've created our various systems, we will start using them. First thing we do is cache data about
 	// the world, job, player viewport, etc, before we make any modifications. These will be restored at the end
@@ -100,6 +104,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	LoadPreviewWidget();
 
 	GraphAudioRendererInstance->SetupAudioRendering();
+
 
 	// Update our list of shots from our data source, and then
 	// create our list of active shots, so we don't try to render
@@ -126,7 +131,7 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	if (ActiveShotList.Num() == 0)
 	{
 		// We have to transition twice as Uninitialized -> n state is a no-op, so the second tick will take us to Finished which shuts down.
-		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("MovieGraph No shots detected to render. Either all outside playback range, or disabled via shot mask, bailing."));
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("MovieGraph No shots detected to render. Either all outside playback range, or disabled via shot mask. Shutting down."));
 	
 		TransitionToState(EMovieRenderPipelineState::Export);
 		TransitionToState(EMovieRenderPipelineState::Finished);
@@ -135,6 +140,70 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 	{
 		TransitionToState(EMovieRenderPipelineState::ProducingFrames);
 	}
+}
+
+void UMovieGraphPipeline::DuplicateJobAndConfiguration()
+{
+	// Scripting is likely to want to modify both the job (to set variable assignments) and 
+	// the configuration itself (to add nodes, or override an output directory, etc. If scripts
+	// directly modified the job/configuration it would lead to a lot of unintentional mutation
+	// of assets and queues, so we instead choose to duplicate the job and configurations for
+	// the duration of a render, and all of the Graph Pipeline code should look at the duplicates.
+	FObjectDuplicationParameters JobDuplicationParms = FObjectDuplicationParameters(CurrentJob, GetTransientPackage());
+	CurrentJobDuplicate = Cast<UMoviePipelineExecutorJob>(StaticDuplicateObjectEx(JobDuplicationParms));
+
+	// The duplicate job is a mix of duplicated objects and non-duplicated objects. Objects that 
+	// don't have the job as their outer will not have been duplicate (which is good for the World/Sequence),
+	// but this also means that the graph configurations were not duplicated (as they are assets), so we need
+	// to manually duplicate them and update the pointers in the duplicated job.
+	FObjectDuplicationParameters PrimaryConfigDuplicationParams(CurrentJob->GetGraphPreset(), GetTransientPackage());
+	UMovieGraphConfig* DuplicatePrimaryConfig = Cast<UMovieGraphConfig>(StaticDuplicateObjectEx(PrimaryConfigDuplicationParams));
+	CurrentJobDuplicate->SetGraphPreset(DuplicatePrimaryConfig);
+	for (int32 Index = 0; Index < CurrentJob->ShotInfo.Num(); Index++)
+	{
+		// Now for each shot we need to duplicate its config (if any)
+		if (UMovieGraphConfig* ShotGraphPreset = CurrentJob->ShotInfo[Index]->GetGraphPreset())
+		{
+			// We use the transient package here and above because the _configs_ don't belong to the executor job usually (they belong
+			// to an asset package)
+			FObjectDuplicationParameters ShotConfigDuplicationParams(ShotGraphPreset, GetTransientPackage());
+			UMovieGraphConfig* DuplicateShotConfig = Cast<UMovieGraphConfig>(StaticDuplicateObjectEx(ShotConfigDuplicationParams));
+
+			CurrentJobDuplicate->ShotInfo[Index]->SetGraphPreset(DuplicateShotConfig);
+		}
+	}
+
+	// We only look in the primary configuration for the job for script nodes (and not shot specific overrides). If we looked
+	// in the shot-specific overrides, we would end up creating instances of the scripts for those shots. This can become really
+	// confusing if a shot specifies an Execute Script node with the same script as the Primary Graph, now you'll have two separate
+	// instances of your script, one which recieves 4 callbacks (pre/post job, pre/post shot) and one that only recieves pre/post shot.
+	FMovieGraphTraversalContext Context;
+	Context.Job = CurrentJobDuplicate;
+	Context.RootGraph = DuplicatePrimaryConfig;
+	FString OutError;
+
+	if (UMovieGraphEvaluatedConfig* FlattenedConfig = DuplicatePrimaryConfig->CreateFlattenedGraph(Context, OutError))
+	{
+		constexpr bool bIncludeCDOs = false;
+		TArray<UMovieGraphExecuteScriptNode*> ScriptNodes = FlattenedConfig->GetSettingsForBranch<UMovieGraphExecuteScriptNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
+
+		// We now have the duplicated job, shots, and configs and we've fixed up the pointers, so we can now pass the duplicates
+		// to the user-defined callbacks, allowing them to modify most things without worrying about accidental mutation. If they
+		// choose to modify shared state (ie: the level sequence) then there's not much we can do.
+		for (const UMovieGraphExecuteScriptNode* Node : ScriptNodes)
+		{
+			// We instantiate an instance of each script and store it, and we'll call all subsequent callbacks on these (ignoring the nodes)
+			// so that we ensure that only one copy of the scripts exist and that they can store state during a render.
+			UMovieGraphScriptBase* ScriptInstance = Node->AllocateScriptInstance();
+		
+			// It's valid for a node to return a nullptr script instance (invalid class or no class set).
+			if (ScriptInstance)
+			{
+				CurrentScriptInstances.Add(ScriptInstance);
+			}
+		}
+	}
+
 }
 
 void UMovieGraphPipeline::LoadPreviewWidget()
@@ -602,6 +671,8 @@ void UMovieGraphPipeline::BeginExport()
 
 void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
 {
+	ExecutePreShotScripts(InShot);
+
 	// Set the new shot as the active shot. This enables the specified shot section and disables all other shot sections.
 	SetSoloShot(InShot);
 
@@ -719,6 +790,17 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 	{
 		constexpr bool bOverrideValues = false;
 		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
+	}
+
+	if (IsPostShotCallbacksNeeded())
+	{
+		ProcessOutstandingFinishedFrames();
+		ProcessOutstandingFutures();
+
+		// ToDo: Allow the command line encoder to modify the file list
+		// since it may add or remove files...
+
+		ExecutePostShotScripts();
 	}
 
 	// Check to see if this was the last shot in the Pipeline, otherwise on the next
@@ -990,14 +1072,16 @@ void UMovieGraphPipeline::ShutdownImpl(bool bIsError)
 		// We were either in the middle of writing frames to disk, or we have moved to Finalize as a result of the above block.
 		// Tick output containers until they report they have finished writing to disk. This is a blocking operation. 
 		// Finalize automatically switches our state to Export so no need to manually transition afterwards.
-		//TickFinalizeOutputContainers(true);
+		constexpr bool bForceFinish = true;
+		TickFinalizeOutputContainers(bForceFinish);
 	}
 
 	if (PipelineState == EMovieRenderPipelineState::Export)
 	{
 		// All frames have been written to disk but we're doing a post-export step (such as encoding). Flush this operation as well.
 		// Export automatically switches our state to Finished so no need to manually transition afterwards.
-		TickPostFinalizeExport(true);
+		constexpr bool bForceFinish = true;
+		TickPostFinalizeExport(bForceFinish);
 	}
 }
 
@@ -1103,7 +1187,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			//	Setting->OnMoviePipelineShutdown(this);
 			//}
 
-
+			ExecutePostJobScripts();
 
 			// Ensure our delegates don't get called anymore as we're going to become null soon.
 			FCoreDelegates::OnBeginFrame.RemoveAll(this);
@@ -1176,18 +1260,23 @@ void UMovieGraphPipeline::OnMoviePipelineFinishedImpl()
 	// Broadcast to both Native and Python/BP
 	//
 	// Generate a params struct containing the data generated by this job.
-	FMoviePipelineOutputData Params;
-	//Params.Pipeline = this;
-	//Params.Job = GetCurrentJob();
-	//Params.bSuccess = !bFatalError;
-	//Params.ShotData = GeneratedShotOutputData;
+	FMovieGraphPipelineOutputData Params;
+	Params.Pipeline = this;
+	Params.Job = GetCurrentJob();
+	Params.bSuccess = !bShutdownSetErrorFlag;
+	Params.ShotData = GeneratedOutputData;
 	//
 	//UE_LOG(LogMovieRenderPipelineIO, Verbose, TEXT("Files written to disk for entire sequence:"));
 	//PrintVerboseLogForFiles(GeneratedShotOutputData);
 	//UE_LOG(LogMovieRenderPipelineIO, Verbose, TEXT("Completed outputting files written to disk."));
 	//
-	OnMoviePipelineWorkFinishedDelegateNative.Broadcast(Params);
-	// OnMoviePipelineWorkFinishedDelegate.Broadcast(Params);
+
+	// The callbacks are shared with the legacy system, but they have a different type due to render data identifiers.
+	// For now we need to at least call the callback (otherwise the executor never knows that the job is done).
+	FMoviePipelineOutputData DummyLegacyParams;
+	DummyLegacyParams.bSuccess = !bShutdownSetErrorFlag;
+	OnMoviePipelineWorkFinishedDelegateNative.Broadcast(DummyLegacyParams);
+	// OnMoviePipelineWorkFinishedDelegate.Broadcast(DummyLegacyParams);
 }
 
 //void UMovieGraphPipeline::PrintVerboseLogForFiles(const TArray<FMoviePipelineShotOutputData>& InOutputData) const
@@ -1395,4 +1484,75 @@ FMovieGraphTraversalContext UMovieGraphPipeline::GetCurrentTraversalContext(cons
 const TSet<TObjectPtr<UMovieGraphFileOutputNode>> UMovieGraphPipeline::GetOutputNodesUsed() const
 {
 	return OutputNodesDataSentTo;
+}
+
+
+bool UMovieGraphPipeline::IsPostShotCallbacksNeeded() const
+{
+	bool bAnyScriptNeedsCallbacks = false;
+	for (UMovieGraphScriptBase* Script : CurrentScriptInstances)
+	{
+		if (Script->IsPerShotCallbackNeeded())
+		{
+			bAnyScriptNeedsCallbacks = true;
+			break;
+		}
+	}
+
+	return bAnyScriptNeedsCallbacks;
+}
+
+void UMovieGraphPipeline::ExecutePreJobScripts()
+{
+	for (UMovieGraphScriptBase* Script : CurrentScriptInstances)
+	{
+		// GetCurrentJob returns the duplicated job and not the original.
+		Script->OnJobStart(GetCurrentJob());
+	}
+}
+
+void UMovieGraphPipeline::ExecutePreShotScripts(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
+{
+	for (UMovieGraphScriptBase* Script : CurrentScriptInstances)
+	{
+		if (Script->IsPerShotCallbackNeeded())
+		{
+			Script->OnShotStart(GetCurrentJob(), InShot);
+		}
+	}
+}
+
+void UMovieGraphPipeline::ExecutePostShotScripts()
+{
+	FMovieGraphPipelineOutputData Params;
+	Params.Pipeline = this;
+	Params.Job = GetCurrentJob();
+	Params.bSuccess = !bShutdownSetErrorFlag;
+
+	// We only provide data that the current shot generated during post-shot callbacks.
+	TArray< FMovieGraphRenderOutputData> SingleOutputData;
+	SingleOutputData.Add(GeneratedOutputData[CurrentShotIndex]);
+	Params.ShotData = SingleOutputData;
+
+	for (UMovieGraphScriptBase* Script : CurrentScriptInstances)
+	{
+		if (Script->IsPerShotCallbackNeeded())
+		{
+			Script->OnShotFinished(GetCurrentJob(), ActiveShotList[CurrentShotIndex], Params);
+		}
+	}
+}
+
+void UMovieGraphPipeline::ExecutePostJobScripts()
+{
+	FMovieGraphPipelineOutputData Params;
+	Params.Pipeline = this;
+	Params.Job = GetCurrentJob();
+	Params.bSuccess = !bShutdownSetErrorFlag;
+	Params.ShotData = GeneratedOutputData;
+
+	for (UMovieGraphScriptBase* Script : CurrentScriptInstances)
+	{
+		Script->OnJobFinished(GetCurrentJob(), Params);
+	}
 }
