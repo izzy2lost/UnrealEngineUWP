@@ -220,7 +220,7 @@ namespace UE::ConcertSharedSlate
 		void SetPrimarySortMode(FName SortedColumnId, EColumnSortMode::Type SortMode)
 		{
 			const TReplicationColumn<TItemType>* Column = FindColumnByName(SortedColumnId);
-			if (ensure(Column && Column->CanBeSorted()))
+			if (ensureAlways(Column && Column->CanBeSorted()))
 			{
 				PrimarySortInfo = { SortedColumnId, SortMode };
 				

@@ -267,14 +267,9 @@ namespace UE::ConcertSharedSlate
 				]
 				.BodyContent()
 				[
-					SAssignNew(PropertySection, SReplicatedPropertyView, PropertiesModel.ToSharedRef())
-					.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
-					.PrimarySort(InArgs._PrimaryPropertySort)
-					.SecondarySort(InArgs._SecondaryPropertySort)
+					SAssignNew(PropertySection, SReplicatedPropertyView, InArgs._PropertyTreeView.ToSharedRef(), PropertiesModel.ToSharedRef())
 					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
 					.NameModel(InArgs._NameModel)
-					.LeftOfPropertySearchBar() [ InArgs._LeftOfPropertySearchBar.Widget ]
-					.RightOfPropertySearchBar() [ InArgs._RightOfPropertySearchBar.Widget ]
 				]
 			];
 	}

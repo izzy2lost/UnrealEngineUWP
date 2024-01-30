@@ -5,12 +5,12 @@
 #include "Filters/FilterBase.h"
 #include "Internationalization/Text.h"
 
-namespace UE::ConcertSharedSlate
-{
-	class FReplicatedPropertyData;
+namespace UE::ConcertSharedSlate { class FReplicatedPropertyData; }
 
+namespace UE::ConcertClientSharedSlate
+{
 	/** Base UI filter for filtering properties. Gets rid of all the extra functionality in FFilterBase we do not need. */
-	class FPropertyFrontendFilter : public FFilterBase<TSharedPtr<FReplicatedPropertyData>>
+	class FPropertyFrontendFilter : public FFilterBase<const ConcertSharedSlate::FReplicatedPropertyData&>
 	{
 	public:
 
@@ -67,10 +67,9 @@ namespace UE::ConcertSharedSlate
 			});
 		}
 		
-		virtual bool PassesFilter(TSharedPtr<FReplicatedPropertyData> InItem) const override
+		virtual bool PassesFilter(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const override
 		{
-			check(InItem);
-			return FilterImplementation.PassesFilter(*InItem.Get());
+			return FilterImplementation.PassesFilter(InItem);
 		}
 
 	private:

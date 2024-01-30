@@ -7,6 +7,7 @@
 
 #include "Delegates/Delegate.h"
 #include "Editor/View/ReplicationColumnsUtils.h"
+#include "Editor/View/SelectionViewerColumns.h"
 #include "Misc/Attribute.h"
 #include "Templates/SharedPointer.h"
 
@@ -18,13 +19,15 @@ struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
+	class FReplicatedPropertyData;
+	
 	class IEditableMultiReplicationStreamModel;
 	class IEditableReplicationStreamModel;
 	class IMultiReplicationStreamEditor;
-	
-	class IReplicationStreamModel;
 	class IObjectNameModel;
 	class IObjectSelectionSourceModel;
+	class IPropertyTreeView;
+	class IReplicationStreamModel;
 	class IReplicationStreamEditor;
 	class IReplicationStreamViewer;
 	class IReplicationSubobjectView;
@@ -44,10 +47,55 @@ namespace UE::ConcertSharedSlate
 		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute,
 		TSharedPtr<IStreamExtender> Extender = nullptr
 		);
+
+	enum class EFilterResult : uint8
+	{
+		/** Include the object into list of displayed objects */
+		PassesFilter,
+		/** Exclude the object from list of displayed objects */
+		DoesNotPassFilter
+	};
+	DECLARE_DELEGATE_RetVal_OneParam(EFilterResult, FFilterPropertyData, const FReplicatedPropertyData&);
+	
+	struct FCreatePropertyTreeViewParams
+	{
+		/** Optional, additional columns to add to the property view. The LabelColumn will always be added. */
+		TArray<ReplicationColumns::FReplicationPropertyColumn> PropertyColumns
+		{
+			ReplicationColumns::Property::LabelColumn(),
+			ReplicationColumns::Property::TypeColumn()
+		};
+
+		/** Optional filter function. Return true to al */
+		FFilterPropertyData FilterItem;
+		
+		/** Optional initial primary sort mode for object rows */
+		FColumnSortInfo PrimaryPropertySort { ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
+		/** Optional initial secondary sort mode for object rows */
+		FColumnSortInfo SecondaryPropertySort { ReplicationColumns::Property::LabelColumnId, EColumnSortMode::Ascending };
+		
+		/** Optional widget to add to the left of the property list search bar. */
+		TAlwaysValidWidget LeftOfPropertySearchBar;
+		/** Optional widget to add to the right of the property list search bar. */
+		TAlwaysValidWidget RightOfPropertySearchBar;
+		/** Optional widget to add between the search bar and the table view (e.g. a SBasicFilterBar). */
+		TAlwaysValidWidget RowBelowSearchBar;
+		/** Optional, alternate content to show instead of the tree view when there are no rows. */
+		TAlwaysValidWidget NoItemsContent;
+	};
+	
+	/**
+	 * Creates a tree view that uses a search box for filtering items.
+	 * You can customize this tree view by adding custom widgets and columns into the property view.
+	 */
+	CONCERTSHAREDSLATE_API TSharedRef<IPropertyTreeView> CreateSearchablePropertyTreeView(FCreatePropertyTreeViewParams Params = {});
 	
 	/** Params for creating a IReplicationStreamViewer. */
 	struct FCreateViewerParams
 	{
+		/** Required. Displays the properties in a tree view. You can pass in e.g. custom UI with advanced filtering. */
+		TSharedRef<IPropertyTreeView> PropertyTreeView = CreateSearchablePropertyTreeView();
+		
 		/**
 		 * Optional. Determines the objects displayed as children to the top-level objects in the top section.
 		 * If left unspecified, the top will only display actors.
@@ -68,21 +116,10 @@ namespace UE::ConcertSharedSlate
 		/** Optional initial secondary sort mode for object rows */
 		FColumnSortInfo SecondaryObjectSort;
 		
-		/** Additional columns to add to the property view */
-		TArray<ReplicationColumns::FReplicationPropertyColumn> AdditionalPropertyColumns;
-		/** Optional initial primary sort mode for object rows */
-		FColumnSortInfo PrimaryPropertySort;
-		/** Optional initial secondary sort mode for object rows */
-		FColumnSortInfo SecondaryPropertySort;
-		
 		/** Optional widget to add to the left of the object list search bar. */
 		TAlwaysValidWidget LeftOfObjectSearchBar;
 		/** Optional widget to add to the right of the object list search bar. */
 		TAlwaysValidWidget RightOfObjectSearchBar;
-		/** Optional widget to add to the left of the property list search bar. */
-		TAlwaysValidWidget LeftOfPropertySearchBar;
-		/** Optional widget to add to the right of the property list search bar. */
-		TAlwaysValidWidget RightOfPropertySearchBar;
 	};
 
 	// TODO DP 5.5: Create factory function that uses FCreateViewerParams and creates an IReplicationStreamViewer
@@ -91,18 +128,18 @@ namespace UE::ConcertSharedSlate
 	struct FCreateEditorParams
 	{
 		/**
-		 * The model that the editor is displaying.
+		 * Required. The model that the editor is displaying.
 		 * @note The view will keep a strong reference to this.
 		 */
 		TSharedRef<IEditableReplicationStreamModel> DataModel;
 		
 		/**
-		 * Determines the objects that can be added to the object list. 
+		 * Required. Determines the objects that can be added to the object list. 
 		 * @note The view will keep a strong reference to this.
 		 */
 		TSharedRef<IObjectSelectionSourceModel> ObjectSource;
 		/**
-		 * Determines the objects that are displayed in the property list. 
+		 * Required. Determines the properties that are displayed in the property list. 
 		 * @note The view will keep a strong reference to this.
 		 */
 		TSharedRef<IPropertySelectionSourceModel> PropertySource;
@@ -111,9 +148,6 @@ namespace UE::ConcertSharedSlate
 		TAttribute<bool> IsEditingEnabled;
 		/** Optional. Whenever IsEditingEnabled returns true, this tooltip is displayed for relevant, disabled UI. */
 		TAttribute<FText> EditingDisabledToolTipText;
-
-		/** Base params for customizing the viewing part of the editor */
-		FCreateViewerParams ViewerParams;
 	};
 
 	/**
@@ -127,14 +161,9 @@ namespace UE::ConcertSharedSlate
 	 * 1. Root objects, similar to world outliner:
 	 *		- Similar to World Outliner: Displays top-level objects, i.e. actors, are added here.
 	 *		- FCreateEditorParams::ObjectSource is used to build a combo button through which new objects can be added.
-	 * 2. Subobjects (optional):
-	 *		- Similar to component view (SSubobjectEditor)
-	 *		- Shows subobjects of a root objects selected above; typically components.
-	 * 3. Properties:
-	 *		- Similar to details panel
-	 *		- Shows properties of the selected root object and / or subobjects.
+	 * 2. Properties: Shows properties of the selected root object and / or subobjects.
 	 */
-	CONCERTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams Params);
+	CONCERTSHAREDSLATE_API TSharedRef<IReplicationStreamEditor> CreateBaseStreamEditor(FCreateEditorParams EditorParams, FCreateViewerParams ViewerParams);
 
 	DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<IEditableReplicationStreamModel>, FGetAutoAssignTarget, TConstArrayView<UObject*>);
 	/** Params for creating an IMultiReplicationStreamEditor */
@@ -175,9 +204,6 @@ namespace UE::ConcertSharedSlate
 
 		/** Optional. If set, the Add Actor button should automatically assign the added object to stream returned */
 		FGetAutoAssignTarget GetAutoAssignToStreamDelegate;
-		
-		/** Base params for customizing the viewing part of the editor */
-		FCreateViewerParams ViewerParams;
 	};
 
 	/**
@@ -189,5 +215,5 @@ namespace UE::ConcertSharedSlate
 	 *
 	 * @note This editor does NOT create any UI for changing the assigned properties. You are supposed to inject column widgets to the property rows for this.
 	 */
-	CONCERTSHAREDSLATE_API TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams Params);
+	CONCERTSHAREDSLATE_API TSharedRef<IMultiReplicationStreamEditor> CreateBaseMultiStreamEditor(FCreateMultiStreamEditorParams EditorParams, FCreateViewerParams ViewerParams);
 }

@@ -105,7 +105,10 @@ namespace UE::MultiUserClient
 		// ... so add back the staged objects
 		for (const FSoftObjectPath& StagedObject : StagedObjects)
 		{
-			GetClientContent()->Stream->ReplicationMap.ReplicatedObjects.Add(StagedObject);
+			if (const UObject* Object = StagedObject.ResolveObject())
+			{
+				GetClientContent()->Stream->ReplicationMap.ReplicatedObjects.Add(StagedObject) = FConcertReplicatedObjectInfo::Make(*Object);
+			}
 		}
 		// To remove the hierarchy, the user must click the actor and delete it explicitly, which will call IEditableReplicationStream::RemoveObjects on the staged objects.
 		

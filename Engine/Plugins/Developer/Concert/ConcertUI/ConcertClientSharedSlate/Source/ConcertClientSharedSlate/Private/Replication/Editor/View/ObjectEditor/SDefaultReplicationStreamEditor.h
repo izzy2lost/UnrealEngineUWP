@@ -16,6 +16,7 @@ struct FConcertStreamObjectAutoBindingRules;
 namespace UE::ConcertSharedSlate
 {
 	struct FCreateEditorParams;
+	struct FCreateViewerParams;
 	class IEditableReplicationStreamModel;
 }
 
@@ -34,7 +35,7 @@ namespace UE::ConcertClientSharedSlate
 		SLATE_BEGIN_ARGS(SDefaultReplicationStreamEditor) {}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, ConcertSharedSlate::FCreateEditorParams EditorParams);
+		void Construct(const FArguments& InArgs, ConcertSharedSlate::FCreateEditorParams EditorParams, ConcertSharedSlate::FCreateViewerParams ViewerParams);
 
 		//~ Begin IReplicationStreamEditor Interface
 		virtual void Refresh() override;

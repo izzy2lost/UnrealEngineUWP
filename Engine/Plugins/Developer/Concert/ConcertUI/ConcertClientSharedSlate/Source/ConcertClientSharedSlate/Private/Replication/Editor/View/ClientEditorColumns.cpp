@@ -84,7 +84,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	}
 	
 	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ReplicatesColumns(
-		TWeakPtr<ConcertSharedSlate::IReplicationStreamViewer> Viewer,
+		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
 		TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Model,
 		ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate,
 		TAttribute<FText> DisabledToolTipText,
@@ -100,14 +100,14 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 				FPropertyColumnDelegates::FGetColumnCheckboxState::CreateLambda(
 				[Viewer, Model](const FReplicatedPropertyData& Data)
 				{
-					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
+					const IReplicationStreamViewer* ViewerPin = Viewer.Get();
 					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
 					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Data.GetProperty(), *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
 				}),
 				FPropertyColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
 				[Viewer, Model](bool bIsChecked, const FReplicatedPropertyData& Data)
 				{
-					const TSharedPtr<IReplicationStreamViewer> ViewerPin = Viewer.Pin();
+					const IReplicationStreamViewer* ViewerPin = Viewer.Get();
 					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
 					if (ensure(ViewerPin && ModelPin))
 					{

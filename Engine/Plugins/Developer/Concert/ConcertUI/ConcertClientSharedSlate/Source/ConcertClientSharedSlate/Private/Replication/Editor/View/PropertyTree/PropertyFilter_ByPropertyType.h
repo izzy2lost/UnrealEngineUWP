@@ -8,10 +8,10 @@
 
 class FFieldClass;
 
-namespace UE::ConcertSharedSlate
-{
-	class FReplicatedPropertyData;
+namespace UE::ConcertSharedSlate { class FReplicatedPropertyData; }
 
+namespace UE::ConcertClientSharedSlate
+{
 	/** Filters a property based on the FFieldClass it has. */
 	class FPropertyFilter_ByPropertyType : public FPropertyFilterBase
 	{
@@ -29,7 +29,7 @@ namespace UE::ConcertSharedSlate
 		FChangedEvent ChangedEventDelegate;
 
 		//~ Begin FPropertyFilterBase Interface
-		virtual bool MatchesFilteredForProperty(const FReplicatedPropertyData& InItem) const override;
+		virtual bool MatchesFilteredForProperty(const ConcertSharedSlate::FReplicatedPropertyData& InItem) const override;
 		//~ End FPropertyFilterBase Interface
 	};
 }

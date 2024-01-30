@@ -69,33 +69,33 @@ namespace UE::MultiUserClient
 			TAttribute<const IReplicationStreamViewer*>::CreateLambda([this](){ return EditorView.Get(); });
 
 		// Add checkboxes in front of top level and subobject rows for changing authority
-		const FCreateEditorParams ReplicationEditorCreationParams
+		ConcertClientSharedSlate::FDefaultStreamEditorParams DefaultEditorParams
 		{
-			.DataModel = InReplicationClient.GetClientEditModel(),
-			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
-			.PropertySource = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>(),
-			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return CanEverSubmit(SubmissionWorkflow.GetUploadability()); }),
-			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
-			.ViewerParams =
+			.BaseEditorParams =
 			{
-				.ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy(), // This makes actors have children in the top view
-				.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
-				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SReplicationClientView::ExtendObjectContextMenu),
-				.AdditionalObjectColumns =
-				{
-					SingleClientColumns::ToggleObjectAuthority(AuthorityTracker, SubmissionWorkflow),
-					SingleClientColumns::ConflictWarningForObject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId()),
-					SingleClientColumns::OwnerOfObject(ConcertClient.ToSharedRef(), AuthorityCache)
-				},
-				.AdditionalPropertyColumns =
-				{
-					SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
-					SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
-				},
-			}
+				.DataModel = InReplicationClient.GetClientEditModel(),
+				.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
+				.PropertySource = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>(),
+				.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return CanEverSubmit(SubmissionWorkflow.GetUploadability()); }),
+				.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
+			},
+			.AdditionalPropertyColumns =
+			{
+				SingleClientColumns::OwnerOfProperty(ConcertClient.ToSharedRef(), AuthorityCache, GetReplicationViewerAttribute),
+				SingleClientColumns::ConflictWarningForProperty(ConcertClient.ToSharedRef(), GetReplicationViewerAttribute, AuthorityCache, InReplicationClient.GetEndpointId())
+			},
+			.ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy(), // This makes actors have children in the top view
+            .NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
+            .OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SReplicationClientView::ExtendObjectContextMenu),
+            .AdditionalObjectColumns =
+            {
+            	SingleClientColumns::ToggleObjectAuthority(AuthorityTracker, SubmissionWorkflow),
+            	SingleClientColumns::ConflictWarningForObject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId()),
+            	SingleClientColumns::OwnerOfObject(ConcertClient.ToSharedRef(), AuthorityCache)
+            },
 		};
 
-		EditorView = ConcertClientSharedSlate::CreateDefaultStreamEditor(ReplicationEditorCreationParams);
+		EditorView = ConcertClientSharedSlate::CreateDefaultStreamEditor(MoveTemp(DefaultEditorParams));
 		return EditorView.ToSharedRef();
 	}
 

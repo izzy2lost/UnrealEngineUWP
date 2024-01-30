@@ -5,19 +5,20 @@
 #include "Filters/SBasicFilterBar.h"
 #include "PropertyFilter_ByPropertyType.h"
 #include "PropertyFrontendFilter.h"
-#include "SPropertyTreeView.h"
+#include "Replication/ClientReplicationWidgetFactories.h"
+#include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 
 #include "UObject/UnrealType.h"
 
 #define LOCTEXT_NAMESPACE "SReplicatedPropertiesView"
 
-namespace UE::ConcertSharedSlate
+namespace UE::ConcertClientSharedSlate
 {
 	/** Exposes SetFrontendFilterActive so we can manually enable the default filters */
-	class SReplicationFilterBar : public SBasicFilterBar<TSharedPtr<FReplicatedPropertyData>>
+	class SReplicationFilterBar : public SBasicFilterBar<const ConcertSharedSlate::FReplicatedPropertyData&>
 	{
-		using Super = SBasicFilterBar<TSharedPtr<FReplicatedPropertyData>>;
+		using Super = SBasicFilterBar<const ConcertSharedSlate::FReplicatedPropertyData&>;
 	public:
 
 		SLATE_BEGIN_ARGS(SReplicationFilterBar)
@@ -52,38 +53,42 @@ namespace UE::ConcertSharedSlate
 		}
 	};
 	
-	void SFilteredPropertyTreeView::Construct(const FArguments& InArgs)
+	void SFilteredPropertyTreeView::Construct(const FArguments& InArgs, FFilterablePropertyTreeViewParams Params)
 	{
 		const FBuildFilterBarResult Filters = BuildFilterBar();
+
+		using namespace UE::ConcertSharedSlate;
+		FCreatePropertyTreeViewParams TreeViewParams
+		{
+			.PropertyColumns = MoveTemp(Params.PropertyColumns),
+			.FilterItem = FFilterPropertyData::CreateSP(this, &SFilteredPropertyTreeView::PassesFilters),
+			.PrimaryPropertySort = Params.PrimaryPropertySort,
+			.SecondaryPropertySort = Params.SecondaryPropertySort
+		};
+		TreeViewParams.LeftOfPropertySearchBar.Widget = 
+			SNew(SHorizontalBox)
+
+			// The combo button for selecting the property filters
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SBasicFilterBar<const FReplicatedPropertyData&>::MakeAddFilterButton(FilterBar.ToSharedRef())
+			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				InArgs._LeftOfSearchBar.Widget
+			]
+		;
+		TreeViewParams.RowBelowSearchBar.Widget = FilterBar.ToSharedRef();
+		TreeViewParams.NoItemsContent.Widget = SNew(STextBlock).Text(LOCTEXT("AllFitlered", "All properties filtered."));
+			
+		ExtendedTreeView = CreateSearchablePropertyTreeView(MoveTemp(TreeViewParams));
+		
 		ChildSlot
 		[
-			SAssignNew(ReplicatedProperties, SPropertyTreeView)
-				.Columns(InArgs._Columns)
-				.ExpandableColumnLabel(InArgs._ExpandableColumnLabel)
-				.PrimarySort(InArgs._PrimarySort)
-				.SecondarySort(InArgs._SecondarySort)
-				.SelectionMode(InArgs._SelectionMode)
-				.FilterItem(this, &SFilteredPropertyTreeView::PassesFilters)
-				.LeftOfSearchBar()
-				[
-					SNew(SHorizontalBox)
-
-					// The combo button for selecting the property filters
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SBasicFilterBar<TSharedPtr<FReplicatedPropertyData>>::MakeAddFilterButton(FilterBar.ToSharedRef())
-					]
-
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						InArgs._LeftOfSearchBar.Widget
-					]
-				]
-				.RightOfSearchBar() [ InArgs._RightOfSearchBar.Widget ]
-				.RowBelowSearchBar() [ FilterBar.ToSharedRef() ]
-				.NoItemsContent() [ SNew(STextBlock).Text(LOCTEXT("AllFitlered", "All properties filtered.")) ]
+			ExtendedTreeView->GetWidget()
 		];
 
 		// For better UX, hide certain properties by default (e.g. why would you want to replicate bools?)
@@ -149,15 +154,16 @@ namespace UE::ConcertSharedSlate
 		return Result;
 	}
 
-	bool SFilteredPropertyTreeView::PassesFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const
+	ConcertSharedSlate::EFilterResult SFilteredPropertyTreeView::PassesFilters(const ConcertSharedSlate::FReplicatedPropertyData& ReplicatedPropertyData) const
 	{
-		return FilterBar->GetAllActiveFilters()->Num() == 0 // Return all items when none enabled
+		const bool bPassesFilter = FilterBar->GetAllActiveFilters()->Num() == 0 // Return all items when none enabled
 			|| PassesAnyFilters(ReplicatedPropertyData);
+		return bPassesFilter ? ConcertSharedSlate::EFilterResult::PassesFilter : ConcertSharedSlate::EFilterResult::DoesNotPassFilter;
 	}
 
-	bool SFilteredPropertyTreeView::PassesAnyFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const
+	bool SFilteredPropertyTreeView::PassesAnyFilters(const ConcertSharedSlate::FReplicatedPropertyData& ReplicatedPropertyData) const
 	{
-		TSharedPtr<TFilterCollection<TSharedPtr<FReplicatedPropertyData>>> FilterCollection = FilterBar->GetAllActiveFilters();
+		TSharedPtr<TFilterCollection<const ConcertSharedSlate::FReplicatedPropertyData&>> FilterCollection = FilterBar->GetAllActiveFilters();
 		for (int32 Index = 0; Index < FilterCollection->Num(); Index++)
 		{
 			if (FilterCollection->GetFilterAtIndex(Index)->PassesFilter(ReplicatedPropertyData))
