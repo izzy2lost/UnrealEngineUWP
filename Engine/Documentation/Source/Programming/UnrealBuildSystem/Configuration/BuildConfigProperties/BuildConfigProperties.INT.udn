@@ -338,6 +338,8 @@ $ InlineFunctionExpansionLevel : Which level to use for Inline Function Expansio
 
 $ ToolChain : Version of the toolchain to use on Windows platform when a non-msvc Compiler is in use, to locate include paths etc.
 
+$ ToolchainVersionWarningLevel : Warning level when reporting toolchains that are not in the preferred version list
+
 $ bStrictConformanceMode : Enables strict standard conformance mode (/permissive-).
 
 ### ModuleConfiguration
@@ -869,6 +871,8 @@ $ ExcludedFilePaths : Semi-colon separated list of paths that should not be adde
 $ bBuildUBTInDebug : Forces UBT to be built in debug configuration, regardless of the solution configuration
 
 $ bBuildLiveCodingConsole : Whether to include a dependency on LiveCodingConsole when building targets that support live coding.
+
+$ bMakeProjectPerTarget : Whether to generate a project file for each individual target, and not include e.g. Editor/Client/Server in the Configuration.
 
 $ bIncludeDocumentation : True if we should include documentation in the generated projects.
 
