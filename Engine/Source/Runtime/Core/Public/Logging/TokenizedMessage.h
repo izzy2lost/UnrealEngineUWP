@@ -123,6 +123,12 @@ public:
 	 */
 	CORE_API static TSharedRef<FTokenizedMessage> Create(EMessageSeverity::Type InSeverity, const FText& InMessageText = FText());
 
+	/**
+	 * Clone this message.
+	 * @note The message tokens are shared between the original and the clone.
+	 */
+	CORE_API TSharedRef<FTokenizedMessage> Clone() const;
+
 	/** 
 	 * Get this tokenized message as a string
 	 * 
