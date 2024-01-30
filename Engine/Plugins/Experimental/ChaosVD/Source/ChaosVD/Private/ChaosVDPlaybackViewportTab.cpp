@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-TSharedRef<SDockTab> FChaosVDPlaybackViewportTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDPlaybackViewportTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
 	TSharedRef<SDockTab> ViewportTab =
 		SNew(SDockTab)
@@ -33,8 +33,17 @@ TSharedRef<SDockTab> FChaosVDPlaybackViewportTab::HandleTabSpawned(const FSpawnT
 	}
 	
 	ViewportTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
+	
+	HandleTabSpawned(ViewportTab);
 
 	return ViewportTab;
+}
+
+void FChaosVDPlaybackViewportTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
+{
+	FChaosVDTabSpawnerBase::HandleTabClosed(InTabClosed);
+
+	PlaybackViewportWidget.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

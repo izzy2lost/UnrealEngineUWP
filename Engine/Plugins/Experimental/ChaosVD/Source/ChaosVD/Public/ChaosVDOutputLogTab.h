@@ -18,7 +18,7 @@ public:
 	{
 	}
 
-	virtual TSharedRef<SDockTab> HandleTabSpawned(const FSpawnTabArgs& Args) override;
+	virtual TSharedRef<SDockTab> HandleTabSpawnRequest(const FSpawnTabArgs& Args) override;
 
 private:
 	TSharedPtr<FOutputLogHistory> OutputLogHistory;

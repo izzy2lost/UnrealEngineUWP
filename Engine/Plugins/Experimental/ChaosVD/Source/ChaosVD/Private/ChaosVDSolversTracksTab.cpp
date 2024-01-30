@@ -10,9 +10,9 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-TSharedRef<SDockTab> FChaosVDSolversTracksTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDSolversTracksTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
-	TSharedRef<SDockTab> ViewportTab =
+	TSharedRef<SDockTab> SolverTracksTab =
 	SNew(SDockTab)
 	.TabRole(ETabRole::PanelTab)
 	.Label(LOCTEXT("SolverTracksTabLabel", "Available Solvers"))
@@ -20,21 +20,26 @@ TSharedRef<SDockTab> FChaosVDSolversTracksTab::HandleTabSpawned(const FSpawnTabA
 
 	if (const TSharedPtr<SChaosVDMainTab> MainTabPtr = OwningTabWidget.Pin())
 	{
-		ViewportTab->SetContent
+		SolverTracksTab->SetContent
 		(
 			SAssignNew(SolverTracksWidget, SChaosVDSolverTracks, MainTabPtr->GetChaosVDEngineInstance()->GetPlaybackController())
 		);
 	}
 	else
 	{
-		ViewportTab->SetContent(GenerateErrorWidget());
+		SolverTracksTab->SetContent(GenerateErrorWidget());
 	}
 
-	ViewportTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
+	SolverTracksTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconPlaybackViewport"));
 
-	OnTabSpawned().Broadcast(ViewportTab);
+	HandleTabSpawned(SolverTracksTab);
 
-	return ViewportTab;
+	return SolverTracksTab;
+}
+
+void FChaosVDSolversTracksTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
+{
+	SolverTracksWidget.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

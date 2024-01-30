@@ -52,7 +52,7 @@ protected:
 
 	EVisibility GetOutOfDateWarningVisibility() const;
 
-	void HandleSessionNameSelected(TSharedPtr<FName> SelectedName);
+	void HandleCollisionDataEntryNameSelected(TSharedPtr<FName> SelectedName);
 
 	TSharedPtr<FName> GenerateNameForCollisionDataItem(const FChaosVDCollisionDataFinder& InContactFinderData);
 
@@ -70,9 +70,9 @@ protected:
 
 	TSharedPtr<FName> CurrentSelectedName;
 
-	TSharedPtr<IStructureDetailsView> ContactDataDetailsView;
+	TSharedPtr<IStructureDetailsView> MainCollisionDataDetailsView;
 	
-	TSharedPtr<IStructureDetailsView> ConstraintDataDetailsView;
+	TSharedPtr<IStructureDetailsView> SecondaryCollisionDataDetailsPanel;
 
 	FName CurrentObjectBeingInspectedName;
 

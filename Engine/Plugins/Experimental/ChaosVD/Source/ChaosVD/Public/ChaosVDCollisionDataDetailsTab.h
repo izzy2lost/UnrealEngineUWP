@@ -18,7 +18,8 @@ public:
 	}
 
 	virtual ~FChaosVDCollisionDataDetailsTab() override;
-	virtual TSharedRef<SDockTab> HandleTabSpawned(const FSpawnTabArgs& Args) override;
+	virtual TSharedRef<SDockTab> HandleTabSpawnRequest(const FSpawnTabArgs& Args) override;
+	virtual void HandleTabClosed(TSharedRef<SDockTab> InTabClosed) override;
 
 	TWeakPtr<SChaosVDCollisionDataInspector> GetCollisionInspectorInstance() const { return CollisionDataInspector; };
 
