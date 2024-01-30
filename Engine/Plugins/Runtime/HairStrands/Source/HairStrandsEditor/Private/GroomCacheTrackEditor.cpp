@@ -39,10 +39,7 @@ static UGroomComponent* AcquireGroomComponentFromObjectGuid(const FGuid& Guid, T
 	}
 	else if (UGroomComponent* GroomComp = Cast<UGroomComponent>(BoundObject))
 	{
-		if (GroomComp->GetGroomCache())
-		{
-			return GroomComp;
-		}
+		return GroomComp;
 	}
 
 	return nullptr;
