@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using EpicGames.Core;
+using UnrealBuildTool.PS4;
 
 namespace UnrealBuildTool
 {
@@ -91,6 +92,51 @@ namespace UnrealBuildTool
 		{
 			minVersion = MinimumWindowsSDKVersion?.ToString();
 			maxVersion = MaximumWindowsSDKVersion?.ToString();
+		}
+
+		/// <summary>
+		/// If a toolchain version is a preferred version
+		/// </summary>
+		/// <param name="toolchain">The toolchain type</param>
+		/// <param name="version">The version number</param>
+		/// <returns>If the version is preferred</returns>
+		public static bool IsPreferredVersion(WindowsCompiler toolchain, VersionNumber version)
+		{
+			if (toolchain.IsMSVC())
+			{
+				return PreferredVisualCppVersions.Any(x => x.Contains(version));
+			}
+			else if (toolchain.IsClang())
+			{
+				return PreferredClangVersions.Any(x => x.Contains(version));
+			}
+			else if (toolchain.IsIntel())
+			{
+				return PreferredIntelOneApiVersions.Any(x => x.Contains(version));
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// Get the latest preferred toolchain version
+		/// </summary>
+		/// <param name="toolchain">The toolchain type</param>
+		/// <returns>The version number</returns>
+		public static VersionNumber GetLatestPreferredVersion(WindowsCompiler toolchain)
+		{
+			if (toolchain.IsMSVC())
+			{
+				return PreferredVisualCppVersions.Select(x => x.Min).Max()!;
+			}
+			else if (toolchain.IsClang())
+			{
+				return PreferredClangVersions.Select(x => x.Min).Max()!;
+			}
+			else if (toolchain.IsIntel())
+			{
+				return PreferredIntelOneApiVersions.Select(x => x.Min).Max()!;
+			}
+			return new VersionNumber(0);
 		}
 
 		/// <summary>

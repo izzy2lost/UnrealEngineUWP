@@ -698,6 +698,21 @@ namespace UnrealBuildTool
 			}
 		}
 
+		/// <summary>
+		/// Dump all available toolchain info for a compiler
+		/// </summary>
+		/// <param name="Compiler">The compiler to filter by</param>
+		/// <param name="Architecture">Architecture that must be supported</param>
+		/// <param name="Logger">The ILogger interface to write to</param>
+		public static void DumpAllToolChainInstallations(WindowsCompiler Compiler, UnrealArch Architecture, ILogger Logger)
+		{
+			List<ToolChainInstallation>? ToolChains = CachedToolChainInstallations.GetValueOrDefault(Compiler);
+			if (ToolChains != null)
+			{
+				DumpToolChains(ToolChains, x => x.ThenBy(x => x.ReleaseChannel).ThenByDescending(x => x.Version), Architecture, Logger);
+			}
+		}
+
 		static List<ToolChainInstallation> FindToolChainInstallations(WindowsCompiler Compiler, ILogger Logger)
 		{
 			return CachedToolChainInstallations.GetOrAdd(Compiler, _ =>

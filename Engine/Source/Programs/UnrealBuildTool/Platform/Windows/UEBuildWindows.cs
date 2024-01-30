@@ -288,6 +288,15 @@ namespace UnrealBuildTool
 		= UnrealArch.X64;
 
 		/// <summary>
+		/// Warning level when reporting toolchains that are not in the preferred version list
+		/// </summary>
+		/// <seealso cref="MicrosoftPlatformSDK.PreferredVisualCppVersions"/>
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "ToolchainVersionWarningLevel")]
+		[XmlConfigFile(Category = "WindowsPlatform")]
+		[CommandLine("-ToolchainVersionWarningLevel=")]
+		public WarningLevel ToolchainVersionWarningLevel { get; set; } = WarningLevel.Warning;
+
+		/// <summary>
 		/// The specific compiler version to use. This may be a specific version number (for example, "14.13.26128"), the string "Latest" to select the newest available version, or
 		/// the string "Preview" to select the newest available preview version. By default, and if it is available, we use the toolchain version indicated by
 		/// WindowsPlatform.DefaultToolChainVersion (otherwise, we use the latest version).
@@ -793,6 +802,8 @@ namespace UnrealBuildTool
 
 		public UnrealArch Architecture => Inner.Architecture;
 
+		public WarningLevel ToolchainVersionWarningLevel => Inner.ToolchainVersionWarningLevel;
+
 		public string? CompilerVersion => Inner.CompilerVersion;
 
 		public string? ToolchainVerison => Inner.ToolchainVersion;
@@ -1187,6 +1198,31 @@ namespace UnrealBuildTool
 				if (ClangVersion < MinimumClang)
 				{
 					throw new BuildException("MSVC toolchain version {0} requires Clang compiler version {1} or later. The current Clang compiler version was detected as: {2}", Target.WindowsPlatform.Environment.ToolChainVersion, MinimumClang, ClangVersion);
+				}
+			}
+
+			if (Target.WindowsPlatform.ToolchainVersionWarningLevel != WarningLevel.Off)
+			{
+				if (!MicrosoftPlatformSDK.IsPreferredVersion(Target.WindowsPlatform.Compiler, Target.WindowsPlatform.Environment.CompilerVersion))
+				{
+					VersionNumber preferred = MicrosoftPlatformSDK.GetLatestPreferredVersion(Target.WindowsPlatform.Compiler);
+					MicrosoftPlatformSDK.DumpAllToolChainInstallations(Target.WindowsPlatform.Compiler, Target.Architecture, Logger);
+					if (Target.WindowsPlatform.ToolchainVersionWarningLevel == WarningLevel.Error)
+					{
+						throw new BuildLogEventException("{Compiler} compiler version {Version} is not a preferred version. Please use the latest preferred version {PreferredVersion}", WindowsPlatform.GetCompilerName(Target.WindowsPlatform.Compiler), Target.WindowsPlatform.Environment.CompilerVersion, preferred);
+					}
+					Logger.LogInformation("{Compiler} compiler version {Version} is not a preferred version. Please use the latest preferred version {PreferredVersion}", WindowsPlatform.GetCompilerName(Target.WindowsPlatform.Compiler), Target.WindowsPlatform.Environment.CompilerVersion, preferred);
+				}
+
+				if (Target.WindowsPlatform.Compiler != Target.WindowsPlatform.ToolChain && !MicrosoftPlatformSDK.IsPreferredVersion(Target.WindowsPlatform.ToolChain, Target.WindowsPlatform.Environment.ToolChainVersion))
+				{
+					VersionNumber preferred = MicrosoftPlatformSDK.GetLatestPreferredVersion(Target.WindowsPlatform.ToolChain);
+					MicrosoftPlatformSDK.DumpAllToolChainInstallations(Target.WindowsPlatform.ToolChain, Target.Architecture, Logger);
+					if (Target.WindowsPlatform.ToolchainVersionWarningLevel == WarningLevel.Error)
+					{
+						throw new BuildLogEventException("{Toolchain} toolchain version {Version} is not a preferred version. Please use the latest preferred version {PreferredVersion}", WindowsPlatform.GetCompilerName(Target.WindowsPlatform.ToolChain), Target.WindowsPlatform.Environment.ToolChainVersion, preferred);
+					}
+					Logger.LogInformation("{Toolchain} toolchain version {Version} is not a preferred version. Please use a preferred toolchain such as {PreferredVersion}", WindowsPlatform.GetCompilerName(Target.WindowsPlatform.ToolChain), Target.WindowsPlatform.Environment.ToolChainVersion, preferred);
 				}
 			}
 
