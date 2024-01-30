@@ -473,6 +473,11 @@ namespace Horde.Server.Streams
 		public TabStyle Style { get; set; }
 
 		/// <summary>
+		/// Whether to show job names on this page
+		/// </summary>
+		public bool ShowNames { get; set; }
+
+		/// <summary>
 		/// Whether to show all user preflights 
 		/// </summary>
 		public bool? ShowPreflights { get; set; }
