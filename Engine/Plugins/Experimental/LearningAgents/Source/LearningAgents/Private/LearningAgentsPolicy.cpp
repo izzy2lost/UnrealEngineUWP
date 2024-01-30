@@ -155,8 +155,8 @@ void ULearningAgentsPolicy::SetupPolicy(
 				EncoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize() != ObservationEncodedVectorSize)
 			{
 				UE_LOG(LogLearning, Error, TEXT("%s: Encoder Network Asset provided during Setup is incorrect size: Got inputs of size %i, expected %i. Got outputs of size %i, expected %i."), *GetName(),
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetInputSize(), ObservationVectorSize,
-					DecoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize(), ObservationEncodedVectorSize);
+					EncoderNeuralNetworkAsset->NeuralNetworkData->GetInputSize(), ObservationVectorSize,
+					EncoderNeuralNetworkAsset->NeuralNetworkData->GetOutputSize(), ObservationEncodedVectorSize);
 				return;
 			}
 		}

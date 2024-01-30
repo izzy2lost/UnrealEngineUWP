@@ -51,7 +51,7 @@ namespace UE::Learning::Agents
 FLearningAgentsTrainerPathSettings::FLearningAgentsTrainerPathSettings()
 {
 	EditorEngineRelativePath.Path = FPaths::EngineDir();
-	IntermediateRelativePath.Path = FPaths::ProjectIntermediateDir();
+	EditorIntermediateRelativePath.Path = FPaths::ProjectIntermediateDir();
 }
 
 FString FLearningAgentsTrainerPathSettings::GetEditorEnginePath() const
@@ -70,7 +70,16 @@ FString FLearningAgentsTrainerPathSettings::GetEditorEnginePath() const
 
 FString FLearningAgentsTrainerPathSettings::GetIntermediatePath() const
 {
-	return IntermediateRelativePath.Path;
+#if WITH_EDITOR
+	return EditorIntermediateRelativePath.Path;
+#else
+	if (NonEditorIntermediateRelativePath.IsEmpty())
+	{
+		UE_LOG(LogLearning, Warning, TEXT("GetIntermediatePath: NonEditorIntermediateRelativePath not set"));
+	}
+
+	return NonEditorIntermediateRelativePath;
+#endif
 }
 
 ULearningAgentsTrainer::ULearningAgentsTrainer() : Super(FObjectInitializer::Get()) {}

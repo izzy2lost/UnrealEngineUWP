@@ -11,6 +11,63 @@
 #include "Engine/World.h"
 #include "Components/SplineComponent.h"
 
+#include "VisualLogger/VisualLogger.h"
+
+#ifndef UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+#define UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG ENABLE_VISUAL_LOG
+#endif
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+
+#define UE_LEARNING_AGENTS_VLOG_STRING(Owner, Category, Verbosity, Location, Color, Format, ...) \
+	UE_VLOG_LOCATION(Owner, Category, Verbosity, Location, 0.0f, Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_LOCATION(Owner, Category, Verbosity, Location, Radius, Color, Format, ...) \
+	UE_VLOG_LOCATION(Owner, Category, Verbosity, Location, Radius, Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_ARROW(Owner, Category, Verbosity, Start, End, Color, Format, ...) \
+	UE_VLOG_ARROW(Owner, Category, Verbosity, Start, End, Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Start, End, Color, Format, ...) \
+	UE_VLOG_SEGMENT(Owner, Category, Verbosity, Start, End, Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_CIRCLE(Owner, Category, Verbosity, Center, UpAxis, Radius, Color, Format, ...) \
+	UE_VLOG_CIRCLE(Owner, Category, Verbosity, Center, UpAxis, Radius, Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_OBOX(Owner, Category, Verbosity, Box, Matrix, Color, Format, ...) \
+	UE_VLOG_OBOX(Owner, Category, Verbosity, Box, Matrix, Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_PLANE(Owner, Category, Verbosity, Location, Rotation, Axis0, Axis1, Color, Format, ...) \
+	UE_LEARNING_AGENTS_VLOG_OBOX(Owner, Category, Verbosity, FBox(FVector(-25.0f, -25.0f, -0.1f), FVector(25.0f, 25.0f, 0.1f)), UE::Learning::Agents::Debug::PlaneMatrix(Rotation, Location, Axis0, Axis1), Color, Format, ##__VA_ARGS__)
+
+#define UE_LEARNING_AGENTS_VLOG_MATRIX(Owner, Category, Verbosity, Matrix, Color, Format, ...) \
+	{ \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Matrix.TransformPosition(FVector::ZeroVector), Matrix.TransformPosition(15.0f * FVector::ForwardVector), FColor::Red, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Matrix.TransformPosition(FVector::ZeroVector), Matrix.TransformPosition(15.0f * FVector::RightVector), FColor::Green, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Matrix.TransformPosition(FVector::ZeroVector), Matrix.TransformPosition(15.0f * FVector::UpVector), FColor::Blue, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_STRING(Owner, Category, Verbosity, Matrix.TransformPosition(FVector::ZeroVector) + FVector(0.0f, 0.0f, 20.0f), Color, Format, ##__VA_ARGS__); \
+	}
+
+#define UE_LEARNING_AGENTS_VLOG_TRANSFORM(Owner, Category, Verbosity, Location, Rotation, Color, Format, ...) \
+	{ \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + 15.0f * Rotation.RotateVector(FVector::ForwardVector), FColor::Red, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + 15.0f * Rotation.RotateVector(FVector::RightVector), FColor::Green, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + 15.0f * Rotation.RotateVector(FVector::UpVector), FColor::Blue, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_OBOX(Owner, Category, Verbosity, FBox(5.0f * FVector(-1, -1, -1), 5.0f * FVector(1, 1, 1)), FTransform(Rotation, Location, FVector::OneVector).ToMatrixNoScale(), Color, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_STRING(Owner, Category, Verbosity, Location + FVector(0.0f, 0.0f, 20.0f), Color, Format, ##__VA_ARGS__); \
+	}
+
+#define UE_LEARNING_AGENTS_VLOG_ANGLE(Owner, Category, Verbosity, Angle, RelativeAngle, Location, Radius, Color, Format, ...) \
+	{ \
+		UE_LEARNING_AGENTS_VLOG_CIRCLE(Owner, Category, Verbosity, Location, FVector::UpVector, Radius, Color, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + Radius * FVector(FMath::Sin(RelativeAngle), FMath::Cos(RelativeAngle), 0.0f), Color, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(Owner, Category, Verbosity, Location, Location + Radius * FVector(FMath::Sin(Angle), FMath::Cos(Angle), 0.0f), Color, TEXT("")); \
+		UE_LEARNING_AGENTS_VLOG_LOCATION(Owner, Category, Verbosity, Location + Radius * FVector(FMath::Sin(Angle), FMath::Cos(Angle), 0.0f), static_cast<uint16>(Radius / 20.0f), Color, Format, ##__VA_ARGS__); \
+	}
+
+#endif
+
+
 bool operator==(const FLearningAgentsObservationObjectElement& Lhs, const FLearningAgentsObservationObjectElement& Rhs)
 {
 	return Lhs.ObjectElement.Index == Rhs.ObjectElement.Index;
@@ -1134,7 +1191,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeSt
 		SubElements.Add(Element.Value);
 	}
 
-	return MakeStructObservationFromArrayViews(SubElementNames, SubElements);
+	return MakeStructObservationFromArrayViews(SubElementNames, SubElements, Name);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeStructObservationFromArrays(const TArray<FName>& ElementNames, const TArray<FLearningAgentsObservationObjectElement>& Elements, const FName Name)
@@ -1500,14 +1557,59 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeFl
 	return MakeContinuousObservationFromArrayView({ Value / FMath::Max(FloatScale, UE_SMALL_NUMBER) }, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationObservation(const FVector Location, const FTransform RelativeTransform, const float LocationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationObservation(
+	const FVector Location,
+	const FTransform RelativeTransform,
+	const float LocationScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalLocation = RelativeTransform.InverseTransformPosition(Location);
+	const FVector EncodedLocation = FVector(
+		LocalLocation.X / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		LocalLocation.Y / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		LocalLocation.Z / FMath::Max(LocationScale, UE_SMALL_NUMBER));
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			Location,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			Location,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nLocation: [% 6.1f % 6.1f % 6.1f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.2f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			*Name.ToString(),
+			Location.X, Location.Y, Location.Z,
+			LocalLocation.X, LocalLocation.Y, LocalLocation.Z,
+			LocationScale,
+			EncodedLocation.X, EncodedLocation.Y, EncodedLocation.Z);
+	}
+#endif
 
 	return MakeContinuousObservationFromArrayView({
-		(float)LocalLocation.X / FMath::Max(LocationScale, UE_SMALL_NUMBER),
-		(float)LocalLocation.Y / FMath::Max(LocationScale, UE_SMALL_NUMBER),
-		(float)LocalLocation.Z / FMath::Max(LocationScale, UE_SMALL_NUMBER),
+		(float)EncodedLocation.X,
+		(float)EncodedLocation.Y,
+		(float)EncodedLocation.Z,
 		}, Name);
 }
 
@@ -1589,7 +1691,13 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeVe
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDirectionObservation(const FVector Direction, const FTransform RelativeTransform, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDirectionObservation(
+	const FVector Direction,
+	const FTransform RelativeTransform,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalDirection = RelativeTransform.InverseTransformVectorNoScale(Direction).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 
@@ -1600,7 +1708,15 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float LocationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationAlongSplineObservation(
+	const USplineComponent* SplineComponent,
+	const float DistanceAlongSpline,
+	const FTransform RelativeTransform,
+	const float LocationScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!SplineComponent)
 	{
@@ -1608,7 +1724,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLo
 		return FLearningAgentsObservationObjectElement();
 	}
 
-	return MakeLocationObservation(SplineComponent->GetLocationAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, LocationScale, Name);
+	return MakeLocationObservation(SplineComponent->GetLocationAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, LocationScale, Name, bVisualLoggerEnabled, VisualLoggerLocation, VisualLoggerColor);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeProportionAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Name)
@@ -1634,7 +1750,14 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakePr
 	}
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDirectionAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDirectionAlongSplineObservation(
+	const USplineComponent* SplineComponent,
+	const float DistanceAlongSpline,
+	const FTransform RelativeTransform,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!SplineComponent)
 	{
@@ -1642,7 +1765,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 		return FLearningAgentsObservationObjectElement();
 	}
 
-	return MakeDirectionObservation(SplineComponent->GetDirectionAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, Name);
+	return MakeDirectionObservation(SplineComponent->GetDirectionAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, Name, bVisualLoggerEnabled, VisualLoggerLocation, VisualLoggerColor);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakePropertiesAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float LocationScale, const FName Name)
@@ -3208,4 +3331,20 @@ bool ULearningAgentsObservationObject::GetProportionAlongRaysObservationToArrayV
 	}
 
 	return true;
+}
+
+const ULearningAgentsObservationVisualLoggerObject* ULearningAgentsObservationObject::GetOrAddVisualLoggerObject(const FName Name)
+{
+	const TObjectPtr<const ULearningAgentsObservationVisualLoggerObject>* Value = VisualLoggerObjects.Find(Name);
+	if (Value)
+	{
+		return Value->Get();
+	}
+	else
+	{
+		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsObservationVisualLoggerObject::StaticClass(), Name, EUniqueObjectNameOptions::GloballyUnique);
+		const ULearningAgentsObservationVisualLoggerObject* NewLoggerObject = NewObject<ULearningAgentsObservationVisualLoggerObject>(this, UniqueName);
+		VisualLoggerObjects.Add(Name, NewLoggerObject);
+		return NewLoggerObject;
+	}
 }
