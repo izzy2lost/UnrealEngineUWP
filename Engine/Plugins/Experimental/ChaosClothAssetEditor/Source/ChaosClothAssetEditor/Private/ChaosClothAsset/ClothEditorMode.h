@@ -160,10 +160,11 @@ private:
 	void FirstTimeFocusRestSpaceViewport();
 
 	// intended to be called by the toolkit when selected node in the Dataflow graph changes
-	void SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection);
+	void SetSelectedClothCollection(TSharedPtr<FManagedArrayCollection> Collection, TSharedPtr<FManagedArrayCollection> InputCollection = nullptr);
 
 	// gets the currently selected cloth collection, as specified by the toolkit
 	TSharedPtr<FManagedArrayCollection> GetClothCollection();
+	TSharedPtr<FManagedArrayCollection> GetInputClothCollection();
 
 	void SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor);
 	
@@ -280,6 +281,7 @@ private:
 	TObjectPtr<UEditorInteractiveToolsContext> ActiveToolsContext = nullptr;
 
 	TSharedPtr<FManagedArrayCollection> SelectedClothCollection = nullptr;
+	TSharedPtr<FManagedArrayCollection> SelectedInputClothCollection = nullptr;
 
 	// Correspondence between node types and commands to launch tools
 	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToToolCommandMap;

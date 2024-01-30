@@ -6,6 +6,7 @@
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ChaosClothAsset/SelectionNode.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
+#include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "ChaosClothAsset/WeightedValue.h"
 #include "InteractiveToolManager.h"
 #include "PreviewMesh.h"
@@ -61,6 +62,15 @@ UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderSt
 	}
 
 	return NewTool;
+}
+
+// ------------------- Actions ----------------------
+void UClothMeshSelectionToolActions::PostAction(EClothMeshSelectionToolActions Action)
+{
+	if (ParentTool.IsValid())
+	{
+		ParentTool->RequestAction(Action);
+	}
 }
 
 // ------------------- Properties -------------------
@@ -231,6 +241,13 @@ void UClothMeshSelectionTool::Setup()
 		}
 	}
 
+	// 
+	// Actions
+	//
+
+	ActionsProps = NewObject<UClothMeshSelectionToolActions>();
+	ActionsProps->Initialize(this);
+	AddToolPropertySource(ActionsProps);
 
 	//
 	// Properties
@@ -295,6 +312,18 @@ void UClothMeshSelectionTool::Render(IToolsContextRenderAPI* RenderAPI)
 void UClothMeshSelectionTool::DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI)
 {
 	SelectionMechanic->DrawHUD(Canvas, RenderAPI);
+}
+
+void UClothMeshSelectionTool::OnTick(float DeltaTime)
+{
+	USingleSelectionMeshEditingTool::OnTick(DeltaTime);
+
+	if (bHavePendingAction)
+	{
+		ApplyAction(PendingAction);
+		bHavePendingAction = false;
+		PendingAction = EClothMeshSelectionToolActions::NoAction;
+	}
 }
 
 bool UClothMeshSelectionTool::CanAccept() const
@@ -442,5 +471,129 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 	MeshSelectionNode->Invalidate();
 }
 
+void UClothMeshSelectionTool::RequestAction(EClothMeshSelectionToolActions ActionType)
+{
+	if (!bHavePendingAction)
+	{
+		PendingAction = ActionType;
+		bHavePendingAction = true;
+	}
+}
+
+
+void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionType)
+{
+	switch (ActionType)
+	{
+	case EClothMeshSelectionToolActions::ImportFromCollection:
+		ImportFromCollectionAction();
+		break;
+	}
+}
+
+void UClothMeshSelectionTool::ImportFromCollectionAction()
+{
+	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedInputClothCollection().Pin())
+	{
+		using namespace UE::Chaos::ClothAsset;
+		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection.ToSharedRef());
+		if (SelectionFacade.IsValid())
+		{
+			const EClothPatternVertexType ViewMode = ClothEditorContextObject->GetConstructionViewMode();
+			FName GroupName = ClothCollectionGroup::SimVertices2D;
+			if (SelectionMechanic->Properties->bSelectVertices)
+			{
+				check(!SelectionMechanic->Properties->bSelectEdges);
+				check(!SelectionMechanic->Properties->bSelectFaces);
+
+				switch (ViewMode)
+				{
+				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
+					GroupName = ClothCollectionGroup::SimVertices2D;
+					break;
+				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
+					GroupName = ClothCollectionGroup::SimVertices3D;
+					break;
+				case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
+					GroupName = ClothCollectionGroup::RenderVertices;
+					break;
+				}
+			}
+			else
+			{
+				switch (ViewMode)
+				{
+				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
+				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
+					GroupName = ClothCollectionGroup::SimFaces;
+					break;
+				case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
+					GroupName = ClothCollectionGroup::RenderFaces;
+					break;
+				}
+			}
+			const FName InSelectionName(ToolProperties->Name);
+			if (const TSet<int32>* const SelectionSet = SelectionFacade.FindSelectionSet(InSelectionName))
+			{
+				const FName& ExistingSelectionGroup = SelectionFacade.GetSelectionGroup(InSelectionName);
+				if (ExistingSelectionGroup == GroupName)
+				{
+					auto AppendVerticesIfValid = [this]<typename T>(TSet<int32>&Dest, const T & Source)
+					{
+						PreviewMesh->ProcessMesh([this, &Dest, &Source](const UE::Geometry::FDynamicMesh3& Mesh)
+						{
+							for (const int32& VertexIndex : Source)
+							{
+								if (Mesh.IsVertex(VertexIndex))
+								{
+									Dest.Add(VertexIndex);
+								}
+							}
+						});
+					};
+
+					auto AppendFacesIfValid = [this](TSet<int32>& Dest, const TSet<int32>& Source)
+					{
+						PreviewMesh->ProcessMesh([this, &Dest, &Source](const UE::Geometry::FDynamicMesh3& Mesh)
+						{
+							for (const int32& FaceIndex : Source)
+							{
+								if (Mesh.IsTriangle(FaceIndex))
+								{
+									Dest.Add(FaceIndex);
+								}
+							}
+						});
+					};
+
+					UE::Geometry::FGroupTopologySelection OutSelection;
+
+					if (GroupName == ClothCollectionGroup::SimVertices2D ||
+						GroupName == ClothCollectionGroup::SimVertices3D ||
+						GroupName == ClothCollectionGroup::RenderVertices)
+					{
+						if (bHasNonManifoldMapping)
+						{
+							for (const int32 SelectionIndex : *SelectionSet)
+							{
+								AppendVerticesIfValid(OutSelection.SelectedCornerIDs, SelectionToDynamicMesh[SelectionIndex]);
+							}
+						}
+						else
+						{
+							AppendVerticesIfValid(OutSelection.SelectedCornerIDs, *SelectionSet);
+						}
+					}
+					else if (GroupName == ClothCollectionGroup::SimFaces ||
+						GroupName == ClothCollectionGroup::RenderFaces)
+					{
+						AppendFacesIfValid(OutSelection.SelectedGroupIDs, *SelectionSet);
+					}
+					SelectionMechanic->SetSelection(OutSelection);
+				}
+			}
+		}
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

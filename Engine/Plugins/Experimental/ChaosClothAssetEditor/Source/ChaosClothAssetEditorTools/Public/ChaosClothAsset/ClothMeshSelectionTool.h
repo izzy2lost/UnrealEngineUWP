@@ -30,6 +30,34 @@ private:
 	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
 };
 
+UENUM()
+enum class EClothMeshSelectionToolActions
+{
+	NoAction,
+
+	ImportFromCollection
+};
+
+UCLASS()
+class CHAOSCLOTHASSETEDITORTOOLS_API UClothMeshSelectionToolActions :  public UInteractiveToolPropertySet
+{
+	GENERATED_BODY()
+
+public:
+
+	TWeakObjectPtr<UClothMeshSelectionTool> ParentTool;
+
+	void Initialize(UClothMeshSelectionTool* ParentToolIn) { ParentTool = ParentToolIn; }
+
+	void PostAction(EClothMeshSelectionToolActions Action);
+
+	UFUNCTION(CallInEditor, Category = Operations)
+	void ImportFromCollection()
+	{
+		PostAction(EClothMeshSelectionToolActions::ImportFromCollection);
+	}
+};
+
 UCLASS()
 class CHAOSCLOTHASSETEDITORTOOLS_API UClothMeshSelectionToolProperties : public UInteractiveToolPropertySet
 {
@@ -66,6 +94,8 @@ private:
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
 	virtual void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI) override;
 
+	virtual void OnTick(float DeltaTime) override;
+
 	virtual bool HasCancel() const override { return true; }
 	virtual bool HasAccept() const override { return true; }
 	virtual bool CanAccept() const override;
@@ -93,6 +123,23 @@ private:
 	bool bHasNonManifoldMapping = false;
 	TArray<int32> DynamicMeshToSelection;
 	TArray<TArray<int32>> SelectionToDynamicMesh;
+
+	//
+	// Action support
+	//
+
+public:
+	virtual void RequestAction(EClothMeshSelectionToolActions ActionType);
+
+	UPROPERTY()
+	TObjectPtr<UClothMeshSelectionToolActions> ActionsProps;
+
+private:
+	bool bHavePendingAction = false;
+	EClothMeshSelectionToolActions PendingAction;
+	virtual void ApplyAction(EClothMeshSelectionToolActions ActionType);
+
+	void ImportFromCollectionAction();
 
 };
 

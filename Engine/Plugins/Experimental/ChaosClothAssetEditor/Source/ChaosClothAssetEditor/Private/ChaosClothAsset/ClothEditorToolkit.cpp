@@ -909,9 +909,10 @@ void FChaosClothAssetEditorToolkit::EvaluateNode(FDataflowNode* Node, bool bForc
 			// Refresh the construction viewport
 			if (SelectedDataflowNode)
 			{
+				TSharedPtr<FManagedArrayCollection> InputCollection = GetInputClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
 				TSharedPtr<FManagedArrayCollection> Collection = GetClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
 				UChaosClothAssetEditorMode* const ClothMode = CastChecked<UChaosClothAssetEditorMode>(EditorModeManager->GetActiveScriptableMode(UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId));
-				ClothMode->SetSelectedClothCollection(Collection);
+				ClothMode->SetSelectedClothCollection(Collection, InputCollection);
 			}
 		}
 	}
@@ -1073,9 +1074,39 @@ TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetClothColle
 	return TSharedPtr<FManagedArrayCollection>();
 }
 
+
+TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetInputClothCollectionIfPossible(const TSharedPtr<FDataflowNode> InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+{
+	if (InDataflowNode && Context)
+	{
+		for (const FDataflowInput* const Input : InDataflowNode->GetInputs())
+		{
+			if (Input->GetType() == FName("FManagedArrayCollection"))
+			{
+				const FManagedArrayCollection DefaultValue;
+				TSharedRef<FManagedArrayCollection> Collection = MakeShared<FManagedArrayCollection>(Input->GetValue<FManagedArrayCollection>(*Context, DefaultValue));
+
+				// see if the input collection is a ClothCollection
+				const UE::Chaos::ClothAsset::FCollectionClothConstFacade ClothFacade(Collection);
+				if (ClothFacade.IsValid())
+				{
+					return Collection;
+				}
+
+				// The cloth collection schema must be applied to prevent the dynamic mesh conversion and tools from crashing trying to access invalid facades
+				break;
+			}
+		}
+	}
+
+	return TSharedPtr<FManagedArrayCollection>();
+}
+
+
 void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& NewSelection)
 {
 	TSharedPtr<FManagedArrayCollection> Collection = nullptr;
+	TSharedPtr<FManagedArrayCollection> InputCollection = nullptr;
 
 	// Get any selected node with a ClothCollection output
 	// Also, set the selected node(s) to be the Dataflow's RenderTargets
@@ -1128,6 +1159,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 
 						if (SelectedDataflowNode)
 						{
+							InputCollection = GetInputClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
 							Collection = GetClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
 							if (DataflowContext.IsValid())  // TODO: The context shouldn't be nullptr on the first node creation
 							{
@@ -1188,7 +1220,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 			}
 
 			// Update the Construction viewport with the newly selected node's Collection
-			ClothMode->SetSelectedClothCollection(Collection);
+			ClothMode->SetSelectedClothCollection(Collection, InputCollection);
 		}
 
 		if (Outliner)
