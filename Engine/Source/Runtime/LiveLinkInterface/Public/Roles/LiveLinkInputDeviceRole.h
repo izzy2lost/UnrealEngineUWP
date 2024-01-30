@@ -14,7 +14,7 @@
  * Role associated with Input Device data.
  */
 UCLASS(BlueprintType, meta = (DisplayName = "Input Device Role"))
-class LIVELINKINPUTDEVICE_API ULiveLinkInputDeviceRole : public ULiveLinkBasicRole
+class LIVELINKINTERFACE_API ULiveLinkInputDeviceRole : public ULiveLinkBasicRole
 {
 	GENERATED_BODY()
 

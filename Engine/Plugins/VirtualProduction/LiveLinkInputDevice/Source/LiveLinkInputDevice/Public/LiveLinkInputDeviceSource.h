@@ -6,8 +6,9 @@
 #include "LiveLinkInputDeviceConnectionSettings.h"
 #include "LiveLinkInputDeviceMessageHandler.h"
 #include "LiveLinkInputDeviceSourceSettings.h"
-#include "LiveLinkInputDeviceTypes.h"
 #include "Misc/CoreMiscDefines.h"
+
+#include "Roles/LiveLinkInputDeviceTypes.h"
 #include "Roles/LiveLinkTransformTypes.h"
 
 #include "Delegates/IDelegateInstance.h"

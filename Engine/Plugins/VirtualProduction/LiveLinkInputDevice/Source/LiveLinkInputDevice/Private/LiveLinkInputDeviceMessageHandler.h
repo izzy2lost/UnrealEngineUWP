@@ -3,7 +3,7 @@
 #pragma once
 
 #include "GenericPlatform/GenericApplicationMessageHandler.h"
-#include "LiveLinkInputDeviceTypes.h"
+#include "Roles/LiveLinkInputDeviceTypes.h"
 #include "Containers/Map.h"
 #include "Misc/CoreMiscDefines.h"
 

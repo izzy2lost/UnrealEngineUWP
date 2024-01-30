@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "LiveLinkInputDeviceRole.h"
-#include "LiveLinkInputDeviceTypes.h"
+#include "Roles/LiveLinkInputDeviceRole.h"
+#include "Roles/LiveLinkInputDeviceTypes.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkInputDeviceRole"
 
