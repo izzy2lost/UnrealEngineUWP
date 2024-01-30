@@ -52,6 +52,7 @@ private:
 	ENGINE_API void SetActiveFilter(const FWorldPartitionActorFilter& InFilter);
 	ENGINE_API bool IsEditFilter() const;
 
+	friend class FLevelInstanceActorImpl;
 	TWeakObjectPtr<AActor> CachedEditorInstanceActorPtr;
 #endif
 
