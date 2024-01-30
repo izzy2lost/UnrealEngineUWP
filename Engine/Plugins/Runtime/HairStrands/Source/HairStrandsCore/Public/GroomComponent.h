@@ -281,6 +281,9 @@ public:
 
 	/** GroomCache */
 	UGroomCache* GetGroomCache() const { return GroomCache; }
+
+	/* Accessor function for changing GroomCache asset from blueprint/sequencer */
+	UFUNCTION(BlueprintCallable, Category = "Groom")
 	void SetGroomCache(UGroomCache* InGroomCache);
 
 	float GetGroomCacheDuration() const;
