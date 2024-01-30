@@ -4,7 +4,6 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using EpicGames.Core;
-using UnrealBuildTool.PS4;
 
 namespace UnrealBuildTool
 {
