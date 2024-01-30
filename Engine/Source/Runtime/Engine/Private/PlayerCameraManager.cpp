@@ -276,20 +276,21 @@ void APlayerCameraManager::ApplyCameraModifiers(float DeltaTime, FMinimalViewInf
 	ClearCachedPPBlends();
 
 	// Loop through each camera modifier
-	for (int32 ModifierIdx = 0; ModifierIdx < ModifierList.Num(); ++ModifierIdx)
+	ForEachCameraModifier([DeltaTime, &InOutPOV](UCameraModifier* CameraModifier)
 	{
+		bool bContinue = true;
+
 		// Apply camera modification and output into DesiredCameraOffset/DesiredCameraRotation
-		if ((ModifierList[ModifierIdx] != NULL) && !ModifierList[ModifierIdx]->IsDisabled())
+		if ((CameraModifier != NULL) && !CameraModifier->IsDisabled())
 		{
 			// If ModifyCamera returns true, exit loop
 			// Allows high priority things to dictate if they are
 			// the last modifier to be applied
-			if (ModifierList[ModifierIdx]->ModifyCamera(DeltaTime, InOutPOV))
-			{
-				break;
-			}
+			bContinue = !CameraModifier->ModifyCamera(DeltaTime, InOutPOV);
 		}
-	}
+
+		return bContinue;
+	});
 }
 
 void APlayerCameraManager::AddCachedPPBlend(struct FPostProcessSettings& PPSettings, float BlendWeight, EViewTargetBlendOrder BlendOrder)
@@ -1382,6 +1383,21 @@ void APlayerCameraManager::SetManualCameraFade(float InFadeAmount, FLinearColor 
 	bAutoAnimateFade = false;
 	StopAudioFade();
 	FadeTimeRemaining = 0.0f;
+}
+
+void APlayerCameraManager::ForEachCameraModifier(TFunctionRef<bool(UCameraModifier*)> Fn)
+{
+	// Local copy the modifiers array in case it get when calling the lambda on each modifiers
+	TArray<TObjectPtr<UCameraModifier>> LocalModifierList = ModifierList;
+
+	// Loop through each camera modifier
+	for (int32 ModifierIdx = 0; ModifierIdx < LocalModifierList.Num(); ++ModifierIdx)
+	{
+		if (!Fn(LocalModifierList[ModifierIdx]))
+		{
+			return;
+		}
+	}
 }
 
 void APlayerCameraManager::SetCameraCachePOV(const FMinimalViewInfo& InPOV)
