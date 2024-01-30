@@ -131,7 +131,9 @@ public:
 
 	inline bool GetActorIsHLODRelevant() const { return bActorIsHLODRelevant; }
 	inline FSoftObjectPath GetHLODLayer() const { return HLODLayer; }
-	inline const TArray<FName>& GetDataLayers() const { return DataLayers; }
+	ENGINE_API TArray<FName> GetDataLayers(bool bIncludeExternalDataLayer = true) const;
+	ENGINE_API FName GetExternalDataLayer() const;
+	inline const FSoftObjectPath& GetExternalDataLayerAsset() const { return ExternalDataLayerAsset; }
 
 	inline const TArray<FName>& GetTags() const { return Tags; }
 
@@ -376,6 +378,7 @@ protected:
 	bool							bIsBoundsValid;
 	FSoftObjectPath					HLODLayer;
 	TArray<FName>					DataLayers;
+	FSoftObjectPath					ExternalDataLayerAsset;
 	TArray<FGuid>					References;
 	TArray<FGuid>					EditorOnlyReferences; // References that aren't necessarily editor only but referenced through an editor only property.
 	TArray<FName>					Tags;

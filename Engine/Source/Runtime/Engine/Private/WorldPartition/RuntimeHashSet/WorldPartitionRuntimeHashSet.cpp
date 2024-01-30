@@ -144,9 +144,9 @@ void UWorldPartitionRuntimeHashSet::SetDefaultValues()
 	}
 }
 
-void UWorldPartitionRuntimeHashSet::FlushStreaming()
+void UWorldPartitionRuntimeHashSet::FlushStreamingContent()
 {
-	Super::FlushStreaming();
+	Super::FlushStreamingContent();
 	check(!PersistentPartitionDesc.Class);
 	RuntimeStreamingData.Empty();
 }
@@ -276,27 +276,32 @@ bool UWorldPartitionRuntimeHashSet::ParseGridName(FName GridName, TArray<FName>&
 	return true;
 }
 
-URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHashSet::StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName)
+bool UWorldPartitionRuntimeHashSet::HasStreamingContent() const
+{
+	return !RuntimeStreamingData.IsEmpty();
+}
+
+void UWorldPartitionRuntimeHashSet::StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject)
 {
 	check(!RuntimeStreamingData.IsEmpty());
 
-	URuntimeHashSetExternalStreamingObject* NewStreamingObject = CreateExternalStreamingObject<URuntimeHashSetExternalStreamingObject>(StreamingObjectOuter, StreamingObjectName);
-	NewStreamingObject->RuntimeStreamingData = MoveTemp(RuntimeStreamingData);
+	Super::StoreStreamingContentToExternalStreamingObject(OutExternalStreamingObject);
 
-	for (FRuntimePartitionStreamingData& StreamingData : NewStreamingObject->RuntimeStreamingData)
+	URuntimeHashSetExternalStreamingObject* StreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(OutExternalStreamingObject);
+	StreamingObject->RuntimeStreamingData = MoveTemp(RuntimeStreamingData);
+
+	for (FRuntimePartitionStreamingData& StreamingData : StreamingObject->RuntimeStreamingData)
 	{
 		for (UWorldPartitionRuntimeCell* Cell : StreamingData.StreamingCells)
 		{
-			Cell->Rename(nullptr, NewStreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
+			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
 		}
 
 		for (UWorldPartitionRuntimeCell* Cell : StreamingData.NonStreamingCells)
 		{
-			Cell->Rename(nullptr, NewStreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
+			Cell->Rename(nullptr, StreamingObject,  REN_DoNotDirty | REN_ForceNoResetLoaders);
 		}
 	}
-
-	return NewStreamingObject;
 }
 #endif
 

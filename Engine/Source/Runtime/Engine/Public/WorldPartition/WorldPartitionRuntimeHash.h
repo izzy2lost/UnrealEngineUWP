@@ -13,6 +13,7 @@
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "WorldPartition/WorldPartitionRuntimeContainerResolving.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceProviderInterface.h"
 #if WITH_EDITOR
 #include "CookPackageSplitter.h"
 #include "Misc/HierarchicalLogArchive.h"
@@ -21,6 +22,8 @@
 
 struct FHierarchicalLogArchive;
 class FWorldPartitionDraw2DContext;
+class UExternalDataLayerAsset;
+class UExternalDataLayerInstance;
 
 extern ENGINE_API float GBlockOnSlowStreamingRatio;
 extern ENGINE_API float GBlockOnSlowStreamingWarningFactor;
@@ -34,7 +37,7 @@ enum class EWorldPartitionStreamingPerformance : uint8
 };
 
 UCLASS(Abstract, MinimalAPI)
-class URuntimeHashExternalStreamingObjectBase : public UObject
+class URuntimeHashExternalStreamingObjectBase : public UObject, public IWorldPartitionCookPackageObject, public IDataLayerInstanceProvider
 {
 	GENERATED_BODY()
 
@@ -55,10 +58,32 @@ public:
 	
 	ENGINE_API void OnStreamingObjectLoaded(UWorld* InjectedWorld);
 
+	// ~Being IDataLayerInstanceProvider
+	ENGINE_API virtual TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() override;
+	virtual const TSet<TObjectPtr<UDataLayerInstance>>& GetDataLayerInstances() const override { return const_cast<URuntimeHashExternalStreamingObjectBase*>(this)->GetDataLayerInstances(); }
+	virtual const UExternalDataLayerInstance* GetRootExternalDataLayerInstance() const override { return RootExternalDataLayerInstance; }
+	// ~End IDataLayerInstanceProvider
+	UExternalDataLayerInstance* GetRootExternalDataLayerInstance() { return const_cast<UExternalDataLayerInstance*>(RootExternalDataLayerInstance.Get()); }
+
 #if WITH_EDITOR
+	UE_DEPRECATED(5.4, "PopulateGeneratorPackageForCook is depreacted and was replaced by OnPopulateGeneratorPackageForCook")
 	ENGINE_API void PopulateGeneratorPackageForCook();
+
+	//~Begin IWorldPartitionCookPackageObject interface
+	ENGINE_API virtual bool IsLevelPackage() const override { return false; }
+	ENGINE_API virtual const UExternalDataLayerAsset* GetExternalDataLayerAsset() const override { return ExternalDataLayerAsset; }
+	ENGINE_API virtual FString GetPackageNameToCreate() const override;
+	ENGINE_API virtual bool OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) override { return true; }
+	ENGINE_API virtual bool OnPopulateGeneratorPackageForCook(UPackage* InPackage) override;
+	ENGINE_API virtual bool OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages) override;
+	//~End IWorldPartitionCookPackageObject interface
+
+protected:
+	virtual void DumpStateLog(FHierarchicalLogArchive& Ar);
+	UWorldPartitionRuntimeCell* GetCellForCookPackage(const FString& InCookPackageName) const;
 #endif
 
+public:
 	UPROPERTY();
 	TMap<FName, FName> SubObjectsToCellRemapping;
 
@@ -75,11 +100,26 @@ protected:
 	UPROPERTY();
 	TMap<FName, FName> CellToLevelStreamingPackage;
 
+	UPROPERTY()
+	TSet<TObjectPtr<UDataLayerInstance>> DataLayerInstances;
+
+	UPROPERTY()
+	TObjectPtr<const UExternalDataLayerInstance> RootExternalDataLayerInstance;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	TMap<FString, UWorldPartitionRuntimeCell*> PackagesToGenerateForCook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UExternalDataLayerAsset> ExternalDataLayerAsset;
+#endif
+
 #if DO_CHECK
 	TWeakObjectPtr<UWorldPartition> TargetInjectedWorldPartition;
 #endif
 
 	friend class UWorldPartition;
+	friend class UExternalDataLayerManager;
 };
 
 struct FWorldPartitionQueryCache
@@ -104,27 +144,38 @@ class UWorldPartitionRuntimeHash : public UObject
 	virtual bool SupportsHLODs() const { return false; }
 	ENGINE_API virtual TArray<UWorldPartitionRuntimeCell*> GetAlwaysLoadedCells() const;
 	ENGINE_API virtual bool GenerateStreaming(class UWorldPartitionStreamingPolicy* StreamingPolicy, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FString>* OutPackagesToGenerate);
-	ENGINE_API virtual void FlushStreaming();
 	virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const { return false; }
 	virtual bool IsValidGrid(FName GridName) const { return false; }
 	virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const { return false; }
 	virtual void DrawPreview() const {}
 
-	virtual URuntimeHashExternalStreamingObjectBase* StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName) { return nullptr; }
-
+	ENGINE_API virtual bool HasStreamingContent() const { return false; }
+	ENGINE_API URuntimeHashExternalStreamingObjectBase* StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName);
+	ENGINE_API virtual void FlushStreamingContent();
+	ENGINE_API virtual TSubclassOf<URuntimeHashExternalStreamingObjectBase> GetExternalStreamingObjectClass() const PURE_VIRTUAL(UWorldPartitionRuntimeHash::GetExternalStreamingObjectClass, return nullptr;);
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const;
 
-	// non-virtual
-	ENGINE_API bool PrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages);
-	ENGINE_API bool PopulateGeneratorPackageForCook(const TArray<FWorldPartitionCookPackage*>& PackagesToCook, TArray<UPackage*>& OutModifiedPackages);
-	ENGINE_API bool PopulateGeneratedPackageForCook(const FWorldPartitionCookPackage& PackagesToCook, TArray<UPackage*>& OutModifiedPackages);
-	ENGINE_API UWorldPartitionRuntimeCell* GetCellForPackage(const FWorldPartitionCookPackage& PackageToCook) const;
+	//~Begin Deprecation
+	UE_DEPRECATED(5.4, "Use StoreStreamingContentToExternalStreamingObject instead.")
+	virtual URuntimeHashExternalStreamingObjectBase* StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName) { return nullptr; }
+	UE_DEPRECATED(5.4, "Use FlushStreamingContent instead.")
+	virtual void FlushStreaming() { FlushStreamingContent(); }
+	UE_DEPRECATED(5.4, "PrepareGeneratorPackageForCook is deprecated.")
+	ENGINE_API bool PrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages) { return false; }
+	UE_DEPRECATED(5.4, "PopulateGeneratorPackageForCook is deprecated.")
+	ENGINE_API bool PopulateGeneratorPackageForCook(const TArray<FWorldPartitionCookPackage*>& PackagesToCook, TArray<UPackage*>& OutModifiedPackages) { return false; }
+	UE_DEPRECATED(5.4, "PopulateGeneratedPackageForCook is deprecated.")
+	ENGINE_API bool PopulateGeneratedPackageForCook(const FWorldPartitionCookPackage& PackagesToCook, TArray<UPackage*>& OutModifiedPackages) { return false; }
+	UE_DEPRECATED(5.4, "GetCellForPackage is deprecated.")
+	ENGINE_API UWorldPartitionRuntimeCell* GetCellForPackage(const FWorldPartitionCookPackage& PackageToCook) const { return nullptr; }
+	//~End Deprecation
 
 	// PIE/Game methods
 	ENGINE_API void OnBeginPlay();
 	ENGINE_API void OnEndPlay();
 
 protected:
+	ENGINE_API virtual void StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject);
 	ENGINE_API bool PopulateCellActorInstances(const TArray<const IStreamingGenerationContext::FActorSetInstance*>& ActorSetInstances, bool bIsMainWorldPartition, bool bIsCellAlwaysLoaded, TArray<IStreamingGenerationContext::FActorInstance>& OutCellActorInstances);
 	ENGINE_API void PopulateRuntimeCell(UWorldPartitionRuntimeCell* RuntimeCell, const TArray<IStreamingGenerationContext::FActorInstance>& ActorInstances, TArray<FString>* OutPackagesToGenerate);
 #endif
@@ -152,6 +203,7 @@ public:
 	ENGINE_API bool IsCellRelevantFor(bool bClientOnlyVisible) const;
 	ENGINE_API EWorldPartitionStreamingPerformance GetStreamingPerformance(const TSet<const UWorldPartitionRuntimeCell*>& CellToActivate) const;
 
+	ENGINE_API virtual bool IsExternalStreamingObjectInjected(URuntimeHashExternalStreamingObjectBase* InExternalStreamingObject) const;
 	ENGINE_API virtual bool InjectExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject);
 	ENGINE_API virtual bool RemoveExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* ExternalStreamingObject);
 
@@ -199,6 +251,9 @@ protected:
 
 #if WITH_EDITOR
 private:
+	UWorldPartitionRuntimeCell* GetCellForCookPackage(const FString& InCookPackageName) const;
+	friend class UWorldPartition;
+
 	using FRuntimeHashConvertFunc = TFunction<UWorldPartitionRuntimeHash*(const UWorldPartitionRuntimeHash*)>;
 	static TMap<TPair<const UClass*, const UClass*>, FRuntimeHashConvertFunc> WorldPartitionRuntimeHashConverters;
 

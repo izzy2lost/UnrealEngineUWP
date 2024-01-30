@@ -14,6 +14,7 @@
 
 #if WITH_EDITOR
 #include "Settings/LevelEditorMiscSettings.h"
+#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 #include "LevelInstance/LevelInstanceEditorLevelStreaming.h"
 #include "LevelInstance/ILevelInstanceEditorModule.h"
 #include "LevelInstance/LevelInstanceEditorInstanceActor.h"
@@ -28,6 +29,9 @@
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerManager.h"
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
 #include "WorldPartition/WorldPartitionMiniMap.h"
 #include "Misc/ScopedSlowTask.h"
@@ -1125,7 +1129,11 @@ ULevelStreamingLevelInstanceEditor* ULevelInstanceSubsystem::CreateNewStreamingL
 								// Validate that there's a valid Data Layer Instance for this asset in the source level and that this isn't a private Data Layer
 								if (!DataLayerAsset->IsPrivate())
 								{
-									SourceDataLayerAssets.Add(DataLayerAsset);
+									// @todo_ow: Add LevelInstance EDL support (For now skip all Data Layer Instances part of an EDL)
+									if (!DataLayerInstance->GetRootExternalDataLayerInstance())
+									{
+										SourceDataLayerAssets.Add(DataLayerAsset);
+									}
 								}
 							}
 						}
@@ -1163,7 +1171,8 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 		UE_LOG(LogLevelInstance, Warning, TEXT("Failed to create Level Instance from empty actor array"));
 		return nullptr;
 	}
-		
+	
+	TOptional<const UExternalDataLayerAsset*> CommonExternalDataLayerAsset;
 	FBox ActorLocationBox(ForceInit);
 	for (const AActor* ActorToMove : ActorsToMove)
 	{
@@ -1182,6 +1191,15 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 		{
 			UE_LOG(LogLevelInstance, Warning, TEXT("%s"), *Reason.ToString());
 			return nullptr;
+		}
+
+		if (!CommonExternalDataLayerAsset.IsSet())
+		{
+			CommonExternalDataLayerAsset = ActorToMove->GetExternalDataLayerAsset();
+		}
+		else if (CommonExternalDataLayerAsset.GetValue() != ActorToMove->GetExternalDataLayerAsset())
+		{
+			CommonExternalDataLayerAsset = nullptr;
 		}
 	}
 
@@ -1268,12 +1286,21 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	ULevel* LoadedLevel = LevelStreaming->GetLoadedLevel();
 	check(LoadedLevel);
 		
-	// @todo_ow : Decide if we want to re-create the same hierarchy as the source level.
 	for (AActor* Actor : LoadedLevel->Actors)
 	{
 		if (Actor)
 		{
+			// @todo_ow : Decide if we want to re-create the same hierarchy as the source level.
 			Actor->SetFolderPath_Recursively(NAME_None);
+
+			// @todo_ow: Add LevelInstance EDL support (For now, remove all Data Layers part of an EDL)
+			for (const UDataLayerInstance* DataLayerInstance : Actor->GetDataLayerInstances())
+			{
+				if (DataLayerInstance->GetRootExternalDataLayerInstance())
+				{
+					DataLayerInstance->RemoveActor(Actor);
+				}
+			}
 		}
 	}
 
@@ -1294,6 +1321,16 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	}
 
 	check(ActorClass->ImplementsInterface(ULevelInstanceInterface::StaticClass()));
+
+	const UExternalDataLayerAsset* ExternalDataLayerAsset = CommonExternalDataLayerAsset.Get(nullptr);
+	UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(GetWorld());
+	UExternalDataLayerInstance* ExternalDataLayerInstance = ExternalDataLayerManager ? ExternalDataLayerManager->GetExternalDataLayerInstance(ExternalDataLayerAsset) : nullptr;
+	// @todo_ow: We temporarily allow adding the ExternalDataLayerInstance to the ActorEditorContext or else it wouldn't allow it to be added since the current level is not the persistent level.
+	if (ExternalDataLayerInstance)
+	{
+		ExternalDataLayerInstance->bSkipCheckReadOnlyForSubLevels = true;
+	}
+	FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(ExternalDataLayerAsset);
 
 	if (!ActorClass->IsChildOf<APackedLevelActor>())
 	{
@@ -1327,6 +1364,10 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 			NewLevelInstanceActor = GetWorld()->SpawnActor<APackedLevelActor>(APackedLevelActor::StaticClass(), SpawnParams);
 		}
 	}
+	if (ExternalDataLayerInstance)
+	{
+		ExternalDataLayerInstance->bSkipCheckReadOnlyForSubLevels = false;
+	}
 	
 	check(NewLevelInstanceActor);
 	check(NewLevelInstanceActor->GetActorGuid() == LevelInstanceActorGuid);
@@ -1335,7 +1376,7 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	NewLevelInstance->SetWorldAsset(WorldPtr);
 	NewLevelInstanceActor->SetActorLocation(LevelInstanceLocation);
 	NewLevelInstanceActor->SetActorLabel(WorldPtr.GetAssetName());
-	
+
 	// Actors were moved and kept their World positions so when saving we want their positions to actually be relative to the LevelInstance Actor
 	// so we set the LevelTransform and we mark the level as having moved its actors. 
 	// On Level save FLevelUtils::RemoveEditorTransform will fixup actor transforms to make them relative to the LevelTransform.
@@ -1515,9 +1556,9 @@ void ULevelInstanceSubsystem::BreakLevelInstance_Impl(ILevelInstanceInterface* L
 					}
 
 					// Apply the same data layer settings to the actors to move out
-					if (Actor->SupportsDataLayerType(UDataLayerInstance::StaticClass()))
+					for (const UDataLayerInstance* DataLayerInstance : LevelInstanceDataLayerInstances)
 					{
-						for (const UDataLayerInstance* DataLayerInstance : LevelInstanceDataLayerInstances)
+						if (Actor->SupportsDataLayerType(DataLayerInstance->GetClass()))
 						{
 							if (const UDataLayerAsset* DataLayerAsset = DataLayerInstance->GetAsset())
 							{
@@ -1710,7 +1751,7 @@ bool ULevelInstanceSubsystem::CanMoveActorToLevel(const AActor* Actor, FText* Ou
 			{
 				if (OutReason != nullptr)
 				{
-					*OutReason = LOCTEXT("CanMoveActorLevelEditing", "Can't move Level Instance actor while it is being edited");
+					*OutReason = LOCTEXT("CantMoveActorLevelEditing", "Can't move Level Instance actor while it is being edited");
 				}
 				return false;
 			}
@@ -1730,7 +1771,7 @@ bool ULevelInstanceSubsystem::CanMoveActorToLevel(const AActor* Actor, FText* Ou
 			{
 				if (OutReason != nullptr)
 				{
-					*OutReason = LOCTEXT("CanMoveActorToLevelChildEditing", "Can't move Level Instance actor while one of its child Level Instance is being edited");
+					*OutReason = LOCTEXT("CantMoveActorToLevelChildEditing", "Can't move Level Instance actor while one of its child Level Instance is being edited");
 				}
 				return false;
 			}

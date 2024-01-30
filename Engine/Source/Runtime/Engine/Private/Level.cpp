@@ -4057,10 +4057,20 @@ TArray<UPackage*> ULevel::GetLoadedExternalObjectPackages() const
 		return InPath;
 	};
 
-	TArray<FString> ExternalObjectsPaths;
-	ExternalObjectsPaths.Add(SanitizeExternalPath(ULevel::GetExternalActorsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
-	ExternalObjectsPaths.Add(SanitizeExternalPath(FExternalPackageHelper::GetExternalObjectsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
-	ExternalObjectsPaths = ExternalObjectsPaths.FilterByPredicate([](const FString& Path) {
+	TSet<FString> ExternalObjectsPathSet;
+	ExternalObjectsPathSet.Add(SanitizeExternalPath(ULevel::GetExternalActorsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
+	ExternalObjectsPathSet.Add(SanitizeExternalPath(FExternalPackageHelper::GetExternalObjectsPath(World->GetPackage(), (World->OriginalWorldName == NAME_None) ? World->GetName() : World->OriginalWorldName.ToString())));
+
+	if (UWorldPartition* WorldPartition = GetWorldPartition())
+	{
+		WorldPartition->ForEachActorDescContainerInstance([&SanitizeExternalPath, &ExternalObjectsPathSet](UActorDescContainerInstance* ActorDescContainerInstance)
+		{
+			ExternalObjectsPathSet.Add(SanitizeExternalPath(ActorDescContainerInstance->GetExternalActorPath()));
+			ExternalObjectsPathSet.Add(SanitizeExternalPath(ActorDescContainerInstance->GetExternalObjectPath()));
+		});
+	}
+
+	TArray<FString> ExternalObjectsPaths = ExternalObjectsPathSet.Array().FilterByPredicate([](const FString& Path) {
 			FString Filename;
 			if (!Path.IsEmpty() && FPackageName::TryConvertLongPackageNameToFilename(Path, Filename))
 			{
@@ -4106,24 +4116,36 @@ TArray<UPackage*> ULevel::GetLoadedExternalObjectPackages() const
 	return ExternalObjectPackages.Array();
 }
 
-UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath)
+static UPackage* CreateActorPackageInternal(const FString& InPackageName, const FString& InActorPath)
 {
-	const FString PackageName = GetActorPackageName(InLevelPackage, ActorPackagingScheme, InActorPath);
-	if (UPackage* ExistingActorPackage = FindObject<UPackage>(nullptr, *PackageName))
+	if (UPackage* ExistingActorPackage = FindObject<UPackage>(nullptr, *InPackageName))
 	{
 		check(ExistingActorPackage->HasAllPackagesFlags(PKG_EditorOnly | PKG_ContainsMapData));
 		return ExistingActorPackage;
 	}
 
-	UPackage* ActorPackage = CreatePackage(*PackageName);
+	UPackage* ActorPackage = CreatePackage(*InPackageName);
 	ActorPackage->SetPackageFlags(PKG_EditorOnly | PKG_ContainsMapData | PKG_NewlyCreated);
 
+	return ActorPackage;
+};
+
+UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath)
+{
+	const FString PackageName = GetActorPackageName(InLevelPackage, InActorPackagingScheme, InActorPath);
+	UPackage* ActorPackage = CreateActorPackageInternal(PackageName, InActorPath);
 	// Should be prevented upstream but we propagate the flag to prevent issues in asset enumeration
 	if (!ensureMsgf(!(InLevelPackage->GetPackageFlags() & PKG_PlayInEditor), TEXT("Actor packages should not be created on PlayInEditor levels")))
 	{
 		ActorPackage->SetPackageFlags(PKG_PlayInEditor);
 	}
 	return ActorPackage;
+}
+
+UPackage* ULevel::CreateActorPackage(const FString& InBaseDir, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath)
+{
+	const FString PackageName = GetActorPackageName(InBaseDir, InActorPackagingScheme, InActorPath);
+	return CreateActorPackageInternal(PackageName, InActorPath);
 }
 
 void ULevel::DetachAttachAllActorsPackages(bool bReattach)

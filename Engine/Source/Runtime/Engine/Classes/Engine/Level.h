@@ -1236,10 +1236,21 @@ public:
 
 	/**
 	 * Create an package for this actor
+	 * @param InLevelPackage the level package used when building the actor package name
+	 * @param InActorPackagingScheme the packaging scheme to use
 	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
 	 * @return the created package
 	 */
-	static ENGINE_API UPackage* CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme ActorPackagingScheme, const FString& InActorPath);
+	static ENGINE_API UPackage* CreateActorPackage(UPackage* InLevelPackage, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath);
+
+	/**
+	 * Create an package for this actor
+	 * @param InBaseDir the base directory used when building the actor package name
+	 * @param InActorPackagingScheme the packaging scheme to use
+	 * @param InActorPath the fully qualified actor path, in the format: 'Outermost.Outer.Name'
+	 * @return the created package
+	 */
+	static ENGINE_API UPackage* CreateActorPackage(const FString& InBaseDir, EActorPackagingScheme InActorPackagingScheme, const FString& InActorPath);
 
 	/**
 	 * Detach or reattach all level actors to from/to their external package
@@ -1371,6 +1382,7 @@ private:
 	TSet<FGuid> GetDeletedAndUnreferencedActorFolders() const;
 
 	friend struct FLevelActorFoldersHelper;
+	friend struct FSetWorldPartitionRuntimeCell;
 	friend class FWorldPartitionLevelHelper;
 	friend class UActorFolder;
 	friend class AWorldDataLayers;
@@ -1389,6 +1401,18 @@ private:
 #endif // WITH_EDITOR
 };
 
+#if WITH_EDITOR
+struct FSetWorldPartitionRuntimeCell
+{
+private:
+	FSetWorldPartitionRuntimeCell(ULevel* InLevel, const FSoftObjectPath& InWorldPartitionRuntimeCell)
+	{
+		InLevel->WorldPartitionRuntimeCell = InWorldPartitionRuntimeCell;
+	}
+	friend class FWorldPartitionLevelHelper;
+	friend class UWorldPartition;
+};
+#endif 
 
 /**
  * Macro for wrapping Delegates in TScopedCallback

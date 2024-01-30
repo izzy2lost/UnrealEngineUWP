@@ -242,7 +242,7 @@ private:
 	TObjectPtr<class UVolumetricCloudComponent> VolumetricCloudComponent;
 
 #if WITH_EDITOR
-	virtual bool IsDataLayerTypeSupported(TSubclassOf<UDataLayerInstance> DataLayerType) const override { return true; }
+	virtual bool ActorTypeSupportsDataLayer() const override { return true; }
 #endif
 
 };

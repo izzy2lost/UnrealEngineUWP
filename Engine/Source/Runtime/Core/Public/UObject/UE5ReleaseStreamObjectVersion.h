@@ -153,6 +153,9 @@ struct FUE5ReleaseStreamObjectVersion
 
 		// Disabled opencolorio display configuration by default
 		OpenColorIODisabledDisplayConfigurationDefault,
+
+		// Serialize ExternalDataLayerAsset in WorldPartitionActorDesc
+		WorldPartitionExternalDataLayers,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

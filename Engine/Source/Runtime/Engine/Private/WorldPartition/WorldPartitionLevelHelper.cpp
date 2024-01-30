@@ -332,10 +332,8 @@ bool FWorldPartitionLevelHelper::RemapLevelCellPathInContentBundle(ULevel* Level
 	CellPath += ContentBundleEditor->GetExternalStreamingObjectName();
 	CellPath += TEXT(".");
 	CellPath += Cell->GetName();
-	
-	Level->WorldPartitionRuntimeCell = FSoftObjectPath(CellPath);
-
-	return !Level->WorldPartitionRuntimeCell.GetUniqueID().IsNull();
+	FSetWorldPartitionRuntimeCell SetWorldPartitionRuntimeCell(Level, FSoftObjectPath(CellPath));
+	return Level->IsWorldPartitionRuntimeCell();
 }
 
 /**

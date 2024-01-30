@@ -27,6 +27,7 @@
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/ContentBundle/ContentBundleEngineSubsystem.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
 #include "LevelInstance/LevelInstanceSubsystem.h"
@@ -315,6 +316,24 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 		return Result;
 	});
 
+	FGetTextForItem ExternalDatalayerInfoText = FGetTextForItem::CreateLambda([](const ISceneOutlinerTreeItem& Item) -> FString
+	{
+		const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
+		if (const FActorTreeItem* ActorItem = Item.CastTo<FActorTreeItem>())
+		{
+			if (AActor* Actor = ActorItem->Actor.Get())
+			{
+				ExternalDataLayerAsset = Actor->GetExternalDataLayerAsset();
+			}
+		}
+		else if (const FActorDescTreeItem* ActorDescItem = Item.CastTo<FActorDescTreeItem>())
+		{
+			ExternalDataLayerAsset = ActorDescItem->GetExternalDataLayerAsset();
+		}
+
+		return ExternalDataLayerAsset ? ExternalDataLayerAsset->GetName() : TEXT("");
+	});
+
 	FGetTextForItem DataLayerInfoText = FGetTextForItem::CreateLambda([](const ISceneOutlinerTreeItem& Item) -> FString
 	{
 		TStringBuilder<128> Builder;
@@ -324,20 +343,23 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 		{
 			for (const UDataLayerInstance* DataLayerInstance : DataLayerInstances)
 			{
-				bool bIsAlreadyInSet = false;
-				DataLayerShortNames.Add(DataLayerInstance->GetDataLayerShortName(), &bIsAlreadyInSet);
-				if (!bIsAlreadyInSet)
+				if (!DataLayerInstance->IsA<UExternalDataLayerInstance>())
 				{
-					if (Builder.Len())
+					bool bIsAlreadyInSet = false;
+					DataLayerShortNames.Add(DataLayerInstance->GetDataLayerShortName(), &bIsAlreadyInSet);
+					if (!bIsAlreadyInSet)
 					{
-						Builder += TEXT(", ");
+						if (Builder.Len())
+						{
+							Builder += TEXT(", ");
+						}
+						// Put a '*' in front of DataLayers that are not part of of the main world
+						if (bPartOfOtherLevel)
+						{
+							Builder += "*";
+						}
+						Builder += DataLayerInstance->GetDataLayerShortName();
 					}
-					// Put a '*' in front of DataLayers that are not part of of the main world
-					if (bPartOfOtherLevel)
-					{
-						Builder += "*";
-					}
-					Builder += DataLayerInstance->GetDataLayerShortName();
 				}
 			}
 		};
@@ -361,7 +383,7 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 						if (const UDataLayerManager* DataLayerManager = UDataLayerManager::GetDataLayerManager(OwningWorld))
 						{
 							TSet<const UDataLayerInstance*> DataLayerInstances;
-							DataLayerInstances.Append(DataLayerManager->GetDataLayerInstances(ActorDescInstance->GetDataLayerInstanceNames()));
+							DataLayerInstances.Append(DataLayerManager->GetDataLayerInstances(ActorDescInstance->GetDataLayerInstanceNames().ToArray()));
 							if (ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(OwningWorld))
 							{
 								UWorld* OuterWorld = ActorDescContainerInstance->GetTypedOuter<UWorld>();
@@ -529,7 +551,7 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 		return FString();
 	});
 
-	auto AddTextInfoColumn = [&InInitOptions](FName ColumnID, TAttribute<FText> ColumnName, FGetTextForItem ColumnInfo)
+	auto AddTextInfoColumn = [&InInitOptions](FName ColumnID, TAttribute<FText> ColumnName, FGetTextForItem ColumnInfo, const FText& ColumnTooltip = FText::GetEmpty())
 	{
 		InInitOptions.ColumnMap.Add(
 			ColumnID,
@@ -540,7 +562,7 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 					&FTextInfoColumn::CreateTextInfoColumn,
 					ColumnID,
 					ColumnInfo,
-					FText::GetEmpty()),
+					ColumnTooltip),
 				true,
 				TOptional<float>(),
 				ColumnName));
@@ -561,6 +583,7 @@ void FSceneOutlinerModule::CreateActorInfoColumns(FSceneOutlinerInitializationOp
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::Level(), LevelColumnName, LevelInfoText);
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::Layer(), FSceneOutlinerBuiltInColumnTypes::Layer_Localized(), LayerInfoText);
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::DataLayer(), FSceneOutlinerBuiltInColumnTypes::DataLayer_Localized(), DataLayerInfoText);
+	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::ExternalDataLayer(), FSceneOutlinerBuiltInColumnTypes::ExternalDataLayer_Localized(), ExternalDatalayerInfoText);
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::ContentBundle(), FSceneOutlinerBuiltInColumnTypes::ContentBundle_Localized(), ContentBundleInfoText);
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::SubPackage(), FSceneOutlinerBuiltInColumnTypes::SubPackage_Localized(), SubPackageInfoText);
 	AddTextInfoColumn(FSceneOutlinerBuiltInColumnTypes::Socket(), FSceneOutlinerBuiltInColumnTypes::Socket_Localized(), SocketInfoText);

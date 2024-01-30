@@ -9,6 +9,7 @@
 
 class FConfigFile;
 struct FPrimaryAssetTypeInfo;
+struct FExternalDataLayerUID;
 
 struct FAssetData;
 
@@ -24,6 +25,17 @@ public:
 
 #if WITH_EDITOR
 	virtual TArray<FPrimaryAssetTypeInfo>& GetPrimaryAssetTypesToScan() { return PrimaryAssetTypesToScan; }
+	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	static void GetDependencyDirectoriesFromAssetData(const FAssetData& AssetData, TArray<FString>& OutDependencyDirectories);
+
+	//~Begin deprecation
+	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
+	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	UE_DEPRECATED(5.4, "GetContentBundleGuidsAssetRegistryTag is deprecated")
+	static FName GetContentBundleGuidsAssetRegistryTag() { return NAME_None; }
+	UE_DEPRECATED(5.4, "GetContentBundleGuidsFromAsset is deprecated, use GetDependencyDirectoriesFromAssetData")
+	static void GetContentBundleGuidsFromAsset(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids) {}
+	//~End deprecation
 #endif //if WITH_EDITOR
 
 	/** Method to process the base ini file for the plugin during loading */
@@ -37,13 +49,11 @@ public:
 
 	void GetPluginName(FString& PluginName) const;
 
-#if WITH_EDITOR
-	static FName GetContentBundleGuidsAssetRegistryTag();
-	static void GetContentBundleGuidsFromAsset(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids);
-	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
-	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
-	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
-#endif
+	/** Returns whether the game feature plugin is registered or not. */
+	bool IsGameFeaturePluginRegistered() const;
+
+	/** Returns whether the game feature plugin is active or not. */
+	bool IsGameFeaturePluginActive() const;
 
 	/**
 	 * Returns the install bundle name if one exists for this plugin.
@@ -72,13 +82,23 @@ public:
 #endif
 
 private:
+#if WITH_EDITOR
+	static void GetContentBundleGuids(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids);
+	static void GetExternalDataLayerUIDs(const FAssetData& Asset, TArray<FExternalDataLayerUID>& OutExternalDataLayerUIDs);
+	static FName GetExternalDataLayerUIDsAssetRegistryTag();
+	static FName GetContentBundleGuidsAssetRegistryTagPrivate();
+
+	UFUNCTION()
+	TArray<UClass*> GetDisallowedActions() const;
+#endif
+
 	/** Internal helper function to reload config data on objects as a result of a plugin INI being loaded */
 	void ReloadConfigs(FConfigFile& PluginConfig) const;
 
 protected:
 
 	/** List of actions to perform as this game feature is loaded/activated/deactivated/unloaded */
-	UPROPERTY(EditDefaultsOnly, Instanced, Category="Actions")
+	UPROPERTY(EditDefaultsOnly, Instanced, Category="Actions", meta = (GetDisallowedClasses = "GetDisallowedActions"))
 	TArray<TObjectPtr<UGameFeatureAction>> Actions;
 
 	/** List of asset types to scan at startup */

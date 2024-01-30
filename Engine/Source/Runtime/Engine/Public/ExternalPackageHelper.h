@@ -14,6 +14,10 @@
 #include "Misc/PackageName.h"
 #include "Misc/PackagePath.h"
 #include "Delegates/DelegateCombinations.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceProviderInterface.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 
 class FExternalPackageHelper
 {
@@ -29,7 +33,7 @@ public:
 	 * @param InFlags the package flags to apply
 	 * @return the created package
 	 */
-	static ENGINE_API UPackage* CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags());
+	static ENGINE_API UPackage* CreateExternalPackage(UObject* InObjectOuter, const FString& InObjectPath, EPackageFlags InFlags = FExternalPackageHelper::GetDefaultExternalPackageFlags(), const UExternalDataLayerAsset* InExternalDataLayerAsset = nullptr);
 
 	/** Returns default external package flags used to create external packages. */
 	static ENGINE_API EPackageFlags GetDefaultExternalPackageFlags();
@@ -107,7 +111,11 @@ void FExternalPackageHelper::LoadObjectsFromExternalPackages(UObject* InOuter, T
 {
 	check(InOuter);
 	UPackage* OutermostPackage = InOuter->IsA<UPackage>() ? CastChecked<UPackage>(InOuter) : InOuter->GetOutermostObject()->GetPackage();
-	const FString ExternalObjectsPath = FExternalPackageHelper::GetExternalObjectsPath(OutermostPackage, FString(), /*bTryUsingPackageLoadedPath*/ true);
+	const FString OutermostPackageName = !OutermostPackage->GetLoadedPath().IsEmpty() ? OutermostPackage->GetLoadedPath().GetPackageName() : OutermostPackage->GetName();
+	const IDataLayerInstanceProvider* DataLayerInstanceProvider = Cast<IDataLayerInstanceProvider>(InOuter);
+	const UExternalDataLayerAsset* ExternalDataLayerAsset = DataLayerInstanceProvider ? DataLayerInstanceProvider->GetRootExternalDataLayerAsset() : nullptr;
+	const FString RootPath = ExternalDataLayerAsset ? FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset, OutermostPackageName) : OutermostPackageName;
+	const FString ExternalObjectsPath = FExternalPackageHelper::GetExternalObjectsPath(RootPath);
 	TArray<FString> ObjectPackageNames;
 
 	// Do a synchronous scan of the world external objects path.			

@@ -18,9 +18,9 @@ void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceGridPlacement(cons
 	InnerErrorHandler->OnInvalidReferenceGridPlacement(ActorDescView, ReferenceActorDescView);
 }
 
-void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
+void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView, EDataLayerInvalidReason Reason)
 {
-	InnerErrorHandler->OnInvalidReferenceDataLayers(ActorDescView, ReferenceActorDescView);
+	InnerErrorHandler->OnInvalidReferenceDataLayers(ActorDescView, ReferenceActorDescView, Reason);
 }
 
 void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceRuntimeGrid(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
@@ -41,6 +41,11 @@ void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceLevelScriptDataLay
 void FStreamingGenerationProxyErrorHandler::OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance)
 {
 	InnerErrorHandler->OnInvalidReferenceDataLayerAsset(DataLayerInstance);
+}
+
+void FStreamingGenerationProxyErrorHandler::OnInvalidDataLayerAssetType(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerAsset* DataLayerAsset) 
+{
+	InnerErrorHandler->OnInvalidDataLayerAssetType(DataLayerInstance, DataLayerAsset);
 }
 
 void FStreamingGenerationProxyErrorHandler::OnDataLayerHierarchyTypeMismatch(const UDataLayerInstance* DataLayerInstance, const UDataLayerInstance* Parent)

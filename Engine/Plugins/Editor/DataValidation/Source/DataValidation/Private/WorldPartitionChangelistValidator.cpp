@@ -16,6 +16,8 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WorldPartitionChangelistValidator)
@@ -97,7 +99,7 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		{
 			if (UClass* ActorNativeClass = TryAssociateActorToMap(AssetData))
 			{
-				SubmittingWorldDataLayers = ActorNativeClass->IsChildOf<AWorldDataLayers>();
+				bSubmittingWorldDataLayers = ActorNativeClass->IsChildOf<AWorldDataLayers>();
 			}
 			else if (UClass* AssetClass = AssetData.GetClass())
 			{
@@ -135,7 +137,7 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		}
 	}
 
-	auto RegisterContainerToValidate = [](UWorld* InWorld, FName InContainerPackageName, FActorDescContainerInstanceCollection& OutRegisteredContainers, const FGuid& InContentBundleGuid)
+	auto RegisterContainerToValidate = [](UWorld* InWorld, FName InContainerPackageName, FActorDescContainerInstanceCollection& OutRegisteredContainers, const FGuid& InContentBundleGuid = FGuid(), const UExternalDataLayerAsset* InExternalDataLayerAsset = nullptr)
 	{
 		if (OutRegisteredContainers.Contains(InContainerPackageName))
 		{
@@ -156,12 +158,15 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		{
 			// Find in memory failed, load the ActorDescContainerInstance
 			ContainerInstance = NewObject<UActorDescContainerInstance>();
-			ContainerInstance->Initialize({ InContainerPackageName });
-			ContainerInstance->GetContainer()->SetContentBundleGuid(InContentBundleGuid);
+			UActorDescContainerInstance::FInitializeParams InitializeParams(InContainerPackageName);
+			InitializeParams.ContentBundleGuid = InContentBundleGuid;
+			InitializeParams.ExternalDataLayerAsset = InExternalDataLayerAsset;
+			ContainerInstance->Initialize(InitializeParams);
 		}
 		else
 		{
 			check(ContainerInstance->GetContentBundleGuid() == InContentBundleGuid);
+			check(ContainerInstance->GetExternalDataLayerAsset() == InExternalDataLayerAsset);
 		}
 
 		OutRegisteredContainers.AddContainer(ContainerInstance);
@@ -181,8 +186,9 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		FActorDescContainerInstanceCollection ContainersToValidate;
 
 		// Always register the main world container because content bundle containers can't be validated separately
-		RegisterContainerToValidate(World, MapPath.GetPackageName(), ContainersToValidate, FGuid());
+		RegisterContainerToValidate(World, MapPath.GetPackageName(), ContainersToValidate);
 
+		TSet<FSoftObjectPath> ProcessedExternalDataLayersForMap;
 		for (const FAssetData& ActorData : ActorsData)
 		{
 			FString ActorPackagePath = ActorData.PackagePath.ToString();
@@ -195,6 +201,26 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 				verify(ContentBundlePaths::BuildActorDescContainerPackagePath(FString(ContentBundleMountPoint), ContentBundleGuid, MapPath.GetPackageName().ToString(), ContentBundleContainerPackagePath));
 
 				RegisterContainerToValidate(World, FName(*ContentBundleContainerPackagePath), ContainersToValidate, ContentBundleGuid);
+			}
+			else
+			{
+				if (TUniquePtr<FWorldPartitionActorDesc> ActorDesc = FWorldPartitionActorDescUtils::GetActorDescriptorFromAssetData(ActorData))
+				{
+					bool bIsAlreadyInSet = false;
+					const FSoftObjectPath& ExternalDataLayerPath = ActorDesc->GetExternalDataLayerAsset();
+					if (ExternalDataLayerPath.IsValid())
+					{
+						ProcessedExternalDataLayersForMap.Add(ExternalDataLayerPath, &bIsAlreadyInSet);
+						if (!bIsAlreadyInSet)
+						{
+							if (const UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(ExternalDataLayerPath.TryLoad()))
+							{
+								const FString EDLContainerPackagePath = FExternalDataLayerHelper::GetExternalDataLayerLevelRootPath(ExternalDataLayerAsset, MapPath.GetPackageName().ToString());
+								RegisterContainerToValidate(World, FName(*EDLContainerPackagePath), ContainersToValidate, FGuid(), ExternalDataLayerAsset);
+							}
+						}
+					}
+				}
 			}
 		}
 
@@ -215,15 +241,6 @@ void UWorldPartitionChangelistValidator::ValidateActorsAndDataLayersFromChangeLi
 		UWorldPartition::FCheckForErrorsParams Params = UWorldPartition::FCheckForErrorsParams()
 			.SetErrorHandler(this)
 			.SetEnableStreaming(!ULevel::GetIsStreamingDisabledFromPackage(MapPath.GetPackageName()));
-
-		ContainersToValidate.ForEachActorDescContainerInstance([&Params](const UActorDescContainerInstance* ContainerInstance)
-		{
-			for (UActorDescContainerInstance::TConstIterator<> Iterator(ContainerInstance); Iterator; ++Iterator)
-			{
-				check(!Params.ActorGuidsToContainerInstanceMap.Contains(Iterator->GetGuid()));
-				Params.ActorGuidsToContainerInstanceMap.Add(Iterator->GetGuid(), ContainerInstance);
-			}
-		});
 
 		Params.ActorDescContainerInstanceCollection = &ContainersToValidate;
 		UWorldPartition::CheckForErrors(Params);
@@ -292,18 +309,29 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceGridPlacement(const I
 												FText::FromString(ReferenceActorDescView.GetIsSpatiallyLoaded() ? *SpatiallyLoadedActor : *NonSpatiallyLoadedActor),
 												FText::FromString(GetFullActorName(ReferenceActorDescView)));
 
-		AssetFails(CurrentAsset, CurrentError);
+			AssetFails(CurrentAsset, CurrentError);
 		}
 	}
 }
 
-void UWorldPartitionChangelistValidator::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView)
+void UWorldPartitionChangelistValidator::OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView, EDataLayerInvalidReason Reason)
 {	
 	if (Filter(ActorDescView) || Filter(ReferenceActorDescView))
 	{
-		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerError", "{0} is referencing {1} but both actors are using a different set of runtime data layers."),
-											FText::FromString(GetFullActorName(ActorDescView)),
-											FText::FromString(GetFullActorName(ReferenceActorDescView)));
+		FText CurrentError;
+		switch (Reason)
+		{
+		case EDataLayerInvalidReason::ReferencedActorDifferentRuntimeDataLayers:
+			CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerError", "{0} is referencing {1} but both actors are using a different set of runtime data layers."),
+				FText::FromString(GetFullActorName(ActorDescView)),
+				FText::FromString(GetFullActorName(ReferenceActorDescView)));
+			break;
+		case EDataLayerInvalidReason::ReferencedActorDifferentExternalDataLayer:
+			CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.ExternalDataLayerError", "{0} is referencing {1} but both actors are assigned to a different external data layer."),
+				FText::FromString(GetFullActorName(ActorDescView)),
+				FText::FromString(GetFullActorName(ReferenceActorDescView)));
+			break;
+		}
 
 		AssetFails(CurrentAsset, CurrentError);
 	}
@@ -345,10 +373,21 @@ void UWorldPartitionChangelistValidator::OnInvalidReferenceLevelScriptDataLayers
 
 void UWorldPartitionChangelistValidator::OnInvalidReferenceDataLayerAsset(const UDataLayerInstanceWithAsset* DataLayerInstance)
 {
-	if (SubmittingWorldDataLayers)
+	if (bSubmittingWorldDataLayers)
 	{
 		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidDataLayerAsset", "Data layer {0} has no data layer asset."),
 			FText::FromName(DataLayerInstance->GetDataLayerFName()));
+
+		AssetFails(CurrentAsset, CurrentError);
+	}
+}
+
+void UWorldPartitionChangelistValidator::OnInvalidDataLayerAssetType(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerAsset* DataLayerAsset)
+{
+	if (bSubmittingWorldDataLayers)
+	{
+		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidDataLayerAssetAsset", "Data layer {0} is not compatible with Data Layer Asset {1} type {2}."),
+			FText::FromName(DataLayerInstance->GetDataLayerFName()), FText::FromName(DataLayerAsset->GetFName()), FText::FromName(DataLayerAsset->GetClass()->GetFName()));
 
 		AssetFails(CurrentAsset, CurrentError);
 	}
@@ -358,7 +397,7 @@ void UWorldPartitionChangelistValidator::OnDataLayerHierarchyTypeMismatch(const 
 {
 	if (Filter(DataLayerInstance)
 		|| Filter(Parent)
-		|| SubmittingWorldDataLayers)
+		|| bSubmittingWorldDataLayers)
 	{
 		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerHierarchyTypeMismatch", "Data layer {0} is of type {1} and its parent {2} is of type {3}."),
 			FText::FromString(DataLayerInstance->GetDataLayerFullName()),
@@ -374,7 +413,7 @@ void UWorldPartitionChangelistValidator::OnDataLayerAssetConflict(const UDataLay
 {
 	if (Filter(DataLayerInstance)
 		|| Filter(ConflictingDataLayerInstance)
-		|| SubmittingWorldDataLayers)
+		|| bSubmittingWorldDataLayers)
 	{
 		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.DataLayerAssetConflict", "Data layer instance {0} and data layer instance {1} are both referencing data layer asset {2}."),
 			FText::FromName(DataLayerInstance->GetDataLayerFName()),

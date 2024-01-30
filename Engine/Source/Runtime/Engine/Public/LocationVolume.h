@@ -60,7 +60,7 @@ public:
 
 #if WITH_EDITOR
 private:
-	virtual bool IsDataLayerTypeSupported(TSubclassOf<UDataLayerInstance> DataLayerType) const override { return false; }
+	virtual bool ActorTypeSupportsDataLayer() const override { return false; }
 	FLoaderAdapterActor* WorldPartitionActorLoader;
 #endif
 };

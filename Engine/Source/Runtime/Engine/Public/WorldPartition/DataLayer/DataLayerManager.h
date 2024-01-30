@@ -9,6 +9,7 @@
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerEditorContext.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "Templates/SubclassOf.h"
 #include "DataLayerManager.generated.h"
 
@@ -16,6 +17,8 @@ class UDataLayerAsset;
 class UDataLayerInstanceWithAsset;
 class UDataLayerInstance;
 class UDataLayerLoadingPolicy;
+class UExternalDataLayerAsset;
+class ExternalDataLayerInstance;
 class UActorDescContainer;
 class UActorDescContainerInstance;
 class UCanvas;
@@ -94,8 +97,8 @@ public:
 	//~ Begin Runtime State
 	ENGINE_API const TSet<FName>& GetEffectiveActiveDataLayerNames() const;
 	ENGINE_API const TSet<FName>& GetEffectiveLoadedDataLayerNames() const;
-	ENGINE_API bool IsAnyDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const;
-	ENGINE_API bool IsAllDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const;
+	ENGINE_API bool IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const;
+	ENGINE_API bool IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const;
 	//~ End Runtime State
 
 private:
@@ -142,6 +145,8 @@ private:
 	friend class AWorldDataLayers;
 	friend class UDataLayerSubsystem;
 	friend class UDataLayerInstanceWithAsset;
+	friend class UExternalDataLayerManager;
+	friend class UExternalDataLayerInstance;
 	friend class UWorldPartitionStreamingPolicy;
 	friend class UWorldPartitionRuntimeCell;
 	friend class UWorldPartitionSubsystem;
@@ -151,7 +156,7 @@ private:
 #if WITH_EDITOR
 private:
 	//~ Begin Editor Context
-	ENGINE_API void PushActorEditorContext() const;
+	ENGINE_API void PushActorEditorContext(bool bDuplicateContext) const;
 	ENGINE_API void PopActorEditorContext() const;
 	ENGINE_API TArray<UDataLayerInstance*> GetActorEditorContextDataLayers() const;
 	ENGINE_API TArray<AWorldDataLayers*> GetActorEditorContextWorldDataLayers() const;
@@ -166,6 +171,7 @@ private:
 	void ResolveActorDescContainerInstanceDataLayers(UActorDescContainerInstance* InActorDescContainerInstance) const;
 	void ResolveActorDescInstanceDataLayers(FWorldPartitionActorDescInstance* InActorDescInstance) const;
 	void ResolveActorDescContainerInstanceDataLayersInternal(UActorDescContainerInstance* InActorDescContainerInstance, FWorldPartitionActorDescInstance* InActorDescInstance) const;
+	ENGINE_API static FWorldPartitionReference LoadWorldDataLayersActor(UActorDescContainerInstance* InActorDescContainerInstance);
 
 	//~ End
 

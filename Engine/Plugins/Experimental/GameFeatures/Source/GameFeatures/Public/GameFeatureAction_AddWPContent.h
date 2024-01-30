@@ -14,7 +14,7 @@ class UContentBundleDescriptor;
 /**
  *
  */
-UCLASS(meta = (DisplayName = "Add World Partition Content"))
+UCLASS(meta = (DisplayName = "Add World Partition Content (Content Bundle)"))
 class GAMEFEATURES_API UGameFeatureAction_AddWPContent : public UGameFeatureAction
 {
 	GENERATED_UCLASS_BODY()

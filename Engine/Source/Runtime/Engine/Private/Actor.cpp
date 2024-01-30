@@ -69,6 +69,8 @@
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "WorldPartition/ContentBundle/ContentBundlePaths.h"
 
@@ -6266,7 +6268,6 @@ TArray<const UDataLayerInstance*> AActor::GetDataLayerInstancesInternal(bool bUs
 	}
 
 #if WITH_EDITOR
-	if (SupportsDataLayerType(UDataLayerInstance::StaticClass()))
 	{
 		TArray<const UDataLayerInstance*> DataLayerInstances;
 		if (UDataLayerManager* DataLayerManager = bUseLevelContext ? UDataLayerManager::GetDataLayerManager(this) : UDataLayerManager::GetDataLayerManager(GetWorld()))
@@ -6324,7 +6325,7 @@ bool AActor::ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const
 	}
 
 #if WITH_EDITOR
-	if (DataLayerAssets.Contains(DataLayerAsset))
+	if (DataLayerAssets.Contains(DataLayerAsset) || (ExternalDataLayerAsset == DataLayerAsset))
 	{
 		return true;
 	}
@@ -6336,6 +6337,20 @@ bool AActor::ContainsDataLayer(const UDataLayerAsset* DataLayerAsset) const
 	}
 #endif
 	return false;
+}
+
+const UExternalDataLayerAsset* AActor::GetExternalDataLayerAsset() const
+{
+	if (const IWorldPartitionCell* Cell = GetWorldPartitionRuntimeCell())
+	{
+		const UExternalDataLayerInstance* ExternalDataLayerInstance = Cell->GetExternalDataLayerInstance();
+		return ExternalDataLayerInstance ? ExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr;
+	}
+#if WITH_EDITOR
+	return ExternalDataLayerAsset;
+#else
+	return nullptr;
+#endif
 }
 
 bool AActor::HasDataLayers() const

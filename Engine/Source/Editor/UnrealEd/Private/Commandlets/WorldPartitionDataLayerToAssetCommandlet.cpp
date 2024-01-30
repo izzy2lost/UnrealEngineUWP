@@ -323,7 +323,7 @@ bool UDataLayerToAssetCommandlet::InitializeFromCommandLine(TArray<FString>& Tok
 	if (Switches.Contains(TEXT("Verbose")))
 	{
 		LogDataLayerToAssetCommandlet.SetVerbosity(ELogVerbosity::Verbose);
-		WorldPartitionCommandletHelpers::LogWorldParitionCommandletUtils.SetVerbosity(ELogVerbosity::Verbose);
+		WorldPartitionCommandletHelpers::LogWorldPartitionCommandletUtils.SetVerbosity(ELogVerbosity::Verbose);
 	}
 
 	bPerformSavePackages = Switches.Contains(TEXT("NoSave")) == false;
@@ -507,10 +507,10 @@ bool UDataLayerToAssetCommandlet::RemapActorDataLayersToAssets(TStrongObjectPtr<
 		}
 		else
 		{
-			const TArray<FName>& ActDescDataLayers = ActorDescInstance->GetDataLayerInstanceNames();
+			const FDataLayerInstanceNames& ActDescDataLayers = ActorDescInstance->GetDataLayerInstanceNames();
 			if (!ActDescDataLayers.IsEmpty())
 			{
-				FString DataLayerString = FString::JoinBy(ActDescDataLayers, TEXT(", "), [](const FName& DataLayerName) { return DataLayerName.ToString(); });
+				FString DataLayerString = FString::JoinBy(ActDescDataLayers.ToArray(), TEXT(", "), [](const FName& DataLayerName) { return DataLayerName.ToString(); });
 
 				UE_LOG(LogDataLayerToAssetCommandlet, Error, TEXT("Actor %s failed to load. Its data layers %s will not be remapped to a data layer asset."),
 					*ActorDescInstance->GetActorName().ToString(), *DataLayerString);

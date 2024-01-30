@@ -12,13 +12,18 @@
 #include "DeviceProfiles/DeviceProfile.h"
 #include "DeviceProfiles/DeviceProfileFragment.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
-#include "GameFeatureAction_AddWPContent.h"
-#include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
-#include "AssetRegistry/AssetData.h"
 #include "Interfaces/IPluginManager.h"
 
 #if WITH_EDITOR
+#include "Settings/EditorExperimentalSettings.h"
+#include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
+#include "WorldPartition/ContentBundle/ContentBundlePaths.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
+#include "GameFeatureAction_AddWorldPartitionContent.h"
+#include "GameFeatureAction_AddWPContent.h"
 #include "Misc/DataValidation.h"
+#include "Engine/Level.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameFeatureData)
@@ -557,16 +562,35 @@ void UGameFeatureData::ReloadConfigs(FConfigFile& PluginConfig) const
 }
 
 #if WITH_EDITOR
-FName UGameFeatureData::GetContentBundleGuidsAssetRegistryTag()
+
+TArray<UClass*> UGameFeatureData::GetDisallowedActions() const
+{
+	TArray<UClass*> DisallowedClasses;
+
+	if (!GetDefault<UEditorExperimentalSettings>()->bEnableWorldPartitionExternalDataLayers)
+	{
+		DisallowedClasses.Add(UGameFeatureAction_AddWorldPartitionContent::StaticClass());
+	}
+
+	return DisallowedClasses;
+}
+
+FName UGameFeatureData::GetContentBundleGuidsAssetRegistryTagPrivate()
 {
 	static const FName ContentBundlesTag("ContentBundleGuids");
 	return ContentBundlesTag;
 }
 
-void UGameFeatureData::GetContentBundleGuidsFromAsset(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids)
+FName UGameFeatureData::GetExternalDataLayerUIDsAssetRegistryTag()
+{
+	static const FName ExternalDataLayerUIDsTag("ExternalDataLayerUIDs");
+	return ExternalDataLayerUIDsTag;
+}
+
+void UGameFeatureData::GetContentBundleGuids(const FAssetData& Asset, TArray<FGuid>& OutContentBundleGuids)
 {
 	FString ContentBundleGuidsStr;
-	if (Asset.GetTagValue(GetContentBundleGuidsAssetRegistryTag(), ContentBundleGuidsStr))
+	if (Asset.GetTagValue(GetContentBundleGuidsAssetRegistryTagPrivate(), ContentBundleGuidsStr))
 	{
 		TArray<FString> ContentBundleGuidsStrArray;
 		ContentBundleGuidsStr.ParseIntoArray(ContentBundleGuidsStrArray, TEXT(","));
@@ -577,6 +601,53 @@ void UGameFeatureData::GetContentBundleGuidsFromAsset(const FAssetData& Asset, T
 			{
 				OutContentBundleGuids.Add(ContentBundleGuid);
 			}
+		}
+	}
+}
+
+void UGameFeatureData::GetExternalDataLayerUIDs(const FAssetData& Asset, TArray<FExternalDataLayerUID>& OutExternalDataLayerUIDs)
+{
+	FString ExternalDataLayerUIDsStr;
+	if (Asset.GetTagValue(GetExternalDataLayerUIDsAssetRegistryTag(), ExternalDataLayerUIDsStr))
+	{
+		TArray<FString> ExternalDataLayerUIDStrArray;
+		ExternalDataLayerUIDsStr.ParseIntoArray(ExternalDataLayerUIDStrArray, TEXT(","));
+		for (const FString& ExternalDataLayerUIDStr : ExternalDataLayerUIDStrArray)
+		{
+			FExternalDataLayerUID ExternalDataLayerUID;
+			if (FExternalDataLayerUID::Parse(ExternalDataLayerUIDStr, ExternalDataLayerUID))
+			{
+				OutExternalDataLayerUIDs.Add(ExternalDataLayerUID);
+			}
+		}
+	}
+}
+
+void UGameFeatureData::GetDependencyDirectoriesFromAssetData(const FAssetData& AssetData, TArray<FString>& OutDependencyDirectories)
+{
+	const FString MountPoint = FPackageName::GetPackageMountPoint(AssetData.PackagePath.ToString()).ToString();
+
+	TArray<FGuid> ContentBundleGuids;
+	GetContentBundleGuids(AssetData, ContentBundleGuids);
+	for (const FGuid& ContentBundleGuid : ContentBundleGuids)
+	{
+		FString ContentBundleExternalActorPath;
+		if (ContentBundlePaths::BuildContentBundleExternalActorPath(MountPoint, ContentBundleGuid, ContentBundleExternalActorPath))
+		{
+			const FString ExternalActorPath = ULevel::GetExternalActorsPath(ContentBundleExternalActorPath);
+			OutDependencyDirectories.Add(ExternalActorPath);
+		}
+	}
+
+	TArray<FExternalDataLayerUID> ExternalDataLayerUIDs;
+	GetExternalDataLayerUIDs(AssetData, ExternalDataLayerUIDs);
+	for (const FExternalDataLayerUID& ExternalDataLayerUID : ExternalDataLayerUIDs)
+	{
+		FString ExternalDataLayerRootPath;
+		if (FExternalDataLayerHelper::BuildExternalDataLayerRootPath(MountPoint, ExternalDataLayerUID, ExternalDataLayerRootPath))
+		{
+			const FString ExternalActorsPath = ULevel::GetExternalActorsPath(ExternalDataLayerRootPath);
+			OutDependencyDirectories.Add(ExternalActorsPath);
 		}
 	}
 }
@@ -593,6 +664,7 @@ void UGameFeatureData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) c
 	Super::GetAssetRegistryTags(Context);
 
 	TArray<FGuid> ContentBundleGuids;
+	TArray<FExternalDataLayerUID> ExternalDataLayerUIDs;
 
 	for (UGameFeatureAction* Action : Actions)
 	{
@@ -603,12 +675,26 @@ void UGameFeatureData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) c
 				ContentBundleGuids.Add(ContentBundleDescriptor->GetGuid());
 			}
 		}
+
+		if (UGameFeatureAction_AddWorldPartitionContent* WPAction = Cast<UGameFeatureAction_AddWorldPartitionContent>(Action))
+		{
+			if (const UExternalDataLayerAsset* ExternalDataLayerAsset = WPAction->GetExternalDataLayerAsset())
+			{
+				ExternalDataLayerUIDs.Add(ExternalDataLayerAsset->GetUID());
+			}
+		}
 	}
 
 	if (ContentBundleGuids.Num() > 0)
 	{
 		FString ContentBundleGuidsStr = FString::JoinBy(ContentBundleGuids, TEXT(","), [&](const FGuid& Guid) { return Guid.ToString(); });
-		Context.AddTag(FAssetRegistryTag(GetContentBundleGuidsAssetRegistryTag(), ContentBundleGuidsStr, FAssetRegistryTag::TT_Hidden));
+		Context.AddTag(FAssetRegistryTag(GetContentBundleGuidsAssetRegistryTagPrivate(), ContentBundleGuidsStr, FAssetRegistryTag::TT_Hidden));
+	}
+
+	if (ExternalDataLayerUIDs.Num() > 0)
+	{
+		FString ExternalDataLayerUIDsStr = FString::JoinBy(ExternalDataLayerUIDs, TEXT(","), [&](const FExternalDataLayerUID& ExternalDataLayerUID) { return ExternalDataLayerUID.ToString(); });
+		Context.AddTag(FAssetRegistryTag(GetExternalDataLayerUIDsAssetRegistryTag(), ExternalDataLayerUIDsStr, FAssetRegistryTag::TT_Hidden));
 	}
 }
 #endif
@@ -660,6 +746,30 @@ void UGameFeatureData::GetPluginName(const UGameFeatureData* GFD, FString& Plugi
 			}
 		}
 	}
+}
+
+bool UGameFeatureData::IsGameFeaturePluginRegistered() const
+{
+	FString PluginURL;
+	FString PluginName;
+	GetPluginName(PluginName);
+	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(PluginName, PluginURL))
+	{
+		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginRegistered(PluginURL);
+	}
+	return false;
+}
+
+bool UGameFeatureData::IsGameFeaturePluginActive() const
+{
+	FString PluginURL;
+	FString PluginName;
+	GetPluginName(PluginName);
+	if (UGameFeaturesSubsystem::Get().GetPluginURLByName(PluginName, PluginURL))
+	{
+		return UGameFeaturesSubsystem::Get().IsGameFeaturePluginActive(PluginURL);
+	}
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

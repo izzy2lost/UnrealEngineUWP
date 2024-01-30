@@ -6,6 +6,7 @@
 
 #if WITH_EDITOR
 #include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceNames.h"
 #include "UObject/WeakObjectPtr.h"
 
 class AActor;
@@ -46,7 +47,7 @@ public:
 	ENGINE_API virtual bool IsEditorRelevant() const;
 
 	virtual bool IsUsingDataLayerAsset() const { return GetActorDesc()->IsUsingDataLayerAsset(); }
-	virtual const TArray<FName>& GetDataLayers() const { return GetActorDesc()->GetDataLayers(); }
+	virtual TArray<FName> GetDataLayers() const { return GetActorDesc()->GetDataLayers(); }
 
 	virtual bool GetActorIsHLODRelevant() const { return GetActorDesc()->GetActorIsHLODRelevant(); }
 	virtual FSoftObjectPath GetHLODLayer() const { return GetActorDesc()->GetHLODLayer(); }
@@ -72,6 +73,7 @@ public:
 	virtual const FGuid& GetParentActor() const { return GetActorDesc()->GetParentActor(); }
 		
 	virtual FGuid GetContentBundleGuid() const { return GetActorDesc()->GetContentBundleGuid(); }
+	virtual const FSoftObjectPath& GetExternalDataLayerAsset() const { return GetActorDesc()->GetExternalDataLayerAsset(); }
 
 	virtual bool IsChildContainerInstance() const { return ChildContainerInstance || GetActorDesc()->IsChildContainerInstance(); }
 	virtual FName GetChildContainerPackage() const { return GetActorDesc()->GetChildContainerPackage(); }
@@ -86,7 +88,7 @@ public:
 	ENGINE_API virtual const FWorldPartitionActorDesc* GetActorDesc() const { check(ActorDesc); return ActorDesc; }
 	
 	virtual bool HasResolvedDataLayerInstanceNames() const { return ResolvedDataLayerInstanceNames.IsSet(); }
-	ENGINE_API virtual const TArray<FName>& GetDataLayerInstanceNames() const;
+	ENGINE_API virtual const FDataLayerInstanceNames& GetDataLayerInstanceNames() const;
 
 	ENGINE_API virtual bool IsLoaded(bool bEvenIfPendingKill = false) const;
 	ENGINE_API virtual AActor* GetActor(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const;
@@ -151,7 +153,7 @@ protected:
 		return HardRefCount;
 	}
 
-	inline void SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames) { ResolvedDataLayerInstanceNames = InDataLayerInstanceNames; }
+	inline void SetDataLayerInstanceNames(const FDataLayerInstanceNames& InDataLayerInstanceNames) { ResolvedDataLayerInstanceNames = InDataLayerInstanceNames; }
 
 	virtual ENGINE_API void RegisterChildContainerInstance();
 	virtual ENGINE_API void UnregisterChildContainerInstance();
@@ -162,7 +164,7 @@ protected:
 
 	mutable uint32								SoftRefCount;
 	mutable uint32								HardRefCount;
-	TOptional<TArray<FName>>					ResolvedDataLayerInstanceNames;
+	TOptional<FDataLayerInstanceNames>			ResolvedDataLayerInstanceNames;
 	bool										bIsForcedNonSpatiallyLoaded;
 	mutable FText*								UnloadedReason;
 

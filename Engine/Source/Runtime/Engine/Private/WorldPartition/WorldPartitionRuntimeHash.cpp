@@ -8,6 +8,8 @@
 #include "WorldPartition/WorldPartitionStreamingSource.h"
 #include "WorldPartition/WorldPartitionRuntimeLevelStreamingCell.h"
 #include "WorldPartition/WorldPartitionLevelStreamingDynamic.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 #include "Misc/ArchiveMD5.h"
 #if WITH_EDITOR
 #include "WorldPartition/Cook/WorldPartitionCookPackage.h"
@@ -51,6 +53,11 @@ void URuntimeHashExternalStreamingObjectBase::ForEachStreamingCells(TFunctionRef
 	}
 }
 
+TSet<TObjectPtr<UDataLayerInstance>>& URuntimeHashExternalStreamingObjectBase::GetDataLayerInstances()
+{
+	return DataLayerInstances;
+}
+
 void URuntimeHashExternalStreamingObjectBase::OnStreamingObjectLoaded(UWorld* InjectedWorld)
 {
 	bool bIsACookedObject = !CellToLevelStreamingPackage.IsEmpty();
@@ -68,7 +75,29 @@ void URuntimeHashExternalStreamingObjectBase::OnStreamingObjectLoaded(UWorld* In
 }
 
 #if WITH_EDITOR
-void URuntimeHashExternalStreamingObjectBase::PopulateGeneratorPackageForCook()
+UWorldPartitionRuntimeCell* URuntimeHashExternalStreamingObjectBase::GetCellForCookPackage(const FString& InCookPackageName) const
+{
+	if (UWorldPartitionRuntimeCell* const* MatchingCell = PackagesToGenerateForCook.Find(InCookPackageName))
+	{
+		if (ensure(*MatchingCell))
+		{
+			return const_cast<UWorldPartitionRuntimeCell*>(*MatchingCell);
+		}
+	}
+	return nullptr;
+}
+
+FString URuntimeHashExternalStreamingObjectBase::GetPackageNameToCreate() const
+{
+	// GetPackageNameToCreate should not be called for ExternalStreamingObjects
+	if (ensure(ExternalDataLayerAsset))
+	{
+		return TEXT("/") + FExternalDataLayerHelper::GetExternalStreamingObjectPackageName(ExternalDataLayerAsset);
+	}
+	return FString();
+}
+
+bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratorPackageForCook(UPackage* InPackage)
 {
 	ForEachStreamingCells([this](UWorldPartitionRuntimeCell& Cell)
 	{
@@ -80,6 +109,19 @@ void URuntimeHashExternalStreamingObjectBase::PopulateGeneratorPackageForCook()
 		// Do not save them, instead they will be created once the external streaming object is loaded at runtime. 
 		LevelStreamingDynamic->SetFlags(RF_Transient);
 	});
+	return true;
+}
+
+bool URuntimeHashExternalStreamingObjectBase::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
+{
+	return Rename(nullptr, InPackage, REN_DontCreateRedirectors);
+}
+
+void URuntimeHashExternalStreamingObjectBase::DumpStateLog(FHierarchicalLogArchive& Ar)
+{
+	Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
+	Ar.Printf(TEXT("%s%s"), *GetWorld()->GetName(), ExternalDataLayerAsset ? *FString::Printf(TEXT(" - External Data Layer - %s"), *ExternalDataLayerAsset->GetName()) : TEXT(""));
+	Ar.Printf(TEXT("----------------------------------------------------------------------------------------------------------------"));
 }
 
 TMap<TPair<const UClass*, const UClass*>, UWorldPartitionRuntimeHash::FRuntimeHashConvertFunc> UWorldPartitionRuntimeHash::WorldPartitionRuntimeHashConverters;
@@ -172,7 +214,7 @@ bool UWorldPartitionRuntimeHash::GenerateStreaming(class UWorldPartitionStreamin
 	return PackagesToGenerateForCook.IsEmpty();
 }
 
-void UWorldPartitionRuntimeHash::FlushStreaming()
+void UWorldPartitionRuntimeHash::FlushStreamingContent()
 {
 	PackagesToGenerateForCook.Empty();
 }
@@ -299,24 +341,28 @@ void UWorldPartitionRuntimeHash::PopulateRuntimeCell(UWorldPartitionRuntimeCell*
 	}
 }
 
-bool UWorldPartitionRuntimeHash::PopulateGeneratedPackageForCook(const FWorldPartitionCookPackage& InPackagesToCook, TArray<UPackage*>& OutModifiedPackages)
+UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::GetCellForCookPackage(const FString& InCookPackageName) const
 {
-	OutModifiedPackages.Reset();
-	if (UWorldPartitionRuntimeCell** MatchingCell = PackagesToGenerateForCook.Find(InPackagesToCook.RelativePath))
+	if (UWorldPartitionRuntimeCell* const* MatchingCell = PackagesToGenerateForCook.Find(InCookPackageName))
 	{
-		UWorldPartitionRuntimeCell* Cell = *MatchingCell;
-		if (ensure(Cell))
+		if (ensure(*MatchingCell))
 		{
-			return Cell->PopulateGeneratedPackageForCook(InPackagesToCook.GetPackage(), OutModifiedPackages);
+			return const_cast<UWorldPartitionRuntimeCell*>(*MatchingCell);
 		}
 	}
-	return false;
+	return nullptr;
 }
 
-UWorldPartitionRuntimeCell* UWorldPartitionRuntimeHash::GetCellForPackage(const FWorldPartitionCookPackage& PackageToCook) const
+URuntimeHashExternalStreamingObjectBase* UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject(FName InStreamingObjectName)
 {
-	UWorldPartitionRuntimeCell** MatchingCell = const_cast<UWorldPartitionRuntimeCell**>(PackagesToGenerateForCook.Find(PackageToCook.RelativePath));
-	return MatchingCell ? *MatchingCell : nullptr;
+	URuntimeHashExternalStreamingObjectBase* NewExternalStreamingObject = CreateExternalStreamingObject(GetExternalStreamingObjectClass(), GetOuterUWorldPartition(), InStreamingObjectName, GetWorld(), GetTypedOuter<UWorld>());
+	StoreStreamingContentToExternalStreamingObject(NewExternalStreamingObject);
+	return NewExternalStreamingObject;
+}
+
+void UWorldPartitionRuntimeHash::StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject)
+{
+	OutExternalStreamingObject->PackagesToGenerateForCook = MoveTemp(PackagesToGenerateForCook);
 }
 
 TArray<UWorldPartitionRuntimeCell*> UWorldPartitionRuntimeHash::GetAlwaysLoadedCells() const
@@ -331,39 +377,6 @@ TArray<UWorldPartitionRuntimeCell*> UWorldPartitionRuntimeHash::GetAlwaysLoadedC
 		return true;
 	});
 	return Result;
-}
-
-bool UWorldPartitionRuntimeHash::PrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages)
-{
-	check(IsRunningCookCommandlet());
-
-	for (UWorldPartitionRuntimeCell* Cell : GetAlwaysLoadedCells())
-	{
-		check(Cell->IsAlwaysLoaded());
-		if (!Cell->PopulateGeneratorPackageForCook(OutModifiedPackages))
-		{
-			return false;
-		}
-	}
-
-	//@todo_ow: here we can safely remove always loaded cells as they are not part of the OutPackagesToGenerate
-	return true;
-}
-
-bool UWorldPartitionRuntimeHash::PopulateGeneratorPackageForCook(const TArray<FWorldPartitionCookPackage*>& InPackagesToCook, TArray<UPackage*>& OutModifiedPackages)
-{
-	check(IsRunningCookCommandlet());
-
-	for (const FWorldPartitionCookPackage* CookPackage : InPackagesToCook)
-	{
-		UWorldPartitionRuntimeCell** MatchingCell = PackagesToGenerateForCook.Find(CookPackage->RelativePath);
-		UWorldPartitionRuntimeCell* Cell = MatchingCell ? *MatchingCell : nullptr;
-		if (!Cell || !Cell->PrepareCellForCook(CookPackage->GetPackage()))
-		{
-			return false;
-		}
-	}
-	return true;
 }
 
 void UWorldPartitionRuntimeHash::DumpStateLog(FHierarchicalLogArchive& Ar) const
@@ -481,6 +494,11 @@ EWorldPartitionStreamingPerformance UWorldPartitionRuntimeHash::GetStreamingPerf
 	}
 
 	return StreamingPerformance;
+}
+
+bool UWorldPartitionRuntimeHash::IsExternalStreamingObjectInjected(URuntimeHashExternalStreamingObjectBase* InExternalStreamingObject) const
+{
+	return InjectedExternalStreamingObjects.Contains(InExternalStreamingObject);
 }
 
 bool UWorldPartitionRuntimeHash::InjectExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* InExternalStreamingObject)

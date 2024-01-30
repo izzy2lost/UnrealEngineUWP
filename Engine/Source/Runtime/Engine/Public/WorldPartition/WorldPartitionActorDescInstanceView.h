@@ -31,7 +31,7 @@ public:
 	virtual bool IsEditorRelevant() const override { return ActorDescInstance->IsEditorRelevant(); }
 
 	virtual bool IsUsingDataLayerAsset() const override { return ActorDescInstance->IsUsingDataLayerAsset(); }
-	virtual const TArray<FName>& GetDataLayers() const override { return ActorDescInstance->GetDataLayers(); }
+	virtual TArray<FName> GetDataLayers() const override { return ActorDescInstance->GetDataLayers(); }
 
 	virtual bool GetActorIsHLODRelevant() const override { return ActorDescInstance->GetActorIsHLODRelevant(); }
 	virtual FSoftObjectPath GetHLODLayer() const override { return ActorDescInstance->GetHLODLayer(); }
@@ -57,6 +57,7 @@ public:
 	virtual const FGuid& GetParentActor() const override { return ActorDescInstance->GetParentActor(); }
 
 	virtual FGuid GetContentBundleGuid() const override { return ActorDescInstance->GetContentBundleGuid(); }
+	virtual const FSoftObjectPath& GetExternalDataLayerAsset() const override { return ActorDescInstance->GetExternalDataLayerAsset(); }
 
 	virtual bool IsChildContainerInstance() const override { return ActorDescInstance->IsChildContainerInstance(); }
 	virtual FName GetChildContainerPackage() const override { return ActorDescInstance->GetChildContainerPackage(); }
@@ -74,7 +75,7 @@ public:
 	virtual const FWorldPartitionActorDesc* GetActorDesc() const override { return ActorDescInstance->GetActorDesc(); }
 
 	virtual bool HasResolvedDataLayerInstanceNames() const override { return ActorDescInstance->HasResolvedDataLayerInstanceNames(); }
-	const TArray<FName>& GetDataLayerInstanceNames() const override { return ActorDescInstance->GetDataLayerInstanceNames(); }
+	const FDataLayerInstanceNames& GetDataLayerInstanceNames() const override { return ActorDescInstance->GetDataLayerInstanceNames(); }
 
 	virtual AActor* GetActor(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const override { return ActorDescInstance->GetActor(bEvenIfPendingKill, bEvenIfUnreachable); }
 	virtual bool IsLoaded(bool bEvenIfPendingKill = false) const override { return ActorDescInstance->IsLoaded(bEvenIfPendingKill); }

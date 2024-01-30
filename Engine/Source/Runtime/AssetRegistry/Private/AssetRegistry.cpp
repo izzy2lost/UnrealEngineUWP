@@ -5419,6 +5419,8 @@ bool FAssetRegistryImpl::ShouldSkipGatheredAsset(FAssetData& AssetData)
 		// /PackageRoot/__ExternalActors__/RelPathFromPackageRootToMap/#/##/#######
 		// OR
 		// /PackageRoot/__ExternalActors__/ContentBundle/######/RelPathFromPackageRootToMap/#/##/#######
+		// OR
+		// /PackageRoot/__ExternalActors__/EDL/######/ObjectPathPackageRoot/RelPathFromPackageRootToMap/#/##/#######
 		// Package roots do not need to be the same; ContentBundles can be injected into /Game maps from plugins
 		PackageNamePackageRoot = FPackageName::SplitPackageNameRoot(PackageNameStr, &PackageNameRelPath);
 		ObjectPathPackageRoot = FPackageName::SplitPackageNameRoot(ObjectPathPackageName, &ObjectPathRelPath);
@@ -5432,13 +5434,27 @@ bool FAssetRegistryImpl::ShouldSkipGatheredAsset(FAssetData& AssetData)
 			return true;
 		}
 
-		bool bAllowValidation = true;
+		bool bIsEDLActor = false;
+		bool bIsPluginActor = false;
 		FStringView PackageNameRelPathAfterExternalActorRoot = PackageNameRelPath.RightChop(ExternalActorsFolderName.Len() + 1);
 		FStringView ContentBundleDirName(TEXTVIEW("ContentBundle"));
+		FStringView ExternalDataLayerDirName(TEXTVIEW("EDL"));
 		if (PackageNameRelPathAfterExternalActorRoot.StartsWith(ContentBundleDirName))
 		{
-			bAllowValidation = false; // Don't allow validation unless we succeed in finding the new relpath
 			PackageNameRelPathAfterExternalActorRoot.RightChopInline(ContentBundleDirName.Len());
+			bIsPluginActor = true;
+		}
+		else if (PackageNameRelPathAfterExternalActorRoot.StartsWith(ExternalDataLayerDirName))
+		{
+			PackageNameRelPathAfterExternalActorRoot.RightChopInline(ExternalDataLayerDirName.Len());
+			bIsEDLActor = true;
+			bIsPluginActor = true;
+		}
+
+		bool bAllowValidation = true;
+		if (bIsPluginActor)
+		{
+			bAllowValidation = false; // Don't allow validation unless we succeed in finding the new relpath
 			if (PackageNameRelPathAfterExternalActorRoot.StartsWith(TEXT("/")))
 			{
 				PackageNameRelPathAfterExternalActorRoot.RightChopInline(1);
@@ -5447,7 +5463,23 @@ bool FAssetRegistryImpl::ShouldSkipGatheredAsset(FAssetData& AssetData)
 				if (NextSlash != INDEX_NONE)
 				{
 					PackageNameRelPathAfterExternalActorRoot.RightChopInline(NextSlash + 1);
-					bAllowValidation = true;
+					// EDL path keeps ObjectPathPackageRoot
+					if (bIsEDLActor)
+					{
+						if (PackageNameRelPathAfterExternalActorRoot.StartsWith(ObjectPathPackageRoot))
+						{
+							PackageNameRelPathAfterExternalActorRoot.RightChopInline(ObjectPathPackageRoot.Len());
+							if (PackageNameRelPathAfterExternalActorRoot.StartsWith(TEXT("/")))
+							{
+								PackageNameRelPathAfterExternalActorRoot.RightChopInline(1);
+								bAllowValidation = true;
+							}
+						}
+					}
+					else
+					{
+						bAllowValidation = true;
+					}
 				}
 			}
 		}

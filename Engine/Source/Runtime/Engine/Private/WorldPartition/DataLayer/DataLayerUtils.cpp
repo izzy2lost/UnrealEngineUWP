@@ -11,90 +11,119 @@
 #include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "Algo/AllOf.h"
 
-TArray<FName> FDataLayerUtils::ResolvedDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const FWorldPartitionActorDesc* InActorDesc, const TArray<const FWorldDataLayersActorDesc*>& InWorldDataLayersActorDescs)
+FDataLayerInstanceNames FDataLayerUtils::ResolveDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const FWorldPartitionActorDesc* InActorDesc, const TArray<const FWorldDataLayersActorDesc*>& InWorldDataLayersActorDescs)
 {
-	const TArray<FName>& ActorDescDataLayers = InActorDesc->GetDataLayers();
-
-	if (!ActorDescDataLayers.IsEmpty())
+	const bool bIncludeExternalDataLayer = false;
+	const FName ActorDescExternalDataLayer = InActorDesc->GetExternalDataLayer();
+	const TArray<FName> ActorDescNonExternalDataLayers = InActorDesc->GetDataLayers(bIncludeExternalDataLayer);
+	if (ActorDescNonExternalDataLayers.IsEmpty() && ActorDescExternalDataLayer.IsNone())
 	{
-		// DataLayers not using DataLayer Assets represent DataLayerInstanceNames
-		if (!InActorDesc->IsUsingDataLayerAsset())
+		return FDataLayerInstanceNames();
+	}
+	
+	// DataLayers not using DataLayer Assets represent DataLayerInstanceNames
+	if (!InActorDesc->IsUsingDataLayerAsset())
+	{
+		if (InDataLayerManager && InDataLayerManager->CanResolveDataLayers())
 		{
-			if (InDataLayerManager && InDataLayerManager->CanResolveDataLayers())
+			TArray<FName> Result;
+			for (const FName& DataLayerInstanceName : ActorDescNonExternalDataLayers)
 			{
-				TArray<FName> Result;
-				for (const FName& DataLayerInstanceName : ActorDescDataLayers)
+				if (const UDataLayerInstance* DataLayerInstance = InDataLayerManager->GetDataLayerInstance(DataLayerInstanceName))
 				{
-					if (const UDataLayerInstance* DataLayerInstance = InDataLayerManager->GetDataLayerInstance(DataLayerInstanceName))
-					{
-						Result.Add(DataLayerInstanceName);
-					}
+					Result.Add(DataLayerInstanceName);
 				}
-				return Result;
 			}
-			// Fallback on FWorldDataLayersActorDesc
-			else if (!InWorldDataLayersActorDescs.IsEmpty() && AreWorldDataLayersActorDescsSane(InWorldDataLayersActorDescs))
-			{
-				TArray<FName> Result;
-				for (const FName& DataLayerInstanceName : ActorDescDataLayers)
-				{
-					if (GetDataLayerInstanceDescFromInstanceName(InWorldDataLayersActorDescs, DataLayerInstanceName) != nullptr)
-					{
-						Result.Add(DataLayerInstanceName);
-					}
-				}
-				return Result;
-			}
+			return FDataLayerInstanceNames(Result, false);
 		}
-		// ActorDesc DataLayers represents DataLayer Asset Paths
-		else
+		// Fallback on FWorldDataLayersActorDesc
+		else if (!InWorldDataLayersActorDescs.IsEmpty() && AreWorldDataLayersActorDescsSane(InWorldDataLayersActorDescs))
 		{
-			if (InDataLayerManager && InDataLayerManager->CanResolveDataLayers())
+			TArray<FName> Result;
+			for (const FName& DataLayerInstanceName : ActorDescNonExternalDataLayers)
 			{
-				TArray<FName> Result;
-				for (const FName& DataLayerAssetPath : ActorDescDataLayers)
+				if (GetDataLayerInstanceDescFromInstanceName(InWorldDataLayersActorDescs, DataLayerInstanceName) != nullptr)
 				{
-					if (const UDataLayerInstance* DataLayerInstance = InDataLayerManager->GetDataLayerInstanceFromAssetName(DataLayerAssetPath))
-					{
-						Result.Add(DataLayerInstance->GetDataLayerFName());
-					}
+					Result.Add(DataLayerInstanceName);
 				}
-				return Result;
 			}
-			// Fallback on FWorldDataLayersActorDesc
-			else if (!InWorldDataLayersActorDescs.IsEmpty() && AreWorldDataLayersActorDescsSane(InWorldDataLayersActorDescs))
-			{
-				TArray<FName> Result;
-				for (const FName& DataLayerAssetPath : ActorDescDataLayers)
-				{
-					if (const FDataLayerInstanceDesc* DataLayerInstanceDesc = GetDataLayerInstanceDescFromAssetPath(InWorldDataLayersActorDescs, DataLayerAssetPath))
-					{
-						Result.Add(DataLayerInstanceDesc->GetName());
-					}
-				}
-				return Result;
-			}
+			return FDataLayerInstanceNames(Result, false);
 		}
 	}
-	return InActorDesc->GetDataLayers();
+	// ActorDesc DataLayers represents DataLayer Asset Paths
+	else
+	{
+		if (InDataLayerManager && InDataLayerManager->CanResolveDataLayers())
+		{
+			TArray<FName> ResolvedDLINames;
+			ResolvedDLINames.Reserve(ActorDescNonExternalDataLayers.Num() + 1);
+			const UDataLayerInstance* ExternalDataLayerInstance = InDataLayerManager->GetDataLayerInstanceFromAssetName(ActorDescExternalDataLayer);
+			FName ExternalDataLayer = ExternalDataLayerInstance ? ExternalDataLayerInstance->GetDataLayerFName() : NAME_None;
+			bool bIsFirstDataLayerIsExternal = !ExternalDataLayer.IsNone();
+			if (bIsFirstDataLayerIsExternal)
+			{
+				ResolvedDLINames.Add(ExternalDataLayer);
+			}
+			for (const FName& DataLayerAssetPath : ActorDescNonExternalDataLayers)
+			{
+				if (const UDataLayerInstance* DataLayerInstance = InDataLayerManager->GetDataLayerInstanceFromAssetName(DataLayerAssetPath))
+				{
+					ResolvedDLINames.Add(DataLayerInstance->GetDataLayerFName());
+				}
+			}
+			return FDataLayerInstanceNames(ResolvedDLINames, bIsFirstDataLayerIsExternal);
+		}
+		// Fallback on FWorldDataLayersActorDesc
+		else if (!InWorldDataLayersActorDescs.IsEmpty() && AreWorldDataLayersActorDescsSane(InWorldDataLayersActorDescs))
+		{
+			TArray<FName> ResolvedDLINames;
+			ResolvedDLINames.Reserve(ActorDescNonExternalDataLayers.Num() + 1);
+			const FDataLayerInstanceDesc* ExternalDataLayerInstanceDesc = GetDataLayerInstanceDescFromAssetPath(InWorldDataLayersActorDescs, ActorDescExternalDataLayer);
+			FName ExternalDataLayer = ExternalDataLayerInstanceDesc ? ExternalDataLayerInstanceDesc->GetName() : NAME_None;
+			bool bIsFirstDataLayerIsExternal = !ExternalDataLayer.IsNone();
+			if (bIsFirstDataLayerIsExternal)
+			{
+				ResolvedDLINames.Add(ExternalDataLayer);
+			}
+			for (const FName& DataLayerAssetPath : ActorDescNonExternalDataLayers)
+			{
+				if (const FDataLayerInstanceDesc* DataLayerInstanceDesc = GetDataLayerInstanceDescFromAssetPath(InWorldDataLayersActorDescs, DataLayerAssetPath))
+				{
+					ResolvedDLINames.Add(DataLayerInstanceDesc->GetName());
+				}
+			}
+			return FDataLayerInstanceNames(ResolvedDLINames, bIsFirstDataLayerIsExternal);
+		}
+	}
+	return FDataLayerInstanceNames(ActorDescNonExternalDataLayers, ActorDescExternalDataLayer);
 }
 
 // For performance reasons, this function assumes that InActorDesc's DataLayerInstanceNames was already resolved.
-bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const IWorldPartitionActorDescInstanceView& InActorDescView, const FStreamingGenerationActorDescViewMap& InActorDescViewMap, TArray<FName>& OutRuntimeDataLayerInstanceNames)
+bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManager* InDataLayerManager, const IWorldPartitionActorDescInstanceView& InActorDescView, const FStreamingGenerationActorDescViewMap& InActorDescViewMap, FDataLayerInstanceNames& OutRuntimeDataLayerInstanceNames)
 {
-	const TArray<FName>& ActorDescViewDataLayerInstanceNames = InActorDescView.GetDataLayerInstanceNames();
+	const FDataLayerInstanceNames& ActorDescViewDataLayerInstanceNames = InActorDescView.GetDataLayerInstanceNames();
+	const FName EDLInstanceName = ActorDescViewDataLayerInstanceNames.GetExternalDataLayer();
+	const TArrayView<const FName> NonEDLInstanceNames = ActorDescViewDataLayerInstanceNames.GetNonExternalDataLayers();
 
 	if (InDataLayerManager && InDataLayerManager->CanResolveDataLayers())
 	{
-		for (FName DataLayerInstanceName : ActorDescViewDataLayerInstanceNames)
+		TArray<FName> ResolvedRuntimeDLINames;
+		ResolvedRuntimeDLINames.Reserve(NonEDLInstanceNames.Num() + 1);
+		const UDataLayerInstance* ExternalDataLayerInstance = InDataLayerManager->GetDataLayerInstanceFromName(EDLInstanceName);
+		const bool bIsFirstDataLayerIsExternal = (ExternalDataLayerInstance && ExternalDataLayerInstance->IsRuntime());
+		if (bIsFirstDataLayerIsExternal)
+		{
+			ResolvedRuntimeDLINames.Add(EDLInstanceName);
+		}
+		for (FName DataLayerInstanceName : NonEDLInstanceNames)
 		{
 			const UDataLayerInstance* DataLayerInstance = InDataLayerManager->GetDataLayerInstanceFromName(DataLayerInstanceName);
 			if (DataLayerInstance && DataLayerInstance->IsRuntime())
 			{
-				OutRuntimeDataLayerInstanceNames.Add(DataLayerInstanceName);
+				ResolvedRuntimeDLINames.Add(DataLayerInstanceName);
 			}
 		}
-
+		OutRuntimeDataLayerInstanceNames = FDataLayerInstanceNames(ResolvedRuntimeDLINames, bIsFirstDataLayerIsExternal);
 		return true;
 	}
 
@@ -103,17 +132,25 @@ bool FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(const UDataLayerManag
 	if (WorldDataLayersActorDescs.Num())
 	{
 		check(AreWorldDataLayersActorDescsSane(WorldDataLayersActorDescs));
-		for (FName DataLayerInstanceName : ActorDescViewDataLayerInstanceNames)
+
+		TArray<FName> ResolvedRuntimeDLINames;
+		ResolvedRuntimeDLINames.Reserve(NonEDLInstanceNames.Num() + 1);
+		const FDataLayerInstanceDesc* ExternalDataLayerInstanceDesc = GetDataLayerInstanceDescFromInstanceName(WorldDataLayersActorDescs, EDLInstanceName);
+		const bool bIsFirstDataLayerIsExternal = (ExternalDataLayerInstanceDesc && (ExternalDataLayerInstanceDesc->GetDataLayerType() == EDataLayerType::Runtime));
+		if (bIsFirstDataLayerIsExternal)
 		{
-			if (const FDataLayerInstanceDesc* DataLayerInstanceDesc = GetDataLayerInstanceDescFromInstanceName(WorldDataLayersActorDescs, DataLayerInstanceName))
-			{
-				if (DataLayerInstanceDesc->GetDataLayerType() == EDataLayerType::Runtime)
-				{
-					OutRuntimeDataLayerInstanceNames.Add(DataLayerInstanceName);
-				}
-			}
+			ResolvedRuntimeDLINames.Add(EDLInstanceName);
 		}
 
+		for (FName DataLayerInstanceName : NonEDLInstanceNames)
+		{
+			const FDataLayerInstanceDesc* DataLayerInstanceDesc = GetDataLayerInstanceDescFromInstanceName(WorldDataLayersActorDescs, DataLayerInstanceName);
+			if (DataLayerInstanceDesc && (DataLayerInstanceDesc->GetDataLayerType() == EDataLayerType::Runtime))
+			{
+				ResolvedRuntimeDLINames.Add(DataLayerInstanceName);
+			}
+		}
+		OutRuntimeDataLayerInstanceNames = FDataLayerInstanceNames(ResolvedRuntimeDLINames, bIsFirstDataLayerIsExternal);
 		return true;
 	}
 

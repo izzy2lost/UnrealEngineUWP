@@ -4,6 +4,7 @@
 #if WITH_EDITOR
 #include "CoreMinimal.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
+#include "WorldPartition/DataLayer/DataLayerInstanceNames.h"
 
 class AActor;
 class IStreamingGenerationErrorHandler;
@@ -33,7 +34,7 @@ public:
 	virtual bool IsEditorRelevant() const = 0;
 
 	virtual bool IsUsingDataLayerAsset() const = 0;
-	virtual const TArray<FName>& GetDataLayers() const = 0;
+	virtual TArray<FName> GetDataLayers() const = 0;
 
 	virtual bool GetActorIsHLODRelevant() const = 0;
 	virtual FSoftObjectPath GetHLODLayer() const = 0;
@@ -59,6 +60,7 @@ public:
 	virtual const FGuid& GetParentActor() const = 0;
 	
 	virtual FGuid GetContentBundleGuid() const = 0;
+	virtual const FSoftObjectPath& GetExternalDataLayerAsset() const = 0;
 	
 	virtual bool IsChildContainerInstance() const = 0;
 	virtual FName GetChildContainerPackage() const = 0;
@@ -76,7 +78,7 @@ public:
 	virtual FName GetActorLabelOrName() const { return GetActorLabel().IsNone() ? GetActorName() : GetActorLabel(); }
 
 	virtual bool HasResolvedDataLayerInstanceNames() const = 0;
-	virtual const TArray<FName>& GetDataLayerInstanceNames() const = 0;
+	virtual const FDataLayerInstanceNames& GetDataLayerInstanceNames() const = 0;
 
 	virtual AActor* GetActor(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const = 0;
 	virtual bool IsLoaded(bool bEvenIfPendingKill = false) const = 0;

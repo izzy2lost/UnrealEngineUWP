@@ -17,8 +17,9 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 	check(WorldPartition);
 
 	FStreamingGenerationNullErrorHandler NullErrorHandler;
+	FActorDescContainerInstanceCollection Collection({ TObjectPtr<UActorDescContainerInstance>(WorldPartition->GetActorDescContainerInstance()) });
 	UWorldPartition::FGenerateStreamingParams Params = UWorldPartition::FGenerateStreamingParams()
-		.SetActorDescContainerInstance(WorldPartition->GetActorDescContainerInstance())
+		.SetContainerInstanceCollection(Collection, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs)
 		.SetErrorHandler(&NullErrorHandler);
 
 	UWorldPartition::FGenerateStreamingContext Context;

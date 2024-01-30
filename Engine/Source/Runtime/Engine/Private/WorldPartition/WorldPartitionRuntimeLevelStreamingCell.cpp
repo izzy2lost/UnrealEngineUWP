@@ -264,20 +264,40 @@ void UWorldPartitionRuntimeLevelStreamingCell::AddActorToCell(const FStreamingGe
 
 	for (const FGuid& EditorReferenceGuid : ActorDescView.GetEditorReferences())
 	{
-		const FWorldPartitionActorDescInstance& ReferenceActorDesc = ContainerInstance->GetActorDescInstanceChecked(EditorReferenceGuid);
-
-		Packages.Emplace(
-			ReferenceActorDesc.GetActorPackage(),
-			*ReferenceActorDesc.GetActorSoftPath().ToString(),
-			ReferenceActorDesc.GetBaseClass(),
-			ReferenceActorDesc.GetNativeClass(),
-			ContainerID,
-			ContainerTransform,
-			ContainerPackage,
-			GetWorld()->GetPackage()->GetFName(),
-			ContainerID.GetActorGuid(EditorReferenceGuid),
-			true
-		);
+		// Special case where ActorDescView has invalid references : Use InvalidReference information as the Actor Guid isn't 
+		// necessarily in the ContainerInstance.
+		FStreamingGenerationActorDescView::FInvalidReference InvalidRef;
+		if (ActorDescView.IsInvalidReference(EditorReferenceGuid, &InvalidRef))
+		{
+			Packages.Emplace(
+				InvalidRef.ActorPackage,
+				*InvalidRef.ActorSoftPath.ToString(),
+				InvalidRef.BaseClass,
+				InvalidRef.NativeClass,
+				ContainerID,
+				ContainerTransform,
+				ContainerPackage,
+				GetWorld()->GetPackage()->GetFName(),
+				ContainerID.GetActorGuid(EditorReferenceGuid),
+				true
+			);
+		}
+		else
+		{
+			const FWorldPartitionActorDescInstance& ReferenceActorDesc = ContainerInstance->GetActorDescInstanceChecked(EditorReferenceGuid);
+			Packages.Emplace(
+				ReferenceActorDesc.GetActorPackage(),
+				*ReferenceActorDesc.GetActorSoftPath().ToString(),
+				ReferenceActorDesc.GetBaseClass(),
+				ReferenceActorDesc.GetNativeClass(),
+				ContainerID,
+				ContainerTransform,
+				ContainerPackage,
+				GetWorld()->GetPackage()->GetFName(),
+				ContainerID.GetActorGuid(EditorReferenceGuid),
+				true
+			);
+		}
 	}
 
 	Packages.Emplace(
@@ -311,7 +331,12 @@ void UWorldPartitionRuntimeLevelStreamingCell::Fixup()
 	}
 }
 
-bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages)
+FString UWorldPartitionRuntimeLevelStreamingCell::GetPackageNameToCreate() const
+{
+	return UWorldPartitionLevelStreamingPolicy::GetCellPackagePath(GetFName(), GetOuterWorld());
+}
+
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPrepareGeneratorPackageForCook(TArray<UPackage*>& OutModifiedPackages)
 {
 	check(IsAlwaysLoaded());
 
@@ -364,7 +389,12 @@ bool UWorldPartitionRuntimeLevelStreamingCell::PrepareCellForCook(UPackage* InPa
 	return true;
 }
 
-bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackage)
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratorPackageForCook(UPackage* InPackage)
+{
+	return PrepareCellForCook(InPackage);
+}
+
+bool UWorldPartitionRuntimeLevelStreamingCell::OnPopulateGeneratedPackageForCook(UPackage* InPackage, TArray<UPackage*>& OutModifiedPackages)
 {
 	check(!IsAlwaysLoaded());
 	if (!InPackage)
@@ -399,7 +429,7 @@ bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratedPackageForCook(U
 		// Create a level and move these actors in it
 		ULevel* NewLevel = FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(this, OuterWorld, LevelStreaming->GetWorldAsset().ToString(), InPackage);
 		check(NewLevel->GetPackage() == InPackage);
-		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, NewLevel, OutModifiedPackage);
+		FWorldPartitionLevelHelper::MoveExternalActorsToLevel(Packages, NewLevel, OutModifiedPackages);
 
 		// Remap Level's SoftObjectPaths
 		FWorldPartitionLevelHelper::RemapLevelSoftObjectPaths(NewLevel, WorldPartition);
@@ -410,11 +440,6 @@ bool UWorldPartitionRuntimeLevelStreamingCell::PopulateGeneratedPackageForCook(U
 int32 UWorldPartitionRuntimeLevelStreamingCell::GetActorCount() const
 {
 	return Packages.Num();
-}
-
-FString UWorldPartitionRuntimeLevelStreamingCell::GetPackageNameToCreate() const
-{
-	return UWorldPartitionLevelStreamingPolicy::GetCellPackagePath(GetFName(), GetOuterWorld());
 }
 
 void UWorldPartitionRuntimeLevelStreamingCell::DumpStateLog(FHierarchicalLogArchive& Ar) const

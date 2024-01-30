@@ -4406,6 +4406,15 @@ bool UEditorEngine::CanParentActors( const AActor* ParentActor, const AActor* Ch
 		return false;
 	}
 
+	if (ChildActor->GetExternalDataLayerAsset() != ParentActor->GetExternalDataLayerAsset())
+	{
+		if (ReasonText)
+		{
+			*ReasonText = NSLOCTEXT("ActorAttachmentError", "WrongExternalDataLayer_AttachmentError", "Actors need to be in the same external data layer");
+		}
+		return false;
+	}
+
 	if(ParentRoot->IsAttachedTo( ChildRoot ))
 	{
 		if (ReasonText)

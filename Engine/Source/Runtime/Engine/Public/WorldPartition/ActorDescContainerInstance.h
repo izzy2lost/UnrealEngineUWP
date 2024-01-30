@@ -13,6 +13,7 @@
 class UActorDescContainer;
 class FWorldPartitionActorDesc;
 class UWorldPartition;
+class UExternalDataLayerAsset;
 struct FWorldPartitionRuntimeCellPropertyOverride;
 
 class FActorDescInstanceList : public TActorDescList<FWorldPartitionActorDescInstance> { };
@@ -60,6 +61,12 @@ public:
 		FName ContainerPackageName;
 
 		FGuid ContainerActorGuid;
+
+		/** The associated Content Bundle Guid */
+		FGuid ContentBundleGuid;
+
+		/** The associated External Data Layer Asset */
+		const UExternalDataLayerAsset* ExternalDataLayerAsset = nullptr;
 		
 		const UActorDescContainerInstance* ParentContainerInstance = nullptr;
 
@@ -69,6 +76,9 @@ public:
 
 		/* Custom filter function used to filter actors descriptors. */
 		TUniqueFunction<bool(const FWorldPartitionActorDesc*)> FilterActorDescFunc;
+
+		/** Function called when container is initialized. */
+		TUniqueFunction<void(UActorDescContainerInstance*)> OnInitializedFunc;
 	};
 
 
@@ -100,7 +110,10 @@ public:
 	ENGINE_API static FName GetContainerPackageNameFromWorld(UWorld* InWorld);
 	ENGINE_API FName GetContainerPackage() const;
 	ENGINE_API FGuid GetContentBundleGuid() const;
+	ENGINE_API const UExternalDataLayerAsset* GetExternalDataLayerAsset() const;
+	ENGINE_API bool HasExternalContent() const;
 	ENGINE_API FString GetExternalActorPath() const;
+	ENGINE_API FString GetExternalObjectPath() const;
 		
 	ENGINE_API TUniquePtr<FWorldPartitionActorDescInstance>* GetActorDescInstancePtr(const FGuid& InActorGuid) const;
 	ENGINE_API FWorldPartitionActorDescInstance* GetActorDescInstance(const FGuid& InActorGuid) const;
@@ -137,7 +150,7 @@ private:
 	bool ShouldRegisterDelegates() const;
 	
 	FWorldPartitionActorDescInstance* AddActor(FWorldPartitionActorDesc* InActorDesc);
-	void RemoveActor(const FGuid& InActorGuid);
+	ENGINE_API void RemoveActor(const FGuid& InActorGuid);
 
 	FWorldPartitionActorDescInstance* AddActorDescInstance(FWorldPartitionActorDescInstance&& InActorDescInstance);
 	void RemoveActorDescInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescInstance);
@@ -151,6 +164,8 @@ private:
 
 	void OnRegisterChildContainerInstance(const FGuid& InActorGuid, UActorDescContainerInstance* InChildContainerInstance);
 	void OnUnregisterChildContainerInstance(const FGuid& InActorGuid);
+
+	friend class UGameFeatureActionConvertContentBundleWorldPartitionBuilder;
 #endif
 
 private:

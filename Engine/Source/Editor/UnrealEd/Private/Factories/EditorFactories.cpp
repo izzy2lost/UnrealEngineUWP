@@ -201,6 +201,8 @@
 #include "AssetToolsModule.h"
 #include "IAssetTools.h"
 #include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 
 #include "DDSFile.h"
 #include "IESConverter.h"
@@ -917,6 +919,11 @@ UObject* ULevelFactory::FactoryCreateText
 				FGuid ActorContentBundleGuid;
 				FParse::Value(Str, TEXT("ActorContentBundleGuid="), ActorContentBundleGuid);
 				FContentBundleActivationScope Scope(ActorContentBundleGuid);
+
+				FString ExternalDataLayerAssetPathStr;
+				FParse::Value(Str, TEXT("ExternalDataLayerAsset="), ExternalDataLayerAssetPathStr);
+				UExternalDataLayerAsset* ExternalDataLayerAsset = Cast<UExternalDataLayerAsset>(FSoftObjectPath(ExternalDataLayerAssetPathStr).TryLoad());
+				FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(ExternalDataLayerAsset);
 
 				// If we're pasting from a class that belongs to a map we need to duplicate the class and use that instead
 				if (FBlueprintEditorUtils::IsAnonymousBlueprintClass(TempClass))

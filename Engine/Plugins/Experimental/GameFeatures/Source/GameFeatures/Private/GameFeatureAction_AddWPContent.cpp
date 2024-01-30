@@ -27,9 +27,9 @@ UGameFeatureAction_AddWPContent::UGameFeatureAction_AddWPContent(const FObjectIn
 void UGameFeatureAction_AddWPContent::OnGameFeatureRegistering()
 {
 	Super::OnGameFeatureRegistering();
-	ContentBundleClient = FContentBundleClient::CreateClient(ContentBundleDescriptor, GetTypedOuter<UGameFeatureData>()->GetName());
-	UE_CLOG(ContentBundleClient == nullptr, LogGameFeatures, Error, TEXT("OnGameFeatureRegistering %s: Failed to create a content bundle client for %s"), *GetPathName(), *ContentBundleDescriptor->GetDisplayName())
 
+	ContentBundleClient = FContentBundleClient::CreateClient(ContentBundleDescriptor, GetTypedOuter<UGameFeatureData>()->GetName());
+	
 #if WITH_EDITOR
 	if (IsRunningCookCommandlet() && ContentBundleClient != nullptr)
 	{

@@ -5,6 +5,8 @@
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/DataLayerSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerLoadingPolicy.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
 #include "WorldPartition/WorldPartitionDebugHelper.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/WorldPartitionLog.h"
@@ -18,6 +20,7 @@
 #include "WorldPartition/DataLayer/WorldDataLayersActorDesc.h"
 #include "WorldPartition/DataLayer/DataLayerUtils.h"
 #include "WorldPartition/DataLayer/IDataLayerEditorModule.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 #include "WorldPartition/ActorDescContainerInstance.h"
 #include "WorldPartition/WorldPartitionEditorPerProjectUserSettings.h"
 #include "WorldPartition/WorldPartitionActorLoaderInterface.h"
@@ -29,6 +32,8 @@
 #include "UObject/UObjectGlobals.h"
 #include "Engine/LevelStreaming.h"
 #include "EngineUtils.h"
+#include "Algo/Transform.h"
+#include "Algo/AnyOf.h"
 #include "LevelUtils.h"
 #include "Editor.h"
 #else
@@ -174,14 +179,7 @@ void UDataLayerManager::Initialize()
 		if (ActorDescContainerInstance)
 		{
 			// Try to find and load AWorldDataLayers actor
-			for (UActorDescContainerInstance::TIterator<> Iterator(ActorDescContainerInstance); Iterator; ++Iterator)
-			{
-				if (Iterator->GetActorNativeClass()->IsChildOf<AWorldDataLayers>())
-				{
-					WorldDataLayersActor = FWorldPartitionReference(ActorDescContainerInstance, Iterator->GetGuid());
-					break;
-				}
-			}
+			WorldDataLayersActor = UDataLayerManager::LoadWorldDataLayersActor(ActorDescContainerInstance);
 		}
 
 		WorldDataLayers = GetWorldDataLayers();
@@ -365,7 +363,7 @@ const TSet<FName>& UDataLayerManager::GetEffectiveLoadedDataLayerNames() const
 	return WorldDataLayers ? WorldDataLayers->GetEffectiveLoadedDataLayerNames() : EmptySet;
 }
 
-bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const
+bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const
 {
 	if (InState == EDataLayerRuntimeState::Activated)
 	{
@@ -392,7 +390,7 @@ bool UDataLayerManager::IsAnyDataLayerInEffectiveRuntimeState(const TArray<FName
 	return false;
 }
 
-bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(const TArray<FName>& InDataLayerNames, EDataLayerRuntimeState InState) const
+bool UDataLayerManager::IsAllDataLayerInEffectiveRuntimeState(TArrayView<const FName> InDataLayerNames, EDataLayerRuntimeState InState) const
 {
 	const TSet<FName>& Activated = GetEffectiveActiveDataLayerNames();
 
@@ -763,12 +761,12 @@ TArray<AWorldDataLayers*> UDataLayerManager::GetActorEditorContextWorldDataLayer
 	return WorldDataLayersArray;
 }
 
-void UDataLayerManager::PushActorEditorContext() const
+void UDataLayerManager::PushActorEditorContext(bool bDuplicateContext) const
 {
 	++DataLayerActorEditorContextID;
 	for (AWorldDataLayers* WorldDataLayers : GetActorEditorContextWorldDataLayers())
 	{
-		WorldDataLayers->PushActorEditorContext(DataLayerActorEditorContextID);
+		WorldDataLayers->PushActorEditorContext(DataLayerActorEditorContextID, bDuplicateContext);
 	}
 }
 
@@ -804,7 +802,6 @@ uint32 UDataLayerManager::GetDataLayerEditorContextHash() const
 
 bool UDataLayerManager::CanResolveDataLayers() const
 {
-	check(GetWorldDataLayers());
 	return (GetWorldDataLayers() != nullptr) && bCanResolveDataLayers;
 }
 
@@ -823,6 +820,20 @@ void UDataLayerManager::ResolveActorDescContainersDataLayers() const
 			ResolveActorDescContainerInstanceDataLayers(ContainerInstance);
 		}
 	}
+}
+
+FWorldPartitionReference UDataLayerManager::LoadWorldDataLayersActor(UActorDescContainerInstance* InActorDescContainerInstance)
+{
+	FWorldPartitionReference WDLReference;
+	for (UActorDescContainerInstance::TIterator<> Iterator(InActorDescContainerInstance); Iterator; ++Iterator)
+	{
+		if (Iterator->GetActorNativeClass()->IsChildOf<AWorldDataLayers>())
+		{
+			WDLReference = FWorldPartitionReference(InActorDescContainerInstance, Iterator->GetGuid());
+			break;
+		}
+	}
+	return WDLReference;
 }
 
 void UDataLayerManager::ResolveActorDescContainerInstanceDataLayers(UActorDescContainerInstance* InActorDescContainerInstance) const
@@ -862,21 +873,42 @@ void UDataLayerManager::ResolveActorDescContainerInstanceDataLayersInternal(UAct
 	check(CanResolveDataLayers());
 	if (InActorDescInstance)
 	{
-		InActorDescInstance->SetDataLayerInstanceNames(FDataLayerUtils::ResolvedDataLayerInstanceNames(this, InActorDescInstance->GetActorDesc()));
+		InActorDescInstance->SetDataLayerInstanceNames(FDataLayerUtils::ResolveDataLayerInstanceNames(this, InActorDescInstance->GetActorDesc()));
 	}
 	else
 	{
 		for (UActorDescContainerInstance::TIterator<> Iterator(InActorDescContainerInstance); Iterator; ++Iterator)
 		{
-			Iterator->SetDataLayerInstanceNames(FDataLayerUtils::ResolvedDataLayerInstanceNames(this, Iterator->GetActorDesc()));
+			Iterator->SetDataLayerInstanceNames(FDataLayerUtils::ResolveDataLayerInstanceNames(this, Iterator->GetActorDesc()));
 		}
 	}
 }
 
 bool UDataLayerManager::ResolveIsLoadedInEditor(const TArray<FName>& InDataLayerInstanceNames) const
 {
-	TArray<const UDataLayerInstance*> DataLayerInstances = GetDataLayerInstances(InDataLayerInstanceNames);
-	return DataLayerInstances.Num() ? DataLayerLoadingPolicy->ResolveIsLoadedInEditor(DataLayerInstances) : true;
+	TArray<const UDataLayerInstance*> AllDataLayerInstances = GetDataLayerInstances(InDataLayerInstanceNames);
+	TArray<const UDataLayerInstance*> DataLayerInstances;
+	TArray<const UExternalDataLayerInstance*> ExternalDataLayerInstances;
+	for (const UDataLayerInstance* DataLayerInstance : AllDataLayerInstances)
+	{
+		if (const UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(DataLayerInstance))
+		{
+			ExternalDataLayerInstances.Add(ExternalDataLayerInstance);
+		}
+		else
+		{
+			DataLayerInstances.Add(DataLayerInstance);
+		}
+	}
+
+	// If part of an External Data Layer, the External Data Layer must be loaded in editor
+	const bool bAnyExternalDataLayerInstanceLoaded = ExternalDataLayerInstances.Num() ? Algo::AnyOf(ExternalDataLayerInstances, [](const UExternalDataLayerInstance* ExternalDataLayerInstance) { return ExternalDataLayerInstance->IsEffectiveLoadedInEditor(); }) : true;
+	if (bAnyExternalDataLayerInstanceLoaded)
+	{
+		const bool bAnyDataLayerInstanceLoaded = DataLayerInstances.Num() ? DataLayerLoadingPolicy->ResolveIsLoadedInEditor(DataLayerInstances) : true;
+		return bAnyDataLayerInstanceLoaded;
+	}
+	return false;
 }
 
 TArray<const UDataLayerInstance*> UDataLayerManager::GetRuntimeDataLayerInstances(const TArray<FName>& InDataLayerInstanceNames) const

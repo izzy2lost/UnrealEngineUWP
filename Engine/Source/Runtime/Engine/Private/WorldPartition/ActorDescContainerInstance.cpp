@@ -34,6 +34,9 @@ void UActorDescContainerInstance::RegisterContainer(const FInitializeParams& InP
 	{
 		return !InParams.FilterActorDescFunc || InParams.FilterActorDescFunc(InActorDesc);
 	};
+	ContainerInitParams.ContentBundleGuid = InParams.ContentBundleGuid;
+	ContainerInitParams.ExternalDataLayerAsset = InParams.ExternalDataLayerAsset;
+
 	SetContainer(UActorDescContainerSubsystem::GetChecked().RegisterContainer(ContainerInitParams));
 }
 
@@ -156,6 +159,11 @@ void UActorDescContainerInstance::Initialize(const FInitializeParams& InParams)
 		}
 
 		AddActorDescInstance(MoveTemp(ActorDescInstance));
+	}
+
+	if (InParams.OnInitializedFunc)
+	{
+		InParams.OnInitializedFunc(this);
 	}
 
 	OnActorDescContainerInstanceInitialized.Broadcast(this);
@@ -379,9 +387,24 @@ FGuid UActorDescContainerInstance::GetContentBundleGuid() const
 	return Container->GetContentBundleGuid();
 }
 
+const UExternalDataLayerAsset* UActorDescContainerInstance::GetExternalDataLayerAsset() const
+{
+	return Container->GetExternalDataLayerAsset();
+}
+
+bool UActorDescContainerInstance::HasExternalContent() const
+{
+	return Container->HasExternalContent();
+}
+
 FString UActorDescContainerInstance::GetExternalActorPath() const
 {
 	return Container->GetExternalActorPath();
+}
+
+FString UActorDescContainerInstance::GetExternalObjectPath() const
+{
+	return Container->GetExternalObjectPath();
 }
 
 FWorldPartitionActorDescInstance* UActorDescContainerInstance::AddActor(FWorldPartitionActorDesc* InActorDesc)

@@ -17,6 +17,7 @@
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
 #include "WorldPartition/DataLayer/DataLayerManager.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 
 UActorDescContainer::FActorDescContainerInitializeDelegate UActorDescContainer::OnActorDescContainerInitialized;
 #endif
@@ -35,8 +36,17 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 
 	check(!bContainerInitialized);
 	ContainerPackageName = InitParams.PackageName;
-	TArray<FAssetData> Assets;
+	if (InitParams.ExternalDataLayerAsset)
+	{
+		ensure(!InitParams.ContentBundleGuid.IsValid());
+		ExternalDataLayerAsset = InitParams.ExternalDataLayerAsset;
+	}
+	else if (InitParams.ContentBundleGuid.IsValid())
+	{
+		ContentBundleGuid = InitParams.ContentBundleGuid;
+	}
 
+	TArray<FAssetData> Assets;
 	if (!ContainerPackageName.IsNone())
 	{
 		const FString ContainerExternalActorsPath = GetExternalActorPath();
@@ -189,11 +199,29 @@ FString UActorDescContainer::GetExternalActorPath() const
 	return ULevel::GetExternalActorsPath(ContainerPackageName.ToString());
 }
 
-bool UActorDescContainer::IsActorDescHandled(const AActor* Actor) const
+FString UActorDescContainer::GetExternalObjectPath() const
 {
-	if (Actor->GetContentBundleGuid() == GetContentBundleGuid())
+	return FExternalPackageHelper::GetExternalObjectsPath(ContainerPackageName.ToString());
+}
+
+bool UActorDescContainer::HasExternalContent() const
+{
+	check(!ExternalDataLayerAsset || ExternalDataLayerAsset->GetUID().IsValid());
+	return ExternalDataLayerAsset ? true : GetContentBundleGuid().IsValid();
+}
+
+bool UActorDescContainer::IsActorDescHandled(const AActor* InActor) const
+{
+	// Actor External Content Guid must match Container's External Content Guid to be considered
+	// AWorldDataLayers actors are an exception as they don't have an External Content Guid
+	const bool bIsCandidateActor = InActor->IsA<AWorldDataLayers>() ||
+		(!HasExternalContent() && !InActor->HasExternalContent()) ||
+		(ExternalDataLayerAsset && (ExternalDataLayerAsset == InActor->GetExternalDataLayerAsset())) ||
+		(ContentBundleGuid.IsValid() && (ContentBundleGuid == InActor->GetContentBundleGuid()));
+	
+	if (bIsCandidateActor)
 	{
-		const FString ActorPackageName = Actor->GetPackage()->GetName();
+		const FString ActorPackageName = InActor->GetPackage()->GetName();
 		const FString ExternalActorPath = GetExternalActorPath() / TEXT("");
 		return ActorPackageName.StartsWith(ExternalActorPath);
 	}

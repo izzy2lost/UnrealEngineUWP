@@ -190,6 +190,10 @@ struct FSpatialHashStreamingGrid
 	ENGINE_API const FSquare2DGridHelper& GetGridHelper() const;
 	ENGINE_API float GetLoadingRange() const;
 
+#if WITH_EDITOR
+	void DumpStateLog(FHierarchicalLogArchive& Ar) const;
+#endif
+
 private:
 	ENGINE_API void ForEachRuntimeCell(const FGridCellCoord& Coords, TFunctionRef<void(const UWorldPartitionRuntimeCell*)> Func) const;
 	ENGINE_API void ForEachLayerCell(const FGridCellCoord& Coords, TFunctionRef<void(const FSpatialHashStreamingGridLayerCell*)> Func) const;
@@ -285,6 +289,10 @@ class URuntimeSpatialHashExternalStreamingObject : public URuntimeHashExternalSt
 {
 	GENERATED_BODY()
 
+#if WITH_EDITOR
+	virtual void DumpStateLog(FHierarchicalLogArchive& Ar) override;
+#endif
+
 public:
 	UPROPERTY();
 	TArray<FSpatialHashStreamingGrid> StreamingGrids;
@@ -313,13 +321,12 @@ public:
 
 	ENGINE_API virtual void SetDefaultValues() override;
 	virtual bool SupportsHLODs() const override { return true; }
-	ENGINE_API virtual void FlushStreaming() override;
 	ENGINE_API virtual bool SetupHLODActors(const IStreamingGenerationContext* StreamingGenerationContext, const UWorldPartition::FSetupHLODActorsParams& Params) const override;
 	ENGINE_API virtual bool IsValidGrid(FName GridName) const override;
 	ENGINE_API virtual bool IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const override { return true; }
 	ENGINE_API virtual void DrawPreview() const override;
 
-	ENGINE_API virtual URuntimeHashExternalStreamingObjectBase* StoreToExternalStreamingObject(UObject* StreamingObjectOuter, FName StreamingObjectName) override;
+	ENGINE_API virtual TSubclassOf<URuntimeHashExternalStreamingObjectBase> GetExternalStreamingObjectClass() const override { return URuntimeSpatialHashExternalStreamingObject::StaticClass(); }
 
 	static ENGINE_API FString GetCellNameString(UWorld* InOuterWorld, FName InGridName, const FGridCellCoord& InCellGlobalCoord, const FDataLayersID& InDataLayerID, const FGuid& InContentBundleID, FString* OutInstanceSuffix = nullptr);
 	static ENGINE_API FGuid GetCellGuid(FName InGridName, int32 InCellSize, const FGridCellCoord& InCellGlobalCoord, const FDataLayersID& InDataLayerID, const FGuid& InContentBundleID);
@@ -354,6 +361,9 @@ protected:
 	ENGINE_API virtual EWorldPartitionStreamingPerformance GetStreamingPerformanceForCell(const UWorldPartitionRuntimeCell* Cell) const override;
 
 #if WITH_EDITOR
+	ENGINE_API virtual bool HasStreamingContent() const override;
+	ENGINE_API virtual void StoreStreamingContentToExternalStreamingObject(URuntimeHashExternalStreamingObjectBase* OutExternalStreamingObject) override;
+	ENGINE_API virtual void FlushStreamingContent() override;
 	ENGINE_API virtual bool GenerateStreaming(class UWorldPartitionStreamingPolicy* StreamingPolicy, const IStreamingGenerationContext* StreamingGenerationContext, TArray<FString>* OutPackagesToGenerate = nullptr) override;
 	ENGINE_API virtual void DumpStateLog(FHierarchicalLogArchive& Ar) const override;
 #endif

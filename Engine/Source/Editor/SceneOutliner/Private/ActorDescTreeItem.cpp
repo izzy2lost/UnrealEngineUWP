@@ -6,6 +6,7 @@
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "WorldPartition/LoaderAdapter/LoaderAdapterPinnedActors.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Layout/WidgetPath.h"
 #include "Framework/Application/MenuStack.h"
@@ -331,6 +332,20 @@ bool FActorDescTreeItem::GetPinnedState() const
 		return WorldPartition ? WorldPartition->IsActorPinned(GetGuid()) : false;
 	}
 	return false;
+}
+
+UExternalDataLayerAsset* FActorDescTreeItem::GetExternalDataLayerAsset() const
+{
+	if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescHandle.GetInstance())
+	{
+		const FSoftObjectPath& ExternalDataLayerAsset = ActorDescInstance->GetExternalDataLayerAsset();
+		if (CachedExternalDataLayerAsset.ToSoftObjectPath() != ExternalDataLayerAsset)
+		{
+			CachedExternalDataLayerAsset = ExternalDataLayerAsset;
+		}
+		return CachedExternalDataLayerAsset.Get();
+	}
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
 
+class UDataLayerAsset;
 class UDataLayerInstance;
 class UDataLayerInstanceWithAsset;
 
@@ -32,9 +33,18 @@ public:
 	virtual void OnInvalidReferenceGridPlacement(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
 
 	/**
-	 * Called when an actor references an actor using a different set of data layers.
+	 * Used to identify an actor data layer error
 	 */
-	virtual void OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) = 0;
+	enum class EDataLayerInvalidReason
+	{
+		ReferencedActorDifferentRuntimeDataLayers,
+		ReferencedActorDifferentExternalDataLayer
+	};
+
+	/**
+	 * Called when there's an error with the data layers used by an actor and one or more referenced actor.
+	 */
+	virtual void OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView, EDataLayerInvalidReason Reason) = 0;
 
 	/**
 	 * Called when an actor references an actor using a different RuntimeGrid.
@@ -67,13 +77,18 @@ public:
 	virtual void OnDataLayerAssetConflict(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerInstanceWithAsset* ConflictingDataLayerInstance) = 0;
 
 	/**
+	 * Called when the data layer asset is not compatible with its data layer asset.
+	 */
+	virtual void OnInvalidDataLayerAssetType(const UDataLayerInstanceWithAsset* DataLayerInstance, const UDataLayerAsset* DataLayerAsset) = 0;
+
+	/**
 	 * Called when an actor needs to be resaved.
 	 */
 	virtual void OnActorNeedsResave(const IWorldPartitionActorDescInstanceView& ActorDescView) = 0;
 
 
 	/**
-	 * Called when a level instance actor has errrors
+	 * Used to identify a level instance actor error
 	 */
 	enum class ELevelInstanceInvalidReason
 	{
@@ -101,6 +116,9 @@ public:
 	static ENGINE_API FString GetFullActorName(const IWorldPartitionActorDescInstanceView& ActorDescView);
 	
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	UE_DEPRECATED(5.4, "Use OnInvalidReferenceDataLayers with EDataLayerInvalidReason instead.")
+	virtual void OnInvalidReferenceDataLayers(const IWorldPartitionActorDescInstanceView& ActorDescView, const IWorldPartitionActorDescInstanceView& ReferenceActorDescView) final {}
 
 	UE_DEPRECATED(5.2, "OnInvalidReference is deprecated, use the version which takes an optional actor descriptor view.")
 	virtual void OnInvalidReference(const FWorldPartitionActorDescView& ActorDescView, const FGuid& ReferenceGuid) {}

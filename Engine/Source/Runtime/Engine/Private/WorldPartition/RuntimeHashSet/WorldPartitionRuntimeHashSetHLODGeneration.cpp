@@ -36,7 +36,7 @@ public:
 		return WorldBounds;
 	}
 
-	virtual const FActorSetContainerInstance* GetMainWorldContainerInstance() const override
+	virtual const FActorSetContainerInstance* GetActorSetContainerForContextBaseContainerInstance() const override
 	{
 		return &ActorSetContainerInstance;
 	}
@@ -166,16 +166,19 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 
 	UWorldPartition* WorldPartition = GetOuterUWorldPartition();
 	const UDataLayerManager* DataLayerManager = WorldPartition->GetDataLayerManager();
-	IStreamingGenerationContext::FActorSetContainerInstance* MainActorSetContainer = const_cast<IStreamingGenerationContext::FActorSetContainerInstance*>(StreamingGenerationContext->GetMainWorldContainerInstance());
-	const FStreamingGenerationContainerInstanceCollection* MainContainerCollection = MainActorSetContainer->ContainerInstanceCollection;
+	IStreamingGenerationContext::FActorSetContainerInstance* BaseActorSetContainerInstance = const_cast<IStreamingGenerationContext::FActorSetContainerInstance*>(StreamingGenerationContext->GetActorSetContainerForContextBaseContainerInstance());
+	const FStreamingGenerationContainerInstanceCollection* BaseContainerInstanceCollection = BaseActorSetContainerInstance->ContainerInstanceCollection;
 
 	// Create the HLOD creation context
 	FHLODCreationContext HLODCreationContext;
-	for (UActorDescContainerInstance::TConstIterator<AWorldPartitionHLOD> HLODIterator(MainContainerCollection->GetMainContainer()); HLODIterator; ++HLODIterator)
+	BaseContainerInstanceCollection->ForEachActorDescContainerInstance([&HLODCreationContext, WorldPartition](const UActorDescContainerInstance* ActorDescContainerInstance)
 	{
-		FWorldPartitionHandle HLODActorHandle(WorldPartition, HLODIterator->GetGuid());
-		HLODCreationContext.HLODActorDescs.Emplace(HLODIterator->GetActorName(), MoveTemp(HLODActorHandle));
-	}
+		for (UActorDescContainerInstance::TConstIterator<AWorldPartitionHLOD> HLODIterator(ActorDescContainerInstance); HLODIterator; ++HLODIterator)
+		{
+			FWorldPartitionHandle HLODActorHandle(WorldPartition, HLODIterator->GetGuid());
+			HLODCreationContext.HLODActorDescs.Emplace(HLODIterator->GetActorName(), MoveTemp(HLODActorHandle));
+		}
+	});
 
 	TUniquePtr<IStreamingGenerationContext> CurrentHLODStreamingGenerationContext = MakeUnique<FStreamingGenerationContextProxy>(StreamingGenerationContext);
 
@@ -293,15 +296,15 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				ActorSetInstance.Bounds = HLODActorDescView->GetRuntimeBounds();
 				ActorSetInstance.RuntimeGrid = HLODActorDescView->GetRuntimeGrid();
 				ActorSetInstance.bIsSpatiallyLoaded = HLODActorDescView->GetIsSpatiallyLoaded();
-				ActorSetInstance.ContentBundleID = MainContainerCollection->GetContentBundleGuid();
+				ActorSetInstance.ContentBundleID = BaseContainerInstanceCollection->GetContentBundleGuid();
 				ActorSetInstance.ActorSetContainerInstance = &HLODStreamingGenerationContext->ActorSetContainerInstance;
 				ActorSetInstance.ActorSet = ActorSet;
 
-				TArray<FName> RuntimeDataLayerInstanceNames;
-				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *HLODActorDescView, *MainActorSetContainer->ActorDescViewMap, RuntimeDataLayerInstanceNames))
+				FDataLayerInstanceNames RuntimeDataLayerInstanceNames;
+				if (FDataLayerUtils::ResolveRuntimeDataLayerInstanceNames(DataLayerManager, *HLODActorDescView, *BaseActorSetContainerInstance->ActorDescViewMap, RuntimeDataLayerInstanceNames))
 				{
 					HLODActorDescView->SetRuntimeDataLayerInstanceNames(RuntimeDataLayerInstanceNames);
-					ActorSetInstance.DataLayers = DataLayerManager->GetRuntimeDataLayerInstances(RuntimeDataLayerInstanceNames);
+					ActorSetInstance.DataLayers = DataLayerManager->GetRuntimeDataLayerInstances(RuntimeDataLayerInstanceNames.ToArray());
 				}
 
 				UE_LOG(LogWorldPartition, Log, TEXT("\t- %s"), *HLODActorDescInstance->ToString());

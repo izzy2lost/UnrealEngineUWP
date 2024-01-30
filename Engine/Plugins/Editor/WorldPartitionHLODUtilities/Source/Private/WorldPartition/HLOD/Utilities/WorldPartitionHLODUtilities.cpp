@@ -19,6 +19,7 @@
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshMerge.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshSimplify.h"
 #include "WorldPartition/HLOD/Builders/HLODBuilderMeshApproximate.h"
+#include "ActorEditorContext/ScopedActorEditorContextSetExternalDataLayerAsset.h"
 
 #include "AssetCompilingManager.h"
 #include "BodySetupEnums.h"
@@ -202,6 +203,7 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 		if (bNewActor)
 		{
 			FContentBundleActivationScope Activationscope(InCreationParams.ContentBundleGuid);
+			FScopedActorEditorContextSetExternalDataLayerAsset EDLScope(InCreationParams.GetExternalDataLayerAsset());
 
 			FActorSpawnParameters SpawnParams;
 			SpawnParams.Name = HLODActorName;
@@ -209,19 +211,24 @@ TArray<AWorldPartitionHLOD*> FWorldPartitionHLODUtilities::CreateHLODActors(FHLO
 			HLODActor = InCreationParams.WorldPartition->GetWorld()->SpawnActor<AWorldPartitionHLOD>(HLODLayer->GetHLODActorClass(), SpawnParams);
 
 			check(HLODActor->GetContentBundleGuid() == InCreationParams.ContentBundleGuid);
+			check(HLODActor->GetExternalDataLayerAsset() == InCreationParams.GetExternalDataLayerAsset());
 
 			HLODActor->SetSourceCellGuid(InCreationParams.CellGuid);
 
 			// Make sure the generated HLOD actor has the same data layers as the source actors
 			for (const UDataLayerInstance* DataLayerInstance : InCreationParams.DataLayerInstances)
 			{
-				HLODActor->AddDataLayer(DataLayerInstance);
+				if (!DataLayerInstance->IsA<UExternalDataLayerInstance>())
+				{
+					HLODActor->AddDataLayer(DataLayerInstance);
+				}
 			}
 		}
 		else
 		{
 			check(HLODActor->GetSourceCellGuid() == InCreationParams.CellGuid);
 			check(HLODActor->GetClass() == HLODLayer->GetHLODActorClass());
+			check(HLODActor->GetExternalDataLayerAsset() == InCreationParams.GetExternalDataLayerAsset());
 		}
 
 		const TCHAR* DirtyReason = nullptr;

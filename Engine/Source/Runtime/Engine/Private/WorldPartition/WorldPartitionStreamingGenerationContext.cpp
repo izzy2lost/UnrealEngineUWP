@@ -2,6 +2,8 @@
 
 #include "WorldPartition/WorldPartitionStreamingGenerationContext.h"
 #include "WorldPartition/WorldPartitionStreamingGeneration.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 
 #if WITH_EDITOR
 
@@ -23,5 +25,16 @@ const FTransform& IStreamingGenerationContext::FActorInstance::GetTransform() co
 const FBox IStreamingGenerationContext::FActorInstance::GetBounds() const
 {
 	return ActorSetInstance->Bounds;
+}
+
+const UExternalDataLayerAsset* IStreamingGenerationContext::FActorSetInstance::GetExternalDataLayerAsset() const
+{
+	auto IsAnExternalDataLayerPred = [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->IsA<UExternalDataLayerInstance>(); };
+	if (const UDataLayerInstance* const* ExternalDataLayerInstance = DataLayers.FindByPredicate(IsAnExternalDataLayerPred))
+	{
+		return CastChecked<UExternalDataLayerInstance>(*ExternalDataLayerInstance)->GetExternalDataLayerAsset();
+	}
+
+	return nullptr;
 }
 #endif
