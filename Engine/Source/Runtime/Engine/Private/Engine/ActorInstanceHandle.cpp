@@ -461,12 +461,13 @@ FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle)
 	Ar << Handle.ReferenceObject;
 	Ar << Handle.InstanceIndex;
 
-	TSoftObjectPtr<UObject> SoftObject(Handle.ManagerInterface.GetObject());
-	Ar << SoftObject;
+	// Serializing as a TWeakObjectPtr instead of TSoftObjectPtr to avoid UE-205038.
+	TWeakObjectPtr<UObject> WeakManagerObject(Handle.ManagerInterface.GetObject());
+	Ar << WeakManagerObject;
 
 	if (Ar.IsLoading())
 	{
-		Handle.ManagerInterface = FActorInstanceManagerInterface(SoftObject.Get());
+		Handle.ManagerInterface = FActorInstanceManagerInterface(WeakManagerObject.Get());
 	}
 
 	return Ar;

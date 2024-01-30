@@ -264,12 +264,13 @@ void UTargetingSelectionTask_AOE::ProcessOverlapResults(const FTargetingRequestH
 			if (bAddResult)
 			{
 				FTargetingDefaultResultData* ResultData = new(TargetingResults.TargetResults) FTargetingDefaultResultData();
-				ResultData->HitResult.HitObjectHandle = FActorInstanceHandle(OverlapResult.GetActor(), OverlapResult.GetComponent(), OverlapResult.ItemIndex);
+				ResultData->HitResult.HitObjectHandle = OverlapResult.OverlapObjectHandle;
 				ResultData->HitResult.Component = OverlapResult.GetComponent();
 				ResultData->HitResult.ImpactPoint = OverlapResult.GetActor()->GetActorLocation();
 				ResultData->HitResult.Location = OverlapResult.GetActor()->GetActorLocation();
 				ResultData->HitResult.bBlockingHit = OverlapResult.bBlockingHit;
 				ResultData->HitResult.TraceStart = SourceLocation;
+				ResultData->HitResult.Item = OverlapResult.ItemIndex;
 				ResultData->HitResult.Distance = FVector::Distance(OverlapResult.GetActor()->GetActorLocation(), SourceLocation);
 			}
 		}
