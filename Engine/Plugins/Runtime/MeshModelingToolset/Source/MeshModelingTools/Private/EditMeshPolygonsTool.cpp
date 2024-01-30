@@ -41,6 +41,7 @@
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
 #include "ToolActivities/PolyEditActivityContext.h"
 #include "ToolActivities/PolyEditExtrudeActivity.h"
+#include "ToolActivities/PolyEditExtrudeEdgeActivity.h"
 #include "ToolActivities/PolyEditInsertEdgeActivity.h"
 #include "ToolActivities/PolyEditInsertEdgeLoopActivity.h"
 #include "ToolActivities/PolyEditInsetOutsetActivity.h"
@@ -169,6 +170,10 @@ bool UEditMeshPolygonsActionModeToolBuilder::CanBuildTool(const FToolBuilderStat
 			{
 				return (TopologyType == EGeometryTopologyType::Polygroup && ElementType != EGeometryElementType::Vertex && bIsEmpty == false);
 			}
+			else if (StartupAction == EEditMeshPolygonsToolActions::ExtrudeEdges)
+			{
+				return (ElementType == EGeometryElementType::Edge && !bIsEmpty);
+			}
 		}
 	}
 	return false;
@@ -178,6 +183,27 @@ bool UEditMeshPolygonsActionModeToolBuilder::CanBuildTool(const FToolBuilderStat
 void UEditMeshPolygonsActionModeToolBuilder::InitializeNewTool(USingleTargetWithSelectionTool* Tool, const FToolBuilderState& SceneState) const
 {
 	UEditMeshPolygonsToolBuilder::InitializeNewTool(Tool, SceneState);
+
+	// Need to enable triangle mode on the tool if our selection was a triangle (not group) selection.
+	// This normally gets done in the base class if bTriangleMode is true, but we can't change that in a
+	// const method.
+	if (UGeometrySelectionManager* SelectionManager = SceneState.ToolManager->GetContextObjectStore()->FindContext<UGeometrySelectionManager>())
+	{
+		EGeometryTopologyType TopologyType = EGeometryTopologyType::Triangle;
+		EGeometryElementType ElementType = EGeometryElementType::Face;
+		int NumTargets;
+		bool bIsEmpty = false;
+		SelectionManager->GetActiveSelectionInfo(TopologyType, ElementType, NumTargets, bIsEmpty);
+
+		if (TopologyType == EGeometryTopologyType::Triangle)
+		{
+			if (UEditMeshPolygonsTool* EditPolygonsTool = Cast<UEditMeshPolygonsTool>(Tool))
+			{
+				EditPolygonsTool->EnableTriangleMode();
+			}
+		}
+	}
+
 	UEditMeshPolygonsTool* EditPolygonsTool = CastChecked<UEditMeshPolygonsTool>(Tool);
 
 	EEditMeshPolygonsToolActions UseAction = StartupAction;
@@ -610,6 +636,11 @@ void UEditMeshPolygonsTool::Setup()
 	ActivityLabels.Add(BevelEdgeActivity, LOCTEXT("BevelActivityLabel", "Bevel"));
 	ActivityIconNames.Add(BevelEdgeActivity, "PolyEd.Bevel");
 
+	ExtrudeEdgeActivity = NewObject<UPolyEditExtrudeEdgeActivity>();
+	ExtrudeEdgeActivity->Setup(this);
+	ActivityLabels.Add(ExtrudeEdgeActivity, LOCTEXT("EdgeExtrudeActivityLabel", "Extrude Edges"));
+	ActivityIconNames.Add(ExtrudeEdgeActivity, "PolyEd.ExtrudeEdge");
+
 	// Now that we've initialized the activities, add in the selection settings and 
 	// CommonProps so that they are at the bottom.
 	AddToolPropertySource(SelectionMechanic->Properties);
@@ -734,6 +765,7 @@ void UEditMeshPolygonsTool::OnShutdown(EToolShutdownType ShutdownType)
 	InsertEdgeActivity->Shutdown(ShutdownType);
 	InsertEdgeLoopActivity->Shutdown(ShutdownType);
 	BevelEdgeActivity->Shutdown(ShutdownType);
+	ExtrudeEdgeActivity->Shutdown(ShutdownType);
 
 	GetToolManager()->GetPairedGizmoManager()->DestroyAllGizmosByOwner(this);
 
@@ -823,6 +855,7 @@ void UEditMeshPolygonsTool::OnShutdown(EToolShutdownType ShutdownType)
 	InsertEdgeActivity = nullptr;
 	InsertEdgeLoopActivity = nullptr;
 	BevelEdgeActivity = nullptr;
+	ExtrudeEdgeActivity = nullptr;
 
 	SelectionMechanic = nullptr;
 	DragAlignmentMechanic = nullptr;
@@ -1206,6 +1239,16 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		//Interactive operations:
 		case EEditMeshPolygonsToolActions::Extrude:
 		{
+			if (SelectionMechanic->GetActiveSelection().SelectedGroupIDs.IsEmpty()
+				&& !SelectionMechanic->GetActiveSelection().SelectedEdgeIDs.IsEmpty())
+			{
+				// This particular button happens to be under "face edits", but it's very tempting to click it anyway
+				// when you have an edge selection and expect it to extrude edges. We'll allow it to avoid frustrating
+				// the user. Not relevant for mesh element selection, where we don't use PolyEd and instead extrude
+				// the adjacent faces when edges are selected.
+				StartActivity(ExtrudeEdgeActivity);
+				break;
+			}
 			ExtrudeActivity->ExtrudeMode = FExtrudeOp::EExtrudeMode::MoveAndStitch;
 			ExtrudeActivity->PropertySetToUse = UPolyEditExtrudeActivity::EPropertySetToUse::Extrude;
 			StartActivity(ExtrudeActivity);
@@ -1263,6 +1306,26 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		case EEditMeshPolygonsToolActions::InsertEdgeLoop:
 		{
 			StartActivity(InsertEdgeLoopActivity);
+			break;
+		}
+		case EEditMeshPolygonsToolActions::ExtrudeEdges:
+		{
+			// Hack: We currently don't support extra corners in mesh element selection, and
+			// the switch to using them can cause us to lose some of our selected edges. For
+			// now we just rebuild topology without the corners in this scenario, but we should
+			// fix instead just carry over the selection properly (and carry it back).
+			if (bTerminateOnPendingActionComplete && HasGeometrySelection())
+			{
+				const FGeometrySelection& CurSelection = GetGeometrySelection();
+				if (CurSelection.TopologyType == EGeometryTopologyType::Polygroup && bTriangleMode == false)
+				{
+					TSet<int32> EmptySet;
+					RebuildTopologyWithGivenExtraCorners(EmptySet);
+					SelectionMechanic->SetSelection_AsGroupTopology(CurSelection); // Have to reinitialize selection
+				}
+			}
+
+			StartActivity(ExtrudeEdgeActivity);
 			break;
 		}
 

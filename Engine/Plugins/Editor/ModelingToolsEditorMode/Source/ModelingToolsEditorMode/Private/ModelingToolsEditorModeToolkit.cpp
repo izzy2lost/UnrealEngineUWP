@@ -275,6 +275,7 @@ void FModelingToolsEditorModeToolkit::RegisterPalettes()
 			Commands.BeginSelectionAction_Delete,
 			Commands.BeginSelectionAction_Extrude,
 			Commands.BeginSelectionAction_Offset,
+			Commands.BeginPolyModelTool_ExtrudeEdges,
 			Commands.BeginPolyModelTool_PushPull,
 
 			Commands.BeginPolyModelTool_Inset,
@@ -1832,6 +1833,7 @@ void FModelingToolsEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class
 		ToolbarBuilder.AddToolBarButton(Commands.BeginSelectionAction_Extrude);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginSelectionAction_Offset);
 
+		ToolbarBuilder.AddToolBarButton(Commands.BeginPolyModelTool_ExtrudeEdges);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginPolyModelTool_PushPull);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginPolyModelTool_Inset);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginPolyModelTool_Outset);
