@@ -42,7 +42,8 @@ struct FAnimDetailVectorSelection
 struct FControlRigProxyItem
 {
 	TWeakObjectPtr<UControlRig> ControlRig;
-	TArray<FRigControlElement*> ControlElements;
+	TArray<FName> ControlElements;
+	FRigControlElement* GetControlElement(const FName& InName) const;
 };
 
 struct FBindingAndTrack
@@ -126,11 +127,11 @@ public:
 	//We can set/get values form multiple control rig elements but only one owns this.
 	TWeakObjectPtr<UControlRig> OwnerControlRig;
 	FRigControlElement* OwnerControlElement = nullptr;
-	TMap<UControlRig*, FControlRigProxyItem> ControlRigItems;
+	TMap<TWeakObjectPtr<UControlRig>, FControlRigProxyItem> ControlRigItems;
 	
 	TWeakObjectPtr<UObject> OwnerObject;
 	FBindingAndTrack OwnerBindingAndTrack;
-	TMap <UObject*, FSequencerProxyItem> SequencerItems;
+	TMap <TWeakObjectPtr<UObject>, FSequencerProxyItem> SequencerItems;
 
 	//list of child/animation channel proxies that we will customize
 	TArray<UControlRigControlsProxy*> ChildProxies;

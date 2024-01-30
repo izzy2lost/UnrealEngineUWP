@@ -5333,13 +5333,13 @@ bool FDetailKeyFrameCacheAndHandler::IsPropertyKeyable(const UClass* InObjectCla
 	{
 		if (UControlRigControlsProxy* Proxy = Cast< UControlRigControlsProxy>(OuterObjects[0]))
 		{
-			for (const TPair<UControlRig*, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
+			for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
 			{
 				if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
 				{
-					for (FRigControlElement* ControlElement : Items.Value.ControlElements)
+					for (const FName& CName : Items.Value.ControlElements)
 					{
-						if (ControlElement)
+						if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
 						{
 							if (!ControlRig->GetHierarchy()->IsAnimatable(ControlElement))
 							{

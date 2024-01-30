@@ -552,13 +552,13 @@ void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsP
 
 	if (Proxy)
 	{
-		for (const TPair<UControlRig*, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
+		for (const TPair<TWeakObjectPtr<UControlRig>, FControlRigProxyItem>& Items : Proxy->ControlRigItems)
 		{
 			if (UControlRig* ControlRig = Items.Value.ControlRig.Get())
 			{
-				for (FRigControlElement* ControlElement : Items.Value.ControlElements)
+				for (const FName& CName : Items.Value.ControlElements)
 				{
-					if (ControlElement)
+					if (FRigControlElement* ControlElement = Items.Value.GetControlElement(CName))
 					{
 						EControlRigContextChannelToKey ChannelToKey = Proxy->GetChannelToKeyFromPropertyName(PropertyName);
 						TParentFirstChildIterator<IOutlinerExtension> OutlinerExtenstionIt = OutlinerViewModel->GetRootItem()->GetDescendantsOfType<IOutlinerExtension>();
@@ -594,9 +594,9 @@ void FAnimDetailValueCustomization::TogglePropertySelection(UControlRigControlsP
 				}
 			}
 		}
-		for (const TPair<UObject*, FSequencerProxyItem>& SItems : Proxy->SequencerItems)
+		for (const TPair<TWeakObjectPtr<UObject>, FSequencerProxyItem>& SItems : Proxy->SequencerItems)
 		{
-			if (UObject* Object = SItems.Key)
+			if (UObject* Object = SItems.Key.Get())
 			{
 				for (const FBindingAndTrack& Element : SItems.Value.Bindings)
 				{
