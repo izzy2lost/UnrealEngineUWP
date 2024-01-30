@@ -34,7 +34,7 @@ public:
 	/** Starts a CVD recording by starting a Trace session. It will stop any existing trace session
 	 * @param Args : Arguments array provided by the commandline. Used to determine if we want to record to file or a local trace server
 	 */
-	void StartRecording(const TArray<FString>& Args);
+	void StartRecording(TConstArrayView<FString> Args);
 	
 	/* Stops an active recording */
 	void StopRecording();

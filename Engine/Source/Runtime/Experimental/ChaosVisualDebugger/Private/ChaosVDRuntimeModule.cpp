@@ -4,7 +4,10 @@
 
 #include "Containers/Array.h"
 #include "HAL/IConsoleManager.h"
+#include "Internationalization/Internationalization.h"
+#include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
+#include "Misc/MessageDialog.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
@@ -12,6 +15,8 @@
 IMPLEMENT_MODULE(FChaosVDRuntimeModule, ChaosVDRuntime);
 
 DEFINE_LOG_CATEGORY_STATIC( LogChaosVDRuntime, Log, All );
+
+#define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
 FAutoConsoleCommand ChaosVDStartRecordingCommand(
 	TEXT("p.Chaos.StartVDRecording"),
@@ -53,14 +58,37 @@ bool FChaosVDRuntimeModule::IsLoaded()
 
 void FChaosVDRuntimeModule::StartupModule()
 {
+	if (FParse::Param(FCommandLine::Get(), TEXT("StartCVDRecording")))
+	{
+		TArray<FString, TInlineAllocator<1>> CVDOptions;
+
+		{
+			FString CVDHostAddress;
+			if (FParse::Value(FCommandLine::Get(), TEXT("CVDHost="), CVDHostAddress))
+			{
+				CVDOptions.Emplace(MoveTemp(CVDHostAddress));
+			}
+		}
+        
+        StartRecording(CVDOptions);
+	}
+	else
+	{
+		
 #if UE_TRACE_ENABLED
-	// Make sure it is off until we support auto trace
-	UE::Trace::ToggleChannel(TEXT("ChaosVDChannel"), false);
+		UE::Trace::ToggleChannel(TEXT("ChaosVDChannel"), false);
 #endif
+
+	}
 }
 
 void FChaosVDRuntimeModule::ShutdownModule()
 {
+	if (bIsRecording)
+	{
+		StopRecording();
+	}
+
 	FTraceAuxiliary::OnTraceStopped.RemoveAll(this);
 }
 
@@ -105,7 +133,7 @@ bool FChaosVDRuntimeModule::RecordingTimerTick(float DeltaTime)
 	return true;
 }
 
-void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
+void FChaosVDRuntimeModule::StartRecording(TConstArrayView<FString> Args)
 {
 	if (bIsRecording)
 	{
@@ -115,23 +143,6 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 	// Start Listening for Trace Stopped events, in case Trace is stopped outside our control so we can gracefully stop CVD recording and log a warning 
 	FTraceAuxiliary::OnTraceStopped.AddRaw(this, &FChaosVDRuntimeModule::HandleTraceStopRequest);
 
-	{
-		FReadScopeLock ReadLock(DelegatesRWLock);
-		RecordingStartedDelegate.Broadcast();
-	}
-
-	constexpr int32 MinAllowedTimeInSecondsBetweenCaptures = 1;
-	int32 ConfiguredTimeBetweenCaptures = CVarChaosVDGTimeBetweenFullCaptures->GetInt();
-
-	ensureAlwaysMsgf(ConfiguredTimeBetweenCaptures > MinAllowedTimeInSecondsBetweenCaptures,
-		TEXT("The minimum allowed time interval between full captures is [%d] seconds, but [%d] seconds were configured. Clamping to [%d] seconds"),
-		MinAllowedTimeInSecondsBetweenCaptures, ConfiguredTimeBetweenCaptures, MinAllowedTimeInSecondsBetweenCaptures);
-
-	FullCaptureRequesterHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RequestFullCapture),
-		FMath::Clamp(ConfiguredTimeBetweenCaptures, MinAllowedTimeInSecondsBetweenCaptures, TNumericLimits<int32>::Max()));
-
-	RecordingTimerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RecordingTimerTick));
-
 #if UE_TRACE_ENABLED
 
 	// Other tools could bee using trace
@@ -140,6 +151,9 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 	{
 		StopTrace();
 	}
+
+	// Until we support allowing other channels, indicate in the logs that we are disabling everything else
+	UE_LOG(LogChaosVDRuntime, Log, TEXT("[%s] Disabling additional trace channels..."), ANSI_TO_TCHAR(__FUNCTION__));
 
 	// Disable any enabled additional channel
 	UE::Trace::EnumerateChannels([](const ANSICHAR* ChannelName, bool bEnabled, void*)
@@ -180,21 +194,50 @@ void FChaosVDRuntimeModule::StartRecording(const TArray<FString>& Args)
 #endif
 	
 	AccumulatedRecordingTime = 0.0f;
-	
-	ensure(bIsRecording);
+
+	if (ensure(bIsRecording))
+	{
+		{
+			FReadScopeLock ReadLock(DelegatesRWLock);
+			RecordingStartedDelegate.Broadcast();
+		}
+		
+		constexpr int32 MinAllowedTimeInSecondsBetweenCaptures = 1;
+		int32 ConfiguredTimeBetweenCaptures = CVarChaosVDGTimeBetweenFullCaptures->GetInt();
+
+		ensureAlwaysMsgf(ConfiguredTimeBetweenCaptures > MinAllowedTimeInSecondsBetweenCaptures,
+			TEXT("The minimum allowed time interval between full captures is [%d] seconds, but [%d] seconds were configured. Clamping to [%d] seconds"),
+			MinAllowedTimeInSecondsBetweenCaptures, ConfiguredTimeBetweenCaptures, MinAllowedTimeInSecondsBetweenCaptures);
+
+		FullCaptureRequesterHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RequestFullCapture),
+			FMath::Clamp(ConfiguredTimeBetweenCaptures, MinAllowedTimeInSecondsBetweenCaptures, TNumericLimits<int32>::Max()));
+
+		RecordingTimerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(this, &FChaosVDRuntimeModule::RecordingTimerTick));
+
+	}
+	else
+	{
+		UE_LOG(LogChaosVDRuntime, Error, TEXT("[%s] Failed to start CVD recording..."), ANSI_TO_TCHAR(__FUNCTION__));
+
+#if WITH_EDITOR
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("StartRecordingFailedMessage", "Failed to start CVD recording. Please see the logs for more details... "));
+#endif
+
+	}
+
 }
 
 void FChaosVDRuntimeModule::StopRecording()
 {
-	if (!ensure(bIsRecording))
+	if (!bIsRecording)
 	{
+		UE_LOG(LogChaosVDRuntime, Warning, TEXT("[%s] Attempted to stop recorded when there is no CVD recording active."), ANSI_TO_TCHAR(__FUNCTION__));
 		return;
 	}
 	
 	FTraceAuxiliary::OnTraceStopped.RemoveAll(this);
 
 #if UE_TRACE_ENABLED
-	
 
 	UE::Trace::ToggleChannel(TEXT("ChaosVDChannel"), false);
 	UE::Trace::ToggleChannel(TEXT("Frame"), false); 
@@ -223,6 +266,10 @@ void FChaosVDRuntimeModule::HandleTraceStopRequest(FTraceAuxiliary::EConnectionT
 		if (!ensure(bRequestedStop))
 		{
 			UE_LOG(LogChaosVDRuntime, Warning, TEXT("Trace Recording has been stopped unexpectedly"));
+
+#if WITH_EDITOR
+			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("UnexpectedStopMessage", "Trace recording has been stopped unexpectedly. CVD cannot continue with the recording session... "));
+#endif
 		}
 
 		StopRecording();
@@ -230,3 +277,5 @@ void FChaosVDRuntimeModule::HandleTraceStopRequest(FTraceAuxiliary::EConnectionT
 
 	bRequestedStop = false;
 }
+
+#undef LOCTEXT_NAMESPACE 

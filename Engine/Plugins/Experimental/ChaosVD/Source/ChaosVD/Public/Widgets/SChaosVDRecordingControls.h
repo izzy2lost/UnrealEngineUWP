@@ -6,9 +6,17 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SButton;
 class SChaosVDMainTab;
 class FReply;
 struct FSlateBrush;
+
+UENUM()
+enum class EChaosVDRecordingMode
+{
+	File,
+	Live
+};
 
 class SChaosVDRecordingControls : public SCompoundWidget
 {
@@ -16,18 +24,24 @@ public:
 	SLATE_BEGIN_ARGS( SChaosVDRecordingControls ){}
 	SLATE_END_ARGS()
 	
-	void Construct(const FArguments& InArgs, const TWeakPtr<SChaosVDMainTab>& InMainTabWeakPtr);
+	void Construct(const FArguments& InArgs, const TSharedRef<SChaosVDMainTab>& InMainTabSharedRef);
 
 	virtual ~SChaosVDRecordingControls() override;
 
 protected:
-	
-	const FSlateBrush* GetRecordOrStopButton() const;
+
+	TSharedRef<SButton>GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip);
+
+	const FSlateBrush* GetRecordOrStopButton(EChaosVDRecordingMode RecordingMode) const;
 	
 	void HandleRecordingStop();
 	void HandleRecordingStart();
+	void AttemptToConnectToLiveSession();
 
-	FReply ToggleRecordingState();
+	FReply ToggleRecordingState(EChaosVDRecordingMode RecordingMode);
+
+	bool IsRecordingToggleButtonEnabled(EChaosVDRecordingMode RecordingMode) const;
+	EVisibility IsRecordingToggleButtonVisible(EChaosVDRecordingMode RecordingMode) const;
 
 	bool IsRecording() const;
 
@@ -42,4 +56,9 @@ protected:
 	FDelegateHandle RecordingStoppedHandle;
 
 	TWeakPtr<SChaosVDMainTab> MainTabWeakPtr;
+
+	int32 MaxAutoplayConnectionAttempts = 20;
+	float IntervalBetweenAutoplayConnectionAttemptsSeconds = 0.1f;
+	bool bAutoConnectionAttemptInProgress = false;
+	int32 CurrentConnectionAttempts = 0;
 };

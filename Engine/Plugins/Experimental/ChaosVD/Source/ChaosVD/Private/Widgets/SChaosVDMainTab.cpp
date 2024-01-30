@@ -192,7 +192,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 				+SHorizontalBox::Slot()
 				[
 					
-					SNew(SChaosVDRecordingControls, StaticCastWeakPtr<SChaosVDMainTab>(AsWeak()))
+					SNew(SChaosVDRecordingControls, StaticCastSharedRef<SChaosVDMainTab>(AsShared()))
 				]
 				
 				+SHorizontalBox::Slot()
@@ -438,8 +438,15 @@ void SChaosVDMainTab::BrowseAndOpenChaosVDRecording()
 			}
 		case EChaosVDBrowseFileModalResponse::OpenTraceStore:
 			{
-				//TODO: Support remote Trace Stores 
-				BrowseChaosVDRecordingFromFolder(FChaosVDModule::Get().GetTraceManager()->GetLocalTraceStoreDirPath());
+				//TODO: Support remote Trace Stores
+				const FString TraceStorePath = FChaosVDModule::Get().GetTraceManager()->GetLocalTraceStoreDirPath();
+				if (TraceStorePath.IsEmpty())
+				{
+					UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to access Trace Store..."), ANSI_TO_TCHAR(__FUNCTION__));
+					FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("OpenTraceStoreFailedMessage", "Failed to access the Trace Store, The default profiling folder will be open. \n Please see the logs for mor details... "));
+				}
+
+				BrowseChaosVDRecordingFromFolder(TraceStorePath);
 				break;
 			}
 		case EChaosVDBrowseFileModalResponse::Cancel:
@@ -464,7 +471,7 @@ void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(AsShared()),
 			LOCTEXT("OpenDialogTitle", "Open Chaos Visual Debug File").ToString(),
 			FolderPath.GetData(),
-			TEXT(""),
+			*FPaths::ProfilingDir(),
 			*ExtensionStr,
 			EFileDialogFlags::None,
 			OutOpenFilenames
@@ -480,6 +487,28 @@ void SChaosVDMainTab::BrowseChaosVDRecordingFromFolder(FStringView FolderPath)
 	}
 }
 
+bool SChaosVDMainTab::ConnectToLiveSession(int32 SessionID, const FString SessionAddress) const
+{
+	FChaosVDTraceSessionDescriptor NewSessionFromFileDescriptor;
+	NewSessionFromFileDescriptor.SessionName = FChaosVDModule::Get().GetTraceManager()->ConnectToLiveSession(SessionAddress, SessionID);
+	NewSessionFromFileDescriptor.bIsLiveSession = true;
+
+	bool bSuccess = false;
+
+	if (NewSessionFromFileDescriptor.SessionName.IsEmpty())
+	{
+		// If it failed we want to clean the current session name, so it is ok calling it either way
+		GetChaosVDEngineInstance()->SetCurrentSession(FChaosVDTraceSessionDescriptor());
+	}
+	else
+	{
+		GetChaosVDEngineInstance()->SetCurrentSession(NewSessionFromFileDescriptor);
+		bSuccess = true;
+	}
+
+	return bSuccess;
+}
+
 void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
 {
 	const TSharedRef<SChaosVDBrowseSessionsModal> SessionBrowserModal = SNew(SChaosVDBrowseSessionsModal);
@@ -490,14 +519,8 @@ void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const
 		const FChaosVDTraceSessionInfo SessionInfo = SessionBrowserModal->GetSelectedTraceInfo();
 		if (SessionInfo.bIsValid)
 		{
-			FChaosVDTraceSessionDescriptor NewSessionFromFileDescriptor;
-			NewSessionFromFileDescriptor.SessionName =  FChaosVDModule::Get().GetTraceManager()->ConnectToLiveSession(SessionBrowserModal->GetSelectedTraceStoreAddress(), SessionInfo.TraceID);
-			NewSessionFromFileDescriptor.bIsLiveSession = true;
-
-			bSuccess = !NewSessionFromFileDescriptor.SessionName.IsEmpty();
-
-			// If it failed we want to clean the current session name, so it is ok calling it either way
-			GetChaosVDEngineInstance()->SetCurrentSession(NewSessionFromFileDescriptor);
+			const FString SessionAddress = SessionBrowserModal->GetSelectedTraceStoreAddress();
+			bSuccess = ConnectToLiveSession(SessionInfo.TraceID, SessionAddress);
 		}
 
 		if (!bSuccess)
