@@ -52,11 +52,28 @@ function jumpToAnchor(anchor?: string, scrollDistance: number = SCROLL_DISTANCE)
   }
 }
 
+function absolute(base: string, relative: string) {
+   var stack = base.split("/"),
+      parts = relative.split("/");
+   stack.pop();
+
+   for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === ".")
+         continue;
+      if (parts[i] === "..")
+         stack.pop();
+      else
+         stack.push(parts[i]);
+   }
+   return stack.join("/");
+}
 
 export const MarkdownLink: React.FunctionComponent<ILinkProps> = props => {
    let href = props.href;
 
-   if (href?.indexOf("README.md") !== -1) {
+   const inDocs = window.location.pathname.startsWith("/docs");   
+
+   if (inDocs && href?.indexOf("README.md") !== -1) {
       href = "/docs/"
    }
 
@@ -81,6 +98,10 @@ export const MarkdownLink: React.FunctionComponent<ILinkProps> = props => {
             });
 
             href = "?" + csearch.toString();
+         }
+
+         if (inDocs && !href.startsWith("/")) {
+            href = absolute(window.location.pathname.replace("/docs/", ""), href);            
          }
          
          const url = new URL(href);
