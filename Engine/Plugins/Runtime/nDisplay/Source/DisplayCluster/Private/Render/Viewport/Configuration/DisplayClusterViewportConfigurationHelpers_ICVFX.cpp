@@ -22,6 +22,7 @@
 #include "DisplayClusterConfigurationTypes_PostRender.h"
 
 #include "IDisplayCluster.h"
+#include "IDisplayClusterCallbacks.h"
 #include "Cluster/IDisplayClusterClusterManager.h"
 
 #include "ShaderParameters/DisplayClusterShaderParameters_PostprocessBlur.h"
@@ -486,6 +487,18 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 
 	// Reset runtime flags from prev frame:
 	DstViewport.ResetRuntimeParameters();
+
+	// Allow external customers to configure media state
+	{
+		// By default, we set 'None' so it can be rendered from media POV
+		EDisplayClusterViewportMediaState NewMediaStates = EDisplayClusterViewportMediaState::None;
+
+		// Now allow to override media state if anyone wants
+		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().Broadcast(&DstViewport, NewMediaStates);
+
+		// Update the media state for the new frame.
+		InOutRenderSettings.AssignMediaStates(NewMediaStates);
+	}
 
 	// incamera textrure used as overlay
 	InOutRenderSettings.bVisible = false;
