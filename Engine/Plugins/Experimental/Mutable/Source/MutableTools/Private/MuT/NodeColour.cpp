@@ -15,8 +15,6 @@
 #include "MuT/NodeColourTable.h"
 #include "MuT/NodeColourVariation.h"
 
-#include <stdint.h>
-
 
 namespace mu
 {

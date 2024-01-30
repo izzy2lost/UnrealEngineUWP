@@ -10,8 +10,6 @@
 #include "MuR/Image.h"
 #include "MuR/SerialisationPrivate.h"
 
-#include <limits>
-
 
 namespace mu
 {
@@ -100,11 +98,8 @@ namespace mu
         {
             check( m_pD->m_pos + size <= m_pD->m_size );
 
-            // This could happen in 32-bit platforms
-            check( size<std::numeric_limits<size_t>::max() );
-
-            const uint8_t* pSource = ((const uint8_t*)(m_pD->m_pBuffer))+m_pD->m_pos;
-            FMemory::Memcpy( pData, pSource, (size_t)size );
+            const uint8* pSource = ((const uint8*)(m_pD->m_pBuffer))+m_pD->m_pos;
+            FMemory::Memcpy( pData, pSource, (SIZE_T)size );
             m_pD->m_pos += size;
         }
     }
@@ -118,9 +113,7 @@ namespace mu
         m_pD = new Private();
         if (reserve)
         {
-            // This could happen in 32-bit platforms
-            check( reserve<std::numeric_limits<size_t>::max() );
-            m_pD->m_buffer.Reserve( reserve );
+             m_pD->m_buffer.Reserve( reserve );
         }
     }
 
@@ -139,9 +132,6 @@ namespace mu
     {
         if (size)
         {
-            // This could happen in 32-bit platforms
-            check( size<std::numeric_limits<size_t>::max() );
-
             uint64 pos = m_pD->m_buffer.Num();
             m_pD->m_buffer.SetNum( pos + size, EAllowShrinking::No );
 			FMemory::Memcpy( &m_pD->m_buffer[pos], pData, size );
@@ -305,7 +295,7 @@ namespace mu
             }
             else
             {
-                if ( (std::size_t)id < m_pD->m_proxyHistory.Num() )
+                if ( id < m_pD->m_proxyHistory.Num() )
                 {
                     p = m_pD->m_proxyHistory[id];
 

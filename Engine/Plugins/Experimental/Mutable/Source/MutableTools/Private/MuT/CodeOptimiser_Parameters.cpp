@@ -1,18 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "HAL/PlatformCrt.h"
-#include "HAL/PlatformMath.h"
-#include "Logging/LogCategory.h"
-#include "Logging/LogMacros.h"
-#include "Misc/AssertionMacros.h"
-#include "MuR/Image.h"
-#include "MuR/ImagePrivate.h"
-#include "MuR/MutableTrace.h"
-#include "MuR/Operations.h"
-#include "MuR/ParametersPrivate.h"
-#include "MuR/Platform.h"
-#include "MuR/Ptr.h"
-#include "MuR/RefCounted.h"
 #include "MuT/AST.h"
 #include "MuT/ASTOpAddLOD.h"
 #include "MuT/ASTOpConditional.h"
@@ -30,13 +17,24 @@
 #include "MuT/CompilerPrivate.h"
 #include "MuT/DataPacker.h"
 #include "MuT/Platform.h"
+#include "MuR/Image.h"
+#include "MuR/ImagePrivate.h"
+#include "MuR/MutableTrace.h"
+#include "MuR/Operations.h"
+#include "MuR/ParametersPrivate.h"
+#include "MuR/Platform.h"
+#include "MuR/Ptr.h"
+#include "MuR/RefCounted.h"
+#include "MuR/MutableRuntimeModule.h"
+
+#include "HAL/PlatformCrt.h"
+#include "HAL/PlatformMath.h"
+#include "Logging/LogCategory.h"
+#include "Logging/LogMacros.h"
+#include "Misc/AssertionMacros.h"
 #include "Trace/Detail/Channel.h"
 
 #include <array>
-#include <memory>
-#include <utility>
-
-#include "MuR/MutableRuntimeModule.h"
 
 
 namespace mu

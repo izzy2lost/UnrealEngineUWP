@@ -34,10 +34,6 @@
 #include "MuT/Table.h"
 #include "Trace/Detail/Channel.h"
 
-#include <algorithm>
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {

@@ -141,7 +141,9 @@ struct FCompilationOptions
 {
 	GENERATED_USTRUCT_BODY()
 	
-	// Enum to know what texture compression should be used
+	/** Enum to know what texture compression should be used. This compression is used on ly in manual compiles in editor. 
+	 *  When packaging, ECustomizableObjectTextureCompression::HighQuality is always used.
+	 */
 	UPROPERTY()
 	ECustomizableObjectTextureCompression TextureCompression = ECustomizableObjectTextureCompression::Fast;
 

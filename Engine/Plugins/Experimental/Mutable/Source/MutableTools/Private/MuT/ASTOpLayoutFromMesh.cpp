@@ -24,8 +24,6 @@
 #include "MuT/ASTOpLayoutMerge.h"
 #include "MuT/StreamsPrivate.h"
 
-#include <functional>
-
 
 namespace mu
 {
