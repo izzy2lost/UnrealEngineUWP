@@ -10,7 +10,7 @@ Name | Type | Description
 `include` | [`ConfigInclude`](#configinclude)`[]` | Other paths to include
 `macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within the global scope
 `dashboard` | [`DashboardConfig`](#dashboardconfig) | Settings for the dashboard
-`projects` | [`ProjectConfig`](Config/Schema/Projects.md)`[]` | List of projects
+`projects` | [`ProjectConfig`](Projects.md)`[]` | List of projects
 `pools` | [`PoolConfig`](#poolconfig)`[]` | List of pools
 `downtime` | [`ScheduledDowntime`](#scheduleddowntime)`[]` | List of scheduled downtime
 `perforceClusters` | [`PerforceCluster`](#perforcecluster)`[]` | List of Perforce clusters

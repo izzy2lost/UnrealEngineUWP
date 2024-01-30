@@ -6,8 +6,6 @@
 
 ### MSI Installer (Windows)
 
-An installer for Horde is available for download [TODO](???).
-
 Windows builds of MongoDB and Redis are included in the installer, and launched by Horde at startup (Horde will also
 close them when it terminates). This installation is fine for small scale installations and testing Horde, though
 hosting databases separately would be preferred in production scenarios.
@@ -122,7 +120,7 @@ is written to stdout by default, though Json output can be enabled using the `Lo
 [appsettings.json](ServerSettings.md).
 
 Profiling and telemetry data for the server is routed through [OpenTelemetry](https://opentelemetry.io/). Settings for
-telemetry capture are [listed here](ServerSettings.md#OpenTelemetry).
+telemetry capture are [listed here](ServerSettings.md#opentelemetrysettings).
 
 ### RunModes
 

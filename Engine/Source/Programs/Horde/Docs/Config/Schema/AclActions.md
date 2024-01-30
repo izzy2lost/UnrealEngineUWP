@@ -1,7 +1,6 @@
-[Horde](../Home.md) > [Configuration](../Config.md) > ACL Actions
+[Horde](../../Home.md) > [Configuration](../../Config.md) > ACL Actions
 
 # ACL Actions
-
 
 ## Agents
 

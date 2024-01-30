@@ -29,7 +29,7 @@ _backend_. Permissions to access content in storage is normally controlled at th
 higher-level systems (eg. logs, artifacts) expose custom endpoints over underlying storage namespaces which provide
 their own permissions model that does not require direct access to the backing namespace.
 
-Namespaces and backends are configured through the `Storage` section of the [globals.json](../Config/Schema/Globals.md)
+Namespaces and backends are configured through the `Storage` section of the [globals.json](Schema/Globals.md)
 file.
 
 ### Namespaces
@@ -40,7 +40,7 @@ Namespaces configure permissions and garbage collection policies for a logical s
 Multiple namespaces may use the same storage backend by setting the `Prefix` property to append a prefix to any stored
 files.
 
-Settings for namespaces are described in the [globals.json](../Config/Schema/Globals.md#namespace-config) schema.
+Settings for namespaces are described in the [globals.json](Schema/Globals.md#namespaceconfig) schema.
 
 ### Backends
 
@@ -51,7 +51,7 @@ Horde supports several storage backends, as well as local on-disk and in-memory 
 * AWS S3 Object Store
 * Azure Blob Store
 
-Settings for backends are described in the [globals.json](../Config/Schema/Globals.md#backend-config) schema.
+Settings for backends are described in the [globals.json](../Config/Schema/Globals.md#backendconfig) schema.
 
 ### Well-known Namespaces
 

@@ -15,8 +15,8 @@ from supporting it for teams at Epic.
 
 ## Features
 
-* [Continuous Integration](Config/CI.md)
-* [Remote Execution](Config/Remote.md)
+* [Build Automation](Config/BuildAutomation.md)
+* [Remote Execution](Config/RemoteExecution.md)
 * DDC Server (Coming Soon)
 * Device Reservation System (Coming Soon)
 * Test Hub (Coming Soon)

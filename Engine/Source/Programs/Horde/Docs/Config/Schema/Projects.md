@@ -16,7 +16,7 @@ Name | Type | Description
 `pools` | [`PoolConfig`](#poolconfig)`[]` | List of pools for this project
 `categories` | [`ProjectCategoryConfig`](#projectcategoryconfig)`[]` | Categories to include in this project
 `jobOptions` | [`JobOptions`](#joboptions) | Default settings for executing jobs
-`streams` | [`StreamConfig`](Config/Schema/Streams.md)`[]` | List of streams
+`streams` | [`StreamConfig`](Streams.md)`[]` | List of streams
 `acl` | [`AclConfig`](#aclconfig) | Acl entries
 
 ## ConfigInclude

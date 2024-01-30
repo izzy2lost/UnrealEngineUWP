@@ -66,9 +66,9 @@ namespace AutomationTool.Tasks
 					Match match = Regex.Match(line, @"^#+\s+(.*)");
 					if (match.Success)
 					{
-						string anchor = match.Groups[1].Value.ToLowerInvariant();
-						anchor = Regex.Replace(anchor, "[^a-z0-9]+", "-");
-						anchor = Regex.Replace(anchor, "^-|-$", "");
+						string anchor = match.Groups[1].Value.ToLowerInvariant().Trim();
+						anchor = Regex.Replace(anchor, @"\s+", "-");
+						anchor = Regex.Replace(anchor, @"[^a-z0-9-]", "");
 						validLinks.Add($"{file.FullName}#{anchor}");
 					}
 				}
@@ -84,7 +84,7 @@ namespace AutomationTool.Tasks
 					foreach (Match match in Regex.Matches(line, @"\[([^\]]+)\]\(([^\)]*)\)"))
 					{
 						string link = match.Groups[2].Value;
-						if (!Regex.IsMatch(link, "^[a-z]+://"))
+						if (!Regex.IsMatch(link, "^(?:[a-z]+:/)?/"))
 						{
 							int hashIdx = link.IndexOf('#');
 							if (hashIdx == -1)

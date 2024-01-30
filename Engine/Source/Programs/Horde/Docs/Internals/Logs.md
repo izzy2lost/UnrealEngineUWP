@@ -14,7 +14,7 @@ sites explaining the meaning of error codes.
 
 ## Storage
 
-Horde logs are stored in [bundles](Bundles.md), using several node types. All these classes are implemented in
+Horde logs are stored in bundles using several node types. All these classes are implemented in
 `Engine/Source/Programs/Shared/EpicGames.Horde/Logs`.
 
 * `LogNode` objects are the main entry point for the log data, and contain metadata about the log as a whole (how

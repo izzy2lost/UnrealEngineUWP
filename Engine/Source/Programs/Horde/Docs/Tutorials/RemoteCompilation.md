@@ -17,7 +17,7 @@ remote machine behind the scenes as necessary.
 
 ## Prerequisites
 
-* Install the [Horde server](Installing.md)
+* Install the [Horde server](InstallServer.md)
 * One or more machines to function as build workers
 
 ## Steps
