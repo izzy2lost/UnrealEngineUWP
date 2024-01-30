@@ -757,12 +757,8 @@ namespace EpicGames.Horde.Storage.Nodes
 					}
 				}
 
-				// Enumerate all output chunks first, to avoid thrashing the cache with reads. We probably want to always look ahead
-				// a certain amount in order to make smarter read pipelining anyway. 
-				await FindOutputChunksRootAsync(chunks.Writer, logger, cancellationSource.Token);
-
 				List<Task> tasks = new List<Task>();
-//				tasks.Add(RunBackgroundTask(ctx => FindOutputChunksRootAsync(chunks.Writer, options, logger, ctx)));
+				tasks.Add(RunBackgroundTask(ctx => FindOutputChunksRootAsync(chunks.Writer, logger, ctx)));
 				for (int idx = 0; idx < numTasks; idx++)
 				{
 					tasks.Add(RunBackgroundTask(ctx => ExtractAsync(chunks.Reader, new DirectoryReference(directoryInfo), copyStats, logger, ctx)));
