@@ -61,7 +61,7 @@ struct FCustomizableObjectStatusTypes
 		Count,
 	};
 	
-	static constexpr EState StartState = EState::Loading;
+	static constexpr EState StartState = EState::NoModel;
 
 	static constexpr bool ValidTransitions[3][3] =
 	{
@@ -69,7 +69,7 @@ struct FCustomizableObjectStatusTypes
 		// Loading, ModelLoaded, NoModel // FROM
 		{false,   true,        true},  // Loading
 		{false,   true,        true},  // ModelLoaded
-		{false,   true,        true},  // NoModel
+		{true,    true,        true},  // NoModel
 	};
 };
 
