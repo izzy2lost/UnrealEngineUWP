@@ -21,7 +21,7 @@
 
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectExtension.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
 #include "MuCO/CustomizableObjectPrivate.h"

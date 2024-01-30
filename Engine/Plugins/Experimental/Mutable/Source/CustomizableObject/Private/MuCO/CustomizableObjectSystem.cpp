@@ -12,7 +12,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "MuCO/CustomizableInstanceLODManagement.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/DefaultImageProvider.h"
@@ -31,7 +31,7 @@
 #include "ContentStreaming.h"
 #include "MuCO/EditorImageProvider.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "CustomizableObjectSystemPrivate.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 
 #if WITH_EDITOR
 #include "Editor.h"

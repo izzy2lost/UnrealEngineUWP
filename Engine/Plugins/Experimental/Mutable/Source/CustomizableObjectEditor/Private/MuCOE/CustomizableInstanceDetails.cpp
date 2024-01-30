@@ -14,7 +14,7 @@
 #include "Serialization/BufferArchive.h"
 #include "Toolkits/ToolkitManager.h"
 
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"

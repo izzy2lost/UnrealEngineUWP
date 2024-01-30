@@ -17,7 +17,7 @@
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectInstanceUsage.h"
 
 

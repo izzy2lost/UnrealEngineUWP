@@ -3,7 +3,7 @@
 #include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "MuCO/CustomizableSkeletalComponent.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
 
 #include "AnimationRuntime.h"

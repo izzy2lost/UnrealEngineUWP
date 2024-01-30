@@ -22,7 +22,7 @@
 #include "Settings/LevelEditorViewportSettings.h"
 #include "UnrealEdGlobals.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
