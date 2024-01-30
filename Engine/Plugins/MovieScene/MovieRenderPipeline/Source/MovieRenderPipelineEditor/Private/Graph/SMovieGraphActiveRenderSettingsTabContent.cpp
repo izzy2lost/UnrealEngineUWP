@@ -459,6 +459,7 @@ void SMovieGraphActiveRenderSettingsTabContent::TraverseGraph()
 
 	FMovieGraphTraversalContext Context;
 	Context.Job = TraversalJob.Get();
+	// Context.Shot = ?	// TODO: The shot should be exposed in the UI at some point
 
 	// Traverse the graph, and update the root elements
 	FlattenedGraph = TStrongObjectPtr(CurrentGraph->CreateFlattenedGraph(Context, TraversalError));

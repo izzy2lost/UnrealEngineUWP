@@ -186,13 +186,19 @@ public:
 	/**
 	 * Gets overrides on the variables in graph presets associated with this job. A job can have multiple graphs associated with it if the job's
 	 * assigned graph contains subgraphs. The job's graph and each subgraph will have an entry in the returned array.
+	 * 
+	 * The assignments are updated before they are returned. To opt-out of this, set bUpdateAssignments to false (generally not recommended unless
+	 * there is very specific behavior that is needed).
 	 */
-	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& GetGraphVariableAssignments();
+	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& GetGraphVariableAssignments(const bool bUpdateAssignments = true);
 
 	/**
 	 * Gets overrides on the variables in the primary graph (and its subgraphs) associated with this job.
+	 *
+	 * The assignments are updated before they are returned. To opt-out of this, set bUpdateAssignments to false (generally not recommended unless
+	 * there is very specific behavior that is needed).
 	 */
-	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& GetPrimaryGraphVariableAssignments();
+	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& GetPrimaryGraphVariableAssignments(const bool bUpdateAssignments = true);
 
 	/** Refreshes the variable assignments associated with this shot, both for the shot's own graph preset and the associated primary graph. */
 	void RefreshAllVariableAssignments();
@@ -440,7 +446,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
 	bool IsUsingGraphConfiguration() const
 	{
-		return GraphPreset.IsValid();
+		// Calling GetGraphPreset() here is important, rather than just referencing GraphPreset (to ensure that the soft ptr has a chance to load)
+		return GetGraphPreset() != nullptr;
 	}
 
 	/**
@@ -479,8 +486,11 @@ public:
 	/**
 	 * Gets overrides on the variables in graph presets associated with this job. A job can have multiple graphs associated with it if the job's
 	 * assigned graph contains subgraphs. The job's graph and each subgraph will have an entry in the returned array.
+	 *
+	 * The assignments are updated before they are returned. To opt-out of this, set bUpdateAssignments to false (generally not recommended unless
+	 * there is very specific behavior that is needed).
 	 */
-	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& GetGraphVariableAssignments();
+	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& GetGraphVariableAssignments(const bool bUpdateAssignments = true);
 
 	/** Refreshes the variable assignments associated with this job, both for the jobs's own graph preset and the associated shot graphs. */
 	void RefreshAllVariableAssignments();

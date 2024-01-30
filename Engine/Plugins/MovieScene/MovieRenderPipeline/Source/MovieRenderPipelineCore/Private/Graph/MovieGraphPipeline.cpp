@@ -309,6 +309,7 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		CurrentContext.ShotIndex = ShotIndex;
 		CurrentContext.ShotCount = GetActiveShotList().Num();
 		CurrentContext.Job = GetCurrentJob();
+		CurrentContext.Shot = Shot;
 		CurrentContext.RootGraph = GetRootGraphForShot(Shot);
 
 		// Frame Rate, Handle Frames, Warm-up Frames are all global settings so we provide an empty time context.
@@ -1378,11 +1379,14 @@ UMovieGraphConfig* UMovieGraphPipeline::GetRootGraphForShot(UMoviePipelineExecut
 
 FMovieGraphTraversalContext UMovieGraphPipeline::GetCurrentTraversalContext(const bool bForShot) const
 {
+	const TObjectPtr<UMoviePipelineExecutorShot> CurrentShot = bForShot ? GetActiveShotList()[GetCurrentShotIndex()] : nullptr;
+	
 	FMovieGraphTraversalContext CurrentContext;
 	CurrentContext.ShotIndex = bForShot ? GetCurrentShotIndex() : -1;
 	CurrentContext.ShotCount = GetActiveShotList().Num();
 	CurrentContext.Job = GetCurrentJob();
-	CurrentContext.RootGraph = bForShot ? GetRootGraphForShot(GetActiveShotList()[GetCurrentShotIndex()]) : CurrentContext.Job->GetGraphPreset();
+	CurrentContext.Shot = CurrentShot;
+	CurrentContext.RootGraph = bForShot ? GetRootGraphForShot(CurrentShot) : CurrentContext.Job->GetGraphPreset();
 	CurrentContext.Time = bForShot ? GetTimeStepInstance()->GetCalculatedTimeData() : FMovieGraphTimeStepData();
 
 	return CurrentContext;
