@@ -35,7 +35,10 @@ protected:
 	uint32 MaxCompSpaceNeeded;
 	uint32 SampleRate;
 
+	// we lazy init this because the general use case (streaming) should always be able to decode
+	// directly to the output buffer.
+	TArray<uint8, TAlignedHeapAllocator<16>> OutputReservoir;
 	struct BinkAudioDecoder* Decoder = 0;
-	uint8* RawMemory = 0;
+	TArray<uint8, TAlignedHeapAllocator<16>> RawMemory;
 	bool bErrorStateLatch = false;
 };
