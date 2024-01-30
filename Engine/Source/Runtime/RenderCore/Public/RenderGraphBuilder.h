@@ -414,6 +414,7 @@ public:
 	/** Waits for the last RDG async delete task that was launched. */
 	static RENDERCORE_API void WaitForAsyncDeleteTask();
 
+
 	/** The blackboard used to hold common data tied to the graph lifetime. */
 	FRDGBlackboard Blackboard;
 

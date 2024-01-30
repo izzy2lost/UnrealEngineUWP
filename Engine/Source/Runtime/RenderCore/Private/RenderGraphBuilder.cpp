@@ -602,6 +602,15 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 		bSupportsTransientBuffers  = TransientResourceAllocator->SupportsResourceType(ERHITransientResourceType::Buffer);
 	}
 
+#endif
+
+#if RHI_WANT_BREADCRUMB_EVENTS
+	if (ParallelExecute.bEnabled)
+	{
+		BreadcrumbState = FRDGBreadcrumbState::Create(Allocators.Root);
+	}
+#endif
+
 #if RDG_DUMP_RESOURCES
 	DumpNewGraphBuilder();
 #endif
