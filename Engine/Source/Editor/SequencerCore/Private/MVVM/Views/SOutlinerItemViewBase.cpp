@@ -61,7 +61,6 @@ void SOutlinerItemViewBase::Construct(
 
 	ItemStyle              = InArgs._ItemStyle;
 	IsReadOnlyAttribute    = InArgs._IsReadOnly;
-	IsRowHoveredAttribute  = MakeAttributeSP(&InTableRow.Get(), &ISequencerTreeViewRow::IsHovered);
 	IsRowSelectedAttribute = MakeAttributeSP(&InTableRow.Get(), &ISequencerTreeViewRow::IsItemSelected);
 
 	if (!IsReadOnlyAttribute.IsSet())
@@ -361,28 +360,6 @@ FOptionalSize SOutlinerItemViewBase::GetHeight() const
 	return Outliner
 		? Outliner->GetOutlinerSizing().GetTotalHeight()
 		: 10.f;
-}
-
-void SOutlinerItemViewBase::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-{
-	TViewModelPtr<IOutlinerExtension> DataModel = WeakOutlinerExtension.Pin();
-	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
-	if (DataModel && Editor)
-	{
-		Editor->GetOutliner()->SetHoveredItem(DataModel);
-	}
-	SWidget::OnMouseEnter(MyGeometry, MouseEvent);
-}
-
-void SOutlinerItemViewBase::OnMouseLeave(const FPointerEvent& MouseEvent)
-{
-	TSharedPtr<FEditorViewModel> Editor = WeakEditor.Pin();
-	if (Editor)
-	{
-		Editor->GetOutliner()->SetHoveredItem(nullptr);
-	}
-
-	SWidget::OnMouseLeave(MouseEvent);
 }
 
 const FSlateBrush* SOutlinerItemViewBase::GetNodeBorderImage() const

@@ -5,6 +5,9 @@
 #include "MVVM/Views/SOutlinerView.h"
 #include "MVVM/Views/STrackLane.h"
 #include "MVVM/Extensions/ISelectableExtension.h"
+#include "MVVM/ViewModels/EditorViewModel.h"
+#include "MVVM/ViewModels/OutlinerViewModel.h"
+#include "MVVM/ViewModels/EditorSharedViewModelData.h"
 
 
 namespace UE::Sequencer
@@ -236,6 +239,36 @@ TViewModelPtr<IOutlinerExtension> SOutlinerViewRow::GetDataModel() const
 {
 	return WeakModel.Pin();
 }
+
+void SOutlinerViewRow::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	TViewModelPtr<IOutlinerExtension>       DataModel        = WeakModel.Pin();
+	TSharedPtr<FSharedViewModelData>        SharedData       = DataModel        ? DataModel.AsModel()->GetSharedData() : nullptr;
+	TSharedPtr<FEditorSharedViewModelData>  SharedEditorData = SharedData       ? SharedData->CastThisShared<FEditorSharedViewModelData>() : nullptr;
+	TSharedPtr<FEditorViewModel>            Editor           = SharedEditorData ? SharedEditorData->GetEditor() : nullptr;
+
+	if (DataModel && Editor)
+	{
+		Editor->GetOutliner()->SetHoveredItem(DataModel);
+	}
+	SWidget::OnMouseEnter(MyGeometry, MouseEvent);
+}
+
+void SOutlinerViewRow::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	TViewModelPtr<IOutlinerExtension>       DataModel        = WeakModel.Pin();
+	TSharedPtr<FSharedViewModelData>        SharedData       = DataModel ? DataModel.AsModel()->GetSharedData() : nullptr;
+	TSharedPtr<FEditorSharedViewModelData>  SharedEditorData = SharedData       ? SharedData->CastThisShared<FEditorSharedViewModelData>() : nullptr;
+	TSharedPtr<FEditorViewModel>            Editor           = SharedEditorData ? SharedEditorData->GetEditor() : nullptr;
+
+	if (Editor)
+	{
+		Editor->GetOutliner()->SetHoveredItem(nullptr);
+	}
+
+	SWidget::OnMouseLeave(MouseEvent);
+}
+
 
 TSharedPtr<STrackLane> SOutlinerViewRow::GetTrackLane(bool bOnlyOwnTrackLane) const
 {
