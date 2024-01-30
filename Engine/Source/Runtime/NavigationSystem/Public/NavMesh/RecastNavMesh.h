@@ -1529,6 +1529,15 @@ protected:
 	FPImplRecastNavMesh* GetRecastNavMeshImpl() { return RecastNavMeshImpl; }
 	const FPImplRecastNavMesh* GetRecastNavMeshImpl() const { return RecastNavMeshImpl; }
 
+	struct FUpdateActiveTilesWorkingMem
+	{
+		TSet<FIntPoint> OldActiveSet;
+		TArray<FNavMeshDirtyTileElement> TilesInMinDistance;
+		TSet<FIntPoint> TilesInMaxDistance;
+		TArray<FIntPoint> TileToAppend;
+	};
+	FUpdateActiveTilesWorkingMem UpdateActiveTilesWorkingMem;
+	
 private:
 	/** @return Navmesh data chunk that belongs to this actor */
 	NAVIGATIONSYSTEM_API URecastNavMeshDataChunk* GetNavigationDataChunk(const TArray<UNavigationDataChunk*>& InChunks) const;
