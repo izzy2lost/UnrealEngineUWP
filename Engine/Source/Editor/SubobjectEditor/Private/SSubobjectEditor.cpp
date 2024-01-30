@@ -1634,12 +1634,12 @@ FText SSubobject_RowWidget::GetTooltipText() const
 		if (Data->IsInheritedComponent())
 		{
 			return LOCTEXT("InheritedDefaultSceneRootToolTip",
-			               "This is the default scene root component. It cannot be copied, renamed or deleted.\nIt has been inherited from the parent class, so its properties cannot be edited here.\nNew scene components will automatically be attached to it.");
+			               "This is the default scene root component. It cannot be renamed or deleted.\nIt has been inherited from the parent class, so its properties cannot be edited here.\nNew scene components will automatically be attached to it.");
 		}
 		else
 		{
 			return LOCTEXT("DefaultSceneRootToolTip",
-			               "This is the default scene root component. It cannot be copied, renamed or deleted.\nIt can be replaced by drag/dropping another scene component over it.");
+			               "This is the default scene root component. It cannot be renamed or deleted.\nIt can be replaced by drag/dropping another scene component over it.");
 		}
 	}
 	else
