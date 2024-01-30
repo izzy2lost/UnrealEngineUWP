@@ -225,6 +225,12 @@ private:
 	UE::Learning::Observation::FSchema ObservationSchema;
 };
 
+UCLASS(BlueprintType)
+class LEARNINGAGENTS_API ULearningAgentsObservationVisualLoggerObject : public UObject
+{
+	GENERATED_BODY()
+};
+
 /**
  * Observation Object
  *
@@ -344,8 +350,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeFloatObservation(const float Value, const float FloatScale = 1.0f, const FName Name = TEXT("Float"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeLocationObservation(const FVector Location, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Location"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	FLearningAgentsObservationObjectElement MakeLocationObservation(
+		const FVector Location,
+		const FTransform RelativeTransform = FTransform(),
+		const float LocationScale = 100.0f,
+		const FName Name = TEXT("Location"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeRotationObservation(const FRotator Rotation, const FRotator RelativeRotation = FRotator::ZeroRotator, const FName Name = TEXT("Rotation"));
@@ -366,19 +379,40 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeVelocityObservation(const FVector Velocity, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeDirectionObservation(const FVector Direction, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	FLearningAgentsObservationObjectElement MakeDirectionObservation(
+		const FVector Direction,
+		const FTransform RelativeTransform = FTransform(),
+		const FName Name = TEXT("Direction"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	// Spline Observations
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeLocationAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("LocationAlongSpline"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 5))
+	FLearningAgentsObservationObjectElement MakeLocationAlongSplineObservation(
+		const USplineComponent* SplineComponent,
+		const float DistanceAlongSpline,
+		const FTransform RelativeTransform = FTransform(),
+		const float LocationScale = 100.0f,
+		const FName Name = TEXT("LocationAlongSpline"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeProportionAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Name = TEXT("ProportionAlongSpline"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeDirectionAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("DirectionAlongSpline"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	FLearningAgentsObservationObjectElement MakeDirectionAlongSplineObservation(
+		const USplineComponent* SplineComponent,
+		const float DistanceAlongSpline,
+		const FTransform RelativeTransform = FTransform(),
+		const FName Name = TEXT("DirectionAlongSpline"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakePropertiesAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("PropertiesAlongSpline"));
@@ -554,4 +588,9 @@ public:
 private:
 
 	UE::Learning::Observation::FObject ObservationObject;
+
+	const ULearningAgentsObservationVisualLoggerObject* GetOrAddVisualLoggerObject(const FName Name);
+
+	UPROPERTY()
+	TMap<FName, TObjectPtr<const ULearningAgentsObservationVisualLoggerObject>> VisualLoggerObjects;
 };

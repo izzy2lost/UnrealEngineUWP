@@ -317,7 +317,11 @@ public:
 
 	/** The relative path to the Intermediate directory. Defaults to FPaths::ProjectIntermediateDir. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (RelativePath))
-	FDirectoryPath IntermediateRelativePath;
+	FDirectoryPath EditorIntermediateRelativePath;
+
+	/** The relative path to the intermediate folder for non-editor builds. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	FString NonEditorIntermediateRelativePath;
 
 public:
 
