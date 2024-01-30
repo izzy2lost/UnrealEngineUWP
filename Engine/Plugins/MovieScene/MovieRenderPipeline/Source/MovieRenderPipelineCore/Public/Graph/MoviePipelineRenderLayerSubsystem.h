@@ -683,6 +683,8 @@ private:
 		{
 			TSoftObjectPtr<USceneComponent> Component = nullptr;
 			
+			// Note: The default values specified here reflect the defaults on the scene component. If a modifier property is marked as overridden, the
+			// override will initially be a no-op due to the defaults being the same.
 			uint8 bCastsShadows : 1 = true;
 			uint8 bCastShadowWhileHidden : 1 = false;
 			uint8 bAffectIndirectLightingWhileHidden : 1 = false;
