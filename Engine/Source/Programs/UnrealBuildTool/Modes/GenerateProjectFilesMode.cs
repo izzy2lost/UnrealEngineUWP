@@ -33,6 +33,7 @@ namespace UnrealBuildTool
 		[CommandLine("-EddieProjectFiles", Value = nameof(ProjectFileFormat.Eddie))]
 		[CommandLine("-VSCode", Value = nameof(ProjectFileFormat.VisualStudioCode))]
 		[CommandLine("-VSMac", Value = nameof(ProjectFileFormat.VisualStudioMac))]
+		[CommandLine("-VSWorkspace", Value = nameof(ProjectFileFormat.VisualStudioWorkspace))]
 		[CommandLine("-CLion", Value = nameof(ProjectFileFormat.CLion))]
 		[CommandLine("-Rider", Value = nameof(ProjectFileFormat.Rider))]
 #if __VPROJECT_AVAILABLE__
@@ -215,6 +216,9 @@ namespace UnrealBuildTool
 						break;
 					case ProjectFileFormat.VisualStudioCode:
 						Generator = new VSCodeProjectFileGenerator(ProjectFile);
+						break;
+					case ProjectFileFormat.VisualStudioWorkspace:
+						Generator = new VSWorkspaceProjectFileGenerator(ProjectFile, Arguments);
 						break;
 					case ProjectFileFormat.CLion:
 						Generator = new CLionGenerator(ProjectFile);
