@@ -440,7 +440,7 @@ namespace Horde.Server.Perforce
 				Credentials credentials = await GetCredentialsAsync(cluster, userName, cancellationToken);
 				handle = await CreatePooledConnectionAsync(server.ServerAndPort, credentials, null, cancellationToken);
 
-				if (credentials.Password != null && credentials.Ticket == null)
+				if (!String.IsNullOrEmpty(credentials.Password) && String.IsNullOrEmpty(credentials.Ticket))
 				{
 					await handle.LoginAsync(credentials.Password, cancellationToken);
 				}
