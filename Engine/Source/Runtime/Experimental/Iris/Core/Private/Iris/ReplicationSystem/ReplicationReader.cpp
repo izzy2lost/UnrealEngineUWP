@@ -1509,8 +1509,8 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 		if (RootInternalIndex != LastDispatchedRootInternalIndex && NumObjectsPendingPostDistpatch)
 		{
 			FlushPostDispatchForBatch();
-			LastDispatchedRootInternalIndex = RootInternalIndex;
 		}
+		LastDispatchedRootInternalIndex = RootInternalIndex;
 
 		FPostDispatchObjectInfo PostDispatchObjectInfo;
 		PostDispatchObjectInfo.ReplicationInfo = ReplicationInfo;
