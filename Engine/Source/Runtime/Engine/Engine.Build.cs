@@ -448,12 +448,14 @@ public class Engine : ModuleRules
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
 			PrivateIncludePathModuleNames.Add("AndroidRuntimeSettings");
+			PrivateDefinitions.Add("ENABLE_PLATFORM_COMPRESSION_OVERRIDES=1");
 		}
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
 			PublicIncludePathModuleNames.Add("IOSPlatformFeatures");
 			PrivateIncludePathModuleNames.Add("IOSRuntimeSettings");
+			PrivateDefinitions.Add("ENABLE_PLATFORM_COMPRESSION_OVERRIDES=1");
 		}
 
 		PublicDefinitions.Add("GPUPARTICLE_LOCAL_VF_ONLY=0");
