@@ -10,35 +10,26 @@ import SwiftUI
 // Implement this support: https://developer.apple.com/forums/thread/735862
 
 struct ContentView: View {
+    
+    @AppStorage(StorageKeys.XCodePath.id)
+    private var xcodePath: String = StorageKeys.XCodePath.default
+    
+    @AppStorage(StorageKeys.UbaAgentPath.id)
+    private var ubaAgentPath: String = StorageKeys.UbaAgentPath.default
+    
     @State var activeTask : Process? = nil
     @Binding var status: Bool
-    @State var pathToAgent : String = ""
+    //    @State var pathToAgent : String = ""
     @State var ipAddress = ""
     @State var log : String = ""
-    @State var xcodePath: String = ""
+    
     var body: some View {
         VStack {
             GroupBox(label: Text("Uba Agent Configuration"), content: {
-                HStack(content: {
-                    Text("Agent Location:")
-                        .fontWeight(.bold)
-                    TextField(text: $pathToAgent, prompt: Text("e.g.: ..../Engine/Binaries/Mac/UnrealBuildAccelerator/UbaAgent"), axis: .vertical, label: {})
-                    Spacer()
-                })
                 HStack {
                     Text("UbaHost IP:")
-                        .fontWeight(.bold)
+                    //                        .fontWeight(.bold)
                     TextField(text: $ipAddress, prompt: Text("e.g.: 127.0.0.1"), label: {})
-                    Spacer()
-                }
-                HStack {
-                    Text("XCode Location:")
-                        .fontWeight(.bold)
-                    TextField(text: $xcodePath, prompt: Text("e.g.: /Applications/XCode"), axis: .vertical, label: {})
-                    Spacer()
-                    Button(action: locateXCode, label: {
-                        Text("Locate XCode")
-                    })
                 }
             })
             
@@ -47,9 +38,8 @@ struct ContentView: View {
                     Spacer()
                 }
                 ScrollView {
-                    TextField(text: $log,  axis: .vertical, label: {})
+                    TextEditor(text: $log)
                 }
-                
                 .defaultScrollAnchor(.bottom)
             })
             Divider()
@@ -62,7 +52,9 @@ struct ContentView: View {
                     .tint(.red)
                 }
                 else {
-                    Button(action: {runCode()}, label: {
+                    Button(action: {
+                        runUbaAgent()
+                    }, label: {
                         Text("Start Agent")
                             .bold()
                     })
@@ -70,7 +62,10 @@ struct ContentView: View {
                 }
                 
                 Spacer()
-                Button(action: { NSApplication.shared.terminate(nil)}, label: {
+                SettingsLink()
+                Button(action: {
+                    NSApplication.shared.terminate(nil)
+                }, label: {
                     Text("Quit")
                 })
                 .buttonStyle(.borderedProminent)
@@ -78,36 +73,15 @@ struct ContentView: View {
             }
         }
         .padding()
+        .background(Color.black.opacity(0.4))
     }
+
+    
     func canRun() -> Bool {
-        return ipAddress.isEmpty || xcodePath.isEmpty || pathToAgent.isEmpty
+        return ipAddress.isEmpty || xcodePath.isEmpty || ubaAgentPath.isEmpty
     }
     
-    func locateXCode() {
-        let task = Process()
-
-        //the path to the external program you want to run
-        let executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
-        task.executableURL = executableURL
-
-        //use pipe to get the execution program's output
-        let pipe = Pipe()
-        task.standardOutput = pipe
-
-        //all the arguments to the executable
-        let args = ["-p"]
-        task.arguments = args
-
-        try! task.run()
-        task.waitUntilExit()
-
-        //all this code helps you capture the output so you can, for e.g., show the user
-        let d = pipe.fileHandleForReading.readDataToEndOfFile()
-        xcodePath = (String(data: d, encoding: String.Encoding.utf8) ?? "").trimmingCharacters(in: CharacterSet.newlines)
-    }
-    
-    
-    func runCode() {
+    func runUbaAgent() {
         // This should be replaced with the recs from here:
         // https://developer.apple.com/forums/thread/690310
         if ((activeTask?.isRunning) != nil) {
@@ -117,7 +91,7 @@ struct ContentView: View {
         log = ""
         
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: pathToAgent)
+        task.executableURL = URL(fileURLWithPath: ubaAgentPath)
         task.arguments = ["-host=\(ipAddress)", "-log", "-populatecas=\(xcodePath)"]
         let outputPipe = Pipe()
         task.standardOutput = outputPipe
@@ -139,10 +113,10 @@ struct ContentView: View {
             status = true
         }
         //todo: Swap to this later
-//        Task {
-//            try! task.run()
-//            task.waitUntilExit()
-//        }
+        //        Task {
+        //            try! task.run()
+        //            task.waitUntilExit()
+        //        }
     }
     
     func killTask() {
