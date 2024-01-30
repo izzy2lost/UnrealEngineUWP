@@ -196,3 +196,26 @@ void UMidiClockUpdateSubsystem::UpdateUMusicClockComponents()
 		}
 	}
 }
+
+// Implement a "tick" method that can be used during automated testing so that
+// the test code doesn't need knowledge of how the low-res clocks are being ticked...
+void UMidiClockUpdateSubsystem::TickForTesting()
+{
+	using namespace MidiClockUpdateSubsystem;
+	switch (UpdateMethod)
+	{
+	case MidiClockUpdateSubsystem::EUpdateMethod::EngineTickableObjectAndTickComponent:
+		UpdateFMidiClocks();
+		break;
+	case MidiClockUpdateSubsystem::EUpdateMethod::EngineSubsystemCoreDelegatesOnBeginFrame:
+		UpdateFMidiClocks();
+		UpdateUMusicClockComponents();
+		break;
+	case MidiClockUpdateSubsystem::EUpdateMethod::EngineTickableObject:
+		UpdateFMidiClocks();
+		UpdateUMusicClockComponents();
+		break;
+	default:
+		checkNoEntry();
+	}
+}

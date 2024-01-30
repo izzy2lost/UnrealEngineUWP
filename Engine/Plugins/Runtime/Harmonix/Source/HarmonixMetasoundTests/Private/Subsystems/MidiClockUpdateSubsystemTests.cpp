@@ -81,7 +81,7 @@ namespace HarmonixMetasoundTests::MidiClockUpdateSubsystem
 			}
 
 			// Tick the subsystem (low-resolution clocks)
-			Subsystem->Tick(0);
+			Subsystem->TickForTesting();
 
 			// Check that the high- and low-resolution clocks are at the same place
 			UTEST_EQUAL(
