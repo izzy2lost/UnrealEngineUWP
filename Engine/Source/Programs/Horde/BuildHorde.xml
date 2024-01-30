@@ -32,7 +32,11 @@
 			Engine/Source/Programs/UnrealBuildTool/Matchers/...
 		</Property>
 
-		<Node Name="Analyze HordeServer">
+		<Node Name="Check Documentation">
+			<CheckMarkdown Files="$(RootDir)/Engine/Source/Programs/Horde/Docs/..."/>
+		</Node>
+
+		<Node Name="Analyze HordeServer" Requires="Check Documentation">
 			<DotNet Arguments="build &quot;$(RootDir)/Engine/Source/Programs/Horde/Horde.Server/Horde.Server.csproj&quot; /p:Configuration=Analyze $(VersionArguments)" DotNetPath="$(DotNetPath)"/>
 			<DotNet Arguments="build &quot;$(RootDir)/Engine/Source/Programs/Horde/Horde.Server.Tests/Horde.Server.Tests.csproj&quot; /p:Configuration=Analyze $(VersionArguments)" DotNetPath="$(DotNetPath)"/>
 		</Node>
