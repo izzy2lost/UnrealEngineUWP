@@ -1816,6 +1816,7 @@ namespace uba
 
 	bool StorageImpl::CopyOrLink(const CasKey& casKey, const tchar* destination, u32 fileAttributes)
 	{
+		UBA_ASSERT(casKey != CasKeyZero);
 		UBA_ASSERT(fileAttributes);
 
 		auto& stats = Stats();
