@@ -1,5 +1,3 @@
-# Horde
-
 ![Horde](Images/Logo.png)
 
 ## Getting Started
