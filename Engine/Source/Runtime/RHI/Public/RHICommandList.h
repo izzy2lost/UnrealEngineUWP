@@ -4956,7 +4956,7 @@ private:
 		FGraphEventArray TranslateEvents;
 		FTranslateState* CurrentTranslateJob = nullptr;
 
-		uint32 MaxCommandsPerTranslate = 0;
+		int32 MaxCommandsPerTranslate = 0;
 		bool bAllowSingleParallelCombine = false;
 		bool bAllowParallelTranslate = true;
 

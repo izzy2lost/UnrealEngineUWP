@@ -663,7 +663,7 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 			) || (
 				MaxCommandsPerTranslate  < 0 ? true  :
 				MaxCommandsPerTranslate == 0 ? false :
-				(CurrentTranslateJob->NumCommands + CmdList->NumCommands) > MaxCommandsPerTranslate
+				(CurrentTranslateJob->NumCommands + CmdList->NumCommands) > uint32(MaxCommandsPerTranslate)
 			))
 		{
 			FinalizeCurrent();

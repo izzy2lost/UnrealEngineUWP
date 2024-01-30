@@ -94,7 +94,7 @@ static TAutoConsoleVariable<int32> CVarD3D12EnableDRED(
 
 static TAutoConsoleVariable<int32> CVarD3D12EnableLightweightDRED(
 	TEXT("r.D3D12.LightweightDRED"),
-	(UE_BUILD_SHIPPING || UE_BUILD_TEST) ? 1 : 1,
+	1,
 	TEXT("Enable Lightweight DRED GPU Crash debugging mode to track the current GPU state and logs information what operations the GPU executed last.")
 	TEXT("Gives the basic information on the current GPU state when it crashes or hangs on all PC hardware.\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
