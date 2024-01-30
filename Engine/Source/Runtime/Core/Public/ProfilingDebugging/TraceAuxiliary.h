@@ -99,6 +99,11 @@ public:
 	static CORE_API bool Pause();
 
 	/**
+	* @return True if trace was paused and the list of channels to resume exists.
+	*/
+	static CORE_API bool IsPaused();
+
+	/**
 	 * Resume tracing by enabling all previously active channels.
 	 */
 	static CORE_API bool Resume();

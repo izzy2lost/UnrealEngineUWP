@@ -92,8 +92,11 @@ private:
 
 	FText GetTraceMenuItemText() const;
 	FText GetTraceMenuItemTooltipText() const;
+	void ToggleTrace_OnClicked();
 
-	void ToggleTracing_OnClicked();
+	bool PauseTrace_CanExecute();
+	FText GetPauseTraceMenuItemTooltipText() const;
+	void TogglePauseTrace_OnClicked();
 
 	EVisibility GetStartTraceIconVisibility() const;
 	EVisibility GetStopTraceIconVisibility() const;

@@ -170,7 +170,7 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Bottom)
 			.ToolTipText(this, &SInsightsStatusBarWidget::GetRecordingButtonTooltipText)
-			.OnClicked_Lambda([this]() { this->ToggleTracing_OnClicked(); return FReply::Handled(); })
+			.OnClicked_Lambda([this]() { this->ToggleTrace_OnClicked(); return FReply::Handled(); })
 			.OnHovered_Lambda([this]() { this->bIsTraceRecordButtonHovered = true; })
 			.OnUnhovered_Lambda([this]() { this->bIsTraceRecordButtonHovered = false; })
 			.Content()
@@ -331,10 +331,35 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceMenuItemText),
 			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceMenuItemTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.StartTrace.Menu"),
-			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTracing_OnClicked)),
+			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked)),
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
+
+		if (FTraceAuxiliary::IsPaused())
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("ResumeTraceButtonText", "Resume Trace"),
+				LOCTEXT("ResumesTraceButtonTooltip", "Enables all channels that were active when tracing was paused."),
+				FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.ResumeTrace.Menu"),
+				FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::TogglePauseTrace_OnClicked),
+						  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::PauseTrace_CanExecute)),
+				NAME_None,
+				EUserInterfaceActionType::Button
+			);
+		}
+		else
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("PauseTraceButtonText", "Pause Trace"),
+				TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetPauseTraceMenuItemTooltipText),
+				FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.PauseTrace.Menu"),
+				FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::TogglePauseTrace_OnClicked),
+						  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::PauseTrace_CanExecute)),
+				NAME_None,
+				EUserInterfaceActionType::Button
+			);
+		}
 
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("SaveSnapshotLabel", "Save Trace Snapshot"),
@@ -744,7 +769,7 @@ FText SInsightsStatusBarWidget::GetTraceMenuItemTooltipText() const
 	return LOCTEXT("StartTraceButtonTooltip", "Start tracing to the selected trace destination.");
 }
 
-void SInsightsStatusBarWidget::ToggleTracing_OnClicked()
+void SInsightsStatusBarWidget::ToggleTrace_OnClicked()
 {
 	if (UE::Trace::IsTracing())
 	{
@@ -771,6 +796,38 @@ void SInsightsStatusBarWidget::ToggleTracing_OnClicked()
 		{
 			LogMessage(LOCTEXT("TraceFailedToStartMsg", "Trace Failed to Start."));
 		}
+	}
+}
+
+bool SInsightsStatusBarWidget::PauseTrace_CanExecute()
+{
+	return UE::Trace::IsTracing();
+}
+
+FText SInsightsStatusBarWidget::GetPauseTraceMenuItemTooltipText() const
+{
+	if (!UE::Trace::IsTracing())
+	{
+		return LOCTEXT("PauseTraceDisabledButtonTooltip", "Tracing must be running to enable the pause functionality.");
+	}
+
+	return LOCTEXT("PauseTraceButtonTooltip", "Disables all enabled trace channels. The same channels will be re-enabled when tracing is resumed.");
+}
+
+void SInsightsStatusBarWidget::TogglePauseTrace_OnClicked()
+{ 
+	if (!UE::Trace::IsTracing())
+	{
+		return;
+	}
+
+	if (FTraceAuxiliary::IsPaused())
+	{
+		FTraceAuxiliary::Resume();
+	}
+	else
+	{
+		FTraceAuxiliary::Pause();
 	}
 }
 
