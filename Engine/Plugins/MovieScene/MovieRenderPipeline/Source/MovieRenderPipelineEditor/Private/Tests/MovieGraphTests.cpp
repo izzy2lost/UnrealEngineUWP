@@ -6,11 +6,9 @@
 #include "Graph/MovieGraphNode.h"
 #include "Graph/Nodes/MovieGraphApplyCVarPresetNode.h"
 #include "Graph/Nodes/MovieGraphBranchNode.h"
-#include "Graph/Nodes/MovieGraphCommandLineEncoderNode.h"
 #include "Graph/Nodes/MovieGraphDeferredPassNode.h"
 #include "Graph/Nodes/MovieGraphInputNode.h"
 #include "Graph/Nodes/MovieGraphOutputNode.h"
-#include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 #include "Graph/Nodes/MovieGraphSetCVarValueNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
@@ -456,7 +454,7 @@ namespace UE::MovieGraph::Private::Tests
 		
 		// Globals: UMovieGraphSetCVarValueNode, UMovieGraphApplyCVarPresetNode, UMovieGraphSamplingMethodNode,
 		// UMovieGraphAudioOutputNode, UMovieGraphWarmUpSettingNode
-		// RenderLayer: UMovieGraphCommandLineEncoderNode
+		// RenderLayer: UDummyRenderLayerOnlyNode
 		// Any: All other node types as of October 6, 2023
 		
 		// Create Config
@@ -510,8 +508,8 @@ namespace UE::MovieGraph::Private::Tests
 		// Add middle nodes of BranchRestriction type 'RenderLayer'
 		// Ideally we'd want two different types but only one exists at present
 		UMovieGraphNode* RenderLayerNodeA =
-			GraphConfig->ConstructRuntimeNode<UMovieGraphCommandLineEncoderNode>(
-				UMovieGraphCommandLineEncoderNode::StaticClass());
+			GraphConfig->ConstructRuntimeNode<UDEPRECATED_DummyRenderLayerOnlyNode>(
+				UDEPRECATED_DummyRenderLayerOnlyNode::StaticClass());
 		TestTrue(
 			TEXT("RenderLayerNodeA successfully added"), GraphConfig->GetNodes().Contains(RenderLayerNodeA));
 		if (!RenderLayerNodeA)
@@ -519,8 +517,8 @@ namespace UE::MovieGraph::Private::Tests
 			return false;
 		}
 		UMovieGraphNode* RenderLayerNodeB =
-			GraphConfig->ConstructRuntimeNode<UMovieGraphCommandLineEncoderNode>(
-				UMovieGraphCommandLineEncoderNode::StaticClass());
+			GraphConfig->ConstructRuntimeNode<UDEPRECATED_DummyRenderLayerOnlyNode>(
+				UDEPRECATED_DummyRenderLayerOnlyNode::StaticClass());
 		TestTrue(
 			TEXT("RenderLayerNodeB successfully added"), GraphConfig->GetNodes().Contains(RenderLayerNodeB));
 		if (!RenderLayerNodeB)
@@ -644,7 +642,7 @@ namespace UE::MovieGraph::Private::Tests
 		
 		// Globals: UMovieGraphSetCVarValueNode, UMovieGraphApplyCVarPresetNode, UMovieGraphSamplingMethodNode,
 		// UMovieGraphAudioOutputNode, UMovieGraphWarmUpSettingNode
-		// RenderLayer: UMovieGraphCommandLineEncoderNode
+		// RenderLayer: UDummyRenderLayerOnlyNode
 		// Any: All other node types as of October 5, 2023
 		
 		// Create Config
@@ -690,8 +688,8 @@ namespace UE::MovieGraph::Private::Tests
 		}
 
 		UMovieGraphNode* RenderLayerNode =
-			GraphConfig->ConstructRuntimeNode<UMovieGraphCommandLineEncoderNode>(
-				UMovieGraphCommandLineEncoderNode::StaticClass());
+			GraphConfig->ConstructRuntimeNode<UDEPRECATED_DummyRenderLayerOnlyNode>(
+				UDEPRECATED_DummyRenderLayerOnlyNode::StaticClass());
 		TestTrue(
 			TEXT("RenderLayerNode successfully added"), GraphConfig->GetNodes().Contains(RenderLayerNode));
 		if (!RenderLayerNode)
