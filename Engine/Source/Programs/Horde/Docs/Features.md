@@ -10,7 +10,6 @@
 | Build Automation | 🟨&nbsp;Beta | Migrate jobs to a more lightweight data model.<br>Programmable state machine for jobs. |
 | Build Health | 🟧&nbsp;Experimental | Migrate more engine code to produce structured logging.<br>Move issue creation into UAT.<br> |
 | DDC | 🟥&nbsp;Early | Recommend using UnrealCloudDDC rather than Horde. |
-| Device Manager | 🟨&nbsp;Beta | - |
 | Remote Execution | 🟧&nbsp;Experimental | - |
 | UnrealGameSync&nbsp;Metadata | 🟨&nbsp;Beta | - |
 
@@ -18,5 +17,5 @@
 
 * 🟩 **Production Ready**: Feature is supported by Epic and is recommended for use in production environments. Epic will maintain an upgrade path for this feature between releases.
 * 🟨 **Beta**: Feature is stable and ready for evaluation, but may have bugs and minor missing features. Epic will attempt to maintain an upgrade path for this feature.
-* 🟧 **Experimental**: Feature may be significantly modified or removed entirely in future releases.
+* 🟧 **Experimental**: Feature is functional but may undergo significant modifications or be removed entirely in future releases.
 * 🟥 **Early**: Feature is still early in development.

@@ -10,7 +10,11 @@ from supporting it for teams at Epic.
 * [Orientation](Config/Orientation.md): Get familiar with how Horde is configured, how to store configuration data in
   revision control, and set up a schema server.
 * [Permissions](Config/Permissions.md): Understand how to use the Horde permissions model.
+
+## Resources
+
 * [Agents](Config/Agents.md): Configure worker machines to connect to the Horde server for CI and remote execution workspaces.
+* [Devices](Config/Devices.md): Adding mobile devices and console development kits as shared resources.
 * [Storage](Config/Storage.md): Setting up different storage backends for Horde.
 
 ## Features
@@ -18,8 +22,7 @@ from supporting it for teams at Epic.
 * [Build Automation](Config/BuildAutomation.md)
 * [Remote Execution](Config/RemoteExecution.md)
 * DDC Server (Coming Soon)
-* Device Reservation System (Coming Soon)
-* Test Hub (Coming Soon)
+* Automation Hub (Coming Soon)
 * [UnrealGameSync Metadata Server](Config/UgsMetadataServer.md)
 
 ## Reference
