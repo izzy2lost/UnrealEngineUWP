@@ -77,7 +77,8 @@ namespace UE::Chaos::ClothAsset::Private
 	/** Copy the skin weights from DynamicMesh to Collection, handling split vertices. */
 	static void CopySkinWeightsFromDynamicMeshToCloth(const FDynamicMesh3& WeldedSimMesh, 
 													  const bool bUseParallel,
-													  const TSharedRef<FManagedArrayCollection>& ClothCollection)
+													  const TSharedRef<FManagedArrayCollection>& ClothCollection,
+													  const int32 MaxNumInfluences)
 	{
 		using namespace UE::Geometry;
 
@@ -97,7 +98,7 @@ namespace UE::Chaos::ClothAsset::Private
 				SimMeshToDynamicMesh[NonManifoldMapping.GetOriginalNonManifoldVertexID(DynamicMeshVert)].Add(DynamicMeshVert);
 			}
 
-			ParallelFor(ClothFacade.GetNumSimVertices3D(), [&ClothFacade, &WeldedSimMesh, &SimMeshToDynamicMesh](int32 SimVertexID)
+			ParallelFor(ClothFacade.GetNumSimVertices3D(), [&ClothFacade, &WeldedSimMesh, &SimMeshToDynamicMesh, MaxNumInfluences](int32 SimVertexID)
 			{
 				const FDynamicMeshVertexSkinWeightsAttribute* const OutAttribute = WeldedSimMesh.Attributes()->GetSkinWeightsAttribute(FSkeletalMeshAttributes::DefaultSkinWeightProfileName);
 				checkSlow(OutAttribute);
@@ -146,9 +147,9 @@ namespace UE::Chaos::ClothAsset::Private
 						BoneWeights.Add(FloatVal);
 						WeightsSum += FloatVal;
 					}
-					if (BoneIndices.Num() > MAX_TOTAL_INFLUENCES)
+					if (BoneIndices.Num() > MaxNumInfluences)
 					{
-						// Choose MAX_TOTAL_INFLUENCES highest weighted bones.
+						// Choose MaxNumInfluences highest weighted bones.
 						TArray<TPair<float, int32>> SortableData;
 						SortableData.Reserve(BoneIndices.Num());
 						for (int32 Idx = 0; Idx < BoneIndices.Num(); ++Idx)
@@ -157,10 +158,10 @@ namespace UE::Chaos::ClothAsset::Private
 						}
 						SortableData.Sort([](const TPair<float, int32>& A, const TPair<float, int32>& B) { return A > B; });
 
-						BoneIndices.SetNum(MAX_TOTAL_INFLUENCES);
-						BoneWeights.SetNum(MAX_TOTAL_INFLUENCES);
+						BoneIndices.SetNum(MaxNumInfluences);
+						BoneWeights.SetNum(MaxNumInfluences);
 						WeightsSum = 0.f;
-						for (int32 Idx = 0; Idx < MAX_TOTAL_INFLUENCES; ++Idx)
+						for (int32 Idx = 0; Idx < MaxNumInfluences; ++Idx)
 						{
 							BoneIndices[Idx] = SortableData[Idx].Get<1>();
 							BoneWeights[Idx] = SortableData[Idx].Get<0>();
@@ -327,7 +328,7 @@ namespace UE::Chaos::ClothAsset::Private
 		//
 		// Copy the new bone weight data and inpaint mask from the welded sim mesh back to the sim cloth patterns.
 		//
-		CopySkinWeightsFromDynamicMeshToCloth(WeldedSimMesh, true, ClothCollection);
+		CopySkinWeightsFromDynamicMeshToCloth(WeldedSimMesh, true, ClothCollection, TransferBoneWeights.MaxNumInfluences);
 		CopyInpaintMapFromDynamicMeshToCloth(WeldedSimMesh, InpaintWeightMaskName, true, TransferBoneWeights.MatchedVertices, ClothCollection);
 
 		//
@@ -356,7 +357,7 @@ namespace UE::Chaos::ClothAsset::Private
 			FTransferBoneWeights SimToRenderMeshTransfer(&WeldedSimMesh, FSkeletalMeshAttributes::DefaultSkinWeightProfileName);
 			SimToRenderMeshTransfer.bUseParallel = bUseParallel;
 			SimToRenderMeshTransfer.TransferMethod = FTransferBoneWeights::ETransferBoneWeightsMethod::ClosestPointOnSurface;
-
+			SimToRenderMeshTransfer.MaxNumInfluences = TransferBoneWeights.MaxNumInfluences;
 			UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(ClothCollection);
 			ParallelFor(ClothFacade.GetNumRenderVertices(), [&SimToRenderMeshTransfer, &ClothFacade](int32 VertexID)
 				{
@@ -478,6 +479,7 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 			//
 			constexpr bool bUseParallel = true;
 			FTransferBoneWeights TransferBoneWeights(&SourceDynamicMesh, FSkeletalMeshAttributes::DefaultSkinWeightProfileName);
+			TransferBoneWeights.MaxNumInfluences = static_cast<int32>(FChaosClothAssetTransferSkinWeightsNode::MaxNumInfluences);
 			TransferBoneWeights.bUseParallel = bUseParallel;
 			TransferBoneWeights.TransferMethod = static_cast<FTransferBoneWeights::ETransferBoneWeightsMethod>(TransferMethod);
 
@@ -511,6 +513,29 @@ void FChaosClothAssetTransferSkinWeightsNode::Evaluate(Dataflow::FContext& Conte
 					LOCTEXT("TransferWeightsDetails", "Failed to transfer skinning weights from the source."));
 				SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 				return;
+			}
+
+			// Optional check to make sure all vertices adhere to the bone influence limit
+			constexpr bool bCheckMaxInfluenceComplience = false; 
+			if (bCheckMaxInfluenceComplience)
+			{
+				for (int32 VID = 0; VID < ClothFacade.GetNumSimVertices3D(); ++VID)
+				{
+					const int32 NumInfluences = ClothFacade.GetSimBoneIndices()[VID].Num();
+					if (!ensure(NumInfluences <= static_cast<int32>(FChaosClothAssetTransferSkinWeightsNode::MaxNumInfluences)))
+					{
+						UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("TransferSkinWeightsNode: Maximum number of influences is exceeded for sim vertex %i."), VID);
+					}
+				}
+
+				for (int32 VID = 0; VID < ClothFacade.GetNumRenderVertices(); ++VID)
+				{
+					const int32 NumInfluences = ClothFacade.GetRenderBoneIndices()[VID].Num();
+					if (!ensure(NumInfluences <= static_cast<int32>(FChaosClothAssetTransferSkinWeightsNode::MaxNumInfluences)))
+					{
+						UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("TransferSkinWeightsNode: Maximum number of influences is exceeded for render vertex %i."), VID);
+					}
+				}
 			}
 
 		}

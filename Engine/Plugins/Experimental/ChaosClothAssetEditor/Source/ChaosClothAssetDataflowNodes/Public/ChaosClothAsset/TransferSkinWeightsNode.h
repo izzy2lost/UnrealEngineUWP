@@ -24,6 +24,16 @@ enum class EChaosClothAssetTransferSkinWeightsMethod : uint8
 	InpaintWeights
 };
 
+
+UENUM(BlueprintType)
+enum class EChaosClothAssetMaxNumInfluences : uint8
+{
+	Uninitialized = 0	UMETA(Hidden),
+	Four = 4			UMETA(DisplayName = "4"),
+	Eight = 8			UMETA(DisplayName = "8"),
+	Twelve = 12			UMETA(DisplayName = "12")
+};
+
 /** Transfer the skinning weights set on a skeletal mesh to the simulation and/or render mesh stored in the cloth collection. */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetTransferSkinWeightsNode : public FDataflowNode
@@ -81,7 +91,11 @@ public:
 	/** The smoothing strength of each smoothing iteration. */
 	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (UIMin = 0, UIMax = 1, ClampMin = 0, ClampMax = 1, DisplayName = "Smoothing Strength", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
 	float SmoothingStrength = 0.1;
-
+	
+	/** The maximum number of bones that will influence each vertex. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Max Bone Influences"))
+	EChaosClothAssetMaxNumInfluences MaxNumInfluences = EChaosClothAssetMaxNumInfluences::Eight;
+	
     /** Optional mask where a non-zero value indicates that we want the skinning weights for the vertex to be computed automatically instead of it being copied over from the source mesh. */
 	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Inpaint Mask", EditCondition="TransferMethod==EChaosClothAssetTransferSkinWeightsMethod::InpaintWeights"))
 	FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange InpaintMask = { TEXT("InpaintMask") };
