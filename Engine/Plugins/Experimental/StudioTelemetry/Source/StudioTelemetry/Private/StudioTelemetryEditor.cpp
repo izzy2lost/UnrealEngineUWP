@@ -214,11 +214,10 @@ void FStudioTelemetryEditor::RecordEvent_DDCResource(const FString& Context, TAr
 	// Send a resource event per asset type
 	for (const FDerivedDataCacheResourceStat& Stat : ResourceStats)
 	{
-		const int64 TotalCount = Stat.BuildCount + Stat.LoadCount;
 		const double TotalTimeSec = Stat.BuildTimeSec + Stat.LoadTimeSec;
 		const int64 TotalSizeMB = Stat.BuildSizeMB + Stat.LoadSizeMB;
 
-		if (Stat.AssetType.IsEmpty() || TotalCount==0)
+		if (Stat.AssetType.IsEmpty() || Stat.TotalCount==0)
 		{
 			// Empty asset type or nothing was built or loaded for this type
 			continue;
@@ -233,10 +232,10 @@ void FStudioTelemetryEditor::RecordEvent_DDCResource(const FString& Context, TAr
 		EventAttributes.Emplace(TEXT("Build_Count"), Stat.BuildCount);
 		EventAttributes.Emplace(TEXT("Build_TimeSec"), Stat.BuildTimeSec);
 		EventAttributes.Emplace(TEXT("Build_SizeMB"), Stat.BuildSizeMB);
-		EventAttributes.Emplace(TEXT("Total_Count"), TotalCount);
+		EventAttributes.Emplace(TEXT("Total_Count"), Stat.TotalCount);
 		EventAttributes.Emplace(TEXT("Total_TimeSec"), TotalTimeSec);
 		EventAttributes.Emplace(TEXT("Total_SizeMB"), TotalSizeMB);
-		EventAttributes.Emplace(TEXT("Efficiency"), double(Stat.LoadCount)/double(TotalCount) );
+		EventAttributes.Emplace(TEXT("Efficiency"), Stat.Efficiency);
 		EventAttributes.Emplace(TEXT("Thread_TimeSec"), Stat.GameThreadTimeSec);
 
 		FStudioTelemetry::Get().RecordEvent(TEXT("Core.DDC.Resource"), EventAttributes);
@@ -635,11 +634,13 @@ void FStudioTelemetryEditor::Initialize()
 			Attributes.Emplace(TEXT("MapName"), EditorMapName);
 
 			PIESpan->AddAttributes(Attributes);
+			PIEStartupSpan->AddAttributes(Attributes);
 		});
 
 	FEditorDelegates::PreBeginPIE.AddLambda([this](bool)
 		{	
 			PIEPreBeginSpan = FStudioTelemetry::Get().StartSpan(PIEPreBeginSpanName, PIEStartupSpan);
+			PIEPreBeginSpan->AddAttributes(PIESpan->GetAttributes());
 		});
 
 	FEditorDelegates::BeginPIE.AddLambda([this](bool)
@@ -700,6 +701,7 @@ void FStudioTelemetryEditor::Initialize()
 				}
 
 				PIEInteractSpan = FStudioTelemetry::Get().StartSpan(PIEInteractSpanName, PIESpan);
+				PIEInteractSpan->AddAttributes(PIESpan->GetAttributes());
 			}
 		});
 
@@ -710,6 +712,7 @@ void FStudioTelemetryEditor::Initialize()
 				// PIE is ending so no longer interactive
 				FStudioTelemetry::Get().EndSpan(PIEInteractSpan);
 				PIEShutdownSpan = FStudioTelemetry::Get().StartSpan(PIEShutdownSpanName, PIESpan);
+				PIEShutdownSpan->AddAttributes(PIESpan->GetAttributes());
 			}
 		});
 
