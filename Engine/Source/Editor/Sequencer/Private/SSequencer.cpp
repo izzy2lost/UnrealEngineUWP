@@ -2411,29 +2411,50 @@ void SSequencer::FillViewDensityMenu(FMenuBuilder& InMenuBuilder)
 
 void SSequencer::FillColumnVisibilityMenu(FMenuBuilder& InMenuBuilder)
 {
+	using namespace UE::Sequencer;
+
 	const bool bShouldCloseWindowAfterMenuSelection = true;
 
 	for (FSequencerOutlinerColumnVisibility& ColumnVisibility : OutlinerColumnVisibilities)
 	{
+		auto ToggleVisibility = [this, &ColumnVisibility]
+		{
+			ColumnVisibility.bIsColumnVisible = !ColumnVisibility.bIsColumnVisible;
+			if(ColumnVisibility.bIsColumnVisible)
+			{
+				FName ColumnName = ColumnVisibility.Column->GetColumnName();
+				FSequencerOutlinerColumnVisibility* AutoDisable = nullptr;
+
+				// Auto disable mutually exclusive columns
+				if (ColumnName == FCommonOutlinerNames::Nav)
+				{
+					AutoDisable = Algo::FindBy(this->OutlinerColumnVisibilities, FCommonOutlinerNames::KeyFrame, [](const FSequencerOutlinerColumnVisibility& In) { return In.Column->GetColumnName(); });
+				}
+				else if (ColumnName == FCommonOutlinerNames::KeyFrame)
+				{
+					AutoDisable = Algo::FindBy(this->OutlinerColumnVisibilities, FCommonOutlinerNames::Nav, [](const FSequencerOutlinerColumnVisibility& In) { return In.Column->GetColumnName(); });
+				}
+
+				if (AutoDisable)
+				{
+					AutoDisable->bIsColumnVisible = false;
+				}
+			}
+			
+			this->UpdateOutlinerViewColumns();
+		};
+
+
 		InMenuBuilder.AddMenuEntry(
 			ColumnVisibility.Column->GetColumnLabel(),
 			LOCTEXT("SetColumnVisibilityTooltip", "Enable or disable this outliner column"),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateLambda([this, &ColumnVisibility] {
-					ColumnVisibility.bIsColumnVisible = !ColumnVisibility.bIsColumnVisible;
-					UpdateOutlinerViewColumns();
-					}),
+				FExecuteAction::CreateLambda(ToggleVisibility),
 				FCanExecuteAction(),
-				FIsActionChecked::CreateLambda([this, ColumnVisibility] { 
-						for (const FColumnVisibilitySetting& ColumnSettings : GetSequencerSettings()->GetOutlinerColumnSettings())
-						{
-							if (ColumnSettings.ColumnName == ColumnVisibility.Column.Get()->GetColumnName())
-							{
-								return ColumnSettings.bIsVisible;
-							}
-						}
-						return false;
+				FIsActionChecked::CreateLambda([&ColumnVisibility] { 
+						// Capture by ref here since the array itself cannot be re-allocated while this menu is open
+						return ColumnVisibility.bIsColumnVisible;
 					})
 				),
 				NAME_None,

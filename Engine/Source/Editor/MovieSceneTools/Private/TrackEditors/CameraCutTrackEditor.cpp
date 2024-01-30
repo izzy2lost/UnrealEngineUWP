@@ -199,9 +199,24 @@ TSharedPtr<SWidget> FCameraCutTrackEditor::BuildOutlinerColumnWidget(const FBuil
 			Params.ViewModel);
 	}
 
-	// Show the camera lock button in the Edit area if the nav column is disabled
-	const bool bEditColumn = (ColumnName == FCommonOutlinerNames::Edit && !Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav));
-	if (ColumnName == FCommonOutlinerNames::Nav || bEditColumn)
+	bool bAddCameraLock = false;
+	if (ColumnName == FCommonOutlinerNames::Nav)
+	{
+		bAddCameraLock = true;
+	}
+	else if (ColumnName == FCommonOutlinerNames::KeyFrame)
+	{
+		// Add the camera lock button to the keyframe column if Nav is disabled
+		bAddCameraLock = Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav) == false;
+	}
+	else if (ColumnName == FCommonOutlinerNames::Edit)
+	{
+		// Add the camera lock button to the edit column if both Nav and KeyFrame are disabled
+		bAddCameraLock = Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::Nav) == false &&
+			Params.TreeViewRow->IsColumnVisible(FCommonOutlinerNames::KeyFrame) == false;
+	}
+
+	if (bAddCameraLock)
 	{
 		TSharedRef<SWidget> Button = SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "Sequencer.Outliner.ToggleButton")
@@ -215,8 +230,9 @@ TSharedPtr<SWidget> FCameraCutTrackEditor::BuildOutlinerColumnWidget(const FBuil
 			.Image(FAppStyle::GetBrush("Sequencer.Outliner.CameraLock"))
 		];
 
-		if (bEditColumn)
+		if (ColumnName == FCommonOutlinerNames::Edit)
 		{
+			// Needs to be left aligned in the edit column because this column slot is set to fill
 			return SNew(SBox)
 			.HAlign(HAlign_Left)
 			.Padding(4.f, 0.f)

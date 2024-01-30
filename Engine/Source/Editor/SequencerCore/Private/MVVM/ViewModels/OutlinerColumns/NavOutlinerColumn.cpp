@@ -8,9 +8,9 @@ namespace UE::Sequencer
 FNavOutlinerColumn::FNavOutlinerColumn()
 {
 	Name     = FCommonOutlinerNames::Nav;
-	Label    = NSLOCTEXT("FNavOutlinerColumn", "NavColumnNav", "Nav");
+	Label    = NSLOCTEXT("FNavOutlinerColumn", "ColumnName", "Key Navigation");
 	Position = FOutlinerColumnPosition{ 10, EOutlinerColumnGroup::RightGutter };
-	Layout   = FOutlinerColumnLayout{ 58.f, FMargin(8.f, 0.f), HAlign_Center, VAlign_Center, EOutlinerColumnSizeMode::Fixed, EOutlinerColumnFlags::OverflowSubsequentEmptyCells };
+	Layout   = FOutlinerColumnLayout{ 74.f, FMargin(0.f), HAlign_Center, VAlign_Center, EOutlinerColumnSizeMode::Fixed, EOutlinerColumnFlags::OverflowSubsequentEmptyCells };
 }
 
 } // namespace UE::Sequencer

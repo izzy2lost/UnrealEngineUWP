@@ -71,6 +71,7 @@ struct FCommonOutlinerNames
 	static SEQUENCERCORE_API FName Edit;
 	static SEQUENCERCORE_API FName Add;
 	static SEQUENCERCORE_API FName Nav;
+	static SEQUENCERCORE_API FName KeyFrame;
 	static SEQUENCERCORE_API FName ColorPicker;
 };
 

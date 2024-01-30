@@ -13,6 +13,7 @@ FName FCommonOutlinerNames::Label("Label");
 FName FCommonOutlinerNames::Edit("Edit");
 FName FCommonOutlinerNames::Add("Add");
 FName FCommonOutlinerNames::Nav("Nav");
+FName FCommonOutlinerNames::KeyFrame("KeyFrame");
 FName FCommonOutlinerNames::ColorPicker("ColorPicker");
 
 } // namespace UE::Sequencer

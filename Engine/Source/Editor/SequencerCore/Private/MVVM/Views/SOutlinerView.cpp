@@ -305,6 +305,7 @@ int32 SOutlinerView::CreateOutlinerColumnsForGroup(int32 ColumnIndex, EOutlinerC
 		ColumnMetaData->Columns.Add(Layout);
 
 		// Keep track of how to create widgets for this column
+		// Column Generators must be defined before HeaderRow->AddColumn since AddColumn might re-generate widgets
 		ColumnGenerators.Add(ColumnName, [Column](const FCreateOutlinerColumnParams& Params, const TSharedRef<SOutlinerViewRow>& Row){
 			return Column->IsItemCompatibleWithColumn(Params)
 				? Column->CreateColumnWidget(Params, Row)
@@ -343,21 +344,25 @@ void SOutlinerView::InsertSeparatorColumn(int32 InsertIndex, int32 SeparatorID)
 		EOutlinerColumnSizeMode::Fixed,
 		EOutlinerColumnFlags::Hidden
 	};
+
 	FName SeparatorName(NAME_Separator, SeparatorID);
 
 	// Add a 1px separator column
 	ColumnMetaData->Columns.Insert(SeparatorLayout, InsertIndex);
+
+	// Column Generators must be defined before HeaderRow->InsertColumn since InsertColumn might re-generate widgets
+	ColumnGenerators.Add(SeparatorName,
+		[](const FCreateOutlinerColumnParams&, const TSharedRef<SOutlinerViewRow>&)->TSharedPtr<SWidget>
+	{
+		return SNew(SImage)
+			.Image(FAppStyle::Get().GetBrush("Sequencer.Outliner.Separator"));
+	}
+	);
+
 	HeaderRow->InsertColumn(
 		SHeaderRow::Column(SeparatorName)
 		.FixedWidth(1.f),
 		InsertIndex
-	);
-	ColumnGenerators.Add(SeparatorName,
-		[](const FCreateOutlinerColumnParams&, const TSharedRef<SOutlinerViewRow>&)->TSharedPtr<SWidget>
-		{
-			return SNew(SImage)
-			.Image(FAppStyle::Get().GetBrush("Sequencer.Outliner.Separator"));
-		}
 	);
 }
 
@@ -403,13 +408,13 @@ void SOutlinerView::UpdateOutlinerColumns()
 	int32 InsertIndex = NumLeftGutter;
 	if (InsertIndex < ColumnMetaData->Columns.Num())
 	{
-		InsertSeparatorColumn(InsertIndex++, NumSeparators++);
+		InsertSeparatorColumn(InsertIndex++, ++NumSeparators);
 		if (NumCenter > 0)
 		{
 			InsertIndex += NumCenter;
 			if (InsertIndex < ColumnMetaData->Columns.Num())
 			{
-				InsertSeparatorColumn(InsertIndex++, NumSeparators++);
+				InsertSeparatorColumn(InsertIndex++, ++NumSeparators);
 			}
 		}
 	}

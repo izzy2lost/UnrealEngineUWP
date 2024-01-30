@@ -39,6 +39,7 @@
 #include "MVVM/ViewModels/OutlinerColumns/EditOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/AddOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/NavOutlinerColumn.h"
+#include "MVVM/ViewModels/OutlinerColumns/KeyFrameOutlinerColumn.h"
 #include "MVVM/ViewModels/OutlinerColumns/ColorPickerOutlinerColumn.h"
 
 #include "ToolMenus.h"
@@ -397,6 +398,7 @@ public:
 			AddOutlinerColumnHandle   = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FAddOutlinerColumn>()); }));
 
 			// Register right gutter columns
+			KeyFrameOutlinerColumnHandle     = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FKeyFrameOutlinerColumn>()); }));
 			NavOutlinerColumnHandle          = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FNavOutlinerColumn>()); }));
 			ColorPickerOutlinerColumnHandle  = RegisterOutlinerColumn(FOnCreateOutlinerColumn::CreateStatic([]{ return TSharedRef<IOutlinerColumn>(MakeShared<FColorPickerOutlinerColumn>()); }));
 
@@ -452,6 +454,7 @@ public:
 			UnregisterOutlinerColumn(LabelOutlinerColumnHandle);
 			UnregisterOutlinerColumn(EditOutlinerColumnHandle);
 			UnregisterOutlinerColumn(AddOutlinerColumnHandle);
+			UnregisterOutlinerColumn(KeyFrameOutlinerColumnHandle);
 			UnregisterOutlinerColumn(NavOutlinerColumnHandle);
 			UnregisterOutlinerColumn(ColorPickerOutlinerColumnHandle);
 		}
@@ -643,6 +646,7 @@ private:
 	FDelegateHandle LabelOutlinerColumnHandle;
 	FDelegateHandle EditOutlinerColumnHandle;
 	FDelegateHandle AddOutlinerColumnHandle;
+	FDelegateHandle KeyFrameOutlinerColumnHandle;
 	FDelegateHandle NavOutlinerColumnHandle;
 	FDelegateHandle ColorPickerOutlinerColumnHandle;
 };
