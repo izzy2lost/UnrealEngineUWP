@@ -503,7 +503,7 @@ bool FQueryEvaluator::EvalExpr(FGameplayTagContainer const& Tags, bool bSkip)
 		return EvalNoExprMatch(Tags, bSkip);
 	}
 
-	check(false);
+	ensureAlwaysMsgf(false, TEXT("Encounted invalid query expression type: %d"), *UEnum::GetValueAsString(ExprType));
 	return false;
 }
 
