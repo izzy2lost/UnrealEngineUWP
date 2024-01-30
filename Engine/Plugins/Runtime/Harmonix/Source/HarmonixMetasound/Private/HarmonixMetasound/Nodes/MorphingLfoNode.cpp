@@ -16,6 +16,8 @@
 
 namespace HarmonixMetasound::Nodes::MorphingLFO
 {
+	using namespace Metasound;
+	
 	namespace Inputs
 	{
 		DEFINE_METASOUND_PARAM_ALIAS(MidiClock, CommonPinNames::Inputs::MidiClock);
@@ -31,7 +33,7 @@ namespace HarmonixMetasound::Nodes::MorphingLFO
 	}
 
 	template<typename OutputDataType>
-	class TOp final : public Metasound::TExecutableOperator<TOp<OutputDataType>>
+	class TOp final : public TExecutableOperator<TOp<OutputDataType>>
 	{
 	public:
 		static const FVertexInterface& GetVertexInterface()
@@ -296,10 +298,10 @@ namespace HarmonixMetasound::Nodes::MorphingLFO
 	}
 	
 	template<typename OutputDataType>
-	class TNode final : public Metasound::FNodeFacade
+	class TNode final : public FNodeFacade
 	{
 	public:
-		explicit TNode(const Metasound::FNodeInitData& InitData)
+		explicit TNode(const FNodeInitData& InitData)
 		: FNodeFacade(InitData.InstanceName, InitData.InstanceID, Metasound::TFacadeOperatorClass<TOp<OutputDataType>>())
 		{}
 	};
