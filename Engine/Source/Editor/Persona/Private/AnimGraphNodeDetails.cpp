@@ -538,6 +538,7 @@ void FBoneReferenceCustomization::CustomizeHeader( TSharedRef<IPropertyHandle> S
 		.ValueContent()
 		[
 			SNew(SEditableTextBox)
+			.Font(StructCustomizationUtils.GetRegularFont())
 			.ToolTipText(StructPropertyHandle->GetToolTipText())
 			.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InTextCommit)
 			{
