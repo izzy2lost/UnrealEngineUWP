@@ -1,42 +1,9 @@
 # Horde
 
-## Introduction
-
-**Horde** is a client/server platform designed around workflows that Epic uses internally to develop Fortnite,
-Unreal Engine, and other titles.
-
-It is provided with full source code to all Unreal Engine licensees, and is meant for licensees to host and configure
-themselves. We provide pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
-
-Horde provides the following functionality, each of which may be enabled or disabled independently:
-
-* **[Build Automation (CI/CD)](Config/BuildAutomation.md)**: A build automation system designed for teams working with
-  large Perforce repositories.
-* **[Remote Execution](Config/RemoteExecution.md)**: Functionality to offload compute work to other machines,
-  including C++ compilation and content builds.
-* **Derived Data Cache (DDC)**: Cache for derived-data, such as textures and meshes produced during cooking.
-* **UnrealGameSync Metadata**: Various features for teams using UnrealGameSync, including build status reporting,
-  comment aggregation, and crowdsourced voting functionality.
-* **Device Manager**: A system for allocating and managing a farm of development kits and mobile devices.
-* **Automation Hub**: A frontend for querying automation results across streams and projects, integrated with
-  AutomationTool and Gauntlet.
-* **Artifact Distribution**: A storage backend for tools and final build artifacts.
-* **[Studio Analytics](Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
-  key workflow metrics.
-
-Read more about our [goals and philosophy](Goals.md), or check out the [FAQ](Faq.md).
-
-## Status
-
-Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it (particularly
-the CI system) heavily at Epic, we consider it in beta for Unreal Engine licensees and can offer limited support
-for it.
-
-See also: [Feature Status Page](Features.md)
+![Horde](Images/Logo.png)
 
 ## Getting Started
 
-* **[Installing Horde](Tutorials/InstallServer.md)**
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 

@@ -1,4 +1,4 @@
-# Welcome to Horde!
+![Horde](Images/Logo.png)
 
 Horde has been installed successfully. To continue setting up your installation, consider following 
 the following guides:
@@ -6,17 +6,12 @@ the following guides:
 * **[Set up build automation](Tutorials/BuildAutomation.md)**
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
 
-Alternately, check out the [full documentation](Home.md). You can always navigate to this page through the `Server >
-Documentation` link from the menu in the top right of any page on the Horde site.
+Alternately, check out the full documentation through the `Server` menu in the top right of the page.
 
-## Download Horde Agent
+## Status
 
-[Windows Installer](/api/v1/tools/horde-agent-msi?action=download)  
+Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it
+(particularly the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees
+and offer limited support for it.
 
-[Cross-platform Build](/api/v1/tools/horde-agent?action=download)
-
-## Download UnrealGameSync
-
-[Windows Installer](/api/v1/tools/ugs-msi?action=download)  
-
-[Cross-platform Command-Line Tool](/api/v1/tools/ugs-cmd?action=download)  
+See also: [Feature Status](Features.md)
