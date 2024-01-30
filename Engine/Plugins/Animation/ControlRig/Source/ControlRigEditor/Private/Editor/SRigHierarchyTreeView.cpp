@@ -409,7 +409,7 @@ bool SRigHierarchyTreeView::AddElement(FRigElementKey InKey, FRigElementKey InPa
 	bool bAnyFilteredOut = Delegates.OnRigTreeIsItemVisible.IsBound();
 	if (!bAnyFilteredOut)
 	{
-		bAnyFilteredOut = FilteredString.IsEmpty() || !InKey.IsValid();
+		bAnyFilteredOut = !FilteredString.IsEmpty() && InKey.IsValid();
 	}
 
 	if (!bAnyFilteredOut)
