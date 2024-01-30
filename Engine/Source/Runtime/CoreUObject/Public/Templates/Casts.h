@@ -477,7 +477,8 @@ DECLARE_CAST_BY_FLAG(USparseDelegateFunction)			\
 DECLARE_CAST_BY_FLAG(FMulticastInlineDelegateProperty)	\
 DECLARE_CAST_BY_FLAG(FMulticastSparseDelegateProperty)	\
 DECLARE_CAST_BY_FLAG(FOptionalProperty)					\
-DECLARE_CAST_BY_FLAG(FVerseValueProperty)				\
+DECLARE_CAST_BY_FLAG(FVValueProperty)					\
+DECLARE_CAST_BY_FLAG(FVRestValueProperty)				\
 FINISH_DECLARING_CAST_FLAGS		// This is here to hopefully remind people to include the "\" in all declarations above, especially when copy/pasting the final line.
 
 // Now actually declare the flags

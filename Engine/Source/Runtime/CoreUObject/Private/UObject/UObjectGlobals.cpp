@@ -5971,11 +5971,13 @@ namespace UECodeGen_Private
 			}
 			break;
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 			case EPropertyGenFlags::VValue:
 			{
-				NewProp = NewFProperty<FVerseValueProperty, FVerseValuePropertyParams>(Outer, *PropBase);
+				NewProp = NewFProperty<FVValueProperty, FVerseValuePropertyParams>(Outer, *PropBase);
 			}
 			break;
+#endif
 		}
 
 		NewProp->ArrayDim = PropBase->ArrayDim;

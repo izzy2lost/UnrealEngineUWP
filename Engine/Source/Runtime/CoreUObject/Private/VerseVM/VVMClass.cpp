@@ -303,7 +303,7 @@ UVerseVMClass* VClass::CreateUClass(FAllocationContext Context)
 		{
 			// Otherwise create a new property for it
 			const FName FieldName = FName(Pair.Key.Get()->AsCString());
-			FVerseValueProperty* FieldProperty = new FVerseValueProperty(NewClass, FieldName, RF_NoFlags);
+			FVRestValueProperty* FieldProperty = new FVRestValueProperty(NewClass, FieldName, RF_NoFlags);
 			Pair.Value.Type = EFieldType::FProperty;
 			Pair.Value.Property = FieldProperty;
 
