@@ -241,7 +241,7 @@ public:
 
 	/** Allocates a new constraint with the constraints manager as the owner. */
 	template< typename TConstraint >
-	TConstraint* AllocateConstraintT(const FName& InBaseName) const;
+	TConstraint* AllocateConstraintT(const FName& InBaseName, const bool bUseDefault = false) const;
 
 	/** Add this constraint to the manager */
 	CONSTRAINTS_API bool AddConstraint(UTickableConstraint* InConstraint) const;

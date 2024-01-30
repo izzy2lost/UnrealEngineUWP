@@ -11,6 +11,7 @@
 #include "Misc/QualifiedFrameTime.h"
 #include "ConstraintsManager.h"
 
+class UTickableTransformConstraint;
 class AActor;
 class SConstraintsCreationWidget;
 class SConstraintsEditionWidget;
@@ -26,9 +27,11 @@ class FConstraintInfo
 public:
 	static const FSlateBrush* GetBrush(uint8 InType);
 	static int8 GetType(UClass* InClass);
+	static UTickableTransformConstraint* GetMutable(ETransformConstraintType InType);
 private:
 	static const TArray< const FSlateBrush* >& GetBrushes();
 	static const TMap< UClass*, ETransformConstraintType >& GetConstraintToType();
+	static const TArray< UTickableTransformConstraint* >& GetMutableDefaults();
 };
 
 /**
@@ -61,20 +64,22 @@ private:
 };
 
 /**
- * SDroppableConstraintItem
+ * SConstraintMenuEntry
  */
 
-class SDroppableConstraintItem : public SCompoundWidget
+class SConstraintMenuEntry : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SDroppableConstraintItem){}
+	SLATE_BEGIN_ARGS(SConstraintMenuEntry){}
+
+		SLATE_EVENT(FOnConstraintCreated, OnConstraintCreated)
+	
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs and the actual tree item. */
 	void Construct(
 		const FArguments& InArgs,
-		const TSharedPtr<const FDroppableConstraintItem>& InItem,
-		TSharedPtr<SConstraintsCreationWidget> InConstraintsWidget);
+		const ETransformConstraintType& InType);
 
 	// SWidget interface
 	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
@@ -84,14 +89,21 @@ public:
 	
 private:
 
-	/** todo documentation */
-	FReply CreateSelectionPicker() const;
+	/** Activates the ActorPickerMode to pick a parent in the viewport. */
+	FReply CreateSelectionPicker(const bool bUseDefault) const;
+
+	/** Delegate triggered when a new constraint has been created. */
+	FOnConstraintCreated OnConstraintCreated;
+
+	/** Creates a widget to edit the constraint default properties. */
+	TSharedRef<SWidget> GenerateConstraintDefaultWidget() const;
 	
 	/** Creates the constraint between the current selection and the picked actor. */
 	static void CreateConstraint(
 		AActor* InParent,
 		FOnConstraintCreated InDelegate,
-		const ETransformConstraintType InConstraintType);
+		const ETransformConstraintType InConstraintType,
+		const bool bUseDefault);
 
 	/** TSharedPtr to the tree item. */
 	TSharedPtr<const FDroppableConstraintItem> ConstraintItem;

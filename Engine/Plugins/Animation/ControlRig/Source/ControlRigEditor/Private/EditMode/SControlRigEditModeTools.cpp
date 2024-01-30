@@ -37,6 +37,7 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "ScopedTransaction.h"
+#include "TransformConstraint.h"
 #include "EditMode/ControlRigEditModeToolkit.h"
 #include "EditMode/SControlRigDetails.h"
 #include "Editor/Constraints/SConstraintsWidget.h"
@@ -1055,29 +1056,35 @@ FReply SControlRigEditModeTools::OnBakeControlsToNewSpaceButtonClicked()
 
 FReply SControlRigEditModeTools::HandleAddConstraintClicked()
 {
-	// magic number to auto expand the widget when creating a new constraint. We keep that number below a reasonable
-	// threshold to avoid automatically creating a large number of items (this can be style done by the user) 
-	static constexpr int32 NumAutoExpand = 20;
+	FMenuBuilder MenuBuilder(true, nullptr);
 
-	const TSharedPtr<SConstraintsCreationWidget> Widget =
-		SNew(SConstraintsCreationWidget)
-		.OnConstraintCreated_Lambda( [this]()
+	auto AddConstraintWidget = [&](ETransformConstraintType InConstraintType)
+	{
+		const TSharedRef<SConstraintMenuEntry> Entry =
+			SNew(SConstraintMenuEntry, InConstraintType)
+		.OnConstraintCreated_Lambda([this]()
 		{
-			const int32 NumItems = ConstraintsEditionWidget ? ConstraintsEditionWidget->RefreshConstraintList() : 0;
-			
+			// magic number to auto expand the widget when creating a new constraint. We keep that number below a reasonable
+			// threshold to avoid automatically creating a large number of items (this can be style done by the user) 
+			static constexpr int32 NumAutoExpand = 20;
+			const int32 NumItems = ConstraintsEditionWidget ? ConstraintsEditionWidget->RefreshConstraintList() : 0;	
 			if (ConstraintPickerExpander && NumItems < NumAutoExpand)
 			{
 				ConstraintPickerExpander->SetExpanded(true);
 			}
 		});
+		MenuBuilder.AddWidget(Entry, FText::GetEmpty(), true);
+	};
 	
-	FMenuBuilder MenuBuilder(true, nullptr);
 	MenuBuilder.BeginSection("CreateConstraint", LOCTEXT("CreateConstraintHeader", "Create New..."));
 	{
-		MenuBuilder.AddWidget(Widget.ToSharedRef(), FText::GetEmpty(), true);
+		AddConstraintWidget(ETransformConstraintType::Translation);
+		AddConstraintWidget(ETransformConstraintType::Rotation);
+		AddConstraintWidget(ETransformConstraintType::Scale);
+		AddConstraintWidget(ETransformConstraintType::Parent);
+		AddConstraintWidget(ETransformConstraintType::LookAt);
 	}
 	MenuBuilder.EndSection();
-	
 	
 	FSlateApplication::Get().PushMenu(
 		AsShared(),

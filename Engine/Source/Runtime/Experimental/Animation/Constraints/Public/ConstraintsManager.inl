@@ -7,7 +7,7 @@
 #include "Algo/StableSort.h"
 
 template< typename TConstraint >
-TConstraint* FConstraintsManagerController::AllocateConstraintT(const FName& InBaseName) const
+TConstraint* FConstraintsManagerController::AllocateConstraintT(const FName& InBaseName, const bool bUseDefault) const
 {
 	UConstraintSubsystem* Subsystem =  UConstraintSubsystem::Get();
 	if (!Subsystem)
@@ -17,7 +17,7 @@ TConstraint* FConstraintsManagerController::AllocateConstraintT(const FName& InB
 	// unique name (we may want to use another approach here to manage uniqueness)
 	const FName Name = MakeUniqueObjectName(Subsystem, TConstraint::StaticClass(), InBaseName);
 
-	TConstraint* NewConstraint = NewObject<TConstraint>(Subsystem, Name, RF_Transactional);
+	TConstraint* NewConstraint = NewObject<TConstraint>(Subsystem, Name, RF_Transactional, bUseDefault ? GetMutableDefault<TConstraint>() : nullptr, bUseDefault);
 	NewConstraint->Modify();
 	return NewConstraint;
 }
