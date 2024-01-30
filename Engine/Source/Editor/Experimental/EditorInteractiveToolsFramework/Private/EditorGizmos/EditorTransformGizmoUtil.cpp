@@ -301,7 +301,7 @@ void UEditorTransformGizmoContextObject::InitializeGizmoManagerBinding()
 	// bind UseNewGizmosChangedHandled if needed
 	if (!UseNewGizmosChangedHandled.IsValid())
 	{
-		UEditorInteractiveGizmoManager::OnUsesNewTRSGizmosChangedDelegate().AddLambda(OnGizmoVariableChanged);
+		UseNewGizmosChangedHandled = UEditorInteractiveGizmoManager::OnUsesNewTRSGizmosChangedDelegate().AddLambda(OnGizmoVariableChanged);
 	}
 	
 	// initialize default viewport list change binding
