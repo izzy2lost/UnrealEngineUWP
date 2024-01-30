@@ -598,14 +598,33 @@ void FFeedbackContextEditor::ProgressReported( const float TotalProgressInterp, 
 	}
 	else if (FPlatformSplash::IsShown())
 	{
-		// Always show the top-most message
-		for (int i = ScopeStack.Num() - 1; i > -1; --i)
+		// look for important messages:
+		bool bFoundImportantMessage = false;
+		for (int32 i = ScopeStack.Num() - 1; i > -1; --i)
 		{
-			const FText ThisMessage = ScopeStack[i]->GetCurrentMessage();
-			if (!ThisMessage.IsEmpty())
+			if (ScopeStack[i]->Visibility == ESlowTaskVisibility::Important)
 			{
-				DisplayMessage = ThisMessage;
-				break;
+				const FText ThisMessage = ScopeStack[i]->GetCurrentMessage();
+				if (!ThisMessage.IsEmpty())
+				{
+					bFoundImportantMessage = true;
+					DisplayMessage = ThisMessage;
+					break;
+				}
+			}
+		}
+
+		// If nothing important, always show the top-most message
+		if (!bFoundImportantMessage)
+		{
+			for (int32 i = ScopeStack.Num() - 1; i > -1; --i)
+			{
+				const FText ThisMessage = ScopeStack[i]->GetCurrentMessage();
+				if (!ThisMessage.IsEmpty())
+				{
+					DisplayMessage = ThisMessage;
+					break;
+				}
 			}
 		}
 
