@@ -421,7 +421,7 @@ void SNiagaraOverviewStackNode::Tick(const FGeometry& AllottedGeometry, const do
 
 		if (bTopContentBarRefreshPending && TopContentBarSlot != nullptr)
 		{
-			TopContentBarSlot->AttachWidget(CreateTopContentBar());
+			CreateTopContentBar();
 			bTopContentBarRefreshPending = false;
 		}
 
