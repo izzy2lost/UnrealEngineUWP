@@ -62,10 +62,10 @@ public:
 	float CostAddend = -1.0f;
 };
 
-// UPoseSearchFeatureChannel(s) can use this UAnimNotifyState_PoseSearchSamplingAttribute as animation space position, rotation, and linear velocity provider 
+// UPoseSearchFeatureChannel(s) can use this UAnimNotifyState_PoseSearchSamplingEvent to demarcate events identified by SamplingAttributeId
 // during database indexing by specifying their SamplingAttributeId property to match UAnimNotifyState_PoseSearchSamplingAttribute::SamplingAttributeId
-UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Sampling Attribute"))
-class POSESEARCH_API UAnimNotifyState_PoseSearchSamplingAttribute : public UAnimNotifyState_PoseSearchBase
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Sampling Event"))
+class POSESEARCH_API UAnimNotifyState_PoseSearchSamplingEvent : public UAnimNotifyState_PoseSearchBase
 {
 	GENERATED_BODY()
 
@@ -76,6 +76,20 @@ public:
 	UPROPERTY(EditAnywhere, Category = Config, meta = (ClampMin=0))
 	int32 SamplingAttributeId = 0;
 
+#endif // WITH_EDITORONLY_DATA
+};
+
+// UPoseSearchFeatureChannel(s) can use this UAnimNotifyState_PoseSearchSamplingAttribute as animation space position, rotation, and linear velocity provider 
+// during database indexing by specifying their SamplingAttributeId property to match UAnimNotifyState_PoseSearchSamplingAttribute::SamplingAttributeId
+UCLASS(Blueprintable, meta = (DisplayName = "Pose Search: Sampling Attribute"))
+class POSESEARCH_API UAnimNotifyState_PoseSearchSamplingAttribute : public UAnimNotifyState_PoseSearchSamplingEvent
+{
+	GENERATED_BODY()
+
+public:
+
+#if WITH_EDITORONLY_DATA
+	
 	UPROPERTY(EditAnywhere, Category = Config)
 	FBoneReference Bone;
 
