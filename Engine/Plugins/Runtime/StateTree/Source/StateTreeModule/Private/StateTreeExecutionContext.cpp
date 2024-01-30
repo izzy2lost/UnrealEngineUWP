@@ -184,20 +184,17 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 		return EStateTreeRunStatus::Failed;
 	}
 
-	if (InstanceData.IsValid())
+	FStateTreeExecutionState& Exec = GetExecState();
+	if (!ensureMsgf(Exec.CurrentPhase == EStateTreeUpdatePhase::Unset, TEXT("%hs can't be called while already in %s ('%s' using StateTree '%s')."),
+			__FUNCTION__, *UEnum::GetDisplayValueAsText(Exec.CurrentPhase).ToString(), *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree)))
 	{
-		const FStateTreeExecutionState& Exec = GetExecState();
-		if (!ensureMsgf(Exec.CurrentPhase == EStateTreeUpdatePhase::Unset, TEXT("%hs can't be called while already in %s ('%s' using StateTree '%s')."),
-				__FUNCTION__, *UEnum::GetDisplayValueAsText(Exec.CurrentPhase).ToString(), *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree)))
-		{
-			return EStateTreeRunStatus::Failed;
-		}
+		return EStateTreeRunStatus::Failed;
+	}
 
-		// Stop if still running previous state.
-		if (Exec.TreeRunStatus == EStateTreeRunStatus::Running)
-		{
-			Stop();
-		}
+	// Stop if still running previous state.
+	if (Exec.TreeRunStatus == EStateTreeRunStatus::Running)
+	{
+		Stop();
 	}
 
 	// Initialize instance data. No active states yet, so we'll initialize the evals and global tasks.
@@ -208,8 +205,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 		SetGlobalParameters(RootStateTree.GetDefaultParameters());
 	}
 
-	FStateTreeExecutionState& Exec = GetExecState();
-
 	// Initialize for the init frame.
 	FStateTreeExecutionFrame& InitFrame = Exec.ActiveFrames.AddDefaulted_GetRef();
 	InitFrame.StateTree = &RootStateTree;
@@ -218,12 +213,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBa
 	InitFrame.bIsGlobalFrame = true;
 	
 	UpdateInstanceData({}, Exec.ActiveFrames);
-	if (!InstanceData.IsValid())
-	{
-		STATETREE_LOG(Warning, TEXT("%hs: Failed to initialize instance data on '%s' using StateTree '%s'. Try to recompile the StateTree asset."),
-			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
-		return EStateTreeRunStatus::Failed;
-	}
 
 	if (!CollectActiveExternalData())
 	{
@@ -334,11 +323,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Stop(EStateTreeRunStatus Complet
 			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
 		return EStateTreeRunStatus::Failed;
 	}
-	
-	if (!InstanceData.IsValid())
-	{
-		return EStateTreeRunStatus::Failed;
-	}
 
 	if (!CollectActiveExternalData())
 	{
@@ -420,13 +404,6 @@ EStateTreeRunStatus FStateTreeExecutionContext::Tick(const float DeltaTime)
 	if (!IsValid())
 	{
 		STATETREE_LOG(Warning, TEXT("%hs: StateTree context is not initialized properly ('%s' using StateTree '%s')"),
-			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
-		return EStateTreeRunStatus::Failed;
-	}
-
-	if (!InstanceData.IsValid())
-	{
-		STATETREE_LOG(Error, TEXT("%hs: Tick called on %s using StateTree %s with invalid instance data. Start() must be called before Tick()."),
 			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
 		return EStateTreeRunStatus::Failed;
 	}
@@ -603,13 +580,6 @@ void FStateTreeExecutionContext::SendEvent(const FGameplayTag Tag, const FConstS
 		return;
 	}
 
-	if (!InstanceData.IsValid())
-	{
-		STATETREE_LOG(Error, TEXT("%hs: SendEvent called on %s using StateTree %s with invalid instance data. Start() must be called before sending events."),
-			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
-		return;
-	}
-
 	STATETREE_LOG_AND_TRACE(Verbose, TEXT("Send Event '%s'"), *Tag.ToString());
 
 	FStateTreeEventQueue& EventQueue = InstanceData.GetMutableEventQueue();
@@ -623,13 +593,6 @@ void FStateTreeExecutionContext::RequestTransition(const FStateTreeTransitionReq
 	if (!IsValid())
 	{
 		STATETREE_LOG(Warning, TEXT("%hs: StateTree context is not initialized properly ('%s' using StateTree '%s')"),
-			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
-		return;
-	}
-
-	if (!InstanceData.IsValid())
-	{
-		STATETREE_LOG(Error, TEXT("%hs: RequestTransition called on %s using StateTree %s with invalid instance data. Start() must be called before requesting transition."),
 			__FUNCTION__, *GetNameSafe(&Owner), *GetFullNameSafe(&RootStateTree));
 		return;
 	}
@@ -911,7 +874,7 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 	InstanceData.ResetTemporaryInstances();
 }
 
-FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const FStateTreeDataHandle Handle) const
+FStateTreeDataView FStateTreeExecutionContext::GetDataView(FStateTreeInstanceStorage& InstanceDataStorage, FStateTreeInstanceStorage* CurrentlyProcessedSharedInstanceStorage, const FStateTreeExecutionFrame* ParentFrame, const FStateTreeExecutionFrame& CurrentFrame, TConstArrayView<FStateTreeDataView> ContextAndExternalDataViews, const FStateTreeDataHandle Handle)
 {
 	switch (Handle.GetSource())
 	{
@@ -919,14 +882,14 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 		return {};
 
 	case EStateTreeDataSourceType::GlobalInstanceData:
-		return InstanceDataStorage->GetMutableStruct(CurrentFrame.GlobalInstanceIndexBase.Get() + Handle.GetIndex());
+		return InstanceDataStorage.GetMutableStruct(CurrentFrame.GlobalInstanceIndexBase.Get() + Handle.GetIndex());
 	case EStateTreeDataSourceType::GlobalInstanceDataObject:
-		return InstanceDataStorage->GetMutableObject(CurrentFrame.GlobalInstanceIndexBase.Get() + Handle.GetIndex());
+		return InstanceDataStorage.GetMutableObject(CurrentFrame.GlobalInstanceIndexBase.Get() + Handle.GetIndex());
 		
 	case EStateTreeDataSourceType::ActiveInstanceData:
-		return InstanceDataStorage->GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
+		return InstanceDataStorage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
 	case EStateTreeDataSourceType::ActiveInstanceDataObject:
-		return InstanceDataStorage->GetMutableObject(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
+		return InstanceDataStorage.GetMutableObject(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex());
 
 	case EStateTreeDataSourceType::SharedInstanceData:
 		check(CurrentlyProcessedSharedInstanceStorage);
@@ -936,9 +899,11 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 		return CurrentlyProcessedSharedInstanceStorage->GetMutableObject(Handle.GetIndex());
 
 	case EStateTreeDataSourceType::ContextData:
+		check(!ContextAndExternalDataViews.IsEmpty())
 		return ContextAndExternalDataViews[Handle.GetIndex()];
 
 	case EStateTreeDataSourceType::ExternalData:
+		check(!ContextAndExternalDataViews.IsEmpty())
 		return ContextAndExternalDataViews[CurrentFrame.ExternalDataBaseIndex.Get() + Handle.GetIndex()];
 
 	case EStateTreeDataSourceType::GlobalParameterData:
@@ -946,22 +911,22 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 			// Defined in parent frame or is root state tree parameters
 			if (ParentFrame)
 			{
-				return GetDataView(nullptr, *ParentFrame, CurrentFrame.GlobalParameterDataHandle);
+				return GetDataView(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, ContextAndExternalDataViews, CurrentFrame.GlobalParameterDataHandle);
 			}
 
-			return InstanceDataStorage->GetMutableGlobalParameters();
+			return InstanceDataStorage.GetMutableGlobalParameters();
 		}
 
 	case EStateTreeDataSourceType::SubtreeParameterData:
 		{
 			// Defined in parent frame.
 			check(ParentFrame);
-			return GetDataView(nullptr, *ParentFrame, CurrentFrame.StateParameterDataHandle);
+			return GetDataView(InstanceDataStorage, CurrentlyProcessedSharedInstanceStorage, nullptr, *ParentFrame, ContextAndExternalDataViews, CurrentFrame.StateParameterDataHandle);
 		}
 
 	case EStateTreeDataSourceType::StateParameterData:
 		{
-			FCompactStateTreeParameters& Params = InstanceDataStorage->GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FCompactStateTreeParameters>();
+			FCompactStateTreeParameters& Params = InstanceDataStorage.GetMutableStruct(CurrentFrame.ActiveInstanceIndexBase.Get() + Handle.GetIndex()).Get<FCompactStateTreeParameters>();
 			return Params.Parameters.GetMutableValue();
 		}
 	default:
@@ -3577,10 +3542,6 @@ void FStateTreeExecutionContext::DebugPrintInternalLayout()
 
 int32 FStateTreeExecutionContext::GetStateChangeCount() const
 {
-	if (!InstanceData.IsValid())
-	{
-		return 0;
-	}
 	const FStateTreeExecutionState& Exec = GetExecState();
 	return Exec.StateChangeCount;
 }
@@ -3588,12 +3549,7 @@ int32 FStateTreeExecutionContext::GetStateChangeCount() const
 #endif // WITH_STATETREE_DEBUG
 
 FString FStateTreeExecutionContext::GetActiveStateName() const
-{
-	if (!InstanceData.IsValid())
-	{
-		return FString(TEXT("<None>"));
-	}
-	
+{	
 	const FStateTreeExecutionState& Exec = GetExecState();
 
 	FString FullStateName;
@@ -3655,13 +3611,7 @@ FString FStateTreeExecutionContext::GetActiveStateName() const
 
 TArray<FName> FStateTreeExecutionContext::GetActiveStateNames() const
 {
-	TArray<FName> Result;
-
-	if (!InstanceData.IsValid())
-	{
-		return Result;
-	}
-	
+	TArray<FName> Result;	
 	const FStateTreeExecutionState& Exec = GetExecState();
 
 	// Active States

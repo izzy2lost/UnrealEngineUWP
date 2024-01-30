@@ -20,6 +20,10 @@
 
 #endif // WITH_STATETREE_DEBUGGER
 
+#if WITH_EDITORONLY_DATA
+#include "StateTreeInstanceData.h"
+#endif // WITH_EDITORONLY_DATA
+
 #define LOCTEXT_NAMESPACE "StateTree"
 
 class FStateTreeModule : public IStateTreeModule
@@ -102,6 +106,10 @@ void FStateTreeModule::StartupModule()
 #endif // !WITH_EDITOR
 
 #endif // WITH_STATETREE_DEBUGGER
+
+#if WITH_EDITORONLY_DATA
+	UE::StateTree::RegisterInstanceDataForLocalization();
+#endif // WITH_EDITORONLY_DATA
 }
 
 void FStateTreeModule::ShutdownModule()

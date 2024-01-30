@@ -435,12 +435,6 @@ bool UStateTree::Link()
 
 	if (States.Num() > 0 && Nodes.Num() > 0)
 	{
-		if (!DefaultInstanceData.IsValid())
-		{
-			UE_LOG(LogStateTree, Error, TEXT("%s: StartTree does not have instance data. Please recompile the StateTree asset."), *GetFullName());
-			return false;
-		}
-
 		// Check that all nodes are valid.
 		for (FConstStructView Node : Nodes)
 		{
@@ -757,8 +751,7 @@ TArray<FStateTreeMemoryUsage> UStateTree::CalculateEstimatedMemoryUsage() const
 
 	if (!bIsLinked
 		|| States.IsEmpty()
-		|| !Nodes.IsValid()
-		|| !DefaultInstanceData.IsValid())
+		|| !Nodes.IsValid())
 	{
 		return MemoryUsages;
 	}
@@ -949,12 +942,9 @@ TArray<FStateTreeMemoryUsage> UStateTree::CalculateEstimatedMemoryUsage() const
 	TreeMemUsage.EstimatedMemoryUsage += MaxSubtreeUsage;
 	TreeMemUsage.NodeCount += MaxSubtreeNodeCount;
 
-	if (SharedInstanceData.IsValid())
-	{
-		FStateTreeMemoryUsage& SharedMemUsage = MemoryUsages[SharedMemUsageIndex];
-		SharedMemUsage.NodeCount = SharedInstanceData.Num();
-		SharedMemUsage.EstimatedMemoryUsage = SharedInstanceData.GetEstimatedMemoryUsage();
-	}
+	FStateTreeMemoryUsage& SharedMemUsage = MemoryUsages[SharedMemUsageIndex];
+	SharedMemUsage.NodeCount = SharedInstanceData.Num();
+	SharedMemUsage.EstimatedMemoryUsage = SharedInstanceData.GetEstimatedMemoryUsage();
 
 	return MemoryUsages;
 }
