@@ -42,10 +42,11 @@ namespace UE::Audio::Insights
 		void RefreshDeviceSelector();
 		void ResetDelegates();
 
+		TSharedRef<SWidget> MakeMenuBarWidget();
 		TSharedRef<SWidget> MakeMainToolbarWidget();
 
 		void InitDelegates();
-		void InitTabLayout();
+		TSharedPtr<FTabManager::FLayout> GetDefaultTabLayout();
 
 		void RegisterTabSpawners();
 		void UnregisterTabSpawners();
