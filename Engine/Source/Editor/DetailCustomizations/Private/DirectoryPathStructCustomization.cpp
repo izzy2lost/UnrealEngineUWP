@@ -131,6 +131,7 @@ FReply FDirectoryPathStructCustomization::OnPickContent(TSharedRef<IPropertyHand
 {
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	FPathPickerConfig PathPickerConfig;
+	PropertyHandle->GetValue(PathPickerConfig.DefaultPath);
 	PathPickerConfig.bAllowContextMenu = false;
 	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &FDirectoryPathStructCustomization::OnPathPicked, PropertyHandle);
 
