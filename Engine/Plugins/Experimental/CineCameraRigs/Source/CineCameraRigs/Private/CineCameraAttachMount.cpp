@@ -103,12 +103,12 @@ void ACineCameraAttachMount::PostEditChangeChainProperty(FPropertyChangedChainEv
 	const FName StructName = PropertyChangedEvent.PropertyChain.GetActiveMemberNode()->GetValue()->GetFName();
 	if (StructName == GET_MEMBER_NAME_CHECKED(ACineCameraAttachMount, TransformFilter))
 	{
-		SetAxisFilter();
+		UpdateAxisFilter();
 	}
 }
 #endif
 
-void ACineCameraAttachMount::SetAxisFilter()
+void ACineCameraAttachMount::UpdateAxisFilter()
 {
 	if (UTickableParentConstraint* Constraint = GetConstraint())
 	{
@@ -232,6 +232,12 @@ void ACineCameraAttachMount::SetLocationLagSpeed(float Speed)
 void ACineCameraAttachMount::SetRotationLagSpeed(float Speed)
 {
 	SpringArmComponent->CameraRotationLagSpeed = RotationLagSpeed = Speed;
+}
+
+void ACineCameraAttachMount::SetTransformFilter(const FTransformFilter& InFilter)
+{
+	TransformFilter = InFilter;
+	UpdateAxisFilter();
 }
 
 #if WITH_EDITOR
