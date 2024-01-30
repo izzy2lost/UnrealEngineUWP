@@ -12,12 +12,12 @@
 #include "InputCoreTypes.h"
 #include "Misc/CoreDelegates.h"
 #include "Roles/LiveLinkTransformRole.h"
+#include "Roles/LiveLinkInputDeviceTypes.h"
+#include "Roles/LiveLinkInputDeviceRole.h"
 
 #include "ILiveLinkClient.h"
 #include "LiveLinkInputDevice.h"
-#include "LiveLinkInputDeviceRole.h"
 #include "LiveLinkInputDeviceSourceSettings.h"
-#include "LiveLinkInputDeviceTypes.h"
 #include "LiveLinkTypes.h"
 
 #include "LiveLinkInputDeviceMessageHandler.h"

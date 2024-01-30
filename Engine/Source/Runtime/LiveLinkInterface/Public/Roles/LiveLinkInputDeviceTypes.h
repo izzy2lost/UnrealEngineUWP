@@ -11,7 +11,7 @@
  * Struct for static Gamepad Input Device data
  */
 USTRUCT(BlueprintType)
-struct LIVELINKINPUTDEVICE_API FLiveLinkGamepadInputDeviceStaticData : public FLiveLinkBaseStaticData
+struct LIVELINKINTERFACE_API FLiveLinkGamepadInputDeviceStaticData : public FLiveLinkBaseStaticData
 {
 	GENERATED_BODY()
 };
@@ -20,12 +20,9 @@ struct LIVELINKINPUTDEVICE_API FLiveLinkGamepadInputDeviceStaticData : public FL
  * Struct for dynamic (per-frame) Gampead Input Device data
  */
 USTRUCT(BlueprintType)
-struct LIVELINKINPUTDEVICE_API FLiveLinkGamepadInputDeviceFrameData : public FLiveLinkBaseFrameData
+struct LIVELINKINTERFACE_API FLiveLinkGamepadInputDeviceFrameData : public FLiveLinkBaseFrameData
 {
 	GENERATED_BODY()
-
-	/** Given a key and its value apply it to the correct struct member variable. */
-	void ApplyValueFromKey(FName Key, float InValue);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gamepad Input Device")
 	float LeftAnalogX = 0;
@@ -128,7 +125,7 @@ struct LIVELINKINPUTDEVICE_API FLiveLinkGamepadInputDeviceFrameData : public FLi
  * Facility structure to handle Preston MDR data in blueprint
  */
 USTRUCT(BlueprintType)
-struct LIVELINKINPUTDEVICE_API FLiveLinkGamepadInputDeviceBlueprintData : public FLiveLinkBaseBlueprintData
+struct LIVELINKINTERFACE_API FLiveLinkGamepadInputDeviceBlueprintData : public FLiveLinkBaseBlueprintData
 {
 	GENERATED_BODY()
 
