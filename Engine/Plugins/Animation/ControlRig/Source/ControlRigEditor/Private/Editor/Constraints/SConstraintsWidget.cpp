@@ -29,18 +29,11 @@
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/NumericTypeInterface.h"
 #include "FrameNumberDetailsCustomization.h"
+#include "SPrimaryButton.h"
 
 #define LOCTEXT_NAMESPACE "SConstraintsWidget"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
-TArray< SConstraintsCreationWidget::ItemSharedPtr > SConstraintsCreationWidget::ListItems({
-	FDroppableConstraintItem::Make(ETransformConstraintType::Translation),
-	FDroppableConstraintItem::Make(ETransformConstraintType::Rotation),
-	FDroppableConstraintItem::Make(ETransformConstraintType::Scale),
-	FDroppableConstraintItem::Make(ETransformConstraintType::Parent),
-	FDroppableConstraintItem::Make(ETransformConstraintType::LookAt)
-});
 
 const TArray< const FSlateBrush* >& FConstraintInfo::GetBrushes()
 {
@@ -66,6 +59,17 @@ const TMap< UClass*, ETransformConstraintType >& FConstraintInfo::GetConstraintT
 	return ConstraintToType;
 }
 
+const TArray< UTickableTransformConstraint* >& FConstraintInfo::GetMutableDefaults()
+{
+	static TArray< UTickableTransformConstraint* > MutableDefaults({
+		GetMutableDefault<UTickableTranslationConstraint>(),
+		GetMutableDefault<UTickableRotationConstraint>(),
+		GetMutableDefault<UTickableScaleConstraint>(),
+		GetMutableDefault<UTickableParentConstraint>(),
+		GetMutableDefault<UTickableLookAtConstraint>()});
+	return MutableDefaults;
+}
+
 const FSlateBrush* FConstraintInfo::GetBrush(uint8 InType)
 {
 	static const UEnum* ETransformConstraintTypeEnum = StaticEnum<ETransformConstraintType>();
@@ -84,6 +88,17 @@ int8 FConstraintInfo::GetType(UClass* InClass)
 		return static_cast<int8>(*TransformConstraint); 
 	}
 	return -1;
+}
+
+UTickableTransformConstraint* FConstraintInfo::GetMutable(ETransformConstraintType InType)
+{
+	static const UEnum* ETransformConstraintTypeEnum = StaticEnum<ETransformConstraintType>();
+	const uint8 ConstraintType = static_cast<uint8>(InType);
+	if (ETransformConstraintTypeEnum->IsValidEnumValue(ConstraintType))
+	{
+		return GetMutableDefaults()[ConstraintType];
+	}
+	return nullptr;
 }
 
 namespace
@@ -135,117 +150,202 @@ static TWeakPtr<ISequencer> GetSequencerChecked()
  * SConstraintItem
  */
 
-void SDroppableConstraintItem::Construct(
+void SConstraintMenuEntry::Construct(
 		const FArguments& InArgs,
-		const TSharedPtr<const FDroppableConstraintItem>& InItem,
-		TSharedPtr<SConstraintsCreationWidget> InConstraintsWidget)
+		const ETransformConstraintType& InType)
 {
-	ConstraintItem = InItem;
-	ConstraintType = InItem->Type;
-	ConstraintsWidget = InConstraintsWidget;
+	ConstraintType = InType;
+	OnConstraintCreated = InArgs._OnConstraintCreated;
 	
-	const FButtonStyle& ButtonStyle = FAppStyle::GetWidgetStyle<FButtonStyle>( "PlacementBrowser.Asset" );
+	const FButtonStyle& ButtonStyle = FAppStyle::Get().GetWidgetStyle<FButtonStyle>( "Menu.Button" );
 
 	// enum to string
 	const UEnum* ETransformConstraintTypeEnum = StaticEnum<ETransformConstraintType>();
-	// const uint8 ConstraintType = static_cast<uint8>(InItem->Type);
 	const FString TypeStr = ETransformConstraintTypeEnum->GetNameStringByValue((uint8)ConstraintType);
 
 	// tooltip
 	const FString ToolTipStr = FString::Printf(TEXT("Create new %s constraint."), *TypeStr);
 	const TSharedPtr<IToolTip> ToolTip = FSlateApplicationBase::Get().MakeToolTip(FText::FromString(ToolTipStr));
-	
+
+	const float MenuIconSize = FAppStyle::Get().GetFloat("Menu.MenuIconSize");
+
 	ChildSlot
-	.Padding(FMargin(8.f, 2.f, 12.f, 2.f))
+	.HAlign(HAlign_Fill)
+	.VAlign(VAlign_Fill)
 	[
-		SNew(SOverlay)
-		+SOverlay::Slot()
-		[
-			SNew(SBorder)
-			.BorderImage( FAppStyle::Get().GetBrush("PlacementBrowser.Asset.Background"))
-			.Cursor( EMouseCursor::GrabHand )
-			.ToolTip(ToolTip)
-			.Padding(0)
-			[
-				SNew( SHorizontalBox )
+		SNew( SHorizontalBox )
 
-				+ SHorizontalBox::Slot()
-				.Padding(8.0f, 4.f)
-				.AutoWidth()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
-				[
-					SNew( SBox )
-					.WidthOverride(40)
-					.HeightOverride(40)
-					[
-					 	SNew(SImage)
-					 	.DesiredSizeOverride(FVector2D(16, 16))
-						.Image(FConstraintInfo::GetBrush((uint8)ConstraintType))
-						.ColorAndOpacity(FSlateColor::UseForeground())
-					]
-				]
-
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Fill)
-				.Padding(0)
-				[
-					SNew(SBorder)
-					.BorderImage(FAppStyle::Get().GetBrush("PlacementBrowser.Asset.LabelBack"))
-					[
-						SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.Padding(9, 0, 0, 1)
-						.VAlign(VAlign_Center)
-						[
-							SNew( STextBlock )
-							.TextStyle( FAppStyle::Get(), "PlacementBrowser.Asset.Name" )
-							.Text_Lambda( [TypeStr]
-							{
-								return FText::FromString(TypeStr);
-							} )
-						]
-					]
-				]
-			]
-		]
-
-		+SOverlay::Slot()
+		+ SHorizontalBox::Slot()
 		[
 			SNew(SBorder)
 			.BorderImage_Lambda( [this, &ButtonStyle]
 			{
-				if (bIsPressed)
-				{
-					return &ButtonStyle.Pressed;
-				}
-				
-				if (IsHovered())
-				{
-					return &ButtonStyle.Hovered;
-				}
-
+				if (bIsPressed) { return &ButtonStyle.Pressed; }
+				if (IsHovered()) { return &ButtonStyle.Hovered; }
 				return &ButtonStyle.Normal;
 			})
-			.Cursor( EMouseCursor::GrabHand )
+			.ForegroundColor(FLinearColor::White)
 			.ToolTip( ToolTip )
+			[
+				SNew( SHorizontalBox )
+
+				+ SHorizontalBox::Slot()
+				.Padding(14.0f, 0.f, 10.f, 0.0f)
+				.AutoWidth()
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SBox)
+					.WidthOverride(MenuIconSize)
+					.HeightOverride(MenuIconSize)
+					[
+						SNew(SImage)
+						.Image(FConstraintInfo::GetBrush((uint8)ConstraintType))
+						.ColorAndOpacity(FSlateColor::UseSubduedForeground())
+					]
+				]
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				.Padding(1.f, 0.f, 25.f, 0.f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				[
+					SNew( STextBlock )
+					.ColorAndOpacity(FSlateColor::UseForeground())
+					.Text_Lambda( [TypeStr] { return FText::FromString(TypeStr); } )
+				]
+			]
+		]
+		
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Right)
+		.Padding(FMargin(0.f, 1.f, 0.f, 1.f))
+		.AutoWidth()
+		[
+			SNew(SComboButton)
+			.ComboButtonStyle(FAppStyle::Get(), "ConstraintManager.ComboButton")
+			.MenuContent()
+			[
+				GenerateConstraintDefaultWidget()
+			]
 		]
 	];
 }
 
-FReply SDroppableConstraintItem::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+FReply SConstraintMenuEntry::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
 		bIsPressed = true;
-		// return FReply::Handled().DetectDrag( SharedThis( this ), MouseEvent.GetEffectingButton() );
-		return CreateSelectionPicker();
+		static constexpr bool bUseMutableDefault = false;
+		return CreateSelectionPicker(bUseMutableDefault);
 	}
 
 	return FReply::Unhandled();
 }
 
-FReply SDroppableConstraintItem::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+TSharedRef<SWidget> SConstraintMenuEntry::GenerateConstraintDefaultWidget() const
+{
+	// static constexpr bool CloseAfterSelection = true;
+	// FMenuBuilder MenuBuilder(CloseAfterSelection, nullptr);
+
+	static FDetailsViewArgs DetailsViewArgs;
+	{
+		DetailsViewArgs.bAllowSearch = false;
+		DetailsViewArgs.bCustomFilterAreaLocation = true;
+		DetailsViewArgs.bCustomNameAreaLocation = true;
+		DetailsViewArgs.bHideSelectionTip = true;
+		DetailsViewArgs.bLockable = false;
+		DetailsViewArgs.bSearchInitialKeyFocus = true;
+		DetailsViewArgs.bUpdatesFromSelection = false;
+		DetailsViewArgs.bShowOptions = false;
+		DetailsViewArgs.bShowModifiedPropertiesOption = false;
+		DetailsViewArgs.ColumnWidth = 0.45f;
+	}
+	
+	TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
+
+	UTickableTransformConstraint* Constraint = FConstraintInfo::GetMutable(ConstraintType);
+	
+	// manage properties visibility
+	const bool bIsLookAtConstraint = Constraint->GetClass() == UTickableLookAtConstraint::StaticClass();
+	const auto PropertyVisibility = FIsPropertyVisible::CreateLambda(
+		[bIsLookAtConstraint](const FPropertyAndParent& InPropertyAndParent)
+		{
+			const FName PropertyName = InPropertyAndParent.Property.GetFName();
+			
+			// hide active property
+			static const FName ActivePropName = GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, Active);
+			if (PropertyName == ActivePropName)
+			{
+				return false;
+			}
+
+			// hide offset properties for look at constraints
+			if (bIsLookAtConstraint)
+			{
+				static const FName MaintainOffsetPropName = GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, bMaintainOffset);
+				static const FName DynamicOffsetPropName = GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, bDynamicOffset);
+				if (PropertyName == MaintainOffsetPropName || PropertyName == DynamicOffsetPropName)
+				{
+					return false;
+				}
+			}
+
+			return true;
+		});
+	DetailsView->SetIsPropertyVisibleDelegate(PropertyVisibility);
+		
+	DetailsView->SetObject(Constraint);
+
+	return SNew(SBorder)
+		.Visibility(EVisibility::Visible)
+		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+		[
+			SNew( SVerticalBox )
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.VAlign( VAlign_Center )
+			[
+				DetailsView
+			]
+			
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding( 0.0f, 1.0f )
+			.VAlign( VAlign_Center )
+			[
+				SNew( SHorizontalBox )
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				.HAlign(HAlign_Fill)
+				[
+					SNew(SSpacer)
+				]
+		
+				+SHorizontalBox::Slot()
+				.Padding(16.f, 1.f)
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.Text(LOCTEXT("CreateButtonLabel", "Create"))
+					.OnClicked_Lambda([this]()
+					{
+						static constexpr bool bUseMutableDefault = true;
+						return CreateSelectionPicker(bUseMutableDefault);
+					})
+				]
+			]
+		];
+}
+
+FReply SConstraintMenuEntry::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	if ( MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton )
 	{
@@ -255,45 +355,35 @@ FReply SDroppableConstraintItem::OnMouseButtonUp(const FGeometry& MyGeometry, co
 	return FReply::Unhandled();
 }
 
-FReply SDroppableConstraintItem::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+FReply SConstraintMenuEntry::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
 	bIsPressed = false;
-	
-	// if (MouseEvent.IsMouseButtonDown( EKeys::LeftMouseButton ))
-	// {
-	// 	return CreateSelectionPicker();
-	// }
-	
 	return FReply::Handled();
 }
 
-FReply SDroppableConstraintItem::CreateSelectionPicker() const
+FReply SConstraintMenuEntry::CreateSelectionPicker(const bool bUseDefault) const
 {
 	// FIXME temp approach for selecting the parent
 	FSlateApplication::Get().DismissAllMenus();
 	
 	static const FActorPickerModeModule& ActorPickerMode = FModuleManager::Get().GetModuleChecked<FActorPickerModeModule>("ActorPickerMode");
 
-	TSharedPtr<SConstraintsCreationWidget> ConstraintsCreationWidget = this->ConstraintsWidget.Pin();
-	ETransformConstraintType ConstraintTypeCopy = this->ConstraintType;
 	ActorPickerMode.BeginActorPickingMode(
 		FOnGetAllowedClasses(), 
 		FOnShouldFilterActor(), 
-		FOnActorSelected::CreateLambda([ConstraintsCreationWidget, ConstraintTypeCopy](AActor* InActor)
+		FOnActorSelected::CreateLambda([CreationDelegate = OnConstraintCreated, Type = ConstraintType, bUseDefault](AActor* InActor)
 		{
-			const FOnConstraintCreated CreationDelegate = ConstraintsCreationWidget.IsValid() ?
-				ConstraintsCreationWidget->OnConstraintCreated : FOnConstraintCreated();
-			SDroppableConstraintItem::CreateConstraint(InActor, CreationDelegate, ConstraintTypeCopy);
+			CreateConstraint(InActor, CreationDelegate, Type, bUseDefault);
 		}) );
-
 	
 	return FReply::Handled();
 }
 
-void SDroppableConstraintItem::CreateConstraint(
+void SConstraintMenuEntry::CreateConstraint(
 	AActor* InParent,
 	FOnConstraintCreated InCreationDelegate,
-	const ETransformConstraintType InConstraintType)
+	const ETransformConstraintType InConstraintType,
+	const bool bUseDefault)
 {
 	if (!InParent)
 	{
@@ -323,7 +413,7 @@ void SDroppableConstraintItem::CreateConstraint(
 	const TWeakPtr<ISequencer> WeakSequencer = GetSequencerChecked();
 	
 	// create constraints
-	auto CreateConstraint = [InCreationDelegate, InConstraintType, WeakSequencer](
+	auto CreateConstraint = [InCreationDelegate, InConstraintType, WeakSequencer, bUseDefault](
 		const TArray<AActor*>& Selection, UObject* InParent, const FName& InSocketName)
 	{
 		UWorld* World = GetCurrentWorld();
@@ -339,12 +429,16 @@ void SDroppableConstraintItem::CreateConstraint(
 			{
 				FScopedTransaction Transaction(LOCTEXT("CreateConstraintKey", "Create Constraint Key"));
 				UTickableTransformConstraint* Constraint =
-					FTransformConstraintUtils::CreateAndAddFromObjects(World, InParent, InSocketName, Child, NAME_None, InConstraintType);
+					FTransformConstraintUtils::CreateAndAddFromObjects(World, InParent, InSocketName, Child, NAME_None, InConstraintType, true, bUseDefault);
 				if (Constraint)
 				{
 					bCreated = true;
 					if (WeakSequencer.IsValid())
 					{
+						if (bUseDefault)
+						{
+							Constraint->Evaluate();
+						}
 						FMovieSceneConstraintChannelHelper::SmartConstraintKey(WeakSequencer.Pin(), Constraint, TOptional<bool>(), TOptional<FFrameNumber>());
 					}
 					else
@@ -425,44 +519,6 @@ void SDroppableConstraintItem::CreateConstraint(
 	}
 	MenuBuilder.EndSection();
 	CreateMenu(MenuBuilder.MakeWidget(), SummonLocation);
-}
-
-/**
- * SConstraintCreationWidget
- */
-
-void SConstraintsCreationWidget::Construct(const FArguments& InArgs)
-{
-	OnConstraintCreated = InArgs._OnConstraintCreated;
-	
-	ChildSlot
-	[
-		SNew( SVerticalBox )
-
-		+ SVerticalBox::Slot()
-		.Padding(FMargin(0.0f, 3.f))
-		[
-			SNew(SOverlay)
-
-			+ SOverlay::Slot()
-			[
-				SAssignNew(ListView, ConstraintItemListView)
-				.SelectionMode(ESelectionMode::None)
-				.ListItemsSource( &ListItems )
-				.OnGenerateRow(this, &SConstraintsCreationWidget::OnGenerateWidgetForItem)
-			]
-		]
-	];
-}
-
-TSharedRef<ITableRow> SConstraintsCreationWidget::OnGenerateWidgetForItem(
-	ItemSharedPtr InItem,
-	const TSharedRef<STableViewBase>& OwnerTable)
-{
-	return SNew(STableRow<ItemSharedPtr>, OwnerTable)
-	[
-		SNew(SDroppableConstraintItem, InItem.ToSharedRef(), SharedThis(this))
-	];
 }
 
 /**
@@ -1248,6 +1304,33 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 			return true;
 		});
 	DetailsView->SetIsPropertyVisibleDelegate(PropertyVisibility);
+
+	const UConstraintsManager* Manager = UConstraintsManager::Find(World);
+	const bool bIsStatic = Manager ? Manager->IsStaticConstraint(Constraint) : false;
+	auto IsPropertyReadOnly = [bIsStatic](const FProperty* InProperty)
+	{
+		if (InProperty && InProperty->HasAnyPropertyFlags(CPF_DisableEditOnInstance))
+		{
+			return !bIsStatic;
+		}
+		return false;
+	};
+	
+	FIsPropertyReadOnly PropertyReadonly = FIsPropertyReadOnly::CreateLambda([IsPropertyReadOnly](const FPropertyAndParent& InPropertyAndParent)
+	{
+		if (IsPropertyReadOnly(&InPropertyAndParent.Property))
+		{
+			return true;
+		}
+
+		const bool bIsParentReadOnly = InPropertyAndParent.ParentProperties.ContainsByPredicate([IsPropertyReadOnly](const FProperty* Parent)
+		{
+			return IsPropertyReadOnly(Parent);
+		});
+		
+		return bIsParentReadOnly;
+	});
+	DetailsView->SetIsPropertyReadOnlyDelegate(PropertyReadonly);
 	
 	TArray<TWeakObjectPtr<UObject>> ConstrainsToEdit;
 	ConstrainsToEdit.Add(Constraint);

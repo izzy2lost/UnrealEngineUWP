@@ -222,7 +222,7 @@ public:
 	FVector OffsetTranslation = FVector::ZeroVector;
 
 	/** Defines which translation axis is constrained. */
-	UPROPERTY(BlueprintReadWrite, Category = "Axis Filter")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Axis Filter")
 	FFilterOptionPerAxis AxisFilter;
 
 #if WITH_EDITOR
@@ -270,7 +270,7 @@ public:
 	FQuat OffsetRotation = FQuat::Identity;
 
 	/** Defines which rotation axis is constrained. */
-	UPROPERTY(BlueprintReadWrite, Category = "Axis Filter")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Axis Filter")
 	FFilterOptionPerAxis AxisFilter;
 
 #if WITH_EDITOR
@@ -317,7 +317,7 @@ public:
 	FVector OffsetScale = FVector::OneVector;
 
 	/** Defines which scale axis is constrained. */
-	UPROPERTY(BlueprintReadWrite, Category = "Axis Filter")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Axis Filter")
 	FFilterOptionPerAxis AxisFilter;
 
 #if WITH_EDITOR
@@ -380,7 +380,7 @@ public:
 	bool bScaling = false;
 
 	/** Defines which translation/rotation/scale axis are constrained. */
-	UPROPERTY(BlueprintReadWrite, Category = "Axis Filter") 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Axis Filter") 
 	FTransformFilter TransformFilter;
 
 #if WITH_EDITOR
@@ -452,7 +452,8 @@ struct FTransformConstraintUtils
 	/** Creates a new transform constraint based on the InType. */
 	static CONSTRAINTS_API UTickableTransformConstraint* CreateFromType(
 		UWorld* InWorld,
-		const ETransformConstraintType InType);
+		const ETransformConstraintType InType,
+		const bool bUseDefault = false);
 
 	/** Creates respective handles and creates a new InType transform constraint. */	
 	static CONSTRAINTS_API UTickableTransformConstraint* CreateAndAddFromObjects(
@@ -460,7 +461,8 @@ struct FTransformConstraintUtils
 		UObject* InParent, const FName& InParentSocketName,
 		UObject* InChild, const FName& InChildSocketName,
 		const ETransformConstraintType InType,
-		const bool bMaintainOffset = true);
+		const bool bMaintainOffset = true,
+		const bool bUseDefault = false);
 
 	/** Registers a new transform constraint within the constraints manager. */	
 	static CONSTRAINTS_API bool AddConstraint(
@@ -468,7 +470,8 @@ struct FTransformConstraintUtils
 		UTransformableHandle* InParentHandle,
 		UTransformableHandle* InChildHandle,
 		UTickableTransformConstraint* Constraint,
-		const bool bMaintainOffset = true);
+		const bool bMaintainOffset = true,
+		const bool bUseDefault = false);
 
 	/** Computes the relative transform between both transform based on the constraint's InType. */
 	static CONSTRAINTS_API FTransform ComputeRelativeTransform(

@@ -327,6 +327,11 @@ void UTickableTransformConstraint::PostEditChangeProperty(FPropertyChangedEvent&
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+	
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, bMaintainOffset))
 	{
@@ -728,6 +733,11 @@ void UTickableTranslationConstraint::PostEditChangeProperty(FPropertyChangedEven
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, bDynamicOffset))
 	{
@@ -870,6 +880,11 @@ void UTickableRotationConstraint::PostEditChangeProperty(FPropertyChangedEvent& 
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+	
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, bDynamicOffset))
 	{
@@ -1014,6 +1029,11 @@ void UTickableScaleConstraint::PostEditChangeProperty(FPropertyChangedEvent& Pro
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+	
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTickableTransformConstraint, bDynamicOffset))
 	{
@@ -1307,6 +1327,11 @@ void UTickableParentConstraint::PostEditChangeProperty(FPropertyChangedEvent& Pr
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+	
 	auto UpdateOffset = [&]()
 	{
 		FTransform ChildGlobalTransform = GetChildGlobalTransform();
@@ -1450,6 +1475,11 @@ void UTickableLookAtConstraint::PostEditChangeProperty(FPropertyChangedEvent& Pr
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	if (HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return;
+	}
+
 	const FName PropertyName = PropertyChangedEvent.GetMemberPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UTickableLookAtConstraint, Axis))
 	{
@@ -1532,7 +1562,8 @@ void FTransformConstraintUtils::GetParentConstraints(
 
 UTickableTransformConstraint* FTransformConstraintUtils::CreateFromType(
 	UWorld* InWorld,
-	const ETransformConstraintType InType)
+	const ETransformConstraintType InType,
+	const bool bUseDefault)
 {
 	if (!InWorld)
 	{
@@ -1557,19 +1588,19 @@ UTickableTransformConstraint* FTransformConstraintUtils::CreateFromType(
 	switch (InType)
 	{
 	case ETransformConstraintType::Translation:
-		Constraint = Controller.AllocateConstraintT<UTickableTranslationConstraint>(BaseName);
+		Constraint = Controller.AllocateConstraintT<UTickableTranslationConstraint>(BaseName, bUseDefault);
 		break;
 	case ETransformConstraintType::Rotation:
-		Constraint = Controller.AllocateConstraintT<UTickableRotationConstraint>(BaseName);
+		Constraint = Controller.AllocateConstraintT<UTickableRotationConstraint>(BaseName, bUseDefault);
 		break;
 	case ETransformConstraintType::Scale:
-		Constraint = Controller.AllocateConstraintT<UTickableScaleConstraint>(BaseName);
+		Constraint = Controller.AllocateConstraintT<UTickableScaleConstraint>(BaseName, bUseDefault);
 		break;
 	case ETransformConstraintType::Parent:
-		Constraint = Controller.AllocateConstraintT<UTickableParentConstraint>(BaseName);
+		Constraint = Controller.AllocateConstraintT<UTickableParentConstraint>(BaseName, bUseDefault);
 		break;
 	case ETransformConstraintType::LookAt:
-		Constraint = Controller.AllocateConstraintT<UTickableLookAtConstraint>(BaseName);
+		Constraint = Controller.AllocateConstraintT<UTickableLookAtConstraint>(BaseName, bUseDefault);
 		break;
 	default:
 		ensure(false);
@@ -1668,7 +1699,8 @@ UTickableTransformConstraint* FTransformConstraintUtils::CreateAndAddFromObjects
 	UObject* InParent, const FName& InParentSocketName,
 	UObject* InChild, const FName& InChildSocketName,
 	const ETransformConstraintType InType,
-	const bool bMaintainOffset)
+	const bool bMaintainOffset,
+	const bool bUseDefault)
 {
 	static const TCHAR* ErrorPrefix = TEXT("FTransformConstraintUtils::CreateAndAddFromActors");
 	
@@ -1699,10 +1731,10 @@ UTickableTransformConstraint* FTransformConstraintUtils::CreateAndAddFromObjects
 		return nullptr;
 	}
 	
-	UTickableTransformConstraint* Constraint = FTransformConstraintUtils::CreateFromType(InWorld, InType);
+	UTickableTransformConstraint* Constraint = CreateFromType(InWorld, InType, bUseDefault);
 	if (Constraint && (ParentHandle->IsValid() && ChildHandle->IsValid()))
 	{
-		if (AddConstraint(InWorld, ParentHandle, ChildHandle, Constraint, bMaintainOffset) == false)
+		if (AddConstraint(InWorld, ParentHandle, ChildHandle, Constraint, bMaintainOffset, bUseDefault) == false)
 		{
 			Constraint->MarkAsGarbage();
 			Constraint = nullptr;
@@ -1716,7 +1748,8 @@ bool FTransformConstraintUtils::AddConstraint(
 	UTransformableHandle* InParentHandle,
 	UTransformableHandle* InChildHandle,
 	UTickableTransformConstraint* Constraint,
-	const bool bMaintainOffset)
+	const bool bMaintainOffset,
+	const bool bUseDefault)
 {
 	const bool bIsValidParent = InParentHandle && InParentHandle->IsValid();
 	const bool bIsValidChild = InChildHandle && InChildHandle->IsValid();
@@ -1745,8 +1778,11 @@ bool FTransformConstraintUtils::AddConstraint(
 
 	Constraint->ParentTRSHandle = InParentHandle;
 	Constraint->ChildTRSHandle = InChildHandle;
-	Constraint->bMaintainOffset = bMaintainOffset;
-	Constraint->Setup();
+	if (!bUseDefault)
+	{
+		Constraint->bMaintainOffset = bMaintainOffset;
+		Constraint->Setup();
+	}
 	Constraint->InitConstraint(InWorld);
 	// add dependencies with the last child constraint
 	const FName NewConstraintName = Constraint->GetFName();
@@ -1793,7 +1829,12 @@ FTransform FTransformConstraintUtils::ComputeRelativeTransform(
 	case ETransformConstraintType::Translation:
 		{
 			FTransform RelativeTransform = InChildLocal;
-			RelativeTransform.SetLocation(InChildWorld.GetLocation() - InSpaceWorld.GetLocation());
+			FVector RelativeTranslation = InChildWorld.GetLocation() - InSpaceWorld.GetLocation();
+			if (const UTickableTranslationConstraint* TranslationConstraint = Cast<UTickableTranslationConstraint>(InConstraint))
+			{
+				TranslationConstraint->AxisFilter.FilterVector(RelativeTranslation, InChildLocal.GetTranslation());
+			}
+			RelativeTransform.SetLocation(RelativeTranslation);
 			return RelativeTransform;
 		}
 	case ETransformConstraintType::Rotation:
@@ -1801,6 +1842,10 @@ FTransform FTransformConstraintUtils::ComputeRelativeTransform(
 			FTransform RelativeTransform = InChildLocal;
 			FQuat RelativeRotation = InSpaceWorld.GetRotation().Inverse() * InChildWorld.GetRotation();
 			RelativeRotation.Normalize();
+			if (const UTickableRotationConstraint* RotationConstraint = Cast<UTickableRotationConstraint>(InConstraint))
+			{
+				RotationConstraint->AxisFilter.FilterQuat(RelativeRotation, InChildLocal.GetRotation());
+			}
 			RelativeTransform.SetRotation(RelativeRotation);
 			return RelativeTransform;
 		}
@@ -1812,6 +1857,10 @@ FTransform FTransformConstraintUtils::ComputeRelativeTransform(
 			RelativeScale[0] = FMath::Abs(SpaceScale[0]) > KINDA_SMALL_NUMBER ? RelativeScale[0] / SpaceScale[0] : 0.f;
 			RelativeScale[1] = FMath::Abs(SpaceScale[1]) > KINDA_SMALL_NUMBER ? RelativeScale[1] / SpaceScale[1] : 0.f;
 			RelativeScale[2] = FMath::Abs(SpaceScale[2]) > KINDA_SMALL_NUMBER ? RelativeScale[2] / SpaceScale[2] : 0.f;
+			if (const UTickableScaleConstraint* ScaleConstraint = Cast<UTickableScaleConstraint>(InConstraint))
+			{
+				ScaleConstraint->AxisFilter.FilterVector(RelativeScale, InChildLocal.GetScale3D());
+			}
 			RelativeTransform.SetScale3D(RelativeScale);
 			return RelativeTransform;
 		}
@@ -1827,6 +1876,27 @@ FTransform FTransformConstraintUtils::ComputeRelativeTransform(
 			}
 
 			FTransform RelativeTransform = ChildTransform.GetRelativeTransform(InSpaceWorld);
+
+			if (ParentConstraint && !ParentConstraint->TransformFilter.TranslationFilter.HasNoEffect())
+			{
+				FVector RelativeLocation = RelativeTransform.GetLocation();
+				ParentConstraint->TransformFilter.TranslationFilter.FilterVector(RelativeLocation, InChildLocal.GetLocation());
+				RelativeTransform.SetLocation(RelativeLocation);
+			}
+
+			if (ParentConstraint && !ParentConstraint->TransformFilter.RotationFilter.HasNoEffect())
+			{
+				FQuat RelativeRotation = RelativeTransform.GetRotation();
+				ParentConstraint->TransformFilter.RotationFilter.FilterQuat(RelativeRotation, InChildLocal.GetRotation());
+				RelativeTransform.SetRotation(RelativeRotation);
+			}
+
+			if (ParentConstraint && !ParentConstraint->TransformFilter.ScaleFilter.HasNoEffect())
+			{
+				FVector RelativeScale = RelativeTransform.GetScale3D();
+				ParentConstraint->TransformFilter.ScaleFilter.FilterVector(RelativeScale, InChildLocal.GetScale3D());
+				RelativeTransform.SetScale3D(RelativeScale);
+			}
 			
 			if (!bScale)
 			{
