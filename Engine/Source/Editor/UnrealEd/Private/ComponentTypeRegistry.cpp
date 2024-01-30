@@ -774,16 +774,56 @@ FComponentTypeRegistry::FComponentTypeRegistry()
 	Data->Invalidate();
 
 	FCoreUObjectDelegates::ReloadCompleteDelegate.AddRaw(this, &FComponentTypeRegistry::OnReloadComplete);
+
+	// Clear references when unloaded otherwise unload will fail and leak the object
+	FKismetEditorUtilities::OnBlueprintGeneratedClassUnloaded.AddRaw(this, &FComponentTypeRegistry::OnBlueprintGeneratedClassUnloaded);
 }
 
 FComponentTypeRegistry::~FComponentTypeRegistry()
 {
 	FCoreUObjectDelegates::ReloadCompleteDelegate.RemoveAll(this);
+	FKismetEditorUtilities::OnBlueprintGeneratedClassUnloaded.RemoveAll(this);
 }
 
 void FComponentTypeRegistry::OnReloadComplete(EReloadCompleteReason Reason)
 {
 	Data->ForceRefreshComponentList();
+}
+
+void FComponentTypeRegistry::OnBlueprintGeneratedClassUnloaded(UBlueprintGeneratedClass* BlueprintGeneratedClass)
+{
+	if (!BlueprintGeneratedClass)
+	{
+		return;
+	}
+
+	if (!BlueprintGeneratedClass->IsChildOf(UActorComponent::StaticClass()))
+	{
+		return;
+	}
+
+	bool bModified = false;
+	for (FComponentClassComboEntryPtr& ComboEntry : Data->ComponentClassList)
+	{
+		if (ComboEntry->OnBlueprintGeneratedClassUnloaded(BlueprintGeneratedClass))
+		{
+			bModified = true;
+		}
+	}
+
+	for (FComponentTypeEntry& ComponentTypeEntry : Data->ComponentTypeList)
+	{
+		if (ComponentTypeEntry.ComponentClass == BlueprintGeneratedClass)
+		{
+			ComponentTypeEntry.ComponentClass = nullptr;
+			bModified = true;
+		}
+	}
+
+	if (bModified)
+	{
+		Data->bNeedsRefreshNextTick = true;
+	}
 }
 
 void FComponentTypeRegistry::InvalidateClass(TSubclassOf<UActorComponent> /*ClassToUpdate*/)
