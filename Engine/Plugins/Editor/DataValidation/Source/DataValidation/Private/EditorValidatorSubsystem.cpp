@@ -580,6 +580,14 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 			Details.AssetName = Data.AssetName;
 			Details.Result = AssetResult;
 			ValidationContext.SplitIssues(Details.ValidationWarnings, Details.ValidationErrors);
+
+			Details.ExternalObjects.Reserve(ValidationExternalObjects.Num());
+			for (const FAssetData& ExtData : ValidationExternalObjects)
+			{
+				FValidateAssetsExternalObject& ExtDetails = Details.ExternalObjects.Emplace_GetRef();
+				ExtDetails.PackageName = ExtData.PackageName;
+				ExtDetails.AssetName = ExtData.AssetName;
+			}
 		}
 		
 		DataValidationLog.Flush();
