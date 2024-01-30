@@ -110,21 +110,23 @@ bool FChaosVDSolverCollisionDataComponentVisualizer::VisProxyHandleClick(FEditor
 		return false;
 	}
 
+	const TSharedPtr<FTabManager> TabManager = MainTabToolkitHost->GetTabManager();
+	if (!TabManager)
+	{
+		return false;
+	}
+
+	TabManager->TryInvokeTab(FChaosVDTabID::CollisionDataDetails);
+	
 	const TSharedPtr<SChaosVDCollisionDataInspector> CollisionInspector = CollisionDataDetailsTab->GetCollisionInspectorInstance().Pin();
 	if (!CollisionInspector)
 	{
 		return false;
 	}
 
-	const TSharedPtr<FTabManager> TabManager = MainTabToolkitHost->GetTabManager();
-	if (!TabManager)
-	{
-		return false;
-	}
-	
 	if (ContactProxy->ContactFinder.OwningMidPhase.Pin())
 	{
-		TabManager->TryInvokeTab(FChaosVDTabID::CollisionDataDetails);
+		
 		CollisionInspector->SetSingleContactDataToInspect(ContactProxy->ContactFinder);
 		
 		ClearCurrentSelection();

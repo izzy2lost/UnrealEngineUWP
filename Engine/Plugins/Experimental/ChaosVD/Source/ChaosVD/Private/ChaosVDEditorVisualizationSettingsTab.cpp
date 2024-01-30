@@ -20,7 +20,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-TSharedRef<SDockTab> FChaosVDEditorVisualizationSettingsTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDEditorVisualizationSettingsTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
 
 	TSharedRef<SDockTab> DetailsPanelTab = SNew(SDockTab)
@@ -67,7 +67,7 @@ TSharedRef<SDockTab> FChaosVDEditorVisualizationSettingsTab::HandleTabSpawned(co
 
 	DetailsPanelTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconDetailsPanel"));
 
-	OnTabSpawned().Broadcast(DetailsPanelTab);
+	HandleTabSpawned(DetailsPanelTab);
 
 	return DetailsPanelTab;
 }

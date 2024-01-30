@@ -12,12 +12,19 @@
 FChaosVDTabSpawnerBase::FChaosVDTabSpawnerBase(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget)
 {
 	OwningTabWidget = InOwningTabWidget;
-	InTabManager->RegisterTabSpawner(InTabID, FOnSpawnTab::CreateRaw(this, &FChaosVDTabSpawnerBase::HandleTabSpawned));
+	InTabManager->RegisterTabSpawner(InTabID, FOnSpawnTab::CreateRaw(this, &FChaosVDTabSpawnerBase::HandleTabSpawnRequest));
 }
 
-void FChaosVDTabSpawnerBase::HandleTabClosed(const TSharedRef<SDockTab>& InTabClosed)
+void FChaosVDTabSpawnerBase::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
 {
 	OnTabDestroyed().Broadcast(InTabClosed);
+	InTabClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback());
+}
+
+void FChaosVDTabSpawnerBase::HandleTabSpawned(TSharedRef<SDockTab> InTabClosed)
+{
+	OnTabSpawned().Broadcast(InTabClosed);
+	InTabClosed->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateRaw(this, &FChaosVDTabSpawnerBase::HandleTabClosed));
 }
 
 TSharedRef<SWidget> FChaosVDTabSpawnerBase::GenerateErrorWidget()

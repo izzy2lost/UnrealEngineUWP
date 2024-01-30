@@ -12,7 +12,7 @@ FChaosVDSceneQueryDataInspectorTab::~FChaosVDSceneQueryDataInspectorTab()
 {
 }
 
-TSharedRef<SDockTab> FChaosVDSceneQueryDataInspectorTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDSceneQueryDataInspectorTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
 	TSharedRef<SDockTab> DetailsPanelTab =
 	SNew(SDockTab)
@@ -32,9 +32,16 @@ TSharedRef<SDockTab> FChaosVDSceneQueryDataInspectorTab::HandleTabSpawned(const 
 		DetailsPanelTab->SetContent(GenerateErrorWidget());
 	}
 
-	OnTabSpawned().Broadcast(DetailsPanelTab);
+	HandleTabSpawned(DetailsPanelTab);
 
 	return DetailsPanelTab;
+}
+
+void FChaosVDSceneQueryDataInspectorTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
+{
+	FChaosVDTabSpawnerBase::HandleTabClosed(InTabClosed);
+
+	SceneQueryDataInspector.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

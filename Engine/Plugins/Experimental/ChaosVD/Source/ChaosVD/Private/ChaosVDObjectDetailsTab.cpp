@@ -24,38 +24,56 @@
 
 class SSubobjectEditor;
 
-TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDObjectDetailsTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
-	TSharedPtr<FChaosVDScene> ScenePtr = GetChaosVDScene().Pin();
-	check(ScenePtr);
-
-	RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
 
 	TSharedRef<SDockTab> DetailsPanelTab =
-		SNew(SDockTab)
-		.TabRole(ETabRole::MajorTab)
-		.Label(LOCTEXT("DetailsPanel", "Details"))
-		.ToolTipText(LOCTEXT("DetailsPanelToolTip", "See the details of the selected object"));
+	SNew(SDockTab)
+	.TabRole(ETabRole::MajorTab)
+	.Label(LOCTEXT("DetailsPanel", "Details"))
+	.ToolTipText(LOCTEXT("DetailsPanelToolTip", "See the details of the selected object"));
 
-	DetailsPanelTab->SetContent
-	(
-		SNew(SVerticalBox)
-		+SVerticalBox::Slot()
-		[
-			SAssignNew(DetailsPanelView, SChaosVDDetailsView)
-		]
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			GenerateShowCollisionDataButton().ToSharedRef()
-		]
-	);
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = GetChaosVDScene().Pin())
+	{
+		RegisterSelectionSetObject(ScenePtr->GetElementSelectionSet());
+
+		DetailsPanelTab->SetContent
+		(
+			SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+			[
+				SAssignNew(DetailsPanelView, SChaosVDDetailsView)
+			]
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				GenerateShowCollisionDataButton().ToSharedRef()
+			]
+		);
+
+		// If we closed the tab and opened it again with an object already selected, try to restore the selected object view
+		if (DetailsPanelView.IsValid() && CurrentSelectedObject.IsValid())
+		{
+			DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+		}
+	}
+	else
+	{
+		DetailsPanelTab->SetContent(GenerateErrorWidget());
+	}
 
 	DetailsPanelTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconDetailsPanel"));
 	
-	OnTabSpawned().Broadcast(DetailsPanelTab);
+	HandleTabSpawned(DetailsPanelTab);
 	
 	return DetailsPanelTab;
+}
+
+void FChaosVDObjectDetailsTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
+{
+	FChaosVDTabSpawnerBase::HandleTabClosed(InTabClosed);
+	
+	DetailsPanelView.Reset();
 }
 
 void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSelectionSet* ChangedSelectionSet)
@@ -68,7 +86,11 @@ void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSele
 		ensure(SelectedActors.Num() == 1);
 
 		CurrentSelectedObject = SelectedActors[0];
-		DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+
+		if (DetailsPanelView)
+		{
+			DetailsPanelView->SetSelectedObject(CurrentSelectedObject.Get());
+		}
 	}
 	else
 	{
@@ -146,13 +168,14 @@ FReply FChaosVDObjectDetailsTab::ShowCollisionDataForSelectedObject()
 		return FReply::Handled();
 	}
 
-	if (TSharedPtr<FChaosVDCollisionDataDetailsTab> CollisionDataTab = OwningTabPtr->GetTabSpawnerInstance<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails).Pin())
+	if (const TSharedPtr<FChaosVDCollisionDataDetailsTab> CollisionDataTab = OwningTabPtr->GetTabSpawnerInstance<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails).Pin())
 	{
-		if (TSharedPtr<SChaosVDCollisionDataInspector> CollisionInspector = CollisionDataTab->GetCollisionInspectorInstance().Pin())
+		if (const TSharedPtr<FTabManager> TabManager = OwningTabPtr->GetTabManager())
 		{
-			if (TSharedPtr<FTabManager> TabManager = OwningTabPtr->GetTabManager())
+			TabManager->TryInvokeTab(FChaosVDTabID::CollisionDataDetails);
+
+			if (const TSharedPtr<SChaosVDCollisionDataInspector> CollisionInspector = CollisionDataTab->GetCollisionInspectorInstance().Pin())
 			{
-				TabManager->TryInvokeTab(FChaosVDTabID::CollisionDataDetails);
 				CollisionInspector->SetCollisionDataProviderObjectToInspect(CollisionDataProvider);
 			}
 		}

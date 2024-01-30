@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
-TSharedRef<SDockTab> FChaosVDOutputLogTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDOutputLogTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
 	FOutputLogCreationParams Params;
 	Params.bCreateDockInLayoutButton = true;
@@ -27,7 +27,7 @@ TSharedRef<SDockTab> FChaosVDOutputLogTab::HandleTabSpawned(const FSpawnTabArgs&
 		FOutputLogModule::Get().MakeOutputLogWidget(Params)
 	);
 
-	OnTabSpawned().Broadcast(OutputLogTab);
+	HandleTabSpawned(OutputLogTab);
 
 	return OutputLogTab;
 }

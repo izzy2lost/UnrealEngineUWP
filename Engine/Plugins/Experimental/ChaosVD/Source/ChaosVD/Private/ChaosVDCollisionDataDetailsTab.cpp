@@ -13,9 +13,8 @@ FChaosVDCollisionDataDetailsTab::~FChaosVDCollisionDataDetailsTab()
 {
 }
 
-TSharedRef<SDockTab> FChaosVDCollisionDataDetailsTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDCollisionDataDetailsTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
-
 	TSharedRef<SDockTab> DetailsPanelTab =
 		SNew(SDockTab)
 		.TabRole(ETabRole::MajorTab)
@@ -27,9 +26,16 @@ TSharedRef<SDockTab> FChaosVDCollisionDataDetailsTab::HandleTabSpawned(const FSp
 		SAssignNew(CollisionDataInspector, SChaosVDCollisionDataInspector, GetChaosVDScene())
 	);
 
-	OnTabSpawned().Broadcast(DetailsPanelTab);
+	HandleTabSpawned(DetailsPanelTab);
 
 	return DetailsPanelTab;
+}
+
+void FChaosVDCollisionDataDetailsTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
+{
+	FChaosVDTabSpawnerBase::HandleTabClosed(InTabClosed);
+
+	CollisionDataInspector.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -25,8 +25,9 @@ public:
 
 	FChaosVDTabSpawnerBase(const FName& InTabID, TSharedPtr<FTabManager> InTabManager, TWeakPtr<SChaosVDMainTab> InOwningTabWidget);
 
-	virtual TSharedRef<SDockTab> HandleTabSpawned(const FSpawnTabArgs& Args) = 0;
-	virtual void HandleTabClosed(const TSharedRef<SDockTab>& InTabClosed);
+	virtual TSharedRef<SDockTab> HandleTabSpawnRequest(const FSpawnTabArgs& Args) = 0;
+	virtual void HandleTabClosed(TSharedRef<SDockTab> InTabClosed);
+	virtual void HandleTabSpawned(TSharedRef<SDockTab> InTabClosed);
 
 	FChaosVDTabSpawned& OnTabSpawned() { return TabSpawnedDelegate; }
 	FChaosVDTabDestroyed& OnTabDestroyed() { return TabDestroyedDelegate; }

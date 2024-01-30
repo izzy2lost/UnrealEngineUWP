@@ -90,14 +90,14 @@ bool FChaosVDSceneQueryDataComponentVisualizer::VisProxyHandleClick(FEditorViewp
 	
 	if (const UChaosVDSceneQueryDataComponent* SQDataComponent = Cast<UChaosVDSceneQueryDataComponent>(SceneQueryDataProxy->Component.Get()))
 	{
-		const_cast<UChaosVDSceneQueryDataComponent*>(SQDataComponent)->SelectQuery(SceneQueryDataProxy->DataSelectionHandle);
-
 		// Bring the SQ Inspector into focus if available
 		const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = InViewportClient->GetModeTools() ? StaticCastSharedPtr<SChaosVDMainTab>(InViewportClient->GetModeTools()->GetToolkitHost()) : nullptr;
 		if (const TSharedPtr<FTabManager> TabManager = MainTabToolkitHost ? MainTabToolkitHost->GetTabManager() : nullptr)
 		{
 			TabManager->TryInvokeTab(FChaosVDTabID::SceneQueryDataDetails);
 		}
+
+		const_cast<UChaosVDSceneQueryDataComponent*>(SQDataComponent)->SelectQuery(SceneQueryDataProxy->DataSelectionHandle);
 
 		return true;
 	}

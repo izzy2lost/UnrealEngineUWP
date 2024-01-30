@@ -41,7 +41,7 @@ void FChaosVDWorldOutlinerTab::CreateWorldOutlinerWidget()
 	SceneOutlinerWidget = SceneOutlinerModule.CreateSceneOutliner(InitOptions);
 }
 
-TSharedRef<SDockTab> FChaosVDWorldOutlinerTab::HandleTabSpawned(const FSpawnTabArgs& Args)
+TSharedRef<SDockTab> FChaosVDWorldOutlinerTab::HandleTabSpawnRequest(const FSpawnTabArgs& Args)
 {
 	CreateWorldOutlinerWidget();
 
@@ -58,9 +58,16 @@ TSharedRef<SDockTab> FChaosVDWorldOutlinerTab::HandleTabSpawned(const FSpawnTabA
 
 	OutlinerTab->SetTabIcon(FChaosVDStyle::Get().GetBrush("TabIconWorldOutliner"));
 
-	OnTabSpawned().Broadcast(OutlinerTab);
+	HandleTabSpawned(OutlinerTab);
 
 	return OutlinerTab;
+}
+
+void FChaosVDWorldOutlinerTab::HandleTabClosed(TSharedRef<SDockTab> InTabClosed)
+{
+	FChaosVDTabSpawnerBase::HandleTabClosed(InTabClosed);
+
+	SceneOutlinerWidget.Reset();
 }
 
 #undef LOCTEXT_NAMESPACE
