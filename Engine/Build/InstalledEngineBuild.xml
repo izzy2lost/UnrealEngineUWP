@@ -97,7 +97,7 @@
 	<Property Name="ToolchainDir" Value="$(RootDir)/Engine/Extras/ThirdPartyNotUE/SDKs"/>
 
 	<!-- Architectures that we build for Android. NOTE: This should match the architectures specified in BuildPluginCommand. -->
-	<Property Name="AndroidArchitectures" Value="arm64"/>
+	<Property Name="AndroidArchitectures" Value="arm64+x64"/>
 	
 	<Property Name="DefaultArchitectureCommandsWin64" Value=""/>
 
