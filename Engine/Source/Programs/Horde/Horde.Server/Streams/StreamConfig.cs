@@ -436,28 +436,36 @@ namespace Horde.Server.Streams
 	}
 
 	/// <summary>
+	/// Style for rendering a tab
+	/// </summary>
+	public enum TabStyle
+	{
+		/// <summary>
+		/// Regular job list
+		/// </summary>
+		Normal,
+
+		/// <summary>
+		/// Omit job names, show condensed view
+		/// </summary>
+		Compact,
+	}
+
+	/// <summary>
 	/// Information about a page to display in the dashboard for a stream
 	/// </summary>
-	[JsonKnownTypes(typeof(JobsTabConfig))]
-	public abstract class TabConfig
+	public class TabConfig
 	{
 		/// <summary>
 		/// Title of this page
 		/// </summary>
 		[Required]
 		public string Title { get; set; } = null!;
-	}
 
-	/// <summary>
-	/// Describes a job page
-	/// </summary>
-	[JsonDiscriminator("Jobs")]
-	public class JobsTabConfig : TabConfig
-	{
 		/// <summary>
-		/// Whether to show job names on this page
+		/// Presentation style for this page
 		/// </summary>
-		public bool ShowNames { get; set; }
+		public TabStyle Style { get; set; }
 
 		/// <summary>
 		/// Whether to show all user preflights 
@@ -477,13 +485,13 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Columns to display for different types of aggregates
 		/// </summary>
-		public List<JobsTabColumnConfig>? Columns { get; set; }
+		public List<TabColumnConfig>? Columns { get; set; }
 	}
 
 	/// <summary>
 	/// Type of a column in a jobs tab
 	/// </summary>
-	public enum JobsTabColumnType
+	public enum TabColumnType
 	{
 		/// <summary>
 		/// Contains labels
@@ -499,12 +507,12 @@ namespace Horde.Server.Streams
 	/// <summary>
 	/// Describes a column to display on the jobs page
 	/// </summary>
-	public class JobsTabColumnConfig
+	public class TabColumnConfig
 	{
 		/// <summary>
 		/// The type of column
 		/// </summary>
-		public JobsTabColumnType Type { get; set; } = JobsTabColumnType.Labels;
+		public TabColumnType Type { get; set; } = TabColumnType.Labels;
 
 		/// <summary>
 		/// Heading for this column

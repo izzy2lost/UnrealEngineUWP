@@ -23,8 +23,7 @@
 	[
 		{
 			"title": "Incremental",
-			"type": "Jobs",
-			"showNames": true,
+			"style": "Compact",
 			"templates":
 			[
 				"incremental-build"
@@ -50,8 +49,7 @@
 		},
 		{
 			"title": "Packaged Builds",
-			"type": "Jobs",
-			"showNames": true,
+			"style": "Normal",
 			"templates": [
 				"packaged-build",
 			],
@@ -86,8 +84,7 @@
 		},
 		{
 			"title": "Presubmit",
-			"type": "Jobs",
-			"showNames": true,
+			"style": "Normal",
 			"showPreflights": true,
 			"templates":
 			[
@@ -114,45 +111,13 @@
 		},
 		{
 			"title": "Utility",
-			"type": "Jobs",
-			"showNames": true,
+			"style": "Normal",
 			"templates":
 			[
 				"installed-build",
 				"test-executor",
 				"local-executor",
 				"parameter-demo",
-				"custom"
-			],
-			"columns":
-			[
-				{
-					"heading": "Editors",
-					"category": "Editors",
-					"relativeWidth": 1
-				},
-				{
-					"heading": "Target Platforms",
-					"category": "Platforms",
-					"relativeWidth": 2
-				},
-				{
-					"heading": "Other",
-					"category": "Other",
-					"relativeWidth": 1
-				}
-			]
-		},
-		{
-			"title": "General",
-			"type": "Jobs",
-			"showNames": true,
-			"templates":
-			[
-				"build-project",
-				"installed-build",
-				"test-executor",
-				"local-executor",
 				"custom"
 			],
 			"columns":

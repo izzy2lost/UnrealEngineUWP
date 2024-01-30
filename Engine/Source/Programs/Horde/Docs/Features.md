@@ -11,7 +11,7 @@
 | Build Health | 🟧&nbsp;Experimental | Migrate more engine code to produce structured logging.<br>Move issue creation into UAT.<br> |
 | DDC | 🟥&nbsp;Early | Recommend using UnrealCloudDDC rather than Horde. |
 | Remote Execution | 🟧&nbsp;Experimental | - |
-| UnrealGameSync&nbsp;Metadata | 🟨&nbsp;Beta | - |
+| UnrealGameSync&nbsp;Server | 🟨&nbsp;Beta | - |
 
 ## Glossary of Terms
 
