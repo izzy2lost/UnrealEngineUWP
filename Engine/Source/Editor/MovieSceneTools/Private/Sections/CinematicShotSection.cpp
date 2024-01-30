@@ -68,7 +68,7 @@ FText FCinematicShotSection::GetSectionTitle() const
 
 float FCinematicShotSection::GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const
 {
-	return FViewportThumbnailSection::GetSectionHeight(ViewDensity) + 2*9.f;
+	return FViewportThumbnailSection::GetSectionHeight(ViewDensity) + 2*13.f;
 }
 
 FMargin FCinematicShotSection::GetContentPadding() const
