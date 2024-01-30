@@ -551,7 +551,7 @@ uint32 FReplicationWriter::GetFlushStatus(uint32 InternalIndex, const FReplicati
 		return FlushFlags;
 	}
 
-	if (!!(FlushFlagsToTest & EFlushFlags::FlushFlags_FlushState) && (Info.HasDirtyChangeMask || HasInFlightStateChanges(InternalIndex, Info) || IsObjectPartOfActiveHugeObject(InternalIndex, Info)))
+	if (!!(FlushFlagsToTest & EFlushFlags::FlushFlags_FlushState) && (Info.HasDirtyChangeMask || HasInFlightStateChanges(InternalIndex, Info) || IsObjectPartOfActiveHugeObject(InternalIndex)))
 	{
 		FlushFlags |= EFlushFlags::FlushFlags_FlushState;
 	}
@@ -1093,7 +1093,7 @@ void FReplicationWriter::HandleDeliveredRecord(const FReplicationRecord::FRecord
 		bool bStillPendingFlush = false;
 		if (RecordInfo.HasChangeMask && !!(Info.FlushFlags & EFlushFlags::FlushFlags_FlushState))
 		{
-			bStillPendingFlush |= (Info.HasDirtyChangeMask || HasInFlightStateChanges(ReplicationRecord.GetInfoForIndex(RecordInfo.NextIndex)) || IsObjectPartOfActiveHugeObject(InternalIndex, Info));
+			bStillPendingFlush |= (Info.HasDirtyChangeMask || HasInFlightStateChanges(ReplicationRecord.GetInfoForIndex(RecordInfo.NextIndex)) || IsObjectPartOfActiveHugeObject(InternalIndex));
 		}
 
 		if (RecordInfo.HasAttachments && !!(Info.FlushFlags & FlushFlags_FlushReliable))
@@ -1692,7 +1692,7 @@ uint32 FReplicationWriter::WriteObjectsPendingDestroy(FNetSerializationContext& 
 		check(Info.GetState() == EReplicatedObjectState::PendingDestroy);
 
 		// We do not support destroying an object that is currently being sent as a huge object.
-		if (IsObjectPartOfActiveHugeObject(InternalIndex, Info))
+		if (IsObjectPartOfActiveHugeObject(InternalIndex))
 		{
 			UE_LOG(LogIris, Verbose, TEXT("Skipping writing destroy for object ( InternalIndex: %u ) which is part of active huge object."), InternalIndex);
 			bWroteAllDestroyedObjects = false;
@@ -3401,9 +3401,10 @@ bool FReplicationWriter::IsActiveHugeObject(uint32 InternalIndex) const
 	return HugeObjectSendQueue.IsObjectInQueue(InternalIndex, bIncludeSubObjects);
 }
 
-bool FReplicationWriter::IsObjectPartOfActiveHugeObject(uint32 InternalIndex, const FReplicationInfo& Info) const
+bool FReplicationWriter::IsObjectPartOfActiveHugeObject(uint32 InternalIndex) const
 {
-	return HugeObjectSendQueue.IsObjectInQueue(InternalIndex, Info.IsSubObject);
+	constexpr bool bFullSearch = true;
+	return HugeObjectSendQueue.IsObjectInQueue(InternalIndex, bFullSearch);
 }
 
 bool FReplicationWriter::CanQueueHugeObject() const
@@ -3580,7 +3581,7 @@ bool FReplicationWriter::FHugeObjectSendQueue::EnqueueHugeObject(const FHugeObje
 }
 
 // Returns true if the object is a huge object root object or part of any huge object's payload. The latter is an expensive operation.
-bool FReplicationWriter::FHugeObjectSendQueue::IsObjectInQueue(FInternalNetRefIndex ObjectIndex, bool bIncludeSubObjects) const
+bool FReplicationWriter::FHugeObjectSendQueue::IsObjectInQueue(FInternalNetRefIndex ObjectIndex, bool bFullSearch) const
 {
 	if (IsEmpty())
 	{
@@ -3592,7 +3593,7 @@ bool FReplicationWriter::FHugeObjectSendQueue::IsObjectInQueue(FInternalNetRefIn
 		return true;
 	}
 
-	if (!bIncludeSubObjects)
+	if (!bFullSearch)
 	{
 		return false;
 	}

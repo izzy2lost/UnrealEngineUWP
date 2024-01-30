@@ -1105,6 +1105,48 @@ UE_NET_TEST_FIXTURE(FSplitObjectTestFixture, SplitManyHugeObjectsAfterCreation)
 	UE_NET_ASSERT_EQ(ClientObjectsWithHugeArraysCount, HugeObjectCount);
 }
 
+UE_NET_TEST_FIXTURE(FSplitObjectTestFixture, TestDependentObjectCannotBeDestroyedWhileWaitingForCreation)
+{
+	UReplicatedTestObjectBridge* ServerBridge = Server->GetReplicationBridge();
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	UTestReplicatedIrisObject* ServerObject = CreateHugeObject(Server);
+	UTestReplicatedIrisObject* ServerDependentObject = Server->CreateObject(UObjectReplicationBridge::FCreateNetRefHandleParams{});
+
+	ServerBridge->AddDependentObject(ServerObject->NetRefHandle, ServerDependentObject->NetRefHandle);
+
+	// Introduce latency by not immediately delivering packets.
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("Create HugeObject + Dependent"));
+	Server->PostSendUpdate();
+
+	// Filter out dependent object to cause it to end up being destroyed
+	Server->ReplicationSystem->AddToGroup(Server->GetReplicationSystem()->GetNotReplicatedNetObjectGroup(), ServerDependentObject->NetRefHandle);
+
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("Try destroy Dependent"));
+	Server->PostSendUpdate();
+
+	// Make sure at least one of the packets required for object creation is lost.
+	Server->DeliverTo(Client, DoNotDeliverPacket);
+
+	// Deliver all pending packets
+	for (uint32 RetryIt = 0; RetryIt != HugeObjectMaxNetTickCountToArrive; ++RetryIt)
+	{
+		Server->DeliverTo(Client, DeliverPacket);
+	}
+
+	// Make sure we replicate the full state of all objects
+	for (uint32 RetryIt = 0; RetryIt != HugeObjectMaxNetTickCountToArrive; ++RetryIt)
+	{
+		Server->UpdateAndSend({ Client }, DeliverPacket);
+	}
+
+	// Make sure the dependent object was destroyed.
+	const UTestReplicatedIrisObject* ClientDependentObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerDependentObject->NetRefHandle));
+	UE_NET_ASSERT_EQ(ClientDependentObject, nullptr);
+}
+
 // Below test will fail as we only have a special path for reliable attachments for objects that stopped replicating, not for being filtered out.
 #if 0
 UE_NET_TEST_FIXTURE(FSplitObjectTestFixture, TestReliableAttachmentAddedAfterSplittingHugeObjectIsDeliveredBeforeObjectIsFilteredOut)
