@@ -2712,7 +2712,7 @@ public:
 	{
 		return true;
 	}
-	virtual void GetMeshId(FString& OutMeshId) override { OutMeshId = TEXT("3FC28DC87B814E08BA852C92D18D41D4"); }
+	virtual void GetMeshId(FString& OutMeshId) override { OutMeshId = TEXT("659304F7CF5D4F31BCC54A9FBB0B49E0"); }
 	//~ End Interface_CollisionDataProvider Interface
 
 	//~ Begin IInterface_AssetUserData Interface
