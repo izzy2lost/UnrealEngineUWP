@@ -578,6 +578,23 @@ void FLandscapeGrassWeightExporter::FreeAsyncReadback()
 	AsyncReadbackPtr = nullptr;
 }
 
+void FLandscapeGrassWeightExporter::CancelAndSelfDestruct()
+{
+	check(AsyncReadbackPtr != nullptr);
+
+	// Cancel the readback, and queue destruction on the render thread
+	AsyncReadbackPtr->CancelAndSelfDestruct();
+	AsyncReadbackPtr = nullptr;
+
+	// Queue destruction of FLandscapeGrassWeightExporter, also on the render thread
+	FLandscapeGrassWeightExporter* Exporter = this;
+	ENQUEUE_RENDER_COMMAND(FCancelAndDestructCommand)(
+		[Exporter](FRHICommandListImmediate& RHICmdList)
+		{
+			check(Exporter->AsyncReadbackPtr == nullptr);
+			delete Exporter;
+		});
+}
 
 TMap<ULandscapeComponent*, TUniquePtr<FLandscapeComponentGrassData>, TInlineSetAllocator<1>> FLandscapeGrassWeightExporter::FetchResults(bool bFreeAsyncReadback)
 {

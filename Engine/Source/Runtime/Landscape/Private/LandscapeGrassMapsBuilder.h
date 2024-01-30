@@ -126,7 +126,6 @@ private:
 		FComponentState(ULandscapeComponent* Component);
 
 		bool AreTexturesStreamedIn() const;
-		bool IsRenderReadbackComplete() const;
 		bool IsBeyondEvictionRange(const TArray<FVector>& Cameras) const;
 	};
 
@@ -219,6 +218,9 @@ private:
 	// number of components that need to render but are waiting (as of the last call to StartTrackingComponents())
 	int32 TotalComponentsWaitingCount = 0;
 
+	// true if any render thread commands were queued by the last call to UpdateTrackedComponents()
+	bool bRenderCommandsQueuedByLastUpdate = false;
+
 	TAllocatorFixedSizeFreeList<sizeof(FComponentState), 32> StatePoolAllocator;
 
 	// store the grass map state of each registered (or recently unregistered) component
@@ -235,7 +237,9 @@ private:
 	FLandscapeTextureStreamingManager& TextureStreamingManager;
 
 	// tries to cancel any in flight operations and transition back to the Pending state
-	bool CancelAndEvict(FComponentState& State);
+	// returns true when the state has been successfully transitioned back to Pending
+	// if bCancelImmediately is true, it will ensure the component reaches Pending state before returning (possibly blocking on async or gpu tasks)
+	bool CancelAndEvict(FComponentState& State, bool bCancelImmediately);
 
 	// try to kick off the grass map generation pipeline -- returns true if it started the amortized update path, false otherwise.
 	bool StartGrassMapGeneration(FComponentState& State, bool bForceCompileShaders);

@@ -7,7 +7,7 @@
 
 void FLandscapeAsyncTextureReadback::StartReadback_RenderThread(FRDGBuilder& GraphBuilder, FRDGTextureRef RDGTexture)
 {
-	check(!bAsyncReadbackSubmitOnRenderThread && !AsyncReadback);
+	check(!bStartedOnRenderThread && !AsyncReadback);
 	check(RDGTexture->Desc.Format == PF_B8G8R8A8);
 	AsyncReadback = MakeUnique<FRHIGPUTextureReadback>(TEXT("LandscapeGrassReadback"));
 	AddEnqueueCopyPass(GraphBuilder, AsyncReadback.Get(), RDGTexture);
@@ -16,59 +16,62 @@ void FLandscapeAsyncTextureReadback::StartReadback_RenderThread(FRDGBuilder& Gra
 	TextureHeight = Size.Y;
 	check(Size.Z == 1);
 
-	bAsyncReadbackSubmitOnRenderThread = true;
+	bStartedOnRenderThread = true;
 }
 
 void FLandscapeAsyncTextureReadback::FinishReadback_RenderThread()
 {
-	check(bAsyncReadbackSubmitOnRenderThread && AsyncReadback.IsValid());
+	check(bStartedOnRenderThread && AsyncReadback.IsValid());
 	int32 RowPitchInPixels = 0;
 	int32 BufferHeight = 0;
-	void* SrcData = AsyncReadback->Lock(RowPitchInPixels, &BufferHeight);
+	void* SrcData = AsyncReadback->Lock(RowPitchInPixels, &BufferHeight);	// this will block if the readback is not yet ready
 	check(SrcData);
 	check(RowPitchInPixels >= TextureWidth);
 	check(BufferHeight >= TextureHeight);
 
-	// copy into ReadbackResults
-	ReadbackResults.SetNumUninitialized(TextureWidth * TextureHeight);
-
-	// OpenGL does not really support BGRA images and uses channnel swizzling to emulate them
-	// so when we read them back we get internal RGBA representation
-	const bool bSwapRBChannels = IsOpenGLPlatform(GMaxRHIShaderPlatform);
-
-	if (!bSwapRBChannels && TextureWidth == RowPitchInPixels)
+	if (!bCancel)	// skip the copy work if we're cancelling
 	{
-		memcpy(ReadbackResults.GetData(), SrcData, TextureWidth * TextureHeight * sizeof(FColor));
-	}
-	else
-	{
-		// copy row by row
-		FColor* Dst = ReadbackResults.GetData();
-		FColor* Src = (FColor*)SrcData;
-		if (bSwapRBChannels)
+		// copy into ReadbackResults
+		ReadbackResults.SetNumUninitialized(TextureWidth * TextureHeight);
+
+		// OpenGL does not really support BGRA images and uses channnel swizzling to emulate them
+		// so when we read them back we get internal RGBA representation
+		const bool bSwapRBChannels = IsOpenGLPlatform(GMaxRHIShaderPlatform);
+
+		if (!bSwapRBChannels && TextureWidth == RowPitchInPixels)
 		{
-			for (int y = 0; y < TextureHeight; y++)
-			{
-				for (int x = 0; x < TextureWidth; x++)
-				{
-					// swap B and R channels when copying
-					Dst->B = Src->R;
-					Dst->G = Src->G;
-					Dst->R = Src->B;
-					Dst->A = Src->A;
-					Dst++;
-					Src++;
-				}
-				Src += RowPitchInPixels - TextureWidth;
-			}
+			memcpy(ReadbackResults.GetData(), SrcData, TextureWidth * TextureHeight * sizeof(FColor));
 		}
 		else
 		{
-			for (int y = 0; y < TextureHeight; y++)
+			// copy row by row
+			FColor* Dst = ReadbackResults.GetData();
+			FColor* Src = (FColor*)SrcData;
+			if (bSwapRBChannels)
 			{
-				memcpy(Dst, Src, TextureWidth * sizeof(FColor));
-				Dst += TextureWidth;
-				Src += RowPitchInPixels;
+				for (int y = 0; y < TextureHeight; y++)
+				{
+					for (int x = 0; x < TextureWidth; x++)
+					{
+						// swap B and R channels when copying
+						Dst->B = Src->R;
+						Dst->G = Src->G;
+						Dst->R = Src->B;
+						Dst->A = Src->A;
+						Dst++;
+						Src++;
+					}
+					Src += RowPitchInPixels - TextureWidth;
+				}
+			}
+			else
+			{
+				for (int y = 0; y < TextureHeight; y++)
+				{
+					memcpy(Dst, Src, TextureWidth * sizeof(FColor));
+					Dst += TextureWidth;
+					Src += RowPitchInPixels;
+				}
 			}
 		}
 	}
@@ -77,49 +80,75 @@ void FLandscapeAsyncTextureReadback::FinishReadback_RenderThread()
 	AsyncReadback.Reset();
 
 	FPlatformMisc::MemoryBarrier();
-	bAsyncReadbackCompleteOnRenderThread = true;
+	bFinishedOnRenderThread = true;
 }
 
-bool FLandscapeAsyncTextureReadback::CheckAndUpdate()
+bool FLandscapeAsyncTextureReadback::CheckAndUpdate(bool& bOutFinishCommandQueued)
 {
-	if (bAsyncReadbackCompleteOnRenderThread)
+	// if we already queued the finish commands to render thread, then we're just waiting on it signaling readback complete	
+	if (bFinishQueuedFromGameThread)
 	{
-		// already done
-		return true;
+		return bFinishedOnRenderThread;
+	}
+	
+	// if we haven't started, or if the readback is not yet ready, then we have nothing to do but wait
+	if (!bStartedOnRenderThread || !AsyncReadback->IsReady())
+	{
+		return false;
 	}
 
-	// not done yet -- queue update check on render thread
+	// the readback was started and it is ready, but we have not yet queued the finish command.
+	// queue it to make the data available to the game thread
 	FLandscapeAsyncTextureReadback* Readback = this;
-	ENQUEUE_RENDER_COMMAND(FLandscapeAsyncTextureReadback_CheckAndUpdate)(
+	ENQUEUE_RENDER_COMMAND(FLandscapeAsyncTextureReadback_FinishReadback)(
 		[Readback](FRHICommandListImmediate& RHICmdList)
 		{
-			if (Readback->bAsyncReadbackCompleteOnRenderThread)
-			{
-				// Actually finished already.. game thread was just asking too early.
-				// No need to do anything, game thread will advance next time it checks.
-			}
-			else if (Readback->bAsyncReadbackSubmitOnRenderThread)
-			{
-				// Readback was submit but not found to be complete yet -- let's check if it completed.
-				check(Readback->AsyncReadback.IsValid());
-				if (Readback->AsyncReadback->IsReady())
-				{
-					Readback->FinishReadback_RenderThread();
-				}
-			}
-			else
-			{
-				// not submit yet.. nothing to do
-			}
+			// sanity check the state 
+			check(Readback->bStartedOnRenderThread && !Readback->bFinishedOnRenderThread);
+			check(Readback->AsyncReadback.IsValid() && Readback->AsyncReadback->IsReady());
+			Readback->FinishReadback_RenderThread();
 		});
+
+	bFinishQueuedFromGameThread = true;
+	bOutFinishCommandQueued = true;
 
 	return false;
 }
 
+void FLandscapeAsyncTextureReadback::CancelAndSelfDestruct()
+{
+	// set the cancel flag, which will reduce work done by the finish command
+	bCancel = true;
+
+	// run a render thread finish command if it hasn't been queued  yet
+	bool bNeedsFinish = !bFinishQueuedFromGameThread;
+	bFinishQueuedFromGameThread = true;
+
+	FLandscapeAsyncTextureReadback* Readback = this;
+	ENQUEUE_RENDER_COMMAND(FCancelAndSelfDestructCommand)(
+		[Readback, bNeedsFinish](FRHICommandListImmediate& RHICmdList)
+		{
+			check(Readback->bStartedOnRenderThread);
+			check(Readback->bCancel);
+
+			// if not yet finished, run the finish command
+			if (bNeedsFinish)
+			{
+				Readback->FinishReadback_RenderThread();
+			}
+
+			check(Readback->bFinishedOnRenderThread);
+
+			// self destruct
+			delete Readback;
+		});
+}
+
+
 void FLandscapeAsyncTextureReadback::QueueDeletionFromGameThread()
 {
 	check(IsInGameThread());
-	check(bAsyncReadbackCompleteOnRenderThread);
+	check(bFinishedOnRenderThread);
 
 	FLandscapeAsyncTextureReadback* Readback = this;
 	ENQUEUE_RENDER_COMMAND(FLandscapeAsyncTextureReadback_CheckAndUpdate)(
