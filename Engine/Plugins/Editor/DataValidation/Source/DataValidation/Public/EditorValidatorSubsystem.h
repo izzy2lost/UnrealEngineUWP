@@ -27,6 +27,15 @@ namespace EMessageSeverity
 
 DECLARE_LOG_CATEGORY_EXTERN(LogContentValidation, Log, All);
 
+struct DATAVALIDATION_API FValidateAssetsExternalObject
+{
+	/** Package Name */
+	FName PackageName;
+
+	/** Asset Name */
+	FName AssetName;
+};
+
 USTRUCT(BlueprintType)
 struct DATAVALIDATION_API FValidateAssetsDetails
 {
@@ -49,6 +58,9 @@ struct DATAVALIDATION_API FValidateAssetsDetails
 	
 	/** Rich validation messages including tokens that can generate images or hyperlinks */
 	TArray<TSharedRef<FTokenizedMessage>> ValidationMessages;
+
+	/** List of external objects for this asset*/
+	TArray<FValidateAssetsExternalObject> ExternalObjects;
 };
 
 USTRUCT(BlueprintType)
