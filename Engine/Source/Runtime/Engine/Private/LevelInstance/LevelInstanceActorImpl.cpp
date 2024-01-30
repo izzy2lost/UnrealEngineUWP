@@ -51,6 +51,11 @@ void FLevelInstanceActorImpl::UnregisterLevelInstance()
 
 		LevelInstance->UnloadLevelInstance();
 
+#if WITH_EDITOR
+		// Make sure our Component doesn't keep a pointer to the Editor Actor once unloaded
+		LevelInstance->GetLevelInstanceComponent()->CachedEditorInstanceActorPtr.Reset();
+#endif
+
 		// To avoid processing PostUnregisterAllComponents multiple times (BP Recompile is one use case)
 		LevelInstanceID = FLevelInstanceID();
 	}
