@@ -1143,8 +1143,17 @@ void UAvaShapeDynamicMeshBase::OnMaterialTypeChanged(int32 MaterialIndex)
 		switch (MeshData->MaterialType)
 		{
 			case(EMaterialType::Asset):
-				SetMaterialDirect(MaterialIndex, GetMaterial(MaterialIndex));
+			{
+				UMaterialInterface* CurrentMaterial = GetMaterial(MaterialIndex);
+
+				if (!IsValid(CurrentMaterial) || CurrentMaterial->IsA<UDynamicMaterialInstance>())
+				{
+					CurrentMaterial = nullptr;
+				}
+
+				SetMaterialDirect(MaterialIndex, CurrentMaterial);
 				break;
+			}
 
 			case(EMaterialType::Parametric):
 				SetMaterial(MaterialIndex, nullptr);
