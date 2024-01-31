@@ -141,7 +141,7 @@ bool SAvaReadPage::OnVerifyTextChanged(const FText& InText, FText& OutErrorMessa
 
 	if (!Playlist)
 	{
-		OutErrorMessage = LOCTEXT("NoPlaylist", "No Playlist found for Item");
+		OutErrorMessage = LOCTEXT("NoPlaylist", "No Rundown found for Item");
 		return false;
 	}
 	

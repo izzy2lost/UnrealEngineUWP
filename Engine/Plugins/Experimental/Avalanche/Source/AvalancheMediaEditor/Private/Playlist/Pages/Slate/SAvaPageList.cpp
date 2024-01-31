@@ -461,7 +461,7 @@ void SAvaPageList::CopySelectedPages()
 	UAvalanchePlaylist* Playlist = GetPlaylist();
 	if (!IsValid(Playlist))
 	{
-		UE_LOG(LogAvaPlaylist, Error, TEXT("Can't copy from invalid playlist."));
+		UE_LOG(LogAvaPlaylist, Error, TEXT("Can't copy from invalid rundown."));
 		return;
 	}
 

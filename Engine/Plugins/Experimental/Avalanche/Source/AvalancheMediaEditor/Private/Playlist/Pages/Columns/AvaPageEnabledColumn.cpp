@@ -15,7 +15,7 @@ FText FAvaPageEnabledColumn::GetColumnDisplayNameText() const
 
 FText FAvaPageEnabledColumn::GetColumnToolTipText() const
 {
-	return LOCTEXT("EnabledColumn_ToolTip", "Determines whether this Page should be considered for Playlist");
+	return LOCTEXT("EnabledColumn_ToolTip", "Determines whether this Page should be considered for Rundown");
 }
 
 SHeaderRow::FColumn::FArguments FAvaPageEnabledColumn::ConstructHeaderRowColumn()

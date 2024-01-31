@@ -14,7 +14,7 @@ void FAvaPlaylistFilterNameSuggestionFactory::AddSuggestion(const TSharedRef<FAv
 	const FAvalanchePage& PageItem = UAvalanchePlaylist::GetPageSafe(InPayload->Playlist, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText NameCategoryLabel = LOCTEXT("NameCategoryLabel", "Ava-Playlist-Name");
+		const FText NameCategoryLabel = LOCTEXT("NameCategoryLabel", "Ava-Rundown-Name");
 		const FText PageText = PageItem.GetPageDescription();
 
 		FString PageName = TEXT("\"");

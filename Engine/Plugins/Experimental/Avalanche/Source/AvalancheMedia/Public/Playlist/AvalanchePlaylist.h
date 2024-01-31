@@ -251,7 +251,7 @@ public:
 /**
  * This class is a container for what could be described as a "show" for broadcast purposes.
  *
- * It goes beyond a simple playlist of items. It contains the following:
+ * It goes beyond a simple list of items. It contains the following:
  * - a list of Motion Design Template Pages (or just Templates).
  * - a list of Motion Design Instanced Pages (or just Pages).
  * - a list of page views (or just Views).

@@ -250,7 +250,7 @@ void FAvaPlaylistServer::Init(const FString& InAssignedHostName)
 		// Subscribe to the server listing requests
 		MessageEndpoint->Subscribe<FAvaPlaylistPing>();
 
-		UE_LOG(LogAvaPlaylistServer, Log, TEXT("Motion Design Playlist Server \"%s\" Started."), *HostName);
+		UE_LOG(LogAvaPlaylistServer, Log, TEXT("Motion Design Rundown Server \"%s\" Started."), *HostName);
 	}
 }
 
@@ -479,13 +479,13 @@ void FAvaPlaylistServer::HandleLoadPlaylist(const FAvaPlaylistLoadPlaylist& InMe
 		if (!Playlist)
 		{
 			SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Error,
-				TEXT("Playlist \"%s\" not loaded."), *InMessage.Playlist);
+				TEXT("Rundown \"%s\" not loaded."), *InMessage.Playlist);
 			return;
 		}
 	}
 
 	SendMessage(InContext->GetSender(), InMessage.RequestId, ELogVerbosity::Log,
-		TEXT("Playlist \"%s\" loaded."), *PlaylistPlaybackCommandData.CurrentPlaylistPath.ToString());
+		TEXT("Rundown \"%s\" loaded."), *PlaylistPlaybackCommandData.CurrentPlaylistPath.ToString());
 }
 
 void FAvaPlaylistServer::HandleGetPages(const FAvaPlaylistGetPages& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
@@ -1183,7 +1183,7 @@ void FAvaPlaylistServer::RegisterConsoleCommands()
 
 void FAvaPlaylistServer::ShowStatusCommand(const TArray<FString>& InArgs)
 {
-	UE_LOG(LogAvaPlaylistServer, Display, TEXT("Playlist Server: \"%s\""), *HostName);
+	UE_LOG(LogAvaPlaylistServer, Display, TEXT("Rundown Server: \"%s\""), *HostName);
 	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Endpoint Bus Address: \"%s\""), MessageEndpoint.IsValid() ? *MessageEndpoint->GetAddress().ToString() : TEXT("Invalid"));
 	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Computer: \"%s\""), *HostName);
 
@@ -1194,10 +1194,10 @@ void FAvaPlaylistServer::ShowStatusCommand(const TArray<FString>& InArgs)
 		UE_LOG(LogAvaPlaylistServer, Display, TEXT("   - Api Version: %d"), ClientInfo.ApiVersion);
 	}
 	
-	UE_LOG(LogAvaPlaylistServer, Display, TEXT("Playlist Caches:"));
-	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Editing Playlist: \"%s\""), *PlaylistEditCommandData.CurrentPlaylistPath.ToString());
+	UE_LOG(LogAvaPlaylistServer, Display, TEXT("Rundown Caches:"));
+	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Editing Rundown: \"%s\""), *PlaylistEditCommandData.CurrentPlaylistPath.ToString());
 	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Editing PageId: \"%d\""), PlaylistEditCommandData.ManagedPageId);
-	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Playing Playlist: \"%s\""), *PlaylistPlaybackCommandData.CurrentPlaylistPath.ToString());
+	UE_LOG(LogAvaPlaylistServer, Display, TEXT("- Playing Rundown: \"%s\""), *PlaylistPlaybackCommandData.CurrentPlaylistPath.ToString());
 
 	if (PlaylistPlaybackCommandData.CurrentPlaylist.IsValid())
 	{
@@ -1450,7 +1450,7 @@ UAvalanchePlaylist* FAvaPlaylistServer::GetOrLoadPlaylistForEdit(const FMessageA
 
 		if (!Playlist)
 		{
-			LogAndSendMessage(InSender, InRequestId, ELogVerbosity::Error, TEXT("Failed to load Playlist \"%s\"."), *InPlaylistPath);
+			LogAndSendMessage(InSender, InRequestId, ELogVerbosity::Error, TEXT("Failed to load Rundown \"%s\"."), *InPlaylistPath);
 		}
 	}
 	else
@@ -1470,7 +1470,7 @@ UAvalanchePlaylist* FAvaPlaylistServer::GetOrLoadPlaylistForEdit(const FMessageA
 
 		if (!Playlist)
 		{
-			LogAndSendMessage(InSender, InRequestId, ELogVerbosity::Error, TEXT("No playlist path specified and no playlist currently loaded."));
+			LogAndSendMessage(InSender, InRequestId, ELogVerbosity::Error, TEXT("No rundown path specified and no playlist currently loaded."));
 		}
 	}
 	return Playlist;

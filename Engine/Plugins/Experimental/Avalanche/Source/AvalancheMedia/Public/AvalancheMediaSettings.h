@@ -105,27 +105,27 @@ public:
 	TSoftClassPtr<UUserWidget> PlaceholderWidgetClass;
 
 	/**
-	 * Default resolution for playlist preview.
+	 * Default resolution for rundown preview.
 	 * This resolution may be lower than the broadcast resolution to improve gpu performance.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Playlist")
+	UPROPERTY(config, EditAnywhere, Category = "Rundown")
 	FIntPoint PreviewDefaultResolution = FIntPoint(960, 540);
 
-	UPROPERTY(config, EditAnywhere, Category = "Playlist")
+	UPROPERTY(config, EditAnywhere, Category = "Rundown")
 	FString PreviewChannelName;
 
 	/**
 	 * Special logic will not play any transition if the RC values are the same.
 	 * This applies to combo templates.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Playlist")
+	UPROPERTY(config, EditAnywhere, Category = "Rundown")
 	bool bEnableComboTemplateSpecialLogic = true;
 
 	/**
 	 * Special logic will not play any transition if the RC values are the same.
 	 * This applies to single (non-combo) templates.
 	 */
-	UPROPERTY(config, EditAnywhere, Category = "Playlist")
+	UPROPERTY(config, EditAnywhere, Category = "Rundown")
 	bool bEnableSingleTemplateSpecialLogic = false;
 	
 	/** Whether playback client is started automatically. */
@@ -183,7 +183,7 @@ public:
 	FAvalancheInstanceSettings AvalancheInstanceSettings;
 
 	/**
-	 * Maximum cached Managed Motion Design Blueprints used for playlist editor's page details.
+	 * Maximum cached Managed Motion Design Blueprints used for rundown editor's page details.
 	 * A value of 0 indicate the cache will grow without limit.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Managed Motion Design Instance Cache", meta = (DisplayName = "Maximum Cache Size"))

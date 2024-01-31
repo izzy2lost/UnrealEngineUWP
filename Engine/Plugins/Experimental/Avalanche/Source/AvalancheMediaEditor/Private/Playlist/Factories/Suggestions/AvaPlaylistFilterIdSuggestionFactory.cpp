@@ -12,7 +12,7 @@ const FName FAvaPlaylistFilterIdSuggestionFactory::KeyName = FName(TEXT("ID"));
 
 void FAvaPlaylistFilterIdSuggestionFactory::AddSuggestion(const TSharedRef<FAvaPlaylistFilterSuggestionPayload>& InPayload)
 {
-	const FText IdCategoryLabel = LOCTEXT("IdCategoryLabel", "Ava-Playlist-Id");
+	const FText IdCategoryLabel = LOCTEXT("IdCategoryLabel", "Ava-Rundown-Id");
 	FString IdNameSuggestion = TEXT("Id");
 	const bool bIsFilterValueValid = InPayload->FilterValue.IsEmpty() || IdNameSuggestion.Contains(InPayload->FilterValue);
 	if (bIsFilterValueValid && !InPayload->FilterCache.Contains(IdNameSuggestion))

@@ -49,8 +49,8 @@ void FAvaPlaylistCommands::RegisterCommands()
 		, FInputChord());
 
 	UI_COMMAND(ExportPagesToPlaylist
-		, "Export To Playlist"
-		, "Export selected pages to a Playlist asset"
+		, "Export To Rundown"
+		, "Export selected pages to a Rundown asset"
 		, EUserInterfaceActionType::Button
 		, FInputChord());
 

@@ -21,7 +21,7 @@ enum class EAvaChannelState : uint8
  *
  * Primarily, the channel type is intended to resolve channel collisions between
  * simultaneous "program" and "preview" playbacks on a given system. In other words:
- * - Channel selection for playlist pages is restricted to "program" channels.
+ * - Channel selection for rundown pages is restricted to "program" channels.
  * - Channel selection for preview is restricted to "preview" channels.
  *
  * It is thus not possible for a user to mistakenly select the same channel for both preview and program.

@@ -14,7 +14,7 @@ void FAvaPlaylistFilterChannelSuggestionFactory::AddSuggestion(const TSharedRef<
 	const FAvalanchePage& PageItem = UAvalanchePlaylist::GetPageSafe(InPayload->Playlist, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText ChannelCategoryLabel = LOCTEXT("ChannelCategoryLabel", "Ava-Playlist-Channel");
+		const FText ChannelCategoryLabel = LOCTEXT("ChannelCategoryLabel", "Ava-Rundown-Channel");
 		const FString ChannelName = PageItem.GetChannelName().ToString();
 
 		FString ChannelNameSuggestion = FString::Printf(TEXT("Channel=%s"), *ChannelName);

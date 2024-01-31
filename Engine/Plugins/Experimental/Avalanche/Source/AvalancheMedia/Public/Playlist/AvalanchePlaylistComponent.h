@@ -9,7 +9,7 @@ class UAvalanchePlaylist;
 
 /**
  * Add this actor component to blueprint actor to expose the API to control an
- * Motion Design playlist in game.
+ * Motion Design Rundown in game.
  */
 UCLASS(BlueprintType, Blueprintable, ClassGroup = "Motion Design Media", meta = (BlueprintSpawnableComponent))
 class AVALANCHEMEDIA_API UAvalanchePlaylistComponent : public UActorComponent
@@ -19,7 +19,7 @@ class AVALANCHEMEDIA_API UAvalanchePlaylistComponent : public UActorComponent
 public:
 	UAvalanchePlaylistComponent(const FObjectInitializer& ObjectInitializer);
 	
-	UPROPERTY(EditAnywhere, Category = "Motion Design Media", meta = (DisplayName = "Motion Design Playlist"))
+	UPROPERTY(EditAnywhere, Category = "Motion Design Media", meta = (DisplayName = "Motion Design Rundown"))
 	TObjectPtr<UAvalanchePlaylist> Playlist = nullptr;
 	
 	UFUNCTION(BlueprintCallable, Category = "Motion Design Media")

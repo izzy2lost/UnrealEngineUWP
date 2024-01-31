@@ -66,7 +66,7 @@ namespace UE::AvaPlaylistServerTests
 		{
 			ReceivedRequestIds.Add(InMessage.RequestId);
 			
-			UE_LOG(LogAvaPlaylistServerTests, Log, TEXT("Received Playlist Channel Image successfully."));
+			UE_LOG(LogAvaPlaylistServerTests, Log, TEXT("Received Rundown Channel Image successfully."));
 
 			const FString SaveName = FString::Printf(TEXT("%s%s"), *FPaths::ProjectSavedDir(), TEXT("ChannelImageTest.jpeg"));
 			UE_LOG(LogAvaPlaylistServerTests, Display, TEXT("Saving Image to %s"), *SaveName);
@@ -92,7 +92,7 @@ namespace UE::AvaPlaylistServerTests
 		TSharedPtr<FAvaPlaylistServer> PlaylistServer = IAvaMediaEditorModule::Get().GetPlaylistServer();
 		if (!PlaylistServer)
 		{
-			UE_LOG(LogAvaPlaylistServerTests, Log, TEXT("Playlist Server not started. Starting one temporarily for the test."));
+			UE_LOG(LogAvaPlaylistServerTests, Log, TEXT("Rundown Server not started. Starting one temporarily for the test."));
 
 			// Start a temporary server. It will be deleted when the last latent command is finished.
 			PlaylistServer = MakeShared<FAvaPlaylistServer>();

@@ -12,7 +12,7 @@ public:
 	
 	FAvaPlaylistCommands()
 		: TCommands<FAvaPlaylistCommands>(TEXT("AvaPlaylistCommands")
-		, NSLOCTEXT("AvaPlaylistCommands", "AvaPlaylistCommands", "Motion Design Playlist")
+		, NSLOCTEXT("AvaPlaylistCommands", "AvaPlaylistCommands", "Motion Design Rundown")
 		, NAME_None
 		, FAvaMediaEditorStyle::GetStyleSetName())
 	{
