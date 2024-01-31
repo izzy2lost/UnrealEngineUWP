@@ -136,14 +136,13 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Version number for the server. Values are indicated by the <see cref="GlobalVersion"/>.
 		/// </summary>
-		[JsonIgnore]
-		public GlobalVersion Version => (GlobalVersion)VersionNumber;
+		public int Version { get; set; }
 
 		/// <summary>
-		/// Serialized version number
+		/// Version number for the server, as an enum.
 		/// </summary>
-		[JsonPropertyName("Version")]
-		public int VersionNumber { get; set; }
+		[JsonIgnore]
+		public GlobalVersion VersionEnum => (GlobalVersion)Version;
 
 		/// <summary>
 		/// Other paths to include
