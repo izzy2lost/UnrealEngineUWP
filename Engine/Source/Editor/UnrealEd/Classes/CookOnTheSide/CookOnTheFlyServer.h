@@ -93,6 +93,9 @@ enum class ECookByTheBookOptions
 	DlcLoadMainAssetRegistry =			0x00020000, // If cooking DLC, populate the main game asset registry
 	ZenStore =							0x00040000, // Store cooked data in Zen Store
 	DlcReevaluateUncookedAssets =		0x00080000, // If cooking DLC, ignore assets in the base asset registry that were not cooked, so that this cook has an opportunity to cook the assets
+	RunAssetValidation =				0x00100000, // Run asset validation (EditorValidatorSubsystem) on assets loaded during cook
+	RunMapValidation =					0x00200000, // Run map validation (MapCheck) on maps loaded during cook
+	ValidationErrorsAreFatal =			0x00400000, // Consider validation errors (from RunAssetValidation or RunMapValidation) as fatal (preventing the package from being cooked)
 };
 ENUM_CLASS_FLAGS(ECookByTheBookOptions);
 
@@ -685,6 +688,9 @@ public:
 	/** Execute class-specific special case cook postloads and reference discovery on a given package. */
 	UNREALED_API void PostLoadPackageFixup(UE::Cook::FPackageData& PackageData, UPackage* Package);
 
+	/** Execute validation on a loaded source package. */
+	UNREALED_API EDataValidationResult ValidateSourcePackage(UE::Cook::FPackageData& PackageData, UPackage* Package);
+
 	/** Tick CBTB until it finishes or needs to yield. Should only be called when in CookByTheBook Mode. */
 	UNREALED_API uint32 TickCookByTheBook(const float TimeSlice, ECookTickFlags TickFlags = ECookTickFlags::None);
 	/** Tick COTF until it finishes or needs to yield. Should only be called when in CookOnTheFly Mode. */
@@ -840,6 +846,9 @@ public:
 	UNREALED_API void OnObjectPropertyChanged(UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent);
 	UNREALED_API void OnObjectUpdated( UObject *Object );
 	UNREALED_API void OnObjectSaved( UObject *ObjectSaved, FObjectPreSaveContext SaveContext );
+
+	DECLARE_DELEGATE_RetVal_TwoParams(EDataValidationResult, FOnValidateSourcePackage, UPackage* /*Package*/, FDataValidationContext& /*ValidationContext*/);
+	static FOnValidateSourcePackage& OnValidateSourcePackage() { return ValidateSourcePackageEvent; }
 
 	DECLARE_MULTICAST_DELEGATE(FOnCookByTheBookStarted);
 	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookByTheBookStarted (CoreUObject/Public/UObject/ICookInfo.h.")
@@ -1530,6 +1539,9 @@ private:
 	double LoadBusyWarnTimeSeconds = MAX_flt;
 	/** Tracking for the ticking of tickable cook objects */
 	double LastCookableObjectTickTime = 0.;
+
+	// Hook into the DataValidation subsystem from the cooker
+	static UNREALED_API FOnValidateSourcePackage ValidateSourcePackageEvent;
 
 	// Cook events that can be listenned to
 	static FOnCookByTheBookStarted CookByTheBookStartedEvent;

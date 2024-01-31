@@ -66,6 +66,12 @@ struct FScopeRootObject
 	}
 };
 
+bool bAllowContentValidation = true;
+FAutoConsoleVariableRef AllowContentValidationCVar(
+	TEXT("Cook.AllowContentValidation"),
+	bAllowContentValidation,
+	TEXT("True to allow content validation to run during cook (if requested), or false to disable it."));
+
 }
 
 UCookCommandlet::UCookCommandlet( const FObjectInitializer& ObjectInitializer )
@@ -406,6 +412,13 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 	CookOptions |= (Switches.Contains(TEXT("DlcLoadMainAssetRegistry")) || !bErrorOnEngineContentUse) ? ECookByTheBookOptions::DlcLoadMainAssetRegistry : ECookByTheBookOptions::None;
 	CookOptions |= Switches.Contains(TEXT("DlcReevaluateUncookedAssets")) ? ECookByTheBookOptions::DlcReevaluateUncookedAssets : ECookByTheBookOptions::None;
 	bool bCookList = Switches.Contains(TEXT("CookList"));
+
+	if (UE::Cook::bAllowContentValidation)
+	{
+		CookOptions |= Switches.Contains(TEXT("RunAssetValidation")) ? ECookByTheBookOptions::RunAssetValidation : ECookByTheBookOptions::None;
+		CookOptions |= Switches.Contains(TEXT("RunMapValidation")) ? ECookByTheBookOptions::RunMapValidation : ECookByTheBookOptions::None;
+		CookOptions |= Switches.Contains(TEXT("ValidationErrorsAreFatal")) ? ECookByTheBookOptions::ValidationErrorsAreFatal : ECookByTheBookOptions::None;
+	}
 
 	if (bCookSinglePackage)
 	{

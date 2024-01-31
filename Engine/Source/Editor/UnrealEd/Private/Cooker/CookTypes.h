@@ -152,6 +152,7 @@ namespace UE::Cook
 		Redirected,
 		OrphanedGenerated,
 		LoadError,
+		ValidationError,
 		SaveError,
 		OnlyEditorOnly,
 		CookCanceled,

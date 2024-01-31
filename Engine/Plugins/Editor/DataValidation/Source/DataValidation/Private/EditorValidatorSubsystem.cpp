@@ -118,10 +118,20 @@ bool UEditorValidatorSubsystem::ShouldValidateAsset(
 	const FValidateAssetsSettings& 	Settings,
 	FDataValidationContext& 		InContext) const
 {
+	if (Asset.HasAnyPackageFlags(PKG_Cooked))
+	{
+		return false;
+	}
+
 	FNameBuilder AssetPackageNameBuilder(Asset.PackageName);
 	FStringView AssetPackageNameView = AssetPackageNameBuilder.ToView();
 
 	if (FPackageName::IsTempPackage(AssetPackageNameView))
+	{
+		return false;
+	}
+
+	if (FPackageName::IsVersePackage(AssetPackageNameView))
 	{
 		return false;
 	}
@@ -254,8 +264,7 @@ EDataValidationResult UEditorValidatorSubsystem::IsObjectValidWithContext(
 	
 	if (ensure(InObject))
 	{
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-		IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+		IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 		FAssetData AssetData = AssetRegistry.GetAssetByObjectPath(FSoftObjectPath(InObject), true);
 		if (!AssetData.IsValid())
@@ -344,8 +353,7 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateAssetsInternal(
 	const FValidateAssetsSettings& 	InSettings,
 	FValidateAssetsResults& 		OutResults) const
 {
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	FScopedSlowTask SlowTask(AssetDataList.Num(), LOCTEXT("DataValidation.ValidateAssetsTask", "Validating Assets"));
 	SlowTask.MakeDialog();
@@ -706,8 +714,7 @@ void UEditorValidatorSubsystem::ValidateAllSavedPackages()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UEditorValidatorSubsystem::ValidateAllSavedPackages);
 
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	// Prior to validation, make sure Asset Registry is updated. This is done by ticking the DirectoryWatcher module, which 
 	// is responsible of scanning modified asset files.
@@ -796,8 +803,7 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateChangelistsInternal(
 	SlowTask.Visibility = ESlowTaskVisibility::Invisible;
 	SlowTask.MakeDialog();
 
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	if (AssetRegistry.IsLoadingAssets())
 	{
@@ -880,8 +886,7 @@ void UEditorValidatorSubsystem::GatherAssetsToValidateFromChangelist(
 	TSet<FAssetData>& 				OutAssets,
 	FDataValidationContext& 		InContext) const
 {
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 	
 	LoadValidators();
 	
@@ -973,8 +978,7 @@ void UEditorValidatorSubsystem::LoadValidators()
 
 TArray<FAssetData> UEditorValidatorSubsystem::GetAssetsResolvingRedirectors(FARFilter& InFilter)
 {
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 
 	TArray<FAssetData> Found;
 	AssetRegistry.GetAssets(InFilter, Found);
