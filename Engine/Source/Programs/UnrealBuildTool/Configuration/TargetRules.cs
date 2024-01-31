@@ -930,8 +930,8 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Whether to compile IntelMetricsDiscovery.
 		/// </summary>
-		[RequiresUniqueBuildEnvironment]
-		public bool bCompileIntelMetricsDiscovery { get; set; } = true;
+		[Obsolete("Deprecated in UE5.4 - No longer used.")]
+		public bool bCompileIntelMetricsDiscovery { get; set; } = false;
 
 		/// <summary>
 		/// Whether to compile in python support

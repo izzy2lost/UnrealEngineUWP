@@ -43,10 +43,6 @@ static FAutoConsoleVariableRef CVarDX12NVAfterMathDumpWaitTime(
 );
 #endif
 
-#if INTEL_METRICSDISCOVERY
-bool GDX11IntelMetricsDiscoveryEnabled = false;
-#endif
-
 FD3D11DynamicRHI*	GD3D11RHI = nullptr;
 
 bool D3D11RHI_ShouldAllowAsyncResourceCreation();
@@ -1616,177 +1612,6 @@ void FD3D11DynamicRHI::StopIntelExtensions()
 }
 #endif // INTEL_EXTENSIONS
 
-#if INTEL_METRICSDISCOVERY
-static int32 GetIntelDriverBuildNumber(const FString& VerStr)
-{
-	int32 LastDotPos, FirstDotPos;
-
-	// https://www.intel.com/content/www/us/en/support/articles/000005654/graphics.html
-	// Older Windows drivers follow 9.18.10.3310 where the last four digits are the driver number
-	// Newer Windows drivers follow 27.20.100.9466 where the last seven digits are the driver number
-	// Linux drivers follow 6000.0001 where the last four digits are the driver number. Not supported here
-
-	// Chop off the last 8 characters. On older drivers the first character will be a dot instead of a number
-	FString RightPart = VerStr.Right(8);
-	RightPart.FindChar(TEXT('.'), FirstDotPos);
-
-	if (FirstDotPos == 0)
-	{
-		// Old driver naming, use last four digits
-		if (VerStr.FindLastChar(TEXT('.'), LastDotPos) && FCString::IsNumeric(&VerStr[LastDotPos + 1]))
-		{
-			return FCString::Atoi(&VerStr[LastDotPos + 1]);
-		}
-	}
-	else
-	{
-		// New driver naming, use seven digits after removing dot
-		RightPart = RightPart.Replace(TEXT("."), TEXT(""));
-		if (FCString::IsNumeric(&RightPart[0]) && RightPart.Len() == 7)
-		{
-			return FCString::Atoi(&RightPart[0]);
-		}
-	}
-	return -1;
-}
-
-void FD3D11DynamicRHI::CreateIntelMetricsDiscovery()
-{
-	// Per Jeff from Intel: So far drivers >6323 are known working
-	if (IsRHIDeviceIntel() && GetIntelDriverBuildNumber(GRHIAdapterUserDriverVersion) > 6323)
-	{
-		IntelMetricsDiscoveryHandle = MakeUnique<Intel_MetricsDiscovery_ContextData>();
-
-		MDH_Context::Result Result;
-		Result = IntelMetricsDiscoveryHandle->MDHContext.Initialize();
-
-		if (Result != MDH_Context::Result::RESULT_OK)
-		{
-			UE_LOG(LogD3D11RHI, Log, TEXT("[IntelMetricsDiscovery] Failed to initialize context. Result=%08x"), Result);
-			GDX11IntelMetricsDiscoveryEnabled = false;
-			IntelMetricsDiscoveryHandle = nullptr;
-			return;
-		}
-
-		GDX11IntelMetricsDiscoveryEnabled = true;
-	}
-	else
-	{
-		GDX11IntelMetricsDiscoveryEnabled = false;
-	}
-}
-
-void FD3D11DynamicRHI::StartIntelMetricsDiscovery()
-{
-	bool bShouldStart = GDX11IntelMetricsDiscoveryEnabled
-		&& IntelMetricsDiscoveryHandle;
-
-	if (bShouldStart)
-	{
-		IntelMetricsDiscoveryHandle->MDConcurrentGroup = MDH_FindConcurrentGroup(IntelMetricsDiscoveryHandle->MDHContext.MDDevice, "OA");
-		IntelMetricsDiscoveryHandle->MDMetricSet = MDH_FindMetricSet(IntelMetricsDiscoveryHandle->MDConcurrentGroup, "RenderBasic");
-		auto GPUFreqValue = MDH_FindGlobalSymbol(IntelMetricsDiscoveryHandle->MDHContext.MDDevice, "GpuTimestampFrequency");
-		IntelMetricsDiscoveryHandle->GPUTimeIndex = MDH_FindMetric(IntelMetricsDiscoveryHandle->MDMetricSet, "GpuTime");
-
-		if (IntelMetricsDiscoveryHandle->GPUTimeIndex == UINT32_MAX ||
-			GPUFreqValue.ValueType == MetricsDiscovery::VALUE_TYPE_LAST)
-		{
-			UE_LOG(LogD3D11RHI, Log, TEXT("[IntelMetricsDiscovery] Failed to initialize metrics set"));
-			IntelMetricsDiscoveryHandle->MDHContext.Finalize();
-			GDX11IntelMetricsDiscoveryEnabled = false;
-			return;
-		}
-
-		if(!IntelMetricsDiscoveryHandle->MDHRangeMetrics.Initialize(IntelMetricsDiscoveryHandle->MDHContext.MDDevice,
-			IntelMetricsDiscoveryHandle->MDConcurrentGroup, IntelMetricsDiscoveryHandle->MDMetricSet, GetDevice(), 2))
-		{
-			UE_LOG(LogD3D11RHI, Log, TEXT("[IntelMetricsDiscovery] Failed to initialize range metrics"));
-			IntelMetricsDiscoveryHandle->MDHContext.Finalize();
-			GDX11IntelMetricsDiscoveryEnabled = false;
-			IntelMetricsDiscoveryHandle = nullptr;
-			return;
-		}
-
-		IntelMetricsDiscoveryHandle->bFrameBegun = false;
-
-		UE_LOG(LogD3D11RHI, Log, TEXT("[IntelMetricsDiscovery] Started"));
-	}
-}
-
-void FD3D11DynamicRHI::StopIntelMetricsDiscovery()
-{
-	bool bShouldStop = GDX11IntelMetricsDiscoveryEnabled
-		&& IntelMetricsDiscoveryHandle;
-
-	if (bShouldStop)
-	{
-		IntelMetricsDiscoveryHandle->MDHRangeMetrics.Finalize();
-		IntelMetricsDiscoveryHandle->MDHContext.Finalize();
-
-		UE_LOG(LogD3D11RHI, Log, TEXT("[IntelMetricsDiscovery] Stopped"));
-		GDX11IntelMetricsDiscoveryEnabled = false;
-		IntelMetricsDiscoveryHandle = nullptr;
-	}
-}
-
-void FD3D11DynamicRHI::IntelMetricsDicoveryBeginFrame()
-{
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_IntelMetricsDiscovery_BeginFrame);
-
-	bool bShouldBeginFrame = GDX11IntelMetricsDiscoveryEnabled
-		&& IntelMetricsDiscoveryHandle && !IntelMetricsDiscoveryHandle->bFrameBegun;
-
-	if (bShouldBeginFrame)
-	{
-		IntelMetricsDiscoveryHandle->ReportInUse = IntelMetricsDiscoveryHandle->ReportInUse == 1 ? 0 : 1;
-		IntelMetricsDiscoveryHandle->bFrameBegun = true;
-		IntelMetricsDiscoveryHandle->MDHRangeMetrics.BeginRange(GetDeviceContext(), IntelMetricsDiscoveryHandle->ReportInUse);
-	}
-}
-
-void FD3D11DynamicRHI::IntelMetricsDicoveryEndFrame()
-{
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_IntelMetricsDiscovery_EndFrame);
-
-	bool bShouldEndFrame = GDX11IntelMetricsDiscoveryEnabled
-		&& IntelMetricsDiscoveryHandle && IntelMetricsDiscoveryHandle->bFrameBegun;
-
-	if (bShouldEndFrame)
-	{
-		IntelMetricsDiscoveryHandle->MDHRangeMetrics.EndRange(GetDeviceContext(), IntelMetricsDiscoveryHandle->ReportInUse);
-		IntelMetricsDiscoveryHandle->bFrameBegun = false;
-
-		static bool bFirstFrame = true;
-
-		if (!bFirstFrame)
-		{
-			uint32 ReportToGather = IntelMetricsDiscoveryHandle->ReportInUse == 1 ? 0 : 1;
-
-			IntelMetricsDiscoveryHandle->MDHRangeMetrics.GetRangeReports(GetDeviceContext(), ReportToGather, 1);
-			IntelMetricsDiscoveryHandle->MDHRangeMetrics.ExecuteRangeEquations(GetDeviceContext(), ReportToGather, 1);
-
-			auto GPUTime = IntelMetricsDiscoveryHandle->MDHRangeMetrics.ReportValues.GetValue(ReportToGather, IntelMetricsDiscoveryHandle->GPUTimeIndex).ValueUInt64;
-
-			uint64 CyclesPerMs = 0.001 / FPlatformTime::GetSecondsPerCycle();
-			uint64 GPUTimeMs = GPUTime / (1000 * 1000);
-			uint64 GPUCycles = GPUTimeMs * CyclesPerMs;
-
-			IntelMetricsDiscoveryHandle->LastGPUTime = GPUCycles;
-		}
-
-		if (bFirstFrame)
-		{
-			bFirstFrame = false;
-		}
-	}
-}
-
-double FD3D11DynamicRHI::IntelMetricsDicoveryGetGPUTime()
-{
-	return IntelMetricsDiscoveryHandle->LastGPUTime;
-}
-#endif // INTEL_METRICSDISCOVERY
-
 void FD3D11DynamicRHI::InitD3DDevice()
 {
 	check( IsInGameThread() );
@@ -2085,13 +1910,6 @@ void FD3D11DynamicRHI::InitD3DDevice()
 		}
 #endif //AMD_AGS_API
 
-#if INTEL_METRICSDISCOVERY
-		if (IsRHIDeviceIntel() && bAllowVendorDevice)
-		{
-			// Needs to be done before device creation
-			CreateIntelMetricsDiscovery();
-		}
-#endif
 		if (IsRHIDeviceNVIDIA())
 		{
 			// crash dump hooks need to be attached before device creation
@@ -2288,19 +2106,6 @@ void FD3D11DynamicRHI::InitD3DDevice()
 		{
 			UE_LOG(LogD3D11RHI, Log, TEXT("RHI does not have support for 64 bit atomics"));
 		}
-
-#if INTEL_METRICSDISCOVERY
-		if (IsRHIDeviceIntel() && bAllowVendorDevice)
-		{
-			StartIntelMetricsDiscovery();
-
-			if (GDX11IntelMetricsDiscoveryEnabled)
-			{
-				GRHISupportsDynamicResolution = true;
-				GRHISupportsFrameCyclesBubblesRemoval = true;
-			}
-		}
-#endif // INTEL_METRICSDISCOVERY
 
 		// Disable the RHI thread by default for devices that will likely suffer in performance
 		if (Adapter.bIsIntegrated || FPlatformMisc::NumberOfCores() < 4)
