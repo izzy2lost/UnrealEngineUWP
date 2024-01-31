@@ -6,12 +6,12 @@
 #include "MoviePipelineQueue.h"
 #include "Styling/AppStyle.h"
 
-UMovieGraphVariableNode::UMovieGraphVariableNode()
+void UMovieGraphVariableNode::PostEditImport()
 {
-	if (!HasAnyFlags(RF_ClassDefaultObject))
-	{
-		RegisterDelegates();
-	}
+	Super::PostEditImport();
+
+	// Allow pasted/duplicated nodes to register delegates
+	RegisterDelegates();
 }
 
 TArray<FMovieGraphPinProperties> UMovieGraphVariableNode::GetOutputPinProperties() const
