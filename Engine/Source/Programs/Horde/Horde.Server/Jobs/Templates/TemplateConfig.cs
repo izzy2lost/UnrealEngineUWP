@@ -307,9 +307,19 @@ namespace Horde.Server.Jobs.Templates
 		public string? ArgumentIfEnabled { get; set; }
 
 		/// <summary>
+		/// Arguments to pass with this parameter.
+		/// </summary>
+		public List<string>? ArgumentsIfEnabled { get; set; }
+
+		/// <summary>
 		/// Argument to pass with this parameter.
 		/// </summary>
 		public string? ArgumentIfDisabled { get; set; }
+
+		/// <summary>
+		/// Arguments to pass if this parameter is disabled.
+		/// </summary>
+		public List<string>? ArgumentsIfDisabled { get; set; }
 
 		/// <summary>
 		/// Whether this item is selected by default
@@ -335,15 +345,19 @@ namespace Horde.Server.Jobs.Templates
 		/// <param name="group">The group to put this parameter in</param>
 		/// <param name="text">Text to display for this option</param>
 		/// <param name="argumentIfEnabled">Argument to pass for this item if it's enabled</param>
+		/// <param name="argumentsIfEnabled">Argument to pass for this item if it's enabled</param>
 		/// <param name="argumentIfDisabled">Argument to pass for this item if it's enabled</param>
+		/// <param name="argumentsIfDisabled">Argument to pass for this item if it's enabled</param>
 		/// <param name="defaultValue">Whether this item is selected by default</param>
 		/// <param name="scheduleOverride">Overridden value for this item for scheduled builds</param>
-		public ListParameterItemData(string? group, string text, string? argumentIfEnabled, string? argumentIfDisabled, bool defaultValue, bool? scheduleOverride)
+		public ListParameterItemData(string? group, string text, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride)
 		{
 			Group = group;
 			Text = text;
 			ArgumentIfEnabled = argumentIfEnabled;
+			ArgumentsIfEnabled = argumentsIfEnabled;
 			ArgumentIfDisabled = argumentIfDisabled;
+			ArgumentsIfDisabled = argumentsIfDisabled;
 			Default = defaultValue;
 			ScheduleOverride = scheduleOverride;
 		}
@@ -354,7 +368,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>New <see cref="ListParameterItem"/> object</returns>
 		public ListParameterItem ToModel()
 		{
-			return new ListParameterItem(Group, Text, ArgumentIfEnabled, ArgumentIfDisabled, Default, ScheduleOverride);
+			return new ListParameterItem(Group, Text, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride);
 		}
 	}
 
@@ -430,14 +444,24 @@ namespace Horde.Server.Jobs.Templates
 		public string Label { get; set; }
 
 		/// <summary>
-		/// Value if enabled
+		/// Argument to add if this parameter is enabled
 		/// </summary>
 		public string? ArgumentIfEnabled { get; set; }
 
 		/// <summary>
-		/// Value if disabled
+		/// Argument to add if this parameter is enabled
+		/// </summary>
+		public List<string>? ArgumentsIfEnabled { get; set; }
+
+		/// <summary>
+		/// Argument to add if this parameter is enabled
 		/// </summary>
 		public string? ArgumentIfDisabled { get; set; }
+
+		/// <summary>
+		/// Arguments to add if this parameter is disabled
+		/// </summary>
+		public List<string>? ArgumentsIfDisabled { get; set; }
 
 		/// <summary>
 		/// Whether this argument is enabled by default
@@ -466,16 +490,20 @@ namespace Horde.Server.Jobs.Templates
 		/// Constructor
 		/// </summary>
 		/// <param name="label">Label to show next to this parameter</param>
-		/// <param name="argumentIfEnabled">Value if enabled</param>
-		/// <param name="argumentIfDisabled">Value if disabled</param>
+		/// <param name="argumentIfEnabled">Argument to add if this parameter is enabled</param>
+		/// <param name="argumentsIfEnabled">Arguments to add if this parameter is enabled</param>
+		/// <param name="argumentIfDisabled">Argument to add if this parameter is disabled</param>
+		/// <param name="argumentsIfDisabled">Arguments to add if this parameter is disabled</param>
 		/// <param name="defaultValue">Whether this option is enabled by default</param>
 		/// <param name="scheduleOverride">Override for scheduled builds</param>
 		/// <param name="toolTip">The tool tip text to display</param>
-		public BoolParameterData(string label, string? argumentIfEnabled, string? argumentIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
+		public BoolParameterData(string label, string? argumentIfEnabled, List<string>? argumentsIfEnabled, string? argumentIfDisabled, List<string>? argumentsIfDisabled, bool defaultValue, bool? scheduleOverride, string? toolTip)
 		{
 			Label = label;
 			ArgumentIfEnabled = argumentIfEnabled;
+			ArgumentsIfEnabled = argumentsIfEnabled;
 			ArgumentIfDisabled = argumentIfDisabled;
+			ArgumentsIfDisabled = argumentsIfDisabled;
 			Default = defaultValue;
 			ScheduleOverride = scheduleOverride;
 			ToolTip = toolTip;
@@ -487,7 +515,7 @@ namespace Horde.Server.Jobs.Templates
 		/// <returns>New <see cref="BoolParameter"/> object</returns>
 		public override Parameter ToModel()
 		{
-			return new BoolParameter(Label, ArgumentIfEnabled, ArgumentIfDisabled, Default, ScheduleOverride, ToolTip);
+			return new BoolParameter(Label, ArgumentIfEnabled, ArgumentsIfEnabled, ArgumentIfDisabled, ArgumentsIfDisabled, Default, ScheduleOverride, ToolTip);
 		}
 	}
 }
