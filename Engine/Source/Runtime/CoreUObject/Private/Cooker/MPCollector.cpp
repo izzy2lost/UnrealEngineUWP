@@ -9,11 +9,16 @@ namespace UE::Cook
 
 static uint8 PlatformToIntImpl(const ITargetPlatform* Platform, TConstArrayView<const ITargetPlatform*> Platforms)
 {
-	int32 Result = Platforms.IndexOfByKey(Platform);
-	check(Result != INDEX_NONE);
-	uint8 NarrowResult = static_cast<uint8>(Result);
-	check(static_cast<int32>(NarrowResult) == Result);
-	return NarrowResult;
+	if (Platform)
+	{
+		int32 Result = Platforms.IndexOfByKey(Platform);
+		check(Result != INDEX_NONE && Result < static_cast<int32>(MAX_uint8));
+		return static_cast<uint8>(Result);
+	}
+	else
+	{
+		return MAX_uint8;
+	}
 }
 
 static const ITargetPlatform* IntToPlatformImpl(uint8 PlatformAsInt, TConstArrayView<const ITargetPlatform*> Platforms)

@@ -1426,6 +1426,7 @@ private:
 	/** Send warnings/telemetry when a discovered or read package is found to be a hidden dependency. */
 	void ReportHiddenDependency(FName Referencer, FName Dependency);
 	void BroadcastCookByTheBookStarted();
+	void BroadcastCookByTheBookFinished();
 
 	static UCookOnTheFlyServer* ActiveCOTFS;
 	uint32		StatLoadedPackageCount = 0;

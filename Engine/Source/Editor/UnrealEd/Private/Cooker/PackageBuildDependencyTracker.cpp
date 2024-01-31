@@ -2,12 +2,14 @@
 
 #include "PackageBuildDependencyTracker.h"
 
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
 #include "Async/UniqueLock.h"
 #include "HAL/Platform.h"
 #include "Logging/LogMacros.h"
 #include "Misc/PackageAccessTrackingOps.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
+#endif
 
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
 

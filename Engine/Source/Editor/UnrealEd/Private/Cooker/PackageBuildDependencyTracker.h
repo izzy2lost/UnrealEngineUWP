@@ -2,10 +2,13 @@
 
 #pragma once
 
-#include "Async/Mutex.h"
 #include "Misc/PackageAccessTracking.h"
+
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
+#include "Async/Mutex.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/ObjectHandle.h"
+#endif
 
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
 
