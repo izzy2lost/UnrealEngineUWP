@@ -49,12 +49,12 @@ void FAssetTypeActions_AvaBlueprint::PerformAssetDiff(UObject* Asset1, UObject* 
 	// times we're comparing two completely separate assets altogether)
 	const bool bIsSingleAsset = (NewBlueprint->GetName() == OldBlueprint->GetName());
 
-	FText WindowTitle = LOCTEXT("NamelessAvalancheBlueprintDiff", "Motion Design Blueprint Diff");
+	FText WindowTitle = LOCTEXT("NamelessMotionDesignBlueprintDiff", "Motion Design Blueprint Diff");
 	// if we're diffing one asset against itself
 	if (bIsSingleAsset)
 	{
 		// identify the assumed single asset in the window's title
-		WindowTitle = FText::Format(LOCTEXT("AvalancheBlueprintDiff", "{0} - Motion Design Blueprint Diff"), FText::FromString(NewBlueprint->GetName()));
+		WindowTitle = FText::Format(LOCTEXT("MotionDesignBlueprintDiff", "{0} - Motion Design Blueprint Diff"), FText::FromString(NewBlueprint->GetName()));
 	}
 
 	SBlueprintDiff::CreateDiffWindow(WindowTitle, OldBlueprint, NewBlueprint, OldRevision, NewRevision);

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMaskEditorMode.h"
 
@@ -34,7 +34,7 @@ const FEditorModeID UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId(UE::A
 UAvalancheMaskEditorMode::UAvalancheMaskEditorMode()
 {
 	Info = FEditorModeInfo(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId,
-		LOCTEXT("AvalancheMaskEditorModeName", "AvalancheMaskEditorMode"),
+		LOCTEXT("MotionDesignMaskEditorModeName", "MotionDesign Mask Editor Mode"),
 		FSlateIcon(),
 		false);
 }

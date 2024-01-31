@@ -183,7 +183,7 @@ void FAvaEditorModule::RegisterAssetTools()
 	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
 
 	AssetTools.RegisterAdvancedAssetCategory(AvalancheCategoryName
-		, LOCTEXT("AvalancheCategoryName", "Motion Design"));
+		, LOCTEXT("MotionDesignCategoryName", "Motion Design"));
 
 	TSharedRef<IAssetTypeActions> AvaBlueprintActions = MakeShared<FAssetTypeActions_AvaBlueprint>();
 	AssetTools.RegisterAssetTypeActions(AvaBlueprintActions);

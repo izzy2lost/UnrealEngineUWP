@@ -10,7 +10,7 @@
 
 FAvaEditorCommands::FAvaEditorCommands()
 	: TCommands<FAvaEditorCommands>(TEXT("AvalancheEditor")
-		, LOCTEXT("AvalancheEditor", "Motion Design Editor")
+		, LOCTEXT("MotionDesignEditor", "Motion Design Editor")
 		, NAME_None
 		, FAvaEditorStyle::Get().GetStyleSetName()
 	)

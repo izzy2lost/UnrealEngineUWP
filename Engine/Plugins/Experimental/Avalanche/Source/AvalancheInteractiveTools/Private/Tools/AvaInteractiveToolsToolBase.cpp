@@ -577,7 +577,7 @@ void UAvaInteractiveToolsToolBase::OnComplete()
 
 void UAvaInteractiveToolsToolBase::BeginTransaction()
 {
-	GetToolManager()->BeginUndoTransaction(LOCTEXT("AvalancheInteractiveToolsTool", "Motion Design Interactive Tools Box Tool"));
+	GetToolManager()->BeginUndoTransaction(LOCTEXT("MotionDesignInteractiveToolsTool", "Motion Design Interactive Tools Box Tool"));
 }
 
 void UAvaInteractiveToolsToolBase::EndTransaction()

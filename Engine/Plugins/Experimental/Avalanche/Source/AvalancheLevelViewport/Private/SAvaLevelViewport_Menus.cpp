@@ -875,7 +875,7 @@ void SAvaLevelViewport::AddVisualizerEntries(UToolMenu* InMenu)
 				[
 					SNew(SSpinBox<int32>)
 					.Style(&FAppStyle::Get(), "Menu.SpinBox")
-					.ToolTipText(LOCTEXT("VisualizerIconSizeTooltip", "Screen size guide for Avalanche component visualizer icons."))
+					.ToolTipText(LOCTEXT("VisualizerIconSizeTooltip", "Screen size guide for Motion Design component visualizer icons."))
 					.MinValue(1)
 					.MinSliderValue(1)
 					.MaxValue(32)

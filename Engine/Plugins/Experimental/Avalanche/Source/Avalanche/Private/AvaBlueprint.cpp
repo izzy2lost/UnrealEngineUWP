@@ -275,7 +275,7 @@ void UAvalancheBlueprint::SaveAvalancheWorld()
 	TGuardValue SaveGuard(bSavingWorld, true);
 
 #if WITH_EDITOR
-	FScopedSlowTask SaveWorldTask(2.f, LOCTEXT("SaveAvalancheWorld", "Saving Avalanche World"));
+	FScopedSlowTask SaveWorldTask(2.f, LOCTEXT("SaveMotionDesignWorld", "Saving Motion Design World"));
 	SaveWorldTask.MakeDialogDelayed(1.f);	
 #endif
 	
@@ -346,7 +346,7 @@ void UAvalancheBlueprint::LoadAvalancheWorld(UWorld* InOverrideWorld, TOptional<
 	TGuardValue LoadGuard(bLoadingWorld, true);
 	
 #if WITH_EDITOR
-	FScopedSlowTask LoadWorld(WorldData.ActorData.Num(), LOCTEXT("LoadWorld", "Loading Avalanche World"));
+	FScopedSlowTask LoadWorld(WorldData.ActorData.Num(), LOCTEXT("LoadWorld", "Loading Motion Design World"));
 	LoadWorld.MakeDialogDelayed(1.f, false);
 #endif
 	

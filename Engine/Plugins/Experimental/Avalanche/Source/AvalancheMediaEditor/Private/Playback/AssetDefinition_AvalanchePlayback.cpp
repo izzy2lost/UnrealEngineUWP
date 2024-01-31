@@ -135,24 +135,24 @@ namespace MenuExtension_AvalanchePlayback
 			Section.AddDynamicEntry(NAME_None, FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
 			{
 				{
-					const TAttribute<FText> Label = LOCTEXT("AvalanchePlayback_Play", "Play");
-					const TAttribute<FText> ToolTip = LOCTEXT("AvalanchePlayback_PlayTooltip", "Play");
+					const TAttribute<FText> Label = LOCTEXT("MotionDesignPlayback_Play", "Play");
+					const TAttribute<FText> ToolTip = LOCTEXT("MotionDesignPlayback_PlayTooltip", "Play");
 					const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericPlay");
 
 					FToolUIAction UIAction;
 					UIAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&ExecutePlay);
 					UIAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&CanExecutePlay);
-					InSection.AddMenuEntry("AvalanchePlayback_Play", Label, ToolTip, Icon, UIAction);
+					InSection.AddMenuEntry("MotionDesignPlayback_Play", Label, ToolTip, Icon, UIAction);
 				}
 				{
-					const TAttribute<FText> Label = LOCTEXT("AvalanchePlayback_Stop", "Stop");
-					const TAttribute<FText> ToolTip = LOCTEXT("AvalanchePlayback_Stop", "Stop");
+					const TAttribute<FText> Label = LOCTEXT("MotionDesignPlayback_Stop", "Stop");
+					const TAttribute<FText> ToolTip = LOCTEXT("MotionDesignPlayback_Stop", "Stop");
 					const FSlateIcon Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericPause");
 
 					FToolUIAction UIAction;
 					UIAction.ExecuteAction = FToolMenuExecuteAction::CreateStatic(&ExecuteStop);
 					UIAction.CanExecuteAction = FToolMenuCanExecuteAction::CreateStatic(&CanExecuteStop);
-					InSection.AddMenuEntry("AvalanchePlayback_Stop", Label, ToolTip, Icon, UIAction);
+					InSection.AddMenuEntry("MotionDesignPlayback_Stop", Label, ToolTip, Icon, UIAction);
 				}
 			}));
 		}));
