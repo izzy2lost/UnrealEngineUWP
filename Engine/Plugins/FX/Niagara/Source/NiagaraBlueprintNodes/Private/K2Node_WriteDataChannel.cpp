@@ -23,9 +23,9 @@ void UK2Node_WriteDataChannel::AllocateDefaultPins()
 {
 	Super::AllocateDefaultPins();
 
-	if (DataChannel)
+	if (HasValidDataChannel())
 	{
-		for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
+		for (const FNiagaraDataChannelVariable& InVar : GetDataChannel()->GetVariables())
 		{
 			if (IgnoredVariables.Contains(InVar.Version))
 			{
@@ -52,7 +52,7 @@ void UK2Node_WriteDataChannel::GetMenuActions(FBlueprintActionDatabaseRegistrar&
 
 void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph)
 {
-	if (!DataChannel)
+	if (!HasValidDataChannel())
 	{
 		// replace function with a noop if we don't have a data channel
 		UK2Node_ExecutionSequence* NoopNode = CompilerContext.SpawnIntermediateNode<UK2Node_ExecutionSequence>(this, SourceGraph);
@@ -61,7 +61,7 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 		CompilerContext.MovePinLinksToIntermediate(*GetThenPin(), *NoopNode->GetThenPinGivenIndex(0));
 		return;
 	}
-	if (DataChannelVersion != DataChannel->Get()->GetVersion())
+	if (DataChannelVersion != GetDataChannel()->GetVersion())
 	{
 		CompilerContext.MessageLog.Error(*LOCTEXT("StaleNode", "Node is out of sync with the data channel asset, please refresh node to fix up the pins - @@").ToString(), this);
 		return;
@@ -108,7 +108,7 @@ void UK2Node_WriteDataChannel::ExpandNode(FKismetCompilerContext& CompilerContex
 	// create the write function nodes
 	UEdGraphPin* LastExecPin = CreateWriterNode->GetThenPin();
 	UEdGraphPin* WriterResultPin = CreateWriterNode->GetReturnValuePin();
-	for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
+	for (const FNiagaraDataChannelVariable& InVar : GetDataChannel()->GetVariables())
 	{
 		if (IgnoredVariables.Contains(InVar.Version))
 		{

@@ -26,9 +26,9 @@ void UK2Node_ReadDataChannel::AllocateDefaultPins()
 {
 	Super::AllocateDefaultPins();
 
-	if (DataChannel)
+	if (HasValidDataChannel())
 	{
-		for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
+		for (const FNiagaraDataChannelVariable& InVar : GetDataChannel()->GetVariables())
 		{
 			if (IgnoredVariables.Contains(InVar.Version))
 			{
@@ -58,7 +58,7 @@ void UK2Node_ReadDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext
 	const UEdGraphSchema_K2* Schema = CompilerContext.GetSchema();
 	UEdGraphPin* SuccessPin = FindPinChecked(FName("Success"), EGPD_Output);
 	UEdGraphPin* FailurePin = FindPinChecked(FName("Failure"), EGPD_Output);
-	if (!DataChannel)
+	if (!HasValidDataChannel())
 	{
 		// replace function with a noop if we don't have a data channel
 		UK2Node_ExecutionSequence* NoopNode = CompilerContext.SpawnIntermediateNode<UK2Node_ExecutionSequence>(this, SourceGraph);
@@ -69,7 +69,7 @@ void UK2Node_ReadDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext
 		Schema->BreakPinLinks(*SuccessPin, false);
 		return;
 	}
-	if (DataChannelVersion != DataChannel->Get()->GetVersion())
+	if (DataChannelVersion != GetDataChannel()->GetVersion())
 	{
 		CompilerContext.MessageLog.Error(*LOCTEXT("StaleNode", "Node is out of sync with the data channel asset, please refresh node to fix up the pins - @@").ToString(), this);
 		return;
@@ -114,7 +114,7 @@ void UK2Node_ReadDataChannel::ExpandNode(FKismetCompilerContext& CompilerContext
 	// create the read function nodes
 	UEdGraphPin* LastIsValidPin = nullptr;
 	UEdGraphPin* IndexPin = FindPinChecked(FName("Index"), EGPD_Input);
-	for (const FNiagaraDataChannelVariable& InVar : DataChannel->Get()->GetVariables())
+	for (const FNiagaraDataChannelVariable& InVar : GetDataChannel()->GetVariables())
 	{
 		if (IgnoredVariables.Contains(InVar.Version))
 		{

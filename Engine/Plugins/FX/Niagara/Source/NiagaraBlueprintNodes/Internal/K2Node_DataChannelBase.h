@@ -15,6 +15,7 @@ class UK2Node_DataChannelBase : public UK2Node_CallFunction
 public:
 
 	NIAGARABLUEPRINTNODES_API UNiagaraDataChannel* GetDataChannel() const;
+	NIAGARABLUEPRINTNODES_API bool HasValidDataChannel() const;
 
 	virtual void PostLoad() override;
 
@@ -37,14 +38,16 @@ public:
 
 protected:
 
-	UPROPERTY()
-	TObjectPtr<UNiagaraDataChannelAsset> DataChannel;
-
 	UEdGraphPin* GetChannelSelectorPin() const;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FGuid DataChannelVersion;
 #endif
+
+private:
+
+	UPROPERTY()
+	TObjectPtr<UNiagaraDataChannelAsset> DataChannel;
 };
 
