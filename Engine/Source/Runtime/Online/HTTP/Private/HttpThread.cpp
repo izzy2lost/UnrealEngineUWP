@@ -223,7 +223,8 @@ void FHttpThreadBase::Process(TArray<IHttpThreadedRequest*>& RequestsToCancel, T
 		}
 		else
 		{
-			UE_LOG(LogHttp, Warning, TEXT("Unable to find request (%p) in HttpThread"), Request);
+			// Don't make this a warning as these events can happen frequently when HTTP request timeouts are expected to happen
+			UE_LOG(LogHttp, Log, TEXT("Unable to find request (%p) in HttpThread"), Request);
 		}
 	}
 
