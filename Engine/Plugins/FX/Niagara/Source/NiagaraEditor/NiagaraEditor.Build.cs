@@ -24,6 +24,7 @@ public class NiagaraEditor : ModuleRules
                 "EditorStyle",
 				"VectorVM",
                 "MovieScene",
+				"SequencerCore",
 				"Sequencer",
 				"TimeManagement",
 				"PropertyEditor",
