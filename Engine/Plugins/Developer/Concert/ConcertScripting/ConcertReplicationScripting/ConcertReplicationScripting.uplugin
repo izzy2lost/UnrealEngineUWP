@@ -27,6 +27,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "ConcertSharedSlate",
+			"Enabled": true
+		},
+		{
 			"Name": "ConcertSyncCore",
 			"Enabled": true
 		}
