@@ -30,6 +30,12 @@ struct FSCCExternallyEditedTag final : public FTypedElementDataStorageTag
 	GENERATED_BODY()
 };
 
+USTRUCT(meta = (DisplayName = "Not at the latest revision"))
+struct FSCCNotCurrentTag final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
 UENUM()
 enum class ESCCModification
 {

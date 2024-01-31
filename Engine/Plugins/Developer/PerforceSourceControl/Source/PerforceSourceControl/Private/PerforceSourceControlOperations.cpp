@@ -2100,6 +2100,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		SyncTagFromState(bIsCheckedOutByOther, FSCCExternallyEditedTag::StaticStruct());
 		SyncTagFromState(State.IsCheckedOut(), FSCCLockedTag::StaticStruct());
 		SyncTagFromState(State.Changelist.IsInitialized(), FSCCInChangelistTag::StaticStruct());
+		SyncTagFromState(State.LocalRevNumber < State.DepotRevNumber, FSCCNotCurrentTag::StaticStruct());
 		DataStorage->AddColumns(Row, ToAdd);
 		// Not using batched removal for now because it ensures that all are present
 		for (UScriptStruct* Column : ToRemove)
