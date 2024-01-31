@@ -375,7 +375,8 @@ void STG_GraphPinOutputSettingsWidget::GenerateStringsFromEnum(TArray<FString>& 
 	}
 }
 
-void STG_GraphPinOutputSettingsWidget::GenerateValuesFromEnum(TArray<uint8>& OutEnumValues, const FString& EnumPathName) const
+template<typename T>
+void STG_GraphPinOutputSettingsWidget::GenerateValuesFromEnum(TArray<T>& OutEnumValues, const FString& EnumPathName) const
 {
 	UEnum* EnumPtr = FindObject<UEnum>(nullptr, *EnumPathName);
 	if (EnumPtr)
@@ -385,7 +386,7 @@ void STG_GraphPinOutputSettingsWidget::GenerateValuesFromEnum(TArray<uint8>& Out
 			if (!EnumPtr->HasMetaData(TEXT("Hidden"), i))
 			{
 				FString DisplayName = EnumPtr->GetDisplayNameTextByIndex(i).ToString();
-				uint8 EnumValue = EnumPtr->GetValueByIndex(i);
+				T EnumValue = EnumPtr->GetValueByIndex(i);
 				UE_LOG(LogTemp, Warning, TEXT("Enum Value: %d, Display Name: %s"), EnumValue, *DisplayName);
 				OutEnumValues.Add(EnumValue);
 			}
@@ -393,14 +394,15 @@ void STG_GraphPinOutputSettingsWidget::GenerateValuesFromEnum(TArray<uint8>& Out
 	}
 }
 
+template<typename T>
 int STG_GraphPinOutputSettingsWidget::GetValueFromIndex(const FString& EnumPathName, int Index) const
 {
 	int Value = 0;
-	TArray<uint8> EnumValues;
+	TArray<T> EnumValues;
 	UEnum* EnumPtr = FindObject<UEnum>(nullptr, *EnumPathName);
 	if (EnumPtr)
 	{
-		GenerateValuesFromEnum(EnumValues, EnumPathName);
+		GenerateValuesFromEnum<T>(EnumValues, EnumPathName);
 		if (EnumValues.Num() > Index)
 		{
 			Value = EnumValues[Index];
@@ -448,7 +450,7 @@ TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateWidthEnumMenu()
 void STG_GraphPinOutputSettingsWidget::HandleWidthChanged(FString Name,int Index)
 {
 	auto Settings = GetSettings();
-	Settings.Width = (EResolution)GetValueFromIndex(StaticEnum<EResolution>()->GetPathName(), Index);
+	Settings.Width = (EResolution)GetValueFromIndex<int>(StaticEnum<EResolution>()->GetPathName(), Index);
 	
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 
@@ -488,7 +490,7 @@ TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateHeightEnumMenu()
 void STG_GraphPinOutputSettingsWidget::HandleHeightChanged(FString Name, int Index)
 {
 	auto Settings = GetSettings();
-	Settings.Height = (EResolution)GetValueFromIndex(StaticEnum<EResolution>()->GetPathName(), Index);
+	Settings.Height = (EResolution)GetValueFromIndex<int>(StaticEnum<EResolution>()->GetPathName(), Index);
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 
 	SelectedHeightIndex = Index;
@@ -526,7 +528,7 @@ TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateFormatEnumMenu()
 void STG_GraphPinOutputSettingsWidget::HandleFormatChanged(FString Name, int Index)
 {
 	auto Settings = GetSettings();
-	Settings.TextureFormat = (ETG_TextureFormat)GetValueFromIndex(StaticEnum<ETG_TextureFormat>()->GetPathName(), Index);
+	Settings.TextureFormat = (ETG_TextureFormat)GetValueFromIndex<uint8>(StaticEnum<ETG_TextureFormat>()->GetPathName(), Index);
 
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 
@@ -565,7 +567,7 @@ TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateTexturePresetTyp
 void STG_GraphPinOutputSettingsWidget::HandleTexturePresetTypeChanged(FString Name, int Index)
 {
 	auto Settings = GetSettings();
-	Settings.TexturePresetType = (ETG_TexturePresetType)GetValueFromIndex(StaticEnum<ETG_TexturePresetType>()->GetPathName(), Index);
+	Settings.TexturePresetType = (ETG_TexturePresetType)GetValueFromIndex<uint8>(StaticEnum<ETG_TexturePresetType>()->GetPathName(), Index);
 
 	Settings.OnSetTexturePresetType(Settings.TexturePresetType);
 
@@ -606,7 +608,7 @@ TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateLodGroupEnumMenu
 void STG_GraphPinOutputSettingsWidget::HandleLodGroupChanged(FString Name, int Index)
 {
 	auto Settings = GetSettings();
-	Settings.LODGroup = (TextureGroup)GetValueFromIndex(StaticEnum<TextureGroup>()->GetPathName(), Index);
+	Settings.LODGroup = (TextureGroup)GetValueFromIndex<int>(StaticEnum<TextureGroup>()->GetPathName(), Index);
 
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 
@@ -650,7 +652,7 @@ TSharedRef<SWidget> STG_GraphPinOutputSettingsWidget::OnGenerateCompressionEnumM
 void STG_GraphPinOutputSettingsWidget::HandleCompressionChanged(FString Name, int Index)
 {
 	auto Settings = GetSettings();
-	Settings.Compression = (TextureCompressionSettings)GetValueFromIndex(StaticEnum<TextureCompressionSettings>()->GetPathName(), Index);
+	Settings.Compression = (TextureCompressionSettings)GetValueFromIndex<int>(StaticEnum<TextureCompressionSettings>()->GetPathName(), Index);
 
 	OnOutputSettingsChanged.ExecuteIfBound(Settings);
 

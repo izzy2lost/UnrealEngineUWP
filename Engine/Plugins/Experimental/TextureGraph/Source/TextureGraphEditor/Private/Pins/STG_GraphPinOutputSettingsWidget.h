@@ -57,7 +57,11 @@ public:
 	TSharedPtr<SWidget> AddSRGBWidget();
 	FTG_OutputSettings GetSettings() const;
 	void GenerateStringsFromEnum(TArray<FString>& OutEnumNames, const FString& EnumPathName);
-	void GenerateValuesFromEnum(TArray<uint8>& OutEnumValues, const FString& EnumPathName) const;
+
+	template<typename T>
+	void GenerateValuesFromEnum(TArray<T>& OutEnumValues, const FString& EnumPathName) const;
+
+	template<typename T>
 	int GetValueFromIndex(const FString& EnumPathName, int Index) const;
 	FString GetEnumValueDisplayName(const FString& EnumPathName, int EnumValue) const;
 	EVisibility ShowParameters() const;

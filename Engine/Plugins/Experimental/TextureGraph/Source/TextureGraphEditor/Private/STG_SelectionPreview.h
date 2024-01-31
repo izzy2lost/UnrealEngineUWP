@@ -44,12 +44,15 @@ public:
 	void OnCheckBoxStateChanged(ECheckBoxState NewState);
 	ECheckBoxState GetCheckBoxState() const;
 	void ConstructBlobView(BlobPtr InBlob = nullptr);
-	FText GetBufferDescriptionText() const;
+	FText GetOutputDetailsText() const;
 	FString BufferToString(BufferDescriptor Desc);
 	void UpdatePixelInfo();
 	void OnTexturePreviewMouseHover();
 	
 	void OnSelectionChanged(UTG_EdGraphNode* InNode);
+	void UpdateOutputDetailsText(BlobPtr InBlob);
+	void UpdateOutputDetailsText(UTG_Pin* Pin);
+	void ResetOutputDetailsText();
 	void UpdatePreview();
 
 	UTexture* GetTexture() const;
@@ -116,7 +119,7 @@ private:
 	UTG_EdGraphNode* LockedNode;
 	/** Which output should be shown */
 	FString SpecifiedOutputName = "Output";
-	FString BufferDescriptionString = "";
+	FString OutputDetailsText = "";
 	FString PixelInfo = "";
 	int32 MaxOutputs;
 	bool IsLocked = false;

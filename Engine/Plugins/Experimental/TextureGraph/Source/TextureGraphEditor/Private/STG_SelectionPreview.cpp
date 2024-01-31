@@ -541,16 +541,16 @@ void STG_SelectionPreview::ConstructBlobView(BlobPtr InBlob)
 	.HAlign(HAlign_Fill)
 	[
 		SNew( STextBlock)
-		.Text(this, &STG_SelectionPreview::GetBufferDescriptionText)
+		.Text(this, &STG_SelectionPreview::GetOutputDetailsText)
 		.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
 		.Justification(ETextJustify::Center)
 		.AutoWrapText(true)
 	];
 }
 
-FText STG_SelectionPreview::GetBufferDescriptionText() const
+FText STG_SelectionPreview::GetOutputDetailsText() const
 {
-	return FText::FromString(BufferDescriptionString + "\n" + PixelInfo);
+	return FText::FromString(OutputDetailsText + "\n" + PixelInfo);
 }
 
 void STG_SelectionPreview::OnTexturePreviewMouseHover()
@@ -756,6 +756,7 @@ void STG_SelectionPreview::OnSelectionChanged(UTG_EdGraphNode* InNode)
 
 							// Set Texture Properties
 							SetTextureProperties();
+							UpdateOutputDetailsText(Blob);
 						}
 					});
 			}
@@ -770,6 +771,7 @@ void STG_SelectionPreview::OnSelectionChanged(UTG_EdGraphNode* InNode)
 							SetTexture(Blob);
 							// Set Texture Properties
 							SetTextureProperties();
+							UpdateOutputDetailsText(Blob);
 						}
 					});
 			}
@@ -800,12 +802,14 @@ void STG_SelectionPreview::OnSelectionChanged(UTG_EdGraphNode* InNode)
 			// this will make sure the ViewportClient exits after
 			// clearing to the expected color
 			SetTexture(nullptr);
+			UpdateOutputDetailsText(TGPin);
 		}
 	}
 	else
 	{
 		//Null blob will set the black preview
 		SetTexture(Blob);
+		ResetOutputDetailsText();
 	}
 
 	//Update the output selection value when clicked on Graph
@@ -819,6 +823,62 @@ void STG_SelectionPreview::OnSelectionChanged(UTG_EdGraphNode* InNode)
 	PreviewBlob = Blob;
 	
 	OnBlobSelectionChanged.ExecuteIfBound(Blob);
+}
+
+void STG_SelectionPreview::UpdateOutputDetailsText(BlobPtr InBlob)
+{
+	if (InBlob)
+	{
+		DeviceBufferPtr Buffer = InBlob->GetBufferRef().GetPtr();
+		// Hopefully found a device buffer if not early exit
+		if (!Buffer)
+		{
+			ResetOutputDetailsText();
+			return;
+		}
+
+		OutputDetailsText = BufferToString(Buffer->Descriptor());
+	}
+	else
+	{
+		ResetOutputDetailsText();
+	}
+}
+
+void STG_SelectionPreview::UpdateOutputDetailsText(UTG_Pin* Pin)
+{
+	if (Pin->IsArgColor())
+	{
+		FLinearColor ColorValue;
+		check(Pin->GetValue(ColorValue));
+		const FColor SRGBColor = ColorValue.ToFColorSRGB();
+		OutputDetailsText = "Color Value : " + SRGBColor.ToString();
+		PixelInfo = "";
+	}
+	else if (Pin->IsArgScalar())
+	{
+		float ScalarValue = 0.0;
+		check(Pin->GetValue(ScalarValue));
+		OutputDetailsText = "Scalar Value : " + FString::Printf(TEXT("%0.3f"), ScalarValue);
+		PixelInfo = "";
+	}
+	else if (Pin->IsArgVector())
+	{
+		FVector4f VectorValue(0,0,0,0);
+		check(Pin->GetValue(VectorValue));
+		OutputDetailsText = "Vector Value : " + VectorValue.ToString();
+		PixelInfo = "";
+	}
+	else
+	{
+		ResetOutputDetailsText();
+	}
+}
+
+void STG_SelectionPreview::ResetOutputDetailsText()
+{
+	OutputDetailsText = "";
+	PixelInfo = "";
 }
 
 int STG_SelectionPreview::GetSelectedPinIndex(UTG_EdGraphNode* InNode,const UEdGraphPin* SelectedPin)
@@ -869,7 +929,6 @@ void STG_SelectionPreview::SetTexture(BlobPtr InBlob)
 	
 	IsSingleChannel = Buffer->Descriptor().ItemsPerPoint == 1;
 	bSRGB = Buffer->Descriptor().bIsSRGB;
-	BufferDescriptionString = BufferToString(Buffer->Descriptor());
 
 	Texture = GetTextureFromBuffer(Buffer);
 }

@@ -27,7 +27,10 @@ void STG_GraphPinOutputSettings::Construct(const FArguments& InArgs, UEdGraphPin
 		}
 
 		GetPinObj()->bAdvancedView = ShowChildProperties();
-		GetPinObj()->GetOwningNode()->AdvancedPinDisplay = GetPinObj()->bAdvancedView ? ENodeAdvancedPins::Hidden : ENodeAdvancedPins::NoPins;
+		if (GetPinObj()->GetOwningNode()->AdvancedPinDisplay != ENodeAdvancedPins::Shown)
+		{
+			GetPinObj()->GetOwningNode()->AdvancedPinDisplay = GetPinObj()->bAdvancedView ? ENodeAdvancedPins::Hidden : ENodeAdvancedPins::NoPins;
+		}
 	}
 
 	CachedImg_Pin_BackgroundHovered = CachedImg_Pin_Background;
@@ -80,7 +83,8 @@ bool STG_GraphPinOutputSettings::CollapsibleChildProperties() const
 
 EVisibility STG_GraphPinOutputSettings::ShowLabel() const
 {
-	bool bHide = ShowChildProperties();
+	bool bOutput = GetDirection() == EEdGraphPinDirection::EGPD_Output;
+	bool bHide = ShowChildProperties() && !bOutput;
 
 	if ((GraphPinObj->GetOwningNode()->AdvancedPinDisplay == ENodeAdvancedPins::Type::Hidden && GraphPinObj->LinkedTo.Num() > 0))
 	{
