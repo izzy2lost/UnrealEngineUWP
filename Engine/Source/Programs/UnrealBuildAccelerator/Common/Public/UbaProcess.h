@@ -53,12 +53,14 @@ namespace uba
 		ProcessImpl(Session& session, u32 id, ProcessImpl* parent);
 		~ProcessImpl();
 
+		struct PipeReader;
+
 		void Start(const ProcessStartInfo& startInfo, TString&& realApplication, const tchar* realWorkingDir, bool runningRemote, void* environment, bool async, bool enableDetour);
 
 		bool IsActive();
 		bool IsCancelled();
 
-		bool WaitForRead();
+		bool WaitForRead(PipeReader& outReader, PipeReader& errReader);
 		void SetWritten();
 
 		void ThreadRun(bool runningRemote, void* environment);
@@ -71,8 +73,8 @@ namespace uba
 		void SetRulesIndex(const ProcessStartInfo& si);
 		const tchar* InternalGetChildLogFile(StringBufferBase& temp);
 		
-		#if PLATFORM_MAC
-		int WaitForProcessGroup(pid_t pgid);
+		#if !PLATFORM_WINDOWS
+		bool PollStdPipes(PipeReader& outReader, PipeReader& errReader, int timeoutMs = -1);
 		#endif
 
 		u32 InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset);
@@ -96,6 +98,10 @@ namespace uba
 		Event& m_cancelEvent;
 		Event& m_writeEvent;
 		Event& m_readEvent;
+
+		int m_stdOutPipe = -1;
+		int m_stdErrPipe = -1;
+
 	#endif
 
 		ProcHandle m_nativeProcessHandle = InvalidProcHandle;
@@ -143,7 +149,6 @@ namespace uba
 
 		ProcessImpl(const ProcessImpl&) = delete;
 		void operator=(const ProcessImpl&) = delete;
-		struct PipeReader;
 	};
 
 	bool ParseArguments(Vector<TString>& outArguments, const tchar* argumentString);

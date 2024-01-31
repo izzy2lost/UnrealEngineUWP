@@ -49,6 +49,41 @@ namespace uba
 			delete this;
 	}
 
+	struct ProcessImpl::PipeReader
+	{
+		PipeReader(ProcessImpl& p, LogEntryType lt) : process(p), logType(lt) {}
+		~PipeReader()
+		{
+			if (!currentString.empty())
+				process.LogLine(false, TString(currentString), logType);
+		}
+
+		void ReadData(char* buf, u32 readCount)
+		{
+			char* startPos = buf;
+			while (true)
+			{
+				char* endOfLine = strchr(startPos, '\n');
+				if (!endOfLine)
+				{
+					currentString.append(TString(startPos, startPos + strlen(startPos)));
+					return;
+				}
+				char* newStart = endOfLine + 1;
+				if (endOfLine > buf && endOfLine[-1] == '\r')
+					--endOfLine;
+				currentString.append(TString(startPos, endOfLine));
+				process.LogLine(false, TString(currentString), logType);
+				currentString.clear();
+				startPos = newStart;
+			}
+		}
+
+		ProcessImpl& process;
+		LogEntryType logType;
+		TString currentString;
+	};
+
 	ProcessImpl::ProcessImpl(Session& session, u32 id, ProcessImpl* parent)
 	:	m_session(session)
 	,	m_parentProcess(parent)
@@ -297,12 +332,17 @@ namespace uba
 		#endif
 	}
 
-	bool ProcessImpl::WaitForRead()
+	bool ProcessImpl::WaitForRead(PipeReader& outReader, PipeReader& errReader)
 	{
 		while (true)
 		{
 			if (m_readEvent.IsSet(1000))
 				break;
+
+			#if !PLATFORM_WINDOWS
+			PollStdPipes(outReader, errReader, 0);
+			#endif
+
 			if (!IsActive())
 				return false;
 			if (IsCancelled())
@@ -339,17 +379,27 @@ namespace uba
 		{
 			exitCode = InternalCreateProcess(runningRemote, environment, m_comMemory.handle, m_comMemory.offset);
 
-			bool loop = exitCode == 0 && m_detourEnabled;
-
-			while (loop && WaitForRead())
+			if (exitCode == 0)
 			{
-				u64 startTime = GetTime();
-				BinaryReader reader(readMemory);
-				BinaryWriter writer(writeMemory);
-				loop = HandleMessage(reader, writer);
-				SetWritten();
-				m_processStats.hostTotalTime += GetTime() - startTime;
-				++m_messageCount;
+				PipeReader outReader(*this, LogEntryType_Info);
+				PipeReader errReader(*this, LogEntryType_Error);
+
+				bool loop = m_detourEnabled;
+				while (loop && WaitForRead(outReader, errReader))
+				{
+					u64 startTime = GetTime();
+					BinaryReader reader(readMemory);
+					BinaryWriter writer(writeMemory);
+					loop = HandleMessage(reader, writer);
+					SetWritten();
+					m_processStats.hostTotalTime += GetTime() - startTime;
+					++m_messageCount;
+				}
+
+				#if !PLATFORM_WINDOWS
+				while (PollStdPipes(outReader, errReader))
+					continue;
+				#endif
 			}
 
 			u64 exitStartTime = GetTime();
@@ -1047,41 +1097,6 @@ namespace uba
 		return temp.data;
 	}
 
-	struct ProcessImpl::PipeReader
-	{
-		PipeReader(ProcessImpl& p, LogEntryType lt) : process(p), logType(lt) {}
-		~PipeReader()
-		{
-			if (!currentString.empty())
-				process.LogLine(false, TString(currentString), logType);
-		}
-
-		void ReadData(char* buf, u32 readCount)
-		{
-			char* startPos = buf;
-			while (true)
-			{
-				char* endOfLine = strchr(startPos, '\n');
-				if (!endOfLine)
-				{
-					currentString.append(TString(startPos, startPos + strlen(startPos)));
-					return;
-				}
-				char* newStart = endOfLine + 1;
-				if (endOfLine > buf && endOfLine[-1] == '\r')
-					--endOfLine;
-				currentString.append(TString(startPos, endOfLine));
-				process.LogLine(false, TString(currentString), logType);
-				currentString.clear();
-				startPos = newStart;
-			}
-		}
-
-		ProcessImpl& process;
-		LogEntryType logType;
-		TString currentString;
-	};
-
 	u32 ProcessImpl::InternalCreateProcess(bool runningRemote, void* environment, FileMappingHandle communicationHandle, u64 communicationOffset)
 	{
 		ScopedWriteLock initLock(m_initLock);
@@ -1290,6 +1305,7 @@ namespace uba
 			payload.communicationHandle = communicationHandle.handle;
 			payload.communicationOffset = communicationOffset;
 			payload.rulesIndex = m_rulesIndex;
+			payload.version = ProcessMessageVersion;
 			payload.runningRemote = runningRemote;
 			payload.isChild = m_parentProcess != nullptr;
 			payload.trackInputs = m_startInfo.trackInputs;
@@ -1473,7 +1489,10 @@ namespace uba
 				if (!logFile.IsEmpty())
 					envvars.push_back(logFile.data);
 			}
-			else
+
+			envvars.push_back(nullptr);
+
+			if (true)
 			{
 				if (pipe(outPipe) || pipe(errPipe))
 				{
@@ -1499,8 +1518,6 @@ namespace uba
 				res = posix_spawn_file_actions_addclose(&fileActions, errPipe[1]);
 				UBA_ASSERTF(!res, "posix_spawn_file_actions_addclose errPipe[1] failed: %i", res);
 			}
-
-			envvars.push_back(nullptr);
 
 			u32 retryCount = 0;
 			pid_t processID;
@@ -1538,62 +1555,11 @@ namespace uba
 			m_nativeProcessHandle = (ProcHandle)1;
 			m_nativeProcessId = u32(processID);
 
-			if (!m_detourEnabled)
-			{
-				pipeGuard1.Execute();
+			pipeGuard1.Execute();
 
-				PipeReader outReader(*this, LogEntryType_Info);
-				PipeReader errReader(*this, LogEntryType_Error);
-
-				pollfd plist[] = { {outPipe[0],POLLIN, 0}, {errPipe[0],POLLIN, 0} };
-				int rval = 0;
-				for (; (rval = poll(plist, sizeof_array(plist), -1)) > 0;)
-				{
-					if (plist[0].revents & POLLERR || plist[1].revents & POLLERR) // If there is an error on any of them we hang up
-					{
-						logger.Error(TC("pipe polling error"));
-						break;
-					}
-					int fd = 0;
-					PipeReader* pipeReader = nullptr;
-					if (plist[0].revents & POLLIN)
-					{
-						fd = outPipe[0];
-						pipeReader = &outReader;
-					}
-					else if (plist[1].revents & POLLIN)
-					{
-						fd = errPipe[0];
-						pipeReader = &errReader;
-					}
-					else
-						break; // nothing left to read
-
-					char buffer[1024];
-					int bytesRead = read(fd, buffer, sizeof_array(buffer) - 1);
-
-					buffer[bytesRead] = 0;
-					pipeReader->ReadData(buffer, bytesRead);
-
-					// If they both have hung up we hang up
-					// However, pollhup means slightly different things on MacOS vs Linux
-					// so we need to check slightly different things
-					if (plist[0].revents & POLLHUP && plist[1].revents & POLLHUP)
-					{
-						#if PLATFORM_LINUX
-						if (bytesRead == 0)
-						#endif
-							break;
-					}
-				}
-
-				#if PLATFORM_MAC
-				if (rval == -1)
-					logger.Error(TC("pipe polling error with -1 (%s)"), strerror(errno));
-				// Now that we're done polling, close the fds.
-				pipeGuard0.Execute();
-				#endif
-			}
+			m_stdOutPipe = outPipe[0];
+			m_stdErrPipe = errPipe[0];
+			pipeGuard0.Cancel();
 		}
 		else
 		{
@@ -1700,6 +1666,11 @@ namespace uba
 		return UBA_EXIT_CODE(14);
 #else
 
+		if (m_stdOutPipe != -1)
+			close(m_stdOutPipe);
+		if (m_stdErrPipe != -1)
+			close(m_stdErrPipe);
+
 		auto g = MakeGuard([this]() { m_nativeProcessId = 0; });
 
 		if (cancel)
@@ -1739,6 +1710,52 @@ namespace uba
 		return m_nativeProcessExitCode;
 #endif
 	}
+
+#if !PLATFORM_WINDOWS
+	bool ProcessImpl::PollStdPipes(PipeReader& outReader, PipeReader& errReader, int timeoutMs)
+	{
+		if (m_stdOutPipe == -1)
+			return false;
+
+		auto pipeGuard = MakeGuard([&]() { close(m_stdOutPipe); m_stdOutPipe = -1; close(m_stdErrPipe); m_stdErrPipe = -1; });
+
+		PipeReader* pipeReaders[] = { &outReader, &errReader };
+
+		pollfd plist[] = { {m_stdOutPipe,POLLIN, 0}, {m_stdErrPipe,POLLIN, 0} };
+		int rval = poll(plist, sizeof_array(plist), timeoutMs);
+		if (rval < 0)
+		{
+			#if PLATFORM_MAC
+			m_session.m_logger.Error(TC("pipe polling error with %i (%s)"), rval, strerror(errno));
+			#endif
+			return false;
+		}
+
+		bool hasRead = false;
+		for (int i=0;i!=2;++i)
+		{
+			if (plist[i].revents & POLLERR) // If there is an error on any of them we hang up
+				return m_session.m_logger.Error(TC("pipe polling error"));
+
+			if (!(plist[i].revents & POLLIN))
+				continue;
+
+			char buffer[1024];
+			if (int bytesRead = read(plist[i].fd, buffer, sizeof_array(buffer) - 1))
+			{
+				hasRead = true;
+				buffer[bytesRead] = 0;
+				pipeReaders[i]->ReadData(buffer, bytesRead);
+			}
+		}
+
+		if (!hasRead)
+			if (plist[0].revents & POLLHUP && plist[1].revents & POLLHUP)
+				return false;
+		pipeGuard.Cancel();
+		return true;
+	}
+#endif
 
 	void ProcessImpl::ClearTempFiles()
 	{

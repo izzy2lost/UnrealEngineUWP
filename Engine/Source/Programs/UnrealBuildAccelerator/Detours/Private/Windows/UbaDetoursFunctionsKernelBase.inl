@@ -81,7 +81,7 @@ void Shared_SetCurrentDirectory(const wchar_t* workingDirBuffer)
 {
 	u32 charLen = 0;
 	wchar_t temp[256];
-	FixPath2(workingDirBuffer, g_virtualWorkingDir.data, g_virtualWorkingDir.count, temp, &charLen);
+	FixPath2(workingDirBuffer, g_virtualWorkingDir.data, g_virtualWorkingDir.count, temp, sizeof_array(temp), &charLen);
 	g_virtualWorkingDir.Clear().Append(temp).Append('\\');
 }
 
@@ -2211,7 +2211,7 @@ DWORD Detoured_GetFinalPathNameByHandleW(HANDLE hFile, LPTSTR lpszFilePath, DWOR
 			if (!fo->newName.empty())
 				fileName = fo->newName.c_str();
 			StringBuffer<> buffer;
-			FixPath2(fileName, g_virtualWorkingDir.data, g_virtualWorkingDir.count, buffer.data, &buffer.count);
+			FixPath2(fileName, g_virtualWorkingDir.data, g_virtualWorkingDir.count, buffer.data, buffer.capacity, &buffer.count);
 
 			if (cchFilePath <= buffer.count)
 			{

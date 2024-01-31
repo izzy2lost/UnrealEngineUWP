@@ -16,6 +16,7 @@ namespace uba
 	#define UBA_EXTRA_TESTS \
 		UBA_TEST(TestMultipleDetouredProcesses) \
 		UBA_TEST(TestLogLines) \
+		UBA_TEST(TestLogLinesNoDetour) \
 		UBA_TEST(TestLocalSchedule) \
 		UBA_TEST(TestLocalScheduleReuse) \
 		UBA_TEST(TestDetouredTouch) \
@@ -69,7 +70,7 @@ namespace uba
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
 
-		// UBA_TEST(TestRemoteDetouredTestApp)
+		//UBA_TEST(TestLogLines)
 		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));

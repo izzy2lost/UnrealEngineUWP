@@ -46,7 +46,6 @@ using namespace uba;
 	DETOURED_FUNCTION(read) \
 	DETOURED_FUNCTION(pread) \
 	DETOURED_FUNCTION(open) \
-	DETOURED_FUNCTION(write) \
 	DETOURED_FUNCTION(dup) \
 	DETOURED_FUNCTION(dup2) \
 	DETOURED_FUNCTION(close) \
@@ -54,7 +53,6 @@ using namespace uba;
 	DETOURED_FUNCTION(fdopen) \
 	DETOURED_FUNCTION(fchmod) \
 	DETOURED_FUNCTION(fchmodat) \
-	DETOURED_FUNCTION(fwrite) \
 	DETOURED_FUNCTION(fstat) \
 	DETOURED_FUNCTION(futimens) \
 	DETOURED_FUNCTION(fclose) \
@@ -97,6 +95,9 @@ using namespace uba;
 	DETOURED_FUNCTION_DEBUG \
 	DETOURED_FUNCTION_LINUX \
 	DETOURED_FUNCTION_MACOS \
+
+	//DETOURED_FUNCTION(write)
+	//DETOURED_FUNCTION(fwrite)
 
 #if UBA_DEBUG && PLATFORM_LINUX
 #define DETOURED_FUNCTION_DEBUG \
@@ -857,17 +858,17 @@ UBA_EXPORT int UBA_WRAPPER(open)(const char* file, int flags, ...)
 	return Shared_open("open", file, flags, mode, [](const char* realFile, int flags, int mode) { return TRUE_WRAPPER(open)(realFile, flags, mode); });
 }
 
-UBA_EXPORT ssize_t UBA_WRAPPER(write)(int fd, const void* buf, size_t count)
-{
-	UBA_INIT_DETOUR(write, fd, buf, count);
-	if (isatty(fd)) // stdout and stderr
-	{
-		Shared_WriteConsole((const char*)buf, count, fd == fileno(stderr));
-		return count;
-	}
-	//DEBUG_LOG_TRUE("write", "(%i size: %llu)", fd, count);
-	return TRUE_WRAPPER(write)(fd, buf, count);
-}
+//UBA_EXPORT ssize_t UBA_WRAPPER(write)(int fd, const void* buf, size_t count)
+//{
+//	UBA_INIT_DETOUR(write, fd, buf, count);
+//	if (isatty(fd)) // stdout and stderr
+//	{
+//		Shared_WriteConsole((const char*)buf, count, fd == fileno(stderr));
+//		return count;
+//	}
+//	//DEBUG_LOG_TRUE("write", "(%i size: %llu)", fd, count);
+//	return TRUE_WRAPPER(write)(fd, buf, count);
+//}
 
 //UBA_EXPORT int fcntl(int __fd, int __cmd, ...)
 //{
@@ -952,14 +953,14 @@ UBA_EXPORT int UBA_WRAPPER(fchmodat)(int dirfd, const char* pathname, mode_t mod
 	return TRUE_WRAPPER(fchmodat)(dirfd, pathname, mode, flags);
 }
 
-UBA_EXPORT size_t UBA_WRAPPER(fwrite)(const void* ptr, size_t size, size_t nitems, FILE* stream)
-{
-	UBA_INIT_DETOUR(fwrite, ptr, size, nitems, stream);
-	auto res = TRUE_WRAPPER(fwrite)(ptr, size, nitems, stream);
-	//if (stream != stdout)
-	//	DEBUG_LOG_TRUE("fwrite", "(%i) %i", fileno(stream), int(res));
-	return res;
-}
+//UBA_EXPORT size_t UBA_WRAPPER(fwrite)(const void* ptr, size_t size, size_t nitems, FILE* stream)
+//{
+//	UBA_INIT_DETOUR(fwrite, ptr, size, nitems, stream);
+//	auto res = TRUE_WRAPPER(fwrite)(ptr, size, nitems, stream);
+//	//if (stream != stdout)
+//	//	DEBUG_LOG_TRUE("fwrite", "(%i) %i", fileno(stream), int(res));
+//	return res;
+//}
 
 UBA_EXPORT int UBA_WRAPPER(fstat)(int fd, struct stat* buf)
 {
@@ -1974,7 +1975,8 @@ namespace uba
 	void WriteDebug(const char* str, u32 strLen)
 	{
 		int t = errno;
-		TRUE_WRAPPER(write)(g_debugFile, str, strLen);
+		//TRUE_WRAPPER(write)(g_debugFile, str, strLen);
+		write(g_debugFile, str, strLen);
 		//fsync(g_debugFile);
 		errno = t;
 	}

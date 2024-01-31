@@ -10,7 +10,7 @@ namespace uba
 	bool TestStorage(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
 		#if PLATFORM_LINUX
-		if (true)
+		if (true) // TODO: Revisit this... fails on farm but works locally
 			return true;
 		#endif
 

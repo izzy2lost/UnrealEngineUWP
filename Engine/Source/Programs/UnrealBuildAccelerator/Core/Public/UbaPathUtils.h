@@ -7,7 +7,7 @@
 
 namespace uba
 {
-	inline bool FixPath2(const tchar* fileName, const tchar* workingDir, u64 workingDirCharLen, tchar* buffer, u32* bufferCharLen)
+	inline bool FixPath2(const tchar* fileName, const tchar* workingDir, u64 workingDirCharLen, tchar* buffer, u64 bufferCharCapacity, u32* outBufferCharLen)
 	{
 		buffer[1] = 0;
 		UBA_ASSERTF(workingDir == nullptr || !*workingDir || workingDir[workingDirCharLen-1] == PathSeparator, TC("WorkingDir needs to end with path separator"));
@@ -38,8 +38,8 @@ namespace uba
 			u32 len = Local_GetLongPathNameW(fullName, fullName, sizeof_array(fullName));
 			if (!len)
 			{
-				if (bufferCharLen)
-					*bufferCharLen = 0;
+				if (outBufferCharLen)
+					*outBufferCharLen = 0;
 				return false;
 			}
 			if (backslash)
@@ -91,7 +91,8 @@ namespace uba
 
 		if (lastChar == '.' && lastLastChar == 0) // Sometimes path is '.'
 		{
-			UBA_ASSERT(workingDir && *workingDir);
+			UBA_ASSERTF(workingDir && *workingDir, TC("Working dir is null or empty"));
+			UBA_ASSERTF(workingDirCharLen < bufferCharCapacity, TC("%llu < %llu"), workingDirCharLen, bufferCharCapacity);
 			memcpy(buffer, workingDir, workingDirCharLen*sizeof(tchar));
 			buffer[workingDirCharLen - 1] = 0;
 			charLen = workingDirCharLen;
@@ -111,9 +112,11 @@ namespace uba
 
 			UBA_ASSERTF(workingDir && *workingDir, TC("No working dir provided but path is relative (%s)"), buffer);
 			tchar temp2[1024];
+			UBA_ASSERTF(workingDirCharLen + charLen < sizeof_array(temp2), TC("%llu + %llu < %llu"), workingDirCharLen, charLen, sizeof_array(temp2));
 			memcpy(temp2, workingDir, workingDirCharLen*sizeof(tchar));
 			memcpy(temp2 + workingDirCharLen, copyFrom, charLen*sizeof(tchar));
 			charLen += workingDirCharLen;
+			UBA_ASSERTF(charLen+1 <= bufferCharCapacity, TC("%llu+1 <= %llu"), charLen, bufferCharCapacity);
 			memcpy(buffer, temp2, (charLen+1)*sizeof(tchar));
 		}
 		else if (lastChar == '.' && charLen == 4) // X:.  .. this expands to X:\ unless working dir matches drive, then it becomes working dir
@@ -199,8 +202,10 @@ namespace uba
 			++charLen;
 		}
 
-		if (bufferCharLen)
-			*bufferCharLen = u32(charLen - 1); // Remove terminator
+		UBA_ASSERT(charLen <= bufferCharCapacity);
+
+		if (outBufferCharLen)
+			*outBufferCharLen = u32(charLen - 1); // Remove terminator
 		return true;
 #else
 		StringBuffer<MaxPath> tmp;
@@ -287,14 +292,14 @@ namespace uba
 		}
 		buffer[memPos] = 0;
 
-		if (bufferCharLen)
-			*bufferCharLen = memPos;
+		if (outBufferCharLen)
+			*outBufferCharLen = memPos;
 		return true;
 #endif
 	}
 
 	inline void FixPath(const tchar* fileName, const tchar* workingDir, u64 workingDirCharLen, StringBufferBase& buffer)
 	{
-		FixPath2(fileName, workingDir, workingDirCharLen, buffer.data, &buffer.count);
+		FixPath2(fileName, workingDir, workingDirCharLen, buffer.data, buffer.capacity, &buffer.count);
 	}
 }

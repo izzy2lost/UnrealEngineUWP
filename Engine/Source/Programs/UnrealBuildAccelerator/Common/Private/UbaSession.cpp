@@ -1216,7 +1216,7 @@ namespace uba
 		UBA_ASSERT(!m_runningRemote);
 
 		StringBuffer<> dirPath;
-		FixPath2(dirName, nullptr, 0, dirPath.data, &dirPath.count);
+		FixPath2(dirName, nullptr, 0, dirPath.data, dirPath.capacity, &dirPath.count);
 		StringKey dirKey = CaseInsensitiveFs ? ToStringKeyLower(dirPath) : ToStringKey(dirPath);
 
 		auto& dirTable = m_directoryTable;
@@ -1246,7 +1246,7 @@ namespace uba
 
 	StringKey GetKeyAndFixedName(StringBuffer<>& fixedFilePath, const tchar* filePath)
 	{
-		FixPath2(filePath, nullptr, 0, fixedFilePath.data, &fixedFilePath.count);
+		FixPath2(filePath, nullptr, 0, fixedFilePath.data, fixedFilePath.capacity, &fixedFilePath.count);
 
 		StringKey dirKey;
 		StringBuffer<> dirNameForHash;

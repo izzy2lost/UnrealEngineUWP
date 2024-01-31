@@ -9,9 +9,6 @@ namespace uba
 {
 	bool TestLocalSchedule(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows) // TODO: Remove
-			return true;
-
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 

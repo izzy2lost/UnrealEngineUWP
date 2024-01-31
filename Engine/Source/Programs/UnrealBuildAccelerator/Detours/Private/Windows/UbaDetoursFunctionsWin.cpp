@@ -866,8 +866,8 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	GetEnvironmentVariableW(L"TEMP", systemTemp, 256);
 	FixPath(g_systemTemp, systemTemp);
 
-	StringBuffer<256> applicationBuffer;
-	StringBuffer<256> workingDirBuffer;
+	StringBuffer<512> applicationBuffer;
+	StringBuffer<512> workingDirBuffer;
 
 	HANDLE directoryTableHandle;
 	u32 directoryTableSize;
@@ -905,11 +905,10 @@ void Init(const DetoursPayload& payload, u64 startTime)
 	{
 		FixPath(applicationBuffer.data, g_virtualWorkingDir.data, g_virtualWorkingDir.count, g_virtualApplication);
 
-		static wchar_t applicationDir[MaxPath];
-		const wchar_t* lastBackslash = wcsrchr(g_virtualApplication.data, '\\') + 1;
-		memcpy(applicationDir, g_virtualApplication.data, (lastBackslash - g_virtualApplication.data)*2);
-		applicationDir[lastBackslash - g_virtualApplication.data] = 0;
-		g_virtualApplicationDir.Append(applicationDir);
+		if (const wchar_t* lastBackslash = g_virtualApplication.Last('\\'))
+			g_virtualApplicationDir.Append(g_virtualApplication.data, (lastBackslash + 1 - g_virtualApplication.data));
+		else
+			FatalError(4444, L"What the heck: %s", g_virtualApplication.data);
 	}
 
 	const wchar_t* cmdLine = True_GetCommandLineW();

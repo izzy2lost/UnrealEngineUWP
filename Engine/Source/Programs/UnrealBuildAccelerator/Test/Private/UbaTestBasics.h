@@ -76,10 +76,10 @@ namespace uba
 		tchar buffer[1024];
 		u32 lengthResult;
 
-		auto TestPath = [&](const tchar* path) { return FixPath2(path, workingDir, TStrlen(workingDir), buffer, &lengthResult); };
+		auto TestPath = [&](const tchar* path) { return FixPath2(path, workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult); };
 
 #if PLATFORM_WINDOWS
-		if (!FixPath2(TC("\"e:\\temp\""), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+		if (!FixPath2(TC("\"e:\\temp\""), workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult))
 			return logger.Error(TC("FixPath2 (1) failed"));
 #else
 
@@ -87,24 +87,24 @@ namespace uba
 			return logger.Error(TC("FixPath2 should have failed"));
 		UBA_TEST_CHECK(Equals(buffer, TC("/")), "Should not contain ..");
 
-		if (!FixPath2(TC("/../Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+		if (!FixPath2(TC("/../Foo"), workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult))
 			return logger.Error(TC("FixPath2 should have failed"));
 		UBA_TEST_CHECK(Equals(buffer, TC("/Foo")), "Should not contain ..");
 
-		if (!FixPath2(TC("/usr/bin//clang++"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+		if (!FixPath2(TC("/usr/bin//clang++"), workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult))
 			return logger.Error(TC("FixPath2 should have failed"));
 		UBA_TEST_CHECK(!Contains(buffer, TC("//")), "Should not contain //");
 #endif
 
-		if (!FixPath2(TC("../Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+		if (!FixPath2(TC("../Foo"), workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult))
 			return logger.Error(TC("FixPath2 (1) failed"));
 		UBA_TEST_CHECK(!Contains(buffer, TC("..")), "Should not contain ..");
 
-		if (!FixPath2(TC("@../Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+		if (!FixPath2(TC("@../Foo"), workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult))
 			return logger.Error(TC("FixPath2 (1) failed"));
 		UBA_TEST_CHECK(Contains(buffer, TC("..")), "Should contain ..");
 
-		if (!FixPath2(TC("..@/Foo"), workingDir, TStrlen(workingDir), buffer, &lengthResult))
+		if (!FixPath2(TC("..@/Foo"), workingDir, TStrlen(workingDir), buffer, sizeof_array(buffer), &lengthResult))
 			return logger.Error(TC("FixPath2 (1) failed"));
 		UBA_TEST_CHECK(Contains(buffer, TC("..")), "Should contain ..");
 
