@@ -511,7 +511,6 @@ namespace Metasound::Editor
 			bool bIsMemberNode = false;
 			if (const UMetasoundEditorGraphNode* MetaSoundNode = Cast<UMetasoundEditorGraphNode>(Node))
 			{
-				FMetasoundFrontendClassName ClassName = MetaSoundNode->GetClassName();
 				DisplayName = MetaSoundNode->GetDisplayName().ToString();
 
 				// Additional information for member nodes
