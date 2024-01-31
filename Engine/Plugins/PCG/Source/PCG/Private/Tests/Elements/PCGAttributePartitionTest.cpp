@@ -19,7 +19,7 @@ bool FPCGAttributePartition_Points::RunTest(const FString& Parameters)
 	UPCGMetadataPartitionSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGMetadataPartitionSettings>(TestData);
 	check(Settings);
 
-	Settings->PartitionAttributeSource.SetPointProperty(EPCGPointProperties::Density);
+	Settings->PartitionAttributeSelectors.Emplace_GetRef().SetPointProperty(EPCGPointProperties::Density);
 
 	UPCGPointData* InputPointData = NewObject<UPCGPointData>();
 	TArray<FPCGPoint>& Points = InputPointData->GetMutablePoints();
@@ -86,7 +86,7 @@ bool FPCGAttributePartition_Order::RunTest(const FString& Parameters)
 	check(Settings);
 
 	const FName AttributeName = TEXT("Attr");
-	Settings->PartitionAttributeSource.SetAttributeName(AttributeName);
+	Settings->PartitionAttributeSelectors.Emplace_GetRef().SetAttributeName(AttributeName);
 
 	UPCGPointData* InputPointData = NewObject<UPCGPointData>();
 	FPCGMetadataAttribute<int>* Attribute = InputPointData->Metadata->CreateAttribute<int>(AttributeName, 0, false, false);
@@ -146,7 +146,6 @@ bool FPCGAttributePartition_Order::RunTest(const FString& Parameters)
 	return true;
 }
 
-
 bool FPCGAttributePartition_AttributeSet::RunTest(const FString& Parameters)
 {
 	PCGTestsCommon::FTestData TestData;
@@ -154,7 +153,7 @@ bool FPCGAttributePartition_AttributeSet::RunTest(const FString& Parameters)
 	check(Settings);
 
 	const FName InputAttributeName = TEXT("Double");
-	Settings->PartitionAttributeSource.SetAttributeName(InputAttributeName);
+	Settings->PartitionAttributeSelectors.Emplace_GetRef().SetAttributeName(InputAttributeName);
 
 	UPCGParamData* InputParam = NewObject<UPCGParamData>();
 	FPCGMetadataAttribute<double>* Attribute = InputParam->Metadata->CreateAttribute<double>(InputAttributeName, 0.0, true, false);

@@ -3,6 +3,9 @@
 #include "Elements/Metadata/PCGMetadataPartition.h"
 
 #include "PCGContext.h"
+#include "PCGModule.h"
+#include "Helpers/PCGHelpers.h"
+#include "Metadata/PCGMetadataAttribute.h"
 #include "Metadata/PCGMetadataPartitionCommon.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadataPartition)
@@ -37,8 +40,16 @@ void UPCGMetadataPartitionSettings::PostLoad()
 #if WITH_EDITOR
 	if (PartitionAttribute_DEPRECATED != NAME_None)
 	{
-		PartitionAttributeSource.SetAttributeName(PartitionAttribute_DEPRECATED);
+		PartitionAttributeSelectors.Empty();
+		PartitionAttributeSelectors.Emplace_GetRef().SetAttributeName(PartitionAttribute_DEPRECATED);
 		PartitionAttribute_DEPRECATED = NAME_None;
+	}
+
+	if (PartitionAttributeSource_DEPRECATED.GetAttributeName() != PCGMetadataAttributeConstants::LastAttributeName)
+	{
+		PartitionAttributeSelectors.Empty();
+		PartitionAttributeSelectors.Emplace(PartitionAttributeSource_DEPRECATED);
+		PartitionAttributeSource_DEPRECATED.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
 	}
 #endif // WITH_EDITOR
 }
@@ -46,14 +57,25 @@ void UPCGMetadataPartitionSettings::PostLoad()
 FString UPCGMetadataPartitionSettings::GetAdditionalTitleInformation() const
 {
 #if WITH_EDITOR
-	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataPartitionSettings, PartitionAttributeSource)))
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGMetadataPartitionSettings, PartitionAttributeNames)))
 	{
 		return FString();
 	}
 	else
 #endif
 	{
-		return PartitionAttributeSource.GetDisplayText().ToString();
+		if (PartitionAttributeSelectors.IsEmpty())
+		{
+			return FString();
+		}
+
+		FString OutString = PartitionAttributeSelectors[0].GetDisplayText().ToString();
+		for (int I = 1; I < PartitionAttributeSelectors.Num(); ++I)
+		{
+			OutString += ", " + PartitionAttributeSelectors[I].GetDisplayText().ToString();
+		}
+
+		return OutString;
 	}
 }
 
@@ -65,15 +87,43 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGMetadataPartitionSettings* Settings = Context->GetInputSettings<UPCGMetadataPartitionSettings>();
 	check(Settings);
 
+	// TODO: This is a temporary solution for overrides until arrays are supported
+	TArray<FPCGAttributePropertyInputSelector> OverriddenSelectors;
+	const TArray<FString> AttributeNames = PCGHelpers::GetStringArrayFromCommaSeparatedString(Settings->PartitionAttributeNames);
+	// If the names are overridden by the user, generate the selectors with them
+	OverriddenSelectors.SetNum(AttributeNames.Num());
+	for (const FString& AttributeName : AttributeNames)
+	{
+		OverriddenSelectors.Emplace_GetRef().SetAttributeName(FName(AttributeName));
+	}
+
+	const TArray<FPCGAttributePropertyInputSelector>& ActiveSelectors = OverriddenSelectors.IsEmpty() ? Settings->PartitionAttributeSelectors : OverriddenSelectors;
+
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputsByPin(PCGPinConstants::DefaultInputLabel);
 	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
+
+	TArray<FPCGAttributePropertySelector> PartitionAttributeSources;
+	PartitionAttributeSources.SetNum(ActiveSelectors.Num());
+
+	if (PartitionAttributeSources.IsEmpty())
+	{
+		Outputs = Inputs;
+		return true;
+	}
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{
 		const UPCGData* InData = Input.Data;
-		const FPCGAttributePropertyInputSelector PartitionAttributeSelector = Settings->PartitionAttributeSource.CopyAndFixLast(InData);
 
-		for (UPCGData* PartitionData : PCGMetadataPartitionCommon::AttributePartition(InData, PartitionAttributeSelector, Context))
+		for (int I = 0; I < PartitionAttributeSources.Num(); ++I)
+		{
+			PartitionAttributeSources[I] = static_cast<FPCGAttributePropertySelector>(ActiveSelectors[I].CopyAndFixLast(InData));
+		}
+
+		TArray<UPCGData*> PartitionDataArray;
+		PartitionDataArray = PCGMetadataPartitionCommon::AttributePartition(InData, PartitionAttributeSources, Context);
+
+		for (UPCGData* PartitionData : PartitionDataArray)
 		{
 			if (PartitionData)
 			{
