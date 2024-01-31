@@ -636,6 +636,11 @@ namespace UnrealBuildTool
 		public bool bHideSymbolsByDefault = true;
 
 		/// <summary>
+		/// Whether this environment should be treated as an engine module.
+		/// </summary>
+		public bool bTreatAsEngineModule;
+
+		/// <summary>
 		/// Which C++ standard to support for engine modules. CppStandard will be set to this for engine modules and CppStandardEngine should not be checked in any toolchain. May not be compatible with all platforms.
 		/// </summary>
 		public CppStandardVersion CppStandardEngine = CppStandardVersion.EngineDefault;
@@ -799,6 +804,7 @@ namespace UnrealBuildTool
 			ParentPCHInstance = Other.ParentPCHInstance;
 			bHackHeaderGenerator = Other.bHackHeaderGenerator;
 			bHideSymbolsByDefault = Other.bHideSymbolsByDefault;
+			bTreatAsEngineModule = Other.bTreatAsEngineModule;
 			CppStandardEngine = Other.CppStandardEngine;
 			CppStandard = Other.CppStandard;
 			CStandard = Other.CStandard;

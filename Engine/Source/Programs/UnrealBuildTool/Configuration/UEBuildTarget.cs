@@ -13,7 +13,6 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Serialization;
 using EpicGames.UHT.Utils;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -3229,7 +3228,7 @@ namespace UnrealBuildTool
 		/// <param name="HeaderFile">Path to the header to output</param>
 		/// <param name="GlobalCompileEnvironment">The global compile environment for this target</param>
 		/// <param name="Logger"></param>
-		void WritePublicHeader(UEBuildBinary Binary, FileReference HeaderFile, CppCompileEnvironment GlobalCompileEnvironment, ILogger Logger)
+		static void WritePublicHeader(UEBuildBinary Binary, FileReference HeaderFile, CppCompileEnvironment GlobalCompileEnvironment, ILogger Logger)
 		{
 			DirectoryReference.CreateDirectory(HeaderFile.Directory);
 
@@ -3243,11 +3242,13 @@ namespace UnrealBuildTool
 			// Write the header
 			using (StreamWriter Writer = new StreamWriter(HeaderFile.FullName))
 			{
+				Writer.WriteLine($"// Definitions for {HeaderFile.GetFileNameWithoutAnyExtensions()}");
+				Writer.WriteLine();
 				Writer.WriteLine("#pragma once");
 				Writer.WriteLine();
 				foreach (string Definition in Definitions)
 				{
-					int EqualsIdx = Definition.IndexOf('=');
+					int EqualsIdx = Definition.IndexOf('=', StringComparison.Ordinal);
 					if (EqualsIdx == -1)
 					{
 						Writer.WriteLine(String.Format("#define {0} 1", Definition));
