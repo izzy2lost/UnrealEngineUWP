@@ -4,6 +4,8 @@
 
 #include "AudioColorMapper.h"
 #include "AudioSpectrogramViewport.h"
+#include "Framework/MultiBox/MultiBoxExtender.h"
+#include "Framework/SlateDelegates.h"
 #include "Widgets/SCompoundWidget.h"
 
 /**
@@ -21,6 +23,7 @@ public:
 		, _FrequencyAxisScale(EAudioSpectrogramFrequencyAxisScale::Logarithmic)
 		, _FrequencyAxisPixelBucketMode(EAudioSpectrogramFrequencyAxisPixelBucketMode::Average)
 		, _Orientation(EOrientation::Orient_Horizontal)
+		, _AllowContextMenu(true)
 	{}
 		SLATE_ATTRIBUTE(float, ViewMinFrequency)
 		SLATE_ATTRIBUTE(float, ViewMaxFrequency)
@@ -30,6 +33,8 @@ public:
 		SLATE_ATTRIBUTE(EAudioSpectrogramFrequencyAxisScale, FrequencyAxisScale)
 		SLATE_ATTRIBUTE(EAudioSpectrogramFrequencyAxisPixelBucketMode, FrequencyAxisPixelBucketMode)
 		SLATE_ATTRIBUTE(EOrientation, Orientation)
+		SLATE_ATTRIBUTE(bool, AllowContextMenu)
+		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -46,11 +51,29 @@ public:
 	void SetFrequencyAxisScale(const EAudioSpectrogramFrequencyAxisScale InFrequencyAxisScale) { FrequencyAxisScale = InFrequencyAxisScale; }
 	void SetFrequencyAxisPixelBucketMode(const EAudioSpectrogramFrequencyAxisPixelBucketMode InFrequencyAxisPixelBucketMode) { FrequencyAxisPixelBucketMode = InFrequencyAxisPixelBucketMode; }
 	void SetOrientation(const EOrientation InOrientation) { Orientation = InOrientation; }
+	void SetAllowContextMenu(bool bInAllowContextMenu) { bAllowContextMenu = bInAllowContextMenu; }
+
+	TSharedRef<const FExtensionBase> AddContextMenuExtension(EExtensionHook::Position HookPosition, const TSharedPtr<FUICommandList>& CommandList, const FMenuExtensionDelegate& MenuExtensionDelegate);
+	void RemoveContextMenuExtension(const TSharedRef<const FExtensionBase>& Extension);
+
+	// Begin SWidget overrides.
+	virtual FReply OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	// End SWidget overrides.
 
 private:
 	// Begin SWidget overrides.
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 	// End SWidget overrides.
+
+	TSharedRef<SWidget> BuildDefaultContextMenu();
+	void BuildColorMapSubMenu(FMenuBuilder& SubMenu);
+	void BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu);
+	void BuildFrequencyAxisPixelBucketModeSubMenu(FMenuBuilder& SubMenu);
+	void BuildOrientationSubMenu(FMenuBuilder& SubMenu);
+
+	static FName ContextMenuExtensionHook;
+	TSharedPtr<FExtender> ContextMenuExtender;
 
 	TAttribute<float> ViewMinFrequency;
 	TAttribute<float> ViewMaxFrequency;
@@ -60,6 +83,8 @@ private:
 	TAttribute<EAudioSpectrogramFrequencyAxisScale> FrequencyAxisScale;
 	TAttribute<EAudioSpectrogramFrequencyAxisPixelBucketMode> FrequencyAxisPixelBucketMode;
 	TAttribute<EOrientation> Orientation;
+	TAttribute<bool> bAllowContextMenu;
+	FOnContextMenuOpening OnContextMenuOpening;
 
 	TSharedPtr<FAudioSpectrogramViewport> SpectrogramViewport;
 };
