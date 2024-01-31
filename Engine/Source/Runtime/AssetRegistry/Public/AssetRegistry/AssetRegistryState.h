@@ -433,6 +433,7 @@ public:
 
 	/** Returns pointer to the asset package data */
 	ASSETREGISTRY_API const FAssetPackageData* GetAssetPackageData(FName PackageName) const;
+	ASSETREGISTRY_API const FAssetPackageData* GetAssetPackageData(FName PackageName, FName& OutCorrectCasePackageName) const;
 	ASSETREGISTRY_API FAssetPackageData* GetAssetPackageData(FName PackageName);
 
 	/** Returns all package names */

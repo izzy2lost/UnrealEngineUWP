@@ -205,12 +205,18 @@ public:
 
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, class FAssetPackageData& OutPackageData) const override
 	{
+		FName OutCorrectCasePackageName;
+		return TryGetAssetPackageData(PackageName, OutPackageData, OutCorrectCasePackageName);
+	}
+	
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, class FAssetPackageData& OutPackageData, FName& OutCorrectCasePackageName) const override
+	{
 		auto AssetRegistry = IAssetRegistry::Get();
 		if (!AssetRegistry)
 		{
 			return UE::AssetRegistry::EExists::Unknown;
 		}
-		return AssetRegistry->TryGetAssetPackageData(PackageName, OutPackageData);
+		return AssetRegistry->TryGetAssetPackageData(PackageName, OutPackageData, OutCorrectCasePackageName);
 	}
 };
 FAssetRegistryInterface GAssetRegistryInterface;
@@ -2548,10 +2554,16 @@ UE::AssetRegistry::EExists UAssetRegistryImpl::TryGetAssetByObjectPath(const FSo
 
 UE::AssetRegistry::EExists UAssetRegistryImpl::TryGetAssetPackageData(const FName PackageName, FAssetPackageData& OutAssetPackageData) const
 {
+	FName OutCorrectCasePackageName;
+	return TryGetAssetPackageData(PackageName, OutAssetPackageData, OutCorrectCasePackageName);
+}
+
+UE::AssetRegistry::EExists UAssetRegistryImpl::TryGetAssetPackageData(const FName PackageName, FAssetPackageData& OutAssetPackageData, FName& OutCorrectCasePackageName) const
+{
 	FReadScopeLock InterfaceScopeLock(InterfaceLock);
 	bool bAssetRegistryReady = GuardedData.IsInitialSearchStarted() && GuardedData.IsInitialSearchCompleted();
 	const FAssetRegistryState& State = GuardedData.GetState();
-	const FAssetPackageData* FoundData = State.GetAssetPackageData(PackageName);
+	const FAssetPackageData* FoundData = State.GetAssetPackageData(PackageName, OutCorrectCasePackageName);
 	if (!FoundData)
 	{
 		if (!bAssetRegistryReady)
@@ -2882,10 +2894,11 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 			return false;
 		}
 
+		FName CorrectCasePackageName;
 		const FAssetPackageData* AssetPackageData;
 		{
 			FReadScopeLock InterfaceScopeLock(InterfaceLock);
-			AssetPackageData = GuardedData.GetState().GetAssetPackageData(PackageName);
+			AssetPackageData = GuardedData.GetState().GetAssetPackageData(PackageName, CorrectCasePackageName);
 		}
 		const static bool bVerifyNegativeResults = FParse::Param(FCommandLine::Get(), TEXT("AssetRegistryValidatePackageExists"));
 		if (bVerifyNegativeResults && !AssetPackageData)
@@ -2913,8 +2926,7 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 
 		if (OutCorrectCasePackageName)
 		{
-			// TODO: Implement this correctly by saving the information in AssetPackageData if the capitalization does not match the FName capitalization
-			*OutCorrectCasePackageName = PackageNameStr;
+			*OutCorrectCasePackageName = CorrectCasePackageName.ToString();
 		}
 		if (OutExtension)
 		{

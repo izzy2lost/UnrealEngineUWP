@@ -8,6 +8,7 @@
 
 #include "Algo/Find.h"
 #include "Algo/FindLast.h"
+#include "AssetRegistry/AssetData.h"
 #include "Containers/DirectoryTree.h"
 #include "Containers/StringView.h"
 #include "GenericPlatform/GenericPlatformFile.h"
@@ -18,6 +19,7 @@
 #include "Internationalization/PackageLocalizationManager.h"
 #include "IO/IoDispatcher.h"
 #include "Misc/App.h"
+#include "Misc/AssetRegistryInterface.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/EnumClassFlags.h"
@@ -1853,6 +1855,39 @@ FPackageName::EPackageLocationFilter FPackageName::DoesPackageExistEx(const FPac
 	{
 		return EPackageLocationFilter::None;
 	}
+
+#if WITH_EDITOR
+	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
+
+	// Todo: The AssetRegistry currently cannot determine if a package comes from the Filesystem 
+	// or cooked content so we avoid registry lookups since we can't provide a reliable Location
+	if (AssetRegistry && ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem) && !FIoDispatcher::IsInitialized())
+	{
+		FName PackageName = PackagePath.GetPackageFName();
+		FName CorrectCasePackageName;
+		FAssetPackageData AssetPackageData;
+		if (AssetRegistry->TryGetAssetPackageData(PackageName, AssetPackageData, CorrectCasePackageName) == UE::AssetRegistry::EExists::Exists)
+		{
+			if (OutPackagePath)
+			{
+				if (AssetPackageData.Extension != EPackageExtension::Unspecified && AssetPackageData.Extension != EPackageExtension::Custom)
+				{
+					*OutPackagePath = FPackagePath::FromPackageNameUnchecked(MoveTemp(CorrectCasePackageName));
+					OutPackagePath->SetHeaderExtension(AssetPackageData.Extension);
+					return EPackageLocationFilter::FileSystem;
+				}
+				// Intentionally do not return a EPackageLocationFilter if an OutPackagePath was provided but a custom or 
+				// unspecified extension was used. In such cases we must use the disk scanning code futher down to allow the 
+				// PackageResourceManager to handle the unspecified and custom extension cases
+			}
+			else
+			{
+				return EPackageLocationFilter::FileSystem;
+			}
+		}
+	}
+#endif
+
 	TStringBuilder<256> PackageName;
 	PackagePath.AppendPackageName(PackageName);
 

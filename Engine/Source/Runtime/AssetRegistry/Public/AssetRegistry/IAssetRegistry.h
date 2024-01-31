@@ -348,6 +348,17 @@ public:
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutAssetPackageData) const = 0;
 
 	/**
+	 * Tries to get the package data for the specified package name. If found, OutCorrectCasePackageName
+	 * will be populated with the PackageName that matches the casing used by the filesystem
+	 * 
+	 * @param PackageName name of the package
+	 * @param OutAssetPackageData out FAssetPackageData
+	 * @param OutCorrectCasePackageName out FName matching filesystem casing
+	 * @return Return code enum
+	 */
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutAssetPackageData, FName& OutCorrectCasePackageName) const = 0;
+	
+	/**
 	 * Gets asset data for all assets in the registry.
 	 * This method may be slow, use a filter if possible to avoid iterating over the entire registry.
 	 *
@@ -457,6 +468,15 @@ public:
 	 */
 	virtual void EnumerateAllPackages(TFunctionRef<void(FName PackageName, const FAssetPackageData& PackageData)> Callback) const = 0;
 
+	/*
+	* Checks if the specified package exists on disk. If the package exists and the optional parameters are provided, 
+	* OutCorrectCasePackageName will be populated with the case matching package name found on disk and 
+	* OutExtension will be populated with the extension for the package (dot included) if the package contains assets
+	* 
+	* @param PackageName				the name of the package to check for existence on disk (eg, /Game/MyFolder/MyAsset)
+	* @param OutCorrectCasePackageName 	out package name matching the case on disk
+	* @param OutExtension				out extension for packages containing assets (dot included)
+	*/
 	virtual bool DoesPackageExistOnDisk(FName PackageName, FString* OutCorrectCasePackageName = nullptr, FString* OutExtension = nullptr) const = 0;
 
 	/** Uses the asset registry to look for ObjectRedirectors. This will follow the chain of redirectors. It will return the original path if no redirectors are found */

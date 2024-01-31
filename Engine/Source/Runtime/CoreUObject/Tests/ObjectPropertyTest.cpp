@@ -276,6 +276,11 @@ public:
 		return UE::AssetRegistry::EExists::Exists;
 	}
 
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, FAssetPackageData& OutPackageData, FName& OutCorrectCasePackageName) const override
+	{
+		return UE::AssetRegistry::EExists::Exists;
+	}
+
 	IAssetRegistryInterface* Old;
 	TMap<FSoftObjectPath, FAssetData> AssetData;
 };

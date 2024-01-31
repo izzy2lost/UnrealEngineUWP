@@ -283,7 +283,7 @@ class IAssetRegistryInterface
 {
 public:
 	/**
-	 * Tries to gets a pointer to the active AssetRegistryInterface implementation. 
+	 * Tries to get a pointer to the active AssetRegistryInterface implementation. 
 	 */
 	static COREUOBJECT_API IAssetRegistryInterface* GetPtr();
 
@@ -302,13 +302,24 @@ public:
 	virtual UE::AssetRegistry::EExists TryGetAssetByObjectPath(const FSoftObjectPath& ObjectPath, struct FAssetData& OutAssetData) const = 0;
 
 	/**
-	 * Tries to get the pacakge data for a specified path
+	 * Tries to get the package data for the specified package name
 	 *
 	 * @param PackageName name of the package
 	 * @param OutAssetPackageData out FAssetPackageData
 	 * @return Return code enum
 	 */
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, class FAssetPackageData& OutPackageData) const = 0;
+
+	/**
+	 * Tries to get the package data for the specified package name. If found, OutCorrectCasePackageName
+	 * will be populated with the PackageName that matches the casing used by the filesystem
+	 * 
+	 * @param PackageName name of the package
+	 * @param OutAssetPackageData out FAssetPackageData
+	 * @param OutCorrectCasePackageName out FName matching filesystem casing
+	 * @return Return code enum
+	 */
+	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, class FAssetPackageData& OutPackageData, FName& OutCorrectCasePackageName) const = 0;
 
 protected:
 

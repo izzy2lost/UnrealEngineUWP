@@ -2467,10 +2467,27 @@ const FAssetPackageData* FAssetRegistryState::GetAssetPackageData(FName PackageN
 	return FoundData ? *FoundData : nullptr;
 }
 
- FAssetPackageData* FAssetRegistryState::GetAssetPackageData(FName PackageName)
+FAssetPackageData* FAssetRegistryState::GetAssetPackageData(FName PackageName)
 {
 	FAssetPackageData** FoundData = CachedPackageData.Find(PackageName);
 	return FoundData ? *FoundData : nullptr;
+}
+
+const FAssetPackageData* FAssetRegistryState::GetAssetPackageData(FName PackageName, FName& OutCorrectCasePackageName) const
+{
+	// CachedPackageData is keyed using the Package Names whose casing matches the filesystem. In order to perform a
+	// single look up for the AssetPackageData while also returning the value of the key used to add to the map originally
+	// we create a KeyIterator which is currently the only means to get a TPair<Key,Value> from a TMap<Key,Value>
+	TMap<FName, FAssetPackageData*>::TConstKeyIterator It = CachedPackageData.CreateConstKeyIterator(PackageName);
+	FSetElementId Id = It.GetId();
+	if (!Id.IsValidId())
+	{
+		return nullptr;
+	}
+
+	const TPair<FName, FAssetPackageData*>& Pair = CachedPackageData.Get(Id);
+	OutCorrectCasePackageName = Pair.Key;
+	return Pair.Value;
 }
 
 FAssetPackageData* FAssetRegistryState::CreateOrGetAssetPackageData(FName PackageName)
