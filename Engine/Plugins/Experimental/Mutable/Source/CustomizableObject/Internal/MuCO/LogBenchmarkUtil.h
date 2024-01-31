@@ -90,7 +90,7 @@ public:
 	void FinishUpdateImage(const FString& CustomizableObjectPathName, const FString& InstancePathName, double TaskUpdateImageTime, const int64 TaskUpdateImageMemoryPeak, const int64 TaskUpdateImageRealMemoryPeak) const;
 	
 	DECLARE_BENCHMARK_STAT(NumAllocatedTextures, uint32);
-	DECLARE_BENCHMARK_STAT(TextureGPUSize, uint32);
+	DECLARE_BENCHMARK_STAT(TextureGPUSize, uint64);
 
 	DECLARE_BENCHMARK_STAT(NumAllocatedSkeletalMeshes, int32);
 
