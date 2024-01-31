@@ -3,8 +3,10 @@
 #include "DataValidationModule.h"
 
 #include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetDataToken.h"
 #include "UObject/ObjectSaveContext.h"
 
+#include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ToolMenus.h"
@@ -12,10 +14,12 @@
 #include "Misc/MessageDialog.h"
 #include "DataValidationCommandlet.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
+#include "Logging/MessageLog.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "LevelEditorMenuContext.h"
 
+#include "EditorValidatorHelpers.h"
 #include "EditorValidatorSubsystem.h"
 #include "ISettingsModule.h"
 #include "Algo/RemoveIf.h"
@@ -41,6 +45,8 @@ class FDataValidationModule : public IDataValidationModule
 private:
 	void OnPackageSaved(const FString& PackageFileName, UPackage* Package, FObjectPostSaveContext ObjectSaveContext);
 
+	EDataValidationResult OnValidateSourcePackageDuringCook(UPackage* Package, FDataValidationContext& ValidationContext);
+
 	// Adds Asset and any assets it depends on to the set DependentAssets
 	void FindAssetDependencies(const FAssetRegistryModule& AssetRegistryModule, const FAssetData& Asset, TSet<FAssetData>& DependentAssets);
 
@@ -53,6 +59,8 @@ IMPLEMENT_MODULE(FDataValidationModule, DataValidation)
 
 void FDataValidationModule::StartupModule()
 {	
+	UCookOnTheFlyServer::OnValidateSourcePackage().BindRaw(this, &FDataValidationModule::OnValidateSourcePackageDuringCook);
+
 	if (!IsRunningCommandlet() && !IsRunningGame() && FSlateApplication::IsInitialized())
 	{
 		// add the File->DataValidation menu subsection
@@ -72,6 +80,8 @@ void FDataValidationModule::StartupModule()
 
 void FDataValidationModule::ShutdownModule()
 {
+	UCookOnTheFlyServer::OnValidateSourcePackage().Unbind();
+
 	if (!IsRunningCommandlet() && !IsRunningGame() && !IsRunningDedicatedServer())
 	{
 		// remove menu extension
@@ -352,6 +362,61 @@ void FDataValidationModule::OnPackageSaved(const FString& PackageFileName, UPack
 	{
 		EditorValidationSubsystem->ValidateSavedPackage(Package->GetFName(), ObjectSaveContext.IsProceduralSave());
 	}
+}
+
+EDataValidationResult FDataValidationModule::OnValidateSourcePackageDuringCook(UPackage* Package, FDataValidationContext& ValidationContext)
+{
+	EDataValidationResult FinalValidationResult = EDataValidationResult::NotValidated;
+
+	if (UEditorValidatorSubsystem* EditorValidationSubsystem = GEditor->GetEditorSubsystem<UEditorValidatorSubsystem>())
+	{
+		TArray<FAssetData> AssetList;
+		IAssetRegistry::GetChecked().GetAssetsByPackageName(Package->GetFName(), AssetList);
+
+		{
+			FValidateAssetsSettings Settings;
+			Settings.ValidationUsecase = ValidationContext.GetValidationUsecase();
+			AssetList.RemoveAll([EditorValidationSubsystem, &Settings, &ValidationContext](const FAssetData& AssetData)
+			{
+				return !EditorValidationSubsystem->ShouldValidateAsset(AssetData, Settings, ValidationContext);
+			});
+		}
+
+		if (AssetList.Num() > 0)
+		{
+			// Broadcast the Editor event before we start validating. This lets other systems (such as Sequencer) restore the state
+			// of the level to what is actually saved on disk before performing validation.
+			if (FEditorDelegates::OnPreAssetValidation.IsBound())
+			{
+				FEditorDelegates::OnPreAssetValidation.Broadcast();
+			}
+
+			FMessageLog DataValidationLog(UE::DataValidation::MessageLogName);
+			for (const FAssetData& AssetData : AssetList)
+			{
+				if (UObject* Asset = AssetData.FastGetAsset(/*bLoad*/false))
+				{
+					DataValidationLog.Info()
+						->AddToken(FAssetDataToken::Create(AssetData))
+						->AddToken(FTextToken::Create(LOCTEXT("Data.ValidatingAsset", "Validating asset")));
+
+					const EDataValidationResult ValidationResult = EditorValidationSubsystem->IsObjectValidWithContext(Asset, ValidationContext);
+					FinalValidationResult = CombineDataValidationResults(FinalValidationResult, ValidationResult);
+
+					UE::DataValidation::AddAssetValidationMessages(AssetData, DataValidationLog, ValidationContext);
+					DataValidationLog.Flush();
+				}
+			}
+
+			// Broadcast now that we're complete so other systems can go back to their previous state.
+			if (FEditorDelegates::OnPostAssetValidation.IsBound())
+			{
+				FEditorDelegates::OnPostAssetValidation.Broadcast();
+			}
+		}
+	}
+
+	return FinalValidationResult;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -63,6 +63,7 @@ const TCHAR* LexToString(ESuppressCookReason Reason)
 	case ESuppressCookReason::Redirected: return TEXT("Redirected");
 	case ESuppressCookReason::OrphanedGenerated: return TEXT("OrphanedGenerated");
 	case ESuppressCookReason::LoadError: return TEXT("LoadError");
+	case ESuppressCookReason::ValidationError: return TEXT("ValidationError");
 	case ESuppressCookReason::SaveError: return TEXT("SaveError");
 	case ESuppressCookReason::OnlyEditorOnly: return TEXT("OnlyEditorOnly");
 	case ESuppressCookReason::CookCanceled: return TEXT("CookCanceled");

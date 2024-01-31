@@ -98,6 +98,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/DataValidation.h"
 #include "Misc/FileHelper.h"
 #include "Misc/LocalTimestampDirectoryVisitor.h"
 #include "Misc/NetworkVersion.h"
@@ -218,6 +219,7 @@ static FAutoConsoleVariableRef CVarCookDisplayWarnBusyTime(
 /// Cook on the fly server
 ///////////////////////////////////////////////////////////////
 UCookOnTheFlyServer* UCookOnTheFlyServer::ActiveCOTFS = nullptr;
+UCookOnTheFlyServer::FOnValidateSourcePackage UCookOnTheFlyServer::ValidateSourcePackageEvent;
 UCookOnTheFlyServer::FOnCookByTheBookStarted UCookOnTheFlyServer::CookByTheBookStartedEvent;
 UCookOnTheFlyServer::FOnCookByTheBookFinished UCookOnTheFlyServer::CookByTheBookFinishedEvent;
 
@@ -2934,6 +2936,20 @@ void UCookOnTheFlyServer::LoadPackageInQueue(UE::Cook::FPackageData& PackageData
 		return;
 	}
 
+	if (ValidateSourcePackage(PackageData, LoadedPackage) == EDataValidationResult::Invalid)
+	{
+		if (EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::ValidationErrorsAreFatal))
+		{
+			UE_LOG(LogCook, Error, TEXT("%s failed validation"), *LoadedPackage->GetName());
+
+			PackageData.SetPlatformsCooked(PlatformManager->GetSessionPlatforms(), ECookResult::Failed);
+			RejectPackageToLoad(PackageData, TEXT("failed validation"), ESuppressCookReason::ValidationError);
+			return;
+		}
+
+		UE_LOG(LogCook, Warning, TEXT("%s failed validation"), *LoadedPackage->GetName());
+	}
+
 	PostLoadPackageFixup(PackageData, LoadedPackage);
 	PackageData.SetPackage(LoadedPackage);
 	PackageData.SendToState(EPackageState::Save, ESendFlags::QueueAdd, EStateChangeReason::Loaded);
@@ -2962,6 +2978,168 @@ void UCookOnTheFlyServer::RejectPackageToLoad(UE::Cook::FPackageData& PackageDat
 		}
 	}
 	DemoteToIdle(PackageData, UE::Cook::ESendFlags::QueueAdd, Reason);
+}
+
+EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPackageData& PackageData, UPackage* Package)
+{
+	UE_SCOPED_HIERARCHICAL_COOKTIMER(ValidateSourcePackage);
+
+	// Don't validate packages if validation is disabled
+	if (!EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::RunAssetValidation | ECookByTheBookOptions::RunMapValidation))
+	{
+		return EDataValidationResult::NotValidated;
+	}
+
+	// Don't validate packages generated during cook
+	if (PackageData.IsGenerated())
+	{
+		return EDataValidationResult::NotValidated;
+	}
+
+	// Don't validate packages that are already cooked
+	if (Package->HasAnyPackageFlags(PKG_Cooked))
+	{
+		return EDataValidationResult::NotValidated;
+	}
+
+	FNameBuilder PackageName(Package->GetFName());
+	const FStringView ContentRootName = FPackageName::SplitPackageNameRoot(PackageName.ToView(), nullptr);
+
+	// Don't validate Verse packages, as the Verse compiler handles that
+	if (FPackageName::IsVersePackage(PackageName.ToView()))
+	{
+		return EDataValidationResult::NotValidated;
+	}
+
+	// When cooking DLC, don't validate anything outside of the DLC plugin
+	if (IsCookingDLC() && ContentRootName != CookByTheBookOptions->DlcName)
+	{
+		return EDataValidationResult::NotValidated;
+	}
+
+	// When cooking a project, don't validate any engine content as it may not pass the project specific validators
+	if (FApp::HasProjectName())
+	{
+		if (ContentRootName == TEXTVIEW("Engine"))
+		{
+			return EDataValidationResult::NotValidated;
+		}
+		if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(ContentRootName);
+			Plugin && Plugin->GetLoadedFrom() == EPluginLoadedFrom::Engine)
+		{
+			return EDataValidationResult::NotValidated;
+		}
+	}
+
+	// Don't validate packages that won't actually be cooked
+	{
+		UAssetManager& AssetManager = UAssetManager::Get();
+		
+		if (!AssetManager.VerifyCanCookPackage(this, Package->GetFName(), /*bLogError*/false))
+		{
+			return EDataValidationResult::NotValidated;
+		}
+
+		bool bShouldCookForAnyPlatform = false;
+		for (const ITargetPlatform* TargetPlatform : PlatformManager->GetSessionPlatforms())
+		{
+			if (AssetManager.ShouldCookForPlatform(Package, TargetPlatform))
+			{
+				if (const TSet<FName>* NeverCookPackages = PackageTracker->PlatformSpecificNeverCookPackages.Find(TargetPlatform);
+					!NeverCookPackages || !NeverCookPackages->Contains(Package->GetFName()))
+				{
+					bShouldCookForAnyPlatform = true;
+					break;
+				}
+			}
+		}
+		if (!bShouldCookForAnyPlatform)
+		{
+			return EDataValidationResult::NotValidated;
+		}
+	}
+
+#if DEBUG_COOKONTHEFLY 
+	UE_LOG(LogCook, Display, TEXT("Validating package %s"), *PackageName);
+#endif
+
+	EDataValidationResult FinalValidationResult = EDataValidationResult::NotValidated;
+
+	UWorld* World = nullptr;
+	if (Package->HasAnyPackageFlags(PKG_ContainsMap))
+	{
+		World = UWorld::FindWorldInPackage(Package);
+	}
+
+	bool bRunCleanupWorld = false;
+	if (World && !World->bIsWorldInitialized)
+	{
+		FWorldInitializationValues IVS;
+		IVS.AllowAudioPlayback(false);
+		IVS.RequiresHitProxies(false);
+		IVS.ShouldSimulatePhysics(false);
+		IVS.EnableTraceCollision(true);
+		IVS.SetTransactional(false);
+		IVS.CreateWorldPartition(true);
+
+		World->InitWorld(IVS);
+		bRunCleanupWorld = true;
+	}
+
+	// Run asset validation if requested
+	if (EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::RunAssetValidation) && ValidateSourcePackageEvent.IsBound())
+	{
+		TArray<FAssetData> ExternalObjects;
+		if (World)
+		{
+			const FString ExternalActorsPathForWorld = ULevel::GetExternalActorsPath(Package);
+			AssetRegistry->GetAssetsByPath(*ExternalActorsPathForWorld, ExternalObjects, /*bRecursive*/true, /*bIncludeOnlyOnDiskAssets*/true);
+		}
+
+		static const FName NAME_AssetCheck = "AssetCheck";
+
+		FMessageLogScopedOverride AssetCheckLogOverride(NAME_AssetCheck);
+		if (!EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::ValidationErrorsAreFatal))
+		{
+			AssetCheckLogOverride.RemapMessageSeverity(EMessageSeverity::Error, EMessageSeverity::Warning);
+		}
+
+		FDataValidationContext ValidationContext(IsRunningCookCommandlet(), EDataValidationUsecase::Save, ExternalObjects);
+		const EDataValidationResult ValidationResult = ValidateSourcePackageEvent.Execute(Package, ValidationContext);
+		FinalValidationResult = CombineDataValidationResults(FinalValidationResult, ValidationResult);
+	}
+
+	// Run map validation if requested
+	if (EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::RunMapValidation) && World)
+	{
+		static const FName NAME_MapCheck = "MapCheck";
+
+		FMessageLogScopedOverride MapCheckLogOverride(NAME_MapCheck);
+		if (!EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::ValidationErrorsAreFatal))
+		{
+			MapCheckLogOverride.RemapMessageSeverity(EMessageSeverity::Error, EMessageSeverity::Warning);
+		}
+
+		GEditor->Exec(World, TEXT("MAP CHECK"));
+		
+		FMessageLog MapCheckLog(NAME_MapCheck);
+		if (MapCheckLog.NumMessages(EMessageSeverity::Error) > 0)
+		{
+			FinalValidationResult = EDataValidationResult::Invalid;
+		}
+	}
+
+	if (bRunCleanupWorld)
+	{
+		checkf(World, TEXT("bRunCleanupWorld was true but World was null!"));
+		checkf(World->bIsWorldInitialized, TEXT("bRunCleanupWorld was true but World->bIsWorldInitialized was false!"));
+
+		World->ClearWorldComponents();
+		World->CleanupWorld();
+		World->SetPhysicsScene(nullptr);
+	}
+
+	return FinalValidationResult;
 }
 
 void UCookOnTheFlyServer::QueueDiscoveredPackage(UE::Cook::FPackageData& PackageData,
