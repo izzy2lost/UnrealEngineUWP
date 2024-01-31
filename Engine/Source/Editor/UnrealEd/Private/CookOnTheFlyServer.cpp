@@ -7521,8 +7521,6 @@ void GetAdditionalCurrentIniVersionStrings( const UCookOnTheFlyServer* CookOnThe
 	IniVersionMap.Add(TEXT("IsUsingShaderCodeLibrary"), FString::Printf(TEXT("%d"), PackagingSettings->bShareMaterialShaderCode && CookOnTheFlyServer->IsUsingShaderCodeLibrary()));
 }
 
-
-
 bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* TargetPlatform, UE::Cook::FIniSettingContainer& IniVersionStrings ) const
 {
 	{
@@ -7555,7 +7553,6 @@ bool UCookOnTheFlyServer::GetCurrentIniVersionStrings( const ITargetPlatform* Ta
 			ProcessAccessedIniSettings(ConfigFile, IniVersionStrings);
 		}
 	}
-
 
 	// remove any which are filtered out
 	FString EditorPrefix(TEXT("Editor."));
@@ -7720,7 +7717,7 @@ void UCookOnTheFlyServer::OnFConfigDeleted(const FConfigFile* Config)
 	}
 
 	FScopeLock Lock(&ConfigFileCS);
-	WorkerRequests->ReportAccessedIniSettings(*this, *Config);
+	ProcessAccessedIniSettings(Config, AccessedIniStrings);
 	OpenConfigFiles.Remove(Config);
 }
 
@@ -8181,15 +8178,15 @@ bool UCookOnTheFlyServer::SaveCurrentIniSettings(const ITargetPlatform* TargetPl
 		for (const auto& CurrentIniFilename : CurrentIniSettings)
 		{
 			const FName& Filename = CurrentIniFilename.Key;
-			for ( const auto& CurrentSection : CurrentIniFilename.Value )
+			for (const auto& CurrentSection : CurrentIniFilename.Value)
 			{
 				const FName& Section = CurrentSection.Key;
-				for ( const auto& CurrentValue : CurrentSection.Value )
+				for (const auto& CurrentValue : CurrentSection.Value)
 				{
 					const FName& ValueName = CurrentValue.Key;
 					const TArray<FString>& Values = CurrentValue.Value;
 
-					for ( int Index = 0; Index < Values.Num(); ++Index )
+					for (int Index = 0; Index < Values.Num(); ++Index)
 					{
 						FString NewKey = FString::Printf(TEXT("%s:%s:%s:%d"), *Filename.ToString(), *Section.ToString(), *ValueName.ToString(), Index);
 						ConfigFile.AddToSection(NAME_UsedSettings, *NewKey, Values[Index]);
@@ -9979,10 +9976,7 @@ void UCookOnTheFlyServer::CookByTheBookFinished()
 	}
 
 	ShutdownCookSession();
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	CookByTheBookFinishedEvent.Broadcast();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
+	BroadcastCookByTheBookFinished();
 	UE_LOG(LogCook, Display, TEXT("Done!"));
 }
 
@@ -11405,10 +11399,7 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 	LogCookWorkerStats();
 	if (IsDirectorCookByTheBook())
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		CookByTheBookFinishedEvent.Broadcast();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-		UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
+		BroadcastCookByTheBookFinished();
 	}
 	CookWorkerClient->FlushLogs();
 }
@@ -13079,6 +13070,25 @@ void UCookOnTheFlyServer::BroadcastCookByTheBookStarted()
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 	FLowLevelMemTracker::Get().UpdateStatsPerFrame();
 #endif
+
+	// Register collectors used internally by CookOnTheFlyServer.
+	// External systems would do this during CookByTheBookStarted.Broadcast
+	if (GetProcessType() != UE::Cook::EProcessType::SingleProcess)
+	{
+	}
+}
+
+void UCookOnTheFlyServer::BroadcastCookByTheBookFinished()
+{
+	// Unregister collectors used internally by CookOnTheFlyServer.
+	if (GetProcessType() != UE::Cook::EProcessType::SingleProcess)
+	{
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	CookByTheBookFinishedEvent.Broadcast();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
 }
 
 #undef LOCTEXT_NAMESPACE
