@@ -123,6 +123,10 @@ void SNewClassDialog::Construct( const FArguments& InArgs )
 	if (ClassDomain == EClassDomain::Blueprint)
 	{
 		NewClassPath = InArgs._InitialPath.IsEmpty() ? TEXT("/Game") : InArgs._InitialPath;
+
+		// Pick a valid default path if the path is not writable
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+		NewClassPath = ContentBrowserModule.Get().GetInitialPathToSaveAsset(FContentBrowserItemPath(NewClassPath, EContentBrowserPathType::Internal)).GetInternalPathString();
 	}
 	else if(!InArgs._InitialPath.IsEmpty())
 	{
@@ -265,6 +269,7 @@ void SNewClassDialog::Construct( const FArguments& InArgs )
 		BlueprintPathConfig.bFocusSearchBoxWhenOpened = false;
 		BlueprintPathConfig.bAllowContextMenu = false;
 		BlueprintPathConfig.bAllowClassesFolder = false;
+		BlueprintPathConfig.bAllowReadOnlyFolders = false;
 		BlueprintPathConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SNewClassDialog::OnBlueprintPathSelected);
 	}
 
