@@ -112,16 +112,8 @@ enum class EKnownIniFile : uint8
 	NumKnownFiles,
 };
 
-namespace UE
-{
-namespace ConfigCacheIni
-{
-namespace Private
-{
-struct FAccessor;
-}
-}
-}
+namespace UE::ConfigCacheIni::Private { struct FAccessor; }
+namespace UE::ConfigCacheIni::Private { struct FImpl; }
 
 class FConfigContext;
 
@@ -203,6 +195,24 @@ public:
 		bRead = RHS.bRead;
 #endif
 
+		return *this;
+	}
+
+	FConfigValue& operator=(const TCHAR* RHS)
+	{
+		*this = FString(RHS);
+		return *this;
+	}
+	FConfigValue& operator=(const FString& RHS)
+	{
+		*this = FString(RHS);
+		return *this;
+	}
+	FConfigValue& operator=(FString&& RHS)
+	{
+		SavedValue = MoveTemp(RHS);
+		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
+		ExpandValueInternal();
 		return *this;
 	}
 
@@ -300,8 +310,14 @@ private:
 	/** Internal version of ExpandValue that expands SavedValue into ExpandedValue, or produces an empty ExpandedValue if no expansion occurred. */
 	CORE_API void ExpandValueInternal();
 
-	/** Gets the SavedValue without marking it as having been accessed for e.g. writing out to a ConfigFile to disk */
+	/** Gets the expanded value (GetValue) without marking it as having been accessed for e.g. writing out to a ConfigFile to disk */
 	friend struct UE::ConfigCacheIni::Private::FAccessor;
+	const FString& GetValueForWriting() const
+	{
+		return (ExpandedValue.Len() > 0 ? ExpandedValue : SavedValue);
+	};
+
+	/** Gets the SavedValue without marking it as having been accessed for e.g. writing out to a ConfigFile to disk */
 	const FString& GetSavedValueForWriting() const
 	{
 		return SavedValue;
@@ -314,28 +330,6 @@ private:
 	mutable bool bRead; // has this value been read since the config system started
 #endif
 };
-
-namespace UE
-{
-namespace ConfigCacheIni
-{
-namespace Private
-{
-/** An accessor class to access functions that should be restricted only to FConfigFileCache Internal use */
-struct FAccessor
-{
-private:
-	friend class ::FConfigCacheIni;
-	friend class ::FConfigFile;
-
-	static const FString& GetSavedValueForWriting(const FConfigValue& ConfigValue)
-	{
-		return ConfigValue.GetSavedValueForWriting();
-	}
-};
-}
-}
-}
 
 typedef TMultiMap<FName,FConfigValue> FConfigSectionMap;
 
@@ -355,7 +349,7 @@ public:
 	bool operator!=( const FConfigSection& Other ) const;
 
 	// process the '+' and '.' commands, takingf into account ArrayOfStruct unique keys
-	void CORE_API HandleAddCommand(FName Key, FString&& Value, bool bAppendValueIfNotArrayOfStructsKeyUsed);
+	void CORE_API HandleAddCommand(FName ValueName, FString&& Value, bool bAppendValueIfNotArrayOfStructsKeyUsed);
 
 	bool HandleArrayOfKeyedStructsCommand(FName Key, FString&& Value);
 
@@ -382,9 +376,35 @@ public:
 	// look for "array of struct" keys for overwriting single entries of an array
 	TMap<FName, FString> ArrayOfStructKeys;
 
+	friend struct UE::ConfigCacheIni::Private::FAccessor;
 	friend FArchive& operator<<(FArchive& Ar, FConfigSection& ConfigSection);
 };
 
+namespace UE::ConfigCacheIni::Private
+{
+
+/** An accessor class to access functions that should be restricted only to FConfigFileCache Internal use */
+struct FAccessor
+{
+private:
+	friend class ::FConfigCacheIni;
+	friend class ::FConfigFile;
+	friend class ::FConfigSection;
+	friend class ::FConfigContext;
+	friend struct ::UE::ConfigCacheIni::Private::FImpl;
+
+	static const FString& GetValueForWriting(const FConfigValue& ConfigValue)
+	{
+		return ConfigValue.GetValueForWriting();
+	}
+	static const FString& GetSavedValueForWriting(const FConfigValue& ConfigValue)
+	{
+		return ConfigValue.GetSavedValueForWriting();
+	}
+	static bool AreSectionsEqualForWriting(const FConfigSection& A, const FConfigSection& B);
+};
+
+}
 
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 // Options which stemmed from the commandline
@@ -394,20 +414,20 @@ struct FConfigCommandlineOverride
 };
 #endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
 
+typedef TMap<FString, FConfigSection> FConfigFileMap;
 
 // One config file.
-typedef TMap<FString, FConfigSection> FConfigFileMap;
 class FConfigFile : private FConfigFileMap
 {
 public:
-	bool Dirty;
-	bool NoSave;
-	bool bHasPlatformName = false;
+	bool Dirty : 1; // = false;
+	bool NoSave : 1; // = false;
+	bool bHasPlatformName : 1; // = false;
 	// by default, we allow saving - this is going to be applied to config files that are not loaded from disk
 	// (when loading, this will get set to false, and then the ini sections will be checked)
-	bool bCanSaveAllSections = true;
+	bool bCanSaveAllSections : 1; // = true;
 
-	/** The name of this config file */	
+	/** The name of this config file */
 	FName Name;
 
 	// The collection of source files which were used to generate this file.
@@ -426,11 +446,17 @@ public:
 	/** The collection of overrides which stemmed from the commandline */
 	TArray<FConfigCommandlineOverride> CommandlineOptions;
 #endif // ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-	
+
+private:
+	// This holds per-object config class names, with their ArrayOfStructKeys. Since the POC sections are all unique,
+	// we can't track it just in that section. This is expected to be empty/small
+	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
+
+public:
 	CORE_API FConfigFile();
 	FConfigFile( int32 ) {}	// @todo UE-DLL: Workaround for instantiated TMap template during DLLExport (TMap::FindRef)
 	CORE_API ~FConfigFile();
-	
+
 	// looks for a section by name, and creates an empty one if it can't be found
 	UE_DEPRECATED(5.4, "Use FindOrAddConfigSection, and/or use the new AddToSection, etc APIs to modify sections without retrieving the section. See top of ConfigCacheIni.h for more info.")
 	CORE_API FConfigSection* FindOrAddSection(const FString& Name);
@@ -696,11 +722,6 @@ public:
 
 	friend FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile);
 private:
-
-	// This holds per-object config class names, with their ArrayOfStructKeys. Since the POC sections are all unique,
-	// we can't track it just in that section. This is expected to be empty/small
-	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
-
 	/** 
 	 * Save the source hierarchy which was loaded out to a backup file so we can check future changes in the base/default configs
 	 */
@@ -852,10 +873,8 @@ public:
 	/** Finds Config file that matches the base name such as "Engine" */
 	CORE_API FConfigFile* FindConfigFileWithBaseName(FName BaseName);
 
-	FConfigFile& Add(const FString& Filename, const FConfigFile& File)
-	{
-		return *OtherFiles.Add(Filename, new FConfigFile(File));
-	}
+	CORE_API FConfigFile& Add(const FString& Filename, const FConfigFile& File);
+
 	int32 Remove(const FString& Filename)
 	{
 		delete OtherFiles.FindRef(Filename);

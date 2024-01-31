@@ -275,38 +275,74 @@ bool FConfigSection::HasQuotes( const FString& Test )
 	return Test.Left(1) == TEXT("\"") && Test.Right(1) == TEXT("\"");
 }
 
-bool FConfigSection::operator==( const FConfigSection& Other ) const
+bool FConfigSection::operator==( const FConfigSection& B ) const
 {
-	if ( Pairs.Num() != Other.Pairs.Num() )
+	const FConfigSection&A = *this;
+	if ( A.Pairs.Num() != B.Pairs.Num() )
 	{
-		return 0;
+		return false;
 	}
 
-	FConfigSectionMap::TConstIterator My(*this), Their(Other);
-	while ( My && Their )
+	FConfigSectionMap::TConstIterator AIter(A), BIter(B);
+	while (AIter && BIter)
 	{
-		if (My.Key() != Their.Key())
+		if (AIter.Key() != BIter.Key())
 		{
-			return 0;
+			return false;
 		}
 
-		const FString& MyValue = My.Value().GetValue(), &TheirValue = Their.Value().GetValue();
-		if ( FCString::Strcmp(*MyValue,*TheirValue) &&
-			(!HasQuotes(MyValue) || FCString::Strcmp(*TheirValue,*MyValue.Mid(1,MyValue.Len()-2))) &&
-			(!HasQuotes(TheirValue) || FCString::Strcmp(*MyValue,*TheirValue.Mid(1,TheirValue.Len()-2))) )
+		const FString& AIterValue = AIter.Value().GetValue();
+		const FString& BIterValue = BIter.Value().GetValue();
+		if ( FCString::Strcmp(*AIterValue,*BIterValue) &&
+			(!HasQuotes(AIterValue) || FCString::Strcmp(*BIterValue,*AIterValue.Mid(1, AIterValue.Len() - 2))) &&
+			(!HasQuotes(BIterValue) || FCString::Strcmp(*AIterValue,*BIterValue.Mid(1, BIterValue.Len() - 2))) )
 		{
-			return 0;
+			return false;
 		}
 
-		++My, ++Their;
+		++AIter, ++BIter;
 	}
-	return 1;
+	return true;
 }
 
 bool FConfigSection::operator!=( const FConfigSection& Other ) const
 {
 	return ! (FConfigSection::operator==(Other));
 }
+
+namespace UE::ConfigCacheIni::Private
+{
+
+bool FAccessor::AreSectionsEqualForWriting(const FConfigSection& A, const FConfigSection& B)
+{
+	if (A.Pairs.Num() != B.Pairs.Num())
+	{
+		return false;
+	}
+
+	FConfigSectionMap::TConstIterator AIter(A), BIter(B);
+	while (AIter && BIter)
+	{
+		if (AIter.Key() != BIter.Key())
+		{
+			return false;
+		}
+
+		const FString& AIterValue = AIter.Value().GetValueForWriting();
+		const FString& BIterValue = BIter.Value().GetValueForWriting();
+		if (FCString::Strcmp(*AIterValue, *BIterValue) &&
+			(!FConfigSection::HasQuotes(AIterValue) || FCString::Strcmp(*BIterValue, *AIterValue.Mid(1, AIterValue.Len() - 2))) &&
+			(!FConfigSection::HasQuotes(BIterValue) || FCString::Strcmp(*AIterValue, *BIterValue.Mid(1, BIterValue.Len() - 2))))
+		{
+			return false;
+		}
+
+		++AIter, ++BIter;
+	}
+	return true;
+}
+
+} // namespace UE::ConfigCacheIni::Private
 
 FArchive& operator<<(FArchive& Ar, FConfigSection& ConfigSection)
 {
@@ -349,17 +385,17 @@ static void ExtractPropertyValue(const FString& FullStructValue, const FString& 
 	}
 }
 
-void FConfigSection::HandleAddCommand(FName Key, FString&& Value, bool bAppendValueIfNotArrayOfStructsKeyUsed)
+void FConfigSection::HandleAddCommand(FName ValueName, FString&& Value, bool bAppendValueIfNotArrayOfStructsKeyUsed)
 {
-	if (!HandleArrayOfKeyedStructsCommand(Key, Forward<FString&&>(Value)))
+	if (!HandleArrayOfKeyedStructsCommand(ValueName, Forward<FString&&>(Value)))
 	{
 		if (bAppendValueIfNotArrayOfStructsKeyUsed)
 		{
-			Add(Key, MoveTemp(Value));
+			Add(ValueName, FConfigValue(MoveTemp(Value)));
 		}
 		else
 		{
-			AddUnique(Key, MoveTemp(Value));
+			AddUnique(ValueName, FConfigValue(MoveTemp(Value)));
 		}
 	}
 }
@@ -387,7 +423,10 @@ bool FConfigSection::HandleArrayOfKeyedStructsCommand(FName Key, FString&& Value
 				if (It.Key() == Key)
 				{
 					// now look for the matching ArrayOfStruct Key as the incoming KeyValue
-					ExtractPropertyValue(It.Value().GetValue(), StructKeyMatch, ExistingStructValueKey);
+					{
+						const FString& ItValue = UE::ConfigCacheIni::Private::FAccessor::GetValueForWriting(It.Value()); // Don't report to AccessTracking
+						ExtractPropertyValue(ItValue, StructKeyMatch, ExistingStructValueKey);
+					}
 					if (ExistingStructValueKey == StructKeyValueToMatch)
 					{
 						// we matched the key, so replace the existing value in place (so as not to reorder)
@@ -561,6 +600,8 @@ static bool SaveConfigFileWrapper(const TCHAR* IniFile, const FString& Contents)
 FConfigFile::FConfigFile()
 : Dirty( false )
 , NoSave( false )
+, bHasPlatformName( false )
+, bCanSaveAllSections( true )
 , Name( NAME_None )
 , SourceConfigFile(nullptr)
 {
@@ -961,11 +1002,12 @@ void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHi
 						FConfigValue* ConfigValue = CurrentSection->Find(Key);
 						if (!ConfigValue)
 						{
-							CurrentSection->Add(Key, MoveTemp(ProcessedValue));
+							CurrentSection->Add(Key,
+								FConfigValue(MoveTemp(ProcessedValue)));
 						}
 						else
 						{
-							*ConfigValue = FConfigValue(MoveTemp(ProcessedValue));
+							*ConfigValue = MoveTemp(ProcessedValue);
 						}
 					}
 				}
@@ -1105,12 +1147,12 @@ void FConfigFile::ProcessInputFileContents(FStringView Contents, const FString& 
 					FParse::QuotedString(Value, ProcessedValue);
 
 					// Add this pair to the current FConfigSection
-					CurrentSection->Add(KeyName, *ProcessedValue);
+					CurrentSection->Add(KeyName, FConfigValue(MoveTemp(ProcessedValue)));
 				}
 				else
 				{
 					// Add this pair to the current FConfigSection
-					CurrentSection->Add(KeyName, Value);
+					CurrentSection->Add(KeyName, FConfigValue(Value));
 				}
 			}
 		}
@@ -1376,7 +1418,11 @@ void FConfigFile::AddDynamicLayerToHierarchy(const FString& Filename)
 }
 
 
+namespace UE::ConfigCacheIni::Private
+{
 
+struct FImpl
+{
 /**
  * Check if the provided config section has a property which matches the one we are providing
  *
@@ -1386,7 +1432,7 @@ void FConfigFile::AddDynamicLayerToHierarchy(const FString& Filename)
  *
  * @return True if a property was found in the InSection which matched the Property Name and Value.
  */
-bool DoesConfigPropertyValueMatch(const FConfigSection* InSection, const FName& InPropertyName, const FString& InPropertyValue )
+static bool DoesConfigPropertyValueMatch(const FConfigSection* InSection, const FName& InPropertyName, const FString& InPropertyValue)
 {
 	bool bFoundAMatch = false;
 
@@ -1397,18 +1443,18 @@ bool DoesConfigPropertyValueMatch(const FConfigSection* InSection, const FName& 
 		// Start Array check, if the property is in an array, we need to iterate over all properties.
 		for (FConfigSection::TConstKeyIterator It(*InSection, InPropertyName); It && !bFoundAMatch; ++It)
 		{
-			const FString& PropertyValue = It.Value().GetSavedValue();
-			bFoundAMatch = 
+			const FString& PropertyValue = UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(It.Value());
+			bFoundAMatch =
 				PropertyValue.Len() == InPropertyValue.Len() &&
 				PropertyValue == InPropertyValue;
-				
+
 			// if our properties don't match, run further checks
-			if( !bFoundAMatch )
+			if (!bFoundAMatch)
 			{
 				// Check that the mismatch isn't just a string comparison issue with floats
-				if (bIsInputStringValidFloat && FDefaultValueHelper::IsStringValidFloat( PropertyValue ))
+				if (bIsInputStringValidFloat && FDefaultValueHelper::IsStringValidFloat(PropertyValue))
 				{
-					bFoundAMatch = FCString::Atof( *PropertyValue ) == FCString::Atof( *InPropertyValue );
+					bFoundAMatch = FCString::Atof(*PropertyValue) == FCString::Atof(*InPropertyValue);
 				}
 			}
 		}
@@ -1418,6 +1464,9 @@ bool DoesConfigPropertyValueMatch(const FConfigSection* InSection, const FName& 
 	return bFoundAMatch;
 }
 
+}; // struct FImpl
+
+} // namespace UE::ConfigCacheIni::Private
 
 /**
  * Check if the provided property information was set as a commandline override
@@ -1584,7 +1633,16 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 	TArray<FString> SectionsToSave;
 	if (SectionsToSaveSection != nullptr)
 	{
-		SectionsToSaveSection->MultiFind("Section", SectionsToSave);
+		// Do not report the read of SectionsToSave. Some ConfigFiles are reallocated without it, and we
+		// log that the section disappeared. But this log is spurious since the only reason it was read was
+		// for the internal save before the FConfigFile is made publicly available.
+		TArray<const FConfigValue*, TInlineAllocator<10>> SectionsToSaveValues;
+		SectionsToSaveSection->MultiFindPointer("Section", SectionsToSaveValues);
+		SectionsToSave.Reserve(SectionsToSaveValues.Num());
+		for (const FConfigValue* ConfigValue : SectionsToSaveValues)
+		{
+			SectionsToSave.Add(UE::ConfigCacheIni::Private::FAccessor::GetValueForWriting(*ConfigValue));
+		}
 	}
 	
 	for( TIterator SectionIterator(*this); SectionIterator; ++SectionIterator )
@@ -1638,7 +1696,9 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 				const bool bIsCurrentIniVersion = (SectionName == CurrentIniVersionStr);
 
 				// Check if the property matches the source configs. We do not wanna write it out if so.
-				if ((bIsADefaultIniWrite || bIsCurrentIniVersion || !DoesConfigPropertyValueMatch(SourceConfigSection, PropertyName, PropertyValue)) && !bOptionIsFromCommandline)
+				if ((bIsADefaultIniWrite || bIsCurrentIniVersion ||
+					!UE::ConfigCacheIni::Private::FImpl::DoesConfigPropertyValueMatch(SourceConfigSection, PropertyName, PropertyValue))
+					&& !bOptionIsFromCommandline)
 				{
 					// If this is the first property we are writing of this section, then print the section name
 					if( InOutText.Len() == InitialInOutTextSize )
@@ -1934,14 +1994,14 @@ void FConfigFile::SetString( const TCHAR* Section, const TCHAR* Key, const TCHAR
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( ConfigValue == nullptr )
 	{
-		Sec->Add( Key, Value );
+		Sec->Add(Key, FConfigValue(Value));
 		Dirty = true;
 	}
-	// Use GetSavedValueForWriting rather than GetSavedValue to avoid having the is-it-dirty query mark the values as having been accessed for dependency tracking
+	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
 	else if( FCString::Strcmp(*UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue),Value)!=0 )
 	{
 		Dirty = true;
-		*ConfigValue = FConfigValue(Value);
+		*ConfigValue = Value;
 	}
 }
 
@@ -1955,14 +2015,14 @@ void FConfigFile::SetText( const TCHAR* Section, const TCHAR* Key, const FText& 
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( ConfigValue == nullptr )
 	{
-		Sec->Add( Key, StrValue );
+		Sec->Add(Key, FConfigValue(MoveTemp(StrValue)));
 		Dirty = true;
 	}
-	// Use GetSavedValueForWriting rather than GetSavedValue to avoid having the is-it-dirty query mark the values as having been accessed for dependency tracking
+	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
 	else if( FCString::Strcmp(*UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue), *StrValue)!=0 )
 	{
 		Dirty = true;
-		*ConfigValue = FConfigValue(StrValue);
+		*ConfigValue = MoveTemp(StrValue);
 	}
 }
 
@@ -2004,7 +2064,7 @@ void FConfigFile::SetArray(const TCHAR* Section, const TCHAR* Key, const TArray<
 
 	for (int32 i = 0; i < Value.Num(); i++)
 	{
-		Sec->Add(Key, *Value[i]);
+		Sec->Add(Key, FConfigValue(Value[i]));
 		Dirty = true;
 	}
 }
@@ -2020,7 +2080,7 @@ bool FConfigFile::AddToSection(const TCHAR* SectionName, FName Key, const FStrin
 bool FConfigFile::AddUniqueToSection(const TCHAR* SectionName, FName Key, const FString& Value)
 {
 	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
-	if (Section->FindPair(Key, Value))
+	if (Section->FindPair(Key, FConfigValue(Value)))
 	{
 		return false;
 	}
@@ -2049,13 +2109,13 @@ bool FConfigFile::RemoveFromSection(const TCHAR* SectionName, FName Key, const F
 {
 	FConfigSection* Section = FindInternal(SectionName);
 	// if it doesn't contain the pair, do nothing
-	if (Section == nullptr || !Section->FindPair(Key, Value))
+	if (Section == nullptr || !Section->FindPair(Key, FConfigValue(Value)))
 	{
 		return false;
 	}
 
 	// remove any copies of the pair
-	Section->Remove(Key, Value);
+	Section->Remove(Key, FConfigValue(Value));
 	Dirty = true;
 	return true;
 }
@@ -2101,13 +2161,13 @@ void FConfigFile::ProcessSourceAndCheckAgainstBackup()
 		FConfigFile BackupFile;
 		ProcessIniContents(*BackupFilename, *BackupFilename, &BackupFile, false, false);
 
-		for( TMap<FString,FConfigSection>::TIterator SectionIterator(*SourceConfigFile); SectionIterator; ++SectionIterator )
+		for (TMap<FString,FConfigSection>::TIterator SectionIterator(*SourceConfigFile); SectionIterator; ++SectionIterator)
 		{
 			const FString& SectionName = SectionIterator.Key();
 			const FConfigSection& SourceSection = SectionIterator.Value();
 			const FConfigSection* BackupSection = BackupFile.FindSection( SectionName );
-
-			if( BackupSection && SourceSection != *BackupSection )
+			
+			if (BackupSection && !UE::ConfigCacheIni::Private::FAccessor::AreSectionsEqualForWriting(SourceSection, *BackupSection))
 			{
 				this->Remove( SectionName );
 				this->Add( SectionName, SourceSection );
@@ -2311,6 +2371,17 @@ FConfigFile* FConfigCacheIni::FindConfigFileWithBaseName(FName BaseName)
 		}
 	}
 	return nullptr;
+}
+
+FConfigFile& FConfigCacheIni::Add(const FString& Filename, const FConfigFile& File)
+{
+	FConfigFile*& Result = OtherFiles.FindOrAdd(Filename);
+	if (Result)
+	{
+		delete Result;
+	}
+	Result = new FConfigFile(File);
+	return *Result;
 }
 
 bool FConfigCacheIni::ContainsConfigFile(const FConfigFile* ConfigFile) const
@@ -2776,14 +2847,14 @@ void FConfigCacheIni::SetText( const TCHAR* Section, const TCHAR* Key, const FTe
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( !ConfigValue )
 	{
-		Sec->Add( Key, StrValue );
+		Sec->Add(Key, FConfigValue(MoveTemp(StrValue)));
 		File->Dirty = true;
 	}
-	// Use GetSavedValueForWriting rather than GetSavedValue to avoid having the is-it-dirty query mark the values as having been accessed for dependency tracking
+	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
 	else if( FCString::Strcmp(*UE::ConfigCacheIni::Private::FAccessor::GetSavedValueForWriting(*ConfigValue), *StrValue)!=0 )
 	{
 		File->Dirty = true;
-		*ConfigValue = FConfigValue(StrValue);
+		*ConfigValue = MoveTemp(StrValue);
 	}
 }
 
@@ -3931,7 +4002,7 @@ static void InitializeConfigRemap()
 		}
 		
 		Context.Load(*FPaths::Combine(Pass == 0 ? FPaths::EngineDir() : FPaths::ProjectDir(), TEXT("Config/ConfigRedirects.ini")));
-		
+
 		for (const TPair<FString, FConfigSection>& Section : AsConst(RemapFile))
 		{
 			if (Section.Key == TEXT("SectionNameRemap"))
@@ -4239,11 +4310,15 @@ FString FConfigCacheIni::NormalizeConfigIniPath(const FString& NonNormalizedPath
 FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile)
 {
 	bool bHasSourceConfigFile = ConfigFile.SourceConfigFile != nullptr;
+	bool bDirty = ConfigFile.Dirty;
+	bool bNoSave = ConfigFile.NoSave;
+	bool bHasPlatformName = ConfigFile.bHasPlatformName;
 
 	Ar << static_cast<FConfigFile::Super&>(ConfigFile);
-	Ar << ConfigFile.Dirty;
-	Ar << ConfigFile.NoSave;
-	Ar << ConfigFile.bHasPlatformName;
+	Ar << bDirty;
+	Ar << bNoSave;
+	Ar << bHasPlatformName;
+
 	Ar << ConfigFile.Name;
 	Ar << ConfigFile.SourceIniHierarchy;
 	Ar << ConfigFile.SourceEngineConfigDir;
@@ -4261,6 +4336,13 @@ FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile)
 	Ar << ConfigFile.SourceProjectConfigDir;
 	Ar << ConfigFile.PlatformName;
 	Ar << ConfigFile.PerObjectConfigArrayOfStructKeys;
+
+	if (Ar.IsLoading())
+	{
+		ConfigFile.Dirty = bDirty;
+		ConfigFile.NoSave = bNoSave;
+		ConfigFile.bHasPlatformName = bHasPlatformName;
+	}
 
 	return Ar;
 }
