@@ -6,6 +6,7 @@
 
 class FUICommandList;
 class UDMXControlConsoleEditorModel;
+class UDMXControlConsoleFaderGroup;
 class UDMXEntityFixturePatch;
 
 
@@ -49,6 +50,21 @@ private:
 
 	/** Sets the fixture patch on the selected fader group */
 	void SetPatchOnFaderGroup();
+
+	/** Groups patches in a fader group controller to the right */
+	void GroupPatchesToTheRight();
+
+	/** Returns true if the 'group patches to right' option is avialable */
+	bool CanGroupPatchesToTheRight() const;
+
+	/** Groups patches in a fader group controller on a new row */
+	void GroupPatchesOnNewRow();
+
+	/** Returns true if the 'group patches on a new row' option is avialable */
+	bool CanGroupPatchesOnNewRow() const;
+
+	/** Gets all available fader groups according to the current selected fixture patches */
+	TArray<UDMXControlConsoleFaderGroup*> GetFaderGroupsFromFixturePatches();
 
 	/** Fixture patches available when adding from this menu */
 	TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> FixturePatches;

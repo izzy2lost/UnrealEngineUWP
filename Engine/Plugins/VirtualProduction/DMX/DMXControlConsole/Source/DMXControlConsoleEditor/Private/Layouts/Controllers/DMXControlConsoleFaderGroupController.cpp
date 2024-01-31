@@ -604,7 +604,7 @@ void UDMXControlConsoleFaderGroupController::OnFaderGroupFixturePatchChanged(UDM
 
 void UDMXControlConsoleFaderGroupController::SyncControllerEditorColor()
 {
-	if (FaderGroups.Num() != 1)
+	if (FaderGroups.IsEmpty())
 	{
 		return;
 	}
