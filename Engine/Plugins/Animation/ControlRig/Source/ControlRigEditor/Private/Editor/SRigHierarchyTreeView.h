@@ -383,6 +383,7 @@ public:
 	SLATE_BEGIN_ARGS(SSearchableRigHierarchyTreeView) {}
 		SLATE_ARGUMENT(FRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(FText, InitialFilterText)
+		SLATE_ARGUMENT(float, MaxHeight)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -400,4 +401,5 @@ private:
 	FRigTreeDisplaySettings Settings;
 	TSharedPtr<SSearchBox> SearchBox;
 	TSharedPtr<SRigHierarchyTreeView> TreeView;
+	float MaxHeight = 0.f;
 };
