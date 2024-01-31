@@ -180,6 +180,12 @@ public:
 		return EnumHasAnyFlags(MediaState, InMediaStates);
 	}
 
+	/** Returns current media states. */
+	inline EDisplayClusterViewportMediaState GetMediaStates() const
+	{
+		return MediaState;
+	}
+
 	/** Set media state for this viewport. */
 	inline void AssignMediaStates(const EDisplayClusterViewportMediaState InMediaStates)
 	{

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
+#include "Misc/EnumClassFlags.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_OverscanSettings.h"
 
 /**
@@ -26,6 +26,19 @@ enum class EDisplayClusterViewportTileType: uint8
 };
 
 /**
+ * Additional tile settings represetned as a bitmask
+ */
+enum class EDisplayClusterViewportTileFlags : uint8
+{
+	None = 0,
+
+	// Allow this tile to render when unbound
+	AllowUnboundRender = 1 << 0,
+};
+ENUM_CLASS_FLAGS(EDisplayClusterViewportTileFlags);
+
+
+/**
  * nDisplay viewport tile settings.
  * These are runtime settings, updated every frame from the cluster configuration.
  */
@@ -35,49 +48,68 @@ public:
 	FDisplayClusterViewport_TileSettings() = default;
 
 	/** Setup as source. */
-	FDisplayClusterViewport_TileSettings(const FIntPoint& InSize, const FDisplayClusterViewport_OverscanSettings& InOverscanSettings)
-		: Type(EDisplayClusterViewportTileType::Source), Size(InSize), OverscanSettings(InOverscanSettings)
+	FDisplayClusterViewport_TileSettings(const FIntPoint& InSize, const FDisplayClusterViewport_OverscanSettings& InOverscanSettings, const EDisplayClusterViewportTileFlags InTileFlags)
+		: Type(EDisplayClusterViewportTileType::Source)
+		, Size(InSize)
+		, OverscanSettings(InOverscanSettings)
+		, TileFlags(InTileFlags)
 	{ }
 
 	/** Setup as tile. */
-	FDisplayClusterViewport_TileSettings(const FString& InSourceViewportId, const FIntPoint& InPos, const FIntPoint& InSize)
-		: Type(EDisplayClusterViewportTileType::Tile), Size(InSize), Pos(InPos), SourceViewportId(InSourceViewportId)
+	FDisplayClusterViewport_TileSettings(const FString& InSourceViewportId, const FIntPoint& InPos, const FIntPoint& InSize, const EDisplayClusterViewportTileFlags InTileFlags)
+		: Type(EDisplayClusterViewportTileType::Tile)
+		, Size(InSize)
+		, Pos(InPos)
+		, SourceViewportId(InSourceViewportId)
+		, TileFlags(InTileFlags)
 	{ }
 
 	/** Returns the current viewport type for tile rendering. */
-	inline EDisplayClusterViewportTileType GetType() const
+	EDisplayClusterViewportTileType GetType() const
 	{
 		return Type;
 	}
 
 	/** Return true if this viewport is internal. */
-	inline bool IsInternalViewport() const
+	bool IsInternalViewport() const
 	{
 		return Type == EDisplayClusterViewportTileType::Tile;
 	}
 
 	/** Get Size value. */
-	inline const FIntPoint& GetSize() const
+	const FIntPoint& GetSize() const
 	{
 		return Size;
 	}
 
 	/** Get Pos value. */
-	inline const FIntPoint& GetPos() const
+	const FIntPoint& GetPos() const
 	{
 		return Pos;
 	}
 
 	/** Get SourceViewportId. */
-	inline const FString& GetSourceViewportId() const
+	const FString& GetSourceViewportId() const
 	{
 		return SourceViewportId;
 	}
 
 	/** Get overscan settings for tile rendering. */
-	inline const FDisplayClusterViewport_OverscanSettings& GetOverscanSettings() const
+	const FDisplayClusterViewport_OverscanSettings& GetOverscanSettings() const
 	{
 		return OverscanSettings;
+	}
+
+	/** Returns tile flags. */
+	EDisplayClusterViewportTileFlags GetTileFlags() const
+	{
+		return TileFlags;
+	}
+
+	/** Checks if any of specified tile flags are set. */
+	const bool HasAnyTileFlags(const EDisplayClusterViewportTileFlags RequestedTileFlags) const
+	{
+		return EnumHasAnyFlags(TileFlags, RequestedTileFlags);
 	}
 
 	/** Set tile state to be used. */
@@ -113,4 +145,7 @@ private:
 
 	// Overscan settings for tile rendering.
 	FDisplayClusterViewport_OverscanSettings OverscanSettings;
+
+	// Extra tile flags
+	EDisplayClusterViewportTileFlags TileFlags = EDisplayClusterViewportTileFlags::None;
 };

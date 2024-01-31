@@ -17,10 +17,6 @@
 #include "DisplayClusterConfigurationTypes_Tile.h"
 #include "DisplayClusterProjectionStrings.h"
 
-#include "IDisplayCluster.h"
-#include "IDisplayClusterCallbacks.h"
-
-
 ////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewportConfigurationHelpers_Tile
 ////////////////////////////////////////////////////////////////////////
@@ -36,9 +32,20 @@ void FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewport
 				const FDisplayClusterViewport_OverscanSettings& OverscanSettings = FDisplayClusterViewportConfigurationHelpers_Tile::GetTileOverscanSettings(InCameraTile.TileOverscan);
 				const FIntPoint Size(InCameraTile.TileSettings.TileX, InCameraTile.TileSettings.TileY);
 
+				// Find if this cluster node is allowed to render unbound tiles
+				const FString ThisNodeId = InSourceViewport.GetClusterNodeId();
+				const bool bAllowRenderUnbound = InCameraTile.ClusterNodesToRenderUnboundTiles.ItemNames.ContainsByPredicate([&ThisNodeId](const FString& Item)
+					{
+						return ThisNodeId.Equals(Item, ESearchCase::IgnoreCase);
+					});
+
+				// Prepare tile flags
+				EDisplayClusterViewportTileFlags TileFlags = EDisplayClusterViewportTileFlags::None;
+				TileFlags |= (bAllowRenderUnbound ? EDisplayClusterViewportTileFlags::AllowUnboundRender : EDisplayClusterViewportTileFlags::None);
+
 				// Set this viewport as the source for tile rendering.
 				FDisplayClusterViewport_TileSettings& OutTileSettings = InSourceViewport.GetRenderSettingsImpl().TileSettings;
-				OutTileSettings = FDisplayClusterViewport_TileSettings(Size, OverscanSettings);
+				OutTileSettings = FDisplayClusterViewport_TileSettings(Size, OverscanSettings, TileFlags);
 				OutTileSettings.bOptimizeTileOverscan = InCameraTile.TileOverscan.bOptimizeTileOverscan;
 
 				return;
@@ -151,13 +158,23 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 		// Gain direct access to internal resources of the NewViewport:
 		FDisplayClusterViewport_RenderSettings& InOutRenderSettings = TileViewport->GetRenderSettingsImpl();
 
-		// Reset runtime flags from prev frame:
+		// Reset runtime flags from prev frame.
+		// Also this function update media states.
 		TileViewport->ResetRuntimeParameters();
 
-		// Copy all the settings from the source viewport, but some of them still need to be overridden.
-		InOutRenderSettings = SourceRenderSettings;
+		// Override rendering settings from the source viewport, except for media states.
+		{
+			// Save the new media states after calling ResetRuntimeParameters().
+			const EDisplayClusterViewportMediaState TileMediaStates = TileViewport->GetRenderSettings().GetMediaStates();
 
-		// Dont show Tile composing viewports on frame target
+			// Copy all the settings from the source viewport, but some of them still need to be overridden.
+			InOutRenderSettings = SourceRenderSettings;
+
+			// Restore media states
+			InOutRenderSettings.AssignMediaStates(TileMediaStates);
+		}
+
+		// Don't show Tile composing viewports on frame target
 		InOutRenderSettings.bVisible = false;
 
 		// Disable custom frustum settings and override overscan settings.
@@ -186,29 +203,11 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 			}
 		}
 
+		// Inherit tile flags from the source viewport
+		const EDisplayClusterViewportTileFlags TileFlags = InSourceViewport.GetRenderSettings().TileSettings.GetTileFlags();
+
 		// Setup as tile.
-		InOutRenderSettings.TileSettings = FDisplayClusterViewport_TileSettings(InSourceViewport.GetId(), InTilePos, InTileSize);
-
-		// Allow external customers to configure media state
-		{
-			// By default, we set 'None' so the tiles can be rendered in editor for camera preview.
-			EDisplayClusterViewportMediaState NewMediaStates = EDisplayClusterViewportMediaState::None;
-
-			// But in cluster mode, we set 'Inactive' by default. When tiling is used, the tile viewport must either be rendered for media output
-			// or preserve internal buffer for a media input texture. However, it's possible the tile viewport has wrong or completely
-			// missing media output settings, or corresponding media device was not able to start properly for some reason.
-			// In this case the tile should not be rendered at all.
-			if (GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster)
-			{
-				NewMediaStates = EDisplayClusterViewportMediaState::Inactive;
-			}
-			
-			// Now allow to override media state if anyone wants
-			IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().Broadcast(TileViewport, NewMediaStates);
-
-			// Update the media state for the new frame.
-			InOutRenderSettings.AssignMediaStates(NewMediaStates);
-		}
+		InOutRenderSettings.TileSettings = FDisplayClusterViewport_TileSettings(InSourceViewport.GetId(), InTilePos, InTileSize, TileFlags);
 
 		// Copy internal render settings from the source:
 		TileViewport->GetVisibilitySettingsImpl() = InSourceViewport.GetVisibilitySettingsImpl();
