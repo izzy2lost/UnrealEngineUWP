@@ -30,9 +30,9 @@ void SDMXControlConsoleAddFixturePatchMenu::Construct(const FArguments& InArgs, 
 	{
 		MenuBuilder.AddMenuEntry
 		(
-			FDMXControlConsoleEditorCommands::Get().AddPatchNext,
+			FDMXControlConsoleEditorCommands::Get().AddPatchRight,
 			NAME_None,
-			LOCTEXT("AddPatchNextButtonLabel", "To the right")
+			LOCTEXT("AddPatchRightButtonLabel", "To the right")
 		);
 
 		MenuBuilder.AddMenuEntry
@@ -47,6 +47,24 @@ void SDMXControlConsoleAddFixturePatchMenu::Construct(const FArguments& InArgs, 
 			FDMXControlConsoleEditorCommands::Get().AddPatchToSelection,
 			NAME_None,
 			LOCTEXT("AddPatchToSelectionButtonLabel", "To selection")
+		);
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("GroupPatchButtonMainSection", "Group Patch"));
+	{
+		MenuBuilder.AddMenuEntry
+		(
+			FDMXControlConsoleEditorCommands::Get().GroupPatchRight,
+			NAME_None,
+			LOCTEXT("GroupPatchRightButtonLabel", "Group to the right")
+		);
+
+		MenuBuilder.AddMenuEntry
+		(
+			FDMXControlConsoleEditorCommands::Get().GroupPatchNextRow,
+			NAME_None,
+			LOCTEXT("GroupPatchNextRowButtonLabel", "Group to next row")
 		);
 	}
 	MenuBuilder.EndSection();
@@ -68,7 +86,7 @@ void SDMXControlConsoleAddFixturePatchMenu::RegisterCommands()
 
 	CommandList->MapAction
 	(
-		FDMXControlConsoleEditorCommands::Get().AddPatchNext,
+		FDMXControlConsoleEditorCommands::Get().AddPatchRight,
 		FExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight),
 		FCanExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::CanAddPatchesToTheRight)
 	);
@@ -85,6 +103,20 @@ void SDMXControlConsoleAddFixturePatchMenu::RegisterCommands()
 		FDMXControlConsoleEditorCommands::Get().AddPatchToSelection,
 		FExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup),
 		FCanExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::CanSetPatchOnFaderGroup)
+	);
+
+	CommandList->MapAction
+	(
+		FDMXControlConsoleEditorCommands::Get().GroupPatchRight,
+		FExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::GroupPatchesToTheRight),
+		FCanExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::CanGroupPatchesToTheRight)
+	);
+
+	CommandList->MapAction
+	(
+		FDMXControlConsoleEditorCommands::Get().GroupPatchNextRow,
+		FExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::GroupPatchesOnNewRow),
+		FCanExecuteAction::CreateSP(this, &SDMXControlConsoleAddFixturePatchMenu::CanGroupPatchesOnNewRow)
 	);
 }
 
@@ -117,13 +149,8 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 
 	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
 	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	if (!ControlConsoleData || !ControlConsoleLayouts)
-	{
-		return;
-	}
-
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ControlConsoleData || !ActiveLayout)
 	{
 		return;
 	}
@@ -140,23 +167,17 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 		ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(SelectedFaderGroupController);
 	}
 
-	const FScopedTransaction AddToLastRowTransaction(LOCTEXT("AddToLastRowTransaction", "Add Fader Group"));
-	// Add all selected Fixture Patches from Fixture Patch List
-	for (const TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch : FixturePatches)
+	const TArray<UDMXControlConsoleFaderGroup*> SelectedFaderGroups = GetFaderGroupsFromFixturePatches();
+	if (SelectedFaderGroups.IsEmpty())
 	{
-		UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
-		if (!FixturePatch)
-		{
-			continue;
-		}
+		return;
+	}
 
-		UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+	// Add all fader groups from selected patches in the fixture patch list
+	const FScopedTransaction AddToLastRowTransaction(LOCTEXT("AddToLastRowTransaction", "Add Fader Group"));
+	for (UDMXControlConsoleFaderGroup* FaderGroup : SelectedFaderGroups)
+	{
 		if (!FaderGroup)
-		{
-			continue;
-		}
-
-		if (ActiveLayout->ContainsFaderGroup(FaderGroup))
 		{
 			continue;
 		}
@@ -168,13 +189,13 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 
 		ActiveLayout->PreEditChange(nullptr);
 		UDMXControlConsoleFaderGroupController* NewController = ActiveLayout->AddToLayout(FaderGroup, FaderGroup->GetFaderGroupName(), RowIndex, ColumnIndex);
-		ActiveLayout->PostEditChange();
 		if (NewController)
 		{
 			NewController->Modify();
 			NewController->SetIsActive(true);
 			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
 		}
+		ActiveLayout->PostEditChange();
 	}
 }
 
@@ -206,13 +227,8 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 
 	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
 	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	if (!ControlConsoleData || !ControlConsoleLayouts)
-	{
-		return;
-	}
-
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ControlConsoleData || !ActiveLayout)
 	{
 		return;
 	}
@@ -243,32 +259,21 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 		NewRowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(SelectedFaderGroupController) + 1;
 	}
 
-	const FScopedTransaction AddToNewtRowTransaction(LOCTEXT("AddToNewtRowTransaction", "Add Fader Group"));
+	const TArray<UDMXControlConsoleFaderGroup*> SelectedFaderGroups = GetFaderGroupsFromFixturePatches();
+	if (SelectedFaderGroups.IsEmpty())
+	{
+		return;
+	}
+
+	// Add all fader groups from selected patches in the fixture patch list
+	const FScopedTransaction AddToNewtRowTransaction(LOCTEXT("AddToNewRowTransaction", "Add Fader Group"));
 	ActiveLayout->PreEditChange(nullptr);
 	UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = ActiveLayout->AddNewRowToLayout(NewRowIndex);
 	if (NewLayoutRow)
 	{
-		// Add all selected Fixture Patches from Fixture Patch List
 		NewLayoutRow->PreEditChange(nullptr);
-		for (TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch : FixturePatches)
+		for (UDMXControlConsoleFaderGroup* FaderGroup : SelectedFaderGroups)
 		{
-			UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
-			if (!FixturePatch)
-			{
-				continue;
-			}
-
-			UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
-			if (!FaderGroup)
-			{
-				continue;
-			}
-
-			if (ActiveLayout->ContainsFaderGroup(FaderGroup))
-			{
-				continue;
-			}
-
 			UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(FaderGroup, FaderGroup->GetFaderGroupName());
 			if (NewController)
 			{
@@ -277,10 +282,8 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 				ActiveLayout->AddToActiveFaderGroupControllers(NewController);
 			}
 		}
-
 		NewLayoutRow->PostEditChange();
 	}
-
 	ActiveLayout->PostEditChange();
 }
 
@@ -297,7 +300,7 @@ bool SDMXControlConsoleAddFixturePatchMenu::CanSetPatchOnFaderGroup() const
 		return false;
 	}
 		
-	// True if there's if there's no global filter and at least one selected Fader Group
+	// True if there's if there's no global filter and at least one selected fader group
 	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 	return ControlConsoleData->FilterString.IsEmpty() && !SelectionHandler->GetSelectedFaderGroups().IsEmpty();
 }
@@ -311,7 +314,8 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 
 	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
 	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	if (!ControlConsoleData || !ControlConsoleLayouts)
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ControlConsoleData || !ActiveLayout)
 	{
 		return;
 	}
@@ -323,35 +327,23 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout)
+	const int32 RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(FirstSelectedFaderGroupController);
+
+	const TArray<UDMXControlConsoleFaderGroup*> SelectedFaderGroups = GetFaderGroupsFromFixturePatches();
+	if (SelectedFaderGroups.IsEmpty())
 	{
 		return;
 	}
 
-	const int32 RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(FirstSelectedFaderGroupController);
-
+	// Add all fader groups from selected patches in the fixture patch list
 	const FScopedTransaction ReplaceSelectedFaderGroupTransaction(LOCTEXT("ReplaceSelectedFaderGroupTransaction", "Replace Fader Group"));
 	ActiveLayout->PreEditChange(nullptr);
 
-	// Add all Selected Patches Fader Group Controllers to layout
 	TArray<UObject*> FaderGroupControllersToSelect;
 	int32 ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(FirstSelectedFaderGroupController);
-	for (TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch : FixturePatches)
+	for (UDMXControlConsoleFaderGroup* FaderGroup : SelectedFaderGroups)
 	{
-		const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
-		if (!FixturePatch)
-		{
-			continue;
-		}
-
-		UDMXControlConsoleFaderGroup* FaderGroupToAdd = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
-		if (!FaderGroupToAdd)
-		{
-			continue;
-		}
-
-		UDMXControlConsoleFaderGroupController*	NewController = ActiveLayout->AddToLayout(FaderGroupToAdd, FaderGroupToAdd->GetFaderGroupName(), RowIndex, ColumnIndex);
+		UDMXControlConsoleFaderGroupController*	NewController = ActiveLayout->AddToLayout(FaderGroup, FaderGroup->GetFaderGroupName(), RowIndex, ColumnIndex);
 		if (NewController)
 		{
 			NewController->Modify();
@@ -366,7 +358,7 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 		ColumnIndex++;
 	}
 
-	// Remove all Selected Fader Group Controllers from layout
+	// Remove all selected fader group controllers from the layout
 	TArray<UObject*> FaderGroupControllersToUnselect;
 	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
 	for (const TWeakObjectPtr<UObject> SelectedFaderGroupControllerObject : SelectedFaderGroupControllersObjects)
@@ -409,6 +401,183 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 	SelectionHandler->RemoveFromSelection(FaderGroupControllersToUnselect);
 
 	EditorModel->RequestUpdateEditorModel();
+}
+
+void SDMXControlConsoleAddFixturePatchMenu::GroupPatchesToTheRight()
+{
+	if (!EditorModel.IsValid())
+	{
+		return;
+	}
+
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ControlConsoleData || !ActiveLayout)
+	{
+		return;
+	}
+
+	int32 RowIndex = ActiveLayout->GetLayoutRows().Num() - 1;
+	int32 ColumnIndex = INDEX_NONE;
+
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+	if (!SelectedFaderGroupControllersObjects.IsEmpty())
+	{
+		UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = SelectionHandler->GetFirstSelectedFaderGroupController(true);
+		RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(SelectedFaderGroupController);
+		ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(SelectedFaderGroupController);
+	}
+
+	const TArray<UDMXControlConsoleFaderGroup*> FaderGroupsToGroup = GetFaderGroupsFromFixturePatches();
+	if (FaderGroupsToGroup.IsEmpty())
+	{
+		return;
+	}
+
+	// Add all fader groups from selected patches in the fixture patch list
+	const FScopedTransaction GroupToLastRowTransaction(LOCTEXT("GroupToLastRowTransaction", "Add Fader Group"));
+	ActiveLayout->PreEditChange(nullptr);
+	UDMXControlConsoleFaderGroupController* NewController = ActiveLayout->AddToLayout(FaderGroupsToGroup, FString(), RowIndex, ColumnIndex);
+	if (NewController)
+	{
+		NewController->PreEditChange(nullptr);
+
+		const FString UserName = NewController->GenerateUserNameByFaderGroupsNames();
+		NewController->SetUserName(UserName);
+		NewController->Group();
+		NewController->SetIsActive(true);
+
+		NewController->PostEditChange();
+
+		ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+	}
+	ActiveLayout->PostEditChange();
+}
+
+bool SDMXControlConsoleAddFixturePatchMenu::CanGroupPatchesToTheRight() const
+{
+	return CanAddPatchesToTheRight() && FixturePatches.Num() > 1;
+}
+
+void SDMXControlConsoleAddFixturePatchMenu::GroupPatchesOnNewRow()
+{
+	if (!EditorModel.IsValid())
+	{
+		return;
+	}
+
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ControlConsoleData || !ActiveLayout)
+	{
+		return;
+	}
+
+	// Generate on last row if vertical sorting
+	if (ActiveLayout->GetLayoutMode() == EDMXControlConsoleLayoutMode::Vertical)
+	{
+		GroupPatchesToTheRight();
+		return;
+	}
+
+	int32 NewRowIndex = INDEX_NONE;
+
+	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
+	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+	if (SelectedFaderGroupControllersObjects.IsEmpty())
+	{
+		NewRowIndex = ActiveLayout->GetLayoutRows().Num();
+	}
+	else
+	{
+		UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = SelectionHandler->GetFirstSelectedFaderGroupController(true);
+		if (!SelectedFaderGroupController)
+		{
+			return;
+		}
+
+		NewRowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(SelectedFaderGroupController) + 1;
+	}
+
+	const TArray<UDMXControlConsoleFaderGroup*> FaderGroupsToGroup = GetFaderGroupsFromFixturePatches();
+	if (FaderGroupsToGroup.IsEmpty())
+	{
+		return;
+	}
+
+	// Add all fader groups from selected patches in the fixture patch list
+	const FScopedTransaction GroupToNewtRowTransaction(LOCTEXT("GroupToNewRowTransaction", "Add Fader Group"));
+	ActiveLayout->PreEditChange(nullptr);
+	UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = ActiveLayout->AddNewRowToLayout(NewRowIndex);
+	if (NewLayoutRow)
+	{
+		NewLayoutRow->PreEditChange(nullptr);
+		UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(FaderGroupsToGroup);
+		if (NewController)
+		{
+			NewController->PreEditChange(nullptr);
+
+			const FString UserName = NewController->GenerateUserNameByFaderGroupsNames();
+			NewController->SetUserName(UserName);
+			NewController->Group();
+			NewController->SetIsActive(true);
+
+			NewController->PostEditChange();
+
+			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+		}
+		NewLayoutRow->PostEditChange();
+	}
+	ActiveLayout->PostEditChange();
+}
+
+bool SDMXControlConsoleAddFixturePatchMenu::CanGroupPatchesOnNewRow() const
+{
+	return CanAddPatchesOnNewRow() && FixturePatches.Num() > 1;
+}
+
+TArray<UDMXControlConsoleFaderGroup*> SDMXControlConsoleAddFixturePatchMenu::GetFaderGroupsFromFixturePatches()
+{
+	TArray<UDMXControlConsoleFaderGroup*> FaderGroupsToGroup;
+	if (!EditorModel.IsValid())
+	{
+		return FaderGroupsToGroup;
+	}
+
+	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ControlConsoleData || !ActiveLayout)
+	{
+		return FaderGroupsToGroup;
+	}
+
+	for (const TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch : FixturePatches)
+	{
+		UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
+		if (!FixturePatch)
+		{
+			continue;
+		}
+
+		UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+		if (!FaderGroup)
+		{
+			continue;
+		}
+
+		if (ActiveLayout->ContainsFaderGroup(FaderGroup))
+		{
+			continue;
+		}
+
+		FaderGroupsToGroup.Add(FaderGroup);
+	}
+
+	return FaderGroupsToGroup;
 }
 
 #undef LOCTEXT_NAMESPACE

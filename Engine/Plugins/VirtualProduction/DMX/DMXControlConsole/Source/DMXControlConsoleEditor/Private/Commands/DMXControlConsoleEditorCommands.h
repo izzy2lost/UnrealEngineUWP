@@ -30,7 +30,9 @@ public:
 	TSharedPtr<FUICommandInfo> Unmute;
 	TSharedPtr<FUICommandInfo> UnmuteAll;
 
-	TSharedPtr<FUICommandInfo> AddPatchNext;
+	TSharedPtr<FUICommandInfo> AddPatchRight;
 	TSharedPtr<FUICommandInfo> AddPatchNextRow;
 	TSharedPtr<FUICommandInfo> AddPatchToSelection;
+	TSharedPtr<FUICommandInfo> GroupPatchRight;
+	TSharedPtr<FUICommandInfo> GroupPatchNextRow;
 };
