@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Data/AvalancheWorldData.h"
+#include "Data/AvaWorldData.h"
 
-void FAvalancheWorldData::FinalizeSave()
+void FAvaWorldData::FinalizeSave()
 {
 	VersionInfo.UpdateToLatest();
 }
 
-void FAvalancheWorldData::ResetTransientData()
+void FAvaWorldData::ResetTransientData()
 {
 	World.Reset();
 	NameIndexMap.Reset();

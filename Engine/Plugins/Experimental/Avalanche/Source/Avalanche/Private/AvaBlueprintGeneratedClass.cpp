@@ -4,7 +4,7 @@
 #include "AvaActor.h"
 #include "AvaSequence.h"
 
-void UAvaBlueprintGeneratedClass::UpdateProperties(AAvalancheActor* InActor)
+void UAvaBlueprintGeneratedClass::UpdateProperties(AAvaActor* InActor)
 {
 	UAvaBlueprintGeneratedClass* const GeneratedClass = Cast<UAvaBlueprintGeneratedClass>(InActor->GetClass());
 

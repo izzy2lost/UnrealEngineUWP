@@ -4,10 +4,10 @@
 
 #include "Containers/Array.h"
 #include "UObject/ObjectMacros.h"
-#include "AvalancheObjectData.generated.h"
+#include "AvaObjectData.generated.h"
 
 USTRUCT()
-struct FAvalancheObjectData
+struct FAvaObjectData
 {
 	GENERATED_BODY()
 

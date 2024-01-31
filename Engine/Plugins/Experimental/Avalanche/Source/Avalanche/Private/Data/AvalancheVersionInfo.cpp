@@ -1,18 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Data/AvalancheVersionInfo.h"
+#include "Data/AvaVersionInfo.h"
 #include "Misc/EngineVersion.h"
 #include "Serialization/CustomVersion.h"
 #include "UObject/ObjectVersion.h"
 
-void FAvalancheFileVersionInfo::UpdateToLatest()
+void FAvaFileVersionInfo::UpdateToLatest()
 {
 	FileVersionUE4      = GPackageFileUEVersion.FileVersionUE4;
 	FileVersionUE5      = GPackageFileUEVersion.FileVersionUE5;
 	FileVersionLicensee = GPackageFileLicenseeUEVersion;
 }
 
-void FAvalancheEngineVersionInfo::UpdateToLatest()
+void FAvaEngineVersionInfo::UpdateToLatest()
 {
 	const FEngineVersion& EngineVersion(FEngineVersion::Current());
 	Major      = EngineVersion.GetMajor();
@@ -21,14 +21,14 @@ void FAvalancheEngineVersionInfo::UpdateToLatest()
 	Changelist = EngineVersion.GetChangelist();
 }
 
-void FAvalancheCustomVersionInfo::SetCustomVersion(const FCustomVersion& InVersion)
+void FAvaCustomVersionInfo::SetCustomVersion(const FCustomVersion& InVersion)
 {
 	FriendlyName = InVersion.GetFriendlyName();
 	Key          = InVersion.Key;
 	Version      = InVersion.Version;
 }
 
-void FAvalancheVersionInfo::UpdateToLatest()
+void FAvaVersionInfo::UpdateToLatest()
 {
 	FileVersion.UpdateToLatest();
 	EngineVersion.UpdateToLatest();
@@ -57,7 +57,7 @@ void FAvalancheVersionInfo::UpdateToLatest()
 	}
 }
 
-void FAvalancheVersionInfo::ApplyToArchive(FArchive& Archive) const
+void FAvaVersionInfo::ApplyToArchive(FArchive& Archive) const
 {
 	//If CustomVersions is Empty, it's pre-versioning
 	if (CustomVersions.IsEmpty())
@@ -74,7 +74,7 @@ void FAvalancheVersionInfo::ApplyToArchive(FArchive& Archive) const
 	Archive.SetEngineVer(FEngineVersionBase(EngineVersion.Major, EngineVersion.Minor, EngineVersion.Patch, EngineVersion.Changelist));
 
 	FCustomVersionContainer CustomVersionContainer;
-	for (const FAvalancheCustomVersionInfo& CustomVersion : CustomVersions)
+	for (const FAvaCustomVersionInfo& CustomVersion : CustomVersions)
 	{
 		CustomVersionContainer.SetVersion(CustomVersion.Key
 			, CustomVersion.Version

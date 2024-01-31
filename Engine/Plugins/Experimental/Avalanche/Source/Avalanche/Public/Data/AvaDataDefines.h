@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvalancheDataDefines.generated.h"
+#include "AvaDataDefines.generated.h"
 
 USTRUCT()
 struct FAvaObjectIndex

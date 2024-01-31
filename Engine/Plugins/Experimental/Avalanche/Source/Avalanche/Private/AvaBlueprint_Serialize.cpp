@@ -2,19 +2,20 @@
 
 #include "AvaBlueprint_Serialize.h"
 #include "AudioDevice.h"
+#include "AvaLog.h"
 #include "EngineUtils.h"
 #include "MovieScene.h"
 #include "AI/NavigationSystemConfig.h"
 #include "Algo/AllOf.h"
 #include "AvaSequence.h"
-#include "Archive/AvalancheReader.h"
-#include "Archive/AvalancheWriter.h"
-#include "Data/AvalancheActorData.h"
-#include "Data/AvalancheComponentData.h"
-#include "Data/AvalancheDataDefines.h"
-#include "Data/AvalancheObjectData.h"
-#include "Data/AvalancheSubObjectData.h"
-#include "Data/AvalancheWorldData.h"
+#include "Archive/AvaReader.h"
+#include "Archive/AvaWriter.h"
+#include "Data/AvaActorData.h"
+#include "Data/AvaComponentData.h"
+#include "Data/AvaDataDefines.h"
+#include "Data/AvaObjectData.h"
+#include "Data/AvaSubObjectData.h"
+#include "Data/AvaWorldData.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "Engine/BrushBuilder.h"
 #include "Misc/ScopedSlowTask.h"
@@ -50,7 +51,7 @@ FSoftObjectPath FAvaBlueprint_Serialize::SetActorInPath(AActor* NewActor, const 
 	return FSoftObjectPath(PathToNewActor.GetAssetPath(), PathToNewActor.GetSubPathString() + PathAfterOriginalActor);
 }
 
-UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& WorldData, FAvaObjectIndex ObjectIndex)
+UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvaWorldData& WorldData, FAvaObjectIndex ObjectIndex)
 {
 	if (!ensure(WorldData.SerializedObjectReferences.IsValidIndex(ObjectIndex.Index)))
 	{
@@ -85,10 +86,10 @@ UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& W
 	{
 		const FSoftObjectPath& OriginalActorPath = *PathToActor;
 
-		FAvalancheActorData* const ActorData = WorldData.ActorData.Find(OriginalActorPath);
+		FAvaActorData* const ActorData = WorldData.ActorData.Find(OriginalActorPath);
 		if (!ActorData)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("No save data found for actor %s"), *OriginalActorPath.ToString());
+			UE_LOG(LogAvaBlueprint_Serialize , Warning, TEXT("No save data found for actor %s"), *OriginalActorPath.ToString());
 			return nullptr;
 		}
 
@@ -99,7 +100,7 @@ UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& W
 			UClass* TargetClass = SoftClassPath.TryLoadClass<AActor>();
 			if (!TargetClass)
 			{
-				UE_LOG(LogTemp
+				UE_LOG(LogAvaBlueprint_Serialize 
 					, Error
 					, TEXT("Unknown class %s. Mostly likely it is referencing a class that was deleted.")
 					, *SoftClassPath.ToString());
@@ -129,11 +130,11 @@ UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& W
 				ActorWeak->SetIsTemporarilyHiddenInEditor(true);
 #endif
 
-				for (const TPair<FAvaObjectIndex, FAvalancheComponentData>& Pair : ActorData->ComponentData)
+				for (const TPair<FAvaObjectIndex, FAvaComponentData>& Pair : ActorData->ComponentData)
 				{
 					const FAvaObjectIndex& ReferenceIndex = Pair.Key;
 
-					FAvalancheSubObjectData* SubObjectData = WorldData.SubObjects.Find(ReferenceIndex);
+					FAvaSubObjectData* SubObjectData = WorldData.SubObjects.Find(ReferenceIndex);
 					if (ensure(SubObjectData))
 					{
 						const FSoftObjectPath& ComponentPath = WorldData.SerializedObjectReferences[ReferenceIndex.Index];
@@ -167,7 +168,7 @@ UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& W
 	const FSoftObjectPath PathToSubObject = SetActorInPath(SnapshotActor, OriginalObjectPath);
 	if (UObject* ExistingSubObject = PathToSubObject.ResolveObject())
 	{
-		FAvalancheSubObjectData* SubObjectData = WorldData.SubObjects.Find(ObjectIndex.Index);
+		FAvaSubObjectData* SubObjectData = WorldData.SubObjects.Find(ObjectIndex.Index);
 		if (!SubObjectData || SubObjectData->bWasSkippedClass)
 		{
 			return ExistingSubObject;
@@ -175,7 +176,7 @@ UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& W
 
 		if (SubObjectData->Class.ResolveClass() != ExistingSubObject->GetClass())
 		{
-			UE_LOG(LogTemp, Warning
+			UE_LOG(LogAvaBlueprint_Serialize , Warning
 				, TEXT("Skipping serialisation of subobject because classes are different. Object '%s' will not contain values saved.")
 				, *ExistingSubObject->GetName());
 			return ExistingSubObject;
@@ -186,7 +187,7 @@ UObject* FAvaBlueprint_Serialize::ResolveObjectDependency(FAvalancheWorldData& W
 		if (!SubobjectCache.IsValid())
 		{
 			SubobjectCache = ExistingSubObject;
-			FAvalancheReader Reader(WorldData, *SubObjectData, ExistingSubObject);
+			FAvaReader Reader(WorldData, *SubObjectData, ExistingSubObject);
 			if (Reader.IsError())
 			{
 				UE_LOG(LogAvaBlueprint_Serialize, Error,
@@ -215,10 +216,10 @@ FString FAvaBlueprint_Serialize::ExtractLastSubObjectName(const FSoftObjectPath&
 	return SubPathString.RightChop(LastDotIndex + 1);
 }
 
-UObject* FAvaBlueprint_Serialize::CreateSubObject(FAvalancheWorldData& WorldData, FAvaObjectIndex ObjectIndex,
+UObject* FAvaBlueprint_Serialize::CreateSubObject(FAvaWorldData& WorldData, FAvaObjectIndex ObjectIndex,
 	const FSoftObjectPath& PathToSubObject)
 {
-	FAvalancheSubObjectData* SubObjectData = WorldData.SubObjects.Find(ObjectIndex.Index);
+	FAvaSubObjectData* SubObjectData = WorldData.SubObjects.Find(ObjectIndex.Index);
 	if (!SubObjectData || SubObjectData->bWasSkippedClass)
 	{
 		return nullptr;
@@ -235,7 +236,7 @@ UObject* FAvaBlueprint_Serialize::CreateSubObject(FAvalancheWorldData& WorldData
 	const UClass* Class = SubObjectData->Class.TryLoadClass<UObject>();
 	if (!Class)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Class '%s' not found. Maybe it was removed?"), *SubObjectData->Class.ToString());
+		UE_LOG(LogAvaBlueprint_Serialize , Warning, TEXT("Class '%s' not found. Maybe it was removed?"), *SubObjectData->Class.ToString());
 		return nullptr;
 	}
 
@@ -244,7 +245,7 @@ UObject* FAvaBlueprint_Serialize::CreateSubObject(FAvalancheWorldData& WorldData
 	UObject* SubObjectOuter = ResolveObjectDependency(WorldData, OuterIndex);
 	if (!SubObjectOuter)
 	{
-		UE_LOG(LogTemp, Warning
+		UE_LOG(LogAvaBlueprint_Serialize , Warning
 			, TEXT("Failed to create '%s' because its outer could not be created.")
 			, *PathToSubObject.ToString());
 		return nullptr;
@@ -266,7 +267,7 @@ UObject* FAvaBlueprint_Serialize::CreateSubObject(FAvalancheWorldData& WorldData
 	}();
 	if (bSubObjectNameIsTaken)
 	{
-		UE_LOG(LogTemp
+		UE_LOG(LogAvaBlueprint_Serialize 
 			, Warning, TEXT("Failed to create '%s' because subobject name was already taken.")
 			, *PathToSubObject.ToString());
 		return nullptr;
@@ -278,7 +279,7 @@ UObject* FAvaBlueprint_Serialize::CreateSubObject(FAvalancheWorldData& WorldData
 	                                                     FindOrAdd(WorldData.SerializedObjectReferences[ObjectIndex.Index]);
 	CachedSubObject = SubObject;
 
-	FAvalancheReader Reader(WorldData, *SubObjectData, SubObject);
+	FAvaReader Reader(WorldData, *SubObjectData, SubObject);
 	if (Reader.IsError())
 	{
 		UE_LOG(LogAvaBlueprint_Serialize, Error,
@@ -334,9 +335,9 @@ UActorComponent* FAvaBlueprint_Serialize::FindMatchingComponent(AActor* ActorToS
 	return nullptr;
 }
 
-void FAvaBlueprint_Serialize::SaveObject(FAvalancheWorldData& WorldData, FAvalancheObjectData& ObjectData, UObject* Object)
+void FAvaBlueprint_Serialize::SaveObject(FAvaWorldData& WorldData, FAvaObjectData& ObjectData, UObject* Object)
 {
-	FAvalancheWriter Writer(WorldData, ObjectData, Object);
+	FAvaWriter Writer(WorldData, ObjectData, Object);
 
 	for (const FCustomVersion& CustomVersion : Writer.GetCustomVersions().GetAllVersions())
 	{
@@ -344,9 +345,9 @@ void FAvaBlueprint_Serialize::SaveObject(FAvalancheWorldData& WorldData, FAvalan
 	}
 }
 
-void FAvaBlueprint_Serialize::LoadObject(FAvalancheWorldData& WorldData, FAvalancheObjectData& ObjectData, UObject* Object)
+void FAvaBlueprint_Serialize::LoadObject(FAvaWorldData& WorldData, FAvaObjectData& ObjectData, UObject* Object)
 {
-	FAvalancheReader Reader(WorldData, ObjectData, Object);
+	FAvaReader Reader(WorldData, ObjectData, Object);
 	if (Reader.IsError())
 	{
 		UE_LOG(LogAvaBlueprint_Serialize, Error,
@@ -436,7 +437,7 @@ bool FAvaBlueprint_Serialize::ShouldSaveSubObject(UObject* InSubObject)
 	return bIsSupportedClass && !InSubObject->HasAnyFlags(RF_Transient);
 }
 
-FAvaObjectIndex FAvaBlueprint_Serialize::AddOrFindObjectReference(FAvalancheWorldData& WorldData, const FSoftObjectPath& ObjectPath)
+FAvaObjectIndex FAvaBlueprint_Serialize::AddOrFindObjectReference(FAvaWorldData& WorldData, const FSoftObjectPath& ObjectPath)
 {
 	if (const FAvaObjectIndex* ExistingIndex = WorldData.ObjectReferenceIndexMap.Find(ObjectPath))
 	{
@@ -474,12 +475,12 @@ TOptional<FSoftObjectPath> FAvaBlueprint_Serialize::ExtractActorFromPath(const F
 		       FSoftObjectPath(InObjectPath.GetAssetPath(), SubPathString.Left(DotAfterActorNameIndex));
 }
 
-UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalancheWorldData& InWorldData
+UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvaWorldData& InWorldData
 	, AActor* InRecreatedActor
-	, const FAvalancheActorData& InActorData
+	, const FAvaActorData& InActorData
 	, const FSoftObjectPath& InComponentPath
-	, FAvalancheSubObjectData& SubObjectData
-	, const FAvalancheComponentData& ComponentData)
+	, FAvaSubObjectData& SubObjectData
+	, const FAvaComponentData& ComponentData)
 {
 	UActorComponent* OutComponent = FindMatchingComponent(InRecreatedActor, InComponentPath);
 
@@ -487,15 +488,15 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 	{
 		bool bIsOwnedByComponent;
 		const FSoftObjectPath& ComponentOuterPath = InWorldData.SerializedObjectReferences[SubObjectData.OuterIndex.Index];
-		TOptional<TNonNullPtr<const FAvalancheActorData>> ComponentOuterData;
+		TOptional<TNonNullPtr<const FAvaActorData>> ComponentOuterData;
 
 		//Find Saved Actor Data Using Object Path
 		if (const TOptional<FSoftObjectPath> PathToActor = ExtractActorFromPath(ComponentOuterPath, bIsOwnedByComponent))
 		{
-			const FAvalancheActorData* const Result = InWorldData.ActorData.Find(*PathToActor);
+			const FAvaActorData* const Result = InWorldData.ActorData.Find(*PathToActor);
 
 			UE_CLOG(Result == nullptr
-				, LogTemp
+				, LogAvaBlueprint_Serialize 
 				, Warning
 				, TEXT(
 					"Path %s looks like an actor path but no data was saved for it. Maybe it was a reference to an auto-generated actor, e.g. a brush or volume present in all worlds by default?"
@@ -504,7 +505,7 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 
 			if (Result)
 			{
-				ComponentOuterData = TOptional<TNonNullPtr<const FAvalancheActorData>>(Result);
+				ComponentOuterData = TOptional<TNonNullPtr<const FAvaActorData>>(Result);
 			}
 		}
 
@@ -528,7 +529,7 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 		if (bIsOwnedByComponent)
 		{
 			bool bFoundPath = false;
-			for (const TPair<FAvaObjectIndex, FAvalancheComponentData>& ComponentPair : InActorData.ComponentData)
+			for (const TPair<FAvaObjectIndex, FAvaComponentData>& ComponentPair : InActorData.ComponentData)
 			{
 				const FSoftObjectPath& SavedComponentPath = InWorldData.SerializedObjectReferences[ComponentPair.Key.Index];
 				if (SavedComponentPath == ComponentOuterPath)
@@ -536,7 +537,7 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 					bFoundPath = true;
 
 					const FAvaObjectIndex ReferenceIndex                    = ComponentPair.Key;
-					const FAvalancheSubObjectData* const FoundSubObjectData = InWorldData.SubObjects.Find(ReferenceIndex);
+					const FAvaSubObjectData* const FoundSubObjectData = InWorldData.SubObjects.Find(ReferenceIndex);
 
 					if (ensure(FoundSubObjectData))
 					{
@@ -551,7 +552,7 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 			}
 
 			UE_CLOG(bFoundPath
-				, LogTemp
+				, LogAvaBlueprint_Serialize 
 				, Error
 				, TEXT("Failed to find outer for component %s")
 				, *ComponentOuterPath.ToString());
@@ -563,8 +564,9 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 			{
 				const UClass* ComponentClass = SubObjectData.Class.TryLoadClass<UActorComponent>();
 
-				if (!ensureMsgf(ComponentClass, TEXT("Component Class is invalid for Outer %s"), *ComponentOuter->GetName()))
+				if (!ComponentClass)
 				{
+					UE_LOG(LogAvaBlueprint_Serialize, Warning, TEXT("Component Class is invalid for Outer %s"), *ComponentOuter->GetName());
 					return nullptr;
 				}
 				
@@ -620,12 +622,12 @@ UActorComponent* FAvaBlueprint_Serialize::FindOrAllocateComponent(const FAvalanc
 	return OutComponent;
 }
 
-void FAvaBlueprint_Serialize::AddSubObjectDependency(FAvalancheWorldData& WorldData, UObject* ReferenceFromOriginalObject,
+void FAvaBlueprint_Serialize::AddSubObjectDependency(FAvaWorldData& WorldData, UObject* ReferenceFromOriginalObject,
 	FAvaObjectIndex Index)
 {
 	if (!ShouldSaveSubObject(ReferenceFromOriginalObject))
 	{
-		WorldData.SubObjects.Add(Index, FAvalancheSubObjectData::MakeSkippedSubObjectData());
+		WorldData.SubObjects.Add(Index, FAvaSubObjectData::MakeSkippedSubObjectData());
 		return;
 	}
 
@@ -644,7 +646,7 @@ void FAvaBlueprint_Serialize::AddSubObjectDependency(FAvalancheWorldData& WorldD
 		}
 
 		// Important: first allocate SubobjectData on stack...
-		FAvalancheSubObjectData SubObjectData;
+		FAvaSubObjectData SubObjectData;
 		const UClass* Class      = ReferenceFromOriginalObject->GetClass();
 		SubObjectData.Class      = Class;
 		SubObjectData.OuterIndex = AddObjectDependency(WorldData, ReferenceFromOriginalObject->GetOuter());
@@ -656,7 +658,7 @@ void FAvaBlueprint_Serialize::AddSubObjectDependency(FAvalancheWorldData& WorldD
 	}
 }
 
-FAvaObjectIndex FAvaBlueprint_Serialize::AddObjectDependency(FAvalancheWorldData& WorldData
+FAvaObjectIndex FAvaBlueprint_Serialize::AddObjectDependency(FAvaWorldData& WorldData
 	, UObject* ReferenceFromOriginalObject
 	, bool bCheckWhetherSubObject)
 {
@@ -669,21 +671,21 @@ FAvaObjectIndex FAvaBlueprint_Serialize::AddObjectDependency(FAvalancheWorldData
 	return OutIndex;
 }
 
-void FAvaBlueprint_Serialize::LoadActor(AActor* InActor, const FSoftObjectPath& InActorPath, FAvalancheWorldData& WorldData)
+void FAvaBlueprint_Serialize::LoadActor(AActor* InActor, const FSoftObjectPath& InActorPath, FAvaWorldData& WorldData)
 {
 	check(InActor);
 
-	UE_LOG(LogTemp
+	UE_LOG(LogAvaBlueprint_Serialize 
 		, Verbose
 		, TEXT("========== Deserialize Actor %s ==========")
 		, *InActorPath.ToString());
 
-	FAvalancheActorData& ActorData = WorldData.ActorData[InActorPath];
+	FAvaActorData& ActorData = WorldData.ActorData[InActorPath];
 
 	LoadObject(WorldData, ActorData, InActor);
 
 #if WITH_EDITOR
-	UE_LOG(LogTemp
+	UE_LOG(LogAvaBlueprint_Serialize 
 		, Verbose
 		, TEXT("ActorLabel is \"%s\" for \"%s\" (editor object path \"%s\")")
 		, *InActor->GetActorLabel()
@@ -692,7 +694,7 @@ void FAvaBlueprint_Serialize::LoadActor(AActor* InActor, const FSoftObjectPath& 
 #endif
 
 	//Deserialize Components
-	for (const TPair<FAvaObjectIndex, FAvalancheComponentData>& ComponentPair : ActorData.ComponentData)
+	for (const TPair<FAvaObjectIndex, FAvaComponentData>& ComponentPair : ActorData.ComponentData)
 	{
 		const EComponentCreationMethod CreationMethod = ComponentPair.Value.CreationMethod;
 
@@ -704,7 +706,7 @@ void FAvaBlueprint_Serialize::LoadActor(AActor* InActor, const FSoftObjectPath& 
 
 			if (UActorComponent* const ComponentToRestore = FindMatchingComponent(InActor, OriginalComponentPath))
 			{
-				FAvalancheSubObjectData& SubObjectData = WorldData.SubObjects[SubObjectIndex];
+				FAvaSubObjectData& SubObjectData = WorldData.SubObjects[SubObjectIndex];
 				LoadObject(WorldData, SubObjectData, ComponentToRestore);
 				if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(ComponentToRestore))
 				{
@@ -730,28 +732,28 @@ void FAvaBlueprint_Serialize::LoadActor(AActor* InActor, const FSoftObjectPath& 
 	}
 }
 
-TOptional<FAvalancheComponentData> FAvaBlueprint_Serialize::SaveComponent(UActorComponent* InComponent)
+TOptional<FAvaComponentData> FAvaBlueprint_Serialize::SaveComponent(UActorComponent* InComponent)
 {
 	check(InComponent);
 
 	if (InComponent->CreationMethod == EComponentCreationMethod::UserConstructionScript)
 	{
-		UE_LOG(LogTemp, Warning
+		UE_LOG(LogAvaBlueprint_Serialize , Warning
 			, TEXT("Components created dynamically in the construction script are not supported (%s). Skipping...")
 			, *InComponent->GetPathName());
-		return TOptional<FAvalancheComponentData>{};
+		return TOptional<FAvaComponentData>{};
 	}
 
-	FAvalancheComponentData OutComponentData;
+	FAvaComponentData OutComponentData;
 	OutComponentData.CreationMethod = InComponent->CreationMethod;
 	return OutComponentData;
 }
 
-FAvalancheActorData FAvaBlueprint_Serialize::SaveActor(AActor* InActor, FAvalancheWorldData& WorldData)
+FAvaActorData FAvaBlueprint_Serialize::SaveActor(AActor* InActor, FAvaWorldData& WorldData)
 {
 	check(InActor);
 
-	FAvalancheActorData OutActorData;
+	FAvaActorData OutActorData;
 
 	const UClass* const ActorClass = InActor->GetClass();
 	OutActorData.ActorClass        = ActorClass;
@@ -769,7 +771,7 @@ FAvalancheActorData FAvaBlueprint_Serialize::SaveActor(AActor* InActor, FAvalanc
 	{
 		if (ShouldSaveComponent(Component))
 		{
-			if (TOptional<FAvalancheComponentData> SerializedComponentData = SaveComponent(Component))
+			if (TOptional<FAvaComponentData> SerializedComponentData = SaveComponent(Component))
 			{
 				const FAvaObjectIndex ComponentIndex = AddObjectDependency(WorldData, Component);
 				OutActorData.ComponentData.Add(ComponentIndex, *SerializedComponentData);

@@ -70,7 +70,7 @@ AAvaScene* AAvaScene::CreateFromBlueprint(ULevel* InNewLevel, UAvalancheBlueprin
 	// Load Blueprint World Actors into the new Level 
 	SlowTask.EnterProgressFrame(80, LOCTEXT("CopyingActors", "Copying Blueprint Actors"));
 	{
-		auto InitActor = [](AActor& InActor, const FAvalancheActorData& InActorData)
+		auto InitActor = [](AActor& InActor, const FAvaActorData& InActorData)
 		{
 			InActor.bHiddenEd = InActorData.bEditorVisibility;
 		};
