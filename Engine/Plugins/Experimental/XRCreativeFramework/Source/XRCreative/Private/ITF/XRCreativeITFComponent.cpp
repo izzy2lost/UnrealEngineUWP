@@ -414,35 +414,51 @@ void UXRCreativeITFComponent::InitializeComponent()
 #endif
 
 	// register selection interaction
-	SelectionInteraction = NewObject<UXRCreativeSelectionInteraction>(this);
-	SelectionInteraction->Initialize(GetSelectionSet(),
-		[this](AActor* SelectionCandidate)
-		{
-			if (HaveActiveTool())
+	{
+		auto InteractionActorCallback = [this](AActor* SelectionCandidate)
 			{
-				return false;
-			}
-
-			if (CanSelectPredicate.IsBound())
-			{
-				return CanSelectPredicate.Execute(SelectionCandidate);
-			}
-
-			if (SelectionCandidate)
-			{
-				for (const TSubclassOf<AActor>& DisallowedClass : UnselectableActorClasses)
+				if (HaveActiveTool())
 				{
-					if (DisallowedClass.Get() && SelectionCandidate->IsA(DisallowedClass))
+					return false;
+				}
+
+				if (CanSelectPredicate.IsBound())
+				{
+					return CanSelectPredicate.Execute(SelectionCandidate);
+				}
+
+				if (SelectionCandidate)
+				{
+					for (const TSubclassOf<AActor>& DisallowedClass : UnselectableActorClasses)
 					{
-						return false;
+						if (DisallowedClass.Get() && SelectionCandidate->IsA(DisallowedClass))
+						{
+							return false;
+						}
 					}
 				}
-			}
 
-			return true;
-		}
-	);
-	ToolsContext->InputRouter->RegisterSource(SelectionInteraction);
+				return true;
+			};
+
+		auto InteractionTraceCallback = [this](const FInputDeviceRay& InRay) -> FHitResult
+			{
+				FHitResult Result;
+				if (ensure(PointerComponent))
+				{
+					GetWorld()->LineTraceSingleByChannel(Result, InRay.WorldRay.Origin,
+						InRay.WorldRay.PointAt(UXRCreativeSelectionInteraction::RayLength),
+						ECC_Visibility, PointerComponent->GetQueryParams());
+				}
+				return Result;
+			};
+
+		SelectionInteraction = NewObject<UXRCreativeSelectionInteraction>(this);
+		SelectionInteraction->Initialize(GetSelectionSet(),
+			MoveTemp(InteractionActorCallback),
+			MoveTemp(InteractionTraceCallback));
+		ToolsContext->InputRouter->RegisterSource(SelectionInteraction);
+	}
 
 	// create transform interaction
 	TransformInteraction = NewObject<UXRCreativeTransformInteraction>(this);

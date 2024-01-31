@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "CollisionQueryParams.h"
 #include "Components/SceneComponent.h"
 #include "Engine/HitResult.h"
 #include "XRCreativePointerComponent.generated.h"
@@ -47,6 +48,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="XR Creative")
 	void SetEnabled(bool bInEnabled) { bEnabled = bInEnabled; }
+
+	FCollisionQueryParams GetQueryParams() const;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="XR Creative")
