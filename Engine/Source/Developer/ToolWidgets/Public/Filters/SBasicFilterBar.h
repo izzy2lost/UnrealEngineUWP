@@ -95,6 +95,7 @@ public:
 		, _CanChangeOrientation(false)
 		, _FilterPillStyle(EFilterPillStyle::Default)
 		, _UseSectionsForCategories(false)
+		, _bPinAllFrontendFilters(false)
 	{}
 
  		/** Delegate for when filters have changed */

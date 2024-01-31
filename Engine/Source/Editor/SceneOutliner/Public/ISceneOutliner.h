@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Misc/Attribute.h"
 #include "SceneOutlinerFwd.h"
+#include "SceneOutlinerPublicTypes.h"
+#include "Filters/FilterBase.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SHeaderRow.h"
 
@@ -52,6 +54,12 @@ public:
 	 * @return The index of the filter.
 	 */
 	virtual int32 AddFilter(const TSharedRef<FSceneOutlinerFilter>& Filter) = 0;
+
+	/** 
+	 * Add a filter to the scene outliner's filter bar
+	 * @param Filter The filter to add
+	 */
+	virtual void AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutliner::FilterBarType>>& InFilter) = 0;
 
 	/** 
 	 * Remove a filter from the scene outliner

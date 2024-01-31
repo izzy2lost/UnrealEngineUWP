@@ -59,6 +59,21 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 
 	OutlinerIdentifier = InInitOptions.OutlinerIdentifier;
 	
+	// Setup the SearchBox
+	// Modes can add filters on init so we do the widget creation before initing the mode
+	{
+		SearchBoxFilter = CreateTextFilter();
+		
+		FilterTextBoxWidget = SNew(SFilterSearchBox)
+		.Visibility( InInitOptions.bShowSearchBox ? EVisibility::Visible : EVisibility::Collapsed )
+		.HintText( LOCTEXT( "FilterSearch", "Search..." ) )
+		.ToolTipText( LOCTEXT("FilterSearchHint", "Type here to search (pressing enter selects the results)") )
+		.OnTextChanged( this, &SSceneOutliner::OnFilterTextChanged )
+		.OnTextCommitted( this, &SSceneOutliner::OnFilterTextCommitted );
+	}
+	
+	CreateFilterBar(InInitOptions.FilterBarOptions);
+	
 	check(InInitOptions.ModeFactory.IsBound());
 	Mode = InInitOptions.ModeFactory.Execute(this);
 	check(Mode);
@@ -90,21 +105,7 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 
 	// @todo outliner: Should probably save this in layout!
 	// @todo outliner: Should save spacing for list view in layout
-
-	// Setup the SearchBox
-	{
-		SearchBoxFilter = CreateTextFilter();
-		
-		FilterTextBoxWidget = SNew(SFilterSearchBox)
-		.Visibility( InInitOptions.bShowSearchBox ? EVisibility::Visible : EVisibility::Collapsed )
-		.HintText( LOCTEXT( "FilterSearch", "Search..." ) )
-		.ToolTipText( LOCTEXT("FilterSearchHint", "Type here to search (pressing enter selects the results)") )
-		.OnTextChanged( this, &SSceneOutliner::OnFilterTextChanged )
-		.OnTextCommitted( this, &SSceneOutliner::OnFilterTextCommitted );
-	}
 	
-	CreateFilterBar(InInitOptions.FilterBarOptions);
-
 	FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 	SceneOutlinerModule.OnColumnPermissionListChanged().AddSP(this, &SSceneOutliner::OnColumnPermissionListChanged);
 
@@ -1157,6 +1158,15 @@ bool SSceneOutliner::CanExecuteRenameRequest(const ISceneOutlinerTreeItem& ItemP
 int32 SSceneOutliner::AddFilter(const TSharedRef<FSceneOutlinerFilter>& Filter)
 {
 	return Filters->Add(Filter);
+}
+
+void SSceneOutliner::AddFilterToFilterBar(const TSharedRef<FFilterBase<SceneOutliner::FilterBarType>>& InFilter)
+{
+	if(FilterBar)
+	{
+		FilterBar->AddFilter(InFilter);
+	}
+	
 }
 
 bool SSceneOutliner::RemoveFilter(const TSharedRef<FSceneOutlinerFilter>& Filter)

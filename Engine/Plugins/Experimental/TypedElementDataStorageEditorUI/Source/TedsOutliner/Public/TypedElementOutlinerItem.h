@@ -29,9 +29,9 @@ public:
 	virtual TSharedRef<SWidget> GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) override;
 	/* End ISceneOutlinerTreeItem Implementation */
 
-	static const FSceneOutlinerTreeItemType Type;
+	TEDSOUTLINER_API static const FSceneOutlinerTreeItemType Type;
 
-	TypedElementRowHandle GetRowHandle() const;
+	TEDSOUTLINER_API TypedElementRowHandle GetRowHandle() const;
 
 private:
 	const TypedElementRowHandle RowHandle;
