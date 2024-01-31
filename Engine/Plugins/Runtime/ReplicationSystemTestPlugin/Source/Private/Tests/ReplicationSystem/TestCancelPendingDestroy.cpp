@@ -167,6 +167,58 @@ UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelPendingDestroyDu
 	UE_NET_ASSERT_EQ(ClientObject->IntA, ServerObject->IntA);
 }
 
+UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelPendingDestroyDuringWaitOnDestroyConfirmationWithInitialPacketLoss)
+{
+	// Add a client
+	FReplicationSystemTestClient* Client = CreateClient();
+
+	// Spawn object on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(UTestReplicatedIrisObject::FComponents());
+
+	// Introduce latency by not immediately delivering packets.
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("Create object"));
+	Server->PostSendUpdate();
+
+	// Filter out object to cause it to end up being PendingDestroy
+	Server->ReplicationSystem->AddToGroup(Server->GetReplicationSystem()->GetNotReplicatedNetObjectGroup(), ServerObject->NetRefHandle);
+
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("Destroy object"));
+	Server->PostSendUpdate();
+
+	// Remove object from filter to cause object to not destroy it. 
+	Server->ReplicationSystem->RemoveFromGroup(Server->GetReplicationSystem()->GetNotReplicatedNetObjectGroup(), ServerObject->NetRefHandle);
+
+	// Modify object.
+	ServerObject->IntA += 1;
+
+	Server->PreSendUpdate();
+	Server->SendTo(Client, TEXT("Update object"));
+	Server->PostSendUpdate();
+
+	// Drop the initial packet.
+	Server->DeliverTo(Client, DoNotDeliverPacket);
+
+	// Deliver remaining packets, if any.
+	{
+		SIZE_T PacketCount = 0;
+		const auto& ConnectionInfo = Server->GetConnectionInfo(Client->ConnectionIdOnServer);
+		PacketCount = ConnectionInfo.WrittenPackets.Count();
+		for (SIZE_T PacketIt = 0; PacketIt != PacketCount; ++PacketIt)
+		{
+			Server->DeliverTo(Client, DeliverPacket);
+		}
+	}
+
+	Server->UpdateAndSend({ Client });
+
+	// The object should end up being created with the latest state.
+	UTestReplicatedIrisObject* ClientObject = Cast<UTestReplicatedIrisObject>(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+	UE_NET_ASSERT_NE(ClientObject, nullptr);
+	UE_NET_ASSERT_EQ(ClientObject->IntA, ServerObject->IntA);
+}
+
 UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelPendingDestroyDuringWaitOnDestroyConfirmationWithoutPacketLoss)
 {
 	// Add a client
