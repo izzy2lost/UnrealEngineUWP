@@ -2,6 +2,7 @@
 
 #include "AvaTransitionEditorModule.h"
 #include "AvaTransitionCommands.h"
+#include "AvaTransitionEditorEnums.h"
 #include "AvaTransitionEditorLog.h"
 #include "AvaTransitionEditorStyle.h"
 #include "AvaTransitionEditorUtils.h"
@@ -134,11 +135,10 @@ void FAvaTransitionEditorModule::ValidateStateTree(UAvaTransitionTree* InTransit
 		EditorData->AddRootState();	
 	}
 
-	// Use Editor View Model to Compile
-	// todo: improve Compiler class so that an Editor View Model isn't needed
-	TSharedRef<FAvaTransitionEditorViewModel> EditorViewModel = MakeShared<FAvaTransitionEditorViewModel>(InTransitionTree, /*EditorToolkit*/nullptr);
-	EditorViewModel->Initialize(/*Parent*/nullptr);
-	EditorViewModel->Compile();
+	/** Compile in Advanced Mode here so that no new nodes are generated from outside */
+	FAvaTransitionCompiler Compiler;
+	Compiler.SetTransitionTree(InTransitionTree);
+	Compiler.Compile(EAvaTransitionEditorMode::Advanced);
 }
 
 void FAvaTransitionEditorModule::OnPostCompile(const UStateTree& InStateTree)

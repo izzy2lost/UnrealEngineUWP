@@ -3,6 +3,7 @@
 #include "AvaTransitionCompiler.h"
 #include "AvaTransitionCommands.h"
 #include "AvaTransitionEditor.h"
+#include "AvaTransitionEditorUtils.h"
 #include "AvaTransitionSelection.h"
 #include "AvaTransitionTree.h"
 #include "AvaTransitionTreeEditorData.h"
@@ -17,48 +18,64 @@
 #include "StateTreeDelegates.h"
 #include "StateTreeEditorSettings.h"
 #include "StateTreeState.h"
-#include "TabFactories/AvaTransitionCompilerResultsTabFactory.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
 #include "ViewModels/Registry/AvaTransitionViewModelRegistryCollection.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionCompiler"
 
-FAvaTransitionCompiler::FAvaTransitionCompiler(FAvaTransitionEditorViewModel& InOwner)
-	: Owner(InOwner)
+namespace UE::AvaTransitionEditor::Private
 {
-	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+	TSharedRef<IMessageLogListing> CreateCompilerResultsListing()
+	{
+		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 
-	// Show Pages so that user is never allowed to clear log messages
-	FMessageLogInitializationOptions LogOptions;
-	LogOptions.bShowPages   = false;
-	LogOptions.bShowFilters = false;
-	LogOptions.bAllowClear  = false;
-	LogOptions.MaxPageCount = 1;
+		// Show Pages so that user is never allowed to clear log messages
+		FMessageLogInitializationOptions LogOptions;
+		LogOptions.bShowPages   = false;
+		LogOptions.bShowFilters = false;
+		LogOptions.bAllowClear  = false;
+		LogOptions.MaxPageCount = 1;
 
-	CompilerResultsListing = MessageLogModule.CreateLogListing("AvaTransitionTreeCompiler", LogOptions);
-	CompilerResultsWidget  = MessageLogModule.CreateLogListingWidget(CompilerResultsListing.ToSharedRef());
-
-	CompilerResultsListing->OnMessageTokenClicked().AddRaw(this, &FAvaTransitionCompiler::OnMessageTokenClicked);
+		return MessageLogModule.CreateLogListing("AvaTransitionTreeCompiler", LogOptions);
+	}
 }
 
-bool FAvaTransitionCompiler::Compile()
+FAvaTransitionCompiler::FAvaTransitionCompiler()
+	: CompilerResultsListing(UE::AvaTransitionEditor::Private::CreateCompilerResultsListing())
 {
-	UAvaTransitionTree* TransitionTree = Owner.GetTransitionTree();
+}
+
+void FAvaTransitionCompiler::SetTransitionTree(UAvaTransitionTree* InTransitionTree)
+{
+	TransitionTreeWeak = InTransitionTree;
+}
+
+IMessageLogListing& FAvaTransitionCompiler::GetCompilerResultsListing()
+{
+	return CompilerResultsListing.Get();
+}
+
+FSimpleDelegate& FAvaTransitionCompiler::GetOnCompileFailed()
+{
+	return OnCompileFail;
+}
+
+bool FAvaTransitionCompiler::Compile(EAvaTransitionEditorMode InCompileMode)
+{
+	UAvaTransitionTree* TransitionTree = TransitionTreeWeak.Get();
 	if (!TransitionTree)
 	{
 		return false;
 	}
 
-	if (UAvaTransitionTreeEditorData* EditorData = Owner.GetEditorData())
+	if (UAvaTransitionTreeEditorData* EditorData = Cast<UAvaTransitionTreeEditorData>(TransitionTree->EditorData))
 	{
 		// Update Tree's Transition Layer
 		TransitionTree->SetTransitionLayer(EditorData->GetTransitionLayer());
 
-		const EAvaTransitionEditorMode EditorMode = Owner.GetSharedData()->GetEditorMode();
-
 		// Only allow extensible compilation when it's not in Advanced Mode
-		if (EditorMode != EAvaTransitionEditorMode::Advanced)
+		if (InCompileMode != EAvaTransitionEditorMode::Advanced)
 		{
 			// Remove all invalid Sub Trees, if any
 			EditorData->SubTrees.RemoveAll(
@@ -71,23 +88,20 @@ bool FAvaTransitionCompiler::Compile()
 		}
 	}
 
-	Owner.UpdateTree();
+	UpdateTree();
 
 	FStateTreeCompilerLog Log;
 	FStateTreeCompiler Compiler(Log);
 
 	bLastCompileSucceeded = Compiler.Compile(*TransitionTree);
 
-	if (CompilerResultsListing.IsValid())
-	{
-		CompilerResultsListing->ClearMessages();
-		Log.AppendToLog(CompilerResultsListing.Get());
-	}
+	CompilerResultsListing->ClearMessages();
+	Log.AppendToLog(&CompilerResultsListing.Get());
 
 	if (bLastCompileSucceeded)
 	{
 		// Success
-		TransitionTree->LastCompiledEditorDataHash = Owner.GetEditorDataHash();
+		TransitionTree->LastCompiledEditorDataHash = EditorDataHash;
 		UE::StateTree::Delegates::OnPostCompile.Broadcast(*TransitionTree);
 	}
 	else
@@ -95,14 +109,7 @@ bool FAvaTransitionCompiler::Compile()
 		// Make sure not to leave stale data on failed compile.
 		TransitionTree->ResetCompiled();
 		TransitionTree->LastCompiledEditorDataHash = 0;
-
-		if (TSharedPtr<FAvaTransitionEditor> Editor = Owner.GetEditor())
-		{
-			if (TSharedPtr<FTabManager> TabManager = Editor->GetTabManager())
-			{
-				TabManager->TryInvokeTab(FAvaTransitionCompilerResultsTabFactory::TabId);
-			}
-		}
+		OnCompileFail.ExecuteIfBound();
 	}
 
 	const UStateTreeEditorSettings* Settings = GetMutableDefault<UStateTreeEditorSettings>();
@@ -120,6 +127,19 @@ bool FAvaTransitionCompiler::Compile()
 	return true;
 }
 
+void FAvaTransitionCompiler::UpdateTree()
+{
+	UAvaTransitionTree* TransitionTree = TransitionTreeWeak.Get();
+	if (!TransitionTree)
+	{
+		return;
+	}
+
+	UE::AvaTransitionEditor::ValidateTree(*TransitionTree);
+
+	EditorDataHash = UE::AvaTransitionEditor::CalculateTreeHash(*TransitionTree);
+}
+
 FSlateIcon FAvaTransitionCompiler::GetCompileStatusIcon() const
 {
 	static const FName CompileStatusBackground("Blueprint.CompileStatus.Background");
@@ -128,13 +148,11 @@ FSlateIcon FAvaTransitionCompiler::GetCompileStatusIcon() const
 	static const FName CompileStatusGood("Blueprint.CompileStatus.Overlay.Good");
 	static const FName CompileStatusWarning("Blueprint.CompileStatus.Overlay.Warning");
 
-	UAvaTransitionTree* TransitionTree = Owner.GetTransitionTree();
+	UAvaTransitionTree* TransitionTree = TransitionTreeWeak.Get();
 	if (!TransitionTree)
 	{
 		return FSlateIcon(FAppStyle::GetAppStyleSetName(), CompileStatusBackground, NAME_None, CompileStatusUnknown);
 	}
-
-	const uint32 EditorDataHash = Owner.GetEditorDataHash();
 
 	const bool bCompiledDataResetDuringLoad = TransitionTree->LastCompiledEditorDataHash == EditorDataHash && !TransitionTree->IsReadyToRun();
 
@@ -151,9 +169,10 @@ FSlateIcon FAvaTransitionCompiler::GetCompileStatusIcon() const
 	return FSlateIcon(FAppStyle::GetAppStyleSetName(), CompileStatusBackground, NAME_None, CompileStatusGood);
 }
 
-TSharedRef<SWidget> FAvaTransitionCompiler::GetCompilerResultsWidget() const
+TSharedRef<SWidget> FAvaTransitionCompiler::CreateCompilerResultsWidget() const
 {
-	return CompilerResultsWidget.ToSharedRef();
+	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+	return MessageLogModule.CreateLogListingWidget(CompilerResultsListing);
 }
 
 void FAvaTransitionCompiler::SetSaveOnCompile(EStateTreeSaveOnCompile InSaveOnCompileType)
@@ -188,24 +207,6 @@ void FAvaTransitionCompiler::GenerateCompileOptionsMenu(UToolMenu* InMenu)
 		, LOCTEXT("SaveOnCompileSubMenu", "Save on Compile")
 		, LOCTEXT("SaveOnCompileSubMenu_ToolTip", "Determines how the StateTree is saved whenever you compile it.")
 		, FNewToolMenuDelegate::CreateLambda(MakeSaveOnCompileMenu));
-}
-
-void FAvaTransitionCompiler::OnMessageTokenClicked(const TSharedRef<IMessageToken>& InMessageToken)
-{
-	if (InMessageToken->GetType() == EMessageToken::Object)
-	{
-		const TSharedRef<FUObjectToken> ObjectToken = StaticCastSharedRef<FUObjectToken>(InMessageToken);
-
-		if (UStateTreeState* State = Cast<UStateTreeState>(ObjectToken->GetObject().Get()))
-		{
-			TSharedRef<FAvaTransitionViewModelRegistryCollection> RegistryCollection = Owner.GetSharedData()->GetRegistryCollection();
-
-			if (TSharedPtr<FAvaTransitionViewModel> FoundViewModel = RegistryCollection->FindViewModel(State))
-			{
-				Owner.GetSelection()->SetSelectedItems({ FoundViewModel });
-			}
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

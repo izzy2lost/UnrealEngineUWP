@@ -16,6 +16,7 @@ class FAvaTransitionToolbar;
 class FAvaTransitionTreeContextMenu;
 class FUICommandList;
 class IAvaTransitionSelectableExtension;
+class IMessageToken;
 class SAvaTransitionTreeView;
 class UAvaTransitionTree;
 class UAvaTransitionTreeEditorData;
@@ -45,11 +46,6 @@ public:
 	bool CanCompile() const;
 
 	void Compile();
-
-	uint32 GetEditorDataHash() const
-	{
-		return EditorDataHash;
-	}
 
 	UAvaTransitionTree* GetTransitionTree() const;
 
@@ -100,19 +96,14 @@ private:
 
 	void UnbindDelegates();
 
-	uint32 CalculateTreeHash(const UAvaTransitionTree& InTree) const;
-
-	void ValidateTree(const FString& InTreeDebugName);
-
 	void OnIdentifierChanged(const UStateTree& InStateTree);
 
 	void OnSchemaChanged(const UStateTree& InStateTree);
 
-	void OnParametersChanged(const UStateTree& InStateTree);
+	void OnCompileFailed();
 
-	void OnStateParametersChanged(const UStateTree& InStateTree, const FGuid InGuid);
+	void OnMessageTokenClicked(const TSharedRef<IMessageToken>& InMessageToken);
 
-private:
 	TSharedRef<FAvaTransitionToolbar> Toolbar;
 
 	TSharedRef<FAvaTransitionTreeContextMenu> ContextMenu;
@@ -122,8 +113,6 @@ private:
 	TWeakObjectPtr<UAvaTransitionTreeEditorData> EditorDataWeak;
 
 	TWeakPtr<FAvaTransitionEditor> EditorWeak;
-
-	uint32 EditorDataHash = 0;
 
 	FAvaTransitionCompiler Compiler;
 

@@ -34,7 +34,7 @@ TSharedRef<SWidget> FAvaTransitionCompilerResultsTabFactory::CreateTabBody(const
 		return SNullWidget::NullWidget;
 	}
 
-	return EditorViewModel->GetCompiler().GetCompilerResultsWidget();
+	return EditorViewModel->GetCompiler().CreateCompilerResultsWidget();
 }
 
 #undef LOCTEXT_NAMESPACE
