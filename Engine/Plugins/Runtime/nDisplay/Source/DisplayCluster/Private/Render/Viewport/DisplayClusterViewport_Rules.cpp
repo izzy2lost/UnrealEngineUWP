@@ -26,6 +26,9 @@
 
 #include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 
+#include "IDisplayCluster.h"
+#include "IDisplayClusterCallbacks.h"
+
 #include "EngineUtils.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
@@ -35,7 +38,11 @@
 
 #include "LegacyScreenPercentageDriver.h"
 
+#include "Misc/CommandLine.h"
+#include "Misc/DisplayClusterGlobals.h"
 #include "Misc/DisplayClusterLog.h"
+#include "Misc/Parse.h"
+
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport
@@ -52,6 +59,12 @@ void FDisplayClusterViewport::ResetRuntimeParameters()
 
 	OverscanRuntimeSettings = FDisplayClusterViewport_OverscanRuntimeSettings();
 	CustomFrustumRuntimeSettings = FDisplayClusterViewport_CustomFrustumRuntimeSettings();
+
+	// Obtain viewport media state from external multicast delegates (This viewport can be used by multiple media).
+	EDisplayClusterViewportMediaState AllMediaStates = EDisplayClusterViewportMediaState::None;
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().Broadcast(this, AllMediaStates);
+	// Update the media state for the new frame.
+	RenderSettings.AssignMediaStates(AllMediaStates);
 }
 
 bool FDisplayClusterViewport::IsInternalViewport() const
@@ -97,6 +110,7 @@ bool FDisplayClusterViewport::IsExternalRendering() const
 		return true;
 	}
 
+	// Do not render the viewport if it is used as a media input.
 	if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::Input))
 	{
 		// This viewport is not rendered but gets the image from the media.
@@ -121,16 +135,55 @@ bool FDisplayClusterViewport::IsRenderEnabled() const
 		return true;
 	}
 
-	if (RenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Source)
+	// Tiles only evaluation
+	const EDisplayClusterViewportTileType TileType = RenderSettings.TileSettings.GetType();
+	if (TileType == EDisplayClusterViewportTileType::Source)
 	{
-		// The source viewport is not rendered by itself, because the rendering is done on tiles.
+		// SRC viewports should never get rendered
 		return false;
 	}
-
-	if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::Inactive))
+	else if (TileType == EDisplayClusterViewportTileType::UnusedTile)
 	{
-		// Don't render inactive tiles
+		// UnusedTile is an internal state. We should never get it here.
 		return false;
+	}
+	else if (TileType == EDisplayClusterViewportTileType::Tile)
+	{
+		static const bool bIsCluster = (GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster);
+		static const bool bIsOffscreen = FParse::Param(FCommandLine::Get(), TEXT("RenderOffscreen"));
+
+		const bool bHasInputAssigned  = RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::Input);
+		const bool bHasOutputAssigned = RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::Capture);
+
+		// In non-cluster modes, always render (i.e. preview in editor)
+		if (!bIsCluster)
+		{
+			return true;
+		}
+
+		// Tiles logic is a little more complicated
+		//
+		// In | Out | Render (offscreen) | Render (onscreen)
+		// ------------------------------------------------------------------
+		//  0 |  0  |        0           | bShouldRenderUnbound
+		//  0 |  1  |        1           | 1
+		//  1 |  0  |        0           | 0
+		//  1 |  1  |        0           | 0
+
+		if (bHasInputAssigned)
+		{
+			// This should have been validated previously in IsExternalRendering() but let's keep this condition
+			// active in case something is changed outside (i.e. validation order or condition changes).
+			return false;
+		}
+		else if (!bHasInputAssigned && !bHasOutputAssigned)
+		{
+			// Check if current node was explicitly allowed to render unbound tiles
+			const bool bShouldRenderUnbound = RenderSettings.TileSettings.HasAnyTileFlags(EDisplayClusterViewportTileFlags::AllowUnboundRender);
+			const bool bShouldRender = !bIsOffscreen && bShouldRenderUnbound;
+
+			return bShouldRender;
+		}
 	}
 
 	return true;

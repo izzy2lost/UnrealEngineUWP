@@ -197,9 +197,6 @@ enum class EDisplayClusterViewportMediaState : uint8
 	Input = 1 << 4,
 	Input_ForceLateOCIOPass = 1 << 5,
 
-	// This viewport is inactive
-	Inactive = 1 << 6,
-
 	ForceLateOCIOPass = Capture_ForceLateOCIOPass | Input_ForceLateOCIOPass,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportMediaState);

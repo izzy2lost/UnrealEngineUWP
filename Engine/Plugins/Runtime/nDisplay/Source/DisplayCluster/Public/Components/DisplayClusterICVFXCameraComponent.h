@@ -177,6 +177,9 @@ private:
 	UPROPERTY(EditAnywhere, Transient, Category = "Tile Rendering", meta = (PropertyPath = "CameraSettings.CameraTile.TileOverscan", DisplayName = "Tile Overscan"))
 	FDisplayClusterEditorPropertyReference CameraTileOverscanRef;
 
+	UPROPERTY(EditAnywhere, Transient, Category = "Tile Rendering", meta = (PropertyPath = "CameraSettings.CameraTile.ClusterNodesToRenderUnboundTiles", DisplayName = "Nodes To Render Unbound Tiles", ToolTip = "Choose nodes that should render camera tiles that don't have any media assigned"))
+	FDisplayClusterEditorPropertyReference CameraTileNodesToRenderUnboundTilesRef;
+
 	UPROPERTY(EditAnywhere, Transient, Category = "Inner Frustum Color Grading", meta = (PropertyPath = "CameraSettings.EnableInnerFrustumColorGrading", DisplayName = "Enable Inner Frustum Color Grading"))
 	FDisplayClusterEditorPropertyReference EnableInnerFrustumColorGrading;
 

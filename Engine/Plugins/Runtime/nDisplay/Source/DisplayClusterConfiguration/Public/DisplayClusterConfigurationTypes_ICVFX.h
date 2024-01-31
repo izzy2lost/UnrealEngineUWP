@@ -101,6 +101,10 @@ public:
 	/** Overscan settings for tile. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Tile Overscan")
 	FDisplayClusterConfigurationTile_Overscan TileOverscan;
+
+	/** Cluster nodes that should render unbound tiles. Unbound tiles are the tiles that don't have any media assigned */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes, DisplayName = "Nodes To Render Unbound Tiles", ToolTip = "Choose nodes that should render camera tiles that don't have any media assigned"))
+	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodesToRenderUnboundTiles;
 };
 
 USTRUCT(Blueprintable)
