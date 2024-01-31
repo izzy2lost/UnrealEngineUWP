@@ -5,13 +5,15 @@
 #include "Framework/Commands/Commands.h"
 #include "Styling/AppStyle.h"
 
+#define LOCTEXT_NAMESPACE "AvaOutlinerCommands"
+
 class FAvaOutlinerCommands
 	: public TCommands<FAvaOutlinerCommands>
 {
 public:
 	FAvaOutlinerCommands()
 		: TCommands<FAvaOutlinerCommands>(TEXT("AvalancheOutliner")
-		, NSLOCTEXT("AvaOutlinerCommands", "AvalancheOutliner", "Motion Design Outliner")
+		, LOCTEXT("MotionDesignOutliner", "Motion Design Outliner")
 		, NAME_None
 		, FAppStyle::GetAppStyleSetName())
 	{
@@ -47,3 +49,5 @@ public:
 
 	TSharedPtr<FUICommandInfo> ToggleAutoExpandToSelection;
 };
+
+#undef LOCTEXT_NAMESPACE

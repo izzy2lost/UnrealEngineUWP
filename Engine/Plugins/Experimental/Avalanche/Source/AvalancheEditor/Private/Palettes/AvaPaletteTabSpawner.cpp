@@ -70,7 +70,7 @@ FTabSpawnerEntry& FAvaPaletteTabSpawner::RegisterTabSpawner(const TSharedRef<FTa
 	{
 		GroupItem = InWorkspaceMenu->AddGroup(
 			PalettesGroupName
-			, LOCTEXT("SubMenuTooltip", "Open an Avalanche palette")
+			, LOCTEXT("SubMenuTooltip", "Open a Motion Design palette")
 			, FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.FolderClosed"))
 		);
 	}

@@ -8,7 +8,7 @@
 FAvaLevelViewportCommands::FAvaLevelViewportCommands()
 	: TCommands<FAvaLevelViewportCommands>(
 		TEXT("AvalancheLevelViewport")
-		, LOCTEXT("AvalancheLevelViewport", "Motion Design Level Viewport")
+		, LOCTEXT("MotionDesignLevelViewport", "Motion Design Level Viewport")
 		, NAME_None
 		, FAvaLevelViewportStyle::GetStyleSetName()
 	)

@@ -5,13 +5,15 @@
 #include "Framework/Commands/Commands.h"
 #include "Styling/AppStyle.h"
 
+#define LOCTEXT_NAMESPACE "AvaFontSelectorCommands"
+
 class FAvaFontSelectorCommands
 	: public TCommands<FAvaFontSelectorCommands>
 {
 public:
 	FAvaFontSelectorCommands()
 		: TCommands<FAvaFontSelectorCommands>(TEXT("AvalancheFontSelector")
-		, NSLOCTEXT("AvaFontSelectorCommands", "AvalancheFontSelector", "Motion Design Font Selector")
+		, LOCTEXT("MotionDesignFontSelector", "Motion Design Font Selector")
 		, NAME_None
 		, FAppStyle::GetAppStyleSetName())
 	{
@@ -23,3 +25,5 @@ public:
 	TSharedPtr<FUICommandInfo> ShowBoldFonts;
 	TSharedPtr<FUICommandInfo> ShowItalicFonts;
 };
+
+#undef LOCTEXT_NAMESPACE

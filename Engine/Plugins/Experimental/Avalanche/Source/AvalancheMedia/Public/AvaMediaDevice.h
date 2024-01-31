@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "MediaIOCoreDefinitions.h"
 
+#define LOCTEXT_NAMESPACE "AvaMediaDevice"
+
 struct FAvaMediaDevice
 {
 	FAvaMediaDevice(const FMediaIODevice& InDevice, const FName& InDeviceProviderName, const FString& InServerName)
@@ -28,7 +30,7 @@ struct FAvaMediaDevice
 	
 	FText GetDisplayNameText() const
 	{
-		return FText::Format(NSLOCTEXT("AvalancheMedia", "AvaMediaDeviceDisplayName", "{0}")
+		return FText::Format(LOCTEXT("AvaMediaDeviceDisplayName", "{0}")
 			, FText::FromName(Device.DeviceName));
 	}
 
@@ -54,3 +56,5 @@ protected:
 	/** Name of the server hosting this device. */
 	FString ServerName;
 };
+
+#undef LOCTEXT_NAMESPACE

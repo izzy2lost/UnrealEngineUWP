@@ -277,7 +277,7 @@ void FAvaLevelSequencerExtension::AddCinematicsToolbarExtension()
 	}
 
 	FToolMenuSection& AvaSequenceSection = ToolMenu->AddSection(UE::AvaEditor::Private::AvaSequenceSectionName
-		, LOCTEXT("AvaSequenceSectionLabel", "Edit Avalanche Sequence")
+		, LOCTEXT("AvaSequenceSectionLabel", "Edit Motion Design Sequence")
 		, FToolMenuInsert(UE::AvaEditor::Private::CinematicExtensionName, EToolMenuInsertType::Before));
 
 	AvaSequenceSection.AddDynamicEntry("AvaSequenceEntry", FNewToolMenuSectionDelegate::CreateSPLambda(this,

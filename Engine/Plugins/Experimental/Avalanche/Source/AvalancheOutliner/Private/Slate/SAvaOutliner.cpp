@@ -556,7 +556,7 @@ void SAvaOutliner::CreateCustomTextFilterWindow(const FText& InText)
 	CustomTextFilterData.FilterString = InText;
 
 	const TSharedPtr<SWindow> NewTextFilterWindow = SNew(SWindow)
-		.Title(LOCTEXT("CreateCustomTextAvaFilterWindow", "Create Custom Avalanche Filter"))
+		.Title(LOCTEXT("CreateCustomTextAvaFilterWindow", "Create Custom Motion Design Filter"))
 		.HasCloseButton(true)
 		.SupportsMaximize(false)
 		.SupportsMinimize(false)

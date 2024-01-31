@@ -44,9 +44,9 @@ namespace UE::AvaEditorCore::Private
 	{
 		const EAppReturnType::Type Reply = FMessageDialog::Open(EAppMsgCategory::Warning
 			, EAppMsgType::YesNo
-			, LOCTEXT("DeactivateSceneConfirmationDesc", "Are you sure you want to deactivate the Avalanche Interface? \n"
+			, LOCTEXT("DeactivateSceneConfirmationDesc", "Are you sure you want to deactivate the Motion Design Interface? \n"
 				"Note: The scene data will be kept.")
-			, LOCTEXT("DeactivateSceneConfirmationTitle", "Deactivate Avalanche Interface"));
+			, LOCTEXT("DeactivateSceneConfirmationTitle", "Deactivate Motion Design Interface"));
 
 		if (Reply != EAppReturnType::Yes)
 		{
@@ -133,7 +133,7 @@ void FAvaLevelEditorToolbar::ExtendLevelEditorToolbar(const TSharedRef<IAvaEdito
 		const FAvaLevelEditorCommands& AvaLevelEditorCommands = FAvaLevelEditorCommands::Get();
 		FToolMenuSection& Section = LevelEditorToolbar->FindOrAddSection(Private::SceneSectionName);
 
-		const FText AvalancheLabel = LOCTEXT("AvalancheScene", "Motion Design");
+		const FText AvalancheLabel = LOCTEXT("MotionDesignScene", "Motion Design");
 
 		auto AddEntry = [this, &Section, AvalancheLabel](const TSharedPtr<FUICommandInfo>& InCommand)
 		{
