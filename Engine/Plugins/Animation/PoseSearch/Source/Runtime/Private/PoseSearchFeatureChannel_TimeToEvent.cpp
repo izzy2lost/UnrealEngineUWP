@@ -52,31 +52,12 @@ bool UPoseSearchFeatureChannel_TimeToEvent::IndexAsset(UE::PoseSearch::FAssetInd
 {
 	using namespace UE::PoseSearch;
 
-	float EventTime = Indexer.GetPlayLength();
-
-	if (SamplingAttributeId >= 0)
-	{
-		Indexer.ProcessAllAnimNotifyEvents([&Indexer, this, &EventTime](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
-			{
-				for (const FAnimNotifyEvent& AnimNotifyEvent : AnimNotifyEvents)
-				{
-					if (const UAnimNotifyState_PoseSearchSamplingEvent* SamplingEvent = Cast<UAnimNotifyState_PoseSearchSamplingEvent>(AnimNotifyEvent.NotifyStateClass))
-					{
-						if (SamplingEvent->SamplingAttributeId == SamplingAttributeId)
-						{
-							EventTime = AnimNotifyEvent.GetTime();
-							return true;
-						}
-					}
-				}
-
-				return false;
-			});
-	}
-
+	const FPoseSearchTimedNotifies<UAnimNotifyState_PoseSearchSamplingEvent> TimedNotifies(SamplingAttributeId, Indexer);
 	for (int32 SampleIdx = Indexer.GetBeginSampleIdx(); SampleIdx != Indexer.GetEndSampleIdx(); ++SampleIdx)
 	{
-		FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, EventTime - Indexer.CalculateSampleTime(SampleIdx));
+		const float SampleTime = Indexer.CalculateSampleTime(SampleIdx);
+		const float EventTime = TimedNotifies.GetClosestFutureEvent(SampleTime).Time;
+		FFeatureVectorHelper::EncodeFloat(Indexer.GetPoseVector(SampleIdx), ChannelDataOffset, EventTime - SampleTime);
 	}
 	
 	return true;

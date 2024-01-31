@@ -160,6 +160,83 @@ private:
 	bool bProcessFailed = false;
 };
 
+template <class TAnimNotifyState>
+struct FPoseSearchTimedNotifies
+{
+	static_assert(TIsDerivedFrom<TAnimNotifyState, UAnimNotifyState_PoseSearchBase>::IsDerived, "The template class TAnimNotifyState must be a subclass of UAnimNotifyState_PoseSearchBase.");
+
+	struct FItem
+	{
+		float Time = 0.f;
+		const TAnimNotifyState* NotifyState = nullptr;
+	};
+
+	FPoseSearchTimedNotifies()
+	{
+	}
+
+	FPoseSearchTimedNotifies(int32 SamplingAttributeId, FAssetIndexer& Indexer)
+	{
+		Initialize(SamplingAttributeId, Indexer);
+	}
+
+	void Initialize(int32 SamplingAttributeId, FAssetIndexer& Indexer)
+	{
+		Items.Reset();
+
+		if (SamplingAttributeId >= 0)
+		{
+			Indexer.ProcessAllAnimNotifyEvents([SamplingAttributeId, this](const TConstArrayView<FAnimNotifyEvent> AnimNotifyEvents)
+				{
+					for (const FAnimNotifyEvent& AnimNotifyEvent : AnimNotifyEvents)
+					{
+						if (const TAnimNotifyState* SamplingEvent = Cast<TAnimNotifyState>(AnimNotifyEvent.NotifyStateClass))
+						{
+							if (SamplingEvent->SamplingAttributeId == SamplingAttributeId)
+							{
+								Items.Add({ AnimNotifyEvent.GetTime(), SamplingEvent });
+							}
+						}
+					}
+
+					return true;
+				});
+		
+			Items.Sort([](const FItem& A, const FItem& B) { return A.Time < B.Time; });
+		}
+
+		CachedPlayLength = Items.IsEmpty() ? Indexer.GetPlayLength() : 0.f;
+	}
+
+	FItem GetClosestFutureEvent(float SampleTime) const
+	{
+		const int32 NumItems = Items.Num();
+		if (NumItems == 0)
+		{
+			FItem Item;
+			Item.Time = CachedPlayLength;
+			return Item;
+		}
+
+		if (NumItems == 1)
+		{
+			return Items[0];
+		}
+
+		const int32 LowerBoundIdx = Algo::LowerBound(Items, SampleTime, [](const FItem& Item, float Value)
+		{
+			return Value > Item.Time;
+		});
+
+		const int32 ClampedLowerBoundIdx = FMath::Min(LowerBoundIdx, NumItems - 1);
+		return Items[ClampedLowerBoundIdx];
+	}
+
+private:
+	TArray<FItem, TInlineAllocator<128>> Items;
+	float CachedPlayLength = 0.f;
+};
+
 } // namespace UE::PoseSearch
 
 #endif // WITH_EDITOR
