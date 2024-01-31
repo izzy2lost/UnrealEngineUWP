@@ -10,7 +10,7 @@
 
 FSchematicGraphTag::FSchematicGraphTag()
 {
-	static const FSlateBrush* CircleBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Background");
+	static const FSlateBrush* CircleBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Tag.Background");
 	BackgroundBrush = CircleBrush;
 }
 
