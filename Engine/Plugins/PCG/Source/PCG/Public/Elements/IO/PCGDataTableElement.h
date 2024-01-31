@@ -39,6 +39,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ValidEnumValues = "Point, Param"))
 	EPCGExclusiveDataType OutputType = EPCGExclusiveDataType::Point;
+
+	/** By default, data table loading is asynchronous, can force it synchronous if needed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
 };
 
 class FPCGLoadDataTableElement : public FPCGExternalDataElement

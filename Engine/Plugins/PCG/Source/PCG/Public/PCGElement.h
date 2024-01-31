@@ -135,6 +135,16 @@ private:
 	void CleanupAndValidateOutput(FPCGContext* Context) const;
 };
 
+/**
+* Convenience class for element with custom context that can be default constructed (need no initialization)
+*/
+template <typename ContextType, typename = typename std::enable_if_t<std::is_base_of_v<FPCGContext, ContextType> && std::is_default_constructible_v<ContextType>>>
+class PCG_API IPCGElementWithCustomContext : public IPCGElement
+{
+public:
+	virtual FPCGContext* CreateContext() { return new ContextType(); }
+};
+
 class UE_DEPRECATED(5.4, "This class has been deprecated. Please inherit from IPCGElement directly.") PCG_API FSimplePCGElement : public IPCGElement
 {};
 

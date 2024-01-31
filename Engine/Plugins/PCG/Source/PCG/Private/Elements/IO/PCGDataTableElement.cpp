@@ -84,8 +84,22 @@ bool FPCGLoadDataTableElement::PrepareLoad(FPCGExternalDataContext* Context) con
 	const UPCGLoadDataTableSettings* Settings = Context->GetInputSettings<UPCGLoadDataTableSettings>();
 	check(Settings);
 
-	// 1. Load data table - if we do, we should root it (?)
-	UDataTable* DataTable = Settings->DataTable.LoadSynchronous();
+	// Nothing to do if we have no data table.
+	if (Settings->DataTable.IsNull())
+	{
+		return true;
+	}
+
+	// 1. Request load data table. Return false if we need to wait, otherwise continue.
+	if (!Context->WasLoadRequested())
+	{
+		if (!Context->RequestResourceLoad(Context, { Settings->DataTable.ToSoftObjectPath() }, !Settings->bSynchronousLoad))
+		{
+			return false;
+		}
+	}
+
+	UDataTable* DataTable = Settings->DataTable.Get();
 	if (!DataTable)
 	{
 		PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("DataTableNotLoaded", "Provided Data Table ('{0}') could not be loaded."), FText::FromString(Settings->DataTable.ToString())));

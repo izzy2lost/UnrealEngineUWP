@@ -5,6 +5,7 @@
 #include "PCGContext.h"
 #include "PCGElement.h"
 #include "PCGSettings.h"
+#include "Async/PCGAsyncLoadingContext.h"
 
 #include "Async/Future.h"
 #include "GeometryScript/GeometryScriptTypes.h"
@@ -140,6 +141,9 @@ public:
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Points", meta=(ClampMin="0", ClampMax="1", PCG_Overridable))
 	float PointSteepness = 0.5f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
 	
 protected:
 #if WITH_EDITORONLY_DATA
@@ -155,7 +159,7 @@ protected:
 /**
 * Extra context to store all the data that need to be kept between multiple executions (time slicing)
 */
-struct FPCGMeshSamplerContext : public FPCGContext
+struct FPCGMeshSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 public:
 	~FPCGMeshSamplerContext();

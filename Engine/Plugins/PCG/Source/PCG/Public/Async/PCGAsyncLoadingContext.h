@@ -12,7 +12,7 @@ struct FPCGContext;
 * Extension interface to add Async Loading support to any Context.
 * Just inherit IPCGAsyncLoadingContext on the element context.
 */
-struct IPCGAsyncLoadingContext
+struct PCG_API IPCGAsyncLoadingContext
 {
 public:
 	virtual ~IPCGAsyncLoadingContext();

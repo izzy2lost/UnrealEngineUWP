@@ -4,6 +4,7 @@
 
 #include "PCGContext.h"
 #include "PCGSettings.h"
+#include "Async/PCGAsyncLoadingContext.h"
 #include "Data/PCGTextureData.h"
 
 #include "PCGTextureSampler.generated.h"
@@ -102,6 +103,10 @@ public:
 	bool bForceEditorOnlyCPUSampling = false;
 #endif
 
+	/** By default, texture loading is asynchronous, can force it synchronous if needed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
+
 protected:
 #if WITH_EDITORONLY_DATA
 	// Used to hide the 'TextureArrayIndex' property.
@@ -110,7 +115,7 @@ protected:
 #endif
 };
 
-struct PCG_API FPCGTextureSamplerContext : public FPCGContext
+struct PCG_API FPCGTextureSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 	bool bTextureReadbackDone = false;
 };
@@ -122,5 +127,6 @@ public:
 
 protected:
 	virtual FPCGContext* CreateContext() override;
+	virtual bool PrepareDataInternal(FPCGContext* InContext) const override;
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };

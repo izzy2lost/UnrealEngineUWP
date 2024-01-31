@@ -3,7 +3,6 @@
 #include "Elements/PCGPointFromMeshElement.h"
 
 #include "PCGComponent.h"
-#include "PCGContext.h"
 #include "PCGEdge.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
@@ -31,6 +30,30 @@ FPCGElementPtr UPCGPointFromMeshSettings::CreateElement() const
 	return MakeShared<FPCGPointFromMeshElement>();
 }
 
+bool FPCGPointFromMeshElement::PrepareDataInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPointFromMeshElement::Execute);
+
+	check(Context);
+
+	const UPCGPointFromMeshSettings* Settings = Context->GetInputSettings<UPCGPointFromMeshSettings>();
+	check(Settings);
+
+	if (Settings->StaticMesh.IsNull())
+	{
+		return true;
+	}
+
+	FPCGPointFromMeshContext* ThisContext = static_cast<FPCGPointFromMeshContext*>(Context);
+
+	if (!ThisContext->WasLoadRequested())
+	{
+		return ThisContext->RequestResourceLoad(ThisContext, { Settings->StaticMesh.ToSoftObjectPath() }, !Settings->bSynchronousLoad);
+	}
+
+	return true;
+}
+
 bool FPCGPointFromMeshElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGPointFromMeshElement::Execute);
@@ -45,7 +68,7 @@ bool FPCGPointFromMeshElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	if (!Settings->StaticMesh.LoadSynchronous())
+	if (!Settings->StaticMesh.Get())
 	{
 		PCGE_LOG(Error, GraphAndLog, LOCTEXT("LoadStaticMeshFailed", "Failed to load StaticMesh"));
 		return true;
