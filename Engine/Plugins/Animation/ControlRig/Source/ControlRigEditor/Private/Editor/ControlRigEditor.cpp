@@ -3623,6 +3623,11 @@ void FControlRigEditor::OnHierarchyModified_AnyThread(ERigHierarchyNotification 
 	{
 		return;
 	}
+
+	if(SchematicViewport)
+	{
+		SchematicModel.OnHierarchyModified(InNotif, InHierarchy, InElement);
+	}
 	
 	FRigElementKey Key;
 	if(InElement)

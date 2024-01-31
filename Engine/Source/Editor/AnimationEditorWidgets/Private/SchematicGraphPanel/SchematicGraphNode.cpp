@@ -18,13 +18,18 @@ FSchematicGraphNode::FSchematicGraphNode()
 	Colors = { FLinearColor::White * 0.4f, FLinearColor::White, FLinearColor::Blue };
 }
 
-const FSchematicGraphNode* FSchematicGraphNode::GetParentNode() const
+FSchematicGraphNode* FSchematicGraphNode::GetParentNode()
 {
 	if(Model && ParentNodeGuid.IsValid())
 	{
 		return Model->FindNode(ParentNodeGuid);
 	}
 	return nullptr;
+}
+
+const FSchematicGraphNode* FSchematicGraphNode::GetParentNode() const
+{
+	return const_cast<FSchematicGraphNode*>(this)->GetParentNode();
 }
 
 const FGuid& FSchematicGraphNode::GetRootNodeGuid() const
@@ -36,7 +41,7 @@ const FGuid& FSchematicGraphNode::GetRootNodeGuid() const
 	return GetGuid();
 }
 
-const FSchematicGraphNode* FSchematicGraphNode::GetRootNode() const
+FSchematicGraphNode* FSchematicGraphNode::GetRootNode()
 {
 	if(Model)
 	{
@@ -45,12 +50,27 @@ const FSchematicGraphNode* FSchematicGraphNode::GetRootNode() const
 	return nullptr;
 }
 
-const FSchematicGraphGroupNode* FSchematicGraphNode::GetGroupNode() const
+const FSchematicGraphNode* FSchematicGraphNode::GetRootNode() const
+{
+	return const_cast<FSchematicGraphNode*>(this)->GetRootNode();
+}
+
+FSchematicGraphGroupNode* FSchematicGraphNode::GetGroupNode() 
 {
 	return Cast<FSchematicGraphGroupNode>(GetParentNode());
 }
 
+const FSchematicGraphGroupNode* FSchematicGraphNode::GetGroupNode() const
+{
+	return const_cast<FSchematicGraphNode*>(this)->GetGroupNode();
+}
+
 const FSchematicGraphNode* FSchematicGraphNode::GetChildNode(int32 InChildNodeIndex) const
+{
+	return const_cast<FSchematicGraphNode*>(this)->GetChildNode(InChildNodeIndex);
+}
+
+FSchematicGraphNode* FSchematicGraphNode::GetChildNode(int32 InChildNodeIndex)
 {
 	check(ChildNodeGuids.IsValidIndex(InChildNodeIndex));
 
@@ -328,6 +348,18 @@ void FSchematicGraphGroupNode::SetExpanded(bool InExpanded, bool bAutoCloseParen
 		if(GroupNode->IsExpanded())
 		{
 			Model->SetLastExpandedNode(GroupNode);
+		}
+	}
+
+	// also collapse all child nodes
+	if(!InExpanded)
+	{
+		for(int32 ChildIndex = 0; ChildIndex < GetNumChildNodes(); ChildIndex++)
+		{
+			if(FSchematicGraphGroupNode* ChildNode = Cast<FSchematicGraphGroupNode>(GetChildNode(ChildIndex)))
+			{
+				ChildNode->SetExpanded(false);
+			}
 		}
 	}
 }

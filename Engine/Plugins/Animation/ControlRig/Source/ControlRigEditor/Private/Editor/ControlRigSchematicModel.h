@@ -82,6 +82,7 @@ public:
 	virtual void Tick(float InDeltaTime) override;
 	FControlRigSchematicRigElementKeyNode* AddElementKeyNode(const FRigElementKey& InKey, bool bNotify = true);
 	const FControlRigSchematicRigElementKeyNode* FindElementKeyNode(const FRigElementKey& InKey) const;
+	FControlRigSchematicRigElementKeyNode* FindElementKeyNode(const FRigElementKey& InKey);
 	bool ContainsElementKeyNode(const FRigElementKey& InKey) const;
 	virtual bool RemoveNode(const FGuid& InGuid) override;
 	bool RemoveElementKeyNode(const FRigElementKey& InKey);
@@ -128,6 +129,7 @@ private:
 	void OnShowCandidatesForConnector(const FRigModuleConnector* InModuleConnector);
 	void OnShowCandidatesForMatches(const FModularRigResolveResult& InMatches);
 	void OnHideCandidatesForConnector();
+	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
