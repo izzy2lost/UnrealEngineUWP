@@ -205,7 +205,7 @@ struct AVALANCHEMEDIA_API FAvaDeviceProviderDataRequest : public FAvaMediaPlayba
 };
 
 /**
- *	Request for the client to replicate it's Avalanche instance settings to the server.
+ *	Request for the client to replicate it's Motion Design instance settings to the server.
  **/
 USTRUCT()
 struct AVALANCHEMEDIA_API FAvalancheInstanceSettingsUpdate : public FAvaMediaPlaybackClientMessageBase
@@ -310,7 +310,7 @@ struct AVALANCHEMEDIA_API FAvaMediaPlaybackCommand
 	UPROPERTY()
 	FSoftObjectPath AssetPath;
 
-	/** Channel to Play, only considered when the Asset in question is an Avalanche Playable (Blueprint or Level). */
+	/** Channel to Play, only considered when the Asset in question is an Motion Design Playable (Blueprint or Level). */
 	UPROPERTY()
 	FString ChannelName;
 	
@@ -413,7 +413,7 @@ struct FAvaMediaAnimPlaybackRequest : public FAvaMediaPlaybackClientMessageBase
 	UPROPERTY()
 	FSoftObjectPath AssetPath;
 	
-	/** Channel to Play, only considered when the Asset in question is an Avalanche Blueprint */
+	/** Channel to Play, only considered when the Asset in question is an Motion Design Blueprint */
 	UPROPERTY()
 	FString ChannelName;
 	
@@ -459,7 +459,7 @@ struct FAvaMediaRemoteControlUpdateRequest : public FAvaMediaPlaybackClientMessa
 	UPROPERTY()
 	FSoftObjectPath AssetPath;
 	
-	/** Channel to Play, only considered when the Asset in question is an Avalanche Blueprint. */
+	/** Channel to Play, only considered when the Asset in question is an Motion Design Blueprint. */
 	UPROPERTY()
 	FString ChannelName;
 	

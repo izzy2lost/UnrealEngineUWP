@@ -44,7 +44,7 @@ void FAvaPlaylistCommands::RegisterCommands()
 
 	UI_COMMAND(EditPageSource
 		, "Edit Scene"
-		, "Edit source Avalanche Asset of the selected page"
+		, "Edit source Motion Design Asset of the selected page"
 		, EUserInterfaceActionType::Button
 		, FInputChord());
 

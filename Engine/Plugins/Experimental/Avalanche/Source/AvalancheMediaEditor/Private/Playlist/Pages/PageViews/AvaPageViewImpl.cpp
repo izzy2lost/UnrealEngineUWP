@@ -135,7 +135,7 @@ void FAvaPageViewImpl::OnObjectChanged(const FAssetData& InAssetData)
 		SetPageSelection(EAvaPageViewSelectionChangeType::ReplaceSelection);
 	}
 
-	PerformWorkOnPages(LOCTEXT("SetAvaBlueprint", "Set Avalanche Blueprint"),
+	PerformWorkOnPages(LOCTEXT("SetAvaBlueprint", "Set Motion Design Blueprint"),
 		[this, &InAssetData](FAvalanchePage& InPage)->bool
 		{
 			if (!InPage.UpdateAvalancheAsset(InAssetData.GetSoftObjectPath())) 

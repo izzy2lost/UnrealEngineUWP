@@ -31,7 +31,7 @@ UPackage* FAvalancheManagedInstanceUtils::MakeManagedInstancePackage(const FSoft
 		FString UniqueInstancePackageName = MakeUniqueObjectName( nullptr, UPackage::StaticClass(), FName(*InstancePackageName)).ToString();
 		
 		UE_LOG(LogAvaMedia, Warning, 
-			TEXT("Package \"%s\" for Avalanche Managed Instance already exists. Will use \"%s\" instead."),
+			TEXT("Package \"%s\" for Motion Design Managed Instance already exists. Will use \"%s\" instead."),
 			*InstancePackageName, *UniqueInstancePackageName);
 
 		InstancePackageName = UniqueInstancePackageName;
@@ -46,7 +46,7 @@ UPackage* FAvalancheManagedInstanceUtils::MakeManagedInstancePackage(const FSoft
 	{
 		// Note: The outer will fallback to GEngine in that case.
 		UE_LOG(LogAvaMedia, Error, 
-			TEXT("Unable to create package \"%s\" for Avalanche Managed Instance."),
+			TEXT("Unable to create package \"%s\" for Motion Design Managed Instance."),
 			*InstancePackageName);
 	}
 	return ManagedAvalancheBlueprintPackage;

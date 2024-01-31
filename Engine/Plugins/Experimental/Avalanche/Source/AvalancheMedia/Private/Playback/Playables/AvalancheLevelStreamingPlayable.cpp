@@ -505,7 +505,7 @@ void UAvalancheLevelStreamingPlayable::ResolveAvalancheScene(const ULevel* InLev
 		}
 		else
 		{
-			UE_LOG(LogAvalanchePlayable, Error, TEXT("Loaded level \"%s\" is not an Avalanche level."), *LevelStreaming->PackageNameToLoad.ToString());
+			UE_LOG(LogAvalanchePlayable, Error, TEXT("Loaded level \"%s\" is not an Motion Design level."), *LevelStreaming->PackageNameToLoad.ToString());
 		}
 	}
 }

@@ -35,7 +35,7 @@ FAvalancheManagedInstanceLevel::FAvalancheManagedInstanceLevel(FAvalancheManaged
 	UWorld* SourceAvalancheLevel = LoadAvalancheLevel(InAssetPath);
 	if (!SourceAvalancheLevel)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("Unable to load Source Avalanche Level: %s"), *InAssetPath.ToString());
+		UE_LOG(LogAvaMedia, Error, TEXT("Unable to load Source Motion Design Level: %s"), *InAssetPath.ToString());
 		return;
 	}
 
@@ -48,7 +48,7 @@ FAvalancheManagedInstanceLevel::FAvalancheManagedInstanceLevel(FAvalancheManaged
 	ManagedAvalancheLevelPackage = FAvalancheManagedInstanceUtils::MakeManagedInstancePackage(InAssetPath);
 	if (!ManagedAvalancheLevelPackage)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("Unable to create a Managed Avalanche Level Package for %s"), *InAssetPath.ToString());
+		UE_LOG(LogAvaMedia, Error, TEXT("Unable to create a Managed Motion Design Level Package for %s"), *InAssetPath.ToString());
 		return;
 	}
 
@@ -56,7 +56,7 @@ FAvalancheManagedInstanceLevel::FAvalancheManagedInstanceLevel(FAvalancheManaged
 	ManagedAvalancheLevel = Cast<UWorld>(StaticDuplicateObject(SourceAvalancheLevel, ManagedAvalancheLevelPackage.Get(), NAME_None, RF_NoFlags, nullptr, EDuplicateMode::PIE));
 	if (!ManagedAvalancheLevel)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("Unable to duplicate Source Avalanche Level: %s"), *InAssetPath.ToString());
+		UE_LOG(LogAvaMedia, Error, TEXT("Unable to duplicate Source Motion Design Level: %s"), *InAssetPath.ToString());
 		return;
 	}
 

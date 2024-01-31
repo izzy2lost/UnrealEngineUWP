@@ -183,10 +183,10 @@ public:
 	FAvalancheInstanceSettings AvalancheInstanceSettings;
 
 	/**
-	 * Maximum cached Managed Avalanche Blueprints used for playlist editor's page details.
+	 * Maximum cached Managed Motion Design Blueprints used for playlist editor's page details.
 	 * A value of 0 indicate the cache will grow without limit.
 	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Managed Avalanche Instance Cache", meta = (DisplayName = "Maximum Cache Size"))
+	UPROPERTY(Config, EditAnywhere, Category = "Managed Motion Design Instance Cache", meta = (DisplayName = "Maximum Cache Size"))
 	int32 ManagedAvalancheInstanceCacheMaximumSize = 20;
 	
 	/** Whether web server is started automatically. */

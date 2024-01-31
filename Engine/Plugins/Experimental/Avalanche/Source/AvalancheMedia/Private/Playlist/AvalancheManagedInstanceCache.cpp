@@ -220,7 +220,7 @@ void FAvalancheManagedInstanceCache::OnPackageModified(const FName& InPackageNam
 			if (InAssetPath.GetLongPackageFName() == InPackageName)
 			{
 				UE_LOG(LogAvaMedia, Log,
-					TEXT("Managed Avalanche Blueprint Cache: Package \"%s\" being touched caused asset \"%s\" to be invalidated."),
+					TEXT("Managed Motion Design Blueprint Cache: Package \"%s\" being touched caused asset \"%s\" to be invalidated."),
 					*InPackageName.ToString(), *InAssetPath.ToString());
 				return true;
 			}

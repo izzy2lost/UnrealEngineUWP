@@ -137,6 +137,11 @@ FText FAvaBroadcastEditor::GetBaseToolkitName() const
 	return LOCTEXT("BroadcastAppLabel", "Motion Design Broadcast Editor");
 }
 
+FText FAvaBroadcastEditor::GetToolkitName() const
+{
+	return LOCTEXT("BroadcastAppName", "Broadcast");
+}
+
 FText FAvaBroadcastEditor::GetToolkitToolTipText() const
 {
 	if (IAvaMediaModule::Get().IsMediaPlaybackServerStarted())

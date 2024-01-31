@@ -29,7 +29,7 @@ enum class EAvaChannelState : uint8
  * Some additional restrictions are applied according to channel type:
  * - preview channels must only have outputs local to the process. "Remote" previews are not supported.
  * - [backend] playback request type (program or preview) must match with the channel type. This is a safety
- *	 net for any other extended code paths that are not in the Avalanche plugin.
+ *	 net for any other extended code paths that are not in the Motion Design plugin.
  */
 UENUM()
 enum class EAvaBroadcastChannelType : uint8
@@ -232,7 +232,7 @@ ENUM_CLASS_FLAGS(EAvaPageChanges);
  *
  *	This is also sometimes referred to as the "source" asset, by contrast to the
  *	runtime (or managed) transient asset for runtime playback. It will also refer to
- *	the source Avalanche blueprint, rather than a playback object.
+ *	the source Motion Design blueprint, rather than a playback object.
  */
 UENUM()
 enum class EAvaMediaPlaybackAssetStatus
@@ -243,7 +243,7 @@ enum class EAvaMediaPlaybackAssetStatus
 	Missing,
 	/**
 	 * Missing asset dependencies
-	 * Note: An Avalanche asset can run even with missing dependencies.
+	 * Note: An Motion Design asset can run even with missing dependencies.
 	 */
 	 MissingDependencies,
 	 /** Asset is out of date from compare with remote. */

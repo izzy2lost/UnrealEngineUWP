@@ -47,7 +47,7 @@ FAvalancheManagedInstanceBlueprint::FAvalancheManagedInstanceBlueprint(FAvalanch
 	SourceAvalancheBlueprint = LoadAvalancheBlueprint(InAssetPath);
 	if (!SourceAvalancheBlueprint)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("Unable to load Source Avalanche Blueprint: %s"), *InAssetPath.ToString());
+		UE_LOG(LogAvaMedia, Error, TEXT("Unable to load Source Motion Design Blueprint: %s"), *InAssetPath.ToString());
 		return;
 	}
 	
@@ -60,7 +60,7 @@ FAvalancheManagedInstanceBlueprint::FAvalancheManagedInstanceBlueprint(FAvalanch
 	ManagedAvalancheBlueprintPackage = FAvalancheManagedInstanceUtils::MakeManagedInstancePackage(InAssetPath);
 	if (!ManagedAvalancheBlueprintPackage)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("Unable to create a Managed Avalanche Blueprint Package for %s"), *InAssetPath.ToString());
+		UE_LOG(LogAvaMedia, Error, TEXT("Unable to create a Managed Motion Design Blueprint Package for %s"), *InAssetPath.ToString());
 		return;
 	}
 
@@ -68,7 +68,7 @@ FAvalancheManagedInstanceBlueprint::FAvalancheManagedInstanceBlueprint(FAvalanch
 	ManagedAvalancheBlueprint = Cast<UAvalancheBlueprint>(StaticDuplicateObject(SourceAvalancheBlueprint.Get(), ManagedAvalancheBlueprintPackage.Get(), NAME_None, RF_NoFlags, nullptr, EDuplicateMode::PIE));
 	if (!ManagedAvalancheBlueprint)
 	{
-		UE_LOG(LogAvaMedia, Error, TEXT("Unable to duplicate Source Avalanche Blueprint: %s"), *InAssetPath.ToString());
+		UE_LOG(LogAvaMedia, Error, TEXT("Unable to duplicate Source Motion Design Blueprint: %s"), *InAssetPath.ToString());
 		return;
 	}
 

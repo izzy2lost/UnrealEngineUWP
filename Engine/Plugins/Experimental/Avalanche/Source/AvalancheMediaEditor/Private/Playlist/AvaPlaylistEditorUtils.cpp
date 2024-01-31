@@ -273,7 +273,7 @@ TArray<FAvalanchePage> UE::AvaPlaylistEditor::Utils::DeserializePagesFromJson(co
 		}
 		else
 		{
-			UE_LOG(LogAvaPlaylist, Warning, TEXT("Unable to convert Page Entry Json Object to Avalanche Page Struct"));
+			UE_LOG(LogAvaPlaylist, Warning, TEXT("Unable to convert Page Entry Json Object to Motion Design Page Struct"));
 		}
 	}
 	return Pages;

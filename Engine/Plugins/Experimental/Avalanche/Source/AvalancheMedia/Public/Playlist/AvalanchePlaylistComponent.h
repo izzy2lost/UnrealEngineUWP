@@ -9,7 +9,7 @@ class UAvalanchePlaylist;
 
 /**
  * Add this actor component to blueprint actor to expose the API to control an
- * Avalanche playlist in game.
+ * Motion Design playlist in game.
  */
 UCLASS(BlueprintType, Blueprintable, ClassGroup = "Motion Design Media", meta = (BlueprintSpawnableComponent))
 class AVALANCHEMEDIA_API UAvalanchePlaylistComponent : public UActorComponent

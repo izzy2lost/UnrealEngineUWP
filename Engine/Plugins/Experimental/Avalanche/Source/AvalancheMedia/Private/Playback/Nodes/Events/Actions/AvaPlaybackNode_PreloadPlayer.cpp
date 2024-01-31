@@ -13,7 +13,7 @@ FText UAvaPlaybackNode_PreloadPlayer::GetNodeDisplayNameText() const
 
 FText UAvaPlaybackNode_PreloadPlayer::GetNodeTooltipText() const
 {
-	return LOCTEXT("PreloadPlayerNode_Tooltip", "Loads the Avalanche World Preemptively and Begins Play on that World");
+	return LOCTEXT("PreloadPlayerNode_Tooltip", "Loads the Motion Design World Preemptively and Begins Play on that World");
 }
 
 void UAvaPlaybackNode_PreloadPlayer::OnEventTriggered(const FAvaPlaybackEventParameters& InEventParameters)

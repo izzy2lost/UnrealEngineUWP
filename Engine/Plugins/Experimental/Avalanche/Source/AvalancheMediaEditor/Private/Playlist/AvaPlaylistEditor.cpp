@@ -943,7 +943,7 @@ void FAvaPlaylistEditor::FillPageToolBar(FToolBarBuilder& OutToolBarBuilder)
 		OutToolBarBuilder.AddToolBarButton(FExecuteAction::CreateStatic(&FAvaBroadcastEditor::OpenBroadcastEditor)
 			, NAME_None
 			, LOCTEXT("Broadcast_Label", "Broadcast")
-			, LOCTEXT("Broadcast_ToolTip", "Opens the Avalanche Broadcast Editor Window")
+			, LOCTEXT("Broadcast_ToolTip", "Opens the Motion Design Broadcast Editor Window")
 			, TAttribute<FSlateIcon>::Create([]() { return IAvaMediaEditorModule::Get().GetToolbarBroadcastButtonIcon(); }));
 		OutToolBarBuilder.AddComboButton(
 			FUIAction(FExecuteAction()

@@ -84,7 +84,7 @@ UPackage* UAvaMediaPlayableGroup::MakeInstancePackage(const FString& InInstanceP
 	else
 	{
 		// Note: The outer will fallback to GEngine in that case.
-		UE_LOG(LogAvalanchePlayable, Error, TEXT("Unable to create package \"%s\" for Avalanche Game Instance."), *InInstancePackageName);
+		UE_LOG(LogAvalanchePlayable, Error, TEXT("Unable to create package \"%s\" for Motion Design Game Instance."), *InInstancePackageName);
 	}
 	return InstancePackage;
 }
