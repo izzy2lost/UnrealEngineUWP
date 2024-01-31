@@ -16,6 +16,7 @@
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
 			"PlatformDenyList": [
+				"LinuxArm64",
 				"TVOS"
 			]
 		}
