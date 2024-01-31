@@ -591,7 +591,7 @@ void FIKRetargetPoseExporter::HandleExportPoseAsset()
 
 	// get mesh to export pose
 	const ERetargetSourceOrTarget SourceOrTarget = ControllerPtr->GetSourceOrTarget();
-	const USkeletalMesh* Mesh = ControllerPtr->GetSkeletalMesh(SourceOrTarget);
+	USkeletalMesh* Mesh = ControllerPtr->GetSkeletalMesh(SourceOrTarget);
 	UDebugSkelMeshComponent* MeshComponent = ControllerPtr->GetSkeletalMeshComponent(SourceOrTarget);
 	if (!(Mesh && MeshComponent))
 	{
@@ -627,6 +627,7 @@ void FIKRetargetPoseExporter::HandleExportPoseAsset()
 
 	// fill new pose asset with current pose
 	NewPoseAsset->SetSkeleton(const_cast<USkeleton*>(Mesh->GetSkeleton()));
+	NewPoseAsset->SetPreviewMesh(Mesh);
 	const FName NewPoseName = NewPoseAsset->AddPoseWithUniqueName(MeshComponent);
 
 	// mark asset dirty 
