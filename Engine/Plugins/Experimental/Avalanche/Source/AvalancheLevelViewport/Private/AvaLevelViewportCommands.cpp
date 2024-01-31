@@ -270,7 +270,7 @@ void FAvaLevelViewportCommands::RegisterGuideCommands()
 		, "Toggle Guides"
 		, "Toggles the overlay visibility."
 		, EUserInterfaceActionType::ToggleButton
-		, FInputChord(EKeys::O, EModifierKey::Shift));
+		, FInputChord(EKeys::O, EModifierKey::Control));
 
 	UI_COMMAND(AddGuideHorizontal
 		, "Add Horizontal Guide"
