@@ -16,7 +16,7 @@ namespace uba
 		u64 workingDirLen = 0;
 		if (workingDir)
 			workingDirLen = TStrlen(workingDir);
-		FixPath2(fileName, workingDir, workingDirLen, buffer, &charLen);
+		FixPath2(fileName, workingDir, workingDirLen, buffer, sizeof_array(buffer), &charLen);
 		out.Append(buffer);
 	}
 

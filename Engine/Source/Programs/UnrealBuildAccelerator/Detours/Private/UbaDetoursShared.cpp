@@ -122,7 +122,7 @@ namespace uba
 
 	bool FixPath(StringBufferBase& out, const tchar* path)
 	{
-		return FixPath2(path, g_virtualWorkingDir.data, g_virtualWorkingDir.count, out.data, &out.count);
+		return FixPath2(path, g_virtualWorkingDir.data, g_virtualWorkingDir.count, out.data, out.capacity, &out.count);
 	}
 
 	const tchar* GetApplicationShortName()

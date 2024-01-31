@@ -355,7 +355,7 @@ namespace uba
 		#if PLATFORM_WINDOWS
 		return TC("-n 1 localhost");
 		#else
-		return TC("");
+		return TC("-help");
 		#endif
 	}
 
@@ -370,9 +370,6 @@ namespace uba
 
 	bool TestMultipleDetouredProcesses(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows) // TODO: Remove
-			return true;
-
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 				ProcessStartInfo processInfo;
@@ -398,35 +395,39 @@ namespace uba
 			});
 	}
 
+	bool RunSystemApplicationAndLookForLog(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
+	{
+		ProcessStartInfo processInfo;
+		processInfo.application = GetSystemApplication();
+		processInfo.workingDir = workingDir;
+		processInfo.arguments = GetSystemArguments();
+
+		bool foundPingString = false;
+		processInfo.logLineUserData = &foundPingString;
+		processInfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type)
+			{
+				*(bool*)userData |= Contains(line, GetSystemExpectedLogLine());
+			};
+
+		ProcessHandle process = runProcess(processInfo);
+
+		if (!process.WaitForExit(10000))
+			return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));
+		u32 exitCode = process.GetExitCode();
+		if (exitCode != 0)
+			return logger.Error(TC("Got exit code %u"), exitCode);
+		if (!foundPingString)
+			return logger.Error(TC("Did not log string containing \"%s\""), GetSystemExpectedLogLine());
+		return true;
+	}
+
 	bool TestLogLines(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
 	{
-		if (!IsWindows) // TODO: Remove
-			return true;
+		return RunLocal(logger, testRootDir, RunSystemApplicationAndLookForLog);
+	}
 
-		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
-			{
-				ProcessStartInfo processInfo;
-				processInfo.application = GetSystemApplication();
-				processInfo.workingDir = workingDir;
-				processInfo.arguments = GetSystemArguments();
-
-				bool foundPingString = false;
-				processInfo.logLineUserData = &foundPingString;
-				processInfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type)
-					{
-						*(bool*)userData |= Contains(line, GetSystemExpectedLogLine());
-					};
-
-				ProcessHandle process = runProcess(processInfo);
-
-				if (!process.WaitForExit(10000000))
-					return logger.Error(TC("UbaTestApp did not exit in 10 seconds"));
-				u32 exitCode = process.GetExitCode();
-				if (exitCode != 0)
-					return logger.Error(TC("Got exit code %u"), exitCode);
-				if (!foundPingString)
-					return logger.Error(TC("Did not log ping string"));
-				return true;
-			}, false);
+	bool TestLogLinesNoDetour(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		return RunLocal(logger, testRootDir, RunSystemApplicationAndLookForLog, false);
 	}
 }

@@ -143,6 +143,8 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved)
 		DetoursPayload* payload = (DetoursPayload*)DetourFindPayloadEx(DetoursPayloadGuid, nullptr);
 		if (!payload)
 			TerminateCurrentProcess(1342);
+		if (payload->version != ProcessMessageVersion)
+			TerminateCurrentProcess(1354);
 
 		PreInit(*payload);
 

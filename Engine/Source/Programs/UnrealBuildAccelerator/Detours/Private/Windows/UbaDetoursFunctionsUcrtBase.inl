@@ -35,12 +35,12 @@ wchar_t* Detoured__wfullpath(wchar_t* absPath, const wchar_t* relPath, size_t ma
 			res = (wchar_t*)malloc(maxLength * sizeof(WCHAR)); // Same as wine implementation
 		else
 			res = (wchar_t*)_malloc_base(maxLength * sizeof(WCHAR));
-		FixPath2(relPath, g_virtualWorkingDir.data, g_virtualWorkingDir.count, res, nullptr);
+		FixPath2(relPath, g_virtualWorkingDir.data, g_virtualWorkingDir.count, res, maxLength, nullptr);
 		UBA_ASSERT(res && wcslen(res) < maxLength - 1);
 	}
 	else if ((relPath && relPath[1] == ':' && relLen < maxLength) || (relLen + g_virtualWorkingDir.count <= maxLength))
 	{
-		FixPath2(relPath, g_virtualWorkingDir.data, g_virtualWorkingDir.count, absPath, nullptr);
+		FixPath2(relPath, g_virtualWorkingDir.data, g_virtualWorkingDir.count, absPath, maxLength, nullptr);
 		UBA_ASSERT(wcslen(absPath) < maxLength);
 		res = absPath;
 	}

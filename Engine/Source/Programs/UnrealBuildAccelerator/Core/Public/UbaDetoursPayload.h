@@ -16,6 +16,7 @@ namespace uba
 		HANDLE readEvent = 0;
 		HANDLE communicationHandle = 0;
 		u64 communicationOffset = 0;
+		u32 version = 0;
 		u32 rulesIndex = 0;
 		bool runningRemote = false;
 		bool trackInputs = false;

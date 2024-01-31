@@ -35,6 +35,8 @@ namespace uba
 		MessageType_Custom,
 	};
 
+	inline constexpr u32 ProcessMessageVersion = 1339;
+
 	inline constexpr u32 CommunicationMemSize = 64*1024;
 
 	inline constexpr u32 FileMappingTableMemSize = 16 * 1024 * 1024;

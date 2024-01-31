@@ -61,6 +61,7 @@ namespace uba
 		logger.Info(TC("   -getcas                 Will print hash of application"));
 		logger.Info(TC("   -summary                Print summary at the end of a session"));
 		logger.Info(TC("   -nocustomalloc          Disable custom allocator for processes. If you see odd crashes this can be tested"));
+		logger.Info(TC("   -nostdout               Disable stdout from process."));
 		logger.Info(TC("   -storeraw               Disable compression of storage. This will use more storage and might improve performance"));
 		if (IsWindows)
 			logger.Info(TC("   -visualizer             Spawn a visualizer that visualizes progress"));
@@ -133,6 +134,7 @@ namespace uba
 		bool checkCas = false;
 		bool checkAws = false;
 		bool getCas = false;
+		bool enableStdOut = true;
 		bool printSummary = false;
 		u32 loopCount = 1;
 
@@ -236,6 +238,10 @@ namespace uba
 			else if (name.Equals(TC("-nocustomalloc")))
 			{
 				disableCustomAllocator = true;
+			}
+			else if (name.Equals(TC("-nostdout")))
+			{
+				enableStdOut = false;
 			}
 			else if (name.Equals(TC("-checkcas")))
 			{
@@ -426,14 +432,15 @@ namespace uba
 			pinfo.workingDir = workDir.data;
 			pinfo.logFile = logFile.data;
 			pinfo.logLineUserData = &logger;
-			pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
+			if (enableStdOut)
+				pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
 			pinfo.trackInputs = trackInputs;
 			logger.Info(TC("Running %s %s"), app.c_str(), arg.c_str());
 			ProcessHandle process = session->RunProcess(pinfo, false, enableDetour);
 			if (process.GetExitCode() != 0)
 				return logger.Error(TC("Error exit code: %u"), process.GetExitCode());
 			u64 time = GetTime() - start;
-			logger.Info(TC("Boxed run took %s"), TimeToText(time).str);
+			logger.Info(TC("%s run took %s"), (enableDetour ? TC("Boxed") : TC("Native")), TimeToText(time).str);
 			return true;
 		};
 
@@ -446,7 +453,8 @@ namespace uba
 			pinfo.workingDir = workDir.data;
 			pinfo.logFile = logFile.data;
 			pinfo.logLineUserData = &logger;
-			pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
+			if (enableStdOut)
+				pinfo.logLineFunc = [](void* userData, const tchar* line, u32 length, LogEntryType type) { ((Logger*)userData)->Log(type, line, length); };
 			logger.Info(TC("Running %s %s"), app.c_str(), arg.c_str());
 			ProcessHandle process = session->RunProcessRemote(pinfo);
 			process.WaitForExit(~0u);
