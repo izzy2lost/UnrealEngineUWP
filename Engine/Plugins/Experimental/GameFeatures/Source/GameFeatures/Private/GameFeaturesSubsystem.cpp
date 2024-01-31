@@ -613,8 +613,16 @@ void UGameFeaturesSubsystem::AddGameFeatureToAssetManager(const UGameFeatureData
 			}
 		}
 	}
-
 	LocalAssetManager.PopBulkScanning();
+
+	const UAssetManagerSettings& Settings = LocalAssetManager.GetSettings();
+	for (const FPrimaryAssetRulesCustomOverride& Override : Settings.CustomPrimaryAssetRules)
+	{
+		if (Override.FilterDirectory.Path.StartsWith(PluginRootPath))
+		{
+			LocalAssetManager.ApplyCustomPrimaryAssetRulesOverride(Override);
+		}
+	}
 }
 
 void UGameFeaturesSubsystem::RemoveGameFeatureFromAssetManager(const UGameFeatureData* GameFeatureToRemove, const FString& PluginName, const TArray<FName>& AddedPrimaryAssetTypes)
