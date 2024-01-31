@@ -580,8 +580,9 @@ public:
 	TMultiMap<int32, int32> DecompositionToProximity;
 
 	// Helper function to delete a proximity relationship, and fix index references to account for the new array ordering
+	// @param ToRemove					Indices of proximities that will be removed; note this function is destructive to this array
 	// @param bDeleteMapReferences		If true, also update references in the DecompositionToProximity map
-	GEOMETRYCORE_API void DeleteProximity(int32 ProxIdx, bool bDeleteMapReferences);
+	GEOMETRYCORE_API void DeleteProximity(TArray<int32>&& ToRemove, bool bDeleteMapReferences);
 
 	// Helper function to update all proximity data after splitting an FConvexPart apart
 	// @param SplitIdx				The index of the FConvexPart that has been split into multiple parts.  Now contains the first new part.
