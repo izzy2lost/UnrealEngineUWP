@@ -47,6 +47,9 @@ TEST_CASE_NAMED(FUnitUnitTests, "System::Core::Math::Unit Conversion", "[Applica
 		{ 90.0,			UE_DOUBLE_HALF_PI,	1e-3,	EUnit::DegreesPerSecond, 				EUnit::RadiansPerSecond								},
 		{ UE_DOUBLE_PI,	180.0,				1e-3,	EUnit::RadiansPerSecond, 				EUnit::DegreesPerSecond								},
 
+		{ 100.0,		1.0,		1e-3,	EUnit::CentimetersPerSecondSquared, 	EUnit::MetersPerSecondSquared								},
+		{ 1.0,		100.0,	1e-3,	EUnit::MetersPerSecondSquared, 		EUnit::CentimetersPerSecondSquared							},
+
 		{ 100, 		212,		0.1,	EUnit::Celsius,										EUnit::Farenheit									},
 		{ 400, 		477.594,	1e-3,	EUnit::Farenheit,									EUnit::Kelvin										},
 		{ 72, 		-201.15,	0.01,	EUnit::Kelvin,										EUnit::Celsius										},

@@ -26,6 +26,8 @@ namespace UnitConversion
 	CORE_API double SpeedUnificationFactor(EUnit From);
 	/** Find the common quantization factor for the specified angular speed unit. Quantizes to DegreesPerSecond. */
 	CORE_API double AngularSpeedUnificationFactor(EUnit From);
+	/** Find the common quantization factor for the specified acceleration unit. Quantizes to m/s2. */
+	CORE_API double AccelerationUnificationFactor(EUnit From);
 	/** Find the common quantization factor for the specified temperature unit. Quantizes to Kelvin. */
 	CORE_API double TemperatureUnificationFactor(EUnit From);
 	/** Find the common quantization factor for the specified mass unit. Quantizes to Grams. */
@@ -84,20 +86,21 @@ T FUnitConversion::Convert(T InValue, EUnit From, EUnit To)
 
 	switch(FUnitConversion::GetUnitType(From))
 	{
-		case EUnitType::Distance:			return InValue * DistanceUnificationFactor(From)		* (1.0 / DistanceUnificationFactor(To));
-		case EUnitType::Angle:				return InValue * AngleUnificationFactor(From) 			* (1.0 / AngleUnificationFactor(To));
-		case EUnitType::Speed:				return InValue * SpeedUnificationFactor(From) 			* (1.0 / SpeedUnificationFactor(To));
-		case EUnitType::AngularSpeed:		return InValue * AngularSpeedUnificationFactor(From)	* (1.0 / AngularSpeedUnificationFactor(To));
-		case EUnitType::Mass:				return InValue * MassUnificationFactor(From) 			* (1.0 / MassUnificationFactor(To));
-		case EUnitType::Density:			return InValue * DensityUnificationFactor(From)			* (1.0 / DensityUnificationFactor(To));
-		case EUnitType::Force:				return InValue * ForceUnificationFactor(From) 			* (1.0 / ForceUnificationFactor(To));
-		case EUnitType::Torque:				return InValue * TorqueUnificationFactor(From)			* (1.0 / TorqueUnificationFactor(To));
-		case EUnitType::Frequency:			return InValue * FrequencyUnificationFactor(From) 		* (1.0 / FrequencyUnificationFactor(To));
-		case EUnitType::DataSize:			return InValue * DataSizeUnificationFactor(From) 		* (1.0 / DataSizeUnificationFactor(To));
-		case EUnitType::LuminousFlux:		return InValue;
-		case EUnitType::Time:				return InValue * TimeUnificationFactor(From) 			* (1.0 / TimeUnificationFactor(To));
-		case EUnitType::Multipliers:		return InValue * MultiplierUnificationFactor(From) 		* (1.0 / MultiplierUnificationFactor(To));
-		case EUnitType::Stress:				return InValue * StressUnificationFactor(From)			* (1.0 / StressUnificationFactor(To));
+		case EUnitType::Distance:			return InValue * DistanceUnificationFactor(From)			* (1.0 / DistanceUnificationFactor(To));
+		case EUnitType::Angle:				return InValue * AngleUnificationFactor(From) 				* (1.0 / AngleUnificationFactor(To));
+		case EUnitType::Speed:				return InValue * SpeedUnificationFactor(From) 				* (1.0 / SpeedUnificationFactor(To));
+		case EUnitType::AngularSpeed:		return InValue * AngularSpeedUnificationFactor(From)		* (1.0 / AngularSpeedUnificationFactor(To));
+		case EUnitType::Acceleration:		return InValue * AccelerationUnificationFactor(From)		* (1.0 / AccelerationUnificationFactor(To));
+		case EUnitType::Mass:				return InValue * MassUnificationFactor(From) 				* (1.0 / MassUnificationFactor(To));
+		case EUnitType::Density:			return InValue * DensityUnificationFactor(From)				* (1.0 / DensityUnificationFactor(To));
+		case EUnitType::Force:				return InValue * ForceUnificationFactor(From) 				* (1.0 / ForceUnificationFactor(To));
+		case EUnitType::Torque:				return InValue * TorqueUnificationFactor(From)				* (1.0 / TorqueUnificationFactor(To));
+		case EUnitType::Frequency:			return InValue * FrequencyUnificationFactor(From) 			* (1.0 / FrequencyUnificationFactor(To));
+		case EUnitType::DataSize:			return InValue * DataSizeUnificationFactor(From) 			* (1.0 / DataSizeUnificationFactor(To));
+		case EUnitType::LuminousFlux:		return InValue;	
+		case EUnitType::Time:				return InValue * TimeUnificationFactor(From) 				* (1.0 / TimeUnificationFactor(To));
+		case EUnitType::Multipliers:		return InValue * MultiplierUnificationFactor(From) 			* (1.0 / MultiplierUnificationFactor(To));
+		case EUnitType::Stress:				return InValue * StressUnificationFactor(From)				* (1.0 / StressUnificationFactor(To));
 		// Temperature conversion is not just a simple multiplication, so needs special treatment
 		case EUnitType::Temperature:
 		{

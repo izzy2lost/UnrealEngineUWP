@@ -50,6 +50,9 @@ constexpr FParseCandidate ParseCandidates[] = {
 
 	{ TEXT("DegreesPerSecond"),		EUnit::DegreesPerSecond },		{ TEXT("deg/s"),	EUnit::DegreesPerSecond },
 	{ TEXT("RadiansPerSecond"),		EUnit::RadiansPerSecond },		{ TEXT("rad/s"),	EUnit::RadiansPerSecond },
+
+	{ TEXT("CentimetersPerSecondSquared"),		EUnit::CentimetersPerSecondSquared },	{ TEXT("cm/s2"),	EUnit::CentimetersPerSecondSquared },{ TEXT("cm/s\u00B2"),	EUnit::CentimetersPerSecondSquared },{ TEXT("cm/s^2"),	EUnit::CentimetersPerSecondSquared },
+	{ TEXT("MetersPerSecondSquared"),			EUnit::MetersPerSecondSquared },		{ TEXT("m/s2"),	EUnit::MetersPerSecondSquared },	{ TEXT("m/s\u00B2"),	EUnit::MetersPerSecondSquared },{ TEXT("m/s^2"),	EUnit::MetersPerSecondSquared },
 		
 	{ TEXT("Celsius"),				EUnit::Celsius },				{ TEXT("C"),		EUnit::Celsius },				{ TEXT("degC"),		EUnit::Celsius },			{ TEXT("\u00B0C"),		EUnit::Celsius },
 	{ TEXT("Farenheit"),			EUnit::Farenheit },				{ TEXT("F"),		EUnit::Farenheit },				{ TEXT("degF"),		EUnit::Farenheit },			{ TEXT("\u00B0F"),		EUnit::Farenheit },
@@ -129,6 +132,8 @@ constexpr const TCHAR* const DisplayStrings[] = {
 
 	TEXT("deg/s"), TEXT("rad/s"),
 
+	TEXT("cm/s\u00B2"), TEXT("m/s\u00B2"),
+
 	TEXT("\u00B0C"), TEXT("\u00B0F"), TEXT("K"),
 
 	TEXT("\u00B5g"), TEXT("mg"), TEXT("g"), TEXT("kg"), TEXT("t"),
@@ -178,7 +183,10 @@ constexpr const TCHAR* const SupportedUnitsStrings[] = {
 	TEXT("MilesPerHour"),			
 
 	TEXT("DegreesPerSecond"),		
-	TEXT("RadiansPerSecond"),		
+	TEXT("RadiansPerSecond"),
+	
+	TEXT("CentimetersPerSecondSquared"),		
+	TEXT("MetersPerSecondSquared"),	
 		
 	TEXT("Celsius"),			
 	TEXT("Farenheit"),			
@@ -260,6 +268,8 @@ constexpr EUnitType UnitTypes[] = {
 	EUnitType::Speed,		EUnitType::Speed,		EUnitType::Speed, 		EUnitType::Speed,
 
 	EUnitType::AngularSpeed, EUnitType::AngularSpeed,
+	
+	EUnitType::Acceleration, EUnitType::Acceleration,
 
 	EUnitType::Temperature,	EUnitType::Temperature,	EUnitType::Temperature,
 
@@ -550,6 +560,7 @@ FUnitSettings::FUnitSettings()
 	DisplayUnits[(uint8)EUnitType::Angle].Add(EUnit::Degrees);
 	DisplayUnits[(uint8)EUnitType::Speed].Add(EUnit::MetersPerSecond);
 	DisplayUnits[(uint8)EUnitType::AngularSpeed].Add(EUnit::DegreesPerSecond);
+	DisplayUnits[(uint8)EUnitType::Acceleration].Add(EUnit::CentimetersPerSecondSquared);
 	DisplayUnits[(uint8)EUnitType::Temperature].Add(EUnit::Celsius);
 	DisplayUnits[(uint8)EUnitType::Mass].Add(EUnit::Kilograms);
 	DisplayUnits[(uint8)EUnitType::Density].Add(EUnit::GramsPerCubicCentimeter);
@@ -730,6 +741,16 @@ namespace UnitConversion
 		{
 			case EUnit::RadiansPerSecond:	return (180.0 / UE_DOUBLE_PI);
 			default: 						return 1.0;
+		}
+	}
+	
+	double AccelerationUnificationFactor(EUnit From)
+	{
+		// Convert to meters/second2
+		switch (From)
+		{
+		case EUnit::CentimetersPerSecondSquared:	return 0.01f;
+		default: 									return 1.0;
 		}
 	}
 
