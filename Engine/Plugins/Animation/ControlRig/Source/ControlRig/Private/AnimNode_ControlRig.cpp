@@ -8,7 +8,6 @@
 #include "GameFramework/Actor.h"
 #include "Animation/NodeMappingContainer.h"
 #include "AnimationRuntime.h"
-#include "ControlRigObjectBinding.h"
 #include "Animation/AnimCurveUtils.h"
 #include "Animation/AnimStats.h"
 #include "Units/Execution/RigUnit_PrepareForExecution.h"
@@ -376,8 +375,6 @@ bool FAnimNode_ControlRig::UpdateControlRigIfNeeded(const UAnimInstance* InAnimI
 						
 						// create a new control rig using the new class
 						NewControlRig = NewObject<UControlRig>(InAnimInstance->GetOwningComponent(), ExpectedClass);
-						ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
-						ControlRig->GetObjectBinding()->BindToObject(InAnimInstance->GetOwningComponent());
 						NewControlRig->Initialize(true);
 						NewControlRig->RequestInit();
 
@@ -465,8 +462,6 @@ bool FAnimNode_ControlRig::UpdateControlRigIfNeeded(const UAnimInstance* InAnimI
 		if(ControlRig == nullptr)
 		{
 			ControlRig = NewObject<UControlRig>(InAnimInstance->GetOwningComponent(), ExpectedClass);
-			ControlRig->SetObjectBinding(MakeShared<FControlRigObjectBinding>());
-			ControlRig->GetObjectBinding()->BindToObject(InAnimInstance->GetOwningComponent());
 			ControlRig->Initialize(true);
 			ControlRig->RequestInit();
 		}
