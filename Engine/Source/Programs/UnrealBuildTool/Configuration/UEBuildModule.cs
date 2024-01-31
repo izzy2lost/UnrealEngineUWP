@@ -702,12 +702,6 @@ namespace UnrealBuildTool
 			bool bWithLegacyParentIncludePaths
 			)
 		{
-			if (!Rules.bTreatAsEngineModule)
-			{
-				Definitions.Add("DEPRECATED_FORGAME=DEPRECATED");
-				Definitions.Add("UE_DEPRECATED_FORGAME=UE_DEPRECATED");
-			}
-
 			// Add this module's private include paths and definitions.
 			IncludePaths.UnionWith(PrivateIncludePaths);
 
