@@ -16,7 +16,11 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphVariableNode : public UMovieGraphNo
 	GENERATED_BODY()
 
 public:
-	UMovieGraphVariableNode();
+	UMovieGraphVariableNode() = default;
+
+	//~ Begin UObject interface
+	virtual void PostEditImport() override;
+	//~ End UObject interface
 
 	virtual TArray<FMovieGraphPinProperties> GetOutputPinProperties() const override;
 	virtual FString GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext) const override;
