@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Modules/ModuleInterface.h"
+#include "Util/ClassRememberer.h"
 
 namespace UE::ConcertReplicationScriptingEditor
 {
@@ -14,5 +15,10 @@ namespace UE::ConcertReplicationScriptingEditor
 		virtual void StartupModule() override;
 		virtual void ShutdownModule() override;
 		//~ End IModuleInterface Interface
+
+	private:
+
+		/** Customizations use this cache so users do not constantly have to re-select the class in the drop-down menus. */
+		FClassRememberer SharedClassRememberer;
 	};
 }

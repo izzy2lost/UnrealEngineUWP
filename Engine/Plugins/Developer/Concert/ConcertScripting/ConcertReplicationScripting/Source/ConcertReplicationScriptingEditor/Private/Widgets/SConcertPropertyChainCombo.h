@@ -25,7 +25,12 @@ namespace UE::ConcertReplicationScriptingEditor
 		SLATE_BEGIN_ARGS(SConcertPropertyChainCombo)
 			: _InitialClassSelection(nullptr)
 		{}
-			/** The properties that are supposed to be displayed inside of the button */
+			/**
+			 * The properties that are supposed to be displayed inside of the button.
+			 * 
+			 * This must always contain at least one property. If there are "no" properties, this should contain the empty, default constructed FConcertPropertyChain.
+			 * This requirement is needed so the button shows the "Empty" widget.
+			 */
 			SLATE_ARGUMENT(const TSet<FConcertPropertyChain>*, ContainedProperties)
 
 			/** Whether the UI should allow editing */

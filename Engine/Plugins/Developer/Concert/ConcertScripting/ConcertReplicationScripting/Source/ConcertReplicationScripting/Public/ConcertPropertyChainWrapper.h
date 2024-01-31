@@ -17,4 +17,9 @@ struct CONCERTREPLICATIONSCRIPTING_API FConcertPropertyChainWrapper
 	explicit FConcertPropertyChainWrapper(FConcertPropertyChain InPropertyChain)
 		: PropertyChain(MoveTemp(InPropertyChain))
 	{}
+
+	friend bool operator==(const FConcertPropertyChainWrapper& Left, const FConcertPropertyChainWrapper& Right) { return Left.PropertyChain == Right.PropertyChain; }
+	friend bool operator!=(const FConcertPropertyChainWrapper& Left, const FConcertPropertyChainWrapper& Right) { return !(Left == Right); }
 };
+
+CONCERTREPLICATIONSCRIPTING_API uint32 GetTypeHash(const FConcertPropertyChainWrapper& ChainWrapper);

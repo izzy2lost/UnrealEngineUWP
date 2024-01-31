@@ -13,15 +13,15 @@ namespace UE::ConcertReplicationScriptingEditor
 	class FClassRememberer;
 
 	/** Shows a combo button that allows selecting a property from a class. */
-	class FConcertPropertyCustomization : public IPropertyTypeCustomization
+	class FConcertPropertyContainerCustomization : public IPropertyTypeCustomization
 	{
 		template <typename ObjectType, ESPMode Mode>
 		friend class SharedPointerInternals::TIntrusiveReferenceController;
 	public:
-		
+	
 		static TSharedRef<IPropertyTypeCustomization> MakeInstance(FClassRememberer* ClassRememberer);
-
-		virtual ~FConcertPropertyCustomization() override;
+		
+		virtual ~FConcertPropertyContainerCustomization() override;
 
 		//~ Begin IPropertyTypeCustomization Interface
 		virtual void CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
@@ -29,14 +29,14 @@ namespace UE::ConcertReplicationScriptingEditor
 		//~ End IPropertyTypeCustomization Interface
 
 	private:
-
-		FConcertPropertyCustomization(FClassRememberer& InClassRememberer)
+		
+		FConcertPropertyContainerCustomization(FClassRememberer& InClassRememberer)
 			: ClassRememberer(InClassRememberer)
 		{}
 
 		/** Customizations use this cache so users do not constantly have to re-select the class in the drop-down menus. */
 		FClassRememberer& ClassRememberer;
-
+		
 		/** Handle to the property containing the FConcertPropertyChainWrapper struct. */
 		TSharedPtr<IPropertyHandle> PropertyHandle;
 
