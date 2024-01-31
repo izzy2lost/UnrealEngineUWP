@@ -226,6 +226,7 @@ FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::
 	OutParameters.bEnableDepthOfFieldCompensation = CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation;
 	OutParameters.DistanceToWall = CameraSettings.CameraDepthOfField.DistanceToWall;
 	OutParameters.DistanceToWallOffset = CameraSettings.CameraDepthOfField.DistanceToWallOffset;
+	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? CameraSettings.CameraDepthOfField.DynamicCompensationLUT : CameraSettings.CameraDepthOfField.CompensationLUT;
 
 	return OutParameters;
 }
@@ -233,6 +234,8 @@ FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::
 void UDisplayClusterICVFXCameraComponent::OnRegister()
 {
 	Super::OnRegister();
+
+	CameraSettings.CameraDepthOfField.UpdateDynamicCompensationLUT();
 
 #if WITH_EDITORONLY_DATA
 	// disable frustum for icvfx camera component
@@ -244,6 +247,36 @@ void UDisplayClusterICVFXCameraComponent::OnRegister()
 	// Update ExternalCineactor behaviour
 	UpdateICVFXPreviewState();
 #endif
+}
+
+void UDisplayClusterICVFXCameraComponent::SetDepthOfFieldParameters(const FDisplayClusterConfigurationICVFX_CameraDepthOfField& NewDepthOfFieldParams)
+{
+	CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation = NewDepthOfFieldParams.bEnableDepthOfFieldCompensation;
+	CameraSettings.CameraDepthOfField.bAutomaticallySetDistanceToWall = NewDepthOfFieldParams.bAutomaticallySetDistanceToWall;
+	CameraSettings.CameraDepthOfField.DistanceToWallOffset = NewDepthOfFieldParams.DistanceToWallOffset;
+
+	if (!NewDepthOfFieldParams.bAutomaticallySetDistanceToWall)
+	{
+		CameraSettings.CameraDepthOfField.DistanceToWall = NewDepthOfFieldParams.DistanceToWall;
+	}
+
+	bool bGenerateNewLUT = false;
+	if (CameraSettings.CameraDepthOfField.DepthOfFieldGain != NewDepthOfFieldParams.DepthOfFieldGain)
+	{
+		CameraSettings.CameraDepthOfField.DepthOfFieldGain = NewDepthOfFieldParams.DepthOfFieldGain;
+		bGenerateNewLUT = true;
+	}
+
+	if (CameraSettings.CameraDepthOfField.CompensationLUT != NewDepthOfFieldParams.CompensationLUT)
+	{
+		CameraSettings.CameraDepthOfField.CompensationLUT = NewDepthOfFieldParams.CompensationLUT;
+		bGenerateNewLUT = true;
+	}
+
+	if (bGenerateNewLUT)
+	{
+		CameraSettings.CameraDepthOfField.UpdateDynamicCompensationLUT();
+	}
 }
 
 #if WITH_EDITORONLY_DATA
@@ -258,6 +291,13 @@ void UDisplayClusterICVFXCameraComponent::PreEditChange(FProperty* PropertyThatW
 void UDisplayClusterICVFXCameraComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	FName PropertyName = PropertyChangedEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationICVFX_CameraDepthOfField, CompensationLUT) ||
+		(PropertyName == GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationICVFX_CameraDepthOfField, DepthOfFieldGain) && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive))
+	{
+		CameraSettings.CameraDepthOfField.UpdateDynamicCompensationLUT();
+	}
 
 	UpdateICVFXPreviewState();
 }
