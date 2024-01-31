@@ -2,9 +2,20 @@
 
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 
+#ifndef CVD_SERIALIZE_STATIC_ARRAY
+	#define CVD_SERIALIZE_STATIC_ARRAY(Archive, Array) \
+		{ \
+			constexpr int32 Size = UE_ARRAY_COUNT(Array) ; \
+			for (int32 Index = 0; Index < Size; Index++)\
+			{\
+				Archive << Array[Index]; \
+			}\
+		}
+#endif
+
 bool FChaosVDContactPoint::Serialize(FArchive& Ar)
 {
-	Ar << ShapeContactPoints;
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, ShapeContactPoints);
 	Ar << ShapeContactNormal;
 	Ar << Phi;
 	Ar << FaceIndex;
@@ -28,10 +39,12 @@ bool FChaosVDManifoldPoint::Serialize(FArchive& Ar)
 
 	Ar << TargetPhi;
 	Ar << InitialPhi;
-	Ar << ShapeAnchorPoints;
-	Ar << InitialShapeContactPoints;
+
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, ShapeAnchorPoints);
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, InitialShapeContactPoints);
+
 	Ar << ContactPoint;
-	Ar << ShapeContactPoints;
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, ShapeContactPoints);
 
 	return true;
 }
@@ -73,8 +86,10 @@ bool FChaosVDConstraint::Serialize(FArchive& Ar)
 	Ar << Material;
 	Ar << AccumulatedImpulse;
 	Ar << ShapesType;
-	Ar << ShapeWorldTransforms;
-	Ar << ImplicitTransforms;
+
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, ShapeWorldTransforms);
+	CVD_SERIALIZE_STATIC_ARRAY(Ar, ImplicitTransforms);
+
 	Ar << CullDistance;
 	Ar << CollisionMargins;	
 	Ar << CollisionTolerance;	

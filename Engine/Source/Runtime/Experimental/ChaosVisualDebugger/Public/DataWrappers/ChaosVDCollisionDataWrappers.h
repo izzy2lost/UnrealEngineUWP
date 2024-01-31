@@ -58,7 +58,7 @@ struct CHAOSVDRUNTIME_API FChaosVDContactPoint
 
 	// Shape-space contact points on the two bodies
 	UPROPERTY(VisibleAnywhere, Category=Contact)
-	TArray<FVector> ShapeContactPoints;
+	FVector ShapeContactPoints[2] = { FVector(ForceInit), FVector(ForceInit) };
 
 	// Shape-space contact normal on the second shape with direction that points away from shape 1
 	UPROPERTY(VisibleAnywhere, Category=Contact)
@@ -123,14 +123,14 @@ struct CHAOSVDRUNTIME_API FChaosVDManifoldPoint
 	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	float InitialPhi = 0.f;
 	UPROPERTY()
-	TArray<FVector> ShapeAnchorPoints;
+	FVector ShapeAnchorPoints[2] = { FVector(ForceInit), FVector(ForceInit) };
 	UPROPERTY()
-	TArray<FVector> InitialShapeContactPoints;
+	FVector InitialShapeContactPoints[2] = { FVector(ForceInit), FVector(ForceInit) };
 	UPROPERTY(VisibleAnywhere, Category=ContactData)
 	FChaosVDContactPoint ContactPoint;
 
 	UPROPERTY()
-	TArray<FVector> ShapeContactPoints;
+	FVector ShapeContactPoints[2] =  { FVector(ForceInit), FVector(ForceInit) };
 
 	bool bIsSelectedInEditor = false;
 
@@ -256,10 +256,10 @@ struct CHAOSVDRUNTIME_API FChaosVDConstraint
 	EChaosVDContactShapesType ShapesType = EChaosVDContactShapesType::Unknown;
 	
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
-	TArray<FTransform> ShapeWorldTransforms;
+	FTransform ShapeWorldTransforms[2] = { FTransform::Identity, FTransform::Identity };
 
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
-	TArray<FTransform> ImplicitTransforms;
+	FTransform ImplicitTransforms[2] = { FTransform::Identity, FTransform::Identity };
 	
 	UPROPERTY(VisibleAnywhere, Category=ConstraintData)
 	float CullDistance = 0.f;
