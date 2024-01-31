@@ -23,6 +23,7 @@ class PCG_API UPCGSplineData : public UPCGPolyLineData
 public:
 	void Initialize(USplineComponent* InSpline);
 	void Initialize(const TArray<FSplinePoint>& InSplinePoints, bool bInClosedLoop, const FTransform& InTransform);
+	void Initialize(const FPCGSplineStruct& InSplineStruct);
 	void ApplyTo(USplineComponent* InSpline);
 
 	// ~Begin UPCGData interface

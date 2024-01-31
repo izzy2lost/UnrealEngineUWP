@@ -302,10 +302,39 @@ namespace PCGSplineSamplerHelpers
 		// Odd number of intersections means we are inside the polygon
 		return (IntersectionPoints.Num() % 2) == 1;
 	}
-}
 
-namespace PCGSplineSampler
-{
+	/** Projects a point in space onto the approximated surface defined by a closed spline. */
+	FVector::FReal ProjectOntoSplineInteriorSurface(const TArray<FVector>& SplinePoints, const FVector& PointToProject)
+	{
+		// Compute average Z value weighted by 1 / Distance^2
+		FVector::FReal SumZ = 0.f;
+		FVector::FReal SumWeights = 0.f;
+
+		for (int32 PointIndex = 0; PointIndex < SplinePoints.Num(); ++PointIndex)
+		{
+			const FVector& Point = SplinePoints[PointIndex];
+			// TODO: It would be more accurate to use distance to the polyline instead of distance to the polyline points,
+			// however it would also be much more expensive. Perhaps worth investigating when Params.bTreatSplineAsPolyline is true.
+			const FVector::FReal DistanceSquared = FVector::DistSquaredXY(PointToProject, Point); 
+
+			// If sample point overlaps exactly with a border point, then that must be the height.
+			if (FMath::IsNearlyZero(DistanceSquared))
+			{
+				return Point.Z;
+			}
+
+			// TODO[UE-205462]: It would be ideal to find a better constraint than inverse squared distance, which produces boundary artifacts for undersampled splines.
+			const FVector::FReal Weight = 1.f / DistanceSquared;
+
+			SumWeights += Weight;
+			SumZ += Point.Z * Weight;
+		}
+
+		// If the weights sum to zero then there were no points to sample, and therefore nothing to project to.
+		// TODO: This is not robust for interior points which are enormously far away from the spline and could collapse to 0 incorrectly.
+		return FMath::IsNearlyZero(SumWeights) ? 0.0 : SumZ / SumWeights;
+	}
+
 	struct FSamplerResult
 	{
 		FTransform LocalTransform;
@@ -754,7 +783,6 @@ namespace PCGSplineSampler
 		int NumHeightSteps;
 	};
 
-	/** Samples on spline or within volume around it. */
 	void SampleLineData(const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShapeData, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData)
 	{
 		check(LineData && OutPointData);
@@ -851,7 +879,6 @@ namespace PCGSplineSampler
 		}
 	}
  
-	/** Samples 2D region bounded by spline. */
 	void SampleInteriorData(FPCGContext* Context, const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShape, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData)
 	{
 		check(Context && LineData && OutPointData);
@@ -1052,8 +1079,6 @@ namespace PCGSplineSampler
 			const FVector::FReal LocalMinY = MinY + StartIterationIndex * Params.InteriorSampleSpacing;
 			const FVector::FReal LocalMaxY = bIsLastIteration ? (MaxY + UE_KINDA_SMALL_NUMBER) : (MinY + EndIterationIndex * Params.InteriorSampleSpacing);
 
-			TArray<FVector::FReal> DistancesSquaredOnXY;
-
 			// Point sampling
 			for(FVector::FReal Y = LocalMinY; Y < LocalMaxY; Y += Params.InteriorSampleSpacing)
 			{
@@ -1093,38 +1118,7 @@ namespace PCGSplineSampler
 
 						if (bProjectOntoSurface)
 						{
-							// Precompute 2D distance to every spline point
-							DistancesSquaredOnXY.Reset(SplineSamplePoints.Num());
-							for (const FVector& SplinePoint : SplineSamplePoints)
-							{
-								FVector::FReal DistanceSquared = FVector::DistSquaredXY(SurfaceLocation, SplinePoint);
-								DistancesSquaredOnXY.Add(DistanceSquared);
-							}
-
-							// Compute average Z value weighted by 1 / Distance^2
-							FVector::FReal SumZ = 0.f;
-							FVector::FReal SumWeights = 0.f;
-							for (int32 PointIndex = 0; PointIndex < SplineSamplePoints.Num(); ++PointIndex)
-							{
-								const FVector::FReal DistanceSquared = DistancesSquaredOnXY[PointIndex];
-
-								// If sample point overlaps exactly with a border point, then that must be the height
-								if (FMath::IsNearlyZero(DistanceSquared))
-								{
-									SumZ = SplineSamplePoints[PointIndex].Z;
-									SumWeights = 1.f;
-									break;
-								}
-
-								// TODO: it would be more accurate to use distance to the polyline instead of distance to the polyline points,
-								// however it would also be much more expensive. Perhaps worth investigating when Params.bTreatSplineAsPolyline is true
-								const FVector::FReal Weight = 1.f / DistanceSquared;
-
-								SumWeights += Weight;
-								SumZ += SplineSamplePoints[PointIndex].Z * Weight;
-							}
-
-							SurfaceLocation.Z = SumZ / SumWeights;
+							SurfaceLocation.Z = ProjectOntoSplineInteriorSurface(SplineSamplePoints, SurfaceLocation);
 						}
 
 						// if bTreatAsPolyline, then we shouldnt use this, we should use nearest point on the polygon line segments
@@ -1362,7 +1356,7 @@ bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
 		}
 
 		// TODO: do something for point data approximations
-		const UPCGPolyLineData* LineData = PCGSplineSampler::GetPolyLineData(SpatialData);
+		const UPCGPolyLineData* LineData = PCGSplineSamplerHelpers::GetPolyLineData(SpatialData);
 		if (!LineData)
 		{
 			continue;
@@ -1385,11 +1379,11 @@ bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (SamplerParams.Dimension == EPCGSplineSamplingDimension::OnInterior)
 		{
-			PCGSplineSampler::SampleInteriorData(Context, LineData, BoundingShape, ProjectionTarget, ProjectionParams, SamplerParams, SampledPointData);
+			PCGSplineSamplerHelpers::SampleInteriorData(Context, LineData, BoundingShape, ProjectionTarget, ProjectionParams, SamplerParams, SampledPointData);
 		}
 		else
 		{
-			PCGSplineSampler::SampleLineData(LineData, BoundingShape, ProjectionTarget, ProjectionParams, SamplerParams, SampledPointData);
+			PCGSplineSamplerHelpers::SampleLineData(LineData, BoundingShape, ProjectionTarget, ProjectionParams, SamplerParams, SampledPointData);
 		}
 	}
 

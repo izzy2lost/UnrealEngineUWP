@@ -52,6 +52,24 @@ void UPCGSplineData::Initialize(const TArray<FSplinePoint>& InSplinePoints, bool
 	CachedBounds = CachedBounds.TransformBy(InTransform);
 }
 
+void UPCGSplineData::Initialize(const FPCGSplineStruct& InSplineStruct)
+{
+	SplineStruct = InSplineStruct;
+	CachedBounds = SplineStruct.GetBounds();
+
+	// Expand bounds by the radius of points, otherwise sections of the curve that are close
+	// to the bounds will report an invalid density.
+	FVector SplinePointsRadius = FVector::ZeroVector;
+	const FInterpCurveVector& SplineScales = SplineStruct.GetSplinePointsScale();
+	for (const FInterpCurvePoint<FVector>& SplineScale : SplineScales.Points)
+	{
+		SplinePointsRadius = FVector::Max(SplinePointsRadius, SplineScale.OutVal.GetAbs());
+	}
+
+	CachedBounds = CachedBounds.ExpandBy(SplinePointsRadius, SplinePointsRadius);
+	CachedBounds = CachedBounds.TransformBy(SplineStruct.Transform);
+}
+
 void UPCGSplineData::ApplyTo(USplineComponent* InSplineComponent)
 {
 	SplineStruct.ApplyTo(InSplineComponent);
@@ -132,7 +150,7 @@ const UPCGPointData* UPCGSplineData::CreatePointData(FPCGContext* Context) const
 	FPCGSplineSamplerParams SamplerParams;
 	SamplerParams.Mode = EPCGSplineSamplingMode::Distance;
 
-	PCGSplineSampler::SampleLineData(this, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, Data);
+	PCGSplineSamplerHelpers::SampleLineData(this, /*InBoundingShape=*/nullptr, /*InProjectionTarget=*/nullptr, /*InProjectionParams=*/{}, SamplerParams, Data);
 	UE_LOG(LogPCG, Verbose, TEXT("Spline generated %d points"), Data->GetPoints().Num());
 
 	return Data;

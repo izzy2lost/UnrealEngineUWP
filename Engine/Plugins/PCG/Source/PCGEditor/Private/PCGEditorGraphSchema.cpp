@@ -6,6 +6,7 @@
 #include "PCGGraph.h"
 #include "PCGPin.h"
 #include "Elements/PCGCollapseElement.h"
+#include "Elements/PCGCreateSurfaceFromSpline.h"
 #include "Elements/PCGExecuteBlueprint.h"
 #include "Elements/PCGFilterByType.h"
 #include "Elements/PCGMakeConcreteElement.h"
@@ -275,6 +276,16 @@ bool UPCGEditorGraphSchema::TryCreateConnectionInternal(UEdGraphPin* InA, UEdGra
 	{
 		UPCGSettings* NodeSettings = nullptr;
 		UPCGNode* ConversionPCGNode = PCGGraph->AddNodeOfType(UPCGMakeConcreteSettings::StaticClass(), NodeSettings);
+
+		return ConnectViaIntermediate(ConversionPCGNode);
+	}
+	else if (Conversion == EPCGTypeConversion::SplineToSurface)
+	{
+		UPCGSettings* NodeSettings = nullptr;
+		UPCGNode* ConversionPCGNode = PCGGraph->AddNodeOfType(UPCGCreateSurfaceFromSplineSettings::StaticClass(), NodeSettings);
+
+		UPCGCreateSurfaceFromSplineSettings* Settings = CastChecked<UPCGCreateSurfaceFromSplineSettings>(NodeSettings);
+		Settings->bShouldDrawNodeCompact = true;
 
 		return ConnectViaIntermediate(ConversionPCGNode);
 	}

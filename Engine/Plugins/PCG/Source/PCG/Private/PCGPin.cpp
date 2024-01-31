@@ -356,6 +356,12 @@ bool UPCGPin::IsCompatible(const UPCGPin* OtherPin) const
 		return true;
 	}
 
+	// Spline -> Surface conversion
+	if (UpstreamTypes == EPCGDataType::Spline && DownstreamTypes == EPCGDataType::Surface)
+	{
+		return true;
+	}
+
 	// Otherwise allow if there is overlap. Don't detect wide -> narrow issues - conversion nodes deal with that
 	return !!(UpstreamTypes & DownstreamTypes);
 }
@@ -410,6 +416,12 @@ EPCGTypeConversion UPCGPin::GetRequiredTypeConversion(const UPCGPin* InOtherPin)
 	if (bUpstreamInSpatial && DownstreamTypes == EPCGDataType::Point)
 	{
 		return EPCGTypeConversion::CollapseToPoint;
+	}
+
+	// Spline -> Surface conversion
+	if (UpstreamTypes == EPCGDataType::Spline && DownstreamTypes == EPCGDataType::Surface)
+	{
+		return EPCGTypeConversion::SplineToSurface;
 	}
 
 	// Any or Spatial -> Concrete - "Make Concrete" conversion. We decided to support Any as it is a superset of Concrete,
