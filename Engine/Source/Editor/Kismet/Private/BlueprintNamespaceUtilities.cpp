@@ -60,25 +60,17 @@ FString FBlueprintNamespaceUtilities::GetAssetNamespace(const FAssetData& InAsse
 
 	if (InAssetData.IsValid())
 	{
-		if (const UObject* AssetObject = InAssetData.FastGetAsset())
+		using namespace UE::Editor::Kismet::Private;
+
+		// @todo_namespaces - Add cases for unloaded UDS/UDE assets once they have a searchable namespace tag or property.
+		FString TagValue;
+		if (InAssetData.GetTagValue<FString>(GET_MEMBER_NAME_STRING_CHECKED(UBlueprint, BlueprintNamespace), TagValue))
 		{
-			Namespace = GetObjectNamespace(AssetObject);
+			Namespace = MoveTemp(TagValue);
 		}
-		else
+		else if (DefaultBlueprintNamespaceType == EDefaultBlueprintNamespaceType::UsePackagePathAsDefaultNamespace)
 		{
-			using namespace UE::Editor::Kismet::Private;
-
-			// @todo_namespaces - Add cases for unloaded UDS/UDE assets once they have a searchable namespace tag or property.
-
-			FString TagValue;
-			if (InAssetData.GetTagValue<FString>(GET_MEMBER_NAME_STRING_CHECKED(UBlueprint, BlueprintNamespace), TagValue))
-			{
-				Namespace = MoveTemp(TagValue);
-			}
-			else if (DefaultBlueprintNamespaceType == EDefaultBlueprintNamespaceType::UsePackagePathAsDefaultNamespace)
-			{
-				ConvertPackagePathToNamespacePath(InAssetData.PackageName.ToString(), Namespace);
-			}
+			ConvertPackagePathToNamespacePath(InAssetData.PackageName.ToString(), Namespace);
 		}
 	}
 
