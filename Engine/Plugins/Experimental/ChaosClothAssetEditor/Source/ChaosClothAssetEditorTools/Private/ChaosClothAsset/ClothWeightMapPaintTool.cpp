@@ -46,6 +46,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "Selection/PolygonSelectionMechanic.h"
 #include "BaseGizmos/BrushStampIndicator.h"
+#include "DynamicSubmesh3.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothWeightMapPaintTool)
 
@@ -108,6 +109,16 @@ void UClothEditorUpdateWeightMapProperties::PostEditChangeProperty(FPropertyChan
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UClothEditorUpdateWeightMapProperties, Name))
 	{
 		UE::Chaos::ClothAsset::FWeightMapTools::MakeWeightMapName(Name);
+	}
+}
+
+
+// Show/Hide properties
+void UClothEditorMeshWeightMapPaintToolShowHideProperties::PostAction(EClothEditorWeightMapPaintToolActions Action)
+{
+	if (ParentTool.IsValid())
+	{
+		ParentTool->RequestAction(Action);
 	}
 }
 
@@ -217,6 +228,12 @@ void UClothEditorWeightMapPaintTool::Setup()
 
 	// initialize other properties
 	FilterProperties = NewObject<UClothEditorWeightMapPaintBrushFilterProperties>(this);
+	FilterProperties->WatchProperty(FilterProperties->ColorMap,
+		[this](EClothEditorWeightMapDisplayType NewType) 
+		{ 
+			UpdateVertexColorOverlay(); 
+			DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+		});
 	FilterProperties->WatchProperty(FilterProperties->SubToolType,
 		[this](EClothEditorWeightMapPaintInteractionType NewType) { UpdateSubToolType(NewType); });
 	FilterProperties->WatchProperty(FilterProperties->BrushSize,
@@ -281,9 +298,75 @@ void UClothEditorWeightMapPaintTool::Setup()
 		MeshElementsDisplay->Settings->RestoreProperties(this, TEXT("ClothEditorWeightMapPaintTool2"));
 		AddToolPropertySource(MeshElementsDisplay->Settings);
 	}
-	MeshElementsDisplay->SetMeshAccessFunction([this](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc) {
-		ProcessFunc(*GetSculptMesh());
+	MeshElementsDisplay->SetMeshAccessFunction([this](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc) 
+	{
+		if (HiddenTriangles.Num() > 0 || PendingHiddenTriangles.Num() > 0)
+		{
+			const UE::Geometry::FDynamicMesh3* const FullMesh = GetSculptMesh();
+
+			TArray<int> NonHiddenTriangles;
+			for (const int32 TID : FullMesh->TriangleIndicesItr())
+			{
+				if (!HiddenTriangles.Contains(TID) && !PendingHiddenTriangles.Contains(TID))
+				{
+					NonHiddenTriangles.Add(TID);
+				}
+			}
+
+			UE::Geometry::FDynamicSubmesh3 Submesh(FullMesh, NonHiddenTriangles);
+			ProcessFunc(Submesh.GetSubmesh());
+		}
+		else
+		{
+			ProcessFunc(*GetSculptMesh());
+		}
 	});
+
+	ShowHideProperties = NewObject<UClothEditorMeshWeightMapPaintToolShowHideProperties>();
+	ShowHideProperties->Initialize(this);
+	ShowHideProperties->WatchProperty(ShowHideProperties->ShowPatterns,
+		[this](const TMap<int32, bool>& NewMap)
+		{
+			bool bAnySelected = false;
+			for (const TPair<int32, bool>& KeyValue : NewMap)
+			{
+				if (KeyValue.Value)
+				{
+					bAnySelected = true;
+					break;
+				}
+			}
+
+			HiddenTriangles.Reset();
+			if (bAnySelected)
+			{
+				for (const TPair<int32, bool>& KeyValue : NewMap)
+				{
+					if (KeyValue.Value == false)
+					{
+						const int32 PatternIndex = KeyValue.Key;
+						if (PatternIndex < PatternTriangleOffsetAndNum.Num())
+						{
+							const TPair<int32, int32> StartAndNum = PatternTriangleOffsetAndNum[PatternIndex];
+							for (int32 TID = StartAndNum.Key; TID < StartAndNum.Key + StartAndNum.Value; ++TID)
+							{
+								HiddenTriangles.Add(TID);
+							}
+						}
+					}
+				}
+			}
+
+			MeshElementsDisplay->NotifyMeshChanged();
+			DynamicMeshComponent->FastNotifySecondaryTrianglesChanged();
+		},
+		[this](const TMap<int32, bool>& A, const TMap<int32, bool>& B)		// Not-equal function for TMap
+		{
+			return (!A.OrderIndependentCompareEqual(B));
+		}
+	);
+	AddToolPropertySource(ShowHideProperties);
+
 
 	// disable view properties
 	SetViewPropertiesEnabled(false);
@@ -331,6 +414,43 @@ void UClothEditorWeightMapPaintTool::Setup()
 				DynamicMeshToWeight = Cloth.GetSimVertex3DLookup();
 				WeightToDynamicMesh = Cloth.GetSimVertex2DLookup();
 			}
+
+			const bool bIsRenderMode = ClothEditorContextObject->GetConstructionViewMode() == EClothPatternVertexType::Render;
+			const int32 NumPatterns = bIsRenderMode ? Cloth.GetNumRenderPatterns() : Cloth.GetNumSimPatterns();		
+			
+			PatternTriangleOffsetAndNum.SetNum(NumPatterns);
+
+			TSet<int32> NonEmptyPatternIDs;
+
+			for (int32 PatternIndex = 0; PatternIndex < NumPatterns; ++PatternIndex)
+			{
+				TPair<int32, int32>& OffsetAndNum = PatternTriangleOffsetAndNum[PatternIndex];
+				if (bIsRenderMode)
+				{
+					FCollectionClothRenderPatternConstFacade RenderPattern = Cloth.GetRenderPattern(PatternIndex);
+					OffsetAndNum.Key = RenderPattern.GetRenderFacesOffset();
+					OffsetAndNum.Value = RenderPattern.GetNumRenderFaces();
+				}
+				else
+				{
+					FCollectionClothSimPatternConstFacade SimPattern = Cloth.GetSimPattern(PatternIndex);
+					OffsetAndNum.Key = SimPattern.GetSimFacesOffset();
+					OffsetAndNum.Value = SimPattern.GetNumSimFaces();
+				}
+
+				if (OffsetAndNum.Value > 0)
+				{
+					NonEmptyPatternIDs.Add(PatternIndex);
+				}
+			}
+
+			// Initialize the ShowPatterns map from found pattern indices
+			ShowHideProperties->ShowPatterns.Reset();
+			for (const int32 PatternID : NonEmptyPatternIDs)
+			{
+				ShowHideProperties->ShowPatterns.Add({ PatternID, false });
+			}
+		
 		}
 	}
 
@@ -373,6 +493,13 @@ void UClothEditorWeightMapPaintTool::Setup()
 
 	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->Name;
 	SetToolPropertySourceEnabled(UpdateWeightMapProperties, true);
+
+	DynamicMeshComponent->EnableSecondaryTriangleBuffers(
+		[this](const FDynamicMesh3* Mesh, int32 TriangleID)
+		{
+			return PendingHiddenTriangles.Contains(TriangleID) || HiddenTriangles.Contains(TriangleID);
+		});
+	DynamicMeshComponent->SetSecondaryBuffersVisibility(false);
 
 
 	// update colors
@@ -492,7 +619,8 @@ void UClothEditorWeightMapPaintTool::DecreaseBrushRadiusSmallStepAction()
 bool UClothEditorWeightMapPaintTool::IsInBrushSubMode() const
 {
 	return FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Brush
-		|| FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Fill;
+		|| FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Fill
+	    || FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::HideTriangles;
 }
 
 
@@ -550,6 +678,14 @@ void UClothEditorWeightMapPaintTool::OnEndStroke()
 	}
 
 	GetActiveBrushOp()->EndStroke(GetSculptMesh(), LastStamp, VertexROI);
+
+	if (PendingHiddenTriangles.Num() > 0)
+	{
+		HiddenTriangles.Append(PendingHiddenTriangles);
+		PendingHiddenTriangles.Reset();
+		MeshElementsDisplay->NotifyMeshChanged();
+		DynamicMeshComponent->FastNotifySecondaryTrianglesChanged();
+	}
 
 	UpdateVertexColorOverlay(&TriangleROI);
 	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
@@ -746,10 +882,29 @@ bool UClothEditorWeightMapPaintTool::ApplyStamp()
 		WeightBrushOp->bApplyRadiusLimit = false;
 	}
 
-	FDynamicMesh3* Mesh = GetSculptMesh();
-	WeightBrushOp->ApplyStampByVertices(Mesh, CurrentStamp, VertexROI, ROIWeightValueBuffer);
+	bool bUpdated = false;
+	if (FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Brush || FilterProperties->SubToolType == EClothEditorWeightMapPaintInteractionType::Fill)
+	{
+		FDynamicMesh3* Mesh = GetSculptMesh();
+		WeightBrushOp->ApplyStampByVertices(Mesh, CurrentStamp, VertexROI, ROIWeightValueBuffer);
+		bUpdated = SyncMeshWithWeightBuffer(Mesh);
+	}
+	else
+	{
+		bool bAnyModified = false;
+		for (int32 TID : TriangleROI)
+		{
+			bool bModified = false;
+			PendingHiddenTriangles.Add(TID, &bModified);
+			bAnyModified = bAnyModified || bModified;
+		}
 
-	bool bUpdated = SyncMeshWithWeightBuffer(Mesh);
+		if (bAnyModified)
+		{
+			DynamicMeshComponent->FastNotifySecondaryTrianglesChanged();
+		}
+	}
+	
 
 	LastStamp = CurrentStamp;
 	LastStamp.TimeStamp = FDateTime::Now();
@@ -1284,9 +1439,18 @@ int32 UClothEditorWeightMapPaintTool::FindHitSculptMeshTriangle(const FRay3d& Lo
 		return IndexConstants::InvalidID;
 	}
 
-	if (GetBrushCanHitBackFaces())
+	if (FilterProperties->bHitBackFaces)
 	{
-		return Octree.FindNearestHitObject(LocalRay);
+		const int32 HitTID = Octree.FindNearestHitObject(LocalRay,
+			[this](int TriangleID)
+			{ 
+				if (HiddenTriangles.Contains(TriangleID))
+				{
+					return false;
+				}
+				return true;
+			});
+		return HitTID;
 	}
 	else
 	{
@@ -1295,13 +1459,18 @@ int32 UClothEditorWeightMapPaintTool::FindHitSculptMeshTriangle(const FRay3d& Lo
 		FViewCameraState StateOut;
 		GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(StateOut);
 		FVector3d LocalEyePosition(CurTargetTransform.InverseTransformPosition((FVector3d)StateOut.Position));
-		int HitTID = Octree.FindNearestHitObject(LocalRay,
-			[this, Mesh, &LocalEyePosition](int TriangleID) {
-			FVector3d Normal, Centroid;
-			double Area;
-			Mesh->GetTriInfo(TriangleID, Normal, Area, Centroid);
-			return Normal.Dot((Centroid - LocalEyePosition)) < 0;
-		});
+		const int32 HitTID = Octree.FindNearestHitObject(LocalRay,
+			[this, Mesh, &LocalEyePosition](int TriangleID) 
+			{
+				if (HiddenTriangles.Contains(TriangleID))
+				{
+					return false;
+				}
+				FVector3d Normal, Centroid;
+				double Area;
+				Mesh->GetTriInfo(TriangleID, Normal, Area, Centroid);
+				return Normal.Dot((Centroid - LocalEyePosition)) < 0;
+			});
 		return HitTID;
 	}
 }
@@ -1686,6 +1855,23 @@ void UClothEditorWeightMapPaintTool::InvertWeightsAction()
 	EndChange();
 }
 
+void UClothEditorWeightMapPaintTool::ClearHiddenAction()
+{
+	HiddenTriangles.Reset();
+
+	for (TPair<int32, bool>& PatternSelection : ShowHideProperties->ShowPatterns)
+	{
+		PatternSelection.Value = false;
+	}
+
+	UpdateVertexColorOverlay();
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+
+	MeshElementsDisplay->NotifyMeshChanged();
+	DynamicMeshComponent->FastNotifySecondaryTrianglesChanged();
+	GetToolManager()->PostInvalidation();
+}
+
 void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 {
 	check(ActiveWeightMap);
@@ -1985,6 +2171,9 @@ void UClothEditorWeightMapPaintTool::ApplyAction(EClothEditorWeightMapPaintToolA
 		InvertWeightsAction();
 		break;
 
+	case EClothEditorWeightMapPaintToolActions::ClearHiddenTriangles:
+		ClearHiddenAction();
+		break;
 	}
 }
 
@@ -2007,8 +2196,18 @@ void UClothEditorWeightMapPaintTool::UpdateVertexColorOverlay(const TSet<int>* T
 		{
 			float VertexWeight;
 			ActiveWeightMap->GetValue(Tri[TriVertIndex], &VertexWeight);
+			VertexWeight = FMath::Clamp(VertexWeight, 0.0f, 1.0f);
 
-			const FVector4f NewColor = FVector4f(VertexWeight, VertexWeight, VertexWeight, 1.0f);
+			FVector4f NewColor;
+			if (FilterProperties->ColorMap == EClothEditorWeightMapDisplayType::BlackAndWhite)
+			{
+				NewColor = FVector4f(VertexWeight, VertexWeight, VertexWeight, 1.0f);
+			}
+			else
+			{
+				NewColor = VertexWeight * FVector4f(0.9f, 0.05f, 0.05f, 1.0f) + (1.0f - VertexWeight) * FVector4f(0.65f, 0.65f, 0.65f, 1.0f);
+			}
+
 			ColorOverlay->SetElement(ColorElementTri[TriVertIndex], NewColor);
 		}
 	};
