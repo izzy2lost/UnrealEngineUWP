@@ -2,7 +2,6 @@
 
 #include "Elements/PCGDataTableRowToParamData.h"
 
-#include "PCGContext.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
 #include "PCGModule.h"
@@ -74,18 +73,44 @@ FString UPCGDataTableRowToParamDataSettings::GetAdditionalTitleInformation() con
 	return FString::Printf(TEXT("%s[ %s ]"), DataTable ? *DataTable->GetFName().ToString() : TEXT("None"), *RowName.ToString());
 }
 
+bool FPCGDataTableRowToParamData::PrepareDataInternal(FPCGContext* Context) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataTableRowToParamData::PrepareDataInternal);
+
+	check(Context);
+
+	const UPCGDataTableRowToParamDataSettings* Settings = Context->GetInputSettings<UPCGDataTableRowToParamDataSettings>();
+	check(Settings);
+
+	if (Settings->DataTable.IsNull())
+	{
+		return true;
+	}
+
+	FPCGDataTableRowToParamDataContext* ThisContext = static_cast<FPCGDataTableRowToParamDataContext*>(Context);
+
+	if (!ThisContext->WasLoadRequested())
+	{
+		return ThisContext->RequestResourceLoad(ThisContext, { Settings->DataTable.ToSoftObjectPath() }, !Settings->bSynchronousLoad);
+	}
+
+	return true;
+}
+
 bool FPCGDataTableRowToParamData::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataTableRowToParamData::Execute);
+
+	check(Context);
 
 	const UPCGDataTableRowToParamDataSettings* Settings = Context->GetInputSettings<UPCGDataTableRowToParamDataSettings>();
 	check(Settings);
 
 	const FName RowName = Settings->RowName;
 
-	TSoftObjectPtr<UDataTable> DataTablePtr = Settings->DataTable;
+	const TSoftObjectPtr<UDataTable> DataTablePtr = Settings->DataTable;
 
-	const UDataTable* DataTable = DataTablePtr.LoadSynchronous();
+	const UDataTable* DataTable = DataTablePtr.Get();
 	if (!DataTable)
 	{
 		PCGE_LOG(Warning, GraphAndLog, LOCTEXT("DataTableInvalid", "FPCGDataTableRowToParamData: Data table is invalid"));

@@ -3,13 +3,14 @@
 #pragma once
 
 #include "PCGContext.h"
+#include "Async/PCGAsyncLoadingContext.h"
 #include "Data/PCGPointData.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
 
-struct FPCGExternalDataContext : public FPCGContext
+struct FPCGExternalDataContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 	// Used for data table parsing
 	struct FRowToPointAccessors

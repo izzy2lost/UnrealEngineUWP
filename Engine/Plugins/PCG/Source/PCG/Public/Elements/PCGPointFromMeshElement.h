@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include "PCGContext.h"
 #include "PCGSettings.h"
+#include "Async/PCGAsyncLoadingContext.h"
 
 #include "UObject/SoftObjectPtr.h"
 
@@ -38,10 +40,17 @@ public:
 	/** Name of the string attribute to be created and hold a SoftObjectPath to the StaticMesh */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	FName MeshPathAttributeName = NAME_None;
+
+	/** By default, mesh loading is asynchronous, can force it synchronous if needed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
 };
 
-class FPCGPointFromMeshElement : public IPCGElement
+struct FPCGPointFromMeshContext : public FPCGContext, public IPCGAsyncLoadingContext {};
+
+class FPCGPointFromMeshElement : public IPCGElementWithCustomContext<FPCGPointFromMeshContext>
 {
 protected:
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };

@@ -86,11 +86,35 @@ void UPCGTextureSamplerSettings::UpdateDisplayTextureArrayIndex()
 }
 #endif
 
+bool FPCGTextureSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGTextureSamplerElement::Execute);
+
+	FPCGTextureSamplerContext* Context = static_cast<FPCGTextureSamplerContext*>(InContext);
+	check(Context);
+
+	const UPCGTextureSamplerSettings* Settings = Context->GetInputSettings<UPCGTextureSamplerSettings>();
+	check(Settings);
+
+	if (Settings->Texture.IsNull())
+	{
+		return true;
+	}
+
+	if (!Context->WasLoadRequested())
+	{
+		return Context->RequestResourceLoad(Context, { Settings->Texture.ToSoftObjectPath() }, !Settings->bSynchronousLoad);
+	}
+
+	return true;
+}
+
 bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGTextureSamplerElement::Execute);
 
 	FPCGTextureSamplerContext* Context = static_cast<FPCGTextureSamplerContext*>(InContext);
+	check(Context);
 
 	if (Context->bIsPaused)
 	{
@@ -110,7 +134,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 		return true;
 	}
 
-	UTexture* Texture = Settings->Texture.LoadSynchronous();
+	UTexture* Texture = Settings->Texture.Get();
 
 	if (!Texture)
 	{

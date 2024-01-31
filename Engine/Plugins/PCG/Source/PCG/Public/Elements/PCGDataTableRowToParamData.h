@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include "PCGContext.h"
 #include "PCGSettings.h"
+#include "Async/PCGAsyncLoadingContext.h"
 
 #include "PCGDataTableRowToParamData.generated.h"
 
@@ -41,6 +43,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases = "PathOverride"))
 	TSoftObjectPtr<UDataTable> DataTable;
 
+	/** By default, data table loading is asynchronous, can force it synchronous if needed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FString PathOverride_DEPRECATED = FString();
@@ -55,13 +61,16 @@ protected:
 	// ~End UPCGSettings interface
 };
 
-class FPCGDataTableRowToParamData : public IPCGElement
+struct FPCGDataTableRowToParamDataContext : public FPCGContext, public IPCGAsyncLoadingContext {};
+
+class FPCGDataTableRowToParamData : public IPCGElementWithCustomContext<FPCGDataTableRowToParamDataContext>
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
 	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 
 protected:
+	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
 

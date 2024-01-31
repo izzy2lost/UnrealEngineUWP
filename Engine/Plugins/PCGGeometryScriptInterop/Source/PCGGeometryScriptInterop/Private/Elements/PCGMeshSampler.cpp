@@ -116,9 +116,22 @@ bool FPCGMeshSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 	const UPCGMeshSamplerSettings* Settings = Context->GetInputSettings<UPCGMeshSamplerSettings>();
 	check(Settings);
 
-	// TODO: Could be async
-	TSoftObjectPtr<UStaticMesh> StaticMeshPtr = Settings->StaticMesh;
-	UStaticMesh* StaticMesh = StaticMeshPtr.LoadSynchronous();
+	const TSoftObjectPtr<UStaticMesh> StaticMeshPtr = Settings->StaticMesh;
+	if (StaticMeshPtr.IsNull())
+	{
+		return true;
+	}
+
+	// 1. Request load for mesh. Return false if we need to wait, otherwise continue.
+	if (!Context->WasLoadRequested())
+	{
+		if (!Context->RequestResourceLoad(Context, { StaticMeshPtr.ToSoftObjectPath() }, !Settings->bSynchronousLoad))
+		{
+			return false;
+		}
+	}
+
+	UStaticMesh* StaticMesh = StaticMeshPtr.Get();
 
 	if (!StaticMesh)
 	{
