@@ -430,25 +430,8 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 		Style->Set("Icons.Toolbar.Settings", new IMAGE_BRUSH_SVG("Starship/Common/settings", Icon20x20));
 
 		// Constraint Manager Icons
-		{
-			Style->Set("Icons.ConstraintManager.LookAt", new IMAGE_BRUSH_SVG("Starship/Common/LookAt", Icon16x16));
-			Style->Set("Icons.ConstraintManager.ParentHierarchy", new IMAGE_BRUSH_SVG("Starship/Common/ParentHierarchy", Icon16x16));
-			
-			const FButtonStyle ConstraintOptionButton = FButtonStyle()
-				.SetNormal(FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.f))
-				.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
-				.SetHoveredForeground(FLinearColor::White)
-				.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
-				.SetPressedForeground(FLinearColor::White)
-				.SetPressedPadding(FMargin(0.0, 1.0, 0.0, 0.0));
-			
-			FComboButtonStyle ConstraintComboButton = FComboButtonStyle()
-				.SetButtonStyle(ConstraintOptionButton)
-				.SetDownArrowImage(IMAGE_BRUSH_SVG("Starship/Common/ellipsis-vertical-narrow", FVector2f(6.f, 15.f)));
-				ConstraintComboButton.ButtonStyle = ConstraintOptionButton;
-			
-			Style->Set( "ConstraintManager.ComboButton", ConstraintComboButton);
-		}
+		Style->Set("Icons.ConstraintManager.LookAt", new IMAGE_BRUSH_SVG("Starship/Common/LookAt", Icon16x16));
+		Style->Set("Icons.ConstraintManager.ParentHierarchy", new IMAGE_BRUSH_SVG("Starship/Common/ParentHierarchy", Icon16x16));
 
 		Style->Set("Icons.Role", new IMAGE_BRUSH_SVG("Starship/Common/Role", Icon16x16));
 		Style->Set("Icons.Merge", new IMAGE_BRUSH_SVG("Starship/Common/Merge", Icon16x16));

@@ -225,7 +225,7 @@ void SConstraintMenuEntry::Construct(
 		.AutoWidth()
 		[
 			SNew(SComboButton)
-			.ComboButtonStyle(FAppStyle::Get(), "ConstraintManager.ComboButton")
+			.ComboButtonStyle(FControlRigEditorStyle::Get(), "ConstraintManager.ComboButton")
 			.MenuContent()
 			[
 				GenerateConstraintDefaultWidget()
