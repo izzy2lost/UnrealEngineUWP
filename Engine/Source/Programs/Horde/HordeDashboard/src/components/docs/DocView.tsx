@@ -1,13 +1,13 @@
-import { ScrollablePane, Stack, mergeStyleSets } from "@fluentui/react";
+import { Stack, mergeStyleSets } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
-import { Navigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Markdown } from "../../base/components/Markdown";
 import { ISideRailLink, SideRail } from "../../base/components/SideRail";
 import { useWindowSize } from "../../base/utilities/hooks";
+import { getHordeStyling } from "../../styles/Styles";
 import { BreadcrumbItem, Breadcrumbs } from "../Breadcrumbs";
 import { TopNav } from "../TopNav";
-import { getHordeStyling } from "../../styles/Styles";
 
 type Anchor = {
    text: string;
@@ -222,11 +222,6 @@ const DocCrumbs: React.FC<{ landingPage: boolean }> = observer(({ landingPage })
    return <Breadcrumbs items={crumbs} />
 
 })
-
-
-export const LandingDocViewRedirect = () => {
-   return <Navigate to={`/docs/Landing.md`} replace={true} />
-}
 
 export const DocView = () => {
 

@@ -1173,7 +1173,7 @@ const UserHomeViewInner: React.FC = () => {
                </ScrollablePane>
             </div>
          </FocusZone>
-      </Stack>
+      </Stack> 
    </Stack>
 };
 
