@@ -39,40 +39,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogD3D11RHI, Log, All);
 #define WITH_DX_PERF	1
 #endif
 
-#if INTEL_METRICSDISCOVERY
-
-THIRD_PARTY_INCLUDES_START
-__pragma(warning(disable: 4263))
-__pragma(warning(disable: 4264))
-#include "metrics_discovery_helper_dx11.h"
-THIRD_PARTY_INCLUDES_END
-
-extern bool GDX11IntelMetricsDiscoveryEnabled;
-
-struct Intel_MetricsDiscovery_ContextData
-{
-	Intel_MetricsDiscovery_ContextData() :
-		MDMetricSet(nullptr),
-		MDConcurrentGroup(nullptr)
-	{
-		ReportInUse = 1;
-		LastGPUTime = 0.0;
-		bFrameBegun = false;
-	}
-
-	MDH_Context MDHContext;
-	MDH_RangeMetricsDX11 MDHRangeMetrics;
-	MetricsDiscovery::IMetricSet_1_0* MDMetricSet;
-	MetricsDiscovery::IConcurrentGroup_1_0* MDConcurrentGroup;
-
-	uint32 GPUTimeIndex;
-
-	uint32 ReportInUse;
-	uint64 LastGPUTime;
-	bool bFrameBegun;
-};
-#endif
-
 #if INTEL_EXTENSIONS
 THIRD_PARTY_INCLUDES_START
 	#define INTC_IGDEXT_D3D11 1
@@ -756,10 +722,6 @@ protected:
 	UE::RHICore::Nvidia::Aftermath::D3D11::FCommandList AftermathHandle = nullptr;
 #endif
 
-#if INTEL_METRICSDISCOVERY
-	TUniquePtr<Intel_MetricsDiscovery_ContextData> IntelMetricsDiscoveryHandle;
-#endif
-
 	/** The global D3D device's immediate context */
 	TRefCountPtr<FD3D11Device> Direct3DDevice;
 
@@ -986,15 +948,6 @@ protected:
 	bool bUAVOverlapEnabled = false;
 	void EnableUAVOverlap();
 	void DisableUAVOverlap();
-
-#if INTEL_METRICSDISCOVERY
-	void CreateIntelMetricsDiscovery();
-	void StartIntelMetricsDiscovery();
-	void StopIntelMetricsDiscovery();
-	void IntelMetricsDicoveryBeginFrame();
-	void IntelMetricsDicoveryEndFrame();
-	double IntelMetricsDicoveryGetGPUTime();
-#endif
 
 	bool SetupDisplayHDRMetaData();
 

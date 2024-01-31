@@ -30,7 +30,6 @@ public class D3D11RHI : ModuleRules
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelExtensionsFramework");
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
 	}

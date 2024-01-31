@@ -167,6 +167,7 @@ namespace UnrealBuildTool
 
 		public bool bUseIris => Inner.bUseIris;
 
+		[Obsolete("Deprecated in UE5.4 - No longer used.")]
 		public bool bCompileIntelMetricsDiscovery => Inner.bCompileIntelMetricsDiscovery;
 
 		public bool bCompilePython => Inner.bCompilePython;
