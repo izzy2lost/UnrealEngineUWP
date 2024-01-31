@@ -219,7 +219,7 @@ namespace AutomationTool.Tasks
 			{
 				DirectoryReference.CreateDirectory(PlatformCookedDirectory);
 			}
-			FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, ".projectstore");
+			FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, "ue.projectstore");
 
 			CbWriter Writer = new CbWriter();
 			Writer.BeginObject();
