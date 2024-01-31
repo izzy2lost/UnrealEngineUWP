@@ -33,7 +33,7 @@
 		</Property>
 
 		<Node Name="Check Documentation">
-			<CheckMarkdown Files="$(RootDir)/Engine/Source/Programs/Horde/Docs/..."/>
+			<CheckMarkdown Files="$(RootDir)/Engine/Source/Programs/Horde/README.md;$(RootDir)/Engine/Source/Programs/Horde/Docs/..."/>
 		</Node>
 
 		<Node Name="Analyze HordeServer" Requires="Check Documentation">
