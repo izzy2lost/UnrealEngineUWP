@@ -64,7 +64,7 @@ TiledBlobPtr T_Transform::Create(MixUpdateCyclePtr Cycle, BufferDescriptor Desir
 		->AddArg(ARG_FLOAT(ColorParam.ShowDebugGrid, "BlendDebugGrid"))
 		;
 
-	FString Name = FString::Printf(TEXT("TransformBlit.[%llu]"), Cycle->GetBatch()->GetBatchId());
+	FString Name = FString::Printf(TEXT("T_Transform.[%llu]"), Cycle->GetBatch()->GetBatchId());
 
 	TiledBlobPtr Result = RenderJob->InitResult(Name, &DesiredOutputDesc);
 	Cycle->AddJob(TargetId, std::move(RenderJob));

@@ -451,18 +451,8 @@ TiledBlobPtr Job::InitResult(FString InNewName, const BufferDescriptor* InDesire
 	DebugJobName = InNewName;
 	FString NewName = Transform->GetName();
 
-	if (NewName.IsEmpty())
+	if (!InNewName.IsEmpty())
 		NewName = InNewName;
-	else
-	{
-		for (size_t ArgIndex = 0; ArgIndex < Args.Num(); ArgIndex++)
-		{
-			const JobArgPtr& Arg = Args[ArgIndex];
-			const BufferDescriptor* ArgDesc = Arg->GetDescriptor();
-			if (ArgDesc)
-				NewName += "-" + ArgDesc->Name;
-		}
-	}
 
 	ResultDesc.bIsTransient = IsDiscard();
 	ResultDesc.Name = NewName;
