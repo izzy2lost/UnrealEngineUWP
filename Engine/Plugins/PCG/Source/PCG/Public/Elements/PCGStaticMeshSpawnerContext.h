@@ -3,6 +3,7 @@
 #pragma once
 
 #include "PCGContext.h"
+#include "Async/PCGAsyncLoadingContext.h"
 #include "MeshSelectors/PCGMeshSelectorBase.h"
 #include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
 
@@ -18,7 +19,7 @@ struct FPCGInstancesAndWeights
 };
 
 USTRUCT(BlueprintType)
-struct FPCGStaticMeshSpawnerContext : public FPCGContext
+struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
 	GENERATED_BODY()
 
@@ -51,8 +52,10 @@ struct FPCGStaticMeshSpawnerContext : public FPCGContext
 	FPCGMeshMaterialOverrideHelper MaterialOverrideHelper;
 	int32 CurrentPointIndex = 0;
 
-	// Used in all selectors
-	TMap<TSoftObjectPtr<UStaticMesh>, FBox> MeshToBoundingBox;
+	// Used in all selectors if we have to change the out points bounds by the mesh bounds. Will be empty otherwise.
+	// We need to keep all point indices that will spawn this mesh, in all output point data.
+
+	TMap<TSoftObjectPtr<UStaticMesh>, TMap<UPCGPointData*, TArray<int32>>> MeshToOutPoints;
 
 	// Used in by-attribute selector
 	TMap<PCGMetadataValueKey, TSoftObjectPtr<UStaticMesh>> ValueKeyToMesh;

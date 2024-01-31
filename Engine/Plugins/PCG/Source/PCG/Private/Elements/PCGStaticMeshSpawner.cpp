@@ -254,6 +254,33 @@ bool FPCGStaticMeshSpawnerElement::PrepareDataInternal(FPCGContext* InContext) c
 		}
 	}
 
+	IPCGAsyncLoadingContext* AsyncLoadingContext = static_cast<IPCGAsyncLoadingContext*>(Context);
+
+	if (Context->CurrentInputIndex == Inputs.Num() && !AsyncLoadingContext->WasLoadRequested() && !Context->MeshInstancesData.IsEmpty() && !Settings->bSynchronousLoad)
+	{
+		TArray<FSoftObjectPath> ObjectsToLoad;
+		for (const FPCGStaticMeshSpawnerContext::FPackedInstanceListData& InstanceData : Context->MeshInstancesData)
+		{
+			for (const FPCGMeshInstanceList& MeshInstanceList : InstanceData.MeshInstances)
+			{
+				if (!MeshInstanceList.Descriptor.StaticMesh.IsNull())
+				{
+					ObjectsToLoad.AddUnique(MeshInstanceList.Descriptor.StaticMesh.ToSoftObjectPath());
+				}
+
+				for (const TSoftObjectPtr<UMaterialInterface>& OverrideMaterial : MeshInstanceList.Descriptor.OverrideMaterials)
+				{
+					if (!OverrideMaterial.IsNull())
+					{
+						ObjectsToLoad.AddUnique(OverrideMaterial.ToSoftObjectPath());
+					}
+				}
+			}
+		}
+
+		return AsyncLoadingContext->RequestResourceLoad(Context, std::move(ObjectsToLoad), /*bAsynchronous=*/true);
+	}
+
 	return true;
 }
 
@@ -275,7 +302,29 @@ bool FPCGStaticMeshSpawnerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			while (Context->CurrentDataIndex < InstanceList.MeshInstances.Num())
 			{
-				SpawnStaticMeshInstances(Context, InstanceList.MeshInstances[Context->CurrentDataIndex], InstanceList.TargetActor, InstanceList.PackedCustomData[Context->CurrentDataIndex]);
+				const FPCGMeshInstanceList& MeshInstance = InstanceList.MeshInstances[Context->CurrentDataIndex];
+				SpawnStaticMeshInstances(Context, MeshInstance, InstanceList.TargetActor, InstanceList.PackedCustomData[Context->CurrentDataIndex]);
+
+				// Now that the mesh is loaded/spawned, set the bounds to out points if requested.
+				if (MeshInstance.Descriptor.StaticMesh && Settings->bApplyMeshBoundsToPoints)
+				{
+					if (TMap<UPCGPointData*, TArray<int32>>* OutPointDataToPointIndex = Context->MeshToOutPoints.Find(MeshInstance.Descriptor.StaticMesh))
+					{
+						const FBox Bounds = MeshInstance.Descriptor.StaticMesh->GetBoundingBox();
+						for (TPair<UPCGPointData*, TArray<int32>>& It : *OutPointDataToPointIndex)
+						{
+							check(It.Key);
+							TArray<FPCGPoint>& OutPoints = It.Key->GetMutablePoints();
+							for (int32 Index : It.Value)
+							{
+								FPCGPoint& Point = OutPoints[Index];
+								Point.BoundsMin = Bounds.Min;
+								Point.BoundsMax = Bounds.Max;
+							}
+						}
+					}
+				}
+
 				++Context->CurrentDataIndex;
 
 				if (Context->AsyncState.ShouldStop())
@@ -320,7 +369,7 @@ bool FPCGStaticMeshSpawnerElement::CanExecuteOnlyOnMainThread(FPCGContext* Conte
 	return Context->CurrentPhase == EPCGExecutionPhase::Execute || Context->CurrentPhase == EPCGExecutionPhase::PrepareData;
 }
 
-void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const
+void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const
 {
 	// Populate the (H)ISM from the previously prepared entries
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGStaticMeshSpawnerElement::Execute::PopulateISMs);
@@ -330,7 +379,7 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGContext* Context
 		return;
 	}
 
-	// TODO: we could likely pre-load these meshes asynchronously in the settings
+	// Will be synchronously loaded if not loaded. But by default it should already have been loaded asynchronously in PrepareData, so this is free.
 	UStaticMesh* LoadedMesh = InstanceList.Descriptor.StaticMesh.LoadSynchronous();
 
 	if (!LoadedMesh)
@@ -344,9 +393,9 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGContext* Context
 		return;
 	}
 
-	// TODO: we could likely pre-load these materials asynchronously in the settings
 	for (TSoftObjectPtr<UMaterialInterface> OverrideMaterial : InstanceList.Descriptor.OverrideMaterials)
 	{
+		// Will be synchronously loaded if not loaded. But by default it should already have been loaded asynchronously in PrepareData, so this is free.
 		if (OverrideMaterial.IsValid() && !OverrideMaterial.LoadSynchronous())
 		{
 			PCGE_LOG(Error, GraphAndLog, FText::Format(LOCTEXT("OverrideMaterialLoadFailed", "Unable to load override material '{0}'"), FText::FromString(OverrideMaterial.ToString())));
@@ -366,6 +415,7 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGContext* Context
 
 	const UPCGStaticMeshSpawnerSettings* Settings = Context->GetInputSettings<UPCGStaticMeshSpawnerSettings>();
 	check(Settings);
+
 	UPCGManagedISMComponent* MISMC = UPCGActorHelpers::GetOrCreateManagedISMC(TargetActor, Context->SourceComponent.Get(), Settings->UID, Params);
 	
 	check(MISMC);

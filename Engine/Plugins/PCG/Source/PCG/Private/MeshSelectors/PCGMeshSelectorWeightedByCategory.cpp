@@ -183,7 +183,6 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 	int32 LastCheckpointIndex = CurrentPointIndex;
 	constexpr int32 TimeSlicingCheckFrequency = 1024;
 	TMap<TSoftObjectPtr<UStaticMesh>, PCGMetadataValueKey>& MeshToValueKey = Context.MeshToValueKey;
-	TMap<TSoftObjectPtr<UStaticMesh>, FBox>& MeshToBoundingBox = Context.MeshToBoundingBox;
 
 	// Assign points to entries
 	const TArray<FPCGPoint>& Points = InPointData->GetPoints();
@@ -232,22 +231,6 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 			{
 				FPCGPoint& OutPoint = OutPoints->Add_GetRef(Point);
 
-				// Update point bounds to reflect StaticMesh bounds
-				if (Settings->bApplyMeshBoundsToPoints)
-				{
-					if (!MeshToBoundingBox.Contains(Mesh) && Mesh.LoadSynchronous())
-					{
-						MeshToBoundingBox.Add(Mesh, Mesh->GetBoundingBox());
-					}
-
-					if (MeshToBoundingBox.Contains(Mesh))
-					{
-						const FBox MeshBounds = MeshToBoundingBox[Mesh];
-						OutPoint.BoundsMin = MeshBounds.Min;
-						OutPoint.BoundsMax = MeshBounds.Max;
-					}
-				}
-
 				PCGMetadataValueKey* OutValueKey = MeshToValueKey.Find(Mesh);
 				if (!OutValueKey)
 				{
@@ -259,6 +242,13 @@ bool UPCGMeshSelectorWeightedByCategory::SelectInstances(
 
 				OutPointData->Metadata->InitializeOnSet(OutPoint.MetadataEntry);
 				OutAttribute->SetValueFromValueKey(OutPoint.MetadataEntry, *OutValueKey);
+
+				if (Settings->bApplyMeshBoundsToPoints)
+				{
+					TArray<int32>& PointIndices = Context.MeshToOutPoints.FindOrAdd(Mesh).FindOrAdd(OutPointData);
+					// CurrentPointIndex - 1, because CurrentPointIndex is incremented at the beginning of the loop
+					PointIndices.Emplace(CurrentPointIndex - 1);
+				}
 			}
 		}
 
