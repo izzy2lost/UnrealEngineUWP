@@ -6,7 +6,6 @@
 #include "AssetRegistry/AssetDataToken.h"
 #include "UObject/ObjectSaveContext.h"
 
-#include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ToolMenus.h"
@@ -15,6 +14,7 @@
 #include "DataValidationCommandlet.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Logging/MessageLog.h"
+#include "UObject/ICookInfo.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "LevelEditorMenuContext.h"
@@ -59,7 +59,7 @@ IMPLEMENT_MODULE(FDataValidationModule, DataValidation)
 
 void FDataValidationModule::StartupModule()
 {	
-	UCookOnTheFlyServer::OnValidateSourcePackage().BindRaw(this, &FDataValidationModule::OnValidateSourcePackageDuringCook);
+	UE::Cook::FDelegates::ValidateSourcePackage.BindRaw(this, &FDataValidationModule::OnValidateSourcePackageDuringCook);
 
 	if (!IsRunningCommandlet() && !IsRunningGame() && FSlateApplication::IsInitialized())
 	{
@@ -80,7 +80,7 @@ void FDataValidationModule::StartupModule()
 
 void FDataValidationModule::ShutdownModule()
 {
-	UCookOnTheFlyServer::OnValidateSourcePackage().Unbind();
+	UE::Cook::FDelegates::ValidateSourcePackage.Unbind();
 
 	if (!IsRunningCommandlet() && !IsRunningGame() && !IsRunningDedicatedServer())
 	{

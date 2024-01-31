@@ -847,9 +847,6 @@ public:
 	UNREALED_API void OnObjectUpdated( UObject *Object );
 	UNREALED_API void OnObjectSaved( UObject *ObjectSaved, FObjectPreSaveContext SaveContext );
 
-	DECLARE_DELEGATE_RetVal_TwoParams(EDataValidationResult, FOnValidateSourcePackage, UPackage* /*Package*/, FDataValidationContext& /*ValidationContext*/);
-	static FOnValidateSourcePackage& OnValidateSourcePackage() { return ValidateSourcePackageEvent; }
-
 	DECLARE_MULTICAST_DELEGATE(FOnCookByTheBookStarted);
 	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookByTheBookStarted (CoreUObject/Public/UObject/ICookInfo.h.")
 	static FOnCookByTheBookStarted& OnCookByTheBookStarted() { return CookByTheBookStartedEvent; };
@@ -1539,9 +1536,6 @@ private:
 	double LoadBusyWarnTimeSeconds = MAX_flt;
 	/** Tracking for the ticking of tickable cook objects */
 	double LastCookableObjectTickTime = 0.;
-
-	// Hook into the DataValidation subsystem from the cooker
-	static UNREALED_API FOnValidateSourcePackage ValidateSourcePackageEvent;
 
 	// Cook events that can be listenned to
 	static FOnCookByTheBookStarted CookByTheBookStartedEvent;

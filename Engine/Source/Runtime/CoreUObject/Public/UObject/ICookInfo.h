@@ -13,6 +13,10 @@
 
 #if WITH_EDITOR
 
+enum class EDataValidationResult : uint8;
+class FDataValidationContext;
+class UPackage;
+
 namespace UE::Cook { class IMPCollector; }
 
 namespace UE::Cook
@@ -132,6 +136,7 @@ public:
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FCookInfoEvent, ICookInfo&);
+DECLARE_DELEGATE_RetVal_TwoParams(EDataValidationResult, FValidateSourcePackage, UPackage* /*Package*/, FDataValidationContext& /*ValidationContext*/);
 
 /** UE::Cook::FDelegates: callbacks for cook events. */
 struct FDelegates
@@ -139,6 +144,7 @@ struct FDelegates
 public:
 	static COREUOBJECT_API FCookInfoEvent CookByTheBookStarted;
 	static COREUOBJECT_API FCookInfoEvent CookByTheBookFinished;
+	static COREUOBJECT_API FValidateSourcePackage ValidateSourcePackage;
 };
 
 } // namespace UE::Cook
