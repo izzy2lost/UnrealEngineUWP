@@ -169,6 +169,12 @@ public:
 	bool ConvertFromPreset();
 	bool ConvertToPreset(const FMetasoundFrontendDocument& InReferencedDocument);
 
+#if WITH_EDITOR
+	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID) const;
+	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID);
+	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID);
+#endif // WITH_EDITOR
+
 	static bool FindDeclaredInterfaces(const FMetasoundFrontendDocument& InDocument, TArray<const Metasound::Frontend::IInterfaceRegistryEntry*>& OutInterfaces);
 	bool FindDeclaredInterfaces(TArray<const Metasound::Frontend::IInterfaceRegistryEntry*>& OutInterfaces) const;
 
@@ -255,26 +261,46 @@ public:
 	bool RemoveEdgesByNodeClassInterfaceBindings(const FGuid& InOutputNodeID, const FGuid& InInputNodeID);
 	bool RemoveEdgesFromNodeOutput(const FGuid& InNodeID, const FGuid& InVertexID);
 	bool RemoveEdgeToNodeInput(const FGuid& InNodeID, const FGuid& InVertexID);
+
+#if WITH_EDITOR
+	bool RemoveGraphComment(const FGuid& InCommentID);
+#endif // WITH_EDITOR
+
 	bool RemoveGraphInput(FName InInputName);
 	bool RemoveGraphOutput(FName InOutputName);
 	bool RemoveInterface(FName InName);
 	bool RemoveNamedEdges(const TSet<Metasound::Frontend::FNamedEdge>& InNamedEdgesToRemove, TArray<FMetasoundFrontendEdge>* OutRemovedEdges = nullptr);
 	bool RemoveNode(const FGuid& InNodeID);
+
+#if WITH_EDITOR
+	int32 RemoveNodeLocation(const FGuid& InNodeID, const FGuid* InLocationGuid = nullptr);
+#endif // WITH_EDITOR
+
 	bool RemoveNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID);
 	bool RemoveUnusedDependencies();
 	bool RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
 #if WITH_EDITOR
-
 	void SetAuthor(const FString& InAuthor);
+
+	// Sets the editor-only comment to the provided value.
+	// Returns true if the node was found and the comment was updated, false if not.
+	bool SetNodeComment(const FGuid& InNodeID, FString&& InNewComment);
+
+	// Sets the editor-only comment visibility.
+	// Returns true if the node was found and the visibility was set, false if not.
+	bool SetNodeCommentVisible(const FGuid& InNodeID, bool bIsVisible);
 
 	// Sets the editor-only node location of a node with the given ID to the provided location.
 	// Returns true if the node was found and the location was updated, false if not.
-	bool SetNodeLocation(const FGuid& InNodeID, const FVector2D& InLocation);
+	bool SetNodeLocation(const FGuid& InNodeID, const FVector2D& InLocation, const FGuid* InLocationGuid = nullptr);
 #endif // WITH_EDITOR
 
 	bool SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral);
 	bool SetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FMetasoundFrontendLiteral& InLiteral);
+
+	// Sets the document's version number.  Should only be called by document versioning.
+	void SetVersionNumber(const FMetasoundFrontendVersionNumber& InDocumentVersionNumber);
 
 	bool SwapGraphInput(const FMetasoundFrontendClassVertex& InExistingInputVertex, const FMetasoundFrontendClassVertex& NewInputVertex);
 	bool SwapGraphOutput(const FMetasoundFrontendClassVertex& InExistingOutputVertex, const FMetasoundFrontendClassVertex& NewOutputVertex);
@@ -287,10 +313,11 @@ public:
 private:
 	using FFinalizeNodeFunctionRef = TFunctionRef<void(FMetasoundFrontendNode&, const Metasound::Frontend::FNodeRegistryKey&)>;
 
+	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid());
+	FMetasoundFrontendNode* FindNodeInternal(const FGuid& InNodeID);
+
 	const FTopLevelAssetPath GetBuilderClassPath() const;
 	FMetasoundFrontendDocument& GetDocument();
-
-	FMetasoundFrontendNode* AddNodeInternal(const FMetasoundFrontendClassMetadata& InClassMetadata, Metasound::Frontend::FFinalizeNodeFunctionRef FinalizeNode, FGuid InNodeID = FGuid::NewGuid());
 
 	bool FindNodeClassInterfaces(const FGuid& InNodeID, TSet<FMetasoundFrontendVersion>& OutInterfaces) const;
 

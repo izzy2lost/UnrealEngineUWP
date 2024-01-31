@@ -33,7 +33,7 @@ namespace Metasound
 			namespace NodeLayout
 			{
 				const FVector2D DefaultOffsetX { 300.0f, 0.0f };
-				const FVector2D DefaultOffsetY { 0.0f, 80.0f };
+				const FVector2D DefaultOffsetY { 0.0f, 120.0f };
 			} // namespace NodeLayout
 		} // namespace DisplayStyle
 

@@ -605,6 +605,23 @@ TArray<FMetaSoundBuilderNodeOutputHandle> UMetaSoundBuilderBase::FindNodeOutputs
 	return FoundVertices;
 }
 
+#if WITH_EDITOR
+const FMetaSoundFrontendGraphComment* UMetaSoundBuilderBase::FindGraphComment(const FGuid& InCommentID) const
+{
+	return Builder.FindGraphComment(InCommentID);
+}
+
+FMetaSoundFrontendGraphComment* UMetaSoundBuilderBase::FindGraphComment(const FGuid& InCommentID)
+{
+	return Builder.FindGraphComment(InCommentID);
+}
+
+FMetaSoundFrontendGraphComment& UMetaSoundBuilderBase::FindOrAddGraphComment(const FGuid& InCommentID)
+{
+	return Builder.FindOrAddGraphComment(InCommentID);
+}
+#endif // WITH_EDITOR
+
 TArray<FMetaSoundNodeHandle> UMetaSoundBuilderBase::FindInterfaceInputNodes(FName InterfaceName, EMetaSoundBuilderResult& OutResult)
 {
 	TArray<FMetaSoundNodeHandle> NodeHandles;
@@ -802,6 +819,13 @@ void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
 	Builder.ReloadCache();
 }
 
+#if WITH_EDITOR
+bool UMetaSoundBuilderBase::RemoveGraphComment(const FGuid& InCommentID)
+{
+	return Builder.RemoveGraphComment(InCommentID);
+}
+#endif // WITH_EDITOR
+
 void UMetaSoundBuilderBase::RemoveGraphInput(FName Name, EMetaSoundBuilderResult& OutResult)
 {
 	const bool bRemoved = Builder.RemoveGraphInput(Name);
@@ -857,9 +881,28 @@ void UMetaSoundBuilderBase::SetNodeInputDefault(const FMetaSoundBuilderNodeInput
 }
 
 #if WITH_EDITOR
+void UMetaSoundBuilderBase::SetNodeComment(const FMetaSoundNodeHandle& InNodeHandle, const FString& InNewComment, EMetaSoundBuilderResult& OutResult)
+{
+	FString NewComment = InNewComment;
+	const bool bCommentSet = Builder.SetNodeComment(InNodeHandle.NodeID, MoveTemp(NewComment));
+	OutResult = bCommentSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
+}
+
+void UMetaSoundBuilderBase::SetNodeCommentVisible(const FMetaSoundNodeHandle& InNodeHandle, bool bIsVisible, EMetaSoundBuilderResult& OutResult)
+{
+	const bool bCommentSet = Builder.SetNodeCommentVisible(InNodeHandle.NodeID, bIsVisible);
+	OutResult = bCommentSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
+}
+
 void UMetaSoundBuilderBase::SetNodeLocation(const FMetaSoundNodeHandle& InNodeHandle, const FVector2D& InLocation, EMetaSoundBuilderResult& OutResult)
 {
 	const bool bLocationSet = Builder.SetNodeLocation(InNodeHandle.NodeID, InLocation);
+	OutResult = bLocationSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
+}
+
+void UMetaSoundBuilderBase::SetNodeLocation(const FMetaSoundNodeHandle& InNodeHandle, const FVector2D& InLocation, const FGuid& InLocationGuid, EMetaSoundBuilderResult& OutResult)
+{
+	const bool bLocationSet = Builder.SetNodeLocation(InNodeHandle.NodeID, InLocation, &InLocationGuid);
 	OutResult = bLocationSet ? EMetaSoundBuilderResult::Succeeded : EMetaSoundBuilderResult::Failed;
 }
 #endif // WITH_EDITOR

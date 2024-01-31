@@ -156,6 +156,47 @@ enum class EMetasoundFrontendClassType : uint8
 	Invalid UMETA(Hidden)
 };
 
+UENUM()
+enum class EMetaSoundFrontendGraphCommentMoveMode : uint8
+{
+	/** This comment box will move any fully contained nodes when it moves. */
+	GroupMovement UMETA(DisplayName = "Group Movement"),
+
+	/** This comment box has no effect on nodes contained inside it. */
+	NoGroupMovement UMETA(DisplayName = "Comment")
+};
+
+USTRUCT()
+struct METASOUNDFRONTEND_API FMetaSoundFrontendGraphComment
+{
+	GENERATED_BODY()
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	FLinearColor Color;
+
+	UPROPERTY()
+	FString Comment;
+
+	UPROPERTY()
+	int32 Depth = 0;
+
+	UPROPERTY()
+	int32 FontSize = 0;
+
+	UPROPERTY()
+	FVector2D Position;
+
+	UPROPERTY()
+	FVector2D Size;
+
+	UPROPERTY()
+	EMetaSoundFrontendGraphCommentMoveMode MoveMode = EMetaSoundFrontendGraphCommentMoveMode::GroupMovement;
+
+	UPROPERTY()
+	uint8 bColorBubble : 1;
+#endif // WITH_EDITORONLY_DATA
+};
 
 // General purpose version number for Metasound Frontend objects.
 USTRUCT(BlueprintType)
@@ -493,6 +534,14 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendNodeStyleDisplay
 	// more than one place on the graph (Only functionally relevant for nodes that cannot contain inputs.)
 	UPROPERTY()
 	TMap<FGuid, FVector2D> Locations;
+
+	// Comment to display about the given instance's usage
+	UPROPERTY()
+	FString Comment;
+
+	// Whether or not the comment is visible or not
+	UPROPERTY()
+	bool bCommentVisible = false;
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -659,6 +708,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphStyle
 {
 	GENERATED_BODY()
 
+#if WITH_EDITORONLY_DATA
 	// Whether or not the graph is editable by a user
 	UPROPERTY()
 	bool bIsGraphEditable = true;
@@ -666,6 +716,11 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendGraphStyle
 	// Styles for graph edges.
 	UPROPERTY()
 	TArray<FMetasoundFrontendEdgeStyle> EdgeStyles;
+
+	// Map of comment id to comment data
+	UPROPERTY()
+	TMap<FGuid, FMetaSoundFrontendGraphComment> Comments;
+#endif // WITH_EDITORONLY_DATA
 };
 
 USTRUCT()

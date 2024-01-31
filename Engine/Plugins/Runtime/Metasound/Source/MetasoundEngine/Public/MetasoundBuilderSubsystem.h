@@ -385,10 +385,18 @@ public:
 	virtual void InitFrontendBuilder();
 
 	// Initializes and ensures all nodes have a position (required prior to exporting to an asset if expected to be viewed in the editor).
-	void InitNodeLocations();
+	virtual void InitNodeLocations();
 
 #if WITH_EDITOR
+	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID) const;
+	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid & InCommentID);
+	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID);
+	bool RemoveGraphComment(const FGuid& InCommentID);
+
+	void SetNodeComment(const FMetaSoundNodeHandle& InNodeHandle, const FString& InNewComment, EMetaSoundBuilderResult& OutResult);
+	void SetNodeCommentVisible(const FMetaSoundNodeHandle& InNodeHandle, bool bIsVisible, EMetaSoundBuilderResult& OutResult);
 	void SetNodeLocation(const FMetaSoundNodeHandle& InNodeHandle, const FVector2D& InLocation, EMetaSoundBuilderResult& OutResult);
+	void SetNodeLocation(const FMetaSoundNodeHandle & InNodeHandle, const FVector2D& InLocation, const FGuid& InLocationGuid, EMetaSoundBuilderResult& OutResult);
 #endif // WITH_EDITOR
 
 protected:
