@@ -16,78 +16,79 @@
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.RecordingListView"
 
-DECLARE_DELEGATE_RetVal(bool, FOnGetLooping);
-DECLARE_DELEGATE_OneParam(FOnSetLooping, bool);
-DECLARE_DELEGATE_OneParam(FOnImportRecording, const struct FAssetData&);
-
 class SLiveLinkHubRecordingListView : public SCompoundWidget
 {
 public:
+	DECLARE_DELEGATE_OneParam(FOnImportRecording, const struct FAssetData&);
+	DECLARE_DELEGATE(FOnEject);
+	DECLARE_DELEGATE_RetVal(bool, FCanEject)
+	
 	SLATE_BEGIN_ARGS(SLiveLinkHubRecordingListView)
 		{}
-		SLATE_EVENT(FOnGetLooping, IsLooping)
-		SLATE_EVENT(FOnSetLooping, OnSetLooping)
 		SLATE_EVENT(FOnImportRecording, OnImportRecording)
+		SLATE_EVENT(FOnEject, OnEject)
+		SLATE_EVENT(FCanEject, CanEject)
 	SLATE_END_ARGS()
 
 	//~ Begin SWidget interface
 	void Construct(const FArguments& InArgs)
 	{
-		OnGetLoopingDelegate = InArgs._IsLooping;
-		OnSetLoopingDelegate = InArgs._OnSetLooping;
 		OnImportRecordingDelegate = InArgs._OnImportRecording;
+		OnEjectDelegate = InArgs._OnEject;
+		OnCanEjectDelegate = InArgs._CanEject;
 
 		ChildSlot
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
-			[
-				CreateRecordingPicker()
-			]
-			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.Padding(4.f, 0)
+				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Center)
-				.AutoWidth()
+				.Padding(4.f)
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("LoopRecordingLabel", "Loop"))
+					.Text(LOCTEXT("RecordingTitle", "Recordings"))
 				]
 				+ SHorizontalBox::Slot()
-				.Padding(4.f, 0)
-				.VAlign(VAlign_Center)
 				.AutoWidth()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Center)
+				.Padding(4.f)
 				[
-					SNew(SCheckBox)
-					.Padding(FMargin(4.0f, 0.0f))
-					.IsChecked(this, &SLiveLinkHubRecordingListView::IsLoopedChecked)
-					.OnCheckStateChanged(this, &SLiveLinkHubRecordingListView::OnCheckStateChanged)
+					SNew(SButton)
+					.Text(LOCTEXT("EjectButton", "Exit Playback"))
+					.OnClicked(this, &SLiveLinkHubRecordingListView::OnEjectClicked)
+					.IsEnabled(this, &SLiveLinkHubRecordingListView::CanEjectRecording)
 				]
+			]
+			+ SVerticalBox::Slot()
+			[
+				CreateRecordingPicker()
 			]
 		];
 	}
 	//~ End SWidget interface
 
 private:
-	/** Returns whether the looping checkbox should be checked or unchecked. */
-	ECheckBoxState IsLoopedChecked() const
-	{
-		return OnGetLoopingDelegate.Execute() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-	}
-
-	/** Handler to change the looping option for playback. */
-	void OnCheckStateChanged(ECheckBoxState InState)
-	{
-		OnSetLoopingDelegate.Execute(InState == ECheckBoxState::Checked);
-	}
-
 	/** Callback to notice the hub that we've selected a recording to play. */
 	void OnImportRecording(const FAssetData& AssetData) const
 	{
 		OnImportRecordingDelegate.Execute(AssetData);
+	}
+
+	FReply OnEjectClicked()
+	{
+		OnEjectDelegate.ExecuteIfBound();
+		return FReply::Handled();
+	}
+
+	bool CanEjectRecording() const
+	{
+		check(OnCanEjectDelegate.IsBound());
+		return OnCanEjectDelegate.Execute();
 	}
 
 	/** Creates the asset picker widget for selecting a recording. */
@@ -117,7 +118,7 @@ private:
 			AssetPickerConfig.Filter.ClassPaths.Add(ULiveLinkRecording::StaticClass()->GetClassPathName());
 			AssetPickerConfig.Filter.bRecursiveClasses = true;
 			AssetPickerConfig.Filter.bRecursivePaths = true;
-			AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateRaw(this, &SLiveLinkHubRecordingListView::OnImportRecording);
+			AssetPickerConfig.OnAssetDoubleClicked = FOnAssetSelected::CreateRaw(this, &SLiveLinkHubRecordingListView::OnImportRecording);
 		}
 
 		MenuBuilder.BeginSection(NAME_None, LOCTEXT("ImportRecording_MenuSection", "Import Recording"));
@@ -137,12 +138,12 @@ private:
 	}
 
 private:
-	/** Delegate for checking if the recording playback should loop. */
-	FOnGetLooping OnGetLoopingDelegate;
-	/** Delegate to set the looping option. */
-	FOnSetLooping OnSetLoopingDelegate;
 	/** Delegate used for noticing the hub that a recording was selected for playback. */
 	FOnImportRecording OnImportRecordingDelegate;
+	/** Delegate used when ejecting a recording. */
+	FOnEject OnEjectDelegate;
+	/** Delegate used to determine a recording can be ejected. */
+	FCanEject OnCanEjectDelegate;
 };
 
 #undef LOCTEXT_NAMESPACE /* LiveLinkHub.RecordingListView */

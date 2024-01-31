@@ -28,53 +28,42 @@ public:
 	TSharedRef<SWidget> MakeRecordingList()
 	{
 		return SNew(SLiveLinkHubRecordingListView)
-			.IsLooping_Raw(this, &FLiveLinkHubRecordingListController::IsLooping)
-			.OnSetLooping_Raw(this, &FLiveLinkHubRecordingListController::SetLooping)
-			.OnImportRecording_Raw(this, &FLiveLinkHubRecordingListController::OnImportRecording);
+			.OnImportRecording_Raw(this, &FLiveLinkHubRecordingListController::OnImportRecording)
+			.OnEject_Raw(this, &FLiveLinkHubRecordingListController::OnEjectRecording)
+			.CanEject_Raw(this, &FLiveLinkHubRecordingListController::CanEjectRecording);
 	}
 
 private:
-	/** Returns whether the recording playback should loop. */
-	bool IsLooping() const
-	{
-		if (TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
-		{
-			return HubPtr->GetPlaybackController()->IsLooping();
-		}
-		return false;
-	}
-
-	/** Sets whether the playback should loop. */
-	void SetLooping(bool bLooping) const
-	{
-		if (TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
-		{
-			HubPtr->GetPlaybackController()->SetLooping(bLooping);
-		}
-	}
-
 	/** Handler called when a recording a clicked to start the recording.  */
-	void OnImportRecording(const FAssetData& AssetData) const
+	void OnImportRecording(const FAssetData& AssetData)
 	{
 		UObject* RecordingAssetData = AssetData.GetAsset();
 		if (!RecordingAssetData)
 		{
 			UE_LOG(LogLiveLinkHub, Warning, TEXT("Failed to import recording %s"), *AssetData.AssetName.ToString());
-			StopPlayback();
 			return;
 		}
 
 		ULiveLinkRecording* ImportedRecording = Cast<ULiveLinkRecording>(RecordingAssetData);
-		LiveLinkHub.Pin()->GetPlaybackController()->PlayRecording(ImportedRecording);
-	}
-
-	/** Handler called when user clicks in the recording list to stop the current recording (Temporary until we have a stop button).  */
-	void StopPlayback() const
-	{
+		
 		if (TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
 		{
-			HubPtr->GetPlaybackController()->StopPlayback();
+			HubPtr->GetPlaybackController()->PreparePlayback(ImportedRecording);
 		}
+	}
+
+	void OnEjectRecording()
+	{
+		if (const TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin())
+		{
+			HubPtr->GetPlaybackController()->Eject();
+		}
+	}
+
+	bool CanEjectRecording() const
+	{
+		const TSharedPtr<FLiveLinkHub> HubPtr = LiveLinkHub.Pin();
+		return HubPtr && HubPtr->GetPlaybackController()->GetRecording().IsValid();
 	}
 
 private:

@@ -245,7 +245,17 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnPlaybackTab(const FSpawnTabAr
 		.Label(PlaybackTabName)
 		.TabRole(PanelTab)
 		[
-			LiveLinkHubModule.GetRecordingListController()->MakeRecordingList()
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				LiveLinkHubModule.GetRecordingListController()->MakeRecordingList()
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				LiveLinkHubModule.GetPlaybackController()->MakePlaybackWidget()
+			]
 		];
 }
 

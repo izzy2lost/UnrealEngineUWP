@@ -18,6 +18,8 @@ struct FLiveLinkRecordedFrame
 	FLiveLinkSubjectKey SubjectKey;
 	/** Role used to interpret the data (Only present with recorded static data). */
 	TSubclassOf<ULiveLinkRole> LiveLinkRole;
+	/** The frame index of this frame within a track. */
+	int32 FrameIndex;
 };
 
 /** Object responsible for reading a livelink recording and providing the frames to the LiveLinkPlaybackController. */
@@ -30,8 +32,20 @@ public:
 	virtual void PreparePlayback(const ULiveLinkRecording* Recording) = 0;
 
 	/** Fetch next frames at the provided playhead position. */
-	virtual TArray<FLiveLinkRecordedFrame> FetchNextFrames(double Playhead) = 0;
+	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtTimestamp(double Playhead) = 0;
+
+	/** Fetch previous frames at the provided playhead position. */
+	virtual TArray<FLiveLinkRecordedFrame> FetchPreviousFramesAtTimestamp(double Playhead) = 0;
+	
+	/** Fetch next frames at the provided frame index. */
+	virtual TArray<FLiveLinkRecordedFrame> FetchNextFramesAtIndex(int32 FrameIndex) = 0;
+
+	/** Convert the playhead to a frame index. */
+	virtual int32 PlayheadToFrameIndex(double InPlayhead, bool bReverse) = 0;
+
+	/** Convert the frame index to a timstamp. */
+	virtual double FrameIndexToPlayhead(int32 InIndex) = 0;
 
 	/** Restart the recording from the beginning. */
-	virtual void RestartPlayback() = 0;
+	virtual void RestartPlayback(int32 InIndex = INDEX_NONE) = 0;
 };
