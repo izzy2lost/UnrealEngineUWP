@@ -387,6 +387,7 @@ namespace UsdLevelSequenceHelperImpl
 				SkeletalMeshComp,
 				bReduceKeys,
 				Tolerance,
+				true,
 				ControlRigSectionStartFrame,
 				EMovieSceneKeyInterpolation::SmartAuto
 			);
