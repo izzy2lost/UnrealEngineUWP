@@ -187,7 +187,7 @@ FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FCl
 
 		// Add simulation groups arrays
 		Evolution->AddGroupArray(&PreSimulationTransforms);
-		Evolution->AddGroupArray(&FictitiousAngularDisplacements);
+		Evolution->AddGroupArray(&FictitiousAngularVelocities);
 		Evolution->AddGroupArray(&ReferenceSpaceLocations);
 
 		Evolution->AddParticleArray(&Normals);
@@ -284,7 +284,7 @@ FClothingSimulationSolver::FClothingSimulationSolver(bool bForceBasedSolver, FCl
 
 		// Add simulation groups arrays
 		PBDEvolution->AddArray(&PreSimulationTransforms);
-		PBDEvolution->AddArray(&FictitiousAngularDisplacements);
+		PBDEvolution->AddArray(&FictitiousAngularVelocities);
 		PBDEvolution->AddArray(&ReferenceSpaceLocations);
 
 		PBDEvolution->Particles().AddArray(&Normals);
@@ -1114,7 +1114,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(
 	// Save the reference bone relative angular velocity for calculating the fictitious forces
 	const FVec3 FictitiousAngularDisplacement = ReferenceSpaceTransform.TransformVector(Axis * PartialDeltaAngle)
 		* AppliedFictitiousAngularScale;
-	FictitiousAngularDisplacements[GroupId] = Softs::FSolverVec3(FictitiousAngularDisplacement);
+	FictitiousAngularVelocities[GroupId] = DeltaTime > (Softs::FSolverReal)0.f ? Softs::FSolverVec3(FictitiousAngularDisplacement) / DeltaTime : Softs::FSolverVec3(0.f);
 	ReferenceSpaceLocations[GroupId] = ReferenceSpaceTransform.GetLocation() - LocalSpaceLocation;
 }
 
@@ -1238,7 +1238,7 @@ void FClothingSimulationSolver::SetProperties(int32 ParticleRangeId, const Softs
 		// Set properties to constraints that come from the solver (e.g., solver-level gravity, wind)
 		GetClothConstraints(ParticleRangeId).UpdateFromSolver(
 			Gravity, bIsClothGravityOverrideEnabled,
-			FictitiousAngularDisplacements[GroupId], ReferenceSpaceLocations[GroupId],
+			FictitiousAngularVelocities[GroupId], ReferenceSpaceLocations[GroupId],
 			WindVelocity, LegacyWindAdaption);
 	}
 }
@@ -1414,15 +1414,15 @@ void FClothingSimulationSolver::AddExternalForces(uint32 GroupId, bool bUseLegac
 {
 	if (PBDEvolution)
 	{
-		const FVec3& AngularDisplacement = FictitiousAngularDisplacements[GroupId];
+		const FVec3& AngularVelocity = FictitiousAngularVelocities[GroupId];
 		const FVec3& ReferenceSpaceLocation = ReferenceSpaceLocations[GroupId];
-		const bool bHasFictitiousForces = !AngularDisplacement.IsNearlyZero();
+		const bool bHasFictitiousForces = !AngularVelocity.IsNearlyZero();
 
 		static const FReal LegacyWindMultiplier = (FReal)25.;
 		const FVec3 LegacyWindVelocity = WindVelocity * LegacyWindMultiplier;
 
 		PBDEvolution->GetForceFunction(GroupId) =
-			[this, bHasFictitiousForces, bUseLegacyWind, LegacyWindVelocity, AngularDisplacement, ReferenceSpaceLocation](Softs::FSolverParticles& Particles, const FReal Dt, const int32 Index)
+			[this, bHasFictitiousForces, bUseLegacyWind, LegacyWindVelocity, AngularVelocity, ReferenceSpaceLocation](Softs::FSolverParticles& Particles, const FReal Dt, const int32 Index)
 			{
 				FVec3 Forces((FReal)0.);
 
@@ -1441,15 +1441,14 @@ void FClothingSimulationSolver::AddExternalForces(uint32 GroupId, bool bUseLegac
 				if (bHasFictitiousForces)
 				{
 					const FVec3 X = Particles.X(Index) - ReferenceSpaceLocation;
-					const FVec3 W = AngularDisplacement / Dt;
 					const FReal& M = Particles.M(Index);
 #if 0
 					// Coriolis + Centrifugal seems a bit overkilled, but let's keep the code around in case it's ever required
 					const FVec3& V = Particles.V(Index);
-					Forces -= (FVec3::CrossProduct(W, V) * 2.f + FVec3::CrossProduct(W, FVec3::CrossProduct(W, X))) * M;
+					Forces -= (FVec3::CrossProduct(AngularVelocity, V) * 2.f + FVec3::CrossProduct(AngularVelocity, FVec3::CrossProduct(AngularVelocity, X))) * M;
 #else
 					// Centrifugal force
-					Forces -= FVec3::CrossProduct(W, FVec3::CrossProduct(W, X)) * M;
+					Forces -= FVec3::CrossProduct(AngularVelocity, FVec3::CrossProduct(AngularVelocity, X)) * M;
 #endif
 				}
 				

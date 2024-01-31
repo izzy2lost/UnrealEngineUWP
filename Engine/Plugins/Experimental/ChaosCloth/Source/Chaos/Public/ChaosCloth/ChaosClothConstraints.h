@@ -44,7 +44,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Force-based solver
 		void UpdateFromSolver(const Softs::FSolverVec3& SolverGravity, bool bPerClothGravityOverrideEnabled,
-			const Softs::FSolverVec3& FictitiousAngularDisplacement, const Softs::FSolverVec3& ReferenceSpaceLocation,
+			const Softs::FSolverVec3& FictitiousAngularVelocity, const Softs::FSolverVec3& ReferenceSpaceLocation,
 			const Softs::FSolverVec3& SolverWindVelocity, const Softs::FSolverReal LegacyWindAdaptation);
 
 		// PBD solver

@@ -116,7 +116,13 @@ void UChaosClothConfig::MigrateFrom(const UClothSharedConfigCommon* ClothSharedC
 			GravityScale = ChaosClothSharedSimConfig->GravityScale_DEPRECATED;
 			Gravity = ChaosClothSharedSimConfig->Gravity_DEPRECATED;
 		}
+		const int32 UE5ReleaseStreamObjectVersion = GetLinkerCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
+		if (UE5ReleaseStreamObjectVersion < FUE5ReleaseStreamObjectVersion::ChaosClothFictitiousAngularVelocitySubframeFix)
+		{
+			FictitiousAngularScale = FMath::Clamp(FictitiousAngularScale * (float)ChaosClothSharedSimConfig->SubdivisionCount, 0.f, 2.f);
+		}
 	}
+
 #endif  // #if WITH_EDITORONLY_DATA
 }
 
