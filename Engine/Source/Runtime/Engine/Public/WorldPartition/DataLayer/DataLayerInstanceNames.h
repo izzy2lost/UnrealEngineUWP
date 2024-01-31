@@ -29,6 +29,9 @@ struct FDataLayerInstanceNames
 
 	FDataLayerInstanceNames(const TArray<FName>& InNonExternalDataLayers, FName InExternalDataLayer)
 	{
+#if WITH_EDITOR
+		bIsForcedEmptyNonExternalDataLayers = false;
+#endif
 		bIsFirstDataLayerExternal = !InExternalDataLayer.IsNone();
 		if (bIsFirstDataLayerExternal)
 		{
