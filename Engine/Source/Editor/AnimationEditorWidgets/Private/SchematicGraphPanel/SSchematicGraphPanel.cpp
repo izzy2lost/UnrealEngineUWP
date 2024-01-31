@@ -253,8 +253,8 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 		}
 	}
 
-	const FText& NodeLabel = NodeData->GetLabel();
-	bool bDrawLabel = !NodeLabel.IsEmpty();  
+	FText NodeLabel;
+	bool bDrawLabel = true;
 	if(bDrawLabel)
 	{
 		const FVector2D MouseCursorLocation = FSlateApplication::Get().GetCursorPos();
@@ -271,6 +271,14 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 			{
 				bDrawLabel = false;
 			}
+		}
+	}
+	if(bDrawLabel)
+	{
+		NodeLabel = NodeData->GetLabel();
+		if(NodeLabel.IsEmpty())
+		{
+			bDrawLabel = false;
 		}
 	}
 	if(bDrawLabel)

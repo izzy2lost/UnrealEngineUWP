@@ -484,6 +484,10 @@ private:
 	/** Handle changes within the hierarchy */
 	void HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
+protected:
+	
+	virtual void RunPostConstructionEvent();
+
 private:
 #if WITH_EDITOR
 	/** Add a transient / temporary control used to interact with a node */

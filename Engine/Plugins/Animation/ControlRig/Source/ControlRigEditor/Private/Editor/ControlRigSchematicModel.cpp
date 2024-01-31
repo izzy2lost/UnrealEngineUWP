@@ -31,6 +31,53 @@ bool FControlRigSchematicRigElementKeyNode::IsDragSupported() const
 	return Key.Type == ERigElementType::Connector;
 }
 
+const FText& FControlRigSchematicRigElementKeyNode::GetLabel() const
+{
+	FText LabelText = FText::FromString(Key.ToString());
+	if(const FControlRigSchematicModel* ControlRigModel = Cast<FControlRigSchematicModel>(Model))
+	{
+		if(const UModularRig* ModularRig = Cast<UModularRig>(ControlRigModel->ControlRigBeingDebuggedPtr.Get()))
+		{
+			if (const URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+			{
+				LabelText = Hierarchy->GetDisplayNameForUI(Key);
+
+				switch(Key.Type)
+				{
+					case ERigElementType::Socket:
+					{
+						if(const FRigSocketElement* Socket = Hierarchy->Find<FRigSocketElement>(Key))
+						{
+							const FString Description = Socket->GetDescription(Hierarchy);
+							if(!Description.IsEmpty())
+							{
+								static const FText NodeLabelSocketDescriptionFormat = LOCTEXT("NodeLabelSocketDescriptionFormat", "{0}\n{1}");
+								LabelText = FText::Format(NodeLabelSocketDescriptionFormat, LabelText,  FText::FromString(Description));
+							}
+						}
+						break;
+					}
+					default:
+					{
+						break;
+					}
+				}
+
+				const FModularRigModel& ModularRigModel = ModularRig->GetModularRigModel();
+				const TArray<FRigElementKey>& Connectors = ModularRigModel.Connections.FindConnectorsFromTarget(Key);
+				for(const FRigElementKey& Connector : Connectors)
+				{
+					static const FText NodeLabelConnectionFormat = LOCTEXT("NodeLabelConnectionFormat", "{0}\nConnection: {1}");
+					const FText ConnectorShortestPath = Hierarchy->GetDisplayNameForUI(Connector, false);
+					LabelText = FText::Format(NodeLabelConnectionFormat, LabelText, ConnectorShortestPath);
+				}
+			}
+		}
+	}
+	const_cast<FControlRigSchematicRigElementKeyNode*>(this)->Label = LabelText;
+	return Label;
+}
+
 FControlRigSchematicWarningTag::FControlRigSchematicWarningTag()
 : FSchematicGraphTag()
 {
@@ -175,36 +222,6 @@ FControlRigSchematicRigElementKeyNode* FControlRigSchematicModel::AddElementKeyN
 void FControlRigSchematicModel::ConfigureElementKeyNode(FControlRigSchematicRigElementKeyNode* InNode, const FRigElementKey& InKey)
 {
 	InNode->Key = InKey;
-	InNode->SetLabel(FText::FromString(InNode->GetKey().ToString())); 
-	switch(InNode->GetKey().Type)
-	{
-		case ERigElementType::Socket:
-		{
-			if (ControlRigBeingDebuggedPtr.IsValid())
-			{
-				if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
-				{
-					if(const FRigSocketElement* Socket = Hierarchy->Find<FRigSocketElement>(InNode->GetKey()))
-					{
-						const FString Description = Socket->GetDescription(Hierarchy);
-						if(!Description.IsEmpty())
-						{
-							InNode->SetLabel(
-								FText::Format(LOCTEXT("NodeLabelFormat", "{0}\n{1}"), 
-								InNode->GetLabel(), 
-								FText::FromString(Description))
-							);
-						}
-					}
-				}
-			}
-			break;
-		}
-		default:
-		{
-			break;
-		}
-	}
 }
 
 const FControlRigSchematicRigElementKeyNode* FControlRigSchematicModel::FindElementKeyNode(const FRigElementKey& InKey) const
@@ -1105,8 +1122,7 @@ bool FControlRigSchematicModel::GetContextMenuForNode(const FSchematicGraphNode*
 	{
 		if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
 		{
-			const URigHierarchy* Hierarchy = ControlRigBlueprint->GetDebuggedControlRig()->GetHierarchy();
-			check(Hierarchy);
+			const UModularRig* ModularRig = CastChecked<UModularRig>(ControlRigBlueprint->GetDebuggedControlRig());
 			const FModularRigConnections& Connections = ControlRigBlueprint->ModularRigModel.Connections;
 			const TArray<FRigElementKey>& Connectors = Connections.FindConnectorsFromTarget(ElementKeyNode->Key);
 			if(!Connectors.IsEmpty())
@@ -1116,34 +1132,8 @@ bool FControlRigSchematicModel::GetContextMenuForNode(const FSchematicGraphNode*
 				// note: this is a copy on purpose since it is passed into the lambda
 				for(const FRigElementKey Connector : Connectors)
 				{
-					FString Label = *Connector.Name.ToString();
-
-					const FName ModulePath = Hierarchy->GetModulePathFName(Connector);
-					if(!ModulePath.IsNone())
-					{
-						if(const FRigModuleReference* Module = ControlRigBlueprint->ModularRigModel.FindModule(ModulePath.ToString()))
-						{
-							const FName DesiredName = Hierarchy->GetNameMetadata(Connector, URigHierarchy::DesiredNameMetadataName, NAME_None);
-							if(!DesiredName.IsNone())
-							{
-								Label = DesiredName.ToString();
-
-								if(const FRigConnectorElement* PrimaryConnector = Module->FindPrimaryConnector(Hierarchy))
-								{
-									if(PrimaryConnector->GetKey() == Connector)
-									{
-										Label = Module->GetShortName();
-									}
-									else
-									{
-										Label = URigHierarchy::JoinNameSpace(Module->GetShortName(), Label);
-									}
-								}
-							}
-						}
-					}
-					
-					const FText Description = FText::FromString(FString::Printf(TEXT("Disconnect %s"), *Label));
+					FText Label = ModularRig->GetHierarchy()->GetDisplayNameForUI(Connector, false);
+					const FText Description = FText::FromString(FString::Printf(TEXT("Disconnect %s"), *Label.ToString()));
 					
 					OutMenu.AddMenuEntry(Description, Description, FSlateIcon(), FUIAction(
 						FExecuteAction::CreateLambda([this, Connector]()
