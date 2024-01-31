@@ -319,7 +319,7 @@ namespace Metasound
 		static FVertexInterface CreateDefaultVertexInterface(const FVertexName& InVertexName, const FName& InDataTypeName, EVertexAccessType InVertexAccess);
 
 	public:
-
+		static FText GetInputDescription();
 		static FNodeClassMetadata GetNodeMetadata(const FVertexName& InVertexName, const FName& InDataTypeName, EVertexAccessType InVertexAccess);
 
 		/* Construct a TInputNode using the TInputOperatorLiteralFactory<> and moving

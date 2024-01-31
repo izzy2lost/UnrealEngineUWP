@@ -10,6 +10,7 @@
 #include "MetasoundAssetBase.h"
 #include "MetasoundBuilderSubsystem.h"
 #include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendRegistries.h"
 #include "MetasoundFrontendSearchEngine.h"
 #include "MetasoundFrontendTransform.h"
@@ -290,6 +291,16 @@ bool UMetaSoundAssetSubsystem::ContainsKey(const Metasound::Frontend::FNodeRegis
 	return PathMap.Contains(InRegistryKey);
 }
 
+FMetasoundAssetBase* UMetaSoundAssetSubsystem::GetAsAsset(UObject& InObject) const
+{
+	return Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject);
+}
+
+const FMetasoundAssetBase* UMetaSoundAssetSubsystem::GetAsAsset(const UObject& InObject) const
+{
+	return Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InObject);
+}
+
 void UMetaSoundAssetSubsystem::RebuildDenyListCache(const UAssetManager& InAssetManager)
 {
 	using namespace Metasound::Frontend;
@@ -383,7 +394,7 @@ TSet<UMetaSoundAssetSubsystem::FAssetInfo> UMetaSoundAssetSubsystem::GetReferenc
 	}
 	return MoveTemp(OutAssetInfos);
 }
-#endif
+#endif // WITH_EDITOR
 
 void UMetaSoundAssetSubsystem::RescanAutoUpdateDenyList()
 {

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "MetasoundFrontendDocument.h"
 #include "MetasoundVertex.h"
 #include "MetasoundFrontendRegistryKey.h"
 #include "UObject/SoftObjectPath.h"
@@ -9,6 +10,7 @@
 // Forward Declarations
 class FMetasoundAssetBase;
 class UEdGraph;
+
 struct FMetasoundFrontendClassName;
 
 namespace Metasound
@@ -133,6 +135,10 @@ namespace Metasound
 
 			// Returns path associated with the given key (null if key is not registered with the AssetManager or was not loaded from asset)
 			virtual const FSoftObjectPath* FindObjectPathFromKey(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const = 0;
+
+			// Converts an object to an AssetBase if its a registered asset
+			virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const = 0;
+			virtual const FMetasoundAssetBase* GetAsAsset(const UObject& InObject) const = 0;
 
 #if WITH_EDITOR
 			// Generates all asset info associated with registered assets that are referenced by the provided asset's graph.

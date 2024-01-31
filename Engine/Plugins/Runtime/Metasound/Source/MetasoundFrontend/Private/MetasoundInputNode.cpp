@@ -92,6 +92,10 @@ namespace Metasound
 		return CreateVertexInterface(InVertexName, InDataTypeName, InVertexAccess, FLiteral());
 	}
 
+	FText FInputNode::GetInputDescription()
+	{
+		return METASOUND_LOCTEXT("Metasound_InputNodeDescription", "Input into the parent MetaSound graph.");
+	}
 
 	FNodeClassMetadata FInputNode::GetNodeMetadata(const FVertexName& InVertexName, const FName& InDataTypeName, EVertexAccessType InVertexAccess)
 	{
@@ -100,7 +104,7 @@ namespace Metasound
 		Info.ClassName = { "Input", InDataTypeName, GetVariantName(InVertexAccess) };
 		Info.MajorVersion = 1;
 		Info.MinorVersion = 0;
-		Info.Description = METASOUND_LOCTEXT("Metasound_InputNodeDescription", "Input into the parent Metasound graph.");
+		Info.Description = GetInputDescription();
 		Info.Author = PluginAuthor;
 		Info.PromptIfMissing = PluginNodeMissingPrompt;
 		Info.DefaultInterface = CreateDefaultVertexInterface(InVertexName, InDataTypeName, InVertexAccess);

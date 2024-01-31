@@ -15,6 +15,7 @@ class UAssetManager;
 class FMetasoundAssetBase;
 
 struct FDirectoryPath;
+struct FMetaSoundFrontendDocumentBuilder;
 
 
 USTRUCT(BlueprintType)
@@ -69,6 +70,10 @@ public:
 	virtual bool CanAutoUpdate(const FMetasoundFrontendClassName& InClassName) const override;
 	virtual bool ContainsKey(const Metasound::Frontend::FNodeRegistryKey& InRegistryKey) const override;
 	virtual const FSoftObjectPath* FindObjectPathFromKey(const Metasound::Frontend::FNodeRegistryKey& RegistryKey) const override;
+
+	virtual FMetasoundAssetBase* GetAsAsset(UObject& InObject) const override;
+	virtual const FMetasoundAssetBase* GetAsAsset(const UObject& InObject) const override;
+
 #if WITH_EDITOR
 	virtual TSet<FAssetInfo> GetReferencedAssetClasses(const FMetasoundAssetBase& InAssetBase) const override;
 #endif

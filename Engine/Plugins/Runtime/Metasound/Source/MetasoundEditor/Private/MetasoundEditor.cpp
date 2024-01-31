@@ -100,9 +100,15 @@ namespace Metasound
 
 		class FMetasoundGraphMemberSchemaAction : public FEdGraphSchemaAction
 		{
+			FGuid MemberID;
+
 		public:
 			UEdGraph* Graph = nullptr;
-			FGuid MemberID;
+
+			void SetMemberID(const FGuid& InID)
+			{
+				MemberID = InID;
+			}
 
 			FMetasoundGraphMemberSchemaAction()
 				: FEdGraphSchemaAction()
@@ -530,24 +536,26 @@ namespace Metasound
 				if (TSharedPtr<FMetasoundGraphMemberSchemaAction> GraphMemberAction = StaticCastSharedPtr<FMetasoundGraphMemberSchemaAction>(InCreateData->Action))
 				{
 
-					UMetasoundEditorGraphMember* GraphMember = GraphMemberAction->GetGraphMember();
-					if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GraphMember))
+					if (UMetasoundEditorGraphMember* GraphMember = GraphMemberAction->GetGraphMember())
 					{
-						EMetasoundFrontendVertexAccessType AccessType = Vertex->GetVertexAccessType();
-						bIsConstructorPin = AccessType == EMetasoundFrontendVertexAccessType::Value;
-					}
-					FName DataTypeName = GraphMember->GetDataType(); 
-
-					const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
-					if (const FEdGraphPinType* PinType = EditorModule.FindPinType(DataTypeName))
-					{
-						if (const UMetasoundEditorGraphSchema* Schema = GetDefault<UMetasoundEditorGraphSchema>())
+						if (const UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GraphMember))
 						{
-							IconColor = Schema->GetPinTypeColor(*PinType);
+							EMetasoundFrontendVertexAccessType AccessType = Vertex->GetVertexAccessType();
+							bIsConstructorPin = AccessType == EMetasoundFrontendVertexAccessType::Value;
 						}
-					}
+						FName DataTypeName = GraphMember->GetDataType();
 
-					IconBrush = EditorModule.GetIconBrush(DataTypeName, bIsConstructorPin);
+						const IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
+						if (const FEdGraphPinType* PinType = EditorModule.FindPinType(DataTypeName))
+						{
+							if (const UMetasoundEditorGraphSchema* Schema = GetDefault<UMetasoundEditorGraphSchema>())
+							{
+								IconColor = Schema->GetPinTypeColor(*PinType);
+							}
+						}
+
+						IconBrush = EditorModule.GetIconBrush(DataTypeName, bIsConstructorPin);
+					}
 				}
 
 				TSharedRef<SHorizontalBox> LayoutWidget = SNew(SHorizontalBox);
@@ -3078,7 +3086,7 @@ namespace Metasound
 
 				TSharedPtr<FMetasoundGraphMemberSchemaAction> NewFuncAction = MakeShared<FMetasoundGraphMemberSchemaAction>(Category, MenuDesc, Tooltip, 1, ENodeSection::Inputs);
 				NewFuncAction->Graph = &EdGraph;
-				NewFuncAction->MemberID = NodeID;
+				NewFuncAction->SetMemberID(NodeID);
 
 				ActionList->AddAction(NewFuncAction);
 			}, EMetasoundFrontendClassType::Input);
@@ -3094,7 +3102,7 @@ namespace Metasound
 
 				TSharedPtr<FMetasoundGraphMemberSchemaAction> NewFuncAction = MakeShared<FMetasoundGraphMemberSchemaAction>(Category, MenuDesc, Tooltip, 1, ENodeSection::Outputs);
 				NewFuncAction->Graph = &EdGraph;
-				NewFuncAction->MemberID = Output->GetID();
+				NewFuncAction->SetMemberID(NodeID);
 				ActionList->AddAction(NewFuncAction);
 			}, EMetasoundFrontendClassType::Output);
 
@@ -3107,7 +3115,7 @@ namespace Metasound
 
 				TSharedPtr<FMetasoundGraphMemberSchemaAction> NewFuncAction = MakeShared<FMetasoundGraphMemberSchemaAction>(Category, MenuDesc, FText::GetEmpty(), 1, ENodeSection::Variables);
 				NewFuncAction->Graph = &EdGraph;
-				NewFuncAction->MemberID = VariableID; 
+				NewFuncAction->SetMemberID(VariableID);
 				OutAllActions.AddAction(NewFuncAction);
 			}
 
@@ -3463,40 +3471,6 @@ namespace Metasound
 							RefreshDetails();
 						}
 					}
-					
-					// TODO: Because input editor nodes are not one-to-one, this can cause multi-selection
-					// when not desired.  Once input alias templates are complete, this can be switched on.
-					// For now, callsites are just directly setting selection via ClearSelectionAndSelectNode.
-// 					MetasoundGraphEditor->ClearSelectionSet();
-// 
-// 					const UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
-// 
-// 					TArray<UObject*> NodeSelection;
-// 					for (UEdGraphNode* Node : Graph.Nodes)
-// 					{
-// 						if (UMetasoundEditorGraphNode* MetaSoundNode = Cast<UMetasoundEditorGraphNode>(Node))
-// 						{
-// 							if (NodesModified.Contains(MetaSoundNode->GetNodeID()))
-// 							{
-// 								if (UMetasoundEditorGraphMemberNode* MemberNode = Cast<UMetasoundEditorGraphMemberNode>(Node))
-// 								{
-// 									NodeSelection.Add(MemberNode->GetMember());
-// 								}
-// 								else
-// 								{
-// 									NodeSelection.Add(Node);
-// 								}
-// 
-// 								MetasoundGraphEditor->SetNodeSelection(Node, /*bSelect=*/true);
-// 
-// 							}
-// 						}
-// 					}
-// 
-// 					if (!NodeSelection.IsEmpty())
-// 					{
-// 						Selection = NodeSelection;
-// 					}
 				}
 
 				if (!InterfacesModified.IsEmpty() || bForceRefreshViews)
