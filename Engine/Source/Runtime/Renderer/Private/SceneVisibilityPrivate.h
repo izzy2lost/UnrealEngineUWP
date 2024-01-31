@@ -924,7 +924,7 @@ public:
 		TaskConfig.OcclusionCull.NumTestedQueries.fetch_add(Result.NumTestedQueries, std::memory_order_relaxed);
 	}
 
-	template <typename VisitorType>
+	template <bool bIsParallel, typename VisitorType>
 	bool OcclusionCullPrimitive(VisitorType& Visitor, FOcclusionCullResult& Result, int32 Index);
 
 	//////////////////////////////////////////////////////////////////////////////
