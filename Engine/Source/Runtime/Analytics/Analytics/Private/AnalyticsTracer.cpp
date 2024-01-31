@@ -197,16 +197,6 @@ TSharedPtr<IAnalyticsSpan> FAnalyticsTracer::StartSpan(const FName NewSpanName, 
 	return StartSpanInternal(NewSpan, AdditionalAttributes) ? NewSpan : TSharedPtr<IAnalyticsSpan>();
 }
 
-bool FAnalyticsTracer::StartSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
-{
-	if (Span.IsValid() && Span->GetIsActive() == false)
-	{
-		return StartSpanInternal(Span, AdditionalAttributes);
-	}
-
-	return false;
-}
-
 bool FAnalyticsTracer::StartSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
 	TSharedPtr<IAnalyticsSpan> LastAdddedActiveSpan = ActiveSpanStack.Num()? ActiveSpanStack.Top(): TSharedPtr<IAnalyticsSpan>();
@@ -241,13 +231,8 @@ bool FAnalyticsTracer::EndSpanInternal(TSharedPtr<IAnalyticsSpan> Span, const TA
 		{
 			for (TWeakPtr<IAnalyticsSpan> ChildSpanWeakPtr : *ChildSpans)
 			{
-				TSharedPtr<IAnalyticsSpan> ChildSpan = ChildSpanWeakPtr.Pin();
-
-				if (ChildSpan.IsValid())
-				{
-					// Pass the parent's attributes to the children as it ends
-					EndSpanInternal(ChildSpan, Span->GetAttributes());
-				}
+				// Pass the parent's attributes to the children as it ends
+				EndSpanInternal(ChildSpanWeakPtr.Pin(), Span->GetAttributes());
 			}
 		}
 
