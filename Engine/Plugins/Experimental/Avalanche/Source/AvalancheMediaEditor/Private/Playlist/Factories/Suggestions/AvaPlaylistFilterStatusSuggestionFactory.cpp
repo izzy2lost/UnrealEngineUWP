@@ -14,7 +14,7 @@ void FAvaPlaylistFilterStatusSuggestionFactory::AddSuggestion(const TSharedRef<F
 	const FAvalanchePage& PageItem = UAvalanchePlaylist::GetPageSafe(InPayload->Playlist, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText StatusCategoryLabel = LOCTEXT("StatusCategoryLabel", "Ava-Playlist-Status");
+		const FText StatusCategoryLabel = LOCTEXT("StatusCategoryLabel", "Ava-Rundown-Status");
 		TArray<FAvalanchePageStatus> StatusPages = PageItem.GetPageContextualStatuses(InPayload->Playlist);
 		for (FAvalanchePageStatus Status : StatusPages)
 		{

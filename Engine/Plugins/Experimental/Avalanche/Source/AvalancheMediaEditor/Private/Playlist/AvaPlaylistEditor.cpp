@@ -870,7 +870,7 @@ FName FAvaPlaylistEditor::GetToolkitFName() const
 
 FText FAvaPlaylistEditor::GetBaseToolkitName() const
 {
-	return LOCTEXT("PlaylistAppLabel", "Motion Design Playlist Editor");
+	return LOCTEXT("PlaylistAppLabel", "Motion Design Rundown Editor");
 }
 
 FString FAvaPlaylistEditor::GetWorldCentricTabPrefix() const
@@ -1224,7 +1224,7 @@ TSharedRef<SWidget> FAvaPlaylistEditor::MakeProfileComboButton()
 void FAvaPlaylistEditor::StartAutoPlayCommand(const TArray<FString>& InArgs)
 {
 	const double PlayInterval = (InArgs.Num() > 0) ? FCString::Atod(*InArgs[0]) : FAutoPlayTicker::DefaultPlayInterval;
-	UE_LOG(LogAvaMediaEditor, Log, TEXT("Playlist auto play started, interval: %f seconds."), PlayInterval);
+	UE_LOG(LogAvaMediaEditor, Log, TEXT("Rundown auto play started, interval: %f seconds."), PlayInterval);
 	AutoPlayTicker = MakeUnique<FAutoPlayTicker>(SharedThis(this), PlayInterval);
 }
 
@@ -1369,7 +1369,7 @@ void FAvaPlaylistEditor::PlayNextPageCommand(const TArray<FString>& InArgs, bool
 	UAvalanchePlaylist* Playlist = AvalanchePlaylist.Get();
 	if (!AvalanchePlaylist.IsValid())
 	{
-		UE_LOG(LogAvaMediaEditor, Error, TEXT("Errors in Continue Page command: invalid playlist."));
+		UE_LOG(LogAvaMediaEditor, Error, TEXT("Errors in Continue Page command: invalid rundown."));
 		return;
 	}
 
@@ -1478,7 +1478,7 @@ TArray<int32> FAvaPlaylistEditor::ArgumentsToPageIds(const TArray<FString>& InAr
 {
 	if (!AvalanchePlaylist.IsValid())
 	{
-		OutErrors = TEXT("invalid playlist.");
+		OutErrors = TEXT("invalid rundown.");
 		return {};
 	}
 
@@ -1700,7 +1700,7 @@ void FAvaPlaylistEditor::FAutoPlayTicker::Tick(float DeltaTime)
 	const UAvalanchePlaylist* Playlist = PlaylistEditor->GetPlaylist();
 	if (!Playlist)
 	{
-		UE_LOG(LogAvaMediaEditor, Error, TEXT("Invalid playlist. Cancelling auto play."));
+		UE_LOG(LogAvaMediaEditor, Error, TEXT("Invalid rundown. Cancelling auto play."));
 		PlaylistEditor->CancelAutoPlay();
 		return;
 	}
@@ -1809,26 +1809,26 @@ TSharedPtr<FAvaPlaylistEditor::FSharedConsoleCommands> FAvaPlaylistEditor::FShar
 void FAvaPlaylistEditor::FSharedConsoleCommands::RegisterConsoleCommands()
 {
 	ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("AvaPlaylistEditor.StartAutoPlay"),
-		TEXT("Starts auto play of the currently active playlist editor."),
+		TEXT("AvaRundownEditor.StartAutoPlay"),
+		TEXT("Starts auto play of the currently active rundown editor."),
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FSharedConsoleCommands::StartAutoPlayCommand),
 		ECVF_Default
 	));
 	ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("AvaPlaylistEditor.StopAutoPlay"),
-		TEXT("Stops auto play of the currently active playlist editor."),
+		TEXT("AvaRundownEditor.StopAutoPlay"),
+		TEXT("Stops auto play of the currently active rundown editor."),
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FSharedConsoleCommands::StopAutoPlayCommand),
 		ECVF_Default
 	));
 	ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("AvaPlaylistEditor.LoadPage"),
-		TEXT("Preload the specified page from the current playlist to memory."),
+		TEXT("AvaRundownEditor.LoadPage"),
+		TEXT("Preload the specified page from the current rundown to memory."),
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FSharedConsoleCommands::LoadPageCommand),
 		ECVF_Default
 	));
 	ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("AvaPlaylistEditor.UnloadPage"),
-		TEXT("Unload the specified page from the current playlist."),
+		TEXT("AvaRundownEditor.UnloadPage"),
+		TEXT("Unload the specified page from the current rundown."),
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FSharedConsoleCommands::UnloadPageCommand),
 		ECVF_Default
 	));

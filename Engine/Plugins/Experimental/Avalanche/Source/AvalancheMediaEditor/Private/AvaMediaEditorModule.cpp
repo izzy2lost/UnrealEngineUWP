@@ -102,14 +102,14 @@ void FAvaMediaEditorModule::StartupModule()
 	LevelEditor.OnMapChanged().AddRaw(this, &FAvaMediaEditorModule::HandleMapChanged);
 
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("AvaPlaylistServer.Start"),
-		TEXT("Starts the playlist server."),
+		TEXT("AvaRundownServer.Start"),
+		TEXT("Starts the rundown server."),
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaEditorModule::StartPlaylistServerCommand),
 		ECVF_Default
 	));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-		TEXT("AvaPlaylistServer.Stop"),
-		TEXT("Stops the playlist server."),
+		TEXT("AvaRundownServer.Stop"),
+		TEXT("Stops the rundown server."),
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaEditorModule::StopPlaylistServerCommand),
 		ECVF_Default
 	));
@@ -326,7 +326,7 @@ void FAvaMediaEditorModule::StartPlaylistServerCommand(const TArray<FString>& Ar
 {
 	if (PlaylistServer)
 	{
-		UE_LOG(LogAvaMediaEditor, Log, TEXT("Playlist Server is already started."));
+		UE_LOG(LogAvaMediaEditor, Log, TEXT("Rundown Server is already started."));
 		return;
 	}
 	
@@ -339,14 +339,14 @@ void FAvaMediaEditorModule::StartPlaylistServerCommand(const TArray<FString>& Ar
 	PlaylistServer->Init(Args.Num() > 0 ? Args[0] : TEXT(""));
 	OnPlaylistServerStarted.Broadcast();
 
-	UE_LOG(LogAvaMediaEditor, Log, TEXT("Playlist Server Started."));
+	UE_LOG(LogAvaMediaEditor, Log, TEXT("Rundown Server Started."));
 }
 
 void FAvaMediaEditorModule::StopPlaylistServerCommand(const TArray<FString>& Args)
 {
 	if (PlaylistServer)
 	{
-		UE_LOG(LogAvaMediaEditor, Log, TEXT("Stopping Playlist Server..."));
+		UE_LOG(LogAvaMediaEditor, Log, TEXT("Stopping Rundown Server..."));
 		OnPlaylistServerStopped.Broadcast();
 	}
 	PlaylistServer.Reset();

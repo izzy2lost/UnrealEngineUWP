@@ -14,7 +14,7 @@ void FAvaPlaylistFilterTransitionLayerSuggestionFactory::AddSuggestion(const TSh
 	const FAvalanchePage& PageItem = UAvalanchePlaylist::GetPageSafe(InPayload->Playlist, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText TransitionLayerCategoryLabel = LOCTEXT("TransitionLayerCategoryLabel", "Ava-Playlist-Transition-Layer");
+		const FText TransitionLayerCategoryLabel = LOCTEXT("TransitionLayerCategoryLabel", "Ava-Rundown-Transition-Layer");
 		const FString PageLayer = PageItem.GetTransitionLayer(InPayload->Playlist).ToString();
 
 		FString TransitionLayerSuggestion = FString::Printf(TEXT("TransitionLayer=%s"), *PageLayer);

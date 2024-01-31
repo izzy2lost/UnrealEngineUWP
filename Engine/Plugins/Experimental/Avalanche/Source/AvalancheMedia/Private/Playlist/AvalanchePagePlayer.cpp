@@ -191,7 +191,7 @@ bool UAvalanchePagePlayer::Initialize(UAvalanchePlaylist* InPlaylist, const FAva
 {
 	if (!InPlaylist)
 	{
-		UE_LOG(LogAvaPlaylist, Error, TEXT("UAvalanchePagePlayer::Initialize: Invalid playlist."));
+		UE_LOG(LogAvaPlaylist, Error, TEXT("UAvalanchePagePlayer::Initialize: Invalid rundown."));
 		return false;
 	}
 
@@ -231,7 +231,7 @@ UAvaRundownPlaybackInstancePlayer* UAvalanchePagePlayer::LoadInstancePlayer(int3
 	const UAvalanchePlaylist* Playlist = PlaylistWeak.Get();
 	if (!Playlist)
 	{
-		UE_LOG(LogAvaPlaylist, Error, TEXT("UAvalanchePagePlayer::LoadSubPage: Playlist is no longuer valid."));
+		UE_LOG(LogAvaPlaylist, Error, TEXT("UAvalanchePagePlayer::LoadSubPage: Rundown is no longuer valid."));
 		return nullptr;
 	}
 
@@ -417,12 +417,12 @@ void UAvalanchePagePlayer::HandleOnPlayableSequenceEvent(UAvalanchePlayable* InP
 		using namespace UE::AvaMediaPlayback::Utils;
 		if (InEventType == EAvalanchePlayableSequenceEventType::Started)
 		{
-			UE_LOG(LogAvaPlaylist, Verbose, TEXT("%s Playlist Page %d: Sequence Started \"%s\"."), *GetBriefFrameInfo(), PageId, *SequenceName.ToString());
+			UE_LOG(LogAvaPlaylist, Verbose, TEXT("%s Rundown Page %d: Sequence Started \"%s\"."), *GetBriefFrameInfo(), PageId, *SequenceName.ToString());
 		}
 
 		if (InEventType == EAvalanchePlayableSequenceEventType::Finished)
 		{
-			UE_LOG(LogAvaPlaylist, Verbose, TEXT("%s Playlist Page %d: Sequence Finished \"%s\"."), *GetBriefFrameInfo(), PageId, *SequenceName.ToString());
+			UE_LOG(LogAvaPlaylist, Verbose, TEXT("%s Rundown Page %d: Sequence Finished \"%s\"."), *GetBriefFrameInfo(), PageId, *SequenceName.ToString());
 			PlaylistWeak->NotifyPageSequenceFinished(PageId);
 		}
 	}

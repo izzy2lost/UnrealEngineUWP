@@ -18,7 +18,7 @@
 FAvaPlaylistDefaultMode::FAvaPlaylistDefaultMode(const TSharedPtr<FAvaPlaylistEditor>& InPlaylistEditor)
 	: FAvaPlaylistAppMode(InPlaylistEditor, FAvaPlaylistAppMode::DefaultMode)
 {
-	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenu_AvaPlaylist", "Motion Design Playlist"));
+	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenu_AvaPlaylist", "Motion Design Rundown"));
 	
 	check(InPlaylistEditor.IsValid());
 	TabLayout = FTabManager::NewLayout("AvalanchePlaylistEditor_Default_Layout_V2.4")

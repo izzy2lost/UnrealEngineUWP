@@ -124,7 +124,7 @@ namespace UE::AvaPlaylistEditor::Utils::Private
 			DestinationPage.SetTemplateId(InTemplateId);
 			return true;
 		}
-		UE_LOG(LogAvaPlaylist, Error, TEXT("Failed to copy page in plage: page id %d is not found in destination playlist."), InPageId);
+		UE_LOG(LogAvaPlaylist, Error, TEXT("Failed to copy page in plage: page id %d is not found in destination rundown."), InPageId);
 		return false;
 	}
 }

@@ -603,7 +603,7 @@ bool SAvaInstancedPageList::HandleDropExternalFiles(const TArray<FString>& InFil
 					}
 					else
 					{
-						UE_LOG(LogAvaPlaylist, Error, TEXT("Failed to merge %s in current playlist."), *File);	
+						UE_LOG(LogAvaPlaylist, Error, TEXT("Failed to merge %s in current rundown."), *File);	
 					}
 				}
 				else
@@ -613,7 +613,7 @@ bool SAvaInstancedPageList::HandleDropExternalFiles(const TArray<FString>& InFil
 			}
 			else
 			{
-				UE_LOG(LogAvaPlaylist, Error, TEXT("%s is not a valid playlist."), *File);
+				UE_LOG(LogAvaPlaylist, Error, TEXT("%s is not a valid rundown."), *File);
 			}
 		}
 		else

@@ -271,7 +271,7 @@ void UAvalanchePageTransition::Stop()
 	}
 	else
 	{
-		UE_LOG(LogAvaPlaylist, Error, TEXT("Page Transition \"%s\" Failed to remove transition: No playlist specified."), *GetFullName());
+		UE_LOG(LogAvaPlaylist, Error, TEXT("Page Transition \"%s\" Failed to remove transition: No rundown specified."), *GetFullName());
 	}
 }
 
@@ -409,7 +409,7 @@ void UAvalanchePageTransition::OnTransitionEvent(UAvalanchePlayable* InPlayable,
 			}
 			else
 			{
-				UE_LOG(LogAvaPlaylist, Error, TEXT("Page Transition \"%s\" failed to remove stopped players: No playlist specified."), *GetFullName());
+				UE_LOG(LogAvaPlaylist, Error, TEXT("Page Transition \"%s\" failed to remove stopped players: No rundown specified."), *GetFullName());
 			}
 		}
 	}

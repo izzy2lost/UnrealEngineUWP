@@ -13,7 +13,7 @@
 
 FText UAssetDefinition_AvalanchePlaylist::GetAssetDisplayName() const
 {
-	return LOCTEXT("AvaPlaylistAction_Name", "Motion Design Playlist");
+	return LOCTEXT("AvaPlaylistAction_Name", "Motion Design Rundown");
 }
 
 TSoftClassPtr<UObject> UAssetDefinition_AvalanchePlaylist::GetAssetClass() const
@@ -118,7 +118,7 @@ namespace MenuExtension_AvalanchePlaylist
 
 					if (Reply == EAppReturnType::No)
 					{
-						UE_LOG(LogAvaPlaylist, Warning, TEXT("Skipping import of playlist \"%s\""), *Playlist->GetFullName());
+						UE_LOG(LogAvaPlaylist, Warning, TEXT("Skipping import of rundown \"%s\""), *Playlist->GetFullName());
 						continue;
 					}
 					
@@ -132,7 +132,7 @@ namespace MenuExtension_AvalanchePlaylist
 				if (!Playlist->IsEmpty())
 				{
 					const FText MessageText = LOCTEXT("ClearPlaylistOnImportQuestion",
-						"The playlist is not empty, all existing content will be overwritten. Are you sure?");
+						"The rundown is not empty, all existing content will be overwritten. Are you sure?");
 			
 					const EAppReturnType::Type Reply = FMessageDialog::Open(EAppMsgType::YesNoCancel, EAppReturnType::Yes, MessageText);
 					if (Reply == EAppReturnType::Cancel)

@@ -14,7 +14,7 @@ void FAvaPlaylistFilterPathSuggestionFactory::AddSuggestion(const TSharedRef<FAv
 	const FAvalanchePage& PageItem = UAvalanchePlaylist::GetPageSafe(InPayload->Playlist, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText PathCategoryLabel = LOCTEXT("PathCategoryLabel", "Ava-Playlist-Asset");
+		const FText PathCategoryLabel = LOCTEXT("PathCategoryLabel", "Ava-Rundown-Asset");
 		const FString AssetName = PageItem.GetAvalancheAssetPath(InPayload->Playlist).GetAssetName();
 
 		FString BlueprintNameSuggestion = FString::Printf(TEXT("Asset=%s"), *AssetName);
