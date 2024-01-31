@@ -27,9 +27,9 @@ namespace Horde.Server.Utilities
 		public static AclClaimConfig DownloadSoftwareClaim { get; } = new AclClaimConfig(HordeClaimTypes.Role, "download-software");
 
 		/// <summary>
-		/// Name of the role used to upload software
+		/// Name of the role used to upload tools
 		/// </summary>
-		public static AclClaimConfig UploadSoftwareClaim { get; } = new AclClaimConfig(HordeClaimTypes.Role, "upload-software");
+		public static AclClaimConfig UploadToolsClaim { get; } = new AclClaimConfig(HordeClaimTypes.Role, "upload-software");
 
 		/// <summary>
 		/// Name of the role used to upload software
