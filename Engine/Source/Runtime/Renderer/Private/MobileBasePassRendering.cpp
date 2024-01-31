@@ -427,6 +427,7 @@ void SetupMobileDirectionalLightUniformParameters(
 					}
 					Params.DirectionalLightScreenToShadow[OutShadowIndex] = FMatrix44f(ShadowInfo->GetScreenToShadowMatrix(SceneView));		// LWC_TODO: Precision loss?
 					Params.DirectionalLightShadowDistances[OutShadowIndex] = ShadowInfo->CascadeSettings.SplitFar;
+					Params.DirectionalLightNumCascades++;
 					OutShadowIndex++;
 				}
 			}
