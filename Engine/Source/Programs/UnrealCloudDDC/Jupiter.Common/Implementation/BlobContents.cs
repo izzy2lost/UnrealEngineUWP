@@ -3,12 +3,14 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Jupiter.Common.Implementation;
 
 namespace Jupiter.Implementation
 {
 	public sealed class BlobContents : IDisposable, IAsyncDisposable
 	{
 		private readonly Stream? _stream;
+		private readonly IBufferedPayload? _bufferedPayload;
 
 		public BlobContents(Stream stream, long length, string? localPath = null)
 		{
@@ -24,6 +26,15 @@ namespace Jupiter.Implementation
 			Length = payload.LongLength;
 			LocalPath = null;
 		}
+
+		public BlobContents(IBufferedPayload payload)
+		{
+			_bufferedPayload = payload;
+			_stream = _bufferedPayload.GetStream();
+			Length = payload.Length;
+			LocalPath = null;
+		}
+
 
 		public BlobContents(Uri redirectUri)
 		{
@@ -50,7 +61,9 @@ namespace Jupiter.Implementation
 		public void Dispose()
 		{
 			_stream?.Dispose();
+			_bufferedPayload?.Dispose();
 		}
+
 		public ValueTask DisposeAsync()
 		{
 			_stream?.Dispose();

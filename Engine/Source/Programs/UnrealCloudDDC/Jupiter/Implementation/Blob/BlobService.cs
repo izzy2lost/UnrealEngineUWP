@@ -413,10 +413,9 @@ public class BlobService : IBlobService
 			using TelemetrySpan _ = _tracer.StartActiveSpan("HierarchicalStore.Populate").SetAttribute("operation.name", "HierarchicalStore.Populate");
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope($"blob.populate", "Populating caches with blob contents");
 
-			await using MemoryStream tempStream = new MemoryStream();
-			await blobContents.Stream.CopyToAsync(tempStream);
-			byte[] data = tempStream.ToArray();
-			
+			// not using using as the blob contents will take ownership of this buffered payload and dispose it when the contents is disposed
+			IBufferedPayload bufferedPayload = await _bufferedPayloadFactory.CreateFromStreamAsync(blobContents.Stream, blobContents.Length);
+
 			// Don't populate the last store, as that is where we got the hit
 			for (int i = 0; i < numStoreMisses; i++)
 			{
@@ -424,12 +423,13 @@ public class BlobService : IBlobService
 				using TelemetrySpan scope = _tracer.StartActiveSpan("HierarchicalStore.PopulateStore")
 					.SetAttribute("operation.name", "HierarchicalStore.PopulateStore")
 					.SetAttribute("BlobStore", blobStore.GetType().Name);
+				await using Stream s = bufferedPayload.GetStream();
 				// Populate each store traversed that did not have the content found lower in the hierarchy
-				await blobStore.PutObjectAsync(ns, data, blob);
+				await blobStore.PutObjectAsync(ns, s, blob);
 			}
 
 #pragma warning disable CA2000 // Dispose objects before losing scope , ownership is transfered to caller
-			blobContents = new BlobContents(data);
+			blobContents = new BlobContents(bufferedPayload);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 		}
 		

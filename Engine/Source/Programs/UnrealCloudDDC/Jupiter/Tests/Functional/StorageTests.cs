@@ -40,6 +40,167 @@ using Jupiter.Tests.Functional;
 namespace Jupiter.FunctionalTests.Storage
 {
 	[TestClass]
+	public class MixStorageTests : StorageTests
+	{
+		private IAmazonS3? _s3;
+		private readonly string _localTestDir;
+
+		public MixStorageTests()
+		{
+			_localTestDir = Path.Combine(Path.GetTempPath(), "MixFileSystemTests", Path.GetRandomFileName());
+		}
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
+		{
+			return new[]
+			{
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:1", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
+				new KeyValuePair<string, string?>("Filesystem:RootDir", _localTestDir),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-mix-{TestNamespaceName}")
+			};
+		}
+
+		protected override async Task Seed(IServiceProvider provider)
+		{
+			string s3BucketName = $"tests-mix-{TestNamespaceName}";
+
+			_s3 = provider.GetService<IAmazonS3>();
+			Assert.IsNotNull(_s3);
+			try
+			{
+				await _s3.PutBucketAsync(s3BucketName);
+			}
+			catch (AmazonS3Exception e)
+			{
+				if (e.StatusCode != HttpStatusCode.Conflict)
+				{
+					// skip 409 as that means the bucket already existed
+					throw;
+				}
+			}
+			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = SmallFileHash.AsS3Key(), ContentBody = SmallFileContents });
+			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = AnotherFileHash.AsS3Key(), ContentBody = AnotherFileContents });
+			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = DeleteFileHash.AsS3Key(), ContentBody = DeletableFileContents });
+			await _s3.PutObjectAsync(new PutObjectRequest { BucketName = s3BucketName, Key = OldBlobFileHash.AsS3Key(), ContentBody = OldFileContents });
+		}
+
+		[TestMethod]
+		public async Task GetBlobRedirectAsync()
+		{
+			HttpResponseMessage result = await HttpClient!.GetAsync(new Uri($"api/v1/s/{TestRedirectNamespaceName}/{SmallFileHash}", UriKind.Relative));
+			Assert.AreEqual(HttpStatusCode.Redirect, result.StatusCode);
+		}
+
+		/// <summary>
+		/// write a large file (bigger then that C# can have in memory) while forcing this to not exist in the filesystem cache so that we trigger a populate
+		/// </summary>
+
+		[TestMethod]
+		[TestCategory("SlowTests")]
+		public async Task PutGetLargePayloadForcePopulateAsync()
+		{
+			// we submit a blob so large that it can not fit using the memory blob store
+			IBlobStore? blobStore = Server?.Services.GetService<IBlobStore>();
+			Assert.IsFalse(blobStore is MemoryBlobStore);
+
+			if (blobStore is AzureBlobStore)
+			{
+				Assert.Inconclusive("Azure blob store gets internal server errors when receiving large blobs");
+			}
+
+			FileSystemStore? filesystemStore = Server?.Services.GetService<FileSystemStore>();
+			Assert.IsNotNull(filesystemStore, "Expected to find a configured filesystem store");
+
+			FileInfo fi = new FileInfo(Path.GetTempFileName());
+
+			FileInfo tempOutputFile = new FileInfo(Path.GetTempFileName());
+
+			try
+			{
+				{
+					await using FileStream fs = fi.OpenWrite();
+
+					byte[] block = new byte[1024 * 1024];
+					Array.Fill(block, (byte)'a');
+					// we want a file larger then 2GB, each block is 1 MB
+					int countOfBlocks = 2100;
+					for (int i = 0; i < countOfBlocks; i++)
+					{
+						await fs.WriteAsync(block, 0, block.Length);
+					}
+				}
+
+				BlobId blobIdentifier;
+				{
+					await using FileStream fs = fi.OpenRead();
+					blobIdentifier = await BlobId.FromStreamAsync(fs);
+				}
+
+				{
+					await using FileStream fs = fi.OpenRead();
+					using StreamContent content = new StreamContent(fs);
+					content.Headers.ContentType = new MediaTypeHeaderValue(MediaTypeNames.Application.Octet);
+					HttpResponseMessage result = await HttpClient!.PutAsync(new Uri($"api/v1/blobs/{TestNamespaceName}/{blobIdentifier}", UriKind.Relative), content);
+					result.EnsureSuccessStatusCode();
+
+					InsertResponse? response = await result.Content.ReadFromJsonAsync<InsertResponse>();
+					Assert.IsNotNull(response);
+					Assert.AreEqual(blobIdentifier, response.Identifier);
+				}
+
+				await filesystemStore.DeleteObjectAsync(TestNamespaceName, blobIdentifier);
+
+				{
+					// verify we can fetch the blob again
+					HttpResponseMessage result = await HttpClient!.GetAsync(new Uri($"api/v1/blobs/{TestNamespaceName}/{blobIdentifier}", UriKind.Relative), HttpCompletionOption.ResponseHeadersRead);
+					if (result.StatusCode == HttpStatusCode.InternalServerError)
+					{
+						throw new Exception("Error: " + await result.Content.ReadAsStringAsync());
+					}
+					result.EnsureSuccessStatusCode();
+					Stream s = await result.Content.ReadAsStreamAsync();
+
+					{
+						// stream this to disk so we have something to look at in case there is an error
+						await using FileStream fs = tempOutputFile.OpenWrite();
+						await s.CopyToAsync(fs);
+						fs.Close();
+						s.Close();
+
+						s = tempOutputFile.OpenRead();
+					}
+
+					BlobId downloadedBlobIdentifier = await BlobId.FromStreamAsync(s);
+					Assert.AreEqual(blobIdentifier, downloadedBlobIdentifier);
+					s.Close();
+				}
+			}
+			finally
+			{
+				if (fi.Exists)
+				{
+					fi.Delete();
+				}
+
+				if (tempOutputFile.Exists)
+				{
+					tempOutputFile.Delete();
+				}
+			}
+		}
+
+		protected override async Task Teardown(IServiceProvider provider)
+		{
+			if (Directory.Exists(_localTestDir))
+			{
+				Directory.Delete(_localTestDir, true);
+			}
+
+			await Task.CompletedTask;
+		}
+	}
+
+	[TestClass]
 	public class S3StorageTests : StorageTests
 	{
 		private IAmazonS3? _s3;
