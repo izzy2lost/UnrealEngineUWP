@@ -211,6 +211,16 @@ void FAnalyticsProviderAdjust::FlushEvents()
 #endif
 }
 
+void FAnalyticsProviderAdjust::BlockUntilFlushed(float InTimeoutSec)
+{
+#if WITH_ADJUST
+	[Adjust sendFirstPackages];
+	UE_LOG(LogAnalytics, Display, TEXT("IOSAdjust::BlockUntilFlushed"));
+#else
+	UE_LOG(LogAnalytics, Warning, TEXT("WITH_ADJUST=0. Are you missing the SDK?"));
+#endif
+}
+
 void FAnalyticsProviderAdjust::SetUserID(const FString& InUserID)
 {
 #if WITH_ADJUST

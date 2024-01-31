@@ -26,8 +26,10 @@ public:
 
 	virtual bool StartSession(const TArray<FAnalyticsEventAttribute>& Attributes) override;
 	virtual void EndSession() override;
+	
 	/** Swrve PC implementation doesn't cache events */
 	virtual void FlushEvents() override {}
+	virtual void BlockUntilFlushed(float InTimeoutSec) override {}
 
 	virtual void SetUserID(const FString& InUserID) override;
 	virtual FString GetUserID() const override;

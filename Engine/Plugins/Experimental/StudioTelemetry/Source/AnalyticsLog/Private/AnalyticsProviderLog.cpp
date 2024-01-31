@@ -58,6 +58,10 @@ void FAnalyticsProviderLog::FlushEvents()
 {
 }
 
+void FAnalyticsProviderLog::BlockUntilFlushed(float InTimeoutSec)
+{
+}
+
 void FAnalyticsProviderLog::SetDefaultEventAttributes(TArray<FAnalyticsEventAttribute>&& Attributes)
 {
 	DefaultEventAttributes = Attributes;

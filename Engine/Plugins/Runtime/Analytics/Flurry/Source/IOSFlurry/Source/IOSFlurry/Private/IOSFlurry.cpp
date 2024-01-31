@@ -102,6 +102,16 @@ void FAnalyticsProviderFlurry::FlushEvents()
 #endif
 }
 
+void FAnalyticsProviderFlurry::BlockUntilFlushed(float InTimeoutSec)
+{
+#if WITH_FLURRY
+	// Flurry doesn't support flushing a session
+	UE_LOG(LogAnalytics, Display, TEXT("IOSFlurry::BlockUntilFlushed - ignoring call"));
+#else
+	UE_LOG(LogAnalytics, Warning, TEXT("WITH_FLURRY=0. Are you missing the SDK?"));
+#endif
+}
+
 void FAnalyticsProviderFlurry::SetUserID(const FString& InUserID)
 {
 #if WITH_FLURRY

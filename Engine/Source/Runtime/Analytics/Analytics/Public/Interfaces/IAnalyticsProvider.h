@@ -102,11 +102,26 @@ public:
 
 	/**
 	 * Flush any cached events to the analytics provider.
+	 * 
+	 * This does not guarantee that the flushed events have been fully committed to what ever storage
+	 * mechanism that the provider uses. The event might still be writing to disk or in-flight on the
+	 * network etc. This call will however guarantee that all currently cached events have started the
+	 *  process.
 	 *
 	 * Note that not all providers support explicitly sending any cached events. In which case this method
 	 * does nothing.
 	 */
 	virtual void FlushEvents() = 0;
+
+	/**
+	 * Functions the same as ::Flush except that it will attempt to wait until the events have been fully
+	 * committed to the provider.
+	 * 
+	 * @param InTimeoutSec	The maximum time allowed (in seconds) to wait for the events to become fully
+	 *						committed. If the events are not fully committed once this timer is exceeded the
+	 *						method will return anyway.
+	 */
+	virtual void BlockUntilFlushed(float InTimeoutSec) = 0;
 
 	/**
 	 * Set the UserID for use with analytics. Some providers require a unique ID

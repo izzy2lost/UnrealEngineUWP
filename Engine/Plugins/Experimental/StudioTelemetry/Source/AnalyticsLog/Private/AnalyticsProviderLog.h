@@ -22,6 +22,7 @@ public:
 	virtual void EndSession() override;
 
 	virtual void FlushEvents() override;
+	virtual void BlockUntilFlushed(float InTimeoutSec) override;
 
 	virtual void SetDefaultEventAttributes(TArray<FAnalyticsEventAttribute>&& Attributes)  override;
 	virtual TArray<FAnalyticsEventAttribute> GetDefaultEventAttributesSafe() const override;

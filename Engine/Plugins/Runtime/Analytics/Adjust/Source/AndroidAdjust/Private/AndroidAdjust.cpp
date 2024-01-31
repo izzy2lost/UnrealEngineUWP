@@ -260,6 +260,15 @@ void FAnalyticsProviderAdjust::EndSession()
 #endif
 }
 
+void FAnalyticsProviderAdjust::BlockUntilFlushed(float InTimeoutSec)
+{
+#if WITH_ADJUST
+	UE_LOG(LogAnalytics, Display, TEXT("AndroidAdjust::BlockUntilFlushed"));
+#else
+	UE_LOG(LogAnalytics, Warning, TEXT("WITH_ADJUST=0. Are you missing the SDK?"));
+#endif
+}
+
 void FAnalyticsProviderAdjust::FlushEvents()
 {
 #if WITH_ADJUST

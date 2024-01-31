@@ -205,6 +205,14 @@ void FAnalyticsProviderMulticast::FlushEvents()
 	}
 }
 
+void FAnalyticsProviderMulticast::BlockUntilFlushed(float InTimeoutSec)
+{
+	for (TProviders::TConstIterator it(Providers); it; ++it)
+	{
+		(*it).Value->BlockUntilFlushed(InTimeoutSec);
+	}
+}
+
 void FAnalyticsProviderMulticast::SetRecordEventCallback(OnRecordEvent Callback)
 {
 	RecordEventCallback = Callback;
@@ -213,7 +221,7 @@ void FAnalyticsProviderMulticast::SetRecordEventCallback(OnRecordEvent Callback)
 void FAnalyticsProviderMulticast::RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
 #if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-	// Expose events that have duplicate aatibute names. This is is not handled by the analytics backends in any reliable way.
+	// Expose events that have duplicate attribute names. This is is not handled by the analytics backends in any reliable way.
 	for (int32 index0 = 0; index0 < Attributes.Num(); ++index0)
 	{
 		for (int32 index1 = index0 + 1; index1 < Attributes.Num(); ++index1)
