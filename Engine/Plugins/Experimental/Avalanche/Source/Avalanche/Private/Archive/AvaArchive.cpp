@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvalancheArchive.h"
+#include "AvaArchive.h"
 #include "AvaBlueprint.h"
 #include "AvaBlueprint_Serialize.h"
 #include "HAL/UnrealMemory.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UnrealType.h"
 
-#define LOCTEXT_NAMESPACE "AvalancheArchive"
+#define LOCTEXT_NAMESPACE "AvaArchive"
 
-DEFINE_LOG_CATEGORY_STATIC(LogAvalancheArchive, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogAvaArchive, Log, All);
 
-FAvalancheArchive::FAvalancheArchive(FAvalancheWorldData& InWorldData, FAvalancheObjectData& InObjectData, UObject* InSerializedObject, bool bIsLoading)
+FAvaArchive::FAvaArchive(FAvaWorldData& InWorldData, FAvaObjectData& InObjectData, UObject* InSerializedObject, bool bIsLoading)
 	: WorldData(InWorldData)
 	, ObjectData(InObjectData)
 	, SerializedObject(InSerializedObject)
@@ -41,28 +41,28 @@ FAvalancheArchive::FAvalancheArchive(FAvalancheWorldData& InWorldData, FAvalanch
 	}
 }
 
-FString FAvalancheArchive::GetArchiveName() const
+FString FAvaArchive::GetArchiveName() const
 {
-	return TEXT("FAvalancheArchive");
+	return TEXT("FAvaArchive");
 }
 
-int64 FAvalancheArchive::TotalSize()
+int64 FAvaArchive::TotalSize()
 {
 	return ObjectData.SerializedData.Num();
 }
 
-int64 FAvalancheArchive::Tell()
+int64 FAvaArchive::Tell()
 {
 	return DataIndex;
 }
 
-void FAvalancheArchive::Seek(int64 InPos)
+void FAvaArchive::Seek(int64 InPos)
 {
 	checkSlow(InPos <= TotalSize());
 	DataIndex = InPos;
 }
 
-bool FAvalancheArchive::ShouldSkipProperty(const FProperty* InProperty) const
+bool FAvaArchive::ShouldSkipProperty(const FProperty* InProperty) const
 {
 	check(InProperty);
 
@@ -74,7 +74,7 @@ bool FAvalancheArchive::ShouldSkipProperty(const FProperty* InProperty) const
 	return false;
 }
 
-FArchive& FAvalancheArchive::operator<<(FName& Value)
+FArchive& FAvaArchive::operator<<(FName& Value)
 {
 	if (IsLoading())
 	{
@@ -106,7 +106,7 @@ FArchive& FAvalancheArchive::operator<<(FName& Value)
 	return *this;
 }
 
-FArchive& FAvalancheArchive::operator<<(UObject*& Value)
+FArchive& FAvaArchive::operator<<(UObject*& Value)
 {
 	if (IsLoading())
 	{
@@ -138,7 +138,7 @@ FArchive& FAvalancheArchive::operator<<(UObject*& Value)
 	return *this;
 }
 
-void FAvalancheArchive::Serialize(void* Data, int64 Length)
+void FAvaArchive::Serialize(void* Data, int64 Length)
 {
 	if (Length <= 0)
 	{
@@ -149,7 +149,7 @@ void FAvalancheArchive::Serialize(void* Data, int64 Length)
 	{
 		if (!ensure(DataIndex + Length <= TotalSize()))
 		{
-			UE_LOG(LogAvalancheArchive, Error, TEXT("Unable to read %d bytes at index %d (Archive size: %d), missing %d bytes."),
+			UE_LOG(LogAvaArchive, Error, TEXT("Unable to read %d bytes at index %d (Archive size: %d), missing %d bytes."),
 				Length, DataIndex, TotalSize(), DataIndex + Length - TotalSize());
 			SetError();
 			return;

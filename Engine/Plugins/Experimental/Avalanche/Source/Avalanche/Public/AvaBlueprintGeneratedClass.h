@@ -9,7 +9,7 @@
 
 #include "AvaBlueprintGeneratedClass.generated.h"
 
-class AAvalancheActor;
+class AAvaActor;
 class UAvaSequence;
 
 UCLASS(MinimalAPI, DisplayName = "Motion Design Blueprint Generated Class")
@@ -18,7 +18,7 @@ class UAvaBlueprintGeneratedClass : public UBlueprintGeneratedClass
 	GENERATED_BODY()
 
 public:
-	void UpdateProperties(AAvalancheActor* InActor);
+	void UpdateProperties(AAvaActor* InActor);
 
 	UPROPERTY()
 	TArray<TObjectPtr<UAvaSequence>> Animations;

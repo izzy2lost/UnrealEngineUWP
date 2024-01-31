@@ -7,12 +7,12 @@
 
 /** Avalanche Actor */
 UCLASS(MinimalAPI, DisplayName = "Motion Design Actor")
-class AAvalancheActor : public AActor
+class AAvaActor : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	AAvalancheActor();
+	AAvaActor();
 
 	void SetIsPlaceholder(bool bInIsPlaceholder = false) { bIsPlaceholder = bInIsPlaceholder; }
 
@@ -22,6 +22,10 @@ public:
 
 	//~ Begin AActor
 	virtual void PostActorCreated() override;
+
+#if WITH_EDITOR
+	virtual FString GetDefaultActorLabel() const override;
+#endif
 	//~ End AActor
 
 	//~ Begin UObject

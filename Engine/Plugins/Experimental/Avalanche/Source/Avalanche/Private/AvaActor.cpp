@@ -4,11 +4,11 @@
 #include "AvaBlueprintGeneratedClass.h"
 #include "AvaSequencePlayer.h"
 
-AAvalancheActor::AAvalancheActor()
+AAvaActor::AAvaActor()
 {
 }
 
-bool AAvalancheActor::UpdateGeneratedClass(bool bForceUpdate)
+bool AAvaActor::UpdateGeneratedClass(bool bForceUpdate)
 {
 	if ((bGeneratedClassUpdated && !bForceUpdate) || HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -25,13 +25,20 @@ bool AAvalancheActor::UpdateGeneratedClass(bool bForceUpdate)
 	return true;
 }
 
-void AAvalancheActor::PostActorCreated()
+void AAvaActor::PostActorCreated()
 {
 	Super::PostActorCreated();
 	UpdateGeneratedClass();
 }
 
-void AAvalancheActor::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+#if WITH_EDITOR
+FString AAvaActor::GetDefaultActorLabel() const
+{
+	return TEXT("Motion Design Actor");
+}
+#endif
+
+void AAvaActor::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
 	Super::PostDuplicate(DuplicateMode);
 	UpdateGeneratedClass();

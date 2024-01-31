@@ -69,9 +69,9 @@ void FAvaEditorStyle::Init()
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
 
 	// Custom Class Icons
-	Set("ClassThumbnail.AvalancheActor", new IMAGE_BRUSH("Icons/Icon64", Icon64));
+	Set("ClassThumbnail.AvaActor", new IMAGE_BRUSH("Icons/Icon64", Icon64));
 	Set("ClassThumbnail.AvalancheBlueprint", new IMAGE_BRUSH("Icons/Icon64", Icon64));
-	Set("ClassIcon.AvalancheActor", new IMAGE_BRUSH("Icons/Icon16", Icon16));
+	Set("ClassIcon.AvaActor", new IMAGE_BRUSH("Icons/Icon16", Icon16));
 	Set("ClassIcon.AvalancheBlueprint", new IMAGE_BRUSH("Icons/Icon16", Icon16));
 	Set("ClassIcon.AvaNullActor", new CORE_IMAGE_BRUSH(TEXT("Icons/SequencerIcons/icon_Sequencer_Move_24x"), Icon16));
 	Set("ClassIcon.AvaToolboxStarDynamicMesh", new IMAGE_BRUSH_SVG("Icons/ToolboxIcons/Favorite", Icon16));

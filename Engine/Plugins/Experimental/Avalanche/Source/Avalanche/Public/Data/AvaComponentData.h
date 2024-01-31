@@ -3,10 +3,10 @@
 #pragma once
 
 #include "ComponentInstanceDataCache.h"
-#include "AvalancheComponentData.generated.h"
+#include "AvaComponentData.generated.h"
 
 USTRUCT()
-struct FAvalancheComponentData
+struct FAvaComponentData
 {
 	GENERATED_BODY()
 

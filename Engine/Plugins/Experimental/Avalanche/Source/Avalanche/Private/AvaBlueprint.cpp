@@ -81,7 +81,7 @@ UWorld* UAvalancheBlueprint::GetAvalancheWorld() const
 	return World;
 }
 
-AAvalancheActor* UAvalancheBlueprint::GetPlaceholderActor() const
+AAvaActor* UAvalancheBlueprint::GetPlaceholderActor() const
 {
 #if WITH_EDITOR
 	// If Placeholder Actor is Invalid, or Worlds do not match, try to find the Placeholder Actor
@@ -90,7 +90,7 @@ AAvalancheActor* UAvalancheBlueprint::GetPlaceholderActor() const
 		UAvalancheBlueprint* const MutableThis = const_cast<UAvalancheBlueprint*>(this);
 		MutableThis->PlaceholderActor = nullptr;
 
-		for (AAvalancheActor* const Actor : TActorRange<AAvalancheActor>(World))
+		for (AAvaActor* const Actor : TActorRange<AAvaActor>(World))
 		{
 			if (Actor->GetClass()->ClassGeneratedBy == this)
 			{
@@ -152,10 +152,10 @@ void UAvalancheBlueprint::DestroyPlaceholderActor()
 
 void UAvalancheBlueprint::UpdatePlaceholderActor(bool bInForceFullUpdate)
 {
-	AAvalancheActor* AvalancheActor = GetPlaceholderActor();
+	AAvaActor* AvaActor = GetPlaceholderActor();
 
 	// if Actor is already valid and we are not doing a full update, skip
-	if (AvalancheActor && !bInForceFullUpdate)
+	if (AvaActor && !bInForceFullUpdate)
 	{
 		return;
 	}
@@ -169,13 +169,13 @@ void UAvalancheBlueprint::UpdatePlaceholderActor(bool bInForceFullUpdate)
 #endif
 
 	// Spawn Placeholder Actor if current is invalid, or we're forcing full update
-	if (!AvalancheActor || bInForceFullUpdate)
+	if (!AvaActor || bInForceFullUpdate)
 	{
 		// Destroy the previous actor instance
 		DestroyPlaceholderActor();
 
 		// Spawn a new placeholder actor based on the Blueprint's generated class if it's Actor-based
-		if (ensureMsgf(GeneratedClass && GeneratedClass->IsChildOf(AAvalancheActor::StaticClass())
+		if (ensureMsgf(GeneratedClass && GeneratedClass->IsChildOf(AAvaActor::StaticClass())
 			, TEXT("Generated Class (%s) is not based on Avalanche Actor."), GeneratedClass ? *GeneratedClass->GetName() : TEXT("invalid")))
 		{
 			// Spawn an Actor based on the Blueprint's generated class
@@ -189,15 +189,15 @@ void UAvalancheBlueprint::UpdatePlaceholderActor(bool bInForceFullUpdate)
 #if WITH_EDITOR
 				FMakeClassSpawnableOnScope TemporarilySpawnable(GeneratedClass);
 #endif
-				AvalancheActor   = World->SpawnActor<AAvalancheActor>(GeneratedClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnInfo);
-				PlaceholderActor = AvalancheActor;
+				AvaActor   = World->SpawnActor<AAvaActor>(GeneratedClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnInfo);
+				PlaceholderActor = AvaActor;
 			}
-			check(AvalancheActor);
+			check(AvaActor);
 
 			// Ensure that the actor is invisible as Placeholder
-			AvalancheActor->SetHidden(true);
+			AvaActor->SetHidden(true);
 #if WITH_EDITOR
-			AvalancheActor->SetIsTemporarilyHiddenInEditor(true);
+			AvaActor->SetIsTemporarilyHiddenInEditor(true);
 #endif
 
 			// Prevent any audio from playing as a result of spawning
@@ -210,17 +210,17 @@ void UAvalancheBlueprint::UpdatePlaceholderActor(bool bInForceFullUpdate)
 			// Set the reference to the preview actor for component editing purposes
 			if (SimpleConstructionScript)
 			{
-				SimpleConstructionScript->SetComponentEditorActorInstance(AvalancheActor);
+				SimpleConstructionScript->SetComponentEditorActorInstance(AvaActor);
 			}
 #endif
 		}
 	}
 	else
 	{
-		check(AvalancheActor);
-		AvalancheActor->ReregisterAllComponents();
+		check(AvaActor);
+		AvaActor->ReregisterAllComponents();
 #if WITH_EDITOR
-		AvalancheActor->RerunConstructionScripts();
+		AvaActor->RerunConstructionScripts();
 #endif
 	}
 
@@ -303,7 +303,7 @@ void UAvalancheBlueprint::SaveAvalancheWorld()
 		}
 	}
 
-	FAvalancheWorldData NewWorldData;
+	FAvaWorldData NewWorldData;
 	
 #if WITH_EDITOR	
 	SaveWorldTask.EnterProgressFrame(1.f);
@@ -356,10 +356,10 @@ void UAvalancheBlueprint::LoadAvalancheWorld(UWorld* InOverrideWorld, TOptional<
 	const bool bIsEditorWorld = WorldData.World->IsEditorWorld();
 	
 	//1st Pass: Allocate/Spawn the Actors. Serialization is done in separate pass so Object References can be resolved correctly.
-	for (const TPair<FSoftObjectPath, FAvalancheActorData>& Pair : WorldData.ActorData)
+	for (const TPair<FSoftObjectPath, FAvaActorData>& Pair : WorldData.ActorData)
 	{
 		const FSoftObjectPath& ActorPath = Pair.Key;
-		const FAvalancheActorData& ActorData = Pair.Value;
+		const FAvaActorData& ActorData = Pair.Value;
 		
 		UClass* ActorClass = ActorData.ActorClass.TryLoadClass<AActor>();
 		if (!ActorClass)
@@ -427,14 +427,14 @@ void UAvalancheBlueprint::LoadAvalancheWorld(UWorld* InOverrideWorld, TOptional<
 	}
 	
 	//2nd Pass: Serialization 
-	for (const TPair<FSoftObjectPath, FAvalancheActorData>& Pair : WorldData.ActorData)
+	for (const TPair<FSoftObjectPath, FAvaActorData>& Pair : WorldData.ActorData)
 	{
 #if WITH_EDITOR
 		LoadWorld.EnterProgressFrame();
 #endif
 
 		const FSoftObjectPath& ActorPath = Pair.Key;
-		const FAvalancheActorData& ActorData = Pair.Value;
+		const FAvaActorData& ActorData = Pair.Value;
 		
 		if (AActor* const * const RecreatedActor = RecreatedActors.Find(ActorPath))
 		{
@@ -446,11 +446,11 @@ void UAvalancheBlueprint::LoadAvalancheWorld(UWorld* InOverrideWorld, TOptional<
 				, *Actor->GetPathName());
 
 			//Allocate Components
-			for (const TPair<FAvaObjectIndex, FAvalancheComponentData>& ComponentPair : ActorData.ComponentData)
+			for (const TPair<FAvaObjectIndex, FAvaComponentData>& ComponentPair : ActorData.ComponentData)
 			{
 				const FAvaObjectIndex& ReferenceIndex = ComponentPair.Key;
-				const FAvalancheComponentData& ComponentData = ComponentPair.Value;
-				FAvalancheSubObjectData* SubObjectData = WorldData.SubObjects.Find(ReferenceIndex);
+				const FAvaComponentData& ComponentData = ComponentPair.Value;
+				FAvaSubObjectData* SubObjectData = WorldData.SubObjects.Find(ReferenceIndex);
 				
 				if (ensure(SubObjectData))
 				{

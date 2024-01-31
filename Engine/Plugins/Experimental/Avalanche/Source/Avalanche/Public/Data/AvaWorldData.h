@@ -2,22 +2,22 @@
 
 #pragma once
 
-#include "AvalancheActorData.h"
-#include "AvalancheSubObjectData.h"
-#include "AvalancheVersionInfo.h"
+#include "AvaActorData.h"
+#include "AvaSubObjectData.h"
+#include "AvaVersionInfo.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "UObject/NameTypes.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/WeakObjectPtr.h"
-#include "AvalancheWorldData.generated.h"
+#include "AvaWorldData.generated.h"
 
 class AActor;
 class UObject;
 class UWorld;
 
 USTRUCT()
-struct FAvalancheWorldData
+struct FAvaWorldData
 {
 	GENERATED_BODY()
 	
@@ -35,7 +35,7 @@ struct FAvalancheWorldData
 	* Holds the Version Info this World Data was last serialized with
 	*/
 	UPROPERTY()
-	FAvalancheVersionInfo VersionInfo;
+	FAvaVersionInfo VersionInfo;
 
 	/**
 	* Transient World used to load the World Data in
@@ -48,7 +48,7 @@ struct FAvalancheWorldData
 	* Maps the original actor's path to its serialized data.
 	*/
 	UPROPERTY()
-	TMap<FSoftObjectPath, FAvalancheActorData> ActorData;
+	TMap<FSoftObjectPath, FAvaActorData> ActorData;
 
 	UPROPERTY()
 	TArray<FName> SerializedNames;
@@ -67,7 +67,7 @@ struct FAvalancheWorldData
 	 * (This Container effectively only contains SubObjects so there will be indices not found here)
 	 */
 	UPROPERTY()
-	TMap<FAvaObjectIndex, FAvalancheSubObjectData> SubObjects;
+	TMap<FAvaObjectIndex, FAvaSubObjectData> SubObjects;
 
 	/** Binds every entry in SerializedNames to its index to speed up look up */
 	UPROPERTY(Transient)

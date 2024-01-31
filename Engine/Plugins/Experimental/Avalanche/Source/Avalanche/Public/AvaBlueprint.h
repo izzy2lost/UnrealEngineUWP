@@ -4,7 +4,7 @@
 
 #include "AvaSceneTree.h"
 #include "AvaSequenceShared.h"
-#include "Data/AvalancheWorldData.h"
+#include "Data/AvaWorldData.h"
 #include "Engine/Blueprint.h"
 #include "IAvaSceneInterface.h"
 #include "IAvaSequenceProvider.h"
@@ -12,7 +12,7 @@
 #include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaBlueprint.generated.h"
 
-class AAvalancheActor;
+class AAvaActor;
 class IAvaSequencePlaybackObject;
 class ISequencer;
 class UAvaSequence;
@@ -55,7 +55,7 @@ public:
 
 	UWorld* GetAvalancheWorld() const;
 
-	AAvalancheActor* GetPlaceholderActor() const;
+	AAvaActor* GetPlaceholderActor() const;
 	IAvaSequencePlaybackObject* GetScenePlayback() const;
 
 	void DestroyPlaceholderActor();
@@ -68,7 +68,7 @@ public:
 	 */
 	void SaveAvalancheWorld();
 
-	using FInitActorFunctionRef = TFunctionRef<void(AActor&, const FAvalancheActorData&)>;
+	using FInitActorFunctionRef = TFunctionRef<void(AActor&, const FAvaActorData&)>;
 	void LoadAvalancheWorld(UWorld* InOverrideWorld = nullptr, TOptional<FInitActorFunctionRef> InInitActorFunction = {});
 
 	bool IsSavingAvalancheWorld() const { return bSavingWorld; }
@@ -154,14 +154,14 @@ private:
 	 * Placeholder should be null when an BP Avalanche Actor is spawned into the World as the Actor to use should be the spawned one instead of this Placeholder
 	 */
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
-	TObjectPtr<AAvalancheActor> PlaceholderActor;
+	TObjectPtr<AAvaActor> PlaceholderActor;
 
 	/** The Base Playback Scene that is always present to Play Animations */
 	UPROPERTY()
 	TScriptInterface<IAvaSequencePlaybackObject> PlaybackObject;
 
 	UPROPERTY()
-	FAvalancheWorldData WorldData;
+	FAvaWorldData WorldData;
 
 	UPROPERTY()
 	FAvaSceneTree SceneTree;

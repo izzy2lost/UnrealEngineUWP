@@ -2,24 +2,24 @@
 
 #pragma once
 
-#include "AvalancheDataDefines.h"
-#include "AvalancheObjectData.h"
+#include "AvaDataDefines.h"
+#include "AvaObjectData.h"
 #include "UObject/SoftObjectPath.h"
-#include "AvalancheSubObjectData.generated.h"
+#include "AvaSubObjectData.generated.h"
 
 USTRUCT()
-struct FAvalancheSubObjectData : public FAvalancheObjectData
+struct FAvaSubObjectData : public FAvaObjectData
 {
 	GENERATED_BODY()
 
-	static FAvalancheSubObjectData MakeSkippedSubObjectData()
+	static FAvaSubObjectData MakeSkippedSubObjectData()
 	{
-		FAvalancheSubObjectData OutData;
+		FAvaSubObjectData OutData;
 		OutData.bWasSkippedClass = true;
 		return OutData;
 	}
 
-	/** Index to FAvalancheWorldData::SerializedObjectReferences */
+	/** Index to FAvaWorldData::SerializedObjectReferences */
 	UPROPERTY()
 	FAvaObjectIndex OuterIndex;
 

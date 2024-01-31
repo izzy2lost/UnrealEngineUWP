@@ -2,22 +2,22 @@
 
 #pragma once
 
-#include "Data/AvalancheDataDefines.h"
+#include "Data/AvaDataDefines.h"
 #include "Serialization/ArchiveUObject.h"
 #include "UObject/ObjectMacros.h"
 
-struct FAvalancheObjectData;
-struct FAvalancheWorldData;
+struct FAvaObjectData;
+struct FAvaWorldData;
 class UObject;
 
-class FAvalancheArchive : public FArchiveUObject
+class FAvaArchive : public FArchiveUObject
 {
 	using Super = FArchiveUObject;
 	
 public:
 	
-	FAvalancheArchive(FAvalancheWorldData& InWorldData
-		, FAvalancheObjectData& InObjectData
+	FAvaArchive(FAvaWorldData& InWorldData
+		, FAvaObjectData& InObjectData
 		, UObject* InSerializedObject
 		, bool bIsLoading);
 
@@ -37,9 +37,9 @@ public:
 	
 protected:
 
-	FAvalancheWorldData& WorldData;
+	FAvaWorldData& WorldData;
 
-	FAvalancheObjectData& ObjectData;
+	FAvaObjectData& ObjectData;
 
 	UObject* SerializedObject;
 

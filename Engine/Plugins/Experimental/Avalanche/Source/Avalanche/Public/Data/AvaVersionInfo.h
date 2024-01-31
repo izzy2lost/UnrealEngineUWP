@@ -4,18 +4,18 @@
 
 #include "Misc/Guid.h"
 #include "UObject/NameTypes.h"
-#include "AvalancheVersionInfo.generated.h"
+#include "AvaVersionInfo.generated.h"
 
 class FArchive;
 struct FCustomVersion;
 
 /** Holds file version information */
 USTRUCT()
-struct FAvalancheFileVersionInfo
+struct FAvaFileVersionInfo
 {
 	GENERATED_BODY()
 
-	FAvalancheFileVersionInfo()
+	FAvaFileVersionInfo()
 		: FileVersionUE4(0)
 		, FileVersionUE5(0)
 		, FileVersionLicensee(0)
@@ -37,11 +37,11 @@ struct FAvalancheFileVersionInfo
 
 /** Holds engine version information */
 USTRUCT()
-struct FAvalancheEngineVersionInfo
+struct FAvaEngineVersionInfo
 {
 	GENERATED_BODY()
 
-	FAvalancheEngineVersionInfo()
+	FAvaEngineVersionInfo()
 		: Major(0)
 		, Minor(0)
 		, Patch(0)
@@ -70,11 +70,11 @@ struct FAvalancheEngineVersionInfo
 
 /** Holds custom version information */
 USTRUCT()
-struct FAvalancheCustomVersionInfo
+struct FAvaCustomVersionInfo
 {
 	GENERATED_BODY()
 
-	FAvalancheCustomVersionInfo()
+	FAvaCustomVersionInfo()
 		: Version(0)
 	{
 	}
@@ -96,7 +96,7 @@ struct FAvalancheCustomVersionInfo
 
 /** Holds version information for a session */
 USTRUCT()
-struct FAvalancheVersionInfo
+struct FAvaVersionInfo
 {
 	GENERATED_BODY()
 
@@ -107,15 +107,15 @@ struct FAvalancheVersionInfo
 
 	/** File version info */
 	UPROPERTY()
-	FAvalancheFileVersionInfo FileVersion;
+	FAvaFileVersionInfo FileVersion;
 
 	/** Engine version info */
 	UPROPERTY()
-	FAvalancheEngineVersionInfo EngineVersion;
+	FAvaEngineVersionInfo EngineVersion;
 
 	/** Custom version info */
 	UPROPERTY()
-	TArray<FAvalancheCustomVersionInfo> CustomVersions;
+	TArray<FAvaCustomVersionInfo> CustomVersions;
 
 	/** Keep track of the custom versions used by the assets while saving. */
 	TSet<FGuid> UsedCustomVersions;
