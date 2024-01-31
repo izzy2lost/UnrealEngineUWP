@@ -11,15 +11,15 @@ struct FDataLayerInstanceNames
 	GENERATED_USTRUCT_BODY()
 
 	FDataLayerInstanceNames()
-	: bIsFirstDataLayerIsExternal(false)
+	: bIsFirstDataLayerExternal(false)
 	{
 #if WITH_EDITOR
 		bIsForcedEmptyNonExternalDataLayers = false;
 #endif
 	}
 
-	FDataLayerInstanceNames(const TArray<FName>& InDataLayers, bool bInIsFirstDataLayerIsExternal)
-	: bIsFirstDataLayerIsExternal(bInIsFirstDataLayerIsExternal)
+	FDataLayerInstanceNames(const TArray<FName>& InDataLayers, bool bInIsFirstDataLayerExternal)
+	: bIsFirstDataLayerExternal(bInIsFirstDataLayerExternal)
 	, DataLayers(InDataLayers)
 	{
 #if WITH_EDITOR
@@ -29,8 +29,8 @@ struct FDataLayerInstanceNames
 
 	FDataLayerInstanceNames(const TArray<FName>& InNonExternalDataLayers, FName InExternalDataLayer)
 	{
-		bIsFirstDataLayerIsExternal = !InExternalDataLayer.IsNone();
-		if (bIsFirstDataLayerIsExternal)
+		bIsFirstDataLayerExternal = !InExternalDataLayer.IsNone();
+		if (bIsFirstDataLayerExternal)
 		{
 			DataLayers.Add(InExternalDataLayer);
 		}
@@ -39,68 +39,58 @@ struct FDataLayerInstanceNames
 
 	const FName GetExternalDataLayer() const
 	{
-		check(!bIsFirstDataLayerIsExternal || !DataLayers.IsEmpty());
-		return bIsFirstDataLayerIsExternal ? DataLayers[0] : NAME_None;
+		check(!bIsFirstDataLayerExternal || !DataLayers.IsEmpty());
+		return bIsFirstDataLayerExternal ? DataLayers[0] : NAME_None;
 	}
+
+	/**
+	* DO NOT USE DIRECTLY
+	* STL-like iterators to enable range-based for loop support.
+	*/
+	TArray<FName>::RangedForIteratorType     		 begin() { return DataLayers.begin(); }
+	TArray<FName>::RangedForConstIteratorType		 begin() const { return DataLayers.begin(); }
+	TArray<FName>::RangedForIteratorType      		 end() { return DataLayers.end(); }
+	TArray<FName>::RangedForConstIteratorType		 end() const { return DataLayers.end(); }
+	TArray<FName>::RangedForReverseIteratorType      rbegin() { return DataLayers.rbegin(); }
+	TArray<FName>::RangedForConstReverseIteratorType rbegin() const { return DataLayers.rbegin(); }
+	TArray<FName>::RangedForReverseIteratorType      rend() { return DataLayers.rend(); }
+	TArray<FName>::RangedForConstReverseIteratorType rend() const { return DataLayers.rend(); }
 
 	TArrayView<const FName> GetNonExternalDataLayers() const
 	{
 		static TArray<FName> EmptyArray;
-
-#if WITH_EDITOR
-		if (bIsForcedEmptyNonExternalDataLayers)
-		{
-			return EmptyArray;
-		}
-#endif
-		check(!bIsFirstDataLayerIsExternal || !DataLayers.IsEmpty());
-		const int32 Offset = bIsFirstDataLayerIsExternal ? 1 : 0;
+		check(!bIsFirstDataLayerExternal || !DataLayers.IsEmpty());
+		const int32 Offset = bIsFirstDataLayerExternal ? 1 : 0;
 		const int32 NonExternalDataLayersCount = DataLayers.Num() - Offset;
 		return NonExternalDataLayersCount > 0 ? MakeArrayView(&DataLayers[Offset], NonExternalDataLayersCount) : EmptyArray;
 	}
 
-#if WITH_EDITOR
-	TArray<FName> ToArray() const
-	{
-		if (bIsForcedEmptyNonExternalDataLayers)
-		{
-			static TArray<FName> EmptyArray;
-			return HasExternalDataLayer() ? TArray<FName>({ GetExternalDataLayer() }) : EmptyArray;
-		}
-		return DataLayers;
-	}
-
-	int32 Num() const
-	{
-		if (bIsForcedEmptyNonExternalDataLayers)
-		{
-			return HasExternalDataLayer() ? 1 : 0;
-		}
-		return DataLayers.Num();
-	}
-
-	bool IsEmpty() const
-	{
-		return Num() == 0;
-	}
-#endif
-
-	bool HasExternalDataLayer() const { return bIsFirstDataLayerIsExternal; }
-
-	const TArray<FName>& GetRawArray() const
-	{
-		return DataLayers;
-	}
+	int32 Num() const { return DataLayers.Num(); }
+	bool IsEmpty() const { return DataLayers.IsEmpty(); }
+	bool Contains(FName InDataLayer) const { return DataLayers.Contains(InDataLayer); }
+	bool HasExternalDataLayer() const { return bIsFirstDataLayerExternal; }
+	const TArray<FName>& ToArray() const { return DataLayers; }
 
 private:
 #if WITH_EDITOR
 	bool IsForcedEmptyNonExternalDataLayers() const { return bIsForcedEmptyNonExternalDataLayers; }
-	void SetIsForcedEmptyNonExternalDataLayers(bool bInNewValue) { bIsForcedEmptyNonExternalDataLayers = bInNewValue; }
+	void ForceEmptyNonExternalDataLayers()
+	{
+		bIsForcedEmptyNonExternalDataLayers = true;
+		if (bIsFirstDataLayerExternal)
+		{
+			DataLayers = { DataLayers[0] };
+		}
+		else
+		{
+			DataLayers.Empty();
+		}
+	}
 	bool bIsForcedEmptyNonExternalDataLayers;
 #endif
 
 	UPROPERTY()
-	bool bIsFirstDataLayerIsExternal;
+	bool bIsFirstDataLayerExternal;
 
 	UPROPERTY()
 	TArray<FName> DataLayers;

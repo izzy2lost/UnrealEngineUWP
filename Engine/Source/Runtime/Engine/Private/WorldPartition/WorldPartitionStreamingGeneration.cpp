@@ -262,8 +262,12 @@ void FStreamingGenerationActorDescView::SetParentView(const FStreamingGeneration
 void FStreamingGenerationActorDescView::SetDataLayerInstanceNames(const FDataLayerInstanceNames& InDataLayerInstanceNames)
 {
 	check(!Super::HasResolvedDataLayerInstanceNames());
+	check(!InDataLayerInstanceNames.IsForcedEmptyNonExternalDataLayers())
 	ResolvedDataLayerInstanceNames = InDataLayerInstanceNames;
-	ResolvedDataLayerInstanceNames->SetIsForcedEmptyNonExternalDataLayers(bIsForcedNoDataLayers);
+	if (bIsForcedNoDataLayers)
+	{
+		ResolvedDataLayerInstanceNames->ForceEmptyNonExternalDataLayers();
+	}
 }
 
 bool FStreamingGenerationActorDescView::IsInvalidReference(const FGuid& InGuid, FInvalidReference* OutInvalidReference) const
@@ -321,20 +325,24 @@ void FStreamingGenerationActorDescView::SetForcedNoDataLayers()
 
 		if (ResolvedDataLayerInstanceNames.IsSet())
 		{
-			ResolvedDataLayerInstanceNames->SetIsForcedEmptyNonExternalDataLayers(bIsForcedNoDataLayers);
+			ResolvedDataLayerInstanceNames->ForceEmptyNonExternalDataLayers();
 		}
 
 		if (RuntimeDataLayerInstanceNames.IsSet())
 		{
-			RuntimeDataLayerInstanceNames->SetIsForcedEmptyNonExternalDataLayers(bIsForcedNoDataLayers);
+			RuntimeDataLayerInstanceNames->ForceEmptyNonExternalDataLayers();
 		}
 	}
 }
 
 void FStreamingGenerationActorDescView::SetRuntimeDataLayerInstanceNames(const FDataLayerInstanceNames& InRuntimeDataLayerInstanceNames)
 {
+	check(!InRuntimeDataLayerInstanceNames.IsForcedEmptyNonExternalDataLayers())
 	RuntimeDataLayerInstanceNames = InRuntimeDataLayerInstanceNames;
-	RuntimeDataLayerInstanceNames->SetIsForcedEmptyNonExternalDataLayers(bIsForcedNoDataLayers);
+	if (bIsForcedNoDataLayers)
+	{
+		RuntimeDataLayerInstanceNames->ForceEmptyNonExternalDataLayers();
+	}
 }
 
 void FStreamingGenerationActorDescView::SetRuntimeReferences(const TArray<FGuid>& InRuntimeReferences)

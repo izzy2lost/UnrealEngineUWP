@@ -112,14 +112,14 @@ void UWorldPartitionRuntimeCell::SetDataLayers(const TArray<const UDataLayerInst
 	});
 
 	TArray<FName> SortedDataLayerInstanceNames;
-	bool bIsFirstDataLayerIsExternal = false;
+	bool bIsFirstDataLayerExternal = false;
 	Algo::Transform(SortedDataLayerInstances, SortedDataLayerInstanceNames, [](const UDataLayerInstance* DataLayerInstance) { return DataLayerInstance->GetDataLayerFName(); });
 	if (const UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(SortedDataLayerInstances[0]))
 	{
-		bIsFirstDataLayerIsExternal = true;
+		bIsFirstDataLayerExternal = true;
 		ExternalDataLayerAsset = ExternalDataLayerInstance->GetExternalDataLayerAsset();
 	}
-	DataLayers = FDataLayerInstanceNames(SortedDataLayerInstanceNames, bIsFirstDataLayerIsExternal);
+	DataLayers = FDataLayerInstanceNames(SortedDataLayerInstanceNames, bIsFirstDataLayerExternal);
 }
 
 void UWorldPartitionRuntimeCell::DumpStateLog(FHierarchicalLogArchive& Ar) const
