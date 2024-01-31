@@ -68,8 +68,13 @@ class ULearningAgentsObservationFunctions : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 	/** Project a transform onto the ground plane, leaving just rotation around the vertical axis */
-	UFUNCTION(BlueprintPure, Category = "Learning Agents")
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	static FTransform ProjectTransformOntoGroundPlane(const FTransform Transform, const FVector LocalForwardVector = FVector::ForwardVector, const float GroundPlaneHeight = 0.0f);
+
+
+	/** Find an Enum type by Name. This can be used to find Enum types defined in C++. This call can be expensive so the result should be cached. */
+	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
+	static UEnum* FindEnumByName(const FString Name);
 };
 
 /**
@@ -119,6 +124,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationSchemaElement SpecifyIndexObservation(const int32 Size, const FName Name = TEXT("Index"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsObservationSchemaElement SpecifyCountObservation(const FName Name = TEXT("Count"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationSchemaElement SpecifyStructObservation(const TMap<FName, FLearningAgentsObservationSchemaElement>& Elements, const FName Name = TEXT("Struct"));
@@ -274,6 +282,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeIndexObservation(const int32 Index, const int32 Size, const FName Name = TEXT("Index"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsObservationObjectElement MakeCountObservation(const int32 Num, const int32 MaxNum, const FName Name = TEXT("Count"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeStructObservation(const TMap<FName, FLearningAgentsObservationObjectElement>& Elements, const FName Name = TEXT("Struct"));
@@ -451,6 +462,9 @@ public:
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
 	UPARAM(DisplayName = "Success") bool GetIndexObservation(int32& OutIndex, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Index")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetCountObservation(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Name = TEXT("Count")) const;
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
 	UPARAM(DisplayName = "Success") bool GetStructObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;

@@ -515,6 +515,11 @@ FTransform ULearningAgentsObservationFunctions::ProjectTransformOntoGroundPlane(
 	return FTransform(FQuat::FindBetweenNormals(FVector::ForwardVector, Direction), Position, Transform.GetScale3D());
 }
 
+UEnum* ULearningAgentsObservationFunctions::FindEnumByName(const FString Name)
+{
+	return FindObject<UEnum>(nullptr, *Name);
+}
+
 bool ULearningAgentsObservationSchema::ValidateObjectMatchesSchema(
 	const FLearningAgentsObservationSchemaElement SchemaElement,
 	const ULearningAgentsObservationObject* Object,
@@ -562,6 +567,11 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyIndexObservation(const int32 Size, const FName Name)
 {
 	return SpecifyContinuousObservation(Size, Name);
+}
+
+FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyCountObservation(const FName Name)
+{
+	return SpecifyContinuousObservation(1, Name);
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyStructObservation(const TMap<FName, FLearningAgentsObservationSchemaElement>& Elements, const FName Name)
@@ -1169,6 +1179,17 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeIn
 	}
 
 	return MakeContinuousObservationFromArrayView(Values, Name);
+}
+
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeCountObservation(const int32 Num, const int32 MaxNum, const FName Name)
+{
+	if (MaxNum == 0)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: MaxNum must not be zero for Count Observation."), *GetName());
+		return FLearningAgentsObservationObjectElement();
+	}
+
+	return MakeContinuousObservationFromArrayView({ (float)Num / (float)MaxNum }, Name);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeStructObservation(const TMap<FName, FLearningAgentsObservationObjectElement>& Elements, const FName Name)
@@ -2082,6 +2103,19 @@ bool ULearningAgentsObservationObject::GetIndexObservation(int32& OutIndex, cons
 		if (OneHot[Idx]) { OutIndex = Idx; }
 	}
 
+	return true;
+}
+
+bool ULearningAgentsObservationObject::GetCountObservation(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Name) const
+{
+	float FloatNum = 0.0f;
+	if (!GetContinuousObservationToArrayView(MakeArrayView(&FloatNum, 1), Element, Name))
+	{
+		OutNum = -1;
+		return false;
+	}
+
+	OutNum = FMath::RoundToInt(FloatNum * MaxNum);
 	return true;
 }
 
