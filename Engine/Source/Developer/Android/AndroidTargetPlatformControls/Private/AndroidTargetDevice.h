@@ -159,6 +159,15 @@ public:
 		return AndroidVersionString;
 	}
 
+	virtual const class ITargetPlatformSettings& GetPlatformSettings() const override
+	{
+		return *(TargetPlatformControls.GetTargetPlatformSettings());
+	}
+	virtual const class ITargetPlatformControls& GetPlatformControls() const override
+	{
+		return TargetPlatformControls;
+	}
+
 	virtual FString GetOperatingSystemName() override;
 
 	virtual int32 GetProcessSnapshot( TArray<FTargetDeviceProcessInfo>& OutProcessInfos ) override;
