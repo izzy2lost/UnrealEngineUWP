@@ -894,7 +894,6 @@ bool AWorldDataLayers::RemoveFromActorEditorContext(UDataLayerInstance* InDataLa
 {
 	ON_SCOPE_EXIT { UpdateCurrentColorizedDataLayerInstance(); };
 
-	check(InDataLayerInstance->CanBeInActorEditorContext());
 	check(ContainsDataLayer(InDataLayerInstance));
 
 	const UExternalDataLayerInstance* ExternalDataLayerInstance = Cast<UExternalDataLayerInstance>(InDataLayerInstance);
