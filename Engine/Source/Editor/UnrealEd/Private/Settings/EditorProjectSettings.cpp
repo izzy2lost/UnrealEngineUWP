@@ -109,6 +109,10 @@ void UEditorProjectAppearanceSettings::PostEditChangeProperty( struct FPropertyC
 	{
 		Settings.SetDisplayUnits(EUnitType::AngularSpeed, AngularSpeedUnits);
 	}
+	else if (Name == GET_MEMBER_NAME_CHECKED(UEditorProjectAppearanceSettings, AccelerationUnits))
+	{
+		Settings.SetDisplayUnits(EUnitType::Acceleration, AccelerationUnits);
+	}
 	else if (Name == GET_MEMBER_NAME_CHECKED(UEditorProjectAppearanceSettings, TemperatureUnits))
 	{
 		Settings.SetDisplayUnits(EUnitType::Temperature, TemperatureUnits);
