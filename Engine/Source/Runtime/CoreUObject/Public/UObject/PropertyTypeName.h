@@ -10,6 +10,7 @@
 #define UE_API COREUOBJECT_API
 
 class FArchive;
+class FStructuredArchiveSlot;
 
 namespace UE { class FPropertyTypeNameBuilder; }
 
@@ -29,7 +30,7 @@ struct FPropertyTypeNameNode
  * - int32 -> IntProperty
  * - TArray<int32> -> ArrayProperty<IntProperty>
  * - TArray<FStructType> -> ArrayProperty<StructProperty<StructType>>
- * - TMap<FKeyStruct, EByteEnum> -> MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+ * - TMap<FKeyStruct, EByteEnum> -> MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
  */
 class FPropertyTypeName
 {
@@ -42,7 +43,7 @@ public:
 	/**
 	 * Returns the type at the root of this property type name.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
 	 * - GetTypeName() -> MapProperty
 	 */
 	UE_API FName GetTypeName() const;
@@ -50,7 +51,7 @@ public:
 	/**
 	 * Returns the number of type parameters under the root of this property type name.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
 	 * - GetTypeParameterCount() -> 2
 	 */
 	UE_API int32 GetTypeParameterCount() const;
@@ -60,9 +61,9 @@ public:
 	 *
 	 * An out-of-bounds index will return an empty type name.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
 	 * - GetTypeParameter(0) -> StructProperty<KeyStruct>
-	 * - GetTypeParameter(1) -> EnumProperty<ByteProperty<ByteEnum>>
+	 * - GetTypeParameter(1) -> EnumProperty<ByteEnum,ByteProperty>
 	 */
 	UE_API FPropertyTypeName GetTypeParameter(int32 ParamIndex = 0) const;
 
@@ -71,7 +72,7 @@ public:
 	 *
 	 * An out-of-bounds index will return a name of None.
 	 *
-	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
 	 * - GetTypeParameterName(0) -> StructProperty
 	 * - GetTypeParameterName(1) -> EnumProperty
 	 */
@@ -95,6 +96,7 @@ private:
 	UE_API friend bool operator<(const FPropertyTypeName& Lhs, const FPropertyTypeName& Rhs);
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FPropertyTypeName& TypeName);
+	UE_API friend void operator<<(FStructuredArchiveSlot Slot, FPropertyTypeName& TypeName);
 
 	UE_API friend FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FPropertyTypeName& TypeName);
 
@@ -106,7 +108,7 @@ private:
 /**
  * Builder for FPropertyTypeName.
  *
- * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+ * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteEnum,ByteProperty>>
  *
  * FPropertyTypeNameBuilder Builder;
  * Builder.AddTypeName(NAME_MapProperty));
@@ -117,10 +119,8 @@ private:
  *   Builder.EndTypeParameters();
  *   Builder.AddTypeName(NAME_EnumProperty);
  *   Builder.BeginTypeParameters();
+ *     Builder.AddTypeName(TEXT("ByteEnum"));
  *     Builder.AddTypeName(NAME_ByteProperty);
- *     Builder.BeginTypeParameters();
- *       Builder.AddTypeName(TEXT("ByteEnum"));
- *     Builder.EndTypeParameters();
  *   Builder.EndTypeParameters();
  * Builder.EndTypeParameters();
  * FPropertyTypeName Name = Builder.Build();
@@ -140,10 +140,21 @@ public:
 	/** Mark the end of the type parameters for the matching begin. */
 	UE_API void EndTypeParameters();
 
+	/** Build from the types that have been added. */
 	UE_API FPropertyTypeName Build() const;
 
 	/** Resets the builder to allow it to be reused. */
 	UE_API void Reset();
+
+	/**
+	 * Try to parse and add a complete type name with its type parameters.
+	 *
+	 * Builder is restored to its previous state when parsing fails.
+	 *
+	 * @param Name A name in the format returned by operator<<(FStringBuilderBase&, const FPropertyTypeName&).
+	 * @return true if a name was parsed into the builder, false on failure.
+	 */
+	UE_API bool TryParse(FStringView Name);
 
 private:
 	TArray<FPropertyTypeNameNode, TInlineAllocator<8>> Nodes;

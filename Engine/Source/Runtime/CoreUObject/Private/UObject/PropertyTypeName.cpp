@@ -8,6 +8,7 @@
 #include "HAL/CriticalSection.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/ScopeRWLock.h"
+#include "String/Find.h"
 
 namespace UE
 {
@@ -35,6 +36,13 @@ inline uint32 GetTypeHash(const FPropertyTypeNameNode& Node)
 inline FArchive& operator<<(FArchive& Ar, FPropertyTypeNameNode& Node)
 {
 	return Ar << Node.Name << Node.InnerCount;
+}
+
+inline void operator<<(FStructuredArchiveSlot Slot, FPropertyTypeNameNode& Node)
+{
+	FStructuredArchiveRecord Record = Slot.EnterRecord();
+	Record.EnterField(TEXT("Name")) << Node.Name;
+	Record.EnterField(TEXT("InnerCount")) << Node.InnerCount;
 }
 
 inline const FPropertyTypeNameNode* AppendNode(FStringBuilderBase& Builder, const FPropertyTypeNameNode* Node)
@@ -315,6 +323,66 @@ FArchive& operator<<(FArchive& Ar, FPropertyTypeName& TypeName)
 	return Ar;
 }
 
+void operator<<(FStructuredArchiveSlot Slot, FPropertyTypeName& TypeName)
+{
+	const FArchiveState& State = Slot.GetArchiveState();
+	if (!State.IsPersistent())
+	{
+		Slot << TypeName.Index;
+	}
+	else if (State.IsLoading())
+	{
+		if (State.IsTextFormat())
+		{
+			FString Text;
+			Slot << Text;
+			FPropertyTypeNameBuilder Builder;
+			if (Builder.TryParse(Text))
+			{
+				TypeName = Builder.Build();
+			}
+			else
+			{
+				TypeName.Reset();
+				Slot.GetUnderlyingArchive().SetError();
+			}
+		}
+		else
+		{
+			FStructuredArchiveStream Stream = Slot.EnterStream();
+			TArray<FPropertyTypeNameNode, TInlineAllocator<16>> Nodes;
+			int32 Remaining = 1;
+			do 
+			{
+				FPropertyTypeNameNode& Node = Nodes.AddDefaulted_GetRef();
+				Stream.EnterElement() << Node;
+				Remaining += Node.InnerCount - 1;
+			}
+			while (Remaining > 0);
+			TypeName.Index = GPropertyTypeNameTable.FindOrAddByName(Nodes.GetData());
+		}
+	}
+	else if (State.IsSaving())
+	{
+		if (State.IsTextFormat())
+		{
+			FString Text(WriteToString<256>(TypeName));
+			Slot << Text;
+		}
+		else
+		{
+			FStructuredArchiveStream Stream = Slot.EnterStream();
+			const FPropertyTypeNameNode* Node = GPropertyTypeNameTable.ResolveByIndex(TypeName.Index);
+			for (int32 Remaining = 1; Remaining > 0; --Remaining, ++Node)
+			{
+				FPropertyTypeNameNode NodeCopy = *Node;
+				Stream.EnterElement() << NodeCopy;
+				Remaining += NodeCopy.InnerCount;
+			}
+		}
+	}
+}
+
 FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FPropertyTypeName& TypeName)
 {
 	const FPropertyTypeNameNode* Node = GPropertyTypeNameTable.ResolveByIndex(TypeName.Index);
@@ -364,10 +432,101 @@ void FPropertyTypeNameBuilder::AddTypeName(FPropertyTypeName Name)
 	}
 }
 
+bool FPropertyTypeNameBuilder::TryParse(FStringView Name)
+{
+	const auto ResetToInitial = [this, InitialCount = Nodes.Num(), InitialActiveIndex = ActiveIndex]
+	{
+		Nodes.SetNum(InitialCount, EAllowShrinking::No);
+		OuterNodeIndex.SetNum(InitialCount, EAllowShrinking::No);
+		ActiveIndex = InitialActiveIndex;
+	};
+
+	int32 Index = 0;
+	int32 Depth = 0;
+	bool bAllowName = true;
+	bool bAllowBegin = false;
+	for (FStringView Remaining = Name;; Remaining.RightChopInline(Index + 1))
+	{
+		Index = String::FindFirstOfAnyChar(Remaining, {TEXT('<'), TEXT(','), TEXT('>')});
+
+		if (Index != 0)
+		{
+			FStringView Type = (Index > 0 ? Remaining.Left(Index) : Remaining).TrimStartAndEnd();
+			if (!Type.IsEmpty())
+			{
+				if (!bAllowName)
+				{
+					// Names must follow '<' or ',' or be at the root.
+					break;
+				}
+				AddTypeName(FName(Type));
+				bAllowBegin = true;
+				bAllowName = false;
+			}
+		}
+
+		if (Index == INDEX_NONE)
+		{
+			if (Depth == 0 && !bAllowName)
+			{
+				return true;
+			}
+			// Missing a '>' and/or missing a name.
+			break;
+		}
+
+		if (bAllowName)
+		{
+			// Missing a name.
+			break;
+		}
+
+		const TCHAR C = Remaining[Index];
+		if (C == TEXT('<'))
+		{
+			if (!bAllowBegin)
+			{
+				// '<' must follow a name.
+				break;
+			}
+			++Depth;
+			BeginTypeParameters();
+			bAllowName = true;
+		}
+		else if (C == TEXT('>'))
+		{
+			if (Depth <= 0)
+			{
+				// '>' must have a matching '<'.
+				break;
+			}
+			EndTypeParameters();
+			--Depth;
+		}
+		else // if (C == TEXT(','))
+		{
+			if (Depth <= 0)
+			{
+				// ',' must not be used at the root.
+				break;
+			}
+			bAllowName = true;
+		}
+
+		bAllowBegin = false;
+	}
+
+	ResetToInitial();
+	return false;
+}
+
 FPropertyTypeName FPropertyTypeNameBuilder::Build() const
 {
 	FPropertyTypeName Type;
-	Type.Index = GPropertyTypeNameTable.FindOrAddByName(Nodes.GetData());
+	if (!Nodes.IsEmpty())
+	{
+		Type.Index = GPropertyTypeNameTable.FindOrAddByName(Nodes.GetData());
+	}
 	return Type;
 }
 
