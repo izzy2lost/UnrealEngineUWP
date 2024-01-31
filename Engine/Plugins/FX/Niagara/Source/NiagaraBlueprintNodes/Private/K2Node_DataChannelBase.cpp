@@ -13,12 +13,17 @@ UNiagaraDataChannel* UK2Node_DataChannelBase::GetDataChannel() const
 	return DataChannel ? DataChannel->Get() : nullptr;
 }
 
+bool UK2Node_DataChannelBase::HasValidDataChannel() const
+{
+	return DataChannel && DataChannel->Get();
+}
+
 void UK2Node_DataChannelBase::PostLoad()
 {
 	Super::PostLoad();
 
 #if WITH_EDITORONLY_DATA
-	if (DataChannel && DataChannel->Get()->GetVersion() != DataChannelVersion && HasValidBlueprint())
+	if (HasValidDataChannel() && GetDataChannel()->GetVersion() != DataChannelVersion && HasValidBlueprint())
 	{
 		ReconstructNode();
 	}
@@ -30,9 +35,9 @@ void UK2Node_DataChannelBase::AllocateDefaultPins()
 	Super::AllocateDefaultPins();
 
 #if WITH_EDITORONLY_DATA
-	if (DataChannel)
+	if (HasValidDataChannel())
 	{
-		DataChannelVersion = DataChannel->Get()->GetVersion();
+		DataChannelVersion = GetDataChannel()->GetVersion();
 	}
 #endif
 }
@@ -92,7 +97,7 @@ void UK2Node_DataChannelBase::PreloadRequiredAssets()
 {
 	Super::PreloadRequiredAssets();
 
-	if (DataChannel)
+	if (HasValidDataChannel())
 	{
 		PreloadObject(DataChannel);
 		PreloadObject(DataChannel->Get());
