@@ -8,6 +8,7 @@
 
 #include "PCGSplineSampler.generated.h"
 
+struct FPCGContext;
 struct FPCGProjectionParams;
 class UPCGPolyLineData;
 class UPCGSpatialData;
@@ -170,16 +171,19 @@ struct PCG_API FPCGSplineSamplerParams
 
 namespace PCGSplineSamplerHelpers
 {
-	/** Tests if a point lies inside the given polygon by casting a ray to MaxDistance and counting the intersections */
-	bool PointInsidePolygon2D(const TArray<FVector2D>& PolygonPoints, const FVector2D& Point, FVector::FReal MaxDistance);
-}
-
-namespace PCGSplineSampler
-{
+	/** Samples on spline or within volume around it. */
 	void SampleLineData(const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShape, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData);
 
-	void SampleInteriorData(const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShape, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData);
+	/** Samples 2D region bounded by spline. */
+	void SampleInteriorData(FPCGContext* Context, const UPCGPolyLineData* LineData, const UPCGSpatialData* InBoundingShape, const UPCGSpatialData* InProjectionTarget, const FPCGProjectionParams& InProjectionParams, const FPCGSplineSamplerParams& Params, UPCGPointData* OutPointData);
+
 	const UPCGPolyLineData* GetPolyLineData(const UPCGSpatialData* InSpatialData);
+
+	/** Tests if a point lies inside the given polygon by casting a ray to MaxDistance and counting the intersections. */
+	bool PointInsidePolygon2D(const TArray<FVector2D>& PolygonPoints, const FVector2D& Point, FVector::FReal MaxDistance);
+
+	/** Projects a point in space onto the approximated surface defined by a closed spline. Returns the height of the point after projection. */
+	FVector::FReal ProjectOntoSplineInteriorSurface(const TArray<FVector>& SplinePoints, const FVector& PointToProject);
 }
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))

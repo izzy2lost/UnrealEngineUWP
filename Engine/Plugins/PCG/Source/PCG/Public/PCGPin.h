@@ -72,6 +72,7 @@ enum class EPCGTypeConversion : uint8
 	CollapseToPoint,
 	Filter,
 	MakeConcrete,
+	SplineToSurface,
 	Failed,
 };
 
