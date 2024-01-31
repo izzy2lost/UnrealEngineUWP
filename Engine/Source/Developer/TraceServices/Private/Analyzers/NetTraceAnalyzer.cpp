@@ -521,6 +521,33 @@ void FNetTraceAnalyzer::HandlePacketEvent(const FOnEventContext& Context, const 
 
 	// Add the packet
 	FNetProfilerConnectionData& ConnectionData = NetProfilerProvider.EditConnectionData(ConnectionState->ConnectionIndex, ConnectionMode);
+
+	if (ConnectionMode == ENetProfilerConnectionMode::Incoming)
+	{
+		if (ConnectionData.Packets.Num() > 0)
+		{
+			uint32 ExpectedSequenceNumber = ConnectionData.Packets.Last().SequenceNumber + 1U;
+			while (ExpectedSequenceNumber < SequenceNumber)
+			{
+				// Inject packets to visualize missing packets
+				FNetProfilerPacket& Packet = ConnectionData.Packets.PushBack();
+				Packet.SequenceNumber = ExpectedSequenceNumber;
+
+				// Fake it
+				Packet.StartEventIndex = ConnectionState->CurrentPacketStartIndex[ConnectionMode];
+				Packet.EventCount = 0;
+				Packet.TimeStamp = GetLastTimestamp();
+				Packet.DeliveryStatus = ENetProfilerDeliveryStatus::Dropped;
+				Packet.ConnectionState = ConnectionState->ConnectionState;
+				Packet.ContentSizeInBits = 0;
+				Packet.TotalPacketSizeInBytes = (Packet.ContentSizeInBits + 7u) >> 3u;
+			
+				++ExpectedSequenceNumber;
+				++ConnectionData.PacketChangeCount;
+			}
+		}
+	}
+
 	FNetProfilerPacket& Packet = ConnectionData.Packets.PushBack();
 	++ConnectionData.PacketChangeCount;
 

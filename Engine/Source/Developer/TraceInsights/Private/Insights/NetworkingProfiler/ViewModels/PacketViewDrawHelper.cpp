@@ -233,7 +233,10 @@ void FPacketViewDrawHelper::DrawCached(const FNetworkPacketSeries& Series) const
 			{
 				DrawContext.DrawBox(X, FilterMatchContentY, SampleW, FilterMatchContentH, WhiteBrush, ColorFilterMatch);
 			}
-
+		}
+		if (Sample.AggregatedStatus == TraceServices::ENetProfilerDeliveryStatus::Dropped)
+		{
+			DrawContext.DrawBox(X + (SampleW/2.f), 0.f, 1.f, Y + H, WhiteBrush, FLinearColor::Red);
 		}
 	}
 
