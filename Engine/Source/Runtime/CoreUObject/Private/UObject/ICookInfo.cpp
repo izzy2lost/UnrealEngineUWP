@@ -47,6 +47,7 @@ FString FInstigator::ToString() const
 
 FCookInfoEvent FDelegates::CookByTheBookStarted;
 FCookInfoEvent FDelegates::CookByTheBookFinished;
+FValidateSourcePackage FDelegates::ValidateSourcePackage;
 
 }
 

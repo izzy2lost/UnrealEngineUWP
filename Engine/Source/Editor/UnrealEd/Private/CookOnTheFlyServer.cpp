@@ -219,7 +219,6 @@ static FAutoConsoleVariableRef CVarCookDisplayWarnBusyTime(
 /// Cook on the fly server
 ///////////////////////////////////////////////////////////////
 UCookOnTheFlyServer* UCookOnTheFlyServer::ActiveCOTFS = nullptr;
-UCookOnTheFlyServer::FOnValidateSourcePackage UCookOnTheFlyServer::ValidateSourcePackageEvent;
 UCookOnTheFlyServer::FOnCookByTheBookStarted UCookOnTheFlyServer::CookByTheBookStartedEvent;
 UCookOnTheFlyServer::FOnCookByTheBookFinished UCookOnTheFlyServer::CookByTheBookFinishedEvent;
 
@@ -3087,7 +3086,7 @@ EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPack
 	}
 
 	// Run asset validation if requested
-	if (EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::RunAssetValidation) && ValidateSourcePackageEvent.IsBound())
+	if (EnumHasAnyFlags(CookByTheBookOptions->StartupOptions, ECookByTheBookOptions::RunAssetValidation) && UE::Cook::FDelegates::ValidateSourcePackage.IsBound())
 	{
 		TArray<FAssetData> ExternalObjects;
 		if (World)
@@ -3105,7 +3104,7 @@ EDataValidationResult UCookOnTheFlyServer::ValidateSourcePackage(UE::Cook::FPack
 		}
 
 		FDataValidationContext ValidationContext(IsRunningCookCommandlet(), EDataValidationUsecase::Save, ExternalObjects);
-		const EDataValidationResult ValidationResult = ValidateSourcePackageEvent.Execute(Package, ValidationContext);
+		const EDataValidationResult ValidationResult = UE::Cook::FDelegates::ValidateSourcePackage.Execute(Package, ValidationContext);
 		FinalValidationResult = CombineDataValidationResults(FinalValidationResult, ValidationResult);
 	}
 
