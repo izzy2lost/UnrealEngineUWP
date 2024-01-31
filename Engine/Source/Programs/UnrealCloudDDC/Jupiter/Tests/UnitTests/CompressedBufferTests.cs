@@ -34,9 +34,9 @@ namespace Jupiter.Tests.Unit
 			IoHash uncompressedHash = bufferUtils.CompressContent(ms, OoodleCompressorMethod.Mermaid, OoodleCompressionLevel.VeryFast, bytes);
 			ms.Position = 0;
 
-			IBufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length);
-
-			byte[] roundTrippedBytes = await bufferedPayload.GetStream().ReadAllBytesAsync();
+			using IBufferedPayload bufferedPayload = await bufferUtils.DecompressContentAsync(ms, (ulong)ms.Length);
+			await using Stream s = bufferedPayload.GetStream();
+			byte[] roundTrippedBytes = await s.ReadAllBytesAsync();
 			CollectionAssert.AreEqual(bytes, roundTrippedBytes);
 		}
 	}
