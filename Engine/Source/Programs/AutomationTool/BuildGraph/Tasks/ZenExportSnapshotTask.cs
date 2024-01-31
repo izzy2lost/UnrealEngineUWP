@@ -112,7 +112,7 @@ namespace AutomationTool.Tasks
 		public string DestinationFileName;
 
 		/// <summary>
-		/// Optional. Where to look for the .projectstore
+		/// Optional. Where to look for the ue.projectstore
 		/// The pattern {Platform} can be used for exporting multiple platforms at once.
 		/// </summary>
 		[TaskParameter(Optional = true)]
@@ -357,7 +357,7 @@ namespace AutomationTool.Tasks
 					throw new AutomationException("Cook output directory not found ({0})", PlatformCookedDirectory.FullName);
 				}
 
-				FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, ".projectstore");
+				FileReference ProjectStoreFile = FileReference.Combine(PlatformCookedDirectory, "ue.projectstore");
 				if (!FileReference.Exists(ProjectStoreFile))
 				{
 					continue;

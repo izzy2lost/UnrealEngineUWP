@@ -816,7 +816,7 @@ namespace AutomationScripts
 				return null;
 			}
 			// Check for stage with zenstore without PAK?
-			FileReference PackageStoreManifestFile = FileReference.Combine(ProjectStoreDir, ".projectstore");
+			FileReference PackageStoreManifestFile = FileReference.Combine(ProjectStoreDir, "ue.projectstore");
 			System.IO.FileInfo PackageStoreManifestFileInfo = PackageStoreManifestFile.ToFileInfo();
 			if (PackageStoreManifestFileInfo.Exists)
 			{
