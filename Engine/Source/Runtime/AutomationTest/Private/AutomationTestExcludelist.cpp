@@ -166,6 +166,11 @@ void UAutomationTestExcludelist::PopulateEntries()
 		{
 			if (FAutomationTestExcludelistEntry* Entry = Entries.Find(PlatformEntry.FullTestName))
 			{
+				if (Entry->Platforms.IsEmpty())
+				{
+					continue;
+				}
+
 				Entry->Platforms.Add(Config.Key);
 				Entry->RHIs.Append(PlatformEntry.RHIs);
 			}
