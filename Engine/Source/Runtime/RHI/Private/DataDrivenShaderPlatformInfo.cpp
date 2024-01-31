@@ -48,7 +48,8 @@ EShaderPlatform ParseShaderPlatform(const TCHAR* String)
 // Gets a string from a section, or empty string if it didn't exist
 static inline FString GetSectionString(const FConfigSection& Section, FName Key)
 {
-	return Section.FindRef(Key).GetValue();
+	const FConfigValue* Value = Section.Find(Key);
+	return Value ? Value->GetValue() : FString();
 }
 
 // Gets a bool from a section.  It returns the original value if the setting does not exist

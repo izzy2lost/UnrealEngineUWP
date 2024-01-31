@@ -400,9 +400,21 @@ bool FConfigContext::PerformLoad()
 		ConfigFile->PlatformName = Platform;
 		ConfigFile->bHasPlatformName = true;
 
-		// chcek if the config file wants to save all sections
+		// check if the config file wants to save all sections
 		bool bLocalSaveAllSections = false;
-		ConfigFile->GetBool(SectionsToSaveString, SaveAllSectionsKey, bLocalSaveAllSections);
+		// Do not report the read of SectionsToSave. Some ConfigFiles are reallocated without it, and reporting
+		// logs that the section disappeared. But this log is spurious since if the only reason it was read was
+		// for the internal save before the FConfigFile is made publicly available.
+		const FConfigSection* SectionsToSaveSection = ConfigFile->FindSection(SectionsToSaveString);
+		if (SectionsToSaveSection)
+		{
+			const FConfigValue* Value = SectionsToSaveSection->Find(SaveAllSectionsKey);
+			if (Value)
+			{
+				const FString& ValueStr = UE::ConfigCacheIni::Private::FAccessor::GetValueForWriting(*Value);
+				bLocalSaveAllSections = FCString::ToBool(*ValueStr);
+			}
+		}
 
 		// we can always save all sections of a User config file, Editor* (not Editor.ini tho, that is already handled in the normal method)
 		bool bIsUserFile = BaseIniName.Contains(TEXT("User"));
