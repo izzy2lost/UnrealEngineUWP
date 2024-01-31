@@ -331,7 +331,12 @@ const TCHAR* FRDGEventName::GetTCHAR() const
 {
 #if RDG_EVENTS == RDG_EVENTS_STRING_COPY
 
-	return *FormattedEventName;
+	// Formatted name will be empty in cases where there are no variadic arguments -- EventFormat should be used in that case
+	if (!FormattedEventName.IsEmpty())
+	{
+		return *FormattedEventName;
+	}
+	return EventFormat;
 
 #elif RDG_EVENTS == RDG_EVENTS_STRING_REF
 
