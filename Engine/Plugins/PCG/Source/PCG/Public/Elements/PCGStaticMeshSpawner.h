@@ -14,6 +14,7 @@ class UPCGSpatialData;
 struct FPCGContext;
 struct FPCGMeshInstanceList;
 struct FPCGPackedCustomData;
+struct FPCGStaticMeshSpawnerContext;
 
 class UStaticMesh;
 
@@ -105,6 +106,10 @@ public:
 	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use MeshSelectorType and MeshSelectorParameters instead."))
 	TArray<FPCGStaticMeshSpawnerEntry> Meshes_DEPRECATED;
 
+	/** Meshes/Materials will be synchronously loaded before spawning instead of asynchronously. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
+	bool bSynchronousLoad = false;
+
 protected:
 	void RefreshMeshSelector();
 	void RefreshInstancePacker();
@@ -120,7 +125,7 @@ protected:
 	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;	
-	void SpawnStaticMeshInstances(FPCGContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const;
+	void SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const;
 };
 
 

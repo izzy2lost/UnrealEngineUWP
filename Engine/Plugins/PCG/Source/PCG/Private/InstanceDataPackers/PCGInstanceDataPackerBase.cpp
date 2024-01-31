@@ -14,36 +14,25 @@ void UPCGInstanceDataPackerBase::PackInstances_Implementation(FPCGContext& Conte
 
 bool UPCGInstanceDataPackerBase::AddTypeToPacking(int TypeId, FPCGPackedCustomData& OutPackedCustomData) const
 {
-	if (TypeId == PCG::Private::MetadataTypes<float>::Id)
+	switch (TypeId)
 	{
+	case PCG::Private::MetadataTypes<float>::Id: // fall-through
+	case PCG::Private::MetadataTypes<double>::Id: // fall-through
+	case PCG::Private::MetadataTypes<int32>::Id: // fall-through
+	case PCG::Private::MetadataTypes<int64>::Id:
 		OutPackedCustomData.NumCustomDataFloats += 1;
-	}
-	else if (TypeId == PCG::Private::MetadataTypes<double>::Id)
-	{
-		OutPackedCustomData.NumCustomDataFloats += 1;
-	}
-	else if (TypeId == PCG::Private::MetadataTypes<int32>::Id)
-	{
-		OutPackedCustomData.NumCustomDataFloats += 1;
-	}
-	else if (TypeId == PCG::Private::MetadataTypes<int64>::Id)
-	{
-		OutPackedCustomData.NumCustomDataFloats += 1;
-	}
-	else if (TypeId == PCG::Private::MetadataTypes<FRotator>::Id)
-	{
+		break;
+	case PCG::Private::MetadataTypes<FVector2D>::Id:
+		OutPackedCustomData.NumCustomDataFloats += 2;
+		break;
+	case PCG::Private::MetadataTypes<FRotator>::Id: // fall-through
+	case PCG::Private::MetadataTypes<FVector>::Id:
 		OutPackedCustomData.NumCustomDataFloats += 3;
-	}
-	else if (TypeId == PCG::Private::MetadataTypes<FVector>::Id)
-	{
-		OutPackedCustomData.NumCustomDataFloats += 3;
-	}
-	else if (TypeId == PCG::Private::MetadataTypes<FVector4>::Id)
-	{
+		break;
+	case PCG::Private::MetadataTypes<FVector4>::Id:
 		OutPackedCustomData.NumCustomDataFloats += 4;
-	}
-	else
-	{
+		break;
+	default:
 		return false;
 	}
 
@@ -75,39 +64,45 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 		{
 			check(AttributeBase);
 
-			if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<float>::Id)
+			switch (AttributeBase->GetTypeId())
+			{
+			case PCG::Private::MetadataTypes<float>::Id:
 			{
 				const FPCGMetadataAttribute<float>* Attribute = static_cast<const FPCGMetadataAttribute<float>*>(AttributeBase);
 				check(Attribute);
 
 				const float Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
 				OutPackedCustomData.CustomData.Add(Value);
+				break;
 			}
-			else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<double>::Id)
+			case PCG::Private::MetadataTypes<double>::Id:
 			{
 				const FPCGMetadataAttribute<double>* Attribute = static_cast<const FPCGMetadataAttribute<double>*>(AttributeBase);
 				check(Attribute);
 
 				const double Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
 				OutPackedCustomData.CustomData.Add(Value);
+				break;
 			}
-			else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<int32>::Id)
+			case PCG::Private::MetadataTypes<int32>::Id:
 			{
 				const FPCGMetadataAttribute<int32>* Attribute = static_cast<const FPCGMetadataAttribute<int32>*>(AttributeBase);
 				check(Attribute);
 
 				const float Value = static_cast<float>(Attribute->GetValueFromItemKey(PointMetadataEntry));
 				OutPackedCustomData.CustomData.Add(Value);
+				break;
 			}
-			else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<int64>::Id)
+			case PCG::Private::MetadataTypes<int64>::Id:
 			{
 				const FPCGMetadataAttribute<int64>* Attribute = static_cast<const FPCGMetadataAttribute<int64>*>(AttributeBase);
 				check(Attribute);
 
 				const float Value = static_cast<float>(Attribute->GetValueFromItemKey(PointMetadataEntry));
 				OutPackedCustomData.CustomData.Add(Value);
+				break;
 			}
-			else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FRotator>::Id)
+			case PCG::Private::MetadataTypes<FRotator>::Id:
 			{
 				const FPCGMetadataAttribute<FRotator>* Attribute = static_cast<const FPCGMetadataAttribute<FRotator>*>(AttributeBase);
 				check(Attribute);
@@ -116,8 +111,19 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				OutPackedCustomData.CustomData.Add(Value.Roll);
 				OutPackedCustomData.CustomData.Add(Value.Pitch);
 				OutPackedCustomData.CustomData.Add(Value.Yaw);
+				break;
 			}
-			else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FVector>::Id)
+			case PCG::Private::MetadataTypes<FVector2D>::Id:
+			{
+				const FPCGMetadataAttribute<FVector2D>* Attribute = static_cast<const FPCGMetadataAttribute<FVector2D>*>(AttributeBase);
+				check(Attribute);
+
+				const FVector2D Value = Attribute->GetValueFromItemKey(PointMetadataEntry);
+				OutPackedCustomData.CustomData.Add(Value.X);
+				OutPackedCustomData.CustomData.Add(Value.Y);
+				break;
+			}
+			case PCG::Private::MetadataTypes<FVector>::Id:
 			{
 				const FPCGMetadataAttribute<FVector>* Attribute = static_cast<const FPCGMetadataAttribute<FVector>*>(AttributeBase);
 				check(Attribute);
@@ -126,8 +132,9 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				OutPackedCustomData.CustomData.Add(Value.X);
 				OutPackedCustomData.CustomData.Add(Value.Y);
 				OutPackedCustomData.CustomData.Add(Value.Z);
+				break;
 			}
-			else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FVector4>::Id)
+			case PCG::Private::MetadataTypes<FVector4>::Id:
 			{
 				const FPCGMetadataAttribute<FVector4>* Attribute = static_cast<const FPCGMetadataAttribute<FVector4>*>(AttributeBase);
 				check(Attribute);
@@ -137,6 +144,10 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAttributes(const FPCGMeshInst
 				OutPackedCustomData.CustomData.Add(Value.Y);
 				OutPackedCustomData.CustomData.Add(Value.Z);
 				OutPackedCustomData.CustomData.Add(Value.W);
+				break;
+			}
+			default:
+				break;
 			}
 		}
 	}

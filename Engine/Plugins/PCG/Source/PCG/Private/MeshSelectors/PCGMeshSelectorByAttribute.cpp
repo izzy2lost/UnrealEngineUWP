@@ -180,10 +180,8 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 	int32 LastCheckpointIndex = CurrentPointIndex;
 	constexpr int32 TimeSlicingCheckFrequency = 1024;
 	TMap<PCGMetadataValueKey, TSoftObjectPtr<UStaticMesh>>& ValueKeyToMesh = Context.ValueKeyToMesh;
-	TMap<TSoftObjectPtr<UStaticMesh>, FBox>& MeshToBoundingBox = Context.MeshToBoundingBox;
 
 	const TArray<FPCGPoint>& Points = InPointData->GetPoints();
-	TArray<FPCGPoint>* OutPoints = OutPointData ? &OutPointData->GetMutablePoints() : nullptr;
 
 	while (CurrentPointIndex < Points.Num())
 	{
@@ -230,22 +228,11 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 		InstanceList.Instances.Emplace(Point.Transform);
 		InstanceList.InstancesMetadataEntry.Emplace(Point.MetadataEntry);
 
-		// Update point bounds to reflect StaticMesh bounds
-		if (OutPoints && Settings->bApplyMeshBoundsToPoints)
+		if (OutPointData && Settings->bApplyMeshBoundsToPoints)
 		{
-			if (!MeshToBoundingBox.Contains(Mesh) && Mesh.LoadSynchronous())
-			{
-				MeshToBoundingBox.Add(Mesh, Mesh->GetBoundingBox());
-			}
-
-			if (MeshToBoundingBox.Contains(Mesh))
-			{
-				const FBox MeshBounds = MeshToBoundingBox[Mesh];
-
-				// CurrentPointIndex - 1, because CurrentPointIndex is incremented at the beginning of the function
-				(*OutPoints)[CurrentPointIndex - 1].BoundsMin = MeshBounds.Min;
-				(*OutPoints)[CurrentPointIndex - 1].BoundsMax = MeshBounds.Max;
-			}
+			TArray<int32>& PointIndices = Context.MeshToOutPoints.FindOrAdd(Mesh).FindOrAdd(OutPointData);
+			// CurrentPointIndex - 1, because CurrentPointIndex is incremented at the beginning of the loop
+			PointIndices.Emplace(CurrentPointIndex - 1);
 		}
 
 		// Check if we should stop here and continue in a subsequent call
