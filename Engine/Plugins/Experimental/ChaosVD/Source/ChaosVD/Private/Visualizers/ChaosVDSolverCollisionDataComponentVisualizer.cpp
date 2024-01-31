@@ -185,12 +185,6 @@ void FChaosVDSolverCollisionDataComponentVisualizer::DrawMidPhaseData(const UAct
 				HitPRoxyDataFinder.OwningConstraint = &Constraint;
 				HitPRoxyDataFinder.ContactIndex = ContactIndex;
 
-				constexpr int32 MinShapeContactAmount = 2;
-				if (Constraint.ShapeWorldTransforms.Num() < MinShapeContactAmount || ManifoldPoint.ContactPoint.ShapeContactPoints.Num() < MinShapeContactAmount)
-				{
-					continue;
-				}
-
 				const bool bIsProbe = Constraint.bIsProbe;
 				const bool bIsActive = ManifoldPoint.bIsValid && (!ManifoldPoint.NetPushOut.IsNearlyZero() || !ManifoldPoint.NetImpulse.IsNearlyZero() || (!Constraint.bUseManifold && !Constraint.AccumulatedImpulse.IsNearlyZero()));
 				if (!bIsActive && !EnumHasAnyFlags(VisualizationFlags, EChaosVDCollisionVisualizationFlags::DrawInactiveContacts))

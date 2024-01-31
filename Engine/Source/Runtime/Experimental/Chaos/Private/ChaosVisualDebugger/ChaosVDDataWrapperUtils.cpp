@@ -11,6 +11,23 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Chaos/Collision/CollisionConstraintAllocator.h"
 
+namespace Chaos::VisualDebugger::Utils
+{
+	template<typename InType,typename OutType, int32 Size, typename TransformT>
+	void TransformStaticArray(const InType (&In)[Size], OutType (&Out)[Size], TransformT Trans)
+	{
+		for (int32 Index = 0; Index < Size; Index++)
+		{
+			Out[Index] = Invoke(Trans, In[Index]);
+		}
+	}
+
+	inline FTransform ConvertToFTransform(const FRigidTransform3& InChaosTransform)
+	{
+		return InChaosTransform;
+	}
+}
+
 void FChaosVDDataWrapperUtils::CopyManifoldPointsToDataWrapper(const Chaos::FManifoldPoint& InCopyFrom, FChaosVDManifoldPoint& OutCopyTo)
 {
 	OutCopyTo.bDisabled = InCopyFrom.Flags.bDisabled;
@@ -20,9 +37,9 @@ void FChaosVDDataWrapperUtils::CopyManifoldPointsToDataWrapper(const Chaos::FMan
 	OutCopyTo.TargetPhi = InCopyFrom.TargetPhi;
 	OutCopyTo.InitialPhi = InCopyFrom.InitialPhi;
 
-	Algo::Transform(InCopyFrom.ShapeAnchorPoints, OutCopyTo.ShapeAnchorPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
-	Algo::Transform(InCopyFrom.InitialShapeContactPoints, OutCopyTo.InitialShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
-	Algo::Transform(InCopyFrom.ContactPoint.ShapeContactPoints, OutCopyTo.ContactPoint.ShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
+	Chaos::VisualDebugger::Utils::TransformStaticArray(InCopyFrom.ShapeAnchorPoints, OutCopyTo.ShapeAnchorPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
+	Chaos::VisualDebugger::Utils::TransformStaticArray(InCopyFrom.InitialShapeContactPoints, OutCopyTo.InitialShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
+	Chaos::VisualDebugger::Utils::TransformStaticArray(InCopyFrom.ContactPoint.ShapeContactPoints, OutCopyTo.ContactPoint.ShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
 
 	OutCopyTo.ContactPoint.ShapeContactNormal = FVector(InCopyFrom.ContactPoint.ShapeContactNormal);
 	OutCopyTo.ContactPoint.Phi = InCopyFrom.ContactPoint.Phi;
@@ -125,9 +142,9 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 	WrappedConstraintData.Particle0Index = InConstraint.GetParticle0()->UniqueIdx().Idx;
 	WrappedConstraintData.Particle1Index = InConstraint.GetParticle1()->UniqueIdx().Idx;
 
-	Algo::Copy(InConstraint.ShapeWorldTransforms, WrappedConstraintData.ShapeWorldTransforms);
 
-	Algo::Copy(InConstraint.ImplicitTransform, WrappedConstraintData.ImplicitTransforms);
+	Chaos::VisualDebugger::Utils::TransformStaticArray(InConstraint.ShapeWorldTransforms, WrappedConstraintData.ShapeWorldTransforms, &Chaos::VisualDebugger::Utils::ConvertToFTransform);
+	Chaos::VisualDebugger::Utils::TransformStaticArray(InConstraint.ImplicitTransform, WrappedConstraintData.ImplicitTransforms, &Chaos::VisualDebugger::Utils::ConvertToFTransform);
 
 	WrappedConstraintData.CollisionMargins = TArray(InConstraint.CollisionMargins, std::size(InConstraint.CollisionMargins));
 	WrappedConstraintData.LastShapeWorldPositionDelta = FVector(InConstraint.LastShapeWorldPositionDelta);
@@ -145,7 +162,7 @@ FChaosVDConstraint FChaosVDDataWrapperUtils::BuildConstraintDataWrapperFromConst
 		{
 			const Chaos::FSavedManifoldPoint& CurrentChaosSavedManifoldPoint = InConstraint.SavedManifoldPoints[PointIndex];
 
-			Algo::Transform(CurrentChaosSavedManifoldPoint.ShapeContactPoints, CurrentCVDMainFoldPoint.ShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
+			Chaos::VisualDebugger::Utils::TransformStaticArray(CurrentChaosSavedManifoldPoint.ShapeContactPoints, CurrentCVDMainFoldPoint.ShapeContactPoints, &FChaosVDDataWrapperUtils::ConvertToFVector);
 		}
 
 		if (PointIndex < InConstraint.ManifoldPoints.Num())
