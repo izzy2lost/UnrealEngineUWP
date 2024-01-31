@@ -65,8 +65,6 @@ UAvaClonerComponent::UAvaClonerComponent()
 		FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 		FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UAvaClonerComponent::OnActorPropertyChanged);
 #endif
-
-		USceneComponent::MarkRenderStateDirtyEvent.AddUObject(this, &UAvaClonerComponent::OnRenderStateDirty);
 	}
 }
 
