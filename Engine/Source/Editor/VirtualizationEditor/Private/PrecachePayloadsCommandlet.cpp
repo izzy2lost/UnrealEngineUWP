@@ -15,7 +15,7 @@ int32 UPrecachePayloadsCommandlet::Main(const FString& Params)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPrecachePayloadsCommandlet);
 
-	TArray<FString> PackageNames = UE::Virtualization::FindPackages(UE::Virtualization::EFindPackageFlags::ExcludeEngineContent);
+	TArray<FString> PackageNames = UE::Virtualization::DiscoverPackages(Params, UE::Virtualization::EFindPackageFlags::ExcludeEngineContent);
 
 	UE_LOG(LogVirtualization, Display, TEXT("Found %d packages"), PackageNames.Num());
 
