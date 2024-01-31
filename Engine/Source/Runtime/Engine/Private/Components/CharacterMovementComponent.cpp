@@ -7712,11 +7712,8 @@ FVector UCharacterMovementComponent::ScaleInputAcceleration(const FVector& Input
 
 FVector UCharacterMovementComponent::RoundAcceleration(FVector InAccel) const
 {
-	// Match FVector_NetQuantize10 (1 decimal place of precision).
-	InAccel.X = FMath::RoundToFloat(InAccel.X * 10.f) / 10.f;
-	InAccel.Y = FMath::RoundToFloat(InAccel.Y * 10.f) / 10.f;
-	InAccel.Z = FMath::RoundToFloat(InAccel.Z * 10.f) / 10.f;
-	return InAccel;
+	// Match FVector_NetQuantize10
+	return UE::Net::QuantizeVector(10, InAccel);
 }
 
 float UCharacterMovementComponent::ComputeAnalogInputModifier() const
