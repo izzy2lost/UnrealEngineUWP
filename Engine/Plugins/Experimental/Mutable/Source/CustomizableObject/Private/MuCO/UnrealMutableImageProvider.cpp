@@ -110,7 +110,7 @@ bool FUnrealMutableImageProvider::Tick(float DeltaTime)
 	UCustomizableObject* CO = nullptr;
 	for (TObjectIterator<UCustomizableObject> It; It; ++It)
 	{
-		if (IsValid(*It) && It->GetModel().Get() == Request->ModelPtr)
+		if (IsValid(*It) && It->GetPrivate()->GetModel().Get() == Request->ModelPtr)
 		{
 			CO = *It;
 			break;

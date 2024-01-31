@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "MuCO/CustomizableObject.h"
 #include "MuCO/StateMachine.h"
 #include "MuCO/CustomizableObjectUIData.h"
+#include "MuCO/CustomizableObjectIdentifier.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
@@ -16,7 +18,6 @@
 #include "CustomizableObjectPrivate.generated.h"
 
 namespace mu { class Model; }
-class UCustomizableObject;
 class USkeletalMesh;
 class USkeleton;
 class UPhysicsAsset;
@@ -24,6 +25,85 @@ class UMaterialInterface;
 class UTexture;
 class UAnimInstance;
 class UAssetUserData;
+class UCustomizableObject;
+
+
+class CUSTOMIZABLEOBJECT_API FCustomizableObjectCompilerBase
+{
+public:
+
+	FCustomizableObjectCompilerBase() {};
+
+	// Ensure virtual destruction
+	virtual ~FCustomizableObjectCompilerBase() {};
+	
+	virtual void Compile(UCustomizableObject& Object, const FCompilationOptions& Options, bool bAsync) {};
+
+	virtual bool Tick() { return false; }
+	virtual void ForceFinishCompilation() {};
+
+	// Return true if this object doesn't reference a parent object.
+	virtual bool IsRootObject(const class UCustomizableObject* Object) const { return true; }
+
+	/** Returns the Customizable Object that does start the CO tree */
+	virtual UCustomizableObject* GetRootObject( class UCustomizableObject* Object) = 0;
+
+	/** Provides the caller with the warning and error messages produced during compilation */
+	virtual void GetCompilationMessages(TArray<FText>& OutWarningMessages, TArray<FText>& OutErrorMessages) const = 0;
+	
+	virtual ECustomizableObjectCompilationState GetCompilationState() const;
+};
+
+
+// Warning! MutableCompiledDataHeader must be the first data serialized in a stream
+struct MutableCompiledDataStreamHeader
+{
+	int32 InternalVersion;
+	FGuid VersionId;
+
+	MutableCompiledDataStreamHeader() { }
+	MutableCompiledDataStreamHeader(int32 InInternalVersion, FGuid InVersionId) : InternalVersion(InInternalVersion), VersionId(InVersionId) { }
+
+	friend FArchive& operator<<(FArchive& Ar, MutableCompiledDataStreamHeader& Header)
+	{
+		Ar << Header.InternalVersion;
+		Ar << Header.VersionId;
+
+		return Ar;
+	}
+};
+
+
+USTRUCT()
+struct FMutableModelParameterValue
+{
+	GENERATED_USTRUCT_BODY()
+
+	FMutableModelParameterValue() = default;
+
+	UPROPERTY()
+	FString Name;
+
+	UPROPERTY()
+	int Value = 0;
+};
+
+
+USTRUCT()
+struct FMutableModelParameterProperties
+{
+	GENERATED_USTRUCT_BODY()
+
+	FMutableModelParameterProperties() = default;
+	FString Name;
+
+	UPROPERTY()
+	EMutableParameterType Type = EMutableParameterType::None;
+
+	UPROPERTY()
+	TArray<FMutableModelParameterValue> PossibleValues;
+};
+
 
 class FMeshCache
 {
@@ -74,6 +154,20 @@ struct FCustomizableObjectStatusTypes
 };
 
 using FCustomizableObjectStatus = FStateMachine<FCustomizableObjectStatusTypes>;
+
+
+UENUM()
+enum class ECustomizableObjectCompilationState : uint8
+{
+	//
+	None,
+	// 
+	InProgress,
+	//
+	Completed,
+	//
+	Failed
+};
 
 
 USTRUCT()
@@ -441,12 +535,20 @@ struct FModelResources
 };
 
 
+struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
+{
+	/** */
+	TArray64<uint8> ModelData;
+
+	/** */
+	TArray64<uint8> StreamableData;
+};
+
+
 UCLASS()
-class UCustomizableObjectPrivate : public UObject
+class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 {
 	GENERATED_BODY()
-
-private:
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 
@@ -469,8 +571,11 @@ public:
 	const FModelResources& GetModelResources() const;
 
 #if WITH_EDITORONLY_DATA
-	CUSTOMIZABLEOBJECT_API FModelResources& GetModelResources(bool bIsCooking);
+	FModelResources& GetModelResources(bool bIsCooking);
 #endif
+
+	// See UCustomizableObjectSystem::LockObject()
+	bool IsLocked() const;
 
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;
@@ -494,8 +599,44 @@ public:
 	 *
 	 * Updated each time the CO is compiled and saved in the Derived Data. */
 	TMap<FName, FGuid> ParticipatingObjects;
+
+	/** If the object is compiled, this flag is true if it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
+	bool bIsCompiledWithOptimization = true;
+
+	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
+	
+#if WITH_EDITOR
+	/** Map of PlatformName to CachedPlatformData. Only valid while cooking. */
+	TMap<FString, FMutableCachedPlatformData> CachedPlatformsData;
+#endif
 #endif
 
 	FCustomizableObjectStatus Status;
+
+	/** Map to identify what CustomizableObject owns a parameter. Used to display a tooltip when hovering a parameter
+	 * in the Prev. instance panel */
+	UPROPERTY(Transient)
+	TMap<FString, FString> CustomizableObjectPathMap;
+
+	UPROPERTY(Transient)
+	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
+
+	FPostCompileDelegate PostCompileDelegate;
+
+	// This is information about the parameters in the model that is generated at model compile time.
+	UPROPERTY(Transient)
+	TArray<FMutableModelParameterProperties> ParameterProperties;
+
+	// Map of name to index of ParameterProperties.
+	// use this to lookup fast by Name
+	TMap<FString, int32> ParameterPropertiesLookupTable;
+
+	// This is a manual version number for the binary blobs in this asset.
+	// Increasing it invalidates all the previously compiled models.
+	// Warning: If while merging code both versions have changed, take the highest+1.
+	static constexpr int32 CurrentSupportedVersion = 421;
+
+	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
+	bool bDisableTextureStreaming = false;
 };
 

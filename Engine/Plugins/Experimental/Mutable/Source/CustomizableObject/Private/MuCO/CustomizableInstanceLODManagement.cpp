@@ -15,6 +15,7 @@
 #include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableInstanceLODManagement)
 
@@ -206,7 +207,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 			{
 				if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
 					CustomizableObject &&
-					!CustomizableObject->IsLocked())
+					!CustomizableObject->GetPrivate()->IsLocked())
 				{
 					UCustomizableObjectInstance* Ptr = *CustomizableObjectInstance;
 					Ptr->SetIsDiscardedBecauseOfTooManyInstances(false);
@@ -403,7 +404,7 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 			if (IsValidChecked(It.Key) && It.Key->GetPrivate())
 			{
 				const UCustomizableObject* CustomizableObject = It.Key->GetCustomizableObject();
-				if (!CustomizableObject || CustomizableObject->IsLocked())
+				if (!CustomizableObject || CustomizableObject->GetPrivate()->IsLocked())
 				{
 					continue;
 				}
