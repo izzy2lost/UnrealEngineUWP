@@ -3028,7 +3028,7 @@ void UMovieSceneControlRigParameterSection::RecordControlRigKey(FFrameNumber Fra
 	}
 }
 
-bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAnimSequence* AnimSequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, FFrameNumber InStartFrame, EMovieSceneKeyInterpolation InInterpolation)
+bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAnimSequence* AnimSequence, UMovieScene* MovieScene, UObject* BoundObject, bool bKeyReduce, float Tolerance, bool bResetControls, FFrameNumber InStartFrame, EMovieSceneKeyInterpolation InInterpolation)
 {
 	USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(BoundObject);
 	
@@ -3103,11 +3103,14 @@ bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAni
 
 	// copy the hierarchy from the CDO into the target control rig.
 	// this ensures that the topology version matches in case of a dynamic hierarchy
-	if(!ControlRig->GetClass()->IsNative())
+	if (bResetControls)
 	{
-		if (UControlRig* CDO = Cast<UControlRig>(ControlRig->GetClass()->GetDefaultObject()))
+		if(!ControlRig->GetClass()->IsNative())
 		{
-			ControlRig->GetHierarchy()->CopyHierarchy(CDO->GetHierarchy());
+			if (UControlRig* CDO = Cast<UControlRig>(ControlRig->GetClass()->GetDefaultObject()))
+			{
+				SourceHierarchy->CopyHierarchy(CDO->GetHierarchy());
+			}
 		}
 	}
 
@@ -3120,16 +3123,22 @@ bool UMovieSceneControlRigParameterSection::LoadAnimSequenceIntoThisSection(UAni
 	{
 		ControlRig->SetBoneInitialTransformsFromRefSkeleton(Skeleton->GetReferenceSkeleton());
 	}
-	ControlRig->RequestConstruction();
-	ControlRig->Evaluate_AnyThread();
+	if (bResetControls)
+	{
+		ControlRig->RequestConstruction();
+		ControlRig->Evaluate_AnyThread();
+	}
 
 	for (int32 Index = 0; Index < NumberOfKeys; ++Index)
 	{
 		const float SequenceSecond = AnimSequence->GetTimeAtFrame(Index);
 		const FFrameNumber FrameNumber = StartFrame + (FMath::Max(FrameRateInFrameNumber.Value, 1) * Index);
 
-		ControlRig->GetHierarchy()->ResetPoseToInitial();
-		ControlRig->GetHierarchy()->ResetCurveValues();
+		if (bResetControls)
+		{
+			SourceHierarchy->ResetPoseToInitial();
+			SourceHierarchy->ResetCurveValues();
+		}
 
 		for (const FFloatCurve& Curve : CurveData.FloatCurves)
 		{
