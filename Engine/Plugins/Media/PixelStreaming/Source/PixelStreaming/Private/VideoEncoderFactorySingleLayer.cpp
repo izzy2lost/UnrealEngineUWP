@@ -234,13 +234,12 @@ namespace UE::PixelStreaming
 	{
 		// first clear unused encoders.
 		TArray<uint32> DeleteStreamIds;
-		for (auto&& [EncoderStreamId, EncoderPtr] : HardwareEncoders)
-		{
+		HardwareEncoders.Apply([&DeleteStreamIds](uint32 EncoderStreamId, TSharedPtr<FVideoEncoderHardware> EncoderPtr) {
 			if (EncoderPtr.IsUnique())
 			{
 				DeleteStreamIds.Add(EncoderStreamId);
 			}
-		}
+		});
 		for (uint32 DeleteStreamId : DeleteStreamIds)
 		{
 			HardwareEncoders.Remove(DeleteStreamId);

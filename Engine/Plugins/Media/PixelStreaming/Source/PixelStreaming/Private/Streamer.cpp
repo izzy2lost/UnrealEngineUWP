@@ -537,7 +537,7 @@ namespace UE::PixelStreaming
 				{
 					SFUPlayerId = PlayerId;
 				}
-				else
+				else if(QualityControllingId == INVALID_PLAYER_ID)
 				{
 					SetQualityController(PlayerId);
 				}
