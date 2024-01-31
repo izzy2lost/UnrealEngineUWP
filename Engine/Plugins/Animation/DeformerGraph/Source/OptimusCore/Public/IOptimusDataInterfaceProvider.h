@@ -10,7 +10,7 @@
 class UOptimusNodePin;
 class UOptimusComputeDataInterface;
 class UOptimusComponentSourceBinding;
-
+struct FOptimusPinTraversalContext;
 
 UINTERFACE()
 class OPTIMUSCORE_API UOptimusDataInterfaceProvider :
@@ -43,5 +43,5 @@ public:
 	virtual int32 GetDataFunctionIndexFromPin(const UOptimusNodePin* InPin) const = 0;
 
 	/** Returns the component binding that this data interface is bound to (or nullptr if unbound) */
-	virtual UOptimusComponentSourceBinding* GetComponentBinding() const = 0;
+	virtual UOptimusComponentSourceBinding* GetComponentBinding(const FOptimusPinTraversalContext& InContext) const = 0;
 };

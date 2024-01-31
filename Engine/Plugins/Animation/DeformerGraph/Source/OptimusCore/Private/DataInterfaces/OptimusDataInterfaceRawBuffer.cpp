@@ -2,6 +2,7 @@
 
 #include "OptimusDataInterfaceRawBuffer.h"
 
+#include "OptimusDataTypeRegistry.h"
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "OptimusDeformerInstance.h"
 #include "OptimusExpressionEvaluator.h"
@@ -27,7 +28,16 @@ const UOptimusComponentSource* UOptimusRawBufferDataInterface::GetComponentSourc
 
 bool UOptimusRawBufferDataInterface::SupportsAtomics() const
 {
-	return ValueType->Type == EShaderFundamentalType::Int;
+	TArray<FOptimusDataTypeHandle> Types = FOptimusDataTypeRegistry::Get().GetAllTypesWithAtomicSupport();
+	for (FOptimusDataTypeHandle Type : Types)
+	{
+		if (Type->ShaderValueType == ValueType)
+		{
+			return true;
+		}
+	}
+	
+	return false;
 }
 
 FString UOptimusRawBufferDataInterface::GetRawType() const

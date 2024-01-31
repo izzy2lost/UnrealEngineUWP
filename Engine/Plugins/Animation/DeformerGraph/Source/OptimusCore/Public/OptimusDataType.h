@@ -20,6 +20,8 @@ enum class EOptimusDataTypeUsageFlags : uint8
 	Resource			= 1 << 0,		/** This type can be used in a resource */
 	Variable			= 1 << 1,		/** This type can be used in a variable */
 	AnimAttributes      = 1 << 2,       /** This type can be used to query an anim attribute*/
+	DataInterfaceOutput = 1 << 3,       /** This type can be used as output of a data interface*/
+	PinType				= 1 << 4,       /** This type can be used as pin type*/
 };
 ENUM_CLASS_FLAGS(EOptimusDataTypeUsageFlags)
 

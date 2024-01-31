@@ -184,7 +184,7 @@ UOptimusVariableDescription* UOptimusNode_GetVariable::GetVariableDescription() 
 }
 
 
-TOptional<FText> UOptimusNode_GetVariable::ValidateForCompile() const
+TOptional<FText> UOptimusNode_GetVariable::ValidateForCompile(const FOptimusPinTraversalContext& InContext) const
 {
 	const UOptimusVariableDescription* VariableDescription = GetVariableDescription();
 	if (!VariableDescription)

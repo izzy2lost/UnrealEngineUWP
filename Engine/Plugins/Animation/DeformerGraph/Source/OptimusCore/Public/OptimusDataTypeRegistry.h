@@ -174,6 +174,10 @@ public:
 	/** A helper function to return the corresponding animation attribute type. */
 	UScriptStruct* FindAttributeType(FName InTypeName) const;
 
+	TArray<FOptimusDataTypeHandle> GetAllTypesWithAtomicSupport() const;
+
+	bool DoesTypeSupportAtomic(FOptimusDataTypeHandle InType);
+	
 	OPTIMUSCORE_API	FOnDataTypeChanged& GetOnDataTypeChanged();
 
 	// -- FGCObject overrides
@@ -236,5 +240,7 @@ private:
 	TMap<FName /* TypeName */, FTypeInfo> RegisteredTypes;
 	TArray<FName> RegistrationOrder;
 
+	TSet<FName> TypeWithAtomicSupport;
+	
 	FOnDataTypeChanged OnDataTypeChanged;
 };

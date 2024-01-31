@@ -389,37 +389,14 @@ FName UOptimusNode::GetAvailablePinNameStable(const UObject* InNodeOrPin, FName 
 		PinsToCompare.Append(Pin->GetSubPins());
 	}
 
-	TMap<FName, int32> BaseNameToMaxNumber;
+	TArray<FName> PinNames;
 
 	for(const UOptimusNodePin* Pin : PinsToCompare)
 	{
-		const int32 Number = Pin->GetFName().GetNumber();
-		FName BaseName = Pin->GetFName();
-		BaseName.SetNumber(0);
-
-		if (const int32* ExistingNumber = BaseNameToMaxNumber.Find(BaseName))
-		{
-			BaseNameToMaxNumber[BaseName] = FMath::Max(Number, *ExistingNumber);
-		}
-		else
-		{
-			BaseNameToMaxNumber.Add(BaseName) = Number;
-		}
+		PinNames.Add(Pin->GetFName());
 	}
 
-	FName NewName = InName;
-	const int32 InputNumber = InName.GetNumber();
-	FName InputBaseName = InName;
-	InputBaseName.SetNumber(0);
-	if (const int32* ExistingNumber = BaseNameToMaxNumber.Find(InputBaseName))
-	{
-		if (InputNumber <= *ExistingNumber)
-		{
-			NewName.SetNumber(*ExistingNumber+1);
-		}
-	}
-
-	return NewName;
+	return Optimus::GenerateUniqueNameFromExistingNames(InName, PinNames);
 }
 
 
@@ -507,6 +484,10 @@ void UOptimusNode::SaveState(FArchive& Ar) const
 
 void UOptimusNode::RestoreState(FArchive& Ar)
 {
+	// Currently a warning appears when it can't find objects like pins and data interface data
+	// that were present during SaveState. However, they are harmless since we recreate those objects.
+	// But ideally there should be a better way to specify what should be saved/restored and what can be skipped/recreated
+	
 	FObjectAndNameAsStringProxyArchive NodeProxyArchive(
 		Ar, /* bInLoadIfFindFails=*/true);
 	SerializeScriptProperties(NodeProxyArchive);
@@ -571,6 +552,10 @@ UOptimusNodePin* UOptimusNode::AddPin(
 	return AddPinAction->GetPin(GetActionStack()->GetGraphCollectionRoot());
 }
 
+UOptimusNodePin* UOptimusNode::AddPin(const FOptimusParameterBinding& InBinding, EOptimusNodePinDirection InDirection, UOptimusNodePin* InBeforePin)
+{
+	return AddPin(InBinding.Name, InDirection, InBinding.DataDomain, InBinding.DataType, InBeforePin);
+}
 
 UOptimusNodePin* UOptimusNode::AddPinDirect(
     FName InName,

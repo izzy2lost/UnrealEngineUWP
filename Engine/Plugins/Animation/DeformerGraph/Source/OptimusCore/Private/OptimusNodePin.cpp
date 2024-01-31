@@ -185,12 +185,12 @@ TArray<FName> UOptimusNodePin::GetPinNamePathFromString(const FStringView InPinP
 }
 
 
-TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBindings() const
+TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBindings(const FOptimusPinTraversalContext& InContext) const
 {
-	return GetOwningNode()->GetOwningGraph()->GetComponentSourceBindingsForPin(this);
+	return GetOwningNode()->GetOwningGraph()->GetComponentSourceBindingsForPin(this, InContext);
 }
 
-TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBindingsRecursively() const
+TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBindingsRecursively(const FOptimusPinTraversalContext& InContext) const
 {
 	TArray<UOptimusNodePin*> PinsToConsider = GetSubPinsRecursively(true);
 
@@ -198,15 +198,15 @@ TSet<UOptimusComponentSourceBinding*> UOptimusNodePin::GetComponentSourceBinding
 
 	for (const UOptimusNodePin* Pin : PinsToConsider)
 	{
-		Bindings.Append(Pin->GetComponentSourceBindings());
+		Bindings.Append(Pin->GetComponentSourceBindings(InContext));
 	}
 	
 	return Bindings;
 }
 
-bool UOptimusNodePin::IsMutable() const
+bool UOptimusNodePin::IsMutable(const FOptimusPinTraversalContext& InContext) const
 {
-	return GetOwningNode()->GetOwningGraph()->IsPinMutable(this);
+	return GetOwningNode()->GetOwningGraph()->IsPinMutable(this, InContext);
 }
 
 

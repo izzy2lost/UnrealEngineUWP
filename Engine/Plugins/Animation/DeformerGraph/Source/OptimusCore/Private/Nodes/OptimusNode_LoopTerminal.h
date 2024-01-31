@@ -3,6 +3,7 @@
 
 #include "IOptimusNodeAdderPinProvider.h"
 #include "IOptimusNodePairProvider.h"
+#include "IOptimusParameterBindingProvider.h"
 #include "IOptimusPinMutabilityDefiner.h"
 #include "IOptimusUnnamedNodePinProvider.h"
 #include "OptimusBindingTypes.h"
@@ -51,7 +52,8 @@ class OPTIMUSCORE_API UOptimusNode_LoopTerminal :
 	public IOptimusNodeAdderPinProvider,
 	public IOptimusUnnamedNodePinProvider,
 	public IOptimusNodePairProvider,
-	public IOptimusPinMutabilityDefiner
+	public IOptimusPinMutabilityDefiner,
+	public IOptimusParameterBindingProvider
 {
 	GENERATED_BODY()
 	
@@ -84,6 +86,12 @@ public:
 
 	// IOptimusNodePairProvider
 	void PairToCounterpartNode(const IOptimusNodePairProvider* NodePairProvider) override;
+
+	// IOptimusParameterBindingProvider
+	FString GetBindingDeclaration(FName BindingName) const;
+	bool GetBindingSupportAtomicCheckBoxVisibility(FName BindingName) const;
+	bool GetBindingSupportReadCheckBoxVisibility(FName BindingName) const;
+	EOptimusDataTypeUsageFlags GetTypeUsageFlags(const FOptimusDataDomain& InDataDomain) const;
 	
 	UOptimusNodePin* GetPinCounterpart(const UOptimusNodePin* InNodePin, EOptimusTerminalType InTerminalType, TOptional<EOptimusNodePinDirection> InDirection = {}) const;
 	UOptimusNode_LoopTerminal* GetOtherTerminal() const;
@@ -102,7 +110,6 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category="Loop Terminal", DisplayName="Settings", meta=(FullyExpand="true", EditCondition="TerminalType==EOptimusTerminalType::Entry", EditConditionHides))
 	FOptimusLoopTerminalInfo LoopInfo;
-
 
 	UPROPERTY()
 	UOptimusNodePin* IndexPin;

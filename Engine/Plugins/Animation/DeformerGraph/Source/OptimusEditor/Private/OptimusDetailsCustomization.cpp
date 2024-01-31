@@ -63,8 +63,13 @@ void FOptimusDataTypeRefCustomization::CustomizeHeader(
 	)
 {
 	// Usage mask can change on a per-instance basis when the multi-level data domain field changes in a shader parameter binding
-	auto GetUsageMask = [InPropertyHandle]()
+	auto GetUsageMask = [this, InPropertyHandle]()
 	{
+		if (UsageMaskOverride != EOptimusDataTypeUsageFlags::None)
+		{
+			return UsageMaskOverride;
+		}
+		
 		EOptimusDataTypeUsageFlags UsageMask = EOptimusDataTypeUsageFlags::None;
 	
 		if (InPropertyHandle->HasMetaData(FName(TEXT("UseInResource"))))
@@ -80,40 +85,6 @@ void FOptimusDataTypeRefCustomization::CustomizeHeader(
 			UsageMask |= EOptimusDataTypeUsageFlags::AnimAttributes;
 		}
 
-		if (const FString* InstanceMetaData = InPropertyHandle->GetInstanceMetaData(FName(TEXT("UseInResource"))))
-		{
-			if (*InstanceMetaData == "True")
-			{
-				UsageMask |= EOptimusDataTypeUsageFlags::Resource;
-			}
-			else
-			{
-				UsageMask &= ~EOptimusDataTypeUsageFlags::Resource;
-			}
-		}
-		if (const FString* InstanceMetaData = InPropertyHandle->GetInstanceMetaData(FName(TEXT("UseInVariable"))))
-		{
-			if (*InstanceMetaData == "True")
-			{
-				UsageMask |= EOptimusDataTypeUsageFlags::Variable;
-			}
-			else
-			{
-				UsageMask &= ~EOptimusDataTypeUsageFlags::Variable;
-			}
-		}
-		if (const FString* InstanceMetaData = InPropertyHandle->GetInstanceMetaData(FName(TEXT("UseInAnimAttribute"))))
-		{
-			if (*InstanceMetaData == "True")
-			{
-				UsageMask |= EOptimusDataTypeUsageFlags::AnimAttributes;
-			}
-			else
-			{
-				UsageMask &= ~EOptimusDataTypeUsageFlags::AnimAttributes;
-			}
-		}
-		
 		return UsageMask;
 	};
 
@@ -129,6 +100,10 @@ void FOptimusDataTypeRefCustomization::CustomizeHeader(
 	.ValueContent()
 	[
 		SNew(SOptimusDataTypeSelector)
+		.IsEnabled_Lambda([InPropertyHandle]() -> bool
+		{
+			return InPropertyHandle->IsEditable();
+		})
 		.CurrentDataType(this, &FOptimusDataTypeRefCustomization::GetCurrentDataType)
 		.UsageMask_Lambda(GetUsageMask)
 		.Font(InCustomizationUtils.GetRegularFont())
@@ -1111,20 +1086,26 @@ public:
 		FDetailWidgetRow DataDomainHeaderRow;
 		DataDomainCustomizationInstance = FOptimusDataDomainCustomization::MakeInstance();
 		StaticCastSharedPtr<FOptimusDataDomainCustomization>(DataDomainCustomizationInstance)
-			->OnDataDomainChangedDelegate.AddLambda([DataTypeProperty](const FOptimusDataDomain& InDataDomain)
+			->OnDataDomainChangedDelegate.AddLambda([this, SelectedObjects](const FOptimusDataDomain& InDataDomain)
 			{
-				if (InDataDomain.IsSingleton())
+				EOptimusDataTypeUsageFlags AllowedFlags = EOptimusDataTypeUsageFlags::None;
+
+				for (TWeakObjectPtr<UObject> Object : SelectedObjects)
 				{
-					DataTypeProperty->SetInstanceMetaData(FName(TEXT("UseInAnimAttribute")), TEXT("True"));
-					DataTypeProperty->SetInstanceMetaData(FName(TEXT("UseInVariable")), TEXT("True"));
-					DataTypeProperty->SetInstanceMetaData(FName(TEXT("UseInResource")), TEXT("False"));
+					if (const IOptimusParameterBindingProvider* BindingProvider = Cast<const IOptimusParameterBindingProvider>(Object))
+					{
+						if (AllowedFlags == EOptimusDataTypeUsageFlags::None)
+						{
+							AllowedFlags = BindingProvider->GetTypeUsageFlags(InDataDomain);
+						}
+						else
+						{
+							AllowedFlags &= BindingProvider->GetTypeUsageFlags(InDataDomain);
+						}
+					}
 				}
-				else
-				{
-					DataTypeProperty->SetInstanceMetaData(FName(TEXT("UseInAnimAttribute")), TEXT("False"));
-					DataTypeProperty->SetInstanceMetaData(FName(TEXT("UseInVariable")), TEXT("False"));
-					DataTypeProperty->SetInstanceMetaData(FName(TEXT("UseInResource")), TEXT("True"));
-				}
+
+				StaticCastSharedPtr<FOptimusDataTypeRefCustomization>(DataTypeRefCustomizationInstance)->SetUsageMaskOverride(AllowedFlags);
 			});
 		DataDomainCustomizationInstance->CustomizeHeader(DataDomainProperty.ToSharedRef(), DataDomainHeaderRow, InCustomizationUtils);
 		
@@ -1185,7 +1166,11 @@ public:
 									FSimpleDelegate::CreateSP(this, &SOptimusParameterBindingValueWidget::OnDeleteItem)
 						);
 					}),
-					LOCTEXT("OptimusParameterBindingRemoveButton", "Remove this Binding"))
+					LOCTEXT("OptimusParameterBindingRemoveButton", "Remove this Binding"),
+					TAttribute<bool>::CreateLambda([this]()
+					{
+						return BindingPropertyHandle->IsEditable();
+					}))
 			]
 		];
 	}
@@ -1317,6 +1302,10 @@ void FOptimusParameterBindingCustomization::CustomizeHeader(
 		.Padding(0,0,10,0)
 		[
 			SNew(SEditableTextBox)
+			.IsEnabled_Lambda([NameProperty]() -> bool
+			{
+				return NameProperty->IsEditable();
+			})
 			.Font(InCustomizationUtils.GetRegularFont())
 			.Text_Lambda([NameProperty]()
 			{

@@ -78,6 +78,7 @@ public:
 	FString GetBindingDeclaration(FName BindingName) const override;
 	bool GetBindingSupportAtomicCheckBoxVisibility(FName BindingName) const override;
 	bool GetBindingSupportReadCheckBoxVisibility(FName BindingName) const override;
+	EOptimusDataTypeUsageFlags GetTypeUsageFlags(const FOptimusDataDomain& InDataDomain) const override;
 	
 	// IOptimusNodeAdderPinProvider
 	TArray<FAdderPinAction> GetAvailableAdderPinActions(
@@ -173,7 +174,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 protected:
 	void ConstructNode() override;
 	bool ValidateConnection(const UOptimusNodePin& InThisNodesPin, const UOptimusNodePin& InOtherNodesPin, FString* OutReason) const override;
-	TOptional<FText> ValidateForCompile() const override;
+	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 	
 private:
 

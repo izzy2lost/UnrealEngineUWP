@@ -189,6 +189,7 @@ public:
 	
 protected:
 	friend class UOptimusNodeGraph;
+	friend class UOptimusNodeSubGraph;
 	friend class UOptimusNodePin;
 	friend class UOptimusDeformer;
 	friend struct FOptimusNodeAction_AddRemovePin;
@@ -229,7 +230,7 @@ protected:
 	 *  reason as a part of the optional return value. If success return an empty optional
 	 *  object.
 	 */
-	virtual TOptional<FText> ValidateForCompile() const
+	virtual TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const
 	{
 		return {};
 	}
@@ -255,6 +256,13 @@ protected:
 		FOptimusDataTypeRef InDataType,
 		UOptimusNodePin* InBeforePin = nullptr,
 		UOptimusNodePin* InGroupingPin = nullptr
+		);
+
+	/** Add a new pin based on a parameter binding definition. Only allowed for top-level pins. */
+	UOptimusNodePin* AddPin(
+		const FOptimusParameterBinding& InBinding,
+		EOptimusNodePinDirection InDirection,
+		UOptimusNodePin* InBeforePin = nullptr
 		);
 
 	/** Create a pin and add it to the node in the location specified. */ 

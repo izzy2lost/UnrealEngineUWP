@@ -54,7 +54,7 @@ public:
 	bool DoesOutputPinSupportRead(const UOptimusNodePin* InPin) const override PURE_VIRTUAL(UOptimusNode_ComputeKernelBase::DoesOutputPinSupportRead, return false; );
 	
 	// -- UOptimusNode overrides
-	TOptional<FText> ValidateForCompile() const override;
+	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 	
 protected:
 	static TArray<FString> GetIndexNamesFromDataDomainLevels(

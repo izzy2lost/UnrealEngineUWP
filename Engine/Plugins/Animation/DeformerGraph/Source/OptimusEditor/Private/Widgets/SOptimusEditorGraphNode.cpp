@@ -272,7 +272,7 @@ private:
 			// behind.
 			if (ModelPin->GetPackage() != GetTransientPackage())
 			{
-				ComponentSourceBindings = ModelPin->GetComponentSourceBindings();
+				ComponentSourceBindings = ModelPin->GetComponentSourceBindings({});
 			}
 
 			if (ComponentSourceBindings.IsEmpty())
@@ -306,7 +306,7 @@ private:
 			// behind.
 			if (ModelPin->GetPackage() != GetTransientPackage())
 			{
-				if (ModelPin->IsMutable())
+				if (ModelPin->IsMutable({}))
 				{
 					return FText::FromName(TEXT("Mutable"));
 				}

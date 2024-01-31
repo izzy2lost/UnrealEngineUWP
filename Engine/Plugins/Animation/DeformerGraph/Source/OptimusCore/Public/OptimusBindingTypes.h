@@ -34,7 +34,7 @@ struct FOptimusParameterBinding
 	UPROPERTY(EditAnywhere, Category=Binding)
 	FOptimusValidatedName Name;
 
-	UPROPERTY(EditAnywhere, Category = Binding, meta=(UseInResource))
+	UPROPERTY(EditAnywhere, Category = Binding)
 	FOptimusDataTypeRef DataType;
 
 	/** Returns true if the binding is valid and has defined entries */

@@ -45,6 +45,13 @@ enum class EOptimusNodeGraphType
 	Transient				/** Used to store nodes during duplication. Never serialized. */
 };
 
+enum class EOptimusNodePinTraversalDirection
+{
+	Default,
+	Upstream,
+	Downstream
+};
+
 namespace Optimus
 {
 static bool IsExecutionGraphType(EOptimusNodeGraphType InGraphType)
@@ -297,22 +304,31 @@ public:
 		const UOptimusNodePin* InNodePin,
 		const FOptimusPinTraversalContext& InContext
 		) const;
+	
+	TArray<FOptimusRoutedNodePin> GetConnectedPinsWithRouting(
+		const UOptimusNodePin* InNodePin,
+		const FOptimusPinTraversalContext& InContext,
+		EOptimusNodePinTraversalDirection Direction
+		) const;
 
 	/** Get all unique component bindings that lead to this pin. Note that only pins with a zero or single bindings
 	 *  are considered valid. We return all of them however for error messaging.
 	 */
 	TSet<UOptimusComponentSourceBinding*> GetComponentSourceBindingsForPin(
-		const UOptimusNodePin* InNodePin
+		const UOptimusNodePin* InNodePin,
+		const FOptimusPinTraversalContext& InContext
 		) const;
 
 	/** Check if a pin represents time varying data */
 	bool IsPinMutable(
-		const UOptimusNodePin* InNodePin
+		const UOptimusNodePin* InNodePin,
+		const FOptimusPinTraversalContext& InContext
 		) const;
 
 	/** Check if a Node has mutable input pins */
 	bool DoesNodeHaveMutableInput(
-		const UOptimusNode* InNode 
+		const UOptimusNode* InNode,
+		const FOptimusPinTraversalContext& InContext
 		) const;
 
 	/** Gather connected loop entry terminals */
@@ -482,7 +498,7 @@ private:
 	);
 
 	void AddPairNodesToArray(const TArray<UOptimusNode*>& InNodes, TArray<UOptimusNode*>& OutNodes, TArray<UOptimusNodePair*>& OutNodePairs) const;
-	
+
 	void RemoveNodePairByIndex(int32 NodePairIndex);
 	
 	void RemoveLinkByIndex(int32 LinkIndex);

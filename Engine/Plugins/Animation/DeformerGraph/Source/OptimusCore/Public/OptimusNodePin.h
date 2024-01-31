@@ -91,15 +91,15 @@ public:
 	
 	/** Return all component source bindings that flow into pin. 
 	 */
-	TSet<UOptimusComponentSourceBinding*> GetComponentSourceBindings() const;
+	TSet<UOptimusComponentSourceBinding*> GetComponentSourceBindings(const FOptimusPinTraversalContext& InContext) const;
 
 	/** Return all component source bindings that flow into this input pin and its sub-pins.
 	 */
-	TSet<UOptimusComponentSourceBinding*> GetComponentSourceBindingsRecursively() const;
+	TSet<UOptimusComponentSourceBinding*> GetComponentSourceBindingsRecursively(const FOptimusPinTraversalContext& InContext) const;
 
 	/** Whether the data presented by the pin can change over time
 	 */
-	bool IsMutable() const;
+	bool IsMutable(const FOptimusPinTraversalContext& InContext) const;
 	
 	/** Returns the FProperty object for this pin. This can be used to directly address the
 	  * node data represented by this pin. Not all pins have an underlying resource so this can

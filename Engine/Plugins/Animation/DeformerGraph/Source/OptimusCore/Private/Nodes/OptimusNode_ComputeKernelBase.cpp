@@ -137,7 +137,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 		}
 	}
 
-	TSet<UOptimusComponentSourceBinding*> PrimaryBindings = GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
+	TSet<UOptimusComponentSourceBinding*> PrimaryBindings = GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively(InTraversalContext);
 	
 	// ValidateForCompile() should guaranteed that we don't hit this error
 	if (!ensure(PrimaryBindings.Num() == 1))
@@ -242,7 +242,7 @@ FOptimus_ComputeKernelResult UOptimusNode_ComputeKernelBase::CreateComputeKernel
 }
 
 
-TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
+TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile(const FOptimusPinTraversalContext& InContext) const
 {
 	auto GetStructTypeDefFromPin = [](const UOptimusNodePin* InPin) -> TOptional<FText>
 	{
@@ -262,11 +262,11 @@ TOptional<FText> UOptimusNode_ComputeKernelBase::ValidateForCompile() const
 	};
 
 	// Collect struct types and ensure all groups have the same component source (or none) within each group
-	auto VerifyPinBindings = [](TSet<UOptimusComponentSourceBinding*> &InCollectedBindings, const UOptimusNodePin* InPin)-> TOptional<FText>
+	auto VerifyPinBindings = [InContext](TSet<UOptimusComponentSourceBinding*> &InCollectedBindings, const UOptimusNodePin* InPin)-> TOptional<FText>
 	{
 		// Check for all pins, even if the data domain is singleton, it can have different values per invocation
 		// UOptimusNode_DataInterface::ValidateForCompile also double checks
-		const TSet<UOptimusComponentSourceBinding*> PinBindings = InPin->GetComponentSourceBindings();
+		const TSet<UOptimusComponentSourceBinding*> PinBindings = InPin->GetComponentSourceBindings(InContext);
 		if (PinBindings.Num() > 1)
 		{
 			return FText::Format(LOCTEXT("MultipleBindingsOnPin", "Multiple component bindings arriving into pin '{0}'"), FText::FromName(InPin->GetUniqueName()));
