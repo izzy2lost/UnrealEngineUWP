@@ -164,8 +164,6 @@ void UStaticMeshToSkeletalMeshConvertOptions::PostEditChangeProperty(FPropertyCh
 					BindingBoneName.Reset();
 				}
 			}
-			
-			(void)SkeletonProviderChanged.ExecuteIfBound();
 		}
 	}
 }
@@ -395,11 +393,6 @@ void ConvertStaticMeshAssetsToSkeletalMeshesInteractive(
 	.Buttons({
 		SCustomDialog::FButton(LOCTEXT("DialogButtonConvert", "Convert"), FSimpleDelegate::CreateLambda(OnConvertLambda)),
 		SCustomDialog::FButton(LOCTEXT("DialogButtonCancel", "Cancel"))
-	});
-
-	Options->SkeletonProviderChanged.BindLambda([DetailsView]()
-	{
-		DetailsView->ForceRefresh();
 	});
 
 	OptionsDialog->Show();

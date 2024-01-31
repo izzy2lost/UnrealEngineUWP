@@ -5,6 +5,7 @@
 #include "BoneContainer.h"
 #include "Factories/Factory.h"
 #include "ReferenceSkeleton.h"
+#include "Animation/BoneSocketReference.h"
 #include "Interfaces/Interface_BoneReferenceSkeletonProvider.h"
 
 #include "SkeletalMeshModelingToolsMeshConverter.generated.h"
@@ -150,8 +151,6 @@ public:
 	
 	// UObject overrides.
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-
-	FSimpleDelegate SkeletonProviderChanged;
 };
 
 
