@@ -6,8 +6,12 @@
 
 #include "Async/ParallelFor.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/Formatters/BinaryArchiveFormatter.h"
+#include "Serialization/Formatters/JsonArchiveInputFormatter.h"
+#include "Serialization/Formatters/JsonArchiveOutputFormatter.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
+#include "Serialization/StructuredArchive.h"
 #include "Tests/TestHarnessAdapter.h"
 
 namespace UE
@@ -49,23 +53,15 @@ static FPropertyTypeName CreateEnumMap()
 		Builder.AddTypeName(NAME_EnumProperty);
 		{
 			Builder.BeginTypeParameters();
+			Builder.AddTypeName(TEXT("Key"));
 			Builder.AddTypeName(NAME_ByteProperty);
-			{
-				Builder.BeginTypeParameters();
-				Builder.AddTypeName(TEXT("Key"));
-				Builder.EndTypeParameters();
-			}
 			Builder.EndTypeParameters();
 		}
 		Builder.AddTypeName(NAME_EnumProperty);
 		{
 			Builder.BeginTypeParameters();
+			Builder.AddTypeName(TEXT("Value"));
 			Builder.AddTypeName(NAME_ByteProperty);
-			{
-				Builder.BeginTypeParameters();
-				Builder.AddTypeName(TEXT("Value"));
-				Builder.EndTypeParameters();
-			}
 			Builder.EndTypeParameters();
 		}
 		Builder.EndTypeParameters();
@@ -159,17 +155,17 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK(TypeName.GetTypeName() == NAME_MapProperty);
 		CHECK(TypeName.GetTypeParameterCount() == 2);
 		CHECK(TypeName.GetTypeParameter(0).GetTypeName() == NAME_EnumProperty);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeName() == NAME_ByteProperty);
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameter(0).GetTypeName() == TEXT("Key"));
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameter(0).GetTypeParameter(0).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameter(1).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(1).IsEmpty());
+		CHECK(TypeName.GetTypeParameter(0).GetTypeParameterName(0) == TEXT("Key"));
+		CHECK(TypeName.GetTypeParameter(0).GetTypeParameterName(1) == NAME_ByteProperty);
+		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(0).GetTypeParameterCount() == 0);
+		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(1).GetTypeParameterCount() == 0);
+		CHECK(TypeName.GetTypeParameter(0).GetTypeParameter(2).IsEmpty());
 		CHECK(TypeName.GetTypeParameter(1).GetTypeName() == NAME_EnumProperty);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).GetTypeName() == NAME_ByteProperty);
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).GetTypeParameter(0).GetTypeName() == TEXT("Value"));
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).GetTypeParameter(0).GetTypeParameter(0).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).GetTypeParameter(1).IsEmpty());
-		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(1).IsEmpty());
+		CHECK(TypeName.GetTypeParameter(1).GetTypeParameterName(0) == TEXT("Value"));
+		CHECK(TypeName.GetTypeParameter(1).GetTypeParameterName(1) == NAME_ByteProperty);
+		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(0).GetTypeParameterCount() == 0);
+		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(1).GetTypeParameterCount() == 0);
+		CHECK(TypeName.GetTypeParameter(1).GetTypeParameter(2).IsEmpty());
 		CHECK(TypeName.GetTypeParameter(2).IsEmpty());
 	}
 
@@ -256,20 +252,52 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		FPropertyTypeName VectorArray = PropertyTypeNameTest::CreateVectorArray();
 
 		TArray<uint8> PersistentData;
-		FMemoryWriter PersistentSaveAr(PersistentData, /*bIsPersistent*/ true);
-		PersistentSaveAr << Empty << Int << EnumMap << VectorArray;
+		{
+			FMemoryWriter Ar(PersistentData, /*bIsPersistent*/ true);
+			Ar << Empty << Int << EnumMap << VectorArray;
+		}
 
 		TArray<uint8> MemoryData;
-		FMemoryWriter MemorySaveAr(MemoryData, /*bIsPersistent*/ false);
-		MemorySaveAr << Empty << Int << EnumMap << VectorArray;
+		{
+			FMemoryWriter Ar(MemoryData, /*bIsPersistent*/ false);
+			Ar << Empty << Int << EnumMap << VectorArray;
+		}
+
+		TArray<uint8> BinaryData;
+		{
+			FMemoryWriter Ar(BinaryData, /*bIsPersistent*/ true);
+			FBinaryArchiveFormatter Formatter(Ar);
+			FStructuredArchive StructuredAr(Formatter);
+			FStructuredArchiveRecord Record = StructuredAr.Open().EnterRecord();
+			Record.EnterField(TEXT("Empty")) << Empty;
+			Record.EnterField(TEXT("Int")) << Int;
+			Record.EnterField(TEXT("EnumMap")) << EnumMap;
+			Record.EnterField(TEXT("VectorArray")) << VectorArray;
+		}
+
+	#if WITH_TEXT_ARCHIVE_SUPPORT
+		TArray<uint8> JsonData;
+		{
+			FMemoryWriter Ar(JsonData, /*bIsPersistent*/ true);
+			FJsonArchiveOutputFormatter Formatter(Ar);
+			FStructuredArchive StructuredAr(Formatter);
+			FStructuredArchiveRecord Record = StructuredAr.Open().EnterRecord();
+			Record.EnterField(TEXT("Empty")) << Empty;
+			Record.EnterField(TEXT("Int")) << Int;
+			Record.EnterField(TEXT("EnumMap")) << EnumMap;
+			Record.EnterField(TEXT("VectorArray")) << VectorArray;
+		}
+	#endif
 
 		FPropertyTypeName EmptyCopy = Int; // needs to be non-empty
 		FPropertyTypeName IntCopy;
 		FPropertyTypeName EnumMapCopy;
 		FPropertyTypeName VectorArrayCopy;
 
-		FMemoryReader PersistentReader(PersistentData, /*bIsPersistent*/ true);
-		PersistentReader << EmptyCopy << IntCopy << EnumMapCopy << VectorArrayCopy;
+		{
+			FMemoryReader Ar(PersistentData, /*bIsPersistent*/ true);
+			Ar << EmptyCopy << IntCopy << EnumMapCopy << VectorArrayCopy;
+		}
 		CHECK(Empty == EmptyCopy);
 		CHECK(Int == IntCopy);
 		CHECK(EnumMap == EnumMapCopy);
@@ -280,20 +308,118 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		EnumMapCopy.Reset();
 		VectorArrayCopy.Reset();
 
-		FMemoryReader MemoryReader(MemoryData, /*bIsPersistent*/ false);
-		MemoryReader << EmptyCopy << IntCopy << EnumMapCopy << VectorArrayCopy;
+		{
+			FMemoryReader Ar(MemoryData, /*bIsPersistent*/ false);
+			Ar << EmptyCopy << IntCopy << EnumMapCopy << VectorArrayCopy;
+		}
 		CHECK(Empty == EmptyCopy);
 		CHECK(Int == IntCopy);
 		CHECK(EnumMap == EnumMapCopy);
 		CHECK(VectorArray == VectorArrayCopy);
+
+		EmptyCopy = Int; // needs to be non-empty
+		IntCopy.Reset();
+		EnumMapCopy.Reset();
+		VectorArrayCopy.Reset();
+
+		{
+			FMemoryReader Ar(BinaryData, /*bIsPersistent*/ true);
+			FBinaryArchiveFormatter Formatter(Ar);
+			FStructuredArchive StructuredAr(Formatter);
+			FStructuredArchiveRecord Record = StructuredAr.Open().EnterRecord();
+			Record.EnterField(TEXT("Empty")) << EmptyCopy;
+			Record.EnterField(TEXT("Int")) << IntCopy;
+			Record.EnterField(TEXT("EnumMap")) << EnumMapCopy;
+			Record.EnterField(TEXT("VectorArray")) << VectorArrayCopy;
+		}
+		CHECK(Empty == EmptyCopy);
+		CHECK(Int == IntCopy);
+		CHECK(EnumMap == EnumMapCopy);
+		CHECK(VectorArray == VectorArrayCopy);
+
+		EmptyCopy = Int; // needs to be non-empty
+		IntCopy.Reset();
+		EnumMapCopy.Reset();
+		VectorArrayCopy.Reset();
+
+	#if WITH_TEXT_ARCHIVE_SUPPORT
+		{
+			FMemoryReader Ar(JsonData, /*bIsPersistent*/ true);
+			FJsonArchiveInputFormatter Formatter(Ar);
+			FStructuredArchive StructuredAr(Formatter);
+			FStructuredArchiveRecord Record = StructuredAr.Open().EnterRecord();
+			Record.EnterField(TEXT("Empty")) << EmptyCopy;
+			Record.EnterField(TEXT("Int")) << IntCopy;
+			Record.EnterField(TEXT("EnumMap")) << EnumMapCopy;
+			Record.EnterField(TEXT("VectorArray")) << VectorArrayCopy;
+		}
+		CHECK(Empty == EmptyCopy);
+		CHECK(Int == IntCopy);
+		CHECK(EnumMap == EnumMapCopy);
+		CHECK(VectorArray == VectorArrayCopy);
+	#endif
 	}
+
+	const auto Parse = [](FStringView String) -> FPropertyTypeName
+	{
+		FPropertyTypeNameBuilder Builder;
+		CHECK(Builder.TryParse(String));
+		return Builder.Build();
+	};
+	const auto TryParse = [](FStringView String) -> bool
+	{
+		FPropertyTypeNameBuilder Builder;
+		return Builder.TryParse(String);
+	};
 
 	SECTION("String")
 	{
-		CHECK(TEXTVIEW("None").Equals(WriteToString<128>(FPropertyTypeName())));
-		CHECK(TEXTVIEW("IntProperty").Equals(WriteToString<128>(PropertyTypeNameTest::CreateInt())));
-		CHECK(TEXTVIEW("MapProperty<EnumProperty<ByteProperty<Key>>,EnumProperty<ByteProperty<Value>>>").Equals(WriteToString<128>(PropertyTypeNameTest::CreateEnumMap())));
-		CHECK(TEXTVIEW("ArrayProperty<StructProperty<Vector>>").Equals(WriteToString<128>(PropertyTypeNameTest::CreateVectorArray())));
+		FPropertyTypeName Empty;
+		FPropertyTypeName Int = PropertyTypeNameTest::CreateInt();
+		FPropertyTypeName EnumMap = PropertyTypeNameTest::CreateEnumMap();
+		FPropertyTypeName VectorArray = PropertyTypeNameTest::CreateVectorArray();
+
+		TStringBuilder<128> EmptyString(InPlace, Empty);
+		TStringBuilder<128> IntString(InPlace, Int);
+		TStringBuilder<128> EnumMapString(InPlace, EnumMap);
+		TStringBuilder<128> VectorArrayString(InPlace, VectorArray);
+
+		CHECK(TEXTVIEW("None").Equals(EmptyString));
+		CHECK(TEXTVIEW("IntProperty").Equals(IntString));
+		CHECK(TEXTVIEW("MapProperty<EnumProperty<Key,ByteProperty>,EnumProperty<Value,ByteProperty>>").Equals(EnumMapString));
+		CHECK(TEXTVIEW("ArrayProperty<StructProperty<Vector>>").Equals(VectorArrayString));
+
+		CHECK(Empty == Parse(EmptyString));
+		CHECK(Int == Parse(IntString));
+		CHECK(EnumMap == Parse(EnumMapString));
+		CHECK(VectorArray == Parse(VectorArrayString));
+	}
+
+	SECTION("Parse")
+	{
+		// There are positive parsing tests in the String section above.
+		CHECK(Parse(TEXTVIEW(" \t IntProperty \t ")) == PropertyTypeNameTest::CreateInt());
+		CHECK(Parse(TEXTVIEW(" \t ArrayProperty < StructProperty\t<\tVector\t>\t > \t ")) == PropertyTypeNameTest::CreateVectorArray());
+
+		CHECK_FALSE(TryParse(TEXTVIEW("")));
+		CHECK_FALSE(TryParse(TEXTVIEW(",")));
+		CHECK_FALSE(TryParse(TEXTVIEW("<>")));
+		CHECK_FALSE(TryParse(TEXTVIEW(",IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty,")));
+		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty,IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("IntProperty>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("<IntProperty>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("<IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<IntProperty>>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<<IntProperty>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("ArrayProperty<IntProperty>IntProperty")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<,>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<IntProperty,>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<,IntProperty>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<IntProperty,,IntProperty>")));
+		CHECK_FALSE(TryParse(TEXTVIEW("MapProperty<IntProperty><IntProperty>")));
 	}
 }
 
