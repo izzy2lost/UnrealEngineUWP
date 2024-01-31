@@ -36,7 +36,7 @@ enum class EPoseSearchMode : int32
 	PCAKDTree,
 
 	// Optimized search mode using a vantage point tree (Experimental)
-	VPTree
+	VPTree UMETA(DisplayName = "VPTree (Experimental)")
 };
 
 UENUM()

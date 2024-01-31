@@ -84,7 +84,7 @@ public:
 /**
  * Set of functions to help populate a FPoseSearchQueryTrajectory for motion matching.
  */
-UCLASS(Experimental)
+UCLASS()
 class POSESEARCH_API UPoseSearchTrajectoryLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
