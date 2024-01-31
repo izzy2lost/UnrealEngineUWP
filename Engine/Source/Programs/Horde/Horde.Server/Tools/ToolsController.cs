@@ -330,28 +330,31 @@ namespace Horde.Server.Tools
 			IStorageClient client = _toolCollection.CreateStorageClient(tool);
 			try
 			{
-				DirectoryNode node = await client.ReadRefTargetAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+				IBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 
-				if (node.Directories.Count == 0 && node.Files.Count == 1 && action != GetToolAction.Zip)
+				// If we weren't specifically asked for a zip, see if this download is a single file. If it is, allow downloading it directory.
+				if (action != GetToolAction.Zip)
 				{
-					FileEntry entry = node.Files.First();
-
-					string? contentType;
-					if (!new FileExtensionContentTypeProvider().TryGetContentType(entry.Name.ToString(), out contentType))
+					DirectoryNode node = await nodeRef.ReadBlobAsync(cancellationToken);
+					if (node.Directories.Count == 0 && node.Files.Count == 1)
 					{
-						contentType = "application/octet-stream";
+						FileEntry entry = node.Files.First();
+
+						string? contentType;
+						if (!new FileExtensionContentTypeProvider().TryGetContentType(entry.Name.ToString(), out contentType))
+						{
+							contentType = "application/octet-stream";
+						}
+
+						Response.Headers.ContentLength = entry.Length;
+
+						Stream fileStream = entry.OpenAsStream().WrapOwnership(client);
+						return new FileStreamResult(fileStream, contentType) { FileDownloadName = entry.Name.ToString() };
 					}
-
-					Response.Headers.ContentLength = entry.Length;
-
-					Stream stream = entry.OpenAsStream().WrapOwnership(client);
-					return new FileStreamResult(stream, contentType) { FileDownloadName = entry.Name.ToString() };
 				}
-				else
-				{
-					Stream stream = node.AsZipStream().WrapOwnership(client);
-					return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{tool.Id}-{deployment.Version}.zip" };
-				}
+
+				Stream stream = nodeRef.AsZipStream().WrapOwnership(client);
+				return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{tool.Id}-{deployment.Version}.zip" };
 			}
 			catch
 			{
