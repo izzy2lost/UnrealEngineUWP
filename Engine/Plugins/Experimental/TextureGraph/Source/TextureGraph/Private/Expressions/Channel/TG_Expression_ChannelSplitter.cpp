@@ -29,10 +29,9 @@ static void GenericEvaluate(FTG_EvaluationContext* InContext, FString ChannelNam
 		->AddArg(ARG_BLOB(Source, "SourceTexture"))
 		;
 
-	const FString Name = TEXT("ChannelSplitter_") + ChannelName; // FString::Printf(TEXT("Grayscale.[%s].[%d].[%llu]"), *gmask->ID(), InContext->TargetId, InContext->Cycle->Batch()->BatchId());
+	const FString Name = TEXT("ChannelSplitter_") + ChannelName; 
 
-	BufferDescriptor Desc = Source->GetDescriptor();
-	Desc.ItemsPerPoint = 1;
+	BufferDescriptor Desc = Output.GetBufferDescriptor();
 	
 	Output = RenderJob->InitResult(Name, &Desc);
 	InContext->Cycle->AddJob(InContext->TargetId, std::move(RenderJob));
