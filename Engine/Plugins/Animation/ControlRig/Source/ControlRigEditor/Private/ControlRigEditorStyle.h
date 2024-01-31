@@ -160,6 +160,27 @@ public:
 			Set("ControlRig.Schematic.Link", new IMAGE_BRUSH_SVG("Slate/Link_Schematic", Icon128x128));
 		}
 
+		// Constraint Manager Icons
+		{
+			const FButtonStyle ConstraintOptionButton = FButtonStyle()
+				.SetNormal(FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.f))
+				.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
+				.SetHoveredForeground(FLinearColor::White)
+				.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.f))
+				.SetPressedForeground(FLinearColor::White)
+				.SetPressedPadding(FMargin(0.0, 1.0, 0.0, 0.0));
+
+			const FString EngineSlateDir = FPaths::EngineContentDir() / TEXT("Slate");
+			FContentRootBracket Bracket(this, EngineSlateDir);		
+
+			FComboButtonStyle ConstraintComboButton = FComboButtonStyle()
+				.SetButtonStyle(ConstraintOptionButton)
+				.SetDownArrowImage(IMAGE_BRUSH_SVG("Starship/Common/ellipsis-vertical-narrow", FVector2f(6.f, 15.f)));
+			ConstraintComboButton.ButtonStyle = ConstraintOptionButton;
+			
+			Set("ConstraintManager.ComboButton", ConstraintComboButton);
+		}
+		
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 
