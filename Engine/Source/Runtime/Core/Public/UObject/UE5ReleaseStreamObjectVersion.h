@@ -156,6 +156,9 @@ struct FUE5ReleaseStreamObjectVersion
 
 		// Serialize ExternalDataLayerAsset in WorldPartitionActorDesc
 		WorldPartitionExternalDataLayers,
+
+		// Fix Chaos Cloth fictitious angular scale bug that requires existing parameter rescaling.
+		ChaosClothFictitiousAngularVelocitySubframeFix,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

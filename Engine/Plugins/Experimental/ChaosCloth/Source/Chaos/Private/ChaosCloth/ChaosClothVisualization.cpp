@@ -753,6 +753,44 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 		}
 	}
 
+
+	void FClothVisualization::DrawFictitiousAngularForces(FPrimitiveDrawInterface* PDI) const
+	{
+		if (!Solver)
+		{
+			return;
+		}
+
+		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
+		{
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
+			{
+				continue;
+			}
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+			if (const Softs::FExternalForces* const ExternalForces = ClothConstraints.GetExternalForces().Get())
+			{
+				check(Solver->IsForceBasedSolver());
+				{
+					const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+					const TConstArrayView<Softs::FSolverVec3> Positions = Solver->GetParticleXsView(ParticleRangeId);
+					const Softs::FSolverVec3& FictitousAngularVelocity = ExternalForces->GetFictitiousAngularVelocity();
+					const Softs::FSolverVec3& ReferenceSpaceLocation = ExternalForces->GetReferenceSpaceLocation();
+
+					for (int32 ParticleIndex = 0; ParticleIndex < Positions.Num(); ++ParticleIndex)
+					{
+						const FVector Pos0 = LocalSpaceLocation + FVector(Positions[ParticleIndex]);
+						const Softs::FSolverVec3 CentrifugalAccel = -Softs::FSolverVec3::CrossProduct(FictitousAngularVelocity, Softs::FSolverVec3::CrossProduct(FictitousAngularVelocity, Positions[ParticleIndex] - ReferenceSpaceLocation));
+
+						const FVector Pos1 = Pos0 + FVector(CentrifugalAccel);
+						DrawLine(PDI, Pos0, Pos1, FLinearColor::Red);
+					}
+				}
+			}
+		}
+	}
+
 	void FClothVisualization::DrawPhysMeshWired(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)

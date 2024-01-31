@@ -23,7 +23,7 @@ public:
 		, GravityScale(InGravityScale,
 			InGravityScaleMultipliers,
 			Particles.GetRangeSize())
-		, FictitiousAngularDisplacement(0.f)
+		, FictitiousAngularVelocity(0.f)
 		, ReferenceSpaceLocation(0.f)
 		, bUsePointBasedWindModel(false)
 		, PointBasedWind(0.f)
@@ -41,8 +41,7 @@ public:
 		const FSolverVec3* const V = Particles.GetV().GetData();
 		const FSolverVec3* const N = Particles.GetConstArrayView(Normals).GetData();
 
-		const bool bHasFictitiousForces = !FictitiousAngularDisplacement.IsNearlyZero();
-		const FSolverVec3 W = FictitiousAngularDisplacement / Dt;
+		const bool bHasFictitiousForces = !FictitiousAngularVelocity.IsNearlyZero();
 
 		const bool bHasPerParticleGravity = HasPerParticleGravity();
 		const FSolverReal GravityScaleConstant = bApplyGravityScale ? (FSolverReal)GravityScale : (FSolverReal)1.f;
@@ -61,7 +60,7 @@ public:
 				if (bHasFictitiousForces)
 				{
 					// Centrifugal force (*InvM to get acceleration)
-					Acceleration[Index] -= FSolverVec3::CrossProduct(W, FSolverVec3::CrossProduct(W, X[Index] - ReferenceSpaceLocation));
+					Acceleration[Index] -= FSolverVec3::CrossProduct(FictitiousAngularVelocity, FSolverVec3::CrossProduct(FictitiousAngularVelocity, X[Index] - ReferenceSpaceLocation));
 				}
 				if (bUsePointBasedWindModel)
 				{
@@ -87,8 +86,7 @@ public:
 		const FSolverVec3* const V = Particles.GetV().GetData();
 		const FSolverVec3* const N = Particles.GetConstArrayView(Normals).GetData();
 
-		const bool bHasFictitiousForces = !FictitiousAngularDisplacement.IsNearlyZero();
-		const FSolverVec3 W = FictitiousAngularDisplacement / Dt;
+		const bool bHasFictitiousForces = !FictitiousAngularVelocity.IsNearlyZero();
 
 		const bool bHasPerParticleGravity = HasPerParticleGravity();
 		const FSolverReal GravityScaleConstant = bApplyGravityScale ? (FSolverReal)GravityScale : (FSolverReal)1.f;
@@ -107,7 +105,7 @@ public:
 				if (bHasFictitiousForces)
 				{
 					// Centrifugal force (*InvM to get acceleration)
-					Force -= FSolverVec3::CrossProduct(W, FSolverVec3::CrossProduct(W, X[Index] - ReferenceSpaceLocation)) * M[Index];
+					Force -= FSolverVec3::CrossProduct(FictitiousAngularVelocity, FSolverVec3::CrossProduct(FictitiousAngularVelocity, X[Index] - ReferenceSpaceLocation)) * M[Index];
 				}
 				if (bUsePointBasedWindModel)
 				{
@@ -134,12 +132,13 @@ public:
 		const FSolverReal ParticleGravityScale = bApplyGravityScale ? (GravityScale.HasWeightMap() ? GravityScale[ParticleIndex] : GravityScale.GetLow()) : (FSolverReal)1.f;
 		return Gravity * ParticleGravityScale;
 	}
-
+	const FSolverVec3& GetFictitiousAngularVelocity() const { return FictitiousAngularVelocity; }
+	const FSolverVec3& GetReferenceSpaceLocation() const { return ReferenceSpaceLocation; }
 protected:
 	FSolverVec3 Gravity; 
 	bool bApplyGravityScale;
 	FPBDFlatWeightMap GravityScale;
-	FSolverVec3 FictitiousAngularDisplacement;
+	FSolverVec3 FictitiousAngularVelocity;
 	FSolverVec3 ReferenceSpaceLocation;
 	bool bUsePointBasedWindModel;
 	FSolverVec3 PointBasedWind;
@@ -173,7 +172,7 @@ public:
 		, WorldGravityMultiplier((FSolverReal)1.f)
 		, SolverGravity((FSolverReal)0.f, (FSolverReal)0.f, DefaultGravityZOverride)
 		, bPerSoftBodyGravityOverrideEnabled(true)
-		, FictitiousAngularDisplacementNoScale(0.f)
+		, FictitiousAngularVelocityNoScale(0.f)
 		, UseGravityOverrideIndex(PropertyCollection)
 		, GravityOverrideIndex(PropertyCollection)
 		, GravityScaleIndex(PropertyCollection)
@@ -187,9 +186,9 @@ public:
 		SolverGravity = InSolverGravity;
 		bPerSoftBodyGravityOverrideEnabled = bInPerSoftBodyGravityOverrideEnabled;
 	}
-	void SetFictitiousForcesData(const FSolverVec3& InFictitiousAngularDisplacementNoScale, const FSolverVec3& InReferenceSpaceLocation)
+	void SetFictitiousForcesData(const FSolverVec3& InFictitiousAngularVelocityNoScale, const FSolverVec3& InReferenceSpaceLocation)
 	{
-		FictitiousAngularDisplacementNoScale = InFictitiousAngularDisplacementNoScale;
+		FictitiousAngularVelocityNoScale = InFictitiousAngularVelocityNoScale;
 		ReferenceSpaceLocation = InReferenceSpaceLocation;
 	}
 	void SetSolverWind(const FSolverVec3& SolverWind, const FSolverReal InLegacyWindAdaptation)
@@ -223,7 +222,7 @@ public:
 
 		const FSolverReal FictitiousAngularScale = FMath::Min((FSolverReal)2., FictitiousAngularScaleIndex != INDEX_NONE ? GetFictitiousAngularScale(PropertyCollection) : DefaultFictitiousAngularScale);
 
-		FictitiousAngularDisplacement = FictitiousAngularDisplacementNoScale * FictitiousAngularScale;
+		FictitiousAngularVelocity = FictitiousAngularVelocityNoScale * FictitiousAngularScale;
 
 		bUsePointBasedWindModel = UsePointBasedWindModelIndex != INDEX_NONE ? GetUsePointBasedWindModel(PropertyCollection) : bDefaultUsePointBasedWindModel;
 	}
@@ -244,7 +243,7 @@ private:
 	bool bPerSoftBodyGravityOverrideEnabled;
 
 	/** Fictitious Forces */
-	FSolverVec3 FictitiousAngularDisplacementNoScale; // Without Scale parameter applied.
+	FSolverVec3 FictitiousAngularVelocityNoScale; // Without Scale parameter applied.
 
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(UseGravityOverride, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(GravityOverride, FVector3f);

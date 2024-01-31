@@ -2079,14 +2079,14 @@ void FClothConstraints::CreatePBDRules()
 }
 
 void FClothConstraints::UpdateFromSolver(const FSolverVec3& SolverGravity, bool bPerClothGravityOverrideEnabled,
-	const FSolverVec3& FictitiousAngularDisplacement, const FSolverVec3& ReferenceSpaceLocation,
+	const FSolverVec3& FictitiousAngularVelocity, const FSolverVec3& ReferenceSpaceLocation,
 	const FSolverVec3& InSolverWindVelocity, const FSolverReal LegacyWindAdaptation)
 {
 	if (ExternalForces)
 	{
 		ExternalForces->SetWorldGravityMultiplier((FSolverReal)ClothingSimulationClothConsoleVariables::CVarGravityMultiplier.GetValueOnAnyThread());
 		ExternalForces->SetSolverGravityProperties(SolverGravity, bPerClothGravityOverrideEnabled);
-		ExternalForces->SetFictitiousForcesData(FictitiousAngularDisplacement, ReferenceSpaceLocation);
+		ExternalForces->SetFictitiousForcesData(FictitiousAngularVelocity, ReferenceSpaceLocation);
 		ExternalForces->SetSolverWind(InSolverWindVelocity, LegacyWindAdaptation);
 	}
 	SolverWindVelocity = InSolverWindVelocity;
