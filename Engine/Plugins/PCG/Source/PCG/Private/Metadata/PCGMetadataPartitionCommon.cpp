@@ -2,8 +2,6 @@
 
 #include "Metadata/PCGMetadataPartitionCommon.h"
 
-#include "PCGContext.h"
-#include "PCGElement.h"
 #include "PCGModule.h"
 #include "PCGParamData.h"
 #include "Data/PCGPointData.h"
@@ -27,6 +25,7 @@ namespace PCGMetadataPartitionCommon
 	*/
 	TArray<TArray<int32>> AttributePartition(const FPCGMetadataAttributeBase* InAttribute, const IPCGAttributeAccessorKeys& InKeys, FPCGContext* InOptionalContext)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::AttributePartition);
 		check(InAttribute);
 
 		const int32 NumberOfEntries = InKeys.GetNum();
@@ -61,7 +60,7 @@ namespace PCGMetadataPartitionCommon
 					continue;
 				}
 
-				// TODO: Might want to upgrade to something better wince it can be quadractic and grow quickly.
+				// TODO: Might want to upgrade to something better since it can be quadratic and grow quickly.
 				int32 UniqueValueKeyIndex = Algo::IndexOfByPredicate(UniqueValueKeys, [ValueKey, InAttribute](const PCGMetadataValueKey& Key)
 				{
 					return InAttribute->AreValuesEqual(ValueKey, Key);
@@ -114,7 +113,7 @@ namespace PCGMetadataPartitionCommon
 			}
 		}
 
-		// Since we partition on the value array, it is not guarenteed that the values appears in the same order than the entries.
+		// Since we partition on the value array, it is not guaranteed that the values appears in the same order than the entries.
 		// So sort the final array using the first index as a sort criteria. Empty partitions will be at the beginning too.
 		PartitionedData.Sort([](const TArray<int32>& LHS, const TArray<int32>& RHS) -> bool
 		{ 
@@ -142,12 +141,13 @@ namespace PCGMetadataPartitionCommon
 	template <typename T>
 	TArray<TArray<int32>> ValuePartition(const IPCGAttributeAccessor& InAccessor, const IPCGAttributeAccessorKeys& InKeys, FPCGContext* InOptionalContext)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::ValuePartition);
 		TArray<T> UniqueValues;
 		TArray<TArray<int32>> PartitionedData;
 
 		PCGMetadataElementCommon::ApplyOnAccessor<T>(InKeys, InAccessor, [&PartitionedData, &UniqueValues](const T& InValue, int32 InIndex)
 		{
-			// TODO: Might want to upgrade to something better wince it can be quadractic and grow quickly.
+			// TODO: Might want to upgrade to something better since it can be quadratic and grow quickly.
 			int32 UniqueValueIndex = UniqueValues.IndexOfByPredicate([&InValue](const T& OtherValue)
 			{
 				// For consistency with the attribute part, use MetadataTraits::Equal
@@ -171,6 +171,7 @@ namespace PCGMetadataPartitionCommon
 	*/
 	TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::AttributeGenericPartition::SingleSelector);
 		if (!InData)
 		{
 			return {};
@@ -218,7 +219,7 @@ namespace PCGMetadataPartitionCommon
 				// Can't partition on a transform.
 				if constexpr (std::is_same_v<AttributeType, FTransform>)
 				{
-					PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidType", "Attribute {0} is a transform, partition transforms is not supported"), InSelector.GetDisplayText()), InOptionalContext);
+					PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidType", "Attribute {0} is a transform, partition on transforms is not supported"), InSelector.GetDisplayText()), InOptionalContext);
 					return {};
 				}
 				else
@@ -232,11 +233,137 @@ namespace PCGMetadataPartitionCommon
 	}
 
 	/**
+	 * Partition on multiple attributes by first partitioning on the attributes independently. Then take the resultant
+	 * partition and convert them to a BitArray representation of each element's partition. Once in BitArray form,
+	 * combine the results with a logical AND operation to filter them into final partition groupings.
+	 *
+	 * Multi-Partition Example:
+	 * Pt  A  B  C                         Partition on A->[0,1],[2,3,4]
+	 *  0  a  a  a                         Partition on B->[0],[1,2],[3,4]
+	 *  1  a  b  a                         Partition on C->[0,1],[2],[3,4]
+	 *  2  b  b  b                         Partition on A&B->[0],[1],[2],[3,4]
+	 *  3  b  c  c                         Final Partition (A&B&C)->[0],[1],[2],[3,4]
+	 *  4  b  c  c
+	 */
+	TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::AttributeGenericPartition::MultiSelector);
+
+		// Small optimization to partition on a single attribute
+		if (InSelectorArrayView.Num() == 1)
+		{
+			return AttributeGenericPartition(InData, InSelectorArrayView[0], InOptionalContext);
+		}
+
+		if (!InData || InSelectorArrayView.IsEmpty() || !InData->ConstMetadata())
+		{
+			return {};
+		}
+
+		// Get the element count from the number of keys which should work for spatial points and attribute sets
+		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InData, InSelectorArrayView[0]);
+		if (!Keys.IsValid())
+		{
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("InvalidKeys", "Could not create keys for the input data with selector {0}"), InSelectorArrayView[0].GetDisplayText()), InOptionalContext);
+			return {};
+		}
+
+		const int64 NumElements = Keys->GetNum();
+		const int64 NumAttributes = InSelectorArrayView.Num();
+
+		using IndexPartition = TArray<TArray<int32>>;
+		using BitPartition = TArray<TBitArray<>>;
+
+		TArray<IndexPartition> IndexPartitions;
+		IndexPartitions.SetNum(NumAttributes);
+		TArray<BitPartition> BitPartitions;
+		BitPartitions.SetNum(NumAttributes);
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::AttributeGenericPartition::MultiSelector::ConversionToBitArray);
+			/* TODO: Can be executed in parallel, threadsafe. There is a follow up task to evaluate between
+			 * option A.) partitioning on all attributes, and then merging and B.) Partitioning on each attribute
+			 * in succession, further partitioning the grouping results of the previous iteration.
+			 */
+			// Calculate each partition and convert it to a bitfield for simple/efficient intersection processing
+			for (int32 I = 0; I < InSelectorArrayView.Num(); ++I)
+			{
+				IndexPartition& CurrentIndexPartition = IndexPartitions[I];
+				BitPartition& CurrentBitPartition = BitPartitions[I];
+
+				// TODO: Ideally, refactor AttributeGenericPartition to return directly into BitArray format instead to avoid conversion
+				// Partition once for each attribute
+				CurrentIndexPartition = AttributeGenericPartition(InData, InSelectorArrayView[I], InOptionalContext);
+				// The bit partitions will match the index partitions
+				CurrentBitPartition.SetNum(CurrentIndexPartition.Num());
+
+				auto ConvertIndexGroupingToBitGrouping = [NumElements](const IndexPartition& InIndexPartition, BitPartition& OutBitPartition)
+				{
+					for (int32 GroupIndex = 0; GroupIndex < InIndexPartition.Num(); ++GroupIndex)
+					{
+						OutBitPartition[GroupIndex].SetNum(NumElements, false);
+						for (const int32 Index : InIndexPartition[GroupIndex])
+						{
+							OutBitPartition[GroupIndex].Insert(true, Index);
+						}
+					}
+				};
+
+				ConvertIndexGroupingToBitGrouping(CurrentIndexPartition, CurrentBitPartition);
+			}
+		}
+
+		BitPartition IterativePartition = BitPartitions[0]; // TODO: This can be optimized to filter down in pairs in parallel - O(log N) - instead of serial
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::AttributeGenericPartition::Intersection);
+			// Intersect all the BitArray partitions
+			for (int32 PartitionIndex = 1; PartitionIndex < BitPartitions.Num(); ++PartitionIndex)
+			{
+				BitPartition CurrentBitPartition = IterativePartition;
+				BitPartition& NextBitPartition = BitPartitions[PartitionIndex];
+
+				IterativePartition.Empty();
+
+				for (const TBitArray<>& FirstBitArray : CurrentBitPartition)
+				{
+					for (const TBitArray<>& SecondBitArray : NextBitPartition)
+					{
+						TBitArray<> Result = TBitArray<>::BitwiseAND(FirstBitArray, SecondBitArray, EBitwiseOperatorFlags::MaxSize);
+						// Only capture if non-empty. Discard empty BitArrays.
+						if (TConstSetBitIterator(Result))
+						{
+							IterativePartition.Emplace(std::move(Result));
+						}
+					}
+				}
+			}
+		}
+
+		IndexPartition FinalPartition;
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(PCGMetadataPartitionCommon::AttributeGenericPartition::MultiSelector::ConversionToIndices);
+			// Convert back into indices
+			for (const TBitArray<>& BitArray : IterativePartition)
+			{
+				TArray<int>& Indices = FinalPartition.Emplace_GetRef();
+				for (TConstSetBitIterator It(BitArray); It; ++It)
+				{
+					Indices.Emplace(It.GetIndex());
+				}
+			}
+		}
+
+		return FinalPartition;
+	}
+
+	/**
 	* Do a partition on the given point data for the selector
 	*/
-	TArray<UPCGData*> AttributePointPartition(const UPCGPointData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext)
+	TArray<UPCGData*> AttributePointPartition(const UPCGPointData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext)
 	{
-		TArray<TArray<int32>> Partition = AttributeGenericPartition(InData, InSelector, InOptionalContext);
+		TArray<TArray<int32>> Partition = AttributeGenericPartition(InData, InSelectorArrayView, InOptionalContext);
 		if (Partition.IsEmpty())
 		{
 			return {};
@@ -268,22 +395,22 @@ namespace PCGMetadataPartitionCommon
 		return PartitionedData;
 	}
 
-	TArray<UPCGData*> AttributeParamSpatialPartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext)
+	TArray<UPCGData*> AttributeParamSpatialPartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArray, FPCGContext* InOptionalContext)
 	{
-		const UPCGSpatialData* InSpatialData = Cast<const UPCGSpatialData>(InData);
-		const UPCGParamData* InParamData = Cast<const UPCGParamData>(InData);
-
-		if (!InSpatialData && !InParamData)
+		if (!InData->IsA<UPCGSpatialData>() && !InData->IsA<UPCGParamData>())
 		{
 			PCGLog::LogErrorOnGraph(LOCTEXT("InvalidDataType", "Input data is not an attribute set nor a spatial data. Operation not supported."), InOptionalContext);
 			return {};
 		}
 
-		TArray<TArray<int32>> Partition = AttributeGenericPartition(InData, InSelector, InOptionalContext);
+		const TArray<TArray<int32>> Partition = AttributeGenericPartition(InData, InSelectorArray, InOptionalContext);
+
 		if (Partition.IsEmpty())
 		{
 			return {};
 		}
+
+		const UPCGSpatialData* InSpatialData = Cast<const UPCGSpatialData>(InData);
 
 		TArray<UPCGData*> PartitionedData;
 		PartitionedData.Reserve(Partition.Num());
@@ -293,7 +420,7 @@ namespace PCGMetadataPartitionCommon
 		const UPCGMetadata* OriginalMetadata = InData->ConstMetadata();
 		OriginalMetadata->GetAttributes(AttributeNames, AttributeTypes);
 
-		for (TArray<int32>& Indices : Partition)
+		for (const TArray<int32>& Indices : Partition)
 		{
 			if (Indices.IsEmpty())
 			{
@@ -347,13 +474,26 @@ namespace PCGMetadataPartitionCommon
 
 	TArray<UPCGData*> AttributePartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext)
 	{
+		const TArrayView<const FPCGAttributePropertySelector> ArrayView(&InSelector, 1);
 		if (const UPCGPointData* InPointData = Cast<UPCGPointData>(InData))
 		{
-			return AttributePointPartition(InPointData, InSelector, InOptionalContext);
+			return AttributePointPartition(InPointData, ArrayView, InOptionalContext);
 		}
 		else
 		{
-			return AttributeParamSpatialPartition(InData, InSelector, InOptionalContext);
+			return AttributeParamSpatialPartition(InData, ArrayView, InOptionalContext);
+		}
+	}
+
+	TArray<UPCGData*> AttributePartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext)
+	{
+		if (const UPCGPointData* InPointData = Cast<UPCGPointData>(InData))
+		{
+			return AttributePointPartition(InPointData, InSelectorArrayView, InOptionalContext);
+		}
+		else
+		{
+			return AttributeParamSpatialPartition(InData, InSelectorArrayView, InOptionalContext);
 		}
 	}
 }

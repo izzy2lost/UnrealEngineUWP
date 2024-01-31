@@ -22,6 +22,16 @@ namespace PCGMetadataPartitionCommon
 	PCG_API TArray<UPCGData*> AttributePartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext = nullptr);
 
 	/**
+	* Partition the incoming data on the given attribute.
+	* Will return an array of data. Each data will contain the entries (in stable order) for a given partition.
+	* @param InData - Data to partition.
+	* @param InSelectorArrayView - ArrayView of selectors on the attribute to partition.
+	* @param InOptionalContext - Optional context for logging.
+	* @returns Array of data.
+	*/
+	PCG_API TArray<UPCGData*> AttributePartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext = nullptr);
+
+	/**
 	* Generic partition for the incoming data on the given attribute.
 	* Will return an array of bucket indices. Each bucket will contain the indices (in stable order) for a given partition.
 	* @param InData - Data to partition, need to support attributes (spatial data or attribute set).
@@ -30,4 +40,14 @@ namespace PCGMetadataPartitionCommon
 	* @returns Array of bucket indices.
 	*/
 	PCG_API TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const FPCGAttributePropertySelector& InSelector, FPCGContext* InOptionalContext = nullptr);
+
+	/**
+	* Generic partition for the incoming data on the given array of attributes.
+	* Will return an array of bucket indices. Each bucket will contain the indices (in stable order) for a given partition.
+	* @param InData - Data to partition, need to support attributes (spatial data or attribute set).
+	* @param InSelectorArrayView - ArrayView of selectors on the attribute to partition.
+	* @param InOptionalContext - Optional context for logging.
+	* @returns Array of bucket indices.
+	*/
+	PCG_API TArray<TArray<int32>> AttributeGenericPartition(const UPCGData* InData, const TArrayView<const FPCGAttributePropertySelector>& InSelectorArrayView, FPCGContext* InOptionalContext = nullptr);
 }

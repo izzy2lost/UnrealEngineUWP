@@ -34,12 +34,21 @@ protected:
 	//~End UPCGSettings interface
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, PCG_OverrideAliases = "PartitionAttribute"))
-	FPCGAttributePropertyInputSelector PartitionAttributeSource;
+	// TODO: Should be overridable once array override is supported
+	/** The data will be partitioned on these selected attributes. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	TArray<FPCGAttributePropertyInputSelector> PartitionAttributeSelectors;
+
+	// TODO: Should be deprecated once array override is supported
+	UPROPERTY(meta = (PCG_Overridable))
+	FString PartitionAttributeNames;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FName PartitionAttribute_DEPRECATED = NAME_None;
+
+	UPROPERTY()
+	FPCGAttributePropertyInputSelector PartitionAttributeSource_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
 };
 
