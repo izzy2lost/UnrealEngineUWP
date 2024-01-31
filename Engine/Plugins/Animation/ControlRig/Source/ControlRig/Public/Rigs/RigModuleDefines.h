@@ -89,6 +89,18 @@ struct CONTROLRIG_API FRigModuleSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module,  meta = (AllowedClasses = "/Script/Engine.Texture2D"))
 	FSoftObjectPath Icon;
 
+	// The category of the module
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module)
+	FString Category;
+
+	// The keywords of the module
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module)
+	FString Keywords;
+
+	// The description of the module
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module, meta = (MultiLine = true))
+	FString Description;
+
 	UPROPERTY(BlueprintReadOnly, Category = Module)
 	TArray<FRigModuleConnector> ExposedConnectors;
 };
