@@ -139,6 +139,9 @@ namespace UE::ConcertReplicationScriptingEditor
 	void SConcertPropertyChainPicker::OnPropertySelected(const FConcertPropertyChain& ConcertPropertyChain, bool bIsSelected)
 	{
 		OnSelectedPropertiesChangedDelegate.ExecuteIfBound(ConcertPropertyChain, bIsSelected);
+
+		// The checkbox state may have changed request a resort.
+		TreeView->RequestResortForColumn(PropertySelectionCheckboxColumnId);
 	}
 }
 

@@ -11,6 +11,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SConcertPropertyChainChip"
@@ -27,44 +28,57 @@ namespace UE::ConcertReplicationScriptingEditor
 
 			+SWidgetSwitcher::Slot()
 			[
-				SNew(SButton)
-				.ButtonStyle(FReplicationScriptingStyle::Get(), "ConcertProperty.ChipButton.Selected")
-				.OnClicked_Lambda([OnEditPressed = InArgs._OnEditPressed](){ OnEditPressed.ExecuteIfBound(); return FReply::Handled(); })
+				SNew(SHorizontalBox)
+				
+				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
-					SNew(SHorizontalBox)
-
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
+					SNew(SButton)
+					.ButtonStyle(FReplicationScriptingStyle::Get(), "ConcertProperty.ChipButton.Selected")
+					.OnClicked_Lambda([OnEditPressed = InArgs._OnEditPressed](){ OnEditPressed.ExecuteIfBound(); return FReply::Handled(); })
 					[
-						SNew(STextBlock)
-						.Font(FAppStyle::GetFontStyle( TEXT("PropertyWindow.NormalFont")))
-						.Text(FText::FromString(PropertyChain.ToString()))
-					]
+						SNew(SHorizontalBox)
 
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					[
-						SNew(SButton)
-						.Visibility(!PropertyChain.IsEmpty() && InArgs._ShowClearButton ? EVisibility::Visible : EVisibility::Collapsed)
+						+SHorizontalBox::Slot()
+						.AutoWidth()
 						.VAlign(VAlign_Center)
-						.HAlign(HAlign_Center)
-						.ButtonStyle(FReplicationScriptingStyle::Get(), "ConcertProperty.ChipClearButton")
-						.ToolTipText(LOCTEXT("Remove", "Remove"))
-						.ContentPadding(FMargin(2, 0, 0, 0))
-						.OnClicked_Lambda([OnClearPressed = InArgs._OnClearPressed]()
-						{
-							OnClearPressed.ExecuteIfBound();
-							return FReply::Handled();
-						})
 						[
-							SNew(SImage)
-							.ColorAndOpacity(FStyleColors::Foreground)
-							.Image(FAppStyle::GetBrush("Icons.X"))
-							.DesiredSizeOverride(FVector2D(12.0f, 12.0f))
+							SNew(STextBlock)
+							.Font(FAppStyle::GetFontStyle( TEXT("PropertyWindow.NormalFont")))
+							.Text(FText::FromString(PropertyChain.ToString()))
+						]
+
+						+SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						[
+							SNew(SButton)
+							.Visibility(!PropertyChain.IsEmpty() && InArgs._ShowClearButton ? EVisibility::Visible : EVisibility::Collapsed)
+							.VAlign(VAlign_Center)
+							.HAlign(HAlign_Center)
+							.ButtonStyle(FReplicationScriptingStyle::Get(), "ConcertProperty.ChipClearButton")
+							.ToolTipText(LOCTEXT("Remove", "Remove"))
+							.ContentPadding(FMargin(2, 0, 0, 0))
+							.OnClicked_Lambda([OnClearPressed = InArgs._OnClearPressed]()
+							{
+								OnClearPressed.ExecuteIfBound();
+								return FReply::Handled();
+							})
+							[
+								SNew(SImage)
+								.ColorAndOpacity(FStyleColors::Foreground)
+								.Image(FAppStyle::GetBrush("Icons.X"))
+								.DesiredSizeOverride(FVector2D(12.0f, 12.0f))
+							]
 						]
 					]
+				]
+				
+				// So that the chip does not take up the entire row and leaves a lot of empty space next to the remove button
+				+SHorizontalBox::Slot()
+				.FillWidth(1.f)
+				[
+					SNullWidget::NullWidget
 				]
 			]
 			

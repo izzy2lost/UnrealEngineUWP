@@ -3,8 +3,11 @@
 #include "ConcertReplicationScriptingEditorModule.h"
 
 #include "ConcertPropertyChainWrapper.h"
-#include "ReplicationScriptingStyle.h"
+#include "ConcertPropertyChainWrapperContainer.h"
+#include "Customization/ConcertPropertyContainerCustomization.h"
 #include "Customization/ConcertPropertyCustomization.h"
+#include "ReplicationScriptingStyle.h"
+
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 
@@ -17,7 +20,11 @@ namespace UE::ConcertReplicationScriptingEditor
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.RegisterCustomPropertyTypeLayout(
 			FConcertPropertyChainWrapper::StaticStruct()->GetFName(),
-			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FConcertPropertyCustomization::MakeInstance)
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FConcertPropertyCustomization::MakeInstance, &SharedClassRememberer)
+			);
+		PropertyModule.RegisterCustomPropertyTypeLayout(
+			FConcertPropertyChainWrapperContainer::StaticStruct()->GetFName(),
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FConcertPropertyContainerCustomization::MakeInstance, &SharedClassRememberer)
 			);
 	}
 

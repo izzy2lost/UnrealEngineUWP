@@ -32,12 +32,25 @@ namespace UE::ConcertReplicationScriptingEditor
 			.ButtonContent()
 			[
 				SNew(SWidgetSwitcher)
-				.WidgetIndex_Lambda([this](){ return HasMultipleValuesAttribute.Get() ? 0 : 1; })
+				.WidgetIndex_Lambda([this]()
+				{
+					return HasMultipleValuesAttribute.Get()
+						? 0
+						: DisplayedProperties.IsEmpty()
+							? 1
+							: 2;
+				})
 				
 				+SWidgetSwitcher::Slot()
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("MultipleValues", "Multiple Values"))
+				]
+				+SWidgetSwitcher::Slot()
+				[
+					SNew(SConcertPropertyChainChip)
+					.DisplayedProperty(FConcertPropertyChain{})
+					.ShowClearButton(false)
 				]
 				+SWidgetSwitcher::Slot()
 				[
