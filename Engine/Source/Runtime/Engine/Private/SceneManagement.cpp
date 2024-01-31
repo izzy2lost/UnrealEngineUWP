@@ -1072,10 +1072,11 @@ FMobileDirectionalLightShaderParameters::FMobileDirectionalLightShaderParameters
 	DirectionalLightShadowSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	DirectionalLightShadowSize = FVector4f(EForceInit::ForceInitToZero);
 	DirectionalLightDistanceFadeMADAndSpecularScale = FVector4f(EForceInit::ForceInitToZero);
+	DirectionalLightNumCascades = 0;
 	for (int32 i = 0; i < MAX_MOBILE_SHADOWCASCADES; ++i)
 	{
 		DirectionalLightScreenToShadow[i].SetIdentity();
-		DirectionalLightShadowDistances[i] = 0.0f;
+		DirectionalLightShadowDistances[i] = FLT_MAX; // Unused cascades should compare > all scene depths
 	}
 }
 
