@@ -150,6 +150,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Options, AdvancedDisplay)
 	bool bKeepSideGroups = true;
 
+	/** When true, displays dimensions of the given selection in the viewport. */
+	UPROPERTY(EditAnywhere, Category = Options, AdvancedDisplay)
+	bool bShowSelectionMeasurements = true;
+
 	/** When performing selection, the tolerance to use when determining
 	 whether things lie in the same plane as a cube face. */
 	//~ This turned out to not be a useful setting, so it is no longer EditAnywhere. The only cases where it
@@ -373,6 +377,7 @@ public:
 
 	virtual void OnTick(float DeltaTime) override;
 	virtual void Render(IToolsContextRenderAPI* RenderAPI) override;
+	virtual void DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* RenderAPI) override;
 
 	virtual void OnPropertyModified(UObject* PropertySet, FProperty* Property) override;
 
