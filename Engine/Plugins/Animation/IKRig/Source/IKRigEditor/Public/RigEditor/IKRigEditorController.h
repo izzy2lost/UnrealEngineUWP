@@ -100,7 +100,7 @@ struct FRetargetChainAnalyzer
 	
 	static FName GetDefaultChainName();
 
-	static EChainSide GetSideOfChain(const TArray<int32>& BoneIndices, const FIKRigSkeleton& IKRigSkeleton);
+	EChainSide GetSideOfChain(const TArray<int32>& BoneIndices, const FIKRigSkeleton& IKRigSkeleton) const;
 };
 
 // a home for cross-widget communication to synchronize state across all tabs and viewport 
