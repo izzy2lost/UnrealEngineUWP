@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionEditorUtils.h"
+#include "AvaTransitionEditorLog.h"
 #include "AvaTransitionTree.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "Behavior/IAvaTransitionBehavior.h"
@@ -10,6 +11,8 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "ScopedTransaction.h"
+#include "Serialization/ArchiveObjectCrc32.h"
+#include "StateTreeTaskBase.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScaleBox.h"
 
@@ -54,6 +57,165 @@ TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* In
 			];
 	}
 	return nullptr;
+}
+
+void ValidateTree(UAvaTransitionTree& InTransitionTree)
+{
+	UStateTreeEditorData* EditorData = Cast<UStateTreeEditorData>(InTransitionTree.EditorData);
+	if (!EditorData || !EditorData->Schema)
+	{
+		return;
+	}
+
+	const FString TreeDebugName = InTransitionTree.GetName();
+
+	EditorData->ReparentStates();
+
+	// Clear evaluators if not allowed.
+	if (!EditorData->Evaluators.IsEmpty() && !EditorData->Schema->AllowEvaluators())
+	{
+		UE_LOG(LogAvaEditorTransition, Warning
+			, TEXT("%s: Resetting Evaluators due to current schema restrictions.")
+			, *TreeDebugName);
+
+		EditorData->Evaluators.Reset();
+	}
+
+	// Apply Schema Rules to each State 
+	EditorData->VisitHierarchy([&TreeDebugName, EditorData](UStateTreeState& State, UStateTreeState*)
+	{
+		// Clear enter conditions if not allowed.
+		if (!State.EnterConditions.IsEmpty() && !EditorData->Schema->AllowEnterConditions())
+		{
+			UE_LOG(LogAvaEditorTransition, Warning
+				, TEXT("%s: Resetting Enter Conditions in state %s due to current schema restrictions.")
+				, *TreeDebugName
+				, *State.GetName());
+
+			State.EnterConditions.Reset();
+		}
+
+		// Keep single and many tasks based on what is allowed.
+		if (!EditorData->Schema->AllowMultipleTasks())
+		{
+			if (!State.Tasks.IsEmpty())
+			{
+				State.Tasks.Reset();
+				UE_LOG(LogAvaEditorTransition, Warning
+					, TEXT("%s: Resetting Tasks in state %s due to current schema restrictions.")
+					, *TreeDebugName
+					, *State.GetName());
+			}
+
+			// Task name is the same as state name.
+			if (FStateTreeTaskBase* Task = State.SingleTask.Node.GetMutablePtr<FStateTreeTaskBase>())
+			{
+				Task->Name = State.Name;
+			}
+		}
+		else
+		{
+			if (State.SingleTask.Node.IsValid())
+			{
+				State.SingleTask.Reset();
+				UE_LOG(LogAvaEditorTransition, Warning
+					, TEXT("%s: Resetting Single Task in state %s due to current schema restrictions.")
+					, *TreeDebugName
+					, *State.GetName());
+			}
+		}
+
+		return EStateTreeVisitor::Continue;
+	});
+
+	// Remove unused Bindings
+	{
+		TMap<FGuid, const FStateTreeDataView> AllStructValues;
+		EditorData->GetAllStructValues(AllStructValues);
+		EditorData->GetPropertyEditorBindings()->RemoveUnusedBindings(AllStructValues);
+	}
+
+	// Validate Linked States
+	{
+		// Make sure all state links are valid and update the names if needed.
+		// Create ID to state name map.
+		TMap<FGuid, FName> IdToName;
+
+		EditorData->VisitHierarchy([&IdToName](const UStateTreeState& State, UStateTreeState* /*ParentState*/)
+		{
+			IdToName.Add(State.ID, State.Name);
+			return EStateTreeVisitor::Continue;
+		});
+
+		static auto FixChangedStateLinkName = [](FStateTreeStateLink& StateLink, const TMap<FGuid, FName>& IDToName)
+		{
+			if (StateLink.ID.IsValid())
+			{
+				const FName* Name = IDToName.Find(StateLink.ID);
+				if (Name == nullptr)
+				{
+					// Missing link, we'll show these in the UI
+					return false;
+				}
+				if (StateLink.Name != *Name)
+				{
+					// Name changed, fix!
+					StateLink.Name = *Name;
+					return true;
+				}
+			}
+			return false;
+		};
+
+		// Fix changed names.
+		EditorData->VisitHierarchy([&IdToName](UStateTreeState& State, UStateTreeState* /*ParentState*/)
+		{
+			if (State.Type == EStateTreeStateType::Linked)
+			{
+				FixChangedStateLinkName(State.LinkedSubtree, IdToName);
+			}
+					
+			for (FStateTreeTransition& Transition : State.Transitions)
+			{
+				FixChangedStateLinkName(Transition.State, IdToName);
+			}
+
+			return EStateTreeVisitor::Continue;
+		});
+	}
+
+	// Update Linked State Parameters
+	EditorData->VisitHierarchy([](UStateTreeState& State, UStateTreeState* /*ParentState*/)
+	{
+		if (State.Type == EStateTreeStateType::Linked)
+		{
+			State.UpdateParametersFromLinkedSubtree();
+		}
+		return EStateTreeVisitor::Continue;
+	});
+}
+
+uint32 CalculateTreeHash(UAvaTransitionTree& InTransitionTree)
+{
+	if (!InTransitionTree.EditorData)
+	{
+		return 0;
+	}
+
+	static const FName MD_ExcludeFromHash(TEXT("ExcludeFromHash"));
+
+	class : public FArchiveObjectCrc32
+	{
+		virtual bool ShouldSkipProperty(const FProperty* InProperty) const override
+		{
+			return !InProperty
+				|| FArchiveObjectCrc32::ShouldSkipProperty(InProperty)
+				|| InProperty->HasAllPropertyFlags(CPF_Transient)
+				|| InProperty->HasMetaData(MD_ExcludeFromHash);
+		}
+	} Archive;
+
+	return Archive.Crc32(InTransitionTree.EditorData, 0);
 }
 
 bool PickTransitionTreeAsset(const FText& InDialogTitle, UAvaTransitionTree*& OutTransitionTree)

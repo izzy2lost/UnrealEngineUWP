@@ -12,13 +12,15 @@
 #include "AvaTransitionTreeEditorData.h"
 #include "AvaTransitionViewModelChildren.h"
 #include "AvaTransitionViewModelSharedData.h"
+#include "IMessageLogListing.h"
 #include "Menu/AvaTransitionToolbar.h"
 #include "Menu/AvaTransitionTreeContextMenu.h"
-#include "Serialization/ArchiveObjectCrc32.h"
+#include "Misc/UObjectToken.h"
+#include "Registry/AvaTransitionViewModelRegistryCollection.h"
 #include "State/AvaTransitionStateViewModel.h"
 #include "StateTreeDelegates.h"
 #include "StateTreeEditorSettings.h"
-#include "StateTreeTaskBase.h"
+#include "TabFactories/AvaTransitionCompilerResultsTabFactory.h"
 #include "Views/SAvaTransitionTreeView.h"
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -30,9 +32,9 @@ FAvaTransitionEditorViewModel::FAvaTransitionEditorViewModel(UAvaTransitionTree*
 	, ContextMenu(MakeShared<FAvaTransitionTreeContextMenu>(*this))
 	, TransitionTreeWeak(InTransitionTree)
 	, EditorWeak(InEditor)
-	, Compiler(*this)
 	, CommandList(MakeShared<FUICommandList>())
 {
+	Compiler.SetTransitionTree(InTransitionTree);
 }
 
 FAvaTransitionEditorViewModel::~FAvaTransitionEditorViewModel()
@@ -77,7 +79,7 @@ void FAvaTransitionEditorViewModel::Compile()
 	if (CanCompile())
 	{
 		UpdateTree();
-		Compiler.Compile();
+		Compiler.Compile(GetSharedData()->GetEditorMode());
 	}
 }
 
@@ -116,14 +118,7 @@ bool FAvaTransitionEditorViewModel::UpdateEditorData(bool bInCreateIfNotFound)
 
 void FAvaTransitionEditorViewModel::UpdateTree()
 {
-	UAvaTransitionTree* TransitionTree = GetTransitionTree();
-	if (!TransitionTree)
-	{
-		return;
-	}
-
-	ValidateTree(TransitionTree->GetName());
-	EditorDataHash = CalculateTreeHash(*TransitionTree);
+	Compiler.UpdateTree();
 }
 
 TSharedPtr<FAvaTransitionEditor> FAvaTransitionEditorViewModel::GetEditor() const
@@ -250,10 +245,11 @@ void FAvaTransitionEditorViewModel::BindDelegates()
 		EditorData->GetOnTreeRequestRefresh().AddSP(this, &FAvaTransitionEditorViewModel::Refresh);
 	}
 
+	Compiler.GetCompilerResultsListing().OnMessageTokenClicked().AddSP(this, &FAvaTransitionEditorViewModel::OnMessageTokenClicked);
+	Compiler.GetOnCompileFailed().BindSP(this, &FAvaTransitionEditorViewModel::OnCompileFailed);
+
 	UE::StateTree::Delegates::OnIdentifierChanged.AddSP(this, &FAvaTransitionEditorViewModel::OnIdentifierChanged);
 	UE::StateTree::Delegates::OnSchemaChanged.AddSP(this, &FAvaTransitionEditorViewModel::OnSchemaChanged);
-	UE::StateTree::Delegates::OnParametersChanged.AddSP(this, &FAvaTransitionEditorViewModel::OnParametersChanged);
-	UE::StateTree::Delegates::OnStateParametersChanged.AddSP(this, &FAvaTransitionEditorViewModel::OnStateParametersChanged);
 }
 
 void FAvaTransitionEditorViewModel::UnbindDelegates()
@@ -263,167 +259,10 @@ void FAvaTransitionEditorViewModel::UnbindDelegates()
 		EditorData->GetOnTreeRequestRefresh().RemoveAll(this);
 	}
 
+	Compiler.GetCompilerResultsListing().OnMessageTokenClicked().RemoveAll(this);
+
 	UE::StateTree::Delegates::OnIdentifierChanged.RemoveAll(this);
 	UE::StateTree::Delegates::OnSchemaChanged.RemoveAll(this);
-	UE::StateTree::Delegates::OnParametersChanged.RemoveAll(this);
-	UE::StateTree::Delegates::OnStateParametersChanged.RemoveAll(this);
-}
-
-uint32 FAvaTransitionEditorViewModel::CalculateTreeHash(const UAvaTransitionTree& InTree) const
-{
-	if (!InTree.EditorData)
-	{
-		return 0;
-	}
-
-	static const FName MD_ExcludeFromHash(TEXT("ExcludeFromHash"));
-
-	class : public FArchiveObjectCrc32
-	{
-		virtual bool ShouldSkipProperty(const FProperty* InProperty) const override
-		{
-			return !InProperty
-				|| FArchiveObjectCrc32::ShouldSkipProperty(InProperty)
-				|| InProperty->HasAllPropertyFlags(CPF_Transient)
-				|| InProperty->HasMetaData(MD_ExcludeFromHash);
-		}
-	} Archive;
-
-	return Archive.Crc32(InTree.EditorData, 0);
-}
-
-void FAvaTransitionEditorViewModel::ValidateTree(const FString& InTreeDebugName)
-{
-	UAvaTransitionTreeEditorData* EditorData = GetEditorData();
-	if (!EditorData || !EditorData->Schema)
-	{
-		return;
-	}
-
-	EditorData->ReparentStates();
-
-	// Clear evaluators if not allowed.
-	if (!EditorData->Evaluators.IsEmpty() && !EditorData->Schema->AllowEvaluators())
-	{
-		UE_LOG(LogAvaEditorTransition, Warning
-			, TEXT("%s: Resetting Evaluators due to current schema restrictions.")
-			, *InTreeDebugName);
-
-		EditorData->Evaluators.Reset();
-	}
-
-	// Apply Schema Rules to each State 
-	EditorData->VisitHierarchy([&InTreeDebugName, EditorData](UStateTreeState& State, UStateTreeState*)
-	{
-		// Clear enter conditions if not allowed.
-		if (!State.EnterConditions.IsEmpty() && !EditorData->Schema->AllowEnterConditions())
-		{
-			UE_LOG(LogAvaEditorTransition, Warning
-				, TEXT("%s: Resetting Enter Conditions in state %s due to current schema restrictions.")
-				, *InTreeDebugName
-				, *State.GetName());
-
-			State.EnterConditions.Reset();
-		}
-
-		// Keep single and many tasks based on what is allowed.
-		if (!EditorData->Schema->AllowMultipleTasks())
-		{
-			if (!State.Tasks.IsEmpty())
-			{
-				State.Tasks.Reset();
-				UE_LOG(LogAvaEditorTransition, Warning
-					, TEXT("%s: Resetting Tasks in state %s due to current schema restrictions.")
-					, *InTreeDebugName
-					, *State.GetName());
-			}
-
-			// Task name is the same as state name.
-			if (FStateTreeTaskBase* Task = State.SingleTask.Node.GetMutablePtr<FStateTreeTaskBase>())
-			{
-				Task->Name = State.Name;
-			}
-		}
-		else
-		{
-			if (State.SingleTask.Node.IsValid())
-			{
-				State.SingleTask.Reset();
-				UE_LOG(LogAvaEditorTransition, Warning
-					, TEXT("%s: Resetting Single Task in state %s due to current schema restrictions.")
-					, *InTreeDebugName
-					, *State.GetName());
-			}
-		}
-
-		return EStateTreeVisitor::Continue;
-	});
-
-	// Remove unused Bindings
-	{
-		TMap<FGuid, const FStateTreeDataView> AllStructValues;
-		EditorData->GetAllStructValues(AllStructValues);
-		EditorData->GetPropertyEditorBindings()->RemoveUnusedBindings(AllStructValues);
-	}
-
-	// Validate Linked States
-	{
-		// Make sure all state links are valid and update the names if needed.
-		// Create ID to state name map.
-		TMap<FGuid, FName> IdToName;
-
-		EditorData->VisitHierarchy([&IdToName](const UStateTreeState& State, UStateTreeState* /*ParentState*/)
-		{
-			IdToName.Add(State.ID, State.Name);
-			return EStateTreeVisitor::Continue;
-		});
-
-		static auto FixChangedStateLinkName = [](FStateTreeStateLink& StateLink, const TMap<FGuid, FName>& IDToName)
-		{
-			if (StateLink.ID.IsValid())
-			{
-				const FName* Name = IDToName.Find(StateLink.ID);
-				if (Name == nullptr)
-				{
-					// Missing link, we'll show these in the UI
-					return false;
-				}
-				if (StateLink.Name != *Name)
-				{
-					// Name changed, fix!
-					StateLink.Name = *Name;
-					return true;
-				}
-			}
-			return false;
-		};
-
-		// Fix changed names.
-		EditorData->VisitHierarchy([&IdToName](UStateTreeState& State, UStateTreeState* /*ParentState*/)
-		{
-			if (State.Type == EStateTreeStateType::Linked)
-			{
-				FixChangedStateLinkName(State.LinkedSubtree, IdToName);
-			}
-					
-			for (FStateTreeTransition& Transition : State.Transitions)
-			{
-				FixChangedStateLinkName(Transition.State, IdToName);
-			}
-
-			return EStateTreeVisitor::Continue;
-		});
-	}
-
-	// Update Linked State Parameters
-	EditorData->VisitHierarchy([](UStateTreeState& State, UStateTreeState* /*ParentState*/)
-	{
-		if (State.Type == EStateTreeStateType::Linked)
-		{
-			State.UpdateParametersFromLinkedSubtree();
-		}
-		return EStateTreeVisitor::Continue;
-	});
 }
 
 void FAvaTransitionEditorViewModel::OnIdentifierChanged(const UStateTree& InStateTree)
@@ -439,18 +278,36 @@ void FAvaTransitionEditorViewModel::OnSchemaChanged(const UStateTree& InStateTre
 	if (&InStateTree == GetTransitionTree())
 	{
 		UpdateTree();
-		// todo: notify asset change externally
 	}
 }
 
-void FAvaTransitionEditorViewModel::OnParametersChanged(const UStateTree& InStateTree)
+void FAvaTransitionEditorViewModel::OnCompileFailed()
 {
-	// todo
+	if (TSharedPtr<FAvaTransitionEditor> Editor = GetEditor())
+	{
+		if (TSharedPtr<FTabManager> TabManager = Editor->GetTabManager())
+		{
+			TabManager->TryInvokeTab(FAvaTransitionCompilerResultsTabFactory::TabId);
+		}
+	}
 }
 
-void FAvaTransitionEditorViewModel::OnStateParametersChanged(const UStateTree& InStateTree, const FGuid InGuid)
+void FAvaTransitionEditorViewModel::OnMessageTokenClicked(const TSharedRef<IMessageToken>& InMessageToken)
 {
-	// todo
+	if (InMessageToken->GetType() != EMessageToken::Object)
+	{
+		return;
+	}
+
+	TSharedRef<FAvaTransitionViewModelSharedData> ViewModelSharedData = GetSharedData();
+
+	if (UStateTreeState* State = Cast<UStateTreeState>(StaticCastSharedRef<FUObjectToken>(InMessageToken)->GetObject().Get()))
+	{
+		if (TSharedPtr<FAvaTransitionViewModel> FoundViewModel = ViewModelSharedData->GetRegistryCollection()->FindViewModel(State))
+		{
+			ViewModelSharedData->GetSelection()->SetSelectedItems({ FoundViewModel });
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

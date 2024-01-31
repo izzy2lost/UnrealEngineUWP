@@ -2,26 +2,36 @@
 
 #pragma once
 
+#include "Delegates/Delegate.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtr.h"
 
-class FAvaTransitionEditorViewModel;
 class IMessageLogListing;
-class IMessageToken;
 class SWidget;
+class UAvaTransitionTree;
 class UToolMenu;
+enum class EAvaTransitionEditorMode : uint8;
 enum class EStateTreeSaveOnCompile : uint8;
 struct FSlateIcon;
 
 class FAvaTransitionCompiler
 {
 public:
-	FAvaTransitionCompiler(FAvaTransitionEditorViewModel& InOwner);
+	FAvaTransitionCompiler();
 
-	bool Compile();
+	void SetTransitionTree(UAvaTransitionTree* InTransitionTree);
+
+	IMessageLogListing& GetCompilerResultsListing();
+
+	FSimpleDelegate& GetOnCompileFailed();
+
+	bool Compile(EAvaTransitionEditorMode InCompileMode);
+
+	void UpdateTree();
 
 	FSlateIcon GetCompileStatusIcon() const;
 
-	TSharedRef<SWidget> GetCompilerResultsWidget() const;
+	TSharedRef<SWidget> CreateCompilerResultsWidget() const;
 
 	static void SetSaveOnCompile(EStateTreeSaveOnCompile InSaveOnCompileType);
 
@@ -30,13 +40,13 @@ public:
 	static void GenerateCompileOptionsMenu(UToolMenu* InMenu);
 
 private:
-	void OnMessageTokenClicked(const TSharedRef<IMessageToken>& InMessageToken);
+	TWeakObjectPtr<UAvaTransitionTree> TransitionTreeWeak;
 
-	FAvaTransitionEditorViewModel& Owner;
+	TSharedRef<IMessageLogListing> CompilerResultsListing;
 
-	TSharedPtr<IMessageLogListing> CompilerResultsListing;
+	FSimpleDelegate OnCompileFail;
 
-	TSharedPtr<SWidget> CompilerResultsWidget;
+	uint32 EditorDataHash = 0;
 
 	bool bLastCompileSucceeded = true;
 };
