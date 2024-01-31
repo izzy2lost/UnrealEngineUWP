@@ -13,8 +13,8 @@
 
 UAvalancheMaskSettings::UAvalancheMaskSettings()
 {
-    CategoryName = TEXT("Plugins");
-    SectionName = TEXT("AvalancheMask");
+	CategoryName = TEXT("Motion Design");
+	SectionName = TEXT("Mask");
 }
 
 #if WITH_EDITORONLY_DATA

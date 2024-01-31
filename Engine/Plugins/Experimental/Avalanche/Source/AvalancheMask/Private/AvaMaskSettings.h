@@ -14,7 +14,7 @@ class UMaterialFunctionInterface;
 #endif
 
 /** Settings for Avalanche Mask */
-UCLASS(Config = Engine)
+UCLASS(Config = Engine, meta = (DisplayName = "Mask"))
 class UAvalancheMaskSettings
     : public UDeveloperSettings
 {
