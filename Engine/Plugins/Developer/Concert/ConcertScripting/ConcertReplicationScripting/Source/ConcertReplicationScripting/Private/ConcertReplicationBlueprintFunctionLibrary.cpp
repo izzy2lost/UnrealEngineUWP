@@ -102,6 +102,11 @@ TArray<FConcertPropertyChainWrapper> UConcertReplicationBlueprintFunctionLibrary
 	return Result;
 }
 
+FString UConcertReplicationBlueprintFunctionLibrary::ToString(const FConcertPropertyChainWrapper& PropertyChain)
+{
+	return PropertyChain.PropertyChain.ToString();
+}
+
 const TArray<FName>& UConcertReplicationBlueprintFunctionLibrary::GetPropertyStringPath(const FConcertPropertyChainWrapper& Path)
 {
 	return Path.PropertyChain.GetPathToProperty();

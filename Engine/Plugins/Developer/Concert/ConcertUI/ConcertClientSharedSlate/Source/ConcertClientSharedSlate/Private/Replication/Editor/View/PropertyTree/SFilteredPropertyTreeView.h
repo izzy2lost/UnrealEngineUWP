@@ -58,6 +58,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 		virtual void RequestRefilter() const override { ExtendedTreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { ExtendedTreeView->RequestResortForColumn(ColumnId); }
+		virtual void RequestScrollIntoView(const FConcertPropertyChain& PropertyChain) override { ExtendedTreeView->RequestScrollIntoView(PropertyChain); }
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
 		//~ End IPropertyTreeView Interface
 

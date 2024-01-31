@@ -59,6 +59,19 @@ namespace UE::ConcertSharedSlate
 		TreeView->RequestRefilter();
 	}
 
+	void SPropertyTreeView::RequestScrollIntoView(const FConcertPropertyChain& PropertyChain)
+	{
+		const int32 Index = PropertyRowData.IndexOfByPredicate([&PropertyChain](const TSharedPtr<FReplicatedPropertyData>& Data)
+		{
+			return Data->GetProperty() == PropertyChain;
+		});
+		if (PropertyRowData.IsValidIndex(Index))
+		{
+			TreeView->SetExpandedItems({ PropertyRowData[Index] }, true);
+			TreeView->RequestScrollIntoView(PropertyRowData[Index]);
+		}
+	}
+
 	TSharedRef<FReplicatedPropertyData> SPropertyTreeView::AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain)
 	{
 		return MakeShared<FReplicatedPropertyData>(MoveTemp(OwningClass), MoveTemp(PropertyChain));

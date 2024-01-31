@@ -58,6 +58,10 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Concert|Replication", meta = (ScriptMethod))
 	static TArray<FConcertPropertyChainWrapper> GetChildProperties(const FConcertPropertyChainWrapper& Parent, const TSubclassOf<UObject>& Class, bool bOnlyDirect = false);
+
+	/** Converts the the property to a string. */
+	UFUNCTION(BlueprintPure, Category = "Concert|Replication", meta = (ScriptMethod))
+	static FString ToString(const FConcertPropertyChainWrapper& PropertyChain);
 	
 	/******************** Getters ********************/
 	

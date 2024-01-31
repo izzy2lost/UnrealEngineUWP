@@ -263,6 +263,11 @@ namespace UE::ConcertSharedSlate
 				TreeView->SetItemExpansion(Item, bIsExpanded);
 			}
 		}
+
+		void RequestScrollIntoView(const TSharedPtr<TItemType>& Item)
+		{
+			TreeView->RequestScrollIntoView(Item);
+		}
 		
 		TArray<TSharedPtr<TItemType>> GetSelectedItems() const { return TreeView->GetSelectedItems(); }
 		const TArray<TSharedPtr<TItemType>>& GetFilteredRootItems() const { return FilteredRootItems; }
