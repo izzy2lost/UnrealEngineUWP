@@ -310,7 +310,7 @@ void BakeCustomizableObjectInstance(
 	check (InstanceCO);
 
 	// Ensure the CO of the COI is accessible 
-	if (!InstanceCO || InstanceCO->IsLocked())
+	if (!InstanceCO || InstanceCO->GetPrivate()->IsLocked())
 	{
 		FCustomizableObjectEditorLogger::CreateLog(
 		LOCTEXT("CustomizableObjectCompilingTryLater_Baking", "Please wait until the Customizable Object is compiled"))

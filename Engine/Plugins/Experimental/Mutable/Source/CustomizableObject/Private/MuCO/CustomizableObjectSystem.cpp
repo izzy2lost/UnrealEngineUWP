@@ -985,7 +985,7 @@ void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 		bOutNeverStream = State->bDisableTextureStreaming;
 
 		// Was streaming disabled at object-compilation time? 
-		if (Instance.GetCustomizableObject()->bDisableTextureStreaming)
+		if (Instance.GetCustomizableObject()->GetPrivate()->bDisableTextureStreaming)
 		{
 			bOutNeverStream = true;
 		}
@@ -3497,7 +3497,7 @@ void UCustomizableObjectSystem::OnPreBeginPIE(const bool bIsSimulatingInEditor)
 		}
 		
 		const UCustomizableObject* Object = Cast<UCustomizableObject>(Asset.GetAsset());
-		if (!Object || Object->IsCompiled() || Object->IsLocked() || Object->bIsChildObject)
+		if (!Object || Object->IsCompiled() || Object->GetPrivate()->IsLocked() || Object->bIsChildObject)
 		{
 			continue;
 		}
@@ -3547,7 +3547,7 @@ void UCustomizableObjectSystem::RecompileCustomizableObjectAsync(const FAssetDat
 		return;
 	}
 	
-	if ((InObject && InObject->IsLocked()) || ObjectsToRecompile.Find((InAssetData)) != INDEX_NONE)
+	if ((InObject && InObject->GetPrivate()->IsLocked()) || ObjectsToRecompile.Find((InAssetData)) != INDEX_NONE)
 	{
 		return;
 	}

@@ -17,7 +17,7 @@ ECustomizableObjectCompilationState UCustomizableObjectEditorFunctionLibrary::Co
 	}
 
 	FString ObjectPath = CustomizableObject->GetPathName();
-	if (CustomizableObject->IsLocked())
+	if (CustomizableObject->GetPrivate()->IsLocked())
 	{
 		// Take this if you need a hack:
 		// UCustomizableObjectSystem::GetInstance()->UnlockObject(CustomizableObject);

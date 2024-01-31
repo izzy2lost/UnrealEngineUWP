@@ -347,14 +347,14 @@ void UCustomizableInstancePrivate::BindObjectDelegates(UCustomizableObject*  Cur
 	// Unbind callback from the previous CO
 	if (CurrentCustomizableObject)
 	{
-		CurrentCustomizableObject->PostCompileDelegate.RemoveAll(this);
+		CurrentCustomizableObject->GetPrivate()->PostCompileDelegate.RemoveAll(this);
 		CurrentCustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().RemoveAll(this);
 	}
 
 	// Bind callback to the new CO
 	if (NewCustomizableObject)
 	{
-		NewCustomizableObject->PostCompileDelegate.AddUObject(this, &UCustomizableInstancePrivate::OnPostCompile);
+		NewCustomizableObject->GetPrivate()->PostCompileDelegate.AddUObject(this, &UCustomizableInstancePrivate::OnPostCompile);
 		NewCustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().AddUObject(this, &UCustomizableInstancePrivate::OnObjectStatusChanged);
 	}
 }
@@ -5401,7 +5401,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		CustomizableObject->GetPathName(),
 		Public->GetPathName(),
 		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem,
-		CustomizableObject->GetModel(),
+		CustomizableObject->GetPrivate()->GetModel(),
 		OperationData->Parameters,
 	    OperationData->GetCapturedDescriptor().GetState());
 	
