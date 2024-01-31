@@ -10,6 +10,7 @@
 #include "Widgets/SWindow.h"
 #include "Framework/Docking/WorkspaceItem.h"
 #include "Framework/Commands/UIAction.h"
+#include "Templates/Function.h"
 
 class FJsonObject;
 class FMenuBuilder;
@@ -128,7 +129,7 @@ struct FTabId
 
 class FSpawnTabArgs
 {
-	public:
+public:
 	FSpawnTabArgs( const TSharedPtr<SWindow>& InOwnerWindow, const FTabId& InTabBeingSpawenedId )
 	: TabIdBeingSpawned(InTabBeingSpawenedId)
 	, OwnerWindow(InOwnerWindow)
@@ -145,7 +146,7 @@ class FSpawnTabArgs
 		return TabIdBeingSpawned;
 	}
 
-	private:
+private:
 	FTabId TabIdBeingSpawned;
 	TSharedPtr<SWindow> OwnerWindow;
 };
@@ -1106,7 +1107,7 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		SLATE_API TSharedPtr<class SDockingTabStack> FindTabInLiveAreas( const FTabMatcher& TabMatcher ) const;
 		static SLATE_API TSharedPtr<class SDockingTabStack> FindTabInLiveArea( const FTabMatcher& TabMatcher, const TSharedRef<SDockingArea>& InArea );
 
-		template<typename MatchFunctorType> static bool HasAnyMatchingTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const MatchFunctorType& Matcher );
+		static bool HasAnyMatchingTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const TFunctionRef<bool(const FTab&)>& Matcher );
 
 	public:
 		/**
@@ -1120,7 +1121,7 @@ class FTabManager : public TSharedFromThis<FTabManager>
 		 *
 		 * @param InTabIdToMatch the const &FTabId for which to find the FArea
 		 */
-	    SLATE_API TSharedPtr<FArea> GetFAreaFromInitialLayoutWithTabType(const FTabId& InTabIdToMatch ) const;
+	    SLATE_API TSharedPtr<FArea> GetAreaFromInitialLayoutWithTabType(const FTabId& InTabIdToMatch ) const;
 
 protected:
 		SLATE_API bool HasValidTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const;
@@ -1177,7 +1178,7 @@ protected:
 	 *
 	 * @param TabId the FTabId for which to find the FArea 
 	 */
-	TSharedRef<FArea> GetFAreaForFTabId(const FTabId& TabId);
+	TSharedRef<FArea> GetAreaForTabId(const FTabId& TabId);
 
 	protected:
 		FTabSpawner TabSpawner;
