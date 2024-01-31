@@ -91,11 +91,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta=(AutoCreateRefTerm="PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyExclusiveDiscreteAction(const int32 Size, const TArray<float>& PriorProbabilities, const FName Name = TEXT("DiscreteExclusive"));
-	FLearningAgentsActionSchemaElement SpecifyExclusiveDiscreteActionFromArrayView(const int32 Size, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("DiscreteExclusive"));
+	FLearningAgentsActionSchemaElement SpecifyExclusiveDiscreteActionFromArrayView(const int32 Size, const TArrayView<const float> PriorProbabilities = {}, const FName Name = TEXT("DiscreteExclusive"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyInclusiveDiscreteAction(const int32 Size, const TArray<float>& PriorProbabilities, const FName Name = TEXT("DiscreteInclusive"));
-	FLearningAgentsActionSchemaElement SpecifyInclusiveDiscreteActionFromArrayView(const int32 Size, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("DiscreteInclusive"));
+	FLearningAgentsActionSchemaElement SpecifyInclusiveDiscreteActionFromArrayView(const int32 Size, const TArrayView<const float> PriorProbabilities = {}, const FName Name = TEXT("DiscreteInclusive"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionSchemaElement SpecifyStructAction(const TMap<FName, FLearningAgentsActionSchemaElement>& Elements, const FName Name = TEXT("Struct"));
@@ -109,14 +109,14 @@ public:
 	
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyExclusiveUnionActionFromArrays(const TArray<FName>& ElementNames, const TArray<FLearningAgentsActionSchemaElement>& Elements, const TArray<float>& PriorProbabilities, const FName Name = TEXT("ExclusiveUnion"));
-	FLearningAgentsActionSchemaElement SpecifyExclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("ExclusiveUnion"));
+	FLearningAgentsActionSchemaElement SpecifyExclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const TArrayView<const float> PriorProbabilities = {}, const FName Name = TEXT("ExclusiveUnion"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionAction(const TMap<FName, FLearningAgentsActionSchemaElement>& Elements, const TMap<FName, float>& PriorProbabilities, const FName Name = TEXT("InclusiveUnion"));
 	
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionActionFromArrays(const TArray<FName> ElementNames, const TArray<FLearningAgentsActionSchemaElement>& Elements, const TArray<float>& PriorProbabilities, const FName Name = TEXT("InclusiveUnion"));
-	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("InclusiveUnion"));
+	FLearningAgentsActionSchemaElement SpecifyInclusiveUnionActionFromArrayViews(const TArrayView<const FName> ElementNames, const TArrayView<const FLearningAgentsActionSchemaElement> Elements, const TArrayView<const float> PriorProbabilities = {}, const FName Name = TEXT("InclusiveUnion"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionSchemaElement SpecifyStaticArrayAction(const FLearningAgentsActionSchemaElement Element, const int32 Num, const FName Name = TEXT("StaticArray"));
@@ -129,14 +129,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyEnumActionFromArray(const UEnum* Enum, const TArray<float>& PriorProbabilities, const FName Name = TEXT("Enum"));
-	FLearningAgentsActionSchemaElement SpecifyEnumActionFromArrayView(const UEnum* Enum, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("Enum"));
+	FLearningAgentsActionSchemaElement SpecifyEnumActionFromArrayView(const UEnum* Enum, const TArrayView<const float> PriorProbabilities = {}, const FName Name = TEXT("Enum"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyBitmaskAction(const UEnum* Enum, const TMap<uint8, float>& PriorProbabilities, const FName Name = TEXT("Bitmask"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PriorProbabilities"))
 	FLearningAgentsActionSchemaElement SpecifyBitmaskActionFromArray(const UEnum* Enum, const TArray<float>& PriorProbabilities, const FName Name = TEXT("Bitmask"));
-	FLearningAgentsActionSchemaElement SpecifyBitmaskActionFromArrayView(const UEnum* Enum, const TArrayView<const float> PriorProbabilities, const FName Name = TEXT("Bitmask"));
+	FLearningAgentsActionSchemaElement SpecifyBitmaskActionFromArrayView(const UEnum* Enum, const TArrayView<const float> PriorProbabilities = {}, const FName Name = TEXT("Bitmask"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionSchemaElement SpecifyOptionalAction(const FLearningAgentsActionSchemaElement Element, const float PriorProbability = 0.5f, const FName Name = TEXT("Optional"));
@@ -170,6 +170,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionSchemaElement SpecifyVelocityAction(const FName Name = TEXT("Velocity"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionSchemaElement SpecifyDirectionAction(const FName Name = TEXT("Direction"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionSchemaElement SpecifySpeedAction(const FName Name = TEXT("Speed"));
@@ -298,6 +301,9 @@ public:
 	FLearningAgentsActionObjectElement MakeVelocityAction(const FVector Velocity, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
+	FLearningAgentsActionObjectElement MakeDirectionAction(const FVector Direction, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction"));
+
+	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionObjectElement MakeSpeedAction(const float Speed, const float SpeedScale = 200.0f, const FName Name = TEXT("Speed"));
 
 public:
@@ -397,6 +403,9 @@ public:
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
 	UPARAM(DisplayName = "Success") bool GetVelocityAction(FVector& OutVelocity, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity")) const;
+
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	UPARAM(DisplayName = "Success") bool GetDirectionAction(FVector& OutDirection, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction")) const;
 
 	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
 	UPARAM(DisplayName = "Success") bool GetSpeedAction(float& OutSpeed, const FLearningAgentsActionObjectElement Element, const float SpeedScale = 200.0f, const FName Name = TEXT("Speed")) const;

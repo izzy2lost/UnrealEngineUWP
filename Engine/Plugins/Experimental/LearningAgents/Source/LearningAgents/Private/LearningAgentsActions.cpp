@@ -1084,6 +1084,11 @@ FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyVelocityA
 	return SpecifyContinuousAction(3, Name);
 }
 
+FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyDirectionAction(const FName Name)
+{
+	return SpecifyContinuousAction(3, Name);
+}
+
 FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifySpeedAction(const FName Name)
 {
 	return SpecifyContinuousAction(1, Name);
@@ -1504,6 +1509,17 @@ FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeVelocityActi
 		(float)LocalVelocity.X / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
 		(float)LocalVelocity.Y / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
 		(float)LocalVelocity.Z / FMath::Max(VelocityScale, UE_SMALL_NUMBER),
+		}, Name);
+}
+
+FLearningAgentsActionObjectElement ULearningAgentsActionObject::MakeDirectionAction(const FVector Direction, const FTransform RelativeTransform, const FName Name)
+{
+	const FVector LocalDirection = RelativeTransform.InverseTransformVectorNoScale(Direction).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+
+	return MakeContinuousActionFromArrayView({
+		(float)LocalDirection.X,
+		(float)LocalDirection.Y,
+		(float)LocalDirection.Z,
 		}, Name);
 }
 
@@ -2475,6 +2491,19 @@ bool ULearningAgentsActionObject::GetVelocityAction(FVector& OutVelocity, const 
 	}
 
 	OutVelocity = RelativeTransform.TransformVector(VelocityScale * FVector(OutValues[0], OutValues[1], OutValues[2]));
+	return true;
+}
+
+bool ULearningAgentsActionObject::GetDirectionAction(FVector& OutDirection, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform, const FName Name) const
+{
+	TStaticArray<float, 3> OutValues;
+	if (!GetContinuousActionToArrayView(OutValues, Element, Name))
+	{
+		OutDirection = FVector::ForwardVector;
+		return false;
+	}
+
+	OutDirection = RelativeTransform.TransformVectorNoScale(FVector(OutValues[0], OutValues[1], OutValues[2]).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector));
 	return true;
 }
 
