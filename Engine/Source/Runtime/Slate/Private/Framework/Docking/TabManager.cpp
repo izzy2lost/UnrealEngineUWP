@@ -1453,7 +1453,7 @@ TSharedPtr<SDockTab> FTabManager::InvokeTab_Internal(const FTabId& TabId, bool b
 	}
 	else
 	{
-		const TSharedRef<FArea> NewAreaForTab = GetFAreaForFTabId(TabId);
+		const TSharedRef<FArea> NewAreaForTab = GetAreaForTabId(TabId);
 
 		NewAreaForTab
 		->Split
@@ -2214,27 +2214,14 @@ FVector2D FTabManager::GetDefaultTabWindowSize(const FTabId& TabId)
 
 bool FTabManager::HasAnyTabWithTabId( const TSharedRef<FLayoutNode>& SomeNode, const FName& InTabTypeToMatch ) const
 {
-	struct TabWithIdMatcher
-	{
-		TabWithIdMatcher(const FTabManager* InTabManager, FName& InTabTypeToMatch) : TabManager(InTabManager), TabTypeToMatch(InTabTypeToMatch)
+	return HasAnyMatchingTabs(SomeNode,
+		[this, InTabTypeToMatch](const FTab& Candidate)
 		{
-		}
-		
-		const FTabManager* TabManager;
-		const FName& TabTypeToMatch;
-
-		bool operator()(const FTab& Candidate) const
-		{
-			return TabManager->IsValidTabForSpawning(Candidate) && Candidate.TabId.TabType == TabTypeToMatch;
-		}
-	};
-	FName TabTypeToMatch = InTabTypeToMatch;
-	const TabWithIdMatcher FindTabWithId(this, TabTypeToMatch);
-
-	return HasAnyMatchingTabs(SomeNode, FindTabWithId);
+			return this->IsValidTabForSpawning(Candidate) && Candidate.TabId.TabType == InTabTypeToMatch;
+		});
 }
 
-TSharedPtr<FTabManager::FArea> FTabManager::GetFAreaFromInitialLayoutWithTabType( const FTabId& InTabIdToMatch ) const
+TSharedPtr<FTabManager::FArea> FTabManager::GetAreaFromInitialLayoutWithTabType( const FTabId& InTabIdToMatch ) const
 {
 	const TSharedPtr<FTabManager::FLayout> InitialLayoutSP = FGlobalTabmanager::Get()->GetInitialLayoutSP();
 	if (InitialLayoutSP.IsValid())
@@ -2250,9 +2237,9 @@ TSharedPtr<FTabManager::FArea> FTabManager::GetFAreaFromInitialLayoutWithTabType
 	return nullptr;
 }
 
-TSharedRef<FTabManager::FArea> FTabManager::GetFAreaForFTabId(const FTabId& TabId)
+TSharedRef<FTabManager::FArea> FTabManager::GetAreaForTabId(const FTabId& TabId)
 {
-	if (const TSharedPtr<FArea> AreaFromInitiallyLoadedLayout = FGlobalTabmanager::Get()->GetFAreaFromInitialLayoutWithTabType(TabId))
+	if (const TSharedPtr<FArea> AreaFromInitiallyLoadedLayout = FGlobalTabmanager::Get()->GetAreaFromInitialLayoutWithTabType(TabId))
 	{
 		/* we must reuse positions from the initial layout for positionally specified floating windows. If we don't
 		* do this then any persisted floating windows load in a big cluster in the middle on top of one another */
@@ -2274,8 +2261,7 @@ TSharedPtr<FTabManager::FLayout> FGlobalTabmanager::GetInitialLayoutSP()
 	return InitialLayoutSP;
 }
 
-template<typename MatchFunctorType>
-bool FTabManager::HasAnyMatchingTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const MatchFunctorType& Matcher )
+bool FTabManager::HasAnyMatchingTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const TFunctionRef<bool(const FTab& Candidate)>& Matcher )
 {
 	TSharedPtr<FTabManager::FSplitter> AsSplitter = SomeNode->AsSplitter();
 	TSharedPtr<FTabManager::FStack> AsStack = SomeNode->AsStack();
@@ -2302,37 +2288,21 @@ bool FTabManager::HasAnyMatchingTabs( const TSharedRef<FTabManager::FLayoutNode>
 bool FTabManager::HasValidOpenTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const
 {
 	// Search for valid and open tabs
-	struct OpenTabMatcher
-	{
-		const FTabManager* TabManager;
-
-		bool operator()(const FTab& Candidate) const
+	return HasAnyMatchingTabs(SomeNode,
+		[this](const FTab& Candidate)
 		{
-			return TabManager->IsValidTabForSpawning(Candidate) && Candidate.TabState == ETabState::OpenedTab;
-		}
-	};
-	OpenTabMatcher FindOpenTab;
-	FindOpenTab.TabManager = this;
-
-	return HasAnyMatchingTabs(SomeNode, FindOpenTab);
+				return this->IsValidTabForSpawning(Candidate) && Candidate.TabState == ETabState::OpenedTab;
+		});
 }
 
 bool FTabManager::HasValidTabs( const TSharedRef<FTabManager::FLayoutNode>& SomeNode ) const
 {
 	// Search for valid tabs that can be spawned
-	struct ValidTabMatcher
-	{
-		const FTabManager* TabManager;
-
-		bool operator()(const FTab& Candidate) const
+	return HasAnyMatchingTabs(SomeNode,
+		[this](const FTab& Candidate)
 		{
-			return TabManager->IsValidTabForSpawning(Candidate);
-		}
-	};
-	ValidTabMatcher FindValidTab;
-	FindValidTab.TabManager = this;
-
-	return HasAnyMatchingTabs(SomeNode, FindValidTab);
+			return this->IsValidTabForSpawning(Candidate);
+		});
 }
 
 void FTabManager::SetTabsTo(const TSharedRef<FTabManager::FLayoutNode>& SomeNode, const ETabState::Type NewTabState, const ETabState::Type OriginalTabState) const
@@ -2992,7 +2962,7 @@ void FProxyTabmanager::OpenUnmanagedTab(FName PlaceholderId, const FSearchPrefer
 	TSharedPtr<SWindow> ParentWindowPtr = ParentWindow.Pin();
 	if (ensure(ParentWindowPtr.IsValid()))
 	{
-		const TSharedPtr<FArea> Area = FGlobalTabmanager::Get()->GetFAreaFromInitialLayoutWithTabType(UnmanagedTab->GetLayoutIdentifier());
+		const TSharedPtr<FArea> Area = FGlobalTabmanager::Get()->GetAreaFromInitialLayoutWithTabType(UnmanagedTab->GetLayoutIdentifier());
 		const TSharedRef<FArea> NewAreaForTab =  Area.IsValid() ? Area.ToSharedRef() : NewPrimaryArea();
 
 		NewAreaForTab
