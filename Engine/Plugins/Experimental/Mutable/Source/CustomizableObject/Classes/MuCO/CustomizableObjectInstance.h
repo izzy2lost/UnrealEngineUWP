@@ -635,7 +635,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	int32 GetNumComponents() const;
 
-
 	int32 GetMinLODToLoad() const;
 	int32 GetMaxLODToLoad() const;
 	int32 GetNumLODsAvailable() const;
@@ -648,9 +647,6 @@ public:
 
 	/** Return the Max LOD this Instance is using (from the beginning of an update. If an update fails this value will be incorrect). */
 	int32 GetCurrentMaxLOD() const;
-
-	/** Save the Min and Max LOD that will be used for the update. */
-	void CommitMinMaxLOD();
 
 	/** Sets an array of LODs to generate per component. Mutable will generate those plus the currently generated LODs (if any).
 	 * Requires mutable.EnableOnlyGenerateRequestedLODs and CurrentInstanceLODManagement->IsOnlyGenerateRequestedLODLevelsEnabled() to be true.
@@ -689,10 +685,6 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UCustomizableInstancePrivate> PrivateData;
-
-	/** LODs applied on the beginning of the last update. Represent the actual LODs the Instance is using (not strictly true since an update can fail). */
-	int32 CurrentMinLOD = -1;
-	int32 CurrentMaxLOD = -1;
 
 #if WITH_EDITORONLY_DATA
 	/** Textures which can used as values in Texture Parameters. */
