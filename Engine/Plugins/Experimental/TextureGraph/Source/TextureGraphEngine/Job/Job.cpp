@@ -474,9 +474,28 @@ TiledBlobPtr Job::InitResult(FString InNewName, const BufferDescriptor* InDesire
 
 	TargetTextureSetPtr& Target = MixObj->GetSettings()->Target(TargetId);
 	if (ResultDesc.Width <= 0)
-		ResultDesc.Width = Target->GetWidth();
+	{
+		if(ArgsDescCombined.Width <= 0)
+		{
+			ResultDesc.Width = Target->GetWidth();
+		}
+		else
+		{
+			ResultDesc.Width = ArgsDescCombined.Width;			
+		}
+		
+	}
 	if (ResultDesc.Height <= 0)
-		ResultDesc.Height = Target->GetHeight();
+	{
+		if(ArgsDescCombined.Height <= 0)
+		{
+			ResultDesc.Height = Target->GetHeight();
+		}
+		else
+		{
+			ResultDesc.Height = ArgsDescCombined.Height;	
+		}
+	}
 
 	if (!NumTilesX)
 		NumTilesX = MixObj->GetNumXTiles();
