@@ -146,7 +146,7 @@ public:
 	virtual bool CanGenerateRow() const override;
 	virtual TSharedRef<ITableRow> GenerateRow(const TSharedRef<STableViewBase>& InOwningTableView) override;
 	virtual bool IsExpanded() const override;
-	virtual void SetExpanded(bool bIsExpanded) override;
+	virtual void SetExpanded(bool bInIsExpanded) override;
 	//~ End IAvaTransitionTreeRowExtension
 
 	//~ Begin IAvaTransitionObjectExtension

@@ -26,5 +26,5 @@ public:
 	virtual bool IsExpanded() const = 0;
 
 	/** Sets the Expansion state of the View Model */
-	virtual void SetExpanded(bool bIsExpanded) = 0;
+	virtual void SetExpanded(bool bInIsExpanded) = 0;
 };
