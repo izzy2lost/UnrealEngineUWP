@@ -732,35 +732,31 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, AddRemoveFromConn
 	// Disallow group to trigger state change from PendingCreateConfirmation->PendingDestroy
 	ReplicationSystem->SetGroupFilterStatus(Group, ENetFilterStatus::Disallow);	
 
+	// Expect client to create object
+	Server->DeliverTo(Client, true);
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
+
 	// Send packet
-	// Expected state to be WaitOnDestroyConfirmation
 	Server->PreSendUpdate();
 	Server->SendTo(Client);
 	Server->PostSendUpdate();
 
-	// Allow group to trigger state to ensure that we restart replication since we have not actually created the object on the client
+	// Allow group to trigger state to ensure that we restart replication
 	ReplicationSystem->SetGroupFilterStatus(Group, ENetFilterStatus::Allow);
 
-	// Expect client to create object
+	// Expect client to destroy object
 	Server->DeliverTo(Client, true);
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) != nullptr);
-
-	// Expect client to destroy object and server to move to Destroyed state
-	Server->DeliverTo(Client, true);
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) == nullptr);
+	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
 
 	// Trigger replication
 	++ServerObject->IntA;
 
 	// Send packet
-	// Invalid -> PendingCreate
-	// PendingCreate->WaitOnCreateConfirmation
-	Server->PreSendUpdate();
-	Server->SendAndDeliverTo(Client, true);
-	Server->PostSendUpdate();
+	// WaitOnDestroyConfirmation -> WaitOnCreateConfirmation
+	Server->UpdateAndSend({ Client });
 
 	// Verify that the object got created again
-	UE_NET_ASSERT_TRUE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle) != nullptr);
+	UE_NET_ASSERT_NE(Client->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle), nullptr);
 }
 
 UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestNetTemporary)

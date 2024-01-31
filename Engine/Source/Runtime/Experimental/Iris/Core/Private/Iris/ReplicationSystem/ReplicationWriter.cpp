@@ -1633,6 +1633,12 @@ uint32 FReplicationWriter::WriteObjectsPendingDestroy(FNetSerializationContext& 
 		FReplicationInfo& Info = GetReplicationInfo(InternalIndex);
 		const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
 
+		// Don't send destroy until object creation has been acked.
+		if (!Info.IsCreationConfirmed)
+		{
+			continue;
+		}
+
 		// Already waiting on destroy confirmation
 		if (Info.GetState() == EReplicatedObjectState::WaitOnDestroyConfirmation)
 		{
