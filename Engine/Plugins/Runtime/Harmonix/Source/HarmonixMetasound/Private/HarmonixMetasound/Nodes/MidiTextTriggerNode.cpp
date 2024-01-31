@@ -168,6 +168,7 @@ namespace HarmonixMetasound
 				Info.PromptIfMissing  = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();
 				Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+				Info.bDeprecated = true;
 				return Info;
 			};
 
