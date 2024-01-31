@@ -33,6 +33,12 @@ bool FControlRigSchematicRigElementKeyNode::IsDragSupported() const
 
 const FText& FControlRigSchematicRigElementKeyNode::GetLabel() const
 {
+	if(IsExpanded())
+	{
+		static const FText& EmptyText = FText();
+		return EmptyText;
+	}
+	
 	FText LabelText = FText::FromString(Key.ToString());
 	if(const FControlRigSchematicModel* ControlRigModel = Cast<FControlRigSchematicModel>(Model))
 	{
@@ -225,6 +231,11 @@ void FControlRigSchematicModel::ConfigureElementKeyNode(FControlRigSchematicRigE
 }
 
 const FControlRigSchematicRigElementKeyNode* FControlRigSchematicModel::FindElementKeyNode(const FRigElementKey& InKey) const
+{
+	return const_cast<FControlRigSchematicModel*>(this)->FindElementKeyNode(InKey);
+}
+
+FControlRigSchematicRigElementKeyNode* FControlRigSchematicModel::FindElementKeyNode(const FRigElementKey& InKey)
 {
 	if(const FGuid* FoundGuid = RigElementKeyToGuid.Find(InKey))
 	{
@@ -864,18 +875,32 @@ const FSlateBrush* FControlRigSchematicModel::GetBrushForNode(const FSchematicGr
 
 FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const
 {
+	if (!ControlRigBeingDebuggedPtr.IsValid())
+	{
+		return Super::GetColorForNode(InNode, InLayerIndex);
+	}
+
+	const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy();
+	if(Hierarchy == nullptr)
+	{
+		return Super::GetColorForNode(InNode, InLayerIndex);
+	}
+
+	static const FLinearColor SelectionColor = FLinearColor(FColor::FromHex(TEXT("#EBA30A")));
+			
 	if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
 	{
+		if(Hierarchy->IsSelected(ElementKeyNode->GetKey()))
+		{
+			return SelectionColor;
+		}
+
 		if(InLayerIndex == 0) // background
 		{
 			return FLinearColor(0, 0, 0, 0.75);
 		}
 		if(InLayerIndex == 1) // outline
 		{
-			if(ControlRigBlueprint->GetHierarchy()->IsSelected(ElementKeyNode->GetKey()))
-			{
-				return FLinearColor(FColor(0, 112, 224));
-			}
 			return FLinearColor::White;
 		}
 		
@@ -891,28 +916,17 @@ FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNod
 			}
 			case ERigElementType::Control:
 			{
-				if (ControlRigBeingDebuggedPtr.IsValid())
+				if(const FRigControlElement* Control = Hierarchy->Find<FRigControlElement>(ElementKeyNode->GetKey()))
 				{
-					if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
-					{
-						if(const FRigControlElement* Control = Hierarchy->Find<FRigControlElement>(ElementKeyNode->GetKey()))
-						{
-							return Control->Settings.ShapeColor;
-						}
-					}
+					return Control->Settings.ShapeColor;
 				}
+				break;
 			}
 			case ERigElementType::Socket:
 			{
-				if (ControlRigBeingDebuggedPtr.IsValid())
+				if(const FRigSocketElement* Socket = Hierarchy->Find<FRigSocketElement>(ElementKeyNode->GetKey()))
 				{
-					if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
-					{
-						if(const FRigSocketElement* Socket = Hierarchy->Find<FRigSocketElement>(ElementKeyNode->GetKey()))
-						{
-							return Socket->GetColor(Hierarchy);
-						}
-					}
+					return Socket->GetColor(Hierarchy);
 				}
 				break;
 			}
@@ -924,6 +938,19 @@ FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNod
 			default:
 			{
 				break;
+			}
+		}
+	}
+	else if(const FSchematicGraphAutoGroupNode* AutoGroupNode = Cast<FSchematicGraphAutoGroupNode>(InNode))
+	{
+		for(int32 ChildIndex = 0; ChildIndex < AutoGroupNode->GetNumChildNodes(); ChildIndex++)
+		{
+			if(const FControlRigSchematicRigElementKeyNode* ChildElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(AutoGroupNode->GetChildNode(ChildIndex)))
+			{
+				if(Hierarchy->IsSelected(ChildElementKeyNode->GetKey()))
+				{
+					return SelectionColor;
+				}
 			}
 		}
 	}
@@ -957,7 +984,10 @@ ESchematicGraphVisibility::Type FControlRigSchematicModel::GetVisibilityForNode(
 									}
 								}
 							}
-							return ESchematicGraphVisibility::Hidden;
+							else
+							{
+								return ESchematicGraphVisibility::Hidden;
+							}
 						}
 					}
 				}
@@ -1727,6 +1757,36 @@ void FControlRigSchematicModel::OnHideCandidatesForConnector()
 	PreDragVisibilityPerNode.Reset();
 
 	UpdateElementKeyLinks();
+}
+
+void FControlRigSchematicModel::OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement)
+{
+	switch(InNotif)
+	{
+		case ERigHierarchyNotification::ElementSelected:
+		{
+			if(FControlRigSchematicRigElementKeyNode* Node = FindElementKeyNode(InElement->GetKey()))
+			{
+				if(FSchematicGraphGroupNode* GroupNode = Node->GetGroupNode())
+				{
+					GroupNode->SetExpanded(true);
+				}
+			}
+			break;
+		}
+		case ERigHierarchyNotification::ElementDeselected:
+		{
+			if(FControlRigSchematicRigElementKeyNode* Node = FindElementKeyNode(InElement->GetKey()))
+			{
+				Node->SetExpanded(false);
+			}
+			break;
+		}
+		default:
+		{
+			break;
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -26,13 +26,17 @@ public:
 	bool HasParentNode() const { return ParentNodeGuid.IsValid(); }
 	const FGuid& GetParentNodeGuid() const { return ParentNodeGuid; }
 	const FSchematicGraphNode* GetParentNode() const;
+	FSchematicGraphNode* GetParentNode();
 	const FGuid& GetRootNodeGuid() const;
 	const FSchematicGraphNode* GetRootNode() const;
+	FSchematicGraphNode* GetRootNode();
 	bool IsRootNode() const { return !HasParentNode(); }
+	FSchematicGraphGroupNode* GetGroupNode();
 	const FSchematicGraphGroupNode* GetGroupNode() const;
 	int32 GetNumChildNodes() const { return ChildNodeGuids.Num(); }
 	const TArray<FGuid>& GetChildNodeGuids() const { return ChildNodeGuids; }
 	const FSchematicGraphNode* GetChildNode(int32 InChildNodeIndex) const;
+	FSchematicGraphNode* GetChildNode(int32 InChildNodeIndex);
 	TOptional<ESchematicGraphVisibility::Type> GetVisibilityForChildNode(const FGuid& InChildGuid) const;
 	virtual TOptional<ESchematicGraphVisibility::Type> GetVisibilityForChildNode(const FSchematicGraphNode* InChildNode) const { return  TOptional<ESchematicGraphVisibility::Type>(); }
 	TOptional<FVector2d> GetPositionForChildNode(const FGuid& InChildGuid) const;
