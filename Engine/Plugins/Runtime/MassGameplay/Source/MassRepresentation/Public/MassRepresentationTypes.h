@@ -257,7 +257,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	bool HasUpdatesToApply() const { return UpdateInstanceIds.Num() || RemoveInstanceIds.Num(); }
-	TConstArrayView<int32> GetUpdateInstanceIds() const { return UpdateInstanceIds; }
+	TConstArrayView<FMassEntityHandle> GetUpdateInstanceIds() const { return UpdateInstanceIds; }
 	TConstArrayView<FTransform> GetStaticMeshInstanceTransforms() const { return StaticMeshInstanceTransforms; }
 	/** 
 	 * this function is a flavor we need to interact with older engine API that's using TArray references. 
@@ -265,7 +265,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 */
 	const TArray<FTransform>& GetStaticMeshInstanceTransformsArray() const { return StaticMeshInstanceTransforms; }
 	TConstArrayView<FTransform> GetStaticMeshInstancePrevTransforms() const { return StaticMeshInstancePrevTransforms; }
-	TConstArrayView<int32> GetRemoveInstanceIds() const { return RemoveInstanceIds; }
+	TConstArrayView<FMassEntityHandle> GetRemoveInstanceIds() const { return RemoveInstanceIds; }
 	TConstArrayView<float> GetStaticMeshInstanceCustomFloats() const { return StaticMeshInstanceCustomFloats; }
 	
 	bool RequiresExternalInstanceIDTracking() const { return bRequiresExternalInstanceIDTracking; }
@@ -275,10 +275,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		*this = FMassISMCSharedData();
 	}
 
-	using FIdMap = Experimental::TRobinHoodHashMap<int32, FPrimitiveInstanceId>;
+	using FEntityToPrimitiveIdMap = Experimental::TRobinHoodHashMap<FMassEntityHandle, FPrimitiveInstanceId>;
 
-	FIdMap& GetMutableIdMap() { return MassInstanceIdToComponentInstanceIdMap; }
-	const FIdMap& GetIdMap() const { return MassInstanceIdToComponentInstanceIdMap; }
+	FEntityToPrimitiveIdMap& GetMutableEntityPrimitiveToIdMap() { return EntityHandleToPrimitiveIdMap; }
+	const FEntityToPrimitiveIdMap& GetEntityPrimitiveToIdMap() const { return EntityHandleToPrimitiveIdMap; }
 
 	int16 GetComponentInstanceIdTouchCounter() const { return ComponentInstanceIdTouchCounter; }
 
@@ -286,10 +286,10 @@ protected:
 	friend FMassLODSignificanceRange;
 	friend UMassVisualizationComponent;
 	/** Buffer holding current frame transforms for the static mesh instances, used to batch update the transforms */
-	TArray<int32> UpdateInstanceIds;
+	TArray<FMassEntityHandle> UpdateInstanceIds;
 	TArray<FTransform> StaticMeshInstanceTransforms;
 	TArray<FTransform> StaticMeshInstancePrevTransforms;
-	TArray<int32> RemoveInstanceIds;
+	TArray<FMassEntityHandle> RemoveInstanceIds;
 
 	/** Buffer holding current frame custom floats for the static mesh instances, used to batch update the ISMs custom data */
 	TArray<float> StaticMeshInstanceCustomFloats;
@@ -314,7 +314,7 @@ private:
 	uint16 ComponentInstanceIdTouchCounter = 0;
 
 protected:
-	FIdMap MassInstanceIdToComponentInstanceIdMap;
+	FEntityToPrimitiveIdMap EntityHandleToPrimitiveIdMap;
 
 	UE_DEPRECATED(5.4, "RefCount is deprecated, use ISMComponentReferencesCount instead")
 	int32 RefCount = 0;
@@ -504,7 +504,7 @@ struct MASSREPRESENTATION_API FMassLODSignificanceRange
 	GENERATED_BODY()
 public:
 
-	void AddBatchedTransform(const int32 InstanceId, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs);
+	void AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs);
 
 	// Adds the specified struct reinterpreted as custom floats to our custom data. Individual members of the specified struct should always fit into a float.
 	// When adding any custom data, the custom data must be added for every instance.
@@ -532,9 +532,9 @@ public:
 	void AddBatchedCustomDataFloats(const TArray<float>& CustomFloats, const TArray<uint32>& ExcludeStaticMeshRefs);
 
 	/** Single-instance version of AddBatchedCustomData when called to add entities (as opposed to modify existing ones).*/
-	void AddInstance(const int32 InstanceId, const FTransform& Transform);
+	void AddInstance(const FMassEntityHandle EntityHandle, const FTransform& Transform);
 
-	void RemoveInstance(const int32 InstanceId);
+	void RemoveInstance(const FMassEntityHandle EntityHandle);
 
 	void WriteCustomDataFloatsAtStartIndex(int32 StaticMeshIndex, const TArrayView<float>& CustomFloats, const int32 FloatsPerInstance, const int32 StartIndex, const TArray<uint32>& ExcludeStaticMeshRefs);
 
@@ -547,6 +547,17 @@ public:
 	TArray<uint32> StaticMeshRefs;
 
 	FMassISMCSharedDataMap* ISMCSharedDataPtr = nullptr;
+
+	//-----------------------------------------------------------------------------
+	// DEPRECATED
+	//-----------------------------------------------------------------------------
+	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	void AddBatchedTransform(const int32 InstanceId, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs) {}
+	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	void AddInstance(const int32 InstanceId, const FTransform& Transform) {}
+	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	void RemoveInstance(const int32 InstanceId) {}
+
 };
 
 USTRUCT()
@@ -586,28 +597,28 @@ public:
 		return nullptr;
 	}
 
-	FORCEINLINE void AddBatchedTransform(const int32 InstanceId, const FTransform& Transform, const FTransform& PrevTransform, const float LODSignificance, const float PrevLODSignificance = -1.0f)
+	FORCEINLINE void AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const float LODSignificance, const float PrevLODSignificance = -1.0f)
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{
-			Range->AddBatchedTransform(InstanceId, Transform, PrevTransform, TArray<uint32>());
+			Range->AddBatchedTransform(EntityHandle, Transform, PrevTransform, TArray<uint32>());
 			if(PrevLODSignificance >= 0.0f)
 			{
 				FMassLODSignificanceRange* PrevRange = GetLODSignificanceRange(PrevLODSignificance);
 				if (ensureMsgf(PrevRange, TEXT("Couldn't find a valid LODSignificanceRange for PrevLODSignificance %f"), PrevLODSignificance)
 					&& PrevRange != Range)
 				{
-					PrevRange->AddBatchedTransform(InstanceId, Transform, PrevTransform, Range->StaticMeshRefs);
+					PrevRange->AddBatchedTransform(EntityHandle, Transform, PrevTransform, Range->StaticMeshRefs);
 				}
 			}
 		}
 	}
 
-	FORCEINLINE void RemoveInstance(const int32 InstanceId, const float LODSignificance)
+	FORCEINLINE void RemoveInstance(const FMassEntityHandle EntityHandle, const float LODSignificance)
 	{
 		if (FMassLODSignificanceRange* Range = GetLODSignificanceRange(LODSignificance))
 		{
-			Range->RemoveInstance(InstanceId);
+			Range->RemoveInstance(EntityHandle);
 		}
 	}
 
@@ -698,6 +709,15 @@ protected:
 	TArray<FMassLODSignificanceRange> LODSignificanceRanges;
 
 	friend class UMassVisualizationComponent;
+
+	//-----------------------------------------------------------------------------
+	// DEPRECATED
+	//-----------------------------------------------------------------------------
+public:
+	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	void AddBatchedTransform(const int32 InstanceId, const FTransform& Transform, const FTransform& PrevTransform, const float LODSignificance, const float PrevLODSignificance = -1.0f) {}
+	UE_DEPRECATED(5.4, "Deprecated in favor of new version taking FMassEntityHandle parameter instead of int32 to identify the entity. This deprecated function is now defunct.")
+	void RemoveInstance(const int32 InstanceId, const float LODSignificance) {}
 };
 
 #if ENABLE_MT_DETECTOR
