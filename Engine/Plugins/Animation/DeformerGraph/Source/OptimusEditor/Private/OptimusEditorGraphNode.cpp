@@ -338,7 +338,7 @@ FLinearColor UOptimusEditorGraphNode::GetNodeTitleColor() const
 				}
 			}
 			
-			if (ModelNode->GetOwningGraph()->DoesNodeHaveMutableInput(ModelNode))
+			if (ModelNode->GetOwningGraph()->DoesNodeHaveMutableInput(ModelNode, {}))
 			{
 				return Super::GetNodeTitleColor();
 			}

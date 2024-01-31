@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IOptimusComponentBindingProvider.h"
+#include "IOptimusNonCollapsibleNode.h"
 #include "OptimusNode.h"
 
 #include "OptimusComponentSource.h"
@@ -24,7 +25,8 @@ struct FOptimusNode_ComponentSource_DuplicationInfo
 UCLASS(Hidden)
 class UOptimusNode_ComponentSource :
 	public UOptimusNode,
-	public IOptimusComponentBindingProvider
+	public IOptimusComponentBindingProvider,
+	public IOptimusNonCollapsibleNode
 {
 	GENERATED_BODY()
 public:
@@ -36,7 +38,7 @@ public:
 	FName GetNodeCategory() const override;
 
 	// IOptimusComponentSourceBindingProvider implementation
-	UOptimusComponentSourceBinding *GetComponentBinding() const override
+	UOptimusComponentSourceBinding* GetComponentBinding(const FOptimusPinTraversalContext& InContext = {}) const override
 	{
 		return Binding;
 	}

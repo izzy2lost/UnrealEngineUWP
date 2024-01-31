@@ -41,7 +41,13 @@ public:
 		IPropertyTypeCustomizationUtils& InCustomizationUtils
 		) override;
 
-private:	
+	void SetUsageMaskOverride(EOptimusDataTypeUsageFlags InOverride)
+	{
+		UsageMaskOverride = InOverride;
+	}
+
+private:
+	
 	FOptimusDataTypeHandle GetCurrentDataType() const;
 	void OnDataTypeChanged(FOptimusDataTypeHandle InDataType);
 
@@ -51,6 +57,8 @@ private:
 	TSharedPtr<IPropertyHandle> TypeObjectProperty;
 	TAttribute<FOptimusDataTypeHandle> CurrentDataType;
 
+	EOptimusDataTypeUsageFlags UsageMaskOverride = EOptimusDataTypeUsageFlags::None;
+	
 };
 
 

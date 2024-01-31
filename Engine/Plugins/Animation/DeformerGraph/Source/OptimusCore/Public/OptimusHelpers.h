@@ -107,4 +107,8 @@ namespace Optimus
 		const FString& InKernelName,
 		FIntVector InGroupSize
 	);
+
+	bool FindMovedItemInNameArray(const TArray<FName>& Old, const TArray<FName>& New, FName& OutSubjectName, FName& OutNextName);
+
+	FName GenerateUniqueNameFromExistingNames(FName InBaseName, const TArray<FName>& InExistingNames);
 }

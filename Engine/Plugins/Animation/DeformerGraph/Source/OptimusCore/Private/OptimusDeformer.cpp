@@ -1641,7 +1641,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	bool bValidationFailed = false;
 	for (FOptimusRoutedConstNode ConnectedNode: ConnectedNodes)
 	{
-		TOptional<FText> ErrorMessage = ConnectedNode.Node->ValidateForCompile();
+		TOptional<FText> ErrorMessage = ConnectedNode.Node->ValidateForCompile(ConnectedNode.TraversalContext);
 		if (ErrorMessage.IsSet())
 		{
 			bValidationFailed = true;
@@ -1808,7 +1808,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 			}
 			else
 			{
-				if (ConnectedNode.Node->GetOwningGraph()->DoesNodeHaveMutableInput(ConnectedNode.Node))
+				if (ConnectedNode.Node->GetOwningGraph()->DoesNodeHaveMutableInput(ConnectedNode.Node, ConnectedNode.TraversalContext))
 				{
 					KernelToGraphType.Add(ConnectedNode) = EOptimusNodeGraphType::Update;
 					GraphTypes.Add(EOptimusNodeGraphType::Update);
@@ -2058,7 +2058,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 			}
 
 			NodeDataInterfaceMap.Add(ConnectedNode.Node, DataInterface);
-			DataInterfaceToBindingIndexMap.Add(DataInterface) = NodeDataInterfaceProvider->GetComponentBinding()->GetIndex();
+			DataInterfaceToBindingIndexMap.Add(DataInterface) = NodeDataInterfaceProvider->GetComponentBinding(ConnectedNode.TraversalContext)->GetIndex();
 		}
 		else if (Cast<const IOptimusValueProvider>(ConnectedNode.Node))
 		{
@@ -2118,7 +2118,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		if (const IOptimusComputeKernelProvider* KernelProvider = Cast<const IOptimusComputeKernelProvider>(Node))
 		{
 			UComputeDataInterface* KernelDataInterface = KernelProvider->MakeKernelDataInterface(this);
-			TSet<UOptimusComponentSourceBinding*> KernelPrimaryBindings = KernelProvider->GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively();
+			TSet<UOptimusComponentSourceBinding*> KernelPrimaryBindings = KernelProvider->GetPrimaryGroupPin()->GetComponentSourceBindingsRecursively(RoutedNode.TraversalContext);
 
 			if (!ensure(KernelPrimaryBindings.Num() == 1))
 			{
@@ -2334,7 +2334,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 					UOptimusCopyKernelDataInterface* CopyKernelDataInterface = NewObject<UOptimusCopyKernelDataInterface>(this);
 					CopyKernelDataInterface->SetExecutionDomain(*TargetInstancedPin.Pin->GetDataDomain().AsExpression());
 					
-					UOptimusComponentSourceBinding* Binding = InterfaceProvider->GetComponentBinding();
+					UOptimusComponentSourceBinding* Binding = InterfaceProvider->GetComponentBinding(TargetInstancedPin.InstancedNode.RoutedNode.TraversalContext);
 					CopyKernelDataInterface->SetComponentBinding(Binding);
 					CopyKernelDataInterfaceMap.Add(SourceInstancedPin) = CopyKernelDataInterface;
 					DataInterfaceToBindingIndexMap.Add(CopyKernelDataInterface) = Binding->GetIndex();
@@ -2956,6 +2956,7 @@ void UOptimusDeformer::Notify(EOptimusGlobalNotifyType InNotifyType, UObject* In
 		{
 			ConstantValueUpdateDelegate.Broadcast(ConstantValue->GetValueName(), ConstantValue->GetShaderValue().ShaderValue);
 		}
+		
 		break;
 	default:
 		checkfSlow(false, TEXT("Unchecked EOptimusGlobalNotifyType!"));

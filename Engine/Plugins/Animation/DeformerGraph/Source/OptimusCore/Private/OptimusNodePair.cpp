@@ -6,16 +6,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(OptimusNodePair)
 
-void UOptimusNodePair::PostDuplicate(bool bDuplicateForPIE)
-{
-	Super::PostDuplicate(bDuplicateForPIE);
 
-	IOptimusNodePairProvider* FirstProvider = CastChecked<IOptimusNodePairProvider>(First);
-	IOptimusNodePairProvider* SecondProvider = CastChecked<IOptimusNodePairProvider>(Second);
-
-	FirstProvider->PairToCounterpartNode(SecondProvider);
-	SecondProvider->PairToCounterpartNode(FirstProvider);
-}
 
 bool UOptimusNodePair::Contains(const UOptimusNode* InFirst, const UOptimusNode* InSecond) const
 {

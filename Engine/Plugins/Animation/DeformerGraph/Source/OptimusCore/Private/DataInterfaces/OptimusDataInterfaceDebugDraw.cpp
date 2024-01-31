@@ -53,7 +53,7 @@ void UOptimusDebugDrawDataInterface::RegisterTypes()
 		FName("FDebugDraw"),
 		nullptr,
 		FLinearColor(0.3f, 0.7f, 0.4f, 1.0f),
-		EOptimusDataTypeUsageFlags::None);
+		EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType);
 }
 
 void UOptimusDebugDrawDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const

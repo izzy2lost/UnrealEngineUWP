@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "IOptimusNonCollapsibleNode.h"
 #include "IOptimusPinMutabilityDefiner.h"
 #include "IOptimusValueProvider.h"
 #include "OptimusNode.h"
@@ -34,7 +35,8 @@ UCLASS(Hidden)
 class UOptimusNode_GetVariable : 
 	public UOptimusNode,
 	public IOptimusValueProvider,
-	public IOptimusPinMutabilityDefiner
+	public IOptimusPinMutabilityDefiner,
+	public IOptimusNonCollapsibleNode
 {
 	GENERATED_BODY()
 
@@ -49,7 +51,7 @@ public:
 		return CategoryName::Variables;
 	}
 
-	TOptional<FText> ValidateForCompile() const override;
+	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 	
 	// IOptimusValueProvider overrides 
 	FString GetValueName() const override;

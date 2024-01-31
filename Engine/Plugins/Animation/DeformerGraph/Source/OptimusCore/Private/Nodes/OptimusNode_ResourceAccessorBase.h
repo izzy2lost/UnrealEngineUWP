@@ -5,6 +5,7 @@
 #include "DataInterfaces/OptimusDataInterfaceRawBuffer.h"
 #include "IOptimusComponentBindingProvider.h"
 #include "IOptimusDataInterfaceProvider.h"
+#include "IOptimusNonCollapsibleNode.h"
 #include "IOptimusPinMutabilityDefiner.h"
 #include "OptimusNode.h"
 
@@ -36,7 +37,8 @@ class UOptimusNode_ResourceAccessorBase :
 	public UOptimusNode,
 	public IOptimusDataInterfaceProvider,
 	public IOptimusComponentBindingProvider,
-	public IOptimusPinMutabilityDefiner
+	public IOptimusPinMutabilityDefiner,
+	public IOptimusNonCollapsibleNode
 {
 	GENERATED_BODY()
 
@@ -54,13 +56,13 @@ public:
 		return CategoryName::Resources;
 	}
 
-	TOptional<FText> ValidateForCompile() const override;
+	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 
 	// IOptimusDataInterfaceProvider implementations
 	UOptimusComputeDataInterface* GetDataInterface(UObject *InOuter) const override;
 	int32 GetDataFunctionIndexFromPin(const UOptimusNodePin* InPin) const override { return INDEX_NONE; }
 	// Also IOptimusComponentBindingProvider implementation
-	UOptimusComponentSourceBinding* GetComponentBinding() const override;
+	UOptimusComponentSourceBinding* GetComponentBinding(const FOptimusPinTraversalContext& InContext) const override;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	EOptimusBufferWriteType GetDeprecatedBufferWriteType() const { return WriteType_DEPRECATED; }

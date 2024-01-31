@@ -78,6 +78,8 @@ FText UOptimusNode_LoopTerminal::GetDisplayName() const
 
 void UOptimusNode_LoopTerminal::ConstructNode()
 {
+	check(GetPins().IsEmpty());
+	
 	if (TerminalType == EOptimusTerminalType::Entry)
 	{
 		FOptimusDataTypeHandle UintType = FOptimusDataTypeRegistry::Get().FindType(*FUInt32Property::StaticClass());
@@ -85,15 +87,7 @@ void UOptimusNode_LoopTerminal::ConstructNode()
 		CountPin = AddPinDirect(TEXT("Count"),  EOptimusNodePinDirection::Output, FOptimusDataDomain(), UintType);
 	}
 
-	
-	if (FOptimusLoopTerminalInfo* LoopInfoPtr = GetLoopInfo())
-	{
-		PinPairInfos.Reset();
-		for (const FOptimusParameterBinding& Binding : LoopInfoPtr->Bindings)
-		{
-			AddPinPairsDirect(Binding);
-		}
-	}
+	PinPairInfos.Reset();
 }
 
 bool UOptimusNode_LoopTerminal::ValidateConnection(const UOptimusNodePin& InThisNodesPin, const UOptimusNodePin& InOtherNodesPin, FString* OutReason) const
@@ -235,10 +229,38 @@ EOptimusPinMutability UOptimusNode_LoopTerminal::GetOutputPinMutability(const UO
 
 void UOptimusNode_LoopTerminal::PairToCounterpartNode(const IOptimusNodePairProvider* NodePairProvider)
 {
-	if (TerminalType == EOptimusTerminalType::Return)
+	if (FOptimusLoopTerminalInfo* LoopInfoPtr = GetLoopInfo(); ensure(LoopInfoPtr))
 	{
-		ConstructNode();
+		for (const FOptimusParameterBinding& Binding : LoopInfoPtr->Bindings)
+		{
+			AddPinPairsDirect(Binding);
+		}
+	}	
+}
+
+FString UOptimusNode_LoopTerminal::GetBindingDeclaration(FName BindingName) const
+{
+	return {};
+}
+
+bool UOptimusNode_LoopTerminal::GetBindingSupportAtomicCheckBoxVisibility(FName BindingName) const
+{
+	return false;
+}
+
+bool UOptimusNode_LoopTerminal::GetBindingSupportReadCheckBoxVisibility(FName BindingName) const
+{
+	return false;
+}
+
+EOptimusDataTypeUsageFlags UOptimusNode_LoopTerminal::GetTypeUsageFlags(const FOptimusDataDomain& InDataDomain) const
+{
+	if (ensure(!InDataDomain.IsSingleton()))
+	{
+		return EOptimusDataTypeUsageFlags::Resource;
 	}
+
+	return EOptimusDataTypeUsageFlags::None;
 }
 
 UOptimusNodePin* UOptimusNode_LoopTerminal::GetPinCounterpart(const UOptimusNodePin* InNodePin, EOptimusTerminalType InTerminalType, TOptional<EOptimusNodePinDirection> InDirection) const
@@ -416,14 +438,17 @@ void UOptimusNode_LoopTerminal::ClearPinPairs()
 
 void UOptimusNode_LoopTerminal::MovePinPair()
 {
-	FName PinNameToMove = NAME_None;
-	int32 DivergeIndex = INDEX_NONE;
-
-	TArray<TArray<UOptimusNodePin*>> PinPairs;
 
 	FOptimusParameterBindingArray& Bindings = GetLoopInfo()->Bindings;
 
-	check(Bindings.Num() == PinPairInfos.Num())
+	TArray<FName> BindingNames;
+	for (FOptimusParameterBinding& Binding : Bindings)
+	{
+		BindingNames.Add(Binding.Name);
+	}
+
+	check(PinPairInfos.Num() == Bindings.Num());
+	TArray<TArray<UOptimusNodePin*>> PinPairs;
 	
 	for (const FOptimusPinPairInfo& PinPairInfo : PinPairInfos)
 	{
@@ -435,55 +460,37 @@ void UOptimusNode_LoopTerminal::MovePinPair()
 	{
 		NamedPinIndex = 1;
 	}
-	
-	for (int32 Index = 0; Index < Bindings.Num(); Index++)
-	{
-		if (Bindings[Index].Name != PinPairs[Index][NamedPinIndex]->GetFName() && DivergeIndex == INDEX_NONE)
-		{
-			DivergeIndex = Index;
-			continue;
-		}
 
-		if (DivergeIndex != INDEX_NONE)
-		{
-			if (Bindings[DivergeIndex].Name == PinPairs[Index][NamedPinIndex]->GetFName())
-			{
-				PinNameToMove = PinPairs[DivergeIndex][NamedPinIndex]->GetFName();
-			}
-			else if (ensure(Bindings[Index].Name == PinPairs[DivergeIndex][NamedPinIndex]->GetFName()))
-			{
-				PinNameToMove = Bindings[DivergeIndex].Name;
-			}
-			break;
-		}
+	TArray<FName> PinNames;
+	
+	for (int32 Index = 0; Index < PinPairs.Num(); Index++)
+	{
+		const UOptimusNodePin* Pin = PinPairs[Index][NamedPinIndex];
+		PinNames.Add({Pin->GetFName()});
 	}
 
-	if (DivergeIndex != INDEX_NONE)
+
+	FName PinName = NAME_None;
+	FName NextPinName = NAME_None;
+
+	if (Optimus::FindMovedItemInNameArray(PinNames, BindingNames, PinName, NextPinName))
 	{
-		const int32 PinIndex = PinPairs.IndexOfByPredicate([PinNameToMove, NamedPinIndex](const TArray<UOptimusNodePin*>& InPinPair)
+		const int32 PinIndex = PinPairs.IndexOfByPredicate([PinName, NamedPinIndex](const TArray<UOptimusNodePin*>& InPinPair)
 		{
-			return InPinPair[NamedPinIndex]->GetFName() == PinNameToMove;
+			return InPinPair[NamedPinIndex]->GetFName() == PinName;
 		});
 
-		const int32 NameIndex = Bindings.InnerArray.IndexOfByPredicate([PinNameToMove](const FOptimusParameterBinding& InBinding)
-		{
-			return InBinding.Name == PinNameToMove;
-		}); 
-
-		const int32 NextNameIndex = NameIndex + 1;
-		FName NextName = Bindings.IsValidIndex(NextNameIndex) ?  FName(Bindings[NextNameIndex].Name) : NAME_None;
 		int32 NextPinIndex = INDEX_NONE;
-		if (!NextName.IsNone())
+		if (!NextPinName.IsNone())
 		{
-			NextPinIndex = PinPairs.IndexOfByPredicate([NextName, NamedPinIndex](const TArray<UOptimusNodePin*>& InPinPair)
+			NextPinIndex = PinPairs.IndexOfByPredicate([NextPinName, NamedPinIndex](const TArray<UOptimusNodePin*>& InPinPair)
 			{
-				return InPinPair[NamedPinIndex]->GetFName() == NextName;
-			});	
+				return InPinPair[NamedPinIndex]->GetFName() == NextPinName;
+			});
 		}
 
 		MovePin(PinPairs[PinIndex][0], NextPinIndex != INDEX_NONE ? PinPairs[NextPinIndex][0]: nullptr);
 		MovePin(PinPairs[PinIndex][1], NextPinIndex != INDEX_NONE ? PinPairs[NextPinIndex][1]: IndexPin);
-
 
 		FOptimusPinPairInfo Pair = PinPairInfos[PinIndex];
 

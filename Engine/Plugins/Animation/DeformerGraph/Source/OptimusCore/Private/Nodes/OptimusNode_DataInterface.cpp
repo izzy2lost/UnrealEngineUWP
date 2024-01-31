@@ -7,6 +7,7 @@
 #include "OptimusDataTypeRegistry.h"
 #include "OptimusDeformer.h"
 #include "OptimusNodeGraph.h"
+#include "OptimusNodeSubGraph.h"
 #include "OptimusNode_ComponentSource.h"
 #include "OptimusObjectVersion.h"
 
@@ -36,39 +37,36 @@ bool UOptimusNode_DataInterface::ValidateConnection(
 	if (!GetPins().IsEmpty() && &InThisNodesPin == GetPins()[0])
 	{
 		const UOptimusNode_ComponentSource* SourceNode = Cast<UOptimusNode_ComponentSource>(InOtherNodesPin.GetOwningNode());
-		if (!SourceNode)
+		if (SourceNode)
 		{
-			if (OutReason)
+			const UOptimusComponentSource* ComponentSource = SourceNode->GetComponentBinding()->GetComponentSource();
+			if (!IsComponentSourceCompatible(ComponentSource))
 			{
-				*OutReason = TEXT("Other node should be a Component Source node");
-			}
-			return false;
+				if (OutReason)
+				{
+					*OutReason = FString::Printf(TEXT("This data interface requires a %s which is not a child class of %s from the Component Source."),
+						*DataInterfaceData->GetRequiredComponentClass()->GetName(),
+						*ComponentSource->GetComponentClass()->GetName());
+				}
+				return false;
+			}	
 		}
 
-		const UOptimusComponentSource* ComponentSource = SourceNode->GetComponentBinding()->GetComponentSource();
-		if (!IsComponentSourceCompatible(ComponentSource))
-		{
-			if (OutReason)
-			{
-				*OutReason = FString::Printf(TEXT("This data interface requires a %s which is not a child class of %s from the Component Source."),
-					*DataInterfaceData->GetRequiredComponentClass()->GetName(),
-					*ComponentSource->GetComponentClass()->GetName());
-			}
-			return false;
-		}
+		// In other cases, the component source may come from the upstream of the connected node (eg. Sub Graph Terminal),
+		// and thus no way to provide error check until compile time
 	}
 
 	return true;
 }
 
-TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile() const
+TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile(const FOptimusPinTraversalContext& InContext) const
 {
 	if (!DataInterfaceClass)
 	{
 		return LOCTEXT("NoAssociatedClass", "Node has none or invalid data interface class associated with it. Delete and re-create the node.");
 	}
 	// Ensure that we have something connected to the component binding input pin.
-	UOptimusComponentSourceBinding* PrimaryBinding = GetComponentBinding();
+	UOptimusComponentSourceBinding* PrimaryBinding = GetComponentBinding(InContext);
 	if (PrimaryBinding == nullptr)
 	{
 		return FText::Format(LOCTEXT("NoBindingConnected", "No component binding connected to the {0} pin"), FText::FromName(GetComponentPin()->GetUniqueName()));
@@ -80,7 +78,7 @@ TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile() const
 	{
 		if (Pin->GetDirection() == EOptimusNodePinDirection::Input && Pin != GetComponentPin())
 		{
-			TSet<UOptimusComponentSourceBinding*> Bindings = Graph->GetComponentSourceBindingsForPin(Pin);
+			TSet<UOptimusComponentSourceBinding*> Bindings = Graph->GetComponentSourceBindingsForPin(Pin, InContext);
 			if (Bindings.Num() > 1)
 			{
 				return FText::Format(LOCTEXT("MultipleBindingsOnPin", "Multiple bindings found for pin {0}"), FText::FromName(Pin->GetUniqueName()));
@@ -202,10 +200,10 @@ void UOptimusNode_DataInterface::SetDataInterfaceClass(
 	DataInterfaceData = NewObject<UOptimusComputeDataInterface>(this, DataInterfaceClass);
 }
 
-UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding() const
+UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(const FOptimusPinTraversalContext& InContext) const
 {
 	const UOptimusNodeGraph* Graph = GetOwningGraph();
-	TSet<UOptimusComponentSourceBinding*> Bindings = Graph->GetComponentSourceBindingsForPin(GetComponentPin());
+	TSet<UOptimusComponentSourceBinding*> Bindings = Graph->GetComponentSourceBindingsForPin(GetComponentPin(), InContext);
 	
 	if (!Bindings.IsEmpty() && ensure(Bindings.Num() == 1))
 	{
@@ -216,6 +214,11 @@ UOptimusComponentSourceBinding* UOptimusNode_DataInterface::GetComponentBinding(
 	if (const UOptimusDeformer* Deformer = Cast<UOptimusDeformer>(Graph->GetCollectionOwner()))
 	{
 		return Deformer->GetPrimaryComponentBinding();
+	}
+
+	if (const UOptimusNodeSubGraph* SubGraph = Cast<UOptimusNodeSubGraph>(Graph))
+	{
+		return SubGraph->GetDefaultComponentBinding(InContext);
 	}
 	
 	return nullptr;

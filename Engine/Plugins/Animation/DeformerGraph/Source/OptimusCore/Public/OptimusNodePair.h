@@ -16,9 +16,6 @@ class OPTIMUSCORE_API UOptimusNodePair : public UObject
 public:
 	UOptimusNodePair() = default;
 
-	// UObject overrides
-	void PostDuplicate(bool bDuplicateForPIE) override;
-	
 	/** Returns the output pin on the node this link connects from. */
 	UOptimusNode* GetFirst() const { return First; }
 

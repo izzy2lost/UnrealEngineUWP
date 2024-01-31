@@ -195,3 +195,87 @@ FString Optimus::GetCookedKernelSource(
 			), *ComputeShaderUtilsInclude,*KernelFunc, *UnWrappedDispatchThreadId, *ShaderPathName, *Source);
 	}
 }
+
+bool Optimus::FindMovedItemInNameArray(const TArray<FName>& Old, const TArray<FName>& New, FName& OutSubjectName, FName& OutNextName)
+{
+	FName NameToMove = NAME_None;
+	int32 DivergeIndex = INDEX_NONE;
+
+	check(New.Num() == Old.Num())
+	
+	for (int32 Index = 0; Index < New.Num(); Index++)
+	{
+		if (New[Index]!= Old[Index] && DivergeIndex == INDEX_NONE)
+		{
+			DivergeIndex = Index;
+			continue;
+		}
+
+		if (DivergeIndex != INDEX_NONE)
+		{
+			if (New[DivergeIndex] == Old[Index])
+			{
+				NameToMove = Old[DivergeIndex];
+			}
+			else if (ensure(New[Index] == Old[DivergeIndex]))
+			{
+				NameToMove = New[DivergeIndex];
+			}
+			break;
+		}
+	}
+
+	if (DivergeIndex != INDEX_NONE)
+	{
+		OutSubjectName = NameToMove;
+		
+		const int32 NameIndex = New.IndexOfByPredicate([NameToMove](const FName& InBinding)
+		{
+			return InBinding == NameToMove;
+		}); 
+
+		const int32 NextNameIndex = NameIndex + 1;
+		OutNextName = New.IsValidIndex(NextNameIndex) ?  FName(New[NextNameIndex]) : NAME_None;
+
+		return true;
+	}
+
+	OutSubjectName = NAME_None;
+	OutNextName = NAME_None;
+	return false;
+}
+
+FName Optimus::GenerateUniqueNameFromExistingNames(FName InBaseName, const TArray<FName>& InExistingNames)
+{
+	TMap<FName, int32> BaseNameToMaxNumber;
+
+	for(const FName ExistingName : InExistingNames)
+	{
+		const int32 Number = ExistingName.GetNumber();
+		FName BaseName = ExistingName;
+		BaseName.SetNumber(0);
+
+		if (const int32* ExistingNumber = BaseNameToMaxNumber.Find(BaseName))
+		{
+			BaseNameToMaxNumber[BaseName] = FMath::Max(Number, *ExistingNumber);
+		}
+		else
+		{
+			BaseNameToMaxNumber.Add(BaseName) = Number;
+		}
+	}
+
+	FName NewName = InBaseName;
+	const int32 InputNumber = InBaseName.GetNumber();
+	FName InputBaseName = InBaseName;
+	InputBaseName.SetNumber(0);
+	if (const int32* ExistingNumber = BaseNameToMaxNumber.Find(InputBaseName))
+	{
+		if (InputNumber <= *ExistingNumber)
+		{
+			NewName.SetNumber(*ExistingNumber+1);
+		}
+	}
+
+	return NewName;
+}

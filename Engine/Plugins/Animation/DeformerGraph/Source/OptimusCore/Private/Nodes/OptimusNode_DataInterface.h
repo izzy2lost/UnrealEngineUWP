@@ -45,7 +45,7 @@ public:
 	int32 GetDataFunctionIndexFromPin(const UOptimusNodePin* InPin) const override;
 	
 	// -- IOptimusDataInterfaceProvider & IOptimusComponentBindingProvider
-	UOptimusComponentSourceBinding* GetComponentBinding() const override;
+	UOptimusComponentSourceBinding* GetComponentBinding(const FOptimusPinTraversalContext& InContext) const override;
 
 	// -- IOptimusPinMutabilityDefiner
 	EOptimusPinMutability GetOutputPinMutability(const UOptimusNodePin* InPin) const override;
@@ -54,7 +54,7 @@ protected:
 	// -- UOptimusNode overrides
 	void ConstructNode() override;
 	bool ValidateConnection(const UOptimusNodePin& InThisNodesPin, const UOptimusNodePin& InOtherNodesPin, FString* OutReason) const override;
-	TOptional<FText> ValidateForCompile() const override;
+	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 
 	void SaveState(FArchive& Ar) const override;
 	void RestoreState(FArchive& Ar) override;

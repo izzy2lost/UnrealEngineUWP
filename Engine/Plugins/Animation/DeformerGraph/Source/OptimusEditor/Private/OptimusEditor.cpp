@@ -26,6 +26,8 @@
 #include "GraphEditor.h"
 #include "IAssetFamily.h"
 #include "IMessageLogListing.h"
+#include "IOptimusAlternativeSelectedObjectProvider.h"
+#include "IOptimusNodeGraphProvider.h"
 #include "IOptimusShaderTextProvider.h"
 #include "IPersonaPreviewScene.h"
 #include "IPersonaToolkit.h"
@@ -102,9 +104,12 @@ void FOptimusEditor::Construct(
 	// Construct a new graph with a default name
 	// TODO: Use a document manager like blueprints.
 	// FIXME: The deformer asset shouldn't really be the owner.
+
+	// We recreate the editor graph all the time based on the active UOptimusNodeGraph that the user is viewing,
+	// so there is no need for editor graph be to Transactional to keep track of its state
 	EditorGraph = NewObject<UOptimusEditorGraph>(
 		DeformerObject, UOptimusEditorGraph::StaticClass(), NAME_None, 
-		RF_Transactional|RF_Transient);
+		RF_Transient);
 	EditorGraph->Schema = UOptimusEditorGraphSchema::StaticClass();
 
 	constexpr bool bCreateDefaultStandaloneMenu = true;
@@ -696,15 +701,23 @@ void FOptimusEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 
 	for (UObject* Object : NewSelection)
 	{
+		UObject* ObjectToShow;
 		if (UOptimusEditorGraphNode* GraphNode = Cast<UOptimusEditorGraphNode>(Object))
 		{
-			SelectedObjects.Add(GraphNode->ModelNode);
+			ObjectToShow = GraphNode->ModelNode;
 			SelectedNodes.Add(GraphNode);
 		}
 		else
 		{
-			SelectedObjects.Add(Object);
+			ObjectToShow = Object;
 		}
+
+		if (const IOptimusAlternativeSelectedObjectProvider* AlternativeObjectProvider = Cast<IOptimusAlternativeSelectedObjectProvider>(ObjectToShow))
+		{
+			ObjectToShow = AlternativeObjectProvider->GetObjectToShowWhenSelected();
+		}
+		
+		SelectedObjects.AddUnique(ObjectToShow);
 	}
 
 	// Make sure the graph knows too.
@@ -740,7 +753,13 @@ void FOptimusEditor::OnSelectedNodesChanged(const TSet<UObject*>& NewSelection)
 
 void FOptimusEditor::OnNodeDoubleClicked(class UEdGraphNode* Node)
 {
-
+	if (UOptimusEditorGraphNode* GraphNode = Cast<UOptimusEditorGraphNode>(Node))
+	{
+		if (IOptimusNodeGraphProvider* GraphProvider = Cast<IOptimusNodeGraphProvider>(GraphNode->ModelNode))
+		{
+			SetEditGraph(GraphProvider->GetNodeGraphToShow());
+		}
+	}
 }
 
 
