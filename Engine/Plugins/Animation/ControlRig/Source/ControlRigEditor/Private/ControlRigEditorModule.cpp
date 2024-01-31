@@ -1218,13 +1218,13 @@ void FControlRigEditorModule::BakeToControlRig(UClass* ControlRigClass, UAnimSeq
 			
 				FBakeToControlDelegate BakeCallback = FBakeToControlDelegate::CreateLambda([this, WeakSequencer, LevelSequence, 
 					AnimSequence, MovieScene, ControlRig, ParamSection,ActorTrackGuid, SkelMeshComp]
-				(bool bKeyReduce, float KeyReduceTolerance)
+				(bool bKeyReduce, float KeyReduceTolerance, bool bResetControls)
 				{
 					if (ParamSection)
 					{
 						EMovieSceneKeyInterpolation DefaultInterpolation = WeakSequencer.Pin()->GetKeyInterpolation();
 						ParamSection->LoadAnimSequenceIntoThisSection(AnimSequence, MovieScene, SkelMeshComp, bKeyReduce,
-							KeyReduceTolerance, FFrameNumber(0), DefaultInterpolation);
+							KeyReduceTolerance, bResetControls, FFrameNumber(0), DefaultInterpolation);
 					}
 					WeakSequencer.Pin()->EmptySelection();
 					WeakSequencer.Pin()->SelectSection(ParamSection);
