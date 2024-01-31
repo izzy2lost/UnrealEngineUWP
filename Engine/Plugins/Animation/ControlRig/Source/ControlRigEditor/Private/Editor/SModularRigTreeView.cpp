@@ -399,6 +399,7 @@ TSharedRef<SWidget> SModularRigModelItem::GenerateWidgetForColumn(const FName& C
 				[
 					SAssignNew(ConnectorComboBox, SSearchableRigHierarchyTreeView)
 						.RigTreeDelegates(TreeDelegates)
+						.MaxHeight(300)
 				]
 			]
 		];

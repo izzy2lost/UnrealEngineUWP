@@ -1301,11 +1301,14 @@ void SSearchableRigHierarchyTreeView::Construct(const FArguments& InArgs)
 	FRigTreeDelegates TreeDelegates = InArgs._RigTreeDelegates;
 	SuperGetRigTreeDisplaySettings = TreeDelegates.OnGetDisplaySettings;
 
+	MaxHeight = InArgs._MaxHeight;
+
 	TreeDelegates.OnGetDisplaySettings.BindSP(this, &SSearchableRigHierarchyTreeView::GetDisplaySettings);
-	
+
+	TSharedPtr<SVerticalBox> VerticalBox;
 	ChildSlot
 	[
-		SNew(SVerticalBox)
+		SAssignNew(VerticalBox, SVerticalBox)
 		+SVerticalBox::Slot()
 		.AutoHeight()
 		.VAlign(VAlign_Top)
@@ -1318,7 +1321,6 @@ void SSearchableRigHierarchyTreeView::Construct(const FArguments& InArgs)
 		]
 
 		+SVerticalBox::Slot()
-		.AutoHeight()
 		.VAlign(VAlign_Top)
 		.HAlign(HAlign_Fill)
 		.Padding(0.0f, 0.0f)
@@ -1336,6 +1338,15 @@ void SSearchableRigHierarchyTreeView::Construct(const FArguments& InArgs)
 			]
 		]
 	];
+
+	if (MaxHeight > 0)
+	{
+		VerticalBox->GetSlot(1).SetMaxHeight(MaxHeight);
+	}
+	else
+	{
+		VerticalBox->GetSlot(1).SetAutoHeight();
+	}
 }
 
 const FRigTreeDisplaySettings& SSearchableRigHierarchyTreeView::GetDisplaySettings()
