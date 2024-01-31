@@ -197,7 +197,7 @@ void UDataStreamChannel::PostTickDispatch()
 	}
 
 #if UE_NET_IRIS_CSV_STATS
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UDataStreamChannel_PostTickDispatch);
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UDataStreamChannel_PostTickDispatch_Write);
 #endif
 
 	IRIS_PROFILER_SCOPE(UDataStreamChannel_PostTickDispatch);
@@ -238,7 +238,7 @@ void UDataStreamChannel::Tick()
 	}
 
 #if UE_NET_IRIS_CSV_STATS
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UDataStreamChannel_Tick);
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UDataStreamChannel_Tick_Write);
 #endif
 
 	IRIS_PROFILER_SCOPE(UDataStreamChannel_Tick);

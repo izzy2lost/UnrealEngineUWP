@@ -2091,6 +2091,8 @@ uint32 GNetOutBytes = 0;
 
 void UNetConnection::FlushNet(bool bIgnoreSimulation)
 {
+	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(FlushNet);
+
 	check(Driver);
 
 	// Update info.
