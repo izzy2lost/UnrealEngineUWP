@@ -32,6 +32,7 @@ public:
 
 	static FMidiMsg CreateNoteOn(int32 Channel, int32 Note, int32 Velocity);
 	static FMidiMsg CreateNoteOff(int32 Channel, int32 Note);
+	static FMidiMsg CreateControlChange(uint8 Channel, uint8 ControlNumber, uint8 Value);
 	static FMidiMsg CreateText(uint16 InTextIndex, uint8 InTextType);
 	static float GetPitchBendFromData(int8 Data1, int8 Data2);
 
@@ -44,6 +45,7 @@ public:
 	bool  IsNoteOff() const { return Type == EType::Std && (MidiConstants::IsNoteOff(Status) || (MidiConstants::IsNoteOn(Status) && Data2 == 0)); }
 	bool  IsAllNotesOff() const { return Type == EType::Runtime && Status == MidiConstants::kRuntimeAllNotesOffStatus; }
 	bool  IsAllNotesKill() const { return Type == EType::Runtime && Status == MidiConstants::kRuntimeAllNotesKillStatus; }
+	bool  IsControlChange() const { return IsStd() && MidiConstants::IsControl(Status); }
 
 	/** Construct a standard (std) midi message */
 	FMidiMsg(uint8 InStatus, uint8 InData1, uint8 InData2);
