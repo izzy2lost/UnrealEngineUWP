@@ -672,6 +672,13 @@ void UAnimGraphNode_IKRig::PostLoad()
 	}
 }
 
+void UAnimGraphNode_IKRig::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	UpdateGoalsFromAsset();
+}
+
 void UAnimGraphNode_IKRig::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	Super::CustomizeDetails(DetailBuilder);
