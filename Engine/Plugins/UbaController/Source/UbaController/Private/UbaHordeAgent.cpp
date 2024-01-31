@@ -94,7 +94,7 @@ bool FUbaHordeAgent::UploadBinaries(const FString& BundleDirectory, const char* 
 
 	auto FindOrAddBlobFile = [&BlobFiles, &BundleDirectory](const AgentMessage::FBlobRequest& BlobRequest) -> FArchive*
 		{
-			const FString Locator(BlobRequest.Locator.GetData());
+			const FString Locator(BlobRequest.Locator.Len(), BlobRequest.Locator.GetData());
 
 			if (Locator.IsEmpty())
 			{
@@ -108,7 +108,7 @@ bool FUbaHordeAgent::UploadBinaries(const FString& BundleDirectory, const char* 
 			}
 			else
 			{
-				FString Path = FPaths::Combine(BundleDirectory, BlobRequest.Locator.GetData());
+				FString Path = FPaths::Combine(BundleDirectory, Locator);
 				Path.Append(TEXT(".blob"));
 
 				if (FArchive* Archive = IFileManager::Get().CreateFileReader(*Path))
