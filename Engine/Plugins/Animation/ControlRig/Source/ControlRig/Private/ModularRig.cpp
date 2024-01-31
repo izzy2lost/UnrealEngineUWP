@@ -205,6 +205,7 @@ void UModularRig::PostLoad()
 {
 	Super::PostLoad();
 	ModularRigModel.UpdateCachedChildren();
+	ResetShortestDisplayPathCache();
 }
 
 void UModularRig::InitializeVMs(bool bRequestInit)
@@ -574,6 +575,7 @@ void UModularRig::ResetModules(bool bDestroyModuleRigs)
 	RootModules.Reset();
 	Modules.Reset();
 	SupportedEvents.Reset();
+	ResetShortestDisplayPathCache();
 }
 
 const FModularRigModel& UModularRig::GetModularRigModel() const
@@ -629,8 +631,14 @@ void UModularRig::UpdateSupportedEvents()
 	});
 }
 
+void UModularRig::RunPostConstructionEvent()
+{
+	RecomputeShortestDisplayPathCache();
+	Super::RunPostConstructionEvent();
+}
+
 FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TSubclassOf<UControlRig> InModuleClass, const FRigModuleInstance* InParent,
-	const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues) 
+                                                   const TMap<FRigElementKey, FRigElementKey>& InConnectionMap, const TMap<FName, FString>& InVariableDefaultValues) 
 {
 	// Make sure there are no name clashes
 	if (InParent)
@@ -696,6 +704,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 	NewModule.SetRig(NewModuleRig);
 
 	UpdateCachedChildren();
+	ResetShortestDisplayPathCache();
 	for (const FName& EventName : NewModule.GetRig()->GetSupportedEvents())
 	{
 		SupportedEvents.AddUnique(EventName);
@@ -719,7 +728,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 			NewModule.GetRig()->SetVariableFromString(Variable.Key, Variable.Value);
 		}
 	}
-	
+
 	return &NewModule;
 }
 
@@ -769,6 +778,78 @@ void UModularRig::DiscardModuleRig(UControlRig* InControlRig)
 		// owning pointers to it anymore.
 		InControlRig->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 		InControlRig->MarkAsGarbage();
+	}
+}
+
+void UModularRig::ResetShortestDisplayPathCache() const
+{
+	ElementKeyToShortestDisplayPath.Reset();
+}
+
+void UModularRig::RecomputeShortestDisplayPathCache() const
+{
+	ResetShortestDisplayPathCache();
+	
+	const URigHierarchy* Hierarchy = GetHierarchy();
+	check(Hierarchy);
+
+	const TArray<FRigElementKey> AllKeys = Hierarchy->GetAllKeys();
+
+	auto GetNameForElement = [Hierarchy](const FRigElementKey& InElementKey)
+	{
+		const FName DesiredName = Hierarchy->GetNameMetadata(InElementKey, URigHierarchy::DesiredNameMetadataName, NAME_None);
+		if(!DesiredName.IsNone())
+		{
+			return DesiredName;
+		}
+		return InElementKey.Name;
+	};
+	
+	TMap<FName, bool> IsNameUniqueInHierarchy;
+	for(const FRigElementKey& Key : AllKeys)
+	{
+		auto UpdateNameUniqueness = [](const FName& InName, TMap<FName, bool>& UniqueMap)
+		{
+			if(bool* Unique = UniqueMap.Find(InName))
+			{
+				*Unique = false;
+			}
+			else
+			{
+				UniqueMap.Add(InName, true);
+			}
+		};
+		UpdateNameUniqueness(GetNameForElement(Key), IsNameUniqueInHierarchy);
+	}
+
+	const FModularRigModel& Model = GetModularRigModel();
+	for(const FRigElementKey& Key : AllKeys)
+	{
+		const FName Name = GetNameForElement(Key);
+		const FName ModulePath = Hierarchy->GetModulePathFName(Key);
+		
+		if(!ModulePath.IsNone())
+		{
+			if(const FRigModuleReference* Module = Model.FindModule(ModulePath.ToString()))
+			{
+				const FString NameString = Name.ToString();
+				const FString ModuleShortName = Module->GetShortName();
+				const FString NameSpacedName = URigHierarchy::JoinNameSpace(ModuleShortName, NameString);
+				ElementKeyToShortestDisplayPath.Add(Key, { NameSpacedName, IsNameUniqueInHierarchy.FindChecked(Name) ? NameString : NameSpacedName });
+				continue;
+			}
+		}
+
+		if(IsNameUniqueInHierarchy.FindChecked(Name))
+		{
+			const FString NameString = Name.ToString();
+			ElementKeyToShortestDisplayPath.Add(Key, { NameString, NameString});
+		}
+		else
+		{
+			const FString NameString = Key.ToString();
+			ElementKeyToShortestDisplayPath.Add(Key, { Name.ToString(), Name.ToString()});
+		}
 	}
 }
 
@@ -828,6 +909,15 @@ FString UModularRig::GetParentPath(const FString& InPath) const
 	if (const FRigModuleInstance* Element = FindModule(InPath))
 	{
 		return Element->ParentPath;
+	}
+	return FString();
+}
+
+FString UModularRig::GetShortestDisplayPathForElement(const FRigElementKey& InElementKey, bool bAlwaysShowNameSpace) const
+{
+	if(const TTuple<FString, FString>* ShortestDisplayPaths = ElementKeyToShortestDisplayPath.Find(InElementKey))
+	{
+		return bAlwaysShowNameSpace ? ShortestDisplayPaths->Get<0>() : ShortestDisplayPaths->Get<1>();
 	}
 	return FString();
 }

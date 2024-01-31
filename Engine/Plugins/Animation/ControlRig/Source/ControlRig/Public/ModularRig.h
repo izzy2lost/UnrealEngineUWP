@@ -181,6 +181,7 @@ public:
 	const FRigModuleInstance* FindModule(const FRigBaseElement* InElement) const;
 	const FRigModuleInstance* FindModule(const FRigElementKey& InElementKey) const;
 	FString GetParentPath(const FString& InPath) const;
+	FString GetShortestDisplayPathForElement(const FRigElementKey& InElementKey, bool bAlwaysShowNameSpace) const;
 
 	void ForEachModule(TFunctionRef<bool(FRigModuleInstance*)> PerModuleFunction);
 	void ForEachModule(TFunctionRef<bool(const FRigModuleInstance*)> PerModuleFunction) const;
@@ -203,6 +204,10 @@ public:
 
 	static const FString NamespaceSeparator;
 
+protected:
+
+	virtual void RunPostConstructionEvent() override;
+
 private:
 
 	/** Adds a module to the rig*/
@@ -215,6 +220,10 @@ private:
 	static void DiscardModuleRig(UControlRig* InControlRig);
 
 	TMap<FString, UControlRig*> PreviousModuleRigs;
+
+	void ResetShortestDisplayPathCache() const;
+	void RecomputeShortestDisplayPathCache() const;
+	mutable TMap<FRigElementKey, TTuple<FString, FString>> ElementKeyToShortestDisplayPath; 
 
 	friend struct FRigModuleInstance;
 };

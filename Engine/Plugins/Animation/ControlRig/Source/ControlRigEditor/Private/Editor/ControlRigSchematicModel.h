@@ -26,6 +26,7 @@ public:
 	virtual FString GetDragDropDecoratorLabel() const override;
 	virtual bool IsAutoScaleEnabled() const override { return true; }
 	virtual bool IsDragSupported() const override;
+	virtual const FText& GetLabel() const override;
 	
 protected:
 
@@ -139,4 +140,5 @@ private:
 	bool bUpdateElementKeyLinks = true;
 
 	friend class FControlRigEditor;
+	friend class FControlRigSchematicRigElementKeyNode;
 };

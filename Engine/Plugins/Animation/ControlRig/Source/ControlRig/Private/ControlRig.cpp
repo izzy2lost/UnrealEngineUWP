@@ -1026,11 +1026,7 @@ bool UControlRig::Execute(const FName& InEventName)
 					
 				} // destroy FTransientControlScope
 				
-				if (PostConstructionEvent.IsBound())
-				{
-					FControlRigBracketScope BracketScope(PostConstructionBracket);
-					PostConstructionEvent.Broadcast(this, FRigUnit_PrepareForExecution::EventName);
-				}
+				RunPostConstructionEvent();
 
 				// Reset the input pose after construction
 				if (CurrentPose.Num() > 0)
@@ -2273,8 +2269,17 @@ bool UControlRig::IsControlSelected(const FName& InControlName)const
 	return false;
 }
 
+void UControlRig::RunPostConstructionEvent()
+{
+	if (PostConstructionEvent.IsBound())
+	{
+		FControlRigBracketScope BracketScope(PostConstructionBracket);
+		PostConstructionEvent.Broadcast(this, FRigUnit_PrepareForExecution::EventName);
+	}
+}
+
 void UControlRig::HandleHierarchyModified(ERigHierarchyNotification InNotification, URigHierarchy* InHierarchy,
-    const FRigBaseElement* InElement)
+                                          const FRigBaseElement* InElement)
 {
 	switch(InNotification)
 	{

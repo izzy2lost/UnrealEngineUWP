@@ -30,6 +30,9 @@ enum class ERigElementType : uint8
 	Reference = 0x020,
 	Connector = 0x040,
 	Socket = 0x080,
+	
+	First = Bone,
+	Last = Socket,
 	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector | Socket,
 	ToResetAfterConstructionEvent = Bone | Control | Curve | Socket UMETA(Hidden),
 };

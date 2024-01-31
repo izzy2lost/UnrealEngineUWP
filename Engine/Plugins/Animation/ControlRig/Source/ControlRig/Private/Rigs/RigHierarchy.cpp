@@ -1636,6 +1636,15 @@ FText URigHierarchy::GetDisplayNameForUI(const FRigBaseElement* InElement, bool 
 {
 	check(InElement);
 
+	if(const UModularRig* ModularRig = GetTypedOuter<UModularRig>())
+	{
+		const FString ShortestPath = ModularRig->GetShortestDisplayPathForElement(InElement->GetKey(), false);
+		if(!ShortestPath.IsEmpty())
+		{
+			return FText::FromString(ShortestPath);
+		}
+	}
+
 	const FName& DisplayName = InElement->GetDisplayName();
 	FString DisplayNameString = DisplayName.ToString();
 	(void)SplitNameSpace(DisplayNameString, nullptr, &DisplayNameString);
