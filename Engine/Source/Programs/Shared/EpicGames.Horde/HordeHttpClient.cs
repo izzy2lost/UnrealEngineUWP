@@ -485,10 +485,6 @@ namespace EpicGames.Horde
 				{
 					httpClient.BaseAddress = options.Value.ServerUrl;
 				}
-				if (options.Value.AccessToken != null)
-				{
-					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.AccessToken);
-				}
 
 				httpClient.Timeout = TimeSpan.FromSeconds(240); // Global timeout
 
