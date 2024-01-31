@@ -3497,7 +3497,7 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 	// If we have any slot without an actual material assignment yet, copy over the material assignment from
 	// the "main" slot, or fallback to displayColor. This is how we have unspecified faces or geomsubsets without
 	// assignmets "fallback" to using the main material assignment
-	if (Result.Slots.Num() > 1)
+	if (Result.Slots.Num() >= 1)
 	{
 		FString FallbackMaterialSource;
 		EPrimAssignmentType FallbackAssignmentType = EPrimAssignmentType::None;
@@ -5032,8 +5032,24 @@ void UsdUtils::HashGeomMeshPrim(const UE::FUsdStage& Stage, const FString& PrimP
 		return;
 	}
 
-	HashArrayAttribute<GfVec3f>(InOutHashState, UsdMesh.GetPointsAttr(), TimeCode);
-	HashArrayAttribute<GfVec3f>(InOutHashState, UsdMesh.GetNormalsAttr(), TimeCode);
+	if (pxr::UsdGeomPrimvar PointsPrimvar = pxr::UsdGeomPrimvar(UsdPrim.GetAttribute(UnrealIdentifiers::PrimvarsPoints)))
+	{
+		HashArrayAttribute<GfVec3f>(InOutHashState, UsdPrim.GetAttribute(UnrealIdentifiers::PrimvarsPoints), TimeCode);
+	}
+	else
+	{
+		HashArrayAttribute<GfVec3f>(InOutHashState, UsdMesh.GetPointsAttr(), TimeCode);
+	}
+
+	if (pxr::UsdGeomPrimvar NormalsPrimvar = pxr::UsdGeomPrimvar(UsdPrim.GetAttribute(UnrealIdentifiers::PrimvarsNormals)))
+	{
+		HashArrayAttribute<GfVec3f>(InOutHashState, UsdPrim.GetAttribute(UnrealIdentifiers::PrimvarsNormals), TimeCode);
+	}
+	else
+	{
+		HashArrayAttribute<GfVec3f>(InOutHashState, UsdMesh.GetNormalsAttr(), TimeCode);
+	}
+
 	HashArrayPrimvar<GfVec3f>(InOutHashState, UsdMesh.GetDisplayColorPrimvar(), TimeCode);
 	HashArrayPrimvar<float>(InOutHashState, UsdMesh.GetDisplayOpacityPrimvar(), TimeCode);
 

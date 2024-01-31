@@ -73,6 +73,41 @@ static FAutoConsoleVariableRef CVarSkipMeshTangentComputation(
 	TEXT("Skip computing tangents for meshes. With meshes with a huge numer of vertices, it can take a very long time to compute them.")
 );
 
+static bool GBuildReversedIndexBuffer = false;
+static FAutoConsoleVariableRef CVarBuildReversedIndexBuffer(
+	TEXT("USD.StaticMesh.BuildSettings.BuildReversedIndexBuffer"),
+	GBuildReversedIndexBuffer,
+	TEXT("Enable to optimize mesh in mirrored transform. Double index buffer size.")
+);
+
+static bool GUseFullPrecisionUVs = false;
+static FAutoConsoleVariableRef CVarUseFullPrecisionUVs(
+	TEXT("USD.StaticMesh.BuildSettings.UseFullPrecisionUVs"),
+	GUseFullPrecisionUVs,
+	TEXT("If true, UVs will be stored at full floating point precision.")
+);
+
+static bool GUseHighPrecisionTangentBasis = false;
+static FAutoConsoleVariableRef CVarUseHighPrecisionTangentBasis(
+	TEXT("USD.StaticMesh.BuildSettings.UseHighPrecisionTangentBasis"),
+	GUseHighPrecisionTangentBasis,
+	TEXT("If true, Tangents will be stored at 16 bit vs 8 bit precision.")
+);
+
+static int32 GNaniteSettingsNormalPrecision = -1;
+static FAutoConsoleVariableRef CVarNaniteSettingsNormalPrecision(
+	TEXT("USD.Nanite.Settings.NormalPrecision"),
+	GNaniteSettingsNormalPrecision,
+	TEXT("Normal Precision in bits. -1 is auto.")
+);
+
+static int32 GNaniteSettingsTangentPrecision = -1;
+static FAutoConsoleVariableRef CVarNaniteSettingsTangentPrecision(
+	TEXT("USD.Nanite.Settings.TangentPrecision"),
+	GNaniteSettingsTangentPrecision,
+	TEXT("Tangent Precision in bits. -1 is auto.")
+);
+
 namespace UsdGeomMeshTranslatorImpl
 {
 	bool ShouldEnableNanite(
@@ -704,7 +739,9 @@ namespace UsdGeomMeshTranslatorImpl
 				SourceModel.BuildSettings.bGenerateLightmapUVs = false;
 				SourceModel.BuildSettings.bRecomputeNormals = false;
 				SourceModel.BuildSettings.bRecomputeTangents = false;
-				SourceModel.BuildSettings.bBuildReversedIndexBuffer = false;
+				SourceModel.BuildSettings.bBuildReversedIndexBuffer = GBuildReversedIndexBuffer;
+				SourceModel.BuildSettings.bUseFullPrecisionUVs = GUseFullPrecisionUVs;
+				SourceModel.BuildSettings.bUseHighPrecisionTangentBasis = GUseHighPrecisionTangentBasis;
 				SourceModel.BuildSettings.bRemoveDegenerates = true;	// Note: This may get rid of the entire mesh if it is all invalid
 
 				FMeshDescription* StaticMeshDescription = StaticMesh->CreateMeshDescription(LODIndex);
@@ -1676,6 +1713,8 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 
 #if WITH_EDITOR
 			   StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
+			   StaticMesh->NaniteSettings.NormalPrecision = GNaniteSettingsNormalPrecision;
+			   StaticMesh->NaniteSettings.TangentPrecision = GNaniteSettingsTangentPrecision;
 #endif	  // WITH_EDITOR
 
 			   if (UUsdMeshAssetUserData* UserData = UsdUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
