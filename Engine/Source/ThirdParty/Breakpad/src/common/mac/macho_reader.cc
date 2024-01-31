@@ -127,6 +127,46 @@ bool FatReader::Read(const uint8_t *buffer, size_t size) {
       }
 
       return true;
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+    } else if (magic_ == FAT_MAGIC_64) {
+      // How many object files does this fat binary contain?
+      uint32_t object_files_count;
+      if (!(cursor >> object_files_count)) {  // nfat_arch
+        reporter_->TooShort();
+        return false;
+      }
+
+      // Read the list of object files.
+      object_files_.resize(object_files_count);
+      for (size_t i = 0; i < object_files_count; i++) {
+        struct fat_arch_64 objfile;
+
+        // Read this object file entry, byte-swapping as appropriate.
+        cursor >> objfile.cputype
+               >> objfile.cpusubtype
+               >> objfile.offset
+               >> objfile.size
+               >> objfile.align
+               >> objfile.reserved;
+
+        SuperFatArch super_fat_arch(objfile);
+        object_files_[i] = super_fat_arch;
+
+        if (!cursor) {
+          reporter_->TooShort();
+          return false;
+        }
+        // Does the file actually have the bytes this entry refers to?
+        size_t fat_size = buffer_.Size();
+        if (objfile.offset > fat_size ||
+            objfile.size > fat_size - objfile.offset) {
+          reporter_->MisplacedObjectFile();
+          return false;
+        }
+      }
+
+      return true;
+#endif
     } else if (magic_ == MH_MAGIC || magic_ == MH_MAGIC_64 ||
                magic_ == MH_CIGAM || magic_ == MH_CIGAM_64) {
       // If this is a little-endian Mach-O file, fix the cursor's endianness.

@@ -138,7 +138,11 @@ bool MachoWalker::FindHeader(cpu_type_t cpu_type,
 
   // Figure out what type of file we've got
   bool is_fat = false;
-  if (magic == FAT_MAGIC || magic == FAT_CIGAM) {
+  if (magic == FAT_MAGIC || magic == FAT_CIGAM
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+   || magic == FAT_MAGIC_64 || magic == FAT_CIGAM_64
+#endif
+   ) {
     is_fat = true;
   }
   else if (magic != MH_MAGIC && magic != MH_CIGAM && magic != MH_MAGIC_64 &&
@@ -177,23 +181,48 @@ bool MachoWalker::FindHeader(cpu_type_t cpu_type,
     offset += sizeof(fat);
 
     // Search each architecture for the desired one
-    struct fat_arch arch;
-    for (uint32_t i = 0; i < fat.nfat_arch; ++i) {
-      if (!ReadBytes(&arch, sizeof(arch), offset))
-        return false;
-
-      if (NXHostByteOrder() != NX_BigEndian)
-        breakpad_swap_fat_arch(&arch, 1);
-
-      if (arch.cputype == cpu_type &&
-          (cpu_subtype == CPU_SUBTYPE_MULTIPLE ||
-           arch.cpusubtype == cpu_subtype)) {
-        offset = arch.offset;
-        return true;
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+    if (magic == FAT_MAGIC_64 || magic == FAT_CIGAM_64)
+    {
+          struct fat_arch_64 arch;
+          for (uint32_t i = 0; i < fat.nfat_arch; ++i) {
+              if (!ReadBytes(&arch, sizeof(arch), offset))
+                  return false;
+              
+              if (NXHostByteOrder() != NX_BigEndian)
+                  breakpad_swap_fat_arch_64(&arch, 1);
+              
+              if (arch.cputype == cpu_type &&
+                  (cpu_subtype == CPU_SUBTYPE_MULTIPLE ||
+                   arch.cpusubtype == cpu_subtype)) {
+                  offset = arch.offset;
+                  return true;
+              }
+              
+              offset += sizeof(arch);
+          }
       }
+      else
+#endif
+      {
+          struct fat_arch arch;
+          for (uint32_t i = 0; i < fat.nfat_arch; ++i) {
+              if (!ReadBytes(&arch, sizeof(arch), offset))
+                  return false;
 
-      offset += sizeof(arch);
-    }
+              if (NXHostByteOrder() != NX_BigEndian)
+                  breakpad_swap_fat_arch(&arch, 1);
+
+              if (arch.cputype == cpu_type &&
+                  (cpu_subtype == CPU_SUBTYPE_MULTIPLE ||
+                   arch.cpusubtype == cpu_subtype)) {
+                  offset = arch.offset;
+                  return true;
+              }
+
+              offset += sizeof(arch);
+          }
+      }
   }
 
   return false;

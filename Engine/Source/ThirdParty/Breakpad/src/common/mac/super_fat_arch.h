@@ -65,6 +65,16 @@ class SuperFatArch {
       align(arch.align) {
   }
 
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+  explicit SuperFatArch(const struct fat_arch_64 &arch) :
+      cputype(arch.cputype),
+      cpusubtype(arch.cpusubtype),
+      offset(arch.offset),
+      size(arch.size),
+      align(arch.align) {
+    }
+#endif
+
   // Returns false if the conversion cannot be made.
   // If the conversion succeeds, the result is placed in |output_arch|.
   bool ConvertToFatArch(struct fat_arch* output_arch) const {

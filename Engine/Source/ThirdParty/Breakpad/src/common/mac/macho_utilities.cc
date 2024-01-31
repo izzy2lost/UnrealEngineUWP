@@ -101,6 +101,18 @@ void breakpad_swap_fat_arch(struct fat_arch *fa, uint32_t narchs) {
   }
 }
 
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+void breakpad_swap_fat_arch_64(struct fat_arch_64 *fa, uint32_t narchs) {
+  for (uint32_t i = 0; i < narchs; ++i) {
+    fa[i].cputype = ByteSwap(fa[i].cputype);
+    fa[i].cpusubtype = ByteSwap(fa[i].cpusubtype);
+    fa[i].offset = ByteSwap(fa[i].offset);
+    fa[i].size = ByteSwap(fa[i].size);
+    fa[i].align = ByteSwap(fa[i].align);
+  }
+}
+#endif
+
 void breakpad_swap_mach_header(struct mach_header *mh) {
   mh->magic = ByteSwap(mh->magic);
   mh->cputype = ByteSwap(mh->cputype);

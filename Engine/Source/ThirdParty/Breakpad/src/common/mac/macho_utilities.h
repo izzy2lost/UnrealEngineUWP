@@ -81,6 +81,9 @@ void breakpad_swap_segment_command_64(struct segment_command_64 *sg);
 void breakpad_swap_fat_header(struct fat_header *fh);
 
 void breakpad_swap_fat_arch(struct fat_arch *fa, uint32_t narchs);
+#ifdef DUMP_SYMS_WITH_EPIC_EXTENSIONS
+void breakpad_swap_fat_arch_64(struct fat_arch_64 *fa, uint32_t narchs);
+#endif
 
 void breakpad_swap_mach_header(struct mach_header *mh);
 
