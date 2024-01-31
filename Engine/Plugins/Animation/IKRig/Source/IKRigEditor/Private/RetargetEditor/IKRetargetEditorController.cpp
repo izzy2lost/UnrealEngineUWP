@@ -453,7 +453,7 @@ bool FIKRetargetEditorController::GetCameraTargetForSelection(FSphere& OutTarget
 	case ERetargetSelectionType::NONE:
 	default:
 		// frame both meshes
-		OutTarget = FSphere();
+		OutTarget = FSphere(0);
 		if (const UPrimitiveComponent* SourceComponent = GetSkeletalMeshComponent(ERetargetSourceOrTarget::Source))
 		{
 			OutTarget += SourceComponent->Bounds.GetSphere();
