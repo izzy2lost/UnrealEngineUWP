@@ -48,9 +48,14 @@ namespace Horde.Server.Server
 	public enum GlobalVersion
 	{
 		/// <summary>
+		/// Not specified
+		/// </summary>
+		None,
+
+		/// <summary>
 		/// Initial version number
 		/// </summary>
-		Initial = 0,
+		Initial,
 
 		/// <summary>
 		/// Ability to add/remove pools via the REST API is removed. Pools should be configured through globals.json instead.
