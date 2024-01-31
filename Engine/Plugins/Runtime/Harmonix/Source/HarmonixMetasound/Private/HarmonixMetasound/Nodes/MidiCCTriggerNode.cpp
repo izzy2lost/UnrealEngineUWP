@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HarmonixMetasound/Nodes/MidiCCTriggerNode.h"
+
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
 #include "MetasoundNodeInterface.h"
@@ -8,14 +10,11 @@
 #include "MetasoundStandardNodesCategories.h"
 #include "MetasoundVertex.h"
 #include "MetasoundTrigger.h"
-#include "HarmonixMetasound/Nodes/MidiCCTriggerNode.h"
 #include "HarmonixMetasound/Common.h"
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 #include "HarmonixMidi/MidiMsg.h"
 #include "MetasoundEnumRegistrationMacro.h"
 #include "HarmonixMetasound/DataTypes/MidiControllerID.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogMidiCCTrigger, Log, All);
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
@@ -34,23 +33,184 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 		return ClassName;
 	}
 
+	int32 GetCurrentMajorVersion()
+	{
+		return 1;
+	}
+	
 	namespace Inputs
 	{
 		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
-		DEFINE_METASOUND_PARAM_ALIAS(MidiTrackNumber, CommonPinNames::Inputs::MidiTrackNumber);
-		DEFINE_METASOUND_PARAM_ALIAS(MidiChannelNumber, CommonPinNames::Inputs::MidiChannelNumber);
-		DEFINE_INPUT_METASOUND_PARAM(InputMidiControllerID, "Standard Midi Controller ID", "Standard Midi Controller ID (0-127)");
 		DEFINE_METASOUND_PARAM_ALIAS(MidiStream, CommonPinNames::Inputs::MidiStream);
+		DEFINE_INPUT_METASOUND_PARAM(InputMidiControllerID, "Control Number", "MIDI Control Number");
+
+		// Removed in V1
+		DECLARE_METASOUND_PARAM_EXTERN(MidiTrackNumber);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiTrackNumber, CommonPinNames::Inputs::MidiTrackNumber);
+		DECLARE_METASOUND_PARAM_EXTERN(MidiChannelNumber);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiChannelNumber, CommonPinNames::Inputs::MidiChannelNumber);
 	}
 
 	namespace Outputs
 	{
-		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlChangeValueInt32, "Midi Control Change Value (Int32)", "Midi Control Change value (0-127)");
-		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlChangeValueFloat, "Midi Control Change Value (Float)", "normalized Midi Control Change value (0.0-1.0)");
-		DEFINE_OUTPUT_METASOUND_PARAM(OutputTrigger, "Trigger Out", "A trigger when a Midi Control Change message is found");
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlChangeValueInt32, "Value", "Control Change Value (0-127)");
+
+		// Removed in V1
+		DECLARE_METASOUND_PARAM_EXTERN(OutputTrigger);
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputTrigger, "Trigger Out", "A trigger when a MIDI Control Change message is found");
+		DECLARE_METASOUND_PARAM_EXTERN(OutputControlNumber);
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlNumber, "Control Number", "Control Number (0-127)");
+		DECLARE_METASOUND_PARAM_EXTERN(OutputControlChangeValueFloat);
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlChangeValueFloat, "Value (Normalized)", "Normalized Control Change value (0.0-1.0)");
 	}
 
-	class FOp final : public TExecutableOperator<FOp>
+	class FMidiCCTriggerOperator_V1 final : public TExecutableOperator<FMidiCCTriggerOperator_V1>
+	{
+	public:
+		struct FInputs
+		{
+			FBoolReadRef Enable;
+			FMidiStreamReadRef MidiStream;
+			FEnumStdMidiControllerIDReadRef ControllerID;
+		};
+
+		struct FOutputs
+		{
+			FInt32WriteRef ControlChangeValueInt32;
+		};
+
+		static const FVertexInterface& GetVertexInterface()
+		{
+			const auto MakeInterface = []() -> FVertexInterface
+			{
+				using namespace Metasound;
+
+				return
+				{
+					FInputVertexInterface
+					{
+						TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
+						TInputDataVertex<FMidiStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiStream)),
+						TInputDataVertex<FEnumStdMidiControllerID>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::InputMidiControllerID))
+					},
+					FOutputVertexInterface
+					{
+						TOutputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::OutputControlChangeValueInt32))
+					}
+				};
+			};
+
+			static const FVertexInterface Interface = MakeInterface();
+
+			return Interface;
+		}
+
+		static const FNodeClassMetadata& GetNodeInfo()
+		{
+			auto InitNodeInfo = []() -> FNodeClassMetadata
+			{
+				FNodeClassMetadata Info;
+				Info.ClassName = GetClassName();
+				Info.MajorVersion = 1;
+				Info.MinorVersion = 0;
+				Info.DisplayName = METASOUND_LOCTEXT("MidiCCTriggerNode_V1_DisplayName", "MIDI CC Trigger");
+				Info.Description = METASOUND_LOCTEXT("MidiCCTriggerNode_V1_Description", "Find a MIDI Control Change message in a MIDI stream and output the value.");
+				Info.Author = PluginAuthor;
+				Info.PromptIfMissing = PluginNodeMissingPrompt;
+				Info.DefaultInterface = GetVertexInterface();
+				Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+				return Info;
+			};
+
+			static const FNodeClassMetadata Info = InitNodeInfo();
+
+			return Info;
+		}
+
+		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
+		{
+			const FOperatorSettings& OperatorSettings = InParams.OperatorSettings;
+			const FInputVertexInterfaceData& InputData = InParams.InputData;
+
+			FInputs Inputs
+			{
+				InputData.GetOrCreateDefaultDataReadReference<bool>(Inputs::EnableName,OperatorSettings),
+				InputData.GetOrCreateDefaultDataReadReference<FMidiStream>(Inputs::MidiStreamName, OperatorSettings),
+				InputData.GetOrCreateDefaultDataReadReference<FEnumStdMidiControllerID>(Inputs::InputMidiControllerIDName, OperatorSettings)
+			};
+
+			FOutputs Outputs
+			{
+				FInt32WriteRef::CreateNew(0)
+			};
+
+			return MakeUnique<FMidiCCTriggerOperator_V1>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));
+		}
+
+		FMidiCCTriggerOperator_V1(const FBuildOperatorParams& Params, FInputs&& InInputs, FOutputs&& InOutputs)
+			: Inputs(MoveTemp(InInputs))
+			, Outputs(MoveTemp(InOutputs))
+		{
+			Reset(Params);
+		}
+
+		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override
+		{
+			InVertexData.BindReadVertex(Inputs::EnableName, Inputs.Enable);
+			InVertexData.BindReadVertex(Inputs::MidiStreamName, Inputs.MidiStream);
+			InVertexData.BindReadVertex(Inputs::InputMidiControllerIDName, Inputs.ControllerID);
+		}
+
+		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
+		{
+			InVertexData.BindReadVertex(Outputs::OutputControlChangeValueInt32Name, Outputs.ControlChangeValueInt32);
+		}
+
+		void Reset(const FResetParams& ResetParams)
+		{
+			*Outputs.ControlChangeValueInt32 = 0;
+		}
+
+		void Execute()
+		{
+			if (!*Inputs.Enable)
+			{
+				return;
+			}
+
+			const TArray<FMidiStreamEvent>& MidiEvents = Inputs.MidiStream->GetEventsInBlock();
+			for (const FMidiStreamEvent& Event : MidiEvents)
+			{
+				if (!Event.MidiMessage.IsControlChange())
+				{
+					continue;
+				}
+				
+				if (Event.MidiMessage.GetStdData1() != static_cast<uint8>(Inputs.ControllerID->Get()))
+				{
+					continue;
+				}
+
+				*Outputs.ControlChangeValueInt32 = static_cast<int32>(Event.MidiMessage.GetStdData2());
+			}
+		}
+
+	private:
+		FInputs Inputs;
+		FOutputs Outputs;
+	};
+
+	class FMidiCCTriggerNode_V1 final : public FNodeFacade
+	{
+	public:
+		explicit FMidiCCTriggerNode_V1(const FNodeInitData& InInitData)
+			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, Metasound::TFacadeOperatorClass<FMidiCCTriggerOperator_V1>())
+		{}
+	};
+
+	METASOUND_REGISTER_NODE(FMidiCCTriggerNode_V1);
+
+	class FMidiCCTriggerOperator_V0 final : public Metasound::TExecutableOperator<FMidiCCTriggerOperator_V0>
 	{
 	public:
 		struct FInputs
@@ -104,7 +264,7 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 			auto InitNodeInfo = []() -> FNodeClassMetadata
 			{
 				FNodeClassMetadata Info;
-				Info.ClassName = { HarmonixNodeNamespace, TEXT("MidiCCTrigger"), TEXT("") };
+				Info.ClassName = GetClassName();
 				Info.MajorVersion = 0;
 				Info.MinorVersion = 1;
 				Info.DisplayName = METASOUND_LOCTEXT("MidiCCTriggerNode_DisplayName", "Midi CC Trigger");
@@ -113,6 +273,7 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 				Info.PromptIfMissing = PluginNodeMissingPrompt;
 				Info.DefaultInterface = GetVertexInterface();
 				Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+				Info.bDeprecated = true;
 				return Info;
 			};
 
@@ -140,10 +301,10 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 				FInt32WriteRef::CreateNew(0), FFloatWriteRef::CreateNew(0.0f), FTriggerWriteRef::CreateNew(InParams.OperatorSettings)
 			};
 
-			return MakeUnique<FOp>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));
+			return MakeUnique<FMidiCCTriggerOperator_V0>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));
 		}
 
-		FOp(const FBuildOperatorParams& Params, FInputs&& InInputs, FOutputs&& InOutputs)
+		FMidiCCTriggerOperator_V0(const Metasound::FBuildOperatorParams& Params, FInputs&& InInputs, FOutputs&& InOutputs)
 			: Inputs(MoveTemp(InInputs))
 			, Outputs(MoveTemp(InOutputs))
 		{
@@ -220,15 +381,15 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 			FOutputs Outputs;
 	};
 
-	class FMidiCCTriggerNode final : public FNodeFacade
+	class FMidiCCTriggerNode_V0 final : public FNodeFacade
 	{
 	public:
-		explicit FMidiCCTriggerNode(const FNodeInitData& InInitData)
-			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, Metasound::TFacadeOperatorClass<FOp>())
+		explicit FMidiCCTriggerNode_V0(const FNodeInitData& InInitData)
+			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, Metasound::TFacadeOperatorClass<FMidiCCTriggerOperator_V0>())
 		{}
 	};
 
-	METASOUND_REGISTER_NODE(FMidiCCTriggerNode);
+	METASOUND_REGISTER_NODE(FMidiCCTriggerNode_V0);
 }
 
 #undef LOCTEXT_NAMESPACE

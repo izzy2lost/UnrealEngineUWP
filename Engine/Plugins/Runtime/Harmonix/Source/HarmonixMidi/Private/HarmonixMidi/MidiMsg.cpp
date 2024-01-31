@@ -14,6 +14,12 @@ FMidiMsg FMidiMsg::CreateNoteOff(int32 Channel, int32 Note)
 	return FMidiMsg(0x80 | (uint8)(Channel & 0xF), (uint8)Note, 0);
 }
 
+FMidiMsg FMidiMsg::CreateControlChange(uint8 Channel, uint8 ControlNumber, uint8 Value)
+{
+	const uint8 StatusByte = MidiConstants::kControl | (Channel & 0xf);
+	return FMidiMsg{ StatusByte, ControlNumber, Value };
+}
+
 FMidiMsg FMidiMsg::CreateText(uint16 InTextIndex, uint8 InTextType)
 {
 	FMidiMsg Msg;
