@@ -851,7 +851,7 @@ class FWorldPartitionStreamingGenerator
 				ResolveContainerDescriptor(ContainerCollectionInstanceDescriptor);
 
 				// Validate container, fixing anything illegal, etc.
-				ValidateContainerDescriptor(ContainerCollectionInstanceDescriptor, ContainerCollectionInstanceDescriptor.ID.IsMainContainer());
+				ValidateContainerDescriptor(ContainerCollectionInstanceDescriptor);
 
 				// Update container, computing cluster, bounds, etc.
 				UpdateContainerDescriptor(ContainerCollectionInstanceDescriptor);
@@ -1020,9 +1020,10 @@ class FWorldPartitionStreamingGenerator
 	 * Perform various validations on the container descriptor, and adjust it based on different requirements. This needs to happen before updating
 	 * containers bounds because some actor descriptor views might change grid placement, etc.
 	 */
-	void ValidateContainerDescriptor(FContainerCollectionInstanceDescriptor& ContainerCollectionInstanceDescriptor, bool bIsMainContainer)
+	void ValidateContainerDescriptor(FContainerCollectionInstanceDescriptor& ContainerCollectionInstanceDescriptor)
 	{
-		if (bIsMainContainer)
+		const bool bIsMainContainerNonContentBundle = ContainerCollectionInstanceDescriptor.ID.IsMainContainer() && !ContainerCollectionInstanceDescriptor.ContentBundleID.IsValid();
+		if (bIsMainContainerNonContentBundle)
 		{
 			TArray<FGuid> LevelScriptReferences;
 			if (WorldPartitionContext)
