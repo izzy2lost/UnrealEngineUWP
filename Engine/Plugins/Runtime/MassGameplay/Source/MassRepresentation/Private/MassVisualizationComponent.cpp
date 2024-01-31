@@ -394,19 +394,19 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 	ProcessRemoves(ISMComponent, SharedData, /*bUpdateNavigation=*/false);
 
 	// NOTE: This code path is designed to only perform Adds, never updates so updates are filtered out along with duplicates.
-	TArray<int32>& MassInstanceIds = SharedData.UpdateInstanceIds;
-	if (MassInstanceIds.Num())
+	TArray<FMassEntityHandle>& EntityHandles = SharedData.UpdateInstanceIds;
+	if (EntityHandles.Num())
 	{
-		INC_DWORD_STAT_BY(STAT_Mass_VisualizationComponent_InstancesAddedNum, MassInstanceIds.Num());
+		INC_DWORD_STAT_BY(STAT_Mass_VisualizationComponent_InstancesAddedNum, EntityHandles.Num());
 
-		FMassISMCSharedData::FIdMap& SharedIdMap = SharedData.GetMutableIdMap();
+		FMassISMCSharedData::FEntityToPrimitiveIdMap& SharedIdMap = SharedData.GetMutableEntityPrimitiveToIdMap();
 		TArray<Experimental::FHashElementId> ElementIds;
-		ElementIds.SetNumUninitialized(MassInstanceIds.Num());
+		ElementIds.SetNumUninitialized(EntityHandles.Num());
 		// Filter out all updates & duplicate adds
-		for (int32 IDIndex = MassInstanceIds.Num() - 1; IDIndex >= 0; --IDIndex)
+		for (int32 IDIndex = EntityHandles.Num() - 1; IDIndex >= 0; --IDIndex)
 		{
 			bool bWasAlreadyInMap = false;
-			Experimental::FHashElementId ElementId = SharedIdMap.FindOrAddId(MassInstanceIds[IDIndex], FPrimitiveInstanceId{INDEX_NONE}, bWasAlreadyInMap);
+			Experimental::FHashElementId ElementId = SharedIdMap.FindOrAddId(EntityHandles[IDIndex], FPrimitiveInstanceId{INDEX_NONE}, bWasAlreadyInMap);
 
 			if (bWasAlreadyInMap)
 			{
@@ -420,11 +420,11 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 		}
 
 		// it's possible the loop above removed all the data, so we do one last check
-		if (!MassInstanceIds.IsEmpty())
+		if (!EntityHandles.IsEmpty())
 		{
-			check(ElementIds.Num() == MassInstanceIds.Num());
+			check(ElementIds.Num() == EntityHandles.Num());
 
-			const TConstArrayView<int32> InstanceIds = SharedData.UpdateInstanceIds;
+			const TConstArrayView<FMassEntityHandle> InstanceIds = SharedData.UpdateInstanceIds;
 
 			const TArray<FTransform>& InstanceTransforms = SharedData.GetStaticMeshInstanceTransformsArray();
 			const int32 InNumCustomDataFloats = SharedData.GetStaticMeshInstanceCustomFloats().Num();
@@ -439,10 +439,10 @@ void UMassVisualizationComponent::HandleChangesWithExternalIDTracking(UInstanced
 				ISMComponent.SetNumCustomDataFloats(InNumCustomDataFloats);
 			}
 
-			check(MassInstanceIds.Num() == InstanceTransforms.Num());
+			check(EntityHandles.Num() == InstanceTransforms.Num());
 			TArray<FPrimitiveInstanceId> NewIds = ISMComponent.AddInstancesById(InstanceTransforms, /*bWorldSpace=*/true, /*bUpdateNavigation =*/bInitiallyEmpty);
-			check(MassInstanceIds.Num() == NewIds.Num());
-			for (int32 i = 0; i < MassInstanceIds.Num(); ++i)
+			check(EntityHandles.Num() == NewIds.Num());
+			for (int32 i = 0; i < EntityHandles.Num(); ++i)
 			{
 				SharedIdMap.GetByElementId(ElementIds[i]).Value = NewIds[i];
 			}
@@ -461,17 +461,16 @@ void UMassVisualizationComponent::ProcessRemoves(UInstancedStaticMeshComponent& 
 {
 	if (!SharedData.GetRemoveInstanceIds().IsEmpty())
 	{
-		FMassISMCSharedData::FIdMap& SharedIdMap = SharedData.GetMutableIdMap();
+		FMassISMCSharedData::FEntityToPrimitiveIdMap& SharedIdMap = SharedData.GetMutableEntityPrimitiveToIdMap();
 		INC_DWORD_STAT_BY(STAT_Mass_VisualizationComponent_InstancesRemovedNum, SharedData.GetRemoveInstanceIds().Num());
 
-		//RemoveInstanceWithIds(SharedData.GetRemoveInstanceIds());
-		TConstArrayView<int32> InstanceIds = SharedData.GetRemoveInstanceIds();
+		TConstArrayView<FMassEntityHandle> EntityHandles = SharedData.GetRemoveInstanceIds();
 
 		TArray<FPrimitiveInstanceId> ISMInstanceIds;
-		ISMInstanceIds.Reserve(InstanceIds.Num());
+		ISMInstanceIds.Reserve(EntityHandles.Num());
 		
 		// Translate Mass IDs to ISMC IDs
-		for (const int32 MassInstanceId : InstanceIds)
+		for (const FMassEntityHandle MassInstanceId : EntityHandles)
 		{
 			Experimental::FHashElementId ElementId = SharedIdMap.FindId(MassInstanceId);
 			if (ElementId.IsValid())
@@ -530,12 +529,12 @@ void UMassVisualizationComponent::EndVisualChanges()
 				// its length is NumCustomDataFloats * InstanceTransforms.Num()
 				ensure(NumCustomDataFloats == 0 || (SharedData.StaticMeshInstanceCustomFloats.Num() == NumCustomDataFloats * SharedData.UpdateInstanceIds.Num()));
 				ISMComponent->SetNumCustomDataFloats(NumCustomDataFloats);
-				TArray<int32>& MassInstanceIds = SharedData.UpdateInstanceIds;
+				TArray<FMassEntityHandle>& EntityHandles = SharedData.UpdateInstanceIds;
 				{
 					// Loop over all the instances in the update and 
 					// 1. Sort the data such that all Adds are last
 					// 2. Remove any duplicates (unsure if they may exist)
-					FMassISMCSharedData::FIdMap& SharedIdMap = SharedData.GetMutableIdMap();
+					FMassISMCSharedData::FEntityToPrimitiveIdMap& SharedIdMap = SharedData.GetMutableEntityPrimitiveToIdMap();
 					// Filter out all updates & duplicate adds
 					TBitArray<> Unprocessed;
 					Unprocessed.SetNum(SharedIdMap.GetMaxIndex(), true);
@@ -554,11 +553,11 @@ void UMassVisualizationComponent::EndVisualChanges()
 						int32 IDIndex;
 					};
 					TArray<FAddItem> ToAdd;
-					ToAdd.Reserve(MassInstanceIds.Num());
-					for (int32 IDIndex = 0; IDIndex < MassInstanceIds.Num(); ++IDIndex)
+					ToAdd.Reserve(EntityHandles.Num());
+					for (int32 IDIndex = 0; IDIndex < EntityHandles.Num(); ++IDIndex)
 					{
 						bool bWasAlreadyInMap = false;
-						Experimental::FHashElementId ElementId = SharedIdMap.FindOrAddId(MassInstanceIds[IDIndex], FPrimitiveInstanceId{INDEX_NONE}, bWasAlreadyInMap);
+						Experimental::FHashElementId ElementId = SharedIdMap.FindOrAddId(EntityHandles[IDIndex], FPrimitiveInstanceId{INDEX_NONE}, bWasAlreadyInMap);
 
 						// if it was already in the map, it may be a duplicate if we have processed it already
 						bool bIsDuplicate = bWasAlreadyInMap && !Unprocessed[ElementId.GetIndex()];
@@ -665,7 +664,7 @@ void FMassInstancedStaticMeshInfo::ClearVisualInstance(FMassISMCSharedDataMap& I
 // FMassLODSignificanceRange
 //---------------------------------------------------------------
 
-void FMassLODSignificanceRange::AddBatchedTransform(const int32 InstanceId, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs)
+void FMassLODSignificanceRange::AddBatchedTransform(const FMassEntityHandle EntityHandle, const FTransform& Transform, const FTransform& PrevTransform, const TArray<uint32>& ExcludeStaticMeshRefs)
 {
 	check(ISMCSharedDataPtr);
 	for (int32 StaticMeshIndex = 0; StaticMeshIndex < StaticMeshRefs.Num(); ++StaticMeshIndex)
@@ -677,7 +676,7 @@ void FMassLODSignificanceRange::AddBatchedTransform(const int32 InstanceId, cons
 
 		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
 		{
-			SharedData->UpdateInstanceIds.Add(InstanceId);
+			SharedData->UpdateInstanceIds.Add(EntityHandle);
 			SharedData->StaticMeshInstanceTransforms.Add(Transform);
 			SharedData->StaticMeshInstancePrevTransforms.Add(PrevTransform);
 		}
@@ -701,28 +700,28 @@ void FMassLODSignificanceRange::AddBatchedCustomDataFloats(const TArray<float>& 
 	}
 }
 
-void FMassLODSignificanceRange::AddInstance(const int32 InstanceId, const FTransform& Transform)
+void FMassLODSignificanceRange::AddInstance(const FMassEntityHandle EntityHandle, const FTransform& Transform)
 {
 	check(ISMCSharedDataPtr);
 	for (int32 StaticMeshIndex = 0; StaticMeshIndex < StaticMeshRefs.Num(); ++StaticMeshIndex)
 	{
 		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
 		{
-			SharedData->UpdateInstanceIds.Add(InstanceId);
+			SharedData->UpdateInstanceIds.Add(EntityHandle);
 			SharedData->StaticMeshInstanceTransforms.Add(Transform);
 			SharedData->StaticMeshInstancePrevTransforms.Add(Transform);
 		}
 	}
 }
 
-void FMassLODSignificanceRange::RemoveInstance(const int32 InstanceId)
+void FMassLODSignificanceRange::RemoveInstance(const FMassEntityHandle EntityHandle)
 {
 	check(ISMCSharedDataPtr);
 	for (int32 StaticMeshIndex = 0; StaticMeshIndex < StaticMeshRefs.Num(); ++StaticMeshIndex)
 	{
 		if (FMassISMCSharedData* SharedData = ISMCSharedDataPtr->GetAndMarkDirty(StaticMeshRefs[StaticMeshIndex]))
 		{
-			SharedData->RemoveInstanceIds.Add(InstanceId);
+			SharedData->RemoveInstanceIds.Add(EntityHandle);
 		}
 	}
 }

@@ -45,10 +45,9 @@ void UMassStationaryISMRepresentationFragmentDestructor::Execute(FMassEntityMana
 				if (FMassLODSignificanceRange* OldRange = ISMInfo.GetLODSignificanceRange(Representation.PrevLODSignificance))
 				{
 					const FMassEntityHandle EntityHandle = Context.GetEntity(EntityIdx);
-					const int32 EntityId = GetTypeHash(EntityHandle);
 					if (OldRange)
 					{
-						OldRange->RemoveInstance(EntityId);
+						OldRange->RemoveInstance(EntityHandle);
 					}
 				}
 				Representation.CurrentRepresentation = EMassRepresentationType::None;

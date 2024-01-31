@@ -73,11 +73,9 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 		if (Representation.PrevRepresentation == EMassRepresentationType::StaticMeshInstance
 			&& Representation.CurrentRepresentation != EMassRepresentationType::StaticMeshInstance)
 		{
-			const int32 EntityId = GetTypeHash(EntityHandle);
-
 			// note that we're using the PrevLODSignificance here, and the reason for it is that the Prev value matches the 
 			// PrevRepresentation - thus we need to remove from the "previously" used LODSignificance range.
-			ISMInfo.RemoveInstance(EntityId, Representation.PrevLODSignificance);
+			ISMInfo.RemoveInstance(EntityHandle, Representation.PrevLODSignificance);
 
 			// consume "prev" data
 			Representation.PrevRepresentation = Representation.CurrentRepresentation;
@@ -90,7 +88,6 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 		else if (Representation.PrevRepresentation != EMassRepresentationType::StaticMeshInstance
 			&& Representation.CurrentRepresentation == EMassRepresentationType::StaticMeshInstance)
 		{
-			const int32 EntityId = GetTypeHash(EntityHandle);
 			const FTransform& Transform = TransformFragment.GetTransform();
 			const FTransform& PrevTransform = Representation.PrevTransform;
 			const float LODSignificance = RepresentationLOD.LODSignificance;
@@ -102,11 +99,11 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 				{
 					const FTransform& TransformOffset = ISMInfo.GetTransformOffset();
 					const FTransform SMTransform = TransformOffset * Transform;
-					NewRange->AddInstance(EntityId, SMTransform);
+					NewRange->AddInstance(EntityHandle, SMTransform);
 				}
 				else
 				{
-					NewRange->AddInstance(EntityId, Transform);
+					NewRange->AddInstance(EntityHandle, Transform);
 				}
 			}
 
@@ -128,15 +125,14 @@ void UMassStationaryISMSwitcherProcessor::ProcessContext(FMassExecutionContext& 
 			FMassLODSignificanceRange* NewRange = ISMInfo.GetLODSignificanceRange(RepresentationLOD.LODSignificance);
 			if (OldRange != NewRange)
 			{
-				const int32 EntityId = GetTypeHash(EntityHandle);
 				if (OldRange)
 				{
-					OldRange->RemoveInstance(EntityId);
+					OldRange->RemoveInstance(EntityHandle);
 				}
 				if (NewRange)
 				{
 					const FTransform& Transform = TransformFragment.GetTransform();
-					NewRange->AddInstance(EntityId, Transform);
+					NewRange->AddInstance(EntityHandle, Transform);
 				}
 			}
 		}
