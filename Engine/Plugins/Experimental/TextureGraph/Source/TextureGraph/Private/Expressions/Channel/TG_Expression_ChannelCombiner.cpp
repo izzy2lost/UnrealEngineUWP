@@ -50,7 +50,7 @@ void UTG_Expression_ChannelCombiner::Evaluate(FTG_EvaluationContext* InContext)
 		->AddArg(ARG_BLOB(Alpha, "SourceAlpha"))
 		;
 
-	const FString Name = FString::Printf(TEXT("ChannelCombiner.[%llu]"), InContext->Cycle->GetBatch()->GetBatchId());
+	const FString Name = TEXT("ChannelCombiner");
 
 	BufferDescriptor Desc = Output.GetBufferDescriptor();
 	Desc.ItemsPerPoint = 4;
