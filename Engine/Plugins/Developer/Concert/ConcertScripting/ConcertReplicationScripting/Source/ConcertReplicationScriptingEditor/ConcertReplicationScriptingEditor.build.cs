@@ -26,12 +26,15 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					// Engine
+					"InputCore",
 					"Slate",
 					"SlateCore",
-					"UnrealEd",
+					"PropertyEditor",
+					"UnrealEd", 
 					
 					// Concert
 					"ConcertTransport", // For LogConcert
+					"ConcertSharedSlate"
 				}
 			);
             

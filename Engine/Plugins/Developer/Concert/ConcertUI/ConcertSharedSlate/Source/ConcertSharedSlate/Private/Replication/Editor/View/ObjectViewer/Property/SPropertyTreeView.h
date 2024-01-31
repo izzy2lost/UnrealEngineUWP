@@ -64,6 +64,7 @@ namespace UE::ConcertSharedSlate
 		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems) override;
 		virtual void RequestRefilter() const override { TreeView->RequestRefilter(); }
 		virtual void RequestResortForColumn(const FName& ColumnId) override { TreeView->RequestResortForColumn(ColumnId); }
+		virtual void RequestScrollIntoView(const FConcertPropertyChain& PropertyChain) override;
 		virtual TSharedRef<SWidget> GetWidget() override { return SharedThis(this); }
 		//~ Begin IPropertyTreeView Interface
 

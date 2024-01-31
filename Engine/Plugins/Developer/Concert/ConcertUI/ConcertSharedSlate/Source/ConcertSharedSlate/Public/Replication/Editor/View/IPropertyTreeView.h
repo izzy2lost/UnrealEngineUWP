@@ -26,7 +26,7 @@ namespace UE::ConcertSharedSlate
 		 *	Set this to false, if all rows should be regenerated (clears selection).
 		 *	In general, always set this to false if you've changed the object for which you're displaying the class.
 		 */
-		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems) = 0;
+		virtual void RefreshPropertyData(const TSet<FConcertPropertyChain>& PropertiesToDisplay, const FSoftClassPath& Class, bool bCanReuseExistingRowItems = true) = 0;
 		
 		/**
 		 * Reapply the filter function to all items at the end of the frame. Call e.g. when the filters have changed.
@@ -38,6 +38,9 @@ namespace UE::ConcertSharedSlate
 		 * Call e.g. when a sortable attribute of the column has changed.
 		 */
 		virtual void RequestResortForColumn(const FName& ColumnId) = 0;
+
+		/** Scroll the given property into view, if it is contained. */
+		virtual void RequestScrollIntoView(const FConcertPropertyChain& PropertyChain) = 0;
 
 		/** Gets the tree view's widget */
 		virtual TSharedRef<SWidget> GetWidget() = 0;
