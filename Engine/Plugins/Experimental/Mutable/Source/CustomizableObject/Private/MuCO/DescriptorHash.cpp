@@ -110,37 +110,6 @@ bool FDescriptorHash::IsSubset(const FDescriptorHash& Other) const
 }
 
 
-void FDescriptorHash::UpdateMinMaxLOD(const int32 InMinLOD, const int32 InMaxLOD)
-{
-	MinLOD = InMinLOD;
-	MaxLOD = InMaxLOD;	
-}
-
-
-int32 FDescriptorHash::GetMinLOD() const
-{
-	return MinLOD;
-}
-
-
-int32 FDescriptorHash::GetMaxLOD() const
-{
-	return MaxLOD;
-}
-
-
-void FDescriptorHash::UpdateRequestedLODs(const TArray<uint16>& InRequestedLODs)
-{
-	RequestedLODsPerComponent = InRequestedLODs;
-}
-
-
-const TArray<uint16>& FDescriptorHash::GetRequestedLODs() const
-{
-	return RequestedLODsPerComponent;
-}
-
-
 FString FDescriptorHash::ToString() const
 {
 	TStringBuilder<150> Builder;

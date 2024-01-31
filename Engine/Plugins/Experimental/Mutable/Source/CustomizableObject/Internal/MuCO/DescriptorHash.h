@@ -21,21 +21,12 @@ public:
 	/** Return true if this Hash is a subset of the other Hash (i.e., this Descriptor is a subset of the other Descriptor). */
 	bool IsSubset(const FDescriptorHash& Other) const;
 
-	void UpdateMinMaxLOD(int32 InMinLOD, int32 InMaxLOD);
-
-	int32 GetMinLOD() const;
-
-	int32 GetMaxLOD() const;
-
-	void UpdateRequestedLODs(const TArray<uint16>& InRequestedLODs);
-
-	const TArray<uint16>& GetRequestedLODs() const;
-
 	FString ToString() const;
 
 private:
 	uint32 Hash = 0;
 
+public:
 	int32 MinLOD = 0;
 	int32 MaxLOD = INT32_MAX;
 

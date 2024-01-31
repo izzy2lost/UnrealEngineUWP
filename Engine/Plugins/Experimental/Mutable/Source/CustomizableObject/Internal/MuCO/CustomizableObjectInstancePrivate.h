@@ -189,11 +189,6 @@ public:
 	// Only used in LiveUpdateMode to reuse core instances between updates and their temp data to speed up updates, but spend way more memory
 	mu::Instance::ID LiveUpdateModeInstanceID = 0;
 
-	/** Cached Texture Parameters from the last update.
-	 * This cache is required since the Instance can have a LOD Update at any time.
-	 * So we need to make sure that the initially provided Texture Parameters by the user will be available until the user decides to change them. */
-	TArray<FName> UpdateTextureParameters;
-
 #if WITH_EDITOR
 
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
@@ -224,7 +219,7 @@ public:
 	FGraphEventRef LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObjectInstance* Public, struct FStreamableManager &StreamableManager);
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
 
-	void TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Publics, FMutableInstanceUpdateMap& InOutRequestedUpdates);
+	void TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates);
 	void UpdateInstanceIfNotGenerated(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates);
 
 	// Returns true if success (?)
@@ -331,16 +326,16 @@ public:
 	TArray<TObjectPtr<UTexture>> LoadedPassThroughTexturesPendingSetMaterial;
 
 private:
-	
 	ECOInstanceFlags InstanceFlagsPrivate = ECOInstanceFlags::ECONone;
 
 public:
-	/** Hash of the UCustomizableObjectInstance::Descriptor on the last update request. */
-	FDescriptorHash UpdateDescriptorHash;
-	
-	/** Hash of the UCustomizableObjectInstance::Descriptor on the last successful update. */
-	FDescriptorHash DescriptorHash;
+	/** Copy of the descriptor of the latest successful update. */
+	UPROPERTY(Transient)
+	FCustomizableObjectInstanceDescriptor CommittedDescriptor;
 
+	/** Hash of the descriptor copy of the latest successful update. */
+	FDescriptorHash CommittedDescriptorHash;
+	
 	/** Status of the generated Skeletal Mesh. Not to be confused with the Update Result. */
 	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 };

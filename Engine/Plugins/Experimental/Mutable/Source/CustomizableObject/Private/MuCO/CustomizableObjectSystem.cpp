@@ -49,9 +49,6 @@
 class AActor;
 class UAnimInstance;
 
-void CacheTexturesParameters(const TArray<FName>& TextureParameters);
-void UnCacheTexturesParameters(const TArray<FName>& TextureParameters);
-
 
 DECLARE_CYCLE_STAT(TEXT("MutablePendingRelease Time"), STAT_MutablePendingRelease, STATGROUP_Game);
 DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
@@ -128,32 +125,37 @@ static void CVarMutableSinkFunction()
 static FAutoConsoleVariableSink CVarMutableSink(FConsoleCommandDelegate::CreateStatic(&CVarMutableSinkFunction));
 
 
-FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInstance)
+FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInstance, const FCustomizableObjectInstanceDescriptor& Descriptor)
 {
 	check(InInstance.GetPrivate());
 	check(InInstance.GetCustomizableObject());
 
 	Instance = &InInstance;
-	InstanceDescriptorHash = FDescriptorHash(Instance->GetDescriptor());
-	InInstance.GetPrivate()->UpdateDescriptorHash = InstanceDescriptorHash; // TODO GMTFuture Remove on MTBL-1409
-	State = InInstance.GetState();
-	bBuildParameterRelevancy = InInstance.GetBuildParameterRelevancy();
-	Parameters = InInstance.GetDescriptor().GetParameters();
-	TextureParameters = InInstance.GetPrivate()->UpdateTextureParameters;
+	CapturedDescriptor = Descriptor;
+	CapturedDescriptorHash = FDescriptorHash(Descriptor);
+	Parameters = Descriptor.GetParameters();
 	NumComponents = InInstance.GetCustomizableObject()->GetComponentCount();
-	CurrentMinLOD = InInstance.GetCurrentMinLOD();
-	CurrentMaxLOD = InInstance.GetCurrentMaxLOD();
-	RequestedLODs = InInstance.GetRequestedLODsPerComponent();
 	
-	InInstance.GetCustomizableObject()->ApplyStateForcedValuesToParameters(State, Parameters.get());
+	InInstance.GetCustomizableObject()->ApplyStateForcedValuesToParameters(CapturedDescriptor.GetState(), Parameters.get());
 
-	CacheTexturesParameters(TextureParameters);
+	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+	System->GetPrivate()->CacheTextureParameters(CapturedDescriptor.GetTextureParameters());
+}
+
+
+FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInstance) :
+	FUpdateContextPrivate(InInstance, InInstance.GetDescriptor())
+{
 }
 
 
 FUpdateContextPrivate::~FUpdateContextPrivate()
 {
-	UnCacheTexturesParameters(TextureParameters);
+	if (UCustomizableObjectSystem::IsCreated())
+	{
+		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+		System->GetPrivate()->UnCacheTextureParameters(CapturedDescriptor.GetTextureParameters());
+	}
 }
 
 
@@ -166,6 +168,63 @@ FString FUpdateContextPrivate::GetReferencerName() const
 void FUpdateContextPrivate::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObjects(Objects);
+}
+
+
+int32 FUpdateContextPrivate::GetMinLOD() const
+{
+	return CapturedDescriptor.GetMinLod();
+}
+
+
+void FUpdateContextPrivate::SetMinLOD(int32 MinLOD)
+{
+	CapturedDescriptor.SetMinLod(MinLOD);
+	CapturedDescriptorHash.MinLOD = MinLOD;
+}
+
+
+int32 FUpdateContextPrivate::GetMaxLOD() const
+{
+	return CapturedDescriptor.GetMinLod();
+}
+
+
+void FUpdateContextPrivate::SetMaxLOD(int32 MaxLOD)
+{
+	CapturedDescriptor.SetMaxLod(MaxLOD);
+	CapturedDescriptorHash.MaxLOD = MaxLOD;
+}
+
+
+const TArray<uint16>& FUpdateContextPrivate::GetRequestedLODs() const
+{
+	return CapturedDescriptor.GetRequestedLODLevels();
+}
+
+
+void FUpdateContextPrivate::SetRequestedLODs(TArray<uint16>& RequestedLODs)
+{
+	CapturedDescriptor.SetRequestedLODLevels(RequestedLODs);
+	CapturedDescriptorHash.RequestedLODsPerComponent = RequestedLODs;
+}
+
+
+const FCustomizableObjectInstanceDescriptor& FUpdateContextPrivate::GetCapturedDescriptor() const
+{
+	return CapturedDescriptor;
+}
+
+
+const FDescriptorHash& FUpdateContextPrivate::GetCapturedDescriptorHash() const
+{
+	return CapturedDescriptorHash;
+}
+
+
+const FCustomizableObjectInstanceDescriptor&& FUpdateContextPrivate::MoveCommittedDescriptor()
+{
+	return MoveTemp(CapturedDescriptor);	
 }
 
 
@@ -759,8 +818,20 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		case EUpdateResult::Warning:
 			PrivateInstance->SkeletalMeshStatus = ESkeletalMeshStatus::Success;
 
-			PrivateInstance->DescriptorHash = Context->InstanceDescriptorHash;
+			if (SystemPrivate)
+			{
+				SystemPrivate->UnCacheTextureParameters(PrivateInstance->CommittedDescriptor.GetTextureParameters());				
+			}
 
+			PrivateInstance->CommittedDescriptor = Context->MoveCommittedDescriptor();
+			PrivateInstance->CommittedDescriptorHash = Context->GetCapturedDescriptorHash();
+
+			if (SystemPrivate)
+			{
+				// Cache new Texture Parameters
+				SystemPrivate->CacheTextureParameters(PrivateInstance->CommittedDescriptor.GetTextureParameters());
+			}
+			
 			// Delegates must be called only after updating the Instance flags.
 			Instance->UpdatedDelegate.Broadcast(Instance);
 			Instance->UpdatedNativeDelegate.Broadcast(Instance);
@@ -1149,7 +1220,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 		if (const FMutablePendingInstanceUpdate* QueueElem = MutablePendingInstanceWork.GetUpdate(Instance))
 		{
-			if (InstancePrivate->UpdateDescriptorHash.IsSubset(FDescriptorHash(QueueElem->Context->InstanceDescriptorHash)))
+			if (Context->GetCapturedDescriptorHash().IsSubset(QueueElem->Context->GetCapturedDescriptorHash()))
 			{
 				Context->UpdateResult = EUpdateResult::ErrorOptimized;
 				FinishUpdateGlobal(Context);			
@@ -1159,14 +1230,14 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 		if (CurrentMutableOperation &&
 			Instance == CurrentMutableOperation->Instance &&
-			InstancePrivate->UpdateDescriptorHash.IsSubset(CurrentMutableOperation->InstanceDescriptorHash))
+			Context->GetCapturedDescriptorHash().IsSubset(CurrentMutableOperation->GetCapturedDescriptorHash()))
 		{
 			Context->UpdateResult = EUpdateResult::ErrorOptimized;
 			FinishUpdateGlobal(Context);
 			return; // The requested update is equal to the running update.
 		}
 	
-		if (InstancePrivate->UpdateDescriptorHash.IsSubset(InstancePrivate->DescriptorHash) &&
+		if (Context->GetCapturedDescriptorHash().IsSubset(InstancePrivate->CommittedDescriptorHash) &&
 			!(CurrentMutableOperation &&
 			Instance == CurrentMutableOperation->Instance)) // This condition is necessary because even if the descriptor is a subset, it will be replaced by the CurrentMutableOperation
 		{
@@ -1176,43 +1247,11 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 		}
 		else
 		{
-			// Cache Texture Parameters being used during the update:
-			check(ImageProvider);
-
-			// Cache new Texture Parameters
-			for (const FCustomizableObjectTextureParameterValue& TextureParameters : Instance->GetDescriptor().GetTextureParameters())
-			{
-				ImageProvider->CacheImage(TextureParameters.ParameterValue, false);
-
-				for (const FName& TextureParameter : TextureParameters.ParameterRangeValues)
-				{
-					ImageProvider->CacheImage(TextureParameter, false);
-				}
-			}
-
-			// Uncache old Texture Parameters
-			for (const FName& TextureParameter : InstancePrivate->UpdateTextureParameters)
-			{
-				ImageProvider->UnCacheImage(TextureParameter, false);
-			}
-
-			// Update which ones are currently are being used
-			InstancePrivate->UpdateTextureParameters.Reset();
-			for (const FCustomizableObjectTextureParameterValue& TextureParameters : Instance->GetDescriptor().GetTextureParameters())
-			{
-				InstancePrivate->UpdateTextureParameters.Add(TextureParameters.ParameterValue);
-
-				for (const FName& TextureParameter : TextureParameters.ParameterRangeValues)
-				{
-					InstancePrivate->UpdateTextureParameters.Add(TextureParameter);
-				}
-			}
-
 			if (CVarDescriptorDebugPrint->GetBool())
 			{
 				FString String = TEXT("DESCRIPTOR DEBUG PRINT\n");
 				String += "================================\n";				
-				String += FString::Printf(TEXT("=== DESCRIPTOR HASH ===\n%s\n"), *InstancePrivate->UpdateDescriptorHash.ToString());
+				String += FString::Printf(TEXT("=== DESCRIPTOR HASH ===\n%s\n"), *Context->GetCapturedDescriptorHash().ToString());
 				String += FString::Printf(TEXT("=== DESCRIPTOR ===\n%s"), *Instance->GetDescriptor().ToString());
 				String += "================================";
 				
@@ -1600,7 +1639,7 @@ namespace impl
 			UE_LOG(LogMutable, Verbose, TEXT("Creating Mutable instance with id [%d] "), Operation->InstanceID);
 		}
 
-		Operation->MutableInstance = MutableSystem->BeginUpdate(Operation->InstanceID, Operation->Parameters, Operation->State, mu::System::AllLODs);
+		Operation->MutableInstance = MutableSystem->BeginUpdate(Operation->InstanceID, Operation->Parameters, Operation->GetCapturedDescriptor().GetState(), mu::System::AllLODs);
 	}
 
 	
@@ -1608,29 +1647,36 @@ namespace impl
 	{
 		Operation->NumLODsAvailable = Operation->MutableInstance->GetLODCount();
 
-		if (Operation->CurrentMinLOD >= Operation->NumLODsAvailable)
+		int32 CurrentMinLOD = Operation->GetMinLOD();
+		int32 CurrentMaxLOD = Operation->GetMaxLOD();
+
+		if (CurrentMinLOD >= Operation->NumLODsAvailable)
 		{
-			Operation->CurrentMinLOD = Operation->NumLODsAvailable - 1;
-			Operation->CurrentMaxLOD = Operation->CurrentMinLOD;
+			CurrentMinLOD = Operation->NumLODsAvailable - 1;
+			CurrentMaxLOD = CurrentMinLOD;
 		}
-		else if (Operation->CurrentMaxLOD >= Operation->NumLODsAvailable)
+		else if (CurrentMaxLOD >= Operation->NumLODsAvailable)
 		{
-			Operation->CurrentMaxLOD = Operation->NumLODsAvailable - 1;
+			CurrentMaxLOD = Operation->NumLODsAvailable - 1;
 		}
 
+		Operation->SetMinLOD(CurrentMinLOD);
+		Operation->SetMaxLOD(CurrentMaxLOD);
+
 		// Initialize RequestedLODs to zero if not set
-		Operation->RequestedLODs.SetNumZeroed(Operation->NumComponents);
+		TArray<uint16> RequestedLODs;
+		RequestedLODs.SetNumZeroed(Operation->NumComponents);
 
 		for (int32 ComponentIndex = 0; ComponentIndex < Operation->NumComponents; ++ComponentIndex)
 		{
 			// Ensure we're generating at least one LOD
-			for (int32 LODIndex = Operation->CurrentMaxLOD; LODIndex < MAX_MESH_LOD_COUNT; ++LODIndex)
+			for (int32 LODIndex = CurrentMaxLOD; LODIndex < MAX_MESH_LOD_COUNT; ++LODIndex)
 			{
-				Operation->RequestedLODs[ComponentIndex] |= (1 << LODIndex);
+				RequestedLODs[ComponentIndex] |= (1 << LODIndex);
 			}
 		}
 
-		Operation->InstanceDescriptorHash.UpdateRequestedLODs(Operation->RequestedLODs);
+		Operation->SetRequestedLODs(RequestedLODs);
 	}
 	
 	
@@ -1682,7 +1728,7 @@ namespace impl
 		for (int32 MutableLODIndex = 0; MutableLODIndex < Instance->GetLODCount(); ++MutableLODIndex)
 		{
 			// Skip LODs outside the range we want to generate
-			if (MutableLODIndex < OperationData->CurrentMinLOD || MutableLODIndex > OperationData->CurrentMaxLOD)
+			if (MutableLODIndex < OperationData->GetMinLOD() || MutableLODIndex > OperationData->GetMaxLOD())
 			{
 				continue;
 			}
@@ -1699,7 +1745,8 @@ namespace impl
 				Component.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
 				Component.SurfaceCount = 0;
 
-				const bool bGenerateLOD = OperationData->RequestedLODs.IsValidIndex(Component.Id) ? (OperationData->RequestedLODs[Component.Id] & (1 << MutableLODIndex)) != 0 : true;
+				const TArray<uint16>& RequestedLODs = OperationData->GetRequestedLODs();
+				const bool bGenerateLOD = RequestedLODs.IsValidIndex(Component.Id) ? (RequestedLODs[Component.Id] & (1 << MutableLODIndex)) != 0 : true;
 
 				// Mesh
 				if (Instance->GetMeshCount(MutableLODIndex, ComponentIndex) > 0)
@@ -2096,7 +2143,7 @@ namespace impl
 		// TODO: Not strictly mutable: move to another worker thread task to free mutable access?
 		Subtask_Mutable_PrepareSkeletonData(OperationData);
 
-		if (OperationData->bBuildParameterRelevancy)
+		if (OperationData->GetCapturedDescriptor().GetBuildParameterRelevancy())
 		{
 			Subtask_Mutable_UpdateParameterRelevancy(OperationData);
 		}
@@ -2415,7 +2462,7 @@ namespace impl
 			return;
 		}
 		
-		if (OperationData->bBuildParameterRelevancy)
+		if (OperationData->GetCapturedDescriptor().GetBuildParameterRelevancy())
 		{
 			// Relevancy
 			ObjectInstancePrivateData->RelevantParameters = OperationData->RelevantParametersInProgress;
@@ -2593,10 +2640,12 @@ namespace impl
 		{
 			TArray<mu::FResourceID>& MeshId = Operation->MeshDescriptors[ComponentIndex];
 			MeshId.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
+
+			const TArray<uint16>& RequestedLODs = Operation->GetRequestedLODs();
 			
-			for (int32 LODIndex = Operation->CurrentMinLOD; LODIndex <= Operation->CurrentMaxLOD; ++LODIndex)
+			for (int32 LODIndex = Operation->GetMinLOD(); LODIndex <= Operation->GetMaxLOD(); ++LODIndex)
 			{
-				const bool bGenerateLOD = Operation->RequestedLODs.IsValidIndex(ComponentIndex) ? (Operation->RequestedLODs[ComponentIndex] & (1 << LODIndex)) != 0 : true;
+				const bool bGenerateLOD = RequestedLODs.IsValidIndex(ComponentIndex) ? (RequestedLODs[ComponentIndex] & (1 << LODIndex)) != 0 : true;
 				if (bGenerateLOD)
 				{
 					MeshId[LODIndex] = Operation->MutableInstance->GetMeshId(LODIndex, ComponentIndex, 0);
@@ -2646,7 +2695,7 @@ namespace impl
 		}
 
 		// Skip update, the requested update is equal to the running update.
-		if (Operation->InstanceDescriptorHash.IsSubset(CandidateInstance->GetPrivate()->DescriptorHash))
+		if (Operation->GetCapturedDescriptorHash().IsSubset(CandidateInstancePrivateData->CommittedDescriptorHash))
 		{
 			System->ClearCurrentMutableOperation();
 
@@ -2699,8 +2748,6 @@ namespace impl
 		check(SystemPrivateData->ExtensionDataStreamer != nullptr);
 		SystemPrivateData->ExtensionDataStreamer->SetActiveObject(CustomizableObject);
 
-		CandidateInstance->CommitMinMaxLOD();
-
 		FString StateName = CandidateInstance->GetCustomizableObject()->GetStateName(CandidateInstance->GetState());
 		const FParameterUIData* StateData = CandidateInstance->GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(StateName);
 
@@ -2747,8 +2794,6 @@ namespace impl
 		
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
-		Operation->CurrentMinLOD = Operation->InstanceDescriptorHash.GetMinLOD();
-		Operation->CurrentMaxLOD = Operation->InstanceDescriptorHash.GetMaxLOD();
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
 		Operation->bUseMeshCache = CustomizableObject->IsMeshCacheEnabled() && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
 #if WITH_EDITOR
@@ -2798,8 +2843,10 @@ namespace impl
 			!System->CurrentInstanceLODManagement->IsOnlyGenerateRequestedLODLevelsEnabled() ||
 			bIsInEditorViewport)
 		{
-			Operation->RequestedLODs.Init(MAX_uint8, Operation->NumComponents);
-			Operation->InstanceDescriptorHash.UpdateRequestedLODs(Operation->RequestedLODs);
+			TArray<uint16> RequestedLODs = Operation->GetRequestedLODs();
+			RequestedLODs.Init(MAX_uint8, Operation->NumComponents);
+
+			Operation->SetRequestedLODs(RequestedLODs);
 		}
 
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
@@ -3079,7 +3126,10 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 				// Commit the LOD changes
 				LODUpdateCandidateFound->ApplyLODUpdateParamsToInstance();
 
-				const TSharedRef<FUpdateContextPrivate> Context = MakeShared<FUpdateContextPrivate>(*LODUpdateCandidateFound->CustomizableObjectInstance);
+				UCustomizableObjectInstance* Instance = LODUpdateCandidateFound->CustomizableObjectInstance;
+				FCustomizableObjectInstanceDescriptor& Descriptor = Instance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::NotGenerated ? Instance->GetDescriptor() : Instance->GetPrivate()->CommittedDescriptor;
+
+				const TSharedRef<FUpdateContextPrivate> Context = MakeShared<FUpdateContextPrivate>(*Instance, Descriptor);
 				Private->StartUpdateSkeletalMesh(Context);
 			}
 		}
@@ -3235,31 +3285,29 @@ void UCustomizableObjectSystem::UnregisterImageProvider(UCustomizableSystemImage
 }
 
 
-void CacheTexturesParameters(const TArray<FName>& TextureParameters)
+void UCustomizableObjectSystemPrivate::CacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const
 {
-	if (!TextureParameters.IsEmpty() && UCustomizableObjectSystem::IsCreated())
+	for (const FCustomizableObjectTextureParameterValue& TextureParameter : TextureParameters)
 	{
-		FUnrealMutableImageProvider* ImageProvider = UCustomizableObjectSystem::GetInstance()->GetPrivateChecked()->GetImageProviderChecked();
-		check(ImageProvider);
+		ImageProvider->CacheImage(TextureParameter.ParameterValue, false);
 
-		for (const FName& TextureParameter : TextureParameters)
+		for (const FName& RangeValue : TextureParameter.ParameterRangeValues)
 		{
-			ImageProvider->CacheImage(TextureParameter, false);
+			ImageProvider->CacheImage(RangeValue, false);
 		}
 	}
 }
 
 
-void UnCacheTexturesParameters(const TArray<FName>& TextureParameters)
+void UCustomizableObjectSystemPrivate::UnCacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const
 {
-	if (!TextureParameters.IsEmpty() && UCustomizableObjectSystem::IsCreated())
+	for (const FCustomizableObjectTextureParameterValue& TextureParameter : TextureParameters)
 	{
-		FUnrealMutableImageProvider* ImageProvider = UCustomizableObjectSystem::GetInstance()->GetPrivateChecked()->GetImageProviderChecked();
-		check(ImageProvider);
+		ImageProvider->UnCacheImage(TextureParameter.ParameterValue, false);
 
-		for (const FName& TextureParameter : TextureParameters)
+		for (const FName& RangeValue : TextureParameter.ParameterRangeValues)
 		{
-			ImageProvider->UnCacheImage(TextureParameter, false);
+			ImageProvider->UnCacheImage(RangeValue, false);
 		}
 	}
 }

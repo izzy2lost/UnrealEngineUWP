@@ -194,8 +194,8 @@ void UCustomizableInstancePrivate::InvalidateGeneratedData()
 	SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 	SkeletalMeshes.Reset();
 
-	DescriptorHash = FDescriptorHash();
-	UpdateDescriptorHash = FDescriptorHash();
+	CommittedDescriptor = {};
+	CommittedDescriptorHash = {};
 
 	// Init Component Data
 	FCustomizableInstanceComponentData TemplateComponentData;
@@ -478,12 +478,7 @@ void UCustomizableInstancePrivate::ReleaseMutableResources(bool bCalledFromBegin
 		// Remove all references to cached Texture Parameters. Only if we're destroying the COI.
 		if (bCalledFromBeginDestroy)
 		{
-			FUnrealMutableImageProvider* ImageProvider = UCustomizableObjectSystem::GetInstance()->GetPrivateChecked()->GetImageProviderChecked();
-
-			for (const FName& TextureParameter : UpdateTextureParameters)
-			{
-				ImageProvider->UnCacheImage(TextureParameter, false);
-			}
+			CustomizableObjectSystem->UnCacheTextureParameters(CommittedDescriptor.GetTextureParameters());
 		}
 	}
 
@@ -1734,7 +1729,7 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 	MeshIDs.Init(MAX_uint64, NumComponents * MAX_MESH_LOD_COUNT);
 
 	// Gather the Mesh Ids of all components, and validate the integrity of the meshes to generate. 
-	for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD && LODIndex < NumLODs; ++LODIndex)
+	for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex <= OperationData->GetMaxLOD() && LODIndex < NumLODs; ++LODIndex)
 	{
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
@@ -1759,7 +1754,7 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 			{
 				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] has invalid geometry for LOD [%d] Component [%d]."),
 					*Public->GetName(), *CustomizableObject->GetName(),
-					OperationData->CurrentMaxLOD, ComponentIndex);
+					OperationData->GetMaxLOD(), ComponentIndex);
 				bHasInvalidMesh = true;
 				continue;
 			}
@@ -1785,11 +1780,11 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		}
 
 		// Components with mesh must have valid geometry at CurrentMaxLOD
-		if (ComponentWithMesh[ComponentIndex] && MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + OperationData->CurrentMaxLOD] == MAX_uint64)
+		if (ComponentWithMesh[ComponentIndex] && MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + OperationData->GetMaxLOD()] == MAX_uint64)
 		{
 			UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] is missing geometry for LOD [%d] Component [%d]."),
 				*Public->GetName(), *CustomizableObject->GetName(),
-				OperationData->CurrentMaxLOD, ComponentIndex);
+				OperationData->GetMaxLOD(), ComponentIndex);
 			bHasInvalidMesh = true;
 			continue;
 		}
@@ -2932,26 +2927,14 @@ void FMutableUpdateCandidate::ApplyLODUpdateParamsToInstance(FUpdateContextPriva
 {
 	CustomizableObjectInstance->Descriptor.MinLOD = MinLOD;
 	CustomizableObjectInstance->Descriptor.MaxLOD = MaxLOD;
-
 	CustomizableObjectInstance->Descriptor.RequestedLODLevels = RequestedLODLevels;
-
-	CustomizableObjectInstance->GetPrivate()->UpdateDescriptorHash.UpdateMinMaxLOD(MinLOD, MaxLOD);
-	CustomizableObjectInstance->GetPrivate()->UpdateDescriptorHash.UpdateRequestedLODs(CustomizableObjectInstance->Descriptor.RequestedLODLevels);
 
 	if (Context)
 	{
-		Context->InstanceDescriptorHash = CustomizableObjectInstance->GetPrivate()->UpdateDescriptorHash;
-		Context->CurrentMinLOD = MinLOD;
-		Context->CurrentMaxLOD = MaxLOD;
-		Context->RequestedLODs = RequestedLODLevels;
+		Context->SetMinLOD(MinLOD);
+		Context->SetMaxLOD(MaxLOD);
+		Context->SetRequestedLODs(RequestedLODLevels);
 	}
-}
-
-
-void UCustomizableObjectInstance::CommitMinMaxLOD()
-{
-	CurrentMinLOD = Descriptor.MinLOD;
-	CurrentMaxLOD = Descriptor.MaxLOD;	
 }
 
 
@@ -3366,7 +3349,7 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		SkeletalMesh->AllocateResourceForRendering();
 
 		FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
-		for (int32 LODIndex = 0; LODIndex <= OperationData->CurrentMaxLOD; ++LODIndex)
+		for (int32 LODIndex = 0; LODIndex <= OperationData->GetMaxLOD(); ++LODIndex)
 		{
 			RenderData->LODRenderData.Add(new FSkeletalMeshLODRenderData());
 
@@ -3634,7 +3617,7 @@ void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpda
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyElementData);
 
-	for (int32 LODIndex = OperationData->CurrentMaxLOD; LODIndex >= FirstLODAvailable; --LODIndex)
+	for (int32 LODIndex = OperationData->GetMaxLOD(); LODIndex >= FirstLODAvailable; --LODIndex)
 	{
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
@@ -3691,12 +3674,12 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 
 	const int32 SkeletalMeshMorphTargetsNum = SkeletalMesh->GetMorphTargets().Num();
 
-	int32 LastValidLODIndex = OperationData->CurrentMaxLOD;
-	for (int32 LODIndex = OperationData->CurrentMaxLOD; LODIndex >= FirstLODAvailable; --LODIndex)
+	int32 LastValidLODIndex = OperationData->GetMaxLOD();
+	for (int32 LODIndex = OperationData->GetMaxLOD(); LODIndex >= FirstLODAvailable; --LODIndex)
 	{
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
-		if (LODIndex >= OperationData->CurrentMinLOD && OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex].bGenerated)
+		if (LODIndex >= OperationData->GetMinLOD() && OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex].bGenerated)
 		{
 			LastValidLODIndex = LODIndex;
 		}
@@ -3852,7 +3835,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	{
 		MUTABLE_CPUPROFILER_SCOPE(DiscoverSectionsWithCloth);
 
-		for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD; ++LODIndex)
+		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex <= OperationData->GetMaxLOD(); ++LODIndex)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 			if (ComponentIndex >= LOD.ComponentCount)
@@ -3978,7 +3961,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 			// Only initilialize once, multiple sections with cloth could point to the same cloth asset.
 			if (!DstAssetData.LodMap.Num())
 			{
-				DstAssetData.LodMap.Init( INDEX_NONE, OperationData->CurrentMaxLOD + 1 );
+				DstAssetData.LodMap.Init( INDEX_NONE, OperationData->GetMaxLOD() + 1 );
 
 				DstAssetData.LodData.SetNum( SrcAssetData.LodData.Num() );
 				DstAssetData.UsedBoneNames = SrcAssetData.UsedBoneNames;
@@ -4512,7 +4495,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	{
 		int32 NumSectionsWithClothProcessed = 0;
 
-		for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD; ++LODIndex)
+		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex <= OperationData->GetMaxLOD(); ++LODIndex)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 			if (ComponentIndex >= LOD.ComponentCount)
@@ -4565,7 +4548,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	{
 		MUTABLE_CPUPROFILER_SCOPE(InitClothRenderData)
 		// Based on FSkeletalMeshLODModel::GetClothMappingData().
-		for (int32 LODIndex = OperationData->CurrentMinLOD; LODIndex <= OperationData->CurrentMaxLOD; ++LODIndex)
+		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex <= OperationData->GetMaxLOD(); ++LODIndex)
 		{
 			FSkeletalMeshLODRenderData& LODModel = RenderResource->LODRenderData[LODIndex];
 	
@@ -4683,8 +4666,8 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 	check(CustomizableObject);
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-	int32 LastValidLODIndex = OperationData->CurrentMaxLOD;
-	for (int32 LODIndex = OperationData->CurrentMaxLOD; LODIndex >= FirstLODAvailable; --LODIndex)
+	int32 LastValidLODIndex = OperationData->GetMaxLOD();
+	for (int32 LODIndex = OperationData->GetMaxLOD(); LODIndex >= FirstLODAvailable; --LODIndex)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildOrCopyRenderData_LODLoop);
 
@@ -4694,7 +4677,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		if (ComponentIndex >=  LOD.ComponentCount)
 		{
 			// Interrupt the generation if the LOD is empty and it should have been generated.
-			if (LODIndex >= OperationData->CurrentMinLOD && LODIndex <= OperationData->CurrentMaxLOD)
+			if (LODIndex >= OperationData->GetMinLOD() && LODIndex <= OperationData->GetMaxLOD())
 			{
 				UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] with no component.")
 					, *SkeletalMesh->GetName()
@@ -4938,7 +4921,7 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 	// Load assets coming from SubMeshes of the newly generated Mesh
 	if (OperationData->InstanceUpdateData.LODs.Num())
 	{
-		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[OperationData->CurrentMinLOD];
+		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[OperationData->GetMinLOD()];
 		for (int32 ComponentIndex = 0; ComponentIndex < LOD.ComponentCount; ++ComponentIndex)
 		{
 			const FInstanceUpdateData::FComponent& Component = Components[LOD.FirstComponent + ComponentIndex];
@@ -5420,7 +5403,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableSystem,
 		CustomizableObject->GetModel(),
 		OperationData->Parameters,
-	    OperationData->State);
+	    OperationData->GetCapturedDescriptor().GetState());
 	
 	const bool bReuseTextures = OperationData->bReuseInstanceTextures;
 
@@ -5457,7 +5440,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_LODLoop);
 
-		for (int32 LODIndex = FirstLODAvailable; LODIndex <= OperationData->CurrentMaxLOD; LODIndex++)
+		for (int32 LODIndex = FirstLODAvailable; LODIndex <= OperationData->GetMaxLOD(); LODIndex++)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[LOD.FirstComponent + ComponentIndex];
@@ -5970,8 +5953,8 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 		{
 			// Copy data from valid LODs into the skipped ones.
-			int32 LastValidLODIndex = OperationData->CurrentMaxLOD;
-			for (int32 LODIndex = OperationData->CurrentMaxLOD; LODIndex >= FirstLODAvailable; --LODIndex)
+			int32 LastValidLODIndex = OperationData->GetMaxLOD();
+			for (int32 LODIndex = OperationData->GetMaxLOD(); LODIndex >= FirstLODAvailable; --LODIndex)
 			{
 				// Copy information from the LastValidLODIndex
 				if (LODsSkipped[LODIndex])
@@ -6178,13 +6161,13 @@ int32 UCustomizableObjectInstance::GetNumLODsAvailable() const
 
 int32 UCustomizableObjectInstance::GetCurrentMinLOD() const
 {
-	return CurrentMinLOD;
+	return GetPrivate()->CommittedDescriptor.GetMinLod();
 }
 
 
 int32 UCustomizableObjectInstance::GetCurrentMaxLOD() const
 {
-	return CurrentMaxLOD;
+	return GetPrivate()->CommittedDescriptor.GetMaxLod();
 }
 
 #if !UE_BUILD_SHIPPING
@@ -6257,9 +6240,9 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 		const int32 ComponentCount = GetNumComponents();
 		MutableUpdateCandidate.RequestedLODLevels.SetNumZeroed(ComponentCount);
 
-		const TArray<uint16>& GeneratedLODsPerComponent = GetPrivate()->DescriptorHash.GetRequestedLODs();
+		const TArray<uint16>& GeneratedLODsPerComponent = GetPrivate()->CommittedDescriptorHash.RequestedLODsPerComponent;
 
-		const bool bIgnoreGeneratedLODs = GetPrivate()->DescriptorHash != GetPrivate()->UpdateDescriptorHash || GeneratedLODsPerComponent.Num() != ComponentCount;
+		const bool bIgnoreGeneratedLODs = GeneratedLODsPerComponent.Num() != ComponentCount;
 
 		if (bMinMaxLODChanged || bIgnoreGeneratedLODs || Descriptor.GetRequestedLODLevels() != InRequestedLODsPerComponent)
 		{

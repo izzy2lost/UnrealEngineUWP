@@ -417,11 +417,31 @@ struct FInstanceUpdateData
 class FUpdateContextPrivate : public FGCObject
 {
 public:
+	FUpdateContextPrivate(UCustomizableObjectInstance& InInstance, const FCustomizableObjectInstanceDescriptor& Descriptor);
+
 	FUpdateContextPrivate(UCustomizableObjectInstance& InInstance);
 	virtual ~FUpdateContextPrivate() override;
 
 	virtual FString GetReferencerName() const override;
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+
+	int32 GetMinLOD() const;
+
+	void SetMinLOD(int32 MinLOD);
+
+	int32 GetMaxLOD() const;
+
+	void SetMaxLOD(int32 MaxLOD);
+
+	const TArray<uint16>& GetRequestedLODs() const;
+
+	void SetRequestedLODs(TArray<uint16>& RequestedLODs);
+
+	const FCustomizableObjectInstanceDescriptor& GetCapturedDescriptor() const;
+
+	const FDescriptorHash& GetCapturedDescriptorHash() const;
+
+	const FCustomizableObjectInstanceDescriptor&& MoveCommittedDescriptor();
 	
 	EQueuePriorityType PriorityType = EQueuePriorityType::Low;
 	
@@ -432,19 +452,17 @@ public:
 	 *It is weak because we don't want to lock it in case it becomes irrelevant in the game while operations are pending and it needs to be destroyed. */
 	TWeakObjectPtr<UCustomizableObjectInstance> Instance;
 
-	/** Hash of the UCustomizableObjectInstance::Descriptor at the time of the update request. */
-	FDescriptorHash InstanceDescriptorHash;
-			
+private:
+	/** Descriptor which the update will be performed on. */
+	FCustomizableObjectInstanceDescriptor CapturedDescriptor;
+
+	/** Hash of the descriptor. */
+	FDescriptorHash CapturedDescriptorHash;
+
+public:
 	/** Instance parameters at the time of the operation request. */
 	mu::ParametersPtr Parameters; 
 	
-	TArray<FName> TextureParameters;
-
-	bool bBuildParameterRelevancy = false;
-
-	/** Instance state. */
-	int32 State = 0;
-
 	bool bOnlyUpdateIfNotGenerated = false;
 	bool bIgnoreCloseDist = false;
 	bool bForceHighPriority = false;
@@ -470,11 +488,6 @@ public:
 
 	int32 NumComponents = 0;
 	int32 NumLODsAvailable = 0;
-
-	int32 CurrentMinLOD = 0;
-	int32 CurrentMaxLOD = 0;
-
-	TArray<uint16> RequestedLODs;
 
 	TMap<uint32, FTexturePlatformData*> ImageToPlatformDataMap;
 
@@ -650,6 +663,10 @@ public:
 	/** Update stats at each tick.
 	 * Used for stats that are costly to update. */
 	void UpdateStats();
+
+	void CacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
+
+	void UnCacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
 	
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;
