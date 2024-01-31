@@ -677,13 +677,31 @@ void UAvalancheLevelStreamingPlayable::GetOrLoadSubPlayable(const ULevelStreamin
 	}
 
 	const FSoftObjectPath SourceAssetPath = InLevelStreaming->GetWorldAsset().ToSoftObjectPath();
-	
-	// Assume sub playables are shared, i.e. unique instance per group. For now.
-	// Need to see with Brad how to determine instancing scope (i.e. global vs local).	
-	if (UAvalancheLevelStreamingPlayable* ExistingPlayable = Cast<UAvalancheLevelStreamingPlayable>(PlayableGroup->FindFirstPlayableBySourceAssetPath(SourceAssetPath)))
+
+	// Check already loaded sub-playables
+	for (const TObjectPtr<UAvalancheLevelStreamingPlayable>& SubPlayable : SubPlayables)
 	{
-		AddSubPlayable(ExistingPlayable);
-		return;
+		if (SubPlayable->GetSourceAssetPath() == SourceAssetPath)
+		{
+			return; // Already loaded.
+		}
+	}
+	
+	// For now, sub playables are shared globally, i.e. unique instance per group.
+	// Todo: We could support instancing scope (i.e. global vs local). Would require additional asset/scene info.
+	TArray<UAvalanchePlayable*> FoundPlayables;
+	PlayableGroup->FindPlayablesBySourceAssetPath(SourceAssetPath, FoundPlayables);
+	for (UAvalanchePlayable* FoundPlayable : FoundPlayables)
+	{
+		if (UAvalancheLevelStreamingPlayable* ExistingPlayable = Cast<UAvalancheLevelStreamingPlayable>(FoundPlayable))
+		{
+			// Only use the existing playable if it is a sub-playable already.
+			if (ExistingPlayable->HasParentPlayables())
+			{
+				AddSubPlayable(ExistingPlayable);
+				return;
+			}
+		}
 	}
 
 	if (UAvalancheLevelStreamingPlayable* NewPlayable = CreateSubPlayable(PlayableGroup, SourceAssetPath))

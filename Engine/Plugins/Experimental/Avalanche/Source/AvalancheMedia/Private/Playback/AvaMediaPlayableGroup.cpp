@@ -171,17 +171,16 @@ bool UAvaMediaPlayableGroup::HasPlayingPlayables() const
 	return false;
 }
 
-UAvalanchePlayable* UAvaMediaPlayableGroup::FindFirstPlayableBySourceAssetPath(const FSoftObjectPath& InSourceAssetPath) const
+void UAvaMediaPlayableGroup::FindPlayablesBySourceAssetPath(const FSoftObjectPath& InSourceAssetPath, TArray<UAvalanchePlayable*>& OutFoundPlayables) const
 {
 	for (const TObjectKey<UAvalanchePlayable>& PlayableKey : Playables)
 	{
 		UAvalanchePlayable* Playable = PlayableKey.ResolveObjectPtr();
 		if (Playable && Playable->GetSourceAssetPath() == InSourceAssetPath)
 		{
-			return Playable;
+			OutFoundPlayables.Add(Playable);
 		}
 	}
-	return nullptr;
 }
 
 void UAvaMediaPlayableGroup::RegisterPlayableTransition(UAvalanchePlayableTransition* InPlayableTransition)

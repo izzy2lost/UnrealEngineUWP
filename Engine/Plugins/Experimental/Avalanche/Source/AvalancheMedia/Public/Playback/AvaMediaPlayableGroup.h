@@ -66,7 +66,8 @@ public:
 	/** Returns true if there are any valid registered playables that are currently playing. */
 	bool HasPlayingPlayables() const;
 
-	UAvalanchePlayable* FindFirstPlayableBySourceAssetPath(const FSoftObjectPath& InSourceAssetPath) const;
+	/** Finds all the playables that are instances of the given source asset. */
+	void FindPlayablesBySourceAssetPath(const FSoftObjectPath& InSourceAssetPath, TArray<UAvalanchePlayable*>& OutFoundPlayables) const;
 
 	void RegisterPlayableTransition(UAvalanchePlayableTransition* InPlayableTransition);
 	
