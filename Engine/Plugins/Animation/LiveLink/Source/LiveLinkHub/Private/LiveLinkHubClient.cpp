@@ -383,7 +383,16 @@ void FLiveLinkHubClient::PushSubjectStaticData_AnyThread(const FLiveLinkSubjectK
 		// Note that SetStaticData may not be needed on the hub but we might need it for interpolation or preprocessing in the future.
 		FFunctionGraphTask::CreateAndDispatchWhenReady([this, LiveLinkSubject, SubjectKey, Role, StaticData = MoveTemp(InStaticData)]() mutable
 			{
-				LiveLinkSubject->SetStaticData(Role, MoveTemp(StaticData));
+				FScopeLock Lock(&CollectionAccessCriticalSection);
+				// Validate live link subject hasn't changed
+				if (FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(SubjectKey))
+				{
+					const FLiveLinkSubject* CurrentLiveLinkSubject = SubjectItem->GetLiveSubject();
+					if (LiveLinkSubject == CurrentLiveLinkSubject)
+					{
+						LiveLinkSubject->SetStaticData(Role, MoveTemp(StaticData));
+					}
+				}
 			}, TStatId(), nullptr, ENamedThreads::GameThread);
 	}
 

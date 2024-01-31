@@ -102,7 +102,7 @@ public:
 
 	void CacheSettings(ULiveLinkSourceSettings* SourceSetting, ULiveLinkSubjectSettings* SubjectSetting);
 
-	ELiveLinkSourceMode GetMode() const { return CachedSettings.SourceMode; }
+	ELiveLinkSourceMode GetMode() const;
 	FLiveLinkSubjectTimeSyncData GetTimeSyncData();
 	bool IsTimeSynchronized() const;
 
@@ -197,6 +197,9 @@ private:
 
 	// Connection settings specified by user
 	FLiveLinkCachedSettings CachedSettings;
+
+	// Override mode, determined by frame data
+	TOptional<ELiveLinkSourceMode> ModeOverride;
 
 	// Last time a frame was pushed
 	double LastPushTime = 0.0;

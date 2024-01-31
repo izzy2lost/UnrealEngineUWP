@@ -8,6 +8,8 @@
 class FLiveLinkPlaybackTrackIterator
 {
 public:
+	virtual ~FLiveLinkPlaybackTrackIterator() = default;
+
 	FLiveLinkPlaybackTrackIterator(FLiveLinkPlaybackTrack& InTrack, int32 InInitialIndex)
 		: Track(InTrack)
 		, FrameIndex(InInitialIndex)
@@ -28,7 +30,7 @@ public:
 
 	double FrameTimestamp() const
 	{
-		return Track.Timestamps[FrameIndex];
+		return FrameIndex >= 0 && FrameIndex < Track.Timestamps.Num() ? Track.Timestamps[FrameIndex] : 0.f;
 	}
 
 	const FInstancedStruct& FrameData() const
@@ -41,29 +43,67 @@ public:
 		return FrameIndex;
 	}
 
-private:
+protected:
 	/* @Return True if there are more vertices on the component */
-	bool HasMoreFrames() const
-	{
-		return FrameIndex < Track.Timestamps.Num() && FrameIndex < Track.FrameData.Num();
-	}
+	virtual bool HasMoreFrames() const = 0;
 
 	/* Advances to the next frame */
-	void Advance()
-	{
-		++FrameIndex;
-	}
+	virtual void Advance() = 0;
 
-private:
+protected:
 	/** Track that's currently being iterated. */
 	FLiveLinkPlaybackTrack& Track;
 	/** "Playhead" for this track */
 	int32 FrameIndex = 0;
 };
 
+class FLiveLinkPlaybackTrackForwardIterator : public FLiveLinkPlaybackTrackIterator
+{
+public:
+	FLiveLinkPlaybackTrackForwardIterator(FLiveLinkPlaybackTrack& InTrack, int32 InInitialIndex)
+		: FLiveLinkPlaybackTrackIterator(InTrack, InInitialIndex)
+	{
+	}
+
+private:
+	/* @Return True if there are more vertices on the component */
+	virtual bool HasMoreFrames() const override
+	{
+		return FrameIndex < Track.Timestamps.Num() && FrameIndex < Track.FrameData.Num();
+	}
+
+	/* Advances to the next frame */
+	virtual void Advance() override
+	{
+		++FrameIndex;
+	}
+};
+
+class FLiveLinkPlaybackTrackReverseIterator : public FLiveLinkPlaybackTrackIterator
+{
+public:
+	FLiveLinkPlaybackTrackReverseIterator(FLiveLinkPlaybackTrack& InTrack, int32 InInitialIndex)
+		: FLiveLinkPlaybackTrackIterator(InTrack, InInitialIndex)
+	{
+	}
+
+private:
+	/* @Return True if there are more vertices on the component */
+	virtual bool HasMoreFrames() const override
+	{
+		return FrameIndex >= 0;
+	}
+
+	/* Advances to the next frame */
+	virtual void Advance() override
+	{
+		--FrameIndex;
+	}
+};
+
 void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames)
 {
-	for (auto It = FLiveLinkPlaybackTrackIterator(*this, LastReadIndex + 1); It; ++It)
+	for (FLiveLinkPlaybackTrackForwardIterator It = FLiveLinkPlaybackTrackForwardIterator(*this, LastReadIndex + 1); It; ++It)
 	{
 		if (It.FrameTimestamp() > InPlayhead)
 		{
@@ -76,9 +116,87 @@ void FLiveLinkPlaybackTrack::GetFramesUntil(double InPlayhead, TArray<FLiveLinkR
 		FrameToPlay.Data = It.FrameData();
 		FrameToPlay.SubjectKey = SubjectKey;
 		FrameToPlay.LiveLinkRole = LiveLinkRole;
+		FrameToPlay.FrameIndex = LastReadIndex;
 
 		OutFrames.Add(MoveTemp(FrameToPlay));
 	}
+}
+
+void FLiveLinkPlaybackTrack::GetFramesUntilReverse(double InPlayhead, TArray<FLiveLinkRecordedFrame>& OutFrames)
+{
+	if (LastReadIndex == INDEX_NONE)
+	{
+		LastReadIndex = FrameData.Num();
+	}
+
+	// We need to look up what the last frame would be if this was running forward, and then end on that frame.
+	// Since we iterate in reverse, but all other operations like GoToFrame use forward look ahead, it's possible the time stamp comparison
+	// will differ by a frame with a reverse look up. There's probably a better way of handling this.
+	const int32 FinalFrameIndex = PlayheadToFrameIndex(InPlayhead);
+	
+	for (FLiveLinkPlaybackTrackReverseIterator It = FLiveLinkPlaybackTrackReverseIterator(*this, LastReadIndex - 1); It; ++It)
+	{
+		if (FinalFrameIndex == LastReadIndex)
+		{
+			break;
+		}
+
+		LastReadIndex = It.CurrentIndex();
+
+		FLiveLinkRecordedFrame FrameToPlay;
+		FrameToPlay.Data = It.FrameData();
+		FrameToPlay.SubjectKey = SubjectKey;
+		FrameToPlay.LiveLinkRole = LiveLinkRole;
+		FrameToPlay.FrameIndex = LastReadIndex;
+
+		OutFrames.Add(MoveTemp(FrameToPlay));
+	}
+}
+
+bool FLiveLinkPlaybackTrack::TryGetFrame(int32 InIndex, FLiveLinkRecordedFrame& OutFrame)
+{
+	if (InIndex >= 0 && InIndex < FrameData.Num())
+	{
+		LastReadIndex = InIndex;
+		
+		FLiveLinkRecordedFrame FrameToPlay;
+		FrameToPlay.Data = FrameData[InIndex];
+		FrameToPlay.SubjectKey = SubjectKey;
+		FrameToPlay.LiveLinkRole = LiveLinkRole;
+		FrameToPlay.FrameIndex = LastReadIndex;
+
+		OutFrame = MoveTemp(FrameToPlay);
+		return true;
+	}
+	
+	return false;
+}
+
+int32 FLiveLinkPlaybackTrack::PlayheadToFrameIndex(double InPlayhead)
+{
+	int32 CurrentIndex = 0;
+
+	for (int32 Idx = 0; Idx < Timestamps.Num(); ++Idx)
+	{
+		if (Timestamps[Idx] > InPlayhead)
+		{
+			break;
+		}
+
+		CurrentIndex = Idx;
+	}
+
+	return CurrentIndex;
+}
+
+double FLiveLinkPlaybackTrack::FrameIndexToPlayhead(int32 InIndex)
+{
+	if (InIndex >= 0 && InIndex < Timestamps.Num())
+	{
+		return Timestamps[InIndex];
+	}
+
+	return INDEX_NONE;
 }
 
 TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFrames(double Playhead)
@@ -97,11 +215,74 @@ TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFrames(double P
 	return NextFrames;
 }
 
-void FLiveLinkPlaybackTracks::Restart()
+TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchPreviousFrames(double Playhead)
+{
+	TArray<FLiveLinkRecordedFrame> PreviousFrames;
+
+	if (Tracks.Num())
+	{
+		// todo: sort frames by timestamp
+		for (FLiveLinkPlaybackTrack& Track : Tracks)
+		{
+			Track.GetFramesUntilReverse(Playhead, PreviousFrames);
+		}
+	}
+
+	return PreviousFrames;
+}
+
+TArray<FLiveLinkRecordedFrame> FLiveLinkPlaybackTracks::FetchNextFramesAtIndex(int32 FrameIndex)
+{
+	TArray<FLiveLinkRecordedFrame> NextFrames;
+
+	if (FrameIndex >= 0)
+	{
+		for (FLiveLinkPlaybackTrack& Track : Tracks)
+		{
+			FLiveLinkRecordedFrame Frame;
+			if (Track.TryGetFrame(FrameIndex, Frame))
+			{
+				NextFrames.Add(MoveTemp(Frame));
+			}
+		}
+	}
+
+	return NextFrames;
+}
+
+int32 FLiveLinkPlaybackTracks::PlayheadToFrameIndex(double InPlayhead)
 {
 	for (FLiveLinkPlaybackTrack& Track : Tracks)
 	{
-		Track.Restart();
+		// todo: Is this the best way to determine if this is keyframe data and not static data?
+		if (Track.LiveLinkRole == nullptr)
+		{
+			return Track.PlayheadToFrameIndex(InPlayhead);
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+double FLiveLinkPlaybackTracks::FrameIndexToPlayhead(int32 InIndex)
+{
+	for (FLiveLinkPlaybackTrack& Track : Tracks)
+	{
+		// todo: Is this the best way to determine if this is keyframe data and not static data?
+		if (Track.LiveLinkRole == nullptr)
+		{
+			return Track.FrameIndexToPlayhead(InIndex);
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+void FLiveLinkPlaybackTracks::Restart(int32 InIndex)
+{
+	for (FLiveLinkPlaybackTrack& Track : Tracks)
+	{
+		Track.Restart(InIndex);
 	}
 }
 
