@@ -5457,6 +5457,16 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 			return CreateIoStoreContainerFiles(CmdLine) == 0;
 		}
 
+		if (FParse::Value(CmdLine, TEXT("-ListContainer="), IoStoreArg))
+		{
+			return ListIoStoreContainer(CmdLine);
+		}
+
+		if (FParse::Value(CmdLine, TEXT("-ListContainerBulkData="), IoStoreArg))
+		{
+			return ListIoStoreContainerBulkData(CmdLine);
+		}
+
 		// IAS commands
 		{
 			if (FParse::Value(CmdLine, TEXT("-Upload="), IoStoreArg))
@@ -5472,16 +5482,6 @@ bool ExecuteUnrealPak(const TCHAR* CmdLine)
 			if (FParse::Param(CmdLine, TEXT("ListTocs")))
 			{
 				return ListOnDemandTocs();
-			}
-
-			if (FParse::Value(CmdLine, TEXT("-ListContainer="), IoStoreArg))
-			{
-				return ListIoStoreContainer(CmdLine);
-			}
-
-			if (FParse::Value(CmdLine, TEXT("-ListContainerBulkData="), IoStoreArg))
-			{
-				return ListIoStoreContainerBulkData(CmdLine);
 			}
 		}
 	}
