@@ -155,7 +155,7 @@ void FLogBenchmarkUtil::UpdateStats()
 
 	// Textures
 	uint32 LocalNumAllocatedTextures = 0;
-	uint32 LocalTextureGPUSize = 0;
+	uint64 LocalTextureGPUSize = 0;
 
 	for (auto Iterator = TextureTrackerArray.CreateIterator(); Iterator; ++Iterator)
 	{
@@ -163,11 +163,16 @@ void FLogBenchmarkUtil::UpdateStats()
 		{
 			Iterator.RemoveCurrent();
 		}
-		else if (Iterator->IsValid() && (*Iterator)->GetResource())
+		else if (Iterator->IsValid())
 		{
 			++LocalNumAllocatedTextures;
 
-			LocalTextureGPUSize += (*Iterator)->CalcTextureMemorySizeEnum(ETextureMipCount::TMC_ResidentMips);
+			UTexture2D* ActualTexture = Iterator->Get();
+
+			if (ActualTexture && ActualTexture->GetResource())
+			{
+				LocalTextureGPUSize += (*Iterator)->CalcTextureMemorySizeEnum(ETextureMipCount::TMC_ResidentMips);
+			}
 		}
 	}
 

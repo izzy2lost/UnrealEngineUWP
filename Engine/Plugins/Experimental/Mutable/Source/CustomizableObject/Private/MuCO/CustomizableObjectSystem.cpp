@@ -3348,7 +3348,7 @@ int32 UCustomizableObjectSystem::GetTotalInstances() const
 	return NumInstances;
 }
 
-int32 UCustomizableObjectSystem::GetTextureMemoryUsed() const
+int64 UCustomizableObjectSystem::GetTextureMemoryUsed() const
 {
 	return GetPrivateChecked()->LogBenchmarkUtil.TextureGPUSize.GetValue();
 }
