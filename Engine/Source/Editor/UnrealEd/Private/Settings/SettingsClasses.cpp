@@ -514,6 +514,8 @@ ULevelEditorPlaySettings::ULevelEditorPlaySettings( const FObjectInitializer& Ob
 	bShowServerDebugDrawingByDefault = true;
 	ServerDebugDrawingColorTintStrength = 0.0f;
 	ServerDebugDrawingColorTint = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
+
+	bOneHeadsetEachProcess = false;
 }
 
 void ULevelEditorPlaySettings::PushDebugDrawingSettings()

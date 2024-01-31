@@ -420,6 +420,14 @@ private:
 	UPROPERTY(config, EditAnywhere, Category="Multiplayer Options")
 	FLinearColor ServerDebugDrawingColorTint;
 
+	/** 
+	* When True each PIE process is launched with "-HMDSimulator" argument.  
+	* The usefullness of this will vary by XR platform.  
+	* The PIE instances may get special -HMDSimulator behavior from an XR plugin, they may successfully make connections to the HMD hardware, their attempt to connect to hardware may be rejected by the runtime.
+	*/
+	UPROPERTY(config, EditAnywhere, Category = "Multiplayer Options", meta = (EditCondition = "!RunUnderOneProcess"))
+	bool bOneHeadsetEachProcess;
+
 private:
 	UNREALED_API void PushDebugDrawingSettings();
 
@@ -512,6 +520,8 @@ public:
 			return FApp::GetBuildConfiguration();
 		}
 	}
+
+	bool IsOneHeadsetEachProcess() const { return bOneHeadsetEachProcess; }
 
 public:
 
