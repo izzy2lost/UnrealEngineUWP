@@ -258,8 +258,10 @@ private:
 	{
 		using StorageType = typename PropertyTraits::StorageType;
 
-		const int32 CompositeOffset = CompositeDefinitions.Num();
-		checkf(CompositeOffset <= MAX_uint16, TEXT("Maximum number of composite definitions reached"));
+		const int32 CompositeOffsetInt32 = CompositeDefinitions.Num();
+		checkf(CompositeOffsetInt32 <= MAX_uint16, TEXT("Maximum number of composite definitions reached"));
+
+		const uint16 CompositeOffset = static_cast<uint16>(CompositeOffsetInt32);
 
 		TStatId StatID;
 

@@ -129,13 +129,13 @@ struct FIntermediateColor
 	FColor GetColor() const
 	{
 		const bool bConvertBackToSRgb = true;
-		const FColor SRgbColor = FLinearColor(R, G, B, A).ToFColor(bConvertBackToSRgb);
+		const FColor SRgbColor = GetLinearColor().ToFColor(bConvertBackToSRgb);
 		return SRgbColor;
 	}
 
 	FLinearColor GetLinearColor() const
 	{
-		return FLinearColor(R, G, B, A);
+		return FLinearColor(static_cast<float>(R), static_cast<float>(G), static_cast<float>(B), static_cast<float>(A));
 	}
 
 	FSlateColor GetSlateColor() const

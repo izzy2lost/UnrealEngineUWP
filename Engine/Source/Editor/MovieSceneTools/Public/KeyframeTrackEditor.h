@@ -401,7 +401,7 @@ struct TAddKeyImpl<FMovieSceneIntegerChannel, int32> : IImpl
 				TOptional<int32> OptInt = Channel->GetDefault();
 				LocalValue = OptInt.IsSet() ? OptInt.GetValue() : 0;
 			}
-			ValueToSet = (float)((ValueToSet - CurrentValue)) * Weight + LocalValue;
+			ValueToSet = FMath::TruncToInt32((float)((ValueToSet - CurrentValue)) * Weight + LocalValue);
 			return true;
 		}
 

@@ -25,7 +25,7 @@ void ConvertOperationalProperty(const FIntermediateWidgetTransform& In, FWidgetT
 {
 	Out.Translation.X = In.TranslationX;
 	Out.Translation.Y = In.TranslationY;
-	Out.Angle = In.Rotation;
+	Out.Angle = static_cast<float>(In.Rotation);
 	Out.Scale.X = In.ScaleX;
 	Out.Scale.Y = In.ScaleY;
 	Out.Shear.X = In.ShearX;
@@ -44,10 +44,10 @@ void ConvertOperationalProperty(const FWidgetTransform& In, FIntermediateWidgetT
 
 void ConvertOperationalProperty(const FIntermediateMargin& In, FMargin& Out)
 {
-	Out.Top = In.Top;
-	Out.Right = In.Right;
-	Out.Bottom = In.Bottom;
-	Out.Left = In.Left;
+	Out.Top = static_cast<float>(In.Top);
+	Out.Right = static_cast<float>(In.Right);
+	Out.Bottom = static_cast<float>(In.Bottom);
+	Out.Left = static_cast<float>(In.Left);
 }
 
 void ConvertOperationalProperty(const FMargin& In, FIntermediateMargin& Out)
