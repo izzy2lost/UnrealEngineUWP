@@ -47,6 +47,16 @@ void UXRCreativePointerComponent::UninitializeComponent()
 }
 
 
+FCollisionQueryParams UXRCreativePointerComponent::GetQueryParams() const
+{
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActors(IgnoredActors);
+	QueryParams.AddIgnoredComponents(IgnoredComponents);
+	QueryParams.bTraceComplex = true;
+	return QueryParams;
+}
+
+
 void UXRCreativePointerComponent::TickComponent(float InDeltaTime, enum ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction)
 {
 	Super::TickComponent(InDeltaTime, InTickType, InThisTickFunction);
@@ -54,12 +64,7 @@ void UXRCreativePointerComponent::TickComponent(float InDeltaTime, enum ELevelTi
 	RawTraceEnd = GetComponentLocation() + (GetForwardVector() * TraceMaxLength);
 	const FVector FilteredTraceEnd = SmoothingFilter->Filter(RawTraceEnd, InDeltaTime);
 
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActors(IgnoredActors);
-	QueryParams.AddIgnoredComponents(IgnoredComponents);
-	QueryParams.bTraceComplex = true;
-
-	GetWorld()->LineTraceSingleByChannel(HitResult, GetComponentLocation(), FilteredTraceEnd, ECC_Visibility, QueryParams);
+	GetWorld()->LineTraceSingleByChannel(HitResult, GetComponentLocation(), FilteredTraceEnd, ECC_Visibility, GetQueryParams());
 }
 
 

@@ -9,13 +9,6 @@
 class UMVVMViewModelCollectionObject;
 
 
-UCLASS(Abstract, Blueprintable)
-class XRCREATIVE_API UXRCreativeSubsystemHelper : public UObject
-{
-	GENERATED_BODY()
-};
-
-
 UCLASS()
 class XRCREATIVE_API UXRCreativeSubsystem : public UEngineSubsystem
 {
@@ -24,7 +17,7 @@ class XRCREATIVE_API UXRCreativeSubsystem : public UEngineSubsystem
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
-	UFUNCTION(BlueprintCallable, Category = "XR Creative|Viewmodel")
+	UFUNCTION(BlueprintCallable, Category="XR Creative|Viewmodel")
 	UMVVMViewModelCollectionObject* GetViewModelCollection() const
 	{
 		return ViewModelCollection;
@@ -43,15 +36,4 @@ public:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMVVMViewModelCollectionObject> ViewModelCollection;
-
-protected:
-	void OnEngineInitComplete();
-
-protected:
-	UPROPERTY(BlueprintReadOnly, Category="XR Creative")
-	TObjectPtr<UXRCreativeSubsystemHelper> Helpers;
-
-	FDelegateHandle EngineInitCompleteDelegate;
-
-
 };

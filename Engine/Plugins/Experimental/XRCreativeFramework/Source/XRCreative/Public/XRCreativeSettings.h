@@ -4,6 +4,7 @@
 
 #include "XRCreativeSettings.generated.h"
 
+
 UENUM(BlueprintType)
 enum class EXRCreativeHandedness : uint8
 {
@@ -11,23 +12,20 @@ enum class EXRCreativeHandedness : uint8
 	Right	UMETA(DisplayName = "Right"),
 };
 
+
 /**
  * Per project settings for XRCreative.
  */
 UCLASS(Config=XRCreativeSettings, DefaultConfig, DisplayName="XR Creative")
-
 class XRCREATIVE_API UXRCreativeSettings : public UObject
 {
 	GENERATED_BODY()
 	
 public:
-
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="XR Creative")
-	TSoftClassPtr<class UXRCreativeSubsystemHelper> SubsystemHelperClass;
-
 	UFUNCTION(BlueprintPure, Category="XR Creative")
 	static UXRCreativeSettings* GetXRCreativeSettings();
 };
+
 
 /**
  * Per user settings for XRCreative Editor.
