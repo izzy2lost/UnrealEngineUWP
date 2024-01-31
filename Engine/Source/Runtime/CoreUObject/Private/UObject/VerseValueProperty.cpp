@@ -11,6 +11,56 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+namespace UE::Private
+{
+	struct FVerseObjectReferenceScan : public Verse::FAbstractVisitor
+	{
+		UE_NONCOPYABLE(FVerseObjectReferenceScan);
+
+		FVerseObjectReferenceScan(FArchive& InAr)
+			: Ar(InAr)
+		{
+		}
+
+		virtual void VisitNonNull(Verse::VCell*& InCell, const TCHAR* ElementName) override
+		{
+			AddCell(InCell);
+		}
+
+		virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override
+		{
+			Ar << InObject;
+		}
+
+		template<typename VValueType>
+		static void Scan(FArchive& InAr, VValueType& Value)
+		{
+			FVerseObjectReferenceScan Scanner(InAr);
+			Scanner.Visit(Value, TEXT(""));
+			while (!Scanner.Stack.IsEmpty())
+			{
+				Verse::VCell* CurrentCell = Scanner.Stack.Pop();
+				CurrentCell->VisitReferences(Scanner);
+			}
+		}
+
+	private:
+		void AddCell(Verse::VCell* InCell)
+		{
+			bool bIsAlreadyInSet;
+			Scanned.Add(InCell, &bIsAlreadyInSet);
+			if (!bIsAlreadyInSet)
+			{
+				Stack.Add(InCell);
+			}
+		}
+
+		FArchive& Ar;
+		TSet<Verse::VCell*> Scanned;
+		TArray<Verse::VCell*> Stack;
+	};
+}
+
 template <typename T>
 FString TProperty_Verse<T>::GetCPPMacroType(FString& ExtendedTypeText) const
 {
@@ -29,9 +79,18 @@ bool TProperty_Verse<T>::Identical(const void* A, const void* B, uint32 PortFlag
 template <typename T>
 void TProperty_Verse<T>::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, void const* Defaults) const
 {
-	// TEMPORARY
-	uint8 ScratchValue = 0;
-	Slot << ScratchValue;
+	TCppType& LocalValue = *reinterpret_cast<TCppType*>(Value);
+	FArchive& Ar = Slot.GetUnderlyingArchive();
+	if (Ar.IsSaving() || Ar.IsLoading())
+	{
+		Verse::FStructuredArchiveVisitor::Serialize(Slot, LocalValue);
+	}
+	else
+	{
+		UE::Private::FVerseObjectReferenceScan::Scan(Ar, LocalValue); 
+		uint8 ScratchValue = 0; // This is needed to keep FStructuredArchive happy
+		Slot << ScratchValue;
+	}
 }
 
 template <typename T>

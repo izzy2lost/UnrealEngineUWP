@@ -50,6 +50,31 @@ FStructuredArchiveVisitor::ScopedRecord::~ScopedRecord()
 	Visitor.LeaveObject();
 }
 
+void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext)
+{
+	FRunningContext::Create([InSlot, &InOutValue, InSerializeContext](FRunningContext LocalContext) {
+		Serialize(LocalContext, InSlot, InOutValue, InSerializeContext);
+	});
+}
+
+void FStructuredArchiveVisitor::Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext)
+{
+	if (InSerializeContext == nullptr)
+	{
+		FVCellSerializeContext SerializeContext;
+		Serialize(InContext, InSlot, InOutValue, &SerializeContext);
+		return;
+	}
+
+	FStructuredArchiveVisitor Visitor(InContext, InSerializeContext);
+	VValue Value = InOutValue.Get();
+	Visitor.Serialize(InSlot, Value);
+	if (InSlot.GetUnderlyingArchive().IsLoading())
+	{
+		InOutValue.Set(InContext, Value);
+	}
+}
+
 void FStructuredArchiveVisitor::WriteElementType(FStructuredArchiveRecord Record, FEncodedType EncodedType)
 {
 	if (IsTextFormat())
@@ -513,6 +538,7 @@ VValue FStructuredArchiveVisitor::ReadValueBody(FStructuredArchiveRecord Record,
 		}
 
 		case EEncodedType::Cell:
+		case EEncodedType::Batch:
 		{
 			return VValue(*ReadCellBody(Record, EncodedType));
 		}
@@ -548,14 +574,20 @@ void FStructuredArchiveVisitor::VisitValueBody(FStructuredArchiveRecord Record, 
 	}
 }
 
-void FStructuredArchiveVisitor::Serialize(VCell*& InOutCell)
+void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, VCell*& InOutCell)
 {
+	FStructuredArchiveRecord Child = InSlot.EnterRecord();
+	NestingInfo.Push(NestingEntry(Child, ENestingType::Object));
 	Visit(InOutCell, TEXT(""));
+	LeaveObject();
 }
 
-void FStructuredArchiveVisitor::Serialize(VValue& InOutValue)
+void FStructuredArchiveVisitor::Serialize(FStructuredArchiveSlot InSlot, VValue& InOutValue)
 {
+	FStructuredArchiveRecord Child = InSlot.EnterRecord();
+	NestingInfo.Push(NestingEntry(Child, ENestingType::Object));
 	Visit(InOutValue, TEXT(""));
+	LeaveObject();
 }
 
 void FStructuredArchiveVisitor::BeginArray(const TCHAR* ElementName, uint64& NumElements)
@@ -679,13 +711,8 @@ void FStructuredArchiveVisitor::Visit(int64& Value, const TCHAR* ElementName)
 
 FStructuredArchiveArray FStructuredArchiveVisitor::EnterArray(const TCHAR* ElementName, int32& Num, ENestingType Type)
 {
-	if (NestingInfo.Num() == 0)
-	{
-		FStructuredArchiveArray Child = StructuredArchive.Open().EnterArray(Num);
-		NestingInfo.Push(NestingEntry(Child, Type));
-		return Child;
-	}
-	else if (NestingInfo.Last().Type == ENestingType::Object)
+	check(!NestingInfo.IsEmpty());
+	if (NestingInfo.Last().Type == ENestingType::Object)
 	{
 		FStructuredArchiveRecord& Record = static_cast<FStructuredArchiveRecord&>(NestingInfo.Last().Slot);
 		FStructuredArchiveArray Child = Record.EnterArray(ElementName, Num);
@@ -709,13 +736,8 @@ void FStructuredArchiveVisitor::LeaveArray(ENestingType Type)
 
 FStructuredArchiveRecord FStructuredArchiveVisitor::EnterObject(const TCHAR* ElementName)
 {
-	if (NestingInfo.Num() == 0)
-	{
-		FStructuredArchiveRecord Child = StructuredArchive.Open().EnterRecord();
-		NestingInfo.Push(NestingEntry(Child, ENestingType::Object));
-		return Child;
-	}
-	else if (NestingInfo.Last().Type == ENestingType::Object)
+	check(!NestingInfo.IsEmpty());
+	if (NestingInfo.Last().Type == ENestingType::Object)
 	{
 		FStructuredArchiveRecord& Record = static_cast<FStructuredArchiveRecord&>(NestingInfo.Last().Slot);
 		FStructuredArchiveRecord Child = Record.EnterRecord(ElementName);
@@ -754,17 +776,18 @@ FStructuredArchiveSlot FStructuredArchiveVisitor::Slot(const TCHAR* ElementName)
 
 FArchive* FStructuredArchiveVisitor::GetUnderlyingArchive()
 {
-	return &StructuredArchive.GetUnderlyingArchive();
+	check(!NestingInfo.IsEmpty());
+	return &NestingInfo[0].Slot.GetUnderlyingArchive();
 }
 
 bool FStructuredArchiveVisitor::IsLoading()
 {
-	return StructuredArchive.GetUnderlyingArchive().IsLoading();
+	return GetUnderlyingArchive()->IsLoading();
 }
 
 bool FStructuredArchiveVisitor::IsTextFormat()
 {
-	return StructuredArchive.GetUnderlyingArchive().IsTextFormat();
+	return GetUnderlyingArchive()->IsTextFormat();
 }
 
 FAccessContext FStructuredArchiveVisitor::GetLoadingContext()

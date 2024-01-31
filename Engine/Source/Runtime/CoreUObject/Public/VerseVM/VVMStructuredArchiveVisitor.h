@@ -36,15 +36,29 @@ struct FVCellSerializeContext
 
 struct FStructuredArchiveVisitor : FAbstractVisitor
 {
-	FStructuredArchiveVisitor(FAllocationContext InContext, FStructuredArchive& InStructuredArchive, FVCellSerializeContext* InSerializeContext = nullptr)
+	FStructuredArchiveVisitor(FAllocationContext InContext, FVCellSerializeContext* InSerializeContext = nullptr)
 		: Context(InContext)
-		, StructuredArchive(InStructuredArchive)
 		, SerializeContext(InSerializeContext)
 	{
 	}
 
-	void Serialize(VCell*& InOutCell);
-	void Serialize(VValue& InOutValue);
+	// Temporary entry point used for UE serialization
+	static void Serialize(FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr);
+	static void Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, TWriteBarrier<VValue>& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr);
+
+	static void Serialize(FStructuredArchiveSlot InSlot, VRestValue& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr)
+	{
+		Serialize(InSlot, reinterpret_cast<TWriteBarrier<VValue>&>(InOutValue), InSerializeContext);
+	}
+
+	static void Serialize(FAllocationContext InContext, FStructuredArchiveSlot InSlot, VRestValue& InOutValue, FVCellSerializeContext* InSerializeContext = nullptr)
+	{
+		Serialize(InContext, InSlot, reinterpret_cast<TWriteBarrier<VValue>&>(InOutValue), InSerializeContext);
+	}
+
+	// Entry points used primarily for testing
+	void Serialize(FStructuredArchiveSlot InSlot, VCell*& InOutCell);
+	void Serialize(FStructuredArchiveSlot InSlot, VValue& InOutValue);
 
 	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements) override;
 	virtual void EndArray() override;
@@ -138,7 +152,6 @@ private:
 	};
 	TArray<NestingEntry> NestingInfo;
 	FAllocationContext Context;
-	FStructuredArchive& StructuredArchive;
 	FVCellSerializeContext* SerializeContext = nullptr;
 	bool bIsInBatch = false;
 
