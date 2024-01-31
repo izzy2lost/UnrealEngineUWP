@@ -28,6 +28,7 @@ data:
 
       # set communication timeout to 5 minutes, transfering really large files takes a while
       proxy_read_timeout 300s;
+      proxy_send_timeout 300s;
 
       upstream jupiter_backend {
         zone upstreams 64K;
