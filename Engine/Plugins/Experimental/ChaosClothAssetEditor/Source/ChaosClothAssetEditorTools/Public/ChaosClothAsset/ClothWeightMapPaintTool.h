@@ -64,8 +64,13 @@ private:
 	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
 };
 
-
-
+UENUM()
+enum class EClothEditorWeightMapDisplayType : uint8
+{
+	BlackAndWhite,
+	WhiteAndRed,
+	LastValue UMETA(Hidden)
+};
 
 /** Mesh Sculpting Brush Types */
 UENUM()
@@ -75,7 +80,7 @@ enum class EClothEditorWeightMapPaintInteractionType : uint8
 	Fill,
 	PolyLasso,
 	Gradient,
-
+	HideTriangles,
 	LastValue UMETA(Hidden)
 };
 
@@ -128,7 +133,10 @@ class CHAOSCLOTHASSETEDITORTOOLS_API UClothEditorWeightMapPaintBrushFilterProper
 	GENERATED_BODY()
 
 public:
-	
+
+	UPROPERTY(EditAnywhere, Category = Display)
+	EClothEditorWeightMapDisplayType ColorMap = EClothEditorWeightMapDisplayType::BlackAndWhite;
+
 	UPROPERTY(EditAnywhere, Category = ActionType, meta = (DisplayName = "Action"))
 	EClothEditorWeightMapPaintInteractionType SubToolType = EClothEditorWeightMapPaintInteractionType::Brush;
 
@@ -140,6 +148,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Brush, meta = (DisplayName = "Brush Size", UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "10.0", 
 		HideEditConditionToggle, EditConditionHides, EditCondition = "SubToolType == EClothEditorWeightMapPaintInteractionType::Brush"))
 	float BrushSize = 0.25f;
+
+	/** Allow the Brush to hit the back-side of the mesh */
+	UPROPERTY(EditAnywhere, Category = Brush, meta = (HideEditConditionToggle, EditConditionHides, EditCondition = "SubToolType == EClothEditorWeightMapPaintInteractionType::Brush"))
+	bool bHitBackFaces = true;
 
 	/** The new value to paint on the mesh */
 	UPROPERTY(EditAnywhere, Category = Brush, meta = (UIMin = 0, ClampMin = 0, UIMax = 1, ClampMax = 1,
@@ -203,7 +215,8 @@ enum class EClothEditorWeightMapPaintToolActions
 
 	FloodFillCurrent,
 	ClearAll,
-	Invert
+	Invert,
+	ClearHiddenTriangles
 };
 
 
@@ -254,6 +267,31 @@ private:
 
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 };
+
+/// Property panel for controlling hiding triangles
+UCLASS()
+class CHAOSCLOTHASSETEDITORTOOLS_API UClothEditorMeshWeightMapPaintToolShowHideProperties : public UInteractiveToolPropertySet
+{
+	GENERATED_BODY()
+
+public:
+
+	TWeakObjectPtr<UClothEditorWeightMapPaintTool> ParentTool;
+	void Initialize(UClothEditorWeightMapPaintTool* ParentToolIn) { ParentTool = ParentToolIn; }
+	void PostAction(EClothEditorWeightMapPaintToolActions Action);
+
+	/** Toggles whether each pattern is shown or hidden */
+	UPROPERTY(EditAnywhere, EditFixedSize, Transient, Category = TriangleVisibility, meta = (DisplayPriority = 2));
+	TMap<int32, bool> ShowPatterns;
+
+	/** Unhide all triangles */
+	UFUNCTION(CallInEditor, Category = TriangleVisibility, meta = (DisplayPriority = 1))
+	void ShowAll()
+	{
+		PostAction(EClothEditorWeightMapPaintToolActions::ClearHiddenTriangles);
+	}
+};
+
 
 /**
  * Mesh Element Paint Tool Class
@@ -311,6 +349,7 @@ private:
 	void FloodFillCurrentWeightAction();
 	void ClearAllWeightsAction();
 	void InvertWeightsAction();
+	void ClearHiddenAction();
 
 public:
 	void SetVerticesToWeightMap(const TSet<int32>& Vertices, double WeightValue, bool bIsErase);
@@ -392,6 +431,28 @@ protected:
 
 	void ComputeGradient();
 	void OnSelectionModified();
+
+
+	//
+	// Show/Hide support
+	//
+protected:
+	UPROPERTY()
+	TObjectPtr<UClothEditorMeshWeightMapPaintToolShowHideProperties> ShowHideProperties;
+
+	// Hidden triangles are not rendered, their wireframes are not rendered, and they don't block ray casts from the mouse
+	TSet<int32> HiddenTriangles;
+
+	// Pending hidden triangles are triangles that are selected by the current HideTriangles brush stroke. When the stroke finishes, these pending triangles are
+	// added to the set of hidden triangles, and this set is cleared.
+	// 
+	// Pending hidden triangles are not rendered, but their wireframes *are* rendered, and they *do* block ray casts.
+	// - Wireframe update is delayed because its a relatively expensive operation, so we do it only when the stroke finishes
+	// - Ray cast blocking is delayed because otherwise one small mouse drag would drill through multiple mesh layers
+	TSet<int32> PendingHiddenTriangles;
+
+	// Triangle index offset and number of triangles for each non-empty pattern. This is used when we want to hide/show entire patterns.
+	TArray<TPair<int32, int32>> PatternTriangleOffsetAndNum;
 
 	//
 	// Internals
@@ -492,6 +553,7 @@ protected:
 	void UpdateSelectedNode();
 
 	void UpdateVertexColorOverlay(const TSet<int>* TrianglesToUpdate = nullptr);
+
 };
 
 
