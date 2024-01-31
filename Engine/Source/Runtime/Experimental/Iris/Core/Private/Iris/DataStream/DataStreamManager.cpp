@@ -302,7 +302,16 @@ UDataStreamManager::EWriteResult UDataStreamManager::FImpl::WriteData(UE::Net::F
 		{
 			checkf(SubRecord == nullptr, TEXT("DataStream '%s' provided a record despite errors or returning NoData."), ToCStr(Stream->GetFName().GetPlainNameString()));
 			ManagerStream.DiscardSubstream(SubBitStream);
-			continue;
+
+			if (SubContext.HasError())
+			{
+				Context.SetError(SubContext.GetError(), false);
+				break;
+			}
+			else
+			{
+				continue;
+			}
 		}
 
 		DataStreamMask |= CurrentStreamMask;

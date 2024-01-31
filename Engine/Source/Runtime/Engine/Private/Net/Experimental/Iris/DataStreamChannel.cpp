@@ -313,6 +313,15 @@ void UDataStreamChannel::WriteData(UE::Net::EDataStreamWriteMode WriteMode)
 			IRIS_PROFILER_SCOPE(UDataStreamChannel_NoDataSent);
 			// Do not report the bunch
 			UE_NET_TRACE_DISCARD_BUNCH(Collector);
+
+			if (SerializationContext.HasError())
+			{
+				FString ErrorMsg = NSLOCTEXT("NetworkErrors", "DataStreamChannelWriteData", "DataStreamChannel failed to write data.").ToString();
+				Connection->SendCloseReason(ENetCloseResult::HostClosedConnection);
+				FNetControlMessage<NMT_Failure>::Send(Connection, ErrorMsg);
+				Connection->FlushNet(true);
+				Connection->Close(ENetCloseResult::HostClosedConnection);
+			}
 			
 			return UDataStream::EWriteResult::NoData;
 		}

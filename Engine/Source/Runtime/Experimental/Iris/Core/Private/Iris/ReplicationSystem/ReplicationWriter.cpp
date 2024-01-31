@@ -2444,7 +2444,10 @@ int FReplicationWriter::PrepareAndSendHugeObjectPayload(FNetSerializationContext
 			// Cleanup data from batch
 			HandleObjectBatchFailure(WriteHugeObjectStatus, BatchInfo, WriteBitStreamInfo);
 
-			UE_LOG(LogIris, Error, TEXT("Unable to fit object ( InternalIndex: %u ) in maximum combined payload of %u bytes. Connection %u will be disconnected."), InternalIndex, MaxHugeObjectPayLoadBytes, Context.GetLocalConnectionId());
+			const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
+			UE_LOG(LogIris, Error, TEXT("Unable to fit object %s ( InternalIndex: %u ) %s in maximum combined payload of %u bytes. Connection %u will be disconnected."), *ObjectData.RefHandle.ToString(), InternalIndex, ToCStr(ObjectData.Protocol ? ObjectData.Protocol->DebugName : nullptr), MaxHugeObjectPayLoadBytes, Context.GetLocalConnectionId());
+			ensure(false);
+
 			Context.SetError(NetError_ObjectStateTooLarge);
 			return -1;
 		}
