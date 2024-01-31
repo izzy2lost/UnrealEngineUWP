@@ -36,7 +36,7 @@ namespace Horde.Server.Telemetry.Sinks
 		/// <inheritdoc/>
 		public void SendEvent(TelemetryEvent telemetryEvent)
 		{
-			JsonNode? node = JsonSerializer.SerializeToNode(telemetryEvent);
+			JsonNode? node = JsonSerializer.SerializeToNode(telemetryEvent, _jsonOptions);
 			if (node != null)
 			{
 				_metricCollection.AddEvent(node);
