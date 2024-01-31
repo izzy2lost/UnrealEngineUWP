@@ -335,15 +335,17 @@ bool FAvaTransitionStateViewModel::IsExpanded() const
 	return State && State->bExpanded;
 }
 
-void FAvaTransitionStateViewModel::SetExpanded(bool bIsExpanded)
+void FAvaTransitionStateViewModel::SetExpanded(bool bInIsExpanded)
 {
-	if (UStateTreeState* State = GetState())
+	UStateTreeState* State = GetState();
+
+	if (State && State->bExpanded != bInIsExpanded)
 	{
 		if (GUndo)
 		{
 			State->Modify();
 		}
-		State->bExpanded = true;
+		State->bExpanded = bInIsExpanded;
 	}
 }
 
