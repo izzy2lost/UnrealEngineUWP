@@ -255,16 +255,15 @@ export const DocView = () => {
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <Stack style={{paddingBottom: "16px", backgroundColor: modeColors.background}}>
-         <DocCrumbs landingPage={landingPage} />
-      </Stack>
-      <Stack horizontal>
+      <DocCrumbs landingPage={landingPage} />      
+      <Stack horizontal>         
          <Stack key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
          <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%", "position": "relative" } }}>
             <div style={{ overflowY: 'scroll', overflowX: 'hidden', height: "calc(100vh - 162px)" }} data-is-scrollable={true}>
                <Stack horizontal style={{ paddingLeft: "32px", paddingBottom: "16px", paddingRight: 0 }} >
                   <Stack style={{ width: 230 }} />
-                  <Stack style={{ width: 900, paddingTop: 6, marginLeft: 4 }}>
+                  <Stack style={{ width: 900, marginLeft: 4 }}>
+                  <Stack style={{height: "24px", backgroundColor: modeColors.background}} />
                      <Stack className={docClasses.raised} styles={{ root: { backgroundColor: modeColors.content } }}>
                         <DocPanel docName={docName} />
                      </Stack>
