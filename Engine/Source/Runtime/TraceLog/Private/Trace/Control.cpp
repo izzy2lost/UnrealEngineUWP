@@ -286,11 +286,6 @@ void Writer_UpdateControl()
 ////////////////////////////////////////////////////////////////////////////////
 void Writer_InitializeControl()
 {
-#if PLATFORM_SWITCH
-	GControlState = EControlState::Failed;
-	return;
-#endif
-
 	Writer_ControlAddCommand("SendTo", nullptr,
 		[] (void*, uint32 ArgC, ANSICHAR const* const* ArgV)
 		{
