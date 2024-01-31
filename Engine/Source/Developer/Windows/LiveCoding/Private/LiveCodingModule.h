@@ -128,6 +128,7 @@ private:
 
 	IConsoleCommand* EnableCommand;
 	IConsoleCommand* CompileCommand;
+	IConsoleCommand* CompileSyncCommand;
 	IConsoleVariable* ConsolePathVariable;
 	IConsoleVariable* SourceProjectVariable;
 	FDelegateHandle EndFrameDelegateHandle;
