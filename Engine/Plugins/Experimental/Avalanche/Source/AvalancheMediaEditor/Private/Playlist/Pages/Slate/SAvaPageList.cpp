@@ -866,7 +866,7 @@ namespace UE::AvaPageList::Private
 				if (bInLogInfo)
 				{
 					UE_LOG(LogAvaMediaEditor, Display,
-						TEXT("Level Asset \"%s\" is not an Avalanche Scene (Asset Tag not found)."),
+						TEXT("Level Asset \"%s\" is not an Motion Design Scene (Asset Tag not found)."),
 						*InAssetData.GetSoftObjectPath().ToString());
 				}
 				return false;
@@ -877,7 +877,7 @@ namespace UE::AvaPageList::Private
 				if (bInLogInfo)
 				{
 					UE_LOG(LogAvaMediaEditor, Display,
-						TEXT("Level Asset \"%s\" is an Avalanche Scene but not enabled."),
+						TEXT("Level Asset \"%s\" is an Motion Design Scene but not enabled."),
 						*InAssetData.GetSoftObjectPath().ToString());
 				}
 				return false;						
@@ -994,7 +994,7 @@ bool SAvaPageList::HandleDropEvent(const FDragDropEvent& InDragDropEvent, EItemD
 		const TArray<FSoftObjectPath> AvaAssets = FilterAvaAssetPaths(AssetDragDropOp->GetAssets());
 		const TArray<FSoftObjectPath> Playlists = FilterPlaylistPaths(AssetDragDropOp->GetAssets(), FSoftObjectPath(GetPlaylist()));
 
-		FScopedTransaction DropTransaction(LOCTEXT("DropTransaction", "Drop Avalanche Assets onto Page List"));
+		FScopedTransaction DropTransaction(LOCTEXT("DropTransaction", "Drop Motion Design Assets onto Page List"));
 
 		bool bIsHandled = false;
 		if (!Playlists.IsEmpty())

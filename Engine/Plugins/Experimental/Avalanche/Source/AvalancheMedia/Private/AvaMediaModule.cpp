@@ -119,7 +119,7 @@ void FAvaMediaModule::StartupModule()
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("AvaStat"),
-				TEXT("Enable engine performance statistics. Same as 'stat' command but will affect Avalanche Playback outputs and propagate to connected servers."),
+				TEXT("Enable engine performance statistics. Same as 'stat' command but will affect Motion Design Playback outputs and propagate to connected servers."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::HandleStatCommand),
 				ECVF_Default
 				));

@@ -198,7 +198,7 @@ TSharedRef<SWidget> SAvaPagePreview::OnGenerateSettingsMenu()
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("Settings", "Settings"),
-		LOCTEXT("Settings_Tooltip", "Opens the Avalanche Media Settings."),
+		LOCTEXT("Settings_Tooltip", "Opens the Motion Design Media Settings."),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &SAvaPagePreview::HandleSettingsActionExecute)

@@ -398,7 +398,7 @@ UAvalanchePlayback*  FAvaMediaPlaybackManager::LoadPlaybackObject(const FSoftObj
 			}
 
 			UE_LOG(LogAvaPlaybackManager, Error,
-				TEXT("Asset \"%s\" in package \"%s\" is not a supported Avalanche playback asset (\"%s\")."),
+				TEXT("Asset \"%s\" in package \"%s\" is not a supported Motion Design playback asset (\"%s\")."),
 				*AssetName, *PackageName, *FoundObject->GetClass()->GetFullName());
 		}
 		else
@@ -723,7 +723,7 @@ bool FAvaMediaPlaybackManager::HandleStatCommand(const TArray<FString>& InArgs)
 		}
 		if (!bFound)
 		{
-			UE_LOG(LogAvaPlaybackManager, Warning, TEXT("No Active Avalanche Game Instances found to apply the stat '%s' command on."), *InArgs[0]);
+			UE_LOG(LogAvaPlaybackManager, Warning, TEXT("No Active Motion Design Game Instances found to apply the stat '%s' command on."), *InArgs[0]);
 		}
 	}
 	

@@ -55,7 +55,7 @@ FText UAvaPlaybackNode_PlayAnim::GetNodeDisplayNameText() const
 
 FText UAvaPlaybackNode_PlayAnim::GetNodeTooltipText() const
 {
-	return LOCTEXT("PlayAnimNode_Tooltip", "Plays an Animation from the Avalanche Asset");
+	return LOCTEXT("PlayAnimNode_Tooltip", "Plays an Animation from the Motion Design Asset");
 }
 
 void UAvaPlaybackNode_PlayAnim::OnEventTriggered(const FAvaPlaybackEventParameters& InEventParameters)

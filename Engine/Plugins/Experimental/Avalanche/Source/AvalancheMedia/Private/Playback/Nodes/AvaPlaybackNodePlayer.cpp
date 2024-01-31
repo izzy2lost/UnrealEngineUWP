@@ -77,7 +77,7 @@ FText UAvaPlaybackNodePlayer::GetNodeDisplayNameText() const
 
 FText UAvaPlaybackNodePlayer::GetNodeTooltipText() const
 {
-	return LOCTEXT("PlayerNode_ToolTip", "Plays the given Avalanche Asset");
+	return LOCTEXT("PlayerNode_ToolTip", "Plays the given Motion Design Asset");
 }
 
 #if WITH_EDITOR

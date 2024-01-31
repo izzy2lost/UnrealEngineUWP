@@ -263,7 +263,7 @@ void FAvaMediaEditorModule::AddEditorToolbarButtons()
 	FToolMenuEntry OpenBroadcastButtonEntry = FToolMenuEntry::InitToolBarButton(TEXT("OpenBroadcastToolbarButton")
 		, FExecuteAction::CreateStatic(&FAvaBroadcastEditor::OpenBroadcastEditor)
 		, LOCTEXT("OpenBroadcast_Title", "Broadcast")
-		, LOCTEXT("OpenBroadcast_Tooltip", "Opens the Avalanche Broadcast Editor Window")
+		, LOCTEXT("OpenBroadcast_Tooltip", "Opens the Motion Design Broadcast Editor Window")
 		, TAttribute<FSlateIcon>::Create([]() { return IAvaMediaEditorModule::Get().GetToolbarBroadcastButtonIcon(); })
 	);
 	OpenBroadcastButtonEntry.StyleNameOverride = TEXT("CalloutToolbar"); // Display Labels

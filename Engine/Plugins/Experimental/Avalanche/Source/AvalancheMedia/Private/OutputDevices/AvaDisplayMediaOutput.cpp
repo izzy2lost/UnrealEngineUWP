@@ -38,7 +38,7 @@ UMediaCapture* UAvaDisplayMediaOutput::CreateMediaCaptureImpl()
 	UMediaCapture* Result = NewObject<UAvaDisplayMediaCapture>();
 	if (Result)
 	{
-		UE_LOG(LogAvaDisplayMedia, Log, TEXT("Created Avalanche Display Media Capture"));
+		UE_LOG(LogAvaDisplayMedia, Log, TEXT("Created Motion Design Display Media Capture"));
 		Result->SetMediaOutput(this);
 	}
 	return Result;

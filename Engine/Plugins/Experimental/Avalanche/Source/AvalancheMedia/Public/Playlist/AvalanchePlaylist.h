@@ -252,8 +252,8 @@ public:
  * This class is a container for what could be described as a "show" for broadcast purposes.
  *
  * It goes beyond a simple playlist of items. It contains the following:
- * - a list of Avalanche Template Pages (or just Templates).
- * - a list of Avalanche Instanced Pages (or just Pages).
+ * - a list of Motion Design Template Pages (or just Templates).
+ * - a list of Motion Design Instanced Pages (or just Pages).
  * - a list of page views (or just Views).
  *
  * Workflow:
@@ -281,7 +281,7 @@ public:
  * pages could be grouped in either of the page list or page views.
  * Other applications support page grouping to emulate MOS's hierarchy.
  * In the MOS/NCS hierarchies: Rundown -> Stories/Segments -> Parts -> Pieces/Items
- * Although full emulation of MOS schema may not be necessary within the Avalanche playback framework.
+ * Although full emulation of MOS schema may not be necessary within the Motion Design playback framework.
  *
  */
 UCLASS(NotBlueprintable, BlueprintType)

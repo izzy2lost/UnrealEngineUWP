@@ -60,7 +60,7 @@ UMediaCapture* UAvaRenderTargetMediaOutput::CreateMediaCaptureImpl()
 	UMediaCapture* Result = NewObject<UAvaRenderTargetMediaCapture>();
 	if (Result)
 	{
-		UE_LOG(LogAvaRenderTargetMedia, Log, TEXT("Created Avalanche Render Target Media Capture"));
+		UE_LOG(LogAvaRenderTargetMedia, Log, TEXT("Created Motion Design Render Target Media Capture"));
 		Result->SetMediaOutput(this);
 	}
 	return Result;
