@@ -338,8 +338,8 @@ protected:
 	};
 public:
 
-	TARGETPLATFORM_API const class ITargetPlatformSettings& GetPlatformSettings() const;
-	TARGETPLATFORM_API const class ITargetPlatformControls& GetPlatformControls() const;
+	TARGETPLATFORM_API virtual const class ITargetPlatformSettings& GetPlatformSettings() const;
+	TARGETPLATFORM_API virtual const class ITargetPlatformControls& GetPlatformControls() const;
 
 	/**
 	 * Checks whether this device is connected.
