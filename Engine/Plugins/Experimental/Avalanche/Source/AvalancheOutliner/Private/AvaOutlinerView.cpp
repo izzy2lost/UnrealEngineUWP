@@ -1654,7 +1654,7 @@ void FAvaOutlinerView::PopulateItemContextMenu(UToolMenu* InToolMenu)
 
 	// Generic Actions
 	{
-		FToolMenuSection& GenericActionsSection = InToolMenu->AddSection(TEXT("GenericActions"), LOCTEXT("OutlinerActionsHeader", "Generic Actions"));
+		FToolMenuSection& GenericActionsSection = InToolMenu->AddSection(TEXT("GenericActions"), LOCTEXT("OutlinerGenericActionsHeader", "Generic Actions"));
 		
 		const FGenericCommands& GenericCommands = FGenericCommands::Get();
 		GenericActionsSection.AddMenuEntry(GenericCommands.Cut);

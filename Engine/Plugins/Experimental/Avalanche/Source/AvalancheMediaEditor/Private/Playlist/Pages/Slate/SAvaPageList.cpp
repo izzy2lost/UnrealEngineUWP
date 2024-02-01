@@ -994,7 +994,7 @@ bool SAvaPageList::HandleDropEvent(const FDragDropEvent& InDragDropEvent, EItemD
 		const TArray<FSoftObjectPath> AvaAssets = FilterAvaAssetPaths(AssetDragDropOp->GetAssets());
 		const TArray<FSoftObjectPath> Playlists = FilterPlaylistPaths(AssetDragDropOp->GetAssets(), FSoftObjectPath(GetPlaylist()));
 
-		FScopedTransaction DropTransaction(LOCTEXT("DropTransaction", "Drop Motion Design Assets onto Page List"));
+		FScopedTransaction DropTransaction(LOCTEXT("AssetDropTransaction", "Drop Motion Design Assets onto Page List"));
 
 		bool bIsHandled = false;
 		if (!Playlists.IsEmpty())
@@ -1019,7 +1019,7 @@ bool SAvaPageList::HandleDropEvent(const FDragDropEvent& InDragDropEvent, EItemD
 
 	if (const TSharedPtr<FExternalDragOperation> ExternalDragDropOp = InDragDropEvent.GetOperationAs<FExternalDragOperation>())
 	{
-		FScopedTransaction DropTransaction(LOCTEXT("DropTransaction", "Drop External Asset onto Page List"));
+		FScopedTransaction DropTransaction(LOCTEXT("ExternalDropTransaction", "Drop External Asset onto Page List"));
 
 		return ExternalDragDropOp->HasFiles() && HandleDropExternalFiles(ExternalDragDropOp->GetFiles(), InDropZone, InItem);
 	}

@@ -233,7 +233,7 @@ void SAvaLevelViewportStatusBarButtons::PopulateActorButtons(TSharedPtr<SHorizon
 		.Padding(ViewportStatusBarButton::Padding)
 		[
 			ViewportStatusBarButton::MakeMenuButton(
-				LOCTEXT("ActorAlign", "Actor Color"),
+				LOCTEXT("ActorColor", "Actor Color"),
 				FOnGetContent::CreateSP(this, &SAvaLevelViewportStatusBarButtons::GetActorColorMenuContent),
 				FAppStyle::Get().GetBrush(TEXT("ColorPicker.Mode")),
 				FSlateColor(FLinearColor(1.0f, 1.0f, 1.0f, 1.0f))
