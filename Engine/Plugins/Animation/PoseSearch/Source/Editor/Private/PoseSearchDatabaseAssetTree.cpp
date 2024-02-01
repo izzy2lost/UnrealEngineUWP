@@ -726,6 +726,7 @@ namespace UE::PoseSearch
 				}
 			}
 			
+			ViewModel->RemovePreviewActors();
 			FinalizeTreeChanges();
 		}
 	}
