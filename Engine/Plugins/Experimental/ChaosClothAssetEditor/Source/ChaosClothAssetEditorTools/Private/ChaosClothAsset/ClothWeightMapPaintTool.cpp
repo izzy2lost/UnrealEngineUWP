@@ -187,7 +187,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 	DynamicMeshComponent->SetExternalDecomposition(MoveTemp(Decomp));
 
 	// initialize brush radius range interval, brush properties
-	UMeshSculptToolBase::InitializeBrushSizeRange(Bounds);
+	InitializeBrushSizeRange(Bounds);
 
 	// Set up control points mechanic
 	PolyLassoMechanic = NewObject<UPolyLassoMarqueeMechanic>(this);
@@ -236,8 +236,11 @@ void UClothEditorWeightMapPaintTool::Setup()
 		});
 	FilterProperties->WatchProperty(FilterProperties->SubToolType,
 		[this](EClothEditorWeightMapPaintInteractionType NewType) { UpdateSubToolType(NewType); });
-	FilterProperties->WatchProperty(FilterProperties->BrushSize,
-		[this](float NewSize) { UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize = NewSize; });
+	FilterProperties->WatchProperty(FilterProperties->BrushSize, [this](float NewSize) 
+		{ 
+			UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize = NewSize; 
+			CalculateBrushRadius();
+		});
 	FilterProperties->BrushSize = UMeshSculptToolBase::BrushProperties->BrushSize.AdaptiveSize;
 	FilterProperties->RestoreProperties(this);
 	AddToolPropertySource(FilterProperties);
@@ -509,6 +512,12 @@ void UClothEditorWeightMapPaintTool::Setup()
 
 }
 
+void UClothEditorWeightMapPaintTool::InitializeBrushSizeRange(const UE::Geometry::FAxisAlignedBox3d& TargetBounds)
+{
+	BrushRelativeSizeRange = FInterval1d(5e-5, 50.0);	// brush diameter ranges from micrometer to meter scale
+	BrushProperties->BrushSize.InitializeWorldSizeRange(TInterval<float>((float)BrushRelativeSizeRange.Min, (float)BrushRelativeSizeRange.Max));
+	CalculateBrushRadius();
+}
 
 void UClothEditorWeightMapPaintTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
 {

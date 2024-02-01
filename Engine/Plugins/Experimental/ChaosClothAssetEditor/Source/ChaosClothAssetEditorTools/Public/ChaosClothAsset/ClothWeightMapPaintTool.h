@@ -379,6 +379,9 @@ protected:
 	virtual TUniquePtr<FMeshSculptBrushOp>& GetActiveBrushOp();
 
 	virtual bool SharesBrushPropertiesChanges() const override { return false; }
+
+	virtual void InitializeBrushSizeRange(const UE::Geometry::FAxisAlignedBox3d& TargetBounds) override;
+
 	// end UMeshSculptToolBase API
 
 
