@@ -10,13 +10,13 @@ themselves. We provide pre-built Docker images for deployment on Linux, and an M
 
 Horde provides the following functionality, each of which may be enabled or disabled independently:
 
-* **[Build Automation (CI/CD)](Docs/Config/BuildAutomation.md)**: A build automation system designed for teams working with
-  large Perforce repositories.
+* **[Build Automation (CI/CD)](Docs/Config/BuildAutomation.md)**: A build automation system designed for teams working
+  with large Perforce repositories.
 * **[Remote Execution](Docs/Config/RemoteExecution.md)**: Functionality to offload compute work to other machines,
   including C++ compilation and content builds.
-* **UnrealGameSync Metadata**: Various features for teams using UnrealGameSync, including build status reporting,
-  comment aggregation, and crowdsourced voting functionality.
-* **Device Manager**: A system for allocating and managing a farm of development kits and mobile devices.
+* **[UnrealGameSync Metadata Server](Docs/Config/UgsMetadataServer.md)**: Various features for teams using
+  UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced voting functionality.
+* **[Device Manager](Docs/Config/Devices.md)**: A system for allocating and managing a farm of development kits and mobile devices.
 * **Automation Hub**: A frontend for querying automation results across streams and projects, integrated with
   AutomationTool and Gauntlet.
 * **Artifact Distribution**: A storage backend for tools and final build artifacts.

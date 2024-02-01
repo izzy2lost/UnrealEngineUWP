@@ -2,8 +2,8 @@
 
 ## Getting Started
 
-* **[Set up build automation](Tutorials/BuildAutomation.md)**
 * **[Set up remote C++ compilation](Tutorials/RemoteCompilation.md)**
+* **[Set up build automation](Tutorials/BuildAutomation.md)**
 
 ## Reference
 
