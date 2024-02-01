@@ -451,8 +451,9 @@ void MainCS(
 		for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
 		{
 			const tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(ElementIndex);
+			const tsr_short2 OutputHistoryPixelPos = OutputPixelPos - tsr_short2(InputInfo_ViewportMin);
 
-			HistoryMoireOutput[tsr_short3(OutputPixelPos, 0)] = MoireHistory.GetElement(ElementIndex);
+			HistoryMoireOutput[tsr_short3(OutputHistoryPixelPos, 0)] = MoireHistory.GetElement(ElementIndex);
 		}
 	}
 	else
@@ -781,6 +782,7 @@ void MainCS(
 		{
 			const tsr_short2 LaneSimdPixelOffset = GetElementPixelOffsetInTile(LANE_STRIDE_X, LANE_STRIDE_Y, GGroupThreadIndex, ElementIndex);
 			const tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(ElementIndex);
+			const tsr_short2 OutputHistoryPixelPos = OutputPixelPos - tsr_short2(InputInfo_ViewportMin);
 
 			tsr_halfC FinalGuideColor = FinalGuide.GetElement(ElementIndex);
 			
@@ -798,10 +800,10 @@ void MainCS(
 			#endif
 
 			#if CONFIG_SCENE_COLOR_ALPHA
-				HistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = FinalGuideColor;
-				HistoryGuideOutput[tsr_short3(OutputPixelPos, 1)] = tsr_half4(InputUncertainty.GetElement(ElementIndex), 0, 0, 0);
+				HistoryGuideOutput[tsr_short3(OutputHistoryPixelPos, 0)] = FinalGuideColor;
+				HistoryGuideOutput[tsr_short3(OutputHistoryPixelPos, 1)] = tsr_half4(InputUncertainty.GetElement(ElementIndex), 0, 0, 0);
 			#else
-				HistoryGuideOutput[tsr_short3(OutputPixelPos, 0)] = tsr_half4(FinalGuideColor.xyz, InputUncertainty.GetElement(ElementIndex));
+				HistoryGuideOutput[tsr_short3(OutputHistoryPixelPos, 0)] = tsr_half4(FinalGuideColor.xyz, InputUncertainty.GetElement(ElementIndex));
 			#endif
 			HistoryRejectionOutput[OutputPixelPos] = tsr_half4(
 				RejectionBlendFinal.GetElement(ElementIndex) - tsr_half(0.5 * rcp(256.0)),

@@ -13,6 +13,7 @@
 #include "RendererModule.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "PostProcess/PostProcessVisualizeBuffer.h"
+#include "DynamicResolutionState.h"
 
 #define COMPILE_TSR_DEBUG_PASSES (!UE_BUILD_SHIPPING)
 
@@ -1010,6 +1011,9 @@ class FTSRVisualizeCS : public FTSRShader
 		SHADER_PARAMETER(FScreenTransform, ScreenPosToHistoryUV)
 		SHADER_PARAMETER(FScreenTransform, ScreenPosToInputPixelPos)
 		SHADER_PARAMETER(FScreenTransform, ScreenPosToInputUV)
+		SHADER_PARAMETER(FScreenTransform, ScreenPosToMoireHistoryUV)
+		SHADER_PARAMETER(FVector2f, MoireHistoryUVBilinearMin)
+		SHADER_PARAMETER(FVector2f, MoireHistoryUVBilinearMax)
 		SHADER_PARAMETER(FMatrix44f, ClipToResurrectionClip)
 		SHADER_PARAMETER(FIntPoint, OutputViewRectMin)
 		SHADER_PARAMETER(FIntPoint, OutputViewRectMax)
@@ -1353,15 +1357,50 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FIntPoint QuantizedPrimaryUpscaleViewSize;
 		QuantizeSceneBufferSize(OutputRect.Max, QuantizedPrimaryUpscaleViewSize);
 
-		OutputExtent = FIntPoint(
-			FMath::Max(InputExtent.X, QuantizedPrimaryUpscaleViewSize.X),
-			FMath::Max(InputExtent.Y, QuantizedPrimaryUpscaleViewSize.Y));
+		if (GIsEditor)
+		{
+			OutputExtent = FIntPoint(
+				FMath::Max(InputExtent.X, QuantizedPrimaryUpscaleViewSize.X),
+				FMath::Max(InputExtent.Y, QuantizedPrimaryUpscaleViewSize.Y));
+		}
+		else
+		{
+			OutputExtent = QuantizedPrimaryUpscaleViewSize;
+		}
 	}
 	else
 	{
 		OutputRect.Min = FIntPoint(0, 0);
 		OutputRect.Max = View.ViewRect.Size();
 		OutputExtent = InputExtent;
+	}
+
+	FIntPoint HistoryGuideExtent;
+	{
+		// Compute final resolution fraction uper bound.
+		float ResolutionFractionUpperBound = 1.f;
+		if (ISceneViewFamilyScreenPercentage const* ScreenPercentageInterface = View.Family->GetScreenPercentageInterface())
+		{
+			DynamicRenderScaling::TMap<float> DynamicResolutionUpperBounds = ScreenPercentageInterface->GetResolutionFractionsUpperBound();
+			const float PrimaryResolutionFractionUpperBound = DynamicResolutionUpperBounds[GDynamicPrimaryResolutionFraction];
+			ResolutionFractionUpperBound = PrimaryResolutionFractionUpperBound * View.Family->SecondaryViewFraction;
+		}
+
+		FIntPoint MaxRenderingViewSize = FSceneRenderer::ApplyResolutionFraction(*View.Family, View.UnconstrainedViewRect.Size(), ResolutionFractionUpperBound);
+
+		FIntPoint QuantizedMaxGuideSize;
+		QuantizeSceneBufferSize(MaxRenderingViewSize, QuantizedMaxGuideSize);
+
+		if (GIsEditor)
+		{
+			HistoryGuideExtent = FIntPoint(
+				FMath::Max(InputExtent.X, QuantizedMaxGuideSize.X),
+				FMath::Max(InputExtent.Y, QuantizedMaxGuideSize.Y));
+		}
+		else
+		{
+			HistoryGuideExtent = QuantizedMaxGuideSize;
+		}
 	}
 
 	FIntPoint HistoryExtent;
@@ -1382,9 +1421,16 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		FIntPoint QuantizedHistoryViewSize;
 		QuantizeSceneBufferSize(HistorySize, QuantizedHistoryViewSize);
 
-		HistoryExtent = FIntPoint(
-			FMath::Max(InputExtent.X, QuantizedHistoryViewSize.X),
-			FMath::Max(InputExtent.Y, QuantizedHistoryViewSize.Y));
+		if (GIsEditor)
+		{
+			HistoryExtent = FIntPoint(
+				FMath::Max(InputExtent.X, QuantizedHistoryViewSize.X),
+				FMath::Max(InputExtent.Y, QuantizedHistoryViewSize.Y));
+		}
+		else
+		{
+			HistoryExtent = QuantizedHistoryViewSize;
+		}
 	}
 	float OutputToHistoryResolutionFraction = float(HistorySize.X) / float(OutputRect.Width());
 	float OutputToHistoryResolutionFractionSquare = OutputToHistoryResolutionFraction * OutputToHistoryResolutionFraction;
@@ -1537,7 +1583,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
-				InputExtent,
+				HistoryGuideExtent,
 				bSupportsAlpha ? PF_FloatRGBA : PF_A2B10G10R10,
 				FClearValueBinding::None,
 				TexCreate_ShaderResource | TexCreate_UAV,
@@ -1547,7 +1593,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
-				InputExtent,
+				HistoryGuideExtent,
 				PF_R8G8B8A8,
 				FClearValueBinding::None,
 				TexCreate_ShaderResource | TexCreate_UAV,
@@ -1661,6 +1707,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		ClipToResurrectionClip = FMatrix44f(InvViewProj * PrevViewProj);
 		ResurrectionGuideViewport = FScreenPassTextureViewport(PrevHistory.GuideArray->Desc.Extent, InputHistory.InputViewportRects[ResurrectionFrameSliceIndex]);
+		ResurrectionGuideViewport.Rect = ResurrectionGuideViewport.Rect - ResurrectionGuideViewport.Rect.Min;
 	}
 
 	// Setup the shader parameters for previous frame history
@@ -1886,13 +1933,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->PrevHistoryParameters = PrevHistoryParameters;
 
 		{
-			FScreenPassTextureViewport PrevHistoryColorViewport(PrevHistory.GuideArray->Desc.Extent, InputHistory.InputViewportRect);
+			FScreenPassTextureViewport PrevHistoryGuideViewport(PrevHistory.GuideArray->Desc.Extent, InputHistory.InputViewportRect - InputHistory.InputViewportRect.Min);
 			PassParameters->PrevHistoryGuide = PrevHistory.GuideArray;
 			PassParameters->PrevHistoryMoire = PrevHistory.MoireArray;
-			PassParameters->PrevGuideInfo = GetScreenPassTextureViewportParameters(PrevHistoryColorViewport);
+			PassParameters->PrevGuideInfo = GetScreenPassTextureViewportParameters(PrevHistoryGuideViewport);
 			PassParameters->InputPixelPosToReprojectScreenPos = ((FScreenTransform::Identity - InputRect.Min + 0.5f) / InputRect.Size()) * FScreenTransform::ViewportUVToScreenPos;
 			PassParameters->ScreenPosToPrevHistoryGuideBufferUV = FScreenTransform::ChangeTextureBasisFromTo(
-				PrevHistoryColorViewport,
+				PrevHistoryGuideViewport,
 				FScreenTransform::ETextureBasis::ScreenPosition,
 				FScreenTransform::ETextureBasis::TextureUV);
 			PassParameters->ScreenPosToResurrectionGuideBufferUV = FScreenTransform::ChangeTextureBasisFromTo(
@@ -2574,6 +2621,13 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->ScreenPosToHistoryUV = FScreenTransform::ChangeTextureBasisFromTo(HistoryExtent, FIntRect(FIntPoint::ZeroValue, HistorySize), FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
 			PassParameters->ScreenPosToInputPixelPos = FScreenTransform::ChangeTextureBasisFromTo(InputExtent, InputRect, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TexelPosition);
 			PassParameters->ScreenPosToInputUV = FScreenTransform::ChangeTextureBasisFromTo(InputExtent, InputRect, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+			{
+				FScreenPassTextureViewport PrevHistoryGuideViewport(History.GuideArray->Desc.Extent, InputHistory.InputViewportRect - InputHistory.InputViewportRect.Min);
+				PassParameters->ScreenPosToMoireHistoryUV = FScreenTransform::ChangeTextureBasisFromTo(PrevHistoryGuideViewport, FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TextureUV);
+				PassParameters->MoireHistoryUVBilinearMin = GetScreenPassTextureViewportParameters(PrevHistoryGuideViewport).UVViewportBilinearMin;
+				PassParameters->MoireHistoryUVBilinearMax = GetScreenPassTextureViewportParameters(PrevHistoryGuideViewport).UVViewportBilinearMax;
+			}
+
 			PassParameters->ClipToResurrectionClip = ClipToResurrectionClip;
 			PassParameters->OutputViewRectMin = VisualizeRect.Min;
 			PassParameters->OutputViewRectMax = VisualizeRect.Max;
