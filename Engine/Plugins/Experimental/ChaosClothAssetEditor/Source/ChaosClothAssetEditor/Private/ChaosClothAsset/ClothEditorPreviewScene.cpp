@@ -240,7 +240,6 @@ void FChaosClothPreviewScene::UpdateClothComponentAttachment()
 			const FComponentReregisterContext Context(ClothComponent);
 		}
 	}
-	UE::Chaos::ClothAsset::Private::ValidateClothComponentAttachmentBones(*ClothComponent);
 }
 
 void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& PropertyName)
@@ -253,6 +252,8 @@ void FChaosClothPreviewScene::SceneDescriptionPropertyChanged(const FName& Prope
 
 		UpdateSkeletalMeshAnimation();
 		UpdateClothComponentAttachment();
+
+		UE::Chaos::ClothAsset::Private::ValidateClothComponentAttachmentBones(*ClothComponent);
 
 		if (UChaosClothAsset* const ClothAsset = ClothComponent->GetClothAsset())
 		{
