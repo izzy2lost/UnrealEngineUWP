@@ -71,6 +71,7 @@ public:
 	TMap<FName, FRigVMExternalVariable> VariableBindings;
 
 	TArray<FRigModuleInstance*> CachedChildren;
+	mutable const FRigConnectorElement* PrimaryConnector = nullptr;
 
 	FString GetShortName() const;
 	FString GetLongName() const
@@ -83,6 +84,8 @@ public:
 	void SetRig(UControlRig* InRig);
 	bool ContainsRig(const UControlRig* InRig) const;
 	const FRigModuleReference* GetModuleReference() const;
+	const FRigModuleInstance* GetParentModule() const;
+	const FRigModuleInstance* GetRootModule() const;
 	const FRigConnectorElement* FindPrimaryConnector() const;
 	TArray<const FRigConnectorElement*> FindConnectors() const;
 	bool IsRootModule() const;
