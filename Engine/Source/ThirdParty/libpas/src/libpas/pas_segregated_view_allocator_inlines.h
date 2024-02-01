@@ -326,7 +326,7 @@ pas_segregated_view_will_start_allocating(pas_segregated_view view,
     }
     default:
         PAS_ASSERT(!"Should not be reached");
-        return NULL;
+        return NULL;
     }
 }
 
