@@ -51,6 +51,7 @@ USplineComponent::USplineComponent(const FObjectInitializer& ObjectInitializer)
 	, EditorSelectedSplineSegmentColor(FStyleColors::AccentOrange.GetSpecifiedColor())
 	, EditorTangentColor(FLinearColor(0.718f, 0.589f, 0.921f))
 	, bAllowDiscontinuousSpline(false)
+	, bAdjustTangentsOnSnap(true)
 	, bShouldVisualizeScale(false)
 	, ScaleVisualizationWidth(30.0f)
 #endif

@@ -283,6 +283,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = Editor)
 	bool bAllowDiscontinuousSpline;
 
+	/** Adjust tangents after snapping. */
+	UPROPERTY(EditAnywhere, Category = Editor)
+	bool bAdjustTangentsOnSnap;
+
 	/** Whether scale visualization should be displayed */
 	UPROPERTY(EditAnywhere, Category = Editor, meta=(InlineEditConditionToggle=true))
 	bool bShouldVisualizeScale;
@@ -887,6 +891,9 @@ private:
 			return DummyPointScale;
 		}
 	}
+
+	// FSplineComponentVisualizer will access some private members when attempting to call NotifyPropertiesModified
+	friend class FSplineComponentVisualizer;
 };
 
 /** Used to store spline data during RerunConstructionScripts */
