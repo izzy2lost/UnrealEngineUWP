@@ -250,7 +250,7 @@ void FFusionSampler::SetTempo(float InBPM)
 
 	CurrentTempoBPM = InBPM;
 
-	for (ELfoIndex LfoIdx : TEnumRange<ELfoIndex>())
+	for (int32 LfoIdx = 0; LfoIdx < kNumLfos; ++LfoIdx)
 	{
 		LfoSettings[LfoIdx].TempoBPM = InBPM * Speed;
 		Lfos[LfoIdx].UseSettings(&LfoSettings[LfoIdx]);
@@ -533,16 +533,16 @@ bool FFusionSampler::TryKeyOnZone(FMidiVoiceId InVoiceId, uint8 InTriggeredNote,
 
 	// From here on out we use the transposed note to that the correct pitch is played...
 
-	for (uint8 ModulatorIdx = 0; ModulatorIdx < (uint8)EModulatorTarget::Num; ++ModulatorIdx)
+	for (int32 ModulatorIdx = 0; ModulatorIdx < kNumModulators; ++ModulatorIdx)
 	{
-		Randomizer[ModulatorIdx].Modulate(FMath::FRand());
+		Randomizers[ModulatorIdx].Modulate(FMath::FRand());
 	}
 
 
 	float VelocityNorm = (float)InVelocity * sVelocityNormalizer;
-	for (uint8 ModulatorIdx = 0; ModulatorIdx < (uint32)EModulatorTarget::Num; ++ModulatorIdx)
+	for (int32 ModulatorIdx = 0; ModulatorIdx < kNumModulators; ++ModulatorIdx)
 	{
-		VelocityModulator[ModulatorIdx].Modulate(VelocityNorm);
+		VelocityModulators[ModulatorIdx].Modulate(VelocityNorm);
 	}
 
 	float AttackGain = VelocityNorm; // should this really just be linear?
@@ -693,13 +693,13 @@ void FFusionSampler::ApplyPatchSettings()
 	SetFineTuneCents(Settings.FineTuneCents);
 	SetPan(Settings.PannerDetails);
 	KeyzoneSelectMode = Settings.KeyzoneSelectMode;
-
-	for (EAdsrIndex Idx : TEnumRange<EAdsrIndex>())
-	{
-		AdsrSettings[Idx].CopySettings(Settings.Adsrs[Idx]);
-		AdsrSettings[Idx].CopyCurveTables(Settings.Adsrs[Idx]);
-	}
-
+	
+	AdsrVolumeSettings.CopySettings(Settings.Adsr[0]);
+	AdsrVolumeSettings.CopyCurveTables(Settings.Adsr[0]);
+	
+	AdsrAssignableSettings.CopySettings(Settings.Adsr[1]);
+	AdsrAssignableSettings.CopyCurveTables(Settings.Adsr[1]);
+	
 	//-------------------------------------
 	// get the filter info
 	//------------------------------------
@@ -709,9 +709,9 @@ void FFusionSampler::ApplyPatchSettings()
 	// Read in Lfo settings
 	//------------------------------------
 
-	for (ELfoIndex Idx : TEnumRange<ELfoIndex>())
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
-		LfoSettings[Idx].CopySettings(Settings.Lfos[Idx]);
+		LfoSettings[Idx].CopySettings(Settings.Lfo[Idx]);
 	}
 
 	//------------------------------------
@@ -762,7 +762,7 @@ void FFusionSampler::SetSampleRate(float InSampleRateHz)
 	PitchBendRamper.SetTarget(0.0f);
 	PitchBendRamper.SnapToTarget();
 
-	for (ELfoIndex Idx : TEnumRange<ELfoIndex>())
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
 		Lfos[Idx].Prepare(InSampleRateHz);
 		Lfos[Idx].UseSettings(&LfoSettings[Idx]);
@@ -816,23 +816,21 @@ void FFusionSampler::ResetPatchRelatedState()
 	FilterSettings.ResetToDefaults();
 
 	// set up the default Adsr setting
+	
+	AdsrVolumeSettings.ResetToDefaults();
+	AdsrVolumeSettings.IsEnabled = true;
+	AdsrVolumeSettings.Target = EAdsrTarget::Volume;
 
-	for (EAdsrIndex Idx : TEnumRange<EAdsrIndex>())
-	{
-		AdsrSettings[Idx].ResetToDefaults();
-	}
-
-	AdsrSettings.Volume().IsEnabled = true;
-	AdsrSettings.Volume().Target = EAdsrTarget::Volume;
-	AdsrSettings.Assignable().IsEnabled = false;
-	AdsrSettings.Assignable().Target = EAdsrTarget::None;
+	AdsrAssignableSettings.ResetToDefaults();
+	AdsrAssignableSettings.IsEnabled = false;
+	AdsrAssignableSettings.Target = EAdsrTarget::FilterFreq;
 
 	// set up the default Lfo settings
-	LfoSettings.Pan().ResetToDefaults();
-	LfoSettings.Pitch().ResetToDefaults();
+	LfoSettings[0].ResetToDefaults();
+	LfoSettings[0].Target = ELfoTarget::Pan;
 
-	LfoSettings.Pan().Target = ELfoTarget::Pan;
-	LfoSettings.Pitch().Target = ELfoTarget::Pitch;
+	LfoSettings[1].ResetToDefaults();
+	LfoSettings[1].Target = ELfoTarget::Pitch;	
 
 	// set up the default randomizer settings
 	for (uint8 ModulatorIdx = 0; ModulatorIdx < (uint8)EModulatorTarget::Num; ++ModulatorIdx)
@@ -843,10 +841,10 @@ void FFusionSampler::ResetPatchRelatedState()
 
 
 	// set up the default randomizer settings
-	for (uint8 ModulatorIdx = 0; ModulatorIdx < (uint8)EModulatorTarget::Num; ++ModulatorIdx)
+	for (int32 ModulatorIdx = 0; ModulatorIdx < kNumModulators; ++ModulatorIdx)
 	{
-		VelocityModulator[ModulatorIdx].Reset();
-		VelocityModulator[ModulatorIdx].SetTarget(&Harmonix::Dsp::Modulators::FModulatorTarget::kDummyTarget);
+		VelocityModulators[ModulatorIdx].Reset();
+		VelocityModulators[ModulatorIdx].SetTarget(&Harmonix::Dsp::Modulators::FModulatorTarget::kDummyTarget);
 	}
 
 
@@ -1153,8 +1151,10 @@ void FFusionSampler::PrepareToProcess(uint32 InNumSamples)
 	PortamentoPitchRamper.Ramp();
 	UpdatePitchBendFactor();
 
-	Lfos.Pan().Advance(static_cast<uint32_t>(InNumSamples * Speed));
-	Lfos.Pitch().Advance(static_cast<uint32_t>(InNumSamples * Speed));
+	for (int32 LfoIdx = 0; LfoIdx < kNumLfos; ++LfoIdx)
+	{
+		Lfos[LfoIdx].Advance(static_cast<uint32_t>(InNumSamples * Speed));
+	}
 }
 
 void FFusionSampler::Process(uint32 InSliceIdx, uint32 InSubSliceIdx, TAudioBuffer<float>& Output)
@@ -1300,7 +1300,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 		Min = 0.005f;
 		Max = 2.000f;
 		Range = Max - Min;
-		ValueP = AdsrSettings.Volume().ReleaseTime;
+		ValueP = AdsrVolumeSettings.ReleaseTime;
 		ValueF = ((ValueP - Min) / Range);
 		Msb = (int8)(ValueF * 127.0f);
 		break;
@@ -1311,7 +1311,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 		Min = 0.005f;
 		Max = 2.000f;
 		Range = Max - Min;
-		ValueP = AdsrSettings.Volume().AttackTime;
+		ValueP = AdsrVolumeSettings.AttackTime;
 		ValueF = ((ValueP - Min) / Range);
 		Msb = (int8)(ValueF * 127.0f);
 		break;
@@ -1356,7 +1356,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 	case MidiConstants::EControllerID::LFO0Frequency:
 	case MidiConstants::EControllerID::LFO1Frequency:
 	{
-		ELfoIndex LfoIdx = (InController == MidiConstants::EControllerID::LFO0Frequency) ? ELfoIndex::Pan : ELfoIndex::Pitch;
+		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Frequency);
 
 		float Freq = LfoSettings[LfoIdx].Freq;
 		Msb = (int8)(gLfoFreqInterp.InverseClamped(Freq) * 127.0f);
@@ -1366,7 +1366,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 	case MidiConstants::EControllerID::LFO0Depth:
 	case MidiConstants::EControllerID::LFO1Depth:
 	{
-		ELfoIndex LfoIdx = (InController == MidiConstants::EControllerID::LFO0Depth) ? ELfoIndex::Pan : ELfoIndex::Pitch;
+		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Depth);
 
 		Msb = (int8)(LfoSettings[LfoIdx].Depth * 127.0f);
 		break;
@@ -1485,14 +1485,14 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 	}
 	case MidiConstants::EControllerID::Release: 
 	{ 
-		AdsrSettings.Volume().ReleaseTime = InValue; 
-		AdsrSettings.Volume().BuildReleaseTable(); 
+		AdsrVolumeSettings.ReleaseTime = InValue; 
+		AdsrVolumeSettings.BuildReleaseTable(); 
 		break; 
 	}
 	case MidiConstants::EControllerID::Attack: 
 	{ 
-		AdsrSettings.Volume().AttackTime = InValue; 
-		AdsrSettings.Volume().BuildAttackTable(); 
+		AdsrVolumeSettings.AttackTime = InValue; 
+		AdsrVolumeSettings.BuildAttackTable(); 
 		break; 
 	}
 	case MidiConstants::EControllerID::PortamentoSwitch: 
@@ -1528,7 +1528,7 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 	case MidiConstants::EControllerID::LFO0Frequency:
 	case MidiConstants::EControllerID::LFO1Frequency: 
 	{ 
-		ELfoIndex LfoIdx = (InController == MidiConstants::EControllerID::LFO0Frequency) ? ELfoIndex::Pan : ELfoIndex::Pitch;
+		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Frequency);
 
 		if (LfoSettings[LfoIdx].Freq != InValue)
 		{
@@ -1541,7 +1541,7 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 	case MidiConstants::EControllerID::LFO0Depth:
 	case MidiConstants::EControllerID::LFO1Depth: 
 	{ 
-		ELfoIndex LfoIdx = (InController == MidiConstants::EControllerID::LFO0Depth) ? ELfoIndex::Pan : ELfoIndex::Pitch;
+		int32 LfoIdx = (InController == MidiConstants::EControllerID::LFO1Depth);
 		if (LfoSettings[LfoIdx].Depth != InValue)
 		{
 			LfoSettings[LfoIdx].Depth = InValue;
@@ -1944,8 +1944,10 @@ void FFusionSampler::UpdateVoiceLfos()
 		// skip voices not assigned to this channel
 		FFusionVoice* Voice = Node->GetValue();
 		check(Voice);
-		Voice->SetupLfo(0, LfoSettings.Pan());
-		Voice->SetupLfo(1, LfoSettings.Pitch());
+		for (int32 LfoIdx = 0; LfoIdx < kNumLfos; ++LfoIdx)
+		{
+			Voice->SetupLfo(LfoIdx, LfoSettings[LfoIdx]);
+		}
 	}
 }
 

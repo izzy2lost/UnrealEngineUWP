@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/Containers/EnumArray.h"
-#include "Misc/EnumRange.h"
-
 #include "LfoSettings.generated.h"
 
 UENUM(BlueprintType)
@@ -35,15 +32,16 @@ struct HARMONIXDSP_API FLfoSettings
 	GENERATED_BODY()
 
 public:
+	
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	ELfoTarget Target = ELfoTarget::None;
+	
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	bool IsEnabled = false;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	EWaveShape Shape = EWaveShape::Sine;
 	
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	ELfoTarget Target = ELfoTarget::None;
-
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	bool ShouldRetrigger = false;
 
@@ -103,28 +101,13 @@ public:
 	}
 };
 
-enum class ELfoIndex : uint8
-{
-	Pan,
-	Pitch,
-	Num
-};
-
-ENUM_RANGE_BY_COUNT(ELfoIndex, ELfoIndex::Num);
-
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FLfoSettingsArray
 {
 	GENERATED_BODY()
 
-public:
-	IMPLEMENT_ENUM_ARRAY(Array, ELfoIndex, FLfoSettings)
-
-	ENUM_PROPERTY(Pan);
-	ENUM_PROPERTY(Pitch);
-
-private:
-
-	UPROPERTY(EditDefaultsOnly, Category="Settings")
-	FLfoSettings Array[(uint8)ELfoIndex::Num];
+	static constexpr int32 Num = 2;
+	
+	UPROPERTY()
+	FLfoSettings Array[Num];
 };

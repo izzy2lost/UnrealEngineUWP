@@ -1,15 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/Containers/EnumArray.h"
-#include "Misc/EnumRange.h"
-
 #include "AdsrSettings.generated.h"
 
 UENUM(BlueprintType)
 enum class EAdsrTarget : uint8
 {
-	None        UMETA(Json="none"),
 	Volume      UMETA(Json="volume"),
 	FilterFreq  UMETA(Json="filter_freq"),
 	Num			UMETA(Hidden),
@@ -22,14 +18,13 @@ struct HARMONIXDSP_API FAdsrSettings
 	GENERATED_BODY()
 
 public:
-
 	static const float kMinTimeSec;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	EAdsrTarget Target = EAdsrTarget::Volume;
 	
 	UPROPERTY(EditDefaultsOnly, Category="Settings")
 	bool IsEnabled = false;
-
-	UPROPERTY(EditDefaultsOnly, Category="Settings")
-	EAdsrTarget Target = EAdsrTarget::Volume;
 
 	UPROPERTY(EditDefaultsOnly, Category="Settings", DisplayName = "Attack (Seconds)", Meta = (UIMin = "0", UIMax = "10", ClampMin = "0", ClampMax = "10"))
 	float AttackTime = 0.0f;
@@ -70,7 +65,6 @@ public:
 
 	void ResetToDefaults()
 	{
-		Target = EAdsrTarget::Volume;
 		IsEnabled = false;
 		AttackTime = 0.0f;
 		DecayTime = 0.0f;
@@ -152,28 +146,13 @@ private:
 	void BuildCurveTable(float curve, bool down, float* table);
 };
 
-enum class EAdsrIndex : uint8
-{
-	Volume,
-	Assignable,
-	Num
-};
-
-ENUM_RANGE_BY_COUNT(EAdsrIndex, EAdsrIndex::Num);
-
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FAdsrSettingsArray
 {
 	GENERATED_BODY()
 
-public:
-	IMPLEMENT_ENUM_ARRAY(Array, EAdsrIndex, FAdsrSettings)
+	static constexpr int32 Num = 2;
 
-	ENUM_PROPERTY(Volume);
-	ENUM_PROPERTY(Assignable);
-
-private:
-
-	UPROPERTY(EditDefaultsOnly, Category="Settings")
-	FAdsrSettings Array[(uint8)EAdsrIndex::Num];
+	UPROPERTY()
+	FAdsrSettings Array[Num];
 };

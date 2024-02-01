@@ -147,12 +147,14 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 			}
 		}
 	}
-
-	{
-	int AdsrIdx = -1;
+	
+	int32 AdsrIdx = -1;
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "adsrs"))
 	{
 		++AdsrIdx;
+		if (AdsrIdx >= FFusionPatchSettings::kNumAdsrs)
+			break;
+	
 		TSharedPtr<FJsonObject> AdsrObj;
 		if (!TryGetObject(ArrayValue, AdsrObj))
 			continue;
@@ -161,18 +163,19 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(AdsrObj, "adsr", AdsrValue))
 			continue;
 
-		FAdsrSettings& AdsrSettings = AdsrIdx == 0 ? PatchSettings.Adsrs.Volume() : PatchSettings.Adsrs.Assignable();
+		FAdsrSettings& AdsrSettings = PatchSettings.Adsr[AdsrIdx];
 		if (!TryParseJson(AdsrValue, AdsrSettings))
 			continue;
-
+	
 		// old defaults
-		if (AdsrIdx == 0 && !AdsrValue->HasField(TEXT("target")))
+		if (AdsrSettings.Target == EAdsrTarget::Invalid)
 		{
 			AdsrSettings.Target = EAdsrTarget::Volume;
 			AdsrSettings.Depth = 1.0f;
 			AdsrSettings.IsEnabled = true;
 		}
-	}
+	
+		AdsrSettings.Calculate();
 	}
 
 	{
@@ -181,7 +184,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	{
 		++LfoIdx;
 
-		if (!ensure(LfoIdx < PatchSettings.Lfos.Num()))
+		if (!ensure(LfoIdx < FFusionPatchSettings::kNumLfos))
 			break;
 
 		TSharedPtr<FJsonObject> LfoObj;
@@ -192,7 +195,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(LfoObj, "lfo", LfoValue))
 			continue;
 
-		FLfoSettings& LfoSettings = PatchSettings.Lfos[LfoIdx];
+		FLfoSettings& LfoSettings = PatchSettings.Lfo[LfoIdx];
 
 		if (!TryParseJson(LfoValue, LfoSettings))
 			continue;
@@ -223,7 +226,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "randomizers"))
 	{
 		++RandomizerIdx;
-		if (!ensure(RandomizerIdx < PatchSettings.Randomizers.Num()))
+		if (!ensure(RandomizerIdx < FFusionPatchSettings::kNumRandomizers))
 			break;
 
 		TSharedPtr<FJsonObject> RandomizerObj;
@@ -234,7 +237,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(RandomizerObj, "modulator", RandomizerValue))
 			continue;
 
-		TryParseJson(RandomizerValue, PatchSettings.Randomizers[RandomizerIdx]);
+		TryParseJson(RandomizerValue, PatchSettings.Randomizer[RandomizerIdx]);
 	}
 	}
 
@@ -243,7 +246,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "velocity_mods"))
 	{
 		++ModIdx;
-		if (!ensure(ModIdx < PatchSettings.VelocityModulators.Num()))
+		if (!ensure(ModIdx < FFusionPatchSettings::kNumModulators))
 			break;
 
 		TSharedPtr<FJsonObject> VelocityModObj;
@@ -254,7 +257,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(VelocityModObj, "modulator", VelocityModValue))
 			continue;
 
-		TryParseJson(VelocityModValue, PatchSettings.VelocityModulators[ModIdx]);
+		TryParseJson(VelocityModValue, PatchSettings.VelocityModulator[ModIdx]);
 	}
 	}
 
@@ -279,7 +282,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FAdsrS
 {
 	// simplify the conversion process :)
 	static TFunction<float(float)> MsToSec = [](float Ms) { return Ms * 0.001f; };
-	TryGetEnumField(JsonObj, "target", AdsrSettings.Target, EAdsrTarget::None);
+	TryGetEnumField(JsonObj, "target", AdsrSettings.Target, EAdsrTarget::Invalid);
 	TryGetNumberField(JsonObj, "depth", AdsrSettings.Depth, 0.0f);
 	TryGetBoolField(JsonObj, "enabled", AdsrSettings.IsEnabled, false);
 	TryGetNumberField(JsonObj, "attack", AdsrSettings.AttackTime, MsToSec, 1.0f);
@@ -289,8 +292,6 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FAdsrS
 	TryGetNumberField(JsonObj, "sustain", AdsrSettings.SustainLevel, 1.0f);
 	TryGetNumberField(JsonObj, "release", AdsrSettings.ReleaseTime, MsToSec, 1.0f);
 	TryGetNumberField(JsonObj, "release_curve", AdsrSettings.ReleaseCurve, 0.0f);
-
-	AdsrSettings.Calculate();
 
 	return true;
 }

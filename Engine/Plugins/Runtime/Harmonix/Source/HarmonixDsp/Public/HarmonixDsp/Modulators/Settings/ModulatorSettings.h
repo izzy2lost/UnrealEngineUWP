@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/Containers/EnumArray.h"
 #include "Misc/EnumRange.h"
 
 #include "ModulatorSettings.generated.h"
@@ -21,7 +20,6 @@ struct HARMONIXDSP_API FModulatorSettings
 	GENERATED_BODY()
 
 public:
-
 	FModulatorSettings();
 
 	UPROPERTY(EditDefaultsOnly, Category="Harmonix|DSP")
@@ -32,32 +30,14 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Harmonix|DSP", Meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
 	float Depth = 0.5f;
-
 };
 
-enum class EModulatorIndex : uint8
-{
-	StartPoint,
-	Pitch,
-	Num
-};
-
-ENUM_RANGE_BY_COUNT(EModulatorIndex, EModulatorIndex::Num);
-
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FModulatorSettingsArray
 {
 	GENERATED_BODY()
 
-public:
-
-	IMPLEMENT_ENUM_ARRAY(Array, EModulatorIndex, FModulatorSettings)
-
-	ENUM_PROPERTY(StartPoint);
-	ENUM_PROPERTY(Pitch);
-
-private:
-
-	UPROPERTY(EditDefaultsOnly, Category="Settings")
-	FModulatorSettings Array[(uint8)EModulatorIndex::Num];
+	static constexpr int32 Num = 2;
+	UPROPERTY()
+	FModulatorSettings Array[Num];
 };

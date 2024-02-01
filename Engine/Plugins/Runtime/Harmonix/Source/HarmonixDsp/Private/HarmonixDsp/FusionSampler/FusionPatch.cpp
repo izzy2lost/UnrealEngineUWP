@@ -32,7 +32,7 @@ TSharedPtr<Audio::IProxyData> UFusionPatch::CreateProxyData(const Audio::FProxyD
 UFusionPatch::UFusionPatch() : Super()
 {
 	FFusionPatchSettings& DefaultSettings = FusionPatchData.Settings;
-	FAdsrSettings& VolumeAdsr = DefaultSettings.Adsrs.Volume();
+	FAdsrSettings& VolumeAdsr = DefaultSettings.Adsr[0];
 	VolumeAdsr.Target = EAdsrTarget::Volume;
 	VolumeAdsr.Depth = 1.0f;
 	VolumeAdsr.IsEnabled = true;
@@ -182,6 +182,31 @@ void UFusionPatch::Serialize(FArchive& Ar)
 			{
 				UE_LOG(LogFusionPatch, Warning, TEXT("Fusion patch (%s) has more than one preset, but presets have been deprecated. Only the first (Default) preset will be loaded"), *GetPathName());
 			}
+		}
+
+		if (Version < FFusionPatchCustomVersion::DeprecateTypedSettingsArray)
+		{
+			for (int32 Idx = 0; Idx < FFusionPatchSettings::kNumAdsrs; ++Idx)
+			{
+				FusionPatchData.Settings.Adsr[Idx] = FusionPatchData.Settings.Adsrs_DEPRECATED.Array[Idx];
+			}
+
+			for (int32 Idx = 0; Idx < FFusionPatchSettings::kNumLfos; ++Idx)
+			{
+				FusionPatchData.Settings.Lfo[Idx] = FusionPatchData.Settings.Lfos_DEPRECATED.Array[Idx];
+			}
+
+			for (int32 Idx = 0; Idx < FFusionPatchSettings::kNumRandomizers; ++Idx)
+			{
+				FusionPatchData.Settings.Randomizer[Idx] = FusionPatchData.Settings.Randomizers_DEPRECATED.Array[Idx];
+			}
+
+			
+			for (int32 Idx = 0; Idx < FFusionPatchSettings::kNumModulators; ++Idx)
+			{
+				FusionPatchData.Settings.Randomizer[Idx] = FusionPatchData.Settings.Randomizers_DEPRECATED.Array[Idx];
+			}
+			
 		}
 	}
 
