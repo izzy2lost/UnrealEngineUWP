@@ -97,13 +97,14 @@ namespace UE::ConcertSyncTests::Replication
 
 	void FSendReceiveObjectTestBase::SetTestValues(UTestReflectionObject& Object, EPropertyTestFlags PropertyFlags)
 	{
+		const bool bSendCDOValues = EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::SendCDOValues);
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Float))
 		{
-			Object.Float = SentFloat;
+			Object.Float = bSendCDOValues ? GetMutableDefault<UTestReflectionObject>()->Float : SentFloat;
 		}
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Vector))
 		{
-			Object.Vector = SentVector;
+			Object.Vector = bSendCDOValues ? GetMutableDefault<UTestReflectionObject>()->Vector : SentVector;
 		}
 	}
 	
@@ -121,13 +122,16 @@ namespace UE::ConcertSyncTests::Replication
 	
 	void FSendReceiveObjectTestBase::TestEqualTestValues(UTestReflectionObject& Object, EPropertyTestFlags PropertyFlags)
 	{
+		const bool bSendCDOValues = EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::SendCDOValues);
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Float))
 		{
-			TestEqual(TEXT("Float"), Object.Float, SentFloat);
+			const float ExpectedValue = bSendCDOValues ? GetMutableDefault<UTestReflectionObject>()->Float : SentFloat;
+			TestEqual(TEXT("Float"), Object.Float, ExpectedValue);
 		}
 		if (EnumHasAnyFlags(PropertyFlags, EPropertyTestFlags::Vector))
 		{
-			TestEqual(TEXT("Vector"), Object.Vector, SentVector);
+			const FVector ExpectedValue = bSendCDOValues ? GetMutableDefault<UTestReflectionObject>()->Vector : SentVector;
+			TestEqual(TEXT("Vector"), Object.Vector, ExpectedValue);
 		}
 	}
 

@@ -16,13 +16,14 @@ namespace UE::ConcertSyncCore
 		{
 			Archive.ArIgnoreArchetypeRef = true;
 			Archive.ArIgnoreClassRef = true;
-			Archive.ArNoDelta = false;
+			Archive.ArNoDelta = true; // Always serialize CDO values
+			Archive.SetUseUnversionedPropertySerialization(false); // This is faster - Concert ensures all clients are on the same version
+			// We'd like to use binary serialization but sadly we must used tagged serialization since otherwise the properties cannot be mapped
+			//Archive.SetWantBinaryPropertySerialization(true);
 			
 			Archive.SetIsSaving(!bIsLoading);
 			Archive.SetIsLoading(bIsLoading);
 			Archive.SetIsPersistent(false);
-			// TODO: Test
-			//Archive.SetWantBinaryPropertySerialization(true);
 		}
 		
 		class FFullObjectFormatWriter : public FObjectWriter

@@ -24,6 +24,9 @@ namespace UE::ConcertSyncTests::Replication
 		
 		Float = 1 << 0,
 		Vector = 1 << 1,
+
+		/** The CDO values should be sent. */
+		SendCDOValues = 1 << 2,
 		
 		All = Float | Vector
 	};
