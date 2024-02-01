@@ -2,9 +2,9 @@
 
 #include "MultiUserSubsystem.h"
 
-#include "Engine/Engine.h"
-#include "Engine/GameEngine.h"
 #include "Delegates/IDelegateInstance.h"
+#include "Engine/Engine.h"
+#include "MultiUserClientStatics.h"
 #include "Templates/UniquePtr.h"
 
 #if WITH_CONCERT
@@ -12,7 +12,6 @@
 #include "IConcertClient.h"
 #include "IConcertSyncClient.h"
 #include "IConcertSession.h"
-#include "IConcertSessionHandler.h"
 #include "IConcertSyncClientModule.h"
 #include "ConcertLogGlobal.h"
 #include "MultiUserSubsystemMessages.h"
@@ -99,9 +98,9 @@ struct FConcertManager
 	void Register(TSharedRef<IConcertClientSession> InSession)
 	{
 		WeakSession = InSession;
-
+		
 		InSession->RegisterCustomEventHandler<FConcertBlueprintEvent>(this, &FConcertManager::HandleBlueprintEvent);
-
+		InSession->OnSessionClientChanged().AddRaw(this, &FConcertManager::OnSessionClientChanged);
 	}
 
 	/**
@@ -112,6 +111,7 @@ struct FConcertManager
 		if (TSharedPtr<IConcertClientSession> Session = WeakSession.Pin())
 		{
 			Session->UnregisterCustomEventHandler<FConcertBlueprintEvent>(this);
+			Session->OnSessionClientChanged().RemoveAll(this);
 		}
 
 		WeakSession.Reset();
@@ -136,6 +136,18 @@ struct FConcertManager
 		{
 			SubSystem->DispatchEvent(InEvent);
 		}
+	}
+	
+	void OnSessionClientChanged(IConcertClientSession& Session, EConcertClientStatus Status, const FConcertSessionClientInfo& ClientInfo)
+	{
+		check(GEngine);
+		UMultiUserSubsystem* SubSystem = GEngine->GetEngineSubsystem<UMultiUserSubsystem>();
+		check(SubSystem);
+		
+		SubSystem->OnSessionClientChanged.Broadcast(
+			MultiUserClientLibrary::ConvertClientStatus(Status),
+			MultiUserClientLibrary::ConvertClientInfo(ClientInfo.ClientEndpointId, ClientInfo.ClientInfo)
+			);
 	}
 
 	/** Weak pointer to the client session with which to send events. May be null or stale. */
