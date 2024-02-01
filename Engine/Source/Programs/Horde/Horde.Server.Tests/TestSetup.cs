@@ -65,6 +65,7 @@ using Horde.Server.Jobs.Bisect;
 using Horde.Server.Telemetry.Sinks;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Storage.ObjectStores;
+using Horde.Server.Tests.Server;
 
 namespace Horde.Server.Tests
 {
