@@ -12,12 +12,12 @@
 
 IMPLEMENT_GLOBAL_SHADER(FSH_FlatColorTexture, "/Plugin/TextureGraph/Layer/ChannelSourceFlat.usf", "FSH_FlatColorTexture", SF_Pixel);
 
-BufferDescriptor T_FlatColorTexture::GetFlatColorDesc(FString name)
+BufferDescriptor T_FlatColorTexture::GetFlatColorDesc(FString name, BufferFormat InBufferFormat)
 {
 	BufferDescriptor Desc;
 	
 	Desc.Name = name;
-	Desc.Format = BufferFormat::Byte;
+	Desc.Format = InBufferFormat;
 	Desc.ItemsPerPoint = 4;
 	Desc.Width = 1;
 	Desc.Height = 1;
@@ -41,8 +41,12 @@ TiledBlobPtr T_FlatColorTexture::Create(MixUpdateCyclePtr InCycle, BufferDescrip
 	Desc.ItemsPerPoint = 4;
 
 	BufferDescriptor OutputDesc = BufferDescriptor::Combine(Desc, DesiredOutputDesc);
-	OutputDesc.DefaultValue = Color; //
-	OutputDesc.bIsSRGB = true;
+	if (Desc.Format == BufferFormat::Byte) // Byte size automatically enable sRGB
+	{
+		OutputDesc.bIsSRGB = true;
+	}
+
+	OutputDesc.DefaultValue = Color;
 
 	RenderJob->AddArg(ARG_LINEAR_COLOR(Color, "Color"))
 		 ->AddArg(WithUnbounded(ARG_INT(OutputDesc.ItemsPerPoint,"ItemsPerPoint")))

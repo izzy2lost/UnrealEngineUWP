@@ -100,11 +100,32 @@ const FString FTG_Evaluation::GVectorToTextureAutoConv_Name = TEXT("_Auto_Conv_V
 const FString FTG_Evaluation::GColorToTextureAutoConv_Name = TEXT("_Auto_Conv_LinearColor_To_Tex_");
 const FString FTG_Evaluation::GFloatToTextureAutoConv_Name = TEXT("_Auto_Conv_Float_To_Tex_");
 
+// Produce a BufferDescriptor ideal to store a constant value of the type specified by Variant Type
+// The texture generated with the Descriptor will contains enough precision for the consstant to save
+BufferDescriptor GetFlatColorDesc(ETG_VariantType InVariantType)
+{
+	switch (InVariantType)
+	{
+	case ETG_VariantType::Scalar:
+		return T_FlatColorTexture::GetFlatColorDesc(FTG_Evaluation::GFloatToTextureAutoConv_Name, BufferFormat::Half);
+
+	case ETG_VariantType::Color:
+		return T_FlatColorTexture::GetFlatColorDesc(FTG_Evaluation::GColorToTextureAutoConv_Name, BufferFormat::Byte);
+
+	case ETG_VariantType::Vector:
+		return T_FlatColorTexture::GetFlatColorDesc(FTG_Evaluation::GVectorToTextureAutoConv_Name, BufferFormat::Half);
+
+	default:
+		return  BufferDescriptor();
+	}
+}
+
+
 void FloatToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 {
 	auto Input = Info.InVar->GetAs<float>();
 	auto& Output = Info.OutVar->EditAs<FTG_Texture>();
-	BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(FTG_Evaluation::GFloatToTextureAutoConv_Name);
+	BufferDescriptor Desc = GetFlatColorDesc(ETG_VariantType::Scalar);
 	Output = T_FlatColorTexture::Create(Info.Context->Cycle, Desc, FLinearColor(Input, Input, Input), Info.Context->TargetId);
 }
 
@@ -112,7 +133,7 @@ void FLinearColorToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 {
 	auto Input = Info.InVar->GetAs<FLinearColor>();
 	auto& Output = Info.OutVar->EditAs<FTG_Texture>();
-	BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(FTG_Evaluation::GColorToTextureAutoConv_Name);
+	BufferDescriptor Desc = GetFlatColorDesc(ETG_VariantType::Color);
 	Output = T_FlatColorTexture::Create(Info.Context->Cycle, Desc, Input, Info.Context->TargetId);
 }
 
@@ -120,7 +141,7 @@ void FVector4fToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 {
 	auto Input = Info.InVar->GetAs<FVector4f>();
 	auto& Output = Info.OutVar->EditAs<FTG_Texture>();
-	BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(FTG_Evaluation::GVectorToTextureAutoConv_Name);
+	BufferDescriptor Desc = GetFlatColorDesc(ETG_VariantType::Vector);
 	Output = T_FlatColorTexture::Create(Info.Context->Cycle, Desc, FLinearColor(Input.X, Input.Y, Input.Z, Input.W), Info.Context->TargetId);
 }
 
@@ -144,7 +165,7 @@ void FloatToFTG_Variant_Converter(FTG_Evaluation::VarConverterInfo& Info)
 		Output.Data.Set<FVector4f>(FVector4f((float)Input));
 		break;
 	case FTG_Variant::EType::Texture:
-		BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(TEXT("_Auto_Conv_Int_To_Tex_"));
+		BufferDescriptor Desc = GetFlatColorDesc(ETG_VariantType::Scalar);
 		auto texture = FTG_Texture(
 			T_FlatColorTexture::Create(Info.Context->Cycle, Desc,
 				FLinearColor((float)Input, (float)Input, (float)Input),
@@ -171,7 +192,7 @@ void FLinearColorToFTG_Variant_Converter(FTG_Evaluation::VarConverterInfo& Info)
 		Output.Data.Set<FVector4f>(FVector4f(Input.R, Input.G, Input.B, Input.A));
 		break;
 	case FTG_Variant::EType::Texture:
-		BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(TEXT("_Auto_Conv_Color_To_Tex_"));
+		BufferDescriptor Desc = GetFlatColorDesc(ETG_VariantType::Color);
 		auto texture = FTG_Texture(
 			T_FlatColorTexture::Create(Info.Context->Cycle, Desc,
 				Input,
@@ -196,7 +217,7 @@ void FVector4fToFTG_Variant_Converter(FTG_Evaluation::VarConverterInfo& Info)
 		Output.Data.Set<FVector4f>(Input);
 		break;
 	case FTG_Variant::EType::Texture:
-		BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(TEXT("_Auto_Conv_Color_To_Tex_"));
+		BufferDescriptor Desc = GetFlatColorDesc(ETG_VariantType::Vector);
 		auto texture = FTG_Texture(
 			T_FlatColorTexture::Create(Info.Context->Cycle, Desc,
 				FLinearColor(Input.X, Input.Y, Input.Z, Input.W),
@@ -312,7 +333,7 @@ void FTG_VariantToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 		Color = FLinearColor(Input.Data.Get<FVector4f>().X, Input.Data.Get<FVector4f>().Y, Input.Data.Get<FVector4f>().Z, Input.Data.Get<FVector4f>().W);
 		break;
 	}
-	BufferDescriptor Desc = T_FlatColorTexture::GetFlatColorDesc(TEXT("_Auto_Conv_Variant_To_Tex_"));
+	BufferDescriptor Desc = GetFlatColorDesc(SourceType);
 	Output = T_FlatColorTexture::Create(Info.Context->Cycle, Desc, Color, Info.Context->TargetId);
 
 }
