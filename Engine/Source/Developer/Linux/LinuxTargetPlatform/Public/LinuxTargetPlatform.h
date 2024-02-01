@@ -116,7 +116,7 @@ public:
 			Device->SetUserCredentials(Username, Password);
 		}
 
-		this->OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
+		ITargetPlatformControls::OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
 		return true;
 	}
 

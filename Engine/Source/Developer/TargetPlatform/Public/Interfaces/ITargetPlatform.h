@@ -50,12 +50,14 @@ public:
 	 * Gets an event delegate that is executed when a new target device has been discovered.
 	 */
 	DECLARE_EVENT_OneParam(ITargetPlatform, FOnTargetDeviceDiscovered, ITargetDeviceRef /*DiscoveredDevice*/);
+	UE_DEPRECATED(5.4, "ITargetPlatform::OnDeviceDiscovered is deprecated, use ITargetPlatformControls::OnDeviceDiscovered instead")
 	static TARGETPLATFORM_API FOnTargetDeviceDiscovered& OnDeviceDiscovered();
 
 	/**
 	 * Gets an event delegate that is executed when a target device has been lost, i.e. disconnected or timed out.
 	 */
 	DECLARE_EVENT_OneParam(ITargetPlatform, FOnTargetDeviceLost, ITargetDeviceRef /*LostDevice*/);
+	UE_DEPRECATED(5.4, "ITargetPlatform::OnDeviceLost is deprecated, use ITargetPlatformControls::OnDeviceLost instead")
 	static TARGETPLATFORM_API FOnTargetDeviceLost& OnDeviceLost();
 
 public:

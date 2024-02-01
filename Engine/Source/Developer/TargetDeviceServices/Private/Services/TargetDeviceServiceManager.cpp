@@ -153,8 +153,8 @@ bool FTargetDeviceServiceManager::AddTargetDevice(ITargetDevicePtr InDevice)
 
 void FTargetDeviceServiceManager::InitializeTargetPlatforms()
 {
-	ITargetPlatform::OnDeviceDiscovered().AddRaw(this, &FTargetDeviceServiceManager::HandleTargetPlatformDeviceDiscovered);
-	ITargetPlatform::OnDeviceLost().AddRaw(this, &FTargetDeviceServiceManager::HandleTargetPlatformDeviceLost);
+	ITargetPlatformControls::OnDeviceDiscovered().AddRaw(this, &FTargetDeviceServiceManager::HandleTargetPlatformDeviceDiscovered);
+	ITargetPlatformControls::OnDeviceLost().AddRaw(this, &FTargetDeviceServiceManager::HandleTargetPlatformDeviceLost);
 	
 	for (ITargetPlatform* Platform : GetTargetPlatformManager()->GetTargetPlatforms())
 	{
@@ -325,8 +325,8 @@ void FTargetDeviceServiceManager::SaveSettings()
 
 void FTargetDeviceServiceManager::ShutdownTargetPlatforms()
 {
-	ITargetPlatform::OnDeviceDiscovered().RemoveAll(this);
-	ITargetPlatform::OnDeviceLost().RemoveAll(this);
+	ITargetPlatformControls::OnDeviceDiscovered().RemoveAll(this);
+	ITargetPlatformControls::OnDeviceLost().RemoveAll(this);
 }
 
 
