@@ -17,6 +17,7 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
 #include "AnimDetailsProxy.h"
+#include "Engine/TimerHandle.h"
 
 class ISequencer;
 class UControlRig;
@@ -92,6 +93,9 @@ private:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 	FSequencerTracker SequencerTracker;
+
+	/** Handle for the timer used to recreate detail panel */
+	FTimerHandle NextTickTimerHandle;
 
 };
 
