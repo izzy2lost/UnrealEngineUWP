@@ -335,17 +335,17 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 									const FString MapHash = Blueprint->GetPathName();
 									const int32 MetadataVersion = ControlRig->GetHierarchy()->GetMetadataVersion();
 									
-									bool bUseShortNames = false;
+									ERigMetaDataNameSpace NameSpace = ERigMetaDataNameSpace::None;
 									if (const URigVMNode* ModelNode = InPin->GetNode())
 									{
-										if(const URigVMPin* UseNameSpacePin = ModelNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HasMetadata, UseNameSpace)))
+										if(const URigVMPin* NameSpacePin = ModelNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HasMetadata, NameSpace)))
 										{
-											if(UseNameSpacePin->GetDefaultValue().Equals(TEXT("true"), ESearchCase::IgnoreCase))
-											{
-												bUseShortNames = true;
-											}
+											NameSpace = (ERigMetaDataNameSpace)StaticEnum<ERigMetaDataNameSpace>()->GetValueByNameString(NameSpacePin->GetDefaultValue());
 										}
 									}
+
+									const bool bUseShortNames = (NameSpace != ERigMetaDataNameSpace::None) &&
+										(NameSpace != ERigMetaDataNameSpace::All);
 
 									static TMap<FString, FCachedMetadataNames> MetadataNameLists;
 									FCachedMetadataNames& MetadataNames = MetadataNameLists.FindOrAdd(MapHash);
@@ -374,7 +374,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 											if(bUseShortNames)
 											{
 												int32 Index = INDEX_NONE;
-												if(NameString.FindChar(TEXT(':'), Index))
+												if(NameString.FindLastChar(TEXT(':'), Index))
 												{
 													NameString.MidInline(Index + 1);
 												}
@@ -423,17 +423,16 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 									const FString MapHash = Blueprint->GetPathName();
 									const int32 MetadataTagVersion = ControlRig->GetHierarchy()->GetMetadataTagVersion(); 
 
-									bool bUseShortNames = false;
+									ERigMetaDataNameSpace NameSpace = ERigMetaDataNameSpace::None;
 									if (const URigVMNode* ModelNode = InPin->GetNode())
 									{
-										if(const URigVMPin* UseNameSpacePin = ModelNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HasMetadata, UseNameSpace)))
+										if(const URigVMPin* NameSpacePin = ModelNode->FindPin(GET_MEMBER_NAME_STRING_CHECKED(FRigUnit_HasMetadata, NameSpace)))
 										{
-											if(UseNameSpacePin->GetDefaultValue().Equals(TEXT("true"), ESearchCase::IgnoreCase))
-											{
-												bUseShortNames = true;
-											}
+											NameSpace = (ERigMetaDataNameSpace)StaticEnum<ERigMetaDataNameSpace>()->GetValueByNameString(NameSpacePin->GetDefaultValue());
 										}
 									}
+									const bool bUseShortNames = (NameSpace != ERigMetaDataNameSpace::None) &&
+										(NameSpace != ERigMetaDataNameSpace::All);
 
 									static TMap<FString, FCachedMetadataTagNames> MetadataTagNameLists;
 									FCachedMetadataTagNames& MetadataTagNames = MetadataTagNameLists.FindOrAdd(MapHash);
@@ -465,7 +464,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 											if(bUseShortNames)
 											{
 												int32 Index = INDEX_NONE;
-												if(TagString.FindChar(TEXT(':'), Index))
+												if(TagString.FindLastChar(TEXT(':'), Index))
 												{
 													TagString.MidInline(Index + 1);
 												}

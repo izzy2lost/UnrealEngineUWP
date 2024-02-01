@@ -647,8 +647,10 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 		// Increment the topology version to invalidate our cached children.
 		IncrementTopologyVersion();
-	
-		MetadataVersion = InHierarchy->GetMetadataVersion();
+
+		// Keep incrementing the metadata version so that the UI can refresh.
+		MetadataVersion += InHierarchy->GetMetadataVersion();
+		MetadataTagVersion += InHierarchy->GetMetadataTagVersion();
 	}
 
 	if (MetadataChangedDelegate.IsBound())
@@ -5617,7 +5619,7 @@ FRigBaseMetadata* URigHierarchy::GetMetadataForElement(FRigBaseElement* InElemen
 	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
 
 	// If repeatedly accessing the same element, store it here for faster access to avoid map lookups.
-	if (Storage.LastAccessName == InName && Storage.LastAccessMetadata->GetType() == InType)
+	if (Storage.LastAccessMetadata && Storage.LastAccessName == InName && Storage.LastAccessMetadata->GetType() == InType)
 	{
 		return Storage.LastAccessMetadata;
 	}
@@ -5646,6 +5648,11 @@ FRigBaseMetadata* URigHierarchy::GetMetadataForElement(FRigBaseElement* InElemen
 		// No metadata with that name existed on the element, create one from scratch.
 		Metadata = FRigBaseMetadata::MakeMetadata(InName, InType);
 		Storage.MetadataMap.Add(InName, Metadata);
+
+		if (bInNotify)
+		{
+			OnMetadataChanged(InElement->Key, InName);
+		}
 	}
 	
 	Storage.LastAccessName = InName;

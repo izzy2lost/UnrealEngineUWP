@@ -2,6 +2,7 @@
 
 #include "Units/RigUnitContext.h"
 #include "ControlRig.h"
+#include "ModularRig.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnitContext)
 
@@ -48,10 +49,82 @@ FString FControlRigExecuteContext::RemoveRigModuleNameSpace(const FString& InNam
 	return InName;
 }
 
-FName FControlRigExecuteContext::AdaptMetadataName(bool bUseNameSpace, const FName& InMetadataName) const
+FString FControlRigExecuteContext::GetElementNameSpace(ERigMetaDataNameSpace InNameSpaceType) const
+{
+	if(IsRigModule())
+	{
+		// prefix the meta data name with the namespace to allow modules to store their
+		// metadata in a way that doesn't collide with other modules' metadata.
+		switch(InNameSpaceType)
+		{
+			case ERigMetaDataNameSpace::Self:
+			{
+				return GetRigModuleNameSpace();
+			}
+			case ERigMetaDataNameSpace::Parent:
+			{
+				check(GetRigModuleNameSpace().EndsWith(UModularRig::NamespaceSeparator));
+				FString ParentNameSpace;
+				URigHierarchy::SplitNameSpace(GetRigModuleNameSpace().LeftChop(1), &ParentNameSpace, nullptr, true);
+				if(ParentNameSpace.IsEmpty())
+				{
+					return GetRigModuleNameSpace();
+				}
+				return ParentNameSpace + UModularRig::NamespaceSeparator;
+			}
+			case ERigMetaDataNameSpace::Root:
+			{
+				FString RootNameSpace;
+				URigHierarchy::SplitNameSpace(GetRigModuleNameSpace(), &RootNameSpace, nullptr, false);
+				if(RootNameSpace.IsEmpty())
+				{
+					return GetRigModuleNameSpace();
+				}
+				return RootNameSpace + UModularRig::NamespaceSeparator;
+			}
+			default:
+			{
+				break;
+			}
+		}
+	}
+	else
+	{
+		// prefix the meta data with some mockup namespaces
+		// so we can test this even without a module present.
+		switch(InNameSpaceType)
+		{
+			case ERigMetaDataNameSpace::Self:
+			{
+				// if we are storing on self and this is not a modular
+				// rig let's just not use a namespace.
+				break;
+			}
+			case ERigMetaDataNameSpace::Parent:
+			{
+				static const FString ParentNameSpace = TEXT("Parent:");
+				return ParentNameSpace;
+			}
+			case ERigMetaDataNameSpace::Root:
+			{
+				static const FString RootNameSpace = TEXT("Root:");
+				return RootNameSpace;
+			}
+			default:
+			{
+				break;
+			}
+		}
+	}
+
+	return FString();
+}
+
+FName FControlRigExecuteContext::AdaptMetadataName(ERigMetaDataNameSpace InNameSpaceType, const FName& InMetadataName) const
 {
 	// only if we are within a rig module let's adapt the meta data name
-	if(bUseNameSpace && IsRigModule() && !InMetadataName.IsNone())
+	const bool bUseNameSpace = (InNameSpaceType != ERigMetaDataNameSpace::None) && (InNameSpaceType != ERigMetaDataNameSpace::All);
+	if(bUseNameSpace && !InMetadataName.IsNone())
 	{
 		// if the metadata name already contains a namespace - we are just going
 		// to use it as is. this means that modules have access to other module's metadata,
@@ -64,10 +137,47 @@ FName FControlRigExecuteContext::AdaptMetadataName(bool bUseNameSpace, const FNa
 			return InMetadataName;
 		}
 
-		// prefix the meta data name with the namespace to allow modules to store their
-		// metadata in a way that doesn't collide with other modules' metadata.
-		const FString JoinedMetadataName = GetRigModuleNameSpace() + MetadataNameString;
-		return *JoinedMetadataName;
+		if(IsRigModule())
+		{
+			// prefix the meta data name with the namespace to allow modules to store their
+			// metadata in a way that doesn't collide with other modules' metadata.
+			switch(InNameSpaceType)
+			{
+				case ERigMetaDataNameSpace::Self:
+				case ERigMetaDataNameSpace::Parent:
+				case ERigMetaDataNameSpace::Root:
+				{
+					return *URigHierarchy::JoinNameSpace(GetElementNameSpace(InNameSpaceType), MetadataNameString);
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
+		else
+		{
+			// prefix the meta data with some mockup namespaces
+			// so we can test this even without a module present.
+			switch(InNameSpaceType)
+			{
+				case ERigMetaDataNameSpace::Self:
+				{
+					// if we are storing on self and this is not a modular
+					// rig let's just not use a namespace.
+					break;
+				}
+				case ERigMetaDataNameSpace::Parent:
+				case ERigMetaDataNameSpace::Root:
+				{
+					return *URigHierarchy::JoinNameSpace(GetElementNameSpace(InNameSpaceType), MetadataNameString);
+				}
+				default:
+				{
+					break;
+				}
+			}
+		}
 	}
 	return InMetadataName;
 }
