@@ -432,7 +432,7 @@ bool FAndroidTargetPlatformControls::HandleTicker( float DeltaTime )
 			Device->SetAuthorized(DeviceInfo.bAuthorizedDevice);
 			Device->SetVersions(DeviceInfo.SDKVersion, DeviceInfo.HumanAndroidVersion);
 
-			OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
+			ITargetPlatformControls::OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
 		}
 	}
 

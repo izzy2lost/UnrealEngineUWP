@@ -54,7 +54,7 @@ inline bool FAndroidTargetDevice::PowerOff( bool Force )
 
 inline FString FAndroidTargetDevice::GetAllDevicesName() const
 {
-	return FString::Printf(TEXT("All_%s_On_%s"), *(GetTargetPlatform().IniPlatformName()), FPlatformProcess::ComputerName());
+	return FString::Printf(TEXT("All_%s_On_%s"), *(GetPlatformSettings().IniPlatformName()), FPlatformProcess::ComputerName());
 }
 
 // cancel the running application

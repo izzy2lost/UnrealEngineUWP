@@ -375,7 +375,7 @@ void FIOSTargetPlatform::HandlePongMessage( const FIOSLaunchDaemonPong& Message,
 		Device->SetDeviceEndpoint(Context->GetSender());
 		Device->SetIsSimulated(Message.DeviceID.Contains(TEXT("Simulator")));
 
-		OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
+		ITargetPlatformControls::OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
 	}
 
 	Device->LastPinged = FDateTime::UtcNow();
@@ -412,7 +412,7 @@ void FIOSTargetPlatform::HandleDeviceConnected(const FIOSLaunchDaemonPong& Messa
 			Device->SetDeviceConnectionType(Message.DeviceConnectionType);
 			Device->SetIsSimulated(Message.DeviceID.Contains(TEXT("Simulator")));
 
-			OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
+			ITargetPlatformControls::OnDeviceDiscovered().Broadcast(Device.ToSharedRef());
 		}
 		else
 		{
@@ -434,7 +434,7 @@ void FIOSTargetPlatform::HandleDeviceDisconnected(const FIOSLaunchDaemonPong& Me
 	
 	if (Device.IsValid())
 	{
-		OnDeviceLost().Broadcast(Device.ToSharedRef());
+		ITargetPlatformControls::OnDeviceLost().Broadcast(Device.ToSharedRef());
 		Devices.Remove(DeviceId);
 	}
 }
