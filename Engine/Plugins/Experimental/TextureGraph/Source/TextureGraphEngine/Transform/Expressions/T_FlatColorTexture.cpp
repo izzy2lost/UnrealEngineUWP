@@ -41,7 +41,7 @@ TiledBlobPtr T_FlatColorTexture::Create(MixUpdateCyclePtr InCycle, BufferDescrip
 	Desc.ItemsPerPoint = 4;
 
 	BufferDescriptor OutputDesc = BufferDescriptor::Combine(Desc, DesiredOutputDesc);
-	if (Desc.Format == BufferFormat::Byte) // Byte size automatically enable sRGB
+	if (OutputDesc.Format == BufferFormat::Byte) // Byte size automatically enable sRGB
 	{
 		OutputDesc.bIsSRGB = true;
 	}
