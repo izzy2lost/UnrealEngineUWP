@@ -13,7 +13,7 @@ UMassStationaryISMRepresentationFragmentDestructor::UMassStationaryISMRepresenta
 {
 	ObservedType = FMassRepresentationFragment::StaticStruct();
 	Operation = EMassObservedOperation::Remove;
-	ExecutionFlags = (int32)(EProcessorExecutionFlags::All);
+	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
 	bRequiresGameThreadExecution = true; // not sure about this
 }
 

@@ -25,7 +25,7 @@ UMassReplicationProcessor::UMassReplicationProcessor()
 #if !UE_ALLOW_DEBUG_REPLICATION_BUBBLES_STANDALONE
 	ExecutionFlags = int32(EProcessorExecutionFlags::Server);
 #else
-	ExecutionFlags = int32(EProcessorExecutionFlags::All);
+	ExecutionFlags = int32(EProcessorExecutionFlags::AllNetModes);
 #endif // UE_ALLOW_DEBUG_REPLICATION_BUBBLES_STANDALONE
 
 	ProcessingPhase = EMassProcessingPhase::PostPhysics;
