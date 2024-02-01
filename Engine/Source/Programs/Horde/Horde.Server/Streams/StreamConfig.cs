@@ -265,6 +265,21 @@ namespace Horde.Server.Streams
 				template.JobOptions.MergeDefaults(JobOptions);
 			}
 
+			foreach (TemplateRefConfig template in Templates)
+			{
+				ScheduleConfig? schedule = template.Schedule;
+				if (schedule != null)
+				{
+					foreach (CommitTag commitTag in schedule.Commits)
+					{
+						if (!TryGetCommitTag(commitTag, out _))
+						{
+							throw new InvalidOperationException($"Missing definition for commit tag '{commitTag}' referenced by {Id}:{template.Id}");
+						}
+					}
+				}
+			}
+
 			if (Environment != null && Environment.Count > 0)
 			{
 				foreach (AgentConfig agentConfig in AgentTypes.Values)

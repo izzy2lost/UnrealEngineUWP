@@ -492,6 +492,9 @@ namespace Horde.Server.Configuration
 					snapshot.Dependencies.Add(depUri, depFile.Revision);
 				}
 
+				// Execute a PostLoad before returning so we can validate that everything is valid
+				globalConfig.PostLoad(_serverSettings);
+
 				return snapshot;
 			}
 			catch (Exception ex) when (ex is not ConfigException)
