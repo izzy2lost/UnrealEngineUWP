@@ -1209,22 +1209,23 @@ namespace EpicGames.Perforce.Managed
 				return client;
 			}
 
+			client = new ClientRecord(clientName, perforceClient.Settings.UserName!, _workspaceDir.FullName);
+			client.Host = _hostName;
+			client.Stream = streamName;
+
+			if (_options.Partitioned)
+			{
+				// Partitioned and read-only types store their have table separately on the server, compared to normal (writeable) clients
+				// Clients that sync without updating the have table cannot submit so they're marked as read-only. 
+				client.Type = _options.UseHaveTable ? "partitioned" : "readonly";
+			}
+
+			_logger.LogInformation("Updating client {ClientName} (Host: {HostName}, Stream: {StreamName}, Type: {Type})", client.Host, client.Stream, client.Type ?? "(default)");
+
 			using (Trace("UpdateClient"))
 			using (ILoggerProgress status = _logger.BeginProgressScope("Updating client..."))
 			{
 				Stopwatch timer = Stopwatch.StartNew();
-
-				client = new ClientRecord(clientName, perforceClient.Settings.UserName!, _workspaceDir.FullName);
-				client.Host = _hostName;
-				client.Stream = streamName;
-
-// HACK: Always using partitioned workspaces for now
-//				if (_options.Partitioned)
-				{
-					// Partitioned and read-only types store their have table separately on the server, compared to normal (writeable) clients
-					// Clients that sync without updating the have table cannot submit so they're marked as read-only. 
-					client.Type = _options.UseHaveTable ? "partitioned" : "readonly";
-				}
 
 				using IPerforceConnection perforce = await perforceClient.WithoutClientAsync();
 
