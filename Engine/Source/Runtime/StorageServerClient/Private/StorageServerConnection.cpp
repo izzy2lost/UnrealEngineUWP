@@ -546,7 +546,7 @@ int32 FStorageServerConnection::HandshakeRequest(TArrayView<const TSharedPtr<FIn
 		}
 	}
 
-	UE_LOG(LogStorageServerConnection, Fatal, TEXT("Failed to handshake with Zen at any of host addresses."));
+	UE_LOG(LogStorageServerConnection, Error, TEXT("Failed to handshake with Zen at any of host addresses."));
 
 	Hostname.Reset();
 	ServerAddr.Reset();
