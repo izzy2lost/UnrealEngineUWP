@@ -493,7 +493,7 @@ TOptional<EItemDropZone> SIKRigSolverStack::OnCanAcceptDrop(
 	const TSharedPtr<FIKRigSolverStackDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FIKRigSolverStackDragDropOp>();
 	if (DragDropOp.IsValid())
 	{
-		ReturnedDropZone = EItemDropZone::BelowItem;	
+		ReturnedDropZone = DropZone == EItemDropZone::BelowItem ? EItemDropZone::BelowItem : EItemDropZone::AboveItem;
 	}
 	
 	return ReturnedDropZone;
@@ -518,7 +518,8 @@ FReply SIKRigSolverStack::OnAcceptDrop(
 
 	const FSolverStackElement& DraggedElement = *DragDropOp.Get()->Element.Pin().Get();
 	UIKRigController* AssetController = Controller->AssetController;
-	const bool bWasReparented = AssetController->MoveSolverInStack(DraggedElement.IndexInStack, TargetItem.Get()->IndexInStack);
+	const int32 IndexOffset = DropZone == EItemDropZone::BelowItem || DropZone == EItemDropZone::OntoItem ? 1 : 0;
+	const bool bWasReparented = AssetController->MoveSolverInStack(DraggedElement.IndexInStack, TargetItem.Get()->IndexInStack + IndexOffset);
 	if (bWasReparented)
 	{
 		RefreshStackView();

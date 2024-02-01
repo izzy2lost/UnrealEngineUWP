@@ -780,7 +780,8 @@ bool UIKRigController::MoveSolverInStack(int32 SolverToMoveIndex, int32 TargetSo
 		return false;
 	}
 
-	if (!Asset->Solvers.IsValidIndex(TargetSolverIndex))
+	// allow a target 1 greater than the last element (for dragging below last element of list)
+	if (TargetSolverIndex > Asset->Solvers.Num() || TargetSolverIndex < 0)
 	{
 		UE_LOG(LogIKRigEditor, Warning, TEXT("Solver not moved. Invalid target index, %d."), TargetSolverIndex);
 		return false;
@@ -796,7 +797,7 @@ bool UIKRigController::MoveSolverInStack(int32 SolverToMoveIndex, int32 TargetSo
 	FScopedReinitializeIKRig Reinitialize(this);
 	Asset->Modify();
 	UIKRigSolver* SolverToMove = Asset->Solvers[SolverToMoveIndex];
-	Asset->Solvers.Insert(SolverToMove, TargetSolverIndex + 1);
+	Asset->Solvers.Insert(SolverToMove, TargetSolverIndex);
 	const int32 SolverToRemove = TargetSolverIndex > SolverToMoveIndex ? SolverToMoveIndex : SolverToMoveIndex + 1;
 	Asset->Solvers.RemoveAt(SolverToRemove);
 	return true;
