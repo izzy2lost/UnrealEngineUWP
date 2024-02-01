@@ -188,6 +188,7 @@ bool UWorldPartitionRuntimeHashSet::GenerateStreaming(UWorldPartitionStreamingPo
 		RuntimeCell->SetBlockOnSlowLoading(CellDescInstance.bBlockOnSlowStreaming);
 		RuntimeCell->SetIsHLOD(CellDescInstance.SourcePartition->HLODIndex != INDEX_NONE);
 		RuntimeCell->SetGuid(CellUniqueId.Guid);
+		RuntimeCell->SetCellDebugColor(CellDescInstance.SourcePartition->DebugColor);
 
 		UWorldPartitionRuntimeCellData* RuntimeCellData = RuntimeCell->RuntimeCellData;
 		RuntimeCellData->DebugName = CellUniqueId.Name;

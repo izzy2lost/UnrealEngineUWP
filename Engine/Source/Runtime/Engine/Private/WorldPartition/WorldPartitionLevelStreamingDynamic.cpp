@@ -192,8 +192,6 @@ void UWorldPartitionLevelStreamingDynamic::CreateRuntimeLevel()
 
 	// Attach ourself to Level cleanup to do our own cleanup
 	OnCleanupLevelDelegateHandle = RuntimeLevel->OnCleanupLevel.AddUObject(this, &UWorldPartitionLevelStreamingDynamic::OnCleanupLevel);
-
-	LevelColor = FLinearColor::MakeRandomSeededColor(GetTypeHash(GetName()));
 }
 
 /**
@@ -307,6 +305,11 @@ bool UWorldPartitionLevelStreamingDynamic::RequestLevel(UWorld* InPersistentWorl
 			check(!RuntimeLevel);
 			CreateRuntimeLevel();
 			check(RuntimeLevel);
+
+			if (const UWorldPartitionRuntimeLevelStreamingCell* RuntimeLevelStreamingCell = StreamingCell.Get())
+			{
+				LevelColor = RuntimeLevelStreamingCell->GetCellDebugColor();
+			}
 
 			UPackage* CellLevelPackage = RuntimeLevel->GetPackage();
 			check(CellLevelPackage);

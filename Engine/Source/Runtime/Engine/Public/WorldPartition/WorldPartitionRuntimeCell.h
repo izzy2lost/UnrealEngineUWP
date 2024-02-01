@@ -282,6 +282,9 @@ class UWorldPartitionRuntimeCell : public UObject, public IWorldPartitionCell, p
 	const FGuid& GetGuid() const { return CellGuid; }
 	void SetGuid(const FGuid& InCellGuid) { CellGuid = InCellGuid; }
 
+	const FLinearColor& GetCellDebugColor() const { return CellDebugColor; }
+	void SetCellDebugColor(const FLinearColor& InCellDebugColor) { CellDebugColor = InCellDebugColor; }
+
 	const FGuid& GetSourceCellGuid() const { return SourceCellGuid; }
 	void SetSourceCellGuid(const FGuid& InSourceCellGuid) { SourceCellGuid = InSourceCellGuid; }
 
@@ -321,6 +324,9 @@ private:
 
 	UPROPERTY()
 	FGuid ContentBundleID;
+
+	UPROPERTY()
+	FLinearColor CellDebugColor;
 
 protected:
 	UPROPERTY()
