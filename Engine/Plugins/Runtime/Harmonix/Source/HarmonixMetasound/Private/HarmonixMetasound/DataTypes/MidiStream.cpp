@@ -123,6 +123,43 @@ namespace HarmonixMetasound
 		CopyMidiEvents(SameClockStreams);
 	}
 
+	void FMidiStream::Copy(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate, bool IncludeTransportEvents)
+	{
+		if (IncludeTransportEvents)
+		{
+			CopyTransportEvents(InStream);
+		}
+
+		CopyMidiEvents(InStream, Predicate);
+	}
+
+	void FMidiStream::CopyTransportEvents(const FMidiStream& InStream)
+	{
+		const TArray<FMidiTimestampTransportState>& TransportChanges = InStream.GetTransportChangesInBlock();
+		TransportChangesInBlock.Empty(TransportChanges.Num());
+		for (const FMidiTimestampTransportState& Change : TransportChanges)
+		{
+			AddTransportStateChangeMessage(Change.BlockSampleFrameIndex, Change.TransportState);
+		}
+	}
+
+	void FMidiStream::CopyMidiEvents(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate)
+	{
+		const TArray<FMidiStreamEvent>& MidiEvents = InStream.GetEventsInBlock();
+		if (!ensureAlwaysMsgf(EventsInBlock.Num()==0, TEXT("Existing midi events in midi stream are being destroyed during copy!")))
+		{
+			EventsInBlock.Empty(FMath::Max(MidiEvents.Num(), 32));
+			ActiveVoices.Reset();
+		}
+		for (const FMidiStreamEvent& Event : MidiEvents)
+		{
+			if (Predicate(Event))
+			{
+				AddMidiEvent(Event);
+			}
+		}
+	}
+
 	void FMidiStream::Copy(FMidiStreamReadRef InStream, bool EventsOnly)
 	{
 		if (GetMidiClockSource() && GetMidiClockSource()->Get() != InStream->GetMidiClockSource()->Get())
@@ -211,12 +248,7 @@ namespace HarmonixMetasound
 
 	void FMidiStream::CopyTransportEvents(const FMidiStreamReadRef& InStream)
 	{
-		const TArray<FMidiTimestampTransportState>& TransportChanges = InStream->GetTransportChangesInBlock();
-		TransportChangesInBlock.Empty(TransportChanges.Num());
-		for (auto& Change : TransportChanges)
-		{
-			AddTransportStateChangeMessage(Change.BlockSampleFrameIndex, Change.TransportState);
-		}
+		CopyTransportEvents(*InStream);
 	}
 
 	void FMidiStream::CopyMidiEvents(const TArray<FMidiStreamReadRef>& InStreams)

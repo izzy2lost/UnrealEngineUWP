@@ -97,11 +97,6 @@ namespace HarmonixMetasound
 			MidiClockSource.Reset();
 		}
 
-		using MidiSinkFunction = std::function<void()>;
-		void ExecuteBlock(MidiSinkFunction Destination) const
-		{
-		}
-
 		void PrepareBlock();
 
 		void AddTransportStateChangeMessage(int32 SampleFrameIndexInBlock, EMusicPlayerTransportState State);
@@ -126,6 +121,11 @@ namespace HarmonixMetasound
 		{
 			return MidiClockSource.GetPtrOrNull();
 		}
+
+		using FCopyMidiEventsPredicate = TFunctionRef<bool(const FMidiStreamEvent&)>;
+		void Copy(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate, bool IncludeTransportEvents);
+		void CopyTransportEvents(const FMidiStream& InStream);
+		void CopyMidiEvents(const FMidiStream& InStream, const FCopyMidiEventsPredicate& Predicate);
 
 		// Forward declare the read ref for copying other streams
 		using FMidiStreamReadRef = Metasound::TDataReadReference<FMidiStream>;
