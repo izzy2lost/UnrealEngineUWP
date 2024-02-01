@@ -783,12 +783,23 @@ ENGINE_API ETextureEncodeSpeed UTexture::GetDesiredEncodeSpeed() const
 	return FResolvedTextureEncodingSettings::Get().EncodeSpeed;
 }
 
+// from Texture.cpp
+extern FName GetLatestOodleTextureSdkVersion();
 
 static FName ConditionalRemapOodleTextureSdkVersion(FName InOodleTextureSdkVersion, const ITargetPlatform* TargetPlatform)
 {
 #if WITH_EDITOR
 
 	// optionally remap InOodleTextureSdkVersion
+	
+	bool bOodleTextureSdkForceLatestVersion = false;
+	if ( TargetPlatform->GetConfigSystem()->GetBool(TEXT("AlternateTextureCompression"), TEXT("OodleTextureSdkForceLatestVersion"), bOodleTextureSdkForceLatestVersion, GEngineIni) &&
+		bOodleTextureSdkForceLatestVersion )
+	{
+		static FName LatestOodleTextureSdkVersion = GetLatestOodleTextureSdkVersion();
+
+		return LatestOodleTextureSdkVersion;
+	}
 
 	if ( InOodleTextureSdkVersion.IsNone() )
 	{
