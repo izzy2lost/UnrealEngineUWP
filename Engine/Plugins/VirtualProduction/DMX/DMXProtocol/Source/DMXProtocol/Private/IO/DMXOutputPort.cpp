@@ -5,15 +5,15 @@
 #include "DMXProtocolLog.h"
 #include "DMXProtocolSettings.h"
 #include "DMXProtocolUtils.h"
-#include "Interfaces/IDMXProtocol.h"
-#include "Interfaces/IDMXSender.h"
-#include "IO/DMXOutputPortConfig.h"
-#include "IO/DMXPortManager.h"
-#include "IO/DMXRawListener.h"
-
 #include "HAL/Event.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/RunnableThread.h"
+#include "Interfaces/IDMXProtocol.h"
+#include "Interfaces/IDMXSender.h"
+#include "IO/DMXConflictMonitor.h"
+#include "IO/DMXOutputPortConfig.h"
+#include "IO/DMXPortManager.h"
+#include "IO/DMXRawListener.h"
 #include <limits>
 #include "Misc/FrameRate.h"
 
@@ -793,6 +793,7 @@ void FDMXOutputPort::RemoveRawListener(TSharedRef<FDMXRawListener> InRawListener
 
 void FDMXOutputPort::SendDMX(int32 LocalUniverseID, const TMap<int32, uint8>& ChannelToValueMap)
 {
+	using namespace UE::DMX;
 	checkf(IsInGameThread(), TEXT("Only the game-thread can Send from a DMX Output Port."));
 
 	if (IsLocalUniverseInPortRange(LocalUniverseID))
@@ -814,6 +815,14 @@ void FDMXOutputPort::SendDMX(int32 LocalUniverseID, const TMap<int32, uint8>& Ch
 
 			// Write the fragment to the game thread's buffer
 			const FDMXSignalSharedPtr& Signal = ExternUniverseToLatestSignalMap_GameThread.FindOrAdd(ExternUniverseID, MakeShared<FDMXSignal, ESPMode::ThreadSafe>());
+
+#if WITH_EDITOR
+			// Monitor conflicts
+			if (FDMXConflictMonitor* ConflictMonitor = FDMXConflictMonitor::Get())
+			{
+				ConflictMonitor->MonitorOutboundDMX(SharedThis(this), LocalUniverseID, ChannelToValueMap);
+			}
+#endif
 
 			for (const TTuple<int32, uint8>& ChannelValueKvp : ChannelToValueMap)
 			{

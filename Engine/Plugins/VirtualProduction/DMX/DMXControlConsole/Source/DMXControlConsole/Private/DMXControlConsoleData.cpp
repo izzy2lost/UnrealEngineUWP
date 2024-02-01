@@ -7,10 +7,12 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
 #include "IO/DMXOutputPort.h"
+#include "IO/DMXTrace.h"
 #include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
+#include "UObject/Package.h"
 
 
 namespace UE::DMX::Private
@@ -334,9 +336,12 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 			continue;
 		}
 
+		UE_DMX_SCOPED_TRACE_SENDDMX(GetOutermost()->GetFName());
 		UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
 		if (FixturePatch)
 		{
+			UE_DMX_SCOPED_TRACE_SENDDMX(*FixturePatch->GetDisplayName());
+
 			// Send Fixture Patch Function DMX data
 			const TMap<FDMXAttributeName, int32> AttributeMap = FaderGroup->GetAttributeMap();
 			FixturePatch->SendDMX(AttributeMap);
@@ -361,6 +366,8 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 		}
 		else
 		{
+			UE_DMX_SCOPED_TRACE_SENDDMX("<No Patch>");
+
 			// Send Raw DMX data
 			const TMap<int32, TMap<int32, uint8>> UniverseToFragmentMap = FaderGroup->GetUniverseToFragmentMap();
 			for (const TTuple<int32, TMap<int32, uint8>>& UniverseToFragement : UniverseToFragmentMap)

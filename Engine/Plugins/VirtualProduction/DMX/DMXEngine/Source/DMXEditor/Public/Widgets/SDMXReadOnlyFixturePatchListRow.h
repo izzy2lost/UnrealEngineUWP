@@ -48,24 +48,6 @@ private:
 	/** Generates the row that displays the Patch */
 	TSharedRef<SWidget> GeneratePatchRow();
 
-	/** Gets Fixture Patch editor color */
-	FSlateColor GetFixtureEditorColor() const;
-
-	/** Gets Fixture Patch Name as text */
-	FText GetFixturePatchNameText() const;
-
-	/** Gets Fixture ID as text */
-	FText GetFixtureIDText() const;
-
-	/** Gets Fixture Type as text */
-	FText GetFixtureTypeText() const;
-
-	/** Gets Fixture Mode as text */
-	FText GetModeText() const;
-
-	/** Gets Fixture Universe and Address as text */
-	FText GetPatchText() const;
-
 	/** The item this widget draws */
 	TSharedPtr<FDMXReadOnlyFixturePatchListItem> Item;
 };

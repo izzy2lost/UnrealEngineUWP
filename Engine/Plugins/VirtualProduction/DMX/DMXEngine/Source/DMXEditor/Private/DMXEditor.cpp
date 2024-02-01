@@ -332,6 +332,8 @@ void FDMXEditor::OnAddNewEntity(TSubclassOf<UDMXEntity> InEntityClass)
 
 bool FDMXEditor::InvokeEditorTabFromEntityType(TSubclassOf<UDMXEntity> InEntityClass)
 {
+	using namespace UE::DMX;
+
 	// Make sure we're in the right tab for the current type
 	FName TargetTabId = NAME_None;
 	if (InEntityClass->IsChildOf(UDMXEntityFixtureType::StaticClass()))
