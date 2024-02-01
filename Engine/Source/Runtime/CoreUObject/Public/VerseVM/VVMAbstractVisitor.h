@@ -85,6 +85,12 @@ struct FAbstractVisitor
 	virtual void Visit(FString& Value, const TCHAR* ElementName);
 	virtual void Visit(uint64& Value, const TCHAR* ElementName);
 	virtual void Visit(int64& Value, const TCHAR* ElementName);
+	virtual void Visit(uint32& Value, const TCHAR* ElementName);
+	virtual void Visit(int32& Value, const TCHAR* ElementName);
+	virtual void Visit(uint16& Value, const TCHAR* ElementName);
+	virtual void Visit(int16& Value, const TCHAR* ElementName);
+	virtual void Visit(uint8& Value, const TCHAR* ElementName);
+	virtual void Visit(int8& Value, const TCHAR* ElementName);
 
 	// Override the following methods to handle nesting of elements.  Begin/EndObject are intended for when
 	// objects are elements in arrays.
@@ -96,6 +102,9 @@ struct FAbstractVisitor
 	virtual void EndMap();
 	virtual void BeginObject(const TCHAR* ElementName = nullptr);
 	virtual void EndObject();
+
+	// Override for blocks of bulk binary data
+	virtual void VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName);
 
 	virtual bool IsMarked(VCell* InCell, const TCHAR* ElementName) { return true; }
 

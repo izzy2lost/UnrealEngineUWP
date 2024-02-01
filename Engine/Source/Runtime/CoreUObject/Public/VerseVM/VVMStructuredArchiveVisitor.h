@@ -79,6 +79,13 @@ struct FStructuredArchiveVisitor : FAbstractVisitor
 	virtual void Visit(FString& Value, const TCHAR* ElementName) override;
 	virtual void Visit(uint64& Value, const TCHAR* ElementName) override;
 	virtual void Visit(int64& Value, const TCHAR* ElementName) override;
+	virtual void Visit(uint32& Value, const TCHAR* ElementName) override;
+	virtual void Visit(int32& Value, const TCHAR* ElementName) override;
+	virtual void Visit(uint16& Value, const TCHAR* ElementName) override;
+	virtual void Visit(int16& Value, const TCHAR* ElementName) override;
+	virtual void Visit(uint8& Value, const TCHAR* ElementName) override;
+	virtual void Visit(int8& Value, const TCHAR* ElementName) override;
+	virtual void VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName) override;
 
 	virtual FArchive* GetUnderlyingArchive() override;
 	virtual bool IsLoading() override;

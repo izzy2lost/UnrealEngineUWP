@@ -643,6 +643,11 @@ void FStructuredArchiveVisitor::EndObject()
 	LeaveObject();
 }
 
+void FStructuredArchiveVisitor::VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName)
+{
+	Slot(ElementName).Serialize(Data, DataSize);
+}
+
 void FStructuredArchiveVisitor::VisitNonNull(VCell*& InCell, const TCHAR* ElementName)
 {
 	VisitCellBody(ScopedRecord(*this, ElementName).Record, InCell);
@@ -694,6 +699,36 @@ void FStructuredArchiveVisitor::Visit(uint64& Value, const TCHAR* ElementName)
 }
 
 void FStructuredArchiveVisitor::Visit(int64& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(uint32& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(int32& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(uint16& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(int16& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(uint8& Value, const TCHAR* ElementName)
+{
+	Slot(ElementName) << Value;
+}
+
+void FStructuredArchiveVisitor::Visit(int8& Value, const TCHAR* ElementName)
 {
 	Slot(ElementName) << Value;
 }

@@ -34,6 +34,30 @@ void FAbstractVisitor::Visit(int64& Value, const TCHAR* ElementName)
 {
 }
 
+void FAbstractVisitor::Visit(uint32& Value, const TCHAR* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(int32& Value, const TCHAR* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(uint16& Value, const TCHAR* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(int16& Value, const TCHAR* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(uint8& Value, const TCHAR* ElementName)
+{
+}
+
+void FAbstractVisitor::Visit(int8& Value, const TCHAR* ElementName)
+{
+}
+
 void FAbstractVisitor::BeginArray(const TCHAR* ElementName, uint64& NumElements)
 {
 }
@@ -63,6 +87,10 @@ void FAbstractVisitor::BeginObject(const TCHAR* ElementName)
 }
 
 void FAbstractVisitor::EndObject()
+{
+}
+
+void FAbstractVisitor::VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName)
 {
 }
 
