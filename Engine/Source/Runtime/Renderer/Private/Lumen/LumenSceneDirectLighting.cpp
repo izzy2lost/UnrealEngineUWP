@@ -129,7 +129,7 @@ public:
 
 		if (Type == ELumenLightType::Directional)
 		{
-			bHasCloudTransmittance = LightHasCloudShadow(Scene, View, LightSceneInfo);
+			bMayCastCloudTransmittance = LightMayCastCloudShadow(Scene, View, LightSceneInfo);
 		}
 
 		LightFunctionMaterialProxy = Proxy->GetLightFunctionMaterial();
@@ -141,11 +141,11 @@ public:
 		
 		FSceneRenderer::GetLightNameForDrawEvent(Proxy, Name);
 
-		bNeedsShadowMask = bHasShadows || bHasCloudTransmittance || LightFunctionMaterialProxy;
+		bNeedsShadowMask = bHasShadows || bMayCastCloudTransmittance || LightFunctionMaterialProxy;
 
 		// If evaluates to false, the light may still be eligible for batching during a raytraced shadow pass.
 		// The assumption is that such lights are not common so we are not optimizing for them.
-		bBatchedShadowsEligible = !bHasCloudTransmittance && bBatchableLightFunction && Type != ELumenLightType::Directional;
+		bBatchedShadowsEligible = !bMayCastCloudTransmittance && bBatchableLightFunction && Type != ELumenLightType::Directional;
 
 		// Non-raytraced and distance field shadows require the light uniform buffer struct for each view.
 		if ((!bUseHardwareRayTracing && bHasShadows) || NeedsShadowMask())
@@ -180,7 +180,7 @@ public:
 	uint32 LightIndex = 0;
 	ELumenLightType Type = ELumenLightType::MAX;
 	bool bHasShadows = false;
-	bool bHasCloudTransmittance = false;
+	bool bMayCastCloudTransmittance = false;
 	bool bNeedsShadowMask = false;
 	bool bBatchedShadowsEligible = false;
 	FString Name;
@@ -1082,7 +1082,7 @@ static int32 ComputeShadowMaskFromLightAttenuation(
 		check(Light.NeedsShadowMask());
 
 		const FMaterialRenderProxy* LightFunctionMaterialProxy = Light.LightFunctionMaterialProxy;
-		const bool bMayUseCloudTransmittance = GLumenDirectLightingCloudTransmittance != 0 && Light.bHasCloudTransmittance;
+		const bool bMayUseCloudTransmittance = GLumenDirectLightingCloudTransmittance != 0 && Light.bMayCastCloudTransmittance;
 		const uint32 DispatchIndirectArgOffset = (Light.LightIndex * NumViews + ViewIndex) * sizeof(FRHIDispatchIndirectParameters);
 
 		if (LightFunctionMaterialProxy)

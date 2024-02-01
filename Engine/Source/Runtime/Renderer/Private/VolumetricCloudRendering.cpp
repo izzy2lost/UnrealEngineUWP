@@ -2966,15 +2966,15 @@ bool SetupLightCloudTransmittanceParameters(FRDGBuilder& GraphBuilder, const FSc
 	return bLight0CloudShadowEnabled || bLight1CloudShadowEnabled;
 }
 
-bool LightHasCloudShadow(const FScene* Scene, const FViewInfo& View, const FLightSceneInfo* LightSceneInfo)
+bool LightMayCastCloudShadow(const FScene* Scene, const FViewInfo& View, const FLightSceneInfo* LightSceneInfo)
 {
 	const FLightSceneInfo* Light0 = Scene->AtmosphereLights[0];
 	const FLightSceneInfo* Light1 = Scene->AtmosphereLights[1];
 
 	if (Scene->GetVolumetricCloudSceneInfo()
-		&& (View.VolumetricCloudShadowRenderTarget[0] || View.VolumetricCloudShadowRenderTarget[1])
-		&& ((Light0 && Light0->Proxy == LightSceneInfo->Proxy && Light0->Proxy->GetCloudShadowOnSurfaceStrength() > 0.f)
-			|| (Light1 && Light1->Proxy == LightSceneInfo->Proxy && Light1->Proxy->GetCloudShadowOnSurfaceStrength() > 0.f)))
+		//&& (View.VolumetricCloudShadowRenderTarget[0] || View.VolumetricCloudShadowRenderTarget[1]) // We cannot check for RTs when this function might be called earlier in the frame (e.g. Lumen), before the RTs have been generated.
+		&& ((Light0 && Light0->Proxy == LightSceneInfo->Proxy && Light0->Proxy->GetCastCloudShadows() && Light0->Proxy->GetCloudShadowOnSurfaceStrength() > 0.f)
+			|| (Light1 && Light1->Proxy == LightSceneInfo->Proxy && Light1->Proxy->GetCastCloudShadows() && Light1->Proxy->GetCloudShadowOnSurfaceStrength() > 0.f)))
 	{
 		return true;
 	}
