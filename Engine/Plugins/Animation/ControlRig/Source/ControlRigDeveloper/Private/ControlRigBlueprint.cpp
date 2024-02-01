@@ -2148,11 +2148,21 @@ void UControlRigBlueprint::PropagateHierarchyFromBPToInstances() const
 			{
 				if (UControlRig* InstanceRig = Cast<UControlRig>(ArchetypeInstance))
 				{
-					InstanceRig->PostInitInstanceIfRequired();
-					InstanceRig->GetHierarchy()->CopyHierarchy(Hierarchy);
-					InstanceRig->HierarchySettings = HierarchySettings;
-					UpdateElementKeyRedirector(InstanceRig);
-					InstanceRig->Initialize(true);
+					if (InstanceRig->IsRigModuleInstance())
+					{
+						if (UModularRig* ModularRig = Cast<UModularRig>(InstanceRig->GetOuter()))
+						{
+							ModularRig->RequestInit();
+						}
+					}
+					else
+					{
+						InstanceRig->PostInitInstanceIfRequired();
+						InstanceRig->GetHierarchy()->CopyHierarchy(Hierarchy);
+						InstanceRig->HierarchySettings = HierarchySettings;
+						UpdateElementKeyRedirector(InstanceRig);
+						InstanceRig->Initialize(true);
+					}
 				}
 			}
 		}
