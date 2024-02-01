@@ -68,7 +68,7 @@ RWTexture2D<tsr_ushort> AntiAliasMaskOutput;
 
 static uint2 GGroupId = 0;
 
-static tsr_tensor_halfC Debug[DEBUG_ARRAY_SIZE];
+static tsr_tensor_half4 Debug[DEBUG_ARRAY_SIZE];
 
 
 //------------------------------------------------------- INPUT FETCHES
@@ -115,7 +115,8 @@ tsr_short2 ComputeElementOutputPixelPos(const uint ElementIndex)
 void FetchDecimateMask(
 	tsr_tensor_short2 PixelPos,
 	out tsr_tensor_half VelocityEdge,
-	out tsr_tensor_bool bIsDisoccluded)
+	out tsr_tensor_bool bIsDisoccluded,
+	out tsr_tensor_bool bHasPixelAnimation)
 {
 	UNROLL_N(SIMD_SIZE)
 	for (uint ElementIndex = 0; ElementIndex < SIMD_SIZE; ElementIndex++)
@@ -124,8 +125,11 @@ void FetchDecimateMask(
 		
 		tsr_half2 DecimateMask = DecimateMaskTexture[ClampedFetchPixelPos];
 
+		tsr_ushort BitMask = tsr_ushort(DecimateMask.r * tsr_half(255.0));
+
 		VelocityEdge.SetElement(ElementIndex, DecimateMask.g);
-		bIsDisoccluded.SetElement(ElementIndex, !(DecimateMask.r > tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD)));
+		bIsDisoccluded.SetElement(ElementIndex,     (BitMask & tsr_ushort(0x1)) != tsr_ushort(0));
+		bHasPixelAnimation.SetElement(ElementIndex, (BitMask & tsr_ushort(0x2)) != tsr_ushort(0));
 	}
 } // FetchDecimateMask()
 
@@ -362,8 +366,9 @@ void RefetchInputAndHistoryFromLDSOrCache(
 	tsr_tensor_half  OriginalHistoryUncertainty;
 	tsr_tensor_half  VelocityEdge;
 	tsr_tensor_bool  bIsDisoccluded;
+	tsr_tensor_bool  bHasPixelAnimation;
 
-	FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded);
+	FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded, /* out */ bHasPixelAnimation);
 	FetchSceneColorAndTranslucency(PixelPos, /* out */ OriginalOpaqueInput, /* out */ OriginalTranslucencyInput);
 	FetchReprojectedHistoryGuide(
 		PixelPos,
@@ -411,6 +416,7 @@ void MainCS(
 		// Load its own data
 		tsr_tensor_half  VelocityEdge;
 		tsr_tensor_bool  bIsDisoccluded;
+		tsr_tensor_bool  bHasPixelAnimation;
 		tsr_tensor_halfC OriginalOpaqueInput;
 		tsr_tensor_half4 OriginalTranslucencyInput;
 		tsr_tensor_half  MoireInput;
@@ -420,7 +426,7 @@ void MainCS(
 		{
 			tsr_tensor_short2 PixelPos = ComputePixelPos();
 		
-			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded);
+			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded, /* out */ bHasPixelAnimation);
 			FetchSceneColorAndTranslucency(PixelPos, /* out */ OriginalOpaqueInput, /* out */ OriginalTranslucencyInput);
 			FetchMoireInput(
 				PixelPos,
@@ -458,6 +464,7 @@ void MainCS(
 	// Load all the history data.
 	tsr_tensor_half  VelocityEdge;
 	tsr_tensor_bool  bIsDisoccluded;
+	tsr_tensor_bool  bHasPixelAnimation;
 	tsr_tensor_halfC OriginalOpaqueInput;
 	tsr_tensor_half4 OriginalTranslucencyInput;
 	tsr_tensor_halfC OriginalHistory;
@@ -474,7 +481,7 @@ void MainCS(
 		{
 			tsr_tensor_short2 PixelPos = ComputePixelPos();
 
-			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded);
+			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded, /* out */ bHasPixelAnimation);
 			FetchSceneColorAndTranslucency(PixelPos, /* out */ OriginalOpaqueInput, /* out */ OriginalTranslucencyInput);
 			FetchReprojectedHistoryGuide(
 				PixelPos,
@@ -491,7 +498,7 @@ void MainCS(
 		{
 			tsr_tensor_short2 PixelPos = ComputePixelPos();
 
-			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded);
+			FetchDecimateMask(PixelPos, /* out */ VelocityEdge, /* out */ bIsDisoccluded, /* out */ bHasPixelAnimation);
 			FetchSceneColorAndTranslucency(PixelPos, /* out */ OriginalOpaqueInput, /* out */ OriginalTranslucencyInput);
 			FetchReprojectedHistoryGuide(
 				PixelPos,
@@ -523,8 +530,25 @@ void MainCS(
 			}
 		}
 	}
-	
-	tsr_tensor_halfC OriginalInput = ComposeTranslucency(OriginalOpaqueInput, Blur3x3(OriginalTranslucencyInput));
+
+	tsr_tensor_halfC OriginalInput;
+	{
+		tsr_tensor_halfC SharpInput = OriginalOpaqueInput;
+		tsr_tensor_half4 BlurInput = OriginalTranslucencyInput;
+
+		//BRANCH
+		//if (AnyComponent(bHasPixelAnimation))
+		{
+			tsr_tensor_halfC CenterFinalSceneColor = ComposeTranslucency(OriginalOpaqueInput, OriginalTranslucencyInput);
+			
+			tsr_tensor_half4 HasAnimationBlurInput = ResizeChannels<4>(CenterFinalSceneColor);
+			
+			BlurInput  = select(tsr_tensor_bool4::Vectorize(bHasPixelAnimation), HasAnimationBlurInput, BlurInput);
+			SharpInput = select(tsr_tensor_boolC::Vectorize(bHasPixelAnimation), tsr_tensor_halfC::Const(0.0), SharpInput);
+		}
+		
+		OriginalInput = ComposeTranslucency(SharpInput, Blur3x3(BlurInput));
+	}
 
 	// Despill to LDS to make room in VGPRs for the convolutions of ComputeMoireError()
 	#if CONFIG_LDS_DESPILL
@@ -820,7 +844,7 @@ void MainCS(
 			UNROLL_N(DEBUG_ARRAY_SIZE)
 			for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)
 			{
-				DebugOutput[tsr_short3(OutputPixelPos, DebugId)] = float4(ResizeChannels<4>(Debug[DebugId]).GetElement(ElementIndex));
+				DebugOutput[tsr_short3(OutputPixelPos, DebugId)] = float4(Debug[DebugId].GetElement(ElementIndex));
 			}
 		}
 	}

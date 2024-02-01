@@ -427,6 +427,7 @@ void MainCS(
 	#endif
 	float PrevDeviceZ;
 	tsr_half VelocityEdge = tsr_half(1.0);
+	bool bHasPixelAnimation;
 	ISOLATE
 	{
 		tsr_ushort2 InputPixelPos = (
@@ -443,10 +444,12 @@ void MainCS(
 			#if CONFIG_RESURRECTION_REPROJECTION
 				float2 DeviceZAndPrevDeviceZ = ClosestDepthTexture[InputPixelPos];
 				DeviceZ = DeviceZAndPrevDeviceZ.g;
-				PrevDeviceZ = DeviceZAndPrevDeviceZ.r;
 			#else
-				PrevDeviceZ = ClosestDepthTexture[InputPixelPos];
+				float DeviceZAndPrevDeviceZ = ClosestDepthTexture[InputPixelPos];
 			#endif
+			
+			PrevDeviceZ = abs(DeviceZAndPrevDeviceZ.r);
+			bHasPixelAnimation = DeviceZAndPrevDeviceZ.r < 0.0;
 
 			#if CONFIG_VELOCITY_SAMPLES == 1
 				EncodedScreenVelocity = DilatedVelocityTexture[InputPixelPos];
@@ -676,6 +679,14 @@ void MainCS(
 		}
 	}
 	
+	// Builds the decimate bitmask
+	tsr_ushort DecimateBitMask;
+	{
+		bool bIsDisoccluded = !(ParallaxRejectionMask > tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD));
+
+		DecimateBitMask = select(bIsDisoccluded, tsr_ushort(0x1), tsr_ushort(0x0)) | select(bHasPixelAnimation, tsr_ushort(0x2), tsr_ushort(0x0));
+	}
+
 	// Output full res
 	ISOLATE
 	{
@@ -718,7 +729,7 @@ void MainCS(
 		#endif
 
 		HoleFilledVelocityOutput[OutputPixelPos] = EncodedScreenVelocity;
-		DecimateMaskOutput[InputPixelPos] = tsr_half2(ParallaxRejectionMask, VelocityEdge);
+		DecimateMaskOutput[InputPixelPos] = tsr_half2(tsr_half(DecimateBitMask) * rcp(tsr_half(255.0)), VelocityEdge);
 
 		#if DEBUG_OUTPUT
 		for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)
