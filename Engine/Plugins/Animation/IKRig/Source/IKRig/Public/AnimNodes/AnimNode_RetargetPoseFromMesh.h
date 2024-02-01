@@ -44,15 +44,17 @@ struct IKRIG_API FAnimNode_RetargetPoseFromMesh : public FAnimNode_Base
 
 	/*
 	* Max LOD that this node is allowed to run.
-	* For example if you have LODThreshold to be 2, it will run until LOD 2 (based on 0 index) when the component LOD becomes 3, it will stop update/evaluate
+	* For example if you have LODThreshold at 2, it will run until LOD 2 (based on 0 index) when the component LOD becomes 3, it will stop update/evaluate
+	* A value of -1 forces the node to execute at all LOD levels.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Performance, meta = (DisplayName = "LOD Threshold"))
 	int32 LODThreshold = -1;
 
 	/*
 	* Max LOD that IK is allowed to run.
-	* For example if you have LODThresholdForIK to be 2, it will skip the IK pass on LODs 3 and greater.
+	* For example if you have LODThresholdForIK at 2, it will skip the IK pass on LODs 3 and greater.
 	* This only disables IK and does not affect the Root or FK passes.
+	* A value of -1 forces the node to execute at all LOD levels.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Performance, meta = (DisplayName = "IK LOD Threshold"))
 	int32 LODThresholdForIK = -1;

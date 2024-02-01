@@ -113,12 +113,12 @@ void FAnimNode_RetargetPoseFromMesh::Evaluate_AnyThread(FPoseContext& Output)
 	Processor->ApplySettingsFromProfile(CustomRetargetProfile);
 	
 	// LOD off the IK pass
-	if (Output.AnimInstanceProxy->GetLODLevel() > LODThresholdForIK)
+	if (LODThresholdForIK != INDEX_NONE && Output.AnimInstanceProxy->GetLODLevel() > LODThresholdForIK)
 	{
 		// override the custom profile's global settings but with IK forcibly turned off
 		FRetargetProfile TurnIKOffProfile;
 		TurnIKOffProfile.bApplyGlobalSettings = true;
-		TurnIKOffProfile.GlobalSettings = CustomRetargetProfile.GlobalSettings;
+		TurnIKOffProfile.GlobalSettings = Processor->GetGlobalSettings();
 		TurnIKOffProfile.GlobalSettings.bEnableIK = false;
 		Processor->ApplySettingsFromProfile(TurnIKOffProfile);
 	}
