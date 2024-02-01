@@ -7,6 +7,7 @@
 #include <Containers/UnrealString.h>
 #include <CoreGlobals.h>
 #include <Misc/OutputDeviceRedirector.h>
+#include <Misc/ScopeExit.h>
 
 namespace UE::IO::IAS::Tool {
 
