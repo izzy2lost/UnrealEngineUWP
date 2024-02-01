@@ -8,7 +8,6 @@
 #include "LearningNeuralNetwork.h"
 #include "LearningCritic.h"
 #include "LearningLog.h"
-#include "LearningRandom.h"
 
 #include "UObject/Package.h"
 #include "Misc/FileHelper.h"
@@ -174,7 +173,7 @@ void ULearningAgentsCritic::SetupCritic(
 			CriticNetwork->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(CriticNetwork);
 		}
 
-		UE::NNE::RuntimeBasic::FModelBuilder Builder(UE::Learning::Random::Int(Seed ^ 0x2610fc8f));
+		UE::NNE::RuntimeBasic::FModelBuilder Builder;
 
 		TArray<uint8> FileData;
 		uint32 CriticInputSize, CriticOutputSize;

@@ -10,6 +10,9 @@
 
 #include "LearningAgentsController.generated.h"
 
+
+DECLARE_DYNAMIC_DELEGATE_RetVal_FourParams(FLearningAgentsActionObjectElement, FEvaluateAgentControllerDelegate, ULearningAgentsActionObject*, InActionObject, const FLearningAgentsObservationObjectElement, InObservationObjectElement, const ULearningAgentsObservationObject*, InObservationObject, const int32, AgentId);
+
 /**
  * A controller is an object that can be used to construct actions from observations - essentially a hand-made Policy. This can be useful for making 
  * a learning agents system that uses some other existing behavior, e.g. we may want to gather demonstrations from a human or AI behavior tree 
@@ -47,35 +50,18 @@ public:
 	void SetupController(ULearningAgentsManager* InManager, ULearningAgentsInteractor* InInteractor);
 
 	/**
-	 * This callback should be overridden by the Controller and produces an Action Object Element from an Observation Object Element.
-	 *
-	 * @param OutActionObjectElement		Output Action Object Element.
-	 * @param InActionObject				Action object used to construct the output Action Object Element.
-	 * @param InObservationObjectElement	Input Observation Object Element.
-	 * @param InObservationObject			Input Observation Object.
-	 * @param AgentId						Agent id associated with the observation.
-	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
-	void EvaluateAgentController(
-		FLearningAgentsActionObjectElement& OutActionObjectElement,
-		ULearningAgentsActionObject* InActionObject,
-		const FLearningAgentsObservationObjectElement& InObservationObjectElement,
-		const ULearningAgentsObservationObject* InObservationObject,
-		const int32 AgentId);
-
-	/**
-	 * This callback can be overridden by the Controller and produces an array of Action Object Elements, from an array of Observation 
-	 * Object Elements. By default this will call EvaluateAgentController for each agent.
+	 * This callback should be implemented by the Controller and should produce an array of action object elements, from an array of observation 
+	 * object elements.
 	 * 
 	 * @param OutActionObjectElements		Output Action Object Elements. This should be the same size as the input AgentIds and 
 	 *                                      InObservationObjectElements arrays.
 	 * @param InActionObject				Action object used to construct output elements.
-	 * @param InObservationObjectElements	Input Observation Object Elements.
-	 * @param InObservationObject			Input Observation Object.
-	 * @param AgentIds						Agent ids associated with each observation.
+	 * @param InObservationObjectElements	Input observation object elements
+	 * @param InObservationObject			Input observation object
+	 * @param AgentIds						Agent ids associated with each observation
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
-	void EvaluateAgentControllers(
+	void EvaluateAgentController(
 		TArray<FLearningAgentsActionObjectElement>& OutActionObjectElements, 
 		ULearningAgentsActionObject* InActionObject, 
 		const TArray<FLearningAgentsObservationObjectElement>& InObservationObjectElements,
@@ -83,14 +69,35 @@ public:
 		const TArray<int32>& AgentIds);
 
 	/**
+	 * This is a convenience function that can be used to implement `EvaluateAgentController` in terms of a callback which iterates over every agent
+	 * individually and computes the actions from the observations.
+	 *
+	 * @param OutActionObjectElements		Output Action Object Elements. This should be the same size as the input AgentIds and
+	 *                                      InObservationObjectElements arrays.
+	 * @param InActionObject				Action object used to construct output elements.
+	 * @param InObservationObjectElements	Input observation object elements
+	 * @param InObservationObject			Input observation object
+	 * @param AgentIds						Agent ids associated with each observation
+	 * @param Delegate						The Delegate used to compute actions from observations.
+	 */
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
+	void EvaluateAgentControllerUsingDelegate(
+		TArray<FLearningAgentsActionObjectElement>& OutActionObjectElements,
+		ULearningAgentsActionObject* InActionObject,
+		const TArray<FLearningAgentsObservationObjectElement>& InObservationObjectElements,
+		const ULearningAgentsObservationObject* InObservationObject,
+		const TArray<int32>& AgentIds,
+		const FEvaluateAgentControllerDelegate& Delegate);
+
+	/**
 	 * Call this function when it is time to evaluate the controller and produce the actions for the agents. This should be called after 
-	 * GatherObservations but before PerformActions. This will call this controller's EvaluateAgentController event.
+	 * GatherObservations but before ScatterActions. This will call this controller's EvaluateAgentController event.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void EvaluateController();
 
 	/**
-	 * Calls GatherObservations, followed by EvaluateController, followed by PerformActions
+	 * Calls GatherObservations, followed by EvaluateController, followed by ScatterActions
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void RunController();
