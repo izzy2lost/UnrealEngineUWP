@@ -83,7 +83,12 @@ void FNiagaraEmitterDetails::CustomizeDetails(IDetailLayoutBuilder& InDetailLayo
 			if (ChildProperty->HasAllPropertyFlags(CPF_Edit))
 			{
 				FName Category = FName(ChildProperty->GetMetaData(TEXT("Category")));
-				CategoryPropertyMap.FindOrAdd(Category).Add(ChildProperty);
+				
+				// we display the scalability category within scalability mode, which is why we hide it here
+				if (Category != FName("Scalability"))
+				{
+					CategoryPropertyMap.FindOrAdd(Category).Add(ChildProperty);
+				}
 			}
 		}
 
