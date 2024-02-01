@@ -175,6 +175,7 @@ namespace Jupiter.FunctionalTests.GC
 				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
 				new KeyValuePair<string, string?>($"Namespaces:Policies:{TestNamespace}:GCMethod", NamespacePolicy.StoragePoolGCMethod.LastAccess.ToString()),
 				new KeyValuePair<string, string?>("GC:DefaultGCPolicy", NamespacePolicy.StoragePoolGCMethod.None.ToString()),
+				new KeyValuePair<string, string?>("CacheRef:Enabled", false.ToString()),
 			};
 		}
 
