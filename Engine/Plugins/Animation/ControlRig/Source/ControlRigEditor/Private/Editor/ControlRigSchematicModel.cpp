@@ -1484,6 +1484,8 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 							return;
 						}
 
+						FScopedTransaction Transaction(LOCTEXT("AddAndConnectModule", "Add and Connect Module"));
+
 						const FName ModuleName = Controller->GetSafeNewName(FString(), FRigName(AssetBlueprint->RigModuleSettings.Identifier.Name));
 						const FString ModulePath = Controller->AddModule(ModuleName, AssetBlueprint->GetControlRigClass(), FString());
 						if(!ModulePath.IsEmpty())
