@@ -25,6 +25,7 @@ public:
 #if WITH_EDITORONLY_DATA
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSettingsChange, const FPropertyChangedEvent& /*PropertyChangedEvent*/);
 #endif // WITH_EDITORONLY_DATA
+	DECLARE_MULTICAST_DELEGATE(FOnInitialized);
 
 	UMassEntitySettings(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
@@ -34,8 +35,11 @@ public:
 	TConstArrayView<FMassProcessingPhaseConfig> GetProcessingPhasesConfig();
 	const FMassProcessingPhaseConfig& GetProcessingPhaseConfig(const EMassProcessingPhase ProcessingPhase) const { check(ProcessingPhase != EMassProcessingPhase::MAX); return ProcessingPhasesConfig[int(ProcessingPhase)]; }
 
+	static FOnInitialized& GetOnInitializedEvent() { return GET_MASS_CONFIG_VALUE(OnInitializedEvent); }
 #if WITH_EDITOR
-	FOnSettingsChange& GetOnSettingsChange() { return OnSettingsChange; }	
+	FOnSettingsChange& GetOnSettingsChange() { return OnSettingsChange; }
+
+	static bool IsInitialized() { return GET_MASS_CONFIG_VALUE(bInitialized); }
 
 protected:
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -75,4 +79,6 @@ protected:
 #endif // WITH_EDITORONLY_DATA
 	bool bInitialized = false;
 	bool bEngineInitialized = false;
+
+	FOnInitialized OnInitializedEvent;
 };

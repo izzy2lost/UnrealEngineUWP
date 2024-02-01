@@ -56,6 +56,8 @@ void UMassEntitySettings::BuildProcessorListAndPhases()
 	BuildProcessorList();
 	BuildPhases();
 	bInitialized = true;
+
+	OnInitializedEvent.Broadcast();
 }
 
 void UMassEntitySettings::BuildPhases()
@@ -77,7 +79,7 @@ void UMassEntitySettings::BuildPhases()
 			FMassPhaseProcessorConfigurationHelper Configurator(*PhaseConfig.PhaseProcessor, PhaseConfig, *this, EMassProcessingPhase(i));
 			Configurator.bInitializeCreatedProcessors = false;
 			Configurator.bIsGameRuntime = false;
-			Configurator.Configure({}, /*EntityManager=*/nullptr, &Result);
+			Configurator.Configure({}, EProcessorExecutionFlags::All, /*EntityManager=*/nullptr, &Result);
 
 			if (Result.PrunedProcessorClasses.Num() > 0)
 			{

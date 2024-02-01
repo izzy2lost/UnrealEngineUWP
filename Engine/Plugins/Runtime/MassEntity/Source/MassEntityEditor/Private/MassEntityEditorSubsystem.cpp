@@ -69,7 +69,9 @@ struct FMassEditorTickFunction : FTickableEditorObject
 
 UMassEntityEditorSubsystem::UMassEntityEditorSubsystem()
 	: EntityManager(MakeShareable(new FMassEntityManager(this)))
-	, PhaseManager(new FMassProcessingPhaseManager())
+	// we explicitly configure FMassProcessingPhaseManager to be in Editor mode since in this context we will not
+	// get a valid UWorld to deduce that - this subsystem runs for the editor itself, not for worlds loaded in the editor. 
+	, PhaseManager(new FMassProcessingPhaseManager(EProcessorExecutionFlags::Editor))
 {
 
 }
@@ -84,6 +86,26 @@ UMassEntityEditorSubsystem::~UMassEntityEditorSubsystem()
 }
 
 void UMassEntityEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	if (UMassEntitySettings::IsInitialized())
+	{
+		InitializeMassInternals();
+	}
+	else
+	{
+		OnSettingsInitializedHandle = UMassEntitySettings::GetOnInitializedEvent().AddUObject(this, &UMassEntityEditorSubsystem::InitializeMassInternals);
+	}
+
+	Super::Initialize(Collection);
+}
+
+void UMassEntityEditorSubsystem::Deinitialize()
+{
+	StopAndCleanUp();
+	Super::Deinitialize();
+}
+
+void UMassEntityEditorSubsystem::InitializeMassInternals()
 {
 	// Note that since this is a raw pointer we need to remember to delete it once we're done. It's now done in both 
 	// Deinitialize and the destructor (in case Deinitialize call is missed in an unexpected circumstances).
@@ -103,14 +125,6 @@ void UMassEntityEditorSubsystem::Initialize(FSubsystemCollectionBase& Collection
 	PhaseManager->Initialize(*this, ProcessingPhasesConfig);
 
 	PhaseManager->Start(EntityManager);
-
-	Super::Initialize(Collection);
-}
-
-void UMassEntityEditorSubsystem::Deinitialize()
-{
-	StopAndCleanUp();
-	Super::Deinitialize();
 }
 
 void UMassEntityEditorSubsystem::StopAndCleanUp()
@@ -122,6 +136,11 @@ void UMassEntityEditorSubsystem::StopAndCleanUp()
 	}
 
 	PhaseManager->Stop();
+
+	if (OnSettingsInitializedHandle.IsValid())
+	{
+		UMassEntitySettings::GetOnInitializedEvent().Remove(OnSettingsInitializedHandle);
+	}
 }
 
 void UMassEntityEditorSubsystem::Tick(float DeltaTime)
