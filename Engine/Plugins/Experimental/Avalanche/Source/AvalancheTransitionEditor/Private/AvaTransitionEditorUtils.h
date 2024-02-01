@@ -12,7 +12,7 @@ class UAvaTransitionTreeEditorData;
 
 namespace UE::AvaTransitionEditor
 {
-	TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* InEditorData);
+	TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* InEditorData, bool bInCompileOnLayerPicked);
 
 	void ValidateTree(UAvaTransitionTree& InTransitionTree);
 

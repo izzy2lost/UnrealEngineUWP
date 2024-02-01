@@ -1,10 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionEditorUtils.h"
+#include "AvaTransitionEditorEnums.h"
 #include "AvaTransitionEditorLog.h"
 #include "AvaTransitionTree.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "Behavior/IAvaTransitionBehavior.h"
+#include "Compiler/AvaTransitionCompiler.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "ISinglePropertyView.h"
@@ -21,7 +23,7 @@
 namespace UE::AvaTransitionEditor
 {
 
-TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* InEditorData)
+TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* InEditorData, bool bInCompileOnLayerPicked)
 {
 	if (!InEditorData)
 	{
@@ -36,6 +38,23 @@ TSharedPtr<SWidget> CreateTransitionLayerPicker(UAvaTransitionTreeEditorData* In
 	TSharedPtr<ISinglePropertyView> PropertyView = PropertyEditorModule.CreateSingleProperty(InEditorData
 		, UAvaTransitionTreeEditorData::GetTransitionLayerPropertyName()
 		, SinglePropertyParams);
+
+	if (bInCompileOnLayerPicked)
+	{
+		if (UAvaTransitionTree* TransitionTree = InEditorData->GetTypedOuter<UAvaTransitionTree>())
+		{
+			FSimpleDelegate OnLayerPicked = FSimpleDelegate::CreateWeakLambda(TransitionTree,
+				[TransitionTree]
+				{
+					// Compile in Advanced Mode here so that no new nodes are generated from outside
+					FAvaTransitionCompiler Compiler;
+					Compiler.SetTransitionTree(TransitionTree);
+					Compiler.Compile(EAvaTransitionEditorMode::Advanced);
+				});
+
+			PropertyView->SetOnPropertyValueChanged(OnLayerPicked);
+		}		
+	}
 
 	if (PropertyView.IsValid())
 	{
