@@ -7,7 +7,9 @@
 #pragma once
 
 #include "Containers/ContainersFwd.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GlobalShader.h"
+#endif
 #include "OpenColorIOShaderType.h"
 #include "OpenColorIOShared.h"
 #include "ShaderParameters.h"
