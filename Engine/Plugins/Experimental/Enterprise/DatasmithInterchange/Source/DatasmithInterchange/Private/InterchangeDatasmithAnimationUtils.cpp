@@ -392,6 +392,26 @@ namespace UE::DatasmithInterchange::AnimUtils
 		return false;
 	}
 
+	bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, EInterchangeAnimationPayLoadType PayLoadType, UE::Interchange::FAnimationPayloadData& PayLoadData)
+	{
+		switch (PayLoadType)
+		{
+		case EInterchangeAnimationPayLoadType::CURVE:
+		case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
+			return GetAnimationPayloadData(AnimationElement, FrameRate, PayLoadData.Curves);
+
+		case EInterchangeAnimationPayLoadType::STEPCURVE:
+			return GetAnimationPayloadData(AnimationElement, FrameRate, PayLoadData.StepCurves);
+		
+		case EInterchangeAnimationPayLoadType::BAKED:
+		case EInterchangeAnimationPayLoadType::NONE:
+		default:
+			break;
+		}
+
+		return false;
+	}
+
 	void TranslateLevelSequences(TArray<TSharedPtr<IDatasmithLevelSequenceElement>>& LevelSequences, UInterchangeBaseNodeContainer& BaseNodeContainer, TMap<FString, UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc>& AnimationPayLoadMapping)
 	{
 		FLevelSequenceImportHelper LevelSequenceHelper(BaseNodeContainer);

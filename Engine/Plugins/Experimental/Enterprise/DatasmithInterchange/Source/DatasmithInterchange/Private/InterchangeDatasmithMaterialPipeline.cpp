@@ -329,7 +329,7 @@ void UInterchangeDatasmithMaterialPipeline::UpdateMaterialFactoryNodes(const TAr
 	{
 		const FString FactoryNodeUid = UInterchangeMaterialFactoryNode::GetMaterialFactoryNodeUidFromMaterialNodeUid(ShaderNode->GetUniqueID());
 		UInterchangeFactoryBaseNode* FactoryNode = BaseNodeContainer->GetFactoryNode(FactoryNodeUid);
-		if (!ensure(FactoryNode))
+		if (!ensure(FactoryNode || bIdentifyDuplicateMaterials))
 		{
 			continue;
 		}
