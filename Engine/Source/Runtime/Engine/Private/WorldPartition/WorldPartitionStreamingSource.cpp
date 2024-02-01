@@ -53,8 +53,8 @@ FString FWorldPartitionStreamingSource::ToString() const
 		bBlockOnSlowLoading ? TEXT("Blocking") : TEXT("NonBlocking"),
 		(int64)Location.X, (int64)Location.Y, (int64)Location.Z,
 		*Rotation.ToCompactString(),
-		Velocity,
-		(int32)(Velocity * 2.23694f)
+		Velocity.Size() * 0.01,
+		(int32)(Velocity.Size() * 0.0223694f)
 	);
 
 	if (Shapes.Num())
@@ -95,15 +95,15 @@ void FWorldPartitionStreamingSource::UpdateHash()
 {
 	// Update old values when they are changing enough, to avoid the case where we are on the edge of a quantization unit.
 	if (!UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() || 
-		(FVector::Dist(Location, OldLocation) > FWorldPartitionStreamingSource::LocationQuantization))
+		(FVector::Dist(Location, OldLocation) > LocationQuantization))
 	{
 		OldLocation = Location;
 	}
 	
 	if (!UWorldPartitionStreamingPolicy::IsUpdateStreamingOptimEnabled() ||
-		(FMath::Abs(Rotation.Pitch - OldRotation.Pitch) > FWorldPartitionStreamingSource::RotationQuantization) ||
-		(FMath::Abs(Rotation.Yaw - OldRotation.Yaw) > FWorldPartitionStreamingSource::RotationQuantization) ||
-		(FMath::Abs(Rotation.Roll - OldRotation.Roll) > FWorldPartitionStreamingSource::RotationQuantization))
+		(FMath::Abs(Rotation.Pitch - OldRotation.Pitch) > RotationQuantization) ||
+		(FMath::Abs(Rotation.Yaw - OldRotation.Yaw) > RotationQuantization) ||
+		(FMath::Abs(Rotation.Roll - OldRotation.Roll) > RotationQuantization))
 	{
 		OldRotation = Rotation;
 	}
