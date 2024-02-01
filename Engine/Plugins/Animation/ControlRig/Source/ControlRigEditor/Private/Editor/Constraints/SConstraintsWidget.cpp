@@ -1219,9 +1219,23 @@ void SConstraintsEditionWidget::RemoveItem(const TSharedPtr<FEditableConstraintI
 	RefreshConstraintList();
 }
 
+void SConstraintsEditionWidget::InvalidateConstraintList()
+{
+	FBaseConstraintListWidget::InvalidateConstraintList();
+	UpdateSequencer();
+}
+
+void SConstraintsEditionWidget::UpdateSequencer()
+{
+	if (!WeakSequencer.IsValid())
+	{
+		WeakSequencer = GetSequencerChecked();
+	}
+}
+
 FReply SConstraintsEditionWidget::OnBakeClicked()
 {
-	UTickableTransformConstraint* InConstraint = nullptr;
+	UpdateSequencer();
 	if (!WeakSequencer.IsValid() || ListItems.Num() < 1)
 	{
 		return FReply::Unhandled();
@@ -1253,6 +1267,8 @@ TSharedPtr<SWidget> SConstraintsEditionWidget::CreateContextMenu()
 	{
 		return SNullWidget::NullWidget;
 	}
+
+	UpdateSequencer();
 	
 	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
 	UTickableConstraint* Constraint = ListItems[Index]->Constraint.Get();

@@ -245,7 +245,7 @@ public:
 	/* End FEditorUndoClient interface */
 
 	/** Invalidates the constraint list for further rebuild. */
-	void InvalidateConstraintList();
+	virtual void InvalidateConstraintList();
 
 	/** Rebuild the constraint list based on the current selection. */
 	virtual int32 RefreshConstraintList();
@@ -317,6 +317,9 @@ public:
 	/**  */
 	void RemoveItem(const TSharedPtr<FEditableConstraintItem>& Item);
 
+	// FBaseConstraintListWidget overrides
+	virtual void InvalidateConstraintList() override;
+	
 private:
 
 	/** Generates a widget for the specified item */
@@ -331,6 +334,8 @@ private:
 	void OnItemDoubleClicked(ItemSharedPtr InItem);
 
 	FReply OnBakeClicked();
+
+	void UpdateSequencer();
 
 	//sequencer and it's time
 	TWeakPtr<ISequencer> WeakSequencer;
