@@ -272,10 +272,6 @@ public:
 	void SetImagePixelFormatOverride(const mu::FImageOperator::FImagePixelFormatFunc&);
 #endif
 
-	void AddPendingReleaseSkeletalMesh( USkeletalMesh* SkeletalMesh );
-
-	void PurgePendingReleaseSkeletalMesh();
-
 private:
 	UPROPERTY()
 	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
