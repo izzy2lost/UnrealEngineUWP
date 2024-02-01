@@ -6734,6 +6734,11 @@ bool FEngineLoop::AppInit( )
 		GWarn->TreatWarningsAsErrors = true;
 	}
 
+	if (FParse::Param(FCommandLine::Get(), TEXT("ERRORSASWARNINGS")))
+	{
+		GWarn->TreatErrorsAsWarnings = true;
+	}
+
 	if (FParse::Param(FCommandLine::Get(), TEXT("SILENT")))
 	{
 		GIsSilent = true;
