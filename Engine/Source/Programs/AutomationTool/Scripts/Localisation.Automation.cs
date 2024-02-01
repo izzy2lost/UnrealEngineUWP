@@ -851,6 +851,7 @@ class Localize : BuildCommand
 	{
 		string PluginsRootDirectory = Path.Combine(UEProjectRoot, UEProjectDirectory);
 		DirectoryReference PluginsRootDirectoryReference = new DirectoryReference(PluginsRootDirectory);
+
 		foreach (string PluginName in PluginNames)
 		{
 			PluginInfo Info = Plugins.GetPlugin(PluginName);
