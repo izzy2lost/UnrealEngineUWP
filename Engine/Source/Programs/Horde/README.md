@@ -36,8 +36,8 @@ See also: [Feature Status Page](Docs/Features.md)
 ## Getting Started
 
 * **[Installing Horde](Docs/Tutorials/InstallServer.md)**
-* **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
 * **[Set up remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
+* **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
 
 ## Reference
 
