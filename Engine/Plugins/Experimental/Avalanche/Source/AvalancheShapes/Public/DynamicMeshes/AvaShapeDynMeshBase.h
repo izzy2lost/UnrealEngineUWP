@@ -8,7 +8,7 @@
 #include "AvaShapeUVParameters.h"
 #include "Components/ActorComponent.h"
 #include "DynamicMesh/DynamicMesh3.h"
-#include "IAvalancheInteractiveToolsModeDetailsObject.h"
+#include "IAvaInteractiveToolsModeDetailsObject.h"
 #include "Viewport/Interaction/AvaSnapPoint.h"
 #include "Viewport/Interaction/IAvaGizmoObject.h"
 
@@ -25,7 +25,7 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FMaskVisibilityDelegate, const UWorld* /** 
 UCLASS(ClassGroup="Shape", Abstract, BlueprintType, CustomConstructor, EditInlineNew, DefaultToInstanced)
 class AVALANCHESHAPES_API UAvaShapeDynamicMeshBase
 	: public UActorComponent
-	, public IAvalancheInteractiveToolsModeDetailsObject
+	, public IAvaInteractiveToolsModeDetailsObject
 	, public IAvaGizmoObjectInterface
 {
 	GENERATED_BODY()

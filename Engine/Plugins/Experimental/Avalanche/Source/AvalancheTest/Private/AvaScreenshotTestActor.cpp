@@ -60,7 +60,7 @@ void AAvaScreenshotTestActor::SetupTest()
 	// Create a world (.umap) asset for the Ava BP, overwriting any existing
 	if (bHasValidBP)
 	{
-		UAvaTestBlueprintFunctionLibrary::ExportAvaBlueprintsToWorld({ ResolvedBlueprintToTest });
+		UAvaTestBlueprintFunctionLibrary::ExportMotionDesignBlueprintsToWorld({ ResolvedBlueprintToTest });
 	}
 
 	ReceiveSetupTest();

@@ -1,21 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvalancheEditorSettings.h"
+#include "AvaEditorSettings.h"
 #include "ISettingsModule.h"
 #include "Modules/ModuleManager.h"
 #include "Viewport/AvaCineCameraActor.h"
 
-#define LOCTEXT_NAMESPACE "AvalancheEditorSettings"
+#define LOCTEXT_NAMESPACE "AvaEditorSettings"
 
-UAvalancheEditorSettings::UAvalancheEditorSettings()
+UAvaEditorSettings::UAvaEditorSettings()
 {
 	CategoryName = TEXT("Motion Design");
 	SectionName = TEXT("Editor");
 }
 
-UAvalancheEditorSettings* UAvalancheEditorSettings::Get()
+UAvaEditorSettings* UAvaEditorSettings::Get()
 {
-	UAvalancheEditorSettings* DefaultSettings = GetMutableDefault<UAvalancheEditorSettings>();
+	UAvaEditorSettings* DefaultSettings = GetMutableDefault<UAvaEditorSettings>();
 	static bool bInitialized = false;
 	if (!bInitialized)
 	{
@@ -25,13 +25,13 @@ UAvalancheEditorSettings* UAvalancheEditorSettings::Get()
 	return DefaultSettings;
 }
 
-void UAvalancheEditorSettings::OpenEditorSettingsWindow() const
+void UAvaEditorSettings::OpenEditorSettingsWindow() const
 {
 	static ISettingsModule& SettingsModule = FModuleManager::LoadModuleChecked<ISettingsModule>(TEXT("Settings"));
 	SettingsModule.ShowViewer(GetContainerName(), CategoryName, SectionName);
 }
 
-void UAvalancheEditorSettings::PostInitProperties()
+void UAvaEditorSettings::PostInitProperties()
 {
 	Super::PostInitProperties();
 
@@ -59,7 +59,7 @@ void UAvalancheEditorSettings::PostInitProperties()
 	}
 }
 
-void UAvalancheEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UAvaEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
@@ -67,7 +67,7 @@ void UAvalancheEditorSettings::PostEditChangeProperty(FPropertyChangedEvent& Pro
 }
 
 // todo: when the reset to defaults issue will be solved, this function could be used from both PostInitProperties and PECP to update AAvaCineCameraActor defaults
-void UAvalancheEditorSettings::UpdateAvaCineCameraDefaults() const
+void UAvaEditorSettings::UpdateAvaCineCameraDefaults() const
 {
 	AAvaCineCameraActor::SetDefaultCameraDistance(CameraDistance);
 }

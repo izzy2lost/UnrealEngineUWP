@@ -654,7 +654,7 @@ void FAvaOutliner::RemoveItemColor(const FAvaOutlinerItemPtr& InItem)
 
 const TMap<FName, FLinearColor>& FAvaOutliner::GetColorMap() const
 {
-	return UAvalancheOutlinerSettings::Get()->GetColorMap();
+	return UAvaOutlinerSettings::Get()->GetColorMap();
 }
 
 void FAvaOutliner::NotifyItemIdChanged(const FAvaOutlinerItemId& OldId, const FAvaOutlinerItemPtr& InItem)

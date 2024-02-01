@@ -201,7 +201,7 @@ FSlateColor SAvaOutlinerVisibility::GetForegroundColor() const
 	const bool bIsItemHovered = RowWeak.IsValid()
 		&& RowWeak.Pin()->IsHovered();
 
-	const bool bAlwaysShowVisibility = UAvalancheOutlinerSettings::Get()->ShouldAlwaysShowVisibilityState();
+	const bool bAlwaysShowVisibility = UAvaOutlinerSettings::Get()->ShouldAlwaysShowVisibilityState();
 
 	// we can hide the brush if Settings for Always Showing State is OFF
 	// and Item is Visible while also not being selected nor hovered

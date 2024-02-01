@@ -83,7 +83,7 @@ FSlateColor SAvaOutlinerLock::GetForegroundColor() const
 	const bool bIsItemHovered = RowWeak.IsValid()
 		&& RowWeak.Pin()->IsHovered();
 
-	const bool bAlwaysShowLock = UAvalancheOutlinerSettings::Get()->ShouldAlwaysShowLockState();
+	const bool bAlwaysShowLock = UAvaOutlinerSettings::Get()->ShouldAlwaysShowLockState();
 
 	// we can hide the brush if Settings for Always Showing State is OFF
 	// and Item is not locked while also not being selected nor hovered

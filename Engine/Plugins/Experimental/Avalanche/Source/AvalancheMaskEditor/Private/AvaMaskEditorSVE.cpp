@@ -78,7 +78,7 @@ bool FAvaMaskSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExte
 	if (bIsActive)
 	{
 		// @todo: use events instead, this is expensive to check every tick
-		bIsActive = GLevelEditorModeTools().IsModeActive(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId);
+		bIsActive = GLevelEditorModeTools().IsModeActive(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId);
 	}
 
 	return bIsActive;

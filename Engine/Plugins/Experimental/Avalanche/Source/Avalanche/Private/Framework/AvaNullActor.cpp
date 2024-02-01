@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Framework/AvaNullActor.h"
-#include "Components/BillboardComponent.h"
 #include "Framework/AvaNullComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
@@ -14,3 +13,10 @@ AAvaNullActor::AAvaNullActor()
 	NullComponent = CreateDefaultSubobject<UAvaNullComponent>(TEXT("NullComponent"));
 	SetRootComponent(NullComponent);
 }
+
+#if WITH_EDITOR
+FString AAvaNullActor::GetDefaultActorLabel() const
+{
+	return TEXT("Null Actor");
+}
+#endif

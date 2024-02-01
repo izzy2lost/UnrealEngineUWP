@@ -214,7 +214,7 @@ bool FAvaMaskDesignedMaterialHandle::ApplyModifiedState(
 				, InModifiedParameters.MaterialParameters.InnerFeatherRadius);
 
 #if WITH_EDITOR
-			UMaterialFunctionInterface* MaterialFunctionToUse = GetMutableDefault<UAvalancheMaskSettings>()->GetMaterialFunction();
+			UMaterialFunctionInterface* MaterialFunctionToUse = GetMutableDefault<UAvaMaskSettings>()->GetMaterialFunction();
 			SetOutputProcessor(MaterialFunctionToUse);
 #endif
 
@@ -327,7 +327,7 @@ void FAvaMaskDesignedMaterialHandle::SetOutputProcessor(UMaterialFunctionInterfa
 	{
 		if (!::IsValid(InMaterialFunction))
 		{
-			InMaterialFunction = GetMutableDefault<UAvalancheMaskSettings>()->GetMaterialFunction();
+			InMaterialFunction = GetMutableDefault<UAvaMaskSettings>()->GetMaterialFunction();
 		}
 
 		if (UDynamicMaterialModel* Model = DesignedMaterial->GetMaterialModel())

@@ -13,7 +13,7 @@ void FAvaFilterColorSuggestionFactory::AddSuggestion(const TSharedRef<FAvaFilter
 	TSet<FString> ColorCache;
 	const FText ColorCategoryLabel = LOCTEXT("ColorCategoryLabel", "Ava-Outliner-Colors");
 
-	if (const UAvalancheOutlinerSettings* Settings = UAvalancheOutlinerSettings::Get())
+	if (const UAvaOutlinerSettings* Settings = UAvaOutlinerSettings::Get())
 	{
 		for (const TTuple<FName, FLinearColor> ColorPair : Settings->GetColorMap())
 		{

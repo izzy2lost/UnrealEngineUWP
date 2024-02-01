@@ -3,7 +3,7 @@
 #pragma once
 
 #include "GameFramework/Actor.h"
-#include "IAvalancheInteractiveToolsModeDetailsObjectProvider.h"
+#include "IAvaInteractiveToolsModeDetailsObjectProvider.h"
 #include "Viewport/Interaction/IAvaSnapPointGenerator.h"
 #include "AvaShapeActor.generated.h"
 
@@ -14,7 +14,7 @@ UCLASS()
 class AVALANCHESHAPES_API AAvaShapeActor
 	: public AActor
 	, public IAvaSnapPointGenerator
-	, public IAvalancheInteractiveToolsModeDetailsObjectProvider
+	, public IAvaInteractiveToolsModeDetailsObjectProvider
 {
 	GENERATED_BODY()
 
@@ -41,9 +41,9 @@ public:
 	virtual TArray<FAvaSnapPoint> GetLocalSnapPoints() const override;
 	//~ End IAvaSnapPointGenerator
 
-	//~ Begin IAvalancheInteractiveToolsModeDetailsObjectProvider
+	//~ Begin IAvaInteractiveToolsModeDetailsObjectProvider
 	virtual UObject* GetModeDetailsObject_Implementation() const override;
-	//~ End IAvalancheInteractiveToolsModeDetailsObjectProvider
+	//~ End IAvaInteractiveToolsModeDetailsObjectProvider
 
 protected:
 	static const FName ShapeComponentName;

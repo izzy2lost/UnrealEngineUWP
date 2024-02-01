@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEditorActorUtils.h"
-#include "AvalancheEditorSettings.h"
+#include "AvaEditorSettings.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -9,7 +9,7 @@
 
 void FAvaEditorActorUtils::GetActorsToEdit(TArray<AActor*>& InOutSelectedActors)
 {
-	if (GetDefault<UAvalancheEditorSettings>()->bAutoIncludeAttachedActorsInEditActions)
+	if (GetDefault<UAvaEditorSettings>()->bAutoIncludeAttachedActorsInEditActions)
 	{
 		TSet<AActor*> SelectedActors(InOutSelectedActors);
 		TArray<AActor*> ActorsRemaining(InOutSelectedActors);

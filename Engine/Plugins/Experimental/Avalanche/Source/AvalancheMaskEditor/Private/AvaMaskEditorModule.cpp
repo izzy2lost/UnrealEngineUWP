@@ -40,7 +40,7 @@ TSharedPtr<FUICommandList> FAvalancheMaskEditorModule::GetCommandList() const
 
 void FAvalancheMaskEditorModule::ToggleEditorMode()
 {
-	GLevelEditorModeTools().ActivateMode(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId, true);
+	GLevelEditorModeTools().ActivateMode(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId, true);
 }
 
 void FAvalancheMaskEditorModule::RegisterMenus()

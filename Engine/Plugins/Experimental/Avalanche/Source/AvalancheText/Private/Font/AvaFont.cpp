@@ -59,27 +59,27 @@ UFont* FAvaFont::GetDefaultFont()
 	return DefaultFontObjects.AvaDefaultFont.Get();
 }
 
-FString FAvaFont::GenerateAvalancheFontFormattedString(const FString& InFontName, const FString& InFontObjectPathName)
+FString FAvaFont::GenerateFontFormattedString(const FString& InFontName, const FString& InFontObjectPathName)
 {
 	// e.g. (Property1=Value1,Property2=Value2,Property3=Value3,...)
 
 	FString FormattedString = TEXT("(");
 	FormattedString += TEXT("CurrentFont=None");
-	FormattedString += TEXT(",AvalancheFontObject=/Script/Avalanche.AvalancheFontObject'") + InFontObjectPathName + TEXT("'");
+	FormattedString += TEXT(",MotionDesignFontObject=/Script/AvalancheText.AvaFontObject'") + InFontObjectPathName + TEXT("'");
 	FormattedString += TEXT(",FontName=\"") + InFontName  + TEXT("\"");
 	FormattedString += TEXT(")");
 
 	return FormattedString;
 }
 
-bool FAvaFont::GenerateAvalancheFontFormattedString(const UAvaFontObject* InFontObject, FString& OutFormattedString)
+bool FAvaFont::GenerateFontFormattedString(const UAvaFontObject* InFontObject, FString& OutFormattedString)
 {
 	if (!InFontObject)
 	{
 		return false;
 	}
 
-	OutFormattedString = GenerateAvalancheFontFormattedString(InFontObject->GetFontName(), InFontObject->GetPathName());
+	OutFormattedString = GenerateFontFormattedString(InFontObject->GetFontName(), InFontObject->GetPathName());
 	return true;
 }
 
@@ -128,9 +128,9 @@ UFont* FAvaFont::GetFont()
 	{
 		EnsureUsingCurrentVersion();
 
-		if (AvalancheFontObject)
+		if (MotionDesignFontObject)
 		{
-			return AvalancheFontObject->GetFont();
+			return MotionDesignFontObject->GetFont();
 		}
 	}
 
@@ -140,9 +140,9 @@ UFont* FAvaFont::GetFont()
 
 EAvaFontSource FAvaFont::GetFontSource() const
 {
-	if (AvalancheFontObject)
+	if (MotionDesignFontObject)
 	{
-		return AvalancheFontObject->GetSource();
+		return MotionDesignFontObject->GetSource();
 	}
 
 	return EAvaFontSource::Invalid;
@@ -155,9 +155,9 @@ FName FAvaFont::GetFontName() const
 
 FString FAvaFont::GetFontNameAsString() const
 {
-	if (AvalancheFontObject)
+	if (MotionDesignFontObject)
 	{
-		return AvalancheFontObject->GetFontName();
+		return MotionDesignFontObject->GetFontName();
 	}
 
 	return FontName;
@@ -175,9 +175,9 @@ bool FAvaFont::IsFavorite() const
 
 bool FAvaFont::IsDefaultFont() const
 {
-	if (AvalancheFontObject && AvalancheFontObject->GetFont())
+	if (MotionDesignFontObject && MotionDesignFontObject->GetFont())
 	{
-		return AvalancheFontObject->GetFont() == GetDefaultFont();
+		return MotionDesignFontObject->GetFont() == GetDefaultFont();
 	}
 
 	return true;
@@ -190,9 +190,9 @@ bool FAvaFont::IsFallbackFont() const
 
 bool FAvaFont::IsMonospaced() const
 {
-	if (AvalancheFontObject)
+	if (MotionDesignFontObject)
 	{
-		return AvalancheFontObject->IsMonospaced();
+		return MotionDesignFontObject->IsMonospaced();
 	}
 
 	return false;
@@ -200,9 +200,9 @@ bool FAvaFont::IsMonospaced() const
 
 bool FAvaFont::IsBold() const
 {
-	if (AvalancheFontObject)
+	if (MotionDesignFontObject)
 	{
-		return AvalancheFontObject->IsBold();
+		return MotionDesignFontObject->IsBold();
 	}
 
 	return false;
@@ -210,9 +210,9 @@ bool FAvaFont::IsBold() const
 
 bool FAvaFont::IsItalic() const
 {
-	if (AvalancheFontObject)
+	if (MotionDesignFontObject)
 	{
-		return AvalancheFontObject->IsItalic();
+		return MotionDesignFontObject->IsItalic();
 	}
 
 	return false;
@@ -227,8 +227,8 @@ void FAvaFont::EnsureUsingCurrentVersion()
 {
 	if (CurrentFont_DEPRECATED)
 	{
-		AvalancheFontObject = NewObject<UAvaFontObject>();
-		AvalancheFontObject->InitProjectFont(CurrentFont_DEPRECATED, GetFontName().ToString());
+		MotionDesignFontObject = NewObject<UAvaFontObject>();
+		MotionDesignFontObject->InitProjectFont(CurrentFont_DEPRECATED, GetFontName().ToString());
 		CurrentFont_DEPRECATED = nullptr;
 
 		RefreshName();
@@ -243,9 +243,9 @@ bool FAvaFont::HasValidFont() const
 	{
 		CompositeFont = CurrentFont_DEPRECATED->GetCompositeFont();
 	}
-	else if (AvalancheFontObject && AvalancheFontObject->GetFont())
+	else if (MotionDesignFontObject && MotionDesignFontObject->GetFont())
 	{
-		CompositeFont = AvalancheFontObject->GetFont()->GetCompositeFont();
+		CompositeFont = MotionDesignFontObject->GetFont()->GetCompositeFont();
 	}
 
 	if (CompositeFont)
@@ -265,7 +265,7 @@ bool FAvaFont::HasValidFont() const
 void FAvaFont::SetFontObject(UAvaFontObject* InFontObject)
 {
 	CurrentFont_DEPRECATED = nullptr;
-	AvalancheFontObject = InFontObject;
+	MotionDesignFontObject = InFontObject;
 
 	RefreshName();
 	RefreshAssetState();
@@ -278,8 +278,8 @@ void FAvaFont::InitFromFont(UFont* InFont)
 		FString Name;
 		UE::Avalanche::FontUtilities::Public::GetFontName(InFont, Name);
 
-		AvalancheFontObject = NewObject<UAvaFontObject>();
-		AvalancheFontObject->InitProjectFont(InFont, Name);
+		MotionDesignFontObject = NewObject<UAvaFontObject>();
+		MotionDesignFontObject->InitProjectFont(InFont, Name);
 
 		RefreshName();
 	}
@@ -291,17 +291,17 @@ void FAvaFont::PostSerialize(const FArchive& Ar)
 	{
 		RefreshName();
 
-		if ((AvalancheFontObject && AvalancheFontObject->GetFont()) || CurrentFont_DEPRECATED)
+		if ((MotionDesignFontObject && MotionDesignFontObject->GetFont()) || CurrentFont_DEPRECATED)
 		{
 			FontAssetState = EFontAssetState::SelectedFont;
 		}
 		else
 		{
 			/*
-			 * AvalancheFontObject might be invalid due to a previously existing issue.
-			 * That would cause the Editor only version of AvalancheFontObject to be serialized, instead of the proper one.
-			 * For assets using the font saved like that, the AvalancheFontObject had the wrong Outer, which worked fine in Editor, but not for Game/Runtime.
-			 * The following code tries to find a font based on the font name, and then to create a new AvalancheFontObject, with the proper Outer
+			 * MotionDesignFontObject might be invalid due to a previously existing issue.
+			 * That would cause the Editor only version of MotionDesignFontObject to be serialized, instead of the proper one.
+			 * For assets using the font saved like that, the MotionDesignFontObject had the wrong Outer, which worked fine in Editor, but not for Game/Runtime.
+			 * The following code tries to find a font based on the font name, and then to create a new MotionDesignFontObject, with the proper Outer
 			 */
 
 			bool bFontRecoverySuccess = false;
@@ -312,17 +312,17 @@ void FAvaFont::PostSerialize(const FArchive& Ar)
 			// this should just contain the FAvaFont
 			for (const FProperty* Property : OutProperties)
 			{
-				// let's get the Outer we need to create the AvalancheFontObject
+				// let's get the Outer we need to create the MotionDesignFontObject
 				if (UObject* const Outer = Property->GetOwner<UObject>())
 				{
 					// try to get a font just using the name (this might fail!)
 					if (UFont* const Font = GetFontByName(FontName))
 					{
-						AvalancheFontObject = nullptr;
+						MotionDesignFontObject = nullptr;
 
 						// we create and assign a new UAvaFontObject with the proper Outer
-						AvalancheFontObject = NewObject<UAvaFontObject>(Outer, GetFontName(), RF_Public | RF_Standalone);
-						AvalancheFontObject->InitProjectFont(Font, FontName);
+						MotionDesignFontObject = NewObject<UAvaFontObject>(Outer, GetFontName(), RF_Public | RF_Standalone);
+						MotionDesignFontObject->InitProjectFont(Font, FontName);
 						bFontRecoverySuccess = true;
 						break;
 					}
@@ -359,9 +359,9 @@ UAvaFontObject* FAvaFont::GetDefaultAvaFontObject()
 
 void FAvaFont::RefreshName()
 {
-	if (AvalancheFontObject)
+	if (MotionDesignFontObject)
 	{
-		const FString& FontObjectName = AvalancheFontObject->GetFontName();
+		const FString& FontObjectName = MotionDesignFontObject->GetFontName();
 
 		if (FontName != FontObjectName)
 		{

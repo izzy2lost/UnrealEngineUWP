@@ -64,12 +64,12 @@ void UAvaMaskEditorSubsystem::Deinitialize()
 
 void UAvaMaskEditorSubsystem::ToggleEditorMode()
 {
-	GLevelEditorModeTools().ActivateMode(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId, true);
+	GLevelEditorModeTools().ActivateMode(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId, true);
 }
 
 bool UAvaMaskEditorSubsystem::IsEditorModeActive()
 {
-	return GLevelEditorModeTools().IsModeActive(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId);
+	return GLevelEditorModeTools().IsModeActive(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId);
 }
 
 void UAvaMaskEditorSubsystem::ToggleShowAllMasks()

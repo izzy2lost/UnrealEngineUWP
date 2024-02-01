@@ -49,7 +49,7 @@ FAvaOutlinerView::~FAvaOutlinerView()
 
 	if (UObjectInitialized())
 	{
-		if (UAvalancheOutlinerSettings* const OutlinerSettings = UAvalancheOutlinerSettings::Get())
+		if (UAvaOutlinerSettings* const OutlinerSettings = UAvaOutlinerSettings::Get())
 		{
 			OutlinerSettings->OnSettingChanged().RemoveAll(this);
 		}
@@ -77,7 +77,7 @@ void FAvaOutlinerView::Init(const TSharedRef<FAvaOutliner>& InOutliner, bool bCr
 	CreateColumns();
 
 	InOutliner->GetProvider().ExtendOutlinerItemFilters(ItemFilters);
-	UAvalancheOutlinerSettings::Get()->OnSettingChanged().AddSP(this, &FAvaOutlinerView::OnOutlinerSettingsChanged);
+	UAvaOutlinerSettings::Get()->OnSettingChanged().AddSP(this, &FAvaOutlinerView::OnOutlinerSettingsChanged);
 	UpdateCustomFilters();
 
 	TextFilter->OnChanged().AddSP(this, &FAvaOutlinerView::OnFilterChanged);
@@ -158,7 +158,7 @@ void FAvaOutlinerView::PostLoad()
 void FAvaOutlinerView::OnOutlinerSettingsChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
-	if (PropertyName == UAvalancheOutlinerSettings::GetCustomItemTypeFiltersName())
+	if (PropertyName == UAvaOutlinerSettings::GetCustomItemTypeFiltersName())
 	{
 		UpdateCustomFilters();
 	}
@@ -167,7 +167,7 @@ void FAvaOutlinerView::OnOutlinerSettingsChanged(UObject* InObject, FPropertyCha
 
 void FAvaOutlinerView::UpdateCustomFilters()
 {
-	UAvalancheOutlinerSettings* const OutlinerSettings = UAvalancheOutlinerSettings::Get();
+	UAvaOutlinerSettings* const OutlinerSettings = UAvaOutlinerSettings::Get();
 	check(OutlinerSettings);
 		
 	const TMap<FName, FAvaOutlinerItemTypeFilterData>& CustomFilterMap = OutlinerSettings->GetCustomItemTypeFilters();

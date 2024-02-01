@@ -8,7 +8,7 @@
 class USplineComponent;
 
 /**
- * Avalanche Spline Actor
+ * Motion Design Spline Actor
  */
 UCLASS(MinimalAPI, DisplayName = "Motion Design Spline Actor")
 class AAvaSplineActor : public AActor

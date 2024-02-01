@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaText3DComponent.h"
-
 #include "AvaActorUtils.h"
 #include "AvaLog.h"
 #include "Engine/Texture2D.h"
@@ -60,7 +59,7 @@ UAvaText3DComponent::UAvaText3DComponent()
 	MaxWidth = 100.0f;
 	MaxHeight = 100.0f;
 
-	AvalancheFont = {};
+	MotionDesignFont = {};
 
 	Tiling = FVector2D(1.0, 1.0);
 	
@@ -528,7 +527,7 @@ void UAvaText3DComponent::SetupTextGeometry()
 	
 		SetText(Text);
 
-		if (UFont* UnderlyingFont = AvalancheFont.GetFont())
+		if (UFont* UnderlyingFont = MotionDesignFont.GetFont())
 		{
 			SetFont(UnderlyingFont);	
 		}
@@ -643,13 +642,13 @@ void UAvaText3DComponent::SetEnforceUpperCase(bool bInEnforceUpperCase)
 	RefreshFormatting();
 }
 
-void UAvaText3DComponent::SetAvalancheFont(const FAvaFont& InAvalancheFont)
+void UAvaText3DComponent::SetMotionDesignFont(const FAvaFont& InFont)
 {
-	if (AvalancheFont == InAvalancheFont)
+	if (MotionDesignFont == InFont)
 	{
 		return;
 	}
-	AvalancheFont = InAvalancheFont;
+	MotionDesignFont = InFont;
 	RefreshGeometry();
 }
 
@@ -937,8 +936,8 @@ void UAvaText3DComponent::RegisterOnPropertyChangeFunctions()
 
 		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, Extrude), &UAvaText3DComponent::RefreshGeometry);
 		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, Bevel), &UAvaText3DComponent::RefreshGeometry);
-		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, AvalancheFont), &UAvaText3DComponent::RefreshGeometry);
-		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, Font), &UAvaText3DComponent::RefreshAvalancheFont);
+		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, MotionDesignFont), &UAvaText3DComponent::RefreshGeometry);
+		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, Font), &UAvaText3DComponent::RefreshMotionDesignFont);
 		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, Text), &UAvaText3DComponent::RefreshGeometry);
 		PropertyChangeFunctions.Add(GET_MEMBER_NAME_CHECKED(UAvaText3DComponent, bEnforceUpperCase), &UAvaText3DComponent::RefreshFormatting);
 
@@ -977,13 +976,13 @@ void UAvaText3DComponent::RefreshAlignment()
 	RefreshLayout();
 }
 
-void UAvaText3DComponent::RefreshAvalancheFont()
+void UAvaText3DComponent::RefreshMotionDesignFont()
 {
-	if (IsValid(Font) && Font != AvalancheFont.GetFont())
+	if (IsValid(Font) && Font != MotionDesignFont.GetFont())
 	{
-		// todo: this leads to proper update of the AvalancheFont, and of the text component geometry
-		// nonetheless, custom FAvalancheFont widget is not updating properly yet
-		AvalancheFont.InitFromFont(Font);
+		// todo: this leads to proper update of the MotionDesignFont, and of the text component geometry
+		// nonetheless, custom FAvaFont widget is not updating properly yet
+		MotionDesignFont.InitFromFont(Font);
 	}
 }
 
@@ -1580,11 +1579,11 @@ void UAvaText3DComponent::RetrieveCurrentColoringStyle()
 void UAvaText3DComponent::RetrieveCurrentTextAndFont()
 {
 	// if default had to be loaded (e.g. font asset missing), then we regenerate geometry
-	if (AvalancheFont.IsDefaultFont())
+	if (MotionDesignFont.IsDefaultFont())
 	{
-		if (IsValid(Font) && Font != AvalancheFont.GetFont())
+		if (IsValid(Font) && Font != MotionDesignFont.GetFont())
 		{
-			AvalancheFont.InitFromFont(Font);
+			MotionDesignFont.InitFromFont(Font);
 		}
 		
 		MarkForGeometryRefresh();

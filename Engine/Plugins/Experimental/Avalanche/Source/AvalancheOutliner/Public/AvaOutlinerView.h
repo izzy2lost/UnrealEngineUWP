@@ -62,11 +62,11 @@ public:
 
 	void PostLoad();
 	
-	/** Called when the UAvalancheOutlinerSettings has a property change */
+	/** Called when the UAvaOutlinerSettings has a property change */
 	void OnOutlinerSettingsChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 
 	/**
-	 * Retrieves the latest list of Custom Filters specified in UAvalancheOutlinerSettings
+	 * Retrieves the latest list of Custom Filters specified in UAvaOutlinerSettings
 	 * and recreates the filter instances for these
 	 */
 	void UpdateCustomFilters();
@@ -429,7 +429,7 @@ private:
 	/** Native-constructed Item Filters in the Outliner */
 	TArray<TSharedPtr<IAvaOutlinerItemFilter>> ItemFilters;
 
-	/** Custom Item Filters constructed from UAvalancheOutlinerSettings */
+	/** Custom Item Filters constructed from UAvaOutlinerSettings */
 	TArray<TSharedPtr<IAvaOutlinerItemFilter>> CustomItemFilters;
 
 	/** Delegate called when the Custom Item Filters have been modified, as these can be instanced after */

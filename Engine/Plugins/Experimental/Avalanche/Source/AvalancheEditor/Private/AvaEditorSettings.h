@@ -6,7 +6,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "Viewport/AvaViewportQualitySettings.h"
-#include "AvalancheEditorSettings.generated.h"
+#include "AvaEditorSettings.generated.h"
 
 USTRUCT()
 struct FAvaPaletteSettings
@@ -34,19 +34,19 @@ struct FAvaPaletteTabSettings
 };
 
 /**
- * Avalanche Editor Settings
+ * Motion Design Editor Settings
  */
 UCLASS(Config=EditorPerProjectUserSettings, meta = (DisplayName = "Editor"))
-class UAvalancheEditorSettings : public UDeveloperSettings
+class UAvaEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
-	UAvalancheEditorSettings();
+	UAvaEditorSettings();
 
-	virtual ~UAvalancheEditorSettings() override = default;
+	virtual ~UAvaEditorSettings() override = default;
 
-	static UAvalancheEditorSettings* Get();
+	static UAvaEditorSettings* Get();
 
 	/** Whether to Automatically Include the Attached Actors when performing Edit Actions such as Cut, Copy, Duplicate. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Behavior")
@@ -71,7 +71,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, EditFixedSize, Category = "Interface", meta = (EditFixedOrder, ShowOnlyInnerProperties))
 	TArray<FAvaPaletteTabSettings> PaletteTabs;
 
-	/** Default viewport quality settings for all newly created Avalanche blueprints. */
+	/** Default viewport quality settings for all newly created Motion Design blueprints. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Quality")
 	FAvaViewportQualitySettings DefaultViewportQualitySettings = FAvaViewportQualitySettings(true);
 
@@ -79,7 +79,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Quality")
 	TMap<FName, FAvaViewportQualitySettings> ViewportQualityPresets;
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSettingsChanged, const UAvalancheEditorSettings* InSettings, FName InSetting)
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSettingsChanged, const UAvaEditorSettings* InSettings, FName InSetting)
 	FOnSettingsChanged OnChanged;
 
 	//~ Begin UObject
@@ -91,7 +91,7 @@ public:
 
 	/**
 	 * AvaCineCamera uses CameraDistance property to setup manual focus in its default object.
-	 * This function updates that default value to match the one from AvalancheEditorSettings
+	 * This function updates that default value to match the one from AvaEditorSettings
 	 */
 	void UpdateAvaCineCameraDefaults() const;
 };

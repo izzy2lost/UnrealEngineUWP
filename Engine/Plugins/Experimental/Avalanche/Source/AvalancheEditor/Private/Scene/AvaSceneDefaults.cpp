@@ -3,7 +3,7 @@
 #include "Scene/AvaSceneDefaults.h"
 #include "ActorFactories/ActorFactory.h"
 #include "AssetViewerSettings.h"
-#include "AvalancheEditorSettings.h"
+#include "AvaEditorSettings.h"
 #include "Builders/CubeBuilder.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -198,7 +198,7 @@ namespace UE::AvalancheEditor::Private
 
 		FTransform PostProcessVolumeTransform = FTransform::Identity;
 
-		float PostProcessXOffset = UAvalancheEditorSettings::Get()->CameraDistance;
+		float PostProcessXOffset = UAvaEditorSettings::Get()->CameraDistance;
 
 		if (const UCubeBuilder* const DefaultCubeBuilder = Cast<UCubeBuilder>(UCubeBuilder::StaticClass()->GetDefaultObject()))
 		{
@@ -222,13 +222,13 @@ namespace UE::AvalancheEditor::Private
 		if (AActor* DefaultRoot = GetActorFromResponses(InActorResponses, DefaultSceneActorNames::DefaultRoot))
 		{
 			FTransform Transform = FTransform::Identity;
-			Transform.SetLocation(FVector(-UAvalancheEditorSettings::Get()->CameraDistance, 0, 0));
+			Transform.SetLocation(FVector(-UAvaEditorSettings::Get()->CameraDistance, 0, 0));
 
 			Camera->AttachToActor(DefaultRoot, FAttachmentTransformRules::KeepWorldTransform);
 			Camera->SetActorRelativeTransform(Transform);
 		}
 
-		Camera->Configure(UAvalancheEditorSettings::Get()->CameraDistance);
+		Camera->Configure(UAvaEditorSettings::Get()->CameraDistance);
 	}
 
 	TMap<FName, TSharedRef<FAvaSceneDefaultActorResponse>> GeneratorInitialActorResponses(UWorld* InWorld)
