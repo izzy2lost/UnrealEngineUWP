@@ -56,7 +56,7 @@ void FAnimNode_Steering::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseCo
 					RootBoneTransform.GetLocation()  + TargetOrientation.GetForwardVector() * 100,
 					FColor::Green, TEXT(""));
 
-				FQuat Delta =  TargetOrientation * RootBoneRotation.Inverse();
+				FQuat Delta =  RootBoneRotation.Inverse() * TargetOrientation;
 
 
 				if (TargetTime > 0)
