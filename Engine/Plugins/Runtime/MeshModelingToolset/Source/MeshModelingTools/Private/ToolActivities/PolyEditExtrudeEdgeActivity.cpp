@@ -671,7 +671,7 @@ void UPolyEditExtrudeEdgeActivity::ConvertToNewDirectionMode(bool bToSingleDirec
 
 void UPolyEditExtrudeEdgeActivity::ResetParams()
 {
-	SingleDirectionVectorWorldSpace = FVector3d::UnitZ() * Settings->Distance;
+	SingleDirectionVectorWorldSpace = ExtrudeFrameForGizmoWorldSpace.X() * Settings->Distance;
 	ParamsInWorldExtrudeFrame = FVector3d::UnitX() * Settings->Distance;
 }
 
