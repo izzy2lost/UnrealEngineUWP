@@ -60,6 +60,7 @@ namespace Metasound
 
 		private:
 			void ApplyTransformsUntilFence();
+			void ApplyTransformsUntilFenceOrTimeout(double InTimeoutInSeconds);
 			void Execute();
 			void PostExecute();
 			void Reset(const IOperator::FResetParams& InParams);

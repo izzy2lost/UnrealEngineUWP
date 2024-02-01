@@ -3,6 +3,7 @@
 #include "MetasoundDynamicOperator.h"
 
 #include "Containers/Array.h"
+#include "HAL/IConsoleManager.h"
 #include "MetasoundDynamicOperatorAudioFade.h"
 #include "MetasoundNodeInterface.h"
 #include "MetasoundOperatorInterface.h"
@@ -35,6 +36,14 @@ namespace Metasound
 
 		namespace DynamicOperatorPrivate
 		{
+			float MetaSoundExperimentalTransformTimeoutInSeconds = 0.010f;
+			FAutoConsoleVariableRef CVarMetaSoundExperimentalTransformTimeoutInSeconds(
+				TEXT("au.MetaSound.Experimental.DynamicOperatorTransformTimeoutInSeconds"),
+				MetaSoundExperimentalTransformTimeoutInSeconds,
+				TEXT("Sets the number of seconds allowed to process pending dynamic graph transformations for a single MetaSound render cycle .\n")
+				TEXT("[Less than zero]: Disabled, [Greater than zero]: Enabled, 0.010s (default)"),
+				ECVF_Default);
+			
 			// Table sorter helper so we don't rewrite this algorithm for each differe
 			// stack type (Execute/PostExecute/Reset)
 			struct FTableSorter
@@ -171,9 +180,56 @@ namespace Metasound
 			}
 		}
 
+		void FDynamicOperator::ApplyTransformsUntilFenceOrTimeout(double InTimeoutInSeconds)
+		{
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FDynamicOperator::ApplyTransformsUntilFenceOrTimeout)
+
+			if (bExecuteFenceIsSet)
+			{
+				// Execute fence needs to be cleared before applying any transforms.
+				return;
+			}
+
+			TOptional<TUniquePtr<IDynamicOperatorTransform>> Transform = TransformQueue->Dequeue();
+
+			if (Transform)
+			{
+				check(FPlatformTime::GetSecondsPerCycle() > 0);
+				const uint64 BreakTimeInCycles = FPlatformTime::Cycles64() + static_cast<uint64>(InTimeoutInSeconds / FPlatformTime::GetSecondsPerCycle());
+				do
+				{
+					if (Transform.IsSet() && Transform->IsValid())
+					{
+						EDynamicOperatorTransformQueueAction Result = (*Transform)->Transform(DynamicOperatorData);
+						if (EDynamicOperatorTransformQueueAction::Fence == Result)
+						{
+							bExecuteFenceIsSet = true;
+							break;
+						}
+					}
+
+					if (FPlatformTime::Cycles64() >= BreakTimeInCycles)
+					{
+						UE_LOG(LogMetaSound, Verbose, TEXT("Transforms exceeded duration."));
+						break;
+					}
+				}
+				while((Transform = TransformQueue->Dequeue()));
+			}
+		}
+
 		void FDynamicOperator::Execute()
 		{
-			ApplyTransformsUntilFence();
+			using namespace DynamicOperatorPrivate;
+
+			if (MetaSoundExperimentalTransformTimeoutInSeconds > 0)
+			{
+				ApplyTransformsUntilFenceOrTimeout(MetaSoundExperimentalTransformTimeoutInSeconds);
+			}
+			else
+			{
+				ApplyTransformsUntilFence();
+			}
 
 			for (FExecuteEntry& Entry : DynamicOperatorData.ExecuteTable)
 			{
@@ -637,6 +693,8 @@ namespace Metasound
 
 		EDynamicOperatorTransformQueueAction FBeginAudioFadeTransform::FBeginAudioFadeTransform::Transform(FDynamicGraphOperatorData& InGraphOperatorData)
 		{
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::BeginAudioFadeTransform)
+
 		  	if (FOperatorInfo* OperatorInfo = InGraphOperatorData.OperatorMap.Find(OperatorIDToFade))
 			{
 				// Make wrapped operator
@@ -660,6 +718,8 @@ namespace Metasound
 
 		EDynamicOperatorTransformQueueAction FEndAudioFadeTransform::Transform(FDynamicGraphOperatorData& InGraphOperatorData)
 		{
+			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::DynamicOperator::EndAudioFadeTransform)
+
 		  	if (FOperatorInfo* OperatorInfo = InGraphOperatorData.OperatorMap.Find(OperatorIDToFade))
 			{
 				FAudioFadeOperatorWrapper* Wrapper = static_cast<FAudioFadeOperatorWrapper*>(OperatorInfo->Operator.Get());
