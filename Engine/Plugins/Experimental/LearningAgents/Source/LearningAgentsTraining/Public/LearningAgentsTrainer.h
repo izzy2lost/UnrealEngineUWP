@@ -25,10 +25,6 @@ class ULearningAgentsInteractor;
 class ULearningAgentsPolicy;
 class ULearningAgentsCritic;
 
-DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(float, FGatherAgentRewardDelegate, const int32, AgentId);
-DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(ELearningAgentsCompletion, FGatherAgentCompletionDelegate, const int32, AgentId);
-DECLARE_DYNAMIC_DELEGATE_OneParam(FResetAgentEpisodeDelegate, const int32, AgentId);
-
 /** The configurable settings for a ULearningAgentsTrainer. */
 USTRUCT(BlueprintType, Category = "LearningAgents")
 struct LEARNINGAGENTSTRAINING_API FLearningAgentsTrainerSettings
@@ -62,7 +58,7 @@ public:
 
 	/** Time in seconds to wait for the training subprocess before timing out. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float TrainerCommunicationTimeout = 20.0f;
+	float TrainerCommunicationTimeout = 10.0f;
 };
 
 /**
@@ -408,7 +404,18 @@ public:
 public:
 
 	/**
-	 * This callback gathers all the reward values for the given set of agents.
+	 * This callback should be overridden by the Trainer and gathers the reward value for the given agent.
+	 *
+	 * @param OutReward			Output reward for the given agent.
+	 * @param AgentId			Agent id to gather reward for.
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
+	void GatherAgentReward(float& OutReward, const int32 AgentId);
+
+
+	/**
+	 * This callback can be overridden by the Trainer and gathers all the reward values for the given set of agents. By default this will call 
+	 * GatherAgentReward on each agent.
 	 *
 	 * @param OutRewards		Output rewards for each agent in AgentIds
 	 * @param AgentIds			Agents to gather rewards for.
@@ -416,22 +423,21 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
 	void GatherAgentRewards(TArray<float>& OutRewards, const TArray<int32>& AgentIds);
 
-	/**
-	 * This is a convenience function that can be used to implement `GatherAgentRewards` in terms of a callback which iterates over every agent
-	 * individually and gathers the rewards.
-	 *
-	 * @param OutRewards		Output rewards for each agent in AgentIds
-	 * @param AgentIds			Agents to gather rewards for.
-	 * @param Delegate			The Delegate used to gather the rewards for each agent.
-	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	void GatherAgentRewardsUsingDelegate(TArray<float>& OutRewards, const TArray<int32>& AgentIds, const FGatherAgentRewardDelegate& Delegate);
-
 // ----- Completions ----- 
 public:
 
 	/**
-	 * This callback gathers all the completions for the given set of agents.
+	 * This callback should be overridden by the Trainer and gathers the completion for a given agent.
+	 *
+	 * @param OutCompletion		Output completion for the given agent.
+	 * @param AgentId			Agent id to gather completion for.
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
+	void GatherAgentCompletion(ELearningAgentsCompletion& OutCompletion, const int32 AgentId);
+
+	/**
+	 * This callback can be overridden by the Trainer and gathers all the completions for the given set of agents. By default this will call 
+	 * GatherAgentCompletion on each agent.
 	 *
 	 * @param OutCompletions	Output completions for each agent in AgentIds
 	 * @param AgentIds			Agents to gather completions for.
@@ -439,38 +445,25 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
 	void GatherAgentCompletions(TArray<ELearningAgentsCompletion>& OutCompletions, const TArray<int32>& AgentIds);
 
-	/**
-	 * This is a convenience function that can be used to implement `GatherAgentCompletions` in terms of a callback which iterates over every agent
-	 * individually and gathers the completions.
-	 *
-	 * @param OutCompletions	Output completions for each agent in AgentIds
-	 * @param AgentIds			Agents to gather completions for.
-	 * @param Delegate			The Delegate used to gather the completions for each agent.
-	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	void GatherAgentCompletionsDelegate(TArray<ELearningAgentsCompletion>& OutCompletions, const TArray<int32>& AgentIds, const FGatherAgentCompletionDelegate& Delegate);
-
-
 // ----- Resets ----- 
 public:
 
 	/**
-	 * During this event, all episodes should be reset for each agent.
+	 * This callback should be overridden by the Trainer and resets the episode for the given agent.
+	 *
+	 * @param AgentId			The id of the agent that need resetting.
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
+	void ResetAgentEpisode(const int32 AgentId);
+
+	/**
+	 * This callback can be overridden by the Trainer and resets all episodes for each agent in the given set. By default this will call 
+	 * ResetAgentEpisode on each agent.
 	 * 
 	 * @param AgentIds			The ids of the agents that need resetting.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
 	void ResetAgentEpisodes(const TArray<int32>& AgentIds);
-
-	/**
-	 * This is a convenience function that can be used to implement `ResetAgentEpisodes` in terms of a callback which iterates over every agent
-	 * individually and does the reset.
-	 *
-	 * @param AgentIds			The ids of the agents that need resetting.
-	 * @param Delegate			The Delegate used to reset the episode for each agent.
-	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	void ResetAgentEpisodesDelegate(const TArray<int32>& AgentIds, const FResetAgentEpisodeDelegate& Delegate);
 
 // ----- Training Process -----
 public:

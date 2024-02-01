@@ -163,7 +163,7 @@ public:
 	void EvaluatePolicy();
 
 	/**
-	 * Decodes and samples action vectors using the Decoder network. This should be called after EvaluatePolicy and before Scatter Actions.
+	 * Decodes and samples action vectors using the Decoder network. This should be called after EvaluatePolicy and before PerformActions.
 	 * 
 	 * @param ActionNoiseScale		Scale of the action noise to use during sampling. Set this to zero to always sample the mean (expected) action.
 	 */
@@ -171,7 +171,7 @@ public:
 	void DecodeAndSampleActions(const float ActionNoiseScale = 1.0f);
 
 	/**
-	 * Calls GatherObservations, EncodeObservations, EvaluatePolicy, DecodeAndSampleActions, ScatterActions
+	 * Calls GatherObservations, EncodeObservations, EvaluatePolicy, DecodeAndSampleActions, PerformActions
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void RunInference(const float ActionNoiseScale = 1.0f);

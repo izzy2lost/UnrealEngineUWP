@@ -18,15 +18,12 @@
 
 class ULearningAgentsNeuralNetwork;
 
-DECLARE_DYNAMIC_DELEGATE_RetVal_TwoParams(FLearningAgentsObservationObjectElement, FGatherAgentObservationDelegate, ULearningAgentsObservationObject*, InObservationObject, const int32, AgentId);
-DECLARE_DYNAMIC_DELEGATE_ThreeParams(FScatterAgentActionDelegate, const FLearningAgentsActionObjectElement, InActionObjectElement, const ULearningAgentsActionObject*, InActionObject, const int32, AgentId);
-
 /**
  * ULearningAgentsInteractor defines how agents interact with the environment through their observations and actions.
  *
- * To use this class, you need to implement `SpecifyAgentObservations` and `SpecifyAgentActions`, which will define 
- * the structure of inputs and outputs to your policy. You also need to implement `GatherAgentObservations` and 
- * `ScatterAgentActions` which will dictate how those observations are gathered, and actions actuated in your
+ * To use this class, you need to implement `SpecifyAgentObservation` and `SpecifyAgentAction`, which will define 
+ * the structure of inputs and outputs to your policy. You also need to implement `GatherAgentObservation` and 
+ * `PerformAgentAction` which will dictate how those observations are gathered, and actions actuated in your
  * environment.
  */
 UCLASS(Abstract, HideDropdown, BlueprintType, Blueprintable)
@@ -79,79 +76,71 @@ public:
 public:
 
 	/**
-	 * Specifies the structure of the observations using the observation schema
+	 * This callback should be overridden by the Interactor and specifies the structure of the observations using the Observation Schema.
 	 * 
 	 * @param OutObservationSchemaElement		Output Schema Element
 	 * @param InObservationSchema				Observation Schema
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
-	void SpecifyAgentObservations(FLearningAgentsObservationSchemaElement& OutObservationSchemaElement, ULearningAgentsObservationSchema* InObservationSchema);
+	void SpecifyAgentObservation(FLearningAgentsObservationSchemaElement& OutObservationSchemaElement, ULearningAgentsObservationSchema* InObservationSchema);
 
 	/**
-	 * Gathers all the observations for the given agents. The structure of the Observation Elements output by this function should match that defined
-	 * by the schema.
+	 * This callback should be overridden by the Interactor and gathers the observations for a single agent. The structure of the Observation Elements 
+	 * output by this function should match that defined by the Schema.
 	 *
-	 * @param OutObservationObjectElements		Output Observation Element. This should be the same size as AgentIds.
+	 * @param OutObservationObjectElement		Output Observation Element.
+	 * @param InObservationObject				Observation Object.
+	 * @param AgentId							The Agent Id to gather observations for.
+	 */
+	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
+	void GatherAgentObservation(FLearningAgentsObservationObjectElement& OutObservationObjectElement, ULearningAgentsObservationObject* InObservationObject, const int32 AgentId);
+
+
+	/**
+	 * This callback can be overridden by the Interactor and gathers all the observations for the given agents. The structure of the Observation 
+	 * Elements output by this function should match that defined by the Schema. The default implementation calls GatherAgentObservation on each agent.
+	 *
+	 * @param OutObservationObjectElements		Output Observation Elements. This should be the same size as AgentIds.
 	 * @param InObservationObject				Observation Object.
 	 * @param AgentIds							Set of Agent Ids to gather observations for.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
 	void GatherAgentObservations(TArray<FLearningAgentsObservationObjectElement>& OutObservationObjectElements, ULearningAgentsObservationObject* InObservationObject, const TArray<int32>& AgentIds);
 
-	/**
-	 * This is a convenience function that can be used to implement `GatherAgentObservations` in terms of a callback which iterates over every agent
-	 * individually and gathers the observations.
-	 * 
-	 * @param OutObservationObjectElements		Output Observation Element. This should be the same size as AgentIds.
-	 * @param InObservationObject				Observation Object.
-	 * @param AgentIds							Set of Agent Ids to gather observations for.
-	 * @param Delegate							The Delegate used to gather each agent's observations.
-	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	void GatherAgentObservationsUsingDelegate(
-			TArray<FLearningAgentsObservationObjectElement>& OutObservationElements,
-			ULearningAgentsObservationObject* InObservationObject, 
-			const TArray<int32>& AgentIds,
-			const FGatherAgentObservationDelegate& Delegate);
-
 // ----- Actions -----
 public:
 
 	/**
-	 * Specifies the structure of the actions using the action schema
+	 * This callback should be overridden by the Interactor and specifies the structure of the actions using the Action Schema.
 	 *
 	 * @param OutActionSchemaElement			Output Schema Element
 	 * @param InActionSchema					Action Schema
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
-	void SpecifyAgentActions(FLearningAgentsActionSchemaElement& OutActionSchemaElement, ULearningAgentsActionSchema* InActionSchema);
+	void SpecifyAgentAction(FLearningAgentsActionSchemaElement& OutActionSchemaElement, ULearningAgentsActionSchema* InActionSchema);
 
 	/**
-	 * Scatters all the actions for the given agents and applies their affect in the world. The structure of the Action Elements given as input to 
-	 * this function will match that defined by the schema.
+	 * This callback should be overridden by the Interactor and performs the action for the given agent in the world. The 
+	 * structure of the Action Elements given as input to this function will match that defined by the Schema.
 	 *
-	 * @param InActionObjectElements			Input Actions Element. This will be the same size as AgentIds.
 	 * @param InActionObject					Action Object.
-	 * @param AgentIds							Set of Agent Ids to scatter observations for.
+	 * @param InActionObjectElement				Input Actions Element.
+	 * @param AgentId							Agent Id to perform actions for.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
-	void ScatterAgentActions(const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements, const ULearningAgentsActionObject* InActionObject, const TArray<int32>& AgentIds);
+	void PerformAgentAction(const ULearningAgentsActionObject* InActionObject, const FLearningAgentsActionObjectElement& InActionObjectElement, const int32 AgentId);
 
 	/**
-	 * This is a convenience function that can be used to implement `ScatterAgentActions` in terms of a callback which iterates over every agent
-	 * individually and scatters the actions.
+	 * This callback can be overridden by the Interactor and performs all the actions for the given agents in the world. 
+	 * The structure of the Action Elements given as input to this function will match that defined by the Schema. The default implementation calls 
+	 * PerformAgentAction on each agent.
 	 *
-	 * @param InActionObjectElements			Input Actions Element. This will be the same size as AgentIds.
 	 * @param InActionObject					Action Object.
-	 * @param AgentIds							Set of Agent Ids to scatter actions for.
-	 * @param Delegate							The Delegate used to scatter each agent's actions.
+	 * @param InActionObjectElements			Input Actions Element. This will be the same size as AgentIds.
+	 * @param AgentIds							Set of Agent Ids to perform actions for.
 	 */
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	void ScatterAgentActionsUsingDelegate(
-		const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements, 
-		const ULearningAgentsActionObject* InActionObject,
-		const TArray<int32>& AgentIds,
-		const FScatterAgentActionDelegate& Delegate);
+	UFUNCTION(BlueprintNativeEvent, Category = "LearningAgents", Meta = (ForceAsFunction))
+	void PerformAgentActions(const ULearningAgentsActionObject* InActionObject, const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements, const TArray<int32>& AgentIds);
 
 // ----- Blueprint public interface -----
 public:
@@ -160,9 +149,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void GatherObservations();
 
-	/** Scatters all the actions for all agents. This will call ScatterAgentActions. */
+	/** Performs all the actions for all agents. This will call PerformAgentActions. */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
-	void ScatterActions();
+	void PerformActions();
 
 	/**
 	 * Get the current buffered observation vector for the given agent.
@@ -244,8 +233,8 @@ public:
 	/** Encode Observations for a specific set of agents */
 	void GatherObservations(const UE::Learning::FIndexSet AgentSet, bool bIncrementIteration = true);
 
-	/** Scatter Actions for a specific set of agents */
-	void ScatterActions(const UE::Learning::FIndexSet AgentSet);
+	/** Perform Actions for a specific set of agents */
+	void PerformActions(const UE::Learning::FIndexSet AgentSet);
 
 	/** Gets the internal observation schema object */
 	const UE::Learning::Observation::FSchema& GetObservationSchema() const;

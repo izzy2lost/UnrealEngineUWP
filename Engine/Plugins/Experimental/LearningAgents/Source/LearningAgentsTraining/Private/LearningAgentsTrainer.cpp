@@ -308,68 +308,52 @@ void ULearningAgentsTrainer::OnAgentsManagerTick_Implementation(const TArray<int
 	}
 }
 
-void ULearningAgentsTrainer::GatherAgentRewards_Implementation(TArray<float>& OutRewards, const TArray<int32>& AgentIds)
+void ULearningAgentsTrainer::GatherAgentReward_Implementation(float& OutReward, const int32 AgentId)
 {
-	UE_LOG(LogLearning, Error, TEXT("%s: GatherAgentRewards function must be overridden!"), *GetName());
-	OutRewards.Empty();
+	UE_LOG(LogLearning, Error, TEXT("%s: GatherAgentReward function must be overridden!"), *GetName());
+	OutReward = 0.0f;
 }
 
-void ULearningAgentsTrainer::GatherAgentRewardsUsingDelegate(TArray<float>& OutRewards, const TArray<int32>& AgentIds, const FGatherAgentRewardDelegate& Delegate)
+void ULearningAgentsTrainer::GatherAgentRewards_Implementation(TArray<float>& OutRewards, const TArray<int32>& AgentIds)
 {
-	if (!Delegate.IsBound())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
-		return;
-	}
 
-	const int32 AgentNum = AgentIds.Num();
-
-	OutRewards.Empty(AgentNum);
-	for (int32 AgentIdx = 0; AgentIdx < AgentNum; AgentIdx++)
+	OutRewards.Empty(AgentIds.Num());
+	for (const int32 AgentId : AgentIds)
 	{
-		OutRewards.Add(Delegate.Execute(AgentIds[AgentIdx]));
+		float OutReward = 0.0f;
+		GatherAgentReward(OutReward, AgentId);
+		OutRewards.Add(OutReward);
 	}
+}
+
+void ULearningAgentsTrainer::GatherAgentCompletion_Implementation(ELearningAgentsCompletion& OutCompletion, const int32 AgentId)
+{
+	UE_LOG(LogLearning, Error, TEXT("%s: GatherAgentCompletion function must be overridden!"), *GetName());
+	OutCompletion = ELearningAgentsCompletion::Running;
 }
 
 void ULearningAgentsTrainer::GatherAgentCompletions_Implementation(TArray<ELearningAgentsCompletion>& OutCompletions, const TArray<int32>& AgentIds)
 {
-	UE_LOG(LogLearning, Error, TEXT("%s: GatherAgentCompletions function must be overridden!"), *GetName());
-	OutCompletions.Empty();
-}
 
-void ULearningAgentsTrainer::GatherAgentCompletionsDelegate(TArray<ELearningAgentsCompletion>& OutCompletions, const TArray<int32>& AgentIds, const FGatherAgentCompletionDelegate& Delegate)
-{
-	if (!Delegate.IsBound())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
-		return;
-	}
-
-	const int32 AgentNum = AgentIds.Num();
-
-	OutCompletions.Empty(AgentNum);
-	for (int32 AgentIdx = 0; AgentIdx < AgentNum; AgentIdx++)
-	{
-		OutCompletions.Add(Delegate.Execute(AgentIds[AgentIdx]));
-	}
-}
-
-void ULearningAgentsTrainer::ResetAgentEpisodes_Implementation(const TArray<int32>& AgentId)
-{
-	UE_LOG(LogLearning, Error, TEXT("%s: ResetAgentEpisodes function must be overridden!"), *GetName());
-}
-
-void ULearningAgentsTrainer::ResetAgentEpisodesDelegate(const TArray<int32>& AgentIds, const FResetAgentEpisodeDelegate& Delegate)
-{
-	if (!Delegate.IsBound())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
-		return;
-	}
-
+	OutCompletions.Empty(AgentIds.Num());
 	for (const int32 AgentId : AgentIds)
 	{
-		Delegate.Execute(AgentId);
+		ELearningAgentsCompletion OutCompletion = ELearningAgentsCompletion::Running;
+		GatherAgentCompletion(OutCompletion, AgentId);
+		OutCompletions.Add(OutCompletion);
+	}
+}
+
+void ULearningAgentsTrainer::ResetAgentEpisode_Implementation(const int32 AgentId)
+{
+	UE_LOG(LogLearning, Error, TEXT("%s: ResetAgentEpisode function must be overridden!"), *GetName());
+}
+
+void ULearningAgentsTrainer::ResetAgentEpisodes_Implementation(const TArray<int32>& AgentIds)
+{
+	for (const int32 AgentId : AgentIds)
+	{
+		ResetAgentEpisode(AgentId);
 	}
 }
 
