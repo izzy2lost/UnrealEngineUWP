@@ -20,8 +20,8 @@ FString UOptimusSkinnedMeshVertexAttributeDataInterface::GetDisplayName() const
 TArray<FOptimusCDIPinDefinition> UOptimusSkinnedMeshVertexAttributeDataInterface::GetPinDefinitions() const
 {
 	TArray<FOptimusCDIPinDefinition> Defs;
-	Defs.Add({"NumVertices", "ReadNumVertices"});
-	Defs.Add({"Value", "ReadValue", UOptimusSkinnedMeshComponentSource::Domains::Vertex, "ReadNumVertices"});
+	Defs.Add({"NumVertices", "ReadNumVertices", false});
+	Defs.Add({"Value", "ReadValue", UOptimusSkinnedMeshComponentSource::Domains::Vertex, "ReadNumVertices", false});
 	return Defs;
 }
 
