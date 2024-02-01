@@ -908,6 +908,7 @@ private:
 			LastTimeRange = TRange<FTimespan>::Empty();
 			RangeIsDirty = false;
 			OnBlockPrimaryIndex = 0;
+			OnBlockSecondaryIndex = 0;
 		}
 
 	private:
@@ -926,8 +927,11 @@ private:
 		/** Flag to indicate if internal range is valid or not */
 		mutable bool RangeIsDirty;
 
-		/** Primary sequence index used during blocked playback processing */
+		/** Primary ("seek") sequence index used during blocked playback processing */
 		mutable int32 OnBlockPrimaryIndex;
+
+		/** Secondary (loop) sequence index used during blocked playback processing */
+		mutable int32 OnBlockSecondaryIndex;
 	};
 
 	FBlockOnRange BlockOnRange;

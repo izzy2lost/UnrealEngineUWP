@@ -213,8 +213,12 @@ public:
 
 	virtual void FlushSamples() override;
 #if WMFMEDIA_PLAYER_VERSION >= 2
-	virtual EFetchBestSampleResult FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp> & TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse) override;
+	virtual EFetchBestSampleResult FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult) override;
 #endif // WMFMEDIA_PLAYER_VERSION >= 2
+	virtual bool DiscardVideoSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
+	virtual bool DiscardAudioSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
+	virtual bool DiscardCaptionSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
+	virtual bool DiscardMetadataSamples(const TRange<FMediaTimeStamp>& TimeRange, bool bReverse) override;
 	virtual bool PeekVideoSampleTime(FMediaTimeStamp & TimeStamp) override;
 
 public:
@@ -305,6 +309,9 @@ private:
 	/** Callback for handling new video samples. */
 	void HandleMediaSamplerVideoSample(const uint8* Buffer, uint32 Size, FTimespan Duration, FTimespan Time);
 
+	/** Make sure sequence index is up to date and combine with given timestamp */
+	FMediaTimeStamp AdjustTimeStamp(FTimespan Time, EMediaTrackType TrackType);
+
 private:
 
 	/** Audio sample object pool. */
@@ -381,10 +388,16 @@ private:
 	EMediaState SessionState;
 
 #if WMFMEDIA_PLAYER_VERSION >= 2
-	/** If set, then discard samples until we get this sample. */
-	TOptional<FTimespan> SeekTimeOptional;
-	/** Seek index tracking */
+	/** SequenceIndex tracking */
 	int32 SeekIndex;
+	int32 AudioLoopIndex;
+	int32 VideoLoopIndex;
+	int32 MetaDataLoopIndex;
+	int32 CaptionLoopIndex;
+	TOptional<FTimespan> LastAudioTime;
+	TOptional<FTimespan> LastVideoTime;
+	TOptional<FTimespan> LastMetaDataTime;
+	TOptional<FTimespan> LastCaptionTime;
 #endif // WMFMEDIA_PLAYER_VERSION >= 2
 };
 

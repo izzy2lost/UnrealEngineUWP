@@ -260,6 +260,9 @@ private:
 	/** If true then RequestedTime is due to the video looping. */
 	bool bIsRequestedTimeLoop;
 
+	/** If true then RequestedTime is due to the video seeking. */
+	bool bIsRequestedTimeSeek;
+
 	/** The session's internal playback rate (not necessarily the same as GetRate). */
 	float SessionRate;
 

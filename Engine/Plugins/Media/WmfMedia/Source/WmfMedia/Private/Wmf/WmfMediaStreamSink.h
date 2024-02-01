@@ -206,8 +206,9 @@ public:
 	 *
 	 * @param InVideoSamplePool sample pool to get sample from
 	 * @param InVideoSampleQueue Sample queue to fill
+	 * @param InSequenceIndex Pointer to current sequence index value
 	 */
-	void SetMediaSamplePoolAndQueue(TSharedPtr<FWmfMediaHardwareVideoDecodingTextureSamplePool>& InVideoSamplePool, TMediaSampleQueue<IMediaTextureSample>* InVideoSampleQueue);
+	void SetMediaSamplePoolAndQueue(TSharedPtr<FWmfMediaHardwareVideoDecodingTextureSamplePool>& InVideoSamplePool, TMediaSampleQueue<IMediaTextureSample>* InVideoSampleQueue, TFunction<FMediaTimeStamp(FTimespan, EMediaTrackType)>&& InAdjustTimeStamp);
 
 private:
 
@@ -281,8 +282,11 @@ private:
 	/** Video sample pool from which to get next free sample */
 	TSharedPtr<FWmfMediaHardwareVideoDecodingTextureSamplePool> VideoSamplePool;
 
-	/** Video sample queue which is filled with current sample*/
+	/** Video sample queue which is filled with current sample */
 	TMediaSampleQueue<IMediaTextureSample>* VideoSampleQueue;
+	
+	/** Callback to adjust given timestamp for the output queue */
+	TFunction<FMediaTimeStamp(FTimespan,EMediaTrackType)> AdjustTimeStamp;
 
 	/** Make sure we don't spam output with MF_MT_SUBTYPE error message */
 	bool bShowSubTypeErrorMessage;

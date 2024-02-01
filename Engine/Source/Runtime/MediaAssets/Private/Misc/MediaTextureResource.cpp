@@ -403,8 +403,8 @@ void FMediaTextureResource::Render(const FRenderParams& Params)
 			TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> TestSample;
 			while (SampleSource->Peek(TestSample) && TestSample.IsValid())
 			{
-				const FTimespan StartTime = TestSample->GetTime().Time;
-				const FTimespan EndTime = StartTime + TestSample->GetDuration();
+				const FMediaTimeStamp& StartTime = TestSample->GetTime();
+				const FMediaTimeStamp EndTime = StartTime + TestSample->GetDuration();
 
 				if ((Params.Rate >= 0.0f) && (Params.Time < StartTime))
 				{
