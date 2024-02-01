@@ -29,6 +29,7 @@ struct CONTROLRIG_API FRigUnit_ResolveConnector : public FRigUnit_RigModulesBase
 	FRigUnit_ResolveConnector()
 	{
 		Connector = Result = FRigElementKey(NAME_None, ERigElementType::Connector);
+		SkipSocket = false;
 	}
 
 	RIGVM_METHOD()
@@ -39,6 +40,13 @@ struct CONTROLRIG_API FRigUnit_ResolveConnector : public FRigUnit_RigModulesBase
 	 */
 	UPROPERTY(meta = (Input, ExpandByDefault))
 	FRigElementKey Connector;
+
+	/*
+	 * If the connector is resolved to a socket the node
+	 * will return the socket's direct parent (skipping it).
+	 */
+	UPROPERTY(meta = (Input, ExpandByDefault))
+	bool SkipSocket;
 
 	/*
 	 * The resulting item the connector is resolved to
