@@ -321,7 +321,11 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 		return;
 	}
 #endif // WITH_EDITOR
-	
+
+	UDMXLibrary* DMXLibrary = GetDMXLibrary();
+	const FName DMXLibraryName = DMXLibrary ? DMXLibrary->GetOutermost()->GetFName() : "<Invalid DMX Library>";
+
+	UE_DMX_SCOPED_TRACE_SENDDMX(GetOutermost()->GetFName());
 	const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = GetAllFaderGroups();
 	for (const UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
 	{
@@ -336,10 +340,10 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 			continue;
 		}
 
-		UE_DMX_SCOPED_TRACE_SENDDMX(GetOutermost()->GetFName());
 		UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
 		if (FixturePatch)
 		{
+			UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibraryName);
 			UE_DMX_SCOPED_TRACE_SENDDMX(*FixturePatch->GetDisplayName());
 
 			// Send Fixture Patch Function DMX data

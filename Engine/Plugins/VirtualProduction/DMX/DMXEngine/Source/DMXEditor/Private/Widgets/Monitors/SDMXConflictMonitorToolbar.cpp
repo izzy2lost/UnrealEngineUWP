@@ -209,6 +209,8 @@ namespace UE::DMX
 		{
 		case EDMXConflictMonitorStatus::Idle:
 			return LOCTEXT("StatusIdle", "Idle");
+		case EDMXConflictMonitorStatus::Paused:
+			return LOCTEXT("StatusPaused", "Paused");
 		case EDMXConflictMonitorStatus::OK:
 			return LOCTEXT("StatusOK", "OK");
 		case EDMXConflictMonitorStatus::Conflict:
@@ -224,6 +226,7 @@ namespace UE::DMX
 		switch (Status.Get())
 		{
 		case EDMXConflictMonitorStatus::Idle:
+		case EDMXConflictMonitorStatus::Paused:
 			return FLinearColor::White.CopyWithNewOpacity(0.9f);
 		case EDMXConflictMonitorStatus::OK:
 			return FLinearColor::Green.CopyWithNewOpacity(0.9f);

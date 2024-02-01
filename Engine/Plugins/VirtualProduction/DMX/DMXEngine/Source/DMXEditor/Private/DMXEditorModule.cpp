@@ -202,45 +202,44 @@ TSharedRef<SWidget> FDMXEditorModule::GenerateDMXLevelEditorToolbarMenu()
 	FMenuBuilder MenuBuilder(true, CommandBindings, LevelEditorToolbarDMXMenuExtender);
 
 	static const FName NoExtensionHook = NAME_None;
-
-	MenuBuilder.BeginSection(NoExtensionHook, LOCTEXT("MenuSectionTools", "TOOLS"));
+	MenuBuilder.BeginSection(NoExtensionHook, LOCTEXT("MenuSectionDMXTools", "DMX Tools"));
 	{
 		MenuBuilder.AddMenuEntry(FDMXEditorCommands::Get().OpenChannelsMonitor,
-			NoExtensionHook,
+			"ChannelsMonitor",
 			TAttribute<FText>(), 
 			TAttribute<FText>(),
 			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ChannelsMonitor")
 		);
 		MenuBuilder.AddMenuEntry(FDMXEditorCommands::Get().OpenActivityMonitor,
-			NoExtensionHook,
+			"ActivityMonitor",
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ActivityMonitor")
 		);
 		MenuBuilder.AddMenuEntry(FDMXEditorCommands::Get().OpenConflictMonitor,
-			NoExtensionHook,
+			"ConflictMonitor",
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ConflictMonitor")
 		);
 		MenuBuilder.AddMenuEntry(FDMXEditorCommands::Get().OpenPatchTool,
-			NoExtensionHook,
+			"PatchTool",
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PatchTool")
 		);
 	}
 
-	MenuBuilder.BeginSection(NoExtensionHook, LOCTEXT("MenuSectionDMXIO", "DMX IO"));
+	MenuBuilder.BeginSection(NoExtensionHook, LOCTEXT("MenuSectionDMXInputOutput", "DMX IO"));
 	{
 		MenuBuilder.AddMenuEntry(FDMXEditorCommands::Get().ToggleReceiveDMX,
-			NoExtensionHook,
+			"ReceiveDMXEnabled",
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ReceiveDMX")
 		);
 		MenuBuilder.AddMenuEntry(FDMXEditorCommands::Get().ToggleSendDMX,
-			NoExtensionHook,
+			"SendDMXEnabled",
 			TAttribute<FText>(),
 			TAttribute<FText>(),
 			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.SendDMX")
