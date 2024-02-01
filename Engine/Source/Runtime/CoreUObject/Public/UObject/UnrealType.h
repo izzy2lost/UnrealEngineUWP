@@ -3989,6 +3989,12 @@ public:
 		FScriptSet* Set = (FScriptSet*)InSet;
 		return (uint8*)Set->GetData(InternalIndex, SetLayout);
 	}
+
+	const FProperty* GetElementProperty() const
+	{
+		return ElementProp;
+	}
+
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
