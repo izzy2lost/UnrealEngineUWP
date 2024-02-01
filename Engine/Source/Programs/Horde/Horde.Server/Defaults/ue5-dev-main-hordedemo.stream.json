@@ -116,7 +116,6 @@
 			[
 				"installed-build",
 				"test-executor",
-				"local-executor",
 				"parameter-demo",
 				"custom"
 			],
@@ -342,7 +341,7 @@
 			]
 		},
 		{
-			"id": "test-executor$(Project)",
+			"id": "test-executor",
 			"name": "Run Test Executor",
 			"initialAgentType": "Win64",
 			"arguments": [
@@ -351,18 +350,6 @@
 			],
 			"jobOptions": {
 				"executor": "Test"
-			}
-		},
-		{
-			"id": "local-executor",
-			"name": "Run Local Executor",
-			"initialAgentType": "Win64",
-			"arguments": [
-				"-Script=Engine/Build/Graph/Examples/TagsAndFiles.xml",
-				"-Target=Tag and File Examples"
-			],
-			"jobOptions": {
-				"executor": "Local"
 			}
 		},
         {
