@@ -2502,8 +2502,24 @@ void FRigVMEditor::OnCreateComment()
 	{
 		if (UEdGraph* Graph = GraphEditor->GetCurrentGraph())
 		{
-			FEdGraphSchemaAction_K2AddComment CommentAction;
-			CommentAction.PerformAction(Graph, NULL, GraphEditor->GetPasteLocation());
+			if (URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(Graph))
+			{
+				if (URigVMBlueprint* Blueprint = GetRigVMBlueprint())
+				{
+					if (URigVMController* Controller = Blueprint->GetController(RigVMEdGraph))
+					{
+						Controller->OpenUndoBracket(TEXT("Create Comment"));
+						FEdGraphSchemaAction_K2AddComment CommentAction;
+						UEdGraphNode* EdNode = CommentAction.PerformAction(Graph, NULL, GraphEditor->GetPasteLocation());
+						if (UEdGraphNode_Comment* CommentNode = CastChecked<UEdGraphNode_Comment>(EdNode))
+						{
+							Controller->SetNodeColorByName(CommentNode->GetFName(), CommentNode->GetNodeTitleColor(), false);
+							Controller->SetNodePositionByName(CommentNode->GetFName(), FVector2D(CommentNode->NodePosX, CommentNode->NodePosY), false);
+						}
+						Controller->CloseUndoBracket();
+					}
+				}
+			}
 		}
 	}
 }
