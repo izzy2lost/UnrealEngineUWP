@@ -30,14 +30,31 @@ UObject* UInterchangeLightActorFactory::ProcessActor(AActor& SpawnedActor, const
 			{
 				if (FString IESTexture; LightFactoryNode->GetCustomIESTexture(IESTexture))
 				{
-					IESTexture = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(IESTexture);
-					if (const UInterchangeTextureLightProfileFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureLightProfileFactoryNode>(NodeContainer.GetNode(IESTexture)))
+					FString IESFactoryTextureId = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(IESTexture);
+					if (const UInterchangeTextureLightProfileFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureLightProfileFactoryNode>(NodeContainer.GetNode(IESFactoryTextureId)))
 					{
 						FSoftObjectPath ReferenceObject;
 						TextureFactoryNode->GetCustomReferenceObject(ReferenceObject);
 						if (UTextureLightProfile* Texture = Cast<UTextureLightProfile>(ReferenceObject.TryLoad()))
 						{
 							LightComponent->SetIESTexture(Texture);
+							
+							if (bool bUseIESBrightness; LightFactoryNode->GetCustomUseIESBrightness(bUseIESBrightness))
+							{
+								LightComponent->SetUseIESBrightness(bUseIESBrightness);
+							}
+							
+							if (float IESBrightnessScale; LightFactoryNode->GetCustomIESBrightnessScale(IESBrightnessScale))
+							{
+								LightComponent->SetIESBrightnessScale(IESBrightnessScale);
+							}
+							
+							if (FRotator Rotation; LightFactoryNode->GetCustomRotation(Rotation))
+							{
+								// Apply Ies rotation to light orientation
+								FQuat NewLightRotation = LightComponent->GetRelativeRotation().Quaternion() * Rotation.Quaternion();
+								LightComponent->SetRelativeRotation(NewLightRotation);
+							}
 						}
 					}
 				}

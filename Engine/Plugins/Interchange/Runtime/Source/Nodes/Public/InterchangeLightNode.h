@@ -30,28 +30,28 @@ public:
 	 */
 	virtual FString GetTypeName() const override;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool GetCustomLightColor(FLinearColor& AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool SetCustomLightColor(const FLinearColor& AttributeValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool GetCustomIntensity(float& AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool SetCustomIntensity(float AttributeValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool GetCustomTemperature(float& AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool SetCustomTemperature(float AttributeValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool GetCustomUseTemperature(bool & AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | BaseLight")
 	bool SetCustomUseTemperature(bool AttributeValue);
 
 private:
@@ -71,29 +71,51 @@ public:
 
 	virtual FString GetTypeName() const override;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | LocalLight")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
 	bool GetCustomIntensityUnits(EInterchangeLightUnits& AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | LocalLight")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
 	bool SetCustomIntensityUnits(const EInterchangeLightUnits & AttributeValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | LocalLight")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
 	bool GetCustomAttenuationRadius(float& AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | LocalLight")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
 	bool SetCustomAttenuationRadius(float AttributeValue);
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | LocalLight")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
 	bool GetCustomIESTexture(FString& AttributeValue) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | LocalLight")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
 	bool SetCustomIESTexture(const FString& AttributeValue);
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	bool GetCustomUseIESBrightness(bool& AttributeValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	bool SetCustomUseIESBrightness(const bool& AttributeValue, bool bAddApplyDelegate = true);
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	bool GetCustomIESBrightnessScale(float& AttributeValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	bool SetCustomIESBrightnessScale(const float& AttributeValue, bool bAddApplyDelegate = true);
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	bool GetCustomRotation(FRotator& AttributeValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Light")
+	bool SetCustomRotation(const FRotator& AttributeValue, bool bAddApplyDelegate = true);
+
 
 private:
 
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(IntensityUnits)
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(AttenuationRadius)
 	IMPLEMENT_NODE_ATTRIBUTE_KEY(IESTexture)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(UseIESBrightness)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(IESBrightnessScale)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(Rotation)
 };
 
 UCLASS(BlueprintType)

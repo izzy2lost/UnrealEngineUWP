@@ -5,10 +5,13 @@
 #include "CoreMinimal.h"
 
 #include "Animation/InterchangeAnimationPayloadInterface.h"
+#include "InterchangeCommonAnimationPayload.h"
 #include "InterchangeTranslatorBase.h"
 #include "Mesh/InterchangeMeshPayloadInterface.h"
 #include "Texture/InterchangeTexturePayloadData.h"
 #include "Texture/InterchangeTexturePayloadInterface.h"
+#include "Texture/InterchangeTextureLightProfilePayloadData.h"
+#include "Texture/InterchangeTextureLightProfilePayloadInterface.h"
 #include "Scene/InterchangeVariantSetPayloadInterface.h"
 
 #include "Async/Async.h"
@@ -29,6 +32,7 @@ class IDatasmithTransformAnimationElement;
 class UInterchangePhysicalCameraNode;
 class UInterchangeBaseLightNode;
 class UInterchangeDecalNode;
+class UInterchangeLightNode;
 class UInterchangeSceneNode;
 
 namespace UE::Interchange
@@ -47,13 +51,13 @@ namespace UE::DatasmithImporter
 namespace UE::DatasmithInterchange::AnimUtils
 {
 	typedef TPair<float, TSharedPtr<IDatasmithBaseAnimationElement>> FAnimationPayloadDesc;
-	extern bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, TArray<FRichCurve>& Curves);
-	extern bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, TArray<FInterchangeStepCurve>& StepCurves);
+	extern bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, EInterchangeAnimationPayLoadType PayLoadType, UE::Interchange::FAnimationPayloadData& PayLoadData);
 }
 
 UCLASS(BlueprintType, Experimental)
 class DATASMITHINTERCHANGE_API UInterchangeDatasmithTranslator : public UInterchangeTranslatorBase
 	, public IInterchangeTexturePayloadInterface
+	, public IInterchangeTextureLightProfilePayloadInterface
 	, public IInterchangeMeshPayloadInterface
 	, public IInterchangeAnimationPayloadInterface
 	, public IInterchangeVariantSetPayloadInterface
@@ -87,6 +91,10 @@ public:
 	virtual TOptional<UE::Interchange::FImportImage> GetTexturePayloadData(const FString& PayloadKey, TOptional<FString>& AlternateTexturePath) const override;
 	/* IInterchangeTexturePayloadInterface End */
 
+	/* IInterchangeTextureLightProfilePayloadInterface Begin */
+	virtual TOptional<UE::Interchange::FImportLightProfile> GetLightProfilePayloadData(const FString& PayloadKey, TOptional<FString>& AlternateTexturePath) const override;
+	/* IInterchangeTextureLightProfilePayloadInterface End */
+
 	/* IInterchangeStaticMeshPayloadInterface Begin */
 	virtual TFuture<TOptional<UE::Interchange::FMeshPayloadData>> GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const override;
 	/* IInterchangeStaticMeshPayloadInterface End */
@@ -108,6 +116,8 @@ private:
 	UInterchangeBaseLightNode* AddLightNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithLightActorElement>& LightActor) const;
 
 	UInterchangeDecalNode* AddDecalNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithDecalActorElement>& DecalActor) const;
+
+	void ProcessIesProfile(UInterchangeBaseNodeContainer& BaseNodeContainer, const IDatasmithLightActorElement& LightElement, UInterchangeLightNode* LightNode) const;
 
 	mutable TSharedPtr<UE::DatasmithImporter::FExternalSource> LoadedExternalSource;
 

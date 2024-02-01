@@ -41,6 +41,12 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericScenesPipeline)
 
+#define COPY_FROM_TRANSLATED_TO_FACTORY(TranslatedNode, FactoryNode, AttributeName, AttributeType) \
+if(AttributeType AttributeName; TranslatedNode->GetCustom##AttributeName(AttributeName)) \
+{ \
+	FactoryNode->SetCustom##AttributeName(AttributeName); \
+}
+
 namespace UE::Interchange::Private
 {
 	TArray<FString> GetAllActiveJoints(UInterchangeBaseNodeContainer* BaseNodeContainer)
@@ -685,35 +691,33 @@ void UInterchangeGenericLevelPipeline::SetUpFactoryNode(UInterchangeActorFactory
 			{
 				if (UInterchangeLightFactoryNode* LightFactoryNode = Cast<UInterchangeLightFactoryNode>(BaseLightFactoryNode))
 				{
+					if (FString IESTextureUid; LightNode->GetCustomIESTexture(IESTextureUid))
+					{
+						if (BaseNodeContainer->GetNode(IESTextureUid))
+						{
+							LightFactoryNode->SetCustomIESTexture(IESTextureUid);
+							LightFactoryNode->AddFactoryDependencyUid(UInterchangeFactoryBaseNode::BuildFactoryNodeUid(IESTextureUid));
+
+							COPY_FROM_TRANSLATED_TO_FACTORY(LightNode, LightFactoryNode, UseIESBrightness, bool)
+							COPY_FROM_TRANSLATED_TO_FACTORY(LightNode, LightFactoryNode, IESBrightnessScale, float)
+							COPY_FROM_TRANSLATED_TO_FACTORY(LightNode, LightFactoryNode, Rotation, FRotator)
+						}
+					}
+
 					if (EInterchangeLightUnits IntensityUnits; LightNode->GetCustomIntensityUnits(IntensityUnits))
 					{
 						LightFactoryNode->SetCustomIntensityUnits(ELightUnits(IntensityUnits));
 					}
 
-					if (float AttenuationRadius; LightNode->GetCustomAttenuationRadius(AttenuationRadius))
-					{
-						LightFactoryNode->SetCustomAttenuationRadius(AttenuationRadius);
-					}
-
-					if(FString IESTexture; LightNode->GetCustomIESTexture(IESTexture))
-					{
-						LightFactoryNode->SetCustomIESTexture(IESTexture);
-					}
+					COPY_FROM_TRANSLATED_TO_FACTORY(LightNode, LightFactoryNode, AttenuationRadius, float)
 
 					// RectLight
 					if(const UInterchangeRectLightNode* RectLightNode = Cast<UInterchangeRectLightNode>(LightNode))
 					{
 						if(UInterchangeRectLightFactoryNode* RectLightFactoryNode = Cast<UInterchangeRectLightFactoryNode>(LightFactoryNode))
 						{
-							if(float SourceWidth; RectLightNode->GetCustomSourceWidth(SourceWidth))
-							{
-								RectLightFactoryNode->SetCustomSourceWidth(SourceWidth);
-							}
-
-							if(float SourceHeight; RectLightNode->GetCustomSourceHeight(SourceHeight))
-							{
-								RectLightFactoryNode->SetCustomSourceHeight(SourceHeight);
-							}
+							COPY_FROM_TRANSLATED_TO_FACTORY(RectLightNode, RectLightFactoryNode, SourceWidth, float)
+							COPY_FROM_TRANSLATED_TO_FACTORY(RectLightNode, RectLightFactoryNode, SourceHeight, float)
 						}
 					}
 
@@ -726,25 +730,17 @@ void UInterchangeGenericLevelPipeline::SetUpFactoryNode(UInterchangeActorFactory
 							{
 								PointLightFactoryNode->SetCustomUseInverseSquaredFalloff(bUseInverseSquaredFalloff);
 
-								if (float LightFalloffExponent; PointLightNode->GetCustomLightFalloffExponent(LightFalloffExponent))
-								{
-									PointLightFactoryNode->SetCustomLightFalloffExponent(LightFalloffExponent);
-								}
+								COPY_FROM_TRANSLATED_TO_FACTORY(PointLightNode, PointLightFactoryNode, LightFalloffExponent, float)
 							}
 
 
 							// Spot Light
 							if (const UInterchangeSpotLightNode* SpotLightNode = Cast<UInterchangeSpotLightNode>(PointLightNode))
 							{
-								UInterchangeSpotLightFactoryNode* SpotLightFactoryNode = Cast<UInterchangeSpotLightFactoryNode>(PointLightFactoryNode);
-								if (float InnerConeAngle; SpotLightNode->GetCustomInnerConeAngle(InnerConeAngle))
+								if (UInterchangeSpotLightFactoryNode* SpotLightFactoryNode = Cast<UInterchangeSpotLightFactoryNode>(PointLightFactoryNode))
 								{
-									SpotLightFactoryNode->SetCustomInnerConeAngle(InnerConeAngle);
-								}
-
-								if (float OuterConeAngle; SpotLightNode->GetCustomOuterConeAngle(OuterConeAngle))
-								{
-									SpotLightFactoryNode->SetCustomOuterConeAngle(OuterConeAngle);
+									COPY_FROM_TRANSLATED_TO_FACTORY(SpotLightNode, SpotLightFactoryNode, InnerConeAngle, float)
+									COPY_FROM_TRANSLATED_TO_FACTORY(SpotLightNode, SpotLightFactoryNode, OuterConeAngle, float)
 								}
 							}
 						}

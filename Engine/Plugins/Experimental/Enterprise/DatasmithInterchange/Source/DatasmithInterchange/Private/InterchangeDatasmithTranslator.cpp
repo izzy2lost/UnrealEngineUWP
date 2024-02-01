@@ -31,8 +31,9 @@
 #include "InterchangeShaderGraphNode.h"
 #include "InterchangeSceneNode.h"
 #include "InterchangeTexture2DNode.h"
+#include "InterchangeTextureLightProfileNode.h"
+#include "InterchangeTextureLightProfileFactoryNode.h"
 #include "InterchangeVariantSetNode.h"
-
 #include "StaticMeshOperations.h"
 
 #include "Misc/App.h"
@@ -50,7 +51,7 @@
 
 #define LOCTEXT_NAMESPACE "DatasmithInterchange"
 
-namespace UE::Interchange::Datasmith
+namespace UE::DatasmithInterchange
 {
 #if WITH_EDITOR
 	bool DisplayOptionsDialog(IDatasmithTranslator& Translator)
@@ -182,7 +183,7 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 			TSharedRef<TPromise<bool>, ESPMode::ThreadSafe> Promise = MakeShareable(new TPromise<bool>());
 			TFunction<void()> PromiseKeeper = [&DatasmithTranslator, &Promise]() -> void
 			{
-				bool bShouldImport = UE::Interchange::Datasmith::DisplayOptionsDialog(*DatasmithTranslator);
+				bool bShouldImport = UE::DatasmithInterchange::DisplayOptionsDialog(*DatasmithTranslator);
 				Promise->SetValue(bShouldImport);
 			};
 
@@ -196,7 +197,7 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 		}
 		else
 		{
-			bShouldImport = UE::Interchange::Datasmith::DisplayOptionsDialog(*DatasmithTranslator);
+			bShouldImport = UE::DatasmithInterchange::DisplayOptionsDialog(*DatasmithTranslator);
 		}
 
 		if (!bShouldImport)
@@ -224,15 +225,27 @@ bool UInterchangeDatasmithTranslator::Translate(UInterchangeBaseNodeContainer& B
 		{
 			if (TSharedPtr<IDatasmithTextureElement> TextureElement = DatasmithScene->GetTexture(TextureIndex))
 			{
-				UInterchangeTexture2DNode* TextureNode = NewObject<UInterchangeTexture2DNode>(&BaseNodeContainer);
+				const bool bIsIesProfile = FPaths::GetExtension(TextureElement->GetFile()).Equals(TEXT("ies"), ESearchCase::IgnoreCase);
+				UClass* TextureClass = bIsIesProfile ? UInterchangeTextureLightProfileNode::StaticClass() : UInterchangeTexture2DNode::StaticClass();
+
+				UInterchangeTextureNode* TextureNode = NewObject<UInterchangeTextureNode>(&BaseNodeContainer, TextureClass);
+
 				const FString TextureNodeUid = NodeUtils::TexturePrefix + TextureElement->GetName();
 				const FString DisplayLabel = TextureNameProvider.GenerateUniqueName(TextureElement->GetLabel());
 
 				TextureNode->InitializeNode(TextureNodeUid, DisplayLabel, EInterchangeNodeContainerType::TranslatedAsset);
-				TextureNode->SetPayLoadKey(LexToString(TextureIndex));
-				TextureUtils::ApplyTextureElementToNode(TextureElement.ToSharedRef(), TextureNode);
 
 				BaseNodeContainer.AddNode(TextureNode);
+
+				if (bIsIesProfile)
+				{
+					TextureNode->SetPayLoadKey(TextureElement->GetFile());
+				}
+				else
+				{
+					TextureUtils::ApplyTextureElementToNode(TextureElement.ToSharedRef(), TextureNode);
+					TextureNode->SetPayLoadKey(LexToString(TextureIndex));
+				}
 			}
 		}
 	}
@@ -566,14 +579,6 @@ UInterchangeBaseLightNode* UInterchangeDatasmithTranslator::AddLightNode(UInterc
 			AreaLightNode->SetCustomTemperature(AreaLightElement->GetTemperature());
 		}
 
-		if (AreaLightElement->GetUseIes())
-		{
-			//AreaLightNode->SetCustomIESTexture(const TObjectPtr<class UTextureLightProfile>&AttributeValue, bool bAddApplyDelegate = true);
-			AreaLightNode->SetCustomUseIESBrightness(AreaLightElement->GetUseIesBrightness());
-			AreaLightNode->SetCustomIESBrightnessScale(AreaLightElement->GetIesBrightnessScale());
-			AreaLightNode->SetCustomRotation(AreaLightElement->GetIesRotation().Rotator());
-		}
-
 		AreaLightNode->SetCustomSourceRadius(AreaLightElement->GetSourceRadius());
 		AreaLightNode->SetCustomSourceLength(AreaLightElement->GetSourceLength());
 		AreaLightNode->SetCustomAttenuationRadius(AreaLightElement->GetAttenuationRadius());
@@ -606,11 +611,64 @@ UInterchangeBaseLightNode* UInterchangeDatasmithTranslator::AddLightNode(UInterc
 		ensure(false);
 		LightNode = NewObject<UInterchangeLightNode>(&BaseNodeContainer);
 	}
+
+	ProcessIesProfile(BaseNodeContainer, *LightActor, Cast<UInterchangeLightNode>(LightNode));
+
 	const FString LightUid = NodeUtils::LightPrefix + LightActor->GetName();
 	LightNode->InitializeNode(LightUid, LightActor->GetLabel(), EInterchangeNodeContainerType::TranslatedAsset);
 	BaseNodeContainer.AddNode(LightNode);
 
 	return LightNode;
+}
+
+void UInterchangeDatasmithTranslator::ProcessIesProfile(UInterchangeBaseNodeContainer& BaseNodeContainer, const IDatasmithLightActorElement& LightElement, UInterchangeLightNode* LightNode) const
+{
+	using namespace UE::DatasmithImporter;
+	using namespace UE::DatasmithInterchange;
+
+	if (!LightNode || !LightElement.GetUseIes())
+	{
+		return;
+	}
+
+	bool bUpdateLightNode = false;
+
+	FString ProfileNodeUid = NodeUtils::TexturePrefix + LightElement.GetName() + TEXT("_IES");
+	const FString DisplayLabel = FString(LightElement.GetName()) + TEXT("_IES");
+
+	if (FPaths::FileExists(LightElement.GetIesTexturePathName()))
+	{
+		UInterchangeTextureNode* TextureNode = NewObject<UInterchangeTextureLightProfileNode>(&BaseNodeContainer);
+		TextureNode->InitializeNode(ProfileNodeUid, DisplayLabel, EInterchangeNodeContainerType::TranslatedAsset);
+		BaseNodeContainer.AddNode(TextureNode);
+		bUpdateLightNode = true;
+	}
+	else if(FSoftObjectPath(LightElement.GetIesTexturePathName()).IsValid())
+	{
+		FString IESFactoryTextureId = UInterchangeFactoryBaseNode::BuildFactoryNodeUid(ProfileNodeUid);
+		UInterchangeTextureLightProfileFactoryNode* FactoryNode = NewObject<UInterchangeTextureLightProfileFactoryNode>(&BaseNodeContainer);
+		FactoryNode->InitializeNode(IESFactoryTextureId, DisplayLabel, EInterchangeNodeContainerType::FactoryData);
+		FactoryNode->SetCustomReferenceObject(FSoftObjectPath(LightElement.GetIesTexturePathName()));
+		BaseNodeContainer.AddNode(FactoryNode);
+		bUpdateLightNode = true;
+	}
+	else
+	{
+		const FString TextureNodeUid = NodeUtils::TexturePrefix + FDatasmithUtils::SanitizeObjectName(LightElement.GetIesTexturePathName());
+		if (BaseNodeContainer.GetNode(TextureNodeUid))
+		{
+			ProfileNodeUid = TextureNodeUid;
+			bUpdateLightNode = true;
+		}
+	}
+
+	if (bUpdateLightNode)
+	{
+		LightNode->SetCustomIESTexture(ProfileNodeUid);
+		LightNode->SetCustomUseIESBrightness(LightElement.GetUseIesBrightness());
+		LightNode->SetCustomIESBrightnessScale(LightElement.GetIesBrightnessScale());
+		LightNode->SetCustomRotation(LightElement.GetIesRotation().Rotator());
+	}
 }
 
 UInterchangeDecalNode* UInterchangeDatasmithTranslator::AddDecalNode(UInterchangeBaseNodeContainer& BaseNodeContainer, const TSharedRef<IDatasmithDecalActorElement>& DecalActor) const
@@ -668,6 +726,8 @@ TOptional<UE::Interchange::FImportImage> UInterchangeDatasmithTranslator::GetTex
 		return TOptional<UE::Interchange::FImportImage>();
 	}
 
+	PayloadSourceData->ClearInternalFlags(EInternalObjectFlags::Async);
+
 	UInterchangeTranslatorBase* SourceTranslator = UInterchangeManager::GetInterchangeManager().GetTranslatorForSourceData(PayloadSourceData);
 	FGCObjectScopeGuard ScopedSourceTranslator(SourceTranslator);
 	const IInterchangeTexturePayloadInterface* TextureTranslator = Cast< IInterchangeTexturePayloadInterface >(SourceTranslator);
@@ -676,11 +736,46 @@ TOptional<UE::Interchange::FImportImage> UInterchangeDatasmithTranslator::GetTex
 		return TOptional<UE::Interchange::FImportImage>();
 	}
 
+	SourceTranslator->ClearInternalFlags(EInternalObjectFlags::Async);
 	SourceTranslator->SetResultsContainer(Results);
 
 	AlternateTexturePath = TextureElement->GetFile();
 
 	return TextureTranslator->GetTexturePayloadData(PayloadKey, AlternateTexturePath);
+}
+
+TOptional<UE::Interchange::FImportLightProfile> UInterchangeDatasmithTranslator::GetLightProfilePayloadData(const FString& PayloadKey, TOptional<FString>& AlternateTexturePath) const
+{
+	if (!LoadedExternalSource || !LoadedExternalSource->GetDatasmithScene())
+	{
+		return TOptional<UE::Interchange::FImportLightProfile>();
+	}
+
+	UInterchangeSourceData* PayloadSourceData = UInterchangeManager::GetInterchangeManager().CreateSourceData(PayloadKey);
+	FGCObjectScopeGuard ScopedSourceData(PayloadSourceData);
+	if (!PayloadSourceData)
+	{
+		return TOptional<UE::Interchange::FImportLightProfile>();
+	}
+
+	PayloadSourceData->ClearInternalFlags(EInternalObjectFlags::Async);
+
+	UInterchangeTranslatorBase* SourceTranslator = UInterchangeManager::GetInterchangeManager().GetTranslatorForSourceData(PayloadSourceData);
+	FGCObjectScopeGuard ScopedSourceTranslator(SourceTranslator);
+	const IInterchangeTextureLightProfilePayloadInterface* TextureTranslator = Cast< IInterchangeTextureLightProfilePayloadInterface >(SourceTranslator);
+	if (!ensure(TextureTranslator))
+	{
+		return TOptional<UE::Interchange::FImportLightProfile>();
+	}
+
+	SourceTranslator->ClearInternalFlags(EInternalObjectFlags::Async);
+	SourceTranslator->SetResultsContainer(Results);
+
+	AlternateTexturePath = PayloadKey;
+
+	AlternateTexturePath = PayloadKey;
+
+	return TextureTranslator->GetLightProfilePayloadData(PayloadKey, AlternateTexturePath);
 }
 
 TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTranslator::GetMeshPayloadData(const FInterchangeMeshPayLoadKey& PayLoadKey, const FTransform& MeshGlobalTransform) const
@@ -740,8 +835,6 @@ TFuture<TOptional<UE::Interchange::FMeshPayloadData>> UInterchangeDatasmithTrans
 
 TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmithTranslator::GetAnimationPayloadData(const FInterchangeAnimationPayLoadKey& PayLoadKey, const double BakeFrequency, const double RangeStartSecond, const double RangeStopSecond) const
 {
-	UE::Interchange::FAnimationPayloadData TransformPayloadData(PayLoadKey.Type);
-
 	TPromise<TOptional<UE::Interchange::FAnimationPayloadData>> EmptyPromise;
 	EmptyPromise.SetValue(TOptional<UE::Interchange::FAnimationPayloadData>());
 	
@@ -765,46 +858,22 @@ TFuture<TOptional<UE::Interchange::FAnimationPayloadData>> UInterchangeDatasmith
 		FrameRate = PayloadDescPtr->Key;
 	}
 
-	switch (PayLoadKey.Type)
+	if (PayLoadKey.Type != EInterchangeAnimationPayLoadType::NONE)
 	{
-	case EInterchangeAnimationPayLoadType::CURVE:
-	case EInterchangeAnimationPayLoadType::MORPHTARGETCURVE:
-		{
-			return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, &TransformPayloadData]
+		return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, PayLoadType = PayLoadKey.Type]
+			{
+
+				UE::Interchange::FAnimationPayloadData TransformPayloadData(PayLoadType);
+				TOptional<UE::Interchange::FAnimationPayloadData> Result;
+
+				if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, PayLoadType, TransformPayloadData))
 				{
-					
-					TOptional<UE::Interchange::FAnimationPayloadData> Result;
-
-					if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, TransformPayloadData.Curves))
-					{
-						Result.Emplace(MoveTemp(TransformPayloadData));
-					}
-
-					return Result;
-					}
-				);
-		}
-		break;
-	case EInterchangeAnimationPayLoadType::STEPCURVE:
-		{
-			return Async(EAsyncExecution::TaskGraph, [this, AnimationElement = MoveTemp(AnimationElement), FrameRate, &TransformPayloadData]
-				{
-					TOptional<UE::Interchange::FAnimationPayloadData> Result;
-
-					if (UE::DatasmithInterchange::AnimUtils::GetAnimationPayloadData(*AnimationElement, FrameRate, TransformPayloadData.StepCurves))
-					{
-						Result.Emplace(MoveTemp(TransformPayloadData));
-					}
-
-					return Result;
+					Result.Emplace(MoveTemp(TransformPayloadData));
 				}
-			);
-		}
-		break;
-	case EInterchangeAnimationPayLoadType::BAKED:
-	case EInterchangeAnimationPayLoadType::NONE:
-	default:
-		break;
+
+				return Result;
+			}
+		);
 	}
 
 	return EmptyPromise.GetFuture();
