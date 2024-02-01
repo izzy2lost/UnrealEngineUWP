@@ -439,7 +439,7 @@ void UMediaTexture::TickResource(FTimespan Timecode)
 					RenderParams.SampleSource = SampleQueue;
 
 					RenderParams.Rate = CurrentPlayerPtr->GetRate();
-					RenderParams.Time = CurrentPlayerPtr->GetTime();
+					RenderParams.Time = FMediaTimeStamp(CurrentPlayerPtr->GetTime());
 				}
 				else
 				{

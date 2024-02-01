@@ -966,7 +966,7 @@ void FWmfMediaStreamSink::CopyTextureAndEnqueueSample(IMFSample* pSample)
 			TextureSample->InitializeExternal(&ExternalBuffer,
 				FIntPoint(DimX, DimY), FIntPoint(DimX, DimY), MediaTextureSampleFormat,
 				Pitch,
-				FTimespan::FromMicroseconds(SampleTime / 10),
+				AdjustTimeStamp(FTimespan::FromMicroseconds(SampleTime / 10), EMediaTrackType::Video),
 				FTimespan::FromMicroseconds(SampleDuration / 10));
 
 			TextureSample->SetPixelFormat(PixelFormat);
@@ -1000,7 +1000,7 @@ void FWmfMediaStreamSink::CopyTextureAndEnqueueSample(IMFSample* pSample)
 
 				ID3D11Texture2D* SharedTexture = TextureSample->InitializeSourceTexture(
 					Owner->GetDevice(),
-					FTimespan::FromMicroseconds(SampleTime / 10),
+					AdjustTimeStamp(FTimespan::FromMicroseconds(SampleTime / 10), EMediaTrackType::Video),
 					FTimespan::FromMicroseconds(SampleDuration / 10),
 					FIntPoint(DimX, DimY),
 					PixelFormat,
@@ -1064,7 +1064,7 @@ void FWmfMediaStreamSink::CopyTextureAndEnqueueSample(IMFSample* pSample)
 					}
 
 					uint32 Pitch = (DimX / GPixelFormats[PixelFormat].BlockSizeX) * GPixelFormats[PixelFormat].BlockBytes;
-					TextureSample->Initialize(Data, BufferSize, FIntPoint(DimX, SampleDimY), FIntPoint(DimX, DimY), MediaTextureSampleFormat, Pitch, FTimespan::FromMicroseconds(SampleTime / 10), FTimespan::FromMicroseconds(SampleDuration / 10));
+					TextureSample->Initialize(Data, BufferSize, FIntPoint(DimX, SampleDimY), FIntPoint(DimX, DimY), MediaTextureSampleFormat, Pitch, AdjustTimeStamp(FTimespan::FromMicroseconds(SampleTime / 10), EMediaTrackType::Video), FTimespan::FromMicroseconds(SampleDuration / 10));
 					pBuffer->Unlock();
 
 					TextureSample->SetPixelFormat(PixelFormat);
@@ -1129,11 +1129,13 @@ void FWmfMediaStreamSink::SetClockRate(float InClockRate)
 
 void FWmfMediaStreamSink::SetMediaSamplePoolAndQueue(
 	TSharedPtr<FWmfMediaHardwareVideoDecodingTextureSamplePool>& InVideoSamplePool,
-	TMediaSampleQueue<IMediaTextureSample>* InVideoSampleQueue)
+	TMediaSampleQueue<IMediaTextureSample>* InVideoSampleQueue,
+	TFunction<FMediaTimeStamp(FTimespan, EMediaTrackType)>&& InAdjustTimeStamp)
 {
 	FScopeLock Lock(&CriticalSection);
 	VideoSamplePool = InVideoSamplePool;
 	VideoSampleQueue = InVideoSampleQueue;
+	AdjustTimeStamp = MoveTemp(InAdjustTimeStamp);
 }
 
 

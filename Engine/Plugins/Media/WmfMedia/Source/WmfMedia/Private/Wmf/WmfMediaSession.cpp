@@ -53,6 +53,7 @@ FWmfMediaSession::FWmfMediaSession()
 	, PendingChanges(false)
 	, RefCount(0)
 	, bIsRequestedTimeLoop(false)
+	, bIsRequestedTimeSeek(false)
 	, SessionRate(0.0f)
 	, SessionState(EMediaState::Closed)
 	, ShouldLoop(false)
@@ -497,6 +498,7 @@ bool FWmfMediaSession::Seek(const FTimespan& Time)
 		UE_LOG(LogWmfMedia, Verbose, TEXT("Session %p: Requesting seek after pending command"), this);
 		RequestedTime = Time;
 		bIsRequestedTimeLoop = false;
+		bIsRequestedTimeSeek = true;
 		return true;
 	}
 
@@ -840,6 +842,7 @@ bool FWmfMediaSession::CommitRate(float Rate)
 			{			
 				RequestedTime = LastTime;
 				bIsRequestedTimeLoop = false;
+				bIsRequestedTimeSeek = false;
 			}
 
 			RequestedRate = Rate;
@@ -957,6 +960,7 @@ bool FWmfMediaSession::CommitRate(float Rate)
 			UE_LOG(LogWmfMedia, Verbose, TEXT("Session %p: Requesting start after pending rate change"), this);
 			RequestedTime = RestartTime;
 			bIsRequestedTimeLoop = false;
+			bIsRequestedTimeSeek = false;
 		}
 		else
 		{
@@ -976,7 +980,7 @@ bool FWmfMediaSession::CommitTime(FTimespan Time, bool bIsSeek)
 
 	FTimespan OriginalTime = Time;
 	const FString TimeString = (Time == WmfMediaSession::RequestedTimeCurrent) ? TEXT("<current>") : *Time.ToString();
-	UE_LOG(LogWmfMedia, Verbose, TEXT("Session %p: Committing time %s"), this, *TimeString);
+	UE_LOG(LogWmfMedia, Verbose, TEXT("Session %p: Committing time %s (Seek=%d)"), this, *TimeString, bIsSeek);
 
 	// start session at requested time
 	PROPVARIANT StartPosition;
@@ -1020,7 +1024,7 @@ bool FWmfMediaSession::CommitTime(FTimespan Time, bool bIsSeek)
 
 #if WMFMEDIA_PLAYER_VERSION >= 2
 	// If this is not a loop, then tell the tracks about the seek.
-	if ((bIsRequestedTimeLoop == false) && (bCanSeek) && bIsSeek)
+	if (bCanSeek && bIsSeek)
 	{
 		TSharedPtr<FWmfMediaTracks, ESPMode::ThreadSafe> TracksPinned = Tracks.Pin();
 		if (TracksPinned.IsValid())
@@ -1065,6 +1069,7 @@ bool FWmfMediaSession::CommitTopology(IMFTopology* Topology)
 
 			RequestedTime = LastTime;
 			bIsRequestedTimeLoop = false;
+			bIsRequestedTimeSeek = false;
 
 			// Zero LastTime so it matches what WMF is actually doing (rewinding to the beginning)
 			// The PresentationClock has now stopped and FWmfMediaSession::GetTime() will just return LastTime
@@ -1114,6 +1119,7 @@ void FWmfMediaSession::DiscardPendingChanges()
 	RequestedRate.Reset();
 	RequestedTime.Reset();
 	bIsRequestedTimeLoop = false;
+	bIsRequestedTimeSeek = false;
 	RequestedTopology.Reset();
 
 	PendingChanges = false;
@@ -1171,8 +1177,9 @@ void FWmfMediaSession::DoPendingChanges()
 		const FTimespan Time = RequestedTime.GetValue();
 		RequestedTime.Reset();
 
-		CommitTime(Time, false);
+		CommitTime(Time, bIsRequestedTimeSeek && !bIsRequestedTimeLoop);
 		bIsRequestedTimeLoop = false;
+		bIsRequestedTimeSeek = false;
 	}
 }
 
@@ -1318,6 +1325,7 @@ void FWmfMediaSession::HandleSessionEnded()
 		// loop back to beginning/end
 		RequestedTime = (SessionRate < 0.0f) ? CurrentDuration : FTimespan::Zero();
 		bIsRequestedTimeLoop = true;
+		bIsRequestedTimeSeek = false;
 		DoPendingChanges();
 	}
 	else
@@ -1594,6 +1602,7 @@ void FWmfMediaSession::HandleSessionTopologyStatus(HRESULT EventStatus, IMFMedia
 
 			RequestedTime = WmfMediaSession::RequestedTimeCurrent;
 			bIsRequestedTimeLoop = false;
+			bIsRequestedTimeSeek = false;
 			PendingChanges = true;
 		}
 	}
