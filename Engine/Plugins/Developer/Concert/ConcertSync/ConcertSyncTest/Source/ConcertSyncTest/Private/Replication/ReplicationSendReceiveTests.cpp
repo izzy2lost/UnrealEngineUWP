@@ -37,7 +37,11 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 	}
 	
 	/** Send values from sender > server > receiver and validate it arrived. */
-	static void SharedRunSendReceiveTest(FSendReceiveObjectTestBase& Test, EPropertyTestFlags PropertyTestFlags = EPropertyTestFlags::All)
+	static void SharedRunSendReceiveTest(FSendReceiveObjectTestBase& Test,
+		EPropertyTestFlags PropertyTestFlags = EPropertyTestFlags::All,
+		// Explicitly sets all values before & after sending so the caller can test whether the other properties were changed
+		EPropertyTestFlags PropertySendFlags = EPropertyTestFlags::All
+		)
 	{
 		bool bHasServerReceivedData = false;
 		bool bHasClientReceivedData = false;
@@ -58,8 +62,8 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 			bHasClientReceivedData = true;
 		};
 		Test.SimulateSendObjectToReceiver(OnServerReceive, OnClientReceive,
-			// Explicitly sets all values before & after sending so the caller can test whether the other properties were changed
-			EPropertyTestFlags::All
+			
+			PropertySendFlags
 			);
 
 		// 3. Test
@@ -88,14 +92,21 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 		Test.TestTrue(TEXT("Received change stream response"), bReceivedChangeStreamResponse);
 	}
 	
-	/**
-	 * Tests replicating data from sender client > server > receiver client.
-	 */
-	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Editor.Concert.Replication.SendReceive.SingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	/** Tests replicating data from sender client > server > receiver client. */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendReceiveFlowTests, FSendReceiveObjectTestBase, "Editor.Concert.Replication.SendReceive.SendValuesOnSingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
 	bool FSendReceiveFlowTests::RunTest(const FString& Parameters)
 	{
 		SharedSetupSet(*this);
 		SharedRunSendReceiveTest(*this);
+		return true;
+	}
+	
+	/** Tests replicating data from sender client > server > receiver client. */
+	IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FSendCDOValuesOnSingleStream, FSendReceiveObjectTestBase, "Editor.Concert.Replication.SendReceive.SendCDOValuesOnSingleStream", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter);
+	bool FSendCDOValuesOnSingleStream::RunTest(const FString& Parameters)
+	{
+		SharedSetupSet(*this);
+		SharedRunSendReceiveTest(*this, EPropertyTestFlags::All | EPropertyTestFlags::SendCDOValues, EPropertyTestFlags::All | EPropertyTestFlags::SendCDOValues);
 		return true;
 	}
 
