@@ -63,7 +63,7 @@ void FAvaMaterialParameterMap::Set(UMaterialInstanceDynamic* InMaterial)
 	{
 		return;
 	}
-	
+
 	// Apply scalar
 	for (const TPair<FName, float>& Pair : ScalarParameters)
 	{
@@ -130,7 +130,7 @@ void UAvaMaterialParameterModifier::OnModifierCDOSetup(FActorModifierCoreMetadat
 		{
 			return false;
 		}
-		
+
 		// Check actor component has at least one dynamic instance material in its components or children
 		const bool bResult = ForEachComponent<UPrimitiveComponent>([](UPrimitiveComponent* InComponent)
 		{
@@ -161,7 +161,7 @@ void UAvaMaterialParameterModifier::OnModifierCDOSetup(FActorModifierCoreMetadat
 void UAvaMaterialParameterModifier::OnModifierEnabled(EActorModifierCoreEnableReason InReason)
 {
 	Super::OnModifierEnabled(InReason);
-	
+
 #if WITH_EDITOR
 	/** Bind to delegate to detect material changes */
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
@@ -172,7 +172,7 @@ void UAvaMaterialParameterModifier::OnModifierEnabled(EActorModifierCoreEnableRe
 void UAvaMaterialParameterModifier::OnModifierDisabled(EActorModifierCoreDisableReason InReason)
 {
 	Super::OnModifierDisabled(InReason);
-	
+
 #if WITH_EDITOR
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 #endif
@@ -195,12 +195,12 @@ void UAvaMaterialParameterModifier::Apply()
 	{
 		return;
 	}
-	
+
 	// Scan for materials in actors
 	ScanActorMaterials();
 
 	SaveMaterialParameters();
-	
+
 	// Set new parameter value to them
 	for (TPair<TWeakObjectPtr<UMaterialInstanceDynamic>, FAvaMaterialParameterMap>& MaterialParameterPair : SavedMaterialParameters)
 	{
@@ -210,7 +210,7 @@ void UAvaMaterialParameterModifier::Apply()
 			MaterialParameters.Set(MID);
 		}
 	}
-	
+
 	Next();
 }
 
@@ -220,7 +220,7 @@ void UAvaMaterialParameterModifier::PostEditChangeProperty(FPropertyChangedEvent
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
-	
+
 	static const FName MaterialParametersName = GET_MEMBER_NAME_CHECKED(UAvaMaterialParameterModifier, MaterialParameters);
 	static const FName UpdateChildrenName = GET_MEMBER_NAME_CHECKED(UAvaMaterialParameterModifier, bUpdateChildren);
 
@@ -264,13 +264,13 @@ bool UAvaMaterialParameterModifier::IsActorSupported(const AActor* InActor) cons
 	{
 		return false;
 	}
-	
+
 	const AActor* ActorModified = GetModifiedActor();
 	if (!ActorModified)
 	{
 		return false;
 	}
-	
+
 	TArray<UPrimitiveComponent*> PrimitiveComponents;
 	InActor->GetComponents(PrimitiveComponents, false);
 	const bool bAttachedToModifiedActor = InActor->IsAttachedTo(ActorModified);
@@ -299,7 +299,7 @@ TSet<UMaterialInstanceDynamic*> UAvaMaterialParameterModifier::GetComponentDynam
 	{
 		return Materials;
 	}
-	
+
 	for (int32 Idx = 0; Idx < InComponent->GetNumMaterials(); Idx++)
 	{
 		UMaterialInterface* Mat = InComponent->GetMaterial(Idx);
@@ -307,7 +307,7 @@ TSet<UMaterialInstanceDynamic*> UAvaMaterialParameterModifier::GetComponentDynam
 		{
 			continue;
 		}
-		
+
 		if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mat))
 		{
 			Materials.Add(MID);
@@ -387,7 +387,7 @@ void UAvaMaterialParameterModifier::ScanActorMaterials()
 	{
 		PrevScannedMaterials.Add(MaterialParameterPair.Key.Get());
 	}
-	
+
 	ForEachComponent<UPrimitiveComponent>([this, &PrevScannedMaterials](UPrimitiveComponent* InComponent)->bool
 	{
 #if WITH_EDITOR
@@ -396,7 +396,7 @@ void UAvaMaterialParameterModifier::ScanActorMaterials()
 			return true;
 		}
 #endif
-		
+
 		for (UMaterialInstanceDynamic* MID : GetComponentDynamicMaterials(InComponent))
 		{
 			const bool bMaterialAdded = !SavedMaterialParameters.Contains(MID);
@@ -404,17 +404,17 @@ void UAvaMaterialParameterModifier::ScanActorMaterials()
 
 			// Removed untracked keys
 			ParameterMap.MatchKeys(MaterialParameters);
-			
+
 			if (bMaterialAdded)
 			{
 				// Save original values
                 ParameterMap.Get(MID);
 				OnActorMaterialAdded(MID);
 			}
-			
+
 			PrevScannedMaterials.Remove(MID);
 		}
-		
+
 		return true;
 	}
 	, EActorModifierCoreComponentType::All
