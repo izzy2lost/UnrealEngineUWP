@@ -134,7 +134,7 @@ uint32 FReplicationInstanceOperationsInternal::QuantizeObjectStateData(FNetBitSt
 				Cache.PopLastEntry();
 			}
 
-			UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Copy, InternalIndex);
+			UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Quantize, InternalIndex);
 
 			return 1U;
 		}

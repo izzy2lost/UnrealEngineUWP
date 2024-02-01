@@ -18,7 +18,7 @@ struct FNetTypeStatsData
 		PreUpdate = 0U,
 		Poll,
 		PollWaste,
-		Copy,
+		Quantize,
 		Write,
 		WriteWaste,
 		WriteCreationInfo,
