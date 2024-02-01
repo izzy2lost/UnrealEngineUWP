@@ -294,80 +294,83 @@ void SControlRigDetails::HandleSequencerObjects(TMap<UObject*, FArrayOfPropertyT
 
 void SControlRigDetails::UpdateProxies()
 {
-	TWeakPtr<SWidget> WeakPtr = AsWeak();
-	
-	//proxies that are in edit mode are also listening to the same messages so they may not be set up yet so need to wait
-	GEditor->GetTimerManager()->SetTimerForNextTick([WeakPtr]()
-	{
-		if(!WeakPtr.IsValid())
-		{
-			return;
-		}
-		TSharedPtr<SControlRigDetails> StrongThis = StaticCastSharedPtr<SControlRigDetails>(WeakPtr.Pin());
-		if(!StrongThis.IsValid())
-		{
-			return;
-		}
-		
-		TArray<TWeakObjectPtr<>> AllProxies;
-		TArray<UControlRigControlsProxy*> ChildProxies; //list of 'child' proxies that will show up as custom attributes
-		if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongThis->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
-		{
-			if (UControlRigDetailPanelControlProxies* ControlProxy = EditMode->GetDetailProxies())
-			{
-				const TArray<UControlRigControlsProxy*>& Proxies = ControlProxy->GetAllSelectedProxies();
-				for (UControlRigControlsProxy* Proxy : Proxies)
-				{
-					if (Proxy == nullptr)
-					{
-						continue;
-					}
-					Proxy->ResetItems();
+	if(NextTickTimerHandle.IsValid() == false)
+	{ 
+		TWeakPtr<SWidget> WeakPtr = AsWeak();
 
-					if (Proxy->bIsIndividual)
+		//proxies that are in edit mode are also listening to the same messages so they may not be set up yet so need to wait
+		NextTickTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick([WeakPtr]()
+		{
+			if(!WeakPtr.IsValid())
+			{
+				return;
+			}
+			TSharedPtr<SControlRigDetails> StrongThis = StaticCastSharedPtr<SControlRigDetails>(WeakPtr.Pin());
+			if(!StrongThis.IsValid())
+			{
+				return;
+			}
+		
+			TArray<TWeakObjectPtr<>> AllProxies;
+			TArray<UControlRigControlsProxy*> ChildProxies; //list of 'child' proxies that will show up as custom attributes
+			if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(StrongThis->ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
+			{
+				if (UControlRigDetailPanelControlProxies* ControlProxy = EditMode->GetDetailProxies())
+				{
+					const TArray<UControlRigControlsProxy*>& Proxies = ControlProxy->GetAllSelectedProxies();
+					for (UControlRigControlsProxy* Proxy : Proxies)
 					{
-						ChildProxies.Add(Proxy);
-					}
-					else
-					{
-						TObjectPtr<UEnum> EnumPtr = Proxy->OwnerControlElement ? Proxy->OwnerControlElement->Settings.ControlEnum : nullptr;
-						if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, Proxy->Type, EnumPtr != nullptr))
+						if (Proxy == nullptr)
 						{
-							ExistingProxy->AddItem(Proxy);
-							ExistingProxy->ValueChanged();
+							continue;
+						}
+						Proxy->ResetItems();
+
+						if (Proxy->bIsIndividual)
+						{
+							ChildProxies.Add(Proxy);
+						}
+						else
+						{
+							TObjectPtr<UEnum> EnumPtr = Proxy->OwnerControlElement ? Proxy->OwnerControlElement->Settings.ControlEnum : nullptr;
+							if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, Proxy->Type, EnumPtr != nullptr))
+							{
+								ExistingProxy->AddItem(Proxy);
+								ExistingProxy->ValueChanged();
+							}
+							else
+							{
+								AllProxies.Add(Proxy);
+							}
+						}
+					}
+					//now add child proxies to parents if parents also selected...
+					for (UControlRigControlsProxy* Proxy : ChildProxies)
+					{
+						if (UControlRigControlsProxy* ParentProxy = GetParentProxy(Proxy, Proxies))
+						{
+							TObjectPtr<UEnum> EnumPtr = ParentProxy->OwnerControlElement ? ParentProxy->OwnerControlElement->Settings.ControlEnum : nullptr;
+							if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, ParentProxy->Type, EnumPtr != nullptr))
+							{
+								ParentProxy->AddChildProxy(Proxy);
+							}
 						}
 						else
 						{
 							AllProxies.Add(Proxy);
 						}
 					}
-				}
-				//now add child proxies to parents if parents also selected...
-				for (UControlRigControlsProxy* Proxy : ChildProxies)
-				{
-					if (UControlRigControlsProxy* ParentProxy = GetParentProxy(Proxy, Proxies))
+					for (UControlRigControlsProxy* Proxy : Proxies)
 					{
-						TObjectPtr<UEnum> EnumPtr = ParentProxy->OwnerControlElement ? ParentProxy->OwnerControlElement->Settings.ControlEnum : nullptr;
-						if (UControlRigControlsProxy* ExistingProxy = GetProxyWithSameType(AllProxies, ParentProxy->Type, EnumPtr != nullptr))
-						{
-							ParentProxy->AddChildProxy(Proxy);
-						}
+						Proxy->ValueChanged();
 					}
-					else
-					{
-						AllProxies.Add(Proxy);
-					}
-				}
-				for (UControlRigControlsProxy* Proxy : Proxies)
-				{
-					Proxy->ValueChanged();
 				}
 			}
-		}
 		
-		StrongThis->AllControlsView->SetObjects(AllProxies,true);
-		
-	});
+			StrongThis->AllControlsView->SetObjects(AllProxies,true);
+			StrongThis->NextTickTimerHandle.Invalidate();
+		});
+	}
 }
 
 FReply SControlRigDetails::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
