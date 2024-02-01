@@ -55,6 +55,7 @@ ANavigationTestingActor::ANavigationTestingActor(const FObjectInitializer& Objec
 	bGatherDetailedInfo = true;
 	bDrawDistanceToWall = false;
 	ClosestWallLocation = FNavigationSystem::InvalidLocation;
+	bNavDataIsReadyInRadius = false;
 	OffsetFromCornersDistance = 0.f;
 
 	QueryingExtent = FVector(DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_VERTICAL);
@@ -162,6 +163,10 @@ void ANavigationTestingActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 			{
 				ClosestWallLocation = FindClosestWallLocation();
 			}
+			else if (bDrawIfNavDataIsReadyInRadius)
+			{
+				bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
+			}
 #if WITH_EDITORONLY_DATA
 			else
 			{
@@ -249,6 +254,11 @@ void ANavigationTestingActor::PostEditMove(bool bFinished)
 		if (bDrawDistanceToWall)
 		{
 			ClosestWallLocation = FindClosestWallLocation();
+		}
+
+		if (bDrawIfNavDataIsReadyInRadius)
+		{
+			bNavDataIsReadyInRadius = CheckIfNavDataIsReadyInRadius();
 		}
 	}
 }
@@ -392,6 +402,27 @@ FVector ANavigationTestingActor::FindClosestWallLocation() const
 #endif // WITH_RECAST
 	
 	return FNavigationSystem::InvalidLocation;
+}
+
+bool ANavigationTestingActor::CheckIfNavDataIsReadyInRadius()
+{
+#if WITH_EDITORONLY_DATA
+	if (EdRenderComp)
+	{
+		EdRenderComp->MarkRenderStateDirty();
+	}
+#endif // WITH_EDITORONLY_DATA
+	
+#if WITH_RECAST
+	UpdateNavData();
+	const ARecastNavMesh* RecastNavMesh = Cast<ARecastNavMesh>(MyNavData);
+	if (RecastNavMesh)
+	{
+		return RecastNavMesh->HasCompleteDataInRadius(GetActorLocation(), RadiusUsedToValidateNavData);
+	}
+#endif // WITH_RECAST
+	
+	return false;
 }
 
 void ANavigationTestingActor::SearchPathTo(ANavigationTestingActor* Goal)
