@@ -1438,12 +1438,12 @@ export const AgentMenuBar: React.FC<{ agentView?: boolean }> = observer(({ agent
          {!!agentView && <Stack><Stack grow />
             <Stack horizontal tokens={{ childrenGap: 12 }} grow>
                <PrimaryButton styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important" } }} text="Download Agent" onClick={() => { backend.downloadAgentZip() }} />
-               <CommandButton
+               {!!dashboard.user?.dashboardFeatures?.showPoolEditor && <CommandButton
                   onClick={() => { editPoolsModalState.setOpen(); }}
                   iconProps={{ iconName: 'Edit' }}
                   styles={{ root: { marginRight: 12, bottom: 3, fontFamily: 'Horde Open Sans SemiBold !important' } }}>
                   {`Pools`}
-               </CommandButton>
+               </CommandButton>}
                {selectedButton}
                <PoolEditorModal></PoolEditorModal>
                <PoolSelectionModal></PoolSelectionModal>

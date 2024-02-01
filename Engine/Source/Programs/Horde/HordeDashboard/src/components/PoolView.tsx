@@ -1260,7 +1260,7 @@ const PoolPanel: React.FC = () => {
                <Stack style={{ minWidth: 224 }}>
                   <Stack horizontal style={{ paddingBottom: 18 }} tokens={{childrenGap: 8}}>
                      <PrimaryButton text={pool.name} href={`/agents?agent=${encodeURI(pool.id)}&exact=true`} target="_blank" style={{ color: "#FFFFFF", backgroundColor: color, border: "unset", flexShrink: 1 }} />
-                     <IconButton iconProps={{iconName: "Edit"}} onClick={() => { setState({ ...state, showSettings: true }) }} style={{ color: "#FFFFFF", backgroundColor: color, border: "unset", flexShrink: 1 }} />                     
+                     {!!dashboard.user?.dashboardFeatures?.showPoolEditor && <IconButton iconProps={{ iconName: "Edit" }} onClick={() => { setState({ ...state, showSettings: true }) }} style={{ color: "#FFFFFF", backgroundColor: color, border: "unset", flexShrink: 1 }} />}
                   </Stack>
                   <Stack>
                      <DetailsList
