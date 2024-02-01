@@ -235,6 +235,10 @@ void FGameplayEffectContext::AddHitResult(const FHitResult& InHitResult, bool bR
 
 bool FGameplayEffectContext::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
+	//!!!!!!!!!!!!!!!! Warning !!!!!!!!!!!!!!!
+	// Any changes to this function also need to be done to FGameplayEffectContextNetSerializer to support Iris replication
+	//!!!!!!!!!!!!!!!! Warning !!!!!!!!!!!!!!!
+
 	uint8 RepBits = 0;
 	if (Ar.IsSaving())
 	{
