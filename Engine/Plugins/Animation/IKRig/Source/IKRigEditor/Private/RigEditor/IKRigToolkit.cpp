@@ -219,6 +219,12 @@ FString FIKRigEditorToolkit::GetWorldCentricTabPrefix() const
 	return TEXT("IKRigEditor");
 }
 
+void FIKRigEditorToolkit::Tick(float DeltaTime)
+{
+	// forces viewport to always update, even when mouse pressed down in other tabs
+	GetPersonaToolkit()->GetPreviewScene()->InvalidateViews();
+}
+
 TStatId FIKRigEditorToolkit::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FIKRigEditorToolkit, STATGROUP_Tickables);
