@@ -190,19 +190,19 @@ void FAvaOutputTileItem::UpdateInfo()
 	switch(OutputState)
 	{
 	case EAvaMediaOutputState::Offline:
-		MediaOutputStatusText = LOCTEXT("MediaOutput_NoIssues", "Offline");
+		MediaOutputStatusText = LOCTEXT("MediaOutput_Offline", "Offline");
 		MediaOutputStatusBrush = FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.MediaOutputOffline");
 		break;
 	case EAvaMediaOutputState::Idle:
-		MediaOutputStatusText = LOCTEXT("MediaOutput_NoIssues", "Idle");
+		MediaOutputStatusText = LOCTEXT("MediaOutput_Idle", "Idle");
 		MediaOutputStatusBrush = FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.MediaOutputIdle");
 		break;
 	case EAvaMediaOutputState::Preparing:
-		MediaOutputStatusText = LOCTEXT("MediaOutput_NoIssues", "Preparing");
+		MediaOutputStatusText = LOCTEXT("MediaOutput_Preparing", "Preparing");
 		MediaOutputStatusBrush = FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.MediaOutputPreparing");
 		break;
 	case EAvaMediaOutputState::Live:
-		MediaOutputStatusText = LOCTEXT("MediaOutput_NoIssues", "Live");
+		MediaOutputStatusText = LOCTEXT("MediaOutput_Live", "Live");
 		if (Severity == EAvaMediaIssueSeverity::Errors || Severity == EAvaMediaIssueSeverity::Warnings)
 		{
 			// If severity is warning or error, add a secondary icon (yellow or red exclamation mark)
@@ -215,6 +215,7 @@ void FAvaOutputTileItem::UpdateInfo()
 		}
 		break;
 	case EAvaMediaOutputState::Error:
+	default:
 		MediaOutputStatusText = LOCTEXT("MediaOutput_Errors", "Error(s)");
 		MediaOutputStatusBrush = FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.MediaOutputError");
 		break;

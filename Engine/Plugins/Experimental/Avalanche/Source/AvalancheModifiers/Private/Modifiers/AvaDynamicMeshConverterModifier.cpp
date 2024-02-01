@@ -314,7 +314,6 @@ void UAvaDynamicMeshConverterModifier::ConvertToStaticMeshAsset()
 		FAssetRegistryModule::AssetCreated(DestinationMesh);
 	}
 }
-#undef LOCTEXT_NAMESPACE
 #endif
 
 void UAvaDynamicMeshConverterModifier::SetSourceActorWeak(const TWeakObjectPtr<AActor>& InActor)

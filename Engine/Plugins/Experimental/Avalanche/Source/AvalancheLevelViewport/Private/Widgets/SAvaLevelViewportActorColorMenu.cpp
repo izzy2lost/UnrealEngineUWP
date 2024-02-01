@@ -644,11 +644,11 @@ void SAvaLevelViewportActorColorMenu::LoadColorThemesFromIni()
 	if (ColorThemes.Num() == 0)
 	{
 		FAvaColorTheme* NewTheme = FindTheme("Default", true);
-		NewTheme->GetColors().Add({FLinearColor::White, LOCTEXT("White", "White")});
-		NewTheme->GetColors().Add({FLinearColor::Black, LOCTEXT("Black", "Black")});
-		NewTheme->GetColors().Add({FLinearColor::Red, LOCTEXT("Red", "Red")});
-		NewTheme->GetColors().Add({FLinearColor::Green, LOCTEXT("Green", "Green")});
-		NewTheme->GetColors().Add({FLinearColor::Blue, LOCTEXT("Blue", "Blue")});
+		NewTheme->GetColors().Add({FLinearColor::White, LOCTEXT("WhiteColor", "White")});
+		NewTheme->GetColors().Add({FLinearColor::Black, LOCTEXT("BlackColor", "Black")});
+		NewTheme->GetColors().Add({FLinearColor::Red, LOCTEXT("RedColor", "Red")});
+		NewTheme->GetColors().Add({FLinearColor::Green, LOCTEXT("GreenColor", "Green")});
+		NewTheme->GetColors().Add({FLinearColor::Blue, LOCTEXT("BlueColor", "Blue")});
 		SaveColorThemesToIni();		
 	}
 
@@ -1222,7 +1222,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildRenameColorMenu(int32 
 	{
 		ColorMenuBuilder.BeginSection("ColorOptions", LOCTEXT("ColorOptions", "Color Options"));
 
-		ColorMenuBuilder.AddEditableText(LOCTEXT("Name","Name"), LOCTEXT("NameTooltip", "The name of the color."),
+		ColorMenuBuilder.AddEditableText(LOCTEXT("NameLabel", "Name"), LOCTEXT("NameTooltip", "The name of the color."),
 			FSlateIcon(), ThemeColors[InColorIdx].Label, 
 			FOnTextCommitted::CreateLambda([Theme, ColorWidget, InColorIdx, CurrentColor](const FText& NewLabel, ETextCommit::Type CommitType)
 				{
@@ -1245,7 +1245,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildRenameColorMenu(int32 
 					ColorWidget->SetToolTipText(NewLabel);
 				}));
 
-		ColorMenuBuilder.AddMenuEntry(LOCTEXT("Remove", "Remove"), LOCTEXT("RemoveTooltip", "Remove this color from the palette."), FSlateIcon(),
+		ColorMenuBuilder.AddMenuEntry(LOCTEXT("RemovePaletteColorLabel", "Remove"), LOCTEXT("RemovePaletteColorTooltip", "Remove this color from the palette."), FSlateIcon(),
 			FUIAction(FExecuteAction::CreateLambda([this, Theme, InColorIdx, CurrentColor]()
 				{
 					TArray<FAvaColorInfo>& ThemeColors = Theme->GetColors();
@@ -1278,6 +1278,9 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 	constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder ThemeMenuBuilder(bInShouldCloseWindowAfterMenuSelection, nullptr);
 	{
+		static FText RemoveThemeLabelText = LOCTEXT("RemoveThemeLabel", "Remove");
+		static FText RemoveThemeTooltipText = LOCTEXT("RemoveThemeTooltip", "Remove this theme.");
+		
 		if (ColorThemes.IsValidIndex(ActiveThemeIndex))
 		{
 			ThemeMenuBuilder.BeginSection("CurrentTheme", LOCTEXT("CurrentTheme", "Current Theme"));
@@ -1303,10 +1306,10 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 						SaveColorThemesToIni();
 					})
 				),				
-				LOCTEXT("Name", "Name")
+				LOCTEXT("ThemeNameLabel", "Name")
 			);
 
-			ThemeMenuBuilder.AddMenuEntry(LOCTEXT("Remove", "Remove"), LOCTEXT("RemoveTooltip", "Remove this theme."), FSlateIcon(),
+			ThemeMenuBuilder.AddMenuEntry(RemoveThemeLabelText, RemoveThemeTooltipText, FSlateIcon(),
 				FUIAction(FExecuteAction::CreateLambda([this]()
 					{
 						if (!ColorThemes.IsValidIndex(ActiveThemeIndex))
@@ -1343,7 +1346,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 					{
 						SubMenuBuilder.BeginSection("ThemeOptions", LOCTEXT("Options", "Options"));
 
-						SubMenuBuilder.AddMenuEntry(LOCTEXT("Remove", "Remove"), LOCTEXT("RemoveThemeTooltip", "Remove this theme."), FSlateIcon(),
+						SubMenuBuilder.AddMenuEntry(RemoveThemeLabelText, RemoveThemeTooltipText, FSlateIcon(),
 							FUIAction(FExecuteAction::CreateLambda([this, ThemeIdx]()
 								{
 									if (!ColorThemes.IsValidIndex(ThemeIdx))
@@ -1410,7 +1413,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 										],
 									FNewMenuDelegate::CreateLambda([this, ThemeIdx, ColorIdx](FMenuBuilder& SubMenuBuilder)
 										{
-											SubMenuBuilder.AddMenuEntry(LOCTEXT("Remove", "Remove"), LOCTEXT("RemoveColorTooltip", "Remove this color."), FSlateIcon(),
+											SubMenuBuilder.AddMenuEntry(LOCTEXT("RemoveColorLabel", "Remove"), LOCTEXT("RemoveColorTooltip", "Remove this color."), FSlateIcon(),
 												FUIAction(FExecuteAction::CreateLambda([this, ThemeIdx, ColorIdx]()
 													{
 														if (!ColorThemes.IsValidIndex(ThemeIdx))
@@ -1463,7 +1466,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 
 		ThemeMenuBuilder.EndSection();
 
-		ThemeMenuBuilder.BeginSection("NewTheme", LOCTEXT("NewTheme", "New Theme"));
+		ThemeMenuBuilder.BeginSection("NewTheme", LOCTEXT("NewThemeSectionHeading", "New Theme"));
 
 		ThemeMenuBuilder.AddWidget(
 			SNew(SEditableTextBox)
@@ -1485,7 +1488,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 					}
 				})
 			),
-			LOCTEXT("Name", "Name")
+			LOCTEXT("NewThemeLabel", "Name")
 		);
 
 		ThemeMenuBuilder.EndSection();

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaViewportInfo.h"
+
 #include "AvaViewportUtils.h"
 #include "AvaVisibleArea.h"
 #include "EditorModeManager.h"
@@ -12,6 +13,25 @@
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SAvaViewportInfo"
+
+namespace UE::AvaLevelViewport::Private
+{
+	const FText& GetEmptyXYDisplayText()
+	{
+		static const FText EmptyXY = LOCTEXT("NoXY", "-");
+		return EmptyXY;
+	}
+
+	FText MakeXYDisplayText_By(float InX, float InY)
+	{
+		return FText::Format(LOCTEXT("XYDash", "{0} x {1}"), FMath::RoundToInt(InX), FMath::RoundToInt(InY));
+	}
+
+	FText MakeXYDisplayText_Comma(float InX, float InY)
+	{
+		return FText::Format(LOCTEXT("XYComma", "{0}, {1}"), FMath::RoundToInt(InX), FMath::RoundToInt(InY));
+	}
+}
 
 TSharedRef<SAvaViewportInfo> SAvaViewportInfo::CreateInstance(const TSharedRef<IToolkitHost>& InToolkitHost)
 {
@@ -237,62 +257,42 @@ FVector2f SAvaViewportInfo::GetMouseLocationOnViewport() const
 
 FText SAvaViewportInfo::GetViewportSize() const
 {
-	static const FText Default = LOCTEXT("NoSize", "-");
-
 	const FVector2f& ViewportSize = GetViewportSizeForActiveViewport();
 
 	if (FAvaViewportUtils::IsValidViewportSize(ViewportSize))
 	{
-		return FText::Format(
-			LOCTEXT("Size", "{0} x {1}"), 
-			FMath::RoundToInt(ViewportSize.X), 
-			FMath::RoundToInt(ViewportSize.Y)
-		);
+		return UE::AvaLevelViewport::Private::MakeXYDisplayText_By(FMath::RoundToInt(ViewportSize.X), FMath::RoundToInt(ViewportSize.Y));
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 FText SAvaViewportInfo::GetVirtualViewportSize() const
 {
-	static const FText Default = LOCTEXT("NoSize", "-");
-
 	const FIntPoint VirtualSize = GetVirtualSizeForActiveViewport();
 
 	if (FAvaViewportUtils::IsValidViewportSize(VirtualSize))
 	{
-		return FText::Format(
-			LOCTEXT("Size", "{0} x {1}"),
-			VirtualSize.X,
-			VirtualSize.Y
-		);
+		return UE::AvaLevelViewport::Private::MakeXYDisplayText_By(VirtualSize.X, VirtualSize.Y);
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 FText SAvaViewportInfo::GetViewportVisibleAreaSize() const
 {
-	static const FText Default = LOCTEXT("NoSize", "-");
-
 	const FAvaVisibleArea VisibleArea = GetVisibleAreaForActiveViewport();
 
 	if (VisibleArea.IsValid() && VisibleArea.IsZoomedView())
 	{
-		return FText::Format(
-			LOCTEXT("Size", "{0} x {1}"),
-			FMath::RoundToInt(VisibleArea.VisibleSize.X),
-			FMath::RoundToInt(VisibleArea.VisibleSize.Y)
-		);
+		return UE::AvaLevelViewport::Private::MakeXYDisplayText_By(VisibleArea.VisibleSize.X, VisibleArea.VisibleSize.Y);
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 FText SAvaViewportInfo::GetCanvasVisibleAreaSize() const
 {
-	static const FText Default = LOCTEXT("NoSize", "-");
-
 	const FAvaVisibleArea VisibleArea = GetVisibleAreaForActiveViewport();
 
 	if (VisibleArea.IsValid() && VisibleArea.IsZoomedView())
@@ -303,39 +303,27 @@ FText SAvaViewportInfo::GetCanvasVisibleAreaSize() const
 		{
 			const FVector2f VisibleSize = VisibleArea.VisibleSize * static_cast<float>(CanvasSize.X) / VisibleArea.AbsoluteSize.X;
 
-			return FText::Format(
-				LOCTEXT("Size", "{0} x {1}"),
-				FMath::RoundToInt(VisibleSize.X),
-				FMath::RoundToInt(VisibleSize.Y)
-			);
+			return UE::AvaLevelViewport::Private::MakeXYDisplayText_By(VisibleSize.X, VisibleSize.Y);
 		}
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 FText SAvaViewportInfo::GetViewportZoomOffset() const
 {
-	static const FText Default = LOCTEXT("NoCoordinates", "-");
-
 	const FAvaVisibleArea VisibleArea = GetVisibleAreaForActiveViewport();
 
 	if (VisibleArea.IsValid() && VisibleArea.IsOffset())
 	{
-		return FText::Format(
-			LOCTEXT("Coordinates", "{0}, {1}"),
-			FMath::RoundToInt(VisibleArea.Offset.X),
-			FMath::RoundToInt(VisibleArea.Offset.Y)
-		);
+		return UE::AvaLevelViewport::Private::MakeXYDisplayText_Comma(VisibleArea.Offset.X, VisibleArea.Offset.Y);
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 FText SAvaViewportInfo::GetCanvasZoomOffset() const
 {
-	static const FText Default = LOCTEXT("NoCoordinates", "-");
-
 	const FAvaVisibleArea VisibleArea = GetVisibleAreaForActiveViewport();
 
 	if (VisibleArea.IsValid() && VisibleArea.IsOffset())
@@ -346,39 +334,29 @@ FText SAvaViewportInfo::GetCanvasZoomOffset() const
 		{
 			const FVector2f CanvasOffset = VisibleArea.Offset * static_cast<float>(CanvasSize.X) / VisibleArea.AbsoluteSize.X;
 
-			return FText::Format(
-				LOCTEXT("Coordinates", "{0}, {1}"),
-				FMath::RoundToInt(CanvasOffset.X),
-				FMath::RoundToInt(CanvasOffset.Y)
-			);
+			return UE::AvaLevelViewport::Private::MakeXYDisplayText_Comma(CanvasOffset.X, CanvasOffset.Y);
 		}
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 FText SAvaViewportInfo::GetMouseLocation() const
 {
-	static const FText Default = LOCTEXT("NoCoordinates", "-");
-
 	const FVector2f MouseLocation = GetMouseLocationOnViewport();
 
 	// -1 is the invalid value
 	if (MouseLocation.X < 0 || MouseLocation.Y < 0)
 	{
-		return Default;
+		return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 	}
 
-	return FText::Format(
-		LOCTEXT("Coordinates", "{0}, {1}"),
-		FMath::RoundToInt(MouseLocation.X),
-		FMath::RoundToInt(MouseLocation.Y)
-	);
+	return UE::AvaLevelViewport::Private::MakeXYDisplayText_Comma(MouseLocation.X, MouseLocation.Y);
 }
 
 FText SAvaViewportInfo::GetVirtualMouseLocation() const
 {
-	static const FText Default = LOCTEXT("NoCoordinates", "-");
+	static const FText& Default = UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 
 	FVector2f MouseLocation = GetMouseLocationOnViewport();
 
@@ -404,17 +382,11 @@ FText SAvaViewportInfo::GetVirtualMouseLocation() const
 
 	MouseLocation *= static_cast<float>(CanvasSize.X) / ViewportSize.X;
 
-	return FText::Format(
-		LOCTEXT("Coordinates", "{0}, {1}"),
-		FMath::RoundToInt(MouseLocation.X),
-		FMath::RoundToInt(MouseLocation.Y)
-	);
+	return UE::AvaLevelViewport::Private::MakeXYDisplayText_Comma(MouseLocation.X, MouseLocation.Y);
 }
 
 FText SAvaViewportInfo::GetZoomLevel() const
 {
-	static const FText Default = LOCTEXT("No value", "-");
-
 	const FAvaVisibleArea VisibleArea = GetVisibleAreaForActiveViewport();
 
 	if (VisibleArea.IsValid())
@@ -427,7 +399,7 @@ FText SAvaViewportInfo::GetZoomLevel() const
 		);
 	}
 
-	return Default;
+	return UE::AvaLevelViewport::Private::GetEmptyXYDisplayText();
 }
 
 #undef LOCTEXT_NAMESPACE

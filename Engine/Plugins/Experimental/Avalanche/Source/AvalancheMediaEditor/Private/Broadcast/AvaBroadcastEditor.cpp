@@ -495,9 +495,9 @@ FText FAvaBroadcastEditor::GetStopPlaybackClientTooltip()
 {
 	if (UAvalancheMediaSettings::Get().bAutoStartPlaybackClient)
 	{
-		return LOCTEXT("PlaybackClientStop_ToolTip", "Stop Playback Client (auto started)");
+		return LOCTEXT("PlaybackClientStopAuto_ToolTip", "Stop Playback Client (auto started)");
 	}
-	return LOCTEXT("PlaybackClientStop_ToolTip", "Stop Playback Client (manually started)");
+	return LOCTEXT("PlaybackClientStopManual_ToolTip", "Stop Playback Client (manually started)");
 }
 
 void FAvaBroadcastEditor::StartPlaybackClientAction()
@@ -535,9 +535,9 @@ FText FAvaBroadcastEditor::GetLaunchLocalServerTooltip()
 {
 	if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
 	{
-		return LOCTEXT("LaunchLocalServer_ToolTip", "Launches Game Mode Local Server Process");
+		return LOCTEXT("LaunchLocalServerAuto_ToolTip", "Launches Game Mode Local Server Process");
 	}
-	return LOCTEXT("LaunchLocalServer_ToolTip", "Launches Game Mode Local Server Process (disabled, start client first)");
+	return LOCTEXT("LaunchLocalServerManual_ToolTip", "Launches Game Mode Local Server Process (disabled, start client first)");
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -80,7 +80,7 @@ void SAvaTextAlignmentWidget::Construct(const FArguments& InArgs)
 			]
 			+ SGridPanel::Slot(3, 1, ForegroundLayer)
 			[
-				GetVerticalAlignmentButton(VerticalBottomButton, EText3DVerticalTextAlignment::Bottom, "AvalancheIcons.Alignment.Bottom", LOCTEXT("AlignSelectedTextRight", "Align Text to Bottom"))
+				GetVerticalAlignmentButton(VerticalBottomButton, EText3DVerticalTextAlignment::Bottom, "AvalancheIcons.Alignment.Bottom", LOCTEXT("AlignSelectedTextBottom", "Align Text to Bottom"))
 			]
 		]
 	];

@@ -632,7 +632,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnSizeToScreenClicked(bool bInStretc
 		return FReply::Handled();
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("SizeToScreen", "Size Actor to Screen"));
+	FScopedTransaction Transaction(LOCTEXT("SizeToScreenTransaction", "Size Actor to Screen"));
 
 	TArray<TWeakObjectPtr<const AActor>> SelectedActorsWeak = GetSelectedActors(EditorViewportClient);
 
@@ -684,7 +684,7 @@ FReply SAvaLevelViewportActorAlignmentMenu::OnFitToScreenClicked()
 		return FReply::Handled();
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("FitToScreen", "Fit Actor to Screen"));
+	FScopedTransaction Transaction(LOCTEXT("FitToScreenTransaction", "Fit Actor to Screen"));
 
 	const bool bUseNearestAxis = FSlateApplication::Get().GetModifierKeys().IsShiftDown();
 

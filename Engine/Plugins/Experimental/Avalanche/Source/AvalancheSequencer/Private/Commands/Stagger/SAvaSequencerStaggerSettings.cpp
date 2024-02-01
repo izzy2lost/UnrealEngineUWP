@@ -152,7 +152,7 @@ TSharedRef<SWidget> SAvaSequencerStaggerSettings::ConstructStartPositionRadioGro
 			.VAlign(VAlign_Center)
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("ShiftFromLabel", "First:"))
+				.Text(LOCTEXT("ShiftFirstLabel", "First:"))
 			]
 			+ SHorizontalBox::Slot()
 			.FillWidth(0.65f)

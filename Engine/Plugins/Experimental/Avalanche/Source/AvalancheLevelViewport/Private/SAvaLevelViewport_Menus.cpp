@@ -396,8 +396,8 @@ void SAvaLevelViewport::AddVirtualSizeSizeSettings(FToolMenuSection& InSection)
 	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
 
 	InSection.AddMenuEntry("UseUnlockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioUnlocked, LOCTEXT("VirtualSizeUnlockedAspectRatio", "Free Aspect Ratio"));
-	InSection.AddMenuEntry("UseLockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioLocked, LOCTEXT("VirtualSizeUnlockedAspectRatio", "Locked Aspect Ratio"));
-	InSection.AddMenuEntry("UseLockedToCameraAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioLockedToCamera, LOCTEXT("VirtualSizeUnlockedAspectRatio", "Use Camera Aspect Ratio"));
+	InSection.AddMenuEntry("UseLockedAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioLocked, LOCTEXT("VirtualSizeLockedAspectRatio", "Locked Aspect Ratio"));
+	InSection.AddMenuEntry("UseLockedToCameraAspectRatio", LevelViewportCommands.VirtualSizeAspectRatioLockedToCamera, LOCTEXT("VirtualSizeLockedToCameraAspectRatio", "Use Camera Aspect Ratio"));
 
 	TSharedRef<SWidget> ResolutionWidget = SNew(SHorizontalBox)
 			
