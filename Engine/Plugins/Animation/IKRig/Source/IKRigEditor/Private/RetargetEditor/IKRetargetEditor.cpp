@@ -523,6 +523,9 @@ void FIKRetargetEditor::Tick(float DeltaTime)
 		EditorController->ResetIKPlantingState();
 	}
 	PreviousTime = CurrentTime;
+	
+	// forces viewport to always update, even when mouse pressed down in other tabs
+	GetPersonaToolkit()->GetPreviewScene()->InvalidateViews();
 }
 
 TStatId FIKRetargetEditor::GetStatId() const

@@ -45,7 +45,7 @@ public:
 	/** END FAssetEditorToolkit interface */
 
 	//** FTickableEditorObject Interface
-	virtual void Tick(float DeltaTime) override {};
+	virtual void Tick(float DeltaTime) override;
 	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Always; }
 	virtual TStatId GetStatId() const override;
 	//~ END FTickableEditorObject Interface
