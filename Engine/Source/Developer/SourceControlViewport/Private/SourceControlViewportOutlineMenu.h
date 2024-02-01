@@ -29,4 +29,7 @@ private:
 
 	void ToggleHighlight(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status);
 	bool IsHighlighted(FLevelEditorViewportClient* ViewportClient, ESourceControlStatus Status) const;
+
+private:
+	void RecordToggleEvent(const FString& Param, bool bEnabled) const;
 };
