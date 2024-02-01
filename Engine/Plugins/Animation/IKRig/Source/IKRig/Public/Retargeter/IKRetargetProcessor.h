@@ -526,6 +526,9 @@ public:
 	
 	// Get read only access to the retarget ops currently running in processor
 	const TArray<TObjectPtr<URetargetOpBase>>& GetRetargetOps() const {return OpStack; };
+
+	// Get read only access to the current global settings
+	const FRetargetGlobalSettings& GetGlobalSettings() const {return GlobalSettings; };
 	
 	/** Reset the IK planting state. */
 	void ResetPlanting();
