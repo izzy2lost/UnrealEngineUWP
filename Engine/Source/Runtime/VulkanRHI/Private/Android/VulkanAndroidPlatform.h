@@ -168,6 +168,12 @@ public:
 	// Returns the profile name to look up for a given feature level on a platform
 	static FString GetVulkanProfileNameForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel, bool bRaytracing);
 
+	static VkShaderStageFlags RequiredWaveOpsShaderStageFlags(VkShaderStageFlags VulkanDeviceShaderStageFlags)
+	{
+		// Many Android Vulkan implementations do not support wave ops in vertex and geometry shaders and we don't need them there.
+		return VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+	}
+
 protected:
 	static void* VulkanLib;
 	static bool bAttemptedLoad;

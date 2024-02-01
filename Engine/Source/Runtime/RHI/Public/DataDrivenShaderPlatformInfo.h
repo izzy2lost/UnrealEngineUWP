@@ -122,6 +122,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 MaxSamplers : 8;
 	uint32 SupportsBarycentricsIntrinsics : 1;
 	uint32 SupportsBarycentricsSemantic : int32(ERHIFeatureSupport::NumBits);
+	uint32 bSupportsWave64 : 1;
 
 	// NOTE: When adding fields, you must also add to ParseDataDrivenShaderInfo!
 	uint32 bContainsValidPlatformInfo : 1;
@@ -787,6 +788,12 @@ public:
 		return ERHIFeatureSupport(Infos[Platform].SupportsBarycentricsSemantic);
 	}
 
+	static FORCEINLINE_DEBUGGABLE const bool GetSupportsWave64(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bSupportsWave64;
+	}
+
 	static FORCEINLINE_DEBUGGABLE const bool IsValid(const FStaticShaderPlatform Platform)
 	{
 		return Infos[Platform].bContainsValidPlatformInfo;
@@ -1176,6 +1183,12 @@ inline ERHIBindlessSupport RHIGetBindlessSupport(const FStaticShaderPlatform Pla
 inline bool RHISupportsVolumeTextureAtomics(EShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetSupportsVolumeTextureAtomics(Platform);
+}
+
+/** True if the platform supports wave size of 64 */
+inline bool RHISupportsWaveSize64(const FStaticShaderPlatform Platform)
+{
+	return FDataDrivenShaderPlatformInfo::GetSupportsWave64(Platform);
 }
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3

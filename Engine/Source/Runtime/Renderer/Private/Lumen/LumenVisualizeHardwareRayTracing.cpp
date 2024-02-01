@@ -396,7 +396,7 @@ class FLumenVisualizeHardwareRayTracing : public FLumenHardwareRayTracingShaderB
 	class FHairStrandsOcclusionDim : SHADER_PERMUTATION_BOOL("DIM_HAIRSTRANDS_VOXEL");
 	class FFarFieldDim : SHADER_PERMUTATION_BOOL("ENABLE_FAR_FIELD_TRACING");
 	class FRecursiveRefractionTraces : SHADER_PERMUTATION_BOOL("RECURSIVE_REFRACTION_TRACES");
-	using FPermutationDomain = TShaderPermutationDomain<FHitLightingDim, FHairStrandsOcclusionDim, FFarFieldDim, FRecursiveRefractionTraces>;
+	using FPermutationDomain = TShaderPermutationDomain<FHitLightingDim, FHairStrandsOcclusionDim, FFarFieldDim, FRecursiveRefractionTraces, FUseThreadGroupSize64>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Input
@@ -676,26 +676,25 @@ void LumenVisualize::VisualizeHardwareRayTracing(
 		FIntPoint DispatchResolution = FIntPoint(RayGenThreadCount, RayGenGroupCount);
 		if (bInlineRayTracing)
 		{
-			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(DispatchResolution, FLumenVisualizeHardwareRayTracingCS::GetThreadGroupSize());
-
-			TShaderRef<FLumenVisualizeHardwareRayTracingCS> ComputeShader = View.ShaderMap->GetShader<FLumenVisualizeHardwareRayTracingCS>(PermutationVector);
-			FComputeShaderUtils::AddPass(
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(DispatchResolution, FLumenVisualizeHardwareRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()));
+			FLumenVisualizeHardwareRayTracingCS::AddLumenRayTracingDispatch(
 				GraphBuilder,
 				RDG_EVENT_NAME("VisualizeHardwareRayTracing (inline) %ux%u", DispatchResolution.X, DispatchResolution.Y),
-				ComputeShader,
+				View,
+				PermutationVector,
 				PassParameters,
-				GroupCount);
+				GroupCount,
+				ERDGPassFlags::Compute);
 		}
 		else
 		{
-			TShaderRef<FLumenVisualizeHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenVisualizeHardwareRayTracingRGS>(PermutationVector);
-			AddLumenRayTraceDispatchPass(
+			FLumenVisualizeHardwareRayTracingRGS::AddLumenRayTracingDispatch(
 				GraphBuilder,
-				RDG_EVENT_NAME("VisualizeHardwareRayTracing (raygen) %ux%u", DispatchResolution.X, DispatchResolution.Y),
-				RayGenerationShader,
+				RDG_EVENT_NAME("VisualizeHardwareRayTracing (raygen) %ux%u", DispatchResolution.X, DispatchResolution.Y), 
+				View,
+				PermutationVector,
 				PassParameters,
 				DispatchResolution,
-				View,
 				true);
 		}
 	}
