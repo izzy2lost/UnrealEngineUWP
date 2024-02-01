@@ -537,23 +537,12 @@ VValue FStructuredArchiveVisitor::ReadValueBody(FStructuredArchiveRecord Record,
 			return VValue::Char32(Char32);
 		}
 
+		case EEncodedType::False:
+		case EEncodedType::True:
 		case EEncodedType::Cell:
-		case EEncodedType::Batch:
-		{
-			return VValue(*ReadCellBody(Record, EncodedType));
-		}
-
 		case EEncodedType::CellIndex:
-		{
-			if (SerializeContext == nullptr)
-			{
-				V_DIE("Request to deserialize a cell index but no serialization context is available");
-			}
-
-			FPackageIndex PackageIndex;
-			Record.EnterField(CellIdName) << PackageIndex;
-			return VValue(*SerializeContext->ExportMap[PackageIndex.ToExport()]);
-		}
+		case EEncodedType::Batch:
+			return VValue(*ReadCellBody(Record, EncodedType));
 
 		case EEncodedType::Null:
 		default:
@@ -1064,7 +1053,7 @@ private:
 
 void FVCellSerializeContextVistor::VisitNonNull(Verse::VCell*& InCell, const TCHAR* ElementName)
 {
-	if (!InCell->IsA<Verse::VEmergentType>())
+	if (!InCell->IsA<Verse::VEmergentType>() && InCell != GlobalFalsePtr.Get() && InCell != GlobalTruePtr.Get())
 	{
 		Batch.AddCellReference(InCell);
 	}
