@@ -36,7 +36,7 @@ enum class EBrushToolSizeType : uint8
  * The brush size can be defined in various ways.
  */
 USTRUCT()
-struct FBrushToolRadius
+struct MESHMODELINGTOOLSEXP_API FBrushToolRadius
 {
 	GENERATED_BODY()
 
