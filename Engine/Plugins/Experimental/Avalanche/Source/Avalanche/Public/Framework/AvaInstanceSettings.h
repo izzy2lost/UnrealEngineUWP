@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "AvalancheInstanceSettings.generated.h"
+#include "AvaInstanceSettings.generated.h"
 
 /**
- * Settings applied when instancing an avalanche blueprint for playback.
+ * Settings applied when instancing a Motion Design blueprint for playback.
  */
 USTRUCT()
-struct FAvalancheInstanceSettings
+struct FAvaInstanceSettings
 {
 	GENERATED_BODY()
 

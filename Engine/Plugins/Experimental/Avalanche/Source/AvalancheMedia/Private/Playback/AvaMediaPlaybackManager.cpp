@@ -7,7 +7,7 @@
 #include "AvaBlueprint.h"
 #include "AvalancheBroadcast.h"
 #include "Engine/Engine.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "IAvaMediaModule.h"
 #include "IAvaModule.h"
 #include "Playback/AvaMediaPlayableGroup.h"
@@ -703,12 +703,12 @@ bool FAvaMediaPlaybackManager::HandleStatCommand(const TArray<FString>& InArgs)
 		{
 			ForAllPlaybackInstances([&ViewportClient](FAvaMediaPlaybackInstance& InPlaybackInstance)
 			{
-				const TArray<UAvalancheGameInstance*> ActiveGameInstances = InPlaybackInstance.Playback->GetActiveGameInstances();
-				for (const UAvalancheGameInstance* GameInstance : ActiveGameInstances)
+				const TArray<UAvaGameInstance*> ActiveGameInstances = InPlaybackInstance.Playback->GetActiveGameInstances();
+				for (const UAvaGameInstance* GameInstance : ActiveGameInstances)
 				{
-					if (IsValid(GameInstance->GetWorld()) && IsValid(GameInstance->GetAvalancheGameViewportClient()))
+					if (IsValid(GameInstance->GetWorld()) && IsValid(GameInstance->GetAvaGameViewportClient()))
 					{
-						ViewportClient = GameInstance->GetAvalancheGameViewportClient();
+						ViewportClient = GameInstance->GetAvaGameViewportClient();
 						break;						
 					}
 				}

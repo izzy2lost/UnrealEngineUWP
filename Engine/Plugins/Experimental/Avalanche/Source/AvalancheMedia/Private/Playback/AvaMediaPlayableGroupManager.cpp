@@ -3,7 +3,7 @@
 #include "Playback/AvaMediaPlayableGroupManager.h"
 
 #include "AvalancheBroadcast.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/TimeGuard.h"
 #include "OutputDevices/AvaRenderTargetMediaUtils.h"
@@ -59,9 +59,9 @@ void UAvaMediaChannelPlayableGroupManager::BeginDestroy()
 
 void UAvaMediaPlayableGroupManager::Init()
 {
-	if (!UAvalancheGameInstance::GetOnEndPlay().IsBoundToObject(this))
+	if (!UAvaGameInstance::GetOnEndPlay().IsBoundToObject(this))
 	{
-		UAvalancheGameInstance::GetOnEndPlay().AddUObject(this, &UAvaMediaPlayableGroupManager::OnGameInstanceEndPlay);
+		UAvaGameInstance::GetOnEndPlay().AddUObject(this, &UAvaMediaPlayableGroupManager::OnGameInstanceEndPlay);
 	}
 }
 
@@ -74,7 +74,7 @@ void UAvaMediaPlayableGroupManager::Shutdown()
 			ChannelManager->Shutdown();
 		}
 	}
-	UAvalancheGameInstance::GetOnEndPlay().RemoveAll(this);
+	UAvaGameInstance::GetOnEndPlay().RemoveAll(this);
 }
 
 void UAvaMediaPlayableGroupManager::Tick(double InDeltaSeconds)
@@ -134,7 +134,7 @@ void UAvaMediaPlayableGroupManager::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-void UAvaMediaPlayableGroupManager::OnGameInstanceEndPlay(UAvalancheGameInstance* InGameInstance, FName InChannelName)
+void UAvaMediaPlayableGroupManager::OnGameInstanceEndPlay(UAvaGameInstance* InGameInstance, FName InChannelName)
 {
 	FAvaOutputChannel& Channel = UAvalancheBroadcast::Get().GetCurrentProfile().GetChannelMutable(InChannelName);
 	if (!Channel.IsValidChannel())

@@ -7,7 +7,7 @@
 #include "AvalancheBroadcast.h"
 #include "AvalancheMediaSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "IAvaMediaModule.h"
 #include "IAvalancheBroadcastSettings.h"
 #include "Misc/CoreDelegates.h"
@@ -227,9 +227,9 @@ bool UAvalanchePlayback::UnloadAndRemovePlayable(const FSoftObjectPath& InSource
 	return UnloadAndRemovePlayable(FindPlayable(InSourceAssetPath, InChannelName), InSourceAssetPath, InChannelName, bInForceImmediate);
 }
 
-TArray<UAvalancheGameInstance*> UAvalanchePlayback::GetActiveGameInstances() const
+TArray<UAvaGameInstance*> UAvalanchePlayback::GetActiveGameInstances() const
 {
-	TArray<UAvalancheGameInstance*> OutGameInstances;
+	TArray<UAvaGameInstance*> OutGameInstances;
 
 	if (IsPlaying())
 	{
@@ -242,7 +242,7 @@ TArray<UAvalancheGameInstance*> UAvalanchePlayback::GetActiveGameInstances() con
 				const UAvalanchePlayable* Playable = FindPlayable(AvalancheAsset.ToSoftObjectPath(), ChannelName);
 				if (Playable && Playable->GetPlayableGroup())
 				{
-					if (UAvalancheGameInstance* AvaGameInstance = Cast<UAvalancheGameInstance>(Playable->GetPlayableGroup()->GetGameInstance()))
+					if (UAvaGameInstance* AvaGameInstance = Cast<UAvaGameInstance>(Playable->GetPlayableGroup()->GetGameInstance()))
 					{
 						OutGameInstances.AddUnique(AvaGameInstance);
 					}
@@ -740,9 +740,9 @@ void UAvalanchePlayback::OnChannelChanged(const FAvaOutputChannel& InChannel, EA
 			});
 			for (const UAvaMediaPlayableGroup* PlayableGroup : PlayableGroups)
 			{
-				if (const UAvalancheGameInstance* GameInstance = Cast<UAvalancheGameInstance>(PlayableGroup->GetGameInstance()))
+				if (const UAvaGameInstance* GameInstance = Cast<UAvaGameInstance>(PlayableGroup->GetGameInstance()))
 				{
-					if (UAvalancheGameViewportClient* ViewportClient = GameInstance->GetAvalancheGameViewportClient())
+					if (UAvaGameViewportClient* ViewportClient = GameInstance->GetAvaGameViewportClient())
 					{
 						FAvaViewportQualitySettings QualitySettingsMutable = InChannel.GetViewportQualitySettings(); 
 						QualitySettingsMutable.Apply(ViewportClient->EngineShowFlags);
@@ -830,8 +830,8 @@ bool UAvalanchePlayback::RefreshPlayback(const FAvaSoftAssetPtr& InSourceAsset, 
 			? AvaRenderTargetUtils::GetRenderTargetSize(RenderTarget)
 			: InChannel.DetermineRenderTargetSize();
 
-		const FAvalancheInstancePlaySettings WorldPlaySettings =
-		{ IAvaMediaModule::Get().GetAvalancheInstanceSettings(), InChannelName, RenderTarget, ViewportSize, InChannel.GetViewportQualitySettings() };
+		const FAvaInstancePlaySettings WorldPlaySettings =
+		{ IAvaMediaModule::Get().GetAvaInstanceSettings(), InChannelName, RenderTarget, ViewportSize, InChannel.GetViewportQualitySettings() };
 
 		Playable->BeginPlay(WorldPlaySettings);
 
@@ -891,8 +891,8 @@ bool UAvalanchePlayback::RefreshPreview(const FAvaSoftAssetPtr& InSourceAsset, F
 	const FIntPoint ViewportSize = AvaRenderTargetUtils::GetRenderTargetSize(RenderTarget);
 
 	static const FAvaViewportQualitySettings DefaultPreviewQualitySettings;
-	const FAvalancheInstancePlaySettings WorldPlaySettings =
-		{ IAvaMediaModule::Get().GetAvalancheInstanceSettings(), InChannelName, RenderTarget, ViewportSize, DefaultPreviewQualitySettings };
+	const FAvaInstancePlaySettings WorldPlaySettings =
+		{ IAvaMediaModule::Get().GetAvaInstanceSettings(), InChannelName, RenderTarget, ViewportSize, DefaultPreviewQualitySettings };
 
 	Playable->BeginPlay(WorldPlaySettings);
 	

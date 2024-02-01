@@ -21,7 +21,7 @@ class UAvaMediaPlayableGroupManager;
 class UAvaPlaybackNode;
 class UAvaPlaybackNodeRoot;
 class UAvalancheBroadcast;
-class UAvalancheGameInstance;
+class UAvaGameInstance;
 class UAvalanchePlayable;
 class UAvalanchePlayableTransition;
 class UEdGraph;
@@ -187,7 +187,7 @@ public:
 	bool UnloadAndRemovePlayable(UAvalanchePlayable* InPlayable, const FSoftObjectPath& InSourceAssetPath, const FName& InChannelName, bool bInForceImmediate);
 	bool UnloadAndRemovePlayable(const FSoftObjectPath& InSourceAssetPath, const FName& InChannelName, bool bInForceImmediate);
 
-	TArray<UAvalancheGameInstance*> GetActiveGameInstances() const;
+	TArray<UAvaGameInstance*> GetActiveGameInstances() const;
 	
 	/**
 	 *	Determines if the graph contains a node with the given source avalanche blueprint.

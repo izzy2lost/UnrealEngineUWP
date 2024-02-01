@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
-#include "Framework/AvalancheInstanceSettings.h"
+#include "Framework/AvaInstanceSettings.h"
 #include "Logging/LogVerbosity.h"
 #include "PixelFormat.h"
 #include "AvalancheMediaSettings.generated.h"
@@ -180,7 +180,7 @@ public:
 	bool bKeepPagesLoaded = false;
 
 	UPROPERTY(Config, EditAnywhere, Category = "Playback Manager")
-	FAvalancheInstanceSettings AvalancheInstanceSettings;
+	FAvaInstanceSettings AvaInstanceSettings;
 
 	/**
 	 * Maximum cached Managed Motion Design Blueprints used for rundown editor's page details.

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Framework/AvalancheGameInstance.h"
-
+#include "Framework/AvaGameInstance.h"
 #include "AudioDevice.h"
 #include "AvaBlueprint.h"
 #include "AvaRemoteControlRebind.h"
@@ -16,7 +15,7 @@
 #include "Slate/SceneViewport.h"
 #include "Viewport/AvaCameraManager.h"
 
-namespace UE::AvalancheGameInstance::Private
+namespace UE::AvaGameInstance::Private
 {
 	/* Frame number marked where a synchronous asset loading occured. */
 	static uint64 MarkedSynchronousAssetLoadingFrame = 0;
@@ -53,20 +52,20 @@ namespace UE::AvalancheGameInstance::Private
 	}
 }
 
-UAvalancheGameInstance::FOnAvaGameInstanceEvent UAvalancheGameInstance::OnEndPlay;
-UAvalancheGameInstance::FOnAvaGameInstanceEvent UAvalancheGameInstance::OnRenderTargetReady;
+UAvaGameInstance::FOnAvaGameInstanceEvent UAvaGameInstance::OnEndPlay;
+UAvaGameInstance::FOnAvaGameInstanceEvent UAvaGameInstance::OnRenderTargetReady;
 
-UAvalancheGameInstance* UAvalancheGameInstance::Create(UObject* InOuter, const TSoftObjectPtr<UAvalancheBlueprint>& InAvalancheBlueprintTemplate)
+UAvaGameInstance* UAvaGameInstance::Create(UObject* InOuter, const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprintTemplate)
 {
-	UAvalancheGameInstance* GameInstance = NewObject<UAvalancheGameInstance>(InOuter ? InOuter : GEngine);
+	UAvaGameInstance* GameInstance = NewObject<UAvaGameInstance>(InOuter ? InOuter : GEngine);
 	GameInstance->CreateWorld();
-	GameInstance->LoadAvalancheBlueprint(InAvalancheBlueprintTemplate);
+	GameInstance->LoadMotionDesignBlueprint(InBlueprintTemplate);
 	return GameInstance;
 }
 
-UAvalancheGameInstance* UAvalancheGameInstance::Create(UObject* InOuter)
+UAvaGameInstance* UAvaGameInstance::Create(UObject* InOuter)
 {
-	UAvalancheGameInstance* GameInstance = NewObject<UAvalancheGameInstance>(InOuter ? InOuter : GEngine);
+	UAvaGameInstance* GameInstance = NewObject<UAvaGameInstance>(InOuter ? InOuter : GEngine);
 
 	// We need to call Init() (and corresponding Shutdown() later) to get SubsystemCollection to initialize.
 	// Not doing it because it might have side effects.
@@ -76,28 +75,28 @@ UAvalancheGameInstance* UAvalancheGameInstance::Create(UObject* InOuter)
 	return GameInstance;
 }
 
-bool UAvalancheGameInstance::CreateWorld()
+bool UAvaGameInstance::CreateWorld()
 {
 	if (bWorldCreated)
 	{
 		return false;
 	}
 	
-	TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::CreateWorld);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::CreateWorld);
 
 	if (!EnginePreExitHandle.IsValid())
 	{
-		EnginePreExitHandle = FCoreDelegates::OnEnginePreExit.AddUObject(this, &UAvalancheGameInstance::OnEnginePreExit);
+		EnginePreExitHandle = FCoreDelegates::OnEnginePreExit.AddUObject(this, &UAvaGameInstance::OnEnginePreExit);
 	}
 	
 	constexpr EWorldType::Type WorldType = EWorldType::Game;
 	
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::LoadInstance::InitWorld);
+		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadInstance::InitWorld);
 		
-		const FName AvalancheWorldName = MakeUniqueObjectName(GetOuter(), UWorld::StaticClass(), TEXT("AvalancheGameInstanceWorld"));
+		const FName MotionDesignWorldName = MakeUniqueObjectName(GetOuter(), UWorld::StaticClass(), TEXT("AvaGameInstanceWorld"));
 		
-		PlayWorld = NewObject<UWorld>(this, AvalancheWorldName, RF_Transient);
+		PlayWorld = NewObject<UWorld>(this, MotionDesignWorldName, RF_Transient);
 		check(PlayWorld);
 		PlayWorld->WorldType = WorldType;
 		PlayWorld->InitializeNewWorld(UWorld::InitializationValues()
@@ -105,7 +104,7 @@ bool UAvalancheGameInstance::CreateWorld()
 			.CreatePhysicsScene(true)
 			.RequiresHitProxies(false)
 			.CreateNavigation(true)
-			.CreateAISystem(false)	// Disabling AI System until supported in Avalanche.
+			.CreateAISystem(false)	// Disabling AI System until supported in Motion Design.
 			.ShouldSimulatePhysics(true)
 			.SetTransactional(false)
 			//TODO: World Settings
@@ -127,9 +126,9 @@ bool UAvalancheGameInstance::CreateWorld()
 	return true;
 }
 
-bool UAvalancheGameInstance::LoadAvalancheBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InSourceAvalancheBlueprint)
+bool UAvaGameInstance::LoadMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint)
 {
-	if (ManagedAvalancheBlueprint && SourceAvalancheBlueprint == InSourceAvalancheBlueprint)
+	if (ManagedBlueprint && SourceBlueprint == InBlueprint)
 	{
 		return false;
 	}
@@ -141,8 +140,8 @@ bool UAvalancheGameInstance::LoadAvalancheBlueprint(const TSoftObjectPtr<UAvalan
 
 	UAvalancheBlueprint* Source;
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::LoadAsset::LoadSourceAvaBp);
-		Source = InSourceAvalancheBlueprint.LoadSynchronous();
+		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::LoadSourceAvaBp);
+		Source = InBlueprint.LoadSynchronous();
 		check(Source);
 	}
 
@@ -151,32 +150,32 @@ bool UAvalancheGameInstance::LoadAvalancheBlueprint(const TSoftObjectPtr<UAvalan
 #endif
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::LoadAsset::DupAvaBp);
+		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::DupAvaBp);
 		const FName AvaInstanceName = MakeUniqueObjectName(this, UAvalancheBlueprint::StaticClass(), Source->GetFName());
-		ManagedAvalancheBlueprint = Cast<UAvalancheBlueprint>(StaticDuplicateObject(Source, this, AvaInstanceName, RF_Transient));
+		ManagedBlueprint = Cast<UAvalancheBlueprint>(StaticDuplicateObject(Source, this, AvaInstanceName, RF_Transient));
 	}
 	
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::LoadAsset::LoadAvaBpWorld);
-		ManagedAvalancheBlueprint->SetAvalancheWorld(PlayWorld.Get());
-		ManagedAvalancheBlueprint->LoadAvalancheWorld();
+		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::LoadAvaBpWorld);
+		ManagedBlueprint->SetAvalancheWorld(PlayWorld.Get());
+		ManagedBlueprint->LoadAvalancheWorld();
 	}
 	
-	ManagedAvalancheBlueprint->UpdatePlaceholderActor();
+	ManagedBlueprint->UpdatePlaceholderActor();
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::LoadAsset::RebindRCP);
-		ManagedAvalancheBlueprint->RegisterRemoteControlPreset();
-		FAvaRemoteControlRebind::RebindUnboundEntities(ManagedAvalancheBlueprint->GetRemoteControlPreset());
+		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::RebindRCP);
+		ManagedBlueprint->RegisterRemoteControlPreset();
+		FAvaRemoteControlRebind::RebindUnboundEntities(ManagedBlueprint->GetRemoteControlPreset());
 	}
 	
 	MarkSynchronousAssetLoadingThisFrame();
 
-	SourceAvalancheBlueprint = InSourceAvalancheBlueprint;
+	SourceBlueprint = InBlueprint;
 	return true;
 }
 
-bool UAvalancheGameInstance::BeginPlayWorld(const FAvalancheInstancePlaySettings& InWorldPlaySettings)
+bool UAvaGameInstance::BeginPlayWorld(const FAvaInstancePlaySettings& InWorldPlaySettings)
 {
 	// Make sure we don't have pending unload or stop requests left over in the game instance. 
 	CancelWorldRequests();
@@ -186,10 +185,10 @@ bool UAvalancheGameInstance::BeginPlayWorld(const FAvalancheInstancePlaySettings
 		return false;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheGameInstance::BeginPlay);
-	TRACE_BOOKMARK(TEXT("UAvalancheGameInstance::BeginPlay"));
+	TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::BeginPlay);
+	TRACE_BOOKMARK(TEXT("UAvaGameInstance::BeginPlay"));
 	
-	ViewportClient = NewObject<UAvalancheGameViewportClient>(GEngine, NAME_None, RF_Transient);
+	ViewportClient = NewObject<UAvaGameViewportClient>(GEngine, NAME_None, RF_Transient);
 	check(ViewportClient);
 
 	// Note: UGameViewportClient::Init ignores "bCreateNewAudioDevice" parameter and always create a device for the world. 
@@ -213,14 +212,14 @@ bool UAvalancheGameInstance::BeginPlayWorld(const FAvalancheInstancePlaySettings
 	PlayWorld->InitializeActorsForPlay(PlayWorld->URL);
 	PlayWorld->BeginPlay();
 	
-	FCoreDelegates::OnEndFrame.AddUObject(this, &UAvalancheGameInstance::OnEndFrameTick);
+	FCoreDelegates::OnEndFrame.AddUObject(this, &UAvaGameInstance::OnEndFrameTick);
 
 	bWorldPlaying = true;
 	PlayingChannelName = InWorldPlaySettings.ChannelName;
 	return true;
 }
 
-void UAvalancheGameInstance::RequestEndPlayWorld(bool bForceImmediate)
+void UAvaGameInstance::RequestEndPlayWorld(bool bForceImmediate)
 {
 	if (bWorldPlaying)
 	{
@@ -235,11 +234,11 @@ void UAvalancheGameInstance::RequestEndPlayWorld(bool bForceImmediate)
 	}
 }
 
-void UAvalancheGameInstance::BeginPlayAvalancheBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InSourceAvalancheBlueprint, const FAvalancheInstancePlaySettings& InWorldPlaySettings)
+void UAvaGameInstance::BeginPlayMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint, const FAvaInstancePlaySettings& InWorldPlaySettings)
 {
 	// World States: Created -> Playing
 	// Asset States: Unloaded -> Loading -> Loaded -> Playing (Visible)
-	const FSoftObjectPath& SourceAssetPath = InSourceAvalancheBlueprint.ToSoftObjectPath();
+	const FSoftObjectPath& SourceAssetPath = InBlueprint.ToSoftObjectPath();
 
 	if (!bWorldPlaying)
 	{
@@ -252,26 +251,26 @@ void UAvalancheGameInstance::BeginPlayAvalancheBlueprint(const TSoftObjectPtr<UA
 	}
 
 	// Check if the asset is loaded.
-	if (SourceAvalancheBlueprint != InSourceAvalancheBlueprint)
+	if (SourceBlueprint != InBlueprint)
 	{
-		LoadAvalancheBlueprint(InSourceAvalancheBlueprint);
+		LoadMotionDesignBlueprint(InBlueprint);
 	}	
 	
-	if (ManagedAvalancheBlueprint && SourceAvalancheBlueprint == InSourceAvalancheBlueprint)
+	if (ManagedBlueprint && SourceBlueprint == InBlueprint)
 	{
 		// Verify if this can be changed on the fly.
-		ManagedAvalancheBlueprint->GetViewportQualitySettings().Apply(ViewportClient->EngineShowFlags);
+		ManagedBlueprint->GetViewportQualitySettings().Apply(ViewportClient->EngineShowFlags);
 	
 		// Old code using ava camera manager. To retire.
 		constexpr bool bIsCanvasController = false;
-		ViewportClient->GetCameraManager()->Init(ManagedAvalancheBlueprint->GetPlaybackObject(), bIsCanvasController);
+		ViewportClient->GetCameraManager()->Init(ManagedBlueprint->GetPlaybackObject(), bIsCanvasController);
 #if WITH_EDITOR
-		ViewportClient->GetCameraManager()->SetDefaultViewTarget(PlayWorld, ManagedAvalancheBlueprint->GetStartupCameraName());
+		ViewportClient->GetCameraManager()->SetDefaultViewTarget(PlayWorld, ManagedBlueprint->GetStartupCameraName());
 #endif
 	}
 }
 
-void UAvalancheGameInstance::RequestUnloadWorld(bool bForceImmediate)
+void UAvaGameInstance::RequestUnloadWorld(bool bForceImmediate)
 {
 	if (bWorldCreated)
 	{
@@ -286,13 +285,13 @@ void UAvalancheGameInstance::RequestUnloadWorld(bool bForceImmediate)
 	}
 }
 
-void UAvalancheGameInstance::CancelWorldRequests()
+void UAvaGameInstance::CancelWorldRequests()
 {
 	bRequestEndPlayWorld = false;
 	bRequestUnloadWorld = false;
 }
 
-void UAvalancheGameInstance::UpdateRenderTarget(UTextureRenderTarget2D* InRenderTarget)
+void UAvaGameInstance::UpdateRenderTarget(UTextureRenderTarget2D* InRenderTarget)
 {
 	if (ViewportClient)
 	{
@@ -300,7 +299,7 @@ void UAvalancheGameInstance::UpdateRenderTarget(UTextureRenderTarget2D* InRender
 	}
 }
 
-UTextureRenderTarget2D* UAvalancheGameInstance::GetRenderTarget() const
+UTextureRenderTarget2D* UAvaGameInstance::GetRenderTarget() const
 {
 	if (ViewportClient)
 	{
@@ -309,7 +308,7 @@ UTextureRenderTarget2D* UAvalancheGameInstance::GetRenderTarget() const
 	return nullptr;
 }
 
-void UAvalancheGameInstance::UpdateSceneViewportSize(const FIntPoint& InViewportSize)
+void UAvaGameInstance::UpdateSceneViewportSize(const FIntPoint& InViewportSize)
 {
 	if (Viewport.IsValid() && Viewport->GetSize() != InViewportSize)
 	{
@@ -320,12 +319,12 @@ void UAvalancheGameInstance::UpdateSceneViewportSize(const FIntPoint& InViewport
 	}
 }
 
-void UAvalancheGameInstance::MarkSynchronousAssetLoadingThisFrame()
+void UAvaGameInstance::MarkSynchronousAssetLoadingThisFrame()
 {
-	UE::AvalancheGameInstance::Private::MarkSynchronousAssetLoadingThisFrame();
+	UE::AvaGameInstance::Private::MarkSynchronousAssetLoadingThisFrame();
 }
 
-void UAvalancheGameInstance::Tick(float DeltaSeconds)
+void UAvaGameInstance::Tick(float DeltaSeconds)
 {
 	if (bIsTicking)
 	{
@@ -345,7 +344,7 @@ void UAvalancheGameInstance::Tick(float DeltaSeconds)
 	}
 	
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_AvalancheGame_Tick_SetDropDetail);
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_MotionDesignGame_Tick_SetDropDetail);
 		ViewportClient->SetDropDetail(DeltaSeconds);
 	}
 	
@@ -355,7 +354,7 @@ void UAvalancheGameInstance::Tick(float DeltaSeconds)
 	 */
 
 	{
-		SCOPE_TIME_GUARD(TEXT("UAvalancheGameInstance::Tick - World Tick"));
+		SCOPE_TIME_GUARD(TEXT("UAvaGameInstance::Tick - World Tick"));
 		PlayWorld->Tick(ELevelTick::LEVELTICK_All, DeltaSeconds);
 	}
 
@@ -376,8 +375,8 @@ void UAvalancheGameInstance::Tick(float DeltaSeconds)
 	//Rest of the stuff between above Lighting Update and GameViewport Tick removed
 
 	{
-		SCOPE_TIME_GUARD(TEXT("UAvalancheGameInstance::Tick - TickViewport"));
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_AvalancheGame_Tick_TickViewport);
+		SCOPE_TIME_GUARD(TEXT("UAvaGameInstance::Tick - TickViewport"));
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_MotionDesignGame_Tick_TickViewport);
 		ViewportClient->Tick(DeltaSeconds);
 	}
 	
@@ -409,7 +408,7 @@ void UAvalancheGameInstance::Tick(float DeltaSeconds)
 	}
 }
 
-void UAvalancheGameInstance::UnloadWorld()
+void UAvaGameInstance::UnloadWorld()
 {
 	if (bWorldPlaying)
 	{
@@ -419,12 +418,12 @@ void UAvalancheGameInstance::UnloadWorld()
 	bWorldCreated = false;
 	bRequestUnloadWorld = false;
 
-	if (IsValid(ManagedAvalancheBlueprint.Get()))
+	if (IsValid(ManagedBlueprint.Get()))
 	{
-		ManagedAvalancheBlueprint->UnregisterRemoteControlPreset();
+		ManagedBlueprint->UnregisterRemoteControlPreset();
 	}
-	SourceAvalancheBlueprint.Reset();
-	ManagedAvalancheBlueprint = nullptr;
+	SourceBlueprint.Reset();
+	ManagedBlueprint = nullptr;
 	
 	if (PlayWorld)
 	{
@@ -445,7 +444,7 @@ void UAvalancheGameInstance::UnloadWorld()
 	WorldContext = nullptr;
 }
 
-void UAvalancheGameInstance::EndPlayWorld()
+void UAvaGameInstance::EndPlayWorld()
 {
 	bWorldPlaying = false;
 	bRequestEndPlayWorld = false;
@@ -469,11 +468,11 @@ void UAvalancheGameInstance::EndPlayWorld()
 	ViewportClient = nullptr;
 }
 
-void UAvalancheGameInstance::OnEndFrameTick()
+void UAvaGameInstance::OnEndFrameTick()
 {
 	double DeltaSeconds = FApp::GetDeltaTime();
 
-	if (UE::AvalancheGameInstance::Private::ShouldIgnoreDeltaSecondsForCurrentFrame())
+	if (UE::AvaGameInstance::Private::ShouldIgnoreDeltaSecondsForCurrentFrame())
 	{
 		DeltaSeconds = LastDeltaSeconds;
 	}
@@ -485,7 +484,7 @@ void UAvalancheGameInstance::OnEndFrameTick()
 	Tick(DeltaSeconds);
 }
 
-void UAvalancheGameInstance::OnEnginePreExit()
+void UAvaGameInstance::OnEnginePreExit()
 {
 	if (PlayWorld && PlayWorld->GetAudioDevice())
 	{
@@ -499,7 +498,7 @@ void UAvalancheGameInstance::OnEnginePreExit()
 	}
 }
 
-void UAvalancheGameInstance::BeginDestroy()
+void UAvaGameInstance::BeginDestroy()
 {
 	FCoreDelegates::OnEnginePreExit.Remove(EnginePreExitHandle);
 	EnginePreExitHandle.Reset();

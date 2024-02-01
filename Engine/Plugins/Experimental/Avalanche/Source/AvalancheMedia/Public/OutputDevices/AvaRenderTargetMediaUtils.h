@@ -9,6 +9,8 @@ class UTextureRenderTarget2D;
 
 namespace UE::AvaRenderTargetMediaUtils
 {
+	static inline const TCHAR* VirtualShaderMountPoint = TEXT("/Plugin/MotionDesign");;
+
 	/**
 	 * Clears the given render target to it's specified clear color.
 	 * @remark called from the main thread.

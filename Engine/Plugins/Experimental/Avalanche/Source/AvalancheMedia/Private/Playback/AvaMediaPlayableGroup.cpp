@@ -3,7 +3,7 @@
 #include "Playback/AvaMediaPlayableGroup.h"
 
 #include "Engine/ViewportStatsSubsystem.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "Playback/AvaMediaPlayableGroupManager.h"
 #include "Playback/AvaMediaPlaybackUtils.h"
 #include "Playback/AvalanchePlayable.h"
@@ -119,7 +119,7 @@ UAvaMediaPlayableGroup* UAvaMediaPlayableGroup::MakePlayableGroup(UObject* InOut
 			GameInstanceGroup->GameInstancePackage = MakeGameInstancePackage(InPlayableGroupInfo.SourceAssetPath, InPlayableGroupInfo.ChannelName);
 		}
 		
-		GameInstanceGroup->GameInstance = UAvalancheGameInstance::Create(GameInstanceGroup->GameInstancePackage);
+		GameInstanceGroup->GameInstance = UAvaGameInstance::Create(GameInstanceGroup->GameInstancePackage);
 	}
 	return GameInstanceGroup;
 }
@@ -296,7 +296,7 @@ bool UAvaMediaPlayableGroup::ConditionalCreateWorld()
 	return bWorldWasCreated;
 }
 
-bool UAvaMediaPlayableGroup::ConditionalBeginPlay(const FAvalancheInstancePlaySettings& InWorldPlaySettings)
+bool UAvaMediaPlayableGroup::ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
 {
 	bool bHasBegunPlay = false;
 	if (!GameInstance)
@@ -381,7 +381,7 @@ void UAvaMediaPlayableGroup::QueueCameraCut()
 {
 	if (GameInstance)
 	{
-		if (UAvalancheGameViewportClient* GameViewportClient = GameInstance->GetAvalancheGameViewportClient())
+		if (UAvaGameViewportClient* GameViewportClient = GameInstance->GetAvaGameViewportClient())
 		{
 			GameViewportClient->SetCameraCutThisFrame();
 		}
@@ -604,7 +604,7 @@ bool UAvaMediaPlayableGroup::DisplayTransitions(FText& OutText, FLinearColor& Ou
 	return false;
 }
 
-bool UAvaMediaRemoteProxyPlayableGroup::ConditionalBeginPlay(const FAvalancheInstancePlaySettings& InWorldPlaySettings)
+bool UAvaMediaRemoteProxyPlayableGroup::ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
 {
 	if (!bIsPlaying)
 	{

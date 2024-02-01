@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Framework/AvalancheInstanceSettings.h"
+#include "Framework/AvaInstanceSettings.h"
 #include "IAvalancheBroadcastSettings.h"
 #include "IMessageContext.h"
 #include "MessageEndpoint.h"
@@ -99,7 +99,7 @@ public:
 	 * Access Avalanche Instance settings replicated from connected client(s).
 	 * Will return nullptr if no clients are connected.
 	 */
-	const FAvalancheInstanceSettings* GetAvalancheInstanceSettings() const;
+	const FAvaInstanceSettings* GetAvaInstanceSettings() const;
 	
 	/** Access the server's playback manager. */
 	const FAvaMediaPlaybackManager& GetPlaybackManager() const { check(Manager); return *Manager; }
@@ -129,7 +129,7 @@ public:
 	void HandleStatCommand(const FAvaMediaStatCommand& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleDeviceProviderDataRequest(const FAvaDeviceProviderDataRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleUpdateClientInfo(const FAvaMediaUpdateClientInfo& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
-	void HandleAvalancheInstanceSettingsUpdate(const FAvalancheInstanceSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandleAvaInstanceSettingsUpdate(const FAvaInstanceSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePackageEvent(const FAvaMediaPlaybackPackageEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackAssetStatusRequest(const FAvaMediaPlaybackAssetStatusRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackRequest(const FAvaMediaPlaybackRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
@@ -310,7 +310,7 @@ private:
 		uint32 ProcessId = 0;
 		TMap<FString, FString> UserDataEntries;
 		FClientBroadcastSettings BroadcastSettings;
-		FAvalancheInstanceSettings AvalancheInstanceSettings;
+		FAvaInstanceSettings AvaInstanceSettings;
 
 		bool bClientInfoReceived = false;
 	

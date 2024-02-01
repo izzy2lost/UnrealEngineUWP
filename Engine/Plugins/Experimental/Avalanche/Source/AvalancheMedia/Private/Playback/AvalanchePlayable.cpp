@@ -258,7 +258,7 @@ EAvalanchePlayableCommandResult UAvalanchePlayable::UpdateRemoteControlCommand(c
 	return EAvalanchePlayableCommandResult::Executed;
 }
 
-void UAvalanchePlayable::BeginPlay(const FAvalancheInstancePlaySettings& InWorldPlaySettings)
+void UAvalanchePlayable::BeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings)
 {
 	if (!PlayableGroup)
 	{

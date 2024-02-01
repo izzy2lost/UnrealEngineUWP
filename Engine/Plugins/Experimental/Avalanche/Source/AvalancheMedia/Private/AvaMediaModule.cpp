@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMediaModule.h"
-
 #include "Application/ThrottleManager.h"
-#include "AvaMediaStyle.h"
 #include "AvalancheMediaSettings.h"
+#include "AvaMediaStyle.h"
 #include "IMediaIOCoreModule.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
+#include "OutputDevices/AvaRenderTargetMediaUtils.h"
 #include "Playback/AvaMediaPlaybackClientDelegates.h"
 #include "ShaderCore.h"
 
@@ -37,11 +37,11 @@ void FAvaMediaModule::StartupModule()
 	using namespace UE::AvaMediaModule::Private;
 	
 	FAvaMediaStyle::Initialize();
-	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Avalanche"));
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 
 	const FString PluginShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
-	AddShaderSourceDirectoryMapping(TEXT("/Plugin/Avalanche"), PluginShaderDir);
+	AddShaderSourceDirectoryMapping(UE::AvaRenderTargetMediaUtils::VirtualShaderMountPoint, PluginShaderDir);
 
 	IMediaIOCoreModule::Get().RegisterDeviceProvider(&AvaDisplayDeviceProvider);
 
@@ -372,18 +372,18 @@ const IAvalancheBroadcastSettings& FAvaMediaModule::GetBroadcastSettings() const
 	return BroadcastSettingsBridge;
 }
 
-const FAvalancheInstanceSettings& FAvaMediaModule::GetAvalancheInstanceSettings() const
+const FAvaInstanceSettings& FAvaMediaModule::GetAvaInstanceSettings() const
 {
 	// if the server is enabled, fetch the settings from the currently connected client.
 	if (AvaMediaPlaybackServer.IsValid())
 	{
-		if (const FAvalancheInstanceSettings* SettingsFromClient = AvaMediaPlaybackServer->GetAvalancheInstanceSettings())
+		if (const FAvaInstanceSettings* SettingsFromClient = AvaMediaPlaybackServer->GetAvaInstanceSettings())
 		{
 			return *SettingsFromClient;
 		}
 	}
 	// Return the local settings.
-	return UAvalancheMediaSettings::Get().AvalancheInstanceSettings;
+	return UAvalancheMediaSettings::Get().AvaInstanceSettings;
 }
 
 FAvaMediaPlaybackManager& FAvaMediaModule::GetLocalPlaybackManager() const

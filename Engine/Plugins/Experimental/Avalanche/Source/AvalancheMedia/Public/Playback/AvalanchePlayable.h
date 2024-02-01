@@ -20,7 +20,7 @@ class UAvaSequencePlayer;
 class UAvalanchePlayableTransition;
 class URemoteControlPreset;
 struct FAvaSoftAssetPtr;
-struct FAvalancheInstancePlaySettings;
+struct FAvaInstancePlaySettings;
 struct FAvalancheRemoteControlValues;
 
 AVALANCHEMEDIA_API DECLARE_LOG_CATEGORY_EXTERN(LogAvalanchePlayable, Log, All);
@@ -124,7 +124,7 @@ public:
 	 * @param InWorldPlaySettings World settings (render target) to render this asset with.
 	 * @remark This doesn't trigger the animations.
 	 */
-	void BeginPlay(const FAvalancheInstancePlaySettings& InWorldPlaySettings);
+	void BeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings);
 
 	/**
 	 * @brief Make this asset not play anymore (will end up hidden)

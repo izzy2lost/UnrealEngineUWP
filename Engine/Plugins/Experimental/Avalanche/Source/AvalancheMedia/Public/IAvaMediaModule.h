@@ -18,7 +18,7 @@ class IAvaMediaSyncProvider;
 class IAvalancheBroadcastSettings;
 class IMediaIOCoreDeviceProvider;
 class UWorld;
-struct FAvalancheInstanceSettings;
+struct FAvaInstanceSettings;
 struct FMediaIOOutputConfiguration;
 
 /** Maps one to one with the editor's map changed type (for now). */
@@ -110,9 +110,9 @@ public:
 	 * Remark: lifetime of the returned reference is not guaranteed beyond the current call context.
 	 * If the settings are replicated from a client, it could get deleted if the client disconnects.
 	 * If the use of the settings is deferred, the caller must make a local copy of the settings or
-	 * call GetAvalancheInstanceSettings() in the deferred call instead.
+	 * call GetAvaInstanceSettings() in the deferred call instead.
 	 */
-	virtual const FAvalancheInstanceSettings& GetAvalancheInstanceSettings() const = 0;
+	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const = 0;
 	
 	/**
 	 *	This is the backend for playing avalanche blueprints locally.

@@ -132,7 +132,7 @@ protected:
 	void PublishPlaybackPing(const FDateTime& InCurrentTime, bool bInAutoPing);
 	void SendUserDataUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendBroadcastSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
-	void SendAvalancheInstanceSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
+	void SendAvaInstanceSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendBroadcastChannelSettingsUpdate(const TArray<FMessageAddress>& InRecipients, const FAvaOutputChannel& InChannel);
 	void SendPackageEvent(const TArray<FMessageAddress>& InRecipients, const FName& InPackageName, EAvaMediaPlaybackPackageEvent InEvent);
 	void SendStatCommand(const FString& InCommand, bool bInBroadcastLocalState, const TArray<FMessageAddress>& InRecipients);

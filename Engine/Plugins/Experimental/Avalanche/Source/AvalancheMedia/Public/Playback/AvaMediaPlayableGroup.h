@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "Playback/IAvaPlayableVisibilityConstraint.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectKey.h"
@@ -21,7 +21,7 @@ class UTextureRenderTarget2D;
  * It tracks and manage the game instance and playables state.
  *
  * The design goal of this class is to remove all the playback management
- * from UAvalancheGameInstance and move it to the playable framework. This
+ * from UAvaGameInstance and move it to the playable framework. This
  * should allow us to hook the playback framework to any game instance, including PIE
  * so it can work with any work flow (editor, PIE, game, nDisplay, etc).
  *
@@ -88,7 +88,7 @@ public:
 	 * Begin playing the game instance's world if it wasn't already.
 	 * @return true if the BeginPlay was done (i.e. on the state transition only), false otherwise.
 	 */
-	virtual bool ConditionalBeginPlay(const FAvalancheInstancePlaySettings& InWorldPlaySettings);
+	virtual bool ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings);
 
 	virtual void RequestEndPlayWorld(bool bInForceImmediate);
 
@@ -157,7 +157,7 @@ public:
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;	// Optional
 	
 	UPROPERTY(Transient)
-	TObjectPtr<UAvalancheGameInstance> GameInstance;
+	TObjectPtr<UAvaGameInstance> GameInstance;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UPackage> GameInstancePackage;
@@ -216,7 +216,7 @@ class AVALANCHEMEDIA_API UAvaMediaRemoteProxyPlayableGroup : public UAvaMediaPla
 	GENERATED_BODY()
 	
 public:
-	virtual bool ConditionalBeginPlay(const FAvalancheInstancePlaySettings& InWorldPlaySettings) override;
+	virtual bool ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings) override;
 	virtual void RequestEndPlayWorld(bool bInForceImmediate) override;
 	
 	bool bIsPlaying = false;

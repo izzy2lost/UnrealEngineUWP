@@ -10,7 +10,7 @@
 #include "Engine/LevelStreamingDynamic.h"
 #include "Engine/LocalPlayer.h"
 #include "Framework/AvaSoftAssetPtr.h"
-#include "Framework/AvalancheInstanceSettings.h"
+#include "Framework/AvaInstanceSettings.h"
 #include "IAvaMediaModule.h"
 #include "Playback/AvaMediaPlayableGroup.h"
 #include "Playback/AvaMediaPlayableGroupManager.h"
@@ -204,7 +204,7 @@ bool UAvalancheLevelStreamingPlayable::LoadAsset(const FAvaSoftAssetPtr& InAvala
 	// Ensure world is created. Does nothing if already created.
 	PlayableGroup->ConditionalCreateWorld();
 
-	const FAvalancheInstanceSettings& PlaybackInstanceSettings = IAvaMediaModule::Get().GetAvalancheInstanceSettings();
+	const FAvaInstanceSettings& PlaybackInstanceSettings = IAvaMediaModule::Get().GetAvaInstanceSettings();
 	bLoadSubPlayables = PlaybackInstanceSettings.bEnableLoadSubPlayables;
 	
 	check(InAvalancheSourceAsset.GetAssetType() == EAvalancheAssetType::World);
@@ -314,8 +314,8 @@ bool UAvalancheLevelStreamingPlayable::ApplyCamera()
 		else
 		{
 			// If there is no player controller, fallback to avalanche camera manager, if the game instance has it.
-			const UAvalancheGameInstance* AvalancheGameInstance = Cast<UAvalancheGameInstance>(GetPlayableGroup()->GetGameInstance());			
-			if (const UAvalancheGameViewportClient* ViewportClient = AvalancheGameInstance ? AvalancheGameInstance->GetAvalancheGameViewportClient() : nullptr)
+			const UAvaGameInstance* AvaGameInstance = Cast<UAvaGameInstance>(GetPlayableGroup()->GetGameInstance());			
+			if (const UAvaGameViewportClient* ViewportClient = AvaGameInstance ? AvaGameInstance->GetAvaGameViewportClient() : nullptr)
 			{
 				// Old code using ava camera manager. To retire.
 				constexpr bool bIsCanvasController = false;

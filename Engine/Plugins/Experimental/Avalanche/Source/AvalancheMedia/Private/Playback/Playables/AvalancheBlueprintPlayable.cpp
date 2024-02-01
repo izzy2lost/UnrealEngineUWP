@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Playables/AvalancheBlueprintPlayable.h"
-
 #include "AvaBlueprint.h"
 #include "AvaRemoteControlRebind.h"
 #include "AvaSequencePlaybackObject.h"
@@ -95,13 +94,13 @@ void UAvalancheBlueprintPlayable::OnPlay()
 		return;
 	}
 
-	const UAvalancheGameInstance* AvalancheGameInstance = Cast<UAvalancheGameInstance>(GetPlayableGroup()->GetGameInstance());
-	if (!AvalancheGameInstance)
+	const UAvaGameInstance* AvaGameInstance = Cast<UAvaGameInstance>(GetPlayableGroup()->GetGameInstance());
+	if (!AvaGameInstance)
 	{
 		return;
 	}
 	
-	UAvalancheGameViewportClient* ViewportClient = AvalancheGameInstance->GetAvalancheGameViewportClient();
+	UAvaGameViewportClient* ViewportClient = AvaGameInstance->GetAvaGameViewportClient();
 
 	// Verify if this can be changed on the fly.
 	ManagedAvalancheBlueprint->GetViewportQualitySettings().Apply(ViewportClient->EngineShowFlags);
@@ -132,8 +131,8 @@ bool UAvalancheBlueprintPlayable::LoadAvalancheBlueprintInternal(const TSoftObje
 		return false;
 	}
 
-	UAvalancheGameInstance* AvalancheGameInstance = Cast<UAvalancheGameInstance>(GetPlayableGroup()->GetGameInstance());
-	if (!AvalancheGameInstance)
+	UAvaGameInstance* AvaGameInstance = Cast<UAvaGameInstance>(GetPlayableGroup()->GetGameInstance());
+	if (!AvaGameInstance)
 	{
 		return false;
 	}
@@ -151,8 +150,8 @@ bool UAvalancheBlueprintPlayable::LoadAvalancheBlueprintInternal(const TSoftObje
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheBlueprintPlayable::LoadAsset::DupAvaBp);
-		const FName AvaInstanceName = MakeUniqueObjectName(AvalancheGameInstance, UAvalancheBlueprint::StaticClass(), Source->GetFName());
-		ManagedAvalancheBlueprint = Cast<UAvalancheBlueprint>(StaticDuplicateObject(Source, AvalancheGameInstance, AvaInstanceName, RF_Transient));
+		const FName AvaInstanceName = MakeUniqueObjectName(AvaGameInstance, UAvalancheBlueprint::StaticClass(), Source->GetFName());
+		ManagedAvalancheBlueprint = Cast<UAvalancheBlueprint>(StaticDuplicateObject(Source, AvaGameInstance, AvaInstanceName, RF_Transient));
 	}
 
 	if (!ManagedAvalancheBlueprint)
@@ -162,7 +161,7 @@ bool UAvalancheBlueprintPlayable::LoadAvalancheBlueprintInternal(const TSoftObje
 	
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UAvalancheBlueprintPlayable::LoadAsset::LoadAvaBpWorld);
-		ManagedAvalancheBlueprint->SetAvalancheWorld(AvalancheGameInstance->GetPlayWorld());
+		ManagedAvalancheBlueprint->SetAvalancheWorld(AvaGameInstance->GetPlayWorld());
 		ManagedAvalancheBlueprint->LoadAvalancheWorld();
 	}
 
@@ -174,7 +173,7 @@ bool UAvalancheBlueprintPlayable::LoadAvalancheBlueprintInternal(const TSoftObje
 		FAvaRemoteControlRebind::RebindUnboundEntities(ManagedAvalancheBlueprint->GetRemoteControlPreset());
 	}
 
-	AvalancheGameInstance->MarkSynchronousAssetLoadingThisFrame();
+	AvaGameInstance->MarkSynchronousAssetLoadingThisFrame();
 	
 	SourceAvalancheBlueprint = InSourceAvalancheBlueprint;
 	return true;
