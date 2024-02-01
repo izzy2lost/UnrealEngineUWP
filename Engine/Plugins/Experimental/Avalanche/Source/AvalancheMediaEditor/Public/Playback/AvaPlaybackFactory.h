@@ -26,5 +26,6 @@ protected:
 	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
 	virtual bool DoesSupportClass(UClass* Class) override;
 	virtual UClass* ResolveSupportedClass() override;
+	virtual FString GetDefaultNewAssetName() const override;
 	//~ Begin UFactory Interface
 };
