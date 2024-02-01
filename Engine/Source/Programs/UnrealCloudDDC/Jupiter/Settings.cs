@@ -56,7 +56,8 @@ namespace Jupiter
 		public enum LeaderElectionImplementations
 		{
 			Static, 
-			Kubernetes
+			Kubernetes,
+			Disabled
 		}
 
 		public enum ServiceDiscoveryImplementations
