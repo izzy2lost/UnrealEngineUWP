@@ -344,8 +344,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 										}
 									}
 
-									const bool bUseShortNames = (NameSpace != ERigMetaDataNameSpace::None) &&
-										(NameSpace != ERigMetaDataNameSpace::All);
+									const bool bUseShortNames = NameSpace != ERigMetaDataNameSpace::None;
 
 									static TMap<FString, FCachedMetadataNames> MetadataNameLists;
 									FCachedMetadataNames& MetadataNames = MetadataNameLists.FindOrAdd(MapHash);
@@ -431,8 +430,7 @@ TSharedPtr<SGraphPin> FControlRigGraphPanelPinFactory::CreatePin_Internal(UEdGra
 											NameSpace = (ERigMetaDataNameSpace)StaticEnum<ERigMetaDataNameSpace>()->GetValueByNameString(NameSpacePin->GetDefaultValue());
 										}
 									}
-									const bool bUseShortNames = (NameSpace != ERigMetaDataNameSpace::None) &&
-										(NameSpace != ERigMetaDataNameSpace::All);
+									const bool bUseShortNames = NameSpace != ERigMetaDataNameSpace::None;
 
 									static TMap<FString, FCachedMetadataTagNames> MetadataTagNameLists;
 									FCachedMetadataTagNames& MetadataTagNames = MetadataTagNameLists.FindOrAdd(MapHash);

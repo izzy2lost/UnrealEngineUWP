@@ -120,10 +120,39 @@ FString FControlRigExecuteContext::GetElementNameSpace(ERigMetaDataNameSpace InN
 	return FString();
 }
 
+const FRigModuleInstance* FControlRigExecuteContext::GetRigModuleInstance(ERigMetaDataNameSpace InNameSpaceType) const
+{
+	if(RigModuleInstance)
+	{
+		switch(InNameSpaceType)
+		{
+			case ERigMetaDataNameSpace::Self:
+			{
+				return RigModuleInstance;
+			}
+			case ERigMetaDataNameSpace::Parent:
+			{
+				return RigModuleInstance->GetParentModule();
+			}
+			case ERigMetaDataNameSpace::Root:
+			{
+				return RigModuleInstance->GetRootModule();
+			}
+			case ERigMetaDataNameSpace::None:
+			default:
+			{
+				break;
+			}
+		}
+		
+	}
+	return nullptr;
+}
+
 FName FControlRigExecuteContext::AdaptMetadataName(ERigMetaDataNameSpace InNameSpaceType, const FName& InMetadataName) const
 {
 	// only if we are within a rig module let's adapt the meta data name
-	const bool bUseNameSpace = (InNameSpaceType != ERigMetaDataNameSpace::None) && (InNameSpaceType != ERigMetaDataNameSpace::All);
+	const bool bUseNameSpace = InNameSpaceType != ERigMetaDataNameSpace::None;
 	if(bUseNameSpace && !InMetadataName.IsNone())
 	{
 		// if the metadata name already contains a namespace - we are just going

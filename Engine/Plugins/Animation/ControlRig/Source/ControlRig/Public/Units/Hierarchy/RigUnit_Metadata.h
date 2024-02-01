@@ -41,6 +41,7 @@ struct CONTROLRIG_API FRigDispatch_MetadataBase : public FRigDispatchFactory
 
 #if WITH_EDITOR
 	virtual FString GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const override;;
+	virtual FString GetNodeTitlePrefix() const { return FString(); }
 #endif
 	virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const override;
 	virtual bool IsSetMetadata() const { return false; }
@@ -198,6 +199,7 @@ protected:
 	{
 		return CheckArgumentType(Handles[ItemArgIndex].IsType<FRigElementKey>(), ItemArgName) &&
 			CheckArgumentType(Handles[NameArgIndex].IsType<FName>(), NameArgName) &&
+			CheckArgumentType(Handles[NameSpaceArgIndex].IsType<ERigMetaDataNameSpace>(), NameSpaceArgName) &&
 			CheckArgumentType(Handles[CacheArgIndex].IsType<FCachedRigElement>(true), CacheArgName) &&
 			CheckArgumentType(Handles[DefaultArgIndex].IsType<ValueType>(), DefaultArgName) &&
 			CheckArgumentType(Handles[ValueArgIndex].IsType<ValueType>(), ValueArgName) &&
@@ -241,7 +243,7 @@ protected:
 };
 
 /*
- * Returns some metadata for the provided item
+ * Sets some metadata for the provided item
  */
 USTRUCT(meta=(DisplayName="Set Metadata"))
 struct CONTROLRIG_API FRigDispatch_SetMetadata : public FRigDispatch_MetadataBase
@@ -263,6 +265,7 @@ protected:
 	{
 		return CheckArgumentType(Handles[ItemArgIndex].IsType<FRigElementKey>(), ItemArgName) &&
 			CheckArgumentType(Handles[NameArgIndex].IsType<FName>(), NameArgName) &&
+			CheckArgumentType(Handles[NameSpaceArgIndex].IsType<ERigMetaDataNameSpace>(), NameSpaceArgName) &&
 			CheckArgumentType(Handles[CacheArgIndex].IsType<FCachedRigElement>(true), CacheArgName) &&
 			CheckArgumentType(Handles[ValueArgIndex].IsType<ValueType>(), ValueArgName) &&
 			CheckArgumentType(Handles[SuccessArgIndex].IsType<bool>(), SuccessArgName);
@@ -859,4 +862,132 @@ struct CONTROLRIG_API FRigUnit_FilterItemsByMetadataTags : public FRigUnit
 	// Used to cache the internally used indices
 	UPROPERTY()
 	TArray<FCachedRigElement> CachedIndices;
+};
+
+/*
+ * Returns some metadata on a given module
+ */
+USTRUCT(meta=(DisplayName="Get Module Metadata"))
+struct CONTROLRIG_API FRigDispatch_GetModuleMetadata : public FRigDispatch_GetMetadata
+{
+	GENERATED_BODY()
+
+	virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const override;
+#if WITH_EDITOR
+	virtual FString GetNodeTitlePrefix() const override { return TEXT("Module "); }
+#endif
+	
+protected:
+
+	static FRigBaseMetadata* FindMetadata(const FRigVMExtendedExecuteContext& InContext, const FName& InName, ERigMetadataType InType, ERigMetaDataNameSpace InNameSpace);
+	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override;
+
+#if WITH_EDITOR
+	template<typename ValueType>
+	bool CheckArgumentTypes(FRigVMMemoryHandleArray Handles) const
+	{
+		return CheckArgumentType(Handles[NameArgIndex].IsType<FName>(), NameArgName) &&
+			CheckArgumentType(Handles[NameSpaceArgIndex].IsType<ERigMetaDataNameSpace>(), NameSpaceArgName) &&
+			CheckArgumentType(Handles[DefaultArgIndex].IsType<ValueType>(), DefaultArgName) &&
+			CheckArgumentType(Handles[ValueArgIndex].IsType<ValueType>(), ValueArgName) &&
+			CheckArgumentType(Handles[FoundArgIndex].IsType<bool>(), FoundArgName);
+	}
+#endif
+
+	template<typename ValueType, typename MetadataType, ERigMetadataType EnumValue>
+	static void GetModuleMetadataDispatch(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates)
+	{
+		const FRigDispatch_GetModuleMetadata* Factory = static_cast<const FRigDispatch_GetModuleMetadata*>(InContext.Factory);
+
+#if WITH_EDITOR
+		if(!Factory->CheckArgumentTypes<ValueType>(Handles))
+		{
+			return;
+		}
+#endif
+
+		// unpack the memory
+		const FName& Name = *reinterpret_cast<const FName*>(Handles[Factory->NameArgIndex].GetData());
+		const ERigMetaDataNameSpace NameSpace = *reinterpret_cast<const ERigMetaDataNameSpace*>(Handles[Factory->NameSpaceArgIndex].GetData());
+		const ValueType& Default = *reinterpret_cast<const ValueType*>(Handles[Factory->DefaultArgIndex].GetData());
+		ValueType& Value = *reinterpret_cast<ValueType*>(Handles[Factory->ValueArgIndex].GetData());
+		bool& Found = *reinterpret_cast<bool*>(Handles[Factory->FoundArgIndex].GetData());
+
+		// extract the metadata
+		if (const MetadataType* Md = Cast<MetadataType>(FindMetadata(InContext, Name, EnumValue, NameSpace)))
+		{
+			Value = Md->GetValue();
+			Found = true;
+		}
+		else
+		{
+			Value = Default;
+			Found = false;
+		}
+	}
+};
+
+/*
+ * Sets metadata on the module
+ */
+USTRUCT(meta=(DisplayName="Set Module Metadata"))
+struct CONTROLRIG_API FRigDispatch_SetModuleMetadata : public FRigDispatch_SetMetadata
+{
+	GENERATED_BODY()
+
+	virtual const TArray<FRigVMTemplateArgumentInfo>& GetArgumentInfos() const override;
+#if WITH_EDITOR
+	virtual FString GetNodeTitlePrefix() const override { return TEXT("Module "); }
+#endif
+
+protected:
+
+	static FRigBaseMetadata* FindOrAddMetadata(const FControlRigExecuteContext& InContext, const FName& InName, ERigMetadataType InType, ERigMetaDataNameSpace InNameSpace);
+	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override;
+
+#if WITH_EDITOR
+	template<typename ValueType>
+	bool CheckArgumentTypes(FRigVMMemoryHandleArray Handles) const
+	{
+		return CheckArgumentType(Handles[NameArgIndex].IsType<FName>(), NameArgName) &&
+			CheckArgumentType(Handles[NameSpaceArgIndex].IsType<ERigMetaDataNameSpace>(), NameSpaceArgName) &&
+			CheckArgumentType(Handles[ValueArgIndex].IsType<ValueType>(), ValueArgName) &&
+			CheckArgumentType(Handles[SuccessArgIndex].IsType<bool>(), SuccessArgName);
+	}
+#endif
+	
+	template<typename ValueType, typename MetadataType, ERigMetadataType EnumValue>
+	static void SetModuleMetadataDispatch(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates)
+	{
+		const FRigDispatch_SetModuleMetadata* Factory = static_cast<const FRigDispatch_SetModuleMetadata*>(InContext.Factory);
+
+#if WITH_EDITOR
+		if(!Factory->CheckArgumentTypes<ValueType>(Handles))
+		{
+			return;
+		}
+#endif
+
+		// unpack the memory
+		FControlRigExecuteContext& ExecuteContext = InContext.GetPublicData<FControlRigExecuteContext>();
+		const FName& Name = *(const FName*)Handles[Factory->NameArgIndex].GetData();
+		const ERigMetaDataNameSpace NameSpace = *(const ERigMetaDataNameSpace*)Handles[Factory->NameSpaceArgIndex].GetData();
+		ValueType& Value = *(ValueType*)Handles[Factory->ValueArgIndex].GetData();
+		bool& Success = *(bool*)Handles[Factory->SuccessArgIndex].GetData();
+
+		// extract the metadata
+		if (MetadataType* Md = Cast<MetadataType>(FindOrAddMetadata(ExecuteContext, Name, EnumValue, NameSpace)))
+		{
+			if(!Equals<ValueType>(Md->GetValue(), Value))
+			{
+				Md->GetValue() = Value;
+				ExecuteContext.Hierarchy->MetadataVersion++;
+			}
+			Success = true;
+		}
+		else
+		{
+			Success = false;
+		}
+	}
 };

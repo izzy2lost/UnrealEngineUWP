@@ -4786,6 +4786,8 @@ private:
 	friend struct FRigHierarchyRedirectorGuard;
 	friend struct FRigDispatch_GetMetadata;
 	friend struct FRigDispatch_SetMetadata;
+	friend struct FRigDispatch_GetModuleMetadata;
+	friend struct FRigDispatch_SetModuleMetadata;
 };
 
 struct CONTROLRIG_API FRigHierarchyInteractionBracket

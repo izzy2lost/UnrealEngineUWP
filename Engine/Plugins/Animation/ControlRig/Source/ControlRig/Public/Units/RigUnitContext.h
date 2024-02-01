@@ -39,8 +39,6 @@ enum class ERigMetaDataNameSpace : uint8
 	Parent,
 	// Store the metadata under the root module
 	Root,
-	// (Only for remove) Remove all metadata data for all namespaces
-	All, 
 	Last UMETA(Hidden)
 };
 
@@ -201,6 +199,11 @@ public:
 	{
 		return RigModuleInstance;
 	}
+	
+	/**
+	 * Returns the module this unit is running inside of (or nullptr)
+	 */
+	const FRigModuleInstance* GetRigModuleInstance(ERigMetaDataNameSpace InNameSpaceType) const;
 
 	/**
 	 * Adapts a metadata name according to rig module namespace.

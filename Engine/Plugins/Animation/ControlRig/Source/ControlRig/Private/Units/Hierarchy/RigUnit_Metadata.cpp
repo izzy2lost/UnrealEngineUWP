@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Units/Hierarchy/RigUnit_Metadata.h"
+
+#include "ModularRig.h"
 #include "RigVMTypeUtils.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "Units/RigUnitContext.h"
@@ -30,8 +32,8 @@ FString FRigDispatch_MetadataBase::GetNodeTitle(const FRigVMTemplateTypeMap& InT
 		if(ValueTypeIndex != RigVMTypeUtils::TypeIndex::WildCard &&
 			ValueTypeIndex != RigVMTypeUtils::TypeIndex::WildCardArray)
 		{
-			static constexpr TCHAR GetMetadataFormat[] = TEXT("Get %s Metadata");
-			static constexpr TCHAR SetMetadataFormat[] = TEXT("Set %s Metadata");
+			static constexpr TCHAR GetMetadataFormat[] = TEXT("Get %s%s Metadata");
+			static constexpr TCHAR SetMetadataFormat[] = TEXT("Set %s%s Metadata");
 
 			const FRigVMTemplateArgumentType& ValueType = FRigVMRegistry::Get().GetType(ValueTypeIndex);
 			FString ValueName;
@@ -58,7 +60,7 @@ FString FRigDispatch_MetadataBase::GetNodeTitle(const FRigVMTemplateTypeMap& InT
 				ValueName += TEXT(" Array");
 			}
 
-			return FString::Printf(IsSetMetadata() ? SetMetadataFormat : GetMetadataFormat, *ValueName); 
+			return FString::Printf(IsSetMetadata() ? SetMetadataFormat : GetMetadataFormat, *GetNodeTitlePrefix(), *ValueName); 
 		}
 	}
 	return FRigDispatchFactory::GetNodeTitle(InTypes);
@@ -428,30 +430,6 @@ FRigUnit_RemoveMetadata_Execute()
 
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
-		if(NameSpace == ERigMetaDataNameSpace::All)
-		{
-			Removed = true;
-			
-			// run remove for all relevant namespace types.
-			for(int32 NameSpaceTypeIndex = 0;
-				NameSpaceTypeIndex < (int32)ERigMetaDataNameSpace::Last;
-				NameSpaceTypeIndex++)
-			{
-				const ERigMetaDataNameSpace NameSpaceFromIndex = (ERigMetaDataNameSpace)NameSpaceTypeIndex;
-				if(NameSpaceFromIndex == ERigMetaDataNameSpace::All)
-				{
-					continue;
-				}
-					
-				bool bResult = false;
-				FRigUnit_RemoveMetadata::StaticExecute(ExecuteContext, Item, Name, NameSpaceFromIndex, bResult, CachedIndex);
-				if(!bResult)
-				{
-					Removed = false;
-				}
-			}
-			return;
-		}
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
 			const FName LocalName = ExecuteContext.AdaptMetadataName(NameSpace, Name);
@@ -476,31 +454,6 @@ FRigUnit_RemoveAllMetadata_Execute()
 
 	if(CachedIndex.UpdateCache(Item, Hierarchy))
 	{
-		if(NameSpace == ERigMetaDataNameSpace::All)
-		{
-			Removed = true;
-			
-			// run remove for all relevant namespace types.
-			for(int32 NameSpaceTypeIndex = 0;
-				NameSpaceTypeIndex < (int32)ERigMetaDataNameSpace::Last;
-				NameSpaceTypeIndex++)
-			{
-				const ERigMetaDataNameSpace NameSpaceFromIndex = (ERigMetaDataNameSpace)NameSpaceTypeIndex;
-				if(NameSpaceFromIndex == ERigMetaDataNameSpace::All)
-				{
-					continue;
-				}
-					
-				bool bResult = false;
-				FRigUnit_RemoveAllMetadata::StaticExecute(ExecuteContext, Item, NameSpaceFromIndex, bResult, CachedIndex);
-				if(!bResult)
-				{
-					Removed = false;
-				}
-			}
-			return;
-		}
-		
 		if(FRigBaseElement* Element = Hierarchy->Get(CachedIndex))
 		{
 			if(NameSpace != ERigMetaDataNameSpace::None)
@@ -764,7 +717,7 @@ FRigUnit_FindItemsWithMetadataTagArray_Execute()
 	TArrayView<const FName> LocalTags(Tags);
 	TArray<FName> AdaptedTags;
 
-	const bool bUseNameSpace = (NameSpace != ERigMetaDataNameSpace::None) && (NameSpace != ERigMetaDataNameSpace::All);
+	const bool bUseNameSpace = NameSpace != ERigMetaDataNameSpace::None;
 	if(bUseNameSpace && ExecuteContext.IsRigModule())
 	{
 		AdaptedTags.Reserve(Tags.Num());
@@ -817,7 +770,7 @@ FRigUnit_FilterItemsByMetadataTags_Execute()
 
 	TArrayView<const FName> LocalTags(Tags);
 	TArray<FName> AdaptedTags;
-	const bool bUseNameSpace = (NameSpace != ERigMetaDataNameSpace::None) && (NameSpace != ERigMetaDataNameSpace::All);
+	const bool bUseNameSpace = NameSpace != ERigMetaDataNameSpace::None;
 	if(bUseNameSpace && ExecuteContext.IsRigModule())
 	{
 		AdaptedTags.Reserve(Tags.Num());
@@ -881,4 +834,261 @@ FRigUnit_FilterItemsByMetadataTags_Execute()
 			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Item '%s' not found"), *Items[Index].ToString());
 		}
 	}
+}
+
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_GetModuleMetadata::GetArgumentInfos() const
+{
+	if(ValueArgIndex == INDEX_NONE)
+	{
+		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<ERigMetaDataNameSpace>());
+		DefaultArgIndex = Infos.Emplace(DefaultArgName, ERigVMPinDirection::Input, GetValueTypes());
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Output, GetValueTypes());
+		FoundArgIndex = Infos.Emplace(FoundArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
+	};
+	return Infos;
+}
+
+FRigBaseMetadata* FRigDispatch_GetModuleMetadata::FindMetadata(const FRigVMExtendedExecuteContext& InContext, const FName& InName, ERigMetadataType InType, ERigMetaDataNameSpace InNameSpace)
+{
+	const FControlRigExecuteContext& ExecuteContext = InContext.GetPublicData<FControlRigExecuteContext>();
+	if(const FRigModuleInstance* ModuleInstance = ExecuteContext.GetRigModuleInstance(InNameSpace))
+	{
+		if(const FRigConnectorElement* PrimaryConnector = ModuleInstance->FindPrimaryConnector())
+		{
+			// first try to find the metadata in the namespace
+			return ExecuteContext.Hierarchy->FindMetadataForElement(PrimaryConnector, InName, InType);
+		}
+	}
+	else if(ExecuteContext.IsRigModule())
+	{
+		// we are not in a rig module - but we still want to store the metadata for testing.
+		const TArray<FRigConnectorElement*> Connectors = ExecuteContext.Hierarchy->GetConnectors();
+		for(const FRigConnectorElement* Connector : Connectors)
+		{
+			if(Connector->IsPrimary())
+			{
+				const FName Name = ExecuteContext.AdaptMetadataName(InNameSpace, InName);
+				return ExecuteContext.Hierarchy->FindMetadataForElement(Connector, InName, InType);
+			}
+		}
+	}
+	return nullptr;
+}
+
+FRigVMFunctionPtr FRigDispatch_GetModuleMetadata::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
+{
+	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
+	
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Bool)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<bool, FRigBoolMetadata, ERigMetadataType::Bool>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Float)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<float, FRigFloatMetadata, ERigMetadataType::Float>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<int32, FRigInt32Metadata, ERigMetadataType::Int32>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::FName)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FName, FRigNameMetadata, ERigMetadataType::Name>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FVector, FRigVectorMetadata, ERigMetadataType::Vector>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(false))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FRotator, FRigRotatorMetadata, ERigMetadataType::Rotator>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FQuat, FRigQuatMetadata, ERigMetadataType::Quat>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FTransform, FRigTransformMetadata, ERigMetadataType::Transform>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(false))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FLinearColor, FRigLinearColorMetadata, ERigMetadataType::LinearColor>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(false))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<FRigElementKey, FRigElementKeyMetadata, ERigMetadataType::RigElementKey>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::BoolArray)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<bool>, FRigBoolArrayMetadata, ERigMetadataType::BoolArray>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::FloatArray)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<float>, FRigFloatArrayMetadata, ERigMetadataType::FloatArray>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Int32Array)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<int32>, FRigInt32ArrayMetadata, ERigMetadataType::Int32Array>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::FNameArray)
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FName>, FRigNameArrayMetadata, ERigMetadataType::NameArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(true))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FVector>, FRigVectorArrayMetadata, ERigMetadataType::VectorArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(true))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FRotator>, FRigRotatorArrayMetadata, ERigMetadataType::RotatorArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(true))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FQuat>, FRigQuatArrayMetadata, ERigMetadataType::QuatArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(true))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FTransform>, FRigTransformArrayMetadata, ERigMetadataType::TransformArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(true))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FLinearColor>, FRigLinearColorArrayMetadata, ERigMetadataType::LinearColorArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(true))
+	{
+		return &FRigDispatch_GetModuleMetadata::GetModuleMetadataDispatch<TArray<FRigElementKey>, FRigElementKeyArrayMetadata, ERigMetadataType::RigElementKeyArray>;
+	}
+
+	return nullptr;
+}
+
+const TArray<FRigVMTemplateArgumentInfo>& FRigDispatch_SetModuleMetadata::GetArgumentInfos() const
+{
+	if(ValueArgIndex == INDEX_NONE)
+	{
+		NameArgIndex = Infos.Emplace(NameArgName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FName);
+		NameSpaceArgIndex = Infos.Emplace(NameSpaceArgName, ERigVMPinDirection::Input, FRigVMRegistry::Get().GetTypeIndex<ERigMetaDataNameSpace>());
+		ValueArgIndex = Infos.Emplace(ValueArgName, ERigVMPinDirection::Input, GetValueTypes());
+		SuccessArgIndex = Infos.Emplace(SuccessArgName, ERigVMPinDirection::Output, RigVMTypeUtils::TypeIndex::Bool);
+	};
+	return Infos;
+}
+
+FRigBaseMetadata* FRigDispatch_SetModuleMetadata::FindOrAddMetadata(const FControlRigExecuteContext& InContext, const FName& InName, ERigMetadataType InType, ERigMetaDataNameSpace InNameSpace)
+{
+	constexpr bool bNotify = true;
+	
+	if(const FRigModuleInstance* ModuleInstance = InContext.GetRigModuleInstance(InNameSpace))
+	{
+		if(const FRigConnectorElement* PrimaryConnector = ModuleInstance->FindPrimaryConnector())
+		{
+			return InContext.Hierarchy->GetMetadataForElement(const_cast<FRigConnectorElement*>(PrimaryConnector), InName, InType, bNotify);
+		}
+	}
+	else if(InContext.IsRigModule())
+	{
+		// we are not in a rig module - but we still want to store the metadata for testing.
+		const TArray<FRigConnectorElement*> Connectors = InContext.Hierarchy->GetConnectors();
+		for(const FRigConnectorElement* Connector : Connectors)
+		{
+			if(Connector->IsPrimary())
+			{
+				const FName Name = InContext.AdaptMetadataName(InNameSpace, InName);
+				return InContext.Hierarchy->GetMetadataForElement(const_cast<FRigConnectorElement*>(Connector), InName, InType, bNotify);
+			}
+		}
+	}
+	return nullptr;
+}
+
+FRigVMFunctionPtr FRigDispatch_SetModuleMetadata::GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const
+{
+	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
+	const TRigVMTypeIndex& ValueTypeIndex = InTypes.FindChecked(TEXT("Value"));
+	
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Bool)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<bool, FRigBoolMetadata, ERigMetadataType::Bool>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Float)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<float, FRigFloatMetadata, ERigMetadataType::Float>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Int32)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<int32, FRigInt32Metadata, ERigMetadataType::Int32>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::FName)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FName, FRigNameMetadata, ERigMetadataType::Name>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(false))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FVector, FRigVectorMetadata, ERigMetadataType::Vector>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(false))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FRotator, FRigRotatorMetadata, ERigMetadataType::Rotator>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(false))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FQuat, FRigQuatMetadata, ERigMetadataType::Quat>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(false))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FTransform, FRigTransformMetadata, ERigMetadataType::Transform>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(false))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FLinearColor, FRigLinearColorMetadata, ERigMetadataType::LinearColor>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(false))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<FRigElementKey, FRigElementKeyMetadata, ERigMetadataType::RigElementKey>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::BoolArray)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<bool>, FRigBoolArrayMetadata, ERigMetadataType::BoolArray>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::FloatArray)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<float>, FRigFloatArrayMetadata, ERigMetadataType::FloatArray>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::Int32Array)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<int32>, FRigInt32ArrayMetadata, ERigMetadataType::Int32Array>;
+	}
+	if(ValueTypeIndex == RigVMTypeUtils::TypeIndex::FNameArray)
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FName>, FRigNameArrayMetadata, ERigMetadataType::NameArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FVector>(true))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FVector>, FRigVectorArrayMetadata, ERigMetadataType::VectorArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRotator>(true))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FRotator>, FRigRotatorArrayMetadata, ERigMetadataType::RotatorArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FQuat>(true))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FQuat>, FRigQuatArrayMetadata, ERigMetadataType::QuatArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FTransform>(true))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FTransform>, FRigTransformArrayMetadata, ERigMetadataType::TransformArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FLinearColor>(true))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FLinearColor>, FRigLinearColorArrayMetadata, ERigMetadataType::LinearColorArray>;
+	}
+	if(ValueTypeIndex == Registry.GetTypeIndex<FRigElementKey>(true))
+	{
+		return &FRigDispatch_SetModuleMetadata::SetModuleMetadataDispatch<TArray<FRigElementKey>, FRigElementKeyArrayMetadata, ERigMetadataType::RigElementKeyArray>;
+	}
+
+	return nullptr;
 }
