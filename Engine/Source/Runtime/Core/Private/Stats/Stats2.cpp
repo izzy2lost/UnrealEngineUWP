@@ -1066,7 +1066,7 @@ void FThreadStatsPool::ReturnToPool( FThreadStats* Instance )
 	FThreadStats
 -----------------------------------------------------------------------------*/
 
-uint32 FThreadStats::TlsSlot = 0;
+uint32 FThreadStats::TlsSlot = FPlatformTLS::InvalidTlsSlot;
 FThreadSafeCounter FThreadStats::PrimaryEnableCounter;
 FThreadSafeCounter FThreadStats::PrimaryEnableUpdateNumber;
 FThreadSafeCounter FThreadStats::PrimaryDisableChangeTagLock;
@@ -1084,7 +1084,7 @@ FThreadStats::FThreadStats():
 {
 	Packet.SetThreadProperties();
 
-	check(TlsSlot && FPlatformTLS::IsValidTlsSlot(TlsSlot));
+	check(FPlatformTLS::IsValidTlsSlot(TlsSlot));
 	FPlatformTLS::SetTlsValue(TlsSlot, this);
 }
 
@@ -1343,10 +1343,10 @@ void FThreadStats::StartThread()
 	// (Must do this before we expose ourselves to other threads via tls).
 	FThreadStatsPool::Get();
 	FStatsThreadState::GetLocalState(); // start up the state
-	if (!TlsSlot)
+	if (!FPlatformTLS::IsValidTlsSlot(TlsSlot))
 	{
 		TlsSlot = FPlatformTLS::AllocTlsSlot();
-		check(TlsSlot);
+		check(FPlatformTLS::IsValidTlsSlot(TlsSlot));
 	}
 
 	check(IsThreadingReady());

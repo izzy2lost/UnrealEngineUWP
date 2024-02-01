@@ -109,7 +109,7 @@ TAtomic<int32> MemoryRangeFreeTotalCount(0);
 
 MS_ALIGN(PLATFORM_CACHE_LINE_SIZE) static uint8 Binned3UnusedAlignPadding[PLATFORM_CACHE_LINE_SIZE] GCC_ALIGN(PLATFORM_CACHE_LINE_SIZE) = { 0 };
 uint16 FMallocBinned3::SmallBlockSizesReversedShifted[BINNED3_SMALL_POOL_COUNT + 1] = { 0 };
-uint32 FMallocBinned3::Binned3TlsSlot = 0;
+uint32 FMallocBinned3::Binned3TlsSlot = FPlatformTLS::InvalidTlsSlot;
 uint32 FMallocBinned3::OsAllocationGranularity = 0;
 
 #if !BINNED3_USE_SEPARATE_VM_PER_POOL
@@ -1405,11 +1405,11 @@ void FMallocBinned3::SetupTLSCachesOnCurrentThread()
 	{
 		return;
 	}
-	if (!FMallocBinned3::Binned3TlsSlot)
+	if (!FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot))
 	{
 		FMallocBinned3::Binned3TlsSlot = FPlatformTLS::AllocTlsSlot();
 	}
-	check(FMallocBinned3::Binned3TlsSlot);
+	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot));
 	FPerThreadFreeBlockLists::SetTLS();
 }
 
@@ -1488,7 +1488,7 @@ FMallocBinned3::FBundleNode* FMallocBinned3::FFreeBlockList::PopBundles(uint32 I
 
 void FMallocBinned3::FPerThreadFreeBlockLists::SetTLS()
 {
-	check(FMallocBinned3::Binned3TlsSlot);
+	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot));
 	FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned3::Binned3TlsSlot);
 	if (!ThreadSingleton)
 	{
@@ -1505,7 +1505,7 @@ void FMallocBinned3::FPerThreadFreeBlockLists::SetTLS()
 
 void FMallocBinned3::FPerThreadFreeBlockLists::ClearTLS()
 {
-	check(FMallocBinned3::Binned3TlsSlot);
+	check(FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot));
 	FPerThreadFreeBlockLists* ThreadSingleton = (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned3::Binned3TlsSlot);
 	if (ThreadSingleton)
 	{

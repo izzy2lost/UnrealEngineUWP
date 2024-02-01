@@ -112,8 +112,8 @@ JNIEnv* AndroidJavaEnv::GetJavaEnv( bool bRequireGlobalThis /*= true*/ )
 
 	// Magic static - *should* be thread safe
 	//Android & pthread specific, bind a destructor for thread exit
-	static uint32 TlsSlot = 0;
-	if (TlsSlot == 0)
+	static uint32 TlsSlot = FPlatformTLS::InvalidTlsSlot;
+	if (!FPlatformTLS::IsValidTlsSlot(TlsSlot))
 	{
 		pthread_key_create((pthread_key_t*)&TlsSlot, &JavaEnvDestructor);
 	}
@@ -141,8 +141,8 @@ JNIEnv* AndroidJavaEnv::GetJavaEnv( bool bRequireGlobalThis /*= true*/ )
 	return (!bRequireGlobalThis || (GlobalObjectRef != nullptr)) ? Env : nullptr;
 #else
 	// register a destructor to detach this thread
-	static uint32 TlsSlot = 0;
-	if (TlsSlot == 0)
+	static uint32 TlsSlot = FPlatformTLS::InvalidTlsSlot;
+	if (!FPlatformTLS::IsValidTlsSlot(TlsSlot))
 	{
 		pthread_key_create((pthread_key_t*)&TlsSlot, &JavaEnvDestructor);
 	}
