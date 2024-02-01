@@ -879,6 +879,39 @@ void FMovieSceneConstraintChannelHelper::HandleConstraintKeyMoved(
 
 }
 
+bool FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(
+	const TSharedPtr<ISequencer>& InSequencer,
+	UTickableTransformConstraint* InConstraint)
+{
+	if (!InSequencer.IsValid() || !InSequencer->GetFocusedMovieSceneSequence())
+	{
+		return false;
+	}
+	
+	ITransformConstraintChannelInterface* Interface = InConstraint ? GetHandleInterface(InConstraint->ChildTRSHandle) : nullptr;
+	if (!Interface)
+	{
+		return false;
+	}
+
+	// create bindings before smart keying so added to spawn copies
+	CreateBindingIDForHandle(InSequencer, InConstraint->ChildTRSHandle);
+	CreateBindingIDForHandle(InSequencer, InConstraint->ParentTRSHandle);
+
+	// adding the child to sequencer can trigger that same function so the constraint might already be added 
+	const bool IsOuterASection = !!Cast<IMovieSceneConstrainedSection>(InConstraint->GetOuter());
+	if (IsOuterASection)
+	{
+		return true;
+	}
+
+	const FFrameRate TickResolution = InSequencer->GetFocusedTickResolution();
+	const FFrameTime FrameTime = InSequencer->GetLocalTime().ConvertTo(TickResolution);
+	const FFrameNumber Time = FrameTime.GetFrame();
+	
+	return Interface->SmartConstraintKey(InConstraint, TOptional<bool>(), Time, InSequencer);
+}
+
 bool FMovieSceneConstraintChannelHelper::SmartConstraintKey(
 	const TSharedPtr<ISequencer>& InSequencer,
 	UTickableTransformConstraint* InConstraint, 

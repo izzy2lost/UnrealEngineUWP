@@ -29,7 +29,6 @@
 #include "Styling/SlateIconFinder.h"
 #include "Widgets/Input/NumericTypeInterface.h"
 #include "FrameNumberDetailsCustomization.h"
-#include "SPrimaryButton.h"
 
 #define LOCTEXT_NAMESPACE "SConstraintsWidget"
 
@@ -439,7 +438,7 @@ void SConstraintMenuEntry::CreateConstraint(
 						{
 							Constraint->Evaluate();
 						}
-						FMovieSceneConstraintChannelHelper::SmartConstraintKey(WeakSequencer.Pin(), Constraint, TOptional<bool>(), TOptional<FFrameNumber>());
+						FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(WeakSequencer.Pin(), Constraint);
 					}
 					else
 					{
@@ -1057,7 +1056,6 @@ void SConstraintsEditionWidget::Construct(const FArguments& InArgs)
 				.AutoHeight()
 				.Padding(FMargin(0.0f, 0.f))
 				[
-		
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.f)

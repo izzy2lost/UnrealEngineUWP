@@ -1947,32 +1947,21 @@ void FControlRigParameterTrackEditor::HandleActorAdded(AActor* Actor, FGuid Targ
 	{
 		return;
 	}
+
 	//test for constraint
-	FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Actor->GetWorld());
-	TArray< TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetAllConstraints();
-	for (TWeakObjectPtr<UTickableConstraint>& WeakConstraint : Constraints)
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(Actor->GetWorld());
+	const TArray< TWeakObjectPtr<UTickableConstraint>> Constraints = Controller.GetAllConstraints();
+	for (const TWeakObjectPtr<UTickableConstraint>& WeakConstraint : Constraints)
 	{
-		if (WeakConstraint.IsValid())
+		if (UTickableTransformConstraint* Constraint = WeakConstraint.IsValid() ? Cast<UTickableTransformConstraint>(WeakConstraint.Get()) : nullptr)
 		{
-			if (UTickableTransformConstraint* Constraint = Cast<UTickableTransformConstraint>(WeakConstraint.Get()))
+			if (UObject* Child = Constraint->ChildTRSHandle ? Constraint->ChildTRSHandle->GetTarget().Get() : nullptr)
 			{
-				if (Constraint->ChildTRSHandle)
+				const AActor* TargetActor = Child->IsA<AActor>() ? Cast<AActor>(Child) : Child->GetTypedOuter<AActor>();
+				if (TargetActor == Actor)
 				{
-					if (UObject* Child = Constraint->ChildTRSHandle->GetTarget().Get())
-					{
-						AActor* TargetActor = Cast<AActor>(Child);
-						if (TargetActor == nullptr)
-						{
-							TargetActor = Child->GetTypedOuter<AActor>();
-						}
-						if (TargetActor == Actor)
-						{
-							const TOptional<bool> bActive = true;
-							const TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
-							FMovieSceneConstraintChannelHelper::SmartConstraintKey(SequencerPtr, Constraint, bActive, TOptional<FFrameNumber>());
-						}		
-					}
-				}
+					FMovieSceneConstraintChannelHelper::AddConstraintToSequencer(GetSequencer(), Constraint);
+				}		
 			}
 		}
 	}
