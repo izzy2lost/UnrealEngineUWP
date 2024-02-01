@@ -51,7 +51,7 @@ void FAvaTransitionToolbar::ExtendEditorToolbar(UToolMenu* InToolbarMenu)
 	CompileOptions.StyleNameOverride = "CalloutToolbar";
 	CompileOptions.ToolBarData.bSimpleComboBox = true;
 
-	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Owner.GetEditorData()))
+	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Owner.GetEditorData(), /*bInCompileOnLayerPicked*/false))
 	{
 		LayerPicker->SetEnabled(!bReadOnly);
 

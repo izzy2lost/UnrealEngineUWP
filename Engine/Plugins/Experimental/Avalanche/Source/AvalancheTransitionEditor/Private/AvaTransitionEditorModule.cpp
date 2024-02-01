@@ -93,7 +93,7 @@ void FAvaTransitionEditorModule::GenerateTransitionTreeOptionsMenu(UToolMenu* In
 			, FIsActionChecked::CreateStatic(&UE::AvaTransitionEditor::IsTransitionTreeEnabled, TransitionTreeWeak))
 		, EUserInterfaceActionType::ToggleButton);
 
-	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Cast<UAvaTransitionTreeEditorData>(TransitionTree->EditorData)))
+	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Cast<UAvaTransitionTreeEditorData>(TransitionTree->EditorData), /*bInCompileOnLayerPicked*/true))
 	{
 		FToolMenuSection& LayerSection = InMenu->FindOrAddSection(TEXT("LayerSection"), LOCTEXT("LayerSectionLabel", "Layer"));
 
@@ -135,7 +135,7 @@ void FAvaTransitionEditorModule::ValidateStateTree(UAvaTransitionTree* InTransit
 		EditorData->AddRootState();	
 	}
 
-	/** Compile in Advanced Mode here so that no new nodes are generated from outside */
+	// Compile in Advanced Mode here so that no new nodes are generated from outside
 	FAvaTransitionCompiler Compiler;
 	Compiler.SetTransitionTree(InTransitionTree);
 	Compiler.Compile(EAvaTransitionEditorMode::Advanced);
