@@ -795,9 +795,6 @@ void LoadVorbisLibraries()
 		PlatformString = TEXT("Win64");
 		DLLNameStub = TEXT("_64.dll");
 #endif
-#if PLATFORM_HOLOLENS
-		PlatformString = TEXT("HoloLens");
-#endif
 
 #if PLATFORM_CPU_ARM_FAMILY && !defined(_M_ARM64EC)
 #if PLATFORM_64BITS
