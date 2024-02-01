@@ -169,10 +169,10 @@ double FCookerTimer::GetActionTimeTillNow() const
 	return FPlatformTime::Seconds() - ActionStartTime;
 }
 
-static uint32 SchedulerThreadTlsSlot = FPlatformTLS::InvalidTlsSlot;
+static uint32 SchedulerThreadTlsSlot = 0;
 void InitializeTls()
 {
-	if (!FPlatformTLS::IsValidTlsSlot(SchedulerThreadTlsSlot))
+	if (SchedulerThreadTlsSlot == 0)
 	{
 		SchedulerThreadTlsSlot = FPlatformTLS::AllocTlsSlot();
 		SetIsSchedulerThread(true);

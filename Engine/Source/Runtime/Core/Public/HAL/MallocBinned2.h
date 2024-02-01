@@ -409,7 +409,7 @@ class FMallocBinned2 : public FMalloc
 	{
 		FORCEINLINE static FPerThreadFreeBlockLists* Get()
 		{
-			return FPlatformTLS::IsValidTlsSlot(FMallocBinned2::Binned2TlsSlot) ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned2::Binned2TlsSlot) : nullptr;
+			return FMallocBinned2::Binned2TlsSlot ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned2::Binned2TlsSlot) : nullptr;
 		}
 		static void SetTLS();
 		static void ClearTLS();

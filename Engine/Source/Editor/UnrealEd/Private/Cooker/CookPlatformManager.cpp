@@ -69,7 +69,7 @@ FPlatformData::FPlatformData()
 {
 }
 
-uint32 FPlatformManager::IsInPlatformsLockTLSSlot = FPlatformTLS::InvalidTlsSlot;
+uint32 FPlatformManager::IsInPlatformsLockTLSSlot = 0;
 
 void FPlatformManager::InitializeTls()
 {

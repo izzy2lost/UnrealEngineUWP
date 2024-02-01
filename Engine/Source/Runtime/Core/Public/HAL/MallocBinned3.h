@@ -373,7 +373,7 @@ class CORE_API FMallocBinned3 : public FMalloc
 	{
 		FORCEINLINE static FPerThreadFreeBlockLists* Get()
 		{
-			return FPlatformTLS::IsValidTlsSlot(FMallocBinned3::Binned3TlsSlot) ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned3::Binned3TlsSlot) : nullptr;
+			return FMallocBinned3::Binned3TlsSlot ? (FPerThreadFreeBlockLists*)FPlatformTLS::GetTlsValue(FMallocBinned3::Binned3TlsSlot) : nullptr;
 		}
 		static void SetTLS();
 		static void ClearTLS();
