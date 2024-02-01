@@ -9,11 +9,14 @@
 
 #include "MultiUserSubsystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSessionConnected);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSessionDisconnected);
-
+enum class EMultiUserClientStatus : uint8;
 struct FConcertSessionContext;
 struct FConcertBlueprintEvent;
+struct FMultiUserClientInfo;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSessionConnected);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnSessionDisconnected);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnSessionClientChanged, EMultiUserClientStatus, Status, const FMultiUserClientInfo&, ClientInfo);
 
 USTRUCT(BlueprintType)
 struct FMultiUserBlueprintEventData
@@ -34,17 +37,21 @@ class MULTIUSERCLIENTLIBRARY_API UMultiUserSubsystem : public UEngineSubsystem
 	virtual void Deinitialize() override;
 
 public:
-	/**
-	 * Delegate invoked when a session connection event has occurred.
-	 */
+	
+	/** Invoked when the local editor instance has joined a session. */
 	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
 	FOnSessionConnected OnSessionConnected;
 
-	/**
-	 * Delegate invoked when a session disconnection event has occurred.
-	 */
+	/** Invoked when the local editor instanced has left a session. */
 	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
 	FOnSessionDisconnected OnSessionDisconnected;
+
+	/**
+	 * Invoked when information about a client changes while the local editor instance is in a session.
+	 * For example: other clients joining and leaving the session.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
+	FOnSessionClientChanged OnSessionClientChanged;
 
 	/**
 	 * Returns true if we are currently in a session.
