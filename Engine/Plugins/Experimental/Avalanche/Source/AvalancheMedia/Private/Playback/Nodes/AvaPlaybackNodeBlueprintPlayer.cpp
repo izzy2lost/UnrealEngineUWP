@@ -2,7 +2,7 @@
 
 #include "Playback/Nodes/AvaPlaybackNodeBlueprintPlayer.h"
 #include "AvaBlueprint.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "Http/AvaMediaHttpServer.h"
 #include "Playback/AvalanchePlayback.h"
 

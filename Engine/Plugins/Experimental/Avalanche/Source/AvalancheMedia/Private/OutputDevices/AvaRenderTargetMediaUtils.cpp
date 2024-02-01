@@ -113,7 +113,9 @@ namespace UE::AvaRenderTargetMediaUtils::Private
 			return Parameters;
 		}
 	};
-	IMPLEMENT_SHADER_TYPE(, FAvaRGBGammaConvertPS, TEXT("/Plugin/Avalanche/AvaRGBGammaConvert.usf"), TEXT("MainPS"), SF_Pixel);
+
+	static const FString GammaConvertShaderPath = FString(VirtualShaderMountPoint) + TEXT("/AvaRGBGammaConvert.usf");
+	IMPLEMENT_SHADER_TYPE(, FAvaRGBGammaConvertPS,  *GammaConvertShaderPath, TEXT("MainPS"), SF_Pixel);
 }
 
 void UE::AvaRenderTargetMediaUtils::ConvertTextureRGBGamma(FRHICommandListImmediate& InRHICmdList, FTextureRHIRef InSourceTexture, FTextureRHIRef InDestTarget, bool bInSrgbToLinear, float InGamma)

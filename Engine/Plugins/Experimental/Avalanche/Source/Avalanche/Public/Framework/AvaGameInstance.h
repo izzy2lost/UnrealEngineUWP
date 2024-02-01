@@ -2,21 +2,21 @@
 
 #pragma once
 
-#include "AvalancheGameViewportClient.h"
+#include "AvaGameViewportClient.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
-#include "AvalancheGameInstance.generated.h"
+#include "AvaGameInstance.generated.h"
 
 class FRenderCommandFence;
 class FSceneViewport;
 class UAvalancheBlueprint;
 class UTextureRenderTarget2D;
 struct FAvaViewportQualitySettings;
-struct FAvalancheInstanceSettings;
+struct FAvaInstanceSettings;
 
-struct FAvalancheInstancePlaySettings
+struct FAvaInstancePlaySettings
 {
-	const FAvalancheInstanceSettings& Settings;
+	const FAvaInstanceSettings& Settings;
 	FName ChannelName;
 	UTextureRenderTarget2D* RenderTarget;
 	FIntPoint ViewportSize;
@@ -24,23 +24,23 @@ struct FAvalancheInstancePlaySettings
 };
 
 UCLASS(DisplayName = "Motion Design Game Instance")
-class AVALANCHE_API UAvalancheGameInstance : public UGameInstance
+class AVALANCHE_API UAvaGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
 
 public:
 	/**
-	 * Creates a new Avalanche Game instance from the given Avalanche Template Asset.
-	 * Supported asset types: UAvalancheBlueprint, UWorld (Level).
+	 * Creates a new Motion Design Game instance from the given Motion Design Template Asset.
+	 * Supported asset types: UMotion DesignBlueprint, UWorld (Level).
 	 *
-	 * Remark: For Avalanche Blueprints, the instanced embedded RemoteControlPreset will be registered
+	 * Remark: For Motion Design Blueprints, the instanced embedded RemoteControlPreset will be registered
 	 * under the name of the outer Package Name. It is thus required that each instance be contained in
 	 * a unique package to avoid stomping the registered RCPs.
 	 */
-	static UAvalancheGameInstance* Create(UObject* InOuter);
+	static UAvaGameInstance* Create(UObject* InOuter);
 
-	// Legacy - will create and load an avalanche blueprint.
-	static UAvalancheGameInstance* Create(UObject* InOuter, const TSoftObjectPtr<UAvalancheBlueprint>& InAvalancheBlueprintTemplate);
+	// Legacy - will create and load a Motion Design blueprint.
+	static UAvaGameInstance* Create(UObject* InOuter, const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprintTemplate);
 	
 	/** Create the game world */
 	bool CreateWorld();
@@ -50,12 +50,12 @@ public:
 	UWorld* GetPlayWorld() const { return PlayWorld.Get(); }
 
 	// Legacy
-	bool LoadAvalancheBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InSourceAvalancheBlueprint);
+	bool LoadMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint);
 
 	// Legacy
-	void BeginPlayAvalancheBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InSourceAvalancheBlueprint, const FAvalancheInstancePlaySettings& InWorldPlaySettings);
+	void BeginPlayMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint, const FAvaInstancePlaySettings& InWorldPlaySettings);
 	
-	bool BeginPlayWorld(const FAvalancheInstancePlaySettings& InWorldPlaySettings);
+	bool BeginPlayWorld(const FAvaInstancePlaySettings& InWorldPlaySettings);
 
 	/**
 	 * The end play is normally requested to be done on the next Tick(). This is to
@@ -104,14 +104,14 @@ public:
 	 * @brief Get the currently playing game viewport client.
 	 * @remark Only valid within a BeginPlay()/EndPlay() scope. Null otherwise.
 	 */
-	UAvalancheGameViewportClient* GetAvalancheGameViewportClient() const { return ViewportClient; }
+	UAvaGameViewportClient* GetAvaGameViewportClient() const { return ViewportClient; }
 	
 	/*
-	 * @return The Avalanche Blueprint used in play. Can be null if called outside play
+	 * @return The Motion Design Blueprint used in play. Can be null if called outside play
 	 */
-	UAvalancheBlueprint* GetAvalancheBlueprint() const { return ManagedAvalancheBlueprint; }
+	UAvalancheBlueprint* GetMotionDesignBlueprint() const { return ManagedBlueprint; }
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAvaGameInstanceEvent, UAvalancheGameInstance* /*InGameInstance*/, FName /*InChannelName*/);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAvaGameInstanceEvent, UAvaGameInstance* /*InGameInstance*/, FName /*InChannelName*/);
 
 	/** Event called on EndPlayWorld(). */
 	static FOnAvaGameInstanceEvent& GetOnEndPlay() { return OnEndPlay; }
@@ -121,7 +121,7 @@ public:
 
 	/*
 	 * Mark the current frame as a frame in which an asset was loaded synchronously.
-	 * When an asset has been loaded synchronously (i.e. avalanche blueprint), it will cause a
+	 * When an asset has been loaded synchronously (i.e. Motion Design Blueprint), it will cause a
 	 * large delta seconds to occur on the next tick. By marking that particular frame it can be
 	 * used on the next tick to clamp the delta seconds to avoid animations skipping by the
 	 * amount of the sync load time.
@@ -141,24 +141,24 @@ protected:
 	//~ End UObject
 
 	/*
-	 * A Soft Ptr to the Source Avalanche (i.e. the actual asset).
+	 * A Soft Ptr to the Source Motion Design (i.e. the actual asset).
 	 * It's a Soft Ptr because it can become stale if it's only a Weak Object Ptr
 	 * and we want to reload it if that happens
 	 */
-	TSoftObjectPtr<UAvalancheBlueprint> SourceAvalancheBlueprint;
+	TSoftObjectPtr<UAvalancheBlueprint> SourceBlueprint;
 
 	/*
-	 * The Managed Avalanche, a Duplication of the Source Avalanche when Begin Play was called.
+	 * The Managed Motion Design Blueprint. A Duplication of the Source Blueprint when Begin Play was called.
 	 * This shouldn't be GCd while in play, as it contains Animation and other data used during play.
 	 */
 	UPROPERTY(Transient)
-	TObjectPtr<UAvalancheBlueprint> ManagedAvalancheBlueprint;
+	TObjectPtr<UAvalancheBlueprint> ManagedBlueprint;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UWorld> PlayWorld;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UAvalancheGameViewportClient> ViewportClient;
+	TObjectPtr<UAvaGameViewportClient> ViewportClient;
 
 	TSharedPtr<FSceneViewport> Viewport;
 

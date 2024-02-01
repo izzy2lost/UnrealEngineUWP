@@ -1519,7 +1519,7 @@ void FAvaMediaPlaybackClient::OnAvaMediaSettingsChanged(UObject*, struct FProper
 {
 	ApplyAvaMediaSettings();
 	SendBroadcastSettingsUpdate(AllServerAddresses);
-	SendAvalancheInstanceSettingsUpdate(AllServerAddresses);
+	SendAvaInstanceSettingsUpdate(AllServerAddresses);
 }
 
 void FAvaMediaPlaybackClient::OnPreSavePackage(UPackage* InPackage, FObjectPreSaveContext InObjectSaveContext)
@@ -1650,10 +1650,10 @@ void FAvaMediaPlaybackClient::SendBroadcastSettingsUpdate(const TArray<FMessageA
 	SendRequest(BroadcastSettingsUpdate, InRecipients, EMessageFlags::Reliable);
 }
 
-void FAvaMediaPlaybackClient::SendAvalancheInstanceSettingsUpdate(const TArray<FMessageAddress>& InRecipients)
+void FAvaMediaPlaybackClient::SendAvaInstanceSettingsUpdate(const TArray<FMessageAddress>& InRecipients)
 {
-	FAvalancheInstanceSettingsUpdate* InstanceSettingsUpdate = FMessageEndpoint::MakeMessage<FAvalancheInstanceSettingsUpdate>();
-	InstanceSettingsUpdate->InstanceSettings = UAvalancheMediaSettings::Get().AvalancheInstanceSettings;
+	FAvaInstanceSettingsUpdate* InstanceSettingsUpdate = FMessageEndpoint::MakeMessage<FAvaInstanceSettingsUpdate>();
+	InstanceSettingsUpdate->InstanceSettings = UAvalancheMediaSettings::Get().AvaInstanceSettings;
 	SendRequest(InstanceSettingsUpdate, InRecipients, EMessageFlags::Reliable);
 }
 
@@ -1693,7 +1693,7 @@ void FAvaMediaPlaybackClient::SendClientInfo(const FMessageAddress& InRecipient)
 	
 	SendUserDataUpdate({InRecipient});
 	SendBroadcastSettingsUpdate({InRecipient});
-	SendAvalancheInstanceSettingsUpdate({InRecipient});
+	SendAvaInstanceSettingsUpdate({InRecipient});
 	SendStatCommand(FString(), true, {InRecipient});	// Send empty stat command, will just send current states.
 }
 

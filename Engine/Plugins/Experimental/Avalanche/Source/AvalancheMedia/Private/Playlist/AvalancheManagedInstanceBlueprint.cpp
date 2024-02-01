@@ -93,7 +93,7 @@ FAvalancheManagedInstanceBlueprint::~FAvalancheManagedInstanceBlueprint()
 		ManagedAvalancheBlueprintPackage->ClearDirtyFlag();
 	}
 
-	// Simplified version of UAvalancheGameInstance::EndPlay()
+	// Simplified version of UAvaGameInstance::EndPlay()
 	if (ManagedWorld)
 	{
 		GEngine->DestroyWorldContext(ManagedWorld.Get());

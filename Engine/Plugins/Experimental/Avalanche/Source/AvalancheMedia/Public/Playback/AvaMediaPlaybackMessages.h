@@ -4,7 +4,7 @@
 
 #include "AvaMediaDefines.h"
 #include "Channel/AvaMediaOutputInfo.h"
-#include "Framework/AvalancheInstanceSettings.h"
+#include "Framework/AvaInstanceSettings.h"
 #include "PixelFormat.h"
 #include "Playback/AvalancheRemoteControlValues.h"
 #include "Playback/Nodes/Events/Actions/AvalancheAnimations.h"
@@ -208,12 +208,12 @@ struct AVALANCHEMEDIA_API FAvaDeviceProviderDataRequest : public FAvaMediaPlayba
  *	Request for the client to replicate it's Motion Design instance settings to the server.
  **/
 USTRUCT()
-struct AVALANCHEMEDIA_API FAvalancheInstanceSettingsUpdate : public FAvaMediaPlaybackClientMessageBase
+struct AVALANCHEMEDIA_API FAvaInstanceSettingsUpdate : public FAvaMediaPlaybackClientMessageBase
 {
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FAvalancheInstanceSettings InstanceSettings;
+	FAvaInstanceSettings InstanceSettings;
 };
 
 UENUM()

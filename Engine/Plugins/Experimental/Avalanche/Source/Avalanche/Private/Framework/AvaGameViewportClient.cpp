@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Framework/AvalancheGameViewportClient.h"
+#include "Framework/AvaGameViewportClient.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraPhotography.h"
@@ -47,12 +47,12 @@ static UCanvas* GetCanvasByName(FName CanvasName)
 	return *FoundCanvas;
 }
 
-UAvalancheGameViewportClient::UAvalancheGameViewportClient()
+UAvaGameViewportClient::UAvaGameViewportClient()
 	: CameraManager(MakeShared<FAvaCameraManager>())
 {
 }
 
-void UAvalancheGameViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
+void UAvaGameViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 {
 	// Override the Canvas Render Target with ours
 	if (RenderTarget.IsValid())
@@ -284,23 +284,23 @@ void UAvalancheGameViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 	CameraManager->ResetCameraCut();
 }
 
-bool UAvalancheGameViewportClient::IsStatEnabled(const FString& InName) const
+bool UAvaGameViewportClient::IsStatEnabled(const FString& InName) const
 {
 	// The IAvaModule holds the runtime stats. We want them persistent across all viewports.
 	return IAvaModule::Get().IsRuntimeStatEnabled(InName);
 }
 
-void UAvalancheGameViewportClient::SetCameraCutThisFrame()
+void UAvaGameViewportClient::SetCameraCutThisFrame()
 {
 	bCameraCutThisFrame = true;
 }
 
-void UAvalancheGameViewportClient::SetRenderTarget(UTextureRenderTarget2D* InRenderTarget)
+void UAvaGameViewportClient::SetRenderTarget(UTextureRenderTarget2D* InRenderTarget)
 {
 	RenderTarget = InRenderTarget;
 }
 
-bool UAvalancheGameViewportClient::CalcSceneViewInitOptions(FSceneViewInitOptions& OutInitOptions
+bool UAvaGameViewportClient::CalcSceneViewInitOptions(FSceneViewInitOptions& OutInitOptions
 	, FViewport* InViewport
 	, FViewElementDrawer* ViewDrawer
 	, int32 StereoViewIndex)
@@ -369,7 +369,7 @@ bool UAvalancheGameViewportClient::CalcSceneViewInitOptions(FSceneViewInitOption
 	return true;
 }
 
-bool UAvalancheGameViewportClient::GetProjectionData(FViewport* InViewport
+bool UAvaGameViewportClient::GetProjectionData(FViewport* InViewport
 	, FSceneViewProjectionData& ProjectionData
 	, int32 StereoViewIndex) const
 {
@@ -463,7 +463,7 @@ bool UAvalancheGameViewportClient::GetProjectionData(FViewport* InViewport
 	return true;
 }
 
-FSceneView* UAvalancheGameViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily
+FSceneView* UAvaGameViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily
 	, FViewport* InViewport
 	, FViewElementDrawer* ViewDrawer
 	, int32 StereoViewIndex)

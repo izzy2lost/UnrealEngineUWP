@@ -6,7 +6,7 @@
 #include "AvaOutlinerUtils.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 
 #if WITH_EDITOR
 #include "AvaOutliner.h"

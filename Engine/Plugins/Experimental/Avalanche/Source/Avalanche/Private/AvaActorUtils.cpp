@@ -8,7 +8,7 @@
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "GameFramework/Actor.h"
 #include "Math/MathFwd.h"
 #include "Math/OrientedBox.h"

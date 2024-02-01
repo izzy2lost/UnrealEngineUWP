@@ -10,7 +10,7 @@
 
 class UAvaMediaPlayableGroup;
 class UAvaMediaPlayableGroupManager;
-class UAvalancheGameInstance;
+class UAvaGameInstance;
 
 /**
  * Manager for the shared playable groups per channel.
@@ -96,7 +96,7 @@ protected:
 	virtual void BeginDestroy() override;
 	//~ End UObject
 
-	void OnGameInstanceEndPlay(UAvalancheGameInstance* InGameInstance, FName InChannelName);
+	void OnGameInstanceEndPlay(UAvaGameInstance* InGameInstance, FName InChannelName);
 
 	void UpdateLevelStreaming();
 	

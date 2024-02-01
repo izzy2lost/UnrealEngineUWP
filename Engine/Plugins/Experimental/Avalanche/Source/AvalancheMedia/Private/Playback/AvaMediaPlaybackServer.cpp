@@ -128,7 +128,7 @@ void FAvaMediaPlaybackServer::Init(const FString& InAssignedServerName)
 	.Handling<FAvaMediaStatCommand>(this, &FAvaMediaPlaybackServer::HandleStatCommand)
 	.Handling<FAvaDeviceProviderDataRequest>(this, &FAvaMediaPlaybackServer::HandleDeviceProviderDataRequest)
 	.Handling<FAvaMediaUpdateClientInfo>(this, &FAvaMediaPlaybackServer::HandleUpdateClientInfo)
-	.Handling<FAvalancheInstanceSettingsUpdate>(this, &FAvaMediaPlaybackServer::HandleAvalancheInstanceSettingsUpdate)
+	.Handling<FAvaInstanceSettingsUpdate>(this, &FAvaMediaPlaybackServer::HandleAvaInstanceSettingsUpdate)
 	.Handling<FAvaMediaPlaybackPackageEvent>(this, &FAvaMediaPlaybackServer::HandlePackageEvent)
 	.Handling<FAvaMediaPlaybackAssetStatusRequest>(this, &FAvaMediaPlaybackServer::HandlePlaybackAssetStatusRequest)
 	.Handling<FAvaMediaPlaybackRequest>(this, &FAvaMediaPlaybackServer::HandlePlaybackRequest)
@@ -372,13 +372,13 @@ const IAvalancheBroadcastSettings* FAvaMediaPlaybackServer::GetBroadcastSettings
 	return nullptr;
 }
 
-const FAvalancheInstanceSettings* FAvaMediaPlaybackServer::GetAvalancheInstanceSettings() const
+const FAvaInstanceSettings* FAvaMediaPlaybackServer::GetAvaInstanceSettings() const
 {
 	// Returns the first client we have.
 	// Todo: In case we have multiple clients, we will need a smarter way to handle this.
 	for (const TPair<FString, TSharedPtr<FClientInfo>>& Client : Clients)
 	{
-		return &Client.Value->AvalancheInstanceSettings;
+		return &Client.Value->AvaInstanceSettings;
 	}
 	return nullptr;
 }
@@ -489,10 +489,10 @@ void FAvaMediaPlaybackServer::HandleUpdateClientInfo(const FAvaMediaUpdateClient
 	ClientInfo.MediaSyncManager->SetEnable(bShouldEnableSyncManager);
 }
 
-void FAvaMediaPlaybackServer::HandleAvalancheInstanceSettingsUpdate(const FAvalancheInstanceSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+void FAvaMediaPlaybackServer::HandleAvaInstanceSettingsUpdate(const FAvaInstanceSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
 {
 	FClientInfo& ClientInfo = GetOrCreateClientInfo(InMessage.ClientName, InContext->GetSender());
-	ClientInfo.AvalancheInstanceSettings = InMessage.InstanceSettings;
+	ClientInfo.AvaInstanceSettings = InMessage.InstanceSettings;
 	
 	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("Received new instance settings from client \"%s\"."), *InMessage.ClientName);
 }

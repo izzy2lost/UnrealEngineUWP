@@ -41,7 +41,7 @@ public:
 	virtual void StopGameModeLocalPlaybackServer() override;
 	virtual bool IsGameModeLocalPlaybackServerLaunched() const override;
 	virtual const IAvalancheBroadcastSettings& GetBroadcastSettings() const override;
-	virtual const FAvalancheInstanceSettings& GetAvalancheInstanceSettings() const override;
+	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const override;
 	virtual FAvaMediaPlaybackManager& GetLocalPlaybackManager() const override;
 	virtual FAvalancheManagedInstanceCache& GetManagedInstanceCache() const override;
 	virtual bool IsAvaMediaSyncProviderFeatureAvailable() const override;

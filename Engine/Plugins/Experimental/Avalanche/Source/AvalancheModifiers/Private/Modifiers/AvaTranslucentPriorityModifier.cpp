@@ -7,7 +7,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineUtils.h"
-#include "Framework/AvalancheGameInstance.h"
+#include "Framework/AvaGameInstance.h"
 #include "Modifiers/ActorModifierCoreBase.h"
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
 

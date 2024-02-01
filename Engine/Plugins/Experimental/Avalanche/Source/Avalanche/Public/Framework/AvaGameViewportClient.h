@@ -5,7 +5,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Viewport/AvaCameraManager.h"
 #include "SceneTypes.h"
-#include "AvalancheGameViewportClient.generated.h"
+#include "AvaGameViewportClient.generated.h"
 
 class AAvaViewportCameraActor;
 class FPrimitiveComponentId;
@@ -16,12 +16,12 @@ struct FSceneViewInitOptions;
 struct FSceneViewProjectionData;
 
 UCLASS(DisplayName = "Motion Design Game Viewport Client")
-class AVALANCHE_API UAvalancheGameViewportClient : public UGameViewportClient
+class AVALANCHE_API UAvaGameViewportClient : public UGameViewportClient
 {
 	GENERATED_BODY()
 	
 public:
-	UAvalancheGameViewportClient();
+	UAvaGameViewportClient();
 
 	//~ Begin FViewportClient
 	virtual void Draw(FViewport* Viewport,FCanvas* Canvas) override;
