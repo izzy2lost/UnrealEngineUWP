@@ -131,23 +131,27 @@ FTG_Texture FTG_Variant::GetTexture(FTG_EvaluationContext* InContext, FTG_Textur
 
 	FLinearColor Color;
 	FString Name;
+	BufferFormat TexelFormat = BufferFormat::Byte;
 
 	if (IsColor())
 	{
 		Name = FTG_Evaluation::GColorToTextureAutoConv_Name;
 		Color = Data.Get<FLinearColor>();
+		TexelFormat = BufferFormat::Byte;
 	}
 	else if (IsVector())
 	{
 		Name = FTG_Evaluation::GColorToTextureAutoConv_Name;
 		FVector4f Vec = Data.Get<FVector4f>();
 		Color = FLinearColor((float)Vec.X, (float)Vec.Y, (float)Vec.Z, (float)Vec.W);
+		TexelFormat = BufferFormat::Half;
 	}
 	else if (IsScalar())
 	{
 		Name = FTG_Evaluation::GFloatToTextureAutoConv_Name;
 		float Value = Data.Get<float>();
 		Color = FLinearColor(Value, Value, Value, Value);
+		TexelFormat = BufferFormat::Half;
 	}
 	else
 	{
@@ -177,7 +181,7 @@ FTG_Texture FTG_Variant::GetTexture(FTG_EvaluationContext* InContext, FTG_Textur
 			return FTG_Texture::GetMagenta();
 	}
 
-	BufferDescriptor Desc = !DesiredDesc ? T_FlatColorTexture::GetFlatColorDesc(Name) : *DesiredDesc;
+	BufferDescriptor Desc = !DesiredDesc ? T_FlatColorTexture::GetFlatColorDesc(Name, TexelFormat) : *DesiredDesc;
 	TiledBlobPtr Output = T_FlatColorTexture::Create(InContext->Cycle, Desc, Color, InContext->TargetId);
 
 	return Output;
