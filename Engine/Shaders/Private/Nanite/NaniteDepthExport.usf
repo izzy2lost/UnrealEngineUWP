@@ -158,14 +158,14 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 
 				if (bWriteCustomStencil)
 				{
-					uint CustomStencilMask = (PrimitiveData.CustomStencilValueAndMask >> 8u) & 0xFFu;
+					uint CustomStencilMask = PrimitiveData.CustomStencilValueAndMask & 0xFF00u;
 					if (CustomStencilMask == 0)
 					{
 						// "Default" mask value of 0 means depth pass = replace, depth fail = keep
 						// TODO: Proper support for ignore-depth, bitwise-or modes (requires a separate 32-bit target)
-						CustomStencilMask = 0xFFu;
+						CustomStencilMask = 0xFF00u;
 					}
-
+					CustomStencilMask = CustomStencilMask >> 8u;
 					SceneStencilValue = PrimitiveData.CustomStencilValueAndMask & CustomStencilMask;
 				}
 				else 
