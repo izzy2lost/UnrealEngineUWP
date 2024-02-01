@@ -701,7 +701,7 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->RadiosityTexelTraceParameters = RadiosityTexelTraceParameters;
 #if RHI_RAYTRACING
 		PassParameters->HardwareRayTracingThreadGroupSize = Lumen::UseHardwareInlineRayTracing(*FirstView.Family) ?
-			FLumenRadiosityHardwareRayTracingCS::GetThreadGroupSize().X :
+			FLumenRadiosityHardwareRayTracingCS::GetThreadGroupSize(FirstView.GetShaderPlatform()).X :
 			FLumenRadiosityHardwareRayTracingRGS::GetThreadGroupSize().X;
 #else
 		PassParameters->HardwareRayTracingThreadGroupSize = 1;

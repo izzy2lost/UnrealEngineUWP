@@ -192,29 +192,34 @@ void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(const FGlo
 	if (bInlineRayTracing)
 	{
 		OutEnvironment.SetDefine(TEXT("LUMEN_HARDWARE_INLINE_RAYTRACING"), 1);
-		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 		OutEnvironment.CompilerFlags.Add(CFLAG_InlineRayTracing);
 	}
 }
 
-void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchSize Size, FShaderCompilerEnvironment& OutEnvironment)
+void FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize Size, bool UseThreadGroupSize64, FShaderCompilerEnvironment& OutEnvironment)
 {
 	if (DispatchSize == Lumen::ERayTracingShaderDispatchSize::DispatchSize1D)
 	{
 		OutEnvironment.SetDefine(TEXT("UE_RAY_TRACING_DISPATCH_1D"), 1);
 	}
+
+	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
+	if (bInlineRayTracing && !UseThreadGroupSize64)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
+	}
 }
 
-FIntPoint FLumenHardwareRayTracingShaderBase::GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize ShaderDispatchSize)
+FIntPoint FLumenHardwareRayTracingShaderBase::GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType ShaderDispatchType, Lumen::ERayTracingShaderDispatchSize ShaderDispatchSize, bool UseThreadGroupSize64)
 {
-	// Current inline ray tracing implementation requires 1:1 mapping between thread groups and waves and only supports wave32 mode.
+	// Current inline ray tracing implementation requires 1:1 mapping between thread groups and waves.
 	const bool bInlineRayTracing = ShaderDispatchType == Lumen::ERayTracingShaderDispatchType::Inline;
 	if (bInlineRayTracing)
 	{
 		switch (ShaderDispatchSize)
 		{
-		case Lumen::ERayTracingShaderDispatchSize::DispatchSize2D: return FIntPoint(8, 4);
-		case Lumen::ERayTracingShaderDispatchSize::DispatchSize1D: return FIntPoint(32, 1);
+		case Lumen::ERayTracingShaderDispatchSize::DispatchSize2D: return UseThreadGroupSize64 ? FIntPoint(8, 8) : FIntPoint(8, 4);
+		case Lumen::ERayTracingShaderDispatchSize::DispatchSize1D: return UseThreadGroupSize64 ? FIntPoint(64, 1) : FIntPoint(32, 1);
 		default:
 			checkNoEntry();
 		}
@@ -236,6 +241,10 @@ bool FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(const FGlobalS
 	}
 }
 
+bool FLumenHardwareRayTracingShaderBase::UseThreadGroupSize64(EShaderPlatform ShaderPlatform)
+{
+	return !Lumen::UseThreadGroupSize32() && RHISupportsWaveSize64(ShaderPlatform);
+}
 
 namespace Lumen
 {

@@ -134,4 +134,7 @@ public:
 	// Returns the profile name to look up for a given feature level on a platform
 	static bool SupportsProfileChecks();
 	static FString GetVulkanProfileNameForFeatureLevel(ERHIFeatureLevel::Type FeatureLevel, bool bRaytracing);
+
+	// Returns the shader stages for which we need support for subgroup ops.
+	static VkShaderStageFlags RequiredWaveOpsShaderStageFlags(VkShaderStageFlags VulkanDeviceShaderStageFlags) { return VulkanDeviceShaderStageFlags; }
 };

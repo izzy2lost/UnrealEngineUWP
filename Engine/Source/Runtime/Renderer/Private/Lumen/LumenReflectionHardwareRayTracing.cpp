@@ -123,7 +123,7 @@ class FLumenReflectionHardwareRayTracing : public FLumenHardwareRayTracingShader
 	class FHairStrandsOcclusionDim : SHADER_PERMUTATION_BOOL("DIM_HAIRSTRANDS_VOXEL");
 	class FRecursiveReflectionTraces : SHADER_PERMUTATION_BOOL("RECURSIVE_REFLECTION_TRACES");
 	class FRecursiveRefractionTraces : SHADER_PERMUTATION_BOOL("RECURSIVE_REFRACTION_TRACES");
-	using FPermutationDomain = TShaderPermutationDomain<FRayTracingPass, FWriteDataForHitLightingPass, FRadianceCache, FHairStrandsOcclusionDim, FRecursiveReflectionTraces, FRecursiveRefractionTraces>;
+	using FPermutationDomain = TShaderPermutationDomain<FRayTracingPass, FWriteDataForHitLightingPass, FRadianceCache, FHairStrandsOcclusionDim, FRecursiveReflectionTraces, FRecursiveRefractionTraces, FUseThreadGroupSize64>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
@@ -366,7 +366,7 @@ void DispatchRayGenOrComputeShader(
 	FRDGBufferRef CompactedTraceTexelData = CompactedTraceParameters.CompactedTraceTexelData->Desc.Buffer;
 
 	FRDGBufferRef HardwareRayTracingIndirectArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("Lumen.Reflection.CompactTracingIndirectArgs"));
-	FIntPoint OutputThreadGroupSize = bInlineRayTracing ? FLumenReflectionHardwareRayTracingCS::GetThreadGroupSize() : FLumenReflectionHardwareRayTracingRGS::GetThreadGroupSize();
+	FIntPoint OutputThreadGroupSize = bInlineRayTracing ? FLumenReflectionHardwareRayTracingCS::GetThreadGroupSize(View.GetShaderPlatform()) : FLumenReflectionHardwareRayTracingRGS::GetThreadGroupSize();
 	DispatchLumenReflectionHardwareRayTracingIndirectArgs(GraphBuilder, View, HardwareRayTracingIndirectArgsBuffer, CompactedTraceTexelAllocator, OutputThreadGroupSize, ComputePassFlags);
 
 	FLumenReflectionHardwareRayTracing::FParameters* Parameters = GraphBuilder.AllocParameters<FLumenReflectionHardwareRayTracing::FParameters>();
@@ -419,31 +419,27 @@ void DispatchRayGenOrComputeShader(
 
 	if (bInlineRayTracing)
 	{
-		TShaderRef<FLumenReflectionHardwareRayTracingCS> ComputeShader = View.ShaderMap->GetShader<FLumenReflectionHardwareRayTracingCS>(PermutationVector);
-
-		FComputeShaderUtils::AddPass(
+		FLumenReflectionHardwareRayTracingCS::AddLumenRayTracingDispatchIndirect(
 			GraphBuilder,
 			RDG_EVENT_NAME("ReflectionHardwareRayTracingCS %s", *RayTracingPassName),
-			ComputePassFlags,
-			ComputeShader,
+			View,
+			PermutationVector,
 			Parameters,
 			Parameters->HardwareRayTracingIndirectArgs,
-			0);		
+			0,
+			ComputePassFlags);	
 	}
 	else
 	{
 		const bool bUseMinimalPayload = RayTracingPass != LumenReflections::ERayTracingPass::HitLighting;
-
-		TShaderRef<FLumenReflectionHardwareRayTracingRGS> RayGenerationShader = View.ShaderMap->GetShader<FLumenReflectionHardwareRayTracingRGS>(PermutationVector);		
-
-		AddLumenRayTraceDispatchIndirectPass(
+		FLumenReflectionHardwareRayTracingRGS::AddLumenRayTracingDispatchIndirect(
 			GraphBuilder,
 			RDG_EVENT_NAME("ReflectionHardwareRayTracingRGS %s", *RayTracingPassName),
-			RayGenerationShader,
+			View,
+			PermutationVector, 
 			Parameters,
 			Parameters->HardwareRayTracingIndirectArgs,
 			0,
-			View,
 			bUseMinimalPayload);
 	}
 }
