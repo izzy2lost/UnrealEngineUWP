@@ -13,6 +13,14 @@ FRigUnit_ResolveConnector_Execute()
 	if(const FRigBaseElement* ResolvedElement = ExecuteContext.Hierarchy->Find(Connector))
 	{
 		Result = ResolvedElement->GetKey();
+		if(SkipSocket && Result.IsValid() && Result.Type == ERigElementType::Socket)
+		{
+			const FRigElementKey ParentOfSocket = ExecuteContext.Hierarchy->GetFirstParent(Result);
+			if(ParentOfSocket.IsValid())
+			{
+				Result = ParentOfSocket;
+			}
+		}
 	}
 }
 
