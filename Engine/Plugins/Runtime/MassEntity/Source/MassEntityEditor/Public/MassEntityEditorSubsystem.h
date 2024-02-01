@@ -41,6 +41,8 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 	// USubsystem interface end
+
+	void InitializeMassInternals();
 	void StopAndCleanUp();
 
 	friend UE::Mass::FMassEditorTickFunction;
@@ -60,4 +62,5 @@ protected:
 	FOnPostTick OnPostTickDelegate;
 	
 	bool IsProcessing{ false };
+	FDelegateHandle OnSettingsInitializedHandle;
 };

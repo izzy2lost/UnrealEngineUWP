@@ -424,13 +424,13 @@ void UMassCompositeProcessor::BuildFlatProcessingGraph(TConstArrayView<FMassProc
 #endif // WITH_MASSENTITY_DEBUG
 }
 
-void UMassCompositeProcessor::UpdateProcessorsCollection(TArrayView<FMassProcessorOrderInfo> InOutOrderedProcessors)
+void UMassCompositeProcessor::UpdateProcessorsCollection(TArrayView<FMassProcessorOrderInfo> InOutOrderedProcessors, EProcessorExecutionFlags InWorldExecutionFlags)
 {
 	TArray<TObjectPtr<UMassProcessor>> ExistingProcessors(ChildPipeline.GetMutableProcessors());
 	ChildPipeline.Reset();
 
 	const UWorld* World = GetWorld();
-	const EProcessorExecutionFlags WorldExecutionFlags = World ? UE::Mass::Utils::GetProcessorExecutionFlagsForWorld(*World) : EProcessorExecutionFlags::All;
+	const EProcessorExecutionFlags WorldExecutionFlags = UE::Mass::Utils::DetermineProcessorExecutionFlags(World, InWorldExecutionFlags);
 	const FMassProcessingPhaseConfig& PhaseConfig = GET_MASS_CONFIG_VALUE(GetProcessingPhaseConfig(ProcessingPhase));
 
 	for (FMassProcessorOrderInfo& ProcessorInfo : InOutOrderedProcessors)
@@ -545,5 +545,5 @@ UMassCompositeProcessor* UMassCompositeProcessor::FindOrAddGroupProcessor(FName 
 void UMassCompositeProcessor::Populate(TConstArrayView<FMassProcessorOrderInfo> OrderedProcessors)
 {
 	TArray<FMassProcessorOrderInfo> OrderedProcessorsCopy(OrderedProcessors);
-	UpdateProcessorsCollection(OrderedProcessorsCopy);
+	UpdateProcessorsCollection(OrderedProcessorsCopy, EProcessorExecutionFlags::None);
 }

@@ -21,13 +21,10 @@ namespace UE::Mass::ObserverManager
 	{
 	// a helper function to reduce code duplication in FMassObserverManager::Initialize
 	template<typename TBitSet, typename TPointerType>
-	void SetUpObservers(FMassEntityManager& EntityManager, const TMap<TPointerType, FMassProcessorClassCollection>& RegisteredObserverTypes, TBitSet& ObservedBitSet, FMassObserversMap& Observers)
+	void SetUpObservers(FMassEntityManager& EntityManager, const EProcessorExecutionFlags WorldExecutionFlags, UObject& Owner
+		, const TMap<TPointerType, FMassProcessorClassCollection>& RegisteredObserverTypes, TBitSet& ObservedBitSet, FMassObserversMap& Observers)
 	{
 		ObservedBitSet.Reset();
-		UObject* Owner = EntityManager.GetOwner();
-		check(Owner);
-		const UWorld* World = Owner->GetWorld();
-		const EProcessorExecutionFlags WorldExecutionFlags = World ? UE::Mass::Utils::GetProcessorExecutionFlagsForWorld(*World) : EProcessorExecutionFlags::All;
 
 		for (auto It : RegisteredObserverTypes)
 		{
@@ -43,10 +40,10 @@ namespace UE::Mass::ObserverManager
 			{
 				if (ProcessorClass->GetDefaultObject<UMassProcessor>()->ShouldExecute(WorldExecutionFlags))
 				{
-					Pipeline.AppendProcessor(ProcessorClass, *Owner);
+					Pipeline.AppendProcessor(ProcessorClass, Owner);
 				}
 			}
-			Pipeline.Initialize(*Owner);
+			Pipeline.Initialize(Owner);
 		}
 	};
 	} // Private
@@ -72,11 +69,16 @@ void FMassObserverManager::Initialize()
 	// instantiate initializers
 	const UMassObserverRegistry& Registry = UMassObserverRegistry::Get();
 
+	UObject* Owner = EntityManager.GetOwner();
+	check(Owner);
+	const UWorld* World = Owner->GetWorld();
+	const EProcessorExecutionFlags WorldExecutionFlags = UE::Mass::Utils::DetermineProcessorExecutionFlags(World);
+
 	using UE::Mass::ObserverManager::Private::SetUpObservers;
 	for (int i = 0; i < (int)EMassObservedOperation::MAX; ++i)
 	{
-		SetUpObservers(EntityManager, *Registry.FragmentObservers[i], ObservedFragments[i], FragmentObservers[i]);
-		SetUpObservers(EntityManager, *Registry.TagObservers[i], ObservedTags[i], TagObservers[i]);
+		SetUpObservers(EntityManager, WorldExecutionFlags, *Owner, *Registry.FragmentObservers[i], ObservedFragments[i], FragmentObservers[i]);
+		SetUpObservers(EntityManager, WorldExecutionFlags, *Owner, *Registry.TagObservers[i], ObservedTags[i], TagObservers[i]);
 	}
 }
 

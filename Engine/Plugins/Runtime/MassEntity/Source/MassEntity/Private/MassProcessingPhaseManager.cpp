@@ -144,10 +144,11 @@ void FMassProcessingPhase::Initialize(FMassProcessingPhaseManager& InPhaseManage
 //----------------------------------------------------------------------//
 // FPhaseProcessorConfigurator
 //----------------------------------------------------------------------//
-void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor* const> DynamicProcessors,
-	const TSharedPtr<FMassEntityManager>& EntityManager, FMassProcessorDependencySolver::FResult* OutOptionalResult)
+void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor* const> DynamicProcessors
+	, EProcessorExecutionFlags InWorldExecutionFlags, const TSharedPtr<FMassEntityManager>& EntityManager
+	, FMassProcessorDependencySolver::FResult* OutOptionalResult)
 {
-	FMassRuntimePipeline TmpPipeline;
+	FMassRuntimePipeline TmpPipeline(InWorldExecutionFlags);
 	TmpPipeline.CreateFromArray(PhaseConfig.ProcessorCDOs, ProcessorOuter);
 	for (UMassProcessor* Processor : DynamicProcessors)
 	{
@@ -163,7 +164,7 @@ void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor
 
 	Solver.ResolveDependencies(SortedProcessors, EntityManager, OutOptionalResult);
 
-	PhaseProcessor.UpdateProcessorsCollection(SortedProcessors);
+	PhaseProcessor.UpdateProcessorsCollection(SortedProcessors, InWorldExecutionFlags);
 
 #if WITH_MASSENTITY_DEBUG
 	for (const FMassProcessorOrderInfo& ProcessorOrderInfo : SortedProcessors)
@@ -197,12 +198,14 @@ void FMassPhaseProcessorConfigurationHelper::Configure(TArrayView<UMassProcessor
 //----------------------------------------------------------------------//
 void FMassProcessingPhaseManager::Initialize(UObject& InOwner, TConstArrayView<FMassProcessingPhaseConfig> InProcessingPhasesConfig, const FString& DependencyGraphFileName)
 {
-#if WITH_EDITOR
 	UWorld* World = InOwner.GetWorld();
+#if WITH_EDITOR
 	const bool bCreateProcessorGraphPreview = (World != nullptr) && (World->IsEditorWorld() && !World->IsGameWorld());
 #endif // WITH_EDITOR
 	Owner = &InOwner;
 	ProcessingPhasesConfig = InProcessingPhasesConfig;
+
+	ProcessorExecutionFlags = UE::Mass::Utils::DetermineProcessorExecutionFlags(World, ProcessorExecutionFlags);
 
 	for (int PhaseAsInt = 0; PhaseAsInt < int(EMassProcessingPhase::MAX); ++PhaseAsInt)
 	{		
@@ -234,7 +237,9 @@ void FMassProcessingPhaseManager::Initialize(UObject& InOwner, TConstArrayView<F
 			Result.DependencyGraphFileName = DependencyGraphFileName;
 			FMassPhaseProcessorConfigurationHelper Configurator(*PhaseProcessor, ProcessingPhasesConfig[PhaseAsInt], InOwner, EMassProcessingPhase(PhaseAsInt));
 			Configurator.bIsGameRuntime = false;
-			Configurator.Configure({}, /*EntityManager=*/nullptr, &Result);
+			// passing EProcessorExecutionFlags::All here to gather all available processors since bCreateProcessorGraphPreview 
+			// is true when we want to preview processors that might be available at runtime.
+			Configurator.Configure({}, EProcessorExecutionFlags::All, /*EntityManager=*/nullptr, &Result);
 		}
 #endif // WITH_EDITOR
 	}
@@ -397,7 +402,7 @@ void FMassProcessingPhaseManager::OnPhaseStart(const FMassProcessingPhase& Phase
 			GraphBuildState.LastResult.Reset();
 
 			FMassPhaseProcessorConfigurationHelper Configurator(*PhaseProcessor, ProcessingPhasesConfig[PhaseAsInt], *Owner.Get(), Phase.Phase);
-			Configurator.Configure(DynamicProcessors, EntityManager, &GraphBuildState.LastResult);
+			Configurator.Configure(DynamicProcessors, ProcessorExecutionFlags, EntityManager, &GraphBuildState.LastResult);
 
 			GraphBuildState.bInitialized = true;
 
