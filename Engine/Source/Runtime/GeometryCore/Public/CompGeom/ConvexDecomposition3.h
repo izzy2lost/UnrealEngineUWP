@@ -493,14 +493,18 @@ public:
 			{
 				return 0;
 			}
-			double MaxDist = HullPlanes[0].DistanceTo(Pt);
+			double MaxDist = -FMathd::MaxReal;
 			for (int32 Idx = 0; Idx < NumPlanes; Idx++)
 			{
 				const FPlane3d& Plane = HullPlanes[Idx];
+				if (Plane.Normal == FVector3d::ZeroVector)
+				{
+					continue;
+				}
 				double Dist = Plane.DistanceTo(Pt);
 				MaxDist = FMath::Max(Dist, MaxDist);
 			}
-			return -MaxDist;
+			return MaxDist == -FMathd::MaxReal ? 0 : -MaxDist;
 		}
 
 		// Helper to create hull after InternalGeo is set
