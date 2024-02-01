@@ -195,11 +195,14 @@ namespace Jupiter.Implementation
 				startBucketTime = DateTime.FromFileTimeUtc(bucket);
 				if (startBucketTime < oldCutoff)
 				{
-					// attempting to use a old bucket, this will not exist anymore so will break here
-					yield break;
+					// attempting to use a old bucket, this will not exist anymore so we reset back to the oldest timestamp we have
+					DateTime oldestTimestamp = DateTime.UtcNow.AddSeconds(-1 * _settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+					startBucketTime = oldestTimestamp;
 				}
-
-				yield return bucket;
+				else
+				{
+					yield return bucket;
+				}
 			}
 			else
 			{
