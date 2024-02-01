@@ -14,6 +14,7 @@ namespace UE::DMX
 	enum class EDMXConflictMonitorStatus : uint8
 	{
 		Idle,
+		Paused,
 		OK,
 		Conflict
 	};

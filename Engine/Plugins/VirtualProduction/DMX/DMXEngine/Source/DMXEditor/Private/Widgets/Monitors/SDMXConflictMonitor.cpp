@@ -252,7 +252,7 @@ namespace UE::DMX
 
 		bIsPaused = true;
 		SetCanTick(false);
-		Status = EDMXConflictMonitorStatus::Idle;
+		Status = EDMXConflictMonitorStatus::Paused;
 	}
 
 	void SDMXConflictMonitor::Stop()
