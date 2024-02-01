@@ -6,6 +6,7 @@
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Replication/Editor/Model/PropertyUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/ClientName/SHorizontalClientList.h"
@@ -14,10 +15,10 @@
 
 #include "Algo/AnyOf.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "ScopedTransaction.h"
-#include "Styling/SlateTypes.h"
 #include "Widgets/Input/SComboButton.h"
+#include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
+#include "Styling/SlateTypes.h"
 
 #define LOCTEXT_NAMESPACE "SAssignPropertyComboBox"
 
@@ -25,7 +26,7 @@ namespace UE::MultiUserClient
 {
 	namespace AssignPropertyComboBox
 	{
-		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, FConcertPropertyChain DisplayedProperty, const TArray<FSoftObjectPath>& EditedObjects)
+		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<FSoftObjectPath>& EditedObjects)
 		{
 			TArray<FGuid> Clients;
 			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FReplicationClient& Client)
@@ -49,7 +50,7 @@ namespace UE::MultiUserClient
 	TOptional<FString> SAssignPropertyComboBox::GetDisplayString(
 		const TSharedRef<IConcertClient>& LocalConcertClient,
 		const FReplicationClientManager& ClientManager,
-		FConcertPropertyChain DisplayedProperty,
+		const FConcertPropertyChain& DisplayedProperty,
 		const TArray<FSoftObjectPath>& EditedObjects)
 	{
 		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
@@ -67,7 +68,7 @@ namespace UE::MultiUserClient
 	    FReplicationClientManager& InClientManager
 	)
 	{
-		Editor = InEditor;
+		Editor = MoveTemp(InEditor);
 		ConcertClient = MoveTemp(InConcertClient);
 		ClientManager = &InClientManager;
 		
@@ -97,7 +98,7 @@ namespace UE::MultiUserClient
 		RefreshContentBoxContent();
 	}
 	
-	void SAssignPropertyComboBox::RefreshContentBoxContent()
+	void SAssignPropertyComboBox::RefreshContentBoxContent() const
 	{
 		ClientListWidget->RefreshList(
 			AssignPropertyComboBox::GetDisplayedClients(*ClientManager, Property, EditedObjects)
@@ -206,11 +207,11 @@ namespace UE::MultiUserClient
 				{
 					EditModel->AddObjects({ ObjectPath.ResolveObject() });
 				}
-				
-				if (EditModel->ContainsObjects({ ObjectPath }))
-				{
-					EditModel->AddProperties(ObjectPath, { Property });
-				}
+
+				const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
+				TArray<FConcertPropertyChain> AddedProperties { Property };
+				ConcertClientSharedSlate::PropertyUtils::AppendAdditionalPropertiesToAdd(ClassPath, AddedProperties);
+				EditModel->AddProperties(ObjectPath, AddedProperties);
 			}
 		}
 		

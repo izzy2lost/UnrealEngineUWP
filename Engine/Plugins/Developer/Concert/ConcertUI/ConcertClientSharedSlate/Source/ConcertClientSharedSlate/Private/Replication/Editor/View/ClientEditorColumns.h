@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/ClientReplicationWidgetDelegates.h"
 #include "Replication/Editor/View/PredefinedReplicationColumns.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
 #include "Templates/SharedPointer.h"
@@ -30,6 +31,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	 *
 	 * @param Viewer Used to determine which objects are currently selected (and being edited by the checkbox)
 	 * @param Model Used to actually edit the object to properties mapping
+	 * @param ExtendPropertiesDelegate Delegate to determine additional properties to add when the property checkbox is checked.
 	 * @param IsEnabledDelegate Determines whether the checkbox is enabled
 	 * @param DisabledToolTipText Tooltip to display when IsEnabledDelegate returns false
 	 * @param ColumnWidth Width to use for the column
@@ -38,6 +40,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ReplicatesColumns(
 		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
 		TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Model,
+		FExtendProperties ExtendPropertiesDelegate = {},
 		ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate = {},
 		TAttribute<FText> DisabledToolTipText = {},
 		const float ColumnWidth = 20.f,

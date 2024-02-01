@@ -33,7 +33,8 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 			bool bIsChecked,
 			const FConcertPropertyChain& PropertyChain,
 			const ConcertSharedSlate::IReplicationStreamViewer& Viewer,
-			ConcertSharedSlate::IEditableReplicationStreamModel& Model
+			ConcertSharedSlate::IEditableReplicationStreamModel& Model,
+			const FExtendProperties& ExtendPropertiesDelegate
 			)
 		{
 			const TArray PropertyAsArray{ PropertyChain };
@@ -60,7 +61,10 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 						// FYI: This should always be a subobject because actors are in the view beforehand (this checkbox is created in response to clicking the actor)
 						Model.AddObjects({ Object });
 					}
-					Model.AddProperties(Path, PropertyAsArray);
+
+					TArray<FConcertPropertyChain> PropertiesToAdd = PropertyAsArray;
+					ExtendPropertiesDelegate.ExecuteIfBound(Path, PropertiesToAdd);
+					Model.AddProperties(Path, PropertiesToAdd);
 				}
 			}
 			else
@@ -86,6 +90,7 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ReplicatesColumns(
 		TAttribute<ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
 		TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Model,
+		FExtendProperties ExtendPropertiesDelegate,
 		ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FReplicatedPropertyData>::FIsEnabled IsEnabledDelegate,
 		TAttribute<FText> DisabledToolTipText,
 		const float ColumnWidth,
@@ -105,13 +110,13 @@ namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property
 					return ensure(ViewerPin && ModelPin) ? Private::OnGetPropertyCheckboxState(Data.GetProperty(), *ViewerPin, *ModelPin) : ECheckBoxState::Undetermined;
 				}),
 				FPropertyColumnDelegates::FOnColumnCheckboxChanged::CreateLambda(
-				[Viewer, Model](bool bIsChecked, const FReplicatedPropertyData& Data)
+				[Viewer, Model, ExtendPropertiesDelegate = MoveTemp(ExtendPropertiesDelegate)](bool bIsChecked, const FReplicatedPropertyData& Data)
 				{
 					const IReplicationStreamViewer* ViewerPin = Viewer.Get();
 					const TSharedPtr<IEditableReplicationStreamModel> ModelPin = Model.Pin();
 					if (ensure(ViewerPin && ModelPin))
 					{
-						Private::OnPropertyCheckboxChanged(bIsChecked, Data.GetProperty(), *ViewerPin, *ModelPin);
+						Private::OnPropertyCheckboxChanged(bIsChecked, Data.GetProperty(), *ViewerPin, *ModelPin, ExtendPropertiesDelegate);
 					}
 				}),
 				FPropertyColumnDelegates::FGetToolTipText::CreateLambda(

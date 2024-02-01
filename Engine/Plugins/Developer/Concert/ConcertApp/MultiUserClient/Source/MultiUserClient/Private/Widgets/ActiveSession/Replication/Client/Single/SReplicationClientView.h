@@ -5,6 +5,7 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+struct FConcertPropertyChain;
 class IConcertClient;
 class FMenuBuilder;
 
@@ -50,6 +51,8 @@ namespace UE::MultiUserClient
 
 		/** Adds additional entries to the context menu for the object tree view. */
 		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<FSoftObjectPath> ContextObjects) const;
+		/** Adds additional properties, e.g. struct child properties. */
+		void ExtendPropertiesToAdd(const FSoftObjectPath& Object, TArray<FConcertPropertyChain>& InOutPropertiesToAdd) const;
 		
 		/** Called when any of the streams change. */
 		void OnModelChanged() const;
