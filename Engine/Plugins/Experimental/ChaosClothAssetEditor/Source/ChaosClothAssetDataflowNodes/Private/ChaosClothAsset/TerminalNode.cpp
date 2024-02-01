@@ -94,6 +94,12 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 	{
 		using namespace UE::Chaos::ClothAsset;
 
+		if (RefreshAsset.bRefreshAsset)
+		{
+			bClothCollectionChecksumValid = false;
+			RefreshAsset.bRefreshAsset = false;
+		}
+
 		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = GetCleanedCollectionLodValues(Context);
 		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
 
@@ -112,6 +118,10 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 				Chaos::Softs::FCollectionPropertyFacade Properties(ClothCollections[LODIndex]);
 				Properties.UpdateProperties(InClothCollections[LODIndex].ToSharedPtr());
 			}
+
+			// Asset must be resaved
+			ClothAsset->MarkPackageDirty();
+
 			return;
 		}
 
@@ -215,6 +225,9 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 
 		// Rebuild the asset static data
 		ClothAsset->Build(&LODTransitionDataCache);
+
+		// Asset must be resaved
+		ClothAsset->MarkPackageDirty();
 	}
 }
 

@@ -7,6 +7,16 @@
 #include "ChaosClothAsset/ClothLodTransitionDataCache.h"
 #include "TerminalNode.generated.h"
 
+/** Refresh structure for push buton customization. */
+USTRUCT()
+struct FChaosClothAssetTerminalNodeRefreshAsset
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Terminal Node Refresh Asset")
+	bool bRefreshAsset = false;
+};
+
 /** Cloth terminal node to generate a cloth asset from a cloth collection. */
 USTRUCT(Meta = (DataflowCloth, DataflowTerminal))
 struct FChaosClothAssetTerminalNode : public FDataflowTerminalNode
@@ -38,6 +48,9 @@ public:
 	/** The number of LODs currently exposed to the node UI. */
 	UPROPERTY()
 	int32 NumLods = 1;
+	/** Refresh the asset even if the ClothCollection hasn't changed to take into account changes in the build code for example. */
+	UPROPERTY(EditAnywhere, Category = "Cloth Asset Terminal")
+	mutable FChaosClothAssetTerminalNodeRefreshAsset RefreshAsset;
 
 	FChaosClothAssetTerminalNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
