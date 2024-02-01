@@ -372,7 +372,7 @@ namespace UnrealBuildTool
 			}
 
 			FileReference FileReference = new FileReference(OldPath);
-			return Line.Replace(OldPath, FileReference.FullName.Replace("\\", "/"));
+			return Line.Replace(OldPath, Utils.MakePathSafeToUseWithCommandLine(FileReference.FullName.Replace("\\", "/")));
 		}
 	}
 }
