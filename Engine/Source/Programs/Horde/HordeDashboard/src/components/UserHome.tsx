@@ -5,7 +5,7 @@ import { action, makeObservable, observable } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import moment from "moment-timezone";
 import { default as React, useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import backend, { useBackend } from "../backend";
 import { GetBisectTaskResponse, GetIssueResponse, GetStepResponse, JobData, JobQuery, JobState, JobStepOutcome, LabelData, LabelOutcome, LabelState, ProjectData, StepData, StreamData } from "../backend/Api";
 import dashboard, { StatusColor } from "../backend/Dashboard";
@@ -1180,6 +1180,11 @@ const UserHomeViewInner: React.FC = () => {
 export const UserHomeView: React.FC = () => {
 
    const windowSize = useWindowSize();
+
+   if (dashboard.user?.dashboardFeatures?.showLandingPage) {
+      return <Navigate to="/docs/Landing.md" replace={true} />
+   }
+   
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
    const { hordeClasses, modeColors } = getHordeStyling();
