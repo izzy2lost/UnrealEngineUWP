@@ -55,7 +55,7 @@ extern CORE_API uint32 GCallStackTracingTlsSlotIndex;
 */
 inline void* CallstackTrace_GetFallbackPlatformReturnAddressData()
 {
-	if (FPlatformTLS::IsValidTlsSlot(GCallStackTracingTlsSlotIndex))
+	if (GCallStackTracingTlsSlotIndex != MAX_uint32)
 		return FPlatformTLS::GetTlsValue(GCallStackTracingTlsSlotIndex);
 	else
 		return nullptr;
@@ -77,7 +77,7 @@ class FCallStackTraceLimitResolveScope
 public:
 	FORCENOINLINE FCallStackTraceLimitResolveScope()
 	{
-		if (FPlatformTLS::IsValidTlsSlot(GCallStackTracingTlsSlotIndex))
+		if (GCallStackTracingTlsSlotIndex != MAX_uint32)
 		{
 			FPlatformTLS::SetTlsValue(GCallStackTracingTlsSlotIndex, PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING());
 		}
@@ -85,7 +85,7 @@ public:
 
 	FORCENOINLINE ~FCallStackTraceLimitResolveScope()
 	{
-		if (FPlatformTLS::IsValidTlsSlot(GCallStackTracingTlsSlotIndex))
+		if (GCallStackTracingTlsSlotIndex != MAX_uint32)
 		{
 			FPlatformTLS::SetTlsValue(GCallStackTracingTlsSlotIndex, nullptr);
 		}

@@ -93,7 +93,7 @@ public:
 	~LockFreeLinkAllocator_TLSCache()
 	{
 		FPlatformTLS::FreeTlsSlot(TlsSlot);
-		TlsSlot = FPlatformTLS::InvalidTlsSlot;
+		TlsSlot = 0;
 	}
 
 	/**

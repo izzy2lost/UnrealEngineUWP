@@ -468,7 +468,7 @@ public:
 	/** Constructor, initializes everything to unusable values. Meant to be called from a "main" thread. **/
 	FTaskThreadBase()
 		: ThreadId(ENamedThreads::AnyThread)
-		, PerThreadIDTLSSlot(FPlatformTLS::InvalidTlsSlot)
+		, PerThreadIDTLSSlot(0xffffffff)
 		, OwnerWorker(nullptr)
 	{
 		NewTasks.Reset(128);

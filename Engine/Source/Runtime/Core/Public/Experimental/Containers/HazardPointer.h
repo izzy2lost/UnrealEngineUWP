@@ -151,7 +151,7 @@ class FHazardPointerCollection
 	TArray<FTlsData*> AllTlsVariables;
 	TArray<FHazardRecordChunk*> HazardRecordBlocks;
 
-	uint32 CollectablesTlsSlot = FPlatformTLS::InvalidTlsSlot;
+	uint32 CollectablesTlsSlot = 0;
 	std::atomic_uint TotalNumHazardRecords{ HazardChunkSize };
 
 	void Collect(TArray<HazardPointer_Impl::FHazardDeleter>& Collectables);
