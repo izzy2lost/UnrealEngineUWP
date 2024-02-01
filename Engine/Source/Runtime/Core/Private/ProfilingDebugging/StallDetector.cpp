@@ -400,7 +400,7 @@ public:
 	~ThreadLocalSlotAcquire()
 	{
 		FPlatformTLS::FreeTlsSlot(Slot);
-		Slot = ~0;
+		Slot = FPlatformTLS::InvalidTlsSlot;
 	}
 
 	uint32 GetSlot()
@@ -409,7 +409,7 @@ public:
 	}
 
 private:
-	uint32 Slot = ~0;
+	uint32 Slot = FPlatformTLS::InvalidTlsSlot;
 };
 static ThreadLocalSlotAcquire ThreadLocalSlot;
 

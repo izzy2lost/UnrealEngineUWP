@@ -27,8 +27,8 @@
  */
 struct FMallocLeakDetectionStatics
 {
-	uint32 ContextsTLSID = 0;
-	uint32 SuppressDetectionCountTLSID = 0;
+	uint32 ContextsTLSID = FPlatformTLS::InvalidTlsSlot;
+	uint32 SuppressDetectionCountTLSID = FPlatformTLS::InvalidTlsSlot;
 
 	FMallocLeakDetectionStatics()
 	{
