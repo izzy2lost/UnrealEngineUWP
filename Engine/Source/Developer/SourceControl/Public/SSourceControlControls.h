@@ -19,10 +19,12 @@ public:
 
 		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatest)
 		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChanges)
+		SLATE_ATTRIBUTE(bool, IsEnabledRestoreAsLatest)
 		SLATE_ATTRIBUTE(bool, IsEnabledSyncLatestSeparator)
 		SLATE_ATTRIBUTE(bool, IsEnabledCheckInChangesSeparator)
 		SLATE_EVENT(FOnClicked, OnClickedSyncLatest)
 		SLATE_EVENT(FOnClicked, OnClickedCheckInChanges)
+		SLATE_EVENT(FOnClicked, OnClickedRestoreAsLatest)
 		SLATE_EVENT(FOnGetContent, OnGenerateKebabMenu)
 
 	SLATE_END_ARGS()
@@ -48,21 +50,27 @@ private:
 	bool IsSourceControlCheckInEnabled() const;
 	bool HasSourceControlChangesToCheckIn() const;
 	EVisibility GetSourceControlCheckInStatusVisibility() const;
+	EVisibility GetSourceControlRestoreAsLatestVisibility() const;
 	EVisibility GetSourceControlCheckInSeparatorVisibility() const;
 	FText GetSourceControlCheckInStatusText() const;
 	FText GetSourceControlCheckInStatusTooltipText() const;
 	const FSlateBrush* GetSourceControlCheckInStatusIcon() const;
 	FReply OnSourceControlCheckInChangesClicked() const;
 
+	/** Restore as latest button */
+	FReply OnSourceControlRestoreAsLatestClicked() const;
+
 	/** Conflicts */
 	void CheckSourceControlStatus();
 public:
 	bool AreConflictsRemaining() const;
 	int32 GetNumConflictsRemaining() const;
+
+	static void SetRewoundMode(bool InRewound) { bRewoundMode = InRewound; }
 	
-	static void SetCheckInChangesDisabledOverride(bool InEnabled) { bStaticDisableCheckInChangesOverride = InEnabled; }
 	static void SetSyncLatestDisabledOverride(bool InEnabled) { bStaticDisableSyncLatestOverride = InEnabled; }
 	static FOnClicked& GetOnSyncLatestClickedStaticOverride() { return OnSyncLatestClickedStaticOverride; }
+	static FOnClicked& GetOnRestoreAsLatestClickedStaticOverride() { return OnRestoreAsLatestClickedStaticOverride; }
 
 private:
 	void OnSourceControlProviderChanged(ISourceControlProvider& OldProvider, ISourceControlProvider& NewProvider);
@@ -72,9 +80,11 @@ private:
 	
 	FOnClicked OnSyncLatestClicked;
 	FOnClicked OnCheckInChangesClicked;
+	FOnClicked OnRestoreAsLatestClicked;
 
 	TAttribute<bool> IsSyncLatestEnabled;
 	TAttribute<bool> IsCheckInChangesEnabled;
+	TAttribute<bool> IsRestoreAsLatestEnabled;
 
 	TAttribute<bool> IsSyncLatestSeparatorEnabled;
 	TAttribute<bool> IsCheckInChangesSeparatorEnabled;
@@ -86,9 +96,11 @@ private:
 	FDelegateHandle SourceControlProviderChangedHandle;
 	FDelegateHandle SourceControlStateChangedHandle;
 
-	static bool bStaticDisableCheckInChangesOverride;
+	static bool bRewoundMode;
+
 	static bool bStaticDisableSyncLatestOverride;
 	static FOnClicked OnSyncLatestClickedStaticOverride;
+	static FOnClicked OnRestoreAsLatestClickedStaticOverride;
 };
 
 #endif // SOURCE_CONTROL_WITH_SLATE

@@ -14,9 +14,10 @@
 
 #define LOCTEXT_NAMESPACE "SSkeinSourceControlWidgets"
 
-bool SSourceControlControls::bStaticDisableCheckInChangesOverride = false;
+bool SSourceControlControls::bRewoundMode = false;
 bool SSourceControlControls::bStaticDisableSyncLatestOverride = false;
 FOnClicked SSourceControlControls::OnSyncLatestClickedStaticOverride;
+FOnClicked SSourceControlControls::OnRestoreAsLatestClickedStaticOverride;
 
 /**
  * Construct this widget
@@ -27,6 +28,7 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 {
 	OnSyncLatestClicked = InArgs._OnClickedSyncLatest;
 	OnCheckInChangesClicked = InArgs._OnClickedCheckInChanges;
+	OnRestoreAsLatestClicked = InArgs._OnClickedRestoreAsLatest;
 
 	IsSyncLatestEnabled = InArgs._IsEnabledSyncLatest;
 	IsCheckInChangesEnabled = InArgs._IsEnabledCheckInChanges;
@@ -68,6 +70,37 @@ void SSourceControlControls::Construct(const FArguments& InArgs)
 				]
 			]
 			.OnClicked(this, &SSourceControlControls::OnSourceControlCheckInChangesClicked)
+		]
+		+ SHorizontalBox::Slot() // Restore as Latest button
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(0.0f, 0.0f, 4.0f, 0.0f))
+		.AutoWidth()
+		[
+			SNew(SButton)
+			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("StatusBar.StatusBarButton"))
+			.ToolTipText(LOCTEXT("RestoreAsLatestTooltipText", "Restore this snapshot to be the latest version of the project for all team members."))
+			.Visibility(this, &SSourceControlControls::GetSourceControlRestoreAsLatestVisibility)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Center)
+				[
+					SNew(SImage)
+					.Image(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.Promote"))
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(5, 0, 0, 0))
+				[
+					SNew(STextBlock)
+					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
+					.Text(LOCTEXT("RestoreAsLatestButtonText", "Restore as Latest"))
+				]
+			]
+			.OnClicked(this, &SSourceControlControls::OnSourceControlRestoreAsLatestClicked)
 		]
 		+SHorizontalBox::Slot() // Check In Kebab Combo button
 		.VAlign(VAlign_Center)
@@ -342,7 +375,7 @@ bool SSourceControlControls::IsSourceControlCheckInEnabled() const
 		return false;
 	}
 
-	return IsCheckInChangesEnabled.Get(true) && !bStaticDisableCheckInChangesOverride;
+	return IsCheckInChangesEnabled.Get(true);
 }
 
 bool SSourceControlControls::HasSourceControlChangesToCheckIn() const
@@ -356,6 +389,11 @@ EVisibility SSourceControlControls::GetSourceControlCheckInStatusVisibility() co
 	{
 		// Always visible in the Slate Viewer
 		return EVisibility::Visible;
+	}
+
+	if (bRewoundMode)
+	{
+		return EVisibility::Collapsed;
 	}
 
 	bool bDisplaySourceControlCheckInStatus = false;
@@ -402,10 +440,6 @@ FText SSourceControlControls::GetSourceControlCheckInStatusTooltipText() const
 	}
 	if (HasSourceControlChangesToCheckIn())
 	{
-		if (bStaticDisableCheckInChangesOverride)
-		{
-			return LOCTEXT("CheckInButtonChangesTooltipTextDisabled", "Check-in disabled while in a rewound state.");
-		}
 		return FText::Format(LOCTEXT("CheckInButtonChangesTooltipText", "Check-in {0} change(s) to this project"), GetNumLocalChanges());
 	}
 	return LOCTEXT("CheckInButtonNoChangesTooltipText", "No Changes to check in for this project");
@@ -443,6 +477,31 @@ FReply SSourceControlControls::OnSourceControlCheckInChangesClicked() const
 		{
 			OnCheckInChangesClicked.Execute();
 		}
+	}
+
+	return FReply::Handled();
+}
+
+/** Restore as Latest */
+
+EVisibility SSourceControlControls::GetSourceControlRestoreAsLatestVisibility() const
+{
+	if (bRewoundMode)
+	{
+		return EVisibility::Visible;
+	}
+	return EVisibility::Collapsed;
+}
+
+FReply SSourceControlControls::OnSourceControlRestoreAsLatestClicked() const
+{
+	if (OnRestoreAsLatestClickedStaticOverride.IsBound())
+	{
+		OnRestoreAsLatestClickedStaticOverride.Execute();
+	}
+	else if (OnRestoreAsLatestClicked.IsBound())
+	{
+		OnRestoreAsLatestClicked.Execute();
 	}
 
 	return FReply::Handled();
