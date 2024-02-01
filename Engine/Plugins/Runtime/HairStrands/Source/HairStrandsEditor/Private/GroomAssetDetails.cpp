@@ -1663,16 +1663,35 @@ void FGroomRenderingDetails::OnGenerateElementForHairGroup(TSharedRef<IPropertyH
 						FText RegenToolTipText = LOCTEXT("GenerateNewCardsTooltip", "Generate new card assets (meshes and textures) using the current procedural settings. NOTE: This will overwrite preexisting card assets for this LOD.");
 						ProceduralGenButtons->AddSlot()
 							.AutoWidth()
+							.Padding(0.0f, 2.0f, 0.0f, 4.0f)
 							[
 								SNew(SButton)
 									.VAlign(VAlign_Center)
 									.HAlign(HAlign_Center)
-									.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+									.ContentPadding(0)
+									.ButtonStyle(FAppStyle::Get(), "Button")
 									.ToolTipText(RegenToolTipText)
 									.OnClicked(this, &FGroomRenderingDetails::OnGenerateCardDataUsingPlugin, GroupIndex)
 									[
-										SNew(SImage)
-											.Image(Brush)
+										SNew(SHorizontalBox)
+										+ SHorizontalBox::Slot()
+										.AutoWidth()
+										.VAlign(VAlign_Center)
+										.HAlign(HAlign_Center)
+										.Padding(-1.0f, 2.0f, 2.0f, 2.0f)
+										[
+											SNew(SImage)
+												.Image(Brush)
+										]
+										+ SHorizontalBox::Slot()
+										.AutoWidth()
+										.VAlign(VAlign_Center)
+										.HAlign(HAlign_Center)
+										.Padding(2.0f, 2.0f, -1.0f, 2.0f)
+										[
+											SNew(STextBlock)
+												.Text(LOCTEXT("GenerateNewCardsButtonText","Generate Hair Cards"))
+										]
 									]
 							];
 					}
