@@ -26,25 +26,56 @@ int32 FFeatureVectorHelper::GetVectorCardinality(EComponentStrippingVector Compo
 	}
 }
 
-void FFeatureVectorHelper::EncodeVector(TArrayView<float> Values, int32 DataOffset, const FVector& Vector, EComponentStrippingVector ComponentStrippingVector)
+void FFeatureVectorHelper::EncodeVector(TArrayView<float> Values, int32 DataOffset, const FVector& Vector, EComponentStrippingVector ComponentStrippingVector, bool bNormalize)
 {
-	switch (ComponentStrippingVector)
+	if (bNormalize)
 	{
-	case EComponentStrippingVector::None:
-		Values[DataOffset + 0] = Vector.X;
-		Values[DataOffset + 1] = Vector.Y;
-		Values[DataOffset + 2] = Vector.Z;
-		break;
-	case EComponentStrippingVector::StripXY:
-		Values[DataOffset + 0] = Vector.Z;
-		break;
-	case EComponentStrippingVector::StripZ:
-		Values[DataOffset + 0] = Vector.X;
-		Values[DataOffset + 1] = Vector.Y;
-		break;
-	default:
-		checkNoEntry();
-		break;
+		FVector NormalizedVector = Vector;
+		switch (ComponentStrippingVector)
+		{
+		case EComponentStrippingVector::None:
+			NormalizedVector.Normalize();
+			Values[DataOffset + 0] = NormalizedVector.X;
+			Values[DataOffset + 1] = NormalizedVector.Y;
+			Values[DataOffset + 2] = NormalizedVector.Z;
+			break;
+		case EComponentStrippingVector::StripXY:
+			NormalizedVector.X = 0.f;
+			NormalizedVector.Y = 0.f;
+			NormalizedVector.Normalize();
+			Values[DataOffset + 0] = NormalizedVector.Z;
+			break;
+		case EComponentStrippingVector::StripZ:
+			NormalizedVector.Z = 0.f;
+			NormalizedVector.Normalize();
+			Values[DataOffset + 0] = NormalizedVector.X;
+			Values[DataOffset + 1] = NormalizedVector.Y;
+			break;
+		default:
+			checkNoEntry();
+			break;
+		}
+	}
+	else
+	{
+		switch (ComponentStrippingVector)
+		{
+		case EComponentStrippingVector::None:
+			Values[DataOffset + 0] = Vector.X;
+			Values[DataOffset + 1] = Vector.Y;
+			Values[DataOffset + 2] = Vector.Z;
+			break;
+		case EComponentStrippingVector::StripXY:
+			Values[DataOffset + 0] = Vector.Z;
+			break;
+		case EComponentStrippingVector::StripZ:
+			Values[DataOffset + 0] = Vector.X;
+			Values[DataOffset + 1] = Vector.Y;
+			break;
+		default:
+			checkNoEntry();
+			break;
+		}
 	}
 }
 
