@@ -363,6 +363,11 @@ void Shutdown()
 	UE_LOG(LogVirtualization, Verbose, TEXT("UE::Virtualization was shutdown"));
 }
 
+FAnalyticsRecordEvent& GetAnalyticsRecordEvent()
+{
+	static FAnalyticsRecordEvent Event;
+	return Event;
+}
 
 bool IVirtualizationSystem::IsInitialized()
 {

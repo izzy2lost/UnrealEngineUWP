@@ -2007,10 +2007,13 @@ void FVirtualizationManager::PullDataFromAllBackends(TArrayView<FPullRequest> Re
 		{
 			return; // All payloads pulled
 		}
-		else if (OnPayloadPullError(RequestsCollection, BackendErrors) != ErrorHandlingResult::Retry)
+		else if (OnPayloadPullError(RequestsCollection, BackendErrors) == ErrorHandlingResult::AcceptFailedPayloads)
 		{
-			return; // Some payloads failed to pull
+			return; // Some payloads failed to pull but we will let the calling code deal with that.
+					// This path should only be taken if legacy error handling is enabled.
 		}
+
+		// The user opted to retry pulling the payloads that failed.
 	}
 }
 
@@ -2109,6 +2112,16 @@ FVirtualizationManager::ErrorHandlingResult FVirtualizationManager::OnPayloadPul
 
 				UnattendedFailureMsgCount++;
 			}
+		}
+
+		{
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Add({ TEXT("UserSelection"), Result == EAppReturnType::No ? TEXT("Quit") : TEXT("Retry")});
+
+			// Need to flush if we are going to quit to make sure that the analytics payloads are sent properly.
+			const EAnalyticsFlags Flags = Result == EAppReturnType::No ? EAnalyticsFlags::Flush : EAnalyticsFlags::None;
+
+			GetAnalyticsRecordEvent().Broadcast(TEXT("Editor.VA.PayloadPullError"), Attributes, Flags);
 		}
 
 		if (Result == EAppReturnType::No)

@@ -80,12 +80,16 @@ SRevisionControlConnectionDialog::FResult SRevisionControlConnectionDialog::RunD
 	TSharedPtr<SWindow> ParentWindow = FSlateApplication::Get().GetActiveTopLevelWindow();
 	FSlateApplication::Get().AddModalWindow(DialogWindow.ToSharedRef(), ParentWindow);
 
-	if (DialogWidget->GetResult() == SRevisionControlConnectionDialog::EResult::Retry)
+	switch (DialogWidget->GetResult())
 	{
-		return FResult(DialogWidget->GetPort(), DialogWidget->GetUserName());
+		case EResult::Retry:
+			return FResult(DialogWidget->GetPort(), DialogWidget->GetUserName());
+		case EResult::Skip:
+			return FResult();
+		default:
+			checkNoEntry();
+			return FResult();
 	}
-
-	return FResult();
 }
 
 void SRevisionControlConnectionDialog::Construct(const FArguments& InArgs, FStringView RevisionControlName, FStringView InConfigSectionName, FStringView CurrentPort, FStringView CurrentUsername, const FText& ErrorMessage)

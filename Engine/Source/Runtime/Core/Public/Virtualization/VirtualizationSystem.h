@@ -529,6 +529,23 @@ CORE_API bool ShouldInitializePreSlate();
  */
 CORE_API void Shutdown();
 
+/** Used to customize the analytics events being sent via the virtualization system */
+enum class EAnalyticsFlags : uint32
+{
+	None = 0,
+	/** The event needs to be completely handled/flushed by the listening systems before returning.
+		Commonly used when sending events right before terminating the process */
+	Flush = 1 << 0
+};
+
+using FAnalyticsRecordEvent = TTSMulticastDelegate<void(const FString&, const TArray<FAnalyticsEventAttribute>&, EAnalyticsFlags)>;
+
+/** 
+ * This event is used by the virtualization system to send analytics events. Telemetry systems that wish to process asset virtualization
+ * events should register to this. Note that these events could be raised on different threads so the listener will need to be threadsafe.
+ */
+CORE_API FAnalyticsRecordEvent& GetAnalyticsRecordEvent();
+
 /** 
  * The base interface for the virtualization system. An Epic maintained version can be found in the Virtualization module.
  * To implement your own, simply derived from this interface and then use the

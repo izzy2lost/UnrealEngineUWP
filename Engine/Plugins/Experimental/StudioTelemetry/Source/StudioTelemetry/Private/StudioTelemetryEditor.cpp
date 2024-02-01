@@ -923,6 +923,21 @@ void FStudioTelemetryEditor::Initialize()
 			});
 		});
 	}
+
+	{
+		UE::Virtualization::GetAnalyticsRecordEvent().AddLambda([](const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes, UE::Virtualization::EAnalyticsFlags Flags)
+			{
+				FStudioTelemetry::Get().RecordEvent(EventName, Attributes);
+
+				if (EnumHasAllFlags(Flags, UE::Virtualization::EAnalyticsFlags::Flush))
+				{
+					if (TSharedPtr<IAnalyticsProvider> Provider = FStudioTelemetry::Get().GetProvider().Pin())
+					{
+						Provider->BlockUntilFlushed(60.0f);
+					}
+				}
+			});
+	}
 }
 
 void FStudioTelemetryEditor::Shutdown()
