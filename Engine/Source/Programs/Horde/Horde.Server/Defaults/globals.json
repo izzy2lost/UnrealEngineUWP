@@ -116,17 +116,17 @@
 	},
 	"pools": [
 		{
-			"name": "Win64",
+			"name": "Win-UE5",
 			"condition": "Platform == 'Win64'",
 			"color": "Blue"
 		},
 		{
-			"name": "Mac",
+			"name": "Mac-UE5",
 			"condition": "Platform == 'Mac'",
 			"color": "Green"
 		},
 		{
-			"name": "Linux",
+			"name": "Linux-UE5",
 			"condition": "Platform == 'Linux'",
 			"color": "Orange"
 		}
