@@ -1597,7 +1597,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 				PF_R8G8B8A8,
 				FClearValueBinding::None,
 				TexCreate_ShaderResource | TexCreate_UAV,
-				HistorySliceSequence.FrameStorageCount);
+				/* ArraySize = */ 1);
 			History.MoireArray = GraphBuilder.CreateTexture(Desc, TEXT("TSR.History.Moire"));
 		}
 	}
@@ -1654,7 +1654,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PrevHistory.GuideArray = GraphBuilder.RegisterExternalTexture(InputHistory.GuideArray);
 		PrevHistory.MoireArray = InputHistory.MoireArray.IsValid()
 			? GraphBuilder.RegisterExternalTexture(InputHistory.MoireArray)
-			: BlackDummy;
+			: BlackArrayDummy;
 
 		int32 ResurrectionFrameRollingIndex = 0;
 		int32 PrevFrameRollingIndex = 0;
@@ -2159,13 +2159,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			}
 			else
 			{
-				FRDGTextureUAVDesc MoireUAVDesc(History.MoireArray);
-				MoireUAVDesc.FirstArraySlice = CurrentFrameSliceIndex;
-				MoireUAVDesc.NumArraySlices = 1;
+				PassParameters->HistoryMoireOutput = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(History.MoireArray));
 
-				PassParameters->HistoryMoireOutput = GraphBuilder.CreateUAV(MoireUAVDesc);
-
-				MoireHistoryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(History.MoireArray, CurrentFrameSliceIndex));
+				MoireHistoryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(History.MoireArray, /* SliceIndex = */ 0));
 			}
 
 			// Output how the history should rejected in the HistoryUpdate
