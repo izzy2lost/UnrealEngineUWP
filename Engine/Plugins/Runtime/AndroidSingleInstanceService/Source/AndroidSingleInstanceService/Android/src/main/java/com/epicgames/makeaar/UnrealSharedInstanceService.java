@@ -37,10 +37,40 @@ public class UnrealSharedInstanceService extends Service {
 	private static final String TAG = "UE_ASIS_SharedInstanceService";
 
 	static int activeTaskID = 0;
+
+	private static Engine engineInstance;
+
+	public static String defaultProjectModuleName = "UNDEFINED_PackageName";
+	//		public static String defaultProjectModuleName = "Alpha_POC";
+	public static String defaultOBBFileLocation = "";//"Gallery3D"; //"Alpha_POC";
+													 //	public final static String defaultProjectModuleName = "";
+													 //		public static String defaultCommandLine = "../../../" + BuildConfig.OBB_MODULE_NAME + "/" + BuildConfig.OBB_MODULE_NAME + ".uproject -nosound -nocrashreports";
+	public static String defaultCommandLine = "-nosound -nocrashreports -dpcvars=a.UseSwappyForFramePacing=0 -tracehost=127.0.0.1 -cpuprofilertrace -statnamedevents -trace=Bookmark,Frame,CPU,GPU,LoadTime,File";
+//		public final static Engine gUnrealEngine = EngineFactory.getInstance(null, defaultOBBFileLocation, defaultProjectModuleName, true);
+//		static Engine gUnrealEngine;
+
+	private static final int APP_CMD_INPUT_CHANGED = 0;
+	private static final int APP_CMD_INIT_WINDOW = 1;
+	private static final int APP_CMD_TERM_WINDOW = 2;
+	private static final int APP_CMD_WINDOW_RESIZED = 3;
+	private static final int APP_CMD_WINDOW_REDRAW_NEEDED = 4;
+	private static final int APP_CMD_CONTENT_RECT_CHANGED = 5;
+	private static final int APP_CMD_GAINED_FOCUS = 6;
+	private static final int APP_CMD_LOST_FOCUS = 7;
+	private static final int APP_CMD_CONFIG_CHANGED = 8;
+	private static final int APP_CMD_LOW_MEMORY = 9;
+	private static final int APP_CMD_START = 10;
+	private static final int APP_CMD_RESUME = 11;
+	private static final int APP_CMD_SAVE_STATE = 12;
+	private static final int APP_CMD_PAUSE = 13;
+	private static final int APP_CMD_STOP = 14;
+	private static final int APP_CMD_DESTROY = 15;
+
 	/**
 	* Target we publish for clients to send messages to IncomingHandler.
 	*/
 	Messenger mMessenger;
+
 	public String Name()
 	{
 		return getApplication().getClass().getSimpleName();
@@ -50,30 +80,28 @@ public class UnrealSharedInstanceService extends Service {
 		return context.getPackageName() +",context=" + context.toString();
 	}
 
+	final static void SetOBB(String commandLineArgs, String obbModuleName, String obbFileLocation)
+	{
+		if (commandLineArgs.isEmpty())
+			commandLineArgs = "-nosound -nocrashreports";
+		if (!obbModuleName.isEmpty()) {
+			defaultProjectModuleName = obbModuleName;
+			defaultCommandLine = "../../../" + defaultProjectModuleName + "/" + defaultProjectModuleName + ".uproject " + commandLineArgs;
+//			if (!obbFileLocation.isEmpty())
+			defaultOBBFileLocation = obbFileLocation;
+		}
+	}
+	
 	public UnrealSharedInstanceService() {
 	}
 
 	/**
 	 * Handler of incoming messages from clients.
 	 */
-	static class IncomingHandler extends Handler implements Engine.IEventCallback
+	class IncomingHandler extends Handler implements Engine.IEventCallback
 	{
 		private Service applicationContext;
-		static private Engine engineInstance;
-
-
-		public static String defaultProjectModuleName = "UNDEFINED_PackageName";
-//		public static String defaultProjectModuleName = "Alpha_POC";
-		public static String defaultOBBFileLocation = "";//"Gallery3D"; //"Alpha_POC";
-		//	public final static String defaultProjectModuleName = "";
-//		public static String defaultCommandLine = "../../../" + BuildConfig.OBB_MODULE_NAME + "/" + BuildConfig.OBB_MODULE_NAME + ".uproject -nosound -nocrashreports";
-		public static String defaultCommandLine = "-nosound -nocrashreports -dpcvars=a.UseSwappyForFramePacing=0 -tracehost=127.0.0.1 -cpuprofilertrace -statnamedevents -trace=Bookmark,Frame,CPU,GPU,LoadTime,File";
-//		public final static Engine gUnrealEngine = EngineFactory.getInstance(null, defaultOBBFileLocation, defaultProjectModuleName, true);
-//		static Engine gUnrealEngine;
-		public static Messenger mServiceReply;
-
-
-
+		public Messenger mServiceReply;
 
 		void Release()
 		{
@@ -81,39 +109,17 @@ public class UnrealSharedInstanceService extends Service {
 			mServiceReply = null;
 		}
 
-		final static void SetOBB(String commandLineArgs, String obbModuleName, String obbFileLocation)
-		{
-			if (commandLineArgs.isEmpty())
-				commandLineArgs = "-nosound -nocrashreports";
-			if (!obbModuleName.isEmpty()) {
-				defaultProjectModuleName = obbModuleName;
-				defaultCommandLine = "../../../" + defaultProjectModuleName + "/" + defaultProjectModuleName + ".uproject " + commandLineArgs;
-//			if (!obbFileLocation.isEmpty())
-				defaultOBBFileLocation = obbFileLocation;
-			}
 
-		}
 
-		private static int APP_CMD_INPUT_CHANGED = 0;
-		private static int APP_CMD_INIT_WINDOW = 1;
-		private static int APP_CMD_TERM_WINDOW = 2;
-		private static int APP_CMD_WINDOW_RESIZED = 3;
-		private static int APP_CMD_WINDOW_REDRAW_NEEDED = 4;
-		private static int APP_CMD_CONTENT_RECT_CHANGED = 5;
-		private static int APP_CMD_GAINED_FOCUS = 6;
-		private static int APP_CMD_LOST_FOCUS = 7;
-		private static int APP_CMD_CONFIG_CHANGED = 8;
-		private static int APP_CMD_LOW_MEMORY = 9;
-		private static int APP_CMD_START = 10;
-		private static int APP_CMD_RESUME = 11;
-		private static int APP_CMD_SAVE_STATE = 12;
-		private static int APP_CMD_PAUSE = 13;
-		private static int APP_CMD_STOP = 14;
-		private static int APP_CMD_DESTROY = 15;
+
 		
 		IncomingHandler(Service context, Intent intent) {
 		    mServiceReply = intent.getParcelableExtra("callback");
 			applicationContext = context;
+
+			Log.w(TAG, "LIFECYCLE: IncomingHandler(constructor intent) - proc=" + Application.getProcessName()
+				+ ", mServiceReply=" + mServiceReply
+				+ ", applicationContext=" + applicationContext);
 
 		    if (intent.hasExtra("obbModuleName"))
 		    {
@@ -123,7 +129,7 @@ public class UnrealSharedInstanceService extends Service {
 			    String commandLineArgs = data.getString("commandLineArgs", "");
 			    SetOBB(commandLineArgs, obbModuleName, obbFileLocation);
     
-			    Log.i("UESharedInstanceServiceNative", "**\tIncomingHandler(constructor intent) - proc=" + Name(context)
+			    Log.i(TAG, "**\tIncomingHandler(constructor intent) - proc=" + Name(context)
 				    + ", obbModuleName=" + obbModuleName
 				    + ", obbFileLocation=" + obbFileLocation);
 		    }
@@ -205,9 +211,8 @@ public class UnrealSharedInstanceService extends Service {
 		}
 
 		@Override
-		public void handleMessage(Message msg) {
-
-
+		public void handleMessage(Message msg) 
+		{
 			if (msg.what == UnrealMessageType.Hello.ordinal()) {
 				Toast.makeText(applicationContext, "hello!", Toast.LENGTH_SHORT).show();
 			}
@@ -216,8 +221,8 @@ public class UnrealSharedInstanceService extends Service {
 				Bundle data = msg.getData();
 				Surface externalSurface = data.getParcelable("surface");
 				int taskId = data.getInt("taskId", 0);
-				boolean bDoStart = data.getBoolean("start", true);
-				boolean bDoResume = data.getBoolean("resume", true);
+				boolean bDoStart = data.getBoolean("start", false);
+				boolean bDoResume = data.getBoolean("resume", false);
 
 				Log.i(TAG, "handleMessage(MSG_ATTACH_EXTERNAL_SURFACE) - proc=" + Name(this.applicationContext)
 					+ ", taskId=" + taskId
@@ -241,9 +246,9 @@ public class UnrealSharedInstanceService extends Service {
 
 				engineInstance.registerEventCallback(this);
 
-				//if (bDoStart)
+				if (bDoStart)
 				{
-					//engineInstance.QueueStart("UnrealMessageType.AttachExternalSurface, taskId=" + taskId); //777
+					engineInstance.QueueStart("UnrealMessageType.AttachExternalSurface, taskId=" + taskId);
 				}
 
 				if (externalSurface != null && externalSurface.isValid() && engineInstance != null) {
@@ -268,7 +273,7 @@ public class UnrealSharedInstanceService extends Service {
 					}
 
 					
-					//if (bDoResume)
+					if (bDoResume)
 					{
 						engineInstance.QueueResume("UnrealMessageType.AttachExternalSurface, taskId=" + taskId);
 					}
@@ -304,8 +309,8 @@ public class UnrealSharedInstanceService extends Service {
 				Bundle data = msg.getData();
 
 				int taskId = data.getInt("taskId", 0);
-				boolean bDoStop = data.getBoolean("stop", true);
-				boolean bDoPause = data.getBoolean("pause", true);
+				boolean bDoStop = data.getBoolean("stop", false);
+				boolean bDoPause = data.getBoolean("pause", false);
 
 				Log.i(TAG, "handleMessage(MSG_DETACH_EXTERNAL_SURFACE) - proc=" + Name(applicationContext)
 					+ ", taskId=" + taskId
@@ -315,21 +320,45 @@ public class UnrealSharedInstanceService extends Service {
 				//if (taskId != 0 && taskId == activeTaskID )
 				{
 
-					//if (bDoPause)
+					if (bDoPause)
 					{
 						engineInstance.QueuePause("UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
 					}
 
-					//if (bDoStop)
+					if (bDoStop)
 					{
 						engineInstance.QueueStop("UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
 					}
 
 					//engineInstance.sendConsoleCommand("t.maxfps 0.001");
-					
+					activeTaskID = 0;
 				}
-				activeTaskID = taskId;
-
+				
+				if (msg.replyTo != null) {
+					Log.w(TAG, "Sending message for detach surface back to message replyTo obj=" + engineInstance);
+					Message replyMsg = Message.obtain();
+					replyMsg.what = Engine.EVENTTYPE_ENGINELOOP_SUSPENDED;
+					replyMsg.arg1 = activeTaskID;
+					try {
+						msg.replyTo.send(replyMsg);
+					} catch (RemoteException e) {
+						throw new RuntimeException(e);
+					}
+				}
+					
+				if (mServiceReply != null && mServiceReply != msg.replyTo)
+				{
+					Log.w(TAG, "Sending message for detach surface back to mServiceReply=" + mServiceReply);
+					Message replyMsg = Message.obtain();
+					replyMsg.what = Engine.EVENTTYPE_ENGINELOOP_SUSPENDED;
+					replyMsg.arg1 = activeTaskID;
+					try {
+						mServiceReply.send(replyMsg);
+					} catch (RemoteException e) {
+						throw new RuntimeException(e);
+					}
+				}
+				
 				//mServiceReply = null;
 				//engineInstance.registerEventCallback(null);
 				//applicationContext.stopSelf();
@@ -347,8 +376,7 @@ public class UnrealSharedInstanceService extends Service {
 
 				engineInstance.QueuePause("UnrealMessageType.StopService, taskId=" + taskId);
 				engineInstance.QueueStop("UnrealMessageType.StopService, taskId=" + taskId);
-				//engineInstance.onPause(engineInstance.getCurrentContextID(), "UnrealMessageType.StopService, taskId=" + taskId);
-				//engineInstance.onStop(engineInstance.getCurrentContextID(), "UnrealMessageType.StopService, taskId=" + taskId);
+
 
 				activeTaskID = taskId;
 
@@ -360,7 +388,10 @@ public class UnrealSharedInstanceService extends Service {
 			{
 				Bundle data = msg.getData();
 				int taskId = data.getInt("taskId", 0);
-				boolean bResume = data.getBoolean("resume", true);
+				boolean bResume = data.getBoolean("resume", false);
+				boolean bCMDResume = data.getBoolean("cmd_resume", false);
+				boolean bCMDFocus = data.getBoolean("cmd_focus", false);
+				boolean bCMDInitWindow = data.getBoolean("cmd_initWindow", false);
 				boolean bCMDMainInit = data.getBoolean("cmd_mainInit", false);
 
 				Log.i(TAG, "handleMessage(MSG_RESUME_SERVICE) - proc=" + Name(applicationContext)
@@ -376,10 +407,26 @@ public class UnrealSharedInstanceService extends Service {
 				}
 				else {
 
-					if (bCMDMainInit)
-						GameActivity.Get().nativeResumeMainInit();
-				}
+					if (bCMDResume)
+					{
+						GameActivityForMakeAAR.nativeAppCommand(APP_CMD_RESUME);
+					}
 
+					if (bCMDFocus)
+					{
+						GameActivityForMakeAAR.nativeAppCommand(APP_CMD_GAINED_FOCUS);
+					}
+
+					if (bCMDInitWindow)
+					{
+						GameActivityForMakeAAR.nativeAppCommand(APP_CMD_INIT_WINDOW);
+					}
+
+					if (bCMDMainInit)
+					{
+						GameActivity.Get().nativeResumeMainInit();
+					}	
+				}
 			}
 			else if (msg.what == UnrealMessageType.TouchEvent.ordinal())
 			{
@@ -406,6 +453,7 @@ public class UnrealSharedInstanceService extends Service {
 		@Override
 		protected void finalize() throws Throwable {
 			super.finalize();
+			Log.e(TAG, "LIFECYCLE: IncomingHandler(finalize) mServiceReply=" + mServiceReply);
 			mServiceReply = null;
 			engineInstance.registerEventCallback(null);
 		}

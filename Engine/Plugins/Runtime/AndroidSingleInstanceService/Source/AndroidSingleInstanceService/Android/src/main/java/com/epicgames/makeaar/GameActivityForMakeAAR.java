@@ -7,9 +7,12 @@ import android.content.ContextWrapper;
 import java.io.File;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.Executor;
 
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
+import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Looper;
 
@@ -22,8 +25,14 @@ import android.content.pm.PackageInfo;
 
 import android.media.AudioManager;
 
+import android.view.Display;
 import android.view.View;
 import android.view.Surface;
+import android.view.Window;
+import android.view.WindowManager;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.epicgames.unreal.GameActivity;
 import com.epicgames.unreal.Logger;
@@ -76,8 +85,69 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 	{
 		return Instance();
 	}
-
 	
+	@Override
+	public  @Nullable Object getSystemService(@NonNull String name) 
+	{
+		return GetCurrentActivityContext().getSystemService(name);
+	}
+
+	@Override
+	public Resources getResources()
+	{
+		return GetCurrentActivityContext().getResources();
+	}
+
+	@Override
+    public @Nullable File getExternalFilesDir(@Nullable String type) 
+	{
+		return GetCurrentActivityContext().getExternalFilesDir(type);
+    }
+
+	@Override
+	public File getFilesDir()
+	{
+		return GetCurrentActivityContext().getFilesDir();
+	}
+
+	@Override
+	public String getPackageName()
+	{
+		return GetCurrentActivityContext().getPackageName();
+	}
+
+	@Override
+	public String getPackageResourcePath()
+	{
+		return GetCurrentActivityContext().getPackageResourcePath();
+	}
+
+	@Override
+	public Executor getMainExecutor()
+	{
+		return GetCurrentActivityContext().getMainExecutor();
+	}
+
+	@Override
+	public @Nullable Display getDisplay()
+	{
+		return GetCurrentActivityContext().getDisplay();
+	}
+
+	@Override
+	public PackageManager getPackageManager()
+	{
+		return GetCurrentActivityContext().getPackageManager();
+	}
+
+	@Override
+	public Context getApplicationContext()
+	{
+		return GetCurrentActivityContext().getApplicationContext();
+	}
+
+
+
 	void setCommandline(String inCommandline)
 	{
 		nativeSetCommandline(inCommandline);
@@ -87,14 +157,6 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 	{
 		return (GameActivityForMakeAAR)_gameActivityInstance;
 	}
-
-	// already present in super call and activity!
-	//public final void runOnUiThread(Runnable action)
-	//{
-	//	assert(activityContext != null);
-	//	activityContext.runOnUiThread(action);
-	//}
-
 
 	@Override
 	protected void RestartApplication(String RestartExtra)
@@ -340,6 +402,10 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 
 	public boolean setActivity(SimpleContextWrapper inActivity, GameActivitySetupInfo gameActivitySetupInfo)
 	{
+
+		// pre super.onCreate {
+		//
+
 		if (activityContext != null)
 		{
 			// we need to shut down the old activity
@@ -357,15 +423,26 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 		}
 		
 
+		assert(_gameActivityInstance != null);
+		bOnCreateCalled = true;
 
-		
-		clipboardManager = gameActivitySetupInfo.clipboardManager;
+		InternalFilesDir = gameActivitySetupInfo.InternalFilesDir;
+		ExternalFilesDir = gameActivitySetupInfo.ExternalFilesDir;
+//$${gameActivityOnCreateBeginningAdditions}$$
+		Logger.RegisterCallback(this);
 
 		// Grab a reference to the asset manager
 		AssetManagerReference = gameActivitySetupInfo.AssetManagerReference;
 
-		InternalFilesDir = gameActivitySetupInfo.InternalFilesDir;
-		ExternalFilesDir = gameActivitySetupInfo.ExternalFilesDir;
+	//
+	//} pre super.onCreate
+	//
+
+		Bundle savedInstanceState = new Bundle();
+		onCreateBody(savedInstanceState);
+
+		
+		clipboardManager = gameActivitySetupInfo.clipboardManager;
 
 		_extrasBundle = gameActivitySetupInfo._extrasBundle;
 
