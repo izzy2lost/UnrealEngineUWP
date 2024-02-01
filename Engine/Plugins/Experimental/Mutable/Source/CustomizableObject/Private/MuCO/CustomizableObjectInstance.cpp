@@ -724,11 +724,7 @@ void UCustomizableObjectInstance::SetBuildParameterDecorations(const bool Value)
 
 bool UCustomizableObjectInstance::GetBuildParameterRelevancy() const
 {
-#if WITH_EDITOR
-	return true;
-#else
-	return Descriptor.bBuildParameterRelevancy;
-#endif
+	return Descriptor.GetBuildParameterRelevancy();
 }
 
 

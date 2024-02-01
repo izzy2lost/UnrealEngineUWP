@@ -434,7 +434,11 @@ void FCustomizableObjectInstanceDescriptor::SetCustomizableObject(UCustomizableO
 
 bool FCustomizableObjectInstanceDescriptor::GetBuildParameterRelevancy() const
 {
+#if WITH_EDITOR
+	return true;
+#else
 	return bBuildParameterRelevancy;
+#endif
 }
 
 
@@ -661,7 +665,7 @@ FString FCustomizableObjectInstanceDescriptor::ToString() const
 	
 	Builder.Appendf(TEXT("CustomizableObject=%s\n"), *CustomizableObject.GetFullName());
 	Builder.Appendf(TEXT("State=%i\n"), State);
-	Builder.Appendf(TEXT("BuildParameterRelevancy=%i\n"), bBuildParameterRelevancy);
+	Builder.Appendf(TEXT("BuildParameterRelevancy=%i\n"), GetBuildParameterRelevancy());
 	Builder.Appendf(TEXT("MinLOD=%i\n"), MinLOD);
 	Builder.Appendf(TEXT("MaxLOD=%i\n"), MaxLOD);
 
