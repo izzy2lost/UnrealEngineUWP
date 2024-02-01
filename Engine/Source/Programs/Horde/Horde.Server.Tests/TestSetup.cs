@@ -488,13 +488,10 @@ namespace Horde.Server.Tests
 			return loggerFactory.CreateLogger<T>();
 		}
 
-		protected async Task<IPool> CreatePoolAsync(string name, CreatePoolConfigOptions options)
+		protected async Task<IPool> CreatePoolAsync(PoolConfig poolConfig)
 		{
-			PoolId poolId = new PoolId(StringId.Sanitize(name));
-#pragma warning disable CS0618 // Type or member is obsolete
-			await PoolCollection.CreateConfigAsync(poolId, name, options);
-#pragma warning restore CS0618 // Type or member is obsolete
-			return await PoolCollection.GetAsync(poolId) ?? throw new NotImplementedException();
+			UpdateConfig(config => config.Pools.Add(poolConfig));
+			return await PoolCollection.GetAsync(poolConfig.Id) ?? throw new NotImplementedException();
 		}
 	}
 	

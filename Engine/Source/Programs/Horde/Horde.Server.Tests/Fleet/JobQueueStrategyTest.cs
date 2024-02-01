@@ -117,7 +117,9 @@ namespace Horde.Server.Tests.Fleet
 		/// <param name="isDowntimeActive"></param>
 		private async Task<(JobQueueStrategy, PoolSizeResult, IPool, List<IAgent> agents)> SetUpJobsAsync(int numBatchesRunning, int numBatchesReady, int numAgents = 8, bool isDowntimeActive = false)
 		{
-			IPool pool = await CreatePoolAsync("bogusPool" + ++s_uniqueId, new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
+			SetConfig(new GlobalConfig());
+
+			IPool pool = await CreatePoolAsync(new PoolConfig { Name = "bogusPool" + ++s_uniqueId, EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			List<IAgent> agents = new();
 			for (int i = 0; i < numAgents; i++)
 			{
@@ -127,7 +129,7 @@ namespace Horde.Server.Tests.Fleet
 			PoolSizeResult poolSize = new (agents.Count, agents.Count, null);
 			
 			string agentTypeName1 = "bogusAgentType" + ++s_uniqueId;
-			Dictionary<string, AgentConfig> agentTypes = new() { {agentTypeName1, new() { Pool = new PoolId(pool.Name) } }, };
+			Dictionary<string, AgentConfig> agentTypes = new() { {agentTypeName1, new() { Pool = pool.Id } }, };
 
 			StreamConfig streamConfig = new StreamConfig { Id = new StreamId("ue5"), Name = "//UE5/Main", AgentTypes = agentTypes };
 
@@ -135,10 +137,7 @@ namespace Horde.Server.Tests.Fleet
 			projectConfig.Id = new ProjectId("ue5");
 			projectConfig.Streams.Add(streamConfig);
 
-			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Projects.Add(projectConfig);
-
-			SetConfig(globalConfig);
+			UpdateConfig(config => config.Projects = new List<ProjectConfig> { projectConfig });
 
 			string nodeForAgentType1 = "bogusNodeOnAgentType" + ++s_uniqueId;
 			IGraph graph = await GraphCollection.AppendAsync(null, new()
