@@ -3,16 +3,13 @@
 #pragma once
 
 #include "DMXProtocolCommon.h"
-
-#include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SCheckBox;
 class SDMXMonitorSourceSelector;
 class SDMXPortSelector;
-
-class SCheckBox;
 class SEditableTextBox;
 class SHorizontalBox;
 

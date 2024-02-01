@@ -4,17 +4,14 @@
 
 #include "DMXProtocolConstants.h"
 #include "DMXProtocolCommon.h"
-
-#include "CoreMinimal.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FDMXRawListener;
 class FDMXSignal;
+class ITableRow;
 class SDMXActivityInUniverse;
 class SDMXMonitorSourceSelector;
-
-class ITableRow;
 class SEditableTextBox;
 template <typename ItemType> class SListView;
 class STableViewBase;

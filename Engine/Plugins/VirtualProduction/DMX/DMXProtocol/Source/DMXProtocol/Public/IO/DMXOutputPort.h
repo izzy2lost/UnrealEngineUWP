@@ -8,13 +8,12 @@
 #include "DMXProtocolCommon.h"
 #include "Containers/Queue.h" 
 #include "HAL/Runnable.h"
+#include "IO/DMXOutputPortConfig.h"
 #include "Misc/ScopeLock.h" 
 #include "Misc/SingleThreadRunnable.h"
 #include "Templates/Atomic.h"
 #include "Tickable.h"
 
-struct FDMXOutputPortConfig;
-struct FDMXOutputPortDestinationAddress;
 class FDMXPortManager;
 class FDMXSignal;
 class IDMXSender;

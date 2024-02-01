@@ -12,6 +12,7 @@
 #include "Interfaces/IDMXProtocol.h"
 #include "IO/DMXInputPort.h"
 #include "IO/DMXOutputPort.h"
+#include "IO/DMXTrace.h"
 #include "Library/DMXEntityController.h"
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXImportGDTF.h"
@@ -327,6 +328,8 @@ void UDMXEntityFixturePatch::SendDMX(TMap<FDMXAttributeName, int32> AttributeMap
 	// Send to the library's output ports
 	if (UDMXLibrary* DMXLibrary = ParentLibrary.Get())
 	{
+		UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibrary->GetFName());
+		UE_DMX_SCOPED_TRACE_SENDDMX(*GetDisplayName());
 		for (const FDMXOutputPortSharedRef& OutputPort : DMXLibrary->GetOutputPorts())
 		{
 			OutputPort->SendDMX(UniverseID, DMXChannelToValueMap);
@@ -912,6 +915,9 @@ bool UDMXEntityFixturePatch::SendMatrixCellValue(const FIntPoint& CellCoordinate
 	{
 		if (const FDMXFixtureMatrix* const FixtureMatrixPtr = GetFixtureMatrix())
 		{
+			UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibrary->GetFName());
+			UE_DMX_SCOPED_TRACE_SENDDMX(*GetDisplayName());
+
 			const int32 DistributedCellIndex = Cache.GetDistributedCellIndex(CellCoordinate);
 			const int32 AbsoluteMatrixStartingChannel = Cache.GetMatrixStartingChannelAbsolute();
 			const int32 AbsoluteCellStartingChannel = AbsoluteMatrixStartingChannel + DistributedCellIndex * Cache.GetCellSize();
@@ -997,6 +1003,8 @@ bool UDMXEntityFixturePatch::SendMatrixCellValueWithAttributeMap(const FIntPoint
 	// Send to the library's output ports
 	if (UDMXLibrary* DMXLibrary = ParentLibrary.Get())
 	{
+		UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibrary->GetFName());
+		UE_DMX_SCOPED_TRACE_SENDDMX(*GetDisplayName());
 		for (const FDMXOutputPortSharedRef& OutputPort : DMXLibrary->GetOutputPorts())
 		{
 			OutputPort->SendDMX(UniverseID, DMXChannelToValueMap);
@@ -1283,6 +1291,8 @@ void UDMXEntityFixturePatch::SendResetDataToAllAttributes(bool bUseDefaultValues
 	}
 
 	// Send to the library's output ports
+	UE_DMX_SCOPED_TRACE_SENDDMX(DMXLibrary->GetFName());
+	UE_DMX_SCOPED_TRACE_SENDDMX(*GetDisplayName());
 	for (const FDMXOutputPortSharedRef& OutputPort : DMXLibrary->GetOutputPorts())
 	{
 		OutputPort->SendDMX(UniverseID, DMXChannelToValueMap);

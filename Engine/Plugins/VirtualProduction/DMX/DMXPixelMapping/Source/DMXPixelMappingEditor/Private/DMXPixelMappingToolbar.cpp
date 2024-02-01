@@ -2,6 +2,7 @@
 
 #include "DMXPixelMappingToolbar.h"
 
+#include "DMXEditorStyle.h"
 #include "DMXPixelMappingEditorCommands.h"
 #include "DMXPixelMappingEditorStyle.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -55,7 +56,7 @@ void FDMXPixelMappingToolbar::ExtendToolbar()
 			FDMXPixelMappingEditorCommands::Get().PlayDMX, 
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.PlayDMX"));
+			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PlayDMX"));
 		
 		PlayMenuEntry.StyleNameOverride = FName("Toolbar.BackplateLeftPlay");
 		PlaySection.AddEntry(PlayMenuEntry);
@@ -65,7 +66,7 @@ void FDMXPixelMappingToolbar::ExtendToolbar()
 			FDMXPixelMappingEditorCommands::Get().PauseDMX,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.PauseDMX"));
+			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.PauseDMX"));
 
 		PauseMenuEntry.StyleNameOverride = FName("Toolbar.BackplateLeft");
 		PlaySection.AddEntry(PauseMenuEntry);
@@ -75,7 +76,7 @@ void FDMXPixelMappingToolbar::ExtendToolbar()
 			FDMXPixelMappingEditorCommands::Get().ResumeDMX,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.ResumeDMX"));
+			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ResumeDMX"));
 
 		ResumeMenuEntry.StyleNameOverride = FName("Toolbar.BackplateLeftPlay");
 		PlaySection.AddEntry(ResumeMenuEntry);
@@ -85,7 +86,7 @@ void FDMXPixelMappingToolbar::ExtendToolbar()
 			FDMXPixelMappingEditorCommands::Get().StopDMX,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FDMXPixelMappingEditorStyle::Get().GetStyleSetName(), "Icons.StopDMX"));
+			FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.StopDMX"));
 
 		StopMenuEntry.StyleNameOverride = FName("Toolbar.BackplateCenterStop");
 		PlaySection.AddEntry(StopMenuEntry);

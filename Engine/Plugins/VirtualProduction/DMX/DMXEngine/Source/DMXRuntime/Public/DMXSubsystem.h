@@ -44,7 +44,7 @@ public:
 
 	/**  Sends DMX Values over the Output Port */
 	UFUNCTION(BlueprintCallable, Category = "DMX")
-	static void SendDMXToOutputPort(FDMXOutputPortReference OutputPortReference, TMap<int32, uint8> ChannelToValueMap, int32 LocalUniverse = 1);
+	static void SendDMXToOutputPort(FDMXOutputPortReference OutputPortReference, TMap<int32, uint8> ChannelToValueMap, int32 LocalUniverse = 1, const FName& SenderName = NAME_None);
 
 	/**  DEPRECATED 4.27 */
 	UFUNCTION(BlueprintCallable, Category = "DMX", meta = (DeprecatedFunction, DeprecationMessage = "Deprecated 4.27. Use GetDMXDataFromInputPort or GetDMXDataFromOutputPort instead."))

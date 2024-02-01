@@ -15,8 +15,10 @@
 #include "Library/DMXEntityFixtureType.h"
 #include "Library/DMXLibrary.h"
 #include "IO/DMXOutputPort.h"
+#include "IO/DMXTrace.h"
 #include "Modulators/DMXModulator.h"
 #include "TextureResource.h"
+#include "UObject/Package.h"
 
 
 DECLARE_CYCLE_STAT(TEXT("Send Fixture Group Item"), STAT_DMXPixelMaping_FixtureGroupItem, STATGROUP_DMXPIXELMAPPING);
@@ -284,6 +286,9 @@ void UDMXPixelMappingFixtureGroupItemComponent::SendDMX()
 	}
 
 	// Send DMX
+	UE_DMX_SCOPED_TRACE_SENDDMX(GetOutermost()->GetFName());
+	UE_DMX_SCOPED_TRACE_SENDDMX(Library->GetFName());
+	UE_DMX_SCOPED_TRACE_SENDDMX(*FixturePatch->GetDisplayName());
 	for (const FDMXOutputPortSharedRef& OutputPort : Library->GetOutputPorts())
 	{
 		OutputPort->SendDMX(FixturePatch->GetUniverseID(), ChannelToValueMap);

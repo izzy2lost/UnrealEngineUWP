@@ -18,10 +18,12 @@
 #include "Components/DMXPixelMappingMatrixCellComponent.h"
 #include "Components/DMXPixelMappingRendererComponent.h"
 #include "IO/DMXOutputPort.h"
+#include "IO/DMXTrace.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXLibrary.h"
 #include "Modulators/DMXModulator.h"
 #include "Templates/DMXPixelMappingComponentTemplate.h"
+#include "UObject/Package.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXPixelMappingMatrixComponent"
@@ -343,6 +345,8 @@ void UDMXPixelMappingMatrixComponent::SendDMX()
 		// Send DMX
 		if (UDMXLibrary* Library = FixturePatch->GetParentLibrary())
 		{
+			UE_DMX_SCOPED_TRACE_SENDDMX(GetOutermost()->GetFName());
+			UE_DMX_SCOPED_TRACE_SENDDMX(Library->GetFName());
 			for (const FDMXOutputPortSharedRef& OutputPort : Library->GetOutputPorts())
 			{
 				OutputPort->SendDMX(FixturePatch->GetUniverseID(), ChannelToValueMap);
