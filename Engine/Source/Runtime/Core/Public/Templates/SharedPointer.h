@@ -1741,7 +1741,13 @@ public:		// @todo: Ideally this would be private, but template sharing problems 
 protected:
 
 	/** Hidden stub constructor */
-	TSharedFromThis() { }
+	TSharedFromThis()
+	{
+		// Cause a compile error if ObjectType is a UObject.
+		int32 UObjectTestOverload(const volatile UObject*);
+		int16 UObjectTestOverload(...);
+		static_assert(sizeof(UObjectTestOverload((ObjectType*)nullptr)) == sizeof(int16), "TSharedFromThis is not supported on UObjects");
+	}
 
 	/** Hidden stub copy constructor */
 	TSharedFromThis( TSharedFromThis const& ) { }
