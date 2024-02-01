@@ -44,6 +44,7 @@ struct TVector3StructOpsTypeTraits : public TStructOpsTypeTraitsBase2<T>
 		WithNetSharedSerialization = true,
 		WithStructuredSerializer = true,
 		WithStructuredSerializeFromMismatchedTag = true,
+		WithSerializer = true,
 	};
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
 };
@@ -294,6 +295,7 @@ struct TStructOpsTypeTraits<FLinearColor> : public TStructOpsTypeTraitsBase2<FLi
 		WithNoInitConstructor = true,
 		WithZeroConstructor = true,
 		WithStructuredSerializer = true,
+		WithSerializer = true,
 	};
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
 };
