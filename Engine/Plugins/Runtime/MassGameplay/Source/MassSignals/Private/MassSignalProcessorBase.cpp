@@ -11,6 +11,7 @@
 UMassSignalProcessorBase::UMassSignalProcessorBase(const FObjectInitializer& ObjectInitializer)
 	: EntityQuery(*this)
 {
+	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 }
 
 void UMassSignalProcessorBase::BeginDestroy()
