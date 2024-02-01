@@ -183,7 +183,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 			EncoderOutputSize,
 			Interactor->GetObservationSchema(),
 			Interactor->GetObservationSchemaElement(),
-			UE::Learning::Random::Int(Seed ^ 0x658868dd));
+			Seed);
 
 		UE_LEARNING_CHECK(EncoderInputSize == ObservationVectorSize);
 		UE_LEARNING_CHECK(EncoderOutputSize == ObservationEncodedVectorSize);
@@ -232,7 +232,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 			PolicyNetwork->NeuralNetworkData = NewObject<ULearningNeuralNetworkData>(PolicyNetwork);
 		}
 
-		UE::NNE::RuntimeBasic::FModelBuilder Builder(UE::Learning::Random::Int(Seed ^ 0x69315bf9));
+		UE::NNE::RuntimeBasic::FModelBuilder Builder;
 
 		const int32 PolicyHiddenLayerSize = PolicySettings.HiddenLayerSize;
 		const int32 PolicyLayerNum = PolicySettings.LayerNum;
@@ -325,7 +325,7 @@ void ULearningAgentsPolicy::SetupPolicy(
 			DecoderOutputSize,
 			Interactor->GetActionSchema(),
 			Interactor->GetActionSchemaElement(),
-			UE::Learning::Random::Int(Seed ^ 0xfa88bb7f));
+			Seed);
 
 		UE_LEARNING_CHECK(DecoderInputSize == ActionEncodedVectorSize);
 		UE_LEARNING_CHECK(DecoderOutputSize == ActionDistributionVectorSize);
@@ -656,7 +656,7 @@ void ULearningAgentsPolicy::RunInference(const float ActionNoiseScale)
 	EncodeObservations();
 	EvaluatePolicy();
 	DecodeAndSampleActions(ActionNoiseScale);
-	Interactor->PerformActions();
+	Interactor->ScatterActions();
 }
 
 void ULearningAgentsPolicy::GetMemoryState(TArray<float>& OutMemoryState, const int32 AgentId) const

@@ -65,7 +65,7 @@ void ULearningAgentsInteractor::SetupInteractor(ULearningAgentsManager* InManage
 	const FName ObservationSchemaUniqueName = MakeUniqueObjectName(this, ULearningAgentsObservationSchema::StaticClass(), TEXT("ObservationSchema"), EUniqueObjectNameOptions::GloballyUnique);
 
 	ObservationSchema = NewObject<ULearningAgentsObservationSchema>(this, ObservationSchemaUniqueName);
-	SpecifyAgentObservation(ObservationSchemaElement, ObservationSchema);
+	SpecifyAgentObservations(ObservationSchemaElement, ObservationSchema);
 
 	if (!ObservationSchema->GetObservationSchema().IsValid(ObservationSchemaElement.SchemaElement))
 	{
@@ -102,7 +102,7 @@ void ULearningAgentsInteractor::SetupInteractor(ULearningAgentsManager* InManage
 	const FName ActionSchemaUniqueName = MakeUniqueObjectName(this, ULearningAgentsActionSchema::StaticClass(), TEXT("ActionSchema"), EUniqueObjectNameOptions::GloballyUnique);
 
 	ActionSchema = NewObject<ULearningAgentsActionSchema>(this, ActionSchemaUniqueName);
-	SpecifyAgentAction(ActionSchemaElement, ActionSchema);
+	SpecifyAgentActions(ActionSchemaElement, ActionSchema);
 
 	if (!ActionSchema->GetActionSchema().IsValid(ActionSchemaElement.SchemaElement))
 	{
@@ -185,42 +185,61 @@ void ULearningAgentsInteractor::OnAgentsReset_Implementation(const TArray<int32>
 	UE::Learning::Array::Set<1, uint64>(ActionVectorIteration, 0, AgentIds);
 }
 
-void ULearningAgentsInteractor::SpecifyAgentObservation_Implementation(FLearningAgentsObservationSchemaElement& OutObservationSchemaElement, ULearningAgentsObservationSchema* InObservationSchema)
+void ULearningAgentsInteractor::SpecifyAgentObservations_Implementation(FLearningAgentsObservationSchemaElement& OutObservationSchemaElement, ULearningAgentsObservationSchema* InObservationSchema)
 {
-	UE_LOG(LogLearning, Error, TEXT("%s: SpecifyAgentObservation function must be overridden!"), *GetName());
+	UE_LOG(LogLearning, Error, TEXT("%s: SpecifyAgentObservations function must be overridden!"), *GetName());
 	OutObservationSchemaElement = FLearningAgentsObservationSchemaElement();
-}
-
-void ULearningAgentsInteractor::GatherAgentObservation_Implementation(FLearningAgentsObservationObjectElement& OutObservationObjectElement, ULearningAgentsObservationObject* InObservationObject, const int32 AgentId)
-{
-	UE_LOG(LogLearning, Error, TEXT("%s: GatherAgentObservation function must be overridden!"), *GetName());
-	OutObservationObjectElement = FLearningAgentsObservationObjectElement();
 }
 
 void ULearningAgentsInteractor::GatherAgentObservations_Implementation(TArray<FLearningAgentsObservationObjectElement>& OutObservationObjectElements, ULearningAgentsObservationObject* InObservationObject, const TArray<int32>& AgentIds)
 {
-	OutObservationObjectElements.Empty(AgentIds.Num());
+	UE_LOG(LogLearning, Error, TEXT("%s: GatherAgentObservations function must be overridden!"), *GetName());
+	OutObservationObjectElements.Empty();
+}
+
+void ULearningAgentsInteractor::GatherAgentObservationsUsingDelegate(
+	TArray<FLearningAgentsObservationObjectElement>& OutObservationElements,
+	ULearningAgentsObservationObject* InObservationObject,
+	const TArray<int32>& AgentIds,
+	const FGatherAgentObservationDelegate& Delegate)
+{
+	if (!Delegate.IsBound())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
+		OutObservationElements.Empty();
+		return;
+	}
+
+	OutObservationElements.Empty(AgentIds.Num());
 	for (const int32 AgentId : AgentIds)
 	{
-		FLearningAgentsObservationObjectElement OutElement;
-		GatherAgentObservation(OutElement, InObservationObject, AgentId);
-		OutObservationObjectElements.Add(OutElement);
+		OutObservationElements.Add(Delegate.Execute(InObservationObject, AgentId));
 	}
 }
 
-void ULearningAgentsInteractor::SpecifyAgentAction_Implementation(FLearningAgentsActionSchemaElement& OutActionSchemaElement, ULearningAgentsActionSchema* InActionSchema)
+void ULearningAgentsInteractor::SpecifyAgentActions_Implementation(FLearningAgentsActionSchemaElement& OutActionSchemaElement, ULearningAgentsActionSchema* InActionSchema)
 {
-	UE_LOG(LogLearning, Error, TEXT("%s: SpecifyAgentAction function must be overridden!"), *GetName());
+	UE_LOG(LogLearning, Error, TEXT("%s: SpecifyAgentActions function must be overridden!"), *GetName());
 	OutActionSchemaElement = FLearningAgentsActionSchemaElement();
 }
 
-void ULearningAgentsInteractor::PerformAgentAction_Implementation(const FLearningAgentsActionObjectElement& InActionObjectElement, const ULearningAgentsActionObject* InActionObject, const int32 AgentId)
+void ULearningAgentsInteractor::ScatterAgentActions_Implementation(const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements, const ULearningAgentsActionObject* InActionObject, const TArray<int32>& AgentIds)
 {
-	UE_LOG(LogLearning, Error, TEXT("%s: PerformAgentAction function must be overridden!"), *GetName());
+	UE_LOG(LogLearning, Error, TEXT("%s: ScatterAgentActions function must be overridden!"), *GetName());
 }
 
-void ULearningAgentsInteractor::PerformAgentActions_Implementation(const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements, const ULearningAgentsActionObject* InActionObject, const TArray<int32>& AgentIds)
+void  ULearningAgentsInteractor::ScatterAgentActionsUsingDelegate(
+	const TArray<FLearningAgentsActionObjectElement>& InActionObjectElements,
+	const ULearningAgentsActionObject* InActionObject,
+	const TArray<int32>& AgentIds,
+	const FScatterAgentActionDelegate& Delegate)
 {
+	if (!Delegate.IsBound())
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
+		return;
+	}
+
 	const int32 AgentNum = AgentIds.Num();
 
 	if (AgentNum != InActionObjectElements.Num())
@@ -231,7 +250,7 @@ void ULearningAgentsInteractor::PerformAgentActions_Implementation(const TArray<
 
 	for (int32 AgentIdx = 0; AgentIdx < AgentNum; AgentIdx++)
 	{
-		PerformAgentAction(InActionObjectElements[AgentIdx], InActionObject, AgentIds[AgentIdx]);
+		Delegate.Execute(InActionObjectElements[AgentIdx], InActionObject, AgentIds[AgentIdx]);
 	}
 }
 
@@ -284,9 +303,9 @@ void ULearningAgentsInteractor::GatherObservations(const UE::Learning::FIndexSet
 	}
 }
 
-void ULearningAgentsInteractor::PerformActions(const UE::Learning::FIndexSet AgentSet)
+void ULearningAgentsInteractor::ScatterActions(const UE::Learning::FIndexSet AgentSet)
 {
-	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsInteractor::PerformActions);
+	UE_LEARNING_TRACE_CPUPROFILER_EVENT_SCOPE(ULearningAgentsInteractor::ScatterActions);
 
 	if (!IsSetup())
 	{
@@ -331,9 +350,9 @@ void ULearningAgentsInteractor::PerformActions(const UE::Learning::FIndexSet Age
 		ActionObjectElements.Add(ActionObjectElement);
 	}
 
-	// Perform Action Objects
+	// Scatter Action Objects
 
-	PerformAgentActions(ActionObjectElements, ActionObject, ValidAgentIds);
+	ScatterAgentActions(ActionObjectElements, ActionObject, ValidAgentIds);
 }
 
 void ULearningAgentsInteractor::GatherObservations()
@@ -346,14 +365,14 @@ void ULearningAgentsInteractor::GatherObservations()
 	GatherObservations(Manager->GetAllAgentSet());
 }
 
-void ULearningAgentsInteractor::PerformActions()
+void ULearningAgentsInteractor::ScatterActions()
 {
 	if (Manager->GetAgentNum() == 0)
 	{
 		UE_LOG(LogLearning, Warning, TEXT("%s: No agents added to Manager."), *GetName());
 	}
 
-	PerformActions(Manager->GetAllAgentSet());
+	ScatterActions(Manager->GetAllAgentSet());
 }
 
 
