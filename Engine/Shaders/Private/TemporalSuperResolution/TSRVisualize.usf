@@ -25,6 +25,9 @@ FScreenTransform OutputPixelPosToScreenPos;
 FScreenTransform ScreenPosToHistoryUV;
 FScreenTransform ScreenPosToInputPixelPos;
 FScreenTransform ScreenPosToInputUV;
+FScreenTransform ScreenPosToMoireHistoryUV;
+float2 MoireHistoryUVBilinearMin;
+float2 MoireHistoryUVBilinearMax;
 float4x4 ClipToResurrectionClip;
 uint2 OutputViewRectMin;
 uint2 OutputViewRectMax;
@@ -210,11 +213,15 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 	// Compute the threshold at which the variation count should quick in
 	const tsr_half TotalVariationCountThreshold = tsr_half(1.0 / (1.0 - pow(1.0 - BlendFinal, tsr_half(FlickeringFramePeriod))));
 
+	// Texture coordinate
+	float2 MoireHistoryUV = ApplyScreenTransform(Ctx.ScreenPos, ScreenPosToMoireHistoryUV);
+	MoireHistoryUV = fastClamp(MoireHistoryUV, MoireHistoryUVBilinearMin, MoireHistoryUVBilinearMax);
+
 	// Texture fetches
 	tsr_half3 OriginalOpaqueInput = InputTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
 	tsr_half  MoireInput = InputMoireLumaTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
 	tsr_half4 OriginalTranslucencyInput = InputSceneTranslucencyTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
-	tsr_half4 MoireHistory = MoireHistoryTexture.SampleLevel(GlobalPointClampedSampler, Ctx.InputUV, 0);
+	tsr_half4 MoireHistory = MoireHistoryTexture.SampleLevel(GlobalPointClampedSampler, MoireHistoryUV, 0);
 	tsr_half DisableAntiFlickering = tsr_half(1.0) - tsr_half(IsMovingMaskTexture[Ctx.InputPixelPos]) * rcp(tsr_half(255.0));
 
 	// Unpack history
