@@ -761,7 +761,6 @@ public:
 	UNREALED_API virtual bool ShouldDrawBrushWireframe(AActor* InActor) override;
 	UNREALED_API virtual void NotifyToolsOfObjectReplacement(const TMap<UObject*, UObject*>& OldToNewInstanceMap) override;
 	UNREALED_API virtual bool ShouldThrottleCPUUsage() const override;
-	UNREALED_API virtual bool IsPropertyColorationColorFeatureActivated() const override;
 	UNREALED_API virtual bool GetPropertyColorationColor(class UObject* Object, FColor& OutColor) override;
 	UNREALED_API virtual bool WorldIsPIEInNewViewport(UWorld* InWorld) override;
 	UNREALED_API virtual void FocusNextPIEWorld(UWorld* CurrentPieWorld, bool previous = false) override;
@@ -1955,17 +1954,7 @@ public:
 	 * @param	CommonBaseClass		The class of object to color.
 	 * @param	PropertyChain		The chain of properties from member to lowest property.
 	 */
-	UNREALED_API virtual void SetPropertyColorationTarget(UWorld* InWorld, const FString& PropertyValue, class FProperty* Property, class UClass* CommonBaseClass, class FEditPropertyChain* PropertyChain);
-
-	/**
-	 * Accessor for current property-based coloration settings.
-	 *
-	 * @param	OutPropertyValue	[out] The property value to color.
-	 * @param	OutProperty			[out] The property to color.
-	 * @param	OutCommonBaseClass	[out] The class of object to color.
-	 * @param	OutPropertyChain	[out] The chain of properties from member to lowest property.
-	 */
-	UNREALED_API virtual void GetPropertyColorationTarget(FString& OutPropertyValue, FProperty*& OutProperty, UClass*& OutCommonBaseClass, FEditPropertyChain*& OutPropertyChain);
+	UNREALED_API virtual void SetPropertyColorationTarget(UWorld* InWorld, const FString& PropertyValue, class FProperty* Property, class UClass* CommonBaseClass, TSharedRef<FEditPropertyChain>* PropertyChain);
 
 	/**
 	 * Selects actors that match the property coloration settings.

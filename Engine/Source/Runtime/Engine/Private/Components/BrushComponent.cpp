@@ -135,11 +135,6 @@ public:
 			}
 		}
 
-		// Get a color for property coloration.
-		FColor NewPropertyColor;
-		GEngine->GetPropertyColorationColor( (UObject*)Component, NewPropertyColor );
-		PropertyColor = NewPropertyColor;
-
 #if WITH_EDITORONLY_DATA
 		if (!Component->GetOutermost()->HasAnyPackageFlags(PKG_FilterEditorOnly))
 		{
@@ -224,10 +219,6 @@ public:
 					if(bInCollisionView)
 					{
 						DrawColor = BrushColor;
-					}
-					else if(View->Family->EngineShowFlags.PropertyColoration)
-					{
-						DrawColor = PropertyColor;
 					}
 					else if(View->Family->EngineShowFlags.ActorColoration)
 					{
@@ -407,7 +398,6 @@ private:
 
 	FColor BrushColor;
 	FLinearColor ActorColor;
-	FColor PropertyColor;
 
 	/** Collision Response of this component**/
 	UBodySetup* BodySetup;

@@ -295,7 +295,6 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	ClampedMinLOD = FMath::Clamp(EffectiveMinLOD, FirstAvailableLOD, RenderData->LODResources.Num() - 1);
 
 	SetWireframeColor(InProxyDesc.GetWireframeColor());
-	SetPropertyColor(FLinearColor(1,1,1));
 
 	// Copy the pointer to the volume data, async building of the data may modify the one on FStaticMeshLODResources while we are rendering
 	DistanceFieldData = RenderData->LODResources[0].DistanceFieldData;
@@ -369,16 +368,6 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	EnableGPUSceneSupportFlags();
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
-	if( GIsEditor )
-	{
-		// Get a color for property coloration.
-		FColor TempPropertyColor;
-		if (GEngine->GetPropertyColorationColor( InProxyDesc.GetObjectForPropertyColoration(), TempPropertyColor ))
-		{
-			SetPropertyColor(TempPropertyColor);
-		}
-	}
-
 	// Setup Hierarchical LOD index
 	enum HLODColors
 	{
@@ -1486,7 +1475,6 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 		// how we should draw the collision for this mesh.
 		const bool bIsWireframeView = EngineShowFlags.Wireframe;
 		const bool bActorColorationEnabled = EngineShowFlags.ActorColoration;
-		const bool bPropertyColorationEnabled = EngineShowFlags.PropertyColoration;
 		const ERHIFeatureLevel::Type FeatureLevel = ViewFamily.GetFeatureLevel();
 
 		for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -1510,11 +1498,7 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 							// If any of the materials are mesh-modifying, we can't use the single merged mesh element of GetWireframeMeshElement()
 							&& !ProxyLODInfo.UsesMeshModifyingMaterials())
 						{
-							FLinearColor ViewWireframeColor( bActorColorationEnabled ? GetPrimitiveColor() : GetWireframeColor() );
-							if ( bPropertyColorationEnabled )
-							{
-								ViewWireframeColor = GetPropertyColor();
-							}
+							const FLinearColor ViewWireframeColor( bActorColorationEnabled ? GetPrimitiveColor() : GetWireframeColor() );
 
 							auto WireframeMaterialInstance = new FColoredMaterialRenderProxy(
 								GEngine->WireframeMaterial->GetRenderProxy(),

@@ -260,8 +260,6 @@ SHOWFLAG_FIXED_IN_SHIPPING(0, ModeWidgets, SFG_Advanced, NSLOCTEXT("UnrealEd", "
 SHOWFLAG_FIXED_IN_SHIPPING(0, Bounds,  SFG_Advanced, NSLOCTEXT("UnrealEd", "BoundsSF", "Bounds"))
 /** Draws each hit proxy in the scene with a different color, for now only available in the editor */
 SHOWFLAG_FIXED_IN_SHIPPING(0, HitProxies, SFG_Developer, NSLOCTEXT("UnrealEd", "HitProxiesSF", "Hit Proxies"))
-/** Render objects with colors based on the property values */
-SHOWFLAG_FIXED_IN_SHIPPING(0, PropertyColoration, SFG_Advanced, NSLOCTEXT("UnrealEd", "PropertyColorationSF", "Property Coloration"))
 /** Draw lines to lights affecting this mesh if its selected. */
 SHOWFLAG_FIXED_IN_SHIPPING(0, LightInfluences, SFG_Advanced, NSLOCTEXT("UnrealEd", "LightInfluencesSF", "Light Influences"))
 /** for the Editor */

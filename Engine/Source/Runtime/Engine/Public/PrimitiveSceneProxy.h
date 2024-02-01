@@ -806,17 +806,13 @@ public:
 #if !UE_BUILD_TEST
 	inline FLinearColor GetWireframeColor() const { return WireframeColor; }
 	inline FLinearColor GetPrimitiveColor() const { return PrimitiveColor; }
-	inline FLinearColor GetPropertyColor() const { return PropertyColor; }
 	inline void SetWireframeColor(const FLinearColor& InWireframeColor) { WireframeColor = InWireframeColor; }
 	inline void SetPrimitiveColor(const FLinearColor& InPrimitiveColor) { PrimitiveColor = InPrimitiveColor; }
-	inline void SetPropertyColor(const FLinearColor& InPropertyColor) { PropertyColor = InPropertyColor; }
 #else
 	inline FLinearColor GetWireframeColor() const { return FLinearColor::White; }
 	inline FLinearColor GetPrimitiveColor() const { return FLinearColor::White; }
-	inline FLinearColor GetPropertyColor() const { return FLinearColor::White; }
 	inline void SetWireframeColor(const FLinearColor& InWireframeColor) {}
 	inline void SetPrimitiveColor(const FLinearColor& InPrimitiveColor) {}
-	inline void SetPropertyColor(const FLinearColor& InPropertyColor) {}
 #endif
 
 	/**
@@ -1119,7 +1115,6 @@ private:
 #if !UE_BUILD_TEST
 	FLinearColor WireframeColor;
 	FLinearColor PrimitiveColor;
-	FLinearColor PropertyColor;
 #endif
 
 	friend class FScene;

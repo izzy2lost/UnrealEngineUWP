@@ -102,12 +102,6 @@ public:
 			bIsActorLocked = false;
 #endif // WITH_EDITORONLY_DATA
 		}
-
-		FColor NewPropertyColor;
-		if (GEngine->GetPropertyColorationColor( (UObject*)InComponent, NewPropertyColor ))
-		{
-			SetPropertyColor(NewPropertyColor);
-		}
 	}
 
 	// FPrimitiveSceneProxy interface.
@@ -181,12 +175,10 @@ public:
 						ColorToUse = FColor::Red;
 					}
 					FLinearColor PrimitiveColorToUse = IsSelected() ? ColorToUse : (FLinearColor)GetPrimitiveColor();
-					FLinearColor PropertyColorToUse = GetPropertyColor();
 
 					ColorToUse.A = 1.0f;
 
-					const FLinearColor& SpriteColor = View->Family->EngineShowFlags.ActorColoration ? PrimitiveColorToUse :
-						( (View->Family->EngineShowFlags.PropertyColoration) ? PropertyColorToUse : ColorToUse );
+					const FLinearColor& SpriteColor = View->Family->EngineShowFlags.ActorColoration ? PrimitiveColorToUse : ColorToUse;
 
 					Collector.GetPDI(ViewIndex)->DrawSprite(
 						Origin,

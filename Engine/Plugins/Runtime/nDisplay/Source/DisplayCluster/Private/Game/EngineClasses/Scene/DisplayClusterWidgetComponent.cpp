@@ -36,10 +36,6 @@ public:
 	{
 		bWillEverBeLit = false;
 
-		FColor NewPropertyColor;
-		GEngine->GetPropertyColorationColor((UObject*)InComponent, NewPropertyColor);
-		SetPropertyColor(NewPropertyColor);
-
 		StaticMeshVertexBuffers.PositionVertexBuffer.Init(1);
 		StaticMeshVertexBuffers.StaticMeshVertexBuffer.Init(1, 1);
 		StaticMeshVertexBuffers.ColorVertexBuffer.Init(1);

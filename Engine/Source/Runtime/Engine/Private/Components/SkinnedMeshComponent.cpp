@@ -1084,13 +1084,6 @@ void USkinnedMeshComponent::DestroyRenderState_Concurrent()
 
 bool USkinnedMeshComponent::RequiresGameThreadEndOfFrameRecreate() const
 {
-#if STATICMESH_ENABLE_DEBUG_RENDERING
-	if (GIsEditor && GEngine->IsPropertyColorationColorFeatureActivated())
-	{
-		return true;
-	}
-#endif
-
 	// When we are a leader/follower, we cannot recreate render state in parallel as this could 
 	// happen concurrently with our dependent component(s)
 	return LeaderPoseComponent.Get() != nullptr || FollowerPoseComponents.Num() > 0;

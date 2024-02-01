@@ -2548,11 +2548,6 @@ public:
 	}
 
 	/**
-	 * @return true if property coloration color has a valid implementation
-	 */
-	virtual bool IsPropertyColorationColorFeatureActivated() const { return false; }
-
-	/**
 	 * Computes a color to use for property coloration for the given object.
 	 *
 	 * @param	Object		The object for which to compute a property color.
