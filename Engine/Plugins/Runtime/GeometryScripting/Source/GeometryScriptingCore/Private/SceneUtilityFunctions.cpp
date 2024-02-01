@@ -79,6 +79,7 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponen
 	if (bSuccess)
 	{
 		ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
+		Outcome = EGeometryScriptOutcomePins::Success;
 	}
 	else // failed
 	{
