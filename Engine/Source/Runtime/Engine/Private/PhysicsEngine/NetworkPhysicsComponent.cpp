@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Physics/NetworkPhysicsComponent.h"
-
+#include "Physics/NetworkPhysicsSettingsComponent.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineLogs.h"
 #include "EngineUtils.h"
@@ -387,6 +387,24 @@ UNetworkPhysicsComponent::UNetworkPhysicsComponent() : Super()
 
 void UNetworkPhysicsComponent::InitPhysics()
 {
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		if (UNetworkPhysicsSettingsComponent* PhysicsSettings = Owner->GetComponentByClass<UNetworkPhysicsSettingsComponent>())
+		{
+			InputRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantInputs ? PhysicsSettings->ResimulationSettings.RedundantInputs : InputRedundancy;
+			StateRedundancy = PhysicsSettings->ResimulationSettings.bOverrideRedundantStates ? PhysicsSettings->ResimulationSettings.RedundantStates : StateRedundancy;
+		}
+
+		if (APawn* Pawn = Cast<APawn>(Owner))
+		{
+			FRepMovement& RepMovement = Pawn->GetReplicatedMovement_Mutable();
+			RepMovement.LocationQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
+			RepMovement.RotationQuantizationLevel = ERotatorQuantization::ShortComponents;
+			RepMovement.VelocityQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
+		}
+	}
+
 	bAutoActivate = true;
 	bWantsInitializeComponent = true;
 	SetIsReplicatedByDefault(true);
@@ -394,14 +412,6 @@ void UNetworkPhysicsComponent::InitPhysics()
 
 	StateOffsets.SetNumZeroed(StateRedundancy + 1);
 	InputOffsets.SetNumZeroed(InputRedundancy + 1);
-
-	if (APawn* Pawn = Cast<APawn>(GetOwner()))
-	{
-		FRepMovement& RepMovement = Pawn->GetReplicatedMovement_Mutable();
-		RepMovement.LocationQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
-		RepMovement.RotationQuantizationLevel = ERotatorQuantization::ShortComponents;
-		RepMovement.VelocityQuantizationLevel = EVectorQuantization::RoundTwoDecimals;
-	}
 }
 
 void UNetworkPhysicsComponent::BeginPlay()

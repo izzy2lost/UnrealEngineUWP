@@ -1856,8 +1856,13 @@ namespace Chaos
 			delete SimCallbackObject;
 		}
 		PushData.SimCommands.Reset();
+		
+		for (ISimCallbackObject* SimCallbackObject : PushData.SimCallbackObjectsToAdd)
+		{
+			SimCallbackObject->PostInitialize_Internal();
+		}
 
-		if(MRewindCallback && MRewindData && !IsShuttingDown())
+		if (MRewindCallback && MRewindData && !IsShuttingDown())
 		{
 			MRewindCallback->ProcessInputs_Internal(MRewindData->CurrentFrame(), PushData.SimCallbackInputs);
 		}
