@@ -12,10 +12,10 @@
 #include "PhysicsReplicationInterface.h"
 #include "Physics/PhysicsInterfaceDeclares.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxyFwd.h"
-#include "Chaos/Particles.h"
 #include "Chaos/PhysicsObject.h"
 #include "Chaos/SimCallbackObject.h"
 #include "Physics/PhysicsInterfaceUtils.h"
+#include "Physics/NetworkPhysicsSettingsComponent.h"
 
 namespace CharacterMovementCVars
 {
@@ -42,13 +42,38 @@ namespace CharacterMovementCVars
 namespace PhysicsReplicationCVars
 {
 	extern ENGINE_API int32 LogPhysicsReplicationHardSnaps;
+	
+	namespace PredictiveInterpolationCVars
+	{
+		extern float PosCorrectionTimeBase;
+		extern float PosCorrectionTimeMin;
+		extern float PosCorrectionTimeMultiplier;
+		extern float RotCorrectionTimeBase;
+		extern float RotCorrectionTimeMin;
+		extern float RotCorrectionTimeMultiplier;
+		extern float PosInterpolationTimeMultiplier;
+		extern float RotInterpolationTimeMultiplier;
+		extern float SoftSnapPosStrength;
+		extern float SoftSnapRotStrength;
+		extern bool bSoftSnapToSource;
+		extern bool bSkipVelocityRepOnPosEarlyOut;
+		extern bool bPostResimWaitForUpdate;
+		extern bool bDisableSoftSnap;
+	}
+
+	namespace ResimulationCVars
+	{
+		extern bool bRuntimeCorrectionEnabled;
+		extern float PosStabilityMultiplier;
+		extern float RotStabilityMultiplier;
+	}
 }
 #endif
 
 class FPhysScene_PhysX;
 
 
-// -------- Async Flow ------->
+#pragma region FPhysicsReplicationAsync
 
 struct FPhysicsRepErrorCorrectionData
 {
@@ -132,7 +157,7 @@ struct FReplicatedPhysicsTargetAsync
 	int32 ReceiveFrame;
 
 	/** Local physics frames between received targets */
-	uint8 ReceiveInterval;
+	int32 ReceiveInterval;
 	float AverageReceiveInterval;
 
 	/** The replication mode this PhysicsObject should use */
@@ -201,6 +226,7 @@ class FPhysicsReplicationAsync : public Chaos::TSimCallbackObject<
 	Chaos::ESimCallbackOptions::Presimulate | Chaos::ESimCallbackOptions::PhysicsObjectUnregister>
 {
 	virtual FName GetFNameForStatId() const override;
+	virtual void OnPostInitialize_Internal() override;
 	virtual void OnPreSimulate_Internal() override;
 	virtual void OnPhysicsObjectUnregistered_Internal(Chaos::FConstPhysicsObjectHandle PhysicsObject) override;
 
@@ -212,16 +238,24 @@ class FPhysicsReplicationAsync : public Chaos::TSimCallbackObject<
 	virtual bool PredictiveInterpolation(Chaos::FPBDRigidParticleHandle* Handle, FReplicatedPhysicsTargetAsync& Target, const float DeltaSeconds);
 	virtual bool ResimulationReplication(Chaos::FPBDRigidParticleHandle* Handle, FReplicatedPhysicsTargetAsync& Target, const float DeltaSeconds);
 
+public:
+	virtual void RegisterSettings(Chaos::FConstPhysicsObjectHandle PhysicsObject, FNetworkPhysicsSettingsAsync InSettings);
+
 private:
 	float LatencyOneWay;
 	FRigidBodyErrorCorrection ErrorCorrectionDefault;
+	FNetworkPhysicsSettingsAsync SettingsCurrent;
+	FNetworkPhysicsSettingsAsync SettingsDefault;
 	TMap<Chaos::FConstPhysicsObjectHandle, FReplicatedPhysicsTargetAsync> ObjectToTarget;
+	TMap<Chaos::FConstPhysicsObjectHandle, FNetworkPhysicsSettingsAsync> ObjectToSettings;
 	TArray<int32> ParticlesInResimIslands;
 
 private:
 	void UpdateAsyncTarget(const FPhysicsRepAsyncInputData& Input, Chaos::FPBDRigidsSolver* RigidsSolver);
 	void UpdateRewindDataTarget(const FPhysicsRepAsyncInputData& Input);
 	void CacheResimInteractions();
+	// Sets SettingsCurrent to either the objects custom settings or to the default settings
+	void FetchObjectSettings(Chaos::FConstPhysicsObjectHandle PhysicsObject); 
 	static void ExtrapolateTarget(FReplicatedPhysicsTargetAsync& Target, const int32 ExtrapolateFrames, const float DeltaSeconds);
 
 public:
@@ -231,7 +265,7 @@ public:
 	}
 };
 
-// <-------- Async Flow --------
+#pragma endregion // FPhysicsReplicationAsync
 
 
 

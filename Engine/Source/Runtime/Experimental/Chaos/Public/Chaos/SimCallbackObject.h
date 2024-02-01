@@ -79,6 +79,11 @@ public:
 
 	virtual bool IsFAsyncObjectManagerCallback() const { return false;}
 
+	void PostInitialize_Internal()
+	{
+		OnPostInitialize_Internal();
+	}
+
 	void PreSimulate_Internal()
 	{
 		OnPreSimulate_Internal();
@@ -248,10 +253,15 @@ private:
 	virtual FSimCallbackInput* AllocateInputData_External() = 0;
 
 	/**
+	* Called once when callback object is registered and after input data have been marshalled
+	*/
+	virtual void OnPostInitialize_Internal() { }
+
+	/**
 	* Called before simulation step (NOTE: not once per sub-step when sub-stepping is enabled)
 	*/
 	virtual void OnPreSimulate_Internal() = 0;
-	
+
 	/**
 	* Called once per simulation sub-step, before Integrate. Can be used to modify particle positions, velocities etc.
 	*

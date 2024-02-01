@@ -19,6 +19,7 @@
 #endif
 
 class FChaosSolversModule;
+class FPhysicsReplicationAsync;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FSolverPreAdvance, Chaos::FReal);
 DECLARE_MULTICAST_DELEGATE_OneParam(FSolverPreBuffer, Chaos::FReal);
@@ -411,6 +412,16 @@ namespace Chaos
 			return MRewindCallback.IsValid() && MRewindData.IsValid();
 		}
 
+		void SetPhysicsReplication(FPhysicsReplicationAsync* InPhysicsReplication)
+		{
+			PhysicsReplication = InPhysicsReplication;
+		}
+
+		FPhysicsReplicationAsync* GetPhysicsReplication()
+		{
+			return PhysicsReplication;
+		}
+
 		//Used as helper for GT to go from unique idx back to gt particle
 		//If GT deletes a particle, this function will return null (that's a good thing when consuming async outputs as GT may have already deleted the particle we care about)
 		//Note: if the physics solver has been advanced after the particle was freed on GT, the index may have been freed and reused.
@@ -761,6 +772,7 @@ namespace Chaos
 
 		TUniquePtr<FRewindData> MRewindData;
 		TUniquePtr<IRewindCallback> MRewindCallback;
+		FPhysicsReplicationAsync* PhysicsReplication;
 
 		bool bUseCollisionResimCache;
 
