@@ -5,6 +5,7 @@
 #include "Editor/View/ClientEditorColumns.h"
 #include "Editor/View/PropertyTree/SFilteredPropertyTreeView.h"
 #include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Editor/Model/PropertyUtils.h"
 #include "Replication/Editor/Model/Object/EditorObjectHierarchyModel.h"
 #include "Replication/Editor/Model/Object/EditorObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicationStreamObject.h"
@@ -40,7 +41,7 @@ namespace UE::ConcertClientSharedSlate
 
 	TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> CreateTransactionalStreamModel()
 	{
-		const EObjectFlags Flags = RF_Transient | RF_Transactional;
+		constexpr EObjectFlags Flags = RF_Transient | RF_Transactional;
 		UReplicationStreamObject* Object = NewObject<UReplicationStreamObject>(GetTransientPackage(), NAME_None, Flags);
 
 		TAttribute<FConcertObjectReplicationMap*> Attribute = TAttribute<FConcertObjectReplicationMap*>::CreateLambda([WeakPtr = TWeakObjectPtr<UReplicationStreamObject>(Object)]() -> FConcertObjectReplicationMap* 
@@ -65,6 +66,16 @@ namespace UE::ConcertClientSharedSlate
 		using namespace ConcertSharedSlate;
 		using namespace ConcertSharedSlate::ReplicationColumns;
 
+		// When a user adds e.g. a struct property all of its child properties should be auto added as well.
+		FExtendProperties ExtendPropertiesDelegate = FExtendProperties::CreateLambda(
+		[DataModel = Params.BaseEditorParams.DataModel, AppendPropertyDelegate = MoveTemp(Params.OnExtendAddedProperties)]
+			(const FSoftObjectPath& Object, TArray<FConcertPropertyChain>& InOutPropertiesToAdd)
+			{
+				const FSoftClassPath ClassPath = DataModel->GetObjectClass(Object);
+				PropertyUtils::AppendAdditionalPropertiesToAdd(ClassPath, InOutPropertiesToAdd);
+				AppendPropertyDelegate.ExecuteIfBound(Object, InOutPropertiesToAdd);
+			});
+		
 		// This is a hack.
 		// The architecturally correct way to fix is pass FReplicationPropertyColumn the FSoftObjectPath to the object for which the column is being constructed.
 		struct FEditorIndirection
@@ -76,6 +87,7 @@ namespace UE::ConcertClientSharedSlate
 		const FReplicationPropertyColumn ReplicatesColumn = ReplicationColumns::Property::ReplicatesColumns(
 			TAttribute<IReplicationStreamViewer*>::CreateLambda([Indirection](){ return Indirection->Editor.Get(); }),
 			Params.BaseEditorParams.DataModel,
+			MoveTemp(ExtendPropertiesDelegate),
 			TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled::CreateLambda([IsEnabled = Params.BaseEditorParams.IsEditingEnabled](const FReplicatedPropertyData&)
 			{
 				return !IsEnabled.IsBound() || IsEnabled.Get();

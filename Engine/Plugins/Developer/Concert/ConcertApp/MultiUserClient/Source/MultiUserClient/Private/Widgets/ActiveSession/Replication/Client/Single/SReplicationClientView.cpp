@@ -87,7 +87,7 @@ namespace UE::MultiUserClient
 			.ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy(), // This makes actors have children in the top view
             .NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
             .OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SReplicationClientView::ExtendObjectContextMenu),
-            .AdditionalObjectColumns =
+            .AdditionalObjectColumns = 
             {
             	SingleClientColumns::ToggleObjectAuthority(AuthorityTracker, SubmissionWorkflow),
             	SingleClientColumns::ConflictWarningForObject(ConcertClient.ToSharedRef(), AuthorityCache, InReplicationClient.GetEndpointId()),

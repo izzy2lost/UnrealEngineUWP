@@ -37,7 +37,7 @@ namespace UE::MultiUserClient
 		static TOptional<FString> GetDisplayString(
 			const TSharedRef<IConcertClient>& LocalConcertClient,
 			const FReplicationClientManager& ClientManager,
-			FConcertPropertyChain DisplayedProperty,
+			const FConcertPropertyChain& DisplayedProperty,
 			const TArray<FSoftObjectPath>& EditedObjects
 			);
 		
@@ -78,7 +78,7 @@ namespace UE::MultiUserClient
 		FOnOptionClicked OnOptionClickedDelegate;
 
 		/** Updates the content of the combo box */
-		void RefreshContentBoxContent();
+		void RefreshContentBoxContent() const;
 		
 		/** Builds the drop-down menu */
 		TSharedRef<SWidget> GetMenuContent();
