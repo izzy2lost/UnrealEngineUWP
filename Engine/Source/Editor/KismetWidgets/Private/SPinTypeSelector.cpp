@@ -1433,7 +1433,7 @@ bool SPinTypeSelector::GetChildrenWithSupportedTypes(const TArray<FPinTypeTreeIt
 	for( auto it = UnfilteredList.CreateConstIterator(); it; ++it )
 	{
 		FPinTypeTreeItem Item = *it;
-		FPinTypeTreeItem NewInfo = MakeShareable( new UEdGraphSchema_K2::FPinTypeTreeInfo(Item) );
+		FPinTypeTreeItem NewInfo = MakeShared<UEdGraphSchema_K2::FPinTypeTreeInfo>(Item);
 		TArray<FPinTypeTreeItem> ValidChildren;
 
 		const bool bHasChildrenWithValidTypes = GetChildrenWithSupportedTypes(Item->Children, ValidChildren);
@@ -1490,12 +1490,10 @@ bool SPinTypeSelector::GetChildrenMatchingSearch(const FText& InSearchText, cons
 
 	bool bReturnVal = false;
 
-	for( auto it = UnfilteredList.CreateConstIterator(); it; ++it )
+	for( const FPinTypeTreeItem& Item : UnfilteredList)
 	{
-		FPinTypeTreeItem Item = *it;
-		FPinTypeTreeItem NewInfo = MakeShareable( new UEdGraphSchema_K2::FPinTypeTreeInfo(Item) );
 		TArray<FPinTypeTreeItem> ValidChildren;
-
+		ValidChildren.Reserve(Item->Children.Num());
 		const bool bHasChildrenMatchingSearch = GetChildrenMatchingSearch(InSearchText, Item->Children, ValidChildren, OutTopLevenshteinResult);
 		bool bFilterMatches = bIsEmptySearch;
 
@@ -1519,9 +1517,8 @@ bool SPinTypeSelector::GetChildrenMatchingSearch(const FText& InSearchText, cons
 			// If we didn't match the custom filter, or it's an empty search, let's not do any checks against the FilterTerms
 			if (bFilterMatches && !bIsEmptySearch)
 			{
-				const FText LocalizedDescription = Item->GetDescription();
-				const FString LocalizedDescriptionString = LocalizedDescription.ToString();
-				const FString* SourceDescriptionStringPtr = FTextInspector::GetSourceString(LocalizedDescription);
+				const FString& LocalizedDescriptionString = Item->GetCachedDescriptionString();
+				const FString* SourceDescriptionStringPtr = FTextInspector::GetSourceString(Item->GetDescription());
 
 				// Test both the localized and source strings for a match
 				const FString MangledLocalizedDescriptionString = LocalizedDescriptionString.Replace(TEXT(" "), TEXT(""));
@@ -1538,13 +1535,14 @@ bool SPinTypeSelector::GetChildrenMatchingSearch(const FText& InSearchText, cons
 		if( bHasChildrenMatchingSearch
 			|| bFilterMatches )
 		{
+			FPinTypeTreeItem NewInfo = MakeShared<UEdGraphSchema_K2::FPinTypeTreeInfo>(Item);
 			NewInfo->Children = ValidChildren;
 			OutFilteredList.Add(NewInfo);
 
 			// Skip anything with children, those are categories and we don't care about those.
 			if (Item->Children.Num() == 0)
 			{
-				OutTopLevenshteinResult.CompareAndUpdate(TrimmedFilterString, NewInfo, Item->GetDescription().ToString());
+				OutTopLevenshteinResult.CompareAndUpdate(TrimmedFilterString, NewInfo, Item->GetCachedDescriptionString());
 			}
 
 			if (TypeTreeView.IsValid())
