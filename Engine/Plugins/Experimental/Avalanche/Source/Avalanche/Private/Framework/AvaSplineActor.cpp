@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Framework/AvaSplineActor.h"
-
 #include "Components/SplineComponent.h"
 
 AAvaSplineActor::AAvaSplineActor()

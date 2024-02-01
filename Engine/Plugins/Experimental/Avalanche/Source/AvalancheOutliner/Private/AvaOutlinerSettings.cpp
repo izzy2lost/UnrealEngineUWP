@@ -4,7 +4,7 @@
 #include "Styling/StyleColors.h"
 #include "UObject/PropertyIterator.h"
 
-UAvalancheOutlinerSettings::UAvalancheOutlinerSettings()
+UAvaOutlinerSettings::UAvaOutlinerSettings()
 {
 	CategoryName = TEXT("Motion Design");
 	SectionName  = TEXT("Outliner");
@@ -27,9 +27,9 @@ UAvalancheOutlinerSettings::UAvalancheOutlinerSettings()
 	ItemColorMap.Emplace(TEXT("White"),  FStyleColors::AccentWhite.GetSpecifiedColor());
 }
 
-UAvalancheOutlinerSettings* UAvalancheOutlinerSettings::Get()
+UAvaOutlinerSettings* UAvaOutlinerSettings::Get()
 {
-	UAvalancheOutlinerSettings* DefaultSettings = GetMutableDefault<UAvalancheOutlinerSettings>();
+	UAvaOutlinerSettings* DefaultSettings = GetMutableDefault<UAvaOutlinerSettings>();
 	static bool bInitialized = false;
 	if (!bInitialized)
 	{
@@ -39,12 +39,12 @@ UAvalancheOutlinerSettings* UAvalancheOutlinerSettings::Get()
 	return DefaultSettings;
 }
 
-FName UAvalancheOutlinerSettings::GetCustomItemTypeFiltersName()
+FName UAvaOutlinerSettings::GetCustomItemTypeFiltersName()
 {
-	return GET_MEMBER_NAME_CHECKED(UAvalancheOutlinerSettings, CustomItemTypeFilters);
+	return GET_MEMBER_NAME_CHECKED(UAvaOutlinerSettings, CustomItemTypeFilters);
 }
 
-bool UAvalancheOutlinerSettings::AddCustomItemTypeFilter(FName InKey, FAvaOutlinerItemTypeFilterData& InFilter)
+bool UAvaOutlinerSettings::AddCustomItemTypeFilter(FName InKey, FAvaOutlinerItemTypeFilterData& InFilter)
 {
 	if (CustomItemTypeFilters.Contains(InKey))
 	{
@@ -55,16 +55,16 @@ bool UAvalancheOutlinerSettings::AddCustomItemTypeFilter(FName InKey, FAvaOutlin
 	return true;
 }
 
-void UAvalancheOutlinerSettings::PostInitProperties()
+void UAvaOutlinerSettings::PostInitProperties()
 {
 	Super::PostInitProperties();
 	HideItemColorMapAlphaChannel();
 }
 
-void UAvalancheOutlinerSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+void UAvaOutlinerSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UAvalancheOutlinerSettings, ItemColorMap))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UAvaOutlinerSettings, ItemColorMap))
 	{
 		//Force all Item Color Map entries to have Alpha value of 1
 		for (TPair<FName, FLinearColor>& Pair : ItemColorMap)
@@ -74,13 +74,13 @@ void UAvalancheOutlinerSettings::PostEditChangeProperty(FPropertyChangedEvent& P
 	}
 }
 
-void UAvalancheOutlinerSettings::HideItemColorMapAlphaChannel() const
+void UAvaOutlinerSettings::HideItemColorMapAlphaChannel() const
 {
 	const FMapProperty* ItemColorMapProperty = nullptr;
 	for (TFieldIterator<FProperty> PropertyIt(StaticClass()); PropertyIt; ++PropertyIt)
 	{
 		FProperty* const Property = CastField<FProperty>(*PropertyIt);
-		if (Property->IsA<FMapProperty>() && Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAvalancheOutlinerSettings, ItemColorMap))
+		if (Property->IsA<FMapProperty>() && Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAvaOutlinerSettings, ItemColorMap))
 		{
 			ItemColorMapProperty = CastField<FMapProperty>(Property);
 			break;

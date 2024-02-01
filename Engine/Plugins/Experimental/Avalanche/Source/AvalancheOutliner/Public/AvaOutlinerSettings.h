@@ -7,14 +7,14 @@
 #include "AvaOutlinerSettings.generated.h"
 
 UCLASS(config=EditorPerProjectUserSettings, meta=(DisplayName="Outliner"))
-class AVALANCHEOUTLINER_API UAvalancheOutlinerSettings : public UDeveloperSettings
+class AVALANCHEOUTLINER_API UAvaOutlinerSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
-	UAvalancheOutlinerSettings();
+	UAvaOutlinerSettings();
 
-	static UAvalancheOutlinerSettings* Get();
+	static UAvaOutlinerSettings* Get();
 
 	const TMap<FName, FLinearColor>& GetColorMap() const { return ItemColorMap; }
 

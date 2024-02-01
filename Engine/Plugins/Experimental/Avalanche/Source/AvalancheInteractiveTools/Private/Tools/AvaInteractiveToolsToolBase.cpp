@@ -12,8 +12,8 @@
 #include "EdMode/AvaInteractiveToolsEdMode.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
-#include "IAvalancheInteractiveToolsModeDetailsObject.h"
-#include "IAvalancheInteractiveToolsModeDetailsObjectProvider.h"
+#include "IAvaInteractiveToolsModeDetailsObject.h"
+#include "IAvaInteractiveToolsModeDetailsObjectProvider.h"
 #include "InteractiveToolManager.h"
 #include "InteractiveToolsContext.h"
 #include "Planners/AvaInteractiveToolsToolViewportAreaPlanner.h"
@@ -49,13 +49,13 @@ UObject* UAvaInteractiveToolsToolBase::GetDetailsObjectFromActor(AActor* InActor
 		return nullptr;
 	}
 
-	if (InActor->Implements<UAvalancheInteractiveToolsModeDetailsObject>())
+	if (InActor->Implements<UAvaInteractiveToolsModeDetailsObject>())
 	{
 		return InActor;
 	}
-	else if (InActor->Implements<UAvalancheInteractiveToolsModeDetailsObjectProvider>())
+	else if (InActor->Implements<UAvaInteractiveToolsModeDetailsObjectProvider>())
 	{
-		return IAvalancheInteractiveToolsModeDetailsObjectProvider::Execute_GetModeDetailsObject(InActor);
+		return IAvaInteractiveToolsModeDetailsObjectProvider::Execute_GetModeDetailsObject(InActor);
 	}
 
 	TArray<UActorComponent*> Components;
@@ -63,14 +63,14 @@ UObject* UAvaInteractiveToolsToolBase::GetDetailsObjectFromActor(AActor* InActor
 
 	for (UActorComponent* Component : Components)
 	{
-		if (Component->Implements<UAvalancheInteractiveToolsModeDetailsObject>())
+		if (Component->Implements<UAvaInteractiveToolsModeDetailsObject>())
 		{
 			return Component;
 			break;
 		}
-		else if (Component->Implements<UAvalancheInteractiveToolsModeDetailsObjectProvider>())
+		else if (Component->Implements<UAvaInteractiveToolsModeDetailsObjectProvider>())
 		{
-			if (UObject* DetailsObject = IAvalancheInteractiveToolsModeDetailsObjectProvider::Execute_GetModeDetailsObject(Component))
+			if (UObject* DetailsObject = IAvaInteractiveToolsModeDetailsObjectProvider::Execute_GetModeDetailsObject(Component))
 			{
 				return DetailsObject;
 			}

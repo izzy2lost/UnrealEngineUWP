@@ -4,7 +4,7 @@
 #include "Animation/SkeletalMeshActor.h"
 #include "AvaEditorCommands.h"
 #include "AvaEditorModule.h"
-#include "AvalancheEditorSettings.h"
+#include "AvaEditorSettings.h"
 #include "AvaOutliner.h"
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerTabSpawner.h"
@@ -416,7 +416,7 @@ void FAvaOutlinerExtension::NotifyOutlinerItemLockChanged(const FAvaOutlinerItem
 
 const FAttachmentTransformRules& FAvaOutlinerExtension::GetTransformRule(bool bIsPrimaryTransformRule) const
 {
-	const bool bKeepRelativeWhenGrouping = UAvalancheEditorSettings::Get()->bKeepRelativeTransformWhenGrouping;
+	const bool bKeepRelativeWhenGrouping = UAvaEditorSettings::Get()->bKeepRelativeTransformWhenGrouping;
 	const bool bReturnRelative = bIsPrimaryTransformRule == bKeepRelativeWhenGrouping;
 	return bReturnRelative ? FAttachmentTransformRules::KeepRelativeTransform : FAttachmentTransformRules::KeepWorldTransform;
 }
@@ -435,7 +435,7 @@ void FAvaOutlinerExtension::GroupSelection()
 	FTransform SpawnTransform;
 	TOptional<FAttachmentTransformRules> TransformRules;
 
-	if (UAvalancheEditorSettings::Get()->bKeepRelativeTransformWhenGrouping)
+	if (UAvaEditorSettings::Get()->bKeepRelativeTransformWhenGrouping)
 	{
 		SpawnTransform = FTransform::Identity;
 		TransformRules = FAttachmentTransformRules::KeepRelativeTransform;

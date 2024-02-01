@@ -29,31 +29,31 @@
 
 #define LOCTEXT_NAMESPACE "AvalancheMaskEditorMode"
 
-const FEditorModeID UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId(UE::AvalancheMaskEditor::AvalancheMaskEditorModeName);
+const FEditorModeID UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId(UE::AvalancheMaskEditor::MotionDesignMaskEditorModeName);
 
-UAvalancheMaskEditorMode::UAvalancheMaskEditorMode()
+UAvaMaskEditorMode::UAvaMaskEditorMode()
 {
-	Info = FEditorModeInfo(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId,
+	Info = FEditorModeInfo(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId,
 		LOCTEXT("MotionDesignMaskEditorModeName", "MotionDesign Mask Editor Mode"),
 		FSlateIcon(),
 		false);
 }
 
-void UAvalancheMaskEditorMode::Enter()
+void UAvaMaskEditorMode::Enter()
 {
 	UEdMode::Enter();
 
 	if (GEditor && GEngine)
 	{
 		UTypedElementSelectionSet* SelectionSet = GetModeManager()->GetSelectedActors()->GetElementSelectionSet();
-		SelectionSet->OnChanged().AddUObject(this, &UAvalancheMaskEditorMode::OnSelectionChanged);
+		SelectionSet->OnChanged().AddUObject(this, &UAvaMaskEditorMode::OnSelectionChanged);
 		
 		WeakLastSelectedActor = SelectionSet->GetTopSelectedObject<AActor>();
 		WeakActorSelectionSet = SelectionSet;
 		
-		OnActorSpawnedHandle = GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &UAvalancheMaskEditorMode::OnActorSpawned));
+		OnActorSpawnedHandle = GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &UAvaMaskEditorMode::OnActorSpawned));
 
-		GEngine->OnLevelActorAdded().AddUObject(this, &UAvalancheMaskEditorMode::OnActorSpawned);
+		GEngine->OnLevelActorAdded().AddUObject(this, &UAvaMaskEditorMode::OnActorSpawned);
 	}
 
 	for (AActor* Actor : TActorRange<AActor>(GetWorld()))
@@ -153,7 +153,7 @@ void UAvalancheMaskEditorMode::Enter()
 							.VAlign(VAlign_Center)
 							.OnClicked_Lambda([EditorModeManager = GetModeManager()]() 
 							{
-								EditorModeManager->DeactivateMode(UAvalancheMaskEditorMode::EM_AvalancheMaskEditorModeId);						
+								EditorModeManager->DeactivateMode(UAvaMaskEditorMode::EM_MotionDesignMaskEditorModeId);						
 								return FReply::Handled(); 
 							})
 						]
@@ -184,7 +184,7 @@ void UAvalancheMaskEditorMode::Enter()
 	}
 }
 
-void UAvalancheMaskEditorMode::Exit()
+void UAvaMaskEditorMode::Exit()
 {
 	if (GEditor && GEngine)
 	{
@@ -226,27 +226,27 @@ void UAvalancheMaskEditorMode::Exit()
 	UEdMode::Exit();
 }
 
-bool UAvalancheMaskEditorMode::UsesToolkits() const
+bool UAvaMaskEditorMode::UsesToolkits() const
 {
 	return false;
 }
 
-void UAvalancheMaskEditorMode::CreateToolkit()
+void UAvaMaskEditorMode::CreateToolkit()
 {
 	// Toolkit = MakeShared<FAvalancheMaskEditorModeToolkit>();
 }
 
-void UAvalancheMaskEditorMode::ModeTick(float DeltaTime)
+void UAvaMaskEditorMode::ModeTick(float DeltaTime)
 {
 	Super::ModeTick(DeltaTime);
 }
 
-bool UAvalancheMaskEditorMode::IsCompatibleWith(FEditorModeID OtherModeID) const
+bool UAvaMaskEditorMode::IsCompatibleWith(FEditorModeID OtherModeID) const
 {
 	return true;
 }
 
-AActor* UAvalancheMaskEditorMode::GetActorToParentTo() const
+AActor* UAvaMaskEditorMode::GetActorToParentTo() const
 {
 	if (AActor* LastSelectedActor = WeakLastSelectedActor.Get())
 	{
@@ -262,7 +262,7 @@ AActor* UAvalancheMaskEditorMode::GetActorToParentTo() const
 	return nullptr;
 }
 
-void UAvalancheMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSet* InSelectionSet)
+void UAvaMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSet* InSelectionSet)
 {
 	if (InSelectionSet)
 	{
@@ -311,7 +311,7 @@ void UAvalancheMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSe
 	}
 }
 
-UGeometryMaskCanvas* UAvalancheMaskEditorMode::GetCanvasReferencedByActor(const AActor* InActor)
+UGeometryMaskCanvas* UAvaMaskEditorMode::GetCanvasReferencedByActor(const AActor* InActor)
 {
 	FName CanvasName = NAME_None;
 	if (const IGeometryMaskWriteInterface* WriteComponent = Cast<IGeometryMaskWriteInterface>(InActor->FindComponentByInterface<UGeometryMaskWriteInterface>()))
@@ -333,7 +333,7 @@ UGeometryMaskCanvas* UAvalancheMaskEditorMode::GetCanvasReferencedByActor(const 
 	return nullptr;
 }
 
-void UAvalancheMaskEditorMode::UpdatePreviewWidget()
+void UAvaMaskEditorMode::UpdatePreviewWidget()
 {
 	if (CanvasPreviewWidget.IsValid())
 	{
@@ -342,7 +342,7 @@ void UAvalancheMaskEditorMode::UpdatePreviewWidget()
 	}
 }
 
-void UAvalancheMaskEditorMode::OnActorSpawned(AActor* InActor)
+void UAvaMaskEditorMode::OnActorSpawned(AActor* InActor)
 {
 	if (CanMaskSelected(WeakLastSelectedActor.Get()))
 	{
@@ -353,7 +353,7 @@ void UAvalancheMaskEditorMode::OnActorSpawned(AActor* InActor)
 	}
 }
 
-bool UAvalancheMaskEditorMode::AddMaskToSelected(const TArray<AActor*>& InMaskingActors)
+bool UAvaMaskEditorMode::AddMaskToSelected(const TArray<AActor*>& InMaskingActors)
 {
 	// @note: This assumes CanMaskSelected passed
 	
@@ -399,7 +399,7 @@ bool UAvalancheMaskEditorMode::AddMaskToSelected(const TArray<AActor*>& InMaskin
 	return true;
 }
 
-UAvaMask2DBaseModifier* UAvalancheMaskEditorMode::FindOrAddMaskModifier(AActor* InActor)
+UAvaMask2DBaseModifier* UAvaMaskEditorMode::FindOrAddMaskModifier(AActor* InActor)
 {
 	if (const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
 	{
@@ -440,7 +440,7 @@ UAvaMask2DBaseModifier* UAvalancheMaskEditorMode::FindOrAddMaskModifier(AActor* 
 	return nullptr;
 }
 
-bool UAvalancheMaskEditorMode::CanMaskSelected(AActor* InSelectedActor)
+bool UAvaMaskEditorMode::CanMaskSelected(AActor* InSelectedActor)
 {
 	auto CanMaskActor = [](AActor* InActor)
 	{

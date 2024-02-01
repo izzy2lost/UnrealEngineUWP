@@ -11,14 +11,14 @@
 #include "Materials/MaterialFunctionInterface.h"
 #endif
 
-UAvalancheMaskSettings::UAvalancheMaskSettings()
+UAvaMaskSettings::UAvaMaskSettings()
 {
 	CategoryName = TEXT("Motion Design");
 	SectionName = TEXT("Mask");
 }
 
 #if WITH_EDITORONLY_DATA
-UMaterialFunctionInterface* UAvalancheMaskSettings::GetMaterialFunction()
+UMaterialFunctionInterface* UAvaMaskSettings::GetMaterialFunction()
 {
 	if (UMaterialFunctionInterface* StrongMaterialFunction = MaterialFunction.Get())
 	{
@@ -31,7 +31,7 @@ UMaterialFunctionInterface* UAvalancheMaskSettings::GetMaterialFunction()
 	return DefaultMaterialFunction;
 }
 
-UMaterialFunctionInterface* UAvalancheMaskSettings::GetDefaultMaterialFunction()
+UMaterialFunctionInterface* UAvaMaskSettings::GetDefaultMaterialFunction()
 {
 	// /Script/Engine.MaterialFunction'/GeometryMask/GeometryMask/MF_ApplyGeometryMask.MF_ApplyGeometryMask'
 	// const FString AssetPath = FString(TEXT("/GeometryMask")) / TEXT("GeometryMask") / TEXT("MF_ApplyGeometryMask");

@@ -126,8 +126,8 @@ public:
 	FOnProjectFontsChange& OnProjectFontDeleted() { return OnProjectFontDeletedDelegate; }
 	FOnSystemFontsUpdated& OnSystemFontsUpdated() { return OnSystemFontsUpdatedDelegate; }
 	/**
-	 * Import the font contained in the UAvalancheFontObject as .uasset, if yet to be imported
-	 * @param InAvaFontPropertyHandle a property handle to the FAvalancheFont referencing the UFont to be saved
+	 * Import the font contained in the UAvaFontObject as .uasset, if yet to be imported
+	 * @param InAvaFontPropertyHandle a property handle to the FAvaFont referencing the UFont to be saved
 	 * @return success
 	 */
 	bool ImportFont(const TSharedPtr<IPropertyHandle>& InAvaFontPropertyHandle);

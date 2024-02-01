@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEditorViewportUtils.h"
-#include "AvalancheEditorSettings.h"
+#include "AvaEditorSettings.h"
 #include "Templates/SharedPointer.h"
 #include "ViewportClient/IAvaViewportClient.h"
 
@@ -14,7 +14,7 @@ bool FAvaEditorViewportUtils::MeshSizeToPixelSize(const TSharedRef<IAvaViewportC
 		return false;
 	}
 
-	const FVector2D FrustumSize = InViewportClient->GetFrustumSizeAtDistance(UAvalancheEditorSettings::Get()->CameraDistance);
+	const FVector2D FrustumSize = InViewportClient->GetFrustumSizeAtDistance(UAvaEditorSettings::Get()->CameraDistance);
 
 	if (FrustumSize.X <= 0)
 	{
@@ -35,7 +35,7 @@ bool FAvaEditorViewportUtils::PixelSizeToMeshSize(const TSharedRef<IAvaViewportC
 		return false;
 	}
 
-	const FVector2D FrustumSize = InViewportClient->GetFrustumSizeAtDistance(UAvalancheEditorSettings::Get()->CameraDistance);
+	const FVector2D FrustumSize = InViewportClient->GetFrustumSizeAtDistance(UAvaEditorSettings::Get()->CameraDistance);
 
 	if (FrustumSize.X <= 0)
 	{

@@ -13,15 +13,15 @@
 class UMaterialFunctionInterface;
 #endif
 
-/** Settings for Avalanche Mask */
+/** Settings for Motion Design Mask */
 UCLASS(Config = Engine, meta = (DisplayName = "Mask"))
-class UAvalancheMaskSettings
+class UAvaMaskSettings
     : public UDeveloperSettings
 {
     GENERATED_BODY()
 
 public:
-    UAvalancheMaskSettings();
+    UAvaMaskSettings();
 
 #if WITH_EDITORONLY_DATA
 	/** Material Function to use to expect or add to a material. */

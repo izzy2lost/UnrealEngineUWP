@@ -48,8 +48,8 @@ public:
 	static constexpr int32 BID_Cancel = 1;
 
 	/**
-	 * Checks the given actor and its components against UAvalancheInteractiveToolsModeDetailsObject
-	 * and UAvalancheInteractiveToolsModeDetailsObjectProvider.
+	 * Checks the given actor and its components against UAvaInteractiveToolsModeDetailsObject
+	 * and UAvaInteractiveToolsModeDetailsObjectProvider.
 	 */
 	static UObject* GetDetailsObjectFromActor(AActor* InActor);
 

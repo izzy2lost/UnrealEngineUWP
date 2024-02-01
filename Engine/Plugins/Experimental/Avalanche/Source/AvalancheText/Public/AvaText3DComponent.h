@@ -39,8 +39,8 @@ public:
 	bool IsEnforcingUpperCase() const { return bEnforceUpperCase; }
 	
 	UFUNCTION(BlueprintSetter)
-	void SetAvalancheFont(const FAvaFont& InAvalancheFont);
-	const FAvaFont& GetAvalancheFont() const { return AvalancheFont; }
+	void SetMotionDesignFont(const FAvaFont& InFont);
+	const FAvaFont& GetMotionDesignFont() const { return MotionDesignFont; }
 
 	UFUNCTION(BlueprintSetter)
 	void SetAlignment(FAvaTextAlignment InAlignment);
@@ -120,7 +120,7 @@ public:
 	void RefreshBevelColor() const;
 
 	void RefreshAlignment();
-	void RefreshAvalancheFont();
+	void RefreshMotionDesignFont();
 	void RefreshHorizontalAlignment();
 	void RefreshVerticalAlignment();
 	void RefreshUnlit();
@@ -164,8 +164,8 @@ private:
 	UPROPERTY(EditAnywhere, Getter="IsEnforcingUpperCase", Setter="SetEnforceUpperCase", Category="Text", meta=(DisplayAfter="Text", AllowPrivateAccess="true"))
 	bool bEnforceUpperCase = false;
 	
-	UPROPERTY(EditAnywhere, Getter="GetAvalancheFont", Setter="SetAvalancheFont", Category="Text", meta=(DisplayAfter="Text", AllowPrivateAccess="true"))
-	FAvaFont AvalancheFont;
+	UPROPERTY(EditAnywhere, Getter="GetMotionDesignFont", Setter="SetMotionDesignFont", Category="Text", meta=(DisplayAfter="Text", AllowPrivateAccess="true"))
+	FAvaFont MotionDesignFont;
 
 	UPROPERTY(EditAnywhere, Getter="GetAlignment", Setter="SetAlignment", Category="Layout", meta=(DisplayAfter="VerticalAlignment", AllowPrivateAccess="true"))
 	FAvaTextAlignment Alignment;

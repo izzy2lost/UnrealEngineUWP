@@ -17,7 +17,7 @@
 
 FAvaOutlinerViewSaveState::FAvaOutlinerViewSaveState()
 {
-	const UAvalancheOutlinerSettings* const OutlinerSettings = UAvalancheOutlinerSettings::Get();
+	const UAvaOutlinerSettings* const OutlinerSettings = UAvaOutlinerSettings::Get();
 	check(OutlinerSettings);
 	
 	bUseMutedHierarchy     = OutlinerSettings->ShouldUseMutedHierarchy();

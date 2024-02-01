@@ -9,9 +9,9 @@
 class UAvaNullComponent;
 
 /**
- * Avalanche Null Actor (Empty Group)
+ * Null Actor (Empty Group)
  */
-UCLASS(MinimalAPI, DisplayName = "Motion Design Null Actor")
+UCLASS(MinimalAPI, DisplayName = "Null Actor")
 class AAvaNullActor : public AActor
 {
 	GENERATED_BODY()
@@ -21,7 +21,13 @@ public:
 
 	AAvaNullActor();
 
+#if WITH_EDITOR
+	//~ Begin AActor
+	virtual FString GetDefaultActorLabel() const override;
+	//~ End AActor
+#endif
+
 protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Motion Design")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UAvaNullComponent> NullComponent;
 };

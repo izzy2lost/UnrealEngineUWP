@@ -6,5 +6,5 @@
 
 namespace UE::AvalancheMaskEditor
 {
-	const static FName AvalancheMaskEditorModeName("EditMode.AvalancheMask");
+	const static FName MotionDesignMaskEditorModeName("EditMode.MotionDesignMask");
 }

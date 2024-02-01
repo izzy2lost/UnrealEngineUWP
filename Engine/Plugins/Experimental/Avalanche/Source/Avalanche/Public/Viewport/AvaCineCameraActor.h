@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@
 UCLASS(DisplayName = "Motion Design Cine Camera Actor")
 class AVALANCHE_API AAvaCineCameraActor : public ACineCameraActor
 {
-	friend class UAvalancheEditorSettings;
+	friend class UAvaEditorSettings;
 	
 	GENERATED_BODY()
 
@@ -42,7 +42,7 @@ public:
 			// smaller camera mesh, todo: this will be substituted with a custom visualizer, or other solution, to visualize frustum + direction
 			CineCameraComp->SetWorldScale3D(FVector(0.5f));
 
-			// using default ManualFocusDistance value from Default CineCameraComponent, since that is handled by UAvalancheEditorSettings
+			// using default ManualFocusDistance value from Default CineCameraComponent, since that is handled by UAvaEditorSettings
 			CineCameraComp->FocusSettings.ManualFocusDistance = DefaultCameraDistance;
 
 			FVector CameraPosition = FVector::ZeroVector;

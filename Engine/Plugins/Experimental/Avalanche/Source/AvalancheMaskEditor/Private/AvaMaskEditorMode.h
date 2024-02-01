@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -14,15 +14,15 @@ class UAvaMask2DBaseModifier;
 class UTypedElementSelectionSet;
 
 UCLASS(MinimalAPI)
-class UAvalancheMaskEditorMode : public UEdMode
+class UAvaMaskEditorMode : public UEdMode
 {
 	GENERATED_BODY()
 	
 public:
-	static const FEditorModeID EM_AvalancheMaskEditorModeId;
+	static const FEditorModeID EM_MotionDesignMaskEditorModeId;
 
-	UAvalancheMaskEditorMode();
-	virtual ~UAvalancheMaskEditorMode() override = default;
+	UAvaMaskEditorMode();
+	virtual ~UAvaMaskEditorMode() override = default;
 
 	// Begin UEdMode
 	virtual void Enter() override;

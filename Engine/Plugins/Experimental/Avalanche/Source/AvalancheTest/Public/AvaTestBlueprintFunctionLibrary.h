@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -18,10 +18,10 @@ class AVALANCHETEST_API UAvaTestBlueprintFunctionLibrary : public UBlueprintFunc
 
 public:
 	/**
-	 * Creates World Assets based on the Avalanche Blueprints provided
-	 * Wraps FAvaEditorFunctionLibrary::ExportAvaBlueprintsToWorld
-	 * @param InBlueprints the Avalanche Blueprints to export
+	 * Creates World Assets based on the Motion Design Blueprints provided
+	 * Wraps FAvaEditorFunctionLibrary::ExportMotionDesignBlueprintsToWorld
+	 * @param InBlueprints the Motion Design Blueprints to export
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Motion Design")
-	static void ExportAvaBlueprintsToWorld(const TArray<TSoftObjectPtr<UAvalancheBlueprint>>& InBlueprints);
+	static void ExportMotionDesignBlueprintsToWorld(const TArray<TSoftObjectPtr<UAvalancheBlueprint>>& InBlueprints);
 };

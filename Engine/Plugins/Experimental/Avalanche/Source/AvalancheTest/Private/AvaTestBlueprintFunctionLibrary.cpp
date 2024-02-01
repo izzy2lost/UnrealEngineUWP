@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTestBlueprintFunctionLibrary.h"
 
@@ -8,7 +8,7 @@
 #include "AvaEditorFunctionLibrary.h"
 #endif
 
-void UAvaTestBlueprintFunctionLibrary::ExportAvaBlueprintsToWorld(const TArray<TSoftObjectPtr<UAvalancheBlueprint>>& InBlueprints)
+void UAvaTestBlueprintFunctionLibrary::ExportMotionDesignBlueprintsToWorld(const TArray<TSoftObjectPtr<UAvalancheBlueprint>>& InBlueprints)
 {
 #if WITH_EDITOR
 	TArray<TWeakObjectPtr<UAvalancheBlueprint>> WeakBlueprints;
@@ -26,6 +26,6 @@ void UAvaTestBlueprintFunctionLibrary::ExportAvaBlueprintsToWorld(const TArray<T
 	
 	FAvaEditorFunctionLibrary::ExportAvaBlueprintsToWorld(WeakBlueprints);
 #else
-	UE_LOG(LogAvaTest, Error, TEXT("ExportAvaBlueprintsToWorld is editor-only"));
+	UE_LOG(LogAvaTest, Error, TEXT("ExportMotionDesignBlueprintsToWorld is editor-only"));
 #endif
 }

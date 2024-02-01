@@ -510,7 +510,7 @@ void SAvaOutliner::OnSaveSearchButtonClicked(const FText& InText)
 
 void SAvaOutliner::OnCreateCustomTextFilter(const FCustomTextFilterData& InFilterData, bool ApplyFilter) const
 {
-	if (UAvalancheOutlinerSettings* OutlinerSettings = UAvalancheOutlinerSettings::Get())
+	if (UAvaOutlinerSettings* OutlinerSettings = UAvaOutlinerSettings::Get())
 	{
 		FAvaOutlinerItemTypeFilterData NewFilter = FAvaOutlinerItemTypeFilterData();
 		NewFilter.SetFilterText(InFilterData.FilterString);

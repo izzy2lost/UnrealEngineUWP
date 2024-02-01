@@ -523,7 +523,7 @@ void FAvaFontDetailsCustomization::UpdateFontObjectProperty(UAvaFontObject* InFo
 						NewFontObj->InitFromFontObject(InFontObject);
 
 						FString ValueString;
-						FAvaFont::GenerateAvalancheFontFormattedString(NewFontObj, ValueString);
+						FAvaFont::GenerateFontFormattedString(NewFontObj, ValueString);
 
 						AvaFontPropertyHandle->SetPerObjectValue(Index, ValueString);
 					}
@@ -556,7 +556,7 @@ void FAvaFontDetailsCustomization::UpdateFontObjectProperty(UAvaFontObject* InFo
 				}
 
 				FString ValueString;
-				bool bStringSuccess = FAvaFont::GenerateAvalancheFontFormattedString(SourceFontObject, ValueString);
+				bool bStringSuccess = FAvaFont::GenerateFontFormattedString(SourceFontObject, ValueString);
 
 				if (bStringSuccess)
 				{
@@ -593,7 +593,7 @@ void FAvaFontDetailsCustomization::UpdateFontObjectProperty(UAvaFontObject* InFo
 				NewFontObj->InitFromFontObject(InFontObject);
 
 				FString ValueString;
-				FAvaFont::GenerateAvalancheFontFormattedString(NewFontObj, ValueString);
+				FAvaFont::GenerateFontFormattedString(NewFontObj, ValueString);
 
 				PerObjectValues.Add(ValueString);
 			}
