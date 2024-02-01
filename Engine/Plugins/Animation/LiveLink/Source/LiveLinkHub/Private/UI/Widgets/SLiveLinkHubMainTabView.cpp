@@ -18,6 +18,7 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Text/STextBlock.h"
 
 
@@ -26,7 +27,6 @@
 const FName SLiveLinkHubMainTabView::SourcesTabId("SourcesTabId");
 const FName SLiveLinkHubMainTabView::SourceDetailsTabId("SourceDetailsTabId");
 const FName SLiveLinkHubMainTabView::SubjectsTabId("SubjectsTabId");
-const FName SLiveLinkHubMainTabView::SubjectsDetailsTabId("SubjectsDetailsTabId");
 const FName SLiveLinkHubMainTabView::PlaybackTabId("PlaybackTabId");
 const FName SLiveLinkHubMainTabView::ClientsTabId("ClientsTabId");
 const FName SLiveLinkHubMainTabView::ClientDetailsTabId("ClientDetailsTabId");
@@ -34,7 +34,6 @@ const FName SLiveLinkHubMainTabView::ClientDetailsTabId("ClientDetailsTabId");
 const FText SLiveLinkHubMainTabView::SourcesTabName = LOCTEXT("SourcesTabLabel", "Sources");
 const FText SLiveLinkHubMainTabView::SourceDetailsTabName = LOCTEXT("SourceDetailsTabLabel", "Source Details");
 const FText SLiveLinkHubMainTabView::SubjectsTabName = LOCTEXT("SubjectsTabLabel", "Subjects");
-const FText SLiveLinkHubMainTabView::SubjectsDetailsTabName = LOCTEXT("SubjectsDetailsTabLabel", "Subjects Details");
 const FText SLiveLinkHubMainTabView::PlaybackTabName = LOCTEXT("PlaybackTabLabel", "Playback");
 const FText SLiveLinkHubMainTabView::ClientsTabName = LOCTEXT("ClientsTabLabel", "Clients");
 const FText SLiveLinkHubMainTabView::ClientDetailsTabName = LOCTEXT("ClientDetailsTabLabel", "Client Details");
@@ -52,7 +51,7 @@ void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
 		{
 			CreateTabs(InTabManager, InLayout, InArgs);
 		}))
-		.LayoutName("LiveLinkHubSourcesTabView_v1.1")
+		.LayoutName("LiveLinkHubSourcesTabView_v1.2")
 	);
 }
 
@@ -79,8 +78,6 @@ void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabMan
 	InTabManager->RegisterTabSpawner(SubjectsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsTab))
 		.SetIcon(FSlateIcon(LiveLinkStyleName, TEXT("LiveLinkHub.Subjects.Icon")))
 		.SetDisplayName(SubjectsTabName);
-	InTabManager->RegisterTabSpawner(SubjectsDetailsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsDetailsTab))
-		.SetDisplayName(SubjectsDetailsTabName);
 	InTabManager->RegisterTabSpawner(PlaybackTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnPlaybackTab))
 		.SetIcon(FSlateIcon(LiveLinkStyleName, TEXT("LiveLinkHub.Playback.Icon")))
 		.SetDisplayName(PlaybackTabName);
@@ -123,13 +120,6 @@ void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabMan
 							->AddTab(SubjectsTabId, ETabState::OpenedTab)
 							->AddTab(PlaybackTabId, ETabState::OpenedTab)
 							->SetForegroundTab(SubjectsTabId)
-						)
-						->Split
-						(
-							FTabManager::NewStack()
-							->SetSizeCoefficient(0.5f)
-							->SetHideTabWell(true)
-							->AddTab(SubjectsDetailsTabId, ETabState::OpenedTab)
 						)
 					)
 					->Split
@@ -217,23 +207,25 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesDetailsTab(const FSpaw
 
 TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSubjectsTab(const FSpawnTabArgs& InTabArgs)
 {
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+
 	return SNew(SDockTab)
 		.Label(SubjectsTabName)
 		.TabRole(PanelTab)
 		[
-			PanelController->SubjectsView->SubjectsTreeView.ToSharedRef()
-		];
-}
-
-TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSubjectsDetailsTab(const FSpawnTabArgs& InTabArgs)
-{
-	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-
-	return SNew(SDockTab)
-		.Label(SubjectsDetailsTabName)
-		.TabRole(PanelTab)
-		[
-			LiveLinkHubModule.GetSubjectController()->MakeSubjectView()
+			SNew(SSplitter)
+			.Orientation(EOrientation::Orient_Vertical)
+			+ SSplitter::Slot()
+			.Value(0.5f)
+			[
+				PanelController->SubjectsView->SubjectsTreeView.ToSharedRef()
+			]
+			+
+			SSplitter::Slot()
+			.Value(0.5f)
+			[
+				LiveLinkHubModule.GetSubjectController()->MakeSubjectView()
+			]
 		];
 }
 

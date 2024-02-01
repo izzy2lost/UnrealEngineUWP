@@ -16,7 +16,6 @@ public:
 	static const FName SourcesTabId;
 	static const FName SourceDetailsTabId;
 	static const FName SubjectsTabId;
-	static const FName SubjectsDetailsTabId;
 	static const FName PlaybackTabId;
 	static const FName ClientsTabId;
 	static const FName ClientDetailsTabId;
@@ -25,7 +24,6 @@ public:
 	static const FText SourcesTabName;
 	static const FText SourceDetailsTabName;
 	static const FText SubjectsTabName;
-	static const FText SubjectsDetailsTabName;
 	static const FText PlaybackTabName;
 	static const FText ClientsTabName;
 	static const FText ClientDetailsTabName;
@@ -47,7 +45,6 @@ private:
 	TSharedRef<SDockTab> SpawnSourcesTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnSourcesDetailsTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnSubjectsTab(const FSpawnTabArgs& InTabArgs);
-	TSharedRef<SDockTab> SpawnSubjectsDetailsTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnPlaybackTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnClientsTab(const FSpawnTabArgs& InTabArgs);
 	TSharedRef<SDockTab> SpawnClientDetailsTab(const FSpawnTabArgs& InTabArgs);
