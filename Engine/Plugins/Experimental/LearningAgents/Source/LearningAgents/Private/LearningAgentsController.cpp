@@ -12,30 +12,23 @@ ULearningAgentsController::ULearningAgentsController(FVTableHelper& Helper) : Su
 ULearningAgentsController::~ULearningAgentsController() = default;
 
 void ULearningAgentsController::EvaluateAgentController_Implementation(
+	FLearningAgentsActionObjectElement& OutActionObjectElement,
+	ULearningAgentsActionObject* InActionObject,
+	const FLearningAgentsObservationObjectElement& InObservationObjectElement,
+	const ULearningAgentsObservationObject* InObservationObject,
+	const int32 AgentIds)
+{
+	UE_LOG(LogLearning, Error, TEXT("%s: EvaluateAgentController function must be overridden!"), *GetName());
+	OutActionObjectElement = FLearningAgentsActionObjectElement();
+}
+
+void ULearningAgentsController::EvaluateAgentControllers_Implementation(
 	TArray<FLearningAgentsActionObjectElement>& OutActionObjectElements,
 	ULearningAgentsActionObject* InActionObject,
 	const TArray<FLearningAgentsObservationObjectElement>& InObservationObjectElements,
 	const ULearningAgentsObservationObject* InObservationObject,
 	const TArray<int32>& AgentIds)
 {
-	UE_LOG(LogLearning, Error, TEXT("%s: EvaluateAgentController function must be overridden!"), *GetName());
-	OutActionObjectElements.Empty();
-}
-
-void ULearningAgentsController::EvaluateAgentControllerUsingDelegate(
-	TArray<FLearningAgentsActionObjectElement>& OutActionObjectElements,
-	ULearningAgentsActionObject* InActionObject,
-	const TArray<FLearningAgentsObservationObjectElement>& InObservationObjectElements,
-	const ULearningAgentsObservationObject* InObservationObject,
-	const TArray<int32>& AgentIds,
-	const FEvaluateAgentControllerDelegate& Delegate)
-{
-	if (!Delegate.IsBound())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Delegate Not Bound."), *GetName());
-		return;
-	}
-
 	const int32 AgentNum = AgentIds.Num();
 
 	if (AgentNum != InObservationObjectElements.Num())
@@ -47,7 +40,9 @@ void ULearningAgentsController::EvaluateAgentControllerUsingDelegate(
 	OutActionObjectElements.Empty(AgentNum);
 	for (int32 AgentIdx = 0; AgentIdx < AgentNum; AgentIdx++)
 	{
-		OutActionObjectElements.Add(Delegate.Execute(InActionObject, InObservationObjectElements[AgentIdx], InObservationObject, AgentIds[AgentIdx]));
+		FLearningAgentsActionObjectElement OutActionObjectElement;
+		EvaluateAgentController(OutActionObjectElement, InActionObject, InObservationObjectElements[AgentIdx], InObservationObject, AgentIds[AgentIdx]);
+		OutActionObjectElements.Add(OutActionObjectElement);
 	}
 }
 
@@ -133,11 +128,11 @@ void ULearningAgentsController::EvaluateController()
 		return;
 	}
 
-	// Run EvaluateAgentController Callback
+	// Run EvaluateAgentControllers Callback
 
 	Interactor->ActionObject->GetActionObject().Reset();
 	Interactor->ActionObjectElements.Empty(Manager->GetMaxAgentNum());
-	EvaluateAgentController(
+	EvaluateAgentControllers(
 		Interactor->ActionObjectElements, 
 		Interactor->ActionObject, 
 		Interactor->ObservationObjectElements,
@@ -146,7 +141,7 @@ void ULearningAgentsController::EvaluateController()
 
 	if (Manager->GetAgentNum() != Interactor->ActionObjectElements.Num())
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Action Objects added by EvaluateAgentController. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->ActionObjectElements.Num());
+		UE_LOG(LogLearning, Error, TEXT("%s: Not enough Action Objects added by EvaluateAgentControllers. Expected %i, Got %i."), *GetName(), Manager->GetAgentNum(), Interactor->ActionObjectElements.Num());
 		return;
 	}
 
@@ -194,5 +189,5 @@ void ULearningAgentsController::RunController()
 
 	Interactor->GatherObservations();
 	EvaluateController();
-	Interactor->ScatterActions();
+	Interactor->PerformActions();
 }
