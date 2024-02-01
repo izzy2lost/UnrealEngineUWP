@@ -110,20 +110,6 @@ void UTG_Expression_Variant::Evaluate(FTG_EvaluationContext* InContext)
 	}
 	case FTG_Variant::EType::Texture:
 	{
-			// If any of the arguments are not connected then just return black
-		if (ErrorCheckInputTextures())
-		{
-			std::vector<FTG_Variant> Args = GetEvaluateArgs();
-			for (FTG_Variant& Arg : Args)
-			{
-				if (!Arg.IsTexture() || !Arg.GetTexture())
-				{
-					Output.EditTexture() = FTG_Texture::GetBlack();
-					return;
-				}
-			}
-		}
-
 		Output.EditTexture() = EvaluateTexture(InContext);
 		break;
 	}
