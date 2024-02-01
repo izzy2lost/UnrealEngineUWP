@@ -16,7 +16,7 @@
 
 UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 {
-	CategoryName = TEXT("Avalanche");
+	CategoryName = TEXT("Plugins");
 	SectionName = TEXT("Material Designer");
 
 	bFollowSelection = true;
