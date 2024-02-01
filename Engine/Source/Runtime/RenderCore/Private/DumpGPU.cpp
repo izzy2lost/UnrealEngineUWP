@@ -2624,7 +2624,13 @@ void FRDGBuilder::DumpResourcePassOutputs(const FRDGPass* Pass)
 		TArray<TSharedPtr<FJsonValue>> ParentEventScopeNames;
 		{
 #if RDG_EVENTS
-			for (FRDGScope const* ParentScope = Pass->GetScope(); ParentScope; ParentScope = ParentScope->Parent)
+			FRDGScope const* ParentScope = Pass->GetScope();
+			if (ensure(ParentScope))
+			{
+				// FRDGScopeState sets ERDGScopeMode::AllEventsAndPassNames when DumpGPU is active.
+				ParentScope = ParentScope->Parent;
+			}
+			for (; ParentScope; ParentScope = ParentScope->Parent)
 			{
 				if (FRDGScope_RHI const* RHIScope = ParentScope->Get<FRDGScope_RHI>())
 				{

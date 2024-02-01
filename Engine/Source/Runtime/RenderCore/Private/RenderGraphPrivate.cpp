@@ -3,6 +3,7 @@
 #include "RenderGraphPrivate.h"
 #include "RenderGraphEvent.h"
 #include "RenderGraphTrace.h"
+#include "RenderGraphBuilder.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Misc/CommandLine.h"
 #include "RHICommandList.h"
@@ -670,6 +671,12 @@ FRDGScopeState::FState::FState(bool bImmediate)
 	{
 		bool bRDGChannelEnabled = false;
 		IF_RDG_ENABLE_TRACE(bRDGChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(RDGChannel));
+
+		if (FRDGBuilder::IsDumpingFrame())
+		{
+			// We want all possible scope and pass names in a DumpGPU trace.
+			return ERDGScopeMode::AllEventsAndPassNames;
+		}
 
 		// This is polled once as a workaround for a race condition since the underlying global is not always changed on the render thread.
 		ERDGScopeMode LocalScopeMode = static_cast<ERDGScopeMode>(CVarRDGEvents.GetValueOnRenderThread());
