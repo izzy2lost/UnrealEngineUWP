@@ -73,6 +73,7 @@ void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<UE::Cha
 {
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
+	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
 }
 
 UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
@@ -468,7 +469,8 @@ void UClothEditorWeightMapPaintTool::Setup()
 	ActiveWeightMap->SetName(FName("PaintLayer"));
 
 	// Copy weights from selected node to the preview mesh
-	const TArray<float>& CurrentWeights = WeightMapNodeToUpdate->GetVertexWeights();
+	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
+	const TArray<float>& CurrentWeights = bIsRenderMode ? WeightMapNodeToUpdate->GetRenderVertexWeights() : WeightMapNodeToUpdate->GetVertexWeights();
 	
 	if (bHaveDynamicMeshToWeightConversion)
 	{
@@ -1888,18 +1890,21 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 	GetCurrentWeightMap(CurrentWeights);
 
 	check(WeightMapNodeToUpdate);
+	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
+
+	TArray<float>& NodeWeights = bIsRenderMode ? WeightMapNodeToUpdate->GetRenderVertexWeights() : WeightMapNodeToUpdate->GetVertexWeights();
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		WeightMapNodeToUpdate->GetVertexWeights().Init(0.f, WeightToDynamicMesh.Num());
+		NodeWeights.Init(0.f, WeightToDynamicMesh.Num());
 		for (int32 DynamicMeshIdx = 0; DynamicMeshIdx < CurrentWeights.Num(); ++DynamicMeshIdx)
 		{
-			WeightMapNodeToUpdate->GetVertexWeights()[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
+			NodeWeights[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
 		}
 	}
 	else
 	{
-		WeightMapNodeToUpdate->GetVertexWeights() = CurrentWeights;
+		NodeWeights = CurrentWeights;
 	}
 	
 	WeightMapNodeToUpdate->Name = UpdateWeightMapProperties->Name;
