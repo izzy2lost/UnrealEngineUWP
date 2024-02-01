@@ -988,11 +988,7 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 		const FModularRigModel& Model = InModularRig->GetModularRigModel();
 		const FString ConnectorPath = FString::Printf(TEXT("%s:%s"), *ModulePath, *ConnectorName);
 		bool bIsConnected = Model.Connections.HasConnection(FRigElementKey(*ConnectorPath, ERigElementType::Connector));
-		
-		if (!bIsConnected)
-		{
-			Color = FStyleColors::AccentYellow;
-		}
+		bool bConnectionWarning = !bIsConnected;
 		
 		if (const UControlRig* ModuleRig = ConnectorModule->GetRig())
 		{
@@ -1023,6 +1019,7 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 				}
 				else if (Connector->Settings.bOptional)
 				{
+					bConnectionWarning = false;
 					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorOptional");
 				}
 				else
@@ -1030,6 +1027,11 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorSecondary");
 				}
 			}
+		}
+
+		if (bConnectionWarning)
+		{
+			Color = FStyleColors::AccentYellow;
 		}
 	}
 	if (!Brush)
