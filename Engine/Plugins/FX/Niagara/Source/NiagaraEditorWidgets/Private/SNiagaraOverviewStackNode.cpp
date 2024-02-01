@@ -495,9 +495,13 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTitleWidget_Default(TShared
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
 				.Padding(0, 0, 5, 0)
+				.AutoHeight()
 				[
 					SNew(STextBlock)
-						.Text(LOCTEXT("StatelessNotEnabled", "Stateless not enabled\nin project settings."))
+						.Text(LOCTEXT("StatelessNotEnabled", "Stateless not enabled in project settings."))
+						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8.f))
+						.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+						.AutoWrapText(true)
 				]
 				+ SVerticalBox::Slot()
 				[

@@ -15,6 +15,7 @@ public:
 	NIAGARAEDITOR_API UNiagaraOverviewNode();
 	NIAGARAEDITOR_API void Initialize(UNiagaraSystem* InOwningSystem);
 	NIAGARAEDITOR_API void Initialize(UNiagaraSystem* InOwningSystem, FGuid InEmitterHandleGuid);
+	void UpdateStatus();
 	NIAGARAEDITOR_API const FGuid GetEmitterHandleGuid() const;
 	NIAGARAEDITOR_API struct FNiagaraEmitterHandle* TryGetEmitterHandle() const;
 	
