@@ -5,6 +5,7 @@
 #include "Editor.h"
 #include "UObject/Package.h"
 #include "ThumbnailRendering/WorldThumbnailInfo.h"
+#include "WorldPartition/WorldPartitionSettings.h"
 #include "EditorClassUtils.h"
 #include "Modules/ModuleManager.h"
 
@@ -17,9 +18,8 @@ UWorldFactory::UWorldFactory(const FObjectInitializer& ObjectInitializer)
 	SupportedClass = UWorld::StaticClass();
 	WorldType = EWorldType::Inactive;
 	bInformEngineOfWorld = false;
-	bCreateWorldPartition = false;
-	// default to true to preserve previous behavior
-	bEnableWorldPartitionStreaming = true;
+	bCreateWorldPartition = UWorldPartitionSettings::Get()->GetNewMapsEnableWorldPartition();
+	bEnableWorldPartitionStreaming = UWorldPartitionSettings::Get()->GetNewMapsEnableWorldPartitionStreaming();
 	FeatureLevel = ERHIFeatureLevel::Num;
 }
 
