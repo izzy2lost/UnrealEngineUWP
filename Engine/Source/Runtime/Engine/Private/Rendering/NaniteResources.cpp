@@ -701,7 +701,6 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 
 	InstanceWPODisableDistance = ProxyDesc.WorldPositionOffsetDisableDistance;
 
-	SetPropertyColor(FLinearColor::White);
 	SetWireframeColor(ProxyDesc.GetWireframeColor());
 
 	const bool bHasSurfaceStaticLighting = MeshInfo.GetLightMap() != nullptr || MeshInfo.GetShadowMap() != nullptr;

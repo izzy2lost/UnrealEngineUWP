@@ -6094,13 +6094,6 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 
 	bCastDynamicShadow = bCastDynamicShadow && bAnySectionCastsShadow;
 
-	// Get a color for property coloration
-	FColor NewPropertyColor;
-	if (GEngine->GetPropertyColorationColor((UObject*)Component, NewPropertyColor))
-	{
-		SetPropertyColor(NewPropertyColor);
-	}
-
 	// Copy out shadow physics asset data
 	if(SkinnedMeshComponent)
 	{

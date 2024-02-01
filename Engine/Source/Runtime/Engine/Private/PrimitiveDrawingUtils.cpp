@@ -1508,7 +1508,6 @@ bool IsRichView(const FSceneViewFamily& ViewFamily)
 		ViewFamily.EngineShowFlags.StationaryLightOverlap ||
 		ViewFamily.EngineShowFlags.BSPSplit ||
 		ViewFamily.EngineShowFlags.LightMapDensity ||
-		ViewFamily.EngineShowFlags.PropertyColoration ||
 		ViewFamily.EngineShowFlags.MeshEdges ||
 		ViewFamily.EngineShowFlags.LightInfluences ||
 		ViewFamily.EngineShowFlags.Wireframe ||
@@ -1546,13 +1545,9 @@ void ApplyViewModeOverrides(
 	if (EngineShowFlags.Wireframe)
 	{
 		// In wireframe mode, draw the edges of the mesh with the specified wireframe color, or
-		// with the level or property color if level or property coloration is enabled.
+		// with the level color if level coloration is enabled.
 		FLinearColor BaseColor( PrimitiveSceneProxy->GetWireframeColor() );
-		if (EngineShowFlags.PropertyColoration)
-		{
-			BaseColor = PrimitiveSceneProxy->GetPropertyColor();
-		}
-		else if (EngineShowFlags.ActorColoration)
+		if (EngineShowFlags.ActorColoration)
 		{
 			BaseColor = PrimitiveSceneProxy->GetPrimitiveColor();
 		}
@@ -1635,28 +1630,7 @@ void ApplyViewModeOverrides(
 	}
 	else
 	{	
-		if (EngineShowFlags.PropertyColoration)
-		{
-			const FLinearColor SelectionColor = GetSelectionColor(PrimitiveSceneProxy->GetPropertyColor(), bSelected, PrimitiveSceneProxy->IsHovered());
-			FMaterialRenderProxy* PropertyColorationMaterialInstance = nullptr;
-
-			if (bMaterialModifiesMeshPosition)
-			{
-				// If the material is mesh-modifying, we cannot rely on substitution.
-				PropertyColorationMaterialInstance = new FOverrideSelectionColorMaterialRenderProxy(Mesh.MaterialRenderProxy, SelectionColor);
-			}
-			else
-			{
-				// In property coloration mode, override the mesh's material with a color that was chosen based on property value.
-				const UMaterial* PropertyColorationMaterial = EngineShowFlags.Lighting ? GEngine->LevelColorationLitMaterial : GEngine->LevelColorationUnlitMaterial;
-
-				PropertyColorationMaterialInstance = new FColoredMaterialRenderProxy(PropertyColorationMaterial->GetRenderProxy(), SelectionColor);
-			}
-
-			Mesh.MaterialRenderProxy = PropertyColorationMaterialInstance;
-			Collector.RegisterOneFrameMaterialProxy(PropertyColorationMaterialInstance);
-		}
-		else if (EngineShowFlags.ActorColoration)
+		if (EngineShowFlags.ActorColoration)
 		{
 			const FLinearColor SelectionColor = GetSelectionColor(PrimitiveSceneProxy->GetPrimitiveColor(), bSelected, PrimitiveSceneProxy->IsHovered());
 			FMaterialRenderProxy* LevelColorationMaterialInstance = nullptr;

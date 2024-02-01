@@ -54,6 +54,7 @@
 #include "Engine/Texture2D.h"
 #include "Animation/SkeletalMeshActor.h"
 #include "Engine/NavigationObjectBase.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "GameFramework/PlayerStart.h"
 #include "Engine/StaticMesh.h"
 #include "Sound/SoundBase.h"
@@ -503,6 +504,21 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 
 	// Callback to get the preview platform is used for PerPlatformConfig classes
 	UObject::OnGetPreviewPlatform.BindUObject(this, &UEditorEngine::GetPreviewPlatformName);
+
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	if (HasAnyFlags(RF_ClassDefaultObject) && ExactCast<UEditorEngine>(this))
+	{
+		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("PropertyColor"), LOCTEXT("PropertyColor", "Property Color"), [this](const UPrimitiveComponent* InPrimitiveComponent)
+		{
+			FColor PropertyColor(FColor::White);
+			if (AActor* Actor = InPrimitiveComponent->GetOwner())
+			{
+				GetPropertyColorationColor(Actor, PropertyColor);
+			}
+			return PropertyColor;
+		});
+	}
+#endif
 }
 
 

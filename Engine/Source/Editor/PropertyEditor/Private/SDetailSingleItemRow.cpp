@@ -6,6 +6,7 @@
 #include "DetailGroup.h"
 #include "DetailPropertyRow.h"
 #include "DetailWidgetRow.h"
+#include "Editor.h"
 #include "IDetailDragDropHandler.h"
 #include "IDetailPropertyExtensionHandler.h"
 #include "Modules/ModuleInterface.h"
@@ -20,6 +21,7 @@
 #include "SDetailExpanderArrow.h"
 #include "SDetailRowIndent.h"
 #include "Styling/StyleColors.h"
+#include "UObject/Field.h"
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -778,6 +780,29 @@ FReply SDetailSingleItemRow::OnMouseButtonUp(const FGeometry& MyGeometry, const 
 		if (bIsHandled)
 		{
 			return FReply::Handled();
+		}
+	}
+	else if (MouseEvent.GetModifierKeys().IsControlDown() && GEditor && GWorld)
+	{
+		const TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode();
+		const TSharedPtr<IPropertyHandle> PropertyHandle = GetPropertyHandle();		
+
+		if (PropertyNode.IsValid() && PropertyHandle.IsValid())
+		{
+			IDetailsViewPrivate* DetailsView = OwnerTreeNode.Pin()->GetDetailsView();
+			TSharedPtr<IPropertyHandle> Handle = PropertyEditorHelpers::GetPropertyHandle(PropertyNode.ToSharedRef(), DetailsView->GetNotifyHook(), DetailsView->GetPropertyUtilities());
+
+			FString Value;
+			if (Handle->GetValueAsFormattedString(Value, PPF_Copy) == FPropertyAccess::Success)
+			{
+				FProperty* Property = PropertyHandle->GetProperty();
+
+				TSharedRef<FEditPropertyChain> PropertyChain = PropertyNode->BuildPropertyChain(Property);
+				check(PropertyChain.IsUnique());
+
+				FProperty* TopProperty = PropertyChain->GetHead()->GetValue();
+				GEditor->SetPropertyColorationTarget(GWorld, Value, Property, TopProperty->GetOwnerClass(), &PropertyChain);
+			}
 		}
 	}
 

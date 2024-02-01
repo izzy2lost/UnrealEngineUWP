@@ -434,7 +434,6 @@ private:
 		SetModeWidgets(InitMode == ESFIM_Editor);
 		SetBounds(false);
 		SetHitProxies(false);
-		SetPropertyColoration(false);
 		SetLightInfluences(false);
 		SetPivot(InitMode == ESFIM_Editor || InitMode == ESFIM_VREditing);
 		SetShadowFrustums(false);

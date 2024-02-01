@@ -6533,7 +6533,6 @@ FParticleSystemSceneProxy::FParticleSystemSceneProxy(UParticleSystemComponent* C
 	, FirstFreeMeshBatch(0)
 {
 	SetWireframeColor(FLinearColor(3.0f, 0.0f, 0.0f));
-	SetPropertyColor(FLinearColor(1.0f, 1.0f, 1.0f));
 
 	LODMethod = Component->LODMethod;
 

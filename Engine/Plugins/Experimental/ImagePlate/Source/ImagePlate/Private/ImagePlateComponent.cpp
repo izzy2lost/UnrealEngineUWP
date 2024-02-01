@@ -70,10 +70,6 @@ namespace
 			{
 				MaterialRelevance |= Material->GetRelevance_Concurrent(GetScene().GetFeatureLevel());
 			}
-
-			FColor NewPropertyColor;
-			GEngine->GetPropertyColorationColor(InComponent, NewPropertyColor);
-			SetPropertyColor(NewPropertyColor);
 		}
 
 		~FImagePlateSceneProxy()

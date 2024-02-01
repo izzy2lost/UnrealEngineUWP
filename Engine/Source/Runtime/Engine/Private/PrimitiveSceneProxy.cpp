@@ -398,7 +398,6 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const UPrimitiveComponent* InComponen
 FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InProxyDesc, FName InResourceName) :
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	WireframeColor(FLinearColor::White)
-,	PropertyColor(FLinearColor::White)
 ,	
 #endif
 	CustomPrimitiveData(InProxyDesc.GetCustomPrimitiveData())

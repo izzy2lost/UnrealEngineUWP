@@ -261,11 +261,6 @@ public:
 		}
 
 		bGoodCandidateForCachedShadowmap = CacheShadowDepthsFromPrimitivesUsingWPO() || (!MaterialRelevance.bUsesWorldPositionOffset && !MaterialRelevance.bUsesDisplacement);
-
-		// Get a color for property coloration.
-		FColor NewPropertyColor;
-		GEngine->GetPropertyColorationColor( (UObject*)InComponent, NewPropertyColor );
-		SetPropertyColor(NewPropertyColor);
 	}
 
 	~FModelSceneProxy()

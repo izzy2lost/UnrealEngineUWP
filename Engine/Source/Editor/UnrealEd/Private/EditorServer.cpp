@@ -39,6 +39,7 @@
 #include "Components/ActorComponent.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/ActorPrimitiveColorHandler.h"
 #include "CollisionQueryParams.h"
 #include "WorldCollision.h"
 #include "Engine/World.h"
@@ -3657,55 +3658,44 @@ namespace
 	/** true if GPropertyColorationProperty is an object property. */
 	static bool				GbColorationPropertyIsObjectProperty = false;
 
-	/** The chain of properties from member to lowest priority*/
-	static FEditPropertyChain*	GPropertyColorationChain = NULL;
+	/** The chain of properties from member to lowest priority. */
+	static TSharedRef<FEditPropertyChain>*	GPropertyColorationChain = nullptr;
 
 	/** Used to collect references to actors that match the property coloration settings. */
 	static TArray<AActor*>*		GPropertyColorationActorCollector = NULL;
 }
 
 
-void UEditorEngine::SetPropertyColorationTarget(UWorld* InWorld, const FString& PropertyValue, FProperty* Property, UClass* CommonBaseClass, FEditPropertyChain* PropertyChain)
+void UEditorEngine::SetPropertyColorationTarget(UWorld* InWorld, const FString& PropertyValue, FProperty* Property, UClass* CommonBaseClass, TSharedRef<FEditPropertyChain>* PropertyChain)
 {
 	if ( GPropertyColorationProperty != Property || 
 		GPropertyColorationClass != CommonBaseClass ||
-		GPropertyColorationChain != PropertyChain ||
+		!!GPropertyColorationChain != !!PropertyChain ||
 		GPropertyColorationValue != PropertyValue )
 	{
 		const FScopedBusyCursor BusyCursor;
 		delete GPropertyColorationChain;
+		GPropertyColorationChain = nullptr;
 
 		GPropertyColorationValue = PropertyValue;
 		GPropertyColorationProperty = Property;
 		GPropertyColorationClass = CommonBaseClass;
-		GPropertyColorationChain = PropertyChain;
+		
+		GPropertyColorationChain = PropertyChain ? new TSharedRef<FEditPropertyChain>(*PropertyChain) : nullptr;
 
 		GbColorationClassIsActor = GPropertyColorationClass->IsChildOf( AActor::StaticClass() );
 		GbColorationPropertyIsObjectProperty = CastField<FObjectPropertyBase>(GPropertyColorationProperty) != NULL;
 
-		InWorld->UpdateWorldComponents( false, false );
+		FActorPrimitiveColorHandler::Get().RefreshPrimitiveColorHandler(TEXT("PropertyColor"), InWorld);
+
 		RedrawLevelEditingViewports();
 	}
-}
-
-
-void UEditorEngine::GetPropertyColorationTarget(FString& OutPropertyValue, FProperty*& OutProperty, UClass*& OutCommonBaseClass, FEditPropertyChain*& OutPropertyChain)
-{
-	OutPropertyValue	= GPropertyColorationValue;
-	OutProperty			= GPropertyColorationProperty;
-	OutCommonBaseClass	= GPropertyColorationClass;
-	OutPropertyChain	= GPropertyColorationChain;
-}
-
-bool UEditorEngine::IsPropertyColorationColorFeatureActivated() const
-{
-	return GPropertyColorationClass && GPropertyColorationChain;
 }
 
 bool UEditorEngine::GetPropertyColorationColor(UObject* Object, FColor& OutColor)
 {
 	bool bResult = false;
-	if (IsPropertyColorationColorFeatureActivated() && GPropertyColorationChain->Num() > 0)
+	if (GPropertyColorationChain)
 	{
 		UObject* MatchingBase = NULL;
 		AActor* Owner = NULL;
@@ -3738,9 +3728,9 @@ bool UEditorEngine::GetPropertyColorationColor(UObject* Object, FColor& OutColor
 			bool bDontCompareProps = false;
 
 			uint8* Base = (uint8*) MatchingBase;
-			int32 TotalChainLength = GPropertyColorationChain->Num();
+			int32 TotalChainLength = (*GPropertyColorationChain)->Num();
 			int32 ChainIndex = 0;
-			for ( FEditPropertyChain::TIterator It(GPropertyColorationChain->GetHead()); It; ++It )
+			for ( FEditPropertyChain::TIterator It((*GPropertyColorationChain)->GetHead()); It; ++It )
 			{
 				FProperty* Prop = *It;
 				FObjectPropertyBase* ObjectPropertyBase = CastField<FObjectPropertyBase>(Prop);
