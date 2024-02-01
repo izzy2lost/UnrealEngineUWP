@@ -139,11 +139,11 @@ class TEXTUREGRAPH_API UTG_Expression_Pow : public UTG_Expression_Variant
 	
 	// The base of the power function
 	UPROPERTY(meta = (TGType = "TG_Input"))
-	FTG_Variant							Base;
+	FTG_Variant							Base = 0;
 
 	// The exponent
 	UPROPERTY(meta = (TGType = "TG_Input"))
-	FTG_Variant							Exponent = 0;
+	FTG_Variant							Exponent = 1; // Default exponent to 1 for a noop behavior
 
 public:
 	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Calculates Pow(Base, Exponent).")); } 
