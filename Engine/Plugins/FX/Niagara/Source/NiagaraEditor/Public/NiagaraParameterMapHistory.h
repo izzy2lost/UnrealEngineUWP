@@ -375,6 +375,8 @@ public:
 	FParameterCollection IsParameterCollectionParameter(FNiagaraVariable& InVar, bool& bMissingParameter);
 
 	bool ShouldIgnoreVariableDefault(const FNiagaraVariable& Var)const;
+
+	void ConditionalUpdateAliasedVariable(int32 VariableIndex, const FNiagaraVariableBase& InAliasedVar);
 };
 
 template<typename GraphBridge>
