@@ -36,22 +36,6 @@ UNiagaraOverviewNode::UNiagaraOverviewNode()
 	UEdGraphNode::bCanRenameNode = true;
 };
 
-void UNiagaraOverviewNode::Initialize(UNiagaraSystem* InOwningSystem)
-{
-	OwningSystem = InOwningSystem;
-}
-
-void UNiagaraOverviewNode::Initialize(UNiagaraSystem* InOwningSystem, FGuid InEmitterHandleGuid)
-{
-	OwningSystem = InOwningSystem;
-	EmitterHandleGuid = InEmitterHandleGuid;
-}
-
-const FGuid UNiagaraOverviewNode::GetEmitterHandleGuid() const
-{
-	return EmitterHandleGuid;
-}
-
 static FNiagaraEmitterHandle* FindEmitterHandleByID(UNiagaraSystem* System, const FGuid& Guid)
 {
 	check(System != nullptr);
@@ -66,6 +50,37 @@ static FNiagaraEmitterHandle* FindEmitterHandleByID(UNiagaraSystem* System, cons
 	}
 
 	return nullptr;
+}
+
+void UNiagaraOverviewNode::Initialize(UNiagaraSystem* InOwningSystem)
+{
+	OwningSystem = InOwningSystem;
+}
+
+void UNiagaraOverviewNode::Initialize(UNiagaraSystem* InOwningSystem, FGuid InEmitterHandleGuid)
+{
+	OwningSystem = InOwningSystem;
+	EmitterHandleGuid = InEmitterHandleGuid;
+}
+
+void UNiagaraOverviewNode::UpdateStatus()
+{
+	if(FNiagaraEmitterHandle* EmitterHandle = FindEmitterHandleByID(OwningSystem, EmitterHandleGuid))
+	{
+		if(!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled && EmitterHandle->GetEmitterMode() == ENiagaraEmitterMode::Stateless)
+		{
+			SetForceDisplayAsDisabled(true);
+		}
+		else
+		{
+			SetForceDisplayAsDisabled(false);
+		}
+	}
+}
+
+const FGuid UNiagaraOverviewNode::GetEmitterHandleGuid() const
+{
+	return EmitterHandleGuid;
 }
 
 FNiagaraEmitterHandle* UNiagaraOverviewNode::TryGetEmitterHandle() const
