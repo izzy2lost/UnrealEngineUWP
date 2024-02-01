@@ -160,7 +160,7 @@ JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetWindowInfo(JNIEn
 
 JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeSetSurfaceViewInfo(JNIEnv* jenv, jobject thiz, jint width, jint height)
 {
-	STANDALONE_DEBUG_LOG( TEXT("nativeSetSurfaceViewInfo prev width=%d and prev height=%d"), GSurfaceViewWidth, GSurfaceViewHeight);
+	STANDALONE_DEBUG_LOG( TEXT("nativeSetSurfaceViewInfo prev[width=%d, height=%d] new[width=%d, height=%d]"), GSurfaceViewWidth, GSurfaceViewHeight, width, height);
 
 	if (GAndroidWindowOverride != nullptr && (width != GSurfaceViewWidth || height != GSurfaceViewHeight))	
 	{
@@ -332,13 +332,15 @@ void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
  void FAndroidWindow::SetHardwareWindow_EventThread(void* InWindow)
 {
 #if USE_ANDROID_EVENTS
+	 STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("SetHardwareWindow_EventThread(USE_ANDROID_EVENTS) -> InWindow(%p), GAndroidWindowOverride(%p), IsInAndroidEventThread()=%d"), InWindow, GAndroidWindowOverride, IsInAndroidEventThread());
+
 	check(IsInAndroidEventThread());
 #endif
 
 #if USE_ANDROID_STANDALONE
 	if (GAndroidWindowOverride && InWindow != GAndroidWindowOverride)
 	{
-		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("SetHardwareWindow_EventThread -> InWindow(%p) is not current GAndroidWindowOverride(%p)"), InWindow, GAndroidWindowOverride);
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("SetHardwareWindow_EventThread(USE_ANDROID_STANDALONE) -> InWindow(%p) is not current GAndroidWindowOverride(%p)"), InWindow, GAndroidWindowOverride);
 	}
 #endif
 
@@ -349,14 +351,21 @@ void FAndroidWindow::ReleaseWindowRef(ANativeWindow* InWindow)
 void* FAndroidWindow::GetHardwareWindow_EventThread()
 {
 #if USE_ANDROID_STANDALONE
-	if (NativeWindow && GAndroidWindowOverride)
+	void* result = GAndroidWindowOverride != nullptr ? GAndroidWindowOverride : NativeWindow;
+	if (result != nullptr)
 	{
-		STANDALONE_DEBUG_LOG(TEXT("GetHardwareWindow_EventThread overrode window: %p"), GAndroidWindowOverride);
-		return GAndroidWindowOverride;
+		if (GAndroidWindowOverride != NativeWindow)
+		{
+			STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("GetHardwareWindow_EventThread GAndroidWindowOverride=%p, NativeWindow=%p"), GAndroidWindowOverride, NativeWindow);
+		}
+		return result;
+	}
+	else
+	{
+		//STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("ERROR: GetHardwareWindow_EventThread has invalid window!!! GAndroidWindowOverride=%p, NativeWindow=%p"), GAndroidWindowOverride, NativeWindow);
+		return result;
 	}
 #endif
-
-	STANDALONE_DEBUG_LOG(TEXT("GetHardwareWindow_EventThread NativeWindow: %p"), NativeWindow);
 
 	return NativeWindow;
 }
@@ -408,6 +417,9 @@ void FAndroidWindow::EventManagerUpdateWindowDimensions(int32 Width, int32 Heigh
 	check(Width >= 0 && Height >= 0);
 
 #if USE_ANDROID_STANDALONE
+	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("FAndroidWindow::EventManagerUpdateWindowDimensions GAndroidWindowOverride=%p, Width=%d, Height=%d, GSurfaceViewWidth=%d, GSurfaceViewHeight=%d, CachedNativeWindowWidth=%d, CachedNativeWindowHeight=%d"), 
+		GAndroidWindowOverride, Width, Height, GSurfaceViewWidth, GSurfaceViewHeight, CachedNativeWindowWidth, CachedNativeWindowHeight);
+
 	if (GAndroidWindowOverride && GSurfaceViewWidth > 0)
 	{
 		Width = GSurfaceViewWidth;
@@ -629,6 +641,18 @@ FPlatformRect FAndroidWindow::GetScreenRect(bool bUseEventThreadWindow)
 			}
 		}
 
+
+		bool bIsPortrait = GDeviceScreenOrientation == EDeviceScreenOrientation::Portrait || GDeviceScreenOrientation == EDeviceScreenOrientation::PortraitUpsideDown;
+		UE_LOG(LogAndroid, Log, TEXT("FAndroidWindow::GetScreenRect bIsPortrait=%d"), bIsPortrait);
+
+		if (bIsPortrait)
+		{
+			UE_LOG(LogAndroid, Log, TEXT("FAndroidWindow::GetScreenRect(swap WH) bIsPortrait=%d"), bIsPortrait);
+			int temp = ScreenWidth;
+			ScreenWidth = ScreenHeight;
+			ScreenHeight = temp;
+		}
+
 		// save for future calls
 		CurrentParams.WindowWidth = ScreenWidth;
 		CurrentParams.WindowHeight = ScreenHeight;
@@ -662,6 +686,7 @@ void FAndroidWindow::CalculateSurfaceSize(int32_t& SurfaceWidth, int32_t& Surfac
 	UE_LOG(LogAndroid, Fatal, TEXT("FAndroidWindow::CalculateSurfaceSize currently expects non-JNI platforms to override resolution"));
 
 #else
+	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("::CalculateSurfaceSize(USE_ANDROID_JNI) -> bUseEventThreadWindow=%d, GAndroidWindowOverride(%p), IsInAndroidEventThread()=%d"), bUseEventThreadWindow, GAndroidWindowOverride, IsInAndroidEventThread());
 
 	if (bUseEventThreadWindow)
 	{

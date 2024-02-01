@@ -494,6 +494,11 @@ public class Engine
 	//}
 }
 
+void IssueAppCommand(int cmd, String caller)
+{
+	GetOverrideGameActivityWhenInitComplete().nativeAppCommand(cmd);
+}
+
 void DoGameActivityNativeMain(String projectModule, String reasonString)
 	{
 		Log.i(TAG, "DoGameActivityNativeMain is called with reasonString=" + reasonString + ", projectModule=" + projectModule);

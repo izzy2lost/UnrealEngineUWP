@@ -542,7 +542,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	
 	public GameActivity()
 	{
-		Log.debug( "GameActivityForMakeAAR constructor called with _gameActivityInstance=" + _gameActivityInstance + ", activityContext=" + activityContext + ", this=" + this + ", isStandalone=" + isStandalone);
+		Log.debug( "GameActivity constructor called with _gameActivityInstance=" + _gameActivityInstance + ", activityContext=" + activityContext + ", this=" + this + ", isStandalone=" + isStandalone);
 
 		assert (_gameActivityInstance == null);
 		_gameActivityInstance = this;
@@ -568,6 +568,22 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		return _gameActivityInstance.activityContext;
 	}
+
+	public final Window getWindow() 
+	{
+		return isStandalone ? activityContext.getWindow() : super.getWindow();
+	}
+
+	public final Intent getIntent()
+	{
+		return super.getIntent();
+	}
+
+	public final WindowManager getWindowManager()
+	{
+		return isStandalone ? activityContext.getWindowManager() : super.getWindowManager();
+	}
+
 	
 	/**
 	Get the SDK level of the OS we are running in.
@@ -603,9 +619,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public int getDeviceDefaultOrientation() 
 	{
 		// WindowManager windowManager =  (WindowManager) getSystemService(WINDOW_SERVICE);
-		WindowManager windowManager = activityContext.getWindowManager();
+		WindowManager windowManager = getWindowManager();
 
-		Configuration config = activityContext.getResources().getConfiguration();
+		Configuration config = getResources().getConfiguration();
 
 		int rotation = windowManager.getDefaultDisplay().getRotation();
 		if ( ((rotation == android.view.Surface.ROTATION_0 || rotation == android.view.Surface.ROTATION_180) &&
@@ -641,7 +657,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	private int getResourceId(String VariableName, String ResourceName, String PackageName)
 	{
 		try {
-			return activityContext.getResources().getIdentifier(VariableName, ResourceName, PackageName);
+			return getResources().getIdentifier(VariableName, ResourceName, PackageName);
 		}
 		catch (Exception e) {
 			e.printStackTrace();
@@ -658,7 +674,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public String getProductName()
 	{
 	
-		String ProductName = Settings.Global.getString(activityContext.getApplicationContext().getContentResolver(), "default_device_name");
+		String ProductName = Settings.Global.getString(getApplicationContext().getContentResolver(), "default_device_name");
 		if(ProductName == null)
 		{
 			ProductName="";
@@ -715,7 +731,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
     public boolean AndroidThunkJava_IsPackageInstalled(String packagename)
 	{
-        List<String> packages = getInstalledPackages(activityContext.getApplicationContext());
+        List<String> packages = getInstalledPackages(getApplicationContext());
         return packages.contains(packagename);
     }
 
@@ -1818,7 +1834,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		int navigationBarHeight = 0;
 		if (Build.VERSION.SDK_INT >= 21)
 		{
-			android.content.res.Resources resources = activityContext.getApplicationContext().getResources();
+			android.content.res.Resources resources = getApplicationContext().getResources();
 			int resourceId = resources.getIdentifier("status_bar_height", "dimen", "android");
 			if (resourceId > 0) {
 				statusBarHeight += resources.getDimensionPixelSize(resourceId);
@@ -1832,7 +1848,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		variables.put("navigationBarHeight", Integer.toString(navigationBarHeight));
 
 		// store the screen resolution (adjusted for immersive mode)
-		android.view.Display display = activityContext.getWindowManager().getDefaultDisplay();
+		android.view.Display display = getWindowManager().getDefaultDisplay();
 		android.graphics.Point displaySize = new android.graphics.Point();
 		if (ShouldHideUI)
 		{
@@ -2430,6 +2446,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		super.onCreate(savedInstanceState);
 
+		onCreateBody(savedInstanceState);
+	}
+
+	protected void onCreateBody(Bundle savedInstanceState)
+	{
 		sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 		accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 		magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
@@ -2447,7 +2468,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			deviceVibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
 		}
 
-		if (PermissionHelper.checkPermission("android.permission.CHANGE_WIFI_MULTICAST_STATE"))
+		if (!isStandalone && PermissionHelper.checkPermission("android.permission.CHANGE_WIFI_MULTICAST_STATE"))
 		{
 			WifiManager wifiManager = (WifiManager)getSystemService(Context.WIFI_SERVICE);
 			MultiCastLock = wifiManager.createMulticastLock("UE");
@@ -2457,14 +2478,25 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		// disable autofill to avoid possible Android 10 crash (android.view.autofill.AutofillManager.ensureServiceClientAddedIfNeededLocked() SyncResultReceiver$TimeoutException)
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
 		{
-			getWindow().getDecorView().setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+			try
+			{
+				getWindow().getDecorView().setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
+			} 
+			catch(Exception e) 
+			{
+				Log.error("onCreateBody(): getWindow().getDecorView() not available in current context!, err = " + e.getMessage());
+			}
 		}
 
 		boolean bIsShipping = nativeIsShippingBuild();
 
 		// create splashscreen dialog (if launched by SplashActivity)
-		_extrasBundle = getIntent().getExtras();
-		if (_extrasBundle != null)
+		if (!isStandalone && _extrasBundle == null)
+		{
+			_extrasBundle = getIntent().getExtras();
+		}
+
+		if (!isStandalone && _extrasBundle != null)
 		{
 			ShouldHideUI = _extrasBundle.getString("ShouldHideUI") != null;
 			UseDisplayCutout = _extrasBundle.getString("UseDisplayCutout") != null;
@@ -2473,7 +2505,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				SplashScreenLaunch = true;
 				try {
 					// try to get the splash theme (can't use R.style.UnrealSplashTheme since we don't know the package name until runtime)
-					int SplashThemeId = activityContext.getResources().getIdentifier("UnrealSplashTheme", "style", getPackageName());
+					int SplashThemeId = getResources().getIdentifier("UnrealSplashTheme", "style", getPackageName());
 					mSplashDialog = new Dialog(this, SplashThemeId);
 					mSplashDialog.setCancelable(false);
 
@@ -2499,14 +2531,14 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 					e.printStackTrace();
 				}
 				try {
-					noActionAnimID = activityContext.getResources().getIdentifier("noaction", "anim", getPackageName());
+					noActionAnimID = getResources().getIdentifier("noaction", "anim", getPackageName());
 				}
 				catch (Exception e) {
 					e.printStackTrace();
 				}
 			}
 			try {
-				noActionAnimID = activityContext.getResources().getIdentifier("noaction", "anim", getPackageName());
+				noActionAnimID = getResources().getIdentifier("noaction", "anim", getPackageName());
 			}
 			catch (Exception e) {
 				e.printStackTrace();
@@ -2521,16 +2553,16 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			if (UseDisplayCutout)
 			{
 				// will not be true if not Android Pie or later
-	            WindowManager.LayoutParams params = activityContext.getWindow().getAttributes();
+	            WindowManager.LayoutParams params = getWindow().getAttributes();
 		        params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-			  	activityContext.getWindow().setAttributes(params);
+			  	getWindow().setAttributes(params);
 			}
 		}
 
 		// Retrieve version code, name, and target SDK
 		try 
 		{
-			PackageInfo packageInfo = activityContext.getPackageManager().getPackageInfo(getPackageName(), 0);
+			PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
 			VersionCode = packageInfo.versionCode;
 			VersionName = packageInfo.versionName;
 			targetSdkVersion = packageInfo.applicationInfo.targetSdkVersion;
@@ -2541,7 +2573,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// Check for target sdk.  If 23 or higher then warn that permission handling may mean features don't work if user denies them.
-		if (ANDROID_BUILD_VERSION >= 23 && targetSdkVersion >= 23) //23 is the API level (Marshmallow) where runtime permission handling is available
+		if (!isStandalone && ANDROID_BUILD_VERSION >= 23 && targetSdkVersion >= 23) //23 is the API level (Marshmallow) where runtime permission handling is available
 		{
 			Log.debug("Target SDK is " + targetSdkVersion + ".  This may cause issues if permissions are denied by the user." );	
 			if (!bIsShipping)
@@ -2574,7 +2606,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			{
 				int ProcessMemory = 0;
 
-				ActivityManager activityManager = (ActivityManager) activityContext.getSystemService(Context.ACTIVITY_SERVICE);
+				ActivityManager activityManager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
 				int pid = android.os.Process.myPid();
 				int pids[] = new int[] { pid };
 				android.os.Debug.MemoryInfo[] memoryInfo = activityManager.getProcessMemoryInfo(pids);
@@ -2639,17 +2671,28 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				}
 			}
 		};
+
 		memoryHandlerThread = new HandlerThread("MemoryUsageThread", android.os.Process.THREAD_PRIORITY_LOWEST);
 		memoryHandlerThread.start();
 		memoryHandler = new Handler(memoryHandlerThread.getLooper());
 		memoryHandler.postDelayed(memoryRunnable, 1);
 
 		// layout required by popups, e.g ads, native controls
-		MarginLayoutParams params = new MarginLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-		params.setMargins(0, 0, 0, 0);
-		activityLayout = new LinearLayout(activityContext);
-		SimpleContextWrapper.getActivityOfContext(activityContext).setContentView(activityLayout, params);
+		if (!isStandalone)
+		{
+			MarginLayoutParams params = new MarginLayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
+			params.setMargins(0, 0, 0, 0);
+			activityLayout = new LinearLayout(activityContext);
+			SimpleContextWrapper.getActivityOfContext(activityContext).setContentView(activityLayout, params);
 
+			// tell Android that we want volume controls to change the media volume, aka music
+			setVolumeControlStream(AudioManager.STREAM_MUSIC);
+		}
+
+		//
+		// NOTE: DO NOT DELETE THIS!!!!!!!
+		//       this is meant to be uncommented for special cases
+		//
 /*
 		// Turn on and unlock screen.. Assumption is that this
 		// will only really have an effect when for debug launching
@@ -2669,6 +2712,10 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 */
 
+		//
+		// NOTE: DO NOT DELETE THIS!!!!!!!
+		//       this is meant to be uncommented for special cases
+		//
 /*
 		// log a list of input devices for debugging
 		{
@@ -2690,13 +2737,10 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 */
 
-		// tell Android that we want volume controls to change the media volume, aka music
-		setVolumeControlStream(AudioManager.STREAM_MUSIC);
-
 		// Look for Vulkan support if Nougat or later
 		if (ANDROID_BUILD_VERSION >= 24)
 		{
-			FeatureInfo[] features = activityContext.getPackageManager().getSystemAvailableFeatures();
+			FeatureInfo[] features = getPackageManager().getSystemAvailableFeatures();
 			for (FeatureInfo feature : features) {
 				if (feature.name != null)
 				{
@@ -2747,7 +2791,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			boolean bForceLandscape = false;
 
 			// check for a Google TV by checking system feature support
-			if (activityContext.getPackageManager().hasSystemFeature("com.google.android.tv"))
+			if (getPackageManager().hasSystemFeature("com.google.android.tv"))
 			{
 				Log.debug( "Detected Google TV, will default to landscape" );
 				bForceLandscape = true;
@@ -2800,7 +2844,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		ProjectName = ProjectName.substring(ProjectName.lastIndexOf('.') + 1);
 		String AppType = "";
 		try {
-			ApplicationInfo ai = activityContext.getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
+			ApplicationInfo ai = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
 			Bundle bundle = ai.metaData;
 			_bundle = bundle;
 
@@ -2991,7 +3035,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		nativeSetGlobalActivity(UseExternalFilesDir, PublicLogFiles, getFilesDir().getPath(), getExternalFilesDir(null).getPath(), PackageDataInsideApkValue==1, APKPath);
 
 		// tell the engine if this is a portrait app
-		nativeSetWindowInfo(activityContext.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT, DepthBufferPreference, PropagateAlpha);
+		nativeSetWindowInfo(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT, DepthBufferPreference, PropagateAlpha);
 
 		// get the full language code, like en-US
 		// note: this may need to be Locale.getDefault().getLanguage()
@@ -3013,7 +3057,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		int PatchVersion = 0;
 		if (VersionCode > 0)
 		{
-			nativeSetObbInfo(ProjectName, activityContext.getApplicationContext().getPackageName(), VersionCode, PatchVersion, AppType);
+			nativeSetObbInfo(ProjectName, getApplicationContext().getPackageName(), VersionCode, PatchVersion, AppType);
 		}
 		else
 		{
@@ -3022,14 +3066,17 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 		
 		// enable the physical volume controls to the game
-		this.setVolumeControlStream(AudioManager.STREAM_MUSIC);
+		if (!isStandalone)
+		{
+			this.setVolumeControlStream(AudioManager.STREAM_MUSIC);
+		}
 
 		AlertDialog.Builder builder;
 
-		consoleInputBox = new ConsoleKeyboardInput(this);
+		consoleInputBox = new ConsoleKeyboardInput(activityContext);
 		consoleInputBox.setInputType(0x00080001); // TYPE_CLASS_TEXT | TYPE_TEXT_FLAG_NO_SUGGESTIONS);
 		
-		RelativeLayout consoleInputLayout = new RelativeLayout(this);
+		RelativeLayout consoleInputLayout = new RelativeLayout(activityContext);
 		{ 
 			android.widget.ImageButton consoleHistoryButton = consoleInputBox.getButton();
 			consoleInputBox.setId(1);
@@ -3047,8 +3094,8 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// Spinner with Quick Stat Commands
-		consoleSpinner = new Spinner(this);
-		ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, CONSOLE_SPINNER_ITEMS);
+		consoleSpinner = new Spinner(activityContext);
+		ArrayAdapter<String> adapter = new ArrayAdapter<String>(activityContext, android.R.layout.simple_spinner_item, CONSOLE_SPINNER_ITEMS);
 		adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
 		consoleSpinner.setAdapter(adapter);
 		consoleSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -3066,12 +3113,12 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		});
 
 		// Layout for Quick Commands and Console Input
-		consoleAlertLayout = new LinearLayout(this);
+		consoleAlertLayout = new LinearLayout(activityContext);
 		consoleAlertLayout.setOrientation(LinearLayout.VERTICAL);
 		consoleAlertLayout.addView(consoleSpinner);
 		consoleAlertLayout.addView(consoleInputLayout);
 
-		builder = new AlertDialog.Builder(this);
+		builder = new AlertDialog.Builder(activityContext);
 		builder.setTitle("Console Window - Enter Command")
 		.setMessage("")
 		.setView(consoleAlertLayout)
@@ -3102,7 +3149,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		});
 		consoleAlert = builder.create();
 
-		virtualKeyboardInputBox = new EditText(this);
+		virtualKeyboardInputBox = new EditText(activityContext);
 		virtualKeyboardInputBox.addTextChangedListener(new TextWatcher() {
 			@Override
 			public void beforeTextChanged(CharSequence charSequence, int start, int count, int after) {
@@ -3119,7 +3166,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			}
 		});
 
-		builder = new AlertDialog.Builder(this);
+		builder = new AlertDialog.Builder(activityContext);
 		builder.setTitle("")
 		.setView(virtualKeyboardInputBox)
 		.setPositiveButton("Ok", new DialogInterface.OnClickListener() {
@@ -3142,8 +3189,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		});
 		virtualKeyboardAlert = builder.create();
 
-		GooglePlayLicensing.GoogleLicensing = new GooglePlayLicensing();
-		GooglePlayLicensing.GoogleLicensing.Init(this, Log);
+		if (!isStandalone) // TODO: maybe this is okay for ASIS
+		{
+			GooglePlayLicensing.GoogleLicensing = new GooglePlayLicensing();
+			GooglePlayLicensing.GoogleLicensing.Init(this, Log);
+		}
 
 		// Now okay for event handler to be set up on native side
 		//	nativeResumeMainInit();
@@ -3152,18 +3202,14 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		// AndroidThunkJava_GooglePlayConnect();
 
 		// If we have data in the apk or just loose then carry on init as normal
-		/*Log.debug(this.getObbDir().getAbsolutePath());
-		String path = this.getObbDir().getAbsolutePath() + "/main.1.com.epicgames.StrategyGame.obb";
-		File obb = new File(path);
-		Log.debug("=+=+=+=+=+=+=> File exists: " + (obb.exists() ? "True" : "False"));
-		*/
+		
 		if(PackageDataInsideApkValue == 1 || HasOBBFiles == 0)
 		{
 			HasAllFiles = true;
 		}
 
 		// check for OBB file present if we don't have all the files and don't need to verify
-		if (!HasAllFiles && !VerifyOBBOnStartUp)
+		if (!isStandalone && !HasAllFiles && !VerifyOBBOnStartUp)
 		{
 			HasAllFiles = DownloadShim.expansionFilesDelivered(this, VersionCode);
 		}
@@ -3171,157 +3217,162 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		containerFrameLayout = new FrameLayout(activityContext);
 		virtualKeyboardLayout = new LinearLayout(activityContext);
 
-		// Need to create our surface view here regardless of if we are going to end up using it
-		getWindow().takeSurface(null);
-		MySurfaceView = new SurfaceView(this);
-		MySurfaceView.setBackgroundColor(Color.TRANSPARENT);
-		MySurfaceView.getHolder().addCallback(this);
-		containerFrameLayout.addView(MySurfaceView);
-		containerFrameLayout.addView(virtualKeyboardLayout);
-		setContentView(containerFrameLayout);
-
-		// cache a reference to the main content view and set it so it can be focused on
-        mainView = findViewById( android.R.id.content );
-        mainView.setFocusable( true );
-        mainView.setFocusableInTouchMode( true );
-
-        mainDecorView = activityContext.getWindow().getDecorView();
-		mainDecorViewRect = new Rect();
-		
-		// check for display cutouts to set safe zone
-		View mainRootView = mainDecorView.findViewById(android.R.id.content).getRootView();
-		if (Build.VERSION.SDK_INT > 19)
+		if (!isStandalone)
 		{
-			mainRootView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-				@Override
-       			public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-					if (Build.VERSION.SDK_INT >= 28)
-					{
-						DisplayCutout cutout = insets.getDisplayCutout();
-						if (cutout != null)
-						{
-							Rect fullViewRect = new Rect();
-							mainDecorView.getDrawingRect( mainDecorViewRect );
+			//TODO: ASIS need to refactor how MySurfaceView is used since the surface can be external and also can be a TextureView
 
-							android.view.Display display = activityContext.getWindowManager().getDefaultDisplay();
-							android.graphics.Point displaySize = new android.graphics.Point();
-							display.getRealSize(displaySize);
+			// Need to create our surface view here regardless of if we are going to end up using it
+			getWindow().takeSurface(null);
+			MySurfaceView = new SurfaceView(this);
+			MySurfaceView.setBackgroundColor(Color.TRANSPARENT);
+			MySurfaceView.getHolder().addCallback(this);
+			containerFrameLayout.addView(MySurfaceView);
+			containerFrameLayout.addView(virtualKeyboardLayout);
+			setContentView(containerFrameLayout);
 
-							// store safezone independent of resolution
-							float invX = 1.0f / (displaySize.x != 0.0f ? displaySize.x : 1.0f);
-							float invY = 1.0f / (displaySize.y != 0.0f ? displaySize.y : 1.0f);
-							safezoneF.left = (safezone.left = cutout.getSafeInsetLeft()) * invX;
-							safezoneF.top = (safezone.top = cutout.getSafeInsetTop()) * invY;
-							safezoneF.right = (safezone.right = cutout.getSafeInsetRight()) * invX;
-							safezoneF.bottom = (safezone.bottom = cutout.getSafeInsetBottom()) *invY;
-							nativeSetSafezoneInfo(displaySize.y > displaySize.x, safezoneF.left, safezoneF.top, safezoneF.right, safezoneF.bottom);
+			// cache a reference to the main content view and set it so it can be focused on
+			mainView = findViewById( android.R.id.content );
+			mainView.setFocusable( true );
+			mainView.setFocusableInTouchMode( true );
 
-							//Log.debug("FullViewRect: " + fullViewRect.toString());	
-							//Log.debug("DisplayCutout: " + cutout.toString());
-							//Log.debug("SafeTop: " + cutout.getSafeInsetTop());
-							//Log.debug("SafeBottom: " + cutout.getSafeInsetBottom());
-							//Log.debug("SafeLeft: " + cutout.getSafeInsetLeft());
-							//Log.debug("SafeRight: " + cutout.getSafeInsetRight());
-							//List<Rect>bounds = cutout.getBoundingRects();
-							//for (Rect r : bounds)
-							//{
-							//	Log.debug("Rect: " + r.toString());
-							//}
-						}
-					}
-					return insets;
-				}
-			});
-		}
-
-		createVirtualKeyboardInput();
+			mainDecorView = getWindow().getDecorView();
+			mainDecorViewRect = new Rect();
 		
-		mainView.getViewTreeObserver().addOnGlobalLayoutListener( new ViewTreeObserver.OnGlobalLayoutListener()
-        {
-        	@Override
-        	public void onGlobalLayout()
-        	{
-				//Log.debug("VK: onGlobalLayout " + bKeyboardShowing);
-        		//if( bKeyboardShowing )
-        		{
-        			Rect visibleRect = new Rect();
-        			View visibleView = mainView.getRootView();
-
-        			visibleView.getWindowVisibleDisplayFrame( visibleRect );
-
-					mainDecorView.getDrawingRect( mainDecorViewRect );
-
-					//Log.debug("VK: onGlobalLayout visibleRect:(" +  visibleRect.left + ", " + visibleRect.top +", " + visibleRect.right +", " + visibleRect.bottom +")"+
-        			//", mainDecorViewRect:" +  mainDecorViewRect.left + ", " + mainDecorViewRect.top +", " + mainDecorViewRect.right +", " + mainDecorViewRect.bottom + ")" );
-
-        			// determine which side of the screen the keyboard is covering
-        			int leftDiff = Math.abs( mainDecorViewRect.left - visibleRect.left );
-        			int topDiff = Math.abs( mainDecorViewRect.top - visibleRect.top );
-        			int rightDiff = Math.abs( mainDecorViewRect.right - visibleRect.right );
-        			int bottomDiff = Math.abs( mainDecorViewRect.bottom - visibleRect.bottom );
-
-        			// Rect covered by the virtual keyboard
-        			Rect keyboardRect = new Rect();
-    				keyboardRect.left = ( rightDiff > 0 ) ? visibleRect.right : mainDecorViewRect.left; // keyboard is on the right
-    				keyboardRect.top = ( bottomDiff > 0 ) ? visibleRect.bottom : mainDecorViewRect.top; // keyboard is on the bottom
-    				keyboardRect.right = ( leftDiff > 0 ) ? visibleRect.left : mainDecorViewRect.right; // keyboard is on the left
-    				keyboardRect.bottom = ( topDiff > 0 ) ? visibleRect.top : mainDecorViewRect.bottom; // keyboard is on the top
-
-					//keyboard Y coord
-					int keyboardYPos = visibleRect.bottom - newVirtualKeyboardInput.getHeight();
-
-					//avoid negative coords if the keyboard is shown on top of the screen
-					if(keyboardYPos < 0)
-						keyboardYPos = visibleRect.top + newVirtualKeyboardInput.getHeight();
-
-                    int visibleScreenYOffset = Math.max(bottomDiff, topDiff);
-
-					//Log.debug("VK: show?" + visibleScreenYOffset + "," + newVirtualKeyboardInput.getY());
-					
-					// If the keyboard is a soft keyboard, the visibleScreenYOffset should be greater than 200 tall
-					boolean bSoftKeyboardPopup = visibleScreenYOffset > 200;
-
-					// If the keyboard is a floating keyboard, after testing with some Chinese input methods the visibleScreenYOffset can be 0 pixel tall, expand it to [0, 200] for safety, correct this range if there is any unexpected case.
-					boolean bFloatingKeyboardPopup = visibleScreenYOffset >= 0 && visibleScreenYOffset <= 200;
-
-					if(bSoftKeyboardPopup || bFloatingKeyboardPopup) // actually this condition equals to the bKeyboardShowing, keep it in case we need to handle the different keyboards seperately.
-                    {
-						if (bKeyboardShowing)
+			// check for display cutouts to set safe zone
+			View mainRootView = mainDecorView.findViewById(android.R.id.content).getRootView();
+			if (Build.VERSION.SDK_INT > 19)
+			{
+				mainRootView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+					@Override
+       				public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+						if (Build.VERSION.SDK_INT >= 28)
 						{
-							nativeVirtualKeyboardShown( keyboardRect.left, keyboardRect.top, keyboardRect.right, keyboardRect.bottom );
-
-							//Log.debug("VK: show");
-							//#jira UE-55117 Android virtual keyboard can have text input hidden by software buttons
-							newVirtualKeyboardInput.getLayoutParams().width = Math.abs(visibleRect.right - visibleRect.left);
-							newVirtualKeyboardInput.setX(leftDiff);
-							newVirtualKeyboardInput.setY(keyboardYPos);
-							newVirtualKeyboardInput.setVisibility(View.VISIBLE);
-							newVirtualKeyboardInput.requestFocus();
-						}
-
-						AndroidThunkJava_ResizeKeyboard(true, keyboardRect, visibleRect);
-                    }
-                    else
-                    {
-						if (bKeyboardShowing)
-						{
-							nativeVirtualKeyboardShown( keyboardRect.left, keyboardRect.top, keyboardRect.right, keyboardRect.bottom );
-							
-							if (newVirtualKeyboardInput.getY() > 0)
+							DisplayCutout cutout = insets.getDisplayCutout();
+							if (cutout != null)
 							{
+								Rect fullViewRect = new Rect();
+								mainDecorView.getDrawingRect( mainDecorViewRect );
 
-								//Log.debug("VK: hide");
-								newVirtualKeyboardInput.setVisibility(View.GONE);
-								//set offscreen
-								newVirtualKeyboardInput.setY(-1000);
+								android.view.Display display = getWindowManager().getDefaultDisplay();
+								android.graphics.Point displaySize = new android.graphics.Point();
+								display.getRealSize(displaySize);
+
+								// store safezone independent of resolution
+								float invX = 1.0f / (displaySize.x != 0.0f ? displaySize.x : 1.0f);
+								float invY = 1.0f / (displaySize.y != 0.0f ? displaySize.y : 1.0f);
+								safezoneF.left = (safezone.left = cutout.getSafeInsetLeft()) * invX;
+								safezoneF.top = (safezone.top = cutout.getSafeInsetTop()) * invY;
+								safezoneF.right = (safezone.right = cutout.getSafeInsetRight()) * invX;
+								safezoneF.bottom = (safezone.bottom = cutout.getSafeInsetBottom()) *invY;
+								nativeSetSafezoneInfo(displaySize.y > displaySize.x, safezoneF.left, safezoneF.top, safezoneF.right, safezoneF.bottom);
+
+								//Log.debug("FullViewRect: " + fullViewRect.toString());	
+								//Log.debug("DisplayCutout: " + cutout.toString());
+								//Log.debug("SafeTop: " + cutout.getSafeInsetTop());
+								//Log.debug("SafeBottom: " + cutout.getSafeInsetBottom());
+								//Log.debug("SafeLeft: " + cutout.getSafeInsetLeft());
+								//Log.debug("SafeRight: " + cutout.getSafeInsetRight());
+								//List<Rect>bounds = cutout.getBoundingRects();
+								//for (Rect r : bounds)
+								//{
+								//	Log.debug("Rect: " + r.toString());
+								//}
 							}
 						}
+						return insets;
+					}
+				});
+			}
+		
+			createVirtualKeyboardInput();
+		
+			mainView.getViewTreeObserver().addOnGlobalLayoutListener( new ViewTreeObserver.OnGlobalLayoutListener()
+			{
+        		@Override
+        		public void onGlobalLayout()
+        		{
+					//Log.debug("VK: onGlobalLayout " + bKeyboardShowing);
+        			//if( bKeyboardShowing )
+        			{
+        				Rect visibleRect = new Rect();
+        				View visibleView = mainView.getRootView();
 
-						AndroidThunkJava_ResizeKeyboard(false, keyboardRect, visibleRect);
-                    }
+        				visibleView.getWindowVisibleDisplayFrame( visibleRect );
+
+						mainDecorView.getDrawingRect( mainDecorViewRect );
+
+						//Log.debug("VK: onGlobalLayout visibleRect:(" +  visibleRect.left + ", " + visibleRect.top +", " + visibleRect.right +", " + visibleRect.bottom +")"+
+        				//", mainDecorViewRect:" +  mainDecorViewRect.left + ", " + mainDecorViewRect.top +", " + mainDecorViewRect.right +", " + mainDecorViewRect.bottom + ")" );
+
+        				// determine which side of the screen the keyboard is covering
+        				int leftDiff = Math.abs( mainDecorViewRect.left - visibleRect.left );
+        				int topDiff = Math.abs( mainDecorViewRect.top - visibleRect.top );
+        				int rightDiff = Math.abs( mainDecorViewRect.right - visibleRect.right );
+        				int bottomDiff = Math.abs( mainDecorViewRect.bottom - visibleRect.bottom );
+
+        				// Rect covered by the virtual keyboard
+        				Rect keyboardRect = new Rect();
+    					keyboardRect.left = ( rightDiff > 0 ) ? visibleRect.right : mainDecorViewRect.left; // keyboard is on the right
+    					keyboardRect.top = ( bottomDiff > 0 ) ? visibleRect.bottom : mainDecorViewRect.top; // keyboard is on the bottom
+    					keyboardRect.right = ( leftDiff > 0 ) ? visibleRect.left : mainDecorViewRect.right; // keyboard is on the left
+    					keyboardRect.bottom = ( topDiff > 0 ) ? visibleRect.top : mainDecorViewRect.bottom; // keyboard is on the top
+
+						//keyboard Y coord
+						int keyboardYPos = visibleRect.bottom - newVirtualKeyboardInput.getHeight();
+
+						//avoid negative coords if the keyboard is shown on top of the screen
+						if(keyboardYPos < 0)
+							keyboardYPos = visibleRect.top + newVirtualKeyboardInput.getHeight();
+
+						int visibleScreenYOffset = Math.max(bottomDiff, topDiff);
+
+						//Log.debug("VK: show?" + visibleScreenYOffset + "," + newVirtualKeyboardInput.getY());
+					
+						// If the keyboard is a soft keyboard, the visibleScreenYOffset should be greater than 200 tall
+						boolean bSoftKeyboardPopup = visibleScreenYOffset > 200;
+
+						// If the keyboard is a floating keyboard, after testing with some Chinese input methods the visibleScreenYOffset can be 0 pixel tall, expand it to [0, 200] for safety, correct this range if there is any unexpected case.
+						boolean bFloatingKeyboardPopup = visibleScreenYOffset >= 0 && visibleScreenYOffset <= 200;
+
+						if(bSoftKeyboardPopup || bFloatingKeyboardPopup) // actually this condition equals to the bKeyboardShowing, keep it in case we need to handle the different keyboards seperately.
+						{
+							if (bKeyboardShowing)
+							{
+								nativeVirtualKeyboardShown( keyboardRect.left, keyboardRect.top, keyboardRect.right, keyboardRect.bottom );
+
+								//Log.debug("VK: show");
+								//#jira UE-55117 Android virtual keyboard can have text input hidden by software buttons
+								newVirtualKeyboardInput.getLayoutParams().width = Math.abs(visibleRect.right - visibleRect.left);
+								newVirtualKeyboardInput.setX(leftDiff);
+								newVirtualKeyboardInput.setY(keyboardYPos);
+								newVirtualKeyboardInput.setVisibility(View.VISIBLE);
+								newVirtualKeyboardInput.requestFocus();
+							}
+
+							AndroidThunkJava_ResizeKeyboard(true, keyboardRect, visibleRect);
+						}
+						else
+						{
+							if (bKeyboardShowing)
+							{
+								nativeVirtualKeyboardShown( keyboardRect.left, keyboardRect.top, keyboardRect.right, keyboardRect.bottom );
+							
+								if (newVirtualKeyboardInput.getY() > 0)
+								{
+
+									//Log.debug("VK: hide");
+									newVirtualKeyboardInput.setVisibility(View.GONE);
+									//set offscreen
+									newVirtualKeyboardInput.setY(-1000);
+								}
+							}
+
+							AndroidThunkJava_ResizeKeyboard(false, keyboardRect, visibleRect);
+						}
+        			}
         		}
-        	}
-        });
+			});
+		}
 
 //$${gameActivityAfterMainViewCreatedAdditions}$$
 
@@ -3346,6 +3397,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 //$${gameActivityOnCreateAdditions}$$
 //$${gameActivityOnCreateFinalAdditions}$$
+
 		mPSOProgramServiceAccessor.Init(this);
 
 		Log.debug("==============> GameActive.onCreate complete!");
@@ -3381,7 +3433,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if(android.os.Build.VERSION.SDK_INT >= 19) {
 			try {
-				View decorView = activityContext.getWindow().getDecorView(); 
+				View decorView = getWindow().getDecorView(); 
 
 				Log.debug("=== Restoring Transparent Bars ===");
 				// Clear the flag and then restore it
@@ -3440,13 +3492,13 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// invalidate window cache
-		nativeSetWindowInfo(activityContext.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT, DepthBufferPreference, PropagateAlpha);
+		nativeSetWindowInfo(getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT, DepthBufferPreference, PropagateAlpha);
 
 		// only do this on KitKat and above
-		if (ShouldHideUI)
+		if (!isStandalone && ShouldHideUI)
 		{ 
 			restoreTransparentBars();
-			View decorView = activityContext.getWindow().getDecorView(); 
+			View decorView = getWindow().getDecorView(); 
 
 			decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
 				@Override 
@@ -3468,10 +3520,10 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// only true if Android Pie or later
-		if (UseDisplayCutout)
+		if (!isStandalone && UseDisplayCutout)
 		{
 			// only on Android Pie and later
-			WindowManager.LayoutParams params = activityContext.getWindow().getAttributes();
+			WindowManager.LayoutParams params = getWindow().getAttributes();
 			if (params.layoutInDisplayCutoutMode != WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES)
 			{
 				params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -3538,10 +3590,10 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// only do this on KitKat and above
-		if (ShouldHideUI)
+		if (!isStandalone && ShouldHideUI)
 		{ 
 			restoreTransparentBars();
-			View decorView = activityContext.getWindow().getDecorView(); 
+			View decorView = getWindow().getDecorView(); 
 
 			decorView.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
 				@Override 
@@ -3563,9 +3615,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// only true if Android Pie or later
-		if (UseDisplayCutout)
+		if (!isStandalone && UseDisplayCutout)
 		{
-			WindowManager.LayoutParams params = activityContext.getWindow().getAttributes();
+			WindowManager.LayoutParams params = getWindow().getAttributes();
 			if (params.layoutInDisplayCutoutMode != WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES)
 			{
 				params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
@@ -4016,7 +4068,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				public void run()
 				{
 					Log.debug("==============> [JAVA] AndroidThunkJava_KeepScreenOn(true) - Disabled screen saver");
-					activityContext.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+					getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 				}
 			});
 		}
@@ -4028,7 +4080,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				public void run()
 				{
 					Log.debug("==============> [JAVA] AndroidThunkJava_KeepScreenOn(false) - Enabled screen saver");
-					activityContext.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+					getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 				}
 			});
 		}
@@ -4054,7 +4106,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				public void run()
 				{
 					Log.debug("==============> [JAVA] AndroidThunkJava_DisableScreenCapture(true) - Disabled screen captures");
-					activityContext.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+					getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
 				}
 			});
 		}
@@ -4066,7 +4118,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				public void run()
 				{
 					Log.debug("==============> [JAVA] AndroidThunkJava_DisableScreenCapture(false) - Enabled screen captures");
-					activityContext.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
+					getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
 				}
 			});
 		}
@@ -4391,7 +4443,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	private boolean AndroidThunkJava_isIntentActionAvailable(String intentAction)
 	{
 		Intent intent = new Intent(intentAction, null);
-		List<android.content.pm.ResolveInfo> activities = activityContext.getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+		List<android.content.pm.ResolveInfo> activities = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
 	    return activities != null && activities.size() > 0;
 	}
 
@@ -4438,7 +4490,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			BrowserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
 			
 			// make sure there is a web browser to handle the URL before trying to start activity (or may crash!)
-			if (BrowserIntent.resolveActivity(activityContext.getPackageManager()) != null)
+			if (BrowserIntent.resolveActivity(getPackageManager()) != null)
 			{
 				Log.debug("[JAVA} AndroidThunkJava_LaunchURL: Starting activity");
 				startActivity(BrowserIntent);
@@ -4457,7 +4509,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	public String AndroidThunkJava_GetAndroidId()
 	{
 		try {
-			String androidId = Secure.getString(activityContext.getApplicationContext().getContentResolver(), Secure.ANDROID_ID);
+			String androidId = Secure.getString(getApplicationContext().getContentResolver(), Secure.ANDROID_ID);
 			return androidId;
 		} catch (Exception e) {
 			Log.debug("GetAndroidId failed: " + e.getMessage());
@@ -4562,7 +4614,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			if (bIsFile)
 			{
 				// Note that the ".fileprovider" suffix is hardcoded
-				String Authority = activityContext.getApplicationContext().getPackageName() + ".fileprovider";
+				String Authority = getApplicationContext().getPackageName() + ".fileprovider";
 				Uri FileUri = FileProvider.getUriForFile(this, Authority, SharedFile);
 				
 				SendIntent.putExtra(Intent.EXTRA_STREAM, FileUri);
@@ -4636,7 +4688,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public void AndroidThunkJava_SetCellularPreference(int value)
 	{
-		Context context = activityContext.getApplicationContext();
+		Context context = getApplicationContext();
 		SharedPreferences preferences = context.getSharedPreferences("CellularNetworkPreferences", context.MODE_PRIVATE);
 		SharedPreferences.Editor editor = preferences.edit();
 		editor.putInt("AllowCellular", value);
@@ -4645,7 +4697,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public int AndroidThunkJava_GetCellularPreference()
 	{
-		Context context = activityContext.getApplicationContext();
+		Context context = getApplicationContext();
 		SharedPreferences preferences = context.getSharedPreferences("CellularNetworkPreferences", context.MODE_PRIVATE);
 		return preferences.getInt("AllowCellular", 0 );
 	}
@@ -4691,7 +4743,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public boolean AndroidThunkJava_IsMusicActive()
 	{
-		AudioManager audioManager = (AudioManager)this.getSystemService(Context.AUDIO_SERVICE);
+		AudioManager audioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
 		return audioManager.isMusicActive();
 	}
 	
@@ -5045,7 +5097,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	private ArrayList<Integer> LocalNotificationGetIDList()
 	{
-		SharedPreferences preferences = activityContext.getApplicationContext().getSharedPreferences("LocalNotificationPreferences", MODE_PRIVATE);
+		SharedPreferences preferences = getApplicationContext().getSharedPreferences("LocalNotificationPreferences", MODE_PRIVATE);
 		SharedPreferences.Editor editor = preferences.edit();
 		String notificationIDs = preferences.getString("notificationIDs", "");
 		ArrayList<Integer> iParts = new ArrayList<Integer>();
@@ -5293,7 +5345,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 
 		// clear them all
-		SharedPreferences preferences = activityContext.getApplicationContext().getSharedPreferences("LocalNotificationPreferences", MODE_PRIVATE);
+		SharedPreferences preferences = getApplicationContext().getSharedPreferences("LocalNotificationPreferences", MODE_PRIVATE);
 		SharedPreferences.Editor editor = preferences.edit();
 		editor.putString("notificationIDs", "");
 		editor.putString("notificationDetails", "{}");
@@ -5501,7 +5553,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		boolean bPluginEnabled = false;
 //$${gameActivityAllowedRemoteNotificationsAdditions}$$
-		return bPluginEnabled && NotificationManagerCompat.from(activityContext.getApplicationContext()).areNotificationsEnabled();
+		return bPluginEnabled && NotificationManagerCompat.from(getApplicationContext()).areNotificationsEnabled();
 	}
 
 	public void AndroidThunkJava_SetDesiredViewSize(int width, int height)
@@ -5560,7 +5612,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if(ANDROID_BUILD_VERSION >= 24)
 		{
-			WindowManager windowManager = activityContext.getWindowManager();
+			WindowManager windowManager = getWindowManager();
 			Display display = windowManager.getDefaultDisplay();
 			Display.Mode currentmode = display.getMode();
 			Display.Mode[] modes = display.getSupportedModes();
@@ -5620,7 +5672,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 		else if(ANDROID_BUILD_VERSION >= 24)
 		{
-			WindowManager windowManager = activityContext.getWindowManager();
+			WindowManager windowManager = getWindowManager();
 			Display display = windowManager.getDefaultDisplay();
 			Display.Mode currentmode = display.getMode();
 			int currentmodeid = currentmode.getModeId();
@@ -5641,7 +5693,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 							{
 								public void run()
 								{
-									Window w = activityContext.getWindow();
+									Window w = getWindow();
 									WindowManager.LayoutParams l = w.getAttributes();
 									l.preferredDisplayModeId = modeid;
 									w.setAttributes(l);
@@ -5666,7 +5718,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if(ANDROID_BUILD_VERSION >= 24)
 		{
-			WindowManager windowManager = activityContext.getWindowManager();
+			WindowManager windowManager = getWindowManager();
 			Display display = windowManager.getDefaultDisplay();
 			Display.Mode currentmode = display.getMode();
 			return (int)currentmode.getRefreshRate();
@@ -5717,7 +5769,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		assert(activityContext != null);
 
-		boolean bAirplaneMode = isAirplaneModeOn(activityContext.getApplicationContext());
+		boolean bAirplaneMode = isAirplaneModeOn(getApplicationContext());
 
 		ConnectivityManager cm = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -5742,7 +5794,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		assert(activityContext != null);
 
-		boolean bAirplaneMode = isAirplaneModeOn(activityContext.getApplicationContext());
+		boolean bAirplaneMode = isAirplaneModeOn(getApplicationContext());
 
 		ConnectivityManager cm = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
@@ -5831,7 +5883,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				}
 				else
 				{
-					return android.net.Proxy.getPort(activityContext.getApplicationContext());
+					return android.net.Proxy.getPort(getApplicationContext());
 				}
 			}
 			case "android.hardware.vulkan.version":
@@ -5886,7 +5938,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		{
 			if (android.os.Build.VERSION.SDK_INT >= 21)
 			{
-				WindowManager windowManager = activityContext.getWindowManager();
+				WindowManager windowManager = getWindowManager();
 				android.view.Display display = windowManager.getDefaultDisplay();
 				return display.getPresentationDeadlineNanos();
 			}
@@ -5897,7 +5949,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		{
 			if (android.os.Build.VERSION.SDK_INT >= 21)
 			{
-				WindowManager windowManager = activityContext.getWindowManager();
+				WindowManager windowManager = getWindowManager();
 				android.view.Display display = windowManager.getDefaultDisplay();
 				return display.getAppVsyncOffsetNanos();
 			}
@@ -5910,7 +5962,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if (key.equals("unreal.display.getRefreshRate"))
 		{
-			WindowManager windowManager = activityContext.getWindowManager();
+			WindowManager windowManager = getWindowManager();
 			android.view.Display display = windowManager.getDefaultDisplay();
 			float rate = display.getRefreshRate();
 			// make sure it is sane.. some drivers returned crazy values
@@ -5927,7 +5979,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 		else
 		{
-			return activityContext.getWindowManager().getDefaultDisplay();
+			return getWindowManager().getDefaultDisplay();
 		}
 	}
 
@@ -5936,17 +5988,17 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		DisplayMetrics metrics = new DisplayMetrics();
 		if (android.os.Build.VERSION.SDK_INT >= 31)
 		{
-			metrics = activityContext.getResources().getDisplayMetrics();
+			metrics = getResources().getDisplayMetrics();
 		}
 		else
 		if (android.os.Build.VERSION.SDK_INT >= 17)
 		{
-			activityContext.getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+			getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
 		}
 		else
 		{
 			// note: not available so get what we can
-			activityContext.getWindowManager().getDefaultDisplay().getMetrics(metrics);
+			getWindowManager().getDefaultDisplay().getMetrics(metrics);
 		}
 		return metrics;
 	}
@@ -6048,7 +6100,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 				}
 				else
 				{
-					return android.net.Proxy.getHost(activityContext.getApplicationContext());
+					return android.net.Proxy.getHost(getApplicationContext());
 				}
 			}
 			case "unreal.displaymetrics.dpi":
@@ -6151,7 +6203,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 					{
 						try
 						{
-							android.view.Window ActivityWindow = activityContext.getWindow();
+							android.view.Window ActivityWindow = getWindow();
 							Method m = android.view.Window.class.getMethod("setSustainedPerformanceMode",Boolean.TYPE);
 							m.invoke(ActivityWindow, bEnable);
 						}
@@ -6420,6 +6472,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	//create the virtual keyboard input 
 	private void createVirtualKeyboardInput()
 	{
+		if (isStandalone)
+		{
+			return;
+		}
+
 		getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 		newVirtualKeyboardInput = new VirtualKeyboardInput(this);
 		newVirtualKeyboardInput.setSingleLine(false);
@@ -6611,7 +6668,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		if (intentAction.equals(""))
 		{
-			intent = activityContext.getPackageManager().getLaunchIntentForPackage(packageName);
+			intent = getPackageManager().getLaunchIntentForPackage(packageName);
 			if (intent == null)
 			{
 				return false;
@@ -6638,7 +6695,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			intent.setComponent(new android.content.ComponentName(packageName, intentComponent));
 		}
 
-		if (intent.resolveActivity(activityContext.getPackageManager()) != null)
+		if (intent.resolveActivity(getPackageManager()) != null)
 		{
 			startActivity(intent);
 			AndroidThunkJava_ForceQuit();
@@ -6675,7 +6732,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		if (intentAction.equals(""))
 		{
-			intent = activityContext.getPackageManager().getLaunchIntentForPackage(packageName);
+			intent = getPackageManager().getLaunchIntentForPackage(packageName);
 			if (intent == null)
 			{
 				return false;
@@ -6702,7 +6759,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			intent.setComponent(new android.content.ComponentName(packageName, intentComponent));
 		}
 
-		activityContext.getApplicationContext().sendBroadcast(intent);
+		getApplicationContext().sendBroadcast(intent);
 
 		if (bExit)
 		{
@@ -6714,7 +6771,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	protected void RestartApplication(String RestartExtra)
 	{
-		Context context = activityContext.getApplicationContext();
+		Context context = getApplicationContext();
 	
 		// get the launch intent
 		PackageManager packageManager = context.getPackageManager();
@@ -6741,7 +6798,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		};
 		Log.debug("app restart : " + RestartExtra);
 //$${gameActivityOnRestartApplicationAdditions}$$
-		runOnUiThread(restartRunnableUIThread);
+		activityContext.runOnUiThread(restartRunnableUIThread);
 
 		// wait for exit.
 		while(true)
@@ -6781,13 +6838,13 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 	public int AndroidThunkJava_GetDeviceRotation() 
 	{
-		return activityContext.getWindowManager().getDefaultDisplay().getRotation();
+		return getWindowManager().getDefaultDisplay().getRotation();
 	}
 
 	public int AndroidThunkJava_GetDeviceOrientation()
 	{
 		int currentScreenOrientation = DEVICE_ORIENTATION_UNKNOWN;
-		int rotation = activityContext.getWindowManager().getDefaultDisplay().getRotation();
+		int rotation = getWindowManager().getDefaultDisplay().getRotation();
 		if ( getDeviceDefaultOrientation() == Configuration.ORIENTATION_LANDSCAPE )
 		{
 			switch (rotation)
@@ -6835,7 +6892,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		}
 		else
 		{
-			Context context = activityContext.getApplicationContext();
+			Context context = getApplicationContext();
 			CookieSyncManager syncManager = CookieSyncManager.createInstance(context);
 			syncManager.sync();
 
@@ -6858,7 +6915,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.LOLLIPOP)
 		{
-			Context context = activityContext.getApplicationContext();
+			Context context = getApplicationContext();
 			CookieSyncManager syncManager = CookieSyncManager.createInstance(context);
 			syncManager.sync();
 		}
@@ -6877,7 +6934,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	{
 		if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.LOLLIPOP)
 		{
-			Context context = activityContext.getApplicationContext();
+			Context context = getApplicationContext();
 			CookieSyncManager syncManager = CookieSyncManager.createInstance(context);
 			syncManager.sync();
 
