@@ -1,11 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <Deterministic>true</Deterministic>
-    <AssemblyName>Horde.Server</AssemblyName>
-    <DocumentationFile>Horde.Server.xml</DocumentationFile>
+    <AssemblyName>HordeServer</AssemblyName>
+    <DocumentationFile>HordeServer.xml</DocumentationFile>
     <ApplicationIcon>HordeServer.ico</ApplicationIcon>
     <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
     <Configurations>Debug;Release;Analyze</Configurations>
