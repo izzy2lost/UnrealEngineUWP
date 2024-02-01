@@ -413,15 +413,6 @@ TSharedRef<ISlateStyle> FStarshipCoreStyle::Create()
 
 		Style->Set("Icons.BadgeModified", new IMAGE_BRUSH_SVG("Starship/Common/badge-modified", Icon16x16));
 		
-		// Background images for all the details panels override states
-		Style->Set("Icons.DetailsOverrideHere", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideHere", Icon16x16, FStyleColors::AccentBlue));
-		Style->Set("Icons.DetailsOverrideAdded", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideAdded", Icon16x16, FStyleColors::AccentGreen));
-		Style->Set("Icons.DetailsOverrideNone", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideNone", Icon16x16, FStyleColors::Foreground));
-		Style->Set("Icons.DetailsOverrideRemoved", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideRemoved", Icon16x16, FStyleColors::Error));
-		Style->Set("Icons.DetailsOverrideInside", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideInside", Icon16x16, FStyleColors::AccentBlue));
-		Style->Set("Icons.DetailsOverrideHereInside", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideHereInside", Icon16x16, FStyleColors::AccentBlue));
-		Style->Set("Icons.DetailsOverrideInherited", new IMAGE_BRUSH_SVG("Starship/Common/DetailsOverrideInherited", Icon16x16, FStyleColors::AccentBlue));
-		
 		// Toolbar Size Icons
 		Style->Set("Icons.Toolbar.Settings", new IMAGE_BRUSH_SVG("Starship/Common/settings", Icon20x20));
 

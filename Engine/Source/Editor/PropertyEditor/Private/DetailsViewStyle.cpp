@@ -9,19 +9,27 @@
 #include "Layout/Visibility.h"
 #include "Styling/AppStyle.h"
 
+#define LOCTEXT_NAMESPACE "DetailsViewStyle"
+
 TArray< TSharedRef< const FOverridesWidgetStyleKey >> FOverridesWidgetStyleKeys::OverridesWidgetStyleKeys;
 
 const FSlateBrush& FOverridesWidgetStyleKey::GetConstStyleBrush() const
 {
-	const FSlateBrush* ImageBrush = FAppStyle::GetBrush( *(TEXT("Icons.Details") + Name.ToString()) );
+	const FSlateBrush* ImageBrush = FAppStyle::GetBrush( *(TEXT("DetailsView.") + Name.ToString()) );
 	checkf(ImageBrush, TEXT("Expecting a valid brush"));
 	return *ImageBrush;
 }
 
-const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Here()
+const FSlateBrush& FOverridesWidgetStyleKey::GetConstStyleBrushHovered() const
 {
-	static const FOverridesWidgetStyleKey Here{"OverrideHere", EOverriddenPropertyOperation::Replace, EOverriddenState::AllOverridden, /*bInherited*/false };
-	return Here;
+	const FSlateBrush* ImageBrush = FAppStyle::GetBrush( *(TEXT("DetailsView.") + Name.ToString() + TEXT(".Hovered")) );
+	checkf(ImageBrush, TEXT("Expecting a valid brush"));
+	return *ImageBrush;
+}
+
+FText FOverridesWidgetStyleKey::GetToolTipText(bool bIsCategory) const
+{
+	return bIsCategory ? CategoryTooltip : PropertyTooltip;
 }
 
 void FOverridesWidgetStyleKeys::Initialize()
@@ -35,15 +43,39 @@ void FOverridesWidgetStyleKeys::Initialize()
 	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Inherited()));
 }
 
+const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Here()
+{
+	static const FOverridesWidgetStyleKey Here{"OverrideHere",
+		EOverriddenPropertyOperation::Replace,
+		EOverriddenState::AllOverridden,
+		false,
+		LOCTEXT("HereCategoryTooltip", "This component has been overridden."),
+		LOCTEXT("HerePropertyTooltip", "This property has been overridden.")
+	};
+	return Here;
+}
+
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Added()
 {
-	static const FOverridesWidgetStyleKey Added{"OverrideAdded", EOverriddenPropertyOperation::Add, EOverriddenState::Added };
+	static const FOverridesWidgetStyleKey Added{"OverrideAdded",
+		EOverriddenPropertyOperation::Add,
+		EOverriddenState::Added,
+		TOptional<bool>(),
+		LOCTEXT("AddedCategoryTooltip", "This component has been added."),
+		LOCTEXT("AddedPropertyTooltip", "This property has been added.")
+	};
 	return Added;
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::None()
 {
-	static const FOverridesWidgetStyleKey None{"OverrideNone", EOverriddenPropertyOperation::None, EOverriddenState::NoOverrides };
+	static const FOverridesWidgetStyleKey None{"OverrideNone",
+		EOverriddenPropertyOperation::None,
+		EOverriddenState::NoOverrides,
+		TOptional<bool>(),
+		LOCTEXT("NoneCategoryTooltip", "No override."),
+		LOCTEXT("NonePropertyTooltip", "No override.")
+	};
 	return None;
 }
 
@@ -55,7 +87,13 @@ const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Removed()
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Inside()
 {
-	static const FOverridesWidgetStyleKey Inside{"OverrideInside", EOverriddenPropertyOperation::Modified, EOverriddenState::HasOverrides };
+	static const FOverridesWidgetStyleKey Inside{"OverrideInside",
+		EOverriddenPropertyOperation::Modified,
+		EOverriddenState::HasOverrides,
+		TOptional<bool>(),
+		LOCTEXT("InsideCategoryTooltip", "At least one of this component's properties has been overridden."),
+		LOCTEXT("InsidePropertyTooltip", "At least one of this property's values has been overridden.")
+	};
 	return Inside;
 }
 
@@ -67,7 +105,13 @@ const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::HereInside()
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Inherited()
 {
-	static const FOverridesWidgetStyleKey Inherited{"OverrideInherited", EOverriddenPropertyOperation::Replace, TOptional<EOverriddenState>(), /*bInherited*/true };
+	static const FOverridesWidgetStyleKey Inherited{"OverrideInherited",
+		EOverriddenPropertyOperation::Replace,
+		TOptional<EOverriddenState>(),
+		true,
+		LOCTEXT("InheritedCategoryTooltip", "This component's parent entity has been overridden."),
+		LOCTEXT("InheritedPropertyTooltip", "This property's parent component has been overridden.")
+	};
 	return Inherited;
 }
 
@@ -117,12 +161,16 @@ FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName) : Name{InName}
 FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName,
 													EOverriddenPropertyOperation InOverriddenPropertyOperation,
 													const TOptional<EOverriddenState>& InOverriddenState,
-													const TOptional<bool>& bInStateInherited /*= TOptional<bool>()*/) :
+													const TOptional<bool>& bInStateInherited /*= TOptional<bool>()*/,
+													const FText& InCategoryTooltip,
+													const FText& InPropertyTooltip) :
    Name(InName),
    VisibleOverriddenPropertyOperation(InOverriddenPropertyOperation),
    VisibleOverriddenState(InOverriddenState),
    bStateInherited(bInStateInherited),
-   bCanBeVisible(true)
+   bCanBeVisible(true),
+   CategoryTooltip(InCategoryTooltip),
+   PropertyTooltip(InPropertyTooltip)
 {
 }
 
@@ -314,3 +362,5 @@ const FDetailsViewStyle* FDetailsViewStyle::GetStyle(const FDetailsViewStyleKey&
 		
 	return StylePtr ? *StylePtr : nullptr;
 }
+
+#undef LOCTEXT_NAMESPACE
