@@ -206,7 +206,7 @@ void MainCS(
 	float4 CenterEncodedVelocity = SceneVelocityTexture[int2(InputBufferUV * InputInfo_Extent)];
 	bool bIsMovingPixel = CenterEncodedVelocity.x > 0.0;
 	
-	bool HasPixelAnimation = false;
+	bool bHasPixelAnimation = false;
 	#if !VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
 		// UE-198416: there is high mess arround VelocityEncodeDepth() to clean up
 		//#error TSR requires the bHasPixelAnimation encoded in the velocity buffer.
@@ -232,7 +232,7 @@ void MainCS(
 		float3 ScreenVelocity2 = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ2);
 		
 		#if VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
-			HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity1);
+			bHasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity1);
 		#endif
 
 		#if CONFIG_USE_SCENE_VELOCITY
@@ -261,7 +261,7 @@ void MainCS(
 		float4 EncodedVelocity = SceneVelocityTexture[uint2(InputBufferUV * InputInfo_Extent) + VelocityPixelOffset];
 
 		#if VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
-			HasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity);
+			bHasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity);
 		#endif
 
 		#if CONFIG_USE_SCENE_VELOCITY
@@ -304,7 +304,7 @@ void MainCS(
 			tsr_half(saturate(length(TranslatedWorldPosition - PrevTranslatedWorldPosition) * rcp(StaticWorldRadius) - 1.0)),
 			saturate(PixelParallaxVelocity * tsr_half(InvFlickeringMaxParralaxVelocity) - tsr_half(0.5)));
 
-		IsMovingMask = select(HasPixelAnimation, tsr_half(1.0), IsMovingMask);
+		IsMovingMask = select(bHasPixelAnimation, tsr_half(1.0), IsMovingMask);
 	}
 
 	// Do motion blur velocity flatten.
@@ -366,7 +366,7 @@ void MainCS(
 
 		//DilatedVelocityOutput[OutputPixelPos] = EncodedVelocity.xy; //EncodeVelocityToTexture(float3(FinalScreenVelocity.xy, 0.0)).xy;
 		DilatedVelocityOutput[OutputPixelPos] = EncodeVelocityToTexture(float3(FinalScreenVelocity.xy, 0.0)).xy;
-		ClosestDepthOutput[OutputPixelPos] = float2(PrevClosestDeviceZ, ClosestDeviceZ);
+		ClosestDepthOutput[OutputPixelPos] = float2(select(bHasPixelAnimation, -PrevClosestDeviceZ, PrevClosestDeviceZ), ClosestDeviceZ);
 
 		BRANCH
 		if (bOutputIsMovingTexture)

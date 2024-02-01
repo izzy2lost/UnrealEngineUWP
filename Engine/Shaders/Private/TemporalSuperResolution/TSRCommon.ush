@@ -14,7 +14,7 @@
 
 //------------------------------------------------------- RECOMPILE HASH
 
-#pragma message("UESHADERMETADATA_VERSION D9BD9048-6528-48DC-922C-82BAF2992B38")
+#pragma message("UESHADERMETADATA_VERSION F3C5FF82-E809-4903-98CD-5CC7E2254C77")
 
 
 //------------------------------------------------------- COMPILER CONFIG
