@@ -6,7 +6,7 @@ Global configuration
 
 Name | Type | Description
 ---- | ---- | -----------
-`versionNumber` | `integer` | Serialized version number
+`version` | `integer` | Version number for the server. Values are indicated by the .
 `include` | [`ConfigInclude`](#configinclude)`[]` | Other paths to include
 `macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within the global scope
 `dashboard` | [`DashboardConfig`](#dashboardconfig) | Settings for the dashboard
