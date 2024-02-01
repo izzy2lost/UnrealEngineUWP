@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/AddWeightMapNode.h"
 #include "ChaosClothAsset/ClothAsset.h"
+#include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
@@ -220,6 +221,25 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 {
 	using namespace UE::Chaos::ClothAsset;
 
+	auto CopyWeightsIntoClothCollection = [this](TArrayView<float>& ClothWeights, const TArray<float>& VertexWeights, bool bIsSim)
+	{
+		const int32 MaxWeightIndex = FMath::Min(VertexWeights.Num(), ClothWeights.Num());
+		if (VertexWeights.Num() > 0 && VertexWeights.Num() != ClothWeights.Num())
+		{
+			FClothDataflowTools::LogAndToastWarning(*this,
+				LOCTEXT("VertexCountMismatchHeadline", "Vertex count mismatch."),
+				FText::Format(LOCTEXT("VertexCountMismatchDetails", "{0} vertex weights in the node: {1}\n{0} vertices in the cloth: {2}"),
+					bIsSim ? FText::FromString("Sim") : FText::FromString("Render"),
+					VertexWeights.Num(),
+					ClothWeights.Num()));
+		}
+
+		for (int32 VertexID = 0; VertexID < MaxWeightIndex; ++VertexID)
+		{
+			ClothWeights[VertexID] = VertexWeights[VertexID];
+		}
+	};
+
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
 		// Evaluate in collection
@@ -229,32 +249,51 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 		if (ClothFacade.IsValid())  // Can only act on the collection if it is a valid cloth collection
 		{
 			const FName InName(Name);
-			ClothFacade.AddWeightMap(InName);		// Does nothing if weight map already exists
 
-			TArrayView<float> ClothWeights = ClothFacade.GetWeightMap(InName);
-			if (ClothWeights.Num() != ClothFacade.GetNumSimVertices3D())
+			// Copy simulation weights into cloth collection
+
+			if (MeshTarget == EChaosClothAssetWeightMapMeshType::Simulation || MeshTarget == EChaosClothAssetWeightMapMeshType::Both)
 			{
-				check(ClothWeights.Num() == 0);
-				FClothDataflowTools::LogAndToastWarning(*this,
-					LOCTEXT("InvalidWeightMapNameHeadline", "Invalid weight map name."),
-					FText::Format(LOCTEXT("InvalidWeightMapNameDetails", "Could not create a weight map with name \"{0}\" (reserved name? wrong type?)."),
-						FText::FromName(InName)));
+				ClothFacade.AddWeightMap(InName);		// Does nothing if weight map already exists
+				TArrayView<float> ClothSimWeights = ClothFacade.GetWeightMap(InName);
+
+				if (ClothSimWeights.Num() != ClothFacade.GetNumSimVertices3D())
+				{
+					check(ClothSimWeights.Num() == 0);
+					FClothDataflowTools::LogAndToastWarning(*this,
+						LOCTEXT("InvalidSimWeightMapNameHeadline", "Invalid weight map name."),
+						FText::Format(LOCTEXT("InvalidSimWeightMapNameDetails", "Could not create a sim weight map with name \"{0}\" (reserved name? wrong type?)."),
+							FText::FromName(InName)));
+				}
+				else
+				{
+					constexpr bool bIsSim = true;
+					CopyWeightsIntoClothCollection(ClothSimWeights, GetVertexWeights(), bIsSim);
+				}
+			}
+			
+			// Copy render weights into cloth collection
+
+			if (MeshTarget == EChaosClothAssetWeightMapMeshType::Render || MeshTarget == EChaosClothAssetWeightMapMeshType::Both)
+			{
+				ClothFacade.AddUserDefinedAttribute<float>(InName, ClothCollectionGroup::RenderVertices);
+				TArrayView<float> ClothRenderWeights = ClothFacade.GetUserDefinedAttribute<float>(InName, ClothCollectionGroup::RenderVertices);
+
+				if (ClothRenderWeights.Num() != ClothFacade.GetNumRenderVertices())
+				{
+					check(ClothRenderWeights.Num() == 0);
+					FClothDataflowTools::LogAndToastWarning(*this,
+						LOCTEXT("InvalidRenderWeightMapNameHeadline", "Invalid weight map name."),
+						FText::Format(LOCTEXT("InvalidRenderWeightMapNameDetails", "Could not create a render weight map with name \"{0}\" (reserved name? wrong type?)."),
+							FText::FromName(InName)));
+				}
+				else
+				{
+					constexpr bool bIsSim = false;
+					CopyWeightsIntoClothCollection(ClothRenderWeights, GetRenderVertexWeights(), bIsSim);
+				}
 			}
 
-			const int32 MaxWeightIndex = FMath::Min(GetVertexWeights().Num(), ClothWeights.Num());
-			if (GetVertexWeights().Num() > 0 && GetVertexWeights().Num() != ClothWeights.Num())
-			{
-				FClothDataflowTools::LogAndToastWarning(*this,
-					LOCTEXT("VertexCountMismatchHeadline", "Vertex count mismatch."),
-					FText::Format(LOCTEXT("VertexCountMismatchDetails", "Vertex weights in the node: {0}\n3D vertices in the cloth: {1}"),
-						GetVertexWeights().Num(),
-						ClothWeights.Num()));
-			}
-
-			for (int32 VertexID = 0; VertexID < MaxWeightIndex; ++VertexID)
-			{
-				ClothWeights[VertexID] = GetVertexWeights()[VertexID];
-			}
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 	}

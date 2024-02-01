@@ -15,6 +15,16 @@ enum class EChaosClothAssetWeightMapTransferType : uint8
 	Use3DSimMesh UMETA(DisplayName = "Use 3D Sim Mesh"),
 };
 
+/** Which mesh to update with the corresponding weight map */
+UENUM()
+enum class EChaosClothAssetWeightMapMeshType : uint8
+{
+	Simulation,
+	Render,
+	Both
+};
+
+
 /** Painted weight map attributes node. */
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For deprecated VertexWeights in copy constructor (Clang)
 USTRUCT(Meta = (DataflowCloth))
@@ -53,6 +63,9 @@ public:
 	UPROPERTY()
 	TArray<float> VertexWeights;
 
+	UPROPERTY(EditAnywhere, Category = "Add Weight Map")
+	EChaosClothAssetWeightMapMeshType MeshTarget = EChaosClothAssetWeightMapMeshType::Simulation;
+
 	FChaosClothAssetAddWeightMapNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 private:
@@ -60,6 +73,12 @@ private:
 
 	const TArray<float>& GetVertexWeights() const { return VertexWeights; }
 	TArray<float>& GetVertexWeights() { return VertexWeights; }
+
+	const TArray<float>& GetRenderVertexWeights() const { return RenderVertexWeights; }
+	TArray<float>& GetRenderVertexWeights() { return RenderVertexWeights; }
+
+	UPROPERTY()
+	TArray<float> RenderVertexWeights;
 
 	//~ Begin FDataflowNode interface
 	virtual void SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const override;
