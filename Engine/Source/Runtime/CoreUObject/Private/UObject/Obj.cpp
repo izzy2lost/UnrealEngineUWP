@@ -509,12 +509,12 @@ void UObject::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyCh
 	if (!FApp::IsGame())
 	{
 		if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject) && PropertyChangedEvent.PropertyChain.GetActiveMemberNode() == PropertyChangedEvent.PropertyChain.GetHead())
-	{
+		{
 			// Get a list of all archetype instances
 			TArray<UObject*> ArchetypeInstances;
 			GetArchetypeInstances(ArchetypeInstances);
 
-		// Propagate the editchange call to archetype instances
+			// Propagate the editchange call to archetype instances
 			PropagatePostEditChange(ArchetypeInstances, PropertyChangedEvent);
 		}
 		else if (GetOuter()->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
@@ -541,7 +541,7 @@ void UObject::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyCh
 					}
 				}
 
-				GetOuter()->PropagatePostEditChange(ArchetypeComponentInstances, PropertyChangedEvent);
+				PropagatePostEditChange(ArchetypeComponentInstances, PropertyChangedEvent);
 
 				break;
 			}
