@@ -752,14 +752,6 @@ void SMovieGraphCollectionTreeAddQueryContentWidget::Construct(const FArguments&
 		return;
 	}
 
-	// Call the underlying query to get the contents of the menu. The query will call back to the widget if something was added so the UI has
-	// an opportunity to refresh itself.
-	TSharedRef<SWidget> AddMenuContents = WeakQuery->GetAddMenuContents(
-		UMovieGraphConditionGroupQueryBase::FMovieGraphConditionGroupQueryContentsChanged::CreateLambda([]()
-    {
-    	FSlateApplication::Get().DismissAllMenus();
-    }));
-
     // Generate a (multi-layered) icon for the "Add" menu
     const TSharedRef<SLayeredImage> AddIcon =
     	SNew(SLayeredImage)
@@ -778,14 +770,29 @@ void SMovieGraphCollectionTreeAddQueryContentWidget::Construct(const FArguments&
 		{
 			return WeakQuery.IsValid() && WeakQuery->IsEnabled();
 		})
-		.OnGetMenuContent_Lambda([AddMenuContents]()
+		.OnGetMenuContent_Lambda([WeakQuery]()
 		{
-			return AddMenuContents;
+			if (WeakQuery.IsValid())
+			{
+				// Call the underlying query to get the contents of the menu. The query will call back to the widget if something was added so the UI has
+				// an opportunity to refresh itself.
+				return WeakQuery->GetAddMenuContents(
+					UMovieGraphConditionGroupQueryBase::FMovieGraphConditionGroupQueryContentsChanged::CreateLambda([]()
+					{
+						FSlateApplication::Get().DismissAllMenus();
+					}));
+			}
+
+			return SNullWidget::NullWidget;
 		})
-		.Visibility_Lambda([AddMenuContents]()
+		.Visibility_Lambda([WeakQuery]()
 		{
-			// Queries can opt to not show an Add menu by returning NullWidget
-			return (AddMenuContents != SNullWidget::NullWidget) ? EVisibility::Visible : EVisibility::Collapsed;
+			if (WeakQuery.IsValid())
+			{
+				return WeakQuery->HasAddMenu() ? EVisibility::Visible : EVisibility::Collapsed;
+			}
+
+			return EVisibility::Collapsed;
 		})
 		.ButtonContent()
 		[
