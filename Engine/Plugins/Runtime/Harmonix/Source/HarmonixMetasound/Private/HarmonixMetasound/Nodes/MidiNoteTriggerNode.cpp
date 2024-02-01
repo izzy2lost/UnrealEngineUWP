@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HarmonixMetasound/Nodes/MidiNoteTriggerNode.h"
+
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
 #include "MetasoundNodeInterface.h"
@@ -13,22 +15,228 @@
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogMidiNoteTrigger, Log, All);
-
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
-namespace HarmonixMetasound
+namespace HarmonixMetasound::Nodes::MidiNoteTriggerNode
 {
 	using namespace Metasound;
 
-	class FMidiNoteTriggerOperator : public TExecutableOperator<FMidiNoteTriggerOperator>
+	const FNodeClassName& GetClassName()
+	{
+		static const FNodeClassName ClassName{ HarmonixNodeNamespace, TEXT("MidiNoteTrigger"), TEXT("")};
+		return ClassName;
+	}
+
+	int32 GetCurrentMajorVersion()
+	{
+		return 1;
+	}
+
+	namespace Inputs
+	{
+		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiStream, CommonPinNames::Inputs::MidiStream);
+	}
+
+	namespace Outputs
+	{
+		DEFINE_METASOUND_PARAM_ALIAS(NoteOnTrigger, CommonPinNames::Outputs::NoteOn);
+		DEFINE_METASOUND_PARAM_ALIAS(NoteOffTrigger, CommonPinNames::Outputs::NoteOff);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiNoteNumber, CommonPinNames::Outputs::MidiNoteNumber);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiVelocity, CommonPinNames::Outputs::MidiVelocity);
+	}
+
+	class FMidiNoteTriggerOperator_V1 final : public TExecutableOperator<FMidiNoteTriggerOperator_V1>
+	{
+	public:
+		static const FNodeClassMetadata& GetNodeInfo()
+		{
+			auto InitNodeInfo = []() -> FNodeClassMetadata
+			{
+				FNodeClassMetadata Info;
+				Info.ClassName        = GetClassName();
+				Info.MajorVersion     = 1;
+				Info.MinorVersion     = 0;
+				Info.DisplayName      = METASOUND_LOCTEXT("MidiNoteTriggerNode_DisplayName", "MIDI Note Trigger");
+				Info.Description      = METASOUND_LOCTEXT("MidiNoteTriggerNode_Description", "Outputs triggers and info for incoming MIDI notes.");
+				Info.Author           = PluginAuthor;
+				Info.PromptIfMissing  = PluginNodeMissingPrompt;
+				Info.DefaultInterface = GetVertexInterface();
+				Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+				return Info;
+			};
+
+			static const FNodeClassMetadata Info = InitNodeInfo();
+
+			return Info;
+		}
+
+		static const FVertexInterface& GetVertexInterface()
+		{
+			static const FVertexInterface Interface(
+				FInputVertexInterface(
+					TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
+					TInputDataVertex<FMidiStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiStream))
+					),
+				FOutputVertexInterface(
+					TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NoteOnTrigger)),
+					TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NoteOffTrigger)),
+					TOutputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::MidiNoteNumber)),
+					TOutputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::MidiVelocity))
+					)
+			);
+
+			return Interface;
+		}
+
+		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults&)
+		{
+			using namespace CommonPinNames;
+
+			const FInputVertexInterfaceData& InputData = InParams.InputData;
+			FBoolReadRef InEnabled          = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::Enable), InParams.OperatorSettings);
+			FMidiStreamReadRef InMidiStream = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), InParams.OperatorSettings);
+
+			return MakeUnique<FMidiNoteTriggerOperator_V1>(InParams, MoveTemp(InEnabled), MoveTemp(InMidiStream));
+		}
+
+		FMidiNoteTriggerOperator_V1(const FBuildOperatorParams& InParams, FBoolReadRef&& InEnabled, FMidiStreamReadRef&& InMidiStream)
+			: EnableInPin(MoveTemp(InEnabled))
+			, MidiStreamInPin(MoveTemp(InMidiStream))
+			, NoteOnOutPin(FTriggerWriteRef::CreateNew(InParams.OperatorSettings))
+			, NoteOffOutPin(FTriggerWriteRef::CreateNew(InParams.OperatorSettings))
+			, NoteNumOutPin(FInt32WriteRef::CreateNew(0))
+			, VelOutPin(FInt32WriteRef::CreateNew(0))
+		{
+			Reset(InParams);
+		}
+
+		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override
+		{
+			using namespace CommonPinNames;
+
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable), EnableInPin);
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiStream),   MidiStreamInPin);
+		}
+
+		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
+		{
+			using namespace CommonPinNames;
+
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Outputs::NoteOn), NoteOnOutPin);
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Outputs::NoteOff), NoteOffOutPin);
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiNoteNumber), NoteNumOutPin);
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiVelocity), VelOutPin);
+		}
+
+		void Reset(const FResetParams&)
+		{
+			NoteOnOutPin->Reset();
+			NoteOffOutPin->Reset();
+			*NoteNumOutPin = 0;
+			*VelOutPin = 0;
+			SoundingNote = -1;
+			PlayingId = FMidiVoiceId::None();
+		}
+
+		void Execute()
+		{
+			NoteOnOutPin->AdvanceBlock();
+			NoteOffOutPin->AdvanceBlock();
+
+			if (!*EnableInPin)
+			{
+				if (SoundingNote >= 0)
+				{
+					TriggerNoteOff(0, SoundingNote);
+				}
+				return;
+			}
+
+			const TArray<FMidiTimestampTransportState> TransportChanges = MidiStreamInPin->GetTransportChangesInBlock();
+			if (!TransportChanges.IsEmpty())
+			{
+				if (TransportChanges.Last().TransportState != EMusicPlayerTransportState::Playing)
+				{
+					if (SoundingNote >= 0)
+					{
+						TriggerNoteOff(0, SoundingNote);
+					}
+					return;
+				}
+			}
+
+			int32 NoteOffTriggerFrame = -1;
+			
+			for (const FMidiStreamEvent& Event : MidiStreamInPin->GetEventsInBlock())
+			{
+				if (Event.MidiMessage.IsNoteOn()) 
+				{
+					if (SoundingNote > -1)
+					{
+						// Stop sounding note
+						TriggerNoteOff(Event.BlockSampleFrameIndex, SoundingNote);
+					}
+
+					// Play new note
+					PlayingId      = Event.GetVoiceId();
+					*VelOutPin     = Event.MidiMessage.GetStdData2();
+					*NoteNumOutPin = Event.MidiMessage.GetStdData1();
+					NoteOnOutPin->TriggerFrame(NoteOffTriggerFrame == Event.BlockSampleFrameIndex ? NoteOffTriggerFrame + 1 : Event.BlockSampleFrameIndex);
+					SoundingNote   = Event.MidiMessage.GetStdData1();;
+				}
+				else if (Event.MidiMessage.IsNoteOff())
+				{
+					if (Event.GetVoiceId() == PlayingId)
+					{
+						TriggerNoteOff(Event.BlockSampleFrameIndex, Event.MidiMessage.GetStdData1());
+						NoteOffTriggerFrame = Event.BlockSampleFrameIndex;
+					}
+				}
+			}
+		}
+		
+	private:
+		void TriggerNoteOff(int32 BlockSampleFrameIndex, int32 NoteNumber)
+		{
+			*VelOutPin = 0;
+			*NoteNumOutPin = NoteNumber;
+			NoteOffOutPin->TriggerFrame(BlockSampleFrameIndex);
+			SoundingNote = -1;
+			PlayingId = FMidiVoiceId::None();
+		}
+		
+		FBoolReadRef       EnableInPin;
+		FMidiStreamReadRef MidiStreamInPin;
+
+		FTriggerWriteRef NoteOnOutPin;
+		FTriggerWriteRef NoteOffOutPin;
+		FInt32WriteRef   NoteNumOutPin;
+		FInt32WriteRef   VelOutPin;
+
+		int8 SoundingNote = -1;
+		FMidiVoiceId PlayingId = FMidiVoiceId::None();
+	};
+
+	class FMidiNoteTriggerNode_V1 final : public FNodeFacade
+	{
+	public:
+		explicit FMidiNoteTriggerNode_V1(const FNodeInitData& InInitData)
+			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiNoteTriggerOperator_V1>())
+		{}
+		virtual ~FMidiNoteTriggerNode_V1() override = default;
+	};
+
+	METASOUND_REGISTER_NODE(FMidiNoteTriggerNode_V1)
+
+	class FMidiNoteTriggerOperator_V0 : public TExecutableOperator<FMidiNoteTriggerOperator_V0>
 	{
 	public:
 		static const FNodeClassMetadata& GetNodeInfo();
 		static const FVertexInterface& GetVertexInterface();
 		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
 
-		FMidiNoteTriggerOperator(const FBuildOperatorParams& InParams,
+		FMidiNoteTriggerOperator_V0(const FBuildOperatorParams& InParams,
 								 const FBoolReadRef&       InEnabled,
 								 const FMidiStreamReadRef& InMidiStream,
 								 const FInt32ReadRef&      InTrackNumber,
@@ -73,23 +281,23 @@ namespace HarmonixMetasound
 		FMidiVoiceId PlayingId;
 	};
 
-	class FMidiNoteTriggerNode : public FNodeFacade
+	class FMidiNoteTriggerNode_V0 : public FNodeFacade
 	{
 	public:
-		FMidiNoteTriggerNode(const FNodeInitData& InInitData)
-			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiNoteTriggerOperator>())
+		FMidiNoteTriggerNode_V0(const FNodeInitData& InInitData)
+			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiNoteTriggerOperator_V0>())
 		{}
-		virtual ~FMidiNoteTriggerNode() = default;
+		virtual ~FMidiNoteTriggerNode_V0() = default;
 	};
 
-	METASOUND_REGISTER_NODE(FMidiNoteTriggerNode)
+	METASOUND_REGISTER_NODE(FMidiNoteTriggerNode_V0)
 
-	const FNodeClassMetadata& FMidiNoteTriggerOperator::GetNodeInfo()
+	const FNodeClassMetadata& FMidiNoteTriggerOperator_V0::GetNodeInfo()
 	{
 		auto InitNodeInfo = []() -> FNodeClassMetadata
 		{
 			FNodeClassMetadata Info;
-			Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiNoteTrigger"), TEXT("")};
+			Info.ClassName        = GetClassName();
 			Info.MajorVersion     = 0;
 			Info.MinorVersion     = 1;
 			Info.DisplayName      = METASOUND_LOCTEXT("MidiNoteTriggerNode_DisplayName", "Midi Note Trigger");
@@ -98,6 +306,7 @@ namespace HarmonixMetasound
 			Info.PromptIfMissing  = PluginNodeMissingPrompt;
 			Info.DefaultInterface = GetVertexInterface();
 			Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+			Info.bDeprecated = true;
 			return Info;
 		};
 
@@ -106,56 +315,52 @@ namespace HarmonixMetasound
 		return Info;
 	}
 
-	const FVertexInterface& FMidiNoteTriggerOperator::GetVertexInterface()
+	const FVertexInterface& FMidiNoteTriggerOperator_V0::GetVertexInterface()
 	{
-		using namespace CommonPinNames;
-
 		static const FVertexInterface Interface(
 			FInputVertexInterface(
 				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
 				TInputDataVertex<FMidiStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiStream)),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiTrackNumber),1),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiChannelNumber), 1),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MinMidiNote), 0),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MaxMidiNote), 127),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MinMidiVelocity), 0),
-				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MaxMidiVelocity), 127),
-				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::ClockSpeedToFrequency), false)
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MidiTrackNumber),1),
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MidiChannelNumber), 1),
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MinMidiNote), 0),
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MaxMidiNote), 127),
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MinMidiVelocity), 0),
+				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MaxMidiVelocity), 127),
+				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::ClockSpeedToFrequency), false)
 				),
 			FOutputVertexInterface(
-				TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NoteOn)),
-				TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NoteOff)),
+				TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NoteOnTrigger)),
+				TOutputDataVertex<FTrigger>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NoteOffTrigger)),
 				TOutputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::MidiNoteNumber)),
-				TOutputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::Frequency)),
+				TOutputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Outputs::Frequency)),
 				TOutputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::MidiVelocity)),
-				TOutputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::NormalizedVelocity))
+				TOutputDataVertex<float>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Outputs::NormalizedVelocity))
 				)
 		);
 
 		return Interface;
 	}
 
-	TUniquePtr<IOperator> FMidiNoteTriggerOperator::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
+	TUniquePtr<IOperator> FMidiNoteTriggerOperator_V0::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 	{
 		using namespace CommonPinNames;
-
-		const FMidiNoteTriggerNode& LoggerNode = static_cast<const FMidiNoteTriggerNode&>(InParams.Node);
 
 		const FInputVertexInterfaceData& InputData = InParams.InputData;
 		FBoolReadRef InEnabled          = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::Enable), InParams.OperatorSettings);
 		FMidiStreamReadRef InMidiStream = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), InParams.OperatorSettings);
-		FInt32ReadRef InTrackNumber     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::MidiTrackNumber), InParams.OperatorSettings);
-		FInt32ReadRef InMidiChannel     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::MidiChannelNumber), InParams.OperatorSettings);
-		FInt32ReadRef InMinNote         = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::MinMidiNote), InParams.OperatorSettings);
-		FInt32ReadRef InMaxNote         = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::MaxMidiNote), InParams.OperatorSettings);
-		FInt32ReadRef InMinVelocity     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::MinMidiVelocity), InParams.OperatorSettings);
-		FInt32ReadRef InMaxVelocity     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::MaxMidiVelocity), InParams.OperatorSettings);
-		FBoolReadRef  InClockToFreq     = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::ClockSpeedToFrequency), InParams.OperatorSettings);
+		FInt32ReadRef InTrackNumber     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MidiTrackNumber), InParams.OperatorSettings);
+		FInt32ReadRef InMidiChannel     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MidiChannelNumber), InParams.OperatorSettings);
+		FInt32ReadRef InMinNote         = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MinMidiNote), InParams.OperatorSettings);
+		FInt32ReadRef InMaxNote         = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MaxMidiNote), InParams.OperatorSettings);
+		FInt32ReadRef InMinVelocity     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MinMidiVelocity), InParams.OperatorSettings);
+		FInt32ReadRef InMaxVelocity     = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MaxMidiVelocity), InParams.OperatorSettings);
+		FBoolReadRef  InClockToFreq     = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::ClockSpeedToFrequency), InParams.OperatorSettings);
 
-		return MakeUnique<FMidiNoteTriggerOperator>(InParams, InEnabled, InMidiStream, InTrackNumber, InMidiChannel, InMinNote, InMaxNote, InMinVelocity, InMaxVelocity, InClockToFreq);
+		return MakeUnique<FMidiNoteTriggerOperator_V0>(InParams, InEnabled, InMidiStream, InTrackNumber, InMidiChannel, InMinNote, InMaxNote, InMinVelocity, InMaxVelocity, InClockToFreq);
 	}
 
-	FMidiNoteTriggerOperator::FMidiNoteTriggerOperator(const FBuildOperatorParams& InParams,
+	FMidiNoteTriggerOperator_V0::FMidiNoteTriggerOperator_V0(const FBuildOperatorParams& InParams,
 													   const FBoolReadRef&       InEnabled,
 													   const FMidiStreamReadRef& InMidiStream,
 													   const FInt32ReadRef&      InTrackNumber,
@@ -184,34 +389,34 @@ namespace HarmonixMetasound
 		Reset(InParams);
 	}
 
-	void FMidiNoteTriggerOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
+	void FMidiNoteTriggerOperator_V0::BindInputs(FInputVertexInterfaceData& InVertexData)
 	{
 		using namespace CommonPinNames;
 
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable), EnableInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiStream),   MidiStreamInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiTrackNumber),  TrackNumberInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiChannelNumber), ChannelNumInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MinMidiNote), MinNoteInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MaxMidiNote), MaxNoteInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MinMidiVelocity), MinVelInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MaxMidiVelocity), MaxVelInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::ClockSpeedToFrequency), ClockAffectsFrequencyInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MidiTrackNumber),  TrackNumberInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MidiChannelNumber), ChannelNumInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MinMidiNote), MinNoteInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MaxMidiNote), MaxNoteInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MinMidiVelocity), MinVelInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MaxMidiVelocity), MaxVelInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::ClockSpeedToFrequency), ClockAffectsFrequencyInPin);
 	}
 
-	void FMidiNoteTriggerOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
+	void FMidiNoteTriggerOperator_V0::BindOutputs(FOutputVertexInterfaceData& InVertexData)
 	{
 		using namespace CommonPinNames;
 
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::NoteOn), NoteOnOutPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::NoteOff), NoteOffOutPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Outputs::NoteOn), NoteOnOutPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Outputs::NoteOff), NoteOffOutPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiNoteNumber), NoteNumOutPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::Frequency), FreqOutPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Outputs::Frequency), FreqOutPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiVelocity), VelOutPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::NormalizedVelocity), NormVelOutPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Outputs::NormalizedVelocity), NormVelOutPin);
 	}
 	
-	FDataReferenceCollection FMidiNoteTriggerOperator::GetInputs() const
+	FDataReferenceCollection FMidiNoteTriggerOperator_V0::GetInputs() const
 	{
 		// This should never be called. Bind(...) is called instead. This method
 		// exists as a stop-gap until the API can be deprecated and removed.
@@ -219,7 +424,7 @@ namespace HarmonixMetasound
 		return {};
 	}
 
-	FDataReferenceCollection FMidiNoteTriggerOperator::GetOutputs() const
+	FDataReferenceCollection FMidiNoteTriggerOperator_V0::GetOutputs() const
 	{
 		// This should never be called. Bind(...) is called instead. This method
 		// exists as a stop-gap until the API can be deprecated and removed.
@@ -227,7 +432,7 @@ namespace HarmonixMetasound
 		return {};
 	}
 
-	void FMidiNoteTriggerOperator::Reset(const FResetParams& ResetParams)
+	void FMidiNoteTriggerOperator_V0::Reset(const FResetParams& ResetParams)
 	{
 		NoteOnOutPin->Reset();
 		NoteOffOutPin->Reset();
@@ -239,7 +444,7 @@ namespace HarmonixMetasound
 		PlayingId = FMidiVoiceId::None();
 	}
 
-	void FMidiNoteTriggerOperator::Execute()
+	void FMidiNoteTriggerOperator_V0::Execute()
 	{
 		NoteOnOutPin->AdvanceBlock();
 		NoteOffOutPin->AdvanceBlock();
