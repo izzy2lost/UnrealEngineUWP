@@ -1809,13 +1809,6 @@ void UNiagaraScript::GenerateDefaultFunctionBindings()
 	}
 }
 
-void UNiagaraScript::PreSave(const class ITargetPlatform* TargetPlatform)
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Super::PreSave(TargetPlatform);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
-
 void UNiagaraScript::PreSave(FObjectPreSaveContext ObjectSaveContext)
 {
 	Super::PreSave(ObjectSaveContext);
@@ -1926,6 +1919,17 @@ void UNiagaraScript::Serialize(FArchive& Ar)
 			UE_LOG(LogNiagara, Verbose, TEXT("Pruned %d/%d parameters from script %s"), NumRemoved, ParameterVariables.Num(), *GetFullName());
 		}
 
+		// when we are cooking we want to strip out some debug only data.  While this data is already intended for editor only it will
+		// bloat the size of packages intended for the cooked editor
+		TOptional<FNiagaraVMExecutableData> LocalStrippedDebugData;
+		auto SwapDebugData = [](FNiagaraVMExecutableData& SourceData, FNiagaraVMExecutableData& TargetData) -> void
+		{
+			Swap(TargetData.LastHlslTranslation, SourceData.LastHlslTranslation);
+			Swap(TargetData.LastHlslTranslationGPU, SourceData.LastHlslTranslationGPU);
+			Swap(TargetData.LastAssemblyTranslation, SourceData.LastAssemblyTranslation);
+			Swap(TargetData.CompileTagsEditorOnly, SourceData.CompileTagsEditorOnly);
+		};
+
 		if (Ar.IsSaving())
 		{
 			auto& ExecutableData = GetVMExecutableData();
@@ -1943,9 +1947,17 @@ void UNiagaraScript::Serialize(FArchive& Ar)
 			{
 				ExecutableData.ByteCode.Compress();
 			}
+
+			LocalStrippedDebugData.Emplace();
+			SwapDebugData(*LocalStrippedDebugData, CachedScriptVM);
 		}
 
 		Super::Serialize(Ar);
+
+		if (LocalStrippedDebugData.IsSet())
+		{
+			SwapDebugData(*LocalStrippedDebugData, CachedScriptVM);
+		}
 
 		// If we cached the rapid iteration parameters before serialize, restore them here.
 		if (RapidIterationParametersCookedEditorCache.Num() != 0)
