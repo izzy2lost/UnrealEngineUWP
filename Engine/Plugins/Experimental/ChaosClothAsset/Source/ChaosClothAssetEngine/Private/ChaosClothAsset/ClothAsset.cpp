@@ -558,15 +558,19 @@ void UChaosClothAsset::BuildMeshModel()
 
 	const int32 NumLods = ClothCollections.Num();
 
-	// Build each LOD
+	// Clear current LOD models
 	check(MeshModel);  // MeshModel should always be created in the Cloth Asset constructor WITH_EDITORONLY_DATA
-	MeshModel->LODModels.Empty();
+	MeshModel->LODModels.Reset(NumLods);
 
+	// Get the running platform
+	ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
+	ITargetPlatform* const TargetPlatform = TargetPlatformManager.GetRunningTargetPlatform();
+
+	// Rebuild each LOD models
 	for (int32 LodIndex = 0; LodIndex < NumLods; ++LodIndex)
 	{
-		FSkeletalMeshLODModel* LODModel = new FSkeletalMeshLODModel();
-		FBuilder::BuildLod(*LODModel, *this, LodIndex);
-		MeshModel->LODModels.Add(LODModel);
+		MeshModel->LODModels.Add(new FSkeletalMeshLODModel());
+		BuildLODModel(TargetPlatform, LodIndex);
 	}
 }
 #endif  // #if WITH_EDITOR
@@ -628,6 +632,12 @@ void UChaosClothAsset::CacheDerivedData(FSkinnedAssetCompilationContext* Context
 	// Load render data from DDC, or generate it and save to DDC
 	GetResourceForRendering()->Cache(RunningPlatform, this, Context);
 
+}
+
+void UChaosClothAsset::BuildLODModel(const ITargetPlatform* TargetPlatform, int32 LODIndex)
+{
+	check(MeshModel && MeshModel->LODModels.IsValidIndex(LODIndex));
+	FBuilder::BuildLod(MeshModel->LODModels[LODIndex], *this, LODIndex, TargetPlatform);
 }
 
 FString UChaosClothAsset::BuildDerivedDataKey(const ITargetPlatform* TargetPlatform)

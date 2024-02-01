@@ -7,6 +7,7 @@
 #include "ChaosClothAsset/ClothSimulationModel.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "Engine/RendererSettings.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Misc/ScopedSlowTask.h"
@@ -44,12 +45,68 @@ namespace UE::Chaos::ClothAsset::Private
 			ClothSimulationModel->GetIndices(LodIndex) :
 			TConstArrayView<uint32>();
 	}
+
+	int32 ConformSkinWeightsToMaxInfluences(
+		const TArray<int32>& InBoneIndices,
+		const TArray<float>& InBoneWeights,
+		TArray<int32>& OutBoneIndices,
+		TArray<float>& OutBoneWeights,
+		int32 MaxInfluences)
+	{
+		check(InBoneIndices.Num() == InBoneWeights.Num());
+		const int32 NumInfluences = InBoneIndices.Num();
+
+		// Sort the influences by bone weight
+		TArray<int32, TInlineAllocator<MAX_TOTAL_INFLUENCES>> SortedInfluences;
+		SortedInfluences.Reserve(NumInfluences);
+		for (int32 Index = 0; Index < NumInfluences; ++Index)
+		{
+			SortedInfluences.Add(Index);
+		}
+		SortedInfluences.Sort([&InBoneWeights](int32 Index0, int32 Index1) { return InBoneWeights[Index0] > InBoneWeights[Index1]; });
+
+		// Copy the weights by order of the most influential to the less
+		OutBoneIndices.Reset(MAX_TOTAL_INFLUENCES);
+		OutBoneWeights.Reset(MAX_TOTAL_INFLUENCES);
+
+		float BoneWeightsSum = 0.f;
+		
+		for (int32 Index = 0; Index < FMath::Min(NumInfluences, MaxInfluences); ++Index)
+		{
+			const float BoneWeight = InBoneWeights[SortedInfluences[Index]];
+
+			if (!FMath::IsNearlyZero(BoneWeight))
+			{
+				OutBoneIndices.Add(InBoneIndices[SortedInfluences[Index]]);
+				OutBoneWeights.Add(BoneWeight);
+				BoneWeightsSum += BoneWeight;
+			}
+			else
+			{
+				break;  // Found zero weights, early exit
+			}
+		}
+		check(OutBoneIndices.Num() == OutBoneWeights.Num());
+
+		if (BoneWeightsSum != 0.f && !FMath::IsNearlyEqual(BoneWeightsSum, 1.f))
+		{
+			const float BoneWeightsSumRecip = 1.f / BoneWeightsSum;
+			for (float& OutBoneWeight : OutBoneWeights)
+			{
+				OutBoneWeight *= BoneWeightsSumRecip;
+			}
+		}
+
+		return OutBoneWeights.Num();
+	}
 }  // End namespace UE::Chaos::ClothAsset::Private
 
-void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const UChaosClothAsset& ClothAsset, int32 LodIndex)
+void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const UChaosClothAsset& ClothAsset, int32 LodIndex, const ITargetPlatform* TargetPlatform)
 {
 	using namespace UE::Chaos::ClothAsset;
 	using namespace ::Chaos::Softs;
+
+	check(TargetPlatform);
 
 	// Start from an empty LODModel
 	LODModel.Empty();
@@ -197,14 +254,25 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 				SoftVertex.UVs[TexCoord] = RenderUVs[TexCoord];
 			}
 
-			const int32 NumInfluences = PatternRenderBoneIndices[VertexIndex].Num();
-			check(NumInfluences <= MAX_TOTAL_INFLUENCES);
+			// Conform to the platform max number of influences
+			const int32 MaxBoneInfluencesFromUnlimitedBoneInfluences = FGPUBaseSkinVertexFactory::GetUnlimitedBoneInfluences(TargetPlatform) ? MAX_TOTAL_INFLUENCES : EXTRA_BONE_INFLUENCES;
+			const int32 MaxBoneInfluencesFromPlatformProjectSettings = FGPUBaseSkinVertexFactory::GetBoneInfluenceLimitForAsset(0, TargetPlatform);
+			const int32 MaxNumInfluences = FMath::Min(MaxBoneInfluencesFromUnlimitedBoneInfluences, MaxBoneInfluencesFromPlatformProjectSettings);
+
+			TArray<int32> BoneIndices;
+			TArray<float> BoneWeights;
+			const int32 NumInfluences = Private::ConformSkinWeightsToMaxInfluences(
+				PatternRenderBoneIndices[VertexIndex],
+				PatternRenderBoneWeights[VertexIndex],
+				BoneIndices,
+				BoneWeights,
+				MaxNumInfluences);
 
 			// Add all of the bones that have non-zero influence to the section's bone map and keep track of the order
 			// that we added the reference bone via CurSectionBoneMapNum
 			for (int32 Influence = 0; Influence < NumInfluences; ++Influence)
 			{
-				const FBoneIndexType InfluenceBone = (FBoneIndexType)PatternRenderBoneIndices[VertexIndex][Influence];
+				const FBoneIndexType InfluenceBone = (FBoneIndexType)BoneIndices[Influence];
 
 				if (ReferenceToSectionBoneMap.Contains(InfluenceBone) == false)
 				{
@@ -216,8 +284,8 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 			int32 Influence = 0;
 			for (; Influence < NumInfluences; ++Influence)
 			{
-				const FBoneIndexType InfluenceBone = (FBoneIndexType)PatternRenderBoneIndices[VertexIndex][Influence];
-				const float InWeight = PatternRenderBoneWeights[VertexIndex][Influence];
+				const FBoneIndexType InfluenceBone = (FBoneIndexType)BoneIndices[Influence];
+				const float InWeight = BoneWeights[Influence];
 				const uint16 InfluenceWeight = static_cast<uint16>(InWeight * static_cast<float>(UE::AnimationCore::MaxRawBoneWeight) + 0.5f);
 
 				// FSoftSkinVertex::InfluenceBones contain indices into the section's bone map and not the reference

@@ -91,6 +91,8 @@ public:
 	virtual const FPerPlatformBool& GetDisableBelowMinLodStripping() const override { return DisableBelowMinLodStripping; }
 	virtual const FPerPlatformInt& GetMinLod() const override					{ return MinLod; }
 #if WITH_EDITOR
+	/* Build a LOD model for the targeted platform. */
+	virtual void BuildLODModel(const ITargetPlatform* TargetPlatform, int32 LODIndex) override;
 	virtual FString BuildDerivedDataKey(const ITargetPlatform* TargetPlatform) override;
 	virtual bool IsInitialBuildDone() const override;
 	virtual bool GetEnableLODStreaming(const class ITargetPlatform* TargetPlatform) const override	{ return false; }
