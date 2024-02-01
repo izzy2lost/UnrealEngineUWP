@@ -69,11 +69,17 @@ namespace Horde.Server
 
 		public static DirectoryReference AppDir { get; } = GetAppDir();
 
-		public static DirectoryReference DataDir { get; } = GetDataDir();
+		public static DirectoryReference DataDir => _dataDir ?? throw new InvalidOperationException("DataDir has not been initialized");
 
-		public static FileReference UserConfigFile { get; } = FileReference.Combine(DataDir, "Horde.json");
+		public static DirectoryReference ConfigDir => _configDir ?? throw new InvalidOperationException("ConfigDir has not been initialized");
+
+		public static FileReference ServerConfigFile => _serverConfigFile ?? throw new InvalidOperationException("ServerConfigFile has not been initialized");
 
 		public static Type[] ConfigSchemas = FindSchemaTypes();
+
+		private static DirectoryReference? _dataDir;
+		private static DirectoryReference? _configDir;
+		private static FileReference? _serverConfigFile;
 
 		static Type[] FindSchemaTypes()
 		{
@@ -105,24 +111,47 @@ namespace Horde.Server
 		{
 			CommandLineArguments arguments = new CommandLineArguments(args);
 
-			IConfiguration config = CreateConfig(UserConfigFile);
+			// Create the base configuration data by just reading from the application directory. We need to check some settings before
+			// being able to read user configuration files.
+			IConfiguration baseConfig = CreateConfig(false, null);
 
-			ServerSettings hordeSettings = new ServerSettings();
-			Startup.BindServerSettings(config, hordeSettings);
+			ServerSettings baseServerSettings = new ServerSettings();
+			Startup.BindServerSettings(baseConfig, baseServerSettings);
 
-			DirectoryReference logDir = AppDir;
-			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			_dataDir = DirectoryReference.Combine(GetAppDir(), baseServerSettings.DataDir ?? "Data");
+			_configDir = DirectoryReference.Combine(GetAppDir(), "Defaults");
+
+			if (baseServerSettings.Installed)
 			{
-				logDir = DirectoryReference.Combine(DataDir);
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && String.IsNullOrEmpty(baseServerSettings.DataDir))
+				{
+					DirectoryReference? commonDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
+					if (commonDataDir != null)
+					{
+						// Copy default config files to the C:\ProgramData\Epic\Horde\Server directory and let the user modify it there.
+						_dataDir = DirectoryReference.Combine(commonDataDir, "Epic", "Horde", "Server");
+					}
+				}
+				CopyDefaultConfigFiles(_configDir, _dataDir);
+				_configDir = _dataDir;
 			}
 
+			// Create the final configuration, including the server.json file
+			_serverConfigFile = FileReference.Combine(_configDir, "server.json");
+			IConfiguration config = CreateConfig(baseServerSettings.Installed, _serverConfigFile);
+
+			// Bind the complete settings
+			ServerSettings serverSettings = new ServerSettings();
+			Startup.BindServerSettings(config, serverSettings);
+
+			DirectoryReference logDir = DirectoryReference.Combine(DataDir, "Logs");
 			Serilog.Log.Logger = new LoggerConfiguration()
-				.WithHordeConfig(hordeSettings)
+				.WithHordeConfig(serverSettings)
 				.Enrich.FromLogContext()
 				.Enrich.WithExceptionDetails(new DestructuringOptionsBuilder()
 					.WithDefaultDestructurers()
 					.WithDestructurers(new[] { new RpcExceptionDestructurer() }))
-				.WriteTo.Console(hordeSettings)
+				.WriteTo.Console(serverSettings)
 				.WriteTo.File(Path.Combine(logDir.FullName, "Log.txt"), outputTemplate: "[{Timestamp:HH:mm:ss} {Level:w3}] {Indent}{Message:l}{NewLine}{Exception} [{SourceContext}]", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, fileSizeLimitBytes: 20 * 1024 * 1024, retainedFileCountLimit: 10)
 				.WriteTo.File(new JsonFormatter(renderMessage: true), Path.Combine(logDir.FullName, "Log.json"), rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true, fileSizeLimitBytes: 20 * 1024 * 1024, retainedFileCountLimit: 10)
 				.ReadFrom.Configuration(config)
@@ -132,13 +161,13 @@ namespace Horde.Server
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 			services.AddLogging(builder => builder.AddSerilog());
 			services.AddSingleton<IConfiguration>(config);
-			services.AddSingleton<ServerSettings>(hordeSettings);
+			services.AddSingleton<ServerSettings>(serverSettings);
 			services.Configure<ServerSettings>(x => Startup.BindServerSettings(config, x));
 
-#pragma warning disable ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
-			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
-			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(ServerCommand));
-#pragma warning restore ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
+			await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
+			{
+				return await CommandHost.RunAsync(arguments, serviceProvider, typeof(ServerCommand));
+			}
 		}
 
 		// Used by WebApplicationFactory in controller tests. Uses reflection to call this exact function signature.
@@ -168,51 +197,43 @@ namespace Horde.Server
 		}
 
 		/// <summary>
-		/// Gets the default directory for storing application data
-		/// </summary>
-		/// <returns>The default data directory</returns>
-		static DirectoryReference GetDataDir()
-		{
-			IConfiguration config = CreateConfig(null);
-
-			string? dataDir = config.GetSection("Horde").GetValue(typeof(string), nameof(ServerSettings.DataDir)) as string;
-			if (dataDir != null)
-			{
-				return DirectoryReference.Combine(GetAppDir(), dataDir);
-			}
-
-			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			{
-				DirectoryReference? dir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
-				if (dir != null)
-				{
-					return DirectoryReference.Combine(dir, "Epic", "Horde", "Server");
-				}
-			}
-			return DirectoryReference.Combine(GetAppDir(), "Data");
-		}
-
-		/// <summary>
 		/// Constructs a configuration object for the current environment
 		/// </summary>
-		/// <param name="userConfigFile"></param>
 		/// <returns></returns>
-		static IConfiguration CreateConfig(FileReference? userConfigFile)
+		static IConfiguration CreateConfig(bool readInstalledConfig, FileReference? serverConfigFile)
 		{
 			IConfigurationBuilder builder = new ConfigurationBuilder()
 				.SetBasePath(AppDir.FullName)
 				.AddJsonFile("appsettings.json", optional: false)
 				.AddJsonFile("appsettings.Build.json", optional: true) // specific settings for builds (installer/dockerfile)
 				.AddJsonFile($"appsettings.{DeploymentEnvironment}.json", optional: true) // environment variable overrides, also used in k8s setups with Helm
-				.AddJsonFile("appsettings.User.json", optional: true)
-				.Add(new RegistryConfigSource());
+				.AddJsonFile("appsettings.User.json", optional: true);
 
-			if (userConfigFile != null)
+			if (serverConfigFile != null)
 			{
-				builder = builder.AddJsonFile(userConfigFile.FullName, optional: true, reloadOnChange: true);
+				builder = builder.AddJsonFile(serverConfigFile.FullName, optional: true, reloadOnChange: true);
+			}
+			if (readInstalledConfig)
+			{
+				builder = builder.Add(new RegistryConfigSource());
 			}
 
 			return builder.AddEnvironmentVariables().Build();
+		}
+
+		static void CopyDefaultConfigFiles(DirectoryReference sourceDir, DirectoryReference targetDir)
+		{
+			foreach (FileReference sourceFile in DirectoryReference.EnumerateFiles(sourceDir))
+			{
+				if (sourceFile.HasExtension(".json") || sourceFile.HasExtension(".png"))
+				{
+					FileReference targetFile = FileReference.Combine(targetDir, sourceFile.GetFileName());
+					if (!FileReference.Exists(targetFile))
+					{
+						FileReference.Copy(sourceFile, targetFile);
+					}
+				}
+			}
 		}
 
 		class RegistryConfigSource : IConfigurationSource

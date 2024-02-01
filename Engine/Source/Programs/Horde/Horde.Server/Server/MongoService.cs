@@ -320,7 +320,7 @@ namespace Horde.Server.Server
 					}
 					else
 					{
-						throw new Exception($"Unable to connect to MongoDB server. Setup a MongoDB server and set the connection string in {ServerApp.UserConfigFile}");
+						throw new Exception($"Unable to connect to MongoDB server. Setup a MongoDB server and set the connection string in {ServerApp.ServerConfigFile}");
 					}
 				}
 

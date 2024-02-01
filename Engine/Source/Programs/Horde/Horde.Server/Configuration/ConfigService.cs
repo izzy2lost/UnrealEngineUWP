@@ -446,7 +446,7 @@ namespace Horde.Server.Configuration
 			else
 			{
 				// relative (development) or perforce path
-				return ConfigType.CombinePaths(new Uri(FileReference.Combine(ServerApp.AppDir, "_").FullName), _serverSettings.ConfigPath);
+				return ConfigType.CombinePaths(new Uri(FileReference.Combine(ServerApp.ConfigDir, "_").FullName), _serverSettings.ConfigPath);
 			}
 		}
 

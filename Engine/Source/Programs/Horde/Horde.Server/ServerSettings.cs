@@ -422,6 +422,13 @@ namespace Horde.Server
 		public string? DataDir { get; set; } = null;
 
 		/// <summary>
+		/// Whether the server is running in 'installed' mode. In this mode, on Windows, the default data directory will use the common 
+		/// application data folder (C:\ProgramData\Epic\Horde), and configuration data will be read from here and the registry.
+		/// This setting is overridden to false for local builds from appsettings.Local.json.
+		/// </summary>
+		public bool Installed { get; set; } = true;
+
+		/// <summary>
 		/// Main port for serving HTTP.
 		/// </summary>
 		public int HttpPort { get; set; } = 5000;
@@ -801,9 +808,9 @@ namespace Horde.Server
 		public bool WithAws { get; set; } = false;
 
 		/// <summary>
-		/// Path to the root config file
+		/// Path to the root config file. Relative to the server.json file by default.
 		/// </summary>
-		public string ConfigPath { get; set; } = "Defaults/globals.json";
+		public string ConfigPath { get; set; } = "globals.json";
 
 		/// <summary>
 		/// Perforce connections for use by the Horde server (not agents)
