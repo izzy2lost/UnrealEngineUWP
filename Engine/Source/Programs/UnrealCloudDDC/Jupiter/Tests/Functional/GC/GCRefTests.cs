@@ -193,13 +193,13 @@ namespace Jupiter.FunctionalTests.GC
 
 			IRefService refService = _server!.Services.GetService<IRefService>()!;
 			// some object should have been deleted while others remain
-			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object0Name), $"{object0Name} should have been deleted");
-			Assert.IsTrue(await refService.ExistsAsync(TestNamespace, DefaultBucket, object1Name), $"{object1Name} should still be found");
-			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object2Name), $"{object2Name} should have been deleted");
-			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object3Name), $"{object3Name} should have been deleted");
-			Assert.IsTrue(await refService.ExistsAsync(TestNamespace, DefaultBucket, object4Name), $"{object4Name} should still be found");
-			Assert.IsTrue(await refService.ExistsAsync(TestNamespace, DefaultBucket, object5Name), $"{object5Name} should still be found");
-			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object6Name), $"{object6Name} should have been deleted");
+			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object0Name), $"{object0Name} (\"object0Name\") should have been deleted");
+			Assert.IsTrue(await refService.ExistsAsync(TestNamespace, DefaultBucket, object1Name), $"{object1Name} (\"object1Name\") should still be found");
+			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object2Name), $"{object2Name} (\"object2Name\") should have been deleted");
+			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object3Name), $"{object3Name} (\"object3Name\") should have been deleted");
+			Assert.IsTrue(await refService.ExistsAsync(TestNamespace, DefaultBucket, object4Name), $"{object4Name} (\"object4Name\") should still be found");
+			Assert.IsTrue(await refService.ExistsAsync(TestNamespace, DefaultBucket, object5Name), $"{object5Name} (\"object5Name\") should still be found");
+			Assert.IsFalse(await refService.ExistsAsync(TestNamespace, DefaultBucket, object6Name), $"{object6Name} (\"object6Name\") should have been deleted");
 		}
 
 		private static (BlobId, CbObject) GetCBWithAttachment(BlobId blobIdentifier)
