@@ -4,6 +4,7 @@
 
 #include "CommonRenderResources.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "EngineUtils.h"
 #include "LegacyScreenPercentageDriver.h"
 #include "Modules/ModuleManager.h"
 #include "RenderCaptureInterface.h"
@@ -1004,64 +1005,44 @@ const FName& GetWaterInfoDilationPassName() { return FWaterInfoRenderingDilation
 
 // ----------------------------------------------------------------------------------
 
-static TMap<uint32, int32> GatherLandscapeLODOverrides(const FIntPoint& RenderTargetSize, const FVector& WaterZoneExtents)
+static TMap<uint32, int32> GatherLandscapeLODOverrides(const UWorld* World, const FIntPoint& RenderTargetSize, const FVector& WaterZoneExtents)
 {
-	TMap<uint32, int32> LandscapeLODOverrides;
-
-	TMap<uint32, FLandscapeRenderSystem*> const* LandscapeRenderSystems = nullptr;
-	if (ILandscapeModule* LandscapeModule = FModuleManager::GetModulePtr<ILandscapeModule>("Landscape"))
-	{
-		if (TSharedPtr<FLandscapeSceneViewExtension, ESPMode::ThreadSafe> LandscapeViewExtension = LandscapeModule->GetLandscapeSceneViewExtension())
-		{
-			LandscapeRenderSystems = &LandscapeViewExtension->GetLandscapeRenderSystems();
-		}
-	}
-
-	if (!LandscapeRenderSystems)
-	{
-		return LandscapeLODOverrides;
-	}
-
 	// In order to prevent overdrawing the landscape components, we compute the lowest-detailed LOD level which satisfies the pixel coverage of the Water Info texture
 	// and force it on all landscape components. This override is set different per Landscape actor in case there are multiple under the same water zone.
 	//
 	// Ex: If the WaterInfoTexture only has 1 pixel per 100 units, and the highest landscape LOD has 1 vertex per 20 units, we don't need to use the maximum landscape LOD
 	// and can force a lower level of detail (in this case LOD2) while still satisfying the resolution of the water info texture.
 
-	const double MinWaterInfoTextureExtent = (double)FMath::Min(RenderTargetSize.X, RenderTargetSize.Y);
+	const double MinWaterInfoTextureExtent = FMath::Min(RenderTargetSize.X, RenderTargetSize.Y);
 	const double MaxWaterZoneExtent = FMath::Max(WaterZoneExtents.X, WaterZoneExtents.Y);
 	const double WaterInfoUnitsPerPixel =  MaxWaterZoneExtent / MinWaterInfoTextureExtent;
 
-	for (const TPair<uint32, FLandscapeRenderSystem*>& Pair : *LandscapeRenderSystems)
+	TMap<uint32, int32> LandscapeLODOverrides;
+	for (const ALandscapeProxy* LandscapeProxy : TActorRange<ALandscapeProxy>(World))
 	{
-		uint32 LandscapeRenderSystemKey = Pair.Key;
-		FLandscapeRenderSystem* LandscapeRenderSystem = Pair.Value;
+		if (LandscapeProxy == nullptr)
+		{
+			continue;
+		}
+		
+		const uint32 LandscapeKey = LandscapeProxy->ComputeLandscapeKey();
 		int32 OptimalLODLevel = INDEX_NONE;
 
 		// All components within the same landscape (and thus its render system) should have the same number of quads and the same extent.
 		// therefore we can simply find the first component and compute its optimal LOD level.
-		for (FLandscapeSectionInfo* LandscapeSectionInfo : LandscapeRenderSystem->SectionInfos)
-		{
-			if (LandscapeSectionInfo != nullptr)
-			{
-				// Double the required landscape resolution to achieve 2 quads per pixel.
-				const double LandscapeComponentUnitsPerQuad = 2.0 * LandscapeSectionInfo->ComputeSectionResolution();
-				if (LandscapeComponentUnitsPerQuad <= 0.f)
-				{
-					// No section resolution probably means the section is a mesh proxy, which might not have regular units per vertex.
-					// Avoid computing optimal LOD in this case.
-					continue;
-				}
+		const double FullExtent = LandscapeProxy->SubsectionSizeQuads * FMath::Max(LandscapeProxy->GetTransform().GetScale3D().X, LandscapeProxy->GetTransform().GetScale3D().Y);
+		const double NumQuads = LandscapeProxy->ComponentSizeQuads;
+		const double LandscapeResolution = FullExtent / NumQuads;
 
-				// Derived from:
-				// (ComponentWorldExtent / WaterInfoWorldspaceExtent) * WaterInfoTextureResolution = (NumComponentQuads / 2 ^ (LodLevel))
-				OptimalLODLevel = FMath::Max(WaterInfoRenderLandscapeMinimumMipLevel, FMath::FloorToInt(FMath::Log2(WaterInfoUnitsPerPixel / LandscapeComponentUnitsPerQuad)));
+		// Double the required landscape resolution to achieve 2 quads per pixel.
+		const double LandscapeComponentUnitsPerQuad = 2.0 * LandscapeResolution;
+		check(LandscapeComponentUnitsPerQuad > 0.f);
 
-				break;
-			}
-		}
+		// Derived from:
+		// (ComponentWorldExtent / WaterInfoWorldspaceExtent) * WaterInfoTextureResolution = (NumComponentQuads / 2 ^ (LodLevel))
+		OptimalLODLevel = FMath::Max(WaterInfoRenderLandscapeMinimumMipLevel, FMath::FloorToInt(FMath::Log2(WaterInfoUnitsPerPixel / LandscapeComponentUnitsPerQuad)));
 
-		LandscapeLODOverrides.Add(LandscapeRenderSystemKey, OptimalLODLevel);
+		LandscapeLODOverrides.Add(LandscapeKey, OptimalLODLevel);
 	}
 
 	return LandscapeLODOverrides;
@@ -1124,7 +1105,7 @@ void UpdateWaterInfoRendering_CustomRenderPass(
 	}
 	PassInput.ShowOnlyPrimitives = MoveTemp(ComponentsToRenderInDepthPass);
 
-	FWaterInfoRenderingDepthPass* DepthPass = new FWaterInfoRenderingDepthPass(RenderTargetSize, GatherLandscapeLODOverrides(RenderTargetSize, ZoneExtent));
+	FWaterInfoRenderingDepthPass* DepthPass = new FWaterInfoRenderingDepthPass(RenderTargetSize, GatherLandscapeLODOverrides(Scene->GetWorld(), RenderTargetSize, ZoneExtent));
 	if (bPerformRenderCapture)
 	{
 		// Initiate a render capture when this pass runs :

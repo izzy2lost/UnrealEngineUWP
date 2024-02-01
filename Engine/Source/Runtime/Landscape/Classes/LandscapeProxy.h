@@ -997,6 +997,10 @@ public:
 		OriginalLandscapeGuid = Guid;
 	}
 
+	/** Computes the rendering key for this landscape proxy */
+	LANDSCAPE_API uint32 ComputeLandscapeKey() const;
+	LANDSCAPE_API static uint32 ComputeLandscapeKey(const UWorld* World, uint32 InLODGroupKey, FGuid InLandscapeGuid);
+
 	/* Return the original landscape guid, before it was modified by instancing.
 	 * When not instanced, this value is equal to LandscapeGuid.
 	 */
