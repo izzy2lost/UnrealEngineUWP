@@ -181,17 +181,17 @@ struct  FAnimDetailProxyScale
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, Interp, Category = "Scale", meta = (Delta = "0.5", SliderExponent = "1", LinearDeltaSensitivity = "1"))
-	double SX = 0.0;
+	double SX = 1.0;
 
 	UPROPERTY(EditAnywhere, Interp, Category = "Scale", meta = (Delta = "0.5", SliderExponent = "1", LinearDeltaSensitivity = "1"))
-	double SY = 0.0;
+	double SY = 1.0;
 
 	UPROPERTY(EditAnywhere, Interp, Category = "Scale", meta = (Delta = "0.5", SliderExponent = "1", LinearDeltaSensitivity = "1"))
-	double SZ = 0.0;
+	double SZ = 1.0;
 
 	FAnimDetailVectorState State;
 
-	FAnimDetailProxyScale() : SX(0.0), SY(0.0), SZ(0.0) {};
+	FAnimDetailProxyScale() : SX(1.0), SY(1.0), SZ(1.0) {};
 	FAnimDetailProxyScale(const FVector& InVector, const FAnimDetailVectorState& InState) 
 	{
 		SX = InVector.X; SY = InVector.Y; SZ = InVector.Z; State = InState;

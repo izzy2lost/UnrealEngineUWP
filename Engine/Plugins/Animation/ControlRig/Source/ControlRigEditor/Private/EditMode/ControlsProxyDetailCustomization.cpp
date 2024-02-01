@@ -271,7 +271,6 @@ void FAnimDetailValueCustomization::CustomizeChildren(TSharedRef<class IProperty
 		const FText PropertyDisplayText = ChildHandle->GetPropertyDisplayName();
 
 		TSharedRef<SWidget> ValueWidget = MakeChildWidget(StructPropertyHandle, ChildHandle);
-		TSharedRef<SWidget> LabelWidget = ChildHandle->CreatePropertyNameWidget();
 
 		// Add the individual properties as children as well so the vector can be expanded for more room
 		
@@ -373,7 +372,6 @@ void FAnimDetailValueCustomization::MakeHeaderRow(TSharedRef<class IPropertyHand
 	FProperty* Property = StructPropertyHandle->GetProperty(); // Is a FProperty*
 	TWeakPtr<IPropertyHandle> StructWeakHandlePtr = StructPropertyHandle;
 	TSharedPtr<SHorizontalBox> HorizontalBox;
-
 	Row.NameContent()
 		[
 			StructPropertyHandle->CreatePropertyNameWidget()

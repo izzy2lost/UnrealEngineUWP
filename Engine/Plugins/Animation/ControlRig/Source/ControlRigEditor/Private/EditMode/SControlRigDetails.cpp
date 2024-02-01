@@ -31,6 +31,10 @@
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Tracks/MovieScenePropertyTrack.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
+#include "Tracks/MovieSceneIntegerTrack.h"
+#include "Tracks/MovieSceneDoubleTrack.h"
+#include "Tracks/MovieSceneFloatTrack.h"
+#include "Tracks/MovieSceneBoolTrack.h"
 #include "MovieSceneCommonHelpers.h"
 
 #define LOCTEXT_NAMESPACE "ControlRigDetails"
@@ -252,13 +256,33 @@ void SControlRigDetails::HandleSequencerObjects(TMap<UObject*, FArrayOfPropertyT
 				{
 					if (UMovieScenePropertyTrack* PropTrack = Cast<UMovieScenePropertyTrack>(Track))
 					{
+						auto AddBinding = [this, PropTrack](UObject* InObject,FSequencerProxyPerType& Binding)
+						{
+							TArray<FBindingAndTrack>& Bindings = Binding.Bindings.FindOrAdd(InObject);
+							TSharedPtr<FTrackInstancePropertyBindings> PropertyBindings = MakeShareable(new FTrackInstancePropertyBindings(PropTrack->GetPropertyName(), PropTrack->GetPropertyPath().ToString()));
+							FBindingAndTrack BindingAndTrack(PropertyBindings, PropTrack);
+							Bindings.Add(BindingAndTrack);
+						};
 						if (PropTrack->IsA<UMovieScene3DTransformTrack>())
 						{
 							FSequencerProxyPerType& Binding = ProxyPerType.FindOrAdd(ERigControlType::Transform);
-							TArray<FBindingAndTrack>& Bindings = Binding.Bindings.FindOrAdd(Pair.Key);
-							TSharedPtr<FTrackInstancePropertyBindings> PropertyBindings = MakeShareable(new FTrackInstancePropertyBindings(PropTrack->GetPropertyName(), PropTrack->GetPropertyPath().ToString()));
-							FBindingAndTrack BindingAndTrack(PropertyBindings, Track);
-							Bindings.Add(BindingAndTrack);
+							AddBinding(Pair.Key, Binding);
+						}
+						else if (PropTrack->IsA<UMovieSceneBoolTrack>())
+						{
+							FSequencerProxyPerType& Binding = ProxyPerType.FindOrAdd(ERigControlType::Bool);
+							AddBinding(Pair.Key, Binding);
+						}
+						else if (PropTrack->IsA<UMovieSceneIntegerTrack>())
+						{
+							FSequencerProxyPerType& Binding = ProxyPerType.FindOrAdd(ERigControlType::Integer);
+							AddBinding(Pair.Key, Binding);
+						}
+						else if (PropTrack->IsA<UMovieSceneDoubleTrack>() ||
+							PropTrack->IsA<UMovieSceneFloatTrack>())
+						{
+							FSequencerProxyPerType& Binding = ProxyPerType.FindOrAdd(ERigControlType::Float);
+							AddBinding(Pair.Key, Binding);
 						}
 					}
 				}
