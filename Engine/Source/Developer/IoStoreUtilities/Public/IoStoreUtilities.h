@@ -62,6 +62,4 @@ UE_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard);
 
 UE_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
 
-UE_API bool ListOnDemandTocs();
-
 #undef UE_API

@@ -9743,23 +9743,3 @@ bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
 
 	return Status.IsOk();
 }
-
-bool ListOnDemandTocs()
-{
-	using namespace UE::IO::IAS;
-
-	TIoStatusOr<FIoStoreListTocsParams> Params = FIoStoreListTocsParams::Parse(FCommandLine::Get());
-	if (Params.IsOk() == false)
-	{
-		UE_LOG(LogIoStore, Error, TEXT("Failed to list TOC file(s), reason '%s'"), *Params.Status().ToString());
-		return false;
-	}
-
-	FIoStatus Status = ListTocs(Params.ConsumeValueOrDie());
-	if (Status.IsOk() == false)
-	{
-		UE_LOG(LogIoStore, Error, TEXT("Failed to list TOC file(s), reason '%s'"), *Status.ToString());
-	}
-
-	return Status.IsOk();
-}

@@ -293,11 +293,11 @@ struct FIoStoreListTocsParams
 	bool bBlockSizes = false;
 	bool bBlockHashes = false;
 
-	UE_API static TIoStatusOr<FIoStoreListTocsParams> Parse(const TCHAR* CommandLine);
+	static TIoStatusOr<FIoStoreListTocsParams> Parse(const TCHAR* CommandLine);
 	FIoStatus Validate() const;
 };
 
-UE_API FIoStatus ListTocs(const FIoStoreListTocsParams& Params);
+FIoStatus ListTocs(const FIoStoreListTocsParams& Params);
 
 #endif // (IS_PROGRAM || WITH_EDITOR)
 
