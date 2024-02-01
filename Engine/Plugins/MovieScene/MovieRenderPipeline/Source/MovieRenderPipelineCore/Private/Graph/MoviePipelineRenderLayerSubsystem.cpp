@@ -532,6 +532,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQueryBase::GetWidgets()
 	return TArray<TSharedRef<SWidget>>();
 }
 
+bool UMovieGraphConditionGroupQueryBase::HasAddMenu() const
+{
+	return false;
+}
+
 TSharedRef<SWidget> UMovieGraphConditionGroupQueryBase::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
 {
 	return SNullWidget::NullWidget;
@@ -680,6 +685,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 	);
 
 	return Widgets;
+}
+
+bool UMovieGraphConditionGroupQuery_Actor::HasAddMenu() const
+{
+	return true;
 }
 
 TSharedRef<SWidget> UMovieGraphConditionGroupQuery_Actor::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
@@ -1005,6 +1015,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ActorType::GetWidgets
 	return Widgets;
 }
 
+bool UMovieGraphConditionGroupQuery_ActorType::HasAddMenu() const
+{
+	return true;
+}
+
 TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ActorType::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
 {
 	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
@@ -1211,6 +1226,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_ComponentType::GetWid
 	return Widgets;
 }
 
+bool UMovieGraphConditionGroupQuery_ComponentType::HasAddMenu() const
+{
+	return true;
+}
+
 TSharedRef<SWidget> UMovieGraphConditionGroupQuery_ComponentType::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
 {
 	FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
@@ -1319,6 +1339,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_EditorFolder::GetWidg
     );
 
     return Widgets;
+}
+
+bool UMovieGraphConditionGroupQuery_EditorFolder::HasAddMenu() const
+{
+	return true;
 }
 
 TSharedRef<SWidget> UMovieGraphConditionGroupQuery_EditorFolder::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)
@@ -1466,6 +1491,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Sublevel::GetWidgets(
 	);
 
 	return Widgets;
+}
+
+bool UMovieGraphConditionGroupQuery_Sublevel::HasAddMenu() const
+{
+	return true;
 }
 
 TSharedRef<SWidget> UMovieGraphConditionGroupQuery_Sublevel::GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished)

@@ -126,8 +126,18 @@ public:
 	virtual TArray<TSharedRef<SWidget>> GetWidgets();
 
 	/**
-	 * Gets the contents of the "Add" menu in the UI, if any. The Add menu will not display if SNullWidget::NullWidget is returned. When the Add
-	 * menu updates properties within the query, OnAddFinished should be called in order to give the UI a chance to update itself.
+	 * Returns true if this query should expose an Add menu, or false if no Add menu is visible.
+	 *
+	 * @see GetAddMenuContents()
+	 */
+	virtual bool HasAddMenu() const;
+
+	/**
+	 * Gets the contents of the "Add" menu in the UI, if any. When the Add menu updates properties within the query, OnAddFinished should be called
+	 * in order to give the UI a chance to update itself. Note that HasAddMenu() must return true in order for the contents returned from this method
+	 * to be displayed in the UI.
+	 *
+	 * @see HasAddMenu()
 	 */
 	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished);
 #endif
@@ -171,6 +181,7 @@ public:
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
 	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
 #endif
 
@@ -279,6 +290,7 @@ public:
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
 	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
 #endif
 
@@ -346,6 +358,7 @@ public:
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
 	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
 #endif
 
@@ -381,6 +394,7 @@ public:
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
 	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
 #endif
 
@@ -415,6 +429,7 @@ public:
 
 #if WITH_EDITOR
 	virtual TArray<TSharedRef<SWidget>> GetWidgets() override;
+	virtual bool HasAddMenu() const override;
 	virtual TSharedRef<SWidget> GetAddMenuContents(const FMovieGraphConditionGroupQueryContentsChanged& OnAddFinished) override;
 #endif
 
