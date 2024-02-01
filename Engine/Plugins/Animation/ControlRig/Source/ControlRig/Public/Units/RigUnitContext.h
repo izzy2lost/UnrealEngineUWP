@@ -28,6 +28,22 @@ enum class EControlRigInteractionType : uint8
 	All = Translate | Rotate | Scale
 };
 
+UENUM(BlueprintType)
+enum class ERigMetaDataNameSpace : uint8
+{
+	// Use no namespace - store the metadata directly on the item
+	None,
+	// Store the metadata for item relative to its module
+	Self,
+	// Store the metadata relative to its parent model
+	Parent,
+	// Store the metadata under the root module
+	Root,
+	// (Only for remove) Remove all metadata data for all namespaces
+	All, 
+	Last UMETA(Hidden)
+};
+
 USTRUCT()
 struct CONTROLRIG_API FRigHierarchySettings
 {
@@ -174,6 +190,11 @@ public:
 	}
 
 	/**
+	 * Returns the namespace given a namespace type
+	 */
+	FString GetElementNameSpace(ERigMetaDataNameSpace InNameSpaceType) const;
+	
+	/**
 	 * Returns the module this unit is running inside of (or nullptr)
 	 */
 	const FRigModuleInstance* GetRigModuleInstance() const
@@ -184,7 +205,7 @@ public:
 	/**
 	 * Adapts a metadata name according to rig module namespace.
 	 */
-	FName AdaptMetadataName(bool bUseNameSpace, const FName& InMetadataName) const;
+	FName AdaptMetadataName(ERigMetaDataNameSpace InNameSpaceType, const FName& InMetadataName) const;
 
 	/** The list of available asset user data object */
 	TArray<const UAssetUserData*> AssetUserData;

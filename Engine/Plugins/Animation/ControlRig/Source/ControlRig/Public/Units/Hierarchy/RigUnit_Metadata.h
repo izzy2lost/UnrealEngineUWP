@@ -16,6 +16,29 @@ struct CONTROLRIG_API FRigDispatch_MetadataBase : public FRigDispatchFactory
 		FactoryScriptStruct = StaticStruct();
 	}
 
+	template<typename T>
+	static bool Equals(const T& A, const T& B)
+	{
+		return A.Equals(B);
+	}
+
+	template<typename T>
+	static bool ArrayEquals(const TArray<T>& A, const TArray<T>& B)
+	{
+		if(A.Num() != B.Num())
+		{
+			return false;
+		}
+		for(int32 Index = 0; Index < A.Num(); Index++)
+		{
+			if(!Equals<T>(A[Index], B[Index]))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 #if WITH_EDITOR
 	virtual FString GetNodeTitle(const FRigVMTemplateTypeMap& InTypes) const override;;
 #endif
@@ -36,7 +59,7 @@ protected:
 	
 	mutable int32 ItemArgIndex = INDEX_NONE;
 	mutable int32 NameArgIndex = INDEX_NONE;
-	mutable int32 UseNameSpaceArgIndex = INDEX_NONE;
+	mutable int32 NameSpaceArgIndex = INDEX_NONE;
 	mutable int32 CacheArgIndex = INDEX_NONE;
 	mutable int32 DefaultArgIndex = INDEX_NONE;
 	mutable int32 ValueArgIndex = INDEX_NONE;
@@ -44,13 +67,115 @@ protected:
 	mutable int32 SuccessArgIndex = INDEX_NONE;
 	static FName ItemArgName;
 	static FName NameArgName;
-	static FName UseNameSpaceArgName;
+	static FName NameSpaceArgName;
 	static FName CacheArgName;
 	static FName DefaultArgName;
 	static FName ValueArgName;
 	static FName FoundArgName;
 	static FName SuccessArgName;
 };
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const bool& A, const bool& B)
+{
+	return A == B;
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const int32& A, const int32& B)
+{
+	return A == B;
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const float& A, const float& B)
+{
+	return FMath::IsNearlyEqual(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const double& A, const double& B)
+{
+	return FMath::IsNearlyEqual(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const FName& A, const FName& B)
+{
+	return A.IsEqual(B, ENameCase::CaseSensitive);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const FRigElementKey& A, const FRigElementKey& B)
+{
+	return A == B;
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<bool>& A, const TArray<bool>& B)
+{
+	return ArrayEquals<bool>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<int32>& A, const TArray<int32>& B)
+{
+	return ArrayEquals<int32>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<float>& A, const TArray<float>& B)
+{
+	return ArrayEquals<float>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<double>& A, const TArray<double>& B)
+{
+	return ArrayEquals<double>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FName>& A, const TArray<FName>& B)
+{
+	return ArrayEquals<FName>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FRigElementKey>& A, const TArray<FRigElementKey>& B)
+{
+	return ArrayEquals<FRigElementKey>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FVector>& A, const TArray<FVector>& B)
+{
+	return ArrayEquals<FVector>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FRotator>& A, const TArray<FRotator>& B)
+{
+	return ArrayEquals<FRotator>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FQuat>& A, const TArray<FQuat>& B)
+{
+	return ArrayEquals<FQuat>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FTransform>& A, const TArray<FTransform>& B)
+{
+	return ArrayEquals<FTransform>(A, B);
+}
+
+template<>
+inline bool FRigDispatch_MetadataBase::Equals(const TArray<FLinearColor>& A, const TArray<FLinearColor>& B)
+{
+	return ArrayEquals<FLinearColor>(A, B);
+}
 
 /*
  * Sets some metadata for the provided item
@@ -64,7 +189,7 @@ struct CONTROLRIG_API FRigDispatch_GetMetadata : public FRigDispatch_MetadataBas
 
 protected:
 
-	static FRigBaseMetadata* FindMetadata(const FRigVMExtendedExecuteContext& InContext, const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bUseNameSpace, FCachedRigElement& Cache);
+	static FRigBaseMetadata* FindMetadata(const FRigVMExtendedExecuteContext& InContext, const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, ERigMetaDataNameSpace InNameSpace, FCachedRigElement& Cache);
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override;
 
 #if WITH_EDITOR
@@ -95,14 +220,14 @@ protected:
 		// unpack the memory
 		const FRigElementKey& Item = *reinterpret_cast<const FRigElementKey*>(Handles[Factory->ItemArgIndex].GetData());
 		const FName& Name = *reinterpret_cast<const FName*>(Handles[Factory->NameArgIndex].GetData());
-		const bool bUseNameSpace = *reinterpret_cast<const bool*>(Handles[Factory->UseNameSpaceArgIndex].GetData());
+		const ERigMetaDataNameSpace NameSpace = *reinterpret_cast<const ERigMetaDataNameSpace*>(Handles[Factory->NameSpaceArgIndex].GetData());
 		FCachedRigElement& Cache = *reinterpret_cast<FCachedRigElement*>(Handles[Factory->CacheArgIndex].GetData(false, InContext.GetSlice().GetIndex()));
 		const ValueType& Default = *reinterpret_cast<const ValueType*>(Handles[Factory->DefaultArgIndex].GetData());
 		ValueType& Value = *reinterpret_cast<ValueType*>(Handles[Factory->ValueArgIndex].GetData());
 		bool& Found = *reinterpret_cast<bool*>(Handles[Factory->FoundArgIndex].GetData());
 
 		// extract the metadata
-		if (const MetadataType* Md = Cast<MetadataType>(FindMetadata(InContext, Item, Name, EnumValue, bUseNameSpace, Cache)))
+		if (const MetadataType* Md = Cast<MetadataType>(FindMetadata(InContext, Item, Name, EnumValue, NameSpace, Cache)))
 		{
 			Value = Md->GetValue();
 			Found = true;
@@ -129,7 +254,7 @@ struct CONTROLRIG_API FRigDispatch_SetMetadata : public FRigDispatch_MetadataBas
 
 protected:
 
-	static FRigBaseMetadata* FindOrAddMetadata(const FControlRigExecuteContext& InContext, const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, bool bUseNameSpace, FCachedRigElement& Cache);
+	static FRigBaseMetadata* FindOrAddMetadata(const FControlRigExecuteContext& InContext, const FRigElementKey& InKey, const FName& InName, ERigMetadataType InType, ERigMetaDataNameSpace InNameSpace, FCachedRigElement& Cache);
 	virtual FRigVMFunctionPtr GetDispatchFunctionImpl(const FRigVMTemplateTypeMap& InTypes) const override;
 
 #if WITH_EDITOR
@@ -160,15 +285,19 @@ protected:
 		FControlRigExecuteContext& ExecuteContext = InContext.GetPublicData<FControlRigExecuteContext>();
 		const FRigElementKey& Item = *(const FRigElementKey*)Handles[Factory->ItemArgIndex].GetData();
 		const FName& Name = *(const FName*)Handles[Factory->NameArgIndex].GetData();
-		const bool bUseNameSpace = *(const bool*)Handles[Factory->UseNameSpaceArgIndex].GetData();
+		const ERigMetaDataNameSpace NameSpace = *(const ERigMetaDataNameSpace*)Handles[Factory->NameSpaceArgIndex].GetData();
 		FCachedRigElement& Cache = *(FCachedRigElement*)Handles[Factory->CacheArgIndex].GetData(false, InContext.GetSlice().GetIndex());
 		ValueType& Value = *(ValueType*)Handles[Factory->ValueArgIndex].GetData();
 		bool& Success = *(bool*)Handles[Factory->SuccessArgIndex].GetData();
 
 		// extract the metadata
-		if (MetadataType* Md = Cast<MetadataType>(FindOrAddMetadata(ExecuteContext, Item, Name, EnumValue, bUseNameSpace, Cache)))
+		if (MetadataType* Md = Cast<MetadataType>(FindOrAddMetadata(ExecuteContext, Item, Name, EnumValue, NameSpace, Cache)))
 		{
-			Md->GetValue() = Value;
+			if(!Equals<ValueType>(Md->GetValue(), Value))
+			{
+				Md->GetValue() = Value;
+				ExecuteContext.Hierarchy->MetadataVersion++;
+			}
 			Success = true;
 		}
 		else
@@ -189,7 +318,7 @@ struct CONTROLRIG_API FRigUnit_RemoveMetadata : public FRigUnitMutable
 	FRigUnit_RemoveMetadata()
 		: Item(NAME_None, ERigElementType::Bone)
 		, Name(NAME_None)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Removed(false)
 		, CachedIndex()
 	{}
@@ -210,10 +339,10 @@ struct CONTROLRIG_API FRigUnit_RemoveMetadata : public FRigUnitMutable
 	FName Name;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// True if the metadata has been removed
 	UPROPERTY(meta=(Output))
@@ -234,7 +363,7 @@ struct CONTROLRIG_API FRigUnit_RemoveAllMetadata : public FRigUnitMutable
 
 	FRigUnit_RemoveAllMetadata()
 		: Item(NAME_None, ERigElementType::Bone)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Removed(false)
 		, CachedIndex()
 	{}
@@ -249,10 +378,10 @@ struct CONTROLRIG_API FRigUnit_RemoveAllMetadata : public FRigUnitMutable
 	FRigElementKey Item;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// True if any metadata has been removed
 	UPROPERTY(meta=(Output))
@@ -275,7 +404,7 @@ struct CONTROLRIG_API FRigUnit_HasMetadata : public FRigUnit
 		: Item(NAME_None, ERigElementType::Bone)
 		, Name(NAME_None)
 		, Type(ERigMetadataType::Float)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Found(false)
 		, CachedIndex()
 	{}
@@ -302,10 +431,10 @@ struct CONTROLRIG_API FRigUnit_HasMetadata : public FRigUnit
 	ERigMetadataType Type;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// True if the item has the metadata
 	UPROPERTY(meta=(Output))
@@ -327,7 +456,7 @@ struct CONTROLRIG_API FRigUnit_FindItemsWithMetadata : public FRigUnit
 	FRigUnit_FindItemsWithMetadata()
 		: Name(NAME_None)
 		, Type(ERigMetadataType::Float)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Items()
 	{}
 
@@ -347,10 +476,10 @@ struct CONTROLRIG_API FRigUnit_FindItemsWithMetadata : public FRigUnit
 	ERigMetadataType Type;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// The items containing the metadata
 	UPROPERTY(meta=(Output))
@@ -402,7 +531,7 @@ struct CONTROLRIG_API FRigUnit_SetMetadataTag : public FRigUnitMutable
 	FRigUnit_SetMetadataTag()
 		: Item(NAME_None, ERigElementType::Bone)
 		, Tag(NAME_None)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, CachedIndex()
 	{}
 
@@ -422,10 +551,10 @@ struct CONTROLRIG_API FRigUnit_SetMetadataTag : public FRigUnitMutable
 	FName Tag;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// Used to cache the internally used index
 	UPROPERTY()
@@ -443,7 +572,7 @@ struct CONTROLRIG_API FRigUnit_SetMetadataTagArray : public FRigUnitMutable
 	FRigUnit_SetMetadataTagArray()
 		: Item(NAME_None, ERigElementType::Bone)
 		, Tags()
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, CachedIndex()
 	{}
 
@@ -463,10 +592,10 @@ struct CONTROLRIG_API FRigUnit_SetMetadataTagArray : public FRigUnitMutable
 	TArray<FName> Tags;
 	
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// Used to cache the internally used index
 	UPROPERTY()
@@ -484,7 +613,7 @@ struct CONTROLRIG_API FRigUnit_RemoveMetadataTag : public FRigUnitMutable
 	FRigUnit_RemoveMetadataTag()
 		: Item(NAME_None, ERigElementType::Bone)
 		, Tag(NAME_None)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Removed(false)
 		, CachedIndex()
 	{}
@@ -505,10 +634,10 @@ struct CONTROLRIG_API FRigUnit_RemoveMetadataTag : public FRigUnitMutable
 	FName Tag;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 	
 	/**
 	 * Returns true if the removal was successful
@@ -532,7 +661,7 @@ struct CONTROLRIG_API FRigUnit_HasMetadataTag : public FRigUnit
 	FRigUnit_HasMetadataTag()
 		: Item(NAME_None, ERigElementType::Bone)
 		, Tag(NAME_None)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Found(false)
 		, CachedIndex()
 	{}
@@ -553,10 +682,10 @@ struct CONTROLRIG_API FRigUnit_HasMetadataTag : public FRigUnit
 	FName Tag;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 	
 	// True if the item has the metadata
 	UPROPERTY(meta=(Output))
@@ -578,7 +707,7 @@ struct CONTROLRIG_API FRigUnit_HasMetadataTagArray : public FRigUnit
 	FRigUnit_HasMetadataTagArray()
 		: Item(NAME_None, ERigElementType::Bone)
 		, Tags()
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Found(false)
 		, CachedIndex()
 	{}
@@ -599,10 +728,10 @@ struct CONTROLRIG_API FRigUnit_HasMetadataTagArray : public FRigUnit
 	TArray<FName> Tags;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 	
 	// True if the item has the metadata
 	UPROPERTY(meta=(Output))
@@ -623,7 +752,7 @@ struct CONTROLRIG_API FRigUnit_FindItemsWithMetadataTag : public FRigUnit
 
 	FRigUnit_FindItemsWithMetadataTag()
 		: Tag(NAME_None)
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Items()
 	{}
 
@@ -637,10 +766,10 @@ struct CONTROLRIG_API FRigUnit_FindItemsWithMetadataTag : public FRigUnit
 	FName Tag;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// The items containing the metadata
 	UPROPERTY(meta=(Output))
@@ -657,7 +786,7 @@ struct CONTROLRIG_API FRigUnit_FindItemsWithMetadataTagArray : public FRigUnit
 
 	FRigUnit_FindItemsWithMetadataTagArray()
 		: Tags()
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Items()
 	{}
 
@@ -671,10 +800,10 @@ struct CONTROLRIG_API FRigUnit_FindItemsWithMetadataTagArray : public FRigUnit
 	TArray<FName> Tags;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	// The items containing the metadata
 	UPROPERTY(meta=(Output))
@@ -692,7 +821,7 @@ struct CONTROLRIG_API FRigUnit_FilterItemsByMetadataTags : public FRigUnit
 	FRigUnit_FilterItemsByMetadataTags()
 		: Items()
 		, Tags()
-		, UseNameSpace(true)
+		, NameSpace(ERigMetaDataNameSpace::Self)
 		, Inclusive(true)
 		, Result()
 	{}
@@ -711,10 +840,10 @@ struct CONTROLRIG_API FRigUnit_FilterItemsByMetadataTags : public FRigUnit
 	TArray<FName> Tags;
 
 	/**
-	 * If checked the metadata will be available only in this name space / module
+	 * Defines in which namespace the metadata will be looked up
 	 */
 	UPROPERTY(meta = (Input))
-	bool UseNameSpace;
+	ERigMetaDataNameSpace NameSpace;
 
 	/**
      * If set to true only items with ALL of tags will be returned,
