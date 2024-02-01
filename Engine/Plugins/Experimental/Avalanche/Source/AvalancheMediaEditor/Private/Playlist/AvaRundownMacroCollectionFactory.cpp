@@ -29,3 +29,8 @@ UObject* UAvaRundownMacroCollectionFactory::FactoryCreateNew(UClass* Class, UObj
 	}
 	return nullptr;
 }
+
+FString UAvaRundownMacroCollectionFactory::GetDefaultNewAssetName() const
+{
+	return TEXT("NewRundownMacros");
+}

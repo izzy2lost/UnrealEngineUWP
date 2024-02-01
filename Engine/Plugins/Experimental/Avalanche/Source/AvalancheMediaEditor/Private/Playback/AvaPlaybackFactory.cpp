@@ -63,4 +63,9 @@ UClass* UAvaPlaybackFactory::ResolveSupportedClass()
 	return Super::ResolveSupportedClass();
 }
 
+FString UAvaPlaybackFactory::GetDefaultNewAssetName() const
+{
+	return TEXT("NewPlaybackGraph");
+}
+
 #undef LOCTEXT_NAMESPACE

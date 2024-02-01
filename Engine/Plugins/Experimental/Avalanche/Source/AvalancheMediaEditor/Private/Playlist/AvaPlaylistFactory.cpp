@@ -59,3 +59,9 @@ UClass* UAvaPlaylistFactory::ResolveSupportedClass()
 {
 	return Super::ResolveSupportedClass();
 }
+
+FString UAvaPlaylistFactory::GetDefaultNewAssetName() const
+{
+	return TEXT("NewRundown");
+}
+
