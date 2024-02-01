@@ -25,29 +25,6 @@ namespace Verse
 DEFINE_DERIVED_VCPPCLASSINFO(VConstructor);
 TGlobalTrivialEmergentTypePtr<&VConstructor::StaticCppClassInfo> VConstructor::GlobalTrivialEmergentType;
 
-void VConstructor::SerializeImpl(VConstructor*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
-{
-	if (Visitor.IsLoading())
-	{
-		uint64 ScratchNumEntries = 0;
-		Visitor.BeginArray(TEXT("Entries"), ScratchNumEntries);
-		This = &VConstructor::NewUninitialized(Context, (uint32)ScratchNumEntries);
-		for (uint32 Index = 0; Index < This->NumEntries; ++Index)
-		{
-			Visitor.BeginObject();
-			Visitor.Visit(This->Entries[Index].Name, TEXT("Name"));
-			Visitor.Visit(This->Entries[Index].Value, TEXT("Value"));
-			Visitor.Visit(This->Entries[Index].bDynamic, TEXT("Dynamic"));
-			Visitor.EndObject();
-		}
-		Visitor.EndArray();
-	}
-	else
-	{
-		This->VisitReferences(Visitor);
-	}
-}
-
 template <typename TVisitor>
 void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 {

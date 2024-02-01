@@ -14,7 +14,6 @@ class UVerseVMClass;
 
 namespace Verse
 {
-struct FAbstractVisitor;
 struct VObject;
 struct VProcedure;
 struct VPackage;
@@ -96,7 +95,7 @@ struct VConstructor : VCell
 		}
 	};
 
-	const uint32 NumEntries;
+	uint32 NumEntries;
 	VEntry Entries[];
 
 	static VConstructor& New(FAllocationContext Context, const TArray<VEntry>& InEntries)
@@ -107,15 +106,7 @@ struct VConstructor : VCell
 
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
-	static void SerializeImpl(VConstructor*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
-
 private:
-	static VConstructor& NewUninitialized(FAllocationContext Context, uint32 InNumEntries)
-	{
-		size_t NumBytes = offsetof(VConstructor, Entries) + InNumEntries * sizeof(Entries[0]);
-		return *new (Context.AllocateFastCell(NumBytes)) VConstructor(Context, InNumEntries);
-	}
-
 	VConstructor(FAllocationContext Context, const TArray<VEntry>& InEntries)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, NumEntries(InEntries.Num())
@@ -124,12 +115,6 @@ private:
 		{
 			new (&Entries[Index]) VEntry(InEntries[Index]);
 		}
-	}
-
-	VConstructor(FAllocationContext Context, uint32 InNumEntries)
-		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
-		, NumEntries(InNumEntries)
-	{
 	}
 };
 
