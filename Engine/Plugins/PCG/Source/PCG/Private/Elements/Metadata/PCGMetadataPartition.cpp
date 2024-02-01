@@ -45,11 +45,11 @@ void UPCGMetadataPartitionSettings::PostLoad()
 		PartitionAttribute_DEPRECATED = NAME_None;
 	}
 
-	if (PartitionAttributeSource_DEPRECATED.GetAttributeName() != PCGMetadataAttributeConstants::LastAttributeName)
+	if (PartitionAttributeSource_DEPRECATED != FPCGAttributePropertyInputSelector())
 	{
 		PartitionAttributeSelectors.Empty();
 		PartitionAttributeSelectors.Emplace(PartitionAttributeSource_DEPRECATED);
-		PartitionAttributeSource_DEPRECATED.SetAttributeName(PCGMetadataAttributeConstants::LastAttributeName);
+		PartitionAttributeSource_DEPRECATED = FPCGAttributePropertyInputSelector();
 	}
 #endif // WITH_EDITOR
 }
