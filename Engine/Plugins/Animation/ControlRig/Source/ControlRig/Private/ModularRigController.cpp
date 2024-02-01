@@ -288,23 +288,25 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 						OtherConnectorKey.Type = ERigElementType::Connector;
 						if (!Model->Connections.HasConnection(OtherConnectorKey))
 						{
-							const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(OtherConnectorKey));
-							FModularRigResolveResult RuleResults = RuleManager->FindMatches(OtherConnectorElement, ModuleInstance, ModularRig->GetElementKeyRedirector());
+							if (const FRigConnectorElement* OtherConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(OtherConnectorKey)))
+							{
+								FModularRigResolveResult RuleResults = RuleManager->FindMatches(OtherConnectorElement, ModuleInstance, ModularRig->GetElementKeyRedirector());
 
-							if (RuleResults.GetMatches().Num() == 1)
-							{
-								Model->Connections.AddConnection(OtherConnectorKey, RuleResults.GetMatches()[0].GetKey());
-								Notify(EModularRigNotification::ConnectionChanged, Module);
-							}
-							else
-							{
-								for (const FRigElementResolveResult& Result : RuleResults.GetMatches())
+								if (RuleResults.GetMatches().Num() == 1)
 								{
-									if (Result.GetState() == ERigElementResolveState::DefaultTarget)
+									Model->Connections.AddConnection(OtherConnectorKey, RuleResults.GetMatches()[0].GetKey());
+									Notify(EModularRigNotification::ConnectionChanged, Module);
+								}
+								else
+								{
+									for (const FRigElementResolveResult& Result : RuleResults.GetMatches())
 									{
-										Model->Connections.AddConnection(OtherConnectorKey, Result.GetKey());
-										Notify(EModularRigNotification::ConnectionChanged, Module);
-										break;
+										if (Result.GetState() == ERigElementResolveState::DefaultTarget)
+										{
+											Model->Connections.AddConnection(OtherConnectorKey, Result.GetKey());
+											Notify(EModularRigNotification::ConnectionChanged, Module);
+											break;
+										}
 									}
 								}
 							}
