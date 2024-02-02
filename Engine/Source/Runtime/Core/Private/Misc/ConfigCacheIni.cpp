@@ -21,7 +21,7 @@
 #include "Misc/ConfigManifest.h"
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "Misc/StringBuilder.h"
-#include "Misc/Paths.h"
+#include "Misc/PathViews.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Serialization/MemoryReader.h"
@@ -1290,7 +1290,7 @@ namespace CommandlineOverrideSpecifiers
 	const auto& IniNameEndIdentifier      = TEXT(":[");
 	const auto& SectionStartIdentifier    = TEXT("[");
 	const auto& PropertyStartIdentifier   = TEXT("]:");
-	const auto& PropertySeperator         = TEXT(",");
+	const auto& PropertySeperator         = TEXT(','); //NOTE: this must be a single character
 	const auto& CustomConfigIdentifier    = TEXT("-CustomConfig=");
 }
 
@@ -1348,54 +1348,89 @@ bool FConfigFile::OverrideFileFromCommandline(FString& Filename)
 void FConfigFile::OverrideFromCommandline(FConfigFile* File, const FString& Filename)
 {
 #if ALLOW_INI_OVERRIDE_FROM_COMMANDLINE
-	FString Settings;
 	// look for this filename on the commandline in the format:
-	//		-ini:IniName:[Section1]:Key1=Value1,[Section2]:Key2=Value2
+	//		-ini:IniName:[Section1]:Key=Value
 	// for example:
-	//		-ini:Engine:[/Script/Engine.Engine]:bSmoothFrameRate=False,[TextureStreaming]:PoolSize=100
+	//		-ini:Engine:[/Script/Engine.Engine]:bSmoothFrameRate=False
 	//			(will update the cache after the final combined engine.ini)
-	const TCHAR* CommandlineStream = FCommandLine::Get();
-	while(FParse::Value(CommandlineStream, *FString::Printf(TEXT("%s%s"), CommandlineOverrideSpecifiers::IniSwitchIdentifier, *FPaths::GetBaseFilename(Filename)), Settings, false))
+
+	TStringBuilder<260> IniSwitchStringBuilder;
+	IniSwitchStringBuilder.Append(CommandlineOverrideSpecifiers::IniSwitchIdentifier);
+	IniSwitchStringBuilder.Append(FPathViews::GetBaseFilename(Filename));
+	IniSwitchStringBuilder.Append(TEXT(":")); // Ensure we only match the exact filename
+
+	// Initial search to early out if the -ini:IniName: pattern doesn't exist anywhere in the string
+	// Cannot use find result directly as text can be found inside another argument
+	if (FCString::Strifind(FCommandLine::Get(), *IniSwitchStringBuilder, true) == nullptr)
 	{
-		// break apart on the commas
-		TArray<FString> SettingPairs;
-		Settings.ParseIntoArray(SettingPairs, CommandlineOverrideSpecifiers::PropertySeperator, true);
-		for (int32 Index = 0; Index < SettingPairs.Num(); Index++)
+		return;
+	}
+
+	// Null terminate
+	const FStringView IniSwitch = *IniSwitchStringBuilder;
+	const TCHAR* RemainingCommandLineStream = FCommandLine::Get();
+
+	FString NextCommandLineArgumentToken;
+	while(FParse::Token(RemainingCommandLineStream, NextCommandLineArgumentToken, /*bUseEscape=*/false))
+	{
+		if (NextCommandLineArgumentToken.StartsWith(IniSwitch))
 		{
-			// set each one, by splitting on the =
-			FString SectionAndKey, Value;
-			if (SettingPairs[Index].Split(TEXT("="), &SectionAndKey, &Value))
+			FString SettingsString = NextCommandLineArgumentToken.RightChop(IniSwitch.Len());
+
+			// break apart on the commas. WARNING: This is supported for legacy reasons only
+			// Providing multiple key-value pairs in a single -ini argument breaks when combined 
+			// with quoted values. Fixing this is non-trivial and likely platform dependent.
+			TArray<FString> SettingPairs;
 			{
-				// now we need to split off the key from the rest of the section name
-				int32 SectionNameEndIndex = SectionAndKey.Find(CommandlineOverrideSpecifiers::PropertyStartIdentifier, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-				// check for malformed string
-				if (SectionNameEndIndex == INDEX_NONE || SectionNameEndIndex == 0)
+				FString NextSettingToken;
+				const TCHAR* SettingsStream = *SettingsString;
+				while (FParse::Token(SettingsStream, NextSettingToken, false, CommandlineOverrideSpecifiers::PropertySeperator))
 				{
-					continue;
+					SettingPairs.Add(MoveTemp(NextSettingToken));
 				}
+			}
 
-				// Create the commandline override object
-				FConfigCommandlineOverride& CommandlineOption = File->CommandlineOptions[File->CommandlineOptions.Emplace()];
-				CommandlineOption.BaseFileName = *FPaths::GetBaseFilename(Filename);
-				CommandlineOption.Section = SectionAndKey.Left(SectionNameEndIndex);
-				
-				// Remove commandline syntax from the section name.
-				CommandlineOption.Section = CommandlineOption.Section.Replace(CommandlineOverrideSpecifiers::IniNameEndIdentifier, TEXT(""));
-				CommandlineOption.Section = CommandlineOption.Section.Replace(CommandlineOverrideSpecifiers::PropertyStartIdentifier, TEXT(""));
-				CommandlineOption.Section = CommandlineOption.Section.Replace(CommandlineOverrideSpecifiers::SectionStartIdentifier, TEXT(""));
+			for (int32 Index = 0; Index < SettingPairs.Num(); Index++)
+			{
+				// set each one, by splitting on the =
+				FString SectionAndKey, Value;
+				if (SettingPairs[Index].Split(TEXT("="), &SectionAndKey, &Value))
+				{
+					// now we need to split off the key from the rest of the section name
+					int32 SectionNameEndIndex = SectionAndKey.Find(CommandlineOverrideSpecifiers::PropertyStartIdentifier, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
+					// check for malformed string
+					if (SectionNameEndIndex == INDEX_NONE || SectionNameEndIndex == 0)
+					{
+						continue;
+					}
 
-				CommandlineOption.PropertyKey = SectionAndKey.Mid(SectionNameEndIndex + UE_ARRAY_COUNT(CommandlineOverrideSpecifiers::PropertyStartIdentifier) - 1);
-				CommandlineOption.PropertyValue = Value;
+					// Create the commandline override object
+					FConfigCommandlineOverride& CommandlineOption = File->CommandlineOptions[File->CommandlineOptions.Emplace()];
+					CommandlineOption.BaseFileName = *FPaths::GetBaseFilename(Filename);
+					CommandlineOption.Section = SectionAndKey.Left(SectionNameEndIndex);
+					
+					// Remove commandline syntax from the section name.
+					CommandlineOption.Section = CommandlineOption.Section.Replace(CommandlineOverrideSpecifiers::IniNameEndIdentifier, TEXT(""));
+					CommandlineOption.Section = CommandlineOption.Section.Replace(CommandlineOverrideSpecifiers::PropertyStartIdentifier, TEXT(""));
+					CommandlineOption.Section = CommandlineOption.Section.Replace(CommandlineOverrideSpecifiers::SectionStartIdentifier, TEXT(""));
 
-				// now put it into this into the cache
-				File->SetString(*CommandlineOption.Section, *CommandlineOption.PropertyKey, *CommandlineOption.PropertyValue);
+					CommandlineOption.PropertyKey = SectionAndKey.Mid(SectionNameEndIndex + UE_ARRAY_COUNT(CommandlineOverrideSpecifiers::PropertyStartIdentifier) - 1);
+					
+					// If the property value was quoted, remove the quotes
+					if (Value.Len() > 1 && Value.StartsWith(TEXT("\"")) && Value.EndsWith(TEXT("\"")))
+					{
+						CommandlineOption.PropertyValue = Value.Mid(1, Value.Len() - 2);
+					}
+					else
+					{
+						CommandlineOption.PropertyValue = Value;
+					}
+
+					// now put it into this into the cache
+					File->SetString(*CommandlineOption.Section, *CommandlineOption.PropertyKey, *CommandlineOption.PropertyValue);
+				}
 			}
 		}
-
-		// Keep searching for more instances of -ini
-		CommandlineStream = FCString::Stristr(CommandlineStream, CommandlineOverrideSpecifiers::IniSwitchIdentifier);
-		check(CommandlineStream);
-		CommandlineStream++;
 	}
 #endif
 }

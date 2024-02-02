@@ -792,10 +792,10 @@ void FParse::Next( const TCHAR** Stream )
 }
 
 //
-// Grab the next space-delimited string from the input stream.
+// Grab the next space-delimited (or SingleCharacterDelimiter-delimited) string from the input stream.
 // If quoted, gets entire quoted string.
 //
-bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEscape )
+bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEscape, const TCHAR SingleCharacterDelimiter/* = TEXT('\0')*/)
 {
 	int32 Len=0;
 
@@ -840,9 +840,20 @@ bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEsca
 		while (1)
 		{
 			TCHAR Character = *Str;
-			if ((Character == 0) || (FChar::IsWhitespace(Character) && !bInQuote))
+			if (Character == 0)
 			{
 				break;
+			}
+			if (!bInQuote)
+			{
+				if ((SingleCharacterDelimiter != TEXT('\0') && Character == SingleCharacterDelimiter)
+					|| (SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(Character))))
+				{
+					// Consume the delimiter. If it's whitespace this isn't critical since we'll consume it at the start
+					// of the next call to Token() but if it's not whitespace we won't, so we better do it now.
+					Str++;
+					break;
+				}
 			}
 			Str++;
 
@@ -876,7 +887,7 @@ bool FParse::Token( const TCHAR*& Str, TCHAR* Result, int32 MaxLen, bool UseEsca
 	return Len != 0;
 }
 
-bool FParse::Token( const TCHAR*& Str, FString& Arg, bool UseEscape )
+bool FParse::Token( const TCHAR*& Str, FString& Arg, bool UseEscape, const TCHAR SingleCharacterDelimiter/* = TEXT('\0')*/)
 {
 	Arg.Reset();
 
@@ -920,9 +931,20 @@ bool FParse::Token( const TCHAR*& Str, FString& Arg, bool UseEscape )
 		while (1)
 		{
 			TCHAR Character = *Str;
-			if ((Character == 0) || (FChar::IsWhitespace(Character) && !bInQuote))
+			if (Character == 0)
 			{
 				break;
+			}
+			if (!bInQuote)
+			{
+				if ((SingleCharacterDelimiter != TEXT('\0') && Character == SingleCharacterDelimiter)
+					|| (SingleCharacterDelimiter == TEXT('\0') && (FChar::IsWhitespace(Character))))
+				{
+					// Consume the delimiter. If it's whitespace this isn't critical since we'll consume it at the start
+					// of the next call to Token() but if it's not whitespace we won't, so we better do it now.
+					Str++;
+					break;
+				}
 			}
 			Str++;
 
