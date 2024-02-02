@@ -165,8 +165,8 @@ void FPatchCheck::StartPlatformOSSPatchCheck()
 	if (PlatformOnlineIdentity.IsValid())
 	{
 		FUniqueNetIdPtr UserId = GetFirstSignedInUser(PlatformOnlineIdentity);
-#if PLATFORM_SWITCH
-		// checking the CanPlayOnline privilege on switch will log the user in if required in all but the NotLoggedIn state
+#if !PATCH_CHECK_PRIVILEGE_MUST_BE_LOGGED_IN
+		// some platforms will log the user in if required in all but the NotLoggedIn state
 		const bool bCanCheckPlayOnlinePrivilege = UserId.IsValid() && (PlatformOnlineIdentity->GetLoginStatus(*UserId) != ELoginStatus::NotLoggedIn);
 #else
 		const bool bCanCheckPlayOnlinePrivilege = UserId.IsValid() && (PlatformOnlineIdentity->GetLoginStatus(*UserId) == ELoginStatus::LoggedIn);
