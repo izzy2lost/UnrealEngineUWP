@@ -57,7 +57,7 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// List of workspaces currently assigned to this pool
 		/// </summary>
-		IReadOnlyList<AgentWorkspace> Workspaces { get; }
+		IReadOnlyList<AgentWorkspaceInfo> Workspaces { get; }
 
 		/// <summary>
 		/// Arbitrary properties related to this pool
@@ -174,9 +174,9 @@ namespace Horde.Server.Agents.Pools
 
 		/// <inheritdoc/>
 		[JsonIgnore]
-		public List<AgentWorkspace> Workspaces { get; set; } = new List<AgentWorkspace>();
+		public List<AgentWorkspaceInfo> Workspaces { get; set; } = new List<AgentWorkspaceInfo>();
 
-		IReadOnlyList<AgentWorkspace> IPoolConfig.Workspaces => Workspaces;
+		IReadOnlyList<AgentWorkspaceInfo> IPoolConfig.Workspaces => Workspaces;
 
 		/// <inheritdoc cref="IPoolConfig.EnableAutoscaling"/>
 		public bool? EnableAutoscaling { get; set; }

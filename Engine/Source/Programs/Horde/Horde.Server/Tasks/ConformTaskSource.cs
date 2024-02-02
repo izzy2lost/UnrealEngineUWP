@@ -215,8 +215,8 @@ namespace Horde.Server.Tasks
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-			HashSet<AgentWorkspace> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, globalConfig);
-			foreach (AgentWorkspace conformWorkspace in conformWorkspaces)
+			HashSet<AgentWorkspaceInfo> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, globalConfig);
+			foreach (AgentWorkspaceInfo conformWorkspace in conformWorkspaces)
 			{
 				PerforceCluster? cluster = globalConfig.FindPerforceCluster(conformWorkspace.Cluster);
 				if (cluster == null || !await agent.TryAddWorkspaceMessageAsync(conformWorkspace, cluster, _perforceLoadBalancer, workspaces))
@@ -373,7 +373,7 @@ namespace Horde.Server.Tasks
 				}
 
 				// Check if the workspaces have changed (first check against a cached list of workspaces, then an accurate one)
-				HashSet<AgentWorkspace> workspaces = await _poolService.GetWorkspacesAsync(agent, utcNow - TimeSpan.FromSeconds(30.0), globalConfig);
+				HashSet<AgentWorkspaceInfo> workspaces = await _poolService.GetWorkspacesAsync(agent, utcNow - TimeSpan.FromSeconds(30.0), globalConfig);
 				if (!workspaces.SetEquals(agent.Workspaces))
 				{
 					workspaces = await _poolService.GetWorkspacesAsync(agent, utcNow, globalConfig);

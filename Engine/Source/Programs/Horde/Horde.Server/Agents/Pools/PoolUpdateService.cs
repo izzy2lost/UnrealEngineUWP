@@ -144,7 +144,7 @@ namespace Horde.Server.Agents.Pools
 
 				// Lookup table of pool id to workspaces
 				Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
-				Dictionary<PoolId, List<AgentWorkspace>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspace>>();
+				Dictionary<PoolId, List<AgentWorkspaceInfo>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspaceInfo>>();
 
 				// Capture the current config state
 				GlobalConfig globalConfig = _globalConfig.CurrentValue;
@@ -155,15 +155,15 @@ namespace Horde.Server.Agents.Pools
 					foreach (KeyValuePair<string, AgentConfig> agentTypePair in streamConfig.AgentTypes)
 					{
 						// Create the new agent workspace
-						if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspace? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
+						if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspaceInfo? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
 						{
 							AgentConfig agentType = agentTypePair.Value;
 
 							// Find or add a list of workspaces for this pool
-							List<AgentWorkspace>? agentWorkspaces;
+							List<AgentWorkspaceInfo>? agentWorkspaces;
 							if (!poolToAgentWorkspaces.TryGetValue(agentType.Pool, out agentWorkspaces))
 							{
-								agentWorkspaces = new List<AgentWorkspace>();
+								agentWorkspaces = new List<AgentWorkspaceInfo>();
 								poolToAgentWorkspaces.Add(agentType.Pool, agentWorkspaces);
 							}
 
@@ -186,10 +186,10 @@ namespace Horde.Server.Agents.Pools
 				foreach (IPoolConfig currentPool in currentPools)
 				{
 					// Get the new list of workspaces for this pool
-					List<AgentWorkspace>? newWorkspaces;
+					List<AgentWorkspaceInfo>? newWorkspaces;
 					if (!poolToAgentWorkspaces.TryGetValue(currentPool.Id, out newWorkspaces))
 					{
-						newWorkspaces = new List<AgentWorkspace>();
+						newWorkspaces = new List<AgentWorkspaceInfo>();
 					}
 
 					// Get the autosdk view
@@ -200,7 +200,7 @@ namespace Horde.Server.Agents.Pools
 					}
 
 					// Update the pools document
-					if (!AgentWorkspace.SetEquals(currentPool.Workspaces, newWorkspaces) || currentPool.Workspaces.Count != newWorkspaces.Count || !AutoSdkConfig.Equals(currentPool.AutoSdkConfig, newAutoSdkConfig))
+					if (!AgentWorkspaceInfo.SetEquals(currentPool.Workspaces, newWorkspaces) || currentPool.Workspaces.Count != newWorkspaces.Count || !AutoSdkConfig.Equals(currentPool.AutoSdkConfig, newAutoSdkConfig))
 					{
 						_logger.LogInformation("New workspaces for pool {Pool}:{Workspaces}", currentPool.Id, String.Join("", newWorkspaces.Select(x => $"\n  Identifier=\"{x.Identifier}\", Stream={x.Stream}")));
 

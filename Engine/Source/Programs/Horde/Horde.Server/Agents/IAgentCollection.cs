@@ -118,7 +118,7 @@ namespace Horde.Server.Agents
 		/// <param name="workspaces">Current list of workspaces</param>
 		/// <param name="requestConform">Whether the agent still needs to run another conform</param>
 		/// <returns>New agent state</returns>
-		Task<IAgent?> TryUpdateWorkspacesAsync(IAgent agent, List<AgentWorkspace> workspaces, bool requestConform);
+		Task<IAgent?> TryUpdateWorkspacesAsync(IAgent agent, List<AgentWorkspaceInfo> workspaces, bool requestConform);
 
 		/// <summary>
 		/// Sets the current session

@@ -339,7 +339,7 @@ namespace Horde.Server.Server
 		{
 			// Lookup table of pool id to workspaces
 			Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
-			Dictionary<PoolId, List<AgentWorkspace>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspace>>();
+			Dictionary<PoolId, List<AgentWorkspaceInfo>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspaceInfo>>();
 
 			// Populate the workspace list from the current stream
 			foreach (StreamConfig streamConfig in Streams)
@@ -347,15 +347,15 @@ namespace Horde.Server.Server
 				foreach (KeyValuePair<string, AgentConfig> agentTypePair in streamConfig.AgentTypes)
 				{
 					// Create the new agent workspace
-					if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspace? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
+					if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspaceInfo? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
 					{
 						AgentConfig agentType = agentTypePair.Value;
 
 						// Find or add a list of workspaces for this pool
-						List<AgentWorkspace>? agentWorkspaces;
+						List<AgentWorkspaceInfo>? agentWorkspaces;
 						if (!poolToAgentWorkspaces.TryGetValue(agentType.Pool, out agentWorkspaces))
 						{
-							agentWorkspaces = new List<AgentWorkspace>();
+							agentWorkspaces = new List<AgentWorkspaceInfo>();
 							poolToAgentWorkspaces.Add(agentType.Pool, agentWorkspaces);
 						}
 
@@ -378,10 +378,10 @@ namespace Horde.Server.Server
 			foreach (PoolConfig pool in Pools)
 			{
 				// Get the new list of workspaces for this pool
-				List<AgentWorkspace>? newWorkspaces;
+				List<AgentWorkspaceInfo>? newWorkspaces;
 				if (!poolToAgentWorkspaces.TryGetValue(pool.Id, out newWorkspaces))
 				{
-					newWorkspaces = new List<AgentWorkspace>();
+					newWorkspaces = new List<AgentWorkspaceInfo>();
 				}
 
 				// Get the autosdk view
