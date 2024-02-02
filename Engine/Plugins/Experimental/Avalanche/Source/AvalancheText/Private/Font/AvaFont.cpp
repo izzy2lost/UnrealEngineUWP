@@ -64,7 +64,7 @@ FString FAvaFont::GenerateFontFormattedString(const FString& InFontName, const F
 	// e.g. (Property1=Value1,Property2=Value2,Property3=Value3,...)
 
 	FString FormattedString = TEXT("(");
-	FormattedString += TEXT("CurrentFont=None");
+	FormattedString += TEXT("CurrentFont_DEPRECATED=None");
 	FormattedString += TEXT(",MotionDesignFontObject=/Script/AvalancheText.AvaFontObject'") + InFontObjectPathName + TEXT("'");
 	FormattedString += TEXT(",FontName=\"") + InFontName  + TEXT("\"");
 	FormattedString += TEXT(")");
