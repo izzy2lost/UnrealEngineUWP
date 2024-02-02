@@ -276,52 +276,35 @@ namespace Horde.Agent.Utility
 			const string MinScratchSpaceKey = "minScratchSpace";
 			const string UseHaveTableKey = "useHaveTable";
 
-			ManagedWorkspaceOptions defaultOptions = new ();
-			defaultOptions.Partitioned = workspace.Partitioned;
+			ManagedWorkspaceOptions options = new ManagedWorkspaceOptions();
+			options.Partitioned = workspace.Partitioned;
 
 			string? method = workspace.Method;
-
-			int numParallelSyncThreads = defaultOptions.NumParallelSyncThreads;
-			int maxFileConcurrency = defaultOptions.MaxFileConcurrency;
-			long minScratchSpace = defaultOptions.MinScratchSpace;
-			bool useHaveTable = defaultOptions.UseHaveTable;
-			
-			if (String.IsNullOrEmpty(method))
+			if (!String.IsNullOrEmpty(method))
 			{
-				return defaultOptions;
-			}
-			
-			NameValueCollection nameValues = HttpUtility.ParseQueryString(method);
-			if (!String.Equals(nameValues[NameKey], ManagedWorkspaceValue, StringComparison.OrdinalIgnoreCase))
-			{
-				return defaultOptions;
-			}
-
-			if (Int32.TryParse(nameValues[NumParallelSyncThreadsKey], out int v))
-			{ 
-				numParallelSyncThreads = v; 
-			}
-			if (Int32.TryParse(nameValues[MaxFileConcurrencyKey], out v))
-			{ 
-				maxFileConcurrency = v; 
-			}
-			if (Int32.TryParse(nameValues[MinScratchSpaceKey], out v))
-			{
-				minScratchSpace = v;
-			}
-			
-			if (String.Equals(nameValues[UseHaveTableKey], "false", StringComparison.OrdinalIgnoreCase))
-			{
-				useHaveTable = false;
+				NameValueCollection nameValues = HttpUtility.ParseQueryString(method);
+				if (String.Equals(nameValues[NameKey], ManagedWorkspaceValue, StringComparison.OrdinalIgnoreCase))
+				{
+					if (Int32.TryParse(nameValues[NumParallelSyncThreadsKey], out int v))
+					{
+						options.NumParallelSyncThreads = v;
+					}
+					if (Int32.TryParse(nameValues[MaxFileConcurrencyKey], out v))
+					{
+						options.MaxFileConcurrency = v;
+					}
+					if (Int32.TryParse(nameValues[MinScratchSpaceKey], out v))
+					{
+						options.MinScratchSpace = v;
+					}
+					if (String.Equals(nameValues[UseHaveTableKey], "false", StringComparison.OrdinalIgnoreCase))
+					{
+						options.UseHaveTable = false;
+					}
+				}
 			}
 
-			return new ManagedWorkspaceOptions
-			{
-				NumParallelSyncThreads = numParallelSyncThreads,
-				MaxFileConcurrency = maxFileConcurrency,
-				MinScratchSpace = minScratchSpace,
-				UseHaveTable = useHaveTable
-			};
+			return options;
 		}
 		
 		/// <summary>

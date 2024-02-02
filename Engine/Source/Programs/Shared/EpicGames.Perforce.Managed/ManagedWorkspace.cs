@@ -73,17 +73,17 @@ namespace EpicGames.Perforce.Managed
 		/// <summary>
 		/// Maximum number of threads to sync in parallel
 		/// </summary>
-		public int NumParallelSyncThreads { get; init; } = 4;
+		public int NumParallelSyncThreads { get; set; } = 4;
 
 		/// <summary>
 		/// Maximum number of concurrent file system operations (copying, moving, deleting etc)
 		/// </summary>
-		public int MaxFileConcurrency { get; init; } = 4;
+		public int MaxFileConcurrency { get; set; } = 4;
 		
 		/// <summary>
 		/// Minimum amount of space that must be on a drive after a branch is synced
 		/// </summary>
-		public long MinScratchSpace { get; init; } = 50L * 1024 * 1024 * 1024;
+		public long MinScratchSpace { get; set; } = 50L * 1024 * 1024 * 1024;
 		
 		/// <summary>
 		/// Use the client's have table when syncing.
@@ -92,7 +92,7 @@ namespace EpicGames.Perforce.Managed
 		/// Actual files to sync will be gathered through "fstat".
 		/// This puts less strain on the Perforce server and can improve sync performance.
 		/// </summary>
-		public bool UseHaveTable { get; init; } = true;
+		public bool UseHaveTable { get; set; } = true;
 
 		/// <summary>
 		/// Whether to allow using partitioned workspaces
