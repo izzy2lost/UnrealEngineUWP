@@ -182,6 +182,8 @@ private:
 	/** Called by STreeView when selection has changed. */
 	void TreeView_OnSelectionChanged(FTimerNodePtr SelectedItem, ESelectInfo::Type SelectInfo);
 
+	FTimerNodePtr GetSingleSelectedTimerNode() const;
+
 	/** Called by STreeView when a tree item is double clicked. */
 	void TreeView_OnMouseButtonDoubleClick(FTimerNodePtr TreeNode);
 

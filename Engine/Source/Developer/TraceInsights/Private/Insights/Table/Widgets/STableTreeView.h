@@ -450,6 +450,7 @@ protected:
 	void CountNumNodesPerDepthRec(FBaseTreeNode* InRoot, TArray<int32>& InOutNumNodesPerDepth, int32 InDepth, int32 InMaxDepth, int InMaxNodes) const;
 	void SetExpandValueForChildGroupsRec(FBaseTreeNode* InRoot, int32 InDepth, int32 InMaxDepth, bool InValue);
 
+	virtual void ExtendMenu(TSharedRef<FExtender> Extender) {}
 	virtual void ExtendMenu(FMenuBuilder& Menu) {}
 
 	typedef TFunctionRef<void(TArray<FBaseTreeNodePtr>& InNodes)> WriteToFileCallback;
