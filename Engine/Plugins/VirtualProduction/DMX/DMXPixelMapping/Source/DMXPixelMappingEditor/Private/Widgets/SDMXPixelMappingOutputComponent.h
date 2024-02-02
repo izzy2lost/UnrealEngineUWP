@@ -45,7 +45,7 @@ namespace UE::DMX
 
 	private:
 		/** When added to a parent, the canvas it was added to */
-		TSharedPtr<SConstraintCanvas> ParentCanvas;
+		TWeakPtr<SConstraintCanvas> ParentCanvas;
 
 		/** The canvas slot of the component widget */
 		SConstraintCanvas::FSlot* Slot = nullptr;
@@ -121,7 +121,7 @@ namespace UE::DMX
 		bool bDrawsSimplisticView = false;
 
 		/** When added to a parent, the canvas it was added to */
-		TSharedPtr<SConstraintCanvas> ParentCanvas;
+		TWeakPtr<SConstraintCanvas> ParentCanvas;
 
 		/** The canvas slot of the component widget */
 		SConstraintCanvas::FSlot* Slot = nullptr;
