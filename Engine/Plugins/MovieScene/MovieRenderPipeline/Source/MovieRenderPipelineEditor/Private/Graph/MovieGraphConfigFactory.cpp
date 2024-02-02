@@ -52,12 +52,6 @@ UObject* UMovieGraphConfigFactory::FactoryCreateNew(UClass* Class, UObject* InPa
 	return NewObject<UMovieGraphConfig>(InParent, Class, Name, Flags);
 }
 
-bool UMovieGraphConfigFactory::ShouldShowInNewMenu() const
-{
-	IConsoleVariable* RenderGraphCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("MoviePipeline.EnableRenderGraph"));
-	return RenderGraphCVar && RenderGraphCVar->GetBool();
-}
-
 void UMovieGraphConfigFactory::AddSubgraphNodeToGraph(UMovieGraphConfig* InTargetGraph) const
 {
 	auto ExposeSubgraphInputOutputOnTargetGraph = [InTargetGraph](
