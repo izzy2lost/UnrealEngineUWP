@@ -487,9 +487,7 @@ public:
 			AssetPickerConfig.OnAssetSelected = InOnAssetSelected;
 		}
 
-		const bool bIsGraphFeatureEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("MoviePipeline.EnableRenderGraph"))->GetBool();
-
-		if (bIsGraphFeatureEnabled && TargetJob->IsUsingGraphConfiguration())
+		if (TargetJob->IsUsingGraphConfiguration())
 		{
 			MenuBuilder.BeginSection(NAME_None, LOCTEXT("NewConfig_MenuSection", "New Configuration"));
 			{
@@ -515,10 +513,10 @@ public:
 				EUserInterfaceActionType::Button
 			);
 
-			if (bIsGraphFeatureEnabled && !TargetJob->IsUsingGraphConfiguration())
+			if (!TargetJob->IsUsingGraphConfiguration())
 			{
 				MenuBuilder.AddMenuEntry(
-					LOCTEXT("ReplaceWithGraph_Label", "Replace with Graph"),
+					LOCTEXT("ReplaceWithGraph_Label", "Replace with Graph (Experimental)"),
 					LOCTEXT("ReplaceWithGraph_Tooltip", "Replaces the current configuration with a new graph representation."),
 					FSlateIcon(),
 					FUIAction(InNewRenderGraph),

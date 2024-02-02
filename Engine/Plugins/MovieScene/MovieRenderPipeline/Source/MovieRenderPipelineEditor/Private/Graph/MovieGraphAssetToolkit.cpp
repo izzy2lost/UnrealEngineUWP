@@ -160,13 +160,6 @@ private:
 	TWeakPtr<IDetailsView> DetailsView;
 };
 
-// Temporary cvar to enable/disable upgrading to a graph-based configuration
-static TAutoConsoleVariable<bool> CVarMoviePipelineEnableRenderGraph(
-	TEXT("MoviePipeline.EnableRenderGraph"),
-	false,
-	TEXT("Determines if the Render Graph feature is enabled in the UI. This is a highly experimental feature and is not ready for use.")
-);
-
 FMovieGraphAssetToolkit::FMovieGraphAssetToolkit()
 	: bIsInternalSelectionChange(false)
 {
