@@ -1,0 +1,5 @@
+../../../Templates/TP_HMI_Blank/manifest.json
+../../../Templates/TP_HMI_Blank/Config/config.ini
+../../../Templates/TP_HMI_Blank/Media/TP_HMI_Blank.png
+../../../Templates/TP_HMI_Blank/Media/TP_HMI_Blank_Preview.png
+../../../Templates/TP_HMI_Blank/Media/TP_HMI_Blank_TemplateIcon.png

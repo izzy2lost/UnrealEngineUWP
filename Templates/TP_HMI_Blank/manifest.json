@@ -1,0 +1,29 @@
+﻿{
+	"Version": 1,
+	"Name":
+	[
+		{
+			"Language": "en",
+			"Text": "Blank"
+		}
+	],
+	"Description":
+	[
+		{
+			"Language": "en",
+			"Text": "An empty project with some basic HMI autotmotive framework code classes created."
+		}
+	],
+	"AssetTypes": [],	
+	"SearchTags": [],
+	"ClassTypes": "",
+	"Category": "",
+	"FocusAsset": "",
+	"Thumbnail": "TP_HMI_Blank.png",
+	"Screenshots":
+	[
+		"TP_HMI_Blank_Preview.png"
+	],
+	"SortKey": "_1",
+	"AdditionalFeaturePacks": []
+}
