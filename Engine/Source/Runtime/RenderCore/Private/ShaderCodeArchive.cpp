@@ -833,6 +833,20 @@ void FSerializedShaderArchive::CollectStatsAndDebugInfo(FDebugStats& OutDebugSta
 				break;
 			}
 		}
+
+		// calculate per-frequency stats
+		FMemory::Memzero(OutExtendedDebugStats->NumShadersPerFrequency);
+		FMemory::Memzero(OutExtendedDebugStats->UncompressedSizePerFrequency);
+		FMemory::Memzero(OutExtendedDebugStats->CompressedSizePerFrequency);
+		for (const FShaderCodeEntry& ShaderEntry : ShaderEntries)
+		{
+			check(ShaderEntry.Frequency < UE_ARRAY_COUNT(OutExtendedDebugStats->NumShadersPerFrequency));
+			++OutExtendedDebugStats->NumShadersPerFrequency[ShaderEntry.Frequency];
+			check(ShaderEntry.Frequency < UE_ARRAY_COUNT(OutExtendedDebugStats->UncompressedSizePerFrequency));
+			OutExtendedDebugStats->UncompressedSizePerFrequency[ShaderEntry.Frequency] += ShaderEntry.UncompressedSize;
+			check(ShaderEntry.Frequency < UE_ARRAY_COUNT(OutExtendedDebugStats->UncompressedSizePerFrequency));
+			OutExtendedDebugStats->CompressedSizePerFrequency[ShaderEntry.Frequency] += ShaderEntry.Size;
+		}
 	}
 
 #if 0 // graph visualization - maybe one day we'll return to this

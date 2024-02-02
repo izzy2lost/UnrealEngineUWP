@@ -52,6 +52,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "UObject/Object.h"
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
+#include "RHIStrings.h"
 #endif
 
 // allow introspection (e.g. dumping the contents) for easier debugging
@@ -2110,6 +2111,30 @@ struct FEditorShaderCodeArchive
 					UsageString += FString::Printf(TEXT("%d, "), ExtendedStats.TopShaderUsages[IdxUsage]);
 				}
 				UE_LOG(LogShaderLibrary, Display, TEXT("    %s%d"), *UsageString, ExtendedStats.TopShaderUsages[ExtendedStats.TopShaderUsages.Num() - 1]);
+
+				// print per-frequency stats
+				UE_LOG(LogShaderLibrary, Display, TEXT("Unique shaders itemization (sorted by compressed size):"));
+				// sort by compressed size
+				TArray<int32> SortedIndices;
+				for (int32 IdxFreq = 0; IdxFreq < SF_NumFrequencies; ++IdxFreq)
+				{
+					SortedIndices.Add(IdxFreq);
+				}
+				SortedIndices.StableSort([&ExtendedStats](int32 IndexA, int32 IndexB) { return ExtendedStats.CompressedSizePerFrequency[IndexA] >= ExtendedStats.CompressedSizePerFrequency[IndexB]; });
+				for (int32 Freq : SortedIndices)
+				{
+					if (ExtendedStats.NumShadersPerFrequency[Freq] > 0)
+					{
+						UE_LOG(LogShaderLibrary, Display, TEXT("%s: %d shaders (%.2f%%), compressed size: %.2f MB (%.2f KB avg per shader), uncompressed size: %.2f MB (%.2f KB avg per shader)"),
+							GetShaderFrequencyString(static_cast<EShaderFrequency>(Freq)),
+							ExtendedStats.NumShadersPerFrequency[Freq],
+							100.0 * ExtendedStats.NumShadersPerFrequency[Freq] / double(Stats.NumUniqueShaders),
+							double(ExtendedStats.CompressedSizePerFrequency[Freq]) / (1024.0 * 1024.0 * 1024.0), double(ExtendedStats.CompressedSizePerFrequency[Freq]) / (double(ExtendedStats.NumShadersPerFrequency[Freq]) * 1024.0),
+							double(ExtendedStats.UncompressedSizePerFrequency[Freq]) / (1024.0 * 1024.0 * 1024.0), double(ExtendedStats.UncompressedSizePerFrequency[Freq]) / (double(ExtendedStats.NumShadersPerFrequency[Freq]) * 1024.0)
+						);
+					}
+				}
+
 			}
 			else
 			{
