@@ -56,9 +56,6 @@ namespace Conversion {
 
 		bool bWantNormals = true;
 		bool bWantTangents = true;
-		// Whether to request per-instance vertex colors rather than asset colors
-		// Note this is only supported for RenderData LODs of Static Mesh components
-		bool bWantInstanceColors = false;
 	};
 
 	/**

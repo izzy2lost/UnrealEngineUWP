@@ -13,9 +13,7 @@ using namespace UE::Geometry;
 bool FStaticMeshLODResourcesToDynamicMesh::Convert(
 	const FStaticMeshLODResources* StaticMeshResources,
 	const ConversionOptions& Options,
-	FDynamicMesh3& OutputMesh,
-	bool bHasVertexColors,
-	TFunctionRef<FColor(int32)> GetVertexColorFromLODVertexIndex)
+	FDynamicMesh3& OutputMesh)
 {
 	if (!ensureMsgf(StaticMeshResources && StaticMeshResources->VertexBuffers.StaticMeshVertexBuffer.GetAllowCPUAccess(), TEXT("bAllowCPUAccess must be set to true for StaticMeshes before calling FStaticMeshLODResourcesToDynamicMesh::Convert(), otherwise the mesh geometry data isn't accessible!")))
 	{
@@ -240,44 +238,25 @@ bool FStaticMeshLODResourcesToDynamicMesh::Convert(
 	}
 
 	// copy overlay colors
-	if (bHasVertexColors && Options.bWantVertexColors)
+	if ( Adapter.HasColors() && Options.bWantVertexColors )
 	{
 		OutputMesh.Attributes()->EnablePrimaryColors();
 		FDynamicMeshColorOverlay* Colors = OutputMesh.Attributes()->PrimaryColors();
-
-		const int32 DstVertexCount = ToSrcVID.Num();
-		for (int32 DstVertID = 0; DstVertID < DstVertexCount; ++DstVertID)
-		{
-			const int32 SrcVID = ToSrcVID[DstVertID];
-			FColor C = GetVertexColorFromLODVertexIndex(SrcVID);
-			int32 ElemID = Colors->AppendElement(C.ReinterpretAsLinear());
-			check(ElemID == DstVertID);
-		}
-
 		for (int32 SrcTriID = 0; SrcTriID < SrcTriangleCount; ++SrcTriID)
 		{
 			const int32 DstTriID = ToDstTriID[SrcTriID];
 			if (DstTriID != FDynamicMesh3::InvalidID)
 			{
-				FIndex3i Tri = OutputMesh.GetTriangle(DstTriID);
-				Colors->SetTriangle(DstTriID, FIndex3i(Tri.A, Tri.B, Tri.C));
+				FColor C1, C2, C3;
+				Adapter.GetTriColors(SrcTriID, C1, C2, C3);
+				// [TODO] should we be doing RGBA conversion here?
+				int32 a = Colors->AppendElement( C1.ReinterpretAsLinear()  );
+				int32 b = Colors->AppendElement( C2.ReinterpretAsLinear() );
+				int32 c = Colors->AppendElement( C3.ReinterpretAsLinear() );
+				Colors->SetTriangle(DstTriID, FIndex3i(a, b, c));
 			}
 		}
 	}
 
 	return true;
-}
-
-
-bool FStaticMeshLODResourcesToDynamicMesh::Convert(
-	const FStaticMeshLODResources* StaticMeshResources,
-	const ConversionOptions& Options,
-	FDynamicMesh3& OutputMesh)
-{
-	bool bHasVertexColors = StaticMeshResources && StaticMeshResources->VertexBuffers.ColorVertexBuffer.GetAllowCPUAccess();
-	return Convert(StaticMeshResources, Options, OutputMesh, bHasVertexColors, 
-		[StaticMeshResources](int32 VID)
-		{
-			return StaticMeshResources->VertexBuffers.ColorVertexBuffer.VertexColor(VID);
-		});
 }

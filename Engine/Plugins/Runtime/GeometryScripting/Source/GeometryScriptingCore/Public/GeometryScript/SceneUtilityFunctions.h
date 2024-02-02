@@ -23,10 +23,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bWantTangents = true;
 
-	// Whether to request per-instance vertex colors (where applicable; applies to RenderData LODs of Static Mesh components)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
-	bool bWantInstanceColors = false;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	FGeometryScriptMeshReadLOD RequestedLOD = FGeometryScriptMeshReadLOD();
 };
