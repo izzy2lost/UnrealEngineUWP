@@ -1242,10 +1242,11 @@ class FHairVelocityCS: public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPackedHairVis>, NodeVis)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutVelocityTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutResolveMaskTexture)
-		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 
 		SHADER_PARAMETER(FIntPoint, TileCountXY)
 		SHADER_PARAMETER(uint32, TileSize)
+		SHADER_PARAMETER(FIntPoint, ViewRectMin)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint2>, TileDataBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, TileCountBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, HairTileCount)
@@ -1302,7 +1303,7 @@ static void AddHairVelocityPass(
 
 	FHairVelocityCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairVelocityCS::FParameters>();
 	PassParameters->bNeedClear = bNeedClear ? 1u : 0u;
-	PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
+	PassParameters->View = View.GetShaderParameters();
 	PassParameters->VelocityThreshold = GetHairFastResolveVelocityThreshold(Resolution);
 	PassParameters->CoverageThreshold = GetHairWriteVelocityCoverageThreshold();
 	PassParameters->NodeIndex = NodeIndex;
@@ -1318,6 +1319,7 @@ static void AddHairVelocityPass(
 	PassParameters->Resolution			= Resolution;
 	PassParameters->TileCountXY			= TileData.TileCountXY;
 	PassParameters->TileSize			= TileData.TileSize;
+	PassParameters->ViewRectMin			= View.ViewRect.Min;
 	PassParameters->TileCountBuffer		= TileData.TileCountSRV;
 	PassParameters->TileDataBuffer		= TileData.GetTileBufferSRV(TileType);
 	PassParameters->TileIndirectArgs	= TileData.TileIndirectDispatchBuffer;

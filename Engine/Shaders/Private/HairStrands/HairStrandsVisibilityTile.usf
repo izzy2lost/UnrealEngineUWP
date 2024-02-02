@@ -394,6 +394,7 @@ void MainVS(
 uint TileSize;
 uint TileType;
 int2 TileCountXY;
+int2 ViewRectMin;
 int2 Resolution;
 Buffer<uint>  TileCountBuffer;
 Buffer<uint2> TileDataBuffer;
@@ -410,7 +411,7 @@ void TileMainCS(uint2 InGroupId : SV_GroupID, uint2 InGroupThreadId : SV_GroupTh
 		return;
 	}
 	const uint2 GroupId = TileDataBuffer[TileIndex1D];
-	const uint2 PixelCoord = GroupId * TileSize + InGroupThreadId;
+	const uint2 PixelCoord = uint2(ViewRectMin) + GroupId * TileSize + InGroupThreadId;
 
 	if (all(PixelCoord < uint2(Resolution)))
 	{
