@@ -320,7 +320,7 @@ void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChang
 				for (int32 Index = SItems.Value.Bindings.Num() - 1; Index >= 0; --Index)
 				{
 					FBindingAndTrack& Binding = SItems.Value.Bindings[Index];
-					SetBindingValueFromCurrent(SItems.Key.Get(), Binding.Binding, Context);
+					SetBindingValueFromCurrent(SItems.Key.Get(), Binding.Binding, Context, PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive);
 				}
 			}
 		}
