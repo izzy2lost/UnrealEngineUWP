@@ -1460,6 +1460,8 @@ void UPackageMapClient::ExportNetGUIDHeader()
 	{
 		UE_LOG(LogNetPackageMap, Warning, TEXT("Attempted to export a NetGUID Bunch with no NetGUIDs!"));
 	}
+
+	CSV_CUSTOM_STAT(PackageMap, NetGuidExports, ExportNetGUIDCount, ECsvCustomStatOp::Accumulate);
 	
 	CurrentExportBunch = NULL;
 	ExportNetGUIDCount = 0;

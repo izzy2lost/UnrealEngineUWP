@@ -5,6 +5,7 @@
 #include "HAL/Platform.h"
 
 #include "Net/Core/Connection/NetEnums.h"
+#include "ProfilingDebugging/CsvProfilerConfig.h"
 
 namespace UE::Net
 {
@@ -29,9 +30,9 @@ IRISCORE_API EReplicationSystem GetUseIrisReplicationCmdlineValue();
 #endif
 #endif
 
-/** CSV stats. Please check if CSV_PROFILER is enabled too if executing non-trivial code for stats. */
+/** CSV stats. */
 #ifndef UE_NET_IRIS_CSV_STATS
-#	define UE_NET_IRIS_CSV_STATS 1
+#	define UE_NET_IRIS_CSV_STATS CSV_PROFILER
 #endif
 
 /** Verbose CSV stats is not recommended in shipping builds due to the expected CPU overhead. */

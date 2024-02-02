@@ -37,6 +37,7 @@ CSV_DEFINE_CATEGORY(IrisWriteWasteCount, WITH_SERVER_CODE);
 CSV_DEFINE_CATEGORY(IrisWriteWasteKBytes, WITH_SERVER_CODE);
 CSV_DEFINE_CATEGORY(IrisWriteCreationInfoCount, WITH_SERVER_CODE);
 CSV_DEFINE_CATEGORY(IrisWriteCreationInfoKBytes, WITH_SERVER_CODE);
+CSV_DEFINE_CATEGORY(IrisWriteExportsCount, WITH_SERVER_CODE);
 
 void FNetSendStats::Accumulate(const FNetSendStats& Other)
 {
@@ -188,7 +189,7 @@ void FNetTypeStats::Accumulate(FNetStatsContext& Context)
 
 void FNetTypeStats::ReportCSVStats()
 {
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 
 	FCsvProfiler* Profiler = FCsvProfiler::Get();
 	bIsEnabled = Profiler->IsCapturing();
@@ -227,6 +228,8 @@ void FNetTypeStats::ReportCSVStats()
 
 			UE_NET_STATS_RECORD_TYPESTATS_BITS(StatsName, WriteCreationInfo, TypeStatsData);
 			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, WriteCreationInfo, TypeStatsData);
+
+			UE_NET_STATS_RECORD_TYPESTATS_COUNT(StatsName, WriteExports, TypeStatsData);
 
 			// Reset
 			TypeStatsData.Reset();

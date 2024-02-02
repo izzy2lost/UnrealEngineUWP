@@ -645,7 +645,7 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 		// $IRIS TODO. There may be some throttling of connections to tick that we should take into account.
 		const FNetBitArrayView& ReplicatingConnections = MakeNetBitArrayView(Impl->ReplicationSystemInternal.GetConnections().GetValidConnections());
 
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 		{
 			FNetSendStats& SendStats = InternalSys.GetSendStats();
 			SendStats.Reset();
@@ -795,7 +795,7 @@ void UReplicationSystem::PostSendUpdate()
 			Impl->ReplicationSystemInternal.GetDeltaCompressionBaselineManager().PostSendUpdate(UpdateParams);
 		}
 
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 		{
 			FNetSendStats& SendStats = Impl->ReplicationSystemInternal.GetSendStats();
 			SendStats.ReportCsvStats();

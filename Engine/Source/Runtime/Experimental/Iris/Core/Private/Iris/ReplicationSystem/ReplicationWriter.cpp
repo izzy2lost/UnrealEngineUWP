@@ -1952,7 +1952,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	if (bNeedToFilterChangeMask)
 	{
 		ApplyFilterToChangeMask(OutBatchInfo.ParentInternalIndex, InternalIndex, Info, ObjectData.Protocol, ReplicatedObjectStateBuffer, bIsInitialState);
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 		if (!bIsInitialState && Info.HasDirtyChangeMask)
 		{
 			WriteContext.Stats.AddNumberOfReplicatedObjectStatesMaskedOut(1U);
@@ -2304,7 +2304,7 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 		const bool bWroteData = (ParentBatchEntry.bSentState || ParentBatchEntry.bSentAttachments || bSentTearOff || Info.SubObjectPendingDestroy);
 		if (bWroteData || (SubObjectsWrittenBits != 0U))
 		{
-			const FObjectReferenceCache::EWriteExportsResult WriteExportResult = ObjectReferenceCache->WritePendingExports(Context);
+			const FObjectReferenceCache::EWriteExportsResult WriteExportResult = ObjectReferenceCache->WritePendingExports(Context, InternalIndex);
 
 			if (WriteExportResult == FObjectReferenceCache::EWriteExportsResult::BitStreamOverflow)
 			{
@@ -2993,7 +2993,7 @@ int FReplicationWriter::HandleObjectBatchSuccess(const FBatchInfo& BatchInfo, FR
 		}
 	}
 
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 	if (bTrackObjectStats)
 	{
 		FNetSendStats& NetStats = WriteContext.Stats;
@@ -3159,7 +3159,7 @@ void FReplicationWriter::EndWrite()
 
 	if (WriteContext.bIsValid)
 	{
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 		// Update stats
 		{
 			FNetSendStats& Stats = WriteContext.Stats;

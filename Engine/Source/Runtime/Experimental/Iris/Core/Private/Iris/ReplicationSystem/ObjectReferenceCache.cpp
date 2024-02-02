@@ -16,6 +16,7 @@
 #include "Iris/Serialization/NetExportContext.h"
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Iris/Serialization/ObjectNetSerializer.h"
+#include "Iris/Stats/NetStatsContext.h"
 #include "Misc/CoreMiscDefines.h"
 #include "Misc/PackageName.h"
 #include "Misc/StringBuilder.h"
@@ -1590,7 +1591,7 @@ void FObjectReferenceCache::AddPendingExports(FNetSerializationContext& Context,
 	}
 }
 
-FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingExports(FNetSerializationContext& Context)
+FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingExports(FNetSerializationContext& Context, FInternalNetRefIndex ObjectIndex)
 {	
 	FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
 
@@ -1610,6 +1611,10 @@ FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingEx
 	{
 		FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
 
+#if UE_NET_IRIS_CSV_STATS
+		uint32 CountExports = 0;
+#endif
+
 		for (const FNetObjectReference& Reference : ExportsView)
 		{
 			const bool bIsClientAssigned = Reference.PathToken.IsValid();
@@ -1618,15 +1623,21 @@ FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingEx
 			{
 				Writer.WriteBool(true);
 				WriteFullReference(Context, Reference);
+
+#if UE_NET_IRIS_CSV_STATS
+				++CountExports;
+#endif
 			}
 		}
+
+		UE_NET_IRIS_STATS_ADD_COUNT_FOR_OBJECT(Context.GetNetStatsContext(), WriteExports, ObjectIndex, CountExports);
 
 		// Write stop bit
 		Writer.WriteBool(false);
 	}
 
 	// We also write any must be mapped exports
-	WriteMustBeMappedExports(Context, ExportsView);
+	WriteMustBeMappedExports(Context, ObjectIndex, ExportsView);
 
 	// Reset state of pending exports
 	ExportContext->ClearPendingExports();
@@ -1671,7 +1682,7 @@ bool FObjectReferenceCache::ReadExports(FNetSerializationContext& Context, TArra
 	return !Context.HasErrorOrOverflow();
 }
 
-bool FObjectReferenceCache::WriteMustBeMappedExports(FNetSerializationContext& Context, TArrayView<const FNetObjectReference> ExportsView) const
+bool FObjectReferenceCache::WriteMustBeMappedExports(FNetSerializationContext& Context, FInternalNetRefIndex ObjectIndex,TArrayView<const FNetObjectReference> ExportsView) const
 {
 	FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
 	FNetExportContext* ExportContext = Context.GetExportContext();
@@ -1679,6 +1690,10 @@ bool FObjectReferenceCache::WriteMustBeMappedExports(FNetSerializationContext& C
 	if (IsAuthority() && ShouldAsyncLoad() && ExportContext)
 	{
 		UE_NET_TRACE_SCOPE(MustBeMappedExports, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+
+#if UE_NET_IRIS_CSV_STATS
+		uint32 CountExports = 0;
+#endif
 
 		for (const FNetObjectReference& Reference : ExportsView)
 		{
@@ -1689,8 +1704,14 @@ bool FObjectReferenceCache::WriteMustBeMappedExports(FNetSerializationContext& C
 				UE_NET_TRACE_OBJECT_SCOPE(Handle, *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 				Writer.WriteBool(true);
 				WriteNetRefHandle(Context, Handle);
+
+#if UE_NET_IRIS_CSV_STATS
+				++CountExports;
+#endif
 			}
 		}
+
+		UE_NET_IRIS_STATS_ADD_COUNT_FOR_OBJECT(Context.GetNetStatsContext(), WriteExports, ObjectIndex, CountExports);
 	}
 
 	// Write stop bit
