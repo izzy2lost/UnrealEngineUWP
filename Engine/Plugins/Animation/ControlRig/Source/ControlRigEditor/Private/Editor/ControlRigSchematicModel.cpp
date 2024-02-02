@@ -899,10 +899,6 @@ FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNod
 		{
 			return FLinearColor(0, 0, 0, 0.75);
 		}
-		if(InLayerIndex == 1) // outline
-		{
-			return FLinearColor::White;
-		}
 		
 		switch(ElementKeyNode->GetKey().Type)
 		{
