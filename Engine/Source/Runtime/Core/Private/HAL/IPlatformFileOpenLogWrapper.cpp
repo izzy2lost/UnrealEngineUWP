@@ -96,6 +96,10 @@ bool FPlatformFileOpenLog::Initialize(IPlatformFile* Inner, const TCHAR* Command
 		}
 		UE_LOG(LogFileOpenOrder, Log, TEXT("Initialized file open order log : %s"), *LogFilePath);
 	}
+
+	// Log duplicates if requested. This can be used for debugging/analysis purposes to log file access order but shouldn't be used to generate a pak/iostore ordering
+	bLogDuplicates = FParse::Param(CommandLineParam, TEXT("FooLogDuplicates"));
+
 	GPlatformFileOpenLog = this;
 	return true;
 }
