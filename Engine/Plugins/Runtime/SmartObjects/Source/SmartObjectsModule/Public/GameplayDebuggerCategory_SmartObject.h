@@ -24,6 +24,7 @@ protected:
 
 private:
 	void ToggleInstanceTags();
+	void ToggleAnnotations();
 };
 
 #endif // WITH_GAMEPLAY_DEBUGGER && WITH_SMARTOBJECT_DEBUG

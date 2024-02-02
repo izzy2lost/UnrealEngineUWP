@@ -15,7 +15,8 @@ namespace UE::SmartObject::Debug
 enum class EDrawFlags : uint8
 {
 	None = 0,
-	InstanceTags = 1 << 0
+	InstanceTags = 1 << 0,
+	Annotations = 1 << 1
 };
 ENUM_CLASS_FLAGS(EDrawFlags);
 
@@ -29,6 +30,9 @@ FGameplayDebuggerCategory_SmartObject::FGameplayDebuggerCategory_SmartObject()
 
 	const FGameplayDebuggerInputHandlerConfig InstanceTagsKeyConfig(TEXT("ToggleInstanceTags"), EKeys::Add.GetFName(), FGameplayDebuggerInputModifier::Shift);
 	BindKeyPress(InstanceTagsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags);
+
+	const FGameplayDebuggerInputHandlerConfig AnnotationsKeyConfig(TEXT("ToggleAnnotations"), EKeys::Subtract.GetFName(), FGameplayDebuggerInputModifier::Shift);
+	BindKeyPress(AnnotationsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleAnnotations);
 }
 
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_SmartObject::MakeInstance()
@@ -39,6 +43,13 @@ TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_SmartObject::Mak
 void FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags()
 {
 	UE::SmartObject::Debug::DrawFlags ^= UE::SmartObject::Debug::EDrawFlags::InstanceTags;
+
+	MarkRenderStateDirty();
+}
+
+void FGameplayDebuggerCategory_SmartObject::ToggleAnnotations()
+{
+	UE::SmartObject::Debug::DrawFlags ^= UE::SmartObject::Debug::EDrawFlags::Annotations;
 
 	MarkRenderStateDirty();
 }
@@ -68,6 +79,9 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 
 	uint32 NumActiveObjects = 0;
 
+	const bool bDisplayInstanceTags(!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags));
+	const bool bDisplayAnnotations(!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::Annotations));
+
 	const TMap<FSmartObjectHandle, FSmartObjectRuntime>& SmartObjectInstances = Subsystem->DebugGetRuntimeObjects();
 	for (auto& LookupEntry : SmartObjectInstances)
 	{
@@ -81,7 +95,6 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 		}
 
 		// Instance tags
-		const bool bDisplayInstanceTags(!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags));
 		if (bDisplayInstanceTags)
 		{
 			FString TagsAsString = Instance.GetTags().ToStringSimple();
@@ -104,8 +117,6 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 	const FColor ObjectDisabledColor = FColorList::Black;
 
 	const TMap<FSmartObjectHandle, FSmartObjectRuntime>& RuntimeSmartObjects = Subsystem->DebugGetRuntimeObjects();
-	
-	const bool bDisplayInstanceTags(!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags));
 
 	for (auto& RuntimeSmartObjectEntry : RuntimeSmartObjects)
 	{
@@ -198,19 +209,21 @@ void FGameplayDebuggerCategory_SmartObject::CollectData(APlayerController* Owner
 			}
 
 			// Let annotations debug draw too
-
-			FSmartObjectAnnotationGameplayDebugContext DebugContext(*this, SmartObjectRuntime.GetDefinition());
-			DebugContext.SmartObjectOwnerActor = SmartObjectRuntime.GetOwnerActor();
-			DebugContext.DebugActor = DebugActor;
-			DebugContext.SlotTransform = SlotTransform;
-			DebugContext.ViewLocation = ViewLocation;
-			DebugContext.ViewDirection = ViewDirection;
-			
-			for (const FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
+			if (bDisplayAnnotations)
 			{
-				if (const FSmartObjectSlotAnnotation* Annotation = DataProxy.Data.GetPtr<FSmartObjectSlotAnnotation>())
+				FSmartObjectAnnotationGameplayDebugContext DebugContext(*this, SmartObjectRuntime.GetDefinition());
+				DebugContext.SmartObjectOwnerActor = SmartObjectRuntime.GetOwnerActor();
+				DebugContext.DebugActor = DebugActor;
+				DebugContext.SlotTransform = SlotTransform;
+				DebugContext.ViewLocation = ViewLocation;
+				DebugContext.ViewDirection = ViewDirection;
+			
+				for (const FSmartObjectDefinitionDataProxy& DataProxy : SlotDefinition.DefinitionData)
 				{
-					Annotation->CollectDataForGameplayDebugger(DebugContext);
+					if (const FSmartObjectSlotAnnotation* Annotation = DataProxy.Data.GetPtr<FSmartObjectSlotAnnotation>())
+					{
+						Annotation->CollectDataForGameplayDebugger(DebugContext);
+					}
 				}
 			}
 			
@@ -230,9 +243,15 @@ void FGameplayDebuggerCategory_SmartObject::DrawData(APlayerController* OwnerPC,
 {
 	FGameplayDebuggerCategory::DrawData(OwnerPC, CanvasContext);
 	
-		CanvasContext.Printf(TEXT("Display: [{yellow}%s{white}]:{%s}Instance Tags\n"),
-			*GetInputHandlerDescription(0),
-			!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags)
+	CanvasContext.Printf(TEXT("Display:\n"
+								"[{yellow}%s{white}]:{%s}Instance Tags\n"
+								"[{yellow}%s{white}]:{%s}Annotations\n"),
+		*GetInputHandlerDescription(0),
+		!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::InstanceTags)
+			? *FGameplayDebuggerCanvasStrings::ColorNameEnabled
+			: *FGameplayDebuggerCanvasStrings::ColorNameDisabled,
+		*GetInputHandlerDescription(1),
+		!!(UE::SmartObject::Debug::DrawFlags & UE::SmartObject::Debug::EDrawFlags::Annotations)
 			? *FGameplayDebuggerCanvasStrings::ColorNameEnabled
 			: *FGameplayDebuggerCanvasStrings::ColorNameDisabled);
 }
