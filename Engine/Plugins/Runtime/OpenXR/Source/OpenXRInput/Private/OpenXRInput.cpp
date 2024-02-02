@@ -32,6 +32,7 @@
 
 namespace OpenXRSourceNames
 {
+	static const FName Head("Head");
 	static const FName AnyHand("AnyHand");
 	static const FName Left("Left");
 	static const FName Right("Right");
@@ -1357,6 +1358,7 @@ void FOpenXRInputPlugin::FOpenXRInput::EnumerateSources(TArray<FMotionController
 {
 	check(IsInGameThread());
 
+	SourcesOut.Add(OpenXRSourceNames::Head);
 	SourcesOut.Add(OpenXRSourceNames::AnyHand);
 	SourcesOut.Add(OpenXRSourceNames::Left);
 	SourcesOut.Add(OpenXRSourceNames::Right);

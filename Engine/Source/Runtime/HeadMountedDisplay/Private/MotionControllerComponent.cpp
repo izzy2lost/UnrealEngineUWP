@@ -305,31 +305,7 @@ bool UMotionControllerComponent::PollControllerState_GameThread(FVector& Positio
 			bPolledHMD_GameThread = false;
 		}
 
-		TArray<IMotionController*> MotionControllers;
-		MotionControllers = IModularFeatures::Get().GetModularFeatureImplementations<IMotionController>(IMotionController::GetModularFeatureName());
-		for (auto MotionController : MotionControllers)
-		{
-			if (MotionController == nullptr)
-			{
-				continue;
-			}
-
-			CurrentTrackingStatus = MotionController->GetControllerTrackingStatus(PlayerIndex, MotionSource);
-			if (MotionController->GetControllerOrientationAndPosition(PlayerIndex, MotionSource, Orientation, Position, OutbProvidedLinearVelocity, OutLinearVelocity, OutbProvidedAngularVelocity, OutAngularVelocityAsAxisAndLength, OutbProvidedLinearAcceleration, OutLinearAcceleration, WorldToMetersScale))
-			{
-				InUseMotionController = MotionController;
-				OnMotionControllerUpdated();
-				InUseMotionController = nullptr;
-
-				{
-					FScopeLock Lock(&PolledMotionControllerMutex);
-					PolledMotionController_GameThread = MotionController;  // We only want a render thread update from the motion controller we polled on the game thread.
-				}
-				return true;
-			}
-		}
-
-		if (MotionSource == IMotionController::HMDSourceId)
+		if (MotionSource == IMotionController::HMDSourceId || MotionSource == IMotionController::HeadSourceId)
 		{
 			IXRTrackingSystem* TrackingSys = GEngine->XRSystem.Get();
 			if (TrackingSys)
@@ -341,6 +317,32 @@ bool UMotionControllerComponent::PollControllerState_GameThread(FVector& Positio
 					{
 						FScopeLock Lock(&PolledMotionControllerMutex);
 						bPolledHMD_GameThread = true;  // We only want a render thread update from the hmd if we polled it on the game thread.
+					}
+					return true;
+				}
+			}
+		}
+		else
+		{
+			TArray<IMotionController*> MotionControllers;
+			MotionControllers = IModularFeatures::Get().GetModularFeatureImplementations<IMotionController>(IMotionController::GetModularFeatureName());
+			for (auto MotionController : MotionControllers)
+			{
+				if (MotionController == nullptr)
+				{
+					continue;
+				}
+
+				CurrentTrackingStatus = MotionController->GetControllerTrackingStatus(PlayerIndex, MotionSource);
+				if (MotionController->GetControllerOrientationAndPosition(PlayerIndex, MotionSource, Orientation, Position, OutbProvidedLinearVelocity, OutLinearVelocity, OutbProvidedAngularVelocity, OutAngularVelocityAsAxisAndLength, OutbProvidedLinearAcceleration, OutLinearAcceleration, WorldToMetersScale))
+				{
+					InUseMotionController = MotionController;
+					OnMotionControllerUpdated();
+					InUseMotionController = nullptr;
+
+					{
+						FScopeLock Lock(&PolledMotionControllerMutex);
+						PolledMotionController_GameThread = MotionController;  // We only want a render thread update from the motion controller we polled on the game thread.
 					}
 					return true;
 				}
