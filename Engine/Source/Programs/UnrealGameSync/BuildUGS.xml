@@ -85,7 +85,7 @@
 			<Zip FromDir="$(UgsOutputDir)" ZipFile="$(UgsZipPublishDir)/Release.zip"/>
 			<Submit Description="Updating UGS from CL $(Change) (Zip)" Workspace="Temp" Files="$(UgsZipPublishDir)/Release.zip" RootDir="$(UgsZipOutputDir)" Stream="$(SubmitToStream)" Branch="$(SubmitToBranch)"/>
 		</Node>
-		<Node Name="Publish Live Horde" Requires="Build UnrealGameSync">
+		<Node Name="Publish Live Horde" Requires="Build UnrealGameSync Zip">
 			<Error Message="Missing -HordeSettings=... argument" If="'$(HordeSettings)' == ''"/>
 			<DeployTool Id="ugs-win" Version="$(InformationalVersion)" Settings="$(HordeSettings)" File="$(UgsZipPublishDir)/Ugs.zip"/>
 		</Node>

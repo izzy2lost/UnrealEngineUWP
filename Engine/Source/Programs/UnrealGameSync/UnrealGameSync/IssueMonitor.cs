@@ -320,7 +320,7 @@ namespace UnrealGameSync
 
 		async Task PollForUpdatesAsync(CancellationToken cancellationToken)
 		{
-			while (cancellationToken.IsCancellationRequested)
+			while (!cancellationToken.IsCancellationRequested)
 			{
 				Task refreshTask = _refreshEvent.Task;
 
