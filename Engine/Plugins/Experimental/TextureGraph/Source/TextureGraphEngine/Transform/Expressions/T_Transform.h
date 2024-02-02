@@ -42,6 +42,8 @@ public:
 		SHADER_PARAMETER(float, SpacingX)
 		SHADER_PARAMETER(float, SpacingY)
 		SHADER_PARAMETER(float, FilterMode)
+		SHADER_PARAMETER(float, MirrorX)
+		SHADER_PARAMETER(float, MirrorY)
 		SHADER_PARAMETER(float, BlendDebugGrid)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -82,6 +84,8 @@ public:
 	{
 		FLinearColor FillColor = { 0,0,0, 1 };
 		bool WrapFilterMode = true;
+		bool MirrorX = false;
+		bool MirrorY = false;
 		float ShowDebugGrid = 0.0f;
 	};
 

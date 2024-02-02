@@ -34,6 +34,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Wrap Mapping"))
 	bool									WrapMode = true;
 
+	// Filter mode is wrap or clamped
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Mirror X"))
+	bool									MirrorX = false;
+
+	// Filter mode is wrap or clamped
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", DisplayName = "Mirror Y"))
+	bool									MirrorY = false;
+
 	// The coverage of the transform in range [0, 1]. Defaults to 1,1
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0.0", ClampMin = "0.0", UIMax = "1.0", ClampMax = "1.0"))
 	FVector2f								Coverage = { 1, 1 };
