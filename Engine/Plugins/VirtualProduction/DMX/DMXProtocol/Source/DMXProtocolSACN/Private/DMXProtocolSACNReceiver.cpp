@@ -225,7 +225,7 @@ void FDMXProtocolSACNReceiver::Update(const FTimespan& SocketWaitTime)
 
 		if (Socket->RecvFromWithPktInfo(Reader->GetData(), Reader->Num(), NumBytesRead, *ReceivedSenderInternetAddr, *ReceivedDestinationInternetAddr))
 		{
-			Reader->RemoveAt(NumBytesRead, Reader->Num() - NumBytesRead, false);
+			Reader->RemoveAt(NumBytesRead, Reader->Num() - NumBytesRead, EAllowShrinking::No);
 			uint32 MulticastIp = 0;
 			ReceivedDestinationInternetAddr->GetIp(MulticastIp);
 

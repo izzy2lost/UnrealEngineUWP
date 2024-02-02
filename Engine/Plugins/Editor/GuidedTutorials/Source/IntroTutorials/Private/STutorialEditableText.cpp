@@ -440,7 +440,7 @@ void STutorialEditableText::HandleHyperlinkComboOpened()
 		{
 			if(FChar::IsLinebreak(SelectedText[SelectedTextIndex]))
 			{
-				SelectedText.LeftInline(SelectedTextIndex, false);
+				SelectedText.LeftInline(SelectedTextIndex, EAllowShrinking::No);
 				break;
 			}
 		}

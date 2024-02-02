@@ -111,7 +111,7 @@ namespace DisplayClusterHelpers
 
 			if (InSeparator.Len() > 0 && InData.Num() > 0)
 			{
-				ResultStr.RemoveAt(ResultStr.Len() - InSeparator.Len(), InSeparator.Len(), !bAddQuotes);
+				ResultStr.RemoveAt(ResultStr.Len() - InSeparator.Len(), InSeparator.Len(), bAddQuotes ? EAllowShrinking::No : EAllowShrinking::Yes);
 			}
 
 			if (bAddQuotes)

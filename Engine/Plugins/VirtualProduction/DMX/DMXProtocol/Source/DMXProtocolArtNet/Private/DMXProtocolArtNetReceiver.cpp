@@ -163,7 +163,7 @@ void FDMXProtocolArtNetReceiver::Update(const FTimespan& SocketWaitTime)
 		
         if (Socket->RecvFrom(Reader->GetData(), Reader->Num(), Read, *ReceivedSenderInternetAddr))
 		{
-            Reader->RemoveAt(Read, Reader->Num() - Read, false);
+            Reader->RemoveAt(Read, Reader->Num() - Read, EAllowShrinking::No);
 			
 			DistributeReceivedData(Reader);
 		}

@@ -93,7 +93,7 @@ FName FUtils::ValidateName(const UObject* InObject, const FString& InName)
 	FString Name = InName;
 	if (Name.StartsWith(TEXT("RigUnit_")))
 	{
-		Name.RightChopInline(8, false);
+		Name.RightChopInline(8, EAllowShrinking::No);
 	}
 
 	FNameValidator NameValidator(InObject);
@@ -302,7 +302,7 @@ FName FUtils::ValidateName(const UAnimNextParameterBlock_EditorData* InEditorDat
 	FString Name = InName;
 	if (Name.StartsWith(TEXT("RigUnit_")))
 	{
-		Name.RightChopInline(8, false);
+		Name.RightChopInline(8, EAllowShrinking::No);
 	}
 
 	FNameValidator NameValidator(InEditorData);

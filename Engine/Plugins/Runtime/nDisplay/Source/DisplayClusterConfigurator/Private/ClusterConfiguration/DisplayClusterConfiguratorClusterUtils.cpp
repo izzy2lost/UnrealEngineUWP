@@ -51,7 +51,7 @@ namespace UE::DisplayClusterConfiguratorClusterUtils
 				FString NumericSuffix = BaseName.RightChop(Index);
 				Counter = FCString::Atoi(*NumericSuffix);
 				NumericSuffix = FString::FromInt(Counter); // Restringify the counter to account for leading 0s that we don't want to remove
-				BaseName.RemoveAt(BaseName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), false);
+				BaseName.RemoveAt(BaseName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), EAllowShrinking::No);
 			}
 			else
 			{

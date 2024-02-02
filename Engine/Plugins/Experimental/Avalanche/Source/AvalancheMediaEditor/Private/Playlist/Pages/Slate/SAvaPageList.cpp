@@ -1068,7 +1068,7 @@ FText SAvaPageList::OnAssetSearchBoxSuggestionChosen(const FText& InSearchText, 
 	UE::AvalanchePlaylist::Private::ExtractAssetSearchFilterTerms(InSearchText, nullptr, nullptr, &SuggestionInsertionIndex);
 
 	FString SearchString = InSearchText.ToString();
-	SearchString.RemoveAt(SuggestionInsertionIndex, SearchString.Len() - SuggestionInsertionIndex, false);
+	SearchString.RemoveAt(SuggestionInsertionIndex, SearchString.Len() - SuggestionInsertionIndex, EAllowShrinking::No);
 	SearchString.Append(InSuggestion);
 	return FText::FromString(SearchString);
 }

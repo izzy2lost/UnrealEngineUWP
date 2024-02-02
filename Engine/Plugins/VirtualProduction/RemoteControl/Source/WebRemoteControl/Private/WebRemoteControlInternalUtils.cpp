@@ -96,7 +96,7 @@ TSharedRef<FHttpServerRequest> UnwrapHttpRequest(const FRCRequestWrapper& Wrappe
 		FString PathWithoutParams = Wrapper.URL;
 
 		FString QueryParamsStr = PathWithoutParams.Mid(QueryParamsIndex + 1);
-		PathWithoutParams.MidInline(0, QueryParamsIndex, false);
+		PathWithoutParams.MidInline(0, QueryParamsIndex, EAllowShrinking::No);
 
 		// Split query params
 		TArray<FString> QueryParamPairs;
