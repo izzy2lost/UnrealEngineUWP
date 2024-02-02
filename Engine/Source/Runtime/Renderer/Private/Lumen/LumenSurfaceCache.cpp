@@ -80,6 +80,20 @@ class FLumenCardCopyPS : public FGlobalShader
 	{
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
 	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!PermutationVector.Get<FCompress>())
+		{
+			const FLumenSurfaceLayerConfig& LumenSurfaceLayerConfig = GetSurfaceLayerConfig(PermutationVector.Get<FSurfaceCacheLayer>());
+			OutEnvironment.SetRenderTargetOutputFormat(0, LumenSurfaceLayerConfig.UncompressedFormat);
+		}
+	}
+
 };
 
 IMPLEMENT_GLOBAL_SHADER(FLumenCardCopyPS, "/Engine/Private/Lumen/SurfaceCache/LumenSurfaceCache.usf", "LumenCardCopyPS", SF_Pixel);
