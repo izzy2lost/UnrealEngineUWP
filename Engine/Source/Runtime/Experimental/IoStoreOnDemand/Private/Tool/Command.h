@@ -12,61 +12,19 @@
 namespace UE::IO::IAS::Tool {
 
 ////////////////////////////////////////////////////////////////////////////////
-using ParseFunc = void (void*, FStringView);
-
-////////////////////////////////////////////////////////////////////////////////
 struct FArgument
 {
 	static const uint32 ValueAlign = 16;
 	static const uint32 ValueSize = 16;
 	FStringView			Name;
 	FStringView			Desc;
-	ParseFunc*			Parser;
+	PTRINT				Inner;
 };
 
 using FArguments = TArray<FArgument>;
 
 ////////////////////////////////////////////////////////////////////////////////
-template <typename Type>
-struct TArgumentParse
-{
-	static ParseFunc* GetParser()
-	{
-		return [] (void* Out, FStringView Input) {
-			auto* Inner = (Type*)Out;
-			LexFromString(*Inner, Input);
-		};
-	}
-};
-
-////////////////////////////////////////////////////////////////////////////////
-template <>
-struct TArgumentParse<bool>
-{
-	static ParseFunc* GetParser() { return nullptr; }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-template <>
-struct TArgumentParse<FStringView>
-{
-	static ParseFunc* GetParser()
-	{
-		return [] (void* Out, FStringView Input) {
-			auto* Inner = (FStringView*)Out;
-			new (Inner) FStringView(Input);
-		};
-	}
-};
-
-////////////////////////////////////////////////////////////////////////////////
-template <typename Type>
-FArgument TArgument(FStringView Name, FStringView Desc)
-{
-	static_assert(alignof(Type) <= FArgument::ValueAlign);
-	static_assert(sizeof(Type) <= FArgument::ValueSize);
-	return { Name, Desc, TArgumentParse<Type>::GetParser() };
-}
+template <typename Type> FArgument TArgument(FStringView Name, FStringView Desc);
 
 
 
