@@ -10,6 +10,8 @@
 #include "MuR/MeshPrivate.h"
 #include "MuR/MutableTrace.h"
 
+#include <limits>
+
 namespace mu
 {
 
@@ -924,8 +926,8 @@ void Mesh::GetVertexMap
 #define MUTABLE_NUM_BUCKETS 256
 #define MUTABLE_BUCKET_CHANNEL 0
 
-    float rangeMin = TNumericLimits<float>::Max();
-    float rangeMax = -TNumericLimits<float>::Max();
+    float rangeMin = std::numeric_limits<float>::max();
+    float rangeMax = -std::numeric_limits<float>::max();
     MeshBufferIteratorConst< MBF_FLOAT32, float, 3 >  itop = itopBegin;
     for ( int ov=0; ov<otherVertexCount; ++ov )
     {

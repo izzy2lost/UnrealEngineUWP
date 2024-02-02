@@ -5,10 +5,12 @@
 #include "MuR/Operations.h"
 #include "MuT/AST.h"
 
+#include <stdint.h>
+
 namespace mu { struct FProgram; }
 
 
-#define MUTABLE_HASH_SEED					((uint32)0xcadababa)
+#define MUTABLE_HASH_SEED					((uint32_t)0xcadababa)
 
 
 namespace mu

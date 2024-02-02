@@ -9,6 +9,8 @@
 #include "MuT/Node.h"
 #include "MuT/NodeRangeFromScalar.h"
 
+#include <stdint.h>
+
 
 namespace mu
 {

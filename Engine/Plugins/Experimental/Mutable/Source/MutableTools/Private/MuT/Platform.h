@@ -7,6 +7,11 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <sys/stat.h>
+
+
+// This file contains some hacks to solve differences between platforms necessary for the tools
+// library and not present in the run-time library.
 
 
 namespace mu

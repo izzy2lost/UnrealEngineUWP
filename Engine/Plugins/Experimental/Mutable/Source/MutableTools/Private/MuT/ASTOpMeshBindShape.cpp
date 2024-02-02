@@ -13,6 +13,9 @@
 #include "MuT/ASTOpMeshAddTags.h"
 #include "MuT/StreamsPrivate.h"
 
+#include <memory>
+#include <utility>
+
 
 namespace mu
 {

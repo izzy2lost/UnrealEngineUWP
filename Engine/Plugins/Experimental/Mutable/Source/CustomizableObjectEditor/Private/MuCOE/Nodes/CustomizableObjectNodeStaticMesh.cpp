@@ -15,6 +15,8 @@
 #include "MuCOE/RemapPins/CustomizableObjectNodeRemapPinsByNameDefaultPin.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "Widgets/Input/SCheckBox.h"
+#include <memory>
+#include <stdexcept>
 
 class UCustomizableObjectNodeRemapPinsByName;
 class UObject;
