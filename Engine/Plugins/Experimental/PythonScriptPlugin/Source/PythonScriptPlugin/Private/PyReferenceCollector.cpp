@@ -196,8 +196,7 @@ void FPyReferenceCollector::PurgeUnrealGeneratedTypes()
 void FPyReferenceCollector::AddReferencedObjectsFromDelegate(FReferenceCollector& InCollector, FScriptDelegate& InDelegate)
 {
 	// Keep the delegate object alive if it's using a Python proxy instance
-	// We have to use the EvenIfUnreachable variant here as the objects are speculatively marked as unreachable during GC
-	if (UPythonCallableForDelegate* PythonCallableForDelegate = Cast<UPythonCallableForDelegate>(InDelegate.GetUObjectEvenIfUnreachable()))
+	if (UPythonCallableForDelegate* PythonCallableForDelegate = Cast<UPythonCallableForDelegate>(InDelegate.GetUObject()))
 	{
 		TWeakObjectPtr<UPythonCallableForDelegate> Ptr{PythonCallableForDelegate};
 		InCollector.AddReferencedObject(Ptr);
