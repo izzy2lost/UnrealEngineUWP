@@ -2129,8 +2129,8 @@ struct FEditorShaderCodeArchive
 							GetShaderFrequencyString(static_cast<EShaderFrequency>(Freq)),
 							ExtendedStats.NumShadersPerFrequency[Freq],
 							100.0 * ExtendedStats.NumShadersPerFrequency[Freq] / double(Stats.NumUniqueShaders),
-							double(ExtendedStats.CompressedSizePerFrequency[Freq]) / (1024.0 * 1024.0 * 1024.0), double(ExtendedStats.CompressedSizePerFrequency[Freq]) / (double(ExtendedStats.NumShadersPerFrequency[Freq]) * 1024.0),
-							double(ExtendedStats.UncompressedSizePerFrequency[Freq]) / (1024.0 * 1024.0 * 1024.0), double(ExtendedStats.UncompressedSizePerFrequency[Freq]) / (double(ExtendedStats.NumShadersPerFrequency[Freq]) * 1024.0)
+							double(ExtendedStats.CompressedSizePerFrequency[Freq]) / (1024.0 * 1024.0), double(ExtendedStats.CompressedSizePerFrequency[Freq]) / (double(ExtendedStats.NumShadersPerFrequency[Freq]) * 1024.0),
+							double(ExtendedStats.UncompressedSizePerFrequency[Freq]) / (1024.0 * 1024.0), double(ExtendedStats.UncompressedSizePerFrequency[Freq]) / (double(ExtendedStats.NumShadersPerFrequency[Freq]) * 1024.0)
 						);
 					}
 				}
