@@ -133,6 +133,10 @@ public:
 	virtual bool IsDefaultStyle() const override;
 
 private:
+	/**
+	 * returns a pointer to a Customization that can be applied to all name widgets, if one exists
+	 */
+	virtual TSharedPtr<FDetailsNameWidgetOverrideCustomization> GetDetailsNameWidgetOverrideCustomization() override;
 
 	void SetObjectArrayPrivate(const TArray<UObject*>& InObjects);
 
@@ -239,6 +243,9 @@ private:
 	* information for this details view.
 	*/
 	TSharedPtr<FDetailsViewStyleKey> StyleKeySP;
+	
+	/** A Customization that can be applied to all name widgets */
+	TSharedPtr<FDetailsNameWidgetOverrideCustomization> DetailsNameWidgetOverrideCustomization;;
 	
 	/** The filter for objects viewed by this details panel */
 	TSharedPtr<FDetailsViewObjectFilter> ObjectFilter;

@@ -5,6 +5,7 @@
 #include "Algo/Compare.h"
 #include "DetailGroup.h"
 #include "DetailPropertyRow.h"
+#include "DetailsNameWidgetOverrideCustomization.h"
 #include "DetailWidgetRow.h"
 #include "Editor.h"
 #include "IDetailDragDropHandler.h"
@@ -536,7 +537,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 					.Value(ColumnSizeData.GetNameColumnWidth())
 					.OnSlotResized(ColumnSizeData.GetOnNameColumnResized())
 					[
-						NameColumnBox
+						GetNameWidget(NameColumnBox, GetPropertyNode())
 					];
 
 				// create Value column:
@@ -1376,6 +1377,27 @@ bool SDetailSingleItemRow::CanPasteProperty() const
 	}
 
 	return CanPasteFromText(TEXT(""), ClipboardContent);
+}
+
+TSharedRef<SWidget> SDetailSingleItemRow::GetNameWidget(TSharedRef<SWidget> NameWidget, const TSharedPtr<FPropertyNode>& Node) const
+{
+	 if (Node.IsValid() && OwnerTreeNode.IsValid() )
+     {
+	 	const TSharedPtr<FDetailTreeNode> DetailTreeNodeSP = OwnerTreeNode.Pin();
+	 	
+	     if (DetailTreeNodeSP.IsValid() && DetailTreeNodeSP->GetDetailsView())
+	     {
+	     	const TSharedPtr<FDetailsNameWidgetOverrideCustomization> DetailsNameWidgetOverrideCustomization =
+				DetailTreeNodeSP->GetDetailsView()->GetDetailsNameWidgetOverrideCustomization();
+
+	     	if ( DetailsNameWidgetOverrideCustomization.IsValid() )
+	     	{
+	     		const TSharedRef< FPropertyPath > Path = FPropertyNode::CreatePropertyPath(Node.ToSharedRef());
+	     		return DetailsNameWidgetOverrideCustomization->CustomizeName(NameWidget, Path.Get());
+	     	}
+	     }
+     }
+	return NameWidget;
 }
 
 bool SDetailSingleItemRow::CanPasteFromText(const FString& InTag, const FString& InText) const
