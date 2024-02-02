@@ -719,7 +719,7 @@ namespace mu
 
 		}
 
-		if (Mask)
+		if (Args.mask)
 		{
 			if (Base->GetSize() != Mask->GetSize())
 			{
@@ -796,7 +796,7 @@ namespace mu
 		bool bUseBlendSourceFromBlendAlpha = (Args.flags & OP::ImageLayerArgs::F_BLENDED_RGB_FROM_ALPHA) != 0;
 		bool bUseMaskFromBlendAlpha = (Args.flags & OP::ImageLayerArgs::F_USE_MASK_FROM_BLENDED);
 
-		if (!bDone && Mask)
+		if (!bDone && Args.mask)
 		{
 			// Not implemented yet
 			check(!bUseBlendSourceFromBlendAlpha);

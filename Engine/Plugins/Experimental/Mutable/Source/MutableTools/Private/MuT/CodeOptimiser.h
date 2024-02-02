@@ -98,7 +98,7 @@ namespace mu
     //! ConstantGenerator replaces constant subtrees of operations with an equivalent single
 	//! constant value operation. 
     //---------------------------------------------------------------------------------------------
-    extern bool ConstantGeneratorAST( const CompilerOptions::Private* options, Ptr<ASTOp>& root, int32 Pass );
+    extern bool ConstantGeneratorAST( const CompilerOptions::Private* options, Ptr<ASTOp>& root );
 
     //---------------------------------------------------------------------------------------------
     //! \TODO: shapes, projectors, others? but not switches (they must be unique)

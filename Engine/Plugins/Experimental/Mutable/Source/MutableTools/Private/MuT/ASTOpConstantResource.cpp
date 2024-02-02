@@ -86,6 +86,7 @@ namespace mu
 			if (bCannotBeScaled)
 			{
 				// Store only the mips that we have already calculated. We assume we have calculated them correctly.
+				//MipsToStore = 1;
 				MipsToStore = pImage->GetLODCount();
 			}
 

@@ -55,11 +55,11 @@ namespace mu
 	void ASTOpReferenceResource::Link(FProgram& program, FLinkerOptions* Options)
 	{
 		if (!linkedAddress)
-		{
+		{			
 			OP::ResourceReferenceArgs Args;
 			FMemory::Memset(&Args, 0, sizeof(Args));
 			Args.ID = ID;
-			Args.ForceLoad = bForceLoad ? 1 : 0;
+			Args.ForceLoad = bForceLoad?1:0;
 			Args.ImageDesc = ImageDesc;
 
 			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
@@ -137,32 +137,29 @@ namespace mu
 	{
 		mu::Ptr<ASTOp> NewOp;
 
-		//switch (type)
-		//{
+		switch (type)
+		{
 
-		//case OP_TYPE::IM_REFERENCE:
-		//{
-		//	// If we are in reference resolution stage
-		//	if (Pass>=2 && bForceLoad)
-		//	{
-		//		MUTABLE_CPUPROFILER_SCOPE(ResolveReference);
+		case OP_TYPE::IM_REFERENCE:
+		{
+			// If we are in reference resolution stage
+			if (Pass>=2 && bForceLoad)
+			{
+				check(options.ReferencedResourceProvider);
 
-		//		check(options.ReferencedResourceProvider);
+				Ptr<Image> ConstantImage = options.ReferencedResourceProvider(ID);
 
-		//		TFuture<Ptr<Image>> ConstantImageFuture = options.ReferencedResourceProvider(ID);
-		//		Ptr<Image> ConstantImage = ConstantImageFuture.Get();
+				Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
+				ConstantOp->type = OP_TYPE::IM_CONSTANT;
+				ConstantOp->SetValue( ConstantImage.get(), options.bUseDiskCache );
+				NewOp = ConstantOp;
+			}
+			break;
+		}
 
-		//		Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource;
-		//		ConstantOp->type = OP_TYPE::IM_CONSTANT;
-		//		ConstantOp->SetValue( ConstantImage.get(), options.bUseDiskCache );
-		//		NewOp = ConstantOp;
-		//	}
-		//	break;
-		//}
-
-		//default:
-		//	checkf(false, TEXT("Instruction not supported"));
-		//}
+		default:
+			checkf(false, TEXT("Instruction not supported"));
+		}
 
 		return NewOp;
 	}

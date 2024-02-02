@@ -3,7 +3,6 @@
 #pragma once
 
 #include "MuT/Platform.h"
-#include "MuT/Compiler.h"
 #include "MuR/Image.h"
 #include "MuR/Mesh.h"
 #include "MuR/ModelPrivate.h"
@@ -22,7 +21,6 @@
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeHash.h"
 #include "Templates/Function.h"
-#include "Hash/CityHash.h"
 
 #include <array>
 #include <atomic>
@@ -32,6 +30,7 @@
 #include <utility>
 #include <set>
 
+#include "MuT/Compiler.h"
 
 namespace std
 {
@@ -261,8 +260,11 @@ namespace mu
 								::GetTypeHash(Data->m_size[1]))
 				);
 
-				uint64 DataHash = CityHash64(reinterpret_cast<const char*>(Data->m_data.GetData()), Data->m_data.Num());
-				Hash = HashCombineFast( Hash, ::GetTypeHash(DataHash) );
+				if (Data->m_data.Num()>=4)
+				{
+					uint32 FirstData = *(reinterpret_cast<const uint32*>(Data->m_data.GetData()));
+					Hash = HashCombineFast( Hash, ::GetTypeHash(FirstData) );
+				}
 
 				return Hash;
 			}
@@ -458,8 +460,10 @@ namespace mu
 
         inline ASTOp()
         {
-			bIsConstantSubgraph = false;
-			bHasSpecialOpInSubgraph = false;
+            m_traversedTopDownAdapative = 0;
+            m_constantSubtree = false;
+            m_hasSpecialOpInSubtree = false;
+
         }
 
         virtual ~ASTOp() {}
@@ -502,29 +506,10 @@ namespace mu
         //---------------------------------------------------------------------------------------------
         static void FullAssert( const TArray<Ptr<ASTOp>>& roots );
 
-        static int32 CountNodes( const TArray<Ptr<ASTOp>>& roots );
-
-		inline bool IsConstantOp() const
-		{
-			OP_TYPE Type = GetOpType();
-			return Type == OP_TYPE::BO_CONSTANT
-				|| Type == OP_TYPE::NU_CONSTANT
-				|| Type == OP_TYPE::SC_CONSTANT
-				|| Type == OP_TYPE::CO_CONSTANT
-				|| Type == OP_TYPE::IM_CONSTANT
-				|| Type == OP_TYPE::ME_CONSTANT
-				|| Type == OP_TYPE::LA_CONSTANT
-				|| Type == OP_TYPE::PR_CONSTANT
-				|| Type == OP_TYPE::ST_CONSTANT
-				|| Type == OP_TYPE::ED_CONSTANT
-				;
-		}
+        static size_t CountNodes( const TArray<Ptr<ASTOp>>& roots );
 
         //! Deep clone. New node will have no parents and reference new children
         static Ptr<ASTOp> DeepClone( const Ptr<ASTOp>& );
-
-		//!
-		static void LogHistogram(ASTOpList& roots);
 
         // Code optimisation methods
         //---------------------------------------------------------------------------------------------
@@ -548,6 +533,9 @@ namespace mu
 
         //!
         static void ClearLinkData( Ptr<ASTOp>& root );
+
+        //!
+        static void LogHistogram( ASTOpList& roots );
 
     private:
 
@@ -684,6 +672,9 @@ namespace mu
         }
 
 
+        //! Kind of top-down, but really not.
+        static void Traverse_TopDown_Repeat( const TArray<Ptr<ASTOp>>& roots, TFunctionRef<bool(Ptr<ASTOp>& node)> f );
+
         //! This version is slighlty faster, but doesn't support recursive traversals so
         //! use it only in controlled cases.
         static void Traverse_BottomUp_Unique_NonReentrant( ASTOpList& roots, TFunctionRef<void(Ptr<ASTOp>&)> f );
@@ -724,11 +715,14 @@ namespace mu
         //!
         int8 linkedRange = -1;
 
-        /** Embedded node data for the constant subtree detection.This flag is only valid if the
-         * constant detection process has been executed and no relevant AST transformations have
-         * happened. */
-        uint8 bIsConstantSubgraph : 1;
-        uint8 bHasSpecialOpInSubgraph : 1;
+        //! special flag for Traverse_TopDown_Adaptative traversal.
+        uint8 m_traversedTopDownAdapative : 1;
+
+        //! Embedded node data for the constant subtree detection. This flag is only valid if the
+        //! constant detection process has been executed and no relevant AST transformations have
+        //! happened.
+        uint8 m_constantSubtree : 1;
+        uint8 m_hasSpecialOpInSubtree : 1;
 
     private:
         friend class ASTChild;
@@ -738,8 +732,7 @@ namespace mu
 
     public:
 
-		/** Get the number of ASTOps that have this one as child, in any existing AST graph. */
-        int32 GetParentCount() const;
+        int GetParentCount() const;
 
         //! Make all parents of this node point at the other node instead.
         static void Replace( const Ptr<ASTOp>& node, const Ptr<ASTOp>& other );
@@ -762,8 +755,10 @@ namespace mu
         using FBlockLayoutSizeCache=TMap< const TPair<ASTOp*,int>, TPair<int,int>>;
 
         //! Return the size in layout blocks of a particular block given by absolute index
-        virtual void GetBlockLayoutSize( int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache );
-        void GetBlockLayoutSizeCached( int blockIndex, int* pBlockX, int* pBlockY, FBlockLayoutSizeCache* cache );
+        virtual void GetBlockLayoutSize( int blockIndex, int* pBlockX, int* pBlockY,
+                                         FBlockLayoutSizeCache* cache );
+        void GetBlockLayoutSizeCached( int blockIndex, int* pBlockX, int* pBlockY,
+                                       FBlockLayoutSizeCache* cache );
 
 
         //! Return the size in pixels of the layout grid block for the image operation
