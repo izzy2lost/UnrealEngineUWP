@@ -21,9 +21,9 @@ namespace Horde.Agent.Tests.Execution;
 [TestClass]
 public sealed class WorkspaceExecutorTest : IDisposable
 {
-	private readonly StreamId StreamId = new StreamId("foo-main");
-	private readonly JobId JobId = JobId.Parse("65bd0655591b5d5d7d047b58");
-	private readonly JobStepBatchId BatchId = new JobStepBatchId(0x1234);
+	private readonly StreamId _streamId = new StreamId("foo-main");
+	private readonly JobId _jobId = JobId.Parse("65bd0655591b5d5d7d047b58");
+	private readonly JobStepBatchId _batchId = new JobStepBatchId(0x1234);
 	private const string AgentType = "bogusAgentType";
 	
 	private readonly ILogger<WorkspaceExecutorTest> _logger;
@@ -43,9 +43,9 @@ public sealed class WorkspaceExecutorTest : IDisposable
 
 		_logger = loggerFactory.CreateLogger<WorkspaceExecutorTest>();
 		
-		_server.AddStream(StreamId, "//Foo/Main");
-		_server.AddAgentType(StreamId, AgentType);
-		_server.AddJob(JobId, StreamId, 1, 0);
+		_server.AddStream(_streamId, "//Foo/Main");
+		_server.AddAgentType(_streamId, AgentType);
+		_server.AddJob(_jobId, _streamId, 1, 0);
 		_session = FakeServerSessionFactory.CreateSession(_server.GetConnection());
 		
 		_autoSdkWorkspace.SetFile(1, "HostWin64/Android/base.h", "base");
@@ -53,7 +53,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 		_workspace.SetFile(1, "foo/bar/baz.h", "baz");
 
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, JobId, BatchId, batch, null!, new JobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, _jobId, _batchId, batch, null!, new JobOptions());
 		_executor = new (executorOptions, _workspace, null, NullLogger.Instance);
 	}
 
@@ -76,7 +76,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	public async Task RegularAndAutoSdkWorkspaceAsync()
 	{
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, JobId, BatchId, batch, null!, new JobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, _jobId, _batchId, batch, null!, new JobOptions());
 		WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 
 		await executor.InitializeAsync(_logger, CancellationToken.None);
@@ -90,7 +90,7 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	public async Task EnvVarsAsync()
 	{
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1, StreamName = "//UE5/Main" };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, JobId, BatchId, batch, null!, new JobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, _jobId, _batchId, batch, null!, new JobOptions());
 		WorkspaceExecutor executor = new (executorOptions, _workspace, _autoSdkWorkspace, NullLogger.Instance);
 		await executor.InitializeAsync(_logger, CancellationToken.None);
 
@@ -111,13 +111,13 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	[TestMethod]
 	public async Task JobWithPreflightAsync()
 	{
-		JobId PreflightJobId = JobId.Parse("65bd0655591b5d5d7d047b59");
+		JobId preflightJobId = JobId.Parse("65bd0655591b5d5d7d047b59");
 
-		_server.AddJob(PreflightJobId, StreamId, 1, 1000);		
+		_server.AddJob(preflightJobId, _streamId, 1, 1000);		
 		_workspace.SetFile(1000, "New/Feature/Foo.cs", "foo");
 
 		BeginBatchResponse batch = new BeginBatchResponse { Change = 1, PreflightChange = 1000 };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, PreflightJobId, BatchId, batch, null!, new JobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, preflightJobId, _batchId, batch, null!, new JobOptions());
 		WorkspaceExecutor executor = new (executorOptions, _workspace, null, NullLogger.Instance);
 		
 		await executor.InitializeAsync(_logger, CancellationToken.None);
@@ -130,11 +130,11 @@ public sealed class WorkspaceExecutorTest : IDisposable
 	[TestMethod]
 	public async Task JobWithNoChangeAsync()
 	{
-		JobId NoChangeJobId = JobId.Parse("65bd0655591b5d5d7d047b5a");
+		JobId noChangeJobId = JobId.Parse("65bd0655591b5d5d7d047b5a");
 
-		_server.AddJob(NoChangeJobId, StreamId, 0, 0);
+		_server.AddJob(noChangeJobId, _streamId, 0, 0);
 		BeginBatchResponse batch = new BeginBatchResponse { };
-		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, NoChangeJobId, BatchId, batch, null!, new JobOptions());
+		JobExecutorOptions executorOptions = new JobExecutorOptions(_session, null!, noChangeJobId, _batchId, batch, null!, new JobOptions());
 		WorkspaceExecutor executor = new (executorOptions, _workspace, null, NullLogger.Instance);
 		await Assert.ThrowsExceptionAsync<WorkspaceMaterializationException>(() => executor.InitializeAsync(_logger, CancellationToken.None));
 	}

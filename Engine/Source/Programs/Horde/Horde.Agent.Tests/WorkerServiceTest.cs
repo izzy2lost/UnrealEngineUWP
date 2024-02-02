@@ -41,12 +41,12 @@ namespace Horde.Agent.Tests
 	{
 		private readonly ServiceCollection _serviceCollection;
 
-		private readonly JobId JobId = JobId.Parse("65bd0655591b5d5d7d047b58");
-		private readonly JobStepBatchId BatchId = new JobStepBatchId(0x1234);
-		private readonly JobStepId StepId1 = new JobStepId(1);
-		private readonly JobStepId StepId2 = new JobStepId(2);
-		private readonly JobStepId StepId3 = new JobStepId(3);
-		private readonly LogId LogId = LogId.Parse("65bd0655591b5d5d7d047b00");
+		private readonly JobId _jobId = JobId.Parse("65bd0655591b5d5d7d047b58");
+		private readonly JobStepBatchId _batchId = new JobStepBatchId(0x1234);
+		private readonly JobStepId _stepId1 = new JobStepId(1);
+		private readonly JobStepId _stepId2 = new JobStepId(2);
+		private readonly JobStepId _stepId3 = new JobStepId(3);
+		private readonly LogId _logId = LogId.Parse("65bd0655591b5d5d7d047b00");
 
 		class FakeServerLogger : IServerLogger
 		{
@@ -149,9 +149,9 @@ namespace Horde.Agent.Tests
 			CancellationToken token = source.Token;
 
 			ExecuteJobTask executeJobTask = new ExecuteJobTask();
-			executeJobTask.JobId = JobId.ToString();
-			executeJobTask.BatchId = BatchId.ToString();
-			executeJobTask.LogId = LogId.ToString();
+			executeJobTask.JobId = _jobId.ToString();
+			executeJobTask.BatchId = _batchId.ToString();
+			executeJobTask.LogId = _logId.ToString();
 			executeJobTask.JobName = "jobName1";
 			executeJobTask.JobOptions = new JobOptions { Executor = SimpleTestExecutor.Name };
 			executeJobTask.AutoSdkWorkspace = new AgentWorkspace();
@@ -162,11 +162,11 @@ namespace Horde.Agent.Tests
 
 			await using ISession session = FakeServerSessionFactory.CreateSession(rpcConnection);
 
-			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName1", StepId = StepId1.ToString()});
-			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName2", StepId = StepId2.ToString()});
-			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName3", StepId = StepId3.ToString()});
+			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName1", StepId = _stepId1.ToString()});
+			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName2", StepId = _stepId2.ToString()});
+			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName3", StepId = _stepId3.ToString()});
 
-			GetStepRequest step2Req = new GetStepRequest(JobId, BatchId, StepId2);
+			GetStepRequest step2Req = new GetStepRequest(_jobId, _batchId, _stepId2);
 			GetStepResponse step2Res = new GetStepResponse(JobStepOutcome.Unspecified, JobStepState.Unspecified, true);
 			client.GetStepResponses[step2Req] = step2Res;
 
@@ -229,7 +229,7 @@ namespace Horde.Agent.Tests
 			using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 			TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>();
 
-			await jobHandler.PollForStepAbortAsync(rpcConnection, JobId, BatchId, StepId2, stepCancelSource, stepFinishedSource.Task, stepPollCancelSource.Token);
+			await jobHandler.PollForStepAbortAsync(rpcConnection, _jobId, _batchId, _stepId2, stepCancelSource, stepFinishedSource.Task, stepPollCancelSource.Token);
 			Assert.IsTrue(stepCancelSource.IsCancellationRequested);
 		}
 

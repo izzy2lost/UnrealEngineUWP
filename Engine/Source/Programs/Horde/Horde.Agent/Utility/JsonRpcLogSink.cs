@@ -2,6 +2,7 @@
 
 using System.Text;
 using EpicGames.Core;
+using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using Google.Protobuf;
@@ -26,10 +27,10 @@ namespace Horde.Agent.Utility
 		const int FlushLength = 1024 * 1024;
 
 		readonly IRpcConnection _connection;
-		readonly string? _jobId;
-		readonly string? _jobBatchId;
-		readonly string? _jobStepId;
-		readonly string _logId;
+		readonly JobId? _jobId;
+		readonly JobStepBatchId? _jobBatchId;
+		readonly JobStepId? _jobStepId;
+		readonly LogId _logId;
 		readonly LogBuilder _builder;
 		readonly IStorageClient _store;
 		readonly IBlobWriter _writer;
@@ -45,7 +46,7 @@ namespace Horde.Agent.Utility
 		AsyncEvent _tailTaskStop;
 		readonly AsyncEvent _newTailDataEvent = new AsyncEvent();
 
-		public JsonRpcAndStorageLogSink(IRpcConnection connection, string logId, string? jobId, string? jobBatchId, string? jobStepId, IStorageClient store, ILogger logger)
+		public JsonRpcAndStorageLogSink(IRpcConnection connection, LogId logId, JobId? jobId, JobStepBatchId? jobBatchId, JobStepId? jobStepId, IStorageClient store, ILogger logger)
 		{
 			_connection = connection;
 			_logId = logId;
@@ -171,7 +172,7 @@ namespace Horde.Agent.Utility
 			{
 				try
 				{
-					await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new UpdateStepRequest(_jobId, _jobBatchId, _jobStepId, JobStepState.Unspecified, outcome)), cancellationToken);
+					await _connection.InvokeAsync((JobRpc.JobRpcClient x) => x.UpdateStepAsync(new UpdateStepRequest(_jobId.Value, _jobBatchId.Value, _jobStepId.Value, JobStepState.Unspecified, outcome)), cancellationToken);
 				}
 				catch (Exception ex)
 				{
@@ -209,7 +210,7 @@ namespace Horde.Agent.Utility
 			_logger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target.GetLocator());
 
 			UpdateLogRequest request = new UpdateLogRequest();
-			request.LogId = _logId;
+			request.LogId = _logId.ToString();
 			request.LineCount = lineCount;
 			request.TargetHash = target.Hash.ToString();
 			request.TargetLocator = target.GetLocator().ToString();
@@ -226,7 +227,7 @@ namespace Horde.Agent.Utility
 				{
 					// Write the request to the server
 					UpdateLogTailRequest request = new UpdateLogTailRequest();
-					request.LogId = _logId;
+					request.LogId = _logId.ToString();
 					request.TailNext = tailNext;
 					request.TailData = UnsafeByteOperations.UnsafeWrap(tailData);
 					await call.RequestStream.WriteAsync(request);
