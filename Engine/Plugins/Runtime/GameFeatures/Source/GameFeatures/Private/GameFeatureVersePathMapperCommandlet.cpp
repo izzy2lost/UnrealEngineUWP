@@ -92,6 +92,18 @@ namespace GameFeatureVersePathMapper
 		{
 			AppDomain = FPaths::Combine(TEXTVIEW("/"), FString(FApp::GetProjectName()) + TEXTVIEW(".com"));
 		}
+		AppDomain.RemoveFromEnd(TEXTVIEW("/"));
+		return AppDomain;
+	}
+
+	FString GetAltVerseAppDomain()
+	{
+		FString AppDomain;
+		if (!GConfig->GetString(TEXT("Verse"), TEXT("AltAppDomain"), AppDomain, GGameIni))
+		{
+			AppDomain = {};
+		}
+		AppDomain.RemoveFromEnd(TEXTVIEW("/"));
 		return AppDomain;
 	}
 
@@ -131,7 +143,7 @@ namespace GameFeatureVersePathMapper
 		}
 	};
 
-	FString GetChunkPatternFormat()
+	static FString GetChunkPatternFormat()
 	{
 		FString ChunkPatternFormat;
 		if (!GConfig->GetString(TEXT("GameFeaturePlugins"), TEXT("GFPBundleRegexMatchPatternFormat"), ChunkPatternFormat, GInstallBundleIni))
@@ -142,12 +154,12 @@ namespace GameFeatureVersePathMapper
 		return ChunkPatternFormat;
 	}
 
-	FString GetChunkPattern(const FString& ChunkPatternFormat, int32 Chunk)
+	static FString GetChunkPattern(const FString& ChunkPatternFormat, int32 Chunk)
 	{
 		return FString::Format(*ChunkPatternFormat, FStringFormatNamedArguments{ {TEXT("Chunk"), Chunk} });
 	}
 
-	TArray<int32> GetAlwaysResidentChunks()
+	static TArray<int32> GetAlwaysResidentChunks()
 	{
 		TArray<int32> AlwaysResidentChunks;
 
@@ -169,7 +181,7 @@ namespace GameFeatureVersePathMapper
 		return AlwaysResidentChunks;
 	}
 
-	TArray<FString> GetAlwaysResidentBundles()
+	static TArray<FString> GetAlwaysResidentBundles()
 	{
 		TArray<FString> AlwaysResidentBundles;
 		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentBundles"), AlwaysResidentBundles, GInstallBundleIni))
@@ -180,7 +192,7 @@ namespace GameFeatureVersePathMapper
 		return AlwaysResidentBundles;
 	}
 
-	FString GetDevARPathForPlatform(FStringView PlatformName)
+	static FString GetDevARPathForPlatform(FStringView PlatformName)
 	{
 		return FPaths::Combine(
 			FPaths::ProjectSavedDir(), 
@@ -191,7 +203,7 @@ namespace GameFeatureVersePathMapper
 			TEXTVIEW("DevelopmentAssetRegistry.bin"));
 	}
 
-	FString GetDevARPath(const FArgs& Args)
+	static FString GetDevARPath(const FArgs& Args)
 	{
 		if (!Args.DevARPath.IsEmpty())
 		{
@@ -207,7 +219,7 @@ namespace GameFeatureVersePathMapper
 	}
 
 	template<class EnumeratorFunc>
-	TMap<FString, int32> FindGFPChunksImpl(const EnumeratorFunc& Enumerator)
+	static TMap<FString, int32> FindGFPChunksImpl(const EnumeratorFunc& Enumerator)
 	{
 		const IAssetRegistry& AR = IAssetRegistry::GetChecked();
 
@@ -249,7 +261,7 @@ namespace GameFeatureVersePathMapper
 		return GFPChunks;
 	}
 
-	TMap<FString, int32> FindGFPChunks(const FAssetRegistryState& DevAR)
+	static TMap<FString, int32> FindGFPChunks(const FAssetRegistryState& DevAR)
 	{
 		return FindGFPChunksImpl([&DevAR](const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback)
 		{
@@ -257,7 +269,7 @@ namespace GameFeatureVersePathMapper
 		});
 	}
 
-	TMap<FString, int32> FindGFPChunks()
+	static TMap<FString, int32> FindGFPChunks()
 	{
 		const IAssetRegistry& AR = IAssetRegistry::GetChecked();
 		return FindGFPChunksImpl([&AR](const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback)
@@ -266,7 +278,7 @@ namespace GameFeatureVersePathMapper
 		});
 	}
 
-	bool IsChunkAlwaysResident(TConstArrayView<int32> AlwaysResidentChunks, int32 Chunk)
+	static bool IsChunkAlwaysResident(TConstArrayView<int32> AlwaysResidentChunks, int32 Chunk)
 	{
 		return Chunk < 0 || AlwaysResidentChunks.Contains(Chunk);
 	}
