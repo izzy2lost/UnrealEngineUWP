@@ -64,6 +64,7 @@ namespace uba
 		void UpdateScrollbars(bool redraw);
 		void GetTitlePrefix(StringBufferBase& out);
 		void ThreadLoop();
+		void Pause(bool pause);
 
 		StringBuffer<256> m_namedTrace;
 		StringBuffer<256> m_fileName;
