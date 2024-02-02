@@ -863,14 +863,17 @@ namespace mu
 					SubgraphCompletionEvent.Trigger();
 					EverythingComplete.AddPrerequisites(SubgraphCompletionEvent);
 				}
+
 			});
+
+		EverythingComplete.AddPrerequisites(LaunchTask);
 
 		// Wait for pending tasks
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ConstantGenerator_WaitPending);
-
-			LaunchTask.Wait();
 			EverythingComplete.Trigger();
+
+			// Wait without executing tasks, since this is an independent thread.
 			EverythingComplete.Wait();
 		}
 
