@@ -2515,6 +2515,16 @@ export enum TabType {
 	Jobs = "Jobs"
 
 }
+/** Style for rendering a tab */
+export enum TabStyle
+{
+	
+	/// Regular job list	
+	Normal = "Normal",
+
+	/// Omit job names, show condensed view	
+	Compact = "Compact"
+}
 
 /**Information about a page to display in the dashboard for a stream */
 export type GetStreamTabResponse = {
@@ -2524,6 +2534,7 @@ export type GetStreamTabResponse = {
 
 	type: TabType;
 
+	style: TabStyle;
 };
 
 /**Describes a job page */
