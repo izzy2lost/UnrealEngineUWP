@@ -105,7 +105,6 @@ protected:
 	//~ Begin UActorModifierCoreBase
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 	virtual void OnModifierAdded(EActorModifierCoreEnableReason InReason) override;
-	virtual void OnModifierRemoved(EActorModifierCoreDisableReason InReason) override;
 	virtual void OnModifiedActorTransformed() override;
 	virtual void SavePreState() override;
 	virtual void RestorePreState() override;
