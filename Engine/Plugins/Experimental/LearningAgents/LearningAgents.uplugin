@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 1,
-	"VersionName": "0.1",
+	"Version": 2,
+	"VersionName": "0.2",
 	"FriendlyName": "Learning Agents",
 	"Description": "Learning Agents is a machine learning library for AI character control in games. It simplifies the use of reinforcement and imitation learning in Unreal.",
 	"Category": "AI",

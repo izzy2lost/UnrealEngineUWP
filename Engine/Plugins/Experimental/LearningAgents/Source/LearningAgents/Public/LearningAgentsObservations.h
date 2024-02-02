@@ -179,12 +179,31 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationSchemaElement SpecifyEncodingObservation(const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize = 128, const FName Name = TEXT("Encoding"));
 
+	/**
+	 * Specifies a new bool observation. A true or false observation.
+	 *
+	 * @param Name The name of this new observation. Used during observation object validation and debugging.
+	 * @return The newly created observation schema element.
+	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationSchemaElement SpecifyBoolObservation(const FName Name = TEXT("Bool"));
 
+	/**
+	 * Specifies a new float observation. A simple observation which can be used as a catch-all for situations where a 
+	 * type-specific observation does not exist.
+	 * 
+	 * @param Name The name of this new observation. Used during observation object validation and debugging.
+	 * @return The newly created observation schema element.
+	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationSchemaElement SpecifyFloatObservation(const FName Name = TEXT("Float"));
 
+	/**
+	 * Specifies a new location observation. Allows an agent to observe the location of some entity.
+	 *
+	 * @param Name The name of this new observation. Used during observation object validation and debugging.
+	 * @return The newly created observation schema element.
+	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationSchemaElement SpecifyLocationObservation(const FName Name = TEXT("Location"));
 
@@ -355,12 +374,56 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeEncodingObservation(const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Encoding"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeBoolObservation(const bool bValue, const FName Name = TEXT("Bool"));
+	/**
+	 * Make a new bool observation.
+	 *
+	 * @param Value The new value of this observation.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	FLearningAgentsObservationObjectElement MakeBoolObservation(
+		const bool bValue,
+		const FName Name = TEXT("Bool"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeFloatObservation(const float Value, const float FloatScale = 1.0f, const FName Name = TEXT("Float"));
+	/**
+	 * Make a new float observation.
+	 *
+	 * @param Value The new value of this observation.
+	 * @param FloatScale Used to normalize the data for this observation.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	FLearningAgentsObservationObjectElement MakeFloatObservation(
+		const float Value,
+		const float FloatScale = 1.0f,
+		const FName Name = TEXT("Float"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
+	/**
+	 * Make a new location observation.
+	 *
+	 * @param Location The location of interest to the agent.
+	 * @param RelativeTransform The transform the provided location should be encoded relative to.
+	 * @param LocationScale Used to normalize the data for this observation.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
 	FLearningAgentsObservationObjectElement MakeLocationObservation(
 		const FVector Location,
@@ -371,15 +434,87 @@ public:
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeRotationObservation(const FRotator Rotation, const FRotator RelativeRotation = FRotator::ZeroRotator, const FName Name = TEXT("Rotation"));
-	FLearningAgentsObservationObjectElement MakeRotationObservationFromQuat(const FQuat Rotation, const FQuat RelativeRotation = FQuat::Identity, const FName Name = TEXT("Rotation"));
+	/**
+	 * Make a new rotation observation.
+	 *
+	 * @param Rotation The rotation of interest to the agent.
+	 * @param RelativeRotation The rotation the provided rotation should be encoded relative to.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	FLearningAgentsObservationObjectElement MakeRotationObservation(
+		const FRotator Rotation,
+		const FRotator RelativeRotation = FRotator::ZeroRotator,
+		const FName Name = TEXT("Rotation"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeScaleObservation(const FVector Scale, const FVector RelativeScale = FVector(1,1,1), const FName Name = TEXT("Scale"));
+	/**
+	 * Make a new rotation observation from a quaternion.
+	 *
+	 * @param Rotation The rotation of interest to the agent.
+	 * @param RelativeRotation The rotation the provided rotation should be encoded relative to.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	FLearningAgentsObservationObjectElement MakeRotationObservationFromQuat(
+		const FQuat Rotation,
+		const FQuat RelativeRotation,
+		const FName Name = TEXT("Rotation"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationObjectElement MakeTransformObservation(const FTransform Transform, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Transform"));
+	/**
+	 * Make a new scale observation. Negative scales are not supported by this observation type.
+	 *
+	 * @param Scale The scale of interest to the agent.
+	 * @param RelativeScale The scale the provided scale should be encoded relative to.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	FLearningAgentsObservationObjectElement MakeScaleObservation(
+		const FVector Scale,
+		const FVector RelativeScale = FVector(1,1,1),
+		const FName Name = TEXT("Scale"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
+
+	/**
+	 * Make a new transform observation.
+	 *
+	 * @param Transform The transform of interest to the agent.
+	 * @param RelativeTransform The transform the provided transform should be encoded relative to.
+	 * @param LocationScale Used to normalize the transform's location for this observation.
+	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
+	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerLocation A location for the visual logger information in the world.
+	 * @param VisualLoggerColor The color for the visual logger display.
+	 * @return The newly created observation object element.
+	 */
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	FLearningAgentsObservationObjectElement MakeTransformObservation(
+		const FTransform Transform,
+		const FTransform RelativeTransform = FTransform(),
+		const float LocationScale = 100.0f,
+		const FName Name = TEXT("Transform"),
+		const bool bVisualLoggerEnabled = false,
+		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeAngleObservation(const float Angle, const float RelativeAngle = 0.0f, const FName Name = TEXT("Angle"));
@@ -397,6 +532,7 @@ public:
 		const FName Name = TEXT("Direction"),
 		const bool bVisualLoggerEnabled = false,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const float VisualLoggerArrowLength = 100.0f,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	// Spline Observations
@@ -423,6 +559,7 @@ public:
 		const FName Name = TEXT("DirectionAlongSpline"),
 		const bool bVisualLoggerEnabled = false,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
+		const float VisualLoggerArrowLength = 100.0f,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
