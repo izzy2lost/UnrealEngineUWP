@@ -227,7 +227,7 @@ void UMassAgentComponent::SetPuppetHandle(const FMassEntityHandle NewHandle)
 		TEXT("%s is expecting to be in state[EntityPendingCreation] but is in %s"), ANSI_TO_TCHAR(__FUNCTION__), *UEnum::GetValueAsString(State));
 	DebugCheckStateConsistency();
 
-	checkf(AgentHandle.IsValid() == false, TEXT("Can't set a new puppet handle of top of a regular agent handle. Entites would end up dangling."));
+	checkf(AgentHandle.IsValid() == false, TEXT("Can't set a new puppet handle of top of a regular agent handle. Entities would end up dangling."));
 	SetEntityHandleInternal(NewHandle);
 
 	if (UMassAgentSubsystem* AgentSubsystem = UWorld::GetSubsystem<UMassAgentSubsystem>(GetWorld()))

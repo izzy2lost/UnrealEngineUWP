@@ -1004,14 +1004,14 @@ void FMassArchetypeData::BatchAddEntities(TConstArrayView<FMassEntityHandle> Ent
 	} while (NumberMoved < Entities.Num());
 }
 
-void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetypeEntityCollection& EntityCollection, FMassArchetypeData& NewArchetype, TArray<FMassEntityHandle>& OutEntitesBeingMoved, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>* OutNewRanges)
+void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetypeEntityCollection& EntityCollection, FMassArchetypeData& NewArchetype, TArray<FMassEntityHandle>& OutEntitiesBeingMoved, TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange>* OutNewRanges)
 {
 	check(&NewArchetype != this);
 
 
 	TArray<FMassArchetypeEntityCollection::FArchetypeEntityRange> Subchunks(EntityCollection.GetRanges());
 
-	const int32 InitialOutEntitiesCount = OutEntitesBeingMoved.Num();
+	const int32 InitialOutEntitiesCount = OutEntitiesBeingMoved.Num();
 
 	for (const FMassArchetypeEntityCollection::FArchetypeEntityRange EntityRange : Subchunks)
 	{
@@ -1028,8 +1028,7 @@ void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetyp
 
 		// gather entities we're about to remove
 		FMassEntityHandle* DyingEntityPtr = &Chunk.GetEntityArrayElementRef(EntityListOffsetWithinChunk, EntityRange.SubchunkStart);
-		const int32 EntitesBeingMovedStartIndex = OutEntitesBeingMoved.Num();
-		OutEntitesBeingMoved.Append(DyingEntityPtr, EntityRange.Length);
+		OutEntitiesBeingMoved.Append(DyingEntityPtr, EntityRange.Length);
 
 		FMassArchetypeEntityCollection::FArchetypeEntityRange ResultSubChunk;
 		ResultSubChunk.ChunkIndex = 0;
@@ -1068,7 +1067,7 @@ void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetyp
 
 	// Sorting the subchunks info so that subchunks of a given chunk are processed "from the back". Otherwise removing 
 	// a subchunk from the front of the chunk would inevitably invalidate following subchunks' information.
-	// Note that we do this after already having added the entities to the new archetype to preserve the order of entites 
+	// Note that we do this after already having added the entities to the new archetype to preserve the order of entities 
 	// as given by the input data.
 	Subchunks.Sort([](const FMassArchetypeEntityCollection::FArchetypeEntityRange& A, const FMassArchetypeEntityCollection::FArchetypeEntityRange& B)
 	{
@@ -1080,9 +1079,9 @@ void FMassArchetypeData::BatchMoveEntitiesToAnotherArchetype(const FMassArchetyp
 		BatchRemoveEntitiesInternal(Subchunk.ChunkIndex, Subchunk.SubchunkStart, Subchunk.Length);
 	}
 
-	for (int i = InitialOutEntitiesCount; i < OutEntitesBeingMoved.Num(); ++i)
+	for (int i = InitialOutEntitiesCount; i < OutEntitiesBeingMoved.Num(); ++i)
 	{
-		EntityMap.FindAndRemoveChecked(OutEntitesBeingMoved[i].Index);
+		EntityMap.FindAndRemoveChecked(OutEntitiesBeingMoved[i].Index);
 	}
 }
 
