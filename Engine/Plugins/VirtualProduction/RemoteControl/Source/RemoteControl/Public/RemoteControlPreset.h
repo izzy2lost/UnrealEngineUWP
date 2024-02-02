@@ -131,6 +131,18 @@ struct REMOTECONTROL_API FExposedFunction
 };
 
 /**
+ * Temporarily prevent Remote Control Presets from renewing it's guids during duplicate operation.
+ */
+struct REMOTECONTROL_API FRCPresetGuidRenewGuard
+{
+	FRCPresetGuidRenewGuard();
+	~FRCPresetGuidRenewGuard();
+		
+private:
+	bool bPreviousValue;
+};
+
+/**
  * Represents a group of field and offers operations to operate on the fields inside of that group.
  */
 USTRUCT()

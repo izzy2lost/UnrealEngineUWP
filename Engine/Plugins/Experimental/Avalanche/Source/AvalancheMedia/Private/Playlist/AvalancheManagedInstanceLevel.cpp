@@ -52,8 +52,11 @@ FAvalancheManagedInstanceLevel::FAvalancheManagedInstanceLevel(FAvalancheManaged
 		return;
 	}
 
-	// Remark: using PIE duplication mode to avoid entity and controller Ids from being renewed.
-	ManagedAvalancheLevel = Cast<UWorld>(StaticDuplicateObject(SourceAvalancheLevel, ManagedAvalancheLevelPackage.Get(), NAME_None, RF_NoFlags, nullptr, EDuplicateMode::PIE));
+	{
+		FRCPresetGuidRenewGuard PresetGuidRenewGuard;
+		ManagedAvalancheLevel = Cast<UWorld>(StaticDuplicateObject(SourceAvalancheLevel, ManagedAvalancheLevelPackage.Get()));
+	}
+	
 	if (!ManagedAvalancheLevel)
 	{
 		UE_LOG(LogAvaMedia, Error, TEXT("Unable to duplicate Source Motion Design Level: %s"), *InAssetPath.ToString());
