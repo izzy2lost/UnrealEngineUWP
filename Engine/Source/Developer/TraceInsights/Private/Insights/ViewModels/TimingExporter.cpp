@@ -733,12 +733,20 @@ int32 FTimingExporter::ExportTimerStatisticsAsText(const FString& Filename, FExp
 	FStopwatch Stopwatch;
 	Stopwatch.Start();
 
-	TraceServices::Table2Csv(*StatsTable, *Filename);
+	bool bSuccess = TraceServices::Table2Csv(*StatsTable, *Filename);
 
 	Stopwatch.Stop();
 	const double TotalTime = Stopwatch.GetAccumulatedTime();
-	UE_LOG(TraceInsights, Log, TEXT("Exported timing statistics to file in %.3fs (\"%s\")."), TotalTime, *Filename);
-	return 1;
+
+	if (bSuccess)
+	{
+		UE_LOG(TraceInsights, Log, TEXT("Exported timing statistics to file in %.3fs (\"%s\")."), TotalTime, *Filename);
+	}
+	else
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Failed to write the CSV file (\"%s\")!"), *Filename);
+	}
+	return bSuccess ? 1 : -2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
