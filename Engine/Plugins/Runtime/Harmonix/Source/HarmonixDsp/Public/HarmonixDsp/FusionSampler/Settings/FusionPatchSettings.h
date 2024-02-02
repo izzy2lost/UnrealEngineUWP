@@ -79,16 +79,5 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	FModulatorSettingsArray VelocityModulators;
-	
-	UPROPERTY()
-	FDelaySettings Delay_DEPRECATED;
 
-	UPROPERTY()
-	FDistortionSettingsV1 Distortion_DEPRECATED;
-
-	UPROPERTY()
-	FBitCrusherSettings BitCrusher_DEPRECATED;
-
-	UPROPERTY()
-	FVocoderSettings Vocoder_DEPRECATED;
 };
