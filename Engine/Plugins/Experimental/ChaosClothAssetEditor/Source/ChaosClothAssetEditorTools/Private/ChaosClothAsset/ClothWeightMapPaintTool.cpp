@@ -521,6 +521,35 @@ void UClothEditorWeightMapPaintTool::InitializeBrushSizeRange(const UE::Geometry
 	CalculateBrushRadius();
 }
 
+void UClothEditorWeightMapPaintTool::NextBrushModeAction()
+{
+	constexpr uint8 NumCyclableBrushes = 2;		// Don't cycle to the hidden Erase brush
+	FilterProperties->PrimaryBrushType = static_cast<EClothEditorWeightMapPaintBrushType>((static_cast<uint8>(FilterProperties->PrimaryBrushType) + 1) % NumCyclableBrushes);
+}
+
+void UClothEditorWeightMapPaintTool::PreviousBrushModeAction()
+{
+	constexpr uint8 NumCyclableBrushes = 2;		// Don't cycle to the hidden Erase brush
+	const uint8 CurrentBrushType = static_cast<uint8>(FilterProperties->PrimaryBrushType);
+	const uint8 NewBrushType = CurrentBrushType == 0 ? NumCyclableBrushes - 1 : (CurrentBrushType - 1) % NumCyclableBrushes;
+	FilterProperties->PrimaryBrushType = static_cast<EClothEditorWeightMapPaintBrushType>(NewBrushType);
+}
+
+void UClothEditorWeightMapPaintTool::IncreaseBrushSpeedAction()		// Actually increases AttributeValue
+{
+	const double CurrentValue = FilterProperties->AttributeValue;
+	FilterProperties->AttributeValue = FMath::Clamp(CurrentValue + 0.05, 0.0, 1.0);
+	NotifyOfPropertyChangeByTool(FilterProperties);
+}
+
+void UClothEditorWeightMapPaintTool::DecreaseBrushSpeedAction()		// Actually decreases AttributeValue
+{
+	const double CurrentValue = FilterProperties->AttributeValue;
+	FilterProperties->AttributeValue = FMath::Clamp(CurrentValue - 0.05, 0.0, 1.0);
+	NotifyOfPropertyChangeByTool(FilterProperties);
+}
+
+
 void UClothEditorWeightMapPaintTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
 {
 	ClothEditorContextObject = InClothEditorContextObject;
@@ -576,6 +605,34 @@ void UClothEditorWeightMapPaintTool::RegisterActions(FInteractiveToolActionSet& 
 		LOCTEXT("PickWeightValueUnderCursorTooltip", "Set the active weight painting value to that currently under the cursor"),
 		EModifierKey::Shift, EKeys::G,
 		[this]() { bPendingPickWeight = true; });
+
+
+	// E/W are overridden to decrease/increase the AttributeValue property. Use shift-E/shift-W to increment by smaller amount
+
+	ActionSet.RegisterAction(this, (int32)EStandardToolActions::BaseClientDefinedActionID + 503,
+		TEXT("WeightMapPaintIncreaseValueSmallStep"),
+		LOCTEXT("WeightMapPaintIncreaseValueSmallStep", "Increase Value"),
+		LOCTEXT("WeightMapPaintIncreaseValueSmallStepTooltip", "Increase Value (small increment)"),
+		EModifierKey::Shift, EKeys::E,
+		[this]()
+		{
+			const double CurrentValue = FilterProperties->AttributeValue;
+			FilterProperties->AttributeValue = FMath::Clamp(CurrentValue + 0.005, 0.0, 1.0);
+			NotifyOfPropertyChangeByTool(FilterProperties);
+		});
+
+	ActionSet.RegisterAction(this, (int32)EStandardToolActions::BaseClientDefinedActionID + 504,
+		TEXT("WeightMapPaintDecreaseValueSmallStep"),
+		LOCTEXT("WeightMapPaintDecreaseValueSmallStep", "Decrease Value"),
+		LOCTEXT("WeightMapPaintDecreaseValueSmallStepTooltip", "Decrease Value (small increment)"),
+		EModifierKey::Shift, EKeys::W,
+		[this]()
+		{
+			const double CurrentValue = FilterProperties->AttributeValue;
+			FilterProperties->AttributeValue = FMath::Clamp(CurrentValue - 0.005, 0.0, 1.0);
+			NotifyOfPropertyChangeByTool(FilterProperties);
+		});
+
 };
 
 
@@ -2145,7 +2202,16 @@ void UClothEditorWeightMapPaintTool::UpdateSubToolType(EClothEditorWeightMapPain
 
 void UClothEditorWeightMapPaintTool::UpdateBrushType(EClothEditorWeightMapPaintBrushType BrushType)
 {
-	static const FText BaseMessage = LOCTEXT("OnStartTool", "Hold Shift to Erase. [/] and S/D change Size (+Shift to small-step)");
+	FText BaseMessage;
+	if (BrushType == EClothEditorWeightMapPaintBrushType::Paint)
+	{
+		BaseMessage = LOCTEXT("OnStartTool", "Hold Shift to Erase. Use [/] and S/D keys to change brush size (+Shift to small-step). W/E to change Value (+Shift to small-step). Shift-G to get current Value under cursor. Q/A to cycle through brush modes.");
+	}
+	else if (BrushType == EClothEditorWeightMapPaintBrushType::Smooth)
+	{
+		BaseMessage = LOCTEXT("OnStartTool", "Hold Shift to Erase. Use [/] and S/D keys to change brush size (+Shift to small-step). Q/A to cycle through brush modes.");
+	}
+
 	FTextBuilder Builder;
 	Builder.AppendLine(BaseMessage);
 
