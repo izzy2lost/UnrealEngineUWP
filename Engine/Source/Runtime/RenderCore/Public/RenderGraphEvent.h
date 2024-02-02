@@ -288,7 +288,6 @@ struct FRDGScope
 	FStorage Impl;
 
 #if RDG_ENABLE_TRACE
-	uint32 Depth = 0;
 	bool bVisited = false;
 #endif
 
