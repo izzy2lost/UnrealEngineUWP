@@ -178,6 +178,7 @@ public:
 	static HEADMOUNTEDDISPLAY_API FName LeftHandSourceId;
 	static HEADMOUNTEDDISPLAY_API FName RightHandSourceId;
 	static HEADMOUNTEDDISPLAY_API FName HMDSourceId;
+	static HEADMOUNTEDDISPLAY_API FName HeadSourceId; // Note Head and HMD are interchangable.  HMD is the legacy term.
 
 	static HEADMOUNTEDDISPLAY_API bool GetHandEnumForSourceName(const FName Source, EControllerHand& OutHand);
 };
