@@ -42,17 +42,6 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "LiveLinkHub",
-			"Type": "EditorAndProgram",
-			"ProgramAllowList": [ "LiveLinkHub" ],
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "LiveLinkHubEditor",
-			"Type": "Editor",
-			"LoadingPhase": "Default"
-		},
-		{
 			"Name": "LiveLinkComponents",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
@@ -83,12 +72,6 @@
 			"Name": "LiveLinkMultiUser",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "PostEngineInit"
-		},
-		{
-			"Name": "LiveLinkHubMessaging",
-			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"ProgramAllowList": [ "LiveLinkHub" ]
 		}
 	]
 }
