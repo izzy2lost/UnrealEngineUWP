@@ -3203,6 +3203,7 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 
 			PCGComponent->CurrentEditingMode = SourceComponent->CurrentEditingMode;
 			PCGComponent->PreviousEditingMode = SourceComponent->PreviousEditingMode;
+			PCGComponent->DynamicallyTrackedKeysToSettings = SourceComponent->DynamicallyTrackedKeysToSettings;
 #endif // WITH_EDITOR
 
 			// Non-critical but should be done: transient data, tracked actors cache, landscape tracking
