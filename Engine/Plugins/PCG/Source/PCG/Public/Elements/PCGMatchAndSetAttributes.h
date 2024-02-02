@@ -11,7 +11,6 @@
 
 // Defined in the cpp file
 class FPCGMatchAndSetPartition;
-class UPCGPointData;
 
 struct FPCGMatchAndSetAttributesExecutionState
 {
@@ -22,9 +21,9 @@ struct FPCGMatchAndSetAttributesExecutionState
 
 struct FPCGMatchAndSetAttributesIterationState
 {
-	int CurrentPointIndex = 0;
-	const UPCGPointData* InPointData = nullptr;
-	UPCGPointData* OutPointData = nullptr;
+	int CurrentIndex = 0;
+	const UPCGData* InData = nullptr;
+	UPCGData* OutData = nullptr;
 };
 
 UENUM()
@@ -54,6 +53,7 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Metadata; }
+	virtual bool HasDynamicPins() const { return true; }
 #endif // WITH_EDITOR
 	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGPinConstants::DefaultInputLabel; }
 
