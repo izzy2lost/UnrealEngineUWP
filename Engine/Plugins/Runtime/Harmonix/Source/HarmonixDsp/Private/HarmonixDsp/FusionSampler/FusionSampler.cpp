@@ -913,17 +913,17 @@ void FFusionSampler::ResetPatchRelatedState()
 		AdsrSettings[Idx].ResetToDefaults();
 	}
 
-	AdsrSettings.Volume.IsEnabled = true;
-	AdsrSettings.Volume.Target = EAdsrTarget::Volume;
-	AdsrSettings.Assignable.IsEnabled = false;
-	AdsrSettings.Assignable.Target = EAdsrTarget::None;
+	AdsrSettings.Volume().IsEnabled = true;
+	AdsrSettings.Volume().Target = EAdsrTarget::Volume;
+	AdsrSettings.Assignable().IsEnabled = false;
+	AdsrSettings.Assignable().Target = EAdsrTarget::None;
 
 	// set up the default Lfo settings
-	LfoSettings.Pan.ResetToDefaults();
-	LfoSettings.Pitch.ResetToDefaults();
+	LfoSettings.Pan().ResetToDefaults();
+	LfoSettings.Pitch().ResetToDefaults();
 
-	LfoSettings.Pan.Target = ELfoTarget::Pan;
-	LfoSettings.Pitch.Target = ELfoTarget::Pitch;
+	LfoSettings.Pan().Target = ELfoTarget::Pan;
+	LfoSettings.Pitch().Target = ELfoTarget::Pitch;
 
 	// set up the default randomizer settings
 	for (uint8 ModulatorIdx = 0; ModulatorIdx < (uint8)EModulatorTarget::Num; ++ModulatorIdx)
@@ -1248,8 +1248,8 @@ void FFusionSampler::PrepareToProcess(uint32 InNumSamples)
 	PortamentoPitchRamper.Ramp();
 	UpdatePitchBendFactor();
 
-	Lfos.Pan.Advance(static_cast<uint32_t>(InNumSamples * Speed));
-	Lfos.Pitch.Advance(static_cast<uint32_t>(InNumSamples * Speed));
+	Lfos.Pan().Advance(static_cast<uint32_t>(InNumSamples * Speed));
+	Lfos.Pitch().Advance(static_cast<uint32_t>(InNumSamples * Speed));
 }
 
 void FFusionSampler::Process(uint32 InSliceIdx, uint32 InSubSliceIdx, TAudioBuffer<float>& Output)
@@ -1437,7 +1437,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 		Min = 0.005f;
 		Max = 2.000f;
 		Range = Max - Min;
-		ValueP = AdsrSettings.Volume.ReleaseTime;
+		ValueP = AdsrSettings.Volume().ReleaseTime;
 		ValueF = ((ValueP - Min) / Range);
 		Msb = (int8)(ValueF * 127.0f);
 		break;
@@ -1448,7 +1448,7 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 		Min = 0.005f;
 		Max = 2.000f;
 		Range = Max - Min;
-		ValueP = AdsrSettings.Volume.AttackTime;
+		ValueP = AdsrSettings.Volume().AttackTime;
 		ValueF = ((ValueP - Min) / Range);
 		Msb = (int8)(ValueF * 127.0f);
 		break;
@@ -1640,14 +1640,14 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 	}
 	case MidiConstants::EControllerID::Release: 
 	{ 
-		AdsrSettings.Volume.ReleaseTime = InValue; 
-		AdsrSettings.Volume.BuildReleaseTable(); 
+		AdsrSettings.Volume().ReleaseTime = InValue; 
+		AdsrSettings.Volume().BuildReleaseTable(); 
 		break; 
 	}
 	case MidiConstants::EControllerID::Attack: 
 	{ 
-		AdsrSettings.Volume.AttackTime = InValue; 
-		AdsrSettings.Volume.BuildAttackTable(); 
+		AdsrSettings.Volume().AttackTime = InValue; 
+		AdsrSettings.Volume().BuildAttackTable(); 
 		break; 
 	}
 	case MidiConstants::EControllerID::PortamentoSwitch: 
@@ -2117,8 +2117,8 @@ void FFusionSampler::UpdateVoiceLfos()
 		// skip voices not assigned to this channel
 		FFusionVoice* Voice = Node->GetValue();
 		check(Voice);
-		Voice->SetupLfo(0, LfoSettings.Pan);
-		Voice->SetupLfo(1, LfoSettings.Pitch);
+		Voice->SetupLfo(0, LfoSettings.Pan());
+		Voice->SetupLfo(1, LfoSettings.Pitch());
 	}
 }
 

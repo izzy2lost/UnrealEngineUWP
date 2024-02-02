@@ -54,9 +54,9 @@ public:
 
 	virtual TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe> GetPitchShifter() const { return PitchShifter;  }
 
-	virtual Harmonix::Dsp::Modulators::EAdsrStage GetAdsrStage() const { return Adsrs.Volume.GetStage(); }
+	virtual Harmonix::Dsp::Modulators::EAdsrStage GetAdsrStage() const { return Adsrs.Volume().GetStage(); }
 
-	uint32 GetAge() const { return Adsrs.Volume.GetAge(); }
+	uint32 GetAge() const { return Adsrs.Volume().GetAge(); }
 	FMidiVoiceId GetVoiceID() const { return VoiceID; }
 	uint8 GetTriggeredMidiNote() const { return TriggeredMidiNote; }
 
