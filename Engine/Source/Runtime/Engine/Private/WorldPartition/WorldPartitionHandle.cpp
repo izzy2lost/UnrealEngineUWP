@@ -57,18 +57,16 @@ FWorldPartitionLoadingContext::IContext* FWorldPartitionLoadingContext::ActiveCo
 
 void FWorldPartitionLoadingContext::LoadAndRegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-#if DO_CHECK
-	FWorldPartitionActorDescInstance::FRegisteringUnregisteringGuard Guard(InActorDescInstance);
-#endif
+	check(!InActorDescInstance->bIsRegisteringOrUnregistering);
+	InActorDescInstance->bIsRegisteringOrUnregistering = true;
 
 	ActiveContext->RegisterActor(InActorDescInstance);
 }
 
 void FWorldPartitionLoadingContext::UnloadAndUnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-#if DO_CHECK
-	FWorldPartitionActorDescInstance::FRegisteringUnregisteringGuard Guard(InActorDescInstance);
-#endif
+	check(!InActorDescInstance->bIsRegisteringOrUnregistering);
+	InActorDescInstance->bIsRegisteringOrUnregistering = true;
 
 	ActiveContext->UnregisterActor(InActorDescInstance);
 }
@@ -93,9 +91,10 @@ FWorldPartitionLoadingContext::IContext::~IContext()
 */
 void FWorldPartitionLoadingContext::FImmediate::RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
+	// Set GIsEditorLoadingPackage to avoid dirtying the Actor package if Modify() is called during the load sequence
 	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
 
-	if (AActor* Actor = InActorDescInstance->Load())
+	if (InActorDescInstance->StartAsyncLoad())
 	{
 		UActorDescContainerInstance* Container = InActorDescInstance->GetContainerInstance();
 		check(Container);
@@ -103,8 +102,14 @@ void FWorldPartitionLoadingContext::FImmediate::RegisterActor(FWorldPartitionAct
 		const FTransform& ContainerTransform = Container->GetTransform();
 		const FTransform* ContainerTransformPtr = ContainerTransform.Equals(FTransform::Identity) ? nullptr : &ContainerTransform;
 
-		Actor->GetLevel()->AddLoadedActor(Actor, ContainerTransformPtr);
+		if (AActor* Actor = InActorDescInstance->GetActor())
+		{
+			Actor->GetLevel()->AddLoadedActor(Actor, ContainerTransformPtr);
+		}
 	}
+
+	check(InActorDescInstance->bIsRegisteringOrUnregistering);
+	InActorDescInstance->bIsRegisteringOrUnregistering = false;
 }
 
 void FWorldPartitionLoadingContext::FImmediate::UnregisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
@@ -123,8 +128,11 @@ void FWorldPartitionLoadingContext::FImmediate::UnregisterActor(FWorldPartitionA
 
 		Actor->GetLevel()->RemoveLoadedActor(Actor, ContainerTransformPtr);
 
-		InActorDescInstance->Unload();
+		InActorDescInstance->MarkUnload();
 	}
+
+	check(InActorDescInstance->bIsRegisteringOrUnregistering);
+	InActorDescInstance->bIsRegisteringOrUnregistering = false;
 }
 
 /**
@@ -148,7 +156,8 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 				ULevel* Level = nullptr;
 				for (FWorldPartitionActorDescInstance* ActorDescInstance : SourceList)
 				{
-					// When cleaning up worlds, actors are already marked as garbage at this point, so no need to remove them from the world
+					// For async loads, the actor loading might have failed for several reasons, this will be handled here.
+					// Also, when cleaning up worlds, actors are already marked as garbage at this point, so no need to remove them from the world.
 					if (AActor* Actor = ActorDescInstance->GetActor(); IsValid(Actor))
 					{
 						ActorList.Add(Actor);
@@ -164,12 +173,19 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 
 			if (ContainerOp.Registrations.Num())
 			{
+				// Set GIsEditorLoadingPackage to avoid dirtying the Actor package if Modify() is called during the load sequence
 				TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
 
 				TArray<AActor*> ActorList;
 				if (ULevel* Level = CreateActorList(ActorList, ContainerOp.Registrations))
 				{
 					Level->AddLoadedActors(ActorList, ContainerTransformPtr);
+				}
+
+				for (FWorldPartitionActorDescInstance* ActorDescInstance : ContainerOp.Registrations)
+				{
+					check(ActorDescInstance->bIsRegisteringOrUnregistering);
+					ActorDescInstance->bIsRegisteringOrUnregistering = false;
 				}
 			}
 
@@ -186,7 +202,9 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 
 				for (FWorldPartitionActorDescInstance* ActorDescInstance : ContainerOp.Unregistrations)
 				{
-					ActorDescInstance->Unload();
+					ActorDescInstance->MarkUnload();
+					check(ActorDescInstance->bIsRegisteringOrUnregistering);
+					ActorDescInstance->bIsRegisteringOrUnregistering = false;
 				}
 			}
 		}
@@ -194,7 +212,6 @@ FWorldPartitionLoadingContext::FDeferred::~FDeferred()
 		// Continue with potentially new registrations/unregistrations that may have happenned during previous cycle
 		LocalContainerInstanceOps = MoveTemp(ContainerInstanceOps);
 	}
-	
 }
 
 void FWorldPartitionLoadingContext::FDeferred::RegisterActor(FWorldPartitionActorDescInstance* InActorDescInstance)
@@ -202,7 +219,7 @@ void FWorldPartitionLoadingContext::FDeferred::RegisterActor(FWorldPartitionActo
 	TGuardValue<bool> IsEditorLoadingPackageGuard(GIsEditorLoadingPackage, true);
 
 	check(InActorDescInstance);
-	if (InActorDescInstance->Load())
+	if (InActorDescInstance->StartAsyncLoad())
 	{
 		UActorDescContainerInstance* Container = InActorDescInstance->GetContainerInstance();
 		check(Container);

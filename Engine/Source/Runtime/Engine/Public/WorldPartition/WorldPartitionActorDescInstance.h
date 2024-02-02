@@ -26,6 +26,7 @@ class FWorldPartitionActorDescInstance
 	friend struct FWorldPartitionActorDescUnitTestAcccessor;
 	friend class UDataLayerManager;
 	friend class UWorldPartition;
+	friend class FWorldPartitionLoadingContext;
 	friend class IWorldPartitionActorLoaderInterface;
 
 protected:
@@ -34,58 +35,58 @@ public:
 	ENGINE_API FWorldPartitionActorDescInstance(UActorDescContainerInstance* InContainerInstance, FWorldPartitionActorDesc* InActorDesc);
 	virtual ~FWorldPartitionActorDescInstance() {}
 
-	virtual const FGuid& GetGuid() const { return GetActorDesc()->GetGuid(); }
-	virtual FTopLevelAssetPath GetBaseClass() const { return GetActorDesc()->GetBaseClass(); }
-	virtual FTopLevelAssetPath GetNativeClass() const { return GetActorDesc()->GetNativeClass(); }
-	virtual UClass* GetActorNativeClass() const { return GetActorDesc()->GetActorNativeClass(); }
+	virtual const FGuid& GetGuid() const { return ActorDesc->GetGuid(); }
+	virtual FTopLevelAssetPath GetBaseClass() const { return ActorDesc->GetBaseClass(); }
+	virtual FTopLevelAssetPath GetNativeClass() const { return ActorDesc->GetNativeClass(); }
+	virtual UClass* GetActorNativeClass() const { return ActorDesc->GetActorNativeClass(); }
 	
-	virtual FName GetRuntimeGrid() const { return GetActorDesc()->GetRuntimeGrid(); }
-	virtual bool GetIsSpatiallyLoaded() const { return !GetForceNonSpatiallyLoaded() && GetActorDesc()->GetIsSpatiallyLoaded(); }
-	virtual bool GetActorIsEditorOnly() const { return GetActorDesc()->GetActorIsEditorOnly(); }
-	virtual bool GetActorIsRuntimeOnly() const { return GetActorDesc()->GetActorIsRuntimeOnly(); }
+	virtual FName GetRuntimeGrid() const { return ActorDesc->GetRuntimeGrid(); }
+	virtual bool GetIsSpatiallyLoaded() const { return !GetForceNonSpatiallyLoaded() && ActorDesc->GetIsSpatiallyLoaded(); }
+	virtual bool GetActorIsEditorOnly() const { return ActorDesc->GetActorIsEditorOnly(); }
+	virtual bool GetActorIsRuntimeOnly() const { return ActorDesc->GetActorIsRuntimeOnly(); }
 	ENGINE_API virtual bool IsRuntimeRelevant() const;
 	ENGINE_API virtual bool IsEditorRelevant() const;
 
-	virtual bool IsUsingDataLayerAsset() const { return GetActorDesc()->IsUsingDataLayerAsset(); }
-	virtual TArray<FName> GetDataLayers() const { return GetActorDesc()->GetDataLayers(); }
+	virtual bool IsUsingDataLayerAsset() const { return ActorDesc->IsUsingDataLayerAsset(); }
+	virtual TArray<FName> GetDataLayers() const { return ActorDesc->GetDataLayers(); }
 
-	virtual bool GetActorIsHLODRelevant() const { return GetActorDesc()->GetActorIsHLODRelevant(); }
-	virtual FSoftObjectPath GetHLODLayer() const { return GetActorDesc()->GetHLODLayer(); }
+	virtual bool GetActorIsHLODRelevant() const { return ActorDesc->GetActorIsHLODRelevant(); }
+	virtual FSoftObjectPath GetHLODLayer() const { return ActorDesc->GetHLODLayer(); }
 
-	virtual const TArray<FName>& GetTags() const { return GetActorDesc()->GetTags(); }
-	virtual FName GetActorPackage() const { return GetActorDesc()->GetActorPackage(); }
+	virtual const TArray<FName>& GetTags() const { return ActorDesc->GetTags(); }
+	virtual FName GetActorPackage() const { return ActorDesc->GetActorPackage(); }
 	ENGINE_API virtual FSoftObjectPath GetActorSoftPath() const;
-	virtual FName GetActorLabel() const { return GetActorDesc()->GetActorLabel(); }
+	virtual FName GetActorLabel() const { return ActorDesc->GetActorLabel(); }
 	ENGINE_API virtual FName GetActorName() const;
-	virtual FName GetFolderPath() const { return GetActorDesc()->GetFolderPath(); }
-	virtual const FGuid& GetFolderGuid() const { return GetActorDesc()->GetFolderGuid(); }
+	virtual FName GetFolderPath() const { return ActorDesc->GetFolderPath(); }
+	virtual const FGuid& GetFolderGuid() const { return ActorDesc->GetFolderGuid(); }
 
-	virtual FBox GetEditorBounds() const { return GetActorDesc()->GetEditorBounds(); }
-	virtual FBox GetRuntimeBounds() const { return GetActorDesc()->GetRuntimeBounds(); }
+	virtual FBox GetEditorBounds() const { return ActorDesc->GetEditorBounds(); }
+	virtual FBox GetRuntimeBounds() const { return ActorDesc->GetRuntimeBounds(); }
 
-	virtual bool GetProperty(FName PropertyName, FName* PropertyValue) const { return GetActorDesc()->GetProperty(PropertyName, PropertyValue); }
-	virtual bool HasProperty(FName PropertyName) const { return GetActorDesc()->HasProperty(PropertyName); }
+	virtual bool GetProperty(FName PropertyName, FName* PropertyValue) const { return ActorDesc->GetProperty(PropertyName, PropertyValue); }
+	virtual bool HasProperty(FName PropertyName) const { return ActorDesc->HasProperty(PropertyName); }
 
-	virtual const TArray<FGuid>& GetReferences() const { return GetActorDesc()->GetReferences(); }
-	virtual const TArray<FGuid>& GetEditorOnlyReferences() const { return GetActorDesc()->GetEditorOnlyReferences(); }
-	virtual bool IsEditorOnlyReference(const FGuid& ReferenceGuid) const { return GetActorDesc()->IsEditorOnlyReference(ReferenceGuid); }
+	virtual const TArray<FGuid>& GetReferences() const { return ActorDesc->GetReferences(); }
+	virtual const TArray<FGuid>& GetEditorOnlyReferences() const { return ActorDesc->GetEditorOnlyReferences(); }
+	virtual bool IsEditorOnlyReference(const FGuid& ReferenceGuid) const { return ActorDesc->IsEditorOnlyReference(ReferenceGuid); }
 	
-	virtual const FGuid& GetParentActor() const { return GetActorDesc()->GetParentActor(); }
+	virtual const FGuid& GetParentActor() const { return ActorDesc->GetParentActor(); }
 		
-	virtual FGuid GetContentBundleGuid() const { return GetActorDesc()->GetContentBundleGuid(); }
-	virtual const FSoftObjectPath& GetExternalDataLayerAsset() const { return GetActorDesc()->GetExternalDataLayerAsset(); }
+	virtual FGuid GetContentBundleGuid() const { return ActorDesc->GetContentBundleGuid(); }
+	virtual const FSoftObjectPath& GetExternalDataLayerAsset() const { return ActorDesc->GetExternalDataLayerAsset(); }
 
-	virtual bool IsChildContainerInstance() const { return ChildContainerInstance || GetActorDesc()->IsChildContainerInstance(); }
-	virtual FName GetChildContainerPackage() const { return GetActorDesc()->GetChildContainerPackage(); }
-	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const { return GetActorDesc()->GetChildContainerFilterType(); }
-	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const { return GetActorDesc()->GetChildContainerFilter(); }
-	virtual bool GetChildContainerInstance(FWorldPartitionActorDesc::FContainerInstance& OutContainerInstance) const { return GetActorDesc()->GetChildContainerInstance(this, OutContainerInstance); }
+	virtual bool IsChildContainerInstance() const { return ChildContainerInstance || ActorDesc->IsChildContainerInstance(); }
+	virtual FName GetChildContainerPackage() const { return ActorDesc->GetChildContainerPackage(); }
+	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const { return ActorDesc->GetChildContainerFilterType(); }
+	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const { return ActorDesc->GetChildContainerFilter(); }
+	virtual bool GetChildContainerInstance(FWorldPartitionActorDesc::FContainerInstance& OutContainerInstance) const { return ActorDesc->GetChildContainerInstance(this, OutContainerInstance); }
 			
-	virtual bool IsMainWorldOnly() const { return GetActorDesc()->IsMainWorldOnly(); }
-	virtual bool IsListedInSceneOutliner() const { return GetActorDesc()->IsListedInSceneOutliner(); }
-	virtual const FGuid& GetSceneOutlinerParent() const { return GetActorDesc()->GetSceneOutlinerParent(); }
+	virtual bool IsMainWorldOnly() const { return ActorDesc->IsMainWorldOnly(); }
+	virtual bool IsListedInSceneOutliner() const { return ActorDesc->IsListedInSceneOutliner(); }
+	virtual const FGuid& GetSceneOutlinerParent() const { return ActorDesc->GetSceneOutlinerParent(); }
 			
-	ENGINE_API virtual const FWorldPartitionActorDesc* GetActorDesc() const { check(ActorDesc); return ActorDesc; }
+	inline const FWorldPartitionActorDesc* GetActorDesc() const { return ActorDesc; }
 	
 	virtual bool HasResolvedDataLayerInstanceNames() const { return ResolvedDataLayerInstanceNames.IsSet(); }
 	ENGINE_API virtual const FDataLayerInstanceNames& GetDataLayerInstanceNames() const;
@@ -109,15 +110,16 @@ public:
 
 	inline void SetUnloadedReason(FText* InUnloadedReason) { UnloadedReason = InUnloadedReason; }
 
-	FName GetDisplayClassName() const { return GetActorDesc()->GetDisplayClassName(); }
+	FName GetDisplayClassName() const { return ActorDesc->GetDisplayClassName(); }
 	
 	ENGINE_API const FText& GetUnloadedReason() const;
 		
-	ENGINE_API AActor* Load();
-	ENGINE_API void Unload();
-
 protected:
-	UWorldPartition* GetLoadedChildWorldPartition() const { return GetActorDesc()->GetLoadedChildWorldPartition(this); }
+	ENGINE_API bool StartAsyncLoad();
+	ENGINE_API void FlushAsyncLoad() const;
+	ENGINE_API void MarkUnload();
+
+	UWorldPartition* GetLoadedChildWorldPartition() const { return ActorDesc->GetLoadedChildWorldPartition(this); }
 	ENGINE_API void UpdateActorDesc(FWorldPartitionActorDesc* InActorDesc);
 	void Invalidate();
 		
@@ -166,7 +168,9 @@ protected:
 	mutable uint32								HardRefCount;
 	TOptional<FDataLayerInstanceNames>			ResolvedDataLayerInstanceNames;
 	bool										bIsForcedNonSpatiallyLoaded;
+	bool										bIsRegisteringOrUnregistering;
 	mutable FText*								UnloadedReason;
+	mutable int32								AsyncLoadID;
 
 	// Instancing Path if set
 	TOptional<FSoftObjectPath>					ActorPath;
@@ -175,33 +179,5 @@ protected:
 	FWorldPartitionActorDesc*					ActorDesc;
 
 	TObjectPtr<UActorDescContainerInstance>		ChildContainerInstance;
-
-#if DO_CHECK
-private:
-	struct FRegisteringUnregisteringGuard
-	{
-		FRegisteringUnregisteringGuard(FWorldPartitionActorDescInstance* InActorDescInstance)
-			:ActorDescInstance(InActorDescInstance)
-		{
-			check(!ActorDescInstance->bIsRegisteringOrUnregistering);
-			ActorDescInstance->bIsRegisteringOrUnregistering = true;
-		}
-
-		~FRegisteringUnregisteringGuard()
-		{
-			check(ActorDescInstance->bIsRegisteringOrUnregistering);
-			ActorDescInstance->bIsRegisteringOrUnregistering = false;
-		}
-
-		FRegisteringUnregisteringGuard(const FRegisteringUnregisteringGuard&) = delete;
-		FRegisteringUnregisteringGuard& operator=(const FRegisteringUnregisteringGuard&) = delete;
-
-	private:
-		FWorldPartitionActorDescInstance* ActorDescInstance;
-	};
-	bool bIsRegisteringOrUnregistering = false;
-#endif // DO_CHECK
-
 #endif // WITH_EDITOR
 };
-
