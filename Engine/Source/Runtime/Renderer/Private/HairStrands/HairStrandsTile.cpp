@@ -441,6 +441,7 @@ class FHairTileClearCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FIntPoint, Resolution)
 		SHADER_PARAMETER(FIntPoint, TileCountXY)
+		SHADER_PARAMETER(FIntPoint, ViewRectMin)
 		SHADER_PARAMETER(uint32, TileSize)
 		SHADER_PARAMETER(uint32, TileType)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint2>, TileDataBuffer)
@@ -473,12 +474,15 @@ void AddHairStrandsTileClearPass(
 	FHairStrandsTiles::ETileType TileType,
 	FRDGTextureRef OutTexture)
 {
-	if (!OutTexture || !TileData.IsValid() || TileType == FHairStrandsTiles::ETileType::Count) return;
-	
+	if (!OutTexture || !TileData.IsValid() || TileType == FHairStrandsTiles::ETileType::Count)
+	{
+		return;
+	}
 
 	FHairTileClearCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHairTileClearCS::FParameters>();
 	PassParameters->Resolution = OutTexture->Desc.Extent;
 	PassParameters->TileCountXY = TileData.TileCountXY;
+	PassParameters->ViewRectMin = View.ViewRect.Min;
 	PassParameters->TileSize = TileData.TileSize;
 	PassParameters->TileType = ToIndex(TileType);
 	PassParameters->TileCountBuffer = TileData.TileCountSRV;
