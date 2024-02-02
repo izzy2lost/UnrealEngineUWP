@@ -22,12 +22,9 @@
 	],
 	"Plugins": [
 		{
-			"Name": "MeshModelingToolsetExp",
-			"Enabled": true
-		},
-		{
 			"Name": "ModelingToolsEditorMode",
-			"Enabled": true
+			"Enabled": true,
+			"TargetAllowList": [ "Editor" ]
 		}
 	]
 }
