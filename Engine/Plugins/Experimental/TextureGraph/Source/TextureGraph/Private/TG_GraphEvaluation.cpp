@@ -83,6 +83,11 @@ void FloatToFVector4f_Converter(FTG_Evaluation::VarConverterInfo& Info)
 	Info.OutVar->EditAs<FVector4f>() = FLinearColor(Input, Input, Input);
 }
 
+void FloatToFVector2f_Converter(FTG_Evaluation::VarConverterInfo& Info)
+{
+	auto Input = Info.InVar->GetAs<float>();
+	Info.OutVar->EditAs<FVector2f>() = FVector2f(Input, Input);
+}
 
 void FLinearColorToFVector4f_Converter(FTG_Evaluation::VarConverterInfo& Info)
 {
@@ -93,6 +98,17 @@ void FVector4fToFLinearColor_Converter(FTG_Evaluation::VarConverterInfo& Info)
 {
 	auto Input = Info.InVar->GetAs<FVector4f>();
 	Info.OutVar->EditAs<FLinearColor>() = Input;
+}
+
+void FLinearColorToFVector2f_Converter(FTG_Evaluation::VarConverterInfo& Info)
+{
+	auto Input = Info.InVar->GetAs<FLinearColor>();
+	Info.OutVar->EditAs<FVector2f>() = FVector2f(Input.R, Input.G);
+}
+void FVector4fToFVector2f_Converter(FTG_Evaluation::VarConverterInfo& Info)
+{
+	auto Input = Info.InVar->GetAs<FVector4f>();
+	Info.OutVar->EditAs<FVector2f>() = FVector2f(Input);
 }
 
 
@@ -308,6 +324,32 @@ void FTG_VariantToFVector4f_Converter(FTG_Evaluation::VarConverterInfo& Info)
 	}
 }
 
+
+void FTG_VariantToFVector2f_Converter(FTG_Evaluation::VarConverterInfo& Info)
+{
+	auto Input = Info.InVar->GetAs<FTG_Variant>();
+	auto& Output = Info.OutVar->EditAs<FVector2f>();
+
+	FTG_Variant::EType SourceType = Input.GetType();
+
+	switch (SourceType)
+	{
+	case FTG_Variant::EType::Texture:
+		return;
+		break;
+	case FTG_Variant::EType::Scalar:
+		Output = FVector2f((float)Input.Data.Get<float>());
+		break;
+	case FTG_Variant::EType::Color:
+		Output = FVector2f(Input.Data.Get<FLinearColor>().R, Input.Data.Get<FLinearColor>().G);
+		break;
+	case FTG_Variant::EType::Vector:
+		Output = FVector2f(Input.Data.Get<FVector4f>());
+		break;
+	}
+}
+
+
 void FTG_VariantToFTG_Texture_Converter(FTG_Evaluation::VarConverterInfo& Info)
 {
 	auto Input = Info.InVar->GetAs<FTG_Variant>();
@@ -356,10 +398,15 @@ FTG_Evaluation::ConverterMap FTG_Evaluation::DefaultConverters
 		VAR_CONVERTER(float, FLinearColor, FloatToFLinearColor_Converter),
 		VAR_CONVERTER(float, FVector4f, FloatToFVector4f_Converter),
 		VAR_CONVERTER(float, FTG_Texture, FloatToFTG_Texture_Converter),
+		VAR_CONVERTER(float, FVector2f, FloatToFVector2f_Converter),
+
 		VAR_CONVERTER(FLinearColor, FVector4f, FLinearColorToFVector4f_Converter),
 		VAR_CONVERTER(FLinearColor, FTG_Texture, FLinearColorToFTG_Texture_Converter),
+		VAR_CONVERTER(FLinearColor, FVector2f, FLinearColorToFVector2f_Converter),
+
 		VAR_CONVERTER(FVector4f, FLinearColor, FVector4fToFLinearColor_Converter),
 		VAR_CONVERTER(FVector4f, FTG_Texture, FVector4fToFTG_Texture_Converter),
+		VAR_CONVERTER(FVector4f, FVector2f, FVector4fToFVector2f_Converter),
 
 		VAR_CONVERTER(float, FTG_Variant, FloatToFTG_Variant_Converter),
 		VAR_CONVERTER(FLinearColor, FTG_Variant, FLinearColorToFTG_Variant_Converter),
@@ -380,6 +427,11 @@ FTG_Evaluation::ConverterMap FTG_Evaluation::DefaultConverters
 		VAR_CONVERTER(FTG_Variant.Color, FTG_Texture, FTG_VariantToFTG_Texture_Converter),
 		VAR_CONVERTER(FTG_Variant.Vector, FTG_Texture, FTG_VariantToFTG_Texture_Converter),
 		VAR_CONVERTER(FTG_Variant.Texture, FTG_Texture, FTG_VariantToFTG_Texture_Converter),
+
+		VAR_CONVERTER(FTG_Variant.Scalar, FVector2f, FTG_VariantToFVector2f_Converter),
+		VAR_CONVERTER(FTG_Variant.Color, FVector2f, FTG_VariantToFVector2f_Converter),
+		VAR_CONVERTER(FTG_Variant.Vector, FVector2f, FTG_VariantToFVector2f_Converter),
+
 
 		VAR_CONVERTER_NULL(FTG_Variant.Scalar, FTG_Variant),
 		VAR_CONVERTER_NULL(FTG_Variant.Color, FTG_Variant),

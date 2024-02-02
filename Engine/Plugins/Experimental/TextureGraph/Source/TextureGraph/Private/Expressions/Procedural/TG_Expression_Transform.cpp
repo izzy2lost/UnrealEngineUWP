@@ -49,6 +49,8 @@ void UTG_Expression_Transform::Evaluate(FTG_EvaluationContext* InContext)
 	T_Transform::ColorParameter ColorParam{
 		.FillColor = FillColor,
 		.WrapFilterMode = WrapMode,
+		.MirrorX = MirrorX,
+		.MirrorY = MirrorY,
 		.ShowDebugGrid = ShowDebugGrid
 	};
 

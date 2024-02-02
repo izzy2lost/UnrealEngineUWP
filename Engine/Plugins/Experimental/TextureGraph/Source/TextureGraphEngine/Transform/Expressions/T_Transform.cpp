@@ -61,6 +61,8 @@ TiledBlobPtr T_Transform::Create(MixUpdateCyclePtr Cycle, BufferDescriptor Desir
 		->AddArg(ARG_FLOAT(CellParam.Spacing.X, "SpacingX"))
 		->AddArg(ARG_FLOAT(CellParam.Spacing.Y, "SpacingY"))
 		->AddArg(ARG_FLOAT(float(ColorParam.WrapFilterMode), "FilterMode"))
+		->AddArg(ARG_FLOAT(float(ColorParam.MirrorX), "MirrorX"))
+		->AddArg(ARG_FLOAT(float(ColorParam.MirrorY), "MirrorY"))
 		->AddArg(ARG_FLOAT(ColorParam.ShowDebugGrid, "BlendDebugGrid"))
 		;
 

@@ -23,6 +23,8 @@ float ScaleX;
 float ScaleY;
 
 float FilterMode;
+float MirrorX;
+float MirrorY;
 
 float StaggerX;
 float StaggerY;
@@ -131,15 +133,18 @@ float4 FSH_TransformBlit(float2 uv : TEXCOORD0) : SV_Target0
 	// Eval the cell grid masked  for debug
 	float cellGridMask = CoverageMask * Paint_BoxEdge(spacedCellPos, 0, 1.0, -pixelSize * 0.5, pixelSize * 1.25);
 	
-	
-	
+		
 	// also compute the mask for spacedCell and exclude anything out of the [0,1] box
 	float CellMask = MaskBox(spacedCellPos, 0, 1);
 	CoverageMask *= CellMask;
 	
 	// Finally fetch the source texture
 	float2 fetchPos = spacedCellPos; 
-	fetchPos.y = 1.0 - fetchPos.y;
+	
+	// Apply mirroring to uvs
+	fetchPos.x = lerp(fetchPos.x, 1.0 - fetchPos.x, MirrorX);	
+	fetchPos.y = lerp(1.0 - fetchPos.y, fetchPos.y, MirrorY);
+	
 	float4 SourceColor = float4(0, 0, 0, 1);
 	SourceColor = SourceTexture.Sample(SamplerStates_Linear_Wrap, fetchPos);
 		
