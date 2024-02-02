@@ -492,9 +492,6 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 
 	EPCGChangeType ChangeType = EPCGChangeType::None;
 
-	bool bShouldDisplayAsDisabled = false;
-	bool bShouldDisplayAsHighlighted = false;
-
 	const uint64 NewInactiveMask = (InComponentBeingDebugged && InStackBeingInspected) ? InComponentBeingDebugged->GetNodeInactivePinMask(PCGNode, *InStackBeingInspected) : 0;
 	if (NewInactiveMask != InactiveOutputPinMask)
 	{
@@ -502,31 +499,33 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 		ChangeType |= EPCGChangeType::Cosmetic;
 	}
 
+	// Check top graph for higen enable - subgraphs always inherit higen state from the top graph.
+	const UPCGGraph* TopGraph = InComponentBeingDebugged ? InComponentBeingDebugged->GetGraph() : nullptr;
+	const bool HiGenEnabled = TopGraph && TopGraph->IsHierarchicalGenerationEnabled();
+
+	// Set the inspected grid size - this is used for grid size visualization.
+	uint32 InspectingGridSize = PCGHiGenGrid::UninitializedGridSize();
+	EPCGHiGenGrid InspectingGrid = EPCGHiGenGrid::Uninitialized;
+	if (TopGraph && TopGraph->IsHierarchicalGenerationEnabled())
+	{
+		InspectingGridSize = InComponentBeingDebugged->GetGenerationGridSize();
+		InspectingGrid = InComponentBeingDebugged->GetGenerationGrid();
+	}
+
+	if (InspectedGenerationGrid != InspectingGrid)
+	{
+		InspectedGenerationGrid = InspectingGrid;
+		ChangeType |= EPCGChangeType::Cosmetic;
+	}
+
+	bool bShouldDisplayAsDisabled = false;
 	bool bIsCulled = !PCGEditorGraphNodeBase::ShouldDisplayAsActive(this, InComponentBeingDebugged, InStackBeingInspected);
 
-	const bool HiGenEnabled = Graph->IsHierarchicalGenerationEnabled();
-	const uint32 InspectingGridSize = InComponentBeingDebugged ? InComponentBeingDebugged->GetGenerationGridSize() : PCGHiGenGrid::UninitializedGridSize();
-
 	// Show grid size visualization if higen is enabled and if we're inspecting a specific grid, and we're inspecting a subgraph since subgraphs
-	// execute at the invoked grid level.
+	// execute at the invoked grid level. 
 	if (HiGenEnabled && InStackBeingInspected && InStackBeingInspected->IsCurrentFrameInRootGraph() && InspectingGridSize != PCGHiGenGrid::UninitializedGridSize())
 	{
-		uint32 DefaultGridSize;
-		UPCGSubsystem* Subsystem = UPCGSubsystem::GetActiveEditorInstance();
-		if (Graph->IsHierarchicalGenerationEnabled())
-		{
-			DefaultGridSize = Graph->GetDefaultGridSize();
-		}
-		else if (Subsystem && Subsystem->GetPCGWorldActor())
-		{
-			DefaultGridSize = Subsystem->GetPCGWorldActor()->PartitionGridSize;
-		}
-		else
-		{
-			// Fallback, should not be hit
-			ensure(false);
-			DefaultGridSize = APCGWorldActor::DefaultPartitionGridSize;
-		}
+		const uint32 DefaultGridSize = TopGraph->GetDefaultGridSize();
 		const uint32 NodeGridSize = Graph->GetNodeGenerationGridSize(PCGNode, DefaultGridSize);
 
 		if (NodeGridSize < InspectingGridSize)
@@ -539,11 +538,26 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 		}
 		else if (NodeGridSize > InspectingGridSize)
 		{
-			// If node is on larger grid than current, highlight it to indicate that its data is available for use
-			bShouldDisplayAsHighlighted |= true;
-
 			// We don't know if the node was culled or not on that grid, disable visualization.
 			bIsCulled = false;
+		}
+
+		const EPCGHiGenGrid Grid = PCGHiGenGrid::GridSizeToGrid(NodeGridSize);
+		if (GenerationGrid != Grid)
+		{
+			GenerationGrid = Grid;
+			ChangeType |= EPCGChangeType::Cosmetic;
+		}
+	}
+	else
+	{
+		// If higen is enabled then we are inspecting an invoked subgraph. Display the inspected grid size so that the user still
+		// gets the execution grid information.
+		const EPCGHiGenGrid Grid = HiGenEnabled ? PCGHiGenGrid::GridSizeToGrid(InspectingGridSize) : EPCGHiGenGrid::Uninitialized;
+		if (GenerationGrid != Grid)
+		{
+			GenerationGrid = Grid;
+			ChangeType |= EPCGChangeType::Cosmetic;
 		}
 	}
 
@@ -552,18 +566,11 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 	if (bIsCulled)
 	{
 		bShouldDisplayAsDisabled = true;
-		bShouldDisplayAsHighlighted = false;
 	}
 
 	if (IsDisplayAsDisabledForced() != bShouldDisplayAsDisabled)
 	{
 		SetForceDisplayAsDisabled(bShouldDisplayAsDisabled);
-		ChangeType |= EPCGChangeType::Cosmetic;
-	}
-
-	if (IsHighlighted() != bShouldDisplayAsHighlighted)
-	{
-		SetIsHighlighted(bShouldDisplayAsHighlighted);
 		ChangeType |= EPCGChangeType::Cosmetic;
 	}
 
@@ -765,7 +772,7 @@ FLinearColor UPCGEditorGraphNodeBase::GetNodeBodyTintColor() const
 		}
 	}
 
-	return IsHighlighted() ? GetDefault<UPCGEditorSettings>()->HighlightedNodeBodyTintColor : Super::GetNodeBodyTintColor();
+	return Super::GetNodeBodyTintColor();
 }
 
 FEdGraphPinType UPCGEditorGraphNodeBase::GetPinType(const UPCGPin* InPin)

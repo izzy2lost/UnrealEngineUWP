@@ -51,4 +51,9 @@ namespace PCGEditorStyleConstants
 	const FName Pin_Required = TEXT("PCG.Graph.Pin.Required");
 
 	const FName Node_Overlay_Inactive = TEXT("PCG.Node.Overlay.Inactive");
+
+	const FName Node_Overlay_GridSizeLabel_Active_Border = TEXT("PCG.Node.Overlay.ThisGridSizeLabel.Active.Border");
+
+	const float Node_Overlay_GridSizeLabel_BorderRadius = 11.0f;
+	const float Node_Overlay_GridSizeLabel_BorderStroke = 1.5f;
 }
