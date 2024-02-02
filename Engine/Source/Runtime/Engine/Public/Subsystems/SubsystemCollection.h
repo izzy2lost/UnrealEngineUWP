@@ -23,6 +23,9 @@ public:
 	/** Returns true if collection was already initialized */
 	bool IsInitialized() const { return Outer != nullptr; }
 
+	/** Get the collection BaseType */
+	const UClass* GetBaseType() const { return BaseType; }
+
 	/** 
 	 * Only call from Initialize() of Systems to ensure initialization order
 	 * Note: Dependencies only work within a collection
@@ -66,9 +69,6 @@ protected:
 
 	/** Get a list of Subsystems by type */
 	ENGINE_API const TArray<USubsystem*>& GetSubsystemArrayInternal(UClass* SubsystemClass) const;
-
-	/** Get the collection BaseType */
-	const UClass* GetBaseType() const { return BaseType; }
 
 private:
 	ENGINE_API USubsystem* AddAndInitializeSubsystem(UClass* SubsystemClass);

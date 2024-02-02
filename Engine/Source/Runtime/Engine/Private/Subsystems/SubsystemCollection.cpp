@@ -123,6 +123,8 @@ void FSubsystemCollectionBase::Initialize(UObject* NewOuter)
 		{
 			FSubsystemModuleWatcher::InitializeModuleWatcher();
 		}
+
+		UE_LOG(LogSubsystemCollection, Verbose, TEXT("Initializing subsystem collection for %s with type %s"), *GetNameSafe(NewOuter), *GetNameSafe(BaseType));
 		
 		TGuardValue<bool> PopulatingGuard(bPopulating, true);
 

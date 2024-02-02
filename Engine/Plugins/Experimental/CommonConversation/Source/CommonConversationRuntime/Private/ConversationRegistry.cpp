@@ -160,9 +160,20 @@ UConversationRegistry* UConversationRegistry::GetFromWorld(const UWorld* World)
 
 void UConversationRegistry::Initialize(FSubsystemCollectionBase& Collection)
 {
+	UE_LOG(LogCommonConversationRuntime, Log, TEXT("Initializing UConversationRegistry %s"), *GetPathNameSafe(this));
+
 	Super::Initialize(Collection);
 
-	UGameFeaturesSubsystem::Get().AddObserver(this);
+	if (UGameFeaturesSubsystem* GameFeaturesSubsystem = GEngine ? GEngine->GetEngineSubsystem<UGameFeaturesSubsystem>() : nullptr)
+	{
+		GameFeaturesSubsystem->AddObserver(this);
+	}
+	else
+	{
+		// Logging to track down a crash
+		UClass* ParentClass = this && this->GetClass() ? this->GetClass()->GetSuperClass() : nullptr;
+		UE_LOG(LogCommonConversationRuntime, Error, TEXT("GameFeaturesSubsystem missing during UConversationRegistry::Initialize! Collection class is %s and parent is %s"), *GetPathNameSafe(Collection.GetBaseType()), *GetPathNameSafe(ParentClass));
+	}
 }
 
 void UConversationRegistry::Deinitialize()
