@@ -372,7 +372,7 @@ public:
 	ENGINE_API virtual void AddedToChannelPool() override;
 
 	static ENGINE_API bool CanSubObjectReplicateToClient(
-		APlayerController* PlayerController,
+		const APlayerController* PlayerController,
 		ELifetimeCondition NetCondition,
 		FObjectKey SubObjectKey,
 		const TStaticBitArray<COND_Max>& ConditionMap,
