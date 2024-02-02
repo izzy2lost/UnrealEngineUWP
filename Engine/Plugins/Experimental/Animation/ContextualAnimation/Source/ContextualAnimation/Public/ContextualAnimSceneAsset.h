@@ -326,8 +326,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (GetOptions = "GetRoles"))
 	FName PrimaryRole = NAME_None;
 
+#if WITH_EDITORONLY_DATA
+
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (TitleProperty = "Role"))
 	TArray<FContextualAnimActorPreviewData> OverridePreviewData;
+
+#endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY(EditAnywhere, Category = "Defaults")
 	TArray<FContextualAnimSceneSection> Sections;
