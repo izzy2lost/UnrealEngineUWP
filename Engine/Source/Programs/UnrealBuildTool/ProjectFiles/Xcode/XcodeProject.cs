@@ -161,7 +161,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 		// Location: Can be key of setting entry in .ini, or the full file path
 		// CopyFromFolderIfNotFound: If the file at "Location" does not exist, try to copy the same named file from this folder
-		public MetadataItem(DirectoryReference ProductDirectory, DirectoryReference XcodeProject, ConfigHierarchy Ini, string Location, MetadataMode InMode, DirectoryReference CopyFromFolderIfNotFound)
+		public MetadataItem(DirectoryReference ProductDirectory, DirectoryReference XcodeProject, ConfigHierarchy Ini, string Location, MetadataMode InMode, DirectoryReference? CopyFromFolderIfNotFound)
 		{
 			// no extension means it's a .ini entry
 			if (Path.GetExtension(Location).Length == 0)
@@ -181,7 +181,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			{
 				// Copy from source location if no such file exist
 				// Except UBTGenerated, they will be generated during UBT runs
-				if (!FileReference.Exists(File) && !File.ContainsName("UBTGenerated", 0))
+				if (!FileReference.Exists(File) && !File.ContainsName("UBTGenerated", 0) && CopyFromFolderIfNotFound != null)
 				{
 					FileReference SourceFile = FileReference.Combine(CopyFromFolderIfNotFound, File.GetFileName());
 					if (FileReference.Exists(SourceFile))
@@ -225,6 +225,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 		public Dictionary<MetadataPlatform, MetadataItem> PlistFiles = new();
 		public Dictionary<MetadataPlatform, MetadataItem> EntitlementsFiles = new();
 		public Dictionary<MetadataPlatform, MetadataItem> ShippingEntitlementsFiles = new();
+		public Dictionary<MetadataPlatform, MetadataItem> ProjectPrivacyInfoFiles = new();
 
 		public Metadata(DirectoryReference ProductDirectory, DirectoryReference XcodeProject, ConfigHierarchy Ini, bool bSupportsMac, bool bSupportsIOSOrTVOS, ILogger Logger)
 		{
@@ -263,6 +264,11 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 						MetadataMode.UpdateTemplate,
 						ResourceFolder);
 					}
+
+					ProjectPrivacyInfoFiles[MetadataPlatform.Mac] = new MetadataItem(ProductDirectory, XcodeProject, Ini,
+						"AdditionalPrivacyInfoMac",
+						MetadataMode.UsePremade,
+						null);
 				}
 
 				EntitlementsFiles[MetadataPlatform.MacEditor] = new MetadataItem(ProductDirectory, XcodeProject, Ini,
@@ -296,6 +302,14 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 						"TemplateIOSPlist",
 						MetadataMode.UpdateTemplate,
 						ResourceFolder);
+				}
+
+				if (ProductDirectory != Unreal.EngineDirectory)
+				{
+					ProjectPrivacyInfoFiles[MetadataPlatform.IOS] = new MetadataItem(ProductDirectory, XcodeProject, Ini,
+						"AdditionalPrivacyInfoIOS",
+						MetadataMode.UsePremade,
+						null);
 				}
 
 				EntitlementsFiles[MetadataPlatform.IOS] = new MetadataItem(ProductDirectory, XcodeProject, Ini,
@@ -1520,6 +1534,31 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				if (LaunchImagePath != null)
 				{
 					ResourcesBuildPhase.AddResource(new FileReference(LaunchImagePath));
+				}
+			}
+
+			if (Platform == UnrealTargetPlatform.Mac)
+			{
+				ResourcesBuildPhase.AddFolderResource(DirectoryReference.Combine(Unreal.EngineDirectory, "Build/Mac/Resources/UEMetadata"), "Resources");
+				if (UnrealData.Metadata?.ProjectPrivacyInfoFiles.ContainsKey(MetadataPlatform.Mac) == true)
+				{
+					MetadataItem PrivacyInfo = UnrealData.Metadata.ProjectPrivacyInfoFiles[MetadataPlatform.Mac];
+					if (PrivacyInfo.XcodeProjectRelative != null)
+					{
+						ResourcesBuildPhase.AddResource(FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, PrivacyInfo.XcodeProjectRelative));
+					}
+				}
+			}
+			else if (Platform == UnrealTargetPlatform.IOS || Platform == UnrealTargetPlatform.TVOS || Platform == UnrealTargetPlatform.VisionOS)
+			{
+				ResourcesBuildPhase.AddFolderResource(DirectoryReference.Combine(Unreal.EngineDirectory, "Build/IOS/Resources/UEMetadata"), "Resources");
+				if (UnrealData.Metadata?.ProjectPrivacyInfoFiles.ContainsKey(MetadataPlatform.IOS) == true)
+				{
+					MetadataItem PrivacyInfo = UnrealData.Metadata.ProjectPrivacyInfoFiles[MetadataPlatform.IOS];
+					if (PrivacyInfo.XcodeProjectRelative != null)
+					{
+						ResourcesBuildPhase.AddResource(FileReference.Combine(UnrealData.XcodeProjectFileLocation.ParentDirectory!, PrivacyInfo.XcodeProjectRelative));
+					}
 				}
 			}
 		}

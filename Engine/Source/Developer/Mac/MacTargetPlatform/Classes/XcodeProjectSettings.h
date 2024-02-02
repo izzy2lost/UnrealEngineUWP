@@ -163,4 +163,16 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, config, Category="Code Signing", meta = (EditCondition="bUseModernXcode && bUseAutomaticCodeSigning && bUseAppStoreConnect", DisplayName = "App Store Connect: Key File"))
 	FFilePath AppStoreConnectKeyPath;
+	
+	/**
+	 * The path to the optional PrivacyInfo.xcprivacy file for your project
+	 */
+	UPROPERTY(EditAnywhere, config, Category="Privacy Manifests", meta = (EditCondition="bUseModernXcode", DisplayName = "Mac: Additional Privacy Info"))
+	FFilePath AdditionalPrivacyInfoMac;
+	
+	/**
+	 * The path to the optional PrivacyInfo.xcprivacy file for your project
+	 */
+	UPROPERTY(EditAnywhere, config, Category="Privacy Manifests", meta = (EditCondition="bUseModernXcode", DisplayName = "IOS/TVOS/VisionOS: Additional Privacy Info"))
+	FFilePath AdditionalPrivacyInfoIOS;
 };
