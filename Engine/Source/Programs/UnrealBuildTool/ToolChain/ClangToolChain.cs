@@ -639,6 +639,12 @@ namespace UnrealBuildTool
 			{
 				Arguments.Add("-fno-inline-functions");
 			}
+
+			if (CompilerVersionGreaterOrEqual(12, 0, 0))
+			{
+				// We have 'this' vs nullptr comparisons that get optimized away for newer versions of Clang, which is undesirable until we refactor these checks.
+				Arguments.Add("-fno-delete-null-pointer-checks");
+			}
 		}
 
 		/// <summary>
