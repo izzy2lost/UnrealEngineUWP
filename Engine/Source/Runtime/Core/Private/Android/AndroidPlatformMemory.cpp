@@ -813,3 +813,41 @@ bool FAndroidPlatformMemory::GetLLMAllocFunctions(void*(*&OutAllocFunction)(size
 	return false;
 #endif
 }
+
+#if USING_HW_ADDRESS_SANITISER && PLATFORM_USED_NDK_VERSION_INTEGER >= 26
+
+// Using libc++_static on NDK r26b with HWAsan enabled is not officially supported
+// In practice it does work, but when used with C++ 17 dynamic linker fails to find "_ZnamSt11align_val_t", "_ZnwmSt11align_val_t", "_ZdlPvSt11align_val_t", "_ZdaPvSt11align_val_t" when loading "libUnreal.so".
+// It shouldn't be used by anything on UE side, so providing a stub as a temporary fix.
+
+extern void* operator new(std::size_t Size, std::align_val_t Alignment)
+{
+	void* Result;
+	if (UNLIKELY(posix_memalign(&Result, (std::size_t)Alignment, Size) != 0))
+	{
+		Result = nullptr;
+	}
+	return Result;
+}
+
+extern void* operator new[](std::size_t Size, std::align_val_t Alignment)
+{
+	void* Result;
+	if (UNLIKELY(posix_memalign(&Result, (std::size_t)Alignment, Size) != 0))
+	{
+		Result = nullptr;
+	}
+	return Result;
+}
+
+extern void operator delete(void* Ptr, std::align_val_t)
+{
+	free(Ptr);
+}
+
+extern void operator delete[](void* Ptr, std::align_val_t)
+{
+	free(Ptr);
+}
+
+#endif
