@@ -90,6 +90,8 @@ static int32 ListTocsCommandEntry(const Tool::FContext& Context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+extern FArgumentSet S3Arguments;
+
 static FCommand ListTocsCommand(
 	ListTocsCommandEntry,
 	TEXT("ListTocs"),
@@ -105,17 +107,9 @@ static FCommand ListTocsCommand(
 		TArgument<bool>(TEXT("-BlockSizes"),					TEXT("Write block sizes to JSON file")),
 		TArgument<bool>(TEXT("-BlockHashes"),					TEXT("Add block hash values in JSON")),
 
-		TArgument<FStringView>(TEXT("-Bucket"),					TEXT("AWS bucket name")),
 		TArgument<FStringView>(TEXT("-BucketPrefix"),			TEXT("Bucket path to enumerate")),
 		TArgument<FStringView>(TEXT("-BucketPath"),				TEXT("Alternative way to set Bucket/BucketPrefix")),
-		TArgument<FStringView>(TEXT("-ServiceUrl"),				TEXT("AWS service URL")),
-
-		TArgument<FStringView>(TEXT("-Region"),					TEXT("AWS region code")),
-		TArgument<FStringView>(TEXT("-AccessKey"),				TEXT("AWS access key")),
-		TArgument<FStringView>(TEXT("-SecretKey"),				TEXT("AWS secret key")),
-		TArgument<FStringView>(TEXT("-SessionToken"),			TEXT("AWS session token")),
-		TArgument<FStringView>(TEXT("-CredentialsFile"),		TEXT("AWS credentials file")),
-		TArgument<FStringView>(TEXT("-CredentialsFileKeyName"),	TEXT("AWS credentials to use from file")),
+		S3Arguments,
 	}
 );
 
