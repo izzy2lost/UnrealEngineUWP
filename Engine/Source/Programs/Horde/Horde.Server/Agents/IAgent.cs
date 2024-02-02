@@ -22,6 +22,7 @@ using Horde.Server.Perforce;
 using Horde.Server.Server;
 using Horde.Server.Streams;
 using HordeCommon;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -99,7 +100,7 @@ namespace Horde.Server.Agents
 		/// Constructor
 		/// </summary>
 		/// <param name="workspace">RPC message to construct from</param>
-		public AgentWorkspaceInfo(HordeCommon.Rpc.Messages.AgentWorkspace workspace)
+		public AgentWorkspaceInfo(AgentWorkspace workspace)
 			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method)
 		{
 		}
@@ -162,12 +163,13 @@ namespace Horde.Server.Agents
 		/// <param name="server">The Perforce server</param>
 		/// <param name="credentials">Credentials for the server</param>
 		/// <returns>The RPC message</returns>
-		public HordeCommon.Rpc.Messages.AgentWorkspace ToRpcMessage(IPerforceServer server, PerforceCredentials? credentials)
+		public AgentWorkspace ToRpcMessage(IPerforceServer server, PerforceCredentials? credentials)
 		{
 			// Construct the message
-			HordeCommon.Rpc.Messages.AgentWorkspace result = new()
+			AgentWorkspace result = new AgentWorkspace
 			{
-				ConfiguredCluster = Cluster, ConfiguredUserName = UserName,
+				ConfiguredCluster = Cluster, 
+				ConfiguredUserName = UserName,
 				ServerAndPort = server.ServerAndPort,
 				UserName = credentials?.UserName ?? UserName,
 				Password = credentials?.Password,
@@ -869,14 +871,14 @@ namespace Horde.Server.Agents
 		/// <param name="loadBalancer">The Perforce load balancer</param>
 		/// <param name="workspaceMessages">List of messages</param>
 		/// <returns>The RPC message</returns>
-		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<HordeCommon.Rpc.Messages.AgentWorkspace> workspaceMessages)
+		public static async Task<bool> TryAddWorkspaceMessageAsync(this IAgent agent, AgentWorkspaceInfo workspace, PerforceCluster cluster, PerforceLoadBalancer loadBalancer, IList<AgentWorkspace> workspaceMessages)
 		{
 			// Find a matching server, trying to use a previously selected one if possible
 			string? baseServerAndPort;
 			string? serverAndPort;
 			bool partitioned;
 
-			HordeCommon.Rpc.Messages.AgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
+			AgentWorkspace? existingWorkspace = workspaceMessages.FirstOrDefault(x => x.ConfiguredCluster == workspace.Cluster);
 			if(existingWorkspace != null)
 			{
 				baseServerAndPort = existingWorkspace.BaseServerAndPort;
@@ -916,9 +918,10 @@ namespace Horde.Server.Agents
 			}
 
 			// Construct the message
-			HordeCommon.Rpc.Messages.AgentWorkspace result = new ()
+			AgentWorkspace result = new AgentWorkspace
 			{
-				ConfiguredCluster = workspace.Cluster, ConfiguredUserName = workspace.UserName,
+				ConfiguredCluster = workspace.Cluster, 
+				ConfiguredUserName = workspace.UserName,
 				Cluster = cluster?.Name,
 				BaseServerAndPort = baseServerAndPort,
 				ServerAndPort = serverAndPort,

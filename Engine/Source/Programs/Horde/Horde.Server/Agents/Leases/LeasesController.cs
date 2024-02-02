@@ -14,6 +14,9 @@ using OpenTelemetry.Trace;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
+using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Tasks;
+using Horde.Server.Tasks;
 
 namespace Horde.Server.Agents.Leases
 {
@@ -26,15 +29,17 @@ namespace Horde.Server.Agents.Leases
 	public class LeasesController : HordeControllerBase
 	{
 		readonly AgentService _agentService;
+		readonly IEnumerable<ITaskSource> _taskSources;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 		readonly Tracer _tracer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public LeasesController(AgentService agentService, IOptionsSnapshot<GlobalConfig> globalConfig, Tracer tracer)
+		public LeasesController(AgentService agentService, IEnumerable<ITaskSource> taskSources, IOptionsSnapshot<GlobalConfig> globalConfig, Tracer tracer)
 		{
 			_agentService = agentService;
+			_taskSources = taskSources;
 			_globalConfig = globalConfig;
 			_tracer = tracer;
 		}
@@ -140,6 +145,40 @@ namespace Horde.Server.Agents.Leases
 
 			Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload);
 			return AgentsController.CreateGetAgentLeaseResponse(lease, details, agentRate);
+		}
+
+		/// <summary>
+		/// Gets the protobuf task descriptor  for a lease
+		/// </summary>
+		/// <param name="leaseId">Unique id of the particular lease</param>
+		/// <returns>Lease matching the given id</returns>
+		[HttpGet]
+		[Route("/api/v1/leases/{leaseId}/task")]
+		public async Task<ActionResult<object>> GetLeaseTaskAsync(LeaseId leaseId)
+		{
+			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeaseTasks, User))
+			{
+				return Forbid(LeaseAclAction.ViewLeaseTasks);
+			}
+
+			ILease? lease = await _agentService.GetLeaseAsync(leaseId);
+			if (lease == null)
+			{
+				return NotFound(leaseId);
+			}
+
+			Any any = lease.GetTask();
+
+			object? decoded = null;
+			foreach (ITaskSource taskSource in _taskSources)
+			{
+				if (any.Is(taskSource.Descriptor))
+				{
+					decoded = taskSource.Descriptor.Parser.ParseFrom(any.Value);
+				}
+			}
+
+			return new { type = any.TypeUrl, content = any.Value.ToBase64(), decoded };
 		}
 
 		/// <summary>

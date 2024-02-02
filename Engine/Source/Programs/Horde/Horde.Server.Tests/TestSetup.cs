@@ -346,7 +346,7 @@ namespace Horde.Server.Tests
 		
 		private LeasesController GetLeasesController()
 		{
-			LeasesController controller = new LeasesController(AgentService, GlobalConfigSnapshot, Tracer);
+			LeasesController controller = new LeasesController(AgentService, Array.Empty<ITaskSource>(), GlobalConfigSnapshot, Tracer);
 			controller.ControllerContext = GetControllerContext();
 			return controller;
 		}

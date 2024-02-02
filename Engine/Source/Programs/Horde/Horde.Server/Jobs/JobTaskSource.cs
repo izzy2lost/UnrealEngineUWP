@@ -39,6 +39,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
+using HordeCommon.Rpc.Messages;
 
 namespace Horde.Server.Jobs
 {
@@ -891,7 +892,7 @@ namespace Horde.Server.Jobs
 			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null);
 
-			List<HordeCommon.Rpc.Messages.AgentWorkspace> workspaces = new ();
+			List<AgentWorkspace> workspaces = new ();
 
 			PerforceCluster? cluster = globalConfig.FindPerforceCluster(workspace.Cluster);
 			if (cluster == null)
