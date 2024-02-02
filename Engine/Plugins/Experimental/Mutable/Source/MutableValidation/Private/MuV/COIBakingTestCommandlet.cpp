@@ -8,7 +8,6 @@
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
 #include "HAL/FileManager.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuT/UnrealPixelFormatOverride.h"
 
 

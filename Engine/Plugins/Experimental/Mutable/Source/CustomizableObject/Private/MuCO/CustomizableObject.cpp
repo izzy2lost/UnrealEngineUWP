@@ -180,7 +180,7 @@ bool UCustomizableObject::TryUpdateIsChildObject()
 #if WITH_EDITOR
 bool UCustomizableObject::TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform)
 {
-	const FMutableCachedPlatformData* PlatformData = GetPrivate()->CachedPlatformsData.Find(TargetPlatform->PlatformName());
+	const FMutableCachedPlatformData* PlatformData = CachedPlatformsData.Find(TargetPlatform->PlatformName());
 	if (!PlatformData)
 	{
 		return false;
@@ -241,9 +241,14 @@ void UCustomizableObject::PostLoad()
 }
 
 
-bool UCustomizableObjectPrivate::IsLocked() const
+bool UCustomizableObject::IsLocked() const
 {
-	return bLocked;
+	if (Private)
+	{
+		return Private->bLocked;
+	}
+
+	return false;
 }
 
 
@@ -265,7 +270,7 @@ void UCustomizableObject::Serialize(FArchive& Ar_Asset)
 	else
 	{
 		// Can't remove this or saved customizable objects will fail to load
-		int64 InternalVersion = UCustomizableObjectPrivate::CurrentSupportedVersion;
+		int64 InternalVersion = CurrentSupportedVersion;
 		Ar_Asset << InternalVersion;
 	}
 #else
@@ -332,8 +337,8 @@ void UCustomizableObject::ClearCompiledData(bool bIsCooking)
 	ClothSharedConfigsData.Empty();
 
 #if WITH_EDITORONLY_DATA
-	GetPrivate()->CustomizableObjectPathMap.Empty();
-	GetPrivate()->GroupNodeMap.Empty();
+	CustomizableObjectPathMap.Empty();
+	GroupNodeMap.Empty();
 	Private->ParticipatingObjects.Empty();
 #endif
 
@@ -455,7 +460,7 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 
 void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooking)
 {
-	int32 InternalVersion = UCustomizableObjectPrivate::CurrentSupportedVersion;
+	int32 InternalVersion = CurrentSupportedVersion;
 	MutableCompiledDataStreamHeader Header(InternalVersion, VersionId);
 	MemoryWriter << Header;
 
@@ -540,9 +545,9 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 	MemoryWriter << LODSettings.bLODStreamingEnabled;
 
 	// Editor Only data
-	MemoryWriter << GetPrivate()->bIsCompiledWithOptimization;
-	MemoryWriter << GetPrivate()->CustomizableObjectPathMap;
-	MemoryWriter << GetPrivate()->GroupNodeMap;
+	MemoryWriter << bIsCompiledWithOptimization;
+	MemoryWriter << CustomizableObjectPathMap;
+	MemoryWriter << GroupNodeMap;
 	MemoryWriter << GetPrivate()->ParticipatingObjects;
 }
 
@@ -554,7 +559,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 	MutableCompiledDataStreamHeader Header;
 	MemoryReader << Header;
 
-	if (UCustomizableObjectPrivate::CurrentSupportedVersion == Header.InternalVersion)
+	if (CurrentSupportedVersion == Header.InternalVersion)
 	{
 		// Make sure mutable has been initialised.
 		UCustomizableObjectSystem::GetInstance();
@@ -662,9 +667,9 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 
 		// Editor Only data
 		{
-			MemoryReader << GetPrivate()->bIsCompiledWithOptimization;
-			MemoryReader << GetPrivate()->CustomizableObjectPathMap;
-			MemoryReader << GetPrivate()->GroupNodeMap;
+			MemoryReader << bIsCompiledWithOptimization;
+			MemoryReader << CustomizableObjectPathMap;
+			MemoryReader << GroupNodeMap;
 
 			TMap<FName, FGuid>& ParticipatingObjects = GetPrivate()->ParticipatingObjects;
 			MemoryReader << ParticipatingObjects;
@@ -753,7 +758,7 @@ void UCustomizableObject::LoadCompiledDataFromDisk()
 			AuxMemoryReader << StreamableDataHeader;
 		}
 
-		if (CompiledDataHeader.InternalVersion == UCustomizableObjectPrivate::CurrentSupportedVersion
+		if (CompiledDataHeader.InternalVersion == CurrentSupportedVersion
 			&&
 			CompiledDataHeader.InternalVersion == StreamableDataHeader.InternalVersion 
 			&&
@@ -790,9 +795,9 @@ void UCustomizableObject::CachePlatformData(const ITargetPlatform* InTargetPlatf
 {
 	FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
 
-	check(!GetPrivate()->CachedPlatformsData.Find(PlatformName));
+	check(!CachedPlatformsData.Find(PlatformName));
 
-	FMutableCachedPlatformData& Data = GetPrivate()->CachedPlatformsData.Add(PlatformName);
+	FMutableCachedPlatformData& Data = CachedPlatformsData.Add(PlatformName);
 
 	// Cache CO data and mu::Model
 	FMemoryWriter64 MemoryWriter(Data.ModelData);
@@ -842,7 +847,7 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	check(IsInGameThread());
 
 	// Don't compile objects being compiled
-	if (GetPrivate()->IsLocked())
+	if (IsLocked())
 	{
 		return false;
 	}
@@ -851,7 +856,7 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	if (IsCompiled())
 	{
 		// Show a warning if the compilation was not done with optimizations.
-		if (GetPrivate()->bIsCompiledWithOptimization)
+		if (bIsCompiledWithOptimization)
 		{
 			FString Msg = FString::Printf(TEXT("Warning: Customizable Object [%s] was compiled without optimization."), *GetName());
 			GEngine->AddOnScreenDebugMessage((uint64)((PTRINT)this), 10.0f, FColor::Red, Msg);
@@ -873,7 +878,7 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	}
 
 	// Don't re-compile objects if they failed to compile. 
-	if (GetPrivate()->CompilationState == ECustomizableObjectCompilationState::Failed)
+	if (CompilationState == ECustomizableObjectCompilationState::Failed)
 	{
 		return false;
 	}
@@ -973,13 +978,13 @@ void UCustomizableObject::SaveEmbeddedData(FArchive& Ar)
 {
 	UE_LOG(LogMutable, Verbose, TEXT("Saving embedded data for Customizable Object [%s] now at position %d."), *GetName(), int(Ar.Tell()));
 
-	int32 InternalVersion = Private->GetModel() ? UCustomizableObjectPrivate::CurrentSupportedVersion : -1;
+	int32 InternalVersion = Private->GetModel() ? CurrentSupportedVersion : -1;
 	Ar << InternalVersion;
 
 	if (Private->GetModel())
 	{
 		// General derived flags
-		Ar << GetPrivate()->bDisableTextureStreaming;
+		Ar << bDisableTextureStreaming;
 
 		// Serialize morph data
 		{
@@ -1017,12 +1022,12 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 
 	// If this fails, something went wrong with the packaging: we have data that belongs
 	// to a different version than the code.
-	check(UCustomizableObjectPrivate::CurrentSupportedVersion==InternalVersion);
+	check(CurrentSupportedVersion==InternalVersion);
 
-	if(UCustomizableObjectPrivate::CurrentSupportedVersion == InternalVersion)
+	if(CurrentSupportedVersion == InternalVersion)
 	{
 		// General derived flags
-		Ar << GetPrivate()->bDisableTextureStreaming;
+		Ar << bDisableTextureStreaming;
 
 		// Load morph data
 		{
@@ -1183,15 +1188,9 @@ FString UCustomizableObject::GetStateParameterName(int32 StateIndex, int32 Param
 #if WITH_EDITORONLY_DATA
 void UCustomizableObject::PostCompile()
 {
-	GetPrivate()->PostCompileDelegate.Broadcast();
+	PostCompileDelegate.Broadcast();
 }
 #endif
-
-
-FPostCompileDelegate& UCustomizableObject::GetPostCompileDelegate() const
-{
-	return GetPrivate()->PostCompileDelegate;
-}
 
 
 UCustomizableObjectInstance* UCustomizableObject::CreateInstance()
@@ -1207,6 +1206,11 @@ UCustomizableObjectInstance* UCustomizableObject::CreateInstance()
 	return PreviewInstance;
 }
 
+
+TSharedPtr<mu::Model, ESPMode::ThreadSafe> UCustomizableObject::GetModel() const
+{
+	return Private->GetModel();
+}
 
 #if WITH_EDITOR
 void UCustomizableObject::SetModel(TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model)
@@ -1249,15 +1253,15 @@ int32 UCustomizableObject::GetComponentCount() const
 
 int32 UCustomizableObject::GetParameterCount() const
 {
-	return GetPrivate()->ParameterProperties.Num();
+	return ParameterProperties.Num();
 }
 
 
 EMutableParameterType UCustomizableObject::GetParameterType(int32 ParamIndex) const
 {
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		return GetPrivate()->ParameterProperties[ParamIndex].Type;
+		return ParameterProperties[ParamIndex].Type;
 	}
 	else
 	{
@@ -1270,21 +1274,21 @@ EMutableParameterType UCustomizableObject::GetParameterType(int32 ParamIndex) co
 
 EMutableParameterType UCustomizableObject::GetParameterTypeByName(const FString& Name) const
 {
-	const int* IndexPtr = GetPrivate()->ParameterPropertiesLookupTable.Find(Name);
+	const int* IndexPtr = ParameterPropertiesLookupTable.Find(Name);
 	int Index = IndexPtr ? *IndexPtr : INDEX_NONE;
 
-	if (GetPrivate()->ParameterProperties.IsValidIndex(Index))
+	if (ParameterProperties.IsValidIndex(Index))
 	{
-		return GetPrivate()->ParameterProperties[Index].Type;
+		return ParameterProperties[Index].Type;
 	}
 
 	UE_LOG(LogMutable, Warning, TEXT("Name '%s' does not exist in ParameterProperties lookup table at GetParameterTypeByName at CO %s."), *Name, *GetName());
 
-	for (int32 ParamIndex = 0; ParamIndex < GetPrivate()->ParameterProperties.Num(); ++ParamIndex)
+	for (int32 ParamIndex = 0; ParamIndex < ParameterProperties.Num(); ++ParamIndex)
 	{
-		if (GetPrivate()->ParameterProperties[ParamIndex].Name == Name)
+		if (ParameterProperties[ParamIndex].Name == Name)
 		{
-			return GetPrivate()->ParameterProperties[ParamIndex].Type;
+			return ParameterProperties[ParamIndex].Type;
 		}
 	}
 
@@ -1298,9 +1302,9 @@ static const FString s_EmptyString;
 
 const FString & UCustomizableObject::GetParameterName(int32 ParamIndex) const
 {
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		return GetPrivate()->ParameterProperties[ParamIndex].Name;
+		return ParameterProperties[ParamIndex].Name;
 	}
 	else
 	{
@@ -1318,8 +1322,8 @@ void UCustomizableObject::UpdateParameterPropertiesFromModel(const TSharedPtr<mu
 		mu::ParametersPtr MutableParameters = mu::Model::NewParameters(Model);
 		int paramCount = MutableParameters->GetCount();
 
-		GetPrivate()->ParameterProperties.Reset(paramCount);
-		GetPrivate()->ParameterPropertiesLookupTable.Empty(paramCount);
+		ParameterProperties.Reset(paramCount);
+		ParameterPropertiesLookupTable.Empty(paramCount);
 		for (int paramIndex = 0; paramIndex<paramCount; ++paramIndex)
 		{
 			FMutableModelParameterProperties Data;
@@ -1381,14 +1385,14 @@ void UCustomizableObject::UpdateParameterPropertiesFromModel(const TSharedPtr<mu
 				break;
 			}
 
-			GetPrivate()->ParameterProperties.Add(Data);
-			GetPrivate()->ParameterPropertiesLookupTable.Add(Data.Name, paramIndex);
+			ParameterProperties.Add(Data);
+			ParameterPropertiesLookupTable.Add(Data.Name, paramIndex);
 		}
 	}
 	else
 	{
-		GetPrivate()->ParameterProperties.Empty();
-		GetPrivate()->ParameterPropertiesLookupTable.Empty();
+		ParameterProperties.Empty();
+		ParameterPropertiesLookupTable.Empty();
 	}
 }
 
@@ -1401,9 +1405,9 @@ int32 UCustomizableObject::GetParameterDescriptionCount(const FString& ParamName
 
 int32 UCustomizableObject::GetIntParameterNumOptions(int32 ParamIndex) const
 {
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		return GetPrivate()->ParameterProperties[ParamIndex].PossibleValues.Num();
+		return ParameterProperties[ParamIndex].PossibleValues.Num();
 	}
 	else
 	{
@@ -1416,11 +1420,11 @@ int32 UCustomizableObject::GetIntParameterNumOptions(int32 ParamIndex) const
 
 const FString& UCustomizableObject::GetIntParameterAvailableOption(int32 ParamIndex, int32 K) const
 {
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
 		if (K >= 0 && K < GetIntParameterNumOptions(ParamIndex))
 		{
-			return GetPrivate()->ParameterProperties[ParamIndex].PossibleValues[K].Name;
+			return ParameterProperties[ParamIndex].PossibleValues[K].Name;
 		}
 		else
 		{
@@ -1438,7 +1442,7 @@ const FString& UCustomizableObject::GetIntParameterAvailableOption(int32 ParamIn
 
 int32 UCustomizableObject::FindParameter(const FString& Name) const
 {
-	const int32 * Found = GetPrivate()->ParameterPropertiesLookupTable.Find(Name);
+	const int32 * Found = ParameterPropertiesLookupTable.Find(Name);
 	if (Found == nullptr)
 	{
 		return INDEX_NONE;
@@ -1450,9 +1454,9 @@ int32 UCustomizableObject::FindParameter(const FString& Name) const
 int32 UCustomizableObject::FindIntParameterValue(int32 ParamIndex, const FString& Value) const
 {
 	int32 MinValueIndex = 0;
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		const TArray<FMutableModelParameterValue>& PossibleValues = GetPrivate()->ParameterProperties[ParamIndex].PossibleValues;
+		const TArray<FMutableModelParameterValue>& PossibleValues = ParameterProperties[ParamIndex].PossibleValues;
 		if (PossibleValues.Num())
 		{
 			MinValueIndex = PossibleValues[0].Value;
@@ -1484,9 +1488,9 @@ int32 UCustomizableObject::FindIntParameterValue(int32 ParamIndex, const FString
 
 FString UCustomizableObject::FindIntParameterValueName(int32 ParamIndex, int32 ParamValue) const
 {
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		const TArray<FMutableModelParameterValue> & PossibleValues = GetPrivate()->ParameterProperties[ParamIndex].PossibleValues;
+		const TArray<FMutableModelParameterValue> & PossibleValues = ParameterProperties[ParamIndex].PossibleValues;
 
 		const int32 MinValueIndex = !PossibleValues.IsEmpty() ? PossibleValues[0].Value : 0;
 		ParamValue = ParamValue - MinValueIndex;
@@ -1542,7 +1546,7 @@ float UCustomizableObject::GetFloatParameterDefaultValue(const FString& InParame
 		return FCustomizableObjectFloatParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<mu::Model> Model = GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1562,7 +1566,7 @@ int32 UCustomizableObject::GetIntParameterDefaultValue(const FString& InParamete
 		return FCustomizableObjectIntParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<mu::Model> Model = GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1582,7 +1586,7 @@ bool UCustomizableObject::GetBoolParameterDefaultValue(const FString& InParamete
 		return FCustomizableObjectBoolParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<mu::Model> Model = GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1602,7 +1606,7 @@ FLinearColor UCustomizableObject::GetColorParameterDefaultValue(const FString& I
 		return FCustomizableObjectVectorParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<mu::Model> Model = GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1640,7 +1644,7 @@ FCustomizableObjectProjector UCustomizableObject::GetProjectorParameterDefaultVa
 		return FCustomizableObjectProjectorParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<mu::Model> Model = GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1665,7 +1669,7 @@ FName UCustomizableObject::GetTextureParameterDefaultValue(const FString& InPara
 		return FCustomizableObjectTextureParameterValue::DEFAULT_PARAMETER_VALUE;
 	}
 
-	const TSharedPtr<mu::Model> Model = GetPrivate()->GetModel();
+	const TSharedPtr<mu::Model> Model = GetModel();
 	if (!Model)
 	{
 		checkNoEntry();
@@ -1917,12 +1921,6 @@ FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCooking)
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 
-ECustomizableObjectCompilationState FCustomizableObjectCompilerBase::GetCompilationState() const
-{
-	return ECustomizableObjectCompilationState::None;
-}
-
-
 void UCustomizableObjectBulk::PostLoad()
 {
 	UObject::PostLoad();
@@ -1985,7 +1983,7 @@ void UCustomizableObjectBulk::CookAdditionalFilesOverride(const TCHAR* PackageFi
 	
 	check(CustomizableObject);
 	
-	FMutableCachedPlatformData* PlatformData = CustomizableObject->GetPrivate()->CachedPlatformsData.Find(TargetPlatform->PlatformName());
+	FMutableCachedPlatformData* PlatformData = CustomizableObject->CachedPlatformsData.Find(TargetPlatform->PlatformName());
 	check(PlatformData);
 
 	// Data to serialize in separate files
@@ -2015,7 +2013,7 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 	BulkDataFileNames.Empty();
 	
 	// Split the Streamable data into several separate files and fix up FileIndex and Offset of each StreamableBlock
-	if (TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model = CustomizableObject->GetPrivate()->GetModel())
+	if (TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model = CustomizableObject->GetModel())
 	{
 		const uint64 MaxChunkSize = UCustomizableObjectSystem::GetInstance()->GetMaxChunkSizeForPlatform(TargetPlatform);
 

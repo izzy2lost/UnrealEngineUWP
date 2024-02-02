@@ -6,7 +6,6 @@
 #include "DetailWidgetRow.h"
 #include "IDetailsView.h"
 #include "MuCO/CustomizableObject.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Model.h"
 #include "MuR/Parameters.h"
 #include "MuR/Ptr.h"
@@ -97,9 +96,9 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 	DetailBuilder.HideProperty("PopulationClassTags");
 
 	// Make the tree get automatically updated each time we compile the host CO
-	if (CustomizableObject && !CustomizableObject->GetPrivate()->PostCompileDelegate.IsBoundToObject(this))
+	if (CustomizableObject && !CustomizableObject->PostCompileDelegate.IsBoundToObject(this))
 	{
-		CustomizableObject->GetPrivate()->PostCompileDelegate.AddSP(this, &FCustomizableObjectDetails::UpdateTree);
+		CustomizableObject->PostCompileDelegate.AddSP(this, &FCustomizableObjectDetails::UpdateTree);
 	}
 	
 	// Cache the states defined in the CO
@@ -150,15 +149,15 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 
 void FCustomizableObjectDetails::UpdateTree()
 {
-	if ( CustomizableObject &&  CustomizableObject->GetPrivate()->GetModel() )
+	if ( CustomizableObject &&  CustomizableObject->GetModel() )
 	{
 		RootTreeItems.SetNumUninitialized(0);
-		const uint32 NumElements = CustomizableObject->GetPrivate()->GetModel()->GetStateCount();
+		const uint32 NumElements = CustomizableObject->GetModel()->GetStateCount();
 		for ( uint32 i=0; i<NumElements; ++i )
 		{
 			TSharedPtr<FStateDetailsNode> SlateDetailsNode = MakeShareable( new FStateDetailsNode );
 
-			SlateDetailsNode->Model = CustomizableObject->GetPrivate()->GetModel();
+			SlateDetailsNode->Model = CustomizableObject->GetModel();
 			SlateDetailsNode->StateIndex = i;
 
 			RootTreeItems.Add( SlateDetailsNode );
