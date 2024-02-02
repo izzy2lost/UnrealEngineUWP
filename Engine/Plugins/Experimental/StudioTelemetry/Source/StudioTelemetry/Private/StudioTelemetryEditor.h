@@ -76,6 +76,7 @@ private:
 	FTimerHandle TelemetryHeartbeatTimerHandle;
 	FString EditorMapName;
 	FString PIEMapName;
+	uint32 PIETransitionCount = 0;
 	double SessionStartTime;
 	double AssetOpenStartTime;
 	double TimeToBootEditor;
