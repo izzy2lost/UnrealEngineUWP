@@ -19,7 +19,7 @@ struct AVALANCHETRANSITION_API FAvaTransitionLayerMatchCondition : public FAvaTr
 	using FInstanceDataType = FAvaTransitionLayerMatchConditionInstanceData;
 
 	//~ Begin FAvaTransitionCondition
-	virtual FText GenerateDescription() const override;
+	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
 	//~ End FAvaTransitionCondition
 
 	//~ Begin FStateTreeNodeBase

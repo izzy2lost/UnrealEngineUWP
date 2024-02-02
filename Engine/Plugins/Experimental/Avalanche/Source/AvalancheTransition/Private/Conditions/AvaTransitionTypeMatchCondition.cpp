@@ -6,7 +6,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionTypeMatchCondition"
 
-FText FAvaTransitionTypeMatchCondition::GenerateDescription() const
+FText FAvaTransitionTypeMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("ConditionDescription", "transitioning {0}")
 		, UEnum::GetDisplayValueAsText(TransitionType).ToLower());

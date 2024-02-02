@@ -22,7 +22,7 @@ struct AVALANCHETRANSITION_API FAvaTransitionTypeMatchCondition : public FAvaTra
 	FAvaTransitionTypeMatchCondition() = default;
 
 	//~ Begin FAvaTransitionCondition
-	virtual FText GenerateDescription() const override;
+	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
 	//~ End FAvaTransitionCondition
 
 	//~ Begin FStateTreeNodeBase

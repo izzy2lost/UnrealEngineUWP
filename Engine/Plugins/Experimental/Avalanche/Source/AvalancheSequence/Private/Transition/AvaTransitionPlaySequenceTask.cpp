@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionPlaySequenceTask"
 
-FText FAvaTransitionPlaySequenceTask::GenerateDescription() const
+FText FAvaTransitionPlaySequenceTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	FText DescriptionFormat = LOCTEXT("TaskDescription", "Play {SequenceQueryText} {AdditionalArgs}");
 

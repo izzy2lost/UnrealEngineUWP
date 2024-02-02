@@ -11,7 +11,7 @@ struct AVALANCHE_API FAvaSceneAddTagAttributeTask : public FAvaSceneTask
 	GENERATED_BODY()
 
 	//~ Begin FAvaTransitionTask
-	virtual FText GenerateDescription() const override;
+	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
 	//~ End FAvaTransitionTask
 
 	//~ Begin FStateTreeTaskBase

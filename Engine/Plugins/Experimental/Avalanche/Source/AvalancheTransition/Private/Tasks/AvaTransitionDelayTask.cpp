@@ -5,7 +5,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionDelayTask"
 
-FText FAvaTransitionDelayTask::GenerateDescription() const
+FText FAvaTransitionDelayTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("TaskDescription", "Delay {0} seconds"), FText::AsNumber(Duration));
 }

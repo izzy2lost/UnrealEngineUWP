@@ -2,9 +2,10 @@
 
 #include "AvaTransitionConditionContainerViewModel.h"
 #include "AvaTransitionConditionViewModel.h"
+#include "AvaTransitionNodeContext.h"
+#include "Conditions/AvaTransitionCondition.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeState.h"
-#include "Conditions/AvaTransitionCondition.h"
 #include "ViewModels/AvaTransitionViewModelUtils.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
@@ -28,7 +29,7 @@ namespace UE::AvaTransitionEditor::Private
 		FText ConditionDescription;
 		if (const FAvaTransitionCondition* Condition = InEditorNode.Node.GetPtr<FAvaTransitionCondition>())
 		{
-			ConditionDescription = Condition->GenerateDescription(); 	
+			ConditionDescription = Condition->GenerateDescription(FAvaTransitionNodeContext(InEditorNode.GetInstance()));
 		}
 
 		const UScriptStruct* Struct = InEditorNode.Node.GetScriptStruct();

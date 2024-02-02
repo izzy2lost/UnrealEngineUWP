@@ -12,7 +12,7 @@ struct AVALANCHESEQUENCE_API FAvaTransitionPlaySequenceTask : public FAvaTransit
 	GENERATED_BODY()
 
 	//~ Begin FAvaTransitionTask
-	virtual FText GenerateDescription() const override;
+	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
 	//~ End FAvaTransitionTask
 
 	//~ Begin FAvaTransitionSequenceTaskBase

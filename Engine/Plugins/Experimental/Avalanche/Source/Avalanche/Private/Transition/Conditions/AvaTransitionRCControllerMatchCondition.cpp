@@ -18,7 +18,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionRCControllerMatchCondition"
 
-FText FAvaTransitionRCControllerMatchCondition::GenerateDescription() const
+FText FAvaTransitionRCControllerMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("ConditionDescription", "'{0}' is {1}")
 		, ControllerId.ToText()

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionTaskViewModel.h"
+#include "AvaTransitionNodeContext.h"
 #include "AvaTransitionTreeEditorData.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorStyle.h"
@@ -31,8 +32,8 @@ void FAvaTransitionTaskViewModel::UpdateTaskDescription()
 {
 	TaskDescription = FText::GetEmpty();
 
-	const FInstancedStruct* Node = GetNode();
-	if (!Node)
+	const FStateTreeEditorNode* EditorNode = GetEditorNode();
+	if (!EditorNode)
 	{
 		return;
 	}
@@ -40,7 +41,7 @@ void FAvaTransitionTaskViewModel::UpdateTaskDescription()
 	// Advanced Mode: Show Task Descriptions from the Node Name (Raw) if name not none
 	if (GetSharedData()->GetEditorMode() == EAvaTransitionEditorMode::Advanced)
 	{
-		const FStateTreeNodeBase* Task = Node->GetPtr<FStateTreeNodeBase>();
+		const FStateTreeNodeBase* Task = EditorNode->Node.GetPtr<FStateTreeNodeBase>();
 		if (Task && Task->Name != NAME_None)
 		{
 			TaskDescription = FText::FromName(Task->Name);
@@ -48,12 +49,12 @@ void FAvaTransitionTaskViewModel::UpdateTaskDescription()
 		}
 	}
 
-	if (const FAvaTransitionTask* Task = Node->GetPtr<FAvaTransitionTask>())
+	if (const FAvaTransitionTask* Task = EditorNode->Node.GetPtr<FAvaTransitionTask>())
 	{
-		TaskDescription = Task->GenerateDescription();
+		TaskDescription = Task->GenerateDescription(FAvaTransitionNodeContext(EditorNode->GetInstance()));
 	}
 
-	const UScriptStruct* Struct = Node->GetScriptStruct();
+	const UScriptStruct* Struct = EditorNode->Node.GetScriptStruct();
 	if (Struct && TaskDescription.IsEmpty())
 	{
 		TaskDescription = Struct->GetDisplayNameText();

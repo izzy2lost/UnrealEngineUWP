@@ -20,7 +20,7 @@ struct AVALANCHETRANSITION_API FAvaTransitionStateMatchCondition : public FAvaTr
 	using FInstanceDataType = FAvaTransitionStateMatchConditionInstanceData;
 
 	//~ Begin FAvaTransitionCondition
-	virtual FText GenerateDescription() const override;
+	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
 	//~ End FAvaTransitionCondition
 
 	//~ Begin FStateTreeNodeBase

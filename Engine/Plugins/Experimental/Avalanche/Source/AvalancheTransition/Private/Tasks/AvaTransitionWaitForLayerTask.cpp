@@ -6,7 +6,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionWaitForLayerTask"
 
-FText FAvaTransitionWaitForLayerTask::GenerateDescription() const
+FText FAvaTransitionWaitForLayerTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("TaskDescription", "Wait for others in {0} to finish")
 		, GetLayerQueryText());
