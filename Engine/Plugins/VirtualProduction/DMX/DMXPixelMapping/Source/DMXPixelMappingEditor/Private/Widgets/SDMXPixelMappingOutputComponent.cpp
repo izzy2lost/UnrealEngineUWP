@@ -33,7 +33,7 @@ namespace UE::DMX
 
 		ParentCanvas = InCanvas;
 
-		ParentCanvas->AddSlot()
+		InCanvas->AddSlot()
 			.ZOrder(0)
 			.AutoSize(true)
 			.Alignment(FVector2D::ZeroVector)
@@ -52,7 +52,7 @@ namespace UE::DMX
 	{
 		if (ParentCanvas.IsValid() && Slot)
 		{
-			ParentCanvas->RemoveSlot(Slot->GetWidget());
+			ParentCanvas.Pin()->RemoveSlot(Slot->GetWidget());
 		}
 
 		Slot = nullptr;
