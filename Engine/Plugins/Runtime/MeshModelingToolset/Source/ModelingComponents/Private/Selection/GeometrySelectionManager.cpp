@@ -1019,6 +1019,17 @@ void UGeometrySelectionManager::GetSelectionWorldFrame(FFrame3d& SelectionFrame)
 	}
 }
 
+void UGeometrySelectionManager::GetTargetWorldFrame(FFrame3d& SelectionFrame) const
+{
+	SelectionFrame = FFrame3d();
+	if (HasSelection())
+	{
+		// only handling one target for now
+		//if (ActiveTargetReferences.Num() == 1)
+		TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[0];
+		Target->Selector->GetTargetFrame(SelectionFrame);
+	}
+}
 
 bool UGeometrySelectionManager::HasSelectionForComponent(UPrimitiveComponent* Component) const
 {

@@ -1074,6 +1074,13 @@ void UModelingToolsEditorMode::Enter()
 		{
 			SelectionInteraction->SetActiveDragMode(LastDragMode);
 		}
+
+		EModelingSelectionInteraction_LocalFrameMode LastLocalFrameMode =
+			static_cast<EModelingSelectionInteraction_LocalFrameMode>(ModelingEditorSettings->LastMeshSelectionLocalFrameMode);
+		if ( LastLocalFrameMode == EModelingSelectionInteraction_LocalFrameMode::FromGeometry || LastLocalFrameMode == EModelingSelectionInteraction_LocalFrameMode::FromObject )
+		{
+			SelectionInteraction->SetLocalFrameMode(LastLocalFrameMode);
+		}
 	}
 
 	// initialize SelectionManager w/ active selection

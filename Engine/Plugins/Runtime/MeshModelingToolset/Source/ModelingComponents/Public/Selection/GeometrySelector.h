@@ -398,6 +398,11 @@ public:
 	virtual void GetSelectionFrame(const FGeometrySelection& Selection, UE::Geometry::FFrame3d& SelectionFrameOut, bool bTransformToWorld) = 0;
 
 	/**
+	 * Compute a 3D frame for the Selector's target object
+	 */
+	virtual void GetTargetFrame(UE::Geometry::FFrame3d& SelectionFrameOut) = 0;
+
+	/**
 	 * Accumulate the bounds of the provided Selection in the provided BoundsInOut. BoundsInOut is not cleared.
 	 * @param bTransformToWorld if true each bounded point/element will be transformed to World space before being "contained" in BoundsInOut
 	 */

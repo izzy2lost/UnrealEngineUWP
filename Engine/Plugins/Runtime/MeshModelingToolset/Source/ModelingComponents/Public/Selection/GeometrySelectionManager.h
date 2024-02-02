@@ -302,8 +302,12 @@ public:
 
 	/** @return a world-space bounding box for the active element selection */
 	virtual bool GetSelectionBounds(FGeometrySelectionBounds& BoundsOut) const;
+
 	/** @return a 3D transformation frame suitable for use with the active element selection */
 	virtual void GetSelectionWorldFrame(UE::Geometry::FFrame3d& SelectionFrame) const;
+
+	/** @return a 3D transformation frame suitable for use with the set of active targets */
+	virtual void GetTargetWorldFrame(UE::Geometry::FFrame3d& SelectionFrame) const;
 
 	/** @return true if there is an active IGeometrySelector target for the given Component and it has a non-empty selection */
 	virtual bool HasSelectionForComponent(UPrimitiveComponent* Component) const;

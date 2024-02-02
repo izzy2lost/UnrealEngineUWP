@@ -569,8 +569,13 @@ void FBaseDynamicMeshSelector::GetSelectionFrame(const FGeometrySelection& Selec
 
 	if (bTransformToWorld)
 	{
-		SelectionFrame.Transform(GetLocalToWorldTransform());
+		GetTargetFrame(SelectionFrame);
 	}
+}
+
+void FBaseDynamicMeshSelector::GetTargetFrame(FFrame3d& SelectionFrame)
+{
+	SelectionFrame.Transform(GetLocalToWorldTransform());
 }
 
 void FBaseDynamicMeshSelector::AccumulateSelectionBounds(const FGeometrySelection& Selection, FGeometrySelectionBounds& BoundsInOut, bool bTransformToWorld)
