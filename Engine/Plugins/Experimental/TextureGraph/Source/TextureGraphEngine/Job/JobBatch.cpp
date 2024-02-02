@@ -220,7 +220,7 @@ AsyncJobResultPtr JobBatch::Exec(OnAllJobsDoneCallback callback)
 {
 	check(IsInGameThread());
 
-	/// This Batch is starting to execute ... it will be locked forever (until reset for Mixer Insight)
+	/// This Batch is starting to execute ... it will be locked forever (until reset for TextureGraph Insight)
 	bIsLocked = true;
 
 	SCOPE_CYCLE_COUNTER(STAT_JobBatch_Exec);

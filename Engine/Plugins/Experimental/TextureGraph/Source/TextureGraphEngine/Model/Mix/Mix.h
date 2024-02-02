@@ -3,7 +3,6 @@
 
 #include "CoreMinimal.h" 
 #include "MixInterface.h"
-#include "MixerMeshComponent.h"
 
 #include <memory>
 #include <vector> 
@@ -12,7 +11,6 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMix, All, All);
 
-class UMixerProject;
 class UMixParameters;
 
 class RenderMesh;
@@ -35,17 +33,7 @@ private:
 public:
 	static UMix*						NullMix();
 
-protected:	
-	UPROPERTY()
-	TObjectPtr<UMixerMeshComponent>		MeshComponent;
-
 public:
 	virtual								~UMix() override;
-	
 	virtual void						Update(MixUpdateCyclePtr Cycle) override;
-	
-	//////////////////////////////////////////////////////////////////////////
-	/// Inline Functions
-	//////////////////////////////////////////////////////////////////////////
-	virtual UMixerMeshComponent*		GetMeshComponent() const override { return MeshComponent; }
 };

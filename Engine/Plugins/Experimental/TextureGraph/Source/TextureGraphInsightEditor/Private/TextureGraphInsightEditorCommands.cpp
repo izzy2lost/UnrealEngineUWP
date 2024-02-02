@@ -6,7 +6,7 @@
 
 void FTextureGraphInsightEditorCommands::RegisterCommands()
 {
-	// UI_COMMAND(OpenPluginWindow, "Mixer Insight", "Bring up Mixer Insight window", EUserInterfaceActionType::Button, FInputChord());
+	// UI_COMMAND(OpenPluginWindow, "TextureGraph Insight", "Bring up TextureGraph Insight window", EUserInterfaceActionType::Button, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

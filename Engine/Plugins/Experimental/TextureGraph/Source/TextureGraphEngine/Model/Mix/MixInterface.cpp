@@ -5,8 +5,6 @@
 #include "MixManager.h"
 #include <GameFramework/Actor.h>
 
-#include "MixerMeshComponent.h"
-
 const TMap<FString, FString> UMixInterface::s_uriAlias = UMixInterface::InitURIAlias();
 const TMap<FString, FString> UMixInterface::s_uriAliasDecryptor = UMixInterface::InitURIAliasDecryptor();
 
@@ -111,10 +109,7 @@ UMixSettings* UMixInterface::GetSettings() const
 
 void UMixInterface::SetMesh(RenderMeshPtr MeshObj, int MeshType, FVector Scale, FVector2D Dimension)
 {
-	GetMeshComponent()->SetMesh(MeshObj);
-
 	GetSettings()->SetMesh(MeshObj);
-
 	InvalidateAll();
 }
 

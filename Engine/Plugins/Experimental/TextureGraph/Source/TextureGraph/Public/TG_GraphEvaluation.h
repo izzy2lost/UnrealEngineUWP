@@ -50,7 +50,7 @@ struct TEXTUREGRAPH_API FTG_VarMap
 // 
 struct TEXTUREGRAPH_API FTG_EvaluationContext
 {
-	// The cycle used to call in the concrete Mixer engine system
+	// The cycle used to call in the concrete TextureGraph engine system
 	MixUpdateCyclePtr	Cycle;
 
 	// in and out buckets of vars passed as the arguments to the expression evaluate call
