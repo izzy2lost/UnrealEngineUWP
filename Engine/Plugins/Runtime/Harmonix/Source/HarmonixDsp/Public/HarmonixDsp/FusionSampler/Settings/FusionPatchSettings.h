@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/Containers/EnumArray.h"
 #include "HarmonixDsp/PannerDetails.h"
 #include "HarmonixDsp/Effects/Settings/BiquadFilterSettings.h"
 #include "HarmonixDsp/Effects/Settings/BitCrusherSettings.h"
@@ -67,17 +66,33 @@ public:
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	FBiquadFilterSettings Filter;
+
+	static constexpr int32 kNumAdsrs = 2;
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	FAdsrSettings Adsr[kNumAdsrs];
+
+	static constexpr int32 kNumLfos = 2;
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	FLfoSettings Lfo[kNumLfos];
+
+	static constexpr int32 kNumRandomizers = 2;
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	FModulatorSettings Randomizer[kNumRandomizers];
+
+	static constexpr int32 kNumModulators = 2;
+	UPROPERTY(EditDefaultsOnly, Category = "Settings")
+	FModulatorSettings VelocityModulator[kNumModulators];
 	
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FAdsrSettingsArray Adsrs;
+	UPROPERTY()
+	FAdsrSettingsArray Adsrs_DEPRECATED;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FLfoSettingsArray Lfos;
+	UPROPERTY()
+	FLfoSettingsArray Lfos_DEPRECATED;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FModulatorSettingsArray Randomizers;
+	UPROPERTY()
+	FModulatorSettingsArray Randomizers_DEPRECATED;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FModulatorSettingsArray VelocityModulators;
+	UPROPERTY()
+	FModulatorSettingsArray VelocityModulators_DEPRECATED;
 
 };

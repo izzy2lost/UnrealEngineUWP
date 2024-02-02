@@ -10,6 +10,8 @@ FFusionPatchSettings::FFusionPatchSettings()
 	, MaxVoices(32)
 	, KeyzoneSelectMode(EKeyzoneSelectMode::Layers)
 {
-	Lfos.Pan().Target = ELfoTarget::Pan;
-	Lfos.Pitch().Target = ELfoTarget::Pitch;
+	Adsr[0].Target = EAdsrTarget::Volume;
+	Adsr[1].Target = EAdsrTarget::FilterFreq;
+	Lfo[0].Target = ELfoTarget::Pan;
+	Lfo[1].Target = ELfoTarget::Pitch;
 }

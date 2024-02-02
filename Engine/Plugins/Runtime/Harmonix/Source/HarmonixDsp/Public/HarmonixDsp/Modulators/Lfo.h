@@ -2,7 +2,6 @@
 #pragma once
 
 #include "Math/Interval.h"
-#include "HarmonixDsp/Containers/EnumArray.h"
 #include "HarmonixDsp/Modulators/Settings/LfoSettings.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogHarmonixDsp_Lfo, Log, All);
@@ -101,12 +100,6 @@ private:
 	double CyclesPerSample;
 	float  SecondsPerSample;
 	float  TempoWhenCalculated;
-};
-
-struct FLfoArray : TEnumArray<ELfoIndex, FLfo>
-{
-	ENUM_PROPERTY(Pan);
-	ENUM_PROPERTY(Pitch);
 };
 
 }

@@ -7,7 +7,6 @@
 #include "HarmonixDsp/Effects/BiquadFilter.h"
 
 #include "HarmonixDsp/Modulators/Settings/AdsrSettings.h"
-#include "HarmonixDsp/Modulators/Settings/ModulatorSettings.h"
 #include "HarmonixDsp/Modulators/Modulator.h"
 #include "HarmonixDsp/Modulators/Lfo.h"
 
@@ -306,17 +305,14 @@ private:
 
 	//---------------------------------------------
 	// Modulators
-	FAdsrSettingsArray AdsrSettings;
-
-	FLfoSettingsArray LfoSettings;
-
-	Harmonix::Dsp::Modulators::FLfoArray Lfos;
-
-	Harmonix::Dsp::Modulators::FModulatorArray Randomizers;
-	Harmonix::Dsp::Modulators::FModulatorArray VelocityModulators;
-
-	Harmonix::Dsp::Modulators::FModulator Randomizer[(uint8)EModulatorTarget::Num];
-	Harmonix::Dsp::Modulators::FModulator VelocityModulator[(uint8)EModulatorTarget::Num];
+	FAdsrSettings AdsrVolumeSettings;
+	FAdsrSettings AdsrAssignableSettings;
+	static constexpr int32 kNumLfos = 2;
+	FLfoSettings LfoSettings[kNumLfos];
+	Harmonix::Dsp::Modulators::FLfo Lfos[kNumLfos];
+	static constexpr int32 kNumModulators = 2;
+	Harmonix::Dsp::Modulators::FModulator Randomizers[kNumModulators];
+	Harmonix::Dsp::Modulators::FModulator VelocityModulators[kNumModulators];
 
 	// soft limit, may be over max if some voices are in release stage
 	uint32 MaxNumVoices = 100;

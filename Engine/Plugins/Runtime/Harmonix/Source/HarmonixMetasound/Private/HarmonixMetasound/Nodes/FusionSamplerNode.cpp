@@ -228,13 +228,14 @@ namespace HarmonixMetasound
 
 		void UpdatePatchOverrides()
 		{
+			static_assert(FFusionPatchSettings::kNumLfos == 2);
 			if (*Lfo0RateInPin > 0.0f)
 			{
 				SetController(MidiConstants::LFO0Frequency, *Lfo0RateInPin);
 			}
 			else if (FusionPatchDataPtr)
 			{
-				SetController(MidiConstants::LFO0Frequency, FusionPatchDataPtr->GetSettings().Lfos[0].Freq);
+				SetController(MidiConstants::LFO0Frequency, FusionPatchDataPtr->GetSettings().Lfo[0].Freq);
 			}
 			if (*Lfo0DepthInPin >= 0.0f)
 			{
@@ -242,7 +243,7 @@ namespace HarmonixMetasound
 			}
 			else if (FusionPatchDataPtr)
 			{
-				SetController(MidiConstants::LFO0Depth, FusionPatchDataPtr->GetSettings().Lfos[0].Depth);
+				SetController(MidiConstants::LFO0Depth, FusionPatchDataPtr->GetSettings().Lfo[0].Depth);
 			}
 			if (*Lfo1RateInPin > 0.0f)
 			{
@@ -250,7 +251,7 @@ namespace HarmonixMetasound
 			}
 			else if (FusionPatchDataPtr)
 			{
-				SetController(MidiConstants::LFO1Frequency, FusionPatchDataPtr->GetSettings().Lfos[1].Freq);
+				SetController(MidiConstants::LFO1Frequency, FusionPatchDataPtr->GetSettings().Lfo[1].Freq);
 			}
 			if (*Lfo1DepthInPin >= 0.0f)
 			{
@@ -258,7 +259,7 @@ namespace HarmonixMetasound
 			}
 			else if (FusionPatchDataPtr)
 			{
-				SetController(MidiConstants::LFO1Depth, FusionPatchDataPtr->GetSettings().Lfos[1].Depth);
+				SetController(MidiConstants::LFO1Depth, FusionPatchDataPtr->GetSettings().Lfo[1].Depth);
 			}
 
 			float FineTuneCentsTotal = 0;

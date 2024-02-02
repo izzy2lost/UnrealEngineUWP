@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/Containers/EnumArray.h"
 #include "HarmonixDsp/Modulators/Settings/AdsrSettings.h"
 
 namespace Harmonix::Dsp::Modulators
@@ -175,12 +174,4 @@ private:
 
 	EAdsrMode Mode = EAdsrMode::MinUp;
 };
-
-struct FAdsrArray : TEnumArray<EAdsrIndex, FAdsr>
-{
-public:
-	ENUM_PROPERTY(Volume);
-	ENUM_PROPERTY(Assignable);
-};
-
 }

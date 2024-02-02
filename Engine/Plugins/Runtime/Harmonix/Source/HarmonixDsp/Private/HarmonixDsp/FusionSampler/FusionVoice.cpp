@@ -65,11 +65,13 @@ void FFusionVoice::SetSampleRate(double InSampleRate)
 
 	float fSamplesPerSecond = (float)SamplesPerSecond;
 
-	Adsrs.Assignable().Prepare(fSamplesPerSecond);
-	Adsrs.Volume().Prepare(fSamplesPerSecond);
-	Lfo1.Prepare(fSamplesPerSecond);
-	Lfo2.Prepare(fSamplesPerSecond);
-
+	AdsrAssignable.Prepare(fSamplesPerSecond);
+	AdsrVolume.Prepare(fSamplesPerSecond);
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
+	{
+		Lfo[Idx].Prepare(fSamplesPerSecond);
+	}
+	
 	static float sRampTime = 15.0f;
 	FilterCoefsRamper.SetRampTimeMs(fSamplesPerSecond / AudioRendering::kMicroSliceSize, sRampTime);
 	FilterGainRamper.SetRampTimeMs(fSamplesPerSecond / AudioRendering::kMicroSliceSize, 10.0f);
@@ -110,12 +112,14 @@ bool FFusionVoice::AssignIDs(FFusionSampler* InSampler, const FKeyzoneSettings* 
 	MySampler = InSampler;
 	PitchShifter = Shifter;
 
-	Adsrs.Volume().UseSettings(&(MySampler->AdsrSettings.Volume()));
-	Adsrs.Assignable().UseSettings(&(MySampler->AdsrSettings.Assignable()));
+	AdsrVolume.UseSettings(&(MySampler->AdsrVolumeSettings));
+	AdsrAssignable.UseSettings(&(MySampler->AdsrAssignableSettings));
 	VelocityGain = 0.0f;
 
-	Lfo1.UseSettings(&MySampler->LfoSettings[0]);
-	Lfo2.UseSettings(&MySampler->LfoSettings[1]);
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
+	{
+		Lfo[Idx].UseSettings(&MySampler->LfoSettings[Idx]);
+	}
 
 	SetSampleRate(MySampler->GetSamplesPerSecond());
 
@@ -155,13 +159,9 @@ bool FFusionVoice::AssignIDs(FFusionSampler* InSampler, const FKeyzoneSettings* 
 
 void FFusionVoice::SetupLfo(uint8 Index, const FLfoSettings& InSettings)
 {
-	check(Index < (uint8)ELfoIndex::Num);
+	check(Index < kNumLfos);
 
-	switch (Index)
-	{
-	case 0: Lfo1.UseSettings(&InSettings); break;
-	case 1: Lfo2.UseSettings(&InSettings); break;
-	}
+	Lfo[Index].UseSettings(&InSettings);
 }
 
 void FFusionVoice::Attack()
@@ -170,22 +170,22 @@ void FFusionVoice::Attack()
 	checkSlow(KeyZone);
 	checkSlow(KeyZone->AudioSample);
 
-	Adsrs.Volume().Attack();
-	Adsrs.Assignable().Attack();
+	AdsrVolume.Attack();
+	AdsrAssignable.Attack();
 	bWaitingForAttack = false;
 	bHasRenderedAnySamples = false;
 }
 
 void FFusionVoice::Release()
 {
-	Adsrs.Volume().Release();
-	Adsrs.Assignable().Release();
+	AdsrVolume.Release();
+	AdsrAssignable.Release();
 }
 
 void FFusionVoice::FastRelease()
 {
-	Adsrs.Volume().FastRelease();
-	Adsrs.Assignable().FastRelease();
+	AdsrVolume.FastRelease();
+	AdsrAssignable.FastRelease();
 }
 
 void FFusionVoice::Kill()
@@ -212,8 +212,8 @@ void FFusionVoice::Kill()
 	}
 	PitchShifter = nullptr;
 
-	Adsrs.Volume().Kill();
-	Adsrs.Assignable().Kill();
+	AdsrVolume.Kill();
+	AdsrAssignable.Kill();
 	SamplePos = 0.0f;
 	bWaitingForAttack = false;
 	PitchOffsetCents = 0.0f;
@@ -276,10 +276,12 @@ void FFusionVoice::SetSampler(FFusionSampler* InSampler)
 	}
 
 	MySampler = InSampler;
-	Adsrs.Volume().UseSettings(&MySampler->AdsrSettings.Volume(), false);
-	Adsrs.Assignable().UseSettings(&MySampler->AdsrSettings.Assignable(), false);
-	Lfo1.UseSettings(&MySampler->LfoSettings[0]);
-	Lfo2.UseSettings(&MySampler->LfoSettings[1]);
+	AdsrVolume.UseSettings(&MySampler->AdsrVolumeSettings, false);
+	AdsrAssignable.UseSettings(&MySampler->AdsrAssignableSettings, false);
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
+	{
+		Lfo[Idx].UseSettings(&MySampler->LfoSettings[Idx]);
+	}
 
 	if (ActiveRenderer)
 	{
@@ -427,22 +429,16 @@ void FFusionVoice::PrepareWithPitchOffsetAndGain(double InPitchOffsetCents, floa
 	checkSlow(KeyZone);
 	checkSlow(KeyZone->AudioSample);
 
-	if (Lfo1.GetSettings()->ShouldRetrigger)
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
-		Lfo1.Retrigger();
-	}
-	else
-	{
-		Lfo1.SetPhase(MySampler->Lfos[0].GetPhase());
-	}
-
-	if (Lfo2.GetSettings()->ShouldRetrigger)
-	{
-		Lfo2.Retrigger();
-	}
-	else
-	{
-		Lfo2.SetPhase(MySampler->Lfos[1].GetPhase());
+		if (Lfo[Idx].GetSettings()->ShouldRetrigger)
+		{
+			Lfo[Idx].Retrigger();
+		}
+		else
+		{
+			Lfo[Idx].SetPhase(MySampler->Lfos[Idx].GetPhase());
+		}
 	}
 
 	InPitchOffsetCents = FMath::Clamp(InPitchOffsetCents, -kMaxPitchOffsetCents, kMaxPitchOffsetCents);
@@ -501,13 +497,12 @@ void FFusionVoice::AggregatePansSetTargetAndRamp(float InTotalGain, bool InSnap 
 	}
 
 	float PanOffset = MySampler->PanSettings.GetBasicPan();
-	if (Lfo1.GetSettings()->Target == ELfoTarget::Pan)
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
-		PanOffset += Lfo1.GetValue();
-	}
-	if (Lfo2.GetSettings()->Target == ELfoTarget::Pan)
-	{
-		PanOffset += Lfo2.GetValue();
+		if (Lfo[Idx].GetSettings()->Target == ELfoTarget::Pan)
+		{
+			PanOffset += Lfo[Idx].GetValue();
+		}
 	}
 
 	if (KeyZone->Pan.Mode == EPannerMode::LegacyStereo || KeyZone->Pan.Mode == EPannerMode::Stereo)
@@ -550,7 +545,7 @@ bool FFusionVoice::IsWaitingForAttack() const
 
 bool FFusionVoice::IsInUse() const
 {
-	bool IsAdsrIdle = Adsrs.Volume().GetStage() == Harmonix::Dsp::Modulators::EAdsrStage::Idle;
+	bool IsAdsrIdle = AdsrVolume.GetStage() == Harmonix::Dsp::Modulators::EAdsrStage::Idle;
 	bool IsAudioActive = MaxAudioLevel > 0.0f;
 	return !IsAdsrIdle || IsAudioActive;
 }
@@ -561,19 +556,17 @@ float FFusionVoice::ComputeOctaveShift()
 
 	float OutOctaveShift = 0.0f;
 
-	if (Lfo1.GetSettings()->Target == ELfoTarget::FilterFreq)
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
-		OutOctaveShift += kMaxOctaveSwing * Lfo1.GetValue();
+		if (Lfo[Idx].GetSettings()->Target == ELfoTarget::FilterFreq)
+		{
+			OutOctaveShift += kMaxOctaveSwing * Lfo[Idx].GetValue();
+		}	
 	}
 
-	if (Lfo2.GetSettings()->Target == ELfoTarget::FilterFreq)
+	if (AdsrAssignable.GetSettings()->Target == EAdsrTarget::FilterFreq && AdsrAssignable.GetSettings()->IsEnabled)
 	{
-		OutOctaveShift += kMaxOctaveSwing * Lfo2.GetValue();
-	}
-
-	if (Adsrs.Assignable().GetSettings()->Target == EAdsrTarget::FilterFreq)
-	{
-		OutOctaveShift += 2 * kMaxOctaveSwing * Adsrs.Assignable().GetValue();
+		OutOctaveShift += 2 * kMaxOctaveSwing * AdsrAssignable.GetValue();
 	}
 
 	return OutOctaveShift;
@@ -688,9 +681,11 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 		return 0;
 	}
 
-	Lfo1.Advance(static_cast<uint32> (InMaxNumSamples * InSpeed));
-	Lfo2.Advance(static_cast<uint32> (InMaxNumSamples * InSpeed));
-
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
+	{
+		Lfo[Idx].Advance(static_cast<uint32> (InMaxNumSamples * InSpeed));
+	}
+	
 	// compute the sample increment (ratio of input samples per output sample)
 	// get the base increment and then apply pitch bend and keyzone's fine tuning
 	double ResampleInc = ResampleRate;
@@ -705,14 +700,14 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 		SemiTonesBend += PortaDiffInSemitones;
 	}
 
-	if (Lfo1.GetSettings()->Target == ELfoTarget::Pitch)
+	for (int32 Idx = 0; Idx < kNumLfos; ++Idx)
 	{
-		SemiTonesBend += 2.0 * Lfo1.GetValue();
+		if (Lfo[Idx].GetSettings()->Target == ELfoTarget::Pitch)
+		{
+			SemiTonesBend += 2.0 * Lfo[Idx].GetValue();
+		}
 	}
-	if (Lfo2.GetSettings()->Target == ELfoTarget::Pitch)
-	{
-		SemiTonesBend += 2.0 * Lfo2.GetValue();
-	}
+
 	PitchBend *= FMath::Pow(2.0, SemiTonesBend / 12.0);
 	ResampleInc *= PitchBend;
 	ResampleInc *= KeyZone->FineTuneAdjustment;
@@ -723,7 +718,7 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 	// we should loop (if possible) as long as we are not currently releasing the voice
 	// (This seem hinky to me. Often looping samples DO NOT have a nice exit 
 	// portion after the loop end. In these cases the sample will just stop short. - Buzz)
-	bool IsInReleaseStage = (Adsrs.Volume().GetStage() == EAdsrStage::Release);
+	bool IsInReleaseStage = (AdsrVolume.GetStage() == EAdsrStage::Release);
 
 	// Forcing this to true so that Adsr release actually has samples to work on!
 	bool ShouldHonorLoopPoints = true; // !IsInReleaseStage; 
@@ -869,12 +864,12 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 			// write interpolated sample data into the output buffer
 			{
 				//TIME_BLOCK(fusion_voice_process_filter);
-				Adsrs.Volume().Advance(static_cast<uint32> (NumToProcessThisPass * InSpeed));
-				Adsrs.Assignable().Advance(static_cast<uint32> (NumToProcessThisPass * InSpeed));
+				AdsrVolume.Advance(static_cast<uint32> (NumToProcessThisPass * InSpeed));
+				AdsrAssignable.Advance(static_cast<uint32> (NumToProcessThisPass * InSpeed));
 			}
 
 			WorkingGain.Lerp(PrevGain, Panner.GetCurrentGainMatrix(), (float)NumProcessed / (float)InMaxNumSamples);
-			WorkingGain *= Adsrs.Volume().GetValue();
+			WorkingGain *= AdsrVolume.GetValue();
 
 			{
 				SamplePos = ActiveRenderer->Render(
@@ -947,11 +942,11 @@ uint32 FFusionVoice::Process(uint32 InSliceIndex, uint32 InSubsliceIndex, float*
 	bool IsPortamentoEnabled = MySampler->GetIsPortamentoEnabled(); 
 	// could be processing an oscillating filter
 	bool IsAudioLevelLow = MaxAudioLevel < 0.0001; 
-	bool IsOutOfSampleData = Adsrs.Volume().GetStage() == EAdsrStage::Idle || SamplePos >= EndOfSampleData;
+	bool IsOutOfSampleData = AdsrVolume.GetStage() == EAdsrStage::Idle || SamplePos >= EndOfSampleData;
 
 	if (IsAudioLevelLow && IsOutOfSampleData)
 	{
-		if (!IsPortamentoEnabled || Adsrs.Volume().GetStage() == EAdsrStage::Idle)
+		if (!IsPortamentoEnabled || AdsrVolume.GetStage() == EAdsrStage::Idle)
 		{
 			Kill();
 		}

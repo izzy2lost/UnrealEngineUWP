@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "HarmonixDsp/Containers/EnumArray.h"
-
-#include "HarmonixDsp/Modulators/Settings/ModulatorSettings.h"
+#include "Math/Interval.h"
 
 namespace Harmonix::Dsp::Modulators
 {
@@ -66,14 +64,6 @@ protected:
 	float Depth;
 	float RangeMagnitude;
 	TInterval<float> Range;
-};
-
-struct FModulatorArray : TEnumArray<EModulatorIndex, FModulator>
-{
-public:
-
-	ENUM_PROPERTY(StartPoint);
-	ENUM_PROPERTY(Pitch);
 };
 
 }

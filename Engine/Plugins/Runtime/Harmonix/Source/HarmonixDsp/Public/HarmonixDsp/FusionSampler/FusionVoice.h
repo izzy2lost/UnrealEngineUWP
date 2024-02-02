@@ -54,9 +54,9 @@ public:
 
 	virtual TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe> GetPitchShifter() const { return PitchShifter;  }
 
-	virtual Harmonix::Dsp::Modulators::EAdsrStage GetAdsrStage() const { return Adsrs.Volume().GetStage(); }
+	virtual Harmonix::Dsp::Modulators::EAdsrStage GetAdsrStage() const { return AdsrVolume.GetStage(); }
 
-	uint32 GetAge() const { return Adsrs.Volume().GetAge(); }
+	uint32 GetAge() const { return AdsrVolume.GetAge(); }
 	FMidiVoiceId GetVoiceID() const { return VoiceID; }
 	uint8 GetTriggeredMidiNote() const { return TriggeredMidiNote; }
 
@@ -172,10 +172,10 @@ private:
 
 	TSharedPtr<IStretcherAndPitchShifter, ESPMode::ThreadSafe> PitchShifter = nullptr;
 
-	Harmonix::Dsp::Modulators::FAdsrArray Adsrs;
-	
-	Harmonix::Dsp::Modulators::FLfo Lfo1;
-	Harmonix::Dsp::Modulators::FLfo Lfo2;
+	Harmonix::Dsp::Modulators::FAdsr AdsrVolume;
+	Harmonix::Dsp::Modulators::FAdsr AdsrAssignable;
+	static const int32 kNumLfos = 2;
+	Harmonix::Dsp::Modulators::FLfo Lfo[kNumLfos];
 
 	FPanner Panner;
 
