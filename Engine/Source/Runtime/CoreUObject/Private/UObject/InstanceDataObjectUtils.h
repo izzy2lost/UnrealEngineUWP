@@ -13,6 +13,9 @@ namespace UE
 	class FPropertyBag;
 	class FPropertyPathName;
 
+	// Query if InstanceDataObject are enabled for a specific object, passing in nullptr return if the system itself is enabled
+	bool IsInstanceDataObjectSupportEnabled(UObject* InObject = nullptr);
+
 	// generate a UClass that unions the properties of PropertyBag and TemplateStruct
 	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UClass* OwnerClass, UObject* Outer);
 

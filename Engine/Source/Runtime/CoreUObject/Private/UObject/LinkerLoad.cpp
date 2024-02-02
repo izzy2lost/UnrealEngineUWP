@@ -12,6 +12,7 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Misc/ObjectThumbnail.h"
 #include "Misc/App.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/MetaData.h"
 #include "UObject/LinkerLoadImportBehavior.h"
 #include "UObject/ObjectRedirector.h"
@@ -19,6 +20,7 @@
 #include "UObject/PackageResourceManager.h"
 #include "UObject/PackageResourceIoDispatcherBackend.h"
 #include "UObject/PackageTrailer.h"
+#include "UObject/PropertyBagRepository.h"
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UObjectHash.h"
 #include "Misc/PackageName.h"
@@ -4580,6 +4582,20 @@ void FLinkerLoad::Preload( UObject* Object )
 						ESoftObjectPathSerializeType::AlwaysSerialize);
 #endif
 
+					// Enable IDO, if needed
+					FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
+					TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
+					TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
+
+					// Do not enable IDO when impersonation is enabled as we are probably deserializing an IDO already at that point
+					bool bIDOEnabled = UE::IsInstanceDataObjectSupportEnabled(Object) && !LoadContext->bImpersonateProperties;
+					if (bIDOEnabled )
+					{
+						// this will had property path tracking and create a property bag to hold data not matching the current class schema
+						ScopedTrackSerializedPropertyPath.Emplace(LoadContext->bTrackSerializedPropertyPath, true);
+						ScopedSerializeUnknownProperty.Emplace(LoadContext->bSerializeUnknownProperty, true);
+					}
+
 					if (Object->HasAnyFlags(RF_ClassDefaultObject))
 					{
 #if USE_CIRCULAR_DEPENDENCY_LOAD_DEFERRING
@@ -4680,6 +4696,12 @@ void FLinkerLoad::Preload( UObject* Object )
 
 						Object->SetFlags(RF_LoadCompleted);
 						CurrentLoadContext->SerializedObject = PrevSerializedObject;
+					}
+
+					// Object has been deserialized, if IDO is enabled, generate it
+					if (bIDOEnabled)
+					{
+						UE::FPropertyBagRepository::Get().CreateInstanceDataObject(Object);
 					}
 				}
 

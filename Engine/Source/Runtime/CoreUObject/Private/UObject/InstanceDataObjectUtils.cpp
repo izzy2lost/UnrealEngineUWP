@@ -5,6 +5,7 @@
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
 #include "UObject/Field.h"
+#include "HAL/IConsoleManager.h"
 
 namespace UE
 {
@@ -16,6 +17,7 @@ namespace UE
 	static const FName NAME_PresentAsTypeMetadata(TEXT("PresentAsType"));
 	static const FName NAME_IsLooseMetadata(TEXT("IsLoose"));
 	static const FName NAME_CategoryMetadata(TEXT("Category"));
+	static const FName NAME_VerseClass("VerseClass");
 	
 	struct ResolvePropertyPathNameHelperParams
 	{
@@ -26,6 +28,20 @@ namespace UE
 		int32 EndPathIndex = INDEX_NONE; // INDEX_NONE has the same behavior as Path.GetSegmentCount()
 		bool bAddIfNeeded = false;
 	};
+
+	bool bEnableIDOSupport = false;
+	FAutoConsoleVariableRef EnableIDOSupportCVar(
+		TEXT("IDO.Enable"),
+		bEnableIDOSupport,
+		TEXT("Allows property bags and IDOs to be created for supported classes.")
+	);
+
+	bool IsInstanceDataObjectSupportEnabled(UObject* InObject)
+	{
+		return bEnableIDOSupport
+			//@todo FH: change to check trait when available or use config object
+			&& (!InObject || InObject->GetClass()->GetClass()->GetFName() == NAME_VerseClass);
+	}
 
 	static void BuildSegmentTypeFromProperty(const FProperty* Property, FPropertyTypeNameBuilder& OutType)
 	{
