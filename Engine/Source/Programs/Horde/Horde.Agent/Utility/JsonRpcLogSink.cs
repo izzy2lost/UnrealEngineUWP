@@ -38,9 +38,6 @@ namespace Horde.Agent.Utility
 
 		int _bufferLength;
 
-		// Background task
-		readonly object _lockObject = new object();
-
 		// Tailing task
 		readonly Task _tailTask;
 		AsyncEvent _tailTaskStop;
@@ -88,17 +85,23 @@ namespace Horde.Agent.Utility
 
 		async Task TickTailAsync()
 		{
-			try
+			for (; ; )
 			{
-				await TickTailInternalAsync();
-			}
-			catch (OperationCanceledException ex)
-			{
-				_logger.LogInformation(ex, "Cancelled log tailing task");
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Exception on log tailing task ({LogId}): {Message}", _logId, ex.Message);
+				try
+				{
+					await TickTailInternalAsync();
+					break;
+				}
+				catch (OperationCanceledException ex)
+				{
+					_logger.LogInformation(ex, "Cancelled log tailing task");
+					break;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Exception on log tailing task ({LogId}): {Message}", _logId, ex.Message);
+					await Task.Delay(TimeSpan.FromSeconds(10.0));
+				}
 			}
 		}
 
@@ -107,24 +110,20 @@ namespace Horde.Agent.Utility
 			int tailNext = -1;
 			while (!_tailTaskStop.IsSet())
 			{
-				Task newTailDataTask;
+				Task newTailDataTask = _newTailDataEvent.Task;
+				int initialTailNext = tailNext;
 
 				// Get the data to send to the server
 				ReadOnlyMemory<byte> tailData = ReadOnlyMemory<byte>.Empty;
-				lock (_lockObject)
+				if (tailNext != -1)
 				{
-					if (tailNext != -1)
-					{
-						tailNext = Math.Max(tailNext, _builder.FlushedLineCount);
-						tailData = _builder.ReadTailData(tailNext, 16 * 1024);
-					}
-					newTailDataTask = _newTailDataEvent.Task;
+					(tailNext, tailData) = _builder.ReadTailData(tailNext, 16 * 1024);
 				}
 
 				// If we don't have any updates for the server, wait until we do.
-				if (tailNext != -1 && tailData.IsEmpty)
+				if (tailNext != -1 && tailData.IsEmpty && tailNext == initialTailNext)
 				{
-					_logger.LogInformation("No tail data available for log {LogId} after {TailNext}; waiting for more...", _logId, tailNext);
+					_logger.LogInformation("No tail data available for log {LogId} after line {TailNext}; waiting for more...", _logId, tailNext);
 					await newTailDataTask;
 					continue;
 				}

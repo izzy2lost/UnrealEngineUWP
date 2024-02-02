@@ -117,7 +117,8 @@ namespace EpicGames.Horde.Logs
 	}
 
 	/// <summary>
-	/// Assists building log files through trees of <see cref="LogNode"/>, <see cref="LogIndexNode"/> and <see cref="LogChunkNode"/> nodes.
+	/// Assists building log files through trees of <see cref="LogNode"/>, <see cref="LogIndexNode"/> and <see cref="LogChunkNode"/> nodes. This
+	/// class is designed to be thread safe, and presents a consistent view to readers and writers.
 	/// </summary>
 	public class LogBuilder
 	{
@@ -134,13 +135,9 @@ namespace EpicGames.Horde.Logs
 		/// <summary>
 		/// Number of lines written to the log
 		/// </summary>
-		public int LineCount => FlushedLineCount + _textBuilder.LineCount;
+		public int LineCount => _lineCount;
 
-		/// <summary>
-		/// Number of lines flushed to storage
-		/// </summary>
-		public int FlushedLineCount => _root?.LineCount ?? 0;
-
+		int _lineCount;
 		readonly LogFormat _format;
 
 		// Data for the log file which has been flushed to disk so far
@@ -188,10 +185,14 @@ namespace EpicGames.Horde.Logs
 		/// <param name="firstLineIdx">The first line to read, from the end of the flushed data</param>
 		/// <param name="maxLength"></param>
 		/// <returns></returns>
-		public ReadOnlyMemory<byte> ReadTailData(int firstLineIdx, int maxLength)
+		public (int LineIdx, ReadOnlyMemory<byte> Data) ReadTailData(int firstLineIdx, int maxLength)
 		{
 			lock (_lockObject)
 			{
+				// Clamp the first line index to the first available
+				int flushedLineCount = _root?.LineCount ?? 0;
+				firstLineIdx = Math.Max(firstLineIdx, flushedLineCount);
+
 				// Measure the size of buffer required for the tail data
 				int length = 0;
 				int lineCount = 0;
@@ -218,7 +219,7 @@ namespace EpicGames.Horde.Logs
 				}
 				Debug.Assert(output.Length == 0);
 
-				return buffer;
+				return (firstLineIdx, buffer);
 			}
 		}
 
@@ -241,6 +242,7 @@ namespace EpicGames.Horde.Logs
 
 					ReadOnlyMemory<byte> line = remaining.Slice(0, newlineIdx + 1);
 					_textBuilder.Append(line.Span);
+					_lineCount++;
 
 					if (_format == LogFormat.Json)
 					{
