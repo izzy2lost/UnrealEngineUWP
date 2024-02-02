@@ -37,7 +37,10 @@ namespace UnrealBuildTool.Rules
 							throw new Exception("Unknown visual studio version when mapping to DTEKey: " +
 												Target.WindowsPlatform.ToolChain.ToString());
 					}
-					bHasVisualStudioDTE = RegistryKey.OpenBaseKey(RegistryHive.ClassesRoot, RegistryView.Registry32).OpenSubKey(DTEKey) != null;
+					if (OperatingSystem.IsWindows())
+					{
+						bHasVisualStudioDTE = RegistryKey.OpenBaseKey(RegistryHive.ClassesRoot, RegistryView.Registry32).OpenSubKey(DTEKey) != null;
+					}
 				}
 			}
 			catch

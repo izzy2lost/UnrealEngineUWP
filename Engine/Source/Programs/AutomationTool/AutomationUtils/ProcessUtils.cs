@@ -573,15 +573,18 @@ namespace AutomationTool
 			{
 				VisitedPids.Add(PossiblyRelatedId);
 				Process Parent = null;
-				using (ManagementObject ManObj = new ManagementObject(string.Format("win32_process.handle='{0}'", PossiblyRelatedId)))
+				if (OperatingSystem.IsWindows())
 				{
-					ManObj.Get();
-					int ParentId = Convert.ToInt32(ManObj["ParentProcessId"]);
-					if (ParentId == 0 || VisitedPids.Contains(ParentId))
+					using (ManagementObject ManObj = new ManagementObject(string.Format("win32_process.handle='{0}'", PossiblyRelatedId)))
 					{
-						return false;
+						ManObj.Get();
+						int ParentId = Convert.ToInt32(ManObj["ParentProcessId"]);
+						if (ParentId == 0 || VisitedPids.Contains(ParentId))
+						{
+							return false;
+						}
+						Parent = Process.GetProcessById(ParentId);  // will throw an exception if not spawned by us or not running
 					}
-					Parent = Process.GetProcessById(ParentId);  // will throw an exception if not spawned by us or not running
 				}
 				if (Parent != null)
 				{

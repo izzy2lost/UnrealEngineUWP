@@ -25,7 +25,7 @@ namespace UnrealBuildToolTests
 		}
 
 		[ClassInitialize]
-		public static void Setup(TestContext testContext)
+		public static void Setup()
 		{
 			PluginDescriptorTests.s_tempDirectory = CreateTempDir();
 		}

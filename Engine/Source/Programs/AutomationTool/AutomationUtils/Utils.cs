@@ -963,13 +963,16 @@ namespace AutomationTool
 				DriveInfo Drive = new(InPath);
 				if (Drive.DriveType == DriveType.Network)
 				{
-					using (ManagementObject ManObj = new($"Win32_LogicalDisk='{Drive.Name.TrimEnd(Path.DirectorySeparatorChar)}'")) // Win32_LogicalDisk='X:'
+					if (OperatingSystem.IsWindows())
 					{
-						string UNCRoot = ManObj["ProviderName"].ToString(); // e.g. \\MyServer\Root
-						string SharedPathFragment = InPath.Replace(Drive.Name, "", StringComparison.InvariantCultureIgnoreCase);
+						using (ManagementObject ManObj = new($"Win32_LogicalDisk='{Drive.Name.TrimEnd(Path.DirectorySeparatorChar)}'")) // Win32_LogicalDisk='X:'
+						{
+							string UNCRoot = ManObj["ProviderName"].ToString(); // e.g. \\MyServer\Root
+							string SharedPathFragment = InPath.Replace(Drive.Name, "", StringComparison.InvariantCultureIgnoreCase);
 
-						UNCPath = Path.Combine( UNCRoot, SharedPathFragment);
-						return true;
+							UNCPath = Path.Combine(UNCRoot, SharedPathFragment);
+							return true;
+						}
 					}
 				}
 			}
