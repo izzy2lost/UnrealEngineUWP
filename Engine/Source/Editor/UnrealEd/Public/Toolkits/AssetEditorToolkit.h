@@ -302,6 +302,11 @@ public:
 
 	virtual void AddGraphEditorPinActionsToContextMenu(FToolMenuSection& InSection) const {};
 
+	/** React to a Drag&Drop events from the viewport */
+	virtual void OnViewportDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) {}
+	virtual void OnViewportDragLeave(const FDragDropEvent& DragDropEvent) {}
+	virtual FReply OnViewportDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) { return FReply::Unhandled(); }
+
 protected:
 	friend class UAssetEditorToolkitMenuContext;
 
