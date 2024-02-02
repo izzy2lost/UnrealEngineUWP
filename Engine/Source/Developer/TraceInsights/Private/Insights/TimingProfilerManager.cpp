@@ -661,7 +661,12 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
 		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
 		Insights::FTimingExporter::FExportThreadsParams Params; // default
-		Exporter.ExportThreadsAsText(Cmd, Params);
+
+		const bool bUseEscape = true;
+		FString Filename = FParse::Token(Cmd, bUseEscape);
+		Ar.Logf(TEXT("  Filename: %s"), *Filename);
+
+		Exporter.ExportThreadsAsText(Filename, Params);
 		return true;
 	}
 
@@ -671,7 +676,12 @@ bool FTimingProfilerManager::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 		check(FInsightsManager::Get().IsValid() && FInsightsManager::Get()->GetSession().IsValid());
 		Insights::FTimingExporter Exporter(*FInsightsManager::Get()->GetSession().Get());
 		Insights::FTimingExporter::FExportTimersParams Params; // default
-		Exporter.ExportTimersAsText(Cmd, Params);
+
+		const bool bUseEscape = true;
+		FString Filename = FParse::Token(Cmd, bUseEscape);
+		Ar.Logf(TEXT("  Filename: %s"), *Filename);
+
+		Exporter.ExportTimersAsText(Filename, Params);
 		return true;
 	}
 
