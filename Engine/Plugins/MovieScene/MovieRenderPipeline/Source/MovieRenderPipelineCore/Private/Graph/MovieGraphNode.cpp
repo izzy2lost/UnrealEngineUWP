@@ -199,10 +199,11 @@ void UMovieGraphNode::UpdatePins()
 	// Include the exposed dynamic properties in the input pins
 	InputPinProperties.Append(GetExposedPinProperties());
 
-	auto UpdatePins = [this](TArray<UMovieGraphPin*>& Pins, const TArray<FMovieGraphPinProperties>& PinProperties)
+	bool bChangedPins = false;
+
+	auto UpdatePins = [this, &bChangedPins](TArray<UMovieGraphPin*>& Pins, const TArray<FMovieGraphPinProperties>& PinProperties)
 	{
 		bool bAppliedEdgeChanges = false;
-		bool bChangedPins = false;
 
 		// Find unmatched pins vs. properties (via name matching)
 		TArray<UMovieGraphPin*> UnmatchedPins;
@@ -266,7 +267,10 @@ void UMovieGraphNode::UpdatePins()
 	UpdatePins(MutableView(InputPins), InputPinProperties);
 	UpdatePins(MutableView(OutputPins), OutputPinProperties);
 
-	OnNodeChangedDelegate.Broadcast(this);
+	if (bChangedPins)
+	{
+		OnNodeChangedDelegate.Broadcast(this);
+	}
 }
 
 void UMovieGraphNode::UpdateDynamicProperties()

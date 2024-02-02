@@ -346,6 +346,11 @@ public:
 		UMoviePipelineExecutorJob* Job = WeakJob.Get();
 		if (Job)
 		{
+			if (const UMovieGraphConfig* GraphPreset = Job->GetGraphPreset())
+			{
+				return GraphPreset->GetPackage()->IsDirty() ? EVisibility::Visible : EVisibility::Collapsed;
+			}
+			
 			return (Job->GetPresetOrigin() == nullptr) ? EVisibility::Visible : EVisibility::Collapsed;
 		}
 		
@@ -1045,10 +1050,17 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 
 	EVisibility GetShotConfigModifiedVisibility() const
 	{
-		UMoviePipelineExecutorShot* Shot = WeakShot.Get();
-		if (Shot && Shot->GetShotOverrideConfiguration() && (Shot->GetShotOverridePresetOrigin() == nullptr))
+		if (const UMoviePipelineExecutorShot* Shot = WeakShot.Get())
 		{
-			return EVisibility::Visible;
+			if (const UMovieGraphConfig* GraphPreset = Shot->GetGraphPreset())
+			{
+				return GraphPreset->GetPackage()->IsDirty() ? EVisibility::Visible : EVisibility::Collapsed;
+			}
+		
+			if (Shot->GetShotOverrideConfiguration() && (Shot->GetShotOverridePresetOrigin() == nullptr))
+			{
+				return EVisibility::Visible;
+			}
 		}
 
 		return EVisibility::Collapsed;
