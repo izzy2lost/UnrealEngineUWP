@@ -1373,6 +1373,7 @@ class DeviceUnreal(Device):
             caller=self.name,
             working_dir=working_dir,
             update_clients_with_stdout=False,
+            hide=True,
         )
 
         self.program_start_queue.add(
@@ -1419,6 +1420,7 @@ class DeviceUnreal(Device):
             caller=self.name,
             working_dir=working_dir,
             update_clients_with_stdout=False,
+            hide=True,
         )
 
         self.program_start_queue.add(
@@ -1594,6 +1596,7 @@ class DeviceUnreal(Device):
             working_dir=os.path.dirname(
                 CONFIG.UPROJECT_PATH.get_value(self.name)),
             update_clients_with_stdout=True,
+            hide=True,
         )
 
         self.program_start_queue.add(
@@ -1746,6 +1749,7 @@ class DeviceUnreal(Device):
             prog_name=program_name,
             caller=self.name,
             update_clients_with_stdout=True,
+            hide=True,
         )
 
         def launch_fn():
@@ -2717,7 +2721,8 @@ class DeviceUnreal(Device):
             prog_path=str(rsync_path),
             prog_args=rsync_args,
             prog_name=program_name,
-            caller=self.name
+            caller=self.name,
+            hide=True,
         )
 
         self.program_start_queue.add(

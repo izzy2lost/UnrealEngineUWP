@@ -131,6 +131,7 @@ struct FSwitchboardStartTask : public FSwitchboardTask
 	bool bUpdateClientsWithStdout = false;
 	bool bLockGpuClock = false;
 	int32 PriorityModifier = 0;
+	bool bHide = false;
 
 	//~ Begin FSwitchboardTask interface
 	static constexpr const TCHAR* CommandName = TEXT("start");

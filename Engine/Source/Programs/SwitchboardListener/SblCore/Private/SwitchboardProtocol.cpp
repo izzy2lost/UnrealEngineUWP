@@ -254,6 +254,11 @@ FCreateTaskResult CreateTaskFromCommand(const FString& InCommand, const FIPv4End
 			PriorityModifierField->TryGetNumber(Task->PriorityModifier);
 		}
 
+		if (TSharedPtr<FJsonValue> HideField = JsonData->TryGetField(TEXT("bHide")))
+		{
+			HideField->TryGetBool(Task->bHide);
+		}
+
 		Result.Status = ECreateTaskStatus::Success;
 		Result.Task = MoveTemp(Task);
 		return Result;

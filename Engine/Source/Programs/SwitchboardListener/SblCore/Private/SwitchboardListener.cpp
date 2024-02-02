@@ -1026,10 +1026,10 @@ bool FSwitchboardListener::Task_StartProcess(const FSwitchboardStartTask& InRunT
 	{
 		return false;
 	}
-	
+
 	const bool bLaunchDetached = false;
-	const bool bLaunchHidden = false;
-	const bool bLaunchReallyHidden = false;
+	const bool bLaunchHidden = InRunTask.bHide;
+	const bool bLaunchReallyHidden = InRunTask.bHide;
 	const int32 PriorityModifier = InRunTask.PriorityModifier;
 	const TCHAR* WorkingDirectory = InRunTask.WorkingDir.IsEmpty() ? nullptr : *InRunTask.WorkingDir;
 
