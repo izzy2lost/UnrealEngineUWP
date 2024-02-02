@@ -60,12 +60,14 @@ protected:
 	int64					OpenOrder;
 	TMap<FString, int64>	FilenameAccessMap;
 	TArray<IFileHandle*>	LogOutput;
+	bool					bLogDuplicates;
 
 public:
 
 	FPlatformFileOpenLog()
 		: LowerLevel(nullptr)
 		, OpenOrder(0)
+		, bLogDuplicates(false)
 	{
 	}
 
@@ -229,7 +231,15 @@ public:
 	void AddToOpenLog(const TCHAR* Filename)
 	{
 		CriticalSection.Lock();
-		if (FilenameAccessMap.Find(Filename) == nullptr)
+		if (bLogDuplicates)
+		{
+			FString Text = FString::Printf(TEXT("\"%s\"\n"), Filename);
+			for (auto File = LogOutput.CreateIterator(); File; ++File)
+			{
+				(*File)->Write((uint8*)StringCast<ANSICHAR>(*Text).Get(), Text.Len());
+			}
+		}
+		else if (FilenameAccessMap.Find(Filename) == nullptr)
 		{
 			FilenameAccessMap.Emplace(Filename, ++OpenOrder);
 			FString Text = FString::Printf(TEXT("\"%s\" %llu\n"), Filename, OpenOrder);
@@ -255,17 +265,8 @@ public:
 
 	void AddPackageToOpenLog(const TCHAR* Filename)
 	{
-		CriticalSection.Lock();
-		if (FilenameAccessMap.Find(Filename) == nullptr)
-		{
-			FilenameAccessMap.Emplace(Filename, ++OpenOrder);
-			FString Text = FString::Printf(TEXT("\"%s\" %llu\n"), Filename, OpenOrder);
-			for (auto File = LogOutput.CreateIterator(); File; ++File)
-			{
-				(*File)->Write((uint8*)StringCast<ANSICHAR>(*Text).Get(), Text.Len());
-			}
-		}
-		CriticalSection.Unlock();
+		// TODO: deprecate/remove this function?
+		AddToOpenLog(Filename);
 	}
 
 	template <typename FmtType, typename... Types>
