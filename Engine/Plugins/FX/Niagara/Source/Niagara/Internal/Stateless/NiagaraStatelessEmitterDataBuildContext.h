@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "NiagaraCommon.h"
+#include "NiagaraStatelessCommon.h"
+#include "NiagaraStatelessDistribution.h"
 
 struct FNiagaraParameterBinding;
 struct FNiagaraParameterBindingWithValue;
@@ -44,10 +45,36 @@ public:
 		}
 		return *reinterpret_cast<T*>(TransientObj->GetObject());
 	}
-	//NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
 
 	int32 AddRendererBinding(const FNiagaraParameterBinding& Binding);
 	int32 AddRendererBinding(const FNiagaraParameterBindingWithValue& Binding);	
+
+	// Adds a distribution into the LUT if enabled and returns the packed information to send to the shader
+	template<typename TDistribution>
+	FUintVector3 AddDistribution(const TDistribution& Distribution, bool bEnabled)
+	{
+		FUintVector3 Parameters = FUintVector3::ZeroValue;
+		if (bEnabled && Distribution.Values.Num() > 0)
+		{
+			constexpr uint32 StatelessDistributionFlag_Random = 0x00000001;
+			constexpr uint32 StatelessDistributionFlag_Uniform = 0x00000002;
+
+			switch (Distribution.Mode)
+			{
+				case ENiagaraDistributionMode::UniformConstant:		Parameters.X = StatelessDistributionFlag_Random | StatelessDistributionFlag_Uniform; break;
+				case ENiagaraDistributionMode::NonUniformConstant:	Parameters.X = StatelessDistributionFlag_Random; break;
+				case ENiagaraDistributionMode::UniformRange:		Parameters.X = StatelessDistributionFlag_Random | StatelessDistributionFlag_Uniform; break;
+				case ENiagaraDistributionMode::NonUniformRange:		Parameters.X = StatelessDistributionFlag_Random; break;
+				case ENiagaraDistributionMode::UniformCurve:		Parameters.X = StatelessDistributionFlag_Uniform; break;
+				case ENiagaraDistributionMode::NonUniformCurve:		Parameters.X = 0; break;
+				default:											checkNoEntry(); break;
+			}
+
+			Parameters.Y = AddStaticData(Distribution.Values);
+			reinterpret_cast<float&>(Parameters.Z) = Distribution.Values.Num() - 1;
+		}
+		return Parameters;
+	}
 
 private:
 	FNiagaraParameterStore& RendererBindings;

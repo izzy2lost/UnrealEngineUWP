@@ -180,7 +180,7 @@ void FNiagaraStackItemPropertyHeaderValueShared::GenerateHeaderValueHandlers(UOb
 	for (TFieldIterator<FProperty> PropertyIt(&InTargetStruct, EFieldIteratorFlags::SuperClassFlags::IncludeSuper, EFieldIteratorFlags::DeprecatedPropertyFlags::ExcludeDeprecated); PropertyIt; ++PropertyIt)
 	{
 		FProperty* Property = *PropertyIt;
-		if (Property->HasMetaData("ShowInStackItemHeader") && InOwnerObject.CanEditChange(Property))
+		if (Property->HasMetaData("ShowInStackItemHeader"))
 		{
 			FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
 			if (EnumProperty != nullptr)

@@ -15,24 +15,19 @@ class UNiagaraStatelessModule_ScaleColor : public UNiagaraStatelessModule
 
 	struct FModuleBuiltData
 	{
-		int32	TableOffset = 0;
-		int32	TableLength = 0;
+		FUintVector3	DistributionParameters = FUintVector3::ZeroValue;
 	};
 
 public:
 	using FParameters = NiagaraStateless::FScaleColorModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	TArray<FLinearColor>	ScaleValues = {FLinearColor::White, FLinearColor::White, FLinearColor::White, FLinearColor::Transparent};
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Scale"))
+	FNiagaraDistributionColor ScaleDistribution = FNiagaraDistributionColor(FLinearColor::White);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
-		if (IsModuleEnabled())
-		{
-			BuiltData->TableOffset = BuildContext.AddStaticData(ScaleValues);
-			BuiltData->TableLength = ScaleValues.Num();
-		}
+		BuiltData->DistributionParameters = BuildContext.AddDistribution(ScaleDistribution, IsModuleEnabled());
 	}
 
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
@@ -40,8 +35,7 @@ public:
 		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
 
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		Parameters->ScaleColor_Offset = ModuleBuiltData->TableOffset;
-		Parameters->ScaleColor_Length = ModuleBuiltData->TableLength;
+		Parameters->ScaleColor_Distribution = ModuleBuiltData->DistributionParameters;
 	}
 
 #if WITH_EDITOR

@@ -15,24 +15,19 @@ class UNiagaraStatelessModule_ScaleMeshSize : public UNiagaraStatelessModule
 
 	struct FModuleBuiltData
 	{
-		int32	TableOffset = 0;
-		int32	TableLength = 0;
+		FUintVector3	DistributionParameters = FUintVector3::ZeroValue;
 	};
 
 public:
 	using FParameters = NiagaraStateless::FScaleMeshSizeModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	TArray<FVector3f>	ScaleValues = { FVector3f::OneVector, FVector3f::OneVector, FVector3f::OneVector, FVector3f::ZeroVector };
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Scale"))
+	FNiagaraDistributionVector3 ScaleDistribution = FNiagaraDistributionVector3(FVector3f::OneVector);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
-		if (IsModuleEnabled())
-		{
-			BuiltData->TableOffset = BuildContext.AddStaticData(ScaleValues);
-			BuiltData->TableLength = ScaleValues.Num();
-		}
+		BuiltData->DistributionParameters = BuildContext.AddDistribution(ScaleDistribution, IsModuleEnabled());
 	}
 
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
@@ -40,8 +35,7 @@ public:
 		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
 
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		Parameters->ScaleMeshSize_Offset = ModuleBuiltData->TableOffset;
-		Parameters->ScaleMeshSize_Length = ModuleBuiltData->TableLength;
+		Parameters->ScaleMeshSize_Distribution = ModuleBuiltData->DistributionParameters;
 	}
 
 #if WITH_EDITOR

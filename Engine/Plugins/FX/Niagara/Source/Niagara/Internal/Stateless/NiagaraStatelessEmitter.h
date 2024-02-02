@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraStatelessCommon.h"
+#include "NiagaraStatelessSpawnInfo.h"
 #include "NiagaraDataSet.h"
 #include "NiagaraRendererProperties.h"
 #include "NiagaraSystemEmitterState.h"

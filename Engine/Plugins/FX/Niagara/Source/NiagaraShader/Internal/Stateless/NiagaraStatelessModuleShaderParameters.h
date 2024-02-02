@@ -8,29 +8,25 @@
 namespace NiagaraStateless
 {
 	BEGIN_SHADER_PARAMETER_STRUCT(FInitializeParticleModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(FVector3f, InitializeParticle_Position)				// Unset / Direct Set / Simulation Position
+		SHADER_PARAMETER(uint32,	InitializeParticle_ModuleFlags)
+		SHADER_PARAMETER(FVector3f,	InitializeParticle_Position)				// Unset / Direct Set / Simulation Position
 
-		SHADER_PARAMETER(FVector4f, InitializeParticle_ColorScale)				// Unset / Direct Set / Random Range(Link RGBA / Link RGB|Link A / Random Channels) / Random Hue|Saturation|Value
-		SHADER_PARAMETER(FVector4f, InitializeParticle_ColorBias)
+		SHADER_PARAMETER(FVector4f,	InitializeParticle_ColorScale)				// Unset / Direct Set / Random Range(Link RGBA / Link RGB|Link A / Random Channels) / Random Hue|Saturation|Value
+		SHADER_PARAMETER(FVector4f,	InitializeParticle_ColorBias)
 
 		SHADER_PARAMETER(FVector2f, InitializeParticle_SpriteSizeScale)			// Unset / Uniform / Random Uniform / Non-Uniform / Random Non-Uniform
 		SHADER_PARAMETER(FVector2f, InitializeParticle_SpriteSizeBias)
-		SHADER_PARAMETER(float, InitializeParticle_SpriteRotationScale)				// Unset / Random / Direct Set Deg / Direct Set Normalized
-		SHADER_PARAMETER(float, InitializeParticle_SpriteRotationBias)
+		SHADER_PARAMETER(float,		InitializeParticle_SpriteRotationScale)				// Unset / Random / Direct Set Deg / Direct Set Normalized
+		SHADER_PARAMETER(float,		InitializeParticle_SpriteRotationBias)
 		//SHADER_PARAMETER(FVector3f, InitializeParticle_SpriteUVMode)			// Unset / Random / Random X / Random Y / Random XY / Direct Set
 
-		SHADER_PARAMETER(FVector3f, InitializeParticle_MeshScaleScale)			// Unset / Uniform / Random Uniform / Non-Uniform / Random Non-Uniform
-		SHADER_PARAMETER(FVector3f, InitializeParticle_MeshScaleBias)
+		SHADER_PARAMETER(FVector3f,	InitializeParticle_MeshScaleScale)			// Unset / Uniform / Random Uniform / Non-Uniform / Random Non-Uniform
+		SHADER_PARAMETER(FVector3f,	InitializeParticle_MeshScaleBias)
 
-		SHADER_PARAMETER(float, InitializeParticle_RibbonWidthScale)		// Unset / Direct Set
-		SHADER_PARAMETER(float, InitializeParticle_RibbonWidthBias)
+		SHADER_PARAMETER(float,		InitializeParticle_RibbonWidthScale)		// Unset / Direct Set
+		SHADER_PARAMETER(float,		InitializeParticle_RibbonWidthBias)
 		//SHADER_PARAMETER(FVector3f, InitializeParticle_RibbonFacingVector)		// Unset / Direct Set
 		//SHADER_PARAMETER(FVector3f, InitializeParticle_RibbonTwist)				// Unset / Direct Set
-
-		SHADER_PARAMETER(uint32,	InitializeParticle_PositionMode)
-		SHADER_PARAMETER(uint32,	InitializeParticle_PositionTableMod)
-		SHADER_PARAMETER(uint32,	InitializeParticle_PositionTableOffset)
-		SHADER_PARAMETER(uint32,	InitializeParticle_PositionTableLength)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FInitialMeshOrientationModule_ShaderParameters, NIAGARASHADER_API)
@@ -49,13 +45,11 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 	
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleColorModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(int32, ScaleColor_Offset)
-		SHADER_PARAMETER(int32, ScaleColor_Length)
+		SHADER_PARAMETER(FUintVector3,	ScaleColor_Distribution)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleMeshSizeModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(int32,		ScaleMeshSize_Offset)
-		SHADER_PARAMETER(int32,		ScaleMeshSize_Length)
+		SHADER_PARAMETER(FUintVector3,	ScaleMeshSize_Distribution)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleMeshSizeBySpeedModule_ShaderParameters, NIAGARASHADER_API)
@@ -65,8 +59,7 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleSpriteSizeModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(int32,		ScaleSpriteSize_Offset)
-		SHADER_PARAMETER(int32,		ScaleSpriteSize_Length)
+		SHADER_PARAMETER(FUintVector3, ScaleSpriteSize_Distribution)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleSpriteSizeBySpeedModule_ShaderParameters, NIAGARASHADER_API)

@@ -57,7 +57,7 @@ namespace NiagaraStatelessInternal
 		}
 
 		// Lifetime is not valid so we have nothing to every render with
-		if ((EmitterData.LifetimeRange.X <= 0.0f) && (EmitterData.LifetimeRange.Y <= 0.0f))
+		if ((EmitterData.LifetimeRange.Min <= 0.0f) && (EmitterData.LifetimeRange.Max <= 0.0f))
 		{
 			return false;
 		}
@@ -222,7 +222,7 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 		Modules.FindItemByClass(&InitializeParticleModule);
 		if (ensure(InitializeParticleModule))
 		{
-			StatelessEmitterData->LifetimeRange = FVector2f(InitializeParticleModule->LifetimeMin, InitializeParticleModule->LifetimeMax);
+			StatelessEmitterData->LifetimeRange = InitializeParticleModule->LifetimeDistribution.CalculateRange();
 		}
 	}
 
@@ -409,7 +409,7 @@ NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateSha
 	);
 
 	NiagaraStateless::FCommonShaderParameters* CommonParameters = SetShaderParametersContext.GetParameterNestedStruct<NiagaraStateless::FCommonShaderParameters>();
-	CommonParameters->Common_LifetimeScaleBias	= FVector2f(StatelessEmitterData->LifetimeRange.Y - StatelessEmitterData->LifetimeRange.X, StatelessEmitterData->LifetimeRange.X);
+	CommonParameters->Common_LifetimeScaleBias	= FVector2f(StatelessEmitterData->LifetimeRange.Max - StatelessEmitterData->LifetimeRange.Min, StatelessEmitterData->LifetimeRange.Min);
 
 	for (UNiagaraStatelessModule* Module : Modules)
 	{

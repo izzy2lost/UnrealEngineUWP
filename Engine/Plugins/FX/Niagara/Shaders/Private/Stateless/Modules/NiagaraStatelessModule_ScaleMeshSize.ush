@@ -2,37 +2,23 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
-int		ScaleMeshSize_Offset;
-int		ScaleMeshSize_Length;
-
+uint3 ScaleMeshSize_Distribution;
+	
 struct FStatelessModule_ScaleMeshSize
 {
+	FStatelessDistributionFloat3	MeshSizeDistribution;
 };
 
-
-float3 ScaleMeshSize_GetScale(in FStatelessParticle Particle, float NormalizedAge)
-{
-	const float Offset = NormalizedAge * float(ScaleMeshSize_Length - 1);
-	const int A = floor(Offset);
-	const int B = ceil(Offset);
-	const float U = frac(Offset);
-
-	return lerp(
-		GetStaticFloat3(ScaleMeshSize_Offset, A),
-		GetStaticFloat3(ScaleMeshSize_Offset, B), 
-		U
-	);
-}
-	
 void ScaleMeshSize_Initialize(inout FStatelessModule_ScaleMeshSize ModuleData, inout FStatelessParticle Particle)
 {
+	ModuleData.MeshSizeDistribution.Init(Particle, ScaleMeshSize_Distribution);
 }
 	
 void ScaleMeshSize_Simulate(in FStatelessModule_ScaleMeshSize ModuleData, inout FStatelessParticle Particle)
 {
-	if (ScaleMeshSize_Length > 0)
+	if (ModuleData.MeshSizeDistribution.IsValid())
 	{
-		Particle.Scale *= ScaleMeshSize_GetScale(Particle, Particle.NormalizedAge);
-		Particle.PreviousScale *= ScaleMeshSize_GetScale(Particle, Particle.PreviousNormalizedAge);
+		Particle.Scale			*= ModuleData.MeshSizeDistribution.GetValue(Particle.NormalizedAge);
+		Particle.PreviousScale	*= ModuleData.MeshSizeDistribution.GetValue(Particle.PreviousNormalizedAge);
 	}
 }

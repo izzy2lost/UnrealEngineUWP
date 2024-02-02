@@ -16,19 +16,17 @@ class UNiagaraStatelessModule_SpriteRotationRate : public UNiagaraStatelessModul
 public:
 	using FParameters = NiagaraStateless::FSpriteRotationRateModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	float	RotationRateMin = 360.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	float	RotationRateMax = 360.0f;
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Rotation Rate"))
+	FNiagaraDistributionRangeFloat RotationRateDistribution = FNiagaraDistributionRangeFloat(FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
 
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
 		if (IsModuleEnabled())
 		{
-			Parameters->SpriteRotationRate_Scale	= RotationRateMax - RotationRateMin;
-			Parameters->SpriteRotationRate_Bias		= RotationRateMin;
+			const FNiagaraStatelessRangeFloat RotationRateRange = RotationRateDistribution.CalculateRange(FNiagaraStatelessGlobals::GetDefaultSpriteRotationValue());
+			Parameters->SpriteRotationRate_Scale	= RotationRateRange.GetScale();
+			Parameters->SpriteRotationRate_Bias		= RotationRateRange.Min;
 		}
 		else
 		{

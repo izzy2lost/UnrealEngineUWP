@@ -14,11 +14,11 @@ class UNiagaraStatelessModule_Drag : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
 
+	static constexpr float DefaultDrag = 1.0f;
+
 public:
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	float DragMin = 0.1f;
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	float DragMax = 1.0f;
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Drag"))
+	FNiagaraDistributionRangeFloat DragDistribution = FNiagaraDistributionRangeFloat(DefaultDrag);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
@@ -28,8 +28,7 @@ public:
 		}
 
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
-		PhysicsBuildData.DragMin += DragMin;
-		PhysicsBuildData.DragMax += DragMax;
+		PhysicsBuildData.DragRange = DragDistribution.CalculateRange(DefaultDrag);
 	}
 
 #if WITH_EDITOR

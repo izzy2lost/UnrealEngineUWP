@@ -878,6 +878,7 @@ bool UNiagaraRendererProperties::NeedsLoadForTargetPlatform(const ITargetPlatfor
 			}
 		}
 	}
+	//-TODO:Stateless: We need a base emitter type
 
 	return false;
 }

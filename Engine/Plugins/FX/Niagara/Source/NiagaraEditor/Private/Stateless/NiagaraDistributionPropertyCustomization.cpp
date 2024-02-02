@@ -1,0 +1,638 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Stateless/NiagaraDistributionPropertyCustomization.h"
+
+#include "DetailWidgetRow.h"
+#include "Editor.h"
+#include "EditorUndoClient.h"
+#include "PropertyHandle.h"
+#include "ScopedTransaction.h"
+#include "Stateless/NiagaraStatelessDistribution.h"
+#include "Styling/StyleColors.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/NiagaraDistributionEditorUtilities.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SCompoundWidget.h"
+#include "Widgets/SNiagaraDistributionEditor.h"
+
+#define LOCTEXT_NAMESPACE "NiagaraDistributionPropertyCustomization"
+
+class FNiagaraDistributionAdapter : public INiagaraDistributionAdapter
+{
+public:
+	FNiagaraDistributionAdapter(TSharedPtr<IPropertyHandle> InPropertyHandle, UObject* InOwningObject, FNiagaraDistributionBase* InDistribution, int32 InNumChannels)
+		: PropertyHandle(InPropertyHandle)
+		, OwnerObjectWeak(TWeakObjectPtr<UObject>(InOwningObject))
+		, SourceDistribution(InDistribution)
+		, SourceNumChannels(InNumChannels)
+	{
+		if (IsValid())
+		{
+			EditorMode = GetDistributionEditorModeFromSourceMode(SourceNumChannels, SourceDistribution->Mode);
+			EditorNumChannels = FNiagaraDistributionEditorUtilities::IsUniform(EditorMode) ? 1 : SourceNumChannels;
+
+			const FName DisableCurveDistributionName("DisableCurveDistribution");
+			const FName DisableUniformDistributionName("DisableUniformDistribution");
+			bAllowUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableUniformDistributionName) == false : false;
+			bAllowCurves = InDistribution->AllowCurves() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableCurveDistributionName) == false : false);
+		}
+	}
+
+	virtual bool IsValid() const override { return SourceDistribution != nullptr; }
+
+	virtual int32 GetNumChannels() const override { return EditorNumChannels; }
+
+	virtual FText GetChannelDisplayName(int32 ChannelIndex) const override 
+	{
+		switch(ChannelIndex)
+		{
+		case 0:
+			return LOCTEXT("XChannelName", "X");
+		case 1:
+			return LOCTEXT("YChannelName", "Y");
+		case 2:
+			return LOCTEXT("ZChannelName", "Z");
+		case 3:
+			return LOCTEXT("WChannelName", "W");
+		}
+		return FText();
+	}
+
+	virtual FSlateColor GetChannelColor(int32 ChannelIndex) const override
+	{
+		if (EditorNumChannels != 1)
+		{
+			switch (ChannelIndex)
+			{
+			case 0:
+				return FSlateColor(EStyleColor::AccentRed);
+			case 1:
+				return FSlateColor(EStyleColor::AccentGreen);
+			case 2:
+				return FSlateColor(EStyleColor::AccentBlue);
+			case 3:
+				return FSlateColor(EStyleColor::AccentWhite);
+			}
+		}
+		return FSlateColor(EStyleColor::AccentWhite);
+	}
+
+	virtual void GetSupportedDistributionModes(TArray<ENiagaraDistributionEditorMode>& OutSupportedModes) const override
+	{
+		if (SourceNumChannels == 1)
+		{
+			OutSupportedModes.Add(ENiagaraDistributionEditorMode::Constant);
+			OutSupportedModes.Add(ENiagaraDistributionEditorMode::Range);
+			if (bAllowCurves)
+			{
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::Curve);
+			}
+		}
+		else if (SourceNumChannels > 1)
+		{
+			if (bAllowUniform)
+			{
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformConstant);
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformRange);
+			}
+			OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformConstant);
+			OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformRange);
+			if (bAllowCurves)
+			{
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformCurve);
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformCurve);
+			}
+		}
+	}
+
+	static ENiagaraDistributionEditorMode GetDistributionEditorModeFromSourceMode(int32 InSourceNumChannels, ENiagaraDistributionMode InSourceMode)
+	{
+		if (InSourceNumChannels == 1)
+		{
+			switch (InSourceMode)
+			{
+			case ENiagaraDistributionMode::UniformConstant:
+				return ENiagaraDistributionEditorMode::Constant;
+			case ENiagaraDistributionMode::UniformRange:
+				return ENiagaraDistributionEditorMode::Range;
+			case ENiagaraDistributionMode::UniformCurve:
+				return ENiagaraDistributionEditorMode::Curve;
+			default:
+				return ENiagaraDistributionEditorMode::Constant;
+			}
+		}
+		else
+		{
+			switch (InSourceMode)
+			{
+			case ENiagaraDistributionMode::UniformConstant:
+				return ENiagaraDistributionEditorMode::UniformConstant;
+			case ENiagaraDistributionMode::NonUniformConstant:
+				return ENiagaraDistributionEditorMode::NonUniformConstant;
+			case ENiagaraDistributionMode::UniformRange:
+				return ENiagaraDistributionEditorMode::UniformRange;
+			case ENiagaraDistributionMode::NonUniformRange:
+				return ENiagaraDistributionEditorMode::NonUniformRange;
+			case ENiagaraDistributionMode::UniformCurve:
+				return ENiagaraDistributionEditorMode::UniformCurve;
+			case ENiagaraDistributionMode::NonUniformCurve:
+				return ENiagaraDistributionEditorMode::NonUniformCurve;
+			default:
+				return ENiagaraDistributionEditorMode::UniformConstant;
+			}
+		}
+	}
+
+	static ENiagaraDistributionMode GetDistributionSourceModeFromEditorMode(ENiagaraDistributionEditorMode InEditorMode)
+	{
+		switch (InEditorMode)
+		{
+		case ENiagaraDistributionEditorMode::Constant:
+		case ENiagaraDistributionEditorMode::UniformConstant:
+			return ENiagaraDistributionMode::UniformConstant;
+		case ENiagaraDistributionEditorMode::NonUniformConstant:
+			return ENiagaraDistributionMode::NonUniformConstant;
+		case ENiagaraDistributionEditorMode::Range:
+		case ENiagaraDistributionEditorMode::UniformRange:
+			return ENiagaraDistributionMode::UniformRange;
+		case ENiagaraDistributionEditorMode::NonUniformRange:
+			return ENiagaraDistributionMode::NonUniformRange;
+		case ENiagaraDistributionEditorMode::Curve:
+		case ENiagaraDistributionEditorMode::UniformCurve:
+			return ENiagaraDistributionMode::UniformCurve;
+		case ENiagaraDistributionEditorMode::NonUniformCurve:
+			return ENiagaraDistributionMode::NonUniformCurve;
+		default:
+			return ENiagaraDistributionMode::UniformConstant;
+		}
+	}
+
+	virtual ENiagaraDistributionEditorMode GetDistributionMode() const override { return EditorMode; }
+
+	virtual void SetDistributionMode(ENiagaraDistributionEditorMode InEditorMode) override
+	{
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		if (OwnerObject == nullptr)
+		{
+			return;
+		}
+
+		ENiagaraDistributionMode NewMode = GetDistributionSourceModeFromEditorMode(InEditorMode);
+		if (SourceDistribution->Mode != NewMode)
+		{
+			int32 NewEditorNumChannels = FNiagaraDistributionEditorUtilities::IsUniform(InEditorMode) ? 1 : SourceNumChannels;
+
+			const FScopedTransaction Transaction(LOCTEXT("SetDistributionModeTransaction", "Set distribution mode"));
+			OwnerObject->Modify();
+			PropertyHandle->NotifyPreChange();
+
+			MigrateDataFromModeChange(NewMode, NewEditorNumChannels);
+			SourceDistribution->Mode = NewMode;
+			EditorNumChannels = NewEditorNumChannels;
+			EditorMode = InEditorMode;
+
+			PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+		}
+	}
+
+	float GetConstantOrRangeValue(int32 ChannelIndex, int32 ValueIndex) const override
+	{
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		int32 DataIndex = ValueIndex * EditorNumChannels + ChannelIndex;
+		if (OwnerObject != nullptr &&
+			SourceDistribution != nullptr &&
+			ChannelIndex < EditorNumChannels &&
+			DataIndex < SourceDistribution->ChannelConstantsAndRanges.Num())
+		{
+			return SourceDistribution->ChannelConstantsAndRanges[DataIndex];
+		}
+		return 0.0f;
+	}
+
+	void SetConstantOrRangeValue(int32 ChannelIndex, int32 ValueIndex, float InValue) override
+	{
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		if (OwnerObject != nullptr &&
+			GetConstantOrRangeValue(ChannelIndex, ValueIndex) != InValue &&
+			ChannelIndex < EditorNumChannels)
+		{
+			FText TransactionText;
+			int32 RequiredValueCount = 0;
+			if (FNiagaraDistributionEditorUtilities::IsConstant(GetDistributionMode()))
+			{
+				TransactionText = LOCTEXT("SetConstantValueTransaction", "Set constant value");
+				RequiredValueCount = EditorNumChannels;
+			}
+			else if (FNiagaraDistributionEditorUtilities::IsRange(GetDistributionMode()))
+			{
+				TransactionText = ValueIndex == 0
+					? LOCTEXT("SetRangeMinValueTransaction", "Set range min value")
+					: LOCTEXT("SetRangeMaxValueTransaction", "Set range max value");
+				RequiredValueCount = EditorNumChannels * 2;
+			}
+
+			if (bContinuousTransactionPending)
+			{
+				bContinuousTransactionPending = false;
+				ContinuousTransactionIndex = GEditor->BeginTransaction(TransactionText);
+			}
+
+			const FScopedTransaction Transaction(TransactionText, ContinuousTransactionIndex.IsSet() == false);
+			OwnerObject->Modify();
+			PropertyHandle->NotifyPreChange();
+
+			if (SourceDistribution->ChannelConstantsAndRanges.Num() < RequiredValueCount)
+			{
+				SourceDistribution->ChannelConstantsAndRanges.AddZeroed(RequiredValueCount - SourceDistribution->ChannelConstantsAndRanges.Num());
+			}
+			else if (SourceDistribution->ChannelConstantsAndRanges.Num() > RequiredValueCount)
+			{
+				SourceDistribution->ChannelConstantsAndRanges.SetNum(RequiredValueCount);
+			}
+
+			SourceDistribution->ChannelConstantsAndRanges[ValueIndex * EditorNumChannels + ChannelIndex] = InValue;
+			PropertyHandle->NotifyPostChange(bContinuousChangeActive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+		}
+	}
+
+	virtual FRichCurve* GetCurveValue(int32 ChannelIndex) const override
+	{
+		if (ChannelIndex < EditorNumChannels &&
+			ChannelIndex < SourceDistribution->ChannelCurves.Num())
+		{
+			return &SourceDistribution->ChannelCurves[ChannelIndex];
+		}
+		return nullptr;
+	}
+
+	virtual void SetCurveValue(int32 ChannelIndex, const FRichCurve& InValue) override
+	{
+		UObject* OwnerObject = OwnerObjectWeak.Get();
+		FRichCurve* CurrentValue = GetCurveValue(ChannelIndex);
+		if (OwnerObject != nullptr &&
+			(CurrentValue == nullptr || *CurrentValue != InValue) &&
+			ChannelIndex < EditorNumChannels)
+		{
+			FText TransactionText = LOCTEXT("SetCurveValueTransaction", "Set curve value");
+
+			if (bContinuousTransactionPending)
+			{
+				bContinuousTransactionPending = false;
+				ContinuousTransactionIndex = GEditor->BeginTransaction(TransactionText);
+			}
+
+			const FScopedTransaction Transaction(TransactionText, ContinuousTransactionIndex.IsSet() == false);
+			OwnerObject->Modify();
+			PropertyHandle->NotifyPreChange();
+
+			const int32 RequiredCurveCount = EditorNumChannels;
+			if (SourceDistribution->ChannelCurves.Num() < RequiredCurveCount)
+			{
+				SourceDistribution->ChannelCurves.AddDefaulted(RequiredCurveCount - SourceDistribution->ChannelCurves.Num());
+			}
+			else if (SourceDistribution->ChannelCurves.Num() > RequiredCurveCount)
+			{
+				SourceDistribution->ChannelCurves.SetNum(RequiredCurveCount);
+			}
+
+			SourceDistribution->ChannelCurves[ChannelIndex] = InValue;
+			PropertyHandle->NotifyPostChange(bContinuousChangeActive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet);
+		}
+	}
+
+	virtual void BeginContinuousChange() override
+	{
+		bContinuousTransactionPending = true;
+		bContinuousChangeActive = true;
+	}
+
+	virtual void EndContinuousChange() override
+	{
+		if (ContinuousTransactionIndex.IsSet())
+		{
+			GEditor->EndTransaction();
+		}
+		bContinuousTransactionPending = false;
+		ContinuousTransactionIndex.Reset();
+		bContinuousChangeActive = false;
+		PropertyHandle->NotifyFinishedChangingProperties();
+	}
+
+private:
+	void MigrateDataFromModeChange(ENiagaraDistributionMode NewMode, int32 NewEditorNumChannels)
+	{
+		if (NewMode == ENiagaraDistributionMode::UniformConstant || NewMode == ENiagaraDistributionMode::NonUniformConstant)
+		{
+			MigrateDataToConstants(NewEditorNumChannels);
+		}
+		else if(NewMode == ENiagaraDistributionMode::UniformRange || NewMode == ENiagaraDistributionMode::NonUniformRange)
+		{
+			MigrateDataToRanges(NewEditorNumChannels);
+		}
+		else if (NewMode == ENiagaraDistributionMode::UniformCurve || NewMode == ENiagaraDistributionMode::NonUniformCurve)
+		{
+			MigrateDataToCurves(NewEditorNumChannels);
+		}
+	}
+
+	void MigrateDataToConstants(int32 NewEditorNumChannels)
+	{
+		TArray<float> ConstantValues;
+		switch (SourceDistribution->Mode)
+		{
+		case ENiagaraDistributionMode::UniformConstant:
+		case ENiagaraDistributionMode::UniformRange:
+		case ENiagaraDistributionMode::NonUniformConstant:
+		case ENiagaraDistributionMode::NonUniformRange:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				ConstantValues.Add(GetConstantOrRangeValue(ChannelIndex, 0));
+			}
+			break;
+		case ENiagaraDistributionMode::UniformCurve:
+		case ENiagaraDistributionMode::NonUniformCurve:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				FRichCurve* Curve = GetCurveValue(ChannelIndex);
+				float ConstantValue = Curve != nullptr && Curve->GetNumKeys() > 0 ? Curve->GetFirstKey().Value : 0;
+				ConstantValues.Add(ConstantValue);
+			}
+			break;
+		default:
+			ConstantValues.Add(0);
+		}
+
+		SourceDistribution->ChannelConstantsAndRanges.SetNum(NewEditorNumChannels);
+		SourceDistribution->ChannelCurves.Empty();
+		for (int32 ChannelIndex = 0; ChannelIndex < NewEditorNumChannels; ChannelIndex++)
+		{
+			int32 ValueIndex = ChannelIndex < ConstantValues.Num() ? ChannelIndex : 0;
+			SourceDistribution->ChannelConstantsAndRanges[ChannelIndex] = ConstantValues[ValueIndex];
+		}
+	}
+
+	void MigrateDataToRanges(int32 NewEditorNumChannels)
+	{
+		TArray<float> MinValues;
+		TArray<float> MaxValues;
+		switch (SourceDistribution->Mode)
+		{
+		case ENiagaraDistributionMode::UniformConstant:
+		case ENiagaraDistributionMode::NonUniformConstant:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				float ConstantValue = GetConstantOrRangeValue(ChannelIndex, 0);
+				MinValues.Add(ConstantValue);
+				MaxValues.Add(ConstantValue);
+			}
+			break;
+		case ENiagaraDistributionMode::UniformRange:
+		case ENiagaraDistributionMode::NonUniformRange:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				MinValues.Add(GetConstantOrRangeValue(ChannelIndex, 0));
+				MaxValues.Add(GetConstantOrRangeValue(ChannelIndex, 1));
+			}
+			break;
+		case ENiagaraDistributionMode::UniformCurve:
+		case ENiagaraDistributionMode::NonUniformCurve:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				FRichCurve* Curve = GetCurveValue(ChannelIndex);
+				if (Curve != nullptr && Curve->GetNumKeys() > 0)
+				{
+					MinValues.Add(Curve->GetFirstKey().Value);
+					MaxValues.Add(Curve->GetLastKey().Value);
+				}
+				else
+				{
+					MinValues.Add(0);
+					MaxValues.Add(0);
+				}
+			}
+			break;
+		default:
+			MinValues.Add(0);
+			MaxValues.Add(0);
+			break;
+		}
+
+		SourceDistribution->ChannelConstantsAndRanges.SetNum(NewEditorNumChannels * 2);
+		SourceDistribution->ChannelCurves.Empty();
+		for (int32 ChannelIndex = 0; ChannelIndex < NewEditorNumChannels; ChannelIndex++)
+		{
+			int32 MinValueIndex = ChannelIndex < MinValues.Num() ? ChannelIndex : 0;
+			SourceDistribution->ChannelConstantsAndRanges[ChannelIndex] = MinValues[MinValueIndex];
+
+			int32 MaxValueIndex = ChannelIndex < MaxValues.Num() ? ChannelIndex : 0;
+			SourceDistribution->ChannelConstantsAndRanges[NewEditorNumChannels + ChannelIndex] = MaxValues[MaxValueIndex];
+		}
+	}
+
+	void MigrateDataToCurves(int32 NewEditorNumChannels)
+	{
+		TArray<FRichCurve> CurveValues;
+		switch (SourceDistribution->Mode)
+		{
+		case ENiagaraDistributionMode::UniformConstant:
+		case ENiagaraDistributionMode::NonUniformConstant:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				FRichCurve& CurveValue = CurveValues.AddDefaulted_GetRef();
+				CurveValue.AddKey(0, GetConstantOrRangeValue(ChannelIndex, 0));
+			}
+			break;
+		case ENiagaraDistributionMode::UniformRange:
+		case ENiagaraDistributionMode::NonUniformRange:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				FRichCurve& CurveValue = CurveValues.AddDefaulted_GetRef();
+				CurveValue.AddKey(0, GetConstantOrRangeValue(ChannelIndex, 0));
+				CurveValue.AddKey(1, GetConstantOrRangeValue(ChannelIndex, 1));
+			}
+			break;
+		case ENiagaraDistributionMode::UniformCurve:
+		case ENiagaraDistributionMode::NonUniformCurve:
+			for (int32 ChannelIndex = 0; ChannelIndex < EditorNumChannels; ChannelIndex++)
+			{
+				FRichCurve* Curve = GetCurveValue(ChannelIndex);
+				if (Curve != nullptr)
+				{
+					CurveValues.Add(*Curve);
+				}
+				else
+				{
+					FRichCurve& CurveValue = CurveValues.AddDefaulted_GetRef();
+					CurveValue.AddKey(0, 0);
+				}
+			}
+			break;
+		default:
+			FRichCurve& CurveValue = CurveValues.AddDefaulted_GetRef();
+			CurveValue.AddKey(0, 0);
+			break;
+		}
+
+		SourceDistribution->ChannelCurves.SetNum(NewEditorNumChannels);
+		SourceDistribution->ChannelConstantsAndRanges.Empty();
+		for (int32 ChannelIndex = 0; ChannelIndex < NewEditorNumChannels; ChannelIndex++)
+		{
+			int32 ValueIndex = ChannelIndex < CurveValues.Num() ? ChannelIndex : 0;
+			SourceDistribution->ChannelCurves[ChannelIndex] = CurveValues[ValueIndex];
+		}
+	}
+
+private:
+	TSharedPtr<IPropertyHandle> PropertyHandle;
+	TWeakObjectPtr<UObject> OwnerObjectWeak;
+	FNiagaraDistributionBase* SourceDistribution = nullptr;
+	int32 SourceNumChannels = 0;
+
+	ENiagaraDistributionEditorMode EditorMode = ENiagaraDistributionEditorMode::Constant;
+	int32 EditorNumChannels = 0;
+
+	bool bContinuousTransactionPending = false;
+	TOptional<int32> ContinuousTransactionIndex;
+	bool bContinuousChangeActive = false;
+
+	bool bAllowUniform = true;
+	bool bAllowCurves = true;
+};
+
+class SNiagaraDistributionPropertyWidget : public SCompoundWidget, public FEditorUndoClient
+{
+	SLATE_BEGIN_ARGS(SNiagaraDistributionPropertyWidget) { }
+	SLATE_END_ARGS();
+
+	void Construct(const FArguments& InArgs, TSharedRef<IPropertyHandle> InDistributionPropertyHandle, TSharedRef<INiagaraDistributionAdapter> InDistributionAdapter)
+	{
+		GEditor->RegisterForUndo(this);
+		DistributionPropertyHandleWeak = InDistributionPropertyHandle;
+		DistributionAdapter = InDistributionAdapter;
+		InDistributionPropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SNiagaraDistributionPropertyWidget::HandleValueChanged));
+
+		ChildSlot
+		[
+			SNew(SNiagaraDistributionEditor, DistributionAdapter.ToSharedRef())
+		];
+	}
+
+	virtual ~SNiagaraDistributionPropertyWidget()
+	{
+		if (GEditor != nullptr)
+		{
+			GEditor->UnregisterForUndo(this);
+		}
+	}
+
+	// Begin FEditorUndoClient
+	virtual void PostUndo(bool bSuccess) override
+	{
+	}
+
+	virtual void PostRedo(bool bSuccess) override { PostUndo(bSuccess); }
+	// End of FEditorUndoClient
+
+private:
+	void HandleValueChanged()
+	{
+		if (bUpdatingHandle == false)
+		{
+		}
+	}
+
+private:
+	TWeakPtr<IPropertyHandle> DistributionPropertyHandleWeak;
+	TSharedPtr<INiagaraDistributionAdapter> DistributionAdapter;
+	bool bUpdatingHandle = false;
+};
+
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeFloatInstance()
+{
+	FPropertyHandleToDistributionAdapter FloatDistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([](TSharedRef<IPropertyHandle> FloatDistributionPropertyHandle)
+	{
+		void* ValueData = nullptr;
+		TArray<UObject*> OuterObjects;
+		FloatDistributionPropertyHandle->GetOuterObjects(OuterObjects);
+		if (OuterObjects.Num() == 1 && FloatDistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
+		{
+			FNiagaraDistributionBase* FloatDistribution = static_cast<FNiagaraDistributionBase*>(ValueData);
+			return MakeShared<FNiagaraDistributionAdapter>(FloatDistributionPropertyHandle, OuterObjects[0], FloatDistribution, 1);
+		}
+		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+	});
+
+	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(FloatDistributionPropertyHandleToDistributionAdapter));
+}
+
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeVector2Instance()
+{
+	FPropertyHandleToDistributionAdapter Vector2DistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([](TSharedRef<IPropertyHandle> Vector2DistributionPropertyHandle)
+	{
+		void* ValueData = nullptr;
+		TArray<UObject*> OuterObjects;
+		Vector2DistributionPropertyHandle->GetOuterObjects(OuterObjects);
+		if (OuterObjects.Num() == 1 && Vector2DistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
+		{
+			FNiagaraDistributionBase* Vector2Distribution = static_cast<FNiagaraDistributionBase*>(ValueData);
+			return MakeShared<FNiagaraDistributionAdapter>(Vector2DistributionPropertyHandle, OuterObjects[0], Vector2Distribution, 2);
+		}
+		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+	});
+
+	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(Vector2DistributionPropertyHandleToDistributionAdapter));
+}
+
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeVector3Instance()
+{
+	FPropertyHandleToDistributionAdapter Vector3DistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([](TSharedRef<IPropertyHandle> Vector3DistributionPropertyHandle)
+	{
+		void* ValueData = nullptr;
+		TArray<UObject*> OuterObjects;
+		Vector3DistributionPropertyHandle->GetOuterObjects(OuterObjects);
+		if (OuterObjects.Num() == 1 && Vector3DistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
+		{
+			FNiagaraDistributionBase* Vector3Distribution = static_cast<FNiagaraDistributionBase*>(ValueData);
+			return MakeShared<FNiagaraDistributionAdapter>(Vector3DistributionPropertyHandle, OuterObjects[0], Vector3Distribution, 3);
+		}
+		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+	});
+
+	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(Vector3DistributionPropertyHandleToDistributionAdapter));
+}
+
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeColorInstance()
+{
+	FPropertyHandleToDistributionAdapter ColorDistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([](TSharedRef<IPropertyHandle> ColorDistributionPropertyHandle)
+	{
+		void* ValueData = nullptr;
+		TArray<UObject*> OuterObjects;
+		ColorDistributionPropertyHandle->GetOuterObjects(OuterObjects);
+		if (OuterObjects.Num() == 1 && ColorDistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
+		{
+			FNiagaraDistributionBase* ColorDistribution = static_cast<FNiagaraDistributionBase*>(ValueData);
+			return MakeShared<FNiagaraDistributionAdapter>(ColorDistributionPropertyHandle, OuterObjects[0], ColorDistribution, 4);
+		}
+		return MakeShared<FNiagaraDistributionAdapter>(nullptr, nullptr, nullptr, INDEX_NONE);
+	});
+
+	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(ColorDistributionPropertyHandleToDistributionAdapter));
+}
+
+void FNiagaraDistributionPropertyCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+	HeaderRow.NameContent()
+	[
+		PropertyHandle->CreatePropertyNameWidget()
+	];
+	HeaderRow.ValueContent()
+	[
+		SNew(SNiagaraDistributionPropertyWidget, PropertyHandle, PropertyHandleToDistributionAdapter.Execute(PropertyHandle))
+	];
+}
+
+void FNiagaraDistributionPropertyCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils)
+{
+}
+
+#undef LOCTEXT_NAMESPACE

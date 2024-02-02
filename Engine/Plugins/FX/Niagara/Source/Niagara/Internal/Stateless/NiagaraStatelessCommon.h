@@ -4,61 +4,26 @@
 
 #include "NiagaraCommon.h"
 
-#include "NiagaraStatelessCommon.generated.h"
-
-UENUM()
-enum class ENiagaraStatelessSpawnInfoType
+template<typename TType>
+struct FNiagaraStatelessRange
 {
-	Burst,
-	Rate
+	using ValueType = TType;
+
+	FNiagaraStatelessRange() = default;
+	explicit FNiagaraStatelessRange(const ValueType& InMinMax) : Min(InMinMax), Max(InMinMax) {}
+	explicit FNiagaraStatelessRange(const ValueType& InMin, const ValueType& InMax) : Min(InMin), Max(InMax) {}
+
+	ValueType GetScale() const { return Max - Min; }
+
+	ValueType Min = {};
+	ValueType Max = {};
 };
 
-USTRUCT()
-struct FNiagaraStatelessSpawnInfo
-{
-	GENERATED_BODY()
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	FGuid SourceId;
-#endif
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (ShowInStackItemHeader, StackItemHeaderAlignment = "Left"))
-	ENiagaraStatelessSpawnInfoType	Type = ENiagaraStatelessSpawnInfoType::Burst;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditConditionHides, EditCondition = "Type == ENiagaraStatelessSpawnInfoType::Burst"))
-	float SpawnTime = 0.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditConditionHides, EditCondition = "Type == ENiagaraStatelessSpawnInfoType::Burst", ClampMin = "0"))
-	int32 AmountMin = 1;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditConditionHides, EditCondition = "Type == ENiagaraStatelessSpawnInfoType::Burst", ClampMin = "0"))
-	int32 AmountMax = 1;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditConditionHides, EditCondition = "Type == ENiagaraStatelessSpawnInfoType::Rate", ClampMin = "0.0"))
-	float RateMin = 60.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditConditionHides, EditCondition = "Type == ENiagaraStatelessSpawnInfoType::Rate", ClampMin = "0.0"))
-	float RateMax = 60.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (InlineEditConditionToggle))
-	bool bSpawnProbabilityEnabled = false;
-
-	UPROPERTY(EditAnywhere, Category = "Spawn", meta = (EditCondition = "bSpawnProbabilityEnabled", ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-	float SpawnProbability = 1.0f;
-
-	bool IsValid(TOptional<float> LoopDuration) const;
-};
-
-struct FNiagaraStatelessRuntimeSpawnInfo
-{
-	ENiagaraStatelessSpawnInfoType Type = ENiagaraStatelessSpawnInfoType::Burst;
-	uint32	UniqueOffset	= 0;
-	float	SpawnTimeStart	= 0.0f;
-	float	SpawnTimeEnd	= 0.0f;
-	float	Rate			= 0.0f;
-	int32	Amount			= 0;
-};
+using FNiagaraStatelessRangeFloat	= FNiagaraStatelessRange<float>;
+using FNiagaraStatelessRangeVector2	= FNiagaraStatelessRange<FVector2f>;
+using FNiagaraStatelessRangeVector3	= FNiagaraStatelessRange<FVector3f>;
+using FNiagaraStatelessRangeVector4	= FNiagaraStatelessRange<FVector4f>;
+using FNiagaraStatelessRangeColor	= FNiagaraStatelessRange<FLinearColor>;
 
 struct FNiagaraStatelessGlobals
 {
@@ -85,6 +50,15 @@ struct FNiagaraStatelessGlobals
 	FNiagaraVariableBase	PreviousSpriteSizeVariable;
 	FNiagaraVariableBase	PreviousSpriteRotationVariable;
 	FNiagaraVariableBase	PreviousVelocityVariable;
+
+	inline static FLinearColor	GetDefaultColorValue() { return FLinearColor::White; }
+	inline static float			GetDefaultLifetimeValue() { return 1.0f; }
+	inline static float			GetDefaultMassValue() { return 1.0f; }
+	inline static FQuat4f		GetDefaultMeshOrientationValue() { return FQuat4f::Identity; }
+	inline static float			GetDefaultRibbonWidthValue() { return 10.0f; }
+	inline static FVector3f		GetDefaultScaleValue() { return FVector3f::OneVector; }
+	inline static FVector2f		GetDefaultSpriteSizeValue() { return FVector2f(10.0f); }
+	inline static float			GetDefaultSpriteRotationValue() { return 0.0f; }
 
 	static const FNiagaraStatelessGlobals& Get();
 };
