@@ -1304,8 +1304,7 @@ void UVCamComponent::EnsureInitializedIfAllowed()
 
 bool UVCamComponent::IsInitialized() const
 {
-	// We can use the SubsystemCollection instead of introducing a new variable for it since it's the first thing initialized
-	return SubsystemCollection.IsInitialized();
+	return bIsInitialized;
 }
 
 void UVCamComponent::Initialize()
@@ -1314,6 +1313,8 @@ void UVCamComponent::Initialize()
 	{
 		return;
 	}
+
+	bIsInitialized = true;
 
 	// 1. Input
 	SubsystemCollection.Initialize(this);
@@ -1358,6 +1359,7 @@ void UVCamComponent::Deinitialize()
 	{
 		return;
 	}
+	bIsInitialized = false;
 
 	for (UVCamOutputProviderBase* Provider : OutputProviders)
 	{
@@ -1387,7 +1389,9 @@ void UVCamComponent::ReinitializeInput(TArray<TObjectPtr<UInputMappingContext>> 
 	// There is no technical reason for this check other than validating assumptions
 	checkfSlow(GIsReconstructingBlueprintInstances, TEXT("This function was designed to be run for re-applying component instance data!"));
 
-	if (UE::VCamCore::Private::CanInitVCamInstance(this))
+	// If this is not initialized yet, then there is no point in reinitializing input.
+	// The data will just be loaded when it this instance is Initialize()-ed.
+	if (bIsInitialized && UE::VCamCore::Private::CanInitVCamInstance(this))
 	{
 		// Should already be de-initialized but let's make sure.
 		SubsystemCollection.Deinitialize();

@@ -489,6 +489,9 @@ private:
 	/** Initialize and deinitialize calls match our  */
 	FObjectSubsystemCollection<UVCamSubsystem> SubsystemCollection;
 
+	/** Whether Initialize was called but not Deinitialize yet. */
+	bool bIsInitialized = false;
+
 	/**
 	 * Creates the InputComponent and binds global delegates.
 	 * It is safe to call this multiple times.
