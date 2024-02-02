@@ -19,38 +19,4 @@ FDisplayClusterMediaCaptureCamera::FDisplayClusterMediaCaptureCamera(const FStri
 	: FDisplayClusterMediaCaptureViewport(InMediaId, InClusterNodeId, InViewportId, InMediaOutput, SyncPolicy)
 	, CameraId(InCameraId)
 {
-	if (const ADisplayClusterRootActor* const ActiveRootActor = IDisplayCluster::Get().GetGameMgr()->GetRootActor())
-	{
-		TArray<UActorComponent*> ICVFXCameraComponents;
-		IDisplayClusterViewportConfiguration* ViewportConfiguration = ActiveRootActor->GetViewportConfiguration();
-		if (const ADisplayClusterRootActor* const ConfigurationRootActor = ViewportConfiguration ? ViewportConfiguration->GetRootActor(EDisplayClusterRootActorType::Configuration) : nullptr)
-		{
-			ConfigurationRootActor->GetComponents(UDisplayClusterICVFXCameraComponent::StaticClass(), ICVFXCameraComponents);
-		}
-
-		for (const UActorComponent* const Component : ICVFXCameraComponents)
-		{
-			if (const UDisplayClusterICVFXCameraComponent* const ICVFXCamera = Cast<UDisplayClusterICVFXCameraComponent>(Component))
-			{
-				if (ICVFXCamera->GetName() == CameraId)
-				{
-					const FDisplayClusterConfigurationICVFX_CameraSettings& CameraSettings = ICVFXCamera->GetCameraSettingsICVFX();
-
-					if (CameraSettings.CustomFrustum.bEnable)
-					{
-						CameraResolution = CameraSettings.CustomFrustum.EstimatedOverscanResolution;
-					}
-					else
-					{
-						CameraResolution = CameraSettings.CustomFrustum.InnerFrustumResolution;
-					}
-				}
-			}
-		}
-	}
-}
-
-FIntPoint FDisplayClusterMediaCaptureCamera::GetCaptureSize() const
-{
-	return CameraResolution;
 }
