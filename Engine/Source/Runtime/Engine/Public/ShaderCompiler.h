@@ -113,6 +113,18 @@ public:
 };
 #endif // WITH_EDITOR
 
+struct FShaderCompileMemoryUsage
+{
+	/**
+	* The amount of virtual memory used (committed on Windows)
+	*/
+	uint64 VirtualMemory;
+	/**
+	* The amount of physical memory used.
+	*/
+	uint64 PhysicalMemory;
+};
+
 class FShaderCompileThreadRunnableBase : public FRunnable
 {
 	friend class FShaderCompilingManager;
@@ -129,6 +141,8 @@ protected:
 	TAtomic<bool> bForceFinish;
 
 	virtual void PrintWorkerMemoryUsage() {}
+	/** Returns the amount of memory (in bytes) used by external processes related to this, if any. */
+	virtual FShaderCompileMemoryUsage GetExternalWorkerMemoryUsage() { return FShaderCompileMemoryUsage{}; }
 
 	// Returns a name for this thread instance. Defaults to "ShaderCompilingThread".
 	virtual const TCHAR* GetThreadName() const
@@ -194,6 +208,7 @@ public:
 
 protected:
 	virtual void PrintWorkerMemoryUsage() override;
+	virtual FShaderCompileMemoryUsage GetExternalWorkerMemoryUsage() override;
 
 private:
 
@@ -977,6 +992,11 @@ public:
 	  *	Note that this will not include stats for any compilation that occurs in worker processes in a multiprocess cook. 
 	  */
 	ENGINE_API void GetLocalStats(FShaderCompilerStats & OutStats) const;
+
+	/**
+	 * Returns the current memory usage of external local compilation processes in bytes.
+	 */
+	ENGINE_API FShaderCompileMemoryUsage GetExternalMemoryUsage();
 
 	/** 
 	 * Processes completed asynchronous shader maps, and assigns them to relevant materials.

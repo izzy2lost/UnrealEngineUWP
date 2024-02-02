@@ -4113,6 +4113,28 @@ void FShaderCompileThreadRunnable::PrintWorkerMemoryUsage()
 	}
 }
 
+FShaderCompileMemoryUsage FShaderCompileThreadRunnable::GetExternalWorkerMemoryUsage()
+{
+	FScopeLock WorkerScopeLock(&WorkerInfosLock);
+	FShaderCompileMemoryUsage MemoryUsage{};
+	for (const TUniquePtr<FShaderCompileWorkerInfo>& WorkerInfo : WorkerInfos)
+	{
+		FProcHandle ProcHandle = WorkerInfo->WorkerProcess;
+		if (!ProcHandle.IsValid())
+		{
+			continue;
+		}
+		FPlatformProcessMemoryStats MemoryStats;
+		if (FPlatformProcess::TryGetMemoryUsage(ProcHandle, MemoryStats))
+		{
+			// Virtual memory is committed memory on Windows.
+			MemoryUsage.VirtualMemory += MemoryStats.UsedVirtual;
+			MemoryUsage.PhysicalMemory += MemoryStats.UsedPhysical;
+		}
+	}
+	return MemoryUsage;
+}
+
 void FShaderCompileUtilities::ExecuteShaderCompileJob(FShaderCommonCompileJob& Job)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderCompileUtilities::ExecuteShaderCompileJob);
@@ -6941,6 +6963,18 @@ void FShaderCompilingManager::GetLocalStats(FShaderCompilerStats& OutStats) cons
 		OutStats.Aggregate(*GShaderCompilerStats);
 		AllJobs.GetCachingStats(OutStats);
 	}
+}
+
+FShaderCompileMemoryUsage FShaderCompilingManager::GetExternalMemoryUsage()
+{
+	FShaderCompileMemoryUsage TotalMemoryUsage{};
+	for (const TUniquePtr<FShaderCompileThreadRunnableBase>& ThreadPtr : Threads)
+	{
+		FShaderCompileMemoryUsage MemoryUsage = ThreadPtr->GetExternalWorkerMemoryUsage();
+		TotalMemoryUsage.VirtualMemory += MemoryUsage.VirtualMemory;
+		TotalMemoryUsage.PhysicalMemory += MemoryUsage.PhysicalMemory;
+	}
+	return TotalMemoryUsage;
 }
 
 static bool GatherUniqueErrors(const TArray<FShaderCommonCompileJobPtr>& CompleteJobs, FShaderErrorInfo& OutShaderErrorInfo)
