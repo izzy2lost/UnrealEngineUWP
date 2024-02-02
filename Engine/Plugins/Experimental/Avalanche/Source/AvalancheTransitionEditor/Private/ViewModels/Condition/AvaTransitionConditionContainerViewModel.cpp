@@ -19,7 +19,7 @@ namespace UE::AvaTransitionEditor::Private
 		// First Conditions or Copy operands should not have any operand displayed
 		if (InConditionIndex > 0 && InEditorNode.ConditionOperand != EStateTreeConditionOperand::Copy)
 		{
-			return UEnum::GetDisplayValueAsText(InEditorNode.ConditionOperand).ToLower();	
+			return FText::Format(INVTEXT("{0} "), UEnum::GetDisplayValueAsText(InEditorNode.ConditionOperand).ToLower());
 		}
 		return FText::GetEmpty();
 	}
@@ -109,8 +109,8 @@ FText FAvaTransitionConditionContainerViewModel::UpdateStateDescription() const
 		using namespace UE::AvaTransitionEditor;
 
 		FTextFormat TextFormat = DeltaIndent > 0
-			? INVTEXT("{Operand} {Parenthesis}{Description}")
-			: INVTEXT("{Operand} {Description}{Parenthesis}");
+			? LOCTEXT("ConditionFormatOpening", "{Operand}{Parenthesis}{Description}")
+			: LOCTEXT("ConditionFormatClosing", "{Operand}{Description}{Parenthesis}");
 
 		FFormatNamedArguments TextArguments;
 		TextArguments.Add(TEXT("Operand"), Private::GetOperandText(ConditionIndex, *EditorNode));
@@ -120,12 +120,7 @@ FText FAvaTransitionConditionContainerViewModel::UpdateStateDescription() const
 		ConditionDescriptions.Add(FText::Format(TextFormat, TextArguments));
 	}
 
-	if (!ConditionDescriptions.IsEmpty())
-	{
-		ConditionDescriptions.Insert(LOCTEXT("If", "If"), 0);
-	}
-
-	return FText::Join(INVTEXT(" "), ConditionDescriptions);
+	return FText::Format(LOCTEXT("ConditionFormat", "If {0}"), FText::Join(INVTEXT(" "), ConditionDescriptions));
 }
 
 void FAvaTransitionConditionContainerViewModel::GatherChildren(FAvaTransitionViewModelChildren& OutChildren)

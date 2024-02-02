@@ -12,17 +12,24 @@ class UAvaSceneSubsystem;
 struct FAvaTransitionScene;
 
 USTRUCT()
-struct FAvaSceneContainsAttributeConditionInstanceData
+struct FAvaSceneContainsTagAttributeConditionInstanceData
 {
 	GENERATED_BODY()
 };
 
-USTRUCT(DisplayName="Scene contains tag attribute", Category="Scene Attributes")
-struct AVALANCHE_API FAvaSceneContainsTagAttributeCondition : public FAvaTransitionCondition
+USTRUCT(meta=(Hidden))
+struct AVALANCHE_API FAvaSceneContainsTagAttributeConditionBase : public FAvaTransitionCondition
 {
 	GENERATED_BODY()
 
-	using FInstanceDataType = FAvaSceneContainsAttributeConditionInstanceData;
+	FAvaSceneContainsTagAttributeConditionBase() = default;
+
+	FAvaSceneContainsTagAttributeConditionBase(bool bInInvertCondition)
+		: bInvertCondition(bInInvertCondition)
+	{
+	}
+
+	using FInstanceDataType = FAvaSceneContainsTagAttributeConditionInstanceData;
 
 	//~ Begin FAvaTransitionCondition
 	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
@@ -57,9 +64,30 @@ struct AVALANCHE_API FAvaSceneContainsTagAttributeCondition : public FAvaTransit
 	UPROPERTY(EditAnywhere, Category="Parameter")
 	FAvaTagHandle TagAttribute;
 
-	/** Whether to invert the condition (i.e. if true, would become "does NOT contain attribute")*/
-	UPROPERTY(EditAnywhere, Category="Parameter")
-	bool bInvert = false;
+protected:
+	bool bInvertCondition = false;
 
 	TStateTreeExternalDataHandle<UAvaSceneSubsystem> SceneSubsystemHandle;
+};
+
+USTRUCT(DisplayName="A scene contains tag attribute", Category="Scene Attributes")
+struct FAvaSceneContainsTagAttributeCondition : public FAvaSceneContainsTagAttributeConditionBase
+{
+	GENERATED_BODY()
+
+	FAvaSceneContainsTagAttributeCondition()
+		: FAvaSceneContainsTagAttributeConditionBase(/*bInvertCondition*/false)
+	{
+	}
+};
+
+USTRUCT(DisplayName="No scene contains tag attribute", Category="Scene Attributes")
+struct FAvaNoSceneContainsTagAttributeCondition : public FAvaSceneContainsTagAttributeConditionBase
+{
+	GENERATED_BODY()
+
+	FAvaNoSceneContainsTagAttributeCondition()
+		: FAvaSceneContainsTagAttributeConditionBase(/*bInvertCondition*/true)
+	{
+	}
 };
