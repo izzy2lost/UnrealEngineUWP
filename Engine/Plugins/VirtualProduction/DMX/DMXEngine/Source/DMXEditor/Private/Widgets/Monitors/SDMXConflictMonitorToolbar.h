@@ -11,7 +11,7 @@ class FUICommandList;
 namespace UE::DMX
 {	
 	/** Possible statuses */
-	enum class EDMXConflictMonitorStatus : uint8
+	enum class EDMXConflictMonitorStatusInfo : uint8
 	{
 		Idle,
 		Paused,
@@ -25,15 +25,11 @@ namespace UE::DMX
 	{
 	public:
 		SLATE_BEGIN_ARGS(SDMXConflictMonitorToolbar)
-			: _Status(EDMXConflictMonitorStatus::Idle)
-			, _IsScanning(false)
+			: _StatusInfo(EDMXConflictMonitorStatusInfo::Idle)
 			{}
 
 			/** The status of the monitor */
-			SLATE_ATTRIBUTE(EDMXConflictMonitorStatus, Status)
-
-			/** Sets if the toolbar displays a scanning status */
-			SLATE_ATTRIBUTE(bool, IsScanning)
+			SLATE_ATTRIBUTE(EDMXConflictMonitorStatusInfo, StatusInfo)
 
 			/** Broadcast when the depth changed */
 			SLATE_EVENT(FSimpleDelegate, OnDepthChanged)
@@ -66,7 +62,7 @@ namespace UE::DMX
 		uint8 Depth = 3;
 
 		// Slate args
-		TAttribute<EDMXConflictMonitorStatus> Status;
+		TAttribute<EDMXConflictMonitorStatusInfo> StatusInfo;
 		FSimpleDelegate OnDepthChanged;
 	};
 } // namespace UE::DMX

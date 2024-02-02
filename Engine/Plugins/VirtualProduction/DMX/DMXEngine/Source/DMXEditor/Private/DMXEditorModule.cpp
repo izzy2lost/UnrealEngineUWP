@@ -342,7 +342,7 @@ void FDMXEditorModule::RegisterNomadTabSpawners()
 		FOnSpawnTab::CreateStatic(&FDMXEditorModule::OnSpawnConflictMonitorTab))
 		.SetDisplayName(LOCTEXT("OutputConflictMonitorTabTitle", "DMX Output Conflict Monitor"))
 		.SetMenuType(ETabSpawnerMenuType::Hidden)
-		.SetIcon(FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ChannelsMonitor"));
+		.SetIcon(FSlateIcon(FDMXEditorStyle::Get().GetStyleSetName(), "Icons.ConflictMonitor"));
 
 	RegisterNomadTabSpawner(FDMXEditorTabNames::PatchTool,
 		FOnSpawnTab::CreateStatic(&FDMXEditorModule::OnSpawnPatchToolTab))

@@ -8,6 +8,7 @@
 #include "Framework/Text/ITextDecorator.h"
 #include "IO/DMXConflictMonitor.h"
 #include "IO/DMXOutputPort.h"
+#include "Internationalization/Regex.h"
 
 
 #define LOCTEXT_NAMESPACE "FDMXConflictMonitorConflictModel"
@@ -20,15 +21,28 @@ namespace UE::DMX
 		ParseConflict();
 	}
 
-	FString FDMXConflictMonitorConflictModel::GetConflictAsString() const
+	FString FDMXConflictMonitorConflictModel::GetConflictAsString(bool bRichTextMarkup) const
 	{
-		FString Result = Title;
-		for (const FString& Detail : Details)
+		if (bRichTextMarkup)
 		{
-			Result.Append(TEXT("\n") + Detail);
-		}
+			FString Result = Title;
+			for (const FString& Detail : Details)
+			{
+				Result.Append(TEXT("\n") + Detail);
+			}
 
-		return Result;
+			return Result;
+		}
+		else
+		{
+			FString Result = GetStringNoMarkup(Title);
+			for (const FString& Detail : Details)
+			{
+				Result.Append(TEXT("\n") + GetStringNoMarkup(Detail));
+			}
+
+			return Result;
+		}
 	}
 
 	void FDMXConflictMonitorConflictModel::ParseConflict()
@@ -108,9 +122,9 @@ namespace UE::DMX
 		if (Depth > 1)
 		{
 			// Add port and universe/channel info
-			const FString Port = StyleString(LOCTEXT("PortInfo", "\t\tPort: ").ToString() + GetPortNameText(), TEXT("ConflictLog.Error"));
-			const FString Universe = StyleString(LOCTEXT("UniverseInfo", "Universe: ").ToString() + GetUniverseText(), TEXT("ConflictLog.Error"));
-			const FString Channels = StyleString(LOCTEXT("ChannelInfo", "Channel: ").ToString() + GetChannelsText(), TEXT("ConflictLog.Error"));
+			const FString Port = StyleString(LOCTEXT("PortInfo", "\t\tPort: ").ToString() + GetPortNameString(), TEXT("ConflictLog.Error"));
+			const FString Universe = StyleString(LOCTEXT("UniverseInfo", "Universe: ").ToString() + GetUniverseString(), TEXT("ConflictLog.Error"));
+			const FString Channels = StyleString(LOCTEXT("ChannelInfo", "Channel: ").ToString() + GetChannelsString(), TEXT("ConflictLog.Error"));
 
 			const FString DetailsSeparator = StyleString(TEXT(" - "), TEXT("ConflictLog.Error"));
 			Details.Add(Port + DetailsSeparator + Universe + DetailsSeparator + Channels);
@@ -118,7 +132,7 @@ namespace UE::DMX
 		}
 	}
 
-	FString FDMXConflictMonitorConflictModel::GetPortNameText() const
+	FString FDMXConflictMonitorConflictModel::GetPortNameString() const
 	{
 		static const FText InvalidPortName = LOCTEXT("InvalidPortName", "<Invalid Port>");
 
@@ -143,7 +157,7 @@ namespace UE::DMX
 		return UniquePortString;
 	}
 
-	FString FDMXConflictMonitorConflictModel::GetUniverseText() const
+	FString FDMXConflictMonitorConflictModel::GetUniverseString() const
 	{
 		if (!Conflicts.IsEmpty())
 		{
@@ -152,7 +166,7 @@ namespace UE::DMX
 		return FString();
 	}
 
-	FString FDMXConflictMonitorConflictModel::GetChannelsText() const
+	FString FDMXConflictMonitorConflictModel::GetChannelsString() const
 	{
 		TArray<int32> Channels;
 
@@ -207,6 +221,20 @@ namespace UE::DMX
 	FString FDMXConflictMonitorConflictModel::StyleString(FString String, FString MarkupString) const
 	{
 		return FString::Printf(TEXT("<%s>%s</>"), *MarkupString, *String);
+	}
+
+	FString FDMXConflictMonitorConflictModel::GetStringNoMarkup(const FString& String) const
+	{
+		const FRegexPattern RegexPattern(TEXT("(<.*?>)"));
+		FRegexMatcher Matcher(RegexPattern, String);
+
+		FString Result = String;
+		while (Matcher.FindNext())
+		{
+			Result.ReplaceInline(*Matcher.GetCaptureGroup(1), TEXT(""));
+		}
+
+		return Result;
 	}
 }
 

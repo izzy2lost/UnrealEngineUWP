@@ -13,7 +13,7 @@ namespace UE::DMX
 	class FDMXConflictMonitorConflictModel;
 	class FDMXConflictMonitorUserSession;
 	struct FDMXMonitoredOutboundDMXData;
-	enum class EDMXConflictMonitorStatus : uint8;
+	enum class EDMXConflictMonitorStatusInfo : uint8;
 
 	/** Monitors conflicts. */
 	class SDMXConflictMonitor
@@ -39,9 +39,6 @@ namespace UE::DMX
 		/** Constructs the widget */
 		void Construct(const FArguments& InArgs);
 
-		/** Returns the status of the monitor */
-		EDMXConflictMonitorStatus GetStatus() const { return Status; }
-
 	protected:
 		//~ Begin SWidget interface
 		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -53,6 +50,9 @@ namespace UE::DMX
 
 		/** Initializes the command list for this widget */
 		void SetupCommandList();
+
+		/** Updates the status info for this monitor */
+		void UpdateStatusInfo();
 
 		/** Returns true if the monitor is scanning */
 		bool IsScanning() const;
@@ -88,11 +88,8 @@ namespace UE::DMX
 		/** True if paused */
 		bool bIsPaused = false;
 
-		/** True if printing to log */
-		bool bPrintToLog = false;
-
-		/** Current status of the monitor */
-		EDMXConflictMonitorStatus Status;
+		/** The status of the monitor. Note status info is ment for UI purposes, and not the state of the monitor. */
+		EDMXConflictMonitorStatusInfo StatusInfo;
 
 		/** The conflict montitor user session used by this widget */
 		TSharedPtr<FDMXConflictMonitorUserSession> UserSession;

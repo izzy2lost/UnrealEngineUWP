@@ -323,7 +323,7 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 #endif // WITH_EDITOR
 
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
-	const FName DMXLibraryName = DMXLibrary ? DMXLibrary->GetOutermost()->GetFName() : "<Invalid DMX Library>";
+	const FName DMXLibraryName = DMXLibrary ? DMXLibrary->GetFName() : "<Invalid DMX Library>";
 
 	UE_DMX_SCOPED_TRACE_SENDDMX(GetOutermost()->GetFName());
 	const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = GetAllFaderGroups();

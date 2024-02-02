@@ -26,9 +26,9 @@ namespace UE::DMX
 	const FName SDMXConflictMonitor::FColumnIds::Universe = "Universe";
 	const FName SDMXConflictMonitor::FColumnIds::Conflicts = "Conflicts";
 	const FName SDMXConflictMonitor::FColumnIds::Channels = "Channels";
-	
+
 	SDMXConflictMonitor::SDMXConflictMonitor()
-		: Status(EDMXConflictMonitorStatus::Idle)
+		: StatusInfo(EDMXConflictMonitorStatusInfo::Idle)
 	{}
 
 	void SDMXConflictMonitor::Construct(const FArguments& InArgs)
@@ -46,8 +46,10 @@ namespace UE::DMX
 			.Padding(4.f)
 			[
 				SNew(SDMXConflictMonitorToolbar, CommandList.ToSharedRef())
-				.Status(this, &SDMXConflictMonitor::GetStatus)
-				.IsScanning(this, &SDMXConflictMonitor::IsScanning)
+				.StatusInfo_Lambda([this]()
+					{
+						return StatusInfo;
+				})
 				.OnDepthChanged_Lambda([this]()
 					{
 						Refresh();
@@ -111,15 +113,7 @@ namespace UE::DMX
 			Refresh();
 		}
 
-		// Update Status
-		if (Models.IsEmpty())
-		{
-			Status = EDMXConflictMonitorStatus::OK;
-		}
-		else
-		{
-			Status = EDMXConflictMonitorStatus::Conflict;
-		}
+		UpdateStatusInfo();
 	}
 
 	void SDMXConflictMonitor::Refresh()
@@ -132,11 +126,10 @@ namespace UE::DMX
 			});
 
 		FString NewText;
-		uint32 LineCount = 0;
-		for (const TSharedPtr<FDMXConflictMonitorConflictModel>& Item : NewModels)
+		for (const TSharedPtr<FDMXConflictMonitorConflictModel>& Model : NewModels)
 		{
-			++LineCount;
-			NewText.Append(Item->GetConflictAsString());
+			constexpr bool bWithMarkup = true;
+			NewText.Append(Model->GetConflictAsString(bWithMarkup));
 			NewText.Append(TEXT("\n"));
 		}
 
@@ -156,10 +149,13 @@ namespace UE::DMX
 		Models = NewModels;
 		TextBlock->SetText(FText::FromString(NewText));
 
-		// Log conflicts
-		if (bPrintToLog)
+		// Log conflicts (without markup)
+		if (IsPrintingToLog())
 		{
-			UE_LOG(LogDMXEditor, Log, TEXT("%s"), *NewText);
+			for (const TSharedPtr<FDMXConflictMonitorConflictModel>& Model : NewModels)
+			{
+				UE_LOG(LogDMXEditor, Log, TEXT("%s"), *Model->GetConflictAsString());
+			}
 		}
 	}
 
@@ -243,7 +239,7 @@ namespace UE::DMX
 		bIsPaused = false;
 		SetCanTick(true);
 
-		// Note, status is updated on tick
+		UpdateStatusInfo();
 	}
 
 	void SDMXConflictMonitor::Pause()
@@ -252,7 +248,8 @@ namespace UE::DMX
 
 		bIsPaused = true;
 		SetCanTick(false);
-		Status = EDMXConflictMonitorStatus::Paused;
+
+		UpdateStatusInfo();
 	}
 
 	void SDMXConflictMonitor::Stop()
@@ -261,17 +258,17 @@ namespace UE::DMX
 
 		bIsPaused = false;
 		SetCanTick(false);
-		Status = EDMXConflictMonitorStatus::Idle;
 
 		CachedOutboundConflicts.Reset();
 		Models.Reset();
 		Refresh();
+
+		UpdateStatusInfo();
 	}
 
 	void SDMXConflictMonitor::SetAutoPause(bool bEnabled)
 	{
 		UDMXEditorSettings* EditorSettings = GetMutableDefault<UDMXEditorSettings>();
-		const bool bWasEnabled = EditorSettings->ConflictMonitorSettings.bAutoPause;
 		EditorSettings->ConflictMonitorSettings.bAutoPause = bEnabled;
 
 		EditorSettings->SaveConfig();
@@ -290,18 +287,22 @@ namespace UE::DMX
 
 	void SDMXConflictMonitor::SetPrintToLog(bool bEnabled)
 	{
-		bPrintToLog = bEnabled;
+		UDMXEditorSettings* EditorSettings = GetMutableDefault<UDMXEditorSettings>();
+		EditorSettings->ConflictMonitorSettings.bPrintToLog = bEnabled;
+
+		EditorSettings->SaveConfig();
 	}
 
 	void SDMXConflictMonitor::TogglePrintToLog()
 	{
-		bPrintToLog = !bPrintToLog;
+		SetPrintToLog(!IsPrintingToLog());
 	}
 
 	bool SDMXConflictMonitor::IsPrintingToLog() const
 	{
-		// Only available in auto-pause mode
-		return bPrintToLog && IsAutoPause();
+		// Only available when auto-pause
+		const UDMXEditorSettings* EditorSettings = GetDefault<UDMXEditorSettings>();
+		return EditorSettings->ConflictMonitorSettings.bPrintToLog && IsAutoPause();
 	}
 
 	void SDMXConflictMonitor::SetRunWhenOpened(bool bEnabled)
@@ -329,6 +330,27 @@ namespace UE::DMX
 	{
 		return GetCanTick() && !bIsPaused;
 	}
+
+	void SDMXConflictMonitor::UpdateStatusInfo()
+	{
+		if (!GetCanTick())
+		{
+			StatusInfo = EDMXConflictMonitorStatusInfo::Idle;
+		}
+		else if (bIsPaused)
+		{
+			StatusInfo = EDMXConflictMonitorStatusInfo::Paused;
+		}
+		else if (Models.IsEmpty())
+		{
+			StatusInfo = EDMXConflictMonitorStatusInfo::OK;
+		}
+		else
+		{
+			StatusInfo = EDMXConflictMonitorStatusInfo::Conflict;
+		}
+	}
+
 }
 
 #undef LOCTEXT_NAMESPACE

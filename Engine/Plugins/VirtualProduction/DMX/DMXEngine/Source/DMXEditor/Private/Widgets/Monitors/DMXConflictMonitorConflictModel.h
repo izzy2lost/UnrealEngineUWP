@@ -17,7 +17,7 @@ namespace UE::DMX
 	public:
 		FDMXConflictMonitorConflictModel(const TArray<TSharedRef<FDMXMonitoredOutboundDMXData>>& InConflicts);
 
-		FString GetConflictAsString() const;
+		FString GetConflictAsString(bool bRichTextMarkup = false) const;
 
 	private:
 		/** Parses the conflict as string, stores it in Title and Details members */
@@ -26,17 +26,20 @@ namespace UE::DMX
 		FString Title;
 		TArray<FString> Details;
 
-		/** Returns the name of the first port in which a conflict occurs */
-		FString GetPortNameText() const;
+		/** Returns the name of the ports in which a conflict occurs */
+		FString GetPortNameString() const;
 
-		/** Returns the universe text */
-		FString GetUniverseText() const;
+		/** Returns the universe string */
+		FString GetUniverseString() const;
 
-		/** Returns the channels text */
-		FString GetChannelsText() const;
+		/** Returns the channels string */
+		FString GetChannelsString() const;
 
 		/** Applies the style to the string */
 		[[nodiscard]] FString StyleString(FString String, FString MarkupString) const;
+
+		/** Returns the string without markup */
+		FString GetStringNoMarkup(const FString& String) const;
 
 		FDMXConflictMonitorConflictModel() = default;
 
