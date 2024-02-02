@@ -288,6 +288,17 @@ namespace uba
 		writer.Write7BitEncoded(workIndex);
 	}
 
+	void Trace::StatusUpdate(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType)
+	{
+		BEGIN_TRACE_ENTRY(TraceType_StatusUpdate);
+		writer.Write7BitEncoded(statusIndex);
+		writer.Write7BitEncoded(statusNameIndent);
+		writer.WriteString(statusName);
+		writer.Write7BitEncoded(statusTextIndent);
+		writer.WriteString(statusText);
+		writer.WriteByte(statusType);
+	}
+
 	TraceChannel::TraceChannel(Logger& logger) : m_logger(logger)
 	{
 	}

@@ -862,6 +862,17 @@ namespace uba
 				record.stop = time;
 			break;
 		}
+		case TraceType_StatusUpdate:
+		{
+			u32 statusIndex = u32(reader.Read7BitEncoded());
+			auto& status = out.statusMap[statusIndex];
+			status.nameIndent = u32(reader.Read7BitEncoded());
+			status.name = reader.ReadString();
+			status.textIndent = u32(reader.Read7BitEncoded());
+			status.text = reader.ReadString();
+			status.type = (LogEntryType)reader.ReadByte();
+			break;
+		}
 		case TraceType_String:
 		{
 			out.strings.push_back(reader.ReadString());

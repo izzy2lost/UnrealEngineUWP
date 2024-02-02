@@ -251,6 +251,10 @@ namespace uba
 
 		if (m_useDarkMode)
 		{
+			m_textColor = RGB(190, 190, 190);
+			m_textWarningColor = RGB(190, 190, 0);
+			m_textErrorColor = RGB(190, 0, 0);
+
 			m_processBrushes[0].inProgress = CreateSolidBrush(RGB(70, 70, 70));
 			m_processBrushes[1].inProgress = CreateSolidBrush(RGB(130, 130, 130));
 
@@ -269,7 +273,6 @@ namespace uba
 
 			m_workBrush = CreateSolidBrush(RGB(70, 70, 100));
 
-			m_textColor = RGB(170, 170, 170);
 			m_backgroundBrush = CreateSolidBrush(0x00252526);
 			m_separatorPen = CreatePen(PS_SOLID, 1, RGB(50, 50, 50));
 			m_tooltipBackgroundBrush = CreateSolidBrush(0x00404040);
@@ -282,6 +285,10 @@ namespace uba
 		}
 		else
 		{
+			m_textColor = GetSysColor(COLOR_INFOTEXT);
+			m_textWarningColor = RGB(170, 130, 0);
+			m_textErrorColor = RGB(190, 0, 0);
+
 			m_processBrushes[0].inProgress = CreateSolidBrush(RGB(150, 150, 150));
 			m_processBrushes[1].inProgress = CreateSolidBrush(RGB(180, 180, 180));
 
@@ -300,7 +307,6 @@ namespace uba
 
 			m_workBrush = CreateSolidBrush(RGB(150, 150, 200));
 
-			m_textColor = GetSysColor(COLOR_INFOTEXT);
 			m_backgroundBrush = GetSysColorBrush(0);
 			m_separatorPen = CreatePen(PS_SOLID, 1, RGB(180, 180, 180));
 			m_tooltipBackgroundBrush = GetSysColorBrush(COLOR_INFOBK);
@@ -489,6 +495,36 @@ namespace uba
 		HBRUSH lastSelectedBrush = 0;
 
 		u64 lastStop = 0;
+
+		if (!m_traceView.statusMap.empty())
+		{
+			posY += 4;
+
+			auto drawStatusText = [&](const TString& text, LogEntryType type, int left, bool moveY)
+				{
+					RECT rect;
+					rect.left = left;
+					rect.right = clientRect.right;
+					rect.top = posY;
+					rect.bottom = posY + FontHeight + 2;
+					SetTextColor(hdc, type == LogEntryType_Info ? m_textColor : (type == LogEntryType_Error ? m_textErrorColor : m_textWarningColor));
+					ExtTextOutW(hdc, left, posY, ETO_CLIPPED, &rect, text.c_str(), u32(text.size()), NULL);
+					if (moveY)
+						posY = rect.bottom;
+				};
+
+			for (auto& kv : m_traceView.statusMap)
+			{
+				auto& status = kv.second;
+				if (status.name.empty() && status.text.empty())
+					continue;
+				drawStatusText(status.name, status.type, 5 + status.nameIndent*15, false);
+				drawStatusText(status.text, status.type, 5 + status.textIndent*15, true);
+			}
+			SetTextColor(hdc, m_textColor);
+			posY += 4;
+		}
+
 
 		struct SessionRec { TraceView::Session* session; u32 index; };
 		SessionRec sortedSessions[256];
@@ -1677,6 +1713,17 @@ namespace uba
 		}
 
 		u64 lastStop = 0;
+
+		if (!m_traceView.statusMap.empty())
+		{
+			posY += 4;
+			auto drawStatusText = [&]() { posY = posY + FontHeight + 2; };
+			drawStatusText();
+			for (auto& kv : m_traceView.statusMap)
+				if (!kv.second.text.empty())
+					drawStatusText();
+			posY += 4;
+		}
 
 		TraceView::ProcessLocation& outLocation = outResult.processLocation;
 

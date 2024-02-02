@@ -406,6 +406,11 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		server->EndExternalProcess(id, exitCode);
 	}
 
+	void SessionServer_UpdateStatus(uba::SessionServer* server, uba::u32 statusIndex, uba::u32 statusNameIndent, const uba::tchar* statusName, uba::u32 statusTextIndent, const uba::tchar* statusText, uba::LogEntryType statusType)
+	{
+		server->UpdateStatus(statusIndex, statusNameIndent, statusName, statusTextIndent, statusText, statusType);
+	}
+
 	void SessionServer_RegisterCustomService(uba::SessionServer* server, SessionServer_CustomServiceFunction* function, void* userData)
 	{
 		server->RegisterCustomService([function, userData](uba::Process& process, const void* recv, uba::u32 recvSize, void* send, uba::u32 sendCapacity)

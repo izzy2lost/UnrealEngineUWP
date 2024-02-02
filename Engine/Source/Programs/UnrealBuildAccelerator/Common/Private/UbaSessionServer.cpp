@@ -428,6 +428,11 @@ namespace uba
 		m_trace.ProcessExited(id, exitCode, statsWriter.GetData(), statsWriter.GetPosition(), Vector<ProcessLogLine>());
 	}
 
+	void SessionServer::UpdateStatus(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType)
+	{
+		m_trace.StatusUpdate(statusIndex, statusNameIndent, statusName, statusTextIndent, statusText, statusType);
+	}
+
 	NetworkServer& SessionServer::GetServer()
 	{
 		return m_server;
