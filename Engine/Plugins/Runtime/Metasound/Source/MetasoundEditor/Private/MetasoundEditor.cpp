@@ -1977,7 +1977,8 @@ namespace Metasound
 		{
 			if (MetasoundGraphEditor.IsValid())
 			{
-				if (UEdGraph* Graph = MetasoundGraphEditor->GetCurrentGraph())
+				UEdGraph* Graph = MetasoundGraphEditor->GetCurrentGraph();
+				if (Graph && IsGraphEditable())
 				{
 					FMetasoundGraphSchemaAction_NewComment CommentAction;
 					CommentAction.PerformAction(Graph, nullptr, MetasoundGraphEditor->GetPasteLocation());
@@ -2390,11 +2391,6 @@ namespace Metasound
 
 		bool FEditor::CanDeleteNodes() const
 		{
-			if (!IsGraphEditable())
-			{
-				return false;
-			}
-
 			if (MetasoundGraphEditor->GetSelectedNodes().IsEmpty())
 			{
 				return false;
@@ -2403,10 +2399,15 @@ namespace Metasound
 			const FGraphPanelSelectionSet& SelectedNodes = MetasoundGraphEditor->GetSelectedNodes();
 			for (FGraphPanelSelectionSet::TConstIterator SelectedIter(SelectedNodes); SelectedIter; ++SelectedIter)
 			{
+				// Allow deletion of comment nodes even on uneditable graphs 
+				// because they were unintentionally addable at one point
 				UEdGraphNode* Node = Cast<UEdGraphNode>(*SelectedIter);
 				if (Node && Node->CanUserDeleteNode())
 				{
-					return true;
+					if (Cast<UEdGraphNode_Comment>(Node) || IsGraphEditable())
+					{
+						return true;
+					}
 				}
 			}
 			return false;
