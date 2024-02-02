@@ -3,6 +3,8 @@
 #include "Pch.h"
 #include "Asio.h"
 #include "AsioContext.h"
+#include "InstanceInfo.h"
+#include "Lifetime.h"
 #include "Recorder.h"
 #include "Store.h"
 #include "StoreCborServer.h"
@@ -13,20 +15,22 @@
 struct FStoreServiceImpl
 {
 public:
-							FStoreServiceImpl(FStoreSettings* Settings);
+							FStoreServiceImpl(FStoreSettings* Settings, FInstanceInfo* InstanceInfo);
 							~FStoreServiceImpl();
 	FAsioContext			Context;
 	FStore					Store;
 	FRecorder				Recorder;
 	FStoreCborServer		CborServer;
+	FLifetime				LifetimeManager;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-FStoreServiceImpl::FStoreServiceImpl(FStoreSettings* Settings)
+FStoreServiceImpl::FStoreServiceImpl(FStoreSettings* Settings, FInstanceInfo* InstanceInfo)
 : Context(Settings->ThreadCount)
 , Store(Context.Get(), Settings)
 , Recorder(Context.Get(), Store)
 , CborServer(Context.Get(), Settings, Store, Recorder)
+, LifetimeManager(Context.Get(), (FStoreService*)this, Settings, InstanceInfo)
 {
 	if (Settings->RecorderPort >= 0)
 	{
@@ -39,6 +43,7 @@ FStoreServiceImpl::FStoreServiceImpl(FStoreSettings* Settings)
 FStoreServiceImpl::~FStoreServiceImpl()
 {
 	asio::post(Context.Get(), [this] () {
+		LifetimeManager.StopTick();
 		CborServer.Close();
 		Recorder.Close();
 		Store.Close();
@@ -49,7 +54,7 @@ FStoreServiceImpl::~FStoreServiceImpl()
 
 
 ////////////////////////////////////////////////////////////////////////////////
-FStoreService* FStoreService::Create(FStoreSettings* Settings)
+FStoreService* FStoreService::Create(FStoreSettings* Settings, FInstanceInfo* InstanceInfo)
 {
 	if (Settings->ThreadCount <= 0)
 	{
@@ -59,7 +64,7 @@ FStoreService* FStoreService::Create(FStoreSettings* Settings)
 	// TODO: not thread safe yet
 	Settings->ThreadCount = 1;
 
-	return (FStoreService*) new FStoreServiceImpl(Settings);
+	return (FStoreService*) new FStoreServiceImpl(Settings, InstanceInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

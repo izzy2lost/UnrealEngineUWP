@@ -41,3 +41,25 @@ bool FInstanceInfo::IsOlder() const
 	bIsOlder |= (Version < FInstanceInfo::CurrentVersion);
 	return bIsOlder;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+bool FInstanceInfo::AddSponsor(uint32 Pid)
+{
+	if (!Pid)
+	{
+		return true;
+	}
+
+	for (auto& PidEntry : SponsorPids)
+	{
+		if (uint32_t ThisPid = PidEntry.load(std::memory_order_relaxed); !ThisPid)
+		{
+			if (PidEntry.compare_exchange_strong(ThisPid, Pid, std::memory_order_relaxed))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
