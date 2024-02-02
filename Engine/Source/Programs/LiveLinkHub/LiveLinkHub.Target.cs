@@ -20,6 +20,7 @@ public class LiveLinkHubTarget : TargetRules
 		SolutionDirectory = "Programs/LiveLink";
 
 		AdditionalPlugins.Add("LiveLink");
+		AdditionalPlugins.Add("LiveLinkHub");
 		AdditionalPlugins.Add("ContentBrowserAssetDataSource");
 		AdditionalPlugins.Add("StructUtils");
 		AdditionalPlugins.Add("UdpMessaging");
