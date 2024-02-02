@@ -56,6 +56,9 @@ namespace uba
 		// End external process.
 		void EndExternalProcess(u32 id, u32 exitCode);
 
+		// Add external status information to trace stream. Will show in visualizer
+		void UpdateStatus(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType);
+
 		// Get the network server used by this session
 		NetworkServer& GetServer();
 

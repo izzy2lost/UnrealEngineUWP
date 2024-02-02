@@ -86,6 +86,8 @@ namespace uba
 		Atomic<bool> m_looping;
 		HWND m_hwnd = 0;
 		COLORREF m_textColor = {};
+		COLORREF m_textWarningColor = {};
+		COLORREF m_textErrorColor = {};
 		COLORREF m_sendColor = {};
 		COLORREF m_recvColor = {};
 		COLORREF m_cpuColor = {};

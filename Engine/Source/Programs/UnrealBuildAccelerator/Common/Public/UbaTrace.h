@@ -48,9 +48,10 @@ namespace uba
 		TraceType_ProxyUsed,
 		TraceType_FileFetchLight,
 		TraceType_FileStoreLight,
+		TraceType_StatusUpdate,
 	};
 
-	static constexpr u32 TraceVersion = 20;
+	static constexpr u32 TraceVersion = 21;
 	static constexpr u32 TraceReadCompatibilityVersion = 6;
 
 	class Trace
@@ -78,6 +79,7 @@ namespace uba
 		void FileEndStore(u32 clientId, const CasKey& key);
 		void BeginWork(u32 workIndex, const tchar* desc);
 		void EndWork(u32 workIndex);
+		void StatusUpdate(u32 statusIndex, u32 statusNameIndent, const tchar* statusName, u32 statusTextIndent, const tchar* statusText, LogEntryType statusType);
 
 		bool StopWrite(const tchar* writeFileName);
 

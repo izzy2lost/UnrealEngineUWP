@@ -71,6 +71,15 @@ namespace uba
 			u64 stop;
 		};
 
+		struct StatusUpdate
+		{
+			TString name;
+			TString text;
+			u32 nameIndent;
+			u32 textIndent;
+			LogEntryType type;
+		};
+
 		struct Session
 		{
 			TString name;
@@ -109,11 +118,12 @@ namespace uba
 		};
 
 		Process* GetProcess(const ProcessLocation& loc) { return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]); }
-		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
+		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); statusMap.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
 
 		Vector<Session> sessions;
 		Vector<WorkTrack> workTracks;
 		Vector<TString> strings;
+		Map<u32, StatusUpdate> statusMap;
 		u64 startTime = 0;
 		u64 frequency = 0;
 		u32 totalProcessActiveCount = 0;
