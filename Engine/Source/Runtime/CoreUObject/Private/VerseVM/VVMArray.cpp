@@ -16,25 +16,27 @@ TGlobalTrivialEmergentTypePtr<&VTypeArray::StaticCppClassInfo> VTypeArray::Globa
 
 DEFINE_DERIVED_VCPPCLASSINFO(VArray);
 DEFINE_TRIVIAL_VISIT_REFERENCES(VArray);
-TGlobalTrivialEmergentTypePtr<&VArray::StaticCppClassInfo> VArray::GlobalTrivialEmergentType;
 
-void VArray::SerializeImpl(VArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+VArray& VArray::Concat(FRunningContext Context, VArrayBase& Lhs, VArrayBase& Rhs)
 {
-	if (Visitor.IsLoading())
+	VArray& NewArray = VArray::New(Context, Lhs.Num() + Rhs.Num(), DetermineCombinedType(Lhs.GetArrayType(), Rhs.GetArrayType()));
+	if (NewArray.GetArrayType() != EArrayType::VValue)
 	{
-		uint64 ScratchNumValues = 0;
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		This = &VArray::New(Context, (uint32)ScratchNumValues);
-		Visitor.Visit(This->GetData(), This->GetData() + This->Num());
-		Visitor.EndArray();
+		FMemory::Memcpy(NewArray.GetData(), Lhs.GetData(), Lhs.ByteLength());
+		FMemory::Memcpy(NewArray.GetData<int32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+		return NewArray;
 	}
-	else
+
+	uint32 Index = 0;
+	for (int I = 0; I < Lhs.Num(); ++I)
 	{
-		uint64 ScratchNumValues = This->Num();
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		Visitor.Visit(This->GetData(), This->GetData() + This->Num());
-		Visitor.EndArray();
+		NewArray.SetValue(Context, Index++, Lhs.GetValue(I));
 	}
+	for (int J = 0; J < Rhs.Num(); ++J)
+	{
+		NewArray.SetValue(Context, Index++, Rhs.GetValue(J));
+	}
+	return NewArray;
 }
 
 } // namespace Verse

@@ -883,7 +883,7 @@ class FInterpreter
 			VArrayBase& LeftArray = LeftSource.StaticCast<VArrayBase>();
 			VArrayBase& RightArray = RightSource.StaticCast<VArrayBase>();
 
-			DEF(Op.Dest, VArrayBase::Concat<VArray>(Context, LeftArray, RightArray));
+			DEF(Op.Dest, VArray::Concat(Context, LeftArray, RightArray));
 		}
 		else
 		{
@@ -909,7 +909,7 @@ class FInterpreter
 			VArrayBase& LeftArray = LeftSource.StaticCast<VArrayBase>();
 			VArrayBase& RightArray = RightSource.StaticCast<VArrayBase>();
 
-			DEF(Op.Dest, VArrayBase::Concat<VMutableArray>(Context, LeftArray, RightArray));
+			DEF(Op.Dest, VMutableArray::Concat(Context, LeftArray, RightArray));
 		}
 		else
 		{
@@ -1334,7 +1334,6 @@ class FInterpreter
 		const uint32 NumValues = Op.Values.Num();
 		VArray& NewArray = VArray::New(Context, NumValues, [this, &Op](uint32 Index) { return GetOperand(Op.Values[Index]); });
 		DEF(Op.Dest, NewArray);
-
 		return {FOpResult::Return};
 	}
 
@@ -1342,14 +1341,8 @@ class FInterpreter
 	FOpResult NewMutableArrayImpl(OpType& Op)
 	{
 		const uint32 NumValues = Op.Values.Num();
-		VMutableArray& NewArray = VMutableArray::New(Context, NumValues);
-		for (uint32 Index = 0; Index < NumValues; ++Index)
-		{
-			const VValue VarArgValue = GetOperand(Op.Values[Index]);
-			NewArray.AddValue(Context, VarArgValue);
-		}
+		VMutableArray& NewArray = VMutableArray::New(Context, NumValues, [this, &Op](uint32 Index) { return GetOperand(Op.Values[Index]); });
 		DEF(Op.Dest, NewArray);
-
 		return {FOpResult::Return};
 	}
 

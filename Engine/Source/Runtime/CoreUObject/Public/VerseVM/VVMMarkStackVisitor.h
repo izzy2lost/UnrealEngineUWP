@@ -114,6 +114,10 @@ struct FMarkStackVisitor
 	{
 	}
 
+	FORCEINLINE void VisitBulkData(void* Data, uint64 DataSize, ConsumeElementName ElementName)
+	{
+	}
+
 	// NOTE: The Value parameter can not be passed by value.
 	template <typename T>
 	FORCEINLINE void Visit(const TWriteBarrier<T>& Value, ConsumeElementName ElementName)

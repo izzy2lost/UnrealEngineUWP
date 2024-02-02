@@ -8,6 +8,7 @@
 #include "VVMEmergentTypeCreator.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMHeap.h"
+#include "VerseVM/VVMLog.h"
 
 namespace Verse
 {
@@ -18,36 +19,83 @@ struct FOpResult;
 struct VArrayBase : VHeapValue
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
-	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
 protected:
-	TWriteBarrier<TAux<TWriteBarrier<VValue>>> Values;
+	// Our Aux memory buffer is typed as void so we can accomodate all the types listed in ::EArrayType
+	TWriteBarrier<TAux<void>> Values;
 	uint32 NumValues;
 
-	VArrayBase(FAllocationContext Context, uint32 InNumValues, VEmergentType* Type)
+	void SetArrayType(EArrayType ArrayType)
+	{
+		Misc3 &= ~(static_cast<uint8_t>(GetArrayType())); // Clear any existing type
+		Misc3 |= static_cast<uint8_t>(ArrayType);
+	}
+
+	static EArrayType DetermineArrayType(VValue Value)
+	{
+		if (Value.IsInt32())
+		{
+			return EArrayType::Int32;
+		}
+		if (Value.IsChar())
+		{
+			return EArrayType::Char8;
+		}
+		if (Value.IsChar32())
+		{
+			return EArrayType::Char32;
+		}
+		return EArrayType::VValue;
+	}
+
+	static EArrayType DetermineCombinedType(EArrayType A, EArrayType B)
+	{
+		return A == B ? A : EArrayType::VValue;
+	}
+
+	static size_t ByteLength(EArrayType ArrayType)
+	{
+		switch (ArrayType)
+		{
+			case EArrayType::None:
+				return 0; // Empty-Untyped VMutableArray
+			case EArrayType::VValue:
+				return sizeof(TWriteBarrier<VValue>);
+			case EArrayType::Int32:
+				return sizeof(int32);
+			case EArrayType::Char8:
+				return sizeof(uint8);
+			case EArrayType::Char32:
+				return sizeof(uint32);
+			default:
+				V_DIE("Unhandled EArrayType encountered!");
+		}
+	}
+
+	VArrayBase(FAllocationContext Context, uint32 InNumValues, EArrayType ArrayType, VEmergentType* Type)
 		: VHeapValue(Context, Type)
 		, NumValues(InNumValues)
 	{
 		SetIsDeeplyMutable();
-		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
-		Values.Set(Context, NewValues);
-		for (uint32 Index = 0; Index < NumValues; ++Index)
+		if (ArrayType != EArrayType::None)
 		{
-			new (&Values.Get()[Index]) TWriteBarrier<VValue>();
+			AllocateBuffer(Context, ArrayType, NumValues);
 		}
 	}
 
 	VArrayBase(FAllocationContext Context, std::initializer_list<VValue> InitList, VEmergentType* Type)
 		: VHeapValue(Context, Type)
-		, NumValues(static_cast<uint32>(InitList.size()))
+		, NumValues(InitList.size())
 	{
 		SetIsDeeplyMutable();
-		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
-		Values.Set(Context, NewValues);
-		uint32 Index = 0;
-		for (const VValue& Value : InitList)
+		if (NumValues)
 		{
-			new (&Values.Get()[Index++]) TWriteBarrier<VValue>(Context, Value);
+			AllocateBuffer(Context, DetermineArrayType(*InitList.begin()), NumValues);
+			uint32 Index = 0;
+			for (const VValue& Value : InitList)
+			{
+				SetValue(Context, Index++, Value, &NumValues);
+			}
 		}
 	}
 
@@ -57,18 +105,28 @@ protected:
 		, NumValues(InNumValues)
 	{
 		SetIsDeeplyMutable();
-		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
-		Values.Set(Context, NewValues);
-		for (uint32 Index = 0; Index < NumValues; ++Index)
+		if (NumValues)
 		{
-			new (&Values.Get()[Index]) TWriteBarrier<VValue>(Context, InitFunc(Index));
+			AllocateBuffer(Context, DetermineArrayType(InitFunc(0)), NumValues);
+			for (uint32 Index = 0; Index < NumValues; ++Index)
+			{
+				SetValue(Context, Index, InitFunc(Index), &NumValues);
+			}
 		}
 	}
 
-	TWriteBarrier<VValue>* GetData() { return Values.Get().GetPtr(); }
-	const TWriteBarrier<VValue>* GetData() const { return Values.Get().GetPtr(); }
+	void AllocateBuffer(FAllocationContext Context, EArrayType ArrayType, uint32 Capacity)
+	{
+		checkSlow(!GetData());
+		TAux<void> NewValues = TAux<void>(Context.AllocateAuxCell(ByteLength(ArrayType) * Capacity));
+		Values.Set(Context, NewValues);
+		SetArrayType(ArrayType);
+	}
 
-	void SetValue(FAccessContext Context, uint32 Index, VValue Value);
+	void ConvertDataToVValues(FAllocationContext Context, const uint32* Capacity);
+
+	template <typename T>
+	static void Serialize(T*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 public:
 	uint32 Num() const { return NumValues; }
@@ -76,8 +134,40 @@ public:
 	bool IsInBounds(const VInt& Index, const uint32 Bounds) const;
 	VValue GetValue(uint32 Index);
 
+	/// Capacity parameter is required for handling when a re-allocation to VValues takes place during SetValue from a VMutableArray.
+	void SetValue(FAllocationContext Context, uint32 Index, VValue Value, const uint32* Capacity = nullptr);
+	void SetVValue(FAllocationContext Context, uint32 Index, VValue Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::VValue);
+		new (&BitCast<TAux<TWriteBarrier<VValue>>>(Values.Get())[Index]) TWriteBarrier<VValue>(Context, Value);
+	}
+	void SetInt32(uint32 Index, int32 Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::Int32);
+		new (&BitCast<TAux<int32>>(Values.Get())[Index]) int32(Value);
+	}
+	void SetChar(uint32 Index, uint8 Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::Char8);
+		new (&BitCast<TAux<uint8>>(Values.Get())[Index]) uint8(Value);
+	}
+	void SetChar32(uint32 Index, uint32 Value)
+	{
+		checkSlow(GetArrayType() == EArrayType::Char32);
+		new (&BitCast<TAux<uint32>>(Values.Get())[Index]) uint32(Value);
+	}
+
+	void* GetData() { return Values.Get().GetPtr(); };
+	const void* GetData() const { return Values.Get().GetPtr(); };
 	template <typename T>
-	static T& Concat(FAllocationContext Context, VArrayBase& Lhs, VArrayBase& Rhs);
+	T* GetData() { return BitCast<TAux<T>>(Values.Get()).GetPtr(); }
+	template <typename T>
+	const T* GetData() const { return BitCast<TAux<T>>(Values.Get()).GetPtr(); }
+
+	size_t ByteLength()
+	{
+		return Num() * ByteLength(GetArrayType());
+	}
 
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 
@@ -90,22 +180,79 @@ public:
 	// C++ ranged-based iteration
 	class FConstIterator
 	{
+		union
+		{
+			const TWriteBarrier<VValue>* Barrier;
+			const int32* Int32;
+			const uint8* Char8;
+			const uint32* Char32;
+			const void* None;
+		};
+		EArrayType ArrayType;
+
 	public:
-		FORCEINLINE VValue operator*() const { return CurrentValue->Get(); }
-		FORCEINLINE bool operator==(const FConstIterator& Rhs) const { return CurrentValue == Rhs.CurrentValue; }
-		FORCEINLINE bool operator!=(const FConstIterator& Rhs) const { return CurrentValue != Rhs.CurrentValue; }
+		FORCEINLINE VValue operator*() const
+		{
+			switch (ArrayType)
+			{
+				case EArrayType::VValue:
+					return Barrier->Get();
+				case EArrayType::Int32:
+					return VValue::FromInt32(*Int32);
+				case EArrayType::Char8:
+					return VValue::Char(*Char8);
+				case EArrayType::Char32:
+					return VValue::Char32(*Char32);
+				default:
+					V_DIE("Unhandled EArrayType encountered!");
+			}
+		}
+
+		// Don't need to worry about the data-type here as we are just doing pointer comparison
+		FORCEINLINE bool operator==(const FConstIterator& Rhs) const { return Barrier == Rhs.Barrier; }
+		FORCEINLINE bool operator!=(const FConstIterator& Rhs) const { return Barrier != Rhs.Barrier; }
+
 		FORCEINLINE FConstIterator& operator++()
 		{
-			++CurrentValue;
+			switch (ArrayType)
+			{
+				case EArrayType::VValue:
+					++Barrier;
+					break;
+				case EArrayType::Int32:
+					++Int32;
+					break;
+				case EArrayType::Char8:
+					++Char8;
+					break;
+				case EArrayType::Char32:
+					++Char32;
+					break;
+				default:
+					V_DIE("Unhandled EArrayType encountered!");
+			}
 			return *this;
 		}
 
 	private:
 		friend struct VArrayBase;
 		FORCEINLINE FConstIterator(const TWriteBarrier<VValue>* InCurrentValue)
-			: CurrentValue(InCurrentValue) {}
-		const TWriteBarrier<VValue>* CurrentValue;
+			: Barrier(InCurrentValue)
+			, ArrayType(EArrayType::VValue) {}
+		FORCEINLINE FConstIterator(const int32* InCurrentValue)
+			: Int32(InCurrentValue)
+			, ArrayType(EArrayType::Int32) {}
+		FORCEINLINE FConstIterator(const uint8* InCurrentValue)
+			: Char8(InCurrentValue)
+			, ArrayType(EArrayType::Char8) {}
+		FORCEINLINE FConstIterator(const uint32* InCurrentValue)
+			: Char32(InCurrentValue)
+			, ArrayType(EArrayType::Char32) {}
+		FORCEINLINE FConstIterator(const void* InCurrentValue)
+			: None(InCurrentValue)
+			, ArrayType(EArrayType::None) {}
 	};
+
 	COREUOBJECT_API FConstIterator begin() const;
 	COREUOBJECT_API FConstIterator end() const;
 };

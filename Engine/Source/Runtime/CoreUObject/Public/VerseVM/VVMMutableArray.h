@@ -22,20 +22,29 @@ private:
 	uint32 Capacity;
 
 public:
-	void SetValue(FAccessContext Context, uint32 Index, VValue Value);
+	void SetValue(FAllocationContext Context, uint32 Index, VValue Value)
+	{
+		Super::SetValue(Context, Index, Value, &Capacity);
+	}
+
 	void AddValue(FAllocationContext Context, VValue Value);
+
+	template <typename T>
 	void Append(FAllocationContext Context, VArrayBase& Array);
+	void Append(FAllocationContext Context, VArrayBase& Array);
+
+	static VMutableArray& Concat(FAllocationContext Context, VArrayBase& Lhs, VArrayBase& Rhs);
 
 	void InPlaceMakeImmutable(FAllocationContext Context)
 	{
 		static_assert(std::is_base_of_v<VArrayBase, VArray>);
 		static_assert(sizeof(VArray) == sizeof(VArrayBase));
-		SetEmergentType(Context, &VArray::GlobalTrivialEmergentType.Get(Context));
+		SetEmergentType(Context, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, NumValues), &VArray::StaticCppClassInfo));
 	}
 
-	static VMutableArray& New(FAllocationContext Context, uint32 InitialCapacity = 1)
+	static VMutableArray& New(FAllocationContext Context, uint32 InitialCapacity, EArrayType ArrayType = EArrayType::None)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InitialCapacity);
+		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InitialCapacity, ArrayType);
 	}
 
 	static VMutableArray& New(FAllocationContext Context, std::initializer_list<VValue> InitList)
@@ -49,13 +58,13 @@ public:
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InNumValues, InitFunc);
 	}
 
-	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor) { Serialize(This, Context, Visitor); }
 
 	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
 
 private:
-	VMutableArray(FAllocationContext Context, uint32 InitialCapacity)
-		: VArrayBase(Context, InitialCapacity, &GlobalTrivialEmergentType.Get(Context))
+	VMutableArray(FAllocationContext Context, uint32 InitialCapacity, EArrayType ArrayType)
+		: VArrayBase(Context, InitialCapacity, ArrayType, &GlobalTrivialEmergentType.Get(Context))
 		, Capacity(InitialCapacity)
 	{
 		NumValues = 0;

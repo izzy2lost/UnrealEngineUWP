@@ -43,6 +43,22 @@ public:
 	}
 };
 
+template <>
+class TAux<void>
+{
+	void* Ptr;
+
+public:
+	TAux()
+		: Ptr(nullptr) {}
+	TAux(void* InPtr)
+		: Ptr(InPtr) {}
+
+	void* GetPtr() { return Ptr; }
+
+	explicit operator bool() const { return !!(Ptr); }
+};
+
 template <typename T>
 static constexpr inline bool IsTAux = false;
 

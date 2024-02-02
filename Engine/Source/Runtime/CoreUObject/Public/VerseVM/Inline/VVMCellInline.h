@@ -5,6 +5,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/TypeCompatibleBytes.h"
+#include "VerseVM/VVMArrayBase.h"
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentType.h"
@@ -83,6 +84,12 @@ void VCell::VisitReferencesImpl(TVisitor& Visitor)
 			GCData &= ~GCDataIsWeakKeyBit;
 		}
 	}
+}
+
+inline EArrayType VCell::GetArrayType() const
+{
+	checkSlow(IsA<VArrayBase>());
+	return static_cast<EArrayType>(Misc3 & 0x0F);
 }
 
 DEFINE_TRIVIAL_VISIT_REFERENCES(VHeapValue);

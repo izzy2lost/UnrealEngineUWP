@@ -15,7 +15,6 @@
 namespace Verse
 {
 DEFINE_DERIVED_VCPPCLASSINFO(VArrayBase);
-TGlobalTrivialEmergentTypePtr<&VArrayBase::StaticCppClassInfo> VArrayBase::GlobalTrivialEmergentType;
 
 bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
 {
@@ -29,11 +28,19 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 	{
 		return false;
 	}
-	for (uint32 Index = 0, End = Num(); Index < End; ++Index)
+
+	if (DetermineCombinedType(GetArrayType(), Other->GetArrayType()) != EArrayType::VValue)
 	{
-		if (!VValue::Equal(Context, GetValue(Index), OtherArray.GetValue(Index), HandlePlaceholder))
+		return FMemory::Memcmp(GetData(), OtherArray.GetData(), ByteLength()) == 0;
+	}
+	else
+	{
+		for (uint32 Index = 0, End = Num(); Index < End; ++Index)
 		{
-			return false;
+			if (!VValue::Equal(Context, GetValue(Index), OtherArray.GetValue(Index), HandlePlaceholder))
+			{
+				return false;
+			}
 		}
 	}
 	return true;
@@ -41,24 +48,45 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 
 FOpResult VArrayBase::MeltImpl(FRunningContext Context)
 {
-	VMutableArray& MeltedArray = VMutableArray::New(Context, Num());
-	for (uint32 I = 0; I < Num(); ++I)
+	EArrayType ArrayType = GetArrayType();
+	VMutableArray& MeltedArray = VMutableArray::New(Context, Num(), ArrayType);
+	if (ArrayType != EArrayType::VValue)
 	{
-		FOpResult ValueResult = VValue::Melt(Context, GetValue(I));
-		if (ValueResult.Kind == FOpResult::Block)
+		FMemory::Memcpy(MeltedArray.GetData(), GetData(), ByteLength());
+		MeltedArray.NumValues = Num();
+	}
+	else
+	{
+		for (uint32 I = 0; I < Num(); ++I)
 		{
-			return ValueResult;
+			FOpResult ValueResult = VValue::Melt(Context, GetValue(I));
+			if (ValueResult.Kind == FOpResult::Block)
+			{
+				return ValueResult;
+			}
+			MeltedArray.AddValue(Context, ValueResult.Value);
 		}
-		MeltedArray.AddValue(Context, ValueResult.Value);
 	}
 	V_RETURN(VValue(MeltedArray));
 }
 
 uint32 VArrayBase::GetTypeHashImpl()
 {
-	const TWriteBarrier<VValue>* Ptr = GetData();
-	const uint32 Size = Num();
-	return ::GetArrayHash(Ptr, Size);
+	switch (GetArrayType())
+	{
+		case EArrayType::None:
+			return 0; // Empty-Untyped VMutableArray
+		case EArrayType::VValue:
+			return ::GetArrayHash(GetData<TWriteBarrier<VValue>>(), Num());
+		case EArrayType::Int32:
+			return ::GetArrayHash(GetData<int32>(), Num());
+		case EArrayType::Char8:
+			return ::GetArrayHash(GetData<uint8>(), Num());
+		case EArrayType::Char32:
+			return ::GetArrayHash(GetData<uint32>(), Num());
+		default:
+			V_DIE("Unhandled EArrayType encountered!");
+	}
 }
 
 void VArrayBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
@@ -75,12 +103,40 @@ void VArrayBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Co
 
 VArrayBase::FConstIterator VArrayBase::begin() const
 {
-	return GetData();
+	switch (GetArrayType())
+	{
+		case EArrayType::None:
+			return GetData(); // Empty-Untyped VMutableArray
+		case EArrayType::VValue:
+			return GetData<TWriteBarrier<VValue>>();
+		case EArrayType::Int32:
+			return GetData<int32>();
+		case EArrayType::Char8:
+			return GetData<uint8>();
+		case EArrayType::Char32:
+			return GetData<uint32>();
+		default:
+			V_DIE("Unhandled EArrayType encountered!");
+	}
 }
 
 VArrayBase::FConstIterator VArrayBase::end() const
 {
-	return GetData() + Num();
+	switch (GetArrayType())
+	{
+		case EArrayType::None:
+			return GetData(); // Empty-Untyped VMutableArray
+		case EArrayType::VValue:
+			return GetData<TWriteBarrier<VValue>>() + Num();
+		case EArrayType::Int32:
+			return GetData<int32>() + Num();
+		case EArrayType::Char8:
+			return GetData<uint8>() + Num();
+		case EArrayType::Char32:
+			return GetData<uint32>() + Num();
+		default:
+			V_DIE("Unhandled EArrayType encountered!");
+	}
 }
 
 } // namespace Verse
