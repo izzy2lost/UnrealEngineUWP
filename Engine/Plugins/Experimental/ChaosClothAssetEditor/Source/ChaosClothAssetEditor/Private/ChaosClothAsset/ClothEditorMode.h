@@ -87,6 +87,20 @@ public:
 		return bConstructionViewSeamsCollapse;
 	}
 
+	void TogglePatternColor();
+	bool CanSetPatternColor() const;
+	bool IsPatternColorActive() const
+	{
+		return bPatternColors;
+	}
+
+	void ToggleMeshStats();
+	bool CanSetMeshStats() const;
+	bool IsMeshStatsActive() const
+	{
+		return bMeshStats;
+	}
+
 	// Simulation controls
 	void SoftResetSimulation();
 	void HardResetSimulation();
@@ -95,6 +109,9 @@ public:
 	bool IsSimulationSuspended() const;
 	void SetEnableSimulation(bool bEnabled);
 	bool IsSimulationEnabled() const;
+
+	int32 GetConstructionViewTriangleCount() const;
+	int32 GetConstructionViewVertexCount() const;
 
 	// LODIndex == INDEX_NONE is LOD Auto
 	void SetLODModel(int32 LODIndex);
@@ -260,6 +277,9 @@ private:
 	bool bShouldRestoreConstructionViewSeams = false;
 	bool bConstructionViewSeamsCollapse = false;
 	void InitializeSeamDraw();
+
+	bool bPatternColors = false;
+	bool bMeshStats = false;
 
 	// Create dynamic mesh components from the cloth component's rest space info
 	void ReinitializeDynamicMeshComponents();

@@ -36,6 +36,8 @@ private:
 	TSharedRef<SWidget> MakeDisplayToolBar(const TSharedPtr<FExtender> InExtenders);
 	TSharedRef<SWidget> MakeToolBar(const TSharedPtr<FExtender> InExtenders);
 
+	FText GetDisplayString() const;
+
 	FText GetViewModeMenuLabel() const;
 	const FSlateBrush* GetViewModeMenuLabelIcon() const;
 	TSharedRef<SWidget> GenerateViewModeMenuContent() const;
