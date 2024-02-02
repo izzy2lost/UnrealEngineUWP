@@ -849,6 +849,7 @@ namespace Chaos
 		InProxy->MarkDeleted();
 
 		RemoveDirtyProxy(InProxy);
+		InProxy->OnUnregisteredFromSolver();
 
 		// Particles are removed from acceleration structure in FPhysScene_Chaos::RemoveObject.
 

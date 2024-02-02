@@ -3086,6 +3086,11 @@ int32 FGeometryCollectionPhysicsProxy::CalculateAndSetLevel(int32 TransformGroup
 	return Levels[TransformGroupIndex];
 }
 
+void FGeometryCollectionPhysicsProxy::OnUnregisteredFromSolver()
+{
+	IsObjectDeleting = true;
+}
+
 void FGeometryCollectionPhysicsProxy::OnRemoveFromSolver(Chaos::FPBDRigidsSolver *RBDSolver)
 {
 	Chaos::FPBDRigidsEvolutionGBF* Evolution = RBDSolver->GetEvolution();
@@ -3143,8 +3148,6 @@ void FGeometryCollectionPhysicsProxy::OnRemoveFromSolver(Chaos::FPBDRigidsSolver
 			}
 		}		
 	}
-
-	IsObjectDeleting = true;
 }
 
 void FGeometryCollectionPhysicsProxy::OnRemoveFromScene()
