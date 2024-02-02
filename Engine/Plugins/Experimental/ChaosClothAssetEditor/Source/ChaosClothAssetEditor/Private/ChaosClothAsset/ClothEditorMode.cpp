@@ -101,6 +101,17 @@ namespace UE::Chaos::ClothAsset::Private
 		return OutWeightMapNames;
 	}
 
+	FLinearColor PseudoRandomColor(int32 NumColorRotations)
+	{
+		constexpr uint8 Spread = 157;  // Prime number that gives a good spread of colors without getting too similar as a rand might do.
+		uint8 Seed = Spread;
+		for (int32 Rotation = 0; Rotation < NumColorRotations; ++Rotation)
+		{
+			Seed += Spread;
+		}
+		return FLinearColor::MakeFromHSV8(Seed, 180, 140);
+	}
+
 }
 
 
@@ -519,18 +530,6 @@ void UChaosClothAssetEditorMode::InitializeSeamDraw()
 		return;
 	}
 
-
-	auto PseudoRandomColor = [](int32 NumColorRotations) -> FLinearColor
-	{
-		constexpr uint8 Spread = 157;  // Prime number that gives a good spread of colors without getting too similar as a rand might do.
-		uint8 Seed = Spread;
-		for (int32 Rotation = 0; Rotation < NumColorRotations; ++Rotation)
-		{
-			Seed += Spread;
-		}
-		return FLinearColor::MakeFromHSV8(Seed, 180, 140);
-	};
-
 	const UE::Chaos::ClothAsset::FCollectionClothConstFacade ClothFacade(Collection.ToSharedRef());
 
 	ULineSetComponent* const Lines = ClothSeamDraw->AddLineSet("SeamLines");
@@ -557,7 +556,7 @@ void UChaosClothAssetEditorMode::InitializeSeamDraw()
 
 			for (const TArray<FIntVector2>& ConnectedSeam : ConnectedSeams)
 			{
-				const FColor SeamColor = PseudoRandomColor(ConnectedSeamIndex++).ToFColor(true);
+				const FColor SeamColor = UE::Chaos::ClothAsset::Private::PseudoRandomColor(ConnectedSeamIndex++).ToFColor(true);
 
 				// draw connected edge on each side of the seam
 				for (int32 StitchID = 0; StitchID < ConnectedSeam.Num() - 1; ++StitchID)
@@ -600,7 +599,7 @@ void UChaosClothAssetEditorMode::InitializeSeamDraw()
 		else if (ConstructionViewMode == UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D)
 		{
 			const TArray<int32> SeamStitches(SeamFacade.GetSeamStitch3DIndex());
-			const FColor SeamColor = PseudoRandomColor(SeamIndex).ToFColor(true);
+			const FColor SeamColor = UE::Chaos::ClothAsset::Private::PseudoRandomColor(SeamIndex).ToFColor(true);
 
 			// In 3D we should be able to draw the seam edges in any order, doesn't need to be in connected paths
 			for (int32 StitchIndexI = 0; StitchIndexI < SeamStitches.Num(); ++StitchIndexI)
@@ -629,6 +628,7 @@ void UChaosClothAssetEditorMode::InitializeSeamDraw()
 void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 {
 	using namespace UE::Chaos::ClothAsset;
+	using namespace UE::Geometry;
 
 	auto SetUpDynamicMeshComponentMaterial = [this](const UE::Chaos::ClothAsset::FCollectionClothConstFacade& ClothFacade, UDynamicMeshComponent& MeshComponent)
 	{
@@ -636,14 +636,32 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 		{
 			case EClothPatternVertexType::Sim2D:
 			{
-				UMaterialInterface* const Material = ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(GetToolManager(), FLinearColor{ 0.6, 0.6, 0.6 }, 0.0);
-				MeshComponent.SetMaterial(0, Material);
+				if (bPatternColors)
+				{
+					constexpr bool bTwoSided = true;
+					UMaterialInterface* const Material = ToolSetupUtil::GetVertexColorMaterial(GetToolManager(), bTwoSided);
+					MeshComponent.SetMaterial(0, Material);
+				}
+				else
+				{
+					UMaterialInterface* const Material = ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(GetToolManager(), FLinearColor{ 0.6, 0.6, 0.6 }, 0.0);
+					MeshComponent.SetMaterial(0, Material);
+				}
 			}
 			break;
 			case EClothPatternVertexType::Sim3D:
 			{
-				UMaterialInterface* const Material = ToolSetupUtil::GetDefaultSculptMaterial(GetToolManager());
-				MeshComponent.SetMaterial(0, Material);
+				if (bPatternColors)
+				{
+					constexpr bool bTwoSided = true;
+					UMaterialInterface* const Material = ToolSetupUtil::GetVertexColorMaterial(GetToolManager(), bTwoSided);
+					MeshComponent.SetMaterial(0, Material);
+				}
+				else
+				{
+					UMaterialInterface* const Material = ToolSetupUtil::GetDefaultSculptMaterial(GetToolManager());
+					MeshComponent.SetMaterial(0, Material);
+				}
 			}
 			break;
 			case EClothPatternVertexType::Render:
@@ -728,6 +746,34 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 		// Use per-triangle normals for the 2D view
 		UE::Geometry::FMeshNormals::InitializeMeshToPerTriangleNormals(&LodMesh);
 	}
+
+	if (bPatternColors)
+	{
+		LodMesh.Attributes()->EnablePrimaryColors();
+		LodMesh.Attributes()->PrimaryColors()->CreateFromPredicate([&ClothFacade](int ParentVID, int TriIDA, int TriIDB)
+			{
+				return ClothFacade.FindSimPatternByFaceIndex(TriIDA) == ClothFacade.FindSimPatternByFaceIndex(TriIDB);
+			}
+		, 0.0f);
+
+		FDynamicMeshColorOverlay* const ColorAttributeLayer = LodMesh.Attributes()->PrimaryColors();
+		for (int32 PatternID = 0; PatternID < ClothFacade.GetNumSimPatterns(); ++PatternID)
+		{
+			const FCollectionClothSimPatternConstFacade Pattern = ClothFacade.GetSimPattern(PatternID);
+			const FLinearColor PatternColor = Private::PseudoRandomColor(PatternID);
+
+			for (int32 TriID = 0; TriID < Pattern.GetNumSimFaces(); ++TriID)
+			{
+				const int32 GlobalTriID = Pattern.GetSimFacesOffset() + TriID;
+				const FIndex3i AttrTri = LodMesh.Attributes()->PrimaryColors()->GetTriangle(GlobalTriID);
+				ColorAttributeLayer->SetElement(AttrTri[0], (FVector4f)PatternColor);
+				ColorAttributeLayer->SetElement(AttrTri[1], (FVector4f)PatternColor);
+				ColorAttributeLayer->SetElement(AttrTri[2], (FVector4f)PatternColor);
+			}
+		}
+	}
+
+	
 
 	// We only need an actor to allow use of HHitProxy for selection
 	const FRotator Rotation(0.0f, 0.0f, 0.0f);
@@ -941,6 +987,24 @@ bool UChaosClothAssetEditorMode::IsSimulationEnabled() const
 	}
 
 	return false;
+}
+
+int32 UChaosClothAssetEditorMode::GetConstructionViewTriangleCount() const
+{
+	if (DynamicMeshComponent && DynamicMeshComponent->GetMesh())
+	{
+		return DynamicMeshComponent->GetMesh()->TriangleCount();
+	}
+	return 0;
+}
+
+int32 UChaosClothAssetEditorMode::GetConstructionViewVertexCount() const
+{
+	if (DynamicMeshComponent && DynamicMeshComponent->GetMesh())
+	{
+		return DynamicMeshComponent->GetMesh()->VertexCount();
+	}
+	return 0;
 }
 
 void UChaosClothAssetEditorMode::SetLODModel(int32 LODIndex)
@@ -1263,6 +1327,40 @@ bool UChaosClothAssetEditorMode::CanSetConstructionViewSeamsCollapse() const
 	}
 
 	return bConstructionViewSeamsVisible && (ConstructionViewMode == UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D);
+}
+
+
+void UChaosClothAssetEditorMode::TogglePatternColor()
+{
+	bPatternColors = !bPatternColors;
+	ReinitializeDynamicMeshComponents();
+}
+
+bool UChaosClothAssetEditorMode::CanSetPatternColor() const
+{	
+	// Disallow pattern color view when any tool is active
+	if (GetToolManager()->HasActiveTool(EToolSide::Left))
+	{
+		return false;
+	}
+
+	return (ConstructionViewMode != UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
+}
+
+void UChaosClothAssetEditorMode::ToggleMeshStats()
+{
+	bMeshStats = !bMeshStats;
+}
+
+bool UChaosClothAssetEditorMode::CanSetMeshStats() const
+{
+	// Disallow seam view when any tool is active
+	if (GetToolManager()->HasActiveTool(EToolSide::Left))
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void UChaosClothAssetEditorMode::SetRestSpaceViewportClient(TWeakPtr<UE::Chaos::ClothAsset::FChaosClothEditorRestSpaceViewportClient, ESPMode::ThreadSafe> InViewportClient)

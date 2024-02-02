@@ -206,6 +206,58 @@ void SChaosClothAssetEditorRestSpaceViewport::BindCommands()
 			return false;
 		}));
 
+	CommandList->MapAction(
+		CommandInfos.TogglePatternColor,
+		FExecuteAction::CreateLambda([this]()
+			{
+				if (UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					ClothEdMode->TogglePatternColor();
+				}
+			}),
+		FCanExecuteAction::CreateLambda([this]()
+			{
+				if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					return ClothEdMode->CanSetPatternColor();
+				}
+				return false;
+			}),
+		FIsActionChecked::CreateLambda([this]()
+			{
+				if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					return ClothEdMode->IsPatternColorActive();
+				}
+				return false;
+			}));
+
+	CommandList->MapAction(
+		CommandInfos.ToggleMeshStats,
+		FExecuteAction::CreateLambda([this]()
+			{
+				if (UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					ClothEdMode->ToggleMeshStats();
+				}
+			}),
+		FCanExecuteAction::CreateLambda([this]()
+			{
+				if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					return ClothEdMode->CanSetMeshStats();
+				}
+				return false;
+			}),
+		FIsActionChecked::CreateLambda([this]()
+			{
+				if (const UChaosClothAssetEditorMode* const ClothEdMode = GetEdMode())
+				{
+					return ClothEdMode->IsMeshStatsActive();
+				}
+				return false;
+			}));
+
 }
 
 TSharedPtr<SWidget> SChaosClothAssetEditorRestSpaceViewport::MakeViewportToolbar()

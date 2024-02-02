@@ -61,6 +61,9 @@ public:
 	const static FString ToggleConstructionViewSeamsCollapseIdentifier;
 	TSharedPtr<FUICommandInfo> ToggleConstructionViewSeamsCollapse;
 
+	TSharedPtr<FUICommandInfo> TogglePatternColor;
+	TSharedPtr<FUICommandInfo> ToggleMeshStats;
+
 	TSharedPtr<FUICommandInfo> SetConstructionMode2D;
 	TSharedPtr<FUICommandInfo> SetConstructionMode3D;
 	TSharedPtr<FUICommandInfo> SetConstructionModeRender;

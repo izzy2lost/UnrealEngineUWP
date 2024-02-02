@@ -15,6 +15,7 @@
 #include "ChaosClothAsset/ClothEditorMode.h"
 #include "ToolMenus.h"
 #include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Text/SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SChaosClothAssetEditorRestSpaceViewportToolBar"
 
@@ -38,7 +39,21 @@ void SChaosClothAssetEditorRestSpaceViewportToolBar::Construct(const FArguments&
 		.BorderImage(FAppStyle::Get().GetBrush("EditorViewportToolBar.Background"))
 		.Cursor(EMouseCursor::Default)
 		[
-			SAssignNew( MainBoxPtr, SHorizontalBox )
+			SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+			[
+				SAssignNew( MainBoxPtr, SHorizontalBox )
+			]
+			+ SVerticalBox::Slot()
+			.Padding(FMargin(4.0f, 3.0f, 0.0f, 0.0f))
+			[
+				// Display text (e.g., item being previewed)
+				SNew(SRichTextBlock)
+					.DecoratorStyleSet(&FAppStyle::Get())
+					.Text(this, &SChaosClothAssetEditorRestSpaceViewportToolBar::GetDisplayString)
+					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("AnimViewport.MessageText"))
+			]
 		]
 	];
 
@@ -102,6 +117,17 @@ TSharedRef<SWidget> SChaosClothAssetEditorRestSpaceViewportToolBar::GenerateClot
 				NAME_None, 
 				LOCTEXT("SeamsCollapseLabel", "Collapse Seam Lines"), 
 				LOCTEXT("SeamsCollapseTooltip", "Display a single line connecting each seam, rather than all stitches"));
+
+			OptionsMenuBuilder.AddMenuEntry(FChaosClothAssetEditorCommands::Get().TogglePatternColor,
+				NAME_None,
+				LOCTEXT("ColorPatternsLabel", "Color Patterns"),
+				LOCTEXT("ColorPatternsTooltip", "Display each Pattern in a different color"));
+
+			OptionsMenuBuilder.AddMenuEntry(FChaosClothAssetEditorCommands::Get().ToggleMeshStats,
+				NAME_None,
+				LOCTEXT("ToggleMeshStatsLabel", "Mesh Stats"),
+				LOCTEXT("ToggleMeshStatsTooltip", "Show mesh stats in the viewport"));
+
 		}
 		OptionsMenuBuilder.EndSection();
 
@@ -217,6 +243,23 @@ TSharedRef<SWidget> SChaosClothAssetEditorRestSpaceViewportToolBar::MakeToolBar(
 	return ToolbarBuilder.MakeWidget();
 }
 
+FText SChaosClothAssetEditorRestSpaceViewportToolBar::GetDisplayString() const
+{
+	if (const FEditorModeTools* const EditorModeTools = RestSpaceViewportClient->GetModeTools())
+	{
+		if (UChaosClothAssetEditorMode* const ClothEdMode = Cast<UChaosClothAssetEditorMode>(EditorModeTools->GetActiveScriptableMode(UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId)))
+		{
+			if (ClothEdMode->IsMeshStatsActive())
+			{
+				const int TriangleCount = ClothEdMode->GetConstructionViewTriangleCount();
+				const int VertexCount = ClothEdMode->GetConstructionViewVertexCount();
+				const FText MeshStats = FText::Format(LOCTEXT("RestSpaceMeshStats", "Tris: {0}, Verts: {1}"), TriangleCount, VertexCount);
+				return MeshStats;
+			}
+		}
+	}
+	return FText();
+}
 
 FText SChaosClothAssetEditorRestSpaceViewportToolBar::GetViewModeMenuLabel() const
 {
