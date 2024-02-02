@@ -113,6 +113,11 @@ float2 RandomScaleBiasFloat(inout FStatelessParticle Particle, float2 Scale, flo
 float3 RandomScaleBiasFloat(inout FStatelessParticle Particle, float3 Scale, float3 Bias) { return (RandomFloat3(Particle) * Scale) + Bias; }
 float4 RandomScaleBiasFloat(inout FStatelessParticle Particle, float4 Scale, float4 Bias) { return (RandomFloat4(Particle) * Scale) + Bias; }
 
+float  RandomScaleBiasFloat(inout FStatelessParticle Particle, float  Scale, float  Bias, bool bUniform) { return (RandomFloat(Particle)  * Scale) + Bias; }
+float2 RandomScaleBiasFloat(inout FStatelessParticle Particle, float2 Scale, float2 Bias, bool bUniform) { float2 Random = (RandomFloat2(Particle) * Scale) + Bias; return bUniform ? Random.xx : Random; }
+float3 RandomScaleBiasFloat(inout FStatelessParticle Particle, float3 Scale, float3 Bias, bool bUniform) { float3 Random = (RandomFloat3(Particle) * Scale) + Bias; return bUniform ? Random.xxx : Random; }
+float4 RandomScaleBiasFloat(inout FStatelessParticle Particle, float4 Scale, float4 Bias, bool bUniform) { float4 Random = (RandomFloat4(Particle) * Scale) + Bias; return bUniform ? Random.xxxx : Random; }
+
 float2 RandomUnitFloat2(inout FStatelessParticle Particle) { return SafeNormalize(RandomFloat2(Particle) - 0.5f); }
 float3 RandomUnitFloat3(inout FStatelessParticle Particle) { return SafeNormalize(RandomFloat3(Particle) - 0.5f); }
 
@@ -172,3 +177,4 @@ void OutputComponentData(uint OutputIndex, int ComponentOffset, int Value)
 	}
 }
 
+#include "/Plugin/FX/Niagara/Private/Stateless/NiagaraStatelessDistribution.ush"

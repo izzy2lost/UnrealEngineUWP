@@ -13,16 +13,16 @@ void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(FNiagaraStatelessEmit
 	NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
 	if (VelocityType == ENSM_VelocityType::Linear)
 	{
-		PhysicsBuildData.VelocityMin += VelocityMin * VelocityScale;
-		PhysicsBuildData.VelocityMax += VelocityMax * VelocityScale;
+		const FNiagaraStatelessRangeVector3 VelocityRange = LinearVelocityDistribution.CalculateRange(FVector3f::ZeroVector);
+		PhysicsBuildData.VelocityRange.Min += VelocityRange.Min * LinearVelocityScale;
+		PhysicsBuildData.VelocityRange.Max += VelocityRange.Max * LinearVelocityScale;
 	}
 	else if (VelocityType == ENSM_VelocityType::FromPoint)
 	{
 		ensureMsgf(PhysicsBuildData.bPointVelocity == false, TEXT("Only a single point force is supported at the moment."));
 
 		PhysicsBuildData.bPointVelocity = true;
-		PhysicsBuildData.PointVelocityMin = PointVelocityMin;
-		PhysicsBuildData.PointVelocityMax = PointVelocityMax;
+		PhysicsBuildData.PointVelocityRange = PointVelocityDistribution.CalculateRange(0.0f);
 		PhysicsBuildData.PointOrigin = PointOrigin;
 	}
 	else if (VelocityType == ENSM_VelocityType::InCone)
@@ -31,8 +31,7 @@ void UNiagaraStatelessModule_AddVelocity::BuildEmitterData(FNiagaraStatelessEmit
 
 		PhysicsBuildData.bConeVelocity = true;
 		PhysicsBuildData.ConeQuat = FQuat4f(ConeRotation.Quaternion());
-		PhysicsBuildData.ConeVelocityMin = ConeVelocityMin;
-		PhysicsBuildData.ConeVelocityMax = ConeVelocityMax;
+		PhysicsBuildData.ConeVelocityRange = ConeVelocityDistribution.CalculateRange(0.0f);
 		PhysicsBuildData.ConeOuterAngle = ConeAngle;
 		PhysicsBuildData.ConeInnerAngle = InnerCone;
 		PhysicsBuildData.ConeVelocityFalloff = bSpeedFalloffFromConeAxisEnabled ? FMath::Clamp(SpeedFalloffFromConeAxis, 0.0f, 1.0f) : 0.0f;
@@ -46,8 +45,9 @@ void UNiagaraStatelessModule_AddVelocity::DrawDebug(const FNiagaraStatelessDrawD
 	{
 		case ENSM_VelocityType::Linear:
 		{
-			const FVector MinDir = FVector(VelocityMin * VelocityScale);
-			const FVector MaxDir = FVector(VelocityMax * VelocityScale);
+			const FNiagaraStatelessRangeVector3 VelocityRange = LinearVelocityDistribution.CalculateRange(FVector3f::ZeroVector);
+			const FVector MinDir = FVector(VelocityRange.Min * LinearVelocityScale);
+			const FVector MaxDir = FVector(VelocityRange.Max * LinearVelocityScale);
 			DrawDebugContext.DrawArrow(FVector::ZeroVector, MinDir);
 
 			if (!FMath::IsNearlyEqual(MinDir.Length(), MaxDir.Length()))
@@ -68,18 +68,19 @@ void UNiagaraStatelessModule_AddVelocity::DrawDebug(const FNiagaraStatelessDrawD
 				InnerConeHAngle = InnerCone / 2.0f;
 			}
 
-			DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, ConeHAngle, ConeVelocityMin);
+			const FNiagaraStatelessRangeFloat ConeVelocityRange = ConeVelocityDistribution.CalculateRange(0.0f);
+			DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, ConeHAngle, ConeVelocityRange.Min);
 			if ( InnerConeHAngle.IsSet() )
 			{
-				DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, InnerConeHAngle.GetValue(), ConeVelocityMin);
+				DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, InnerConeHAngle.GetValue(), ConeVelocityRange.Min);
 			}
 
-			if (!FMath::IsNearlyEqual(ConeVelocityMin, ConeVelocityMax))
+			if (!FMath::IsNearlyEqual(ConeVelocityRange.Min, ConeVelocityRange.Max))
 			{
-				DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, ConeHAngle, ConeVelocityMax);
+				DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, ConeHAngle, ConeVelocityRange.Max);
 				if (InnerConeHAngle.IsSet())
 				{
-					DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, InnerConeHAngle.GetValue(), ConeVelocityMax);
+					DrawDebugContext.DrawCone(FVector::ZeroVector, Quat, InnerConeHAngle.GetValue(), ConeVelocityRange.Max);
 				}
 			}
 			break;
@@ -87,13 +88,14 @@ void UNiagaraStatelessModule_AddVelocity::DrawDebug(const FNiagaraStatelessDrawD
 
 		case ENSM_VelocityType::FromPoint:
 		{
-			if (!FMath::IsNearlyEqual(PointVelocityMin, 0.0f))
+			const FNiagaraStatelessRangeFloat PointVelocityRange = PointVelocityDistribution.CalculateRange(0.0f);
+			if (!FMath::IsNearlyEqual(PointVelocityRange.Min, 0.0f))
 			{
-				DrawDebugContext.DrawSphere(FVector(PointOrigin), PointVelocityMin);
+				DrawDebugContext.DrawSphere(FVector(PointOrigin), PointVelocityRange.Min);
 			}
-			if (!FMath::IsNearlyEqual(PointVelocityMin, PointVelocityMax))
+			if (!FMath::IsNearlyEqual(PointVelocityRange.Min, PointVelocityRange.Max))
 			{
-				DrawDebugContext.DrawSphere(FVector(PointOrigin), PointVelocityMax);
+				DrawDebugContext.DrawSphere(FVector(PointOrigin), PointVelocityRange.Max);
 			}
 			break;
 		}

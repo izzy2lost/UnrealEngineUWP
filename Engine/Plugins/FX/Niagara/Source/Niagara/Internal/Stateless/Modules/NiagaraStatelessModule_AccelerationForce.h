@@ -15,10 +15,8 @@ class UNiagaraStatelessModule_AccelerationForce : public UNiagaraStatelessModule
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	FVector3f AccelerationMin = FVector3f(0.0f, 0.0f, 100.0f);
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	FVector3f AccelerationMax = FVector3f(0.0f, 0.0f, 100.0f);
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Acceleration", DisableUniformDistribution))
+	FNiagaraDistributionRangeVector3 AccelerationDistribution = FNiagaraDistributionRangeVector3(FVector3f::ZeroVector);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
@@ -26,9 +24,12 @@ public:
 		{
 			return;
 		}
+
+		const FNiagaraStatelessRangeVector3 AccelerationRange = AccelerationDistribution.CalculateRange(FVector3f::ZeroVector);
+
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
-		PhysicsBuildData.AccelerationMin += AccelerationMin;
-		PhysicsBuildData.AccelerationMax += AccelerationMax;
+		PhysicsBuildData.AccelerationRange.Min += AccelerationRange.Min;
+		PhysicsBuildData.AccelerationRange.Max += AccelerationRange.Max;
 	}
 
 #if WITH_EDITOR

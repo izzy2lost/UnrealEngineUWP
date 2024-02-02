@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraStatelessCommon.h"
+#include "NiagaraStatelessSpawnInfo.h"
 #include "NiagaraDataSet.h"
 #include "NiagaraParameterStore.h"
 #include "NiagaraSystemEmitterState.h"
@@ -35,7 +36,7 @@ struct FNiagaraStatelessEmitterData
 	bool											bCanEverExecute = false;
 	bool											bDeterministic = false;
 	int32											RandomSeed = 0;
-	FVector2f										LifetimeRange = FVector2f::ZeroVector;
+	FNiagaraStatelessRangeFloat						LifetimeRange = FNiagaraStatelessRangeFloat(0.0f, 0.0f);
 	FBox											FixedBounds = FBox(ForceInit);
 
 	FNiagaraEmitterStateData						EmitterState;

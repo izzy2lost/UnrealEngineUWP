@@ -2,6 +2,10 @@
 
 #include "../NiagaraStatelessCommon.ush"
 
+static const uint EInitializeParticleModuleFlag_UniformSpriteSize	= 1 << 0;
+static const uint EInitializeParticleModuleFlag_UniformMeshScale	= 1 << 1;
+
+uint	InitializeParticle_ModuleFlags;
 float3	InitializeParticle_Position;
 float4	InitializeParticle_ColorScale;
 float4	InitializeParticle_ColorBias;
@@ -16,45 +20,22 @@ float3	InitializeParticle_MeshScaleBias;
 float	InitializeParticle_RibbonWidthScale;
 float	InitializeParticle_RibbonWidthBias;
 	
-uint InitializeParticle_PositionMode;
-uint InitializeParticle_PositionTableMod;
-uint InitializeParticle_PositionTableOffset;
-uint InitializeParticle_PositionTableLength;
-
 struct FStatelessModule_InitializeParticle
 {
 };
 
 void InitializeParticle_Initialize(inout FStatelessModule_InitializeParticle ModuleData, inout FStatelessParticle Particle)
 {  
+	const bool bUniformSpriteSize = (InitializeParticle_ModuleFlags & EInitializeParticleModuleFlag_UniformSpriteSize) != 0;
+	const bool bUniformMeshScale  = (InitializeParticle_ModuleFlags & EInitializeParticleModuleFlag_UniformMeshScale) != 0;
+
 	Particle.UniqueID		= Particle.UniqueIndex;
 	Particle.Position		= InitializeParticle_Position;
 	Particle.Color			= RandomScaleBiasFloat(Particle, InitializeParticle_ColorScale, InitializeParticle_ColorBias);
 	Particle.RibbonWidth	= RandomScaleBiasFloat(Particle, InitializeParticle_RibbonWidthScale, InitializeParticle_RibbonWidthBias);
-	Particle.SpriteSize		= RandomScaleBiasFloat(Particle, InitializeParticle_SpriteSizeScale, InitializeParticle_SpriteSizeBias);
+	Particle.SpriteSize		= RandomScaleBiasFloat(Particle, InitializeParticle_SpriteSizeScale, InitializeParticle_SpriteSizeBias, bUniformSpriteSize);
 	Particle.SpriteRotation	= RandomScaleBiasFloat(Particle, InitializeParticle_SpriteRotationScale, InitializeParticle_SpriteRotationBias);
-	Particle.Scale			= RandomScaleBiasFloat(Particle, InitializeParticle_MeshScaleScale, InitializeParticle_MeshScaleBias);
-
-	// For testing purposes only
-	{
-		if ( InitializeParticle_PositionMode == 0 )
-		{
-			const uint Len = InitializeParticle_PositionTableLength - 1;
-			const uint Element = clamp(Particle.UniqueIndex % InitializeParticle_PositionTableMod, 0, Len);
-			Particle.Position += GetStaticFloat3(InitializeParticle_PositionTableOffset, Element);
-		}
-		else
-		{
-			const uint Len = InitializeParticle_PositionTableLength - 1;
-			const float	R0 = RandomScaleBiasFloat(Particle, Len, 0);
-			const float U = InitializeParticle_PositionMode != 2 ? frac(R0) : 0.0f;
-			const uint E0 = floor(R0);
-			const uint E1 = InitializeParticle_PositionMode == 1 ? min(E0 + 1, Len) : (RandomUInt(Particle) % InitializeParticle_PositionTableMod);
-			const float3 P0 = GetStaticFloat3(InitializeParticle_PositionTableOffset, E0);
-			const float3 P1 = GetStaticFloat3(InitializeParticle_PositionTableOffset, E1);
-			Particle.Position += lerp(P0, P1, U);
-		}
-	}
+	Particle.Scale			= RandomScaleBiasFloat(Particle, InitializeParticle_MeshScaleScale, InitializeParticle_MeshScaleBias, bUniformMeshScale);
 
 	Particle.PreviousPosition		= Particle.Position;
 	Particle.PreviousRibbonWidth	= Particle.RibbonWidth;

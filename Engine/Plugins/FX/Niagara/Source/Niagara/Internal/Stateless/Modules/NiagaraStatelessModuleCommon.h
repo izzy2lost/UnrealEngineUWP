@@ -11,29 +11,23 @@ namespace NiagaraStateless
 	{
 		static FName GetName() { return FName("FPhysicsBuildData"); }
 
-		float		MassMin = 1.0f;
-		float		MassMax = 1.0f;
-		float		DragMin = 0.0f;
-		float		DragMax = 0.0f;
-		FVector3f	VelocityMin = FVector3f::ZeroVector;
-		FVector3f	VelocityMax = FVector3f::ZeroVector;
-		FVector3f	WindMin = FVector3f::ZeroVector;
-		FVector3f	WindMax = FVector3f::ZeroVector;
-		FVector3f	AccelerationMin = FVector3f::ZeroVector;
-		FVector3f	AccelerationMax = FVector3f::ZeroVector;
+		FNiagaraStatelessRangeFloat		MassRange = FNiagaraStatelessRangeFloat(1.0f);
+		FNiagaraStatelessRangeFloat		DragRange = FNiagaraStatelessRangeFloat(0.0f);
+		FNiagaraStatelessRangeVector3	VelocityRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
+		FNiagaraStatelessRangeVector3	WindRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
+		FNiagaraStatelessRangeVector3	AccelerationRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
 
-		bool		bConeVelocity = false;
-		FQuat4f		ConeQuat = FQuat4f::Identity;
-		float		ConeVelocityMin = 0.0f;
-		float		ConeVelocityMax = 0.0f;
-		float		ConeOuterAngle = 0.0f;
-		float		ConeInnerAngle = 0.0f;
-		float		ConeVelocityFalloff = 0.0f;
+		bool							bConeVelocity = false;
+		FQuat4f							ConeQuat = FQuat4f::Identity;
+		FNiagaraStatelessRangeFloat		ConeVelocityRange = FNiagaraStatelessRangeFloat(0.0f);
+		float							ConeOuterAngle = 0.0f;
+		float							ConeInnerAngle = 0.0f;
+		float							ConeVelocityFalloff = 0.0f;
 
-		bool		bPointVelocity = false;
-		float		PointVelocityMin = 0.0f;
-		float		PointVelocityMax = 0.0f;
-		FVector3f	PointOrigin = FVector3f::ZeroVector;
+		bool							bPointVelocity = false;
+		FNiagaraStatelessRangeFloat		PointVelocityRange = FNiagaraStatelessRangeFloat(0.0f);
+		float							PointVelocityMax = 0.0f;
+		FVector3f						PointOrigin = FVector3f::ZeroVector;
 
 		bool		bNoiseEnabled = false;
 		float		NoiseAmplitude = 0.0f;

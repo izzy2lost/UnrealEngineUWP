@@ -2970,11 +2970,18 @@ void FNiagaraSystemViewModel::UpdateEmitterHandleSelectionFromSequencer()
 			return;
 		}
 	}
-	
-	TArray<FGuid> NewSelectedEmitterHandleIds;
 
 	TArray<UMovieSceneTrack*> SelectedTracks;
+	TArray<UMovieSceneSection*> SelectedSections;
 	Sequencer->GetSelectedTracks(SelectedTracks);
+	Sequencer->GetSelectedSections(SelectedSections);
+	if (SelectedTracks.Num() == 0 && SelectedSections.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<FGuid> NewSelectedEmitterHandleIds;
+
 	for (UMovieSceneTrack* SelectedTrack : SelectedTracks)
 	{
 		UMovieSceneNiagaraEmitterTrack* SelectedEmitterTrack = Cast<UMovieSceneNiagaraEmitterTrack>(SelectedTrack);
@@ -2984,8 +2991,6 @@ void FNiagaraSystemViewModel::UpdateEmitterHandleSelectionFromSequencer()
 		}
 	}
 
-	TArray<UMovieSceneSection*> SelectedSections;
-	Sequencer->GetSelectedSections(SelectedSections);
 	for (UMovieSceneSection* SelectedSection : SelectedSections)
 	{
 		UMovieSceneNiagaraEmitterSectionBase* SelectedEmitterSection = Cast<UMovieSceneNiagaraEmitterSectionBase>(SelectedSection);

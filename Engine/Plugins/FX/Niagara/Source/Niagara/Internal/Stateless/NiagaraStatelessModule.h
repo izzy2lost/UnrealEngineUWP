@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraStatelessCommon.h"
+#include "NiagaraStatelessDistribution.h"
 
 #include "ShaderParameterStruct.h"
 
@@ -90,7 +91,7 @@ protected:
 	uint32 bModuleEnabled : 1 = true;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Transient, Category = "Parameters", meta = (DisplayPriority = 0, ShowInStackItemHeader, StackItemHeaderIcon = "Icons.Visibility"))
+	UPROPERTY(EditAnywhere, Transient, Category = "Parameters", meta = (DisplayPriority = 0, StackItemHeaderIcon = "Icons.Visibility"))
 	uint32 bDebugDrawEnabled : 1 = false;
 #endif
 
@@ -98,6 +99,13 @@ public:
 	bool IsModuleEnabled() const { return bModuleEnabled; }
 #if WITH_EDITOR
 	bool IsDebugDrawEnabled() const { return bDebugDrawEnabled; }
+
+	struct PrivateMemberNames
+	{
+		static NIAGARA_API const FName bModuleEnabled;
+		static NIAGARA_API const FName bDebugDrawEnabled;
+	};
+
 #endif
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const {}
@@ -118,6 +126,7 @@ public:
 	//~UObject interface Begin
 #if WITH_EDITOR
 	virtual bool CanEditChange(const FProperty* InProperty) const override;
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif //WITH_EDITOR
 	//~UObject interface End
 };

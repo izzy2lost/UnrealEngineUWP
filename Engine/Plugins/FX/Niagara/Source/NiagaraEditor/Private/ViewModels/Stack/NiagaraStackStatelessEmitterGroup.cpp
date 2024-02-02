@@ -50,7 +50,7 @@ void UNiagaraStackStatelessEmitterGroup::RefreshChildrenInternal(const TArray<UN
 		UNiagaraStackStatelessEmitterObjectItem* FilteredObjectItem = FilteredObjectItemWeak.Get();
 		if (FilteredObjectItem == nullptr || FilteredObjectItem->GetStatelessEmitter() != StatelessEmitter)
 		{
-			bool bExpandedByDefault = false;
+			bool bExpandedByDefault = true;
 			FilteredObjectItem = NewObject<UNiagaraStackStatelessEmitterObjectItem>(this);
 			FilteredObjectItem->Initialize(
 				CreateDefaultChildRequiredData(),

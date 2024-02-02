@@ -2,6 +2,11 @@
 
 #include "Stateless/NiagaraStatelessModule.h"
 
+#if WITH_EDITORONLY_DATA
+const FName UNiagaraStatelessModule::PrivateMemberNames::bModuleEnabled = GET_MEMBER_NAME_CHECKED(UNiagaraStatelessModule, bModuleEnabled);
+const FName UNiagaraStatelessModule::PrivateMemberNames::bDebugDrawEnabled = GET_MEMBER_NAME_CHECKED(UNiagaraStatelessModule, bDebugDrawEnabled);
+#endif
+
 #if DO_CHECK
 void FNiagaraStatelessSetShaderParameterContext::ValidateIncludeStructType(uint32 StructOffset, const FShaderParametersMetadata* StructMetaData) const
 {
@@ -51,5 +56,19 @@ bool UNiagaraStatelessModule::CanEditChange(const FProperty* InProperty) const
 	}
 
 	return true;
+}
+
+void UNiagaraStatelessModule::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+{
+	FStructProperty* StructProperty = CastField<FStructProperty>(PropertyChangedEvent.MemberProperty);
+	if (StructProperty != nullptr && StructProperty->Struct->IsChildOf(FNiagaraDistributionBase::StaticStruct()))
+	{
+		FNiagaraDistributionBase* ValuePtr = StructProperty->ContainerPtrToValuePtr<FNiagaraDistributionBase>(this);
+		if (ValuePtr != nullptr)
+		{
+			ValuePtr->UpdateValuesFromDistribution();
+		}
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif //WITH_EDITOR

@@ -513,6 +513,8 @@ private:
 	int32 WarmupTickCount = -1;
 	float WarmupTickDelta = 0;
 	
+	//-TODO:Stateless:
+	//TArray<TSharedRef<FNiagaraEmitterInstanceImpl, ESPMode::ThreadSafe>> Emitters;
 	TArray<FNiagaraEmitterInstanceRef> Emitters;
 
 	FOnPostTick OnPostTickDelegate;

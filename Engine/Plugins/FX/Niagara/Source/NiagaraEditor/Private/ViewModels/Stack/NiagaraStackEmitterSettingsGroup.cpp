@@ -32,7 +32,9 @@ void UNiagaraStackEmitterPropertiesItem::Initialize(FRequiredEntryData InRequire
 {
 	Super::Initialize(InRequiredEntryData, TEXT("EmitterProperties"));
 	EmitterWeakPtr = GetEmitterViewModel()->GetEmitter().ToWeakPtr();
+	//-TODO:Stateless:
 	if (EmitterWeakPtr.IsValid())
+	//-TODO:Stateless:
 	{
 		EmitterWeakPtr.Emitter->OnPropertiesChanged().AddUObject(this, &UNiagaraStackEmitterPropertiesItem::EmitterPropertiesChanged);
 	}

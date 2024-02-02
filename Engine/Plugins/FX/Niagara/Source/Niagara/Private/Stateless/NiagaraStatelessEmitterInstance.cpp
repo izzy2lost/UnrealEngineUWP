@@ -409,7 +409,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
 
 void FNiagaraStatelessEmitterInstance::TickSpawnInfos()
 {
-	const float MaxLifetime = EmitterData->LifetimeRange.Y;
+	const float MaxLifetime = EmitterData->LifetimeRange.Max;
 	SpawnInfos.RemoveAll(
 		[this, &MaxLifetime](const FNiagaraStatelessRuntimeSpawnInfo& SpawnInfo)
 		{
@@ -437,7 +437,7 @@ void FNiagaraStatelessEmitterInstance::SetExecutionStateInternal(ENiagaraExecuti
 				ActiveSpawnRates.Empty();
 
 				// Crop & Remove Spawn Infos
-				const float MaxLifetime = EmitterData->LifetimeRange.Y;
+				const float MaxLifetime = EmitterData->LifetimeRange.Max;
 				for (auto it=SpawnInfos.CreateIterator(); it; ++it)
 				{
 					FNiagaraStatelessRuntimeSpawnInfo& SpawnInfo = *it;
