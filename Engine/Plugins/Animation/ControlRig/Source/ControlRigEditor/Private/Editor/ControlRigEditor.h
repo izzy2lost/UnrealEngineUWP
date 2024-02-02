@@ -84,6 +84,7 @@ public:
 	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM) override {}
 	virtual void HandleVMCompiledEvent(UObject* InCompiledObject, URigVM* InVM, FRigVMExtendedExecuteContext& InContext) override;
 	virtual bool ShouldOpenGraphByDefault() const override { return !IsModularRig(); }
+	virtual FReply OnViewportDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 
 	// allows the editor to fill an empty graph
 	virtual void CreateEmptyGraphContent(URigVMController* InController) override;

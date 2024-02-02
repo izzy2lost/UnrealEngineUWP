@@ -407,7 +407,7 @@ FReply SSchematicGraphNode::OnDrop(const FGeometry& MyGeometry, const FDragDropE
 	SNode::OnDrop(MyGeometry, DragDropEvent);
 	OnDropDelegate.ExecuteIfBound(this, DragDropEvent);
 	OnEndDragDelegate.ExecuteIfBound(this, DragDropEvent.GetOperation());
-	return FReply::Unhandled();
+	return FReply::Handled();
 }
 
 FReply SSchematicGraphNode::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

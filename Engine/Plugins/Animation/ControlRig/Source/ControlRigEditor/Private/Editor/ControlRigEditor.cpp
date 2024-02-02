@@ -248,6 +248,52 @@ bool FControlRigEditor::NewDocument_IsVisibleForType(ECreatedDocumentType GraphT
 	return true;
 }
 
+FReply FControlRigEditor::OnViewportDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	const FReply SuperReply = IControlRigEditor::OnViewportDrop(MyGeometry, DragDropEvent);
+	if(SuperReply.IsEventHandled())
+	{
+		return SuperReply;
+	}
+
+	if(IsModularRig())
+	{
+		const TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
+		if (AssetDragDropOperation)
+		{
+			for (const FAssetData& AssetData : AssetDragDropOperation->GetAssets())
+			{
+				const UClass* AssetClass = AssetData.GetClass();
+				if (!AssetClass->IsChildOf(UControlRigBlueprint::StaticClass()))
+				{
+					continue;
+				}
+
+				if(const UControlRigBlueprint* AssetBlueprint = Cast<UControlRigBlueprint>(AssetData.GetAsset()))
+				{
+					UClass* ControlRigClass = AssetBlueprint->GetControlRigClass();
+					if(AssetBlueprint->IsControlRigModule() && ControlRigClass)
+					{
+						FSlateApplication::Get().DismissAllMenus();
+
+						UModularRigController* Controller = GetControlRigBlueprint()->GetModularRigController();
+						FString ClassName = ControlRigClass->GetName();
+						ClassName.RemoveFromEnd(TEXT("_C"));
+						const FRigName Name = Controller->GetSafeNewName(FString(), FRigName(ClassName));
+						const FString ModulePath = Controller->AddModule(Name, ControlRigClass, FString());
+						if (!ModulePath.IsEmpty())
+						{
+							return FReply::Handled();
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return FReply::Unhandled();
+}
+
 void FControlRigEditor::CreateEmptyGraphContent(URigVMController* InController)
 {
 	URigVMNode* Node = InController->AddUnitNode(FRigUnit_BeginExecution::StaticStruct(), FRigUnit::GetMethodName(), FVector2D::ZeroVector, FString(), false);
