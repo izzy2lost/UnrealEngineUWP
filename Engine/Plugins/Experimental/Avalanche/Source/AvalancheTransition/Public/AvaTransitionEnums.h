@@ -55,7 +55,7 @@ enum class EAvaTransitionLayerCompareType : uint8
 {
 	None UMETA(Hidden),
 	Same,
-	Different,
+	Different UMETA(DisplayName="Other"),
 	MatchingTag,
 	Any,
 };

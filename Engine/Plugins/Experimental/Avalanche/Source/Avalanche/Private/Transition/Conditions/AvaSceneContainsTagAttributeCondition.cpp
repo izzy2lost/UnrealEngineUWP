@@ -11,50 +11,49 @@
 #include "StateTreeExecutionContext.h"
 #include "StateTreeLinker.h"
 
-#define LOCTEXT_NAMESPACE "AvaSceneContainsTagAttributeCondition"
+#define LOCTEXT_NAMESPACE "AvaSceneContainsTagAttributeConditionBase"
 
-FText FAvaSceneContainsTagAttributeCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
+FText FAvaSceneContainsTagAttributeConditionBase::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	FFormatNamedArguments Arguments;
 
 	switch (SceneType)
 	{
 	case EAvaTransitionSceneType::This:
+		Arguments.Add(TEXT("IndefinitePronoun"), FText::GetEmpty());
+
 		Arguments.Add(TEXT("Scene"), LOCTEXT("ThisScene", "this scene"));
+
+		Arguments.Add(TEXT("Contains"), bInvertCondition ? LOCTEXT("ThisDoesntContain", "does not contain") : LOCTEXT("ThisContains", "contains"));
 		break;
 
 	case EAvaTransitionSceneType::Other:
-		Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherScene", "scene in {0}"), FAvaTransitionLayerUtils::GetLayerQueryText(LayerType, *SpecificLayers.ToString())));
-		break;
-	}
+		Arguments.Add(TEXT("IndefinitePronoun"), bInvertCondition ? LOCTEXT("NoScene", "no ") : LOCTEXT("AnyScene", "a "));
 
-	if (bInvert)
-	{
-		Arguments.Add(TEXT("Contains"), LOCTEXT("ContainsInvert", "does NOT contain"));
-	}
-	else
-	{
-		Arguments.Add(TEXT("Contains"), LOCTEXT("Contains", "contains"));
+		Arguments.Add(TEXT("Scene"), FText::Format(LOCTEXT("OtherScene", "scene in {0}"), FAvaTransitionLayerUtils::GetLayerQueryText(LayerType, *SpecificLayers.ToString())));
+
+		Arguments.Add(TEXT("Contains"), LOCTEXT("OtherSceneContains", "contains"));
+		break;
 	}
 
 	Arguments.Add(TEXT("TagAttribute"), FText::FromName(TagAttribute.ToName()));
 
-	return FText::Format(LOCTEXT("ConditionDescription", "{Scene} {Contains} tag attribute '{TagAttribute}'"), Arguments);
+	return FText::Format(LOCTEXT("ConditionDescription", "{IndefinitePronoun}{Scene} {Contains} tag attribute '{TagAttribute}'"), Arguments);
 }
 
-bool FAvaSceneContainsTagAttributeCondition::Link(FStateTreeLinker& InLinker)
+bool FAvaSceneContainsTagAttributeConditionBase::Link(FStateTreeLinker& InLinker)
 {
 	FAvaTransitionCondition::Link(InLinker);
 	InLinker.LinkExternalData(SceneSubsystemHandle);
 	return true;
 }
 
-bool FAvaSceneContainsTagAttributeCondition::TestCondition(FStateTreeExecutionContext& InContext) const
+bool FAvaSceneContainsTagAttributeConditionBase::TestCondition(FStateTreeExecutionContext& InContext) const
 {
-	return ContainsTagAttribute(InContext) ^ bInvert;
+	return ContainsTagAttribute(InContext) ^ bInvertCondition;
 }
 
-bool FAvaSceneContainsTagAttributeCondition::ContainsTagAttribute(FStateTreeExecutionContext& InContext) const
+bool FAvaSceneContainsTagAttributeConditionBase::ContainsTagAttribute(FStateTreeExecutionContext& InContext) const
 {
 	TArray<const FAvaTransitionScene*> TransitionScenes = GetTransitionScenes(InContext);
 	if (TransitionScenes.IsEmpty())
@@ -87,7 +86,7 @@ bool FAvaSceneContainsTagAttributeCondition::ContainsTagAttribute(FStateTreeExec
 	return false;
 }
 
-TArray<const FAvaTransitionScene*> FAvaSceneContainsTagAttributeCondition::GetTransitionScenes(FStateTreeExecutionContext& InContext) const
+TArray<const FAvaTransitionScene*> FAvaSceneContainsTagAttributeConditionBase::GetTransitionScenes(FStateTreeExecutionContext& InContext) const
 {
 	const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
 
