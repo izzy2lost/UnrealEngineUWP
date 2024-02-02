@@ -31,9 +31,12 @@ void FAvaStateTreeStateCustomization::CustomizeDetails(IDetailLayoutBuilder& InD
 	InDetailBuilder.EditCategory(TEXT("Task")).InitiallyCollapsed(false);
 	InDetailBuilder.EditCategory(TEXT("Tasks")).InitiallyCollapsed(false);
 
-	IDetailCategoryBuilder& Category = InDetailBuilder.EditCategory(TEXT("General"), LOCTEXT("GeneralCategory", "General"), ECategoryPriority::Important);
-	Category.SetSortOrder(0);
-	Category.AddProperty(InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, ColorRef)));
+	IDetailCategoryBuilder& GeneralCategory = InDetailBuilder.EditCategory(TEXT("General"), LOCTEXT("GeneralCategory", "General"), ECategoryPriority::Important);
+	GeneralCategory.SetSortOrder(0);
+	GeneralCategory.AddProperty(InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, ColorRef)));
+
+	IDetailCategoryBuilder& TransitionCategory = InDetailBuilder.EditCategory(TEXT("Transition"), LOCTEXT("TransitionCategory", "Transition"), ECategoryPriority::Important);
+	TransitionCategory.SetSortOrder(10);
 
 	TSharedPtr<IPropertyHandleArray> TransitionArrayHandle;
 	if (TSharedPtr<IPropertyHandle> TransitionsHandle = InDetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Transitions)))
@@ -42,7 +45,7 @@ void FAvaStateTreeStateCustomization::CustomizeDetails(IDetailLayoutBuilder& InD
 	}
 
 	const FText TransitionType = LOCTEXT("TransitionType", "Transition Type");
-	Category.AddCustomRow(TransitionType)
+	TransitionCategory.AddCustomRow(TransitionType)
 		.NameContent()
 		[
 			SNew(STextBlock)

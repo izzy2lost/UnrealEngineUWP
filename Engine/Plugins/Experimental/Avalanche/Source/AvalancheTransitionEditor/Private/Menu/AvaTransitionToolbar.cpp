@@ -11,6 +11,8 @@
 #include "Toolkits/AssetEditorToolkit.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionToolbar"
 
@@ -56,6 +58,17 @@ void FAvaTransitionToolbar::ExtendEditorToolbar(UToolMenu* InToolbarMenu)
 		LayerPicker->SetEnabled(!bReadOnly);
 
 		Section.AddSeparator(NAME_None);
+
+		TSharedRef<SWidget> TransitionLayerWidget = SNew(SBox)
+			.Padding(8.f, 0.f, 2.f, 0.f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("TransitionLayerText", "Layer"))
+				.Justification(ETextJustify::Right)
+			];
+
+		Section.AddEntry(FToolMenuEntry::InitWidget("TransitionLayerWidget", TransitionLayerWidget, FText::GetEmpty()));
 		Section.AddEntry(FToolMenuEntry::InitWidget(UE::AvaTransitionEditor::Private::TransitionLayerPickerName
 			, LayerPicker.ToSharedRef()
 			, LOCTEXT("TransitionLogicLabel", "Transition Logic Layer")));
