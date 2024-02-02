@@ -18,7 +18,7 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 
 		TSharedRef<SWidget> PropertyValueWidget = ChildPropertyHandle->CreatePropertyValueWidget(/*bDisplayDefaultPropertyButtons*/false);
 
-		TAttribute<EVisibility>::FGetter VisibilityGetter = TAttribute<EVisibility>::FGetter::CreateSPLambda(ChildPropertyHandle.Get(), [ChildPropertyHandle]
+		TAttribute<EVisibility>::FGetter VisibilityGetter = TAttribute<EVisibility>::FGetter::CreateLambda([ChildPropertyHandle]
 			{
 				return ChildPropertyHandle->IsEditable()
 					? EVisibility::SelfHitTestInvisible
@@ -45,6 +45,8 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 			InPropertyHandle->CreateDefaultPropertyButtonWidgets()
 		];
 
+	TSharedPtr<IPropertyHandle> HasTimeHandle = InPropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FAvaSequenceTime, bHasTimeConstraint));
+
 	InHeaderRow
 		.NameContent()
 		[
@@ -55,6 +57,12 @@ void FAvaSequenceTimeCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> 
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
+				[
+					HasTimeHandle->CreatePropertyValueWidget(/*bDisplayDefaultPropertyButtons*/false)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(2.f, 0.f, 0.f, 0.f)
 				[
 					InPropertyHandle->CreatePropertyNameWidget()
 				]

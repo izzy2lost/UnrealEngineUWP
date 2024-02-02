@@ -17,6 +17,9 @@ public:
 		/** Moved to become child class of ULevelSequence */
 		LevelSequence, 
 
+		/** Introduced Time Constraint Option to FAvaSequenceTime */
+		SequenceTimeConstraintOption,
+
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};
