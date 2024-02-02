@@ -212,6 +212,7 @@ public:
 	{
 		SavedValue = MoveTemp(RHS);
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
+		ExpandedValue.Empty();
 		ExpandValueInternal();
 		return *this;
 	}
