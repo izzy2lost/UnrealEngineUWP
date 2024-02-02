@@ -170,6 +170,11 @@ void UConstraintSubsystem::SetConstraintDependencies(
 	FConstraintTickFunction* InFunctionToTickBefore,
 	FConstraintTickFunction* InFunctionToTickAfter)
 {
+	if (!InFunctionToTickBefore || !InFunctionToTickAfter || InFunctionToTickBefore == InFunctionToTickAfter)
+	{
+		return;
+	}
+	
 	// look for child tick function in in parent's prerequisites. 
 	const TArray<FTickPrerequisite>& ParentPrerequisites = InFunctionToTickAfter->GetPrerequisites();
 	const bool bIsChildAPrerexOfParent = ParentPrerequisites.ContainsByPredicate([InFunctionToTickBefore](const FTickPrerequisite& Prerex)

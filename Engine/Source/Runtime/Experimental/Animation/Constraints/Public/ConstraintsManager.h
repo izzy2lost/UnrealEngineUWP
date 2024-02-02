@@ -252,9 +252,6 @@ public:
 	/** Get the index of the given constraint's ID. */
 	CONSTRAINTS_API int32 GetConstraintIndex(const FGuid& InGuid) const;
 
-	/** Remove the constraint by name. */
-	CONSTRAINTS_API bool RemoveConstraint(const FName& InConstraintName, bool bDoNotCompensate = false);
-
 	/** Remove the constraint at the given index. */
 	CONSTRAINTS_API bool RemoveConstraint(const int32 InConstraintIndex, bool bDoNotCompensate = false);
 
@@ -293,6 +290,10 @@ public:
 		const FName& InNameToTickBefore,
 		const FName& InNameToTickAfter) const;
 
+	CONSTRAINTS_API void SetConstraintsDependencies(
+		const struct FGuid& InGuidToTickBefore,
+		const struct FGuid& InGuidToTickAfter) const;
+
 	/** Go through each constraint in order and evaluate and tick them*/
 	CONSTRAINTS_API void EvaluateAllConstraints() const;
 
@@ -301,9 +302,6 @@ public:
 
 	/** If static contraint created, we call this, which stores it to the manager/actor*/
 	CONSTRAINTS_API void StaticConstraintCreated(UWorld* InWorld, UTickableConstraint* InConstraint);
-
-	/** If an animated constraint is ready we initialize it (ticks) and add it to the world*/
-	CONSTRAINTS_API void DynamicConstraintCreated(UWorld* InWorld, UTickableConstraint* InConstraint);
 
 private:
 	/** Get the index of the given constraint's name. */

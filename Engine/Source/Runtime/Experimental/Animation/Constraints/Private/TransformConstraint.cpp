@@ -222,6 +222,40 @@ void PreEvaluateHandle(const TObjectPtr<UTransformableHandle>& InHandle)
 	}
 }
 
+static bool	bIncludeTarget = true;
+static FAutoConsoleVariableRef CVarIncludeTarget(
+	TEXT("Constraints.IncludeTarget"),
+	bIncludeTarget,
+	TEXT("Include target when getting child's existing constraints.")
+	);
+
+void PrintTickFunctions(UWorld* InWorld)
+{
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(InWorld);
+	const TArray<TWeakObjectPtr<UTickableConstraint>>& Constraint = Controller.GetConstraintsArray();
+	for (const TWeakObjectPtr<UTickableConstraint>& ConstraintPtr: Constraint )
+	{
+		if (ConstraintPtr.IsValid())
+		{
+			FConstraintTickFunction& Function = ConstraintPtr->GetTickFunction(InWorld);
+			UE_LOG(LogTemp, Warning, TEXT("constraint (%p) - function %s (%p)"), ConstraintPtr.Get(), *Function.DiagnosticMessage(), &Function);
+	
+			const TArray<FTickPrerequisite>& Prerequisites = Function.GetPrerequisites();
+			for (const FTickPrerequisite& Prerequisite: Prerequisites)
+			{
+				if (const FTickFunction* TickFunction = Prerequisite.Get())
+				{
+					UE_LOG(LogTemp, Warning, TEXT("\t%s (%p)"), *Prerequisite.PrerequisiteObject->GetFullName(), TickFunction);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("\tInvalid Prerequisite"));
+				}
+			}
+		}
+	}
+}
+
 }
 
 /** 
@@ -1796,11 +1830,12 @@ bool FTransformConstraintUtils::AddConstraint(
 	Constraint->EnsurePrimaryDependency(InWorld);
 
 	// if child handle is the parent of some other constraints, ensure they will tick after that new one
+	const bool bSelf = InParentHandle->GetTarget().Get() && InParentHandle->GetTarget().Get() == InChildHandle->GetTarget().Get();
 	TArray<TWeakObjectPtr<UTickableConstraint>> ChildChildConstraints;
-	GetChildrenConstraints(InWorld, InChildHandle, ChildChildConstraints);
+	GetChildrenConstraints(InWorld, InChildHandle, ChildChildConstraints, ConstraintLocals::bIncludeTarget && !bSelf);
 	for (const TWeakObjectPtr<UTickableConstraint>& ChildConstraint: ChildChildConstraints)
 	{
-		Controller.SetConstraintsDependencies( NewConstraintName, ChildConstraint->GetFName());
+		Controller.SetConstraintsDependencies(Constraint->ConstraintID, ChildConstraint->ConstraintID);
 	}
 
 	// warn for possible cycles
@@ -2030,30 +2065,45 @@ int32 FTransformConstraintUtils::GetLastActiveConstraintIndex(const TArray< TWea
 
 void FTransformConstraintUtils::GetChildrenConstraints(
 	UWorld* World,
-	const UTransformableHandle* InParentHandle,
-	TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints)
+	const UTransformableHandle* InHandle,
+	TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints,
+	const bool bIncludeTarget)
 {
 	using ConstraintPtr = TWeakObjectPtr<UTickableConstraint>;
 	
-	// filter for transform constraints where the InParentHandle is the parent (based on its hash value)
-	const uint32 ParentHash = InParentHandle->GetHash();
-	auto Predicate = [ParentHash](const ConstraintPtr& Constraint)
+	// filter for transform constraints where the InHandle is the parent (based on its hash value)
+	// and also has the same target if bIncludeTarget is true
+	const uint32 ParentHash = InHandle->GetHash();
+	const UObject* ParentTarget = InHandle->GetTarget().Get();
+	auto Predicate = [ParentHash, bIncludeTarget, ParentTarget](const ConstraintPtr& Constraint)
 	{
 		const UTickableTransformConstraint* TransformConstraint = Cast<UTickableTransformConstraint>(Constraint.Get());
 		if (!TransformConstraint)
 		{
 			return false;
 		}
-		
-		if (TransformConstraint->ParentTRSHandle && (TransformConstraint->ParentTRSHandle->GetHash() == ParentHash))
+
+		if (TransformConstraint->ParentTRSHandle)
 		{
-			return true;
+			if (TransformConstraint->ParentTRSHandle->GetHash() == ParentHash)
+			{
+				return true;
+			}
+
+			if (bIncludeTarget && ParentTarget)
+			{
+				const UObject* Target = TransformConstraint->ParentTRSHandle->GetTarget().Get();
+				if (Target == ParentTarget)
+				{
+					return true;
+				}
+			}
 		}
 
 		return false;
 	};
 
-	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);	
+	const FConstraintsManagerController& Controller = FConstraintsManagerController::Get(World);
 	const TArray<ConstraintPtr> FilteredConstraints = Controller.GetConstraintsByPredicate(Predicate);
 	OutConstraints.Append(FilteredConstraints);
 }

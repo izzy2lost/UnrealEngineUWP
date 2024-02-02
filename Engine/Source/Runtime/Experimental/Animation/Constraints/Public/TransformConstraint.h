@@ -489,9 +489,13 @@ struct FTransformConstraintUtils
 	/** Get the last active constraint that has dynamic offset. */
 	static CONSTRAINTS_API int32 GetLastActiveConstraintIndex(const TArray< TWeakObjectPtr<UTickableConstraint> >& InConstraints);
 
-	/** Fills a constraint array that InParentHandle is the parent of. */
+	/**
+	 * Fills a constraint array that InHandle is the parent of.
+	 * If bIncludeTarget is true, we also get the other constraints that act on the same target.
+	 */
 	static CONSTRAINTS_API void GetChildrenConstraints(
 		UWorld* World,
-		const UTransformableHandle* InParentHandle,
-		TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints);
+		const UTransformableHandle* InHandle,
+		TArray< TWeakObjectPtr<UTickableConstraint> >& OutConstraints,
+		const bool bIncludeTarget = false);
 };
