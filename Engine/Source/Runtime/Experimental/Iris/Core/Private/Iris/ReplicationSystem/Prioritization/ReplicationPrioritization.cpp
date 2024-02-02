@@ -20,6 +20,8 @@ namespace UE::Net::Private
 static_assert(InvalidNetObjectPrioritizerHandle == ~FNetObjectPrioritizerHandle(0), "ObjectIndexToPrioritizer code needs attention. Contact the UE Networking team.");
 static constexpr uint8 FReplicationPrioritization_InvalidNetObjectPrioritizerIndex = 0xFF;
 
+static const FName NAME_DefaultPrioritizer(TEXT("DefaultPrioritizer"));
+
 /**
  * Most logic in here revolves around batches. As such we need access to the Chunks.
  */
@@ -424,7 +426,7 @@ FNetObjectPrioritizerHandle FReplicationPrioritization::GetPrioritizerHandle(con
 		++Handle;
 	}
 
-	if (PrioritizerName == NAME_Default)
+	if (PrioritizerName == UE::Net::Private::NAME_DefaultPrioritizer)
 	{
 		return DefaultSpatialNetObjectPrioritizerHandle;
 	}
