@@ -159,6 +159,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				using IRefCountedHandle<PacketReader> packetReaderHandle = await GetPacketReaderAsync(cancellationToken);
 				return packetReaderHandle.Target.ReadExport(exportIdx);
 			}
+			catch (OperationCanceledException)
+			{
+				throw;
+			}
 			catch (Exception ex)
 			{
 				Utf8String locator = GetLocator();
