@@ -18,11 +18,7 @@ class FDisplayClusterMediaCaptureCamera
 public:
 	FDisplayClusterMediaCaptureCamera(const FString& MediaId, const FString& ClusterNodeId, const FString& CameraId, const FString& ViewportId, UMediaOutput* MediaOutput, UDisplayClusterMediaOutputSynchronizationPolicy* SyncPolicy = nullptr);
 
-protected:
-	
-	virtual FIntPoint GetCaptureSize() const override;
-
 private:
+	/** ICVFX camera name */
 	const FString CameraId;
-	FIntPoint CameraResolution = FIntPoint::ZeroValue;
 };
