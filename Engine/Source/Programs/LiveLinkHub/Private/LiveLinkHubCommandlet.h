@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Commandlets/Commandlet.h"
+#include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "ILiveLinkHubModule.h"
 
@@ -34,7 +35,8 @@ public:
 		}
 
 		FModuleManager::Get().LoadModule("OutputLog");
-		
+
+		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkEditor");
 		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkHub").StartLiveLinkHub();
 
 		return 0;

@@ -21,6 +21,7 @@ FLiveLinkPanelController::FLiveLinkPanelController(TAttribute<bool> bInReadOnly)
 	OnSourcesChangedHandle = Client->OnLiveLinkSourcesChanged().AddRaw(this, &FLiveLinkPanelController::OnSourcesChangedHandler);
 	OnSubjectsChangedHandle = Client->OnLiveLinkSubjectsChanged().AddRaw(this, &FLiveLinkPanelController::OnSubjectsChangedHandler);
 
+	FLiveLinkClientCommands::Register();
 	CommandList = MakeShared<FUICommandList>();
 	BindCommands();
 
