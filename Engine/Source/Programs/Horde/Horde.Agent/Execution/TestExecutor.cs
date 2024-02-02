@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using EpicGames.Core;
+using EpicGames.Horde.Jobs;
 using Horde.Agent.Parser;
 using Horde.Agent.Utility;
 using Horde.Common.Rpc;
@@ -27,14 +28,14 @@ namespace Horde.Agent.Execution
 			return Task.CompletedTask;
 		}
 
-		protected override async Task<bool> SetupAsync(BeginStepResponse step, ILogger logger, CancellationToken cancellationToken)
+		protected override async Task<bool> SetupAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("**** BEGIN JOB SETUP ****");
 
 			await Task.Delay(5000, cancellationToken);
 
 			UpdateGraphRequest updateGraph = new UpdateGraphRequest();
-			updateGraph.JobId = JobId;
+			updateGraph.JobId = JobId.ToString();
 
 			CreateGroupRequest winEditorGroup = CreateGroup("Win64");
 			winEditorGroup.Nodes.Add(CreateNode("Update Version Files", Array.Empty<string>(), JobStepOutcome.Success));
@@ -124,7 +125,7 @@ namespace Horde.Agent.Execution
 			return nameToDependencyNames;
 		}
 
-		protected override async Task<bool> ExecuteAsync(BeginStepResponse step, ILogger logger, CancellationToken cancellationToken)
+		protected override async Task<bool> ExecuteAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("**** BEGIN NODE {StepName} ****", step.Name);
 

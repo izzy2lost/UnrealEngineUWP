@@ -9,9 +9,13 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Streams;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Execution;
@@ -37,6 +41,13 @@ namespace Horde.Agent.Tests
 	{
 		private readonly ServiceCollection _serviceCollection;
 
+		private readonly JobId JobId = JobId.Parse("65bd0655591b5d5d7d047b58");
+		private readonly JobStepBatchId BatchId = new JobStepBatchId(0x1234);
+		private readonly JobStepId StepId1 = new JobStepId(1);
+		private readonly JobStepId StepId2 = new JobStepId(2);
+		private readonly JobStepId StepId3 = new JobStepId(3);
+		private readonly LogId LogId = LogId.Parse("65bd0655591b5d5d7d047b00");
+
 		class FakeServerLogger : IServerLogger
 		{
 			public JobStepOutcome Outcome => JobStepOutcome.Success;
@@ -54,7 +65,7 @@ namespace Horde.Agent.Tests
 
 		class FakeServerLoggerFactory : IServerLoggerFactory
 		{
-			public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
+			public IServerLogger CreateLogger(ISession session, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, bool? warnings = null, LogLevel outputLevel = LogLevel.Information) => new FakeServerLogger();
 		}
 
 		internal static IJobExecutor NullExecutor = new SimpleTestExecutor(async (step, logger, cancellationToken) =>
@@ -111,7 +122,7 @@ namespace Horde.Agent.Tests
 				});
 
 				await Assert.ThrowsExceptionAsync<TaskCanceledException>(() => JobHandler.ExecuteStepAsync(executor,
-					new BeginStepResponse(), NullLogger.Instance, cancelSource.Token, stepCancelSource.Token));
+					null!, NullLogger.Instance, cancelSource.Token, stepCancelSource.Token));
 			}
 
 			{
@@ -124,7 +135,7 @@ namespace Horde.Agent.Tests
 					await Task.Delay(5000, cancelToken);
 					return JobStepOutcome.Success;
 				});
-				(JobStepOutcome stepOutcome, JobStepState stepState) = await JobHandler.ExecuteStepAsync(executor, new BeginStepResponse(), NullLogger.Instance,
+				(JobStepOutcome stepOutcome, JobStepState stepState) = await JobHandler.ExecuteStepAsync(executor, null!, NullLogger.Instance,
 					cancelSource.Token, stepCancelSource.Token);
 				Assert.AreEqual(JobStepOutcome.Failure, stepOutcome);
 				Assert.AreEqual(JobStepState.Aborted, stepState);
@@ -138,9 +149,9 @@ namespace Horde.Agent.Tests
 			CancellationToken token = source.Token;
 
 			ExecuteJobTask executeJobTask = new ExecuteJobTask();
-			executeJobTask.JobId = "jobId1";
-			executeJobTask.BatchId = "batchId1";
-			executeJobTask.LogId = "logId1";
+			executeJobTask.JobId = JobId.ToString();
+			executeJobTask.BatchId = BatchId.ToString();
+			executeJobTask.LogId = LogId.ToString();
 			executeJobTask.JobName = "jobName1";
 			executeJobTask.JobOptions = new JobOptions { Executor = SimpleTestExecutor.Name };
 			executeJobTask.AutoSdkWorkspace = new AgentWorkspace();
@@ -151,11 +162,11 @@ namespace Horde.Agent.Tests
 
 			await using ISession session = FakeServerSessionFactory.CreateSession(rpcConnection);
 
-			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName1", StepId = "stepId1"});
-			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName2", StepId = "stepId2"});
-			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName3", StepId = "stepId3"});
+			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName1", StepId = StepId1.ToString()});
+			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName2", StepId = StepId2.ToString()});
+			client.BeginStepResponses.Enqueue(new BeginStepResponse {Name = "stepName3", StepId = StepId3.ToString()});
 
-			GetStepRequest step2Req = new GetStepRequest(executeJobTask.JobId, executeJobTask.BatchId, "stepId2");
+			GetStepRequest step2Req = new GetStepRequest(JobId, BatchId, StepId2);
 			GetStepResponse step2Res = new GetStepResponse(JobStepOutcome.Unspecified, JobStepState.Unspecified, true);
 			client.GetStepResponses[step2Req] = step2Res;
 
@@ -171,7 +182,7 @@ namespace Horde.Agent.Tests
 			JobHandler jobHandler = serviceProvider.GetRequiredService<JobHandler>();
 			jobHandler._stepAbortPollInterval = TimeSpan.FromMilliseconds(1);
 
-			LeaseOutcome outcome = (await jobHandler.ExecuteAsync(session, "leaseId1", executeJobTask,
+			LeaseOutcome outcome = (await jobHandler.ExecuteAsync(session, new LeaseId(default), executeJobTask,
 				token)).Outcome;
 
 			Assert.AreEqual(LeaseOutcome.Success, outcome);
@@ -218,7 +229,7 @@ namespace Horde.Agent.Tests
 			using CancellationTokenSource stepCancelSource = new CancellationTokenSource();
 			TaskCompletionSource<bool> stepFinishedSource = new TaskCompletionSource<bool>();
 
-			await jobHandler.PollForStepAbortAsync(rpcConnection, "jobId1", "batchId1", "logId1", stepCancelSource, stepFinishedSource.Task, stepPollCancelSource.Token);
+			await jobHandler.PollForStepAbortAsync(rpcConnection, JobId, BatchId, StepId2, stepCancelSource, stepFinishedSource.Task, stepPollCancelSource.Token);
 			Assert.IsTrue(stepCancelSource.IsCancellationRequested);
 		}
 
@@ -264,8 +275,8 @@ namespace Horde.Agent.Tests
 		{
 			Mock<ISession> fakeSession = new Mock<ISession>(MockBehavior.Strict);
 			fakeSession.Setup(x => x.ServerUrl).Returns(new Uri("https://localhost:9999"));
-			fakeSession.Setup(x => x.AgentId).Returns("LocalAgent");
-			fakeSession.Setup(x => x.SessionId).Returns("Session");
+			fakeSession.Setup(x => x.AgentId).Returns(new EpicGames.Horde.Agents.AgentId("LocalAgent"));
+			fakeSession.Setup(x => x.SessionId).Returns(new EpicGames.Horde.Agents.Sessions.SessionId(default));
 			fakeSession.Setup(x => x.RpcConnection).Returns(rpcConnection);
 			fakeSession.Setup(x => x.TerminateProcessesAsync(It.IsAny<TerminateCondition>(), It.IsAny<ILogger>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 			fakeSession.Setup(x => x.DisposeAsync()).Returns(new ValueTask());
@@ -285,8 +296,8 @@ namespace Horde.Agent.Tests
 		private readonly bool _isStopping = false;
 		private readonly Dictionary<string, Lease> _leases = new();
 
-		private readonly Dictionary<string, GetStreamResponse> _streamIdToStreamResponse = new();
-		private readonly Dictionary<string, GetJobResponse> _jobIdToJobResponse = new();
+		private readonly Dictionary<StreamId, GetStreamResponse> _streamIdToStreamResponse = new();
+		private readonly Dictionary<JobId, GetJobResponse> _jobIdToJobResponse = new();
 		private readonly Mock<IRpcClientRef<HordeRpc.HordeRpcClient>> _mockClientRef;
 		private readonly Mock<IRpcConnection> _mockConnection;
 		private readonly ILogger<FakeHordeRpcServer> _logger;
@@ -322,7 +333,7 @@ namespace Horde.Agent.Tests
 
 			public override AsyncUnaryCall<GetStreamResponse> GetStreamAsync(GetStreamRequest request, CallOptions options)
 			{
-				if (_outer._streamIdToStreamResponse.TryGetValue(request.StreamId, out GetStreamResponse? streamResponse))
+				if (_outer._streamIdToStreamResponse.TryGetValue(new StreamId(request.StreamId), out GetStreamResponse? streamResponse))
 				{
 					return JobRpcClientStub.Wrap(streamResponse);
 				}
@@ -332,7 +343,7 @@ namespace Horde.Agent.Tests
 
 			public override AsyncUnaryCall<GetJobResponse> GetJobAsync(GetJobRequest request, CallOptions options)
 			{
-				if (_outer._jobIdToJobResponse.TryGetValue(request.JobId, out GetJobResponse? jobResponse))
+				if (_outer._jobIdToJobResponse.TryGetValue(JobId.Parse(request.JobId), out GetJobResponse? jobResponse))
 				{
 					return JobRpcClientStub.Wrap(jobResponse);
 				}
@@ -387,7 +398,7 @@ namespace Horde.Agent.Tests
 			return _leases[leaseId];
 		}
 
-		public void AddStream(string streamId, string streamName)
+		public void AddStream(StreamId streamId, string streamName)
 		{
 			if (_streamIdToStreamResponse.ContainsKey(streamId))
 			{
@@ -400,7 +411,7 @@ namespace Horde.Agent.Tests
 			};
 		}
 
-		public void AddAgentType(string streamId, string agentType)
+		public void AddAgentType(StreamId streamId, string agentType)
 		{
 			if (!_streamIdToStreamResponse.TryGetValue(streamId, out GetStreamResponse? streamResponse))
 			{
@@ -416,7 +427,7 @@ namespace Horde.Agent.Tests
 			};
 		}
 		
-		public void AddJob(string jobId, string streamId, int change, int preflightChange)
+		public void AddJob(JobId jobId, StreamId streamId, int change, int preflightChange)
 		{
 			if (!_streamIdToStreamResponse.ContainsKey(streamId))
 			{
@@ -425,7 +436,7 @@ namespace Horde.Agent.Tests
 
 			_jobIdToJobResponse[jobId] = new GetJobResponse
 			{
-				StreamId = streamId, Change = change, PreflightChange = preflightChange
+				StreamId = streamId.ToString(), Change = change, PreflightChange = preflightChange
 			};
 		}
 

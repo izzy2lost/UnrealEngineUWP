@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Sessions;
 using Horde.Agent.Leases.Handlers;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
@@ -14,13 +17,13 @@ namespace Horde.Agent.Commands.Execution
 	class ExecuteJobCommand : Command
 	{
 		[CommandLine("-AgentId=", Required = true)]
-		public string AgentId { get; set; } = null!;
+		public AgentId AgentId { get; set; }
 
 		[CommandLine("-SessionId=", Required = true)]
-		public string SessionId { get; set; } = null!;
+		public SessionId SessionId { get; set; }
 
 		[CommandLine("-LeaseId", Required = true)]
-		public string LeaseId { get; set; } = null!;
+		public LeaseId LeaseId { get; set; }
 
 		[CommandLine("-Task=", Required = true)]
 		public string Task { get; set; } = null!;

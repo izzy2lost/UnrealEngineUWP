@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using Horde.Agent.Utility;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 
 namespace Horde.Agent.Services
 {
@@ -23,7 +25,7 @@ namespace Horde.Agent.Services
 		/// <param name="warnings">Whether to suppress warnings</param>
 		/// <param name="outputLevel">Minimum output level for messages</param>
 		/// <returns>New logger instance</returns>
-		IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings, LogLevel outputLevel = LogLevel.Information);
+		IServerLogger CreateLogger(ISession session, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, bool? warnings, LogLevel outputLevel = LogLevel.Information);
 	}
 
 	/// <summary>
@@ -40,7 +42,7 @@ namespace Horde.Agent.Services
 		/// <param name="warnings">Whether to suppress warnings</param>
 		/// <param name="outputLevel">Minimum output level for messages</param>
 		/// <returns>New logger instance</returns>
-		public static IServerLogger CreateLogger(this IServerLoggerFactory service, ISession session, string logId, bool? warnings, LogLevel outputLevel = LogLevel.Information)
+		public static IServerLogger CreateLogger(this IServerLoggerFactory service, ISession session, LogId logId, bool? warnings, LogLevel outputLevel = LogLevel.Information)
 		{
 			return service.CreateLogger(session, logId, null, null, null, warnings, outputLevel);
 		}
@@ -64,7 +66,7 @@ namespace Horde.Agent.Services
 		}
 
 		/// <inheritdoc/>
-		public IServerLogger CreateLogger(ISession session, string logId, string? jobId, string? batchId, string? stepId, bool? warnings, LogLevel outputLevel)
+		public IServerLogger CreateLogger(ISession session, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, bool? warnings, LogLevel outputLevel)
 		{
 #pragma warning disable CA2000 // Dispose objects before losing scope
 			IStorageClient storageClient = _storageClientFactory.CreateClientWithPath($"api/v1/logs/{logId}", session.Token);

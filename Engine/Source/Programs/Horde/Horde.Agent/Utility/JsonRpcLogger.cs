@@ -3,6 +3,7 @@
 using System.Text;
 using System.Threading.Channels;
 using EpicGames.Core;
+using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using HordeCommon;
 using HordeCommon.Rpc;
@@ -34,7 +35,7 @@ namespace Horde.Agent.Utility
 	sealed class JsonRpcLogger : IServerLogger
 	{
 		internal readonly IJsonRpcLogSink Sink;
-		internal readonly string LogId;
+		internal readonly LogId LogId;
 		internal readonly bool Warnings;
 		internal readonly LogLevel OutputLevel;
 		internal readonly ILogger Inner;
@@ -58,7 +59,7 @@ namespace Horde.Agent.Utility
 		/// <param name="warnings">Whether to include warnings in the output</param>
 		/// <param name="outputLevel">Minimum level for output</param>
 		/// <param name="inner">Additional logger to write to</param>
-		public JsonRpcLogger(IJsonRpcLogSink sink, string logId, bool? warnings, LogLevel outputLevel, ILogger inner)
+		public JsonRpcLogger(IJsonRpcLogSink sink, LogId logId, bool? warnings, LogLevel outputLevel, ILogger inner)
 		{
 			Sink = sink;
 			LogId = logId;

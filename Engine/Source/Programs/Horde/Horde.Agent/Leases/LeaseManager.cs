@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Services;
@@ -252,8 +253,8 @@ namespace Horde.Agent.Leases
 
 				// Build the next update request
 				UpdateSessionRequest updateSessionRequest = new UpdateSessionRequest();
-				updateSessionRequest.AgentId = _session.AgentId;
-				updateSessionRequest.SessionId = _session.SessionId;
+				updateSessionRequest.AgentId = _session.AgentId.ToString();
+				updateSessionRequest.SessionId = _session.SessionId.ToString();
 
 				// Get the new the lease states. If a restart is requested and we have no active leases, signal to the server that we're stopping.
 				lock (_lockObject)
@@ -494,7 +495,7 @@ namespace Horde.Agent.Leases
 		{
 			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(leaseInfo.Lease.Id).StartActive();
 			scope.Span.SetTag("LeaseId", leaseInfo.Lease.Id);
-			scope.Span.SetTag("AgentId", session.AgentId);
+			scope.Span.SetTag("AgentId", session.AgentId.ToString());
 			//			using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
 			//			using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
 
@@ -549,7 +550,7 @@ namespace Horde.Agent.Leases
 			if (_typeUrlToLeaseHandler.TryGetValue(payload.TypeUrl, out LeaseHandler? leaseHandler))
 			{
 				GlobalTracer.Instance.ActiveSpan?.SetTag("task", payload.TypeUrl);
-				return await leaseHandler.ExecuteAsync(session, leaseInfo.Lease.Id, payload, leaseInfo.CancellationTokenSource.Token);
+				return await leaseHandler.ExecuteAsync(session, LeaseId.Parse(leaseInfo.Lease.Id), payload, leaseInfo.CancellationTokenSource.Token);
 			}
 			else
 			{

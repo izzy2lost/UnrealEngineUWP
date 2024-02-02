@@ -2,6 +2,10 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
+using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.Collections;
 
@@ -60,66 +64,66 @@ namespace HordeCommon.Rpc
 
 	partial class GetStreamRequest
 	{
-		public GetStreamRequest(string streamId)
+		public GetStreamRequest(StreamId streamId)
 		{
-			StreamId = streamId;
+			StreamId = streamId.ToString();
 		}
 	}
 
 	partial class UpdateStreamRequest
 	{
-		public UpdateStreamRequest(string streamId, Dictionary<string, string?> properties)
+		public UpdateStreamRequest(StreamId streamId, Dictionary<string, string?> properties)
 		{
-			StreamId = streamId;
+			StreamId = streamId.ToString();
 			Properties.AddRange(properties.Select(x => new PropertyUpdate(x.Key, x.Value)));
 		}
 	}
 
 	partial class GetJobRequest
 	{
-		public GetJobRequest(string jobId)
+		public GetJobRequest(JobId jobId)
 		{
-			JobId = jobId;
+			JobId = jobId.ToString();
 		}
 	}
 
 	partial class BeginBatchRequest
 	{
-		public BeginBatchRequest(string jobId, string batchId, string leaseId)
+		public BeginBatchRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
 		{
-			JobId = jobId;
-			BatchId = batchId;
-			LeaseId = leaseId;
+			JobId = jobId.ToString();
+			BatchId = batchId.ToString();
+			LeaseId = leaseId.ToString();
 		}
 	}
 
 	partial class FinishBatchRequest
 	{
-		public FinishBatchRequest(string jobId, string batchId, string leaseId)
+		public FinishBatchRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
 		{
-			JobId = jobId;
-			BatchId = batchId;
-			LeaseId = leaseId;
+			JobId = jobId.ToString();
+			BatchId = batchId.ToString();
+			LeaseId = leaseId.ToString();
 		}
 	}
 
 	partial class BeginStepRequest
 	{
-		public BeginStepRequest(string jobId, string batchId, string leaseId)
+		public BeginStepRequest(JobId jobId, JobStepBatchId batchId, LeaseId leaseId)
 		{
-			JobId = jobId;
-			BatchId = batchId;
-			LeaseId = leaseId;
+			JobId = jobId.ToString();
+			BatchId = batchId.ToString();
+			LeaseId = leaseId.ToString();
 		}
 	}
 
 	partial class UpdateStepRequest
 	{
-		public UpdateStepRequest(string jobId, string batchId, string stepId, JobStepState state, JobStepOutcome outcome)
+		public UpdateStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId, JobStepState state, JobStepOutcome outcome)
 		{
-			JobId = jobId;
-			BatchId = batchId;
-			StepId = stepId;
+			JobId = jobId.ToString();
+			BatchId = batchId.ToString();
+			StepId = stepId.ToString();
 			State = state;
 			Outcome = outcome;
 		}
@@ -127,11 +131,11 @@ namespace HordeCommon.Rpc
 	
 	partial class GetStepRequest
 	{
-		public GetStepRequest(string jobId, string batchId, string stepId)
+		public GetStepRequest(JobId jobId, JobStepBatchId batchId, JobStepId stepId)
 		{
-			JobId = jobId;
-			BatchId = batchId;
-			StepId = stepId;
+			JobId = jobId.ToString();
+			BatchId = batchId.ToString();
+			StepId = stepId.ToString();
 		}
 	}
 	
@@ -147,10 +151,10 @@ namespace HordeCommon.Rpc
 
 	partial class CreateEventRequest
 	{
-		public CreateEventRequest(EventSeverity severity, string logId, int lineIndex, int lineCount)
+		public CreateEventRequest(EventSeverity severity, LogId logId, int lineIndex, int lineCount)
 		{
 			Severity = severity;
-			LogId = logId;
+			LogId = logId.ToString();
 			LineIndex = lineIndex;
 			LineCount = lineCount;
 		}
@@ -166,9 +170,9 @@ namespace HordeCommon.Rpc
 
 	partial class WriteOutputRequest
 	{
-		public WriteOutputRequest(string logId, long offset, int lineIndex, ByteString data, bool flush)
+		public WriteOutputRequest(LogId logId, long offset, int lineIndex, ByteString data, bool flush)
 		{
-			LogId = logId;
+			LogId = logId.ToString();
 			Offset = offset;
 			LineIndex = lineIndex;
 			Data = data;

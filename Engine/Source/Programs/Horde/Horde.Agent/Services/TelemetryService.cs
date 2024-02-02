@@ -487,7 +487,7 @@ class TelemetryService : BackgroundService
 			Timestamp utcNow = Timestamp.FromDateTime(DateTime.UtcNow);
 			ExecutionMetadata em = new()
 			{
-				LeaseId = _jobHandler.CurrentLeaseId,
+				LeaseId = _jobHandler.CurrentLeaseId.ToString(),
 				JobId = _jobHandler.CurrentJobId,
 				JobBatchId = _jobHandler.CurrentBatchId,
 			};

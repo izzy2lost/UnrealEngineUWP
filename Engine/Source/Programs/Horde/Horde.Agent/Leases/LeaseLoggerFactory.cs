@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -69,9 +70,14 @@ namespace Horde.Agent.Leases
 		/// <summary>
 		/// Create a new logger factory for the given lease id
 		/// </summary>
-		public ILoggerFactory CreateLoggerFactory(string leaseId)
+		public ILoggerFactory CreateLoggerFactory(LeaseId leaseId, string? suffix = null)
 		{
-			return Logging.CreateFileLoggerFactory(_logDir, leaseId);
+			string name = leaseId.ToString();
+			if (!String.IsNullOrEmpty(suffix))
+			{
+				name = $"{name}-{suffix}";
+			}
+			return Logging.CreateFileLoggerFactory(_logDir, name);
 		}
 
 		async Task BackgroundCleanupAsync(CancellationToken cancellationToken)

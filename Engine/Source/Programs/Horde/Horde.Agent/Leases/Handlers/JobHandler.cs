@@ -4,6 +4,9 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage.Clients;
 using Google.Protobuf;
 using Grpc.Core;
@@ -33,7 +36,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <summary>
 		/// Current lease ID being executed
 		/// </summary>
-		public string? CurrentLeaseId { get; private set; } = null;
+		public LeaseId? CurrentLeaseId { get; private set; } = null;
 		
 		/// <summary>
 		/// Current job ID being executed
@@ -66,7 +69,7 @@ namespace Horde.Agent.Leases.Handlers
 		}
 
 		/// <inheritdoc/>
-		public override async Task<LeaseResult> ExecuteAsync(ISession session, string leaseId, ExecuteJobTask executeTask, CancellationToken cancellationToken)
+		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ExecuteJobTask executeTask, CancellationToken cancellationToken)
 		{
 			try
 			{
@@ -134,11 +137,11 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
-		internal async Task<LeaseResult> ExecuteInternalAsync(ISession session, string leaseId, ExecuteJobTask executeTask, CancellationToken cancellationToken)
+		internal async Task<LeaseResult> ExecuteInternalAsync(ISession session, LeaseId leaseId, ExecuteJobTask executeTask, CancellationToken cancellationToken)
 		{
 			// Create a storage client for this session
 			JobOptions jobOptions = executeTask.JobOptions;
-			await using IServerLogger batchLogger = _serverLoggerFactory.CreateLogger(session, executeTask.LogId, executeTask.JobId, executeTask.BatchId, null, null);
+			await using IServerLogger batchLogger = _serverLoggerFactory.CreateLogger(session, LogId.Parse(executeTask.LogId), JobId.Parse(executeTask.JobId), JobStepBatchId.Parse(executeTask.BatchId), null, null);
 
 			using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory(leaseId);
 			ILogger leaseLogger = leaseLoggerFactory.CreateLogger<JobHandler>();
@@ -153,10 +156,10 @@ namespace Horde.Agent.Leases.Handlers
 			logger.LogInformation("Executor: {Name}, UseNewTempStorage: {UseNewTempStorage}", jobOptions.Executor, jobOptions.UseNewTempStorage ?? false);
 
 			// Start executing the current batch
-			BeginBatchResponse batch = await session.RpcConnection.InvokeAsync<JobRpc.JobRpcClient, BeginBatchResponse>(x => x.BeginBatchAsync(new BeginBatchRequest(executeTask.JobId, executeTask.BatchId, leaseId), null, null, cancellationToken), cancellationToken);
+			BeginBatchResponse batch = await session.RpcConnection.InvokeAsync<JobRpc.JobRpcClient, BeginBatchResponse>(x => x.BeginBatchAsync(new BeginBatchRequest(JobId.Parse(executeTask.JobId), JobStepBatchId.Parse(executeTask.BatchId), leaseId), null, null, cancellationToken), cancellationToken);
 			try
 			{
-				JobExecutorOptions options = new JobExecutorOptions(session, _serverStorageFactory, executeTask.JobId, executeTask.BatchId, batch, executeTask.Token, jobOptions);
+				JobExecutorOptions options = new JobExecutorOptions(session, _serverStorageFactory, JobId.Parse(executeTask.JobId), JobStepBatchId.Parse(executeTask.BatchId), batch, executeTask.Token, jobOptions);
 				await ExecuteBatchAsync(session, leaseId, executeTask.Workspace, executeTask.AutoSdkWorkspace, options, logger, cancellationToken);
 			}
 			catch (Exception ex)
@@ -175,7 +178,7 @@ namespace Horde.Agent.Leases.Handlers
 				}
 				else
 				{
-					logger.LogError(ex, "Exception while executing batch: {Ex}", ex.Message);
+					logger.LogError(ex, "Exception while executing lease {LeaseId}: {Ex}", leaseId, ex.Message);
 				}
 			}
 
@@ -187,7 +190,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 
 			// Mark the batch as complete
-			await session.RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.FinishBatchAsync(new FinishBatchRequest(executeTask.JobId, executeTask.BatchId, leaseId), null, null, cancellationToken), cancellationToken);
+			await session.RpcConnection.InvokeAsync((JobRpc.JobRpcClient x) => x.FinishBatchAsync(new FinishBatchRequest(JobId.Parse(executeTask.JobId), JobStepBatchId.Parse(executeTask.BatchId), leaseId), null, null, cancellationToken), cancellationToken);
 			logger.LogInformation("Done.");
 
 			return LeaseResult.Success;
@@ -196,7 +199,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <summary>
 		/// Executes a batch
 		/// </summary>
-		async Task ExecuteBatchAsync(ISession session, string leaseId, AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, ILogger batchLogger, CancellationToken cancellationToken)
+		async Task ExecuteBatchAsync(ISession session, LeaseId leaseId, AgentWorkspace workspaceInfo, AgentWorkspace? autoSdkWorkspaceInfo, JobExecutorOptions options, ILogger batchLogger, CancellationToken cancellationToken)
 		{
 			IRpcConnection rpcClient = session.RpcConnection;
 
@@ -229,22 +232,24 @@ namespace Horde.Agent.Leases.Handlers
 				for (; ; )
 				{
 					// Get the next step to execute
-					BeginStepResponse step = await rpcClient.InvokeAsync((JobRpc.JobRpcClient x) => x.BeginStepAsync(new BeginStepRequest(options.JobId, options.BatchId, leaseId), null, null, cancellationToken), cancellationToken);
-					if (step.State == BeginStepResponse.Types.Result.Waiting)
+					BeginStepResponse stepResponse = await rpcClient.InvokeAsync((JobRpc.JobRpcClient x) => x.BeginStepAsync(new BeginStepRequest(options.JobId, options.BatchId, leaseId), null, null, cancellationToken), cancellationToken);
+					if (stepResponse.State == BeginStepResponse.Types.Result.Waiting)
 					{
 						batchLogger.LogInformation("Waiting for dependency to be ready");
 						await Task.Delay(TimeSpan.FromSeconds(20.0), cancellationToken);
 						continue;
 					}
-					else if (step.State == BeginStepResponse.Types.Result.Complete)
+					else if (stepResponse.State == BeginStepResponse.Types.Result.Complete)
 					{
 						break;
 					}
-					else if (step.State != BeginStepResponse.Types.Result.Ready)
+					else if (stepResponse.State != BeginStepResponse.Types.Result.Ready)
 					{
-						batchLogger.LogError("Unexpected step state: {StepState}", step.State);
+						batchLogger.LogError("Unexpected step state: {StepState}", stepResponse.State);
 						break;
 					}
+
+					JobStepInfo step = new JobStepInfo(stepResponse);
 
 					// Get current disk space available. This will allow us to more easily spot steps that eat up a lot of disk space.
 					string? driveName;
@@ -278,8 +283,8 @@ namespace Horde.Agent.Leases.Handlers
 
 					// Create a trace span
 					using IScope scope = GlobalTracer.Instance.BuildSpan("Execute").WithResourceName(step.Name).StartActive();
-					scope.Span.SetTag("stepId", step.StepId);
-					scope.Span.SetTag("logId", step.LogId);
+					scope.Span.SetTag("stepId", step.StepId.ToString());
+					scope.Span.SetTag("logId", step.LogId.ToString());
 					//				using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
 					//				using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
 
@@ -296,7 +301,7 @@ namespace Horde.Agent.Leases.Handlers
 							List<ILogger> loggers = new List<ILogger>();
 							loggers.Add(new DefaultLoggerIndentHandler(stepLogger));
 
-							using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory($"{leaseId}-{step.LogId}");
+							using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory(leaseId, $"{step.StepId}-{step.LogId}");
 							loggers.Add(leaseLoggerFactory.CreateLogger<JobHandler>());
 
 							if (_settings.WriteStepOutputToLogger)
@@ -393,7 +398,7 @@ namespace Horde.Agent.Leases.Handlers
 		/// <param name="cancellationToken">Cancellation token to abort the batch</param>
 		/// <param name="stepCancellationToken">Cancellation token to abort only this individual step</param>
 		/// <returns>Async task</returns>
-		internal static async Task<(JobStepOutcome, JobStepState)> ExecuteStepAsync(IJobExecutor executor, BeginStepResponse step, ILogger stepLogger, CancellationToken cancellationToken, CancellationToken stepCancellationToken)
+		internal static async Task<(JobStepOutcome, JobStepState)> ExecuteStepAsync(IJobExecutor executor, JobStepInfo step, ILogger stepLogger, CancellationToken cancellationToken, CancellationToken stepCancellationToken)
 		{
 			using CancellationTokenSource combined = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stepCancellationToken);
 			try
@@ -420,7 +425,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
-		internal async Task PollForStepAbortAsync(IRpcConnection rpcClient, string jobId, string batchId, string stepId, CancellationTokenSource stepCancelSource, Task finishedTask, CancellationToken cancellationToken)
+		internal async Task PollForStepAbortAsync(IRpcConnection rpcClient, JobId jobId, JobStepBatchId batchId, JobStepId stepId, CancellationTokenSource stepCancelSource, Task finishedTask, CancellationToken cancellationToken)
 		{
 			Stopwatch timer = Stopwatch.StartNew();
 			while (!finishedTask.IsCompleted)

@@ -15,6 +15,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 using EpicGames.Horde.Storage.Bundles.V1;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Jobs;
 
 namespace Horde.Agent.Tests
 {
@@ -104,7 +105,7 @@ namespace Horde.Agent.Tests
 		{
 			public IBlobRef? Target { get; private set; }
 
-			public FakeJsonRpcLoggerBackend(IRpcConnection connection, string logId, string? jobId, string? batchId, string? stepId, IStorageClient store, ILogger logger)
+			public FakeJsonRpcLoggerBackend(IRpcConnection connection, LogId logId, JobId? jobId, JobStepBatchId? batchId, JobStepId? stepId, IStorageClient store, ILogger logger)
 				: base(connection, logId, jobId, batchId, stepId, store, logger)
 			{
 			}
@@ -133,9 +134,9 @@ namespace Horde.Agent.Tests
 			const int Count = 20000;
 
 			LogNode file;
-			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(null!, "foo", null, null, null, store, NullLogger.Instance))
+			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(null!, default, null, null, null, store, NullLogger.Instance))
 			{
-				await using (JsonRpcLogger logger = new JsonRpcLogger(sink, "foo", null, LogLevel.Information, NullLogger.Instance))
+				await using (JsonRpcLogger logger = new JsonRpcLogger(sink, default, null, LogLevel.Information, NullLogger.Instance))
 				{
 					for (int idx = 0; idx < Count; idx++)
 					{

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Jobs;
 using Grpc.Core;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc;
@@ -54,7 +55,7 @@ namespace Horde.Agent.Utility
 		/// <param name="logger">Logger interfact</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns></returns>
-		public static async Task UploadAsync(IRpcConnection rpcConnection, string jobId, string batchId, string stepId, IEnumerable<(string, FileReference)> artifacts, ILogger logger, CancellationToken cancellationToken)
+		public static async Task UploadAsync(IRpcConnection rpcConnection, JobId jobId, JobStepBatchId batchId, JobStepId stepId, IEnumerable<(string, FileReference)> artifacts, ILogger logger, CancellationToken cancellationToken)
 		{
 			foreach ((string name, FileReference file) in artifacts)
 			{
@@ -74,7 +75,7 @@ namespace Horde.Agent.Utility
 		/// <param name="logger">Logger interfact</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns></returns>
-		public static async Task<string?> UploadAsync(IRpcConnection rpcConnection, string jobId, string batchId, string stepId, string artifactName, FileReference artifactFile, ILogger logger, CancellationToken cancellationToken)
+		public static async Task<string?> UploadAsync(IRpcConnection rpcConnection, JobId jobId, JobStepBatchId batchId, JobStepId stepId, string artifactName, FileReference artifactFile, ILogger logger, CancellationToken cancellationToken)
         {
 			try
 			{
@@ -109,7 +110,7 @@ namespace Horde.Agent.Utility
 		/// <param name="logger">Logger interfact</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns></returns>
-		private static async Task<string> DoUploadAsync(JobRpc.JobRpcClient client, string jobId, string batchId, string stepId, string artifactName, FileReference artifactFile, ILogger logger, CancellationToken cancellationToken)
+		private static async Task<string> DoUploadAsync(JobRpc.JobRpcClient client, JobId jobId, JobStepBatchId batchId, JobStepId stepId, string artifactName, FileReference artifactFile, ILogger logger, CancellationToken cancellationToken)
         {
             using (FileStream artifactStream = FileReference.Open(artifactFile, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
@@ -118,9 +119,9 @@ namespace Horde.Agent.Utility
                 {
 					// Upload the metadata in the initial request
 					UploadArtifactMetadata metadata = new UploadArtifactMetadata();
-					metadata.JobId = jobId;
-					metadata.BatchId = batchId;
-					metadata.StepId = stepId;
+					metadata.JobId = jobId.ToString();
+					metadata.BatchId = batchId.ToString();
+					metadata.StepId = stepId.ToString();
 					metadata.Name = artifactName;
 					metadata.MimeType = GetMimeType(artifactFile);
 					metadata.Length = artifactStream.Length;

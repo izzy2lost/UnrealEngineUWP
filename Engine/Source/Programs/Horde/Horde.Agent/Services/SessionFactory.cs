@@ -4,6 +4,9 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using EpicGames.Core;
+using EpicGames.Horde;
+using EpicGames.Horde.Agents;
+using EpicGames.Horde.Agents.Sessions;
 using Grpc.Net.Client;
 using Horde.Agent.Utility;
 using HordeCommon;
@@ -27,12 +30,12 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// The agent identifier
 		/// </summary>
-		string AgentId { get; }
+		AgentId AgentId { get; }
 
 		/// <summary>
 		/// Identifier for the current session
 		/// </summary>
-		string SessionId { get; }
+		SessionId SessionId { get; }
 
 		/// <summary>
 		/// Token to use for connection to the server
@@ -84,12 +87,12 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// The agent identifier
 		/// </summary>
-		public string AgentId { get; }
+		public AgentId AgentId { get; }
 
 		/// <summary>
 		/// Identifier for the current session
 		/// </summary>
-		public string SessionId { get; }
+		public SessionId SessionId { get; }
 
 		/// <summary>
 		/// Token to use for connection to the server
@@ -111,7 +114,7 @@ namespace Horde.Agent.Services
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public Session(Uri serverUrl, string agentId, string sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
+		public Session(Uri serverUrl, AgentId agentId, SessionId sessionId, string token, IRpcConnection rpcConnection, DirectoryReference workingDir, IReadOnlyDictionary<string, TerminateCondition> processNamesToTerminate)
 		{
 			ServerUrl = serverUrl;
 			AgentId = agentId;
@@ -210,7 +213,7 @@ namespace Horde.Agent.Services
 			// Open a connection to the server
 #pragma warning disable CA2000 // False positive; ownership is transferred to new Session object.
 			IRpcConnection rpcConnection = new RpcConnection(createGrpcChannelAsync, logger);
-			return new Session(serverProfile.Url, createSessionResponse.AgentId, createSessionResponse.SessionId, createSessionResponse.Token, rpcConnection, workingDir, currentSettings.GetProcessesToTerminateMap());
+			return new Session(serverProfile.Url, new AgentId(createSessionResponse.AgentId), SessionId.Parse(createSessionResponse.SessionId), createSessionResponse.Token, rpcConnection, workingDir, currentSettings.GetProcessesToTerminateMap());
 #pragma warning restore CA2000
 		}
 
