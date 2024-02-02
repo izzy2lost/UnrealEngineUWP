@@ -9,6 +9,8 @@
 #include <Containers/StringView.h>
 #include <String/LexFromString.h>
 
+#include <initializer_list>
+
 namespace UE::IO::IAS::Tool {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +24,14 @@ struct FArgument
 };
 
 using FArguments = TArray<FArgument>;
+
+////////////////////////////////////////////////////////////////////////////////
+struct FArgumentSet
+{
+				FArgumentSet(std::initializer_list<FArgument>);
+				operator FArgument () const;
+	FArguments	Arguments;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 template <typename Type> FArgument TArgument(FStringView Name, FStringView Desc);
@@ -44,6 +54,7 @@ private:
 
 	friend				class FCommand;
 						FContext(const FArguments& InArguments, int32 ArgC, const TCHAR* const* ArgV);
+	void				SetArguments(const FArguments& Input);
 	uint32				FindArgument(FStringView Name) const;
 	[[noreturn]] void	OnMissingValue(FStringView Name) const;
 	bool				IsSet(uint32 Index) const { return !!((1ull << Index) & SetMask); }
