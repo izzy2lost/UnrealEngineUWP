@@ -1568,14 +1568,58 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeEn
 	return { ObservationObject.CreateEncoding({ Element.ObjectElement }, Name) };
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeBoolObservation(const bool bValue, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeBoolObservation(
+	const bool bValue,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return MakeContinuousObservationFromArrayView({ bValue ? 1.0f : -1.0f }, Name);
+	const float EncodedBool = bValue ? 1.0f : -1.0f;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nValue: [%s]\nEncoded: [% 6.2f]"),
+			*Name.ToString(),
+			bValue ? TEXT("true") : TEXT("false"),
+			EncodedBool);
+	}
+#endif
+
+	return MakeContinuousObservationFromArrayView({ EncodedBool }, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeFloatObservation(const float Value, const float FloatScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeFloatObservation(
+	const float Value,
+	const float FloatScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return MakeContinuousObservationFromArrayView({ Value / FMath::Max(FloatScale, UE_SMALL_NUMBER) }, Name);
+	const float EncodedValue = Value / FMath::Max(FloatScale, UE_SMALL_NUMBER);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nValue: [% 6.1f]\nScale: [% 6.2f]\nEncoded: [% 6.2f]"),
+			*Name.ToString(),
+			Value,
+			FloatScale,
+			EncodedValue);
+	}
+#endif
+
+	return MakeContinuousObservationFromArrayView({ EncodedValue }, Name);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLocationObservation(
@@ -1634,16 +1678,54 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeLo
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeRotationObservation(const FRotator Rotation, const FRotator RelativeRotation, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeRotationObservation(
+	const FRotator Rotation,
+	const FRotator RelativeRotation,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return MakeRotationObservationFromQuat(FQuat::MakeFromRotator(Rotation), FQuat::MakeFromRotator(RelativeRotation), Name);
+	// Visual logging is handled in the MakeRotationObservationFromQuat
+
+	return MakeRotationObservationFromQuat(
+		FQuat::MakeFromRotator(Rotation), FQuat::MakeFromRotator(RelativeRotation), Name,
+		bVisualLoggerEnabled, VisualLoggerLocation,	VisualLoggerColor);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeRotationObservationFromQuat(const FQuat Rotation, const FQuat RelativeRotation, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeRotationObservationFromQuat(
+	const FQuat Rotation,
+	const FQuat RelativeRotation,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FQuat LocalRotation = RelativeRotation.Inverse() * Rotation;
 	const FVector LocalAxisForward = LocalRotation.GetForwardVector();
 	const FVector LocalAxisRight = LocalRotation.GetRightVector();
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			VisualLoggerLocation,
+			LocalRotation.Rotator(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nRotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f % 6.1f]\nEncoded Forward: [% 6.2f % 6.2f % 6.2f]\nEncoded Right: [% 6.2f % 6.2f % 6.2f]"),
+			*Name.ToString(),
+			Rotation.W, Rotation.X, Rotation.Y, Rotation.Z,
+			LocalRotation.W, LocalRotation.X, LocalRotation.Y, LocalRotation.Z,
+			LocalAxisForward.X, LocalAxisForward.Y, LocalAxisForward.Z,
+			LocalAxisRight.X, LocalAxisRight.Y, LocalAxisRight.Z);
+	}
+#endif
 
 	return MakeContinuousObservationFromArrayView({
 		(float)LocalAxisForward.X,
@@ -1655,11 +1737,31 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeRo
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeScaleObservation(const FVector Scale, const FVector RelativeScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeScaleObservation(
+	const FVector Scale,
+	const FVector RelativeScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalLogScale = 
 		UE::Learning::Agents::Observation::Private::VectorLogSafe(Scale) - 
 		UE::Learning::Agents::Observation::Private::VectorLogSafe(RelativeScale);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nScale: [% 6.1f % 6.1f % 6.1f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			*Name.ToString(),
+			Scale.X, Scale.Y, Scale.Z,
+			LocalLogScale.X, LocalLogScale.Y, LocalLogScale.Z);
+	}
+#endif
 
 	return MakeContinuousObservationFromArrayView({
 		(float)LocalLogScale.X,
@@ -1668,10 +1770,50 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeSc
 		}, Name);
 }
 
-FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeTransformObservation(const FTransform Transform, const FTransform RelativeTransform, const float LocationScale, const FName Name)
+FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeTransformObservation(
+	const FTransform Transform,
+	const FTransform RelativeTransform,
+	const float LocationScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const FTransform LocalTransform = Transform * RelativeTransform.Inverse();
 	
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		const FVector LocalLocation = LocalTransform.GetLocation();
+		const FRotator LocalRotation = LocalTransform.Rotator();
+		const FVector LocalScale = LocalTransform.GetScale3D();
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			LocalLocation,
+			LocalRotation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		const FVector Location = Transform.GetLocation();
+		const FRotator Rotation = Transform.Rotator();
+		const FVector Scale = Transform.GetScale3D();
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nLocation: [% 6.1f % 6.1f % 6.1f]\nLocal Location: [% 6.1f % 6.1f % 6.1f]\nRotation: [% 6.1f % 6.1f % 6.1f]\nLocal Rotation: [% 6.1f % 6.1f % 6.1f]\nScale: [% 6.1f % 6.1f % 6.1f]\nLocal Scale: [% 6.1f % 6.1f % 6.1f]\nLocation Scale: [% 6.1f]"),
+			*Name.ToString(),
+			Location.X, Location.Y, Location.Z,
+			LocalLocation.X, LocalLocation.Y, LocalLocation.Z,
+			Rotation.Roll, Rotation.Pitch, Rotation.Yaw,
+			LocalRotation.Roll, LocalRotation.Pitch, LocalRotation.Yaw,
+			Scale.X, Scale.Y, Scale.Z,
+			LocalScale.X, LocalScale.Y, LocalScale.Z,
+			LocationScale);
+	}
+#endif
+
 	return MakeStructObservationFromArrayViews(
 		{
 			TEXT("Location"),
@@ -1718,9 +1860,37 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 	const FName Name,
 	const bool bVisualLoggerEnabled,
 	const FVector VisualLoggerLocation,
+	const float VisualLoggerArrowLength,
 	const FLinearColor VisualLoggerColor)
 {
 	const FVector LocalDirection = RelativeTransform.InverseTransformVectorNoScale(Direction).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled)
+	{
+		const ULearningAgentsObservationVisualLoggerObject* VisualLoggerObject = GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_ARROW(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetTranslation() + VisualLoggerArrowLength * Direction,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(VisualLoggerObject, LogLearning, Display,
+			RelativeTransform.GetTranslation(),
+			RelativeTransform.GetRotation(),
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Name: %s\nDirection: [% 6.1f % 6.1f % 6.1f]\nLocal Direction: [% 6.1f % 6.1f % 6.1f]\nEncoded: [% 6.2f % 6.2f % 6.2f]"),
+			*Name.ToString(),
+			Direction.X, Direction.Y, Direction.Z,
+			LocalDirection.X, LocalDirection.Y, LocalDirection.Z,
+			LocalDirection.X, LocalDirection.Y, LocalDirection.Z); // We don't have a scaling so the encoded value is the same
+	}
+#endif
 
 	return MakeContinuousObservationFromArrayView({
 		(float)LocalDirection.X,
@@ -1778,6 +1948,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 	const FName Name,
 	const bool bVisualLoggerEnabled,
 	const FVector VisualLoggerLocation,
+	const float VisualLoggerArrowLength,
 	const FLinearColor VisualLoggerColor)
 {
 	if (!SplineComponent)
@@ -1786,7 +1957,7 @@ FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakeDi
 		return FLearningAgentsObservationObjectElement();
 	}
 
-	return MakeDirectionObservation(SplineComponent->GetDirectionAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, Name, bVisualLoggerEnabled, VisualLoggerLocation, VisualLoggerColor);
+	return MakeDirectionObservation(SplineComponent->GetDirectionAtDistanceAlongSpline(DistanceAlongSpline, ESplineCoordinateSpace::World), RelativeTransform, Name, bVisualLoggerEnabled, VisualLoggerLocation, VisualLoggerArrowLength, VisualLoggerColor);
 }
 
 FLearningAgentsObservationObjectElement ULearningAgentsObservationObject::MakePropertiesAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FTransform RelativeTransform, const float LocationScale, const FName Name)

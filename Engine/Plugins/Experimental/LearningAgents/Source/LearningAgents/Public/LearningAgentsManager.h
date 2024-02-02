@@ -205,11 +205,13 @@ public:
 	/** Get a const array view of this manager's agent objects. */
 	TConstArrayView<TObjectPtr<UObject>> GetAgents() const;
 
-private:
+protected:
 
 	/** Maximum number of agents. Used to preallocate internal buffers. Setting this higher will allow more agents but use up more memory. */
 	UPROPERTY(EditDefaultsOnly, Category = "LearningAgents", meta = (ClampMin = "1", UIMin = "1"))
 	int32 MaxAgentNum = 1;
+
+private:
 
 	/** The list of current agents. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
