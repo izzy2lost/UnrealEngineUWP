@@ -484,7 +484,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 
 	FVoxelGridBuildOptions BuildOptions;
 	BuildOptions.bJitter = false;
-	BuildOptions.MinimumVoxelSizeOutsideFrustum = 2.0;
+	BuildOptions.MinimumVoxelSizeOutsideFrustum = 10.0;
 
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = nullptr;
 	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = nullptr;
