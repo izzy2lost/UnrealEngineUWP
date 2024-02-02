@@ -28,9 +28,17 @@
 #define DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP 0
 #endif // DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 
+#ifndef APPLY_FOG_INSCATTERING
+#define APPLY_FOG_INSCATTERING 0
+#endif // APPLY_FOG_INSCATTERING
+
 #if DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
 #include "HeterogeneousVolumesAdaptiveVolumetricShadowMapSampling.ush"
 #endif // DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+
+#if APPLY_FOG_INSCATTERING
+#include "../HeightFogCommon.ush"
+#endif // APPLY_FOG_INSCATTERING
 
 float CalcShadowBias()
 {
@@ -359,4 +367,34 @@ void RayMarchSingleScattering(
 			break;
 		}
 	}
+
+#if APPLY_FOG_INSCATTERING
+	if (any(Transmittance < 1))
+	{
+		// TODO: Change in-scattering distance to be based on the first scattering event, instead of the
+		// intersection distance of the bounding box near-plane.
+		float RayT = RayMarchingContext.LocalRayTMin * RayMarchingContext.LocalToWorldScale;
+		float3 CameraRelative_WorldPosition = RayMarchingContext.WorldRayDirection * RayT;
+		float4 HeightFog = float4(0, 0, 0, 1);
+		if (ShouldApplyHeightFog())
+		{
+			HeightFog = CalculateHeightFog(CameraRelative_WorldPosition);
+		}
+
+		float4 CombinedFog = HeightFog;
+		if (ShouldApplyVolumetricFog() && FogStruct.ApplyVolumetricFog > 0)
+		{
+			float3 WorldPosition = CameraRelative_WorldPosition + RayMarchingContext.WorldRayOrigin;
+			const uint EyeIndex = 0;
+			float3 VolumeUV = ComputeVolumeUV_DEPRECATED(WorldPosition, DFHackToFloat(PrimaryView.WorldToClip));
+			CombinedFog = CombineVolumetricFog(HeightFog, VolumeUV, EyeIndex, RayT);
+		}
+
+		// Fogging in-scattering contribution is not currently attenuated by Heterogeneous Volumes
+		// for elements behind the subject. To prevent doubled contribution of in-scattering for 
+		// regions of low density (eg: silhouette edges), blending is interpreted as alpha-masking instead.
+		float Opacity = 1.0 - Transmittance;
+		Radiance = Radiance * CombinedFog.a + CombinedFog.rgb * Opacity;
+	}
+#endif // APPLY_FOG_INSCATTERING
 }

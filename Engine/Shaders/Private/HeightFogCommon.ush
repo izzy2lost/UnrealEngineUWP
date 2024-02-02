@@ -26,6 +26,10 @@
 #define PERMUTATION_SUPPORT_FOG_SECOND_TERM 1
 #endif
 
+#ifndef FOG_MATERIALBLENDING_OVERRIDE
+#define FOG_MATERIALBLENDING_OVERRIDE 0
+#endif
+
 #if INSTANCED_STEREO
 	#if MATERIALBLENDING_ANY_TRANSLUCENT
 		#define FogStructISR TranslucentBasePass.Shared.FogISR
@@ -199,7 +203,7 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 	}
 
 	// Fog color is unused when additive / modulate blend modes are active.
-	#if (MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE)
+	#if (MATERIALBLENDING_ADDITIVE || MATERIALBLENDING_MODULATE) && !FOG_MATERIALBLENDING_OVERRIDE
 		half3 FogColor = 0.0;
 	#else
 		half3 FogColor = (InscatteringColor) * (1 - ExpFogFactor) + DirectionalInscattering;
