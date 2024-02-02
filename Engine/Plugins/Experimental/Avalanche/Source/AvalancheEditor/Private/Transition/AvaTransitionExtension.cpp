@@ -177,8 +177,8 @@ void FAvaTransitionExtension::BuildDefaultTransitionTree(UAvaTransitionTreeEdito
 			SetStateCompletedResult(ChangeOut, EStateTreeTransitionType::Succeeded);
 
 			FAvaSequencePlayParams& PlaySettings = AddPlayTask(ChangeOut, ChangeTag);
-			PlaySettings.Start = FAvaSequenceTime(0);
-            PlaySettings.End   = MarkTime;
+			PlaySettings.Start.bHasTimeConstraint = false;
+            PlaySettings.End = MarkTime;
 		}
 
 		// Change in (A to End)
@@ -197,7 +197,7 @@ void FAvaTransitionExtension::BuildDefaultTransitionTree(UAvaTransitionTreeEdito
 
 			FAvaSequencePlayParams& PlaySettings = AddPlayTask(PlayChangeInState, ChangeTag);
 			PlaySettings.Start = MarkTime;
-			PlaySettings.End   = FAvaSequenceTime(-1);
+			PlaySettings.End.bHasTimeConstraint = false;
 		}
 	}
 

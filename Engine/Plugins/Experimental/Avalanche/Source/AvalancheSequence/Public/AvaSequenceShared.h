@@ -40,24 +40,34 @@ struct FAvaSequenceTime
 {
 	GENERATED_BODY()
 
+	enum ENoTimeConstraint {NoTimeConstraint};
+
 	FAvaSequenceTime() = default;
+
+	explicit FAvaSequenceTime(ENoTimeConstraint)
+		: bHasTimeConstraint(false)
+	{
+	}
 
 	explicit FAvaSequenceTime(FFrameTime FrameTime)
 		: TimeType(EAvaSequenceTimeType::Frame)
 		, Frame(FrameTime.GetFrame().Value)
 		, SubFrame(FrameTime.GetSubFrame())
+		, bHasTimeConstraint(true)
 	{
 	}
 
 	explicit FAvaSequenceTime(double InSeconds)
 		: TimeType(EAvaSequenceTimeType::Seconds)
 		, Seconds(InSeconds)
+		, bHasTimeConstraint(true)
 	{
 	}
 
 	explicit FAvaSequenceTime(const FString& InMarkLabel)
 		: TimeType(EAvaSequenceTimeType::Mark)
 		, MarkLabel(InMarkLabel)
+		, bHasTimeConstraint(true)
 	{
 	}
 
@@ -67,21 +77,43 @@ struct FAvaSequenceTime
 		return TimeType == EAvaSequenceTimeType::Mark;
 	}
 
-	AVALANCHESEQUENCE_API double ToSeconds(const UAvaSequence& InSequence, const UMovieScene& InMovieScene) const;
+	AVALANCHESEQUENCE_API bool Serialize(FArchive& Ar);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
+	/**
+	 * Converts this Motion Design Sequence Time struct to time frame in seconds
+	 * @param InSequence the sequence to use to query for marks (only applicable if TimeType is set to Mark)
+	 * @param InMovieScene the movie scene used to get the Tick Resolution or Display Rate
+	 * @param InDefaultTime the default time to return if time is invalid or unset
+	 * @return the timeframe in seconds
+	 */
+	AVALANCHESEQUENCE_API double ToSeconds(const UAvaSequence& InSequence, const UMovieScene& InMovieScene, double InDefaultTime) const;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="bHasTimeConstraint"))
 	EAvaSequenceTimeType TimeType = EAvaSequenceTimeType::Frame;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="TimeType==EAvaSequenceTimeType::Frame"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="bHasTimeConstraint && TimeType==EAvaSequenceTimeType::Frame"))
 	int32 Frame = 0;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="bHasTimeConstraint && TimeType==EAvaSequenceTimeType::Frame"))
 	double SubFrame = 0.0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="TimeType==EAvaSequenceTimeType::Seconds", Unit=s))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="bHasTimeConstraint && TimeType==EAvaSequenceTimeType::Seconds", Unit=s))
 	double Seconds = 0.0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="TimeType==EAvaSequenceTimeType::Mark"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence", meta=(EditCondition="bHasTimeConstraint && TimeType==EAvaSequenceTimeType::Mark"))
 	FString MarkLabel;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
+	bool bHasTimeConstraint = false;
+};
+
+template<>
+struct TStructOpsTypeTraits<FAvaSequenceTime> : public TStructOpsTypeTraitsBase2<FAvaSequenceTime>
+{
+	enum
+	{
+		WithSerializer = true
+	};
 };
 
 USTRUCT(BlueprintType)
@@ -109,7 +141,7 @@ struct FAvaSequencePlayParams
 	FAvaSequenceTime Start = FAvaSequenceTime(0.0);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
-	FAvaSequenceTime End = FAvaSequenceTime(-1.0);
+	FAvaSequenceTime End = FAvaSequenceTime(FAvaSequenceTime::NoTimeConstraint);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
 	EAvaSequencePlayMode PlayMode = EAvaSequencePlayMode::Forward;
