@@ -73,6 +73,7 @@ UDynamicMesh* UGeometryScriptLibrary_SceneUtilityFunctions::CopyMeshFromComponen
 	ToMeshOptions.LODType = SafeConvertLODType(Options.RequestedLOD.LODType);
 	ToMeshOptions.bWantNormals = Options.bWantNormals;
 	ToMeshOptions.bWantTangents = Options.bWantTangents;
+	ToMeshOptions.bWantInstanceColors = Options.bWantInstanceColors;
 	UE::Geometry::FDynamicMesh3 NewMesh;
 	FText ErrorMessage;
 	bool bSuccess = UE::Conversion::SceneComponentToDynamicMesh(Component, ToMeshOptions, bTransformToWorld, NewMesh, LocalToWorld, ErrorMessage);

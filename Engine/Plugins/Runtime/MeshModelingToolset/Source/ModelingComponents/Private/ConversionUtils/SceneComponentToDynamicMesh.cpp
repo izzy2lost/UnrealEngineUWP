@@ -14,6 +14,7 @@
 #include "Components/BrushComponent.h"
 #include "Components/DynamicMeshComponent.h"
 #include "Components/SplineMeshComponent.h"
+#include "StaticMeshComponentLODInfo.h"
 #include "ConversionUtils/VolumeToDynamicMesh.h"
 #include "ConversionUtils/SkinnedMeshToDynamicMesh.h"
 #include "ConversionUtils/SplineComponentDeformDynamicMesh.h"
@@ -90,6 +91,9 @@ namespace Private::ConversionHelper
 
 		// Whether to scale the copied mesh by the Build Setting's 'Build Scale'. Note: This is considered separately from the 'Apply Build Settings' option.
 		bool bUseBuildScale = true;
+
+		// Whether to request the vertex colors of the component instancing the static mesh, rather than the static mesh asset
+		bool bRequestInstanceVertexColors = true;
 	};
 
 	static bool CopyMeshFromStaticMesh_SourceData(
@@ -210,6 +214,7 @@ namespace Private::ConversionHelper
 
 	static bool CopyMeshFromStaticMesh_RenderData(
 		UStaticMesh* FromStaticMeshAsset,
+		UStaticMeshComponent* StaticMeshComponent,
 		FStaticMeshConversionOptions AssetOptions,
 		EMeshLODType LODType,
 		int32 LODIndex,
@@ -265,13 +270,30 @@ namespace Private::ConversionHelper
 #endif
 
 		FStaticMeshLODResourcesToDynamicMesh Converter;
-		Converter.Convert(LODResources, ConvertOptions, OutMesh);
+		if (AssetOptions.bRequestInstanceVertexColors && StaticMeshComponent && StaticMeshComponent->LODData.IsValidIndex(UseLODIndex))
+		{
+			FStaticMeshComponentLODInfo* InstanceMeshLODInfo = &StaticMeshComponent->LODData[UseLODIndex];
+			const bool bValidInstanceData = InstanceMeshLODInfo
+				&& InstanceMeshLODInfo->OverrideVertexColors
+				&& InstanceMeshLODInfo->OverrideVertexColors->GetAllowCPUAccess()
+				&& InstanceMeshLODInfo->OverrideVertexColors->GetNumVertices() == LODResources->GetNumVertices();
+			Converter.Convert(LODResources, ConvertOptions, OutMesh, bValidInstanceData,
+				[InstanceMeshLODInfo](int32 LODVID)
+				{
+					return InstanceMeshLODInfo->OverrideVertexColors->VertexColor(LODVID);
+				});
+		}
+		else
+		{
+			Converter.Convert(LODResources, ConvertOptions, OutMesh);
+		}
 
 		return true;
 	}
 
 	static bool CopyMeshFromStaticMesh(
 		UStaticMesh* FromStaticMeshAsset,
+		UStaticMeshComponent* StaticMeshComponent,
 		FStaticMeshConversionOptions AssetOptions,
 		EMeshLODType LODType,
 		int32 LODIndex,
@@ -322,7 +344,7 @@ namespace Private::ConversionHelper
 
 		if (LODType == EMeshLODType::RenderData)
 		{
-			return CopyMeshFromStaticMesh_RenderData(FromStaticMeshAsset, AssetOptions, LODType, LODIndex, OutMesh, OutErrorMessage);
+			return CopyMeshFromStaticMesh_RenderData(FromStaticMeshAsset, StaticMeshComponent, AssetOptions, LODType, LODIndex, OutMesh, OutErrorMessage);
 		}
 		else
 		{
@@ -341,6 +363,11 @@ bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOption
 	bool bSuccess = false;
 	OutMesh.Clear();
 
+	if (!Component)
+	{
+		OutErrorMessage = LOCTEXT("CopyMeshFromComponent_NullComponent", "Scene Component is null");
+		return false;
+	}
 	OutLocalToWorld = Component->GetComponentTransform();
 
 	auto GetPrimitiveComponentMaterials = [](UPrimitiveComponent* PrimComp, TArray<UMaterialInterface*> Materials)
@@ -411,8 +438,9 @@ bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOption
 			Private::ConversionHelper::FStaticMeshConversionOptions AssetOptions;
 			AssetOptions.bApplyBuildSettings = (Options.bWantNormals || Options.bWantTangents);
 			AssetOptions.bRequestTangents = Options.bWantTangents;
+			AssetOptions.bRequestInstanceVertexColors = Options.bWantInstanceColors;
 			bSuccess = Private::ConversionHelper::CopyMeshFromStaticMesh(
-				StaticMesh, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, OutMesh, OutErrorMessage);
+				StaticMesh, SplineMeshComponent, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, OutMesh, OutErrorMessage);
 
 			// deform the dynamic mesh and its tangent space with the spline
 			if (bSuccess)
@@ -444,8 +472,9 @@ bool SceneComponentToDynamicMesh(USceneComponent* Component, const FToMeshOption
 			Private::ConversionHelper::FStaticMeshConversionOptions AssetOptions;
 			AssetOptions.bApplyBuildSettings = (Options.bWantNormals || Options.bWantTangents);
 			AssetOptions.bRequestTangents = Options.bWantTangents;
+			AssetOptions.bRequestInstanceVertexColors = Options.bWantInstanceColors;
 			bSuccess = Private::ConversionHelper::CopyMeshFromStaticMesh(
-				StaticMesh, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, OutMesh, OutErrorMessage);
+				StaticMesh, StaticMeshComponent, AssetOptions, Options.LODType, Options.LODIndex, Options.bUseClosestLOD, OutMesh, OutErrorMessage);
 
 			// if we have an ISMC, append instances
 			if (UInstancedStaticMeshComponent* ISMComponent = Cast<UInstancedStaticMeshComponent>(StaticMeshComponent))
