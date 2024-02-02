@@ -35,6 +35,12 @@ const timeSelections: TimeSelection[] = [
    },
    {
       text: "Past 2 Weeks", key: "time_2_weeks", minutes: 60 * 24 * 7 * 2
+   },
+   {
+      text: "Past Month", key: "time_4_weeks", minutes: 60 * 24 * 7 * 4
+   },
+   {
+      text: "Custom Range", key: "time_custom", minutes: 0, hidden: true
    }
 ]
 
@@ -131,7 +137,7 @@ class MetricsHandler {
 
       const replace: string[] = [];
       this.searchState.variables?.forEach(v => {
-         const elements = v.split(",");
+         const elements = v.split(";");
          if (elements.length === 2) {
             replace.push(elements[1] + ":")
          }
@@ -218,7 +224,7 @@ class MetricsHandler {
 
       this.searchState.variables?.forEach(v => {
 
-         const values = v.split(",");
+         const values = v.split(";");
          const group = values.shift()!;
 
          metrics.forEach(metric => {
@@ -237,12 +243,13 @@ class MetricsHandler {
       })
 
       return metrics;
-
    }
 
    clear() {
 
       this._category = undefined;
+      this.anchorMinDate = undefined;
+      this.anchorMaxDate = undefined;
       this.search = new URLSearchParams();
       this.searchState = {};
       this.view = undefined;
@@ -292,7 +299,11 @@ class MetricsHandler {
       this.setUpdated();
    }
 
-   async setCategory(category?: string) {
+   async setCategory(category?: string, fromUser?: boolean) {
+
+      if (fromUser) {
+         this.anchorMinDate = this.anchorMaxDate = undefined;
+      }
 
       if (category?.length) {
          if (this.searchState.category !== category) {
@@ -306,7 +317,7 @@ class MetricsHandler {
 
    setVariables(group: string, values: string[]) {
       let newVars = this.searchState.variables?.filter(v => {
-         const [vgroup,] = v.split(",");
+         const [vgroup,] = v.split(";");
          if (group === vgroup) {
             return false;
          }
@@ -318,7 +329,7 @@ class MetricsHandler {
       }
 
       if (values.length) {
-         newVars.push(`${group},` + values.join(","));
+         newVars.push(`${group};` + values.join(";"));
       }
 
       newVars = newVars.sort((a, b) => a.localeCompare(b));
@@ -406,9 +417,11 @@ class MetricsHandler {
 
    updateTime(minutes: number) {
 
+      this.anchorMinDate = undefined;
+      this.anchorMaxDate = undefined;
 
-      this.minDate = new Date(new Date().valueOf() - (minutes * 60000));
-      this.maxDate = new Date();
+      this.selectMinDate = new Date(new Date().getTime() - (minutes * 60000));
+      this.selectMaxDate = new Date();
    }
 
    reload() {
@@ -424,7 +437,7 @@ class MetricsHandler {
 
    setTimeSelection(time: TimeSelection) {
 
-      if (this.searchState.minutes === time.minutes) {
+      if (this.searchState.minutes === time.minutes && !this.anchorMinDate) {
          return;
       }
 
@@ -446,6 +459,13 @@ class MetricsHandler {
       })
    }
 
+   onTimeSelect(chartName: string, minTime: Date, maxTime: Date) {
+
+      this.anchorMinDate = minTime;
+      this.anchorMaxDate = maxTime;
+
+      this.reload();
+   }
 
    @observable
    private updated = 0;
@@ -457,8 +477,20 @@ class MetricsHandler {
 
    view?: GetTelemetryViewResponse;
 
-   minDate: Date = new Date();
-   maxDate: Date = new Date();
+   anchorMinDate?: Date;
+   anchorMaxDate?: Date;
+   restoreMinutes?: number;
+
+   selectMinDate: Date = new Date();
+   selectMaxDate: Date = new Date();
+
+   get minDate(): Date {
+      return this.anchorMinDate ?? this.selectMinDate;
+   }
+
+   get maxDate(): Date {
+      return this.anchorMaxDate ?? this.selectMaxDate;
+   }
 
    querying = false;
 
@@ -511,7 +543,7 @@ const TelemetryPivot: React.FC = observer(() => {
          if (item) {
 
             const catname = item.props.itemKey!.replace("item_key_", "");
-            handler.setCategory(catname);
+            handler.setCategory(catname, true);
          }
       }}>
          {links}
@@ -582,9 +614,9 @@ const TelemetryChooser: React.FC = observer(() => {
 
       const state = handler.searchState;
       if (state.variables?.length) {
-         const sv = state.variables?.find(sv => sv.startsWith(`${v.group},`))
+         const sv = state.variables?.find(sv => sv.startsWith(`${v.group};`))
          if (sv) {
-            defaultKeys = sv.split(",");
+            defaultKeys = sv.split(";");
             defaultKeys.shift();
          }
       }
@@ -619,18 +651,24 @@ type TimeSelection = {
    text: string;
    key: string;
    minutes: number;
+   hidden?: boolean;
 }
 
 const TimeChooser: React.FC = observer(() => {
 
    handler.subscribe();
 
-   let timeComboText: string | undefined;
    let timeComboWidth = 180;
 
-   const key = timeSelections.find(t => t.minutes === handler.searchState.minutes)?.key;
-   if (!key) {
-      return null;
+   let key: string | undefined;
+
+   if (handler.anchorMinDate) {
+      key = "time_custom";
+   } else {
+      key = timeSelections.find(t => t.minutes === handler.searchState.minutes)?.key;
+      if (!key) {
+         return null;
+      }
    }
 
    return <Stack>
@@ -638,7 +676,6 @@ const TimeChooser: React.FC = observer(() => {
          label="Time"
          styles={{ root: { width: timeComboWidth } }}
          options={timeSelections}
-         text={timeComboText}
          selectedKey={key}
          onChange={(ev, option, index, value) => {
             const select = option as TimeSelection;
@@ -766,7 +803,6 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
       const max = chart.max ?? 100;
       const threshold = m.threshold ?? max;
 
-
       const v = m.value / max;
       const t = threshold / max;
       for (let i = 0.0; i < 1; i += .1) {
@@ -783,7 +819,7 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
          barStack.push({ value: 10, color: color, brightness: brightness });
       }
 
-      const name = legend.find(v => v.key === m.key)?.display ?? m.key;
+      const name = legend.find(v => v.key === m.key)?.display ?? m.key;      
 
       const element = <Stack horizontal verticalAlign="center" key={`indicator_bar_${metricIdCounter++}`}>
          <Stack style={{ width: 340 }}>
@@ -793,7 +829,7 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
             <IndicatorBar stack={barStack} width={160} height={14} />
          </Stack>
          <Stack style={{ width: 90 }} horizontalAlign="end">
-            <Text variant="small">{msecToElapsed(m.value * 1000)}</Text>
+            <Text variant="small">{chart.display === "Value" ? m.value : msecToElapsed(m.value * 1000)}</Text>
          </Stack>
       </Stack>
 
@@ -838,7 +874,11 @@ const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
             handler.onZoom(chartName, event);
          };
 
-         const zoomed = renderer.render(chart, metrics, legend.map(v => v.key), handler.minDate!, handler.maxDate!, container, onZoom, scale);
+         const onTimeSelect = (chartName: string, minTime: Date, maxTime: Date) => {
+            handler.onTimeSelect(chartName, minTime, maxTime);
+         }
+
+         const zoomed = renderer.render(chart, metrics, legend.map(v => v.key), handler.minDate!, handler.maxDate!, container, onZoom, onTimeSelect, scale);
          handler.setZoomHandler(chart.name, zoomed);
 
       } catch (err) {
