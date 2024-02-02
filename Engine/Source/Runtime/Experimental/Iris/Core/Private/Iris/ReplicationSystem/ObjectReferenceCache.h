@@ -20,6 +20,7 @@ namespace UE::Net
 		class FNetRefHandleManager;
 		class FNetExportContext;
 		struct FPendingBatches;
+		typedef uint32 FInternalNetRefIndex;
 	}
 }
 
@@ -111,7 +112,7 @@ public:
 
 	// Exports are expected to be part of the written state, so if the result is a BitStreamOverflow
 	// it is up to the caller to roll back written data and pending exports
-	EWriteExportsResult WritePendingExports(FNetSerializationContext& Context);
+	EWriteExportsResult WritePendingExports(FNetSerializationContext& Context, FInternalNetRefIndex ObjectIndex);
 
 	bool ReadExports(FNetSerializationContext& Context, TArray<FNetRefHandle>* MustBeMappedExports);
 
@@ -205,7 +206,7 @@ private:
 
 	// Must be mapped exports are written for each batch that serializes object references, if async loading is enabled the client
 	// will defer application of data contained in the batch until the must be mapped exports are resolvable.
-	bool WriteMustBeMappedExports(FNetSerializationContext& Context, TArrayView<const FNetObjectReference> ExportsView) const;
+	bool WriteMustBeMappedExports(FNetSerializationContext& Context, FInternalNetRefIndex ObjectIndex, TArrayView<const FNetObjectReference> ExportsView) const;
 	void ReadMustBeMappedExports(FNetSerializationContext& Context, TArray<FNetRefHandle>* MustBeMappedExports);
 
 	void StartAsyncLoadingPackage(FCachedNetObjectReference& Object, FName PackagePath, const FNetRefHandle RefHandle, const bool bWasAlreadyAsyncLoading);

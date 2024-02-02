@@ -22,6 +22,7 @@ struct FNetTypeStatsData
 		Write,
 		WriteWaste,
 		WriteCreationInfo,
+		WriteExports,
 		Count
 	};
 
@@ -70,6 +71,8 @@ public:
 	// Depending on config subobjects report their stats with the root, for those cases we do not bump the count of root objects.
 	// returns the FNetTypeStatsData associated with the protocol used by the object references by the InternalIndex
 	static FNetTypeStatsData& GetTypeStatsDataForObject(FNetStatsContext& Context, FInternalNetRefIndex InternalIndex, uint32& OutUpdateCount);
+	static FNetTypeStatsData& GetTypeStatsDataForObject(FNetStatsContext& Context, FInternalNetRefIndex InternalIndex);
+	static FNetTypeStatsData& GetTypeStatsData(FNetStatsContext& Context, const FNetRefHandleManager::FReplicatedObjectData& ObjectData, bool bTreatAsRoot);
 	
 private:
 	friend class FNetTypeStats;
@@ -98,10 +101,8 @@ private:
 	uint64 StartCycle;
 };
 
-inline FNetTypeStatsData& FNetStatsContext::GetTypeStatsDataForObject(FNetStatsContext& Context, FInternalNetRefIndex InternalIndex, uint32& OutUpdateCount)
+inline FNetTypeStatsData& FNetStatsContext::GetTypeStatsData(FNetStatsContext& Context, const FNetRefHandleManager::FReplicatedObjectData& ObjectData, bool bTreatAsRoot)
 {
-	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = Context.NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);		
-	const bool bTreatAsRoot = !Context.bShouldIncludeSubObjectWithRoot || !ObjectData.IsSubObject();
 	int32 TypeStatsIndex = FNetTypeStats::DefaultTypeStatsIndex;
 	if (bTreatAsRoot)
 	{
@@ -112,11 +113,26 @@ inline FNetTypeStatsData& FNetStatsContext::GetTypeStatsDataForObject(FNetStatsC
 		const FNetRefHandleManager::FReplicatedObjectData& RootObjectData = Context.NetRefHandleManager->GetReplicatedObjectDataNoCheck(ObjectData.SubObjectRootIndex);
 		TypeStatsIndex = RootObjectData.Protocol ? RootObjectData.Protocol->TypeStatsIndex : FNetTypeStats::OOBChannelTypeStatsIndex;
 	}
-	
-	OutUpdateCount = bTreatAsRoot ? 1U : 0U;
 
 	return Context.TypeStatsData[TypeStatsIndex];
 }
+
+inline FNetTypeStatsData& FNetStatsContext::GetTypeStatsDataForObject(FNetStatsContext& Context, FInternalNetRefIndex InternalIndex)
+{
+	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = Context.NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
+	const bool bTreatAsRoot = !Context.bShouldIncludeSubObjectWithRoot || !ObjectData.IsSubObject();
+	return GetTypeStatsData(Context, ObjectData, bTreatAsRoot);
+}
+
+
+inline FNetTypeStatsData& FNetStatsContext::GetTypeStatsDataForObject(FNetStatsContext& Context, FInternalNetRefIndex InternalIndex, uint32& OutUpdateCount)
+{
+	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = Context.NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);		
+	const bool bTreatAsRoot = !Context.bShouldIncludeSubObjectWithRoot || !ObjectData.IsSubObject();
+	OutUpdateCount = bTreatAsRoot ? 1U : 0U;
+	return GetTypeStatsData(Context, ObjectData, bTreatAsRoot);
+}
+
 
 inline void FNetStatsContext::ResetStats(int32 NumTypeStats)
 { 
@@ -130,7 +146,7 @@ inline void FNetStatsContext::ResetStats(int32 NumTypeStats)
 }
 
 // Wrap usage of stats in macros so we can compile it out
-#if UE_NET_IRIS_CSV_STATS && CSV_PROFILER
+#if UE_NET_IRIS_CSV_STATS
 
 #define UE_NET_IRIS_STATS_TIMER(TimerName, NetStatsContext) UE::Net::Private::FNetStatsTimer TimerName(NetStatsContext);
 
@@ -174,8 +190,7 @@ inline void FNetStatsContext::ResetStats(int32 NumTypeStats)
 	do { \
 		if (NetStatsContext) \
 		{ \
-			uint32 CountIncrement = 0U; \
-			UE::Net::Private::FNetTypeStatsData& StatsData = UE::Net::Private::FNetStatsContext::GetTypeStatsDataForObject(*NetStatsContext, ObjectIndex, CountIncrement); \
+			UE::Net::Private::FNetTypeStatsData& StatsData = UE::Net::Private::FNetStatsContext::GetTypeStatsDataForObject(*NetStatsContext, ObjectIndex); \
 			StatsData.Values[UE::Net::Private::FNetTypeStatsData::EStatsIndex::StatName].Bits += BitCount; \
 		} \
 	} while (0)
@@ -184,10 +199,29 @@ inline void FNetStatsContext::ResetStats(int32 NumTypeStats)
 	do { \
 		if (NetStatsContext) \
 		{ \
-			uint32 CountIncrement = 0U; \
-			UE::Net::Private::FNetTypeStatsData& StatsData = UE::Net::Private::FNetStatsContext::GetTypeStatsDataForObject(*NetStatsContext, ObjectIndex, CountIncrement); \
+			UE::Net::Private::FNetTypeStatsData& StatsData = UE::Net::Private::FNetStatsContext::GetTypeStatsDataForObject(*NetStatsContext, ObjectIndex); \
 			StatsData.Values[UE::Net::Private::FNetTypeStatsData::EStatsIndex::StatName].Bits += BitCount; \
 			StatsData.Values[UE::Net::Private::FNetTypeStatsData::EStatsIndex::StatName##Waste].Bits += BitCount; \
+		} \
+	} while (0)
+
+// Increment stat count by 1
+#define UE_NET_IRIS_STATS_INCREMENT_FOR_OBJECT(NetStatsContext, StatName, ObjectIndex) \
+	do { \
+		if (NetStatsContext) \
+		{ \
+			UE::Net::Private::FNetTypeStatsData& StatsData = UE::Net::Private::FNetStatsContext::GetTypeStatsDataForObject(*NetStatsContext, ObjectIndex); \
+			StatsData.Values[UE::Net::Private::FNetTypeStatsData::EStatsIndex::StatName].Count++; \
+		} \
+	} while (0)
+
+// Increment stat count by any amount
+#define UE_NET_IRIS_STATS_ADD_COUNT_FOR_OBJECT(NetStatsContext, StatName, ObjectIndex, CountToAdd) \
+	do { \
+		if (NetStatsContext) \
+		{ \
+			UE::Net::Private::FNetTypeStatsData& StatsData = UE::Net::Private::FNetStatsContext::GetTypeStatsDataForObject(*NetStatsContext, ObjectIndex); \
+			StatsData.Values[UE::Net::Private::FNetTypeStatsData::EStatsIndex::StatName].Count += CountToAdd; \
 		} \
 	} while (0)
 
@@ -199,5 +233,7 @@ inline void FNetStatsContext::ResetStats(int32 NumTypeStats)
 #define UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_AND_COUNT_FOR_OBJECT(...)
 #define UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_FOR_OBJECT(...)
 #define UE_NET_IRIS_STATS_ADD_BITS_WRITTEN_FOR_OBJECT_AS_WASTE(...)
+#define UE_NET_IRIS_STATS_INCREMENT_FOR_OBJECT(...)
+#define UE_NET_IRIS_STATS_ADD_COUNT_FOR_OBJECT(...)
 
 #endif
