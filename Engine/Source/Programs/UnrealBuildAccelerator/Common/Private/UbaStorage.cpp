@@ -796,6 +796,16 @@ namespace uba
 			});
 	}
 
+	void StorageImpl::TraverseAllCasFiles(const Function<void(const CasKey& key)>& func)
+	{
+		StringBuffer<> casRoot;
+		casRoot.Append(m_rootDir.data, m_rootDir.count - 1);
+		TraverseAllCasFiles(casRoot.data, 0, [&](const StringBufferBase& fullPath, const DirectoryEntry& e)
+			{
+				func(CasKeyFromString(e.name));
+			});
+	}
+
 	void StorageImpl::CheckAllCasFiles()
 	{
 #if !UBA_USE_SPARSEFILE

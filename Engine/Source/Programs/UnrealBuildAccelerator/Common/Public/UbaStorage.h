@@ -143,6 +143,7 @@ namespace uba
 		void AttachEntry(CasEntry& entry);
 		void DetachEntry(CasEntry& entry);
 		void TraverseAllCasFiles(const tchar* dir, u32 recursion, const Function<void(const StringBufferBase& fullPath, const DirectoryEntry& e)>& func);
+		void TraverseAllCasFiles(const Function<void(const CasKey& key)>& func);
 		void CheckAllCasFiles();
 		void HandleOverflow();
 		bool OpenCasDataFile(u32 index, u64 size);

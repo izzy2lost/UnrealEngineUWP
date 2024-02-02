@@ -3,6 +3,7 @@
 #include "UbaNetworkBackendTcp.h"
 #include "UbaFileAccessor.h"
 #include "UbaSessionServer.h"
+#include "UbaStorageClient.h"
 #include "UbaStorageServer.h"
 #include "UbaPlatform.h"
 #include "UbaVersion.h"
@@ -132,6 +133,7 @@ namespace uba
 		bool disableCustomAllocator = false;
 		bool quiet = false;
 		bool checkCas = false;
+		bool checkCas2 = false;
 		bool checkAws = false;
 		bool getCas = false;
 		bool enableStdOut = true;
@@ -247,6 +249,10 @@ namespace uba
 			{
 				checkCas = true;
 			}
+			else if (name.Equals(TC("-checkcas2")))
+			{
+				checkCas2 = true;
+			}
 			else if (name.Equals(TC("-checkaws")))
 			{
 				checkAws = true;
@@ -294,12 +300,51 @@ namespace uba
 			bool success = storage.CheckCasContent(DefaultProcessorCount);
 			return success ? 0 : -1;
 		}
+
+		if (checkCas2) // Creates a storage server and storage client and transfer _all_ cas files over network
+		{
+			NetworkBackendTcp networkBackend(logWriter);
+			NetworkServerCreateInfo nsci(logWriter);
+			bool ctorSuccess = true;
+			NetworkServer server(ctorSuccess, nsci);
+			StorageServerCreateInfo storageInfo(server, g_rootDir.data, logWriter);
+			storageInfo.casCapacityBytes = 0;
+			storageInfo.storeCompressed = storeCompressed;
+			StorageServer storageServer(storageInfo);
+			NetworkClientCreateInfo ncci;
+			NetworkClient client(ctorSuccess, ncci);
+			StringBuffer<> rootDir2(g_rootDir.data);
+			rootDir2.Append("_CHECKCAS2");
+			StorageClientCreateInfo scci(client, rootDir2.data);
+			StorageClient storageClient(scci);
+			auto g = MakeGuard([&]() { server.StopAll(); });
+			if (!server.StartListen(networkBackend, 1347, TC("127.0.0.1")))
+				return false;
+			if (!client.Connect(networkBackend, TC("127.0.0.1"), 1347))
+				return false;
+			bool success = true;
+			WorkManagerImpl workManager(DefaultProcessorCount);
+			storageServer.TraverseAllCasFiles([&](const CasKey& casKey)
+				{
+					workManager.AddWork([&, casKey]()
+						{
+							Storage::RetrieveResult res;
+							storageServer.EnsureCasFile(casKey, TC("Dummy"));
+							CasKey casKey2 = AsCompressed(casKey, false);
+							if (!storageClient.RetrieveCasFile(res, casKey2, TC("")))
+								success = false;
+						}, 1, TC(""));
+				});
+			workManager.FlushWork();
+			return success;
+		}
+
 #if UBA_USE_AWS
 		if (checkAws)
 		{
 			AWS aws;
 			StringBuffer<> info;
-			if (aws.QueryInformation(logger, info, TC("UbaCli")))
+			if (aws.QueryInformation(logger, info, g_rootDir.data))
 			{
 				logger.Info(TC("We are inside AWS: %s (%s)"), info.data, aws.GetAvailabilityZone());
 				
