@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Misc/Crc.h"
+#include "Misc/Parse.h"
 #include "Math/UnrealMathUtility.h"
 #include "Containers/UnrealString.h"
 #include "Serialization/StructuredArchive.h"
@@ -450,6 +451,23 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FString ToString() const
 	{
 		return FString::Printf(TEXT("X=%s Y=%s Z=%s"), *LexToString(X), *LexToString(Y), *LexToString(Z));
+	}
+
+	/**
+	 * Initialize this FIntPoint based on an FString. The String is expected to contain X=, Y=
+	 * The FIntPoint will be bogus when InitFromString returns false.
+	 *
+	 * @param	InSourceString	FString containing the color values.
+	 * @return true if the X,Y values were read successfully; false otherwise.
+	 */
+	bool InitFromString(const FString& InSourceString)
+	{
+		X = Y = 0;
+
+		// The initialization is only successful if the X, Y and Z values can all be parsed from the string
+		const bool bSuccessful = FParse::Value(*InSourceString, TEXT("X="), X) && FParse::Value(*InSourceString, TEXT("Y="), Y) && FParse::Value(*InSourceString, TEXT("Z="), Z);
+
+		return bSuccessful;
 	}
 
 	/**
