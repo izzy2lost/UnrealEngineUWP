@@ -204,6 +204,7 @@ FDirectionalLightData GetDirectionalLightData(uint EyeIndex)
 		Result.DirectionalLightSoftSourceRadius		= ForwardLightData.DirectionalLightSoftSourceRadius;
 		Result.DirectionalLightSpecularScale		= ForwardLightData.DirectionalLightSpecularScale;
 		Result.LightFunctionAtlasLightIndex			= ForwardLightData.LightFunctionAtlasLightIndex;
+		Result.bAffectsTranslucentLighting			= ForwardLightData.bAffectsTranslucentLighting;
 
 #if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
 	}
@@ -218,6 +219,7 @@ FDirectionalLightData GetDirectionalLightData(uint EyeIndex)
 		Result.DirectionalLightSoftSourceRadius		= ForwardLightDataISR.DirectionalLightSoftSourceRadius;
 		Result.DirectionalLightSpecularScale		= ForwardLightDataISR.DirectionalLightSpecularScale;
 		Result.LightFunctionAtlasLightIndex			= ForwardLightDataISR.LightFunctionAtlasLightIndex;
+		Result.bAffectsTranslucentLighting			= ForwardLightDataISR.bAffectsTranslucentLighting;
 	}
 #endif
 

@@ -42,6 +42,8 @@ FDeferredLightData InitDeferredLightFromUniforms(uint InLightType)
 
 	Out.LightFunctionAtlasLightIndex = DeferredLightUniforms.LightFunctionAtlasLightIndex;
 
+	Out.bAffectsTranslucentLighting = DeferredLightUniforms.bAffectsTranslucentLighting;
+
 	Out.HairTransmittance		= InitHairTransmittanceData();
 	return Out;
 }

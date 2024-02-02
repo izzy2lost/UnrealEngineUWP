@@ -250,6 +250,7 @@ void FRectLightSceneProxy::GetLightShaderParameters(FLightRenderParameters& Ligh
 	LightParameters.IESAtlasIndex = INDEX_NONE;
 	LightParameters.InverseExposureBlend = InverseExposureBlend;
 	LightParameters.LightFunctionAtlasLightIndex = GetLightFunctionAtlasLightIndex();
+	LightParameters.bAffectsTranslucentLighting = AffectsTranslucentLighting() ? 1 : 0;
 
 	if (IESAtlasId != ~0)
 	{

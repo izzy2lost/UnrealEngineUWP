@@ -141,6 +141,8 @@ void SetupDummyForwardLightUniformParameters(FRDGBuilder& GraphBuilder, FForward
 	ForwardLightData.CulledLightDataGrid16Bit = CulledLightDataGridSRV;
 
 	ForwardLightData.LightFunctionAtlasLightIndex = 0;
+
+	ForwardLightData.bAffectsTranslucentLighting = 0;
 }
 
 TRDGUniformBufferRef<FForwardLightData> CreateDummyForwardLightUniformBuffer(FRDGBuilder& GraphBuilder, EShaderPlatform ShaderPlatform)
@@ -656,6 +658,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ForwardLightData->DirectionalLightVSM = INDEX_NONE;
 							ForwardLightData->DirectionalLightSMRTSettings = GetVirtualShadowMapSMRTSettings(true);
 							ForwardLightData->LightFunctionAtlasLightIndex = LightParameters.LightFunctionAtlasLightIndex;
+							ForwardLightData->bAffectsTranslucentLighting = LightParameters.bAffectsTranslucentLighting;
 
 							const FVector2D FadeParams = LightProxy->GetDirectionalLightDistanceFadeParameters(View.GetFeatureLevel(), LightSceneInfo->IsPrecomputedLightingValid(), View.MaxShadowCascades);
 

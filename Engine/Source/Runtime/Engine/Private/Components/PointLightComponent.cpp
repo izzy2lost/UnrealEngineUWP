@@ -56,6 +56,7 @@ void FPointLightSceneProxy::GetLightShaderParameters(FLightRenderParameters& Lig
 	LightParameters.IESAtlasIndex = INDEX_NONE;
 	LightParameters.InverseExposureBlend = InverseExposureBlend;
 	LightParameters.LightFunctionAtlasLightIndex = GetLightFunctionAtlasLightIndex();
+	LightParameters.bAffectsTranslucentLighting = AffectsTranslucentLighting() ? 1 : 0;
 
 	if (IESAtlasId != ~0)
 	{

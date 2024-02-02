@@ -406,6 +406,7 @@ public:
 		LightParameters.RectLightAtlasMaxLevel = FLightRenderParameters::GetRectLightAtlasInvalidMIPLevel();
 		LightParameters.IESAtlasIndex = INDEX_NONE;
 		LightParameters.LightFunctionAtlasLightIndex = GetLightFunctionAtlasLightIndex();
+		LightParameters.bAffectsTranslucentLighting = AffectsTranslucentLighting() ? 1 : 0;
 		LightParameters.InverseExposureBlend = 0.0f;
 	}
 

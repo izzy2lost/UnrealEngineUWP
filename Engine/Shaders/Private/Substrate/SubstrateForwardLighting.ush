@@ -422,7 +422,11 @@ float3 SubstrateForwardLighting(
 				//// Evaluate the single directional light selected for forward lighting.
 				////
 				BRANCH
-				if (DirectionalLightData.HasDirectionalLight)
+				if (DirectionalLightData.HasDirectionalLight
+			#if SUBSTRATE_TRANSLUCENT_MATERIAL
+					&& DirectionalLightData.bAffectsTranslucentLighting > 0
+			#endif
+						)
 				{
 					float3 DirLightL = DirLightData.Direction;	// Already normalized
 					float3 ToDirLight = DirLightL;
@@ -475,10 +479,18 @@ float3 SubstrateForwardLighting(
 				for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 				{
 					const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+		
+				#if MATERIALBLENDING_ANY_TRANSLUCENT
+					if(UnpackAffectsTranslucentLighting(LocalLight) == 0)
+					{
+						continue;
+					}
+				#endif
 
 					half4 PreviewShadowMapChannelMask = 1;
 					uint  LocalLightChannelMask = LIGHTING_CHANNEL_MASK;
 					FDeferredLightData LightData = ConvertToDeferredLight(LocalLight, 1.0f /*SpecularScale*/, PreviewShadowMapChannelMask, LocalLightChannelMask);
+
 					#if USE_IES_PROFILE
 					LightData.Color *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 					#endif

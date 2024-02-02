@@ -671,6 +671,7 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 	Out.LightParameters.RectLightAtlasMaxLevel = FLightRenderParameters::GetRectLightAtlasInvalidMIPLevel();
 	Out.LightParameters.IESAtlasIndex = INDEX_NONE;
 	Out.LightParameters.LightFunctionAtlasLightIndex = 0;
+	Out.LightParameters.bAffectsTranslucentLighting = 0;
 	return Out;
 }
 FDeferredLightUniformStruct GetSimpleDeferredLightParameters(

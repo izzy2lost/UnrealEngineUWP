@@ -1272,6 +1272,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightShaderParameters, ENGINE_API)
 	// Index of the light function in the atlas
 	SHADER_PARAMETER(uint32, LightFunctionAtlasLightIndex)
 
+	// Wether the light affect translucent material or not
+	SHADER_PARAMETER(uint32, bAffectsTranslucentLighting)
+
 END_SHADER_PARAMETER_STRUCT()
 
 
@@ -1346,6 +1349,9 @@ struct FLightRenderParameters
 
 	// Index of the light in the Light function atlas data
 	uint32 LightFunctionAtlasLightIndex;
+
+	// Wether this lights affect translucent materials or not
+	uint32 bAffectsTranslucentLighting;
 
 	float InverseExposureBlend;
 

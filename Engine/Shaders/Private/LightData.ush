@@ -63,6 +63,7 @@ struct FDirectionalLightData
 	float  DirectionalLightSoftSourceRadius;
 	float  DirectionalLightSpecularScale;
 	uint  LightFunctionAtlasLightIndex;
+	uint  bAffectsTranslucentLighting;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -130,6 +131,7 @@ struct FLightShaderParameters
 	float  RectLightAtlasMaxLevel;
 	float  IESAtlasIndex;
 	uint  LightFunctionAtlasLightIndex;
+	uint  bAffectsTranslucentLighting;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -181,6 +183,8 @@ struct FDeferredLightData
 	uint  LightFunctionAtlasLightIndex;
 	/** Hair transmittance data. */
 	FHairTransmittanceData HairTransmittance;
+	// Wether the light affect translucent materials or not 
+	uint  bAffectsTranslucentLighting;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -245,6 +249,17 @@ uint UnpackLightFunctionAtlasIndex(FLocalLightData In)
 {
 	const uint LightTypeAndPackedShadowMapChannelMask = asuint(In.LightDirectionAndShadowMask.w);
 	return UnpackLightFunctionAtlasIndex(LightTypeAndPackedShadowMapChannelMask);
+}
+
+uint UnpackAffectsTranslucentLighting(uint InShadowMapChannelMaskPacked)
+{
+	return ((InShadowMapChannelMaskPacked >> 28) & 0x1);
+}
+
+uint UnpackAffectsTranslucentLighting(FLocalLightData In)
+{
+	const uint LightTypeAndPackedShadowMapChannelMask = asuint(In.LightDirectionAndShadowMask.w);
+	return UnpackAffectsTranslucentLighting(LightTypeAndPackedShadowMapChannelMask);
 }
 
 float UnpackVolumetricScatteringIntensity(FLocalLightData In)
@@ -334,6 +349,8 @@ FDeferredLightData ConvertToDeferredLight(
 	Out.IESAtlasIndex			= UnpackLigthIESAtlasIndex(In);
 	Out.LightFunctionAtlasLightIndex = UnpackLightFunctionAtlasIndex(In);
 
+	Out.bAffectsTranslucentLighting = UnpackAffectsTranslucentLighting(In);
+
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 
 	// * Dynamic shadows are packed into light attenuation using PreviewShadowMapChannel
@@ -414,6 +431,8 @@ FLightShaderParameters ConvertFromLocal(const FLocalLightData In)
 
 	Out.LightFunctionAtlasLightIndex = UnpackLightFunctionAtlasIndex(In);
 
+	Out.bAffectsTranslucentLighting = UnpackAffectsTranslucentLighting(In);
+
 	const FRectLightData RectLightData = UnpackRectLightData(
 									asuint(In.RectData.x),
 									asuint(In.RectData.y),
@@ -446,6 +465,7 @@ FDeferredLightData ConvertToDeferredLight(
 	Out.SourceRadius		= In.DirectionalLightSourceRadius;
 	Out.SoftSourceRadius	= In.DirectionalLightSoftSourceRadius;
 	Out.LightFunctionAtlasLightIndex = In.LightFunctionAtlasLightIndex;
+	Out.bAffectsTranslucentLighting = In.bAffectsTranslucentLighting;
 
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 
@@ -493,6 +513,8 @@ FDeferredLightData ConvertToDeferredLight(FLightSceneData In)
 
 	Out.IESAtlasIndex					= In.IESAtlasIndex;
 	Out.LightFunctionAtlasLightIndex	= UnpackLightFunctionAtlasIndex(In.LightTypeAndShadowMapChannelMaskPacked);
+
+	Out.bAffectsTranslucentLighting = UnpackAffectsTranslucentLighting(In.LightTypeAndShadowMapChannelMaskPacked);
 
 	// Shadow
 	// * Static shadowing uses ShadowMapChannel, 

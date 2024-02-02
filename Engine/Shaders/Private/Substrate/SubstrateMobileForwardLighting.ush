@@ -229,39 +229,44 @@ float3 SubstrateMobileForwardLighting(
 					uint DirLightingChannelMask = LIGHTING_CHANNEL_MASK;
 					float3 ToDirLight = DirLightData.Direction;	// Already normalized
 					float DirLightMask = 1;
-	
-					float DirectionalLightCloudShadow = 1.0f;
-				#if NEEDS_BASEPASS_CLOUD_SHADOW_INTERPOLATOR
-					DirectionalLightCloudShadow = BasePassInterpolants.VertexCloudShadow;
-				#endif
 
-					FTranslucencyLightingVector LightingVector = GetTranslucencyLightingVector(DirLightData, TranslatedWorldPosition);
-				#if SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL
-					GetVolumeLightingDirectional(LightingVector.AmbientLightingVector, LightingVector.DirectionalLightingVector, SubstrateBSDFContext.N, BSDFEvaluate.DiffuseColor, GetMaterialTranslucencyDirectionalLightingIntensity(), InterpolatedLighting, VolumeLighting);
-				#elif SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL
-					GetVolumeLightingNonDirectional(LightingVector.AmbientLightingVector, BSDFEvaluate.DiffuseColor, InterpolatedLighting, VolumeLighting);
-				#else
-					SubstrateBSDFContext.SubstrateUpdateBSDFContext(ToDirLight);
-
-					FSubstrateEvaluateResult BSDFEvaluate = (FSubstrateEvaluateResult)0;
-					Color += SubstrateForwardLightingCommon(
-						Dither,
-						Settings,
-						DirLightData,
-						ToDirLight,
-						DirLightMask,
-						DirLightAttenuation,
-						InitRectTexture(),
-						DirLightingChannelMask,
-						PrimitiveLightingChannelMask,
-						PrecomputedShadowFactors,
-						TranslatedWorldPosition,
-						SceneDepth,
-						LuminanceWeight(SubstrateBSDFContext, CurrentBSDF),
-						SubstratePixelHeader,
-						SubstrateBSDFContext,
-						BSDFEvaluate) * DirectionalLightCloudShadow;
+				#if SUBSTRATE_TRANSLUCENT_MATERIAL
+					if (DirLightData.bAffectsTranslucentLighting > 0)
 				#endif
+					{
+						float DirectionalLightCloudShadow = 1.0f;
+					#if NEEDS_BASEPASS_CLOUD_SHADOW_INTERPOLATOR
+						DirectionalLightCloudShadow = BasePassInterpolants.VertexCloudShadow;
+					#endif
+
+						FTranslucencyLightingVector LightingVector = GetTranslucencyLightingVector(DirLightData, TranslatedWorldPosition);
+					#if SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_DIRECTIONAL
+						GetVolumeLightingDirectional(LightingVector.AmbientLightingVector, LightingVector.DirectionalLightingVector, SubstrateBSDFContext.N, BSDFEvaluate.DiffuseColor, GetMaterialTranslucencyDirectionalLightingIntensity(), InterpolatedLighting, VolumeLighting);
+					#elif SUBSTRATE_TRANSLUCENCY_LIGHTING_VOLUMETRIC_NONDIRECTIONAL
+						GetVolumeLightingNonDirectional(LightingVector.AmbientLightingVector, BSDFEvaluate.DiffuseColor, InterpolatedLighting, VolumeLighting);
+					#else
+						SubstrateBSDFContext.SubstrateUpdateBSDFContext(ToDirLight);
+
+						FSubstrateEvaluateResult BSDFEvaluate = (FSubstrateEvaluateResult)0;
+						Color += SubstrateForwardLightingCommon(
+							Dither,
+							Settings,
+							DirLightData,
+							ToDirLight,
+							DirLightMask,
+							DirLightAttenuation,
+							InitRectTexture(),
+							DirLightingChannelMask,
+							PrimitiveLightingChannelMask,
+							PrecomputedShadowFactors,
+							TranslatedWorldPosition,
+							SceneDepth,
+							LuminanceWeight(SubstrateBSDFContext, CurrentBSDF),
+							SubstratePixelHeader,
+							SubstrateBSDFContext,
+							BSDFEvaluate) * DirectionalLightCloudShadow;
+					#endif
+					}
 				}
 
 				////
@@ -287,6 +292,13 @@ float3 SubstrateMobileForwardLighting(
 				#endif
 					{
 						const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+		
+					#if MATERIALBLENDING_ANY_TRANSLUCENT && !SUBSTRATE_FORCE_SINGLE_LOCAL_LIGHT
+						if(UnpackAffectsTranslucentLighting(LocalLight) == 0)
+						{
+							LOCAL_LIGHT_EARLY_OUT;
+						}
+					#endif
 
 						half4 PreviewShadowMapChannelMask = 1;
 						half4 DynamicShadowFactors = 1;

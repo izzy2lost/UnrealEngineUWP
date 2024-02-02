@@ -152,7 +152,11 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	const FDirectionalLightData DirectionalLightData = GetDirectionalLightData(EyeIndex);
 
 	BRANCH
-	if (DirectionalLightData.HasDirectionalLight)
+	if (DirectionalLightData.HasDirectionalLight
+#if MATERIALBLENDING_ANY_TRANSLUCENT
+		&& DirectionalLightData.bAffectsTranslucentLighting > 0
+#endif
+		)
 	{
 		half4 PreviewShadowMapChannelMask = 1;
 		uint  DirLightingChannelMask = LIGHTING_CHANNEL_MASK;
@@ -275,7 +279,16 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 		half4 PreviewShadowMapChannelMask = 1;
 		uint  LocalLightingChannelMask = LIGHTING_CHANNEL_MASK;
 		const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+		
+	#if MATERIALBLENDING_ANY_TRANSLUCENT
+		if(UnpackAffectsTranslucentLighting(LocalLight) == 0)
+		{
+			continue;
+		}
+	#endif
+
 		FDeferredLightData LightData = ConvertToDeferredLight(LocalLight, SpecularScale, PreviewShadowMapChannelMask, LocalLightingChannelMask);
+
 		// Rect light optionally supported in forward.
 		LightData.bRectLight = LightData.bRectLight && SUPPORT_RECTLIGHT_ON_FORWARD_LIT_TRANSLUCENT;
 		#if USE_HAIR_COMPLEX_TRANSMITTANCE

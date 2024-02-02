@@ -390,7 +390,10 @@ uint32 FLightSceneInfo::PackLightTypeAndShadowMapChannelMask(bool bAllowStaticLi
 
 	Result |= Proxy->LightFunctionAtlasLightIndex << (BitOffset);		BitOffset += 8;
 
-	// 28 bits used, 4 bits free
+	uint32 AffectsTranslucentLighting = Proxy->AffectsTranslucentLighting() ? 1 : 0;
+	Result |= AffectsTranslucentLighting << (BitOffset);				BitOffset += 1;
+
+	// 29 bits used, 3 bits free
 
 	return Result;
 }
