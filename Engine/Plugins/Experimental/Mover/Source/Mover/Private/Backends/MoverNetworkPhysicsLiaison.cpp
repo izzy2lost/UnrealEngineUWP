@@ -380,7 +380,11 @@ void UMoverNetworkPhysicsLiaisonComponent::InitializeComponent()
 
 void UMoverNetworkPhysicsLiaisonComponent::UninitializeComponent()
 {
-	NetworkPhysicsComponent->UninitializeComponent();
+	if (NetworkPhysicsComponent && NetworkPhysicsComponent->HasBeenInitialized())
+	{
+		NetworkPhysicsComponent->UninitializeComponent();
+	}
+
 	Super::UninitializeComponent();
 }
 
