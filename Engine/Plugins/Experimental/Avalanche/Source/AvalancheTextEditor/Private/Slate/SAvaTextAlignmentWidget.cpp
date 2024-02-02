@@ -85,8 +85,6 @@ void SAvaTextAlignmentWidget::Construct(const FArguments& InArgs)
 		]
 	];
 
-	OnAlignmentPropertyChanged();
-
 	TextAlignmentPropertyHandle.Get()->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &SAvaTextAlignmentWidget::OnAlignmentPropertyChanged));
 }
 
