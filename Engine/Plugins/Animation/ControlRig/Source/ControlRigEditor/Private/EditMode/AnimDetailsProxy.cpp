@@ -890,7 +890,7 @@ static FEulerTransform GetCurrentValue(UObject* InObject, TSharedPtr<FTrackInsta
 	return EulerTransform;
 }
 
-void UAnimDetailControlsProxyTransform::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context)
+void UAnimDetailControlsProxyTransform::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -967,20 +967,23 @@ void UAnimDetailControlsProxyTransform::SetBindingValueFromCurrent(UObject* InOb
 					AxisProperty = FindFProperty<FDoubleProperty>(TBaseStructure<FVector>::Get(), GET_MEMBER_NAME_CHECKED(FVector, Z));
 				}
 			}
+
+			// build property chain. note that it won't be used if ValueProperty is null 
+			TArray<UObject*> ModifiedObjects = { InObject };
+			FPropertyChangedEvent PropertyChangedEvent(ValueProperty, bInteractive ? EPropertyChangeType::Interactive : EPropertyChangeType::ValueSet, MakeArrayView(ModifiedObjects));
+			FEditPropertyChain PropertyChain;
+			if (AxisProperty)
+			{
+				PropertyChain.AddHead(AxisProperty);
+			}
+			PropertyChain.AddHead(ValueProperty);
+			FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
+			
 			// Have to downcast here because of function overloading and inheritance not playing nicely
 			if (ValueProperty)
 			{
-				TArray<UObject*> ModifiedObjects = { InObject };
-				FPropertyChangedEvent PropertyChangedEvent(ValueProperty, EPropertyChangeType::ValueSet, MakeArrayView(ModifiedObjects));
-				FEditPropertyChain PropertyChain;
-
-				if (AxisProperty)
-				{
-					PropertyChain.AddHead(AxisProperty);
-				}
-				PropertyChain.AddHead(ValueProperty);
 				((UObject*)SceneComponentThatChanged)->PreEditChange(PropertyChain);
-
+			
 				if (ActorThatChanged && ActorThatChanged->GetRootComponent() == SceneComponentThatChanged)
 				{
 					((UObject*)ActorThatChanged)->PreEditChange(PropertyChain);
@@ -993,23 +996,11 @@ void UAnimDetailControlsProxyTransform::SetBindingValueFromCurrent(UObject* InOb
 
 			if (ValueProperty)
 			{
-				TArray<UObject*> ModifiedObjects = { InObject };
-				FPropertyChangedEvent PropertyChangedEvent(ValueProperty, EPropertyChangeType::ValueSet, MakeArrayView(ModifiedObjects));
-				FEditPropertyChain PropertyChain;
-
-				if (AxisProperty)
-				{
-					PropertyChain.AddHead(AxisProperty);
-				}
-				PropertyChain.AddHead(ValueProperty);
-				FPropertyChangedChainEvent PropertyChangedChainEvent(PropertyChain, PropertyChangedEvent);
-
+				((UObject*)SceneComponentThatChanged)->PostEditChangeChainProperty(PropertyChangedChainEvent);
 				if (ActorThatChanged && ActorThatChanged->GetRootComponent() == SceneComponentThatChanged)
 				{
 					((UObject*)ActorThatChanged)->PostEditChangeChainProperty(PropertyChangedChainEvent);
 				}
-				((UObject*)SceneComponentThatChanged)->PostEditChangeChainProperty(PropertyChangedChainEvent);
-
 			}
 			GUnrealEd->UpdatePivotLocationForSelection();
 		}
@@ -2192,7 +2183,7 @@ void UAnimDetailControlsProxyFloat::GetChannelSelectionState(TWeakPtr<FCurveEdit
 	LocationSelectionCache.XSelected = CachePropertySelection(CurveEditor, this, GET_MEMBER_NAME_CHECKED(FAnimDetailProxyFloat, Float));
 }
 
-void UAnimDetailControlsProxyFloat::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context)
+void UAnimDetailControlsProxyFloat::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -2385,7 +2376,7 @@ void UAnimDetailControlsProxyBool::GetChannelSelectionState(TWeakPtr<FCurveEdito
 	LocationSelectionCache.XSelected = CachePropertySelection(CurveEditor, this, GET_MEMBER_NAME_CHECKED(FAnimDetailProxyBool, Bool));
 }
 
-void UAnimDetailControlsProxyBool::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context)
+void UAnimDetailControlsProxyBool::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
@@ -2565,7 +2556,7 @@ void UAnimDetailControlsProxyInteger::GetChannelSelectionState(TWeakPtr<FCurveEd
 	LocationSelectionCache.XSelected = CachePropertySelection(CurveEditor, this, GET_MEMBER_NAME_CHECKED(FAnimDetailProxyInteger, Integer));
 }
 
-void UAnimDetailControlsProxyInteger::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context)
+void UAnimDetailControlsProxyInteger::SetBindingValueFromCurrent(UObject* InObject, TSharedPtr<FTrackInstancePropertyBindings>& Binding, FRigControlModifiedContext& Context, bool bInteractive)
 {
 	if (InObject && Binding.IsValid())
 	{
