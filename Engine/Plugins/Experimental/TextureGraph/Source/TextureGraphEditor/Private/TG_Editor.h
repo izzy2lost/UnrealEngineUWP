@@ -207,8 +207,6 @@ private:
 
 	void											OnFinishedChangingOutput(const FPropertyChangedEvent& PropertyChangedEvent);
 
-	void											CreateMixerUI(UMixInterface* mix);
-
 	void											UpdateParametersUI();
 
 	/*Get the Current selected folder from content browser*/

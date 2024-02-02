@@ -13,7 +13,7 @@ using MixPtrW = UMixInterface*;
 class TEXTUREGRAPHINSIGHT_API TextureGraphInsightSession
 {
 public:
-	/// Keep all the pointers to "real" Mixer Engine objects in the live runtime cache
+	/// Keep all the pointers to "real" TextureGraph Engine objects in the live runtime cache
 	class LiveCache
 	{
 	public:
@@ -95,7 +95,7 @@ protected:
 	SessionRecordPtr				Record;
 	std::mutex						RecordMutex;
 
-	/// Keep all the pointers to "real" Mixer Engine objects in the live cache
+	/// Keep all the pointers to "real" TextureGraph Engine objects in the live cache
 	/// A session live cache is renewed for each engine
 	std::shared_ptr<LiveCache>		Cache;
 

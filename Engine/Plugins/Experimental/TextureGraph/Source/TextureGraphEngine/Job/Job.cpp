@@ -753,7 +753,7 @@ AsyncPrepareResult Job::PrepareTargets(JobBatch* Batch)
 	}
 
 	/// Keep this consistent across all the different types. Inconsistent sizes of these arrays
-	/// was bowling over Mixer Insight. Consistency is better.
+	/// was bowling over TextureGraph Insight. Consistency is better.
 	TileResults.Resize(ResultPromise->Rows(), ResultPromise->Cols());
 	TileInvalidationMatrix.Resize(ResultPromise->Rows(), ResultPromise->Cols());
 

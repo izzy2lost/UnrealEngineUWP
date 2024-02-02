@@ -8,7 +8,6 @@
 #include "MixInterface.generated.h"
 
 class UMix;
-class UMixerMeshComponent;
 class ULayerStack;
 class UMixSettings;
 class AActor;
@@ -81,8 +80,6 @@ public:
 	virtual void						Update(MixUpdateCyclePtr cycle);	
 
 	virtual RenderMeshPtr				GetMesh() const; // Get the mesh assigned in Settings
-
-	virtual UMixerMeshComponent*		GetMeshComponent() const { checkNoEntry() return nullptr; }
 
 	virtual int32						Width() const; 
 	virtual int32						Height() const;

@@ -86,7 +86,7 @@ void FTextureGraphInsightEditorModule::StartupModule()
 	FInsightTabCommands::Register();
 
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(TextureGraphInsightEditorTabName, FOnSpawnTab::CreateRaw(this, &FTextureGraphInsightEditorModule::OnSpawnPluginTab))
-		.SetDisplayName(LOCTEXT("FTextureGraphInsightEditorTabTitle", "Mixer Insight"))
+		.SetDisplayName(LOCTEXT("FTextureGraphInsightEditorTabTitle", "TextureGraph Insight"))
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 
 
@@ -120,7 +120,7 @@ bool FTextureGraphInsightEditorModule::Tick(float DeltaTime)
 }
 TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	// (re)Instantiate the Mixer Insight singleton
+	// (re)Instantiate the TextureGraph Insight singleton
 	if (TextureGraphInsight::Instance())
 	{
 		TextureGraphInsight::Destroy();
@@ -130,7 +130,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 
 	const TSharedRef<SDockTab> NomadTab = SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab)
-		.Label(NSLOCTEXT("TextureGraphInsight", "Mixer Insight", "Mixer Insight"));
+		.Label(NSLOCTEXT("TextureGraphInsight", "TextureGraph Insight", "TextureGraph Insight"));
 
 	if (!TabManager.IsValid())
 	{
@@ -177,7 +177,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleMixes", "Mixer Mixes"))
+					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleMixes", "TextureGraph Assets"))
 					[
 						SNew(STextureGraphInsightMixListView)
 					];
@@ -187,7 +187,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleAction", "Mixer Actions"))
+					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleAction", "TextureGraph Actions"))
 					[
 						SNew(STextureGraphInsightActionView)
 					];
@@ -197,7 +197,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleJobBatches", "Mixer Jobs & Batches"))
+					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleJobBatches", "TextureGraph Jobs & Batches"))
 					[
 						SNew(STextureGraphInsightSessionView)
 					];
@@ -207,7 +207,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleResources", "Mixer Resources"))
+					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleResources", "TextureGraph Resources"))
 					[
 						SNew(STextureGraphInsightResourceView)
 					]; 
@@ -217,7 +217,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleDevices", "Mixer Devices"))
+					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleDevices", "TextureGraph Devices"))
 					[
 						SNew(STextureGraphInsightDeviceListView)
 					];
@@ -227,7 +227,7 @@ TSharedRef<SDockTab> FTextureGraphInsightEditorModule::OnSpawnPluginTab(const FS
 			{
 				return SNew(SDockTab)
 					.TabRole(ETabRole::PanelTab)
-					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleInspector", "Mixer Inspector"))
+					.Label(LOCTEXT("FTextureGraphInsightEditorTabTitleInspector", "TextureGraph Inspector"))
 					[
 						SNew(STextureGraphInsightInspectorView)
 					];
