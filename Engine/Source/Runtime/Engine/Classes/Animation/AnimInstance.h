@@ -1155,6 +1155,9 @@ public:
 	/** Returns value of named curved in OutValue, returns whether the curve was actually found or not. */
 	ENGINE_API bool GetCurveValue(FName CurveName, float& OutValue) const;
 
+	/** Overrides the value of a named curve. Will be reset next evaluation */
+	ENGINE_API void OverrideCurveValue(FName CurveName, float Value);
+
 	/** Returns the name of a currently active state in a state machine. */
 	UFUNCTION(BlueprintPure, Category="Animation|State Machines", meta=(BlueprintInternalUseOnly = "true", AnimGetter = "true", BlueprintThreadSafe))
 	ENGINE_API FName GetCurrentStateName(int32 MachineIndex);
