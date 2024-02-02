@@ -1519,7 +1519,7 @@ public:
 	/** Return true if the threading is ready **/
 	static FORCEINLINE_STATS bool IsThreadingReady()
 	{
-		return !!TlsSlot;
+		return FPlatformTLS::IsValidTlsSlot(TlsSlot);
 	}
 
 	/** Indicate that you would like the system to begin collecting data, if it isn't already collecting data. Think reference count. **/

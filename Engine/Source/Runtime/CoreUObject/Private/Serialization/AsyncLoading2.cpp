@@ -2370,14 +2370,14 @@ struct FAsyncLoadingThreadState2
 
 	static void Set(FAsyncLoadingThreadState2* State)
 	{
-		check(TlsSlot != 0);
+		check(FPlatformTLS::IsValidTlsSlot(TlsSlot));
 		check(!FPlatformTLS::GetTlsValue(TlsSlot));
 		FPlatformTLS::SetTlsValue(TlsSlot, State);
 	}
 
 	static FAsyncLoadingThreadState2* Get()
 	{
-		check(TlsSlot != 0);
+		check(FPlatformTLS::IsValidTlsSlot(TlsSlot));
 		return static_cast<FAsyncLoadingThreadState2*>(FPlatformTLS::GetTlsValue(TlsSlot));
 	}
 
