@@ -33,57 +33,61 @@ static TAutoConsoleVariable<bool> CVarAllowActorReuse(
 	true,
 	TEXT("Controls whether PCG spawned actors can be reused and skipped when re-executing"));
 
-class FPCGSpawnActorPartitionByAttribute : public FPCGPointDataPartitionBase<FPCGSpawnActorPartitionByAttribute, TSubclassOf<AActor>>
+class FPCGSpawnActorPartitionByAttribute : public FPCGDataPartitionBase<FPCGSpawnActorPartitionByAttribute, TSubclassOf<AActor>>
 {
 public:
 	FPCGSpawnActorPartitionByAttribute(FName InSpawnAttribute)
-		: FPCGPointDataPartitionBase<FPCGSpawnActorPartitionByAttribute, TSubclassOf<AActor>>()
+		: FPCGDataPartitionBase<FPCGSpawnActorPartitionByAttribute, TSubclassOf<AActor>>()
 		, SpawnAttribute(InSpawnAttribute)
 	{
 	}
 
-	bool InitializeForPointData(const UPCGPointData* PointData, UPCGPointData* OutPointData)
+	bool InitializeForData(const UPCGData* InData, UPCGData* OutData)
 	{
-		if (!PointData || !PointData->ConstMetadata())
+		if (!InData || !InData->IsA<UPCGPointData>() || !OutData || !OutData->IsA<UPCGPointData>())
 		{
 			return false;
 		}
 
 		FPCGAttributePropertyInputSelector InputSource;
 		InputSource.SetAttributeName(SpawnAttribute);
-		InputSource = InputSource.CopyAndFixLast(PointData);
-		SpawnAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputSource);
-		SpawnAttributeKeys = PCGAttributeAccessorHelpers::CreateConstKeys(PointData, InputSource);
+		InputSource = InputSource.CopyAndFixLast(InData);
+		SpawnAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InData, InputSource);
+		SpawnAttributeKeys = PCGAttributeAccessorHelpers::CreateConstKeys(InData, InputSource);
 
 		return SpawnAttributeAccessor.IsValid() && SpawnAttributeKeys.IsValid();
 	}
 
-	void AddToPartitionData(FPCGPointDataPartitionBase::Element* SelectedElement, const UPCGPointData* ParentPointData, const FPCGPoint& Point)
+	void AddToPartitionData(FPCGDataPartitionBase::Element* SelectedElement, const UPCGData* ParentData, int32 Index)
 	{
+		// Already checked in initialize that this is a valid cast
+		const UPCGPointData* ParentPointData = static_cast<const UPCGPointData*>(ParentData);
+
 		check(SelectedElement);
 		if (!SelectedElement->PartitionData)
 		{
-			SelectedElement->PartitionData = NewObject<UPCGPointData>();
-			SelectedElement->PartitionData->InitializeFromData(ParentPointData);
+			UPCGPointData* PartitionData = NewObject<UPCGPointData>();
+			PartitionData->InitializeFromData(ParentPointData);
+			SelectedElement->PartitionData = PartitionData;
 		}
 
 		check(SelectedElement->PartitionData);
-		SelectedElement->PartitionData->GetMutablePoints().Add(Point);
+		static_cast<UPCGPointData*>(SelectedElement->PartitionData)->GetMutablePoints().Add(ParentPointData->GetPoints()[Index]);
 	}
 
-	FPCGPointDataPartitionBase::Element* SelectPoint(const FPCGPoint& Point, int32 PointIndex)
+	FPCGDataPartitionBase::Element* Select(int32 Index)
 	{
 		FSoftClassPath ActorPath;
 		TSoftClassPtr<AActor> ActorClassSoftPtr;
 
-		if (SpawnAttributeAccessor->Get<FSoftClassPath>(ActorPath, PointIndex, *SpawnAttributeKeys))
+		if (SpawnAttributeAccessor->Get<FSoftClassPath>(ActorPath, Index, *SpawnAttributeKeys))
 		{
 			ActorClassSoftPtr = TSoftClassPtr<AActor>(ActorPath);
 		}
 		else
 		{
 			FString ActorPathString;
-			if (SpawnAttributeAccessor->Get<FString>(ActorPathString, PointIndex, *SpawnAttributeKeys))
+			if (SpawnAttributeAccessor->Get<FString>(ActorPathString, Index, *SpawnAttributeKeys))
 			{
 				ActorPath = FSoftClassPath(ActorPathString);
 				ActorClassSoftPtr = TSoftClassPtr<AActor>(ActorPath);
@@ -522,7 +526,7 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 			int32 CurrentPointIndex = 0;
 
 			// Selection is still needed if are fully skipped in order to write to the OutPointData.
-			Selector.SelectPoints(*Context, PointData, CurrentPointIndex, OutPointData);
+			Selector.SelectMultiple(*Context, PointData, CurrentPointIndex, PointData->GetPoints().Num(), OutPointData);
 
 			if (!bFullySkippedDueToReuse)
 			{
@@ -531,7 +535,7 @@ bool FPCGSpawnActorElement::SpawnAndPrepareSubgraphs(FPCGSubgraphContext* Contex
 					FPCGTaggedData PartialInput = Input;
 					PartialInput.Data = Element.Value.PartitionData;
 
-					SpawnOrCollapse(Element.Key, nullptr, PartialInput, Element.Value.PartitionData, OutPointData);
+					SpawnOrCollapse(Element.Key, nullptr, PartialInput, static_cast<UPCGPointData*>(Element.Value.PartitionData), OutPointData);
 
 					// Exception case here: if we've spawned actors but are merging the PCG inputs,
 					// normally this node is taken as a subgraph node (e.g. no need to do anything more than forwarding the inputs)

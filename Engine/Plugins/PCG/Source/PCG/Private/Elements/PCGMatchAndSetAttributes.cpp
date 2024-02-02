@@ -5,6 +5,7 @@
 #include "PCGContext.h"
 #include "PCGParamData.h"
 #include "PCGPin.h"
+#include "Data/PCGPointData.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGPointDataPartition.h"
@@ -41,7 +42,7 @@ FText UPCGMatchAndSetAttributesSettings::GetDefaultNodeTitle() const
 
 FText UPCGMatchAndSetAttributesSettings::GetNodeTooltipText() const
 {
-	return LOCTEXT("NodeTooltip", "Matches or randomly assigns values from the Attribute Set to the input Point Data");
+	return LOCTEXT("NodeTooltip", "Matches or randomly assigns values from the Attribute Set to the input data");
 }
 #endif // WITH_EDITOR
 
@@ -54,7 +55,7 @@ UPCGMatchAndSetAttributesSettings::UPCGMatchAndSetAttributesSettings()
 TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point);
+	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Point | EPCGDataType::Param);
 	PinProperties.Emplace(PCGMatchAndSetAttributesConstants::MatchDataLabel, 
 		EPCGDataType::Param, 
 		/*bAllowMultipleConnection=*/false, 
@@ -77,7 +78,10 @@ TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::InputPinProperties(
 
 TArray<FPCGPinProperties> UPCGMatchAndSetAttributesSettings::OutputPinProperties() const
 {
-	return Super::DefaultPointOutputPinProperties();
+	TArray<FPCGPinProperties> PinProperties;
+	PinProperties.Emplace(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point | EPCGDataType::Param);
+
+	return PinProperties;
 }
 
 FPCGElementPtr UPCGMatchAndSetAttributesSettings::CreateElement() const
@@ -509,11 +513,11 @@ private:
 	TArray<TPair<PCGMetadataValueKey, AttributeSetPartitionEntry>> PartitionData;
 };
 
-class FPCGMatchAndSetPartition : public FPCGPointDataPartitionBase<FPCGMatchAndSetPartition, PCGMetadataValueKey>
+class FPCGMatchAndSetPartition : public FPCGDataPartitionBase<FPCGMatchAndSetPartition, PCGMetadataValueKey>
 {
 public:
 	FPCGMatchAndSetPartition(FPCGContext* InContext, const UPCGMatchAndSetAttributesSettings* InSettings, const UPCGComponent* InSourceComponent, const UPCGParamData* InParamData) 
-		: FPCGPointDataPartitionBase<FPCGMatchAndSetPartition, PCGMetadataValueKey>()
+		: FPCGDataPartitionBase<FPCGMatchAndSetPartition, PCGMetadataValueKey>()
 		, Context(InContext)
 		, Settings(InSettings)
 		, ParamData(InParamData)
@@ -543,27 +547,27 @@ public:
 		return AttributeSetPartition.IsValid();
 	}
 
-	bool InitializeForPointData(const UPCGPointData* PointData, UPCGPointData* OutPointData)
+	bool InitializeForData(const UPCGData* InData, UPCGData* OutData)
 	{
-		if (!PointData || !PointData->ConstMetadata() || !OutPointData)
+		if (!InData || !InData->ConstMetadata() || !OutData || !OutData->MutableMetadata())
 		{
 			return false;
 		}
 
 		if (Settings->bMatchAttributes)
 		{
-			const FPCGAttributePropertyInputSelector InputAttributeSource = Settings->InputAttribute.CopyAndFixLast(PointData);
-			InputAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputAttributeSource);
-			InputAttributeKeys = PCGAttributeAccessorHelpers::CreateConstKeys(PointData, InputAttributeSource);
+			const FPCGAttributePropertyInputSelector InputAttributeSource = Settings->InputAttribute.CopyAndFixLast(InData);
+			InputAttributeAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InData, InputAttributeSource);
+			InputAttributeKeys = PCGAttributeAccessorHelpers::CreateConstKeys(InData, InputAttributeSource);
 
 			if (!InputAttributeAccessor.IsValid() || !InputAttributeKeys.IsValid())
 			{
-				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("MissingAttribute", "Point data does not have the input attribute '{0}'."), InputAttributeSource.GetDisplayText()));
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("MissingAttribute", "Input data does not have the input attribute '{0}'."), InputAttributeSource.GetDisplayText()));
 				return false;
 			}
 		}
 
-		const UPCGData** FoundMaxDistanceData = DataToMaxDistanceMap.Find(PointData);
+		const UPCGData** FoundMaxDistanceData = DataToMaxDistanceMap.Find(InData);
 		const FPCGAttributePropertyInputSelector MaxDistanceSelector = Settings->MaxDistanceInputAttribute.CopyAndFixLast(FoundMaxDistanceData ? *FoundMaxDistanceData : nullptr);
 
 		if (!AttributeSetPartition.InitializeForData(Context, FoundMaxDistanceData ? *FoundMaxDistanceData : nullptr, FoundMaxDistanceData ? &MaxDistanceSelector : nullptr))
@@ -573,17 +577,17 @@ public:
 
 		if (Settings->bUseInputWeightAttribute)
 		{
-			const FPCGAttributePropertyInputSelector InputWeightAttributeSource = Settings->InputWeightAttribute.CopyAndFixLast(PointData);
-			InputWeightAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(PointData, InputWeightAttributeSource);
+			const FPCGAttributePropertyInputSelector InputWeightAttributeSource = Settings->InputWeightAttribute.CopyAndFixLast(InData);
+			InputWeightAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InData, InputWeightAttributeSource);
 
 			if (!InputAttributeKeys)
 			{
-				InputAttributeKeys = PCGAttributeAccessorHelpers::CreateConstKeys(PointData, InputWeightAttributeSource);
+				InputAttributeKeys = PCGAttributeAccessorHelpers::CreateConstKeys(InData, InputWeightAttributeSource);
 			}
 
 			if (!InputWeightAccessor.IsValid() || !InputAttributeKeys.IsValid())
 			{
-				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("MissingWeightAttribute", "Point data does not have the input weight attribute '{0}'."), InputWeightAttributeSource.GetDisplayText()));
+				PCGE_LOG_C(Error, GraphAndLog, Context, FText::Format(LOCTEXT("MissingWeightAttribute", "Input data does not have the input weight attribute '{0}'."), InputWeightAttributeSource.GetDisplayText()));
 				return false;
 			}
 
@@ -602,6 +606,9 @@ public:
 		TArray<EPCGMetadataTypes> ParamAttributeTypes;
 		ParamData->ConstMetadata()->GetAttributes(ParamAttributeNames, ParamAttributeTypes);
 
+		UPCGMetadata* OutMetadata = OutData->MutableMetadata();
+		check(OutMetadata);
+
 		for (int32 AttributeIndex = 0; AttributeIndex < ParamAttributeNames.Num(); ++AttributeIndex)
 		{
 			const FName AttributeName = ParamAttributeNames[AttributeIndex];
@@ -613,107 +620,160 @@ public:
 			}
 
 			const FPCGMetadataAttributeBase* ParamAttribute = ParamData->ConstMetadata()->GetConstAttribute(AttributeName);
-			
-			FPCGMetadataAttributeBase* PointAttribute = OutPointData->Metadata->GetMutableAttribute(AttributeName);
+
+			FPCGMetadataAttributeBase* PointAttribute = OutMetadata->GetMutableAttribute(AttributeName);
 			if (PointAttribute && PointAttribute->GetTypeId() != ParamAttribute->GetTypeId())
 			{
-				OutPointData->Metadata->DeleteAttribute(AttributeName);
+				OutMetadata->DeleteAttribute(AttributeName);
 				PointAttribute = nullptr;
 			}
 
 			if (!PointAttribute)
 			{
-				PointAttribute = OutPointData->Metadata->CopyAttribute(ParamAttribute, AttributeName, /*bKeepParent=*/false, /*bCopyEntries=*/false, /*bCopyValues=*/false);
+				PointAttribute = OutMetadata->CopyAttribute(ParamAttribute, AttributeName, /*bKeepParent=*/false, /*bCopyEntries=*/false, /*bCopyValues=*/false);
 			}
 
 			if (!PointAttribute) // Failed to create attribute
 			{
-				PCGE_LOG_C(Warning, GraphAndLog, Context, FText::Format(LOCTEXT("UnableToCreateAttribute", "Unable to create attribute '{0}' on point data."), FText::FromName(AttributeName)));
+				PCGE_LOG_C(Warning, GraphAndLog, Context, FText::Format(LOCTEXT("UnableToCreateAttribute", "Unable to create attribute '{0}' on output data."), FText::FromName(AttributeName)));
 				return false;
 			}
 
 			AttributesToSet.Emplace(ParamAttribute, PointAttribute);
 		}
 
-		return true;
+		const int32 NumElements = GetNumElements(InData);
+		PartitionDataIndices = AttributeSetPartition.GetMatchingPartitionDataIndices(InputAttributeAccessor, InputAttributeKeys, NumElements);
+
+		if (PartitionDataIndices.Num() != NumElements)
+		{
+			return false;
+		}
+
+		const UPCGPointData* InPointData = Cast<const UPCGPointData>(InData);
+		SetupWeights(NumElements, InPointData ? &InPointData->GetPoints() : nullptr);
+
+		return Weights.Num() == NumElements;
 	}
 
-	TArray<double> GetWeights(const TArray<FPCGPoint>& Points) 
+	void SetupWeights(const int32 NumElements, const TArray<FPCGPoint>* Points) 
 	{
-		TArray<double> Weights;
+		check(!Points || NumElements == Points->Num());
+
+		Weights.Reset(NumElements);
 
 		if (InputWeightAccessor.IsValid() && InputAttributeKeys.IsValid())
 		{
-			Weights.SetNumUninitialized(Points.Num());
+			Weights.SetNumUninitialized(NumElements);
 			InputWeightAccessor->GetRange<double>(Weights, 0, *InputAttributeKeys, EPCGAttributeAccessorFlags::AllowConstructible);
 		}
-		else
+		else if (Points)
 		{
-			Weights.Reserve(Points.Num());
-
 			// Generate a random value from the seed
-			for (const FPCGPoint& Point : Points)
+			for (const FPCGPoint& Point : *Points)
 			{
 				Weights.Add(UPCGBlueprintHelpers::GetRandomStreamFromPoint(Point, Settings, SourceComponent).FRand());
 			}
 		}
-
-		return Weights;
+		else
+		{
+			FRandomStream RandomStream = UPCGBlueprintHelpers::GetRandomStreamFromPoint(FPCGPoint(), Settings, SourceComponent);
+			for (int32 i = 0; i < NumElements; ++i)
+			{
+				Weights.Add(RandomStream.FRand());
+			}
+		}
 	}
 
-	FPCGPointDataPartitionBase::Element* SelectPoint(const FPCGPoint& Point, int32 PointIndex)
+	FPCGDataPartitionBase::Element* Select(int32 Index)
 	{
 		return nullptr;
 	}
 
-	void Finalize(const UPCGPointData* InPointData, UPCGPointData* OutPointData)
+	int32 GetNumElements(const UPCGData* InData)
 	{
-		check(InPointData && OutPointData);
-		const TArray<FPCGPoint>& Points = InPointData->GetPoints();
-		TArray<FPCGPoint>& OutPoints = OutPointData->GetMutablePoints();
+		check(InData);
 
-		// In this case, we haven't written any points yet to the OutPointData,
-		// as we need to find the matching index for each entry first.
-		TArray<int32> PartitionDataIndices = AttributeSetPartition.GetMatchingPartitionDataIndices(InputAttributeAccessor, InputAttributeKeys, Points.Num());
-
-		if (PartitionDataIndices.Num() != Points.Num())
+		if (const UPCGPointData* InPointData = Cast<const UPCGPointData>(InData))
 		{
-			return;
+			return InPointData->GetPoints().Num();
 		}
-
-		const TArray<double> PointWeights = GetWeights(Points);
-
-		if (PointWeights.Num() != Points.Num())
+		else if (const UPCGMetadata* Metadata = InData->ConstMetadata())
 		{
-			return;
+			return Metadata->GetItemCountForChild();
 		}
-
-		for (int32 PointIndex = 0; PointIndex < Points.Num(); ++PointIndex)
+		else
 		{
-			const FPCGPoint& Point = Points[PointIndex];
-			int32 PartitionDataIndex = PartitionDataIndices[PointIndex];
+			return 0;
+		}
+	}
+
+	void Finalize(const UPCGData* InData, UPCGData* OutData)
+	{
+		check(InData && OutData);
+		if (const UPCGPointData* InPointData = Cast<const UPCGPointData>(InData))
+		{
+			FinalizeInternal(InPointData, static_cast<UPCGPointData*>(OutData), InPointData->GetPoints().Num());
+		}
+		else if (const UPCGMetadata* Metadata = InData->ConstMetadata())
+		{
+			FinalizeInternal(InData, OutData, Metadata->GetItemCountForChild());
+		}
+		else
+		{
+			checkNoEntry();
+		}
+	}
+
+	template <typename T>
+	void FinalizeInternal(const T* InData, T* OutData, int32 NumElements)
+	{
+		const UPCGMetadata* InMetadata = InData->ConstMetadata();
+		UPCGMetadata* OutMetadata = OutData->MutableMetadata();
+		check(InMetadata && OutMetadata);
+
+		for (int32 Index = 0; Index < NumElements; ++Index)
+		{
+			int32 PartitionDataIndex = PartitionDataIndices[Index];
 			PCGMetadataEntryKey AttributeSetKey = PCGInvalidEntryKey;
 
 			if (PartitionDataIndex != INDEX_NONE)
 			{
-				AttributeSetKey = AttributeSetPartition.GetWeightedEntry(PartitionDataIndex, PointWeights[PointIndex]);
+				AttributeSetKey = AttributeSetPartition.GetWeightedEntry(PartitionDataIndex, Weights[Index]);
 			}
 
 			if (Settings->bKeepUnmatched || AttributeSetKey != PCGInvalidEntryKey)
 			{
-				FPCGPoint& OutPoint = OutPoints.Add_GetRef(Point);
+				PCGMetadataEntryKey PreviousKey = PCGMetadataEntryKey(Index);
+				PCGMetadataEntryKey NewEntry;
+
+				if constexpr (std::is_same_v<T, UPCGPointData>)
+				{
+					FPCGPoint& OutPoint = static_cast<UPCGPointData*>(OutData)->GetMutablePoints().Add_GetRef(static_cast<const UPCGPointData*>(InData)->GetPoints()[Index]);
+					PreviousKey = OutPoint.MetadataEntry;
+
+					if (AttributeSetKey != PCGInvalidEntryKey)
+					{
+						OutPoint.MetadataEntry = OutMetadata->AddEntry(OutPoint.MetadataEntry);
+					}
+
+					NewEntry = OutPoint.MetadataEntry;
+				}
+				else
+				{
+					NewEntry = OutMetadata->AddEntry();
+					OutMetadata->SetAttributes(NewEntry, InMetadata, PreviousKey);
+				}
 
 				if (AttributeSetKey != PCGInvalidEntryKey)
 				{
 					// This is similar to UPCGMetadata::SetAttributes but for a subset of attributes
-					OutPoint.MetadataEntry = OutPointData->MutableMetadata()->AddEntry(Point.MetadataEntry);
-
 					for (const TPair<const FPCGMetadataAttributeBase*, FPCGMetadataAttributeBase*>& AttributePair : AttributesToSet)
 					{
 						const FPCGMetadataAttributeBase* ParamAttribute = AttributePair.Key;
 						FPCGMetadataAttributeBase* PointAttribute = AttributePair.Value;
 
-						PointAttribute->SetValue(OutPoint.MetadataEntry, ParamAttribute, AttributeSetKey);
+						PointAttribute->SetValue(NewEntry, ParamAttribute, AttributeSetKey);
 					}
 				}
 			}
@@ -733,6 +793,8 @@ private:
 	TUniquePtr<const IPCGAttributeAccessorKeys> InputAttributeKeys;
 	TArray<TPair<const FPCGMetadataAttributeBase*, FPCGMetadataAttributeBase*>> AttributesToSet;
 	TMap<const UPCGData*, const UPCGData*> DataToMaxDistanceMap;
+	TArray<int32> PartitionDataIndices;
+	TArray<double> Weights;
 };
 
 FPCGMatchAndSetAttributesExecutionState::~FPCGMatchAndSetAttributesExecutionState()
@@ -832,18 +894,33 @@ bool FPCGMatchAndSetAttributesElement::PrepareDataInternal(FPCGContext* InContex
 	{
 		FPCGTaggedData& Output = Outputs.Add_GetRef(Inputs[IterationIndex]);
 
-		OutState.InPointData = Cast<UPCGPointData>(Inputs[IterationIndex].Data);
-		if (!OutState.InPointData)
+		OutState.InData = Inputs[IterationIndex].Data;
+		if (!OutState.InData || !OutState.InData->ConstMetadata())
 		{
-			PCGE_LOG_C(Error, GraphAndLog, InContext, FText::Format(LOCTEXT("InvalidInputDataType", "Input {0}: Input data must be of type Point"), FText::AsNumber(IterationIndex)));
+			PCGE_LOG_C(Error, GraphAndLog, InContext, FText::Format(LOCTEXT("InvalidInputDataType", "Input {0}: Input data must be of type Point or Param"), FText::AsNumber(IterationIndex)));
 			return EPCGTimeSliceInitResult::NoOperation;
 		}
 
-		OutState.OutPointData = NewObject<UPCGPointData>();
-		OutState.OutPointData->InitializeFromData(OutState.InPointData);
-		OutState.OutPointData->GetMutablePoints().Reserve(OutState.InPointData->GetPoints().Num());
+		if (const UPCGPointData* InPointData = Cast<const UPCGPointData>(OutState.InData))
+		{
+			UPCGPointData* OutPointData = NewObject<UPCGPointData>();
+			OutPointData->InitializeFromData(InPointData);
+			OutPointData->GetMutablePoints().Reserve(InPointData->GetPoints().Num());
+			OutState.OutData = OutPointData;
+		}
+		else if (const UPCGParamData* InParamData = Cast<const UPCGParamData>(OutState.InData))
+		{
+			UPCGParamData* OutParamData = NewObject<UPCGParamData>();
+			OutParamData->Metadata->AddAttributes(InParamData->Metadata);
 
-		Output.Data = OutState.OutPointData;
+			OutState.OutData = OutParamData;
+		}
+		else
+		{
+			return EPCGTimeSliceInitResult::AbortExecution;
+		}
+
+		Output.Data = OutState.OutData;
 
 		return EPCGTimeSliceInitResult::Success;
 	});
@@ -887,8 +964,8 @@ bool FPCGMatchAndSetAttributesElement::ExecuteInternal(FPCGContext* InContext) c
 		// It should be guaranteed to be a success at this point
 		check(InitResult == EPCGTimeSliceInitResult::Success);
 
-		// Run the execution until the time slice is finished
-		return ExecState.Partition->SelectPoints(*Context, IterState.InPointData, IterState.CurrentPointIndex, IterState.OutPointData);
+		// Run the execution until the time slice is finished. We actually don't care about the max index since we won't select anything.
+		return ExecState.Partition->SelectMultiple(*Context, IterState.InData, IterState.CurrentIndex, /*MaxIndex*/ 0, IterState.OutData);
 	});
 }
 

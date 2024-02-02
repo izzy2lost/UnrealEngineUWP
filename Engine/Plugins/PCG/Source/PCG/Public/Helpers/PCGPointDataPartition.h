@@ -5,10 +5,9 @@
 #include "PCGContext.h"
 #include "PCGElement.h"
 #include "PCGModule.h"
-#include "Data/PCGPointData.h"
 
 /** 
-* Convenience class to do point data partitioning, i.e. building a TMap<Value, TArray<point/point indices>>
+* Convenience class to do data partitioning, i.e. building a TMap<Value, TArray<indices>>
 * Uses CRTP to remove the need for virtual calls.
 * Has some behavior options depending on the derived class.
 * Currently supports time-slicing (caveat for rooting data, not done yet)
@@ -21,17 +20,17 @@
 * Methods that are not re-implemented/hidden will retain their default implementation, which is mostly trivial.
 */
 template<typename Derived, typename KeyType>
-class FPCGPointDataPartitionBase
+class FPCGDataPartitionBase
 {
 public:
 	struct Element
 	{
-		TArray<int32> PointIndices;
-		UPCGPointData* PartitionData = nullptr;
+		TArray<int32> Indices;
+		UPCGData* PartitionData = nullptr;
 	};
 
-	FPCGPointDataPartitionBase() = default;
-	FPCGPointDataPartitionBase(const TArrayView<KeyType>& InKeys)
+	FPCGDataPartitionBase() = default;
+	FPCGDataPartitionBase(const TArrayView<KeyType>& InKeys)
 	{
 		for (const KeyType& Key : InKeys)
 		{
@@ -44,15 +43,15 @@ public:
 
 	/** Overridable behavior methods */
 	bool Initialize() { return true; }
-	bool InitializeForPointData(const UPCGPointData* PointData) { return true; }
-	void AddToPartitionData(Element* SelectedElement, const UPCGPointData* ParentPointData, const FPCGPoint& Point) {}
-	void WriteToOutputData(UPCGPointData* OutPointData, Element* SelectedElement, const FPCGPoint& Point, int32 PointIndex) {}
-	void Finalize(const UPCGPointData* InPointData, UPCGPointData* OutPointData) {}
-	Element* SelectPoint(const FPCGPoint& Point, int32 PointIndex) { return nullptr; }
+	bool InitializeForData(const UPCGData* Data) { return true; }
+	void AddToPartitionData(Element* SelectedElement, const UPCGData* ParentData, int32 Index) {}
+	void WriteToOutputData(const UPCGData* ParentData, UPCGData* OutData, Element* SelectedElement, int32 Index) {}
+	void Finalize(const UPCGData* InData, UPCGData* OutData) {}
+	Element* Select(int32 Index) { return nullptr; }
 	int32 TimeSlicingCheckFrequency() const { return 1024; }
 
 	/** API */
-	bool SelectPoints(FPCGContext& Context, const UPCGPointData* PointData, int32& InCurrentPointIndex, UPCGPointData* OutPointData);
+	bool SelectMultiple(FPCGContext& Context, const UPCGData* InData, int32& InCurrentIndex, int32 InMaxIndex, UPCGData* OutData);
 	void Reset() { ElementMap.Reset(); }
 
 	// Data access
@@ -60,44 +59,40 @@ public:
 };
 
 template<typename Derived, typename KeyType>
-bool FPCGPointDataPartitionBase<Derived, KeyType>::SelectPoints(FPCGContext& Context, const UPCGPointData* PointData, int32& InCurrentPointIndex, UPCGPointData* OutPointData)
+bool FPCGDataPartitionBase<Derived, KeyType>::SelectMultiple(FPCGContext& Context, const UPCGData* InData, int32& InCurrentIndex, int32 InMaxIndex, UPCGData* OutData)
 {
-	if (!PointData)
+	if (!InData)
 	{
-		PCGE_LOG_C(Error, GraphAndLog, &Context, NSLOCTEXT("PCGPointDataPartition", "InputMissingData", "Missing input data"));
+		PCGE_LOG_C(Error, GraphAndLog, &Context, NSLOCTEXT("PCGDataPartition", "InputMissingData", "Missing input data"));
 		return true;
 	}
 
-	if (InCurrentPointIndex == 0)
+	if (InCurrentIndex == 0)
 	{
-		if (!This()->InitializeForPointData(PointData, OutPointData))
+		if (!This()->InitializeForData(InData, OutData))
 		{
 			return true;
 		}
 	}
 
-	int32 CurrentPointIndex = InCurrentPointIndex;
-	int32 LastCheckpointIndex = InCurrentPointIndex;
+	int32 CurrentIndex = InCurrentIndex;
+	int32 LastCheckpointIndex = InCurrentIndex;
 	const int32 TimeSlicingCheckFrequency = This()->TimeSlicingCheckFrequency();
 
-	const TArray<FPCGPoint>& Points = PointData->GetPoints();
-
-	while (CurrentPointIndex < Points.Num())
+	while (CurrentIndex < InMaxIndex)
 	{
-		const FPCGPoint& Point = Points[CurrentPointIndex];
-
-		Element* SelectedElement = This()->SelectPoint(Point, CurrentPointIndex);
+		Element* SelectedElement = This()->Select(CurrentIndex);
 		if (SelectedElement)
 		{
-			SelectedElement->PointIndices.Add(CurrentPointIndex);
-			This()->AddToPartitionData(SelectedElement, PointData, Point);
+			SelectedElement->Indices.Add(CurrentIndex);
+			This()->AddToPartitionData(SelectedElement, InData, CurrentIndex);
 		}
 
-		This()->WriteToOutputData(OutPointData, SelectedElement, Point, CurrentPointIndex);
+		This()->WriteToOutputData(InData, OutData, SelectedElement, CurrentIndex);
 
-		++CurrentPointIndex;
+		++CurrentIndex;
 
-		if (CurrentPointIndex - LastCheckpointIndex >= TimeSlicingCheckFrequency)
+		if (CurrentIndex - LastCheckpointIndex >= TimeSlicingCheckFrequency)
 		{
 			if (Context.ShouldStop())
 			{
@@ -105,17 +100,17 @@ bool FPCGPointDataPartitionBase<Derived, KeyType>::SelectPoints(FPCGContext& Con
 			}
 			else
 			{
-				LastCheckpointIndex = CurrentPointIndex;
+				LastCheckpointIndex = CurrentIndex;
 			}
 		}
 	}
 
-	InCurrentPointIndex = CurrentPointIndex;
+	InCurrentIndex = CurrentIndex;
 
-	if (CurrentPointIndex == Points.Num())
+	if (CurrentIndex == InMaxIndex)
 	{
-		This()->Finalize(PointData, OutPointData);
+		This()->Finalize(InData, OutData);
 	}
 
-	return (CurrentPointIndex == Points.Num());
+	return (CurrentIndex == InMaxIndex);
 }
