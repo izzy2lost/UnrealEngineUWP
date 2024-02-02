@@ -60,7 +60,7 @@ namespace Horde
 				DirectoryReference? programDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
 				if (programDataDir != null)
 				{
-					return DirectoryReference.Combine(programDataDir, "Horde");
+					return DirectoryReference.Combine(programDataDir, "Epic", "Horde", "Tool");
 				}
 			}
 			return GetAppDir();
