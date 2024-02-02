@@ -295,7 +295,8 @@ FString UPCGSubgraphSettings::GetAdditionalTitleInformation() const
 
 	if (UPCGGraph* TargetSubgraph = GetSubgraph())
 	{
-		return TargetSubgraph->GetName();
+		// Use the same transformation than in the palette view to add spaces between uppercase characters
+		return FName::NameToDisplayString(TargetSubgraph->GetName(), /*bIsBool=*/false);
 	}
 	else
 	{
