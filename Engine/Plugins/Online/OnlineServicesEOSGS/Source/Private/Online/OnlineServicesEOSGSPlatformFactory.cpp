@@ -60,7 +60,8 @@ FString LoadEOSPlatformConfig(IEOSSDKManager* const SDKManager)
 	// Config key renamed to ClientEncryptionKey as EncryptionKey gets removed from packaged builds due to IniKeyDenylist=EncryptionKey entry in BaseGame.ini.
 	GConfig->GetString(*ConfigSectionName, TEXT("ClientEncryptionKey"), PlatformConfig.EncryptionKey, GEngineIni);
 
-	PlatformConfig.CacheDirectory = SDKManager->GetCacheDirBase() / TEXT("OnlineServicesEOS");
+	const FString CacheDirBase = SDKManager->GetCacheDirBase();
+	PlatformConfig.CacheDirectory = CacheDirBase.IsEmpty() ? FString() : CacheDirBase / TEXT("OnlineServicesEOS");
 
 	PlatformConfig.bIsServer = IsRunningDedicatedServer() ? EOS_TRUE : EOS_FALSE;
 	if (!IsRunningGame())

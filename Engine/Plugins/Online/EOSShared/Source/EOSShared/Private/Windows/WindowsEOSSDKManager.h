@@ -10,6 +10,8 @@ class FWindowsEOSSDKManager : public FEOSSDKManager
 {
 protected:
 	virtual IEOSPlatformHandlePtr CreatePlatform(const FEOSSDKPlatformConfig& PlatformConfig, EOS_Platform_Options& PlatformOptions) override;
+public: 
+	virtual FString GetCacheDirBase() const override;
 };
 
 using FPlatformEOSSDKManager = FWindowsEOSSDKManager;

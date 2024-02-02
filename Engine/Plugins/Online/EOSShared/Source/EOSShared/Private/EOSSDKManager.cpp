@@ -337,7 +337,8 @@ const FEOSSDKPlatformConfig* FEOSSDKManager::GetPlatformConfig(const FString& Pl
 
 	if (GConfig->GetString(*SectionName, TEXT("CacheBaseSubdirectory"), PlatformConfig->CacheDirectory, GEngineIni))
 	{
-		PlatformConfig->CacheDirectory = GetCacheDirBase() / PlatformConfig->CacheDirectory;
+		const FString CacheDirBase = GetCacheDirBase();
+		PlatformConfig->CacheDirectory = CacheDirBase.IsEmpty() ? FString() : CacheDirBase / PlatformConfig->CacheDirectory;
 	}
 	GConfig->GetString(*SectionName, TEXT("CacheDirectory"), PlatformConfig->CacheDirectory, GEngineIni);
 
@@ -930,7 +931,15 @@ FString FEOSSDKManager::GetProductVersion() const
 
 FString FEOSSDKManager::GetCacheDirBase() const
 {
-	return FPlatformProcess::UserDir();
+	if (FPlatformMisc::IsCacheStorageAvailable())
+	{
+		return FPlatformProcess::UserDir();
+	}
+	else
+	{
+		return FString(); 
+	}
+	
 }
 
 FString FEOSSDKManager::GetOverrideCountryCode(const EOS_HPlatform Platform) const

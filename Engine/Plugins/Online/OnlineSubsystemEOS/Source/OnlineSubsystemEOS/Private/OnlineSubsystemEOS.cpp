@@ -226,9 +226,11 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 	// Make the cache directory be in the user's writable area
 	FString CacheDir;
 	
-	if (FPlatformMisc::IsCacheStorageAvailable())
+	const FString CacheDirBase = EOSSDKManager->GetCacheDirBase();
+
+	if (!CacheDirBase.IsEmpty())
 	{
-		CacheDir = EOSSDKManager->GetCacheDirBase() / ArtifactSettings.ArtifactName / EOSSettings.CacheDir;
+		CacheDir = CacheDirBase / ArtifactSettings.ArtifactName / EOSSettings.CacheDir;
 	}
 	const auto CacheDirUtf8 = StringCast<UTF8CHAR>(*CacheDir);
 	PlatformOptions.CacheDirectory = CacheDir.IsEmpty() ? nullptr : (const char*)CacheDirUtf8.Get();
