@@ -171,6 +171,19 @@ struct FDebugParserRDNA2
 	uint32 AdjustAdvance(EInstructionType InstructionType, const uint32* InstPtr)
 	{
 		uint32 AdvanceAmount = 0u;
+
+		if (InstructionType == EInstructionType::VOP2)
+		{
+			const FInstVOP2& Inst = *reinterpret_cast<const FInstVOP2*>(InstPtr);
+			const RDNA2::EVOP2Ops Op = (const RDNA2::EVOP2Ops)Inst.OP;
+
+			// These instructions always have a literal constant that follows
+			if (Op == RDNA2::EVOP2Ops::v_madmk_f32 || Op == RDNA2::EVOP2Ops::v_madak_f32)
+			{
+				AdvanceAmount++;
+			}
+		}
+
 		return AdvanceAmount;
 	}
 
@@ -479,6 +492,19 @@ struct FQuadModeParserRDNA2
 	uint32 AdjustAdvance(EInstructionType InstructionType, const uint32* InstPtr)
 	{
 		uint32 AdvanceAmount = 0u;
+
+		if (InstructionType == EInstructionType::VOP2)
+		{
+			const FInstVOP2& Inst = *reinterpret_cast<const FInstVOP2*>(InstPtr);
+			const RDNA2::EVOP2Ops Op = (const RDNA2::EVOP2Ops)Inst.OP;
+
+			// These instructions always have a literal constant that follows
+			if (Op == RDNA2::EVOP2Ops::v_madmk_f32 || Op == RDNA2::EVOP2Ops::v_madak_f32)
+			{
+				AdvanceAmount++;
+			}
+		}
+
 		return AdvanceAmount;
 	}
 
