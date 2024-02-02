@@ -374,7 +374,7 @@ namespace UE::Learning::Observation
 
 	/**
 	 * Gets a hash value representing object compatibility between schemas i.e. if objects from one schema can be used by objects expecting another
-	 * schema. This is not a crytographic hash, and so `AreSchemaObjectsCompatible` should still be used as the ultimate source of truth.
+	 * schema. This is not a cryptographic hash, and so `AreSchemaObjectsCompatible` should still be used as the ultimate source of truth.
 	 * This function returns an int32 so that it can be used in blueprints.
 	 *
 	 * @param Schema					Observation Schema
