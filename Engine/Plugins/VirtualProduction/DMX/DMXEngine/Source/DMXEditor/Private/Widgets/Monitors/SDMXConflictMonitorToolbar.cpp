@@ -100,7 +100,7 @@ namespace UE::DMX
 
 	TSharedRef<SWidget> SDMXConflictMonitorToolbar::CreateToolbarMenu(const FArguments& InArgs)
 	{
-		Status = InArgs._Status;
+		StatusInfo = InArgs._StatusInfo;
 		OnDepthChanged = InArgs._OnDepthChanged;
 
 		FToolBarBuilder ToolbarBuilder(CommandList, FMultiBoxCustomization::None);
@@ -167,7 +167,12 @@ namespace UE::DMX
 			// Status
 			ToolbarBuilder.AddWidget(
 				SNew(Private::SDMXConflictMonitorScanInfo)
-				.IsScanning(InArgs._IsScanning)
+				.IsScanning_Lambda([this]()
+					{
+						return
+							StatusInfo.Get() == EDMXConflictMonitorStatusInfo::OK ||
+							StatusInfo.Get() == EDMXConflictMonitorStatusInfo::Conflict;
+					})
 			);
 		}
 		ToolbarBuilder.EndSection();
@@ -205,15 +210,15 @@ namespace UE::DMX
 
 	FText SDMXConflictMonitorToolbar::GetStatusText() const
 	{
-		switch (Status.Get())
+		switch (StatusInfo.Get())
 		{
-		case EDMXConflictMonitorStatus::Idle:
+		case EDMXConflictMonitorStatusInfo::Idle:
 			return LOCTEXT("StatusIdle", "Idle");
-		case EDMXConflictMonitorStatus::Paused:
+		case EDMXConflictMonitorStatusInfo::Paused:
 			return LOCTEXT("StatusPaused", "Paused");
-		case EDMXConflictMonitorStatus::OK:
+		case EDMXConflictMonitorStatusInfo::OK:
 			return LOCTEXT("StatusOK", "OK");
-		case EDMXConflictMonitorStatus::Conflict:
+		case EDMXConflictMonitorStatusInfo::Conflict:
 			return LOCTEXT("StatusConflict", "Conflict");
 		default:
 			checkNoEntry();
@@ -223,14 +228,14 @@ namespace UE::DMX
 
 	FSlateColor SDMXConflictMonitorToolbar::GetStatusTextColor() const
 	{
-		switch (Status.Get())
+		switch (StatusInfo.Get())
 		{
-		case EDMXConflictMonitorStatus::Idle:
-		case EDMXConflictMonitorStatus::Paused:
+		case EDMXConflictMonitorStatusInfo::Idle:
+		case EDMXConflictMonitorStatusInfo::Paused:
 			return FLinearColor::White.CopyWithNewOpacity(0.9f);
-		case EDMXConflictMonitorStatus::OK:
+		case EDMXConflictMonitorStatusInfo::OK:
 			return FLinearColor::Green.CopyWithNewOpacity(0.9f);
-		case EDMXConflictMonitorStatus::Conflict:
+		case EDMXConflictMonitorStatusInfo::Conflict:
 			return FLinearColor::Red.CopyWithNewOpacity(0.9f);
 		default:
 			checkNoEntry();

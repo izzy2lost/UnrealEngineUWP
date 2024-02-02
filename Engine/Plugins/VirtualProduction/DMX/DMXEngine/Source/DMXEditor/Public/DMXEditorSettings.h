@@ -150,9 +150,13 @@ struct FDMXConflictMonitorSettings
 {
 	GENERATED_BODY()
 
-	/** True if the conflict monitor stops on pause */
+	/** When enabled, the conflict monitor pauses when a conflict occurs */
 	UPROPERTY()
 	bool bAutoPause = false;
+
+	/** When enabled, the the conflict monitor prints conflicts to log */
+	UPROPERTY()
+	bool bPrintToLog = false;
 
 	/** True if the conflict monitor starts when oppened */
 	UPROPERTY()

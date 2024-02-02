@@ -124,7 +124,7 @@ FDMXEditorStyle::FDMXEditorStyle()
 	
 		Set("Icons.ChannelsMonitor", new IMAGE_BRUSH_SVG("ChannelsMonitor_16", Icon16x16));
 		Set("Icons.ActivityMonitor", new IMAGE_BRUSH_SVG("ActivityMonitor_16", Icon16x16));
-		Set("Icons.ConflictMonitor", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Console", Icon16x16));
+		Set("Icons.ConflictMonitor", new CORE_IMAGE_BRUSH_SVG("Starship/Common/OutputLog", Icon16x16));
 		Set("Icons.OutputConsole", new IMAGE_BRUSH_SVG("OutputConsole_16", Icon16x16));
 		Set("Icons.PatchTool", new IMAGE_BRUSH_SVG("PatchTool_16", Icon16x16));
 		Set("Icons.ReceiveDMX", new IMAGE_BRUSH_SVG("ToggleReceiveDMX_16", Icon16x16));
