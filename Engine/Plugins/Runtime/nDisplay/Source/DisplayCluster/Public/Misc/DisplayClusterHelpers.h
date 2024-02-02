@@ -180,7 +180,7 @@ namespace DisplayClusterHelpers
 
 			if (InPairSeparator.Len() > 0 && InData.Num() > 0)
 			{
-				ResultStr.RemoveAt(ResultStr.Len() - InPairSeparator.Len(), InPairSeparator.Len(), !bAddQuoutes);
+				ResultStr.RemoveAt(ResultStr.Len() - InPairSeparator.Len(), InPairSeparator.Len(), bAddQuoutes ? EAllowShrinking::No : EAllowShrinking::Yes);
 			}
 
 			if (bAddQuoutes)
