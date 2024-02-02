@@ -159,9 +159,6 @@ namespace UnrealBuildTool
 		{
 			base.GetCompileArguments_Optimizations(CompileEnvironment, Arguments);
 
-			// We have 'this' vs nullptr comparisons that get optimized away for newer versions of Clang, which is undesirable until we refactor these checks.
-			Arguments.Add("-fno-delete-null-pointer-checks");
-
 			// use LTO if desired (like VCToolchain does)
 			if (CompileEnvironment.bAllowLTCG)
 			{

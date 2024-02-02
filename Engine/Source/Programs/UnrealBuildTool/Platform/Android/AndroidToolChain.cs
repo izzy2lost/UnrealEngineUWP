@@ -480,12 +480,6 @@ namespace UnrealBuildTool
 		{
 			// @todo the base has PGO options that are a little different than what we want - it would be nice to merge these
 
-			if (CompilerVersionGreaterOrEqual(12, 0, 0))
-			{
-				// We have 'this' vs nullptr comparisons that get optimized away for newer versions of Clang, which is undesirable until we refactor these checks.
-				Arguments.Add("-fno-delete-null-pointer-checks");
-			}
-
 			// optimization level
 			if (!CompileEnvironment.bOptimizeCode)
 			{
