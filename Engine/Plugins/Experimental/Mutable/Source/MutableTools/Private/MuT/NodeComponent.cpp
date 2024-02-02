@@ -9,6 +9,8 @@
 #include "MuT/NodeComponentEdit.h"
 #include "MuT/NodeComponentNew.h"
 
+#include <stdint.h>
+
 
 namespace mu
 {

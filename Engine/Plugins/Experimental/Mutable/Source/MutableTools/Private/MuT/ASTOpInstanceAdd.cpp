@@ -10,6 +10,10 @@
 #include "MuT/CodeOptimiser.h"
 #include "MuT/StreamsPrivate.h"
 
+#include <algorithm>
+#include <memory>
+#include <utility>
+
 
 namespace mu
 {

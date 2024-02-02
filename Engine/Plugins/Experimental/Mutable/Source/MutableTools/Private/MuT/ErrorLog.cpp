@@ -25,6 +25,9 @@
 #include "Templates/Tuple.h"
 #include "Trace/Detail/Channel.h"
 
+#include <memory>
+#include <utility>
+
 namespace mu
 {
 

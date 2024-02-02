@@ -12,6 +12,10 @@
 #include "MuR/SerialisationPrivate.h"
 #include "MuT/TablePrivate.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+
 
 namespace mu
 {
