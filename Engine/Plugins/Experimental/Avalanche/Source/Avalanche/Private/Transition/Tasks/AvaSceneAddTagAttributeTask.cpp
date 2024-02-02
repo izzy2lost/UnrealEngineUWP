@@ -6,7 +6,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaSceneAddTagAttributeTask"
 
-FText FAvaSceneAddTagAttributeTask::GenerateDescription() const
+FText FAvaSceneAddTagAttributeTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("TaskDescription", "Add '{0}' tag attribute to this scene"), FText::FromName(TagAttribute.ToName()));
 }

@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaSceneContainsTagAttributeCondition"
 
-FText FAvaSceneContainsTagAttributeCondition::GenerateDescription() const
+FText FAvaSceneContainsTagAttributeCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	FFormatNamedArguments Arguments;
 

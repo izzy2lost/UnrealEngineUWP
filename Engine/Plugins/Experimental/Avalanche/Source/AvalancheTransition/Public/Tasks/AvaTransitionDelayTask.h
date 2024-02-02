@@ -22,7 +22,7 @@ struct AVALANCHETRANSITION_API FAvaTransitionDelayTask : public FAvaTransitionTa
 	using FInstanceDataType = FAvaTransitionDelayTaskInstanceData;
 
 	//~ Begin FAvaTransitionTask
-	virtual FText GenerateDescription() const override;
+	virtual FText GenerateDescription(const FAvaTransitionNodeContext& InContext) const override;
 	//~ End FAvaTransitionTask
 
 	//~ Begin FStateTreeNodeBase

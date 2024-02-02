@@ -5,7 +5,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaTransitionSceneMatchCondition"
 
-FText FAvaTransitionStateMatchCondition::GenerateDescription() const
+FText FAvaTransitionStateMatchCondition::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("ConditionDescription", "{0} scene in {1}")
 		, UEnum::GetDisplayValueAsText(TransitionState).ToLower()

@@ -6,7 +6,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaSceneRemoveTagAttributeTask"
 
-FText FAvaSceneRemoveTagAttributeTask::GenerateDescription() const
+FText FAvaSceneRemoveTagAttributeTask::GenerateDescription(const FAvaTransitionNodeContext& InContext) const
 {
 	return FText::Format(LOCTEXT("TaskDescription", "Remove '{0}' tag attribute from this scene"), FText::FromName(TagAttribute.ToName()));
 }
