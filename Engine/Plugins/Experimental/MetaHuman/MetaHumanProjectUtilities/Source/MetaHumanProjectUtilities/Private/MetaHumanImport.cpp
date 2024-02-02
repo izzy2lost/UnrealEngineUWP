@@ -4,7 +4,6 @@
 #include "MetaHumanTypes.h"
 #include "MetaHumanProjectUtilities.h"
 #include "MetaHumanImportUI.h"
-#include "MetaHumanVersionService.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/AssetData.h"
@@ -34,8 +33,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogMetaHumanImport, Log, All)
 
 namespace UE::MetaHumanImport::Private
 {
-	static const FName HashMetadataKey = TEXT("MHDataHash");
-
 	// Helper functions *************************************
 
 	// Calculate which assets to add to the project, which to replace, which to update and which to skip
@@ -400,9 +397,9 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	// Copy in optional DNA files
 	const FString SourceAssetsFolder = TEXT("SourceAssets");
 	const FString SourceAssetsPath = FPaths::Combine(ImportPaths.SourceCharacterFilePath, SourceAssetsFolder);
-	if (FileManager.FileExists(*SourceAssetsPath))
+	if (FileManager.DirectoryExists(*SourceAssetsPath))
 	{
-		FPlatformFileManager::Get().GetPlatformFile().CopyDirectoryTree(*SourceAssetsPath, *FPaths::Combine(ImportPaths.SourceCharacterFilePath, SourceAssetsFolder), true);
+		FPlatformFileManager::Get().GetPlatformFile().CopyDirectoryTree(*FPaths::Combine(ImportPaths.DestinationCharacterFilePath, SourceAssetsFolder), *SourceAssetsPath, true);
 	}
 
 	// Refresh asset registry
