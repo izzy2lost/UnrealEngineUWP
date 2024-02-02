@@ -41,99 +41,169 @@ bool FDisplayClusterConfigurationMediaViewport::IsMediaOutputAssigned() const
 ///////////////////////////////////////////////////
 // FDisplayClusterConfigurationMediaICVFX
 
-bool FDisplayClusterConfigurationMediaICVFX::IsMediaInputAssigned(const FString& NodeId) const
+bool FDisplayClusterConfigurationMediaICVFX::HasAnyMediaInputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType InSplitType) const
 {
-	return IsValid(GetMediaSource(NodeId));
-}
-
-bool FDisplayClusterConfigurationMediaICVFX::IsMediaOutputAssigned(const FString& NodeId) const
-{
-	const TArray<FDisplayClusterConfigurationMediaOutputGroup> NodeOutputGroups = GetMediaOutputGroups(NodeId);
-
-	for (const FDisplayClusterConfigurationMediaOutputGroup& NodeOutputGroup : NodeOutputGroups)
+	// Nothing to do if a different split type requested
+	if (SplitType != InSplitType)
 	{
-		if (IsValid(NodeOutputGroup.MediaOutput))
-		{
-			return true;
-		}
+		return false;
+	}
+
+	if (InSplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame)
+	{
+		const bool bHasInput = IsValid(GetMediaSource(NodeId));
+		return bHasInput;
+	}
+	else if (InSplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
+	{
+		TArray<FDisplayClusterConfigurationMediaUniformTileInput> InputTiles;
+		GetMediaInputTiles(NodeId, InputTiles);
+
+		// Find any tile with a media source assigned
+		const bool bFoundInputTile = InputTiles.ContainsByPredicate([](const FDisplayClusterConfigurationMediaUniformTileInput& Tile)
+			{
+				return IsValid(Tile.MediaSource);
+			});
+
+		return bFoundInputTile;
+	}
+	else
+	{
+		checkNoEntry();
 	}
 
 	return false;
 }
 
-
-//@note
-// The way how media is configured for ICVFX cameras technically allows to have multiple inputs assigned
-// to the same camera. Yes, this is something that contradicts to a single input concept. However, it provides
-// a very user-friendly GUI. So to follow the single input concept, we always return the first media input found.
-UMediaSource* FDisplayClusterConfigurationMediaICVFX::GetMediaSource(const FString& NodeId) const
+bool FDisplayClusterConfigurationMediaICVFX::HasAnyMediaOutputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType InSplitType) const
 {
-	// Look up for a group that contains node ID specified
-	for (const FDisplayClusterConfigurationMediaInputGroup& MediaInputGroup : MediaInputGroups)
+	if (SplitType != InSplitType)
 	{
-		const bool bNodeFound = MediaInputGroup.ClusterNodes.ItemNames.ContainsByPredicate([NodeId](const FString& Item)
+		return false;
+	}
+
+	if (InSplitType == EDisplayClusterConfigurationMediaSplitType::FullFrame)
+	{
+		const TArray<FDisplayClusterConfigurationMediaOutputGroup> NodeOutputGroups = GetMediaOutputGroups(NodeId);
+
+		const bool bFoundOutput = NodeOutputGroups.ContainsByPredicate([](const FDisplayClusterConfigurationMediaOutputGroup& OutputGroup)
 			{
-				return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+				return IsValid(OutputGroup.MediaOutput);
 			});
 
-		if (bNodeFound && IsValid(MediaInputGroup.MediaSource))
+		return bFoundOutput;
+	}
+	else if (InSplitType == EDisplayClusterConfigurationMediaSplitType::UniformTiles)
+	{
+		TArray<FDisplayClusterConfigurationMediaUniformTileOutput> OutputTiles;
+		GetMediaOutputTiles(NodeId, OutputTiles);
+
+		const bool bFoundOutputTile = OutputTiles.ContainsByPredicate([](const FDisplayClusterConfigurationMediaUniformTileOutput& Tile)
+			{
+				return IsValid(Tile.MediaOutput);
+			});
+
+		return bFoundOutputTile;
+	}
+	else
+	{
+		checkNoEntry();
+	}
+
+	return false;
+}
+
+//@note: Full-frame input - we don't expect the same node ID to be used multiple times (in different groups)
+UMediaSource* FDisplayClusterConfigurationMediaICVFX::GetMediaSource(const FString& NodeId) const
+{
+	if (SplitType != EDisplayClusterConfigurationMediaSplitType::FullFrame)
+	{
+		return nullptr;
+	}
+
+	// Look up for the first group that contains node ID specified
+	const FDisplayClusterConfigurationMediaInputGroup* const FoundGroup = MediaInputGroups.FindByPredicate([&NodeId](const FDisplayClusterConfigurationMediaInputGroup& MediaInputGroup)
 		{
-			return MediaInputGroup.MediaSource;
-		}
+			return MediaInputGroup.ClusterNodes.ItemNames.ContainsByPredicate([&NodeId](const FString& Item)
+				{
+					return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+				});
+		});
+
+	if (FoundGroup)
+	{
+		return FoundGroup->MediaSource;
 	}
 
 	return nullptr;
 }
 
+//@note: Full-frame output, it's allowed to use the same node ID in different groups
 TArray<FDisplayClusterConfigurationMediaOutputGroup> FDisplayClusterConfigurationMediaICVFX::GetMediaOutputGroups(const FString& NodeId) const
 {
-	return MediaOutputGroups.FilterByPredicate([NodeId](const FDisplayClusterConfigurationMediaOutputGroup& Item)
+	if (SplitType != EDisplayClusterConfigurationMediaSplitType::FullFrame)
+	{
+		return TArray<FDisplayClusterConfigurationMediaOutputGroup>();
+	}
+
+	return MediaOutputGroups.FilterByPredicate([&NodeId](const FDisplayClusterConfigurationMediaOutputGroup& Item)
 		{
-			return Item.ClusterNodes.ItemNames.Contains(NodeId);
+			return Item.ClusterNodes.ItemNames.ContainsByPredicate([&NodeId](const FString& Item)
+				{
+					return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+				});
 		});
 }
 
-/** Returns all tiles bound to a specific cluster node. */
-bool FDisplayClusterConfigurationMediaICVFX::GetMediaInputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileInput>& OutInputTiles) const
+//@note: Tiled input, it's allowed to use the same node ID in different groups
+bool FDisplayClusterConfigurationMediaICVFX::GetMediaInputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileInput>& OutTiles) const
 {
-	// Here we iterate through tiled media input groups, and look for a group that contains a cluster node ID specified.
-	for (const FDisplayClusterConfigurationMediaTiledInputGroup& TiledInputGroup : TiledMediaInputGroups)
+	if (SplitType != EDisplayClusterConfigurationMediaSplitType::UniformTiles)
 	{
-		// Look for NodeId in the group
-		const bool bFoundGroupWithNodeId = TiledInputGroup.ClusterNodes.ItemNames.ContainsByPredicate([NodeId](const FString& Item)
-			{
-				return Item.Equals(NodeId, ESearchCase::IgnoreCase);
-			});
+		return false;
+	}
 
-		// If found
-		if (bFoundGroupWithNodeId)
+	OutTiles.Empty();
+
+	// Find all input groups bound to the node ID specified
+	const TArray<FDisplayClusterConfigurationMediaTiledInputGroup> FoundInputGroups = TiledMediaInputGroups.FilterByPredicate([&NodeId](const FDisplayClusterConfigurationMediaTiledInputGroup& TiledInputGroup)
 		{
-			OutInputTiles = TiledInputGroup.Tiles;
-			return true;
-		}
+			return TiledInputGroup.ClusterNodes.ItemNames.ContainsByPredicate([&NodeId](const FString& Item)
+				{
+					return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+				});
+		});
+
+	// Combine result out of the filtered groups
+	for (const FDisplayClusterConfigurationMediaTiledInputGroup& TiledInputGroup : FoundInputGroups)
+	{
+		OutTiles.Append(TiledInputGroup.Tiles);
 	}
 
 	return false;
 }
 
-/** Returns all tiles bound to a specific cluster node. */
-bool FDisplayClusterConfigurationMediaICVFX::GetMediaOutputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileOutput>& OutOutputTiles) const
+//@note: Tiled output, it's allowed to use the same node ID in different groups
+bool FDisplayClusterConfigurationMediaICVFX::GetMediaOutputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileOutput>& OutTiles) const
 {
-	// Here we iterate through tiled media output groups, and look for a group that contains a cluster node ID specified.
-	for (const FDisplayClusterConfigurationMediaTiledOutputGroup& TiledOutputGroup : TiledMediaOutputGroups)
+	if (SplitType != EDisplayClusterConfigurationMediaSplitType::UniformTiles)
 	{
-		// Look for NodeId in the group
-		const bool bFoundGroupWithNodeId = TiledOutputGroup.ClusterNodes.ItemNames.ContainsByPredicate([NodeId](const FString& Item)
-			{
-				return Item.Equals(NodeId, ESearchCase::IgnoreCase);
-			});
+		false;
+	}
 
-		// If found
-		if (bFoundGroupWithNodeId)
+	// Find all output groups bound to the node ID specified
+	const TArray<FDisplayClusterConfigurationMediaTiledOutputGroup> FoundOutputGroups = TiledMediaOutputGroups.FilterByPredicate([&NodeId](const FDisplayClusterConfigurationMediaTiledOutputGroup& TiledOutputGroup)
 		{
-			OutOutputTiles = TiledOutputGroup.Tiles;
-			return true;
-		}
+			return TiledOutputGroup.ClusterNodes.ItemNames.ContainsByPredicate([&NodeId](const FString& Item)
+				{
+					return Item.Equals(NodeId, ESearchCase::IgnoreCase);
+				});
+		});
+
+	// Combine result out of the filtered groups
+	for (const FDisplayClusterConfigurationMediaTiledOutputGroup& TiledOutputGroup : FoundOutputGroups)
+	{
+		OutTiles.Append(TiledOutputGroup.Tiles);
 	}
 
 	return false;

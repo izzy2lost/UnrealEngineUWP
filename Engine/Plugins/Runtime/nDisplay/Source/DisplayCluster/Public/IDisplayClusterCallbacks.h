@@ -5,10 +5,14 @@
 #include "DisplayClusterEnums.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
+#include "Delegates/DelegateCombinations.h"
+
+
 class FDisplayClusterShaderParameters_ICVFX;
 class FRDGBuilder;
 class FRHICommandListImmediate;
 class FSceneViewFamily;
+class FSceneViewFamilyContext;
 class FViewport;
 class IDisplayClusterViewport;
 class IDisplayClusterViewportProxy;
@@ -64,6 +68,10 @@ public:
 	/** Callback triggered when custom present handler was created **/
 	DECLARE_EVENT(IDisplayClusterCallbacks, FDisplayClusterCustomPresentSetEvent);
 	virtual FDisplayClusterCustomPresentSetEvent& OnDisplayClusterCustomPresentSet() = 0;
+
+	/** Callback triggered before submitting view families to render **/
+	DECLARE_EVENT_OneParam(IDisplayClusterCallbacks, FDisplayClusterPreSubmitViewFamilies, TArray<FSceneViewFamilyContext*>&);
+	virtual FDisplayClusterPreSubmitViewFamilies& OnDisplayClusterPreSubmitViewFamilies() = 0;
 
 	/** Called before presentation synchronization is initiated **/
 	DECLARE_EVENT(IDisplayClusterCallbacks, FDisplayClusterPresentationPreSynchronization_RHIThread);

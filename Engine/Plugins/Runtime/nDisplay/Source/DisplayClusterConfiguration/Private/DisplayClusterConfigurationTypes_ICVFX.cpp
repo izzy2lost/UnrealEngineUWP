@@ -209,7 +209,9 @@ bool FDisplayClusterConfigurationICVFX_CameraSettings::IsICVFXEnabled(const UDis
 	// If cluster mode + rendering offscreen, discover media output settings
 
 	// First condition to render offscreen: it has media output assigned
-	const bool bUsesMediaOutput = (RenderSettings.Media.bEnable && RenderSettings.Media.IsMediaOutputAssigned(InClusterNodeId));
+	const bool bUsesMediaOutput = RenderSettings.Media.bEnable && (
+			RenderSettings.Media.HasAnyMediaOutputAssigned(InClusterNodeId, EDisplayClusterConfigurationMediaSplitType::FullFrame) ||
+			RenderSettings.Media.HasAnyMediaOutputAssigned(InClusterNodeId, EDisplayClusterConfigurationMediaSplitType::UniformTiles));
 
 	// Get backbuffer media settings
 	const UDisplayClusterConfigurationClusterNode* const NodeCfg = InConfigurationData.Cluster->GetNode(InClusterNodeId);

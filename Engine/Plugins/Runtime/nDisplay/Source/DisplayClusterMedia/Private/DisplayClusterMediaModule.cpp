@@ -30,7 +30,7 @@ void FDisplayClusterMediaModule::StartupModule()
 {
 	UE_LOG(LogDisplayClusterMedia, Log, TEXT("Starting module 'DisplayClusterMedia'..."));
 
-	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterCustomPresentSet().AddRaw(this, &FDisplayClusterMediaModule::OnCustomPresentSet);
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().AddRaw(this, &FDisplayClusterMediaModule::OnPreSubmitViewFamilies);
 	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FDisplayClusterMediaModule::OnEnginePreExit);
 }
 
@@ -38,17 +38,17 @@ void FDisplayClusterMediaModule::ShutdownModule()
 {
 	UE_LOG(LogDisplayClusterMedia, Log, TEXT("Shutting down module 'DisplayClusterMedia'..."));
 
-	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterCustomPresentSet().RemoveAll(this);
+	// We should already be unsubscribed from it but do it in case the callback has never been called.
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().RemoveAll(this);
+
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
 }
 
-void FDisplayClusterMediaModule::OnCustomPresentSet()
+void FDisplayClusterMediaModule::OnPreSubmitViewFamilies(TArray<FSceneViewFamilyContext*>&)
 {
-	// We initialize and start media when backbuffer is available. This CustomPresentSet event is a
-	// sign that the backbuffer is already available. This allows us to prevent any potential problems
-	// if any of the following is used under the hood, or will be used in the future:
-	// - UMediaCapture::CaptureActiveSceneViewport
-	// - UMediaCapture::CaptureSceneViewport
+	// Unsubscribe after first call. Currently, media initialization is a one time procedure. No need to receive any further callbacks.
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().RemoveAll(this);
+
 	InitializeMedia();
 	StartCapture();
 	PlayMedia();

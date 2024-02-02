@@ -10,10 +10,12 @@
 class FDisplayClusterMediaCaptureNode;
 class FDisplayClusterMediaCaptureViewport;
 class FDisplayClusterMediaInputViewport;
+class FSceneViewFamilyContext;
 class IMediaPlayerFactory;
 class UDisplayClusterConfigurationClusterNode;
 class UDisplayClusterConfigurationViewport;
 class UDisplayClusterICVFXCameraComponent;
+
 
 /**
  * Media module
@@ -69,8 +71,8 @@ private:
 	void InitializeICVFXCameraUniformTilesOutput(const UDisplayClusterICVFXCameraComponent* ICVFXCameraComponent, const FString& RootActorName, const FString& ClusterNodeId);
 
 private:
-	/** CustomPresentSet event handler */
-	void OnCustomPresentSet();
+	/** PreSubmitViewFamilies event handler. It's used to initialize media on start. */
+	void OnPreSubmitViewFamilies(TArray<FSceneViewFamilyContext*>&);
 
 	/** EnginePreExit event handler */
 	void OnEnginePreExit();
