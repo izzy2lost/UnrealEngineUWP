@@ -259,7 +259,7 @@ TSharedRef<SWidget> SModularRigModelItem::GenerateWidgetForColumn(const FName& C
 		+SHorizontalBox::Slot()
 		.AutoWidth()
 		.Padding(6, 0, 0, 0)
-		.VAlign(VAlign_Center)
+		.VAlign(VAlign_Fill)
 		[
 			SNew(SExpanderArrow, SharedThis(this))
 			.IndentAmount(12)
