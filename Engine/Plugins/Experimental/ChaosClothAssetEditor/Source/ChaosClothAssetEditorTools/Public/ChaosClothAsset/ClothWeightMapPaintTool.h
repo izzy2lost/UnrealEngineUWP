@@ -163,7 +163,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Brush, meta = (UIMin = 0, ClampMin = 0, UIMax = 1, ClampMax = 1,
 		HideEditConditionToggle, EditConditionHides, EditCondition = 
 		"SubToolType == EClothEditorWeightMapPaintInteractionType::Brush || SubToolType == EClothEditorWeightMapPaintInteractionType::Fill"))
-	double Strength = 0.5;
+	double Strength = 1.0;
 
 	/** The Gradient upper limit value */
 	UPROPERTY(EditAnywhere, Category = Gradient, meta = (UIMin = 0, ClampMin = 0, UIMax = 1, ClampMax = 1,
@@ -381,6 +381,14 @@ protected:
 	virtual bool SharesBrushPropertiesChanges() const override { return false; }
 
 	virtual void InitializeBrushSizeRange(const UE::Geometry::FAxisAlignedBox3d& TargetBounds) override;
+
+	virtual void NextBrushModeAction() override;
+	virtual void PreviousBrushModeAction() override;
+
+	// Note: these will actually modify the brush's Attribute Value since we don't use Speed in our brush
+	virtual void IncreaseBrushSpeedAction() override;
+	virtual void DecreaseBrushSpeedAction() override;
+
 
 	// end UMeshSculptToolBase API
 
