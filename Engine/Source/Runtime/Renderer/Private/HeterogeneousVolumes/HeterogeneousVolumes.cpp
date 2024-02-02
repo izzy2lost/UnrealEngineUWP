@@ -196,6 +196,20 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesDepthSort(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesApplyHeightFog(
+	TEXT("r.HeterogeneousVolumes.HeightFog"),
+	1,
+	TEXT("Applies height fog to Heterogeneous Volumes (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesApplyVolumetricFog(
+	TEXT("r.HeterogeneousVolumes.VolumetricFog"),
+	1,
+	TEXT("Applies volumetric fog to Heterogeneous Volumes (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumeShadowsStat, TEXT("HeterogeneousVolumeShadows"));
 DECLARE_GPU_STAT_NAMED(HeterogeneousVolumesStat, TEXT("HeterogeneousVolumes"));
 
@@ -387,6 +401,16 @@ namespace HeterogeneousVolumes
 	bool UseIndirectLighting()
 	{
 		return CVarHeterogeneousVolumesIndirectLighting.GetValueOnRenderThread() != 0;
+	}
+
+	bool ShouldApplyHeightFog()
+	{
+		return CVarHeterogeneousVolumesApplyHeightFog.GetValueOnRenderThread() != 0;
+	}
+
+	bool ShouldApplyVolumetricFog()
+	{
+		return CVarHeterogeneousVolumesApplyVolumetricFog.GetValueOnRenderThread() != 0;
 	}
 
 	// Convenience Utils

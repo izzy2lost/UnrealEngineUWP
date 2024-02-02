@@ -76,6 +76,8 @@ namespace HeterogeneousVolumes
 	bool UseLightingCacheForInscattering();
 	bool UseLightingCacheForTransmittance();
 	bool UseAdaptiveVolumetricShadowMapForSelfShadowing();
+	bool ShouldApplyHeightFog();
+	bool ShouldApplyVolumetricFog();
 
 	bool EnableIndirectionGrid();
 	bool EnableLinearInterpolation();
@@ -121,6 +123,8 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FSparseVoxelUniformBufferParameters, )
 	SHADER_PARAMETER(float, StepFactor)
 	SHADER_PARAMETER(float, ShadowStepSize)
 	SHADER_PARAMETER(float, ShadowStepFactor)
+	SHADER_PARAMETER(int, bApplyHeightFog)
+	SHADER_PARAMETER(int, bApplyVolumetricFog)
 END_UNIFORM_BUFFER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLightingCacheParameters, )
