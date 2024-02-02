@@ -199,7 +199,7 @@ namespace UE::Learning::Observation
 		const int32 Index = Types.Add(EType::Set);
 		Names.Add(Name);
 		ObservationVectorSizes.Add(GetObservationVectorSize(Parameters.Element) * Parameters.MaxNum + Parameters.MaxNum);
-		EncodedVectorSizes.Add(Parameters.ValueEncodingSize * Parameters.AttentionHeadNum + Parameters.MaxNum);
+		EncodedVectorSizes.Add(Parameters.ValueEncodingSize * Parameters.AttentionHeadNum + 1);
 		TypeDataIndices.Add(SetData.Add(ElementData));
 
 		return { Index, Generation };

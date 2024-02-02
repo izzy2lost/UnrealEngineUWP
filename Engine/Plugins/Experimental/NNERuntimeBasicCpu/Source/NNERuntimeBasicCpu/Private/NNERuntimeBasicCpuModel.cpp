@@ -902,6 +902,19 @@ namespace UE::NNE::RuntimeBasic
 #endif
 		}
 
+		static inline void OperatorEncodeElementNums(
+			float* RESTRICT OutputBuffer,
+			const uint32* RESTRICT ElementNums,
+			const uint32 MaxElementNum,
+			const uint32 BatchSize,
+			const uint32 OutputStride)
+		{
+			for (uint32 BatchIdx = 0; BatchIdx < BatchSize; BatchIdx++)
+			{
+				OutputBuffer[BatchIdx * OutputStride] = (float)ElementNums[BatchIdx] / (float)MaxElementNum;
+			}
+		}
+
 		static inline void OperatorAggregateSoftmaxPlusOneInplace(
 			float* RESTRICT AttentionMaxs,
 			float* RESTRICT AttentionDenoms,
@@ -2573,7 +2586,7 @@ namespace UE::NNE::RuntimeBasic
 			virtual TSharedPtr<ILayerInstance> MakeInstance() const { return MakeShared<FAggregateSetLayerInstance>(*this); };
 			virtual ELayerType GetLayerType() const override final { return ELayerType::AggregateSet; }
 			virtual uint32 GetInputSize() const override final { return MaxElementNum * ElementInputSize + MaxElementNum; }
-			virtual uint32 GetOutputSize() const override final { return AttentionHeadNum * OutputEncodingSize + MaxElementNum; }
+			virtual uint32 GetOutputSize() const override final { return AttentionHeadNum * OutputEncodingSize + 1; }
 
 			virtual void SerializationSize(uint64& InOutOffset) const override final
 			{
@@ -2735,15 +2748,14 @@ namespace UE::NNE::RuntimeBasic
 					AttentionHeadNum,
 					OutputBufferStride);
 
-				// Append Element Mask
+				// Append Element Nums
 
-				OperatorCopy(
+				OperatorEncodeElementNums(
 					OutputBuffer + AttentionHeadNum * OutputEncodingSize,
-					InputBuffer + MaxElementNum * ElementInputSize,
-					BatchSize,
+					AggregateSetInstance->ElementNums.GetData(),
 					MaxElementNum,
-					OutputBufferStride,
-					InputBufferStride);
+					BatchSize,
+					OutputBufferStride);
 
 				OperatorNanCheck(OutputBuffer, BatchSize, OutputBufferSize, OutputBufferStride);
 			}
