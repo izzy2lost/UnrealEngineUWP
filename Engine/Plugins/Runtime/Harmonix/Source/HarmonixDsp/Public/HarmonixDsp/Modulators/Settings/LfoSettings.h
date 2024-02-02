@@ -106,8 +106,6 @@ struct FLfoSettingsArray
 {
 	GENERATED_BODY()
 
-	static constexpr int32 Num = 2;
-	
 	UPROPERTY()
-	FLfoSettings Array[Num];
+	FLfoSettings Array[2];
 };

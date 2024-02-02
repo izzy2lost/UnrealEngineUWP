@@ -151,8 +151,6 @@ struct FAdsrSettingsArray
 {
 	GENERATED_BODY()
 
-	static constexpr int32 Num = 2;
-
 	UPROPERTY()
-	FAdsrSettings Array[Num];
+	FAdsrSettings Array[2];
 };

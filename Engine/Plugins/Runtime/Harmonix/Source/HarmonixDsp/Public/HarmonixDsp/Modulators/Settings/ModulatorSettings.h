@@ -37,7 +37,6 @@ struct FModulatorSettingsArray
 {
 	GENERATED_BODY()
 
-	static constexpr int32 Num = 2;
 	UPROPERTY()
-	FModulatorSettings Array[Num];
+	FModulatorSettings Array[2];
 };
