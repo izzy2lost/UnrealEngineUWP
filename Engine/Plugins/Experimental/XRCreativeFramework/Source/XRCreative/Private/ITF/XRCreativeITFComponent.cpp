@@ -417,7 +417,7 @@ void UXRCreativeITFComponent::InitializeComponent()
 	{
 		auto InteractionActorCallback = [this](AActor* SelectionCandidate)
 			{
-				if (HaveActiveTool())
+				if (HaveActiveTool() || !PointerComponent->IsEnabled())
 				{
 					return false;
 				}
