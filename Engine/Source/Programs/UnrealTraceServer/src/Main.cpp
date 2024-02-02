@@ -41,9 +41,6 @@
 // Check for legacy lock files on Linux and Mac 
 #define TS_LEGACY_LOCK_FILE TS_ON
 
-// Frequency between sponsor lifetime checks
-constexpr uint32 GSponsorCheckFreqSecs = 5;
-
 // {{{1 misc -------------------------------------------------------------------
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -502,7 +499,7 @@ static bool LaunchUnelevated(const wchar_t* Binary, wchar_t* CommandLine)
 ////////////////////////////////////////////////////////////////////////////////
 static const wchar_t*	GIpcName					= L"Local\\UnrealTraceInstance";
 static const int32		GIpcSize					= 4 << 10;
-static const wchar_t*	GQuitEventName				= L"Local\\UnrealTraceEvent";
+const wchar_t*			GQuitEventName				= L"Local\\UnrealTraceEvent";
 static const wchar_t*	GBegunEventName				= L"Local\\UnrealTraceEventBegun";
 static int				MainDaemon(int, char**, const FOptions&);
 void					AddToSystemTray(FStoreService&);
@@ -862,9 +859,11 @@ static int MainDaemon(int ArgC, char** ArgV, const FOptions& Options)
 		TS_LOG("Error: Deamon is configured to run in sponsored mode, but no sponsor pid has been specified.");
 		return Result_InvalidArgError;
 	}
+	InstanceInfo->AddSponsor(ParentPid);
 
 	// Fire up the store
-	FStoreService* StoreService = FStoreService::Create(Settings);
+	FStoreService* StoreService = FStoreService::Create(Settings, InstanceInfo);
+	OnScopeExit([StoreService]() { delete StoreService; });
 
 	// Let every one know we've started.
 	{
@@ -880,27 +879,10 @@ static int MainDaemon(int ArgC, char** ArgV, const FOptions& Options)
 	AddToSystemTray(*StoreService);
 
 	// Wait to be told to resign.
-	FLifetime LifetimeManager(StoreService);
-	LifetimeManager.AddPid(ParentPid);
-
-	while (true)
-	{
-		DWORD Result = WaitForSingleObject(QuitEvent, GSponsorCheckFreqSecs * 1000);
-		if (Result != WAIT_TIMEOUT)
-		{
-			break;
-		}
-		LifetimeManager.CheckNewSponsors(InstanceInfo);
-		if (!LifetimeManager.ShouldKeepAlive() && Settings->Sponsored)
-		{
-			TS_LOG("Terminating server, no sponsors or connections active.");
-			break;
-		}
-	}
+	WaitForSingleObject(QuitEvent, INFINITE);
 
 	// Clean up. We are done here.
 	RemoveFromSystemTray();
-	delete StoreService;
 
 	TS_LOG("Daemon is exiting without errors.");
 	return Result_Ok;
@@ -1239,30 +1221,6 @@ static int MainFork(int ArgC, char** ArgV, const FOptions& Options)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-static struct FCheckSponsorData {
-	FLifetime* LifetimeManager;
-	FStoreSettings* Settings;
-	FInstanceInfo* InstanceInfo;
-} GCheckSponsorData;
-
-void* CheckSponsors(void* Payload) 
-{
-	FCheckSponsorData* Data = (FCheckSponsorData*) Payload;
-	while(true)
-	{
-		Data->LifetimeManager->CheckNewSponsors(Data->InstanceInfo);
-		if (!Data->LifetimeManager->ShouldKeepAlive() && Data->Settings->Sponsored)
-		{
-			TS_LOG("Terminating server, no sponsors or connections active.");
-			break;
-		}
-		timespec Frequency = { GSponsorCheckFreqSecs, 0 };
-		nanosleep(&Frequency, nullptr);
-	}
-	raise(SIGUSR2);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 static int MainDaemonImpl(int ArgC, char** ArgV, pid_t ParentPid, const FOptions& Options)
 {
 	TS_LOG("Opening shared memory");
@@ -1337,8 +1295,11 @@ static int MainDaemonImpl(int ArgC, char** ArgV, pid_t ParentPid, const FOptions
 		TS_LOG("Error: Deamon is configured to run in sponsored mode, but no sponsor pid has been specified.");
 		return Result_InvalidArgError;
 	}
+	// Add given sponsor pid regardless, in case we suddenly enable
+	// sponsor mode 
+	InstanceInfo->AddSponsor(SponsorPid);
 
-	StoreService = FStoreService::Create(Settings);
+	StoreService = FStoreService::Create(Settings, InstanceInfo);
 	OnScopeExit([StoreService] () { delete StoreService; });
 
 	// Fill out the shared memory with details about this instance
@@ -1376,21 +1337,6 @@ static int MainDaemonImpl(int ArgC, char** ArgV, pid_t ParentPid, const FOptions
 	sigaddset(&SignalSet, SIGTERM);
 	sigaddset(&SignalSet, SIGKILL);
 	sigaddset(&SignalSet, SIGINT);
-	sigaddset(&SignalSet, SIGUSR2);
-
-	// Create the lifetime maneger that tracks the sponsor
-	// processes.
-	FLifetime LifetimeManager(StoreService);
-	LifetimeManager.AddPid(SponsorPid);
-
-	// Thread to check lifetime of sponsors
-	pthread_t LifetimeThread;
-	GCheckSponsorData.LifetimeManager = &LifetimeManager;
-	GCheckSponsorData.Settings = Settings;
-	GCheckSponsorData.InstanceInfo = InstanceInfo;
-	OnScopeExit([&LifetimeThread]() { pthread_cancel(LifetimeThread); });
-
-	pthread_create(&LifetimeThread, NULL, CheckSponsors, (void*)&GCheckSponsorData);
 
 	while (true)
 	{

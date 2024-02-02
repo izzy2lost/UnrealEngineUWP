@@ -4,25 +4,61 @@
 #include "InstanceInfo.h"
 #include "Logging.h"
 #include "StoreService.h"
+#include "StoreSettings.h"
 
 #if TS_USING(TS_PLATFORM_LINUX) || TS_USING(TS_PLATFORM_MAC)
 #include <signal.h>
 #endif
 
+#if TS_USING(TS_PLATFORM_WINDOWS)
+static HANDLE GQuitEvent = NULL;
+extern const wchar_t* GQuitEventName;
+#endif
+
+constexpr uint32 GSponsorCheckFreqSecs = 5;
+
 ////////////////////////////////////////////////////////////////////////////////
-FLifetime::FLifetime(class FStoreService* InStoreService)
-	: StoreService(InStoreService)
+FLifetime::FLifetime(asio::io_context& IoContext, 
+					 FStoreService* InStoreService, 
+					 FStoreSettings* InSettings, 
+					 FInstanceInfo* InInstanceInfo)
+	: FAsioTickable(IoContext)
+	, StoreService(InStoreService)
+	, Settings(InSettings)
+	, InstanceInfo(InInstanceInfo)
 {
-	check(StoreService && InstanceInfo);
+	check(StoreService);
+	check(InstanceInfo);
+	check(Settings);
+
+#if TS_USING(TS_PLATFORM_WINDOWS)
+	GQuitEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, GQuitEventName);
+	check(GQuitEvent != NULL);
+#endif
+
+	StartTick(GSponsorCheckFreqSecs * 1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-bool FLifetime::ShouldKeepAlive()
+void FLifetime::OnTick()
 {
-	// Check if all sponsors are alive. If no sponsors are alive try to shutdown
-	// the store if it has no active connections. 
-	const bool bShouldKeepAlive = IsAnySponsorActive() || !ShutdownStoreIfNoConnections();
-	return bShouldKeepAlive;
+	CheckNewSponsors(InstanceInfo);
+	// We need to call IsAnySponsorsActive regularly even if sponsored mode is not 
+	// activated. This is because otherwise the SponsorHandles array would build 
+	// up indefinetly and the risk of reuse of pid increase.
+	if (!IsAnySponsorActive() && Settings->Sponsored)
+	{
+		if (ShutdownStoreIfNoConnections())
+		{
+			TS_LOG("Terminating server, no sponsors or connections active.");
+#if TS_USING(TS_PLATFORM_WINDOWS)
+			SetEvent(GQuitEvent);
+#else
+			kill(getpid(), SIGTERM);
+#endif
+			StopTick();
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

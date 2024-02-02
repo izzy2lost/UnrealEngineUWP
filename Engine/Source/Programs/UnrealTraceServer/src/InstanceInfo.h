@@ -18,6 +18,8 @@ public:
 	void				Set();
 	void				WaitForReady() const;
 	bool				IsOlder() const;
+	bool				AddSponsor(uint32 Pid);
+
 	std::atomic<uint32> Published;
 	uint32				Version;
 	uint32				Pid;
