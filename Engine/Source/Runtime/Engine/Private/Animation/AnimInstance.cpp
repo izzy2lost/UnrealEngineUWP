@@ -1759,6 +1759,14 @@ void UAnimInstance::GetAllCurveNames(TArray<FName>& OutNames) const
 	GetActiveCurveNames(EAnimCurveType::AttributeCurve, OutNames);
 }
 
+void UAnimInstance::OverrideCurveValue(FName CurveName, float Value)
+{
+	FAnimInstanceProxy& Proxy = GetProxyOnAnyThread<FAnimInstanceProxy>();
+
+	TMap<FName, float>& AnimationCurves = Proxy.GetAnimationCurves(EAnimCurveType::AttributeCurve);
+	AnimationCurves.FindOrAdd(CurveName) = Value;
+}
+
 void UAnimInstance::SetRootMotionMode(TEnumAsByte<ERootMotionMode::Type> Value)
 {
 	RootMotionMode = Value;
