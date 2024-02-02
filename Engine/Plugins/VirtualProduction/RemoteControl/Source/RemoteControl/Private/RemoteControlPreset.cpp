@@ -56,6 +56,7 @@ namespace
 	FName NAME_DefaultLayoutGroup = FName("All");
 	FName NAME_DefaultNewGroup = FName("New Group");
 	const FString DefaultObjectPrefix = TEXT("Default__");
+	bool bAllowPresetGuidRenewal = true; 
 
 	UClass* FindCommonBase(const TArray<UObject*>& ObjectsToTest)
 	{
@@ -178,6 +179,17 @@ FRemoteControlPresetExposeArgs::FRemoteControlPresetExposeArgs(FString InLabel, 
 	, GroupId(MoveTemp(InGroupId))
 	, bEnableEditCondition(bEnableEditCondition)
 {
+}
+
+FRCPresetGuidRenewGuard::FRCPresetGuidRenewGuard()
+{
+	bPreviousValue = bAllowPresetGuidRenewal;
+	bAllowPresetGuidRenewal = false;
+}
+
+FRCPresetGuidRenewGuard::~FRCPresetGuidRenewGuard()
+{
+	bAllowPresetGuidRenewal = bPreviousValue;
 }
 
 const TArray<FGuid>& FRemoteControlPresetGroup::GetFields() const
@@ -710,7 +722,7 @@ void URemoteControlPreset::PostLoad()
 void URemoteControlPreset::PostDuplicate(bool bDuplicateForPIE)
 {
 	Super::PostDuplicate(bDuplicateForPIE);
-	if (!bDuplicateForPIE)
+	if (!bDuplicateForPIE && bAllowPresetGuidRenewal)
 	{
 		PresetId = FGuid::NewGuid();
 
