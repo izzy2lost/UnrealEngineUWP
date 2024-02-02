@@ -44,6 +44,7 @@
 #include "Misc/DisplayClusterGlobals.h"
 
 #include "IDisplayCluster.h"
+#include "IDisplayClusterCallbacks.h"
 #include "Game/IDisplayClusterGameManager.h"
 
 #include "Render/Viewport/IDisplayClusterViewportManager.h"
@@ -854,6 +855,9 @@ void UDisplayClusterViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCa
 			}
 		}
 	}
+
+	// Trigger PreSubmitViewFamilies event before submitting to render
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPreSubmitViewFamilies().Broadcast(ViewFamilies);
 
 	// We gathered all the view families, now render them
 	if (!ViewFamilies.IsEmpty())

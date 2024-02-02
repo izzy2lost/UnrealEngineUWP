@@ -57,6 +57,11 @@ public:
 		return DisplayClusterEndSceneEvent;
 	}
 
+	virtual FDisplayClusterPreSubmitViewFamilies& OnDisplayClusterPreSubmitViewFamilies() override
+	{
+		return DisplayClusterPreSubmitViewFamiliesEvent;
+	}
+
 	virtual FDisplayClusterCustomPresentSetEvent& OnDisplayClusterCustomPresentSet() override
 	{
 		return DisplayClusterCustomPresentSetEvent;
@@ -152,6 +157,7 @@ private:
 	FDisplayClusterPostTickEvent             DisplayClusterPostTickEvent;
 	FDisplayClusterStartSceneEvent           DisplayClusterStartSceneEvent;
 	FDisplayClusterEndSceneEvent             DisplayClusterEndSceneEvent;
+	FDisplayClusterPreSubmitViewFamilies     DisplayClusterPreSubmitViewFamiliesEvent;
 	FDisplayClusterCustomPresentSetEvent     DisplayClusterCustomPresentSetEvent;
 	FDisplayClusterFailoverNodeDown          DisplayClusterFailoverNodeDown;
 

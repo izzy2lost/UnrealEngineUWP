@@ -300,47 +300,60 @@ public:
 	bool bLateOCIOPass = false;
 
 public:
-	/** Returns true if a specific cluster node has media source assigned */
-	bool IsMediaInputAssigned(const FString& NodeId) const;
 
-	/** Returns true if a specific cluster node has media source assigned */
-	bool IsMediaOutputAssigned(const FString& NodeId) const;
+	/** Returns true if any media source of specified split-type is bound */
+	bool HasAnyMediaInputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType SplitType) const;
 
-	/** Returns media source bound to a specific cluster node */
+	/** Returns true if any media output of specified split-type is bound */
+	bool HasAnyMediaOutputAssigned(const FString& NodeId, EDisplayClusterConfigurationMediaSplitType SplitType) const;
+
+	/** [FullFrame] Returns media source bound to a specific cluster node if configured for full-frame media */
 	UMediaSource* GetMediaSource(const FString& NodeId) const;
 
-	/** Returns media outputs bound to a specific cluster node */
+	/** [FullFrame] Returns media outputs bound to a specific cluster node if configured for full-frame media */
 	TArray<FDisplayClusterConfigurationMediaOutputGroup> GetMediaOutputGroups(const FString& NodeId) const;
 
-	/** Returns all the tiles bound to a specific cluster node. */
-	bool GetMediaInputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileInput>& OutInputTiles) const;
+	/** [UniformTiles] Returns all the tiles bound to a specific cluster node. */
+	bool GetMediaInputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileInput>& OutTiles) const;
 
-	/** Returns all the tiles bound to a specific cluster node. */
-	bool GetMediaOutputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileOutput>& OutOutputTiles) const;
+	/** [UniformTiles] Returns all the tiles bound to a specific cluster node. */
+	bool GetMediaOutputTiles(const FString& NodeId, TArray<FDisplayClusterConfigurationMediaUniformTileOutput>& OutTiles) const;
 
 public:
-	UE_DEPRECATED(5.3, "This function has beend deprecated. Please use GetMediaOutputGroups.")
+	UE_DEPRECATED(5.3, "This function has been deprecated. Please use GetMediaOutputGroups.")
 	TArray<UMediaOutput*> GetMediaOutputs(const FString& NodeId) const
 	{
 		return {};
 	}
 
-	UE_DEPRECATED(5.3, "This function has beend deprecated. Please use GetMediaOutputGroups.")
+	UE_DEPRECATED(5.3, "This function has been deprecated. Please use GetMediaOutputGroups.")
 	UDisplayClusterMediaOutputSynchronizationPolicy* GetOutputSyncPolicy(const FString& NodeId) const
 	{
 		return nullptr;
 	}
 
-	UE_DEPRECATED(5.3, "This function has beend deprecated. Please use GetMediaOutputGroups.")
+	UE_DEPRECATED(5.3, "This function has been deprecated. Please use GetMediaOutputGroups.")
 	UMediaOutput* GetMediaOutput(const FString& NodeId) const
 	{
 		return nullptr;
 	}
 
-	UE_DEPRECATED(5.2, "This function has beend deprecated.")
+	UE_DEPRECATED(5.2, "This function has been deprecated.")
 	bool IsMediaSharingNode(const FString& InNodeId) const
 	{
 		return false;
+	}
+
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please use `HasAnyMediaInputAssigned`.")
+	bool IsMediaInputAssigned(const FString& NodeId) const
+	{
+		return HasAnyMediaInputAssigned(NodeId, EDisplayClusterConfigurationMediaSplitType::FullFrame);
+	}
+
+	UE_DEPRECATED(5.4, "This function has been deprecated. Please use `HasAnyMediaOutputAssigned`.")
+	bool IsMediaOutputAssigned(const FString& NodeId) const
+	{
+		return HasAnyMediaOutputAssigned(NodeId, EDisplayClusterConfigurationMediaSplitType::FullFrame);
 	}
 };
 

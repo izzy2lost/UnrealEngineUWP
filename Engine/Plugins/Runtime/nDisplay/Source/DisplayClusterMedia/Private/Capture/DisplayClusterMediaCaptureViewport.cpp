@@ -6,6 +6,7 @@
 #include "IDisplayClusterCallbacks.h"
 
 #include "DisplayClusterConfigurationTypes_Viewport.h"
+#include "DisplayClusterMediaLog.h"
 
 #include "Config/IDisplayClusterConfigManager.h"
 
@@ -82,11 +83,14 @@ FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const
 				if (Contexts.Num() > 0)
 				{
 					const FIntPoint Size = Contexts[0].RenderTargetRect.Size();
+					UE_LOG(LogDisplayClusterMedia, Log, TEXT("'%s' capture size is [%d, %d]"), *GetMediaId(), Size.X, Size.Y);
 					return Size;
 				}
 			}
 		}
 	}
+
+	UE_LOG(LogDisplayClusterMedia, Warning, TEXT("'%s' couldn't get viewport size"), *GetMediaId());
 
 	return FIntPoint();
 }
