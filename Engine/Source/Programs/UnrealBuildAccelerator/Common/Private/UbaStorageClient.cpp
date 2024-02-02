@@ -481,6 +481,7 @@ namespace uba
 				bool sendSegmentMessage = responseSize == 0;
 				u64 leftUncompressed = actualSize;
 				readBuffer += sizeof(u64); // Size is stored first
+				u64 maxReadSize = BufferSlotHalfSize - sizeof(u64);
 
 				if (actualSize)
 				{
@@ -501,7 +502,7 @@ namespace uba
 							{
 								if (fetchId == u16(~0))
 									return m_logger.Error(TC("Cas content error (2). Server believes %s was only one segment but client sees more. UncompressedSize: %llu LeftUncompressed: %llu Size: %llu Left to read: %llu ResponseSize: %u. (%s)"), hint, actualSize, leftUncompressed, fileSize, left, responseSize, casFile.data);
-								if (!SendBatchMessages(*client, fetchId, readPosition, BufferSlotHalfSize - u32(readPosition - readBuffer), leftCompressed, sizeOfFirstMessage, readIndex, responseSize))
+								if (!SendBatchMessages(*client, fetchId, readPosition, maxReadSize - u32(readPosition - readBuffer), leftCompressed, sizeOfFirstMessage, readIndex, responseSize))
 								{
 									if (proxy)
 									{
