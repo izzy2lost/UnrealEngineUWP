@@ -151,3 +151,34 @@ struct AUDIOWIDGETS_API FAudioMaterialKnobStyle : public FAudioMaterialStyle
 	FLinearColor KnobBarFillTintColor;		
 	
 };
+
+/**
+ *Represents the appearance of an Audio Material Meter
+ */
+USTRUCT(BlueprintType)
+struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialStyle
+{
+	GENERATED_USTRUCT_BODY()
+
+	FAudioMaterialMeterStyle();
+	virtual ~FAudioMaterialMeterStyle();
+
+	// FSlateWidgetStyle
+	virtual void GetResources(TArray<const FSlateBrush*>& OutBrushes) const override;
+	static const FName TypeName;
+	virtual const FName GetTypeName() const override { return TypeName; };
+	static const FAudioMaterialMeterStyle& GetDefault();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor MeterFillMinColor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor MeterFillMidColor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor MeterFillMaxColor;	
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor MeterOffFillColor;
+	
+};
