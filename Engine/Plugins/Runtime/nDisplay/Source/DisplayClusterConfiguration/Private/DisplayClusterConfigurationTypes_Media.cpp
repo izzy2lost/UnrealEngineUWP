@@ -188,7 +188,7 @@ bool FDisplayClusterConfigurationMediaICVFX::GetMediaOutputTiles(const FString& 
 {
 	if (SplitType != EDisplayClusterConfigurationMediaSplitType::UniformTiles)
 	{
-		false;
+		return false;
 	}
 
 	// Find all output groups bound to the node ID specified
