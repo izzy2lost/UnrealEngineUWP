@@ -5,10 +5,8 @@
 #include "DetailLayoutBuilder.h"
 #include "Editor.h"
 #include "PropertyCustomizationHelpers.h"
-#include "Widgets/Images/SImage.h"
-#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
-#include "Widgets/SBoxPanel.h"
+#include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SAvaTagCollectionPicker"
@@ -21,39 +19,17 @@ void SAvaTagCollectionPicker::Construct(const FArguments& InArgs, const TSharedR
 
 	ChildSlot
 	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(1)
+		SAssignNew(TagCollectionPickerButton, SComboButton)
+		.OnGetMenuContent(this, &SAvaTagCollectionPicker::MakeTagCollectionPicker)
+		.OnMenuOpenChanged(this, &SAvaTagCollectionPicker::OnTagCollectionMenuOpenChanged)
+		.ContentPadding(FMargin(6, -1, 0, -1))
+		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+		.ButtonContent()
 		[
-			SAssignNew(TagCollectionPickerButton, SComboButton)
-			.OnGetMenuContent(this, &SAvaTagCollectionPicker::MakeTagCollectionPicker)
-			.OnMenuOpenChanged(this, &SAvaTagCollectionPicker::OnTagCollectionMenuOpenChanged)
-			.ContentPadding(FMargin(6, -1, 0, -1))
-			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-			.ButtonContent()
-			[
-				SNew(STextBlock)
-				.Text(this, &SAvaTagCollectionPicker::GetTagCollectionTitleText)
-				.ToolTipText(this, &SAvaTagCollectionPicker::GetTagCollectionTooltipText)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-			]
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SButton)
-			.OnClicked(this, &SAvaTagCollectionPicker::FindInContentBrowser)
-			.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-			.ToolTipText(LOCTEXT("FindInContentBrowserTooltip", "Browse to this tag collection in the Content Browser"))
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Center)
-			.DesiredSizeScale(0.75f)
-			[
-				SNew(SImage)
-				.Image(FSlateIcon(FAppStyle::GetAppStyleSetName(), "SystemWideCommands.FindInContentBrowser").GetIcon())
-			]
+			SNew(STextBlock)
+			.Text(this, &SAvaTagCollectionPicker::GetTagCollectionTitleText)
+			.ToolTipText(this, &SAvaTagCollectionPicker::GetTagCollectionTooltipText)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
 		]
 	];
 }
@@ -66,25 +42,6 @@ bool SAvaTagCollectionPicker::IsOpen() const
 void SAvaTagCollectionPicker::SetIsOpen(bool bInIsOpen)
 {
 	TagCollectionPickerButton->SetIsOpen(bInIsOpen);
-}
-
-FReply SAvaTagCollectionPicker::FindInContentBrowser()
-{
-	if (!GEditor)
-	{
-		return FReply::Unhandled();
-	}
-
-	FAssetData AssetData;
-	TagCollectionPropertyHandle->GetValue(AssetData);
-
-	if (AssetData.IsValid())
-	{
-		GEditor->SyncBrowserToObject(AssetData);
-		return FReply::Handled();
-	}
-
-	return FReply::Unhandled();
 }
 
 FText SAvaTagCollectionPicker::GetTagCollectionTitleText() const
@@ -170,6 +127,5 @@ void SAvaTagCollectionPicker::CloseTagCollectionPicker()
 {
 	TagCollectionPickerButton->SetIsOpen(false);
 }
-
 
 #undef LOCTEXT_NAMESPACE

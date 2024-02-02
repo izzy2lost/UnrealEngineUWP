@@ -6,10 +6,15 @@
 #include "AvaTagEditorStyle.h"
 #include "AvaTagHandle.h"
 #include "DetailLayoutBuilder.h"
+#include "Menu/AvaTagCollectionPickerContextMenu.h"
 #include "SAvaTagCollectionPicker.h"
 #include "SAvaTagHandleEntry.h"
+#include "Styling/ToolBarStyle.h"
 #include "TagCustomizers/IAvaTagHandleCustomizer.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SMenuAnchor.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SListView.h"
@@ -23,9 +28,10 @@ void SAvaTagPicker::Construct(const FArguments& InArgs, const TSharedRef<IProper
 
 	TagCustomizer = InTagCustomizer;
 
-	TSharedPtr<IPropertyHandle> TagCollectionPropertyHandle = InTagCustomizer->GetTagCollectionHandle(InStructPropertyHandle);
-
+	TagCollectionPropertyHandle = InTagCustomizer->GetTagCollectionHandle(InStructPropertyHandle);
 	check(TagCollectionPropertyHandle.IsValid());
+
+	const FToolBarStyle& SlimToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
 
 	// Selection Mode set to single, yet preventing Items to be selected via OnIsSelectableOrNavigable, so that hover cue appears
 	TagListView = SNew(SListView<TSharedPtr<FAvaTagHandle>>)
@@ -41,35 +47,60 @@ void SAvaTagPicker::Construct(const FArguments& InArgs, const TSharedRef<IProper
 
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0)
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Center)
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.f)
 		[
-			SAssignNew(TagCollectionPicker, SAvaTagCollectionPicker, TagCollectionPropertyHandle.ToSharedRef())
-			.OnTagCollectionChanged(this, &SAvaTagPicker::OnTagCollectionChanged)
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0)
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Center)
-		[
-			SAssignNew(TagComboButton, SComboButton)
-			.HasDownArrow(true)
-			.ContentPadding(FMargin(0, -1))
-			.OnMenuOpenChanged(this, &SAvaTagPicker::OnTagMenuOpenChanged)
-			.MenuContent()
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
 			[
-				TagListView.ToSharedRef()
+				SAssignNew(TagCollectionPicker, SAvaTagCollectionPicker, TagCollectionPropertyHandle.ToSharedRef())
+				.OnTagCollectionChanged(this, &SAvaTagPicker::OnTagCollectionChanged)
 			]
-			.ButtonContent()
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(0)
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Center)
 			[
-				SNew(STextBlock)
-				.Text(this, &SAvaTagPicker::GetValueDisplayText)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
+				SAssignNew(TagComboButton, SComboButton)
+				.HasDownArrow(true)
+				.ContentPadding(FMargin(0, -1))
+				.OnMenuOpenChanged(this, &SAvaTagPicker::OnTagMenuOpenChanged)
+				.MenuContent()
+				[
+					TagListView.ToSharedRef()
+				]
+				.ButtonContent()
+				[
+					SNew(STextBlock)
+					.Text(this, &SAvaTagPicker::GetValueDisplayText)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SAssignNew(TagCollectionOptions, SMenuAnchor)
+			.Content()
+			[
+				SNew(SButton)
+				.OnClicked(this, &SAvaTagPicker::OpenContextMenu)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ToolTipText(LOCTEXT("TagCollectionOptionsToolTip", "Tag Collection Options"))
+				.ContentPadding(FMargin(4, 6))
+				[
+					SNew(SImage)
+					.Image(&SlimToolbarStyle.SettingsComboButton.DownArrowImage)
+					.ColorAndOpacity(FSlateColor::UseForeground())
+				]
 			]
 		]
 	];
@@ -83,6 +114,25 @@ void SAvaTagPicker::Tick(const FGeometry& InGeometry, const double InCurrentTime
 		TagCollectionPicker->SetIsOpen(true);
 		bRequestOpenTagCollectionPicker = false;
 	}
+}
+
+FReply SAvaTagPicker::OnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		return OpenContextMenu();
+	}
+	return FReply::Unhandled();
+}
+
+FReply SAvaTagPicker::OpenContextMenu()
+{
+	if (!TagCollectionOptions->IsOpen())
+	{
+		TagCollectionOptions->SetMenuContent(FAvaTagCollectionPickerContextMenu::Get().GenerateContextMenuWidget(TagCollectionPropertyHandle));
+		TagCollectionOptions->SetIsOpen(true);
+	}
+	return FReply::Handled();
 }
 
 const UAvaTagCollection* SAvaTagPicker::GetOrLoadTagCollection() const
