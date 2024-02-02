@@ -15,7 +15,18 @@ TConstraint* FConstraintsManagerController::AllocateConstraintT(const FName& InB
 		return nullptr;
 	}
 	// unique name (we may want to use another approach here to manage uniqueness)
-	const FName Name = MakeUniqueObjectName(Subsystem, TConstraint::StaticClass(), InBaseName);
+	FName Name = MakeUniqueObjectName(Subsystem, TConstraint::StaticClass(), InBaseName);
+
+	// ensure that the constraint isn't already registered in the ConstraintManager
+	const TArray<TWeakObjectPtr<UTickableConstraint>>& Constraints = Subsystem->GetConstraints(World);
+	const bool bNameFound = Constraints.ContainsByPredicate([Name](const TWeakObjectPtr<UTickableConstraint>& Constraint)
+	{
+		return Constraint.IsValid() && Constraint->GetFName() == Name;
+	});
+	if (bNameFound)
+	{
+		Name = MakeUniqueObjectName(Subsystem, TConstraint::StaticClass(), InBaseName, EUniqueObjectNameOptions::GloballyUnique);
+	}
 
 	TConstraint* NewConstraint = NewObject<TConstraint>(Subsystem, Name, RF_Transactional, bUseDefault ? GetMutableDefault<TConstraint>() : nullptr, bUseDefault);
 	NewConstraint->Modify();

@@ -500,12 +500,13 @@ UTickableConstraint* FConstraintsManagerController::AddConstraintFromCopy(UTicka
 
 int32 FConstraintsManagerController::GetConstraintIndex(const FGuid& InGuid) const
 {
-	UConstraintSubsystem* Subsystem = UConstraintSubsystem::Get();
+	const UConstraintSubsystem* Subsystem = UConstraintSubsystem::Get();
 	if (!Subsystem)
 	{
 		return INDEX_NONE;
 	}
-	TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
+
+	const TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
 	return Constraints.IndexOfByPredicate([InGuid](const TWeakObjectPtr<UTickableConstraint>& Constraint)
 		{
 			return 	(Constraint.IsValid() && Constraint->ConstraintID == InGuid);
@@ -514,12 +515,13 @@ int32 FConstraintsManagerController::GetConstraintIndex(const FGuid& InGuid) con
 
 int32 FConstraintsManagerController::GetConstraintIndex(const FName& InConstraintName) const
 {
-	UConstraintSubsystem* Subsystem = UConstraintSubsystem::Get();
+	const UConstraintSubsystem* Subsystem = UConstraintSubsystem::Get();
 	if (!Subsystem)
 	{
 		return INDEX_NONE;
 	}
-	TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
+
+	const TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
 	return Constraints.IndexOfByPredicate([InConstraintName](const TWeakObjectPtr<UTickableConstraint>& Constraint)
 	{
 		return 	(Constraint.IsValid() && Constraint->GetFName() == InConstraintName);
@@ -681,7 +683,7 @@ void FConstraintsManagerController::SetConstraintsDependencies(
 	{
 		return;
 	}
-	TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
+	const TArray<TWeakObjectPtr<UTickableConstraint>> Constraints = Subsystem->GetConstraints(World);
 
 	const int32 IndexBefore = GetConstraintIndex(InNameToTickBefore);
 	const int32 IndexAfter = GetConstraintIndex(InNameToTickAfter);
@@ -693,7 +695,42 @@ void FConstraintsManagerController::SetConstraintsDependencies(
 	FConstraintTickFunction& FunctionToTickBefore = Constraints[IndexBefore]->GetTickFunction(World);
 	FConstraintTickFunction& FunctionToTickAfter = Constraints[IndexAfter]->GetTickFunction(World);
 
-	Subsystem->SetConstraintDependencies( &FunctionToTickBefore, &FunctionToTickAfter);
+	Subsystem->SetConstraintDependencies(&FunctionToTickBefore, &FunctionToTickAfter);
+}
+
+void FConstraintsManagerController::SetConstraintsDependencies(const struct FGuid& InGuidToTickBefore, const struct FGuid& InGuidToTickAfter) const
+{
+	if (!InGuidToTickBefore.IsValid() || !InGuidToTickAfter.IsValid() || InGuidToTickBefore == InGuidToTickAfter)
+	{
+		return;
+	}
+
+	UConstraintSubsystem* Subsystem = UConstraintSubsystem::Get();
+	if (!Subsystem)
+	{
+		return;
+	}
+
+	const TArray<TWeakObjectPtr<UTickableConstraint>>& Constraints = Subsystem->GetConstraintsArray(World);
+	const int32 IndexBefore = Constraints.IndexOfByPredicate([InGuidToTickBefore](const TWeakObjectPtr<UTickableConstraint>& Constraint)
+	{
+		return Constraint.IsValid() && Constraint->ConstraintID == InGuidToTickBefore;
+	});
+	
+	const int32 IndexAfter = Constraints.IndexOfByPredicate([InGuidToTickAfter](const TWeakObjectPtr<UTickableConstraint>& Constraint)
+	{
+		return Constraint.IsValid() && Constraint->ConstraintID == InGuidToTickAfter;
+	});
+	
+	if (IndexBefore == INDEX_NONE || IndexAfter == INDEX_NONE || IndexAfter == IndexBefore)
+	{
+		return;
+	}
+	
+	FConstraintTickFunction& FunctionToTickBefore = Constraints[IndexBefore]->GetTickFunction(World);
+	FConstraintTickFunction& FunctionToTickAfter = Constraints[IndexAfter]->GetTickFunction(World);
+
+	Subsystem->SetConstraintDependencies(&FunctionToTickBefore, &FunctionToTickAfter);
 }
 
 const TArray< TWeakObjectPtr<UTickableConstraint> >& FConstraintsManagerController::GetConstraintsArray() const
