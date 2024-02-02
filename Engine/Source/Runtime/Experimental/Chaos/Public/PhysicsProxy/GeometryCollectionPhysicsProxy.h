@@ -233,6 +233,7 @@ public:
 	CHAOS_API void SyncBeforeDestroy();
 	CHAOS_API void OnRemoveFromSolver(Chaos::FPBDRigidsSolver *RBDSolver);
 	CHAOS_API void OnRemoveFromScene();
+	CHAOS_API void OnUnregisteredFromSolver();
 
 	void SetCollisionParticlesPerObjectFraction(float CollisionParticlesPerObjectFractionIn) 
 	{CollisionParticlesPerObjectFraction = CollisionParticlesPerObjectFractionIn;}
