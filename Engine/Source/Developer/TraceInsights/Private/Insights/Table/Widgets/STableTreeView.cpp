@@ -494,6 +494,13 @@ TSharedPtr<SWidget> STableTreeView::TreeView_GetMenuContent()
 	const bool bShouldCloseWindowAfterMenuSelection = true;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList.ToSharedRef());
 
+	MenuBuilder.SetExtendersEnabled(true);
+
+	TSharedRef<FExtender> Extender = MakeShared<FExtender>();
+	MenuBuilder.PushExtender(Extender);
+
+	ExtendMenu(Extender);
+
 	// Selection menu
 	MenuBuilder.BeginSection("Selection", LOCTEXT("ContextMenu_Section_Selection", "Selection"));
 	{
@@ -551,8 +558,6 @@ TSharedPtr<SWidget> STableTreeView::TreeView_GetMenuContent()
 
 	MenuBuilder.EndSection();
 
-	ExtendMenu(MenuBuilder);
-
 	MenuBuilder.BeginSection("Misc", LOCTEXT("ContextMenu_Section_Misc", "Miscellaneous"));
 	{
 		MenuBuilder.AddMenuEntry
@@ -592,6 +597,10 @@ TSharedPtr<SWidget> STableTreeView::TreeView_GetMenuContent()
 		);
 	}
 	MenuBuilder.EndSection();
+
+	ExtendMenu(MenuBuilder);
+
+	MenuBuilder.PopExtender();
 
 	return MenuBuilder.MakeWidget();
 }

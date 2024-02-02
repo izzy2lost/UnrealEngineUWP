@@ -610,18 +610,35 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 				bIsValidSource = SelectedNode->GetSourceFileAndLine(File, Line);
 			}
 
-			FText ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource", "Open Source in {0}"), SourceCodeAccessor.GetNameText());
-
+			FText ItemLabel;
 			FText ItemToolTip;
-			if (bIsValidSource)
+
+			if (SourceCodeAccessor.CanAccessSourceCode())
 			{
-				ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc1", "Opens the source file of the selected timer in {0}.\n{1} ({2})"),
-					SourceCodeAccessor.GetNameText(), FText::FromString(File), FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
+				ItemLabel = FText::Format(LOCTEXT("ContextMenu_OpenSource", "Open Source in {0}"), SourceCodeAccessor.GetNameText());
+				if (bIsValidSource)
+				{
+					ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc1", "Opens the source file of the selected timer in {0}.\n{1} ({2})"),
+						SourceCodeAccessor.GetNameText(), FText::FromString(File), FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
+				}
+				else
+				{
+					ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc2", "Opens the source file of the selected timer in {0}."),
+						SourceCodeAccessor.GetNameText());
+				}
 			}
 			else
 			{
-				ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSource_Desc2", "Opens the source file of the selected timer in {0}."),
-					SourceCodeAccessor.GetNameText());
+				ItemLabel = LOCTEXT("ContextMenu_OpenSourceNA", "Open Source");
+				if (bIsValidSource)
+				{
+					ItemToolTip = FText::Format(LOCTEXT("ContextMenu_OpenSourceNA_Desc1", "{1} ({2})\nSource Code Accessor is not available."),
+						FText::FromString(File), FText::AsNumber(Line, &FNumberFormattingOptions::DefaultNoGrouping()));
+				}
+				else
+				{
+					ItemToolTip = LOCTEXT("ContextMenu_OpenSourceNA_Desc2", "Source Code Accessor is not available.");
+				}
 			}
 
 			MenuBuilder.AddMenuEntry(
@@ -629,8 +646,7 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 				NAME_None,
 				ItemLabel,
 				ItemToolTip,
-				FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName())
-			);
+				FSlateIcon(SourceCodeAccessor.GetStyleSet(), SourceCodeAccessor.GetOpenIconName()));
 		}
 	}
 	MenuBuilder.EndSection();
@@ -1484,12 +1500,29 @@ void STimersView::TreeView_OnSelectionChanged(FTimerNodePtr SelectedItem, ESelec
 {
 	if (SelectInfo != ESelectInfo::Direct)
 	{
-		TArray<FTimerNodePtr> SelectedItems = TreeView->GetSelectedItems();
-		if (SelectedItems.Num() == 1 && SelectedItems[0]->GetType() != ETimerNodeType::Group)
+		FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+		if (SelectedNode.IsValid() && SelectedNode->GetType() != ETimerNodeType::Group)
 		{
-			FTimingProfilerManager::Get()->SetSelectedTimer(SelectedItems[0]->GetTimerId());
+			FTimingProfilerManager::Get()->SetSelectedTimer(SelectedNode->GetTimerId());
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FTimerNodePtr STimersView::GetSingleSelectedTimerNode() const
+{
+	if (TreeView->GetNumItemsSelected() != 1)
+	{
+		return nullptr;
+	}
+	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
+	const int32 NumSelectedNodes = SelectedNodes.Num();
+	if (NumSelectedNodes == 1)
+	{
+		return SelectedNodes[0];
+	}
+	return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2811,15 +2844,16 @@ void STimersView::ContextMenu_CopyToClipboard_Execute()
 		return;
 	}
 
-	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
-	for (FTimerNodePtr TimerPtr : TreeView->GetSelectedItems())
-	{
-		SelectedNodes.Add(TimerPtr);
-	}
-
-	if (SelectedNodes.Num() == 0)
+	const TArray<FTimerNodePtr> SelectedTimerNodes = TreeView->GetSelectedItems();
+	if (SelectedTimerNodes.Num() == 0)
 	{
 		return;
+	}
+
+	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
+	for (FTimerNodePtr TimerPtr : SelectedTimerNodes)
+	{
+		SelectedNodes.Add(TimerPtr);
 	}
 
 	FString ClipboardText;
@@ -2854,15 +2888,16 @@ void STimersView::ContextMenu_Export_Execute()
 		return;
 	}
 
-	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
-	for (FTimerNodePtr TimerPtr : TreeView->GetSelectedItems())
-	{
-		SelectedNodes.Add(TimerPtr);
-	}
-
-	if (SelectedNodes.Num() == 0)
+	const TArray<FTimerNodePtr> SelectedTimerNodes = TreeView->GetSelectedItems();
+	if (SelectedTimerNodes.Num() == 0)
 	{
 		return;
+	}
+
+	TArray<Insights::FBaseTreeNodePtr> SelectedNodes;
+	for (FTimerNodePtr TimerPtr : SelectedTimerNodes)
+	{
+		SelectedNodes.Add(TimerPtr);
 	}
 
 	const FString DialogTitle = LOCTEXT("Export_Title", "Export Aggregated Timer Stats").ToString();
@@ -3260,30 +3295,33 @@ IFileHandle* STimersView::OpenExportFile(const TCHAR* InFilename) const
 
 bool STimersView::ContextMenu_OpenSource_CanExecute() const
 {
-	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
-	const int32 NumSelectedNodes = SelectedNodes.Num();
-	if (NumSelectedNodes == 1)
+	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
+	ISourceCodeAccessor& SourceCodeAccessor = SourceCodeAccessModule.GetAccessor();
+
+	if (!SourceCodeAccessor.CanAccessSourceCode())
 	{
-		FTimerNodePtr SelectedNode = SelectedNodes[0];
-		if (SelectedNode.IsValid() && SelectedNode->GetType() != ETimerNodeType::Group)
-		{
-			FString File;
-			uint32 Line = 0;
-			return SelectedNode->GetSourceFileAndLine(File, Line);
-		}
+		return false;
 	}
-	return false;
+
+	FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+	if (!SelectedNode.IsValid())
+	{
+		return false;
+	}
+
+	FString File;
+	uint32 Line = 0;
+	return SelectedNode->GetSourceFileAndLine(File, Line);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void STimersView::ContextMenu_OpenSource_Execute() const
 {
-	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
-	const int32 NumSelectedNodes = SelectedNodes.Num();
-	if (NumSelectedNodes == 1)
+	FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+	if (SelectedNode.IsValid())
 	{
-		OpenSourceFileInIDE(SelectedNodes[0]);
+		OpenSourceFileInIDE(SelectedNode);
 	}
 }
 
@@ -3291,25 +3329,22 @@ void STimersView::ContextMenu_OpenSource_Execute() const
 
 bool STimersView::ContextMenu_FindInstance_CanExecute() const
 {
-	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
-	return SelectedNodes.Num() == 1 && !(SelectedNodes[0]->GetType() == ETimerNodeType::Group);
+	FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+	return SelectedNode.IsValid() && SelectedNode->GetType() != ETimerNodeType::Group;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void STimersView::ContextMenu_FindInstance_Execute(bool bFindMax) const
 {
-	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
-	if (SelectedNodes.Num() != 1)
+	FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+	if (!SelectedNode.IsValid())
 	{
 		return;
 	}
 
-	FTimerNodePtr SelectedNode = SelectedNodes[0];
-
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
-
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -3323,16 +3358,14 @@ void STimersView::ContextMenu_FindInstance_Execute(bool bFindMax) const
 
 bool STimersView::ContextMenu_FindInstanceInSelection_CanExecute() const
 {
-	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
-
-	if (SelectedNodes.Num() != 1 || SelectedNodes[0]->GetType() == ETimerNodeType::Group)
+	FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+	if (!SelectedNode.IsValid() || SelectedNode->GetType() == ETimerNodeType::Group)
 	{
 		return false;
 	}
 
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
-
 	if (TimingView.IsValid())
 	{
 		return TimingView->GetSelectionEndTime() > TimingView->GetSelectionStartTime();
@@ -3345,17 +3378,14 @@ bool STimersView::ContextMenu_FindInstanceInSelection_CanExecute() const
 
 void STimersView::ContextMenu_FindInstanceInSelection_Execute(bool bFindMax) const
 {
-	const TArray<FTimerNodePtr> SelectedNodes = TreeView->GetSelectedItems();
-	if (SelectedNodes.Num() != 1)
+	FTimerNodePtr SelectedNode = GetSingleSelectedTimerNode();
+	if (!SelectedNode.IsValid() || SelectedNode->GetType() == ETimerNodeType::Group)
 	{
 		return;
 	}
 
-	FTimerNodePtr SelectedNode = SelectedNodes[0];
-
 	TSharedPtr<STimingProfilerWindow> Wnd = FTimingProfilerManager::Get()->GetProfilerWindow();
 	TSharedPtr<STimingView> TimingView = Wnd.IsValid() ? Wnd->GetTimingView() : nullptr;
-
 	if (!TimingView.IsValid())
 	{
 		return;
@@ -3369,24 +3399,27 @@ void STimersView::ContextMenu_FindInstanceInSelection_Execute(bool bFindMax) con
 
 void STimersView::OpenSourceFileInIDE(FTimerNodePtr InNode) const
 {
-	if (InNode.IsValid() && InNode->GetType() != ETimerNodeType::Group)
+	if (!InNode.IsValid() || InNode->GetType() == ETimerNodeType::Group)
 	{
-		FString File;
-		uint32 Line = 0;
-		bool bIsValidSource = InNode->GetSourceFileAndLine(File, Line);
-		if (bIsValidSource)
-		{
-			ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
-			if (FPaths::FileExists(File))
-			{
-				ISourceCodeAccessor& SourceCodeAccessor = SourceCodeAccessModule.GetAccessor();
-				SourceCodeAccessor.OpenFileAtLine(File, Line);
-			}
-			else
-			{
-				SourceCodeAccessModule.OnOpenFileFailed().Broadcast(File);
-			}
-		}
+		return;
+	}
+
+	FString File;
+	uint32 Line = 0;
+	if (!InNode->GetSourceFileAndLine(File, Line))
+	{
+		return;
+	}
+
+	ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
+	if (FPaths::FileExists(File))
+	{
+		ISourceCodeAccessor& SourceCodeAccessor = SourceCodeAccessModule.GetAccessor();
+		SourceCodeAccessor.OpenFileAtLine(File, Line);
+	}
+	else
+	{
+		SourceCodeAccessModule.OnOpenFileFailed().Broadcast(File);
 	}
 }
 
