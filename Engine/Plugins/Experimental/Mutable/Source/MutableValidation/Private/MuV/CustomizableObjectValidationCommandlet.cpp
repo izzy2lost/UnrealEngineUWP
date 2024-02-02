@@ -6,7 +6,6 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Containers/Array.h"
 #include "MuCO/CustomizableObject.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuR/Model.h"
 
@@ -103,7 +102,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		UE_LOG(LogMutable,Display,TEXT("Customizable Object was compiled succesfully."));
 		
 		// GHet the total size of the streaming data of the model ---------------------------------------------- //
-		const TSharedPtr<const mu::Model> MutableModel = ToTestCustomizableObject->GetPrivate()->GetModel();
+		const TSharedPtr<const mu::Model> MutableModel = ToTestCustomizableObject->GetModel();
 		check (MutableModel);
 
 		// Roms ---------------------- //

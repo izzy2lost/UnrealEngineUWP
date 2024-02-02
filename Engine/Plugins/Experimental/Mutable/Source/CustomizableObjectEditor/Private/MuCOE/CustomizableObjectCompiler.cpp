@@ -185,7 +185,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	Info.FadeOutDuration = 1.0f;
 	Info.ExpireDuration = 1.0f;
 
-	if (PreloadingReferencerAssets || CompilationLaunchPending || (Object.GetPrivate()->IsLocked()))
+	if (PreloadingReferencerAssets || CompilationLaunchPending || (Object.IsLocked()))
 	{
 		UE_LOG(LogMutable, Warning, TEXT("%s"), *Message);
 		FSlateNotificationManager::Get().AddNotification(Info);
@@ -822,7 +822,7 @@ void FCustomizableObjectCompiler::SetCompilationState(ECustomizableObjectCompila
 	
 	if (CurrentObject)
 	{
-		CurrentObject->GetPrivate()->CompilationState = InState;
+		CurrentObject->CompilationState = InState;
 	}
 }
 
@@ -864,7 +864,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		return;
 	}
 
-	if (Object->GetPrivate()->IsLocked() || !UCustomizableObjectSystem::GetInstance()->LockObject(Object))
+	if (Object->IsLocked() || !UCustomizableObjectSystem::GetInstance()->LockObject(Object))
 	{
 		UE_LOG(LogMutable, Display, TEXT("Customizable Object is already being compiled or updated %s. Please wait a few seconds and try again."), *Object->GetName());
 		return;
@@ -921,7 +921,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			CompilerLog(FText::FromString(TEXT("Failed to generate the mutable node graph. Object not built.")), nullptr);
 		}
 
-		if (Object->GetPrivate()->IsLocked())
+		if (Object->IsLocked())
 		{
 			UCustomizableObjectSystem::GetInstance()->UnlockObject(Object);
 		}
@@ -1033,16 +1033,16 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			 ClothingAssetData.ConfigsData.RemoveAllSwap(IsSharedConfigData);
 		}
 
-		Object->GetPrivate()->GroupNodeMap = GenerationContext.GroupNodeMap;
+		Object->GroupNodeMap = GenerationContext.GroupNodeMap;
 
 		if (GenerationContext.Options.OptimizationLevel == 0)
 		{
 			// If the optimization level is "none" disable texture streaming, because textures are all referenced
 			// unreal assets and progressive generation is not supported.
-			Object->GetPrivate()->bDisableTextureStreaming = true;
+			Object->bDisableTextureStreaming = true;
 		}
 		
-		Object->GetPrivate()->bIsCompiledWithOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
+		Object->bIsCompiledWithOptimization = GenerationContext.Options.OptimizationLevel < UE_MUTABLE_MAX_OPTIMIZATION;
 
 		Object->AlwaysLoadedExtensionData = MoveTemp(GenerationContext.AlwaysLoadedExtensionData);
 
@@ -1053,7 +1053,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		}
 
 #if WITH_EDITORONLY_DATA
-		Object->GetPrivate()->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
+		Object->CustomizableObjectPathMap = GenerationContext.CustomizableObjectPathMap;
 #endif
 
 		Object->LODSettings.NumLODsInRoot = GenerationContext.NumLODsInRoot;
@@ -1092,7 +1092,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		// Lock the object to prevent instance updates while compiling. It's ignored and returns false if it's already locked
 		// Will unlock in the FinishCompilation call.
-		if (!Object->GetPrivate()->IsLocked())
+		if (!Object->IsLocked())
 		{
 			UCustomizableObjectSystem::GetInstance()->LockObject(Object);
 		}
@@ -1245,7 +1245,7 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	}
 	else
 	{
-		CurrentObject->GetPrivate()->GetModel()->GetPrivate()->UnloadRoms();
+		CurrentObject->GetModel()->GetPrivate()->UnloadRoms();
 
 		// when skipping the SaveDerivedData task unlock the object so that instances can be updated
 		UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
@@ -1267,7 +1267,7 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 	SaveDDThread.Reset();
 	SaveDDTask.Reset();
 
-	CurrentObject->GetPrivate()->GetModel()->GetPrivate()->UnloadRoms();
+	CurrentObject->GetModel()->GetPrivate()->UnloadRoms();
 	
 	// Unlock the object so that instances can be updated
 	UCustomizableObjectSystem::GetInstance()->UnlockObject(CurrentObject);
@@ -1323,7 +1323,7 @@ void FCustomizableObjectCompiler::ForceFinishBeforeStartCompilation(UCustomizabl
 	CleanCachedReferencers();
 	UpdateArrayGCProtect();
 
-	if (Object && Object->GetPrivate()->IsLocked())
+	if (Object && Object->IsLocked())
 	{
 		UCustomizableObjectSystem::GetInstance()->UnlockObject(Object);
 	}

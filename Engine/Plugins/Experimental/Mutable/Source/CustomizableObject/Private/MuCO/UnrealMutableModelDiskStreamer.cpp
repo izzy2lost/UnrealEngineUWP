@@ -4,7 +4,6 @@
 
 #include "Async/AsyncFileHandle.h"
 #include "HAL/PlatformFile.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuR/Model.h"
 #include "MuR/MutableTrace.h"
@@ -77,14 +76,14 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 	// Is the object already prepared for streaming?
 	bool bAlreadyStreaming = Objects.FindByPredicate(
 		[CustomizableObject](const FObjectData& d)
-		{ return d.Model.Pin().Get() == CustomizableObject->GetPrivate()->GetModel().Get(); })
+		{ return d.Model.Pin().Get() == CustomizableObject->GetModel().Get(); })
 		!=
 		nullptr;
 
 	if (!bAlreadyStreaming)
 	{
 		FObjectData NewData;
-		NewData.Model = TWeakPtr<const mu::Model>(CustomizableObject->GetPrivate()->GetModel());
+		NewData.Model = TWeakPtr<const mu::Model>(CustomizableObject->GetModel());
 
 #if WITH_EDITOR
 		FString FolderPath = CustomizableObject->GetCompiledDataFolderPath();
@@ -147,7 +146,7 @@ void FUnrealMutableModelBulkReader::CancelStreamingForObject(const UCustomizable
 	// See if we can free previuously allocated resources
 	for (int32 ObjectIndex = 0; ObjectIndex < Objects.Num(); ++ObjectIndex)
 	{
-		if (Objects[ObjectIndex].Model.Pin() == CustomizableObject->GetPrivate()->GetModel())
+		if (Objects[ObjectIndex].Model.Pin() == CustomizableObject->GetModel())
 		{
 			check(Objects[ObjectIndex].CurrentReadRequests.IsEmpty());
 
@@ -171,7 +170,7 @@ bool FUnrealMutableModelBulkReader::AreTherePendingStreamingOperationsForObject(
 
 	for (int32 ObjectIndex = 0; ObjectIndex < Objects.Num(); ++ObjectIndex)
 	{
-		if (Objects[ObjectIndex].Model.Pin() == CustomizableObject->GetPrivate()->GetModel())
+		if (Objects[ObjectIndex].Model.Pin() == CustomizableObject->GetModel())
 		{
 			if (!Objects[ObjectIndex].CurrentReadRequests.IsEmpty())
 			{

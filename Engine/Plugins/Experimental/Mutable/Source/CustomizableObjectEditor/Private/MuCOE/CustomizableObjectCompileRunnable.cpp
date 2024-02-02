@@ -5,7 +5,6 @@
 #include "HAL/FileManager.h"
 #include "MuCO/UnrealMutableModelDiskStreamer.h"
 #include "MuCO/UnrealToMutableTextureConversionUtils.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Model.h"
 #include "MuT/Compiler.h"
 #include "MuT/ErrorLog.h"
@@ -246,10 +245,10 @@ const TArray<FCustomizableObjectCompileRunnable::FError>& FCustomizableObjectCom
 
 FCustomizableObjectSaveDDRunnable::FCustomizableObjectSaveDDRunnable(UCustomizableObject* CustomizableObject, const FCompilationOptions& InOptions)
 {
-	Model = CustomizableObject->GetPrivate()->GetModel();
+	Model = CustomizableObject->GetModel();
 	Options = InOptions;
 	
-	CustomizableObjectHeader.InternalVersion = CustomizableObject->GetPrivate()->CurrentSupportedVersion;
+	CustomizableObjectHeader.InternalVersion = CustomizableObject->GetCurrentSupportedVersion();
 	CustomizableObjectHeader.VersionId = Options.bIsCooking? FGuid::NewGuid() : CustomizableObject->GetVersionId();
 
 	if (!Options.bIsCooking)

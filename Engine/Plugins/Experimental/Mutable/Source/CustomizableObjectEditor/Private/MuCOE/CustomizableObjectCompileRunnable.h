@@ -4,7 +4,6 @@
 
 #include "HAL/Runnable.h"
 #include "MuCO/CustomizableObject.h"
-#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Ptr.h"
 #include "MuT/Node.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
