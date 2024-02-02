@@ -3919,7 +3919,7 @@ bool UActorChannel::UpdateDeletedSubObjects(FOutBunch& Bunch)
 }
 
 bool UActorChannel::CanSubObjectReplicateToClient(
-	APlayerController* PlayerController,
+	const APlayerController* PlayerController,
 	ELifetimeCondition NetCondition,
 	FObjectKey SubObjectKey,
 	const TStaticBitArray<COND_Max>& ConditionMap,
@@ -3970,7 +3970,7 @@ bool UActorChannel::ReplicateRegisteredSubObjects(FOutBunch& Bunch, FReplication
 	}
 #endif
 
-	const TStaticBitArray<COND_Max> ConditionMap = FSendingRepState::BuildConditionMapFromRepFlags(RepFlags);
+	const TStaticBitArray<COND_Max> ConditionMap = UE::Net::BuildConditionMapFromRepFlags(RepFlags);
 
 	bool bWroteSomethingImportant = false;
 
@@ -4136,7 +4136,7 @@ bool UActorChannel::ReplicateSubobject(UActorComponent* ReplicatedComponent, FOu
 
 		bool bWroteSomethingImportant = false;
 
-		const TStaticBitArray<COND_Max> ConditionMap = FSendingRepState::BuildConditionMapFromRepFlags(RepFlags);
+		const TStaticBitArray<COND_Max> ConditionMap = UE::Net::BuildConditionMapFromRepFlags(RepFlags);
 
 		checkf(Actor->IsUsingRegisteredSubObjectList() == false, TEXT("This code should only be hit when an Actor that does NOT support the SubObjectList is replicating an ActorComponent that does: %s replicating %s."), 
 			*Actor->GetName(), *ReplicatedComponent->GetName());

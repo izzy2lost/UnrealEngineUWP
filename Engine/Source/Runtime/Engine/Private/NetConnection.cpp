@@ -5003,7 +5003,7 @@ void UNetConnection::FlushDormancy(AActor* Actor)
 			RepFlags.bRepPhysics = Actor->GetReplicatedMovement().bRepPhysics;
 			RepFlags.bReplay = bReplay;
 
-			ConditionMap = FSendingRepState::BuildConditionMapFromRepFlags(RepFlags);
+			ConditionMap = UE::Net::BuildConditionMapFromRepFlags(RepFlags);
 			
 			const UWorld* const World = Actor->GetWorld();
 			const UNetworkSubsystem* const NetworkSubsystem = World ? World->GetSubsystem<UNetworkSubsystem>() : nullptr;
