@@ -45,7 +45,8 @@ namespace UnrealBuildTool
 			}
 			if (ClangVersion >= new VersionNumber(17))
 			{
-				if (CompileEnvironment.CppStandard < CppStandardVersion.Latest)
+				bool bIsAndroidClang17 = ClangVersion == new VersionNumber(17, 0, 2) && CompileEnvironment.Platform == UnrealTargetPlatform.Android;
+				if (CompileEnvironment.CppStandard < CppStandardVersion.Latest && !bIsAndroidClang17) // Android clang 17.0.2 in NDK r26b is missing this warning
 				{
 					Arguments.Add("-Wno-invalid-unevaluated-string");   // https://clang.llvm.org/docs/DiagnosticsReference.html#winvalid-unevaluated-string			// new warning for clang 17
 				}

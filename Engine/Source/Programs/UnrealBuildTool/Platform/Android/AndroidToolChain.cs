@@ -115,6 +115,11 @@ namespace UnrealBuildTool
 			return NDKVersionInt >= 220000;
 		}
 
+		public bool HasEmbeddedHWASanSupport()
+		{
+			return NDKVersionInt >= 260000;
+		}
+
 		public AndroidToolChain(FileReference? InProjectFile, ILogger InLogger)
 			: this(InProjectFile, ClangToolChainOptions.None, InLogger)
 		{
@@ -601,7 +606,7 @@ namespace UnrealBuildTool
 
 				if (Sanitizer == ClangSanitizer.Address || Sanitizer == ClangSanitizer.HwAddress)
 				{
-					Arguments.Add("-fno-omit-frame-pointer -DRUNNING_WITH_ASAN=1 -DFORCE_ANSI_ALLOCATOR=1");
+					Arguments.Add("-fno-omit-frame-pointer -DFORCE_ANSI_ALLOCATOR=1");
 				}
 			}
 

@@ -1498,7 +1498,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		void CopyClangSanitizerLib(string UnrealBuildPath, UnrealArch UnrealArch, string NDKArch, AndroidToolChain.ClangSanitizer Sanitizer)
+		void CopyClangSanitizerLib(AndroidToolChain ToolChain, string UnrealBuildPath, UnrealArch UnrealArch, string NDKArch, AndroidToolChain.ClangSanitizer Sanitizer)
 		{
 			string Architecture = "-aarch64";
 			switch (NDKArch)
@@ -1518,8 +1518,11 @@ namespace UnrealBuildTool
 			switch (Sanitizer)
 			{
 				case AndroidToolChain.ClangSanitizer.HwAddress:
-					LibName = "hwasan";
+				{
+					// no need to bundle asan .so in NDK r26b+
+					LibName = ToolChain.HasEmbeddedHWASanSupport() ? string.Empty : "hwasan";
 					break;
+				}
 				case AndroidToolChain.ClangSanitizer.UndefinedBehavior:
 					LibName = "ubsan_standalone";
 					break;
@@ -1531,9 +1534,12 @@ namespace UnrealBuildTool
 					break;
 			}
 
-			string SanitizerFullLibName = "libclang_rt." + LibName + Architecture + "-android.so";
+			string SanitizerFullLibName = string.IsNullOrEmpty(LibName) ? string.Empty : "libclang_rt." + LibName + Architecture + "-android.so";
 
-			string WrapSh = Path.Combine(Unreal.EngineDirectory.ToString(), "Build", "Android", "ClangSanitizers", "wrap.sh");
+			// NDK r26b+ needs different wrap.sh script
+			string WrapShName = Sanitizer == AndroidToolChain.ClangSanitizer.HwAddress && ToolChain.HasEmbeddedHWASanSupport() ? "hwasan.sh" : "asan.sh";
+
+			string WrapShFilePath = Path.Combine(Environment.ExpandEnvironmentVariables("%NDKROOT%"), "wrap.sh", WrapShName);
 
 			string PlatformHostName = GetPlatformNDKHostName();
 
@@ -1542,25 +1548,43 @@ namespace UnrealBuildTool
 			string LibsVersion = VersionFile.ReadLine()!;
 			VersionFile.Close();
 
-			string SanitizerLib = Path.Combine(Environment.ExpandEnvironmentVariables("%NDKROOT%"), "toolchains", "llvm", "prebuilt", PlatformHostName, "lib64", "clang", LibsVersion, "lib", "linux", SanitizerFullLibName);
-			if (File.Exists(SanitizerLib) && File.Exists(WrapSh))
+			string SanitizerLib = string.IsNullOrEmpty(SanitizerFullLibName) ?
+				string.Empty :
+				Path.Combine(Environment.ExpandEnvironmentVariables("%NDKROOT%"), "toolchains", "llvm", "prebuilt", PlatformHostName, (ToolChain.HasEmbeddedHWASanSupport() ? "lib" : "lib64"), "clang", LibsVersion, "lib", "linux", SanitizerFullLibName);
+
+			if (!string.IsNullOrEmpty(SanitizerLib))
 			{
-				string LibDestDir = Path.Combine(UnrealBuildPath, "libs", NDKArch);
-				Directory.CreateDirectory(LibDestDir);
-				Logger.LogInformation("Copying asan lib from {SanitizerLib} to {LibDestDir}", SanitizerLib, LibDestDir);
-				File.Copy(SanitizerLib, Path.Combine(LibDestDir, SanitizerFullLibName), true);
+				if (File.Exists(SanitizerLib))
+				{
+					string LibDestDir = Path.Combine(UnrealBuildPath, "libs", NDKArch);
+					Directory.CreateDirectory(LibDestDir);
+
+					string LibDestFilePath = Path.Combine(LibDestDir, SanitizerFullLibName);
+					Logger.LogInformation("Copying asan lib from {SanitizerLib} to {LibDestFilePath}", SanitizerLib, LibDestFilePath);
+					File.Copy(SanitizerLib, LibDestFilePath, true);
+				}
+				else
+				{
+					throw new BuildException("No asan lib found in {0}", SanitizerLib);
+				}
+			}
+
+			if (File.Exists(WrapShFilePath))
+			{
 				string WrapDestDir = Path.Combine(UnrealBuildPath, "resources", "lib", NDKArch);
 				Directory.CreateDirectory(WrapDestDir);
+
 				string WrapDestFilePath = Path.Combine(WrapDestDir, "wrap.sh");
-				Logger.LogInformation("Copying wrap.sh from {WrapSh} to {WrapDestFilePath}", WrapSh, WrapDestFilePath);
-				File.Copy(WrapSh, WrapDestFilePath, true);
+				Logger.LogInformation("Copying wrap.sh from {WrapShFilePath} to {WrapDestFilePath}", WrapShFilePath, WrapDestFilePath);
+				File.Copy(WrapShFilePath, WrapDestFilePath, true);
+
 				FileAttributes Attributes = File.GetAttributes(WrapDestFilePath);
 				Attributes &= ~FileAttributes.ReadOnly;
 				File.SetAttributes(WrapDestFilePath, Attributes);
 			}
 			else
 			{
-				throw new BuildException("No asan lib found in {0} or wrap.sh in {1}", SanitizerLib, WrapSh);
+				throw new BuildException("No asan wrap.sh found in {0}", WrapShFilePath);
 			}
 		}
 
@@ -2802,7 +2826,8 @@ namespace UnrealBuildTool
 			Text.AppendLine("\t             android:icon=\"@drawable/icon\"");
 
 			AndroidToolChain.ClangSanitizer Sanitizer = ToolChain.BuildWithSanitizer();
-			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress) || bEnableScudoMemoryTracing)
+			// hwasan on NDK r26b+ requires wrap.sh that needs to be unpacked
+			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && (Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress || ToolChain.HasEmbeddedHWASanSupport())) || bEnableScudoMemoryTracing)
 			{
 				bExtractNativeLibs = true;
 			}
@@ -3920,7 +3945,8 @@ namespace UnrealBuildTool
 			bool bExtractNativeLibs = true;
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bExtractNativeLibs", out bExtractNativeLibs);
 			AndroidToolChain.ClangSanitizer Sanitizer = ToolChain.BuildWithSanitizer();
-			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress) || bEnableScudoMemoryTracing)
+			// hwasan on NDK r26b+ requires wrap.sh that needs to be unpacked
+			if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && (Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress || ToolChain.HasEmbeddedHWASanSupport())) || bEnableScudoMemoryTracing)
 			{
 				bExtractNativeLibs = true;
 			}
@@ -4221,7 +4247,9 @@ namespace UnrealBuildTool
 			// see if last time matches the skipGradle setting
 			string BuildTypeFilename = Path.Combine(IntermediateAndroidPath, "BuildType.txt");
 			string BuildTypeID = bSkipGradleBuild ? "Embedded" : "Standalone";
-			if (Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress)
+			
+			// hwasan on NDK r26b+ requires wrap.sh that needs to be unpacked
+			if (Sanitizer != AndroidToolChain.ClangSanitizer.None && (Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress || ToolChain.HasEmbeddedHWASanSupport()))
 			{
 				BuildTypeID += Sanitizer.ToString() + "Sanitizer";
 			}
@@ -5038,7 +5066,7 @@ popd
 
 				if (Sanitizer != AndroidToolChain.ClangSanitizer.None)
 				{
-					CopyClangSanitizerLib(UnrealBuildPath, Arch, NDKArch, Sanitizer);
+					CopyClangSanitizerLib(ToolChain, UnrealBuildPath, Arch, NDKArch, Sanitizer);
 
 					if (bEnableScudoMemoryTracing)
 					{
@@ -5110,7 +5138,7 @@ popd
 
 				CleanCopyDirectory(Path.Combine(UnrealBuildPath, "jni"), Path.Combine(UnrealBuildGradleMainPath, "jniLibs"), Excludes);  // has debug symbols
 				CleanCopyDirectory(Path.Combine(UnrealBuildPath, "libs"), Path.Combine(UnrealBuildGradleMainPath, "libs"), Excludes);
-				if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress) || bEnableScudoMemoryTracing)
+				if ((Sanitizer != AndroidToolChain.ClangSanitizer.None && (Sanitizer != AndroidToolChain.ClangSanitizer.HwAddress || ToolChain.HasEmbeddedHWASanSupport())) || bEnableScudoMemoryTracing)
 				{
 					CleanCopyDirectory(Path.Combine(UnrealBuildPath, "resources"), Path.Combine(UnrealBuildGradleMainPath, "resources"), Excludes);
 				}
