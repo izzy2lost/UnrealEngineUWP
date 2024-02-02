@@ -52,7 +52,7 @@ namespace Horde.Agent.Commands.Execution
 			await using RpcConnection rpcConnection = new RpcConnection(ctx => _grpcService.CreateGrpcChannelAsync(executeTask.Token, ctx), logger);
 			await using Session session = new Session(serverProfile.Url, AgentId, SessionId, executeTask.Token, rpcConnection, WorkingDir, processNamesToTerminate);
 
-			await _jobHandler.ExecuteInternalAsync(session, LeaseId, executeTask, CancellationToken.None);
+			await _jobHandler.ExecuteInternalAsync(session, LeaseId, executeTask, logger, CancellationToken.None);
 			return 0;
 		}
 	}

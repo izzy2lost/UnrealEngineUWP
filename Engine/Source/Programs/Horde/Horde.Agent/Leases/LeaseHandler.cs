@@ -5,6 +5,7 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Agent.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Leases
 {
@@ -22,7 +23,7 @@ namespace Horde.Agent.Leases
 		/// Executes a lease
 		/// </summary>
 		/// <returns>Result for the lease</returns>
-		public abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, CancellationToken cancellationToken);
+		public abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, ILogger logger, CancellationToken cancellationToken);
 	}
 
 	/// <summary>
@@ -40,12 +41,12 @@ namespace Horde.Agent.Leases
 		public override string LeaseType { get; } = $"type.googleapis.com/{Descriptor.Name}";
 
 		/// <inheritdoc/>
-		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, CancellationToken cancellationToken)
+		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, Any message, ILogger logger, CancellationToken cancellationToken)
 		{
-			return ExecuteAsync(session, leaseId, message.Unpack<T>(), cancellationToken); 
+			return ExecuteAsync(session, leaseId, message.Unpack<T>(), logger, cancellationToken); 
 		}
 
 		/// <inheritdoc/>
-		public abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, T message, CancellationToken cancellationToken);
+		public abstract Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, T message, ILogger logger, CancellationToken cancellationToken);
 	}
 }

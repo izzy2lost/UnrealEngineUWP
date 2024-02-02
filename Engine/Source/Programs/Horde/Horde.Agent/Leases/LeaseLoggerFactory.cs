@@ -14,6 +14,7 @@ namespace Horde.Agent.Leases
 	{
 		static TimeSpan MaxAge { get; } = TimeSpan.FromDays(3.0);
 
+		readonly AgentSettings _settings;
 		readonly DirectoryReference _logDir;
 		readonly BackgroundTask _backgroundTask;
 		readonly ILogger _logger;
@@ -23,6 +24,7 @@ namespace Horde.Agent.Leases
 		/// </summary>
 		public LeaseLoggerFactory(IOptions<AgentSettings> settings, ILogger<LeaseLoggerFactory> logger)
 		{
+			_settings = settings.Value;
 			_logDir = DirectoryReference.Combine(new DirectoryReference(settings.Value.WorkingDir ?? DirectoryReference.GetCurrentDirectory().FullName), "Leases");
 			_logger = logger;
 			_backgroundTask = BackgroundTask.StartNew(BackgroundCleanupAsync);
@@ -67,17 +69,32 @@ namespace Horde.Agent.Leases
 			}
 		}
 
+		class LoggerProvider : ILoggerProvider
+		{
+			readonly ILogger _logger;
+
+			public LoggerProvider(ILogger logger)
+				=> _logger = logger;
+
+			public ILogger CreateLogger(string categoryName)
+				=> _logger;
+
+			public void Dispose() { }
+		}
+
 		/// <summary>
 		/// Create a new logger factory for the given lease id
 		/// </summary>
-		public ILoggerFactory CreateLoggerFactory(LeaseId leaseId, string? suffix = null)
+		public ILoggerFactory CreateLoggerFactory(LeaseId leaseId)
 		{
-			string name = leaseId.ToString();
-			if (!String.IsNullOrEmpty(suffix))
+			return LoggerFactory.Create(builder =>
 			{
-				name = $"{name}-{suffix}";
-			}
-			return Logging.CreateFileLoggerFactory(_logDir, name);
+				builder.AddProvider(Logging.CreateFileLoggerProvider(_logDir, leaseId.ToString()));
+				if (_settings.WriteStepOutputToLogger)
+				{
+					builder.AddProvider(new LoggerProvider(_logger));
+				}
+			});
 		}
 
 		async Task BackgroundCleanupAsync(CancellationToken cancellationToken)

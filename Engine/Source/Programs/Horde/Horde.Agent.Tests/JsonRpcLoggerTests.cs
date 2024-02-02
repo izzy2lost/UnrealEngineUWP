@@ -136,7 +136,7 @@ namespace Horde.Agent.Tests
 			LogNode file;
 			await using (FakeJsonRpcLoggerBackend sink = new FakeJsonRpcLoggerBackend(null!, default, null, null, null, store, NullLogger.Instance))
 			{
-				await using (JsonRpcLogger logger = new JsonRpcLogger(sink, default, null, LogLevel.Information, NullLogger.Instance))
+				await using (ServerLogger logger = new ServerLogger(sink, default, null, LogLevel.Information, NullLogger.Instance, NullLogger.Instance))
 				{
 					for (int idx = 0; idx < Count; idx++)
 					{

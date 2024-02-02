@@ -10,17 +10,10 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class ShutdownHandler : LeaseHandler<ShutdownTask>
 	{
-		readonly ILogger _logger;
-
-		public ShutdownHandler(ILogger<ShutdownHandler> logger)
-		{
-			_logger = logger;
-		}
-
 		/// <inheritdoc/>
-		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ShutdownTask task, CancellationToken cancellationToken)
+		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ShutdownTask task, ILogger logger, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Scheduling shutdown task for agent {AgentId}", session.AgentId);
+			logger.LogInformation("Scheduling shutdown task for agent {AgentId}", session.AgentId);
 			SessionResult result = new SessionResult((logger, ctx) => Shutdown.ExecuteAsync(false, logger, ctx));
 			return Task.FromResult(new LeaseResult(result));
 		}

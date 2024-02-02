@@ -10,17 +10,10 @@ namespace Horde.Agent.Leases.Handlers
 {
 	class RestartHandler : LeaseHandler<RestartTask>
 	{
-		readonly ILogger _logger;
-
-		public RestartHandler(ILogger<RestartHandler> logger)
-		{
-			_logger = logger;
-		}
-
 		/// <inheritdoc/>
-		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, RestartTask task, CancellationToken cancellationToken)
+		public override Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, RestartTask task, ILogger logger, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Scheduling restart task for agent {AgentId}", session.AgentId);
+			logger.LogInformation("Scheduling restart task for agent {AgentId}", session.AgentId);
 			SessionResult result = new SessionResult((logger, ctx) => Shutdown.ExecuteAsync(true, logger, ctx));
 			return Task.FromResult(new LeaseResult(result));
 		}

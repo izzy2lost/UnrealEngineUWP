@@ -2,7 +2,6 @@
 
 using System.Reflection;
 using EpicGames.Core;
-using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
