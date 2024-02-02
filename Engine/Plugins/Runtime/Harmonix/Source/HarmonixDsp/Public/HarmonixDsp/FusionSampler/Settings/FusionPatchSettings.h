@@ -69,18 +69,6 @@ public:
 	FBiquadFilterSettings Filter;
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FDelaySettings Delay;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FDistortionSettingsV1 Distortion;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FBitCrusherSettings BitCrusher;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FVocoderSettings Vocoder;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	FAdsrSettingsArray Adsrs;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
@@ -91,4 +79,16 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Settings")
 	FModulatorSettingsArray VelocityModulators;
+	
+	UPROPERTY()
+	FDelaySettings Delay_DEPRECATED;
+
+	UPROPERTY()
+	FDistortionSettingsV1 Distortion_DEPRECATED;
+
+	UPROPERTY()
+	FBitCrusherSettings BitCrusher_DEPRECATED;
+
+	UPROPERTY()
+	FVocoderSettings Vocoder_DEPRECATED;
 };

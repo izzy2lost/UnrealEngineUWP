@@ -4,12 +4,7 @@
 #include "HarmonixDsp/Instruments/VirtualInstrument.h"
 
 #include "Containers/List.h"
-
-#include "HarmonixDsp/Effects/BitCrusher.h"
 #include "HarmonixDsp/Effects/BiquadFilter.h"
-#include "HarmonixDsp/Effects/Delay.h"
-#include "HarmonixDsp/Effects/DistortionV1.h"
-#include "HarmonixDsp/Effects/Vocoder.h"
 
 #include "HarmonixDsp/Modulators/Settings/AdsrSettings.h"
 #include "HarmonixDsp/Modulators/Settings/ModulatorSettings.h"
@@ -221,9 +216,6 @@ private:
 	void  SetTrimVolume(float Value);
 	float GetTrimGain() const;
 
-	void SetDelayEnabled(bool enabled);
-	void SetBitCrusherEnabled(bool enabled);
-
 	float GetRampedExpression() const { return ExpressionGainRamper.GetCurrent(); }
 	float GetRampedPitchBend() const { return PitchBendRamper.GetCurrent(); }
 
@@ -335,20 +327,6 @@ private:
 	float MaxPitchBendCents = 200.0f;
 
 	FSharedFusionVoicePoolPtr VoicePool;
-
-	Harmonix::Dsp::Effects::FDelay Delay;
-	bool DelayEnabled = false;
-	double DelaySilenceCountdown = 0.0;
-
-	Harmonix::Dsp::Effects::FBitCrusher BitCrusher;
-	bool BitCrusherEnabled = false;
-
-	Harmonix::Dsp::Effects::FDistortionV1 Distortion;
-	bool DistortionEnabled = false;
-
-	Harmonix::Dsp::Effects::FVocoder Vocoder;
-	bool VocoderEnabled = false;
-	int32 VocoderModulatorIndex = 0;
 
 	// if we get note-ons or note-offs on the main
 	// thread, or if we get multiple requests for

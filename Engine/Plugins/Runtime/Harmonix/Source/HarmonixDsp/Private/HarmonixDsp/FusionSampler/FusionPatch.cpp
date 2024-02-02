@@ -164,18 +164,58 @@ void UFusionPatch::Serialize(FArchive& Ar)
 	Ar.UsingCustomVersion(FFusionPatchCustomVersion::GUID);
 	const int32 Version = Ar.CustomVer(FFusionPatchCustomVersion::GUID);
 
-	if (Ar.IsLoading() && Version < FFusionPatchCustomVersion::PitchShifterNameRedirects)
+	if (Ar.IsLoading())
 	{
-		UE_LOG(LogFusionPatch, Warning, TEXT("Fusion patch was loaded with an outdated version. Asset requires reimport: %s"), *GetPathName());
-	}
-
-	if (Ar.IsLoading() && Version < FFusionPatchCustomVersion::DeprecatedPresets)
-	{
-		if (FusionPatchData.Presets_DEPRECATED.IsValidIndex(0))
+		if (Version < FFusionPatchCustomVersion::PitchShifterNameRedirects)
 		{
-			FusionPatchData.Settings = FusionPatchData.Presets_DEPRECATED[0];
+			UE_LOG(LogFusionPatch, Warning, TEXT("Fusion patch was loaded with an outdated version. Asset requires reimport: %s"), *GetPathName());
+		}
+
+		if (Version < FFusionPatchCustomVersion::DeprecatedPresets)
+		{
+			if (FusionPatchData.Presets_DEPRECATED.IsValidIndex(0))
+			{
+				FusionPatchData.Settings = FusionPatchData.Presets_DEPRECATED[0];
+			}
+
+			if (FusionPatchData.Presets_DEPRECATED.Num() > 1)
+			{
+				UE_LOG(LogFusionPatch, Warning, TEXT("Fusion patch (%s) has more than one preset, but presets have been deprecated. Only the first (Default) preset will be loaded"), *GetPathName());
+			}
+		}
+
+		if (Version < FFusionPatchCustomVersion::DeprecatedUnusedEffectsSettings)
+		{
+			if (FusionPatchData.Settings.Delay_DEPRECATED.IsEnabled)
+			{
+				UE_LOG(LogFusionPatch, Warning, TEXT("Fusion Patch (%s) has the \"Delay\" effect enabled, but that effect is no longer supported by the Fusion Sampler! "
+					"If you intended to use the Delay effect, rework your metasound to apply the Delay to the output of the FusionSampler node using this patch"),
+					*GetPathName());
+			}
+
+			if (FusionPatchData.Settings.Distortion_DEPRECATED.IsEnabled)
+			{
+				UE_LOG(LogFusionPatch, Warning, TEXT("Fusion Patch (%s) has the \"Distortion\" effect enabled, but that effect is no longer supported by the Fusion Sampler! "
+					"If you intended to use the Distortion effect, rework your metasound to apply the Distortion to the output of the FusionSampler node using this patch"),
+					*GetPathName());
+			}
+
+			if (FusionPatchData.Settings.BitCrusher_DEPRECATED.IsEnabled)
+			{
+				UE_LOG(LogFusionPatch, Warning, TEXT("Fusion Patch (%s) has the \"BitCrusher\" effect enabled, but that effect is no longer supported by the Fusion Sampler! "
+					"If you intended to use the BitCrusher effect, rework your metasound to apply the Distortion to the output of the FusionSampler node using this patch"),
+					*GetPathName());
+			}
+
+			if (FusionPatchData.Settings.Vocoder_DEPRECATED.IsEnabled)
+			{
+				UE_LOG(LogFusionPatch, Warning, TEXT("Fusion Patch (%s) has the \"Vocoder\" effect enabled, but that effect is no longer supported by the Fusion Sampler! "
+					"If you intended to use the Vocoder effect, rework your metasound to apply the Vocoder to the output of the FusionSampler node using this patch"),
+					*GetPathName());	
+			}
 		}
 	}
+
 
 	const UStretcherAndPitchShifterFactoryConfig* FactoryConfig = GetDefault<UStretcherAndPitchShifterFactoryConfig>();
 	for (FKeyzoneSettings& Keyzone : FusionPatchData.Keyzones)
