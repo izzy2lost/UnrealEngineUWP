@@ -521,27 +521,33 @@ const FString& FThreadManager::GetThreadNameInternal(uint32 ThreadId)
 }
 
 #if PLATFORM_SUPPORTS_ALL_THREAD_BACKTRACES
+static TConstArrayView<uint64> ThreadStackBackTraces_PerformStackWalk(uint32 CurThreadId, uint32 ThreadId, TArrayView<uint64> OutProgramCounters)
+{
+	uint32 Depth;
+	if (CurThreadId != ThreadId)
+	{
+		Depth = FPlatformStackWalk::CaptureThreadStackBackTrace(ThreadId, OutProgramCounters.GetData(), OutProgramCounters.Num());
+	}
+	else
+	{
+		Depth = FPlatformStackWalk::CaptureStackBackTrace(OutProgramCounters.GetData(), OutProgramCounters.Num());
+	}
+	return OutProgramCounters.Left(Depth);
+}
+
 static void GetAllThreadStackBackTraces_ProcessSingle(
 	uint32 CurThreadId,
 	uint32 ThreadId,
 	const TCHAR* ThreadName,
 	typename FThreadManager::FThreadStackBackTrace& OutStackTrace)
 {
-	constexpr uint32 MaxDepth = 100;
 	OutStackTrace.ThreadId = ThreadId;
 	OutStackTrace.ThreadName = ThreadName;
-	auto& PCs = OutStackTrace.ProgramCounters;
-	PCs.AddZeroed(MaxDepth);
-	uint32 Depth;
-	if (CurThreadId != ThreadId)
-	{
-		Depth = FPlatformStackWalk::CaptureThreadStackBackTrace(ThreadId, PCs.GetData(), MaxDepth);
-	}
-	else
-	{
-		Depth = FPlatformStackWalk::CaptureStackBackTrace(PCs.GetData(), MaxDepth);
-	}
-	PCs.SetNum(Depth);
+
+	FThreadManager::FThreadStackBackTrace::FProgramCountersArray& PCs = OutStackTrace.ProgramCounters;
+	PCs.SetNumZeroed(FThreadManager::FThreadStackBackTrace::ProgramCountersMaxStackSize);
+	const TConstArrayView<uint64> WrittenProgramCounters = ThreadStackBackTraces_PerformStackWalk(CurThreadId, ThreadId, PCs);
+	PCs.SetNum(WrittenProgramCounters.Num());
 }
 
 void FThreadManager::GetAllThreadStackBackTraces(TArray<FThreadStackBackTrace>& StackTraces)
@@ -560,6 +566,38 @@ void FThreadManager::GetAllThreadStackBackTraces(TArray<FThreadStackBackTrace>& 
 			GetAllThreadStackBackTraces_ProcessSingle(CurThreadId, ThreadId, *Name, StackTraces.AddDefaulted_GetRef());
 		}
 	);
+}
+
+void FThreadManager::ForEachThreadStackBackTrace(TFunctionRef<bool(uint32 ThreadId, const TCHAR* ThreadName, const TConstArrayView<uint64>& StackTrace)> Func)
+{
+	const uint32 CurThreadId = FPlatformTLS::GetCurrentThreadId();
+	FThreadStackBackTrace::FProgramCountersArray ProgramCounterBuffer;
+	ProgramCounterBuffer.SetNumZeroed(FThreadStackBackTrace::ProgramCountersMaxStackSize);
+
+	FScopeLock Lock(&ThreadsCritical);
+
+	{
+		const TConstArrayView<uint64> ProgramCounterOutputArrayView = ThreadStackBackTraces_PerformStackWalk(CurThreadId, GGameThreadId, ProgramCounterBuffer);
+		const bool bContinue = Func(GGameThreadId, TEXT("GameThread"), ProgramCounterOutputArrayView);
+		if (!bContinue)
+		{
+			return;
+		}
+	}
+
+	// Not using ForEachThread since that creates a copy, just verify the callback isn't modifying thread list
+	for (const TPair<uint32, FRunnableThread*>& Pair : Threads)
+	{
+		const uint32 ThreadId = Pair.Key;
+		const FRunnableThread* Thread = Pair.Value;
+		const FString& ThreadName = Thread->GetThreadName();
+		const TConstArrayView<uint64> ProgramCounterOutputArrayView = ThreadStackBackTraces_PerformStackWalk(CurThreadId, ThreadId, ProgramCounterBuffer);
+		const bool bContinue = Func(ThreadId, *ThreadName, ProgramCounterOutputArrayView);
+		if (!bContinue)
+		{
+			return;
+		}
+	}
 }
 #endif
 
