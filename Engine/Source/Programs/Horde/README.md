@@ -1,8 +1,6 @@
-# Horde
+![Horde](Docs/Images/Logo.png)
 
-## Introduction
-
-**Horde** is a set of services designed around workflows that Epic uses to develop Fortnite,
+**Unreal Horde** is a set of services designed around workflows that Epic uses to develop Fortnite,
 Unreal Engine, and other titles.
 
 It is provided with full source code to all Unreal Engine licensees, and is meant for licensees to host and configure
