@@ -78,6 +78,13 @@ FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 	Set("PCG.Node.NodeTitleInlineEditableText", NodeTitleStyle);
 	Set("PCG.Node.InstancedNodeTitleInlineEditableText", FInlineEditableTextBlockStyle(NodeTitleStyle)
 		.SetTextStyle(GraphNodeItalicTitle));
+
+	// Styles for higen grid size label. Hand-tweaked values to match UI target mockups.
+	Set(PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_Active_Border, new FSlateRoundedBoxBrush(
+		FLinearColor::White,
+		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderRadius,
+		FLinearColor::Black,
+		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderStroke));
 }
 
 const FPCGEditorStyle& FPCGEditorStyle::Get()

@@ -4,6 +4,7 @@
 
 #include "EdGraph/EdGraphNode.h"
 
+#include "PCGCommon.h"
 
 #include "PCGEditorGraphNodeBase.generated.h"
 
@@ -80,10 +81,6 @@ public:
 	/** Returns custom compact node icon if available */
 	bool GetCompactNodeIcon(FName& OutCompactNodeIcon) const;
 
-	// Highlighted nodes draw with a light tint. Currently used to indicate nodes from hi-gen grids that are available for use.
-	void SetIsHighlighted(bool bInIsHighlighted) { bIsHighlighted = bInIsHighlighted; }
-	bool IsHighlighted() const { return bIsHighlighted; }
-
 	bool CanUserAddRemoveDynamicInputPins() const { return bCanUserAddRemoveSourcePins; }
 
 	/** Whether to flip the order of the title lines - display generated title first and authored second. */
@@ -97,6 +94,12 @@ public:
 
 	/** Bitmask of inactive output pins. Bit N will be set if output pin index N is inactive. */
 	uint64 GetInactiveOutputPinMask() const { return InactiveOutputPinMask; }
+
+	/** The grid that this node executes on if higen is enabled, otherwise Unitialized. */
+	EPCGHiGenGrid GetGenerationGrid() const { return GenerationGrid; }
+
+	/** The higen grid currently being inspected if any, otherwise Uninitialized. */
+	EPCGHiGenGrid GetInspectedGenerationGrid() const { return InspectedGenerationGrid; }
 
 	/** Whether the given output pin was active in the previous execution. */
 	bool IsOutputPinActive(const UEdGraphPin* InOutputPin) const;
@@ -145,7 +148,6 @@ protected:
 	bool bDeferredReconstruct = false;
 	bool bDisableReconstructFromNode = false;
 	bool bIsInspected = false;
-	bool bIsHighlighted = false;
 	bool bCanUserAddRemoveSourcePins = false;
 
 	/** Whether this node was culled in the last execution. */
@@ -153,4 +155,10 @@ protected:
 
 	/** Bitmask of inactive output pins. Bit N will be set if output pin index N is inactive. */
 	uint64 InactiveOutputPinMask = 0;
+
+	/** The grid that this node executes on if higen is enabled, otherwise Unitialized. */
+	EPCGHiGenGrid GenerationGrid = EPCGHiGenGrid::Uninitialized;
+
+	/** The higen grid currently being inspected if any, otherwise Uninitialized. */
+	EPCGHiGenGrid InspectedGenerationGrid = EPCGHiGenGrid::Uninitialized;
 };

@@ -2,12 +2,13 @@
 
 #include "SPCGEditorGraphNode.h"
 
-#include "PCGEditorGraphNodeBase.h"
-#include "PCGEditorStyle.h"
 #include "PCGNode.h"
 #include "PCGPin.h"
 #include "PCGSettings.h"
 #include "PCGSettingsWithDynamicInputs.h"
+
+#include "PCGEditorGraphNodeBase.h"
+#include "PCGEditorStyle.h"
 
 #include "GraphEditorSettings.h"
 #include "IDocumentation.h"
@@ -460,8 +461,7 @@ void SPCGEditorGraphNode::UpdateGraphNode()
 
 const FSlateBrush* SPCGEditorGraphNode::GetNodeBodyBrush() const
 {
-	const bool bNeedsTint = PCGEditorGraphNode &&
-		((PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->GetPCGNode()->IsInstance()) || PCGEditorGraphNode->IsHighlighted());
+	const bool bNeedsTint = PCGEditorGraphNode && PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->GetPCGNode()->IsInstance();
 	if (bNeedsTint)
 	{
 		return FAppStyle::GetBrush("Graph.Node.TintedBody");
@@ -592,6 +592,84 @@ void SPCGEditorGraphNode::AddPin(const TSharedRef<SGraphPin>& PinToAdd)
 		Margin.Left = 0;
 		PinSlot.SetPadding(Margin);
 	}
+}
+
+TArray<FOverlayWidgetInfo> SPCGEditorGraphNode::GetOverlayWidgets(bool bSelected, const FVector2D& WidgetSize) const
+{
+	TArray<FOverlayWidgetInfo> OverlayWidgets = SGraphNode::GetOverlayWidgets(bSelected, WidgetSize);
+
+	if (PCGEditorGraphNode && !PCGEditorGraphNode->ShouldDrawCompact())
+	{
+		// Higen grid size overlay widget. All magic numbers below hand tweaked to match UI mockup.
+		const EPCGHiGenGrid InspectedGrid = PCGEditorGraphNode->GetInspectedGenerationGrid();
+		UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
+
+		//const bool bHigenEnabled = PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->getpcn
+		const bool bInspectingHigen = InspectedGrid != EPCGHiGenGrid::Uninitialized;
+		if (bInspectingHigen && PCGEditorGraphNode->IsNodeEnabled())
+		{
+			FText GenerationGridText;
+			const EPCGHiGenGrid Grid = PCGEditorGraphNode->GetGenerationGrid();
+
+			if (Grid == EPCGHiGenGrid::Unbounded)
+			{
+				GenerationGridText = FText::FromString(TEXT("UB"));
+			}
+			else
+			{
+				// Meters are easier on the eyes.
+				const uint32 GridSize = PCGHiGenGrid::GridToGridSize(Grid) / 100;
+				GenerationGridText = FText::AsNumber(GridSize, &FNumberFormattingOptions::DefaultNoGrouping());
+			}
+
+			FLinearColor Tint = FLinearColor::White;
+			if (Grid != EPCGHiGenGrid::Uninitialized)
+			{
+				Tint = GetGridLabelColor(Grid);
+			}
+			else if (PCGEditorGraphNode->IsDisplayAsDisabledForced())
+			{
+				Tint.A *= 0.35f;
+			}
+
+			// Create a border brush for each combination of grids, to workaround issue where the tint does not apply
+			// to the border element.
+			const FSlateBrush* BorderBrush = GetBorderBrush(InspectedGrid, Grid);
+
+			FLinearColor TextColor = FColor::White;
+			FLinearColor BackgroundColor = FColor::Black;
+			if (InspectedGrid == Grid)
+			{
+				// Flip colors for active grid to highlight them.
+				Swap(TextColor, BackgroundColor);
+			}
+
+			TSharedPtr<SWidget> GridSizeLabel =
+				SNew(SHorizontalBox)
+				.Visibility(EVisibility::Visible)
+				+SHorizontalBox::Slot()
+				[
+					SNew(SBorder)
+					.BorderImage(BorderBrush)
+					.Padding(FMargin(12, 3))
+					.ColorAndOpacity(Tint)
+					[
+						SNew(STextBlock)
+						.TextStyle(FAppStyle::Get(), "Graph.Node.NodeTitle")
+						.Text(GenerationGridText)
+						.Justification(ETextJustify::Center)
+						.ColorAndOpacity(TextColor)
+					]
+				];
+
+			FOverlayWidgetInfo GridSizeLabelInfo(GridSizeLabel);
+			GridSizeLabelInfo.OverlayOffset = FVector2D(GetDesiredSize().X - 30.0f, -9.0f);
+
+			OverlayWidgets.Add(GridSizeLabelInfo);
+		}
+	}
+
+	return OverlayWidgets;
 }
 
 void SPCGEditorGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D WidgetSize, TArray<FOverlayBrushInfo>& Brushes) const
@@ -864,6 +942,56 @@ void SPCGEditorGraphNode::UpdateCompactNode()
 
 	CreateInputSideAddButton(LeftNodeBox);
 	CreateOutputSideAddButton(RightNodeBox);
+}
+
+FLinearColor SPCGEditorGraphNode::GetGridLabelColor(EPCGHiGenGrid NodeGrid)
+{
+	// All colours hand tweaked to give a kind of "temperature scale" for the hierarchy.
+	switch (NodeGrid)
+	{
+	case EPCGHiGenGrid::Unbounded:
+		return FColor(255, 255, 255, 255);
+	case EPCGHiGenGrid::Grid2048:
+		return FColor(53, 60, 171, 255);
+	case EPCGHiGenGrid::Grid1024:
+		return FColor(31, 82, 210, 255);
+	case EPCGHiGenGrid::Grid512:
+		return FColor(16, 120, 217, 255);
+	case EPCGHiGenGrid::Grid256:
+		return FColor(8, 151, 208, 255);
+	case EPCGHiGenGrid::Grid128:
+		return FColor(9, 170, 188, 255);
+	case EPCGHiGenGrid::Grid64:
+		return FColor(64, 185, 150, 255);
+	case EPCGHiGenGrid::Grid32:
+		return FColor(144, 189, 114, 255);
+	case EPCGHiGenGrid::Grid16:
+		return FColor(207, 185, 89, 255);
+	case EPCGHiGenGrid::Grid8:
+		return FColor(252, 189, 61, 255);
+	case EPCGHiGenGrid::Grid4:
+		return FColor(243, 227, 28, 255);
+	default:
+		ensure(false);
+		return FLinearColor::White;
+	}
+}
+
+const FSlateBrush* SPCGEditorGraphNode::GetBorderBrush(EPCGHiGenGrid InspectedGrid, EPCGHiGenGrid NodeGrid) const
+{
+	if (InspectedGrid == NodeGrid)
+	{
+		return FPCGEditorStyle::Get().GetBrush(PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_Active_Border);
+	}
+
+	// Hand tweaked multiplier to fade child node grid size labels.
+	const float Opacity = (InspectedGrid < NodeGrid) ? 1.0f : 0.5f;
+
+	return new FSlateRoundedBoxBrush(
+		FLinearColor::Black * Opacity,
+		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderRadius,
+		GetGridLabelColor(NodeGrid) * Opacity,
+		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderStroke);
 }
 
 #undef LOCTEXT_NAMESPACE

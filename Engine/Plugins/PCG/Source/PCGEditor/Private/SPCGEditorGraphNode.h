@@ -4,6 +4,8 @@
 
 #include "SGraphNode.h"
 
+#include "PCGCommon.h"
+
 struct FOverlayBrushInfo;
 
 class UPCGEditorGraphNodeBase;
@@ -29,6 +31,7 @@ public:
 	//~ End SGraphNode Interface
 
 	//~ Begin SNodePanel::SNode Interface
+	virtual TArray<FOverlayWidgetInfo> GetOverlayWidgets(bool bSelected, const FVector2D& WidgetSize) const override;
 	virtual void GetOverlayBrushes(bool bSelected, const FVector2D WidgetSize, TArray<FOverlayBrushInfo>& Brushes) const override;
 	//~ End SNodePanel::SNode Interface
 
@@ -40,5 +43,13 @@ protected:
 	void UpdateCompactNode();
 
 private:
+	static FLinearColor GetGridLabelColor(EPCGHiGenGrid NodeGrid);
+
+	/**
+	* Get the border brush for the given combination of grid sizes and enabled state. All a big workaround for FSlateRoundedBoxBrush not respecting
+	* the tint colour.
+	*/
+	const FSlateBrush* GetBorderBrush(EPCGHiGenGrid InspectedGrid, EPCGHiGenGrid NodeGrid) const;
+
 	UPCGEditorGraphNodeBase* PCGEditorGraphNode = nullptr;
 };
