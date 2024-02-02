@@ -3,12 +3,31 @@
 #pragma once
 
 #include "Commandlets/Commandlet.h"
+#include "Misc/Crc.h"
 #include "GameFeatureVersePathMapperCommandlet.generated.h"
 
 class FAssetRegistryState;
 
 namespace GameFeatureVersePathMapper
 {
+	/** Case sensitive hashing function for TMap */
+	template <typename ValueType>
+	struct FCaseSensitiveKeyMapFuncs : BaseKeyFuncs<ValueType, FString, /*bInAllowDuplicateKeys*/false>
+	{
+		static FORCEINLINE const FString& GetSetKey(const TPair<FString, ValueType>& Element)
+		{
+			return Element.Key;
+		}
+		static FORCEINLINE bool Matches(const FString& A, const FString& B)
+		{
+			return A.Equals(B, ESearchCase::CaseSensitive);
+		}
+		static FORCEINLINE uint32 GetKeyHash(const FString& Key)
+		{
+			return FCrc::StrCrc32(*Key);
+		}
+	};
+
 	struct FGameFeaturePluginInfo
 	{
 		FString GfpUri;
@@ -17,9 +36,12 @@ namespace GameFeatureVersePathMapper
 
 	struct FGameFeatureVersePathLookup
 	{
-		TMap<FString, FName> VersePathToGfpMap;
+		TMap<FString, FName, FDefaultSetAllocator, GameFeatureVersePathMapper::FCaseSensitiveKeyMapFuncs<FName>> VersePathToGfpMap;
 		TMap<FName, FGameFeaturePluginInfo> GfpInfoMap;
 	};
+
+	GAMEFEATURES_API FString GetVerseAppDomain();
+	GAMEFEATURES_API FString GetAltVerseAppDomain();
 
 	/**
 	 * Finds plugin dependencies and returns them in dependency order (reverse topological sort order)
