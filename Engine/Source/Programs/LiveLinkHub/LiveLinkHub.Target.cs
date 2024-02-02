@@ -46,13 +46,17 @@ public class LiveLinkHubTarget : TargetRules
 
 		bUsesSlate = true;
 
+		bCompileICU = false;
+		bCompilePython = false; 
 		bCompileWithPluginSupport = true;
 		bBuildDeveloperTools = true;
 		bIsBuildingConsoleApplication = false;
 
+
 		GlobalDefinitions.Add("WITH_LIVELINK_HUB=1");
 		GlobalDefinitions.Add("AUTOSDKS_ENABLED=0");
 		GlobalDefinitions.Add("NO_LOGGING=0");
+		GlobalDefinitions.Add("PLATFORM_SUPPORTS_MESSAGEBUS=1");
 
 		bEnableTrace = true;
 
