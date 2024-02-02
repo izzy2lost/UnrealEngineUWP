@@ -234,6 +234,12 @@ public:
 	void AddValidator(UEditorValidatorBase* InValidator);
 
 	/**
+	 * Iterate the enabled set of validators.
+	 * @note Return true to continue iteration, or false to stop.
+	 */
+	void ForEachEnabledValidator(TFunctionRef<bool(UEditorValidatorBase* Validator)> Callback) const;
+
+	/**
 	 * Runs registered validators on the provided object.
 	 * Does not add anything to any FMessageLog tabs.
 	 * @return Returns Valid if the object contains valid data; returns Invalid if the object contains invalid data; returns NotValidated if no validations was performed on the object
