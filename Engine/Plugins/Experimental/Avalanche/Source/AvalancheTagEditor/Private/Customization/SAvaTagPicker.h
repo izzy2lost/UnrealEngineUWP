@@ -12,6 +12,7 @@ class IPropertyHandle;
 class ITableRow;
 class SAvaTagCollectionPicker;
 class SComboButton;
+class SMenuAnchor;
 class STableViewBase;
 class UAvaTagCollection;
 struct FAvaTagHandle;
@@ -28,7 +29,10 @@ public:
 private:
 	//~ Begin SWidget
 	virtual void Tick(const FGeometry& InGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
 	//~ End SWidget
+
+	FReply OpenContextMenu();
 
 	const UAvaTagCollection* GetOrLoadTagCollection() const;
 
@@ -49,7 +53,12 @@ private:
 	/** Handle to the struct property */
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 
+	/** Handle to the Tag Collection property */
+	TSharedPtr<IPropertyHandle> TagCollectionPropertyHandle;
+
 	TSharedPtr<SAvaTagCollectionPicker> TagCollectionPicker;
+
+	TSharedPtr<SMenuAnchor> TagCollectionOptions;
 
 	TSharedPtr<SListView<TSharedPtr<FAvaTagHandle>>> TagListView;
 

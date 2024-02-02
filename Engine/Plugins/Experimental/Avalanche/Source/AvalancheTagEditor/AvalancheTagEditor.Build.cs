@@ -20,6 +20,7 @@ public class AvalancheTagEditor : ModuleRules
                 "PropertyEditor",
                 "Slate",
                 "SlateCore",
+                "ToolMenus",
                 "UnrealEd",
             }
         );

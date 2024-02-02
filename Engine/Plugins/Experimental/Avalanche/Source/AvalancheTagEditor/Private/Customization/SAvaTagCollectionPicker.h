@@ -6,7 +6,6 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
-class FReply;
 class FText;
 class IPropertyHandle;
 class SComboButton;
@@ -26,8 +25,6 @@ public:
 	void SetIsOpen(bool bInIsOpen);
 
 private:
-	FReply FindInContentBrowser();
-
 	FText GetTagCollectionTitleText() const;
 
 	FText GetTagCollectionTooltipText() const;
