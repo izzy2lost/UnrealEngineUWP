@@ -120,6 +120,15 @@ void UModelingSelectionInteraction::SetActiveDragMode(EModelingSelectionInteract
 	}
 }
 
+void UModelingSelectionInteraction::SetLocalFrameMode(EModelingSelectionInteraction_LocalFrameMode NewLocalFrameMode)
+{
+	if (LocalFrameMode != NewLocalFrameMode)
+	{
+		LocalFrameMode = NewLocalFrameMode;
+		UpdateGizmoOnSelectionChange();
+	}
+}
+
 void UModelingSelectionInteraction::UpdateActiveDragMode()
 {
 	if (ActiveDragMode == EModelingSelectionInteraction_DragMode::PathInteraction)
@@ -339,7 +348,14 @@ void UModelingSelectionInteraction::UpdateGizmoOnSelectionChange()
 		TransformGizmo->SetVisibility(true);
 
 		FFrame3d SelectionFrame;
-		SelectionManager->GetSelectionWorldFrame(SelectionFrame);
+		if (LocalFrameMode == EModelingSelectionInteraction_LocalFrameMode::FromGeometry)
+		{
+			SelectionManager->GetSelectionWorldFrame(SelectionFrame);
+		}
+		else
+		{
+			SelectionManager->GetTargetWorldFrame(SelectionFrame);
+		}
 		TransformGizmo->ReinitializeGizmoTransform( SelectionFrame.ToFTransform() );
 	}
 }
