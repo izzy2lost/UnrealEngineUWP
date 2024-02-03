@@ -144,6 +144,7 @@
 		"Win64":
 		{
 			"pool": "win-ue5",
+			"workspace": "Full",
 			"environment":
 			{
 			}
@@ -151,6 +152,11 @@
 	},
 	"workspaceTypes":
 	{
+		"Full":
+		{
+			// Set a unique identifier to prevent overlap with other streams; will cause workspace to be synced to a different folder
+			"Identifier": "Demo"
+		}
 	},
 	"templates":
 	[
