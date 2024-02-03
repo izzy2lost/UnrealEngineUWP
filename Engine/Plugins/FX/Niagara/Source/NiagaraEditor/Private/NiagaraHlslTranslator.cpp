@@ -10,7 +10,6 @@
 #include "NiagaraCompilationPrivate.h"
 #include "NiagaraConstants.h"
 #include "NiagaraDataInterface.h"
-#include "NiagaraDataInterfaceVector2DCurve.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraEditorSettings.h"
 #include "NiagaraEditorTickables.h"
@@ -32,8 +31,6 @@
 #include "NiagaraNodeSelect.h"
 #include "NiagaraNodeStaticSwitch.h"
 #include "NiagaraNodeOp.h"
-#include "NiagaraParameterCollection.h"
-#include "NiagaraScriptSource.h"
 #include "NiagaraSettings.h"
 #include "NiagaraShared.h"
 #include "NiagaraSimulationStageBase.h"
@@ -613,7 +610,10 @@ void TNiagaraHlslTranslator<GraphBridge>::GenerateFunctionSignature(ENiagaraScri
 //////////////////////////////////////////////////////////////////////////
 
 FNiagaraHlslTranslator::FNiagaraHlslTranslator()
-	: CurrentBodyChunkMode(ENiagaraCodeChunkMode::Body)
+	: ReadIdx(0)
+	, WriteIdx(0)
+	, CompilationTarget(ENiagaraSimTarget::CPUSim)
+	, CurrentBodyChunkMode(ENiagaraCodeChunkMode::Body)
 	, ActiveStageIdx(-1)
 	, bInitializedDefaults(false)
 {
@@ -1187,6 +1187,7 @@ FNiagaraTranslateResults TNiagaraHlslTranslator<GraphBridge>::Translate(const FN
 	CompilationTarget = TranslationOptions.SimTarget;
 	TranslateResults.bHLSLGenSucceeded = false;
 	TranslateResults.OutputHLSL = "";
+	HlslOutput.Reserve(1024 * 1024); // reserve some space to prevent reallocations during translation
 
 	const FGraph* SourceGraph = GraphBridge::GetGraph(CompileDuplicateData);
 
@@ -2792,11 +2793,11 @@ void TNiagaraHlslTranslator<GraphBridge>::DefineInterpolatedParametersFunction(F
 
 						if (FoundNamespacedVar != nullptr)
 						{
-							FString FoundName = GetSanitizedSymbolName(FoundNamespacedVar->GetName().ToString());
 							FNiagaraCodeChunk& Chunk = CodeChunks[ChunkIdx];
 							if (ShouldInterpolateParameter(*FoundNamespacedVar))
 							{
-								HlslOutputString += TEXT("\tContext.") + PrevMap + TEXT(".") + FoundName + TEXT(" = lerp(") + INTERPOLATED_PARAMETER_PREFIX + Chunk.SymbolName + Chunk.ComponentMask + TEXT(", ") + Chunk.SymbolName + Chunk.ComponentMask + TEXT(", ") + TEXT("SpawnInterp);\n");
+								
+								HlslOutputString += GetInterpolateHlsl(*FoundNamespacedVar, PrevMap, Chunk);
 							}
 							else
 							{
@@ -4798,6 +4799,16 @@ bool FNiagaraHlslTranslator::ShouldInterpolateParameter(const FNiagaraVariable& 
 	return true;
 }
 
+FString FNiagaraHlslTranslator::GetInterpolateHlsl(const FNiagaraVariable& Parameter, const FString& PrevMapName, const FNiagaraCodeChunk& Chunk) const
+{
+	FString FoundName = GetSanitizedSymbolName(Parameter.GetName().ToString());
+	if (Parameter.GetType() == FNiagaraTypeDefinition::GetQuatDef() && CompileOptions.AdditionalDefines.Contains(FNiagaraCompileOptions::AccurateQuatInterpolation))
+	{
+		return FString::Format(TEXT("\tContext.{0}.{1} = NiagaraQuatSLerp({2}{3}{4}, {3}{4}, SpawnInterp);\n"), {PrevMapName, FoundName, INTERPOLATED_PARAMETER_PREFIX, Chunk.SymbolName, Chunk.ComponentMask});
+	}
+	return FString::Format(TEXT("\tContext.{0}.{1} = lerp({2}{3}{4}, {3}{4}, SpawnInterp);\n"), {PrevMapName, FoundName, INTERPOLATED_PARAMETER_PREFIX, Chunk.SymbolName, Chunk.ComponentMask});
+}
+
 // specialization handling the case where the translation process treats the graph as mutable
 template<>
 void TNiagaraHlslTranslator<FNiagaraCompilationDigestBridge>::UpdateStaticSwitchConstants(const FPin* Pin)
@@ -5977,7 +5988,7 @@ bool TNiagaraHlslTranslator<GraphBridge>::GetLiteralConstantVariable(FNiagaraVar
 		FNiagaraVariable ResolvedLocalSpaceCompileOptionVar = ActiveHistoryForFunctionCalls.ResolveAliases(SYS_PARAM_EMITTER_LOCALSPACE);
 		if (CompileOptions.AdditionalDefines.Contains(ResolvedLocalSpaceCompileOptionVar.GetName().ToString()))
 		{
-			OutVar.SetValue(FVector3f(EForceInit::ForceInitToZero));
+			OutVar.SetValue(FVector3f(ForceInitToZero));
 			return true;
 		}
 	}
@@ -6727,7 +6738,7 @@ void TNiagaraHlslTranslator<GraphBridge>::ValidateFailIfPreviouslyNotSet(const F
 		{
 			for (const typename GraphBridge::FModuleScopedPin& ScopedPin : OtherOutputParamMapHistories[OtherParamIdx].PerVariableWriteHistory[FoundInParamIdx])
 			{
-				if (ScopedPin.Pin->Direction == EEdGraphPinDirection::EGPD_Input && ScopedPin.Pin->bHidden == false)
+				if (ScopedPin.Pin->Direction == EGPD_Input && ScopedPin.Pin->bHidden == false)
 				{
 					bSetPreviously = true;
 					break;
@@ -9189,7 +9200,7 @@ FString FNiagaraHlslTranslator::GenerateFunctionHlslPrototype(FStringView InVari
 	{
 		StringBuilder.Append(InVariableName);
 		StringBuilder.Append(TEXT("."));
-		StringBuilder.Append(FNiagaraHlslTranslator::GetSanitizedSymbolName(FunctionSignature.Name.ToString()));
+		StringBuilder.Append(GetSanitizedSymbolName(FunctionSignature.Name.ToString()));
 
 		// Build specifiers
 		if (FunctionSignature.FunctionSpecifiers.Num())
@@ -9229,9 +9240,9 @@ FString FNiagaraHlslTranslator::GenerateFunctionHlslPrototype(FStringView InVari
 				bNeedsComma = true;
 
 				StringBuilder.Append(TEXT("in "));
-				StringBuilder.Append(FNiagaraHlslTranslator::GetStructHlslTypeName(InputVar.GetType()));
+				StringBuilder.Append(GetStructHlslTypeName(InputVar.GetType()));
 				StringBuilder.Append(TEXT(" In_"));
-				StringBuilder.Append(FNiagaraHlslTranslator::GetSanitizedSymbolName(InputVar.GetName().ToString()));
+				StringBuilder.Append(GetSanitizedSymbolName(InputVar.GetName().ToString()));
 			}
 
 			// Outputs
@@ -9245,9 +9256,9 @@ FString FNiagaraHlslTranslator::GenerateFunctionHlslPrototype(FStringView InVari
 				bNeedsComma = true;
 
 				StringBuilder.Append(TEXT("out "));
-				StringBuilder.Append(FNiagaraHlslTranslator::GetStructHlslTypeName(OutputVar.GetType()));
+				StringBuilder.Append(GetStructHlslTypeName(OutputVar.GetType()));
 				StringBuilder.Append(TEXT(" Out_"));
-				StringBuilder.Append(FNiagaraHlslTranslator::GetSanitizedSymbolName(OutputVar.GetName().ToString()));
+				StringBuilder.Append(GetSanitizedSymbolName(OutputVar.GetName().ToString()));
 			}
 			StringBuilder.Append(TEXT(");"));
 		}
@@ -9320,7 +9331,7 @@ FString FNiagaraHlslTranslator::GetFunctionSignature(const FNiagaraFunctionSigna
 				}
 
 				FNiagaraVariable SimInput = ConvertToSimulationVariable(Input);
-				SigStr += FNiagaraHlslTranslator::GetStructHlslTypeName(SimInput.GetType()) + TEXT(" In_") + FNiagaraHlslTranslator::GetSanitizedSymbolName(Input.GetName().ToString(), true);
+				SigStr += GetStructHlslTypeName(SimInput.GetType()) + TEXT(" In_") + GetSanitizedSymbolName(Input.GetName().ToString(), true);
 				++ParamIdx;
 			}
 		}
@@ -9344,7 +9355,7 @@ FString FNiagaraHlslTranslator::GetFunctionSignature(const FNiagaraFunctionSigna
 				}
 
 				FNiagaraVariable SimOutput = ConvertToSimulationVariable(Output);
-				SigStr += TEXT("out ") + FNiagaraHlslTranslator::GetStructHlslTypeName(SimOutput.GetType()) + TEXT(" ") + FNiagaraHlslTranslator::GetSanitizedSymbolName(TEXT("Out_") + Output.GetName().ToString());
+				SigStr += TEXT("out ") + GetStructHlslTypeName(SimOutput.GetType()) + TEXT(" ") + GetSanitizedSymbolName(TEXT("Out_") + Output.GetName().ToString());
 				++ParamIdx;
 			}
 		}
