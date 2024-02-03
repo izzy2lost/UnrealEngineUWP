@@ -24,7 +24,7 @@ struct POSESEARCH_API FPoseSearchMultiSequenceItem
 };
 
 UCLASS(Experimental, BlueprintType, Category = "Animation|Pose Search")
-class UPoseSearchMultiSequence : public UDataAsset
+class POSESEARCH_API UPoseSearchMultiSequence : public UDataAsset
 {
 	GENERATED_BODY()
 

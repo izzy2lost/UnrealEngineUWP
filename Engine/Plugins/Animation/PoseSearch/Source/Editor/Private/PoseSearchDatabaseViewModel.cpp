@@ -550,6 +550,8 @@ void FDatabaseViewModel::AddSequenceToDatabase(UAnimSequence* AnimSequence)
 {
 	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
 	{
+		Database->Modify();
+		
 		FPoseSearchDatabaseSequence NewAsset;
 		NewAsset.Sequence = AnimSequence;
 		Database->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
@@ -560,6 +562,8 @@ void FDatabaseViewModel::AddBlendSpaceToDatabase(UBlendSpace* BlendSpace)
 {
 	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
 	{
+		Database->Modify();
+		
 		FPoseSearchDatabaseBlendSpace NewAsset;
 		NewAsset.BlendSpace = BlendSpace;
 		Database->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
@@ -580,6 +584,8 @@ void FDatabaseViewModel::AddAnimMontageToDatabase(UAnimMontage* AnimMontage)
 {
 	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
 	{
+		Database->Modify();
+		
 		FPoseSearchDatabaseAnimMontage NewAsset;
 		NewAsset.AnimMontage = AnimMontage;
 		Database->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
@@ -590,6 +596,8 @@ void FDatabaseViewModel::AddMultiSequenceToDatabase()
 {
 	if (UPoseSearchDatabase* Database = GetPoseSearchDatabase())
 	{
+		Database->Modify();
+		
 		FPoseSearchDatabaseMultiSequence NewAsset;
 		Database->AddAnimationAsset(FInstancedStruct::Make(NewAsset));
 	}
@@ -601,6 +609,8 @@ bool FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
 	{
 		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetAnimationAssetBase(AnimationAssetIndex))
 		{
+			Database->Modify();
+			
 			if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
 			{
 				bool bModified = false;
@@ -611,8 +621,13 @@ bool FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
 					{
 						if (PoseSearchBranchIn->Database == Database)
 						{
+							if (!bModified)
+							{
+								AnimSequenceBase->Modify();
+								bModified = true;
+							}
+
 							AnimSequenceBase->Notifies.RemoveAt(NotifyIndex);
-							bModified = true;
 						}
 					}
 				}
@@ -620,12 +635,10 @@ bool FDatabaseViewModel::DeleteFromDatabase(int32 AnimationAssetIndex)
 				if (bModified)
 				{
 					AnimSequenceBase->RefreshCacheData();	
-					AnimSequenceBase->Modify();
 				}
 			}
 
 			Database->RemoveAnimationAssetAt(AnimationAssetIndex);
-			Database->Modify();
 
 			return true;
 		}
@@ -640,6 +653,8 @@ void FDatabaseViewModel::SetDisableReselection(int32 AnimationAssetIndex, bool b
 	{
 		if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(AnimationAssetIndex))
 		{
+			Database->Modify();
+			
 			DatabaseAnimationAsset->SetDisableReselection(bEnabled);
 		}
 	}

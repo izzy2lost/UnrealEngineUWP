@@ -9,6 +9,7 @@
 #include "AssetSelection.h"
 #include "ClassIconFinder.h"
 #include "DetailColumnSizeData.h"
+#include "PoseSearchDatabaseEditorClipboard.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -17,6 +18,7 @@
 #include "PoseSearch/PoseSearchAnimNotifies.h"
 #include "PoseSearch/PoseSearchDatabase.h"
 #include "PoseSearchDatabaseViewModel.h"
+#include "PoseSearchEditor.h"
 #include "SPositiveActionButton.h"
 #include "Styling/AppStyle.h"
 #include "ScopedTransaction.h"
@@ -395,9 +397,9 @@ namespace UE::PoseSearch
 		{
 			GWarn->BeginSlowTask(LOCTEXT("LoadingAssets", "Loading Asset(s)"), true);
 
-			const FScopedTransaction Transaction(LOCTEXT("AddSequencesOrBlendspaces", "Add Sequence(s) and/or Blendspace(s) to Pose Search Database"));
-			
+			const FScopedTransaction Transaction(LOCTEXT("AddAssetsOnDrop", "Add Animation Asset(s) to Pose Search Database"));
 			PoseSearchDatabase->Modify();
+			
 			for (int32 DroppedAssetIdx = 0; DroppedAssetIdx < NumAssets; ++DroppedAssetIdx)
 			{
 				const FAssetData& AssetData = DroppedAssetData[DroppedAssetIdx];
@@ -572,37 +574,26 @@ namespace UE::PoseSearch
 
 	void SDatabaseAssetTree::OnAddSequence(bool bFinalizeChanges)
 	{
-		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
+		FScopedTransaction Transaction(LOCTEXT("AddSequence", "Add Sequence"));
+
+		EditorViewModel.Pin()->AddSequenceToDatabase(nullptr);
+
+		if (bFinalizeChanges)
 		{
-			FScopedTransaction Transaction(LOCTEXT("AddSequence", "Add Sequence"));
-
-			PoseSearchDatabase->Modify();
-
-			ViewModel->AddSequenceToDatabase(nullptr);
-
-			if (bFinalizeChanges)
-			{
-				FinalizeTreeChanges();
-			}
+			FinalizeTreeChanges();
 		}
+		
 	}
 
 	void SDatabaseAssetTree::OnAddBlendSpace(bool bFinalizeChanges)
 	{
-		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
-		if (UPoseSearchDatabase* PoseSearchDatabase = ViewModel->GetPoseSearchDatabase())
+		FScopedTransaction Transaction(LOCTEXT("AddBlendSpaceTransaction", "Add Blend Space"));
+		
+		EditorViewModel.Pin()->AddBlendSpaceToDatabase(nullptr);
+
+		if (bFinalizeChanges)
 		{
-			FScopedTransaction Transaction(LOCTEXT("AddBlendSpaceTransaction", "Add Blend Space"));
-
-			PoseSearchDatabase->Modify();
-
-			ViewModel->AddBlendSpaceToDatabase(nullptr);
-
-			if (bFinalizeChanges)
-			{
-				FinalizeTreeChanges();
-			}
+			FinalizeTreeChanges();
 		}
 	}
 
@@ -683,18 +674,33 @@ namespace UE::PoseSearch
 	void SDatabaseAssetTree::CreateCommandList()
 	{
 		CommandList = MakeShared<FUICommandList>();
-
+		
 		CommandList->MapAction(
 			FGenericCommands::Get().Delete,
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnDeleteNodes),
 				FCanExecuteAction::CreateSP(this, &SDatabaseAssetTree::CanDeleteNodes)));
+		
+		CommandList->MapAction(
+		FGenericCommands::Get().Copy,
+		FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnCopySelectedNodesToClipboard),
+		FCanExecuteAction::CreateSP(this, &SDatabaseAssetTree::CanCopyToClipboard));
+
+		CommandList->MapAction(
+			FGenericCommands::Get().Paste,
+			FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnPasteNodesFromClipboard),
+			FCanExecuteAction::CreateSP(this, &SDatabaseAssetTree::CanPasteFromClipboard));
+	
+		CommandList->MapAction(
+			FGenericCommands::Get().Cut,
+			FExecuteAction::CreateSP(this, &SDatabaseAssetTree::OnCutSelectedNodesToClipboard),
+			FCanExecuteAction::CreateSP(this, &SDatabaseAssetTree::CanCutToClipboard));
 	}
 
 	bool SDatabaseAssetTree::CanDeleteNodes() const
 	{
 		TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
-		for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+		for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
 		{
 			if (SelectedNode->SourceAssetIdx != INDEX_NONE)
 			{
@@ -710,7 +716,7 @@ namespace UE::PoseSearch
 		TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
 		if (!SelectedNodes.IsEmpty())
 		{
-			const FScopedTransaction Transaction(LOCTEXT("DeletePoseSearchDatabaseNodes", "Delete selected items from Pose Search Database"));
+			const FScopedTransaction Transaction(LOCTEXT("DeletePoseSearchDatabaseNodes", "Delete selected item(s) from Pose Search Database"));
 			const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
 
 			SelectedNodes.Sort([](const TSharedPtr<FDatabaseAssetTreeNode>& A, const TSharedPtr<FDatabaseAssetTreeNode>& B)
@@ -718,17 +724,134 @@ namespace UE::PoseSearch
 					return B->SourceAssetIdx < A->SourceAssetIdx;
 				});
 
-			for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+			for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
 			{
 				if (SelectedNode->SourceAssetIdx != INDEX_NONE)
 				{
 					OnDeleteAsset(SelectedNode, false);
 				}
 			}
-			
+
 			ViewModel->RemovePreviewActors();
 			FinalizeTreeChanges();
 		}
+	}
+
+	void SDatabaseAssetTree::OnCopySelectedNodesToClipboard() const
+	{
+		TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
+		
+		if (!SelectedNodes.IsEmpty())
+		{
+			if (UPoseSearchDatabaseEditorClipboardContent* ClipboardContent = UPoseSearchDatabaseEditorClipboardContent::Create())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("CopyPoseSearchDatabaseNodes", "Copy selected item(s) from Pose Search Database"));
+				const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+				
+				for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
+				{
+					if (SelectedNode->SourceAssetIdx != INDEX_NONE)
+					{
+						if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
+						{
+							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetMutableAnimationAssetBase(SelectedNode->SourceAssetIdx))
+							{
+								// @todo: Support copying assets added via BranchIn notifies. 
+								if (!DatabaseAnimationAsset->bSynchronizeWithExternalDependency)
+								{
+									ClipboardContent->CopyDatabaseItem(DatabaseAnimationAsset);
+								}
+								else
+								{
+									UE_LOG(LogPoseSearchEditor, Log, TEXT("Failed to copy %s. Asset(s) with BranchIn notifies do not have clipboard support."), *DatabaseAnimationAsset->GetName())
+								}
+							}
+						}
+					}
+				}
+			
+				ClipboardContent->CopyToClipboard();
+			}
+			else
+			{
+				UE_LOG(LogPoseSearchEditor, Warning, TEXT("Failed create clipboard object while attempting to copy data"));
+			}
+		}
+	}
+
+	bool SDatabaseAssetTree::CanCopyToClipboard() const
+	{
+		return !TreeView->GetSelectedItems().IsEmpty();
+	}
+
+	void SDatabaseAssetTree::OnPasteNodesFromClipboard()
+	{
+		const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+		
+		if (const UPoseSearchDatabaseEditorClipboardContent* ClipboardContent = UPoseSearchDatabaseEditorClipboardContent::CreateFromClipboard())
+		{
+			if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
+			{
+				const FScopedTransaction Transaction(LOCTEXT("PastePoseSearchDatabaseNodes", "Paste item(s) to Pose Search Database"));
+			
+				ClipboardContent->PasteToDatabase(Database);
+
+				FinalizeTreeChanges();
+			}
+		}
+		else
+		{
+			UE_LOG(LogPoseSearchEditor, Warning, TEXT("Failed to get valid clipboard data while attempting to paste data"));
+		}
+	}
+
+	bool SDatabaseAssetTree::CanPasteFromClipboard()
+	{
+		const UPoseSearchDatabaseEditorClipboardContent* ClipboardContent = UPoseSearchDatabaseEditorClipboardContent::CreateFromClipboard();
+		return ClipboardContent && !ClipboardContent->DatabaseItems.IsEmpty();
+	}
+
+	void SDatabaseAssetTree::OnCutSelectedNodesToClipboard()
+	{
+		const FScopedTransaction Transaction(LOCTEXT("CutPoseSearchDatabaseNodes", "Cut selected item(s) from Pose Search Database"));
+		
+		OnCopySelectedNodesToClipboard();
+
+		// @todo: Following code can be replaced with OnDeleteNodes() call once assets with external dependencies support copying/pasting.
+		TArray<TSharedPtr<FDatabaseAssetTreeNode>> SelectedNodes = TreeView->GetSelectedItems();
+		if (!SelectedNodes.IsEmpty())
+		{
+			const TSharedPtr<FDatabaseViewModel> ViewModel = EditorViewModel.Pin();
+
+			SelectedNodes.Sort([](const TSharedPtr<FDatabaseAssetTreeNode>& A, const TSharedPtr<FDatabaseAssetTreeNode>& B)
+				{
+					return B->SourceAssetIdx < A->SourceAssetIdx;
+				});
+
+			for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
+			{
+				if (SelectedNode->SourceAssetIdx != INDEX_NONE)
+				{
+					if (UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase())
+					{
+						const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAsset = Database->GetAnimationAssetBase(SelectedNode->SourceAssetIdx);
+						
+						if (DatabaseAnimationAsset && !DatabaseAnimationAsset->bSynchronizeWithExternalDependency)
+						{
+							OnDeleteAsset(SelectedNode, false);
+						}
+					}
+				}
+			}
+
+			ViewModel->RemovePreviewActors();
+			FinalizeTreeChanges();
+		}
+	}
+
+	bool SDatabaseAssetTree::CanCutToClipboard() const
+	{
+		return CanCopyToClipboard() && CanDeleteNodes();
 	}
 
 	void SDatabaseAssetTree::EnableSelectedNodes(bool bIsEnabled)
@@ -744,7 +867,7 @@ namespace UE::PoseSearch
 
 				PoseSearchDatabase->Modify();
 
-				for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+				for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
 				{
 					ViewModel->SetIsEnabled(SelectedNode->SourceAssetIdx, bIsEnabled);
 				}
@@ -764,16 +887,24 @@ namespace UE::PoseSearch
 			{
 				const FScopedTransaction Transaction(LOCTEXT("ConvertToBranchInTransaction", "Create PoseSearchBranchIn notify state for assets in Pose Search Database"));
 
-				for (TSharedPtr<FDatabaseAssetTreeNode> SelectedNode : SelectedNodes)
+				bool bModified = false;
+				
+				for (const TSharedPtr<FDatabaseAssetTreeNode>& SelectedNode : SelectedNodes)
 				{
 					if (FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = PoseSearchDatabase->GetMutableAnimationAssetBase(SelectedNode->SourceAssetIdx))
 					{
 						if (UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(DatabaseAnimationAssetBase->GetAnimationAsset()))
 						{
+							if (!bModified)
+							{
+								AnimSequenceBase->Modify();
+								bModified = true;
+							}
+							
 							const FFloatInterval SamplingRange = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(AnimSequenceBase, DatabaseAnimationAssetBase->GetSamplingRange());
 							const float StartTime = SamplingRange.Min;
 							const float Duration = SamplingRange.Max - SamplingRange.Min;
-							FName TrackName = "PoseSearch";
+							const FName TrackName = "PoseSearch";
 							
 							if (!UAnimationBlueprintLibrary::IsValidAnimNotifyTrackName(AnimSequenceBase, TrackName))
 							{
@@ -783,7 +914,6 @@ namespace UE::PoseSearch
 							UAnimNotifyState_PoseSearchBranchIn* PoseSearchBranchIn = CastChecked<UAnimNotifyState_PoseSearchBranchIn>(UAnimationBlueprintLibrary::AddAnimationNotifyStateEvent(AnimSequenceBase, TrackName, StartTime, Duration, UAnimNotifyState_PoseSearchBranchIn::StaticClass()));
 							PoseSearchBranchIn->Database = PoseSearchDatabase;
 							DatabaseAnimationAssetBase->bSynchronizeWithExternalDependency = true;
-							AnimSequenceBase->Modify();
 						}
 					}
 				}
