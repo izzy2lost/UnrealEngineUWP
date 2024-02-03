@@ -9,8 +9,8 @@ class FAvaEaseCurveToolCommands : public TCommands<FAvaEaseCurveToolCommands>
 {
 public:
 	FAvaEaseCurveToolCommands()
-		: TCommands<FAvaEaseCurveToolCommands>(TEXT("AvalancheCurveEaseToolCommands")
-			, NSLOCTEXT("AvaCurveEaseToolCommands", "AvaCurveEaseToolCommands", "Motion Design Curve Ease Tool Commands")
+		: TCommands<FAvaEaseCurveToolCommands>(TEXT("AvalancheEaseCurveToolCommands")
+			, NSLOCTEXT("AvaEaseCurveToolCommands", "AvaEaseCurveToolCommands", "Motion Design Curve Ease Tool Commands")
 			, NAME_None
 			, FAppStyle::GetAppStyleSetName())
 	{
@@ -32,6 +32,8 @@ public:
 	TSharedPtr<FUICommandInfo> ToggleGridSnap;
 
 	TSharedPtr<FUICommandInfo> ToggleAutoFlipTangents;
+
+	TSharedPtr<FUICommandInfo> ToggleAutoZoomToFit;
 
 	TSharedPtr<FUICommandInfo> ResetTangents;
 	TSharedPtr<FUICommandInfo> ResetStartTangent;
@@ -60,4 +62,8 @@ public:
 
 	TSharedPtr<FUICommandInfo> SelectNextChannelKey;
 	TSharedPtr<FUICommandInfo> SelectPreviousChannelKey;
+
+	TSharedPtr<FUICommandInfo> QuickEase;
+	TSharedPtr<FUICommandInfo> QuickEaseIn;
+	TSharedPtr<FUICommandInfo> QuickEaseOut;
 };

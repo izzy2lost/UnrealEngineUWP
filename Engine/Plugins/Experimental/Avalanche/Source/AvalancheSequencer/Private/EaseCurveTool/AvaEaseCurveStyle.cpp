@@ -17,10 +17,10 @@ FAvaEaseCurveStyle::FAvaEaseCurveStyle()
 {
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Avalanche"));
 	check(Plugin.IsValid());
-	if (Plugin.IsValid())
-	{
-		SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
-	}
+	
+	SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
+
+	Set("Preset.Selected", new FSlateRoundedBoxBrush(FStyleColors::Transparent, FVector4(4.f, 0.f, 0.f, 4.f), FStyleColors::Select.GetSpecifiedColor(), 1.f));
 
 	Set("EditMode.Background", new FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.f, FLinearColor(0.1f, 0.1f, 0.1f, 1.f), 1.f));
 	Set("EditMode.Background.Highlight", new FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.f, FLinearColor(0.6f, 0.6f, 0.6f, 1.f), 1.f));
@@ -55,6 +55,8 @@ FAvaEaseCurveStyle::FAvaEaseCurveStyle()
 		.SetCheckedPressedImage(FSlateRoundedBoxBrush(FStyleColors::PrimaryPress, 4.0f))
 		.SetPadding(ToolButtonPadding);
 	Set("ToolToggleButton", ToolToggleButtonStyle);
+
+	Set("Editor.LabelFont", FSlateFontInfo(FCoreStyle::GetDefaultFont(), 7, TEXT("Regular")));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

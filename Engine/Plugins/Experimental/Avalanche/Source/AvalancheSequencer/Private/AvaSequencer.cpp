@@ -17,6 +17,8 @@
 #include "DetailsView/Section/AvaSequencePlaybackDetails.h"
 #include "DetailsView/Section/AvaSequenceSelectionDetails.h"
 #include "DetailsView/Section/AvaSequenceSettingsDetails.h"
+#include "EaseCurveTool/AvaEaseCurveTool.h"
+#include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "Editor/Sequencer/Private/Sequencer.h"
 #include "EngineUtils.h"
 #include "EntitySystem/MovieSceneEntitySystemRunner.h"
@@ -261,6 +263,21 @@ void FAvaSequencer::EnsureSequencer()
 	{
 		SequenceProvider->OnEditorSequencerCreated(Sequencer);
 	}
+
+	// Create ease curve tool and map commands
+	EaseCurveTool = MakeShared<FAvaEaseCurveTool>(SharedThis(this));
+
+	const TSharedRef<FAvaEaseCurveTool> EaseCurveToolRef = EaseCurveTool.ToSharedRef();
+	const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
+
+	CommandList->MapAction(EaseCurveToolCommands.QuickEaseIn
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections, FAvaEaseCurveTool::EOperation::In));
+
+	CommandList->MapAction(EaseCurveToolCommands.QuickEase
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections, FAvaEaseCurveTool::EOperation::InOut));
+
+	CommandList->MapAction(EaseCurveToolCommands.QuickEaseOut
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections, FAvaEaseCurveTool::EOperation::Out));
 }
 
 TSharedRef<ISequencer> FAvaSequencer::CreateSequencer()
@@ -1675,6 +1692,11 @@ void FAvaSequencer::ExecuteSequencerDuplication(FExecuteAction InExecuteAction)
 void FAvaSequencer::OnUpdateCameraCut(UObject* InCameraObject, bool bInJumpCut)
 {
 	GetProvider().OnUpdateCameraCut(InCameraObject, bInJumpCut);
+}
+
+TSharedRef<FAvaEaseCurveTool> FAvaSequencer::GetEaseCurveTool() const
+{
+	return EaseCurveTool.ToSharedRef(); 
 }
 
 #undef LOCTEXT_NAMESPACE

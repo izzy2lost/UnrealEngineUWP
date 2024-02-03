@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaEaseCurvePresetGroupItem.h"
-#include "EaseCurveTool/AvaEaseCurveStyle.h"
 #include "EaseCurveTool/AvaEaseCurvePreset.h"
 #include "EaseCurveTool/AvaEaseCurvePresetDragDropOp.h"
+#include "EaseCurveTool/AvaEaseCurveStyle.h"
+#include "EaseCurveTool/AvaEaseCurveToolCommands.h"
+#include "EaseCurveTool/AvaEaseCurveToolSettings.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreview.h"
 #include "Internationalization/Text.h"
 #include "Styling/AppStyle.h"
@@ -25,11 +27,14 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 {
 	Preset = InArgs._Preset;
 	bIsEditMode = InArgs._IsEditMode;
+	IsSelected = InArgs._IsSelected;
 	OnClick = InArgs._OnClick;
 	OnDelete = InArgs._OnDelete;
 	OnRename = InArgs._OnRename;
 	OnBeginMove = InArgs._OnBeginMove;
 	OnEndMove = InArgs._OnEndMove;
+
+	const FText ItemTooltipText = FText::Format(LOCTEXT("ItemTooltip", "{0}\n\nShift + Click to set as active quick preset"), FText::FromString(Preset->Name));
 
 	ChildSlot
 		[
@@ -60,11 +65,30 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 							})
 						+ SWidgetSwitcher::Slot()
 						[
-							SNew(STextBlock)
-							.TextStyle(FAppStyle::Get(), TEXT("Menu.Label"))
-							.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
-							.Text(FText::FromString(Preset->Name))
-							.ToolTipText(FText::FromString(Preset->Name))
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.VAlign(VAlign_Center)
+							[
+								SNew(SBox)
+								.Padding(0.f, 0.f, 0.f, 3.f)
+								.Visibility(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility)
+								[
+									SNew(SImage)
+									.DesiredSizeOverride(FVector2D(10.f))
+									.Image(FAppStyle::GetBrush(TEXT("Icons.Adjust")))
+									.ToolTipText(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip)
+								]
+							]
+							+ SHorizontalBox::Slot()
+							[
+								SNew(STextBlock)
+								.TextStyle(FAppStyle::Get(), TEXT("Menu.Label"))
+								.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+								.ColorAndOpacity(FStyleColors::White)
+								.Text(FText::FromString(Preset->Name))
+								.ToolTipText(ItemTooltipText)
+							]
 						]
 						+ SWidgetSwitcher::Slot()
 						[
@@ -106,6 +130,7 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 					SNew(SBorder)
 					.BorderBackgroundColor(FStyleColors::White25)
 					.Padding(2.f)
+					.OnMouseButtonDown(this, &SAvaEaseCurvePresetGroupItem::OnMouseButtonDown)
 					[
 						SNew(SAvaEaseCurvePreview)
 						.PreviewSize(20.f)
@@ -132,14 +157,6 @@ void SAvaEaseCurvePresetGroupItem::SetPreset(const TSharedPtr<FAvaEaseCurvePrese
 	Preset = InPreset;
 }
 
-void SAvaEaseCurvePresetGroupItem::HandlePresetClick() const
-{
-	if (OnClick.IsBound())
-	{
-		OnClick.Execute(Preset);
-	}
-}
-
 bool SAvaEaseCurvePresetGroupItem::IsEditMode() const
 {
 	return bIsEditMode.Get(false);
@@ -152,12 +169,24 @@ EVisibility SAvaEaseCurvePresetGroupItem::GetEditModeVisibility() const
 
 EVisibility SAvaEaseCurvePresetGroupItem::GetBorderVisibility() const
 {
-	return bIsDragging && IsEditMode() ? EVisibility::Visible : EVisibility::Collapsed;
+	return ((bIsDragging && IsEditMode()) || (IsSelected.IsSet() && IsSelected.Get()))
+		? EVisibility::Visible: EVisibility::Collapsed;
 }
 
 const FSlateBrush* SAvaEaseCurvePresetGroupItem::GetBackgroundImage() const
 {
-	return bIsDragging ? FAvaEaseCurveStyle::Get().GetBrush(TEXT("EditMode.Background.Over")) : nullptr;
+	FName BrushName = NAME_None;
+
+	if (bIsDragging)
+	{
+		BrushName = TEXT("EditMode.Background.Over");
+	}
+	else if (IsSelected.IsSet() && IsSelected.Get())
+	{
+		BrushName = TEXT("Preset.Selected");
+	}
+
+	return BrushName.IsNone() ? nullptr : FAvaEaseCurveStyle::Get().GetBrush(BrushName);
 }
 
 void SAvaEaseCurvePresetGroupItem::HandleRenameTextCommitted(const FText& InNewText, ETextCommit::Type InCommitType) const
@@ -194,7 +223,7 @@ FReply SAvaEaseCurvePresetGroupItem::OnMouseButtonDown(const FGeometry& InGeomet
 
 	if (OnClick.IsBound())
 	{
-		OnClick.Execute(Preset);
+		OnClick.Execute(Preset, InMouseEvent.GetModifierKeys());
 	}
 
 	return FReply::Handled();
@@ -245,6 +274,48 @@ void SAvaEaseCurvePresetGroupItem::TriggerEndMove()
 	}
 
 	bIsDragging = false;
+}
+
+EVisibility SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility() const
+{
+	const UAvaEaseCurveToolSettings* const Settings = GetDefault<UAvaEaseCurveToolSettings>();
+
+	FAvaEaseCurveTangents Tangents;
+	if (!FAvaEaseCurveTangents::FromString(Settings->GetQuickEaseTangents(), Tangents))
+	{
+		return EVisibility::Hidden;
+	}
+
+	return (Preset->Tangents == Tangents) ? EVisibility::Visible : EVisibility::Hidden;
+}
+
+FText SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip() const
+{
+	static const FText QuickEaseText = LOCTEXT("QuickEaseIconTooltip", "Active Quick Ease Preset");
+
+	const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
+
+	FText CommandText;
+
+	if (EaseCurveToolCommands.QuickEase->GetFirstValidChord()->IsValidChord())
+	{
+		CommandText = FText::Format(LOCTEXT("QuickEaseIconInputInOutTooltip", "{0} - Apply quick preset to Out (Leave) and In (Arrive) tangents\n")
+			, EaseCurveToolCommands.QuickEase->GetInputText());
+	}
+
+	if (EaseCurveToolCommands.QuickEaseIn->GetFirstValidChord()->IsValidChord())
+	{
+		CommandText = FText::Format(LOCTEXT("QuickEaseIconInputInTooltip", "{0} - Apply quick preset to In (Arrive) tangent only\n")
+			, EaseCurveToolCommands.QuickEaseIn->GetInputText());
+	}
+
+	if (EaseCurveToolCommands.QuickEaseOut->GetFirstValidChord()->IsValidChord())
+	{
+		CommandText = FText::Format(LOCTEXT("QuickEaseIconInputOutTooltip", "{0} - Apply quick preset to Out (Leave) tangent only\n")
+			, EaseCurveToolCommands.QuickEaseOut->GetInputText());
+	}
+
+	return CommandText.IsEmpty() ? QuickEaseText : FText::Format(LOCTEXT("", "{0}\n\n{1}"), QuickEaseText, CommandText);
 }
 
 #undef LOCTEXT_NAMESPACE

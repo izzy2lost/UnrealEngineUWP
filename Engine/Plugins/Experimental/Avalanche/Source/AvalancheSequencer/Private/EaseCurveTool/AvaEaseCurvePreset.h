@@ -31,12 +31,12 @@ struct FAvaEaseCurvePreset
 		return Tangents.CalculateCurveLength() < InRhs.Tangents.CalculateCurveLength();
 	}
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurvePreset")
 	FString Name;
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurvePreset")
 	FString Category;
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurvePreset")
 	FAvaEaseCurveTangents Tangents;
 };

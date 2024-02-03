@@ -3,6 +3,7 @@
 #include "SAvaEaseCurveTool.h"
 #include "Curves/KeyHandle.h"
 #include "Curves/RichCurve.h"
+#include "DetailLayoutBuilder.h"
 #include "EaseCurveTool/AvaEaseCurvePreset.h"
 #include "EaseCurveTool/AvaEaseCurveTool.h"
 #include "EaseCurveTool/AvaEaseCurveToolCommands.h"
@@ -10,9 +11,9 @@
 #include "EaseCurveTool/Widgets/SAvaEaseCurveEditor.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreset.h"
 #include "Editor.h"
-#include "DetailLayoutBuilder.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "IAvaSequencer.h"
 #include "Math/UnrealMathUtility.h"
 #include "SCurveEditor.h"
 #include "Styling/AppStyle.h"
@@ -115,12 +116,12 @@ namespace UE::AvaSequencer
 	}
 }
 
-void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAvaEaseCurveTool>& InCurveEaseTool)
+void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAvaEaseCurveTool>& InEaseCurveTool)
 {
 	ToolMode = InArgs._ToolMode;
 	ToolOperation = InArgs._ToolOperation;
 
-	CurveEaseTool = InCurveEaseTool;
+	EaseCurveTool = InEaseCurveTool;
 
 	ChildSlot
 		[
@@ -132,9 +133,10 @@ void SAvaEaseCurveTool::Construct(const FArguments& InArgs, const TSharedRef<FAv
 			[
 				SAssignNew(CurvePresetWidget, SAvaEaseCurvePreset)
 				.OnPresetChanged(this, &SAvaEaseCurveTool::OnPresetChanged)
+				.OnQuickPresetChanged(this, &SAvaEaseCurveTool::OnQuickPresetChanged)
 				.OnGetNewPresetTangents_Lambda([this](FAvaEaseCurveTangents& OutTangents) -> bool
 					{
-						OutTangents = CurveEaseTool->GetEaseCurveTangents();
+						OutTangents = EaseCurveTool->GetEaseCurveTangents();
 						return true;
 					})
 			]
@@ -166,14 +168,14 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
 {
 	CurrentGraphSize = GetDefault<UAvaEaseCurveToolSettings>()->GetGraphSize();
 
-	const TSharedRef<FAvaEaseCurveTool> EaseCurveToolRef = CurveEaseTool.ToSharedRef();
+	const TSharedRef<FAvaEaseCurveTool> EaseCurveToolRef = EaseCurveTool.ToSharedRef();
 
 	return SNew(SBorder)
 		[
 			SNew(SOverlay)
 			+ SOverlay::Slot()
 			[
-				SAssignNew(CurveEaseEditorWidget, SAvaEaseCurveEditor, CurveEaseTool->GetToolCurve())
+				SAssignNew(CurveEaseEditorWidget, SAvaEaseCurveEditor, EaseCurveTool->GetToolCurve())
 				.DisplayRate(EaseCurveToolRef, &FAvaEaseCurveTool::GetDisplayRate)
 				.Operation(EaseCurveToolRef, &FAvaEaseCurveTool::GetOperation)
 				.DesiredSize_Lambda([this]() -> FVector2D
@@ -184,6 +186,10 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructCurveEditorPanel()
 				.GridSnap_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSnap)
 				.GridSize_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSize)
 				.GetContextMenuContent(this, &SAvaEaseCurveTool::CreateContextMenuContent)
+				.StartText(this, &SAvaEaseCurveTool::GetStartText)
+				.StartTooltipText(this, &SAvaEaseCurveTool::GetStartTooltipText)
+				.EndText(this, &SAvaEaseCurveTool::GetEndText)
+				.EndTooltipText(this, &SAvaEaseCurveTool::GetEndTooltipText)
 				.OnKeyDown(this, &SAvaEaseCurveTool::OnKeyDown)
 				.OnDragStart(this, &SAvaEaseCurveTool::OnEditorDragStart)
 				.OnDragEnd(this, &SAvaEaseCurveTool::OnEditorDragEnd)
@@ -262,22 +268,23 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructInputBoxes()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Center)
 			[
-				ConstructTangentNumBox(LOCTEXT("OutTangentLabel", "T")
-					, LOCTEXT("OutTangentToolTip", "Out Tangent")
-					, TAttribute<float>::CreateSP(this, &SAvaEaseCurveTool::GetStartTangent)
-					, SNumericEntryBox<float>::FOnValueChanged::CreateSP(this, &SAvaEaseCurveTool::OnStartTangentSpinBoxChanged)
-					, MinTangent, MaxTangent)
-			]
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Center)
-			[
 				ConstructTangentNumBox(LOCTEXT("OutTangentWeightLabel", "W")
 					, LOCTEXT("OutTangentWeightToolTip", "Out Tangent Weight")
 					, TAttribute<float>::CreateSP(this, &SAvaEaseCurveTool::GetStartTangentWeight)
 					, SNumericEntryBox<float>::FOnValueChanged::CreateSP(this, &SAvaEaseCurveTool::OnStartTangentWeightSpinBoxChanged)
 					, MinWeight, MaxWeight)
+			]
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Center)
+			.Padding(2.f, 0.f, 0.f, 0.f)
+			[
+				ConstructTangentNumBox(LOCTEXT("OutTangentLabel", "T")
+					, LOCTEXT("OutTangentToolTip", "Out Tangent")
+					, TAttribute<float>::CreateSP(this, &SAvaEaseCurveTool::GetStartTangent)
+					, SNumericEntryBox<float>::FOnValueChanged::CreateSP(this, &SAvaEaseCurveTool::OnStartTangentSpinBoxChanged)
+					, MinTangent, MaxTangent)
 			]
 		]
 		+ SWrapBox::Slot()
@@ -303,22 +310,23 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructInputBoxes()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Center)
 			[
-				ConstructTangentNumBox(LOCTEXT("InTangentLabel", "T")
-					, LOCTEXT("InTangentToolTip", "In Tangent")
-					, TAttribute<float>::CreateSP(this, &SAvaEaseCurveTool::GetEndTangent)
-					, SNumericEntryBox<float>::FOnValueChanged::CreateSP(this, &SAvaEaseCurveTool::OnEndTangentSpinBoxChanged)
-					, MinTangent, MaxTangent)
-			]
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.f)
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Center)
-			[
 				ConstructTangentNumBox(LOCTEXT("InTangentWeightLabel", "W")
 					, LOCTEXT("InTangentWeightToolTip", "In Tangent Weight")
 					, TAttribute<float>::CreateSP(this, &SAvaEaseCurveTool::GetEndTangentWeight)
 					, SNumericEntryBox<float>::FOnValueChanged::CreateSP(this, &SAvaEaseCurveTool::OnEndTangentWeightSpinBoxChanged)
 					, MinWeight, MaxWeight)
+			]
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.f)
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Center)
+			.Padding(2.f, 0.f, 0.f, 0.f)
+			[
+				ConstructTangentNumBox(LOCTEXT("InTangentLabel", "T")
+					, LOCTEXT("InTangentToolTip", "In Tangent")
+					, TAttribute<float>::CreateSP(this, &SAvaEaseCurveTool::GetEndTangent)
+					, SNumericEntryBox<float>::FOnValueChanged::CreateSP(this, &SAvaEaseCurveTool::OnEndTangentSpinBoxChanged)
+					, MinTangent, MaxTangent)
 			]
 		];
 }
@@ -360,11 +368,11 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructTangentNumBox(const FText& InLab
 				.Value(InValue)
 				.OnBeginSliderMovement_Lambda([this]()
 					{
-						CurveEaseTool->BeginTransaction(LOCTEXT("SliderDragStartLabel", "Ease Curve Slider Drag"));
+						EaseCurveTool->BeginTransaction(LOCTEXT("SliderDragStartLabel", "Ease Curve Slider Drag"));
 					})
 				.OnEndSliderMovement_Lambda([this](const float InNewValue)
 					{
-						CurveEaseTool->EndTransaction();
+						EaseCurveTool->EndTransaction();
 					})
 				.OnValueChanged_Lambda([this, InOnValueChanged](const float InNewValue)
 					{
@@ -385,12 +393,12 @@ void SAvaEaseCurveTool::HandleEditorTangentsChanged(const FAvaEaseCurveTangents&
 
 void SAvaEaseCurveTool::OnEditorDragStart() const
 {
-	CurveEaseTool->BeginTransaction(LOCTEXT("EditorDragStartLabel", "Ease Curve Graph Drag"));
+	EaseCurveTool->BeginTransaction(LOCTEXT("EditorDragStartLabel", "Ease Curve Graph Drag"));
 }
 
 void SAvaEaseCurveTool::OnEditorDragEnd() const
 {
-	CurveEaseTool->EndTransaction();
+	EaseCurveTool->EndTransaction();
 }
 
 void SAvaEaseCurveTool::SetTangents(const FAvaEaseCurveTangents& InTangents, const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const
@@ -404,61 +412,61 @@ void SAvaEaseCurveTool::SetTangents(const FAvaEaseCurveTangents& InTangents, con
 	}
 
 	// To change the graph UI tangents, we need to change the ease curve object tangents and the graph will reflect.
-	if (bInSetEaseCurve && CurveEaseTool.IsValid())
+	if (bInSetEaseCurve && EaseCurveTool.IsValid())
 	{
-		CurveEaseTool->SetEaseCurveTangents(InTangents, bInBroadcastUpdate, bInSetSequencerTangents);
+		EaseCurveTool->SetEaseCurveTangents(InTangents, bInBroadcastUpdate, bInSetSequencerTangents);
 	}
 
-	if (CurveEaseEditorWidget.IsValid())
+	if (GetDefault<UAvaEaseCurveToolSettings>()->GetAutoZoomToFit())
 	{
-		CurveEaseEditorWidget->ZoomToFit();
+		ZoomToFit();
 	}
 }
 
 float SAvaEaseCurveTool::GetStartTangent() const
 {
-	return CurveEaseTool->GetEaseCurveTangents().Start;
+	return EaseCurveTool->GetEaseCurveTangents().Start;
 }
 
 float SAvaEaseCurveTool::GetStartTangentWeight() const
 {
-	return CurveEaseTool->GetEaseCurveTangents().StartWeight;
+	return EaseCurveTool->GetEaseCurveTangents().StartWeight;
 }
 
 float SAvaEaseCurveTool::GetEndTangent() const
 {
-	return CurveEaseTool->GetEaseCurveTangents().End;
+	return EaseCurveTool->GetEaseCurveTangents().End;
 }
 
 float SAvaEaseCurveTool::GetEndTangentWeight() const
 {
-	return CurveEaseTool->GetEaseCurveTangents().EndWeight;
+	return EaseCurveTool->GetEaseCurveTangents().EndWeight;
 }
 
 void SAvaEaseCurveTool::OnStartTangentSpinBoxChanged(const float InNewValue) const
 {
-	FAvaEaseCurveTangents NewTangents = CurveEaseTool->GetEaseCurveTangents();
+	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.Start = InNewValue;
 	SetTangents(NewTangents, true, true, true);
 }
 
 void SAvaEaseCurveTool::OnStartTangentWeightSpinBoxChanged(const float InNewValue) const
 {
-	FAvaEaseCurveTangents NewTangents = CurveEaseTool->GetEaseCurveTangents();
+	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.StartWeight = InNewValue;
 	SetTangents(NewTangents, true, true, true);
 }
 
 void SAvaEaseCurveTool::OnEndTangentSpinBoxChanged(const float InNewValue) const
 {
-	FAvaEaseCurveTangents NewTangents = CurveEaseTool->GetEaseCurveTangents();
+	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.End = InNewValue;
 	SetTangents(NewTangents, true, true, true);
 }
 
 void SAvaEaseCurveTool::OnEndTangentWeightSpinBoxChanged(const float InNewValue) const
 {
-	FAvaEaseCurveTangents NewTangents = CurveEaseTool->GetEaseCurveTangents();
+	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.EndWeight = InNewValue;
 	SetTangents(NewTangents, true, true, true);
 }
@@ -466,128 +474,149 @@ void SAvaEaseCurveTool::OnEndTangentWeightSpinBoxChanged(const float InNewValue)
 void SAvaEaseCurveTool::OnPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
 {
 	SetTangents(InPreset->Tangents, true, true, true);
+
+	FSlateApplication::Get().SetAllUserFocus(CurveEaseEditorWidget);
+}
+
+void SAvaEaseCurveTool::OnQuickPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
+{
+	FSlateApplication::Get().SetAllUserFocus(CurveEaseEditorWidget);
 }
 
 void SAvaEaseCurveTool::BindCommands()
 {
-	const FAvaEaseCurveToolCommands& AvaCurveEaseToolCommands = FAvaEaseCurveToolCommands::Get();
+	const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
 
-	FAvaEaseCurveTool* const CurveEaseToolRawPtr = CurveEaseTool.Get();
+	const TSharedRef<FAvaEaseCurveTool> EaseCurveToolRef = EaseCurveTool.ToSharedRef();
 
 	CommandList = MakeShared<FUICommandList>();
 
-	CommandList->MapAction(FGenericCommands::Get().Undo, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::UndoAction));
+	CommandList->MapAction(FGenericCommands::Get().Undo, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::UndoAction));
 	
-	CommandList->MapAction(FGenericCommands::Get().Redo, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::RedoAction));
+	CommandList->MapAction(FGenericCommands::Get().Redo, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::RedoAction));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.OpenToolSettings, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::OpenToolSettings));
+	CommandList->MapAction(EaseCurveToolCommands.OpenToolSettings, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::OpenToolSettings));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.Refresh, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections));
+	CommandList->MapAction(EaseCurveToolCommands.Refresh, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections));
 	
-	CommandList->MapAction(AvaCurveEaseToolCommands.Apply, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::ApplyEaseCurveToSequencerKeySelections));
+	CommandList->MapAction(EaseCurveToolCommands.Apply, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyEaseCurveToSequencerKeySelections));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.ZoomToFit, FExecuteAction::CreateSP(this, &SAvaEaseCurveTool::ZoomToFit));
+	CommandList->MapAction(EaseCurveToolCommands.ZoomToFit, FExecuteAction::CreateSP(this, &SAvaEaseCurveTool::ZoomToFit));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.ToggleGridSnap
+	CommandList->MapAction(EaseCurveToolCommands.ToggleGridSnap
 		, FExecuteAction::CreateUObject(GetMutableDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::ToggleGridSnap)
 		, FCanExecuteAction()
 		, FIsActionChecked::CreateUObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGridSnap));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.ToggleAutoFlipTangents
+	CommandList->MapAction(EaseCurveToolCommands.ToggleAutoFlipTangents
 		, FExecuteAction::CreateUObject(GetMutableDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::ToggleAutoFlipTangents)
 		, FCanExecuteAction()
 		, FIsActionChecked::CreateUObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetAutoFlipTangents));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SelectNextChannelKey, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SelectNextChannelKey));
+	CommandList->MapAction(EaseCurveToolCommands.ToggleAutoZoomToFit
+		, FExecuteAction::CreateUObject(GetMutableDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::ToggleAutoZoomToFit)
+		, FCanExecuteAction()
+		, FIsActionChecked::CreateUObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetAutoZoomToFit));
+
+	CommandList->MapAction(EaseCurveToolCommands.SelectNextChannelKey, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SelectNextChannelKey));
 	
-	CommandList->MapAction(AvaCurveEaseToolCommands.SelectPreviousChannelKey, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SelectPreviousChannelKey));
+	CommandList->MapAction(EaseCurveToolCommands.SelectPreviousChannelKey, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SelectPreviousChannelKey));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetOperationToEaseOut
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetToolOperation, FAvaEaseCurveTool::EOperation::Out)
+	CommandList->MapAction(EaseCurveToolCommands.SetOperationToEaseOut
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetToolOperation, FAvaEaseCurveTool::EOperation::Out)
 		, FCanExecuteAction()
-		, FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::Out));
+		, FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::Out));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetOperationToEaseInOut
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetToolOperation, FAvaEaseCurveTool::EOperation::InOut)
+	CommandList->MapAction(EaseCurveToolCommands.SetOperationToEaseInOut
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetToolOperation, FAvaEaseCurveTool::EOperation::InOut)
 		, FCanExecuteAction()
-		, FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::InOut));
+		, FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::InOut));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetOperationToEaseIn
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetToolOperation, FAvaEaseCurveTool::EOperation::In)
+	CommandList->MapAction(EaseCurveToolCommands.SetOperationToEaseIn
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetToolOperation, FAvaEaseCurveTool::EOperation::In)
 		, FCanExecuteAction()
-		, FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::In));
+		, FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::In));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.ResetTangents
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::ResetEaseCurveTangents, true, true));
+	CommandList->MapAction(EaseCurveToolCommands.ResetTangents
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, true, true));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.ResetStartTangent
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::ResetEaseCurveTangents, true, false));
+	CommandList->MapAction(EaseCurveToolCommands.ResetStartTangent
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, true, false));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.ResetEndTangent
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::ResetEaseCurveTangents, false, true));
+	CommandList->MapAction(EaseCurveToolCommands.ResetEndTangent
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, false, true));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.FlattenTangents
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, true, true));
+	CommandList->MapAction(EaseCurveToolCommands.FlattenTangents
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, true, true));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.FlattenStartTangent
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, false, true));
+	CommandList->MapAction(EaseCurveToolCommands.FlattenStartTangent
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, false, true));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.FlattenEndTangent
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::FlattenOrStraightenTangents, false, true, true));
+	CommandList->MapAction(EaseCurveToolCommands.FlattenEndTangent
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, false, true, true));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.StraightenTangents
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, true, false));
+	CommandList->MapAction(EaseCurveToolCommands.StraightenTangents
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, true, false));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.StraightenStartTangent
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, false, false));
+	CommandList->MapAction(EaseCurveToolCommands.StraightenStartTangent
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, false, false));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.StraightenEndTangent
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::FlattenOrStraightenTangents, false, true, false));
+	CommandList->MapAction(EaseCurveToolCommands.StraightenEndTangent
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, false, true, false));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.CopyTangents
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::CopyTangentsToClipboard)
-		, FCanExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::CanCopyTangentsToClipboard));
+	CommandList->MapAction(EaseCurveToolCommands.CopyTangents
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::CopyTangentsToClipboard)
+		, FCanExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::CanCopyTangentsToClipboard));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.PasteTangents
-		, FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::PasteTangentsFromClipboard)
-		, FCanExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::CanPasteTangentsFromClipboard));
+	CommandList->MapAction(EaseCurveToolCommands.PasteTangents
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::PasteTangentsFromClipboard)
+		, FCanExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::CanPasteTangentsFromClipboard));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.CreateExternalCurveAsset
+	CommandList->MapAction(EaseCurveToolCommands.CreateExternalCurveAsset
 		, FExecuteAction::CreateLambda([this]()
 			{
-				CurveEaseTool->CreateCurveAsset();
+				EaseCurveTool->CreateCurveAsset();
 			})
 		, FCanExecuteAction());
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetKeyInterpConstant,
-		FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Constant, RCTM_Auto),
+	CommandList->MapAction(EaseCurveToolCommands.SetKeyInterpConstant,
+		FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Constant, RCTM_Auto),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Constant, RCTM_Auto));
+		FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Constant, RCTM_Auto));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetKeyInterpLinear,
-		FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Linear, RCTM_Auto),
+	CommandList->MapAction(EaseCurveToolCommands.SetKeyInterpLinear,
+		FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Linear, RCTM_Auto),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Linear, RCTM_Auto));
+		FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Linear, RCTM_Auto));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetKeyInterpCubicAuto,
-		FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_Auto),
+	CommandList->MapAction(EaseCurveToolCommands.SetKeyInterpCubicAuto,
+		FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_Auto),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_Auto));
+		FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_Auto));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetKeyInterpCubicSmartAuto,
-		FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_SmartAuto),
+	CommandList->MapAction(EaseCurveToolCommands.SetKeyInterpCubicSmartAuto,
+		FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_SmartAuto),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_SmartAuto));
+		FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_SmartAuto));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetKeyInterpCubicUser,
-		FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_User),
+	CommandList->MapAction(EaseCurveToolCommands.SetKeyInterpCubicUser,
+		FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_User),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_User));
+		FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_User));
 
-	CommandList->MapAction(AvaCurveEaseToolCommands.SetKeyInterpCubicBreak,
-		FExecuteAction::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_Break),
+	CommandList->MapAction(EaseCurveToolCommands.SetKeyInterpCubicBreak,
+		FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::SetKeyInterpMode, RCIM_Cubic, RCTM_Break),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(CurveEaseToolRawPtr, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_Break));
+		FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsKeyInterpMode, RCIM_Cubic, RCTM_Break));
+
+	CommandList->MapAction(EaseCurveToolCommands.QuickEase
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections, FAvaEaseCurveTool::EOperation::InOut));
+
+	CommandList->MapAction(EaseCurveToolCommands.QuickEaseIn
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections, FAvaEaseCurveTool::EOperation::In));
+
+	CommandList->MapAction(EaseCurveToolCommands.QuickEaseOut
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections, FAvaEaseCurveTool::EOperation::Out));
 }
 
 TSharedRef<SWidget> SAvaEaseCurveTool::CreateContextMenuContent()
@@ -606,7 +635,7 @@ TSharedRef<SWidget> SAvaEaseCurveTool::CreateContextMenuContent()
 
 		FToolMenuSection& Section = ToolMenu->FindOrAddSection(TEXT("EaseCurveTool"), LOCTEXT("EaseCurveToolActions", "Curve Ease Tool Actions"));
 
-		const FAvaEaseCurveToolCommands& AvaCurveEaseToolCommands = FAvaEaseCurveToolCommands::Get();
+		const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
 
 		Section.AddSubMenu(TEXT("Settings"),
 			LOCTEXT("SettingsSubMenuLabel", "Settings"),
@@ -617,89 +646,95 @@ TSharedRef<SWidget> SAvaEaseCurveTool::CreateContextMenuContent()
 
 		Section.AddSeparator(NAME_None);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.CreateExternalCurveAsset);
+		Section.AddMenuEntry(EaseCurveToolCommands.CreateExternalCurveAsset);
 
 		Section.AddSeparator(NAME_None);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.CopyTangents);
+		Section.AddMenuEntry(EaseCurveToolCommands.CopyTangents);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.PasteTangents);
+		Section.AddMenuEntry(EaseCurveToolCommands.PasteTangents);
 
 		Section.AddSeparator(NAME_None);
 
 		Section.AddSubMenu(TEXT("StraightenTangents"),
 			LOCTEXT("StraightenTangentsSubMenuLabel", "Straighten Tangents"),
 			LOCTEXT("StraightenTangentsSubMenuToolTip", ""),
-			FNewMenuDelegate::CreateLambda([&AvaCurveEaseToolCommands](FMenuBuilder& InMenuBuilder)
+			FNewToolMenuDelegate::CreateLambda([&EaseCurveToolCommands](UToolMenu* InToolMenu)
 				{
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.StraightenTangents);
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.StraightenStartTangent);
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.StraightenEndTangent);
+					FToolMenuSection& NewSection = InToolMenu->FindOrAddSection(TEXT("StraightenTangents"));
+					NewSection.AddMenuEntry(EaseCurveToolCommands.StraightenTangents);
+					NewSection.AddSeparator(NAME_None);
+					NewSection.AddMenuEntry(EaseCurveToolCommands.StraightenStartTangent);
+					NewSection.AddMenuEntry(EaseCurveToolCommands.StraightenEndTangent);
 				}),
 			false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("GenericCurveEditor.StraightenTangents")));
 
 		Section.AddSubMenu(TEXT("FlattenTangents"),
 			LOCTEXT("FlattenTangentsSubMenuLabel", "Flatten Tangents"),
 			LOCTEXT("FlattenTangentsSubMenuToolTip", ""),
-			FNewMenuDelegate::CreateLambda([&AvaCurveEaseToolCommands](FMenuBuilder& InMenuBuilder)
+			FNewToolMenuDelegate::CreateLambda([&EaseCurveToolCommands](UToolMenu* InToolMenu)
 				{
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.FlattenTangents);
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.FlattenStartTangent);
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.FlattenEndTangent);
+					FToolMenuSection& NewSection = InToolMenu->FindOrAddSection(TEXT("FlattenTangents"));
+					NewSection.AddMenuEntry(EaseCurveToolCommands.FlattenTangents);
+					NewSection.AddSeparator(NAME_None);
+					NewSection.AddMenuEntry(EaseCurveToolCommands.FlattenStartTangent);
+					NewSection.AddMenuEntry(EaseCurveToolCommands.FlattenEndTangent);
 				}), 
 			false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("GenericCurveEditor.FlattenTangents")));
 
 		Section.AddSubMenu(TEXT("ResetTangents"),
 			LOCTEXT("ResetTangentsSubMenuLabel", "Reset Tangents"),
 			LOCTEXT("ResetTangentsSubMenuToolTip", ""),
-			FNewMenuDelegate::CreateLambda([&AvaCurveEaseToolCommands](FMenuBuilder& InMenuBuilder)
+			FNewToolMenuDelegate::CreateLambda([&EaseCurveToolCommands](UToolMenu* InToolMenu)
 				{
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.ResetTangents);
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.ResetStartTangent);
-					InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.ResetEndTangent);
+					FToolMenuSection& NewSection = InToolMenu->FindOrAddSection(TEXT("ResetTangents"));
+					NewSection.AddMenuEntry(EaseCurveToolCommands.ResetTangents);
+					NewSection.AddSeparator(NAME_None);
+					NewSection.AddMenuEntry(EaseCurveToolCommands.ResetStartTangent);
+					NewSection.AddMenuEntry(EaseCurveToolCommands.ResetEndTangent);
 				}),
 			false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("PropertyWindow.DiffersFromDefault")));
 
 		Section.AddSeparator(NAME_None);
 
 		/** @TODO: Only show these in single edit mode(?)
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetKeyInterpConstant);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetKeyInterpConstant);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetKeyInterpLinear);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetKeyInterpLinear);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetKeyInterpCubicAuto);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetKeyInterpCubicAuto);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetKeyInterpCubicSmartAuto);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetKeyInterpCubicSmartAuto);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetKeyInterpCubicUser);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetKeyInterpCubicUser);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetKeyInterpCubicBreak);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetKeyInterpCubicBreak);
 
 		Section.AddSeparator(NAME_None);*/
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetOperationToEaseOut);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetOperationToEaseOut);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetOperationToEaseInOut);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetOperationToEaseInOut);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SetOperationToEaseIn);
-
-		Section.AddSeparator(NAME_None);
-
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SelectPreviousChannelKey);
-
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.SelectNextChannelKey);
+		Section.AddMenuEntry(EaseCurveToolCommands.SetOperationToEaseIn);
 
 		Section.AddSeparator(NAME_None);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.ToggleGridSnap);
+		Section.AddMenuEntry(EaseCurveToolCommands.SelectPreviousChannelKey);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.ZoomToFit);
+		Section.AddMenuEntry(EaseCurveToolCommands.SelectNextChannelKey);
 
 		Section.AddSeparator(NAME_None);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.Refresh);
+		Section.AddMenuEntry(EaseCurveToolCommands.ToggleGridSnap);
 
-		Section.AddMenuEntry(AvaCurveEaseToolCommands.Apply);
+		Section.AddMenuEntry(EaseCurveToolCommands.ZoomToFit);
+
+		Section.AddSeparator(NAME_None);
+
+		Section.AddMenuEntry(EaseCurveToolCommands.Refresh);
+
+		Section.AddMenuEntry(EaseCurveToolCommands.Apply);
 	}
 
 	return ToolMenus->GenerateWidget(MenuName, FToolMenuContext(CommandList));
@@ -707,12 +742,17 @@ TSharedRef<SWidget> SAvaEaseCurveTool::CreateContextMenuContent()
 
 void SAvaEaseCurveTool::MakeContextMenuSettings(FMenuBuilder& InMenuBuilder)
 {
-	const FAvaEaseCurveToolCommands& AvaCurveEaseToolCommands = FAvaEaseCurveToolCommands::Get();
+	const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
 
-	InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.OpenToolSettings);
+	InMenuBuilder.AddMenuEntry(EaseCurveToolCommands.OpenToolSettings);
+
 	InMenuBuilder.AddSeparator();
-	InMenuBuilder.AddMenuEntry(AvaCurveEaseToolCommands.ToggleAutoFlipTangents);
+
+	InMenuBuilder.AddMenuEntry(EaseCurveToolCommands.ToggleAutoFlipTangents);
+
 	InMenuBuilder.AddSeparator();
+
+	// Graph Size
 	{
 		FProperty* const GraphSizeProperty = UAvaEaseCurveToolSettings::StaticClass()->FindPropertyByName(TEXT("GraphSize"));
 		check(GraphSizeProperty);
@@ -763,6 +803,8 @@ void SAvaEaseCurveTool::MakeContextMenuSettings(FMenuBuilder& InMenuBuilder)
 				});
 		InMenuBuilder.AddWidget(GraphSizeWidget, LOCTEXT("ToolSizeLabel", "Tool Size"));
 	}
+
+	// Grid Size
 	{
 		FProperty* const GridSizeProperty = UAvaEaseCurveToolSettings::StaticClass()->FindPropertyByName(TEXT("GridSize"));
 		check(GridSizeProperty);
@@ -813,6 +855,10 @@ void SAvaEaseCurveTool::MakeContextMenuSettings(FMenuBuilder& InMenuBuilder)
 				});
 		InMenuBuilder.AddWidget(GridSizeWidget, LOCTEXT("GridSizeLabel", "Grid Size"));
 	}
+
+	InMenuBuilder.AddSeparator();
+
+	InMenuBuilder.AddMenuEntry(EaseCurveToolCommands.ToggleAutoZoomToFit);
 }
 
 void SAvaEaseCurveTool::UndoAction()
@@ -855,6 +901,34 @@ FReply SAvaEaseCurveTool::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent
 		return FReply::Handled();
 	}
 	return FReply::Unhandled();
+}
+
+FText SAvaEaseCurveTool::GetStartText() const
+{
+	return (ToolMode.Get(FAvaEaseCurveTool::EMode::DualKeyEdit) == FAvaEaseCurveTool::EMode::DualKeyEdit)
+		? LOCTEXT("StartText", "Leave")
+		: LOCTEXT("ArriveText", "Arrive");
+}
+
+FText SAvaEaseCurveTool::GetStartTooltipText() const
+{
+	return (ToolMode.Get(FAvaEaseCurveTool::EMode::DualKeyEdit) == FAvaEaseCurveTool::EMode::DualKeyEdit)
+		? LOCTEXT("StartTooltipText", "Start: The selected key's leave tangent")
+		: LOCTEXT("ArriveTooltipText", "Arrive");
+}
+
+FText SAvaEaseCurveTool::GetEndText() const
+{
+	return (ToolMode.Get(FAvaEaseCurveTool::EMode::DualKeyEdit) == FAvaEaseCurveTool::EMode::DualKeyEdit)
+		? LOCTEXT("EndText", "Arrive")
+		: LOCTEXT("LeaveText", "Leave");
+}
+
+FText SAvaEaseCurveTool::GetEndTooltipText() const
+{
+	return (ToolMode.Get(FAvaEaseCurveTool::EMode::DualKeyEdit) == FAvaEaseCurveTool::EMode::DualKeyEdit)
+		? LOCTEXT("EndTooltipText", "End: The next key's arrive tangent")
+		: LOCTEXT("LeaveTooltipText", "Leave");
 }
 
 #undef LOCTEXT_NAMESPACE

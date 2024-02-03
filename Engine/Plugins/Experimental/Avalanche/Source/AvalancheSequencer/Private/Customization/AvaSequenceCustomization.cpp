@@ -6,6 +6,7 @@
 #include "AvaTypeSharedPointer.h"
 #include "Commands/AvaSequencerCommands.h"
 #include "DragDropOps/AvaOutlinerItemDragDropOp.h"
+#include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "ISequencer.h"
@@ -13,6 +14,7 @@
 #include "MVVM/ViewModels/ObjectBindingModel.h"
 #include "ScopedTransaction.h"
 #include "SequencerCommands.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "AvaSequenceCustomization"
 
@@ -106,16 +108,36 @@ TSharedRef<SWidget> FAvaSequenceCustomization::MakePlaybackMenu() const
 		return SNullWidget::NullWidget;
 	}
 
-	const FAvaSequencerCommands& AvaSequencerCommands = FAvaSequencerCommands::Get();
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	if (!ToolMenus)
+	{
+		return SNullWidget::NullWidget;
+	}
 
-	FMenuBuilder MenuBuilder(true, Sequencer->GetCommandBindings());
+	constexpr const TCHAR* MenuName = TEXT("AvaPlaybackMenu");
 
-	MenuBuilder.AddMenuEntry(AvaSequencerCommands.FixBindingPaths);
-	MenuBuilder.AddMenuEntry(AvaSequencerCommands.FixInvalidBindings);
-	MenuBuilder.AddMenuEntry(AvaSequencerCommands.FixBindingHierarchy);
-	MenuBuilder.AddMenuEntry(AvaSequencerCommands.StaggerLayerBars);
+	if (!ToolMenus->IsMenuRegistered(MenuName))
+	{
+		UToolMenu* const ToolMenu = ToolMenus->RegisterMenu(MenuName, NAME_None, EMultiBoxType::Menu);
 
-	return MenuBuilder.MakeWidget();
+		const FAvaSequencerCommands& AvaSequencerCommands = FAvaSequencerCommands::Get();
+		const FAvaEaseCurveToolCommands& EaseCurveToolCommands = FAvaEaseCurveToolCommands::Get();
+
+		FToolMenuSection& SequencerSection = ToolMenu->FindOrAddSection(TEXT("AvaSequencerActions"), LOCTEXT("AvaSequencerActions", "Sequence"));
+		SequencerSection.AddMenuEntry(AvaSequencerCommands.StaggerLayerBars);
+
+		FToolMenuSection& EaseCurveToolSection = ToolMenu->FindOrAddSection(TEXT("AvaEaseCurveToolActions"), LOCTEXT("AvaEaseCurveToolActions", "Ease Curve Tool"));
+		EaseCurveToolSection.AddMenuEntry(EaseCurveToolCommands.QuickEase);
+		EaseCurveToolSection.AddMenuEntry(EaseCurveToolCommands.QuickEaseIn);
+		EaseCurveToolSection.AddMenuEntry(EaseCurveToolCommands.QuickEaseOut);
+
+		FToolMenuSection& BindingSection = ToolMenu->FindOrAddSection(TEXT("AvaBindingActions"), LOCTEXT("AvaBindingActions", "Binding"));
+		BindingSection.AddMenuEntry(AvaSequencerCommands.FixBindingPaths);
+		BindingSection.AddMenuEntry(AvaSequencerCommands.FixInvalidBindings);
+		BindingSection.AddMenuEntry(AvaSequencerCommands.FixBindingHierarchy);
+	}
+
+	return ToolMenus->GenerateWidget(MenuName, FToolMenuContext(Sequencer->GetCommandBindings()));
 }
 
 bool FAvaSequenceCustomization::OnSequencerReceiveDragOver(const FGeometry& InGeometry

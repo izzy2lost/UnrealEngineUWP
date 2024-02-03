@@ -21,6 +21,7 @@
 #include "Widgets/SWidget.h"
 
 class IDetailCategoryBuilder;
+class IToolTip;
 class FDetailWidgetRow;
 class SHorizontalBox;
 struct FCurveEditorScreenSpace;
@@ -66,6 +67,11 @@ public:
 		SLATE_ARGUMENT(float, CurveThickness)
 		SLATE_ARGUMENT(FLinearColor, CurveColor)
 		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EOperation, Operation)
+
+		SLATE_ATTRIBUTE(FText, StartText)
+		SLATE_ATTRIBUTE(FText, StartTooltipText)
+		SLATE_ATTRIBUTE(FText, EndText)
+		SLATE_ATTRIBUTE(FText, EndTooltipText)
 
 		SLATE_EVENT(FAvaOnEaseCurveChanged, OnTangentsChanged)
 		SLATE_EVENT(FOnGetContent, GetContextMenuContent)
@@ -204,18 +210,20 @@ protected:
 	FText GetCurveToolTipInputText() const;
 	FText GetCurveToolTipOutputText() const;
 
+	TSharedRef<IToolTip> CreateCurveToolTip();
 	void UpdateCurveToolTip(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	void OnObjectPropertyChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 
 	/** Set Default output values when range is too small */
-	virtual void SetDefaultOutput(const float MinZoomRange);
+	virtual void SetDefaultOutput(const float InMinZoomRange);
 
 	void SetInputMinMax(const float InNewMin, const float InNewMax);
 	void SetOutputMinMax(const float InNewMin, const float InNewMax);
 
-	FSelectedTangent HitTestCubicTangents(const FGeometry& InMyGeometry, const FVector2D& InHitScreenPosition) const;
 	bool HitTestCurves(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
+	FSelectedTangent HitTestTangentHandle(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const;
+	bool HitTestKey(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent, const FVector2D& InInputPosition) const;
 
 	TObjectPtr<UAvaEaseCurve> EaseCurve;
 
@@ -238,6 +246,11 @@ protected:
 	float CurveThickness = 1.f;
 	FLinearColor CurveColor;
 	TAttribute<FAvaEaseCurveTool::EOperation> Operation;
+
+	TAttribute<FText> StartText;
+	TAttribute<FText> StartTooltipText;
+	TAttribute<FText> EndText;
+	TAttribute<FText> EndTooltipText;
 
 	FAvaOnEaseCurveChanged OnTangentsChanged;
 	FOnGetContent GetContextMenuContent;
@@ -262,7 +275,8 @@ protected:
 	/** Tangent values at the beginning of a drag operation. */
 	FAvaEaseCurveTangents PreDragTangents;
 
-	TSharedPtr<SToolTip> CurveToolTip;
+	TSharedPtr<IToolTip> CurveToolTip;
+	int8 ToolTipIndex = INDEX_NONE;
 
 	FText CurveToolTipInputText;
 	FText CurveToolTipOutputText;

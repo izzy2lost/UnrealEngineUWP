@@ -4,6 +4,7 @@
 #include "EaseCurveTool/AvaEaseCurvePreset.h"
 #include "EaseCurveTool/AvaEaseCurveStyle.h"
 #include "EaseCurveTool/AvaEaseCurveSubsystem.h"
+#include "EaseCurveTool/AvaEaseCurveToolSettings.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreview.h"
 #include "Editor.h"
 #include "DetailLayoutBuilder.h"
@@ -25,6 +26,7 @@ void SAvaEaseCurvePreset::Construct(const FArguments& InArgs)
 {
 	DisplayRate = InArgs._DisplayRate;
 	OnPresetChanged = InArgs._OnPresetChanged;
+	OnQuickPresetChanged = InArgs._OnQuickPresetChanged;
 	OnGetNewPresetTangents = InArgs._OnGetNewPresetTangents;
 
 	ChildSlot
@@ -284,6 +286,7 @@ void SAvaEaseCurvePreset::RegenerateGroupWrapBox()
 		TSharedRef<SAvaEaseCurvePresetGroup> NewGroupWidget = SNew(SAvaEaseCurvePresetGroup)
 			.CategoryName(Category)
 			.Presets(EaseCurveSubsystem.GetEaseCurvePresets(Category))
+			.SelectedPreset(SelectedItem)
 			.IsEditMode(bIsInEditMode)
 			.DisplayRate(DisplayRate.Get())
 			.OnCategoryDelete(this, &SAvaEaseCurvePreset::HandleCategoryDelete)
@@ -317,6 +320,25 @@ TSharedRef<SWidget> SAvaEaseCurvePreset::GenerateSelectedRowWidget() const
 
 	return SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
+		.Padding(5.f, 2.f, 4.f, 2.f)
+		[
+			SNew(SBorder)
+			.BorderBackgroundColor(FStyleColors::White25)
+			[
+				SNew(SAvaEaseCurvePreview)
+				.PreviewSize(12.f)
+				.CustomToolTip(true)
+				.DisplayRate(DisplayRate.Get())
+				.Tangents_Lambda([this]()
+					{
+						return SelectedItem.IsValid() ? SelectedItem->Tangents : FAvaEaseCurveTangents();
+					})
+			]
+		]
+		+ SHorizontalBox::Slot()
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Center)
 		[
@@ -346,25 +368,6 @@ TSharedRef<SWidget> SAvaEaseCurvePreset::GenerateSelectedRowWidget() const
 					})
 			]
 
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(5.f, 2.f, 4.f, 2.f)
-		[
-			SNew(SBorder)
-			.BorderBackgroundColor(FStyleColors::White25)
-			[
-				SNew(SAvaEaseCurvePreview)
-				.PreviewSize(12.f)
-				.CustomToolTip(true)
-				.DisplayRate(DisplayRate.Get())
-				.Tangents_Lambda([this]()
-					{
-						return SelectedItem.IsValid() ? SelectedItem->Tangents : FAvaEaseCurveTangents();
-					})
-			]
 		];
 }
 
@@ -596,20 +599,24 @@ bool SAvaEaseCurvePreset::HandleEndPresetMove(const TSharedPtr<FAvaEaseCurvePres
 	return true;
 }
 
-bool SAvaEaseCurvePreset::HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset)
+bool SAvaEaseCurvePreset::HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FModifierKeysState& InModifierKeys)
 {
-	if (ComboBoxSlot)
+	if (InModifierKeys.IsShiftDown())
 	{
-		FSlateApplication::Get().SetAllUserFocus(ComboBoxSlot->GetWidget());
+		UAvaEaseCurveToolSettings* const EaseCurveToolSettings = GetMutableDefault<UAvaEaseCurveToolSettings>();
+		EaseCurveToolSettings->SetQuickEaseTangents(InPreset->Tangents.ToJson());
+		EaseCurveToolSettings->SaveConfig();
 
-		SetSelectedItem(*InPreset);
-
-		OnPresetChanged.ExecuteIfBound(InPreset);
+		OnQuickPresetChanged.ExecuteIfBound(InPreset);
 
 		return true;
 	}
 
-	return false;
+	SetSelectedItem(*InPreset);
+
+	OnPresetChanged.ExecuteIfBound(InPreset);
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

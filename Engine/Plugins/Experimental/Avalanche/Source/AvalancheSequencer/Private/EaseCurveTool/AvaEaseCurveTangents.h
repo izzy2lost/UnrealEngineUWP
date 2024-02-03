@@ -45,7 +45,7 @@ public:
 		: Start(InStartMovieSceneDoubleValue.Tangent.LeaveTangent), StartWeight(InStartMovieSceneDoubleValue.Tangent.LeaveTangentWeight)
 		, End(InEndMovieSceneDoubleValue.Tangent.ArriveTangent), EndWeight(InEndMovieSceneDoubleValue.Tangent.ArriveTangentWeight)
 	{}
-	/** Constructor from string consisting of cubic bezier points. Ex. "0.45, 34.0, 0.0, 3.45" */
+	/** Constructor from string consisting of cubic bezier points. Ex. "0.45, 0.34, 0.0, 1.00" */
 	explicit FAvaEaseCurveTangents(const FString& InTangentsString);
 
 	FORCEINLINE bool operator==(const FAvaEaseCurveTangents& InRhs) const
@@ -80,15 +80,15 @@ public:
 	/** Calculates the length of this curve. The higher the sample count, the higher the calculation precision. */
 	double CalculateCurveLength(const int32 InSampleCount = 10) const;
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTangents")
 	double Start = 0.0;
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTangents")
 	double StartWeight = 0.0;
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTangents")
 	double End = 0.0;
 
-	UPROPERTY()
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTangents")
 	double EndWeight = 0.0;
 };
