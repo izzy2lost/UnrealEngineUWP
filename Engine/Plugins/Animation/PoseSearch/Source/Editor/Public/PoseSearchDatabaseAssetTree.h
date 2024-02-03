@@ -97,7 +97,19 @@ namespace UE::PoseSearch
 		/** Removes existing selected component nodes from the tree*/
 		bool CanDeleteNodes() const;
 		void OnDeleteNodes();
+		
+		/** Copy selected nodes to clipboard */
+		void OnCopySelectedNodesToClipboard() const;
+		bool CanCopyToClipboard() const;
 
+		/** Paste nodes from clipboard. Adds or overwrites curves (if identifiers collide) */
+		void OnPasteNodesFromClipboard();
+		bool CanPasteFromClipboard();
+
+		/** Cut selected nodes to clipboard */
+		void OnCutSelectedNodesToClipboard();
+		bool CanCutToClipboard() const;
+		
 		void EnableSelectedNodes(bool bIsEnabled);
 		void OnEnableNodes() { EnableSelectedNodes(true); }
 		void OnDisableNodes() { EnableSelectedNodes(false); }

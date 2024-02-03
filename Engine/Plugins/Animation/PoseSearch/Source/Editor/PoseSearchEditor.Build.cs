@@ -44,6 +44,7 @@ public class PoseSearchEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
 				"AnimationEditor",
 				"AssetDefinition",
 				"BlueprintGraph",
