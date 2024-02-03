@@ -615,7 +615,7 @@ TSharedRef<SWidget> SDerivedDataCacheStatisticsDialog::GetGridPanel()
 		.Font(TitleFont)
 		.Text(LOCTEXT("Read Speed", "Read Speed (MiB/s)"))
 		.AutoWrapText(true)
-		.WrapTextAt(66.0f)
+		.WrapTextAt(100.0f)
 	];
 
 	Panel->AddSlot(8, Row)
@@ -627,7 +627,7 @@ TSharedRef<SWidget> SDerivedDataCacheStatisticsDialog::GetGridPanel()
 		.Font(TitleFont)
 		.Text(LOCTEXT("Write Speed", "Write Speed (MiB/s)"))
 		.AutoWrapText(true)
-		.WrapTextAt(66.0f)
+		.WrapTextAt(100.0f)
 	];
 
 	Panel->AddSlot(9, Row)
