@@ -86,7 +86,20 @@ namespace UE::Chaos::ClothAsset
 		 * @param bOverwriteExistingIfMismatched: If true, overwrite existing mismatched sets.
 		 *   If false, keep the existing set.
 		 */
-		CHAOSCLOTHASSET_API void Append(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched);
+		void Append(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched)
+		{
+			AppendWithOffsets(Other, bOverwriteExistingIfMismatched, TMap<FName, int32>());
+		}
+
+		/**
+		 * Append all sets from an existing collection to this collection. Apply an offset to Other's data if its GroupName is in the GroupOffsets table.
+		 * Matching sets (i.e., same name and type) will be unioned.
+		 * Mismatching sets (same name, different type) will be handled according to bOverwriteExistingIfMismatched
+		 *
+		 * @param bOverwriteExistingIfMismatched: If true, overwrite existing mismatched sets.
+		 *   If false, keep the existing set.
+		 */
+		CHAOSCLOTHASSET_API void AppendWithOffsets(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched, const TMap<FName, int32>& GroupOffsets);
 
 		/**
 		 * Find, or add if it doesn't already exist, a selection for the specified group with the given name.

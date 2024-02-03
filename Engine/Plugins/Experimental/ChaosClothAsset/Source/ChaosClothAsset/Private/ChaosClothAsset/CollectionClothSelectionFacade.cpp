@@ -86,7 +86,7 @@ namespace UE::Chaos::ClothAsset
 		}
 	}
 
-	void FCollectionClothSelectionFacade::Append(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched)
+	void FCollectionClothSelectionFacade::AppendWithOffsets(const FCollectionClothSelectionConstFacade& Other, bool bOverwriteExistingIfMismatched, const TMap<FName, int32>& GroupOffsets)
 	{
 		if (Other.IsValid())
 		{
@@ -95,12 +95,31 @@ namespace UE::Chaos::ClothAsset
 			for (int32 InSelectionIndex = 0; InSelectionIndex < NumInSelections; ++InSelectionIndex)
 			{
 				const FName& SelectionName = InSelectionNames[InSelectionIndex];
+				const FName OtherGroupName = Other.GetSelectionGroup(SelectionName);
+				const TSet<int32>& OtherSet = Other.GetSelectionSet(SelectionName);
+				TSet<int32> OffsetSetIfNeeded;
+				const TSet<int32>* OtherSetWithOffset = &OtherSet;
+				if (const int32* const Offset = GroupOffsets.Find(OtherGroupName))
+				{
+					if (*Offset != 0)
+					{
+						OffsetSetIfNeeded.Reserve(OtherSet.Num());
+						for (const int32 OrigIndex : OtherSet)
+						{
+							OffsetSetIfNeeded.Emplace(OrigIndex + *Offset);
+						}
+						OtherSetWithOffset = &OffsetSetIfNeeded;
+					}
+				}	
+				
+				check(OtherSetWithOffset);
 				if (HasSelection(SelectionName))
 				{
-					if (GetSelectionGroup(SelectionName) == Other.GetSelectionGroup(SelectionName))
+					if (GetSelectionGroup(SelectionName) == OtherGroupName)
 					{
 						TSet<int32>& UnionedSet = GetSelectionSet(SelectionName);
-						UnionedSet.Append(Other.GetSelectionSet(SelectionName));
+
+						UnionedSet.Append(*OtherSetWithOffset);
 						continue;
 					}
 					if (!bOverwriteExistingIfMismatched)
@@ -109,7 +128,12 @@ namespace UE::Chaos::ClothAsset
 					}
 				}
 
-				FindOrAddSelectionSet(SelectionName, Other.GetSelectionGroup(SelectionName)) = Other.GetSelectionSet(SelectionName);
+				if (!IsValid())
+				{
+					DefineSchema();
+				}
+
+				FindOrAddSelectionSet(SelectionName, OtherGroupName) = *OtherSetWithOffset;
 			}
 		}
 	}

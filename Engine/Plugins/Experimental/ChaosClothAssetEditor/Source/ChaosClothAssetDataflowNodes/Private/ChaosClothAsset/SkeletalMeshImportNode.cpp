@@ -84,9 +84,6 @@ void FChaosClothAssetSkeletalMeshImportNode::Evaluate(Dataflow::FContext& Contex
 			}
 
 			ClothFacade.SetSkeletalMeshPathName(SkeletalMesh->GetPathName());
-
-			// Must be bound to root bone by default
-			FClothGeometryTools::BindMeshToRootBone(ClothCollection, bImportSimMesh, bImportRenderMesh);
 		}
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
 	}
