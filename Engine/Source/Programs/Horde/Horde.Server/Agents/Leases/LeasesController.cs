@@ -15,7 +15,6 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Sessions;
 using Google.Protobuf.WellKnownTypes;
-using HordeCommon.Rpc.Tasks;
 using Horde.Server.Tasks;
 
 namespace Horde.Server.Agents.Leases
