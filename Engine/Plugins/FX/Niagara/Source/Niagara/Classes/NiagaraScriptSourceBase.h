@@ -72,6 +72,7 @@ public:
 	NIAGARA_API static const FString EventSpawnDefine;
 	NIAGARA_API static const FString EventSpawnInitialAttribWritesDefine;
 	NIAGARA_API static const FString ExperimentalVMDisabled;
+	NIAGARA_API static const FString AccurateQuatInterpolation;
 
 	FNiagaraCompileOptions() : TargetUsage(ENiagaraScriptUsage::Function), TargetUsageBitmask(0)
 	{

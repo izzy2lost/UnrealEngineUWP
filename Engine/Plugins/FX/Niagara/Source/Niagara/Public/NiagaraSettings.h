@@ -168,6 +168,10 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable Stateless Emitters (Experimental)", ConfigRestartRequired = true))
 	bool bStatelessEmittersEnabled = false;
 
+	/** If set to true, quaternion attributes will be interpolated via slerp instead of lerp in interpolated spawn scripts. */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category = Niagara)
+	bool bAccurateQuatInterpolation = true;
+
 	/** Whether to limit the max tick delta time or not. */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Niagara", meta = (InlineEditConditionToggle))
 	bool bLimitDeltaTime = true;

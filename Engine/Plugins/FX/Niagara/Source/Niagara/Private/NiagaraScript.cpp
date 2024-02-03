@@ -1097,6 +1097,10 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 	Id.bInterpolatedSpawn = false;
 	Id.bRequiresPersistentIDs = false;
 	Id.ScriptVersionID = IsVersioningEnabled() ? (VersionGuid.IsValid() ? VersionGuid : ExposedVersion) : FGuid();
+	if (GetDefault<UNiagaraSettings>()->bAccurateQuatInterpolation)
+	{
+		Id.AdditionalDefines.Add(FNiagaraCompileOptions::AccurateQuatInterpolation);
+	}
 	
 	TArray<FNiagaraVariableBase> ReferencedStaticVars;
 	TArray<const uint8*> ReferencedStaticVarValues;

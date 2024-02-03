@@ -460,6 +460,31 @@ int rand_int(int x, int Seed1, int Seed2, int Seed3)
 	return rand(x.x-1, Seed1, Seed2, Seed3);
 }
 
+// used to interpolate rotations in interpolated spawn scripts
+float4 NiagaraQuatSLerp(float4 Quat1, float4 Quat2, float Slerp)
+{
+	const float RawCosom = dot(Quat1, Quat2);
+	const float Cosom = abs(RawCosom);
+	
+	float Scale0, Scale1;
+	if (Cosom < 0.9999f)
+	{
+		const float Omega = acos(Cosom);
+		const float InvSin = 1.f / sin(Omega);
+		Scale0 = sin((1.f - Slerp) * Omega) * InvSin;
+		Scale1 = sin(Slerp * Omega) * InvSin;
+	}
+	else
+	{
+		Scale0 = 1.0f - Slerp;
+		Scale1 = Slerp;
+	}
+
+	Scale1 = RawCosom >= 0.0f ? Scale1 : -Scale1;
+
+	return (Scale0 * Quat1) + (Scale1 * Quat2);
+}
+
 /* -----------------------------------------------------------------
  * VM simulation function declarations
  * -----------------------------------------------------------------

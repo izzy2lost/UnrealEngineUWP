@@ -466,6 +466,7 @@ protected:
 	virtual bool ParameterMapRegisterNamespaceAttributeVariable(const FNiagaraVariable& InVariable, int32 InParamMapHistoryIdx, int32& Output) = 0;
 
 	bool ShouldInterpolateParameter(const FNiagaraVariable& Parameter);
+	FString GetInterpolateHlsl(const FNiagaraVariable& Parameter, const FString& PrevMapName, const FNiagaraCodeChunk& Chunk) const;
 
 	bool IsBulkSystemScript() const;
 	bool IsSpawnScript() const;
