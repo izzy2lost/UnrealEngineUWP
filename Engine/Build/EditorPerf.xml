@@ -80,41 +80,36 @@
 	<!-- Iterations to run and average together -->
 	<Option Name="Iterations" DefaultValue="1" Description="The list of iteration numbers to run. For example '1;2;3' for three iterations"/>
 
-	<!-- Full Map Asset Path to run for tests per project -->
-	<Option Name="MapAssetPerProjects" DefaultValue="" Description="Comma separated pair of project and map asset to load for it (i.e. 'FortniteGame,/Game/MyMap'), each pair are semicolon separated "/>
+	<!-- Used to determine if we will include internal projects -->
+	<Option Name="IsLicensee" Restrict="true|false" DefaultValue="false" Description="Define to true if this script is used externally."/>
 
-	<!-- Full Map Asset Path to run for tests per project -->
-	<Option Name="SpecificArgsPerProjects" DefaultValue="" Description="Hat (^) separated pair of project and commandline arg for it (i.e. 'Juno^-TargetFortReleaseVersion=26.00'), each pair are semicolon separated "/>
+	<!-- A macro that can be used to easily set up a new test project. -->
+	<Macro Name="SetupPerfProject" Arguments="ProjectName" OptionalArguments="CopyDefaultsFrom;ProjectTarget;EditorTarget;MapPath;GameSpecificArgs">
+		<Property Name="$(ProjectName)__ProjectTarget" Value="$(ProjectName)" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__ProjectTarget" Value="$($(CopyDefaultsFrom)__ProjectTarget)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__ProjectTarget" Value="$(ProjectTarget)" If="'$(ProjectTarget)' != ''"/>
+
+		<Property Name="$(ProjectName)__EditorTarget" Value="$(ProjectName)Editor" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__EditorTarget" Value="$($(CopyDefaultsFrom)__EditorTarget)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__EditorTarget" Value="$(EditorTarget)" If="'$(EditorTarget)' != ''"/>
+
+		<Property Name="$(ProjectName)__MapArgs" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__MapArgs" Value="$($(CopyDefaultsFrom)__MapArgs)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__MapArgs" Value="-ini:Engine:[/Script/Engine.AutomationTestSettings]:MapsToPIETest=\&quot;$(MapPath)\&quot;" If="'$(MapPath)' != ''"/>
+
+		<Property Name="$(ProjectName)__SpecificArgs" Value="" CreateInParentScope="true"/>
+		<Property Name="$(ProjectName)__SpecificArgs" Value="$($(CopyDefaultsFrom)__SpecificArgs)" If="'$(CopyDefaultsFrom)' != ''"/>
+		<Property Name="$(ProjectName)__SpecificArgs" Value="$(GameSpecificArgs)" If="'$(GameSpecificArgs)' != ''"/>
+	</Macro>
 
 	<!-- Inject internal projects default argument at the global scope -->
-	<Option Name="IsLicensee" Restrict="true|false" DefaultValue="false" Description="Define to true if this script is used externally."/>
 	<Include Script="../Restricted/NotForLicensees/Build/EditorPerfInternalArgs.xml" If="!$(IsLicensee)" />
-	
-	<!-- Set Project Map Args based on MapAssetPerProjects list -->
-	<ForEach Name="ProjectPair" Values="$(MapAssetPerProjects)" Separator=";">
-		<!-- Split the Pair -->
-		<Property Name="Project" Value=""/>
-		<Property Name="MapAsset" Value=""/>
-		<Regex Pattern="(.*),(.*)" Capture="Project;MapAsset" Input="$(ProjectPair)" />
-
-		<Property Name="$(Project)MapArgs" Value="-ini:Engine:[/Script/Engine.AutomationTestSettings]:MapsToPIETest=\&quot;$(MapAsset)\&quot;" If="'$(MapAsset)' != ''" />
-	</ForEach>
 
 	<!-- Option to retain per-branch asset registry between runs so that incremental is representative of user experience -->
 	<Property Name="AssetRegistryCache_Folder" Value="$(RootDir)/../../../EditorPerfAssetRegistryCache/$(EscapedBranch)/"/>
 
 	<!-- Options for extra runtime args -->
 	<Option Name="AdditionalRuntimeArgs" DefaultValue="" Description="Additional Arguments to pass to RunTest"/>
-
-	<!-- Set Project Specific Args based on SpecificArgsPerProjects list -->
-	<ForEach Name="ProjectPair" Values="$(SpecificArgsPerProjects)" Separator=";">
-		<!-- Split the Pair -->
-		<Property Name="Project" Value=""/>
-		<Property Name="SpecificArgs" Value=""/>
-		<Regex Pattern="(.*)^(.*)" Capture="Project;SpecificArgs" Input="$(ProjectPair)" />
-
-		<Property Name="$(Project)SpecificArgs" Value="$(SpecificArgs)" If="'$(SpecificArgs)' != ''" />
-	</ForEach>
 
 	<!-- Options for extra Zen Loader tests -->
 	<Option Name="EnableZenLoaderTest" DefaultValue="true" Description="Enable additional test per phase that uses the Zen Loader."/>
@@ -275,16 +270,10 @@
 		<!-- ForEach Project to run, generate the graph nodes -->
 		<ForEach Name="Project" Values="$(Projects)">
 
-			<!-- We parse the Editor target name from within [] in case it's not $(Project)Editor -->
-			<Property Name="EditorTarget" Value="$(Project)Editor"/>
-			<Regex Pattern="(.*)\[(.*)\]" Capture="Project;EditorTarget" Input="$(Project)" Optional="true"/>
-
-			<!-- We parse the Project target name from within {} in case it's not $(Project) (i.e. Fortnite plugins projects: Juno, DelMar ) -->
-			<Property Name="ProjectTarget" Value="$(Project)"/>
-			<Regex Pattern="(.*)\{(.*)\}" Capture="Project;ProjectTarget" Input="$(Project)" Optional="true"/>
-
-			<!-- Project Map Args-->
-			<Property Name="ProjectCombinedArgs" Value="$($(Project)SpecificArgs) $($(Project)MapArgs) $(AdditionalRuntimeArgs)"/>
+			<!-- Each project should be setup by invoking the SetupPerfProject macro which will set up the various variables we'll need for the tests -->
+			<Property Name="ProjectCombinedArgs" Value="$($(Project)__SpecificArgs) $($(Project)__MapArgs) $(AdditionalRuntimeArgs)"/>
+			<Property Name="ProjectTarget" Value="$($(Project)__ProjectTarget)"/>
+			<Property Name="EditorTarget" Value="$($(Project)__EditorTarget)"/>
 
 			<!-- Use as base string for directories and key for node names -->
 			<Property Name="OutputName" Value="$(Project)$(Platform)EditorPerf"/>
