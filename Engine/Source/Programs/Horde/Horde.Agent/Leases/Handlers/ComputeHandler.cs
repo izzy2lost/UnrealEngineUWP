@@ -2,8 +2,10 @@
 
 using System.Net.Sockets;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Transports;
+using EpicGames.Horde.Logs;
 using Horde.Agent.Services;
 using Horde.Agent.Utility;
 using HordeCommon.Rpc.Tasks;
@@ -17,51 +19,25 @@ namespace Horde.Agent.Leases.Handlers
 	/// </summary>
 	class ComputeHandler : LeaseHandler<ComputeTask>
 	{
-		class CombinedLogger : ILogger
-		{
-			readonly ILogger[] _loggers;
-
-			public CombinedLogger(params ILogger[] loggers) { _loggers = loggers; }
-
-			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
-
-			public bool IsEnabled(LogLevel logLevel) => _loggers.Any(x => x.IsEnabled(logLevel));
-
-			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-			{
-				foreach (ILogger logger in _loggers)
-				{
-					logger.Log<TState>(logLevel, eventId, state, exception, formatter);
-				}
-			}
-		}
-
 		readonly ComputeListenerService _listenerService;
 		readonly IServerLoggerFactory _serverLoggerFactory;
 		readonly AgentSettings _settings;
-		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputeHandler(ComputeListenerService listenerService, IServerLoggerFactory serverLoggerFactory, IOptions<AgentSettings> settings, ILogger<ComputeHandler> logger)
+		public ComputeHandler(ComputeListenerService listenerService, IServerLoggerFactory serverLoggerFactory, IOptions<AgentSettings> settings)
 		{
 			_listenerService = listenerService;
 			_serverLoggerFactory = serverLoggerFactory;
 			_settings = settings.Value;
-			_logger = logger;
 		}
 
 		/// <inheritdoc/>
-		public override async Task<LeaseResult> ExecuteAsync(ISession session, string leaseId, ComputeTask computeTask, CancellationToken cancellationToken)
+		public override async Task<LeaseResult> ExecuteAsync(ISession session, LeaseId leaseId, ComputeTask computeTask, ILogger localLogger, CancellationToken cancellationToken)
 		{
-			await using IServerLogger? serverLogger = (computeTask.LogId != null)? _serverLoggerFactory.CreateLogger(session, computeTask.LogId, null, LogLevel.Trace) : null;
-
-			ILogger logger = _logger;
-			if (serverLogger != null)
-			{
-				logger = new CombinedLogger(serverLogger, logger);
-			}
+			await using IServerLogger? serverLogger = (computeTask.LogId != null)? _serverLoggerFactory.CreateLogger(session, LogId.Parse(computeTask.LogId), localLogger, null, LogLevel.Trace) : null;
+			ILogger logger = serverLogger ?? localLogger;
 
 			if (!String.IsNullOrEmpty(computeTask.ParentLeaseId))
 			{
@@ -69,7 +45,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 
 			logger.LogInformation("Starting compute task (lease {LeaseId}). Waiting for connection with nonce {Nonce}...", leaseId, StringUtils.FormatHexString(computeTask.Nonce.Span));
-			ClearTerminationSignalFile();
+			ClearTerminationSignalFile(logger);
 
 			TcpClient? tcpClient = null;
 			try
@@ -79,7 +55,7 @@ namespace Horde.Agent.Leases.Handlers
 				tcpClient = await _listenerService.WaitForClientAsync(new ByteString(computeTask.Nonce.Memory), TimeSpan.FromSeconds(TimeoutSeconds), cancellationToken);
 				if (tcpClient == null)
 				{
-					logger.LogInformation("Timed out waiting for connection after {Time}s", TimeoutSeconds); 
+					logger.LogInformation("Timed out waiting for connection after {Time}s", TimeoutSeconds);
 					return LeaseResult.Success;
 				}
 
@@ -88,7 +64,7 @@ namespace Horde.Agent.Leases.Handlers
 				using (CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 				{
 					await using ComputeTransport innerTransport = await CreateTransportAsync(computeTask, tcpClient.Client, cts.Token);
-					await using IdleTimeoutTransport idleTimeoutTransport = new (innerTransport);
+					await using IdleTimeoutTransport idleTimeoutTransport = new(innerTransport);
 
 					await using BackgroundTask timeoutTask = BackgroundTask.StartNew(ctx => idleTimeoutTransport.StartWatchdogTimerAsync(cts, logger, ctx));
 					try
@@ -98,7 +74,7 @@ namespace Horde.Agent.Leases.Handlers
 
 						await using (RemoteComputeSocket socket = new RemoteComputeSocket(idleTimeoutTransport, protocol, logger))
 						{
-							DirectoryReference sandboxDir = DirectoryReference.Combine(session.WorkingDir, "Sandbox", leaseId);
+							DirectoryReference sandboxDir = DirectoryReference.Combine(session.WorkingDir, "Sandbox", leaseId.ToString());
 							try
 							{
 								DirectoryReference.CreateDirectory(sandboxDir);
@@ -110,7 +86,7 @@ namespace Horde.Agent.Leases.Handlers
 								newEnvVars["UE_HORDE_SHARED_DIR"] = sharedDir.FullName;
 								newEnvVars["UE_HORDE_TERMINATION_SIGNAL_FILE"] = _settings.GetTerminationSignalFile().FullName;
 
-								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, newEnvVars, false, _settings.WineExecutablePath, _settings.ContainerEngineExecutablePath, serverLogger ?? _logger);
+								AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, newEnvVars, false, _settings.WineExecutablePath, _settings.ContainerEngineExecutablePath, logger);
 								await worker.RunAsync(socket, cts.Token);
 								await socket.CloseAsync(cts.Token);
 								return LeaseResult.Success;
@@ -127,6 +103,10 @@ namespace Horde.Agent.Leases.Handlers
 						return LeaseResult.Failed;
 					}
 				}
+			}
+			catch (OperationCanceledException)
+			{
+				throw;
 			}
 			catch (Exception ex)
 			{
@@ -160,7 +140,7 @@ namespace Horde.Agent.Leases.Handlers
 			}
 		}
 
-		private void ClearTerminationSignalFile()
+		private void ClearTerminationSignalFile(ILogger logger)
 		{
 			string path = _settings.GetTerminationSignalFile().FullName;
 			try
@@ -171,7 +151,7 @@ namespace Horde.Agent.Leases.Handlers
 			{
 				// If this file is not removed and lingers on from previous executions,
 				// new compute tasks may pick it up and erroneously decide to terminate.
-				_logger.LogError(e, "Unable to delete termination signal file {Path}", path);
+				logger.LogError(e, "Unable to delete termination signal file {Path}", path);
 			}
 		}
 	}

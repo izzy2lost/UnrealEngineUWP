@@ -177,7 +177,7 @@ namespace Horde.Server.Telemetry.Metrics
 					groupKeys.Add(groupKey);
 				}
 
-				string group = EscapeCsv(groupKeys);
+				string group = String.Join(",", groupKeys);
 
 				DateTime utcNow = _clock.UtcNow;
 				DateTime sampleTime = new DateTime(utcNow.Ticks - (utcNow.Ticks % metric.Interval.Ticks), DateTimeKind.Utc);

@@ -130,22 +130,68 @@ namespace EpicGames.Horde.Storage.Nodes
 			try
 			{
 				await ChunkedDataNode.CopyToFileAsync(Target.Handle, file, cancellationToken);
-
-				if ((Flags & FileEntryFlags.Executable) != 0)
-				{
-					if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-					{
-						FileUtils.SetFileMode_Linux(file.FullName, 0b_111_111_111);
-					}
-					else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-					{
-						FileUtils.SetFileMode_Mac(file.FullName, 0b_111_111_111);
-					}
-				}
+				SetPermissions(file, Flags);
 			}
 			catch (Exception ex) when (ex is not OperationCanceledException)
 			{
 				throw new Exception($"Unable to extract file {file.FullName}", ex);
+			}
+		}
+
+		/// <summary>
+		/// Get the permission flags from a file on disk
+		/// </summary>
+		/// <param name="fileInfo">File to check</param>
+		/// <returns>Permission flags for the given file</returns>
+		public static FileEntryFlags GetPermissions(FileInfo fileInfo)
+		{
+			FileEntryFlags flags = FileEntryFlags.None;
+			if((fileInfo.Attributes & FileAttributes.ReadOnly) != 0)
+			{
+				flags |= FileEntryFlags.ReadOnly;
+			}
+
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+			{
+				int mode = FileUtils.GetFileMode_Linux(fileInfo.FullName);
+				if ((mode & ((1 << 0) | (1 << 3) | (1 << 6))) != 0)
+				{
+					flags |= FileEntryFlags.Executable;
+				}
+			}
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+			{
+				int mode = FileUtils.GetFileMode_Mac(fileInfo.FullName);
+				if ((mode & ((1 << 0) | (1 << 3) | (1 << 6))) != 0)
+				{
+					flags |= FileEntryFlags.Executable;
+				}
+			}
+			return flags;
+		}
+
+		/// <summary>
+		/// Applies the correct permissions to a file for a particular set of file entry flags
+		/// </summary>
+		/// <param name="fileInfo">File to modify</param>
+		/// <param name="flags">Flags for the file</param>
+		public static void SetPermissions(FileInfo fileInfo, FileEntryFlags flags)
+		{
+			if ((flags & FileEntryFlags.ReadOnly) != 0)
+			{
+				fileInfo.Attributes |= FileAttributes.ReadOnly;
+			}
+
+			if ((flags & FileEntryFlags.Executable) != 0)
+			{
+				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+				{
+					FileUtils.SetFileMode_Linux(fileInfo.FullName, 0b_111_111_111);
+				}
+				else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+				{
+					FileUtils.SetFileMode_Mac(fileInfo.FullName, 0b_111_111_111);
+				}
 			}
 		}
 

@@ -33,7 +33,7 @@ namespace Horde.Server.Tests.Fleet
 
 		public LeaseUtilizationAwsMetricStrategyTest()
 		{
-			_pool = CreatePoolAsync("my-pool", new() { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 }).Result;
+			_pool = CreatePoolAsync(new() { Name = "my-pool", EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 }).Result;
 			_strategy = new (LeaseCollection, _cloudWatch.Get(), _settings, Clock, _logger);
 		}
 
@@ -146,7 +146,7 @@ namespace Horde.Server.Tests.Fleet
 		public async Task IgnoreOtherPoolsAsync()
 		{
 			// Arrange
-			IPool otherPool = await CreatePoolAsync("other-pool", new() { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
+			IPool otherPool = await CreatePoolAsync(new() { Name = "other-pool", EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			List<IAgent> agents = await CreateAgentsAsync(_pool, 4);
 			List<IAgent> otherAgents = await CreateAgentsAsync(otherPool, 4);
 			await AddPlaceholderLeaseAsync(agents[0], _pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120), LeaseType.Compute);

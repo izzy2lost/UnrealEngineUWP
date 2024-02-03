@@ -456,8 +456,8 @@ namespace Horde.Server.Tools
 			IStorageClient client = CreateStorageClient(tool);
 			try
 			{
-				DirectoryNode node = await client.ReadRefTargetAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
-				return node.AsZipStream().WrapOwnership(client);
+				IBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+				return nodeRef.AsZipStream().WrapOwnership(client);
 			}
 			catch
 			{

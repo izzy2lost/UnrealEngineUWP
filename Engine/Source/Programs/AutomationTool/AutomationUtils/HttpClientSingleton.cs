@@ -15,7 +15,11 @@ namespace AutomationUtils
 			new Lazy<HttpClient>(() =>
 			{
 				var retryPolicy = HttpPolicyExtensions
+				// 408, 5XX responses 
 				.HandleTransientHttpError()
+				// 404, 504 should have been covered by HandleTransientHttpError but adding here to be safe
+				.OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.NotFound || 
+								 msg.StatusCode == System.Net.HttpStatusCode.GatewayTimeout)
 				.WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 
 				// per MS documentation, with a lifetime specified we shouldn't have socket exhaustion issues

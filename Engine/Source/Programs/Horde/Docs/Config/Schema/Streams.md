@@ -9,6 +9,7 @@ Name | Type | Description
 `id` | `string` | Identifier for the stream
 `path` | `string` | Direct include path for the stream config. For backwards compatibility with old config files when including from a ProjectConfig object.
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+`macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within this stream
 `name` | `string` | Name of the stream
 `clusterName` | `string` | The perforce cluster containing the stream
 `order` | `integer` | Order for this stream
@@ -21,7 +22,7 @@ Name | Type | Description
 `defaultPreflightTemplate` | `string` | Legacy name for the default preflight template
 `defaultPreflight` | [`DefaultPreflightConfig`](#defaultpreflightconfig) | Default template for running preflights
 `commitTags` | [`CommitTagConfig`](#committagconfig)`[]` | List of tags to apply to commits. Allows fast searching and classification of different commit types (eg. code vs content).
-`tabs` | [`JobsTabConfig`](#jobstabconfig)`[]` | List of tabs to show for the new stream
+`tabs` | [`TabConfig`](#tabconfig)`[]` | List of tabs to show for the new stream
 `environment` | `string` `->` `string` | Global environment variables for all agents in this stream
 `agentTypes` | `string` `->` [`AgentConfig`](#agentconfig) | Map of agent name to type
 `workspaceTypes` | `string` `->` [`WorkspaceConfig`](#workspaceconfig) | Map of workspace name to type
@@ -29,9 +30,7 @@ Name | Type | Description
 `acl` | [`AclConfig`](#aclconfig) | Custom permissions for this object
 `pausedUntil` | `string` | Pause stream builds until specified date
 `pauseComment` | `string` | Reason for pausing builds of the stream
-`replicationMode` | [`ContentReplicationMode`](#contentreplicationmode-enum) | How to replicate data from VCS to Horde Storage.
-`replicationFilter` | `string` | Filter for paths to be replicated to storage, as a Perforce wildcard relative to the root of the workspace.
-`replicationStream` | `string` | Stream to use for replication, if different to the default.
+`replicators` | [`ReplicatorConfig`](#replicatorconfig)`[]` | Configuration for workers to replicate commit data into Horde Storage.
 `workflows` | [`WorkflowConfig`](#workflowconfig)`[]` | Workflows for dealing with new issues
 `tokens` | [`TokenConfig`](#tokenconfig)`[]` | Tokens to create for each job step
 
@@ -43,6 +42,15 @@ Name | Type | Description
 ---- | ---- | -----------
 `path` | `string` | Path to the config data to be included. May be relative to the including file's location.
 
+## ConfigMacro
+
+Declares a config macro
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | Name of the macro property
+`value` | `string` | Value for the macro property
+
 ## JobOptions
 
 Options for executing a job
@@ -50,13 +58,12 @@ Options for executing a job
 Name | Type | Description
 ---- | ---- | -----------
 `executor` | `string` | Name of the executor to use
-`useNewLogStorage` | `boolean` | Whether to use the new log storage backend
 `useNewTempStorage` | `boolean` | Whether to use the new temp storage backend
 `useWine` | `boolean` | Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean` | Executes the job lease in a separate process
 `workspaceMaterializer` | `string` | What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
-`collectIbMonFilesAsArtifacts` | `boolean` | Whether to search for and save any *.ib_mon files from Incredibuild after a job step
 `container` | [`JobContainerOptions`](#jobcontaineroptions) | Options for executing a job inside a container
+`bundleVersion` | `integer` | Version to use when writing bundles
 
 ## JobContainerOptions
 
@@ -110,33 +117,43 @@ Name | Type | Description
 `base` | `string` | Base tag to copy settings from
 `filter` | `string[]` | List of files to be included in this filter
 
-## JobsTabConfig
+## TabConfig
 
-Describes a job page
+Information about a page to display in the dashboard for a stream
 
 Name | Type | Description
 ---- | ---- | -----------
-`type` | Jobs | Type discriminator
+`title` | `string` | Title of this page
+`type` | `string` | Type of this tab
+`style` | [`TabStyle`](#tabstyle-enum) | Presentation style for this page
 `showNames` | `boolean` | Whether to show job names on this page
 `showPreflights` | `boolean` | Whether to show all user preflights
 `jobNames` | `string[]` | Names of jobs to include on this page. If there is only one name specified, the name column does not need to be displayed.
 `templates` | `string[]` | List of job template names to show on this page.
-`columns` | [`JobsTabColumnConfig`](#jobstabcolumnconfig)`[]` | Columns to display for different types of aggregates
-`title` | `string` | Title of this page
+`columns` | [`TabColumnConfig`](#tabcolumnconfig)`[]` | Columns to display for different types of aggregates
 
-## JobsTabColumnConfig
+## TabStyle (Enum)
+
+Style for rendering a tab
+
+Name | Description
+---- | -----------
+`Normal` | Regular job list
+`Compact` | Omit job names, show condensed view
+
+## TabColumnConfig
 
 Describes a column to display on the jobs page
 
 Name | Type | Description
 ---- | ---- | -----------
-`type` | [`JobsTabColumnType`](#jobstabcolumntype-enum) | The type of column
+`type` | [`TabColumnType`](#tabcolumntype-enum) | The type of column
 `heading` | `string` | Heading for this column
 `category` | `string` | Category of aggregates to display in this column. If null, includes any aggregate not matched by another column.
 `parameter` | `string` | Parameter to show in this column
 `relativeWidth` | `integer` | Relative width of this column.
 
-## JobsTabColumnType (Enum)
+## TabColumnType (Enum)
 
 Type of a column in a jobs tab
 
@@ -151,6 +168,7 @@ Mapping from a BuildGraph agent type to a set of machines on the farm
 
 Name | Type | Description
 ---- | ---- | -----------
+`base` | `string` | Base agent config to inherit settings from
 `pool` | `string` | Pool of agents to use for this agent type
 `workspace` | `string` | Name of the workspace to sync
 `tempStorageDir` | `string` | Path to the temporary storage dir
@@ -174,6 +192,7 @@ Information about a workspace type
 
 Name | Type | Description
 ---- | ---- | -----------
+`base` | `string` | Base workspace to derive from
 `cluster` | `string` | Name of the Perforce server cluster to use
 `serverAndPort` | `string` | The Perforce server and port (eg. perforce:1666)
 `userName` | `string` | User to log into Perforce with (defaults to buildmachine)
@@ -193,6 +212,7 @@ Parameters to create a template within a stream
 Name | Type | Description
 ---- | ---- | -----------
 `id` | `string` | Optional identifier for this ref. If not specified, an id will be generated from the name.
+`base` | `string` | Base template id to copy from
 `showUgsBadges` | `boolean` | Whether to show badges in UGS for these jobs
 `showUgsAlerts` | `boolean` | Whether to show alerts in UGS for these jobs
 `notificationChannel` | `string` | Notification channel for this template. Overrides the stream channel if set.
@@ -356,6 +376,7 @@ Name | Type | Description
 `label` | `string` | Name of the parameter associated with this parameter.
 `argument` | `string` | Argument to pass to the executor
 `default` | `string` | Default value for this argument
+`scheduleOverride` | `string` | Override for the default value for this parameter when running a scheduled build
 `hint` | `string` | Hint text for this parameter
 `validation` | `string` | Regex used to validate this parameter
 `validationError` | `string` | Message displayed if validation fails, informing user of valid values.
@@ -392,8 +413,11 @@ Name | Type | Description
 `group` | `string` | Optional group heading to display this entry under, if the picker style supports it.
 `text` | `string` | Name of the parameter associated with this list.
 `argumentIfEnabled` | `string` | Argument to pass with this parameter.
+`argumentsIfEnabled` | `string[]` | Arguments to pass with this parameter.
 `argumentIfDisabled` | `string` | Argument to pass with this parameter.
+`argumentsIfDisabled` | `string[]` | Arguments to pass if this parameter is disabled.
 `default` | `boolean` | Whether this item is selected by default
+`scheduleOverride` | `boolean` | Overridden value for this property in schedule builds
 
 ## BoolParameterData
 
@@ -403,20 +427,24 @@ Name | Type | Description
 ---- | ---- | -----------
 `type` | Bool | Type discriminator
 `label` | `string` | Name of the parameter associated with this parameter.
-`argumentIfEnabled` | `string` | Value if enabled
-`argumentIfDisabled` | `string` | Value if disabled
+`argumentIfEnabled` | `string` | Argument to add if this parameter is enabled
+`argumentsIfEnabled` | `string[]` | Argument to add if this parameter is enabled
+`argumentIfDisabled` | `string` | Argument to add if this parameter is enabled
+`argumentsIfDisabled` | `string[]` | Arguments to add if this parameter is disabled
 `default` | `boolean` | Whether this argument is enabled by default
+`scheduleOverride` | `boolean` | Override for this parameter in scheduled builds
 `toolTip` | `string` | Tool tip text to display
 
-## ContentReplicationMode (Enum)
+## ReplicatorConfig
 
-How to replicate data for this stream
+Configuration for a stream replicator
 
-Name | Description
----- | -----------
-`None` | No content will be replicated for this stream
-`RevisionsOnly` | Only replicate depot path and revision data for each file
-`Full` | Replicate full stream contents to storage
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | Identifier for the replicator within the current stream
+`enabled` | `boolean` | Whether the replicator is enabled
+`minChange` | `integer` | Minimum change number to replicate
+`maxChange` | `integer` | Maximum change number to replicate
 
 ## WorkflowConfig
 
@@ -440,8 +468,10 @@ Name | Type | Description
 `maxMentions` | `integer` | Maximum number of people to mention on a triage thread
 `allowMentions` | `boolean` | Whether to mention people on this thread. Useful to disable for testing.
 `inviteRestrictedUsers` | `boolean` | Uses the admin.conversations.invite API to invite users to the channel
+`skipWhenEmpty` | `boolean` | Skips sending reports when there are no active issues.
 `annotations` | `string` `->` `string` | Additional node annotations implicit in this workflow
 `externalIssues` | [`ExternalIssueConfig`](#externalissueconfig) | External issue tracking configuration for this workflow
+`issueHandlers` | `string[]` | Additional issue handlers enabled for this workflow
 
 ## ExternalIssueConfig
 

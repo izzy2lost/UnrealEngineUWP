@@ -65,7 +65,7 @@ using Horde.Server.Jobs.Bisect;
 using Horde.Server.Telemetry.Sinks;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Storage.ObjectStores;
-using EpicGames.Horde;
+using Horde.Server.Tests.Server;
 
 namespace Horde.Server.Tests
 {
@@ -346,7 +346,7 @@ namespace Horde.Server.Tests
 		
 		private LeasesController GetLeasesController()
 		{
-			LeasesController controller = new LeasesController(AgentService, GlobalConfigSnapshot, Tracer);
+			LeasesController controller = new LeasesController(AgentService, Array.Empty<ITaskSource>(), GlobalConfigSnapshot, Tracer);
 			controller.ControllerContext = GetControllerContext();
 			return controller;
 		}
@@ -488,13 +488,10 @@ namespace Horde.Server.Tests
 			return loggerFactory.CreateLogger<T>();
 		}
 
-		protected async Task<IPool> CreatePoolAsync(string name, CreatePoolConfigOptions options)
+		protected async Task<IPool> CreatePoolAsync(PoolConfig poolConfig)
 		{
-			PoolId poolId = new PoolId(StringId.Sanitize(name));
-#pragma warning disable CS0618 // Type or member is obsolete
-			await PoolCollection.CreateConfigAsync(poolId, name, options);
-#pragma warning restore CS0618 // Type or member is obsolete
-			return await PoolCollection.GetAsync(poolId) ?? throw new NotImplementedException();
+			UpdateConfig(config => config.Pools.Add(poolConfig));
+			return await PoolCollection.GetAsync(poolConfig.Id) ?? throw new NotImplementedException();
 		}
 	}
 	

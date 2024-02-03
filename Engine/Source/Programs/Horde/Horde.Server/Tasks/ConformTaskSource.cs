@@ -23,6 +23,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
+using HordeCommon.Rpc.Messages;
 
 namespace Horde.Server.Tasks
 {
@@ -215,8 +216,8 @@ namespace Horde.Server.Tasks
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-			HashSet<AgentWorkspace> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, globalConfig);
-			foreach (AgentWorkspace conformWorkspace in conformWorkspaces)
+			HashSet<AgentWorkspaceInfo> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, globalConfig);
+			foreach (AgentWorkspaceInfo conformWorkspace in conformWorkspaces)
 			{
 				PerforceCluster? cluster = globalConfig.FindPerforceCluster(conformWorkspace.Cluster);
 				if (cluster == null || !await agent.TryAddWorkspaceMessageAsync(conformWorkspace, cluster, _perforceLoadBalancer, workspaces))
@@ -241,7 +242,7 @@ namespace Horde.Server.Tasks
 		/// <param name="workspaces">List of workspaces that are required</param>
 		/// <param name="leaseId">The lease id</param>
 		/// <returns>True if the resource was allocated, false otherwise</returns>
-		private async Task<bool> AllocateConformLeaseAsync(AgentId agentId, IEnumerable<HordeCommon.Rpc.Messages.AgentWorkspace> workspaces, LeaseId leaseId)
+		private async Task<bool> AllocateConformLeaseAsync(AgentId agentId, IEnumerable<AgentWorkspace> workspaces, LeaseId leaseId)
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 			for (; ; )
@@ -253,7 +254,7 @@ namespace Horde.Server.Tasks
 				}
 
 				HashSet<string> servers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-				foreach (HordeCommon.Rpc.Messages.AgentWorkspace workspace in workspaces)
+				foreach (AgentWorkspace workspace in workspaces)
 				{
 					if (servers.Add(workspace.ServerAndPort))
 					{
@@ -373,7 +374,7 @@ namespace Horde.Server.Tasks
 				}
 
 				// Check if the workspaces have changed (first check against a cached list of workspaces, then an accurate one)
-				HashSet<AgentWorkspace> workspaces = await _poolService.GetWorkspacesAsync(agent, utcNow - TimeSpan.FromSeconds(30.0), globalConfig);
+				HashSet<AgentWorkspaceInfo> workspaces = await _poolService.GetWorkspacesAsync(agent, utcNow - TimeSpan.FromSeconds(30.0), globalConfig);
 				if (!workspaces.SetEquals(agent.Workspaces))
 				{
 					workspaces = await _poolService.GetWorkspacesAsync(agent, utcNow, globalConfig);

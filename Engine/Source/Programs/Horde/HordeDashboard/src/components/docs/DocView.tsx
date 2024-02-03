@@ -2,13 +2,12 @@ import { Stack, mergeStyleSets } from "@fluentui/react";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import { useLocation } from "react-router-dom";
-import dashboard from "../../backend/Dashboard";
 import { Markdown } from "../../base/components/Markdown";
 import { ISideRailLink, SideRail } from "../../base/components/SideRail";
 import { useWindowSize } from "../../base/utilities/hooks";
+import { getHordeStyling } from "../../styles/Styles";
 import { BreadcrumbItem, Breadcrumbs } from "../Breadcrumbs";
 import { TopNav } from "../TopNav";
-import { getHordeStyling } from "../../styles/Styles";
 
 type Anchor = {
    text: string;
@@ -204,7 +203,7 @@ const DocRail = observer(() => {
 
    const state = linkState.state;
 
-   return <SideRail jumpLinks={state.jumpLinks} />
+   return <Stack style={{ overflowY: 'auto', overflowX: 'hidden', maxHeight: "calc(100vh - 240px)" }} data-is-scrollable={true}><SideRail jumpLinks={state.jumpLinks} /></Stack>
 
 })
 
@@ -224,23 +223,16 @@ const DocCrumbs: React.FC<{ landingPage: boolean }> = observer(({ landingPage })
 
 })
 
-
-
 export const DocView = () => {
 
    const location = useLocation();
 
    const { hordeClasses, modeColors } = getHordeStyling();
 
-   let landingPage = false;
-
    let docName = location.pathname.replace("/docs/", "").replace("/docs", "").trim();
-   if (docName.startsWith("/index")) {
-      if (dashboard.user?.dashboardFeatures?.showLandingPage === true) {
-         landingPage = true;
-      }
-      docName = docName.replace("/index", "")
-   }
+
+   let landingPage = docName === "Landing.md";
+
    if (!docName || docName.indexOf("README.md") !== -1) {
 
       if (landingPage) {
@@ -263,24 +255,24 @@ export const DocView = () => {
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <DocCrumbs landingPage={landingPage} />
-      <Stack horizontal>
-         <div key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
-         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%", "position": "relative", paddingTop: "16px", paddingLeft: "32px", paddingBottom: "16px", paddingRight: 0 } }}>
+      <DocCrumbs landingPage={landingPage} />      
+      <Stack horizontal>         
+         <Stack key={`windowsize_streamview_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2), flexShrink: 0, backgroundColor: modeColors.background }} />
+         <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, width: "100%", "position": "relative" } }}>
             <div style={{ overflowY: 'scroll', overflowX: 'hidden', height: "calc(100vh - 162px)" }} data-is-scrollable={true}>
-               <Stack horizontal>
-                  <Stack style={{ width: landingPage ? 1360 : 1240, paddingTop: 6, marginLeft: 4, height: '100%' }}>
+               <Stack horizontal style={{ paddingLeft: "32px", paddingBottom: "16px", paddingRight: 0 }} >
+                  <Stack style={{ width: 230 }} />
+                  <Stack style={{ width: 900, marginLeft: 4 }}>
+                  <Stack style={{height: "24px", backgroundColor: modeColors.background}} />
                      <Stack className={docClasses.raised} styles={{ root: { backgroundColor: modeColors.content } }}>
-                        <Stack style={{ width: "100%", height: "max-content" }} tokens={{ childrenGap: 18 }}>
-                           <DocPanel docName={docName} />
-                        </Stack>
+                        <DocPanel docName={docName} />
                      </Stack>
                      <Stack style={{ paddingBottom: 24 }} />
                   </Stack>
-                  {!landingPage && <Stack style={{ paddingLeft: 1280, paddingTop: 12, position: "absolute", pointerEvents: "none" }}>
-                     <div style={{ pointerEvents: "all" }}>
+                  {!landingPage && <Stack style={{ paddingLeft: 1160, paddingTop: 24, position: "absolute", pointerEvents: "none" }}>
+                     <Stack style={{ pointerEvents: "all" }} styles={{ root: { selectors: { "*::-webkit-scrollbar": { display: "none" }, "*::-ms-overflow-style": "none", "*::scrollbar-width": "none" } } }}>
                         <DocRail />
-                     </div>
+                     </Stack>
                   </Stack>}
                </Stack>
             </div>

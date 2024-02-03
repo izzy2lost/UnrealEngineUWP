@@ -468,14 +468,14 @@ namespace Horde.Server.Streams
 				}
 			}
 
-			HashSet<TemplateId> undefinedTemplates = new();
 			// Check that all the templates are referenced by a tab
-			foreach (JobsTabConfig jobsTab in config.Tabs.OfType<JobsTabConfig>())
+			HashSet<TemplateId> undefinedTemplates = new();
+			foreach (TabConfig tab in config.Tabs)
 			{
-				if (jobsTab.Templates != null)
+				if (tab.Templates != null)
 				{
-					remainingTemplates.ExceptWith(jobsTab.Templates);
-					foreach (TemplateId templateId in jobsTab.Templates)
+					remainingTemplates.ExceptWith(tab.Templates);
+					foreach (TemplateId templateId in tab.Templates)
 					{
 						if (config.Templates.Find(x => x.Id == templateId) == null)
 						{

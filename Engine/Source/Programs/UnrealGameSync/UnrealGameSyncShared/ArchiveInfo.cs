@@ -91,7 +91,7 @@ namespace UnrealGameSync
 
 		public bool TryGetArchiveKeyForChangeNumber(int changeNumber, int maxChangeNumber, [NotNullWhen(true)] out string? archiveKey)
 		{
-			int idx = ChangeNumberToFileRevision.Keys.AsReadOnly().BinarySearch(changeNumber);
+			int idx = ChangeNumberToFileRevision.Keys.AsReadOnlyList().BinarySearch(changeNumber);
 			if (idx >= 0)
 			{
 				archiveKey = ChangeNumberToFileRevision.Values[idx];

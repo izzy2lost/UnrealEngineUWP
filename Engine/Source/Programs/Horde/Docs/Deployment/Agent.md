@@ -6,8 +6,6 @@
 
 ### MSI Installer (Windows)
 
-A standalone agent can be installed from the same MSI as the server ([TODO](http)).
-
 Installing the agent in this manner also installs a background application that shows the agent status in the Windows
 notification area, and allows configuring the agent to only run when the machine is idle.
 

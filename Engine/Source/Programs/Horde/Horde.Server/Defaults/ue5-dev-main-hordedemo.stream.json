@@ -1,0 +1,490 @@
+{
+	"name": "//UE5/Dev-Main-HordeDemo",
+	"macros": 
+	[
+		{
+			"name": "Project",
+			"value": "Lyra"
+		},
+		{
+			"name": "ProjectPath",
+			"value": "Samples/Games/Lyra/Lyra.uproject"
+		}
+	],
+	"defaultPreflight": {
+		"templateId": "default-presubmit-tests",
+		"change": {
+			"templateId": "incremental-build",
+			"target": "Incremental Build Minimal",
+			"outcomes": [ "Success", "Warnings" ]
+		}
+	},
+	"tabs":
+	[
+		{
+			"title": "Incremental",
+			"style": "Compact",
+			"templates":
+			[
+				"incremental-build"
+			],
+			"columns":
+			[
+				{
+					"heading": "Editors",
+					"category": "Editors",
+					"relativeWidth": 2
+				},
+				{
+					"heading": "Target Platforms",
+					"category": "Platforms",
+					"relativeWidth": 4
+				},
+				{
+					"heading": "Other",
+					"category": "Other",
+					"relativeWidth": 5
+				}
+			]
+		},
+		{
+			"title": "Packaged Builds",
+			"style": "Normal",
+			"templates": [
+				"packaged-build",
+			],
+			"columns":
+			[
+				{
+					"heading": "Editors",
+					"category": "Editors",
+					"relativeWidth": 1
+				},
+				{
+					"heading": "Clients",
+					"category": "Clients",
+					"relativeWidth": 1
+				},
+				{
+					"heading": "Servers",
+					"category": "Servers",
+					"relativeWidth": 1
+				},
+				{
+					"heading": "Tests",
+					"category": "Tests",
+					"relativeWidth": 1
+				},
+				{
+					"heading": "Other",
+					"category": "Other",
+					"relativeWidth": 1
+				}
+			]
+		},
+		{
+			"title": "Presubmit",
+			"style": "Normal",
+			"showPreflights": true,
+			"templates":
+			[
+				"default-presubmit-tests"
+			],
+			"columns":
+			[
+				{
+					"heading": "Editors",
+					"category": "Editors",
+					"relativeWidth": 1
+				},
+				{
+					"heading": "Target Platforms",
+					"category": "Platforms",
+					"relativeWidth": 2
+				},
+				{
+					"heading": "Other",
+					"category": "Other",
+					"relativeWidth": 1
+				}
+			]
+		},
+		{
+			"title": "Utility",
+			"style": "Normal",
+			"templates":
+			[
+				"installed-build",
+				"test-executor",
+				"parameter-demo",
+				"custom"
+			],
+			"columns":
+			[
+				{
+					"heading": "Editors",
+					"category": "Editors",
+					"relativeWidth": 1
+				},
+				{
+					"heading": "Target Platforms",
+					"category": "Platforms",
+					"relativeWidth": 2
+				},
+				{
+					"heading": "Other",
+					"category": "Other",
+					"relativeWidth": 1
+				}
+			]
+		}
+	],
+	"agentTypes":
+	{
+		"Win64":
+		{
+			"pool": "win-ue5",
+			"workspace": "Full",
+			"environment":
+			{
+			}
+		}
+	},
+	"workspaceTypes":
+	{
+		"Full":
+		{
+			// Set a unique identifier to prevent overlap with other streams; will cause workspace to be synced to a different folder
+			"Identifier": "Demo"
+		}
+	},
+	"templates":
+	[
+		{
+            "id": "incremental-build",
+            "name": "Incremental Build",
+            "initialAgentType": "Win64",
+            "arguments":
+            [
+                "-Script=Engine/Build/Graph/Examples/BuildEditorAndTools.xml",
+				"-Target=Submit To Horde For UGS",
+				"-set:UProjectPath=$(ProjectPath)"
+            ]
+		},
+		{
+			"id": "packaged-build",
+			"name": "Packaged $(Project) Build",
+			"initialAgentType": "Win64",
+			"arguments": [
+				"-Script=Engine/Build/Graph/Examples/PackagedBuild.xml",
+				"-set:UProjectPath=$(ProjectPath)"
+			],
+			"parameters": [
+				{
+					"type": "List",
+					"label": "Target Platforms",
+					"style": "MultiList",
+					"items": [
+						{
+							"group": "Desktop",
+							"text": "Win64",
+							"argumentIfEnabled": "-set:WithWin64=true",
+							"argumentIfDisabled": "-set:WithWin64=false",
+							"default": true
+						},
+						{
+							"group": "Desktop",
+							"text": "Mac",
+							"argumentIfEnabled": "-set:WithMac=true",
+							"argumentIfDisabled": "-set:WithMac=false",
+							"default": true
+						},
+						{
+							"group": "Desktop",
+							"text": "Linux",
+							"argumentIfEnabled": "-set:WithLinux=true",
+							"argumentIfDisabled": "-set:WithLinux=false",
+							"default": true
+						},
+						{
+							"group": "Desktop",
+							"text": "LinuxArm64",
+							"argumentIfEnabled": "-set:WithLinuxArm64=true",
+							"argumentIfDisabled": "-set:WithLinuxArm64=false",
+							"default": true
+						},
+						{
+							"group": "Mobile",
+							"text": "Android",
+							"argumentIfEnabled": "-set:WithAndroid=true",
+							"argumentIfDisabled": "-set:WithAndroid=false",
+							"default": true
+						},
+						{
+							"group": "Mobile",
+							"text": "IOS",
+							"argumentIfEnabled": "-set:WithIOS=true",
+							"argumentIfDisabled": "-set:WithIOS=false",
+							"default": true
+						},
+						{
+							"group": "Mobile",
+							"text": "TVOS",
+							"argumentIfEnabled": "-set:WithTVOS=true",
+							"argumentIfDisabled": "-set:WithTVOS=false",
+							"default": true
+						}
+					]
+				}
+			]
+		},
+		{
+			"id": "default-presubmit-tests",
+			"name": "Default Presubmit Tests",
+			"initialAgentType": "Utility",
+			"arguments": [
+				"-Target=Presubmit Tests",
+				"-Script=Engine/Build/Graph/Examples/Presubmit.xml"
+			]
+		},
+		{
+			"id": "installed-build",
+			"name": "Installed Engine Build",
+			"initialAgentType": "Win64",
+			"arguments": [
+				"-Target=UE5 Binary Release",
+				"-Script=Engine/Build/InternalEngineBuild.xml"
+			],
+			"parameters": [
+				{
+					"type": "List",
+					"label": "Host Platforms",
+					"style": "MultiList",
+					"items": [
+						{
+							"text": "Win64",
+							"argumentIfEnabled": "-set:WithInstalledWin64=true",
+							"argumentIfDisabled": "-set:WithInstalledWin64=false",
+							"default": true
+						},
+						{
+							"text": "Mac",
+							"argumentIfEnabled": "-set:WithInstalledMac=true",
+							"argumentIfDisabled": "-set:WithInstalledMac=false",
+							"default": true
+						},
+						{
+							"text": "Linux",
+							"argumentIfEnabled": "-set:WithInstalledLinux=true",
+							"argumentIfDisabled": "-set:WithInstalledLinux=false",
+							"default": true
+						}
+					]
+				},
+				{
+					"type": "List",
+					"label": "Target Platforms",
+					"style": "MultiList",
+					"items": [
+						{
+							"group": "Desktop",
+							"text": "Win64",
+							"argumentIfEnabled": "-set:WithWin64=true",
+							"argumentIfDisabled": "-set:WithWin64=false",
+							"default": true
+						},
+						{
+							"group": "Desktop",
+							"text": "Mac",
+							"argumentIfEnabled": "-set:WithMac=true",
+							"argumentIfDisabled": "-set:WithMac=false",
+							"default": true
+						},
+						{
+							"group": "Desktop",
+							"text": "Linux",
+							"argumentIfEnabled": "-set:WithLinux=true",
+							"argumentIfDisabled": "-set:WithLinux=false",
+							"default": true
+						},
+						{
+							"group": "Desktop",
+							"text": "LinuxArm64",
+							"argumentIfEnabled": "-set:WithLinuxArm64=true",
+							"argumentIfDisabled": "-set:WithLinuxArm64=false",
+							"default": true
+						},
+						{
+							"group": "Mobile",
+							"text": "Android",
+							"argumentIfEnabled": "-set:WithAndroid=true",
+							"argumentIfDisabled": "-set:WithAndroid=false",
+							"default": true
+						},
+						{
+							"group": "Mobile",
+							"text": "IOS",
+							"argumentIfEnabled": "-set:WithIOS=true",
+							"argumentIfDisabled": "-set:WithIOS=false",
+							"default": true
+						},
+						{
+							"group": "Mobile",
+							"text": "TVOS",
+							"argumentIfEnabled": "-set:WithTVOS=true",
+							"argumentIfDisabled": "-set:WithTVOS=false",
+							"default": true
+						}
+					]
+				},
+				{
+					"type": "Bool",
+					"label": "Build DDC",
+					"argumentIfEnabled": "-set:WithDDC=true",
+					"argumentIfDisabled": "-set:WithDDC=false",
+					"default": true
+				}
+			]
+		},
+		{
+			"id": "test-executor",
+			"name": "Run Test Executor",
+			"initialAgentType": "Win64",
+			"arguments": [
+				"-Target=Full Build",
+				"-Project=$(Project)"
+			],
+			"jobOptions": {
+				"executor": "Test"
+			}
+		},
+        {
+            "id": "parameter-demo",
+            "name": "Parameter Demo",
+            "initialAgentType": "Win64",
+            "arguments":
+            [
+                "-Script=Engine/Build/Graph/Examples/Parameters.xml",
+				"-Target=Print Parameters"
+            ],
+			"parameters":
+			[
+                {
+                    "type": "Text",
+                    "label": "Text Parameter",
+                    "argument": "-set:TextParameter=",
+					"default": "",
+					"validation": "[a-zA-Z0-9_]+",
+					"validationError": "Should be a sequence of alphanumeric characters",
+					"hint": "Enter a string of alphanumeric characters",
+					"toolTip": "Tooltip for text parameter"
+                },
+				{
+					"type": "List",
+					"label": "List Parameter (Default Style)",
+					"toolTip": "Tooltip for list parameter",
+					"items": [
+						{
+							"text": "Option 1",
+							"argumentIfEnabled": "-set:ListParameter=Option1"
+						},
+						{
+							"text": "Option 2",
+							"argumentIfEnabled": "-set:ListParameter=Option2",
+							"default": true
+						},
+						{
+							"text": "Option 3",
+							"argumentIfEnabled": "-set:ListParameter=Option3"
+						}
+					]
+				},
+				{
+					"type": "List",
+					"style": "MultiList",
+					"label": "List Parameter (MultiList Style)",
+					"toolTip": "Tooltip for list parameter (MultiList)",
+					"items": [
+						{
+							"group": "First group",
+							"text": "Option 1",
+							"argumentIfEnabled": "-set:MultiListOption1=true",
+							"default": true
+						},
+						{
+							"group": "First group",
+							"text": "Option 2",
+							"argumentIfEnabled": "-set:MultiListOption2=true"
+						},
+						{
+							"group": "Second group",
+							"text": "Option 3",
+							"argumentIfEnabled": "-set:MultiListOption3=true",
+							"default": true
+						},
+						{
+							"group": "Second group",
+							"text": "Option 4",
+							"argumentIfEnabled": "-set:MultiListOption4=true"
+						}
+					]
+				},
+				{
+					"type": "List",
+					"style": "TagPicker",
+					"label": "List Parameter (TagPicker Style)",
+					"toolTip": "Tooltip for list parameter (TagPicker)",
+					"items": [
+						{
+							"text": "Option 1",
+							"argumentIfEnabled": "-set:TagPickerOption1=true",
+							"default": true
+						},
+						{
+							"text": "Option 2",
+							"argumentIfEnabled": "-set:TagPickerOption2=true"
+						},
+						{
+							"text": "Option 3",
+							"argumentIfEnabled": "-set:TagPickerOption3=true",
+							"default": true
+						},
+						{
+							"text": "Option 4",
+							"argumentIfEnabled": "-set:TagPickerOption4=true"
+						}
+					]
+				},
+				{
+					"type": "Bool",
+					"label": "Bool Parameter",
+					"toolTip": "Tooltip for bool parameter",
+					"argumentIfEnabled": "-set:BoolParameter=true",
+					"argumentIfDisabled": "-set:BoolParameter=false"
+				}
+			]
+        },
+		{
+			"id": "custom",
+			"name": "Custom...",
+			"arguments":
+			[
+			],
+			"parameters":
+			[
+				{
+					"type": "Text",
+					"label": "Script",
+					"argument": "-Script=",
+					"default": "Foo.xml"
+				},
+				{
+					"type": "Text",
+					"label": "Target",
+					"argument": "-Target=",
+					"default": ""
+				}
+			]
+		}
+	]
+}

@@ -15,6 +15,7 @@ using Horde.Server.Agents.Leases;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
 using HordeCommon;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -486,7 +487,7 @@ namespace Horde.Server.Perforce
 				HashSet<(string, string)> servers = new HashSet<(string, string)>();
 				if (any.TryUnpack(out ConformTask conformTask))
 				{
-					foreach (HordeCommon.Rpc.Messages.AgentWorkspace workspace in conformTask.Workspaces)
+					foreach (AgentWorkspace workspace in conformTask.Workspaces)
 					{
 						servers.Add((workspace.Cluster, workspace.ServerAndPort));
 					}

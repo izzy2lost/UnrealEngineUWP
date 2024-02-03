@@ -105,7 +105,7 @@ const Main: React.FC = () => {
       const routes: RouteObject[] = [
          {
             path: "/", element: <Root />, errorElement: <RouteError />, children: [
-               { path: "index", element: (dashboard.user?.dashboardFeatures?.showLandingPage === true) ? <DocView /> : <UserHomeView /> },
+               { path: "index", element: <UserHomeView /> },
                { path: "project/:projectId", element: <ProjectHome /> },
                { path: "pools", element: <PoolView /> },
                { path: "job/:jobId", element: <JobDetailViewV2 /> },
@@ -130,7 +130,7 @@ const Main: React.FC = () => {
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
                { path: "analytics", element: <TelemetryView /> },
-               { path: "test/stepissuereport", element: <StepIssueReportTest /> },               
+               { path: "test/stepissuereport", element: <StepIssueReportTest /> },
                { path: "test/theme", element: <ThemeTester /> }
             ]
          }
@@ -167,6 +167,9 @@ export default App;
 
 const HomeRedirect: React.FC = () => {
    if (window.location.pathname === "/" || !window.location.pathname) {
+      if (dashboard.user?.dashboardFeatures?.showLandingPage) {
+         return <Navigate to="/docs/Landing.md" replace={true} />
+      }
       return <Navigate to="/index" replace={true} />
    }
    return null;

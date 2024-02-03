@@ -48,9 +48,14 @@ namespace Horde.Server.Server
 	public enum GlobalVersion
 	{
 		/// <summary>
+		/// Not specified
+		/// </summary>
+		None,
+
+		/// <summary>
 		/// Initial version number
 		/// </summary>
-		Initial = 0,
+		Initial,
 
 		/// <summary>
 		/// Ability to add/remove pools via the REST API is removed. Pools should be configured through globals.json instead.
@@ -131,14 +136,13 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Version number for the server. Values are indicated by the <see cref="GlobalVersion"/>.
 		/// </summary>
-		[JsonIgnore]
-		public GlobalVersion Version => (GlobalVersion)VersionNumber;
+		public int Version { get; set; }
 
 		/// <summary>
-		/// Serialized version number
+		/// Version number for the server, as an enum.
 		/// </summary>
-		[JsonPropertyName("Version")]
-		public int VersionNumber { get; set; }
+		[JsonIgnore]
+		public GlobalVersion VersionEnum => (GlobalVersion)Version;
 
 		/// <summary>
 		/// Other paths to include
@@ -335,7 +339,7 @@ namespace Horde.Server.Server
 		{
 			// Lookup table of pool id to workspaces
 			Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
-			Dictionary<PoolId, List<AgentWorkspace>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspace>>();
+			Dictionary<PoolId, List<AgentWorkspaceInfo>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspaceInfo>>();
 
 			// Populate the workspace list from the current stream
 			foreach (StreamConfig streamConfig in Streams)
@@ -343,15 +347,15 @@ namespace Horde.Server.Server
 				foreach (KeyValuePair<string, AgentConfig> agentTypePair in streamConfig.AgentTypes)
 				{
 					// Create the new agent workspace
-					if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspace? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
+					if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspaceInfo? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
 					{
 						AgentConfig agentType = agentTypePair.Value;
 
 						// Find or add a list of workspaces for this pool
-						List<AgentWorkspace>? agentWorkspaces;
+						List<AgentWorkspaceInfo>? agentWorkspaces;
 						if (!poolToAgentWorkspaces.TryGetValue(agentType.Pool, out agentWorkspaces))
 						{
-							agentWorkspaces = new List<AgentWorkspace>();
+							agentWorkspaces = new List<AgentWorkspaceInfo>();
 							poolToAgentWorkspaces.Add(agentType.Pool, agentWorkspaces);
 						}
 
@@ -374,10 +378,10 @@ namespace Horde.Server.Server
 			foreach (PoolConfig pool in Pools)
 			{
 				// Get the new list of workspaces for this pool
-				List<AgentWorkspace>? newWorkspaces;
+				List<AgentWorkspaceInfo>? newWorkspaces;
 				if (!poolToAgentWorkspaces.TryGetValue(pool.Id, out newWorkspaces))
 				{
-					newWorkspaces = new List<AgentWorkspace>();
+					newWorkspaces = new List<AgentWorkspaceInfo>();
 				}
 
 				// Get the autosdk view

@@ -384,7 +384,14 @@ namespace UnrealGameSyncCmd
 		{
 			if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
-				return "ugs-mac";
+				if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
+				{
+					return "ugs-mac-arm64";
+				}
+				else
+				{
+					return "ugs-mac";
+				}
 			}
 			else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 			{

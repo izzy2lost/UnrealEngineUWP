@@ -545,7 +545,8 @@ namespace AutomationTool
 		/// <param name="element">Element containing the property assignment. Used for error messages if the property is shadowed in another scope.</param>
 		/// <param name="name">Name of the property</param>
 		/// <param name="value">Value for the property</param>
-		protected void SetPropertyValue(BgScriptElement element, string name, string value)
+		/// <param name="createInParentScope">If true, this property should be added to the parent scope and not the current scope. Cannot be used if the parent scope already contains a parameter with this name or if there is no parent scope</param>
+		protected void SetPropertyValue(BgScriptElement element, string name, string value, bool createInParentScope = false)
 		{
 			// Find the scope containing this property, defaulting to the current scope
 			int scopeIdx = 0;
@@ -554,9 +555,27 @@ namespace AutomationTool
 				scopeIdx++;
 			}
 
-			// Make sure this property name was not already used in a child scope; it likely indicates an error.
-			if (_shadowProperties[scopeIdx].Contains(name))
+			if (createInParentScope)
 			{
+				if (scopeIdx != ScopedProperties.Count - 1)
+				{
+					LogError(element, "Property '{PropertyName}' was already used in a parent scope but has CreateInParentScope=\"true\". Rename the property to avoid the conflict or disable CreateInParentScope.", name);
+					return;
+				}
+				else if ((scopeIdx - 1) < 0)
+				{
+					LogError(element, "Property '{Propertyname}' has CreateInParentScope=\"true\" but has no parent scope.", name);
+					return;
+				}
+				else 
+				{
+					scopeIdx--;
+				}
+			}
+
+			if (_shadowProperties[scopeIdx].Contains(name))
+			{	
+				// Make sure this property name was not already used in a child scope; it likely indicates an error.
 				LogError(element, "Property '{PropertyName}' was already used in a child scope. Move this definition before the previous usage if they are intended to share scope, or use a different name.", name);
 			}
 			else
@@ -799,7 +818,7 @@ namespace AutomationTool
 						}
 						value = builder.ToString();
 					}
-					SetPropertyValue(element, name, value);
+					SetPropertyValue(element, name, value, ReadBooleanAttribute(element, "CreateInParentScope", false));
 				}
 			}
 		}

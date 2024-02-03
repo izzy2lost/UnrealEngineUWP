@@ -54,10 +54,10 @@ namespace UnrealGameSync.UriHandlers
 
 				progress.Report("Connecting to server...");
 
-				DirectoryNode? node = await storageClient.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
+				DirectoryNode? node = await storageClient.ReadRefTargetAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 
 				progress.Report("Starting...");
-				await node.CopyToDirectoryAsync(outputDir.ToDirectoryInfo(), new CopyProgressAdapter(progress), BlobSerializerOptions.Default, serviceProvider.GetRequiredService<ILogger<HordeHandler>>(), cancellationToken);
+				await node.CopyToDirectoryAsync(outputDir.ToDirectoryInfo(), new CopyProgressAdapter(progress), serviceProvider.GetRequiredService<ILogger<HordeHandler>>(), cancellationToken);
 			}
 		}
 

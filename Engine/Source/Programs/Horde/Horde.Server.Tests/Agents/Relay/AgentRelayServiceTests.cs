@@ -14,6 +14,7 @@ using Horde.Common.Rpc;
 using Horde.Server.Agents.Relay;
 using Horde.Server.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
+using Horde.Server.Tests.Server;
 
 namespace Horde.Server.Tests.Agents.Relay;
 

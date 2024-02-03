@@ -38,6 +38,8 @@ export const graphColors = [
     "#deb6f2" // p5
 ]
 
+const groupRegex = /,(?=(?:[^"]*"[^"]*")*[^"]*$)/
+
 const loadedMetrics = new Map<string, GetTelemetryMetricsResponse>();
 
 export const clearTelemetryViewMetrics = () => {
@@ -69,7 +71,7 @@ const getTelemetryViewMetrics = async (viewId: string, categoryName: string, min
         if (needMetrics.size) {
 
             const need: string[] = Array.from(needMetrics);
-            const allMetrics = await backend.getMetrics({ id: need, minTime: minTime, maxTime: maxTime, results: 4096 * 16 });
+            const allMetrics = await backend.getMetrics({ id: need, minTime: minTime, maxTime: maxTime, results: 4096 * 32 });
 
             for (let i = 0; i < need.length; i++) {
                 const metricId = need[i];
@@ -93,7 +95,14 @@ const getTelemetryViewMetrics = async (viewId: string, categoryName: string, min
                 metrics.metrics = metrics.metrics.filter(m => {
                     m.id = metricId;
                     if (m.group) {
-                        const groupValues = m.group.split(",");
+
+                        // todo: can remove this, filtering out some bad escaping from initial implementation
+                        if (m.group.indexOf("\"\"") !== -1) {
+                            return false;
+                        }
+
+                        const groupValues = m.group.split(groupRegex).map((v => v.replaceAll("\"", "")));
+
                         m.groupValues = {};
                         let key: string[] = [];
                         let skip = false;

@@ -39,6 +39,9 @@ namespace Horde.Server.Commands
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			logger.LogInformation("Server version: {Version}", ServerApp.Version);
+			logger.LogInformation("App directory: {AppDir}", ServerApp.AppDir);
+			logger.LogInformation("Data directory: {DataDir}", ServerApp.DataDir);
+			logger.LogInformation("Server config: {ConfigFile}", ServerApp.ServerConfigFile);
 
 			using (X509Certificate2? grpcCertificate = ReadGrpcCertificate(_hordeSettings))
 			{

@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Leases;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Agent.Services;
@@ -34,6 +35,11 @@ namespace Horde.Agent.Leases
 			public Lease Lease { get; set; }
 
 			/// <summary>
+			/// Identifier for this lease
+			/// </summary>
+			public LeaseId LeaseId { get; set; }
+
+			/// <summary>
 			/// The task being executed for this lease
 			/// </summary>
 			public Task? Task { get; set; }
@@ -50,6 +56,7 @@ namespace Horde.Agent.Leases
 			public LeaseInfo(Lease lease)
 			{
 				Lease = lease;
+				LeaseId = LeaseId.Parse(lease.Id);
 				CancellationTokenSource = new CancellationTokenSource();
 			}
 		}
@@ -114,21 +121,23 @@ namespace Horde.Agent.Leases
 		readonly CapabilitiesService _capabilitiesService;
 		readonly StatusService _statusService;
 		readonly Dictionary<string, LeaseHandler> _typeUrlToLeaseHandler;
+		readonly LeaseLoggerFactory _leaseLoggerFactory;
 		readonly ILogger _logger;
 
 		AgentCapabilities? _capabilities;
 
-		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, ILogger logger)
+		public LeaseManager(ISession session, CapabilitiesService capabilitiesService, StatusService statusService, IEnumerable<LeaseHandler> leaseHandlers, LeaseLoggerFactory leaseLoggerFactory, ILogger logger)
 		{
 			_session = session;
 			_capabilitiesService = capabilitiesService;
 			_statusService = statusService;
 			_typeUrlToLeaseHandler = leaseHandlers.ToDictionary(x => x.LeaseType, x => x);
+			_leaseLoggerFactory = leaseLoggerFactory;
 			_logger = logger;
 		}
 
 		public LeaseManager(ISession session, IServiceProvider serviceProvider)
-			: this(session, serviceProvider.GetRequiredService<CapabilitiesService>(), serviceProvider.GetRequiredService<StatusService>(), serviceProvider.GetRequiredService<IEnumerable<LeaseHandler>>(), serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
+			: this(session, serviceProvider.GetRequiredService<CapabilitiesService>(), serviceProvider.GetRequiredService<StatusService>(), serviceProvider.GetRequiredService<IEnumerable<LeaseHandler>>(), serviceProvider.GetRequiredService<LeaseLoggerFactory>(), serviceProvider.GetRequiredService<ILogger<LeaseManager>>())
 		{
 		}
 
@@ -252,8 +261,8 @@ namespace Horde.Agent.Leases
 
 				// Build the next update request
 				UpdateSessionRequest updateSessionRequest = new UpdateSessionRequest();
-				updateSessionRequest.AgentId = _session.AgentId;
-				updateSessionRequest.SessionId = _session.SessionId;
+				updateSessionRequest.AgentId = _session.AgentId.ToString();
+				updateSessionRequest.SessionId = _session.SessionId.ToString();
 
 				// Get the new the lease states. If a restart is requested and we have no active leases, signal to the server that we're stopping.
 				lock (_lockObject)
@@ -494,7 +503,7 @@ namespace Horde.Agent.Leases
 		{
 			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(leaseInfo.Lease.Id).StartActive();
 			scope.Span.SetTag("LeaseId", leaseInfo.Lease.Id);
-			scope.Span.SetTag("AgentId", session.AgentId);
+			scope.Span.SetTag("AgentId", session.AgentId.ToString());
 			//			using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
 			//			using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
 
@@ -546,16 +555,17 @@ namespace Horde.Agent.Leases
 		internal async Task<LeaseResult> HandleLeasePayloadAsync(ISession session, LeaseInfo leaseInfo)
 		{
 			Any payload = leaseInfo.Lease.Payload;
-			if (_typeUrlToLeaseHandler.TryGetValue(payload.TypeUrl, out LeaseHandler? leaseHandler))
-			{
-				GlobalTracer.Instance.ActiveSpan?.SetTag("task", payload.TypeUrl);
-				return await leaseHandler.ExecuteAsync(session, leaseInfo.Lease.Id, payload, leaseInfo.CancellationTokenSource.Token);
-			}
-			else
+			if (!_typeUrlToLeaseHandler.TryGetValue(payload.TypeUrl, out LeaseHandler? leaseHandler))
 			{
 				_logger.LogError("Invalid lease payload type ({PayloadType})", payload.TypeUrl);
 				return LeaseResult.Failed;
 			}
+
+			using ILoggerFactory leaseLoggerFactory = _leaseLoggerFactory.CreateLoggerFactory(leaseInfo.LeaseId);
+			ILogger leaseLogger = leaseLoggerFactory.CreateLogger(leaseHandler.GetType());
+
+			GlobalTracer.Instance.ActiveSpan?.SetTag("task", payload.TypeUrl);
+			return await leaseHandler.ExecuteAsync(session, LeaseId.Parse(leaseInfo.Lease.Id), payload, leaseLogger, leaseInfo.CancellationTokenSource.Token);
 		}
 
 		/// <summary>

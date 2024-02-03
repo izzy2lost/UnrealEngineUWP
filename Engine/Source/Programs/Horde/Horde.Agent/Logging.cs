@@ -73,7 +73,7 @@ namespace Horde.Agent
 				.CreateLogger();
 		}
 
-		public static ILoggerFactory CreateFileLoggerFactory(DirectoryReference baseDir, string name)
+		public static ILoggerProvider CreateFileLoggerProvider(DirectoryReference baseDir, string name)
 		{
 			DirectoryReference.CreateDirectory(baseDir);
 
@@ -83,7 +83,7 @@ namespace Horde.Agent
 				.Enrich.FromLogContext()
 				.CreateLogger();
 
-			return new SerilogLoggerFactory(logger, true);
+			return new SerilogLoggerProvider(logger, true);
 		}
 	}
 }

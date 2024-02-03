@@ -139,11 +139,11 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
 		/// <param name="globalConfig">Current configuration</param>
 		/// <returns>List of workspaces</returns>
-		public async Task<HashSet<AgentWorkspace>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig)
+		public async Task<HashSet<AgentWorkspaceInfo>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig)
 		{
 			List<IPoolConfig> pools = await GetPoolsAsync(agent, validAtTime);
 
-			HashSet<AgentWorkspace> workspaces = new HashSet<AgentWorkspace>();
+			HashSet<AgentWorkspaceInfo> workspaces = new HashSet<AgentWorkspaceInfo>();
 			foreach (IPoolConfig pool in pools)
 			{
 				workspaces.UnionWith(pool.Workspaces);
@@ -157,7 +157,7 @@ namespace Horde.Server.Agents.Pools
 					PerforceCluster? cluster = globalConfig.FindPerforceCluster(clusterName);
 					if (cluster != null)
 					{
-						AgentWorkspace? autoSdkWorkspace = agent.GetAutoSdkWorkspace(cluster, autoSdkConfig);
+						AgentWorkspaceInfo? autoSdkWorkspace = agent.GetAutoSdkWorkspace(cluster, autoSdkConfig);
 						if (autoSdkWorkspace != null)
 						{
 							workspaces.Add(autoSdkWorkspace);
@@ -185,7 +185,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="agent"></param>
 		/// <param name="cluster"></param>
 		/// <returns></returns>
-		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster)
+		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster)
 		{
 			List<IPoolConfig> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
 
@@ -205,7 +205,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="perforceCluster">The P4 cluster to find a workspace for</param>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
 		/// <returns>List of workspaces</returns>
-		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime)
+		public async Task<AgentWorkspaceInfo?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster perforceCluster, DateTime validAtTime)
 		{
 			AutoSdkConfig? autoSdkConfig = null;
 

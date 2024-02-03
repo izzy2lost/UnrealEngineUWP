@@ -28,7 +28,7 @@ No. Horde runs well in local deployments using off-the-shelf hardware, though so
 
 ### Do I have to use the CI system / remote execution functionality / test framework / etc...?
 
-No. Each feature is optional, and any disabled features do not incur any costs. It's easier to implement each service using a common framework due to overlapping requirements such as storage and farm management, and it gives 
+No. Each feature is optional, and any disabled features do not incur any costs.
 
 ### Why would I use Horde for build automation, rather than an established build automation system like Jenkins or TeamCity?
 
@@ -38,4 +38,4 @@ While it is possible to customize a more generic build automation tool, Horde is
 
 Other features, such as Horde's build health and bisection functionality, are fairly unique solutions to working on scrappy, high-velocity development teams.
 
-Horde's CI functionality is not enabled by default. Other functionality in Horde can be used without having to migrate to a new CI system.
+Horde's CI functionality is not enabled by default. Other functionality in Horde can be used without having to migrate to a new build automation system.

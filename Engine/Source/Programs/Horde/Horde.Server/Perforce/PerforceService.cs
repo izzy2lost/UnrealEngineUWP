@@ -288,7 +288,7 @@ namespace Horde.Server.Perforce
 
 			PerforceSettings settings = new PerforceSettings(serverAndPort, credentials.UserName);
 			settings.AppName = "Horde.Server";
-			settings.Password = credentials.Password;
+			settings.Password = String.IsNullOrEmpty(credentials.Ticket) ? credentials.Password : credentials.Ticket; 
 			settings.HostName = clientRecord?.Host;
 			settings.ClientName = clientRecord?.Name ?? "__DOES_NOT_EXIST__";
 			settings.PreferNativeClient = true;
@@ -440,7 +440,7 @@ namespace Horde.Server.Perforce
 				Credentials credentials = await GetCredentialsAsync(cluster, userName, cancellationToken);
 				handle = await CreatePooledConnectionAsync(server.ServerAndPort, credentials, null, cancellationToken);
 
-				if (credentials.Password != null && credentials.Ticket == null)
+				if (!String.IsNullOrEmpty(credentials.Password) && String.IsNullOrEmpty(credentials.Ticket))
 				{
 					await handle.LoginAsync(credentials.Password, cancellationToken);
 				}

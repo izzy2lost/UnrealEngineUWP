@@ -174,7 +174,7 @@ namespace Horde.Server.Agents
 				agent.Comment);
 		}
 
-		internal static GetAgentWorkspaceResponse CreateGetAgentWorkspaceResponse(AgentWorkspace workspace)
+		internal static GetAgentWorkspaceResponse CreateGetAgentWorkspaceResponse(AgentWorkspaceInfo workspace)
 		{
 			return new GetAgentWorkspaceResponse(workspace.Cluster, workspace.UserName, workspace.Identifier, workspace.Stream, workspace.View, workspace.Incremental, workspace.Method);
 		}

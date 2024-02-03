@@ -1438,12 +1438,12 @@ export const AgentMenuBar: React.FC<{ agentView?: boolean }> = observer(({ agent
          {!!agentView && <Stack><Stack grow />
             <Stack horizontal tokens={{ childrenGap: 12 }} grow>
                <PrimaryButton styles={{ root: { fontFamily: "Horde Open Sans SemiBold !important" } }} text="Download Agent" onClick={() => { backend.downloadAgentZip() }} />
-               <CommandButton
+               {!!dashboard.user?.dashboardFeatures?.showPoolEditor && <CommandButton
                   onClick={() => { editPoolsModalState.setOpen(); }}
                   iconProps={{ iconName: 'Edit' }}
                   styles={{ root: { marginRight: 12, bottom: 3, fontFamily: 'Horde Open Sans SemiBold !important' } }}>
                   {`Pools`}
-               </CommandButton>
+               </CommandButton>}
                {selectedButton}
                <PoolEditorModal></PoolEditorModal>
                <PoolSelectionModal></PoolSelectionModal>
@@ -2499,16 +2499,12 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                   return a.name.localeCompare(b.name);
                });
                for (let idx = 0; idx < poolObjs.length; idx++) {
-                  let color = "darkgrey";
+                  let color = poolObjs[idx].colorValue;
                   const textColor = "white";
-                  if (poolObjs[idx].properties?.["Color"]) {
-                     color = poolObjs[idx].colorValue;
-                     if (agent.pendingConform || agent.pendingFullConform) {
-                        const pendingConformColor = hexToRGB(color);
-                        color = `rgb(${pendingConformColor.r},${pendingConformColor.g},${pendingConformColor.b}, .5)`;
-                     }
+                  if (agent.pendingConform || agent.pendingFullConform) {
+                     const pendingConformColor = hexToRGB(color);
+                     color = `rgb(${pendingConformColor.r},${pendingConformColor.g},${pendingConformColor.b}, .5)`;
                   }
-
                   const menuProps: IContextualMenuProps = {
                      items: [
                         {
@@ -2581,7 +2577,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                         link = `/job/${lease.details['jobId']}`;
                      }
                      else if ('logId' in lease.details) {
-                        link = `/log/${lease.details['logId']}&agentId=${agent.id}`;
+                        link = `/log/${lease.details['logId']}?agentId=${agent.id}`;
                      }
                   }
                   if (link !== "") {

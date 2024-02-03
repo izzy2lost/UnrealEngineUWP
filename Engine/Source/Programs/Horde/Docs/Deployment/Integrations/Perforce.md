@@ -1,11 +1,11 @@
-[Horde](../../../Home.md) > [Deployment](../../Deployment.md) > Integrations > Perforce
+[Horde](../../Home.md) > [Deployment](../../Deployment.md) > Integrations > Perforce
 
 # Perforce
 
 ## General
 
 Horde uses Perforce primarily for CI functionality, but also supports reading configuration data directly from a
-Perforce server (see [Configuration > Orientation](../Config/Orientation.md)). Support for other version control
+Perforce server (see [Configuration > Orientation](../../Config/Orientation.md)). Support for other version control
 systems may be added in the future.
 
 The Perforce connection to use for reading configuration files is configured alongside the server deployment via the
@@ -23,7 +23,7 @@ Horde supports the use of multiple independent Perforce installations, as well a
 mirrors _within_ each installation. A collection of Perforce servers which mirror the same data is called a _cluster_.
 Each stream in the CI system may be configured to use a different cluster as desired.
 
-Clusters are configured through the `perforceClusters` property in the [globals.json](../Config/Schema/Globals.md)
+Clusters are configured through the `perforceClusters` property in the [globals.json](../../Config/Schema/Globals.md)
 config file.
 
 There are several configurables for each cluster:

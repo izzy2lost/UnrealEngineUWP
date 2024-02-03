@@ -172,7 +172,7 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// New workspaces for the pool
 		/// </summary>
-		public List<AgentWorkspace>? Workspaces { get; set; }
+		public List<AgentWorkspaceInfo>? Workspaces { get; set; }
 
 		/// <summary>
 		/// Settings for the autosdk workspace

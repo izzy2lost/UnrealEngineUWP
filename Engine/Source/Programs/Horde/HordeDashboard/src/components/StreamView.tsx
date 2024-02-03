@@ -6,7 +6,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import backend, { useBackend } from '../backend';
-import { GetJobsTabResponse, GetLabelStateResponse, GetStreamTabResponse, GetTemplateRefResponse, JobData, JobsTabData, LabelOutcome, LabelState, ProjectData } from '../backend/Api';
+import { GetJobsTabResponse, GetLabelStateResponse, GetStreamTabResponse, GetTemplateRefResponse, JobData, JobsTabData, LabelOutcome, LabelState, ProjectData, TabStyle } from '../backend/Api';
 import dashboard, { StatusColor } from '../backend/Dashboard';
 import { projectStore } from '../backend/ProjectStore';
 import { JobFilterSimple } from '../base/utilities/filter';
@@ -479,7 +479,7 @@ const StreamViewInner: React.FC = observer(() => {
    let isIncrementalTab = queryTab?.toLowerCase() === "incremental";
 
    if (!isIncrementalTab && currentTab) {
-      isIncrementalTab = currentTab.showNames === false; /*|| currentTab.templates?.length === 1;*/
+      isIncrementalTab = currentTab.showNames === false || currentTab?.style === TabStyle.Compact; 
    }
 
    if (!isIncrementalTab && queryTab) {

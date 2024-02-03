@@ -53,6 +53,11 @@ namespace EpicGames.Horde
 		/// </summary>
 		public const string HttpClientName = "HordeHttpClient";
 
+		/// <summary>
+		/// Name of clients created from the http client factory for handling upload redirects. Should not contain Horde auth headers.
+		/// </summary>
+		public const string UploadRedirectHttpClientName = "HordeUploadRedirectHttpClient";
+
 		readonly HttpClient _httpClient;
 
 		static readonly JsonSerializerOptions s_jsonSerializerOptions = CreateJsonSerializerOptions();
@@ -485,10 +490,6 @@ namespace EpicGames.Horde
 				{
 					httpClient.BaseAddress = options.Value.ServerUrl;
 				}
-				if (options.Value.AccessToken != null)
-				{
-					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.AccessToken);
-				}
 
 				httpClient.Timeout = TimeSpan.FromSeconds(240); // Global timeout
 
@@ -523,14 +524,7 @@ namespace EpicGames.Horde
 				}
 			}
 
-			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
-				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
-
-			services.AddSingleton<HordeHttpAuthHandlerState>();
-			services.AddTransient<HordeHttpAuthHandler>();
-
-			// Sets defaults from the configured HordeOptions
+			// Register the HTTP client for handling login requests
 			void ConfigureClientFromOptions(IServiceProvider serviceProvider, HttpClient httpClient)
 			{
 				IOptions<HordeOptions> options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>();
@@ -539,7 +533,19 @@ namespace EpicGames.Horde
 					httpClient.BaseAddress = options.Value.ServerUrl;
 				}
 			}
+			services.AddSingleton<HordeHttpAuthHandlerState>();
+			services.AddTransient<HordeHttpAuthHandler>();
 			services.AddHttpClient(HordeHttpAuthHandlerState.HttpClientName, ConfigureClientFromOptions);
+
+			// Register the HTTP client for processing upload redirects
+			services.AddHttpClient(HordeHttpClient.UploadRedirectHttpClientName)
+				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
+				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
+
+			// Create the HTTP client for handling Horde requests
+			IHttpClientBuilder builder = services.AddHttpClient<HordeHttpClient>(HordeHttpClient.HttpClientName, ConfigureClientFromEnvironment)
+				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
+				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
 
 			builder = builder.AddHttpMessageHandler<HordeHttpAuthHandler>();
 

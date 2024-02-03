@@ -1,0 +1,24 @@
+{
+	"Horde": {
+
+		// Path to read the global Horde configuration from. This can be a path on disk, or path to a file in Perforce if the server is configured here.
+		"ConfigPath": "globals.json",
+
+		// List of Perforce servers for use specifically by the server (eg. for bootstrapping configuration read from P4, rather than executing jobs). Configuration
+		// for the server may be stored in a more secure location than standard agents have access to.
+		"Perforce": [
+//			{
+//				"id": "Default",
+//				"serverAndPort": "perforce:1666",
+//				"credentials": {
+//					"userName": "test.user",
+//					"password": "password (optional)",
+//					"ticket": "ticket (optional)"
+//				}
+//			}
+		],
+
+		// Whether to use the local Perforce environment for reading configuration data
+		"UseLocalPerforceEnv": false
+	}
+}

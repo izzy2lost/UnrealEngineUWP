@@ -162,7 +162,10 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
             return null;
          }
 
-         const url = `${location.pathname}${location.search}&agentId=${agentId}`;
+         let url = `${location.pathname}?agentId=${agentId}`;
+         if (location.search) {
+            url = `${location.pathname}${location.search}&agentId=${agentId}`;
+         }
 
          return <a href={url} onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); navigate(url, { replace: true }); }}><Stack horizontal horizontalAlign={"end"} verticalFill={true} tokens={{ childrenGap: 0, padding: 0 }}><Text>{agentId}</Text></Stack></a>;
       }

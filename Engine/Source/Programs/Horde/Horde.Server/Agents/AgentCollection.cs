@@ -110,7 +110,7 @@ namespace Horde.Server.Agents
 			[BsonIgnoreIfNull]
 			public string? LastShutdownReason { get; set; }
 
-			public List<AgentWorkspace> Workspaces { get; set; } = new List<AgentWorkspace>();
+			public List<AgentWorkspaceInfo> Workspaces { get; set; } = new List<AgentWorkspaceInfo>();
 			public DateTime LastConformTime { get; set; }
 
 			[BsonIgnoreIfNull]
@@ -124,7 +124,7 @@ namespace Horde.Server.Agents
 
 			IReadOnlyList<PoolId> IAgent.DynamicPools => DynamicPools;
 			IReadOnlyList<PoolId> IAgent.ExplicitPools => Pools;
-			IReadOnlyList<AgentWorkspace> IAgent.Workspaces => Workspaces;
+			IReadOnlyList<AgentWorkspaceInfo> IAgent.Workspaces => Workspaces;
 			IReadOnlyList<AgentLease> IAgent.Leases => Leases ?? s_emptyLeases;
 			IReadOnlyList<string> IAgent.Properties => Properties ?? Capabilities.Devices.FirstOrDefault()?.Properties?.ToList() ?? new List<string>();
 			IReadOnlyDictionary<string, int> IAgent.Resources => Resources ?? Capabilities.Devices.FirstOrDefault()?.Resources ?? new Dictionary<string, int>();
@@ -470,7 +470,7 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IAgent?> TryUpdateWorkspacesAsync(IAgent agentInterface, List<AgentWorkspace> workspaces, bool requestConform)
+		public async Task<IAgent?> TryUpdateWorkspacesAsync(IAgent agentInterface, List<AgentWorkspaceInfo> workspaces, bool requestConform)
 		{
 			AgentDocument agent = (AgentDocument)agentInterface;
 			DateTime lastConformTime = DateTime.UtcNow;

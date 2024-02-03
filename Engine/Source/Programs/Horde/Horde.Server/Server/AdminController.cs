@@ -138,7 +138,7 @@ namespace Horde.Server.Server
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(ClaimTypes.Name, User.Identity?.Name ?? "Unknown"));
-			claims.Add(HordeClaims.UploadSoftwareClaim);
+			claims.Add(HordeClaims.UploadToolsClaim);
 
 			return await _aclService.IssueBearerTokenAsync(claims, null);
 		}

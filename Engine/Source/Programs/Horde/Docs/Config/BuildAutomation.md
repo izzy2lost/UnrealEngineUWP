@@ -34,9 +34,9 @@ inputs and outputs to temporary storage.
 In order to enable CI functionality in Horde, you will need to perform the following steps:
 
 * Write a BuildGraph script and submit it to source control.
-* Define a project in the [`Globals.json`](Config-Global.md) file which includes a [`*.project.json`](Config-Project.md)
+* Define a project in the [`Globals.json`](Schema/Globals.md) file which includes a [`*.project.json`](Schema/Projects.md)
   configuration file.
-* Define a stream in the [`.project.json`](Config-Project.md) file which includes a [`*.stream.json`](Config-Stream.md)
+* Define a stream in the [`.project.json`](Schema/Projects.md) file which includes a [`*.stream.json`](Schema/Streams.md)
   configuration file.
 * Declare an [`agent type`](#agent-types) which defines a machine that can execute steps in your BuildGraph script.
 * Declare a [`job template`](#job-templates) which defines parameters for your BuildGraph script, and references it in
@@ -56,7 +56,7 @@ be synced on the machine in order to execute a job. Agents configured for use in
 sync of the data from that stream, allowing them to start servicing a job more quickly when required, so filtering the
 files to sync can reduce disk space and allow higher packing of workspaces per machine.
 
-For more information on configuring agent types, see the [.stream.json reference](Config-Stream.md#agenttypeconfig).
+For more information on configuring agent types, see the [.stream.json reference](Schema/Streams.md#agentconfig).
 
 ## Job Templates
 
@@ -119,7 +119,7 @@ Allows entering arbitrary text for an argument, with an optional regex for valid
         "toolTip": "Tooltip for text parameter"
     }
 
-See [TextParameterData](../Schema/Streams.md#textparameterdata) for valid properties.
+See [TextParameterData](Schema/Streams.md#textparameterdata) for valid properties.
 
 ### List Parameters
 
@@ -148,7 +148,7 @@ Allows the user to select one or more options from a predefined list.
         ]
     }
 
-See [ListParameterData](../Schema/Streams.md#listparameterdata) for valid properties.
+See [ListParameterData](Schema/Streams.md#listparameterdata) for valid properties.
 
 ### Multi-List Parameters
 
@@ -189,7 +189,7 @@ to group items underneath.
         ]
     },
 
-See [ListParameterData](../Schema/Streams.md#listparameterdata) for valid properties.
+See [ListParameterData](Schema/Streams.md#listparameterdata) for valid properties.
 
 ### Tag-Picker Parameters
 
@@ -239,13 +239,13 @@ Allows toggling whether to enable an option or not.
         "argumentIfDisabled": "-set:BoolParameter=false"
     }
 
-See [BoolParameterData](../Schema/Streams.md#boolparameterdata) for valid properties.
+See [BoolParameterData](Schema/Streams.md#boolparameterdata) for valid properties.
 
 ## Schedules
 
 Templates may also specify a schedule and policy on which to trigger automatically; running for every submitted change,
 for the last `n` changes, whenever certain files are modified, and so on. For more information, see the
-[ScheduleConfig](../Schema/Streams.md#scheduleconfig) section in the config reference.
+[ScheduleConfig](Schema/Streams.md#scheduleconfig) section in the config reference.
 
 ## Workspaces
 

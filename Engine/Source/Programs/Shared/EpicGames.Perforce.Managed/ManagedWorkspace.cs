@@ -73,17 +73,17 @@ namespace EpicGames.Perforce.Managed
 		/// <summary>
 		/// Maximum number of threads to sync in parallel
 		/// </summary>
-		public int NumParallelSyncThreads { get; init; } = 4;
+		public int NumParallelSyncThreads { get; set; } = 4;
 
 		/// <summary>
 		/// Maximum number of concurrent file system operations (copying, moving, deleting etc)
 		/// </summary>
-		public int MaxFileConcurrency { get; init; } = 4;
+		public int MaxFileConcurrency { get; set; } = 4;
 		
 		/// <summary>
 		/// Minimum amount of space that must be on a drive after a branch is synced
 		/// </summary>
-		public long MinScratchSpace { get; init; } = 50L * 1024 * 1024 * 1024;
+		public long MinScratchSpace { get; set; } = 50L * 1024 * 1024 * 1024;
 		
 		/// <summary>
 		/// Use the client's have table when syncing.
@@ -92,7 +92,7 @@ namespace EpicGames.Perforce.Managed
 		/// Actual files to sync will be gathered through "fstat".
 		/// This puts less strain on the Perforce server and can improve sync performance.
 		/// </summary>
-		public bool UseHaveTable { get; init; } = true;
+		public bool UseHaveTable { get; set; } = true;
 
 		/// <summary>
 		/// Whether to allow using partitioned workspaces
@@ -1209,21 +1209,23 @@ namespace EpicGames.Perforce.Managed
 				return client;
 			}
 
+			client = new ClientRecord(clientName, perforceClient.Settings.UserName!, _workspaceDir.FullName);
+			client.Host = _hostName;
+			client.Stream = streamName;
+
+			if (_options.Partitioned)
+			{
+				// Partitioned and read-only types store their have table separately on the server, compared to normal (writeable) clients
+				// Clients that sync without updating the have table cannot submit so they're marked as read-only. 
+				client.Type = _options.UseHaveTable ? "partitioned" : "readonly";
+			}
+
+			_logger.LogInformation("Using client {ClientName} (Host: {HostName}, Stream: {StreamName}, Type: {Type}, Root: {Path})", client.Name, client.Host, client.Stream, client.Type ?? "full", client.Root);
+
 			using (Trace("UpdateClient"))
 			using (ILoggerProgress status = _logger.BeginProgressScope("Updating client..."))
 			{
 				Stopwatch timer = Stopwatch.StartNew();
-
-				client = new ClientRecord(clientName, perforceClient.Settings.UserName!, _workspaceDir.FullName);
-				client.Host = _hostName;
-				client.Stream = streamName;
-
-				if (_options.Partitioned)
-				{
-					// Partitioned and read-only types store their have table separately on the server, compared to normal (writeable) clients
-					// Clients that sync without updating the have table cannot submit so they're marked as read-only. 
-					client.Type = _options.UseHaveTable ? "partitioned" : "readonly";
-				}
 
 				using IPerforceConnection perforce = await perforceClient.WithoutClientAsync();
 
