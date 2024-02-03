@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/EnumAsByte.h"
+#include "EaseCurveTool/AvaEaseCurveTangents.h"
 #include "Engine/DeveloperSettings.h"
 #include "Types/SlateEnums.h"
 #include "UObject/Object.h"
@@ -17,24 +18,34 @@ public:
 	UAvaEaseCurveToolSettings();
 
 	int32 GetGraphSize() const { return GraphSize; }
-	void SetGraphSize(const int32 InNewSize) { GraphSize = InNewSize; }
+	void SetGraphSize(const int32 InSize) { GraphSize = InSize; }
 
 	EHorizontalAlignment GetGraphHAlign() const { return GraphHAlign.GetValue(); }
-	void SetGraphHAlign(const EHorizontalAlignment InNewHAlign) { GraphHAlign = InNewHAlign; }
+	void SetGraphHAlign(const EHorizontalAlignment InHAlign) { GraphHAlign = InHAlign; }
 
 	bool GetGridSnap() const { return bGridSnap; }
-	void SetGridSnap(const bool bInCurveEaseToolGridSnap) { bGridSnap = bInCurveEaseToolGridSnap; }
+	void SetGridSnap(const bool bInGridSnap) { bGridSnap = bInGridSnap; }
 	void ToggleGridSnap() { bGridSnap = !bGridSnap; }
 
 	int32 GetGridSize() const { return GridSize; }
-	void SetGridSize(const int32 InNewSize) { GridSize = InNewSize; }
+	void SetGridSize(const int32 InSize) { GridSize = InSize; }
+
+	bool GetAutoZoomToFit() const { return bAutoZoomToFit; }
+	void SetAutoZoomToFit(const bool bInAutoZoomToFit) { bAutoZoomToFit = bInAutoZoomToFit; }
+	void ToggleAutoZoomToFit() { bAutoZoomToFit = !bAutoZoomToFit; }
 
 	bool GetAutoFlipTangents() const { return bAutoFlipTangents; }
 	void SetAutoFlipTangents(const bool bInAutoFlipTangents) { bAutoFlipTangents = bInAutoFlipTangents; }
 	void ToggleAutoFlipTangents() { bAutoFlipTangents = !bAutoFlipTangents; }
 
 	FString GetPresetsPath() const { return PresetsPath; }
+	void SetPresetsPath(const FString& InPresetsPath) { PresetsPath = InPresetsPath; }
+
 	FString GetNewPresetCategory() const { return NewPresetCategory; }
+	void SetNewPresetCategory(const FString& InNewPresetCategory) { NewPresetCategory = InNewPresetCategory; }
+
+	FString GetQuickEaseTangents() const { return QuickEaseTangents; }
+	void SetQuickEaseTangents(const FString& InTangents) { QuickEaseTangents = InTangents; }
 
 private:
 	/** The height of the curve ease tool in the details panel. */
@@ -53,6 +64,10 @@ private:
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Grid Size", UIMin = 4, ClampMin = 4, UIMax = 24, ClampMax = 24, Delta = 1))
 	int32 GridSize = 8;
 
+	/** If true, will auto zoom the graph editor to fit the tangent handles after they have been changed. */
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Auto Zoom To Fit"))
+	bool bAutoZoomToFit = true;
+
 	/** If true, auto flips tangents when sequential key frame curve values are descending. */
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Auto Flip Tangents"))
 	bool bAutoFlipTangents = true;
@@ -64,4 +79,8 @@ private:
 	/** The name of the category to place newly created curve presets. */
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "New Preset Category"))
 	FString NewPresetCategory;
+
+	/** The tangents to apply for quick ease. Should be in the format of four comma-separated cubic bezier points. Ex. "0.45, 0.34, 0.0, 1.00" */
+	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Quick Ease Tangents"))
+	FString QuickEaseTangents;
 };

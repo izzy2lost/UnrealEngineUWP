@@ -9,6 +9,7 @@
 #include "IAvaSequencerProvider.h"
 
 class AActor;
+class FAvaEaseCurveTool;
 class FAvaEditorSelection;
 class FAvaSequencerAction;
 class FAvaSequencerCleanView;
@@ -180,6 +181,7 @@ public:
 
 	void FixBindingHierarchy();
 
+	TSharedRef<FAvaEaseCurveTool> GetEaseCurveTool() const;
 	
 	TArrayView<TWeakObjectPtr<>> ResolveBoundObjects(const FGuid& InBindingId, class UMovieSceneSequence* Sequence) const;
 
@@ -264,4 +266,6 @@ private:
 
 	/** Selected sequence details sections to restore when a new sequence is selected. */
 	TSet<FName> SelectedSections;
+
+	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
 };

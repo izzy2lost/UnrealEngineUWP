@@ -2,11 +2,13 @@
 
 #include "AvaEaseCurveToolCommands.h"
 
-#define LOCTEXT_NAMESPACE "AvaCurveEaseToolCommands"
+#define LOCTEXT_NAMESPACE "AvaEaseCurveToolCommands"
 
 void FAvaEaseCurveToolCommands::RegisterCommands()
 {
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	const TSharedRef<FBindingContext> SharedThis = AsShared();
+
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, OpenToolSettings
 		, TEXT("OpenToolSettings")
 		, LOCTEXT("OpenToolSettings_Label", "Open Tool Settings...")
@@ -15,7 +17,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord());
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, Refresh
 		, TEXT("Refresh")
 		, LOCTEXT("Refresh_Label", "Refresh")
@@ -24,7 +26,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::F5));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, Apply
 		, TEXT("Apply")
 		, LOCTEXT("Apply_Label", "Apply")
@@ -33,7 +35,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord());
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, ZoomToFit
 		, TEXT("ZoomToFit")
 		, LOCTEXT("ZoomToFit_Label", "Zoom to Fit")
@@ -42,7 +44,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::F));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, SetOperationToEaseOut
 		, TEXT("SetOperationToEaseOut")
 		, LOCTEXT("SetOperationToEaseOut_Label", "Ease Out")
@@ -51,7 +53,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::RadioButton
 		, FInputChord(EKeys::O));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, SetOperationToEaseInOut
 		, TEXT("SetOperationToEaseInOut")
 		, LOCTEXT("SetOperationToEaseInOut_Label", "Ease In Out")
@@ -60,7 +62,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::RadioButton
 		, FInputChord(EKeys::U));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, SetOperationToEaseIn
 		, TEXT("SetOperationToEaseIn")
 		, LOCTEXT("SetOperationToEaseIn_Label", "Ease In")
@@ -69,7 +71,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::RadioButton
 		, FInputChord(EKeys::I));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, ToggleGridSnap
 		, TEXT("ToggleGridSnap")
 		, LOCTEXT("ToggleGridSnap_Label", "Snap To Grid")
@@ -78,7 +80,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Check
 		, FInputChord(EKeys::G));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, ToggleAutoFlipTangents
 		, TEXT("ToggleAutoFlipTangents")
 		, LOCTEXT("ToggleAutoFlipTangents_Label", "Auto Flip Tangents")
@@ -87,7 +89,13 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Check
 		, FInputChord());
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	UI_COMMAND(ToggleAutoZoomToFit
+		, "Auto Zoom To Fit"
+		, "Auto zoom the graph editor to fit the tangent handles after they have been changed."
+		, EUserInterfaceActionType::Check
+		, FInputChord());
+
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, ResetTangents
 		, TEXT("ResetBothTangents")
 		, LOCTEXT("ResetBothTangents_Label", "Both Tangents")
@@ -96,7 +104,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::R));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, ResetStartTangent
 		, TEXT("ResetStartTangent")
 		, LOCTEXT("ResetStartTangent_Label", "Start Tangent")
@@ -105,7 +113,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::R, EModifierKey::Control));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, ResetEndTangent
 		, TEXT("ResetEndTangent")
 		, LOCTEXT("ResetEndTangent_Label", "End Tangent")
@@ -114,7 +122,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::R, EModifierKey::Alt));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, FlattenTangents
 		, TEXT("FlattenBothTangents")
 		, LOCTEXT("FlattenBothTangents_Label", "Both Tangents")
@@ -123,7 +131,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::T));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, FlattenStartTangent
 		, TEXT("FlattenStartTangent")
 		, LOCTEXT("FlattenStartTangent_Label", "Start Tangent")
@@ -132,7 +140,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::T, EModifierKey::Control));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, FlattenEndTangent
 		, TEXT("FlattenEndTangent")
 		, LOCTEXT("FlattenEndTangent_Label", "End Tangent")
@@ -141,7 +149,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::T, EModifierKey::Alt));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, StraightenTangents
 		, TEXT("StraightenBothTangents")
 		, LOCTEXT("StraightenBothTangents_Label", "Both Tangents")
@@ -150,7 +158,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::S));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, StraightenStartTangent
 		, TEXT("StraightenStartTangent")
 		, LOCTEXT("StraightenStartTangent_Label", "Start Tangent")
@@ -159,7 +167,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::S, EModifierKey::Control));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, StraightenEndTangent
 		, TEXT("StraightenEndTangent")
 		, LOCTEXT("StraightenEndTangent_Label", "End Tangent")
@@ -168,7 +176,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::S, EModifierKey::Alt));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, CopyTangents
 		, TEXT("CopyTangents")
 		, LOCTEXT("CopyTangents_Label", "Copy Tangents")
@@ -177,7 +185,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::C, EModifierKey::Control));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, PasteTangents
 		, TEXT("PasteTangents")
 		, LOCTEXT("PasteTangents_Label", "Paste Tangents")
@@ -186,7 +194,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::V, EModifierKey::Control));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, CreateExternalCurveAsset
 		, TEXT("CreateExternalCurve")
 		, LOCTEXT("CreateExternalCurve_Label", "Create External Curve...")
@@ -203,7 +211,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 	UI_COMMAND(SetKeyInterpCubicBreak, "Break", "Cubic interpolation - User broken tangents", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::Three));
 	UI_COMMAND(SetKeyInterpToggleWeighted, "Weighted Tangents", "Toggle weighted tangents for cubic interpolation modes. Only supported on some curve types", EUserInterfaceActionType::ToggleButton, FInputChord(EModifierKey::Control, EKeys::W));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, SelectNextChannelKey
 		, TEXT("SelectNextChannelKey")
 		, LOCTEXT("SelectNextChannelKey_Label", "Select Next Channel Key")
@@ -212,7 +220,7 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::Period, EModifierKey::Control));
 
-	FUICommandInfo::MakeCommandInfo(AsShared()
+	FUICommandInfo::MakeCommandInfo(SharedThis
 		, SelectPreviousChannelKey
 		, TEXT("SelectsPreviousChannelKey")
 		, LOCTEXT("SelectsPreviousChannelKey_Label", "Selects Previous Channel Key")
@@ -220,6 +228,33 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Wizard.BackIcon"))
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::Comma, EModifierKey::Control));
+
+	FUICommandInfo::MakeCommandInfo(SharedThis
+		, QuickEase
+		, TEXT("QuickEase")
+		, LOCTEXT("QuickEase_Label", "Quick Ease")
+		, LOCTEXT("QuickEase_ToolTip", "Apply the quick ease preset")
+		, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.BulletPoint"))
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::F8));
+
+	FUICommandInfo::MakeCommandInfo(SharedThis
+		, QuickEaseIn
+		, TEXT("QuickEaseIn")
+		, LOCTEXT("QuickEaseIn_Label", "Quick Ease In")
+		, LOCTEXT("QuickEaseIn_ToolTip", "Apply the quick ease in preset")
+		, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.ChevronRight"))
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::F8, EModifierKey::Shift));
+
+	FUICommandInfo::MakeCommandInfo(SharedThis
+		, QuickEaseOut
+		, TEXT("QuickEaseOut")
+		, LOCTEXT("QuickEaseOut_Label", "Quick Ease Out")
+		, LOCTEXT("QuickEaseOut_ToolTip", "Apply the quick ease out preset")
+		, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.ChevronLeft"))
+		, EUserInterfaceActionType::Button
+		, FInputChord(EKeys::F8, EModifierKey::Command | EModifierKey::Shift));
 }
 
 #undef LOCTEXT_NAMESPACE

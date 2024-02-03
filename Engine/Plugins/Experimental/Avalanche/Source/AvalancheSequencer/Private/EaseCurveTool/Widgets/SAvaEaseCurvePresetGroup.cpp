@@ -23,6 +23,7 @@ void SAvaEaseCurvePresetGroup::Construct(const FArguments& InArgs)
 {
 	CategoryName = InArgs._CategoryName;
 	Presets = InArgs._Presets;
+	SelectedPreset = InArgs._SelectedPreset;
 	SearchText = InArgs._SearchText;
 	bIsEditMode = InArgs._IsEditMode;
 	DisplayRate = InArgs._DisplayRate;
@@ -137,12 +138,13 @@ TSharedRef<SWidget> SAvaEaseCurvePresetGroup::ConstructHeader()
 		];
 }
 
-TSharedRef<ITableRow> SAvaEaseCurvePresetGroup::GeneratePresetWidget(TSharedPtr<FAvaEaseCurvePreset> InPreset, const TSharedRef<STableViewBase>& InOwnerTable)
+TSharedRef<ITableRow> SAvaEaseCurvePresetGroup::GeneratePresetWidget(const TSharedPtr<FAvaEaseCurvePreset> InPreset, const TSharedRef<STableViewBase>& InOwnerTable)
 {
 	TSharedRef<SAvaEaseCurvePresetGroupItem> NewPresetWidget = SNew(SAvaEaseCurvePresetGroupItem, InOwnerTable)
 		.Preset(InPreset)
 		.IsEditMode(bIsEditMode)
 		.DisplayRate(DisplayRate)
+		.IsSelected(this, &SAvaEaseCurvePresetGroup::IsSelected, InPreset)
 		.OnClick(this, &SAvaEaseCurvePresetGroup::HandlePresetClick)
 		.OnDelete(this, &SAvaEaseCurvePresetGroup::HandlePresetDelete)
 		.OnRename(this, &SAvaEaseCurvePresetGroup::HandlePresetRename)
@@ -285,11 +287,11 @@ bool SAvaEaseCurvePresetGroup::HandlePresetEndMove(const TSharedPtr<FAvaEaseCurv
 	return false;
 }
 
-bool SAvaEaseCurvePresetGroup::HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
+bool SAvaEaseCurvePresetGroup::HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FModifierKeysState& InModifierKeys) const
 {
 	if (OnPresetClick.IsBound())
 	{
-		OnPresetClick.Execute(InPreset);
+		OnPresetClick.Execute(InPreset, InModifierKeys);
 
 		return true;
 	}
@@ -368,6 +370,16 @@ void SAvaEaseCurvePresetGroup::ResetDragBorder()
 {
 	bCanBeDroppedOn = false;
 	bIsOverDifferentCategory = false;
+}
+
+bool SAvaEaseCurvePresetGroup::IsSelected(const TSharedPtr<FAvaEaseCurvePreset> InPreset) const
+{
+	if (SelectedPreset.IsSet() && SelectedPreset.Get().IsValid())
+	{
+		return *InPreset == *SelectedPreset.Get();
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

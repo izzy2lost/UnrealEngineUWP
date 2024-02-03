@@ -4,8 +4,10 @@
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreview.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreviewToolTip.h"
 #include "Curves/SimpleCurve.h"
+#include "EaseCurveTool/AvaEaseCurveStyle.h"
 #include "Editor.h"
 #include "Factories/Factory.h"
+#include "Fonts/FontMeasure.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Application/MenuStack.h"
 #include "Framework/Application/SlateApplication.h"
@@ -22,7 +24,9 @@
 #include "Styling/StyleColors.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/IToolTip.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Text/STextBlock.h"
@@ -31,16 +35,20 @@
 
 namespace UE::EaseCurveTool::Private
 {
-	const static FVector2d CONST_KeySize = FVector2d(7, 7);
-	const static FVector2d CONST_TangentSize = FVector2d(16, 16);
-	const static FVector2d CONST_CurveSize = FVector2d(12, 12);
+	static const FVector2D KeyHitSize = FVector2D(8.f);
+	static const FVector2D TangentHitSize = FVector2D(16.f);
+	static const FVector2D CurveHitSize = FVector2D(6.f);
 
-	constexpr static float CONST_FitMargin = 0.1f;
-	constexpr static float CONST_MinViewRange = 0.5f;
-	constexpr static float CONST_DefaultZoomRange = 1.f;
+	static const FVector2D HalfKeyHitSize = KeyHitSize * 0.5f;
+	static const FVector2D HalfTangentHitSize = TangentHitSize * 0.5f;
+	static const FVector2D HalfCurveHitSize = CurveHitSize * 0.5f;
 
-	constexpr static float CONST_NormalBoundsThickness = 1.f;
-	constexpr static float CONST_TangentHandleLineThickness = 2.f;
+	static constexpr float FitMargin = 0.1f;
+	static constexpr float MinViewRange = 0.5f;
+	static constexpr float HalfMinViewRange = MinViewRange * 0.5f;
+
+	static constexpr float NormalBoundsThickness = 1.f;
+	static constexpr float TangentHandleLineThickness = 2.f;
 }
 
 using namespace UE::EaseCurveTool::Private;
@@ -79,6 +87,11 @@ void SAvaEaseCurveEditor::Construct(const FArguments& InArgs, const TObjectPtr<U
 	CurveThickness = InArgs._CurveThickness;
 	CurveColor = InArgs._CurveColor;
 	Operation = InArgs._Operation;
+
+	StartText = InArgs._StartText;
+	StartTooltipText = InArgs._StartTooltipText;
+	EndText = InArgs._EndText;
+	EndTooltipText = InArgs._EndTooltipText;
 	
 	OnTangentsChanged = InArgs._OnTangentsChanged;
 	GetContextMenuContent = InArgs._GetContextMenuContent;
@@ -165,6 +178,35 @@ int32 SAvaEaseCurveEditor::OnPaint(const FPaintArgs& InArgs, const FGeometry& In
 
 	InLayerId = PaintGrid(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects);
 
+	if (StartText.IsSet() || EndText.IsSet())
+	{
+		const FSlateFontInfo FontInfo = FAvaEaseCurveStyle::Get().GetFontStyle(TEXT("Editor.LabelFont"));
+		const FLinearColor TextColor = FLinearColor(0.1f, 0.1f, 0.1f, 1.f);
+		const FVector2D TextOffset = FVector2D(4.f);
+
+		if (StartText.IsSet())
+		{
+			const FText& Text = StartText.Get();
+			const TSharedRef<FSlateFontMeasure> FontMeasure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+			const FVector2D TextSize = FontMeasure->Measure(Text, FontInfo);
+
+			const FVector2D ActualOffset(ZeroInputX - (TextOffset.X + TextSize.X), ZeroOutputY - (TextOffset.Y + TextSize.Y));
+
+			FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
+				, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
+				, Text, FontInfo, DrawEffects, TextColor);
+		}
+
+		if (EndText.IsSet())
+		{
+			const FVector2D ActualOffset(OneInputX + TextOffset.X, OneOutputY + TextOffset.Y);
+
+			FSlateDrawElement::MakeText(OutDrawElements, ++InLayerId
+				, InAllottedGeometry.ToPaintGeometry(InAllottedGeometry.Size, FSlateLayoutTransform(ActualOffset))
+				, EndText.Get(), FontInfo, DrawEffects, TextColor);
+		}
+	}
+
 	PaintNormalBounds(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
 
 	PaintCurve(ScaleInfo, InAllottedGeometry, OutDrawElements, ++InLayerId, InMyCullingRect, DrawEffects, InWidgetStyle);
@@ -226,7 +268,8 @@ int32 SAvaEaseCurveEditor::PaintGrid(const FTrackScaleInfo& InScaleInfo, const F
 				LinePoints.Add(FVector2D(0.f, ScreenY));
 				LinePoints.Add(FVector2D(LocalSize.X, ScreenY));
 
-				FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, ExtendedGridColor, false);
+				FSlateDrawElement::MakeLines(OutDrawElements, InLayerId
+					, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, ExtendedGridColor, false);
 			}
 		}
 	}
@@ -246,7 +289,8 @@ int32 SAvaEaseCurveEditor::PaintGrid(const FTrackScaleInfo& InScaleInfo, const F
 			LinePoints.Add(FVector2D(ScreenX, CurveZeroY1));
 			LinePoints.Add(FVector2D(ScreenX, CurveZeroY2));
 
-			FSlateDrawElement::MakeLines(OutDrawElements, NormalizedLayerId, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, GridColor, false);
+			FSlateDrawElement::MakeLines(OutDrawElements, NormalizedLayerId
+				, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, GridColor, false);
 		}
 
 		// Horizontal grid lines
@@ -261,7 +305,8 @@ int32 SAvaEaseCurveEditor::PaintGrid(const FTrackScaleInfo& InScaleInfo, const F
 			LinePoints.Add(FVector2D(CurveZeroX1, ScreenY));
 			LinePoints.Add(FVector2D(CurveZeroX2, ScreenY));
 
-			FSlateDrawElement::MakeLines(OutDrawElements, NormalizedLayerId, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, GridColor, false);
+			FSlateDrawElement::MakeLines(OutDrawElements, NormalizedLayerId
+				, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, GridColor, false);
 		}
 	}
 
@@ -280,25 +325,29 @@ void SAvaEaseCurveEditor::PaintNormalBounds(const FTrackScaleInfo& InScaleInfo, 
 	TArray<FVector2D> ZeroTimeLinePoints;
 	ZeroTimeLinePoints.Add(FVector2D(ZeroInputX, 0.f));
 	ZeroTimeLinePoints.Add(FVector2D(ZeroInputX, InAllottedGeometry.GetLocalSize().Y));
-	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry(), ZeroTimeLinePoints, InDrawEffects, NormalBoundsColor, false, CONST_NormalBoundsThickness);
+	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry()
+		, ZeroTimeLinePoints, InDrawEffects, NormalBoundsColor, false, NormalBoundsThickness);
 
 	// Time = 1 line
 	TArray<FVector2D> OneTimeLinePoints;
 	OneTimeLinePoints.Add(FVector2D(OneInputX, 0.f));
 	OneTimeLinePoints.Add(FVector2D(OneInputX, InAllottedGeometry.GetLocalSize().Y));
-	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry(), OneTimeLinePoints, InDrawEffects, NormalBoundsColor, false, CONST_NormalBoundsThickness);
+	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry()
+		, OneTimeLinePoints, InDrawEffects, NormalBoundsColor, false, NormalBoundsThickness);
 
 	// Value = 0 line
 	TArray<FVector2D> ZeroValueLinePoints;
 	ZeroValueLinePoints.Add(FVector2D(0.f, ZeroOutputY));
 	ZeroValueLinePoints.Add(FVector2D(InAllottedGeometry.GetLocalSize().X, ZeroOutputY));
-	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry(), ZeroValueLinePoints, InDrawEffects, NormalBoundsColor, false, CONST_NormalBoundsThickness);
+	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry()
+		, ZeroValueLinePoints, InDrawEffects, NormalBoundsColor, false, NormalBoundsThickness);
 
 	// Value = 1 line
 	TArray<FVector2D> OneValueLinePoints;
 	OneValueLinePoints.Add(FVector2D(0.f, OneOutputY));
 	OneValueLinePoints.Add(FVector2D(InAllottedGeometry.GetLocalSize().X, OneOutputY));
-	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry(), OneValueLinePoints, InDrawEffects, NormalBoundsColor, false, CONST_NormalBoundsThickness);
+	FSlateDrawElement::MakeLines(OutDrawElements, InLayerId, InAllottedGeometry.ToPaintGeometry()
+		, OneValueLinePoints, InDrawEffects, NormalBoundsColor, false, NormalBoundsThickness);
 }
 
 void SAvaEaseCurveEditor::PaintCurve(const FTrackScaleInfo& InScaleInfo, const FGeometry& InAllottedGeometry, FSlateWindowElementList& OutDrawElements,
@@ -442,13 +491,13 @@ int32 SAvaEaseCurveEditor::PaintKeys(const FTrackScaleInfo& InScaleInfo, const F
 
 		const FVector2D KeyLocation(InScaleInfo.InputToLocalX(EaseCurve->FloatCurve.GetKeyTime(KeyHandle))
 			, InScaleInfo.OutputToLocalY(EaseCurve->FloatCurve.GetKeyValue(KeyHandle)));
-		const FVector2D KeyIconLocation = KeyLocation - (CONST_KeySize / 2);
+		const FVector2D KeyIconLocation = KeyLocation - HalfKeyHitSize;
 		const bool bIsSelected = (KeyHandle == SelectedTangent.KeyHandle);
-		const FSlateBrush* KeyBrush = /*bIsSelected ? FAppStyle::GetBrush("CurveEd.CurveKeySelected") : */ FAppStyle::GetBrush("CurveEd.CurveKey");
+		const FSlateBrush* KeyBrush = FAppStyle::GetBrush("CurveEd.CurveKey");
 		const int32 LayerToUse = bIsSelected ? SelectedLayerId : LayerId;
 
 		FSlateDrawElement::MakeBox(OutDrawElements, LayerToUse,
-			InAllottedGeometry.ToPaintGeometry(CONST_KeySize, FSlateLayoutTransform(KeyIconLocation)),
+			InAllottedGeometry.ToPaintGeometry(KeyHitSize, FSlateLayoutTransform(KeyIconLocation)),
 			KeyBrush, InDrawEffects,
 			KeyBrush->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint());
 
@@ -494,17 +543,18 @@ int32 SAvaEaseCurveEditor::PaintTangentHandle(const FGeometry& InAllottedGeometr
 		LinePoints.Add(FVector2D(InKeyLocation));
 		LinePoints.Add(FVector2D(InTangentLocation));
 
-		FSlateDrawElement::MakeLines(OutDrawElements, InLayerId++, InAllottedGeometry.ToPaintGeometry(), LinePoints, InDrawEffects, LineColor, true, CONST_TangentHandleLineThickness);
+		FSlateDrawElement::MakeLines(OutDrawElements, InLayerId++, InAllottedGeometry.ToPaintGeometry()
+			, LinePoints, InDrawEffects, LineColor, true, TangentHandleLineThickness);
 	}
 
 	// Draw tangent handle
 	{
 		const FSlateBrush* ImageBrush = FAppStyle::GetBrush(TEXT("Icons.BulletPoint"));
-		const FVector2D TangentIconLocation = InTangentLocation - (CONST_TangentSize / 2);
+		const FVector2D TangentIconLocation = InTangentLocation - HalfTangentHitSize;
 		const FLinearColor HandleColor = bInSelected ? FStyleColors::AccentBlue.GetSpecifiedColor() : FLinearColor::White;
 
 		FSlateDrawElement::MakeBox(OutDrawElements, InLayerId++
-			, InAllottedGeometry.ToPaintGeometry(CONST_TangentSize, FSlateLayoutTransform(TangentIconLocation))
+			, InAllottedGeometry.ToPaintGeometry(TangentHitSize, FSlateLayoutTransform(TangentIconLocation))
 			, ImageBrush, InDrawEffects, HandleColor * InWidgetStyle.GetColorAndOpacityTint());
 	}
 
@@ -593,7 +643,8 @@ FReply SAvaEaseCurveEditor::OnMouseButtonUp(const FGeometry& InMyGeometry, const
 	return FReply::Unhandled();
 }
 
-void ClampViewRangeToDataIfBound(float& NewViewMin, float& NewViewMax, const TAttribute< TOptional<float> >& DataMin, const TAttribute< TOptional<float> >& DataMax, const float ViewRange)
+void ClampViewRangeToDataIfBound(float& NewViewMin, float& NewViewMax
+	, const TAttribute<TOptional<float>>& DataMin, const TAttribute<TOptional<float>>& DataMax, const float ViewRange)
 {
 	const TOptional<float>& Min = DataMin.Get();
 	const TOptional<float>& Max = DataMax.Get();
@@ -632,57 +683,115 @@ FReply SAvaEaseCurveEditor::OnMouseMove(const FGeometry& InMyGeometry, const FPo
 	return FReply::Unhandled();
 }
 
+TSharedRef<IToolTip> SAvaEaseCurveEditor::CreateCurveToolTip()
+{
+	const FAvaEaseCurveTangents Tangents = EaseCurve->GetTangents();
+
+	SAvaEaseCurvePreview::FArguments PreviewArgs;
+	PreviewArgs.Tangents(Tangents)
+		.PreviewSize(256.f)
+		.CanExpandPreview(true)
+		.CustomToolTip(false)
+		.Animate(true)
+		.DisplayRate(DisplayRate.Get())
+		.DrawMotionTrails(true);
+
+	const TSharedRef<SWidget> AdditionalContent = SNew(SVerticalBox)
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(15.f, 5.f, 0.f, 0.f)
+		[
+			SNew(STextBlock)
+			.Text(this, &SAvaEaseCurveEditor::GetCurveToolTipInputText)
+		]
+		+ SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(15.f, 5.f, 0.f, 15.f)
+		[
+			SNew(STextBlock)
+			.Text(this, &SAvaEaseCurveEditor::GetCurveToolTipOutputText)
+		];
+
+	return SNew(SToolTip)
+		.TextMargin(0.f)
+		.Visibility_Lambda([this]()
+			{
+				return (ToolTipIndex != INDEX_NONE) ? EVisibility::Visible : EVisibility::Hidden;
+			})
+		[
+			SNew(SWidgetSwitcher)
+			.WidgetIndex_Lambda([this]()
+				{
+					return (ToolTipIndex == INDEX_NONE) ? 0 : ToolTipIndex;
+				})
+			+ SWidgetSwitcher::Slot()
+			[
+				SAvaEaseCurvePreviewToolTip::CreateDefaultToolTip(PreviewArgs, AdditionalContent)
+			]
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(STextBlock)
+				.Margin(FMargin(5.f))
+				.Text(StartTooltipText)
+			]
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(STextBlock)
+				.Margin(FMargin(5.f))
+				.Text(EndTooltipText)
+			]
+		];
+}
+
 void SAvaEaseCurveEditor::UpdateCurveToolTip(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
-	if (DragState != EDragState::DragTangent && HitTestCurves(InMyGeometry, InMouseEvent))
+	const FTrackScaleInfo ScaleInfo(ViewMinInput, ViewMaxInput, ViewMinOutput, ViewMaxOutput, InMyGeometry.GetLocalSize());
+	const FVector2D MousePosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+
+	const float Time = ScaleInfo.LocalXToInput(MousePosition.X);
+	const float Value = EaseCurve->FloatCurve.Eval(Time);
+	const FVector2D TimeValueRange = FVector2D(Time, Value);
+
+	FNumberFormattingOptions FormattingOptions;
+	FormattingOptions.MaximumFractionalDigits = 2;
+	CurveToolTipOutputText = FText::Format(LOCTEXT("CurveToolTipValueFormat", "Value:\t{0}"), FText::AsNumber(TimeValueRange.Y, &FormattingOptions));
+	CurveToolTipInputText = FText::Format(LOCTEXT("CurveToolTipTimeFormat", "Time:\t{0}"), FText::AsNumber(TimeValueRange.X, &FormattingOptions));
+
+	if (DragState != EDragState::None)
 	{
-		const FTrackScaleInfo ScaleInfo(ViewMinInput, ViewMaxInput, ViewMinOutput, ViewMaxOutput, InMyGeometry.GetLocalSize());
-		const FVector2D HitPosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
-		const float Time = ScaleInfo.LocalXToInput(HitPosition.X);
-		const float Value = EaseCurve->FloatCurve.Eval(Time);
+		ToolTipIndex = INDEX_NONE;
+		CurveToolTip.Reset();
+		SetToolTip(CurveToolTip);
+		return;
+	}
 
-		FNumberFormattingOptions FormattingOptions;
-		FormattingOptions.MaximumFractionalDigits = 2;
-		CurveToolTipOutputText = FText::Format(LOCTEXT("CurveToolTipValueFormat", "Value:\t{0}"), FText::AsNumber(Value, &FormattingOptions));
-		CurveToolTipInputText = FText::Format(LOCTEXT("CurveToolTipTimeFormat", "Time:\t{0}"), FText::AsNumber(Time, &FormattingOptions));
-
-		if (!CurveToolTip.IsValid())
-		{
-			const FAvaEaseCurveTangents Tangents = EaseCurve->GetTangents();
-
-			SAvaEaseCurvePreview::FArguments PreviewArgs;
-			PreviewArgs.Tangents(Tangents)
-				.PreviewSize(256.f)
-				.CanExpandPreview(true)
-				.CustomToolTip(false)
-				.Animate(true)
-				.DisplayRate(DisplayRate.Get())
-				.DrawMotionTrails(true);
-
-			const TSharedPtr<SWidget> AdditionalContent = SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(15.f, 5.f, 0.f, 0.f)
-				[
-					SNew(STextBlock)
-					.Text(this, &SAvaEaseCurveEditor::GetCurveToolTipInputText)
-				]
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(15.f, 5.f, 0.f, 15.f)
-				[
-					SNew(STextBlock)
-					.Text(this, &SAvaEaseCurveEditor::GetCurveToolTipOutputText)
-				];
-
-			CurveToolTip = SAvaEaseCurvePreviewToolTip::CreateDefaultToolTip(PreviewArgs, AdditionalContent);
-
-			SetToolTip(CurveToolTip);
-		}
+	if (StartTooltipText.IsSet() && HitTestKey(InMyGeometry, InMouseEvent, FVector2D(0.f, 0.f)))
+	{
+		ToolTipIndex = 1;
+	}
+	else if (EndTooltipText.IsSet() && HitTestKey(InMyGeometry, InMouseEvent, FVector2D(1.f, 1.f)))
+	{
+		ToolTipIndex = 2;
+	}
+	else if (HitTestCurves(InMyGeometry, InMouseEvent))
+	{
+		ToolTipIndex = 0;
 	}
 	else
 	{
+		ToolTipIndex = INDEX_NONE;
+	}
+
+	if (ToolTipIndex == INDEX_NONE)
+	{
 		CurveToolTip.Reset();
+		SetToolTip(CurveToolTip);
+		return;
+	}
+
+	if (!CurveToolTip.IsValid())
+	{
+		CurveToolTip = CreateCurveToolTip();
 		SetToolTip(CurveToolTip);
 	}
 }
@@ -703,17 +812,19 @@ void SAvaEaseCurveEditor::ZoomView(const FVector2D& InDelta)
 
 	const float OutputViewSize = ViewMaxOutput - ViewMinOutput;
 	const float OutputChange = OutputViewSize * ZoomDelta.Y;
+	const float HalfOutputChange = OutputChange * 0.5f;
 
-	const float NewMinOutput = ViewMinOutput - (OutputChange * 0.5f);
-	const float NewMaxOutput = ViewMaxOutput + (OutputChange * 0.5f);
+	const float NewMinOutput = ViewMinOutput - HalfOutputChange;
+	const float NewMaxOutput = ViewMaxOutput + HalfOutputChange;
 
 	SetOutputMinMax(NewMinOutput, NewMaxOutput);
 
 	const float InputViewSize = ViewMaxInput - ViewMinInput;
 	const float InputChange = InputViewSize * ZoomDelta.X;
+	const float HalfInputChange = InputChange * 0.5f;
 
-	const float NewMinInput = ViewMinInput - (InputChange * 0.5f);
-	const float NewMaxInput = ViewMaxInput + (InputChange * 0.5f);
+	const float NewMinInput = ViewMinInput - HalfInputChange;
+	const float NewMaxInput = ViewMaxInput + HalfInputChange;
 
 	SetInputMinMax(NewMinInput, NewMaxInput);
 }
@@ -762,7 +873,7 @@ void SAvaEaseCurveEditor::TryStartDrag(const FGeometry& InMyGeometry, const FPoi
 		if (bLeftMouseButton)
 		{
 			// Check if we should start dragging a tangent.
-			const FSelectedTangent HitTangent = HitTestCubicTangents(InMyGeometry, InMyGeometry.LocalToAbsolute(MouseDownLocation));
+			const FSelectedTangent HitTangent = HitTestTangentHandle(InMyGeometry, InMouseEvent);
 			if (HitTangent.IsValid())
 			{
 				SelectedTangent = HitTangent;
@@ -859,7 +970,7 @@ void SAvaEaseCurveEditor::ProcessClick(const FGeometry& InMyGeometry, const FPoi
 
 	if (EffectingButton == EKeys::LeftMouseButton)
 	{
-		const FSelectedTangent HitTangent = HitTestCubicTangents(InMyGeometry, InMouseEvent.GetScreenSpacePosition());
+		const FSelectedTangent HitTangent = HitTestTangentHandle(InMyGeometry, InMouseEvent);
 		if (HitTangent.IsValid())
 		{
 			SelectedTangent = HitTangent;
@@ -881,10 +992,11 @@ void SAvaEaseCurveEditor::ClearSelection()
 	SelectedTangent = FSelectedTangent();
 }
 
-void SAvaEaseCurveEditor::SetDefaultOutput(const float MinZoomRange)
+void SAvaEaseCurveEditor::SetDefaultOutput(const float InMinZoomRange)
 {
-	const float NewMinOutput = (ViewMinOutput - (0.5f * MinZoomRange));
-	const float NewMaxOutput = (ViewMaxOutput + (0.5f * MinZoomRange));
+	const float HalfMinZoomRange = InMinZoomRange * 0.5f;
+	const float NewMinOutput = ViewMinOutput - HalfMinZoomRange;
+	const float NewMaxOutput = ViewMaxOutput + HalfMinZoomRange;
 
 	SetOutputMinMax(NewMinOutput, NewMaxOutput);
 }
@@ -897,8 +1009,10 @@ void SAvaEaseCurveEditor::ZoomToFit()
 	const FVector2D ArriveTangentDir = CalcTangentDir(EndKey.ArriveTangent) * EndKey.ArriveTangentWeight;
 	const FVector2D LeaveTangentDir = CalcTangentDir(StartKey.LeaveTangent) * StartKey.LeaveTangentWeight;
 
-	const FVector2D StartKeyPosition(EaseCurve->FloatCurve.GetKeyTime(EaseCurve->GetStartKeyHandle()), EaseCurve->FloatCurve.GetKeyValue(EaseCurve->GetStartKeyHandle()));
-	const FVector2D EndKeyPosition(EaseCurve->FloatCurve.GetKeyTime(EaseCurve->GetEndKeyHandle()), EaseCurve->FloatCurve.GetKeyValue(EaseCurve->GetEndKeyHandle()));
+	const FVector2D StartKeyPosition(EaseCurve->FloatCurve.GetKeyTime(EaseCurve->GetStartKeyHandle())
+		, EaseCurve->FloatCurve.GetKeyValue(EaseCurve->GetStartKeyHandle()));
+	const FVector2D EndKeyPosition(EaseCurve->FloatCurve.GetKeyTime(EaseCurve->GetEndKeyHandle())
+		, EaseCurve->FloatCurve.GetKeyValue(EaseCurve->GetEndKeyHandle()));
 	const FVector2D ArrivePosition = -ArriveTangentDir + EndKeyPosition;
 	const FVector2D LeavePosition = LeaveTangentDir - StartKeyPosition;
 
@@ -922,16 +1036,16 @@ void SAvaEaseCurveEditor::ZoomToFit()
 
 		// Clamp the minimum size
 		float SizeX = InMaxX - InMinX;
-		if (SizeX < CONST_MinViewRange)
+		if (SizeX < MinViewRange)
 		{
-			InMinX -= 0.5f * CONST_MinViewRange;
-			InMaxX += 0.5f * CONST_MinViewRange;
+			InMinX -= HalfMinViewRange;
+			InMaxX += HalfMinViewRange;
 			SizeX = InMaxX - InMinX;
 		}
 
 		// Add margin
-		InMinX -= CONST_FitMargin * SizeX;
-		InMaxX += CONST_FitMargin * SizeX;
+		InMinX -= FitMargin * SizeX;
+		InMaxX += FitMargin * SizeX;
 
 		SetInputMinMax(InMinX, InMaxX);
 	}
@@ -963,17 +1077,18 @@ void SAvaEaseCurveEditor::ZoomToFit()
 
 		// Clamp the minimum size
 		float SizeY = InMaxY - InMinY;
-		if (SizeY < CONST_MinViewRange)
+		if (SizeY < MinViewRange)
 		{
-			SetDefaultOutput(CONST_MinViewRange);
+			SetDefaultOutput(MinViewRange);
+
 			InMinY = ViewMinOutput;
 			InMaxY = ViewMaxOutput;
 			SizeY = InMaxY - InMinY;
 		}
 
 		// Add margin
-		const float NewMinOutputY = (InMinY - CONST_FitMargin * SizeY);
-		const float NewMaxOutputY = (InMaxY + CONST_FitMargin * SizeY);
+		const float NewMinOutputY = (InMinY - FitMargin * SizeY);
+		const float NewMaxOutputY = (InMaxY + FitMargin * SizeY);
 
 		SetOutputMinMax(NewMinOutputY, NewMaxOutputY);
 	}
@@ -1004,11 +1119,13 @@ void SAvaEaseCurveEditor::SetOutputMinMax(const float InNewMin, const float InNe
 bool SAvaEaseCurveEditor::HitTestCurves(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const
 {
 	const FTrackScaleInfo ScaleInfo(ViewMinInput, ViewMaxInput, ViewMinOutput, ViewMaxOutput, InMyGeometry.GetLocalSize());
-	const FVector2D HitPosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
-	const float Time = ScaleInfo.LocalXToInput(HitPosition.X);
-	const float KeyScreenY = ScaleInfo.OutputToLocalY(EaseCurve->FloatCurve.Eval(Time));
+	const FVector2D MousePosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
 
-	if (HitPosition.Y > (KeyScreenY - (0.5f * CONST_CurveSize.Y)) && HitPosition.Y < (KeyScreenY + (0.5f * CONST_CurveSize.Y)))
+	const float Time = ScaleInfo.LocalXToInput(MousePosition.X);
+	const float Value = ScaleInfo.OutputToLocalY(EaseCurve->FloatCurve.Eval(Time));
+
+	if (MousePosition.Y > (Value - HalfCurveHitSize.Y)
+		&& MousePosition.Y < (Value + HalfCurveHitSize.Y))
 	{
 		return true;
 	}
@@ -1016,20 +1133,20 @@ bool SAvaEaseCurveEditor::HitTestCurves(const FGeometry& InMyGeometry, const FPo
 	return false;
 }
 
-SAvaEaseCurveEditor::FSelectedTangent SAvaEaseCurveEditor::HitTestCubicTangents(const FGeometry& InMyGeometry, const FVector2D& InHitScreenPosition) const
+SAvaEaseCurveEditor::FSelectedTangent SAvaEaseCurveEditor::HitTestTangentHandle(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) const
 {
-	FSelectedTangent OutTangent;
-
 	const FTrackScaleInfo ScaleInfo(ViewMinInput, ViewMaxInput, ViewMinOutput, ViewMaxOutput, InMyGeometry.GetLocalSize());
-	const FVector2D HitPosition = InMyGeometry.AbsoluteToLocal(InHitScreenPosition);
+	const FVector2D MousePosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
 
-	auto IsInside = [&HitPosition](const FVector2D& InTangent) -> bool
+	auto IsInside = [&MousePosition](const FVector2D& InTangent) -> bool
 		{
-			return HitPosition.Y > (InTangent.Y - (0.5f * CONST_CurveSize.Y)) &&
-				HitPosition.Y < (InTangent.Y + (0.5f * CONST_CurveSize.Y)) &&
-				HitPosition.X > (InTangent.X - (0.5f * CONST_TangentSize.X)) &&
-				HitPosition.X < (InTangent.X + (0.5f * CONST_TangentSize.X));
+			return MousePosition.Y > (InTangent.Y - HalfTangentHitSize.Y)
+				&& MousePosition.Y < (InTangent.Y + HalfTangentHitSize.Y)
+				&& MousePosition.X > (InTangent.X - HalfTangentHitSize.X)
+				&& MousePosition.X < (InTangent.X + HalfTangentHitSize.X);
 		};
+
+	FSelectedTangent OutTangent;
 
 	for (auto It(EaseCurve->FloatCurve.GetKeyHandleIterator()); It; ++It)
 	{
@@ -1058,6 +1175,20 @@ SAvaEaseCurveEditor::FSelectedTangent SAvaEaseCurveEditor::HitTestCubicTangents(
 	}
 
 	return OutTangent;
+}
+
+bool SAvaEaseCurveEditor::HitTestKey(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent, const FVector2D& InInputPosition) const
+{
+	const FTrackScaleInfo ScaleInfo(ViewMinInput, ViewMaxInput, ViewMinOutput, ViewMaxOutput, InMyGeometry.GetLocalSize());
+	const FVector2D MousePosition = InMyGeometry.AbsoluteToLocal(InMouseEvent.GetScreenSpacePosition());
+
+	const float Time = ScaleInfo.InputToLocalX(InInputPosition.X);
+	const float Value = ScaleInfo.OutputToLocalY(InInputPosition.Y);
+
+	return MousePosition.Y > (Value - HalfKeyHitSize.Y)
+		&& MousePosition.Y < (Value + HalfKeyHitSize.Y)
+		&& MousePosition.X > (Time - HalfKeyHitSize.X)
+		&& MousePosition.X < (Time + HalfKeyHitSize.X);
 }
 
 void SAvaEaseCurveEditor::MoveSelectedTangent(const FTrackScaleInfo& InScaleInfo, const FVector2D& InScreenDelta)

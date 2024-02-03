@@ -21,6 +21,7 @@ public:
 	{}
 		SLATE_ARGUMENT(FString, CategoryName)
 		SLATE_ARGUMENT(TArray<TSharedPtr<FAvaEaseCurvePreset>>, Presets)
+		SLATE_ATTRIBUTE(TSharedPtr<FAvaEaseCurvePreset>, SelectedPreset)
 		SLATE_ARGUMENT(FText, SearchText)
 		SLATE_ATTRIBUTE(bool, IsEditMode)
 		SLATE_ARGUMENT(FFrameRate, DisplayRate)
@@ -30,7 +31,7 @@ public:
 		SLATE_EVENT(FAvaEaseCurvePresetRenameDelegate, OnPresetRename)
 		SLATE_EVENT(FAvaEaseCurvePresetMoveDelegate, OnBeginPresetMove)
 		SLATE_EVENT(FAvaEaseCurvePresetMoveDelegate, OnEndPresetMove)
-		SLATE_EVENT(FAvaEaseCurvePresetDelegate, OnPresetClick)
+		SLATE_EVENT(FAvaEaseCurvePresetClickDelegate, OnPresetClick)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -47,10 +48,12 @@ public:
 
 	FString GetCategoryName() const { return CategoryName; }
 
+	bool IsSelected(const TSharedPtr<FAvaEaseCurvePreset> InPreset) const;
+
 protected:
 	TSharedRef<SWidget> ConstructHeader();
 
-	TSharedRef<ITableRow> GeneratePresetWidget(TSharedPtr<FAvaEaseCurvePreset> InPreset, const TSharedRef<STableViewBase>& InOwnerTable);
+	TSharedRef<ITableRow> GeneratePresetWidget(const TSharedPtr<FAvaEaseCurvePreset> InPreset, const TSharedRef<STableViewBase>& InOwnerTable);
 	
 	EVisibility GetEditModeVisibility() const;
 
@@ -61,7 +64,7 @@ protected:
 	void HandleCategoryRenameCommitted(const FText& InNewText, ETextCommit::Type InCommitType);
 	FReply HandleCategoryDelete() const;
 
-	bool HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
+	bool HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FModifierKeysState& InModifierKeys) const;
 	bool HandlePresetDelete(const TSharedPtr<FAvaEaseCurvePreset>& InPreset);
 	bool HandlePresetRename(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewName);
 	bool HandlePresetBeginMove(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewCategoryName) const;
@@ -79,13 +82,14 @@ protected:
 	FText SearchText;
 	TAttribute<bool> bIsEditMode;
 	FFrameRate DisplayRate;
+	TAttribute<TSharedPtr<FAvaEaseCurvePreset>> SelectedPreset;
 	FAvaEaseCurveCategoryDeleteDelegate OnCategoryDelete;
 	FAvaEaseCurveCategoryRenameDelegate OnCategoryRename;
 	FAvaEaseCurvePresetDelegate OnPresetDelete;
 	FAvaEaseCurvePresetRenameDelegate OnPresetRename;
 	FAvaEaseCurvePresetMoveDelegate OnBeginPresetMove;
 	FAvaEaseCurvePresetMoveDelegate OnEndPresetMove;
-	FAvaEaseCurvePresetDelegate OnPresetClick;
+	FAvaEaseCurvePresetClickDelegate OnPresetClick;
 
 	TArray<TSharedPtr<FAvaEaseCurvePreset>> VisiblePresets;
 

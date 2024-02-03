@@ -23,7 +23,7 @@ class SAvaEaseCurveTool
 {
 public:
 	SLATE_BEGIN_ARGS(SAvaEaseCurveTool)
-		: _ToolMode(FAvaEaseCurveTool::EMode::DoubleKeyEdit)
+		: _ToolMode(FAvaEaseCurveTool::EMode::DualKeyEdit)
 		, _ToolOperation(FAvaEaseCurveTool::EOperation::InOut)
 	{}
 		SLATE_ATTRIBUTE(FAvaEaseCurveTool::EMode, ToolMode)
@@ -31,7 +31,7 @@ public:
 		SLATE_ARGUMENT(FAvaEaseCurveTangents, InitialTangents)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, const TSharedRef<FAvaEaseCurveTool>& InCurveEaseTool);
+	void Construct(const FArguments& InArgs, const TSharedRef<FAvaEaseCurveTool>& InEaseCurveTool);
 	
 	void SetTangents(const FAvaEaseCurveTangents& InTangents, const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const;
 
@@ -41,6 +41,8 @@ public:
 	float GetEndTangentWeight() const;
 
 	FKeyHandle GetSelectedKeyHandle() const;
+
+	void ZoomToFit() const;
 
 protected:
 	TSharedRef<SWidget> ConstructCurveEditorPanel();
@@ -60,6 +62,7 @@ protected:
 	void OnEndTangentWeightSpinBoxChanged(const float InNewValue) const;
 
 	void OnPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
+	void OnQuickPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const;
 
 	void BindCommands();
 
@@ -69,10 +72,13 @@ protected:
 	void UndoAction();
 	void RedoAction();
 
-	void ZoomToFit() const;
-
 	void OnEditorDragStart() const;
 	void OnEditorDragEnd() const;
+
+	FText GetStartText() const;
+	FText GetStartTooltipText() const;
+	FText GetEndText() const;
+	FText GetEndTooltipText() const;
 
 	//~ Begin SWidget
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
@@ -80,7 +86,7 @@ protected:
 
 	TSharedPtr<FUICommandList> CommandList;
 
-	TSharedPtr<FAvaEaseCurveTool> CurveEaseTool;
+	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
 
 	TAttribute<FAvaEaseCurveTool::EMode> ToolMode;
 	TAttribute<FAvaEaseCurveTool::EOperation> ToolOperation;

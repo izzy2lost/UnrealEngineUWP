@@ -4,6 +4,7 @@
 #include "AvaSequencer.h"
 #include "EaseCurveTool/AvaEaseCurveTool.h"
 #include "EaseCurveTool/AvaEaseCurveToolSettings.h"
+#include "EaseCurveTool/Widgets/SAvaEaseCurveTool.h"
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -58,7 +59,7 @@ namespace UE::AvaSequencer::Private
 	};
 }
 
-void SAvaKeyFrameEdit::Construct(const FArguments& InArgs, TSharedRef<FAvaSequencer> InSequencer)
+void SAvaKeyFrameEdit::Construct(const FArguments& InArgs, const TSharedRef<FAvaSequencer>& InSequencer)
 {
 	AvaSequencerWeak = InSequencer;
 
@@ -70,8 +71,6 @@ void SAvaKeyFrameEdit::Construct(const FArguments& InArgs, TSharedRef<FAvaSequen
 	{
 		SequencerSelectionWeak = SequencerViewModel->GetSelection();
 	}
-
-	CurveEaseTool = MakeShared<FAvaEaseCurveTool>(InSequencer);
 
 	if (!AvaSequencerWeak.IsValid())
 	{
@@ -93,7 +92,7 @@ void SAvaKeyFrameEdit::Construct(const FArguments& InArgs, TSharedRef<FAvaSequen
 				Left/Right/Center will maintain 1:1 ratio. */
 				SNew(UE::AvaSequencer::Private::SDynamicHAlign)
 				.HAlign_UObject(GetDefault<UAvaEaseCurveToolSettings>(), &UAvaEaseCurveToolSettings::GetGraphHAlign)
-				.Content(CurveEaseTool->GenerateWidget())
+				.Content(InSequencer->GetEaseCurveTool()->GenerateWidget())
 			]
 			+ SScrollBox::Slot()
 			.AutoSize()

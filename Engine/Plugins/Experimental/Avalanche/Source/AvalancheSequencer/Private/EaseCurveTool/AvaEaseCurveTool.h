@@ -16,11 +16,16 @@
 
 class FAvaSequencer;
 class FCurveEditor;
+class IAvaSequencer;
+class ISequencer;
 class SAvaEaseCurveTool;
 class SCurveEditor;
 class SCurveEditorPanel;
 class SEditableTextBox;
+class UAvaEaseCurve;
 class UCurveFloat;
+class UMovieSceneSection;
+struct FAvaEaseCurveTangents;
 struct FMovieSceneDoubleChannel;
 
 namespace UE::Sequencer
@@ -35,18 +40,11 @@ class FAvaEaseCurveTool
 	, public FSelfRegisteringEditorUndoClient
 {
 public:
-	static void ShowNotificationMessage(const FText& InMessageText);
-
-	/** Returns true if the clipboard paste data contains tangent information. */
-	static bool TangentsFromClipboardPaste(FAvaEaseCurveTangents& OutTangents);
-
-	/**
-	 * Current default and only implemented is DoubleKeyEdit.
-	 */
+	/** Current default and only implemented is DualKeyEdit. */
 	enum class EMode : uint8
 	{
 		/** Edits the selected key's leave tangent and the next key's arrive tangent in the curve editor graph. */
-		DoubleKeyEdit,
+		DualKeyEdit,
 		/** Edits only the selected key.
 		 * The leave tangent in the curve editor graph will set the sequence key arrive tangent.
 		 * The arrive tangent in the curve editor graph will set the sequence key leave tangent. */
@@ -55,10 +53,15 @@ public:
 
 	enum class EOperation : uint8
 	{
+		InOut,
 		In,
-		Out,
-		InOut
+		Out
 	};
+
+	static void ShowNotificationMessage(const FText& InMessageText);
+
+	/** Returns true if the clipboard paste data contains tangent information. */
+	static bool TangentsFromClipboardPaste(FAvaEaseCurveTangents& OutTangents);
 
 	FAvaEaseCurveTool(const TSharedRef<FAvaSequencer>& InSequencer);
 
@@ -80,13 +83,15 @@ public:
 
 	/** Creates a new external float curve from the internet curve editor curve. */
 	UCurveBase* CreateCurveAsset() const;
-	
-	void SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents);
+
+	void SetSequencerKeySelectionTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation = EOperation::InOut);
+
+	void ApplyEaseCurveToSequencerKeySelections();
+
+	void ApplyQuickEaseToSequencerKeySelections(const EOperation InOperation = EOperation::InOut);
 
 	/** Updates the ease curve graph view based on the active sequencer key selection. */
 	void UpdateEaseCurveFromSequencerKeySelections();
-
-	void ApplyEaseCurveToSequencerKeySelections();
 
 	EOperation GetToolOperation() const;
 	void SetToolOperation(const EOperation InNewOperation);
@@ -127,34 +132,38 @@ public:
 protected:
 	TWeakPtr<FAvaSequencer> AvaSequencerWeak;
 	TWeakPtr<UE::Sequencer::FSequencerSelection> SequencerSelectionWeak;
-	TWeakPtr<FCurveEditor> SequencerCurveEditorWeak;
 
 	TObjectPtr<UAvaEaseCurve> EaseCurve;
 
-	EMode ToolMode = EMode::DoubleKeyEdit;
+	EMode ToolMode = EMode::DualKeyEdit;
 	EOperation OperationMode = EOperation::InOut;
 
-	TSharedPtr<SAvaEaseCurveTool> CurveEaseToolWidget;
-
-	FSimpleMulticastDelegate::FDelegate LastDelegate;
+	TSharedPtr<SAvaEaseCurveTool> ToolWidget;
 	
 	/** Cached data set when a new sequencer selection is made. */
-	struct FCachedKeyData
+	struct FKeyDataCache
 	{
-		TSharedPtr<UE::Sequencer::FChannelModel> ChannelModel;
-		UMovieSceneSection* Section = nullptr;
-		FMovieSceneDoubleChannel* DoubleChannel = nullptr;
-		TArray<FKeyHandle> KeyHandles;
+		struct FChannelData
+		{
+			TSharedPtr<UE::Sequencer::FChannelModel> ChannelModel;
+			UMovieSceneSection* Section = nullptr;
+			FMovieSceneDoubleChannel* DoubleChannel = nullptr;
+			TArray<FKeyHandle> KeyHandles;
+		};
+
+		TMap<FName, FChannelData> ChannelKeyData;
+
+		int32 TotalSelectedKeys = 0;
+
+		/** Indicates only one selected key on each of the selected channels. */
+		bool bAllChannelSingleKeySelections = true;
+
+		/** Indicates only one key selected and it is the last key of the channel. */
+		bool bIsLastOnlySelectedKey = false;
 	};
-	TMap<FName, FCachedKeyData> CachedChannelKeyData;
-	int32 TotalSelectedKeys = 0;
-
-	/** Indicates only one selected key on each of the selected channels. */
-	bool bCachedAllChannelSingleKeySelections = false;
-
-	/** Indicates only one key selected and it is the last key of the channel. */
-	bool bCachedIsLastOnlySelectedKey = false;
+	FKeyDataCache KeyCache;
+	bool bAreKeysCached = false;
 
 private:
-	void CacheSelectionData(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSequencerSelection);
+	void CacheSelectionData();
 };

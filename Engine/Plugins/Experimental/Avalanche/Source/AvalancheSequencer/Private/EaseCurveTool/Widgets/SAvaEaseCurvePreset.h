@@ -25,6 +25,7 @@ public:
 	{}
 		SLATE_ATTRIBUTE(FFrameRate, DisplayRate)
 		SLATE_EVENT(FAvaOnPresetChanged, OnPresetChanged)
+		SLATE_EVENT(FAvaOnPresetChanged, OnQuickPresetChanged)
 		SLATE_EVENT(FAvaOnGetNewPresetTangents, OnGetNewPresetTangents)
 	SLATE_END_ARGS()
 
@@ -66,11 +67,12 @@ protected:
 	bool HandlePresetRename(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewName);
 	bool HandleBeginPresetMove(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewCategoryName);
 	bool HandleEndPresetMove(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FString& InNewCategoryName);
-	bool HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset);
+	bool HandlePresetClick(const TSharedPtr<FAvaEaseCurvePreset>& InPreset, const FModifierKeysState& InModifierKeys);
 
 	TAttribute<FFrameRate> DisplayRate;
 
 	FAvaOnPresetChanged OnPresetChanged;
+	FAvaOnPresetChanged OnQuickPresetChanged;
 	FAvaOnGetNewPresetTangents OnGetNewPresetTangents;
 
 	TSharedPtr<SBox> GroupWidgetsParent;

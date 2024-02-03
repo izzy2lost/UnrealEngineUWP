@@ -25,7 +25,7 @@ namespace UE::EaseCurveTool::Json::Private
 
 		if (!FPaths::DirectoryExists(PresetsPath))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::GetPresetFilePath() - Configured presets directory does not exist: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::GetPresetFilePath() - Configured presets directory does not exist: %s"), *PresetsPath);
 			return false;
 		}
 
@@ -39,7 +39,7 @@ namespace UE::EaseCurveTool::Json::Private
 			const FString EaseCurveTool_NewPresetCategory = Settings->GetNewPresetCategory();
 			if (EaseCurveTool_NewPresetCategory.IsEmpty())
 			{
-				UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::GetPresetFilePath() - No preset category and no configured default category"));
+				UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::GetPresetFilePath() - No preset category and no configured default category"));
 				return false;
 			}
 
@@ -57,7 +57,7 @@ namespace UE::EaseCurveTool::Json::Private
 		FString FileJsonString;
 		if (!FFileHelper::LoadFileToString(FileJsonString, *InFilePath))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::LoadCurvePresetsJson() - Unable to load Json file: %s"), *InFilePath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::LoadCurvePresetsJson() - Unable to load Json file: %s"), *InFilePath);
 			return false;
 		}
 
@@ -65,7 +65,7 @@ namespace UE::EaseCurveTool::Json::Private
 		OutRootObject = MakeShared<FJsonObject>();
 		if (!FJsonSerializer::Deserialize(JsonReader.ToSharedRef(), OutRootObject))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::LoadCurvePresetsJson() - Unable to parse file [%s]. Json=[%s]"), *InFilePath, *FileJsonString);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::LoadCurvePresetsJson() - Unable to parse file [%s]. Json=[%s]"), *InFilePath, *FileJsonString);
 			return false;
 		}
 
@@ -78,13 +78,13 @@ namespace UE::EaseCurveTool::Json::Private
 		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&FileJsonString);
 		if (!FJsonSerializer::Serialize(InRootObject, Writer))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::SaveCurvePresetsJson() - Unable to serialize [%s]. Json=[%s]"), *InFilePath, *FileJsonString);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::SaveCurvePresetsJson() - Unable to serialize [%s]. Json=[%s]"), *InFilePath, *FileJsonString);
 			return false;
 		}
 
 		if (!FFileHelper::SaveStringToFile(FileJsonString, *InFilePath))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::SaveCurvePresetsJson() - Unable to save Json file: %s"), *InFilePath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::SaveCurvePresetsJson() - Unable to save Json file: %s"), *InFilePath);
 			return false;
 		}
 
@@ -180,14 +180,14 @@ namespace UE::EaseCurveTool::Json::Private
 		FString PresetsPath;
 		if (!GetPresetFilePath(InCategory, false, PresetsPath))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::DoesPresetExist() - Could not find file for preset category: %s"), *InCategory);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::DoesPresetExist() - Could not find file for preset category: %s"), *InCategory);
 			return false;
 		}
 
 		TSharedPtr<FJsonObject> RootObject;
 		if (!LoadCurvePresetsJson(PresetsPath, RootObject) || !RootObject.IsValid())
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::DoesPresetExist() - Unable to load Json file: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::DoesPresetExist() - Unable to load Json file: %s"), *PresetsPath);
 			return false;
 		}
 
@@ -200,7 +200,7 @@ namespace UE::EaseCurveTool::Json::Private
 		const bool bCategoryFileExists = GetPresetFilePath(InCategory, true, PresetsPath);
 		if (PresetsPath.IsEmpty())
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::AddPreset() - Could not find file for preset category: %s"), *InCategory);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::AddPreset() - Could not find file for preset category: %s"), *InCategory);
 			return false;
 		}
 
@@ -210,7 +210,7 @@ namespace UE::EaseCurveTool::Json::Private
 		{
 			if (!UE::EaseCurveTool::Json::Private::LoadCurvePresetsJson(PresetsPath, RootObject) || !RootObject.IsValid())
 			{
-				UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::AddPreset() - Unable to load Json file: %s"), *PresetsPath);
+				UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::AddPreset() - Unable to load Json file: %s"), *PresetsPath);
 				return false;
 			}
 		}
@@ -223,7 +223,7 @@ namespace UE::EaseCurveTool::Json::Private
 
 		if (!SaveCurvePresetsJson(PresetsPath, RootObject.ToSharedRef()))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::AddPreset() - Unable to save Json file: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::AddPreset() - Unable to save Json file: %s"), *PresetsPath);
 			return false;
 		}
 
@@ -235,14 +235,14 @@ namespace UE::EaseCurveTool::Json::Private
 		FString PresetsPath;
 		if (!GetPresetFilePath(InCategory, false, PresetsPath))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::RemovePreset() - Could not find file for preset category: %s"), *InCategory);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::RemovePreset() - Could not find file for preset category: %s"), *InCategory);
 			return false;
 		}
 
 		TSharedPtr<FJsonObject> RootObject;
 		if (!LoadCurvePresetsJson(PresetsPath, RootObject) || !RootObject.IsValid())
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::RemovePreset() - Unable to load Json file: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::RemovePreset() - Unable to load Json file: %s"), *PresetsPath);
 			return false;
 		}
 
@@ -250,7 +250,7 @@ namespace UE::EaseCurveTool::Json::Private
 
 		if (!SaveCurvePresetsJson(PresetsPath, RootObject.ToSharedRef()))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::RemovePreset() - Unable to save Json file: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::RemovePreset() - Unable to save Json file: %s"), *PresetsPath);
 			return false;
 		}
 
@@ -262,14 +262,14 @@ namespace UE::EaseCurveTool::Json::Private
 		FString PresetsPath;
 		if (!GetPresetFilePath(InCategory, false, PresetsPath))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::RemovePreset() - Could not find file for preset category: %s"), *InCategory);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::RemovePreset() - Could not find file for preset category: %s"), *InCategory);
 			return false;
 		}
 
 		TSharedPtr<FJsonObject> RootObject;
 		if (!LoadCurvePresetsJson(PresetsPath, RootObject) || !RootObject.IsValid())
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::RemovePreset() - Unable to load Json file: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::RemovePreset() - Unable to load Json file: %s"), *PresetsPath);
 			return false;
 		}
 
@@ -282,7 +282,7 @@ namespace UE::EaseCurveTool::Json::Private
 
 		if (!SaveCurvePresetsJson(PresetsPath, RootObject.ToSharedRef()))
 		{
-			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("CurveEaseToolJson::RemovePreset() - Unable to save Json file: %s"), *PresetsPath);
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("EaseCurveToolJson::RemovePreset() - Unable to save Json file: %s"), *PresetsPath);
 			return false;
 		}
 
