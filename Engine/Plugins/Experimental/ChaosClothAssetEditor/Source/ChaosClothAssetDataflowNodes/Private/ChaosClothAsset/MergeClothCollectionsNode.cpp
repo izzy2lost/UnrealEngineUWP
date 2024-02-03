@@ -50,26 +50,45 @@ void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Con
 		{
 			FManagedArrayCollection OtherCollection = GetValue<FManagedArrayCollection>(Context, Collections[InputIndex]);  // Can't use a const reference here sadly since the facade needs a SharedRef to be created
 			const TSharedRef<const FManagedArrayCollection> OtherClothCollection = MakeShared<const FManagedArrayCollection>(MoveTemp(OtherCollection));
+
+			// Selections need to update with offsets. Gather offsets before appending cloth data.
+			const FCollectionClothSelectionConstFacade OtherSelectionFacade(OtherClothCollection);
+			TMap<FName, int32> GroupNameOffsets;
+			if (OtherSelectionFacade.IsValid())
+			{
+				const TArray<FName> SelectionNames = OtherSelectionFacade.GetNames();
+				for (const FName& SelectionName : SelectionNames)
+				{
+					const FName GroupName = OtherSelectionFacade.GetSelectionGroup(SelectionName);
+					if (!GroupNameOffsets.Find(GroupName))
+					{
+						GroupNameOffsets.Add(GroupName) = ClothCollection->NumElements(GroupName); // NumElements will return zero if the group doesn't exist.
+					}
+				}
+			}
+
+			// Append cloth
 			const FCollectionClothConstFacade OtherClothFacade(OtherClothCollection);
 			if (OtherClothFacade.IsValid())
 			{
 				ClothFacade.Append(OtherClothFacade);
 				bAreAnyValid = true;
 			}
+
+			// Append selections (with offsets)
+			if (OtherSelectionFacade.IsValid())
+			{
+				constexpr bool bUpdateExistingSelections = true; // Want last one wins.
+				SelectionFacade.AppendWithOffsets(OtherSelectionFacade, bUpdateExistingSelections, GroupNameOffsets);
+				bAreAnyValid = true;
+			}
+
 			// Copy properties
 			const FCollectionPropertyConstFacade OtherPropertyFacade(OtherClothCollection);
 			if (OtherPropertyFacade.IsValid())
 			{
 				constexpr bool bUpdateExistingProperties = true; // Want last one wins.
 				PropertyFacade.Append(OtherClothCollection.ToSharedPtr(), bUpdateExistingProperties);
-				bAreAnyValid = true;
-			}
-			// Copy selections
-			const FCollectionClothSelectionConstFacade OtherSelectionFacade(OtherClothCollection);
-			if (OtherSelectionFacade.IsValid())
-			{
-				constexpr bool bUpdateExistingSelections = true; // Want last one wins.
-				SelectionFacade.Append(OtherSelectionFacade, bUpdateExistingSelections);
 				bAreAnyValid = true;
 			}
 		}

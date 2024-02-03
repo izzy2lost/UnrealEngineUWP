@@ -308,7 +308,7 @@ namespace UE::Chaos::ClothAsset
 				BoneWeightArray.SetNumUninitialized(NumInfluences);
 				for (int32 Idx = 0; Idx < NumInfluences; ++Idx)
 				{
-					BoneWeightArray[Idx] = FBoneWeight(SoftVertex.InfluenceBones[Idx], (float)SoftVertex.InfluenceWeights[Idx] * UE::AnimationCore::InvMaxRawBoneWeightFloat);
+					BoneWeightArray[Idx] = FBoneWeight(SourceSection.BoneMap[SoftVertex.InfluenceBones[Idx]], (float)SoftVertex.InfluenceWeights[Idx] * UE::AnimationCore::InvMaxRawBoneWeightFloat);
 				}
 				return FBoneWeights::Create(BoneWeightArray, FBoneWeightsSettings());
 			}
