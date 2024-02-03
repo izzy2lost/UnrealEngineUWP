@@ -80,6 +80,16 @@ namespace Horde.Agent
 		public static IReadOnlyList<string> Args { get; private set; } = null!;
 
 		/// <summary>
+		/// Whether agent is packaged as a self-contained package where the .NET runtime is included.
+		/// Driven by a preprocessor constant.
+		/// </summary>
+#if IS_SELF_CONTAINED
+		public static readonly bool IsSelfContained = true;
+#else
+		public static readonly bool IsSelfContained = false;
+#endif
+
+		/// <summary>
 		/// The current application version
 		/// </summary>
 		public static string Version { get; } = GetVersion();
@@ -233,7 +243,7 @@ namespace Horde.Agent
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
-			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(Horde.Agent.Modes.Service.RunCommand));
+			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(Commands.Service.RunCommand));
 		}
 
 		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)

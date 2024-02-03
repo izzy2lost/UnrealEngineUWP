@@ -10,7 +10,7 @@ using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Management.Infrastructure;
 
-namespace Horde.Agent.Commands
+namespace Horde.Agent.Commands.Service
 {
 	/// <summary>
 	/// Upgrades a running service to the current application
@@ -19,7 +19,7 @@ namespace Horde.Agent.Commands
 	class UpgradeCommand : Command
 	{
 		/// <summary>
-		/// The process id to replace
+		/// The process ID to replace (the old but currently running agent process)
 		/// </summary>
 		[CommandLine("-ProcessId=", Required = true)]
 		int ProcessId { get; set; } = -1;
@@ -31,7 +31,7 @@ namespace Horde.Agent.Commands
 		DirectoryReference TargetDir { get; set; } = null!;
 
 		/// <summary>
-		/// Arguments to forwar to the target executable
+		/// Arguments to forward to the target executable
 		/// </summary>
 		[CommandLine("-Arguments=", Required = true)]
 		string Arguments { get; set; } = null!;
@@ -99,7 +99,7 @@ namespace Horde.Agent.Commands
 				}
 				else
 				{
-					logger.LogError("Agent is not running a platform that supports Upgrades. Platform: {Platform}", RuntimeInformation.OSDescription);
+					logger.LogError("Agent is not running a platform that supports upgrades. Platform: {Platform}", RuntimeInformation.OSDescription);
 					return Task.FromResult(-1);
 				}
 			}
@@ -130,6 +130,7 @@ namespace Horde.Agent.Commands
 			UpgradeFilesInPlace(logger, targetFiles, renameFiles);
 			logger.LogDebug("Upgrade completed, restarting...");
 			otherProcess.Kill();
+			// Assume agent process is auto-restarted by OS or external daemon process handler (such as launchd)
 		}
 
 		static void UpgradeLinuxService(ILogger logger, Process otherProcess, HashSet<string> targetFiles, List<Tuple<string, string>> renameFiles)
@@ -137,54 +138,65 @@ namespace Horde.Agent.Commands
 			UpgradeFilesInPlace(logger, targetFiles, renameFiles);
 			logger.LogDebug("Upgrade completed, restarting...");
 			otherProcess.Kill();
+			// Assume agent process is auto-restarted by OS or external daemon process handler (such as systemd)
 		}
 
 		[SupportedOSPlatform("windows")]
 		void UpgradeWindowsService(ILogger logger, Process otherProcess, HashSet<string> targetFiles, List<Tuple<string, string>> renameFiles)
 		{
 			// Try to get the service associated with the passed-in process id
-			using (ServiceController? service = GetServiceForProcess(ProcessId))
+			using ServiceController? service = GetServiceForProcess(ProcessId);
+			
+			// Stop the process
+			if (service == null)
 			{
-				// Stop the process
-				if (service == null)
+				logger.LogInformation("Terminating running agent process...");
+				otherProcess.Kill();
+			}
+			else
+			{
+				logger.LogInformation("Stopping service...");
+				service.Stop();
+			}
+			otherProcess.WaitForExit();
+
+			UpgradeFilesInPlace(logger, targetFiles, renameFiles);
+
+			// Run the new application
+			if (service == null)
+			{
+				string executable;
+				StringBuilder arguments = new ();
+				if (AgentApp.IsSelfContained)
 				{
-					logger.LogInformation("Terminating other process");
-					otherProcess.Kill();
+					if (Environment.ProcessPath == null)
+					{
+						throw new Exception("Unable to detect current process path");
+					}
+
+					executable = Path.Combine(TargetDir.FullName, Path.GetFileName(Environment.ProcessPath));
+					if (!File.Exists(executable))
+					{
+						throw new Exception($"{executable} not found. Is the new agent software packaged as self-contained?");
+					}
 				}
 				else
 				{
-					logger.LogInformation("Stopping service");
-					service.Stop();
-				}
-				otherProcess.WaitForExit();
-
-				UpgradeFilesInPlace(logger, targetFiles, renameFiles);
-
-				// Run the new application
-				if (service == null)
-				{
-					string driverFileName = "dotnet";
+					executable = "dotnet";
 					string assemblyFileName = Path.Combine(TargetDir.FullName, Path.GetFileName(Assembly.GetExecutingAssembly().Location));
-
-					StringBuilder driverArguments = new StringBuilder();
-					driverArguments.AppendArgument(assemblyFileName);
-					driverArguments.Append(' ');
-					driverArguments.Append(Arguments);
-
-					StringBuilder launch = new StringBuilder();
-					launch.AppendArgument(driverFileName);
-					launch.Append(' ');
-					launch.Append(driverArguments);
-					logger.LogInformation("Launching: {Launch}", launch.ToString());
-
-					using Process newProcess = Process.Start(driverFileName, driverArguments.ToString());
+					arguments.AppendArgument(assemblyFileName);
 				}
-				else
-				{
-					// Start the service again
-					logger.LogInformation("Restarting service");
-					service.Start();
-				}
+				arguments.Append(' ');
+				arguments.Append(Arguments);
+
+				logger.LogInformation("Launching: {Executable} {Arguments}", executable, arguments.ToString());
+				using Process newProcess = Process.Start(executable, arguments.ToString());
+			}
+			else
+			{
+				// Start the service again
+				logger.LogInformation("Restarting service...");
+				service.Start();
 			}
 		}
 
