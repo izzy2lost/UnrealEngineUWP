@@ -69,9 +69,9 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 	}
 	else
 	{
-		Output.EditTexture() = FTG_Texture::GetBlack();
+		// Resetting it to scalar.
+		Output.EditScalar() = 0.0f;
 	}
-
 
 	// We only update the output last render for the root graph. We don't need to call it for subgraphs.
 	// Last render eventually gets set for target texture set and then displayed on the viewport.
@@ -86,6 +86,10 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 			BufferDescriptor DesiredDesc = T_FlatColorTexture::GetFlatColorDesc("OutputFlat");			
 			auto OutputFlatTexture = Source.GetTexture(InContext, FTG_Texture::GetBlack(), &DesiredDesc);
 			InContext->Cycle->GetTarget(0)->GetLastRender().SetTexture(GetTitleName(), OutputFlatTexture.RasterBlob);
+		}
+		else
+		{
+			InContext->Cycle->GetTarget(0)->GetLastRender().SetTexture(GetTitleName(), FTG_Texture::GetBlack());
 		}
 	}
 }
