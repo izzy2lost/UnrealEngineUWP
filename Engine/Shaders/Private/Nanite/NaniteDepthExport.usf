@@ -100,6 +100,12 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 	float SceneDepthValue = DecompressDepthValue(SceneDepth, SceneZMask, PixelPos.xy, ThreadIndex, 0.0f, PlatformConfig);
 	uint SceneStencilValue = DecompressStencilValue(SceneStencil, SceneSMem, PixelPos.xy, 0);
 
+#if SHADING_MASK_EXPORT
+	// We need to fully write the shading mask for all pixels, since we intentionally skip clearing it to avoid an FCE
+	// By default we write 0, which indicates non-Nanite, but every valid Nanite pixel will pack this value accordingly.
+	uint EncodedMask = 0x0u;
+#endif
+
 	bool bWriteDepthStencil = false;
 
 	// Avoid the parallel reduction and exports if the tile has no Nanite
@@ -199,7 +205,7 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 			#endif
 
 			#if SHADING_MASK_EXPORT
-				ShadingMask[PixelPos.xy] = PackShadingMask(
+				EncodedMask = PackShadingMask(
 					ShadingBin,
 					D3D12_SHADING_RATE_1X1,
 					bIsDecalReceiver,
@@ -240,6 +246,10 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 			SceneHTile[TileIndex] = EncodeTileMinMaxDepth(TileMinSceneDepth, TileMaxSceneDepth, PlatformConfig);
 		}
 	}
+
+#if SHADING_MASK_EXPORT
+	ShadingMask[PixelPos.xy] = EncodedMask;
+#endif
 }
 
 // NOTE: A possible further optimization could be to avoid doing a clear depth target clear for materials
