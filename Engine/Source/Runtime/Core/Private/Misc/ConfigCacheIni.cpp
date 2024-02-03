@@ -1290,7 +1290,7 @@ namespace CommandlineOverrideSpecifiers
 	const auto& IniNameEndIdentifier      = TEXT(":[");
 	const auto& SectionStartIdentifier    = TEXT("[");
 	const auto& PropertyStartIdentifier   = TEXT("]:");
-	const auto& PropertySeperator         = TEXT(','); //NOTE: this must be a single character
+	const TCHAR PropertySeperator         = TEXT(','); //NOTE: this must be a single character
 	const auto& CustomConfigIdentifier    = TEXT("-CustomConfig=");
 }
 
