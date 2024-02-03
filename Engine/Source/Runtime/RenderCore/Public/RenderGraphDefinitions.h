@@ -59,6 +59,8 @@
 	#define RDG_EVENTS RDG_EVENTS_NONE
 #endif
 
+#define SUPPORTS_VISUALIZE_TEXTURE (WITH_ENGINE && (!UE_BUILD_SHIPPING || WITH_EDITOR))
+
 /** ENUMS */
 
 enum class ERDGBuilderFlags

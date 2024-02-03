@@ -552,6 +552,7 @@ FScreenPassTexture AddAmbientOcclusionSetupPass(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("AmbientOcclusionSetup"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	const FFinalPostProcessSettings& Settings = View.FinalPostProcessSettings;
@@ -1126,7 +1127,7 @@ FGTAOHorizonSearchOutputs AddGTAOHorizonSearchIntegratePass(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOCombined"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
-
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	const bool bUseNormals = CVarGTAOUseNormals.GetValueOnRenderThread() >= 1;
@@ -1220,6 +1221,7 @@ FScreenPassTexture AddGTAOInnerIntegratePass(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOInnerIntegrate"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	FGTAOInnerIntegratePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGTAOInnerIntegratePS::FParameters>();
@@ -1410,6 +1412,7 @@ FGTAOTemporalOutputs AddGTAOTemporalPass(
 		OutputAO.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOTemporalOutput"));
 		OutputAO.ViewRect = OutputViewport.Rect;
 		OutputAO.LoadAction = ERenderTargetLoadAction::ENoAction;
+		OutputAO.UpdateVisualizeTextureExtent();
 	}
 
 	const FVector2f HistoryTextureSize = FVector2f(HistoryColor.Texture->Desc.Extent);
@@ -1534,6 +1537,7 @@ FScreenPassTexture AddGTAOSpatialFilter(
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("GTAOFilter"));
 		Output.ViewRect = OutputViewport.Rect;
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	FGTAOSpatialFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGTAOSpatialFilterCS::FParameters>();

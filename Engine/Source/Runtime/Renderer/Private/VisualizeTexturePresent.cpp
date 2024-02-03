@@ -9,15 +9,6 @@
 #include "RenderTargetPool.h"
 #include "SceneRendering.h"
 
-void FVisualizeTexturePresent::OnStartRender(const FViewInfo& View)
-{
-#if SUPPORTS_VISUALIZE_TEXTURE
-	GVisualizeTexture.FeatureLevel = View.GetFeatureLevel();
-	GVisualizeTexture.Captured = {};
-	GVisualizeTexture.VersionCountMap.Empty();
-#endif
-}
-
 void FVisualizeTexturePresent::PresentContent(FRDGBuilder& GraphBuilder, const FViewInfo& View, FScreenPassRenderTarget Output)
 {
 	check(Output.IsValid());
@@ -99,10 +90,11 @@ void FVisualizeTexturePresent::PresentContent(FRDGBuilder& GraphBuilder, const F
 
 	Output.LoadAction = ERenderTargetLoadAction::ELoad;
 
-	const FIntPoint BufferSizeXY = View.GetSceneTexturesConfig().Extent;
+	const FIntPoint ViewportSizeXY = Captured.OutputExtent;
+	FString ViewDescription = GVisualizeTexture.ViewDescriptionMap[Captured.ViewUniqueId];
 
 	AddDrawCanvasPass(GraphBuilder, {}, View, Output,
-		[VisualizeTexture2D, BufferSizeXY, Desc, &View, InputUVMapping, InputValueMapping](FCanvas& Canvas)
+		[VisualizeTexture2D, ViewportSizeXY, Desc, &View, InputUVMapping, InputValueMapping, ViewUniqueId = Captured.ViewUniqueId, ViewDescription, ViewRects = CopyTemp(Captured.ViewRects)](FCanvas& Canvas)
 	{
 		float X = 100 + View.UnconstrainedViewRect.Min.X;
 		float Y = 160 + View.UnconstrainedViewRect.Min.Y;
@@ -146,21 +138,24 @@ void FVisualizeTexturePresent::PresentContent(FRDGBuilder& GraphBuilder, const F
 			Canvas.DrawShadowedString(X, Y += YStep, *Line, GetStatsFont(), FLinearColor(1, 1, 1));
 		}
 		{
-			FString Line = FString::Printf(TEXT("   TextureInfoString(): %s"), *(Desc.GenerateInfoString()));
+			FString Line = FString::Printf(TEXT("View ID %d: \"%s\""), ViewUniqueId, *ViewDescription);
+			Canvas.DrawShadowedString(X, Y += YStep, *Line, GetStatsFont(), FLinearColor(1, 1, 1));
+		}
+		{
+			FString Line = FString::Printf(TEXT("  TextureInfo: %s"), *(Desc.GenerateInfoString()));
 			Canvas.DrawShadowedString(X + 10, Y += YStep, *Line, GetStatsFont(), FLinearColor(1, 1, 1));
 		}
 		{
-			FString Line = FString::Printf(TEXT("  BufferSize:(%d,%d)"), BufferSizeXY.X, BufferSizeXY.Y);
+			FString Line = FString::Printf(TEXT("  ViewportSize:(%d,%d)"), ViewportSizeXY.X, ViewportSizeXY.Y);
 			Canvas.DrawShadowedString(X + 10, Y += YStep, *Line, GetStatsFont(), FLinearColor(1, 1, 1));
 		}
 
 		const FSceneViewFamily& ViewFamily = *View.Family;
 
-		for (int32 ViewId = 0; ViewId < ViewFamily.Views.Num(); ++ViewId)
+		for (int32 ViewId = 0; ViewId < ViewRects.Num(); ++ViewId)
 		{
-			const FViewInfo* ViewIt = static_cast<const FViewInfo*>(ViewFamily.Views[ViewId]);
-			FString Line = FString::Printf(TEXT("   View #%d: (%d,%d)-(%d,%d)"), ViewId + 1,
-				ViewIt->UnscaledViewRect.Min.X, ViewIt->UnscaledViewRect.Min.Y, ViewIt->UnscaledViewRect.Max.X, ViewIt->UnscaledViewRect.Max.Y);
+			const FIntRect& ViewRect = ViewRects[ViewId];
+			FString Line = FString::Printf(TEXT("   View #%d: (%d,%d)-(%d,%d)"), ViewId + 1, ViewRect.Min.X, ViewRect.Min.Y, ViewRect.Max.X, ViewRect.Max.Y);
 			Canvas.DrawShadowedString(X + 10, Y += YStep, *Line, GetStatsFont(), FLinearColor(1, 1, 1));
 		}
 

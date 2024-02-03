@@ -1659,7 +1659,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 	::Substrate::PreInitViews(*Scene);
 
-	FSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily);
+	FSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily, FamilySize);
 	FSceneTextures& SceneTextures = GetActiveSceneTextures();
 
 	{

@@ -617,6 +617,25 @@ private:
 	RENDERCORE_API FRDGTextureDebugData& GetTextureDebugData() const;
 #endif
 
+#if SUPPORTS_VISUALIZE_TEXTURE
+	FIntPoint VisualizeTextureExtent = { 0, 0 };
+public:
+	FORCEINLINE void EncloseVisualizeExtent(const FIntPoint& Point)
+	{
+		VisualizeTextureExtent.X = FMath::Max(VisualizeTextureExtent.X, Point.X);
+		VisualizeTextureExtent.Y = FMath::Max(VisualizeTextureExtent.Y, Point.Y);
+	}
+	FORCEINLINE FIntPoint GetVisualizeExtent() const
+	{
+		return VisualizeTextureExtent;
+	}
+private:
+#else
+public:
+	FORCEINLINE void EncloseVisualizeExtent(const FIntPoint& Point) {}
+private:
+#endif
+
 	friend FRDGBuilder;
 	friend FRDGUserValidation;
 	friend FRDGBarrierValidation;

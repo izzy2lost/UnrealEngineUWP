@@ -4257,7 +4257,7 @@ void FRDGBuilder::InitViewRHI(FRHICommandListBase& InRHICmdList, FRDGView* View)
 void FRDGBuilder::VisualizePassOutputs(const FRDGPass* Pass)
 {
 #if SUPPORTS_VISUALIZE_TEXTURE
-	if (!AuxiliaryPasses.IsVisualizeAllowed())
+	if (!GVisualizeTexture.IsRequestedView() || !AuxiliaryPasses.IsVisualizeAllowed())
 	{
 		return;
 	}

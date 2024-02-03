@@ -3481,8 +3481,6 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 	
 		LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
 	
-		FVisualizeTexturePresent::OnStartRender(Views[0]);
-	
 		GraphBuilder.RHICmdList.BeginScene();
 
 		VisibilityTaskData = LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this, StaticMeshUpdateTask);
@@ -4665,8 +4663,17 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 		}
 		else
 		{
+			// We don't want to run visualize texture for hit proxies, so do this here.  Note that the reason we run this here
+			// rather than inside the scene renderer is to customize the user facing description string for the visualization in
+			// other code paths (scene captures), in addition to skipping it for views where it's not useful (hit proxies and
+			// utility scene renderers like water).
+			VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(),
+				ViewFamily.ProfileDescription.IsEmpty() ? (ViewFamily.bResolveScene ? TEXT("ScenePrimary") : TEXT("SceneAuxiliary")) : *ViewFamily.ProfileDescription, false);
+
 			// Render the scene.
 			SceneRenderer->Render(GraphBuilder);
+
+			VISUALIZE_TEXTURE_END_VIEW();
 		}
 
 		SceneRenderer->FlushCrossGPUFences(GraphBuilder);

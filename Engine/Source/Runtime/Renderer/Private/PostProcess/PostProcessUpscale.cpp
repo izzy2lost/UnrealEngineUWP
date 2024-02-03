@@ -205,6 +205,7 @@ FScreenPassTexture ISpatialUpscaler::AddDefaultUpscalePass(
 
 		Output.Texture = GraphBuilder.CreateTexture(OutputDesc, TEXT("Upscale"));
 		Output.LoadAction = ERenderTargetLoadAction::EClear;
+		Output.UpdateVisualizeTextureExtent();
 	}
 
 	const FScreenPassTextureViewport InputViewport(Inputs.SceneColor);

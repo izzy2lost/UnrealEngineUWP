@@ -72,10 +72,20 @@ inline FScreenPassTexture::FScreenPassTexture(FRDGTextureRef InTexture)
 	}
 }
 
+inline void FScreenPassTexture::UpdateVisualizeTextureExtent()
+{
+	if (Texture)
+	{
+		Texture->EncloseVisualizeExtent(ViewRect.Max);
+	}
+}
+
 inline FScreenPassTexture::FScreenPassTexture(FRDGTextureRef InTexture, FIntRect InViewRect)
 	: Texture(InTexture)
 	, ViewRect(InViewRect)
-{ }
+{
+	UpdateVisualizeTextureExtent();
+}
 
 inline FScreenPassTexture::FScreenPassTexture(const FScreenPassTextureSlice& ScreenTexture)
 	: Texture(ScreenTexture.TextureSRV->Desc.Texture)
@@ -86,6 +96,8 @@ inline FScreenPassTexture::FScreenPassTexture(const FScreenPassTextureSlice& Scr
 		check(ScreenTexture.TextureSRV->Desc.FirstArraySlice == 0);
 		check(ScreenTexture.TextureSRV->Desc.NumArraySlices == 1);
 	}
+
+	UpdateVisualizeTextureExtent();
 }
 
 inline bool FScreenPassTexture::IsValid() const

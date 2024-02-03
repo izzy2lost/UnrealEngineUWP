@@ -835,7 +835,8 @@ FSSDSignalTextures CreateMultiplexedTextures(
 	FRDGBuilder& GraphBuilder,
 	int32 TextureCount,
 	const TStaticArray<FRDGTextureDesc, kMaxBufferProcessingCount>& DescArray,
-	const TCHAR* const* TextureNames)
+	const TCHAR* const* TextureNames,
+	const FIntRect& Viewport)
 {
 	check(TextureCount <= kMaxBufferProcessingCount);
 	FSSDSignalTextures SignalTextures;
@@ -843,6 +844,8 @@ FSSDSignalTextures CreateMultiplexedTextures(
 	{
 		const TCHAR* TextureName = TextureNames[i];
 		SignalTextures.Textures[i] = GraphBuilder.CreateTexture(DescArray[i], TextureName);
+
+		SignalTextures.Textures[i]->EncloseVisualizeExtent(Viewport.Max);
 	}
 	return SignalTextures;
 }
@@ -1600,6 +1603,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 
 			CommonParameters.CompressedMetadata[0] = GraphBuilder.CreateTexture(Desc, TEXT("DenoiserMetadata0"));
 			CommonParameters.CompressedMetadata[1] = nullptr;
+
+			CommonParameters.CompressedMetadata[0]->EncloseVisualizeExtent(Viewport.Max);
 		}
 		else
 		{
@@ -1632,7 +1637,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 		FSSDSignalTextures NewSignalOutput = CreateMultiplexedTextures(
 			GraphBuilder,
 			InjestTextureCount, InjestDescs,
-			GetResourceNames(kInjestResourceNames));
+			GetResourceNames(kInjestResourceNames),
+			Viewport);
 
 		FSSDInjestCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSDInjestCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
@@ -1665,7 +1671,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 		FSSDSignalTextures NewSignalOutput = CreateMultiplexedTextures(
 			GraphBuilder,
 			ReconstructionTextureCount, ReconstructionDescs,
-			GetResourceNames(kReconstructionResourceNames));
+			GetResourceNames(kReconstructionResourceNames),
+			Viewport);
 
 		FSSDSpatialAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSDSpatialAccumulationCS::FParameters>();
 		for (int32 BatchedSignalId = 0; BatchedSignalId < Settings.SignalBatchSize; BatchedSignalId++)
@@ -1721,7 +1728,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 		FSSDSignalTextures NewSignalOutput = CreateMultiplexedTextures(
 			GraphBuilder,
 			ReconstructionTextureCount, ReconstructionDescs,
-			GetResourceNames(kPreConvolutionResourceNames));
+			GetResourceNames(kPreConvolutionResourceNames),
+			Viewport);
 
 		FSSDSpatialAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSDSpatialAccumulationCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
@@ -1802,7 +1810,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 				RejectionPreConvolutionSignal = CreateMultiplexedTextures(
 					GraphBuilder,
 					RejectionTextureCount, RejectionSignalProcessingDescs,
-					GetResourceNames(kRejectionPreConvolutionResourceNames));
+					GetResourceNames(kRejectionPreConvolutionResourceNames),
+					Viewport);
 			}
 
 			FSSDSpatialAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSDSpatialAccumulationCS::FParameters>();
@@ -1831,7 +1840,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 		FSSDSignalTextures SignalOutput = CreateMultiplexedTextures(
 			GraphBuilder,
 			HistoryTextureCount, HistoryDescs,
-			GetResourceNames(kTemporalAccumulationResourceNames));
+			GetResourceNames(kTemporalAccumulationResourceNames),
+			Viewport);
 
 		FSSDTemporalAccumulationCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FSignalProcessingDim>(Settings.SignalProcessing);
@@ -2023,7 +2033,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 		FSSDSignalTextures SignalOutput = CreateMultiplexedTextures(
 			GraphBuilder,
 			HistoryTextureCount, HistoryDescs,
-			GetResourceNames(kHistoryConvolutionResourceNames));
+			GetResourceNames(kHistoryConvolutionResourceNames),
+			Viewport);
 
 		FSSDSpatialAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSDSpatialAccumulationCS::FParameters>();
 		PassParameters->MaxSampleCount = FMath::Clamp(MaxPostFilterSampleCount, 1, kStackowiakMaxSampleCountPerSet);
@@ -2160,7 +2171,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 		*OutputSignal = CreateMultiplexedTextures(
 			GraphBuilder,
 			Settings.SignalBatchSize, OutputDescs,
-			GetResourceNames(kDenoiserOutputResourceNames));
+			GetResourceNames(kDenoiserOutputResourceNames),
+			Viewport);
 
 		FSSDSpatialAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSSDSpatialAccumulationCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
@@ -2471,6 +2483,9 @@ public:
 
 				ComposedHarmonics.Textures[0] = GraphBuilder.CreateTexture(Desc, TEXT("PolychromaticPenumbraComposition0"));
 				ComposedHarmonics.Textures[1] = GraphBuilder.CreateTexture(Desc, TEXT("PolychromaticPenumbraComposition1"));
+
+				ComposedHarmonics.Textures[0]->EncloseVisualizeExtent(View.ViewRect.Max);
+				ComposedHarmonics.Textures[1]->EncloseVisualizeExtent(View.ViewRect.Max);
 			}
 
 			ComposePassParameters->CommonParameters.ViewUniformBuffer = View.ViewUniformBuffer;

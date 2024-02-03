@@ -71,12 +71,14 @@ namespace UE::MediaCapture::Resample
 		Input.Texture = InputTexture.Texture;
 		Input.ViewRect = FIntRect{ 0, 0, InputSize.X, InputSize.Y };
 		Input.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Input.UpdateVisualizeTextureExtent();
 
 		FScreenPassRenderTarget Output;
 		const FIntVector OutputSize = OutputTexture->Desc.GetSize();
 		Output.Texture = OutputTexture;
 		Output.ViewRect = FIntRect{ 0, 0, OutputSize.X, OutputSize.Y };
 		Output.LoadAction = ERenderTargetLoadAction::ENoAction;
+		Output.UpdateVisualizeTextureExtent();
 
 		FMediaCaptureResamplePS::FParameters* PassParameters = FMediaCaptureResamplePS::AllocateAndSetParameters(GraphBuilder, InputTexture.Texture, OutputTexture);
 		

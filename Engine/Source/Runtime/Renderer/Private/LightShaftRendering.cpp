@@ -477,6 +477,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLightShaftOcclusion(
 						else
 						{
 							Output.ViewRect = OutputViewport.Rect;
+							Output.UpdateVisualizeTextureExtent();
 						}
 
 						if (View.State)

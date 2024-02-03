@@ -1019,7 +1019,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	GetSceneExtensionsRenderers().PreRender(GraphBuilder);
 	GEngine->GetPreRenderDelegateEx().Broadcast(GraphBuilder);
 
-	FSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily);
+	FSceneTextures::InitializeViewFamily(GraphBuilder, ViewFamily, FamilySize);
 	FSceneTextures& SceneTextures = GetActiveSceneTextures();
 
 	FSortedLightSetSceneInfo& SortedLightSet = *GraphBuilder.AllocObject<FSortedLightSetSceneInfo>();

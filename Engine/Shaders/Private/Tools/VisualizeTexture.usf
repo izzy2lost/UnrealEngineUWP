@@ -51,6 +51,40 @@ void VisualizeTexturePS(
 		float s = sin(Angles.y);
 		SpherePos = float3(s * sin(Angles.x), -s * cos(Angles.x), -cos(Angles.y));
 	}
+	
+	// Pixel based cube map unwrapping -- assumes 4x3 aspect ratio.  Produces a seamless panorama in the middle, connected to adjacent sky / floor faces.
+	float3 CubePixelPos;
+	{
+		float2 LerpCoords = UV * float2(4.0, 3.0);
+		float FaceCoords[3] =
+		{
+			frac(LerpCoords.x) * 2.0 - 1.0,
+			frac(LerpCoords.y) * 2.0 - 1.0,
+			1.0
+		};
+		
+		// Table selecting a UV coordinate or "1" for each of the XYZ axes using a hex digit, preceded by a "0" or "2" to specify whether the axis should be negated.
+		uint FaceUVMappingTable[12] =
+		{
+			0x010002,		// Positive Z faces (different rotations to line up with panoramic neighbor below)
+			0x200102,
+			0x212002,
+			0x002102,
+			0x020021,		// Positive X
+			0x200221,		// Positive Y
+			0x222021,		// Negative X
+			0x002221,		// Negative Y
+			0x210022,		// Negative Z faces (different rotations to line up with panoramic neighbor above)
+			0x202122,
+			0x012022,
+			0x000122,
+		};
+		uint FaceUVMapping = FaceUVMappingTable[floor(LerpCoords.x) + floor(LerpCoords.y) * 4.0];
+		CubePixelPos = float3(
+			FaceCoords[(FaceUVMapping >> 16) & 0xf] * (1.0 - ((float) ((FaceUVMapping >> 20) & 0xf))),
+			FaceCoords[(FaceUVMapping >>  8) & 0xf] * (1.0 - ((float) ((FaceUVMapping >> 12) & 0xf))),
+			FaceCoords[(FaceUVMapping >>  0) & 0xf] * (1.0 - ((float) ((FaceUVMapping >>  4) & 0xf))));
+	}
 
 	// volume texture unwrapping
 	float3 VolumePos;
@@ -74,7 +108,8 @@ void VisualizeTexturePS(
 
 
 #if TEXTURE_TYPE == 0
-	float4 TexLookup = TextureCubeSampleLevel(VisualizeTextureCube, VisualizeTextureCubeSampler, SpherePos, MipLevel);
+	// Select pixel accurate map coordinates if the visualization is 4x3 aspect ratio
+	float4 TexLookup = TextureCubeSampleLevel(VisualizeTextureCube, VisualizeTextureCubeSampler, TextureExtent.x*0.75 == TextureExtent.y ? CubePixelPos : SpherePos, MipLevel);
 #elif TEXTURE_TYPE == 2 || TEXTURE_TYPE == 6
 	float4 TexLookup = Texture2DSampleLevel(VisualizeTexture2D, VisualizeTexture2DSampler, UV, MipLevel);
 #elif TEXTURE_TYPE == 3

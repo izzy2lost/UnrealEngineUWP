@@ -1044,7 +1044,14 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 		}
 		else if (CaptureComponent->GetOwner())
 		{
-			CaptureComponent->GetOwner()->GetFName().ToString(EventName);
+			// The label might be non-unique, so include the actor name as well
+			EventName = CaptureComponent->GetOwner()->GetActorNameOrLabel();
+
+			FName ActorName = CaptureComponent->GetOwner()->GetFName();
+			if (ActorName != EventName)
+			{
+				EventName.Appendf(TEXT(" (%s)"), *ActorName.ToString());
+			}
 		}
 		FName TargetName = TextureRenderTarget->GetFName();
 
@@ -1126,7 +1133,11 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 				// Don't clear the render target when compositing, or in a tiling mode that fills in the render target in multiple passes.
 				bool bClearRenderTarget = !bIsCompositing && !bEnableOrthographicTiling;
 
+				VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
+
 				UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTargetResource, TextureRenderTargetResource, EventName, CopyInfo, bGenerateMips, GenerateMipsParams, bClearRenderTarget, bOrthographicCamera);
+
+				VISUALIZE_TEXTURE_END_VIEW();
 
 #if WITH_EDITOR
 				if (ViewState)
@@ -1260,8 +1271,18 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 			}
 			else if (CaptureComponent->GetOwner())
 			{
-				CaptureComponent->GetOwner()->GetFName().ToString(EventName);
+				// The label might be non-unique, so include the actor name as well
+				EventName = CaptureComponent->GetOwner()->GetActorNameOrLabel();
+
+				FName ActorName = CaptureComponent->GetOwner()->GetFName();
+				if (ActorName != EventName)
+				{
+					EventName.Appendf(TEXT(" (%s)"), *ActorName.ToString());
+				}
 			}
+
+			// Include the cube face index in the event name
+			EventName.Appendf(TEXT(" [%d]"), faceidx);
 
 			for (const FSceneViewExtensionRef& Extension : SceneRenderer->ViewFamily.ViewExtensions)
 			{
@@ -1273,9 +1294,13 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponentCube* CaptureCompo
 			ENQUEUE_RENDER_COMMAND(CaptureCommand)(
 				[SceneRenderer, TextureRenderTarget, EventName, TargetFace](FRHICommandListImmediate& RHICmdList)
 				{
+					VISUALIZE_TEXTURE_BEGIN_VIEW(SceneRenderer->FeatureLevel, SceneRenderer->Views[0].GetViewKey(), *EventName, true);
+
 					FRHICopyTextureInfo CopyInfo;
 					CopyInfo.DestSliceIndex = TargetFace;
 					UpdateSceneCaptureContent_RenderThread(RHICmdList, SceneRenderer, TextureRenderTarget, TextureRenderTarget, EventName, CopyInfo, false, FGenerateMipsParams(), true, false);
+
+					VISUALIZE_TEXTURE_END_VIEW();
 				}
 			);
 		}

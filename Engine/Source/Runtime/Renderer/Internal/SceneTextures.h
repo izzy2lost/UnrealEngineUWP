@@ -54,7 +54,7 @@ struct FMinimalSceneTextures
 struct FSceneTextures : public FMinimalSceneTextures
 {
 	// Initializes the scene textures structure in the FViewFamilyInfo
-	static RENDERER_API void InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily);
+	static RENDERER_API void InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily, FIntPoint FamilySize);
 	static RENDERER_API EPixelFormat GetGBufferFFormatAndCreateFlags(ETextureCreateFlags& OutCreateFlags);
 
 	// Configures an array of render targets for the GBuffer pass.
@@ -65,6 +65,9 @@ struct FSceneTextures : public FMinimalSceneTextures
 		ERenderTargetLoadAction LoadAction,
 		FRenderTargetBindingSlots& RenderTargets,
 		EGBufferLayout Layout = GBL_Default) const;
+
+	// Returns list of valid textures in this structure
+	RENDERER_API TArray<FRDGTextureRef> EnumerateSceneTextures() const;
 	
 	// (Deferred) Texture containing conservative downsampled depth for occlusion.
 	FRDGTextureRef SmallDepth{};

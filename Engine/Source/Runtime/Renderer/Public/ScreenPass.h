@@ -52,6 +52,8 @@ struct FScreenPassTexture
 	bool operator==(FScreenPassTexture Other) const;
 	bool operator!=(FScreenPassTexture Other) const;
 
+	void UpdateVisualizeTextureExtent();
+
 	FRDGTextureRef Texture = nullptr;
 	FIntRect ViewRect;
 };

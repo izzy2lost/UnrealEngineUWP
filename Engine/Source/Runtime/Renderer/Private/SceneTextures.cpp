@@ -21,6 +21,7 @@
 #include "PostProcess/PostProcessPixelProjectedReflectionMobile.h"
 #include "IHeadMountedDisplayModule.h"
 #include "Substrate/Substrate.h"
+#include "VisualizeTexture.h"
 
 static TAutoConsoleVariable<int32> CVarSceneTargetsResizeMethod(
 	TEXT("r.SceneRenderTargetResizeMethod"),
@@ -511,7 +512,7 @@ FSceneTextureShaderParameters FMinimalSceneTextures::GetSceneTextureShaderParame
 	return OutSceneTextureShaderParameters;
 }
 
-void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily)
+void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamilyInfo& ViewFamily, FIntPoint FamilySize)
 {
 	const FSceneTexturesConfig& Config = ViewFamily.SceneTexturesConfig;
 	FSceneTextures& SceneTextures = ViewFamily.SceneTextures;
@@ -638,6 +639,20 @@ void FSceneTextures::InitializeViewFamily(FRDGBuilder& GraphBuilder, FViewFamily
 		SceneTextures.QuadOverdraw = GraphBuilder.CreateTexture(QuadOverdrawDesc, TEXT("QuadOverdrawTexture"));
 	}
 #endif
+
+#if SUPPORTS_VISUALIZE_TEXTURE
+	if (GVisualizeTexture.IsRequestedView())
+	{
+		TArray<FIntRect> FamilyViewRects;
+		FamilyViewRects.SetNumUninitialized(ViewFamily.Views.Num());
+		for (int32 ViewIndex = 0; ViewIndex < ViewFamily.Views.Num(); ViewIndex++)
+		{
+			FamilyViewRects[ViewIndex] = ViewFamily.Views[ViewIndex]->UnconstrainedViewRect;
+		}
+
+		GVisualizeTexture.SetSceneTextures(SceneTextures.EnumerateSceneTextures(), FamilySize, FamilyViewRects);
+	}
+#endif
 }
 
 uint32 FSceneTextures::GetGBufferRenderTargets(
@@ -706,6 +721,53 @@ uint32 FSceneTextures::GetGBufferRenderTargets(
 		RenderTargetBindingSlots[Index] = FRenderTargetBinding(RenderTargets[Index].Texture, LoadAction);
 	}
 	return RenderTargetCount;
+}
+
+static void AddTextureIfNonNull(FRDGTextureRef Texture, TArray<FRDGTextureRef>& OutTextures)
+{
+	if (Texture)
+	{
+		OutTextures.Add(Texture);
+	}
+}
+
+static void AddTextureIfNonNull(const FRDGTextureMSAA& Texture, TArray<FRDGTextureRef>& OutTextures)
+{
+	if (Texture.Target)
+	{
+		OutTextures.Add(Texture.Target);
+	}
+}
+
+TArray<FRDGTextureRef> FSceneTextures::EnumerateSceneTextures() const
+{
+	TArray<FRDGTextureRef> Results;
+	Results.Reserve(20);
+
+	AddTextureIfNonNull(Color, Results);
+	AddTextureIfNonNull(Depth, Results);
+	AddTextureIfNonNull(PartialDepth, Results);
+	AddTextureIfNonNull(CustomDepth.Depth, Results);
+	AddTextureIfNonNull(SmallDepth, Results);
+	AddTextureIfNonNull(GBufferA, Results);
+	AddTextureIfNonNull(GBufferB, Results);
+	AddTextureIfNonNull(GBufferC, Results);
+	AddTextureIfNonNull(GBufferD, Results);
+	AddTextureIfNonNull(GBufferE, Results);
+	AddTextureIfNonNull(GBufferF, Results);
+	AddTextureIfNonNull(DepthAux, Results);
+	AddTextureIfNonNull(Velocity, Results);
+	AddTextureIfNonNull(MobileLocalLightTextureA, Results);
+	AddTextureIfNonNull(MobileLocalLightTextureB, Results);
+	AddTextureIfNonNull(ScreenSpaceAO, Results);
+	AddTextureIfNonNull(QuadOverdraw, Results);
+	AddTextureIfNonNull(PixelProjectedReflection, Results);
+#if WITH_EDITOR
+	AddTextureIfNonNull(EditorPrimitiveColor, Results);
+	AddTextureIfNonNull(EditorPrimitiveDepth, Results);
+#endif
+
+	return Results;
 }
 
 void FSceneTextureExtracts::QueueExtractions(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)

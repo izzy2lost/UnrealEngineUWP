@@ -191,6 +191,7 @@
 	#include "DynamicResolutionState.h"
 	#include "EngineModule.h"
 	#include "DumpGPU.h"
+	#include "VisualizeTexture.h"
 
 #if !UE_SERVER
 	#include "AppMediaTimeSource.h"
@@ -5497,6 +5498,8 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 	FCsvProfiler::BeginExclusiveStat("RenderThreadOther");
 #endif
 
+	GVisualizeTexture.BeginFrameRenderThread();
+
 	// Waits after this point but before BeginRenderingViewFamilies are not on the RT critical path (since we're waiting for the GT)
 	FThreadIdleStats::EndCriticalPath();
 }
@@ -5521,6 +5524,8 @@ static inline void EndFrameRenderThread(FRHICommandListImmediate& RHICmdList, ui
 
 	FCoreDelegates::OnEndFrameRT.Broadcast();
 	RHICmdList.EndFrame();
+
+	GVisualizeTexture.EndFrameRenderThread();
 
 	GPU_STATS_ENDFRAME(RHICmdList);
 

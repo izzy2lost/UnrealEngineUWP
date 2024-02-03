@@ -2708,6 +2708,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 
 			TonemapperInputs.OverrideOutput.ViewRect = OutputViewRect;
 			TonemapperInputs.OverrideOutput.LoadAction = OutputLoadAction;
+			TonemapperInputs.OverrideOutput.UpdateVisualizeTextureExtent();
 		}
 			
 		TonemapperInputs.SceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, SceneColor);
