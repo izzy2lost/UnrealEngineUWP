@@ -2665,6 +2665,7 @@ void FNiagaraEditorUtilities::CreateAssetFromEmitter(TSharedRef<FNiagaraEmitterH
 	if (CreatedAsset != nullptr)
 	{
 		CreatedAsset->SetUniqueEmitterName(CreatedAsset->GetName());
+		CreatedAsset->bIsInheritable = true;
 
 		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(CreatedAsset);
 
