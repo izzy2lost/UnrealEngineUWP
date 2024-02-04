@@ -580,10 +580,18 @@ static VM_FORCEINLINE VectorRegister4i VVMXorwowStep(FVectorVMBatchState *BatchS
 	return Result;
 }
 
-FVectorVMState *AllocVectorVMState(FVectorVMOptimizeContext *OptimizeCtx) {
-	if (OptimizeCtx == nullptr || OptimizeCtx->Error.Line != 0) {
+FVectorVMState *AllocVectorVMState(FVectorVMOptimizeContext *OptimizeCtx)
+{
+	if (OptimizeCtx == nullptr)
+	{
 		return nullptr;
 	}
+#if WITH_EDITORONLY_DATA
+	if (OptimizeCtx->Error.Line != 0)
+	{
+		return nullptr;
+	}
+#endif
 	//compute the number of overhead bytes for this VVM State
 	uint32 ConstBufferOffset         = VVM_ALIGN_32(sizeof(FVectorVMState));
 
