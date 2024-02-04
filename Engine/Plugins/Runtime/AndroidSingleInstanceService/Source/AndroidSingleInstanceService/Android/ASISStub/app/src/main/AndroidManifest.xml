@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="com.epicgames.ASISStub">
+	
+	<queries>
+		<package android:name="com.epicgames.Lyra"/>
+		<package android:name="com.epicgames.makeaar"/>
+		<package android:name="com.epicgames.unreal"/>
+	</queries>
+	
+	<application
+		android:label="@string/ASISAppName"
+		android:requestLegacyExternalStorage="true"
+		android:hasCode="true" 
+		android:usesCleartextTraffic="true" 
+		android:allowTaskReparenting="true" 
+		android:supportsRtl="true" 
+		android:hardwareAccelerated="true"
+		android:allowBackup="true"
+		android:theme="@style/FullscreenTheme"
+		>
+		<activity
+            android:name=".UseServiceActivity"
+			android:configChanges="orientation|keyboardHidden|screenSize"
+			android:hardwareAccelerated="true" android:allowTaskReparenting="true" android:exported="true"
+			>
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+
+	</application>
+	
+ 
+
+</manifest>

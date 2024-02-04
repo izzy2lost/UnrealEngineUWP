@@ -49,11 +49,21 @@ public class EngineFactory extends HandlerThread {
 		return Singleton.INSTANCE.getLooper();
 	}
 
+	public void onDestroy()
+	{
+		synchronized(this)
+		{
+			Log.w("UE", "LIFECYCLE: EngineFactory::onDestroy() - stop instance thread, engine = " + Singleton.INSTANCE.engine);
+
+			Singleton.INSTANCE.quit();
+		}
+	}
+
 	public static void Reset()
 	{
 		if (Singleton.INSTANCE.engine != null)
 		{
-			Log.d("UE", "EngineFactory::Reset() - releasing current engine resources, engine = " + Singleton.INSTANCE.engine);
+			Log.d("UE", "LIFECYCLE: EngineFactory::Reset() - releasing current engine resources, engine = " + Singleton.INSTANCE.engine);
 			//engine.onDestroy(543210);
 			Singleton.INSTANCE.engine.onDestroy(543210, "EngineFactory::Reset()");
 		}
@@ -66,13 +76,13 @@ public class EngineFactory extends HandlerThread {
 		
 		if (Singleton.INSTANCE.engine != null)
 		{
-            Log.d("UE", "EngineFactory::GetInstance() - USING existing Engine instance, proc = " + Application.getProcessName() + ", engine = " + Singleton.INSTANCE.engine);
+            Log.d("UE", "LIFECYCLE: EngineFactory::GetInstance() - USING existing Engine instance, proc = " + Application.getProcessName() + ", engine = " + Singleton.INSTANCE.engine);
 			return Singleton.INSTANCE.engine;
 		}
 //		engineActivity = activity;
 		Singleton.INSTANCE.engine = new Engine(activity, OBBFilename, projectModule, enablePropagateAlpha);
 		
-        Log.d("UE", "EngineFactory::GetInstance(with OBBFilename) - CREATED new Engine instance, proc = " + Application.getProcessName() + ", engine = " + Singleton.INSTANCE.engine);
+        Log.d("UE", "LIFECYCLE: EngineFactory::GetInstance(with OBBFilename) - CREATED new Engine instance, proc = " + Application.getProcessName() + ", engine = " + Singleton.INSTANCE.engine);
         return Singleton.INSTANCE.engine;
 	}
 
