@@ -568,6 +568,14 @@ void FSlateElementBatcher::AddCachedElements(FSlateCachedElementData& CachedElem
 	}
 	CachedElementData.ListsWithNewData.Empty();
 
+	for (const FSlateRenderBatch& CachedBatch : CachedElementData.GetCachedBatches())
+	{
+		if (const FSlateShaderResource* ShaderResource = CachedBatch.GetShaderResource())
+		{
+			UsedSlatePostBuffers |= ShaderResource->GetUsedSlatePostBuffers();
+		}
+	}
+
 	// Add the existing and new cached batches.
 	FSlateBatchData::AddCachedBatchesToBatchData(BatchData, BatchDataHDR, CachedElementData.GetCachedBatches());
 	CachedElementData.CleanupUnusedClipStates();
