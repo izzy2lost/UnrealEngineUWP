@@ -64,10 +64,10 @@ namespace UE::PixelStreamingVCam::Private
 			UseLegacyAudioDevice->Set(true);
 		}
 
-		// Decouple engine's render rate from streaming rate
+		// Want to couple UE render rate and streaming rate together as it results in better frame sync on the LiveLink app side
 		if (IConsoleVariable* DecoupleFramerateCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.DecoupleFramerate")))
 		{
-			DecoupleFramerateCVar->Set(true);
+			DecoupleFramerateCVar->Set(false);
 		}
 
 		// Set the rate at which we will stream
@@ -76,10 +76,10 @@ namespace UE::PixelStreamingVCam::Private
 			StreamFPS->Set(60);
 		}
 
-		// Set capture use fence to true, as we require this for decoupling to work.. even though it is irrelevant to VCam (hack)
+		// Irrelevant for VCam once we are doing coupled render/stream rate, but set to false in case this codepath changes.
 		if (IConsoleVariable* CaptureUseFence = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.CaptureUseFence")))
 		{
-			CaptureUseFence->Set(true);
+			CaptureUseFence->Set(false);
 		}
 
 		// Disable keyframes interval
