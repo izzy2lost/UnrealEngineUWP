@@ -143,51 +143,18 @@ public class UnrealSharedInstanceService extends Service {
 		}
 
 		@Override
-		public void eventCallback(int event, String param1, int param2, int param3, float param4)
+		public void eventCallback(int _event, String param1, int param2, int param3, float param4)
 		{
+			UnrealMessageType event = UnrealMessageType.fromInteger(_event);
 
-			if (event != 3 && event != 4) {
-				Log.d(TAG, "eventCallback: " + event);
-			}
-
-			if (event == Engine.EVENTTYPE_FRAME_BEGIN) {
-
-
-			}
-
-			if (event == Engine.EVENTTYPE_FRAME_END) {
-
-			}
-
-			if (event == Engine.EVENTTYPE_POST_ENGINE_INIT)
-			{
-
-
-			}
-
-			if (event == Engine.EVENTTYPE_PRE_LOAD_MAP)
-			{
-
-			}
-
-			if (event == Engine.EVENTTYPE_POST_LOAD_MAP) {
-
-				//Log.i(TAG, "Configure unlocked FPS");
-				//engine.sendConsoleCommand("rhi.SyncInterval=1"); // 0 = unlocked, 1 = 60 fps, 2 = 30 fps
-				//engine.sendConsoleCommand("r.Vsync=0");
-				//engine.sendConsoleCommand("r.GTSyncType=1"); // will cause the game thread to sync with the RHI thread (rather than the rendering thread), which caps the upper limit of input latency to something more sensible
-
-
-
-			} else if (event == Engine.EVENTTYPE_ACTION) {
-
+			if (_event != 3 && _event != 4) {
 				Log.d(TAG, "eventCallback: " + event);
 			}
 
 			if (mServiceReply != null) {
 				try {
 					Message replyMsg = Message.obtain();
-					replyMsg.what = event;
+					replyMsg.what = _event;
 					if (param1 != null && !param1.isEmpty())
 					{
 //						Log.d(TAG, "writing parceable eventCallback: " + event + ", param1=" + param1);
