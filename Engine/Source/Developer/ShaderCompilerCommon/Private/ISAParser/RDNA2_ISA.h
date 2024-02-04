@@ -2586,6 +2586,23 @@ const char* ToString(EGLOBALOps Op)
 #undef OP_TO_STRING_CASE
 }
 
+inline bool HasTrailingLiteral(RDNA2::EVOP2Ops Op)
+{
+	switch (Op)
+	{
+	case RDNA2::EVOP2Ops::v_madmk_f32:
+	case RDNA2::EVOP2Ops::v_madak_f32:
+	case RDNA2::EVOP2Ops::v_fmamk_f32:
+	case RDNA2::EVOP2Ops::v_fmaak_f32:
+	case RDNA2::EVOP2Ops::v_fmamk_f16:
+	case RDNA2::EVOP2Ops::v_fmaak_f16:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
 void PrintSMEM(const FInstSMEM& Inst)
 {
 	ESMEMOps Op = (ESMEMOps)Inst.OP;

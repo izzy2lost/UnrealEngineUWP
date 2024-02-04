@@ -16,7 +16,7 @@ struct FDebugParserRDNA1
 			const RDNA1::EVOP2Ops Op = (const RDNA1::EVOP2Ops)Inst.OP;
 
 			// These instructions always have a literal constant that follows
-			if (Op == RDNA1::EVOP2Ops::v_madmk_f32 || Op == RDNA1::EVOP2Ops::v_madak_f32)
+			if (RDNA1::HasTrailingLiteral(Op))
 			{
 				AdvanceAmount++;
 			}
@@ -178,7 +178,7 @@ struct FDebugParserRDNA2
 			const RDNA2::EVOP2Ops Op = (const RDNA2::EVOP2Ops)Inst.OP;
 
 			// These instructions always have a literal constant that follows
-			if (Op == RDNA2::EVOP2Ops::v_madmk_f32 || Op == RDNA2::EVOP2Ops::v_madak_f32)
+			if (RDNA2::HasTrailingLiteral(Op))
 			{
 				AdvanceAmount++;
 			}
@@ -343,7 +343,7 @@ struct FQuadModeParserRDNA1
 			const RDNA1::EVOP2Ops Op = (const RDNA1::EVOP2Ops)Inst.OP;
 
 			// These instructions always have a literal constant that follows
-			if (Op == RDNA1::EVOP2Ops::v_madmk_f32 || Op == RDNA1::EVOP2Ops::v_madak_f32)
+			if (RDNA1::HasTrailingLiteral(Op))
 			{
 				AdvanceAmount++;
 			}
@@ -499,7 +499,7 @@ struct FQuadModeParserRDNA2
 			const RDNA2::EVOP2Ops Op = (const RDNA2::EVOP2Ops)Inst.OP;
 
 			// These instructions always have a literal constant that follows
-			if (Op == RDNA2::EVOP2Ops::v_madmk_f32 || Op == RDNA2::EVOP2Ops::v_madak_f32)
+			if (RDNA2::HasTrailingLiteral(Op))
 			{
 				AdvanceAmount++;
 			}
