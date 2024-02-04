@@ -177,22 +177,50 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="flags">Flags for the file</param>
 		public static void SetPermissions(FileInfo fileInfo, FileEntryFlags flags)
 		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+			{
+				int mode = FileUtils.GetFileMode_Linux(fileInfo.FullName);
+
+				int newMode = UpdateFileMode(mode, flags);
+				if (mode != newMode)
+				{
+					FileUtils.SetFileMode_Linux(fileInfo.FullName, (ushort)newMode);
+					fileInfo.Refresh();
+				}
+			}
+			else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+			{
+				int mode = FileUtils.GetFileMode_Mac(fileInfo.FullName);
+
+				int newMode = UpdateFileMode(mode, flags);
+				if (mode != newMode)
+				{
+					FileUtils.SetFileMode_Mac(fileInfo.FullName, (ushort)newMode);
+					fileInfo.Refresh();
+				}
+			}
+			else
+			{
+				if ((flags & FileEntryFlags.ReadOnly) != 0)
+				{
+					fileInfo.Attributes |= FileAttributes.ReadOnly;
+				}
+			}
+		}
+
+		static int UpdateFileMode(int mode, FileEntryFlags flags)
+		{
 			if ((flags & FileEntryFlags.ReadOnly) != 0)
 			{
-				fileInfo.Attributes |= FileAttributes.ReadOnly;
+				const int WriteMask = 0b_010_010_010;
+				mode &= ~WriteMask;
 			}
-
 			if ((flags & FileEntryFlags.Executable) != 0)
 			{
-				if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-				{
-					FileUtils.SetFileMode_Linux(fileInfo.FullName, 0b_111_111_111);
-				}
-				else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-				{
-					FileUtils.SetFileMode_Mac(fileInfo.FullName, 0b_111_111_111);
-				}
+				const int ExecuteMask = 0b_001_001_001;
+				mode |= ExecuteMask;
 			}
+			return mode;
 		}
 
 		/// <inheritdoc/>
