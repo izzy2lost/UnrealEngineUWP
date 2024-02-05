@@ -1673,8 +1673,8 @@ void UClusterUnionComponent::VisitAllCurrentActors(const TFunction<bool(AActor*)
 void UClusterUnionComponent::VisitAllCurrentChildComponentsForCollision(ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params, const struct FCollisionResponseParams& ResponseParams, const struct FCollisionObjectQueryParams& ObjectParams, const TFunction<bool(UPrimitiveComponent*)>& Lambda) const
 {
 	TSet<uint32> IgnoredActors;
-	IgnoredActors.Reserve(Params.GetIgnoredActors().Num());
-	for (uint32 Id : Params.GetIgnoredActors())
+	IgnoredActors.Reserve(Params.GetIgnoredSourceObjects().Num());
+	for (uint32 Id : Params.GetIgnoredSourceObjects())
 	{
 		IgnoredActors.Add(Id);
 	}

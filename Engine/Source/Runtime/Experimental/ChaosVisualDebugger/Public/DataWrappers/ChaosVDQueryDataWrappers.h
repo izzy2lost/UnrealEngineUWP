@@ -118,7 +118,7 @@ struct FChaosVDCollisionQueryParams : public FChaosVDWrapperDataBase
 		IgnoreMask = Other.IgnoreMask;
 
 		IgnoredComponentsIDs = Other.GetIgnoredComponents();
-		IgnoredActorsIDs = Other.GetIgnoredActors();
+		IgnoredActorsIDs = Other.GetIgnoredSourceObjects();
 
 		bHasValidData = true;
 	}

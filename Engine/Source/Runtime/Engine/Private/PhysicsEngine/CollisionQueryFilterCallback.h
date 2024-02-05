@@ -25,6 +25,8 @@ public:
 	/** List of ComponentIds for this query to ignore */
 	const FilterIgnoreComponentsArrayType& IgnoreComponents;
 
+	//~ TODO: It would be nice to rename this to IgnoreSourceObjects, because these might not be actors in
+	//~ non-actor workflows (requires deprecation).
 	/** List of ActorIds for this query to ignore */
 	const FilterIgnoreActorsArrayType& IgnoreActors;
 
@@ -39,7 +41,7 @@ public:
 
 	FCollisionQueryFilterCallback(const FCollisionQueryParams& InQueryParams, bool bInIsSweep)
 		: IgnoreComponents(InQueryParams.GetIgnoredComponents())
-		, IgnoreActors(InQueryParams.GetIgnoredActors())
+		, IgnoreActors(InQueryParams.GetIgnoredSourceObjects())
 #if DETECT_SQ_HITCHES
 		, bRecordHitches(false)
 #endif

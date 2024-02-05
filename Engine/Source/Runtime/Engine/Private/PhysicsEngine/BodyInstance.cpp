@@ -1167,12 +1167,28 @@ void FInitBodiesHelperBase::UpdateSimulatingAndBlendWeight()
 	GetSimulatingAndBlendWeight(SkelMeshComp, BodySetup, InstanceBlendWeight, bInstanceSimulatePhysics);
 }
 
+template<bool bCompileStatic>
+FInitBodiesHelper<bCompileStatic>::FInitBodiesHelper(
+	TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, UBodySetup* InBodySetup, 
+	UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, 
+	const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
+	: FInitBodiesHelper<bCompileStatic>(InBodies, InTransforms, InBodySetup, InPrimitiveComp,
+		InPrimitiveComp ? InPrimitiveComp->GetOwner() : nullptr, 
+		InRBScene, InSpawnParams, InAggregate)
+{
+}
+template struct FInitBodiesHelper<true>;
+template struct FInitBodiesHelper<false>;
 
-FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
+
+FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, 
+	class UBodySetup* InBodySetup, UPrimitiveComponent* InComponent, UObject* InSourceObject, FPhysScene* InRBScene, 
+	const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
 	: Bodies(InBodies)
 	, Transforms(InTransforms)
 	, BodySetup(InBodySetup)
-	, PrimitiveComp(InPrimitiveComp)
+	, PrimitiveComp(InComponent)
+	, SourceObject(InSourceObject)
 	, PhysScene(InRBScene)
 	, Aggregate(InAggregate)
 #if USE_BODYINSTANCE_DEBUG_NAMES
@@ -1187,6 +1203,17 @@ FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, T
 #if USE_BODYINSTANCE_DEBUG_NAMES
 	PhysXName = GetDebugDebugName(PrimitiveComp, BodySetup, *DebugName);
 #endif
+}
+
+FInitBodiesHelperBase::FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms,
+	class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene,
+	const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
+	// Forward to the other constructor
+	: FInitBodiesHelperBase(InBodies, InTransforms, InBodySetup,
+		InPrimitiveComp,
+		InPrimitiveComp ? InPrimitiveComp->GetOwner() : nullptr,
+		InRBScene, InSpawnParams, InAggregate)
+{
 }
 
 // Return to actor ref
@@ -1377,6 +1404,7 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 		}
 
 		Instance->OwnerComponent = PrimitiveComp;
+		Instance->SourceObject = SourceObject;
 		Instance->BodySetup = BodySetup;
 		Instance->Scale3D = Transform.GetScale3D();
 #if USE_BODYINSTANCE_DEBUG_NAMES
@@ -1410,7 +1438,8 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 		if (FPhysicsInterface::IsValid(Instance->GetPhysicsActorHandle()))
 		{
 			Instance->OwnerComponent = nullptr;
-			Instance->BodySetup      = nullptr;
+			Instance->SourceObject = nullptr;
+			Instance->BodySetup = nullptr;
 			Bodies.RemoveAt(BodyIdx);  // so we wont add it to the physx scene again later.
 			Transforms.RemoveAt(BodyIdx);
 			continue;
@@ -1444,6 +1473,7 @@ bool FInitBodiesHelperBase::CreateShapesAndActors()
 			FPhysicsInterface::ReleaseActor(Instance->ActorHandle, PhysScene);
 
 			Instance->OwnerComponent = nullptr;
+			Instance->SourceObject = nullptr;
 			Instance->BodySetup = nullptr;
 			Instance->ExternalCollisionProfileBodySetup = nullptr;
 
@@ -1589,7 +1619,12 @@ static TAutoConsoleVariable<int32> CVarAllowCreatePhysxBodies(
 	ECVF_ReadOnly);
 
 
-void FBodyInstance::InitBody(class UBodySetup* Setup, const FTransform& Transform, UPrimitiveComponent* PrimComp, FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams)
+void FBodyInstance::InitBody(UBodySetup* Setup, const FTransform& Transform, UPrimitiveComponent* PrimComp, FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams)
+{
+	InitBody(Setup, Transform, PrimComp, nullptr, InRBScene, SpawnParams);
+}
+
+void FBodyInstance::InitBody(class UBodySetup* Setup, const FTransform& Transform, UPrimitiveComponent* PrimComp, UObject* InSourceObject, FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams)
 {
 	if (CVarAllowCreatePhysxBodies.GetValueOnGameThread() == 0)
 	{
@@ -1608,15 +1643,21 @@ void FBodyInstance::InitBody(class UBodySetup* Setup, const FTransform& Transfor
 	Bodies.Add(this);
 	Transforms.Add(Transform);
 
+	UObject* SourceObjectToUse = InSourceObject;
+	if (!SourceObjectToUse && PrimComp)
+	{
+		SourceObjectToUse = PrimComp->GetOwner();
+	}
+
 	bool bIsStatic = SpawnParams.bStaticPhysics;
 	if(bIsStatic)
 	{
-		FInitBodiesHelper<true> InitBodiesHelper(Bodies, Transforms, Setup, PrimComp, InRBScene, SpawnParams, SpawnParams.Aggregate);
+		FInitBodiesHelper<true> InitBodiesHelper(Bodies, Transforms, Setup, PrimComp, SourceObjectToUse, InRBScene, SpawnParams, SpawnParams.Aggregate);
 		InitBodiesHelper.InitBodies();
 	}
 	else
 	{
-		FInitBodiesHelper<false> InitBodiesHelper(Bodies, Transforms, Setup, PrimComp, InRBScene, SpawnParams, SpawnParams.Aggregate);
+		FInitBodiesHelper<false> InitBodiesHelper(Bodies, Transforms, Setup, PrimComp, SourceObjectToUse, InRBScene, SpawnParams, SpawnParams.Aggregate);
 		InitBodiesHelper.InitBodies();
 	}
 
@@ -4229,9 +4270,12 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData,
 		return;
 	}
 
-	// Figure out if we are static
 	UPrimitiveComponent* OwnerComponentInst = OwnerComponent.Get();
-	AActor* Owner = OwnerComponentInst ? OwnerComponentInst->GetOwner() : NULL;
+	AActor* ActorOwner = Cast<AActor>(SourceObject.Get());
+	if (!ActorOwner && OwnerComponentInst)
+	{
+		ActorOwner = OwnerComponentInst->GetOwner();
+	}
 	const bool bPhysicsStatic = !OwnerComponentInst || OwnerComponentInst->IsWorldGeometry();
 
 	// Grab collision setting from body instance.
@@ -4293,9 +4337,9 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData,
 
 #if WITH_EDITOR
 	// if no collision, but if world wants to enable trace collision for components, allow it
-	if((UseCollisionEnabled == ECollisionEnabled::NoCollision) && Owner && (Owner->IsA(AVolume::StaticClass()) == false))
+	if((UseCollisionEnabled == ECollisionEnabled::NoCollision) && ActorOwner && (ActorOwner->IsA(AVolume::StaticClass()) == false))
 	{
-		UWorld* World = Owner->GetWorld();
+		UWorld* World = ActorOwner->GetWorld();
 		UPrimitiveComponent* PrimComp = OwnerComponentInst;
 		if(World && World->bEnableTraceCollision &&
 		   (PrimComp->IsA(UStaticMeshComponent::StaticClass()) || PrimComp->IsA(USkeletalMeshComponent::StaticClass()) || PrimComp->IsA(UBrushComponent::StaticClass())))
@@ -4319,9 +4363,9 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData,
 		FCollisionFilterData SimFilterData;
 		FCollisionFilterData SimpleQueryData;
 
-		uint32 ActorID = Owner ? Owner->GetUniqueID() : 0;
+		uint32 SourceObjectID = SourceObject.IsValid() ? SourceObject->GetUniqueID() : 0;
 		uint32 CompID = (OwnerComponentInst != nullptr) ? OwnerComponentInst->GetUniqueID() : 0;
-		CreateShapeFilterData(UseChannel, MaskFilter, ActorID, UseResponse, CompID, InstanceBodyIndex, SimpleQueryData, SimFilterData, bRootCCD && !bPhysicsStatic, bUseNotifyRBCollision, bPhysicsStatic, bUseContactModification);
+		CreateShapeFilterData(UseChannel, MaskFilter, SourceObjectID, UseResponse, CompID, InstanceBodyIndex, SimpleQueryData, SimFilterData, bRootCCD && !bPhysicsStatic, bUseNotifyRBCollision, bPhysicsStatic, bUseContactModification);
 
 		FCollisionFilterData ComplexQueryData = SimpleQueryData;
 			

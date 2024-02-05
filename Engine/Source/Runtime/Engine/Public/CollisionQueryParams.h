@@ -80,7 +80,9 @@ struct FCollisionQueryParams
 	typedef TArray<uint32, TInlineAllocator<8>> IgnoreComponentsArrayType;
 
 	/** TArray typedef of actors to ignore. */
-	typedef TArray<uint32, TInlineAllocator<4>> IgnoreActorsArrayType;
+	typedef TArray<uint32, TInlineAllocator<4>> IgnoreSourceObjectsArrayType;
+
+	typedef IgnoreSourceObjectsArrayType IgnoreActorsArrayType;
 
 	/** Extra filtering done on the query. See declaration for filtering logic */
 	FMaskFilter IgnoreMask;
@@ -105,8 +107,8 @@ private:
 	/** Set of components to ignore during the trace */
 	mutable IgnoreComponentsArrayType IgnoreComponents;
 
-	/** Set of actors to ignore during the trace */
-	IgnoreActorsArrayType IgnoreActors;
+	/** Set of source objects to ignore during the trace. In actor workflows, these are actors. */
+	IgnoreSourceObjectsArrayType IgnoreSourceObjects;
 
 	ENGINE_API void Internal_AddIgnoredComponent(const UPrimitiveComponent* InIgnoreComponent);
 
@@ -115,10 +117,21 @@ public:
 	/** Returns set of unique components to ignore during the trace. Elements are guaranteed to be unique (they are made so internally if they are not already). */
 	ENGINE_API const IgnoreComponentsArrayType& GetIgnoredComponents() const;
 
-	/** Returns set of actors to ignore during the trace. Note that elements are NOT guaranteed to be unique. This is less important for actors since it's less likely that duplicates are added.*/
+	UE_DEPRECATED(5.5, "Use GetIgnoredSourceObjects instead.")
+	/** Returns set of source objects (including actors) to ignore during the trace. Note that elements are NOT guaranteed to be unique. This is less important for actors since it's less likely that duplicates are added.*/
 	const IgnoreActorsArrayType& GetIgnoredActors() const
 	{
-		return IgnoreActors;
+		return IgnoreSourceObjects;
+	}
+
+	/**
+	 * Returns the set of source objects (such as actors) to ignore during the trace. Note that elements are
+	 * NOT guaranteed to be unique. This is less important for source objects than components since it's
+	 * less likely that duplicates are added.
+	 */
+	const IgnoreActorsArrayType& GetIgnoredSourceObjects() const
+	{
+		return IgnoreSourceObjects;
 	}
 
 	/** Clears the set of components to ignore during the trace. */
@@ -128,10 +141,17 @@ public:
 		bComponentListUnique = true;
 	}
 
+	UE_DEPRECATED(5.5, "Use ClearIgnoredSourceObjects instead.")
 	/** Clears the set of actors to ignore during the trace. */
 	void ClearIgnoredActors()
 	{
-		IgnoreActors.Reset();
+		IgnoreSourceObjects.Reset();
+	}
+
+	/** Clears the set of source objects (such as actors) to ignore during the trace. */
+	void ClearIgnoredSourceObjects()
+	{
+		IgnoreSourceObjects.Reset();
 	}
 
 	/**
@@ -175,18 +195,27 @@ public:
 
 	// Utils
 
-	/** Add an actor for this trace to ignore */
+	/** Add an actor for this trace to ignore. Equivalent to calling AddIgnoredSourceObject. */
 	ENGINE_API void AddIgnoredActor(const AActor* InIgnoreActor);
 
-	/** Add an actor by ID for this trace to ignore */
+	/** Add an actor by ID for this trace to ignore. Equivalent to calling AddIgnoredSourceObject. */
 	ENGINE_API void AddIgnoredActor(const uint32 InIgnoreActorID);
 
-	/** Add a collection of actors for this trace to ignore */
+	/** Add a source object for this trace to ignore */
+	ENGINE_API void AddIgnoredSourceObject(const UObject* InIgnoreActor);
+
+	/** Add a source object for this trace to ignore */
+	ENGINE_API void AddIgnoredSourceObject(const uint32 InIgnoreActorID);
+
+	/** Add a collection of actors for this trace to ignore. Equivalent to calling AddIgnoredSourceObjects */
 	ENGINE_API void AddIgnoredActors(const TArray<AActor*>& InIgnoreActors);
 	ENGINE_API void AddIgnoredActors(const TArray<const AActor*>& InIgnoreActors);
-
-	/** Variant that uses an array of TWeakObjectPtrs */
 	ENGINE_API void AddIgnoredActors(const TArray<TWeakObjectPtr<const AActor> >& InIgnoreActors);
+
+	/** Add a collection of source objects for this trace to ignore */
+	ENGINE_API void AddIgnoredSourceObjects(const TArray<UObject*>& InIgnoreObjects);
+	ENGINE_API void AddIgnoredSourceObjects(const TArray<const UObject*>& InIgnoreObjects);
+	ENGINE_API void AddIgnoredSourceObjects(const TArray<TWeakObjectPtr<const UObject> >& InIgnoreObjects);
 
 	/** Add a component for this trace to ignore */
 	ENGINE_API void AddIgnoredComponent(const UPrimitiveComponent* InIgnoreComponent);

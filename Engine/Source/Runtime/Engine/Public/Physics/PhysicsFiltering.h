@@ -47,7 +47,7 @@ struct FPhysicsFilterBuilder
 		}
 	}
 
-	inline void GetQueryData(uint32 ActorID, uint32& OutWord0, uint32& OutWord1, uint32& OutWord2, uint32& OutWord3) const
+	inline void GetQueryData(uint32 SourceObjectID, uint32& OutWord0, uint32& OutWord1, uint32& OutWord2, uint32& OutWord3) const
 	{
 		/**
 		 * Format for QueryData : 
@@ -56,7 +56,7 @@ struct FPhysicsFilterBuilder
 		 *		word2 (touching channels)
 		 *		word3 (ExtraFilter (top NumExtraFilterBits) + MyChannel (next NumCollisionChannelBits) as ECollisionChannel + Flags (remaining NumFilterDataFlagBits)
 		 */
-		OutWord0 = ActorID;
+		OutWord0 = SourceObjectID;
 		OutWord1 = BlockingBits;
 		OutWord2 = TouchingBits;
 		OutWord3 = Word3;
@@ -94,7 +94,7 @@ private:
 inline void CreateShapeFilterData(
 	const uint8 MyChannel,
 	const FMaskFilter MaskFilter,
-	const int32 ActorID,
+	const int32 SourceObjectID,
 	const FCollisionResponseContainer& ResponseToChannels,
 	uint32 ComponentID,
 	uint16 BodyIndex,
@@ -113,7 +113,7 @@ inline void CreateShapeFilterData(
 
 	OutQueryData = FCollisionFilterData();
 	OutSimData = FCollisionFilterData();
-	Builder.GetQueryData(ActorID, OutQueryData.Word0, OutQueryData.Word1, OutQueryData.Word2, OutQueryData.Word3);
+	Builder.GetQueryData(SourceObjectID, OutQueryData.Word0, OutQueryData.Word1, OutQueryData.Word2, OutQueryData.Word3);
 	Builder.GetSimData(BodyIndex, ComponentID, OutSimData.Word0, OutSimData.Word1, OutSimData.Word2, OutSimData.Word3);
 }
 

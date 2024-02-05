@@ -83,7 +83,13 @@ struct FInitBodySpawnParams
 
 struct FInitBodiesHelperBase
 {
-	ENGINE_API FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+	ENGINE_API FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, 
+		class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, 
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+	
+	ENGINE_API FInitBodiesHelperBase(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, 
+		class UBodySetup* InBodySetup, class UPrimitiveComponent* InComponent, UObject* InSourceObject, FPhysScene* InRBScene,
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
 
 	FInitBodiesHelperBase(const FInitBodiesHelperBase& InHelper) = delete;
 	FInitBodiesHelperBase(FInitBodiesHelperBase&& InHelper) = delete;
@@ -97,6 +103,7 @@ struct FInitBodiesHelperBase
 	TArray<FTransform>& Transforms;
 	class UBodySetup* BodySetup;
 	class UPrimitiveComponent* PrimitiveComp;
+	UObject* SourceObject;
 	FPhysScene* PhysScene;
 	FPhysicsAggregateHandle Aggregate;
 
@@ -133,13 +140,19 @@ protected:
 template <bool bCompileStatic>
 struct FInitBodiesHelper : public FInitBodiesHelperBase
 {
-	FInitBodiesHelper(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene, const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
-	: FInitBodiesHelperBase(InBodies, InTransforms, InBodySetup, InPrimitiveComp, InRBScene, InSpawnParams, InAggregate)
+	FInitBodiesHelper(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup,
+		class UPrimitiveComponent* InPrimitiveComp, FPhysScene* InRBScene,
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate);
+
+	FInitBodiesHelper(TArray<FBodyInstance*>& InBodies, TArray<FTransform>& InTransforms, class UBodySetup* InBodySetup, 
+		class UPrimitiveComponent* InComponent, class UObject* InOwnerObject, FPhysScene* InRBScene,
+		const FInitBodySpawnParams& InSpawnParams, FPhysicsAggregateHandle InAggregate)
+		: FInitBodiesHelperBase(InBodies, InTransforms, InBodySetup, InComponent, InOwnerObject, InRBScene, InSpawnParams, InAggregate)
 	{
 		//Compute all the needed constants
 		bStatic = bCompileStatic || SpawnParams.bStaticPhysics;
 		SkelMeshComp = bCompileStatic ? nullptr : Cast<USkeletalMeshComponent>(PrimitiveComp);
-		if(SpawnParams.bPhysicsTypeDeterminesSimulation)
+		if (SpawnParams.bPhysicsTypeDeterminesSimulation)
 		{
 			this->UpdateSimulatingAndBlendWeight();
 		}
@@ -623,8 +636,11 @@ public:
 	TSharedPtr<TArray<ANSICHAR>> CharDebugName;
 #endif
 
-	/** PrimitiveComponent containing this body.   */
+	/** PrimitiveComponent containing this body, if relevant.   */
 	TWeakObjectPtr<class UPrimitiveComponent> OwnerComponent;
+
+	/** Source object for this body. If OwnerComponent is not null, this will typically be the owning actor. */
+	TWeakObjectPtr<UObject> SourceObject;
 
 	/** Constructor **/
 	ENGINE_API FBodyInstance();
@@ -654,6 +670,21 @@ public:
 	*	@param InAggregate An aggregate to place the body into
 	*/
 	ENGINE_API void InitBody(UBodySetup* Setup, const FTransform& Transform, UPrimitiveComponent* PrimComp, FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams);
+
+	/**
+	 * Initialise a single rigid body (this FBodyInstance) for the given body setup
+	 *  @param Setup The setup to use to create the body
+	 *  @param Transform Transform of the body
+	 *  @param PrimComp The owning component
+	 *  @param SourceObject The source object. If null and PrimComp is not null, it will be set
+	 *   to the owning actor.
+	 *  @param InRBScene The physics scene to place the body into
+	 *  @param SpawnParams The parameters for determining certain spawn behavior
+	 *  @param InAggregate An aggregate to place the body into
+	 */
+	ENGINE_API void InitBody(UBodySetup* Setup, const FTransform& Transform, 
+		UPrimitiveComponent* PrimComp, UObject* SourceObject, 
+		FPhysScene* InRBScene, const FInitBodySpawnParams& SpawnParams);
 
 	/** Validate a body transform, outputting debug info
 	 *	@param Transform Transform to debug
