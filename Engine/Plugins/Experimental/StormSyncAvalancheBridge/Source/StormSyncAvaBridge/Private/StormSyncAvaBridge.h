@@ -2,10 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/StringFwd.h"
 #include "Modules/ModuleInterface.h"
+#include "Templates/UniquePtr.h"
 
 class FStormSyncAvaSyncProvider;
+class IConsoleObject;
 
 /**
  * Module for Storm Sync Ava Bridge runtime module
@@ -18,13 +21,11 @@ class FStormSyncAvaSyncProvider;
  */
 class FStormSyncAvaBridgeModule : public IModuleInterface
 {
-public:
 	//~ Begin IModuleInterface interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 	//~ End IModuleInterface interface
 
-private:
 	/** References of registered console commands via IConsoleManager */
 	TArray<IConsoleObject*> ConsoleCommands;
 

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StormSyncAvaPlaylistExtender.h"
+#include "StormSyncAvaRundownExtender.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IAvaMediaEditorModule.h"
 #include "IAvaMediaModule.h"
@@ -15,14 +15,14 @@
 #include "Subsystems/StormSyncNotificationSubsystem.h"
 #include "Toolkits/ToolkitManager.h"
 
-#define LOCTEXT_NAMESPACE "FStormSyncAvaPlaylistExtender"
+#define LOCTEXT_NAMESPACE "FStormSyncAvaRundownExtender"
 
-FStormSyncAvaPlaylistExtender::FStormSyncAvaPlaylistExtender()
+FStormSyncAvaRundownExtender::FStormSyncAvaRundownExtender()
 {
-	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FStormSyncAvaPlaylistExtender::OnPostEngineInit);
+	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FStormSyncAvaRundownExtender::OnPostEngineInit);
 }
 
-FStormSyncAvaPlaylistExtender::~FStormSyncAvaPlaylistExtender()
+FStormSyncAvaRundownExtender::~FStormSyncAvaRundownExtender()
 {
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
@@ -33,7 +33,7 @@ FStormSyncAvaPlaylistExtender::~FStormSyncAvaPlaylistExtender()
 	}
 }
 
-void FStormSyncAvaPlaylistExtender::OnPostEngineInit()
+void FStormSyncAvaRundownExtender::OnPostEngineInit()
 {
 	if (IAvaMediaEditorModule::IsLoaded())
 	{
@@ -41,22 +41,22 @@ void FStormSyncAvaPlaylistExtender::OnPostEngineInit()
 	}
 }
 
-void FStormSyncAvaPlaylistExtender::RegisterMenuExtensions()
+void FStormSyncAvaRundownExtender::RegisterMenuExtensions()
 {
 	// Context menu extension
 	MenuExtenderHandle = RegisterExtension(
 		IAvaMediaEditorModule::Get().GetRundownMenuExtensibilityManager(),
-		FAssetEditorExtender::CreateSP(this, &FStormSyncAvaPlaylistExtender::AddMenuExtender)
+		FAssetEditorExtender::CreateSP(this, &FStormSyncAvaRundownExtender::AddMenuExtender)
 	);
-	
+
 	// Toolbar extension
 	ToolbarExtenderHandle = RegisterExtension(
 		IAvaMediaEditorModule::Get().GetRundownToolBarExtensibilityManager(),
-		FAssetEditorExtender::CreateSP(this, &FStormSyncAvaPlaylistExtender::AddToolbarExtender)
+		FAssetEditorExtender::CreateSP(this, &FStormSyncAvaRundownExtender::AddToolbarExtender)
 	);
 }
 
-FDelegateHandle FStormSyncAvaPlaylistExtender::RegisterExtension(const TSharedPtr<FExtensibilityManager> InExtensibilityManager, const FAssetEditorExtender& InExtenderDelegate)
+FDelegateHandle FStormSyncAvaRundownExtender::RegisterExtension(const TSharedPtr<FExtensibilityManager> InExtensibilityManager, const FAssetEditorExtender& InExtenderDelegate)
 {
 	if (!InExtensibilityManager.IsValid())
 	{
@@ -68,7 +68,7 @@ FDelegateHandle FStormSyncAvaPlaylistExtender::RegisterExtension(const TSharedPt
 	return InExtensibilityManager->GetExtenderDelegates()[ExtenderIndex].GetHandle();
 }
 
-void FStormSyncAvaPlaylistExtender::UnregisterExtension(const TSharedPtr<FExtensibilityManager> InExtensibilityManager, const FDelegateHandle& InHandleToRemove)
+void FStormSyncAvaRundownExtender::UnregisterExtension(const TSharedPtr<FExtensibilityManager> InExtensibilityManager, const FDelegateHandle& InHandleToRemove)
 {
 	if (!InExtensibilityManager.IsValid())
 	{
@@ -81,25 +81,26 @@ void FStormSyncAvaPlaylistExtender::UnregisterExtension(const TSharedPtr<FExtens
 	});
 }
 
-TSharedRef<FExtender> FStormSyncAvaPlaylistExtender::AddMenuExtender(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> ContextSensitiveObjects)
+TSharedRef<FExtender> FStormSyncAvaRundownExtender::AddMenuExtender(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> ContextSensitiveObjects)
 {
-	STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("FStormSyncAvaPlaylistExtender::AddMenuExtender - Adding in menu extensions"))
+	UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("FStormSyncAvaRundownExtender::AddMenuExtender - Adding in menu extensions"));
+
 	TSharedRef<FExtender> Extender(new FExtender());
 
-	const UAvaRundown* Playlist = ContextSensitiveObjects.IsValidIndex(0) ? Cast<UAvaRundown>(ContextSensitiveObjects[0]) : nullptr;
-	if (!Playlist)
+	const UAvaRundown* Rundown = ContextSensitiveObjects.IsValidIndex(0) ? Cast<UAvaRundown>(ContextSensitiveObjects[0]) : nullptr;
+	if (!Rundown)
 	{
 		return Extender;
 	}
 
-	const TSharedPtr<IToolkit> AssetEditor = FToolkitManager::Get().FindEditorForAsset(Playlist);
+	const TSharedPtr<IToolkit> AssetEditor = FToolkitManager::Get().FindEditorForAsset(Rundown);
 	if (!AssetEditor.IsValid())
 	{
 		return Extender;
 	}
 
-	const TSharedPtr<FAvaRundownEditor> PlaylistEditor = StaticCastSharedPtr<FAvaRundownEditor>(AssetEditor);
-	if (!PlaylistEditor.IsValid())
+	const TSharedPtr<FAvaRundownEditor> RundownEditor = StaticCastSharedPtr<FAvaRundownEditor>(AssetEditor);
+	if (!RundownEditor.IsValid())
 	{
 		return Extender;
 	}
@@ -109,27 +110,27 @@ TSharedRef<FExtender> FStormSyncAvaPlaylistExtender::AddMenuExtender(const TShar
 		AvalancheExtensionHook,
 		EExtensionHook::After,
 		InCommandList,
-		// Convert to weak ptr to prevent ownership to the playlist editor and potentially increasing its lifetime
-		FMenuExtensionDelegate::CreateSP(this, &FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu, Playlist, TWeakPtr<FAvaRundownEditor>(PlaylistEditor))
+		// Convert to weak ptr to prevent ownership to the rundown editor and potentially increasing its lifetime
+		FMenuExtensionDelegate::CreateSP(this, &FStormSyncAvaRundownExtender::CreateTemplateContextMenu, Rundown, TWeakPtr<FAvaRundownEditor>(RundownEditor))
 	);
 
 	return Extender;
 }
 
-void FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu(FMenuBuilder& MenuBuilder, const UAvaRundown* InPlaylist, TWeakPtr<FAvaRundownEditor> InPlaylistEditor)
+void FStormSyncAvaRundownExtender::CreateTemplateContextMenu(FMenuBuilder& MenuBuilder, const UAvaRundown* InRundown, TWeakPtr<FAvaRundownEditor> InRundownEditor)
 {
-	check(InPlaylist);
+	check(InRundown);
 
-	const TSharedPtr<FAvaRundownEditor> PlaylistEditor = InPlaylistEditor.Pin();
-	if (!PlaylistEditor.IsValid())
+	const TSharedPtr<FAvaRundownEditor> RundownEditor = InRundownEditor.Pin();
+	if (!RundownEditor.IsValid())
 	{
-		STORM_SYNC_AVA_EDITOR_LOG(Error, TEXT("FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu - Invalid shared ptr from weak ptr delegate param"))
+		UE_LOG(LogStormSyncAvaBridgeEditor, Error, TEXT("FStormSyncAvaRundownExtender::CreateTemplateContextMenu - Invalid shared ptr from weak ptr delegate param"));
 		return;
 	}
 
 	if (!FModuleManager::Get().IsModuleLoaded(TEXT("StormSyncEditor")))
 	{
-		STORM_SYNC_AVA_EDITOR_LOG(Error, TEXT("FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu - StormSyncEditor module is not loaded. Is StormSync plugin enabled ?"))
+		UE_LOG(LogStormSyncAvaBridgeEditor, Error, TEXT("FStormSyncAvaRundownExtender::CreateTemplateContextMenu - StormSyncEditor module is not loaded. Is StormSync plugin enabled ?"));
 		return;
 	}
 
@@ -137,27 +138,27 @@ void FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu(FMenuBuilder& Menu
 	bool bIsValidSelection = false;
 	TArray<FName> SelectedPackageNames;
 	FCanExecuteAction DefaultCanExecuteAction;
-	GetContextMenuSelectionInfos(InPlaylist, InPlaylistEditor, bIsValidSelection, DisabledTooltipReason, SelectedPackageNames, DefaultCanExecuteAction);
+	GetContextMenuSelectionInfos(InRundown, InRundownEditor, bIsValidSelection, DisabledTooltipReason, SelectedPackageNames, DefaultCanExecuteAction);
 
 	// For later use with action handler
 	const FStormSyncEditorModule& StormSyncEditor = FStormSyncEditorModule::Get();
 
 	MenuBuilder.BeginSection("StormSyncOperations_Template", LOCTEXT("StormSyncOperationsHeader", "Synchronize Actions"));
-	
+
 	// Initialize action
 	{
 		const FText TooltipText = bIsValidSelection ?
 			FText::Format(LOCTEXT("Initialize_Tooltip", "Sync asset over remote node.{0}"), DisabledTooltipReason) :
-			FText::Format(LOCTEXT("Initialize_Tooltip_Invalid", "Please ensure the playlist page is using a valid Avalanche Blueprint.{0}"), DisabledTooltipReason);
+			FText::Format(LOCTEXT("Initialize_Tooltip_Invalid", "Please ensure the rundown page is using a valid Avalanche Blueprint.{0}"), DisabledTooltipReason);
 
-		const TArray<FAvaRundownPage> SelectedTemplatePages = GetSelectedPages(InPlaylist, InPlaylistEditor);
-		
+		const TArray<FAvaRundownPage> SelectedTemplatePages = GetSelectedPages(InRundown, InRundownEditor);
+
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("Initialize_Label", "Initialize"),
 			TooltipText,
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.ExportAll"),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &FStormSyncAvaPlaylistExtender::HandleInitializeAction, InPlaylist, SelectedTemplatePages),
+				FExecuteAction::CreateSP(this, &FStormSyncAvaRundownExtender::HandleInitializeAction, InRundown, SelectedTemplatePages),
 				DefaultCanExecuteAction
 			)
 		);
@@ -173,7 +174,7 @@ void FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu(FMenuBuilder& Menu
 		if (!bIsValidSelection)
 		{
 			LabelText = LOCTEXT("PushAssetsMenuEntryInvalid", "Cannot push. Page has no valid asset.");
-			TooltipText = LOCTEXT("PushAssetsMenuEntryTooltipInvalid", "Please ensure the playlist pages are using a valid Avalanche Blueprint.");
+			TooltipText = LOCTEXT("PushAssetsMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Avalanche Blueprint.");
 		}
 		else
 		{
@@ -217,7 +218,7 @@ void FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu(FMenuBuilder& Menu
 		if (!bIsValidSelection)
 		{
 			LabelText = LOCTEXT("CompareAssetsMenuEntryInvalid", "Cannot compare. Page has no valid asset.");
-			TooltipText = LOCTEXT("CompareAssetsMenuEntryTooltipInvalid", "Please ensure the playlist pages are using a valid Avalanche Blueprint.");
+			TooltipText = LOCTEXT("CompareAssetsMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Avalanche Blueprint.");
 		}
 		else
 		{
@@ -227,7 +228,7 @@ void FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu(FMenuBuilder& Menu
 				DisabledTooltipReason
 			);
 		}
-		
+
 		MenuBuilder.AddSubMenu(
 			LabelText,
 			TooltipText,
@@ -246,21 +247,21 @@ void FStormSyncAvaPlaylistExtender::CreateTemplateContextMenu(FMenuBuilder& Menu
 	MenuBuilder.EndSection();
 }
 
-void FStormSyncAvaPlaylistExtender::HandleInitializeAction(const UAvaRundown* InPlaylist, TArray<FAvaRundownPage> InSelectedTemplatePages)
+void FStormSyncAvaRundownExtender::HandleInitializeAction(const UAvaRundown* InRundown, TArray<FAvaRundownPage> InSelectedTemplatePages)
 {
 	// Build a list of package names to push grouped by channel name (and remote)
 	// Key is the remote address id, value is the list of package names to synchronize
 	TMap<FString, TArray<FName>> PackageNamesPerChannel;
-	
+
 	for (const FAvaRundownPage& SelectedPage : InSelectedTemplatePages)
 	{
-		const FString AssetName = SelectedPage.GetAssetPath(InPlaylist).GetLongPackageName();
-		TArray<FString> ChannelNames = GetChannelNamesForTemplatePage(InPlaylist, SelectedPage);
+		const FString AssetName = SelectedPage.GetAssetPath(InRundown).GetLongPackageName();
+		TArray<FString> ChannelNames = GetChannelNamesForTemplatePage(InRundown, SelectedPage);
 
 		// From the list of channel names that match this asset to sync, build the list of server names
 		// Note: there may be more than one server per channel (channel support multiple outputs).
-		
-		STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("ChannelNames for asset \"%s\" are: %s"), *AssetName, *FString::Join(ChannelNames, TEXT(", ")));
+
+		UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("ChannelNames for asset \"%s\" are: %s"), *AssetName, *FString::Join(ChannelNames, TEXT(", ")));
 
 		TArray<FString> RemoteServerNames;
 		for (FString ChannelName : ChannelNames)
@@ -268,7 +269,7 @@ void FStormSyncAvaPlaylistExtender::HandleInitializeAction(const UAvaRundown* In
 			const TArray<FString> ServerNames = FStormSyncAvaBridgeUtils::GetServerNamesForChannel(ChannelName);
 			if (ServerNames.IsEmpty())
 			{
-				STORM_SYNC_AVA_EDITOR_LOG(Warning, TEXT("FStormSyncAvaPlaylistExtender::HandleInitializeActions - Unable to determine playback servers for channel \"%s\""), *ChannelName)
+				UE_LOG(LogStormSyncAvaBridgeEditor, Warning, TEXT("FStormSyncAvaRundownExtender::HandleInitializeActions - Unable to determine playback servers for channel \"%s\""), *ChannelName);
 				continue;
 			}
 
@@ -282,14 +283,14 @@ void FStormSyncAvaPlaylistExtender::HandleInitializeAction(const UAvaRundown* In
 			{
 				// Get address id for storm sync client on playback host
 				FString ClientAddress = PlaybackClient.GetServerUserData(ServerName, UE::StormSync::AvaBridgeCommon::StormSyncClientAddressKey);
-				STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("ClientAddress on playback server %s is %s"), *ServerName, *ClientAddress);
+				UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("ClientAddress on playback server %s is %s"), *ServerName, *ClientAddress);
 
 				if (ClientAddress.IsEmpty())
 				{
-					STORM_SYNC_AVA_EDITOR_LOG(Warning, TEXT("Storm Sync Server Adress id for playback server %s is empty"), *ServerName);
+					UE_LOG(LogStormSyncAvaBridgeEditor, Warning, TEXT("Storm Sync Server Adress id for playback server %s is empty"), *ServerName);
 					continue;
 				}
-				
+
 				TArray<FName>& PackageNames = PackageNamesPerChannel.FindOrAdd(ClientAddress);
 				PackageNames.Add(FName(*AssetName));
 			}
@@ -300,36 +301,38 @@ void FStormSyncAvaPlaylistExtender::HandleInitializeAction(const UAvaRundown* In
 	{
 		FString AddressId = NamesPerChannel.Key;
 		TArray<FName> PackageNames = NamesPerChannel.Value;
-		
-		STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("Names per channel - Channel: %s"), *AddressId)
+
+		UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("Names per channel - Channel: %s"), *AddressId);
+
 		for (const FName& PackageName : PackageNames)
 		{
-			STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("\t PackageName: %s"), *PackageName.ToString())
+			UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("\t PackageName: %s"), *PackageName.ToString());
 		}
 
 		PushPackagesToRemote(AddressId, PackageNames);
 	}
 }
 
-TSharedRef<FExtender> FStormSyncAvaPlaylistExtender::AddToolbarExtender(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> ContextSensitiveObjects)
+TSharedRef<FExtender> FStormSyncAvaRundownExtender::AddToolbarExtender(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> ContextSensitiveObjects)
 {
-	STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("FStormSyncAvaPlaylistExtender::AddToolbarExtender - Adding in toolbar extensions"))
+	UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("FStormSyncAvaRundownExtender::AddToolbarExtender - Adding in toolbar extensions"));
+
 	TSharedRef<FExtender> Extender(new FExtender());
 
-	const UAvaRundown* Playlist = ContextSensitiveObjects.IsValidIndex(0) ? Cast<UAvaRundown>(ContextSensitiveObjects[0]) : nullptr;
-	if (!Playlist)
+	const UAvaRundown* Rundown = ContextSensitiveObjects.IsValidIndex(0) ? Cast<UAvaRundown>(ContextSensitiveObjects[0]) : nullptr;
+	if (!Rundown)
 	{
 		return Extender;
 	}
 
-	const TSharedPtr<IToolkit> AssetEditor = FToolkitManager::Get().FindEditorForAsset(Playlist);
+	const TSharedPtr<IToolkit> AssetEditor = FToolkitManager::Get().FindEditorForAsset(Rundown);
 	if (!AssetEditor.IsValid())
 	{
 		return Extender;
 	}
 
-	const TSharedPtr<FAvaRundownEditor> PlaylistEditor = StaticCastSharedPtr<FAvaRundownEditor>(AssetEditor);
-	if (!PlaylistEditor.IsValid())
+	const TSharedPtr<FAvaRundownEditor> RundownEditor = StaticCastSharedPtr<FAvaRundownEditor>(AssetEditor);
+	if (!RundownEditor.IsValid())
 	{
 		return Extender;
 	}
@@ -338,23 +341,23 @@ TSharedRef<FExtender> FStormSyncAvaPlaylistExtender::AddToolbarExtender(const TS
 		"Pages",
 		EExtensionHook::After,
 		InCommandList,
-		FToolBarExtensionDelegate::CreateSP(this, &FStormSyncAvaPlaylistExtender::FillToolbar, TWeakPtr<FAvaRundownEditor>(PlaylistEditor))
+		FToolBarExtensionDelegate::CreateSP(this, &FStormSyncAvaRundownExtender::FillToolbar, TWeakPtr<FAvaRundownEditor>(RundownEditor))
 	);
-	
-	STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("FStormSyncAvaPlaylistExtender::AddToolbarExtender - Rundown: %s"), *GetNameSafe(Playlist))
-	
+
+	UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("FStormSyncAvaRundownExtender::AddToolbarExtender - Rundown: %s"), *GetNameSafe(Rundown));
+
 	return Extender;
 }
 
-void FStormSyncAvaPlaylistExtender::FillToolbar(FToolBarBuilder& ToolbarBuilder, TWeakPtr<FAvaRundownEditor> InPlaylistEditor)
+void FStormSyncAvaRundownExtender::FillToolbar(FToolBarBuilder& ToolbarBuilder, TWeakPtr<FAvaRundownEditor> InRundownEditor)
 {
 	ToolbarBuilder.BeginSection(TEXT("StormSync"));
 	{
 		ToolbarBuilder.AddComboButton(
 			FUIAction(),
-			FOnGetContent::CreateSP(this, &FStormSyncAvaPlaylistExtender::GenerateToolbarMenu, InPlaylistEditor),
+			FOnGetContent::CreateSP(this, &FStormSyncAvaRundownExtender::GenerateToolbarMenu, InRundownEditor),
 			LOCTEXT("ToolbarLabel", "Synchronize Actions"),
-			LOCTEXT("ToolbarToolTip", "Synchronize the playlist assets over the network"),
+			LOCTEXT("ToolbarToolTip", "Synchronize the rundown assets over the network"),
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Recompile"),
 			false
 		);
@@ -362,35 +365,35 @@ void FStormSyncAvaPlaylistExtender::FillToolbar(FToolBarBuilder& ToolbarBuilder,
 	ToolbarBuilder.EndSection();
 }
 
-TSharedRef<SWidget> FStormSyncAvaPlaylistExtender::GenerateToolbarMenu(TWeakPtr<FAvaRundownEditor> InPlaylistEditor)
+TSharedRef<SWidget> FStormSyncAvaRundownExtender::GenerateToolbarMenu(TWeakPtr<FAvaRundownEditor> InRundownEditor)
 {
 	TArray<FName> PackageNames;
 
-	const TSharedPtr<FAvaRundownEditor> PlaylistEditor = InPlaylistEditor.Pin();
+	const TSharedPtr<FAvaRundownEditor> RundownEditor = InRundownEditor.Pin();
 
-	if (PlaylistEditor.IsValid() && PlaylistEditor->IsRundownValid())
+	if (RundownEditor.IsValid() && RundownEditor->IsRundownValid())
 	{
-		const UAvaRundown* Playlist = PlaylistEditor->GetRundown(); 
+		const UAvaRundown* Rundown = RundownEditor->GetRundown(); 
 
 		// Gather the list of all package names from Avalanche Blueprints in this Rundown pages
-		const FAvaRundownPageCollection& AvalanchePageCollection = Playlist->GetTemplatePages();
+		const FAvaRundownPageCollection& AvalanchePageCollection = Rundown->GetTemplatePages();
 		for (const FAvaRundownPage& AvalanchePage : AvalanchePageCollection.Pages)
 		{
-			if (FString PackageName = AvalanchePage.GetAssetPath(Playlist).GetLongPackageName(); !PackageName.IsEmpty())
+			if (FString PackageName = AvalanchePage.GetAssetPath(Rundown).GetLongPackageName(); !PackageName.IsEmpty())
 			{
 				PackageNames.AddUnique(FName(*PackageName));
 			}
 		}
 	}
-	
+
 	FMenuBuilder MenuBuilder(true, nullptr);
 
 	MenuBuilder.BeginSection(TEXT("StormSyncActions"));
-	
+
 	if (FModuleManager::Get().IsModuleLoaded(TEXT("StormSyncEditor")))
 	{
 		FStormSyncEditorModule& StormSyncEditor = FStormSyncEditorModule::Get();
-		
+
 		const int32 PackagesCount = PackageNames.Num();
 
 		TArray<FString> AssetList;
@@ -404,12 +407,12 @@ TSharedRef<SWidget> FStormSyncAvaPlaylistExtender::GenerateToolbarMenu(TWeakPtr<
 			"PushAssetsToolbarMenuEntryTooltip",
 			"Push {0} asset(s) (and inner dependencies) to specific remote.\n\nTransfer will only proceed if changes are detected.\n\n{1}"
 		), FText::AsNumber(PackagesCount), FText::FromString(FString::Join(AssetList, LINE_TERMINATOR)));
-		
+
 		const bool bIsPushEnabled = !PackageNames.IsEmpty();
 		if (!bIsPushEnabled)
 		{
 			LabelText = LOCTEXT("PushAssetsToolbarMenuEntryInvalid", "Cannot push. Rundown pages have no valid assets.");
-			TooltipText = LOCTEXT("PushAssetsToolbarMenuEntryTooltipInvalid", "Please ensure the playlist pages are using a valid Avalanche Blueprint");
+			TooltipText = LOCTEXT("PushAssetsToolbarMenuEntryTooltipInvalid", "Please ensure the rundown pages are using a valid Avalanche Blueprint");
 		}
 
 		constexpr bool bIsPushing = true;
@@ -456,14 +459,14 @@ TSharedRef<SWidget> FStormSyncAvaPlaylistExtender::GenerateToolbarMenu(TWeakPtr<
 	return MenuBuilder.MakeWidget();
 }
 
-void FStormSyncAvaPlaylistExtender::PushPackagesToRemote(const FString& RemoteAddressId, const TArray<FName>& InPackageNames)
+void FStormSyncAvaRundownExtender::PushPackagesToRemote(const FString& RemoteAddressId, const TArray<FName>& InPackageNames)
 {
-	STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("FStormSyncAvaPlaylistExtender::PushPackagesToRemote - InSelectedPage: (InPackageNames: %d, RemoteAddressId: %s)"), InPackageNames.Num(), *RemoteAddressId)
+	UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("FStormSyncAvaRundownExtender::PushPackagesToRemote - InSelectedPage: (InPackageNames: %d, RemoteAddressId: %s)"), InPackageNames.Num(), *RemoteAddressId);
 
 	FMessageAddress RemoteMessageAddress;
 	if (!FMessageAddress::Parse(RemoteAddressId, RemoteMessageAddress))
 	{
-		STORM_SYNC_AVA_EDITOR_LOG(Error, TEXT("Unable to parse %s into a Message Address"), *RemoteAddressId);
+		UE_LOG(LogStormSyncAvaBridgeEditor, Error, TEXT("Unable to parse %s into a Message Address"), *RemoteAddressId);
 		return;
 	}
 
@@ -474,50 +477,50 @@ void FStormSyncAvaPlaylistExtender::PushPackagesToRemote(const FString& RemoteAd
 	const FOnStormSyncPushComplete Delegate = FOnStormSyncPushComplete::CreateLambda([](const TSharedPtr<FStormSyncTransportPushResponse>& Response)
 	{
 		check(Response.IsValid())
-		STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("FStormSyncAvaPlaylistExtender::PushPackagesToRemote - Got a response: %s"), *Response->ToString());
+		UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("FStormSyncAvaRundownExtender::PushPackagesToRemote - Got a response: %s"), *Response->ToString());
 		UStormSyncNotificationSubsystem::Get().HandlePushResponse(Response);
 	});
-	
+
 	IStormSyncTransportClientModule::Get().PushPackages(PackageDescriptor, InPackageNames, RemoteMessageAddress, Delegate);
 }
 
-TArray<FName> FStormSyncAvaPlaylistExtender::GetSelectedPackagesNames(const UAvaRundown* InPlaylist, const TWeakPtr<FAvaRundownEditor>& InPlaylistEditor)
+TArray<FName> FStormSyncAvaRundownExtender::GetSelectedPackagesNames(const UAvaRundown* InRundown, const TWeakPtr<FAvaRundownEditor>& InRundownEditor)
 {
-	check(InPlaylist);
-	
+	check(InRundown);
+
 	TArray<FName> Result;
 
-	const TArray<FAvaRundownPage> SelectedPages = GetSelectedPages(InPlaylist, InPlaylistEditor);
-	Algo::Transform(SelectedPages, Result, [InPlaylist](const FAvaRundownPage& Page)
+	const TArray<FAvaRundownPage> SelectedPages = GetSelectedPages(InRundown, InRundownEditor);
+	Algo::Transform(SelectedPages, Result, [InRundown](const FAvaRundownPage& Page)
 	{
-		return Page.GetAssetPath(InPlaylist).GetLongPackageFName();
+		return Page.GetAssetPath(InRundown).GetLongPackageFName();
 	});
 
 	return Result;
 }
 
-TArray<FAvaRundownPage> FStormSyncAvaPlaylistExtender::GetSelectedPages(const UAvaRundown* InPlaylist, const TWeakPtr<FAvaRundownEditor>& InPlaylistEditor)
+TArray<FAvaRundownPage> FStormSyncAvaRundownExtender::GetSelectedPages(const UAvaRundown* InRundown, const TWeakPtr<FAvaRundownEditor>& InRundownEditor)
 {
-	check(InPlaylist);
-	
+	check(InRundown);
+
 	TArray<FAvaRundownPage> Result;
-	const TSharedPtr<FAvaRundownEditor> PlaylistEditor = InPlaylistEditor.Pin();
-	if (!PlaylistEditor.IsValid())
+	const TSharedPtr<FAvaRundownEditor> RundownEditor = InRundownEditor.Pin();
+	if (!RundownEditor.IsValid())
 	{
-		STORM_SYNC_AVA_EDITOR_LOG(Display, TEXT("FStormSyncAvaPlaylistExtender::GetSelectedPages - Invalid shared ptr from weak ptr delegate param"))
+		UE_LOG(LogStormSyncAvaBridgeEditor, Display, TEXT("FStormSyncAvaRundownExtender::GetSelectedPages - Invalid shared ptr from weak ptr delegate param"));
 		return Result;
 	}
 
-	const TConstArrayView<int32> SelectedPageIds = PlaylistEditor->GetSelectedPagesOnFocusedWidget();
+	const TConstArrayView<int32> SelectedPageIds = RundownEditor->GetSelectedPagesOnFocusedWidget();
 	for (const int32 SelectedPageId : SelectedPageIds)
 	{
-		FAvaRundownPage AvalanchePage = InPlaylist->GetPage(SelectedPageId);
+		FAvaRundownPage AvalanchePage = InRundown->GetPage(SelectedPageId);
 		if (!AvalanchePage.IsValidPage())
 		{
 			continue;
 		}
 
-		FSoftObjectPath SoftAvalancheAssetPath = AvalanchePage.GetAssetPath(InPlaylist);
+		FSoftObjectPath SoftAvalancheAssetPath = AvalanchePage.GetAssetPath(InRundown);
 		FString LongPackageName = SoftAvalancheAssetPath.GetLongPackageName();
 		FString AssetName = SoftAvalancheAssetPath.GetAssetName();
 
@@ -526,24 +529,24 @@ TArray<FAvaRundownPage> FStormSyncAvaPlaylistExtender::GetSelectedPages(const UA
 			Result.Add(AvalanchePage);
 		}
 	}
-	
+
 	return Result;
 }
 
-TArray<FString> FStormSyncAvaPlaylistExtender::GetChannelNamesForTemplatePage(const UAvaRundown* InPlaylist, const FAvaRundownPage& InTemplatePage)
+TArray<FString> FStormSyncAvaRundownExtender::GetChannelNamesForTemplatePage(const UAvaRundown* InRundown, const FAvaRundownPage& InTemplatePage)
 {
-	check(InPlaylist);
+	check(InRundown);
 
 	TArray<FString> ChannelNames;
 
 	// Here, we try to determine the list of channels to consider for a sync operation, from the selected template page,
 	// with instanced pages that are using the selected package name (Avalanche Blueprint)
-	const FString PackageName = InTemplatePage.GetAssetPath(InPlaylist).GetLongPackageName();
+	const FString PackageName = InTemplatePage.GetAssetPath(InRundown).GetLongPackageName();
 
 	// Build the list of instanced pages matching the asset name we want to sync
-	TArray<FAvaRundownPage> Pages = InPlaylist->GetInstancedPages().Pages.FilterByPredicate([InPlaylist, PackageName](const FAvaRundownPage& Page)
+	TArray<FAvaRundownPage> Pages = InRundown->GetInstancedPages().Pages.FilterByPredicate([InRundown, PackageName](const FAvaRundownPage& Page)
 	{
-		return Page.GetAssetPath(InPlaylist).GetLongPackageName() == PackageName;
+		return Page.GetAssetPath(InRundown).GetLongPackageName() == PackageName;
 	});
 
 	// From there, build a unique list of channel outputs
@@ -551,27 +554,27 @@ TArray<FString> FStormSyncAvaPlaylistExtender::GetChannelNamesForTemplatePage(co
 	{
 		ChannelNames.AddUnique(AvalanchePage.GetChannelName().ToString());
 	}
-	
+
 	return ChannelNames;
 }
 
-bool FStormSyncAvaPlaylistExtender::GetContextMenuSelectionInfos(const UAvaRundown* InPlaylist, const TWeakPtr<FAvaRundownEditor>& InPlaylistEditor, bool& bOutIsValidSelection, FText& OutDisabledReasonTooltip, TArray<FName>& OutSelectedPackageNames, FCanExecuteAction& OutCanExecuteAction)
+bool FStormSyncAvaRundownExtender::GetContextMenuSelectionInfos(const UAvaRundown* InRundown, const TWeakPtr<FAvaRundownEditor>& InRundownEditor, bool& bOutIsValidSelection, FText& OutDisabledReasonTooltip, TArray<FName>& OutSelectedPackageNames, FCanExecuteAction& OutCanExecuteAction)
 {
 	if (!FModuleManager::Get().IsModuleLoaded(TEXT("StormSyncEditor")))
 	{
-		STORM_SYNC_AVA_EDITOR_LOG(Error, TEXT("FStormSyncAvaPlaylistExtender::GetContextMenuSelectionInfos - StormSyncEditor module is not loaded. Is StormSync plugin enabled ?"))
+		UE_LOG(LogStormSyncAvaBridgeEditor, Error, TEXT("FStormSyncAvaRundownExtender::GetContextMenuSelectionInfos - StormSyncEditor module is not loaded. Is StormSync plugin enabled ?"));
 		return false;
 	}
-	
+
 	const FStormSyncEditorModule& StormSyncEditor = FStormSyncEditorModule::Get();
 
-	TArray<FName> SelectedPackagesNames = GetSelectedPackagesNames(InPlaylist, InPlaylistEditor);
+	TArray<FName> SelectedPackagesNames = GetSelectedPackagesNames(InRundown, InRundownEditor);
 	bool bIsValidSelection = !SelectedPackagesNames.IsEmpty();
 
 	// Figure out if selection is containing dirty (unsaved) assets
 	FText DisabledTooltipReason;
 	const TArray<FAssetData> DirtyAssets = StormSyncEditor.GetDirtyAssets(SelectedPackagesNames, DisabledTooltipReason);
-	
+
 	bool bContainsDirtyAssets = !DirtyAssets.IsEmpty();
 	FCanExecuteAction DefaultCanExecuteAction = FCanExecuteAction::CreateLambda([bIsValidSelection, bContainsDirtyAssets]() { return bIsValidSelection && !bContainsDirtyAssets; });
 
@@ -579,7 +582,7 @@ bool FStormSyncAvaPlaylistExtender::GetContextMenuSelectionInfos(const UAvaRundo
 	OutDisabledReasonTooltip = DisabledTooltipReason;
 	OutSelectedPackageNames = MoveTemp(SelectedPackagesNames);
 	OutCanExecuteAction = MoveTemp(DefaultCanExecuteAction);
-	
+
 	return true;
 }
 

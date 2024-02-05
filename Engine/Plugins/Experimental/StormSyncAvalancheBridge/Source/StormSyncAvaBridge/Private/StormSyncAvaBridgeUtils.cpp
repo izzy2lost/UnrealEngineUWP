@@ -6,7 +6,7 @@
 TArray<FString> FStormSyncAvaBridgeUtils::GetServerNamesForChannel(const FString& InChannelName)
 {
 	TArray<FString> ServerNames;
-	
+
 	if (UAvaBroadcast* Broadcast = UAvaBroadcast::GetBroadcast())
 	{
 		const FAvaBroadcastOutputChannel Channel = Broadcast->GetCurrentProfile().GetChannel(FName(*InChannelName));
