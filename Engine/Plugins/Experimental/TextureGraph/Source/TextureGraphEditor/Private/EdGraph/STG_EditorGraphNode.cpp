@@ -26,8 +26,11 @@
 #include "TG_HelperFunctions.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "SlateOptMacros.h"
+#include "STG_EditorViewport.h"
 #include "Widgets/SToolTip.h"
 #include "STG_NodeThumbnail.h"
+#include "Job/Scheduler.h"
+#include "Job/ThumbnailsService.h"
 #include "Pins/STG_TextureDescriptor.h"
 #include "Widgets/Layout/SSeparator.h"
 #define LOCTEXT_NAMESPACE "TextureGraphEditor"
@@ -37,26 +40,37 @@ static const FSlateBrush* CacheImg_Pin_NotConnectable = nullptr;
 
 STG_EditorGraphNode::~STG_EditorGraphNode()
 {
-	if (TSEditorGraphNode)
+	if (TGEditorGraphNode)
 	{
-		TSEditorGraphNode->OnNodeReconstructDelegate.Remove(OnNodeChangedHandle);
-		TSEditorGraphNode->OnNodePostEvaluateDelegate.Remove(OnPostEvaluateHandle);
-		TSEditorGraphNode->OnPinSelectionChangeDelegate.Remove(OnPinSelectionChangedHandle);
+		TGEditorGraphNode->OnNodeReconstructDelegate.Remove(OnNodeChangedHandle);
+		TGEditorGraphNode->OnNodePostEvaluateDelegate.Remove(OnPostEvaluateHandle);
+		TGEditorGraphNode->OnPinSelectionChangeDelegate.Remove(OnPinSelectionChangedHandle);
+	}
+
+	const ThumbnailsServicePtr SvcThumbnail = TextureGraphEngine::GetScheduler()->GetThumbnailsService().lock();
+	if (SvcThumbnail)
+	{
+		SvcThumbnail->OnUpdateThumbnailDelegate.Remove(OnUpdateThumbHandle);
 	}
 }
 
 void STG_EditorGraphNode::Construct(const FArguments& InArgs, UTG_EdGraphNode* InNode)
 {
 	GraphNode = InNode;
-	TSEditorGraphNode = InNode;
+	TGEditorGraphNode = InNode;
 
-	if (TSEditorGraphNode)
+	if (TGEditorGraphNode)
 	{
-		OnNodeChangedHandle = TSEditorGraphNode->OnNodeReconstructDelegate.AddRaw(this, &STG_EditorGraphNode::OnNodeReconstruct);
-		OnPostEvaluateHandle = TSEditorGraphNode->OnNodePostEvaluateDelegate.AddRaw(this, &STG_EditorGraphNode::OnNodePostEvaluate);
-		OnPinSelectionChangedHandle = TSEditorGraphNode->OnPinSelectionChangeDelegate.AddRaw(this, &STG_EditorGraphNode::OnPinSelectionChanged);
+		OnNodeChangedHandle = TGEditorGraphNode->OnNodeReconstructDelegate.AddRaw(this, &STG_EditorGraphNode::OnNodeReconstruct);
+		OnPostEvaluateHandle = TGEditorGraphNode->OnNodePostEvaluateDelegate.AddRaw(this, &STG_EditorGraphNode::OnNodePostEvaluate);
+		OnPinSelectionChangedHandle = TGEditorGraphNode->OnPinSelectionChangeDelegate.AddRaw(this, &STG_EditorGraphNode::OnPinSelectionChanged);
 	}
-	
+	const ThumbnailsServicePtr SvcThumbnail = TextureGraphEngine::GetScheduler()->GetThumbnailsService().lock();
+	if (SvcThumbnail)
+	{
+		// register yourself to the thumbnail service to get events when a thumb batch is done.
+		OnUpdateThumbHandle = SvcThumbnail->OnUpdateThumbnailDelegate.AddRaw(this, &STG_EditorGraphNode::OnUpdateThumbnail);
+	}
 	BodyBrush = *GetNodeBodyBrush();
 	BodyBrush.OutlineSettings.Color = UTG_EdGraphSchema::NodeBodyColorOutline;
 	
@@ -463,7 +477,7 @@ EVisibility STG_EditorGraphNode::ShowParameters() const
 
 EVisibility STG_EditorGraphNode::ShowOverrideSettings() const
 {
-	const bool bOverrideSettings = GraphNode && (ENodeAdvancedPins::Shown == GraphNode->AdvancedPinDisplay) && TSEditorGraphNode->GetTextureOutputPins().Num() > 0;
+	const bool bOverrideSettings = GraphNode && (ENodeAdvancedPins::Shown == GraphNode->AdvancedPinDisplay) && TGEditorGraphNode->GetTextureOutputPins().Num() > 0;
 	return bOverrideSettings ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
@@ -493,7 +507,7 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateNodeSettings()
 	auto Widget = SNew(SVerticalBox);
 	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GraphNode->GetSchema());
 
-	for (auto Pin : TSEditorGraphNode->GetTextureOutputPins())
+	for (auto Pin : TGEditorGraphNode->GetTextureOutputPins())
 	{
 		UTG_Pin* TGPin = Schema->GetTGPinFromEdPin(Pin);
 		FTG_Texture& Texture = TGPin->GetNodePtr()->GetGraph()->GetVar(TGPin->GetId())->EditAs<FTG_Texture>();
@@ -612,7 +626,7 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleDetailsWidget()
 
 EVisibility STG_EditorGraphNode::IsTitleDetailVisible() const
 {
-	return TSEditorGraphNode->GetTitleDetail() == "" ? EVisibility::Collapsed : EVisibility::Visible;
+	return TGEditorGraphNode->GetTitleDetail() == "" ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 void STG_EditorGraphNode::CreatePinWidgets()
@@ -633,7 +647,7 @@ void STG_EditorGraphNode::CreatePinWidgets()
 
 		bool bPinDesiresToBeHidden = CurPin->bHidden || (bHideNoConnectionPins && !bPinHasConections); 
 		
-		const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(TSEditorGraphNode->GetSchema());
+		const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(TGEditorGraphNode->GetSchema());
 		UTG_Pin* TSPin = Schema->GetTGPinFromEdPin(CurPin);
 		FProperty* Property = TSPin->GetExpressionProperty();
 		if (Property && Property->HasMetaData("HideNodeUI"))
@@ -866,7 +880,7 @@ FReply STG_EditorGraphNode::OnOutputIconClick(const FGeometry& SenderGeometry, c
 
 TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleRightWidget()
 {
-	auto TGNode = TSEditorGraphNode->GetNode();
+	auto TGNode = TGEditorGraphNode->GetNode();
 	TArray<UTG_Pin*> Pins;
 	TGNode->GetOutputPins(Pins);
 	TSharedPtr<SWidget> Thumb = SNullWidget::NullWidget;
@@ -881,17 +895,16 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleRightWidget()
 			auto ThumbnailWidget = FindOrCreateThumbWidget(Pin->GetId());
 
 			// get blob from EdGraphNode's cache if available
-			if (TiledBlobPtr CachedThumb = TSEditorGraphNode->GetCachedThumbBlob(Pin->GetId()))
+			UTG_EdGraph* EdGraph = Cast<UTG_EdGraph>(TGEditorGraphNode->GetGraph());
+			if (TiledBlobPtr CachedThumb = EdGraph->GetCachedThumbBlob(Pin->GetId()))
 			{
-				CachedThumb->OnFinalise().then([CachedThumb, ThumbnailWidget]()
+				if (CachedThumb->IsFinalised())
 				{
-					// NOTE: If later, "this" were to be captured here, we should check DoesSharedInstanceExist()
-					// as there is a chance this might be invoked when the slate widgets have already been destroyed
 					if (ThumbnailWidget.IsValid())
 					{
 						ThumbnailWidget->UpdateBlob(CachedThumb);
 					}
-				});
+				}
 			}
 			
 			if (Thumb == SNullWidget::NullWidget)
@@ -914,8 +927,8 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleRightWidget()
 
 void STG_EditorGraphNode::SetPinIcon(const TSharedRef<SGraphPin> PinToAdd)
 {
-	check(TSEditorGraphNode);
-	UTG_Node* TSNode = TSEditorGraphNode->GetNode();
+	check(TGEditorGraphNode);
+	UTG_Node* TSNode = TGEditorGraphNode->GetNode();
 	UEdGraphPin* EdPin = PinToAdd->GetPinObj();
 
 	if (TSNode && EdPin)
@@ -963,13 +976,11 @@ void STG_EditorGraphNode::OnNodeReconstruct()
 
 void STG_EditorGraphNode::OnNodePostEvaluate(const FTG_EvaluationContext* InContext)
 {
-	if (!InContext->IsTweaking())
-		UpdateThumbnail(InContext);
 }
 
 void STG_EditorGraphNode::OnPinSelectionChanged(UEdGraphPin* EdPin)
 {
-	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(TSEditorGraphNode->GetSchema());
+	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(TGEditorGraphNode->GetSchema());
 	UTG_Pin* Pin = Schema->GetTGPinFromEdPin(EdPin);
 
 	if (Pin)
@@ -982,63 +993,30 @@ void STG_EditorGraphNode::OnPinSelectionChanged(UEdGraphPin* EdPin)
 	}
 }
 
-void STG_EditorGraphNode::UpdateThumbnail(const FTG_EvaluationContext* InContext)
+
+void STG_EditorGraphNode::ApplyThumbToWidget()
 {
-	// Loop over all Output pins
-	for (const TPair<FName, FTG_VarMap::FVarArgument>& V : InContext->Outputs.VarArguments)
+	UTG_EdGraph* EdGraph = Cast<UTG_EdGraph>(TGEditorGraphNode->GetGraph());
+	TArray<UTG_Pin*> Pins;
+	TGEditorGraphNode->GetNode()->GetOutputPins(Pins);
+	for(const UTG_Pin* Pin : Pins)
 	{
-		FTG_VarMap::FVarArgument VarArg = V.Value;
-		auto TypeName = VarArg.Argument.GetCPPTypeName();
-		UTG_Pin* Pin = TSEditorGraphNode->GetNode()->GetOutputPin(V.Key);
-		check(Pin);
-		
-		// if they are FTG_Texture or Textured Variant, make a thumbnail for that.
-		if (VarArg.Argument.IsTexture())
+		auto ThumbWidget = FindOrCreateThumbWidget(Pin->GetId());
+		if (ThumbWidget.IsValid())
 		{
-			FTG_Texture OutTexture;
-			if(Pin->GetValue(OutTexture))
-			{
-				UMixInterface* Mix = InContext->Cycle->GetMix();
-				auto TargetId = InContext->TargetId;
-
-				if (!OutTexture.RasterBlob)
-				{
-					OutTexture = FTG_Texture::GetBlack();
-				}
-
-				TiledBlobPtr ThumbBlob = T_Thumbnail::Bind(Mix, Pin, OutTexture.RasterBlob, TargetId);
-
-				TSEditorGraphNode->CacheThumbBlob(Pin->GetId(), ThumbBlob);
-				ThumbBlob->OnFinalise()
-					.then([=, this](const Blob* FinalisedBlob) mutable
-						{
-							// OnFinalise can sometimes occur after the editor is closed and thus can potentially
-							// deallocate all corresponding slate objects
-							if (DoesSharedInstanceExist())
-							{
-								return ThumbBlob->CombineTiles(true, false);
-							}
-							return static_cast<AsyncBufferResultPtr>(cti::make_ready_continuable<BufferResultPtr>(std::make_shared<BufferResult>()));
-						})
-					.then([=, this](BufferResultPtr) mutable
-						{
-							// OnFinalise can sometimes occur after the editor is closed and thus can potentially
-							// deallocate all corresponding slate objects
-							if (DoesSharedInstanceExist())
-							{
-								auto ThumbWidget = FindOrCreateThumbWidget(Pin->GetId());
-
-								if (ThumbWidget.IsValid())
-								{
-									ThumbWidget->UpdateBlob(ThumbBlob);
-								}
-							}
-						});
-			}
+			ThumbWidget->UpdateBlob(EdGraph->GetCachedThumbBlob(Pin->GetId()));
 		}
 	}
 }
 
+void STG_EditorGraphNode::OnUpdateThumbnail(JobBatchPtr JobBatch)
+{
+	// check if the JobBatch has the same TextureGraph as ours (As the Thumbnail Service could be catering to multiple TextureGraphs)
+	if (JobBatch->GetCycle()->GetMix() == TGEditorGraphNode->GetOutermostObject())
+	{
+		ApplyThumbToWidget();
+	}
+}
 
 //////////////////////////////////////////////////////////////////////////
 

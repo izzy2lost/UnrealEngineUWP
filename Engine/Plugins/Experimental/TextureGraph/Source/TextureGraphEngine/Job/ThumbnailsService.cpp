@@ -31,13 +31,16 @@ AsyncJobResultPtr ThumbnailsService::Tick()
  
 	TextureGraphEngine::GetInstance()->GetScheduler()->GetObserverSource()->BatchAdded(CurrentBatch); // notify observer
  
-	return CurrentBatch->Exec([=](JobBatch*)	/// Instead of passing it as an argument, JobBatch should be a return type; this is to keep it from cyclic dependancy
+	return CurrentBatch->Exec([=, this](JobBatch*)	/// Instead of passing it as an argument, JobBatch should be a return type; this is to keep it from cyclic dependancy
 	{
+		OnUpdateThumbnailDelegate.Broadcast(CurrentBatch);
 		TextureGraphEngine::GetInstance()->GetScheduler()->GetObserverSource()->BatchJobsDone(CurrentBatch);
+		
 	})
  	.then([this, CurrentBatch]()
  	{
  		TextureGraphEngine::GetInstance()->GetScheduler()->GetObserverSource()->BatchDone(CurrentBatch); // notify observer
+ 		
  		return std::make_shared<JobResult>();
  	});
 }

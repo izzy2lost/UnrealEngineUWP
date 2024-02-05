@@ -96,9 +96,6 @@ public:
 	TArray<UEdGraphPin*> GetOutputPins() const;
 	TArray<UEdGraphPin*> GetTextureOutputPins() const;
 
-	void CacheThumbBlob(FTG_Id PinId, TiledBlobPtr InBlob){ PinThumbBlobMap.FindOrAdd(PinId) = InBlob; }
-	TiledBlobPtr GetCachedThumbBlob(FTG_Id PinId){ return PinThumbBlobMap.IsEmpty() ? nullptr : *PinThumbBlobMap.Find(PinId); }
-
 protected:
 	friend class UTG_EdGraph;
 
@@ -118,7 +115,6 @@ protected:
 		TObjectPtr<UTG_Node> Node;
 
 private:
-	TMap<FTG_Id, TiledBlobPtr> PinThumbBlobMap;
 	UEdGraphPin* SelectedPin;
 };
 

@@ -59,7 +59,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FORCEINLINE operator BufferDescriptor() const { return ToBufferDescriptor(); }
 };
 
-class FAssetThumbnail;
 USTRUCT()
 struct TEXTUREGRAPH_API FTG_Texture
 {

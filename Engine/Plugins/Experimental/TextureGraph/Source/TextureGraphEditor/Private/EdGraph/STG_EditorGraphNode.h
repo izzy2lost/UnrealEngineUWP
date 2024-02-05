@@ -83,7 +83,8 @@ protected:
 	virtual TSharedRef<SWidget> CreateTitleWidget(TSharedPtr<SNodeTitle> NodeTitle) override;
 
 private:
-	UTG_EdGraphNode* TSEditorGraphNode = nullptr;
+	UTG_EdGraphNode* TGEditorGraphNode = nullptr;
+	FDelegateHandle OnUpdateThumbHandle;
 	FDelegateHandle OnPostEvaluateHandle;
 	FDelegateHandle OnNodeChangedHandle;
 	FDelegateHandle OnPinSelectionChangedHandle;
@@ -94,7 +95,8 @@ private:
 	FLinearColor GetPinThumbSelectionColor();
 	FLinearColor GetPinThumbDeselectionColor();
 	TSharedPtr<STG_NodeThumbnail> FindOrCreateThumbWidget(FTG_Id PinId);
-	void UpdateThumbnail(const FTG_EvaluationContext* InContext);
+	void ApplyThumbToWidget();
+	void OnUpdateThumbnail(std::shared_ptr<JobBatch> JobBatch);
 	UTexture* GetTextureFromBuffer(DeviceBufferPtr Buffer);
 	FReply OnOutputIconClick(const FGeometry& SenderGeometry, const FPointerEvent& MouseEvent);
 	TArray<FString> GetTitleDetailTextLines() const;
