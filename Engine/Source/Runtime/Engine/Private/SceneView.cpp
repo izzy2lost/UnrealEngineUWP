@@ -308,23 +308,6 @@ static TAutoConsoleVariable<float> CVarRoughnessMax(
 	ECVF_Cheat | ECVF_RenderThreadSafe
 	);
 
-static TAutoConsoleVariable<int32> CVarAllowTranslucencyAfterDOF(
-	TEXT("r.SeparateTranslucency"),
-	1,
-	TEXT("Allows to disable the separate translucency feature (all translucency is rendered in separate RT and composited\n")
-	TEXT("after DOF, if not specified otherwise in the material).\n")
-	TEXT(" 0: off (translucency is affected by depth of field)\n")
-	TEXT(" 1: on costs GPU performance and memory but keeps translucency unaffected by Depth of Field. (default)"),
-	ECVF_Scalability | ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarTranslucencyStandardSeparated(
-	TEXT("r.Translucency.StandardSeparated"),
-	0,
-	TEXT("Render translucent meshes in separate buffer from the scene color.\n")
-	TEXT("This prevent those meshes from self refracting and leaking scnee color behind over edges when it should be affect by colored transmittance.\n")
-	TEXT("Forced disabled when r.SeparateTranslucency is 0.\n"),
-	ECVF_RenderThreadSafe | ECVF_Default);
-
 static TAutoConsoleVariable<int32> CVarEnableTemporalUpsample(
 	TEXT("r.TemporalAA.Upsampling"),
 	1,
@@ -2853,27 +2836,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	if (bIsMobileLDR)
 	{
 		EngineShowFlags.ScreenPercentage = false;
-	}
-
-	// Check if the translucency are allowed to be rendered after DOF, if not, translucency after DOF will be rendered in standard translucency.
-	{
-		bool SeparateTranslucencyEnabled = EngineShowFlags.PostProcessing // Used for reflection captures.
-										&& !UseDebugViewPS()
-										&& EngineShowFlags.SeparateTranslucency;
-
-		const bool bIsMobile = GetFeatureLevel() == ERHIFeatureLevel::ES3_1;
-		if (bIsMobile)
-		{
-			const bool bMobileMSAA = GetDefaultMSAACount(ERHIFeatureLevel::ES3_1) > 1;
-			SeparateTranslucencyEnabled &= (IsMobileHDR() && !bMobileMSAA); // on <= ES3_1 separate translucency requires HDR on and MSAA off
-		}
-
-		bAllowTranslucencyAfterDOF = SeparateTranslucencyEnabled && CVarAllowTranslucencyAfterDOF.GetValueOnAnyThread() != 0;
-
-		// We do not allow separated translucency on mobile
-		// When MSAA sample count is >1 it works, but hair has not been properly tested so far due to other issues, so MSAA cannot use separted standard translucent for now.
-		uint32 MSAASampleCount = GetDefaultMSAACount(GetFeatureLevel());
-		bAllowStandardTranslucencySeparated = SeparateTranslucencyEnabled && MSAASampleCount == 1 && !bIsMobile && CVarTranslucencyStandardSeparated.GetValueOnAnyThread() != 0;
 	}
 }
 

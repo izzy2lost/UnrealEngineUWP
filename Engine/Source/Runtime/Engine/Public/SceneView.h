@@ -2382,10 +2382,10 @@ private:
 	TArray<TSharedRef<class ISceneViewFamilyExtentionData, ESPMode::ThreadSafe> > ViewExtentionDatas;
 
 	/** whether the translucency are allowed to render after DOF, if not they will be rendered in standard translucency. */
-	bool bAllowTranslucencyAfterDOF;
+	bool bAllowTranslucencyAfterDOF = false;
 
 	/** whether the pre DOF translucency are allowed to be rendered in separated target from scene to allow for better composition with distortion.*/
-	bool bAllowStandardTranslucencySeparated;
+	bool bAllowStandardTranslucencySeparated = false;
 
 	/** True if this view is the current editing view or the active game view */
 	bool bIsInFocus = true;
