@@ -80,6 +80,7 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	TranslucentSortAxis = FVector(0.0f, -1.0f, 0.0f);
 	bSupportStationarySkylight = true;
 	bSupportPointLightWholeSceneShadows = true;
+	MorphTargetMaxBlendWeight = 5.f;
 	bSupportSkyAtmosphere = true;
 	bSupportSkinCacheShaders = false;
 	bSkipCompilingGPUSkinVF = false;

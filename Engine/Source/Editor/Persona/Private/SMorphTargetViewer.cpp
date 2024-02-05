@@ -18,6 +18,7 @@
 #include "IPersonaPreviewScene.h"
 #include "SkeletalMeshAttributes.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
+#include "SkeletalRenderPublic.h"
 
 #define LOCTEXT_NAMESPACE "SMorphTargetViewer"
 
@@ -26,7 +27,6 @@ static const FName ColumnID_MorphTargetWeightLabel( "Weight" );
 static const FName ColumnID_MorphTargetEditLabel( "Edit" );
 static const FName ColumnID_MorphTargetVertCountLabel( "NumberOfVerts" );
 
-const float MaxMorphWeight = 5.0f;
 
 //////////////////////////////////////////////////////////////////////////
 // SMorphTargetListRow
@@ -152,8 +152,6 @@ TSharedRef< SWidget > SMorphTargetListRow::GenerateWidgetForColumn( const FName&
 				SNew( SSpinBox<float> )
 				.MinSliderValue(-1.f)
 				.MaxSliderValue(1.f)
-				.MinValue(-MaxMorphWeight)
-				.MaxValue(MaxMorphWeight)
 				.Value( this, &SMorphTargetListRow::GetWeight )
 				.OnValueChanged( this, &SMorphTargetListRow::OnMorphTargetWeightChanged )
 				.OnValueCommitted( this, &SMorphTargetListRow::OnMorphTargetWeightValueCommitted )
@@ -227,6 +225,10 @@ void SMorphTargetListRow::OnMorphTargetWeightChanged( float NewWeight )
 	// First change this item...
 	// the delta feature is a bit confusing when debugging morphtargets, and you're not sure why it's changing, so I'm disabling it for now. 
 	// I think in practice, you want each morph target to move independentaly. It is very unlikely you'd like to move multiple things together. 
+
+	const float MorphTargetMaxBlendWeight = UE::SkeletalRender::Settings::GetMorphTargetMaxBlendWeight();
+	NewWeight = FMath::Clamp(NewWeight, -MorphTargetMaxBlendWeight, MorphTargetMaxBlendWeight);
+
 #if 0 
 	float Delta = NewWeight - GetWeight();
 #endif
@@ -247,7 +249,7 @@ void SMorphTargetListRow::OnMorphTargetWeightChanged( float NewWeight )
 
 		if ( RowItem != Item ) // Don't do "this" row again if it's selected
 		{
-			RowItem->Weight = FMath::Clamp(RowItem->Weight + Delta, -MaxMorphWeight, MaxMorphWeight);
+			RowItem->Weight = FMath::Clamp(RowItem->Weight + Delta, -MorphTargetMaxBlendWeight, MorphTargetMaxBlendWeight);
 			RowItem->bAutoFillData = false;
 			MorphTargetViewer->AddMorphTargetOverride( RowItem->Name, RowItem->Weight, false );
 		}
@@ -259,8 +261,10 @@ void SMorphTargetListRow::OnMorphTargetWeightValueCommitted( float NewWeight, ET
 {
 	if (CommitType == ETextCommit::OnEnter || CommitType == ETextCommit::OnUserMovedFocus)
 	{
-		float NewValidWeight = FMath::Clamp(NewWeight, -MaxMorphWeight, MaxMorphWeight);
-		Item->Weight = NewValidWeight;
+		const float MorphTargetMaxBlendWeight = UE::SkeletalRender::Settings::GetMorphTargetMaxBlendWeight();
+		NewWeight = FMath::Clamp(NewWeight, -MorphTargetMaxBlendWeight, MorphTargetMaxBlendWeight);
+
+		Item->Weight = NewWeight;
 		Item->bAutoFillData = false;
 
 		MorphTargetViewer->AddMorphTargetOverride(Item->Name, Item->Weight, false);
@@ -274,7 +278,7 @@ void SMorphTargetListRow::OnMorphTargetWeightValueCommitted( float NewWeight, ET
 
 			if(RowItem != Item) // Don't do "this" row again if it's selected
 			{
-				RowItem->Weight = NewValidWeight;
+				RowItem->Weight = NewWeight;
 				RowItem->bAutoFillData = false;
 				MorphTargetViewer->AddMorphTargetOverride(RowItem->Name, RowItem->Weight, false);
 			}

@@ -1404,6 +1404,8 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 		{
 			SCOPE_CYCLE_COUNTER(STAT_MorphVertexBuffer_ApplyDelta);
 
+			const float MorphTargetMaxBlendWeight = UE::SkeletalRender::Settings::GetMorphTargetMaxBlendWeight();
+
 			// iterate over all active morph targets and accumulate their vertex deltas
 			for(const TTuple<const UMorphTarget*, int32>& MorphItem: InActiveMorphTargets)
 			{
@@ -1413,8 +1415,7 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 				checkSlow(MorphTarget->HasDataForLOD(LODIndex));
 				const float MorphTargetWeight = MorphTargetWeights.IsValidIndex(WeightIndex) ? MorphTargetWeights[WeightIndex] : 0.0f;
 				const float MorphAbsWeight = FMath::Abs(MorphTargetWeight);
-				checkSlow(MorphAbsWeight >= MinMorphTargetBlendWeight && MorphAbsWeight <= MaxMorphTargetBlendWeight);
-
+				checkSlow(MorphAbsWeight >= MinMorphTargetBlendWeight && MorphAbsWeight <= MorphTargetMaxBlendWeight);
 
 				// Get deltas
 				int32 NumDeltas;
@@ -2550,6 +2551,8 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 		}
 	}
 
+	const float MorphTargetMaxBlendWeight = UE::SkeletalRender::Settings::GetMorphTargetMaxBlendWeight();
+
 	// find number of morphs that are currently weighted and will affect the mesh
 	ActiveMorphTargets.Reserve(InActiveMorphTargets.Num());
 	for(const TTuple<const UMorphTarget*, int32>& MorphItem: InActiveMorphTargets)
@@ -2561,7 +2564,7 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 
 		if( MorphTarget != nullptr && 
 			MorphAbsWeight >= MinMorphTargetBlendWeight &&
-			MorphAbsWeight <= MaxMorphTargetBlendWeight &&
+			MorphAbsWeight <= MorphTargetMaxBlendWeight &&
 			MorphTarget->HasDataForLOD(LODIndex) ) 
 		{
 			NumWeightedActiveMorphTargets++;

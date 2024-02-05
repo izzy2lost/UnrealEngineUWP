@@ -12,6 +12,7 @@
 #include "BonePose.h"
 #include "Engine/SkeletalMesh.h"
 #include "SkeletalRender.h"
+#include "SkeletalRenderPublic.h"
 #include "Animation/AttributesRuntime.h"
 #include "Animation/AnimationPoseData.h"
 #include "Animation/BlendProfile.h"
@@ -2594,6 +2595,8 @@ void FAnimationRuntime::AppendActiveMorphTargets(
 		return;
 	}
 	
+	const float MorphTargetMaxBlendWeight = UE::SkeletalRender::Settings::GetMorphTargetMaxBlendWeight();
+
 	// Then go over the CurveKeys finding morph targets by name
 	for(const TPair<FName, float>& MorphCurveAnim : MorphCurveAnims)
 	{
@@ -2611,17 +2614,18 @@ void FAnimationRuntime::AppendActiveMorphTargets(
 			// If it has a valid weight
 			if (FMath::Abs(Weight) > MinMorphTargetBlendWeight)
 			{
+				const float ClampedWeight = FMath::Clamp(Weight, -MorphTargetMaxBlendWeight, MorphTargetMaxBlendWeight);
 				// If not, add it
 				if (FoundMorphIndex == nullptr)
 				{
 					InOutActiveMorphTargets.Add(Target, SkeletalMorphIndex);
-					InOutMorphTargetWeights[SkeletalMorphIndex] = Weight;
+					InOutMorphTargetWeights[SkeletalMorphIndex] = ClampedWeight;
 				}
 				else
 				{
 					// If it does, use the max weight
 					check(SkeletalMorphIndex == *FoundMorphIndex);
-					InOutMorphTargetWeights[SkeletalMorphIndex] = Weight;
+					InOutMorphTargetWeights[SkeletalMorphIndex] = ClampedWeight;
 				}
 			}
 			else if (FoundMorphIndex != nullptr)

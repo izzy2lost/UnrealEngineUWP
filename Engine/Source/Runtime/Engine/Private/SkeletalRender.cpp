@@ -12,6 +12,8 @@
 #include "SceneView.h"
 #include "GPUSkinCache.h"
 #include "Rendering/SkeletalMeshRenderData.h"
+#include "Engine/RendererSettings.h"
+
 
 /*-----------------------------------------------------------------------------
 Globals
@@ -21,6 +23,25 @@ Globals
 const float MinMorphTargetBlendWeight = UE_SMALL_NUMBER;
 // largest blend weight for vertex anims
 const float MaxMorphTargetBlendWeight = 5.0f;
+
+static float GMorphTargetMaxBlendWeight = 5.f;
+static FAutoConsoleVariableRef CVarMorphTargetMinBlendWeight(
+	TEXT("r.MorphTarget.MaxBlendWeight"),
+	GMorphTargetMaxBlendWeight,
+	TEXT("Maximum value accepted as a morph target blend weight..\n")
+	TEXT("Blend target weights will be checked against this value for validation.Values smaller than this number will be clamped.\n"),
+	ECVF_Default
+);
+
+namespace UE::SkeletalRender::Settings
+{
+	float GetMorphTargetMaxBlendWeight()
+	{
+		static const IConsoleVariable* MorphTargetMaxBlendWeightCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MorphTarget.MaxBlendWeight"));
+
+		return (MorphTargetMaxBlendWeightCVar != nullptr) ? MorphTargetMaxBlendWeightCVar->GetFloat() : GetDefault<URendererSettings>()->MorphTargetMaxBlendWeight;
+	}
+}
 
 #if RHI_RAYTRACING
 static bool IsSkeletalMeshRayTracingSupported()
