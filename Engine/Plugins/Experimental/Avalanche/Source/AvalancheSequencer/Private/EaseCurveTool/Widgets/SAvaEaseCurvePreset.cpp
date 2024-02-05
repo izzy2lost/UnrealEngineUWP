@@ -323,7 +323,7 @@ TSharedRef<SWidget> SAvaEaseCurvePreset::GenerateSelectedRowWidget() const
 		.AutoWidth()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Center)
-		.Padding(5.f, 2.f, 4.f, 2.f)
+		.Padding(0.f, 2.f, 5.f, 2.f)
 		[
 			SNew(SBorder)
 			.BorderBackgroundColor(FStyleColors::White25)
@@ -341,6 +341,7 @@ TSharedRef<SWidget> SAvaEaseCurvePreset::GenerateSelectedRowWidget() const
 		+ SHorizontalBox::Slot()
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Center)
+		.Padding(0.f, 0.f, 5.f, 0.f)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()

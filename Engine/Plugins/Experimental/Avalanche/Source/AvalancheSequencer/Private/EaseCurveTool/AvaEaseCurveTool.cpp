@@ -516,7 +516,7 @@ bool FAvaEaseCurveTool::CanCopyTangentsToClipboard() const
 
 void FAvaEaseCurveTool::CopyTangentsToClipboard()
 {
-	FPlatformApplicationMisc::ClipboardCopy(*EaseCurve->GetTangents().ToDisplayString());
+	FPlatformApplicationMisc::ClipboardCopy(*EaseCurve->GetTangents().ToJson());
 
 	ShowNotificationMessage(LOCTEXT("EaseCurveToolTangentsCopied", "Ease Curve Tool Tangents Copied!"));
 }
