@@ -299,12 +299,37 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can do blocking call", HTTP_TAG
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content without chunks", HTTP_TAG)
 {
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
-	HttpRequest->SetURL(FString::Format(TEXT("{0}/get_large_response_without_chunks/{1}/"), { *UrlHttpTests(), 1024 * 1024/*bytes_number*/}));
+	uint32 DataLength = 0;
+	uint32 RepeatAt = 0;
+	SECTION("case A")
+	{
+		DataLength = 1024 * 1024;
+		RepeatAt = 10;
+	}
+	SECTION("cast B")
+	{
+		DataLength = 1025 * 1023;
+		RepeatAt = 9;
+	}
+	HttpRequest->SetURL(FString::Format(TEXT("{0}/get_data_without_chunks/{1}/{2}/"), { *UrlHttpTests(), DataLength, RepeatAt}));
 	HttpRequest->SetVerb(TEXT("GET"));
-	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+	HttpRequest->OnProcessRequestComplete().BindLambda([DataLength, RepeatAt](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
 		CHECK(bSucceeded);
 		REQUIRE(HttpResponse != nullptr);
 		CHECK(HttpResponse->GetResponseCode() == 200);
+
+		const TArray<uint8>& Content = HttpResponse->GetContent();
+		CHECK(Content.Num() == DataLength);
+
+		bool bAllMatch = true;
+
+		// Make sure the data got read is in good state
+		for (int32 i = 0; i < Content.Num(); ++i)
+		{
+			bAllMatch &= (Content[i] == '0' + (i % RepeatAt));
+		}
+
+		CHECK(bAllMatch);
 	});
 	HttpRequest->ProcessRequest();
 }
