@@ -1924,7 +1924,7 @@ void FLowLevelMemTracker::TickInternal()
 
 	// Cache the amount of memory used early, since some of these functions (FindOrAddTagData) can
 	// cause allocations, which will throw the numbers off slightly.
-	FPlatformMemoryStats PlatformStats = FPlatformMemory::GetStats();
+	FPlatformMemoryStats PlatformStats = FPlatformMemory::GetStatsRaw();
 #if PLATFORM_DESKTOP
 	// virtual is working set + paged out memory.
 	const int64 PlatformProcessMemory = static_cast<int64>(PlatformStats.UsedVirtual);

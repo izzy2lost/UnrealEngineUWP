@@ -1505,13 +1505,9 @@ int64 FMallocBinned2::GetTotalAllocatedSmallPoolMemory() const
 
 void FMallocBinned2::GetAllocatorStats( FGenericMemoryStats& OutStats )
 {
-#if PLATFORM_USE_CACHED_SLACK_MEMORY_IN_MEMORY_STATS || BINNED2_ALLOCATOR_STATS
-	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_GetAllocatorStats);
-
-	// Even if we have MB2 stats off, if we want to include cached slack, we need the PageAllocatorFreeCacheSize stat
+	// Even if we have MB2 stats off, cached slack needs to be included as it might be needed by some platforms
 	uint64 OSPageAllocatorCachedFreeSize = CachedOSPageAllocator.GetCachedFreeTotal();
 	OutStats.Add(TEXT("PageAllocatorFreeCacheSize"), OSPageAllocatorCachedFreeSize);
-#endif 
 
 #if BINNED2_ALLOCATOR_STATS
 	int64  TotalAllocatedSmallPoolMemory           = GetTotalAllocatedSmallPoolMemory();
