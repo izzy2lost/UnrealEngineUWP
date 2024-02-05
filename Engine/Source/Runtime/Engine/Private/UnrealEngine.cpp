@@ -11384,49 +11384,6 @@ void UEngine::AddTextureStreamingLoc(FVector InLoc, float BoostFactor, bool bOve
 	IStreamingManager::Get().AddViewLocation(InLoc, BoostFactor, bOverrideLocation, OverrideDuration);
 }
 
-/** Looks up the GUID of a package on disk. The package must NOT be in the autodownload cache.
-* This may require loading the header of the package in question and is therefore slow.
-*/
-FGuid UEngine::GetPackageGuid(FName PackageName, bool bForPIE)
-{
-	FGuid Result(0,0,0,0);
-	// There is no package guid support when using the I/O dispatcher
-	if (FIoDispatcher::IsInitialized() && FIoDispatcher::Get().DoesChunkExist(CreatePackageDataChunkId(FPackageId::FromName(PackageName))))
-	{
-		return Result;
-	}
-	FPackagePath PackagePath;
-	if (!FPackagePath::TryFromMountedName(PackageName.ToString(), PackagePath))
-	{
-		return Result;
-	}
-
-	uint32 LoadFlags = LOAD_NoWarn | LOAD_NoVerify;
-	if (bForPIE)
-	{
-		LoadFlags |= LOAD_PackageForPIE;
-	}
-	UPackage* PackageToReset = nullptr;
-
-	FLinkerLoad* Linker = LoadPackageLinker(nullptr, PackagePath, LoadFlags, nullptr, nullptr, [&PackageToReset, &Result](FLinkerLoad* InLinker)
-	{
-		if (InLinker != nullptr && InLinker->LinkerRoot != nullptr)
-		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			Result = InLinker->LinkerRoot->GetGuid();
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			PackageToReset = InLinker->LinkerRoot;
-		}
-	});
-
-	if (PackageToReset)
-	{
-		ResetLoaders(PackageToReset);
-	}
-
-	return Result;
-}
-
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 // Critical section used in AddOnScreenDebugMessage to handle concurrent insert.
 static FCriticalSection GOnScreenMessageCS;

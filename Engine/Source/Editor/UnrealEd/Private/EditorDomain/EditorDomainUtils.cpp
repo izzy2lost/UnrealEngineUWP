@@ -24,6 +24,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Hash/Blake3.h"
 #include "Interfaces/IPluginManager.h"
+#include "IO/IoHash.h"
 #include "Memory/SharedBuffer.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
@@ -342,9 +343,7 @@ FPackageDigest CalculatePackageDigest(IAssetRegistry& AssetRegistry, FName Packa
 	Writer.Update(EditorDomainVersion, FCString::Strlen(EditorDomainVersion)*sizeof(EditorDomainVersion[0]));
 	uint8 EditorDomainSaveUnversioned = GetEditorDomainSaveUnversioned() ? 1 : 0;
 	Writer.Update(&EditorDomainSaveUnversioned, sizeof(EditorDomainSaveUnversioned));
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Writer.Update(&PackageData.PackageGuid, sizeof(PackageData.PackageGuid));
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	Writer.Update(&PackageData.GetPackageSavedHash().GetBytes(), sizeof(PackageData.GetPackageSavedHash().GetBytes()));
 	Writer.Update(&GPackageFileUEVersion, sizeof(GPackageFileUEVersion));
 	Writer.Update(&GPackageFileLicenseeUEVersion, sizeof(GPackageFileLicenseeUEVersion));
 	TArray<int32> CustomVersionHandles;
@@ -2051,10 +2050,10 @@ void PutBulkDataList(FName PackageName, FSharedBuffer Buffer)
 	Owner.KeepAlive();
 }
 
-FIoHash GetPackageAndGuidHash(const FGuid& PackageGuid, const FGuid& BulkDataId)
+FIoHash GetPackageAndGuidHash(const FIoHash& PackageHash, const FGuid& BulkDataId)
 {
 	FBlake3 Builder;
-	Builder.Update(&PackageGuid, sizeof(PackageGuid));
+	Builder.Update(&PackageHash.GetBytes(), sizeof(PackageHash.GetBytes()));
 	Builder.Update(&BulkDataId, sizeof(BulkDataId));
 	return Builder.Finalize();
 }
@@ -2069,10 +2068,7 @@ void GetBulkDataPayloadId(FName PackageName, const FGuid& BulkDataId, UE::Derive
 	{
 		return;
 	}
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	const FGuid& PackageGuid = PackageData->PackageGuid;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	FIoHash PackageAndGuidHash = GetPackageAndGuidHash(PackageGuid, BulkDataId);
+	FIoHash PackageAndGuidHash = GetPackageAndGuidHash(PackageData->GetPackageSavedHash(), BulkDataId);
 
 	using namespace UE::DerivedData;
 	ICache& Cache = GetCache();
@@ -2094,10 +2090,7 @@ void PutBulkDataPayloadId(FName PackageName, const FGuid& BulkDataId, FSharedBuf
 	{
 		return;
 	}
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	const FGuid& PackageGuid = PackageData->PackageGuid;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	FIoHash PackageAndGuidHash = GetPackageAndGuidHash(PackageGuid, BulkDataId);
+	FIoHash PackageAndGuidHash = GetPackageAndGuidHash(PackageData->GetPackageSavedHash(), BulkDataId);
 
 	using namespace UE::DerivedData;
 	ICache& Cache = GetCache();

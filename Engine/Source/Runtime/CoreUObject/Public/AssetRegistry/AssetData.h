@@ -903,7 +903,7 @@ class FAssetPackageData
 {
 public:
 	/** Guid of the source package, uniquely identifies an asset package */
-	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and FAssetPackageData::PackageGuid will be removed.")
+	UE_DEPRECATED(5.4, "Use GetPackageSavedHash instead.")
 	FGuid PackageGuid;
 
 	/** MD5 of the cooked package on disk, for tracking nondeterministic changes */
@@ -976,7 +976,7 @@ public:
 	void SetHasVirtualizedPayloads(bool bValue) { Flags = (Flags & ~FLAG_HAS_VIRTUALIZED_PAYLOADS) | (bValue ? FLAG_HAS_VIRTUALIZED_PAYLOADS : 0); }
 
 	/**
-	 * Serialize as part of the registry cache. This is not meant to be serialized as part of a package so  it does not handle versions normally
+	 * Serialize as part of the registry cache. This is not meant to be serialized as part of a package so it does not handle versions normally
 	 * To version this data change FAssetRegistryVersion
 	 */
 	COREUOBJECT_API void SerializeForCache(FArchive& Ar);
@@ -987,6 +987,10 @@ public:
 	{
 		return ImportedClasses.GetAllocatedSize();
 	}
+
+	/** Hash of the package's .uasset/.umap file when it was last saved by the editor. */
+	COREUOBJECT_API FIoHash GetPackageSavedHash() const;
+	COREUOBJECT_API void SetPackageSavedHash(const FIoHash& InHash);
 
 private:
 	FORCEINLINE void SerializeForCacheInternal(FArchive& Ar, FAssetPackageData& PackageData, FAssetRegistryVersion::Type Version);

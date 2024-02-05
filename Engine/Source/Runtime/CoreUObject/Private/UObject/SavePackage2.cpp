@@ -1108,19 +1108,30 @@ ESavePackageResult BuildLinker(FSaveContext& SaveContext)
 		SaveContext.UpdatePackageLinkerVersions();
 	}
 
+#if WITH_EDITORONLY_DATA
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	if (SaveContext.GetSaveArgs().OutputPackageGuid)
+	const FGuid* OutputPackageGuid = SaveContext.GetSaveArgs().OutputPackageGuid.GetPtrOrNull();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	if (OutputPackageGuid)
 	{
-		SaveContext.GetLinker()->Summary.Guid = *SaveContext.GetSaveArgs().OutputPackageGuid;
-		
+		FIoHash SavedHash;
+		FMemory::Memcpy(&SavedHash.GetBytes(), OutputPackageGuid,
+			FMath::Min(sizeof(SavedHash.GetBytes()), sizeof(*OutputPackageGuid)));
+		SaveContext.GetLinker()->Summary.SetSavedHash(SavedHash);
 	}
 	else
 	{
-		SaveContext.GetLinker()->Summary.Guid = SaveContext.IsKeepGuid() ?
-			SaveContext.GetPackage()->GetGuid() : SaveContext.GetPackage()->MakeNewGuid();
+		if (!SaveContext.IsKeepGuid())
+		{
+			// TODO: Change this to instead be calculated later after the save from a hash of the saved data.
+			// Remove IsKeepGuid and OutputPackageGuid when that occurs.
+			FGuid Guid = FGuid::NewGuid();
+			FIoHash SavedHash;
+			FMemory::Memcpy(&SavedHash.GetBytes(), &Guid, FMath::Min(sizeof(SavedHash.GetBytes()), sizeof(Guid)));
+			SaveContext.GetPackage()->SetSavedHash(SavedHash);
+		}
+		SaveContext.GetLinker()->Summary.SetSavedHash(SaveContext.GetPackage()->GetSavedHash());
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-#if WITH_EDITORONLY_DATA
 	SaveContext.GetLinker()->Summary.PersistentGuid = SaveContext.GetPackage()->GetPersistentGuid();
 #endif
 	SaveContext.GetLinker()->Summary.Generations = TArray<FGenerationInfo>{ FGenerationInfo(0, 0) };

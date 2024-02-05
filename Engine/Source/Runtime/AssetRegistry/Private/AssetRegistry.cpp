@@ -1240,10 +1240,10 @@ void FAssetRegistryImpl::ReadScriptPackages()
 				if (Package && FPackageName::IsScriptPackage(Package->GetName()))
 				{
 					FAssetPackageData* ScriptPackageData = State.CreateOrGetAssetPackageData(Package->GetFName());
-					// Get the guid off the script package, it is updated when script is changed so we need to refresh it every run
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					ScriptPackageData->PackageGuid = Package->GetGuid();
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#if WITH_EDITORONLY_DATA
+					// Get the hash off the script package, it is updated when script is changed so we need to refresh it every run
+					ScriptPackageData->SetPackageSavedHash(Package->GetSavedHash());
+#endif
 				}
 			}
 		}
@@ -5744,9 +5744,9 @@ void FAssetRegistryImpl::DependencyDataGathered(const double TickStartTime, TMul
 							if (Package)
 							{
 								FAssetPackageData* ScriptPackageData = State.CreateOrGetAssetPackageData(DependencyPackageName);
-								PRAGMA_DISABLE_DEPRECATION_WARNINGS
-								ScriptPackageData->PackageGuid = Package->GetGuid();
-								PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#if WITH_EDITORONLY_DATA
+								ScriptPackageData->SetPackageSavedHash(Package->GetSavedHash());
+#endif
 							}
 						}
 					}

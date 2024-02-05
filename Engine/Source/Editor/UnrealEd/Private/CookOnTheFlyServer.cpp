@@ -6407,9 +6407,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 			Info.Status = IPackageWriter::ECommitStatus::Error;
 		}
 		Info.PackageName = Package->GetFName();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		Info.PackageGuid = AssetPackageData ? AssetPackageData->PackageGuid : FGuid();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		Info.PackageHash = AssetPackageData ? AssetPackageData->GetPackageSavedHash() : FIoHash();
 		if (TargetDomainDependencies)
 		{
 			Info.Attachments.Add({ "Dependencies", TargetDomainDependencies });
@@ -6499,9 +6497,7 @@ void FSaveCookedPackageContext::FinishPlatform()
 				ImportedClasses.Sort(FNameLexicalLess());
 
 				OverrideAssetPackageData.Emplace();
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-				OverrideAssetPackageData->PackageGuid = GeneratedInfo->Guid;
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+				OverrideAssetPackageData->SetPackageSavedHash(GeneratedInfo->PackageHash);
 				OverrideAssetPackageData->ImportedClasses = ImportedClasses;
 			}
 		}
@@ -8597,7 +8593,7 @@ void UCookOnTheFlyServer::PopulateCookedPackages(TArrayView<const ITargetPlatfor
 				FPackageData* PackageData = PackageDatas->TryAddPackageDataByPackageName(Generator, false /* bRequireExists */);
 				if (PackageData && PackageData->FindOrAddPlatformData(TargetPlatform).IsCookAttempted())
 				{
-					for (const TPair<FName, FGuid>& GeneratedPair : Iter->Value.Generated)
+					for (const TPair<FName, FIoHash>& GeneratedPair : Iter->Value.Generated)
 					{
 						UpdateCookedPackage(GeneratedPair.Key, false /* bRequireExists */, true /* bIterativelyUnmodified */);
 					}

@@ -81,7 +81,7 @@ public:
 	/** Info about a GeneratorPackage (see ICookPackageSplitter) loaded from previous iterative cooks. */
 	struct FGeneratorPackageInfo
 	{
-		TMap<FName, FGuid> Generated;
+		TMap<FName, FIoHash> Generated;
 	};
 
 	enum EDifference

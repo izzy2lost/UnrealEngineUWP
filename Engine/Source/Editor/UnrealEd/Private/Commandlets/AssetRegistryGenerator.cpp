@@ -1287,9 +1287,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 				else
 				{
 					FGeneratorPackageInfo& Info = OutDifference.GeneratorPackages.FindOrAdd(GeneratorName);
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-					Info.Generated.Add(PackageName, PreviousPackageData->PackageGuid);
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+					Info.Generated.Add(PackageName, PreviousPackageData->GetPackageSavedHash());
 				}
 			}
 			else
@@ -1325,7 +1323,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 		EDifference* GeneratorDifference = OutDifference.Packages.Find(GeneratorName);
 		if (GeneratorDifference && *GeneratorDifference == EDifference::RemovedCooked)
 		{
-			for (const TPair<FName, FGuid>& Generated : Iter->Value.Generated)
+			for (const TPair<FName, FIoHash>& Generated : Iter->Value.Generated)
 			{
 				OutDifference.Packages.Add(Generated.Key, EDifference::RemovedCooked);
 			}
@@ -1427,9 +1425,7 @@ bool FAssetRegistryGenerator::ComputePackageDifferences_IsPackageFileUnchanged(
 	const FComputeDifferenceOptions& Options, FName PackageName, const FAssetPackageData& CurrentPackageData,
 	const FAssetPackageData& PreviousPackageData)
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (CurrentPackageData.PackageGuid != PreviousPackageData.PackageGuid)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	if (CurrentPackageData.GetPackageSavedHash() != PreviousPackageData.GetPackageSavedHash())
 	{
 		return false;
 	}
@@ -1491,9 +1487,7 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 				}
 				else
 				{
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-					OutGeneratorPackages.FindOrAdd(GeneratorName).Generated.Add(PackageName, PreviousPackageData->PackageGuid);
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+					OutGeneratorPackages.FindOrAdd(GeneratorName).Generated.Add(PackageName, PreviousPackageData->GetPackageSavedHash());
 				}
 			}
 			else
@@ -1517,7 +1511,7 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 		FName GeneratorName = Iter->Key;
 		if (RemovedPackageSet.Contains(GeneratorName))
 		{
-			for (const TPair<FName, FGuid>& Generated : Iter->Value.Generated)
+			for (const TPair<FName, FIoHash>& Generated : Iter->Value.Generated)
 			{
 				RemovedPackageSet.Add(Generated.Key);
 			}
@@ -2790,9 +2784,7 @@ void FAssetRegistryPackageMessage::Write(FCbWriter& Writer) const
 		Writer.BeginObject("P");
 		{
 			// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated pacakges
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-			Writer << "G" << OverrideAssetPackageData->PackageGuid;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+			Writer << "H" << OverrideAssetPackageData->GetPackageSavedHash();
 			Writer << "C" << OverrideAssetPackageData->ImportedClasses;
 		}
 		Writer.EndObject();
@@ -2830,13 +2822,13 @@ bool FAssetRegistryPackageMessage::TryRead(FCbObjectView Object)
 	if (OverrideAssetPackageDataField.HasValue())
 	{
 		OverrideAssetPackageData.Emplace();
-		// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated pacakges
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["G"], OverrideAssetPackageData->PackageGuid))
+		// Currently we only replicate Guid and ImportedClasses, since these are the only fields set by generated packages
+		FIoHash PackageSavedHash;
+		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["H"], PackageSavedHash))
 		{
 			return false;
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		OverrideAssetPackageData->SetPackageSavedHash(PackageSavedHash);
 		if (!LoadFromCompactBinary(OverrideAssetPackageDataField["C"], OverrideAssetPackageData->ImportedClasses))
 		{
 			return false;

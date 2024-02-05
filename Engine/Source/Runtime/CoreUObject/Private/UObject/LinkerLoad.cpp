@@ -1684,12 +1684,9 @@ FLinkerLoad::ELinkerStatus FLinkerLoad::UpdateFromPackageFileSummary()
 		// Propagate package file size
 		LinkerRootPackage->SetFileSize(Loader ? Loader->TotalSize() : 0);
 
-		// Propagate package Guids
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		LinkerRootPackage->SetGuid( Summary.Guid );
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
+		// Propagate package hashes
 #if WITH_EDITORONLY_DATA
+		LinkerRootPackage->SetSavedHash(Summary.GetSavedHash());
 		LinkerRootPackage->SetPersistentGuid( Summary.PersistentGuid );
 #endif
 

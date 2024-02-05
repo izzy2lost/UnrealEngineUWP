@@ -3919,9 +3919,7 @@ UWorld* UWorld::DuplicateWorldForPIE(const FString& PackageName, UWorld* OwningW
 	PIELevelPackage->SetPackageFlags(PKG_PlayInEditor | PKG_NewlyCreated);
 	PIELevelPackage->SetPIEInstanceID(PIEInstanceID);
 	PIELevelPackage->SetLoadedPath(EditorLevelPackage->GetLoadedPath());
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	PIELevelPackage->SetGuid( EditorLevelPackage->GetGuid() );
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PIELevelPackage->SetSavedHash( EditorLevelPackage->GetSavedHash() );
 	PIELevelPackage->MarkAsFullyLoaded();
 
 	ULevel::StreamedLevelsOwningWorld.Add(PIELevelPackage->GetFName(), OwningWorld);
@@ -8835,9 +8833,9 @@ static ULevel* DuplicateLevelWithPrefix(ULevel* InLevel, int32 InstanceID )
 	NewPackage->SetPackageFlags( PKG_PlayInEditor );
 	NewPackage->SetPIEInstanceID(InstanceID);
 	NewPackage->SetLoadedPath(OriginalPackage->GetLoadedPath());
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	NewPackage->SetGuid( OriginalPackage->GetGuid() );
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#if WITH_EDITORONLY_DATA
+	NewPackage->SetSavedHash( OriginalPackage->GetSavedHash() );
+#endif
 	NewPackage->MarkAsFullyLoaded();
 
 	FSoftObjectPath::AddPIEPackageName(NewPackage->GetFName());

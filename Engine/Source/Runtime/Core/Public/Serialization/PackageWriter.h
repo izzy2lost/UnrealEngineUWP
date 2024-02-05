@@ -7,6 +7,7 @@
 #include "Async/Future.h"
 #include "Containers/StringView.h"
 #include "IO/IoDispatcher.h"
+#include "IO/IoHash.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/DateTime.h"
 #include "Misc/EnumClassFlags.h"
@@ -94,10 +95,20 @@ public:
 	struct FCommitPackageInfo
 	{
 		FName PackageName;
+		FIoHash PackageHash;
+		UE_DEPRECATED(5.4, "Use PackageHash instead")
 		FGuid PackageGuid;
 		TArray<FCommitAttachmentInfo> Attachments;
 		ECommitStatus Status;
 		EWriteOptions WriteOptions;
+
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+		inline FCommitPackageInfo() = default;
+		inline FCommitPackageInfo(const FCommitPackageInfo&) = default;
+		inline FCommitPackageInfo(FCommitPackageInfo&&) = default;
+		inline FCommitPackageInfo& operator=(FCommitPackageInfo&) = default;
+		inline FCommitPackageInfo& operator=(FCommitPackageInfo&&) = default;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	};
 
 	/** Finalize a package started with BeginPackage()

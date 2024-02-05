@@ -6204,13 +6204,15 @@ namespace UECodeGen_Private
 #endif
 
 		NewPackage->SetPackageFlags(Params.PackageFlags);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		NewPackage->SetGuid(FGuid(Params.BodyCRC, Params.DeclarationsCRC, 0u, 0u));
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #if WITH_EDITORONLY_DATA
-		// Store the CRC in UPackage::PersistentGuid since UPackage::Guid will be removed.
 		// Replace the PersistentGuid generated from UPackage::PostInitProperties() that changes every time.
-		NewPackage->SetPersistentGuid(FGuid(Params.BodyCRC, Params.DeclarationsCRC, 0u, 0u));
+		FGuid DeterministicGuid(Params.BodyCRC, Params.DeclarationsCRC, 0u, 0u);
+		NewPackage->SetPersistentGuid(DeterministicGuid);
+		// Set the initial saved hash to a value based on the CRCs; this is needed for script packages.
+		FIoHash SavedHash;
+		FMemory::Memcpy(&SavedHash.GetBytes(), &DeterministicGuid,
+			FMath::Min(sizeof(&SavedHash.GetBytes()), sizeof(DeterministicGuid)));
+		NewPackage->SetSavedHash(SavedHash);
 #endif
 
 #if WITH_RELOAD
