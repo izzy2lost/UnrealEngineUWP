@@ -2,7 +2,9 @@
 
 #include "../../Public/MuV/COIBakingTestCommandlet.h"
 
-#include "AssetRegistry/AssetRegistryModule.h"
+#include "ValidationUtils.h"
+#include "AssetRegistry/AssetData.h"
+#include "HAL/FileManager.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
@@ -64,42 +66,20 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 	}
 
 	// Perform a blocking search to ensure all assets used by mutable are reachable using the AssetRegistry
-	{
-		UE_LOG(LogMutable,Display,TEXT("Searching all assets (this will take some time)..."));
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
-		AssetRegistryModule.Get().SearchAllAssets(true /* bSynchronousSearch */);
-	}
+	PrepareAssetRegistry();
 	
 	// Compile it's CO (using current config)
 	UCustomizableObject* InstanceCustomizableObject = TargetInstance->GetCustomizableObject();
-	UCustomizableObjectSystem* System =  UCustomizableObjectSystem::GetInstanceChecked();
-	check (InstanceCustomizableObject);
+	if (!InstanceCustomizableObject)
 	{
-		UE_LOG(LogMutable,Display,TEXT("Compiling Customizable Object..."));
-    	
-		// Request a compiler to be able to locate the root and to compile it
-		const TUniquePtr<FCustomizableObjectCompilerBase> Compiler =
-			TUniquePtr<FCustomizableObjectCompilerBase>(System->GetNewCompiler());
-
-		// Compile (sync)
-		// Compile the CO with the provided compilation options
-		// Run Sync compilation -> Warning : Potentially long operation -------------
-		Compiler->Compile(*InstanceCustomizableObject, InstanceCustomizableObject->CompileOptions, false);
-		// --------------------------------------------------------------------------
-		
-		// Get the compilation result
-		const ECustomizableObjectCompilationState CompilationEndResult = Compiler->GetCompilationState();
-		check(CompilationEndResult != ECustomizableObjectCompilationState::None);
-		check(CompilationEndResult != ECustomizableObjectCompilationState::InProgress);
-
-		UE_LOG(LogMutable, Display, TEXT("CO compilation completed with end status : %s "), *UEnum::GetValueAsString(CompilationEndResult));
-		
-		const bool bWasCompilationSuccessful = CompilationEndResult == ECustomizableObjectCompilationState::Completed;
-		if (!bWasCompilationSuccessful)
-		{
-			UE_LOG(LogMutable,Error,TEXT("Failed to compile the target CO."));
-			return 1;
-		}
+		UE_LOG(LogMutable,Error,TEXT("The instance %s does not have a CO to compile : Exitting commandlet."), *TargetInstance->GetName());
+		return 1;
+	}
+	
+	if (!CompileCustomizableObject(InstanceCustomizableObject))
+	{
+		UE_LOG(LogMutable,Error,TEXT("Failed to compile the target CO. Exitting commandlet."));
+		return 1;
 	}
 	
 	// Update the instance
@@ -131,7 +111,7 @@ int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 		// Check the end status of the instance update
 		if (!bWasInstanceUpdateSuccessful)
 		{
-			UE_LOG(LogMutable,Error,TEXT("Failed to succesfully update the target COI."));
+			UE_LOG(LogMutable,Error,TEXT("Failed to succesfully update the target COI. Exitting commandlet."));
 			return 1;
 		}
 	}

@@ -2,8 +2,8 @@
 
 #include "MuV/CustomizableObjectValidationCommandlet.h"
 
+#include "ValidationUtils.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "AssetRegistry/AssetRegistryModule.h"
 #include "Containers/Array.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectSystem.h"
@@ -13,7 +13,7 @@
 int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 {
 	// Execution arguments for commandlet from IDE
-	// $(LocalDebuggerCommandArguments) -run=CustomizableObjectValidation -CustomizableObject=(PathToCO)
+	// -run=CustomizableObjectValidation -CustomizableObject=(PathToCO)
 	
 	// Get the package name of the CO to test
 	FString CustomizableObjectAssetPath = "";
@@ -29,6 +29,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	{
 		UE_LOG(LogMutable,Display,TEXT("Instance generation count not specified. Using default value : %u"),InstancesToGenerate);
 	}
+	UE_LOG(LogMutable, Log,TEXT("(int) instances_to_generate_count : %u "), InstancesToGenerate);
 	
 	// TODO: Detect target compilation platform based on argument value (string)
 	
@@ -49,51 +50,18 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	}
 	
 	// Perform a blocking search to ensure all assets used by mutable are reachable using the AssetRegistry
-	{
-		UE_LOG(LogMutable,Display,TEXT("Searching all assets (this will take some time)..."));
-		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
-		AssetRegistryModule.Get().SearchAllAssets(true /* bSynchronousSearch */);
-	}
+	PrepareAssetRegistry();
 	
 	// Compile the Customizable Object ------------------------------------------------------------------------------ //
 	bool bWasCoCompilationSuccessful = false;
 	{
-		UE_LOG(LogMutable,Display,TEXT("Compiling Customizable Object..."));
-    	
-    	// Request a compiler to be able to locate the root and to compile it
-    	const TUniquePtr<FCustomizableObjectCompilerBase> Compiler =
-    		TUniquePtr<FCustomizableObjectCompilerBase>(UCustomizableObjectSystem::GetInstanceChecked()->GetNewCompiler());
-		
 		// Override some configurations that may have been changed by the user
 		FCompilationOptions CompilationOptions = ToTestCustomizableObject->CompileOptions;
 		CompilationOptions.bSilentCompilation = false;
 		CompilationOptions.OptimizationLevel = 2;			// Set the optimization level to the max
 		CompilationOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
-		
-		// TODO: Add logs for the other relevant configs of the model being compiled
-		// Print MTU parseable logs
-		UE_LOG(LogMutable, Log, TEXT("(int) model_optimization_level : %d "), CompilationOptions.OptimizationLevel);
-		UE_LOG(LogMutable, Log, TEXT("(string) model_texture_compression : %s "), *UEnum::GetValueAsString(CompilationOptions.TextureCompression));
-		UE_LOG(LogMutable, Log, TEXT("(string) model_disk_compilation : %s "), CompilationOptions.bUseDiskCompilation ? TEXT("true") : TEXT("false"));
 
-    	// Compile the CO with the provided compilation options
-    	// Run Sync compilation -> Warning : Potentially long operation -------------
-		const double CompilationStartSeconds = FPlatformTime::Seconds();
-		{
-			Compiler->Compile(*ToTestCustomizableObject, CompilationOptions, false);
-		}
-		const double CompilationEndSeconds = FPlatformTime::Seconds() - CompilationStartSeconds;
-		UE_LOG(LogMutable, Log, TEXT("(double) model_compile_time_ms : %f "), CompilationEndSeconds * 1000);
-		UE_LOG(LogMutable, Display, TEXT("The compilation of the %s model took %f seconds."), *ToTestCustomizableObject->GetName(), CompilationEndSeconds);
-
-    	// --------------------------------------------------------------------------
-		
-    	// Get the compilation result
-    	const ECustomizableObjectCompilationState CompilationEndResult = Compiler->GetCompilationState();
-    	check(CompilationEndResult != ECustomizableObjectCompilationState::None);
-    	check(CompilationEndResult != ECustomizableObjectCompilationState::InProgress);
-    	
-    	bWasCoCompilationSuccessful = CompilationEndResult == ECustomizableObjectCompilationState::Completed;
+		bWasCoCompilationSuccessful = CompileCustomizableObject(ToTestCustomizableObject, &CompilationOptions);
 	}
 	// -------------------------------------------------------------------------------------------------------------- //
 	
@@ -165,73 +133,22 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		
 		// Update the instances generated --------------------------------------------------------------------------- //
 		UE_LOG(LogMutable,Display,TEXT("Updating generated instances..."));
-		const double InstanceUpdateStartSeconds = FPlatformTime::Seconds();
+		bool bInstanceFailedUpdate = false;
+		const double InstancesUpdateStartSeconds = FPlatformTime::Seconds();
 		{
-            // Now update the instances one by one
-            while (!InstancesToProcess.IsEmpty() || InstanceBeingUpdated)
-            {
-            	// Tick the engine
-            	CommandletHelpers::TickEngine();
-    
-            	// Stop if exit was requested
-            	if (IsEngineExitRequested())
-            	{
-            		break;
-            	}
-            
-            	// Wait until current instance turns invalid
-            	if (InstanceBeingUpdated)
-            	{
-            		// Wait until all MIPs gets streamed
-            		if (!ComponentsBeingUpdated.IsEmpty())
-            		{
-            			bool bFullyStreamed = true;
-            			for (auto It = ComponentsBeingUpdated.CreateIterator(); It && bFullyStreamed; ++It)
-            			{
-            				TObjectPtr<USkeletalMeshComponent>& ComponentBeingUpdated = *It;
-            		
-            				FStreamingTextureLevelContext LevelContext(EMaterialQualityLevel::Num, ComponentBeingUpdated);
-            				TArray<FStreamingRenderAssetPrimitiveInfo> RenderAssetInfoArray;
-            				ComponentBeingUpdated->GetStreamingRenderAssetInfo(LevelContext, RenderAssetInfoArray);
-
-            				for (auto ItAsset = RenderAssetInfoArray.CreateIterator(); ItAsset && bFullyStreamed; ++ItAsset)
-            				{
-            					bFullyStreamed = ItAsset->RenderAsset->IsFullyStreamedIn();
-            				}
-            			}
-
-            			if (bFullyStreamed)
-            			{
-            				UE_LOG(LogMutable,Display,TEXT("Instance %s finished streaming all MIPs."), *InstanceBeingUpdated->GetName());
-            				ComponentsBeingUpdated.Reset();
-            				InstanceBeingUpdated = nullptr;
-            			}
-            		}
-            		
-            		continue;
-            	}
-           
-            	// We may have already updated the instance so ensure we have more instances to work with
-            	if (InstancesToProcess.IsEmpty())
-            	{
-            		continue;
-            	}
-            	
-            	InstanceBeingUpdated = InstancesToProcess[0];
-            	InstancesToProcess.RemoveAt(0);
-            	if (InstanceBeingUpdated)
-            	{
-            		UE_LOG(LogMutable,Display,TEXT("Invoking update for %s instance."),*InstanceBeingUpdated->GetName());
-            		// Instance update delegate
-            		FInstanceUpdateDelegate InstanceUpdateDelegate;
-            		InstanceUpdateDelegate.BindDynamic(this, &UCustomizableObjectValidationCommandlet::OnInstanceUpdate);
-            		InstanceBeingUpdated->UpdateSkeletalMeshAsyncResult(InstanceUpdateDelegate);
-            	}
-            }
-		}	
+			InstanceUpdater = NewObject<UCOIUpdater>();
+			for (UCustomizableObjectInstance* InstanceToUpdate : InstancesToProcess)
+			{
+				if (InstanceUpdater && !InstanceUpdater->UpdateInstance(InstanceToUpdate))
+				{
+					bInstanceFailedUpdate = true;
+				}
+			}
+		}
+		const double InstancesUpdateEndSeconds = FPlatformTime::Seconds();
 		
 		// Notify and log time required by the instances to get updated
-		const double CombinedInstanceUpdateSeconds = FPlatformTime::Seconds() - InstanceUpdateStartSeconds;
+		const double CombinedInstanceUpdateSeconds = InstancesUpdateEndSeconds - InstancesUpdateStartSeconds;
 		UE_LOG(LogMutable, Log,TEXT("(double) combined_update_time_ms : %f "), CombinedInstanceUpdateSeconds * 1000);
 
 		check(InstancesToGenerate > 0);
@@ -254,7 +171,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	}
 	else
 	{
-		UE_LOG(LogMutable,Error,TEXT("The compilation of the Customizable object was not succesfull."));
+		UE_LOG(LogMutable,Error,TEXT("The compilation of the Customizable object was not succesfull : No instances will be generated."));
 	}
 	
 	
@@ -262,47 +179,3 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	UE_LOG(LogMutable,Display,TEXT("Mutable commandlet finished."));
 	return 0;
 }
-
-
-void UCustomizableObjectValidationCommandlet::OnInstanceUpdate(const FUpdateContext& Result)
-{
-	const FString InstanceName = InstanceBeingUpdated->GetName();
-	const EUpdateResult InstanceUpdateResult = Result.UpdateResult;
-	if (UCustomizableObjectSystem::IsUpdateResultValid(InstanceUpdateResult))
-	{
-		UE_LOG(LogMutable,Display,TEXT("Instance %s finished update succesfully."),*InstanceName);
-
-		// Request load all MIPs
-		UE_LOG(LogMutable,Display,TEXT("Instance %s rquesting streaming all MIPs."), *InstanceBeingUpdated->GetName());
-
-		check(ComponentsBeingUpdated.IsEmpty());
-		for (int32 Index = 0; Index < InstanceBeingUpdated->GetNumComponents(); ++Index)
-		{
-			USkeletalMeshComponent* SkeletalComponent = NewObject<USkeletalMeshComponent>();
-			SkeletalComponent->SetSkeletalMesh(InstanceBeingUpdated->GetSkeletalMesh(Index));
-            
-			ComponentsBeingUpdated.Add(SkeletalComponent);            			
-		}
-		
-		for (TObjectPtr<USkeletalMeshComponent>& ComponentBeingUpdated : ComponentsBeingUpdated)
-		{
-			FStreamingTextureLevelContext LevelContext(EMaterialQualityLevel::Num, ComponentBeingUpdated);
-			TArray<FStreamingRenderAssetPrimitiveInfo> RenderAssetInfoArray;
-			ComponentBeingUpdated->GetStreamingRenderAssetInfo(LevelContext, RenderAssetInfoArray);
-
-			for (const FStreamingRenderAssetPrimitiveInfo& Info : RenderAssetInfoArray)
-			{
-				Info.RenderAsset->StreamIn(MAX_int32, true);
-			}
-		}
-	}
-	else
-	{
-		const FString OutputStatus = UEnum::GetValueAsString(Result.UpdateResult);
-		UE_LOG(LogMutable,Error,TEXT("Instance %s finished update with anomalous state : %s."), *InstanceName, *OutputStatus);
-		bInstanceFailedUpdate = true;
-
-		InstanceBeingUpdated = nullptr;
-	}	
-}
-
