@@ -104,7 +104,15 @@
 {
 	if (TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin())
 	{
-		Request->HandleStatusCodeReceived(StatusCode);
+		Request->TriggerStatusCodeReceivedDelegate(StatusCode);
+	}
+}
+
+- (void) SaveEffectiveURL:(const FString&) InEffectiveURL
+{
+	if (TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin())
+	{
+		Request->SetEffectiveURL(InEffectiveURL);
 	}
 }
 
@@ -119,8 +127,14 @@
 	UE_LOG(LogHttp, Verbose, TEXT("URLSession:dataTask:didReceiveResponse:completionHandler"));
 	
 	self.Response = (NSHTTPURLResponse*)response;
+
 	int32 StatusCode = [self.Response statusCode];
 	[self HandleStatusCodeReceived: StatusCode];
+
+	NSURL* Url = [self.Response URL];
+	FString EffectiveURL([Url absoluteString]);
+	[self SaveEffectiveURL: EffectiveURL];
+
 	uint64 ExpectedResponseLength = response.expectedContentLength;
 	if(!bInitializedWithValidStream && ExpectedResponseLength != NSURLResponseUnknownLength)
 	{
@@ -418,11 +432,6 @@ FAppleHttpRequest::~FAppleHttpRequest()
 const TSharedPtr<FArchive> FAppleHttpRequest::GetResponseBodyReceiveStream() const
 {
 	return ResponseBodyReceiveStream;
-}
-
-void FAppleHttpRequest::HandleStatusCodeReceived(int32 StatusCode)
-{
-	TriggerStatusCodeReceivedDelegate(StatusCode);
 }
 
 FString FAppleHttpRequest::GetURL() const

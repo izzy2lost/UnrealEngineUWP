@@ -532,14 +532,28 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 		}
 		else
 		{
-			long HttpCode = 0;
-			if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+			if (Header.IsEmpty())
 			{
-				bRedirected = (HttpCode >= 300 && HttpCode < 400);
-
-				if (!bRedirected)
+				char* EffectiveUrlPtr = nullptr;
+				if (curl_easy_getinfo(EasyHandle, CURLINFO_EFFECTIVE_URL, &EffectiveUrlPtr) == CURLE_OK)
 				{
-					TriggerStatusCodeReceivedDelegate(HttpCode);
+					if (EffectiveUrlPtr)
+					{
+						SetEffectiveURL(FString(EffectiveUrlPtr));
+					}
+				}
+			}
+			else
+			{
+				long HttpCode = 0;
+				if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
+				{
+					bRedirected = (HttpCode >= 300 && HttpCode < 400);
+
+					if (!bRedirected)
+					{
+						TriggerStatusCodeReceivedDelegate(HttpCode);
+					}
 				}
 			}
 		}

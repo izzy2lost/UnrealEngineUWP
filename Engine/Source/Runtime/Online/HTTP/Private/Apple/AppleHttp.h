@@ -6,7 +6,7 @@
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "IHttpThreadedRequest.h"
 #include "PlatformHttp.h"
-
+#include "HttpPackage.h"
 
 /**
  * Delegate invoked when in progress Task completes. It is invoked in an out of our control thread
@@ -72,7 +72,9 @@ public:
 
 	const TSharedPtr<FArchive> GetResponseBodyReceiveStream() const;
 
-	void HandleStatusCodeReceived(int32 StatusCode);
+PACKAGE_SCOPE:
+	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
+	using FHttpRequestCommon::SetEffectiveURL;
 
 private:
 	/**

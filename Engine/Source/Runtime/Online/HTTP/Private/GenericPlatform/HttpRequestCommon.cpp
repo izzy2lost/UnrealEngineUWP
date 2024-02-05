@@ -29,6 +29,11 @@ EHttpRequestStatus::Type FHttpRequestCommon::GetStatus() const
 	return CompletionStatus;
 }
 
+const FString& FHttpRequestCommon::GetEffectiveURL() const
+{
+	return EffectiveURL;
+}
+
 EHttpFailureReason FHttpRequestCommon::GetFailureReason() const
 {
 	return FailureReason;
@@ -107,6 +112,7 @@ void FHttpRequestCommon::ClearInCaseOfRetry()
 	bActivityTimedOut = false;
 	FailureReason = EHttpFailureReason::None;
 	bCanceled = false;
+	EffectiveURL = GetURL();
 }
 
 void FHttpRequestCommon::FinishRequestNotInHttpManager()
@@ -421,5 +427,16 @@ void FHttpRequestCommon::TriggerStatusCodeReceivedDelegate(int32 StatusCode)
 		{
 			StrongThis->OnStatusCodeReceived().ExecuteIfBound(StrongThis, StatusCode);
 		});
+	}
+}
+
+void FHttpRequestCommon::SetEffectiveURL(const FString& InEffectiveURL)
+{
+	EffectiveURL = InEffectiveURL;
+
+	if (FHttpResponsePtr Response = GetResponse())
+	{
+		TSharedPtr<FHttpResponseCommon> ResponseCommon = StaticCastSharedPtr<FHttpResponseCommon>(Response);
+		ResponseCommon->SetEffectiveURL(EffectiveURL);
 	}
 }

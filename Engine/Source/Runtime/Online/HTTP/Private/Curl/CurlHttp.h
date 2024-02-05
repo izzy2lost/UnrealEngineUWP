@@ -355,7 +355,7 @@ private:
 
 	void OnAnyActivityOccur(FStringView Reason);
 
-	void ClearInCaseOfRetry() override;
+	virtual void ClearInCaseOfRetry() override;
 
 private:
 

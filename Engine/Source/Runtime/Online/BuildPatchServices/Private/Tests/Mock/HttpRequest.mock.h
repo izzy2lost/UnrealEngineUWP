@@ -220,6 +220,12 @@ namespace BuildPatchServices
 			return EHttpRequestDelegateThreadPolicy::CompleteOnGameThread;
 		}
 
+		virtual const FString& GetEffectiveURL() const override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetEffectiveURL");
+			return EffectiveURL;
+		}
+
 	public:
 		FHttpRequestProgressDelegate HttpRequestProgressDelegate;
 		FHttpRequestProgressDelegate64 HttpRequestProgressDelegate64;
@@ -232,6 +238,7 @@ namespace BuildPatchServices
 		TArray<FRxSetURL> RxSetURL;
 		int32 RxProcessRequest;
 		int32 RxCancelRequest;
+		FString EffectiveURL;
 	};
 }
 

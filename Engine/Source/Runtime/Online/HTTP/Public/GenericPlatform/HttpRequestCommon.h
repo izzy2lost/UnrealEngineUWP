@@ -19,6 +19,7 @@ public:
 
 	// IHttpRequest
 	HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override;
+	HTTP_API virtual const FString& GetEffectiveURL() const override;
 	HTTP_API virtual EHttpFailureReason GetFailureReason() const override;
 	HTTP_API virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InDelegateThreadPolicy) override;
 	HTTP_API virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override;
@@ -72,6 +73,8 @@ protected:
 
 	HTTP_API void TriggerStatusCodeReceivedDelegate(int32 StatusCode);
 
+	HTTP_API void SetEffectiveURL(const FString& InEffectiveURL);
+
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;
@@ -113,4 +116,7 @@ protected:
 
 	/** Record how long it take to connect to the endpoint */
 	double ConnectTime = -1.0;
+
+	/** Cache the effective URL. When redirected, it will be different with original URL */
+	FString EffectiveURL;
 };

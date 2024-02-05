@@ -130,6 +130,13 @@ public:
 	 */
 	static HTTP_API FString GetUrlDomain(const FStringView Url);
 
+	/** 
+	* Returns the base of the URL, e.g., "http://a.b.c:d" of "http://a.b.c:d/e"
+	* @param Url the URL to return the base of
+	* @return the base of the specified URL
+	*/
+	static HTTP_API FString GetUrlBase(const FStringView Url);
+
 	/**
 	 * Get the mime type for the file
 	 * @return the mime type for the file.

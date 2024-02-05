@@ -92,6 +92,13 @@ public:
 	virtual FString GetURL() const = 0;
 
 	/**
+	 * Get the effective URL in case of redirected. If not redirected, it's the same as GetURL
+	 *
+	 * @return the effective URL string.
+	 */
+	virtual const FString& GetEffectiveURL() const = 0;
+
+	/**
 	 * Get the current status of the request being processed
 	 *
 	 * @return the current status

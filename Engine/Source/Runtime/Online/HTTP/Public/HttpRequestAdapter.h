@@ -44,6 +44,7 @@ public:
 	virtual float GetElapsedTime() const override { return HttpRequest->GetElapsedTime(); }
 	virtual EHttpRequestStatus::Type GetStatus() const override { return HttpRequest->GetStatus(); }
 	virtual EHttpFailureReason GetFailureReason() const override { return HttpRequest->GetFailureReason(); }
+	virtual const FString& GetEffectiveURL() const override { return HttpRequest->GetEffectiveURL(); }
 	virtual void Tick(float DeltaSeconds) override { HttpRequest->Tick(DeltaSeconds); }
 	virtual void SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy InThreadPolicy) override { HttpRequest->SetDelegateThreadPolicy(InThreadPolicy); }
 	virtual EHttpRequestDelegateThreadPolicy GetDelegateThreadPolicy() const override { return HttpRequest->GetDelegateThreadPolicy(); }

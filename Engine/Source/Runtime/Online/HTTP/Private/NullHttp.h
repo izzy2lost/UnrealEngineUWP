@@ -37,6 +37,7 @@ public:
 	virtual void CancelRequest() override;
 	virtual EHttpRequestStatus::Type GetStatus() const override;
 	virtual EHttpFailureReason GetFailureReason() const override;
+	virtual const FString& GetEffectiveURL() const override;
 	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float GetElapsedTime() const override;
@@ -58,6 +59,7 @@ private:
 	void FinishedRequest();
 
 	FString Url;
+	FString EffectiveUrl;
 	FString Verb;
 	TArray<uint8> Payload;
 	EHttpRequestStatus::Type CompletionStatus;

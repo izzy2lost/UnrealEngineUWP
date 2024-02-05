@@ -19,14 +19,17 @@ public:
 	// IHttpBase
 	HTTP_API virtual FString GetURLParameter(const FString& ParameterName) const override;
 	HTTP_API virtual FString GetURL() const override;
+	HTTP_API virtual const FString& GetEffectiveURL() const override;
 	HTTP_API virtual EHttpRequestStatus::Type GetStatus() const override;
 	HTTP_API virtual EHttpFailureReason GetFailureReason() const override;
 
 protected:
 	HTTP_API void SetRequestStatus(EHttpRequestStatus::Type InCompletionStatus);
 	HTTP_API void SetRequestFailureReason(EHttpFailureReason InFailureReason);
+	HTTP_API void SetEffectiveURL(const FString& InEffectiveURL);
 
 	FString URL;
+	FString EffectiveURL;
 	EHttpRequestStatus::Type CompletionStatus;
 	EHttpFailureReason FailureReason;
 };
