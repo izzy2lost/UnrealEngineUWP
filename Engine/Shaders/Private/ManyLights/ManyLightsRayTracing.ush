@@ -92,9 +92,8 @@ FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint Local
 	if (LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 	{
 		const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-		const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-		const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
-		const FLightShaderParameters LightParameters = ConvertToLightShaderParameters(LightSceneData);
+		const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+		const FLightShaderParameters LightParameters = ConvertToLightShaderParameters(LightData);
 
 		float3 Unused;
 		float Unused2;

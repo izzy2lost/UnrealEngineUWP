@@ -87,8 +87,7 @@ void ShadeLightSamplesCS(
 					const uint PackedShadingTile = ShadingTileGrid[GetShadingTileGridOffset(ShadingTileCoord, IndexInCell)];
 					const FShadingTile ShadingTile = UnpackShadingTile(PackedShadingTile);
 					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(ShadingTile.LocalLightIndex);
-					const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-					FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+					FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
 					float SampleWeight = 0.0f;
 

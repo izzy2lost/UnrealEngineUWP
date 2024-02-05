@@ -134,8 +134,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
 			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+			const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
 			float3 RayStart = Ray.Origin + Ray.Direction * Ray.TMin;
 			float3 RayEnd = Ray.Origin + Ray.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax);

@@ -34,11 +34,10 @@ void AccumulateLightSample(uint2 SharedTileCoord, float UpsampleWeight, inout fl
 }
 
 /**
- * Run one thread per local region and composite current frame's traces.
- * Then create upsampled shading tiles from the local region.
+ * Run one thread per local region and compute fullscreen per pixel BRDF weights for shading.
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void CompositeLightSamplesCS(
+void ResolveLightSamplesCS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)

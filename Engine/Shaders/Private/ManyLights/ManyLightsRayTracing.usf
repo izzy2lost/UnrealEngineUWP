@@ -286,8 +286,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
 			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+			const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
 			float3 RayStart = TranslatedWorldPosition;
 			float3 RayEnd = TranslatedWorldPosition + LightSampleTrace.Direction * min(LightSampleTrace.Distance, RayT);
@@ -360,8 +359,7 @@ void SoftwareRayTraceLightSamplesCS(
 		if (bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING)
 		{
 			const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-			const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-			const FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+			const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
 			float3 RayStart = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * TraceInput.MinTraceDistance;
 			float3 RayEnd = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * (bHit ? SDFResult.HitTime : TraceInput.MaxTraceDistance);
