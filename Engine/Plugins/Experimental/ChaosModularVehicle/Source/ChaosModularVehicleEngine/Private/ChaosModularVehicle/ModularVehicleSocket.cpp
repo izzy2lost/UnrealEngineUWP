@@ -3,6 +3,11 @@
 #include "ChaosModularVehicle/ModularVehicleSocket.h"
 #include "ChaosModularVehicle/ClusterUnionVehicleComponent.h"
 
+FModularVehicleSocket::FModularVehicleSocket()
+{
+	RelativeLocation = FVector::ZeroVector;
+	RelativeRotation = FRotator::ZeroRotator;
+}
 
 FVector FModularVehicleSocket::GetLocation(const class UClusterUnionVehicleComponent* Component) const
 {

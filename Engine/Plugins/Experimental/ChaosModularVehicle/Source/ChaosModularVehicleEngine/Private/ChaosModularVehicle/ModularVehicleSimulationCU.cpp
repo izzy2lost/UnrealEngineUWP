@@ -167,12 +167,6 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 				if (Node.IsValid() && Node.SimModule && Node.SimModule->IsEnabled())
 				{
 					FRigidTransform3 Frame = FRigidTransform3::Identity;
-					int TransformIndex = Node.SimModule->GetTransformIndex();
-
-					if (TransformIndex < 0 || TransformIndex >= Particles.Num())
-					{
-						continue;
-					}
 
 					FPBDRigidParticleHandle* Child = Node.SimModule->GetParticleFromUniqueIndex(Node.SimModule->GetParticleIndex().Idx, Particles);
 					if (Child == nullptr)
