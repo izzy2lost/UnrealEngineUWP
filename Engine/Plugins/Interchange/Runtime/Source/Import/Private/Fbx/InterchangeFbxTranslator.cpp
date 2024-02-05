@@ -33,6 +33,13 @@ static FAutoConsoleVariableRef CCvarInterchangeEnableFBXImport(
 	TEXT("Whether FBX support is enabled."),
 	ECVF_Default);
 
+static bool GInterchangeEnableFBXLevelImport = false;
+static FAutoConsoleVariableRef CCvarInterchangeEnableFBXLevelImport(
+	TEXT("Interchange.FeatureFlags.Import.FBX.ToLevel"),
+	GInterchangeEnableFBXLevelImport,
+	TEXT("Whether support for FBX level import is enabled."),
+	ECVF_Default);
+
 static bool GInterchangeFBXTranslatorUseWorker = false;
 static FAutoConsoleVariableRef CCvarInterchangeFBXTranslatorUseWorker(
 	TEXT("Interchange.FeatureFlags.Translator.UseWorker.FBX"),
@@ -138,7 +145,7 @@ bool UInterchangeFbxTranslator::IsThreadSafe() const
 
 EInterchangeTranslatorType UInterchangeFbxTranslator::GetTranslatorType() const
 {
-	return EInterchangeTranslatorType::Scenes;
+	return GInterchangeEnableFBXLevelImport ? EInterchangeTranslatorType::Scenes : EInterchangeTranslatorType::Assets;
 }
 
 EInterchangeTranslatorAssetType UInterchangeFbxTranslator::GetSupportedAssetTypes() const
