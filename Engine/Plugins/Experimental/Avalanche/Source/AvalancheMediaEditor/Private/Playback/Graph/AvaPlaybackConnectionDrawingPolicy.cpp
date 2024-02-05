@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackConnectionDrawingPolicy.h"
-#include "Playback/AvalanchePlayback.h"
-#include "Playback/Graph/AvaPlaybackGraph.h"
-#include "Playback/Graph/AvaPlaybackGraphSchema.h"
-#include "Playback/Graph/Nodes/AvaPlaybackGraphNode_Root.h"
+
+#include "Playback/AvaPlaybackGraph.h"
+#include "Playback/Graph/AvaPlaybackEditorGraph.h"
+#include "Playback/Graph/AvaPlaybackEditorGraphSchema.h"
+#include "Playback/Graph/Nodes/AvaPlaybackEditorGraphNode_Root.h"
 
 FConnectionDrawingPolicy* FAvaPlaybackConnectionDrawingPolicyFactory::CreateConnectionPolicy(const UEdGraphSchema* Schema
 	, int32 InBackLayerID
@@ -14,7 +15,7 @@ FConnectionDrawingPolicy* FAvaPlaybackConnectionDrawingPolicyFactory::CreateConn
 	, FSlateWindowElementList& InDrawElements
 	, UEdGraph* InGraphObj) const
 {
-	if (Schema->IsA(UAvaPlaybackGraphSchema::StaticClass()))
+	if (Schema->IsA(UAvaPlaybackEditorGraphSchema::StaticClass()))
 	{
 		return new FAvaPlaybackConnectionDrawingPolicy(InBackLayerID
 			, InFrontLayerID
@@ -61,7 +62,7 @@ void FAvaPlaybackConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Outp
 	const UEdGraphSchema* const Schema = GraphObject->GetSchema();
 
 	Params.WireColor = Schema->GetPinTypeColor(OutputPin->PinType);
-	UAvaPlaybackGraph* const Graph = Cast<UAvaPlaybackGraph>(GraphObject);
+	UAvaPlaybackEditorGraph* const Graph = Cast<UAvaPlaybackEditorGraph>(GraphObject);
 	
 	if (!InputPin || !Graph)
 	{
@@ -70,11 +71,11 @@ void FAvaPlaybackConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Outp
 	
 	bool bExecuted = false;
 
-	const UAvalanchePlayback* const Playback = Graph->GetPlayback();
+	const UAvaPlaybackGraph* const Playback = Graph->GetPlaybackGraph();
 	const bool bIsPlaying = Playback ? Playback->IsPlaying() : false;
 	
-	UAvaPlaybackGraphNode* const InputNode  = Cast<UAvaPlaybackGraphNode>(InputPin->GetOwningNode());
-	UAvaPlaybackGraphNode* const OutputNode = Cast<UAvaPlaybackGraphNode>(OutputPin->GetOwningNode());
+	UAvaPlaybackEditorGraphNode* const InputNode  = Cast<UAvaPlaybackEditorGraphNode>(InputPin->GetOwningNode());
+	UAvaPlaybackEditorGraphNode* const OutputNode = Cast<UAvaPlaybackEditorGraphNode>(OutputPin->GetOwningNode());
 
 	if (bIsPlaying && InputNode && OutputNode)
 	{

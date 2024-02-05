@@ -12,7 +12,7 @@
 #include "Misc/CoreMiscDefines.h"
 #include "Misc/PackageName.h"
 #include "MoviePipeline.h"
-#include "Playlist/AvalanchePlaylist.h"
+#include "Rundown/AvaRundown.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaMRQSequenceData, Log, All);
 
@@ -58,7 +58,7 @@ void UAvaMRQRundownPageSetting::SetupForPipelineImpl(UMoviePipeline* InPipeline)
 		return;
 	}
 
-	UAvalanchePlaylist* Rundown = RundownPage.Rundown.LoadSynchronous();
+	UAvaRundown* Rundown = RundownPage.Rundown.LoadSynchronous();
 	if (!Rundown)
 	{
 		UE_LOG(LogAvaMRQSequenceData, Error
@@ -67,7 +67,7 @@ void UAvaMRQRundownPageSetting::SetupForPipelineImpl(UMoviePipeline* InPipeline)
 		return;
 	}
 
-	const FAvalanchePage& Page = Rundown->GetPage(RundownPage.PageId);
+	const FAvaRundownPage& Page = Rundown->GetPage(RundownPage.PageId);
 	if (!Page.IsValidPage())
 	{
 		UE_LOG(LogAvaMRQSequenceData, Error
@@ -81,13 +81,13 @@ void UAvaMRQRundownPageSetting::SetupForPipelineImpl(UMoviePipeline* InPipeline)
 	int32 PieInstanceId = UE::AvaMRQ::Private::FindPieInstanceId(World);
 	if (PieInstanceId != INDEX_NONE)
 	{
-		FSoftObjectPath SourcePath  = Page.GetAvalancheAssetPath(Rundown);
+		FSoftObjectPath SourcePath  = Page.GetAssetPath(Rundown);
 		FSoftObjectPath CurrentPath = UE::AvaMRQ::Private::RemovePiePrefix(World, PieInstanceId);
 
 		if (CurrentPath != SourcePath)
 		{
 			UE_LOG(LogAvaMRQSequenceData, Error
-				, TEXT("Asset path '%s' in Page '%d' of Avalanche Rundown '%s' did not match the provided PIE sanitized world path '%s'")
+				, TEXT("Asset path '%s' in Page '%d' of Motion Design Rundown '%s' did not match the provided PIE sanitized world path '%s'")
 				, *SourcePath.ToString()
 				, Page.GetPageId()
 				, *Rundown->GetFullName()

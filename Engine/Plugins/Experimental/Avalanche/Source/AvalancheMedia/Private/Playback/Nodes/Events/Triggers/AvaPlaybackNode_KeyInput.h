@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Playback/Nodes/Events/AvaPlaybackNodeTrigger.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Commands/InputChord.h"
+#include "Playback/Nodes/Events/AvaPlaybackNodeTrigger.h"
 #include "AvaPlaybackNode_KeyInput.generated.h"
 
 struct FKeyEvent;

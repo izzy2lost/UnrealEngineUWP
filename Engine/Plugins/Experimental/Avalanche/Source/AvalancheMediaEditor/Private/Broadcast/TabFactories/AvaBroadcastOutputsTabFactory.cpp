@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaBroadcastOutputsTabFactory.h"
-#include "Broadcast/AvaBroadcastEditor.h"
-#include "Broadcast/OutputDevices/Slate/SAvaOutputDevices.h"
 
-const FName FAvaBroadcastOutputsTabFactory::TabID(TEXT("AvalancheBroadcastOutputList"));
+#include "Broadcast/AvaBroadcastEditor.h"
+#include "Broadcast/OutputDevices/Slate/SAvaBroadcastOutputDevices.h"
+
+const FName FAvaBroadcastOutputsTabFactory::TabID(TEXT("MotionDesignBroadcastOutputList"));
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastOutputsTabFactory"
 
@@ -24,7 +25,7 @@ TSharedRef<SWidget> FAvaBroadcastOutputsTabFactory::CreateTabBody(const FWorkflo
 {
 	TSharedPtr<FAvaBroadcastEditor> BroadcastEditor = BroadcastEditorWeak.Pin();
 	check(BroadcastEditor.IsValid());
-	return SNew(SAvaOutputDevices, BroadcastEditor);
+	return SNew(SAvaBroadcastOutputDevices, BroadcastEditor);
 }
 
 #undef LOCTEXT_NAMESPACE

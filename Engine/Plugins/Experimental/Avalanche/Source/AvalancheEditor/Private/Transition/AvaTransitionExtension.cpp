@@ -63,11 +63,11 @@ namespace UE::AvaEditor::Private
 
 FDelegateHandle FAvaTransitionExtension::PropertyFilterHandle;
 
-FAvaTransitionPlaylistExtension FAvaTransitionExtension::PlaylistExtension;
+FAvaTransitionRundownExtension FAvaTransitionExtension::RundownExtension;
 
 void FAvaTransitionExtension::StaticStartup()
 {
-	PlaylistExtension.Startup();
+	RundownExtension.Startup();
 
 	IRemoteControlUIModule& RemoteControlUIModule = IRemoteControlUIModule::Get();
 
@@ -89,7 +89,7 @@ void FAvaTransitionExtension::StaticStartup()
 
 void FAvaTransitionExtension::StaticShutdown()
 {
-	PlaylistExtension.Shutdown();
+	RundownExtension.Shutdown();
 
 	if (IRemoteControlUIModule* RemoteControlUIModule = FModuleManager::Get().GetModulePtr<IRemoteControlUIModule>(TEXT("RemoteControlUI")))
 	{

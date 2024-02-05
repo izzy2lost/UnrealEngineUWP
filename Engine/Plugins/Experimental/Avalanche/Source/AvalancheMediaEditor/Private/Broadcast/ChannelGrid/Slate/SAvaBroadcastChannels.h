@@ -2,16 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "AvaMediaDefines.h"
 #include "Animation/CurveSequence.h"
+#include "AvaMediaDefines.h"
+#include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/Views/STileView.h"
 
 class FAvaBroadcastEditor;
-class SAvaChannel;
+class SAvaBroadcastChannel;
 class SGridPanel;
-class UAvalancheBroadcast;
+class UAvaBroadcast;
 
 class SAvaBroadcastChannels : public SCompoundWidget
 {
@@ -20,12 +19,12 @@ class SAvaBroadcastChannels : public SCompoundWidget
 		FAvaChannelMaximizer();
 
 		void Reset();
-		void ToggleMaximize(const TSharedRef<SAvaChannel>& InChannelWidget);
+		void ToggleMaximize(const TSharedRef<SAvaBroadcastChannel>& InChannelWidget);
 		
 		float GetRowFill(int32 InRowIndex) const;
 		float GetColumnFill(int32 InColumnIndex) const;
 
-		TWeakPtr<SAvaChannel> ChannelWidgetWeak;
+		TWeakPtr<SAvaBroadcastChannel> ChannelWidgetWeak;
 		FCurveSequence MaximizeSequence;
 		bool bMaximizing  = false;
 	};
@@ -49,7 +48,7 @@ public:
 	TSharedRef<SWidget> MakeChannelsToolbar();
 	
 	bool CanMaximizeChannel() const;
-	void ToggleMaximizeChannel(const TSharedRef<SAvaChannel>& InWidget);
+	void ToggleMaximizeChannel(const TSharedRef<SAvaBroadcastChannel>& InWidget);
 	
 	void OnBroadcastChanged(EAvaBroadcastChange ChangedEvent);
 	void RefreshChannelGrid();
@@ -58,13 +57,13 @@ public:
 	
 protected:
 	
-	TWeakObjectPtr<UAvalancheBroadcast> BroadcastWeak;
+	TWeakObjectPtr<UAvaBroadcast> BroadcastWeak;
 	
 	TWeakPtr<FAvaBroadcastEditor> BroadcastEditorWeak;
 	
 	TSharedPtr<SGridPanel> ChannelGrid;
 	
-	TMap<FName, TSharedPtr<SAvaChannel>> Channels;
+	TMap<FName, TSharedPtr<SAvaBroadcastChannel>> Channels;
 
 	FAvaChannelMaximizer ChannelMaximizer;
 };

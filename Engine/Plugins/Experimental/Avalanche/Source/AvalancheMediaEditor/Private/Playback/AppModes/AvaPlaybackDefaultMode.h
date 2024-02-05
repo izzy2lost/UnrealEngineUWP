@@ -7,5 +7,5 @@
 class FAvaPlaybackDefaultMode : public FAvaPlaybackAppMode
 {
 public:
-	FAvaPlaybackDefaultMode(const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor);
+	FAvaPlaybackDefaultMode(const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor);
 };

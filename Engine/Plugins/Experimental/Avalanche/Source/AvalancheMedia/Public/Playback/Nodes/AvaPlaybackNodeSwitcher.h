@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaPlaybackNode.h"
+#include "CoreMinimal.h"
 #include "AvaPlaybackNodeSwitcher.generated.h"
 
 UCLASS()

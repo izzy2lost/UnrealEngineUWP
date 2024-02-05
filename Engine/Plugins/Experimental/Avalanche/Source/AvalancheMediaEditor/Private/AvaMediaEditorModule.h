@@ -3,13 +3,13 @@
 #pragma once
 
 #include "IAvaMediaEditorModule.h"
-#include "Playlist/AvaPlaylistServer.h"
+#include "Rundown/AvaRundownServer.h"
 #include "Templates/UnrealTypeTraits.h"
 
-class IAvaPlaylistFilterExpressionFactory;
-class IAvaPlaylistFilterSuggestionFactory;
+class IAvaRundownFilterExpressionFactory;
+class IAvaRundownFilterSuggestionFactory;
+enum class EAvaRundownSearchListType : uint8;
 struct FGraphPanelPinConnectionFactory;
-enum class EAvaPlaylistSearchListType : uint8;
 
 class FAvaMediaEditorModule : public IAvaMediaEditorModule
 {
@@ -24,15 +24,15 @@ public:
 	//IAvaMediaEditorModule
 	virtual TSharedPtr<FExtensibilityManager> GetBroadcastToolBarExtensibilityManager() override;
 	virtual TSharedPtr<FExtensibilityManager> GetPlaybackToolBarExtensibilityManager() override;
-	virtual TSharedPtr<FExtensibilityManager> GetPlaylistToolBarExtensibilityManager() override;
-	virtual TSharedPtr<FExtensibilityManager> GetPlaylistMenuExtensibilityManager() override;
-	virtual FOnPlaylistServerStarted& GetOnPlaylistServerStarted() override { return OnPlaylistServerStarted; }
-	virtual FOnPlaylistServerStopped& GetOnPlaylistServerStopped() override { return OnPlaylistServerStopped; }
-	virtual TSharedPtr<FAvaPlaylistServer> GetPlaylistServer() const override { return PlaylistServer; }
-	virtual bool CanFilterSupportComparisonOperation(const FName& InFilterKey, ETextFilterComparisonOperation InOperation, EAvaPlaylistSearchListType InPlaylistSearchListType) const override;
-	virtual bool FilterExpression(const FName& InFilterKey, const FAvalanchePage& InItem, const FAvaPlaylistTextFilterArgs& InArgs) const override;
-	virtual TArray<TSharedPtr<IAvaPlaylistFilterSuggestionFactory>> GetSimpleSuggestions(EAvaPlaylistSearchListType InSuggestionType) const override;
-	virtual TArray<TSharedPtr<IAvaPlaylistFilterSuggestionFactory>> GetComplexSuggestions(EAvaPlaylistSearchListType InSuggestionType) const override;
+	virtual TSharedPtr<FExtensibilityManager> GetRundownToolBarExtensibilityManager() override;
+	virtual TSharedPtr<FExtensibilityManager> GetRundownMenuExtensibilityManager() override;
+	virtual FOnRundownServerStarted& GetOnRundownServerStarted() override { return OnRundownServerStarted; }
+	virtual FOnRundownServerStopped& GetOnRundownServerStopped() override { return OnRundownServerStopped; }
+	virtual TSharedPtr<FAvaRundownServer> GetRundownServer() const override { return RundownServer; }
+	virtual bool CanFilterSupportComparisonOperation(const FName& InFilterKey, ETextFilterComparisonOperation InOperation, EAvaRundownSearchListType InRundownSearchListType) const override;
+	virtual bool FilterExpression(const FName& InFilterKey, const FAvaRundownPage& InItem, const FAvaRundownTextFilterArgs& InArgs) const override;
+	virtual TArray<TSharedPtr<IAvaRundownFilterSuggestionFactory>> GetSimpleSuggestions(EAvaRundownSearchListType InSuggestionType) const override;
+	virtual TArray<TSharedPtr<IAvaRundownFilterSuggestionFactory>> GetComplexSuggestions(EAvaRundownSearchListType InSuggestionType) const override;
 	//~IAvaMediaEditorModule
 
 	void AddEditorToolbarButtons();
@@ -51,8 +51,8 @@ protected:
 	/** Unregister details view customizations. */
 	void UnregisterCustomizations() const;
 
-	void StartPlaylistServerCommand(const TArray<FString>& Args);
-	void StopPlaylistServerCommand(const TArray<FString>& Args);
+	void StartRundownServerCommand(const TArray<FString>& Args);
+	void StopRundownServerCommand(const TArray<FString>& Args);
 
 private:
 	void PostEngineInit();
@@ -61,41 +61,41 @@ private:
 	void HandleMapChanged(UWorld* InWorld, EMapChangeType InMapChangeType);
 	
 	template <
-		typename InPlaylistFilterExpressionFactoryType,
+		typename InRundownFilterExpressionFactoryType,
 		typename... InArgsType
-		UE_REQUIRES(TIsDerivedFrom<InPlaylistFilterExpressionFactoryType, IAvaPlaylistFilterExpressionFactory>::Value)
+		UE_REQUIRES(TIsDerivedFrom<InRundownFilterExpressionFactoryType, IAvaRundownFilterExpressionFactory>::Value)
 	>
-	void RegisterPlaylistFilterExpressionFactory(InArgsType&&... InArgs);
+	void RegisterRundownFilterExpressionFactory(InArgsType&&... InArgs);
 
 	template <
-		typename InPlaylistSuggestionFactoryType,
+		typename InRundownSuggestionFactoryType,
 		typename... InArgsType
-		UE_REQUIRES(TIsDerivedFrom<InPlaylistSuggestionFactoryType, IAvaPlaylistFilterSuggestionFactory>::Value)
+		UE_REQUIRES(TIsDerivedFrom<InRundownSuggestionFactoryType, IAvaRundownFilterSuggestionFactory>::Value)
 	>
-	void RegisterPlaylistFilterSuggestionFactory(InArgsType&&... InArgs);
+	void RegisterRundownFilterSuggestionFactory(InArgsType&&... InArgs);
 
-	void RegisterPlaylistFilterExpressionFactories();
+	void RegisterRundownFilterExpressionFactories();
 
-	void RegisterPlaylistFilterSuggestionFactories();
+	void RegisterRundownFilterSuggestionFactories();
 
 private:
 	TSharedPtr<FExtensibilityManager> BroadcastToolBarExtensibility;
 	TSharedPtr<FExtensibilityManager> PlaybackToolBarExtensibility;
-	TSharedPtr<FExtensibilityManager> PlaylistToolBarExtensibility;
-	TSharedPtr<FExtensibilityManager> PlaylistMenuExtensibility;
+	TSharedPtr<FExtensibilityManager> RundownToolBarExtensibility;
+	TSharedPtr<FExtensibilityManager> RundownMenuExtensibility;
 
 	TSharedPtr<FGraphPanelPinConnectionFactory> PlaybackConnectionFactory;
 
-	TSharedPtr<FAvaPlaylistServer> PlaylistServer;
+	TSharedPtr<FAvaRundownServer> RundownServer;
 
-	FOnPlaylistServerStarted OnPlaylistServerStarted;
-	FOnPlaylistServerStopped OnPlaylistServerStopped;
+	FOnRundownServerStarted OnRundownServerStarted;
+	FOnRundownServerStopped OnRundownServerStopped;
 
 	TArray<IConsoleObject*> ConsoleCmds;
 
-	/** Holds all the PlaylistFilterExpressionFactory */
-	TMap<FName, TSharedPtr<IAvaPlaylistFilterExpressionFactory>> FilterExpressionFactories;
+	/** Holds all the RundownFilterExpressionFactory */
+	TMap<FName, TSharedPtr<IAvaRundownFilterExpressionFactory>> FilterExpressionFactories;
 
-	/** Holds all the PlaylistFilterSuggestionFactory */
-	TMap<FName, TSharedPtr<IAvaPlaylistFilterSuggestionFactory>> FilterSuggestionFactories;
+	/** Holds all the RundownFilterSuggestionFactory */
+	TMap<FName, TSharedPtr<IAvaRundownFilterSuggestionFactory>> FilterSuggestionFactories;
 };

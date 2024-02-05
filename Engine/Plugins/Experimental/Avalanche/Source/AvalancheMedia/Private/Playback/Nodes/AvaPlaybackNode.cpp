@@ -4,14 +4,14 @@
 
 #include "EngineUtils.h"
 #include "Misc/App.h"
-#include "Playback/AvalanchePlayback.h"
-#include "Playback/IAvaPlaybackEditor.h"
+#include "Playback/AvaPlaybackGraph.h"
+#include "Playback/IAvaPlaybackGraphEditor.h"
 
 #if WITH_EDITOR
 #include "EdGraph/EdGraph.h"
 #endif
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNode"
 
 const FText UAvaPlaybackNode::NodeCategory::Default          = LOCTEXT("Category_Default", "Default");
 const FText UAvaPlaybackNode::NodeCategory::EventTrigger     = LOCTEXT("Category_EventTrigger", "Event Triggers");
@@ -20,7 +20,7 @@ const FText UAvaPlaybackNode::NodeCategory::EventFlowControl = LOCTEXT("Category
 
 void UAvaPlaybackNode::PostAllocateNode()
 {
-	if (UAvalanchePlayback* const Playback = GetPlayback())
+	if (UAvaPlaybackGraph* const Playback = GetPlayback())
 	{
 		PlaybackStateChangedHandle = Playback->OnPlaybackStateChanged.AddUObject(this, &UAvaPlaybackNode::NotifyPlaybackStateChanged);
 	}
@@ -35,9 +35,9 @@ void UAvaPlaybackNode::BeginDestroy()
 	UObject::BeginDestroy();
 }
 
-UAvalanchePlayback* UAvaPlaybackNode::GetPlayback() const
+UAvaPlaybackGraph* UAvaPlaybackNode::GetPlayback() const
 {
-	return Cast<UAvalanchePlayback>(GetOuter());
+	return Cast<UAvaPlaybackGraph>(GetOuter());
 }
 
 FText UAvaPlaybackNode::GetNodeDisplayNameText() const
@@ -214,7 +214,7 @@ void UAvaPlaybackNode::ReconstructNode()
 
 void UAvaPlaybackNode::RefreshNode(bool bDryRunGraph)
 {
-	if (UAvalanchePlayback* const Playback = GetPlayback())
+	if (UAvaPlaybackGraph* const Playback = GetPlayback())
 	{
 #if WITH_EDITOR
 		Playback->RefreshPlaybackNode(this);
@@ -249,7 +249,7 @@ void UAvaPlaybackNode::InsertChildNode(int32 Index)
 	{
 		ChildNodes.InsertZeroed(Index);
 #if WITH_EDITOR
-		UAvalanchePlayback* const Playback = GetPlayback();
+		UAvaPlaybackGraph* const Playback = GetPlayback();
 		if (Playback && GraphNode && Playback->GetGraphEditor().IsValid())
 		{
 			Playback->GetGraphEditor()->CreateInputPin(GraphNode);

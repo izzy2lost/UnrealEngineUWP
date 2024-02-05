@@ -5,7 +5,7 @@
 #include "WorkflowOrientedApp/ApplicationMode.h"
 #include "WorkflowOrientedApp/WorkflowTabManager.h"
 
-class FAvaPlaybackEditor;
+class FAvaPlaybackGraphEditor;
 
 class FAvaPlaybackAppMode : public FApplicationMode
 {
@@ -15,14 +15,14 @@ public:
 	static const FName DefaultMode;
 	//Add more here
 	
-	FAvaPlaybackAppMode(const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor, const FName& InModeName);
+	FAvaPlaybackAppMode(const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor, const FName& InModeName);
 	virtual void RegisterTabFactories(TSharedPtr<FTabManager> InTabManager) override;
 
 protected:
 	
 	static FText GetLocalizedMode(const FName InMode);
 
-	TWeakPtr<FAvaPlaybackEditor> PlaybackEditorWeak;
+	TWeakPtr<FAvaPlaybackGraphEditor> PlaybackEditorWeak;
 	
 	// Set of spawnable tabs in the mode
 	FWorkflowAllowedTabSet TabFactories;

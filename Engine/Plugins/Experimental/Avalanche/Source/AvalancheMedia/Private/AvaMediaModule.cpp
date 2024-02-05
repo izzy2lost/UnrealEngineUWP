@@ -1,15 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMediaModule.h"
+
 #include "Application/ThrottleManager.h"
-#include "AvalancheMediaSettings.h"
+#include "AvaMediaSettings.h"
 #include "AvaMediaStyle.h"
+#include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
 #include "IMediaIOCoreModule.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
-#include "OutputDevices/AvaRenderTargetMediaUtils.h"
-#include "Playback/AvaMediaPlaybackClientDelegates.h"
+#include "Playback/AvaPlaybackClientDelegates.h"
 #include "ShaderCore.h"
 
 #if WITH_EDITOR
@@ -23,8 +24,8 @@ namespace UE::AvaMediaModule::Private
 	// Command line parsing helper.
 	bool IsPlaybackServerManuallyStarted(FString& OutPlaybackServerName)
 	{
-		return FParse::Value(FCommandLine::Get(),TEXT("AvaMediaPlaybackServerStart="), OutPlaybackServerName) ||
-		 FParse::Param(FCommandLine::Get(), TEXT("AvaMediaPlaybackServerStart"));
+		return FParse::Value(FCommandLine::Get(),TEXT("MotionDesignPlaybackServerStart="), OutPlaybackServerName) ||
+		 FParse::Param(FCommandLine::Get(), TEXT("MotionDesignPlaybackServerStart"));
 	}
 }
 
@@ -41,84 +42,84 @@ void FAvaMediaModule::StartupModule()
 	check(Plugin.IsValid());
 
 	const FString PluginShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
-	AddShaderSourceDirectoryMapping(UE::AvaRenderTargetMediaUtils::VirtualShaderMountPoint, PluginShaderDir);
+	AddShaderSourceDirectoryMapping(UE::AvaBroadcastRenderTargetMediaUtils::VirtualShaderMountPoint, PluginShaderDir);
 
 	IMediaIOCoreModule::Get().RegisterDeviceProvider(&AvaDisplayDeviceProvider);
 
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaServer.Start"),
+				TEXT("MotionDesignPlaybackServer.Start"),
 				TEXT("Starts the playback server."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartPlaybackServerCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaServer.Stop"),
+				TEXT("MotionDesignPlaybackServer.Stop"),
 				TEXT("Stops the playback server."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StopPlaybackServerCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaClient.Start"),
+				TEXT("MotionDesignPlaybackClient.Start"),
 				TEXT("Starts the playback client."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartPlaybackClientCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaClient.Stop"),
+				TEXT("MotionDesignPlaybackClient.Stop"),
 				TEXT("Stops the playback client."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StopPlaybackClientCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaLocalServer.Launch"),
+				TEXT("MotionDesignPlaybackLocalServer.Launch"),
 				TEXT("Launches the local playback server."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::LaunchLocalPlaybackServerCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaLocalServer.Stop"),
+				TEXT("MotionDesignPlaybackLocalServer.Stop"),
 				TEXT("Stops the local playback server."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StopLocalPlaybackServerCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaHttpServer.Start"),
+				TEXT("MotionDesignPlaybackHttpServer.Start"),
 				TEXT("Starts the http playback server."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StartHttpPlaybackServerCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaHttpServer.Stop"),
+				TEXT("MotionDesignPlaybackHttpServer.Stop"),
 				TEXT("Stops the http playback server."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::StopHttpPlaybackServerCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaDevices.Save"),
+				TEXT("MotionDesignPlaybackDevices.Save"),
 				TEXT("Save Device Providers data."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::SaveDeviceProvidersCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaDevices.Load"),
+				TEXT("MotionDesignPlaybackDevices.Load"),
 				TEXT("Load device providers."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::LoadDeviceProvidersCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaDevices.Unload"),
+				TEXT("MotionDesignPlaybackDevices.Unload"),
 				TEXT("Load device providers."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::UnloadDeviceProvidersCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaMediaDevices.List"),
+				TEXT("MotionDesignPlaybackDevices.List"),
 				TEXT("List device providers."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::ListDeviceProvidersCommand),
 				ECVF_Default
 				));
 	ConsoleCmds.Add(IConsoleManager::Get().RegisterConsoleCommand(
-				TEXT("AvaStat"),
+				TEXT("MotionDesignPlayback.Stat"),
 				TEXT("Enable engine performance statistics. Same as 'stat' command but will affect Motion Design Playback outputs and propagate to connected servers."),
 				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAvaMediaModule::HandleStatCommand),
 				ECVF_Default
@@ -128,7 +129,7 @@ void FAvaMediaModule::StartupModule()
 	FCoreDelegates::OnEnginePreExit.AddRaw(this, &FAvaMediaModule::EnginePreExit);
 	
 	FString DummyServerName;
-	if (!AvaMediaPlaybackServer.IsValid() && IsPlaybackServerManuallyStarted(DummyServerName))
+	if (!AvaPlaybackServer.IsValid() && IsPlaybackServerManuallyStarted(DummyServerName))
 	{
 		// Prevent throttling when server is started.
 		// This has to be done before any SLevelViewport are ticked since the cvar value is cached on first tick.
@@ -144,7 +145,7 @@ void FAvaMediaModule::StartupModule()
 
 	// StormSyncAvaBridge has some issues with servers in game mode. This option
 	// allows us to disable some of it until all the bugs are fixed.
-	if (FParse::Param(FCommandLine::Get(), TEXT("DisableAvaMediaSync")))
+	if (FParse::Param(FCommandLine::Get(), TEXT("DisableMotionDesignSync")))
 	{
 		AvaMediaSync->SetFeatureEnabled(false);
 	}
@@ -193,12 +194,12 @@ void FAvaMediaModule::StopMediaPlaybackServer()
 	StopPlaybackServerCommand({});
 }
 
-class FAvaMediaPlaybackClientDummy : public IAvaMediaPlaybackClient
+class FAvaPlaybackClientDummy : public IAvaPlaybackClient
 {
 	static const FString EmptyString;
 	static const TArray<FString> EmptyStringArray;
 public:
-	//IAvaMediaPlaybackClient
+	//IAvaPlaybackClient
 	virtual int32 GetNumConnectedServers() const override { return 0; }
 	virtual TArray<FString> GetServerNames() const override { return TArray<FString>();}
 	virtual FMessageAddress GetServerAddress(const FString& InServerName) const override
@@ -215,53 +216,53 @@ public:
 	virtual void RemoveUserData(const FString& InKey) override {}
 	virtual void BroadcastStatCommand(const FString& InCommand, bool bInBroadcastLocalState) override {}
 	virtual void RequestPlaybackAssetStatus(const FSoftObjectPath& InAssetPath, const FString& InChannelOrServerName, bool bInForceRefresh) override {}
-	virtual void RequestPlayback(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, EAvaMediaPlaybackAction InAction, const FString& InArguments) override {}
-	virtual void RequestAnimPlayback(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FAnimPlaySettings& InAnimSettings) override {};
-	virtual void RequestAnimAction(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InAnimationName, EAvaMediaAnimAction InAction) override {};
-	virtual void RequestRemoteControlUpdate(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FAvalancheRemoteControlValues& InRemoteControlValues) override {};
-	virtual void RequestPlayableTransitionStart(const FGuid& InTransitionId, TArray<FGuid>&& InEnterInstanceIds, TArray<FGuid>&& InPlayingInstanceIds, TArray<FGuid>&& InExitInstanceIds, TArray<FAvalancheRemoteControlValues>&& InEnterValues, const FName& InChannelName, EAvalanchePlayableTransitionFlags InTransitionFlags) override {}
+	virtual void RequestPlayback(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, EAvaPlaybackAction InAction, const FString& InArguments) override {}
+	virtual void RequestAnimPlayback(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FAvaPlaybackAnimPlaySettings& InAnimSettings) override {};
+	virtual void RequestAnimAction(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InAnimationName, EAvaPlaybackAnimAction InAction) override {};
+	virtual void RequestRemoteControlUpdate(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FAvaPlayableRemoteControlValues& InRemoteControlValues) override {};
+	virtual void RequestPlayableTransitionStart(const FGuid& InTransitionId, TArray<FGuid>&& InEnterInstanceIds, TArray<FGuid>&& InPlayingInstanceIds, TArray<FGuid>&& InExitInstanceIds, TArray<FAvaPlayableRemoteControlValues>&& InEnterValues, const FName& InChannelName, EAvaPlayableTransitionFlags InTransitionFlags) override {}
 	virtual void RequestPlayableTransitionStop(const FGuid& InTransitionId, const FName& InChannelName) override {}
-	virtual void RequestBroadcast(const FString& InProfile, const FName& InChannel, const TArray<UMediaOutput*>& InRemoteMediaOutputs, EAvaMediaBroadcastAction InAction) override {}
+	virtual void RequestBroadcast(const FString& InProfile, const FName& InChannel, const TArray<UMediaOutput*>& InRemoteMediaOutputs, EAvaBroadcastAction InAction) override {}
 	virtual bool IsMediaOutputRemoteFallback(const UMediaOutput* InMediaOutput) override { return false;}
-	virtual EAvaMediaIssueSeverity GetMediaOutputIssueSeverity(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EAvaMediaIssueSeverity::None;}
+	virtual EAvaBroadcastIssueSeverity GetMediaOutputIssueSeverity(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EAvaBroadcastIssueSeverity::None;}
 	virtual const TArray<FString>& GetMediaOutputIssueMessages(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EmptyStringArray; }
-	virtual EAvaMediaOutputState GetMediaOutputState(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EAvaMediaOutputState::Error; }
+	virtual EAvaBroadcastOutputState GetMediaOutputState(const FString& InServerName, const FString& InChannelName, const FGuid& InOutputGuid) const override { return EAvaBroadcastOutputState::Error; }
 	virtual bool HasAnyServerOnlineForChannel(const FName& InChannelName) const override { return false;}
-   	virtual TOptional<EAvaMediaPlaybackStatus> GetRemotePlaybackStatus(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override
+   	virtual TOptional<EAvaPlaybackStatus> GetRemotePlaybackStatus(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override
 	{
-		return EAvaMediaPlaybackStatus::Unknown;
+		return EAvaPlaybackStatus::Unknown;
 	}
 	virtual const FString* GetRemotePlaybackUserData(const FGuid& InInstanceId, const FSoftObjectPath& InAssetPath, const FString& InChannelName, const FString& InServerName) const override
 	{
 		return nullptr;
 	}
-	virtual TOptional<EAvaMediaPlaybackAssetStatus> GetRemotePlaybackAssetStatus(const FSoftObjectPath& InAssetPath, const FString& InServerName) const override
+	virtual TOptional<EAvaPlaybackAssetStatus> GetRemotePlaybackAssetStatus(const FSoftObjectPath& InAssetPath, const FString& InServerName) const override
 	{
-		return EAvaMediaPlaybackAssetStatus::Unknown;
+		return EAvaPlaybackAssetStatus::Unknown;
 	}
-	//~IAvaMediaPlaybackClient
+	//~IAvaPlaybackClient
 };
-const FString FAvaMediaPlaybackClientDummy::EmptyString;
-const TArray<FString> FAvaMediaPlaybackClientDummy::EmptyStringArray;
+const FString FAvaPlaybackClientDummy::EmptyString;
+const TArray<FString> FAvaPlaybackClientDummy::EmptyStringArray;
 
-IAvaMediaPlaybackClient& FAvaMediaModule::GetMediaPlaybackClient()
+IAvaPlaybackClient& FAvaMediaModule::GetMediaPlaybackClient()
 {
-	if (AvaMediaPlaybackClient.IsValid())
+	if (AvaPlaybackClient.IsValid())
 	{
-		return *AvaMediaPlaybackClient;
+		return *AvaPlaybackClient;
 	}
 	else
 	{
-		static FAvaMediaPlaybackClientDummy DummyClient;
+		static FAvaPlaybackClientDummy DummyClient;
 		return DummyClient;
 	}
 }
 
 const IMediaIOCoreDeviceProvider* FAvaMediaModule::GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const
 {
-	if (AvaMediaPlaybackClient.IsValid() && InMediaIOOutputConfiguration)
+	if (AvaPlaybackClient.IsValid() && InMediaIOOutputConfiguration)
 	{
-		const FAvaDeviceProviderWrapper* Wrapper = DeviceProviderProxyManager.GetDeviceProviderWrapper(InProviderName);
+		const FAvaBroadcastDeviceProviderWrapper* Wrapper = DeviceProviderProxyManager.GetDeviceProviderWrapper(InProviderName);
 		if (Wrapper)
 		{
 			return Wrapper->GetProviderForDeviceName(InMediaIOOutputConfiguration->MediaConfiguration.MediaConnection.Device.DeviceName);
@@ -272,7 +273,7 @@ const IMediaIOCoreDeviceProvider* FAvaMediaModule::GetDeviceProvider(FName InPro
 
 TArray<const IMediaIOCoreDeviceProvider*> FAvaMediaModule::GetDeviceProvidersForServer(const FString& InServerName) const
 {
-	if (AvaMediaPlaybackClient.IsValid())
+	if (AvaPlaybackClient.IsValid())
 	{
 		return DeviceProviderProxyManager.GetDeviceProvidersForServer(InServerName);
 	}
@@ -294,10 +295,10 @@ FString FAvaMediaModule::GetServerNameForDevice(const FName& InDeviceProviderNam
 
 	// Fallback (legacy method)
 	// Assumes the device name starts with the server name.
-	if (AvaMediaPlaybackClient.IsValid())
+	if (AvaPlaybackClient.IsValid())
 	{
 		const FString DeviceName = InDeviceName.ToString();
-		TArray<FString> ServerNames = AvaMediaPlaybackClient->GetServerNames();
+		TArray<FString> ServerNames = AvaPlaybackClient->GetServerNames();
 		for (const FString& ServerName : ServerNames)
 		{
 			if (DeviceName.StartsWith(ServerName))
@@ -332,7 +333,7 @@ void FAvaMediaModule::LaunchGameModeLocalPlaybackServer()
 
 	if (!LocalPlaybackServerProcess.IsValid())
 	{
-		LocalPlaybackServerProcess = FAvaMediaPlaybackServerProcess::FindOrCreate(*AvaMediaPlaybackClient);
+		LocalPlaybackServerProcess = FAvaPlaybackServerProcess::FindOrCreate(*AvaPlaybackClient);
 	}
 
 	if (LocalPlaybackServerProcess.IsValid())
@@ -348,9 +349,9 @@ void FAvaMediaModule::StopGameModeLocalPlaybackServer()
 {
 	// We may not have a local handle to the server process if it was started by
 	// another client instance.
-	if (!LocalPlaybackServerProcess.IsValid() && AvaMediaPlaybackClient.IsValid())
+	if (!LocalPlaybackServerProcess.IsValid() && AvaPlaybackClient.IsValid())
 	{
-		LocalPlaybackServerProcess = FAvaMediaPlaybackServerProcess::Find(*AvaMediaPlaybackClient);
+		LocalPlaybackServerProcess = FAvaPlaybackServerProcess::Find(*AvaPlaybackClient);
 	}
 	
 	if (LocalPlaybackServerProcess.IsValid() && LocalPlaybackServerProcess->IsLaunched())
@@ -367,7 +368,7 @@ bool FAvaMediaModule::IsGameModeLocalPlaybackServerLaunched() const
 	return LocalPlaybackServerProcess.IsValid() && LocalPlaybackServerProcess->IsLaunched();
 }
 
-const IAvalancheBroadcastSettings& FAvaMediaModule::GetBroadcastSettings() const
+const IAvaBroadcastSettings& FAvaMediaModule::GetBroadcastSettings() const
 {
 	return BroadcastSettingsBridge;
 }
@@ -375,24 +376,24 @@ const IAvalancheBroadcastSettings& FAvaMediaModule::GetBroadcastSettings() const
 const FAvaInstanceSettings& FAvaMediaModule::GetAvaInstanceSettings() const
 {
 	// if the server is enabled, fetch the settings from the currently connected client.
-	if (AvaMediaPlaybackServer.IsValid())
+	if (AvaPlaybackServer.IsValid())
 	{
-		if (const FAvaInstanceSettings* SettingsFromClient = AvaMediaPlaybackServer->GetAvaInstanceSettings())
+		if (const FAvaInstanceSettings* SettingsFromClient = AvaPlaybackServer->GetAvaInstanceSettings())
 		{
 			return *SettingsFromClient;
 		}
 	}
 	// Return the local settings.
-	return UAvalancheMediaSettings::Get().AvaInstanceSettings;
+	return UAvaMediaSettings::Get().AvaInstanceSettings;
 }
 
-FAvaMediaPlaybackManager& FAvaMediaModule::GetLocalPlaybackManager() const
+FAvaPlaybackManager& FAvaMediaModule::GetLocalPlaybackManager() const
 {
 	check(LocalPlaybackManager.IsValid());
 	return *LocalPlaybackManager;
 }
 
-FAvalancheManagedInstanceCache& FAvaMediaModule::GetManagedInstanceCache() const
+FAvaRundownManagedInstanceCache& FAvaMediaModule::GetManagedInstanceCache() const
 {
 	check(ManagedInstanceCache.IsValid());
 	return *ManagedInstanceCache;
@@ -419,19 +420,19 @@ void FAvaMediaModule::PostEngineInit()
 	using namespace UE::AvaMediaModule::Private;
 
 	// This needs to happen late in the loading process, otherwise it fails.
-	const UAvalancheMediaSettings& Settings = UAvalancheMediaSettings::Get();
+	const UAvaMediaSettings& Settings = UAvaMediaSettings::Get();
 
-	ManagedInstanceCache = MakeShared<FAvalancheManagedInstanceCache>();
+	ManagedInstanceCache = MakeShared<FAvaRundownManagedInstanceCache>();
 	
 	// Allow for specification of the server name in the command line.
 	// Command line has priority over project settings. 
 	FString PlaybackServerName = Settings.PlaybackServerName;
 	const bool bIsServerManuallyStarted = IsPlaybackServerManuallyStarted(PlaybackServerName);
-	const bool bIsClientManuallyStarted = FParse::Param(FCommandLine::Get(), TEXT("AvaMediaPlaybackClientStart"));
+	const bool bIsClientManuallyStarted = FParse::Param(FCommandLine::Get(), TEXT("MotionDesignPlaybackClientStart"));
 
 	// Adding a command to suppress the client from auto-starting. This is used when spawning
 	// extra server process from the same project, while preventing extra clients.
-	const bool bIsClientAutoStartSuppressed = FParse::Param(FCommandLine::Get(), TEXT("AvaMediaPlaybackClientSuppress"));
+	const bool bIsClientAutoStartSuppressed = FParse::Param(FCommandLine::Get(), TEXT("MotionDesignPlaybackClientSuppress"));
 	
 	bool bShouldStartClient = bIsClientManuallyStarted || (Settings.bAutoStartPlaybackClient && !bIsClientAutoStartSuppressed && !IsRunningCommandlet());
 	bool bShouldStartServer = bIsServerManuallyStarted || (Settings.bAutoStartPlaybackServer && !IsRunningCommandlet());
@@ -470,12 +471,12 @@ void FAvaMediaModule::PostEngineInit()
 		StartPlaybackServerCommand({PlaybackServerName});
 	}
 	
-	LocalPlaybackManager = MakeShared<FAvaMediaPlaybackManager>();
+	LocalPlaybackManager = MakeShared<FAvaPlaybackManager>();
 
 #if WITH_EDITOR
 	// Capture Raw Ptr to avoid keeping ref count on capture
 	// Only Local Playback Manager should handle tear down for PIE End
-	FAvaMediaPlaybackManager* LocalPlaybackManagerRaw = LocalPlaybackManager.Get();
+	FAvaPlaybackManager* LocalPlaybackManagerRaw = LocalPlaybackManager.Get();
 	FEditorDelegates::PrePIEEnded.AddSPLambda(LocalPlaybackManagerRaw, [LocalPlaybackManagerRaw](const bool)
 	{
 		LocalPlaybackManagerRaw->OnParentWorldBeginTearDown();
@@ -483,7 +484,7 @@ void FAvaMediaModule::PostEngineInit()
 #endif
 
 	// Playback server required by Http server
-	if (AvaMediaPlaybackServer.IsValid() && Settings.bAutoStartWebServer)
+	if (AvaPlaybackServer.IsValid() && Settings.bAutoStartWebServer)
 	{
 		StartHttpPlaybackServerCommand({});
 	}
@@ -511,72 +512,72 @@ void FAvaMediaModule::StopAllServices()
 void FAvaMediaModule::StartPlaybackServerCommand(const TArray<FString>& InArgs)
 {
 	// Starting a playback server in the same process as playback client is forbidden.
-	if (AvaMediaPlaybackClient)
+	if (AvaPlaybackClient)
 	{
 		UE_LOG(LogAvaMedia, Error, TEXT("A Playback Server can't be started in the same process as a Playback Client."));
 		return;
 	}
 	
-	if (!AvaMediaPlaybackServer)
+	if (!AvaPlaybackServer)
 	{
-		AvaMediaPlaybackServer = MakeShared<FAvaMediaPlaybackServer>();
-		AvaMediaPlaybackServer->Init(InArgs.Num() > 0 ? InArgs[0] : TEXT(""));
-		OnAvaMediaPlaybackServerStarted.Broadcast();
+		AvaPlaybackServer = MakeShared<FAvaPlaybackServer>();
+		AvaPlaybackServer->Init(InArgs.Num() > 0 ? InArgs[0] : TEXT(""));
+		OnAvaPlaybackServerStarted.Broadcast();
 		UE_LOG(LogAvaMedia, Log, TEXT("Playback Server Started"));
 	}
 }
 
 void FAvaMediaModule::StopPlaybackServerCommand(const TArray<FString>& InArgs)
 {
-	if (AvaMediaPlaybackServer)
+	if (AvaPlaybackServer)
 	{
-		AvaMediaPlaybackServer->StartShuttingDown();
-		AvaMediaPlaybackServer->StopBroadcast();
-		AvaMediaPlaybackServer->StopPlaybacks();
-		OnAvaMediaPlaybackServerStopped.Broadcast();
+		AvaPlaybackServer->StartShuttingDown();
+		AvaPlaybackServer->StopBroadcast();
+		AvaPlaybackServer->StopPlaybacks();
+		OnAvaPlaybackServerStopped.Broadcast();
 	}
-	AvaMediaPlaybackServer.Reset();
+	AvaPlaybackServer.Reset();
 }
 
 void FAvaMediaModule::StartPlaybackClientCommand(const TArray<FString>& InArgs)
 {
 	// Starting a playback server in the same process as playback client is forbidden.
-	if (AvaMediaPlaybackServer)
+	if (AvaPlaybackServer)
 	{
 		UE_LOG(LogAvaMedia, Error, TEXT("A Playback Client can't be started in the same process as a Playback Server."));
 		return;
 	}
 
-	if (!AvaMediaPlaybackClient)
+	if (!AvaPlaybackClient)
 	{
-		using namespace UE::AvaMediaPlaybackClient::Delegates;
+		using namespace UE::AvaPlaybackClient::Delegates;
 		if (GetOnConnectionEvent().IsBoundToObject(this))
 		{
-			GetOnConnectionEvent().AddRaw(this, &FAvaMediaModule::OnAvaMediaPlaybackClientConnectionEvent);
+			GetOnConnectionEvent().AddRaw(this, &FAvaMediaModule::OnAvaPlaybackClientConnectionEvent);
 		}
 
-		AvaMediaPlaybackClient = MakeShared<FAvaMediaPlaybackClient>(this);
-		AvaMediaPlaybackClient->Init();
-		OnAvaMediaPlaybackClientStarted.Broadcast();
+		AvaPlaybackClient = MakeShared<FAvaPlaybackClient>(this);
+		AvaPlaybackClient->Init();
+		OnAvaPlaybackClientStarted.Broadcast();
 		UE_LOG(LogAvaMedia, Log, TEXT("Playback Client Started"));
 	}
 }
 
 void FAvaMediaModule::StopPlaybackClientCommand(const TArray<FString>& InArgs)
 {
-	if (AvaMediaPlaybackClient)
+	if (AvaPlaybackClient)
 	{
-		OnAvaMediaPlaybackClientStopped.Broadcast();
+		OnAvaPlaybackClientStopped.Broadcast();
 	}
-	AvaMediaPlaybackClient.Reset();
-	UE::AvaMediaPlaybackClient::Delegates::GetOnConnectionEvent().RemoveAll(this);
+	AvaPlaybackClient.Reset();
+	UE::AvaPlaybackClient::Delegates::GetOnConnectionEvent().RemoveAll(this);
 }
 
 void FAvaMediaModule::StartHttpPlaybackServerCommand(const TArray<FString>& InArgs)
 {
-	if (!AvaMediaHttpPlaybackServer)
+	if (!AvaPlaybackHttpPlaybackServer)
 	{
-		AvaMediaHttpPlaybackServer = MakeShared<FAvaMediaHttpServer>();
+		AvaPlaybackHttpPlaybackServer = MakeShared<FAvaPlaybackHttpServer>();
 		
 		if (InArgs.Num() > 0)
 		{
@@ -584,23 +585,23 @@ void FAvaMediaModule::StartHttpPlaybackServerCommand(const TArray<FString>& InAr
 		}
 	}
 	
-	if (!AvaMediaHttpPlaybackServer->IsRunning())
+	if (!AvaPlaybackHttpPlaybackServer->IsRunning())
 	{
-		const int32 Port = GetDefault<UAvalancheMediaSettings>()->HttpServerPort;
-		AvaMediaHttpPlaybackServer->Start(Port);
+		const int32 Port = GetDefault<UAvaMediaSettings>()->HttpServerPort;
+		AvaPlaybackHttpPlaybackServer->Start(Port);
 		UE_LOG(LogAvaMedia, Log, TEXT("Http Playback Server Started"));
 	}
 }
 
 void FAvaMediaModule::StopHttpPlaybackServerCommand(const TArray<FString>& InArgs)
 {
-	AvaMediaHttpPlaybackServer.Reset();
+	AvaPlaybackHttpPlaybackServer.Reset();
 }
 
 
 void FAvaMediaModule::SaveDeviceProvidersCommand(const TArray<FString>& InArgs)
 {
-	FAvaDeviceProviderDataList OutProviders;
+	FAvaBroadcastDeviceProviderDataList OutProviders;
 	OutProviders.Populate(InArgs.Num() > 0 ? InArgs[0] : FPlatformProcess::ComputerName());
 	OutProviders.SaveToJson();	// Saves in the project's config folder.
 	OutProviders.SaveToXml();	// Saves in the project's config folder.
@@ -631,23 +632,23 @@ void FAvaMediaModule::HandleStatCommand(const TArray<FString>& InArgs)
 
 	const bool bLocalCommandSucceeded = LocalPlaybackManager->HandleStatCommand(InArgs);
 	
-	if (AvaMediaPlaybackClient.IsValid())
+	if (AvaPlaybackClient.IsValid())
 	{
-		AvaMediaPlaybackClient->BroadcastStatCommand(InArgs[0], bLocalCommandSucceeded);
+		AvaPlaybackClient->BroadcastStatCommand(InArgs[0], bLocalCommandSucceeded);
 	}
 }
 
-void FAvaMediaModule::OnAvaMediaPlaybackClientConnectionEvent(IAvaMediaPlaybackClient& InPlaybackClient,
-		const UE::AvaMediaPlaybackClient::Delegates::FConnectionEventArgs& InArgs)
+void FAvaMediaModule::OnAvaPlaybackClientConnectionEvent(IAvaPlaybackClient& InPlaybackClient,
+		const UE::AvaPlaybackClient::Delegates::FConnectionEventArgs& InArgs)
 {
-	using namespace UE::AvaMediaPlaybackClient::Delegates;
+	using namespace UE::AvaPlaybackClient::Delegates;
 	// When a playback server connection event occurs, update the status of the playback server process.
 	switch (InArgs.Event)
 	{
 	case EConnectionEvent::ServerConnected:
 		if (!IsGameModeLocalPlaybackServerLaunched() && IsMediaPlaybackClientStarted())
 		{
-			LocalPlaybackServerProcess = FAvaMediaPlaybackServerProcess::Find(*AvaMediaPlaybackClient);
+			LocalPlaybackServerProcess = FAvaPlaybackServerProcess::Find(*AvaPlaybackClient);
 		}
 		break;
 	case EConnectionEvent::ServerDisconnected:
@@ -662,27 +663,27 @@ void FAvaMediaModule::OnAvaMediaPlaybackClientConnectionEvent(IAvaMediaPlaybackC
 
 const FLinearColor& FAvaMediaModule::FLocalBroadcastSettings::GetChannelClearColor() const
 {
-	return UAvalancheMediaSettings::Get().ChannelClearColor;
+	return UAvaMediaSettings::Get().ChannelClearColor;
 }
 
 EPixelFormat FAvaMediaModule::FLocalBroadcastSettings::GetDefaultPixelFormat() const
 {
-	return UAvalancheMediaSettings::Get().ChannelDefaultPixelFormat;
+	return UAvaMediaSettings::Get().ChannelDefaultPixelFormat;
 }
 
 const FIntPoint& FAvaMediaModule::FLocalBroadcastSettings::GetDefaultResolution() const
 {
-	return UAvalancheMediaSettings::Get().ChannelDefaultResolution;
+	return UAvaMediaSettings::Get().ChannelDefaultResolution;
 }
 
 bool FAvaMediaModule::FLocalBroadcastSettings::IsDrawPlaceholderWidget() const
 {
-	return UAvalancheMediaSettings::Get().bDrawPlaceholderWidget;
+	return UAvaMediaSettings::Get().bDrawPlaceholderWidget;
 }
 
 const FSoftObjectPath& FAvaMediaModule::FLocalBroadcastSettings::GetPlaceholderWidgetClass() const
 {
-	return UAvalancheMediaSettings::Get().PlaceholderWidgetClass.ToSoftObjectPath();
+	return UAvaMediaSettings::Get().PlaceholderWidgetClass.ToSoftObjectPath();
 }
 
 const FLinearColor& FAvaMediaModule::FBroadcastSettingsBridge::GetChannelClearColor() const
@@ -710,12 +711,12 @@ const FSoftObjectPath& FAvaMediaModule::FBroadcastSettingsBridge::GetPlaceholder
 	return GetSettings().GetPlaceholderWidgetClass();
 }
 
-const IAvalancheBroadcastSettings& FAvaMediaModule::FBroadcastSettingsBridge::GetSettings() const
+const IAvaBroadcastSettings& FAvaMediaModule::FBroadcastSettingsBridge::GetSettings() const
 {
 	// if server is enabled, fetch the setting from the currently connected client.
-	if (ParentModule->AvaMediaPlaybackServer.IsValid())
+	if (ParentModule->AvaPlaybackServer.IsValid())
 	{
-		if (const IAvalancheBroadcastSettings* SettingsFromClient = ParentModule->AvaMediaPlaybackServer->GetBroadcastSettings())
+		if (const IAvaBroadcastSettings* SettingsFromClient = ParentModule->AvaPlaybackServer->GetBroadcastSettings())
 		{
 			return *SettingsFromClient;
 		}
@@ -723,7 +724,7 @@ const IAvalancheBroadcastSettings& FAvaMediaModule::FBroadcastSettingsBridge::Ge
 	return ParentModule->LocalBroadcastSettings;
 }
 
-IAvaDeviceProviderProxyManager& FAvaMediaModule::GetDeviceProviderProxyManager()
+IAvaBroadcastDeviceProviderProxyManager& FAvaMediaModule::GetDeviceProviderProxyManager()
 {
 	return DeviceProviderProxyManager;
 }

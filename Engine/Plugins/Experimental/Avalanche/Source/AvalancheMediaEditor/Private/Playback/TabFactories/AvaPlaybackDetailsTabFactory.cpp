@@ -1,15 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackDetailsTabFactory.h"
-#include "Playback/AvalanchePlayback.h"
-#include "Playback/AvaPlaybackEditor.h"
+
+#include "Playback/AvaPlaybackGraphEditor.h"
 #include "Playback/DetailsView/SAvaPlaybackDetailsView.h"
 
-const FName FAvaPlaybackDetailsTabFactory::TabID(TEXT("AvalanchePlaybackDetails"));
+const FName FAvaPlaybackDetailsTabFactory::TabID(TEXT("MotionDesignPlaybackDetails"));
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackDetailsTabFactory"
 
-FAvaPlaybackDetailsTabFactory::FAvaPlaybackDetailsTabFactory(const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor)
+FAvaPlaybackDetailsTabFactory::FAvaPlaybackDetailsTabFactory(const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor)
 	: FAvaPlaybackTabFactory(TabID, InPlaybackEditor)
 {
 	TabLabel = LOCTEXT("PlaybackDetails_TabLabel", "Details");
@@ -23,7 +23,7 @@ FAvaPlaybackDetailsTabFactory::FAvaPlaybackDetailsTabFactory(const TSharedPtr<FA
 
 TSharedRef<SWidget> FAvaPlaybackDetailsTabFactory::CreateTabBody(const FWorkflowTabSpawnInfo& Info) const
 {
-	TSharedPtr<FAvaPlaybackEditor> PlaybackEditor = PlaybackEditorWeak.Pin();
+	TSharedPtr<FAvaPlaybackGraphEditor> PlaybackEditor = PlaybackEditorWeak.Pin();
 	check(PlaybackEditor.IsValid());
 	return SNew(SAvaPlaybackDetailsView, PlaybackEditor);
 }

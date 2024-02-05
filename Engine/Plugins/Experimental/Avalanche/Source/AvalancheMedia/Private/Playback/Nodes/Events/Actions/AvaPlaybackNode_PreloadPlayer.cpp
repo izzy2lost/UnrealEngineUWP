@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackNode_PreloadPlayer.h"
-#include "AvalancheBroadcast.h"
-#include "Playback/AvalanchePlayback.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#include "Broadcast/AvaBroadcast.h"
+#include "Playback/AvaPlaybackGraph.h"
+
+#define LOCTEXT_NAMESPACE "AvaPlaybackNode_PreloadPlayer"
 
 FText UAvaPlaybackNode_PreloadPlayer::GetNodeDisplayNameText() const
 {
@@ -18,15 +19,15 @@ FText UAvaPlaybackNode_PreloadPlayer::GetNodeTooltipText() const
 
 void UAvaPlaybackNode_PreloadPlayer::OnEventTriggered(const FAvaPlaybackEventParameters& InEventParameters)
 {
-	UAvalanchePlayback* const Playback = GetPlayback();
+	UAvaPlaybackGraph* const Playback = GetPlayback();
 	
-	//Make sure we have a valid Avalanche Asset
+	//Make sure we have a valid Motion Design Asset
 	if (Playback && InEventParameters.IsAssetValid())
 	{
 		TArray<FName> ChannelNames = Playback->GetChannelNamesForIndices(InEventParameters.ChannelIndices);
 		for (const FName& ChannelName : ChannelNames)
 		{
-			Playback->LoadAsset(InEventParameters.AvalancheAsset, ChannelName);
+			Playback->LoadAsset(InEventParameters.Asset, ChannelName);
 		}
 	}
 }

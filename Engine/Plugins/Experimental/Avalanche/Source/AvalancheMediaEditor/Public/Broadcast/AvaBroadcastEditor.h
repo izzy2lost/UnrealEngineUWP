@@ -4,11 +4,10 @@
 
 #include "AvaMediaDefines.h"
 #include "CoreMinimal.h"
-#include "MediaOutput.h"
 #include "WorkflowOrientedApp/WorkflowCentricApplication.h"
 
-class FAvaOutputTileItem;
-class UAvalancheBroadcast;
+class FAvaBroadcastOutputTileItem;
+class UAvaBroadcast;
 class UMediaOutput;
 
 class FAvaBroadcastEditor : public FWorkflowCentricApplication
@@ -23,15 +22,15 @@ public:
 
 	static void OpenBroadcastEditor();
 
-	void SelectOutputTile(const TSharedPtr<FAvaOutputTileItem>& InOutputTile);
-	TSharedPtr<FAvaOutputTileItem> GetSelectedOutputTile() const;
+	void SelectOutputTile(const TSharedPtr<FAvaBroadcastOutputTileItem>& InOutputTile);
+	TSharedPtr<FAvaBroadcastOutputTileItem> GetSelectedOutputTile() const;
 	
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnOutputItemSelectionChanged, const TSharedPtr<FAvaOutputTileItem>&);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnOutputItemSelectionChanged, const TSharedPtr<FAvaBroadcastOutputTileItem>&);
 	FOnOutputItemSelectionChanged OnOutputTileSelectionChanged;
 	
 protected:
 	
-	void InitBroadcastEditor(UAvalancheBroadcast* InBroadcast);
+	void InitBroadcastEditor(UAvaBroadcast* InBroadcast);
 
 	void OnBroadcastChanged(EAvaBroadcastChange ChangedEvent);
 	void OnAvaMediaSettingsChanged(UObject*, FPropertyChangedEvent&);
@@ -57,7 +56,7 @@ protected:
 
 public:
 	
-	UAvalancheBroadcast* GetBroadcastObject() const;
+	UAvaBroadcast* GetBroadcastObject() const;
 
 	void ExtendToolBar(TSharedPtr<FExtender> Extender);
 	void FillPlayToolBar(FToolBarBuilder& ToolBarBuilder);
@@ -82,7 +81,7 @@ protected:
 	
 	static TSharedPtr<FAvaBroadcastEditor> BroadcastEditor;
 	
-	TWeakObjectPtr<UAvalancheBroadcast> AvalancheBroadcast;
+	TWeakObjectPtr<UAvaBroadcast> BroadcastWeak;
 	
-	TWeakPtr<FAvaOutputTileItem> SelectedOutputTileWeak;	
+	TWeakPtr<FAvaBroadcastOutputTileItem> SelectedOutputTileWeak;	
 };

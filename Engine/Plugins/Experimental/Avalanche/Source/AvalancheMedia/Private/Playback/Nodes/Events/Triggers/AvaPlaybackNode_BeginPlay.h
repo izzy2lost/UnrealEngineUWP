@@ -6,7 +6,6 @@
 #include "Playback/Nodes/Events/AvaPlaybackNodeTrigger.h"
 #include "AvaPlaybackNode_BeginPlay.generated.h"
 
-
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNode_BeginPlay : public UAvaPlaybackNodeTrigger
 {

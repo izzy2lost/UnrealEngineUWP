@@ -3,7 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Playback/Nodes/Events/Actions/AvalancheAnimations.h"
+#include "Playback/Nodes/Events/Actions/AvaPlaybackAnimations.h"
+#include "Playback/Nodes/Events/AvaPlaybackNodeAction.h"
 #include "AvaPlaybackNode_PlayAnim.generated.h"
 
 UCLASS()
@@ -23,7 +24,7 @@ public:
 protected:
 	
 	UPROPERTY(VisibleAnywhere, Category = "Motion Design")
-	TMap<FSoftObjectPath, FAvalancheAnimations> AnimationMap;
+	TMap<FSoftObjectPath, FAvaPlaybackAnimations> AnimationMap;
 
 	//All the Blueprints connected to this Node from the Dry Run (only populated while Dry Running!)
 	TSet<FSoftObjectPath> SeenAssetsInDryRun;

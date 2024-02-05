@@ -3,8 +3,9 @@
 #include "SAvaBroadcastDetailsView.h"
 
 #include "Broadcast/AvaBroadcastEditor.h"
-#include "Broadcast/ChannelGrid/AvaOutputTileItem.h"
-#include "Channel/AvaOutputChannel.h"
+#include "Broadcast/Channel/AvaBroadcastOutputChannel.h"
+#include "Broadcast/ChannelGrid/AvaBroadcastOutputTileItem.h"
+#include "MediaOutput.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "Widgets/Text/STextBlock.h"
@@ -61,16 +62,16 @@ bool SAvaBroadcastDetailsView::IsMediaOutputEditingEnabled() const
 {
 	if (TSharedPtr<FAvaBroadcastEditor> BroadcastEditor = BroadcastEditorWeak.Pin())
 	{
-		if (TSharedPtr<FAvaOutputTileItem> MediaOutputItem = BroadcastEditor->GetSelectedOutputTile())
+		if (TSharedPtr<FAvaBroadcastOutputTileItem> MediaOutputItem = BroadcastEditor->GetSelectedOutputTile())
 		{
-			const FAvaOutputChannel& Channel = MediaOutputItem->GetChannel();
+			const FAvaBroadcastOutputChannel& Channel = MediaOutputItem->GetChannel();
 			return Channel.IsValidChannel() && Channel.IsEditingEnabled();
 		}
 	}
 	return false;
 }
 
-void SAvaBroadcastDetailsView::OnMediaOutputSelectionChanged(const TSharedPtr<FAvaOutputTileItem>& InSelectedItem)
+void SAvaBroadcastDetailsView::OnMediaOutputSelectionChanged(const TSharedPtr<FAvaBroadcastOutputTileItem>& InSelectedItem)
 {
 	check(DetailsView.IsValid());
 

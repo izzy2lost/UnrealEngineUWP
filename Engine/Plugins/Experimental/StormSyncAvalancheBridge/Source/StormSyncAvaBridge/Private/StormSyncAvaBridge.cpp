@@ -8,8 +8,8 @@
 #include "IStormSyncTransportServerModule.h"
 #include "Misc/CoreDelegates.h"
 #include "ModularFeature/StormSyncAvaSyncProvider.h"
-#include "Playback/AvaMediaPlaybackServer.h"
-#include "Playback/IAvaMediaPlaybackClient.h"
+#include "Playback/AvaPlaybackServer.h"
+#include "Playback/IAvaPlaybackClient.h"
 #include "StormSyncAvaBridgeCommon.h"
 #include "StormSyncAvaBridgeLog.h"
 #include "StormSyncAvaBridgeUtils.h"
@@ -58,8 +58,8 @@ void FStormSyncAvaBridgeModule::OnPostEngineInit()
 			RegisterUserDataForPlaybackClient();
 		}
 
-		IAvaMediaModule::Get().GetOnAvaMediaPlaybackServerStarted().AddStatic(&FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer);
-		IAvaMediaModule::Get().GetOnAvaMediaPlaybackClientStarted().AddStatic(&FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient);
+		IAvaMediaModule::Get().GetOnAvaPlaybackServerStarted().AddStatic(&FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer);
+		IAvaMediaModule::Get().GetOnAvaPlaybackClientStarted().AddStatic(&FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient);
 	}
 
 	if (IStormSyncTransportServerModule::IsAvailable())
@@ -133,7 +133,7 @@ void FStormSyncAvaBridgeModule::ExecuteGetUserData(const TArray<FString>& Args)
 		return;
 	}
 
-	const IAvaMediaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
 	for (const FString& ServerName : ServerNames)
 	{
 		FString ServerValue = PlaybackClient.GetServerUserData(ServerName, Key);
@@ -161,7 +161,7 @@ void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer()
 		return;
 	}
 
-	if (const TSharedPtr<FAvaMediaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer())
+	if (const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer())
 	{
 		const FString StormSyncServerAddress = IStormSyncTransportServerModule::Get().GetServerEndpointMessageAddressId();
 		const FString DiscoveryManagerAddress = IStormSyncTransportServerModule::Get().GetDiscoveryManagerMessageAddressId();
@@ -187,7 +187,7 @@ void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient()
 
 	if (IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
 	{
-		IAvaMediaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+		IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
 
 		const FString StormSyncServerAddress = IStormSyncTransportServerModule::Get().GetServerEndpointMessageAddressId();
 		const FString DiscoveryManagerAddress = IStormSyncTransportServerModule::Get().GetDiscoveryManagerMessageAddressId();

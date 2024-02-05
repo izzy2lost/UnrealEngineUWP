@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Misc/EnumClassFlags.h"
 #include "Framework/AvaSoftAssetPtr.h"
+#include "Misc/EnumClassFlags.h"
 #include "AvaMediaDefines.generated.h"
 
 UENUM()
-enum class EAvaChannelState : uint8
+enum class EAvaBroadcastChannelState : uint8
 {
 	Offline,
 	Idle,
@@ -42,7 +42,7 @@ enum class EAvaBroadcastChannelType : uint8
  *	Status of the media output.
  */
 UENUM()
-enum class EAvaMediaOutputState : uint8
+enum class EAvaBroadcastOutputState : uint8
 {
 	/** Invalid/Uninitialized state. */
 	Invalid,
@@ -59,7 +59,7 @@ enum class EAvaMediaOutputState : uint8
 };
 
 UENUM()
-enum class EAvaMediaIssueSeverity : uint8
+enum class EAvaBroadcastIssueSeverity : uint8
 {
 	None,
 	Warnings,
@@ -82,7 +82,7 @@ enum class EAvaBroadcastChange : uint8
 ENUM_CLASS_FLAGS(EAvaBroadcastChange);
 
 //An enum indicating what changed in Channel
-enum class EAvaChannelChange : uint8
+enum class EAvaBroadcastChannelChange : uint8
 {
 	None         = 0,
 	State        = 1 << 0,
@@ -90,7 +90,7 @@ enum class EAvaChannelChange : uint8
 	MediaOutputs = 1 << 2,
 	Settings     = 1 << 3,
 };
-ENUM_CLASS_FLAGS(EAvaChannelChange);
+ENUM_CLASS_FLAGS(EAvaBroadcastChannelChange);
 
 /**
  * The status of a playable object.
@@ -100,7 +100,7 @@ ENUM_CLASS_FLAGS(EAvaChannelChange);
  * referred to as the "runtime" asset instance.
  */
 UENUM()
-enum class EAvalanchePlayableStatus : uint8
+enum class EAvaPlayableStatus : uint8
 {
 	Unknown,
 	Error,
@@ -111,7 +111,7 @@ enum class EAvalanchePlayableStatus : uint8
 };
 
 UENUM()
-enum class EAvalanchePlayableSequenceEventType : uint8
+enum class EAvaPlayableSequenceEventType : uint8
 {
 	None,
 	Started,
@@ -121,15 +121,15 @@ enum class EAvalanchePlayableSequenceEventType : uint8
 /**
  * Transition flags carry additional context to help resolve the behaviors.
  */
-enum class EAvalanchePlayableTransitionFlags : uint8
+enum class EAvaPlayableTransitionFlags : uint8
 {
 	None = 0,
 	/** This transition contains only exit playables. */
 	ExitOnly = 1 << 0,
 };
-ENUM_CLASS_FLAGS(EAvalanchePlayableTransitionFlags);
+ENUM_CLASS_FLAGS(EAvaPlayableTransitionFlags);
 
-enum class EAvalanchePlayableTransitionEventFlags : uint8
+enum class EAvaPlayableTransitionEventFlags : uint8
 {
 	None = 0,
 	/** The transition is starting. */
@@ -141,7 +141,7 @@ enum class EAvalanchePlayableTransitionEventFlags : uint8
 	/** The transition is finished and can be cleaned up. */
 	Finished = 1 << 3,
 };
-ENUM_CLASS_FLAGS(EAvalanchePlayableTransitionEventFlags);
+ENUM_CLASS_FLAGS(EAvaPlayableTransitionEventFlags);
 
 /*
  * Parameters used to tell a Channel its Playback Settings
@@ -155,11 +155,11 @@ struct FAvaPlaybackChannelParameters
 	 * If a playback node is reached during tick traversal,
 	 * it is going to set this value.
 	 */
-	TArray<FAvaSoftAssetPtr> AvalancheAssets;
+	TArray<FAvaSoftAssetPtr> Assets;
 
 	bool HasAssets() const
 	{
-		return !AvalancheAssets.IsEmpty();
+		return !Assets.IsEmpty();
 	}
 };
 
@@ -171,16 +171,16 @@ struct FAvaPlaybackEventParameters
 	/** List of channel indices that this event originates from. */
 	TArray<int32> ChannelIndices;
 
-	FAvaSoftAssetPtr AvalancheAsset;
+	FAvaSoftAssetPtr Asset;
 
 	bool IsAssetValid() const
 	{
-		return !AvalancheAsset.IsNull();
+		return !Asset.IsNull();
 	}
 
 	const FSoftObjectPath& GetAssetPath() const
 	{
-		return AvalancheAsset.ToSoftObjectPath();
+		return Asset.ToSoftObjectPath();
 	}
 	
 	void RequestTriggerEventAction()
@@ -199,7 +199,7 @@ protected:
 };
 
 
-enum class EAvaPageListChange : uint8
+enum class EAvaRundownPageListChange : uint8
 {
 	None = 0,
 
@@ -211,9 +211,9 @@ enum class EAvaPageListChange : uint8
 
 	All              = 0xFF,
 };
-ENUM_CLASS_FLAGS(EAvaPageListChange);
+ENUM_CLASS_FLAGS(EAvaRundownPageListChange);
 
-enum class EAvaPageChanges : uint8
+enum class EAvaRundownPageChanges : uint8
 {
 	None = 0,
 
@@ -225,7 +225,7 @@ enum class EAvaPageChanges : uint8
 
 	All              = 0xFF,
 };
-ENUM_CLASS_FLAGS(EAvaPageChanges);
+ENUM_CLASS_FLAGS(EAvaRundownPageChanges);
 
 /**
  *	The status of the playback asset on disk.
@@ -235,7 +235,7 @@ ENUM_CLASS_FLAGS(EAvaPageChanges);
  *	the source Motion Design blueprint, rather than a playback object.
  */
 UENUM()
-enum class EAvaMediaPlaybackAssetStatus
+enum class EAvaPlaybackAssetStatus
 {
 	/** Invalid status. */
 	Unknown,
@@ -245,11 +245,11 @@ enum class EAvaMediaPlaybackAssetStatus
 	 * Missing asset dependencies
 	 * Note: An Motion Design asset can run even with missing dependencies.
 	 */
-	 MissingDependencies,
-	 /** Asset is out of date from compare with remote. */
-	 NeedsSync,
-	 /** Asset is fully available and up to date. */
-	 Available
+	MissingDependencies,
+	/** Asset is out of date from compare with remote. */
+	NeedsSync,
+	/** Asset is fully available and up to date. */
+	Available
 };
 
 /**
@@ -260,7 +260,7 @@ enum class EAvaMediaPlaybackAssetStatus
  * referred to as the "managed" or "runtime" asset.
  */
 UENUM()
-enum class EAvaMediaPlaybackStatus
+enum class EAvaPlaybackStatus
 {
 	/** Invalid status. */
 	Unknown,
@@ -286,33 +286,33 @@ enum class EAvaMediaPlaybackStatus
 	Error
 };
 
-UENUM(BlueprintType)
-enum class EAvaPageListType : uint8
+UENUM(BlueprintType, DisplayName = "Motion Design Rundown Page List Type")
+enum class EAvaRundownPageListType : uint8
 {
 	Template,
 	Instance,
 	View
 };
 
-USTRUCT(BlueprintType)
-struct FAvaPageListReference
+USTRUCT(BlueprintType, DisplayName = "Motion Design Rundown Page List Reference")
+struct FAvaRundownPageListReference
 {
 	GENERATED_BODY()
 
 	UPROPERTY()
-	EAvaPageListType Type = EAvaPageListType::Instance;
+	EAvaRundownPageListType Type = EAvaRundownPageListType::Instance;
 
 	UPROPERTY()
 	int32 SubListIndex = INDEX_NONE;
 
-	bool operator==(const FAvaPageListReference& InOther) const
+	bool operator==(const FAvaRundownPageListReference& InOther) const
 	{
 		if (Type != InOther.Type)
 		{
 			return false;
 		}
 
-		if (Type == EAvaPageListType::View && SubListIndex != InOther.SubListIndex)
+		if (Type == EAvaRundownPageListType::View && SubListIndex != InOther.SubListIndex)
 		{
 			return false;
 		}
@@ -320,5 +320,5 @@ struct FAvaPageListReference
 		return true;
 	}
 
-	bool operator!=(const FAvaPageListReference& InOther) const { return !(*this == InOther); }
+	bool operator!=(const FAvaRundownPageListReference& InOther) const { return !(*this == InOther); }
 };

@@ -2,34 +2,34 @@
 
 #include "AvaMediaEditorUtils.h"
 
-const FSlateBrush* FAvaMediaEditorUtils::GetChannelStatusBrush(EAvaChannelState InChannelState, EAvaMediaIssueSeverity InChannelIssueSeverity)
+const FSlateBrush* FAvaMediaEditorUtils::GetChannelStatusBrush(EAvaBroadcastChannelState InChannelState, EAvaBroadcastIssueSeverity InChannelIssueSeverity)
 {
-	if (InChannelState == EAvaChannelState::Live)
+	if (InChannelState == EAvaBroadcastChannelState::Live)
 	{
 		switch (InChannelIssueSeverity)
 		{
-		case EAvaMediaIssueSeverity::None:
-			return FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.BroadcastLive");
-		case EAvaMediaIssueSeverity::Warnings:
-			return FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.BroadcastWarning");
-		case EAvaMediaIssueSeverity::Errors:
-			return FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.BroadcastError");
+		case EAvaBroadcastIssueSeverity::None:
+			return FAvaMediaEditorStyle::Get().GetBrush("AvaMediaEditor.BroadcastLive");
+		case EAvaBroadcastIssueSeverity::Warnings:
+			return FAvaMediaEditorStyle::Get().GetBrush("AvaMediaEditor.BroadcastWarning");
+		case EAvaBroadcastIssueSeverity::Errors:
+			return FAvaMediaEditorStyle::Get().GetBrush("AvaMediaEditor.BroadcastError");
 		}
 	}
-	else if (InChannelState == EAvaChannelState::Idle)
+	else if (InChannelState == EAvaBroadcastChannelState::Idle)
 	{
-		return FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.BroadcastIdle");
+		return FAvaMediaEditorStyle::Get().GetBrush("AvaMediaEditor.BroadcastIdle");
 	}
 	else
 	{
-		return FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.BroadcastOffline");
+		return FAvaMediaEditorStyle::Get().GetBrush("AvaMediaEditor.BroadcastOffline");
 	}
 	
-	return FAvaMediaEditorStyle::Get().GetBrush("AvalancheMediaEditor.BroadcastIdle");
+	return FAvaMediaEditorStyle::Get().GetBrush("AvaMediaEditor.BroadcastIdle");
 }
 
-FText FAvaMediaEditorUtils::GetChannelStatusText(EAvaChannelState InChannelState, EAvaMediaIssueSeverity InChannelIssueSeverity)
+FText FAvaMediaEditorUtils::GetChannelStatusText(EAvaBroadcastChannelState InChannelState, EAvaBroadcastIssueSeverity InChannelIssueSeverity)
 {
 	//TODO: Possibly also add Issue Severity (if not none)
-	return StaticEnum<EAvaChannelState>()->GetDisplayNameTextByIndex(static_cast<int32>(InChannelState));
+	return StaticEnum<EAvaBroadcastChannelState>()->GetDisplayNameTextByIndex(static_cast<int32>(InChannelState));
 }

@@ -3,19 +3,19 @@
 #include "Broadcast/AvaBroadcastEditor.h"
 
 #include "AppModes/AvaBroadcastDefaultMode.h"
-#include "AvalancheBroadcast.h"
-#include "AvalancheMediaSettings.h"
+#include "AvaMediaSettings.h"
+#include "Broadcast/AvaBroadcast.h"
 #include "ChannelGrid/Slate/SAvaBroadcastProfileEntry.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IAvaMediaEditorModule.h"
 #include "IAvaMediaModule.h"
 #include "Misc/MessageDialog.h"
-#include "Playback/IAvaMediaPlaybackClient.h"
+#include "Playback/IAvaPlaybackClient.h"
 #include "ScopedTransaction.h"
 #include "WorkflowOrientedApp/ApplicationMode.h"
 
-#define LOCTEXT_NAMESPACE "FAvaBroadcastEditor"
+#define LOCTEXT_NAMESPACE "AvaBroadcastEditor"
 
 TSharedPtr<FAvaBroadcastEditor> FAvaBroadcastEditor::BroadcastEditor;
 
@@ -23,13 +23,13 @@ FAvaBroadcastEditor::~FAvaBroadcastEditor()
 {
 	if (UObjectInitialized())
 	{
-		UAvalancheMediaSettings& AvaMediaSettings = UAvalancheMediaSettings::GetMutable();
+		UAvaMediaSettings& AvaMediaSettings = UAvaMediaSettings::GetMutable();
 		AvaMediaSettings.OnSettingChanged().RemoveAll(this);
 	}
 	
-	if (AvalancheBroadcast.IsValid())
+	if (BroadcastWeak.IsValid())
 	{
-		AvalancheBroadcast->RemoveChangeListener(this);
+		BroadcastWeak->RemoveChangeListener(this);
 	}
 }
 
@@ -43,11 +43,11 @@ void FAvaBroadcastEditor::OpenBroadcastEditor()
 	{
 		BroadcastEditor.Reset();
 		BroadcastEditor = MakeShared<FAvaBroadcastEditor>(FPrivateToken());
-		BroadcastEditor->InitBroadcastEditor(&UAvalancheBroadcast::Get());
+		BroadcastEditor->InitBroadcastEditor(&UAvaBroadcast::Get());
 	}
 }
 
-void FAvaBroadcastEditor::SelectOutputTile(const TSharedPtr<FAvaOutputTileItem>& InOutputTile)
+void FAvaBroadcastEditor::SelectOutputTile(const TSharedPtr<FAvaBroadcastOutputTileItem>& InOutputTile)
 {
 	if (SelectedOutputTileWeak != InOutputTile)
 	{
@@ -56,7 +56,7 @@ void FAvaBroadcastEditor::SelectOutputTile(const TSharedPtr<FAvaOutputTileItem>&
 	}
 }
 
-TSharedPtr<FAvaOutputTileItem> FAvaBroadcastEditor::GetSelectedOutputTile() const
+TSharedPtr<FAvaBroadcastOutputTileItem> FAvaBroadcastEditor::GetSelectedOutputTile() const
 {
 	return SelectedOutputTileWeak.Pin();
 }
@@ -70,9 +70,9 @@ void FAvaBroadcastEditor::OnClose()
 	}
 }
 
-void FAvaBroadcastEditor::InitBroadcastEditor(UAvalancheBroadcast* InBroadcast)
+void FAvaBroadcastEditor::InitBroadcastEditor(UAvaBroadcast* InBroadcast)
 {
-	AvalancheBroadcast = InBroadcast;
+	BroadcastWeak = InBroadcast;
 	
 	if (InBroadcast)
 	{
@@ -80,12 +80,12 @@ void FAvaBroadcastEditor::InitBroadcastEditor(UAvalancheBroadcast* InBroadcast)
 			, &FAvaBroadcastEditor::OnBroadcastChanged));
 	}
 
-	UAvalancheMediaSettings& AvaMediaSettings = UAvalancheMediaSettings::GetMutable();
+	UAvaMediaSettings& AvaMediaSettings = UAvaMediaSettings::GetMutable();
 	AvaMediaSettings.OnSettingChanged().AddRaw(this, &FAvaBroadcastEditor::OnAvaMediaSettingsChanged);
 
 	CreateDefaultCommands();
 	
-	const FName BroadcastEditorAppName(TEXT("AvalancheBroadcastEditorApp"));
+	const FName BroadcastEditorAppName(TEXT("MotionDesignBroadcastEditorApp"));
 	constexpr bool bCreateDefaultStandaloneMenu = true;
 	constexpr bool bCreateDefaultToolbar = true;
 
@@ -104,7 +104,7 @@ void FAvaBroadcastEditor::OnBroadcastChanged(EAvaBroadcastChange ChangedEvent)
 {
 	if (EnumHasAnyFlags(ChangedEvent, EAvaBroadcastChange::CurrentProfile))
 	{
-		TSharedPtr<FAvaOutputTileItem> NullItem;
+		TSharedPtr<FAvaBroadcastOutputTileItem> NullItem;
 		SelectedOutputTileWeak = NullItem;
 		OnOutputTileSelectionChanged.Broadcast(NullItem);
 	}
@@ -112,18 +112,18 @@ void FAvaBroadcastEditor::OnBroadcastChanged(EAvaBroadcastChange ChangedEvent)
 
 void FAvaBroadcastEditor::OnAvaMediaSettingsChanged(UObject*, FPropertyChangedEvent&)
 {
-	if (AvalancheBroadcast.IsValid())
+	if (BroadcastWeak.IsValid())
 	{
-		AvalancheBroadcast->GetCurrentProfile().UpdateChannels(true);
+		BroadcastWeak->GetCurrentProfile().UpdateChannels(true);
 	}
 }
 
 void FAvaBroadcastEditor::SaveAsset_Execute()
 {
 	FWorkflowCentricApplication::SaveAsset_Execute();
-	if (AvalancheBroadcast.IsValid())
+	if (BroadcastWeak.IsValid())
 	{
-		AvalancheBroadcast->SaveBroadcast();
+		BroadcastWeak->SaveBroadcast();
 	}
 }
 
@@ -170,9 +170,9 @@ const FSlateBrush* FAvaBroadcastEditor::GetDefaultTabIcon() const
 	return IAvaMediaEditorModule::Get().GetToolbarBroadcastButtonIcon().GetIcon();
 }
 
-UAvalancheBroadcast* FAvaBroadcastEditor::GetBroadcastObject() const
+UAvaBroadcast* FAvaBroadcastEditor::GetBroadcastObject() const
 {
-	return AvalancheBroadcast.Get();
+	return BroadcastWeak.Get();
 }
 
 void FAvaBroadcastEditor::ExtendToolBar(TSharedPtr<FExtender> Extender)
@@ -185,7 +185,7 @@ void FAvaBroadcastEditor::ExtendToolBar(TSharedPtr<FExtender> Extender)
 
 void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 {
-	TWeakObjectPtr<UAvalancheBroadcast> Broadcast = GetBroadcastObject();
+	TWeakObjectPtr<UAvaBroadcast> Broadcast = GetBroadcastObject();
 
 	//TODO: Change Lambdas to their Own Command Action
 	ToolBarBuilder.BeginSection(TEXT("Player"));
@@ -341,10 +341,10 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 				{
 					// Stop and unload all playbacks.
 					IAvaMediaModule::Get().GetMediaPlaybackClient().RequestPlayback(
-						FGuid(), FSoftObjectPath(), FString(), EAvaMediaPlaybackAction::Unload);
+						FGuid(), FSoftObjectPath(), FString(), EAvaPlaybackAction::Unload);
 					// Stop all broadcast channels.
 					IAvaMediaModule::Get().GetMediaPlaybackClient().RequestBroadcast(
-						TEXT(""), FName(), TArray<UMediaOutput*>(), EAvaMediaBroadcastAction::Stop);
+						TEXT(""), FName(), TArray<UMediaOutput*>(), EAvaBroadcastAction::Stop);
 				})
 				, FCanExecuteAction::CreateLambda([]
 				{
@@ -368,7 +368,7 @@ void FAvaBroadcastEditor::FillPlayToolBar(FToolBarBuilder& ToolBarBuilder)
 
 FText FAvaBroadcastEditor::GetCurrentProfileName() const
 {
-	return FText::FromName(UAvalancheBroadcast::Get().GetCurrentProfileName());
+	return FText::FromName(UAvaBroadcast::Get().GetCurrentProfileName());
 }
 
 void FAvaBroadcastEditor::MakeProfilesToolbar(FToolBarBuilder& ToolBarBuilder)
@@ -377,7 +377,7 @@ void FAvaBroadcastEditor::MakeProfilesToolbar(FToolBarBuilder& ToolBarBuilder)
 	{
 		static const FCanExecuteAction DefaultCanExecuteAction(FCanExecuteAction::CreateLambda([]()
 		{
-			return !UAvalancheBroadcast::Get().IsBroadcastingAnyChannel();
+			return !UAvaBroadcast::Get().IsBroadcastingAnyChannel();
 		}));
 		
 		ToolBarBuilder.AddComboButton(FUIAction(FExecuteAction(), DefaultCanExecuteAction)
@@ -391,7 +391,7 @@ void FAvaBroadcastEditor::MakeProfilesToolbar(FToolBarBuilder& ToolBarBuilder)
 		ToolBarBuilder.AddToolBarButton(FUIAction(FExecuteAction::CreateLambda([]()
 				{
 					FScopedTransaction Transaction(LOCTEXT("DuplicateProfile", "Duplicate Profile"));
-					UAvalancheBroadcast& Broadcast = UAvalancheBroadcast::Get();
+					UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 					Broadcast.Modify();
 					const bool bResult = Broadcast.DuplicateCurrentProfile();
 					if (!bResult)
@@ -416,7 +416,7 @@ TSharedRef<SWidget> FAvaBroadcastEditor::MakeProfileComboButton()
 
 	MenuBuilder.BeginSection(TEXT("Profiles"), LOCTEXT("Profiles_Title", "Profiles"));
 	{
-		TArray<FName> ProfileNames = UAvalancheBroadcast::Get().GetProfileNames();
+		TArray<FName> ProfileNames = UAvaBroadcast::Get().GetProfileNames();
 		for (const FName& ProfileName : ProfileNames)
 		{
 			MenuBuilder.AddWidget(SNew(SAvaBroadcastProfileEntry, ProfileName)
@@ -443,7 +443,7 @@ TSharedRef<SWidget> FAvaBroadcastEditor::MakeProfileComboButton()
 
 void FAvaBroadcastEditor::CreateNewProfile()
 {
-	if (UAvalancheBroadcast* const Broadcast = AvalancheBroadcast.Get())
+	if (UAvaBroadcast* const Broadcast = BroadcastWeak.Get())
 	{
 		FScopedTransaction Transaction(LOCTEXT("CreateProfile", "Create Profile"));
 		Broadcast->Modify();
@@ -457,7 +457,7 @@ FReply FAvaBroadcastEditor::OnProfileSelected(FName InProfileName)
 
 	FScopedTransaction Transaction(LOCTEXT("SetCurrentProfile", "Set Current Profile"));
 	
-	UAvalancheBroadcast& Broadcast = UAvalancheBroadcast::Get();
+	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 	Broadcast.Modify();
 
 	if (Broadcast.SetCurrentProfile(InProfileName))
@@ -493,7 +493,7 @@ void FAvaBroadcastEditor::CreateDefaultCommands()
 
 FText FAvaBroadcastEditor::GetStopPlaybackClientTooltip()
 {
-	if (UAvalancheMediaSettings::Get().bAutoStartPlaybackClient)
+	if (UAvaMediaSettings::Get().bAutoStartPlaybackClient)
 	{
 		return LOCTEXT("PlaybackClientStopAuto_ToolTip", "Stop Playback Client (auto started)");
 	}

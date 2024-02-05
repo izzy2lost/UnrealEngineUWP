@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "AvaMediaDefines.h"
 #include "Playback/Nodes/AvaPlaybackNode.h"
 #include "AvaPlaybackNodeRoot.generated.h"
 
-struct FAvaOutputChannel;
 class UTextureRenderTarget2D;
+struct FAvaBroadcastOutputChannel;
 
 UCLASS()
 class AVALANCHEMEDIA_API UAvaPlaybackNodeRoot : public UAvaPlaybackNode
@@ -24,7 +25,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;	
 	
 	void OnBroadcastChanged(EAvaBroadcastChange InChange);
-	void OnChannelChanged(const FAvaOutputChannel& InChannel, EAvaChannelChange InChange);
+	void OnChannelChanged(const FAvaBroadcastOutputChannel& InChannel, EAvaBroadcastChannelChange InChange);
 	
 	virtual int32 GetMinChildNodes() const override;
 	virtual int32 GetMaxChildNodes() const override;

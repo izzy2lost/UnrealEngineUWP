@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaPlaybackNodePlayer.h"
+#include "CoreMinimal.h"
 #include "AvaPlaybackNodeLevelPlayer.generated.h"
 
 class UWorld;
@@ -20,14 +20,14 @@ public:
 	virtual void RefreshNode(bool bDryRunGraph) override;
 	virtual void PostLoad() override;
 	
-	TSoftObjectPtr<UWorld> GetAvalancheAsset() const { return LevelAsset; }
-	void SetAvalancheAsset(const TSoftObjectPtr<UWorld>& InAsset);
+	TSoftObjectPtr<UWorld> GetAsset() const { return LevelAsset; }
+	void SetAsset(const TSoftObjectPtr<UWorld>& InAsset);
 	
 	void UpdateDisplayNameText();
 
-	virtual const FSoftObjectPath& GetAvalancheAssetPath() const override { return LevelAsset.ToSoftObjectPath();}
+	virtual const FSoftObjectPath& GetAssetPath() const override { return LevelAsset.ToSoftObjectPath();}
 
-	virtual FAvaSoftAssetPtr GetAvalancheAssetPtr() const override;
+	virtual FAvaSoftAssetPtr GetAssetPtr() const override;
 
 protected:
 	

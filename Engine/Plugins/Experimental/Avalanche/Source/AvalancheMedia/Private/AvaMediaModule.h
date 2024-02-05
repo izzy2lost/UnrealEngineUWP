@@ -2,19 +2,18 @@
 
 #pragma once
 
-#include "Http/AvaMediaHttpServer.h"
+#include "Broadcast/IAvaBroadcastSettings.h"
+#include "Broadcast/OutputDevices/AvaBroadcastDeviceProviderProxy.h"
+#include "Broadcast/OutputDevices/AvaBroadcastDisplayDeviceProvider.h"
 #include "IAvaMediaModule.h"
-#include "IAvalancheBroadcastSettings.h"
 #include "ModularFeature/AvaMediaSync.h"
-#include "ModuleDescriptor.h"
-#include "OutputDevices/AvaDeviceProviderProxy.h"
-#include "OutputDevices/AvaDisplayDeviceProvider.h"
-#include "Playback/AvaMediaPlaybackClient.h"
-#include "Playback/AvaMediaPlaybackClientDelegates.h"
-#include "Playback/AvaMediaPlaybackManager.h"
-#include "Playback/AvaMediaPlaybackServer.h"
-#include "Playback/AvaMediaPlaybackServerProcess.h"
-#include "Playlist/AvalancheManagedInstanceCache.h"
+#include "Playback/AvaPlaybackClient.h"
+#include "Playback/AvaPlaybackClientDelegates.h"
+#include "Playback/AvaPlaybackManager.h"
+#include "Playback/AvaPlaybackServer.h"
+#include "Playback/AvaPlaybackServerProcess.h"
+#include "Playback/Http/AvaPlaybackHttpServer.h"
+#include "Rundown/AvaRundownManagedInstanceCache.h"
 
 class FAvaMediaModule : public IAvaMediaModule
 {
@@ -24,15 +23,15 @@ public:
 	//~ Begin IAvaMediaModule
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
-	virtual bool IsMediaPlaybackClientStarted() const override { return AvaMediaPlaybackClient.IsValid();}
+	virtual bool IsMediaPlaybackClientStarted() const override { return AvaPlaybackClient.IsValid();}
 	virtual void StartMediaPlaybackClient() override;
 	virtual void StopMediaPlaybackClient() override;
-	virtual bool IsMediaPlaybackServerStarted() const override { return AvaMediaPlaybackServer.IsValid();}
+	virtual bool IsMediaPlaybackServerStarted() const override { return AvaPlaybackServer.IsValid();}
 	virtual void StartMediaPlaybackServer(const FString& InPlaybackServerName) override;
 	virtual void StopMediaPlaybackServer() override;
 	
-	virtual IAvaMediaPlaybackClient& GetMediaPlaybackClient() override;
-	virtual TSharedPtr<FAvaMediaPlaybackServer> GetMediaPlaybackServer() const override { return AvaMediaPlaybackServer; }
+	virtual IAvaPlaybackClient& GetMediaPlaybackClient() override;
+	virtual TSharedPtr<FAvaPlaybackServer> GetMediaPlaybackServer() const override { return AvaPlaybackServer; }
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const override;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const override;
 	virtual FString GetServerNameForDevice(const FName& InDeviceProviderName, const FName& InDeviceName) const override;
@@ -40,22 +39,22 @@ public:
 	virtual void LaunchGameModeLocalPlaybackServer() override;
 	virtual void StopGameModeLocalPlaybackServer() override;
 	virtual bool IsGameModeLocalPlaybackServerLaunched() const override;
-	virtual const IAvalancheBroadcastSettings& GetBroadcastSettings() const override;
+	virtual const IAvaBroadcastSettings& GetBroadcastSettings() const override;
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const override;
-	virtual FAvaMediaPlaybackManager& GetLocalPlaybackManager() const override;
-	virtual FAvalancheManagedInstanceCache& GetManagedInstanceCache() const override;
+	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const override;
+	virtual FAvaRundownManagedInstanceCache& GetManagedInstanceCache() const override;
 	virtual bool IsAvaMediaSyncProviderFeatureAvailable() const override;
 	virtual IAvaMediaSyncProvider* GetAvaMediaSyncProvider() const override;
 	virtual void NotifyMapChangedEvent(UWorld* InWorld, EAvaMediaMapChangeType InEventType) override;
 	virtual FOnAvaMediaSyncProviderChanged& GetOnAvaMediaSyncProviderChanged() override { return OnAvaMediaSyncProviderChanged; }
 	virtual FOnAvaMediaSyncPackageModified& GetOnAvaMediaSyncPackageModified() override { return OnAvaMediaSyncPackageModified; }
 	virtual FOnMapChangedEvent& GetOnMapChangedEvent() override { return OnMapChangedEvent; }
-	virtual FOnAvaMediaPlaybackClientStarted& GetOnAvaMediaPlaybackClientStarted() override { return OnAvaMediaPlaybackClientStarted; }
-	virtual FOnAvaMediaPlaybackClientStopped& GetAvaMediaPlaybackClientStopped() override { return OnAvaMediaPlaybackClientStopped; }
-	virtual FOnAvaMediaPlaybackServerStarted& GetOnAvaMediaPlaybackServerStarted() override { return OnAvaMediaPlaybackServerStarted; }
-	virtual FOnAvaMediaPlaybackServerStopped& GetAvaMediaPlaybackServerStopped() override { return OnAvaMediaPlaybackServerStopped; }
+	virtual FOnAvaPlaybackClientStarted& GetOnAvaPlaybackClientStarted() override { return OnAvaPlaybackClientStarted; }
+	virtual FOnAvaPlaybackClientStopped& GetAvaPlaybackClientStopped() override { return OnAvaPlaybackClientStopped; }
+	virtual FOnAvaPlaybackServerStarted& GetOnAvaPlaybackServerStarted() override { return OnAvaPlaybackServerStarted; }
+	virtual FOnAvaPlaybackServerStopped& GetAvaPlaybackServerStopped() override { return OnAvaPlaybackServerStopped; }
 	virtual FGetEditorViewportClient& GetEditorViewportClientDelegate() override { return GetEditorViewportClient; }
-	virtual IAvaDeviceProviderProxyManager& GetDeviceProviderProxyManager() override;
+	virtual IAvaBroadcastDeviceProviderProxyManager& GetDeviceProviderProxyManager() override;
 	//~ End IAvaMediaModule
 	
 private:
@@ -81,31 +80,31 @@ private:
 	void HandleStatCommand(const TArray<FString>& InArgs);
 
 	// Event Handlers
-	void OnAvaMediaPlaybackClientConnectionEvent(IAvaMediaPlaybackClient& InPlaybackClient,
-		const UE::AvaMediaPlaybackClient::Delegates::FConnectionEventArgs& InArgs);
+	void OnAvaPlaybackClientConnectionEvent(IAvaPlaybackClient& InPlaybackClient,
+		const UE::AvaPlaybackClient::Delegates::FConnectionEventArgs& InArgs);
 
 private:
-	FAvaDisplayDeviceProvider AvaDisplayDeviceProvider;
-	FAvaDeviceProviderProxyManager DeviceProviderProxyManager;
+	FAvaBroadcastDisplayDeviceProvider AvaDisplayDeviceProvider;
+	FAvaBroadcastDeviceProviderProxyManager DeviceProviderProxyManager;
 	TUniquePtr<FAvaMediaSync> AvaMediaSync;
 
 	TArray<IConsoleObject*> ConsoleCmds;
 	
 	/**
-	 *	Wraps the local default UAvalancheMediaSettings.
+	 *	Wraps the local default UAvaMediaSettings.
 	 */
-	class FLocalBroadcastSettings : public IAvalancheBroadcastSettings
+	class FLocalBroadcastSettings : public IAvaBroadcastSettings
 	{
 	public:
 		virtual ~FLocalBroadcastSettings() override = default;
 
-		//~ Begin IAvalancheBroadcastSettings
+		//~ Begin IAvaBroadcastSettings
 		virtual const FLinearColor& GetChannelClearColor() const override;
 		virtual EPixelFormat GetDefaultPixelFormat() const override;
 		virtual const FIntPoint& GetDefaultResolution() const override;
 		virtual bool IsDrawPlaceholderWidget() const override;
 		virtual const FSoftObjectPath& GetPlaceholderWidgetClass() const override;
-		//~ End IAvalancheBroadcastSettings
+		//~ End IAvaBroadcastSettings
 	};
 	FLocalBroadcastSettings LocalBroadcastSettings;
 
@@ -114,41 +113,41 @@ private:
 	 * even if a client disconnects, it will either switch to another client
 	 * or use the local settings.
 	 */
-	class FBroadcastSettingsBridge final : public IAvalancheBroadcastSettings
+	class FBroadcastSettingsBridge final : public IAvaBroadcastSettings
 	{
 	public:
 		explicit FBroadcastSettingsBridge(FAvaMediaModule* Module) : ParentModule(Module) {}
 		virtual ~FBroadcastSettingsBridge() override = default;
 
-		//~ Begin IAvalancheBroadcastSettings
+		//~ Begin IAvaBroadcastSettings
 		virtual const FLinearColor& GetChannelClearColor() const override;
 		virtual EPixelFormat GetDefaultPixelFormat() const override;
 		virtual const FIntPoint& GetDefaultResolution() const override;
 		virtual bool IsDrawPlaceholderWidget() const override;
 		virtual const FSoftObjectPath& GetPlaceholderWidgetClass() const override;
-		//~ End IAvalancheBroadcastSettings
+		//~ End IAvaBroadcastSettings
 
 	private:
-		const IAvalancheBroadcastSettings& GetSettings() const;
+		const IAvaBroadcastSettings& GetSettings() const;
 		
 		FAvaMediaModule* ParentModule = nullptr;
 	};
 	FBroadcastSettingsBridge BroadcastSettingsBridge;
 	
-	TSharedPtr<FAvaMediaPlaybackServer> AvaMediaPlaybackServer;	
-	TSharedPtr<FAvaMediaPlaybackClient> AvaMediaPlaybackClient;
-	TSharedPtr<FAvaMediaPlaybackServerProcess> LocalPlaybackServerProcess;
-	TSharedPtr<FAvaMediaPlaybackManager> LocalPlaybackManager;
-	TSharedPtr<FAvalancheManagedInstanceCache> ManagedInstanceCache;
+	TSharedPtr<FAvaPlaybackServer> AvaPlaybackServer;	
+	TSharedPtr<FAvaPlaybackClient> AvaPlaybackClient;
+	TSharedPtr<FAvaPlaybackServerProcess> LocalPlaybackServerProcess;
+	TSharedPtr<FAvaPlaybackManager> LocalPlaybackManager;
+	TSharedPtr<FAvaRundownManagedInstanceCache> ManagedInstanceCache;
 
-	TSharedPtr<FAvaMediaHttpServer> AvaMediaHttpPlaybackServer;
+	TSharedPtr<FAvaPlaybackHttpServer> AvaPlaybackHttpPlaybackServer;
 
 	FOnAvaMediaSyncProviderChanged OnAvaMediaSyncProviderChanged;
 	FOnAvaMediaSyncPackageModified OnAvaMediaSyncPackageModified;
 	FOnMapChangedEvent OnMapChangedEvent;
-	FOnAvaMediaPlaybackClientStarted OnAvaMediaPlaybackClientStarted;
-	FOnAvaMediaPlaybackClientStopped OnAvaMediaPlaybackClientStopped;
-	FOnAvaMediaPlaybackServerStarted OnAvaMediaPlaybackServerStarted;
-	FOnAvaMediaPlaybackServerStopped OnAvaMediaPlaybackServerStopped;
+	FOnAvaPlaybackClientStarted OnAvaPlaybackClientStarted;
+	FOnAvaPlaybackClientStopped OnAvaPlaybackClientStopped;
+	FOnAvaPlaybackServerStarted OnAvaPlaybackServerStarted;
+	FOnAvaPlaybackServerStopped OnAvaPlaybackServerStopped;
 	FGetEditorViewportClient GetEditorViewportClient;
 };

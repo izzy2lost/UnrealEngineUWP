@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Graph/SchemaActions/AvaPlaybackAction_NewNode.h"
-#include "Playback/AvalanchePlayback.h"
-#include "Playback/Graph/AvaPlaybackGraph.h"
+
+#include "Playback/AvaPlaybackGraph.h"
+#include "Playback/Graph/AvaPlaybackEditorGraph.h"
 #include "Playback/Nodes/AvaPlaybackNode.h"
 #include "ScopedTransaction.h"
 
@@ -15,7 +16,7 @@ UEdGraphNode* FAvaPlaybackAction_NewNode::PerformAction(UEdGraph* ParentGraph
 {
 	check(IsValid(PlaybackNodeClass));
 
-	UAvalanchePlayback* Playback = CastChecked<UAvaPlaybackGraph>(ParentGraph)->GetPlayback();
+	UAvaPlaybackGraph* Playback = CastChecked<UAvaPlaybackEditorGraph>(ParentGraph)->GetPlaybackGraph();
 	check(Playback);
 	
 	const FScopedTransaction Transaction(LOCTEXT("NewPlaybackNode", "Motion Design Playback: New Node"));

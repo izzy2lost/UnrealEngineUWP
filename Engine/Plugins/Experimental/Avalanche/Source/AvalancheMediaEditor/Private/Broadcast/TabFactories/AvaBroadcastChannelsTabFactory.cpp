@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaBroadcastChannelsTabFactory.h"
+
 #include "AvaMediaEditorStyle.h"
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Broadcast/ChannelGrid/Slate/SAvaBroadcastChannels.h"
 #include "IAvaMediaEditorModule.h"
 
-const FName FAvaBroadcastChannelsTabFactory::TabID(TEXT("AvalancheBroadcastChannels"));
+const FName FAvaBroadcastChannelsTabFactory::TabID(TEXT("MotionDesignBroadcastChannels"));
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastChannelsTabFactory"
 
@@ -14,7 +15,7 @@ FAvaBroadcastChannelsTabFactory::FAvaBroadcastChannelsTabFactory(const TSharedPt
 	: FAvaBroadcastTabFactory(TabID, InBroadcastEditor)
 {
 	TabLabel = LOCTEXT("BroadcastChannels_TabLabel", "Channels");
-	TabIcon = FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvalancheMediaEditor.BroadcastIcon");
+	TabIcon = FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
 
 	bIsSingleton = true;
 

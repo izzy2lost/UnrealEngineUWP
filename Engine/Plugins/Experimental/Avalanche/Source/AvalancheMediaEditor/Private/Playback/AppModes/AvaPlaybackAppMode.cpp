@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackAppMode.h"
-#include "Playback/AvaPlaybackEditor.h"
+
+#include "Playback/AvaPlaybackGraphEditor.h"
 
 const FName FAvaPlaybackAppMode::DefaultMode("DefaultName");
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackAppMode"
 
-FAvaPlaybackAppMode::FAvaPlaybackAppMode(const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor, const FName& InModeName)
+FAvaPlaybackAppMode::FAvaPlaybackAppMode(const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor, const FName& InModeName)
 	: FApplicationMode(InModeName, FAvaPlaybackAppMode::GetLocalizedMode)
 	, PlaybackEditorWeak(InPlaybackEditor)
 {
@@ -15,7 +16,7 @@ FAvaPlaybackAppMode::FAvaPlaybackAppMode(const TSharedPtr<FAvaPlaybackEditor>& I
 
 void FAvaPlaybackAppMode::RegisterTabFactories(TSharedPtr<FTabManager> InTabManager)
 {
-	TSharedPtr<FAvaPlaybackEditor> PlaybackEditor = PlaybackEditorWeak.Pin();
+	TSharedPtr<FAvaPlaybackGraphEditor> PlaybackEditor = PlaybackEditorWeak.Pin();
 	PlaybackEditor->PushTabFactories(TabFactories);
 	FApplicationMode::RegisterTabFactories(InTabManager);
 }

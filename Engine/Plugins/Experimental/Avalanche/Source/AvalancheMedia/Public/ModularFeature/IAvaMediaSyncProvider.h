@@ -2,17 +2,17 @@
 
 #pragma once
 
-#include "AvaSyncProviderFeatureTypes.h"
+#include "AvaMediaSyncProviderFeatureTypes.h"
 #include "Features/IModularFeature.h"
 
 /** Generic delegate response handler */
-DECLARE_DELEGATE_OneParam(FOnAvaSyncResponse, const TSharedPtr<FAvaSyncResponse>&);
+DECLARE_DELEGATE_OneParam(FOnAvaMediaSyncResponse, const TSharedPtr<FAvaMediaSyncResponse>&);
 
-/** Delegate with a comparison response. Payload is a FAvaSyncCompareResponse shared ptr */
-DECLARE_DELEGATE_OneParam(FOnAvaSyncCompareResponse, const TSharedPtr<FAvaSyncCompareResponse>&);
+/** Delegate with a comparison response. Payload is a FAvaMediaSyncCompareResponse shared ptr */
+DECLARE_DELEGATE_OneParam(FOnAvaMediaSyncCompareResponse, const TSharedPtr<FAvaMediaSyncCompareResponse>&);
 
 /** Delegate called when a package is modified by a sync operation, either added or modified. */
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnAvaSyncPackageModified, const FName& /*PackageName*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnAvaMediaSyncPackageModified, const FName& /*PackageName*/);
 
 /**
  * Base Sync feature interface
@@ -28,7 +28,7 @@ public:
 
 	static FName GetModularFeatureName()
 	{
-		static const FName FeatureName = TEXT("Avalanche_Feature_Sync");
+		static const FName FeatureName = TEXT("MotionDesign_Feature_Sync");
 		return FeatureName;
 	}
 
@@ -53,9 +53,9 @@ public:
 	 *
 	 * @param InRemoteName The playback client or server name to push to
 	 * @param InPackageNames The list of "top level" package names (without inner dependencies / referencers) to send on remote
-	 * @param DoneDelegate A completion delegate called when receiving a response with a `FOnAvaSyncResponse` payload
+	 * @param DoneDelegate A completion delegate called when receiving a response with a `FOnAvaMediaSyncResponse` payload
 	 */
-	virtual void PushToRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaSyncResponse& DoneDelegate = FOnAvaSyncResponse()) = 0;
+	virtual void PushToRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncResponse& DoneDelegate = FOnAvaMediaSyncResponse()) = 0;
 
 	/**
 	 * Sends a "pull" request to a specific remote (either a playback server or client name)
@@ -64,9 +64,9 @@ public:
 	 *
 	 * @param InRemoteName The playback client or server name to push to
 	 * @param InPackageNames The list of "top level" package names (without inner dependencies / referencers) to send on remote
-	 * @param DoneDelegate A completion delegate called when receiving a response with a `FOnAvaSyncResponse` payload
+	 * @param DoneDelegate A completion delegate called when receiving a response with a `FOnAvaMediaSyncResponse` payload
 	 */
-	virtual void PullFromRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaSyncResponse& DoneDelegate = FOnAvaSyncResponse()) = 0;
+	virtual void PullFromRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncResponse& DoneDelegate = FOnAvaMediaSyncResponse()) = 0;
 
 	/**
 	 * Issue a "compare" request to a given remote, and calls back the completion delegate with status payload.
@@ -79,10 +79,10 @@ public:
 	 *
 	 * @param InRemoteName The playback client or server name to compare with
 	 * @param InPackageNames The list of "top level" package names (without inner dependencies / referencers) to base the comparison on
-	 * @param DoneDelegate A completion delegate called when receiving a response with a `FAvaSyncCompareResponse` payload
+	 * @param DoneDelegate A completion delegate called when receiving a response with a `FAvaMediaSyncCompareResponse` payload
 	 */
-	virtual void CompareWithRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaSyncCompareResponse& DoneDelegate = FOnAvaSyncCompareResponse()) = 0;
+	virtual void CompareWithRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncCompareResponse& DoneDelegate = FOnAvaMediaSyncCompareResponse()) = 0;
 
 	/** Delegate called when a package is modified by a sync write operation, either being added or modified. */
-	virtual FOnAvaSyncPackageModified& GetOnAvaSyncPackageModified() = 0;
+	virtual FOnAvaMediaSyncPackageModified& GetOnAvaSyncPackageModified() = 0;
 };

@@ -2,17 +2,16 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaMediaDefines.h"
+#include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "AvaPlaybackNode.generated.h"
 
+class UAvaPlaybackGraph;
 class UEdGraphNode;
-class UAvalanchePlayback;
-
 
 /**
- * Base Class for all the Nodes found in the Avalanche Playback Graph
+ * Base Class for all the Nodes found in the Motion Design Playback Graph
  */
 UCLASS(Abstract)
 class AVALANCHEMEDIA_API UAvaPlaybackNode : public UObject
@@ -37,7 +36,7 @@ public:
 	
 	virtual void BeginDestroy() override;
 	
-	UAvalanchePlayback* GetPlayback() const;
+	UAvaPlaybackGraph* GetPlayback() const;
 
 	/**
 	 * Gets the Display Name of the Node
@@ -56,7 +55,7 @@ public:
 	virtual FText GetNodeTooltipText() const;
 
 	/**
-	 * Called when the UAvalanchePlayback changes its state from Playing <-> Stopped
+	 * Called when the UAvaPlaybackGraph changes its state from Playing <-> Stopped
 	 * @param  bPlaying The new state of Playback
 	 */
 	virtual void NotifyPlaybackStateChanged(bool bPlaying) {}

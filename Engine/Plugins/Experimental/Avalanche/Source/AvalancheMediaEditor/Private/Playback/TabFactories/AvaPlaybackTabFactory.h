@@ -4,16 +4,16 @@
 
 #include "WorkflowOrientedApp/WorkflowTabFactory.h"
 
-class FAvaPlaybackEditor;
+class FAvaPlaybackGraphEditor;
 
 //Base class for all Tab Factories in Ava Playback Editor
 class FAvaPlaybackTabFactory : public FWorkflowTabFactory
 {
 public:
 	
-	FAvaPlaybackTabFactory(const FName& InTabID, const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor);
+	FAvaPlaybackTabFactory(const FName& InTabID, const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor);
 
 protected:
 
-	TWeakPtr<FAvaPlaybackEditor> PlaybackEditorWeak;
+	TWeakPtr<FAvaPlaybackGraphEditor> PlaybackEditorWeak;
 };

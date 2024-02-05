@@ -9,7 +9,7 @@ class FAvaPlaybackDetailsTabFactory : public FAvaPlaybackTabFactory
 public:
 	static const FName TabID;
 	
-	FAvaPlaybackDetailsTabFactory(const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor);
+	FAvaPlaybackDetailsTabFactory(const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor);
 	
 	virtual TSharedRef<SWidget> CreateTabBody(const FWorkflowTabSpawnInfo& Info) const override;
 };

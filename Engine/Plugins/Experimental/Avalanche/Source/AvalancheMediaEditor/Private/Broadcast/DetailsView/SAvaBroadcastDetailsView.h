@@ -6,10 +6,10 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FAvaBroadcastEditor;
-class FAvaOutputTileItem;
+class FAvaBroadcastOutputTileItem;
 class IDetailsView;
 
-class  SAvaBroadcastDetailsView : public SCompoundWidget
+class SAvaBroadcastDetailsView : public SCompoundWidget
 {
 public:
 	
@@ -20,7 +20,7 @@ public:
 	virtual ~SAvaBroadcastDetailsView() override;
 
 	bool IsMediaOutputEditingEnabled() const;
-	void OnMediaOutputSelectionChanged(const TSharedPtr<FAvaOutputTileItem>& InSelectedItem);
+	void OnMediaOutputSelectionChanged(const TSharedPtr<FAvaBroadcastOutputTileItem>& InSelectedItem);
 
 	EVisibility GetEmptySelectionTextVisibility() const;
 	

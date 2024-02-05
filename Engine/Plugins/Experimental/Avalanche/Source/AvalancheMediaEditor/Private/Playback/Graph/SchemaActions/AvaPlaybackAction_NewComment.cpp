@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Graph/SchemaActions/AvaPlaybackAction_NewComment.h"
+
 #include "EdGraphNode_Comment.h"
-#include "Playback/AvalanchePlayback.h"
-#include "Playback/Graph/AvaPlaybackGraph.h"
-#include "Playback/IAvaPlaybackEditor.h"
+#include "Playback/AvaPlaybackGraph.h"
+#include "Playback/Graph/AvaPlaybackEditorGraph.h"
+#include "Playback/IAvaPlaybackGraphEditor.h"
 
 UEdGraphNode* FAvaPlaybackAction_NewComment::PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin
 	, const FVector2D Location, bool bSelectNewNode)
@@ -14,7 +15,7 @@ UEdGraphNode* FAvaPlaybackAction_NewComment::PerformAction(UEdGraph* ParentGraph
 
 	FVector2D SpawnLocation = Location;
 	
-	UAvalanchePlayback* const Playback = CastChecked<UAvaPlaybackGraph>(ParentGraph)->GetPlayback();
+	UAvaPlaybackGraph* const Playback = CastChecked<UAvaPlaybackEditorGraph>(ParentGraph)->GetPlaybackGraph();
 	check(Playback);
 	
 	TSharedPtr<IAvaPlaybackGraphEditor> GraphEditor = Playback->GetGraphEditor();

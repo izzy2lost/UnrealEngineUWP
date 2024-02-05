@@ -3,9 +3,9 @@
 #include "Playback/Nodes/AvaPlaybackNodeLevelPlayer.h"
 
 #include "Engine/World.h"
-#include "Playback/AvalanchePlayback.h"
+#include "Playback/AvaPlaybackGraph.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNodeLevelPlayer"
 
 UAvaPlaybackNodeLevelPlayer::UAvaPlaybackNodeLevelPlayer()
 {
@@ -25,7 +25,7 @@ void UAvaPlaybackNodeLevelPlayer::PostLoad()
 	UpdateDisplayNameText();
 }
 
-void UAvaPlaybackNodeLevelPlayer::SetAvalancheAsset(const TSoftObjectPtr<UWorld>& InAsset)
+void UAvaPlaybackNodeLevelPlayer::SetAsset(const TSoftObjectPtr<UWorld>& InAsset)
 {
 	LevelAsset = InAsset;
 }
@@ -45,12 +45,12 @@ void UAvaPlaybackNodeLevelPlayer::UpdateDisplayNameText()
 	}
 }
 
-FAvaSoftAssetPtr UAvaPlaybackNodeLevelPlayer::GetAvalancheAssetPtr() const
+FAvaSoftAssetPtr UAvaPlaybackNodeLevelPlayer::GetAssetPtr() const
 {
-	FAvaSoftAssetPtr OutAvalancheAsset;
-	OutAvalancheAsset.AssetClassPath = FSoftClassPath(UWorld::StaticClass());
-	OutAvalancheAsset.AssetPtr = LevelAsset;
-	return OutAvalancheAsset;
+	FAvaSoftAssetPtr OutAsset;
+	OutAsset.AssetClassPath = FSoftClassPath(UWorld::StaticClass());
+	OutAsset.AssetPtr = LevelAsset;
+	return OutAsset;
 }
 
 #undef LOCTEXT_NAMESPACE

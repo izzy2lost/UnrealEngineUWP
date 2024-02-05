@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaPlaybackDetailsView.h"
+
 #include "Modules/ModuleManager.h"
-#include "Playback/AvaPlaybackEditor.h"
+#include "Playback/AvaPlaybackGraphEditor.h"
 #include "PropertyEditorModule.h"
 
-void SAvaPlaybackDetailsView::Construct(const FArguments& InArgs, const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor)
+void SAvaPlaybackDetailsView::Construct(const FArguments& InArgs, const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor)
 {
 	PlaybackEditorWeak = InPlaybackEditor;
 	
@@ -29,7 +30,7 @@ void SAvaPlaybackDetailsView::Construct(const FArguments& InArgs, const TSharedP
 
 SAvaPlaybackDetailsView::~SAvaPlaybackDetailsView()
 {
-	if (TSharedPtr<FAvaPlaybackEditor> PlaybackEditor = PlaybackEditorWeak.Pin())
+	if (TSharedPtr<FAvaPlaybackGraphEditor> PlaybackEditor = PlaybackEditorWeak.Pin())
 	{
 		PlaybackEditor->OnPlaybackSelectionChanged.RemoveAll(this);
 	}

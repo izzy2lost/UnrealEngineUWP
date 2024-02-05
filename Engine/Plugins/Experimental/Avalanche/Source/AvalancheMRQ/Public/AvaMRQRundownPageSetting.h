@@ -6,7 +6,7 @@
 #include "UObject/SoftObjectPtr.h"
 #include "AvaMRQRundownPageSetting.generated.h"
 
-class UAvalanchePlaylist;
+class UAvaRundown;
 
 USTRUCT(BlueprintType, DisplayName = "Motion Design MRQ Rundown Page")
 struct FAvaMRQRundownPage
@@ -14,7 +14,7 @@ struct FAvaMRQRundownPage
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
-	TSoftObjectPtr<UAvalanchePlaylist> Rundown;
+	TSoftObjectPtr<UAvaRundown> Rundown;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
 	int32 PageId = 0;

@@ -2,19 +2,19 @@
 
 #include "Playback/Nodes/AvaPlaybackNodePlayer.h"
 
-#include "AvalancheBroadcast.h"
-#include "Playback/AvalanchePlayable.h"
-#include "Playback/AvalanchePlayback.h"
+#include "Broadcast/AvaBroadcast.h"
+#include "Playable/AvaPlayable.h"
+#include "Playback/AvaPlaybackGraph.h"
 #include "Playback/Nodes/Events/AvaPlaybackNodeEvent.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNodePlayer"
 
 UAvaPlaybackNodePlayer::UAvaPlaybackNodePlayer() = default;
 
 void UAvaPlaybackNodePlayer::PostAllocateNode()
 {
 	Super::PostAllocateNode();
-	if (UAvalanchePlayback* const Playback = GetPlayback())
+	if (UAvaPlaybackGraph* const Playback = GetPlayback())
 	{
 		Playback->AddPlayerNode(this);
 	}
@@ -22,7 +22,7 @@ void UAvaPlaybackNodePlayer::PostAllocateNode()
 
 void UAvaPlaybackNodePlayer::Tick(float DeltaTime, FAvaPlaybackChannelParameters& ChannelParameters)
 {
-	ChannelParameters.AvalancheAssets.AddUnique(GetAvalancheAssetPtr());
+	ChannelParameters.Assets.AddUnique(GetAssetPtr());
 	ChannelIndices.Add(ChannelParameters.ChannelIndex);
 	//No Children Ticks. The Player Node is the Dead End for Ticking.
 	//Events are handled separately
@@ -37,7 +37,7 @@ void UAvaPlaybackNodePlayer::TickEventFeed(float DeltaTime)
 		{
 			FAvaPlaybackEventParameters EventParameters;
 			EventParameters.ChannelIndices = ChannelIndices;
-			EventParameters.AvalancheAsset = GetAvalancheAssetPtr();
+			EventParameters.Asset = GetAssetPtr();
 			
 			EventNode->TickEvent(DeltaTime, EventParameters);
 			
@@ -87,17 +87,17 @@ UTextureRenderTarget2D* UAvaPlaybackNodePlayer::GetPreviewRenderTarget() const
 	// Returns the first valid channel index we have.
 	for (const int32 ChannelIndex : LastTickChannelIndices)
 	{
-		const FName ChannelName = UAvalancheBroadcast::Get().GetChannelName(ChannelIndex);
+		const FName ChannelName = UAvaBroadcast::Get().GetChannelName(ChannelIndex);
 		if (ChannelName.IsNone())
 		{
 			continue;
 		}
 
-		if (const UAvalanchePlayback* const Playback = GetPlayback())
+		if (const UAvaPlaybackGraph* const Playback = GetPlayback())
 		{
-			if (const UAvalanchePlayable* const Playable = Playback->FindPlayable(GetAvalancheAssetPath(), ChannelName))
+			if (const UAvaPlayable* const Playable = Playback->FindPlayable(GetAssetPath(), ChannelName))
 			{
-				if (const UAvaMediaPlayableGroup* PlayableGroup = Playable->GetPlayableGroup())
+				if (const UAvaPlayableGroup* PlayableGroup = Playable->GetPlayableGroup())
 				{
 					if (UTextureRenderTarget2D* RenderTarget = PlayableGroup->GetRenderTarget())
 					{
@@ -108,7 +108,7 @@ UTextureRenderTarget2D* UAvaPlaybackNodePlayer::GetPreviewRenderTarget() const
 		}
 
 		// Fallback to channel RT which is likely to be (actually should be) the same as the game instance.
-		const FAvaOutputChannel& Channel = UAvalancheBroadcast::Get().GetCurrentProfile().GetChannel(ChannelName);
+		const FAvaBroadcastOutputChannel& Channel = UAvaBroadcast::Get().GetCurrentProfile().GetChannel(ChannelName);
 		if (Channel.IsValidChannel())
 		{
 			return Channel.GetCurrentRenderTarget(true);
@@ -118,7 +118,7 @@ UTextureRenderTarget2D* UAvaPlaybackNodePlayer::GetPreviewRenderTarget() const
 }
 #endif
 
-const FSoftObjectPath& UAvaPlaybackNodePlayer::GetAvalancheAssetPath() const
+const FSoftObjectPath& UAvaPlaybackNodePlayer::GetAssetPath() const
 {
 	static FSoftObjectPath EmptyPath;
 	return EmptyPath;

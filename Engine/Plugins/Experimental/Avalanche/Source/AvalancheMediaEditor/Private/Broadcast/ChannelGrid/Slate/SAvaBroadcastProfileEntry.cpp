@@ -2,15 +2,15 @@
 
 #include "SAvaBroadcastProfileEntry.h"
 
-#include "AvalancheBroadcast.h"
+#include "Broadcast/AvaBroadcast.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ScopedTransaction.h"
-#include "Widgets/SBoxPanel.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SSpacer.h"
-#include "Widgets/Input/SButton.h"
+#include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SAvaBroadcastProfileEntry"
@@ -108,7 +108,7 @@ void SAvaBroadcastProfileEntry::OnProfileTextCommitted(const FText& InProfileTex
 	
 	FScopedTransaction Transaction(LOCTEXT("RenameProfile", "Rename Profile"));
 	
-	UAvalancheBroadcast& Broadcast = UAvalancheBroadcast::Get();
+	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 	Broadcast.Modify();
 	
 	if (Broadcast.RenameProfile(ProfileName, DesiredProfileName))
@@ -131,7 +131,7 @@ bool SAvaBroadcastProfileEntry::OnVerifyProfileTextChanged(const FText& InProfil
 	
 	const FName DesiredProfileName(*InProfileText.ToString());
 	
-	if (!UAvalancheBroadcast::Get().CanRenameProfile(ProfileName, DesiredProfileName))
+	if (!UAvaBroadcast::Get().CanRenameProfile(ProfileName, DesiredProfileName))
 	{
 		OutErrorMessage = LOCTEXT("BroadcastCannotRename", "Broadcast cannot rename the Profile to the given name");
 		return false;
@@ -164,7 +164,7 @@ FReply SAvaBroadcastProfileEntry::DeleteProfile()
 {
 	FScopedTransaction Transaction(LOCTEXT("RemoveProfile", "Remove Profile"));
 	
-	UAvalancheBroadcast& Broadcast = UAvalancheBroadcast::Get();
+	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 	Broadcast.Modify();
 	
 	const bool bResult = Broadcast.RemoveProfile(ProfileName);
