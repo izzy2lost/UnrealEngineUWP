@@ -348,9 +348,14 @@ struct FGenericPlatformMemory
 	static CORE_API FMalloc* BaseAllocator();
 
 	/**
-	 * @return platform specific current memory statistics.
+	 * @return platform specific current memory statistics. Note: On some platforms, unused allocator cached memory is taken into account in AvailablePhysical. 
 	 */
 	static CORE_API FPlatformMemoryStats GetStats();
+
+	/**
+	 * @return platform specific raw stats.
+	 */
+	static CORE_API FPlatformMemoryStats GetStatsRaw();
 
 	/**
 	* @return memory used for platforms that can do it quickly (without affecting stat unit much)

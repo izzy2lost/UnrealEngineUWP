@@ -274,6 +274,11 @@ FPlatformMemoryStats FGenericPlatformMemory::GetStats()
 	return FPlatformMemoryStats();
 }
 
+FPlatformMemoryStats FGenericPlatformMemory::GetStatsRaw()
+{
+	return FPlatformMemory::GetStats();
+}
+
 void FGenericPlatformMemory::GetStatsForMallocProfiler( FGenericMemoryStats& out_Stats )
 {
 #if	STATS
