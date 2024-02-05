@@ -125,7 +125,7 @@ void UDMXPixelMappingRendererComponent::PostEditChangeChainProperty(FPropertyCha
 	}	
 	
 	const FName PropertyName = PropertyChangedChainEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingRendererComponent, DynamicRange))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingRendererComponent, PixelFormat))
 	{
 		InvalidatePixelMapRenderer();
 	}
@@ -395,30 +395,30 @@ EPixelFormat UDMXPixelMappingRendererComponent::GetFormatFromDynamicRange() cons
 {
 	UTexture2D* InputTexture2D = Cast<UTexture2D>(InputTexture);
 
-	if (DynamicRange == EDMXPixelMappingRendererDynamicRange::Auto &&
+	if (PixelFormat == EDMXPixelMappingRendererPixelFormat::Auto &&
 		RendererType == EDMXPixelMappingRendererType::Texture &&
 		InputTexture2D)
 	{
-		const EPixelFormat PixelFormat = InputTexture2D->GetPixelFormat();
+		const EPixelFormat TexturePixelFormat = InputTexture2D->GetPixelFormat();
 	
 		// Propagonate the pixel format, if it is supported by render targets. 
 		// As there doesn't seem to be an engine call to do this conversion,
 		// use (the opposite) logic of GetPixelFormatFromRenderTargetFormat in TextureRenderTarget2D.h (5.4).
-		if (PixelFormat == PF_G8 ||
-			PixelFormat == PF_R8G8 ||
-			PixelFormat == PF_B8G8R8A8 ||
-			PixelFormat == PF_R16F ||
-			PixelFormat == PF_G16R16F ||
-			PixelFormat == PF_FloatRGBA ||
-			PixelFormat == PF_R32_FLOAT ||
-			PixelFormat == PF_G32R32F ||
-			PixelFormat == PF_A32B32G32R32F ||
-			PixelFormat == PF_A2B10G10R10)
+		if (TexturePixelFormat == PF_G8 ||
+			TexturePixelFormat == PF_R8G8 ||
+			TexturePixelFormat == PF_B8G8R8A8 ||
+			TexturePixelFormat == PF_R16F ||
+			TexturePixelFormat == PF_G16R16F ||
+			TexturePixelFormat == PF_FloatRGBA ||
+			TexturePixelFormat == PF_R32_FLOAT ||
+			TexturePixelFormat == PF_G32R32F ||
+			TexturePixelFormat == PF_A32B32G32R32F ||
+			TexturePixelFormat == PF_A2B10G10R10)
 		{
-			return PixelFormat;
+			return TexturePixelFormat;
 		}
 	}
-	else if (DynamicRange == EDMXPixelMappingRendererDynamicRange::RGBA16F)
+	else if (PixelFormat == EDMXPixelMappingRendererPixelFormat::RGBA16F)
 	{
 		return PF_FloatRGBA;
 	}
