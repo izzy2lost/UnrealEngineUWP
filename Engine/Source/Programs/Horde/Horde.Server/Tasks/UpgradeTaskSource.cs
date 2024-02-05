@@ -49,19 +49,19 @@ namespace Horde.Server.Tasks
 		{
 			if (!_serverSettings.Value.EnableUpgradeTasks)
 			{
-				return Skip(cancellationToken);
+				return SkipAsync(cancellationToken);
 			}
 
 			(ITool, IToolDeployment)? required = await GetRequiredSoftwareVersionAsync(agent);
 			if (required == null)
 			{
-				return Skip(cancellationToken);
+				return SkipAsync(cancellationToken);
 			}
 
 			(ITool tool, IToolDeployment deployment) = required.Value; 
 			if (agent.Version == deployment.Version)
 			{
-				return Skip(cancellationToken);
+				return SkipAsync(cancellationToken);
 			}
 
 			if (agent.Leases.Count > 0 || (agent.LastUpgradeTime != null && agent.LastUpgradeVersion == deployment.Version && _clock.UtcNow < agent.LastUpgradeTime.Value + TimeSpan.FromMinutes(5.0)))
@@ -77,7 +77,7 @@ namespace Horde.Server.Tasks
 			task.LogId = logFile.Id.ToString();
 
 			byte[] payload = Any.Pack(task).ToByteArray();
-			return Lease(new AgentLease(leaseId, null, $"Upgrade to {tool.Id} {deployment.Version}", null, null, logFile.Id, LeaseState.Pending, null, true, payload));
+			return LeaseAsync(new AgentLease(leaseId, null, $"Upgrade to {tool.Id} {deployment.Version}", null, null, logFile.Id, LeaseState.Pending, null, true, payload));
 		}
 
 		/// <summary>

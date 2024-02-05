@@ -204,7 +204,7 @@ namespace Horde.Server.Devices
 		/// Creates a device pool telemetry snapshot
 		/// </summary>
 		/// <returns></returns>
-		public Task CreatePoolTelemetrySnapshot(List<IDevicePool> pools, int poolCooldown);
+		public Task CreatePoolTelemetrySnapshotAsync(List<IDevicePool> pools, int poolCooldown);
 
 		/// <summary>
 		/// Gets pool telemetry for an optional date range

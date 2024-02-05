@@ -68,7 +68,7 @@ namespace Horde.Server.Compute
 	/// </summary>
 	/// <typeparam name="TQueueId">Type used to identify a particular queue</typeparam>
 	/// <typeparam name="TTask">Type used to describe a task to be performed</typeparam>
-	class RedisTaskScheduler<TQueueId, TTask> : ITaskScheduler<TQueueId, TTask>, IDisposable 
+	class RedisTaskScheduler<TQueueId, TTask> : ITaskScheduler<TQueueId, TTask>, IAsyncDisposable 
 		where TQueueId : notnull
 		where TTask : class
 	{
@@ -80,7 +80,7 @@ namespace Horde.Server.Compute
 			public Listener(Func<TQueueId, ValueTask<bool>> predicate)
 			{
 				_predicate = predicate;
-				CompletionSource = new TaskCompletionSource<(TQueueId, TTask)?>();
+				CompletionSource = new TaskCompletionSource<(TQueueId, TTask)?>(TaskCreationOptions.RunContinuationsAsynchronously);
 			}
 		}
 
@@ -129,12 +129,6 @@ namespace Horde.Server.Compute
 				}
 			}
 			_cancellationSource.Dispose();
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			DisposeAsync().AsTask().Wait();
 		}
 
 		/// <summary>

@@ -217,6 +217,7 @@ class TelemetryService : BackgroundService
 	private DateTime _lastTimeAgentMetadataSent = DateTime.UnixEpoch;
 
 	private CancellationTokenSource? _eventLoopHeartbeatCts;
+	private Task? _eventLoopTask;
 	internal Func<DateTime> GetUtcNow { get; set; } = () => DateTime.UtcNow;
 
 	/// <summary>
@@ -263,17 +264,28 @@ class TelemetryService : BackgroundService
 		}
 
 		_eventLoopHeartbeatCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-#pragma warning disable CS4014 // Call not awaited
-		EventLoopHeartbeatAsync(_eventLoopHeartbeatCts.Token);
-#pragma warning restore CS4014
-		
+		_eventLoopTask = EventLoopHeartbeatAsync(_eventLoopHeartbeatCts.Token);
+
 		return base.StartAsync(cancellationToken);
 	}
 
-	public override Task StopAsync(CancellationToken cancellationToken)
+	public override async Task StopAsync(CancellationToken cancellationToken)
 	{
 		_eventLoopHeartbeatCts?.Cancel();
-		return base.StopAsync(cancellationToken);
+
+		if (_eventLoopTask != null)
+		{
+			try
+			{
+				await _eventLoopTask;
+			}
+			catch (OperationCanceledException)
+			{
+				// Ignore cancellation exceptions
+			}
+		}
+
+		await base.StopAsync(cancellationToken);
 	}
 
 	/// <summary>

@@ -325,7 +325,10 @@ namespace Horde.Server.Configuration
 		}
 
 		/// <inheritdoc/>
-		public GlobalConfig Create(string name) => _stateTask.Result.GlobalConfig;
+		public GlobalConfig Create(string name)
+		{
+			return _stateTask.Result.GlobalConfig;
+		}
 
 		/// <inheritdoc/>
 		public IChangeToken GetChangeToken() => _changeToken;

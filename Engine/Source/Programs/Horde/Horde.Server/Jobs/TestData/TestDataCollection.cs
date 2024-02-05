@@ -447,7 +447,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="minChange"></param>
 		/// <param name="maxChange"></param>
 		/// <returns></returns>
-		public async Task<List<ITestDataRef>> FindTestRefs(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null)
+		public async Task<List<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null)
 		{
 
 			FilterDefinition<TestDataRefDocument> filter = FilterDefinition<TestDataRefDocument>.Empty;
@@ -501,7 +501,7 @@ namespace Horde.Server.Jobs.TestData
 
 			List<TestDataRefDocument> results;
 			
-			using (TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(TestDataCollection)}.{nameof(FindTestRefs)}"))
+			using (TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(TestDataCollection)}.{nameof(FindTestRefsAsync)}"))
 			{
 				results = await _testRefs.Find(filter).ToListAsync();
 			}
@@ -583,7 +583,7 @@ namespace Horde.Server.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ITestDataDetails>> FindTestDetails(TestRefId[] ids)
+		public async Task<List<ITestDataDetails>> FindTestDetailsAsync(TestRefId[] ids)
 		{
 			FilterDefinitionBuilder<TestDataDetailsDocument> filterBuilder = Builders<TestDataDetailsDocument>.Filter;
 			FilterDefinition<TestDataDetailsDocument> filter = FilterDefinition<TestDataDetailsDocument>.Empty;
@@ -602,7 +602,7 @@ namespace Horde.Server.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ITestMeta>> FindTestMeta(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null)
+		public async Task<List<ITestMeta>> FindTestMetaAsync(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null)
 		{
 			FilterDefinitionBuilder<TestMetaDocument> filterBuilder = Builders<TestMetaDocument>.Filter;
 			FilterDefinition<TestMetaDocument> filter = FilterDefinition<TestMetaDocument>.Empty;
@@ -704,7 +704,7 @@ namespace Horde.Server.Jobs.TestData
 
 			if ((projectNames != null && projectNames.Length > 0) || (metaIds != null && metaIds.Length > 0))
 			{
-				metaData = await FindTestMeta(projectNames, metaIds: metaIds);
+				metaData = await FindTestMetaAsync(projectNames, metaIds: metaIds);
 			}
 			
 			TestMetaId[] queryIds = metaData.Select(x => x.Id).ToArray();
@@ -777,7 +777,7 @@ namespace Horde.Server.Jobs.TestData
 
 			if ((projectNames != null && projectNames.Length > 0) || (metaIds != null && metaIds.Length > 0))
 			{
-				metaData = await FindTestMeta(projectNames, metaIds: metaIds);
+				metaData = await FindTestMetaAsync(projectNames, metaIds: metaIds);
 			}
 
 			TestMetaId[] queryIds = metaData.Select(x => x.Id).ToArray();
@@ -810,7 +810,7 @@ namespace Horde.Server.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<ITestStream>> FindTestStreams(StreamId[] streamIds)
+		public async Task<List<ITestStream>> FindTestStreamsAsync(StreamId[] streamIds)
 		{
 			List<TestStreamDocument> results  = await _testStreams.Find(Builders<TestStreamDocument>.Filter.In(x => x.StreamId, streamIds)).ToListAsync();
 			return results.ConvertAll<ITestStream>(x => x);

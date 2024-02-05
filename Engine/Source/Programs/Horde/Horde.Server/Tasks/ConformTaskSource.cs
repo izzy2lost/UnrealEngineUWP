@@ -159,13 +159,13 @@ namespace Horde.Server.Tasks
 		{
 			if (!_settings.CurrentValue.EnableConformTasks)
 			{
-				return Skip(cancellationToken);
+				return SkipAsync(cancellationToken);
 			}
 
 			DateTime utcNow = DateTime.UtcNow;
 			if (!await IsConformPendingAsync(agent, utcNow))
 			{
-				return Skip(cancellationToken);
+				return SkipAsync(cancellationToken);
 			}
 
 			if (agent.Leases.Count == 0)
@@ -184,7 +184,7 @@ namespace Horde.Server.Tasks
 
 							byte[] payload = Any.Pack(task).ToByteArray();
 
-							return Lease(new AgentLease(leaseId, null, "Updating workspaces", null, null, log.Id, LeaseState.Pending, null, true, payload));
+							return LeaseAsync(new AgentLease(leaseId, null, "Updating workspaces", null, null, log.Id, LeaseState.Pending, null, true, payload));
 						}
 						catch
 						{
@@ -201,7 +201,7 @@ namespace Horde.Server.Tasks
 			}
 			else
 			{
-				return Skip(cancellationToken);
+				return SkipAsync(cancellationToken);
 			}
 		}
 

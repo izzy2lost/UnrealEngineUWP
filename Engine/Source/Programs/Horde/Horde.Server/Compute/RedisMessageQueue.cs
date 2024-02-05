@@ -146,7 +146,7 @@ namespace Horde.Server.Compute
 				{
 					if (!_channelWakeEvents.TryGetValue(channelId, out completionSource))
 					{
-						completionSource = new TaskCompletionSource<bool>();
+						completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 						_channelWakeEvents.Add(channelId, completionSource);
 					}
 				}

@@ -37,7 +37,7 @@ namespace Horde.Server.Server
 		/// <returns>Status code 503 is server is stopping, else 200 OK</returns>
 		[HttpGet]
 		[Route("/health/ready")]
-		public Task<ActionResult> ServerReadiness()
+		public Task<ActionResult> ServerReadinessAsync()
 		{
 			int statusCode = 200;
 			string content = "ok";

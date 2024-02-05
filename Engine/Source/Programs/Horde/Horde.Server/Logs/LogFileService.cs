@@ -311,7 +311,9 @@ namespace Horde.Server.Logs
 			/// <inheritdoc/>
 			public override int Read(byte[] buffer, int offset, int count)
 			{
+#pragma warning disable VSTHRD002
 				return ReadAsync(buffer, offset, count, CancellationToken.None).Result;
+#pragma warning restore VSTHRD002
 			}
 
 			/// <inheritdoc/>
@@ -461,7 +463,9 @@ namespace Horde.Server.Logs
 			/// <inheritdoc/>
 			public override int Read(byte[] buffer, int offset, int count)
 			{
+#pragma warning disable VSTHRD002
 				return ReadAsync(buffer, offset, count, CancellationToken.None).Result;
+#pragma warning restore VSTHRD002
 			}
 
 			/// <inheritdoc/>

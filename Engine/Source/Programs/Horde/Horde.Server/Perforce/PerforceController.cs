@@ -59,7 +59,7 @@ namespace Horde.Server.Perforce
 		/// <returns>List of Perforce clusters</returns>
 		[HttpGet]
 		[Route("/api/v1/perforce/settings")]
-		public ActionResult<List<PerforceCluster>> GetPerforceSettingsAsync()
+		public ActionResult<List<PerforceCluster>> GetPerforceSettings()
 		{
 			GlobalConfig globalConfig = _globalConfig.Value;
 

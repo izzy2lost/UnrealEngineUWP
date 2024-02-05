@@ -331,7 +331,9 @@ namespace Horde.Server.Utilities
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 #pragma warning disable IDE1006 // Naming Styles
+#pragma warning disable VSTHRD200 // Use Async suffix
 		public static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(this IAsyncCursorSource<T> source, [EnumeratorCancellation] CancellationToken cancellationToken)
+#pragma warning restore VSTHRD200 // Use Async suffix
 #pragma warning restore IDE1006 // Naming Styles
 		{
 			using (IAsyncCursor<T> cursor = await source.ToCursorAsync(cancellationToken))

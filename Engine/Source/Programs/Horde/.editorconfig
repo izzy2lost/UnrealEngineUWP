@@ -1098,6 +1098,8 @@ dotnet_diagnostic.CA5404.severity = none
 # CA5405: Do not always skip token validation in delegates
 dotnet_diagnostic.CA5405.severity = warning
 
+# VSTHRD003: Avoid awaiting or returning a Task representing work that was not started within your context as that can lead to deadlocks.
+dotnet_diagnostic.VSTHRD003.severity = none
 
 [*Test*.cs]
 

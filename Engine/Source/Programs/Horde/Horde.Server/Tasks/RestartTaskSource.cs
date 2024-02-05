@@ -36,7 +36,7 @@ namespace Horde.Server.Tasks
 			{
 				if (!agent.RequestRestart)
 				{
-					return Skip(cancellationToken);
+					return SkipAsync(cancellationToken);
 				}
 				if (agent.Leases.Count > 0)
 				{
@@ -52,7 +52,7 @@ namespace Horde.Server.Tasks
 
 			byte[] payload = Any.Pack(task).ToByteArray();
 
-			return Lease(new AgentLease(leaseId, null, "Restart", null, null, log.Id, LeaseState.Pending, null, true, payload));
+			return LeaseAsync(new AgentLease(leaseId, null, "Restart", null, null, log.Id, LeaseState.Pending, null, true, payload));
 		}
 	}
 }

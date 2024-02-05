@@ -389,6 +389,7 @@ namespace Horde.Agent.Utility
 			_backgroundTask = Task.Run(() => ExecuteAsync());
 		}
 
+#pragma warning disable VSTHRD002 // Synchronously waiting on tasks or awaiters may cause deadlocks.
 		/// <summary>
 		/// Attempts to get a client reference, returning immediately if there's not one available
 		/// </summary>
@@ -406,6 +407,7 @@ namespace Horde.Agent.Utility
 			}
 			return null;
 		}
+#pragma warning restore VSTHRD002
 
 		/// <summary>
 		/// Obtains a new client reference object

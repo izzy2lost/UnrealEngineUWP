@@ -272,7 +272,7 @@ namespace Horde.Server.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<LeaseId>> GetChildLeaseIds(LeaseId id)
+		public async Task<List<LeaseId>> GetChildLeaseIdsAsync(LeaseId id)
 		{
 			RedisValue[] childIds = await _redisService.GetDatabase().SetMembersAsync(RedisKeyLeaseChildren(id));
 			return childIds.Select(x => LeaseId.Parse(x.ToString())).ToList();

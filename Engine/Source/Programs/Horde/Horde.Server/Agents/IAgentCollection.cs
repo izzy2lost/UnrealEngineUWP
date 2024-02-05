@@ -93,7 +93,7 @@ namespace Horde.Server.Agents
 		/// </summary>
 		/// <param name="id">Lease ID</param>
 		/// <returns>List of agent lease IDs</returns>
-		Task<List<LeaseId>> GetChildLeaseIds(LeaseId id);
+		Task<List<LeaseId>> GetChildLeaseIdsAsync(LeaseId id);
 
 		/// <summary>
 		/// Update an agent's settings

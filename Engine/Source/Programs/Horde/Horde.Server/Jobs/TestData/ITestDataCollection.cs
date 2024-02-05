@@ -19,7 +19,7 @@ namespace Horde.Server.Jobs.TestData
 		/// </summary>
 		/// <param name="streamIds"></param>
 		/// <returns></returns>
-		Task<List<ITestStream>> FindTestStreams(StreamId[] streamIds);
+		Task<List<ITestStream>> FindTestStreamsAsync(StreamId[] streamIds);
 
 		/// <summary>
 		/// 
@@ -33,14 +33,14 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="minChange"></param>
 		/// <param name="maxChange"></param>
 		/// <returns></returns>
-		Task<List<ITestDataRef>> FindTestRefs(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null);
+		Task<List<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null);
 
 		/// <summary>
 		/// Find test details
 		/// </summary>
 		/// <param name="ids"></param>
 		/// <returns></returns>
-		Task<List<ITestDataDetails>> FindTestDetails(TestRefId[] ids);
+		Task<List<ITestDataDetails>> FindTestDetailsAsync(TestRefId[] ids);
 
 		/// <summary>
 		/// Find tests
@@ -97,7 +97,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <param name="variation"></param>
 		/// <param name="metaIds"></param>
 		/// <returns></returns>
-		Task<List<ITestMeta>> FindTestMeta(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null);
+		Task<List<ITestMeta>> FindTestMetaAsync(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null);
 
 		/// <summary>
 		/// Delete the test data

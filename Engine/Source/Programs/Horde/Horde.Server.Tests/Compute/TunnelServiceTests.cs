@@ -55,7 +55,8 @@ namespace Horde.Server.Tests.Compute
 
 			ServerSettings serverSettings = new() { ComputeTunnelPort = _tunnelPort };
 			using TunnelService tunnelService = new (new OptionsWrapper<ServerSettings>(serverSettings), TestSetup.CreateConsoleLogger<TunnelService>());
-			_tunnelServerTask = tunnelService.Start(IPAddress.Any);
+			tunnelService.Start(IPAddress.Any);
+			_tunnelServerTask = tunnelService.ServerTask!;
 
 			using TcpClient client = new ();
 			await client.ConnectAsync(_hostname, _tunnelPort, cts.Token);

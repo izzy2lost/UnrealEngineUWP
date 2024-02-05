@@ -179,7 +179,7 @@ namespace Horde.Server.Server
 				return LoginFormError(ErrorMsg, returnUrl);
 			}
 
-			IHordeAccount? account = await _hordeAccounts.GetByLogin(username);
+			IHordeAccount? account = await _hordeAccounts.GetByLoginAsync(username);
 			if (account == null)
 			{
 				return LoginFormError(ErrorMsg, returnUrl);

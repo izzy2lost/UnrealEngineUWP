@@ -229,7 +229,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
 
 				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, id, HttpContext.RequestServices, cancellationToken);
 
@@ -266,7 +266,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
 
 				ContentId identifier = await _storage.PutCompressedObjectAsync(ns, payload, null, HttpContext.RequestServices, cancellationToken);
 

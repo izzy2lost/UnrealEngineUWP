@@ -243,7 +243,7 @@ namespace Horde.Server.Users
 		}
 		
 		/// <inheritdoc/>
-		public async Task<IHordeAccount?> GetByLogin(string login)
+		public async Task<IHordeAccount?> GetByLoginAsync(string login)
 		{
 			return await _serviceAccounts.Find(x => x.Login == login).FirstOrDefaultAsync();
 		}

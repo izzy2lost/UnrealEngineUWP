@@ -62,7 +62,7 @@ namespace Horde.Server.Server
 		[HttpGet]
 		[AllowAnonymous]
 		[Route("/api/v1/server/version")]
-		public ActionResult GetVersionAsync()
+		public ActionResult GetVersion()
 		{
 			FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			return Ok(fileVersionInfo.ProductVersion);

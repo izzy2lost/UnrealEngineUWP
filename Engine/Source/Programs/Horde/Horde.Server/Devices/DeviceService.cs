@@ -134,7 +134,7 @@ namespace Horde.Server.Devices
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(DeviceService)}.{nameof(TickTelemetryAsync)}");
 				_logger.LogInformation("Updating pool telemetry");
-				await _devices.CreatePoolTelemetrySnapshot(GetPools(), _settings.CurrentValue.DeviceProblemCooldownMinutes);
+				await _devices.CreatePoolTelemetrySnapshotAsync(GetPools(), _settings.CurrentValue.DeviceProblemCooldownMinutes);
 			}
 		}
 
