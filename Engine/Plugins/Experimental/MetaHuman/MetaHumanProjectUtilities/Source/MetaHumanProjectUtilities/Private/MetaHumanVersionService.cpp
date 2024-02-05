@@ -20,8 +20,13 @@ namespace UE::MetaHumanVersionService
 		public:
 			const FString& UEVersionFromMhVersion(const FMetaHumanVersion& Version)
 			{
+				static const FString UnknownVersion = TEXT("Unknown Version");
 				AwaitRequest(VersionInfoRequest);
-				return VersionMapping[Version];
+				if (const FString *UeVersion = VersionMapping.Find(Version))
+				{
+					return *UeVersion;
+				}
+				return UnknownVersion;
 			}
 
 			TArray<TSharedRef<FReleaseNoteData>> GetReleaseNotesForVersionUpgrade(const FMetaHumanVersion& FromVersion, const FMetaHumanVersion& ToVersion)
@@ -50,23 +55,23 @@ namespace UE::MetaHumanVersionService
 				}
 				return MetaHumanVersionServiceClientInst;
 			}
+			
+			void OverrideServiceUrl(const FString &OverrideUrl)
+			{
+				FetchDataFromVersionService(OverrideUrl);
+			}
+			
+			~FMetaHumanVersionServiceClient()
+			{
+				TerminateRequest(VersionInfoRequest);
+				TerminateRequest(ReleaseNotesRequest);
+			}
 
 		private:
 			FMetaHumanVersionServiceClient()
 			{
 				const UMetaHumanProjectUtilitiesSettings* Settings = GetDefault<UMetaHumanProjectUtilitiesSettings>();
-
-				// Fire off the requests for the live data. These will complete asynchronously. Currently if these requests fail we fall back
-				// to bundled data.
-				VersionInfoRequest = InitiateRequest(FString::Format(TEXT("{0}/api/v1/versions"), {Settings->VersionServiceBaseUrl}), TEXT("Fetch Version Info"), [this](FJsonValue* Data)
-				{
-					ParseVersionInfoFromJson(Data);
-				});
-
-				ReleaseNotesRequest = InitiateRequest(FString::Format(TEXT("{0}/api/v1/release-notes"), {Settings->VersionServiceBaseUrl}), TEXT("Fetch Release Notes"), [this](FJsonValue* Data)
-				{
-					ParseReleaseNotesFromJson(Data);
-				});
+				FetchDataFromVersionService(Settings->VersionServiceBaseUrl);
 			}
 
 			void ParseVersionInfoFromJson(const FJsonValue* Data)
@@ -103,7 +108,7 @@ namespace UE::MetaHumanVersionService
 			}
 
 			// Initiate an HTTP request and attach an on-completion callback to parse and store the results.
-			FHttpRequestPtr InitiateRequest(const FString& RequestUrl, const FString& RequestName, const TFunction<void(FJsonValue*)>& OnComplete) const
+			FHttpRequestPtr InitiateRequest(const FString& RequestUrl, const FString& RequestName, const TFunction<void(const FJsonValue*)>& OnComplete) const
 			{
 				FHttpRequestPtr HttpRequest = FHttpModule::Get().CreateRequest();
 				HttpRequest->OnProcessRequestComplete().BindLambda(
@@ -140,7 +145,7 @@ namespace UE::MetaHumanVersionService
 			static void AwaitRequest(FHttpRequestPtr& Request)
 			{
 				// This loop is bounded by the timeout on the request.
-				while (Request.IsValid() && Request->GetStatus() == EHttpRequestStatus::Processing)
+				while (Request.IsValid() && !IsFinished(Request->GetStatus()))
 				{
 					FPlatformProcess::Sleep(0.1);
 					FHttpModule::Get().GetHttpManager().Tick(0.1);
@@ -155,12 +160,15 @@ namespace UE::MetaHumanVersionService
 				if (Request.IsValid())
 				{
 					Request->OnProcessRequestComplete().Unbind();
-					Request->CancelRequest();
+					if (!IsFinished(Request->GetStatus()))
+					{
+						Request->CancelRequest();
+					}
 					Request.Reset();
 				}
 			}
 
-			// These Ptrs are valid while the initial request is processing and invalid once the data has been retrieved (or if the request fails).
+			// These pointers are valid while the initial request is processing and invalid once the data has been retrieved (or if the request fails).
 			FHttpRequestPtr VersionInfoRequest;
 			FHttpRequestPtr ReleaseNotesRequest;
 
@@ -191,6 +199,26 @@ namespace UE::MetaHumanVersionService
 				{FMetaHumanVersion(2, 0, 0), TEXT("5.2")}
 			};
 
+			// Url Handling
+			void FetchDataFromVersionService(const FString &VersionServiceUrl)
+			{
+				// Cancel any in-flight requests
+				TerminateRequest(VersionInfoRequest);
+				TerminateRequest(ReleaseNotesRequest);
+				
+				// Fire off the requests for the live data. These will complete asynchronously. If these requests fail we fall back to bundled data.
+				VersionInfoRequest = InitiateRequest(FString::Format(TEXT("{0}/api/v1/versions"), {VersionServiceUrl}), TEXT("Fetch Version Info"), [this](const FJsonValue* Data)
+				{
+					ParseVersionInfoFromJson(Data);
+				});
+
+				ReleaseNotesRequest = InitiateRequest(FString::Format(TEXT("{0}/api/v1/release-notes"), {VersionServiceUrl}), TEXT("Fetch Release Notes"), [this](const FJsonValue* Data)
+				{
+					ParseReleaseNotesFromJson(Data);
+				});
+				
+			}
+
 			// Singleton Implementation
 			static TSharedPtr<FMetaHumanVersionServiceClient> MetaHumanVersionServiceClientInst;
 		};
@@ -207,6 +235,11 @@ namespace UE::MetaHumanVersionService
 	TArray<TSharedRef<FReleaseNoteData>> GetReleaseNotesForVersionUpgrade(const FMetaHumanVersion& FromVersion, const FMetaHumanVersion& ToVersion)
 	{
 		return Private::FMetaHumanVersionServiceClient::Get()->GetReleaseNotesForVersionUpgrade(FromVersion, ToVersion);
+	}
+	
+	void SetServiceUrl(const FString &ServiceUrl)
+	{
+		Private::FMetaHumanVersionServiceClient::Get()->OverrideServiceUrl(ServiceUrl);
 	}
 
 	void Init()

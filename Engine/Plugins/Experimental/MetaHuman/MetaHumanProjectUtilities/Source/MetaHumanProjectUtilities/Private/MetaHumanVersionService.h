@@ -22,6 +22,9 @@ namespace UE::MetaHumanVersionService
 	// Returns all ReleaseNotes
 	TArray<TSharedRef<FReleaseNoteData>> GetReleaseNotesForVersionUpgrade(const FMetaHumanVersion& FromVersion, const FMetaHumanVersion& ToVersion);
 
+	// Override the URL to use to connect to the version service.
+	void SetServiceUrl(const FString &ServiceUrl);
+
 	// Starts asynchronous retrieval of cloud data
 	void Init();
 }

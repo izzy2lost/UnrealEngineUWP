@@ -7,7 +7,7 @@
 /**
  *
  */
-UCLASS(Config = Bridge)
+UCLASS(Config = MetaHumanProjectUtilities)
 class METAHUMANPROJECTUTILITIES_API UMetaHumanProjectUtilitiesSettings : public UObject
 {
 	GENERATED_BODY()
