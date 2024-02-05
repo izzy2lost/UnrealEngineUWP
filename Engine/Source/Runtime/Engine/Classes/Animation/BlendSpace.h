@@ -178,6 +178,11 @@ struct FBlendSample
 	float RateScale = 1.0f;
 
 #if WITH_EDITORONLY_DATA
+	// Whether or not this sample will be moved when the "analyse all" button is used. Note that, even if disabled,
+	// it will still be available for individual sample analysis/moving
+	UPROPERTY(EditAnywhere, Category = BlendSample, meta=(UIMin="0.01", UIMax="2.0", ClampMin="0.01", ClampMax="64.0"))
+	uint8 bIncludeInAnalyseAll : 1;
+
 	UPROPERTY(transient)
 	uint8 bIsValid : 1;
 
@@ -191,6 +196,7 @@ struct FBlendSample
 		, SampleValue(0.f)
 		, RateScale(1.0f)
 #if WITH_EDITORONLY_DATA
+		, bIncludeInAnalyseAll(true)
 		, bIsValid(false)
 		, CachedMarkerDataUpdateCounter(INDEX_NONE)
 #endif // WITH_EDITORONLY_DATA
