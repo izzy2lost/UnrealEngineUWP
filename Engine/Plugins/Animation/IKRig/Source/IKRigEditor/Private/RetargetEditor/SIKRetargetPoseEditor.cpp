@@ -124,7 +124,7 @@ TSharedRef<SWidget>  SIKRetargetPoseEditor::MakeToolbar(TSharedPtr<FUICommandLis
 		FOnGetContent::CreateSP(this, &SIKRetargetPoseEditor::GenerateEditMenuContent, Commands),
 		LOCTEXT("AutoAlign_Label", "Auto Align"),
 		LOCTEXT("AutoAlignTip_Label", "Automatically aligns bones on source skeleton to target (or vice versa)."),
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Edit"));
+		FSlateIcon(FIKRetargetEditorStyle::Get().GetStyleSetName(),"IKRetarget.AutoAlign"));
 
 	ToolbarBuilder.EndSection();
 
