@@ -21,6 +21,7 @@
 #include "Generate/IsosurfaceStuffing.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "GeometryCollection/Facades/CollectionTetrahedralMetricsFacade.h"
+#include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "MeshDescription.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
@@ -304,6 +305,11 @@ void FGenerateTetrahedralCollectionDataflowNodes::Evaluate(Dataflow::FContext& C
 				{
 					if (CollectionBuffer[i]->NumElements(FGeometryCollection::VerticesGroup))
 					{
+						TSet<int32> VertexToDeleteSet;
+						GeometryCollectionAlgo::ComputeStaleVertices(CollectionBuffer[i].Get(), VertexToDeleteSet);
+						TArray<int32> SortedVertices = VertexToDeleteSet.Array(); SortedVertices.Sort();
+						if (VertexToDeleteSet.Num()) CollectionBuffer[i]->RemoveElements(FGeometryCollection::VerticesGroup, SortedVertices);
+
 						int32 GeomIndex = InCollection->AppendGeometry(*CollectionBuffer[i].Get());
 					}
 				}

@@ -1435,6 +1435,20 @@ namespace GeometryCollectionAlgo
 			VertexInFaceArray[IndicesArray[IdxFace].Z]++;
 		}
 
+		if (const TManagedArray<FIntVector4> *TetArrayPtr = 
+			GeometryCollection->FindAttributeTyped<FIntVector4>("Tetrahedron", "Tetrahedral"))
+		{
+			int32 NumTetrahedron = GeometryCollection->NumElements("Tetrahedral");
+			const TManagedArray<FIntVector4>& TetArray = *TetArrayPtr;
+			for (int32 TetIdx = 0; TetIdx < NumTetrahedron; ++TetIdx)
+			{
+				VertexInFaceArray[TetArray[TetIdx].X]++;
+				VertexInFaceArray[TetArray[TetIdx].Y]++;
+				VertexInFaceArray[TetArray[TetIdx].Z]++;
+				VertexInFaceArray[TetArray[TetIdx].W]++;
+			}
+		}
+
 		for (int32 IdxVertex = 0; IdxVertex < NumVertices; ++IdxVertex)
 		{
 			if (VertexInFaceArray[IdxVertex] == 0)
