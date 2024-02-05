@@ -226,8 +226,6 @@ namespace Metasound
 		/** Fraction of a single CPU core used to render audio on a scale of 0.0 to 1.0 */
 		double GetCPUCoreUtilization() const;
 
-		/** Returns whether or not operator pool manual precache feature is enabled (true) or not (false). */
-		static bool GetManualPrecacheEnabled();
 
 		// Called when a new graph has been "compiled" and set up as this generator's graph.
 		// Note: We don't allow direct assignment to the FOnSetGraph delegate
