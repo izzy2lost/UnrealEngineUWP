@@ -1029,7 +1029,12 @@ namespace Horde.Server
 				{
 					settings.UserName = Credentials.UserName;
 				}
-				if (!String.IsNullOrEmpty(Credentials.Password))
+
+				if (!String.IsNullOrEmpty(Credentials.Ticket))
+				{
+					settings.Password = Credentials.Ticket;	
+				}
+				else if (!String.IsNullOrEmpty(Credentials.Password))
 				{
 					settings.Password = Credentials.Password;
 				}
