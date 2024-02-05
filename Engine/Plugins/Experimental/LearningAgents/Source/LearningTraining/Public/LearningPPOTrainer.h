@@ -111,6 +111,12 @@ namespace UE::Learning
 		// at the cost of some training speed.
 		float AdvantageMax = 10.0f;
 
+		// If true, uses gradient norm max clipping. Set this as True if training is unstable or leave as False if unused.
+		bool bUseGradNormMaxClipping = false;
+
+		// The maximum gradient norm to clip updates to.
+		float GradNormMax = 0.5f;
+
 		// Number of steps to trim from the start of each episode during training. This can
 		// be useful if some reset process is taking several steps or you know your starting
 		// states are not entirely valid for example.

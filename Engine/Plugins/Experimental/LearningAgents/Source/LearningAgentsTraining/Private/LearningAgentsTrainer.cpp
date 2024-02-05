@@ -480,6 +480,8 @@ void ULearningAgentsTrainer::BeginTraining(
 	PPOTrainingSettings.bAdvantageNormalization = TrainerTrainingSettings.bAdvantageNormalization;
 	PPOTrainingSettings.AdvantageMin = TrainerTrainingSettings.MinimumAdvantage;
 	PPOTrainingSettings.AdvantageMax = TrainerTrainingSettings.MaximumAdvantage;
+	PPOTrainingSettings.bUseGradNormMaxClipping = TrainerTrainingSettings.bUseGradNormMaxClipping;
+	PPOTrainingSettings.GradNormMax = TrainerTrainingSettings.GradNormMax;
 	PPOTrainingSettings.TrimEpisodeStartStepNum = TrainerTrainingSettings.NumberOfStepsToTrimAtStartOfEpisode;
 	PPOTrainingSettings.TrimEpisodeEndStepNum = TrainerTrainingSettings.NumberOfStepsToTrimAtEndOfEpisode;
 	PPOTrainingSettings.Seed = TrainerTrainingSettings.RandomSeed;

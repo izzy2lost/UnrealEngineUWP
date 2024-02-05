@@ -239,6 +239,22 @@ public:
 	float MaximumAdvantage = 10.0f;
 
 	/**
+	 * When true, gradient norm max clipping will be used on the policy, critic, encoder, and decoder. Set this as True if
+	 * training is unstable (and adjust GradNormMax) or leave as False if unused.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	bool bUseGradNormMaxClipping = false;
+
+	/**
+	 * The maximum gradient norm to clip updates to. Only used when bUseGradNormMaxClipping is set to true.
+	 * 
+	 * This needs to be carefully chosen based on the size of your gradients during training. Setting too low can make it
+	 * difficult to learn an optimal policy, and too high will have no impact.
+	 */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents", meta = (UIMin = "0.0", UIMax = "10.0"))
+	float GradNormMax = 0.5f;
+
+	/**
 	 * The number of steps to trim from the start of the episode, e.g. can be useful if some things are still getting
 	 * setup at the start of the episode and you don't want them used for training.
 	 */
