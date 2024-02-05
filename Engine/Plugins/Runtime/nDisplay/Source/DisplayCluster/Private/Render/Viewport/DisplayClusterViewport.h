@@ -312,6 +312,12 @@ public:
 	/** Returns true if this viewport should be rendered. */
 	bool IsRenderEnabled() const;
 
+	/** Returns true if the rendering of this viewport is allowed by external media objects. */
+	bool IsRenderEnabledByMedia() const;
+
+	/** Returns true if this viewport used by external media objects. */
+	bool IsUsedByMedia() const;
+
 	/** Returns true if this viewport is to be used as a tile source. */
 	bool CanSplitIntoTiles() const;
 
