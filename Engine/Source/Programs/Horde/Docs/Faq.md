@@ -2,40 +2,57 @@
 
 # FAQ
 
-### Why are all these use cases being muddled together?
+## Why are all these use cases being muddled together?
 
 Most of our target use cases are traditionally handled as distinct components, but bringing them all together
 gives us many opportunities for optimization:
 
-* Storage is a key component of any data pipeline for caching. 
+* Storage is a key component of any data pipeline for caching.
 * Remote execution needs data close to compute nodes where it can be retrieved quickly.
 * Scalable build automation systems can make use of the same scheduling, management tools and auto-scaling
   functionality as a remote execution platform, and require a storage backend for intermediate and final
   artifacts.
 
-We want Unreal Engine to allow developers to focus on making awesome products, and fast, reliable iteration is a 
-key component of that. Sharing battle-tested infrastructure that works seamlessly with the engine reduces the 
-barrier to entry for other teams.
+We want Unreal Engine to allow developers to focus on making awesome products, and fast, reliable iteration is a
+key component of the golden path that lets that happen. Sharing battle-tested infrastructure that works well with
+the Engine and has proved valuable at Epic reduces the barrier to entry for other teams.
 
-### Will I need to deploy Horde to use Unreal Engine?
+## Will I need to deploy Horde to use Unreal Engine?
 
-No, Horde will not required to use Unreal Engine. We have been developing with an eye to Epic's needs and believe 
-it can provide similar benefits to others.
+No, Horde is not intended to be hard requirement to use Unreal Engine, but it has been valuable for Epic and
+we believe it can be valuable for other teams too.
 
-### Do I have to deploy Horde to the cloud?
+## Do I have to deploy Horde to the cloud?
 
-No. Horde runs well in local deployments using off-the-shelf hardware, though some applications may benefit from scalable attached storage.
+No. Horde runs well in local deployments using off-the-shelf hardware, though some applications may benefit from
+cloud storage even if you don't host any other infrastructure in the cloud.
 
-### Do I have to use the CI system / remote execution functionality / test framework / etc...?
+## Do I have to use the CI system / remote execution functionality / test framework / etc...?
 
 No. Each feature is optional, and any disabled features do not incur any costs.
 
-### Why would I use Horde for build automation, rather than an established build automation system like Jenkins or TeamCity?
+## Why would I use Horde for build automation, rather than an established build automation system like Jenkins or TeamCity?
 
-Horde is built from the ground up to support development of Unreal Engine projects.
+Most build automation systems are purposefully generic, allowing you to run any sort of workfload on them. That leaves
+a lot of plumbing for build ops teams to do; writing build scripts, managing artifact transfers between agents to
+implement parallelism, setting up stores for final artifacts, implementing a way to manage the allocation of
+network-connected devkits and mobile devices for build agents and so on.
 
-While it is possible to customize a more generic build automation tool, Horde is built to serve the specific needs of Epic and UE developers - supporting heavy throughput, easy parallelism, integration with tools like Unreal Editor and UnrealGameSync, and with richer, more context-aware interface choices. 
+What's more, the resulting system is not very smart. You may have notifications for build failures, but it requires
+a human to diagnose what and when a failure began and who needs to fix it. You need a way to clean up old build
+artifacts, and have to manage permissions for them. If you're using network shares for artifacts, you need to deal
+with lots of overlapping artifacts which are almost the same. Then, if you're a large organization, you need to figure
+out a way to distribute these artifacts to developers in different locations - and, of course, you probably want
+some sort of tooling to allow devs to actually find and fetch these artifacts.
 
-Other features, such as Horde's build health and bisection functionality, are fairly unique solutions to working on scrappy, high-velocity development teams.
+Functionality such as servers for tracking results of automated tests between builds is another layer; it may run on
+the build automation system, but you might have a myriad of tests generating data over lots of different changes that
+needs to be stored somewhere, and want to go spelunking through that data to find when, say, framerate dropped below a
+certain threshold in a certain map, or when the size of a particular level exceeded a certain point.
 
-Horde's CI functionality is not enabled by default. Other functionality in Horde can be used without having to migrate to a new build automation system.
+A lot of these problems are orthogonal to the problems that build automation systems typically concern themselves
+with solving. By thinking about them together, we can make much smarter implementation decisions that understand
+the context that they're operating in.
+
+That said, Horde's CI functionality is not enabled by default. Other functionality in Horde can still be used without
+having to migrate to a new build automation system.

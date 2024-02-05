@@ -25,7 +25,7 @@ the project's configuration), or for all streams on the server (via the ACL on t
 ## Admininistrators
 
 Admin users are permitted to perform any operations regardless of any configured ACLs. Users are granted admin status
-if they contain a particular claim configured in the server's [appsettings.json](../Deployment/ServerSettings.md) file
+if they contain a particular claim configured in the server's [Server.json](../Deployment/ServerSettings.md) file
 via the `AdminClaimType` and `AdminClaimValue` properties.
 
 ## Synthesized Claims

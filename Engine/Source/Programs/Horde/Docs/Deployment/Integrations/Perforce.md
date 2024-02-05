@@ -9,7 +9,7 @@ Perforce server (see [Configuration > Orientation](../../Config/Orientation.md))
 systems may be added in the future.
 
 The Perforce connection to use for reading configuration files is configured alongside the server deployment via the
-`perforce` property in the server [appsettings.json](../ServerSettings.md) file.
+`perforce` property in the server [Server.json](../ServerSettings.md) file.
 
 ## Clusters
 

@@ -51,7 +51,7 @@ The Horde Slack app can be configured using the following manifest. Note the `{{
 An suitable application icon can be found in the source tree under `Horde/Horde.Server/Slack`, along with icons you
 can use for build health notification prompts.
 
-Horde requires two tokens to be configured in the [server's appsettings.json](../ServerSettings.md) file to operate
+Horde requires two tokens to be configured in the server's [Server.json](../ServerSettings.md) file to operate
 fully:
 
 * `SlackToken`: Bot token used to post messages to channels (has an `xoxb-` prefix). The Horde bot user must also

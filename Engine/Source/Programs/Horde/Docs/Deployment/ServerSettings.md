@@ -1,8 +1,8 @@
-[Horde](../Home.md) > [Deployment](../Deployment.md) > [Server](Server.md) > appsettings.json (Server)
+[Horde](../Home.md) > [Deployment](../Deployment.md) > [Server](Server.md) > Server.json Reference
 
-# appsettings.json (Server)
+# Server.json (Server)
 
-All Horde-specific settings are stored in a root object called `horde`. Other .NET functionality may be configured using properties in the root of this file.
+All Horde-specific settings are stored in a root object called `Horde`. Other .NET functionality may be configured using properties in the root of this file.
 
 Name | Type | Description
 ---- | ---- | -----------

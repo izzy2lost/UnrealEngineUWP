@@ -10,11 +10,11 @@ provide a clear specification of the feature set.
 There are two areas related to configuring Horde:
 
 * The [server configuration](../Deployment/ServerSettings.md) configures the server to talk to other servers, defines
-  static parameters and so on. It is driven by the `appsettings.json` file deployed alongside the server.
+  static parameters and so on. It is driven by the `Server.json` file deployed alongside the server.
 * The [global configuration](Schema/Globals.md) controls all the user-facing elements of the system once deployed, and
   is in a file named `Globals.json`. Most configuration after setting up deployment parameters is done here.
 
-The `appsettings.json` file references a location to read `Globals.json` from via the
+The `Server.json` file references a location to read `Globals.json` from via the
 [`ConfigPath`](../Deployment/ServerSettings.md) property, and may be a path on disk or to a file in a version control
 system (see [below](#revision-control)).
 
@@ -43,7 +43,7 @@ configuring remote execution and DDC use cases, a global configuration file will
 Horde supports reading configuration files from Perforce.
 
 Perforce servers and accounts to use for reading configuration data are listed in `Perforce` section of the
-`appsettings.json` file. Once configured, files can be included from source control using either of the following
+`Server.json` file. Once configured, files can be included from source control using either of the following
 forms:
 
 Perforce Syntax (uses the Perforce server configured with the "default" id):

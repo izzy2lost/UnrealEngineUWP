@@ -1,6 +1,6 @@
 ![Horde](Docs/Images/Logo.png)
 
-**Unreal Horde** is a set of services designed around workflows that Epic uses to develop Fortnite,
+**Horde** is a set of services designed around workflows that Epic uses to develop Fortnite,
 Unreal Engine, and other titles.
 
 It is provided with full source code to all Unreal Engine licensees, and is meant for licensees to host and configure
@@ -12,14 +12,13 @@ Horde provides the following functionality, each of which may be enabled or disa
   with large Perforce repositories.
 * **[Remote Execution](Docs/Config/RemoteExecution.md)**: Functionality to offload compute work to other machines,
   including C++ compilation and content builds.
+* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
+  key workflow metrics.
 * **[UnrealGameSync Metadata Server](Docs/Config/UgsMetadataServer.md)**: Various features for teams using
   UnrealGameSync, including build status reporting, comment aggregation, and crowdsourced voting functionality.
 * **[Device Manager](Docs/Config/Devices.md)**: A system for allocating and managing a farm of development kits and mobile devices.
-* **Automation Hub**: A frontend for querying automation results across streams and projects, integrated with
+* **[Automation Hub](Docs/Config/AutomationHub.md)**: A frontend for querying automation results across streams and projects, integrated with
   AutomationTool and Gauntlet.
-* **Artifact Distribution**: A storage backend for tools and final build artifacts.
-* **[Studio Analytics](Docs/Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
-  key workflow metrics.
 
 Read more about our [goals and philosophy](Docs/Goals.md), or check out the [FAQ](Docs/Faq.md).
 
