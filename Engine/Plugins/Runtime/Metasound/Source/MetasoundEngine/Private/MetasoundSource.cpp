@@ -54,7 +54,7 @@ namespace Metasound
 {
 	namespace ConsoleVariables
 	{
-		bool bEnableExperimentalRuntimePresetGraphInflation = true;
+		bool bEnableExperimentalRuntimePresetGraphInflation = false;
 	}
 
 	namespace SourcePrivate
@@ -315,7 +315,7 @@ FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalRUntimePresetGraphInflati
 	TEXT("au.MetaSound.Experimental.EnableRuntimePresetGraphInflation"),
 	Metasound::ConsoleVariables::bEnableExperimentalRuntimePresetGraphInflation,
 	TEXT("Enables experimental feature of MetaSounds which reduces overhead of preset graphs\n")
-	TEXT("Default: true"),
+	TEXT("Default: false"),
 	ECVF_Default);
 
 

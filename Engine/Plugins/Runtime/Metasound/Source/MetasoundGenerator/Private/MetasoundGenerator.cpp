@@ -33,10 +33,8 @@ namespace Metasound
 	namespace ConsoleVariables
 	{
 		static bool bEnableAsyncMetaSoundGeneratorBuilder = true;
-		static bool bEnableExperimentalOneShotOperatorPool = false;
-		static bool bEnableExperimentalOperatorPool = false;
-		static bool bEnableExperimentalOperatorPoolManualPrecache = true;
-		static bool bEnableResetOnOperatorPoolInsertion = true;
+		static bool bEnableExperimentalAutoCachingForOneShotOperators = false;
+		static bool bEnableExperimentalAutoCachingForAllOperators = false;
 #if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
 		static bool bEnableMetaSoundGeneratorNonFiniteLogging = false;
 		static bool bEnableMetaSoundGeneratorInvalidSampleValueLogging = false;
@@ -190,7 +188,7 @@ namespace Metasound
 		{
 		}
 #endif
-	}
+	}	
 }
 
 FAutoConsoleVariableRef CVarMetaSoundEnableAsyncGeneratorBuilder(
@@ -200,33 +198,20 @@ FAutoConsoleVariableRef CVarMetaSoundEnableAsyncGeneratorBuilder(
 	TEXT("Default: true"),
 	ECVF_Default);
 
-FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOneShotOperatorPool(
-	TEXT("au.MetaSound.Experimental.EnableOneShotOperatorPool"),
-	Metasound::ConsoleVariables::bEnableExperimentalOneShotOperatorPool,
-	TEXT("Enables caching of MetaSound operators using the OneShot source interface.\n")
+FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalAutoCachingForOneShotOperators(
+	TEXT("au.MetaSound.Experimental.EnableAutoCachingForOneShotOperators"),
+	Metasound::ConsoleVariables::bEnableExperimentalAutoCachingForOneShotOperators,
+	TEXT("Enables auto-caching of MetaSound operators using the OneShot source interface.\n")
+	TEXT("(see MetasoundOperatorCacheSubsystem.h for manual path).\n")
 	TEXT("Default: false"),
 	ECVF_Default);
 
-FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorPool(
-	TEXT("au.MetaSound.Experimental.EnableOperatorPool"),
-	Metasound::ConsoleVariables::bEnableExperimentalOperatorPool,
-	TEXT("Enables caching of all MetaSound operators.\n")
+FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalAutoCachingForAllOperators(
+	TEXT("au.MetaSound.Experimental.EnableAutoCachingForAllOperators"),
+	Metasound::ConsoleVariables::bEnableExperimentalAutoCachingForAllOperators,
+	TEXT("Enables auto-caching of all MetaSound operators.\n")
+	TEXT("(see MetasoundOperatorCacheSubsystem.h for manual path).\n")
 	TEXT("Default: false"),
-	ECVF_Default);
-
-FAutoConsoleVariableRef CVarMetaSoundEnableExperimentalOperatorPoolManualPrecache(
-	TEXT("au.MetaSound.Experimental.EnableOperatorPoolManualPrecache"),
-	Metasound::ConsoleVariables::bEnableExperimentalOperatorPoolManualPrecache,
-	TEXT("Enables manual pre-caching of explicit MetaSound asset operators.\n")
-	TEXT("Default: true"),
-	ECVF_Default);
-
-FAutoConsoleVariableRef CVarMetaSoundEnableResetOnOperatorPoolInsertion(
-	TEXT("au.MetaSound.Experimental.EnableResetOnOperatorPoolInsertion"),
-	Metasound::ConsoleVariables::bEnableResetOnOperatorPoolInsertion,
-	TEXT("Enables reset of MetaSound operators as they are inserted into the Operator pool.\n")
-	TEXT("This can save a significant amount memory at the cost of reseting pooled operators twice.\n")
-	TEXT("Default: true"),
 	ECVF_Default);
 
 #if ENABLE_METASOUNDGENERATOR_INVALID_SAMPLE_VALUE_LOGGING
@@ -703,11 +688,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return RenderTime;
 	}
 
-	bool FMetasoundGenerator::GetManualPrecacheEnabled()
-	{
-		return ConsoleVariables::bEnableExperimentalOperatorPoolManualPrecache;
-	}
-
 	int32 FMetasoundGenerator::FillWithBuffer(const Audio::FAlignedFloatBuffer& InBuffer, float* OutAudio, int32 MaxNumOutputSamples)
 	{
 		int32 InNum = InBuffer.Num();
@@ -849,12 +829,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		InitBase(InParams);
 		// attempt to use operator cache instead of building a new operator.
 		bool bDidUseCachedOperator = false;
-		const bool bIsOperatorPoolEnabled = ConsoleVariables::bEnableExperimentalOneShotOperatorPool || ConsoleVariables::bEnableExperimentalOperatorPool;
+		const bool bIsOperatorPoolEnabled = ConsoleVariables::bEnableExperimentalAutoCachingForOneShotOperators || ConsoleVariables::bEnableExperimentalAutoCachingForAllOperators;
 		// Dynamic operators cannot use the operator cache because they can change their internal structure. 
 		// The operator cache assumes that the operator is unchanged from it's original structure. 
 		if (bIsOperatorPoolEnabled)
 		{
-			bUseOperatorPool = ConsoleVariables::bEnableExperimentalOperatorPool || MetasoundGeneratorPrivate::HasOneShotInterface(InParams.Graph->GetVertexInterface());
+			bUseOperatorPool = ConsoleVariables::bEnableExperimentalAutoCachingForAllOperators || MetasoundGeneratorPrivate::HasOneShotInterface(InParams.Graph->GetVertexInterface());
 		}
 
 		// check the cache for manually pre-cached operators
@@ -941,7 +921,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Caching operator %s"), *LexToString(OperatorID));
 
 				// give the operator a chance to reduce its memory footprint before being cached
-				if (ConsoleVariables::bEnableResetOnOperatorPoolInsertion && EnvironmentPtr.IsValid())
+				// in the future this should be a conanical phase of an operator's lifecycle (i.e. Reset, Execute, Hybernate)
+				if (EnvironmentPtr.IsValid())
 				{
 					if (IOperator::FResetFunction Reset = GraphOperator->GetResetFunction())
 					{
