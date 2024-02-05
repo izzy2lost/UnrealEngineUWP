@@ -2513,7 +2513,7 @@ void FRigVMEditor::OnCreateComment()
 						UEdGraphNode* EdNode = CommentAction.PerformAction(Graph, NULL, GraphEditor->GetPasteLocation());
 						if (UEdGraphNode_Comment* CommentNode = CastChecked<UEdGraphNode_Comment>(EdNode))
 						{
-							Controller->SetNodeColorByName(CommentNode->GetFName(), CommentNode->GetNodeTitleColor(), false);
+							Controller->SetNodeColorByName(CommentNode->GetFName(), CommentNode->CommentColor, false);
 							Controller->SetNodePositionByName(CommentNode->GetFName(), FVector2D(CommentNode->NodePosX, CommentNode->NodePosY), false);
 						}
 						Controller->CloseUndoBracket();
