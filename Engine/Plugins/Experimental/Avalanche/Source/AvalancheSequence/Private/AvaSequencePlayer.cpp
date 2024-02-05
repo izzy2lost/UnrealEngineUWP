@@ -61,13 +61,22 @@ void UAvaSequencePlayer::SetPlaySettings(const FAvaSequencePlayParams& InPlaySet
 	bReversePlayback = InPlaySettings.PlayMode == EAvaSequencePlayMode::Reverse;
 
 	const double TotalDuration    = MovieScene->GetTickResolution().AsSeconds(MovieScene->GetPlaybackRange().Size<FFrameNumber>());
-	const double StartTimeSeconds = InPlaySettings.Start.ToSeconds(*PlaybackSequence, *MovieScene, 0.0);
-	const double EndTimeSeconds   = InPlaySettings.End.ToSeconds(*PlaybackSequence, *MovieScene, TotalDuration);
+	double StartTimeSeconds = InPlaySettings.Start.ToSeconds(*PlaybackSequence, *MovieScene, 0.0);
+	double EndTimeSeconds   = InPlaySettings.End.ToSeconds(*PlaybackSequence, *MovieScene, TotalDuration);
+
+	// Ensure that StartTime <= EndTime
+	StartTimeSeconds = FMath::Min(StartTimeSeconds, EndTimeSeconds);
+	EndTimeSeconds   = FMath::Max(StartTimeSeconds, EndTimeSeconds);
 
 	double DurationSeconds = FMath::Abs(EndTimeSeconds - StartTimeSeconds);
 
 	// Ensure that Duration Seconds is at least 1 Frame Long, as this gets Rounded to the nearest Frame and if it results in 0, the Sequence does not get evaluated
 	DurationSeconds = FMath::Max(DurationSeconds, PlayPosition.GetInputRate().AsSeconds(FFrameNumber(1)));
+
+	if (bReversePlayback)
+	{
+		StartTimeSeconds = EndTimeSeconds - DurationSeconds;
+	}
 
 	SetTimeRange(StartTimeSeconds, DurationSeconds);
 
