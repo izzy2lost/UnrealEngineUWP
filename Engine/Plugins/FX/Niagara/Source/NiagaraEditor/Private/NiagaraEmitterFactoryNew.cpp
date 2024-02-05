@@ -133,7 +133,7 @@ UObject* UNiagaraEmitterFactoryNew::FactoryCreateNew(UClass* Class, UObject* InP
 			NewEmitter->DisableVersioning(EmitterToCopy->GetExposedVersion().VersionGuid);
 		}
 
-		NewEmitter->bIsInheritable = false;
+		NewEmitter->bIsInheritable = true;
 		NewEmitter->TemplateAssetDescription = FText();
 		NewEmitter->AssetTags.Empty();
 		NewEmitter->Category = FText();
