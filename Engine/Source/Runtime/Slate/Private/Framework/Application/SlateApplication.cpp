@@ -5837,6 +5837,15 @@ bool FSlateApplication::ProcessMouseButtonUpEvent( const FPointerEvent& MouseEve
 	// Input preprocessors get the first chance at the input
 	if (InputPreProcessors.HandleMouseButtonUpEvent(*this, MouseEvent))
 	{
+		// If mouse up event is consumed by a preprocessor, associated mouse down event needs to be cleared as well. Otherwise, subsequent mouse down events get ignored until the first one is cleared.
+		// This was only affecting the swipe detection on touch, we can remove this condition if we want the same fix for other platforms, but reducing the scope for now
+		if (MouseEvent.IsTouchEvent())
+		{
+			TSharedRef<FSlateUser> SlateUser = GetOrCreateUser(MouseEvent);
+			FWidgetPath WidgetsUnderPointer = LocateWindowUnderMouse(MouseEvent.GetScreenSpacePosition(), GetInteractiveTopLevelWindows(), false, SlateUser->GetUserIndex());
+
+			SlateUser->NotifyPointerReleased(MouseEvent, WidgetsUnderPointer, nullptr, true);
+		}
 		return true;
 	}
 
