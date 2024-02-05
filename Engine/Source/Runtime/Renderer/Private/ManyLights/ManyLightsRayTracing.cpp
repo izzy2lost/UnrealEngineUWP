@@ -8,7 +8,7 @@
 
 static TAutoConsoleVariable<int32> CVarManyLightsScreenTraces(
 	TEXT("r.ManyLights.ScreenTraces"),
-	0,
+	1,
 	TEXT("Whether to use screen space tracing for shadow rays."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );

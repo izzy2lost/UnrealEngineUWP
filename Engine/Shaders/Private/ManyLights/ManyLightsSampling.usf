@@ -279,8 +279,7 @@ void GenerateLightSamplesCS(
 
 						const uint LocalLightIndex = MaskIndex * 32 + NextBitIndex;
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
-						const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-						FDeferredLightData LightData = ConvertToDeferredLight(LightSceneData);
+						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 					
 						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord);
 
@@ -346,10 +345,9 @@ void GenerateLightSamplesCS(
 							const uint2 SampleCoord = DownsampledScreenCoord * DOWNSAMPLE_FACTOR + LightSampleOffsets[LightSampleIndex];
 
 							const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-							const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
 							const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
 
-							AddLineTWS(Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LightSceneData.Color.xyz / Luminance(LightSceneData.Color.xyz), 1.0f));
+							AddLineTWS(Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LocalLightData.LightColorAndIdAndFalloffExponent.xyz / Luminance(LocalLightData.LightColorAndIdAndFalloffExponent.xyz), 1.0f));
 						}
 					}
 
@@ -374,8 +372,7 @@ void GenerateLightSamplesCS(
 				if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 				{
 					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-					const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
-					const bool bCastShadows = UnpackCastShadow(LightSceneData.LightTypeAndShadowMapChannelMaskPacked);
+					const bool bCastShadows = UnpackCastShadow(asuint(LocalLightData.LightDirectionAndShadowMask.w));
 
 					LightSample.bVisible = true;
 					LightSample.bCompleted = bCastShadows ? false : true;

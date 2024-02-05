@@ -442,10 +442,10 @@ class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FInitCompositeUpsampleWeightsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitCompositeUpsampleWeightsCS", SF_Compute);
 
-class FCompositeLightSamplesCS : public FGlobalShader
+class FResolveLightSamplesCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FCompositeLightSamplesCS)
-	SHADER_USE_PARAMETER_STRUCT(FCompositeLightSamplesCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FResolveLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FResolveLightSamplesCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
@@ -480,7 +480,7 @@ class FCompositeLightSamplesCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FCompositeLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsComposite.usf", "CompositeLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FResolveLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsResolve.usf", "ResolveLightSamplesCS", SF_Compute);
 
 class FShadeLightSamplesCS : public FGlobalShader
 {
@@ -1016,7 +1016,7 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 
 	// Composite shadow masks traces
 	{
-		FCompositeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositeLightSamplesCS::FParameters>();
+		FResolveLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FResolveLightSamplesCS::FParameters>();
 		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->IndirectArgs = CompositeTileIndirectArgs;
 		PassParameters->RWShadingTileAllocator = GraphBuilder.CreateUAV(ShadingTileAllocator);
@@ -1027,9 +1027,9 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 		PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
 		PassParameters->LightSamples = LightSamples;
 
-		FCompositeLightSamplesCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FCompositeLightSamplesCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FCompositeLightSamplesCS>(PermutationVector);
+		FResolveLightSamplesCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FResolveLightSamplesCS::FDebugMode>(bDebug);
+		auto ComputeShader = View.ShaderMap->GetShader<FResolveLightSamplesCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
