@@ -80,6 +80,7 @@
 #include "DragAndDrop/BrushBuilderDragDropOp.h"
 #include "DynamicMeshBuilder.h"
 #include "Editor/ActorPositioning.h"
+#include "Editor/ObjectPositioning.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Settings/EditorProjectSettings.h"
@@ -1462,7 +1463,7 @@ static bool IsDroppingOn2DLayer()
 	return ViewportSettings->bEnableLayerSnap && Settings2D->SnapLayers.IsValidIndex(ViewportSettings->ActiveSnapLayerIndex);
 }
 
-static FActorPositionTraceResult TraceForPositionOn2DLayer(const FViewportCursorLocation& Cursor)
+static UE::Positioning::FObjectPositioningTraceResult TraceForPositionOn2DLayer(const FViewportCursorLocation& Cursor)
 {
 	const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
 	const ULevelEditor2DSettings* Settings2D = GetDefault<ULevelEditor2DSettings>();
@@ -1479,16 +1480,16 @@ static FActorPositionTraceResult TraceForPositionOn2DLayer(const FViewportCursor
 	case ELevelEditor2DAxis::Z: PlaneCenter.Z = Offset; PlaneNormal.Z = -1; break;
 	}
 
-	FActorPositionTraceResult Result;
+	UE::Positioning::FObjectPositioningTraceResult Result;
 	const double Numerator = FVector::DotProduct(PlaneCenter - Cursor.GetOrigin(), PlaneNormal);
 	const double Denominator = FVector::DotProduct(PlaneNormal, Cursor.GetDirection());
 	if (FMath::Abs(Denominator) < SMALL_NUMBER)
 	{
-		Result.State = FActorPositionTraceResult::Failed;
+		Result.State = UE::Positioning::FObjectPositioningTraceResult::Failed;
 	}
 	else
 	{
-		Result.State = FActorPositionTraceResult::HitSuccess;
+		Result.State = UE::Positioning::FObjectPositioningTraceResult::HitSuccess;
 		Result.SurfaceNormal = PlaneNormal;
 		double D = Numerator / Denominator;
 		Result.Location = Cursor.GetOrigin() + D * Cursor.GetDirection();
@@ -1561,16 +1562,11 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 	// Finish the calculation of the actors origin now that we know we are not dividing by zero
 	CombinedOrigin /= Count;
 
-	// TODO: Swap to ignored items instead of actors
-	TArray<AActor*> IgnoreActors;
-	DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
-	[&IgnoreActors](const TTypedElement<ITypedElementObjectInterface>& InElement)
+	FCollisionQueryParams CollisionQueryParams;
+	DropPreviewElements->ForEachElement<ITypedElementWorldInterface>(
+	[&CollisionQueryParams](const TTypedElement<ITypedElementWorldInterface>& InElement)
 	{
-		if (AActor* Actor = InElement.GetObjectAs<AActor>())
-		{
-			IgnoreActors.Add(Actor);
-			Actor->GetAllChildActors(IgnoreActors);
-		}
+		InElement.AddIgnoredElementToCollisionQueryParams(InElement, CollisionQueryParams);
 
 		// true means continue
 		return true;
@@ -1584,7 +1580,9 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 	FSceneView* View = CalcSceneView(&ViewFamily);
 	FViewportCursorLocation Cursor(View, this, MouseX, MouseY);
 
-	const FActorPositionTraceResult TraceResult = IsDroppingOn2DLayer() ? TraceForPositionOn2DLayer(Cursor) : FActorPositioning::TraceWorldForPositionWithDefault(Cursor, *View, &IgnoreActors);
+	const UE::Positioning::FObjectPositioningTraceResult TraceResult = IsDroppingOn2DLayer() 
+		? TraceForPositionOn2DLayer(Cursor) 
+		: UE::Positioning::TraceWorldForPositionWithDefault(Cursor, *View, &CollisionQueryParams);
 
 	GEditor->UnsnappedClickLocation = TraceResult.Location;
 	GEditor->ClickLocation = TraceResult.Location;
@@ -1593,7 +1591,7 @@ bool FLevelEditorViewportClient::UpdateDropPreviewElements(int32 MouseX, int32 M
 	// Snap the new location if snapping is enabled
 	FSnappingUtils::SnapPointToGrid(GEditor->ClickLocation, FVector::ZeroVector);
 
-	AActor* DroppedOnActor = TraceResult.HitActor.Get();
+	AActor* DroppedOnActor = Cast<AActor>(TraceResult.HitObject.Get());
 
 	if (DroppedOnActor)
 	{
@@ -1847,7 +1845,9 @@ bool FLevelEditorViewportClient::DropObjectsAtCoordinates(int32 MouseX, int32 Mo
 
 		HHitProxy* HitProxy = Viewport->GetHitProxy(Cursor.GetCursorPos().X, Cursor.GetCursorPos().Y);
 
-		const FActorPositionTraceResult TraceResult = IsDroppingOn2DLayer() ? TraceForPositionOn2DLayer(Cursor) : FActorPositioning::TraceWorldForPositionWithDefault(Cursor, *View);
+		const UE::Positioning::FObjectPositioningTraceResult TraceResult = IsDroppingOn2DLayer() 
+			? TraceForPositionOn2DLayer(Cursor) 
+			: UE::Positioning::TraceWorldForPositionWithDefault(Cursor, *View, nullptr);
 		
 		GEditor->UnsnappedClickLocation = TraceResult.Location;
 		GEditor->ClickLocation = TraceResult.Location;
@@ -3455,7 +3455,7 @@ bool FLevelEditorViewportClient::InputKey(const FInputKeyEventArgs& InEventArgs)
 		return true;
 	}
 
-	
+
 	const int32	HitX = InEventArgs.Viewport->GetMouseX();
 	const int32	HitY = InEventArgs.Viewport->GetMouseY();
 
