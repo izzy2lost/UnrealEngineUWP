@@ -783,8 +783,8 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 	{
 		FPCGDataCollection SingleInputCollection;
 		SingleInputCollection.TaggedData.Add(Output);
-		// TODO: review this, it might make more sense to do a full crc here
-		SingleInputCollection.Crc = SingleInputCollection.ComputeCrc(/*bFullDataCrc=*/false);
+		// TODO: review this, it might make more sense to do a full data crc here
+		SingleInputCollection.ComputeCrcs(/*bFullDataCrc=*/false);
 
 		GetDependenciesCrc(SingleInputCollection, Settings, Context->SourceComponent.Get(), InputDependenciesCrc);
 

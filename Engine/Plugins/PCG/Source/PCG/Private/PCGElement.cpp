@@ -170,8 +170,8 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 		// execution. Performing a detailed CRC of output data can detect real change in the data and halt the cascade of execution.
 		const bool bShouldComputeFullOutputDataCrc = ShouldComputeFullOutputDataCrc(Context);
 
-		// Compute Crc from output data
-		Context->OutputData.Crc = Context->OutputData.ComputeCrc(bShouldComputeFullOutputDataCrc);
+		// Compute Crc from output data which will include output pin labels.
+		Context->OutputData.ComputeCrcs(bShouldComputeFullOutputDataCrc);
 	}
 
 #if WITH_EDITOR
@@ -474,7 +474,15 @@ bool IPCGElement::IsCacheableInstance(const UPCGSettingsInterface* InSettingsInt
 void IPCGElement::GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("IPCGElement::GetDependenciesCrc (%s)"), InSettings ? *InSettings->GetFName().ToString() : TEXT("")));
-	FPCGCrc Crc = InInput.Crc;
+
+	// Start from a random prime.
+	FPCGCrc Crc(1000003);
+
+	// The cached data CRCs are computed in FPCGGraphExecutor::BuildTaskInput and incorporate data CRC, tags, output pin label and input pin label.
+	for (const FPCGCrc& DataCrc : InInput.DataCrcs)
+	{
+		Crc.Combine(DataCrc);
+	}
 
 	if (InSettings)
 	{

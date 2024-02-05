@@ -92,6 +92,7 @@ struct PCG_API FPCGTaggedData
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)
 	TSet<FString> Tags;
 
+	/** The label of the pin that this data was either emitted from or received on. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Data)
 	FName Pin = NAME_None;
 
@@ -101,6 +102,8 @@ struct PCG_API FPCGTaggedData
 
 	bool operator==(const FPCGTaggedData& Other) const;
 	bool operator!=(const FPCGTaggedData& Other) const;
+
+	FPCGCrc ComputeCrc(bool bFullDataCrc) const;
 };
 
 USTRUCT(BlueprintType)
@@ -110,11 +113,31 @@ struct PCG_API FPCGDataCollection
 
 	/** Returns all spatial data in the collection */
 	TArray<FPCGTaggedData> GetInputs() const;
-	/** Returns all data on a given pin */
+	/** Returns all data on a given pin. */
 	TArray<FPCGTaggedData> GetInputsByPin(const FName& InPinLabel) const;
 	/** Returns all spatial data on a given pin */
 	TArray<FPCGTaggedData> GetSpatialInputsByPin(const FName& InPinLabel) const;
-	
+
+	/** Returns all data and corresponding cached data CRCs for a given pin. */
+	template<typename AllocatorType1, typename AllocatorType2>
+	void GetInputsAndCrcsByPin(const FName& InPinLabel, TArray<FPCGTaggedData, AllocatorType1>& OutData, TArray<FPCGCrc, AllocatorType2>& OutDataCrcs) const
+	{
+		if (!ensure(TaggedData.Num() == DataCrcs.Num()))
+		{
+			// CRCs are not up to date. Error recovery - add 0 CRCs.
+			const_cast<TArray<FPCGCrc>&>(DataCrcs).SetNumZeroed(TaggedData.Num());
+		}
+
+		for (int I = 0; I < TaggedData.Num(); ++I)
+		{
+			if (ensure(TaggedData[I].Data) && TaggedData[I].Pin == InPinLabel)
+			{
+				OutData.Add(TaggedData[I]);
+				OutDataCrcs.Add(DataCrcs[I]);
+			}
+		}
+	}
+
 	/** Gets number of data items on a given pin */
 	int32 GetInputCountByPin(const FName& InPinLabel) const;
 	/** Gets number of spatial data items on a given pin */
@@ -163,8 +186,13 @@ struct PCG_API FPCGDataCollection
 	bool operator!=(const FPCGDataCollection& Other) const;
 	void AddReferences(FReferenceCollector& Collector);
 
-	/** Computes Crc for this data. */
-	FPCGCrc ComputeCrc(bool bFullDataCrc);
+	/** Computes CRCs for all data items. */
+	void ComputeCrcs(bool bFullDataCrc);
+
+	/** Add data and CRCs to collection. */
+	void AddData(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs);
+	/** Add data and CRCs to collection with pin label combined into the CRC. */
+	void AddDataForPin(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs, uint32 InputPinLabelCrc);
 
 	/** Cleans up the collection, but does not unroot any previously rooted data. */
 	void Reset();
@@ -182,8 +210,8 @@ struct PCG_API FPCGDataCollection
 	/** This flag is used to cancel further computation or for the debug/isolate feature */
 	bool bCancelExecution = false;
 
-	/** A snapshot of the internal state of the data. If any dependency (setting, node input or external data) changes then this value should change. */
-	FPCGCrc Crc;
+	/** Per-data CRC which will capture tags, data, output pin and in some cases input pin too. */
+	TArray<FPCGCrc> DataCrcs;
 
 	/** After the task is complete, bit j is set if output pin index j is deactivated. Stored here so that it can be retrieved from the cache. */
 	uint64 InactiveOutputPinBitmask = 0;

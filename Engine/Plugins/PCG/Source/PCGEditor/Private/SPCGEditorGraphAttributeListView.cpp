@@ -685,6 +685,7 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 
 	const FPCGTaggedData& TaggedData = InspectionData->TaggedData[DataIndex];
 	const UPCGData* PCGData = TaggedData.Data;
+	const FPCGCrc Crc = InspectionData->DataCrcs.IsValidIndex(DataIndex) ? InspectionData->DataCrcs[DataIndex] : FPCGCrc(0);
 
 	if (const UPCGParamData* PCGParamData = Cast<const UPCGParamData>(PCGData))
 	{
@@ -709,7 +710,7 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 			else
 			{
 				// If cache debugging enabled, write CRC to help diagnose missed-dependency issues
-				InfoTextBlock->SetText(FText::Format(LOCTEXT("MetadataInfoTextBlockWithCrcFmt", "Number of metadata: {0}  CRC: {1}"), ItemKeyUpperBound - ItemKeyLowerBound, InspectionData->Crc.GetValue()));
+				InfoTextBlock->SetText(FText::Format(LOCTEXT("MetadataInfoTextBlockWithCrcFmt", "Number of metadata: {0}  CRC: {1}"), ItemKeyUpperBound - ItemKeyLowerBound, Crc.GetValue()));
 			}
 		}
 	}
@@ -742,7 +743,7 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 			else
 			{
 				// If cache debugging enabled, write CRC to help diagnose missed-dependency issues
-				InfoTextBlock->SetText(FText::Format(LOCTEXT("PointInfoTextBlockWithCrcFmt", "Number of points: {0}, CRC: {1}"), NumPoints, InspectionData->Crc.GetValue()));
+				InfoTextBlock->SetText(FText::Format(LOCTEXT("PointInfoTextBlockWithCrcFmt", "Number of points: {0}, CRC: {1}"), NumPoints, Crc.GetValue()));
 			}
 		}
 	}

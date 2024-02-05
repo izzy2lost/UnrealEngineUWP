@@ -29,7 +29,6 @@ namespace PCGGraphExecutionLogging
 
 	void LogTaskExecute(const FPCGGraphTask& Task);
 	void LogTaskExecuteCachingDisabled(const FPCGGraphTask& Task);
-	void LogTaskExecuteOutputCRC(const FPCGGraphActiveTask& Task);
 
 	void LogTaskCullingBegin(FPCGTaskId CompletedTaskId, uint64 InactiveOutputPinBitmask, const TArray<FPCGPinId>& PinIdsToDeactivate);
 	void LogTaskCullingBeginLoop(FPCGTaskId PinTaskId, uint64 PinIndex, const TArray<FPCGPinId>& PinIdsToDeactivate);
