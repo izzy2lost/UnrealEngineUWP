@@ -168,14 +168,14 @@ void FIKRigEditorToolkit::FillToolbar(FToolBarBuilder& ToolbarBuilder)
 			NAME_None,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Edit"));
+			FSlateIcon(FIKRigEditorStyle::Get().GetStyleSetName(),"IKRig.AutoRetarget"));
 
 		ToolbarBuilder.AddToolBarButton(
 			FIKRigCommands::Get().AutoSetupFBIK,
 			NAME_None,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
-			FSlateIcon(FAppStyle::Get().GetStyleSetName(),"Icons.Edit"));
+			FSlateIcon(FIKRigEditorStyle::Get().GetStyleSetName(),"IKRig.AutoIK"));
 	}
 	ToolbarBuilder.EndSection();
 
