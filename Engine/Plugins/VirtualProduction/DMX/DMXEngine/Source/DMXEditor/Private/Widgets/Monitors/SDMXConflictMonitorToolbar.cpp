@@ -50,7 +50,7 @@ namespace UE::DMX
 					+ SHorizontalBox::Slot()
 					.VAlign(VAlign_Center)
 					.AutoWidth()
-					.Padding(2.f, 0.f)
+					.Padding(2.f, 0.f, 6.f, 0.f)
 					[
 						SNew(SCircularThrobber)
 						.Radius(8.5f)
