@@ -1927,10 +1927,6 @@ namespace GeometryCollectionTest
 			Collection2->PhysObject->GetParticle_Internal(1),
 			Collection2->PhysObject->GetParticle_Internal(2),
 		};
-		/*TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection1Handles = Collection1->PhysObject->GetSolverParticleHandles();
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& Collection2Handles = Collection2->PhysObject->GetSolverParticleHandles();*/
-
-		
 
 		const auto& SovlerParticleHandles = UnitTest.Solver->GetParticles().GetParticleHandles();
 		
