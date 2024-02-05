@@ -1196,7 +1196,8 @@ TArray<FString> UFbxFactory::GetFbxFormats(const UFactory* Factory)
 {
 	TArray<FString> FormatArray;
 	const IConsoleVariable* CVarFbx = IConsoleManager::Get().FindConsoleVariable(TEXT("Interchange.FeatureFlags.Import.FBX"));
-	const bool bUseLegacyFbx = (!CVarFbx || !CVarFbx->GetBool());
+	const IConsoleVariable* CVarFbxLevel = IConsoleManager::Get().FindConsoleVariable(TEXT("Interchange.FeatureFlags.Import.FBX.ToLevel"));
+	const bool bUseLegacyFbx = (!CVarFbx || !CVarFbx->GetBool()) || (!CVarFbxLevel || !CVarFbxLevel->GetBool());
 	const IConsoleVariable* CVarObj = IConsoleManager::Get().FindConsoleVariable(TEXT("Interchange.FeatureFlags.Import.OBJ"));
 	const bool bUseLegacyObj = (!CVarObj || !CVarObj->GetBool());
 

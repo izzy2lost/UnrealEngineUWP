@@ -524,9 +524,12 @@ public:
 	 * Look if there is a registered translator for this source data.
 	 * This allow us to by pass the original asset tools system to import supported asset.
 	 * @Param SourceData - The source data input we want to translate to Uod
-	 * @return True if there is a registered translator that can handle handle this source data, false otherwise.
+	 * @Param bSceneImportOnly - Enforces a check on the type of translator
+	 * @return True if there is a registered translator that can handle handle this source data, false otherwise, when bSceneImportOnly is false.
+	 * Otherwise, returns true only if the translator supports level import
+	 * @Note: Temporary until FBX level import is production ready
 	 */
-	INTERCHANGEENGINE_API bool CanTranslateSourceData(const UInterchangeSourceData* SourceData) const;
+	INTERCHANGEENGINE_API bool CanTranslateSourceData(const UInterchangeSourceData* SourceData, bool bSceneImportOnly = false) const;
 
 	/**
 	 * Returns true if Interchange can create that type of assets and is able to translate its source file.

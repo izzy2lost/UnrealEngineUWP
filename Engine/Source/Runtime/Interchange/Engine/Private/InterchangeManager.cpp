@@ -1220,7 +1220,7 @@ TArray<FString> UInterchangeManager::GetSupportedFormatsForObject(const UObject*
 	return FileExtensions;
 }
 
-bool UInterchangeManager::CanTranslateSourceData(const UInterchangeSourceData* SourceData) const
+bool UInterchangeManager::CanTranslateSourceData(const UInterchangeSourceData* SourceData, bool bSceneImportOnly) const
 {
 	if (!IsInterchangeImportEnabled())
 	{
@@ -1238,7 +1238,7 @@ bool UInterchangeManager::CanTranslateSourceData(const UInterchangeSourceData* S
 	if (UInterchangeTranslatorBase* Translator = GetTranslatorForSourceData(SourceData))
 	{
 		Translator->ReleaseSource();
-		return true;
+		return bSceneImportOnly ? Translator->GetTranslatorType() == EInterchangeTranslatorType::Scenes : true;
 	}
 
 	return false;

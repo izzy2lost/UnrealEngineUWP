@@ -3557,7 +3557,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 			{
 				UE::Interchange::FScopedSourceData ScopedSourceData(Filename);
 
-				if (!InterchangeManager.CanTranslateSourceData(ScopedSourceData.GetSourceData()))
+				if (!InterchangeManager.CanTranslateSourceData(ScopedSourceData.GetSourceData(), Params.bSceneImport))
 				{
 					bOnlyInterchangeImport = false;
 					break;
@@ -3640,7 +3640,7 @@ TArray<UObject*> UAssetToolsImpl::ImportAssetsInternal(const TArray<FString>& Fi
 		{
 			UE::Interchange::FScopedSourceData ScopedSourceData(Filename);
 
-			if (InterchangeManager.CanTranslateSourceData(ScopedSourceData.GetSourceData()))
+			if (InterchangeManager.CanTranslateSourceData(ScopedSourceData.GetSourceData(), Params.bSceneImport))
 			{
 				FImportAssetParameters ImportAssetParameters;
 				ImportAssetParameters.bIsAutomated = bAutomatedImport;
