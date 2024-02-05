@@ -23,7 +23,7 @@ namespace UE::DMXPixelMapping::Rendering { class FPixelMapRenderElement; }
 
 
 UENUM(BlueprintType)
-enum class EDMXPixelMappingRendererDynamicRange : uint8
+enum class EDMXPixelMappingRendererPixelFormat : uint8
 {
 	Auto UMETA(ToolTip = "Use the format of the Input Texture, use 8-bit for Input Materials and UMG."),
 	RGBA8 UMETA(DisplayName = "Low Precision 8-bit (RGBA8)"),
@@ -109,7 +109,7 @@ public:
 
 	/** The dynamic range of the renderer */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Render Settings")
-	EDMXPixelMappingRendererDynamicRange DynamicRange = EDMXPixelMappingRendererDynamicRange::Auto;
+	EDMXPixelMappingRendererPixelFormat PixelFormat = EDMXPixelMappingRendererPixelFormat::Auto;
 
 	/** The exposure of the pixel mapping renderer. This property affects the DMX output. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Render Settings", Meta = (ClampMin = "0", UIMin = "0", UIMax = "1", DisplayName = "Exposure"))
