@@ -442,9 +442,9 @@ struct FWorldPartitionImplBase
 	}
 
 	static ENGINE_API bool IsLoaded(FWorldPartitionActorDescInstance* InActorDescInstance);
-	static ENGINE_API UActorDescContainerInstance* GetActorDescContainerInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescIntance);
-	static ENGINE_API UActorDescContainerInstance* GetActorDescContainerInstance(FWorldPartitionActorDescInstance* InActorDescIntance);
-	static ENGINE_API FGuid GetActorDescInstanceGuid(const FWorldPartitionActorDescInstance* InActorDescIntance);
+	static ENGINE_API UActorDescContainerInstance* GetActorDescContainerInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescInstance);
+	static ENGINE_API UActorDescContainerInstance* GetActorDescContainerInstance(FWorldPartitionActorDescInstance* InActorDescInstance);
+	static ENGINE_API FGuid GetActorDescInstanceGuid(const FWorldPartitionActorDescInstance* InActorDescInstance);
 	static ENGINE_API TUniquePtr<FWorldPartitionActorDescInstance>* GetActorDescInstance(UActorDescContainerInstance* InContainerInstance, const FGuid& InActorGuid);
 	static ENGINE_API FWorldPartitionActorDesc* GetActorDesc(FWorldPartitionActorDescInstance* InActorDescInstance);
 

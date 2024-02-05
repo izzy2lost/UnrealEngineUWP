@@ -14,19 +14,19 @@
 /**
 * FWorldPartitionImplBase
 */
-UActorDescContainerInstance* FWorldPartitionImplBase::GetActorDescContainerInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescIntance)
+UActorDescContainerInstance* FWorldPartitionImplBase::GetActorDescContainerInstance(TUniquePtr<FWorldPartitionActorDescInstance>* InActorDescInstance)
 {
-	return InActorDescIntance ? InActorDescIntance->Get()->GetContainerInstance() : nullptr;
+	return InActorDescInstance ? InActorDescInstance->Get()->GetContainerInstance() : nullptr;
 }
 
-UActorDescContainerInstance* FWorldPartitionImplBase::GetActorDescContainerInstance(FWorldPartitionActorDescInstance* InActorDescIntance)
+UActorDescContainerInstance* FWorldPartitionImplBase::GetActorDescContainerInstance(FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-	return InActorDescIntance ? InActorDescIntance->GetContainerInstance() : nullptr;
+	return InActorDescInstance ? InActorDescInstance->GetContainerInstance() : nullptr;
 }
 
-FGuid FWorldPartitionImplBase::GetActorDescInstanceGuid(const FWorldPartitionActorDescInstance* InActorDescIntance)
+FGuid FWorldPartitionImplBase::GetActorDescInstanceGuid(const FWorldPartitionActorDescInstance* InActorDescInstance)
 {
-	return InActorDescIntance ? InActorDescIntance->GetGuid() : FGuid();
+	return InActorDescInstance ? InActorDescInstance->GetGuid() : FGuid();
 }
 
 TUniquePtr<FWorldPartitionActorDescInstance>* FWorldPartitionImplBase::GetActorDescInstance(UActorDescContainerInstance* InContainerInstance, const FGuid& InActorGuid)

@@ -288,7 +288,7 @@ void APCGWorldActor::OnPartitionGridSizeChanged()
 	// For now, just throw an error
 	if (!bAllSafeToDelete)
 	{
-		UE_LOG(LogPCG, Error, TEXT("Trying to change the partition grid size while there are partitionned PCGComponents that are refreshing. We cannot stop the refresh for now, so we abort there. You should delete your partition actors manually and regenerate when the refresh is done"));
+		UE_LOG(LogPCG, Error, TEXT("Trying to change the partition grid size while there are partitioned PCGComponents that are refreshing. We cannot stop the refresh for now, so we abort there. You should delete your partition actors manually and regenerate when the refresh is done"));
 		return;
 	}
 

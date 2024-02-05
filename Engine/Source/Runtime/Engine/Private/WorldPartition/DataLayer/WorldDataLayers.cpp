@@ -1264,7 +1264,7 @@ void AWorldDataLayers::PostLoad()
 
 		// Patch WorldDataLayer in UWorld.
 		// Only the "main" world data Layer is named AWorldDataLayers::StaticClass()->GetFName() for a given world.
-		if ((GetTypedOuter<UWorld>()->GetWorldDataLayers() == nullptr) && (GetFName() == GetWorldPartionWorldDataLayersName()))
+		if ((GetTypedOuter<UWorld>()->GetWorldDataLayers() == nullptr) && (GetFName() == GetWorldPartitionWorldDataLayersName()))
 		{
 			GetTypedOuter<UWorld>()->SetWorldDataLayers(this);
 		}

@@ -1388,8 +1388,8 @@ bool UWorldPartitionRuntimeSpatialHash::GenerateStreaming(UWorldPartitionStreami
 	for (int32 GridIndex = 0; GridIndex < AllGrids.Num(); GridIndex++)
 	{
 		const FSpatialHashRuntimeGrid& Grid = AllGrids[GridIndex];
-		const FSquare2DGridHelper PartionedActors = GetPartitionedActors(WorldBounds, Grid, GridActorSetInstances[GridIndex], Settings);
-		if (!CreateStreamingGrid(Grid, PartionedActors, StreamingPolicy, OutPackagesToGenerate))
+		const FSquare2DGridHelper PartitionedActors = GetPartitionedActors(WorldBounds, Grid, GridActorSetInstances[GridIndex], Settings);
+		if (!CreateStreamingGrid(Grid, PartitionedActors, StreamingPolicy, OutPackagesToGenerate))
 		{
 			return false;
 		}
@@ -1502,7 +1502,7 @@ void UWorldPartitionRuntimeSpatialHash::SetPreviewGridLevel(int32 InPreviewGridL
 	PreviewGridLevel = FMath::Max(0, InPreviewGridLevel);
 }
 
-bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRuntimeGrid& RuntimeGrid, const FSquare2DGridHelper& PartionedActors, UWorldPartitionStreamingPolicy* StreamingPolicy, TArray<FString>* OutPackagesToGenerate)
+bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRuntimeGrid& RuntimeGrid, const FSquare2DGridHelper& PartitionedActors, UWorldPartitionStreamingPolicy* StreamingPolicy, TArray<FString>* OutPackagesToGenerate)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(CreateStreamingGrid);
 
@@ -1520,8 +1520,8 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 	FSpatialHashStreamingGrid& CurrentStreamingGrid = StreamingGrids.AddDefaulted_GetRef();
 	CurrentStreamingGrid.Settings = Settings;
 	CurrentStreamingGrid.GridName = RuntimeGrid.GridName;
-	CurrentStreamingGrid.CellSize = PartionedActors.CellSize;
-	CurrentStreamingGrid.WorldBounds = PartionedActors.WorldBounds;
+	CurrentStreamingGrid.CellSize = PartitionedActors.CellSize;
+	CurrentStreamingGrid.WorldBounds = PartitionedActors.WorldBounds;
 	CurrentStreamingGrid.LoadingRange = RuntimeGrid.LoadingRange;
 	CurrentStreamingGrid.bBlockOnSlowStreaming = RuntimeGrid.bBlockOnSlowStreaming;
 	CurrentStreamingGrid.Origin = FVector(RuntimeGrid.Origin, 0);
@@ -1531,10 +1531,10 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 	CurrentStreamingGrid.GridIndex = (StreamingGrids.Num() - 1);
 
 	// Move actors into the final streaming grids
-	CurrentStreamingGrid.GridLevels.Reserve(PartionedActors.Levels.Num());
+	CurrentStreamingGrid.GridLevels.Reserve(PartitionedActors.Levels.Num());
 
 	int32 Level = INDEX_NONE;
-	for (const FSquare2DGridHelper::FGridLevel& TempLevel : PartionedActors.Levels)
+	for (const FSquare2DGridHelper::FGridLevel& TempLevel : PartitionedActors.Levels)
 	{
 		Level++;
 
@@ -1551,14 +1551,14 @@ bool UWorldPartitionRuntimeSpatialHash::CreateStreamingGrid(const FSpatialHashRu
 			for (const FSquare2DGridHelper::FGridLevel::FGridCellDataChunk& GridCellDataChunk : TempCell.GetDataChunks())
 			{
 				// Cell cannot be treated as always loaded if it has data layers
-				const bool bIsCellAlwaysLoaded = (&TempCell == &PartionedActors.GetAlwaysLoadedCell()) && !GridCellDataChunk.HasDataLayers() && !GridCellDataChunk.GetContentBundleID().IsValid();
+				const bool bIsCellAlwaysLoaded = (&TempCell == &PartitionedActors.GetAlwaysLoadedCell()) && !GridCellDataChunk.HasDataLayers() && !GridCellDataChunk.GetContentBundleID().IsValid();
 				
 				TArray<IStreamingGenerationContext::FActorInstance> FilteredActors;
 				if (PopulateCellActorInstances(GridCellDataChunk.GetActorSetInstances(), bIsMainWorldPartition, bIsCellAlwaysLoaded, FilteredActors))
 				{
 					FGridCellCoord CellGlobalCoords;
 					FString WorldInstanceSuffix;
-					verify(PartionedActors.GetCellGlobalCoords(FGridCellCoord(CellCoordX, CellCoordY, Level), CellGlobalCoords));
+					verify(PartitionedActors.GetCellGlobalCoords(FGridCellCoord(CellCoordX, CellCoordY, Level), CellGlobalCoords));
 					const FString CellName = GetCellNameString(OuterWorld, CurrentStreamingGrid.GridName, CellGlobalCoords, GridCellDataChunk.GetDataLayersID(), GridCellDataChunk.GetContentBundleID(), &WorldInstanceSuffix);
 					const FGuid CellGuid = GetCellGuid(CurrentStreamingGrid.GridName, CurrentStreamingGrid.CellSize, CellGlobalCoords, GridCellDataChunk.GetDataLayersID(), GridCellDataChunk.GetContentBundleID());
 
