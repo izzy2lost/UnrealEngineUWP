@@ -6,6 +6,7 @@
 
 FHttpResponseCommon::FHttpResponseCommon(const FHttpRequestCommon& HttpRequest)
 	: URL(HttpRequest.GetURL())
+	, EffectiveURL(HttpRequest.GetEffectiveURL())
 	, CompletionStatus(HttpRequest.GetStatus())
 	, FailureReason(HttpRequest.GetFailureReason())
 {
@@ -24,6 +25,11 @@ FString FHttpResponseCommon::GetURLParameter(const FString& ParameterName) const
 FString FHttpResponseCommon::GetURL() const
 {
 	return URL;
+}
+
+const FString& FHttpResponseCommon::GetEffectiveURL() const
+{
+	return EffectiveURL;
 }
 
 void FHttpResponseCommon::SetRequestStatus(EHttpRequestStatus::Type InCompletionStatus)
@@ -46,3 +52,7 @@ EHttpFailureReason FHttpResponseCommon::GetFailureReason() const
 	return FailureReason;
 }
 
+void FHttpResponseCommon::SetEffectiveURL(const FString& InEffectiveURL)
+{
+	EffectiveURL = InEffectiveURL;
+}

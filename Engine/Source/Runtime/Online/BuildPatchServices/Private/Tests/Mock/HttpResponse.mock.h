@@ -82,6 +82,13 @@ namespace BuildPatchServices
 			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetFailureReason");
 			return EHttpFailureReason::Other;
 		}
+
+		virtual const FString& GetEffectiveURL() const override
+		{
+			MOCK_FUNC_NOT_IMPLEMENTED("FMockHttpRequest::GetEffectiveURL");
+			static FString None;
+			return None;
+		}
 	};
 }
 

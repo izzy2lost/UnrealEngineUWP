@@ -158,6 +158,11 @@ EHttpFailureReason FNullHttpRequest::GetFailureReason() const
 	return FailureReason;
 }
 
+const FString& FNullHttpRequest::GetEffectiveURL() const
+{
+	return EffectiveUrl;
+}
+
 const FHttpResponsePtr FNullHttpRequest::GetResponse() const
 {
 	return FHttpResponsePtr(nullptr);

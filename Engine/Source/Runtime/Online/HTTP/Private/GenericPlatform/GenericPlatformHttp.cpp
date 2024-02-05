@@ -119,6 +119,7 @@ public:
 	virtual void CancelRequest() override {}
 	virtual EHttpRequestStatus::Type GetStatus() const override { return EHttpRequestStatus::NotStarted; }
 	virtual EHttpFailureReason GetFailureReason() const override { return EHttpFailureReason::None; }
+	virtual const FString& GetEffectiveURL() const override { return EffectiveURL; }
 	virtual const FHttpResponsePtr GetResponse() const override { return nullptr; }
 	virtual void Tick(float DeltaSeconds) override {}
 	virtual float GetElapsedTime() const override { return 0.0f; }
@@ -128,6 +129,9 @@ public:
 	virtual void ClearTimeout() override {}
 	virtual TOptional<float> GetTimeout() const override { return TOptional<float>(); }
 	virtual void ProcessRequestUntilComplete() override {}
+
+private:
+	FString EffectiveURL;
 };
 
 FDefaultUserAgentBuilder::FDefaultUserAgentBuilder()
@@ -479,7 +483,6 @@ FString FGenericPlatformHttp::GetUrlDomainAndPort(const FStringView Url)
 	return FString(DomainAndPort);
 }
 
-
 FString FGenericPlatformHttp::GetUrlDomain(const FStringView Url)
 {
 	FStringView Protocol;
@@ -501,6 +504,22 @@ FString FGenericPlatformHttp::GetUrlDomain(const FStringView Url)
 	}
 
 	return FString(Domain);
+}
+
+FString FGenericPlatformHttp::GetUrlBase(const FStringView Url)
+{
+	FStringView UrlBase = Url;
+	for (int32 Index = Url.Find(TEXT("://")) + 3; Index < Url.Len(); ++Index)
+	{
+		const TCHAR Character = Url[Index];
+		if (Character == TEXT('/') || Character == TEXT('?') || Character == TEXT('#'))
+		{
+			UrlBase.LeftInline(Index);
+			break;
+		}
+	}
+
+	return FString(UrlBase);
 }
 
 FString FGenericPlatformHttp::GetMimeType(const FString& FilePath)

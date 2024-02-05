@@ -77,7 +77,9 @@ PACKAGE_SCOPE:
 
 	const TSharedPtr<FArchive> GetResponseBodyReceiveStream() const;
 
-	void HandleStatusCodeReceived(int32 StatusCode);
+PACKAGE_SCOPE:
+	using FHttpRequestCommon::TriggerStatusCodeReceivedDelegate;
+	using FHttpRequestCommon::SetEffectiveURL;
 
 private:
 	/**
