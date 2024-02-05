@@ -56,7 +56,7 @@ BEGIN_DEFINE_SPEC(FAvaOutlinerSpec, "Avalanche.Outliner"
 	TSharedPtr<FAvaOutlinerView> OutlinerView;
 
 	// Custom test provider to fill some of the info/actions requested by the outliner (e.g. USelection Instances, or Actor Duplication)
-	TSharedPtr<UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest> OutlinerProvider;
+	TSharedPtr<UE::AvaOutliner::Private::FAvaOutlinerProviderTest> OutlinerProvider;
 
 	// A list of outliner items to test things with
 	TArray<FAvaOutlinerItemPtr> TestItems;
@@ -67,7 +67,7 @@ void FAvaOutlinerSpec::Define()
 {
 	BeforeEach([this]()
 	{
-		OutlinerProvider = MakeShared<UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest>();
+		OutlinerProvider = MakeShared<UE::AvaOutliner::Private::FAvaOutlinerProviderTest>();
 
 		constexpr int32 OutlinerViewId = 0;
 
@@ -75,7 +75,7 @@ void FAvaOutlinerSpec::Define()
 		Outliner->RegisterOutlinerView(OutlinerViewId);
 		Outliner->Refresh();
 
-		OutlinerView = Outliner->GetOutlinerView(0);
+		OutlinerView = Outliner->GetMostRecentOutlinerView();
 
 		const TArray<UObject*> TestObjects
 		{

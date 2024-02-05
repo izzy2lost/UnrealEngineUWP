@@ -14,7 +14,7 @@ class FAvaPropertyAnimatorEditorOutliner : public FAvaOutlinerObject
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaPropertyAnimatorEditorOutliner, FAvaOutlinerObject);
 
-	FAvaPropertyAnimatorEditorOutliner(FAvaOutliner& InOutliner, UPropertyAnimatorCoreBase* InObject);
+	FAvaPropertyAnimatorEditorOutliner(IAvaOutliner& InOutliner, UPropertyAnimatorCoreBase* InObject);
 
 	UPropertyAnimatorCoreBase* GetPropertyAnimator() const
 	{

@@ -4,14 +4,14 @@
 
 #if WITH_EDITOR
 
-#include "AvaOutliner.h"
 #include "AvaOutlinerSubsystem.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Item/AvaOutlinerTreeRoot.h"
-#include "GameFramework/Actor.h"
 
-TSharedPtr<FAvaOutliner> FAvaOutlinerUtils::EditorGetOutliner(const UWorld* const InWorld)
+TSharedPtr<IAvaOutliner> FAvaOutlinerUtils::EditorGetOutliner(const UWorld* const InWorld)
 {
 	check(IsValid(InWorld));
 
@@ -56,7 +56,7 @@ bool FAvaOutlinerUtils::EditorOutlinerItemsToActors(const TArray<FAvaOutlinerIte
 	return true;
 }
 
-TArray<AActor*> FAvaOutlinerUtils::EditorOutlinerChildActors(TSharedPtr<FAvaOutliner> InOutliner, AActor* const InParentActor)
+TArray<AActor*> FAvaOutlinerUtils::EditorOutlinerChildActors(TSharedPtr<IAvaOutliner> InOutliner, AActor* const InParentActor)
 {
 	if (!InOutliner.IsValid())
 	{
@@ -87,7 +87,7 @@ TArray<AActor*> FAvaOutlinerUtils::EditorOutlinerChildActors(TSharedPtr<FAvaOutl
 	return {};
 }
 
-bool FAvaOutlinerUtils::EditorActorIsolationInfo(TSharedPtr<FAvaOutliner> InOutliner, TArray<TWeakObjectPtr<const AActor>>& OutIsolatedActors)
+bool FAvaOutlinerUtils::EditorActorIsolationInfo(TSharedPtr<IAvaOutliner> InOutliner, TArray<TWeakObjectPtr<const AActor>>& OutIsolatedActors)
 {
 	// todo
 	OutIsolatedActors.Empty();

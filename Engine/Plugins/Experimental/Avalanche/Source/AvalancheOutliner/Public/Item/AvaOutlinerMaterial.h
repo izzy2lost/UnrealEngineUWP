@@ -16,7 +16,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerMaterial : public FAvaOutlinerObjectRefe
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerMaterial, FAvaOutlinerObjectReference)
 
-	FAvaOutlinerMaterial(FAvaOutliner& InOutliner
+	FAvaOutlinerMaterial(IAvaOutliner& InOutliner
 		, UMaterialInterface* InMaterial
 		, const FAvaOutlinerItemPtr& InReferencingItem
 		, int32 InMaterialIndex);

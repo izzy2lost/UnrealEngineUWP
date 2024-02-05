@@ -15,7 +15,7 @@ class AVALANCHEMODIFIERSEDITOR_API FAvaOutlinerModifierProxy : public FAvaOutlin
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerModifierProxy, FAvaOutlinerItemProxy);
 
-	FAvaOutlinerModifierProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerModifierProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	/** Gets the Modifier Stack to use (e.g. for an Actor it would be the Root Modifier Stack) */
 	UActorModifierCoreStack* GetModifierStack() const;

@@ -7,7 +7,7 @@
 #include "Selection/AvaOutlinerScopedSelection.h"
 #include "Styling/SlateIconFinder.h"
 
-FAvaPropertyAnimatorEditorOutliner::FAvaPropertyAnimatorEditorOutliner(FAvaOutliner& InOutliner, UPropertyAnimatorCoreBase* InAnimator)
+FAvaPropertyAnimatorEditorOutliner::FAvaPropertyAnimatorEditorOutliner(IAvaOutliner& InOutliner, UPropertyAnimatorCoreBase* InAnimator)
 	: FAvaOutlinerObject(InOutliner, InAnimator)
 	, PropertyAnimator(InAnimator)
 {

@@ -23,6 +23,7 @@
 #include "IAvaOutlinerProvider.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Item/AvaOutlinerComponent.h"
+#include "Item/AvaOutlinerItemUtils.h"
 #include "Item/AvaOutlinerMaterial.h"
 #include "Item/AvaOutlinerTreeRoot.h"
 #include "ItemActions/AvaOutlinerAddItem.h"
@@ -143,32 +144,9 @@ bool FAvaOutliner::CanProcessActorSpawn(AActor* InActor) const
 		&& OutlinerProvider.CanOutlinerProcessActorSpawn(InActor);
 }
 
-void FAvaOutliner::SetBaseCommandList(const TSharedPtr<FUICommandList>& InBaseCommandList)
-{
-	BaseCommandListWeak = InBaseCommandList;
-}
-
 TSharedPtr<FUICommandList> FAvaOutliner::GetBaseCommandList() const
 {
 	return BaseCommandListWeak.Pin();
-}
-
-void FAvaOutliner::Serialize(FArchive& Ar)
-{
-	Ar.UsingCustomVersion(FAvaOutlinerVersion::GUID);
-	
-	FCustomVersionContainer CustomVersionContainer = Ar.GetCustomVersions();
-	CustomVersionContainer.Serialize(Ar);
-	Ar.SetCustomVersions(CustomVersionContainer);
-	
-	SaveState->Serialize(*this, Ar);
-	
-	if (Ar.IsLoading())
-	{
-		Refresh();
-		bOutlinerDirty = false;
-		OnOutlinerLoaded.Broadcast();
-	}
 }
 
 TArray<FName> FAvaOutliner::GetRegisteredItemProxyTypeNames() const
@@ -204,8 +182,7 @@ void FAvaOutliner::GetItemProxiesForItem(const FAvaOutlinerItemPtr& InItem, TArr
 	InItem->GetItemProxies(OutItemProxies);
 	
 	IAvaOutlinerModule::Get().GetOnExtendItemProxiesForItem().Broadcast(*this, InItem, OutItemProxies);	
-	OutlinerProvider.GetItemProxiesForItem(*this, InItem, OutItemProxies);
-	
+
 	// Clean up any invalid Item Proxy
 	OutItemProxies.RemoveAll([](const TSharedPtr<FAvaOutlinerItemProxy>& InItemProxy) { return !InItemProxy.IsValid(); });
 	
@@ -214,6 +191,22 @@ void FAvaOutliner::GetItemProxiesForItem(const FAvaOutlinerItemPtr& InItem, TArr
 	{
 		return InItemProxyA->GetPriority() > InItemProxyB->GetPriority();
 	});
+}
+
+IAvaOutlinerItemProxyFactory* FAvaOutliner::GetItemProxyFactory(FName InItemProxyTypeName) const
+{
+	// First look for the Registry in Outliner
+	if (IAvaOutlinerItemProxyFactory* Factory = ItemProxyRegistry.GetItemProxyFactory(InItemProxyTypeName))
+	{
+		return Factory;
+	}
+	// Fallback to finding the Factory in the Module if the Outliner did not find it
+	return IAvaOutlinerModule::Get().GetItemProxyRegistry().GetItemProxyFactory(InItemProxyTypeName);
+}
+
+const TSharedRef<FAvaOutlinerSaveState>& FAvaOutliner::GetSaveState() const
+{
+	return SaveState;
 }
 
 bool FAvaOutliner::IsOutlinerLocked() const
@@ -226,113 +219,30 @@ void FAvaOutliner::HandleUndoRedoTransaction(const FTransaction* Transaction, bo
 	RequestRefresh();
 }
 
-void FAvaOutliner::PostUndo(bool bSuccess)
+void FAvaOutliner::SetBaseCommandList(const TSharedPtr<FUICommandList>& InBaseCommandList)
 {
-	if (bSuccess)
-	{
-		const int32 QueueIndex = GEditor->Trans->GetQueueLength() - GEditor->Trans->GetUndoCount();
-		const FTransaction* Transaction = GEditor->Trans->GetTransaction(QueueIndex);
-		HandleUndoRedoTransaction(Transaction, true);
-	}
+	BaseCommandListWeak = InBaseCommandList;
 }
 
-void FAvaOutliner::PostRedo(bool bSuccess)
+void FAvaOutliner::Serialize(FArchive& Ar)
 {
-	if (bSuccess)
-	{
-		const int32 QueueIndex = GEditor->Trans->GetQueueLength() - GEditor->Trans->GetUndoCount();
-		const FTransaction* Transaction = GEditor->Trans->GetTransaction(QueueIndex);
-		HandleUndoRedoTransaction(Transaction, false);
-	}
-}
-
-TStatId FAvaOutliner::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(FAvaOutliner, STATGROUP_Tickables);
-}
-
-void FAvaOutliner::Tick(float InDeltaTime)
-{
-	if (NeedsRefresh())
+	Ar.UsingCustomVersion(FAvaOutlinerVersion::GUID);
+	
+	FCustomVersionContainer CustomVersionContainer = Ar.GetCustomVersions();
+	CustomVersionContainer.Serialize(Ar);
+	Ar.SetCustomVersions(CustomVersionContainer);
+	
+	SaveState->Serialize(*this, Ar);
+	
+	if (Ar.IsLoading())
 	{
 		Refresh();
-	}
-
-	if (bOutlinerDirty)
-	{
-		OutlinerProvider.OnOutlinerModified();
 		bOutlinerDirty = false;
+		OnOutlinerLoaded.Broadcast();
 	}
-
-	// Select Objects Pending Selection
-	if (ObjectsLastSelected.IsValid())
-	{
-		TArray<FAvaOutlinerItemPtr> ItemsToSelect;
-
-		if (ObjectsLastSelected->Num() > 0)
-		{
-			ItemsToSelect.Reserve(ObjectsLastSelected->Num());
-			for (TWeakObjectPtr<UObject> Object : *ObjectsLastSelected)
-			{
-				if (Object.IsValid())
-				{
-					if (FAvaOutlinerItemPtr Item = FindItem(FAvaOutlinerItemId(Object.Get())))
-					{
-						// If it's a Shared Object, select all its References as Shared Objects are not in the Outliner directly
-						// and the outliner does not know which Object Reference should be selected
-						if (const FAvaOutlinerSharedObject* const SharedObjectItem = Item->CastTo<FAvaOutlinerSharedObject>())
-						{
-							ItemsToSelect.Append(SharedObjectItem->GetObjectReferences());
-						}
-						else
-						{
-							ItemsToSelect.Add(Item);
-						}
-					}
-				}
-			}
-		}
-
-		// Only Scroll Into View, don't signal selection since we just come from the selection notify itself
-		SelectItems(ItemsToSelect, EAvaOutlinerItemSelectionFlags::ScrollIntoView);
-		ObjectsLastSelected.Reset();
-	}
-
-	ForEachOutlinerView([InDeltaTime](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
-	{
-		InOutlinerView->Tick(InDeltaTime);
-	});
 }
 
-void FAvaOutliner::DuplicateItems(TArray<FAvaOutlinerItemPtr> InItems
-	, FAvaOutlinerItemPtr InRelativeItem
-	, TOptional<EItemDropZone> InRelativeDropZone)
-{
-	SortItems(InItems);
-
-	TArray<AActor*> TemplateActors;
-	for (const FAvaOutlinerItemPtr& Item : InItems)
-	{
-		if (!Item.IsValid())
-		{
-			continue;
-		}
-		
-		if (const FAvaOutlinerActor* const ActorItem = Item->CastTo<FAvaOutlinerActor>())
-		{
-			TemplateActors.Add(ActorItem->GetActor());
-		}
-	}
-
-	if (TemplateActors.IsEmpty())
-	{
-		return;
-	}
-
-	OutlinerProvider.OutlinerDuplicateActors(TemplateActors);
-}
-
-TSharedPtr<FAvaOutlinerView> FAvaOutliner::RegisterOutlinerView(int32 InOutlinerViewId)
+TSharedPtr<IAvaOutlinerView> FAvaOutliner::RegisterOutlinerView(int32 InOutlinerViewId)
 {
 	const bool bShouldCreateWidget = OutlinerProvider.ShouldCreateWidget();
 	
@@ -348,54 +258,13 @@ TSharedPtr<FAvaOutlinerView> FAvaOutliner::RegisterOutlinerView(int32 InOutliner
 	return OutlinerView;
 }
 
-void FAvaOutliner::UnregisterOutlinerView(int32 InOutlinerViewId)
-{
-	OutlinerViews.Remove(InOutlinerViewId);
-}
-
-void FAvaOutliner::UpdateRecentOutlinerViews(int32 InOutlinerViewId)
-{
-	RecentOutlinerViews.Remove(InOutlinerViewId);
-	RecentOutlinerViews.Add(InOutlinerViewId);
-}
-
-TSharedPtr<FAvaOutlinerView> FAvaOutliner::GetOutlinerView(int32 InOutlinerViewId) const
+TSharedPtr<IAvaOutlinerView> FAvaOutliner::GetOutlinerView(int32 InOutlinerViewId) const
 {
 	if (const TSharedPtr<FAvaOutlinerView>* const FoundOutlinerView = OutlinerViews.Find(InOutlinerViewId))
 	{
 		return *FoundOutlinerView;
 	}
 	return nullptr;
-}
-
-TSharedPtr<FAvaOutlinerView> FAvaOutliner::GetMostRecentOutlinerView() const
-{
-	for (int32 Index = RecentOutlinerViews.Num() - 1; Index >= 0; --Index)
-	{
-		TSharedPtr<FAvaOutlinerView> OutlinerView = GetOutlinerView(RecentOutlinerViews[Index]);
-		if (OutlinerView.IsValid())
-		{
-			return OutlinerView;
-		}
-	}
-	return nullptr;
-}
-
-void FAvaOutliner::ForEachOutlinerView(const TFunction<void(const TSharedPtr<FAvaOutlinerView>& InOutlinerView)>& InPredicate) const
-{
-	FAvaOutliner* const MutableThis = const_cast<FAvaOutliner*>(this);
-	for (TMap<int32, TSharedPtr<FAvaOutlinerView>>::TIterator Iter(MutableThis->OutlinerViews); Iter; ++Iter)
-	{
-		const TSharedPtr<FAvaOutlinerView>& OutlinerView = Iter.Value();
-		if (OutlinerView.IsValid())
-		{
-			InPredicate(OutlinerView);
-		}
-		else
-		{
-			Iter.RemoveCurrent();
-		}
-	}
 }
 
 void FAvaOutliner::RegisterItem(const FAvaOutlinerItemPtr& InItem)
@@ -424,32 +293,6 @@ void FAvaOutliner::UnregisterItem(const FAvaOutlinerItemId& InItemId)
 		RemoveItem(InItemId);
 		RequestRefresh();
 	}
-}
-
-void FAvaOutliner::EnqueueItemActions(TArray<TSharedPtr<IAvaOutlinerAction>>&& InItemActions) noexcept
-{
-	PendingActions.Append(MoveTemp(InItemActions));
-}
-
-void FAvaOutliner::EnqueueItemActions(const TArray<TSharedPtr<IAvaOutlinerAction>>& InItemActions)
-{
-	PendingActions.Append(InItemActions);
-}
-
-bool FAvaOutliner::NeedsRefresh() const
-{
-	//Return false if we're already refreshing
-	if (bRefreshing)
-	{
-		return false;
-	}
-
-	if (bRefreshRequested || PendingActions.Num() > 0)
-	{
-		return true;
-	}
-
-	return false;
 }
 
 void FAvaOutliner::RequestRefresh()
@@ -564,6 +407,426 @@ FAvaOutlinerItemPtr FAvaOutliner::FindItem(const FAvaOutlinerItemId& InItemId) c
 	}
 
 	return nullptr;
+}
+
+void FAvaOutliner::SetIgnoreNotify(EAvaOutlinerIgnoreNotifyFlags InFlag, bool bIgnore)
+{
+	if (bIgnore)
+	{
+		EnumAddFlags(IgnoreNotifyFlags, InFlag);
+	}
+	else
+	{
+		EnumRemoveFlags(IgnoreNotifyFlags, InFlag);
+	}
+}
+
+void FAvaOutliner::OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors)
+{
+	FAvaOutlinerExporter Exporter(SharedThis(this));
+	Exporter.ExportText(InOutCopiedData, InCopiedActors);
+}
+
+void FAvaOutliner::OnActorsPasted(FStringView InPastedData, const TMap<FName, AActor*>& InPastedActors)
+{
+	FAvaOutlinerImporter Importer(SharedThis(this));
+	Importer.ImportText(InPastedData, InPastedActors);
+}
+
+void FAvaOutliner::OnActorsDuplicated(const TMap<AActor*, AActor*>& InDuplicateActorMap
+	, FAvaOutlinerItemPtr InRelativeItem
+	, TOptional<EItemDropZone> InRelativeDropZone)
+{
+	if (InDuplicateActorMap.IsEmpty())
+	{
+		return;
+	}
+
+	// Bail if we're currently Ignoring Duplication Notifies
+	if (EnumHasAnyFlags(IgnoreNotifyFlags, EAvaOutlinerIgnoreNotifyFlags::Duplication))
+	{
+		return;
+	}
+
+	// Map of the Duplicate Actor to the Template Actor's Item
+	TMap<AActor*, FAvaOutlinerItemPtr> DuplicateItemMap;
+	
+	// Try finding the Template Item with the Lowest Index (i.e. Highest in the Tree) to use as Placeholder Relative Item
+	if (!InRelativeItem.IsValid())
+	{
+		DuplicateItemMap.Reserve(InDuplicateActorMap.Num());
+		for (const TPair<AActor*, AActor*>& Pair : InDuplicateActorMap)
+		{
+			AActor* const TemplateActor = Pair.Value;
+			if (IsValid(TemplateActor))
+			{
+				if (FAvaOutlinerItemPtr FoundTemplateItem = FindItem(TemplateActor))
+				{
+					DuplicateItemMap.Emplace(Pair.Key, FoundTemplateItem);
+					if (!InRelativeItem.IsValid() || UE::AvaOutliner::CompareOutlinerItemOrder(FoundTemplateItem, InRelativeItem))
+					{
+						InRelativeItem = FoundTemplateItem;
+					}
+				}
+			}
+		}
+	}
+
+	const EItemDropZone RelativeDropZone = InRelativeDropZone.Get(EItemDropZone::AboveItem);
+
+	// Newly Duplicated Items don't have a Parent Item set yet, so it's not going to call RemoveFromParent, which handles Detachment
+	bool bShouldDetachActors = false;
+	if (InRelativeItem.IsValid())
+	{
+		const bool bRelativeItemIsRoot        = InRelativeItem == RootItem;
+		const bool bRelativeItemIsChildOfRoot = InRelativeItem->GetParent() == RootItem;
+		
+		bShouldDetachActors = bRelativeItemIsRoot || (bRelativeItemIsChildOfRoot && RelativeDropZone != EItemDropZone::OntoItem);
+	}
+
+	TArray<AActor*> DuplicateActors;
+	InDuplicateActorMap.GetKeys(DuplicateActors);
+
+	// Sort based on the ordering of the template actor items in outliner
+	DuplicateActors.Sort([&InDuplicateActorMap, this](const AActor& A, const AActor& B)
+	{
+		AActor* const * const TemplateActorA = InDuplicateActorMap.Find(&A);
+		AActor* const * const TemplateActorB = InDuplicateActorMap.Find(&B);
+
+		const FAvaOutlinerItemPtr TemplateItemA = FindItem(*TemplateActorA);
+		const FAvaOutlinerItemPtr TemplateItemB = FindItem(*TemplateActorB);
+
+		return UE::AvaOutliner::CompareOutlinerItemOrder(TemplateItemA, TemplateItemB);
+	});
+
+	/*
+	 * REVERSE the ordering of Duplicate Actors
+	 * The order needs to be reversed when items are not added above the target item (e.g. RelativeDropZone is either below or onto)
+	 * Some context:
+	 * ABOVE- items are added just above the target, so the first one will always be topmost. Order is preserved
+	 * BELOW- items are added just below the target, so the last one added will be the topmost. Order is in reverse.
+	 * ONTO - items are added at index 0, so last one added will be topmost. Order is in reverse
+	 */
+	if (RelativeDropZone != EItemDropZone::AboveItem)
+	{
+		Algo::Reverse(DuplicateActors);
+	}
+	
+	TArray<TSharedPtr<IAvaOutlinerAction>> ItemActions;
+	ItemActions.Reserve(DuplicateActors.Num());
+	
+	FAvaOutlinerAddItemParams Params;
+	Params.RelativeDropZone = RelativeDropZone;
+	Params.Flags            = EAvaOutlinerAddItemFlags::AddChildren;
+
+	// Finally, Enqueue the Add Item Action to these new Actors
+	for (AActor* const DuplicateActor : DuplicateActors)
+	{
+		Params.RelativeItem.Reset();
+		
+		//We don't need to worry about Child Items since the Parent Item will do all the Attachment Work
+		const AActor* const ParentActor = DuplicateActor->GetAttachParentActor();
+
+		const bool bIsParentDuplicated = InDuplicateActorMap.Contains(ParentActor);
+		if (!bIsParentDuplicated && bShouldDetachActors)
+		{
+			DuplicateActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		}
+
+		FAvaOutlinerItemPtr Item = FindOrAdd<FAvaOutlinerActor>(DuplicateActor);
+		Params.Item = Item;
+		
+		if (FAvaOutlinerItemPtr* const FoundTemplateItem = DuplicateItemMap.Find(DuplicateActor))
+		{
+			FAvaOutlinerItemPtr TemplateItem = *FoundTemplateItem;
+
+			if (!bIsParentDuplicated)
+			{
+				Params.RelativeItem = TemplateItem;
+			}
+			
+			//Sanitize the Flags by Removing the Temp Ones
+			EAvaOutlinerItemFlags TemplateItemFlags = TemplateItem->GetFlags();
+			EnumRemoveFlags(TemplateItemFlags, EAvaOutlinerItemFlags::PendingRemoval | EAvaOutlinerItemFlags::IgnorePendingKill);
+			
+			Item->SetFlags(TemplateItemFlags);
+
+			//Copy the template flags of each outliner view into the new item
+			ForEachOutlinerView([TemplateItem, Item](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
+			{
+				InOutlinerView->SetViewItemFlags(Item, InOutlinerView->GetViewItemFlags(TemplateItem));
+			});			
+		}
+		
+		//If a Relative Item hasn't been set yet (i.e. no Template Item found for the Item)
+		if (!Params.RelativeItem.IsValid() && !bIsParentDuplicated)
+		{
+			Params.RelativeItem = InRelativeItem;
+		}
+
+		TSharedRef<FAvaOutlinerAddItem> AddItemAction = NewItemAction<FAvaOutlinerAddItem>(Params);
+
+		// If parent is duplicated, make sure we add this item to index 0 so that children are added in reverse order
+		// this is because ParentItem->AddChild(...) adds the Child at Index 0, so it's correcting the ordering issue
+		if (bIsParentDuplicated)
+		{
+			ItemActions.EmplaceAt(0, AddItemAction);
+		}
+		else
+		{
+			ItemActions.Add(AddItemAction);
+		}		
+		
+		// Append after first selected item is added
+		Params.SelectionFlags |= EAvaOutlinerItemSelectionFlags::AppendToCurrentSelection;
+	}
+	
+	EnqueueItemActions(MoveTemp(ItemActions));
+}
+
+void FAvaOutliner::GroupSelection(AActor* InGroupingActor, const TOptional<FAttachmentTransformRules>& InTransformRules)
+{
+	if (!InGroupingActor)
+	{
+		return;
+	}
+
+	FAvaOutlinerItemPtr GroupingItem = FindItem(InGroupingActor);
+	bool bIsGroupingItemNew = false;	
+	if (!GroupingItem.IsValid())
+	{
+		GroupingItem = FindOrAdd<FAvaOutlinerActor>(InGroupingActor);
+		bIsGroupingItemNew = true;
+	}
+	GroupingItem->SetFlags(EAvaOutlinerItemFlags::Expanded);
+
+	TArray<FAvaOutlinerItemPtr> SelectedItems = GetSelectedItems();
+	NormalizeItems(SelectedItems);
+
+	// Enqueue the Grouping Item if New
+	if (bIsGroupingItemNew)
+	{
+		FAvaOutlinerAddItemParams AddGroupingItemParams;
+		AddGroupingItemParams.Item  = GroupingItem;
+		AddGroupingItemParams.Flags = EAvaOutlinerAddItemFlags::AddChildren;
+
+		AddGroupingItemParams.AttachmentTransformRules = InTransformRules;
+
+		if (const FAvaOutlinerItemPtr LowestCommonAncestor = FindLowestCommonAncestor(SelectedItems))
+		{
+			//Find the first path that leads to a Selected Item
+			TArray<FAvaOutlinerItemPtr> Descendants = LowestCommonAncestor->FindPath(SelectedItems);
+			if (Descendants.Num() > 0)
+			{
+				AddGroupingItemParams.RelativeItem     = Descendants[0];
+				AddGroupingItemParams.RelativeDropZone = EItemDropZone::BelowItem;
+			}
+			else
+			{
+				AddGroupingItemParams.RelativeItem     = LowestCommonAncestor;
+				AddGroupingItemParams.RelativeDropZone = EItemDropZone::OntoItem;
+			}
+		}
+
+		EnqueueItemAction<FAvaOutlinerAddItem>(AddGroupingItemParams);
+	}	
+	
+	//If there are no Selected Items, stop here
+	if (SelectedItems.IsEmpty())
+	{
+		return;
+	}
+
+	// Sort Items in reverse order of hierarchy as Add Item will add them at index 0 by default
+	SortItems(SelectedItems, true);
+		
+	FAvaOutlinerAddItemParams AddChildItemParams;
+	AddChildItemParams.RelativeItem     = GroupingItem;
+	AddChildItemParams.RelativeDropZone = EItemDropZone::OntoItem;
+	AddChildItemParams.SelectionFlags   = EAvaOutlinerItemSelectionFlags::AppendToCurrentSelection | EAvaOutlinerItemSelectionFlags::ScrollIntoView;
+
+	AddChildItemParams.AttachmentTransformRules = InTransformRules;
+
+	for (const FAvaOutlinerItemPtr& Item : SelectedItems)
+	{
+		if (Item.IsValid())
+		{
+			AddChildItemParams.Item = Item;
+			EnqueueItemAction<FAvaOutlinerAddItem>(AddChildItemParams);
+		}
+	}
+}
+
+void FAvaOutliner::PostUndo(bool bSuccess)
+{
+	if (bSuccess)
+	{
+		const int32 QueueIndex = GEditor->Trans->GetQueueLength() - GEditor->Trans->GetUndoCount();
+		const FTransaction* Transaction = GEditor->Trans->GetTransaction(QueueIndex);
+		HandleUndoRedoTransaction(Transaction, true);
+	}
+}
+
+void FAvaOutliner::PostRedo(bool bSuccess)
+{
+	if (bSuccess)
+	{
+		const int32 QueueIndex = GEditor->Trans->GetQueueLength() - GEditor->Trans->GetUndoCount();
+		const FTransaction* Transaction = GEditor->Trans->GetTransaction(QueueIndex);
+		HandleUndoRedoTransaction(Transaction, false);
+	}
+}
+
+TStatId FAvaOutliner::GetStatId() const
+{
+	RETURN_QUICK_DECLARE_CYCLE_STAT(FAvaOutliner, STATGROUP_Tickables);
+}
+
+void FAvaOutliner::Tick(float InDeltaTime)
+{
+	if (NeedsRefresh())
+	{
+		Refresh();
+	}
+
+	if (bOutlinerDirty)
+	{
+		bOutlinerDirty = false;
+	}
+
+	// Select Objects Pending Selection
+	if (ObjectsLastSelected.IsValid())
+	{
+		TArray<FAvaOutlinerItemPtr> ItemsToSelect;
+
+		if (ObjectsLastSelected->Num() > 0)
+		{
+			ItemsToSelect.Reserve(ObjectsLastSelected->Num());
+			for (TWeakObjectPtr<UObject> Object : *ObjectsLastSelected)
+			{
+				if (Object.IsValid())
+				{
+					if (FAvaOutlinerItemPtr Item = FindItem(FAvaOutlinerItemId(Object.Get())))
+					{
+						// If it's a Shared Object, select all its References as Shared Objects are not in the Outliner directly
+						// and the outliner does not know which Object Reference should be selected
+						if (const FAvaOutlinerSharedObject* const SharedObjectItem = Item->CastTo<FAvaOutlinerSharedObject>())
+						{
+							ItemsToSelect.Append(SharedObjectItem->GetObjectReferences());
+						}
+						else
+						{
+							ItemsToSelect.Add(Item);
+						}
+					}
+				}
+			}
+		}
+
+		// Only Scroll Into View, don't signal selection since we just come from the selection notify itself
+		SelectItems(ItemsToSelect, EAvaOutlinerItemSelectionFlags::ScrollIntoView);
+		ObjectsLastSelected.Reset();
+	}
+
+	ForEachOutlinerView([InDeltaTime](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
+	{
+		InOutlinerView->Tick(InDeltaTime);
+	});
+}
+
+void FAvaOutliner::DuplicateItems(TArray<FAvaOutlinerItemPtr> InItems
+	, FAvaOutlinerItemPtr InRelativeItem
+	, TOptional<EItemDropZone> InRelativeDropZone)
+{
+	SortItems(InItems);
+
+	TArray<AActor*> TemplateActors;
+	for (const FAvaOutlinerItemPtr& Item : InItems)
+	{
+		if (!Item.IsValid())
+		{
+			continue;
+		}
+		
+		if (const FAvaOutlinerActor* const ActorItem = Item->CastTo<FAvaOutlinerActor>())
+		{
+			TemplateActors.Add(ActorItem->GetActor());
+		}
+	}
+
+	if (TemplateActors.IsEmpty())
+	{
+		return;
+	}
+
+	OutlinerProvider.OutlinerDuplicateActors(TemplateActors);
+}
+
+void FAvaOutliner::UnregisterOutlinerView(int32 InOutlinerViewId)
+{
+	OutlinerViews.Remove(InOutlinerViewId);
+}
+
+void FAvaOutliner::UpdateRecentOutlinerViews(int32 InOutlinerViewId)
+{
+	RecentOutlinerViews.Remove(InOutlinerViewId);
+	RecentOutlinerViews.Add(InOutlinerViewId);
+}
+
+TSharedPtr<FAvaOutlinerView> FAvaOutliner::GetMostRecentOutlinerView() const
+{
+	for (int32 Index = RecentOutlinerViews.Num() - 1; Index >= 0; --Index)
+	{
+		TSharedPtr<IAvaOutlinerView> OutlinerView = GetOutlinerView(RecentOutlinerViews[Index]);
+		if (OutlinerView.IsValid())
+		{
+			return StaticCastSharedPtr<FAvaOutlinerView>(OutlinerView);
+		}
+	}
+	return nullptr;
+}
+
+void FAvaOutliner::ForEachOutlinerView(const TFunction<void(const TSharedPtr<FAvaOutlinerView>& InOutlinerView)>& InPredicate) const
+{
+	FAvaOutliner* const MutableThis = const_cast<FAvaOutliner*>(this);
+	for (TMap<int32, TSharedPtr<FAvaOutlinerView>>::TIterator Iter(MutableThis->OutlinerViews); Iter; ++Iter)
+	{
+		const TSharedPtr<FAvaOutlinerView>& OutlinerView = Iter.Value();
+		if (OutlinerView.IsValid())
+		{
+			InPredicate(OutlinerView);
+		}
+		else
+		{
+			Iter.RemoveCurrent();
+		}
+	}
+}
+
+void FAvaOutliner::EnqueueItemActions(TArray<TSharedPtr<IAvaOutlinerAction>>&& InItemActions) noexcept
+{
+	PendingActions.Append(MoveTemp(InItemActions));
+}
+
+int32 FAvaOutliner::GetPendingItemActionCount() const
+{
+	return PendingActions.Num();
+}
+
+bool FAvaOutliner::NeedsRefresh() const
+{
+	//Return false if we're already refreshing
+	if (bRefreshing)
+	{
+		return false;
+	}
+
+	if (bRefreshRequested || PendingActions.Num() > 0)
+	{
+		return true;
+	}
+
+	return false;
 }
 
 TOptional<FAvaOutlinerColorPair> FAvaOutliner::FindItemColor(const FAvaOutlinerItemPtr& InItem, bool bRecurseParent) const
@@ -753,46 +1016,6 @@ FAvaOutlinerItemPtr FAvaOutliner::FindLowestCommonAncestor(const TArray<FAvaOutl
 	return LowestCommonAncestor;
 }
 
-bool FAvaOutliner::CompareOutlinerItemOrder(const FAvaOutlinerItemPtr& A, const FAvaOutlinerItemPtr& B)
-{
-	if (!A.IsValid())
-	{
-		return false;
-	}
-	if (!B.IsValid())
-	{
-		return false;
-	}
-	if (const FAvaOutlinerItemPtr LowestCommonAncestor = FindLowestCommonAncestor({A, B}))
-	{
-		const TArray<FAvaOutlinerItemPtr> PathToA = LowestCommonAncestor->FindPath({A});
-		const TArray<FAvaOutlinerItemPtr> PathToB = LowestCommonAncestor->FindPath({B});
-
-		int32 Index = 0;
-		
-		int32 PathAIndex = -1;
-		int32 PathBIndex = -1;
-
-		while (PathAIndex == PathBIndex)
-		{
-			if (!PathToA.IsValidIndex(Index))
-			{
-				return true;
-			}
-			if (!PathToB.IsValidIndex(Index))
-			{
-				return false;
-			}
-
-			PathAIndex = LowestCommonAncestor->GetChildIndex(PathToA[Index]);
-			PathBIndex = LowestCommonAncestor->GetChildIndex(PathToB[Index]);
-			++Index;
-		}
-		return PathAIndex < PathBIndex;
-	}
-	return false;
-}
-
 FAvaSceneItem FAvaOutliner::MakeSceneItemFromOutlinerItem(const FAvaOutlinerItemPtr& InItem)
 {
 	if (!InItem.IsValid())
@@ -820,7 +1043,7 @@ void FAvaOutliner::SortItems(TArray<FAvaOutlinerItemPtr>& OutOutlinerItems, bool
 {
 	OutOutlinerItems.Sort([bInReverseOrder](const FAvaOutlinerItemPtr& ItemA, const FAvaOutlinerItemPtr& ItemB)
 	{
-		return FAvaOutliner::CompareOutlinerItemOrder(ItemA, ItemB) != bInReverseOrder;
+		return UE::AvaOutliner::CompareOutlinerItemOrder(ItemA, ItemB) != bInReverseOrder;
 	});
 }
 
@@ -848,79 +1071,6 @@ void FAvaOutliner::NormalizeItems(TArray<FAvaOutlinerItemPtr>& InOutItems)
 		}
 		return false;
 	});
-}
-
-void FAvaOutliner::GroupSelection(AActor* InGroupingActor, const TOptional<FAttachmentTransformRules>& InTransformRules)
-{
-	if (!InGroupingActor)
-	{
-		return;
-	}
-
-	FAvaOutlinerItemPtr GroupingItem = FindItem(InGroupingActor);
-	bool bIsGroupingItemNew = false;	
-	if (!GroupingItem.IsValid())
-	{
-		GroupingItem = FindOrAdd<FAvaOutlinerActor>(InGroupingActor);
-		bIsGroupingItemNew = true;
-	}
-	GroupingItem->SetFlags(EAvaOutlinerItemFlags::Expanded);
-
-	TArray<FAvaOutlinerItemPtr> SelectedItems = GetSelectedItems();
-	NormalizeItems(SelectedItems);
-
-	// Enqueue the Grouping Item if New
-	if (bIsGroupingItemNew)
-	{
-		FAvaOutlinerAddItemParams AddGroupingItemParams;
-		AddGroupingItemParams.Item  = GroupingItem;
-		AddGroupingItemParams.Flags = EAvaOutlinerAddItemFlags::AddChildren;
-
-		AddGroupingItemParams.AttachmentTransformRules = InTransformRules;
-
-		if (const FAvaOutlinerItemPtr LowestCommonAncestor = FindLowestCommonAncestor(SelectedItems))
-		{
-			//Find the first path that leads to a Selected Item
-			TArray<FAvaOutlinerItemPtr> Descendants = LowestCommonAncestor->FindPath(SelectedItems);
-			if (Descendants.Num() > 0)
-			{
-				AddGroupingItemParams.RelativeItem     = Descendants[0];
-				AddGroupingItemParams.RelativeDropZone = EItemDropZone::BelowItem;
-			}
-			else
-			{
-				AddGroupingItemParams.RelativeItem     = LowestCommonAncestor;
-				AddGroupingItemParams.RelativeDropZone = EItemDropZone::OntoItem;
-			}
-		}
-
-		EnqueueItemAction<FAvaOutlinerAddItem>(AddGroupingItemParams);
-	}	
-	
-	//If there are no Selected Items, stop here
-	if (SelectedItems.IsEmpty())
-	{
-		return;
-	}
-
-	// Sort Items in reverse order of hierarchy as Add Item will add them at index 0 by default
-	SortItems(SelectedItems, true);
-		
-	FAvaOutlinerAddItemParams AddChildItemParams;
-	AddChildItemParams.RelativeItem     = GroupingItem;
-	AddChildItemParams.RelativeDropZone = EItemDropZone::OntoItem;
-	AddChildItemParams.SelectionFlags   = EAvaOutlinerItemSelectionFlags::AppendToCurrentSelection | EAvaOutlinerItemSelectionFlags::ScrollIntoView;
-
-	AddChildItemParams.AttachmentTransformRules = InTransformRules;
-
-	for (const FAvaOutlinerItemPtr& Item : SelectedItems)
-	{
-		if (Item.IsValid())
-		{
-			AddChildItemParams.Item = Item;
-			EnqueueItemAction<FAvaOutlinerAddItem>(AddChildItemParams);
-		}
-	}
 }
 
 FEditorModeTools* FAvaOutliner::GetModeTools() const
@@ -979,6 +1129,16 @@ UWorld* FAvaOutliner::GetWorld() const
 	return OutlinerProvider.GetOutlinerWorld();
 }
 
+const FAvaOutlinerItemProxyRegistry& FAvaOutliner::GetItemProxyRegistry() const
+{
+	return ItemProxyRegistry;
+}
+
+FAvaOutlinerItemProxyRegistry& FAvaOutliner::GetItemProxyRegistry()
+{
+	return ItemProxyRegistry;
+}
+
 TArray<TWeakObjectPtr<AActor>> FAvaOutliner::GetActorSceneOutlinerChildren(AActor* InParentActor) const
 {
 	if (const TArray<TWeakObjectPtr<AActor>>* const FoundChildren = SceneOutlinerParentMap.Find(InParentActor))
@@ -1005,169 +1165,6 @@ void FAvaOutliner::OnActorSpawned(AActor* InActor)
 			EnqueueItemAction<FAvaOutlinerAddItem>(MoveTemp(Params));
 		}
 	}
-}
-
-void FAvaOutliner::OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors)
-{
-	FAvaOutlinerExporter Exporter(SharedThis(this));
-	Exporter.ExportText(InOutCopiedData, InCopiedActors);
-}
-
-void FAvaOutliner::OnActorsPasted(FStringView InPastedData, const TMap<FName, AActor*>& InPastedActors)
-{
-	FAvaOutlinerImporter Importer(SharedThis(this));
-	Importer.ImportText(InPastedData, InPastedActors);
-}
-
-void FAvaOutliner::OnActorsDuplicated(const TMap<AActor*, AActor*>& InDuplicateActorMap
-	, FAvaOutlinerItemPtr InRelativeItem
-	, TOptional<EItemDropZone> InRelativeDropZone)
-{
-	if (InDuplicateActorMap.IsEmpty())
-	{
-		return;
-	}
-
-	// Bail if we're currently Ignoring Duplication Notifies
-	if (EnumHasAnyFlags(IgnoreNotifyFlags, EAvaOutlinerIgnoreNotifyFlags::Duplication))
-	{
-		return;
-	}
-
-	// Map of the Duplicate Actor to the Template Actor's Item
-	TMap<AActor*, FAvaOutlinerItemPtr> DuplicateItemMap;
-	
-	// Try finding the Template Item with the Lowest Index (i.e. Highest in the Tree) to use as Placeholder Relative Item
-	if (!InRelativeItem.IsValid())
-	{
-		DuplicateItemMap.Reserve(InDuplicateActorMap.Num());
-		for (const TPair<AActor*, AActor*>& Pair : InDuplicateActorMap)
-		{
-			AActor* const TemplateActor = Pair.Value;
-			if (IsValid(TemplateActor))
-			{
-				if (FAvaOutlinerItemPtr FoundTemplateItem = FindItem(TemplateActor))
-				{
-					DuplicateItemMap.Emplace(Pair.Key, FoundTemplateItem);
-					if (!InRelativeItem.IsValid() || CompareOutlinerItemOrder(FoundTemplateItem, InRelativeItem))
-					{
-						InRelativeItem = FoundTemplateItem;
-					}
-				}
-			}
-		}
-	}
-
-	const EItemDropZone RelativeDropZone = InRelativeDropZone.Get(EItemDropZone::AboveItem);
-
-	// Newly Duplicated Items don't have a Parent Item set yet, so it's not going to call RemoveFromParent, which handles Detachment
-	bool bShouldDetachActors = false;
-	if (InRelativeItem.IsValid())
-	{
-		const bool bRelativeItemIsRoot        = InRelativeItem == RootItem;
-		const bool bRelativeItemIsChildOfRoot = InRelativeItem->GetParent() == RootItem;
-		
-		bShouldDetachActors = bRelativeItemIsRoot || (bRelativeItemIsChildOfRoot && RelativeDropZone != EItemDropZone::OntoItem);
-	}
-
-	TArray<AActor*> DuplicateActors;
-	InDuplicateActorMap.GetKeys(DuplicateActors);
-
-	// Sort based on the ordering of the template actor items in outliner
-	DuplicateActors.Sort([&InDuplicateActorMap, this](const AActor& A, const AActor& B)
-	{
-		AActor* const * const TemplateActorA = InDuplicateActorMap.Find(&A);
-		AActor* const * const TemplateActorB = InDuplicateActorMap.Find(&B);
-
-		const FAvaOutlinerItemPtr TemplateItemA = FindItem(*TemplateActorA);
-		const FAvaOutlinerItemPtr TemplateItemB = FindItem(*TemplateActorB);
-
-		return CompareOutlinerItemOrder(TemplateItemA, TemplateItemB);
-	});
-
-	/*
-	 * REVERSE the ordering of Duplicate Actors
-	 * The order needs to be reversed when items are not added above the target item (e.g. RelativeDropZone is either below or onto)
-	 * Some context:
-	 * ABOVE- items are added just above the target, so the first one will always be topmost. Order is preserved
-	 * BELOW- items are added just below the target, so the last one added will be the topmost. Order is in reverse.
-	 * ONTO - items are added at index 0, so last one added will be topmost. Order is in reverse
-	 */
-	if (RelativeDropZone != EItemDropZone::AboveItem)
-	{
-		Algo::Reverse(DuplicateActors);
-	}
-	
-	TArray<TSharedPtr<IAvaOutlinerAction>> ItemActions;
-	ItemActions.Reserve(DuplicateActors.Num());
-	
-	FAvaOutlinerAddItemParams Params;
-	Params.RelativeDropZone = RelativeDropZone;
-	Params.Flags            = EAvaOutlinerAddItemFlags::AddChildren;
-
-	// Finally, Enqueue the Add Item Action to these new Actors
-	for (AActor* const DuplicateActor : DuplicateActors)
-	{
-		Params.RelativeItem.Reset();
-		
-		//We don't need to worry about Child Items since the Parent Item will do all the Attachment Work
-		const AActor* const ParentActor = DuplicateActor->GetAttachParentActor();
-
-		const bool bIsParentDuplicated = InDuplicateActorMap.Contains(ParentActor);
-		if (!bIsParentDuplicated && bShouldDetachActors)
-		{
-			DuplicateActor->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-		}
-
-		FAvaOutlinerItemPtr Item = FindOrAdd<FAvaOutlinerActor>(DuplicateActor);
-		Params.Item = Item;
-		
-		if (FAvaOutlinerItemPtr* const FoundTemplateItem = DuplicateItemMap.Find(DuplicateActor))
-		{
-			FAvaOutlinerItemPtr TemplateItem = *FoundTemplateItem;
-
-			if (!bIsParentDuplicated)
-			{
-				Params.RelativeItem = TemplateItem;
-			}
-			
-			//Sanitize the Flags by Removing the Temp Ones
-			EAvaOutlinerItemFlags TemplateItemFlags = TemplateItem->GetFlags();
-			EnumRemoveFlags(TemplateItemFlags, EAvaOutlinerItemFlags::PendingRemoval | EAvaOutlinerItemFlags::IgnorePendingKill);
-			
-			Item->SetFlags(TemplateItemFlags);
-
-			//Copy the template flags of each outliner view into the new item
-			ForEachOutlinerView([TemplateItem, Item](const TSharedPtr<FAvaOutlinerView>& InOutlinerView)
-			{
-				InOutlinerView->SetViewItemFlags(Item, InOutlinerView->GetViewItemFlags(TemplateItem));
-			});			
-		}
-		
-		//If a Relative Item hasn't been set yet (i.e. no Template Item found for the Item)
-		if (!Params.RelativeItem.IsValid() && !bIsParentDuplicated)
-		{
-			Params.RelativeItem = InRelativeItem;
-		}
-
-		TSharedRef<FAvaOutlinerAddItem> AddItemAction = NewItemAction<FAvaOutlinerAddItem>(Params);
-
-		// If parent is duplicated, make sure we add this item to index 0 so that children are added in reverse order
-		// this is because ParentItem->AddChild(...) adds the Child at Index 0, so it's correcting the ordering issue
-		if (bIsParentDuplicated)
-		{
-			ItemActions.EmplaceAt(0, AddItemAction);
-		}
-		else
-		{
-			ItemActions.Add(AddItemAction);
-		}		
-		
-		// Append after first selected item is added
-		Params.SelectionFlags |= EAvaOutlinerItemSelectionFlags::AppendToCurrentSelection;
-	}
-	
-	EnqueueItemActions(MoveTemp(ItemActions));
 }
 
 void FAvaOutliner::OnActorDestroyed(AActor* InActor)
@@ -1221,11 +1218,6 @@ void FAvaOutliner::OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplaceme
 	{
 		InOutlinerView->NotifyObjectsReplaced();
 	});
-}
-
-FTransform FAvaOutliner::GetActorDefaultSpawnTransform() const
-{
-	return OutlinerProvider.GetOutlinerDefaultActorSpawnTransform();
 }
 
 void FAvaOutliner::SetOutlinerModified()

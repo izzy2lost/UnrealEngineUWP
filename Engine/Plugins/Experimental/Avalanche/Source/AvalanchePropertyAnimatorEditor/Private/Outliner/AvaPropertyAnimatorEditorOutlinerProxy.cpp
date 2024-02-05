@@ -3,8 +3,8 @@
 #include "Outliner/AvaPropertyAnimatorEditorOutlinerProxy.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
-#include "AvaOutliner.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Outliner/AvaPropertyAnimatorEditorOutliner.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaPropertyAnimatorEditorOutlinerProxy"
 
-FAvaPropertyAnimatorEditorOutlinerProxy::FAvaPropertyAnimatorEditorOutlinerProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaPropertyAnimatorEditorOutlinerProxy::FAvaPropertyAnimatorEditorOutlinerProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: Super(InOutliner, InParentItem)
 {
 	ItemIcon = FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreComponent::StaticClass());

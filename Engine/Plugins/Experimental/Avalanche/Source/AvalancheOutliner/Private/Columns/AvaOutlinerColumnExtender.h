@@ -40,7 +40,7 @@ public:
 	const TArray<FAvaOutlinerColumnPtr>& GetColumns() const { return Columns; }
 
 private:
-	AVALANCHEOUTLINER_API void AddColumn(FAvaOutlinerColumnPtr InColumn
+	void AddColumn(FAvaOutlinerColumnPtr InColumn
 		, EAvaOutlinerExtensionPosition InExtensionPosition
 		, FName InReferenceColumnId);
 

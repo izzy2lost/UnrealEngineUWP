@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvalancheRemoteControlEditorModule.h"
-#include "AvaOutliner.h"
 #include "AvaRCControllerId.h"
 #include "Customizations/AvaRCControllerIdCustomization.h"
+#include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "Item/AvaOutlinerActor.h"
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
@@ -22,7 +22,7 @@ void FAvalancheRemoteControlEditorModule::StartupModule()
 	ItemProxyRegistry.RegisterItemProxyWithDefaultFactory<FAvaOutlinerRCTrackerComponentProxy, 40>();
 	
 	OutlinerProxiesExtensionDelegateHandle = IAvaOutlinerModule::Get().GetOnExtendItemProxiesForItem().AddLambda(
-		[this](FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
+		[this](IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
 		{
 			if (InItem->IsA<FAvaOutlinerActor>())
 			{

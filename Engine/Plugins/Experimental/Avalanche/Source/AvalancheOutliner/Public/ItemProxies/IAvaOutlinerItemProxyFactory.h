@@ -5,9 +5,9 @@
 #include "AvaOutlinerDefines.h"
 #include "Templates/SharedPointer.h"
 
-class FAvaOutliner;
 class FAvaOutlinerItemProxy;
 class FName;
+class IAvaOutliner;
 
 /**
  * Item Proxy Factories are the classes that instance or get the existing Outliner Item Proxies for a given Item
@@ -22,5 +22,5 @@ public:
 	virtual FName GetItemProxyTypeName() const = 0;
 
 	/** Returns a newly created instance of the Relevant Item Proxy if successful */
-	virtual TSharedPtr<FAvaOutlinerItemProxy> CreateItemProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem) = 0;
+	virtual TSharedPtr<FAvaOutlinerItemProxy> CreateItemProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem) = 0;
 };

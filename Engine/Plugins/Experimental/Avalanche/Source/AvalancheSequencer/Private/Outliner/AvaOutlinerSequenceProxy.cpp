@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaOutlinerSequenceProxy.h"
-#include "AvaOutliner.h"
 #include "AvaSequence.h"
 #include "AvaSequencer.h"
 #include "AvaSequencerSubsystem.h"
 #include "AvaTypeSharedPointer.h"
 #include "Engine/World.h"
+#include "IAvaOutliner.h"
 #include "ISequencer.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Outliner/AvaOutlinerSequence.h"
@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerSequenceProxy"
 
-FAvaOutlinerSequenceProxy::FAvaOutlinerSequenceProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaOutlinerSequenceProxy::FAvaOutlinerSequenceProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: Super(InOutliner, InParentItem)
 {
 	SequenceIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "UMGEditor.AnimTabIcon");

@@ -7,7 +7,7 @@
 #include "Styling/SlateBrush.h"
 #include "Styling/ToolBarStyle.h"
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	const FToolBarStyle& FStyleUtils::GetSlimToolBarStyle()
 	{

@@ -2,7 +2,7 @@
 
 #include "AvaPropertyAnimatorEditorModule.h"
 
-#include "AvaOutliner.h"
+#include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "Item/AvaOutlinerActor.h"
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
@@ -28,16 +28,16 @@ void FAvaPropertyAnimatorEditorModule::RegisterOutlinerItems()
 	ItemProxyRegistry.RegisterItemProxyWithDefaultFactory<FAvaPropertyAnimatorEditorOutlinerProxy, 50>();
 
 	OutlinerProxiesExtensionDelegateHandle = IAvaOutlinerModule::Get().GetOnExtendItemProxiesForItem().AddLambda(
-	[](FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
-	{
-		if (InItem->IsA<FAvaOutlinerActor>())
+		[](IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
 		{
-			if (const TSharedPtr<FAvaOutlinerItemProxy> ControllerProxy = InOutliner.GetOrCreateItemProxy<FAvaPropertyAnimatorEditorOutlinerProxy>(InItem))
+			if (InItem->IsA<FAvaOutlinerActor>())
 			{
-				OutItemProxies.Add(ControllerProxy);
+				if (const TSharedPtr<FAvaOutlinerItemProxy> ControllerProxy = InOutliner.GetOrCreateItemProxy<FAvaPropertyAnimatorEditorOutlinerProxy>(InItem))
+				{
+					OutItemProxies.Add(ControllerProxy);
+				}
 			}
-		}
-	});
+		});
 
 	OutlinerContextDelegateHandle = IAvaOutlinerModule::Get().GetOnExtendOutlinerItemContextMenu()
 		.AddStatic(&FAvaPropertyAnimatorEditorOutlinerContextMenu::OnExtendOutlinerContextMenu);

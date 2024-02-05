@@ -5,6 +5,7 @@
 #include "AvaOutlinerDefines.h"
 #include "EditorUndoClient.h"
 #include "Engine/EngineTypes.h"
+#include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "Item/AvaOutlinerItemId.h"
 #include "Item/AvaOutlinerItemProxy.h"
@@ -21,27 +22,23 @@ class FTransaction;
 class FUICommandList;
 class IAvaOutlinerAction;
 class IAvaOutlinerProvider;
+class IAvaOutlinerView;
 class UAvaOutlinerSubsystem;
 enum class EItemDropZone;
+struct FAttachmentTransformRules;
 struct FAvaOutlinerSaveState;
 struct FAvaSceneItem;
 
-/** 
- * The Outliner Object that is commonly instanced once per World
- * (unless for advanced use where there are different outliner instances with different item ordering and behaviors).
- * This is the object that dictates core outliner behavior like how items are sorted, which items are allowed, etc.
- * Views are the objects that take this core behavior and show a part of it (e.g. through filters).
- */
-class AVALANCHEOUTLINER_API FAvaOutliner
-	: public TSharedFromThis<FAvaOutliner>
+class FAvaOutliner
+	: public IAvaOutliner
 	, public FTickableEditorObject
 	, public FEditorUndoClient
 {
 public:
 	FAvaOutliner(IAvaOutlinerProvider& InOutlinerProvider);
-	
+
 	virtual ~FAvaOutliner() override;
-	
+
 	/**
 	 * Gets the Outliner Subsystem of the World this Outliner is responsible for
 	 * NOTE: The OutlinerSubsystem's Outliner Instance should be the same as this one in the default implementation 
@@ -62,21 +59,10 @@ public:
 	bool IsComponentAllowedInOutliner(const USceneComponent* InComponent) const;
 
 	bool CanProcessActorSpawn(AActor* InActor) const;
-	
-	/** Sets the Command List that the Outliner Views will use to append their Command Lists to */
-	void SetBaseCommandList(const TSharedPtr<FUICommandList>& InBaseCommandList);
 
 	TSharedPtr<FUICommandList> GetBaseCommandList() const;
 
-	/** Serializes the Outliner Save State to the given archive */
-	void Serialize(FArchive& Ar);
-
-	DECLARE_MULTICAST_DELEGATE(FOnOutlinerLoaded);
 	FOnOutlinerLoaded OnOutlinerLoaded;
-
-	IAvaOutlinerProvider& GetProvider() const { return OutlinerProvider; }
-
-	FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry() { return ItemProxyRegistry; }
 
 	/** Gathers the Type Names of all the Item Proxies that are registered both in the outliner proxy registry and the module's */
 	TArray<FName> GetRegisteredItemProxyTypeNames() const;
@@ -85,70 +71,39 @@ public:
 	void GetItemProxiesForItem(const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies);
 
 	/** Tries to find the Item Proxy Factory for the given Item Proxy Type Name */
-	IAvaOutlinerItemProxyFactory* GetItemProxyFactory(FName InItemProxyTypeName) const
-	{
-		// First look for the Registry in Outliner
-		if (IAvaOutlinerItemProxyFactory* Factory = ItemProxyRegistry.GetItemProxyFactory(InItemProxyTypeName))
-		{
-			return Factory;
-		}
-		// Fallback to finding the Factory in the Module if the Outliner did not find it
-		return IAvaOutlinerModule::Get().GetItemProxyRegistry().GetItemProxyFactory(InItemProxyTypeName);
-	}
+	IAvaOutlinerItemProxyFactory* GetItemProxyFactory(FName InItemProxyTypeName) const;
 
-	/** Tries to find the Item Proxy Factory for the given Item Proxy Type Name */
-	template<typename InItemProxyType, typename = typename TEnableIf<TIsDerivedFrom<InItemProxyType, FAvaOutlinerItemProxy>::IsDerived>::Type>
-	IAvaOutlinerItemProxyFactory* GetItemProxyFactory() const
-	{
-		// First look for the Registry in Outliner
-		if (IAvaOutlinerItemProxyFactory* Factory = ItemProxyRegistry.GetItemProxyFactory<InItemProxyType>())
-		{
-			return Factory;
-		}
-		// Fallback to finding the Factory in the Module if the Outliner did not find it
-		return IAvaOutlinerModule::Get().GetItemProxyRegistry().GetItemProxyFactory<InItemProxyType>();
-	}
-
-	/**
-	 * Tries to get the Item Proxy Factory for the given Item Proxy type, first trying the Outliner Registry then the Module's
-	 * then returns an existing item proxy created via the factory, or creates one if there's no existing item proxy
-	 * @returns the Item Proxy created by the Factory. Can be null if no factory was found or if the factory intentionally returns null
-	 */
-	template<typename InItemProxyType, typename = typename TEnableIf<TIsDerivedFrom<InItemProxyType, FAvaOutlinerItemProxy>::IsDerived>::Type>
-	TSharedPtr<FAvaOutlinerItemProxy> GetOrCreateItemProxy(const FAvaOutlinerItemPtr& InParentItem)
-	{
-		if (!InParentItem.IsValid() || !InParentItem->IsAllowedInOutliner())
-		{
-			return nullptr;
-		}
-		
-		IAvaOutlinerItemProxyFactory* const Factory = GetItemProxyFactory<InItemProxyType>();
-		if (!Factory)
-		{
-			return nullptr;
-		}
-		
-		TSharedPtr<FAvaOutlinerItemProxy> OutItemProxy;
-		if (FAvaOutlinerItemPtr ExistingItemProxy = FindItem(FAvaOutlinerItemId(InParentItem, *Factory)))
-		{
-			check(ExistingItemProxy->IsA<FAvaOutlinerItemProxy>());
-			ExistingItemProxy->SetParent(InParentItem);
-			OutItemProxy = StaticCastSharedPtr<FAvaOutlinerItemProxy>(ExistingItemProxy);
-		}
-		else
-		{
-			OutItemProxy = Factory->CreateItemProxy(*this, InParentItem);
-		}
-		RegisterItem(OutItemProxy);
-		return OutItemProxy;
-	}
-	
-	const TSharedRef<FAvaOutlinerSaveState>& GetSaveState() const { return SaveState; }
+	const TSharedRef<FAvaOutlinerSaveState>& GetSaveState() const;
 
 	/** Returns whether the Outliner is in Read-only mode */
 	bool IsOutlinerLocked() const;
 
 	void HandleUndoRedoTransaction(const FTransaction* Transaction, bool bIsUndo);
+
+	//~ Begin IAvaOutliner
+	virtual FOnOutlinerLoaded& GetOnOutlinerLoaded() override { return OnOutlinerLoaded; }
+	virtual IAvaOutlinerProvider& GetProvider() const override { return OutlinerProvider; }
+	virtual void SetBaseCommandList(const TSharedPtr<FUICommandList>& InBaseCommandList) override;
+	virtual void Serialize(FArchive& Ar) override;
+	virtual TSharedPtr<IAvaOutlinerView> RegisterOutlinerView(int32 InOutlinerViewId) override;
+	virtual TSharedPtr<IAvaOutlinerView> GetOutlinerView(int32 InOutlinerViewId) const override;
+	virtual void RegisterItem(const FAvaOutlinerItemPtr& InItem) override;
+	virtual void UnregisterItem(const FAvaOutlinerItemId& InItemId) override;
+	virtual void RequestRefresh() override;
+	virtual void Refresh() override;
+	virtual TSharedRef<FAvaOutlinerTreeRoot> GetTreeRoot() const override { return RootItem; }
+	virtual FAvaOutlinerItemPtr FindItem(const FAvaOutlinerItemId& InItemId) const override;
+	virtual void SetIgnoreNotify(EAvaOutlinerIgnoreNotifyFlags InFlag, bool bIgnore) override;
+	virtual void OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors) override;
+	virtual void OnActorsPasted(FStringView InPastedData, const TMap<FName, AActor*>& InPastedActors) override;
+	virtual void OnActorsDuplicated(const TMap<AActor*, AActor*>& InDuplicateActorMap, FAvaOutlinerItemPtr InRelativeItem = nullptr, TOptional<EItemDropZone> InRelativeDropZone = TOptional<EItemDropZone>()) override;
+	virtual void GroupSelection(AActor* InGroupingActor, const TOptional<FAttachmentTransformRules>& InTransformRules = TOptional<FAttachmentTransformRules>()) override;
+	virtual void OnObjectSelectionChanged(const FAvaEditorSelection& InEditorSelection) override;
+	virtual UWorld* GetWorld() const override;
+	virtual const FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry() const override;
+	//~ End IAvaOutliner
+
+	FAvaOutlinerItemProxyRegistry& GetItemProxyRegistry();
 
 	//~ Begin FEditorUndoClient
 	virtual void PostUndo(bool bSuccess) override;
@@ -170,29 +125,17 @@ public:
 		, FAvaOutlinerItemPtr InRelativeItem
 		, TOptional<EItemDropZone> InRelativeDropZone);
 	
-	/** Register a new Outliner View to the Outliner to the given id, replacing the old view that was bound to the given id */
-	TSharedPtr<FAvaOutlinerView> RegisterOutlinerView(int32 InOutlinerViewId);
-
 	/** Unregisters the Outliner View bound to the given id */
 	void UnregisterOutlinerView(int32 InOutlinerViewId);
 
 	/** Sets the given Outliner View Id as the most recent Outliner View */
 	void UpdateRecentOutlinerViews(int32 InOutlinerViewId);
 
-	/** Gets the Outliner View bound to the given id */
-	TSharedPtr<FAvaOutlinerView> GetOutlinerView(int32 InOutlinerViewId) const;
-
 	/** Gets the outliner view that was most recently used (i.e. called FAvaOutliner::UpdateRecentOutlinerViews) */
 	TSharedPtr<FAvaOutlinerView> GetMostRecentOutlinerView() const;
 
 	/** Executes the given predicate for each Outliner View registered */
 	void ForEachOutlinerView(const TFunction<void(const TSharedPtr<FAvaOutlinerView>& InOutlinerView)>& InPredicate) const;
-
-	/** Registers the given Item, replacing the old one. */
-	void RegisterItem(const FAvaOutlinerItemPtr& InItem);
-
-	/** Unregisters the Item having the given ItemId */
-	void UnregisterItem(const FAvaOutlinerItemId& InItemId);
 
 	/**
 	 * Instantiates a new item action without adding it to the Pending Actions Queue.
@@ -217,53 +160,13 @@ public:
 	}
 
 	/** Adds the given actions to the Pending Action Queue */
-	void EnqueueItemActions(const TArray<TSharedPtr<IAvaOutlinerAction>>& InItemActions);
-
-	/** Adds the given actions to the Pending Action Queue */
 	void EnqueueItemActions(TArray<TSharedPtr<IAvaOutlinerAction>>&& InItemActions) noexcept;
 
 	/** Returns the number of actions that been added to the queue so far before triggering a refresh */
-	int32 GetPendingItemActionCount() const { return PendingActions.Num(); }
-
-	/** Instantiates a new Item and automatically registers it to the Outliner */
-	template<typename InItemType, typename = typename TEnableIf<TIsDerivedFrom<InItemType, IAvaOutlinerItem>::IsDerived>::Type, typename ...InArgTypes>
-	TSharedRef<InItemType> FindOrAdd(InArgTypes&&... InArgs)
-	{
-		TSharedRef<InItemType> Item = MakeShared<InItemType>(*this, Forward<InArgTypes>(InArgs)...);
-
-		// If an existing item already exists and has a valid state, use that and forget about the newly created
-		FAvaOutlinerItemPtr ExistingItem = FindItem(Item->GetItemId());
-		if (ExistingItem.IsValid() && ExistingItem->IsItemValid() && ExistingItem->IsA<InItemType>())
-		{
-			return StaticCastSharedPtr<InItemType>(ExistingItem).ToSharedRef();
-		}
-		
-		if (Item->IsAllowedInOutliner())
-		{
-			RegisterItem(Item);
-		}
-		
-		return Item;
-	}
+	int32 GetPendingItemActionCount() const;
 
 	/** Returns whether the Outliner is currently in need of a Refresh */
 	bool NeedsRefresh() const;
-
-	/** Ensures that the next time Refresh is called in tick, Refresh will be called */
-	void RequestRefresh();
-
-	/**
-	 * Flushes the Pending Actions from the Queue while also updating the state of the Outliner.
-	 * Calling it directly is forcing it to happen.
-	 * If a refresh is needed it will be called on the next tick automatically.
-	 */
-	void Refresh();
-
-	/**
-	 * Finds the Registered Item that has the given Id
-	 * @returns the Item with the given Id, or null if the item does not exist or was not registered to the Outliner
-	 */
-	FAvaOutlinerItemPtr FindItem(const FAvaOutlinerItemId& InItemId) const;
 
 	/**
 	 * Gets the color pair (color name, linear color) related to the Item
@@ -294,12 +197,6 @@ public:
 	/** Returns the number of currently selected items in the most recent outliner view */
 	int32 GetSelectedItemCount() const;
 
-	/** Gets the Tree Root Item of the Outliner */
-	TSharedRef<FAvaOutlinerTreeRoot> GetTreeRoot() const
-	{
-		return RootItem;
-	}
-
 	/**
 	 * Selects the given Items on all Outliner Views
 	 * @param InItems the items to select
@@ -313,31 +210,8 @@ public:
 	 */
 	void ClearItemSelection(bool bSignalSelectionChange) const;
 
-	/**
-	 * Adds or Removes the Ignore Notify Flags to prevent certain actions from automatically happening when they're triggered
-	 * @param InFlag the ignore flag to add or remove
-	 * @param bIgnore whether to add (true) or remove (false) the flag
-	 */
-	void SetIgnoreNotify(EAvaOutlinerIgnoreNotifyFlags InFlag, bool bIgnore)
-	{
-		if (bIgnore)
-		{
-			EnumAddFlags(IgnoreNotifyFlags, InFlag);
-		}
-		else
-		{
-			EnumRemoveFlags(IgnoreNotifyFlags, InFlag);
-		}
-	}
-
 	/** Gets the closest item to all the given items while also being their common ancestor */
 	static FAvaOutlinerItemPtr FindLowestCommonAncestor(const TArray<FAvaOutlinerItemPtr>& Items);
-
-	/**
-	 * Compares the absolute order of the items in the Outliner and returns true if A comes before B in the outliner.
-	 * Useful to use when sorting Items.
-	 */
-	static bool CompareOutlinerItemOrder(const FAvaOutlinerItemPtr& A, const FAvaOutlinerItemPtr& B);
 
 	/** Converts the given Outliner Item to a Scene Item that can be serialized in the Scene Tree */
 	static FAvaSceneItem MakeSceneItemFromOutlinerItem(const FAvaOutlinerItemPtr& InItem);
@@ -351,53 +225,17 @@ public:
 	/** Normalizes the given Items by removing selected items that have their parent item also in the selection */
 	static void NormalizeItems(TArray<FAvaOutlinerItemPtr>& InOutItems);
 
-	/**
-	 * Gets all the Selected Items and puts/attaches them under the given Grouping Actor.
-	 * Requires that the Grouping Actor is valid and spawned in the World.
-	 */
-	void GroupSelection(AActor* InGroupingActor, const TOptional<FAttachmentTransformRules>& InTransformRules = TOptional<FAttachmentTransformRules>());
-
 	/** Gets the Editor Mode Tools used to handle selections */
 	FEditorModeTools* GetModeTools() const;
 
 	/** Have the given Selected Items sync to the USelection Instances of Mode Tools */
 	void SyncModeToolsSelection(const TArray<FAvaOutlinerItemPtr>& InSelectedItems) const;
 
-	/** Called when the objects have been selected and notified through USelection Instances in Mode Tools */
-	void OnObjectSelectionChanged(const FAvaEditorSelection& InEditorSelection);
-
-	/** Gets the World the Outliner is working with */
-	UWorld* GetWorld() const;
-
 	/** Gets all the Actors that have as their AActor::GetSceneOutlinerParent the given InParentActor */
 	TArray<TWeakObjectPtr<AActor>> GetActorSceneOutlinerChildren(AActor* InParentActor) const;
 
 	/** Tries to add the new Actor to the Outliner if not added already and if the Outliner allows the given actor to be added */
 	void OnActorSpawned(AActor* InActor);
-
-	/**
-	 * Should be called when Actors have been copied and give Ava Outliner opportunity to add to the Buffer to copy the Outliner data for those Actors
-	 * @param InOutCopiedData the data to process / append to for copy
-	 * @param InCopiedActors the actors to copy
-	 */
-	void OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors);
-
-	/**
-	 * Should be called when Actors have been pasted to parse the data that was filled in by FAvaOutliner::OnActorsCopied
-	 * @param InPastedData pasted string data
-	 * @param InPastedActors map of the original actor name to its created actor on paste
-	 */
-	void OnActorsPasted(FStringView InPastedData, const TMap<FName, AActor*>& InPastedActors);
-
-	/**
-	 * Handles when Actors have been Duplicated
-	 * @param InDuplicateActorMap the map of the Duplicate Actors to their Templates
-	 * @param InRelativeItem he item to use as positional reference to where to place the duplicate items in the outliner
-	 * @param InRelativeDropZone where to put the duplicate items relative to the InRelativeItem (above, below, onto)
-	 */
-	void OnActorsDuplicated(const TMap<AActor*, AActor*>& InDuplicateActorMap
-		, FAvaOutlinerItemPtr InRelativeItem = nullptr
-		, TOptional<EItemDropZone> InRelativeDropZone = TOptional<EItemDropZone>());
 
 	/** Called when an Actor has been destroyed. This enqueues the Removal the Actor Item to the Pending Action Queue */
 	void OnActorDestroyed(AActor* InActor);
@@ -407,9 +245,6 @@ public:
 
 	/** Called the engine replaces an object. A common example is when a BP Component is destroyed, and replaced */
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplacementMap);
-
-	/** Gets the Default Transform to use when spawning actors via the Outliner (e.g. dragging a spawnable asset into an item in the outliner) */
-	FTransform GetActorDefaultSpawnTransform() const;
 
 	/** Marks the Outliner dirty. This triggers IAvaOutlinerProvider::OnOutlinerModified on next tick */
 	void SetOutlinerModified();

@@ -21,7 +21,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerSharedObject : public FAvaOutlinerObject
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerSharedObject, FAvaOutlinerObject);
 
-	FAvaOutlinerSharedObject(FAvaOutliner& InOutliner, UObject* InObject);
+	FAvaOutlinerSharedObject(IAvaOutliner& InOutliner, UObject* InObject);
 
 	//~ Begin IAvaOutlinerItem
 	virtual bool IsAllowedInOutliner() const override { return false; }
@@ -47,7 +47,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerObjectReference : public FAvaOutlinerObj
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerObjectReference, FAvaOutlinerObject);
 
-	FAvaOutlinerObjectReference(FAvaOutliner& InOutliner
+	FAvaOutlinerObjectReference(IAvaOutliner& InOutliner
 		, UObject* InObject
 		, const FAvaOutlinerItemPtr& InReferencingItem
 		, const FString& InReferenceId);

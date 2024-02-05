@@ -1,19 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Outliner/AvaOutlinerMaterialDesignerProxy.h"
-#include "AvaOutliner.h"
 #include "Components/PrimitiveComponent.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerComponent.h"
+#include "Item/AvaOutlinerItemParameters.h"
 #include "Item/AvaOutlinerMaterial.h"
-#include "ItemActions/AvaOutlinerAddItem.h"
-#include "ItemActions/AvaOutlinerRemoveItem.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
 #include "Outliner/AvaOutlinerMaterialDesigner.h"
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerMaterialDesignerProxy"
 
-FAvaOutlinerMaterialDesignerProxy::FAvaOutlinerMaterialDesignerProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaOutlinerMaterialDesignerProxy::FAvaOutlinerMaterialDesignerProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: FAvaOutlinerMaterialProxy(InOutliner, InParentItem)
 {
 }

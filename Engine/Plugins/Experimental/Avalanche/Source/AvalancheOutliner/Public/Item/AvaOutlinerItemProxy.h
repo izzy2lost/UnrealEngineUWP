@@ -16,7 +16,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerItemProxy : public FAvaOutlinerItem
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerItemProxy, FAvaOutlinerItem);
 
-	FAvaOutlinerItemProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerItemProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	//~ Begin IAvaOutlinerItem
 	virtual bool IsItemValid() const override;

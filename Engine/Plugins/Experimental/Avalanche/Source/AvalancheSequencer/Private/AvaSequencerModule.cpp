@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaSequencerModule.h"
-#include "AvaOutliner.h"
 #include "AvaSequence.h"
 #include "AvaSequenceEditor.h"
 #include "AvaSequencer.h"
 #include "AvaSequencerUtils.h"
 #include "Commands/AvaSequencerCommands.h"
-#include "EaseCurveTool/AvaEaseCurveStyle.h"
-#include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "Customization/AvaDisplayRateCustomization.h"
 #include "Customization/AvaMarkSettingCustomization.h"
 #include "Customization/AvaSequenceCustomization.h"
 #include "Customization/AvaSequenceTimeCustomization.h"
 #include "Director/AvaSequenceDirectorBlueprint.h"
 #include "Director/AvaSequenceDirectorCompiler.h"
+#include "EaseCurveTool/AvaEaseCurveStyle.h"
+#include "EaseCurveTool/AvaEaseCurveToolCommands.h"
+#include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "ISequencerModule.h"
 #include "Item/AvaOutlinerActor.h"
@@ -146,7 +146,7 @@ void FAvaSequencerModule::RegisterOutlinerItems()
 	ItemProxyRegistry.RegisterItemProxyWithDefaultFactory<FAvaOutlinerSequenceProxy, 30>();
 
 	OutlinerProxiesExtensionDelegateHandle = IAvaOutlinerModule::Get().GetOnExtendItemProxiesForItem().AddLambda(
-		[](FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
+		[](IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
 		{
 			if (InItem->IsA<FAvaOutlinerActor>())
 			{

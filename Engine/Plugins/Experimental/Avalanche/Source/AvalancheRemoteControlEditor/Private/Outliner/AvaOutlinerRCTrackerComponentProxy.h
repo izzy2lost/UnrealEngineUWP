@@ -12,7 +12,7 @@ class FAvaOutlinerRCTrackerComponentProxy : public FAvaOutlinerItemProxy
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerRCTrackerComponentProxy, FAvaOutlinerItemProxy);
 
-	FAvaOutlinerRCTrackerComponentProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerRCTrackerComponentProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	URemoteControlTrackerComponent* GetTrackerComponent() const;
 	

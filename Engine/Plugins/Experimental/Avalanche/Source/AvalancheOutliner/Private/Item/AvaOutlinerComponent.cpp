@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerComponent"
 
-FAvaOutlinerComponent::FAvaOutlinerComponent(FAvaOutliner& InOutliner, USceneComponent* InComponent)
+FAvaOutlinerComponent::FAvaOutlinerComponent(IAvaOutliner& InOutliner, USceneComponent* InComponent)
 	: Super(InOutliner, InComponent)
 	, Component(InComponent)
 {
@@ -122,13 +122,15 @@ EAvaOutlinerItemViewMode FAvaOutlinerComponent::GetSupportedViewModes(const FAva
 
 bool FAvaOutlinerComponent::IsAllowedInOutliner() const
 {
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+
 	//Make sure Owner is Allowed (this also returns false if Owner is invalid)
 	const USceneComponent* const UnderlyingComponent = GetComponent();
-	if (!UnderlyingComponent || !Outliner.IsActorAllowedInOutliner(UnderlyingComponent->GetOwner()))
+	if (!UnderlyingComponent || !OutlinerPrivate.IsActorAllowedInOutliner(UnderlyingComponent->GetOwner()))
 	{
 		return false;
 	}
-	return Outliner.IsComponentAllowedInOutliner(UnderlyingComponent);
+	return OutlinerPrivate.IsComponentAllowedInOutliner(UnderlyingComponent);
 }
 
 TSharedRef<SWidget> FAvaOutlinerComponent::GenerateLabelWidget(const TSharedRef<SAvaOutlinerTreeRow>& InRow)

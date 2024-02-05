@@ -8,7 +8,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerObject"
 
-FAvaOutlinerObject::FAvaOutlinerObject(FAvaOutliner& InOutliner, UObject* InObject)
+FAvaOutlinerObject::FAvaOutlinerObject(IAvaOutliner& InOutliner, UObject* InObject)
 	: FAvaOutlinerItem(InOutliner)
 	, Object(InObject)
 {

@@ -3,14 +3,14 @@
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
 #include "AvaActorUtils.h"
 #include "AvaBlueprint.h"
-#include "AvaOutlinerUtils.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Framework/AvaGameInstance.h"
 
 #if WITH_EDITOR
-#include "AvaOutliner.h"
-#include "AvaOutlinerSubsystem.h"
+#include "AvaOutlinerUtils.h"
+#include "IAvaOutliner.h"
+#include "Item/AvaOutlinerItemUtils.h"
 #endif
 
 void UAvaTranslucentPriorityModifierShared::SetComponentsState(UAvaTranslucentPriorityModifier* InModifierContext, const TSet<TWeakObjectPtr<UPrimitiveComponent>>& InComponents)
@@ -239,7 +239,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 		// Sort current modifiers by outliner hierarchy
 #if WITH_EDITOR
 		// Use the outliner first if available for sorting
-		TSharedPtr<FAvaOutliner> AvaOutliner = FAvaOutlinerUtils::EditorGetOutliner(World);
+		TSharedPtr<IAvaOutliner> AvaOutliner = FAvaOutlinerUtils::EditorGetOutliner(World);
 		if (AvaOutliner.IsValid())
 		{
 			SortedComponentStates.Sort([AvaOutliner](const FAvaTranslucentPriorityModifierComponentState& InComponentA, const FAvaTranslucentPriorityModifierComponentState& InComponentB)->bool
@@ -247,7 +247,7 @@ TArray<const FAvaTranslucentPriorityModifierComponentState*> UAvaTranslucentPrio
 				const FAvaOutlinerItemPtr OutlinerItemA = AvaOutliner->FindItem(InComponentA.GetOwningActor());
 				const FAvaOutlinerItemPtr OutlinerItemB = AvaOutliner->FindItem(InComponentB.GetOwningActor());
 
-				return FAvaOutliner::CompareOutlinerItemOrder(OutlinerItemB, OutlinerItemA);
+				return UE::AvaOutliner::CompareOutlinerItemOrder(OutlinerItemB, OutlinerItemA);
 			});
 		}
 		else

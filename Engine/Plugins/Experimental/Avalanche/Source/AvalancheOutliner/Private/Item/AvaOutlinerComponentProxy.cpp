@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerComponentProxy"
 
-FAvaOutlinerComponentProxy::FAvaOutlinerComponentProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaOutlinerComponentProxy::FAvaOutlinerComponentProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: Super(InOutliner, InParentItem)
 {
 }

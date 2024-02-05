@@ -6,7 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Selection.h"
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	USelection* GetSelection(const FEditorModeTools& InEditorModeTools, const UObject* InObject)
 	{
@@ -122,7 +122,7 @@ bool FAvaOutlinerScopedSelection::IsSelected(const UObject* InObject) const
 		return true;
 	}
 
-	USelection* const Selection = UE::AvalancheOutliner::Private::GetSelection(EditorModeTools, InObject);
+	USelection* const Selection = UE::AvaOutliner::Private::GetSelection(EditorModeTools, InObject);
 	if (ensure(Selection))
 	{
 		return Selection->IsSelected(InObject);
@@ -132,7 +132,7 @@ bool FAvaOutlinerScopedSelection::IsSelected(const UObject* InObject) const
 
 void FAvaOutlinerScopedSelection::SyncSelections()
 {
-	UE::AvalancheOutliner::Private::SyncSelection(EditorModeTools.GetSelectedActors(), SelectedActors);
-	UE::AvalancheOutliner::Private::SyncSelection(EditorModeTools.GetSelectedComponents(), SelectedComponents);
-	UE::AvalancheOutliner::Private::SyncSelection(EditorModeTools.GetSelectedObjects(), SelectedObjects);
+	UE::AvaOutliner::Private::SyncSelection(EditorModeTools.GetSelectedActors(), SelectedActors);
+	UE::AvaOutliner::Private::SyncSelection(EditorModeTools.GetSelectedComponents(), SelectedComponents);
+	UE::AvaOutliner::Private::SyncSelection(EditorModeTools.GetSelectedObjects(), SelectedObjects);
 }

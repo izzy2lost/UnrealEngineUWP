@@ -54,15 +54,6 @@ TSharedRef<FAvaOutlinerItemDragDropOp> FAvaOutlinerItemDragDropOp::New(const TAr
 	return DragDropOp;
 }
 
-TSharedPtr<FAvaOutliner> FAvaOutlinerItemDragDropOp::GetOutliner() const
-{
-	if (TSharedPtr<FAvaOutlinerView> OutlinerView = GetOutlinerView())
-	{
-		return OutlinerView->GetOutliner();
-	}
-	return nullptr;
-}
-
 void FAvaOutlinerItemDragDropOp::GetDragDropOpActors(TSharedPtr<FDragDropOperation> InDragDropOp, TArray<TWeakObjectPtr<AActor>>& OutActors)
 {
 	if (InDragDropOp.IsValid() && InDragDropOp->IsOfType<FAvaOutlinerItemDragDropOp>())
@@ -120,8 +111,10 @@ FReply FAvaOutlinerItemDragDropOp::Drop(EItemDropZone InDropZone, FAvaOutlinerIt
 
 TOptional<EItemDropZone> FAvaOutlinerItemDragDropOp::CanDrop(EItemDropZone InDropZone, FAvaOutlinerItemPtr InTargetItem) const
 {
+	TSharedPtr<IAvaOutlinerView> OutlinerView = GetOutlinerView();
+
 	// Only support Drag/Drop from Same Outliner
-	if (InTargetItem->GetOwnerOutliner() != GetOutliner())
+	if (!OutlinerView.IsValid() || InTargetItem->GetOwnerOutliner() != OutlinerView->GetOwnerOutliner())
 	{
 		return TOptional<EItemDropZone>();
 	}
@@ -170,11 +163,6 @@ void FAvaOutlinerItemDragDropOp::Init(const TArray<FAvaOutlinerItemPtr>& InItems
 	AddDropHandler<FAvaOutlinerActorDropHandler>();
 
 	FAvaOutlinerItemDragDropOp::OnItemDragDropOpInitialized().Broadcast(*this);
-
-	if (TSharedPtr<FAvaOutliner> Outliner = GetOutliner())
-	{
-		Outliner->GetProvider().OnItemDragDropInitialized(*this);
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

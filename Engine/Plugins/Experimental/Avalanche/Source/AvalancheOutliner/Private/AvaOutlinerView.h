@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AvaOutlinerDefines.h"
+#include "IAvaOutlinerView.h"
 #include "Item/AvaOutlinerItemId.h"
 
 class FAvaOutliner;
@@ -27,7 +28,7 @@ struct FPointerEvent;
   * A view instance of the Outliner, that handles viewing a subset of the outliner items based on
   * item filters, search text, hierarchy type, etc
   */
-class AVALANCHEOUTLINER_API FAvaOutlinerView : public TSharedFromThis<FAvaOutlinerView>
+class FAvaOutlinerView : public IAvaOutlinerView
 {
 	friend FAvaOutlinerSaveState;
 	
@@ -42,10 +43,10 @@ class AVALANCHEOUTLINER_API FAvaOutlinerView : public TSharedFromThis<FAvaOutlin
 public:
 	explicit FAvaOutlinerView(FPrivateToken);
 
-	~FAvaOutlinerView();
+	virtual ~FAvaOutlinerView() override;
 
 	/** Gets the Tool Menu name for the ToolBar in each Outliner View Widget */
-	static FName GetOutlinerToolBarName();
+	static FName GetOutlinerToolbarName();
 
 	/** Gets the Tool Menu name for the Item Context Menu */
 	static FName GetOutlinerItemContextMenuName();
@@ -104,12 +105,14 @@ public:
 
 	TSharedPtr<FAvaOutliner> GetOutliner() const { return OutlinerWeak.Pin(); }
 
-	/** Returns the Outliner Widget. Can be null widget */
-	TSharedRef<SWidget> GetOutlinerWidget() const;
-
 	TSharedRef<FAvaOutlinerStats> GetOutlinerStats() const { return OutlinerStats; }
 
-	void CreateToolBar();
+	//~ Begin IAvaOutlinerView
+	virtual TSharedRef<SWidget> GetOutlinerWidget() const override;
+	virtual TSharedPtr<IAvaOutliner> GetOwnerOutliner() const override;
+	//~ End IAvaOutlinerView
+
+	void CreateToolbar();
 	
 	TSharedPtr<SWidget> CreateItemContextMenu();
 	
@@ -394,7 +397,7 @@ private:
 	/** Static Function to Populate the Outliner Item Context Menu. The Outliner View and Context Items are gotten via UAvaOutlinerItemsContext */
 	static void PopulateItemContextMenu(UToolMenu* InToolMenu);
 	
-	/** Static Function to Populate the Outliner Main Toolbar. The Outliner View is gotten via UAvaOutlinerToolBarContext */
+	/** Static Function to Populate the Outliner Main Toolbar. The Outliner View is gotten via UAvaOutlinerToolbarContext */
 	static void PopulateToolBar(UToolMenu* InToolMenu);
 	
 	/** Triggers a Refresh on the FAvaOutliner */

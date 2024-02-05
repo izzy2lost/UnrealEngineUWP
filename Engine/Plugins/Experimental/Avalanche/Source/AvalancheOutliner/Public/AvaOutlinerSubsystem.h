@@ -2,11 +2,12 @@
 
 #pragma once
 
+#include "AvaOutlinerDefines.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "AvaOutlinerSubsystem.generated.h"
 
-class FAvaOutliner;
+class IAvaOutliner;
 class IAvaOutlinerProvider;
 
 UENUM()
@@ -21,8 +22,8 @@ enum class EAvaOutlinerHierarchyChangeType : uint8
 };
 
 /** Subsystem in charge of instancing and keeping reference of the World's Outliner */
-UCLASS()
-class AVALANCHEOUTLINER_API UAvaOutlinerSubsystem : public UWorldSubsystem
+UCLASS(MinimalAPI)
+class UAvaOutlinerSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
@@ -30,16 +31,22 @@ public:
 	/**
 	 * Instantiates the World's Outliner
 	 * @param InProvider the outliner provider
-	 * @param bInForceCreate whether to create a new FAvaOutliner even if one already exists
-	 * @returns an existing or new valid FAvaOutliner instance
+	 * @param bInForceCreate whether to create a new IAvaOutliner even if one already exists
+	 * @returns an existing or new valid IAvaOutliner instance
 	 * @note the subsystem holds a non-owning reference of the outliner, the provider is what ideally should be holding the owning reference
 	 */
-	TSharedRef<FAvaOutliner> GetOrCreateOutliner(IAvaOutlinerProvider& InProvider, bool bInForceCreate = false);
+	AVALANCHEOUTLINER_API TSharedRef<IAvaOutliner> GetOrCreateOutliner(IAvaOutlinerProvider& InProvider, bool bInForceCreate = false);
 
-	TSharedPtr<FAvaOutliner> GetOutliner() const { return OutlinerWeak.Pin(); }
+	TSharedPtr<IAvaOutliner> GetOutliner() const
+	{
+		return OutlinerWeak.Pin();
+	}
 
 	DECLARE_EVENT_ThreeParams(UAvaOutlinerSubsystem, FActorHierarchyChanged, AActor* /*InActor*/, const AActor* /*InParentActor*/, EAvaOutlinerHierarchyChangeType);
-	FActorHierarchyChanged& OnActorHierarchyChanged() { return ActorHierarchyChangedEvent; }
+	FActorHierarchyChanged& OnActorHierarchyChanged()
+	{
+		return ActorHierarchyChangedEvent;
+	}
 
 	/**
 	 * Called when the Actor has changed in the Outliner Hierarchy
@@ -49,12 +56,13 @@ public:
 	 */
 	void BroadcastActorHierarchyChanged(AActor* InActor, const AActor* InParentActor, EAvaOutlinerHierarchyChangeType InChangeType) const;
 
+protected:
 	//~ Begin UWorldSubsystem
 	virtual bool DoesSupportWorldType(const EWorldType::Type InWorldType) const override;
 	//~ End UWorldSubsystem
 
 private:
-	TWeakPtr<FAvaOutliner> OutlinerWeak;
+	TWeakPtr<IAvaOutliner> OutlinerWeak;
 
 	FActorHierarchyChanged ActorHierarchyChangedEvent;
 };

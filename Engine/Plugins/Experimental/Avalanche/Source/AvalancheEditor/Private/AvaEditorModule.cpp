@@ -108,7 +108,7 @@ void FAvaEditorModule::StartupModule()
 		.SetOverriddenIcon(FOnGetOverriddenObjectIcon::CreateStatic(&FAvaEditorModule::GetOutlinerShapeActorIcon));
 
 	IAvaOutlinerModule::Get().GetOnExtendOutlinerItemContextMenu()
-    		.AddStatic(&FAvaOutlinerSVGActorContextMenu::OnExtendOutlinerContextMenu);
+    	.AddStatic(&FAvaOutlinerSVGActorContextMenu::OnExtendOutlinerContextMenu);
 
 	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter(ALight::StaticClass(), MakeShared<FAvaViewportColorPickerLightAdapter>());
 

@@ -14,7 +14,7 @@ class FAvaPropertyAnimatorEditorOutlinerProxy : public FAvaOutlinerItemProxy
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaPropertyAnimatorEditorOutlinerProxy, FAvaOutlinerItemProxy);
 
-	FAvaPropertyAnimatorEditorOutlinerProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaPropertyAnimatorEditorOutlinerProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	UPropertyAnimatorCoreComponent* GetPropertyAnimatorComponent() const;
 

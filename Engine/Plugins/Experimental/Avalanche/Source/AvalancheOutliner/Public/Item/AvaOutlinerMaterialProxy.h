@@ -10,7 +10,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerMaterialProxy : public FAvaOutlinerItemP
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerMaterialProxy, FAvaOutlinerItemProxy);
 
-	FAvaOutlinerMaterialProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerMaterialProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	virtual ~FAvaOutlinerMaterialProxy() override;
 	

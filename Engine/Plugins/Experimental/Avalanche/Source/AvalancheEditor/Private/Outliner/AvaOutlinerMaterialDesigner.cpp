@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerMaterialDesigner"
 
-FAvaOutlinerMaterialDesigner::FAvaOutlinerMaterialDesigner(FAvaOutliner& InOutliner
+FAvaOutlinerMaterialDesigner::FAvaOutlinerMaterialDesigner(IAvaOutliner& InOutliner
 		, UMaterialInterface* InMaterial
 		, const FAvaOutlinerItemPtr& InReferencingItem
 		, int32 InMaterialIndex)

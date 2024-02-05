@@ -6,13 +6,13 @@
 #include "AvaType.h"
 #include "Delegates/Delegate.h"
 
-class FAvaOutliner;
 class FAvaOutlinerItemProxy;
 class FAvaOutlinerScopedSelection;
 class FAvaOutlinerView;
 class FDragDropEvent;
 class FEditorModeTools;
 class FReply;
+class IAvaOutliner;
 class SAvaOutlinerTreeRow;
 class SWidget;
 class UObject;
@@ -46,7 +46,7 @@ public:
 	virtual bool IsSelectable() const { return true; }
 	
 	/** Gets the Outliner that owns this Item */
-	virtual TSharedRef<FAvaOutliner> GetOwnerOutliner() const = 0;
+	virtual TSharedRef<IAvaOutliner> GetOwnerOutliner() const = 0;
 
 	/** Determines whether the Item properties are in a valid state */
 	virtual bool IsItemValid() const = 0;

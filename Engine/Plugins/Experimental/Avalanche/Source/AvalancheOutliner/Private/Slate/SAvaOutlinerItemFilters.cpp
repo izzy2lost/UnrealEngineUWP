@@ -20,7 +20,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaOutlinerItemFilters"
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	const FButtonStyle& GetFilterItemMenuButtonStyle()
 	{
@@ -46,7 +46,7 @@ namespace UE::AvalancheOutliner::Private
 
 void SAvaOutlinerItemFilters::Construct(const FArguments& InArgs, const TSharedRef<FAvaOutlinerView>& InOutlinerView)
 {
-	using namespace UE::AvalancheOutliner::Private;
+	using namespace UE::AvaOutliner::Private;
 
 	OutlinerViewWeak = InOutlinerView;
 
@@ -191,7 +191,7 @@ void SAvaOutlinerItemFilters::AddItemFilterSlot(const TSharedPtr<IAvaOutlinerIte
 	}
 
 	TSharedRef<SWidget> Slot = SNew(SCheckBox)
-		.Style(&UE::AvalancheOutliner::Private::GetItemFilterCheckboxStyle())
+		.Style(&UE::AvaOutliner::Private::GetItemFilterCheckboxStyle())
 		.ToolTipText(InFilter->GetTooltipText())
 		.OnCheckStateChanged(this, &SAvaOutlinerItemFilters::OnCheckBoxStateChanged, InFilter)
 		.IsChecked(this, &SAvaOutlinerItemFilters::IsChecked, InFilter)

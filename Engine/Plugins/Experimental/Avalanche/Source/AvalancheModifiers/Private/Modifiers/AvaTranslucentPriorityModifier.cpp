@@ -12,9 +12,9 @@
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
 
 #if WITH_EDITOR
-#include "AvaOutliner.h"
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerUtils.h"
+#include "IAvaOutliner.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "AvaTranslucentPriorityModifier"

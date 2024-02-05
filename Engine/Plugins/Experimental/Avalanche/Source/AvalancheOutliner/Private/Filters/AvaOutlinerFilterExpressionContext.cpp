@@ -2,6 +2,8 @@
 
 #include "AvaOutlinerFilterExpressionContext.h"
 #include "AvaOutliner.h"
+#include "AvaOutlinerModule.h"
+#include "IAvaFilterExpressionFactory.h"
 #include "Item/AvaOutlinerObject.h"
 #include "Item/IAvaOutlinerItem.h"
 
@@ -46,9 +48,9 @@ bool FAvaOutlinerFilterExpressionContext::TestComplexExpression(const FName& InK
 	, const ETextFilterComparisonOperation InComparisonOperation
 	, const ETextFilterTextComparisonMode InTextComparisonMode) const
 {
-	const IAvaOutlinerModule& AvaOutlinerModule = IAvaOutlinerModule::Get();
+	const FAvaOutlinerModule& OutlinerModule = FAvaOutlinerModule::Get();
 
-	if (AvaOutlinerModule.CanFilterSupportComparisonOperation(InKey, InComparisonOperation))
+	if (OutlinerModule.CanFilterSupportComparisonOperation(InKey, InComparisonOperation))
 	{
 		FAvaTextFilterArgs FilterArgs;
 		FilterArgs.ItemClass = ItemClass;
@@ -57,7 +59,7 @@ bool FAvaOutlinerFilterExpressionContext::TestComplexExpression(const FName& InK
 		FilterArgs.ComparisonOperation = InComparisonOperation;
 		FilterArgs.ComparisonMode = InTextComparisonMode;
 
-		return AvaOutlinerModule.FilterExpression(InKey, *Item, FilterArgs);
+		return OutlinerModule.FilterExpression(InKey, *Item, FilterArgs);
 	}
 
 	return false;

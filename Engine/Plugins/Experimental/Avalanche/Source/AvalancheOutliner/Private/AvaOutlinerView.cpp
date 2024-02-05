@@ -24,13 +24,13 @@
 #include "Item/AvaOutlinerComponent.h"
 #include "Item/AvaOutlinerComponentProxy.h"
 #include "Item/AvaOutlinerTreeRoot.h"
+#include "Menu/AvaOutlinerViewToolbarContext.h"
 #include "Slate/SAvaOutliner.h"
 #include "Slate/SAvaOutlinerTreeView.h"
 #include "Stats/AvaOutlinerStats.h"
 #include "Styling/SlateTypes.h"
 #include "ToolMenu.h"
 #include "ToolMenuContext/AvaOutlinerItemsContext.h"
-#include "ToolMenuContext/AvaOutlinerToolBarContext.h"
 #include "ToolMenus.h"
 #include "Widgets/SNullWidget.h"
 
@@ -56,7 +56,7 @@ FAvaOutlinerView::~FAvaOutlinerView()
 	}
 }
 
-FName FAvaOutlinerView::GetOutlinerToolBarName()
+FName FAvaOutlinerView::GetOutlinerToolbarName()
 {
 	static const FName ToolBarName(TEXT("AvalancheOutliner.MainToolBar"));
 	return ToolBarName;
@@ -85,7 +85,7 @@ void FAvaOutlinerView::Init(const TSharedRef<FAvaOutliner>& InOutliner, bool bCr
 	if (bCreateOutlinerWidget)
 	{
 		OutlinerWidget = SNew(SAvaOutliner, SharedThis(this));
-		CreateToolBar();
+		CreateToolbar();
 	}
 
 	UpdateRecentOutlinerViews();
@@ -103,13 +103,6 @@ void FAvaOutlinerView::CreateColumns()
 	ColumnExtender.AddColumn<FAvaOutlinerLabelColumn>();
 	ColumnExtender.AddColumn<FAvaOutlinerItemsColumn>();
 	ColumnExtender.AddColumn<FAvaOutlinerTagColumn>();
-
-	// Option to Extend Columns via Provider and Module
-	if (const TSharedPtr<FAvaOutliner> Outliner = OutlinerWeak.Pin())
-	{
-		Outliner->GetProvider().ExtendOutlinerColumns(ColumnExtender);
-	}
-	IAvaOutlinerModule::Get().GetOnExtendOutlinerColumns().Broadcast(ColumnExtender);
 
 	const TArray<TSharedPtr<IAvaOutlinerColumn>>& FoundColumns = ColumnExtender.GetColumns();
 	
@@ -364,33 +357,35 @@ TSharedRef<SWidget> FAvaOutlinerView::GetOutlinerWidget() const
 	return SNullWidget::NullWidget;
 }
 
-void FAvaOutlinerView::CreateToolBar()
+TSharedPtr<IAvaOutliner> FAvaOutlinerView::GetOwnerOutliner() const
+{
+	return GetOutliner();
+}
+
+void FAvaOutlinerView::CreateToolbar()
 {
 	UToolMenus* const ToolMenus = UToolMenus::Get();
 
-	const FName ToolBarName = FAvaOutlinerView::GetOutlinerToolBarName();
-	
-	if (!ToolMenus->IsMenuRegistered(ToolBarName))
+	const FName ToolbarName = FAvaOutlinerView::GetOutlinerToolbarName();
+
+	if (!ToolMenus->IsMenuRegistered(ToolbarName))
 	{
-		UToolMenu* const ToolBar = ToolMenus->RegisterMenu(ToolBarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+		UToolMenu* const ToolBar = ToolMenus->RegisterMenu(ToolbarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
 		ToolBar->StyleName               = "StatusBarToolBar";
 		ToolBar->bToolBarForceSmallIcons = true;
 		ToolBar->bToolBarIsFocusable     = true;
 		ToolBar->AddDynamicSection("PopulateToolBar", FNewToolMenuDelegate::CreateStatic(&FAvaOutlinerView::PopulateToolBar));
 	}
-	
+
 	TSharedPtr<FExtender> Extender;
-	
-	UAvaOutlinerToolBarContext* const ContextObject = NewObject<UAvaOutlinerToolBarContext>();
+
+	UAvaOutlinerViewToolbarContext* const ContextObject = NewObject<UAvaOutlinerViewToolbarContext>();
 	ContextObject->OutlinerViewWeak = SharedThis(this);
-	
+
 	FToolMenuContext Context(GetBaseCommandList(), Extender, ContextObject);
-	
-	IAvaOutlinerModule::Get().GetOnInitOutlinerToolBar().Broadcast(Context);
-	
 	if (OutlinerWidget.IsValid())
 	{
-		OutlinerWidget->SetToolBarWidget(ToolMenus->GenerateWidget(ToolBarName, Context));
+		OutlinerWidget->SetToolBarWidget(ToolMenus->GenerateWidget(ToolbarName, Context));
 	}
 }
 
@@ -409,13 +404,10 @@ TSharedPtr<SWidget> FAvaOutlinerView::CreateItemContextMenu()
 	TSharedPtr<FExtender> Extender;
 
 	UAvaOutlinerItemsContext* const ContextObject = NewObject<UAvaOutlinerItemsContext>();
-	ContextObject->OutlinerViewWeak = SharedThis(this);
+	ContextObject->OutlinerWeak = GetOutliner();
 	ContextObject->ItemListWeak.Append(SelectedItems);
 
 	FToolMenuContext Context(GetViewCommandList(), Extender, ContextObject);
-
-	IAvaOutlinerModule::Get().GetOnInitOutlinerItemContextMenu().Broadcast(Context);
-
 	return ToolMenus->GenerateWidget(ItemContextMenuName, Context);
 }
 
@@ -1645,7 +1637,7 @@ void FAvaOutlinerView::PopulateItemContextMenu(UToolMenu* InToolMenu)
 	{
 		return;
 	}
-	
+
 	UAvaOutlinerItemsContext* const ItemsContext = InToolMenu->FindContext<UAvaOutlinerItemsContext>();
 	if (!ItemsContext)
 	{
@@ -1664,7 +1656,7 @@ void FAvaOutlinerView::PopulateItemContextMenu(UToolMenu* InToolMenu)
 		GenericActionsSection.AddMenuEntry(GenericCommands.Delete);
 		GenericActionsSection.AddMenuEntry(GenericCommands.Rename);
 	}
-	
+
 	// Outliner Commands
 	{
 		FToolMenuSection& OutlinerActionsSection = InToolMenu->AddSection(TEXT("OutlinerActions"), LOCTEXT("OutlinerActionsHeader", "Outliner Actions"));
@@ -1675,19 +1667,15 @@ void FAvaOutlinerView::PopulateItemContextMenu(UToolMenu* InToolMenu)
 		OutlinerActionsSection.AddMenuEntry(OutlinerCommands.SelectAllChildren);
 		OutlinerActionsSection.AddMenuEntry(OutlinerCommands.SelectImmediateChildren);
 	}
-	
-	const TSharedPtr<FAvaOutlinerView> OutlinerView = ItemsContext->GetOutlinerView();
-	
-	if (!OutlinerView.IsValid())
+
+	const TSharedPtr<IAvaOutliner> Outliner = ItemsContext->GetOutliner();
+	if (!Outliner.IsValid())
 	{
 		return;
 	}
-	
+
 	// Give Option to Quickly Extend without having to implement UToolMenus::Get()->ExtendMenu
-	if (TSharedPtr<FAvaOutliner> Outliner = OutlinerView->GetOutliner())
-	{
-		Outliner->GetProvider().ExtendOutlinerItemContextMenu(InToolMenu);
-	}
+	Outliner->GetProvider().ExtendOutlinerItemContextMenu(InToolMenu);
 	IAvaOutlinerModule::Get().GetOnExtendOutlinerItemContextMenu().Broadcast(InToolMenu);
 }
 
@@ -1697,30 +1685,30 @@ void FAvaOutlinerView::PopulateToolBar(UToolMenu* InToolMenu)
 	{
 		return;
 	}
-	
-	UAvaOutlinerToolBarContext* const ToolBarContext = InToolMenu->FindContext<UAvaOutlinerToolBarContext>();
+
+	UAvaOutlinerViewToolbarContext* const ToolBarContext = InToolMenu->FindContext<UAvaOutlinerViewToolbarContext>();
 	if (!ToolBarContext)
 	{
 		return;
 	}
-	
+
 	if (!ToolBarContext->GetOutlinerView().IsValid())
 	{
 		return;
 	}
-	
+
 	TSharedRef<FAvaOutlinerView> OutlinerView = ToolBarContext->GetOutlinerView().ToSharedRef();
-	
+
 	TSharedRef<SWidget> Widget = OutlinerView->GetOutlinerWidget();
 	if (Widget == SNullWidget::NullWidget)
 	{
 		return;
 	}
-	
+
 	TSharedRef<SAvaOutliner> OutlinerWidget = StaticCastSharedRef<SAvaOutliner>(Widget);
-	
+
 	FToolMenuSection& MainSection = InToolMenu->AddSection(TEXT("Main"));
-		
+
 	// View Options
 	const FToolMenuEntry ViewOptionsEntry = FToolMenuEntry::InitComboButton("ViewOptions", FUIAction()
 			, FOnGetContent::CreateSP(OutlinerView, &FAvaOutlinerView::CreateOutlinerViewOptionsMenu)
@@ -1728,7 +1716,7 @@ void FAvaOutlinerView::PopulateToolBar(UToolMenu* InToolMenu)
 			, LOCTEXT("ViewOptionsToolTip", "View Options")
 			, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Visibility"));
 	MainSection.AddEntry(ViewOptionsEntry);
-	
+
 	// Settings
 	const FToolMenuEntry SettingsEntry = FToolMenuEntry::InitComboButton("Settings", FUIAction()
 			, FOnGetContent::CreateSP(OutlinerView, &FAvaOutlinerView::CreateOutlinerSettingsMenu)
@@ -1736,13 +1724,12 @@ void FAvaOutlinerView::PopulateToolBar(UToolMenu* InToolMenu)
 			, LOCTEXT("SettingsToolTip", "Settings")
 			, FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Settings"));
 	MainSection.AddEntry(SettingsEntry);
-	
+
 	// Give Option to Quickly Extend without having to implement UToolMenus::Get()->ExtendMenu
 	if (TSharedPtr<FAvaOutliner> Outliner = OutlinerView->GetOutliner())
 	{
 		Outliner->GetProvider().ExtendOutlinerToolBar(InToolMenu);
 	}
-	IAvaOutlinerModule::Get().GetOnExtendOutlinerToolBar().Broadcast(InToolMenu);
 }
 
 void FAvaOutlinerView::RefreshOutliner(bool bInImmediateRefresh)

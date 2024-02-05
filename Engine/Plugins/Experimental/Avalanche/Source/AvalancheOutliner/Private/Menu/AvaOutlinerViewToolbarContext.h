@@ -4,22 +4,22 @@
 
 #include "Templates/SharedPointer.h"
 #include "UObject/Object.h"
-#include "AvaOutlinerToolBarContext.generated.h"
+#include "AvaOutlinerViewToolbarContext.generated.h"
 
 class FAvaOutlinerView;
 
-UCLASS(MinimalAPI)
-class UAvaOutlinerToolBarContext : public UObject
+UCLASS()
+class UAvaOutlinerViewToolbarContext : public UObject
 {
 	GENERATED_BODY()
-	
+
 	friend FAvaOutlinerView;
-	
+
 public:
-	UAvaOutlinerToolBarContext() = default;
-	
+	UAvaOutlinerViewToolbarContext() = default;
+
 	TSharedPtr<FAvaOutlinerView> GetOutlinerView() const { return OutlinerViewWeak.Pin(); }
-	
+
 private:
 	TWeakPtr<FAvaOutlinerView> OutlinerViewWeak;
 };

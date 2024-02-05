@@ -8,7 +8,7 @@
 #include "AvaSequence.h"
 #include "Styling/AppStyle.h"
 
-FAvaOutlinerSequence::FAvaOutlinerSequence(FAvaOutliner& InOutliner, UAvaSequence* InSequence, const FAvaOutlinerItemPtr& InReferencingItem)
+FAvaOutlinerSequence::FAvaOutlinerSequence(IAvaOutliner& InOutliner, UAvaSequence* InSequence, const FAvaOutlinerItemPtr& InReferencingItem)
 	: Super(InOutliner, InSequence, InReferencingItem, TEXT("Sequence"))
 	, Sequence(InSequence)
 {

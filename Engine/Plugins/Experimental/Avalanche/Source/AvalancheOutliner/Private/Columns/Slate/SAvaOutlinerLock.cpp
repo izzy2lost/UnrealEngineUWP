@@ -8,7 +8,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaOutlinerLock"
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	class FLockDragDropOp : public FDragDropOperation, public TSharedFromThis<FLockDragDropOp>
 	{
@@ -102,12 +102,12 @@ FSlateColor SAvaOutlinerLock::GetForegroundColor() const
 
 void SAvaOutlinerLock::SetItemLocked(bool bInLocked)
 {
-	UE::AvalancheOutliner::Private::SetItemLocked(ItemWeak.Pin(), bInLocked);
+	UE::AvaOutliner::Private::SetItemLocked(ItemWeak.Pin(), bInLocked);
 }
 
 bool SAvaOutlinerLock::IsItemLocked() const
 {
-	return UE::AvalancheOutliner::Private::IsItemLocked(ItemWeak.Pin());
+	return UE::AvaOutliner::Private::IsItemLocked(ItemWeak.Pin());
 }
 
 const FSlateBrush* SAvaOutlinerLock::GetBrush() const
@@ -119,14 +119,14 @@ FReply SAvaOutlinerLock::OnDragDetected(const FGeometry& MyGeometry, const FPoin
 {
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
 	{
-		return FReply::Handled().BeginDragDrop(UE::AvalancheOutliner::Private::FLockDragDropOp::New(IsItemLocked(), UndoTransaction));
+		return FReply::Handled().BeginDragDrop(UE::AvaOutliner::Private::FLockDragDropOp::New(IsItemLocked(), UndoTransaction));
 	}
 	return FReply::Unhandled();
 }
 
 void SAvaOutlinerLock::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
-	using namespace UE::AvalancheOutliner::Private;
+	using namespace UE::AvaOutliner::Private;
 	if (const TSharedPtr<FLockDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FLockDragDropOp>())
 	{
 		SetItemLocked(DragDropOp->bShouldLock);
@@ -153,9 +153,9 @@ FReply SAvaOutlinerLock::HandleClick()
 	{
 		for (TSharedPtr<IAvaOutlinerItem>& SelectedItem : OutlinerView->GetViewSelectedItems())
 		{
-			if (UE::AvalancheOutliner::Private::IsItemLocked(SelectedItem) != bLockItem)
+			if (UE::AvaOutliner::Private::IsItemLocked(SelectedItem) != bLockItem)
 			{
-				UE::AvalancheOutliner::Private::SetItemLocked(SelectedItem, bLockItem);
+				UE::AvaOutliner::Private::SetItemLocked(SelectedItem, bLockItem);
 			}
 		}
 	}

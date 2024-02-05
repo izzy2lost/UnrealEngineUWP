@@ -9,24 +9,28 @@
 #include "UObject/Object.h"
 #include "AvaOutlinerItemsContext.generated.h"
 
-class FAvaOutlinerView;
+class IAvaOutliner;
 
 UCLASS(MinimalAPI)
 class UAvaOutlinerItemsContext : public UObject
 {
 	GENERATED_BODY()
-	
-	friend FAvaOutlinerView;
-	
+
+	friend class FAvaOutlinerView;
+
 public:
-	UAvaOutlinerItemsContext() = default;
-	
-	TSharedPtr<FAvaOutlinerView> GetOutlinerView() const { return OutlinerViewWeak.Pin(); }
-	
-	TConstArrayView<FAvaOutlinerItemWeakPtr> GetItems() const { return ItemListWeak; }
-	
+	TSharedPtr<IAvaOutliner> GetOutliner() const
+	{
+		return OutlinerWeak.Pin();
+	}
+
+	TConstArrayView<FAvaOutlinerItemWeakPtr> GetItems() const
+	{
+		return ItemListWeak;
+	}
+
 private:
-	TWeakPtr<FAvaOutlinerView> OutlinerViewWeak;
-	
+	TWeakPtr<IAvaOutliner> OutlinerWeak;
+
 	TArray<FAvaOutlinerItemWeakPtr> ItemListWeak;
 };

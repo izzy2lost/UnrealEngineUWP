@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Item/AvaOutlinerItem.h"
-
 #include "ActorFactories/ActorFactory.h"
 #include "AssetSelection.h"
 #include "AvaOutliner.h"
+#include "AvaOutlinerModule.h"
 #include "AvaOutlinerView.h"
 #include "AvaSceneTree.h"
 #include "Columns/Slate/SAvaOutlinerLabelItem.h"
@@ -12,8 +12,8 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "DragDropOps/AvaOutlinerItemDragDropOp.h"
 #include "Editor.h"
-#include "IAvaOutlinerProvider.h"
 #include "Framework/Application/SlateApplication.h"
+#include "IAvaOutlinerProvider.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Item/AvaOutlinerItemUtils.h"
 #include "ItemActions/AvaOutlinerAddItem.h"
@@ -23,7 +23,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerItem"
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	EDetachmentRule GetDetachmentRuleFromAttachmentRule(EAttachmentRule AttachmentRule)
 	{
@@ -53,7 +53,7 @@ namespace UE::AvalancheOutliner::Private
 	};
 }
 
-FAvaOutlinerItem::FAvaOutlinerItem(FAvaOutliner& InOutliner)
+FAvaOutlinerItem::FAvaOutlinerItem(IAvaOutliner& InOutliner)
 	: Outliner(InOutliner)
 {
 }
@@ -62,7 +62,7 @@ FAvaOutlinerItem::~FAvaOutlinerItem()
 {
 }
 
-TSharedRef<FAvaOutliner> FAvaOutlinerItem::GetOwnerOutliner() const
+TSharedRef<IAvaOutliner> FAvaOutlinerItem::GetOwnerOutliner() const
 {
 	return Outliner.AsShared();
 }
@@ -79,7 +79,7 @@ void FAvaOutlinerItem::RefreshChildren()
 
 	TArray<FAvaOutlinerItemPtr> Sortable;
 	TArray<FAvaOutlinerItemPtr> Unsortable;
-	UE::AvalancheOutliner::SplitItems(FoundChildren, Sortable, Unsortable);
+	UE::AvaOutliner::SplitItems(FoundChildren, Sortable, Unsortable);
 
 	// Start with all Sortable/Unsortable Items, and remove every item seen by iterating Children
 	TSet<FAvaOutlinerItemPtr> NewSortableChildren(Sortable);
@@ -142,10 +142,12 @@ void FAvaOutlinerItem::RefreshChildren()
 
 void FAvaOutlinerItem::FindChildren(TArray<FAvaOutlinerItemPtr>& OutChildren, bool bRecursive)
 {
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+
 	TArray<TSharedPtr<FAvaOutlinerItemProxy>> ItemProxies;
-	Outliner.GetItemProxiesForItem(SharedThis(this), ItemProxies);
+	OutlinerPrivate.GetItemProxiesForItem(SharedThis(this), ItemProxies);
 	OutChildren.Reserve(OutChildren.Num() + ItemProxies.Num());
-	
+
 	for (const TSharedPtr<FAvaOutlinerItemProxy>& ItemProxy : ItemProxies)
 	{
 		OutChildren.Add(ItemProxy);
@@ -203,7 +205,7 @@ FAvaOutlinerItemId FAvaOutlinerItem::GetItemId() const
 
 const FSlateBrush* FAvaOutlinerItem::GetIconBrush() const
 {
-	const FSlateIcon Icon = IAvaOutlinerModule::Get().FindOverrideIcon(SharedThis(this));
+	const FSlateIcon Icon = FAvaOutlinerModule::Get().FindOverrideIcon(SharedThis(this));
 	if (Icon.IsSet())
 	{
 		return Icon.GetIcon();
@@ -250,7 +252,8 @@ bool FAvaOutlinerItem::HasAllFlags(EAvaOutlinerItemFlags Flags) const
 
 TOptional<FAvaOutlinerColorPair> FAvaOutlinerItem::GetColor(bool bRecurse) const
 {
-	return Outliner.FindItemColor(SharedThis(const_cast<FAvaOutlinerItem*>(this)), bRecurse);
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+	return OutlinerPrivate.FindItemColor(SharedThis(const_cast<FAvaOutlinerItem*>(this)), bRecurse);
 }
 
 TOptional<EItemDropZone> FAvaOutlinerItem::CanAcceptDrop(const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone)
@@ -288,7 +291,9 @@ void FAvaOutlinerItem::RecalculateItemId()
 {
 	const FAvaOutlinerItemId OldItemId = ItemId;
 	ItemId = CalculateItemId();
-	Outliner.NotifyItemIdChanged(OldItemId, SharedThis(this));
+
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+	OutlinerPrivate.NotifyItemIdChanged(OldItemId, SharedThis(this));
 }
 
 void FAvaOutlinerItem::AddChildChecked(const FAvaOutlinerAddItemParams& InAddItemParams)
@@ -304,7 +309,7 @@ void FAvaOutlinerItem::AddChildChecked(const FAvaOutlinerAddItemParams& InAddIte
 		else
 		{
 			FAvaOutlinerRemoveItemParams RemoveParams(InAddItemParams.Item);
-			RemoveParams.DetachmentTransformRules = UE::AvalancheOutliner::Private::GetDetachmentRulesFromAttachmentRules(InAddItemParams.AttachmentTransformRules);
+			RemoveParams.DetachmentTransformRules = UE::AvaOutliner::Private::GetDetachmentRulesFromAttachmentRules(InAddItemParams.AttachmentTransformRules);
 
 			OldParent->RemoveChild(RemoveParams);
 		}
@@ -426,7 +431,7 @@ FReply FAvaOutlinerItem::CreateItemsFromAssetDrop(const TSharedPtr<FAssetDragDro
 
 				if (AActor* const SpawnedActor = ActorFactory->CreateActor(Asset.GetAsset()
 					, Level
-					, Outliner.GetActorDefaultSpawnTransform()
+					, Outliner.GetProvider().GetOutlinerDefaultActorSpawnTransform()
 					, SpawnParams))
 				{
 					++ItemsAdded;
@@ -443,7 +448,9 @@ FReply FAvaOutlinerItem::CreateItemsFromAssetDrop(const TSharedPtr<FAssetDragDro
 						// When there is more than 1 item being added, start appending to Selection Instead
 						AddChildParams.SelectionFlags |= EAvaOutlinerItemSelectionFlags::AppendToCurrentSelection;
 					}
-					Outliner.EnqueueItemAction<FAvaOutlinerAddItem>(AddChildParams);
+
+					FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+					OutlinerPrivate.EnqueueItemAction<FAvaOutlinerAddItem>(AddChildParams);
 				}
 
 				Outliner.SetIgnoreNotify(EAvaOutlinerIgnoreNotifyFlags::Spawn, false);

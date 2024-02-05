@@ -8,10 +8,10 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaOutlinerSubsystem, Log, All);
 
-TSharedRef<FAvaOutliner> UAvaOutlinerSubsystem::GetOrCreateOutliner(IAvaOutlinerProvider& InProvider, bool bInForceCreate)
+TSharedRef<IAvaOutliner> UAvaOutlinerSubsystem::GetOrCreateOutliner(IAvaOutlinerProvider& InProvider, bool bInForceCreate)
 {
-	TSharedPtr<FAvaOutliner> Outliner = OutlinerWeak.Pin();
-	if (!Outliner.IsValid() || &Outliner->GetProvider() != &InProvider || bInForceCreate)
+	TSharedPtr<IAvaOutliner> Outliner = OutlinerWeak.Pin();
+	if (!Outliner.IsValid() || &StaticCastSharedPtr<FAvaOutliner>(Outliner)->GetProvider() != &InProvider || bInForceCreate)
 	{
 		Outliner = MakeShared<FAvaOutliner>(InProvider);
 	}
