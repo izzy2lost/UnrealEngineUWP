@@ -8,11 +8,13 @@
 #include "Delegates/Delegate.h"
 #include "IPropertyTypeCustomization.h"
 #include "Internationalization/Text.h"
+#include "Math/UnitConversion.h"
 #include "Misc/Optional.h"
 #include "PropertyHandle.h"
 #include "Styling/SlateTypes.h"
 #include "Templates/SharedPointer.h"
 #include "Types/SlateEnums.h"
+#include "Widgets/Input/NumericTypeInterface.h"
 #include "Widgets/SWidget.h"
 
 class FDetailWidgetRow;
@@ -69,6 +71,7 @@ public:
 		TOptional<NumericType> MaxValue;
 		TOptional<NumericType> SliderMinValue;
 		TOptional<NumericType> SliderMaxValue;
+		TSharedPtr<INumericTypeInterface<NumericType>> TypeInterface;
 		NumericType SliderExponent;
 		NumericType Delta;
 		int32 LinearDeltaSensitivity;
