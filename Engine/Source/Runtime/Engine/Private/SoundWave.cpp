@@ -1914,7 +1914,9 @@ void USoundWave::FlushAudioRenderingCommands() const
 bool USoundWave::HasStreamingChunks()
 {
 	check(SoundWaveDataPtr);
-	return SoundWaveDataPtr->RunningPlatformData.GetNumChunks() > 0;
+	const bool bIsForceInline = (GetLoadingBehavior() == ESoundWaveLoadingBehavior::ForceInline);
+	const bool bHasChunks = (SoundWaveDataPtr->RunningPlatformData.GetNumChunks() > 0);
+	return !bIsForceInline && bHasChunks;
 }
 
 void USoundWave::PostLoad()
