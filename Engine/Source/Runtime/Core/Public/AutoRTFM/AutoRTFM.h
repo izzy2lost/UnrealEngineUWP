@@ -23,7 +23,7 @@
 
 #if defined(UE_AUTORTFM_STANDALONE)
 #define UE_AUTORTFM_API
-#define UE_AUTORTFM_FORCEINLINE
+#define UE_AUTORTFM_FORCEINLINE inline
 #else
 #include <HAL/Platform.h>
 #define UE_AUTORTFM_API CORE_API
