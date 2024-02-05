@@ -180,7 +180,7 @@ bool FDisplayClusterConfigurationMediaICVFX::GetMediaInputTiles(const FString& N
 		OutTiles.Append(TiledInputGroup.Tiles);
 	}
 
-	return false;
+	return true;
 }
 
 //@note: Tiled output, it's allowed to use the same node ID in different groups
@@ -206,5 +206,5 @@ bool FDisplayClusterConfigurationMediaICVFX::GetMediaOutputTiles(const FString& 
 		OutTiles.Append(TiledOutputGroup.Tiles);
 	}
 
-	return false;
+	return true;
 }
