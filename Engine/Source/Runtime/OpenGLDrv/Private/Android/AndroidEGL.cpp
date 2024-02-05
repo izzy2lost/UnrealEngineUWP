@@ -765,12 +765,22 @@ void AndroidEGL::ReInit()
 	SetCurrentSharedContext();
 }
 
+
+// EGL_CONTEXT_OPENGL_ROBUST_ACCESS_EXT is enabled if configrules asks for it or the command line specifies it.
+// If -OpenGLRobustContext=[0/1] is specified on the command line it takes precedence.
 void AndroidEGL::Init(APIVariant API, uint32 MajorVersion, uint32 MinorVersion)
 {
 	check(IsInGameThread());
 	const bool bDebug = IsOGLDebugOutputEnabled();
 	const FString* ConfigRulesForceRobustGLContext = FAndroidMisc::GetConfigRulesVariable(TEXT("ForceRobustGLContext"));
 	bool bWantsRobustGLContext = ConfigRulesForceRobustGLContext && ConfigRulesForceRobustGLContext->Equals("true", ESearchCase::IgnoreCase);
+	
+	FString RobustArg;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-OpenGLRobustContext="), RobustArg))
+	{
+		bWantsRobustGLContext = RobustArg.Contains(TEXT("1"));
+	}
+	
 	if (PImplData->Initalized)
 	{
 		ensure(bDebug == PImplData->bIsDebug); // if this fires you would need to tear down the previous context and recreate to honour the debug change.
@@ -801,7 +811,8 @@ void AndroidEGL::Init(APIVariant API, uint32 MajorVersion, uint32 MinorVersion)
 		}
 #endif // USE_ANDROID_EGL_NO_ERROR_CONTEXT
 
-		if (bSupportsEXTRobustContext && bWantsRobustGLContext)
+		bIsEXTRobustContextActive = bSupportsEXTRobustContext && bWantsRobustGLContext;
+		if (bIsEXTRobustContextActive)
 		{
 			UE_LOG(LogAndroid, Log, TEXT("Enabling: EGL_CONTEXT_OPENGL_ROBUST_ACCESS_EXT"));
 			ContextAttributes[Element++] = EGL_CONTEXT_OPENGL_ROBUST_ACCESS_EXT;

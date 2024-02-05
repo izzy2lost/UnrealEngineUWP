@@ -63,12 +63,15 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	static final String CompiledProgram_Key = "cpg";
 	static final String SHMem_Key = "shm";
 	static final String JobFail = "f";
+	static final String RobustContextKey = "rbc";
 	public static final String LogDir = "/oglservice/";
 	public static final String LogExt = ".txt";
 	public static final Level LogLevel = Level.WARNING;
 
 	public static final boolean bEnableTestFailures = false;
 	public static final boolean bReportMemUse = false;
+	public boolean bWantRobustContext = false;
+	public boolean bGFXInitialized = false;
 	private FileHandler logFileHandler;
 
 	private void PrepareLogger() throws IOException
@@ -265,6 +268,33 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 	public IBinder onBind(Intent intent)
 	{
 		logger.debug("onBind "  + intent.toString());
+
+		if(!bGFXInitialized)
+		{
+			if(!UseVulkan())
+			{
+				Bundle extras =intent.getExtras();
+				if(extras != null)
+				{
+					bWantRobustContext = extras.getBoolean(RobustContextKey, false);
+					logger.debug("robust "  + bWantRobustContext);
+				}
+				else
+				{
+					logger.debug("no robust set");
+				}
+				logger.verbose("initGLContext " );
+				initGLContext();
+			}
+			else
+			{
+				logger.verbose("initVulkanContext " );
+				initVulkanContext();
+			}
+			bGFXInitialized = true;
+		}
+		LogMemInfo();
+
 		return mMessenger.getBinder();
 	}
 
@@ -444,17 +474,6 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 
 		Logger.RegisterCallback(this);
 		logger.verbose("oncreate " );
-		if(!UseVulkan())
-		{
-			logger.verbose("initGLContext " );
-			initGLContext();
-		}
-		else
-		{
-			logger.verbose("initVulkanContext " );
-			initVulkanContext();
-		}
-		LogMemInfo();
 	}
 
 	@Override
@@ -620,14 +639,28 @@ public class PSOProgramService extends Service implements Logger.ILoggerCallback
 			};
 		EGL14.eglChooseConfig(mEglDisplay, configSpec, 0, configs, 0, 1, num_config, 0);
 		//logger.verbose("2 eglChooseConfig "+num_config[0]+" err "+EGL14.eglGetError()+" configs: "+configs[0].toString());
-		int[] contextAttribsES31 = new int[]
+		int[] contextAttribsES32 = new int[]
 			{
 				EGLExt.EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
 				EGLExt.EGL_CONTEXT_MINOR_VERSION_KHR, 2,
 				EGL14.EGL_NONE
 			};
-		mEglContext = EGL14.eglCreateContext(mEglDisplay, configs[0], EGL14.EGL_NO_CONTEXT, contextAttribsES31, 0);
-		//logger.verbose("2 eglCreateContext "+mEglContext+" err "+EGL14.eglGetError());
+
+		int EGL_CONTEXT_OPENGL_ROBUST_ACCESS_EXT = 0x30BF;
+		int[] contextAttribsES32Robust = new int[]
+			{
+				EGLExt.EGL_CONTEXT_MAJOR_VERSION_KHR, 3,
+				EGLExt.EGL_CONTEXT_MINOR_VERSION_KHR, 2,
+				EGL_CONTEXT_OPENGL_ROBUST_ACCESS_EXT, 1,
+				EGL14.EGL_NONE
+			};
+
+		String eglExtensions = EGL14.eglQueryString(mEglDisplay, EGL14.EGL_EXTENSIONS);
+		boolean bUseRobustContext = bWantRobustContext && eglExtensions.contains("EGL_EXT_create_context_robustness");
+		logger.verbose("2 eglCreateContext rbst "+bWantRobustContext+" ext contains "+eglExtensions.contains("EGL_EXT_create_context_robustness") );
+
+		mEglContext = EGL14.eglCreateContext(mEglDisplay, configs[0], EGL14.EGL_NO_CONTEXT, bUseRobustContext ? contextAttribsES32Robust : contextAttribsES32, 0);
+		logger.verbose("2 eglCreateContext "+mEglContext+", robust "+bUseRobustContext+", err "+EGL14.eglGetError());
 
 		if (EGL14.eglQueryString(mEglDisplay, EGL14.EGL_EXTENSIONS).contains("EGL_KHR_surfaceless_context"))
 		{
