@@ -60,10 +60,9 @@ public:
 
 	FGraphIslandHandle Handle() const
 	{
-		return FGraphIslandHandle{ GetUniqueIndex(), const_cast<UGraphIsland*>(this) };
+		return FGraphIslandHandle{ GetUniqueIndex(), GetGraph() };
 	}
 
-	bool IsPendingDestroy() const { return bPendingDestroy; }
 	bool IsEmpty() const { return Vertices.IsEmpty(); }
 	const TSet<FGraphVertexHandle>& GetVertices() const { return Vertices; }
 	int32 Num() const { return Vertices.Num(); }
@@ -106,9 +105,6 @@ protected:
 private:
 	UPROPERTY(SaveGame)
 	TSet<FGraphVertexHandle> Vertices;
-
-	UPROPERTY(Transient)
-	bool bPendingDestroy;
 
 	UPROPERTY(Transient)
 	EGraphIslandOperations AllowedOperations = EGraphIslandOperations::All;

@@ -18,11 +18,12 @@ public:
 
 	FGraphVertexHandle Handle() const
 	{
-		return FGraphVertexHandle{ GetUniqueIndex(), const_cast<UGraphVertex*>(this)};
+		return FGraphVertexHandle{ GetUniqueIndex(), GetGraph()};
 	}
 
 	bool HasEdgeTo(const FGraphVertexHandle& Other) const;
 	const FGraphEdgeHandle* FindEdgeTo(const FGraphVertexHandle& Other) const;
+	int32 NumEdges() const { return Edges.Num(); }
 
 	const FGraphIslandHandle& GetParentIsland() const { return ParentIsland; }
 
@@ -41,6 +42,8 @@ public:
 			}
 		}
 	}
+	
+	const TMap<FGraphVertexHandle, FGraphEdgeHandle>& GetEdges() const { return Edges; }
 
 	FOnGraphVertexRemoved OnVertexRemoved;
 	FOnGraphVertexParentIslandSet OnParentIslandSet;
