@@ -1343,7 +1343,7 @@ UObject* StaticLoadObjectInternal(UClass* ObjectClass, UObject* InOuter, const T
 	UE_TRACE_LOG_SCOPED_T(Cpu, LoadObject, CpuChannel)
 		<< LoadObject.AssetPath(InName);
 #endif // CPUPROFILERTRACE_ENABLED
-	SCOPED_NAMED_EVENT(LoadObject, FColor::Red);
+	SCOPED_NAMED_EVENT(StaticLoadObjectInternal, FColor::Red);
 	check(InName);
 
 	FScopedLoadingState ScopedLoadingState(InName);
