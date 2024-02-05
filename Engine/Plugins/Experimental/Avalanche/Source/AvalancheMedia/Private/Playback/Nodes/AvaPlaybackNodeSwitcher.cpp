@@ -2,7 +2,7 @@
 
 #include "Playback/Nodes/AvaPlaybackNodeSwitcher.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNodeSwitcher"
 
 FText UAvaPlaybackNodeSwitcher::GetNodeDisplayNameText() const
 {

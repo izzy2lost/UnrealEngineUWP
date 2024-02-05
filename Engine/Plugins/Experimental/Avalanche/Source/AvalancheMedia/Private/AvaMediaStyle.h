@@ -5,8 +5,8 @@
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 
-struct FSlateBrush;
 class UTexture2D;
+struct FSlateBrush;
 
 class FAvaMediaStyle
 {

@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaBroadcastDetailsTabFactory.h"
-#include "AvalancheBroadcast.h"
+
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Broadcast/DetailsView/SAvaBroadcastDetailsView.h"
 
-const FName FAvaBroadcastDetailsTabFactory::TabID(TEXT("AvalancheBroadcastDetails"));
+const FName FAvaBroadcastDetailsTabFactory::TabID(TEXT("MotionDesignBroadcastDetails"));
 
 #define LOCTEXT_NAMESPACE "AvaBroadcastDetailsTabFactory"
 

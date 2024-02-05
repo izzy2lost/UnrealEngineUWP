@@ -7,16 +7,16 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
 
-class FAvaPlaylistEditor;
+class FAvaRundownEditor;
 class FExtender;
 class FExtensibilityManager;
 class FUICommandList;
-class UAvalanchePlaylist;
+class UAvaRundown;
 class UObject;
 
-struct FAvaMRQPlaylistContext
+struct FAvaMRQRundownContext
 {
-    TArray<TWeakPtr<const FAvaPlaylistEditor>, TInlineAllocator<1>> PlaylistEditors;
+    TArray<TWeakPtr<const FAvaRundownEditor>, TInlineAllocator<1>> RundownEditors;
 };
 
 class FAvaMRQEditorModule : public IModuleInterface
@@ -26,11 +26,11 @@ class FAvaMRQEditorModule : public IModuleInterface
     virtual void ShutdownModule() override;
     //~ End IModuleInterface
 
-    static TSharedRef<FExtender> ExtendPlaylistToolbar(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> InObjects);
+    static TSharedRef<FExtender> ExtendRundownToolbar(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> InObjects);
 
-    static TSharedRef<FUICommandList> CreatePlaylistActions(TSharedRef<FAvaMRQPlaylistContext> InContext);
+    static TSharedRef<FUICommandList> CreateRundownActions(TSharedRef<FAvaMRQRundownContext> InContext);
 
-    TWeakPtr<FExtensibilityManager> PlaylistToolbarExtensibilityWeak;
+    TWeakPtr<FExtensibilityManager> RundownToolbarExtensibilityWeak;
 
-    FDelegateHandle PlaylistToolbarExtenderHandle;
+    FDelegateHandle RundownToolbarExtenderHandle;
 };

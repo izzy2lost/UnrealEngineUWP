@@ -9,11 +9,11 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAvaMediaEditor, Log, All);
 
-class FAvaPlaylistServer;
-class IAvaPlaylistFilterSuggestionFactory;
-struct FAvalanchePage;
-struct FAvaPlaylistTextFilterArgs;
-enum class EAvaPlaylistSearchListType : uint8;
+class FAvaRundownServer;
+class IAvaRundownFilterSuggestionFactory;
+enum class EAvaRundownSearchListType : uint8;
+struct FAvaRundownPage;
+struct FAvaRundownTextFilterArgs;
 
 class IAvaMediaEditorModule : public IModuleInterface
 {
@@ -31,9 +31,9 @@ public:
 	}
 
 	/** Returns the tool menu name used for Page Context Menu */
-	static FName GetPlaylistPageMenuName()
+	static FName GetRundownPageMenuName()
 	{
-		return TEXT("AvaPlaylistPageContextMenu");
+		return TEXT("AvaRundownPageContextMenu");
 	}
 
 	virtual FSlateIcon GetToolbarBroadcastButtonIcon() const = 0;
@@ -45,51 +45,51 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetPlaybackToolBarExtensibilityManager() = 0;
 
 	/** Returns the toolbar extensibility manager for the Playback Editor */
-	virtual TSharedPtr<FExtensibilityManager> GetPlaylistToolBarExtensibilityManager() = 0;
+	virtual TSharedPtr<FExtensibilityManager> GetRundownToolBarExtensibilityManager() = 0;
 
 	/**
-	 * Returns the context menu extensibility manager for the Playlist Editor's Template Pages
-	 * @remark prefer extending with the UToolMenu named after IAvaMediaEditorModule::GetPlaylistPageMenuName, and using UAvaPlaylistPageContext to retrieve context information
+	 * Returns the context menu extensibility manager for the Rundown Editor's Template Pages
+	 * @remark prefer extending with the UToolMenu named after IAvaMediaEditorModule::GetRundownPageMenuName, and using UAvaRundownPageContext to retrieve context information
 	 */
-	virtual TSharedPtr<FExtensibilityManager> GetPlaylistMenuExtensibilityManager() = 0;
+	virtual TSharedPtr<FExtensibilityManager> GetRundownMenuExtensibilityManager() = 0;
 
-	DECLARE_MULTICAST_DELEGATE(FOnPlaylistServerStarted);
-	virtual FOnPlaylistServerStarted& GetOnPlaylistServerStarted() = 0;
+	DECLARE_MULTICAST_DELEGATE(FOnRundownServerStarted);
+	virtual FOnRundownServerStarted& GetOnRundownServerStarted() = 0;
 
-	DECLARE_MULTICAST_DELEGATE(FOnPlaylistServerStopped);
-	virtual FOnPlaylistServerStopped& GetOnPlaylistServerStopped() = 0;
+	DECLARE_MULTICAST_DELEGATE(FOnRundownServerStopped);
+	virtual FOnRundownServerStopped& GetOnRundownServerStopped() = 0;
 
-	virtual TSharedPtr<FAvaPlaylistServer> GetPlaylistServer() const = 0;
+	virtual TSharedPtr<FAvaRundownServer> GetRundownServer() const = 0;
 
 	/**
- 	* Check if current playlist filter expression factory support the comparison operation
- 	* @param InFilterKey Filter key to get the playlist filter expression factory needed
+ 	* Check if current rundown filter expression factory support the comparison operation
+ 	* @param InFilterKey Filter key to get the rundown filter expression factory needed
  	* @param InOperation Operation to check if supported
- 	* @param InPlaylistSearchListType Type of the Search List either Template or Instanced
+ 	* @param InRundownSearchListType Type of the Search List either Template or Instanced
  	* @return True if operation is supported, False otherwise
  	*/
-	virtual bool CanFilterSupportComparisonOperation(const FName& InFilterKey, ETextFilterComparisonOperation InOperation, EAvaPlaylistSearchListType InPlaylistSearchListType) const = 0;
+	virtual bool CanFilterSupportComparisonOperation(const FName& InFilterKey, ETextFilterComparisonOperation InOperation, EAvaRundownSearchListType InRundownSearchListType) const = 0;
 
 	/**
  	* Evaluate the expression and return the result
  	* @param InFilterKey Filter Key to get the Factory
  	* @param InItem Item that is currently checked
- 	* @param InArgs Args to evaluate the expression see FAvaPlaylistTextFilterArgs for more information
+ 	* @param InArgs Args to evaluate the expression see FAvaRundownTextFilterArgs for more information
  	* @return True if the expression evaluated to True, False otherwise
  	*/
-	virtual bool FilterExpression(const FName& InFilterKey, const FAvalanchePage& InItem, const FAvaPlaylistTextFilterArgs& InArgs) const = 0;
+	virtual bool FilterExpression(const FName& InFilterKey, const FAvaRundownPage& InItem, const FAvaRundownTextFilterArgs& InArgs) const = 0;
 
 	/**
  	* Get all simple suggestions with the given type (Template/Instanced/All)
- 	* @param InSuggestionType Type of suggestion to get, see EAvaPlaylistSearchListType for more information
+ 	* @param InSuggestionType Type of suggestion to get, see EAvaRundownSearchListType for more information
  	* @return An Array containing all suggestions of the given type
  	*/
-	virtual TArray<TSharedPtr<IAvaPlaylistFilterSuggestionFactory>> GetSimpleSuggestions(EAvaPlaylistSearchListType InSuggestionType) const = 0;
+	virtual TArray<TSharedPtr<IAvaRundownFilterSuggestionFactory>> GetSimpleSuggestions(EAvaRundownSearchListType InSuggestionType) const = 0;
 
 	/**
  	* Get all complex suggestions with the given type (Template/Instanced/All)
- 	* @param InSuggestionType Type of suggestion to get, see EAvaPlaylistSearchListType for more information
+ 	* @param InSuggestionType Type of suggestion to get, see EAvaRundownSearchListType for more information
  	* @return An Array containing all suggestions of the given type
  	*/
-	virtual TArray<TSharedPtr<IAvaPlaylistFilterSuggestionFactory>> GetComplexSuggestions(EAvaPlaylistSearchListType InSuggestionType) const = 0;
+	virtual TArray<TSharedPtr<IAvaRundownFilterSuggestionFactory>> GetComplexSuggestions(EAvaRundownSearchListType InSuggestionType) const = 0;
 };

@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaPlaybackNodeEvent.h"
+#include "CoreMinimal.h"
 #include "AvaPlaybackNodeTrigger.generated.h"
 
 /*

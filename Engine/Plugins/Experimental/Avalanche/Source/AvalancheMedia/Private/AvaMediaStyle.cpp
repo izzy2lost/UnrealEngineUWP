@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMediaStyle.h"
+
 #include "Brushes/SlateImageBrush.h"
 #include "Interfaces/IPluginManager.h"
 #include "Styling/SlateStyle.h"
@@ -26,7 +27,7 @@ void FAvaMediaStyle::Shutdown()
 
 FName FAvaMediaStyle::GetStyleSetName()
 {
-	static FName StyleSetName(TEXT("AvalancheMedia"));
+	static FName StyleSetName(TEXT("AvaMedia"));
 	return StyleSetName;
 }
 
@@ -50,17 +51,17 @@ const FVector2D Icon200x200(200.f, 200.f);
 
 TSharedRef<FSlateStyleSet> FAvaMediaStyle::Create()
 {
-	TSharedRef<FSlateStyleSet> Style = MakeShared<FSlateStyleSet>("AvalancheMedia");
+	TSharedRef<FSlateStyleSet> Style = MakeShared<FSlateStyleSet>("AvaMedia");
 	
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Avalanche"));
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 	if (Plugin.IsValid())
 	{
 		Style->SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
 	}
 	
-	Style->Set("AvalancheMedia.UnrealIcon", new IMAGE_BRUSH("Icons/MediaIcons/ue_logo", Icon200x200));
-	Style->Set("ClassIcon.AvalancheBroadcast", new IMAGE_BRUSH("Icons/MediaIcons/MediaOutput", Icon16x16));
+	Style->Set("AvaMedia.UnrealIcon", new IMAGE_BRUSH("Icons/MediaIcons/ue_logo", Icon200x200));
+	Style->Set("ClassIcon.AvaBroadcast", new IMAGE_BRUSH("Icons/MediaIcons/MediaOutput", Icon16x16));
 
 	return Style;
 }

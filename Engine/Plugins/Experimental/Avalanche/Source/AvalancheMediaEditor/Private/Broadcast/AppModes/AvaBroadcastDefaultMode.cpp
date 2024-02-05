@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaBroadcastDefaultMode.h"
+
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Broadcast/TabFactories/AvaBroadcastChannelsTabFactory.h"
 #include "Broadcast/TabFactories/AvaBroadcastDetailsTabFactory.h"
@@ -15,7 +16,7 @@ FAvaBroadcastDefaultMode::FAvaBroadcastDefaultMode(const TSharedPtr<FAvaBroadcas
 	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenu_AvaBroadcast", "Motion Design Broadcast"));
 	
 	check(InBroadcastEditor.IsValid());
-	TabLayout = FTabManager::NewLayout("AvalancheBroadcastEditor_Default_Layout_V1")
+	TabLayout = FTabManager::NewLayout("MotionDesignBroadcastEditor_Default_Layout_V1")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea() ->SetOrientation(Orient_Vertical)

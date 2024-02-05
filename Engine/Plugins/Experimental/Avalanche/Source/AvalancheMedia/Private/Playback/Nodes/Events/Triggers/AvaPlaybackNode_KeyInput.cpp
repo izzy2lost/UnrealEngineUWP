@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackNode_KeyInput.h"
+
 #include "Framework/Application/SlateApplication.h"
 #include "Input/Events.h"
-#include "Playback/AvalanchePlayback.h"
+#include "Playback/AvaPlaybackGraph.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNode_KeyInput"
 
 bool UAvaPlaybackNode_KeyInput::FEventInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
@@ -70,7 +71,7 @@ FText UAvaPlaybackNode_KeyInput::GetNodeTooltipText() const
 bool UAvaPlaybackNode_KeyInput::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
 	//Dont process input while not Playing
-	UAvalanchePlayback* const Playback = GetPlayback();
+	UAvaPlaybackGraph* const Playback = GetPlayback();
 	if (!Playback || !Playback->IsPlaying())
 	{
 		return false;

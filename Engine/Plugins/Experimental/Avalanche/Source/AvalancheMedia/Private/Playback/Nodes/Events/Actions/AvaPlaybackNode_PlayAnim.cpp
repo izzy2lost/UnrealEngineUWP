@@ -1,19 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackNode_PlayAnim.h"
+
 #include "Async/Async.h"
 #include "AvaBlueprint.h"
 #include "AvaScene.h"
-#include "AvalancheBroadcast.h"
+#include "AvaSequence.h"
+#include "Broadcast/AvaBroadcast.h"
 #include "Engine/Level.h"
-#include "Playback/AvalanchePlayback.h"
+#include "Playback/AvaPlaybackGraph.h"
 #include "Playback/Nodes/AvaPlaybackNodeBlueprintPlayer.h"
 #include "Playback/Nodes/AvaPlaybackNodeLevelPlayer.h"
-#include "AvaSequence.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNode_PlayAnim"
 
-namespace Avalanche
+namespace UE::AvaMedia::NodePlayAnim::Private
 {
 	FName GetSequenceName(const TObjectPtr<UAvaSequence>& InSequence)
 	{
@@ -31,12 +32,12 @@ FText UAvaPlaybackNode_PlayAnim::GetNodeDisplayNameText() const
 	else
 	{
 		FString AnimationTree;
-		for (TMap<FSoftObjectPath, FAvalancheAnimations>::TConstIterator Iter(AnimationMap); Iter; ++Iter)
+		for (TMap<FSoftObjectPath, FAvaPlaybackAnimations>::TConstIterator Iter(AnimationMap); Iter; ++Iter)
 		{
 			bool bAction = false;
-			for (const FAnimPlaySettings& PlaySettings : Iter->Value.AvailableAnimations)
+			for (const FAvaPlaybackAnimPlaySettings& PlaySettings : Iter->Value.AvailableAnimations)
 			{
-				if (PlaySettings.Action != EAvaMediaAnimAction::None)
+				if (PlaySettings.Action != EAvaPlaybackAnimAction::None)
 				{
 					bAction = true;
 					break;
@@ -60,25 +61,25 @@ FText UAvaPlaybackNode_PlayAnim::GetNodeTooltipText() const
 
 void UAvaPlaybackNode_PlayAnim::OnEventTriggered(const FAvaPlaybackEventParameters& InEventParameters)
 {
-	UAvalanchePlayback* const Playback = GetPlayback();
+	UAvaPlaybackGraph* const Playback = GetPlayback();
 	if (!Playback)
 	{
 		return;
 	}
 
-	const FSoftObjectPath& AvalancheAssetPath = InEventParameters.AvalancheAsset.ToSoftObjectPath();
+	const FSoftObjectPath& AssetPath = InEventParameters.Asset.ToSoftObjectPath();
 	TArray<FName> ChannelNames = Playback->GetChannelNamesForIndices(InEventParameters.ChannelIndices);
 	
 	// Gather the Animations to Play
-	if (FAvalancheAnimations* const FoundAnimations = AnimationMap.Find(AvalancheAssetPath))
+	if (FAvaPlaybackAnimations* const FoundAnimations = AnimationMap.Find(AssetPath))
 	{
-		for (const FAnimPlaySettings& PlaySettings : FoundAnimations->AvailableAnimations)
+		for (const FAvaPlaybackAnimPlaySettings& PlaySettings : FoundAnimations->AvailableAnimations)
 		{
-			if (PlaySettings.Action != EAvaMediaAnimAction::None)
+			if (PlaySettings.Action != EAvaPlaybackAnimAction::None)
 			{
 				for (const FName& ChannelName : ChannelNames)
 				{
-					Playback->PushAnimationCommand(AvalancheAssetPath, ChannelName.ToString(), PlaySettings.Action, PlaySettings);
+					Playback->PushAnimationCommand(AssetPath, ChannelName.ToString(), PlaySettings.Action, PlaySettings);
 				}
 			}
 		}
@@ -96,37 +97,37 @@ void UAvaPlaybackNode_PlayAnim::DryRun(const TArray<UAvaPlaybackNode*>& InAncest
 	{
 		if (UAvaPlaybackNodeBlueprintPlayer* const PlayerNode = Cast<UAvaPlaybackNodeBlueprintPlayer>(PlaybackNode))
 		{
-			TSoftObjectPtr<UAvalancheBlueprint> AvalancheAsset = PlayerNode->GetAvalancheAsset();
-			if (UAvalancheBlueprint* const AvalancheBlueprint = AvalancheAsset.LoadSynchronous())
+			TSoftObjectPtr<UAvalancheBlueprint> Asset = PlayerNode->GetAsset();
+			if (UAvalancheBlueprint* const AvalancheBlueprint = Asset.LoadSynchronous())
 			{
-				SeenAssetsInDryRun.Add(PlayerNode->GetAvalancheAssetPath());
-				FAvalancheAnimations& Animations = AnimationMap.FindOrAdd(PlayerNode->GetAvalancheAssetPath());
+				SeenAssetsInDryRun.Add(PlayerNode->GetAssetPath());
+				FAvaPlaybackAnimations& Animations = AnimationMap.FindOrAdd(PlayerNode->GetAssetPath());
 				for (const TObjectPtr<UAvaSequence>& Animation : AvalancheBlueprint->GetSequences())
 				{
 					if (Animation)
 					{
-						Animations.AvailableAnimations.FindOrAdd(Avalanche::GetSequenceName(Animation));
+						Animations.AvailableAnimations.FindOrAdd(UE::AvaMedia::NodePlayAnim::Private::GetSequenceName(Animation));
 					}
 				}
 			}
 		}
 		if (UAvaPlaybackNodeLevelPlayer* const PlayerNode = Cast<UAvaPlaybackNodeLevelPlayer>(PlaybackNode))
 		{
-			TSoftObjectPtr<UWorld> AvalancheAsset = PlayerNode->GetAvalancheAsset();
-			if (UWorld* const AvalancheWorld = AvalancheAsset.LoadSynchronous())
+			TSoftObjectPtr<UWorld> Asset = PlayerNode->GetAsset();
+			if (UWorld* const World = Asset.LoadSynchronous())
 			{
-				SeenAssetsInDryRun.Add(PlayerNode->GetAvalancheAssetPath());
-				FAvalancheAnimations& Animations = AnimationMap.FindOrAdd(PlayerNode->GetAvalancheAssetPath());
+				SeenAssetsInDryRun.Add(PlayerNode->GetAssetPath());
+				FAvaPlaybackAnimations& Animations = AnimationMap.FindOrAdd(PlayerNode->GetAssetPath());
 
 				AAvaScene* Scene = nullptr;
-				AvalancheWorld->PersistentLevel->Actors.FindItemByClass(&Scene);
+				World->PersistentLevel->Actors.FindItemByClass(&Scene);
 				if (IsValid(Scene))
 				{
 					for (const TObjectPtr<UAvaSequence>& Animation : Scene->GetSequences())
 					{
 						if (Animation)
 						{
-							Animations.AvailableAnimations.FindOrAdd(Avalanche::GetSequenceName(Animation));
+							Animations.AvailableAnimations.FindOrAdd(UE::AvaMedia::NodePlayAnim::Private::GetSequenceName(Animation));
 						}
 					}
 				}
@@ -140,7 +141,7 @@ void UAvaPlaybackNode_PlayAnim::PostDryRun()
 	bool bRefreshNode = false;
 	
 	//Remove all the Assets that were not Seen.
-	for (TMap<FSoftObjectPath, FAvalancheAnimations>::TIterator Iter(AnimationMap); Iter; ++Iter)
+	for (TMap<FSoftObjectPath, FAvaPlaybackAnimations>::TIterator Iter(AnimationMap); Iter; ++Iter)
 	{
 		if (!SeenAssetsInDryRun.Contains(Iter->Key))
 		{

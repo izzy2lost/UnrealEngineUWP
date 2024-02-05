@@ -1,20 +1,21 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaPlaybackDefaultMode.h"
+
 #include "IAvaMediaEditorModule.h"
-#include "Playback/AvaPlaybackEditor.h"
+#include "Playback/AvaPlaybackGraphEditor.h"
 #include "Playback/TabFactories/AvaPlaybackDetailsTabFactory.h"
-#include "Playback/TabFactories/AvaPlaybackGraphTabFactory.h"
+#include "Playback/TabFactories/AvaPlaybackEditorGraphTabFactory.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackDefaultMode"
 
-FAvaPlaybackDefaultMode::FAvaPlaybackDefaultMode(const TSharedPtr<FAvaPlaybackEditor>& InPlaybackEditor)
+FAvaPlaybackDefaultMode::FAvaPlaybackDefaultMode(const TSharedPtr<FAvaPlaybackGraphEditor>& InPlaybackEditor)
 	: FAvaPlaybackAppMode(InPlaybackEditor, FAvaPlaybackAppMode::DefaultMode)
 {
 	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenu_AvaPlayback", "Motion Design Playback"));
 	
 	check(InPlaybackEditor.IsValid());
-	TabLayout = FTabManager::NewLayout("AvalanchePlaybackEditor_Default_Layout_V1")
+	TabLayout = FTabManager::NewLayout("MotionDesignPlaybackEditor_Default_Layout_V1")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea() ->SetOrientation(Orient_Vertical)
@@ -26,8 +27,8 @@ FAvaPlaybackDefaultMode::FAvaPlaybackDefaultMode(const TSharedPtr<FAvaPlaybackEd
 				(
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.75f)
-					->AddTab(FAvaPlaybackGraphTabFactory::TabID, ETabState::OpenedTab)
-					->SetForegroundTab(FAvaPlaybackGraphTabFactory::TabID)
+					->AddTab(FAvaPlaybackEditorGraphTabFactory::TabID, ETabState::OpenedTab)
+					->SetForegroundTab(FAvaPlaybackEditorGraphTabFactory::TabID)
 					->SetHideTabWell(true)
 				)
 				->Split
@@ -40,7 +41,7 @@ FAvaPlaybackDefaultMode::FAvaPlaybackDefaultMode(const TSharedPtr<FAvaPlaybackEd
 		);
 
 	// Add Tab Spawners
-	TabFactories.RegisterFactory(MakeShared<FAvaPlaybackGraphTabFactory>(InPlaybackEditor));
+	TabFactories.RegisterFactory(MakeShared<FAvaPlaybackEditorGraphTabFactory>(InPlaybackEditor));
 	TabFactories.RegisterFactory(MakeShared<FAvaPlaybackDetailsTabFactory>(InPlaybackEditor));
 
 	//Make sure we start with our existing list of extenders instead of creating a new one

@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SAvaBroadcastChannels.h"
-#include "AvalancheBroadcast.h"
-#include "AvalancheMediaEditorSettings.h"
+
+#include "AvaMediaEditorSettings.h"
+#include "Broadcast/AvaBroadcast.h"
 #include "Broadcast/AvaBroadcastEditor.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "SAvaBroadcastProfileEntry.h"
-#include "SAvaChannel.h"
+#include "SAvaBroadcastChannel.h"
 #include "ScopedTransaction.h"
 #include "Widgets/Layout/SGridPanel.h"
 
@@ -23,7 +23,7 @@ void SAvaBroadcastChannels::FAvaChannelMaximizer::Reset()
 	bMaximizing = false;
 }
 
-void SAvaBroadcastChannels::FAvaChannelMaximizer::ToggleMaximize(const TSharedRef<SAvaChannel>& InChannelWidget)
+void SAvaBroadcastChannels::FAvaChannelMaximizer::ToggleMaximize(const TSharedRef<SAvaBroadcastChannel>& InChannelWidget)
 {
 	ChannelWidgetWeak = InChannelWidget;
 	bMaximizing = !bMaximizing;
@@ -74,7 +74,7 @@ void SAvaBroadcastChannels::Construct(const FArguments& InArgs, const TSharedPtr
 	BroadcastEditorWeak = InBroadcastEditor;
 	check(InBroadcastEditor.IsValid());
 	
-	UAvalancheBroadcast* const Broadcast = InBroadcastEditor->GetBroadcastObject();
+	UAvaBroadcast* const Broadcast = InBroadcastEditor->GetBroadcastObject();
 	BroadcastWeak = Broadcast;
 	check(IsValid(Broadcast));
 	
@@ -116,9 +116,9 @@ SAvaBroadcastChannels::~SAvaBroadcastChannels()
 
 bool SAvaBroadcastChannels::CanAddChannel()
 {
-	const int32 ChannelCount = UAvalancheBroadcast::Get().GetCurrentProfile().GetChannels().Num();
+	const int32 ChannelCount = UAvaBroadcast::Get().GetCurrentProfile().GetChannels().Num();
 					
-	const UAvalancheMediaEditorSettings& MediaSettings = UAvalancheMediaEditorSettings::Get();
+	const UAvaMediaEditorSettings& MediaSettings = UAvaMediaEditorSettings::Get();
 	
 	return !MediaSettings.bBroadcastEnforceMaxChannelCount
 		|| ChannelCount < MediaSettings.BroadcastMaxChannelCount;
@@ -126,7 +126,7 @@ bool SAvaBroadcastChannels::CanAddChannel()
 
 void SAvaBroadcastChannels::AddChannel()
 {
-	if (UAvalancheBroadcast* const Broadcast = BroadcastWeak.Get())
+	if (UAvaBroadcast* const Broadcast = BroadcastWeak.Get())
 	{
 		FScopedTransaction Transaction(LOCTEXT("AddChannel", "Add Channel"));
 		Broadcast->Modify();
@@ -171,7 +171,7 @@ bool SAvaBroadcastChannels::CanMaximizeChannel() const
 	return ChannelCount == 1 || (ChannelCount > 1 && !ChannelMaximizer.bMaximizing);
 }
 
-void SAvaBroadcastChannels::ToggleMaximizeChannel(const TSharedRef<SAvaChannel>& InWidget)
+void SAvaBroadcastChannels::ToggleMaximizeChannel(const TSharedRef<SAvaBroadcastChannel>& InWidget)
 {
 	if (Channels.Num() > 1)
 	{
@@ -197,7 +197,7 @@ void SAvaBroadcastChannels::RefreshChannelGrid()
 		const FAvaBroadcastProfile& Profile = BroadcastWeak->GetCurrentProfile();
 		
 		//Remove Items that are not in the New Channel List
-		for (TMap<FName, TSharedPtr<SAvaChannel>>::TIterator Iter = Channels.CreateIterator(); Iter; ++Iter)
+		for (TMap<FName, TSharedPtr<SAvaBroadcastChannel>>::TIterator Iter = Channels.CreateIterator(); Iter; ++Iter)
 		{
 			//Remove Invalid Channels
 			if (!Iter->Value.IsValid())
@@ -209,7 +209,7 @@ void SAvaBroadcastChannels::RefreshChannelGrid()
 			//TODO: Currently Remove all Slots and Re-add them in Order
 			ChannelGrid->RemoveSlot(Iter->Value.ToSharedRef());
 
-			const FAvaOutputChannel& Channel = Profile.GetChannel(Iter->Key);
+			const FAvaBroadcastOutputChannel& Channel = Profile.GetChannel(Iter->Key);
 			
 			//Refresh the Media Tiles as they might've been deleted in an Undo operation
 			Iter->Value->OnChannelMediaOutputsChanged(Channel);
@@ -230,7 +230,7 @@ void SAvaBroadcastChannels::RefreshChannelGrid()
 
 		int32 ItemCount = 0;
 
-		const TArray<FAvaOutputChannel*>& BroadcastChannels = Profile.GetChannels();
+		const TArray<FAvaBroadcastOutputChannel*>& BroadcastChannels = Profile.GetChannels();
 		
 		const int32 ItemsPerRow = FMath::RoundHalfToZero(FMath::Sqrt(static_cast<float>(BroadcastChannels.Num())));
 
@@ -239,12 +239,12 @@ void SAvaBroadcastChannels::RefreshChannelGrid()
 		ChannelGrid->ClearFill();
 		
 		//Re-add existing Widgets or add new ones
-		for (const FAvaOutputChannel* InChannel : BroadcastChannels)
+		for (const FAvaBroadcastOutputChannel* InChannel : BroadcastChannels)
 		{
 			const FName ChannelName = InChannel->GetChannelName();
 			if (!Channels.Contains(ChannelName))
 			{
-				TSharedRef<SAvaChannel> NewChannel = SNew(SAvaChannel, BroadcastEditor)
+				TSharedRef<SAvaBroadcastChannel> NewChannel = SNew(SAvaBroadcastChannel, BroadcastEditor)
 					.ChannelName(ChannelName)
 					.CanMaximize(this, &SAvaBroadcastChannels::CanMaximizeChannel)
 					.OnMaximizeClicked(this, &SAvaBroadcastChannels::ToggleMaximizeChannel);
@@ -255,7 +255,7 @@ void SAvaBroadcastChannels::RefreshChannelGrid()
 			const int32 Row = ItemCount / ItemsPerRow;
 			const int32 Column = ItemCount % ItemsPerRow;
 			
-			TSharedRef<SAvaChannel> Channel = Channels.Find(ChannelName)->ToSharedRef();
+			TSharedRef<SAvaBroadcastChannel> Channel = Channels.Find(ChannelName)->ToSharedRef();
 			Channel->SetPosition(Column, Row);
 
 			ChannelGrid->AddSlot(Column, Row)

@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/AvaPlaybackNodeBlueprintPlayer.h"
-#include "AvaBlueprint.h"
-#include "Framework/AvaGameInstance.h"
-#include "Http/AvaMediaHttpServer.h"
-#include "Playback/AvalanchePlayback.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#include "AvaBlueprint.h"
+#include "Playback/AvaPlaybackGraph.h"
+
+#define LOCTEXT_NAMESPACE "AvaPlaybackNodeBlueprintPlayer"
 
 UAvaPlaybackNodeBlueprintPlayer::UAvaPlaybackNodeBlueprintPlayer()
 {
@@ -26,14 +25,14 @@ void UAvaPlaybackNodeBlueprintPlayer::PostLoad()
 	UpdateDisplayNameText();
 }
 
-void UAvaPlaybackNodeBlueprintPlayer::SetAvalancheAsset(const TSoftObjectPtr<UAvalancheBlueprint>& InAsset)
+void UAvaPlaybackNodeBlueprintPlayer::SetAsset(const TSoftObjectPtr<UAvalancheBlueprint>& InAsset)
 {
-	BlueprintAsset = InAsset;
+	Asset = InAsset;
 }
 
 void UAvaPlaybackNodeBlueprintPlayer::UpdateDisplayNameText()
 {
-	const FString AssetName = BlueprintAsset.GetAssetName();
+	const FString AssetName = Asset.GetAssetName();
 	
 	if (AssetName.IsEmpty())
 	{
@@ -46,12 +45,12 @@ void UAvaPlaybackNodeBlueprintPlayer::UpdateDisplayNameText()
 	}
 }
 
-FAvaSoftAssetPtr UAvaPlaybackNodeBlueprintPlayer::GetAvalancheAssetPtr() const
+FAvaSoftAssetPtr UAvaPlaybackNodeBlueprintPlayer::GetAssetPtr() const
 {
-	FAvaSoftAssetPtr OutAvalancheAsset;
-	OutAvalancheAsset.AssetClassPath = FSoftClassPath(UAvalancheBlueprint::StaticClass());
-	OutAvalancheAsset.AssetPtr = BlueprintAsset;
-	return OutAvalancheAsset;
+	FAvaSoftAssetPtr OutAsset;
+	OutAsset.AssetClassPath = FSoftClassPath(UAvalancheBlueprint::StaticClass());
+	OutAsset.AssetPtr = Asset;
+	return OutAsset;
 }
 
 #undef LOCTEXT_NAMESPACE

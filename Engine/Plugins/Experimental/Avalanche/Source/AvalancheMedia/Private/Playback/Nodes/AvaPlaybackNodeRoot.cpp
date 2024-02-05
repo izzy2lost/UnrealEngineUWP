@@ -1,24 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Playback/Nodes/AvaPlaybackNodeRoot.h"
-#include "AvalancheBroadcast.h"
-#include "Playback/AvalanchePlayback.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#include "Broadcast/AvaBroadcast.h"
+#include "Playback/AvaPlaybackGraph.h"
+
+#define LOCTEXT_NAMESPACE "AvaPlaybackNodeRoot"
 
 void UAvaPlaybackNodeRoot::PostAllocateNode()
 {
 	Super::PostAllocateNode();
 	
-	UAvalancheBroadcast& Broadcast = UAvalancheBroadcast::Get();
+	UAvaBroadcast& Broadcast = UAvaBroadcast::Get();
 	
 	BroadcastChangedHandle = Broadcast.AddChangeListener(FOnAvaBroadcastChanged::FDelegate::CreateUObject(this
 		, &UAvaPlaybackNodeRoot::OnBroadcastChanged));
 		
-	ChannelChangedHandle = FAvaOutputChannel::GetOnChannelChanged().AddUObject(this
+	ChannelChangedHandle = FAvaBroadcastOutputChannel::GetOnChannelChanged().AddUObject(this
 		, &UAvaPlaybackNodeRoot::OnChannelChanged);
 
-	if (UAvalanchePlayback* const Playback = GetPlayback())
+	if (UAvaPlaybackGraph* const Playback = GetPlayback())
 	{
 		Playback->SetRootNode(this);
 	}
@@ -28,11 +29,11 @@ void UAvaPlaybackNodeRoot::BeginDestroy()
 {
 	if (BroadcastChangedHandle.IsValid())
 	{
-		UAvalancheBroadcast::Get().RemoveChangeListener(BroadcastChangedHandle);
+		UAvaBroadcast::Get().RemoveChangeListener(BroadcastChangedHandle);
 	}
 	if (ChannelChangedHandle.IsValid())
 	{
-		FAvaOutputChannel::GetOnChannelChanged().Remove(ChannelChangedHandle);
+		FAvaBroadcastOutputChannel::GetOnChannelChanged().Remove(ChannelChangedHandle);
 	}
 	Super::BeginDestroy();
 }
@@ -70,9 +71,9 @@ void UAvaPlaybackNodeRoot::OnBroadcastChanged(EAvaBroadcastChange InChange)
 	ReconstructNode();
 }
 
-void UAvaPlaybackNodeRoot::OnChannelChanged(const FAvaOutputChannel& InChannel, EAvaChannelChange InChange)
+void UAvaPlaybackNodeRoot::OnChannelChanged(const FAvaBroadcastOutputChannel& InChannel, EAvaBroadcastChannelChange InChange)
 {
-	if (EnumHasAnyFlags(InChange, EAvaChannelChange::State))
+	if (EnumHasAnyFlags(InChange, EAvaBroadcastChannelChange::State))
 	{
 		//TODO: Instead of Reconstructing, have the Pins just react to each Individual Channel State Change
 		ReconstructNode();
@@ -81,25 +82,25 @@ void UAvaPlaybackNodeRoot::OnChannelChanged(const FAvaOutputChannel& InChannel, 
 
 int32 UAvaPlaybackNodeRoot::GetMinChildNodes() const
 {
-	return UAvalancheBroadcast::Get().GetChannelNameCount();
+	return UAvaBroadcast::Get().GetChannelNameCount();
 }
 
 int32 UAvaPlaybackNodeRoot::GetMaxChildNodes() const
 {
-	return UAvalancheBroadcast::Get().GetChannelNameCount();
+	return UAvaBroadcast::Get().GetChannelNameCount();
 }
 
 #if WITH_EDITOR
 FName UAvaPlaybackNodeRoot::GetInputPinName(int32 InputPinIndex) const
 {
-	return UAvalancheBroadcast::Get().GetChannelName(InputPinIndex);
+	return UAvaBroadcast::Get().GetChannelName(InputPinIndex);
 }
 #endif
 
 FName UAvaPlaybackNodeRoot::GetChannelName(int32 InChannelNameIndex) const
 {
-	const UAvalancheBroadcast& AvalancheBroadcast = UAvalancheBroadcast::Get();
-	return AvalancheBroadcast.GetChannelName(InChannelNameIndex);
+	const UAvaBroadcast& AvaBroadcast = UAvaBroadcast::Get();
+	return AvaBroadcast.GetChannelName(InChannelNameIndex);
 }
 
 #undef LOCTEXT_NAMESPACE

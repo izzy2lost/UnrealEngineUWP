@@ -1,9 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "AvaPlaybackNode_Hub.h"
 
-#define LOCTEXT_NAMESPACE "AvalanchePlayback"
+#define LOCTEXT_NAMESPACE "AvaPlaybackNode_Hub"
 
 FText UAvaPlaybackNode_Hub::GetNodeDisplayNameText() const
 {
@@ -22,7 +21,7 @@ void UAvaPlaybackNode_Hub::TickEvent(float DeltaTime, FAvaPlaybackEventParameter
 		if (ChildNodes.IsValidIndex(Index) && ChildNodes[Index])
 		{
 			FAvaPlaybackEventParameters EventParameters;
-			EventParameters.AvalancheAsset = OutEventParameters.AvalancheAsset;
+			EventParameters.Asset = OutEventParameters.Asset;
 			
 			Cast<UAvaPlaybackNodeEvent>(ChildNodes[Index])->TickEvent(DeltaTime, EventParameters);
 			

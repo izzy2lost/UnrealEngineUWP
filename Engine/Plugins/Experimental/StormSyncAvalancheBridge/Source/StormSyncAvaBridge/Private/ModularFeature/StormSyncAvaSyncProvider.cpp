@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StormSyncAvaSyncProvider.h"
-
 #include "IAvaMediaModule.h"
 #include "IStormSyncTransportClientModule.h"
-#include "Playback/AvaMediaPlaybackServer.h"
-#include "Playback/IAvaMediaPlaybackClient.h"
+#include "ModularFeature/AvaMediaSyncProviderFeatureTypes.h"
+#include "Playback/AvaPlaybackServer.h"
+#include "Playback/IAvaPlaybackClient.h"
 #include "StormSyncAvaBridgeCommon.h"
 #include "StormSyncAvaBridgeLog.h"
 #include "StormSyncCoreDelegates.h"
@@ -35,7 +35,7 @@ void FStormSyncAvaSyncProvider::SyncToAll(const TArray<FName>& InPackageNames)
 	IStormSyncTransportClientModule::Get().SynchronizePackages(PackageDescriptor, InPackageNames);
 }
 
-void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaSyncResponse& DoneDelegate)
+void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncResponse& DoneDelegate)
 {
 	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::PushToRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
 	
@@ -61,8 +61,8 @@ void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const 
 
 		if (DoneDelegate.IsBound())
 		{
-			FAvaSyncResponse SyncResponse = ConvertSyncResponse(Response);
-			DoneDelegate.Execute(MakeShared<FAvaSyncResponse>(SyncResponse));
+			FAvaMediaSyncResponse SyncResponse = ConvertSyncResponse(Response);
+			DoneDelegate.Execute(MakeShared<FAvaMediaSyncResponse>(SyncResponse));
 		}
 	});
 
@@ -70,7 +70,7 @@ void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const 
 	IStormSyncTransportClientModule::Get().PushPackages(PackageDescriptor, InPackageNames, MessageAddress, Delegate);
 }
 
-void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaSyncResponse& DoneDelegate)
+void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncResponse& DoneDelegate)
 {
 	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::PullFromRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
 
@@ -96,8 +96,8 @@ void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, cons
 
 		if (DoneDelegate.IsBound())
 		{
-			FAvaSyncResponse SyncResponse = ConvertSyncResponse(Response);
-			DoneDelegate.Execute(MakeShared<FAvaSyncResponse>(SyncResponse));
+			FAvaMediaSyncResponse SyncResponse = ConvertSyncResponse(Response);
+			DoneDelegate.Execute(MakeShared<FAvaMediaSyncResponse>(SyncResponse));
 		}
 	});
 
@@ -105,7 +105,7 @@ void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, cons
 	IStormSyncTransportClientModule::Get().PullPackages(PackageDescriptor, InPackageNames, MessageAddress, Delegate);
 }
 
-void FStormSyncAvaSyncProvider::CompareWithRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaSyncCompareResponse& DoneDelegate)
+void FStormSyncAvaSyncProvider::CompareWithRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncCompareResponse& DoneDelegate)
 {
 	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::CompareWithRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
 
@@ -140,12 +140,12 @@ void FStormSyncAvaSyncProvider::CompareWithRemote(const FString& InRemoteName, c
 	CompareWith(MessageAddress, InPackageNames, DoneDelegate);
 }
 
-FOnAvaSyncPackageModified& FStormSyncAvaSyncProvider::GetOnAvaSyncPackageModified()
+FOnAvaMediaSyncPackageModified& FStormSyncAvaSyncProvider::GetOnAvaSyncPackageModified()
 {
 	return OnAvaSyncPackageModified;
 }
 
-void FStormSyncAvaSyncProvider::CompareWith(const FMessageAddress& InRemoteAddress, const TArray<FName>& InPackageNames, const FOnAvaSyncCompareResponse& DoneDelegate)
+void FStormSyncAvaSyncProvider::CompareWith(const FMessageAddress& InRemoteAddress, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncCompareResponse& DoneDelegate)
 {
 	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::CompareWith InPackageNames: %d (Remote Address: %s)"), InPackageNames.Num(), *InRemoteAddress.ToString());
 
@@ -166,11 +166,11 @@ void FStormSyncAvaSyncProvider::CompareWith(const FMessageAddress& InRemoteAddre
 
 		if (DoneDelegate.IsBound())
 		{
-			FAvaSyncCompareResponse CompareResponse;
-			CompareResponse.Status = EAvaSyncResponseResult::Success;
+			FAvaMediaSyncCompareResponse CompareResponse;
+			CompareResponse.Status = EAvaMediaSyncResponseResult::Success;
 			CompareResponse.ConnectionInfo = ConvertConnectionInfo(Response->ConnectionInfo);
 			CompareResponse.bNeedsSynchronization = Response->bNeedsSynchronization;
-			DoneDelegate.Execute(MakeShared<FAvaSyncCompareResponse>(CompareResponse));
+			DoneDelegate.Execute(MakeShared<FAvaMediaSyncCompareResponse>(CompareResponse));
 		}
 	}));
 }
@@ -227,7 +227,7 @@ bool FStormSyncAvaSyncProvider::GetAddressFromServerUserData(const FString& InSe
 		return false;
 	}
 
-	const IAvaMediaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
+	const IAvaPlaybackClient& PlaybackClient = IAvaMediaModule::Get().GetMediaPlaybackClient();
 	const FString AddressId = PlaybackClient.GetServerUserData(InServerName, InUserDataKey);
 	if (AddressId.IsEmpty())
 	{
@@ -256,7 +256,7 @@ bool FStormSyncAvaSyncProvider::GetAddressFromClientUserData(const FString& InCl
 		return false;
 	}
 
-	const TSharedPtr<FAvaMediaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer();
+	const TSharedPtr<FAvaPlaybackServer> PlaybackServer = IAvaMediaModule::Get().GetMediaPlaybackServer();
 	if (!PlaybackServer.IsValid())
 	{
 		if (OutErrorMessage)
@@ -293,27 +293,27 @@ bool FStormSyncAvaSyncProvider::IsPlaybackClient()
 	return IAvaMediaModule::Get().IsMediaPlaybackClientStarted();
 }
 
-TSharedPtr<FAvaSyncCompareResponse> FStormSyncAvaSyncProvider::CreateErrorResponse(const FText& InText)
+TSharedPtr<FAvaMediaSyncCompareResponse> FStormSyncAvaSyncProvider::CreateErrorResponse(const FText& InText)
 {
-	FAvaSyncCompareResponse Response;
-	Response.Status = EAvaSyncResponseResult::Error;
+	FAvaMediaSyncCompareResponse Response;
+	Response.Status = EAvaMediaSyncResponseResult::Error;
 	Response.ErrorText = InText;
-	return MakeShared<FAvaSyncCompareResponse>(Response);
+	return MakeShared<FAvaMediaSyncCompareResponse>(Response);
 }
 
-FAvaSyncResponse FStormSyncAvaSyncProvider::ConvertSyncResponse(const TSharedPtr<FStormSyncTransportSyncResponse>& InResponse)
+FAvaMediaSyncResponse FStormSyncAvaSyncProvider::ConvertSyncResponse(const TSharedPtr<FStormSyncTransportSyncResponse>& InResponse)
 {
 	check(InResponse.IsValid());
 	
-	FAvaSyncResponse AvaSyncResponse;
+	FAvaMediaSyncResponse AvaSyncResponse;
 	if (InResponse->Status == EStormSyncResponseResult::Success)
 	{
-		AvaSyncResponse.Status = EAvaSyncResponseResult::Success;
+		AvaSyncResponse.Status = EAvaMediaSyncResponseResult::Success;
 		AvaSyncResponse.StatusText = InResponse->StatusText;
 	}
 	else if (InResponse->Status == EStormSyncResponseResult::Error)
 	{
-		AvaSyncResponse.Status = EAvaSyncResponseResult::Error;
+		AvaSyncResponse.Status = EAvaMediaSyncResponseResult::Error;
 		AvaSyncResponse.ErrorText = InResponse->StatusText;
 	}
 
@@ -321,9 +321,9 @@ FAvaSyncResponse FStormSyncAvaSyncProvider::ConvertSyncResponse(const TSharedPtr
 	return AvaSyncResponse;
 }
 
-FAvaSyncConnectionInfo FStormSyncAvaSyncProvider::ConvertConnectionInfo(const FStormSyncConnectionInfo& InConnectionInfo)
+FAvaMediaSyncConnectionInfo FStormSyncAvaSyncProvider::ConvertConnectionInfo(const FStormSyncConnectionInfo& InConnectionInfo)
 {
-	FAvaSyncConnectionInfo ConnectionInfo;
+	FAvaMediaSyncConnectionInfo ConnectionInfo;
 	ConnectionInfo.EngineVersion = InConnectionInfo.EngineVersion;
 	ConnectionInfo.InstanceId = InConnectionInfo.InstanceId;
 	ConnectionInfo.SessionId = InConnectionInfo.SessionId;
@@ -336,31 +336,31 @@ FAvaSyncConnectionInfo FStormSyncAvaSyncProvider::ConvertConnectionInfo(const FS
 	return ConnectionInfo;
 }
 
-EAvaSyncEngineType FStormSyncAvaSyncProvider::ConvertInstanceType(const EStormSyncEngineType InInstanceType)
+EAvaMediaSyncEngineType FStormSyncAvaSyncProvider::ConvertInstanceType(const EStormSyncEngineType InInstanceType)
 {
-	EAvaSyncEngineType Result;
+	EAvaMediaSyncEngineType Result;
 	switch (InInstanceType)
 	{
 	case EStormSyncEngineType::Server:
-		Result = EAvaSyncEngineType::Server;
+		Result = EAvaMediaSyncEngineType::Server;
 		break;
 	case EStormSyncEngineType::Commandlet:
-		Result = EAvaSyncEngineType::Commandlet;
+		Result = EAvaMediaSyncEngineType::Commandlet;
 		break;
 	case EStormSyncEngineType::Editor:
-		Result = EAvaSyncEngineType::Editor;
+		Result = EAvaMediaSyncEngineType::Editor;
 		break;
 	case EStormSyncEngineType::Game:
-		Result = EAvaSyncEngineType::Game;
+		Result = EAvaMediaSyncEngineType::Game;
 		break;
 	case EStormSyncEngineType::Other:
-		Result = EAvaSyncEngineType::Other;
+		Result = EAvaMediaSyncEngineType::Other;
 		break;
 	case EStormSyncEngineType::Unknown:
-		Result = EAvaSyncEngineType::Unknown;
+		Result = EAvaMediaSyncEngineType::Unknown;
 		break;
 	default:
-		Result = EAvaSyncEngineType::Unknown;
+		Result = EAvaMediaSyncEngineType::Unknown;
 		break;
 	}
 

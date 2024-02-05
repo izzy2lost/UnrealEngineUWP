@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AvaTransitionPlaylistExtension.h"
+#include "AvaTransitionRundownExtension.h"
 #include "Delegates/Delegate.h"
 #include "IAvaEditorExtension.h"
 
@@ -37,5 +37,5 @@ private:
 
 	static FDelegateHandle PropertyFilterHandle;
 
-	static FAvaTransitionPlaylistExtension PlaylistExtension;
+	static FAvaTransitionRundownExtension RundownExtension;
 };

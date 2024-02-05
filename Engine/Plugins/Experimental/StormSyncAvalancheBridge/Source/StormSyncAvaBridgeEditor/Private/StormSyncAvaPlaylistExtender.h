@@ -6,12 +6,12 @@
 #include "MessageEndpoint.h"
 #include "Toolkits/AssetEditorToolkit.h"
 
-class FAvaPlaylistEditor;
+class FAvaRundownEditor;
 class FExtensibilityManager;
-class UAvalanchePlaylist;
-struct FAvalanchePage;
+class UAvaRundown;
+struct FAvaRundownPage;
 
-/** This class handles Avalanche Playlist assets UI extensions for context menu / toolbars */
+/** This class handles Avalanche Rundown assets UI extensions for context menu / toolbars */
 class FStormSyncAvaPlaylistExtender : public TSharedFromThis<FStormSyncAvaPlaylistExtender>
 {
 public:
@@ -47,35 +47,35 @@ private:
 	TSharedRef<FExtender> AddMenuExtender(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> ContextSensitiveObjects);
 
 	/* UI Menu Extension handler for template panel */
-	void CreateTemplateContextMenu(FMenuBuilder& MenuBuilder, const UAvalanchePlaylist* InPlaylist, TWeakPtr<FAvaPlaylistEditor> InPlaylistEditor);
+	void CreateTemplateContextMenu(FMenuBuilder& MenuBuilder, const UAvaRundown* InPlaylist, TWeakPtr<FAvaRundownEditor> InPlaylistEditor);
 
 	/** Context menu handler for initialize action */
-	void HandleInitializeAction(const UAvalanchePlaylist* InPlaylist, TArray<FAvalanchePage> InSelectedTemplatePages);
+	void HandleInitializeAction(const UAvaRundown* InPlaylist, TArray<FAvaRundownPage> InSelectedTemplatePages);
 	
 	/** Gets the extender to use for playlist context sensitive menus */
 	TSharedRef<FExtender> AddToolbarExtender(const TSharedRef<FUICommandList> InCommandList, const TArray<UObject*> ContextSensitiveObjects);
 	
 	/** Construct toolbar widgets for playlist sync actions */
-	void FillToolbar(FToolBarBuilder& ToolbarBuilder, TWeakPtr<FAvaPlaylistEditor> InPlaylistEditor);
+	void FillToolbar(FToolBarBuilder& ToolbarBuilder, TWeakPtr<FAvaRundownEditor> InPlaylistEditor);
 
 	/** Creates widget for toolbar content */
-	TSharedRef<SWidget> GenerateToolbarMenu(TWeakPtr<FAvaPlaylistEditor> InPlaylistEditor);
+	TSharedRef<SWidget> GenerateToolbarMenu(TWeakPtr<FAvaRundownEditor> InPlaylistEditor);
 
 	/** Storm sync push a list of package names to a remote address ID */
 	static void PushPackagesToRemote(const FString& RemoteAddressId, const TArray<FName>& InPackageNames);
 
 	/** Gather a list of package names from currently selected pages in editor */
-	static TArray<FName> GetSelectedPackagesNames(const UAvalanchePlaylist* InPlaylist, const TWeakPtr<FAvaPlaylistEditor>& InPlaylistEditor);
+	static TArray<FName> GetSelectedPackagesNames(const UAvaRundown* InPlaylist, const TWeakPtr<FAvaRundownEditor>& InPlaylistEditor);
 	
 	/**
 	 * Returns the list of currently selected pages in editor
 	 *
 	 * It will only return selection if the page is referencing a valid Avalanche Blueprint (not "None" path)
 	 */
-	static TArray<FAvalanchePage> GetSelectedPages(const UAvalanchePlaylist* InPlaylist, const TWeakPtr<FAvaPlaylistEditor>& InPlaylistEditor);
+	static TArray<FAvaRundownPage> GetSelectedPages(const UAvaRundown* InPlaylist, const TWeakPtr<FAvaRundownEditor>& InPlaylistEditor);
 
 	/** Returns a unique list of channel names, gather from instanced pages, that are matching the passed in template page selection and selected asset name */
-	static TArray<FString> GetChannelNamesForTemplatePage(const UAvalanchePlaylist* InPlaylist, const FAvalanchePage& InTemplatePage);
+	static TArray<FString> GetChannelNamesForTemplatePage(const UAvaRundown* InPlaylist, const FAvaRundownPage& InTemplatePage);
 
 	/**
 	 * Provides a way for context menu builders to gather information about current selection.
@@ -90,8 +90,8 @@ private:
 	 * @return false if StormSyncEditor module is not available, and we failed to determine selection state
 	 */
 	static bool GetContextMenuSelectionInfos(
-		const UAvalanchePlaylist* InPlaylist,
-		const TWeakPtr<FAvaPlaylistEditor>& InPlaylistEditor,
+		const UAvaRundown* InPlaylist,
+		const TWeakPtr<FAvaRundownEditor>& InPlaylistEditor,
 		bool& bOutIsValidSelection,
 		FText& OutDisabledReasonTooltip,
 		TArray<FName>& OutSelectedPackageNames,

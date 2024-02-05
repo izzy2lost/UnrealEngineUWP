@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaPlaybackNode.h"
+#include "CoreMinimal.h"
 #include "AvaPlaybackNodePlayer.generated.h"
 
 class UTextureRenderTarget2D;
@@ -38,9 +38,9 @@ public:
 	virtual bool EditorDryRunGraphOnNodeRefresh(FPropertyChangedEvent& PropertyChangedEvent) const override { return true; }
 #endif
 
-	virtual const FSoftObjectPath& GetAvalancheAssetPath() const;
+	virtual const FSoftObjectPath& GetAssetPath() const;
 
-	virtual FAvaSoftAssetPtr GetAvalancheAssetPtr() const { return FAvaSoftAssetPtr();}
+	virtual FAvaSoftAssetPtr GetAssetPtr() const { return FAvaSoftAssetPtr(); }
 
 	/** Get the channel indices from the last time this node was traversed. */
 	const TArray<int32>& GetLastTickChannelIndices() const { return LastTickChannelIndices; }

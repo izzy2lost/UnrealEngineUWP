@@ -8,14 +8,14 @@
 
 class SInlineEditableTextBlock;
 
-DECLARE_DELEGATE_RetVal_OneParam(FReply, FOnProfileEntrySelected, FName ProfileName);
+DECLARE_DELEGATE_RetVal_OneParam(FReply, FOnAvaBroadcastProfileEntrySelected, FName ProfileName);
 
 class SAvaBroadcastProfileEntry : public SCompoundWidget
 {
 public:
 	
 	SLATE_BEGIN_ARGS(SAvaBroadcastProfileEntry){}
-		SLATE_EVENT(FOnProfileEntrySelected, OnProfileEntrySelected)
+		SLATE_EVENT(FOnAvaBroadcastProfileEntrySelected, OnProfileEntrySelected)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -44,7 +44,7 @@ protected:
 	
 	FText ProfileNameText;
 
-	FOnProfileEntrySelected OnProfileEntrySelected;
+	FOnAvaBroadcastProfileEntrySelected OnProfileEntrySelected;
 	
 	TSharedPtr<SInlineEditableTextBlock> ProfileTextBlock;
 	

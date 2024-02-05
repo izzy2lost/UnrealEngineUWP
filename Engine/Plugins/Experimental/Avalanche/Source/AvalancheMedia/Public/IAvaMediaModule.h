@@ -8,14 +8,14 @@
 
 AVALANCHEMEDIA_API DECLARE_LOG_CATEGORY_EXTERN(LogAvaMedia, Log, All);
 
-class FAvaMediaPlaybackManager;
-class FAvaMediaPlaybackServer;
-class FAvalancheManagedInstanceCache;
+class FAvaPlaybackManager;
+class FAvaPlaybackServer;
+class FAvaRundownManagedInstanceCache;
 class FCommonViewportClient;
-class IAvaDeviceProviderProxyManager;
-class IAvaMediaPlaybackClient;
+class IAvaBroadcastDeviceProviderProxyManager;
+class IAvaBroadcastSettings;
 class IAvaMediaSyncProvider;
-class IAvalancheBroadcastSettings;
+class IAvaPlaybackClient;
 class IMediaIOCoreDeviceProvider;
 class UWorld;
 struct FAvaInstanceSettings;
@@ -77,8 +77,8 @@ public:
 	 */
 	virtual void StopMediaPlaybackServer() = 0;
 
-	virtual IAvaMediaPlaybackClient& GetMediaPlaybackClient() = 0;
-	virtual TSharedPtr<FAvaMediaPlaybackServer> GetMediaPlaybackServer() const = 0;
+	virtual IAvaPlaybackClient& GetMediaPlaybackClient() = 0;
+	virtual TSharedPtr<FAvaPlaybackServer> GetMediaPlaybackServer() const = 0;
 	virtual const IMediaIOCoreDeviceProvider* GetDeviceProvider(FName InProviderName, const FMediaIOOutputConfiguration* InMediaIOOutputConfiguration) const = 0;
 	virtual TArray<const IMediaIOCoreDeviceProvider*> GetDeviceProvidersForServer(const FString& InServerName) const = 0;
 	virtual FString GetServerNameForDevice(const FName& InDeviceProviderName, const FName& InDeviceName) const = 0;
@@ -102,10 +102,10 @@ public:
 	/**
 	 * Access the global broadcast settings.
 	 */
-	virtual const IAvalancheBroadcastSettings& GetBroadcastSettings() const = 0;
+	virtual const IAvaBroadcastSettings& GetBroadcastSettings() const = 0;
 
 	/**
-	 * Access the global Avalanche instance settings.
+	 * Access the global Motion Design instance settings.
 	 * 
 	 * Remark: lifetime of the returned reference is not guaranteed beyond the current call context.
 	 * If the settings are replicated from a client, it could get deleted if the client disconnects.
@@ -115,14 +115,14 @@ public:
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const = 0;
 	
 	/**
-	 *	This is the backend for playing avalanche blueprints locally.
+	 *	This is the backend for playing Motion Design blueprints locally.
 	 */
-	virtual FAvaMediaPlaybackManager& GetLocalPlaybackManager() const = 0;
+	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const = 0;
 
 	/**
-	 *	Access the "managed" Avalanche Asset Instance cache.
+	 *	Access the "managed" Motion Design Asset Instance cache.
 	 */
-	virtual FAvalancheManagedInstanceCache& GetManagedInstanceCache() const = 0;
+	virtual FAvaRundownManagedInstanceCache& GetManagedInstanceCache() const = 0;
 
 	/**
 	 * Returns true if the AvaMediaSyncProvider modular feature is available.
@@ -154,17 +154,17 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMapChangedEvent, UWorld* /*InWorld*/, EAvaMediaMapChangeType /*InEventType*/);
 	virtual FOnMapChangedEvent& GetOnMapChangedEvent() = 0;
 	
-	DECLARE_MULTICAST_DELEGATE(FOnAvaMediaPlaybackClientStarted);
-	virtual FOnAvaMediaPlaybackClientStarted& GetOnAvaMediaPlaybackClientStarted() = 0;
+	DECLARE_MULTICAST_DELEGATE(FOnAvaPlaybackClientStarted);
+	virtual FOnAvaPlaybackClientStarted& GetOnAvaPlaybackClientStarted() = 0;
 
-	DECLARE_MULTICAST_DELEGATE(FOnAvaMediaPlaybackClientStopped);
-	virtual FOnAvaMediaPlaybackClientStopped& GetAvaMediaPlaybackClientStopped() = 0;
+	DECLARE_MULTICAST_DELEGATE(FOnAvaPlaybackClientStopped);
+	virtual FOnAvaPlaybackClientStopped& GetAvaPlaybackClientStopped() = 0;
 
-	DECLARE_MULTICAST_DELEGATE(FOnAvaMediaPlaybackServerStarted);
-	virtual FOnAvaMediaPlaybackServerStarted& GetOnAvaMediaPlaybackServerStarted() = 0;
+	DECLARE_MULTICAST_DELEGATE(FOnAvaPlaybackServerStarted);
+	virtual FOnAvaPlaybackServerStarted& GetOnAvaPlaybackServerStarted() = 0;
 
-	DECLARE_MULTICAST_DELEGATE(FOnAvaMediaPlaybackServerStopped);
-	virtual FOnAvaMediaPlaybackServerStopped& GetAvaMediaPlaybackServerStopped() = 0;
+	DECLARE_MULTICAST_DELEGATE(FOnAvaPlaybackServerStopped);
+	virtual FOnAvaPlaybackServerStopped& GetAvaPlaybackServerStopped() = 0;
 	
 	/** Use to query the current editor viewport from the corresponding editor module. */
 	DECLARE_DELEGATE_OneParam(FGetEditorViewportClient, FCommonViewportClient** );
@@ -173,5 +173,5 @@ public:
 	/**
 	 * Access the device provider proxy manager.
 	 */
-	virtual IAvaDeviceProviderProxyManager& GetDeviceProviderProxyManager() = 0;
+	virtual IAvaBroadcastDeviceProviderProxyManager& GetDeviceProviderProxyManager() = 0;
 };
