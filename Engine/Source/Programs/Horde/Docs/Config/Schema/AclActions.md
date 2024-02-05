@@ -59,6 +59,7 @@
 | Name | Description |
 | ---- | ----------- |
 | `ViewLeases` | View all the leases that an agent has worked on |
+| `ViewLeaseTasks` | View the task data for a lease |
 
 ## Logs
 
