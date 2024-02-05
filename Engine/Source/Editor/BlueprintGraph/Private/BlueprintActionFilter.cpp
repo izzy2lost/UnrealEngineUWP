@@ -41,6 +41,7 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Editor/EditorEngine.h"
 #include "BlueprintEditorSettings.h"
+#include "AnimNotifyEventNodeSpawner.h"
 
 #if ENABLE_BLUEPRINT_ACTION_FILTER_PROFILING
 #include "HAL/PlatformStackWalk.h"
@@ -1789,19 +1790,21 @@ static bool BlueprintActionFilterImpl::IsIncompatibleAnimNotification(FBlueprint
 
 	if ( BlueprintAction.GetNodeClass()->IsChildOf<UK2Node_Event>() )
 	{
-		if( const USkeleton* SkeletonOwningEvent = Cast<USkeleton>(BlueprintAction.GetActionOwner()) )
+		if (UAnimNotifyEventNodeSpawner const* const AnimNotifyEventNodeSpawner = Cast<UAnimNotifyEventNodeSpawner>(BlueprintAction.NodeSpawner))
 		{
 			// The event is owned by a skeleton. Only show if it the current anim blueprint is targetting
 			// that skeleton:
+			const FSoftObjectPath& SkeletonObjectPath = AnimNotifyEventNodeSpawner->GetSkeletonObjectPath();
 			FBlueprintActionContext const& FilterContext = Filter.Context;
 			bool bFoundInAllBlueprints = true;
+			const bool bUseSkeletonCheck = Filter.TargetClasses.Num() != 0;	// If we are 'context sensitive' then we will have classes here
 
 			for (const UBlueprint* Blueprint : FilterContext.Blueprints)
 			{
 				bool bFoundInCurrentBlueprint = false;
 				if (const UAnimBlueprint* AnimBlueprint = Cast<UAnimBlueprint>(Blueprint))
 				{
-					if( AnimBlueprint->TargetSkeleton == SkeletonOwningEvent )
+					if( !bUseSkeletonCheck || FSoftObjectPath(AnimBlueprint->TargetSkeleton) == SkeletonObjectPath )
 					{
 						bFoundInCurrentBlueprint = true;
 						break;

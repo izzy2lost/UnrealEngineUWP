@@ -293,6 +293,9 @@ public class Engine : ModuleRules
 			PublicIncludePathModuleNames.Add("AnimationDataController");
 			DynamicallyLoadedModuleNames.Add("AnimationDataController");
 
+			PublicIncludePathModuleNames.Add("AnimationBlueprintEditor");
+			DynamicallyLoadedModuleNames.Add("AnimationBlueprintEditor");
+
 			PrivateDependencyModuleNames.AddRange(
 				new string[] {
 					"RawMesh"

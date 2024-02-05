@@ -48,6 +48,9 @@
 #include "IAnimationSequenceBrowser.h"
 #include "AnimTimeline/AnimTimelineTrack_NotifiesPanel.h"
 #include "PersonaUtils.h"
+#include "AnimAssetFindReplace.h"
+#include "AnimAssetFindReplaceSyncMarkers.h"
+#include "AnimAssetFindReplaceNotifies.h"
 
 // AnimNotify Drawing
 const float NotifyHeightOffset = 0.f;
@@ -907,8 +910,8 @@ protected:
 	/** Opens the supplied blueprint in an editor */
 	void OnOpenNotifySource(UBlueprint* InSourceBlueprint) const;
 
-	/** Filters the asset browser by the selected notify */
-	void OnFilterSkeletonNotify(FName InName);
+	/** Filters the asset browser by the selected notify/sync marker */
+	void OnFindReferences(FName InName, bool bInIsSyncMarker);
 
 	/**
 	 * Selects a node on the track. Supports multi selection
@@ -2339,14 +2342,14 @@ void SAnimNotifyTrack::FillNewNotifyMenu(FMenuBuilder& MenuBuilder, bool bIsRepl
 	USkeleton* SeqSkeleton = Sequence->GetSkeleton();
 	if (SeqSkeleton)
 	{
-		MenuBuilder.BeginSection("AnimNotifySkeletonSubMenu", LOCTEXT("NewNotifySubMenu_Skeleton", "Skeleton Notifies"));
+		MenuBuilder.BeginSection("AnimNotifySubMenu", LOCTEXT("NewNotifySubMenu", "Notifies"));
 		{
 			if (!bIsReplaceWithMenu)
 			{
 				FUIAction UIAction;
 				UIAction.ExecuteAction.BindSP(
 					this, &SAnimNotifyTrack::OnNewNotifyClicked);
-				MenuBuilder.AddMenuEntry(LOCTEXT("NewNotify", "New Notify..."), LOCTEXT("NewNotifyToolTip", "Create a new animation notify on the skeleton"), FSlateIcon(), UIAction);
+				MenuBuilder.AddMenuEntry(LOCTEXT("NewNotify", "New Notify..."), LOCTEXT("NewNotifyToolTip", "Create a new animation notify"), FSlateIcon(), UIAction);
 			}
 
 			ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
@@ -2357,9 +2360,13 @@ void SAnimNotifyTrack::FillNewNotifyMenu(FMenuBuilder& MenuBuilder, bool bIsRepl
 				.WidthOverride(300.0f)
 				.HeightOverride(250.0f)
 				[
-					SNew(SSkeletonAnimNotifies, EditableSkeleton)
+					SNew(SSkeletonAnimNotifies)
 					.IsPicker(true)
+					.ShowSyncMarkers(false)
 					.ShowNotifies(true)
+					.ShowCompatibleSkeletonAssets(true)
+					.ShowOtherAssets(true)
+					.EditableSkeleton(EditableSkeleton)
 					.OnItemSelected_Lambda([this, bIsReplaceWithMenu](const FName& InNotifyName)
 					{
 						FSlateApplication::Get().DismissAllMenus();
@@ -2399,7 +2406,7 @@ void SAnimNotifyTrack::FillNewSyncMarkerMenu(FMenuBuilder& MenuBuilder, bool bIs
 	USkeleton* SeqSkeleton = Sequence->GetSkeleton();
 	if (SeqSkeleton)
 	{
-		MenuBuilder.BeginSection("AnimSyncMarkerSubMenu", LOCTEXT("NewSyncMarkerSubMenu_Skeleton", "Sync Markers"));
+		MenuBuilder.BeginSection("AnimSyncMarkerSubMenu", LOCTEXT("NewSyncMarkerSubMenu", "Sync Markers"));
 		{
 			FUIAction UIAction;
 			if (!bIsReplaceWithMenu)
@@ -2417,9 +2424,13 @@ void SAnimNotifyTrack::FillNewSyncMarkerMenu(FMenuBuilder& MenuBuilder, bool bIs
 				.WidthOverride(300.0f)
 				.HeightOverride(250.0f)
 				[
-					SNew(SSkeletonAnimNotifies, EditableSkeleton)
+					SNew(SSkeletonAnimNotifies)
+					.IsPicker(true)
 					.ShowSyncMarkers(true)
 					.ShowNotifies(false)
+					.ShowCompatibleSkeletonAssets(true)
+					.ShowOtherAssets(true)
+					.EditableSkeleton(EditableSkeleton)
 					.OnItemSelected_Lambda([this, bIsReplaceWithMenu](const FName& InNotifyName)
 					{
 						FSlateApplication::Get().DismissAllMenus();
@@ -3122,11 +3133,20 @@ TSharedPtr<SWidget> SAnimNotifyTrack::SummonContextMenu(const FGeometry& MyGeome
 		{
 			// skeleton notify
 			NewAction.ExecuteAction.BindRaw(
-				this, &SAnimNotifyTrack::OnFilterSkeletonNotify, NotifyEvent->NotifyName);
-			MenuBuilder.AddMenuEntry(LOCTEXT("FindNotifyReferences", "Find References"), LOCTEXT("FindNotifyReferencesTooltip", "Find all references to this skeleton notify in the asset browser"), FSlateIcon(), NewAction);
+				this, &SAnimNotifyTrack::OnFindReferences, NotifyEvent->NotifyName, false);
+			MenuBuilder.AddMenuEntry(LOCTEXT("FindNotifyReferences", "Find/Replace References..."), LOCTEXT("FindNotifyReferencesTooltip", "Find, replace and remove references to this notify in the find/replace taby"), FSlateIcon(), NewAction);
 		}
 
 		MenuBuilder.EndSection(); //ViewSource
+	}
+	else
+	{
+		if (NodeObject && NodeObject->GetType() == ENodeObjectTypes::SYNC_MARKER)
+		{
+			NewAction.ExecuteAction.BindRaw(
+				this, &SAnimNotifyTrack::OnFindReferences, NodeObject->GetName(), true);
+			MenuBuilder.AddMenuEntry(LOCTEXT("FindSyncMarkerReferences", "Find/Replace References..."), LOCTEXT("FindSyncMarkerReferencesTooltip", "Find, replace and remove references to this sync marker in the find/replace tab"), FSlateIcon(), NewAction);
+		}
 	}
 
 	FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
@@ -3163,15 +3183,17 @@ void SAnimNotifyTrack::OnOpenNotifySource(UBlueprint* InSourceBlueprint) const
 	GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(InSourceBlueprint);
 }
 
-void SAnimNotifyTrack::OnFilterSkeletonNotify(FName InName)
+void SAnimNotifyTrack::OnFindReferences(FName InName, bool bInIsSyncMarker)
 {
-	// Open asset browser first
-	OnInvokeTab.ExecuteIfBound(FPersonaTabs::AssetBrowserID);
-
 	IAssetEditorInstance* AssetEditor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Sequence, true);
 	check(AssetEditor->GetEditorName() == TEXT("AnimationEditor"));
-	IAnimationEditor* AnimationEditor = static_cast<IAnimationEditor*>(AssetEditor);
-	AnimationEditor->GetAssetBrowser()->FilterBySkeletonNotify(InName);
+	if (TSharedPtr<SDockTab> Tab = AssetEditor->GetAssociatedTabManager()->TryInvokeTab(FPersonaTabs::FindReplaceID))
+	{
+		TSharedRef<IAnimAssetFindReplace> FindReplaceWidget = StaticCastSharedRef<IAnimAssetFindReplace>(Tab->GetContent());
+		FindReplaceWidget->SetCurrentProcessor(bInIsSyncMarker ? UAnimAssetFindReplaceSyncMarkers::StaticClass() : UAnimAssetFindReplaceNotifies::StaticClass());
+		UAnimAssetFindReplaceProcessor_StringBase* Processor = Cast<UAnimAssetFindReplaceProcessor_StringBase>(FindReplaceWidget->GetCurrentProcessor());
+		Processor->SetFindString(InName.ToString());
+	}
 }
 
 bool SAnimNotifyTrack::IsSingleNodeSelected()
@@ -3235,20 +3257,16 @@ void SAnimNotifyTrack::OnNewSyncMarkerClicked()
 
 void SAnimNotifyTrack::AddNewNotify(const FText& NewNotifyName, ETextCommit::Type CommitInfo)
 {
-	USkeleton* SeqSkeleton = Sequence->GetSkeleton();
-	if ((CommitInfo == ETextCommit::OnEnter) && SeqSkeleton)
+	if (CommitInfo == ETextCommit::OnEnter)
 	{
 		const FScopedTransaction Transaction( LOCTEXT("AddNewNotifyEvent", "Add New Anim Notify") );
 		FName NewName = FName( *NewNotifyName.ToString() );
 
-		ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
-		TSharedRef<IEditableSkeleton> EditableSkeleton = SkeletonEditorModule.CreateEditableSkeleton(SeqSkeleton);
-
-		EditableSkeleton->AddNotify(NewName);
-
-		FBlueprintActionDatabase::Get().RefreshAssetActions(SeqSkeleton);
-
 		CreateNewNotifyAtCursor(NewNotifyName.ToString(), (UClass*)nullptr);
+
+		FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+		ActionDatabase.ClearAssetActions(UAnimBlueprint::StaticClass());
+		ActionDatabase.RefreshClassActions(UAnimBlueprint::StaticClass());
 	}
 
 	FSlateApplication::Get().DismissAllMenus();
@@ -3256,19 +3274,9 @@ void SAnimNotifyTrack::AddNewNotify(const FText& NewNotifyName, ETextCommit::Typ
 
 void SAnimNotifyTrack::AddNewSyncMarker(const FText& NewNotifyName, ETextCommit::Type CommitInfo) 
 {
-	USkeleton* SeqSkeleton = Sequence->GetSkeleton();
-	if ((CommitInfo == ETextCommit::OnEnter) && SeqSkeleton)
+	if (CommitInfo == ETextCommit::OnEnter)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddNewSyncMarker", "Add New Sync Marker"));
-
-		FName NewName = FName(*NewNotifyName.ToString());
-
-		ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
-		TSharedRef<IEditableSkeleton> EditableSkeleton = SkeletonEditorModule.CreateEditableSkeleton(SeqSkeleton);
-
-		EditableSkeleton->AddSyncMarker(NewName);
-
-		FBlueprintActionDatabase::Get().RefreshAssetActions(SeqSkeleton);
 
 		CreateNewSyncMarkerAtCursor(NewNotifyName.ToString());
 	}

@@ -190,7 +190,9 @@ class UAnimBlueprint : public UBlueprint, public IInterface_PreviewMeshProvider
 	ENGINE_API virtual bool SupportsInputEvents() const override;
 	ENGINE_API virtual bool AllowFunctionOverride(const UFunction* const InFunction) const override;
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	
+	ENGINE_API virtual void GetTypeActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+	ENGINE_API virtual void GetInstanceActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+
 protected:
 	// Broadcast when an override is changed, allowing derived blueprints to be updated
 	FOnOverrideChangedMulticaster OnOverrideChanged;

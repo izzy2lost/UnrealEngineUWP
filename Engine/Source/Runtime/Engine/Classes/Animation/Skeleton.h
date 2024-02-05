@@ -669,10 +669,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 
-	/*
-	 * Collect animation notifies that are referenced in all animations that use this skeleton (uses the asset registry).
-	 * Updates the cached AnimationNotifies array.
-	 */
+	UE_DEPRECATED(5.4, "Please do not use this function - notifies are stored collectively in the asset registry now rather than centrally on the skeleton")
 	ENGINE_API void CollectAnimationNotifies();
 
 	/*

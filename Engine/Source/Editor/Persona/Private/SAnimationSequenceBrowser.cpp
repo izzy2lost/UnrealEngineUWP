@@ -139,9 +139,13 @@ public:
 			.HeightOverride(300.0f)
 			.WidthOverride(200.0f)
 			[
-				SNew(SSkeletonAnimNotifies, EditableSkeleton.ToSharedRef())
+				SNew(SSkeletonAnimNotifies)
 				.IsPicker(true)
 				.ShowNotifies(true)
+				.ShowSyncMarkers(false)
+				.ShowCompatibleSkeletonAssets(true)
+				.ShowOtherAssets(true)
+				.EditableSkeleton(EditableSkeleton.Pin())
 				.OnItemSelected_Lambda([this](const FName& InNotifyName)
 				{
 					FSlateApplication::Get().DismissAllMenus();
@@ -203,8 +207,8 @@ public:
 	/** Notify string to use when filtering */
 	FString NotifyString;
 
-	/** Editable skeleton used to access available notifies */
-	TSharedPtr<IEditableSkeleton> EditableSkeleton;
+	/** Editable skeleton used to filter available notifies */
+	TWeakPtr<IEditableSkeleton> EditableSkeleton;
 };
 
 /** A filter that displays animations that use a skeleton sync marker */
@@ -267,10 +271,13 @@ public:
 			.HeightOverride(300.0f)
 			.WidthOverride(200.0f)
 			[
-				SNew(SSkeletonAnimNotifies, EditableSkeleton.ToSharedRef())
+				SNew(SSkeletonAnimNotifies)
 				.IsPicker(true)
 				.ShowNotifies(false)
 				.ShowSyncMarkers(true)
+				.ShowCompatibleSkeletonAssets(true)
+				.ShowOtherAssets(true)
+				.EditableSkeleton(EditableSkeleton.Pin())
 				.OnItemSelected_Lambda([this](const FName& InNotifyName)
 				{
 					FSlateApplication::Get().DismissAllMenus();
@@ -332,8 +339,8 @@ public:
 	/** Sync marker string to use when filtering */
 	FString SyncMarkerString;
 
-	/** Editable skeleton used to access available sync markers */
-	TSharedPtr<IEditableSkeleton> EditableSkeleton;
+	/** Editable skeleton used to filter available sync markers */
+	TWeakPtr<IEditableSkeleton> EditableSkeleton;
 };
 
 /** A filter that displays animations that use a curve */
