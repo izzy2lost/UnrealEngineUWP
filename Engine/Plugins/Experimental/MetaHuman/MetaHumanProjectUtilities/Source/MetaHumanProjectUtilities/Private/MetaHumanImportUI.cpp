@@ -9,6 +9,7 @@
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/SWindow.h"
+#include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
@@ -68,6 +69,16 @@ namespace UE::MetaHumanImportUI::Private
 		return {FText::FromString(Old.GetName()), bIsUpgradeable ? FText::FromString(TargetUpgradeVersion) : VersionUnavailable, FText::FromString(UEVersionFromMhVersion(Old.GetVersion()))};
 	}
 
+	static void OnBrowserLinkClicked(const FSlateHyperlinkRun::FMetadata& Metadata)
+	{
+		const FString* URL = Metadata.Find(TEXT("href"));
+
+		if(URL)
+		{
+			FPlatformProcess::LaunchURL(**URL, nullptr, nullptr);
+		}
+	}
+
 
 	// Representation of a Release Note in the list of Release Notes
 	class SReleaseNoteDataRow : public SMultiColumnTableRow<TSharedRef<FReleaseNoteData>>
@@ -93,7 +104,8 @@ namespace UE::MetaHumanImportUI::Private
 		/** Overridden from SMultiColumnTableRow.  Generates a widget for this column of the list view. */
 		virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override
 		{
-			TSharedRef<STextBlock> TextBlock = SNew(STextBlock);
+			TSharedRef<SRichTextBlock> TextBlock = SNew(SRichTextBlock)
+			+ SRichTextBlock::HyperlinkDecorator(TEXT("browser"), FSlateHyperlinkRun::FOnClick::CreateStatic(&OnBrowserLinkClicked));
 			if (ColumnName == OverwriteDialogColumns::ReleaseNoteTitleColumnName)
 			{
 				TextBlock->SetText(RowData->Title);
