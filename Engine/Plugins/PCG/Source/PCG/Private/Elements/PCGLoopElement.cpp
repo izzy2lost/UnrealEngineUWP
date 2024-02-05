@@ -184,6 +184,8 @@ bool FPCGLoopElement::ExecuteInternal(FPCGContext* InContext) const
 #if WITH_EDITOR
 			FPCGDynamicTrackingHelper::AddSingleDynamicTrackingKey(Context, FPCGSelectionKey::CreateFromPath(Settings->SubgraphOverride), /*bIsCulled=*/false);
 #endif // WITH_EDITOR
+
+			Context->UpdateOverridesWithOverriddenGraph();
 		}
 
 		UPCGGraph* Subgraph = Settings->GetSubgraph();

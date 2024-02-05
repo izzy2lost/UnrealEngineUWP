@@ -165,6 +165,12 @@ struct PCG_API FPCGSubgraphContext : public FPCGContext
 	bool bScheduledSubgraph = false;
 	FInstancedStruct GraphInstanceParametersOverride;
 
+	// Analyze input data to detect if there is any override for the user parameters. If so will duplicate it to gather overrides.
+	void InitializeUserParametersStruct();
+
+	// If we have a subgraph override, update the underlying duplicated parameters with the overrides from the subgraph.
+	void UpdateOverridesWithOverriddenGraph();
+
 protected:
 	virtual void* GetUnsafeExternalContainerForOverridableParam(const FPCGSettingsOverridableParam& InParam) override;
 };
