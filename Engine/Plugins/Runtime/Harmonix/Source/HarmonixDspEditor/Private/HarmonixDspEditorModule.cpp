@@ -13,6 +13,7 @@
 #include "Customization/PitchShifterConfigCustomization.h"
 #include "Customization/PannerDetailsCustomization.h"
 #include "Customization/FusionPatchDetailCustomization.h"
+#include "Customization/FusionPatchSettingsDetailCustomization.h"
 #include "HarmonixDsp/FusionSampler/FusionPatch.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixDspEditor"
@@ -26,8 +27,10 @@ void FHarmonixDspEditorModule::StartupModule()
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TypedParameter", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTypedParameterCustomization::MakeInstance));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("PitchShifterName", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPitchShifterNameCustomization::MakeInstance));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("PannerDetails", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPannerDetailsCustomization::MakeInstance));
+	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FusionPatchSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FFusionPatchSettingsDetailCustomization::MakeInstance));
 	PropertyEditorModule.RegisterCustomClassLayout("StretcherAndPitchShifterFactoryConfig", FOnGetDetailCustomizationInstance::CreateStatic(&FPitchShifterConfigCustomization::MakeInstance));
 	PropertyEditorModule.RegisterCustomClassLayout(UFusionPatch::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FFusionPatchDetailCustomization::MakeInstance));
+	
 }
 
 void FHarmonixDspEditorModule::ShutdownModule()
@@ -36,6 +39,7 @@ void FHarmonixDspEditorModule::ShutdownModule()
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyEditorModule.UnregisterCustomClassLayout("FusionPatch");
 	PropertyEditorModule.UnregisterCustomClassLayout("StretcherAndPitchShifterFactoryConfig");
+	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("FusionPatchSettings");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("PannerDetails");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("PitchShifterName");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TypedParameter");
