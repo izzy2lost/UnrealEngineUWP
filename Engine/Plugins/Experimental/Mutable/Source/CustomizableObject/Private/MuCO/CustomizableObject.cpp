@@ -144,8 +144,11 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 		if (TryLoadCompiledCookDataForPlatform(TargetPlatform))
 		{
 			// Create an export object to manage the streamable data
-			BulkData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UCustomizableObjectBulk>(
-				UCustomizableObjectBulk::StaticClass(), this);
+			if (!BulkData)
+			{
+				BulkData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UCustomizableObjectBulk>(
+					UCustomizableObjectBulk::StaticClass(), this);
+			}
 			BulkData->Mark(OBJECTMARK_TagExp);
 
 			// Split streamable data into smaller chunks and fix up the CO HashToStreamableBlock's FileIndex and Offset
@@ -564,14 +567,13 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 
 		MemoryReader << ModelResources.ReferenceSkeletalMeshesData;
 
+		SerializeStreamedResources(MemoryReader, this, StreamedResourceData, bIsCooking);
+
 		// Initialize resources. 
 		for(FMutableRefSkeletalMeshData& ReferenceSkeletalMeshData : ModelResources.ReferenceSkeletalMeshesData)
 		{
 			ReferenceSkeletalMeshData.InitResources(this, InTargetPlatform);
 		}
-
-		SerializeStreamedResources(MemoryReader, this, StreamedResourceData, bIsCooking);
-
 
 		int32 NumReferencedMaterials = 0;
 		MemoryReader << NumReferencedMaterials;
@@ -2238,27 +2240,7 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshSettings& Data)
 
 FArchive& operator<<(FArchive& Ar, FMutableRefAssetUserData& Data)
 {
-	if (Ar.IsSaving())
-	{
-		if (Data.AssetUserData)
-		{
-			Data.ClassPath = Data.AssetUserData->GetClass()->GetPathName();
-
-			FMemoryWriter MemoryWriter(Data.Bytes);
-			Data.AssetUserData->Serialize(MemoryWriter);
-		}
-
-		Ar << Data.ClassPath;
-		Ar << Data.Bytes;
-
-		Data.ClassPath.Empty();
-		Data.Bytes.Empty();
-	}
-	else
-	{
-		Ar << Data.ClassPath;
-		Ar << Data.Bytes;
-	}
+	Ar << Data.AssetUserDataIndex;
 
 	return Ar;
 }
@@ -2277,32 +2259,11 @@ FArchive& operator<<(FArchive& Ar, FMutableSkinWeightProfileInfo& Info)
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void FMutableRefAssetUserData::InitResources(UCustomizableObject* InOuter)
-{
-	UClass* AssetUserDataClass = FindObject<UClass>(nullptr, *ClassPath);
-	if (AssetUserDataClass)
-	{
-		AssetUserData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UAssetUserData>(AssetUserDataClass, InOuter);
-		if (AssetUserData)
-		{
-			FMemoryReaderView MemoryReader(Bytes);
-			AssetUserData->Serialize(MemoryReader);
-
-			ClassPath.Empty();
-			Bytes.Empty();
-		}
-	}
-}
-
-
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------
 void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, const ITargetPlatform* InTargetPlatform)
 {
 	check(InOuter);
 
-	const bool bHasServer = InTargetPlatform ? !InTargetPlatform->IsClientOnly() : false;	
+	const bool bHasServer = InTargetPlatform ? !InTargetPlatform->IsClientOnly() : false;
 	if (InOuter->IsEnableUseRefSkeletalMeshAsPlaceholder() || bHasServer)
 	{
 		SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(SoftSkeletalMesh).LoadSynchronous();
@@ -2311,7 +2272,22 @@ void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, co
 	// Initialize AssetUserData
 	for (FMutableRefAssetUserData& Data : AssetUserData)
 	{
-		Data.InitResources(InOuter);
+		if (!InOuter->StreamedResourceData.IsValidIndex(Data.AssetUserDataIndex))
+		{
+			check(false);
+			continue;
+		}
+
+		FCustomizableObjectStreamedResourceData& StreamedResource = InOuter->StreamedResourceData[Data.AssetUserDataIndex];
+		StreamedResource.NotifyLoaded(StreamedResource.GetPath().LoadSynchronous());
+
+		const FCustomizableObjectResourceData& ResourceData = StreamedResource.GetLoadedData();
+		check(ResourceData.Type == ECOResourceDataType::AssetUserData);
+
+		const FCustomizableObjectAssetUserData* AUDResource = ResourceData.Data.GetPtr<FCustomizableObjectAssetUserData>();
+		check(AUDResource);
+
+		Data.AssetUserData = AUDResource->AssetUserData ? AUDResource->AssetUserData : AUDResource->AssetUserDataEditor;
 	}
 }
 

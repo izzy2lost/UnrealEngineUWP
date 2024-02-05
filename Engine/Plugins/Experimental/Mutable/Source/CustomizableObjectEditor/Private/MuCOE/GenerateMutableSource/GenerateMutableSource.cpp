@@ -1612,9 +1612,8 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 				if (AssetUserData)
 				{
 					FMutableRefAssetUserData& MutAssetUserData = Data.AssetUserData.AddDefaulted_GetRef();
-
-					// Duplicate the AssetUserData using the CO as an outer, so we can save it.
-					MutAssetUserData.AssetUserData = Cast<UAssetUserData>(StaticDuplicateObject(AssetUserData, GenerationContext.Object));
+					MutAssetUserData.AssetUserDataIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
+					MutAssetUserData.AssetUserData = AssetUserData;
 				}
 			}
 		}
