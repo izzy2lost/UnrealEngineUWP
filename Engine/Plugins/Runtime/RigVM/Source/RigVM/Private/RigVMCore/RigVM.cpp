@@ -2177,6 +2177,11 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 			}
 			for (const FRigVMExternalVariable& ExternalVariable : ExternalVariables)
 			{
+				if (ExternalVariable.Memory == nullptr)
+				{
+					continue;
+				}
+				
 				FString Value;
 				ExternalVariable.Property->ExportTextItem_Direct(Value, ExternalVariable.Memory, nullptr, nullptr, PPF_None);
 				FString Line = FString::Printf(TEXT("External %s: %s"), *ExternalVariable.Name.ToString(), *Value);
