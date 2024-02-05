@@ -63,8 +63,8 @@ public class AgentRelayServiceTests : TestSetup
 	public override async ValueTask DisposeAsync()
 	{
 		await _service.DisposeAsync();
-
 		await base.DisposeAsync();
+		GC.SuppressFinalize(this);
 	}
 
 	[TestInitialize]
