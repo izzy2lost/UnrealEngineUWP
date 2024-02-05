@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvalancheSVGEditor.h"
+#include "AvaSVGEditorModule.h"
 #include "AvaInteractiveToolsDelegates.h"
 #include "IAvalancheInteractiveToolsModule.h"
 #include "Modifiers/ActorModifierCoreStack.h"
@@ -9,7 +9,6 @@
 #include "ProceduralMeshes/SVGDynamicMeshComponent.h"
 #include "ProceduralMeshes/SVGStrokeComponent.h"
 #include "SVGEngineSubsystem.h"
-#include "SVGImporterEditorCommands.h"
 #include "SVGShapesParentActor.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 #include "Tool/AvaSVGActorTool.h"
@@ -18,7 +17,6 @@
 
 void FAvaSVGEditorModule::StartupModule()
 {
-	FSVGImporterEditorCommands::Register();
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvaSVGEditorModule::RegisterTools);
 
 	USVGEngineSubsystem::OnSVGActorSplit().BindRaw(this, &FAvaSVGEditorModule::OnSVGActorSplit);
