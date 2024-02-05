@@ -260,6 +260,7 @@ public:
 
 	// to support anim sequence base to montage
 	virtual void EnableRootMotionSettingFromMontage(bool bInEnableRootMotion, const ERootMotionRootLock::Type InRootMotionRootLock) {};
+	virtual bool GetEnableRootMotionSettingFromMontage() const { return false; }
 
 #if WITH_EDITOR
 private:

@@ -489,6 +489,11 @@ bool UAnimationAsset::ReplaceSkeleton(USkeleton* NewSkeleton, bool bConvertSpace
 				}
 				AnimAsset->ConditionalPostLoad();
 
+				if (AnimAsset->GetSkeleton() != GetSkeleton())
+				{
+					UE_LOG(LogAnimation, Warning, TEXT("AnimationAsset referencing asset using different skeleton. This will generate undeterministic builds. Please Fix the Asset : AnimationAsset: [%s] - ReferencedAsset : [%s]"), *GetName(), *AnimAsset->GetName());
+				}
+
 				// This ensure that in subsequent behaviour the RawData GUID is never 'new-ed' but always calculated from the 
 				// raw animation data itself.
 				if (UAnimSequence* Sequence = Cast<UAnimSequence>(AnimAsset))

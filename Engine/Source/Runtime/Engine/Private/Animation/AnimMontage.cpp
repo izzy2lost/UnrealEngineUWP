@@ -476,6 +476,12 @@ void UAnimMontage::PostLoad()
 			{
 				if (UAnimSequenceBase* AnimReference = Segment.GetAnimReference())
 				{
+#if WITH_EDITOR
+					if (!AnimReference->GetEnableRootMotionSettingFromMontage())
+					{
+						UE_LOG(LogAnimation, Warning, TEXT("[Montage %s] has RootMotionEnabled, but [AnimationSequence %s] has not been saved after setting the flag. Please open the Montage and the AnimationSequence and save the AnimationSequence as this will generate non determistic cooks."), *GetFullName(), *AnimReference->GetFullName());
+					}
+#endif // WITH_EDITOR
 					AnimReference->EnableRootMotionSettingFromMontage(true, RootMotionRootLock);
 				}
 			}
