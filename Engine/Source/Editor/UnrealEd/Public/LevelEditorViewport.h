@@ -958,7 +958,11 @@ private:
 
 	UWorld* World;
 
+	/** Global shared transaction for all mouse interactions. */
 	FTrackingTransaction TrackingTransaction;
+
+	/** Transaction excluse to pilot operations. Seperate as it externally handles & prevents tracking transactions */
+	FTrackingTransaction PilotingTransaction;
 
 	/** Represents the last known drop preview mouse position. */
 	int32 DropPreviewMouseX;
