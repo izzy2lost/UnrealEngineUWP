@@ -175,6 +175,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		record class ExportInfo(int TypeIdx, int Length, List<BundleExportRef> References);
 
+#pragma warning disable VSTHRD002
 		/// <summary>
 		/// Reads a bundle header from memory
 		/// </summary>
@@ -185,6 +186,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(memory);
 			return ReadAsync(stream).Result;
 		}
+#pragma warning restore VSTHRD002
 
 		/// <summary>
 		/// Reads a bundle header from a stream

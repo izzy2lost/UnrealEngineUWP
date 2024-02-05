@@ -16,13 +16,10 @@ namespace EpicGames.Horde.Compute
 	{
 		readonly Channel<string> _output;
 		readonly BackgroundTask _backgroundTask;
-		readonly TaskCompletionSource<int> _result = new TaskCompletionSource<int>();
+		readonly TaskCompletionSource<int> _result = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		byte[] _buffer = new byte[1024];
 		int _bufferLength;
-
-		/// <inheritdoc/>
-		public int ExitCode => _result.Task.Result;
 
 		/// <inheritdoc/>
 		public bool HasExited => _result.Task.IsCompleted;

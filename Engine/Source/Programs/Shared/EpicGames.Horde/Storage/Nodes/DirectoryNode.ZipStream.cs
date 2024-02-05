@@ -55,10 +55,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		protected override void Dispose(bool disposing)
 		{
+#pragma warning disable VSTHRD002
 			if (disposing)
 			{
 				_backgroundTask.DisposeAsync().AsTask().Wait();
 			}
+#pragma warning restore VSTHRD002
 
 			base.Dispose(disposing);
 		}
@@ -163,8 +165,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 		}
 
+#pragma warning disable VSTHRD002
 		/// <inheritdoc/>
 		public override int Read(byte[] buffer, int offset, int count) => ReadAsync(buffer.AsMemory(offset, count)).AsTask().Result;
+#pragma warning restore VSTHRD002
 
 		/// <inheritdoc/>
 		public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();

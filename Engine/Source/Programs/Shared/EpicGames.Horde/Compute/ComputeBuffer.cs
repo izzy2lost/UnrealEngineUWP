@@ -534,7 +534,7 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Waits for a read event to be signalled
 		/// </summary>
-		public abstract Task WaitForReadEvent(int readerIdx, CancellationToken cancellationToken);
+		public abstract Task WaitToReadAsync(int readerIdx, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Signals the write event
@@ -544,7 +544,7 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Waits for the write event to be signalled
 		/// </summary>
-		public abstract Task WaitForWriteEvent(CancellationToken cancellationToken);
+		public abstract Task WaitToWriteAsync(CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Allocate a new reader
@@ -774,7 +774,7 @@ namespace EpicGames.Horde.Compute
 				if (!chunkState.HasReaderFlag(readerIdx))
 				{
 					// Wait until the current chunk is readable
-					await WaitForReadEvent(readerIdx, cancellationToken);
+					await WaitToReadAsync(readerIdx, cancellationToken);
 				}
 				else if (readerState.Offset + minLength <= chunkState.Length)
 				{
@@ -784,7 +784,7 @@ namespace EpicGames.Horde.Compute
 				else if (chunkState.WriteState == WriteState.Writing)
 				{
 					// Wait until there is more data in the chunk
-					await WaitForReadEvent(readerIdx, cancellationToken);
+					await WaitToReadAsync(readerIdx, cancellationToken);
 				}
 				else if (readerState.Offset < chunkState.Length || chunkState.WriteState == WriteState.Complete)
 				{
@@ -908,7 +908,7 @@ namespace EpicGames.Horde.Compute
 				ChunkState nextWriteChunkState = nextWriteChunkStatePtr.Get();
 				if (nextWriteChunkState.ReaderFlags != 0)
 				{
-					await WaitForWriteEvent(cancellationToken);
+					await WaitToWriteAsync(cancellationToken);
 				}
 				else if (nextWriteChunkStatePtr.TryUpdate(nextWriteChunkState, new ChunkState(WriteState.Writing, writerState.ReaderFlags, 0)))
 				{
