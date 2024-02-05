@@ -60,6 +60,15 @@ Creates a new AWS ECS task definition and updates the ECS service to use this ne
 | LogOutput          | Boolean   | Optional | Write output to the log                                                                      |
 | If                 | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false.            |
 
+### CheckMarkdown
+
+Checks that all markdown links between the given files are valid.
+
+|       |           |          |                                                                                   |
+| ----- | --------- | -------- | --------------------------------------------------------------------------------- |
+| Files | FileSpec  | Optional | Optional filter to be applied to the list of input files.                         |
+| If    | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false. |
+
 ### Command
 
 Invokes an AutomationTool child process to run the given command.
