@@ -636,7 +636,7 @@ void SGameLayerManager::AddOrUpdatePlayerLayers(const FGeometry& AllottedGeometr
 			FPerPlayerSplitscreenData& SplitData = SplitInfo[SplitType].PlayerData[PlayerIndex];
 
 			// Viewport Sizes
-			FVector2D Position(0, 0);
+			FVector2D Position(0.0, 0.0);
 			FVector2D Size(SplitData.SizeX, SplitData.SizeY);
 			GetNormalizeRect(Player, Position, Size);
 
@@ -650,6 +650,19 @@ void SGameLayerManager::AddOrUpdatePlayerLayers(const FGeometry& AllottedGeometr
 
 			PlayerLayer->Slot->SetSize(Size);
 			PlayerLayer->Slot->SetPosition(Position);
+		}
+		else
+		{
+			TSharedPtr<FPlayerLayer> PlayerLayer = PlayerLayers.FindRef(Player);
+			if (PlayerLayer.IsValid())
+			{
+				// Viewport Sizes
+				FVector2D Position(0.0, 0.0);
+				FVector2D Size(0.0, 0.0);
+
+				PlayerLayer->Slot->SetSize(Size);
+				PlayerLayer->Slot->SetPosition(Position);
+			}
 		}
 	}
 }
