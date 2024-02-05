@@ -56,7 +56,7 @@ namespace UE::Interchange::InterchangeEditorModule
 				const EInterchangeResultType ResultType = Result->GetResultType();
 				if (ResultType != EInterchangeResultType::Success)
 				{
-					TokenizedMessages.Add(FTokenizedMessage::Create(ResultType == EInterchangeResultType::Error ? EMessageSeverity::Error : EMessageSeverity::Warning, Result->GetText()));
+					TokenizedMessages.Add(FTokenizedMessage::Create(ResultType == EInterchangeResultType::Error ? EMessageSeverity::Error : EMessageSeverity::Warning, Result->GetMessageLogText()));
 					bHasErrors |= ResultType == EInterchangeResultType::Error;
 				}
 			}

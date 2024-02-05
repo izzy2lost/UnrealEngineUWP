@@ -17,7 +17,7 @@ UClass* UInterchangeDecalActorFactory::GetFactoryClass() const
 	return ADecalActor::StaticClass();
 }
 
-UObject* UInterchangeDecalActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer)
+UObject* UInterchangeDecalActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer, const FImportSceneObjectsParams& Params)
 {
 	ADecalActor* DecalActor = Cast<ADecalActor>(&SpawnedActor);
 	if (DecalActor)
@@ -51,7 +51,8 @@ UObject* UInterchangeDecalActorFactory::ProcessActor(AActor& SpawnedActor, const
 				}
 				else
 				{
-					UE_LOG(LogInterchangeImport, Error, TEXT("No valid decal material found. Make sure that the DecalMaterialPath is valid: %s"), *DecalMaterialPath);
+					const FText Message = FText::Format(NSLOCTEXT("DecalActorImport", "NoMaterial", "No valid decal material found. Make sure that the DecalMaterialPath is valid: %s"), FText::FromString(DecalMaterialPath));
+					LogMessage<UInterchangeResultError_Generic>(Params, Message, SpawnedActor.GetActorLabel());
 				}
 			}
 		}

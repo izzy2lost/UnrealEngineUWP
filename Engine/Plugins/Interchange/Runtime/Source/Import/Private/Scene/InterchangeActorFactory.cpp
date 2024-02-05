@@ -29,7 +29,7 @@ UObject* UInterchangeActorFactory::ImportSceneObject_GameThread(const UInterchan
 
 	if (SpawnedActor)
 	{
-		if (UObject* ObjectToUpdate = ProcessActor(*SpawnedActor, *FactoryNode, *CreateSceneObjectsParams.NodeContainer))
+		if (UObject* ObjectToUpdate = ProcessActor(*SpawnedActor, *FactoryNode, *CreateSceneObjectsParams.NodeContainer, CreateSceneObjectsParams))
 		{
 			if (USceneComponent* RootComponent = SpawnedActor->GetRootComponent())
 			{
@@ -51,8 +51,7 @@ UObject* UInterchangeActorFactory::ImportSceneObject_GameThread(const UInterchan
 	return SpawnedActor;
 }
 
-UObject* UInterchangeActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& /*FactoryNode*/, const UInterchangeBaseNodeContainer& /*NodeContainer*/)
+UObject* UInterchangeActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& /*FactoryNode*/, const UInterchangeBaseNodeContainer& /*NodeContainer*/, const FImportSceneObjectsParams& Params)
 {
 	return SpawnedActor.GetRootComponent();
 }
-
