@@ -136,7 +136,6 @@ FEditableSkeleton::FEditableSkeleton(USkeleton* InSkeleton)
 	: Skeleton(InSkeleton)
 {
 	Skeleton->SetFlags(RF_Transactional);
-	Skeleton->CollectAnimationNotifies();
 }
 
 const USkeleton& FEditableSkeleton::GetSkeleton() const
@@ -930,7 +929,9 @@ int32 FEditableSkeleton::DeleteAnimNotifies(const TArray<FName>& InNotifyNames, 
 		}
 	}
 
-	FBlueprintActionDatabase::Get().RefreshAssetActions(Skeleton);
+	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+	ActionDatabase.ClearAssetActions(UAnimBlueprint::StaticClass());
+	ActionDatabase.RefreshClassActions(UAnimBlueprint::StaticClass());
 	OnNotifiesChanged.Broadcast();
 
 	return NumAnimationsModified;
@@ -979,7 +980,9 @@ void FEditableSkeleton::AddNotify(FName NewName)
 	Skeleton->Modify();
 	Skeleton->AddNewAnimationNotify(NewName);
 
-	FBlueprintActionDatabase::Get().RefreshAssetActions(Skeleton);
+	FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+	ActionDatabase.ClearAssetActions(UAnimBlueprint::StaticClass());
+	ActionDatabase.RefreshClassActions(UAnimBlueprint::StaticClass());
 	OnNotifiesChanged.Broadcast();
 }
 
@@ -1039,7 +1042,9 @@ int32 FEditableSkeleton::RenameNotify(const FName NewName, const FName OldName, 
 			}
 		}
 
-		FBlueprintActionDatabase::Get().RefreshAssetActions(Skeleton);
+		FBlueprintActionDatabase& ActionDatabase = FBlueprintActionDatabase::Get();
+		ActionDatabase.ClearAssetActions(UAnimBlueprint::StaticClass());
+		ActionDatabase.RefreshClassActions(UAnimBlueprint::StaticClass());
 		OnNotifiesChanged.Broadcast();
 	}
 

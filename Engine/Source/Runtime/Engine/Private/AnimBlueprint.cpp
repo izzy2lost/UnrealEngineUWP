@@ -8,6 +8,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimBlueprint)
 
 #if WITH_EDITOR
+#include "IAnimationBlueprintEditorModule.h"
 #include "Settings/AnimBlueprintSettings.h"
 #endif
 #if WITH_EDITORONLY_DATA
@@ -288,6 +289,22 @@ void UAnimBlueprint::PostEditChangeProperty(struct FPropertyChangedEvent& Proper
 	{
 		bRefreshExtensions = true;
 	}
+}
+
+void UAnimBlueprint::GetTypeActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
+{
+	Super::GetTypeActions(ActionRegistrar);
+
+	const IAnimationBlueprintEditorModule& AnimationBlueprintEditorModule = FModuleManager::LoadModuleChecked<IAnimationBlueprintEditorModule>(TEXT("AnimationBlueprintEditor"));
+	AnimationBlueprintEditorModule.GetTypeActions(ActionRegistrar);
+}
+
+void UAnimBlueprint::GetInstanceActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
+{
+	Super::GetInstanceActions(ActionRegistrar);
+
+	const IAnimationBlueprintEditorModule& AnimationBlueprintEditorModule = FModuleManager::LoadModuleChecked<IAnimationBlueprintEditorModule>(TEXT("AnimationBlueprintEditor"));
+	AnimationBlueprintEditorModule.GetInstanceActions(this, ActionRegistrar);
 }
 
 #endif
