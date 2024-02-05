@@ -603,8 +603,8 @@ void UEditMeshPolygonsTool::Setup()
 
 	ExtrudeActivity = NewObject<UPolyEditExtrudeActivity>();
 	ExtrudeActivity->Setup(this);
-	ActivityLabels.Add(ExtrudeActivity, LOCTEXT("ExtrudeActivityLabel", "Extrude"));
-	ActivityIconNames.Add(ExtrudeActivity, "PolyEd.Extrude");
+	// The icons/labels differ depending on whether we're doing extrude, offset, or push/pull, so
+	// set those when we launch the activity.
 	
 	InsetOutsetActivity = NewObject<UPolyEditInsetOutsetActivity>();
 	InsetOutsetActivity->Setup(this);
@@ -1251,6 +1251,10 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 			}
 			ExtrudeActivity->ExtrudeMode = FExtrudeOp::EExtrudeMode::MoveAndStitch;
 			ExtrudeActivity->PropertySetToUse = UPolyEditExtrudeActivity::EPropertySetToUse::Extrude;
+
+			ActivityLabels.Add(ExtrudeActivity, LOCTEXT("ExtrudeActivityLabel", "Extrude"));
+			ActivityIconNames.Add(ExtrudeActivity, "PolyEd.Extrude");
+
 			StartActivity(ExtrudeActivity);
 			break;
 		}
@@ -1258,6 +1262,10 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		{
 			ExtrudeActivity->ExtrudeMode = FExtrudeOp::EExtrudeMode::Boolean;
 			ExtrudeActivity->PropertySetToUse = UPolyEditExtrudeActivity::EPropertySetToUse::PushPull;
+
+			ActivityLabels.Add(ExtrudeActivity, LOCTEXT("PushPullActivityLabel", "Push/Pull"));
+			ActivityIconNames.Add(ExtrudeActivity, "PolyEd.PushPull");
+
 			StartActivity(ExtrudeActivity);
 			break;
 		}
@@ -1265,6 +1273,10 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		{
 			ExtrudeActivity->ExtrudeMode = FExtrudeOp::EExtrudeMode::MoveAndStitch;
 			ExtrudeActivity->PropertySetToUse = UPolyEditExtrudeActivity::EPropertySetToUse::Offset;
+
+			ActivityLabels.Add(ExtrudeActivity, LOCTEXT("OffsetActivityLabel", "Offset"));
+			ActivityIconNames.Add(ExtrudeActivity, "PolyEd.Offset");
+
 			StartActivity(ExtrudeActivity);
 			break;
 		}
