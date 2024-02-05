@@ -1232,10 +1232,10 @@ namespace Chaos
 			}
 			Data->X = Rigid->X();
 			Data->P = Rigid->P();
-			Data->R = Rigid->R();
-			Data->Q = Rigid->Q();
-			Data->V = Rigid->V();
-			Data->W = Rigid->W();
+			Data->R = Rigid->GetR();
+			Data->Q = Rigid->GetQ();
+			Data->V = Rigid->GetV();
+			Data->W = Rigid->GetW();
 		}
 	}
 
@@ -1275,10 +1275,10 @@ namespace Chaos
 			{
 				Rigid->X() = Data->X;
 				Rigid->P() = Data->P;
-				Rigid->R() = Data->R;
-				Rigid->Q() = Data->Q;
-				Rigid->V() = Data->V;
-				Rigid->W() = Data->W;
+				Rigid->SetR(Data->R);
+				Rigid->SetQ(Data->Q);
+				Rigid->SetV(Data->V);
+				Rigid->SetW(Data->W);
 			}
 		}
 	}

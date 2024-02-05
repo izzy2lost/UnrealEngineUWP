@@ -228,7 +228,8 @@ public:
 	FUniqueIdx UniqueIdx() const { return Read([](auto* Particle) { return Particle->UniqueIdx(); }); }
 	void SetUniqueIdx(const FUniqueIdx UniqueIdx, bool bInvalidate = true) { Write([UniqueIdx, bInvalidate](auto* Particle) { Particle->SetUniqueIdx(UniqueIdx, bInvalidate); }); }
 
-	FRotation3 R() const { return Read([](auto* Particle) -> const auto { return Particle->R(); }); }
+	FRotation3 R() const { return Read([](auto* Particle) -> const auto { return Particle->GetR(); }); }
+	FRotation3 GetR() const { return Read([](auto* Particle) -> const auto { return Particle->GetR(); }); }
 
 protected:
 	void SetRBase(const FRotation3& InR, bool bInvalidate = true){ Write([&InR, bInvalidate, this](auto* Particle)
@@ -280,11 +281,15 @@ public:
 		{
 			if (auto Kinematic = Particle->CastToKinematicParticle())
 			{
-				return Kinematic->V();
+				return Kinematic->GetV();
 			}
 			
 			return FVec3(0);
 		});
+	}
+	const FVec3 GetV() const
+	{
+		return V();
 	}
 
 protected:
@@ -315,11 +320,16 @@ public:
 		{
 			if (auto Kinematic = Particle->CastToKinematicParticle())
 			{
-				return Kinematic->W();
+				return Kinematic->GetW();
 			}
 
 			return FVec3(0);
 		});
+	}
+
+	const FVec3 GetW() const
+	{
+		return W();
 	}
 
 protected:
@@ -676,7 +686,7 @@ public:
 		{
 			if (auto Rigid = Particle->CastToRigidParticle())
 			{
-				const FMatrix33 WorldI = Utilities::ComputeWorldSpaceInertia(Rigid->R() * Rigid->RotationOfMass(), Rigid->I());
+				const FMatrix33 WorldI = Utilities::ComputeWorldSpaceInertia(Rigid->GetR() * Rigid->RotationOfMass(), Rigid->I());
 				return WorldI * Rigid->AngularImpulseVelocity();
 			}
 
@@ -703,7 +713,7 @@ public:
 					}
 					else
 					{
-						const FMatrix33 WorldInvI = Utilities::ComputeWorldSpaceInertia(Rigid->R() * Rigid->RotationOfMass(), Rigid->InvI());
+						const FMatrix33 WorldInvI = Utilities::ComputeWorldSpaceInertia(Rigid->GetR() * Rigid->RotationOfMass(), Rigid->InvI());
 						Rigid->SetAngularImpulseVelocity(WorldInvI * InAngularImpulse, bInvalidate);
 					}
 				}
@@ -1341,7 +1351,7 @@ public:
 		VerifyContext();
 		if (auto Rigid = GetHandle_LowLevel()->CastToRigidParticle())
 		{
-			return Rigid->PreV();
+			return Rigid->GetPreV();
 		}
 		return FVec3(0);
 	}
@@ -1351,7 +1361,7 @@ public:
 		VerifyContext();
 		if (auto Rigid = GetHandle_LowLevel()->CastToRigidParticle())
 		{
-			return Rigid->PreW();
+			return Rigid->GetPreW();
 		}
 		return FVec3(0);
 	}

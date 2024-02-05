@@ -89,7 +89,7 @@ namespace ChaosTest {
 				}
 				else
 				{
-					FTransform ParticleTransform(Data.Payload.GetGeometryParticleHandle_PhysicsThread()->R(), Data.Payload.GetGeometryParticleHandle_PhysicsThread()->X());
+					FTransform ParticleTransform(Data.Payload.GetGeometryParticleHandle_PhysicsThread()->GetR(), Data.Payload.GetGeometryParticleHandle_PhysicsThread()->X());
 					const FVec3 DirLocal = ParticleTransform.InverseTransformVectorNoScale(CurData.Dir);
 					const FVec3 StartLocal = ParticleTransform.InverseTransformPositionNoScale(Start);
 					bHit = Data.Payload.GetGeometryParticleHandle_PhysicsThread()->GetGeometry()->Raycast(StartLocal, DirLocal, CurData.CurrentLength, 0, OutTime, OutPos, OutNorm, FaceIdx);

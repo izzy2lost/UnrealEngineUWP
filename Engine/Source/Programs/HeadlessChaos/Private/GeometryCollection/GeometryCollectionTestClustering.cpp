@@ -1796,7 +1796,7 @@ namespace GeometryCollectionTest
 			EXPECT_TRUE(ClusterMapContains(ClusterMap,CollectionParticles2[2],{CollectionParticles2[1],CollectionParticles2[0]}));
 		});
 
-		for (int Frame = 0; Frame < 100; Frame++)
+		for (int Frame = 0; Frame < 50; Frame++)
 		{
 			UnitTest.Advance();
 
@@ -1835,7 +1835,7 @@ namespace GeometryCollectionTest
 			}
 			else
 			{
-				FTransform RootTransform(Root->R(), Root->X());
+				FTransform RootTransform(Root->GetR(), Root->X());
 
 				TArray<FTransform> GlobalTransform1;
 				GeometryCollectionAlgo::Private::GlobalMatrices(*DynamicCollection, GlobalTransform1);

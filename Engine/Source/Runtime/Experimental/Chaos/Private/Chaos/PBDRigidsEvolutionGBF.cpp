@@ -288,10 +288,10 @@ void CheckMovingKinematicFlag(FPBDRigidsSOAs& Particles)
 		{
 			if (Rigid->IsKinematic())
 			{
-				const bool bIsMoving = !Rigid->V().IsNearlyZero() || !Rigid->W().IsNearlyZero();
+				const bool bIsMoving = !Rigid->GetV().IsNearlyZero() || !Rigid->GetW().IsNearlyZero();
 				ensureMsgf(bIsMoving == Rigid->IsMovingKinematic(),
 					TEXT("Kinematic IsMoving flag mismatch. IsMoving=%d V=(%f, %f, %f) W=(%f %f %f) %s"),
-					Rigid->IsMovingKinematic(), Rigid->V().X, Rigid->V().Y, Rigid->V().Z, Rigid->W().X, Rigid->W().Y, Rigid->W().Z, *Rigid->GetDebugName());
+					Rigid->IsMovingKinematic(), Rigid->GetV().X, Rigid->GetV().Y, Rigid->GetV().Z, Rigid->GetW().X, Rigid->GetW().Y, Rigid->GetW().Z, *Rigid->GetDebugName());
 			}
 			else
 			{
@@ -793,7 +793,7 @@ FPBDRigidsEvolutionGBF::FPBDRigidsEvolutionGBF(
 		ParticlesInput.ParallelFor([&](auto& Particle, int32 Index)
 		{
 			Particle.X() = Particle.P();
-			Particle.R() = Particle.Q();
+			Particle.SetR(Particle.GetQ());
 
 			//TODO: rename this function since it's not just updating position
 			Particle.SetPreObjectStateLowLevel(Particle.ObjectState());
@@ -1031,7 +1031,7 @@ void FPBDRigidsEvolutionGBF::DestroyTransientConstraints(FGeometryParticleHandle
 CHAOS_API void FPBDRigidsEvolutionGBF::SetParticleTransform(FGeometryParticleHandle* InParticle, const FVec3& InPos, const FRotation3& InRot, const bool bIsTeleport)
 {
 	const FVec3 PrevX = InParticle->X();
-	const FRotation3 PrevR = InParticle->R();
+	const FRotation3 PrevR = InParticle->GetR();
 
 	FGenericParticleHandle(InParticle)->SetTransform(InPos, InRot);
 
@@ -1053,7 +1053,7 @@ void FPBDRigidsEvolutionGBF::SetParticleTransformSwept(FGeometryParticleHandle* 
 	// that are not centerd on their center of mass (either it's multi-shape body, or the user modified the CoM).
 	const FVec3 CoMOffset = FConstGenericParticleHandle(InParticle)->CenterOfMass();
 	const FVec3 EndCoM = InPos + InRot * CoMOffset;
-	const FVec3 StartCoM = InParticle->X() + InParticle->R() * CoMOffset;
+	const FVec3 StartCoM = InParticle->X() + InParticle->GetR() * CoMOffset;
 	FVec3 SweepDir = EndCoM - StartCoM;
 	const FReal SweepLength = SweepDir.SafeNormalize();
 	const FVec3 SweepStart = InPos - SweepDir * SweepLength;
@@ -1111,7 +1111,7 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 	// is different by very small amounts around 1e-7 in both position and rotation when switching from dynamic to kinematic.
 	const FReal CollisionPositionTolerance = FReal(1.e-4);
 	const FReal CollisionRotationTolerance = FReal(1.e-6);
-	if (!FVec3::IsNearlyEqual(PrevX, InParticle->X(), CollisionPositionTolerance) || !FRotation3::IsNearlyEqual(PrevR, InParticle->R(), CollisionRotationTolerance))
+	if (!FVec3::IsNearlyEqual(PrevX, InParticle->X(), CollisionPositionTolerance) || !FRotation3::IsNearlyEqual(PrevR, InParticle->GetR(), CollisionRotationTolerance))
 	{
 		GetIslandManager().WakeParticleIslands(InParticle);
 
@@ -1136,7 +1136,7 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 				const FReal InvDt = FReal(30.0);
 				const FVec3 DV = (PrevX - Rigid->X()) * InvDt;
 				const FReal SmoothRate = FMath::Clamp(CVars::SmoothedPositionLerpRate, 0.0f, 1.0f);
-				Rigid->VSmooth() = FMath::Lerp(Rigid->VSmooth(), Rigid->V() + DV, SmoothRate);
+				Rigid->VSmooth() = FMath::Lerp(Rigid->VSmooth(), Rigid->GetV() + DV, SmoothRate);
 			}
 
 			if (Rigid->IsSleeping())

@@ -53,7 +53,7 @@ namespace Chaos
 				FPendingParticleWrite NewData;
 
 				NewData.ParticleIndex = 0; // Only one particle for static caches
-				NewData.PendingTransform = FTransform(AsRigid->R(), AsRigid->X()).GetRelativeTransform(InRootTransform);
+				NewData.PendingTransform = FTransform(AsRigid->GetR(), AsRigid->X()).GetRelativeTransform(InRootTransform);
 
 				OutFrame.PendingParticleData.Add(MoveTemp(NewData));
 			}

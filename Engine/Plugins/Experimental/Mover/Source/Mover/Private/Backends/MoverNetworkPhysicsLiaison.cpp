@@ -766,7 +766,7 @@ void UMoverNetworkPhysicsLiaisonComponent::AsyncPhysics_OnPreSimulate(const FPhy
 			}
 		}
 	}
-	SyncState.SetTransforms_WorldSpace(CharacterParticle->X(), FRotator(CharacterParticle->R()), CharacterParticle->V() - LocalGroundVelocity);
+	SyncState.SetTransforms_WorldSpace(CharacterParticle->X(), FRotator(CharacterParticle->GetR()), CharacterParticle->GetV() - LocalGroundVelocity);
 
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Update the simulation
@@ -853,7 +853,7 @@ void UMoverNetworkPhysicsLiaisonComponent::AsyncPhysics_OnPreSimulate(const FPhy
 
 	// Note: Output sync state does not have a target angular velocity so
 	// use the target orientation
-	FRotator DeltaRotation = OutputSyncState->GetOrientation_WorldSpace() - FRotator(CharacterParticle->R());
+	FRotator DeltaRotation = OutputSyncState->GetOrientation_WorldSpace() - FRotator(CharacterParticle->GetR());
 	FRotator Winding, Remainder;
 	DeltaRotation.GetWindingAndRemainder(Winding, Remainder);
 	float TargetDeltaFacing = FMath::DegreesToRadians(Remainder.Yaw);

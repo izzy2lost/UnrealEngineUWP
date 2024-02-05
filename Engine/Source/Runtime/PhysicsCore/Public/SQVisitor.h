@@ -201,7 +201,7 @@ private:
 		const bool bTestShapeBounds = Shapes.Num() > 1;
 		bool bContinue = true;
 
-		const FRigidTransform3 ActorTM(GeometryParticle->X(), GeometryParticle->R());
+		const FRigidTransform3 ActorTM(GeometryParticle->X(), GeometryParticle->GetR());
 		const TAABB<FReal, 3> QueryGeomWorldBounds = QueryGeom ? QueryGeom->CalculateTransformedBounds(StartTM) : TAABB<FReal, 3>(-HalfExtents, HalfExtents);
 
 #if CHAOS_DEBUG_DRAW
@@ -215,7 +215,7 @@ private:
 
 			const FImplicitObject* Geom = Shape->GetGeometry();
 
-			CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(EChaosVDSceneQueryVisitorType::NarrowPhase, FTransform(GeometryParticle->R(), GeometryParticle->X()), Payload.UniqueIdx().Idx, ShapeIndex, CurData);
+			CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(EChaosVDSceneQueryVisitorType::NarrowPhase, FTransform(GeometryParticle->GetR(), GeometryParticle->X()), Payload.UniqueIdx().Idx, ShapeIndex, CurData);
 
 			if (bTestShapeBounds)
 			{
@@ -564,7 +564,7 @@ private:
 		{
 			const TUniquePtr<FPerShapeData>& Shape = Shapes[ShapeIndex];
 
-			CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(EChaosVDSceneQueryVisitorType::BroadPhase, FTransform(GeometryParticle->R(), GeometryParticle->X()), Payload.UniqueIdx().Idx, ShapeIndex, CurData);
+			CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(EChaosVDSceneQueryVisitorType::BroadPhase, FTransform(GeometryParticle->GetR(), GeometryParticle->X()), Payload.UniqueIdx().Idx, ShapeIndex, CurData);
 
 			ECollisionQueryHitType HitType = QueryFilterData.flags & FPhysicsQueryFlag::ePREFILTER ? QueryCallback.PreFilter(QueryFilterDataConcrete, *Shape, *GeometryParticle) : ECollisionQueryHitType::Block;
 			if (HitType != ECollisionQueryHitType::None)

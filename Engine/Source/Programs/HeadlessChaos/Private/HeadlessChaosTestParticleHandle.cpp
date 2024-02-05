@@ -277,22 +277,22 @@ namespace ChaosTest {
 		EXPECT_EQ(Geometry->X()[1], 0);
 		EXPECT_EQ(Geometry->X()[2], 0);
 
-		EXPECT_EQ(KinematicGeometry->V()[0], 0);	//default constructor
-		EXPECT_EQ(KinematicGeometry->V()[1], 0);
-		EXPECT_EQ(KinematicGeometry->V()[2], 0);
+		EXPECT_EQ(KinematicGeometry->GetV()[0], 0);	//default constructor
+		EXPECT_EQ(KinematicGeometry->GetV()[1], 0);
+		EXPECT_EQ(KinematicGeometry->GetV()[2], 0);
 
 		EXPECT_EQ(PBDRigid->X()[0], 0);	//default constructor of base
 		EXPECT_EQ(PBDRigid->X()[1], 0);
 		EXPECT_EQ(PBDRigid->X()[2], 0);
-		EXPECT_EQ(PBDRigid->V()[0], 0);
-		EXPECT_EQ(PBDRigid->V()[1], 0);
-		EXPECT_EQ(PBDRigid->V()[2], 0);
+		EXPECT_EQ(PBDRigid->GetV()[0], 0);
+		EXPECT_EQ(PBDRigid->GetV()[1], 0);
+		EXPECT_EQ(PBDRigid->GetV()[2], 0);
 		EXPECT_EQ(PBDRigid->M(), 1);
 
 		PBDRigid->SetX(FVec3(1, 2, 3));
 		EXPECT_EQ(PBDRigid->X()[0], 1);
 		KinematicGeometry->SetV(FVec3(3, 3, 3));
-		EXPECT_EQ(KinematicGeometry->V()[0], 3);
+		EXPECT_EQ(KinematicGeometry->GetV()[0], 3);
 
 		EXPECT_EQ(Geometry->ObjectState(), EObjectStateType::Static);
 		EXPECT_EQ(KinematicGeometry->ObjectState(), EObjectStateType::Kinematic);

@@ -466,7 +466,7 @@ namespace ChaosTest {
 
 						for (int32 Step = 0; Step < PhysicsStep; ++Step)
 						{
-							const FReal OldV = RewindData->GetPastStateAtFrame(*Proxy->GetHandle_LowLevel(), Step).V()[2];
+							const FReal OldV = RewindData->GetPastStateAtFrame(*Proxy->GetHandle_LowLevel(), Step).GetV()[2];
 							const FReal Time = Step * SimDt;
 							if (Time == 2)	//velocity was reset by gt
 							{
@@ -968,8 +968,7 @@ namespace ChaosTest {
 			});
 	}
 
-	// DISABLED: Due to GT side changes in precision of particle data this will fail on minor differences. Disabling until fix available (PT side changes to precision)
-	GTEST_TEST(AllTraits, DISABLED_RewindTest_ResimInSync3)
+	GTEST_TEST(AllTraits, RewindTest_ResimInSync3)
 	{
 		//different position during resim step 5 which should cause a desync
 		//want a completely clean property to make sure we properly update resim buffer when property is dirtied only on second run
@@ -1722,7 +1721,7 @@ namespace ChaosTest {
 				}
 
 				EXPECT_NEAR(ParticleState.X()[2], ExpectedXZ, 1e-4);
-				EXPECT_NEAR(ParticleState.V()[2], ExpectedVZ, 1e-4);
+				EXPECT_NEAR(ParticleState.GetV()[2], ExpectedVZ, 1e-4);
 
 				ExpectedVZ -= SimDt;
 				ExpectedXZ += ExpectedVZ * SimDt;
@@ -2315,7 +2314,7 @@ namespace ChaosTest {
 					//we'll see the teleport automatically because ResimAsFollower
 					//but it's done by solver so before tick teleport is not known
 					EXPECT_NEAR(Particle.X()[2], ExpectedXZ, 1e-4);
-					EXPECT_NEAR(Particle.V()[2], ExpectedVZ, 1e-4);
+					EXPECT_NEAR(Particle.GetV()[2], ExpectedVZ, 1e-4);
 #endif
 				}
 
@@ -2326,7 +2325,7 @@ namespace ChaosTest {
 
 #if REWIND_DESYNC
 				EXPECT_NEAR(Particle.X()[2], ExpectedXZ, 1e-4);
-				EXPECT_NEAR(Particle.V()[2], ExpectedVZ, 1e-4);
+				EXPECT_NEAR(Particle.GetV()[2], ExpectedVZ, 1e-4);
 #endif
 			}
 
@@ -3873,7 +3872,7 @@ namespace ChaosTest {
 			for (const auto& Dynamic : NonDisabledDyanmic)
 			{
 				Frame.X.Add(Dynamic.X());
-				Frame.R.Add(Dynamic.R());
+				Frame.R.Add(Dynamic.GetR());
 			}
 			History.Add(MoveTemp(Frame));
 		}

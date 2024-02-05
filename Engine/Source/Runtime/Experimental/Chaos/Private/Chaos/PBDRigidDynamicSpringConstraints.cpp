@@ -33,8 +33,8 @@ namespace Chaos
 				continue;
 			}
 
-			const FRotation3 Q0 = bIsRigidDynamic0 ? PBDRigid0->Q() : Static0->R();
-			const FRotation3 Q1 = bIsRigidDynamic1 ? PBDRigid1->Q() : Static1->R();
+			const FRotation3 Q0 = bIsRigidDynamic0 ? PBDRigid0->GetQ() : Static0->GetR();
+			const FRotation3 Q1 = bIsRigidDynamic1 ? PBDRigid1->GetQ() : Static1->GetR();
 			const FVec3& P0 = bIsRigidDynamic0 ? PBDRigid0->P() : Static0->X();
 			const FVec3& P1 = bIsRigidDynamic1 ? PBDRigid1->P() : Static1->X();
 

@@ -524,11 +524,16 @@ public:
 	FUniqueIdx UniqueIdx() const { return GeometryParticles->UniqueIdx(ParticleIdx); }
 	void SetUniqueIdx(const FUniqueIdx UniqueIdx, bool bInvalidate = false) const { GeometryParticles->UniqueIdx(ParticleIdx) = UniqueIdx; }
 
-	const TRotation<T, d>& R() const { return GeometryParticles->R(ParticleIdx); }
-	TRotation<T, d>& R() { return GeometryParticles->R(ParticleIdx); }
-	void SetR(const TRotation<T, d>& InR, bool bInvalidate = false) { GeometryParticles->R(ParticleIdx) = InR; }
+	UE_DEPRECATED(5.4, "Use GetR instead")
+	const TRotation<T, d> R() const { return GeometryParticles->GetR(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use SetR or GetR instead")
+	TRotation<T, d> R() { return GeometryParticles->GetR(ParticleIdx); }
+	const TRotation<T, d> GetR() const { return GeometryParticles->GetR(ParticleIdx); }
+	void SetR(const TRotation<T, d>& InR, bool bInvalidate = false) { GeometryParticles->SetR(ParticleIdx, InR); }
+	const TRotation<FRealSingle, d> GetRf() const { return GeometryParticles->GetRf(ParticleIdx); }
+	void SetRf(const TRotation<FRealSingle, d>& InR, bool bInvalidate = false) { GeometryParticles->SetRf(ParticleIdx, InR); }
 
-	FRigidTransform3 GetTransformXR() const { return FRigidTransform3(X(), R()); }
+	FRigidTransform3 GetTransformXR() const { return FRigidTransform3(X(), GetR()); }
 
 	// Initialize the transform
 	void InitTransform(const FVec3& InP, const FRotation3& InQ)
@@ -896,13 +901,23 @@ public:
 		return Serializable;
 	}
 
-	const TVector<T, d>& V() const { return KinematicGeometryParticles->V(ParticleIdx); }
-	TVector<T, d>& V() { return KinematicGeometryParticles->V(ParticleIdx); }
-	void SetV(const TVector<T, d>& InV, bool bInvalidate = false) { KinematicGeometryParticles->V(ParticleIdx) = InV; }
+	UE_DEPRECATED(5.4, "Use GetV instead")
+	const TVector<T, d> V() const { return KinematicGeometryParticles->GetV(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use SetV or GetV instead")
+	TVector<T, d> V() { return KinematicGeometryParticles->GetV(ParticleIdx); }
+	const TVector<T, d> GetV() const { return KinematicGeometryParticles->GetV(ParticleIdx); }
+	void SetV(const TVector<T, d>& InV, bool bInvalidate = false) { KinematicGeometryParticles->SetV(ParticleIdx, InV); }
+	const TVector<FRealSingle, d> GetVf() const { return KinematicGeometryParticles->GetVf(ParticleIdx); }
+	void SetVf(const TVector<FRealSingle, d>& InV, bool bInvalidate = false) { KinematicGeometryParticles->SetVf(ParticleIdx, InV); }
 
-	const TVector<T, d>& W() const { return KinematicGeometryParticles->W(ParticleIdx); }
-	TVector<T, d>& W() { return KinematicGeometryParticles->W(ParticleIdx); }
-	void SetW(const TVector<T, d>& InW, bool bInvalidate = false) { KinematicGeometryParticles->W(ParticleIdx) = InW; }
+	UE_DEPRECATED(5.4, "Use GetW instead")
+	const TVector<T, d> W() const { return KinematicGeometryParticles->GetW(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use SetW or GetW instead")
+	TVector<T, d> W() { return KinematicGeometryParticles->GetW(ParticleIdx); }
+	const TVector<T, d> GetW() const { return KinematicGeometryParticles->GetW(ParticleIdx); }
+	void SetW(const TVector<T, d>& InW, bool bInvalidate = false) { KinematicGeometryParticles->SetW(ParticleIdx, InW); }
+	const TVector<FRealSingle, d> GetWf() const { return KinematicGeometryParticles->GetWf(ParticleIdx); }
+	void SetWf(const TVector<FRealSingle, d>& InW, bool bInvalidate = false) { KinematicGeometryParticles->SetWf(ParticleIdx, InW); }
 
 	UE_DEPRECATED(5.4, "Use FPBDRigidsEvolutionGBF::SetParticleVelocitied or (SetV, SetW if that is not appropriate)")
 	void SetVelocities(const FParticleVelocities& Velocities)
@@ -938,8 +953,8 @@ public:
 	using TGeometryParticleHandleImp<T, d, bPersistent>::SetX;
 	using TGeometryParticleHandleImp<T, d, bPersistent>::SetR;
 	using TGeometryParticleHandleImp<T, d, bPersistent>::Type;
-	using TKinematicGeometryParticleHandleImp<T, d, bPersistent>::V;
-	using TKinematicGeometryParticleHandleImp<T, d, bPersistent>::W;
+	using TKinematicGeometryParticleHandleImp<T, d, bPersistent>::GetV;
+	using TKinematicGeometryParticleHandleImp<T, d, bPersistent>::GetW;
 
 	using TTransientHandle = TTransientPBDRigidParticleHandle<T, d>;
 	using TSOAType = TPBDRigidParticles<T, d>;
@@ -959,13 +974,13 @@ protected:
 		PBDRigidParticleDefaultConstruct<T, d>(*this, Params);
 		SetCollisionConstraintFlags(0);
 		SetDisabled(Params.bDisabled);
-		SetPreV(this->V());
-		SetPreW(this->W());
+		SetPreVf(this->GetVf());
+		SetPreWf(this->GetWf());
 		SetSolverBodyIndex(INDEX_NONE);
 		SetP(this->X());
-		SetQ(this->R());
-		SetVSmooth(this->V());
-		SetWSmooth(this->W());
+		SetQf(this->GetRf());
+		SetVSmooth(this->GetV());
+		SetWSmooth(this->GetW());
 		SetAcceleration(TVector<T, d>(0));
 		SetAngularAcceleration(TVector<T, d>(0));
 		SetObjectStateLowLevel(Params.bStartSleeping ? EObjectStateType::Sleeping : EObjectStateType::Dynamic);
@@ -1019,13 +1034,23 @@ public:
 	void SetDisabledLowLevel(bool disabled) { PBDRigidParticles->SetDisabledLowLevel(ParticleIdx, disabled); }
 	void SetDisabled(const bool InDisabled) { PBDRigidParticles->DisabledRef(ParticleIdx) = InDisabled; }
 
-	const TVector<T, d>& PreV() const { return PBDRigidParticles->PreV(ParticleIdx); }
-	TVector<T, d>& PreV() { return PBDRigidParticles->PreV(ParticleIdx); }
-	void SetPreV(const TVector<T, d>& InPreV) { PBDRigidParticles->PreV(ParticleIdx) = InPreV; }
+	UE_DEPRECATED(5.4, "Use GetPreV instead")
+	const TVector<T, d> PreV() const { return PBDRigidParticles->GetPreV(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use GetPreV or SetPreV instead")
+	TVector<T, d> PreV() { return PBDRigidParticles->GetPreV(ParticleIdx); }
+	const TVector<T, d> GetPreV() const { return PBDRigidParticles->GetPreV(ParticleIdx); }
+	void SetPreV(const TVector<T, d>& InPreV) { PBDRigidParticles->SetPreV(ParticleIdx, InPreV); }
+	const TVector<FRealSingle, d> GetPreVf() const { return PBDRigidParticles->GetPreVf(ParticleIdx); }
+	void SetPreVf(const TVector<FRealSingle, d>& InPreV) { PBDRigidParticles->SetPreVf(ParticleIdx, InPreV); }
 
-	const TVector<T, d>& PreW() const { return PBDRigidParticles->PreW(ParticleIdx); }
-	TVector<T, d>& PreW() { return PBDRigidParticles->PreW(ParticleIdx); }
-	void SetPreW(const TVector<T, d>& InPreW) { PBDRigidParticles->PreW(ParticleIdx) = InPreW; }
+	UE_DEPRECATED(5.4, "Use GetPreW instead")
+	const TVector<T, d> PreW() const { return PBDRigidParticles->GetPreW(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use GetPreW or SetPreW instead")
+	TVector<T, d> PreW() { return PBDRigidParticles->GetPreW(ParticleIdx); }
+	const TVector<T, d> GetPreW() const { return PBDRigidParticles->GetPreW(ParticleIdx); }
+	void SetPreW(const TVector<T, d>& InPreW) { PBDRigidParticles->SetPreW(ParticleIdx, InPreW); }
+	const TVector<FRealSingle, d> GetPreWf() const { return PBDRigidParticles->GetPreWf(ParticleIdx); }
+	void SetPreWf(const TVector<FRealSingle, d>& InPreW) { PBDRigidParticles->SetPreWf(ParticleIdx, InPreW); }
 
 	int32 SolverBodyIndex() const { return PBDRigidParticles->SolverBodyIndex(ParticleIdx); }
 	void SetSolverBodyIndex(const int32 InSolverBodyIndex) { PBDRigidParticles->SetSolverBodyIndex(ParticleIdx, InSolverBodyIndex); }
@@ -1034,9 +1059,14 @@ public:
 	TVector<T, d>& P() { return PBDRigidParticles->P(ParticleIdx); }
 	void SetP(const TVector<T, d>& InP) { PBDRigidParticles->P(ParticleIdx) = InP; }
 
-	const TRotation<T, d>& Q() const { return PBDRigidParticles->Q(ParticleIdx); }
-	TRotation<T, d>& Q() { return PBDRigidParticles->Q(ParticleIdx); }
-	void SetQ(const TRotation<T, d>& InQ) { PBDRigidParticles->Q(ParticleIdx) = InQ; }
+	UE_DEPRECATED(5.4, "Use GetQ instead")
+	const TRotation<T, d> Q() const { return PBDRigidParticles->GetQ(ParticleIdx); }
+	UE_DEPRECATED(5.4, "Use GetQ or SetQ instead")
+	TRotation<T, d> Q() { return PBDRigidParticles->GetQ(ParticleIdx); }
+	const TRotation<T, d> GetQ() const { return PBDRigidParticles->GetQ(ParticleIdx); }
+	void SetQ(const TRotation<T, d>& InQ) { PBDRigidParticles->SetQ(ParticleIdx, InQ); }
+	const TRotation<FRealSingle, d> GetQf() const { return PBDRigidParticles->GetQf(ParticleIdx); }
+	void SetQf(const TRotation<FRealSingle, d>& InQ) { PBDRigidParticles->SetQf(ParticleIdx, InQ); }
 
 	// World-space center of mass position
 	const TVector<T, d> XCom() const { return PBDRigidParticles->XCom(ParticleIdx); }
@@ -1058,7 +1088,7 @@ public:
 	// Set world-space center of mass transform
 	void SetTransformPQCom(const TVector<T, d>& InPCom, const TRotation<T, d>& InQCom) { PBDRigidParticles->SetTransformPQCom(ParticleIdx, InPCom, InQCom); }
 
-	FRigidTransform3 GetTransformPQ() const { return FRigidTransform3(P(), Q()); }
+	FRigidTransform3 GetTransformPQ() const { return FRigidTransform3(P(), GetQ()); }
 
 	FRigidTransform3 GetTransformXRCom() const { return FRigidTransform3(XCom(), RCom()); }
 
@@ -1121,8 +1151,8 @@ public:
 
 	void ResetSmoothedVelocities()
 	{
-		SetVSmooth(V());
-		SetWSmooth(W());
+		SetVSmooth(GetV());
+		SetWSmooth(GetW());
 	}
 
 	// Get the raw inertia. @see ConditionedInvI()
@@ -1359,7 +1389,7 @@ void TGeometryParticleHandleImp<T,d,bPersistent>::SetXR(const FParticlePositionR
 	if(auto Rigid = CastToRigidParticle())
 	{
 		Rigid->SetP(X());
-		Rigid->SetQ(R());
+		Rigid->SetQf(GetRf());
 	}
 }
 
@@ -1667,19 +1697,23 @@ public:
 	void SetTransform(const FVec3& Pos, const FRotation3& Rot)
 	{
 		MHandle->X() = Pos;
-		MHandle->R() = Rot;
+		MHandle->SetR(Rot);
 		if (FPBDRigidParticleHandle* Dynamic = CastToRigidParticle())
 		{
 			Dynamic->P() = Pos;
-			Dynamic->Q() = Rot;
+			Dynamic->SetQ(Rot);
 		}
 	}
 
 	// Static Particles
 	FVec3& X() { return MHandle->X(); }
 	const FVec3& X() const { return MHandle->X(); }
-	FRotation3& R() { return MHandle->R(); }
-	const FRotation3& R() const { return MHandle->R(); }
+	UE_DEPRECATED(5.4, "Use GetR or SetR instead")
+	FRotation3 R() { return MHandle->GetR(); }
+	UE_DEPRECATED(5.4, "Use GetR instead")
+	const FRotation3 R() const { return MHandle->GetR(); }
+	void SetR(const FRotation3& InR) { MHandle->SetR(InR); }
+	const FRotation3 GetR() const { return MHandle->GetR(); }
 	const FImplicitObjectRef GetGeometry() const { return MHandle->GetGeometry(); }
 	bool Sleeping() const { return MHandle->Sleeping(); }
 	FString ToString() const { return MHandle->ToString(); }
@@ -1698,11 +1732,11 @@ public:
 	auto& AuxilaryValue(Container& AuxContainer) { return MHandle->AuxilaryValue(AuxContainer); }
 
 	// Kinematic Particles
-	const FVec3& V() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->V() : ZeroVector; }
-	const FVec3& W() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->W() : ZeroVector; }
+	const FVec3 V() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetV() : ZeroVector; }
+	const FVec3 W() const { return (MHandle->CastToKinematicParticle()) ? MHandle->CastToKinematicParticle()->GetW() : ZeroVector; }
 
-	void SetV(const FVec3& InV) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->V() = InV; } }
-	void SetW(const FVec3& InW) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->W() = InW; } }
+	void SetV(const FVec3& InV) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->SetV(InV); } }
+	void SetW(const FVec3& InW) { if (MHandle->CastToKinematicParticle()) { MHandle->CastToKinematicParticle()->SetW(InW); } }
 
 	const FKinematicTarget& KinematicTarget() const { return (MHandle->CastToKinematicParticle())? MHandle->CastToKinematicParticle()->KinematicTarget() : EmptyKinematicTarget; }
 
@@ -1771,21 +1805,21 @@ public:
 		return false;
 	}
 
-	const FVec3& PreV() const
+	const FVec3 PreV() const
 	{
 		if (MHandle->CastToRigidParticle())
 		{
-			return MHandle->CastToRigidParticle()->PreV();
+			return MHandle->CastToRigidParticle()->GetPreV();
 		}
 
 		return ZeroVector;
 	}
 
-	const FVec3& PreW() const
+	const FVec3 PreW() const
 	{
 		if (MHandle->CastToRigidParticle())
 		{
-			return MHandle->CastToRigidParticle()->PreW();
+			return MHandle->CastToRigidParticle()->GetPreW();
 		}
 		return ZeroVector;
 	}
@@ -1827,24 +1861,29 @@ public:
 		return X();
 	}
 
-	FRotation3& Q()
+	void SetQ(const FRotation3& InQ)
 	{
 		if (IsDynamic())
 		{
-			return MHandle->CastToRigidParticle()->Q();
+			return MHandle->CastToRigidParticle()->SetQ(InQ);
 		}
 
-		return R();
+		SetR(InQ);
 	}
 
-	const FRotation3& Q() const
+	const FRotation3 Q() const
 	{
 		if (IsDynamic())
 		{
-			return MHandle->CastToRigidParticle()->Q();
+			return MHandle->CastToRigidParticle()->GetQ();
 		}
 
-		return R();
+		return GetR();
+	}
+
+	const FRotation3 GetQ() const
+	{
+		return Q();
 	}
 
 	// World-space center of mass position
@@ -1872,7 +1911,7 @@ public:
 		{
 			return MHandle->CastToRigidParticle()->RCom();
 		}
-		return R();
+		return GetR();
 	}
 	const FRotation3 QCom() const
 	{ 
@@ -1880,7 +1919,7 @@ public:
 		{
 			return MHandle->CastToRigidParticle()->QCom();
 		}
-		return R();
+		return GetR();
 	}
 
 	void InitTransform(const FVec3& InP, const FRotation3& InQ)
@@ -1974,7 +2013,7 @@ public:
 		return T;
 	}
 
-	const FVec3& VSmooth() const
+	const FVec3 VSmooth() const
 	{
 		if (MHandle->CastToRigidParticle())
 		{
@@ -1984,7 +2023,7 @@ public:
 		return V();
 	}
 
-	const FVec3& WSmooth() const
+	const FVec3 WSmooth() const
 	{
 		if (MHandle->CastToRigidParticle())
 		{
@@ -2591,6 +2630,7 @@ public:
 	}
 
 	const TRotation<T, d> R() const { return MXR.Read().R(); }
+	const TRotation<T, d> GetR() const { return MXR.Read().R(); }
 	void SetR(const TRotation<T, d>& InR, bool bInvalidate = true);
 
 	const FParticlePositionRotation& XR() const { return MXR.Read(); }
@@ -3099,9 +3139,11 @@ public:
 	}
 
 	const TVector<T, d> V() const { return MVelocities.Read().V(); }
+	const TVector<T, d> GetV() const { return MVelocities.Read().V(); }
 	void SetV(const TVector<T, d>& InV, bool bInvalidate = true);
 
 	const TVector<T, d> W() const { return MVelocities.Read().W(); }
+	const TVector<T, d> GetW() const { return MVelocities.Read().W(); }
 	void SetW(const TVector<T, d>& InW, bool bInvalidate = true);
 
 	const FKinematicTarget KinematicTarget() const {

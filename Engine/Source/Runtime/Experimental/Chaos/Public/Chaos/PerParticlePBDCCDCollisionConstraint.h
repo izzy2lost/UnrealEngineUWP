@@ -87,7 +87,7 @@ private:
 					return; // Bail out if the collision groups doesn't match the particle group id, or use INDEX_NONE (= global collision that affects all particle)
 				}
 
-				const FSolverRigidTransform3 Frame(CollisionParticles.X(CollisionIndex), CollisionParticles.R(CollisionIndex));
+				const FSolverRigidTransform3 Frame(CollisionParticles.X(CollisionIndex), CollisionParticles.GetR(CollisionIndex));
 
 				const Pair<FVec3, bool> PointPair = CollisionParticles.GetGeometry(CollisionIndex)->FindClosestIntersection(  // Geometry operates in FReal
 					FVec3(CollisionTransforms[CollisionIndex].InverseTransformPositionNoScale(Particles.X(Index))),        // hence the back and forth

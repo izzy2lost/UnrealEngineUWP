@@ -32,8 +32,9 @@ public:
 	TArrayView<FSolverVec3> GetW() { return GetArrayView(GetParticles().GetW()); }
 
 	// SimpleGeometryParticles data
-	const FSolverRotation3& R(const int32 Index) const { return GetParticles().R(Index + Offset); }
-	FSolverRotation3& R(const int32 Index) { return GetParticles().R(Index + Offset); }
+	const FSolverRotation3 R(const int32 Index) const { return GetParticles().GetR(Index + Offset); }
+	void SetR(const int32 Index, const FSolverRotation3& InR) { GetParticles().SetR(Index + Offset, InR); }
+	// FSolverRotation3 R(const int32 Index) { return GetParticles().SetR(Index + Offset); }
 	TConstArrayView<FSolverRotation3> GetR() const { return GetConstArrayView(GetParticles().GetR()); }
 	TArrayView<FSolverRotation3> GetR() { return GetArrayView(GetParticles().GetR()); }
 

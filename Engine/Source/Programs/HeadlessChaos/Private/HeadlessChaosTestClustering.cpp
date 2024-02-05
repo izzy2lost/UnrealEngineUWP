@@ -52,12 +52,12 @@ namespace ChaosTest {
 		EXPECT_EQ(ClusteredParticles.Size(), 3);
 
 		FVec3 ClusterX = ClusteredParticles.X(2);
-		FRotation3 ClusterRot = ClusteredParticles.R(2);
+		FRotation3 ClusterRot = ClusteredParticles.GetR(2);
 
 		EXPECT_TRUE(ClusterX.Equals(FVec3 {(FReal)50, 0, 0}));
 		EXPECT_TRUE(ClusterRot.Equals(FRotation3::Identity));
 		EXPECT_TRUE(ClusterX.Equals(ClusteredParticles.P(2)));
-		EXPECT_TRUE(ClusterRot.Equals(ClusteredParticles.Q(2)));
+		EXPECT_TRUE(ClusterRot.Equals(ClusteredParticles.GetQ(2)));
 
 		FRigidTransform3 ClusterTM(ClusterX, ClusterRot);
 		FVec3 LocalPos = ClusterTM.InverseTransformPositionNoScale(FVec3 {(FReal)200, (FReal)0, (FReal)0});
@@ -114,7 +114,7 @@ namespace ChaosTest {
 		Chaos::FPBDRigidParticleHandle* RootClusterHandle = Evolution.GetRigidClustering().CreateClusterParticle(0, MoveTemp(ClusterHandlesCopy), ClusterParams, FImplicitObjectPtr(nullptr));
 		FVec3 InitialVelocity((FReal)50, (FReal)20, (FReal)100);
 
-		RootClusterHandle->V() = InitialVelocity;		
+		RootClusterHandle->SetV(InitialVelocity);
 		
 		constexpr int NumParticles = NumBoxes + NumBoxes / 4 + 1;
 		EXPECT_EQ(ClusteredParticles.Size(), NumParticles);
@@ -160,7 +160,7 @@ namespace ChaosTest {
 			}
 
 			EXPECT_TRUE(bFoundInNonDisabled);	//clusters are enabled and in non disabled array
-			EXPECT_TRUE(ClusterHandle->V().Equals(InitialVelocity));
+			EXPECT_TRUE(ClusterHandle->GetV().Equals(InitialVelocity));
 		}
 
 		Evolution.AdvanceOneTimeStep(Dt);
@@ -187,7 +187,7 @@ namespace ChaosTest {
 				bFoundInNonDisabled |= Particle.Handle() == BoxHandle;
 			}
 			EXPECT_TRUE(bFoundInNonDisabled);
-			EXPECT_TRUE(BoxHandle->V().Equals(InitialVelocity));
+			EXPECT_TRUE(BoxHandle->GetV().Equals(InitialVelocity));
 		}
 	}
 
@@ -237,7 +237,7 @@ namespace ChaosTest {
 		Chaos::FPBDRigidParticleHandle* RootClusterHandle = Evolution.GetRigidClustering().CreateClusterParticle(0, MoveTemp(ClusterHandles), ClusterParams, FImplicitObjectPtr(nullptr));
 		FVec3 InitialVelocity((FReal)50, (FReal)20, (FReal)100);
 
-		RootClusterHandle->V() = InitialVelocity;
+		RootClusterHandle->SetV(InitialVelocity);
 
 		TUniquePtr<FChaosPhysicsMaterial> PhysicalMaterial = MakeUnique<FChaosPhysicsMaterial>();
 		PhysicalMaterial->Friction = 0;

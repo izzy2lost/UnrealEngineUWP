@@ -104,7 +104,7 @@ void PushToPhysicsStateImp(const Chaos::FDirtyPropertiesManager& Manager, Chaos:
 			// Update world-space cached state like the bounds
 			// @todo(chaos): do we need to do this here? It should be done in Integrate and ApplyKinematicTarget so only really Statics need this...
 			const bool bHasKinematicTarget = (NewKinematicTargetGT != nullptr) && (NewKinematicTargetGT->GetMode() == EKinematicTargetMode::Position);
-			const FRigidTransform3 WorldTransform = !bHasKinematicTarget ? FRigidTransform3(Handle->X(), Handle->R()) : NewKinematicTargetGT->GetTarget();
+			const FRigidTransform3 WorldTransform = !bHasKinematicTarget ? FRigidTransform3(Handle->X(), Handle->GetR()) : NewKinematicTargetGT->GetTarget();
 			Handle->UpdateWorldSpaceState(WorldTransform, FVec3(0));
 
 			Evolution.DirtyParticle(*Handle);
@@ -227,9 +227,9 @@ template <typename T>
 void BufferPhysicsResultsImp(Chaos::FDirtyRigidParticleData& PullData, T* Particle)
 {
 	PullData.X = Particle->X();
-	PullData.R = Particle->R();
-	PullData.V = Particle->V();
-	PullData.W = Particle->W();
+	PullData.R = Particle->GetR();
+	PullData.V = Particle->GetV();
+	PullData.W = Particle->GetW();
 	PullData.ObjectState = Particle->ObjectState();
 }
 

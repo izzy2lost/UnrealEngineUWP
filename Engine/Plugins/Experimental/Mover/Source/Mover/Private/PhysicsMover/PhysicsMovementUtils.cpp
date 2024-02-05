@@ -252,13 +252,13 @@ FVector UPhysicsMovementUtils::ComputeGroundVelocityFromHitResult(const FVector&
 		if (Rigid->KinematicTarget().IsSet())
 		{
 			const FVector LinearDisplacement = Rigid->KinematicTarget().GetTargetPosition() - Rigid->X();
-			const FQuat RelativeQuat = Rigid->R().Inverse() * Rigid->KinematicTarget().GetTargetRotation();
+			const FQuat RelativeQuat = Rigid->GetR().Inverse() * Rigid->KinematicTarget().GetTargetRotation();
 			const FVector AngularDisplacement = RelativeQuat.ToRotationVector();
 			GroundVelocity = (LinearDisplacement + AngularDisplacement.Cross(Offset)) / DeltaSeconds;
 		}
 		else
 		{
-			GroundVelocity = Rigid->V() + Rigid->W().Cross(Offset);
+			GroundVelocity = Rigid->GetV() + Rigid->GetW().Cross(Offset);
 		}
 	}
 	return GroundVelocity;

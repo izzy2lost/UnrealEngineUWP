@@ -234,8 +234,8 @@ namespace Chaos
 					auto& Particle = *PBDParticle;
 
 					//save off previous velocities
-					Particle.PreV() = Particle.V();
-					Particle.PreW() = Particle.W();
+					Particle.SetPreVf(Particle.GetVf());
+					Particle.SetPreWf(Particle.GetWf());
 
 					for (FForceRule ForceRule : ForceRules)
 					{
@@ -243,19 +243,19 @@ namespace Chaos
 					}
 
 					//EulerStepVelocityRule.Apply(Particle, Dt);
-					Particle.V() += Particle.Acceleration() * Dt;
-					Particle.W() += Particle.AngularAcceleration() * Dt;
+					Particle.SetV(Particle.GetV() + Particle.Acceleration() * Dt);
+					Particle.SetW(Particle.GetW() + Particle.AngularAcceleration() * Dt);
 
 					//AddImpulsesRule.Apply(Particle, Dt);
-					Particle.V() += Particle.LinearImpulseVelocity();
-					Particle.W() += Particle.AngularImpulseVelocity();
+					Particle.SetV(Particle.GetV() + Particle.LinearImpulseVelocity());
+					Particle.SetW(Particle.GetW() + Particle.AngularImpulseVelocity());
 					Particle.LinearImpulseVelocity() = FVec3(0);
 					Particle.AngularImpulseVelocity() = FVec3(0);
 
 					//EtherDragRule.Apply(Particle, Dt);
 					{
-						FVec3& V = Particle.V();
-						FVec3& W = Particle.W();
+						FVec3 V = Particle.GetV();
+						FVec3 W = Particle.GetW();
 
 						const FReal LinearDrag = LinearEtherDragOverride >= 0 ? LinearEtherDragOverride : Particle.LinearEtherDrag() * Dt;
 						const FReal LinearMultiplier = FMath::Max(FReal(0), FReal(1) - LinearDrag);
@@ -277,31 +277,33 @@ namespace Chaos
 						{
 							W *= FMath::Sqrt(Particle.MaxAngularSpeedSq() / AngularSpeedSq);
 						}
+						Particle.SetV(V);
+						Particle.SetW(W);
 					}
 
 					if (CVars::HackMaxAngularVelocity >= 0.f)
 					{
-						const FReal AngularSpeedSq = Particle.W().SizeSquared();
+						const FReal AngularSpeedSq = Particle.GetW().SizeSquared();
 						if (AngularSpeedSq > MaxAngularSpeedSq)
 						{
-							Particle.W() = Particle.W() * (CVars::HackMaxAngularVelocity / FMath::Sqrt(AngularSpeedSq));
+							Particle.SetW(Particle.GetW() * (CVars::HackMaxAngularVelocity / FMath::Sqrt(AngularSpeedSq)));
 						}
 					}
 
 					if (CVars::HackMaxVelocity >= 0.f)
 					{
-						const FReal SpeedSq = Particle.V().SizeSquared();
+						const FReal SpeedSq = Particle.GetV().SizeSquared();
 						if (SpeedSq > MaxSpeedSq)
 						{
-							Particle.V() = Particle.V() * (CVars::HackMaxVelocity / FMath::Sqrt(SpeedSq));
+							Particle.SetV(Particle.GetV() * (CVars::HackMaxVelocity / FMath::Sqrt(SpeedSq)));
 						}
 					}
 
 					FVec3 PCoM = Particle.XCom();
 					FRotation3 QCoM = Particle.RCom();
 
-					PCoM = PCoM + Particle.V() * Dt;
-					QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, Particle.W(), Dt);
+					PCoM = PCoM + Particle.GetV() * Dt;
+					QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, Particle.GetW(), Dt);
 
 					Particle.SetTransformPQCom(PCoM, QCoM);
 
@@ -311,7 +313,7 @@ namespace Chaos
 					FVec3 VelocityBoundsDelta = FVec3(0);
 					if ((VelocityBoundsMultiplier > 0) && (MaxVelocityBoundsExpansion > 0))
 					{
-						VelocityBoundsDelta = (-VelocityBoundsMultiplier * Dt) * Particle.V();
+						VelocityBoundsDelta = (-VelocityBoundsMultiplier * Dt) * Particle.GetV();
 						
 						// Box clamp to avoid sqrt
 						VelocityBoundsDelta.BoundToCube(MaxVelocityBoundsExpansion);
@@ -321,7 +323,7 @@ namespace Chaos
 					{
 						// Expand bounds about P/Q by a small amount. This can still result in missed collisions, especially
 						// when we have joints that pull the body back to X/R, if P-X is greater than the BoundsThickness
-						Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.Q()), FVec3(BoundsThickness), VelocityBoundsDelta);
+						Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
 					}
 					else
 					{
@@ -329,26 +331,26 @@ namespace Chaos
 #if CHAOS_DEBUG_DRAW
 						if (CVars::ChaosSolverDrawCCDThresholds)
 						{
-							DebugDraw::DrawCCDAxisThreshold(Particle.X(), Particle.CCDAxisThreshold(), Particle.P() - Particle.X(), Particle.Q());
+							DebugDraw::DrawCCDAxisThreshold(Particle.X(), Particle.CCDAxisThreshold(), Particle.P() - Particle.X(), Particle.GetQ());
 						}
 #endif
 
-						if (FCCDHelpers::DeltaExceedsThreshold(Particle.CCDAxisThreshold(), Particle.P() - Particle.X(), Particle.Q()))
+						if (FCCDHelpers::DeltaExceedsThreshold(Particle.CCDAxisThreshold(), Particle.P() - Particle.X(), Particle.GetQ()))
 						{
 							// We sweep the bounds from P back along the velocity and expand by a small amount.
 							// If not using tight bounds we also expand the bounds in all directions by Velocity. This is necessary only for secondary CCD collisions
 							// @todo(chaos): expanding the bounds by velocity is very expensive - revisit this
-							const FVec3 VDt = Particle.V() * Dt;
+							const FVec3 VDt = Particle.GetV() * Dt;
 							FReal CCDBoundsExpansion = BoundsThickness;
 							if (!CVars::bChaosCollisionCCDUseTightBoundingBox && (CVars::ChaosCollisionCCDConstraintMaxProcessCount > 1))
 							{
 								CCDBoundsExpansion += VDt.GetAbsMax();
 							}
-							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.Q()), FVec3(CCDBoundsExpansion), -VDt);
+							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(CCDBoundsExpansion), -VDt);
 						}
 						else
 						{
-							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.Q()), FVec3(BoundsThickness), VelocityBoundsDelta);
+							Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(BoundsThickness), VelocityBoundsDelta);
 						}
 					}
 
@@ -382,12 +384,12 @@ namespace Chaos
 			FReal FakeDT = (FReal)1. / (FReal)30.;
 			if (Particle.LinearImpulseVelocity().IsNearlyZero() == false || Particle.Acceleration().IsNearlyZero() == false)
 			{
-				const FVec3 PredictedLinearVelocity = Particle.V() + Particle.Acceleration() * FakeDT + Particle.LinearImpulseVelocity();
+				const FVec3 PredictedLinearVelocity = Particle.GetV() + Particle.Acceleration() * FakeDT + Particle.LinearImpulseVelocity();
 				Particle.VSmooth() =FMath::Lerp(Particle.VSmooth(), PredictedLinearVelocity, SmoothRate);
 			}
 			if (Particle.AngularImpulseVelocity().IsNearlyZero() == false || Particle.AngularAcceleration().IsNearlyZero() == false)
 			{
-				const FVec3 PredictedAngularVelocity = Particle.W() + Particle.AngularAcceleration() * FakeDT + Particle.AngularImpulseVelocity();
+				const FVec3 PredictedAngularVelocity = Particle.GetW() + Particle.AngularAcceleration() * FakeDT + Particle.AngularImpulseVelocity();
 				Particle.WSmooth() = FMath::Lerp(Particle.WSmooth(), PredictedAngularVelocity, SmoothRate);
 			}
 		}

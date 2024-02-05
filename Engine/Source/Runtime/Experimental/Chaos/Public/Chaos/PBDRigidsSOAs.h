@@ -496,13 +496,13 @@ public:
 	void DisableParticle(FGeometryParticleHandle* Particle)
 	{
 		// Rigid particles express their disabled state with a boolean.
-		// Disabled kinematic and static particles get shuffled to differnt SOAs.
+		// Disabled kinematic and static particles get shuffled to different SOAs.
 
 		if (auto PBDRigid = Particle->CastToRigidParticle())
 		{
 			PBDRigid->SetDisabled(true);
-			PBDRigid->V() = FVec3(0);
-			PBDRigid->W() = FVec3(0);
+			PBDRigid->SetVf(FVec3f(0));
+			PBDRigid->SetWf(FVec3f(0));
 
 			if (TPBDGeometryCollectionParticleHandle<FReal, 3>* PBDRigidGC = Particle->CastToGeometryCollection())
 			{

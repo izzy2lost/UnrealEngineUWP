@@ -29,7 +29,9 @@ class TDynamicParticles : public TParticles<T, d>
 	}
 
 	const TVector<T, d>& V(const int32 Index) const { return MV[Index]; }
+	const TVector<T, d> GetV(const int32 Index) const { return MV[Index]; }
 	TVector<T, d>& V(const int32 Index) { return MV[Index]; }
+	void SetV(const int32 Index, const TVector<T, d>& InV) { MV[Index] = InV; }
 	const TArrayCollectionArray<TVector<T, d>>& GetV() const { return MV; }
 	TArrayCollectionArray<TVector<T, d>>& GetV() { return MV; }
 

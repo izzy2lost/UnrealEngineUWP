@@ -48,20 +48,20 @@ namespace ChaosTest {
 
 		auto Box0 = AppendDynamicParticleBoxMargin(Particles, Size, Margin0);
 		Box0->X() = FVec3(0, 0, 0);
-		Box0->R() = FRotation3(FQuat::Identity);
-		Box0->V() = FVec3(0);
-		Box0->PreV() = Box0->V();
+		Box0->SetR(FRotation3(FQuat::Identity));
+		Box0->SetV(FVec3(0));
+		Box0->SetPreV(Box0->GetV());
 		Box0->P() = Box0->X();
-		Box0->Q() = Box0->R();
+		Box0->SetQ(Box0->GetR());
 		Box0->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
 		auto Box1 = AppendDynamicParticleBoxMargin(Particles, Size, Margin1);
 		Box1->X() = Delta;
-		Box1->R() = FRotation3(FQuat::Identity);
-		Box1->V() = FVec3(0);
-		Box1->PreV() = Box1->V();
+		Box1->SetR(FRotation3(FQuat::Identity));
+		Box1->SetV(FVec3(0));
+		Box1->SetPreV(Box1->GetV());
 		Box1->P() = Box1->X();
-		Box1->Q() = Box1->R();
+		Box1->SetQ(Box1->GetR());
 		Box1->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
 		const FImplicitBox3* BoxImplicit0 = Box0->GetGeometry()->template GetObject<FImplicitBox3>();
@@ -167,20 +167,20 @@ namespace ChaosTest {
 
 		auto Box0 = AppendDynamicParticleConvexBoxMargin(Particles, 0.5f * Size, Margin0);
 		Box0->X() = FVec3(0, 0, 0);
-		Box0->R() = FRotation3(FQuat::Identity);
-		Box0->V() = FVec3(0);
-		Box0->PreV() = Box0->V();
+		Box0->SetR(FRotation3(FQuat::Identity));
+		Box0->SetV(FVec3(0));
+		Box0->SetPreV(Box0->GetV());
 		Box0->P() = Box0->X();
-		Box0->Q() = Box0->R();
+		Box0->SetQ(Box0->GetR());
 		Box0->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
 		auto Box1 = AppendDynamicParticleConvexBoxMargin(Particles, 0.5f * Size, Margin1);
 		Box1->X() = Delta;
-		Box1->R() = FRotation3(FQuat::Identity);
-		Box1->V() = FVec3(0);
-		Box1->PreV() = Box1->V();
+		Box1->SetR(FRotation3(FQuat::Identity));
+		Box1->SetV(FVec3(0));
+		Box1->SetPreV(Box1->GetV());
 		Box1->P() = Box1->X();
-		Box1->Q() = Box1->R();
+		Box1->SetQ(Box1->GetR());
 		Box1->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
 		const FImplicitConvex3* ConvexImplicit0 = Box0->GetGeometry()->template GetObject<FImplicitConvex3>();
@@ -291,11 +291,11 @@ namespace ChaosTest {
 
 		auto Box0 = AppendDynamicParticleBoxMargin(Particles, Size, Margin0);
 		Box0->X() = FVec3(0, 0, 0);
-		Box0->R() = FRotation3(FQuat::Identity);
-		Box0->V() = FVec3(0);
-		Box0->PreV() = Box0->V();
+		Box0->SetR(FRotation3(FQuat::Identity));
+		Box0->SetV(FVec3(0));
+		Box0->SetPreV(Box0->GetV());
 		Box0->P() = Box0->X();
-		Box0->Q() = Box0->R();
+		Box0->SetQ(Box0->GetR());
 		Box0->AuxilaryValue(PhysicsMaterials) = MakeSerializable(PhysicsMaterial);
 
 		const FImplicitBox3* BoxImplicit0 = Box0->GetGeometry()->template GetObject<FImplicitBox3>();

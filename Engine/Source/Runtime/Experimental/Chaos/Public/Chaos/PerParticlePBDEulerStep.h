@@ -32,8 +32,8 @@ class FPerParticlePBDEulerStep : public FPerParticleRule
 		FVec3 PCoM = InParticles.XCom(Index);
 		FRotation3 QCoM = InParticles.RCom(Index);
 
-		PCoM = PCoM + InParticles.V(Index) * Dt;
-		QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, InParticles.W(Index), Dt);
+		PCoM = PCoM + InParticles.GetV(Index) * Dt;
+		QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, InParticles.GetW(Index), Dt);
 
 		InParticles.SetTransformPQCom(Index, PCoM, QCoM);
 	}
@@ -43,8 +43,8 @@ class FPerParticlePBDEulerStep : public FPerParticleRule
 		FVec3 PCoM = Particle.XCom();
 		FRotation3 QCoM = Particle.RCom();
 
-		PCoM = PCoM + Particle.V() * Dt;
-		QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, Particle.W(), Dt);
+		PCoM = PCoM + Particle.GetV() * Dt;
+		QCoM = FRotation3::IntegrateRotationWithAngularVelocity(QCoM, Particle.GetW(), Dt);
 
 		Particle.SetTransformPQCom(PCoM, QCoM);
 	}

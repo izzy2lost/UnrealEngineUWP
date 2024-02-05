@@ -170,7 +170,7 @@ namespace Chaos::Softs
 			Chaos::FVec3 EulerRot(0.f);
 			int32 CollisionParticleOffset = Evolution->AddCollisionParticleRange(1, INDEX_NONE, true);
 			Evolution->CollisionParticles().X(0) = Position;
-			Evolution->CollisionParticles().R(0) = Chaos::TRotation<Chaos::FReal, 3>::MakeFromEuler(EulerRot);
+			Evolution->CollisionParticles().SetR(0, Chaos::TRotation<Chaos::FReal, 3>::MakeFromEuler(EulerRot));
 			Evolution->CollisionParticles().SetGeometry(0, MakeImplicitObjectPtr<Chaos::TPlane<Chaos::FReal, 3>>(Chaos::FVec3(0.f, 0.f, 0.f), Chaos::FVec3(0.f, 0.f, 1.f)));
 		}
 	}
@@ -642,7 +642,7 @@ namespace Chaos::Softs
 								int32 Index = Evolution->AddCollisionParticle(INDEX_NONE, true);
 								int32 ViewIndex = Evolution->CollisionParticlesActiveView().GetRanges().Num() - 1;
 								Evolution->CollisionParticles().X(Index) = AddBody.Transform.GetTranslation();
-								Evolution->CollisionParticles().R(Index) = AddBody.Transform.GetRotation();
+								Evolution->CollisionParticles().SetR(Index, AddBody.Transform.GetRotation());
 								Chaos::FImplicitObjectPtr UniquePtr(AddBody.Shapes); AddBody.Shapes = nullptr;
 								Evolution->CollisionParticles().SetGeometry(Index, MoveTemp(UniquePtr));
 								Proxy.CollisionBodies.Add(AddBody.Key, FCollisionObjectParticleHandel(Index, ViewIndex, AddBody.Transform));
@@ -705,7 +705,7 @@ namespace Chaos::Softs
 						{
 							FCollisionObjectParticleHandel* ParticleHandle = Proxy.CollisionBodies.Find(UpdateBody.Key);
 							Evolution->CollisionParticles().X(ParticleHandle->ParticleIndex) = UpdateBody.Transform.GetTranslation();
-							Evolution->CollisionParticles().R(ParticleHandle->ParticleIndex) = UpdateBody.Transform.GetRotation();
+							Evolution->CollisionParticles().SetR(ParticleHandle->ParticleIndex, UpdateBody.Transform.GetRotation());
 						}
 					}
 				}
@@ -1698,13 +1698,13 @@ namespace Chaos::Softs
 									const TBox<FReal, 3>& BoxGeometry = Geometry->GetObjectChecked<TBox<FReal, 3>>();
 									FVector Extent = 0.5 * (BoxGeometry.Max() - BoxGeometry.Min());
 									FVector Center = ToFVector(CollisionParticles.X(Index)) + BoxGeometry.GetCenter();
-									const FQuat& Rotation = ToFQuat(CollisionParticles.R(Index));
+									const FQuat& Rotation = ToFQuat(CollisionParticles.GetR(Index));
 									Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Center, Extent, Rotation, FColor::Red, false, -1.0f, 0, 1.f);
 								}
 								else if (GeomType == ImplicitObjectType::Convex)
 								{
 									const FConvex& ConvexGeometry = Geometry->GetObjectChecked<FConvex>();
-									FTransform M = FTransform(ToFQuat(CollisionParticles.R(Index)), ToFVector(CollisionParticles.X(Index)));
+									FTransform M = FTransform(ToFQuat(CollisionParticles.GetR(Index)), ToFVector(CollisionParticles.X(Index)));
 									for (int32 EdgeIndex = 0; EdgeIndex < ConvexGeometry.NumEdges(); ++EdgeIndex)
 									{
 										int32 Index0 = ConvexGeometry.GetEdgeVertex(EdgeIndex, 0);

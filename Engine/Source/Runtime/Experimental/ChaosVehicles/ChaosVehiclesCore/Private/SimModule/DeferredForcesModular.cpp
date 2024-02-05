@@ -116,7 +116,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 
 	if (ClusterParticle != nullptr && Child != nullptr)
 	{
-		const FRigidTransform3 ClusterWorldTM(ClusterParticle->X(), ClusterParticle->R());
+		const FRigidTransform3 ClusterWorldTM(ClusterParticle->X(), ClusterParticle->GetR());
 		
 		Proxy->GetParticle_Internal(TransformIndex);
 
@@ -128,7 +128,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 		{
 			//FTransform ChildT = Child->GetTransformXRCom();
 			//const FRigidTransform3 ChildWorldTM(ChildT.GetLocation(), ChildT.GetRotation());
-			const FRigidTransform3 ChildWorldTM(Child->X(), Child->R());
+			const FRigidTransform3 ChildWorldTM(Child->X(), Child->GetR());
 			Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
 			Frame.SetLocation(Frame.GetLocation() + OffsetTransform.TransformVector(PositionalOffset));
 
@@ -154,7 +154,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 	const int SingleChassisIndex = 0;
 	TransformOut = FTransform::Identity;
 
-	const FRigidTransform3 ClusterWorldTM(ClusterParticles[SingleChassisIndex]->X(), ClusterParticles[SingleChassisIndex]->R());
+	const FRigidTransform3 ClusterWorldTM(ClusterParticles[SingleChassisIndex]->X(), ClusterParticles[SingleChassisIndex]->GetR());
 	FRigidTransform3 Frame = FRigidTransform3::Identity;
 
 	if (Chaos::FPBDRigidParticleHandle* Child = GetParticleFromUniqueIndex(ParticleIdx, Particles))
@@ -167,7 +167,7 @@ Chaos::FPBDRigidParticleHandle* FDeferredForcesModular::GetParticle(const FTrans
 		{
 			//FTransform ChildT = Child->GetTransformXRCom();
 			//const FRigidTransform3 ChildWorldTM(ChildT.GetLocation(), ChildT.GetRotation());
-			const FRigidTransform3 ChildWorldTM(Child->X(), Child->R());
+			const FRigidTransform3 ChildWorldTM(Child->X(), Child->GetR());
 			Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
 			Frame.SetLocation(Frame.GetLocation() + OffsetTransform.TransformVector(PositionalOffset));
 		}
@@ -321,7 +321,7 @@ void AddForce_Implementation(Chaos::FPBDRigidParticleHandle* RigidHandle, const 
 	const Chaos::FVec3 WorldCOM = Chaos::FParticleUtilitiesGT::GetCoMWorldPosition(RigidHandle);
 
 	// local to world
-	const FTransform WorldTM(RigidHandle->R(), RigidHandle->X());
+	const FTransform WorldTM(RigidHandle->GetR(), RigidHandle->X());
 	Chaos::FVec3 Position = WorldTM.TransformPosition(OffsetTransform.GetLocation());
 	Chaos::FVec3 Force = WorldTM.TransformVector(ParticleOffsetTransform.TransformVector(OffsetTransform.TransformVector(LocalForce)));
 
@@ -371,7 +371,7 @@ void AddTorque_Implementation(Chaos::FPBDRigidParticleHandle* RigidHandle, const
 	if (RP)
 	{
 		// local to world
-		const FTransform WorldTM(RigidHandle->R(), RigidHandle->X());
+		const FTransform WorldTM(RigidHandle->GetR(), RigidHandle->X());
 		FVector T1 = OffsetTransform.TransformVector(LocalTorque);
 		FVector T2 = ParticleOffsetTransform.TransformVector(T1);
 		Chaos::FVec3 WorldTorque = WorldTM.TransformVector(T2);

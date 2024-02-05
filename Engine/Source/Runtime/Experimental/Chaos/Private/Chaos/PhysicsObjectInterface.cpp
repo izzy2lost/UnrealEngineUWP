@@ -105,7 +105,7 @@ namespace
 				{
 					if (const FPBDRigidClusteredParticleHandle* ClusteredParent = ClusteredParticle->Parent())
 					{
-						const FTransform ParentTransform(ClusteredParent->R(), ClusteredParent->X());
+						const FTransform ParentTransform(ClusteredParent->GetR(), ClusteredParent->X());
 						ParticleX = ParentTransform.TransformPosition(ClusteredParticle->ChildToParent().GetTranslation());
 					}
 				}
@@ -272,7 +272,7 @@ namespace Chaos
 
 		if (TThreadParticle<Id>* Particle = Object->GetParticle<Id>())
 		{
-			return Particle->R();
+			return Particle->GetR();
 		}
 
 		return FQuat::Identity;
@@ -290,7 +290,7 @@ namespace Chaos
 		{
 			if (Chaos::TThreadRigidParticle<Id>* Rigid = Particle->CastToRigidParticle())
 			{
-				return Rigid->V();
+				return Rigid->GetV();
 			}
 		}
 
@@ -311,7 +311,7 @@ namespace Chaos
 			{
 				const FVector CenterOfMass = GetWorldCoM(Object);
 				const FVector Diff = Point - CenterOfMass;
-				return Kinematic->V() - FVector::CrossProduct(Diff, Kinematic->W());
+				return Kinematic->GetV() - FVector::CrossProduct(Diff, Kinematic->GetW());
 			}
 		}
 
@@ -329,7 +329,7 @@ namespace Chaos
 		{
 			if (Chaos::TThreadRigidParticle<Id>* Rigid = Particle->CastToRigidParticle())
 			{
-				return Rigid->W();
+				return Rigid->GetW();
 			}
 		}
 
@@ -755,7 +755,7 @@ namespace Chaos
 			FBox ParticleBox(ForceInit);
 			if (const FImplicitObjectRef Geometry = Particle->GetGeometry(); Geometry && Geometry->HasBoundingBox())
 			{
-				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(TRigidTransform<FReal, 3>(Particle->X(), Particle->R()));
+				const Chaos::FAABB3 WorldBox = Geometry->CalculateTransformedBounds(TRigidTransform<FReal, 3>(Particle->X(), Particle->GetR()));
 				ParticleBox = FBox{ WorldBox.Min(), WorldBox.Max() };
 			}
 

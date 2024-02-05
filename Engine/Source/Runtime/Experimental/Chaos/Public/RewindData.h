@@ -990,7 +990,7 @@ struct FGeometryParticleStateBase
 	void CachePreCorrectionState(const TParticle& Particle)
 	{
 		PreCorrectionXR.SetX(Particle.X());
-		PreCorrectionXR.SetR(Particle.R());
+		PreCorrectionXR.SetR(Particle.GetR());
 	}
 
 	TParticlePropertyBuffer<FParticlePositionRotation,EChaosProperty::XR> ParticlePositionRotation;
@@ -1031,10 +1031,10 @@ public:
 
 
 	REWIND_PARTICLE_STATIC_PROPERTY(ParticlePositionRotation, X)
-	REWIND_PARTICLE_STATIC_PROPERTY(ParticlePositionRotation, R)
+	REWIND_PARTICLE_STATIC_PROPERTY(ParticlePositionRotation, GetR)
 
-	REWIND_PARTICLE_KINEMATIC_PROPERTY(Velocities, V)
-	REWIND_PARTICLE_KINEMATIC_PROPERTY(Velocities, W)
+	REWIND_PARTICLE_KINEMATIC_PROPERTY(Velocities, GetV)
+	REWIND_PARTICLE_KINEMATIC_PROPERTY(Velocities, GetW)
 
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, LinearEtherDrag)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, AngularEtherDrag)
@@ -1087,15 +1087,15 @@ public:
 		FString Out = FString::Printf(TEXT("ParticleID:[Global: %d Local: %d]\n"), Particle.ParticleID().GlobalID, Particle.ParticleID().LocalID);
 
 		REWIND_PARTICLE_TO_STR(X)
-		REWIND_PARTICLE_TO_STR(R)
+		REWIND_PARTICLE_TO_STR(GetR)
 		//REWIND_PARTICLE_TO_STR(Geometry)
 		//REWIND_PARTICLE_TO_STR(UniqueIdx)
 		//REWIND_PARTICLE_TO_STR(SpatialIdx)
 
 		if(Particle.CastToKinematicParticle())
 		{
-			REWIND_PARTICLE_TO_STR(V)
-			REWIND_PARTICLE_TO_STR(W)
+			REWIND_PARTICLE_TO_STR(GetV)
+			REWIND_PARTICLE_TO_STR(GetW)
 		}
 
 		if(Particle.CastToRigidParticle())

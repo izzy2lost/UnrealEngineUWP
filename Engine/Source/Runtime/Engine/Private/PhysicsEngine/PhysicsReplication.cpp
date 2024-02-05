@@ -1262,9 +1262,9 @@ bool FPhysicsReplicationAsync::DefaultReplication(Chaos::FPBDRigidParticleHandle
 	// Get Current state
 	FRigidBodyState CurrentState;
 	CurrentState.Position = Handle->X();
-	CurrentState.Quaternion = Handle->R();
-	CurrentState.AngVel = Handle->W();
-	CurrentState.LinVel = Handle->V();
+	CurrentState.Quaternion = Handle->GetR();
+	CurrentState.AngVel = Handle->GetW();
+	CurrentState.LinVel = Handle->GetV();
 
 
 	// Starting from the last known authoritative position, and
@@ -1497,7 +1497,7 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 	if (bXCanEarlyOut)
 	{
 		// Get the rotational offset between the blended rotation target and the current rotation
-		const FQuat TargetRotDelta = Target.TargetState.Quaternion * Handle->R().Inverse();
+		const FQuat TargetRotDelta = Target.TargetState.Quaternion * Handle->GetR().Inverse();
 
 		// Convert to angle axis
 		float Angle;
@@ -1523,9 +1523,9 @@ bool FPhysicsReplicationAsync::PredictiveInterpolation(Chaos::FPBDRigidParticleH
 	// CurrentState
 	FRigidBodyState CurrentState;
 	CurrentState.Position = Handle->X();
-	CurrentState.Quaternion = Handle->R();
-	CurrentState.LinVel = Handle->V();
-	CurrentState.AngVel = Handle->W(); // Note: Current angular velocity is in Radians
+	CurrentState.Quaternion = Handle->GetR();
+	CurrentState.LinVel = Handle->GetV();
+	CurrentState.AngVel = Handle->GetW(); // Note: Current angular velocity is in Radians
 
 	// NewState
 	const FVector TargetPos = FVector(Target.TargetState.Position);
@@ -1769,9 +1769,9 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 		UE_LOG(LogTemp, Log, TEXT("Apply Rigid body state at local frame %d with offset = %d"), LocalFrame, Target.FrameOffset);
 		UE_LOG(LogTemp, Log, TEXT("Particle Position Error = %f | Should Trigger Resim = %s | Server Frame = %d | Client Frame = %d"), ErrorDistance, (ShouldTriggerResim ? TEXT("True") : TEXT("False")), Target.ServerFrame, LocalFrame);
 		UE_LOG(LogTemp, Log, TEXT("Particle Target Position = %s | Current Position = %s"), *Target.TargetState.Position.ToString(), *PastState.X().ToString());
-		UE_LOG(LogTemp, Log, TEXT("Particle Target Velocity = %s | Current Velocity = %s"), *Target.TargetState.LinVel.ToString(), *PastState.V().ToString());
-		UE_LOG(LogTemp, Log, TEXT("Particle Target Quaternion = %s | Current Quaternion = %s"), *Target.TargetState.Quaternion.ToString(), *PastState.R().ToString());
-		UE_LOG(LogTemp, Log, TEXT("Particle Target Omega = %s | Current Omega= %s"), *Target.TargetState.AngVel.ToString(), *PastState.W().ToString());
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Velocity = %s | Current Velocity = %s"), *Target.TargetState.LinVel.ToString(), *PastState.GetV().ToString());
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Quaternion = %s | Current Quaternion = %s"), *Target.TargetState.Quaternion.ToString(), *PastState.GetR().ToString());
+		UE_LOG(LogTemp, Log, TEXT("Particle Target Omega = %s | Current Omega= %s"), *Target.TargetState.AngVel.ToString(), *PastState.GetW().ToString());
 
 		{ // DrawDebug
 			static constexpr float BoxSize = 5.0f;
@@ -1779,7 +1779,7 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 			const FColor DebugColor = FLinearColor::LerpUsingHSV(FLinearColor::Green, FLinearColor::Red, ColorLerp).ToFColor(false);
 
 			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(Target.TargetState.Position, FVector(BoxSize, BoxSize, BoxSize), Target.TargetState.Quaternion, FColor::Orange, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
-			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PastState.X(), FVector(6, 6, 6), PastState.R(), DebugColor, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
+			Chaos::FDebugDrawQueue::GetInstance().DrawDebugBox(PastState.X(), FVector(6, 6, 6), PastState.GetR(), DebugColor, true, CharacterMovementCVars::NetCorrectionLifetime, 0, 1.0f);
 
 			Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(PastState.X(), Target.TargetState.Position, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
 		}
@@ -1807,10 +1807,10 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 
 			// Calculate correction to rotation
 			const float CorrectionAmountR = (1.f / NumPredictedFrames) * SettingsCurrent.ResimulationSettings.GetRotStabilityMultiplier();
-			const FQuat InvCurrentQuat = PastState.R().Inverse();
+			const FQuat InvCurrentQuat = PastState.GetR().Inverse();
 			const FQuat DeltaQuat = Target.TargetState.Quaternion * InvCurrentQuat;
-			const FQuat TargetCorrectionR = Handle->R() * DeltaQuat;
-			const FQuat CorrectedR = FQuat::Slerp(Handle->R(), TargetCorrectionR, CorrectionAmountR);
+			const FQuat TargetCorrectionR = Handle->GetR() * DeltaQuat;
+			const FQuat CorrectedR = FQuat::Slerp(Handle->GetR(), TargetCorrectionR, CorrectionAmountR);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())

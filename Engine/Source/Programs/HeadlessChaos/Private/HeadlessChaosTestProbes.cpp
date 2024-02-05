@@ -45,11 +45,11 @@ namespace ChaosTest
 		// Positions
 		Static->X() = FVec3(0, 0, 0);
 		Dynamic->X() = FVec3(-(2 * BoxHalfSize) - Separation, 0, 0);
-		Dynamic->V() = FVec3(InitialSpeed, 0, 0);
+		Dynamic->SetV(FVec3(InitialSpeed, 0, 0));
 		Dynamic->SetCCDEnabled(false);
 
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->R()), FVec3(0));
+		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->GetR()), FVec3(0));
 
 		// Make sure the particles would collide if Dynamic wasn't a probe
 		::ChaosTest::SetParticleSimDataToCollide({ Static,Dynamic });
@@ -65,7 +65,7 @@ namespace ChaosTest
 		EXPECT_GT(Evolution.GetCollisionConstraints().NumConstraints(), 0);
 
 		// Make sure that the velocity of the dynamic body wasn't affected
-		EXPECT_EQ(Dynamic->V(), FVec3(InitialSpeed, 0, 0));
+		EXPECT_EQ(Dynamic->GetV(), FVec3(InitialSpeed, 0, 0));
 	}
 
 	GTEST_TEST(ProbeTests, ProbeBodyConstraintWithCCD)
@@ -96,11 +96,11 @@ namespace ChaosTest
 		// Positions
 		Static->X() = FVec3(0, 0, 0);
 		Dynamic->X() = FVec3(-(2 * BoxHalfSize) - Separation, 0, 0);
-		Dynamic->V() = FVec3(InitialSpeed, 0, 0);
+		Dynamic->SetV(FVec3(InitialSpeed, 0, 0));
 		Dynamic->SetCCDEnabled(true);
 
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->R()), FVec3(0));
+		Static->UpdateWorldSpaceState(TRigidTransform<FReal, 3>(Static->X(), Static->GetR()), FVec3(0));
 
 		// Make sure the particles would collide if Dynamic wasn't a probe
 		::ChaosTest::SetParticleSimDataToCollide({ Static,Dynamic });
@@ -123,6 +123,6 @@ namespace ChaosTest
 		}
 
 		// Make sure that the velocity of the dynamic body wasn't affected
-		EXPECT_EQ(Dynamic->V(), FVec3(InitialSpeed, 0, 0));
+		EXPECT_EQ(Dynamic->GetV(), FVec3(InitialSpeed, 0, 0));
 	}
 }

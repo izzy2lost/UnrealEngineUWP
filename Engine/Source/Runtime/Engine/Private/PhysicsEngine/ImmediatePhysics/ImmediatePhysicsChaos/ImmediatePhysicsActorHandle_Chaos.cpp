@@ -233,13 +233,13 @@ namespace ImmediatePhysics_Chaos
 			{
 				ParticleHandle->SetHasBounds(true);
 				ParticleHandle->SetLocalBounds(Geometry->BoundingBox());
-				ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->X(), ParticleHandle->R()), FVec3(0));
+				ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->X(), ParticleHandle->GetR()), FVec3(0));
 			}
 
 			if (FKinematicGeometryParticleHandle* Kinematic = ParticleHandle->CastToKinematicParticle())
 			{
-				Kinematic->SetV(FVector3f::ZeroVector);
-				Kinematic->SetW(FVector3f::ZeroVector);
+				Kinematic->SetVf(FVector3f::ZeroVector);
+				Kinematic->SetWf(FVector3f::ZeroVector);
 			}
 
 			FPBDRigidParticleHandle* Dynamic = ParticleHandle->CastToRigidParticle();
@@ -354,14 +354,14 @@ namespace ImmediatePhysics_Chaos
 
 		if (FKinematicGeometryParticleHandle* Kinematic = ParticleHandle->CastToKinematicParticle())
 		{
-			Kinematic->V() = FVec3(0);
-			Kinematic->W() = FVec3(0);
+			Kinematic->SetVf(FVec3f(0));
+			Kinematic->SetWf(FVec3f(0));
 			Kinematic->KinematicTarget().Clear();
 		}
 
 		// Initialize the bounds. Important because if the particle never moves its 
 		// bounds will never get updated (see FPBDMinEvolution::ApplyKinematicTargets) 
-		ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->X(), ParticleHandle->R()), FVec3(0));
+		ParticleHandle->UpdateWorldSpaceState(FRigidTransform3(ParticleHandle->X(), ParticleHandle->GetR()), FVec3(0));
 	}
 
 	void FActorHandle::SetWorldTransform(const FTransform& WorldTM)
@@ -369,15 +369,15 @@ namespace ImmediatePhysics_Chaos
 		using namespace Chaos;
 
 		ParticleHandle->X() = WorldTM.GetTranslation();
-		ParticleHandle->R() = WorldTM.GetRotation();
+		ParticleHandle->SetR(WorldTM.GetRotation());
 
 		FPBDRigidParticleHandle* Dynamic = ParticleHandle->CastToRigidParticle();
 		if(Dynamic && Dynamic->ObjectState() == Chaos::EObjectStateType::Dynamic)
 		{
 			Dynamic->P() = Dynamic->X();
-			Dynamic->Q() = Dynamic->R();
+			Dynamic->SetQf(Dynamic->GetRf());
 			Dynamic->AuxilaryValue(ParticlePrevXs) = Dynamic->P();
-			Dynamic->AuxilaryValue(ParticlePrevRs) = Dynamic->Q();
+			Dynamic->AuxilaryValue(ParticlePrevRs) = Dynamic->GetQ();
 		}
 	}
 
@@ -570,7 +570,7 @@ namespace ImmediatePhysics_Chaos
 
 			if (ForceType == EForceType::AddImpulse || ForceType == EForceType::AddVelocity)
 			{
-				Rigid->V() += ApplyDelta;
+				Rigid->SetV(Rigid->GetV() + ApplyDelta);
 			}
 			else
 			{
