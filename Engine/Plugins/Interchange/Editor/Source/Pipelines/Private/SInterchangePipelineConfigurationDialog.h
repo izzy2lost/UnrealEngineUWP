@@ -42,9 +42,6 @@ private:
 	FSlateColor GetTextColor() const;
 
 	TSharedPtr<FInterchangePipelineItemType> PipelineElement = nullptr;
-	TArray<TSharedPtr<FString>> ConflictNameList;
-	TSharedPtr<FString> ConflictsComboEntry = nullptr;
-	TSharedPtr<STextComboBox> ConflictComboBox = nullptr;
 };
 
 typedef SListView< TSharedPtr<FInterchangePipelineItemType> > SPipelineListViewType;
@@ -116,7 +113,7 @@ private:
 	/** Internal utility function to properly display pipeline's name */
 	static FString GetPipelineDisplayName(const UInterchangePipelineBase* Pipeline);
 
-	void SetEditPipeline(UInterchangePipelineBase* PipelineToEdit);
+	void SetEditPipeline(FInterchangePipelineItemType* PipelineItemToEdit);
 	FReply OnEditTranslatorSettings();
 	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 

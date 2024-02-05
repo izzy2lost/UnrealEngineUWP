@@ -9,6 +9,7 @@
 #include "Nodes/InterchangeBaseNode.h"
 #include "ScopedTransaction.h"
 #include "Styling/StyleColors.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/STextComboBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -106,6 +107,13 @@ void FInterchangePipelineBaseDetailsCustomization::AddSubCategory(IDetailLayoutB
 TSharedRef<IDetailCustomization> FInterchangePipelineBaseDetailsCustomization::MakeInstance()
 {
 	return MakeShareable(new FInterchangePipelineBaseDetailsCustomization);
+}
+
+static TArray<TArray<FInterchangeConflictInfo>> ConflicInfosStack;
+void FInterchangePipelineBaseDetailsCustomization::SetConflictsInfo(TArray<FInterchangeConflictInfo>& ConflictInfos)
+{
+	ensure(ConflicInfosStack.Num() == 0);
+	ConflicInfosStack.Push(ConflictInfos);
 }
 
 void FInterchangePipelineBaseDetailsCustomization::SetTextComboBoxWidget(IDetailPropertyRow& PropertyRow, const TSharedPtr<IPropertyHandle>& Handle, const TArray<FString>& PossibleValues)
@@ -251,6 +259,80 @@ void FInterchangePipelineBaseDetailsCustomization::OnTextComboBoxChanged(TShared
 	}
 }
 
+FReply FInterchangePipelineBaseDetailsCustomization::ShowConflictDialog(FInterchangeConflictInfo ConflictInfo)
+{
+	ConflictInfo.Pipeline->ShowConflictDialog(ConflictInfo.UniqueId);
+	return FReply::Handled();
+}
+
+void FInterchangePipelineBaseDetailsCustomization::AddConflictSection()
+{
+	if (ConflicInfosStack.Num() == 0)
+	{
+		return;
+	}
+
+	TArray<FInterchangeConflictInfo> ConflictInfos = ConflicInfosStack.Pop(false);
+	if (!InterchangePipeline->IsReimportContext() || ConflictInfos.Num() == 0)
+	{
+		return;
+	}
+
+	static const FName ConflictsName = TEXT("Conflicts");
+	static const FText ConflictsText = LOCTEXT("Conflicts_CategoryName", "Conflicts");
+	IDetailCategoryBuilder& CategoryBuilder = CachedDetailBuilder->EditCategory(ConflictsName, ConflictsText, ECategoryPriority::Important);
+
+	static const FText Conflict_ButtonText = LOCTEXT("Conflicts_ButtonShow", "Show Conflict");
+	static const FSlateBrush* ConflictBrush = FAppStyle::GetBrush("Icons.Error");
+
+	for (const FInterchangeConflictInfo& ConflictInfo : ConflictInfos)
+	{
+		const FText Conflict_IconTooltip = FText::FromString(ConflictInfo.Description);
+		const FText Conflict_NameContent = FText::FromString(ConflictInfo.DisplayName);
+		const FText Conflict_ButtonTooltip = FText::Format(LOCTEXT("Conflict_ButtonTooltip", "Show Conflict for {0}"), Conflict_NameContent);
+
+		CategoryBuilder.AddCustomRow(ConflictsText).WholeRowContent()
+			[
+				SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					.AutoWidth()
+					.Padding(2.0f, 2.0f, 5.0f, 2.0f)
+					[
+						SNew(SImage)
+							.ToolTipText(Conflict_IconTooltip)
+							.Image(ConflictBrush)
+							.ColorAndOpacity(FStyleColors::Warning)
+					]
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+							.Text(Conflict_NameContent)
+							.Font(IDetailLayoutBuilder::GetDetailFont())
+							.ColorAndOpacity(FStyleColors::Warning)
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SButton)
+							.ToolTipText(Conflict_ButtonTooltip)
+							.OnClicked(this, &FInterchangePipelineBaseDetailsCustomization::ShowConflictDialog, ConflictInfo)
+							.Content()
+							[
+								SNew(STextBlock)
+									.Text(Conflict_ButtonText)
+									.Font(IDetailLayoutBuilder::GetDetailFont())
+							]
+					]
+
+			];
+	}
+}
+
+
 void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	CachedDetailBuilder = &DetailBuilder;
@@ -277,6 +359,8 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 	CachedDetailBuilder->GetCategoryNames(AllCategoryNames);
 	TMap<FName, TArray<FName>> PropertiesPerCategorys;
 	InternalGetPipelineProperties(InterchangePipeline.Get(), AllCategoryNames, PropertiesPerCategorys);
+
+	AddConflictSection();
 	
 	for (const TPair<FName, TArray<FName>>& CategoryAndProperties : PropertiesPerCategorys)
 	{
@@ -348,23 +432,23 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						
 						if (SubCategoryData.Equals(TEXT("Build")))
 						{
-							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Build", "Build");
+							LocalizeSubCategoryName = LOCTEXT("SubCategory_Build", "Build");
 						}
 						else if (SubCategoryData.Equals(TEXT("Collision")))
 						{
-							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Collision", "Collision");
+							LocalizeSubCategoryName = LOCTEXT("SubCategory_Collision", "Collision");
 						}
 						else if (SubCategoryData.Equals(TEXT("Actors properties")))
 						{
-							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Actors_properties", "Actors properties");
+							LocalizeSubCategoryName = LOCTEXT("SubCategory_Actors_properties", "Actors properties");
 						}
 						else if (SubCategoryData.Equals(TEXT("Reimport Actors")))
 						{
-							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Reimport_Actors", "Reimport Actors");
+							LocalizeSubCategoryName = LOCTEXT("SubCategory_Reimport_Actors", "Reimport Actors");
 						}
 						else if (SubCategoryData.Equals(TEXT("Reimport Assets")))
 						{
-							LocalizeSubCategoryName = NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "SubCategory_Reimport_Assets", "Reimport Assets");
+							LocalizeSubCategoryName = LOCTEXT("SubCategory_Reimport_Assets", "Reimport Assets");
 						}
 						SubCategoryGroups.Add(SubCategoryData, &(Category.AddGroup(FName(SubCategoryData), LocalizeSubCategoryName)));
 					}
@@ -456,14 +540,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Unlock"))
 						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Unlock"))
 						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Unlock"))
-						.ToolTipText(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "LockedTooltip", "If true this property will be readonly in the interchange import dialog."))
+						.ToolTipText(LOCTEXT("LockedTooltip", "If true this property will be readonly in the interchange import dialog."))
 						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
 						{
 							if (!ensure(InterchangePipelinePtr.IsValid()))
 							{
 								return;
 							}
-							FScopedTransaction ScopedTransaction(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "TransactionTogglePropertyLocked", "Toggle property locked at import"), !GIsTransacting);
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionTogglePropertyLocked", "Toggle property locked at import"), !GIsTransacting);
 							InterchangePipelinePtr->Modify();
 							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyLocked(CheckType == ECheckBoxState::Checked);
 							InterchangePipelinePtr->PostEditChange();
@@ -501,7 +585,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						SNew(STextBlock)
 						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "ShowWhenBasicLayoutText", "Basic Layout"))
+						.Text(LOCTEXT("ShowWhenBasicLayoutText", "Basic Layout"))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -515,14 +599,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.ToolTipText(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "VisibleTooltipBasicLayout", "If true this property will be visible when displaying the interchange import dialog with basic layout."))
+						.ToolTipText(LOCTEXT("VisibleTooltipBasicLayout", "If true this property will be visible when displaying the interchange import dialog with basic layout."))
 						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
 						{
 							if (!ensure(InterchangePipelinePtr.IsValid()))
 							{
 								return;
 							}
-							FScopedTransaction ScopedTransaction(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
 							InterchangePipelinePtr->Modify();
 							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyBasicLayoutVisibility((CheckType != ECheckBoxState::Checked));
 							InterchangePipelinePtr->PostEditChange();
@@ -548,7 +632,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						SNew(STextBlock)
 						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "HiddenAtImportText", "Import"))
+						.Text(LOCTEXT("HiddenAtImportText", "Import"))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -562,14 +646,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.ToolTipText(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "VisibleTooltipImport", "If true this property will be visible when displaying the interchange import dialog."))
+						.ToolTipText(LOCTEXT("VisibleTooltipImport", "If true this property will be visible when displaying the interchange import dialog."))
 						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
 						{
 							if (!ensure(InterchangePipelinePtr.IsValid()))
 							{
 								return;
 							}
-							FScopedTransaction ScopedTransaction(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionvisibilityPropertiesToggleImport", "Toggle property visibility at import"), !GIsTransacting);
 							InterchangePipelinePtr->Modify();
 							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyImportVisibility((CheckType != ECheckBoxState::Checked));
 							InterchangePipelinePtr->PostEditChange();
@@ -597,7 +681,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						SNew(STextBlock)
 						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
-						.Text(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "HiddenAtReimportText", "Reimport"))
+						.Text(LOCTEXT("HiddenAtReimportText", "Reimport"))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -611,14 +695,14 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 						.UncheckedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Visible"))
 						.UncheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Visible"))
-						.ToolTipText(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "VisibleTooltipReimport", "If true this property will be visible when displaying the interchange reimport dialog."))
+						.ToolTipText(LOCTEXT("VisibleTooltipReimport", "If true this property will be visible when displaying the interchange reimport dialog."))
 						.OnCheckStateChanged_Lambda([InterchangePipelinePtr = InterchangePipeline, PropertyPath](ECheckBoxState CheckType)
 						{
 							if (!ensure(InterchangePipelinePtr.IsValid()))
 							{
 								return;
 							}
-							FScopedTransaction ScopedTransaction(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "TransactionvisibilityPropertiesToggleReimport", "Toggle property visibility at reimport"), !GIsTransacting);
+							FScopedTransaction ScopedTransaction(LOCTEXT("TransactionvisibilityPropertiesToggleReimport", "Toggle property visibility at reimport"), !GIsTransacting);
 							InterchangePipelinePtr->Modify();
 							InterchangePipelinePtr->FindOrAddPropertyStates(PropertyPath).SetPropertyReimportVisibility((CheckType != ECheckBoxState::Checked));
 							InterchangePipelinePtr->PostEditChange();

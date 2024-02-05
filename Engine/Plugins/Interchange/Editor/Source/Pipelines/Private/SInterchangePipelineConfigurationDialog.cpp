@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SInterchangePipelineConfigurationDialog.h"
 
+#include "InterchangeEditorPipelineDetails.h"
+
 #include "DetailsViewArgs.h"
 #include "Dialog/SCustomDialog.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -52,8 +54,6 @@ void SInterchangePipelineItem::Construct(
 	TObjectPtr<UInterchangePipelineBase> PipelineElementPtr = PipelineElement->Pipeline;
 	check(PipelineElementPtr.Get());
 	FText PipelineName = LOCTEXT("InvalidPipelineName", "Invalid Pipeline");
-	FText ConflictsComboEntryText = LOCTEXT("SInterchangePipelineItem::Conflicts", "Conflicts");
-	ConflictsComboEntry = MakeShared<FString>(ConflictsComboEntryText.ToString());
 	if (PipelineElementPtr.Get())
 	{
 		FString PipelineNameString = PipelineElement->DisplayName;
@@ -62,23 +62,12 @@ void SInterchangePipelineItem::Construct(
 			PipelineNameString += FString::Printf(TEXT(" (%s)"), *PipelineElementPtr->GetClass()->GetName());
 		}
 		PipelineName = FText::FromString(PipelineNameString);
-		PipelineElement->ConflictInfos = PipelineElementPtr->GetConflictInfos(PipelineElement->ReimportObject, PipelineElement->Container, PipelineElement->SourceData);
-		if (PipelineElement->ConflictInfos.Num() > 0)
-		{
-			ConflictNameList.Reset(PipelineElement->ConflictInfos.Num() + 1);
-			ConflictNameList.Add(ConflictsComboEntry);
-			for (const FInterchangeConflictInfo& ConflictInfo : PipelineElement->ConflictInfos)
-			{
-				TSharedPtr<FString> ConflictNamePtr = MakeShared<FString>(ConflictInfo.DisplayName);
-				ConflictNameList.Add(ConflictNamePtr);
-			}
-		}
 	}
 	
-	ConflictComboBox = nullptr;
+	static const FSlateBrush* ConflictBrush = FAppStyle::GetBrush("Icons.Error");
+	const FText ConflictsComboBoxTooltip = LOCTEXT("ConflictsComboBoxTooltip", "If there is some conflict, simply select one to see more details.");
+	const FText Conflict_IconTooltip = FText::Format(LOCTEXT("Conflict_IconTooltip", "There are {0} conflicts. See Conflicts section below for details."), PipelineElement->ConflictInfos.Num());
 
-	FText ConflictsComboBoxTooltip = LOCTEXT("ConflictsComboBoxTooltip", "If there is some conflict, simply select one to see more details.");
-		
 	STableRow<TSharedPtr<FInterchangePipelineItemType>>::Construct(
 		STableRow<TSharedPtr<FInterchangePipelineItemType>>::FArguments()
 		.Content()
@@ -92,6 +81,19 @@ void SInterchangePipelineItem::Construct(
 				.Image(this, &SInterchangePipelineItem::GetImageItemIcon)
 			]
 			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0.0f, 2.0f, 6.0f, 2.0f)
+			[
+				SNew(SImage)
+				.ToolTipText(Conflict_IconTooltip)
+				.Image(ConflictBrush)
+				.Visibility_Lambda([this]()->EVisibility
+					{
+						return PipelineElement->ConflictInfos.Num() > 0 ? EVisibility::All : EVisibility::Collapsed;
+					})
+				.ColorAndOpacity(this, &SInterchangePipelineItem::GetTextColor)
+			]
+			+ SHorizontalBox::Slot()
 			.FillWidth(1.0f)
 			.Padding(3.0f, 0.0f)
 			.VAlign(VAlign_Center)
@@ -100,48 +102,7 @@ void SInterchangePipelineItem::Construct(
 				.Text(PipelineName)
 				.ColorAndOpacity(this, &SInterchangePipelineItem::GetTextColor)
 			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.Padding(2.0f, 0.0f)
-			.VAlign(VAlign_Center)
-			[
-				SAssignNew(ConflictComboBox, STextComboBox)
-					.Visibility_Lambda([this]()->EVisibility
-						{
-							return PipelineElement->ConflictInfos.Num() > 0 ? EVisibility::All : EVisibility::Collapsed;
-						})
-					.OptionsSource(&ConflictNameList)
-					.OnSelectionChanged_Lambda([this](TSharedPtr<FString> String, ESelectInfo::Type)
-						{
-							if (!String.IsValid() || String->IsEmpty() || ConflictsComboEntry.Get()->Equals(*String.Get()))
-							{
-								return;
-							}
-							//Find and display the conflict info
-							for (const FInterchangeConflictInfo& ConflictInfo : PipelineElement->ConflictInfos)
-							{
-								if (ConflictInfo.DisplayName.Equals(*String.Get()))
-								{
-									if (ConflictInfo.Pipeline)
-									{
-										ConflictInfo.Pipeline->ShowConflictDialog(ConflictInfo.UniqueId);
-									}
-
-									//Re-select the conflict item after we show the conflict modal dialog
-									ConflictComboBox->SetSelectedItem(ConflictsComboEntry);
-									break;
-								}
-							}
-						})
-					.ToolTipText(ConflictsComboBoxTooltip)
-			]
 		], OwnerTable);
-
-	if (PipelineElement->ConflictInfos.Num() > 0)
-	{
-		//Select the conflicts item
-		ConflictComboBox->SetSelectedItem(ConflictsComboEntry);
-	}
 }
 
 const FSlateBrush* SInterchangePipelineItem::GetImageItemIcon() const
@@ -221,10 +182,20 @@ FString SInterchangePipelineConfigurationDialog::GetPipelineDisplayName(const UI
 	return PipelineDisplayName;
 }
 
-void SInterchangePipelineConfigurationDialog::SetEditPipeline(UInterchangePipelineBase* PipelineToEdit)
+void SInterchangePipelineConfigurationDialog::SetEditPipeline(FInterchangePipelineItemType* PipelineItemToEdit)
 {
 	TArray<UObject*> ObjectsToEdit;
-	ObjectsToEdit.Add(PipelineToEdit);
+	ObjectsToEdit.Add(!PipelineItemToEdit ? nullptr : PipelineItemToEdit->Pipeline);
+
+	if (PipelineItemToEdit)
+	{
+		PipelineItemToEdit->ConflictInfos.Reset();
+		if (PipelineItemToEdit->ReimportObject)
+		{
+			PipelineItemToEdit->ConflictInfos = PipelineItemToEdit->Pipeline->GetConflictInfos(PipelineItemToEdit->ReimportObject, PipelineItemToEdit->Container, PipelineItemToEdit->SourceData);
+		}
+		FInterchangePipelineBaseDetailsCustomization::SetConflictsInfo(PipelineItemToEdit->ConflictInfos);
+	}
 	PipelineConfigurationDetailsView->SetObjects(ObjectsToEdit);
 }
 
@@ -804,7 +775,9 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 	{
 		return Result;
 	}
-	UInterchangePipelineBase* PipelineToEdit = nullptr;
+
+	FInterchangePipelineItemType* PipelineToEdit = nullptr;
+
 	//Multi selection is not allowed
 	for(TWeakObjectPtr<UObject> WeakObject : SelectedPipelines)
 	{
@@ -839,7 +812,7 @@ FReply SInterchangePipelineConfigurationDialog::OnResetToDefault()
 									}
 									//Switch the pipeline the element point on
 									PipelineListViewItems[PipelineIndex]->Pipeline = GeneratedPipeline;
-									PipelineToEdit = GeneratedPipeline;
+									PipelineToEdit = PipelineListViewItems[PipelineIndex].Get();
 									PipelinesListView->SetSelection(PipelineListViewItems[PipelineIndex], ESelectInfo::Direct);
 									PipelinesListView->RequestListRefresh();
 									break;
@@ -1077,7 +1050,7 @@ void SInterchangePipelineConfigurationDialog::OnPipelineSelectionChanged(TShared
 	{
 		CurrentSelectedPipeline = InItem->Pipeline;
 	}
-	SetEditPipeline(CurrentSelectedPipeline.Get());
+	SetEditPipeline(InItem.Get());
 	
 	if (CurrentSelectedPipeline)
 	{
