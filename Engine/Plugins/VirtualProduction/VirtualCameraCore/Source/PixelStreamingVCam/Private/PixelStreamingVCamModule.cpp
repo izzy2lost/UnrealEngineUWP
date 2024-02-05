@@ -81,13 +81,18 @@ namespace UE::PixelStreamingVCam::Private
 		{
 			CaptureUseFence->Set(false);
 		}
-
+		
 		// Disable keyframes interval
 		if (IConsoleVariable* KeyframeInterval = IConsoleManager::Get().FindConsoleVariable(TEXT("PixelStreaming.Encoder.KeyframeInterval")))
 		{
+#if PLATFORM_MAC
+			// On Mac the VideoToolbox encoder has no concept of no key frames, so we set it a large value.
+			KeyframeInterval->Set(100000000);
+#else
 			KeyframeInterval->Set(0);
+#endif
 		}
-
+		
 		// Set a fixed target bitrate (this way quality and network transmission should be bounded).
 		// We want this network transmission to be as consistent as possible so that the jitter buffer on the recv side
 		// stays well bounded and shrinks to its optimal value and stays there.
