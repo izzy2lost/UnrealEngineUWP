@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaDefs.h"
 #include "AvaVisBase.h"
 

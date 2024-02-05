@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaVisBase.h"
 
+class FProperty;
 class UAvaText3DComponent;
 class UText3DComponent;
 
