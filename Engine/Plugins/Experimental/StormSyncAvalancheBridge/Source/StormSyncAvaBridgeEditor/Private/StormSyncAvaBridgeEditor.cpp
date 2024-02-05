@@ -1,20 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StormSyncAvaBridgeEditor.h"
+#include "Modules/ModuleManager.h"
+#include "StormSyncAvaBridgeEditorLog.h"
+#include "StormSyncAvaRundownExtender.h"
 
-#include "StormSyncAvaPlaylistExtender.h"
+DEFINE_LOG_CATEGORY(LogStormSyncAvaBridgeEditor);
 
 void FStormSyncAvaBridgeEditorModule::StartupModule()
 {
-	PlaylistExtender = MakeShared<FStormSyncAvaPlaylistExtender>();
+	RundownExtender = MakeShared<FStormSyncAvaRundownExtender>();
 }
 
 void FStormSyncAvaBridgeEditorModule::ShutdownModule()
 {
-	if (PlaylistExtender.IsValid())
-	{
-		PlaylistExtender.Reset();
-	}
+	RundownExtender.Reset();
 }
 
 IMPLEMENT_MODULE(FStormSyncAvaBridgeEditorModule, StormSyncAvaBridgeEditor)

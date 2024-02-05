@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ModularFeature/IAvaMediaSyncProvider.h"
+#include "Templates/SharedPointerFwd.h"
 
 enum class EStormSyncEngineType : uint8;
 struct FMessageAddress;
@@ -54,16 +54,16 @@ private:
 	 * 4. If an instance is both a client and server, the client takes priority and server side is ignored
 	 */
 	static bool GetAddressFromUserData(const FString& InRemoteName, const FString& InUserDataKey, FMessageAddress& OutAddress, FText* OutErrorMessage = nullptr);
-	
+
 	/** Helper to get server user data from playback client */
 	static bool GetAddressFromServerUserData(const FString& InServerName, const FString& InUserDataKey, FMessageAddress& OutAddress, FText* OutErrorMessage = nullptr);
-	
+
 	/** Helper to get client user data from playback server */
 	static bool GetAddressFromClientUserData(const FString& InClientName, const FString& InUserDataKey, FMessageAddress& OutAddress, FText* OutErrorMessage = nullptr);
 
 	/** Returns whether local editor instance has a playback server started */
 	static bool IsPlaybackServer();
-	
+
 	/** Returns whether local editor instance has a playback client started */
 	static bool IsPlaybackClient();
 
@@ -72,7 +72,7 @@ private:
 
 	/** Helper to convert a FStormSyncTransportSyncResponse struct to the modular feature equivalent */
 	static FAvaMediaSyncResponse ConvertSyncResponse(const TSharedPtr<FStormSyncTransportSyncResponse>& InResponse);
-	
+
 	/** Helper to convert a FStormSyncConnectionInfo struct to the modular feature equivalent */
 	static FAvaMediaSyncConnectionInfo ConvertConnectionInfo(const FStormSyncConnectionInfo& InConnectionInfo);
 

@@ -12,8 +12,11 @@
 #include "Playback/IAvaPlaybackClient.h"
 #include "StormSyncAvaBridgeCommon.h"
 #include "StormSyncAvaBridgeLog.h"
+#include "StormSyncAvaBridgeLog.h"
 #include "StormSyncAvaBridgeUtils.h"
 #include "StormSyncCoreDelegates.h"
+
+DEFINE_LOG_CATEGORY(LogStormSyncAvaBridge);
 
 #define LOCTEXT_NAMESPACE "FStormSyncAvaBridgeModule"
 
@@ -97,29 +100,29 @@ void FStormSyncAvaBridgeModule::UnregisterConsoleCommands()
 void FStormSyncAvaBridgeModule::ExecuteGetUserData(const TArray<FString>& Args)
 {
 	const FString Arguments = FString::Join(Args, TEXT(" "));
-	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::ExecuteGetUserData - Args: %s"), *Arguments)
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::ExecuteGetUserData - Args: %s"), *Arguments);
 
 	if (!Args.IsValidIndex(0) || Args[0].IsEmpty())
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("Missing first parameter \"ChannelName\""))
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("Missing first parameter \"ChannelName\""));
 		return;
 	}
 
 	if (!Args.IsValidIndex(1) || Args[1].IsEmpty())
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("Missing second parameter \"Key\""))
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("Missing second parameter \"Key\""));
 		return;
 	}
 
 	if (!IAvaMediaModule::IsModuleLoaded())
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("Ava Media Module is not available"))
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("Ava Media Module is not available"));
 		return;
 	}
 
 	if (!IAvaMediaModule::Get().IsMediaPlaybackClientStarted())
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("Ava Playback Client stopped"))
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("Ava Playback Client stopped"));
 		return;
 	}
 
@@ -129,7 +132,7 @@ void FStormSyncAvaBridgeModule::ExecuteGetUserData(const TArray<FString>& Args)
 	TArray<FString> ServerNames = FStormSyncAvaBridgeUtils::GetServerNamesForChannel(ChannelName);
 	if (ServerNames.IsEmpty())
 	{
-		STORM_SYNC_AVA_LOG(Display, TEXT("Ava Broadcast profile for channel %s has no remotes"), *ChannelName)
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("Ava Broadcast profile for channel %s has no remotes"), *ChannelName);
 		return;
 	}
 
@@ -137,19 +140,19 @@ void FStormSyncAvaBridgeModule::ExecuteGetUserData(const TArray<FString>& Args)
 	for (const FString& ServerName : ServerNames)
 	{
 		FString ServerValue = PlaybackClient.GetServerUserData(ServerName, Key);
-		STORM_SYNC_AVA_LOG(Display, TEXT("\t Media Playback Client User Data for server %s - %s:%s"), *ServerName, *Key, *ServerValue);
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("\t Media Playback Client User Data for server %s - %s:%s"), *ServerName, *Key, *ServerValue);
 	}
 }
 
 void FStormSyncAvaBridgeModule::OnStormSyncServerStarted()
 {
-	STORM_SYNC_AVA_LOG(Verbose, TEXT("FStormSyncAvaBridgeModule::OnStormSyncServerStarted"))
+	UE_LOG(LogStormSyncAvaBridge, Verbose, TEXT("FStormSyncAvaBridgeModule::OnStormSyncServerStarted"));
 	RegisterUserDataForPlaybackServer();
 }
 
 void FStormSyncAvaBridgeModule::OnStormSyncServerStopped()
 {
-	STORM_SYNC_AVA_LOG(Verbose, TEXT("FStormSyncAvaBridgeModule::OnStormSyncServerStopped"))
+	UE_LOG(LogStormSyncAvaBridge, Verbose, TEXT("FStormSyncAvaBridgeModule::OnStormSyncServerStopped"));
 	RegisterUserDataForPlaybackServer();
 }
 
@@ -171,9 +174,9 @@ void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer()
 		PlaybackServer->SetUserData(UE::StormSync::AvaBridgeCommon::StormSyncClientAddressKey, StormSyncClientAddress);
 		PlaybackServer->SetUserData(UE::StormSync::AvaBridgeCommon::StormSyncDiscoveryAddressKey, DiscoveryManagerAddress);
 
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer StormSyncServerAddress: %s"), *StormSyncServerAddress)
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer StormSyncClientAddress: %s"), *StormSyncClientAddress)
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer DiscoveryManagerAddress: %s"), *DiscoveryManagerAddress)
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer StormSyncServerAddress: %s"), *StormSyncServerAddress);
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer StormSyncClientAddress: %s"), *StormSyncClientAddress);
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackServer DiscoveryManagerAddress: %s"), *DiscoveryManagerAddress);
 	}
 }
 
@@ -197,9 +200,9 @@ void FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient()
 		PlaybackClient.SetUserData(UE::StormSync::AvaBridgeCommon::StormSyncClientAddressKey, StormSyncClientAddress);
 		PlaybackClient.SetUserData(UE::StormSync::AvaBridgeCommon::StormSyncDiscoveryAddressKey, DiscoveryManagerAddress);
 
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient StormSyncServerAddress: %s"), *StormSyncServerAddress)
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient StormSyncClientAddress: %s"), *StormSyncClientAddress)
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient DiscoveryManagerAddress: %s"), *DiscoveryManagerAddress)
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient StormSyncServerAddress: %s"), *StormSyncServerAddress);
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient StormSyncClientAddress: %s"), *StormSyncClientAddress);
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaBridgeModule::RegisterUserDataForPlaybackClient DiscoveryManagerAddress: %s"), *DiscoveryManagerAddress);
 	}
 }
 
@@ -207,19 +210,19 @@ bool FStormSyncAvaBridgeModule::ValidateModulesAreAvailable()
 {
 	if (!IAvaMediaModule::IsModuleLoaded())
 	{
-		STORM_SYNC_AVA_LOG(Warning, TEXT("FStormSyncAvaBridgeModule::ValidateModulesAreAvailable - Failed to set user data cause Ava Media Module is not loaded"))
+		UE_LOG(LogStormSyncAvaBridge, Warning, TEXT("FStormSyncAvaBridgeModule::ValidateModulesAreAvailable - Failed to set user data cause Ava Media Module is not loaded"));
 		return false;
 	}
 
 	if (!IStormSyncTransportServerModule::IsAvailable())
 	{
-		STORM_SYNC_AVA_LOG(Warning, TEXT("FStormSyncAvaBridgeModule::ValidateModulesAreAvailable - Failed to set user data cause Storm Sync Server Module is not loaded"))
+		UE_LOG(LogStormSyncAvaBridge, Warning, TEXT("FStormSyncAvaBridgeModule::ValidateModulesAreAvailable - Failed to set user data cause Storm Sync Server Module is not loaded"));
 		return false;
 	}
 
 	if (!IStormSyncTransportClientModule::IsAvailable())
 	{
-		STORM_SYNC_AVA_LOG(Warning, TEXT("FStormSyncAvaBridgeModule::ValidateModulesAreAvailable - Failed to set user data cause Storm Sync Server Client is not loaded"))
+		UE_LOG(LogStormSyncAvaBridge, Warning, TEXT("FStormSyncAvaBridgeModule::ValidateModulesAreAvailable - Failed to set user data cause Storm Sync Server Client is not loaded"));
 		return false;
 	}
 

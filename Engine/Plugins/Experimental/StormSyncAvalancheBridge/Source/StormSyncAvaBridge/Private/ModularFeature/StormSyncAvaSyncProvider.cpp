@@ -29,7 +29,7 @@ FName FStormSyncAvaSyncProvider::GetName() const
 
 void FStormSyncAvaSyncProvider::SyncToAll(const TArray<FName>& InPackageNames)
 {
-	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::SyncToAll InPackageNames: %d"), InPackageNames.Num());
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::SyncToAll InPackageNames: %d"), InPackageNames.Num());
 
 	const FStormSyncPackageDescriptor PackageDescriptor;
 	IStormSyncTransportClientModule::Get().SynchronizePackages(PackageDescriptor, InPackageNames);
@@ -37,14 +37,14 @@ void FStormSyncAvaSyncProvider::SyncToAll(const TArray<FName>& InPackageNames)
 
 void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncResponse& DoneDelegate)
 {
-	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::PushToRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::PushToRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
 	
 	FText ErrorText;
 	FMessageAddress MessageAddress;
 	// Get address from either client or server user data, depending on local client / server state
 	if (!GetAddressFromUserData(InRemoteName, UE::StormSync::AvaBridgeCommon::StormSyncClientAddressKey, MessageAddress, &ErrorText))
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("FStormSyncAvaSyncProvider::PushToRemote - %s"), *ErrorText.ToString());
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("FStormSyncAvaSyncProvider::PushToRemote - %s"), *ErrorText.ToString());
 		DoneDelegate.ExecuteIfBound(CreateErrorResponse(ErrorText));
 		return;
 	}
@@ -57,7 +57,7 @@ void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const 
 			return;
 		}
 		
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::PushToRemote - Response: %s"), *Response->ToString());
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::PushToRemote - Response: %s"), *Response->ToString());
 
 		if (DoneDelegate.IsBound())
 		{
@@ -72,14 +72,14 @@ void FStormSyncAvaSyncProvider::PushToRemote(const FString& InRemoteName, const 
 
 void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncResponse& DoneDelegate)
 {
-	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::PullFromRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::PullFromRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
 
 	FText ErrorText;
 	FMessageAddress MessageAddress;
 	// Get address from either client or server user data, depending on local client / server state
 	if (!GetAddressFromUserData(InRemoteName, UE::StormSync::AvaBridgeCommon::StormSyncClientAddressKey, MessageAddress, &ErrorText))
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("FStormSyncAvaSyncProvider::PullFromRemote - %s"), *ErrorText.ToString());
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("FStormSyncAvaSyncProvider::PullFromRemote - %s"), *ErrorText.ToString());
 		DoneDelegate.ExecuteIfBound(CreateErrorResponse(ErrorText));
 		return;
 	}
@@ -92,7 +92,7 @@ void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, cons
 			return;
 		}
 		
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::PullFromRemote - Response: %s"), *Response->ToString());
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::PullFromRemote - Response: %s"), *Response->ToString());
 
 		if (DoneDelegate.IsBound())
 		{
@@ -107,11 +107,11 @@ void FStormSyncAvaSyncProvider::PullFromRemote(const FString& InRemoteName, cons
 
 void FStormSyncAvaSyncProvider::CompareWithRemote(const FString& InRemoteName, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncCompareResponse& DoneDelegate)
 {
-	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::CompareWithRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::CompareWithRemote InRemoteName: %s, InPackageNames: %d"), *InRemoteName, InPackageNames.Num());
 
 	const bool bIsClient = IsPlaybackClient();
 	const bool bIsServer = IsPlaybackServer();
-	STORM_SYNC_AVA_LOG(Display, TEXT("\t bIsClient: %s, bIsServer: %s"), bIsClient ? TEXT("true") : TEXT("false"), bIsServer ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("\t bIsClient: %s, bIsServer: %s"), bIsClient ? TEXT("true") : TEXT("false"), bIsServer ? TEXT("true") : TEXT("false"));
 
 	// Sanity check on input params
 	if (InRemoteName.IsEmpty())
@@ -131,7 +131,7 @@ void FStormSyncAvaSyncProvider::CompareWithRemote(const FString& InRemoteName, c
 	// Get address from either client or server user data, depending on local client / server state
 	if (!GetAddressFromUserData(InRemoteName, UE::StormSync::AvaBridgeCommon::StormSyncClientAddressKey, MessageAddress, &ErrorText))
 	{
-		STORM_SYNC_AVA_LOG(Error, TEXT("FStormSyncAvaSyncProvider::CompareWithRemote - %s"), *ErrorText.ToString());
+		UE_LOG(LogStormSyncAvaBridge, Error, TEXT("FStormSyncAvaSyncProvider::CompareWithRemote - %s"), *ErrorText.ToString());
 		DoneDelegate.ExecuteIfBound(CreateErrorResponse(ErrorText));
 		return;
 	}
@@ -147,11 +147,11 @@ FOnAvaMediaSyncPackageModified& FStormSyncAvaSyncProvider::GetOnAvaSyncPackageMo
 
 void FStormSyncAvaSyncProvider::CompareWith(const FMessageAddress& InRemoteAddress, const TArray<FName>& InPackageNames, const FOnAvaMediaSyncCompareResponse& DoneDelegate)
 {
-	STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::CompareWith InPackageNames: %d (Remote Address: %s)"), InPackageNames.Num(), *InRemoteAddress.ToString());
+	UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::CompareWith InPackageNames: %d (Remote Address: %s)"), InPackageNames.Num(), *InRemoteAddress.ToString());
 
 	for (const FName& PackageName : InPackageNames)
 	{
-		STORM_SYNC_AVA_LOG(Display, TEXT("\t PackageNames: %s"), *PackageName.ToString());
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("\t PackageNames: %s"), *PackageName.ToString());
 	}
 
 	IStormSyncTransportClientModule::Get().RequestPackagesStatus(InRemoteAddress, InPackageNames, FOnStormSyncRequestStatusComplete::CreateLambda([DoneDelegate](const TSharedPtr<FStormSyncTransportStatusResponse>& Response)
@@ -162,7 +162,7 @@ void FStormSyncAvaSyncProvider::CompareWith(const FMessageAddress& InRemoteAddre
 			return;
 		}
 
-		STORM_SYNC_AVA_LOG(Display, TEXT("FStormSyncAvaSyncProvider::CompareWith - Response: %s"), *Response->ToString());
+		UE_LOG(LogStormSyncAvaBridge, Display, TEXT("FStormSyncAvaSyncProvider::CompareWith - Response: %s"), *Response->ToString());
 
 		if (DoneDelegate.IsBound())
 		{
@@ -185,7 +185,7 @@ bool FStormSyncAvaSyncProvider::GetAddressFromUserData(const FString& InRemoteNa
 	const bool bIsClient = IsPlaybackClient();
 	const bool bIsServer = IsPlaybackServer();
 
-	STORM_SYNC_AVA_LOG(
+	UE_LOG(LogStormSyncAvaBridge, 
 		Display,
 		TEXT("FStormSyncAvaSyncProvider::GetAddressFromUserData InRemoteName: %s, bIsClient: %s, bIsServer: %s"),
 		*InRemoteName,
