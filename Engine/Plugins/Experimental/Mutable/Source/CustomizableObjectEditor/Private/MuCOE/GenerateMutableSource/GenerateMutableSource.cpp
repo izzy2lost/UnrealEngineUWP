@@ -1613,7 +1613,9 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 				{
 					FMutableRefAssetUserData& MutAssetUserData = Data.AssetUserData.AddDefaulted_GetRef();
 					MutAssetUserData.AssetUserDataIndex = GenerationContext.AddAssetUserDataToStreamedResources(AssetUserData);
-					MutAssetUserData.AssetUserData = AssetUserData;
+					MutAssetUserData.AssetUserData = GenerationContext.StreamedResourceData[MutAssetUserData.AssetUserDataIndex].GetPath().Get();
+					check(MutAssetUserData.AssetUserData);
+					check(MutAssetUserData.AssetUserData->Data.Type == ECOResourceDataType::AssetUserData);
 				}
 			}
 		}

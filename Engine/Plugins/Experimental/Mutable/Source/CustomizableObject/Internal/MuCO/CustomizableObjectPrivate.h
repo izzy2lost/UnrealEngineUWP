@@ -348,7 +348,7 @@ struct FMutableRefAssetUserData
 	GENERATED_BODY()
 
 	UPROPERTY()
-	TObjectPtr<UAssetUserData> AssetUserData;
+	TObjectPtr<UCustomizableObjectResourceDataContainer> AssetUserData;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

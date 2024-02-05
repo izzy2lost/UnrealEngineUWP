@@ -3318,9 +3318,15 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 	{
 		for (const FMutableRefAssetUserData& MutAssetUserData : RefSkeletalMeshData.AssetUserData)
 		{
-			if (MutAssetUserData.AssetUserData)
+			if (MutAssetUserData.AssetUserData && MutAssetUserData.AssetUserData->Data.Type == ECOResourceDataType::AssetUserData)
 			{
-				SkeletalMesh->AddAssetUserData(MutAssetUserData.AssetUserData);
+				const FCustomizableObjectAssetUserData* DataPtr = MutAssetUserData.AssetUserData->Data.Data.GetPtr<FCustomizableObjectAssetUserData>();
+				check(DataPtr);
+#if WITH_EDITORONLY_DATA
+				SkeletalMesh->AddAssetUserData(DataPtr->AssetUserDataEditor);
+#else
+				SkeletalMesh->AddAssetUserData(DataPtr->AssetUserData);
+#endif
 			}
 		}
 
