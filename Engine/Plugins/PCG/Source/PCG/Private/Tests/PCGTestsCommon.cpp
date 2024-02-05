@@ -58,8 +58,8 @@ namespace PCGTestsCommon
 		check(TestGraph);
 		TestPCGComponent->SetGraphLocal(TestGraph);
 
-		// Tests don't currently need CRCs, so just assigned a trivial valid CRC to avoid asserts.
-		InputData.Crc = FPCGCrc(0);
+		// Initialize CRC to avoid asserts.
+		InputData.ComputeCrcs(/*bFullDataCrc=*/false);
 #else
 		TestActor = nullptr;
 		TestPCGComponent = nullptr;

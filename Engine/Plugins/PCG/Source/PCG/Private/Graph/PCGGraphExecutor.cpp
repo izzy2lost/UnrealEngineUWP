@@ -43,11 +43,6 @@ static TAutoConsoleVariable<float> CVarMaxPercentageOfThreadsToUse(
 	0.9f,
 	TEXT("Maximum percentage of number of threads for concurrent PCG processing"));
 
-static TAutoConsoleVariable<bool> CVarStripEmptyPointData(
-	TEXT("pcg.StripEmptyPointData"),
-	false,
-	TEXT("Will strip empty point data from being passed along as output"));
-
 namespace PCGGraphExecutor
 {
 	TAutoConsoleVariable<float> CVarTimePerFrame(
@@ -597,7 +592,6 @@ void FPCGGraphExecutor::Execute()
 	const float MaxPercentageOfThreadsToUse = FMath::Clamp(CVarMaxPercentageOfThreadsToUse.GetValueOnAnyThread(), 0.0f, 1.0f);
 	const int32 MaxNumThreads = FMath::Max(0, FMath::Min((int32)(FPlatformMisc::NumberOfCoresIncludingHyperthreads() * MaxPercentageOfThreadsToUse), CVarMaxNumTasks.GetValueOnAnyThread() - 1));
 	const bool bAllowMultiDispatch = PCGGraphExecutor::CVarGraphMultithreading.GetValueOnAnyThread();
-	const bool bStripEmptyPointData = CVarStripEmptyPointData.GetValueOnAnyThread();
 	const bool bDynamicTaskCulling = PCGGraphExecutor::CVarDynamicTaskCulling.GetValueOnAnyThread();
 
 #if WITH_EDITOR
@@ -780,7 +774,6 @@ void FPCGGraphExecutor::Execute()
 					Task.Context->InitializeSettings();
 					Task.Context->TaskId = Task.NodeId;
 					Task.Context->CompiledTaskId = Task.CompiledTaskId;
-					Task.Context->InputData.Crc = TaskInput.Crc;
 					Task.Context->DependenciesCrc = DependenciesCrc;
 					Task.Context->Stack = (Task.StackContext && Task.StackIndex != INDEX_NONE) ? Task.StackContext->GetStack(Task.StackIndex) : nullptr;
 				}
@@ -869,7 +862,7 @@ void FPCGGraphExecutor::Execute()
 			}
 		}
 
-		auto PostTaskExecute = [this, &bAnyTaskEnded, bStripEmptyPointData](int32 TaskIndex)
+		auto PostTaskExecute = [this, &bAnyTaskEnded](int32 TaskIndex)
 		{
 			FPCGGraphActiveTask& ActiveTask = ActiveTasks[TaskIndex];
 			check(ActiveTask.Context);
@@ -898,8 +891,6 @@ void FPCGGraphExecutor::Execute()
 			if (!ActiveTask.bWasCancelled)
 #endif
 			{
-				PCGGraphExecutionLogging::LogTaskExecuteOutputCRC(ActiveTask);
-
 				// Store result in cache as needed - done here because it needs to be done on the main thread
 
 				// Don't store if errors or warnings present
@@ -919,31 +910,25 @@ void FPCGGraphExecutor::Execute()
 			CurrentlyUsedThreads -= ActiveTask.Context->AsyncState.NumAvailableTasks;
 
 #if WITH_EDITOR
-			// Execute debug display code as needed - done here because it needs to be done on the main thread
-			// Additional note: this needs to be executed before the StoreResults since debugging might cancel further tasks
-			ActiveTask.Element->DebugDisplay(ActiveTask.Context.Get());
-
-			if (UPCGComponent* SourceComponent = ActiveTask.Context->SourceComponent.Get())
+			if (!ActiveTask.bWasCancelled)
 			{
-				if (ActiveTask.StackIndex != INDEX_NONE)
+				// Execute debug display code as needed - done here because it needs to be done on the main thread
+				// Additional note: this needs to be executed before the StoreResults since debugging might cancel further tasks
+				ActiveTask.Element->DebugDisplay(ActiveTask.Context.Get());
+
+				if (UPCGComponent* SourceComponent = ActiveTask.Context->SourceComponent.Get())
 				{
-					const FPCGStack* Stack = ActiveTask.StackContext->GetStack(ActiveTask.StackIndex);
-					SourceComponent->StoreInspectionData(Stack, ActiveTask.Context->Node, ActiveTask.Context->InputData, ActiveTask.Context->OutputData);
+					if (ActiveTask.StackIndex != INDEX_NONE)
+					{
+						const FPCGStack* Stack = ActiveTask.StackContext->GetStack(ActiveTask.StackIndex);
+						SourceComponent->StoreInspectionData(Stack, ActiveTask.Context->Node, ActiveTask.Context->InputData, ActiveTask.Context->OutputData);
+					}
 				}
 			}
 #endif
 
-			// TODO: Evaluation code for finding elements that produce empty point data. This is temporary.
-			if (bStripEmptyPointData)
-			{
-				const int32 NumRemoved = ActiveTask.Context->OutputData.StripEmptyPointData();
-				if (NumRemoved > 0)
-				{
-					UE_LOG(LogPCG, Log, TEXT("%d empty point data stripped from node: %s"), NumRemoved, *ActiveTask.Context->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
-				}
-			}
-
-			// Store output in data map
+			// Store output in data map.
+			// TODO - investigate if we should avoid doing this if the task was cancelled.
 			StoreResults(ActiveTask.NodeId, ActiveTask.Context->OutputData);
 
 			// Book-keeping
@@ -1204,13 +1189,17 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 			InPin ? *InPin->Properties.Label.ToString() : TEXT("MissingPin"));
 	};
 
-	// Initialize a Crc onto which each input Crc will be combined.
-	FPCGCrc Crc(Task.Inputs.Num());
+	// Initialize a Crc onto which each input Crc will be combined (using random prime number).
+	FPCGCrc Crc(1000033);
 
 	// Random prime numbers to use as placeholders in the CRC computation when there are no defined in/out pins.
 	// Note that they aren't strictly needed, but will make sure we don't introduce issues if we rework this bit of code.
 	constexpr uint32 DefaultHashForNoInputPin = 955333;
 	constexpr uint32 DefaultHashForNoOutputPin = 999983;
+
+	// Hoisted out of loop for performance reasons.
+	TArray<FPCGTaggedData, TInlineAllocator<16>> InputDataOnPin;
+	TArray<FPCGCrc, TInlineAllocator<16>> InputDataCrcsOnPin;
 
 	for (const FPCGGraphTaskInput& Input : Task.Inputs)
 	{
@@ -1223,6 +1212,7 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 		}
 
 		const bool bAllowMultipleData = Input.OutPin ? Input.OutPin->Properties.bAllowMultipleData : true;
+		const uint32 InputPinLabelCrc = Input.OutPin ? GetTypeHash(Input.OutPin->Properties.Label) : DefaultHashForNoOutputPin;
 
 		// Enforce single data - if already have input for this pin, don't add more. Early check before other side effects below.
 		if (Input.OutPin && !bAllowMultipleData && TaskInput.GetInputCountByPin(Input.OutPin->Properties.Label) > 0)
@@ -1235,29 +1225,42 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 
 		TaskInput.bCancelExecution |= InputCollection.bCancelExecution;
 
-		// Get input data at the given pin (or everything)
 		const int32 TaggedDataOffset = TaskInput.TaggedData.Num();
+
+		// Get input data at the given pin (or everything). This will add the data and include the input pin Crc to uniquely identify
+		// inputs per-pin, or use a placeholder for symmetry.
+		// Note: The input data CRC will already contain the output pin (calculated in element post execute).
 		if (Input.InPin)
 		{
-			// Proceed carefully when adding data items - if pin is single-data, only add first item.
-			TArray<FPCGTaggedData> InputsOnPin = InputCollection.GetInputsByPin(Input.InPin->Properties.Label);
-			if (InputsOnPin.Num() > 1 && !bAllowMultipleData)
+			InputDataOnPin.Reset();
+			InputDataCrcsOnPin.Reset();
+			InputCollection.GetInputsAndCrcsByPin(Input.InPin->Properties.Label, InputDataOnPin, InputDataCrcsOnPin);
+
+			if (!InputDataOnPin.IsEmpty())
 			{
-				LogDiscardedData(Input.OutPin);
-				TaskInput.TaggedData.Add(InputsOnPin[0]);
-			}
-			else
-			{
-				TaskInput.TaggedData.Append(InputsOnPin);
+				// Proceed carefully when adding data items - if pin is single-data, only add first item.
+				if (!ensure(InputDataOnPin.Num() == InputDataCrcsOnPin.Num()))
+				{
+					InputDataCrcsOnPin.SetNumZeroed(InputDataOnPin.Num());
+				}
+
+				const int NumberDataItemsToTake = bAllowMultipleData ? InputDataOnPin.Num() : 1;
+
+				TaskInput.AddDataForPin(
+					MakeArrayView(InputDataOnPin.GetData(), NumberDataItemsToTake),
+					MakeArrayView(InputDataCrcsOnPin.GetData(), NumberDataItemsToTake),
+					InputPinLabelCrc);
+
+				if (NumberDataItemsToTake < InputDataOnPin.Num())
+				{
+					LogDiscardedData(Input.OutPin);
+				}
 			}
 		}
 		else
 		{
-			TaskInput.TaggedData.Append(InputCollection.TaggedData);
+			TaskInput.AddData(InputCollection.TaggedData, InputCollection.DataCrcs);
 		}
-
-		// Write input pin name (e.g. name of the output pin on the dependency node) Crc to uniquely identify inputs per-pin, or use a placeholder for symmetry.
-		Crc.Combine(Input.InPin ? GetTypeHash(Input.InPin->Properties.Label) : DefaultHashForNoInputPin);
 
 		// Apply labelling on data; technically, we should ensure that we do this only for pass-through nodes,
 		// Otherwise we could also null out the label on the input...
@@ -1268,21 +1271,10 @@ void FPCGGraphExecutor::BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollec
 				TaskInput.TaggedData[TaggedDataIndex].Pin = Input.OutPin->Properties.Label;
 			}
 		}
-
-		// Write output pin name (e.g. input pin node on this node) Crc to uniquely identify inputs per-pin, or use a placeholder for symmetry.
-		Crc.Combine(Input.OutPin ? GetTypeHash(Input.OutPin->Properties.Label) : DefaultHashForNoOutputPin);
-
-		// This chains the Crc of each input to produce a Crc that covers all of them.
-		if (InputCollection.Crc.IsValid())
-		{
-			Crc.Combine(InputCollection.Crc);
-		}
 	}
 
 	// Then combine params if needed
 	CombineParams(Task.NodeId, TaskInput);
-
-	TaskInput.Crc = Crc;
 }
 
 void FPCGGraphExecutor::CombineParams(FPCGTaskId InTaskId, FPCGDataCollection& InTaskInput)

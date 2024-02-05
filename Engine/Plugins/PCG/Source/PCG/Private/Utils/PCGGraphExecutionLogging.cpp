@@ -206,21 +206,6 @@ namespace PCGGraphExecutionLogging
 #endif
 	}
 
-	void LogTaskExecuteOutputCRC(const FPCGGraphActiveTask& Task)
-	{
-#if WITH_EDITOR
-		if (!LogEnabled() || !Task.Context || !Task.Context->SourceComponent.Get() || !Task.Context->SourceComponent->GetOwner())
-		{
-			return;
-		}
-
-		UE_LOG(LogPCG, Log, TEXT("         [%s] %s\t\tOUTPUT CRC %u"),
-			*Task.Context->SourceComponent->GetOwner()->GetName(),
-			*FString::Printf(TEXT("%u'%s'"), Task.NodeId, Task.Context->Node ? *Task.Context->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("")),
-			Task.Context->OutputData.Crc.GetValue());
-#endif
-	}
-
 	void LogTaskCullingBegin(FPCGTaskId CompletedTaskId, uint64 InactiveOutputPinBitmask, const TArray<FPCGPinId>& PinIdsToDeactivate)
 	{
 #if WITH_EDITOR

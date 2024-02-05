@@ -44,11 +44,8 @@ public:
 	/** Time in MS between a landscape change and PCG refresh. Set it to 0 or negative value to disable the delay. */
 	UPROPERTY(EditAnywhere, Config, Category = "Tracking|Advanced", meta = (ConsoleVariable = "pcg.LandscapeRefreshTimeDelayMS"))
 	int32 LandscapeRefreshTimeDelayMS = 1000;
-
-	/** Strips empty point data from being passed along as output. */
-	UPROPERTY(EditAnywhere, Config, Category = DataFlow, meta = (ConsoleVariable = "pcg.StripEmptyPointData"))
-	bool StripEmptyPointData = false;
 #endif // WITH_EDITORONLY_DATA
+
 	// Begin UDeveloperSettings Interface
 	virtual FName GetCategoryName() const override;
 #if WITH_EDITOR

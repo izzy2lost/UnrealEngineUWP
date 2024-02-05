@@ -105,6 +105,25 @@ bool FPCGTaggedData::operator!=(const FPCGTaggedData& Other) const
 	return !operator==(Other);
 }
 
+FPCGCrc FPCGTaggedData::ComputeCrc(bool bFullDataCrc) const
+{
+	FArchiveCrc32 Ar;
+
+	Ar << const_cast<FName&>(Pin);
+
+	if (Data)
+	{
+		const FPCGCrc DataCrc = Data->GetOrComputeCrc(bFullDataCrc);
+		uint32 CrcValue = DataCrc.GetValue();
+		Ar << CrcValue;
+	}
+
+	// TODO: Ensuring tags are sorted could prevent CRC change.
+	Ar << const_cast<TSet<FString>&>(Tags);
+
+	return FPCGCrc(Ar.GetCrc());
+}
+
 TArray<FPCGTaggedData> FPCGDataCollection::GetInputs() const
 {
 	return TaggedData.FilterByPredicate([](const FPCGTaggedData& Data) {
@@ -392,26 +411,33 @@ void FPCGDataCollection::AddReferences(FReferenceCollector& Collector)
 	}
 }
 
-FPCGCrc FPCGDataCollection::ComputeCrc(bool bFullDataCrc)
+void FPCGDataCollection::ComputeCrcs(bool bFullDataCrc)
 {
-	// If there is no data, will return valid Crc==0 which is fine. No such thing as an invalid FPCGDataCollection
-	FArchiveCrc32 Ar;
+	DataCrcs.SetNumUninitialized(TaggedData.Num(), /*bAllowShrinking=*/false);
 
-	for (FPCGTaggedData& Data : TaggedData)
+	for (int I = 0; I < TaggedData.Num(); ++I)
 	{
-		Ar << Data.Pin;
-
-		if (Data.Data)
-		{
-			const FPCGCrc DataCrc = Data.Data->GetOrComputeCrc(bFullDataCrc);
-			uint32 Result = DataCrc.GetValue();
-			Ar << Result;
-		}
-
-		Ar << Data.Tags;
+		DataCrcs[I] = TaggedData[I].ComputeCrc(bFullDataCrc);
 	}
+}
 
-	return FPCGCrc(Ar.GetCrc());
+void FPCGDataCollection::AddData(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs)
+{
+	TaggedData.Append(InData);
+	DataCrcs.Append(InDataCrcs);
+}
+
+void FPCGDataCollection::AddDataForPin(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs, uint32 InputPinLabelCrc)
+{
+	TaggedData.Append(InData);
+	DataCrcs.Append(InDataCrcs);
+
+	// Add input pin label to Crc to uniquely identify inputs per-pin, or use a placeholder for symmetry.
+	// Note that the cached data Crc will already contain the output pin (calculated in element post execute).
+	for (int I = (DataCrcs.Num() - InDataCrcs.Num()); I < DataCrcs.Num(); ++I)
+	{
+		DataCrcs[I].Combine(InputPinLabelCrc);
+	}
 }
 
 void FPCGDataCollection::Reset()
