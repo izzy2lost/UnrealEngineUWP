@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
+#include "UObject/GCObject.h"
 
 class UObjectBase;
 class UObject;
@@ -16,14 +17,14 @@ class FPropertyBag;
 class FPropertyPathName;
 
 // Singleton class tracking property bag association with objects
-class FPropertyBagRepository
+class FPropertyBagRepository : public FGCObject
 {
 	struct FPropertyBagAssociationData
 	{
 		void Destroy();
 		
 		FPropertyBag* Bag = nullptr;		// The existence of an association implies the existence of the bag. TODO: Ref bags via handle? Store as value?
-		UObject* InstanceDataObject = nullptr;
+		TObjectPtr<UObject> InstanceDataObject = nullptr;
 	};
 	// TODO: Make private throughout and extend access permissions here or in wrapper classes? Don't want engine code modifying bags outside of serializers and details panels.
 	//friend UObjectBase;
@@ -45,6 +46,9 @@ private:
 	// TMap<FSoftObjectPath, FPropertyBag*> ObjectPathToPropertySubBagMap;
 	
 	//TMap<const UObjectBase*, UObject*> ObjectToInstanceDataObjectMap;
+
+	// used to make sure IDOs don't have name overlap
+	TMap<const UObjectBase*, TObjectPtr<UObject>> Namespaces;
 
 	FPropertyBagRepository() = default;
 
@@ -100,6 +104,9 @@ public:
 	COREUOBJECT_API static bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);
 	// query whether a property in Struct was set when the struct was deserialized
 	COREUOBJECT_API static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
+
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
 
 private:
 	void Lock() const { CriticalSection.Lock(); }
