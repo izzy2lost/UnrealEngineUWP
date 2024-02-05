@@ -570,6 +570,8 @@ static uint32 InitEvalInfos(const FMorphTargetWeightMap& InActiveMorphTargets, c
 {
 	uint32 NumValidMorphTargets=0;
 
+	const float MorphTargetMaxBlendWeight = UE::SkeletalRender::Settings::GetMorphTargetMaxBlendWeight();
+
 	for(const TTuple<const UMorphTarget*, int32>& MorphItem: InActiveMorphTargets)
 	{
 		FMorphTargetInfo NewInfo;
@@ -580,7 +582,7 @@ static uint32 InitEvalInfos(const FMorphTargetWeightMap& InActiveMorphTargets, c
 
 		if( MorphTarget != nullptr &&
 			ActiveMorphAbsVertexWeight >= MinMorphTargetBlendWeight &&
-			ActiveMorphAbsVertexWeight <= MaxMorphTargetBlendWeight &&
+			ActiveMorphAbsVertexWeight <= MorphTargetMaxBlendWeight &&
 			MorphItem.Key->HasDataForLOD(LODIndex) )
 		{
 			// start at the first vertex since they affect base mesh verts in ascending order

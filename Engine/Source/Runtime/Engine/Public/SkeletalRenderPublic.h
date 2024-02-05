@@ -31,6 +31,12 @@ class FMeshDeformerGeometry;
 class FRayTracingGeometry;
 class FRHICommandList;
 
+namespace UE::SkeletalRender::Settings
+{
+	// Returns the maximum value allowed for morph targets blend weights, configured at RenderSettings
+	ENGINE_API float GetMorphTargetMaxBlendWeight();
+}
+
 /** data for a single skinned skeletal mesh vertex */
 struct FFinalSkinVertex
 {
