@@ -24,11 +24,11 @@ struct FReplicationView
 		/** The actor that is being directly viewed, usually a pawn. */
 		FNetHandle ViewTarget;
 		/** Where the viewer is looking from */
-		FVector Pos;
+		FVector Pos = FVector::ZeroVector;
 		/** Direction the viewer is looking */
-		FVector Dir;
+		FVector Dir = FVector::ForwardVector;
 		/** The field of view */
-		float FoVRadians;
+		float FoVRadians = UE_HALF_PI;
 	};
 
 	TArray<FView, TInlineAllocator<UE_IRIS_INLINE_VIEWS_PER_CONNECTION>> Views;
