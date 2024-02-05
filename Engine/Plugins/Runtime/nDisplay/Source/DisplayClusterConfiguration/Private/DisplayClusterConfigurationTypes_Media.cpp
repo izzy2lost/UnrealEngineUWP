@@ -163,8 +163,6 @@ bool FDisplayClusterConfigurationMediaICVFX::GetMediaInputTiles(const FString& N
 		return false;
 	}
 
-	OutTiles.Empty();
-
 	// Find all input groups bound to the node ID specified
 	const TArray<FDisplayClusterConfigurationMediaTiledInputGroup> FoundInputGroups = TiledMediaInputGroups.FilterByPredicate([&NodeId](const FDisplayClusterConfigurationMediaTiledInputGroup& TiledInputGroup)
 		{
