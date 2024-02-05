@@ -351,12 +351,8 @@ struct FMutableRefAssetUserData
 	TObjectPtr<UAssetUserData> AssetUserData;
 
 #if WITH_EDITORONLY_DATA
-	FString ClassPath;
-	TArray<uint8> Bytes;
-
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefAssetUserData& Data);
-
-	void InitResources(UCustomizableObject* InOuter);
+	UPROPERTY()
+	int32 AssetUserDataIndex = INDEX_NONE;
 #endif
 
 };
@@ -634,7 +630,7 @@ public:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static constexpr int32 CurrentSupportedVersion = 423;
+	static constexpr int32 CurrentSupportedVersion = 424;
 
 	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
 	bool bDisableTextureStreaming = false;
