@@ -930,7 +930,7 @@ namespace Chaos
 		void DrawParticleShapesImpl(const FRigidTransform3& SpaceTransform, const FGeometryParticleHandle* Particle, const FColor& InColor, const FChaosDebugDrawSettings& Settings)
 		{
 			const FVec3 P = SpaceTransform.TransformPosition(Particle->ObjectState() == EObjectStateType::Dynamic ? Particle->CastToRigidParticle()->P() : Particle->X());
-			const FRotation3 Q = SpaceTransform.GetRotation() * (Particle->ObjectState() == EObjectStateType::Dynamic ? Particle->CastToRigidParticle()->Q() : Particle->R());
+			const FRotation3 Q = SpaceTransform.GetRotation() * (Particle->ObjectState() == EObjectStateType::Dynamic ? Particle->CastToRigidParticle()->GetQ() : Particle->GetR());
 			const FRigidTransform3 ParticleSpaceTransform = FRigidTransform3(P, Q);
 
 			if(!DrawConvexOptimizerShapes(P, Q, Particle, InColor, Settings))
@@ -991,7 +991,7 @@ namespace Chaos
 				if (Union->GetBVH() != nullptr)
 				{
 					FVec3 P = SpaceTransform.TransformPosition(Particle->X());
-					FRotation3 Q = SpaceTransform.GetRotation() * (Particle->R());
+					FRotation3 Q = SpaceTransform.GetRotation() * (Particle->GetR());
 
 					DrawBVHImpl(Particle->Handle(), FRigidTransform3(P, Q), Union->GetBVH(), InColor, 0.0f, Settings);
 				}
@@ -1804,7 +1804,7 @@ namespace Chaos
 						}
 					}
 
-					return FTransform{ Particle->R(), Particle->X() };
+					return FTransform{ Particle->GetR(), Particle->X() };
 				};
 
 				return GetClusterTransformImpl(Particle, GetClusterTransformImpl);

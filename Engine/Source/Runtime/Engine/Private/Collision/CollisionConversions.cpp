@@ -110,7 +110,7 @@ static FVector FindGeomOpposingNormal(ECollisionShapeType QueryGeomType, const T
 			}
 			else
 			{
-				const FTransform ActorTM(Hit.Actor->R(), Hit.Actor->X());
+				const FTransform ActorTM(Hit.Actor->GetR(), Hit.Actor->X());
 				const FVector LocalInNormal = ActorTM.InverseTransformVectorNoScale(InNormal);
 				const FVector LocalTraceDirectionDenorm = ActorTM.InverseTransformVectorNoScale(TraceDirectionDenorm);
 				const FVector LocalNormal = Shape->GetGeometry()->FindGeometryOpposingNormal(LocalTraceDirectionDenorm, Hit.FaceIndex, LocalInNormal);

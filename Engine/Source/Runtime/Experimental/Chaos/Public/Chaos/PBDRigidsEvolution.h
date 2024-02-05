@@ -752,7 +752,7 @@ public:
 
 			TKinematicTarget<FReal, 3>& KinematicTarget = Particle.KinematicTarget();
 			const FVec3 CurrentX = Particle.X();
-			const FRotation3 CurrentR = Particle.R();
+			const FRotation3 CurrentR = Particle.GetR();
 			constexpr FReal MinDt = 1e-6f;
 
 			bool bMoved = false;
@@ -765,8 +765,8 @@ public:
 			case EKinematicTargetMode::Reset:
 			{
 				// Reset velocity and then switch to do-nothing mode
-				Particle.V() = FVec3(0, 0, 0);
-				Particle.W() = FVec3(0, 0, 0);
+				Particle.SetVf(FVec3f(0, 0, 0));
+				Particle.SetWf(FVec3f(0, 0, 0));
 				Particle.ClearIsMovingKinematic();
 				KinematicTarget.SetMode(EKinematicTargetMode::None);
 				break;
@@ -809,9 +809,9 @@ public:
 					}
 				}
 				Particle.X() = NewX;
-				Particle.R() = NewR;
-				Particle.V() = NewV;
-				Particle.W() = NewW;
+				Particle.SetR(NewR);
+				Particle.SetV(NewV);
+				Particle.SetW(NewW);
 				Particle.SetIsMovingKinematic();
 
 				break;
@@ -821,8 +821,8 @@ public:
 			{
 				// Move based on velocity
 				bMoved = true;
-				Particle.X() = Particle.X() + Particle.V() * Dt;
-				Particle.R() = FRotation3::IntegrateRotationWithAngularVelocity(Particle.R(), Particle.W(), Dt);
+				Particle.X() = Particle.X() + Particle.GetV() * Dt;
+				Particle.SetR(FRotation3::IntegrateRotationWithAngularVelocity(Particle.GetR(), Particle.GetW(), Dt));
 				Particle.SetIsMovingKinematic();
 
 				break;
@@ -830,21 +830,21 @@ public:
 			}
 			
 			// Set positions and previous velocities if we can
-			// Note: At present kininematics are in fact rigid bodies
+			// Note: At present kinematics are in fact rigid bodies
 			Particle.P() = Particle.X();
-			Particle.Q() = Particle.R();
-			Particle.PreV() = Particle.V();
-			Particle.PreW() = Particle.W();
+			Particle.SetQf(Particle.GetRf());
+			Particle.SetPreVf(Particle.GetVf());
+			Particle.SetPreWf(Particle.GetWf());
 
 			if (bMoved)
 			{
 				if (!Particle.CCDEnabled())
 				{
-					Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.P(), Particle.Q()), FVec3(0));
+					Particle.UpdateWorldSpaceState(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(0));
 				}
 				else
 				{
-					Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.Q()), FVec3(0), -Particle.V() * Dt);
+					Particle.UpdateWorldSpaceStateSwept(FRigidTransform3(Particle.P(), Particle.GetQ()), FVec3(0), -Particle.GetV() * Dt);
 				}
 			}
 

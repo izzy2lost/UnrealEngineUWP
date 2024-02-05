@@ -418,7 +418,7 @@ void FRewindData::AccumulateErrorIfNecessary(FGeometryParticleHandle& Obj, const
 
 	// Get the error offset after a correction
 	const FVec3 ErrorX = DirtyInfo->GetHistory().PreCorrectionXR.X() - Obj.X();
-	FQuat ErrorR = DirtyInfo->GetHistory().PreCorrectionXR.R() * Obj.R().Inverse();
+	FQuat ErrorR = DirtyInfo->GetHistory().PreCorrectionXR.R() * Obj.GetR().Inverse();
 	ErrorR.EnforceShortestArcWith(FQuat::Identity);
 	ErrorR.Normalize();
 
@@ -1091,8 +1091,8 @@ void FRewindData::PushPTDirtyData(TPBDRigidParticleHandle<FReal,3>& Handle,const
 	{
 		if (FParticleVelocities* PreVelocities = Latest.Velocities.WriteAccessNonDecreasing(FrameAndPhase, PropertiesPool))
 		{
-			PreVelocities->SetV(Handle.PreV());
-			PreVelocities->SetW(Handle.PreW());
+			PreVelocities->SetV(Handle.GetPreV());
+			PreVelocities->SetW(Handle.GetPreW());
 		}
 	}
 	

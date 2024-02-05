@@ -350,10 +350,10 @@ namespace GeometryCollectionTest
 			else
 			{
 				EXPECT_NE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().Y), SMALL_THRESHOLD);
-				EXPECT_GT(Particles.W(0).Y, PreviousY);
+				EXPECT_GT(Particles.GetW(0).Y, PreviousY);
 			}
 
-			PreviousY = Particles.W(0).Y;
+			PreviousY = Particles.GetW(0).Y;
 		}
 
 	}
@@ -1073,7 +1073,7 @@ namespace GeometryCollectionTest
 		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ParticleHandles = {
 			Collection->PhysObject->GetParticle_Internal(0),
 		};
-		Chaos::TVector<float, 3> CurrV = ParticleHandles[0]->V();
+		Chaos::TVector<float, 3> CurrV = ParticleHandles[0]->GetV();
 		
 
 		for (int Frame = 1; Frame < 10; Frame++)
@@ -1083,7 +1083,7 @@ namespace GeometryCollectionTest
 
 			UnitTest.Advance();
 
-			CurrV = ParticleHandles[0]->V();
+			CurrV = ParticleHandles[0]->GetV();
 			EXPECT_NEAR(CurrV.X, Params.InitialLinearVelocity.X, KINDA_SMALL_NUMBER); // Velocity in +x
 			EXPECT_GT(Collection->DynamicCollection->GetTransform(0).GetTranslation().X, LastLocation.X); // Pos in +x
 
@@ -1132,11 +1132,11 @@ namespace GeometryCollectionTest
 
 			Chaos::TPBDGeometryCollectionParticles<Chaos::FReal, 3>& Particles = UnitTest.Solver->GetParticles().GetGeometryCollectionParticles();
 			EXPECT_NE(FMath::Abs(Collection->DynamicCollection->GetTransform(0).GetRotation().Euler().Y), SMALL_THRESHOLD); // not rotating in Y?
-			EXPECT_GT(Particles.W(0).X, PreviousX); // rotating in X?
+			EXPECT_GT(Particles.GetW(0).X, PreviousX); // rotating in X?
 			EXPECT_LT(Particles.X(0).Z, PreviousHeight); // still falling?
 
 			PreviousHeight = Particles.X(0).Z;
-			PreviousX = Particles.W(0).X;
+			PreviousX = Particles.GetW(0).X;
 		}
 
 

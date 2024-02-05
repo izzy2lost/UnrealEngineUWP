@@ -81,7 +81,7 @@ public:
 	void CopyFrom(const TOther& Other)
 	{
 		MX = Other.X();
-		MR = FRotation3f(Other.R());
+		MR = FRotation3f(Other.GetR());
 	}
 
 	template <typename TOther>
@@ -99,6 +99,7 @@ public:
 	void SetX(const FVec3& InX){ MX = InX; }
 
 	const FRotation3 R() const { return FRotation3(MR); }
+	const FRotation3 GetR() const { return FRotation3(MR); }
 	void SetR(const FRotation3& InR) { MR = FRotation3f(InR); }
 	
 private:
@@ -138,14 +139,14 @@ public:
 	template <typename TOther>
 	void CopyFrom(const TOther& Other)
 	{
-		MV = Other.V();
-		MW = Other.W();
+		MV = Other.GetV();
+		MW = Other.GetW();
 	}
 
 	template <typename TOther>
 	bool IsEqual(const TOther& Other) const
 	{
-		return MV == FVec3f(Other.V()) && MW == FVec3f(Other.W());
+		return MV == FVec3f(Other.GetV()) && MW == FVec3f(Other.GetW());
 	}
 
 	bool operator==(const FParticleVelocities& Other) const
@@ -154,9 +155,11 @@ public:
 	}
 
 	const FVec3 V() const { return FVec3(MV); }
+	const FVec3 GetV() const { return FVec3(MV); }
 	void SetV(const FVec3& V) { MV = FVec3f(V); }
 
 	const FVec3 W() const { return FVec3(MW); }
+	const FVec3 GetW() const { return FVec3(MW); }
 	void SetW(const FVec3& W){ MW = FVec3f(W); }
 
 private:

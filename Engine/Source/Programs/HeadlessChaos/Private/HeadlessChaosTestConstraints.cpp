@@ -179,7 +179,7 @@ namespace ChaosTest {
 			Evolution.EndFrame(0.1);
 
 			const FVec3& Pos = Evolution.GetParticleHandles().Handle(0)->X();
-			const FRotation3& Rot = Evolution.GetParticleHandles().Handle(0)->R();
+			const FRotation3& Rot = Evolution.GetParticleHandles().Handle(0)->GetR();
 
 			//UE_LOG(LogChaos, Warning, TEXT("Pos %s"), *Pos.ToString());
 			//UE_LOG(LogChaos, Warning, TEXT("Rot %s"), *Rot.ToString());
@@ -227,7 +227,7 @@ namespace ChaosTest {
 			Evolution.EnableParticle(DynamicParticle);
 
 			const FVec3& Pos = Evolution.GetParticleHandles().Handle(0)->X();
-			const FRotation3& Rot = Evolution.GetParticleHandles().Handle(0)->R();
+			const FRotation3& Rot = Evolution.GetParticleHandles().Handle(0)->GetR();
 
 			Evolution.AdvanceOneTimeStep(0.1);
 			Evolution.EndFrame(0.1);
@@ -304,7 +304,7 @@ namespace ChaosTest {
 		Evolution.EnableParticle(DynamicParticle);
 
 		const FVec3& Pos = Evolution.GetParticleHandles().Handle(0)->X();
-		const FRotation3& Rot = Evolution.GetParticleHandles().Handle(0)->R();
+		const FRotation3& Rot = Evolution.GetParticleHandles().Handle(0)->GetR();
 		const float DeltaTime = 1.0f / 30.0f;
 
 		const float PositionTolerance = KINDA_SMALL_NUMBER;

@@ -52,7 +52,7 @@ inline FVec3 ComputeBoundsThickness(const TPBDRigidParticles<FReal, 3>& InPartic
 		}
 	}
 
-	return ComputeBoundsThickness(InParticles.V(BodyIndex), Dt, MinBoundsThickness, MaxBoundsThickness, BoundsVelocityInflation);
+	return ComputeBoundsThickness(InParticles.GetV(BodyIndex), Dt, MinBoundsThickness, MaxBoundsThickness, BoundsVelocityInflation);
 }
 
 template <typename THandle>
@@ -174,7 +174,7 @@ template<class T, int d>
 TAABB<T, d> ComputeWorldSpaceBoundingBox(const TGeometryParticles<T, d>& Objects, const int32 i, bool bUseVelocity = false, T Dt = 0)
 {
 	ensure(!bUseVelocity);
-	TRigidTransform<T, d> LocalToWorld(Objects.X(i), Objects.R(i));
+	TRigidTransform<T, d> LocalToWorld(Objects.X(i), Objects.GetR(i));
 	const auto& LocalBoundingBox = Objects.GetGeometry(i)->BoundingBox();
 	return LocalBoundingBox.TransformedAABB(LocalToWorld);
 }
@@ -182,7 +182,7 @@ TAABB<T, d> ComputeWorldSpaceBoundingBox(const TGeometryParticles<T, d>& Objects
 template<class T, int d>
 TAABB<T, d> ComputeWorldSpaceBoundingBox(const TPBDRigidParticles<T, d>& Objects, const int32 i, bool bUseVelocity = false, T Dt = 0)
 {
-	TRigidTransform<T, d> LocalToWorld(Objects.P(i), Objects.Q(i));
+	TRigidTransform<T, d> LocalToWorld(Objects.P(i), Objects.GetQ(i));
 	TAABB<T, d> WorldSpaceBox;
 	if (Objects.GetGeometry(i))
 	{

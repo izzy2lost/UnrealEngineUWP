@@ -228,7 +228,7 @@ namespace Chaos
 			return FVec3(0);
 		}
 
-		return KinematicHandle->V();
+		return KinematicHandle->GetV();
 	}
 
 	void FContactPairModifier::ModifyParticleVelocity(FVec3 Velocity, int32 ParticleIdx)
@@ -267,7 +267,7 @@ namespace Chaos
 			return FVec3(0);
 		}
 
-		return KinematicHandle->W();
+		return KinematicHandle->GetW();
 	}
 
 	void FContactPairModifier::ModifyParticleAngularVelocity(FVec3 AngularVelocity, int32 ParticleIdx)
@@ -289,7 +289,7 @@ namespace Chaos
 			EObjectStateType State(RigidHandle->ObjectState());
 			if (State == EObjectStateType::Dynamic || State == EObjectStateType::Sleeping)
 			{
-				RigidHandle->SetR(FRotation3::IntegrateRotationWithAngularVelocity(RigidHandle->Q(), -RigidHandle->W(), Modifier->Dt));
+				RigidHandle->SetR(FRotation3::IntegrateRotationWithAngularVelocity(RigidHandle->GetQ(), -RigidHandle->GetW(), Modifier->Dt));
 			}
 		}
 	}
@@ -331,7 +331,7 @@ namespace Chaos
 
 				if (bMaintainVelocity)
 				{
-					RigidHandle->SetX(RigidHandle->P() - RigidHandle->V() * Modifier->Dt);
+					RigidHandle->SetX(RigidHandle->P() - RigidHandle->GetV() * Modifier->Dt);
 				}
 				else if(Modifier->Dt > 0.0f)
 				{
@@ -373,10 +373,10 @@ namespace Chaos
 		// We give predicted position for simulated objects
 		if (RigidHandle)
 		{
-			return RigidHandle->Q();
+			return RigidHandle->GetQ();
 		}
 
-		return Particle->R();
+		return Particle->GetR();
 	}
 
 	void FContactPairModifier::ModifyParticleRotation(FRotation3 Rotation, bool bMaintainVelocity, int32 ParticleIdx)
@@ -396,12 +396,12 @@ namespace Chaos
 
 				if (bMaintainVelocity)
 				{
-					RigidHandle->SetR(FRotation3::IntegrateRotationWithAngularVelocity(RigidHandle->Q(), -RigidHandle->W(), Modifier->Dt));
+					RigidHandle->SetR(FRotation3::IntegrateRotationWithAngularVelocity(RigidHandle->GetQ(), -RigidHandle->GetW(), Modifier->Dt));
 				}
 				else if (Modifier->Dt > 0.0f)
 				{
 					// Update W to new implicit velocity
-					RigidHandle->SetW(FRotation3::CalculateAngularVelocity(RigidHandle->R(), RigidHandle->Q(), Modifier->Dt));
+					RigidHandle->SetW(FRotation3::CalculateAngularVelocity(RigidHandle->GetR(), RigidHandle->GetQ(), Modifier->Dt));
 				}
 				UpdateConstraintShapeTransforms();
 				return;

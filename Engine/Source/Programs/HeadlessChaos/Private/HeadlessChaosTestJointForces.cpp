@@ -203,7 +203,7 @@ namespace ChaosTest {
 		FGenericParticleHandle P1 = Test.GetParticle(1);
 
 		// Reposition the particle to have some extension in the spring
-		P1->InitTransform(P1->X() + FVec3(0,0,-Extension), P1->R());
+		P1->InitTransform(P1->X() + FVec3(0,0,-Extension), P1->GetR());
 
 		// Run the sim
 		Test.Evolution.AdvanceOneTimeStep(Dt);

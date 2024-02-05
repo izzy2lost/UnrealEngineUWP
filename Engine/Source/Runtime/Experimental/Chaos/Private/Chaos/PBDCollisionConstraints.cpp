@@ -719,7 +719,7 @@ namespace Chaos
 
 					if (bCollisionsEnableSubSurfaceCollisionPruning)
 					{
-						const FVec3 UpVector = ParticleHandle.R().GetAxisZ();
+						const FVec3 UpVector = ParticleHandle.GetR().GetAxisZ();
 						FParticleSubSurfaceCollisionPruner SubSurfacePruner(ParticleHandle.Handle());
 						SubSurfacePruner.Prune(UpVector);
 					}

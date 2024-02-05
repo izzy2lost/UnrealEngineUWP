@@ -1444,7 +1444,7 @@ namespace ChaosTest
 	{
 		const Chaos::FVec3 COM = Rigid ? Chaos::FParticleUtilitiesGT::GetCoMWorldPosition(Rigid) : Chaos::FParticleUtilitiesGT::GetActorWorldTransform(Rigid).GetTranslation();
 		const Chaos::FVec3 Diff = InPoint - COM;
-		return Rigid->V() - Chaos::FVec3::CrossProduct(Diff, Rigid->W());
+		return Rigid->GetV() - Chaos::FVec3::CrossProduct(Diff, Rigid->GetW());
 
 	}
 
@@ -1532,7 +1532,7 @@ namespace ChaosTest
 		for (int i = 0; i < 500; ++i)
 		{
 			// latest body transform
-			const FTransform BodyTM(Dynamic->R(), Dynamic->X());
+			const FTransform BodyTM(Dynamic->GetR(), Dynamic->X());
 
 			for (int SpringIdx = 0; SpringIdx < 4; SpringIdx++)
 			{

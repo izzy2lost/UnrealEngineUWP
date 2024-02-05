@@ -95,7 +95,7 @@ namespace Chaos
 						{
 							if (ParentHandle->Disabled() == false)
 							{
-								const FRigidTransform3 ParentWorldTM(ParentHandle->P(), ParentHandle->Q());
+								const FRigidTransform3 ParentWorldTM(ParentHandle->P(), ParentHandle->GetQ());
 								const FRigidTransform3 ChildFrame = ClusterHandle->ChildToParent() * ParentWorldTM;
 								SamplePosition = ChildFrame.GetTranslation();
 							}
@@ -237,8 +237,8 @@ namespace Chaos
 
 			if (FieldState == Chaos::EObjectStateType::Kinematic || FieldState == Chaos::EObjectStateType::Static)
 			{
-				RigidHandle->SetV(Chaos::FVec3(0));
-				RigidHandle->SetW(Chaos::FVec3(0));
+				RigidHandle->SetVf(Chaos::FVec3f(0));
+				RigidHandle->SetWf(Chaos::FVec3f(0));
 			}
 			else if (FieldState == Chaos::EObjectStateType::Dynamic)
 			{
@@ -603,7 +603,7 @@ namespace Chaos
 					Chaos::FPBDRigidParticleHandle* RigidHandle = ParticleHandles[Index.Sample]->CastToRigidParticle();
 					if (RigidHandle && RigidHandle->ObjectState() == Chaos::EObjectStateType::Dynamic)
 					{
-						RigidHandle->V() += ResultsView[Index.Result];
+						RigidHandle->SetV(RigidHandle->GetV() + ResultsView[Index.Result]);
 					}
 				}
 			}
@@ -635,7 +635,7 @@ namespace Chaos
 					Chaos::FPBDRigidParticleHandle* RigidHandle = ParticleHandles[Index.Sample]->CastToRigidParticle();
 					if (RigidHandle && RigidHandle->ObjectState() == Chaos::EObjectStateType::Dynamic)
 					{
-						RigidHandle->W() += ResultsView[Index.Result];
+						RigidHandle->SetW(RigidHandle->GetW() + ResultsView[Index.Result]);
 					}
 				}
 			}

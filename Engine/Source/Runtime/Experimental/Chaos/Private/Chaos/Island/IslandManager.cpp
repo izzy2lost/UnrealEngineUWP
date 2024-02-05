@@ -125,11 +125,11 @@ namespace Chaos::Private
 				const FKinematicTarget& KinematicTarget = Kinematic->KinematicTarget();
 				if (KinematicTarget.GetMode() == EKinematicTargetMode::Position)
 				{
-					bIsStationary = (Kinematic->X() - KinematicTarget.GetTargetPosition()).IsZero() && (Kinematic->R() * KinematicTarget.GetTargetRotation().Inverse()).IsIdentity();
+					bIsStationary = (Kinematic->X() - KinematicTarget.GetTargetPosition()).IsZero() && (Kinematic->GetR() * KinematicTarget.GetTargetRotation().Inverse()).IsIdentity();
 				}
 				else
 				{
-					bIsStationary = Kinematic->V().IsZero() && Kinematic->W().IsZero();
+					bIsStationary = Kinematic->GetV().IsZero() && Kinematic->GetW().IsZero();
 				}
 			}
 			else
@@ -251,8 +251,8 @@ namespace Chaos::Private
 	{
 		if (Dt > UE_SMALL_NUMBER)
 		{
-			Rigid.SetVSmooth(Rigid.V());
-			Rigid.SetWSmooth(Rigid.W());
+			Rigid.SetVSmooth(Rigid.GetV());
+			Rigid.SetWSmooth(Rigid.GetW());
 		}
 	}
 
@@ -263,7 +263,7 @@ namespace Chaos::Private
 		{
 			const FReal SmoothRate = FMath::Clamp(CVars::SmoothedPositionLerpRate, 0.0f, 1.0f);
 			const FVec3 VImp = FVec3::CalculateVelocity(Rigid.X(), Rigid.P(), Dt);
-			const FVec3 WImp = FRotation3::CalculateAngularVelocity(Rigid.R(), Rigid.Q(), Dt);
+			const FVec3 WImp = FRotation3::CalculateAngularVelocity(Rigid.GetR(), Rigid.GetQ(), Dt);
 			Rigid.SetVSmooth(FMath::Lerp(Rigid.VSmooth(), VImp, SmoothRate));
 			Rigid.SetWSmooth(FMath::Lerp(Rigid.WSmooth(), WImp, SmoothRate));
 		}
@@ -2411,8 +2411,8 @@ namespace Chaos::Private
 				int32 DisableCounter = 0;
 
 				// Did we exceed the velocity thresholds?
-				const FReal VSq = Particle->V().SizeSquared();
-				const FReal WSq = Particle->W().SizeSquared();
+				const FReal VSq = Particle->GetV().SizeSquared();
+				const FReal WSq = Particle->GetW().SizeSquared();
 				if ((VSq < Node->DisableLinearThresholdSq) && (WSq < Node->DisableAngularThresholdSq))
 				{
 					// We are within the velocity thresholds, so see if we should disable

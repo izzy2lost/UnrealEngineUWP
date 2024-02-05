@@ -127,7 +127,7 @@ struct FChaosVDParticlePositionRotation : public FChaosVDWrapperDataBase
 	void CopyFrom(const TOther& Other)
 	{
 		MX = Other.X();
-		MR = Other.R();
+		MR = Other.GetR();
 		
 		bHasValidData = true;
 	}
@@ -173,8 +173,8 @@ struct FChaosVDParticleVelocities : public FChaosVDWrapperDataBase
 	template <typename TOther>
 	void CopyFrom(const TOther& Other)
 	{
-		MV = Other.V();
-		MW = Other.W();
+		MV = Other.GetV();
+		MW = Other.GetW();
 		bHasValidData = true;
 	}
 	

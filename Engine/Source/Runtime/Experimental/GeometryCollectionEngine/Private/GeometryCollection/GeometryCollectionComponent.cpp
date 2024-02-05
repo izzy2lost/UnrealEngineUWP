@@ -2195,7 +2195,7 @@ void UGeometryCollectionComponent::UpdateRepData()
 						// Because we cull ClustersToRep with abandoned level, we must make sure we don't add duplicates to one off activated.
 						// TODO: avoid search for entry for perf
 						// TODO: once we support deep fracture we should be able to remove one offs clusters that are now disabled, reducing the amount to be replicated
-						FGeometryCollectionActivatedCluster OneOffActivated(TransformGroupIdx, Root->V(), Root->W());
+						FGeometryCollectionActivatedCluster OneOffActivated(TransformGroupIdx, Root->GetV(), Root->GetW());
 						if(!LocalRepData.OneOffActivated.Contains(OneOffActivated))
 						{
 							LocalRepData.OneOffActivated.Add(OneOffActivated);
@@ -2238,9 +2238,9 @@ void UGeometryCollectionComponent::UpdateRepData()
 					FGeometryCollectionClusterRep& ClusterRep = LocalRepData.Clusters.AddDefaulted_GetRef();
 
 					ClusterRep.Position = Cluster->X();
-					ClusterRep.Rotation = Cluster->R();
-					ClusterRep.LinearVelocity = Cluster->V();
-					ClusterRep.AngularVelocity = Cluster->W();
+					ClusterRep.Rotation = Cluster->GetR();
+					ClusterRep.LinearVelocity = Cluster->GetV();
+					ClusterRep.AngularVelocity = Cluster->GetW();
 					ClusterRep.ClusterState.SetObjectState(Cluster->ObjectState());
 					ClusterRep.ClusterState.SetInternalCluster(Cluster->InternalCluster());
 					int32 TransformGroupIdx;
@@ -2371,8 +2371,8 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 							{
 								FGeometryCollectionRepStateData::FReleasedData& Data = LocalRepStateData.ReleasedData.AddDefaulted_GetRef();
 								Data.TransformIndex = TransformIndex;
-								Data.LinearVelocity = ParticleHandle->V();
-								Data.AngularVelocityInDegreesPerSecond = FMath::RadiansToDegrees(ParticleHandle->W());
+								Data.LinearVelocity = ParticleHandle->GetV();
+								Data.AngularVelocityInDegreesPerSecond = FMath::RadiansToDegrees(ParticleHandle->GetW());
 							}
 						}
 
@@ -2412,9 +2412,9 @@ void UGeometryCollectionComponent::UpdateRepStateAndDynamicData()
 				Data.TransformIndex = Root.TransformIndex;
 				Data.bIsInternalCluster = Root.Handle->InternalCluster();
 				Data.Position = Root.Handle->X();
-				Data.EulerRotation = Root.Handle->R().Rotator().Euler();
-				Data.LinearVelocity = Root.Handle->V();
-				Data.AngularVelocityInDegreesPerSecond = FMath::RadiansToDegrees(Root.Handle->W());
+				Data.EulerRotation = Root.Handle->GetR().Rotator().Euler();
+				Data.LinearVelocity = Root.Handle->GetV();
+				Data.AngularVelocityInDegreesPerSecond = FMath::RadiansToDegrees(Root.Handle->GetW());
 				Data.LastUpdatedVersion = LocalRepDynamicData.Version + 1;
 			}
 
@@ -2600,7 +2600,7 @@ namespace
 			//
 			const FVector RepAngVel = AngularVelocity;
 			const Chaos::FRotation3 RepExtrapAng = Chaos::FRotation3::IntegrateRotationWithAngularVelocity(Rotation, RepAngVel, RepExtrapTime);
-			const FVector AngVel = Chaos::FRotation3::CalculateAngularVelocity(Cluster.R(), RepExtrapAng, GeometryCollectionRepAngularMatchTime);
+			const FVector AngVel = Chaos::FRotation3::CalculateAngularVelocity(Cluster.GetR(), RepExtrapAng, GeometryCollectionRepAngularMatchTime);
 			if (AngVel.SizeSquared() > SMALL_NUMBER)
 			{
 				Cluster.SetW(RepAngVel + AngVel);
@@ -2935,7 +2935,7 @@ bool UGeometryCollectionComponent::ProcessRepData(const float DeltaTime, const f
 			{
 				FVector Axis;
 				float Angle;
-				(RepCluster.Rotation.Inverse() * Cluster.R()).ToAxisAndAngle(Axis, Angle);
+				(RepCluster.Rotation.Inverse() * Cluster.GetR()).ToAxisAndAngle(Axis, Angle);
 				if (FMath::Abs(Angle) < .1f)
 				{
 					return;
@@ -2943,8 +2943,8 @@ bool UGeometryCollectionComponent::ProcessRepData(const float DeltaTime, const f
 			}
 
 			Chaos::FDebugDrawQueue& DrawQueue = Chaos::FDebugDrawQueue::GetInstance();
-			DrawQueue.DrawDebugCoordinateSystem(Cluster.X(), FRotator(Cluster.R()), 100.f, false, -1, -1, 1.f);
-			DrawQueue.DrawDebugBox(Cluster.X() + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), Cluster.R(), FColor::White, false, -1, -1, 1.f);
+			DrawQueue.DrawDebugCoordinateSystem(Cluster.X(), FRotator(Cluster.GetR()), 100.f, false, -1, -1, 1.f);
+			DrawQueue.DrawDebugBox(Cluster.X() + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), Cluster.GetR(), FColor::White, false, -1, -1, 1.f);
 			DrawQueue.DrawDebugBox(RepCluster.Position + Cluster.LocalBounds().Center(), Cluster.LocalBounds().Extents(), RepCluster.Rotation, FColor::Green, false, -1, -1, 1.f);
 
 			if (bGeometryCollectionRepUseClusterVelocityMatch)

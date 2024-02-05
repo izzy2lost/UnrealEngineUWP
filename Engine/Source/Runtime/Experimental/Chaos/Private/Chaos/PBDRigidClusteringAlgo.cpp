@@ -117,7 +117,7 @@ namespace Chaos
 		{
 			MassToLocal.SetRotation(Cluster->RotationOfMass());
 			Cluster->SetR(Cluster->RCom());
-			Cluster->SetQ(Cluster->R());
+			Cluster->SetQf(Cluster->GetRf());
 			Cluster->SetRotationOfMass(FQuat::Identity);
 		}
 
@@ -275,7 +275,7 @@ namespace Chaos
 		Objects.Reserve(Children.Num());
 		Objects2.Reserve(Children.Num());
 
-		const FRigidTransform3 ClusterWorldTM(Parent->X(), Parent->R());
+		const FRigidTransform3 ClusterWorldTM(Parent->X(), Parent->GetR());
 
 		TArray<FVec3> OriginalPoints;
 		TArray<FPBDRigidParticleHandle*> ChildParticleHandles;
@@ -307,7 +307,7 @@ namespace Chaos
 				}
 				else
 				{
-					const FRigidTransform3 ChildWorldTM(Child->X(), Child->R());
+					const FRigidTransform3 ChildWorldTM(Child->X(), Child->GetR());
 					Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
 				}
 
@@ -458,7 +458,7 @@ namespace Chaos
 				Parent->CollisionParticles()->UpdateAccelerationStructures();
 			}
 		}
-		const Chaos::FRigidTransform3 Xf(Parent->X(), Parent->R());
+		const Chaos::FRigidTransform3 Xf(Parent->X(), Parent->GetR());
 		Parent->UpdateWorldSpaceState(Xf, FVec3(0));
 
 		UpdateCollisionFlags(Parent, bUseParticleImplicit);

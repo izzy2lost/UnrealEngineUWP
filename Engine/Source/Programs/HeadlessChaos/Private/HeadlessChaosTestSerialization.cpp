@@ -255,8 +255,8 @@ namespace ChaosTest
 		{
 			FGeometryParticles OriginalParticles;
 			OriginalParticles.AddParticles(2);
-			OriginalParticles.R(0) = FRotation3::Identity;
-			OriginalParticles.R(1) = FRotation3::Identity;
+			OriginalParticles.SetR(0, FRotation3::Identity);
+			OriginalParticles.SetR(1, FRotation3::Identity);
 			OriginalParticles.SetGeometry(0, OriginalSpheres[0]);
 			OriginalParticles.SetGeometry(1, OriginalSpheres[1]);
 
@@ -291,8 +291,8 @@ namespace ChaosTest
 		{
 			auto OriginalParticles = MakeUnique<FGeometryParticles>();
 			OriginalParticles->AddParticles(2);
-			OriginalParticles->R(0) = FRotation3::Identity;
-			OriginalParticles->R(1) = FRotation3::Identity;
+			OriginalParticles->SetR(0, FRotation3::Identity);
+			OriginalParticles->SetR(1, FRotation3::Identity);
 			OriginalParticles->SetGeometry(0, OriginalSpheres[0]);
 			OriginalParticles->SetGeometry(1, OriginalSpheres[1]);
 
@@ -334,14 +334,14 @@ namespace ChaosTest
 
 			FGeometryParticles OriginalParticles;
 			OriginalParticles.AddParticles(2);
-			OriginalParticles.R(0) = FRotation3::Identity;
-			OriginalParticles.R(1) = FRotation3::Identity;
+			OriginalParticles.SetR(0, FRotation3::Identity);
+			OriginalParticles.SetR(1, FRotation3::Identity);
 			OriginalParticles.SetGeometry(0, OriginalSpheres[0]);
 			OriginalParticles.SetGeometry(1, OriginalSpheres[1]);
 			OriginalParticles.X(0) = FVec3(100, 1, 2);
 			OriginalParticles.X(1) = FVec3(0, 1, 2);
-			OriginalParticles.R(0) = FRotation3::Identity;
-			OriginalParticles.R(1) = FRotation3::Identity;
+			OriginalParticles.SetR(0, FRotation3::Identity);
+			OriginalParticles.SetR(1, FRotation3::Identity);
 
 			TBoundingVolumeHierarchy<FGeometryParticles, TArray<int32>> OriginalBVH(OriginalParticles);
 
@@ -369,7 +369,7 @@ namespace ChaosTest
 			TArray<int32> FinalIntersections;
 			for (int32 Potential : PotentialIntersections)
 			{
-				FRigidTransform3 TM(SerializedParticles.X(Potential), SerializedParticles.R(Potential));
+				FRigidTransform3 TM(SerializedParticles.X(Potential), SerializedParticles.GetR(Potential));
 				const FAABB3 Bounds = SerializedParticles.GetGeometry(Potential)->BoundingBox().TransformedAABB(TM);
 				if (Bounds.Intersects(QueryBox))
 				{
@@ -394,8 +394,8 @@ namespace ChaosTest
 
 		TRigidParticles<FReal, 3> Particles;
 		Particles.AddParticles(2);
-		Particles.R(0) = FRotation3::Identity;
-		Particles.R(1) = FRotation3::Identity;
+		Particles.SetR(0, FRotation3::Identity);
+		Particles.SetR(1, FRotation3::Identity);
 
 		Particles.Acceleration(0) = F[0];
 		Particles.Acceleration(1) = F[1];
@@ -430,14 +430,14 @@ namespace ChaosTest
 
 		FGeometryParticles Particles;
 		Particles.AddParticles(3);
-		Particles.R(0) = FRotation3::Identity;
-		Particles.R(1) = FRotation3::Identity;
+		Particles.SetR(0, FRotation3::Identity);
+		Particles.SetR(1, FRotation3::Identity);
 		Particles.X(0) = FVec3(15, 1, 2);
 		Particles.X(1) = FVec3(0, 2, 2);
 		Particles.X(2) = FVec3(0, 2, 2);
-		Particles.R(0) = FRotation3::Identity;
-		Particles.R(1) = FRotation3::Identity;
-		Particles.R(2) = FRotation3::Identity;
+		Particles.SetR(0, FRotation3::Identity);
+		Particles.SetR(1, FRotation3::Identity);
+		Particles.SetR(2, FRotation3::Identity);
 		Particles.SetGeometry(0, Spheres[0]);
 		Particles.SetGeometry(1, Spheres[1]);
 		Particles.SetGeometry(2, Spheres[2]);

@@ -155,7 +155,7 @@ namespace Chaos
 
 		using TArrayCollection::Size;
 		using TParticles<T,d>::X;
-		using TSimpleGeometryParticles<T, d>::R;
+		using TSimpleGeometryParticles<T, d>::GetR;
 		using TSimpleGeometryParticles<T, d>::GetGeometry;
 		using TSimpleGeometryParticles<T, d>::SetGeometry;
 		using TSimpleGeometryParticles<T, d>::GetAllGeometry;
@@ -320,7 +320,7 @@ namespace Chaos
 				// Update the world-space stat of all the shapes - must be called after UpdateShapesArray
 				// world space inflated bounds needs to take expansion into account - this is done in integrate for dynamics anyway, so
 				// this computation is mainly for statics
-				UpdateWorldSpaceState(Index, TRigidTransform<FReal, 3>(X(Index), R(Index)), FVec3(0));
+				UpdateWorldSpaceState(Index, TRigidTransform<FReal, 3>(X(Index), GetR(Index)), FVec3(0));
 			}
 		}
 
@@ -557,7 +557,7 @@ public:
 		FString ToString(int32 index) const
 		{
 			FString BaseString = TParticles<T, d>::ToString(index);
-			return FString::Printf(TEXT("%s, MUniqueIdx:%d MR:%s, MGeometry:%s"), *BaseString, UniqueIdx(index).Idx, *R(index).ToString(), (GetGeometry(index) ? *(GetGeometry(index)->ToString()) : TEXT("none")));
+			return FString::Printf(TEXT("%s, MUniqueIdx:%d MR:%s, MGeometry:%s"), *BaseString, UniqueIdx(index).Idx, *GetR(index).ToString(), (GetGeometry(index) ? *(GetGeometry(index)->ToString()) : TEXT("none")));
 		}
 
 		virtual void Serialize(FChaosArchive& Ar) override
@@ -587,7 +587,7 @@ public:
 				{
 					for (int32 Idx = 0; Idx < MShapesArray.Num(); ++Idx)
 					{
-						UpdateWorldSpaceState(Idx, FRigidTransform3(X(Idx), R(Idx)), FVec3(0));
+						UpdateWorldSpaceState(Idx, FRigidTransform3(X(Idx), GetR(Idx)), FVec3(0));
 					}
 				}
 			}
@@ -601,7 +601,7 @@ public:
 					{
 						MLocalBounds[Idx] = TAABB<T, d>(GetGeometry(Idx)->BoundingBox());
 						//ignore velocity too, really just trying to get something reasonable)
-						UpdateWorldSpaceState(Idx, FRigidTransform3(X(Idx), R(Idx)), FVec3(0));
+						UpdateWorldSpaceState(Idx, FRigidTransform3(X(Idx), GetR(Idx)), FVec3(0));
 					}
 				}
 			}

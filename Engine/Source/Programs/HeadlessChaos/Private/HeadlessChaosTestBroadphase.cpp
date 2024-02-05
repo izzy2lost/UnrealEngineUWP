@@ -58,7 +58,7 @@ namespace ChaosTest
 		template <SQType>
 		bool Visit(int32 Idx, FQueryFastData& CurData)
 		{
-			const FRigidTransform3 BoxTM(Boxes.X(Idx), Boxes.R(Idx));
+			const FRigidTransform3 BoxTM(Boxes.X(Idx), Boxes.GetR(Idx));
 			FAABB3 Box = static_cast<const TBox<FReal, 3>*>(Boxes.GetGeometry(Idx).GetReference())->BoundingBox().TransformedAABB(BoxTM);
 			FAABB3 ThicknedBox(Box.Min() - HalfExtents, Box.Max() + HalfExtents);
 
@@ -133,7 +133,7 @@ namespace ChaosTest
 		bool VisitOverlap(TSpatialVisitorData<int32> Instance)
 		{
 			const int32 Idx = Instance.Payload;
-			const FRigidTransform3 BoxTM(Boxes.X(Idx), Boxes.R(Idx));
+			const FRigidTransform3 BoxTM(Boxes.X(Idx), Boxes.GetR(Idx));
 			FAABB3 Box = static_cast<const TBox<FReal, 3>*>(Boxes.GetGeometry(Idx).GetReference())->BoundingBox().TransformedAABB(BoxTM);
 			
 			if (Box.Intersects(Bounds))
@@ -241,7 +241,7 @@ namespace ChaosTest
 				for (int32 Col = 0; Col < NumCols; ++Col)
 				{
 					Boxes->X(Idx) = FVec3(Col * 100, Row * 100, Height * 100) + Offset;
-					Boxes->R(Idx) = FRotation3::Identity;
+					Boxes->SetR(Idx, FRotation3::Identity);
 					Boxes->SetGeometry(Idx, Box);
 					++Idx;
 				}
@@ -287,7 +287,7 @@ namespace ChaosTest
 			{
 				const int32 MoveIdx = Visitor2.Instances[0];
 				Boxes->X(MoveIdx) += FVec3(1000, 0, 0);
-				FAABB3 NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->R(MoveIdx)));
+				FAABB3 NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->GetR(MoveIdx)));
 				Spatial2->UpdateElementIn(MoveIdx, NewBounds, true, SpatialIdx);
 
 				FVisitor Visitor3(FVec3(10, 0, 0), FVec3(0, 1, 0), 0, *Boxes);
@@ -296,7 +296,7 @@ namespace ChaosTest
 
 				//move instance back
 				Boxes->X(MoveIdx) -= FVec3(1000, 0, 0);
-				NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->R(MoveIdx)));
+				NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->GetR(MoveIdx)));
 				Spatial2->UpdateElementIn(MoveIdx, NewBounds, true, SpatialIdx);
 
 				FVisitor Visitor4(FVec3(10, 0, 0), FVec3(0, 1, 0), 0, *Boxes);
@@ -309,7 +309,7 @@ namespace ChaosTest
 				const int32 MoveIdx = 5 * 5 * 5;
 				const FVec3 OldPos = Boxes->X(MoveIdx);
 				Boxes->X(MoveIdx) = FVec3(0, 0, 0);
-				FAABB3 NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->R(MoveIdx)));
+				FAABB3 NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->GetR(MoveIdx)));
 				Spatial2->UpdateElementIn(MoveIdx, NewBounds, true, SpatialIdx);
 
 				FVisitor Visitor3(FVec3(10, 0, 0), FVec3(0, 1, 0), 0, *Boxes);
@@ -318,7 +318,7 @@ namespace ChaosTest
 
 				//move instance back
 				Boxes->X(MoveIdx) = OldPos;
-				NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->R(MoveIdx)));
+				NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->GetR(MoveIdx)));
 				Spatial2->UpdateElementIn(MoveIdx, NewBounds, true, SpatialIdx);
 			}
 
@@ -327,7 +327,7 @@ namespace ChaosTest
 				const int32 MoveIdx = 5 * 5 * 5;
 				const FVec3 OldPos = Boxes->X(MoveIdx);
 				Boxes->X(MoveIdx) = FVec3(-50, 0, 0);
-				FAABB3 NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->R(MoveIdx)));
+				FAABB3 NewBounds = Boxes->GetGeometry(MoveIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(MoveIdx), Boxes->GetR(MoveIdx)));
 				Spatial2->UpdateElementIn(MoveIdx, NewBounds, true, SpatialIdx);
 
 				FVisitor Visitor3(FVec3(10, 0, 0), FVec3(0, 1, 0), 0, *Boxes);
@@ -352,9 +352,9 @@ namespace ChaosTest
 				const int32 NewIdx = Boxes->Size();
 				Boxes->AddParticles(1);
 				Boxes->X(NewIdx) = FVec3(-20, 0, 0);
-				Boxes->R(NewIdx) = FRotation3::Identity;
+				Boxes->SetR(NewIdx, FRotation3::Identity);
 				Boxes->SetGeometry(NewIdx, Box);
-				NewBounds = Boxes->GetGeometry(NewIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(NewIdx), Boxes->R(NewIdx)));
+				NewBounds = Boxes->GetGeometry(NewIdx)->template GetObject<TBox<FReal, 3>>()->BoundingBox().TransformedAABB(FRigidTransform3(Boxes->X(NewIdx), Boxes->GetR(NewIdx)));
 				Spatial2->UpdateElementIn(NewIdx, NewBounds, true, SpatialIdx);
 				FVisitor Visitor6(FVec3(-20, 0, 0), FVec3(0, 1, 0), 0, *Boxes);
 				Spatial2->Raycast(Visitor6.Start, Visitor6.Dir, 1000, Visitor6);
@@ -496,7 +496,7 @@ namespace ChaosTest
 				for (int32 Col = 0; Col < NumCols; ++Col)
 				{
 					Boxes.X(Idx) = FVec3(Col * 100, Row * 100, Height * 100);
-					Boxes.R(Idx) = FRotation3::Identity;
+					Boxes.SetR(Idx, FRotation3::Identity);
 					Boxes.SetGeometry(Idx, Box);
 					++Idx;
 				}
@@ -1058,7 +1058,7 @@ namespace ChaosTest
 		// Construct a particle and set HasBounds to false.
 		int32 Idx = 0;
 		Boxes->X(Idx) = FVec3(0);
-		Boxes->R(Idx) = FRotation3::Identity;
+		Boxes->SetR(Idx, FRotation3::Identity);
 		Boxes->SetGeometry(Idx, Box);
 
 		// Tell BV we have no bounds, this used to cause issues.

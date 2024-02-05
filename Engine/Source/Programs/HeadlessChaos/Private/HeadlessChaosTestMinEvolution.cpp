@@ -70,7 +70,7 @@ namespace ChaosTest
 		Particles[0]->InvM() = 1.0f;
 		Particles[0]->InvI() = TVec3<FRealSingle>(1.0f / 100.0f, 1.0f / 100.0f, 1.0f / 100.0f);
 		Particles[0]->AuxilaryValue(ParticlePrevXs) = Particles[0]->X();
-		Particles[0]->AuxilaryValue(ParticlePrevRs) = Particles[0]->R();
+		Particles[0]->AuxilaryValue(ParticlePrevRs) = Particles[0]->GetR();
 
 		Particles[1]->X() = FVec3(50, 0, 0);
 		Particles[1]->M() = 1.0f;
@@ -78,7 +78,7 @@ namespace ChaosTest
 		Particles[1]->InvM() = 1.0f;
 		Particles[1]->InvI() = TVec3<FRealSingle>(1.0f / 100.0f, 1.0f / 100.0f, 1.0f / 100.0f);
 		Particles[1]->AuxilaryValue(ParticlePrevXs) = Particles[1]->X();
-		Particles[1]->AuxilaryValue(ParticlePrevRs) = Particles[1]->R();
+		Particles[1]->AuxilaryValue(ParticlePrevRs) = Particles[1]->GetR();
 
 		// Spring connectors at particle centres
 		TArray<FVec3> Locations =

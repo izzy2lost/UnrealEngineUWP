@@ -43,9 +43,9 @@ namespace Chaos
 
 			BufferData.SetProxy(*Proxy);
 			BufferData.X = Particle->X();
-			BufferData.R = Particle->R();
-			BufferData.V = Particle->V();
-			BufferData.W = Particle->W();
+			BufferData.R = Particle->GetR();
+			BufferData.V = Particle->GetV();
+			BufferData.W = Particle->GetW();
 			BufferData.ObjectState = Particle->ObjectState();
 			BufferData.Geometry = nullptr;
 
@@ -132,10 +132,10 @@ namespace Chaos
 			Particle_Internal->SetUnbreakable(InitData.bUnbreakable);
 			Particle_Internal->SetX(InitData.InitialTransform.GetTranslation());
 			Particle_Internal->SetR(InitData.InitialTransform.GetRotation());
-			Particle_Internal->SetV(Chaos::FVec3(0.f));
-			Particle_Internal->SetW(Chaos::FVec3(0.f));
+			Particle_Internal->SetVf(Chaos::FVec3f(0.f));
+			Particle_Internal->SetWf(Chaos::FVec3f(0.f));
 			Particle_Internal->SetP(Particle_Internal->X());
-			Particle_Internal->SetQ(Particle_Internal->R());
+			Particle_Internal->SetQf(Particle_Internal->GetRf());
 			Particle_Internal->SetCenterOfMass(FVector3f::ZeroVector);
 			Particle_Internal->SetRotationOfMass(FQuat::Identity);
 
@@ -380,7 +380,7 @@ namespace Chaos
 						{
 							ParticlesToUpdate.Add(Particle);
 
-							const FRigidTransform3 ChildWorldTM(Particle->X(), Particle->R());
+							const FRigidTransform3 ChildWorldTM(Particle->X(), Particle->GetR());
 							NewChildToParent.Add(ChildWorldTM.GetRelativeTransform(NewTransform));
 						}
 					}
@@ -400,7 +400,7 @@ namespace Chaos
 			// but this is primarily for proxies within the cluster union. They (i.e. GCs) need to see this change to the particle's transform.
 			Evolution.GetParticles().MarkTransientDirtyParticle(Particle_Internal);
 
-			const FRigidTransform3 WorldTransform{ Particle_Internal->X(), Particle_Internal->R() };
+			const FRigidTransform3 WorldTransform{ Particle_Internal->X(), Particle_Internal->GetR() };
 			Particle_Internal->UpdateWorldSpaceState(WorldTransform, FVec3(0));
 
 			Evolution.DirtyParticle(*Particle_Internal);

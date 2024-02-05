@@ -571,7 +571,7 @@ namespace BuoyancyAlgorithms
 
 		// Get the velocities of the submerged portion relative to the water - We want the
 		// drag force to bring these values to zero
-		const FVec3 SubmergedV = RigidParticle->V() + FVec3::CrossProduct(RigidParticle->W(), CoMDiff);
+		const FVec3 SubmergedV = RigidParticle->GetV() + FVec3::CrossProduct(RigidParticle->GetW(), CoMDiff);
 		const FVec3 RelativeV = SubmergedV - WaterVel;
 
 		// Compute water drag force
@@ -584,7 +584,7 @@ namespace BuoyancyAlgorithms
 
 		// Account for water drag in deltas
 		OutDeltaV = (DragFactor * OutDeltaV) + (DragFactor - 1.f) * RelativeV;
-		OutDeltaW = (DragFactor * OutDeltaW) + (DragFactor - 1.f) * RigidParticle->W();
+		OutDeltaW = (DragFactor * OutDeltaW) + (DragFactor - 1.f) * RigidParticle->GetW();
 
 		//
 		return true;

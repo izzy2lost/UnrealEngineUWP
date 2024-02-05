@@ -337,7 +337,7 @@ void SetImplicitToPTParticles(Chaos::TPBDRigidParticleHandle<Chaos::FReal, 3>* H
 			Handle->SetLocalBounds(SharedImplicitTS->BoundingBox());
 		}
 		Handle->SetHasBounds(true);
-		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->R());
+		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->GetR());
 		Handle->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 	}
 
@@ -423,11 +423,11 @@ void PopulateSimulatedParticle(
 	SCOPE_CYCLE_COUNTER(STAT_PopulateSimulatedParticle);
 	Handle->SetDisabledLowLevel(false);
 	Handle->SetX(WorldTransform.GetTranslation());
-	Handle->SetV(Chaos::FVec3(0.f));
+	Handle->SetVf(Chaos::FVec3f(0.f));
 	Handle->SetR(WorldTransform.GetRotation().GetNormalized());
-	Handle->SetW(Chaos::FVec3(0.f));
+	Handle->SetWf(Chaos::FVec3f(0.f));
 	Handle->SetP(Handle->X());
-	Handle->SetQ(Handle->R());
+	Handle->SetQf(Handle->GetRf());
 	Handle->SetCenterOfMass(FVector3f::ZeroVector);
 	Handle->SetRotationOfMass(FQuat::Identity);
 
@@ -1998,7 +1998,7 @@ Chaos::TPBDGeometryCollectionParticleHandle<Chaos::FReal, 3>* FGeometryCollectio
 	{
 		Handle->SetHasBounds(true);
 		Handle->SetLocalBounds(Handle->GetGeometry()->BoundingBox());
-		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->R());
+		const Chaos::FRigidTransform3 Xf(Handle->X(), Handle->GetR());
 		Handle->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 
 		static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetEvolution()->DirtyParticle(*Handle);
@@ -2147,7 +2147,7 @@ FGeometryCollectionPhysicsProxy::BuildClusters_Internal(
 	{
 		Parent->SetHasBounds(true);
 		Parent->SetLocalBounds(Parent->GetGeometry()->BoundingBox());
-		const Chaos::FRigidTransform3 Xf(Parent->X(), Parent->R());
+		const Chaos::FRigidTransform3 Xf(Parent->X(), Parent->GetR());
 		Parent->UpdateWorldSpaceState(Xf, Chaos::FVec3(0));
 
 		static_cast<Chaos::FPBDRigidsSolver*>(Solver)->GetEvolution()->DirtyParticle(*Parent);
@@ -2438,7 +2438,7 @@ void FGeometryCollectionPhysicsProxy::ApplyImpulseAt_External(FVector Impulse, F
 					const Chaos::FVec3 WorldCOM = Chaos::FParticleUtilitiesXR::GetCoMWorldPosition(ClosestHandle);
 					ClosestHandle->SetLinearImpulseVelocity(ClosestHandle->LinearImpulseVelocity() + (Impulse * ClosestHandle->InvM()), false);
 
-					const Chaos::FMatrix33 WorldInvI = Chaos::Utilities::ComputeWorldSpaceInertia(ClosestHandle->R() * ClosestHandle->RotationOfMass(), ClosestHandle->InvI());
+					const Chaos::FMatrix33 WorldInvI = Chaos::Utilities::ComputeWorldSpaceInertia(ClosestHandle->GetR() * ClosestHandle->RotationOfMass(), ClosestHandle->InvI());
 					const Chaos::FVec3 AngularImpulse = Chaos::FVec3::CrossProduct(WorldLocation - WorldCOM, Impulse);
 					ClosestHandle->SetAngularImpulseVelocity(ClosestHandle->AngularImpulseVelocity() + WorldInvI * AngularImpulse, false);
 				}
@@ -2774,7 +2774,7 @@ void FGeometryCollectionPhysicsProxy::ApplyBreakingLinearVelocity_External(FGeom
 				ApplyToBreakingChildren_Internal(RBDSolver->GetEvolution()->GetRigidClustering(), *ClusteredHandle,
 					[LinearVelocity](Chaos::FPBDRigidClusteredParticleHandle* ClusteredChildHandle)
 					{
-						ClusteredChildHandle->V() += LinearVelocity;
+						ClusteredChildHandle->SetV(ClusteredChildHandle->GetV() + LinearVelocity);
 					});
 			}
 		});
@@ -2794,7 +2794,7 @@ void FGeometryCollectionPhysicsProxy::ApplyBreakingAngularVelocity_External(FGeo
 				ApplyToBreakingChildren_Internal(RBDSolver->GetEvolution()->GetRigidClustering(), *ClusteredHandle,
 					[AngularVelocity](Chaos::FPBDRigidClusteredParticleHandle* ClusteredChildHandle)
 					{
-						ClusteredChildHandle->W() += AngularVelocity;
+						ClusteredChildHandle->SetW(ClusteredChildHandle->GetW() + AngularVelocity);
 					});
 			}
 		});
@@ -2811,7 +2811,7 @@ void FGeometryCollectionPhysicsProxy::ApplyLinearVelocity_External(FGeometryColl
 		{
 			if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredHandle = FindClusteredParticleHandleByItemIndex_Internal(ItemIndex))
 			{
-				ClusteredHandle->V() += LinearVelocity;
+				ClusteredHandle->SetV(ClusteredHandle->GetV() + LinearVelocity);
 			}
 		});
 	}
@@ -2827,7 +2827,7 @@ void FGeometryCollectionPhysicsProxy::ApplyAngularVelocity_External(FGeometryCol
 		{
 			if (Chaos::FPBDRigidClusteredParticleHandle* ClusteredHandle = FindClusteredParticleHandleByItemIndex_Internal(ItemIndex))
 			{
-				ClusteredHandle->W() += AngularVelocity;
+				ClusteredHandle->SetW(ClusteredHandle->GetW() + AngularVelocity);
 			}
 		});
 	}
@@ -3306,7 +3306,7 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 
 				if (KinematicRootHandle)
 				{
-					const FTransform RootWorldTransform(KinematicRootHandle->R(), KinematicRootHandle->X());
+					const FTransform RootWorldTransform(KinematicRootHandle->GetR(), KinematicRootHandle->X());
 					const FTransform RootRelativeTransform = RootWorldTransform.GetRelativeTransform(Parameters.PrevWorldTransform);
 					const FTransform WorldTransform = RootRelativeTransform * ActorToWorld;
 
@@ -3322,7 +3322,7 @@ void FGeometryCollectionPhysicsProxy::SetWorldTransform_Internal(const FTransfor
 					if (ClusterUnionIndex != INDEX_NONE)
 					{
 						const int32 TransformGroupIndex = FromParticleToTransformIndex[ParticleIndex];
-						const FTransform ParentWorldTransform{ ParentHandle->R(), ParentHandle->X() };
+						const FTransform ParentWorldTransform{ ParentHandle->GetR(), ParentHandle->X() };
 						const FTransform NewWorldTransform = MassToLocal[TransformGroupIndex] * FTransform(PhysicsThreadCollection.GetTransform(TransformGroupIndex)) * Parameters.WorldTransform;
 						const FTransform RelativeTransform = NewWorldTransform.GetRelativeTransform(ParentWorldTransform);
 
@@ -3710,7 +3710,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_External(Chaos::FDirt
 static void UpdateParticleHandleTransform(Chaos::FPBDRigidsSolver& CurrentSolver, Chaos::FPBDRigidClusteredParticleHandle& Handle, const Chaos::FRigidTransform3& NewTransform)
 {
 	Handle.X() = NewTransform.GetTranslation();
-	Handle.R() = NewTransform.GetRotation();
+	Handle.SetR(NewTransform.GetRotation());
 	Handle.UpdateWorldSpaceState(NewTransform, Chaos::FVec3{0});
 	CurrentSolver.GetEvolution()->DirtyParticle(Handle);
 }
@@ -3721,7 +3721,7 @@ static void UpdateParticleHandleTransformIfNeeded(Chaos::FPBDRigidsSolver& Curre
 	const Chaos::FVec3 OldX = Handle.X();
 	
 	const Chaos::FRotation3 NewR  = NewTransform.GetRotation();
-	const Chaos::FRotation3 OldR = Handle.R();
+	const Chaos::FRotation3 OldR = Handle.GetR();
 	
 	if (OldX != NewX || OldR != NewR)
 	{
@@ -3802,11 +3802,11 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 
 			FGeometryCollectionResults::FPositionData PositionData;
 			PositionData.ParticleX = Handle->X();
-			PositionData.ParticleR = Handle->R();
+			PositionData.ParticleR = Handle->GetR();
 
 			FGeometryCollectionResults::FVelocityData VelocityData;
-			VelocityData.ParticleV = Handle->V();
-			VelocityData.ParticleW = Handle->W();
+			VelocityData.ParticleV = Handle->GetV();
+			VelocityData.ParticleW = Handle->GetW();
 
 			FGeometryCollectionResults::FStateData StateData;
 			StateData.TransformIndex = TransformGroupIndex;
@@ -3875,7 +3875,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 
 				// child of internal clusters may not have their position up to date 
 				// so we need to compute it from the ChildToParent transform 
-				const FTransform ParticleToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->X(), ClusterParent->R()); // aka ClusterChildToWorld
+				const FTransform ParticleToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->X(), ClusterParent->GetR()); // aka ClusterChildToWorld
 				PositionData.ParticleX = ParticleToWorld.GetTranslation();
 				PositionData.ParticleR = ParticleToWorld.GetRotation();
 				
@@ -3895,7 +3895,7 @@ void FGeometryCollectionPhysicsProxy::BufferPhysicsResults_Internal(Chaos::FPBDR
 			{
 				if (ClusterParent && !ClusterParent->Disabled())
 				{
-					const FRigidTransform3 ChildToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->X(), ClusterParent->R());
+					const FRigidTransform3 ChildToWorld = Handle->ChildToParent() * FRigidTransform3(ClusterParent->X(), ClusterParent->GetR());
 					UpdateParticleHandleTransformIfNeeded(*CurrentSolver, *Handle, ChildToWorld);
 					// fields may have applied velocities, we need to make sure to clear that up, so that we don't accumulate
 					VelocityData.ParticleV = FVec3::ZeroVector;

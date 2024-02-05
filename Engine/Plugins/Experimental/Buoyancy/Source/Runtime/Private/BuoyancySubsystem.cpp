@@ -907,7 +907,7 @@ void FBuoyancySubsystemSimCallback::ProcessInteraction(Chaos::FPBDRigidsEvolutio
 				// Proceed only if this CoM is moving fast enough to generate events
 				const FBuoyancySubmersion& Submersion = Submersions[RigidParticleIndex];
 				const Chaos::FVec3 CoMDiff = Submersion.CoM - Interaction.RigidParticle->XCom();
-				const Chaos::FVec3 CoMVel = Interaction.RigidParticle->V() + Chaos::FVec3::CrossProduct(Interaction.RigidParticle->W(), CoMDiff);
+				const Chaos::FVec3 CoMVel = Interaction.RigidParticle->GetV() + Chaos::FVec3::CrossProduct(Interaction.RigidParticle->GetW(), CoMDiff);
 				const float CoMVelSq = Chaos::FVec3::DotProduct(CoMVel, CoMVel);
 				const float MinVel = BuoyancySettings->MinVelocityForSurfaceTouchCallback;
 				const float MinVelSq = MinVel * MinVel;
@@ -962,8 +962,8 @@ void FBuoyancySubsystemSimCallback::ApplyBuoyantForces(Chaos::FPBDRigidsEvolutio
 			DeltaW = DeltaW.GetClampedToSize(0.f, BuoyancySettings->MaxDeltaW);
 
 			// Apply the deltas
-			Submersion.Particle->SetV(Submersion.Particle->V() + DeltaV);
-			Submersion.Particle->SetW(Submersion.Particle->W() + DeltaW);
+			Submersion.Particle->SetV(Submersion.Particle->GetV() + DeltaV);
+			Submersion.Particle->SetW(Submersion.Particle->GetW() + DeltaW);
 
 			// Wake up the body??
 			if (BuoyancySettings->bKeepAwake)

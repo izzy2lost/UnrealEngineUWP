@@ -45,9 +45,9 @@ namespace Chaos
 		{
 			FPBDSolveCache& Cache = ParticleToCachedSolve.FindOrAdd(Particle.UniqueIdx());
 			Cache.P = Particle.P();
-			Cache.Q = Particle.Q();
-			Cache.V = Particle.V();
-			Cache.W = Particle.W();
+			Cache.Q = Particle.GetQ();
+			Cache.V = Particle.GetV();
+			Cache.W = Particle.GetW();
 		}
 
 		void ReloadParticlePostSolve(FPBDRigidParticleHandle& Particle) const
@@ -57,9 +57,9 @@ namespace Chaos
 			if (Cache)
 			{
 				Particle.P() = Cache->P;
-				Particle.Q() = Cache->Q;
-				Particle.V() = Cache->V;
-				Particle.W() = Cache->W;
+				Particle.SetQ(Cache->Q);
+				Particle.SetV(Cache->V);
+				Particle.SetW(Cache->W);
 			}
 		}
 

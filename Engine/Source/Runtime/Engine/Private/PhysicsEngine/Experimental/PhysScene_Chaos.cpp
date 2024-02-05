@@ -469,9 +469,9 @@ static TUniquePtr<FPhysScene_ChaosPauseHandler> PhysScene_ChaosPauseHandler;
 static void CopyParticleData(Chaos::FPBDRigidParticles& ToParticles, const int32 ToIndex, Chaos::FPBDRigidParticles& FromParticles, const int32 FromIndex)
 {
 	ToParticles.X(ToIndex) = FromParticles.X(FromIndex);
-	ToParticles.R(ToIndex) = FromParticles.R(FromIndex);
-	ToParticles.V(ToIndex) = FromParticles.V(FromIndex);
-	ToParticles.W(ToIndex) = FromParticles.W(FromIndex);
+	ToParticles.SetR(ToIndex, FromParticles.GetR(FromIndex));
+	ToParticles.SetV(ToIndex, FromParticles.GetV(FromIndex));
+	ToParticles.SetW(ToIndex, FromParticles.GetW(FromIndex));
 	ToParticles.M(ToIndex) = FromParticles.M(FromIndex);
 	ToParticles.InvM(ToIndex) = FromParticles.InvM(FromIndex);
 	ToParticles.I(ToIndex) = FromParticles.I(FromIndex);
@@ -1360,9 +1360,9 @@ void FPhysScene_Chaos::PopulateReplicationCache(const int32 PhysicsStep)
 		{
 			FRigidBodyState& ReplicationState = ReplicationData.GetState();
 			ReplicationState.Position = Handle->X();
-			ReplicationState.Quaternion = Handle->R();
-			ReplicationState.LinVel = Handle->V();
-			ReplicationState.AngVel = Handle->W();
+			ReplicationState.Quaternion = Handle->GetR();
+			ReplicationState.LinVel = Handle->GetV();
+			ReplicationState.AngVel = Handle->GetW();
 			ReplicationState.Flags = Handle->ObjectState() == Chaos::EObjectStateType::Sleeping ? ERigidBodyFlags::Sleeping : 0;
 			StateWasCached = true;
 		}

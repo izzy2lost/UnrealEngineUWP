@@ -156,7 +156,7 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 		{
 			FPBDRigidClusteredParticleHandle* ClusterHandle = ClusterUnion->InternalCluster;
 			TArray<FPBDRigidParticleHandle*> Particles = ClusterUnion->ChildParticles;
-			FRigidTransform3 ClusterWorldTM = FRigidTransform3(ClusterHandle->X(), ClusterHandle->R());
+			FRigidTransform3 ClusterWorldTM = FRigidTransform3(ClusterHandle->X(), ClusterHandle->GetR());
 
 			//Chaos::FDebugDrawQueue::GetInstance().DrawDebugCoordinateSystem(ClusterHandle->X(), FRotator(ClusterHandle->R()), 200, false, -1.f, 1.f, 3.0f);
 
@@ -188,7 +188,7 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 					{
 						Frame = ClusterChild->ChildToParent();
 
-						const FRigidTransform3 ChildWorldTM(Child->X(), Child->R());
+						const FRigidTransform3 ChildWorldTM(Child->X(), Child->GetR());
 						Frame = ChildWorldTM.GetRelativeTransform(ClusterWorldTM);
 					}
 

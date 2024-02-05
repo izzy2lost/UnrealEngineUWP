@@ -159,6 +159,9 @@ struct FUE5ReleaseStreamObjectVersion
 
 		// Fix Chaos Cloth fictitious angular scale bug that requires existing parameter rescaling.
 		ChaosClothFictitiousAngularVelocitySubframeFix,
+
+		// Store physics thread particles data in single precision
+		SinglePrecisonParticleDataPT,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

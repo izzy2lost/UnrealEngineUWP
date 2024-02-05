@@ -6,6 +6,7 @@
 #include "Chaos/Particles.h"
 #include "Chaos/Rotation.h"
 #include "UObject/FortniteValkyrieBranchObjectVersion.h"
+#include "UObject/UE5ReleaseStreamObjectVersion.h"
 
 
 namespace Chaos
@@ -46,10 +47,16 @@ namespace Chaos
 		virtual ~TSimpleGeometryParticles() override
 		{}
 
-		FORCEINLINE const TRotation<T, d>& R(const int32 Index) const { return MR[Index]; }
-		FORCEINLINE TRotation<T, d>& R(const int32 Index) { return MR[Index]; }
-		const TArrayCollectionArray<TRotation<T, d>>& GetR() const { return MR; }
-		TArrayCollectionArray<TRotation<T, d>>& GetR() { return MR; }
+		UE_DEPRECATED(5.4, "Use GetR instead")
+		FORCEINLINE const TRotation<T, d> R(const int32 Index) const { return TRotation<T, d>(MR[Index]); }
+		UE_DEPRECATED(5.4, "Use GetR or SetR instead.")
+		FORCEINLINE TRotation<T, d> R(const int32 Index) { return MR[Index]; }
+		FORCEINLINE const TRotation<T, d> GetR(const int32 Index) const { return TRotation<T, d>(MR[Index]); }
+		FORCEINLINE void SetR(const int32 Index, const TRotation<T, d>& InR) { MR[Index] = TRotation<FRealSingle, d>(InR); }
+		FORCEINLINE const TRotation<FRealSingle, d> GetRf(const int32 Index) const { return MR[Index]; }
+		FORCEINLINE void SetRf(const int32 Index, const TRotation<FRealSingle, d>& InR) { MR[Index] = InR; }
+		const TArrayCollectionArray<TRotation<FRealSingle, d>>& GetR() const { return MR; }
+		TArrayCollectionArray<TRotation<FRealSingle, d>>& GetR() { return MR; }
 
 		FORCEINLINE const FImplicitObjectPtr& GetGeometry(const int32 Index) const { return MGeometry[Index]; }
 		void SetGeometry(const int32 Index, const FImplicitObjectPtr& InGeometry)
@@ -58,7 +65,7 @@ namespace Chaos
 		}
 
 		FORCEINLINE const TArray<FImplicitObjectPtr>& GetAllGeometry() const { return MGeometry; }
-		FORCEINLINE TArray<TRotation<T, d>>& AllR() { return MR; }
+		FORCEINLINE TArray<TRotation<FRealSingle, d>>& AllR() { return MR; }
 
 		virtual void Serialize(FChaosArchive& Ar)
 		{
@@ -85,7 +92,29 @@ namespace Chaos
 			{
 				Ar << MGeometry;
 			}
-			Ar << MR;
+
+			Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
+			if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) >= FUE5ReleaseStreamObjectVersion::SinglePrecisonParticleDataPT)
+			{
+				Ar << MR;
+			}
+			else
+			{
+				TArrayCollectionArray<TRotation<FReal, d>> RDouble;
+				RDouble.Resize(MR.Num());
+				for (int32 Index = 0; Index < MR.Num(); ++Index)
+				{
+					RDouble[Index] = TRotation<FReal, d >(MR[Index]);
+				}
+
+				Ar << RDouble;
+
+				MR.Resize(RDouble.Num());
+				for (int32 Index = 0; Index < RDouble.Num(); ++Index)
+				{
+					MR[Index] = TRotation<FRealSingle, d >(RDouble[Index]);
+				}
+			}
 		}
 
 	protected:
@@ -95,7 +124,7 @@ namespace Chaos
 		}
 
 	private:
-		TArrayCollectionArray<TRotation<T, d>> MR;
+		TArrayCollectionArray<TRotation<FRealSingle, d>> MR;
 		// MGeometry contains raw ptrs to every entry in both MSharedGeometry and MDynamicGeometry.
 		// It may also contain raw ptrs to geometry which is managed outside of Chaos.
 		TArrayCollectionArray<FImplicitObjectPtr> MGeometry;

@@ -85,7 +85,7 @@ namespace ChaosTest {
 		Dynamic->InvI() = TVec3<FRealSingle>(1.0f / 100000.0f);
 
 		// The position of the static has changed and statics don't automatically update bounds, so update explicitly
-		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
+		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->GetR()), FVec3(0));
 
 		::ChaosTest::SetParticleSimDataToCollide({ Static,Dynamic });
 
@@ -120,7 +120,7 @@ namespace ChaosTest {
 		Dynamic->SetGeometry(DynamicBox);
 
 		Static->X() = FVec3(10, 10, 10);
-		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
+		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->GetR()), FVec3(0));
 		Dynamic->X() = FVec3(10, 10, 120);
 		Dynamic->I() = TVec3<FRealSingle>(100000.0f);
 		Dynamic->InvI() = TVec3<FRealSingle>(1.0f / 100000.0f);
@@ -166,7 +166,7 @@ namespace ChaosTest {
 		Dynamic->SetGeometry(DynamicBox);
 
 		Static->X() = FVec3(10, 10, 10);
-		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
+		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->GetR()), FVec3(0));
 		Dynamic->X() = FVec3(10, 10, 300);
 		Dynamic->I() = TVec3<FRealSingle>(1);
 		Dynamic->InvI() = TVec3<FRealSingle>(1);
@@ -213,7 +213,7 @@ namespace ChaosTest {
 		Dynamic2->SetGeometry(DynamicBox);
 
 		Static->X() = FVec3(10, 10, 10);
-		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->R()), FVec3(0));
+		Static->UpdateWorldSpaceState(FRigidTransform3(Static->X(), Static->GetR()), FVec3(0));
 		Dynamic1->X() = FVec3(10, 10, 120);
 		Dynamic2->X() = FVec3(10, 10, 400);
 

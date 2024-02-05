@@ -17,7 +17,7 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 	template<class T_PARTICLES>
 	inline void ApplyHelper(T_PARTICLES& InParticles, const FReal Dt, const int32 Index) const
 	{
-		InParticles.V(Index) = (InParticles.P(Index) - InParticles.X(Index)) / Dt;
+		InParticles.SetV(Index, (InParticles.P(Index) - InParticles.X(Index)) / Dt);
 		//InParticles.X(Index) = InParticles.P(Index);
 	}
 
@@ -30,7 +30,7 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 	inline void Apply(TPBDRigidParticles<FReal, 3>& InParticles, const FReal Dt, const int32 Index) const override //-V762
 	{
 		ApplyHelper(InParticles, Dt, Index);
-		InParticles.W(Index) = FRotation3::CalculateAngularVelocity(InParticles.R(Index), InParticles.Q(Index), Dt);
+		InParticles.SetW(Index, FRotation3::CalculateAngularVelocity(InParticles.GetR(Index), InParticles.GetQ(Index), Dt));
 	}
 
 	inline void Apply(FPBDRigidParticleHandle* Particle, const FReal Dt) const override //-V762
@@ -38,8 +38,8 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 		const FVec3& CenterOfMass = Particle->CenterOfMass();
 		const FVec3 CenteredX = Particle->XCom();
 		const FVec3 CenteredP = Particle->PCom();
-		Particle->V() = FVec3::CalculateVelocity(CenteredX, CenteredP, Dt);
-		Particle->W() = FRotation3::CalculateAngularVelocity(Particle->R(), Particle->Q(), Dt);
+		Particle->SetV(FVec3::CalculateVelocity(CenteredX, CenteredP, Dt));
+		Particle->SetW(FRotation3::CalculateAngularVelocity(Particle->GetR(), Particle->GetQ(), Dt));
 	}
 
 	inline void Apply(TTransientPBDRigidParticleHandle<FReal, 3>& Particle, const FReal Dt) const override //-V762
@@ -47,8 +47,8 @@ class FPerParticlePBDUpdateFromDeltaPosition : public FPerParticleRule
 		const FVec3& CenterOfMass = Particle.CenterOfMass();
 		const FVec3 CenteredX = Particle.XCom();
 		const FVec3 CenteredP = Particle.PCom();
-		Particle.V() = FVec3::CalculateVelocity(CenteredX, CenteredP, Dt);
-		Particle.W() = FRotation3::CalculateAngularVelocity(Particle.R(), Particle.Q(), Dt);
+		Particle.SetV(FVec3::CalculateVelocity(CenteredX, CenteredP, Dt));
+		Particle.SetW(FRotation3::CalculateAngularVelocity(Particle.GetR(), Particle.GetQ(), Dt));
 	}
 };
 

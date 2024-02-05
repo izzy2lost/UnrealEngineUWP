@@ -165,9 +165,9 @@ namespace Chaos
 								{
 									if (ensure(!Constraint.CalculateWorldContactLocation().ContainsNaN() &&
 										!Constraint.CalculateWorldContactNormal().ContainsNaN()) &&
-										!Primary->V().ContainsNaN() &&
-										!Primary->W().ContainsNaN() &&
-										(Secondary == nullptr || ((!Secondary->V().ContainsNaN()) && !Secondary->W().ContainsNaN())))
+										!Primary->GetV().ContainsNaN() &&
+										!Primary->GetW().ContainsNaN() &&
+										(Secondary == nullptr || ((!Secondary->GetV().ContainsNaN()) && !Secondary->GetW().ContainsNaN())))
 									{
 										ValidArray[Index] = true;
 									}
@@ -230,11 +230,11 @@ namespace Chaos
 
 								if (const FPBDRigidParticleHandle* Rigid0 = Particle0->CastToRigidParticle())
 								{
-									Data.DeltaVelocity1 = Rigid0->V() - Rigid0->PreV();
+									Data.DeltaVelocity1 = Rigid0->GetV() - Rigid0->GetPreV();
 								}
 								if (const FPBDRigidParticleHandle* Rigid1 = Particle1->CastToRigidParticle())
 								{
-									Data.DeltaVelocity2 = Rigid1->V() - Rigid1->PreV();
+									Data.DeltaVelocity2 = Rigid1->GetV() - Rigid1->GetPreV();
 								}
 
 								// todo: do we need these anymore now we are storing the particles you can access all of this stuff from there
@@ -242,16 +242,16 @@ namespace Chaos
 								const FPBDRigidParticleHandle* PBDRigid0 = Particle0->CastToRigidParticle();
 								if (PBDRigid0 && PBDRigid0->ObjectState() == EObjectStateType::Dynamic)
 								{
-									Data.Velocity1 = PBDRigid0->V();
-									Data.AngularVelocity1 = PBDRigid0->W();
+									Data.Velocity1 = PBDRigid0->GetV();
+									Data.AngularVelocity1 = PBDRigid0->GetW();
 									Data.Mass1 = PBDRigid0->M();
 								}
 
 								const FPBDRigidParticleHandle* PBDRigid1 = Particle1->CastToRigidParticle();
 								if (PBDRigid1 && PBDRigid1->ObjectState() == EObjectStateType::Dynamic)
 								{
-									Data.Velocity2 = PBDRigid1->V();
-									Data.AngularVelocity2 = PBDRigid1->W();
+									Data.Velocity2 = PBDRigid1->GetV();
+									Data.AngularVelocity2 = PBDRigid1->GetW();
 									Data.Mass2 = PBDRigid1->M();
 								}
 
@@ -394,14 +394,14 @@ namespace Chaos
 						ActiveParticle->GetGeometry()->HasBoundingBox())
 					{
 						if (ensure(!ActiveParticle->X().ContainsNaN() &&
-							!ActiveParticle->V().ContainsNaN() &&
-							!ActiveParticle->W().ContainsNaN() &&
+							!ActiveParticle->GetV().ContainsNaN() &&
+							!ActiveParticle->GetW().ContainsNaN() &&
 							FMath::IsFinite(ActiveParticle->M())))
 						{
 							FTrailingData TrailingData;
 							TrailingData.Location = ActiveParticle->X();
-							TrailingData.Velocity = ActiveParticle->V();
-							TrailingData.AngularVelocity = ActiveParticle->W();
+							TrailingData.Velocity = ActiveParticle->GetV();
+							TrailingData.AngularVelocity = ActiveParticle->GetW();
 							TrailingData.Mass = ActiveParticle->M();
 							TrailingData.Proxy = ActiveParticle->PhysicsProxy();
 							
