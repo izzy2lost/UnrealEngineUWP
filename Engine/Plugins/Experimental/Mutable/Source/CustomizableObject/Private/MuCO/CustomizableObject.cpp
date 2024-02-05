@@ -2279,15 +2279,9 @@ void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, co
 		}
 
 		FCustomizableObjectStreamedResourceData& StreamedResource = InOuter->StreamedResourceData[Data.AssetUserDataIndex];
-		StreamedResource.NotifyLoaded(StreamedResource.GetPath().LoadSynchronous());
-
-		const FCustomizableObjectResourceData& ResourceData = StreamedResource.GetLoadedData();
-		check(ResourceData.Type == ECOResourceDataType::AssetUserData);
-
-		const FCustomizableObjectAssetUserData* AUDResource = ResourceData.Data.GetPtr<FCustomizableObjectAssetUserData>();
-		check(AUDResource);
-
-		Data.AssetUserData = AUDResource->AssetUserData ? AUDResource->AssetUserData : AUDResource->AssetUserDataEditor;
+		Data.AssetUserData = StreamedResource.GetPath().LoadSynchronous();
+		check(Data.AssetUserData);
+		check(Data.AssetUserData->Data.Type == ECOResourceDataType::AssetUserData);
 	}
 }
 
