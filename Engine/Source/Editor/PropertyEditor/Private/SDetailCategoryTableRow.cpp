@@ -434,7 +434,10 @@ void SDetailCategoryTableRow::OnPasteCategory()
 			const FGuid OperationGuid = FGuid::NewGuid();			
 			for (const TPair<FName, FString>& KVP : PreviousClipboardData.PropertyValues)
 			{
-				OnPasteFromTextDelegate->Broadcast(KVP.Key.ToString(), KVP.Value, OperationGuid);
+				if ( OnPasteFromTextDelegate.IsValid() )
+				{
+					OnPasteFromTextDelegate->Broadcast(KVP.Key.ToString(), KVP.Value, OperationGuid);
+				}
 			}
 		}
 		
