@@ -38,7 +38,7 @@ namespace Jupiter.FunctionalTests.Status
 			_server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.ConfigureTestServices(collection =>
 				{
 					collection.Configure<ClusterSettings>(settings =>

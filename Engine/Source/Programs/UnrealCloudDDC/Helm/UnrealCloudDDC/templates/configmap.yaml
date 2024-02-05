@@ -18,7 +18,7 @@ data:
 UnrealCloudDDC:
 {{ if .Values.worker.enabled }}
   # if using the workers we do not attempt to participate in the leader election as a normal deployment
-  LeaderElectionImplementation: "Static"
+  LeaderElectionImplementation: "Disabled"
 {{ else }}
   LeaderElectionImplementation: "Kubernetes"
 {{ end }}

@@ -146,7 +146,7 @@ namespace Jupiter.Controllers
 				case MediaTypeNames.Application.Octet:
 					{
 						CompressedBufferUtils utils = new CompressedBufferUtils(_tracer, _bufferedPayloadFactory);
-						IBufferedPayload? payload = await utils.DecompressContentAsync(referencedBlobContents.Stream, (ulong)referencedBlobContents.Length);
+						using IBufferedPayload payload = await utils.DecompressContentAsync(referencedBlobContents.Stream, (ulong)referencedBlobContents.Length);
 						await using Stream s = payload.GetStream();
 						await using BlobContents contents = new BlobContents(s, s.Length);
 						await WriteBody(contents, MediaTypeNames.Application.Octet);

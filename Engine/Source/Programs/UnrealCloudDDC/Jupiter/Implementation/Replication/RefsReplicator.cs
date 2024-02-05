@@ -13,6 +13,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Jupiter.Controllers;
 using Jupiter.Implementation.TransactionLog;
@@ -736,17 +737,15 @@ namespace Jupiter.Implementation
 			throw new NotImplementedException();
 		}
 
-		public Task StopReplicatingAsync()
+		public async Task StopReplicatingAsync()
 		{
 			if (_disposed)
 			{
-				return Task.CompletedTask;
+				return;
 			}
 
-			_replicationTokenSource.Cancel(true);
-			_replicationFinishedEvent.WaitOne();
-
-			return Task.CompletedTask;
+			await _replicationTokenSource.CancelAsync();
+			await _replicationFinishedEvent.WaitOneAsync();
 		}
 
 		public ReplicatorState State => _refsState;

@@ -2,9 +2,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Net.Http;
 using System.Text;
 using EpicGames.Horde.Storage;
 using EpicGames.Serialization;
@@ -72,7 +70,7 @@ namespace Jupiter.FunctionalTests.References
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_server = server;
@@ -124,7 +122,7 @@ namespace Jupiter.FunctionalTests.References
 			await referenceStore.UpdateLastAccessTimeAsync(_testNamespaceName, DefaultBucket, object6Name, oldTimestamp);
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task Seed(IServiceProvider serverServices);
 		protected abstract Task Teardown(IServiceProvider serverServices);
@@ -164,11 +162,11 @@ namespace Jupiter.FunctionalTests.References
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString())
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Memory.ToString())
 			};
 		}
 
@@ -191,11 +189,11 @@ namespace Jupiter.FunctionalTests.References
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString())
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", UnrealCloudDDCSettings.BlobIndexImplementations.Scylla.ToString())
 			};
 		}
 
@@ -209,5 +207,4 @@ namespace Jupiter.FunctionalTests.References
 			return Task.CompletedTask;
 		}
 	}
-
 }

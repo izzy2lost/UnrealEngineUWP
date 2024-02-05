@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -40,7 +41,7 @@ namespace Jupiter.Implementation
 			IMongoCollection<MongoContentIdModelV0> collection = GetCollection<MongoContentIdModelV0>();
 
 			IAsyncCursor<MongoContentIdModelV0> cursor =
-				await collection.FindAsync(model => model.Ns.Equals(ns) && model.ContentId.Equals(contentId));
+				await collection.FindAsync(model => model.Ns.Equals(ns.ToString(), StringComparison.OrdinalIgnoreCase) && model.ContentId.Equals(contentId.ToString(), StringComparison.Ordinal));
 
 			MongoContentIdModelV0 model = await cursor.FirstOrDefaultAsync();
 			if (model != null)
@@ -77,7 +78,7 @@ namespace Jupiter.Implementation
 
 			UpdateDefinition<MongoContentIdModelV0> update = Builders<MongoContentIdModelV0>.Update.AddToSet(m => m.ContentWeightToBlobsMap,
 				new KeyValuePair<int, string[]>(contentWeight, new[] { blobIdentifier.ToString() }));
-			FilterDefinition<MongoContentIdModelV0> filter = Builders<MongoContentIdModelV0>.Filter.Where(m => m.Ns.Equals(ns) && m.ContentId.Equals(contentId));
+			FilterDefinition<MongoContentIdModelV0> filter = Builders<MongoContentIdModelV0>.Filter.Where(m => m.Ns == ns.ToString() && m.ContentId == contentId.ToString());
 			await collection.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<MongoContentIdModelV0>()
 			{
 				IsUpsert = true

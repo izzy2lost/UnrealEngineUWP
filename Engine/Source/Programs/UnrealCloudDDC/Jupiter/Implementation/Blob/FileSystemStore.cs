@@ -403,7 +403,10 @@ namespace Jupiter.Implementation
 		public Task DeleteAsync(string path, CancellationToken cancellationToken)
 		{
 			FileInfo filePath = GetFilesystemPath(path);
-			filePath.Delete();
+			if (filePath.Exists)
+			{
+				filePath.Delete();
+			}
 			return Task.CompletedTask;
 		}
 

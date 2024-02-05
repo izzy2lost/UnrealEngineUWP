@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.2
 
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ COPY Programs/UnrealCloudDDC/ Programs/UnrealCloudDDC/
 RUN dotnet publish -c Release -o out Programs/UnrealCloudDDC/Jupiter/Jupiter.csproj
 
 # setup the base version of UnrealCloudDDC
-FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS unreal-cloud-ddc-base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS unreal-cloud-ddc-base
 WORKDIR /app
 COPY --from=build /app/out ./
 COPY Programs/UnrealCloudDDC/ThirdParty/license.txt license.txt
@@ -53,8 +53,8 @@ RUN apt-get update &&\
     rm -rf /var/lib/apt/lists/* &&\
     curl -sSL https://aka.ms/getvsdbgsh | /bin/sh /dev/stdin -v latest -l /vsdbg
 # Add the datadog tracer
-RUN curl -LO https://github.com/DataDog/dd-trace-dotnet/releases/download/v2.19.0/datadog-dotnet-apm_2.19.0_amd64.deb
-RUN dpkg -i ./datadog-dotnet-apm_2.19.0_amd64.deb
+RUN curl -LO https://github.com/DataDog/dd-trace-dotnet/releases/download/v2.46.0/datadog-dotnet-apm_2.46.0_amd64.deb
+RUN dpkg -i ./datadog-dotnet-apm_2.46.0_amd64.deb
 RUN /opt/datadog/createLogPath.sh
 
 # datadog APM requirments

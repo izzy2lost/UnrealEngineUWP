@@ -53,7 +53,7 @@ namespace Jupiter.FunctionalTests.Storage
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = server.CreateClient();
@@ -66,14 +66,14 @@ namespace Jupiter.FunctionalTests.Storage
 			Directory.Delete(_localTestDir, true);
 		}
 
-		protected IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
-				new KeyValuePair<string, string>("Filesystem:RootDir", _localTestDir),
-				new KeyValuePair<string, string>("Nginx:UseNginxRedirect", "true"),
-				new KeyValuePair<string, string>("S3:BucketName", $"tests-{TestNamespaceName}")
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
+				new KeyValuePair<string, string?>("Filesystem:RootDir", _localTestDir),
+				new KeyValuePair<string, string?>("Nginx:UseNginxRedirect", "true"),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-{TestNamespaceName}")
 			};
 		}
 

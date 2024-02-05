@@ -28,6 +28,7 @@ using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Primitives;
 using OpenTelemetry.Trace;
 
 using ContentHash = Jupiter.Implementation.ContentHash;
@@ -634,9 +635,19 @@ namespace Jupiter.Controllers
 				using IBufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
 
 				BlobId headerHash;
-				if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))
+				if (Request.Headers.TryGetValue(CommonHeaders.HashHeaderName, out StringValues headers))
 				{
-					headerHash = new BlobId(Request.Headers[CommonHeaders.HashHeaderName]);
+					if (!StringValues.IsNullOrEmpty(headers))
+					{
+						headerHash = new BlobId(headers.ToString());
+					}
+					else
+					{
+						return BadRequest(new ProblemDetails
+						{
+							Title = $"Header {CommonHeaders.HashHeaderName} was empty"
+						});
+					}
 				}
 				else
 				{

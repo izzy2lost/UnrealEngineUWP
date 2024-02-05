@@ -48,8 +48,12 @@ The Windows installer can be built from the same BuildGraph script with a simila
 
 ### General
 
-Server settings are configured through the [`appsettings.json`](ServerSettings.md) file in the server directory.
-All Horde-specific settings are stored under the `horde` top-level key, with middleware and standard .NET settings
+Server settings are configured through the [`Server.json`](ServerSettings.md) file. On Windows, this file is stored
+at `C:\ProgramData\Epic\Horde\Server\Server.json`. On other platforms, it is stored in the `Data` folder under the
+application directory by default. Settings in this file are applied on top of the `appsettings.json` file distributed
+alongside the server executable.
+
+All Horde-specific settings are stored under the `Horde` top-level key, with middleware and standard .NET settings
 under other root keys.
 
 As an ASP.NET application, Horde's application configuration supports the following features:
@@ -63,15 +67,16 @@ As an ASP.NET application, Horde's application configuration supports the follow
 * A deployment-specific configuration file can be created called `appsettings.{Environment}.json` (eg.
   `appsettings.Local.json`), which will be merged with other settings.
 
-Note that the _server_ configuration file (`appsettings.json`) is different to the *global* configuration file
-(`globals.json`); the server configuration file is deployed alongside the server and contains deployment/infrastructure
-settings, wheras the global configuration file can be stored in revision control and updated dynamically during the
-server's lifetime. See [Config > Orientation](../Config/Orientation.md) for more information.
+Note that the _server_ configuration files (`Server.json`, `appsettings.json` et al) is different to the *global* 
+configuration file (`globals.json`). The server configuration file is deployed alongside the server and contains
+deployment/infrastructure settings, wheras the global configuration file can be stored in revision control and
+updated dynamically during the server's lifetime. See [Config > Orientation](../Config/Orientation.md) for 
+more information.
 
 ### MongoDB
 
 The MongoDB connection string can be specified via the `DatabaseConnectionString` property in the
-[appsettings.json](ServerSettings.md) file, or via the `Horde__DatabaseConnectionString` environment variable. The
+[Server.json](ServerSettings.md) file, or via the `Horde__DatabaseConnectionString` environment variable. The
 connection string should be in standard 
 [MongoDB syntax](https://www.mongodb.com/docs/manual/reference/connection-string/), eg:
 
@@ -89,7 +94,7 @@ placing the `global-bundle.pem` file into the server's application directory.
 
 ### Redis
 
-The Redis server is configured through the RedisConnectionConfig property in the [appsettings.json](ServerSettings.md)
+The Redis server is configured through the RedisConnectionConfig property in the [Server.json](ServerSettings.md)
 file, or via the `Horde__DatabaseConnectionString` environment variable. This string is formatted as a plain server
 and port, eg:
 
@@ -105,7 +110,7 @@ These settings are echoed to the console during server startup.
 A separate port is used for gRPC since Kestrel (the .NET web server) does not support unencrypted HTTP2 traffic over
 the same port as HTTP1 traffic. If a HTTPS port is configured, all traffic can use that port.
 
-Settings for port usage are defined in [appsettings.json](ServerSettings.md):
+Settings for port usage are defined in [Server.json](ServerSettings.md):
 
 * To disable serving data over HTTP, set the `HttpPort` property to zero.
 * To configure the secondary HTTP2 port used, set the `Http2Port2` property (or set it to zero to disable it).
@@ -117,7 +122,7 @@ Settings for port usage are defined in [appsettings.json](ServerSettings.md):
 Horde uses [Serilog](https://serilog.net/) for logging, and is configured to generate plain text and JSON log files
 to the application directory on Linux, and to the `C:\ProgramData\HordeServer` folder on Windows. Plain text output
 is written to stdout by default, though Json output can be enabled using the `LogJsonToStdOut` property in
-[appsettings.json](ServerSettings.md).
+[Server.json](ServerSettings.md).
 
 Profiling and telemetry data for the server is routed through [OpenTelemetry](https://opentelemetry.io/). Settings for
 telemetry capture are [listed here](ServerSettings.md#opentelemetrysettings).
@@ -133,7 +138,7 @@ Horde supports [OpenID Connect (OIDC)](https://openid.net/developers/how-connect
 an external identity provider. _OIDC_ is a widely used auth standard, and Okta, Aws, Azure, Google, Facebook, and
 many others implement identity providers compatible with it.
 
-The following settings in [appsettings.json](ServerSettings.md) are required to configure an OIDC provider:
+The following settings in [Server.json](ServerSettings.md) are required to configure an OIDC provider:
 
 * `AuthMethod`: Set this to `OpenIdConnect`.
 * `OidcAuthority`: URL of the OIDC authority. You can check the URL specified here is correct by navigating to
@@ -156,4 +161,4 @@ In addition, the following settings can be specified:
 ### Reference
 
 For a full list of valid properties in the server configuration file, see
-[**appsettings.json (Server)**](ServerSettings.md).
+[**Server.json (Server)**](ServerSettings.md).

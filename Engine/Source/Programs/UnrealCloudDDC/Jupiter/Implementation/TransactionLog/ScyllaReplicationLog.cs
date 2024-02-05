@@ -195,11 +195,14 @@ namespace Jupiter.Implementation
 				startBucketTime = DateTime.FromFileTimeUtc(bucket);
 				if (startBucketTime < oldCutoff)
 				{
-					// attempting to use a old bucket, this will not exist anymore so will break here
-					yield break;
+					// attempting to use a old bucket, this will not exist anymore so we reset back to the oldest timestamp we have
+					DateTime oldestTimestamp = DateTime.UtcNow.AddSeconds(-1 * _settings.CurrentValue.ReplicationLogTimeToLive.TotalSeconds);
+					startBucketTime = oldestTimestamp;
 				}
-
-				yield return bucket;
+				else
+				{
+					yield return bucket;
+				}
 			}
 			else
 			{
@@ -215,13 +218,20 @@ namespace Jupiter.Implementation
 			{
 				using TelemetrySpan determineBucketExistsScope = _tracer.BuildScyllaSpan("scylla.determine_replication_bucket_exists");
 				// fetch all the buckets that exists and sort them based on time
-				IEnumerable<ScyllaReplicationLogEvent> logEvent = await _mapper.FetchAsync<ScyllaReplicationLogEvent>("WHERE namespace = ? AND replication_bucket = ? LIMIT 1", ns.ToString(), bucketTime.ToFileTimeUtc());
-				ScyllaReplicationLogEvent? e = logEvent.FirstOrDefault();
+				ScyllaReplicationLogEvent? e = null;
+				try
+				{
+					e = await _mapper.FirstOrDefaultAsync<ScyllaReplicationLogEvent>("WHERE namespace = ? AND replication_bucket = ?", ns.ToString(), bucketTime.ToFileTimeUtc());
+				}
+				catch (ReadTimeoutException)
+				{
+					// if the request times out we scanned the db and didn't find anything, we can just move on to the next bucket
+				}
+
 				if (e != null)
 				{
 					yield return e.ReplicationBucket;
 				}
-
 				bucketTime = bucketTime.AddHours(1.0);
 			}
 		}

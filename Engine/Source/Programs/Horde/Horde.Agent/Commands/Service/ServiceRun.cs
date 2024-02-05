@@ -8,13 +8,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog.Events;
 
-namespace Horde.Agent.Modes.Service
+namespace Horde.Agent.Commands.Service
 {
-
 	/// <summary>
-	/// 
+	/// Runs the agent
 	/// </summary>
-	[Command("service", "run", "Runs the service in listen mode")]
+	[Command("service", "run", "Runs the Horde agent")]
 	class RunCommand : Command
 	{
 		[CommandLine("-LogLevel")]

@@ -93,7 +93,7 @@ namespace Jupiter.FunctionalTests.Metrics
 			_server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = _server.CreateClient();
@@ -131,14 +131,14 @@ namespace Jupiter.FunctionalTests.Metrics
 			await refService.PutAsync(TestNamespace, Bucket0, object6Name, ob6_hash, ob6_cb);
 		}
 
-		protected virtual IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected virtual IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new List<KeyValuePair<string, string>>()
+			return new List<KeyValuePair<string, string?>>()
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", GetImplementation()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:EnableBucketStatsTracking", "true"),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", GetImplementation()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:EnableBucketStatsTracking", "true"),
 			};
 		}
 

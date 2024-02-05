@@ -8,13 +8,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Threading.Tasks;
-using Azure.Core;
 using EpicGames.AspNet;
 using EpicGames.Horde.Storage;
 using Jupiter.Controllers;
 using Jupiter.Implementation;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,7 +50,7 @@ namespace Jupiter.FunctionalTests.Symbols
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = server.CreateClient();
@@ -62,7 +60,7 @@ namespace Jupiter.FunctionalTests.Symbols
 			await Seed(_server.Services);
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task Seed(IServiceProvider services);
 		protected abstract Task Teardown(IServiceProvider services);
@@ -175,9 +173,9 @@ namespace Jupiter.FunctionalTests.Symbols
 		public MemorySymbolTests() : base("memory")
 		{
 		}
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementations", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()) };
+			return new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementations", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()) };
 		}
 
 		protected override Task Seed(IServiceProvider serverServices)
@@ -197,9 +195,9 @@ namespace Jupiter.FunctionalTests.Symbols
 		public ScyllaSymbolsTests() : base("scylla")
 		{
 		}
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
-			return new[] { new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementations", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()) };
+			return new[] { new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementations", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()) };
 		}
 
 		protected override Task Seed(IServiceProvider serverServices)

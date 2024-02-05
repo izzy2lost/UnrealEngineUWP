@@ -6,6 +6,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.Metrics;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
+using System.Linq;
 using System.Net.Mime;
 using System.Reflection;
 using System.Text;
@@ -28,6 +29,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
 using Okta.AspNet.Abstractions;
@@ -187,7 +189,7 @@ namespace Jupiter
 				{
 					options.ForwardDefaultSelector = context =>
 					{
-						string authorization = context.Request.Headers[HeaderNames.Authorization];
+						string? authorization = context.Request.Headers[HeaderNames.Authorization];
 						string name = "Bearer";
 						string tokenName = $"{name} ";
 						if (string.IsNullOrEmpty(authorization) || !authorization.StartsWith(tokenName, StringComparison.InvariantCulture))
@@ -251,13 +253,16 @@ namespace Jupiter
 			services.AddSingleton<IAuthorizationHandler, GlobalAuthorizationHandler>();
 
 			string otelServiceName = Configuration["OTEL_SERVICE_NAME"] ?? "unreal-cloud-ddc";
-			string otelServiceVersion = Configuration["OTEL_SERVICE_VERSION"];
+			string? otelServiceVersion = Configuration["OTEL_SERVICE_VERSION"];
 
-			ResourceBuilder appResourceBuilder = ResourceBuilder.CreateDefault()
-				.AddService("UnrealCloudDDC", serviceNamespace: "Jupiter", serviceVersion: otelServiceVersion)
+			string? useConsoleExporterString = Configuration["OTEL_USE_CONSOLE_EXPORTER"];
+			_ = bool.TryParse(useConsoleExporterString, out bool useConsoleExporter);
+
+			services.AddOpenTelemetry().ConfigureResource(builder =>
+			{
+				builder.AddService("UnrealCloudDDC", serviceNamespace: "Jupiter", serviceVersion: otelServiceVersion)
 				.AddEnvironmentVariableDetector();
-
-			services.AddOpenTelemetryTracing(builder =>
+			}).WithTracing(builder =>
 			{
 				builder.AddHttpClientInstrumentation(options =>
 				{
@@ -272,13 +277,48 @@ namespace Jupiter
 						activity.AddTag("resource.name", url);
 					};
 				});
-				builder.AddAspNetCoreInstrumentation();
+				builder.AddAspNetCoreInstrumentation(options =>
+				{
+					options.EnrichWithHttpRequest = (activity, request) =>
+					{
+						if (request.Headers.TryGetValue("ue-session", out StringValues ueSessionValues))
+						{
+							if (ueSessionValues.Count != 0)
+							{
+								activity.AddTag("ue-session", ueSessionValues.First());
+							}
+						}
 
-				builder.SetResourceBuilder(appResourceBuilder);
+						if (request.Headers.TryGetValue("ue-request", out StringValues ueRequestValues))
+						{
+							if (ueRequestValues.Count != 0)
+							{
+								activity.AddTag("ue-request", ueRequestValues.First());
+							}
+						}
+					};
+				});
+
 				builder.AddOtlpExporter();
-
+				if (useConsoleExporter)
+				{
+					builder.AddConsoleExporter();
+				}
 				builder.AddSource("UnrealCloudDDC", "ScyllaDB");
+			}).WithMetrics(builder =>
+			{
+				builder
+					.AddMeter("UnrealCloudDDC", "ScyllaDB")
+					.AddOtlpExporter()
+					.AddAspNetCoreInstrumentation()
+					.AddHttpClientInstrumentation();
+
+				if (useConsoleExporter)
+				{
+					builder.AddConsoleExporter();
+				}
 			});
+
 			services.Configure<OpenTelemetryLoggerOptions>(opt =>
 			{
 				opt.IncludeScopes = true;
@@ -289,16 +329,6 @@ namespace Jupiter
 			services.AddSingleton<Tracer>(CreateTracer);
 
 			services.AddSingleton<Meter>(CreateMeter);
-
-			services.AddOpenTelemetryMetrics(metricProviderBuilder =>
-			{
-				metricProviderBuilder
-					.AddMeter("UnrealCloudDDC", "ScyllaDB")
-					.AddOtlpExporter()
-					.SetResourceBuilder(appResourceBuilder)
-					.AddAspNetCoreInstrumentation()
-					.AddHttpClientInstrumentation();
-			});
 
 			services.Configure<ForwardedHeadersOptions>(options =>
 			{

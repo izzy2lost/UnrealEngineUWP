@@ -459,10 +459,19 @@ namespace Jupiter
 			{
 				return ActivatorUtilities.CreateInstance<KubernetesLeaderElection>(provider);
 			}
-			else
+			else if (settings.LeaderElectionImplementation == UnrealCloudDDCSettings.LeaderElectionImplementations.Static)
 			{
 				// hard coded leader election that assumes it is always the leader
 				return ActivatorUtilities.CreateInstance<LeaderElectionStub>(provider, true);
+			}
+			else if (settings.LeaderElectionImplementation == UnrealCloudDDCSettings.LeaderElectionImplementations.Disabled)
+			{
+				// disabled leader election means we are never the leader
+				return ActivatorUtilities.CreateInstance<LeaderElectionStub>(provider, false);
+			}
+			else
+			{
+				throw new NotImplementedException($"Unknown leader election set {settings.LeaderElectionImplementation}");
 			}
 		}
 
@@ -562,7 +571,10 @@ namespace Jupiter
 						{
 							FilesystemSettings filesystemSettings = provider.GetService<IOptionsMonitor<FilesystemSettings>>()!.CurrentValue;
 							string? driveRoot = Path.GetPathRoot(PathUtil.ResolvePath(filesystemSettings.RootDir));
+							if (!string.IsNullOrEmpty(driveRoot))
+							{
 							options.AddDrive(driveRoot);
+							}
 						});
 						break;
 					case UnrealCloudDDCSettings.StorageBackendImplementations.Memory:

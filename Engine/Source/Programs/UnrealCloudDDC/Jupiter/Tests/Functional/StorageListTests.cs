@@ -27,12 +27,12 @@ namespace Jupiter.FunctionalTests.Storage
 	public class S3StorageListTests : StorageListTests
 	{
 		private IAmazonS3? _s3;
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
-				new KeyValuePair<string, string>("S3:BucketName", $"tests-{TestListNamespaceName}")
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-{TestListNamespaceName}")
 			};
 		}
 
@@ -68,13 +68,13 @@ namespace Jupiter.FunctionalTests.Storage
 		private AzureSettings? _settings;
 		private string? _connectionString;
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Azure.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Azure.ToString()),
 				// override the container used for the default storage pool (empty string)
-				new KeyValuePair<string, string>($"Azure:StoragePoolContainerOverride:", DefaultContainerName)
+				new KeyValuePair<string, string?>($"Azure:StoragePoolContainerOverride:", DefaultContainerName)
 			};
 		}
 
@@ -124,11 +124,11 @@ namespace Jupiter.FunctionalTests.Storage
 		{
 			_localTestDir = Path.Combine(Path.GetTempPath(), "IoFileSystemTests", Path.GetRandomFileName());
 		}
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[] { 
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
-				new KeyValuePair<string, string>("Filesystem:RootDir", _localTestDir)
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.FileSystem.ToString()),
+				new KeyValuePair<string, string?>("Filesystem:RootDir", _localTestDir)
 			};
 		}
 
@@ -171,7 +171,7 @@ namespace Jupiter.FunctionalTests.Storage
 
 		// only a file system allows us to update the last modified time of the object to actually execute this test
 		[TestMethod]
-		public async Task ListOldBlobs()
+		public async Task ListOldBlobsAsync()
 		{
 			FileSystemStore? fsStore = Server!.Services.GetService<FileSystemStore>();
 			Assert.IsNotNull(fsStore);
@@ -202,7 +202,7 @@ namespace Jupiter.FunctionalTests.Storage
 		protected BlobId OldBlobFileHash { get; } = BlobId.FromBlob(Encoding.ASCII.GetBytes(OldFileContents));
 
 		[TestInitialize]
-		public async Task Setup()
+		public async Task SetupAsync()
 		{
 			IConfigurationRoot configuration = new ConfigurationBuilder()
 				// we are not reading the base appSettings here as we want exact control over what runs in the tests
@@ -218,7 +218,7 @@ namespace Jupiter.FunctionalTests.Storage
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			Server = server;
@@ -226,12 +226,12 @@ namespace Jupiter.FunctionalTests.Storage
 			await Seed(Server.Services);
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task Seed(IServiceProvider serverServices);
 
 		[TestMethod]
-		public async Task ListBlobs()
+		public async Task ListBlobsAsync()
 		{
 			List<BlobId> validBlobHashes = new List<BlobId>
 			{

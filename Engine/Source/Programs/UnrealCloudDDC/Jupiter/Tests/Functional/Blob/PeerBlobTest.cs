@@ -56,7 +56,7 @@ namespace Jupiter.FunctionalTests.Storage
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 				.ConfigureTestServices(collection =>
 				{
@@ -85,14 +85,14 @@ namespace Jupiter.FunctionalTests.Storage
 			await Task.CompletedTask;
 		}
 
-		protected IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Peer.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:1", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
-				new KeyValuePair<string, string>("ServiceDiscovery:Peers:0", "other-peer-instance.com"),
-				new KeyValuePair<string, string>("S3:BucketName", $"tests-{TestNamespaceName}")
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", UnrealCloudDDCSettings.StorageBackendImplementations.Peer.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:1", UnrealCloudDDCSettings.StorageBackendImplementations.S3.ToString()),
+				new KeyValuePair<string, string?>("ServiceDiscovery:Peers:0", "other-peer-instance.com"),
+				new KeyValuePair<string, string?>("S3:BucketName", $"tests-{TestNamespaceName}")
 			};
 		}
 

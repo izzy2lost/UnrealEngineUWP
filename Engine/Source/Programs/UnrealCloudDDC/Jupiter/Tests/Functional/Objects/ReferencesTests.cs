@@ -43,13 +43,13 @@ namespace Jupiter.FunctionalTests.References
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
 			};
 		}
 
@@ -91,16 +91,16 @@ namespace Jupiter.FunctionalTests.References
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
-				new KeyValuePair<string, string>("Scylla:ConnectionString", "Contact Points=localhost,scylla;Default Keyspace=jupiter_cassandra"),
-				new KeyValuePair<string, string>("Scylla:UseAzureCosmosDB", "true"),
-				new KeyValuePair<string, string>("Scylla:UseSSL", "false"),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Scylla.ToString()),
+				new KeyValuePair<string, string?>("Scylla:ConnectionString", "Contact Points=localhost,scylla;Default Keyspace=jupiter_cassandra"),
+				new KeyValuePair<string, string?>("Scylla:UseAzureCosmosDB", "true"),
+				new KeyValuePair<string, string?>("Scylla:UseSSL", "false"),
 			};
 		}
 
@@ -139,14 +139,14 @@ namespace Jupiter.FunctionalTests.References
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Mongo.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Mongo.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Mongo.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Mongo.ToString()),
 				// we do not have a mongo version of the replication log, as the mongo deployment is only intended for single servers
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory.ToString()),
 			};
 		}
 
@@ -185,13 +185,13 @@ namespace Jupiter.FunctionalTests.References
 		{
 		}
 
-		protected override IEnumerable<KeyValuePair<string, string>> GetSettings()
+		protected override IEnumerable<KeyValuePair<string, string?>> GetSettings()
 		{
 			return new[]
 			{
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Memory.ToString()),
-				new KeyValuePair<string, string>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReferencesDbImplementation", UnrealCloudDDCSettings.ReferencesDbImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ContentIdStoreImplementation", UnrealCloudDDCSettings.ContentIdStoreImplementations.Memory.ToString()),
+				new KeyValuePair<string, string?>("UnrealCloudDDC:ReplicationLogWriterImplementation", UnrealCloudDDCSettings.ReplicationLogWriterImplementations.Memory.ToString()),
 			};
 		}
 
@@ -259,7 +259,7 @@ namespace Jupiter.FunctionalTests.References
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 			_httpClient = server.CreateClient();
@@ -270,7 +270,7 @@ namespace Jupiter.FunctionalTests.References
 			await SeedDbAsync(server.Services);
 		}
 
-		protected abstract IEnumerable<KeyValuePair<string, string>> GetSettings();
+		protected abstract IEnumerable<KeyValuePair<string, string?>> GetSettings();
 
 		protected abstract Task SeedDbAsync(IServiceProvider provider);
 
@@ -1051,7 +1051,7 @@ namespace Jupiter.FunctionalTests.References
 					List<IoHash> missingBlobs = needsField.AsArray().Select(field => field.AsHash()).ToList();
 					Assert.AreEqual(1, missingBlobs.Count);
 
-					Assert.AreNotEqual(blobHash, missingBlobs[0], "Refs should not be returning the mapped blob identifiers as this is unknown to the client attempting to put a new ref");
+					Assert.AreNotEqual(blobHash.AsIoHash(), missingBlobs[0], "Refs should not be returning the mapped blob identifiers as this is unknown to the client attempting to put a new ref");
 					Assert.AreEqual(contentId.AsBlobIdentifier(), BlobId.FromIoHash(missingBlobs[0]));
 				}
 			}
@@ -1524,7 +1524,7 @@ namespace Jupiter.FunctionalTests.References
 				Assert.AreEqual(HttpStatusCode.NotFound, getResponse.StatusCode);
 				Assert.AreEqual("application/problem+json", getResponse.Content.Headers.ContentType!.MediaType);
 				string s = await getResponse.Content.ReadAsStringAsync();
-				ProblemDetails? problem = JsonSerializer.Deserialize<ProblemDetails>(s);
+				ProblemDetails? problem = JsonSerializer.Deserialize<ProblemDetails>(s, JsonTestUtils.DefaultJsonSerializerSettings);
 				Assert.IsNotNull(problem);
 				Assert.AreEqual($"Object {blobHash} in {TestNamespace} not found", problem.Title);
 			}

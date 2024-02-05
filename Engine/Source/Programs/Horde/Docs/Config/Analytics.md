@@ -24,7 +24,7 @@ To configure the editor to send analytics data to Horde, add the following lines
 Horde can both collect telemetry data in its own database, and forward it on to other telemetry sinks.
 
 Telemetry sinks can be configured through the `Telemetry` property in the server's
-[appsettings.json](../Deployment/ServerSettings.md) file.
+[Server.json](../Deployment/ServerSettings.md) file.
 
 ## Metrics and Aggregation
 

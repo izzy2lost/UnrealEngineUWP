@@ -59,11 +59,11 @@ namespace Jupiter.FunctionalTests.GC
 				// we are not reading the base appSettings here as we want exact control over what runs in the tests
 				.AddJsonFile("appsettings.Testing.json", false)
 				.AddEnvironmentVariables()
-				.AddInMemoryCollection(new List<KeyValuePair<string, string>>()
+				.AddInMemoryCollection(new List<KeyValuePair<string, string?>>()
 				{
-					new KeyValuePair<string, string>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
-					new KeyValuePair<string, string>("GC:CleanOldBlobs", true.ToString()),
-					new KeyValuePair<string, string>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
+					new KeyValuePair<string, string?>("UnrealCloudDDC:StorageImplementations:0", "Memory"),
+					new KeyValuePair<string, string?>("GC:CleanOldBlobs", true.ToString()),
+					new KeyValuePair<string, string?>("UnrealCloudDDC:BlobIndexImplementation", GetImplementation()),
 					
 				})
 				.Build();
@@ -75,7 +75,7 @@ namespace Jupiter.FunctionalTests.GC
 			TestServer server = new TestServer(new WebHostBuilder()
 				.UseConfiguration(configuration)
 				.UseEnvironment("Testing")
-				.UseSerilog(logger)
+				.ConfigureServices(collection => collection.AddSerilog(logger))
 				.UseStartup<JupiterStartup>()
 			);
 

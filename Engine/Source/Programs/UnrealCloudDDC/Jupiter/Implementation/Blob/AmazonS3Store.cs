@@ -20,6 +20,7 @@ using Jupiter.Common.Implementation;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry.Trace;
+using Amazon.S3.Util;
 
 namespace Jupiter.Implementation
 {
@@ -212,7 +213,7 @@ namespace Jupiter.Implementation
 			{
 				if (!_bucketExistenceChecked)
 				{
-					bool bucketExist = await _amazonS3.DoesS3BucketExistAsync(_bucketName);
+					bool bucketExist = await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName);
 					if (!bucketExist)
 					{
 						PutBucketRequest putBucketRequest = new PutBucketRequest
@@ -398,7 +399,7 @@ namespace Jupiter.Implementation
 				BucketName = _bucketName
 			};
 
-			if (!await _amazonS3.DoesS3BucketExistAsync(_bucketName))
+			if (!await AmazonS3Util.DoesS3BucketExistV2Async(_amazonS3, _bucketName))
 			{
 				yield break;
 			}

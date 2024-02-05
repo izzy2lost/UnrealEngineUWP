@@ -20,7 +20,8 @@ data:
 {{- $filesystem := $config.Filesystem | default dict -}}
 
 UnrealCloudDDC:
-  LeaderElectionImplementation: "Kubernetes"
+  # always assume you are the leader when you are the worker
+  LeaderElectionImplementation: "Static"
 
   ReferencesDbImplementation:  {{ default "Scylla" $config.ReferencesDbImplementation }}
   ReplicationLogWriterImplementation:  {{ default "Scylla" $config.ReplicationLogWriterImplementation }}
