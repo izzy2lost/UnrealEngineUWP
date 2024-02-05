@@ -91,6 +91,11 @@ export void ApplyXPBDAnisotropicBendingConstraintsWithDamping(uniform FVector4f 
 
 		varying FVector3f P1, P2, P3, P4;
 		varying float M1, M2, M3, M4;
+
+		UnzipPandInvM(PandInvM1, P1, M1);
+		UnzipPandInvM(PandInvM2, P2, M2);
+		UnzipPandInvM(PandInvM3, P3, M3);
+		UnzipPandInvM(PandInvM4, P4, M4);
 		
 		const uniform int32 i0 = extract(i,0);
 
