@@ -496,7 +496,7 @@ void FHttpManager::AddRequest(const FHttpRequestRef& Request)
 {
 	{
 		FScopeLock ScopeLock(&RequestLock);
-		check(!bFlushing);
+		UE_CLOG(bFlushing, LogHttp, Warning, TEXT("Adding request %s to http manager while flushing"), *Request->GetURL());
 		Requests.Add(Request);
 	}
 	RequestAddedDelegate.ExecuteIfBound(Request);
