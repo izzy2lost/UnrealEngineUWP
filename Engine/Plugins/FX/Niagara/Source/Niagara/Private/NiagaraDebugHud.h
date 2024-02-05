@@ -356,6 +356,10 @@ private:
 	};
 	TArray<FDebugBox2D> Boxes2D;
 
+	double AutoGraphTimeRange = 100.0;
+	double AutoGraphTimeRangeChangeMax = 100.0;
+	double AutoGraphTimeRangeChangedTime = 0.0;
+
 public:
 	/** Add a 2D line to the debug renering. Positions are in normalized screen space. (0,0) in top left, (1,1) bottom right.*/
 	void AddLine2D(FVector2f Start, FVector2f End, FLinearColor Color, float Thickness, float Lifetime);
