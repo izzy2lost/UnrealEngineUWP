@@ -503,6 +503,17 @@ namespace UE::Learning::Agents::Observation::Private
 			FMath::Exp(V.Y),
 			FMath::Exp(V.Z));
 	}
+
+	static inline Learning::Observation::EEncodingActivationFunction GetEncodingActivationFunction(const ELearningAgentsActivationFunction ActivationFunction)
+	{
+		switch (ActivationFunction)
+		{
+		case ELearningAgentsActivationFunction::ReLU: return Learning::Observation::EEncodingActivationFunction::ReLU;
+		case ELearningAgentsActivationFunction::ELU: return Learning::Observation::EEncodingActivationFunction::ELU;
+		case ELearningAgentsActivationFunction::TanH: return Learning::Observation::EEncodingActivationFunction::TanH;
+		default: UE_LEARNING_NOT_IMPLEMENTED(); return Learning::Observation::EEncodingActivationFunction::ReLU;
+		}
+	}
 }
 
 FTransform ULearningAgentsObservationFunctions::ProjectTransformOntoGroundPlane(const FTransform Transform, const FVector LocalForwardVector, const float GroundPlaneHeight)
@@ -664,7 +675,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 {
 	if (EncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation EncodingSize '%i'."), *GetName(), EncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation EncodingSize '%i' - must be greater than zero."), *GetName(), EncodingSize);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -720,7 +731,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 {
 	if (EncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation EncodingSize '%i'."), *GetName(), EncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation EncodingSize '%i' - must be greater than zero."), *GetName(), EncodingSize);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -762,7 +773,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 {
 	if (AttentionEncodingSize < 1 || AttentionHeadNum < 1 || ValueEncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Parameters: AttentionEncodingSize: %i, AttentionHeadNum: %i, ValueEncodingSize: %i."), *GetName(), AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Parameters: AttentionEncodingSize: %i, AttentionHeadNum: %i, ValueEncodingSize: %i - must be greater than zero."), *GetName(), AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -818,7 +829,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 {
 	if (AttentionEncodingSize < 1 || AttentionHeadNum < 1 || ValueEncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Parameters: AttentionEncodingSize: %i, AttentionHeadNum: %i, ValueEncodingSize: %i."), *GetName(), AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Parameters: AttentionEncodingSize: %i, AttentionHeadNum: %i, ValueEncodingSize: %i - must be greater than zero."), *GetName(), AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -882,7 +893,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 {
 	if (MaxNum < 0)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Set MaxNum %i."), *GetName(), MaxNum);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Set MaxNum %i - must be greater than or equal to zero."), *GetName(), MaxNum);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -893,7 +904,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 
 	if (AttentionEncodingSize < 1 || AttentionHeadNum < 1 || ValueEncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Parameters: AttentionEncodingSize: %i, AttentionHeadNum: %i, ValueEncodingSize: %i."), *GetName(), AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation Parameters: AttentionEncodingSize: %i, AttentionHeadNum: %i, ValueEncodingSize: %i - must be greater than zero."), *GetName(), AttentionEncodingSize, AttentionHeadNum, ValueEncodingSize);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -959,11 +970,17 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 	return SpecifyExclusiveUnionObservationFromArrayViews({ TEXT("A"), TEXT("B") }, { A, B }, EncodingSize, Name);
 }
 
-FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyEncodingObservation(const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize, const FName Name)
+FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyEncodingObservation(const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize, const int32 LayerNum, const ELearningAgentsActivationFunction ActivationFunction, const FName Name)
 {
 	if (EncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation EncodingSize '%i'."), *GetName(), EncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation EncodingSize '%i' - must be greater than zero."), *GetName(), EncodingSize);
+		return FLearningAgentsObservationSchemaElement();
+	}
+
+	if (LayerNum < 1)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Observation LayerNum '%i' - must be greater than zero."), *GetName(), LayerNum);
 		return FLearningAgentsObservationSchemaElement();
 	}
 
@@ -973,7 +990,7 @@ FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::Specif
 		return FLearningAgentsObservationSchemaElement();
 	}
 
-	return { ObservationSchema.CreateEncoding({ Element.SchemaElement, EncodingSize }, Name) };
+	return { ObservationSchema.CreateEncoding({ Element.SchemaElement, EncodingSize, LayerNum, UE::Learning::Agents::Observation::Private::GetEncodingActivationFunction(ActivationFunction) }, Name)};
 }
 
 FLearningAgentsObservationSchemaElement ULearningAgentsObservationSchema::SpecifyBoolObservation(const FName Name)

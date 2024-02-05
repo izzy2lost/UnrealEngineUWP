@@ -291,6 +291,8 @@ namespace UE::Learning::Action
 
 		FEncodingData ElementData;
 		ElementData.EncodingSize = Parameters.EncodingSize;
+		ElementData.LayerNum = Parameters.LayerNum;
+		ElementData.ActivationFunction = Parameters.ActivationFunction;
 		ElementData.ElementIndex = SubElementObjects.Num();
 
 		SubElementNames.Add(NAME_None);
@@ -426,6 +428,8 @@ namespace UE::Learning::Action
 		FSchemaEncodingParameters Parameters;
 		Parameters.Element = SubElementObjects[ElementData.ElementIndex];
 		Parameters.EncodingSize = ElementData.EncodingSize;
+		Parameters.LayerNum = ElementData.LayerNum;
+		Parameters.ActivationFunction = ElementData.ActivationFunction;
 		return Parameters;
 	}
 
@@ -812,6 +816,17 @@ namespace UE::Learning::Action
 
 	namespace Private
 	{
+		static inline NNE::RuntimeBasic::FModelBuilder::EActivationFunction GetNNEActivationFunction(const EEncodingActivationFunction ActivationFunction)
+		{
+			switch (ActivationFunction)
+			{
+			case EEncodingActivationFunction::ReLU: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
+			case EEncodingActivationFunction::ELU: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ELU;
+			case EEncodingActivationFunction::TanH: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::TanH;
+			default: UE_LEARNING_NOT_IMPLEMENTED(); return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
+			}
+		}
+
 		NNE::RuntimeBasic::FModelBuilderElement MakeDecoderNetworkFromSchema(
 			NNE::RuntimeBasic::FModelBuilder& Builder,
 			const FSchema& Schema,
@@ -963,8 +978,14 @@ namespace UE::Learning::Action
 				const int32 SubElementEncodedSize = Schema.GetEncodedVectorSize(Parameters.Element);
 
 				ReturnElement = Builder.MakeSequence({
-					Builder.MakeELU(Parameters.EncodingSize),
-					Builder.MakeLinearWithRandomKaimingWeights(Parameters.EncodingSize, SubElementEncodedSize),
+					Builder.MakeActivation(Parameters.EncodingSize, GetNNEActivationFunction(Parameters.ActivationFunction)),
+					Builder.MakeMLPWithRandomKaimingWeights(
+						Parameters.EncodingSize, 
+						SubElementEncodedSize, 
+						Parameters.EncodingSize, 
+						Parameters.LayerNum + 1,  // Add 1 to account for input layer 
+						GetNNEActivationFunction(Parameters.ActivationFunction),
+						false),
 					MakeDecoderNetworkFromSchema(Builder, Schema, Parameters.Element),
 				});
 				break;

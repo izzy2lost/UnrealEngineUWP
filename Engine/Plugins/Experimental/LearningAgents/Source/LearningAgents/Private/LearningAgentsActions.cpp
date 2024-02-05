@@ -509,6 +509,17 @@ namespace UE::Learning::Agents::Action::Private
 			PriorProbabilities[Idx] = FMath::Clamp(PriorProbabilities[Idx], 0.0f, 1.0f);
 		}
 	}
+
+	static inline Learning::Action::EEncodingActivationFunction GetEncodingActivationFunction(const ELearningAgentsActivationFunction ActivationFunction)
+	{
+		switch (ActivationFunction)
+		{
+		case ELearningAgentsActivationFunction::ReLU: return Learning::Action::EEncodingActivationFunction::ReLU;
+		case ELearningAgentsActivationFunction::ELU: return Learning::Action::EEncodingActivationFunction::ELU;
+		case ELearningAgentsActivationFunction::TanH: return Learning::Action::EEncodingActivationFunction::TanH;
+		default: UE_LEARNING_NOT_IMPLEMENTED(); return Learning::Action::EEncodingActivationFunction::ReLU;
+		}
+	}
 }
 
 bool ULearningAgentsActionSchema::ValidateObjectMatchesSchema(
@@ -1016,11 +1027,17 @@ FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyEitherAct
 	return SpecifyExclusiveUnionActionFromArrayViews({ TEXT("A"), TEXT("B") }, { A, B }, { 1.0f - PriorProbabilityOfA, PriorProbabilityOfA }, Name);
 }
 
-FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyEncodingAction(const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize, const FName Name)
+FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyEncodingAction(const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize, const int32 LayerNum, const ELearningAgentsActivationFunction ActivationFunction, const FName Name)
 {
 	if (EncodingSize < 1)
 	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Action EncodingSize '%i'."), *GetName(), EncodingSize);
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Action EncodingSize '%i' - must be greater than zero."), *GetName(), EncodingSize);
+		return FLearningAgentsActionSchemaElement();
+	}
+
+	if (LayerNum < 1)
+	{
+		UE_LOG(LogLearning, Error, TEXT("%s: Invalid Action LayerNum '%i' - must be greater than zero."), *GetName(), LayerNum);
 		return FLearningAgentsActionSchemaElement();
 	}
 
@@ -1030,7 +1047,7 @@ FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyEncodingA
 		return FLearningAgentsActionSchemaElement();
 	}
 
-	return { ActionSchema.CreateEncoding({ Element.SchemaElement, EncodingSize }, Name) };
+	return { ActionSchema.CreateEncoding({ Element.SchemaElement, EncodingSize, LayerNum, UE::Learning::Agents::Action::Private::GetEncodingActivationFunction(ActivationFunction) }, Name)};
 }
 
 FLearningAgentsActionSchemaElement ULearningAgentsActionSchema::SpecifyBoolAction(const float PriorProbability, const FName Name)
