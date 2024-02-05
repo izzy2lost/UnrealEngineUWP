@@ -305,7 +305,7 @@ public:
 
 	FORCEINLINE int32 GetTicksInBeatAfterPoint(int32 Index) const
 	{
-		if (Points.IsEmpty())
+		if (!Points.IsValidIndex(Index) || Points[Index].TimeSignature.Denominator == 0)
 		{
 			return TicksPerQuarterNote;
 		}
@@ -314,7 +314,7 @@ public:
 
 	FORCEINLINE int32 GetTicksInBarAfterPoint(int32 Index) const
 	{
-		if (Points.IsEmpty())
+		if (!Points.IsValidIndex(Index))
 		{
 			return 4 * TicksPerQuarterNote;
 		}
