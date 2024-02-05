@@ -3,6 +3,7 @@ from datetime import datetime
 from django.shortcuts import render, redirect
 from django.http.response import JsonResponse
 from django.http import JsonResponse
+from django.http import HttpResponse
 from django.http import StreamingHttpResponse
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FileUploadParser
@@ -22,9 +23,11 @@ def query_with_params(request):
     return JsonResponse({'var_int' : var_int, 'var_str' : var_str}, content_type="application/json")
 
 @api_view(['GET'])
-def get_large_response_without_chunks(request, bytes_number):
-    data = "d" * bytes_number
-    return JsonResponse({'data' : data})
+def get_data_without_chunks(request, bytes_number, repeat_at):
+    assert repeat_at > 0
+    assert repeat_at <= 10
+    data = [i%repeat_at for i in range(bytes_number)]
+    return HttpResponse(data)
 
 @api_view(['GET'])
 def streaming_download(request, chunks, chunk_size, chunk_latency):
