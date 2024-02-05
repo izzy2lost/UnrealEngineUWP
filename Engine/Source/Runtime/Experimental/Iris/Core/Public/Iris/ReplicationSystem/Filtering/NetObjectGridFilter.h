@@ -47,6 +47,10 @@ public:
 	/** Coordinates will be clamped to MinPos and MaxPos. */
 	UPROPERTY(Config)
 	FVector MaxPos = {+0.5f*2097152.0f, +0.5f*2097152.0f, +0.5f*2097152.0f};
+
+	/** If true, use the exact cull distance to determine the objects to create/destroy on the client. Otherwise only use the net grid. */
+	UPROPERTY(Config)
+	bool bUseExactCullDistance = true;
 };
 
 UCLASS(abstract)
@@ -109,8 +113,33 @@ protected:
 	{
 		FVector Position = { 0.f,0.f,0.f };
 		FCellBox CellBox = {};
-		float CullDistance = 0.0f;
 		uint32 ObjectIndex = 0U;
+
+		float GetCullDistance() const
+		{
+			return CullDistance;
+		}
+
+		float GetCullDistanceSq() const
+		{
+			return CullDistanceSq;
+		}
+
+		void SetCullDistance(float Distance)
+		{
+			CullDistance = Distance;
+			CullDistanceSq = Distance * Distance;
+		}
+
+		void SetCullDistanceSq(float DistanceSq)
+		{
+			CullDistance = FPlatformMath::Sqrt(DistanceSq);
+			CullDistanceSq = DistanceSq;
+		}
+
+	private:
+		float CullDistance = 0.0f;
+		float CullDistanceSq = 0.0f;
 	};
 
 	/** Sets the current position of the object based on how we access it's given location. */
@@ -162,6 +191,9 @@ private:
 	{
 		// We don't expect a lot of view positions from a single connection
 		TArray<FCellAndTimestamp, TInlineAllocator<32>> RecentCells;
+		
+		// Objects that have been recently visible to the connection and the frame countdown.
+		TMap<uint32, uint32> RecentObjectFrameCount;
 	};
 
 private:
