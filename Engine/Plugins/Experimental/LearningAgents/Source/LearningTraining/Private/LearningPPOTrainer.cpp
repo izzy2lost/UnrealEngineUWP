@@ -285,6 +285,8 @@ namespace UE::Learning
 			ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), TrainingSettings.bAdvantageNormalization);
 			ConfigObject->SetNumberField(TEXT("AdvantageMin"), TrainingSettings.AdvantageMin);
 			ConfigObject->SetNumberField(TEXT("AdvantageMax"), TrainingSettings.AdvantageMax);
+			ConfigObject->SetBoolField(TEXT("UseGradNormMaxClipping"), TrainingSettings.bUseGradNormMaxClipping);
+			ConfigObject->SetNumberField(TEXT("GradNormMax"), TrainingSettings.GradNormMax);
 			ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), TrainingSettings.TrimEpisodeStartStepNum);
 			ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), TrainingSettings.TrimEpisodeEndStepNum);
 			ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
@@ -794,6 +796,8 @@ namespace UE::Learning
 		ConfigObject->SetBoolField(TEXT("AdvantageNormalization"), TrainingSettings.bAdvantageNormalization);
 		ConfigObject->SetNumberField(TEXT("AdvantageMin"), TrainingSettings.AdvantageMin);
 		ConfigObject->SetNumberField(TEXT("AdvantageMax"), TrainingSettings.AdvantageMax);
+		ConfigObject->SetBoolField(TEXT("UseGradNormMaxClipping"), TrainingSettings.bUseGradNormMaxClipping);
+		ConfigObject->SetNumberField(TEXT("GradNormMax"), TrainingSettings.GradNormMax);
 		ConfigObject->SetNumberField(TEXT("TrimEpisodeStartStepNum"), TrainingSettings.TrimEpisodeStartStepNum);
 		ConfigObject->SetNumberField(TEXT("TrimEpisodeEndStepNum"), TrainingSettings.TrimEpisodeEndStepNum);
 		ConfigObject->SetNumberField(TEXT("Seed"), TrainingSettings.Seed);
