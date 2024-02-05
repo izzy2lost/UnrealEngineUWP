@@ -33,8 +33,10 @@ public:
 
 	TSharedPtr<FUICommandInfo> ToggleGridSnapping;
 
-	TSharedPtr<FUICommandInfo> SizeComponentToTexture;
-
+	TSharedPtr<FUICommandInfo> FlipGroupHorizontally;
+	TSharedPtr<FUICommandInfo> FlipGroupVertically;
+	TSharedPtr<FUICommandInfo> SizeGroupToTexture;
+	
 	TSharedPtr<FUICommandInfo> ToggleScaleChildrenWithParent;
 	TSharedPtr<FUICommandInfo> ToggleAlwaysSelectGroup;
 	TSharedPtr<FUICommandInfo> ToggleApplyLayoutScriptWhenLoaded;

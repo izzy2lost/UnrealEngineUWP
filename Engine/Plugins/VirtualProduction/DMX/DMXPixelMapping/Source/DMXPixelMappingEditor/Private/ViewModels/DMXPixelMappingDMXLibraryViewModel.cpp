@@ -57,10 +57,10 @@ void UDMXPixelMappingDMXLibraryViewModel::CreateAndSetNewFixtureGroup(TWeakPtr<F
 	if (OtherFixtureGroupComponents.IsEmpty())
 	{
 		// If there's no group, add one that scales the texture of the active renderer component
-		if (Toolkit->CanSizeSelectedComponentToTexture())
+		if (Toolkit->CanPerformCommandsOnGroup())
 		{
 			constexpr bool bTransacted = false;
-			Toolkit->SizeSelectedComponentToTexture(bTransacted);
+			Toolkit->SizeGroupToTexture(bTransacted);
 		}
 	}
 	else
@@ -343,10 +343,16 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutEvenOverParent(const TArray<UDMX
 
 void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMXPixelMappingBaseComponent*> Components)
 {
-	if (Components.IsEmpty())
+	if (Components.IsEmpty() || !DMXLibrary)
 	{
 		return;
 	}
+	const TArray<UDMXEntityFixturePatch*> Patches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+	if (Patches.IsEmpty())
+	{
+		return;
+	}
+
 	UDMXPixelMappingOutputComponent* FirstComponentToLayout = Cast<UDMXPixelMappingOutputComponent>(Components[0]);
 
 	UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = WeakFixtureGroupComponent.Get();
@@ -374,8 +380,8 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 	{
 		if (UDMXPixelMappingOutputComponent* OtherOutputComponent = Cast<UDMXPixelMappingOutputComponent>(OtherComponent))
 		{
-			NextPosition.X = FMath::Max(NextPosition.X, OtherOutputComponent->GetPosition().X + OtherOutputComponent->GetSize().X + 1);
-			if (NextPosition.X + FirstComponentToLayout->GetSize().X > FixtureGroupComponent->GetPosition().X + FixtureGroupComponent->GetSize().X - 1)
+			NextPosition.X = FMath::Max(NextPosition.X, OtherOutputComponent->GetPosition().X + OtherOutputComponent->GetSize().X);
+			if (NextPosition.X + FirstComponentToLayout->GetSize().X > FixtureGroupComponent->GetPosition().X + FixtureGroupComponent->GetSize().X)
 			{
 				NextPosition.X = FixtureGroupComponent->GetPosition().X;
 				NextPosition.Y += FirstComponentToLayout->GetSize().Y;
@@ -389,11 +395,10 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 	{
 		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component))
 		{
-			if (FixtureGroupComponent->IsOverPosition(NextPosition) &&
-				FixtureGroupComponent->IsOverPosition(NextPosition + OutputComponent->GetSize()))
-			{
-				OutputComponent->SetPosition(NextPosition);
+			OutputComponent->SetPosition(NextPosition);
 
+			if (OutputComponent->IsOverParent())
+			{
 				RowHeight = FMath::Max(OutputComponent->GetSize().Y, RowHeight);
 				NextPosition = FVector2D(NextPosition.X + OutputComponent->GetSize().X, NextPosition.Y);
 			}
@@ -401,18 +406,18 @@ void UDMXPixelMappingDMXLibraryViewModel::LayoutAfterLastPatch(const TArray<UDMX
 			{
 				// Try on a new row
 				FVector2D NewRowPosition = FVector2D(FixtureGroupComponent->GetPosition().X, NextPosition.Y + RowHeight);
-
 				const FVector2D NextPositionOnNewRow = FVector2D(NewRowPosition.X + OutputComponent->GetSize().X, NewRowPosition.Y);
-				if (FixtureGroupComponent->IsOverPosition(NextPositionOnNewRow) &&
-					FixtureGroupComponent->IsOverPosition(NextPositionOnNewRow + OutputComponent->GetSize()))
-				{
-					OutputComponent->SetPosition(NewRowPosition);
 
+				OutputComponent->SetPosition(NextPositionOnNewRow);
+
+				if (OutputComponent->IsOverParent())
+				{
 					NextPosition = FVector2D(NewRowPosition.X + OutputComponent->GetSize().X, NewRowPosition.Y);
 					RowHeight = OutputComponent->GetSize().Y;
 				}
 				else
 				{
+					// Append as the component cannot be fit into the group
 					OutputComponent->SetPosition(NextPosition);
 
 					NextPosition = FVector2D(NextPosition.X + OutputComponent->GetSize().X, NextPosition.Y);
