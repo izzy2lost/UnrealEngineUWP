@@ -280,9 +280,10 @@ void UActorElementWorldInterface::AddIgnoredCollisionQueryElement(const FTypedEl
 
 	if (ITypedElementWorldInterface* WorldInterface = Registry->GetElementInterface<ITypedElementWorldInterface>(InElementHandle))
 	{
-		WorldInterface->AddIgnoredElementToCollisionQueryParams(InElementHandle, InOutParams,
-			// Preserving legacy behavior, where we didn't add child elements:
-			/*bAlsoIgnoreSubElements =*/false);
+		// Preserving legacy behavior, where we didn't add child elements:
+		const bool bAlsoIgnoreSubElements = false;
+
+		WorldInterface->AddIgnoredElementToCollisionQueryParams(InElementHandle, InOutParams, bAlsoIgnoreSubElements);
 	}
 }
 
