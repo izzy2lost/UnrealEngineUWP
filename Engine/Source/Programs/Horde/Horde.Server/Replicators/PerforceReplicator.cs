@@ -143,7 +143,7 @@ namespace Horde.Server.Replicators
 //		const uint FPM_RWO = 4;    // set file read-write (owner) NO X
 		const uint FPM_RWXO = 5;   // set file read-write-execute (owner)
 
-		[DebuggerDisplay("{_path}")]
+		[DebuggerDisplay("{Path}")]
 		class DirectoryToSync
 		{
 			public readonly string Path;

@@ -523,7 +523,7 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		[return: NotNullIfNotNull("handle")]
+		[return: NotNullIfNotNull("nodeRef")]
 		static object? GetNodeObject(NamespaceId namespaceId, DirectoryNodeRef? nodeRef) => (nodeRef == null) ? null : new { nodeRef.Length, nodeRef.Handle.Hash, link = GetNodeLink(namespaceId, nodeRef.Handle.GetLocator()) };
 
 		[return: NotNullIfNotNull("handle")]

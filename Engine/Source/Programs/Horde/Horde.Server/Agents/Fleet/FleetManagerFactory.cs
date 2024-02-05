@@ -2,6 +2,7 @@
 
 using System;
 using System.Diagnostics.Metrics;
+using System.IO;
 using System.Text.Json;
 using Amazon.AutoScaling;
 using Amazon.EC2;
@@ -92,7 +93,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 			T? settings = JsonSerializer.Deserialize<T>(config);
 			if (settings == null)
 			{
-				throw new NullReferenceException($"Unable to deserialize");
+				throw new InvalidDataException($"Unable to deserialize");
 			}
 			return settings;
 		}
