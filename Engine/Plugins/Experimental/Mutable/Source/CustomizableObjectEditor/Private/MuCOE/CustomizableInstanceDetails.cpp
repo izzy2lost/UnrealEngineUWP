@@ -884,10 +884,10 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateIntWidget(const int32 
 			{
 				ValueIndex = i;
 
-				const FString* Identifier = CustomizableObject->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, PossibleValue));
+				const FString* Identifier = CustomizableObject->GetPrivate()->GroupNodeMap.FindKey(FCustomizableObjectIdPair(ParamName, PossibleValue));
 				if (Identifier)
 				{
-					if (FString* CustomizableObjectPath = CustomizableObject->CustomizableObjectPathMap.Find(*Identifier))
+					if (FString* CustomizableObjectPath = CustomizableObject->GetPrivate()->CustomizableObjectPathMap.Find(*Identifier))
 					{
 						ToolTipText = *CustomizableObjectPath;
 					}
