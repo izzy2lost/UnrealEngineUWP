@@ -390,6 +390,8 @@ public:
 #endif
 
 #if WITH_EDITORONLY_DATA
+	NIAGARA_API virtual void GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMetadata>& OutMetadata) const override;
+
 	/** Are there any pending compile requests?*/
 	NIAGARA_API bool HasOutstandingCompilationRequests(bool bIncludingGPUShaders = false) const;
 
