@@ -112,7 +112,7 @@ void FMutableTextureMipDataProvider::Init(const FTextureUpdateContext& Context, 
 #if WITH_EDITOR
 	check(Context.Texture->HasPendingInitOrStreaming());
 	check(CustomizableObjectInstance->GetCustomizableObject());
-	if (CustomizableObjectInstance->GetCustomizableObject()->IsLocked())
+	if (CustomizableObjectInstance->GetCustomizableObject()->GetPrivate()->IsLocked())
 	{
 		PrintWarningAndAdvanceToCleanup();
 
@@ -300,7 +300,7 @@ int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Conte
 #if WITH_EDITOR
 	check(Context.Texture->HasPendingInitOrStreaming());
 	check(CustomizableObjectInstance->GetCustomizableObject());
-	if (CustomizableObjectInstance->GetCustomizableObject()->IsLocked())
+	if (CustomizableObjectInstance->GetCustomizableObject()->GetPrivate()->IsLocked())
 	{
 		PrintWarningAndAdvanceToCleanup();
 
@@ -398,7 +398,7 @@ bool FMutableTextureMipDataProvider::PollMips(const FTextureUpdateSyncOptions& S
 	
 #if WITH_EDITOR
 	check(CustomizableObjectInstance->GetCustomizableObject());
-	if (CustomizableObjectInstance->GetCustomizableObject()->IsLocked())
+	if (CustomizableObjectInstance->GetCustomizableObject()->GetPrivate()->IsLocked())
 	{
 		PrintWarningAndAdvanceToCleanup();
 

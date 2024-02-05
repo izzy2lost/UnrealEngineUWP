@@ -7,6 +7,7 @@
 #include "Engine/DataTable.h"
 #include "Engine/SkeletalMesh.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectIdentifier.h"
 #include "MuCOE/ExtensionDataCompilerInterface.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
@@ -40,7 +41,6 @@ class UMaterialInterface;
 class UObject;
 class UPhysicsAsset;
 class UTexture2D;
-struct FCustomizableObjectIdPair;
 struct FAnimBpOverridePhysicsAssetsInfo;
 struct FMutableGraphGenerationContext;
 struct FParameterUIData;

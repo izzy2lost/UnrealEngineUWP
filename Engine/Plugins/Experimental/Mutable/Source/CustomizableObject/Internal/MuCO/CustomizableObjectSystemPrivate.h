@@ -6,6 +6,7 @@
 #include "Containers/Queue.h"
 #include "MuCO/DescriptorHash.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectExtension.h"
 #include "Containers/Ticker.h"
