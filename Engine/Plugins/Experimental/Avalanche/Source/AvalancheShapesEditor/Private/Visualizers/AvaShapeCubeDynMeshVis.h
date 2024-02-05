@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Visualizers/AvaShape3DDynMeshVis.h"
 
 class UAvaShapeCubeDynamicMesh;

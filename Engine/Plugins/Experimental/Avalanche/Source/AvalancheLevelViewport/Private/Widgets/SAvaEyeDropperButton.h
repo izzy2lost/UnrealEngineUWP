@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Misc/Attribute.h"
 #include "Input/CursorReply.h"
 #include "Input/Reply.h"
@@ -92,8 +91,8 @@ private:
 	TOptional<FVector2f> LastCursorPosition;
 
 	// Dropper states
-	bool bWasClicked;
-	bool bWasClickActivated;
-	bool bWasLeft;
-	bool bWasReEntered;
+	bool bWasClicked = false;
+	bool bWasClickActivated = false;
+	bool bWasLeft = false;
+	bool bWasReEntered = false;
 };

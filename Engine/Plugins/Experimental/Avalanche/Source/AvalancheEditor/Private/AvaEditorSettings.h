@@ -3,8 +3,12 @@
 #pragma once
 
 #include "AvaDefs.h"
-#include "CoreMinimal.h"
+#include "Containers/Array.h"
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
+#include "Delegates/Delegate.h"
 #include "Engine/DeveloperSettings.h"
+#include "UObject/NameTypes.h"
 #include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaEditorSettings.generated.h"
 

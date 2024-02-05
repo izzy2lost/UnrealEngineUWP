@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ComponentVisualizer.h"
 #include "UnrealWidgetFwd.h"
 

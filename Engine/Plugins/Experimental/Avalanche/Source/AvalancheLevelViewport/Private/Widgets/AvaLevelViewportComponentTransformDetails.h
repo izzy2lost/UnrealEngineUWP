@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AssetSelection.h"
 #include "Framework/Commands/UIAction.h"
 #include "IDetailCustomNodeBuilder.h"
@@ -110,7 +109,7 @@ private:
 	 * @param Axis				Bitfield of which axis to set, can be multiple
 	 * @param NewValue			The new vector values, it only uses the ones with specified axis
 	 * @param bMirror			If true, set the value to it's inverse instead of using NewValue
-	 * @param bCommittted		True if the value was committed, false is the value comes from the slider
+	 * @param bCommitted		True if the value was committed, false is the value comes from the slider
 	 */
 	void OnSetTransform(EAvaLevelViewportTransformFieldType TransformField, EAxisList::Type Axis, FVector NewValue, bool bMirror, bool bCommitted);
 
@@ -124,7 +123,7 @@ private:
 	 * @param NewValue			The new translation value
 	 * @param CommitInfo		Whether or not this was committed from pressing enter or losing focus
 	 * @param Axis				Bitfield of which axis to set, can be multiple
-	 * @param bCommittted		true if the value was committed, false is the value comes from the slider
+	 * @param bCommitted		true if the value was committed, false is the value comes from the slider
 	 */
 	void OnSetTransformAxis(FVector::FReal NewValue, ETextCommit::Type CommitInfo, EAvaLevelViewportTransformFieldType TransformField, EAxisList::Type Axis, bool bCommitted);
 
@@ -135,10 +134,9 @@ private:
 	 * @param NewValue			The new translation value
 	 * @param CommitInfo		Whether or not this was committed from pressing enter or losing focus
 	 * @param Axis				Bitfield of which axis to set, can be multiple
-	 * @param bCommittted		true if the value was committed, false is the value comes from the slider
+	 * @param bCommitted		true if the value was committed, false is the value comes from the slider
 	 */
 	void OnSetTransformAxisFloat(float NewValue, ETextCommit::Type CommitInfo, EAvaLevelViewportTransformFieldType TransformField, EAxisList::Type Axis, bool bCommitted);
-
 
 	/**
 	 * Helper to begin a new transaction for a slider interaction.
@@ -210,7 +208,8 @@ private:
 	/**
 	 * Sets relative transform on the specified field
 	 *
-	 * @param The field that should be set to relative
+	 * @param TransformField the field that should be set to relative
+	 * @param bAbsoluteEnabled true to absolute, false for relative 
 	 */
 	void OnSetAbsoluteTransform(EAvaLevelViewportTransformFieldType TransformField, bool bAbsoluteEnabled);
 

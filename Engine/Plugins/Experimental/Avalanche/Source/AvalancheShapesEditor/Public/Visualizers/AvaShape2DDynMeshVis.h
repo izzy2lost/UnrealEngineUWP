@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "AvaShapeDynMeshVis.h"
 #include "DynamicMeshes/AvaShape2DDynMeshBase.h"
 
