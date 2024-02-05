@@ -793,7 +793,15 @@ namespace GeometryCollectionTest
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+			Collection->PhysObject->GetParticle_Internal(1),
+			Collection->PhysObject->GetParticle_Internal(2),
+			Collection->PhysObject->GetParticle_Internal(3),
+			Collection->PhysObject->GetParticle_Internal(4),
+			Collection->PhysObject->GetParticle_Internal(5),
+			Collection->PhysObject->GetParticle_Internal(6),
+		};
 		{
 			FName TargetName = GetFieldPhysicsName(EFieldPhysicsType::Field_ExternalClusterStrain);
 			UnitTest.Solver->GetPerSolverField().AddTransientCommand({ TargetName, FalloffField->NewCopy() });
@@ -853,12 +861,56 @@ namespace GeometryCollectionTest
 		FalloffField->Falloff = EFieldFalloffType::Field_FallOff_None;
 
 		UnitTest.Initialize();
-		auto& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
-		auto& ClusteredParticleHandles = Collection->PhysObject->GetSolverClusterHandles();
+
+		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+			Collection->PhysObject->GetParticle_Internal(1),
+			Collection->PhysObject->GetParticle_Internal(2),
+			Collection->PhysObject->GetParticle_Internal(3),
+			Collection->PhysObject->GetParticle_Internal(4),
+			Collection->PhysObject->GetParticle_Internal(5),
+			Collection->PhysObject->GetParticle_Internal(6),
+			Collection->PhysObject->GetParticle_Internal(7),
+			Collection->PhysObject->GetParticle_Internal(8),
+		};
+		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ClusteredParticleHandles = {
+			Collection->PhysObject->GetSolverClusterHandle_Internal(0),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(1),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(2),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(3),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(4),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(5),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(6),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(7),
+			Collection->PhysObject->GetSolverClusterHandle_Internal(8),
+		};
+
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 		UnitTest.Solver->RegisterSimOneShotCallback([&]()
 		{
+			ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+			Collection->PhysObject->GetParticle_Internal(1),
+			Collection->PhysObject->GetParticle_Internal(2),
+			Collection->PhysObject->GetParticle_Internal(3),
+			Collection->PhysObject->GetParticle_Internal(4),
+			Collection->PhysObject->GetParticle_Internal(5),
+			Collection->PhysObject->GetParticle_Internal(6),
+			Collection->PhysObject->GetParticle_Internal(7),
+			Collection->PhysObject->GetParticle_Internal(8),
+			};
+			ClusteredParticleHandles = {
+				Collection->PhysObject->GetSolverClusterHandle_Internal(0),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(1),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(2),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(3),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(4),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(5),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(6),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(7),
+				Collection->PhysObject->GetSolverClusterHandle_Internal(8),
+			};
 			EXPECT_EQ(ClusterMap.Num(), 3);
 			EXPECT_EQ(ClusteredParticleHandles[1]->GetInternalStrains(), 101);
 		});
@@ -1018,7 +1070,9 @@ namespace GeometryCollectionTest
 		UnitTest.Initialize();
 		UnitTest.Advance();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+		};
 		Chaos::TVector<float, 3> CurrV = ParticleHandles[0]->V();
 		
 
@@ -1129,7 +1183,13 @@ namespace GeometryCollectionTest
 		UnitTest.Initialize();
 		UnitTest.Advance();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+			Collection->PhysObject->GetParticle_Internal(1),
+			Collection->PhysObject->GetParticle_Internal(2),
+			Collection->PhysObject->GetParticle_Internal(3),
+			Collection->PhysObject->GetParticle_Internal(4),
+		};
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 
@@ -1198,7 +1258,13 @@ namespace GeometryCollectionTest
 		UnitTest.Initialize();
 		UnitTest.Advance();
 
-		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*>& ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+		TArray<Chaos::TPBDRigidClusteredParticleHandle<FReal, 3>*> ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+			Collection->PhysObject->GetParticle_Internal(1),
+			Collection->PhysObject->GetParticle_Internal(2),
+			Collection->PhysObject->GetParticle_Internal(3),
+			Collection->PhysObject->GetParticle_Internal(4),
+		};
 		auto& Clustering = UnitTest.Solver->GetEvolution()->GetRigidClustering();
 		const auto& ClusterMap = Clustering.GetChildrenMap();
 

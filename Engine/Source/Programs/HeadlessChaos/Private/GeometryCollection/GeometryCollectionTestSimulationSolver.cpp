@@ -113,7 +113,7 @@ using namespace ChaosTest;
 			EXPECT_EQ(Collection->DynamicCollection->GetParent(2),-1);
 
 			// Set the one cluster to disabled
-			UnitTest.Solver->GetEvolution()->DisableParticle(Collection->PhysObject->GetSolverClusterHandles()[0]);
+			UnitTest.Solver->GetEvolution()->DisableParticle(Collection->PhysObject->GetSolverClusterHandle_Internal(0));
 
 
 			StartingRigidDistance = (Collection->DynamicCollection->GetTransform(1).GetTranslation() - Collection->DynamicCollection->GetTransform(0).GetTranslation()).Size();
@@ -377,7 +377,12 @@ using namespace ChaosTest;
 			UnitTest.Solver->SetGenerateBreakingData(true);
 			UnitTest.Solver->SetBreakingFilterSettings(BreakingFilterSettings);
 
-			ParticleHandles = Collection->PhysObject->GetSolverParticleHandles();
+			ParticleHandles = {
+			Collection->PhysObject->GetParticle_Internal(0),
+			Collection->PhysObject->GetParticle_Internal(1),
+			Collection->PhysObject->GetParticle_Internal(2),
+			Collection->PhysObject->GetParticle_Internal(3),
+			};
 
 			ParticleHandles[0]->SetM(TestMass + 1.0f);
 			ParticleHandles[1]->SetM(TestMass - 1.0f);
