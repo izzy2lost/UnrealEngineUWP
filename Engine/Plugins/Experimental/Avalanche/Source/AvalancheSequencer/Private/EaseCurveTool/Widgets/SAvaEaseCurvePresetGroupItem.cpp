@@ -71,7 +71,7 @@ void SAvaEaseCurvePresetGroupItem::Construct(const FArguments& InArgs, const TSh
 							.VAlign(VAlign_Center)
 							[
 								SNew(SBox)
-								.Padding(0.f, 0.f, 0.f, 3.f)
+								.Padding(0.f, 0.f, 3.f, 0.f)
 								.Visibility(this, &SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility)
 								[
 									SNew(SImage)
@@ -286,7 +286,7 @@ EVisibility SAvaEaseCurvePresetGroupItem::GetQuickPresetIconVisibility() const
 		return EVisibility::Hidden;
 	}
 
-	return (Preset->Tangents == Tangents) ? EVisibility::Visible : EVisibility::Hidden;
+	return (Preset->Tangents == Tangents) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip() const
@@ -315,7 +315,7 @@ FText SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip() const
 			, EaseCurveToolCommands.QuickEaseOut->GetInputText());
 	}
 
-	return CommandText.IsEmpty() ? QuickEaseText : FText::Format(LOCTEXT("", "{0}\n\n{1}"), QuickEaseText, CommandText);
+	return CommandText.IsEmpty() ? QuickEaseText : FText::Format(LOCTEXT("QuickEasePresetIconTooltip", "{0}\n\n{1}"), QuickEaseText, CommandText);
 }
 
 #undef LOCTEXT_NAMESPACE
