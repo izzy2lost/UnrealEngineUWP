@@ -734,7 +734,7 @@ struct FChunkRequestParams
 		}
 		else
 		{
-			const uint64 RawSize = FMath::Min<uint64>(OffsetLength.GetLength(), ChunkInfo.Entry->RawSize);
+			const uint64 RawSize = FMath::Min<uint64>(OffsetLength.GetLength(), ChunkInfo.Entry->RawSize - OffsetLength.GetOffset());
 
 			ChunkRange = FIoChunkEncoding::GetChunkRange(
 				ChunkInfo.Entry->RawSize,
