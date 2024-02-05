@@ -5,6 +5,8 @@
 #include "LearningArray.h"
 #include "LearningAction.h"
 
+#include "LearningAgentsNeuralNetwork.h" // Included for ELearningAgentsActivationFunction
+
 #include "LearningAgentsActions.generated.h"
 
 class ULearningAgentsActionSchema;
@@ -145,7 +147,7 @@ public:
 	FLearningAgentsActionSchemaElement SpecifyEitherAction(const FLearningAgentsActionSchemaElement A, const FLearningAgentsActionSchemaElement B, const float PriorProbabilityOfA = 0.5f, const FName Name = TEXT("Either"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsActionSchemaElement SpecifyEncodingAction(const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize = 128, const FName Name = TEXT("Encoding"));
+	FLearningAgentsActionSchemaElement SpecifyEncodingAction(const FLearningAgentsActionSchemaElement Element, const int32 EncodingSize = 128, const int32 LayerNum = 1, const ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU, const FName Name = TEXT("Encoding"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsActionSchemaElement SpecifyBoolAction(const float PriorProbability = 0.5f, const FName Name = TEXT("Bool"));

@@ -5,6 +5,8 @@
 #include "LearningArray.h"
 #include "LearningObservation.h"
 
+#include "LearningAgentsNeuralNetwork.h" // Included for ELearningAgentsActivationFunction
+
 #include "Engine/EngineTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 
@@ -177,7 +179,7 @@ public:
 	FLearningAgentsObservationSchemaElement SpecifyEitherObservation(const FLearningAgentsObservationSchemaElement A, const FLearningAgentsObservationSchemaElement B, const int32 EncodingSize = 128, const FName Name = TEXT("Either"));
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	FLearningAgentsObservationSchemaElement SpecifyEncodingObservation(const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize = 128, const FName Name = TEXT("Encoding"));
+	FLearningAgentsObservationSchemaElement SpecifyEncodingObservation(const FLearningAgentsObservationSchemaElement Element, const int32 EncodingSize = 128, const int32 LayerNum = 1, const ELearningAgentsActivationFunction ActivationFunction = ELearningAgentsActivationFunction::ELU, const FName Name = TEXT("Encoding"));
 
 	/**
 	 * Specifies a new bool observation. A true or false observation.

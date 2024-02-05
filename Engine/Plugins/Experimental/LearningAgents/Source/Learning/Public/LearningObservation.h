@@ -120,6 +120,14 @@ namespace UE::Learning::Observation
 		int32 ValueEncodingSize = 32;
 	};
 
+	/** Activation Function to use for encoding */
+	enum class EEncodingActivationFunction : uint8
+	{
+		ELU = 0,
+		ReLU = 1,
+		TanH = 2,
+	};
+
 	struct FSchemaEncodingParameters
 	{
 		// The sub-element.
@@ -127,6 +135,12 @@ namespace UE::Learning::Observation
 
 		// The size at which the sub-element should be encoded.
 		int32 EncodingSize = 32;
+
+		// The number of layers in the encoding
+		int32 LayerNum = 1;
+
+		// The activation function to use for encoding
+		EEncodingActivationFunction ActivationFunction = EEncodingActivationFunction::ELU;
 	};
 
 	/**
@@ -228,6 +242,8 @@ namespace UE::Learning::Observation
 		{
 			int32 ElementIndex = INDEX_NONE;
 			int32 EncodingSize = INDEX_NONE;
+			int32 LayerNum = INDEX_NONE;
+			EEncodingActivationFunction ActivationFunction = EEncodingActivationFunction::ELU;
 		};
 
 		uint32 Generation = 0;

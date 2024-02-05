@@ -212,6 +212,8 @@ namespace UE::Learning::Observation
 		FEncodingData ElementData;
 		ElementData.ElementIndex = SubElementObjects.Num();
 		ElementData.EncodingSize = Parameters.EncodingSize;
+		ElementData.LayerNum = Parameters.LayerNum;
+		ElementData.ActivationFunction = Parameters.ActivationFunction;
 
 		SubElementNames.Add(NAME_None);
 		SubElementObjects.Add(Parameters.Element);
@@ -333,6 +335,8 @@ namespace UE::Learning::Observation
 		FSchemaEncodingParameters Parameters;
 		Parameters.Element = SubElementObjects[ElementData.ElementIndex];
 		Parameters.EncodingSize = ElementData.EncodingSize;
+		Parameters.LayerNum = ElementData.LayerNum;
+		Parameters.ActivationFunction = ElementData.ActivationFunction;
 		return Parameters;
 	}
 
@@ -665,6 +669,17 @@ namespace UE::Learning::Observation
 
 	namespace Private
 	{
+		static inline NNE::RuntimeBasic::FModelBuilder::EActivationFunction GetNNEActivationFunction(const EEncodingActivationFunction ActivationFunction)
+		{
+			switch (ActivationFunction)
+			{
+			case EEncodingActivationFunction::ReLU: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
+			case EEncodingActivationFunction::ELU: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ELU;
+			case EEncodingActivationFunction::TanH: return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::TanH;
+			default: UE_LEARNING_NOT_IMPLEMENTED(); return NNE::RuntimeBasic::FModelBuilder::EActivationFunction::ReLU;
+			}
+		}
+
 		NNE::RuntimeBasic::FModelBuilderElement MakeEncoderNetworkFromSchema(
 			NNE::RuntimeBasic::FModelBuilder& Builder,
 			const FSchema& Schema,
@@ -793,8 +808,13 @@ namespace UE::Learning::Observation
 
 				ReturnElement = Builder.MakeSequence({
 					MakeEncoderNetworkFromSchema(Builder, Schema, Parameters.Element),
-					Builder.MakeLinearWithRandomKaimingWeights(SubElementEncodedSize, Parameters.EncodingSize),
-					Builder.MakeELU(Parameters.EncodingSize),
+					Builder.MakeMLPWithRandomKaimingWeights(
+						SubElementEncodedSize,
+						Parameters.EncodingSize,
+						Parameters.EncodingSize,
+						Parameters.LayerNum + 1, // Add 1 to account for input layer
+						GetNNEActivationFunction(Parameters.ActivationFunction),
+						true)
 					});
 				break;
 			}
