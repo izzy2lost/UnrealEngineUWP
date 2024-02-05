@@ -25,6 +25,12 @@ class FThreadManager
 	/** List of thread objects to be ticked. */
 	FThreads Threads;
 
+	/* Helper variable for catching unexpected modification of the thread map/list. */
+	bool bIsThreadListDirty = false;
+
+	bool CheckThreadListSafeToContinueIteration();
+	void OnThreadListModified();
+
 public:
 
 	/**

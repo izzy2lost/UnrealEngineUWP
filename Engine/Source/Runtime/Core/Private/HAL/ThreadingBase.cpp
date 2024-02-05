@@ -452,6 +452,21 @@ public:
 };
 uint32 FFakeThread::ThreadIdCounter = 0xffff;
 
+bool FThreadManager::CheckThreadListSafeToContinueIteration()
+{
+	if (bIsThreadListDirty)
+	{
+		UE_LOG(LogCore, Error, TEXT("FThreadManager::Threads was modified during unsafe iteration. Iteration will be aborted."));
+		return false;
+	}
+
+	return true;
+}
+
+void FThreadManager::OnThreadListModified()
+{
+	bIsThreadListDirty = true;
+}
 
 void FThreadManager::AddThread(uint32 ThreadId, FRunnableThread* Thread)
 {
@@ -495,6 +510,7 @@ void FThreadManager::AddThread(uint32 ThreadId, FRunnableThread* Thread)
 	if (!Threads.Contains(ThreadId))
 	{
 		Threads.Add(ThreadId, Thread);
+		OnThreadListModified();
 	}
 }
 
@@ -505,6 +521,7 @@ void FThreadManager::RemoveThread(FRunnableThread* Thread)
 	if (ThreadId)
 	{
 		Threads.Remove(*ThreadId);
+		OnThreadListModified();
 	}
 }
 
@@ -595,17 +612,17 @@ void FThreadManager::ForEachThreadStackBackTrace(TFunctionRef<bool(uint32 Thread
 	ProgramCounterBuffer.SetNumZeroed(FThreadStackBackTrace::ProgramCountersMaxStackSize);
 
 	FScopeLock Lock(&ThreadsCritical);
+	bIsThreadListDirty = false;
 
 	{
 		const TConstArrayView<uint64> ProgramCounterOutputArrayView = ThreadStackBackTraces_PerformStackWalk(CurThreadId, GGameThreadId, ProgramCounterBuffer);
 		const bool bContinue = Func(GGameThreadId, TEXT("GameThread"), ProgramCounterOutputArrayView);
-		if (!bContinue)
+		if (!CheckThreadListSafeToContinueIteration() || !bContinue)
 		{
 			return;
 		}
 	}
 
-	// Not using ForEachThread since that creates a copy, just verify the callback isn't modifying thread list
 	for (const TPair<uint32, FRunnableThread*>& Pair : Threads)
 	{
 		const uint32 ThreadId = Pair.Key;
@@ -613,7 +630,7 @@ void FThreadManager::ForEachThreadStackBackTrace(TFunctionRef<bool(uint32 Thread
 		const FString& ThreadName = Thread->GetThreadName();
 		const TConstArrayView<uint64> ProgramCounterOutputArrayView = ThreadStackBackTraces_PerformStackWalk(CurThreadId, ThreadId, ProgramCounterBuffer);
 		const bool bContinue = Func(ThreadId, *ThreadName, ProgramCounterOutputArrayView);
-		if (!bContinue)
+		if (!CheckThreadListSafeToContinueIteration() || !bContinue)
 		{
 			return;
 		}
