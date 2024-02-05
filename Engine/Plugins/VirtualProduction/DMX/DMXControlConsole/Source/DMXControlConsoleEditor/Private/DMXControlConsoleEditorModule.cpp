@@ -24,7 +24,7 @@ const FName FDMXControlConsoleEditorModule::ControlConsoleEditorAppIdentifier(TE
 EAssetTypeCategories::Type FDMXControlConsoleEditorModule::DMXEditorAssetCategory;
 
 FDMXControlConsoleEditorModule::FDMXControlConsoleEditorModule()
-	: ControlConsoleCategory(LOCTEXT("ControlConsoleCategory", "ControlConsole"))
+	: ControlConsoleCategory(LOCTEXT("ControlConsoleAssetTypeCategory", "DMX"))
 {}
 
 void FDMXControlConsoleEditorModule::StartupModule()
