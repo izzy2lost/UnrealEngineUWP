@@ -234,6 +234,8 @@ FOpenGLProgramBinaryCache::FOpenGLProgramBinaryCache(const FString& InCachePathR
 	// Some devices report binary compatibility errors after minor OS updates even though the GL driver version has not changed.
 	const FString BuildNumber = FAndroidMisc::GetDeviceBuildNumber();
 	HashString.Append(BuildNumber);
+	
+	HashString.Append(AndroidEGL::GetInstance()->IsUsingRobustContext() ? TEXT("ROBUST") : TEXT("NRB"));
 
 	// Optional configrule variable for triggering a rebuild of the cache.
 	const FString* ConfigRulesGLProgramKey = FAndroidMisc::GetConfigRulesVariable(TEXT("OpenGLProgramCacheKey"));

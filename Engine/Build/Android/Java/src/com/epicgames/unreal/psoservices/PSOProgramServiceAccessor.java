@@ -207,7 +207,7 @@ public class PSOProgramServiceAccessor
 		}
 	}
 
-	public static boolean AndroidThunkJava_StartRemoteProgramLink(int numServices, boolean bUseVulkan)
+	public static boolean AndroidThunkJava_StartRemoteProgramLink(int numServices, boolean bUseRobustEGLContext, boolean bUseVulkan)
 	{
 		boolean bSuccess = false;
 		if( _PSOProgramServiceAccessor != null)
@@ -225,7 +225,7 @@ public class PSOProgramServiceAccessor
 				}
 				else
 				{
-					bSuccess = _PSOProgramServiceAccessor.StartAndWaitForServices(numServices);
+					bSuccess = _PSOProgramServiceAccessor.StartAndWaitForServices(numServices, bUseRobustEGLContext);
 				}
 			}
 			catch (Exception e)
@@ -267,14 +267,14 @@ public class PSOProgramServiceAccessor
 		}
 	}
 
-	boolean StartAndWaitForServices(int numServices)
+	boolean StartAndWaitForServices(int numServices, boolean bUseRobustEGLContext)
 	{
 		numServices = Math.max(1, Math.min(numServices, ServiceClassTypes.length));
 
 		ServiceInstances = new OGLServiceInstance[numServices];
 		for(int i = 0; i< numServices ;i++)
 		{
-			ServiceInstances[i] = new OGLServiceInstance(ServiceClassTypes[i]);
+			ServiceInstances[i] = new OGLServiceInstance(ServiceClassTypes[i], bUseRobustEGLContext);
 		}
 
 		boolean bSuccess = true;
@@ -292,7 +292,7 @@ public class PSOProgramServiceAccessor
 		ServiceInstances = new OGLServiceInstance[numServices];
 		for(int i = 0; i< numServices ;i++)
 		{
-			ServiceInstances[i] = new OGLServiceInstance(VulkanServiceClassTypes[i]);
+			ServiceInstances[i] = new OGLServiceInstance(VulkanServiceClassTypes[i], false);
 		}
 
 		boolean bSuccess = true;
@@ -857,6 +857,7 @@ public class PSOProgramServiceAccessor
 	class OGLServiceInstance
 	{
 		private final Class ServiceClass;
+		private final boolean bRobustContext;
 		boolean mShouldUnbind = false;
 		private final AtomicInteger mBound = new AtomicInteger(-1);
 		Messenger mService = null;
@@ -867,9 +868,10 @@ public class PSOProgramServiceAccessor
 			return ServiceClass.getSimpleName();
 		}
 
-		public OGLServiceInstance(Class ServiceClassIN)
+		public OGLServiceInstance(Class ServiceClassIN, boolean bRobustContextIN)
 		{
 			ServiceClass = ServiceClassIN;
+			bRobustContext = bRobustContextIN;
 		}
 
 		private final Map<String, Long> LastLogSequencePerUID = new HashMap<>();
@@ -984,10 +986,12 @@ public class PSOProgramServiceAccessor
 				{
 					BindServiceFlags = BindServiceFlags | Context.BIND_IMPORTANT;
 				}
+				 
+				intent.putExtra(PSOProgramService.RobustContextKey,bRobustContext);
 
 				mShouldUnbind = mContext.bindService(intent, mConnection, BindServiceFlags);
 
-				Log.verbose("doBindService " + Name() + " needs unbind " + mShouldUnbind + " bound: " + mBound);
+				Log.verbose("doBindService " + Name() + " needs unbind " + mShouldUnbind + " bound: " + mBound+ "robust: "+bRobustContext);
 			}
 			return mShouldUnbind;
 		}

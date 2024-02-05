@@ -85,7 +85,8 @@ public:
 	bool IsOfflineSurfaceRequired();
 
 	void GetDimensions(uint32& OutWidth, uint32& OutHeight);
-	
+	bool IsUsingRobustContext() const { return bIsEXTRobustContextActive; }
+
 	EGLDisplay GetDisplay() const;
 	EGLSurface GetSurface() const;
 	EGLConfig GetConfig() const;
@@ -146,6 +147,7 @@ private:
 	bool bSupportsKHRSurfacelessContext;
 	bool bSupportsKHRNoErrorContext;
 	bool bSupportsEXTRobustContext;
+	bool bIsEXTRobustContextActive = false;
 
 	int *ContextAttributes;
 };
