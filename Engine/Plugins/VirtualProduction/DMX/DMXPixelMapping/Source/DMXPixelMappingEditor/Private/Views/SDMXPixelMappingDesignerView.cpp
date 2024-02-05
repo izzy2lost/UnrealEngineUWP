@@ -784,11 +784,13 @@ void SDMXPixelMappingDesignerView::OpenContextMenu()
 	}
 	MenuBuilder.EndSection();
 
-	if (Toolkit->CanSizeSelectedComponentToTexture())
+	if (Toolkit->CanPerformCommandsOnGroup())
 	{
-		MenuBuilder.BeginSection("AdvancedActions", LOCTEXT("ActionsSection", "Advanced Actions"));
+		MenuBuilder.BeginSection("FixtureGroupActions", LOCTEXT("FixtureGroupActionsSection", "Fixture Group Actions"));
 		{
-			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().SizeComponentToTexture);
+			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().FlipGroupHorizontally);
+			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().FlipGroupVertically);
+			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().SizeGroupToTexture);
 		}
 		MenuBuilder.EndSection();
 	}

@@ -4,6 +4,13 @@
 
 #include "Algo/Sort.h"
 #include "Algo/Transform.h"
+#include "Components/DMXPixelMappingFixtureGroupComponent.h"
+#include "Components/DMXPixelMappingFixtureGroupItemComponent.h"
+#include "Components/DMXPixelMappingRendererComponent.h"
+#include "Components/DMXPixelMappingRootComponent.h"
+#include "Components/DMXPixelMappingMatrixCellComponent.h"
+#include "Components/DMXPixelMappingMatrixComponent.h"
+#include "Components/DMXPixelMappingScreenComponent.h"
 #include "DMXPixelMapping.h"
 #include "DMXPixelMappingEditorCommands.h"
 #include "DMXPixelMappingEditorModule.h"
@@ -14,11 +21,8 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
 #include "K2Node_PixelMappingBaseComponent.h"
-#include "Components/DMXPixelMappingFixtureGroupComponent.h"
-#include "Components/DMXPixelMappingRendererComponent.h"
-#include "Components/DMXPixelMappingRootComponent.h"
-#include "Components/DMXPixelMappingMatrixComponent.h"
-#include "Components/DMXPixelMappingScreenComponent.h"
+#include "Library/DMXEntityFixturePatch.h"
+#include "Library/DMXLibrary.h"
 #include "Modules/ModuleManager.h"
 #include "ScopedTransaction.h"
 #include "Settings/DMXPixelMappingEditorSettings.h"
@@ -134,8 +138,8 @@ void FDMXPixelMappingToolkit::InitPixelMappingEditor(const EToolkitMode::Type Mo
 			)
 		);
 
-	const bool bCreateDefaultStandaloneMenu = true;
-	const bool bCreateDefaultToolbar = true;
+	constexpr bool bCreateDefaultStandaloneMenu = true;
+	constexpr bool bCreateDefaultToolbar = true;
 	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, FDMXPixelMappingEditorModule::DMXPixelMappingEditorAppIdentifier,
 		StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, InDMXPixelMapping);
 
@@ -146,20 +150,20 @@ void FDMXPixelMappingToolkit::InitPixelMappingEditor(const EToolkitMode::Type Mo
 	// Make an initial selection
 	if (UDMXPixelMappingRootComponent* RootComponent = InDMXPixelMapping->GetRootComponent())
 	{
-		UDMXPixelMappingBaseComponent* const* FirstRendererComponetPtr = Algo::FindByPredicate(InDMXPixelMapping->GetRootComponent()->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
+		UDMXPixelMappingBaseComponent* const* FirstRendererComponentPtr = Algo::FindByPredicate(InDMXPixelMapping->GetRootComponent()->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
 			{
 				return Component && Component->GetClass() == UDMXPixelMappingRendererComponent::StaticClass();
 			});
-		if (FirstRendererComponetPtr)
+		if (FirstRendererComponentPtr)
 		{
-			UDMXPixelMappingBaseComponent* const* FirstFixtureGroupComponetPtr = Algo::FindByPredicate((*FirstRendererComponetPtr)->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
+			UDMXPixelMappingBaseComponent* const* FirstFixtureGroupComponentPtr = Algo::FindByPredicate((*FirstRendererComponentPtr)->GetChildren(), [](UDMXPixelMappingBaseComponent* Component)
 				{
 					return Component && Component->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass();
 				});
 
-			if (UDMXPixelMappingBaseComponent* const* ComponentToSelectPtr = FirstFixtureGroupComponetPtr ?
-				FirstFixtureGroupComponetPtr :
-				FirstRendererComponetPtr)
+			if (UDMXPixelMappingBaseComponent* const* ComponentToSelectPtr = FirstFixtureGroupComponentPtr ?
+				FirstFixtureGroupComponentPtr :
+				FirstRendererComponentPtr)
 			{
 				const FDMXPixelMappingComponentReference ComponentReference(StaticCastSharedRef<FDMXPixelMappingToolkit>(AsShared()), *ComponentToSelectPtr);
 				SelectComponents(TSet<FDMXPixelMappingComponentReference>({ ComponentReference }));
@@ -497,9 +501,22 @@ TArray<UDMXPixelMappingBaseComponent*> FDMXPixelMappingToolkit::CreateComponents
 
 					Target->AddChild(NewComponent);
 
-					// Output components need to adopt the initial rotation from their parent if possible.
+					// Find a reasonable size if components are added to a fixture group
 					UDMXPixelMappingOutputComponent* NewOutputComponent = Cast<UDMXPixelMappingOutputComponent>(NewComponent);
 					UDMXPixelMappingOutputComponent* ParentOutputComponent = NewOutputComponent ? Cast<UDMXPixelMappingOutputComponent>(NewOutputComponent->GetParent()) : nullptr;
+					UDMXPixelMappingFixtureGroupComponent* GroupComponent = Target ? Cast<UDMXPixelMappingFixtureGroupComponent>(ParentOutputComponent) : nullptr;
+					UDMXLibrary* DMXLibrary = GroupComponent->DMXLibrary;
+					if (GroupComponent && DMXLibrary)
+					{
+						const TArray<UDMXEntityFixturePatch*> FixturePatches = DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>();
+						const int32 Columns = FMath::RoundFromZero(FMath::Sqrt((float)FixturePatches.Num()));
+						const int32 Rows = FMath::RoundFromZero((float)FixturePatches.Num() / Columns);
+						const FVector2D Size = FVector2D(GroupComponent->GetSize().X / Columns, GroupComponent->GetSize().Y / Rows);
+
+						NewOutputComponent->SetSize(Size);
+					}
+
+					// Output components need to adopt the initial rotation from their parent if possible
 					if (NewOutputComponent && ParentOutputComponent)
 					{
 						NewOutputComponent->SetRotation(ParentOutputComponent->GetRotation());
@@ -562,29 +579,69 @@ void FDMXPixelMappingToolkit::DeleteSelectedComponents()
 	UpdateBlueprintNodes();
 }	
 
-bool FDMXPixelMappingToolkit::CanSizeSelectedComponentToTexture() const
+bool FDMXPixelMappingToolkit::CanPerformCommandsOnGroup() const
 {
-	if (SelectedComponents.Num() == 1)
-	{
-		if (UDMXPixelMappingBaseComponent* Component = SelectedComponents.Array()[0].GetComponent())
-		{
-			return
-				Component->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass() ||
-				Component->GetClass() == UDMXPixelMappingMatrixComponent::StaticClass() ||
-				Component->GetClass() == UDMXPixelMappingScreenComponent::StaticClass();
-		}
-	}
-	return false;
+	const UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = GetFixtureGroupFromSelection(); 
+	return FixtureGroupComponent != nullptr;
 }
 
-void FDMXPixelMappingToolkit::SizeSelectedComponentToTexture(bool bTransacted)
+void FDMXPixelMappingToolkit::FlipGroup(EOrientation Orientation, bool bTransacted)
 {
-	if (!ensureMsgf(CanSizeSelectedComponentToTexture(), TEXT("Trying to size selected component to texture without previously testing CanSizeSelectedComponentToTexture.")))
+	if (!ensureMsgf(CanPerformCommandsOnGroup(), TEXT("Trying to flip cells without previously testing CanPerformCommandsOnGroup.")))
 	{
 		return;
 	}
 
-	if (SelectedComponents.IsEmpty())
+	UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = GetFixtureGroupFromSelection();
+	if (!FixtureGroupComponent)
+	{
+		return;
+	}
+
+	TSharedPtr<FScopedTransaction> FilpCellsTransaction;
+	if (bTransacted)
+	{
+		const FText TransactionText = FText::Format(LOCTEXT("FilpCellsTransaction", "Flip Group {0}"), Orientation == EOrientation::Orient_Horizontal ? 
+			LOCTEXT("FlipHorizontalText", "Horizontally") :
+			LOCTEXT("FlipHorizontalText", "Vertically"));
+
+		FilpCellsTransaction = MakeShared<FScopedTransaction>(TransactionText);
+	}
+
+	const double RestoreRotation = FixtureGroupComponent->GetRotation();
+	FixtureGroupComponent->SetRotation(0.0);
+
+	const FVector2D Center = FixtureGroupComponent->GetPosition() + FixtureGroupComponent->GetSize() / 2.f;
+
+	constexpr bool bRecursive = false;
+	FixtureGroupComponent->ForEachChildOfClass<UDMXPixelMappingOutputComponent>([&Center, Orientation](UDMXPixelMappingOutputComponent* Child)
+		{
+			const FVector2D ChildPivotOffset = Child->GetSize() / 2.f;
+			const FVector2D ChildCenter = Child->GetPosition() + Child->GetSize() / 2.f;
+			const FVector2D NewPositionBothAxes = Center + Center - ChildCenter - ChildPivotOffset;
+			if (Orientation == EOrientation::Orient_Horizontal)
+			{
+				Child->SetPosition(FVector2D(NewPositionBothAxes.X, Child->GetPosition().Y));
+			}
+			else
+			{
+				Child->SetPosition(FVector2D(Child->GetPosition().X, NewPositionBothAxes.Y));
+			}
+		},
+		bRecursive);
+
+	FixtureGroupComponent->SetRotation(RestoreRotation);
+}
+
+void FDMXPixelMappingToolkit::SizeGroupToTexture(bool bTransacted)
+{
+	if (!ensureMsgf(CanPerformCommandsOnGroup(), TEXT("Trying to size selected component to texture without previously testing CanPerformCommandsOnGroup.")))
+	{
+		return;
+	}
+
+	UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = GetFixtureGroupFromSelection();
+	if (!FixtureGroupComponent)
 	{
 		return;
 	}
@@ -601,35 +658,16 @@ void FDMXPixelMappingToolkit::SizeSelectedComponentToTexture(bool bTransacted)
 		return;
 	}
 
-	UDMXPixelMappingOutputComponent* Component = Cast<UDMXPixelMappingOutputComponent>(SelectedComponents.Array()[0].GetComponent());
-	if (!Component)
-	{
-		return;
-	}
-
-	// Apply to parent where appropriate
-	if (Component->GetClass() != UDMXPixelMappingFixtureGroupComponent::StaticClass() &&
-		Component->GetClass() != UDMXPixelMappingMatrixComponent::StaticClass() &&
-		Component->GetClass() != UDMXPixelMappingScreenComponent::StaticClass())
-	{
-		if ((Component->GetParent() && Component->GetParent()->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass()) ||
-			(Component->GetParent() && Component->GetParent()->GetClass() == UDMXPixelMappingMatrixComponent::StaticClass()) ||
-			(Component->GetParent() && Component->GetParent()->GetClass() == UDMXPixelMappingScreenComponent::StaticClass()))
-		{
-			Component = Cast<UDMXPixelMappingOutputComponent>(Component->GetParent());
-		}
-	}
-
-	TSharedPtr<FScopedTransaction> SizeComponentToTextureTransaction;
+	TSharedPtr<FScopedTransaction> SizeGroupToTextureTransaction;
 	if (bTransacted)
 	{ 
-		SizeComponentToTextureTransaction = MakeShared<FScopedTransaction>(LOCTEXT("SizeComponentToTextureTransaction", "Size Component to Texture"));
+		SizeGroupToTextureTransaction = MakeShared<FScopedTransaction>(LOCTEXT("SizeGroupToTextureTransaction", "Size Group to Texture"));
 	}
 
-	Component->Modify();
-	Component->SetRotation(0.0);
-	Component->SetPosition(FVector2D::ZeroVector);
-	Component->SetSize(TextureSize);
+	FixtureGroupComponent->Modify();
+	FixtureGroupComponent->SetRotation(0.0);
+	FixtureGroupComponent->SetPosition(FVector2D::ZeroVector);
+	FixtureGroupComponent->SetSize(TextureSize);
 }
 
 void FDMXPixelMappingToolkit::SetTransformHandleMode(EDMXPixelMappingTransformHandleMode NewTransformHandleMode)
@@ -685,7 +723,6 @@ void FDMXPixelMappingToolkit::OnComponentRenamed(UDMXPixelMappingBaseComponent* 
 {
 	UpdateBlueprintNodes();
 }
-
 
 TSharedRef<SDockTab> FDMXPixelMappingToolkit::SpawnTab_DMXLibraryView(const FSpawnTabArgs& Args)
 {
@@ -994,11 +1031,29 @@ void FDMXPixelMappingToolkit::SetupCommands()
 	);
 
 	// Designer related
-	constexpr bool bSizeComponentToTexture = true;
+	constexpr bool bTransact = true;
 	GetToolkitCommands()->MapAction(
-		FDMXPixelMappingEditorCommands::Get().SizeComponentToTexture,
-		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SizeSelectedComponentToTexture, bSizeComponentToTexture),
-		FCanExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::CanSizeSelectedComponentToTexture)
+		FDMXPixelMappingEditorCommands::Get().FlipGroupHorizontally,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::FlipGroup, EOrientation::Orient_Horizontal, bTransact),
+		FCanExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::CanPerformCommandsOnGroup),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP(this, &FDMXPixelMappingToolkit::CanPerformCommandsOnGroup)
+	);
+	
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().FlipGroupVertically,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::FlipGroup, EOrientation::Orient_Vertical, bTransact),
+		FCanExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::CanPerformCommandsOnGroup),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP(this, &FDMXPixelMappingToolkit::CanPerformCommandsOnGroup)
+	);
+
+	GetToolkitCommands()->MapAction(
+		FDMXPixelMappingEditorCommands::Get().SizeGroupToTexture,
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SizeGroupToTexture, bTransact),
+		FCanExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::CanPerformCommandsOnGroup),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP(this, &FDMXPixelMappingToolkit::CanPerformCommandsOnGroup)
 	);
 
 	UDMXPixelMappingEditorSettings* EditorSettings = GetMutableDefault<UDMXPixelMappingEditorSettings>(); 
@@ -1034,6 +1089,50 @@ ECheckBoxState FDMXPixelMappingToolkit::GetEditorResetDMXModeCheckboxState(EDMXP
 ECheckBoxState FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState(EDMXPixelMappingTransformHandleMode CompareTransformHandleMode) const
 {
 	return CompareTransformHandleMode == TransformHandleMode ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+UDMXPixelMappingFixtureGroupComponent* FDMXPixelMappingToolkit::GetFixtureGroupFromSelection() const
+{
+	TArray<UDMXPixelMappingFixtureGroupComponent*> FixtureGroupComponents;
+	for (const FDMXPixelMappingComponentReference& ComponentReference : SelectedComponents)
+	{
+		UDMXPixelMappingBaseComponent* Component = ComponentReference.GetComponent();
+		if (!Component)
+		{
+			continue;
+		}
+
+		UDMXPixelMappingFixtureGroupComponent* FixtureGroupComponent = nullptr;
+		if (Component->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass())
+		{
+			FixtureGroupComponent = Cast<UDMXPixelMappingFixtureGroupComponent>(Component);
+		}
+		if ((Component->GetClass() == UDMXPixelMappingFixtureGroupItemComponent::StaticClass() ||
+			Component->GetClass() == UDMXPixelMappingMatrixComponent::StaticClass()) &&
+			Component->GetParent())
+		{
+			FixtureGroupComponent = Cast<UDMXPixelMappingFixtureGroupComponent>(Component->GetParent());
+		}
+		else if (Component->GetClass() == UDMXPixelMappingMatrixCellComponent::StaticClass() &&
+			Component->GetParent() &&
+			Component->GetParent()->GetParent())
+		{
+			FixtureGroupComponent = Cast<UDMXPixelMappingFixtureGroupComponent>(Component->GetParent()->GetParent());
+		}
+
+		if (FixtureGroupComponent)
+		{
+			FixtureGroupComponents.AddUnique(FixtureGroupComponent);
+		}
+	}
+
+	// Return the group only if exactly one is contained in selection
+	if (FixtureGroupComponents.Num() == 1)
+	{
+		return FixtureGroupComponents[0];
+	}
+
+	return nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE

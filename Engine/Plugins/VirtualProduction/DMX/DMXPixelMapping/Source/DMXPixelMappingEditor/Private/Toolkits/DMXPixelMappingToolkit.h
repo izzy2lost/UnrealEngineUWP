@@ -25,6 +25,7 @@ class SDMXPixelMappingLayoutView;
 class SDMXPixelMappingPreviewView;
 class UDMXPixelMapping;
 class UDMXPixelMappingBaseComponent;
+class UDMXPixelMappingFixtureGroupComponent;
 class UDMXPixelMappingMatrixComponent;
 class UDMXPixelMappingOutputComponent;
 class UDMXPixelMappingRendererComponent;
@@ -146,11 +147,14 @@ public:
 	/** Deletes the selected Components */
 	void DeleteSelectedComponents();
 
-	/** Returns true if the selected component can be sized to texture */
-	bool CanSizeSelectedComponentToTexture() const;
+	/** Returns true if the current selection yields a fixture group on which commands can be performed on, e.g. SizeGroupToTexture */
+	bool CanPerformCommandsOnGroup() const;
+
+	/** Flips children of a group either horizontally or vertically */
+	void FlipGroup(EOrientation Orientation, bool bTransacted);
 
 	/** Sizes the component to the render target of the pixelmapping asset */
-	void SizeSelectedComponentToTexture(bool bTransacted);
+	void SizeGroupToTexture(bool bTransacted);
 
 	/** Toggles between grid snapping enabled and disabled */
 	void ToggleGridSnapping();
@@ -226,6 +230,12 @@ private:
 
 	/** Returns the checkbox state for a transform handle mode, checked if the mode equals the current mode. */
 	ECheckBoxState GetTransformHandleModeCheckboxState(EDMXPixelMappingTransformHandleMode CompareTransformHandleMode) const;
+
+	/** 
+	 * Returns the fixture group from a selection. Returns the parent group if the primary selection is a child of a group.
+	 * Returns the primary fixture group in selection or nullptr if no fixture group can be deduced from selection. 
+	 */
+	UDMXPixelMappingFixtureGroupComponent* GetFixtureGroupFromSelection() const;
 
 	/** List of open tool panels; used to ensure only one exists at any one time */
 	TMap<FName, TWeakPtr<SDockableTab>> SpawnedToolPanels;

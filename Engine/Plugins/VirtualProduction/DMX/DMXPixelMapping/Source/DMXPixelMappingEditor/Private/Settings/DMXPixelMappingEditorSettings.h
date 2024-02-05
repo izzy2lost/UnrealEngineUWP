@@ -15,7 +15,7 @@ struct FDMXPixelMappingHierarchySettings
 
 	/** If true, shows the editor color column */
 	UPROPERTY()
-	bool bShowEditorColorColumn = false;
+	bool bShowEditorColorColumn = true;
 
 	/** If true, shows the fixture ID column */
 	UPROPERTY()
