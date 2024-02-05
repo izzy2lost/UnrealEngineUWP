@@ -349,9 +349,7 @@ void CHash::UpdateLinks()
 	if (Linked.empty())
 		return;
 
-	/// has to be
 	check(IsInGameThread());
-	check(IsFinal());
 
 	auto ThisHash = shared_from_this();
 
@@ -366,9 +364,10 @@ void CHash::UpdateLinks()
 		}
 	}
 
-	/// Ok, the links should've updated over here. We can clear our _linked list now
-	/// as they'll never be used after this. 
-	Linked.clear();
+	/// Ok, the links should've updated over here and We can clear our linked list now
+	/// if the hash is final, as they'll never be used after this. 
+	if (IsFinal())
+		Linked.clear();
 }
 
 HashTypeVec CHash::GetIntermediateHashes() const

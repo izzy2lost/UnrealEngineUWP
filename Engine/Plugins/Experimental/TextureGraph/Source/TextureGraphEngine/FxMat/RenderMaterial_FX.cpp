@@ -13,10 +13,9 @@ RenderMaterial_FX::RenderMaterial_FX(FString InName, FxMaterialPtr InFXMaterial)
 	: RenderMaterial(InName)
 	, FXMaterial(InFXMaterial)
 {
-	static constexpr int MaxName = 256;
+	static constexpr int32 MaxName = 256;
 	char FullName[MaxName] = {0};
-	check(InName.Len() < MaxName);
-	memcpy((char*)FullName, (const char*)TCHAR_TO_ANSI(*InName), InName.Len());
+	FMemory::Memcpy((char*)FullName, (const char*)TCHAR_TO_ANSI(*InName), (size_t)std::min((int32)InName.Len(), MaxName - 1));
 	HashValue = std::make_shared<CHash>(DataUtil::Hash((const uint8*)FullName, sizeof(FullName)), true);
 }
 
