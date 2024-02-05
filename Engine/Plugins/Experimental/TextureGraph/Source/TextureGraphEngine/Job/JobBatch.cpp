@@ -362,16 +362,16 @@ void JobBatch::OnJobDone(Job* JobObj, int64 JobId)
 
 	if (JobsFinished[JobId] == false) 
 	{
-		auto numJobsAlive = --NumJobsRunning; /// Decrement and then catch the current value
+		auto NumJobsAlive = --NumJobsRunning; /// Decrement and then catch the current value
 		check(JobId < (int64)NumJobs());
-		check(numJobsAlive >= 0);
+		check(NumJobsAlive >= 0);
 
-		UE_LOG(LogBatch, VeryVerbose, TEXT("Job done: %d [Num left: %d, Batch Id: %llu]"), JobId, (uint32)numJobsAlive, BatchId);
+		UE_LOG(LogBatch, VeryVerbose, TEXT("Job done: %d [Num left: %d, Batch Id: %llu]"), JobId, (uint32)NumJobsAlive, BatchId);
 
 		JobsFinished[JobId] = true;
 
 		/// when all more Jobs are done then notify
-		if (numJobsAlive <= 0)
+		if (NumJobsAlive <= 0)
 		{
 			UE_LOG(LogBatch, VeryVerbose, TEXT("All Jobs done for Batch: %llu"), BatchId);
 			EndBatch();

@@ -16,7 +16,7 @@ IMPLEMENT_GLOBAL_SHADER(FSH_TransformBlit, "/Plugin/TextureGraph/Expressions/Exp
 TiledBlobPtr T_Transform::Create(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, TiledBlobPtr Source,
 	const TransformParameter& TransformParam, const CellParameter& CellParam, const ColorParameter& ColorParam, int32 TargetId)
 {
-	RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_TransformBlit>(TEXT("T_TransformBlit"));
+	RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_TransformBlit>(TEXT("T_Transform"));
 
 	check(RenderMaterial);
 
@@ -35,11 +35,11 @@ TiledBlobPtr T_Transform::Create(MixUpdateCyclePtr Cycle, BufferDescriptor Desir
 
 
 
-	FTileInfo tileInfo;
+	FTileInfo TileInfo;
 
 	JobUPtr RenderJob = std::make_unique<Job>(Cycle->GetMix(), TargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));
 	RenderJob
-		->AddArg(ARG_TILEINFO(tileInfo, "TileInfo"))
+		->AddArg(ARG_TILEINFO(TileInfo, "TileInfo"))
 		->AddArg(ARG_BLOB(CombinedBlob, "SourceTexture"))
 		->AddArg(ARG_LINEAR_COLOR(ColorParam.FillColor, "FillColor"))
 		->AddArg(ARG_FLOAT((TransformParam.Coverage.X < 0.005 ? 0.005 : TransformParam.Coverage.X), "CoverageX"))

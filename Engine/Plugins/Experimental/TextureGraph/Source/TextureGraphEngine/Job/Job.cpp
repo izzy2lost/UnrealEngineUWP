@@ -764,7 +764,7 @@ AsyncPrepareResult Job::PrepareTargets(JobBatch* Batch)
 	{
 		for (size_t TileY = 0; TileY < ResultPromise->Cols(); TileY++)
 		{
-			CHashPtr ResultTileHash = TileHash(TileX, TileY);
+			CHashPtr ResultTileHash = bCanHandleTiles ? TileHash(TileX, TileY) : TileHash(-1, -1);
 			BlobRef TileBlob = !(Batch->IsNoCache() || bIsNoCache) ? TextureGraphEngine::GetBlobber()->FindSingle(ResultTileHash->Value()) : BlobRef();
 
 			if (!TileBlob && DuplicatesThisJob.size())

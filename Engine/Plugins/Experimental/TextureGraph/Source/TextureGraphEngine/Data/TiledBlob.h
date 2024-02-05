@@ -134,6 +134,7 @@ public:
 		check(IsValidTileIndex(TileX, TileY));
 		return BlobRef(Tiles[TileX][TileY], false);
 	}
+	FORCEINLINE BlobPtr				GetSingleBlob() const { return SingleBlob; }
 
 	JobPtrW							Job() const { return JobObj; }
 	JobPtrW&						Job() { return JobObj; }
