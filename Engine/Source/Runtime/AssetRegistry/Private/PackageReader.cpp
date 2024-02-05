@@ -673,9 +673,9 @@ bool FPackageReader::ReadDependencyData(FPackageDependencyData& OutDependencyDat
 		OutDependencyData.bHasPackageData = true;
 		FAssetPackageData& PackageData = OutDependencyData.PackageData;
 		PackageData.DiskSize = PackageFileSize;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-		PackageData.PackageGuid = PackageFileSummary.Guid;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+#if WITH_EDITORONLY_DATA
+		PackageData.SetPackageSavedHash(PackageFileSummary.GetSavedHash());
+#endif
 		PackageData.SetCustomVersions(PackageFileSummary.GetCustomVersionContainer().GetAllVersions());
 		PackageData.FileVersionUE = PackageFileSummary.GetFileVersionUE();
 		PackageData.FileVersionLicenseeUE = PackageFileSummary.GetFileVersionLicenseeUE();

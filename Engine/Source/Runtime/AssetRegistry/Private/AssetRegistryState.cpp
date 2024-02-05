@@ -3063,9 +3063,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 			PageBuffer.Append(TEXT("	"));
 			Key.AppendString(PageBuffer);
 			PageBuffer.Append(TEXT(" : "));
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			PageBuffer.Append(PackageData->PackageGuid.ToString());
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			PageBuffer << PackageData->GetPackageSavedHash();
 			PageBuffer.Appendf(TEXT(" : %d bytes"), PackageData->DiskSize);
 			AddLine();
 		}

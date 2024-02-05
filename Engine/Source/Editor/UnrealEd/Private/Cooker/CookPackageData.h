@@ -13,6 +13,7 @@
 #include "Containers/UnrealString.h"
 #include "HAL/CriticalSection.h"
 #include "HAL/Platform.h"
+#include "IO/IoHash.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Optional.h"
 #include "Misc/ScopeRWLock.h"
@@ -878,8 +879,8 @@ public:
 		KeepReferencedPackages.Append(InKeepReferencedPackages);
 	}
 
-	/** Create the Guid for this generated package, based on dependencies and GenerationHash. */
-	void CreateGuid();
+	/** Create the hash for this generated package, based on dependencies and GenerationHash. */
+	void CreatePackageHash();
 
 	/**
 	 * If the package has iterative results from a previous cook that were not invalidated by dependency changes,
@@ -887,12 +888,13 @@ public:
 	 * incremental cooks handle invalidation by querying the TargetDomainDigest during the RequestCluster.
 	 */
 	void IterativeCookValidateOrClear(FGeneratorPackage& Generator,
-		TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FGuid& PreviousGuid, bool& bOutIterativelyUnmodified);
+		TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FIoHash& PreviousHash,
+		bool& bOutIterativelyUnmodified);
 
 	TConstArrayView<FAssetDependency> GetDependencies() const { return PackageDependencies; }
 
 public:
-	FGuid Guid;
+	FIoHash PackageHash;
 	FString RelativePath;
 	FString GeneratedRootPath;
 	FBlake3Hash GenerationHash;
@@ -975,7 +977,7 @@ public:
 
 	UPackage* GetOwnerPackage() const { return OwnerPackage.Get(); };
 	void SetOwnerPackage(UPackage* InPackage) { OwnerPackage = InPackage; }
-	void SetPreviousGeneratedPackages(TMap<FName, FGuid>&& Packages) { PreviousGeneratedPackages = MoveTemp(Packages); }
+	void SetPreviousGeneratedPackages(TMap<FName, FIoHash>&& Packages) { PreviousGeneratedPackages = MoveTemp(Packages); }
 
 	TConstArrayView<FName> GetExternalActorDependencies() { check(IsInitialized()); return ExternalActorDependencies; }
 	TArray<FName> ReleaseExternalActorDependencies() { TArray<FName> Result = MoveTemp(ExternalActorDependencies); return Result; }
@@ -992,7 +994,7 @@ private:
 	/** Recorded list of packages to generate from the splitter, and data we need about them */
 	TArray<FCookGenerationInfo> PackagesToGenerate;
 	TWeakObjectPtr<UPackage> OwnerPackage;
-	TMap<FName, FGuid> PreviousGeneratedPackages;
+	TMap<FName, FIoHash> PreviousGeneratedPackages;
 	TArray<FName> ExternalActorDependencies;
 
 	int32 NextPopulateIndex = 0;

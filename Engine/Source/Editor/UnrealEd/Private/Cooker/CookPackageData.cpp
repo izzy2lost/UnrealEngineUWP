@@ -1688,21 +1688,21 @@ bool FGeneratorPackage::TryGenerateList(UObject* OwnerObject, FPackageDatas& Pac
 		PackageData->SetGeneratedOwner(this);
 		PackageData->SetWorkerAssignmentConstraint(FWorkerId::Local());
 
-		// Create the Guid from the GenerationHash and Dependencies
-		GeneratedInfo.CreateGuid();
+		// Create the Hash from the GenerationHash and Dependencies
+		GeneratedInfo.CreatePackageHash();
 
-		FGuid PreviousGuid;
-		if (PreviousGeneratedPackages.RemoveAndCopyValue(PackageFName, PreviousGuid) && !bHybridIterativeEnabled)
+		FIoHash PreviousHash;
+		if (PreviousGeneratedPackages.RemoveAndCopyValue(PackageFName, PreviousHash) && !bHybridIterativeEnabled)
 		{
 			bool bIterativelyUnmodified;
-			GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousGuid, bIterativelyUnmodified);
+			GeneratedInfo.IterativeCookValidateOrClear(*this, PlatformsToCook, PreviousHash, bIterativelyUnmodified);
 			++(bIterativelyUnmodified ? NumIterativeUnmodified : NumIterativeModified);
 		}
 	}
 	if (!PreviousGeneratedPackages.IsEmpty())
 	{
 		NumIterativeRemoved = PreviousGeneratedPackages.Num();
-		for (TPair<FName, FGuid>& Pair : PreviousGeneratedPackages)
+		for (TPair<FName, FIoHash>& Pair : PreviousGeneratedPackages)
 		{
 			for (const ITargetPlatform* TargetPlatform : PlatformsToCook)
 			{
@@ -1934,9 +1934,7 @@ UPackage* FGeneratorPackage::CreateGeneratedUPackage(FCookGenerationInfo& Genera
 	++DetailedCookStats::NumRequestedLoads;
 #endif
 	UPackage* GeneratedPackage = CreatePackage(GeneratedPackageName);
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	GeneratedPackage->SetGuid(GeneratedInfo.Guid);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	GeneratedPackage->SetSavedHash(GeneratedInfo.PackageHash);
 	GeneratedPackage->SetPersistentGuid(InOwnerPackage->GetPersistentGuid());
 	GeneratedPackage->SetPackageFlags(PKG_CookGenerated);
 	GeneratedInfo.SetHasCreatedPackage(true);
@@ -2274,7 +2272,7 @@ EPollStatus FCookGenerationInfo::RefreshPackageObjects(FGeneratorPackage& Genera
 	return EPollStatus::Success;
 }
 
-void FCookGenerationInfo::CreateGuid()
+void FCookGenerationInfo::CreatePackageHash()
 {
 	FBlake3 Blake3;
 	Blake3.Update(&GenerationHash, sizeof(GenerationHash));
@@ -2284,21 +2282,29 @@ void FCookGenerationInfo::CreateGuid()
 		TOptional<FAssetPackageData> DependencyData = AssetRegistry.GetAssetPackageDataCopy(Dependency.AssetId.PackageName);
 		if (DependencyData)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-			Blake3.Update(&DependencyData->PackageGuid, sizeof(DependencyData->PackageGuid));
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+			Blake3.Update(&DependencyData->GetPackageSavedHash().GetBytes(), sizeof(DependencyData->GetPackageSavedHash().GetBytes()));
 		}
 	}
-	FBlake3Hash GeneratedHash = Blake3.Finalize();
-	const uint32* HashInts = reinterpret_cast<const uint32*>(GeneratedHash.GetBytes());
-	Guid = FGuid(HashInts[0], HashInts[1], HashInts[2], HashInts[3]);
+	PackageHash = FIoHash(Blake3.Finalize());
+	// We store the PackageHash as a FIoHash, but UPackage and FAssetPackageData store it as a FGuid, which is smaller,
+	// so we have to remove any data which doesn't fit into FGuid. This can be removed when we remove the deprecated
+	// Guid storage on UPackage.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	constexpr int SizeDifference = sizeof(PackageHash) - sizeof(DeclVal<UPackage>().GetGuid());
+	if (SizeDifference > 0)
+	{
+		FMemory::Memset(((uint8*)&PackageHash.GetBytes()) + (sizeof(PackageHash.GetBytes()) - SizeDifference),
+			0, SizeDifference);
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 void FCookGenerationInfo::IterativeCookValidateOrClear(FGeneratorPackage& Generator,
-	TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FGuid& PreviousGuid, bool& bOutIterativelyUnmodified)
+	TConstArrayView<const ITargetPlatform*> RequestedPlatforms, const FIoHash& PreviousPackageHash,
+	bool& bOutIterativelyUnmodified)
 {
 	UCookOnTheFlyServer& COTFS = Generator.GetOwner().GetPackageDatas().GetCookOnTheFlyServer();
-	bOutIterativelyUnmodified = PreviousGuid == this->Guid;
+	bOutIterativelyUnmodified = PreviousPackageHash == this->PackageHash;
 	if (bOutIterativelyUnmodified)
 	{
 		// If not directly modified, mark it as indirectly modified if any of its dependencies

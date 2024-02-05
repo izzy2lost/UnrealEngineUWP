@@ -2600,12 +2600,6 @@ public:
 		return INDEX_NONE;
 	}
 
-	/** Looks up the GUID of a package on disk. The package must NOT be in the auto-download cache.
-	 * This may require loading the header of the package in question and is therefore slow.
-	 */
-	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and UEngine::GetPackageGuid will be removed.")
-	static ENGINE_API FGuid GetPackageGuid(FName PackageName, bool bForPIE);
-
 	static ENGINE_API void PreGarbageCollect();
 
 	/**

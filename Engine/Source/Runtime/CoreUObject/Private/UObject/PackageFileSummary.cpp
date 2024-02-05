@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PackageFileSummary.h"
+
+#include "HAL/PlatformMath.h"
 #include "Misc/Compression.h"
-#include "UObject/Linker.h"
-#include "Serialization/StructuredArchive.h"
-#include "UObject/UObjectGlobals.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "Serialization/StructuredArchive.h"
+#include "UObject/Linker.h"
+#include "UObject/UObjectGlobals.h"
 
 FPackageFileSummary::FPackageFileSummary()
 {
@@ -270,9 +272,10 @@ void operator<<(FStructuredArchive::FSlot Slot, FPackageFileSummary& Sum)
 			else
 			{
 				// By assigning the current package guid, we maintain a stable persistent guid, so we can reference this package even if it wasn't resaved.
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-				Sum.PersistentGuid = Sum.Guid;
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				FIoHash SavedHash = Sum.GetSavedHash();
+				Sum.PersistentGuid = FGuid();
+				FMemory::Memcpy(&Sum.PersistentGuid, &SavedHash.GetBytes(),
+					FMath::Min(sizeof(Sum.PersistentGuid), sizeof(SavedHash.GetBytes())));
 			}
 
 			// The owner persistent guid was added in VER_UE4_ADDED_PACKAGE_OWNER but removed in the next version VER_UE4_NON_OUTER_PACKAGE_IMPORT
@@ -446,6 +449,25 @@ void operator<<(FStructuredArchive::FSlot Slot, FPackageFileSummary& Sum)
 		}
 	}
 }
+
+#if WITH_EDITORONLY_DATA
+FIoHash FPackageFileSummary::GetSavedHash() const
+{
+	FIoHash Result;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	FMemory::Memcpy(&Result.GetBytes(), &Guid, FMath::Min(sizeof(Result.GetBytes()), sizeof(Guid)));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	return Result;
+}
+
+void FPackageFileSummary::SetSavedHash(const FIoHash& InSavedHash)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	Guid = FGuid();
+	FMemory::Memcpy(&Guid, &InSavedHash.GetBytes(), FMath::Min(sizeof(Guid), sizeof(InSavedHash.GetBytes())));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+}
+#endif
 
 FArchive& operator<<( FArchive& Ar, FPackageFileSummary& Sum )
 {

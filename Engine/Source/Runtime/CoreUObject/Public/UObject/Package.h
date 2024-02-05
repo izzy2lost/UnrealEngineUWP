@@ -28,6 +28,10 @@
 #include "UObject/ObjectVersion.h"
 #include "UObject/UObjectGlobals.h"
 
+#if WITH_EDITORONLY_DATA
+#include "IO/IoHash.h"
+#endif
+
 class Error;
 class FArchive;
 class FLinkerLoad;
@@ -259,13 +263,13 @@ private:
 
 	/** Chunk IDs for the streaming install chunks this package will be placed in.  Empty for no chunk. Used during cooking. */
 	TArray<int32> ChunkIDs;
-#endif
 
 #if !UE_STRIP_DEPRECATED_PROPERTIES
 	/** GUID of package if it was loaded from disk. Changes at every save. */
-	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and it will be removed.")
+	UE_DEPRECATED(5.4, "Use GetSavedHash/SetSavedHash instead.")
 	FGuid Guid;
 #endif
+#endif // WITH_EDITORONLY_DATA
 
 	/** Package Flags */
 	uint32 PackageFlagsPrivate;
@@ -776,6 +780,10 @@ public:
 	{
 		PersistentGuid = NewPersistentGuid;
 	}
+
+	/** Hash of the package's .uasset/.umap file when it was last saved by the editor. */
+	COREUOBJECT_API FIoHash GetSavedHash();
+	COREUOBJECT_API void SetSavedHash(const FIoHash& InSavedHash);
 #endif
 
 #if WITH_RELOAD
@@ -803,8 +811,8 @@ public:
 		WorldTileInfo = MoveTemp(InWorldTileInfo);
 	}
 
-	/** returns our Guid */
-	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and GetGuid will be removed.")
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.4, "Use GetSavedHash/SetSavedHash instead.")
 	FORCEINLINE FGuid GetGuid() const
 	{
 #if !UE_STRIP_DEPRECATED_PROPERTIES
@@ -812,9 +820,10 @@ public:
 #else
 		return FGuid();
 #endif
+	
 	}
 	/** makes our a new fresh Guid */
-	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and MakeNewGuid will be removed.")
+	UE_DEPRECATED(5.4, "Use GetSavedHash/SetSavedHash instead.")
 	FORCEINLINE FGuid MakeNewGuid()
 	{
 #if !UE_STRIP_DEPRECATED_PROPERTIES
@@ -825,13 +834,14 @@ public:
 #endif
 	}
 	/** sets a specific Guid */
-	UE_DEPRECATED(4.27, "UPackage::Guid has not been used by the engine for a long time and SetGuid will be removed.")
+	UE_DEPRECATED(5.4, "Use GetSavedHash/SetSavedHash instead.")
 	FORCEINLINE void SetGuid(FGuid NewGuid)
 	{
 #if !UE_STRIP_DEPRECATED_PROPERTIES
 		Guid = NewGuid;
 #endif
 	}
+#endif // WITH_EDITORONLY_DATA
 
 	/** returns our FileSize */
 	FORCEINLINE int64 GetFileSize() const

@@ -8,6 +8,7 @@
 #include "AssetRegistry/ARFilter.h"
 #include "Containers/Set.h"
 #include "HAL/CriticalSection.h"
+#include "HAL/PlatformMath.h"
 #include "Misc/AsciiSet.h"
 #include "Misc/PathViews.h"
 #include "Misc/ScopeRWLock.h"
@@ -945,15 +946,33 @@ void FAssetPackageData::SerializeForCacheInternal(FArchive& Ar, FAssetPackageDat
 	}
 }
 
-COREUOBJECT_API void FAssetPackageData::SerializeForCache(FArchive& Ar)
+void FAssetPackageData::SerializeForCache(FArchive& Ar)
 {
 	// Calling with hard-coded version and using force-inline on SerializeForCacheInternal eliminates the cost of its if-statements
 	SerializeForCacheInternal(Ar, *this, FAssetRegistryVersion::LatestVersion);
 }
 
-COREUOBJECT_API void FAssetPackageData::SerializeForCacheOldVersion(FArchive& Ar, FAssetRegistryVersion::Type Version)
+void FAssetPackageData::SerializeForCacheOldVersion(FArchive& Ar, FAssetRegistryVersion::Type Version)
 {
 	SerializeForCacheInternal(Ar, *this, Version);
+}
+
+FIoHash FAssetPackageData::GetPackageSavedHash() const
+{
+	FIoHash Result;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	FMemory::Memcpy(&Result.GetBytes(), &this->PackageGuid,
+		FMath::Min(sizeof(Result.GetBytes()), sizeof(PackageGuid)));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	return Result;
+}
+
+void FAssetPackageData::SetPackageSavedHash(const FIoHash& InHash)
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+	PackageGuid = FGuid();
+	FMemory::Memcpy(&PackageGuid, &InHash.GetBytes(), FMath::Min(sizeof(PackageGuid), sizeof(InHash.GetBytes())));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 
 void FARFilter::PostSerialize(const FArchive& Ar)

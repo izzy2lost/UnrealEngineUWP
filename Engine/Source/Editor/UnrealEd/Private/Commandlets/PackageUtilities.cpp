@@ -999,9 +999,7 @@ void FPkgInfoReporter_Log::GeneratePackageReport( FLinkerLoad* InLinker /*=nullp
 
 	if (!IsHideSaveUnstable())
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Out.Logf(ELogVerbosity::Display, TEXT("\t             Guid: %s"), *Linker->Summary.Guid.ToString());
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		Out.Logf(ELogVerbosity::Display, TEXT("\t        SavedHash: %s"), *WriteToString<40>(Linker->Summary.GetSavedHash()));
 	}
 	Out.Logf(ELogVerbosity::Display, TEXT("\t   PersistentGuid: %s"), *Linker->Summary.PersistentGuid.ToString());
 	Out.Logf(ELogVerbosity::Display, TEXT("\t      Generations:"));
