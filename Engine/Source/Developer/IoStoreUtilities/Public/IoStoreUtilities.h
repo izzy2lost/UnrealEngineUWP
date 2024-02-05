@@ -60,6 +60,4 @@ UE_API bool SignIoStoreContainer(const TCHAR* InContainerFilename, const FRSAKey
 
 UE_API bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard); 
 
-UE_API bool DownloadIoStoreContainerFiles(const TCHAR* TocPath);
-
 #undef UE_API

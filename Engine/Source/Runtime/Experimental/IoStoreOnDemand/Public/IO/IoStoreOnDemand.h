@@ -235,11 +235,11 @@ struct FIoStoreDownloadParams
 	FString CredentialsFileKeyName;
 	int32 MaxConcurrentDownloads = 16;
 	
-	UE_API static TIoStatusOr<FIoStoreDownloadParams> Parse(const TCHAR* CommandLine);
+	static TIoStatusOr<FIoStoreDownloadParams> Parse(const TCHAR* CommandLine);
 	FIoStatus Validate() const;
 };
 
-UE_API FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
+FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
 
 /**
  * Parameters for listing uploaded TOC file(s) from an S3 compatible endpoint.

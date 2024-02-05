@@ -9722,24 +9722,3 @@ bool UploadIoStoreContainerFiles(const TCHAR* ContainerPathOrWildcard)
 
 	return UploadIoStoreContainerFiles(UploadParams.ConsumeValueOrDie(), ContainerFiles, KeyChain);
 }
-
-bool DownloadIoStoreContainerFiles(const TCHAR* TocPath)
-{
-	using namespace UE::IO::IAS;
-	check(TocPath);
-
-	TIoStatusOr<FIoStoreDownloadParams> Params = FIoStoreDownloadParams::Parse(FCommandLine::Get());
-	if (Params.IsOk() == false)
-	{
-		UE_LOG(LogIoStore, Error, TEXT("Failed to download container file(s), reason '%s'"), *Params.Status().ToString());
-		return false;
-	}
-
-	FIoStatus Status = DownloadContainerFiles(Params.ConsumeValueOrDie(), TocPath);
-	if (Status.IsOk() == false)
-	{
-		UE_LOG(LogIoStore, Error, TEXT("Failed to download container file(s), reason '%s'"), *Status.ToString());
-	}
-
-	return Status.IsOk();
-}
