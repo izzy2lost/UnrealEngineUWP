@@ -178,10 +178,10 @@ namespace ExtrudeBoundaryEdgesLocals
 		if (ScalingLimit > 1)
 		{
 			FVector3d VectorToCompareAgainst = OutwardVector1.IsZero() ? OutwardVector2 : OutwardVector1;
-			double cosTheta = ExtrudeFrame.Frame.X().Dot(VectorToCompareAgainst);
-			if (FMath::Abs(cosTheta) > KINDA_SMALL_NUMBER)
+			double CosTheta = ExtrudeFrame.Frame.X().Dot(VectorToCompareAgainst);
+			if (FMath::Abs(CosTheta) > KINDA_SMALL_NUMBER)
 			{
-				ExtrudeFrame.Scaling.X = FMath::Min(1 / FMath::Abs(cosTheta), ScalingLimit);
+				ExtrudeFrame.Scaling.X = FMath::Min(1 / FMath::Abs(CosTheta), ScalingLimit);
 			}
 		}
 
