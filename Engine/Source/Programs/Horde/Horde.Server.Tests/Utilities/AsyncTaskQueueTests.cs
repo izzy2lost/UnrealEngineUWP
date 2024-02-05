@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -20,10 +19,18 @@ namespace Horde.Server.Tests.Utilities
 			await using AsyncTaskQueue queue = new AsyncTaskQueue(NullLogger.Instance);
 
 			bool executed1 = false;
-			queue.Enqueue(async _ => { await Task.Yield(); executed1 = true; });
+			queue.Enqueue(async _ => 
+			{ 
+				await Task.Yield(); 
+				executed1 = true; 
+			});
 
 			bool executed2 = false;
-			queue.Enqueue(async _ => { await Task.Yield(); executed2 = true; });
+			queue.Enqueue(async _ => 
+			{ 
+				await Task.Yield(); 
+				executed2 = true; 
+			});
 
 			await queue.FlushAsync();
 
