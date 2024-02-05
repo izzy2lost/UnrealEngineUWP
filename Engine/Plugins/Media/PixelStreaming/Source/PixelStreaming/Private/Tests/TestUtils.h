@@ -46,6 +46,7 @@ namespace UE::PixelStreaming
 		FDelegateHandle MessageReceivedHandle;
 	};
 
+	DEFINE_LATENT_AUTOMATION_COMMAND_ONE_PARAMETER(FWaitSeconds, double, WaitSeconds);
 	DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FSendDataChannelMessageToPlayer, TSharedPtr<IPixelStreamingStreamer>, Streamer, uint8, Id, const FString, Body);
 	DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FSendDataChannelMessageToStreamer, TSharedPtr<FMockPlayer>, Player, uint8, Id, const FString, Body);
 	DEFINE_LATENT_AUTOMATION_COMMAND_THREE_PARAMETER(FSendCustomMessageToStreamer, TSharedPtr<FMockPlayer>, Player, uint8, Id, uint16, Body);

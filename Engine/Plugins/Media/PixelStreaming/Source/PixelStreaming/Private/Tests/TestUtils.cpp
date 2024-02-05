@@ -28,6 +28,16 @@ namespace UE::PixelStreaming
 
 	/* ---------- Latent Automation Commands ----------- */
 
+	bool FWaitSeconds::Update()
+	{
+		double DeltaTime = FPlatformTime::Seconds() - StartTime;
+		if (DeltaTime > WaitSeconds)
+		{
+			return true;
+		}
+		return false;
+	}
+
 	bool FSendSolidColorFrame::Update()
 	{
 		TSharedPtr<FPixelCaptureBufferI420> Buffer = MakeShared<FPixelCaptureBufferI420>(FrameConfig.Width, FrameConfig.Height);
@@ -50,7 +60,6 @@ namespace UE::PixelStreaming
 
 		FPixelCaptureInputFrameI420 Frame(Buffer);
 		VideoInput->OnFrame(Frame);
-
 		return true;
 	}
 
