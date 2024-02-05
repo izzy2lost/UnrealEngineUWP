@@ -494,6 +494,8 @@ namespace UnrealBuildTool
 
 		public bool bLegacyParentIncludePaths => Inner.bLegacyParentIncludePaths;
 
+		public bool bDisableEngineDeprecations => Inner.bDisableEngineDeprecations;
+
 		public CppStandardVersion CppStandardEngine => Inner.CppStandardEngine;
 
 		public CppStandardVersion CppStandard => Inner.CppStandard;

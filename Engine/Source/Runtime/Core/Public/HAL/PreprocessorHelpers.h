@@ -45,6 +45,9 @@
 // Expands to nothing - used as a placeholder
 #define PREPROCESSOR_NOTHING
 
+// Expands to nothing when used as a function - used as a placeholder
+#define PREPROCESSOR_NOTHING_FUNCTION(...)
+
 #define UE_SOURCE_LOCATION TEXT(__FILE__ "(" PREPROCESSOR_TO_STRING(__LINE__) ")")
 
 // Removes a single layer of parentheses from a macro argument if they are present - used to allow

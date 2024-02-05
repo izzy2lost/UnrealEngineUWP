@@ -2211,6 +2211,12 @@ namespace UnrealBuildTool
 		public bool bIgnoreBuildOutputs { get; set; }
 
 		/// <summary>
+		/// Whether to disable UE_DEPRECATED_FORENGINE deprecation warnings in non-engine modules.
+		/// This should only be used in the short-term as these deprecations will get removed.
+		/// </summary>
+		public bool bDisableEngineDeprecations { get; set; }
+
+		/// <summary>
 		/// Indicates that this is a formal build, intended for distribution. This flag is automatically set to true when Build.version has a changelist set and is a promoted build.
 		/// The only behavior currently bound to this flag is to compile the default resource file separately for each binary so that the OriginalFilename field is set correctly.
 		/// By default, we only compile the resource once to reduce build times.
