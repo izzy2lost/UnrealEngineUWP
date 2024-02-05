@@ -119,12 +119,31 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
 
                 CONDITIONAL_RELEASE(IOSurfaceValue);
                 CONDITIONAL_RELEASE(PixelFormat);
+				
+				// Encoder specifications
+				const size_t EncoderSpecsSize = 2;
+				CFTypeRef EncoderKeys[AttributesSize] = 
+				{
+					// We want HW acceleration for best latency, if we can't get it then fail creating the session
+					kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder,
+					
+					// Low latency mode is ideal for WebRTC, infinite GOP, no bframes, temporal layer structure etc
+					kVTVideoEncoderSpecification_EnableLowLatencyRateControl
+				};
+				
+				CFTypeRef EncoderValues[EncoderSpecsSize] =
+				{
+					kCFBooleanTrue, 
+					kCFBooleanTrue
+				};
+				
+				CFDictionaryRef EncoderSpec = CFDictionaryCreate(kCFAllocatorDefault, EncoderKeys, EncoderValues, EncoderSpecsSize, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
           
                 OSStatus Result = VTCompressionSessionCreate(kCFAllocatorDefault, 
                                                              PendingConfig.Width,
                                                              PendingConfig.Height,
                                                              PendingConfig.Codec,
-                                                             NULL,
+															 EncoderSpec,
                                                              SourceAttributes,
                                                              NULL /* Default Compressed Data Allocator */,
                                                              Internal::VTCompressionOutputCallback,
@@ -132,24 +151,12 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
                                                              &Encoder);
 
                 CONDITIONAL_RELEASE(SourceAttributes);
+				CONDITIONAL_RELEASE(EncoderSpec);
                     
                 if(Result != 0)
                 {
                     return FAVResult(EAVResult::ErrorCreating, TEXT("Failed to create VTCompressionSession"), TEXT("VT"), Result);
                 }
-
-                CFBooleanRef bIsUsingHardwareEncoder;
-                Result = VTSessionCopyProperty(Encoder, kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder, NULL, &bIsUsingHardwareEncoder);
-                if(Result != 0)
-                {
-                    FAVResult::Log(EAVResult::Warning, TEXT("VTSessionCopyProperty(kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder) failed"), TEXT("VT"), Result);
-                }
-                else
-                {
-                    FAVResult::Log(EAVResult::Warning, FString::Printf(TEXT("Created compression session. UsingHardwareEncoder: %s"), (CFBooleanGetValue(bIsUsingHardwareEncoder) ? TEXT("TRUE") : TEXT("FALSE"))), TEXT("VT"));
-                }
-                
-                CONDITIONAL_RELEASE(bIsUsingHardwareEncoder);
 
                 ConfigureCompressionSession(PendingConfig);
 			}
@@ -170,15 +177,21 @@ FAVResult TVideoEncoderVT<TResource>::ConfigureCompressionSession(FVideoEncoderC
     
     SetEncoderBitrate(Config);
     
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowTemporalCompression, false);
+	// Enable temporal compression, e.g. creating delta frames
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowTemporalCompression, true);
     
+	// Frame reordering is unhelpful in WebRTC, real-time streaming usecases
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowFrameReordering, false);
     
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, (int32_t)Config.KeyframeInterval);
     
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, (Config.KeyframeInterval > 0 ? (int32_t)(Config.KeyframeInterval / Config.FrameRate) : 0));
+	
+	VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, (int32_t)Config.KeyframeInterval);
     
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaximizePowerEfficiency, false);
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MinAllowedFrameQP, (int32_t)Config.MinQP);
+	
+	VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxAllowedFrameQP, (int32_t)Config.MaxQP);
 
     if(Config.Codec == kCMVideoCodecType_H264)
     {
@@ -212,7 +225,8 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
 
         if(Resource.IsValid())
         {
-            CMTime PresentationTime = CMTimeMake(Timestamp, 1000000);
+            float TimestampSecs = Timestamp / 1000000.0f;
+            CMTime PresentationTime = CMTimeMakeWithSeconds(TimestampSecs, NSEC_PER_SEC);
             CFDictionaryRef FrameProperties = nullptr;
             if (bForceKeyframe)
             {
