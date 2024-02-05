@@ -805,24 +805,24 @@ FSceneOutlinerDragValidationInfo FDataLayerMode::ValidateDataLayerAssetDrop(cons
 		return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceSameAsset", "Cannot create Data Layer Instance(s), there are already Data Layer Instance(s) for \"{0}\"."), FText::FromString(ExistingAssetNamesString)));
 	}
 
-	// Check if External Data Layer Asset can be added
-	UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(OuterWorld);
-	if (!ExternalDataLayerManager)
-	{
-		return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, LOCTEXT("CantCreateDataLayerInstanceWithExternalDataLayerAssetNotSupported", "Cannot create External Data Layer Instance : Partitioned world doesn't support External Data Layers."));
-	}
-	if (!GetDefault<UEditorExperimentalSettings>()->bEnableWorldPartitionExternalDataLayers)
-	{
-		return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, LOCTEXT("CantCreateExternalDataLayerInstanceExperimentalFlagDisabled", "Cannot create External Data Layer Instance : Experimental flag 'Enable World Partition External Data Layers' is disabled."));
-	}
-	FText InjectionFailureReason;
-	if (Algo::AnyOf(DataLayerAssetsToDrop, [ExternalDataLayerManager, &InjectionFailureReason](const UDataLayerAsset* DataLayerAsset) { return DataLayerAsset && DataLayerAsset->IsA<UExternalDataLayerAsset>() && !ExternalDataLayerManager->CanInjectExternalDataLayerAsset(Cast<UExternalDataLayerAsset>(DataLayerAsset), &InjectionFailureReason); }))
-	{
-		return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceWithExternalDataLayerAsset", "Cannot create External Data Layer Instance : {0}"), InjectionFailureReason));
-	}
-
 	if (Algo::AnyOf(DataLayerAssetsToDrop, [](const UDataLayerAsset* DataLayerAsset) { return DataLayerAsset && DataLayerAsset->IsA<UExternalDataLayerAsset>(); }))
 	{
+		// Check if External Data Layer Asset can be added
+		UExternalDataLayerManager* ExternalDataLayerManager = UExternalDataLayerManager::GetExternalDataLayerManager(OuterWorld);
+		if (!ExternalDataLayerManager)
+		{
+			return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, LOCTEXT("CantCreateDataLayerInstanceWithExternalDataLayerAssetNotSupported", "Cannot create External Data Layer Instance : Partitioned world doesn't support External Data Layers."));
+		}
+		if (!GetDefault<UEditorExperimentalSettings>()->bEnableWorldPartitionExternalDataLayers)
+		{
+			return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, LOCTEXT("CantCreateExternalDataLayerInstanceExperimentalFlagDisabled", "Cannot create External Data Layer Instance : Experimental flag 'Enable World Partition External Data Layers' is disabled."));
+		}
+		FText InjectionFailureReason;
+		if (Algo::AnyOf(DataLayerAssetsToDrop, [ExternalDataLayerManager, &InjectionFailureReason](const UDataLayerAsset* DataLayerAsset) { return DataLayerAsset && DataLayerAsset->IsA<UExternalDataLayerAsset>() && !ExternalDataLayerManager->CanInjectExternalDataLayerAsset(Cast<UExternalDataLayerAsset>(DataLayerAsset), &InjectionFailureReason); }))
+		{
+			return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceWithExternalDataLayerAsset", "Cannot create External Data Layer Instance : {0}"), InjectionFailureReason));
+		}
+
 		if (DropTarget.IsA<FDataLayerTreeItem>() || DropTarget.IsA<FDataLayerActorTreeItem>())
 		{
 			return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::Incompatible, FText::Format(LOCTEXT("CantCreateDataLayerInstanceUnderItem", "Cannot create External Data Layer Instance under {0}"), FText::FromString(DropTarget.GetDisplayString())));
