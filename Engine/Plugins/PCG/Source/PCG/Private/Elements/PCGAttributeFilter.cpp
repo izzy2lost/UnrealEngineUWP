@@ -261,7 +261,7 @@ EPCGDataType UPCGAttributeFilteringSettings::GetCurrentPinTypes(const UPCGPin* I
 	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
 
 	// Spatial is collapsed into points
-	if ((InputTypeUnion & EPCGDataType::Spatial) == InputTypeUnion)
+	if (InputTypeUnion != EPCGDataType::None && (InputTypeUnion & EPCGDataType::Spatial) == InputTypeUnion)
 	{
 		return EPCGDataType::Point;
 	}
@@ -390,7 +390,7 @@ EPCGDataType UPCGAttributeFilteringRangeSettings::GetCurrentPinTypes(const UPCGP
 	const EPCGDataType InputTypeUnion = GetTypeUnionOfIncidentEdges(PCGPinConstants::DefaultInputLabel);
 
 	// Spatial is collapsed into points
-	if ((InputTypeUnion & EPCGDataType::Spatial) == InputTypeUnion)
+	if (InputTypeUnion != EPCGDataType::None && (InputTypeUnion & EPCGDataType::Spatial) == InputTypeUnion)
 	{
 		return EPCGDataType::Point;
 	}
