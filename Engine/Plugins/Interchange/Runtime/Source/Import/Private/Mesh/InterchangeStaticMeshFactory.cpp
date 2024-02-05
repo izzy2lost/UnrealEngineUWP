@@ -190,8 +190,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Begin
 			FStaticMeshComponentRecreateRenderStateContext RecreateRenderStateContext(StaticMesh, bInvalidateLighting, bRefreshBounds);
 			StaticMesh->ReleaseResources();
 			StaticMesh->ReleaseResourcesFence.Wait();
-
+			
 			StaticMesh->SetRenderData(nullptr);
+			StaticMesh->SetBodySetup(nullptr);
 		}
 	}
 	
