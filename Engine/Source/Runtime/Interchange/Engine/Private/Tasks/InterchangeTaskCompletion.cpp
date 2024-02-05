@@ -107,7 +107,9 @@ void UE::Interchange::FTaskPreCompletion::DoTask(ENamedThreads::Type CurrentThre
 			{
 				if (AActor* Actor = Cast<AActor>(ImportedObject))
 				{
+#if WITH_EDITOR
 					Message->AssetFriendlyName = Actor->GetActorLabel();
+#endif
 					Actor->RegisterAllComponents();
 				}
 				else if (UActorComponent* Component = Cast<UActorComponent>(ImportedObject))

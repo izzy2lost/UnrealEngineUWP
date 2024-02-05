@@ -52,7 +52,11 @@ UObject* UInterchangeDecalActorFactory::ProcessActor(AActor& SpawnedActor, const
 				else
 				{
 					const FText Message = FText::Format(NSLOCTEXT("DecalActorImport", "NoMaterial", "No valid decal material found. Make sure that the DecalMaterialPath is valid: %s"), FText::FromString(DecalMaterialPath));
+#if WITH_EDITOR
 					LogMessage<UInterchangeResultError_Generic>(Params, Message, SpawnedActor.GetActorLabel());
+#else
+					LogMessage<UInterchangeResultError_Generic>(Params, Message, TEXT(""));
+#endif
 				}
 			}
 		}
