@@ -9,7 +9,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerComponentProxy : public FAvaOutlinerItem
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerComponentProxy, FAvaOutlinerItemProxy)
 
-	FAvaOutlinerComponentProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerComponentProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 	
 	//~ Begin IAvaOutlinerItem
 	virtual FText GetDisplayName() const override;

@@ -9,7 +9,7 @@ struct FSlateColor;
 struct FSlateColorBrush;
 struct FToolBarStyle;
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	enum class EStyleType
 	{

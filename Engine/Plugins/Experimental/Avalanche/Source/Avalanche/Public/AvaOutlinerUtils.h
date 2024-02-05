@@ -10,19 +10,19 @@
 #include "UObject/WeakObjectPtr.h"
 
 class AActor;
-class FAvaOutliner;
+class IAvaOutliner;
 
 /** Editor Only Outliner Access Functions */
 struct AVALANCHE_API FAvaOutlinerUtils
 {
 	/** Returns the Avalanche outliner from the outliner module at runtime in the editor. */
-	static TSharedPtr<FAvaOutliner> EditorGetOutliner(const UWorld* const InWorld);
+	static TSharedPtr<IAvaOutliner> EditorGetOutliner(const UWorld* const InWorld);
 
 	/** Returns an array of direct child actors attached to a parent actor or all root level actors if the parent actor is null. */
-	static TArray<AActor*> EditorOutlinerChildActors(TSharedPtr<FAvaOutliner> InOutliner, AActor* const InParentActor = nullptr);
+	static TArray<AActor*> EditorOutlinerChildActors(TSharedPtr<IAvaOutliner> InOutliner, AActor* const InParentActor = nullptr);
 
 	/** Returns true if the Avalanche BP editor is isolating actors and the array of actors currently being isolated. */
-	static bool EditorActorIsolationInfo(TSharedPtr<FAvaOutliner> InOutliner, TArray<TWeakObjectPtr<const AActor>>& OutIsolatedActors);
+	static bool EditorActorIsolationInfo(TSharedPtr<IAvaOutliner> InOutliner, TArray<TWeakObjectPtr<const AActor>>& OutIsolatedActors);
 
 	/**
 	 * Gets an array of actors from an array of outliner items while maintaining index ordering (for actor outliner items only).

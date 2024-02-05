@@ -288,7 +288,7 @@ void FAvaOutlinerSaveState::LoadSceneTree(const FAvaOutlinerItemPtr& InParentIte
 	
 	TArray<FAvaOutlinerItemPtr> Sortable;
 	TArray<FAvaOutlinerItemPtr> Unsortable;
-	UE::AvalancheOutliner::SplitItems(Children, Sortable, Unsortable);
+	UE::AvaOutliner::SplitItems(Children, Sortable, Unsortable);
 
 	// If Scene Tree is valid, Item Sorting should be empty as this function only takes a valid Scene Tree if
 	// loaded version supports Scene Trees (i.e. when Item Sorting stops being loaded in)

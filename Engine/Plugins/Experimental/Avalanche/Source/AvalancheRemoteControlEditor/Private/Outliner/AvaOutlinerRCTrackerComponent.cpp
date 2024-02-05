@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Outliner/AvaOutlinerRCTrackerComponent.h"
-#include "AvaOutliner.h"
+#include "IAvaOutliner.h"
 #include "RemoteControlTrackerComponent.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
 #include "Subsystems/RemoteControlComponentsEditorUtils.h"
@@ -10,7 +10,7 @@
 
 FAvaOutlinerRCTrackerComponent::FOnAvaOutlinerRCTrackerComponentSelected FAvaOutlinerRCTrackerComponent::OnRCTrackerSelectedDelegate;
 
-FAvaOutlinerRCTrackerComponent::FAvaOutlinerRCTrackerComponent(FAvaOutliner& InOutliner, URemoteControlTrackerComponent* InComponent)
+FAvaOutlinerRCTrackerComponent::FAvaOutlinerRCTrackerComponent(IAvaOutliner& InOutliner, URemoteControlTrackerComponent* InComponent)
 	: FAvaOutlinerObject(InOutliner, InComponent)
 	, TrackerComponentWeak(InComponent)
 {

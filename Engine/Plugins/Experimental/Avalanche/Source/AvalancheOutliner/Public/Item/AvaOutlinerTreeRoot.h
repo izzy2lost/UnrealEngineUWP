@@ -13,7 +13,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerTreeRoot final : public FAvaOutlinerItem
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerTreeRoot, FAvaOutlinerItem)
 
-	FAvaOutlinerTreeRoot(FAvaOutliner& InOutliner)
+	FAvaOutlinerTreeRoot(IAvaOutliner& InOutliner)
 		: FAvaOutlinerItem(InOutliner)
 	{
 	}

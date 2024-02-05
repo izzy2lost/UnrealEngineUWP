@@ -14,7 +14,7 @@ class AVALANCHEMODIFIERSEDITOR_API FAvaOutlinerModifier : public FAvaOutlinerObj
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerModifier, FAvaOutlinerObject);
 	
-	FAvaOutlinerModifier(FAvaOutliner& InOutliner, UActorModifierCoreBase* InObject);
+	FAvaOutlinerModifier(IAvaOutliner& InOutliner, UActorModifierCoreBase* InObject);
 	
 	UActorModifierCoreBase* GetModifier() const { return Modifier.Get(); }
 	

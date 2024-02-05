@@ -6,7 +6,7 @@
 #include "DragAndDrop/DecoratedDragDropOp.h"
 #include "Handlers/AvaOutlinerItemDropHandler.h"
 
-class FAvaOutliner;
+class IAvaOutlinerView;
 class FAvaOutlinerItemDropHandler;
 
 enum class EItemDropZone;
@@ -21,12 +21,10 @@ public:
 		, const TSharedPtr<FAvaOutlinerView>& InOutlinerView
 		, EAvaOutlinerDragDropActionType InActionType);
 
-	TSharedPtr<FAvaOutlinerView> GetOutlinerView() const
+	TSharedPtr<IAvaOutlinerView> GetOutlinerView() const
 	{
 		return OutlinerViewWeak.Pin();
 	}
-
-	TSharedPtr<FAvaOutliner> GetOutliner() const;
 
 	TConstArrayView<FAvaOutlinerItemPtr> GetItems() const
 	{
@@ -68,7 +66,7 @@ protected:
 
 	TArray<TSharedRef<FAvaOutlinerItemDropHandler>> DropHandlers;
 
-	TWeakPtr<FAvaOutlinerView> OutlinerViewWeak;
+	TWeakPtr<IAvaOutlinerView> OutlinerViewWeak;
 
 	EAvaOutlinerDragDropActionType ActionType = EAvaOutlinerDragDropActionType::Move;
 };

@@ -210,7 +210,7 @@ bool SAvaOutlinerItemChip::IsSelected() const
 
 const FSlateBrush* SAvaOutlinerItemChip::GetItemBackgroundBrush() const
 {
-	using namespace UE::AvalancheOutliner::Private;
+	using namespace UE::AvaOutliner::Private;
 
 	const EStyleType StyleType = IsHovered()
 		? EStyleType::Hovered

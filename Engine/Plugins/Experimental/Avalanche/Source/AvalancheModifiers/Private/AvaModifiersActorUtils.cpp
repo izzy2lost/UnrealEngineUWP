@@ -7,8 +7,8 @@
 #include "GameFramework/Actor.h"
 
 #if WITH_EDITOR
-#include "AvaOutliner.h"
 #include "AvaOutlinerUtils.h"
+#include "IAvaOutliner.h"
 #endif
 
 FBox FAvaModifiersActorUtils::GetActorsBounds(const TSet<TWeakObjectPtr<AActor>>& InActors, const FTransform& InReferenceTransform, bool bInSkipHidden)
@@ -180,7 +180,7 @@ bool FAvaModifiersActorUtils::IsActorNotIsolated(const AActor* InActor)
 	bool bIsIsolatingActors = false;
 	TArray<TWeakObjectPtr<const AActor>> IsolatedActors;
 
-	TSharedPtr<FAvaOutliner> AvaOutliner = FAvaOutlinerUtils::EditorGetOutliner(InActor->GetWorld());
+	TSharedPtr<IAvaOutliner> AvaOutliner = FAvaOutlinerUtils::EditorGetOutliner(InActor->GetWorld());
 	if (AvaOutliner.IsValid())
 	{
 		bIsIsolatingActors = FAvaOutlinerUtils::EditorActorIsolationInfo(AvaOutliner, IsolatedActors);

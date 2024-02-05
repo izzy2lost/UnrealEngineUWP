@@ -10,8 +10,9 @@ class APostProcessVolume;
 class ASkyLight;
 class AStaticMeshActor;
 class AVolume;
+class FAvaOutliner;
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	/** Mode Tools used to test the Outliner */
 	class FAvaOutlinerEditorModeTools : public FEditorModeTools

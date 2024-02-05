@@ -9,7 +9,7 @@
 #include "Subsystems/ActorModifierCoreEditorSubsystem.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
-FAvaOutlinerModifier::FAvaOutlinerModifier(FAvaOutliner& InOutliner, UActorModifierCoreBase* InModifier)
+FAvaOutlinerModifier::FAvaOutlinerModifier(IAvaOutliner& InOutliner, UActorModifierCoreBase* InModifier)
 	: FAvaOutlinerObject(InOutliner, InModifier)
 	, Modifier(InModifier)
 {

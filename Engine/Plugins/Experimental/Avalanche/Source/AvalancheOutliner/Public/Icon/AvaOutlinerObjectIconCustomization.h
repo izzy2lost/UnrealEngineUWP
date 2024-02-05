@@ -16,15 +16,16 @@ class AVALANCHEOUTLINER_API FAvaOutlinerObjectIconCustomization : public IAvaOut
 public:
 	FAvaOutlinerObjectIconCustomization(const UClass* InSupportedClass);
 
+	void SetOverriddenIcon(const FOnGetOverriddenObjectIcon& InOverriddenIcon);
+
+protected:
 	//~ Begin IAvaOutlinerIconCustomization
 	virtual FName GetOutlinerItemIdentifier() const override { return SupportedClassName; }
 	virtual bool HasOverrideIcon(TSharedPtr<const FAvaOutlinerItem> InOutlinerItem) const override;
 	virtual FSlateIcon GetOverrideIcon(TSharedPtr<const FAvaOutlinerItem> InOutlinerItem) const override;
 	//~ End IAvaOutlinerIconCustomization
 
-	void SetOverriddenIcon(const FOnGetOverriddenObjectIcon& InOverriddenIcon);
-
-protected:
+private:
 	FName SupportedClassName;
 
 	FOnGetOverriddenObjectIcon OnGetOverriddenIcon;

@@ -1,12 +1,12 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaOutlinerTabSpawner.h"
-#include "AvaOutliner.h"
 #include "AvaOutlinerExtension.h"
-#include "AvaOutlinerView.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Docking/WorkspaceItem.h"
 #include "IAvaEditor.h"
+#include "IAvaOutliner.h"
+#include "IAvaOutlinerView.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerTabSpawner"
@@ -43,13 +43,13 @@ TSharedRef<SWidget> FAvaOutlinerTabSpawner::CreateTabBody()
 		return GetNullWidget();
 	}
 
-	const TSharedPtr<FAvaOutliner> Outliner = OutlinerExtension->GetAvaOutliner();
+	const TSharedPtr<IAvaOutliner> Outliner = OutlinerExtension->GetAvaOutliner();
 	if (!ensure(Outliner.IsValid()))
 	{
 		return GetNullWidget();
 	}
 
-	TSharedPtr<FAvaOutlinerView> OutlinerView = Outliner->GetOutlinerView(OutlinerViewId);
+	TSharedPtr<IAvaOutlinerView> OutlinerView = Outliner->GetOutlinerView(OutlinerViewId);
 	if (!OutlinerView.IsValid())
 	{
 		OutlinerView = Outliner->RegisterOutlinerView(OutlinerViewId);

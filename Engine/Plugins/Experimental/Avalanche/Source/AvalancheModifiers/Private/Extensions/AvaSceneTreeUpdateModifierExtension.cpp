@@ -7,10 +7,10 @@
 #include "GameFramework/Actor.h"
 
 #if WITH_EDITOR
-#include "AvaOutliner.h"
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerUtils.h"
 #include "Engine/World.h"
+#include "IAvaOutliner.h"
 #endif
 
 FAvaSceneTreeUpdateModifierExtension::FAvaSceneTreeUpdateModifierExtension(IAvaSceneTreeUpdateHandler* InExtensionHandler)
@@ -93,10 +93,11 @@ void FAvaSceneTreeUpdateModifierExtension::OnExtensionEnabled(EActorModifierCore
 		ActorHierarchyChanged.RemoveAll(this);
 		ActorHierarchyChanged.AddSP(this, &FAvaSceneTreeUpdateModifierExtension::OnActorHierarchyChanged);
 
-		if (const TSharedPtr<FAvaOutliner> Outliner = OutlinerSubsystem->GetOutliner())
+		if (const TSharedPtr<IAvaOutliner> Outliner = OutlinerSubsystem->GetOutliner())
 		{
-			Outliner->OnOutlinerLoaded.RemoveAll(this);
-			Outliner->OnOutlinerLoaded.AddSP(this, &FAvaSceneTreeUpdateModifierExtension::OnOutlinerLoaded);
+			IAvaOutliner::FOnOutlinerLoaded& OnOutlinerLoaded = Outliner->GetOnOutlinerLoaded();
+			OnOutlinerLoaded.RemoveAll(this);
+			OnOutlinerLoaded.AddSP(this, &FAvaSceneTreeUpdateModifierExtension::OnOutlinerLoaded);
 		}
 	}
 #endif
@@ -120,9 +121,9 @@ void FAvaSceneTreeUpdateModifierExtension::OnExtensionDisabled(EActorModifierCor
 	if (UAvaOutlinerSubsystem* const OutlinerSubsystem = World->GetSubsystem<UAvaOutlinerSubsystem>())
 	{
 		OutlinerSubsystem->OnActorHierarchyChanged().RemoveAll(this);
-		if (const TSharedPtr<FAvaOutliner> Outliner = OutlinerSubsystem->GetOutliner())
+		if (const TSharedPtr<IAvaOutliner> Outliner = OutlinerSubsystem->GetOutliner())
 		{
-			Outliner->OnOutlinerLoaded.RemoveAll(this);
+			Outliner->GetOnOutlinerLoaded().RemoveAll(this);
 		}
 	}
 #endif
@@ -335,7 +336,7 @@ TArray<TWeakObjectPtr<AActor>> FAvaSceneTreeUpdateModifierExtension::GetDirectCh
 	const UAvaOutlinerSubsystem* const OutlinerSubsystem = World->GetSubsystem<UAvaOutlinerSubsystem>();
 	if (IsValid(OutlinerSubsystem))
 	{
-		const TSharedPtr<FAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner();
+		const TSharedPtr<IAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner();
 		if (AvaOutliner.IsValid())
 		{
 			DirectChildren = FAvaOutlinerUtils::EditorOutlinerChildActors(AvaOutliner, InActor);

@@ -7,7 +7,7 @@
 #include "AvaOutlinerSettings.generated.h"
 
 UCLASS(config=EditorPerProjectUserSettings, meta=(DisplayName="Outliner"))
-class AVALANCHEOUTLINER_API UAvaOutlinerSettings : public UDeveloperSettings
+class UAvaOutlinerSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 

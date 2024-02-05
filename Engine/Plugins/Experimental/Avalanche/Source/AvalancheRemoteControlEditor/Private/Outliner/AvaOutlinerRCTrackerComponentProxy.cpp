@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Outliner/AvaOutlinerRCTrackerComponentProxy.h"
-#include "AvaOutliner.h"
 #include "GameFramework/Actor.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Outliner/AvaOutlinerRCTrackerComponent.h"
 #include "RemoteControlTrackerComponent.h"
@@ -11,7 +11,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerRemoteControlComponentProxy"
 
-FAvaOutlinerRCTrackerComponentProxy::FAvaOutlinerRCTrackerComponentProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaOutlinerRCTrackerComponentProxy::FAvaOutlinerRCTrackerComponentProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: Super(InOutliner, InParentItem)
 {
 	TrackerIcon = FRemoteControlComponentsEditorUtils::GetIcon("ClassIcon.RemoteControlTracker");

@@ -42,7 +42,7 @@ bool FAvaOutlinerActorDropHandler::Drop(EItemDropZone InDropZone, FAvaOutlinerIt
 		break;
 
 	case EAvaOutlinerDragDropActionType::Copy:
-		InTargetItem->GetOwnerOutliner()->DuplicateItems(Items, InTargetItem, InDropZone);
+		StaticCastSharedRef<FAvaOutliner>(InTargetItem->GetOwnerOutliner())->DuplicateItems(Items, InTargetItem, InDropZone);
 		break;
 
 	default:
@@ -78,7 +78,7 @@ void FAvaOutlinerActorDropHandler::MoveItems(EItemDropZone InDropZone, FAvaOutli
 		Algo::Reverse(Items);
 	}
 
-	TSharedRef<FAvaOutliner> Outliner = InTargetItem->GetOwnerOutliner();
+	TSharedRef<FAvaOutliner> Outliner = StaticCastSharedRef<FAvaOutliner>(InTargetItem->GetOwnerOutliner());
 
 	for (const FAvaOutlinerItemPtr& Item : Items)
 	{

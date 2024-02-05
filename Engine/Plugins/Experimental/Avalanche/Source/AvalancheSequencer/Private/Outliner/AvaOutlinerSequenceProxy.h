@@ -18,7 +18,7 @@ class FAvaOutlinerSequenceProxy : public FAvaOutlinerItemProxy
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerSequenceProxy, FAvaOutlinerItemProxy);
 
-	FAvaOutlinerSequenceProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerSequenceProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	virtual ~FAvaOutlinerSequenceProxy() override;
 

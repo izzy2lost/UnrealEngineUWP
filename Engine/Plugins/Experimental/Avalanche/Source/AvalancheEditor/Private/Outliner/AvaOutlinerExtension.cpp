@@ -5,7 +5,6 @@
 #include "AvaEditorCommands.h"
 #include "AvaEditorModule.h"
 #include "AvaEditorSettings.h"
-#include "AvaOutliner.h"
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerTabSpawner.h"
 #include "AvaScene.h"
@@ -21,8 +20,9 @@
 #include "Filters/AvaOutlinerItemTypeFilter.h"
 #include "Framework/AvaNullActor.h"
 #include "Framework/Docking/LayoutExtender.h"
+#include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
-#include "ItemActions/AvaOutlinerAddItem.h"
+#include "Item/AvaOutlinerComponent.h"
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
 #include "LevelEditor.h"
 #include "Materials/Material.h"
@@ -33,7 +33,6 @@
 #include "Sequencer/AvaSequencerExtension.h"
 #include "Styling/SlateIconFinder.h"
 #include "Text3DActor.h"
-#include "Item/AvaOutlinerComponent.h"
 #include "ToolMenuContext/AvaOutlinerItemsContext.h"
 #include "Viewport/AvaViewportExtension.h"
 
@@ -52,7 +51,7 @@ void FAvaOutlinerExtension::StaticStartup()
 	OutlinerModule.GetItemProxyRegistry().RegisterItemProxyWithDefaultFactory<FAvaOutlinerMaterialDesignerProxy, 5>();
 
 	OutlinerModule.GetOnExtendItemProxiesForItem().AddLambda(
-		[](FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItemPtr, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
+		[](IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItemPtr, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
 		{
 			if (FAvaOutlinerComponent* ComponentItem = InItemPtr->CastTo<FAvaOutlinerComponent>())
 			{
@@ -301,7 +300,7 @@ void FAvaOutlinerExtension::ExtendOutlinerItemContextMenu(UToolMenu* InItemConte
 			, FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
 	}
 
-	// Note: Since the Outliner Command List is linked to the Ava Command List (see FAvaOutliner::SetBaseCommandList),
+	// Note: Since the Outliner Command List is linked to the Ava Command List (see IAvaOutliner::SetBaseCommandList),
 	// we do NOT need to add the entry with a different Command List
 	const FAvaEditorCommands AvaEditorCommands = FAvaEditorCommands::Get();
 

@@ -34,7 +34,7 @@ template<typename InItemProxyType, uint32 InItemProxyPriority = 0
 class TAvaOutlinerItemProxyDefaultFactory : public TAvaOutlinerItemProxyDefaultFactoryBase<InItemProxyType, InItemProxyPriority>
 {
 public:
-	virtual TSharedPtr<FAvaOutlinerItemProxy> CreateItemProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem) override
+	virtual TSharedPtr<FAvaOutlinerItemProxy> CreateItemProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem) override
 	{
 		return this->DefaultCreateItemProxy(InOutliner, InParentItem);
 	}

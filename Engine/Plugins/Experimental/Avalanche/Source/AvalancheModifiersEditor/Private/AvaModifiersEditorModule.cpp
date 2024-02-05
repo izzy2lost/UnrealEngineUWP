@@ -3,9 +3,8 @@
 #include "AvaModifiersEditorModule.h"
 #include "AvaDefs.h"
 #include "AvaModifiersEditorStyle.h"
-#include "AvaOutliner.h"
-#include "AvaOutlinerView.h"
 #include "DragDropOps/AvaOutlinerItemDragDropOp.h"
+#include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "Item/AvaOutlinerActor.h"
 #include "ItemProxies/AvaOutlinerItemProxyRegistry.h"
@@ -37,7 +36,7 @@ void FAvaModifiersEditorModule::RegisterOutlinerItems()
 	ItemProxyRegistry.RegisterItemProxyWithDefaultFactory<FAvaOutlinerModifierProxy, 60>();
 
 	OutlinerProxiesExtensionDelegateHandle = IAvaOutlinerModule::Get().GetOnExtendItemProxiesForItem().AddLambda(
-		[](FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
+		[](IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InItem, TArray<TSharedPtr<FAvaOutlinerItemProxy>>& OutItemProxies)
 		{
 			if (InItem->IsA<FAvaOutlinerActor>())
 			{

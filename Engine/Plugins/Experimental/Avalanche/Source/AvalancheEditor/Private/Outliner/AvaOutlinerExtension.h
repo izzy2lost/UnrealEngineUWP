@@ -7,7 +7,7 @@
 #include "IAvaOutlinerProvider.h"
 #include "Templates/SharedPointer.h"
 
-class FAvaOutliner;
+class IAvaOutliner;
 
 UE_AVA_TYPE_EXTERNAL(IAvaOutlinerProvider);
 
@@ -23,7 +23,7 @@ public:
 
 	FAvaOutlinerExtension();
 
-	TSharedPtr<FAvaOutliner> GetAvaOutliner() const { return AvaOutliner; }
+	TSharedPtr<IAvaOutliner> GetAvaOutliner() const { return AvaOutliner; }
 
 	//~ Begin IAvaEditorExtension
 	virtual void Activate() override;
@@ -64,7 +64,7 @@ public:
 private:
 	void GroupSelection();
 
-	TSharedPtr<FAvaOutliner> AvaOutliner;
+	TSharedPtr<IAvaOutliner> AvaOutliner;
 
 	TSharedRef<FUICommandList> OutlinerCommands;
 };

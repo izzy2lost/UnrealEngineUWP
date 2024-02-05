@@ -10,7 +10,7 @@ class FAvaOutlinerMaterialDesignerProxy : public FAvaOutlinerMaterialProxy
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerMaterialDesignerProxy, FAvaOutlinerMaterialProxy);
 
-	FAvaOutlinerMaterialDesignerProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
+	FAvaOutlinerMaterialDesignerProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem);
 
 	virtual ~FAvaOutlinerMaterialDesignerProxy() override = default;
 

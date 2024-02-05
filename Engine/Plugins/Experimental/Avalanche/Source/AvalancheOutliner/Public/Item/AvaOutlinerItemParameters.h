@@ -2,10 +2,9 @@
 
 #pragma once
 
-#include "AvaOutlinerItemAction.h"
+#include "AvaOutlinerDefines.h"
 #include "Engine/EngineTypes.h"
-
-class FAvaOutliner;
+#include "Misc/Optional.h"
 
 enum class EItemDropZone;
 
@@ -19,7 +18,6 @@ enum class EAvaOutlinerAddItemFlags : uint8
 	/** Make a Transaction for this Action */
 	Transact    = 1 << 2,
 };
-
 ENUM_CLASS_FLAGS(EAvaOutlinerAddItemFlags);
 
 struct FAvaOutlinerAddItemParams
@@ -55,23 +53,15 @@ struct FAvaOutlinerAddItemParams
 	TOptional<FAttachmentTransformRules> AttachmentTransformRules;
 };
 
-/**
- * Item Action responsible of adding an item to the Tree under a given optional Parent.
- * If Parent is null, it is added as a Top Level Item.
- */
-class AVALANCHEOUTLINER_API FAvaOutlinerAddItem : public IAvaOutlinerAction
+struct FAvaOutlinerRemoveItemParams
 {
-public:
-	UE_AVA_INHERITS(FAvaOutlinerAddItem, IAvaOutlinerAction);
+	FAvaOutlinerRemoveItemParams(const FAvaOutlinerItemPtr& InItem = nullptr)
+		: Item(InItem)
+	{
+	}
 
-	FAvaOutlinerAddItem(const FAvaOutlinerAddItemParams& InAddItemParams);
+	FAvaOutlinerItemPtr Item;
 
-	//~ Begin IAvaOutlinerAction
-	virtual bool ShouldTransact() const override;
-	virtual void Execute(FAvaOutliner& InOutliner) override;
-	virtual void OnObjectsReplaced(const TMap<UObject*, UObject*>& InReplacementMap, bool bRecursive) override;
-	//~ End IAvaOutlinerAction
-
-protected:
-	FAvaOutlinerAddItemParams AddParams;
+	/** Optional Transform override Rule when Detaching Items */
+	TOptional<FDetachmentTransformRules> DetachmentTransformRules;
 };

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaOutlinerTestUtils.h"
-
 #include "AvaOutliner.h"
 #include "AvaOutlinerSubsystem.h"
 #include "Components/LightComponent.h"
@@ -15,7 +14,7 @@
 #include "PackageTools.h"
 #include "Selection.h"
 
-void UE::AvalancheOutliner::Private::FAvaOutlinerEditorModeTools::Init(UWorld* InWorld)
+void UE::AvaOutliner::Private::FAvaOutlinerEditorModeTools::Init(UWorld* InWorld)
 {
 	World = InWorld;
 
@@ -38,7 +37,7 @@ void UE::AvalancheOutliner::Private::FAvaOutlinerEditorModeTools::Init(UWorld* I
 	ObjectSelection->AddToRoot();
 }
 
-void UE::AvalancheOutliner::Private::FAvaOutlinerEditorModeTools::Cleanup()
+void UE::AvaOutliner::Private::FAvaOutlinerEditorModeTools::Cleanup()
 {
 	if (!UObjectInitialized())
 	{
@@ -77,12 +76,12 @@ void UE::AvalancheOutliner::Private::FAvaOutlinerEditorModeTools::Cleanup()
 	World = nullptr;
 }
 
-UE::AvalancheOutliner::Private::FAvaOutlinerEditorModeTools::~FAvaOutlinerEditorModeTools()
+UE::AvaOutliner::Private::FAvaOutlinerEditorModeTools::~FAvaOutlinerEditorModeTools()
 {
 	Cleanup();
 }
 
-UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::FAvaOutlinerProviderTest()
+UE::AvaOutliner::Private::FAvaOutlinerProviderTest::FAvaOutlinerProviderTest()
 	: Outliner(MakeShared<FAvaOutliner>(*this))
 	, ModeTools(MakeShared<FAvaOutlinerEditorModeTools>())
 {
@@ -101,12 +100,12 @@ UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::FAvaOutlinerProviderTe
 	FillWorld();
 }
 
-UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::~FAvaOutlinerProviderTest()
+UE::AvaOutliner::Private::FAvaOutlinerProviderTest::~FAvaOutlinerProviderTest()
 {
 	CleanupWorld();
 }
 
-void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::FillWorld()
+void UE::AvaOutliner::Private::FAvaOutlinerProviderTest::FillWorld()
 {
 	if (!World)
 	{
@@ -208,7 +207,7 @@ void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::FillWorld()
 	}
 }
 
-void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::CleanupWorld()
+void UE::AvaOutliner::Private::FAvaOutlinerProviderTest::CleanupWorld()
 {
 	ModeTools->Cleanup();
 
@@ -233,7 +232,7 @@ void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::CleanupWorld()
 	}
 }
 
-TArray<FAvaOutlinerItemPtr> UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::GetOutlinerItems(const TArray<UObject*>& InObjects) const
+TArray<FAvaOutlinerItemPtr> UE::AvaOutliner::Private::FAvaOutlinerProviderTest::GetOutlinerItems(const TArray<UObject*>& InObjects) const
 {
 	TArray<FAvaOutlinerItemPtr> OutlinerItems;
 	OutlinerItems.Reserve(InObjects.Num());
@@ -249,7 +248,7 @@ TArray<FAvaOutlinerItemPtr> UE::AvalancheOutliner::Private::FAvaOutlinerProvider
 	return OutlinerItems;
 }
 
-void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::TestSpawnActor()
+void UE::AvaOutliner::Private::FAvaOutlinerProviderTest::TestSpawnActor()
 {
 	TestSpawnedActor = World->SpawnActorDeferred<AStaticMeshActor>(AStaticMeshActor::StaticClass()
 			, FTransform::Identity
@@ -259,12 +258,12 @@ void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::TestSpawnActor()
 	TestSpawnedActor->FinishSpawning(FTransform::Identity, true);
 }
 
-bool UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::CanOutlinerProcessActorSpawn(AActor* InActor) const
+bool UE::AvaOutliner::Private::FAvaOutlinerProviderTest::CanOutlinerProcessActorSpawn(AActor* InActor) const
 {
 	return !InActor->bIsEditorPreviewActor;
 }
 
-void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::OutlinerDuplicateActors(const TArray<AActor*>& InTemplateActors)
+void UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OutlinerDuplicateActors(const TArray<AActor*>& InTemplateActors)
 {
 	constexpr EAvaOutlinerIgnoreNotifyFlags NotifiesToIgnore = EAvaOutlinerIgnoreNotifyFlags::Spawn
 		| EAvaOutlinerIgnoreNotifyFlags::Duplication;
@@ -389,21 +388,21 @@ void UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::OutlinerDuplicate
 	Outliner->OnActorsDuplicated(DuplicateActorMap);
 }
 
-TOptional<EItemDropZone> UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::OnOutlinerItemCanAcceptDrop(const FDragDropEvent& DragDropEvent
+TOptional<EItemDropZone> UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OnOutlinerItemCanAcceptDrop(const FDragDropEvent& DragDropEvent
 	, EItemDropZone DropZone
 	, FAvaOutlinerItemPtr TargetItem) const
 {
 	return TOptional<EItemDropZone>();
 }
 
-FReply UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::OnOutlinerItemAcceptDrop(const FDragDropEvent& DragDropEvent
+FReply UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OnOutlinerItemAcceptDrop(const FDragDropEvent& DragDropEvent
 	, EItemDropZone DropZone
 	, FAvaOutlinerItemPtr TargetItem)
 {
 	return FReply::Unhandled();
 }
 
-const FAttachmentTransformRules& UE::AvalancheOutliner::Private::FAvaOutlinerProviderTest::GetTransformRule(bool bIsPrimaryTransformRule) const
+const FAttachmentTransformRules& UE::AvaOutliner::Private::FAvaOutlinerProviderTest::GetTransformRule(bool bIsPrimaryTransformRule) const
 {
 	return bIsPrimaryTransformRule ? FAttachmentTransformRules::KeepWorldTransform: FAttachmentTransformRules::KeepRelativeTransform;
 }

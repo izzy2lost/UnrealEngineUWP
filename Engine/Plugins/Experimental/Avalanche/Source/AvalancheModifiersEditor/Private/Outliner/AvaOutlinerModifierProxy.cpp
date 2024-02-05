@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Outliner/AvaOutlinerModifierProxy.h"
-#include "AvaOutliner.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Modifiers/ActorModifierCoreStack.h"
 #include "Modifiers/AvaBaseModifier.h"
@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerModifierProxy"
 
-FAvaOutlinerModifierProxy::FAvaOutlinerModifierProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaOutlinerModifierProxy::FAvaOutlinerModifierProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: Super(InOutliner, InParentItem)
 {
 	ModifierIcon = FSlateIconFinder::FindIconForClass(UAvaBaseModifier::StaticClass());

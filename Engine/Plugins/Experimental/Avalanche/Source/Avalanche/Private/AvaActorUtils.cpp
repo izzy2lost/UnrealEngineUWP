@@ -14,10 +14,10 @@
 #include "Math/OrientedBox.h"
 
 #if WITH_EDITOR
-#include "AvaOutliner.h"
 #include "AvaOutlinerDefines.h"
 #include "AvaOutlinerSubsystem.h"
 #include "AvaOutlinerUtils.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerTreeRoot.h"
 #endif
 
@@ -160,7 +160,7 @@ AActor* FAvaActorUtils::ActorFromReferenceContainer(AActor* const InActor, const
 	UAvaOutlinerSubsystem* const OutlinerSubsystem = World->GetSubsystem<UAvaOutlinerSubsystem>();
 	if (IsValid(OutlinerSubsystem))
 	{
-		TSharedPtr<FAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner();
+		TSharedPtr<IAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner();
 		if (AvaOutliner.IsValid())
 		{
 			bIsOutlinerAttachedActors = true;

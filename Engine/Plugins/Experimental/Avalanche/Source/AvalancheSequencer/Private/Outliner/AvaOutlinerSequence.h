@@ -17,7 +17,7 @@ class FAvaOutlinerSequence : public FAvaOutlinerObjectReference
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerSequence, FAvaOutlinerObjectReference);
 
-	FAvaOutlinerSequence(FAvaOutliner& InOutliner, UAvaSequence* InSequence, const FAvaOutlinerItemPtr& InReferencingItem);
+	FAvaOutlinerSequence(IAvaOutliner& InOutliner, UAvaSequence* InSequence, const FAvaOutlinerItemPtr& InReferencingItem);
 
 	UAvaSequence* GetSequence() const { return Sequence.Get(IsIgnoringPendingKill()); }
 	

@@ -19,7 +19,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAvaOutlinerRCTrackerComponentSelected, const URemoteControlTrackerComponent*)
 	static FOnAvaOutlinerRCTrackerComponentSelected& OnRemoteControlTrackerSelected() { return OnRCTrackerSelectedDelegate; }
 	
-	FAvaOutlinerRCTrackerComponent(FAvaOutliner& InOutliner, URemoteControlTrackerComponent* InComponent);
+	FAvaOutlinerRCTrackerComponent(IAvaOutliner& InOutliner, URemoteControlTrackerComponent* InComponent);
 
 	//~ Begin IAvaOutlinerItem
 	virtual FSlateIcon GetIcon() const override;

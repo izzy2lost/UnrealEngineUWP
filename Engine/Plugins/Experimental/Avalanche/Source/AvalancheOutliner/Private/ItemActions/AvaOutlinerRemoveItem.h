@@ -3,24 +3,12 @@
 #pragma once
 
 #include "AvaOutlinerItemAction.h"
-#include "Engine/EngineTypes.h"
-
-struct FAvaOutlinerRemoveItemParams
-{
-	FAvaOutlinerRemoveItemParams(const FAvaOutlinerItemPtr& InItem = nullptr)
-		: Item(InItem)
-	{
-	}
-	FAvaOutlinerItemPtr Item;
-
-	/** Optional Transform override Rule when Detaching Items */
-	TOptional<FDetachmentTransformRules> DetachmentTransformRules;
-};
+#include "Item/AvaOutlinerItemParameters.h"
 
 /**
  * Item Action responsible of removing/unregistering Items from the Tree
  */
-class AVALANCHEOUTLINER_API FAvaOutlinerRemoveItem : public IAvaOutlinerAction
+class FAvaOutlinerRemoveItem : public IAvaOutlinerAction
 {
 public:
 	UE_AVA_INHERITS(FAvaOutlinerRemoveItem, IAvaOutlinerAction);

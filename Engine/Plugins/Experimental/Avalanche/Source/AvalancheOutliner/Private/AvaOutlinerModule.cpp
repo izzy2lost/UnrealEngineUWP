@@ -36,16 +36,6 @@ void FAvaOutlinerModule::ShutdownModule()
 	FAvaOutlinerCommands::Unregister();
 }
 
-void FAvaOutlinerModule::UnregisterFilterExpressionFactory(const FName& InFilterIdentifier)
-{
-	FilterExpressionFactories.Remove(InFilterIdentifier);
-}
-
-void FAvaOutlinerModule::UnregisterFilterSuggestionFactory(const FName& InFilterIdentifier)
-{
-	FilterSuggestionsFactories.Remove(InFilterIdentifier);
-}
-
 bool FAvaOutlinerModule::CanFilterSupportComparisonOperation(const FName& InFilterKey, const ETextFilterComparisonOperation InOperation) const
 {
 	if (const TSharedPtr<IAvaFilterExpressionFactory>* FilterExpressionFactory = FilterExpressionFactories.Find(InFilterKey))

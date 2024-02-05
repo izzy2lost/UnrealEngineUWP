@@ -17,7 +17,7 @@ class FAvaOutlinerMaterialDesigner : public FAvaOutlinerMaterial
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerMaterialDesigner, FAvaOutlinerMaterial)
 
-	FAvaOutlinerMaterialDesigner(FAvaOutliner& InOutliner
+	FAvaOutlinerMaterialDesigner(IAvaOutliner& InOutliner
 		, UMaterialInterface* InMaterial
 		, const FAvaOutlinerItemPtr& InReferencingItem
 		, int32 InMaterialIndex);

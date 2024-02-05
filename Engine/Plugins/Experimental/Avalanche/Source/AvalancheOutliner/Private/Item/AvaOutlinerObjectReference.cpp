@@ -8,7 +8,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerObjectReference"
 
-FAvaOutlinerSharedObject::FAvaOutlinerSharedObject(FAvaOutliner& InOutliner, UObject* InObject)
+FAvaOutlinerSharedObject::FAvaOutlinerSharedObject(IAvaOutliner& InOutliner, UObject* InObject)
 	: Super(InOutliner, InObject)
 {
 }
@@ -42,7 +42,7 @@ TArray<FAvaOutlinerItemPtr> FAvaOutlinerSharedObject::GetObjectReferences() cons
 	return OutObjectReferences;
 }
 
-FAvaOutlinerObjectReference::FAvaOutlinerObjectReference(FAvaOutliner& InOutliner
+FAvaOutlinerObjectReference::FAvaOutlinerObjectReference(IAvaOutliner& InOutliner
 		, UObject* InObject
 		, const FAvaOutlinerItemPtr& InReferencingItem
 		, const FString& InReferenceId)

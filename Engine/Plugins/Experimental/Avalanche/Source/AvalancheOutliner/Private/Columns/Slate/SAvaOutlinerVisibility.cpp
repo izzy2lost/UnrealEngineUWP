@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "SAvaOutlinerVisibility"
 
-namespace UE::AvalancheOutliner::Private
+namespace UE::AvaOutliner::Private
 {
 	class FVisibilityDragDropOp : public FDragDropOperation, public TSharedFromThis<FVisibilityDragDropOp>
 	{
@@ -73,7 +73,7 @@ void SAvaOutlinerVisibility::Construct(const FArguments& InArgs
 
 FReply SAvaOutlinerVisibility::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	using namespace UE::AvalancheOutliner::Private;
+	using namespace UE::AvaOutliner::Private;
 	if (MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
 	{
 		return FReply::Handled().BeginDragDrop(FVisibilityDragDropOp::New(!IsItemVisible(), UndoTransaction));
@@ -84,7 +84,7 @@ FReply SAvaOutlinerVisibility::OnDragDetected(const FGeometry& MyGeometry, const
 /** If a visibility drag drop operation has entered this widget, set its item to the new visibility state */
 void SAvaOutlinerVisibility::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
-	using namespace UE::AvalancheOutliner::Private;
+	using namespace UE::AvaOutliner::Private;
 	const TSharedPtr<FVisibilityDragDropOp> DragDropOp = DragDropEvent.GetOperationAs<FVisibilityDragDropOp>();
 	if (DragDropOp.IsValid())
 	{
@@ -118,7 +118,7 @@ FReply SAvaOutlinerVisibility::HandleClick()
 	{
 		for (TSharedPtr<IAvaOutlinerItem>& SelectedItem : OutlinerView->GetViewSelectedItems())
 		{
-			if (UE::AvalancheOutliner::Private::IsItemVisible(SelectedItem, Column) != bVisible)
+			if (UE::AvaOutliner::Private::IsItemVisible(SelectedItem, Column) != bVisible)
 			{
 				OnSetItemVisibility(SelectedItem, bVisible);
 			}
@@ -221,7 +221,7 @@ FSlateColor SAvaOutlinerVisibility::GetForegroundColor() const
 /** Check if our wrapped tree item is visible */
 bool SAvaOutlinerVisibility::IsItemVisible() const
 {
-	return UE::AvalancheOutliner::Private::IsItemVisible(ItemWeak.Pin(), ColumnWeak.Pin());
+	return UE::AvaOutliner::Private::IsItemVisible(ItemWeak.Pin(), ColumnWeak.Pin());
 }
 
 /** Set the item this widget is responsible for to be hidden or shown */

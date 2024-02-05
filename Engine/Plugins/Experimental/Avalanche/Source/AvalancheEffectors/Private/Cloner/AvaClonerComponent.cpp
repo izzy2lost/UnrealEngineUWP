@@ -26,10 +26,10 @@
 #include "UObject/Package.h"
 
 #if WITH_EDITOR
-#include "AvaOutliner.h"
 #include "AvaOutlinerDefines.h"
 #include "AvaOutlinerSubsystem.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "IAvaOutliner.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Materials/Material.h"
 #include "Misc/MessageDialog.h"
@@ -595,7 +595,7 @@ void UAvaClonerComponent::GetOrderedRootActors(TArray<AActor*>& OutActors) const
 #if WITH_EDITOR
 	if (const UAvaOutlinerSubsystem* const OutlinerSubsystem = ClonerWorld->GetSubsystem<UAvaOutlinerSubsystem>())
 	{
-		const TSharedPtr<FAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner();
+		const TSharedPtr<IAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner();
 		if (AvaOutliner.IsValid())
 		{
 			const FAvaOutlinerItemPtr OutlinerClonerItem = AvaOutliner->FindItem(ClonerActor);

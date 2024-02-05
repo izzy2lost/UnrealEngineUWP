@@ -5,7 +5,7 @@
 #include "AvaOutlinerView.h"
 #include "Input/Reply.h"
 
-FAvaOutlinerItemProxy::FAvaOutlinerItemProxy(FAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
+FAvaOutlinerItemProxy::FAvaOutlinerItemProxy(IAvaOutliner& InOutliner, const FAvaOutlinerItemPtr& InParentItem)
 	: FAvaOutlinerItem(InOutliner)
 {
 	ParentWeak = InParentItem;

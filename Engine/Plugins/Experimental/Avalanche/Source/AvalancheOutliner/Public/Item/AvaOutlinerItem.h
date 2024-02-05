@@ -12,17 +12,17 @@ class ULevel;
 /** Base Implementation of IAvaOutlinerItem */
 class AVALANCHEOUTLINER_API FAvaOutlinerItem : public IAvaOutlinerItem
 {
-	friend FAvaOutliner;
+	friend class FAvaOutliner;
 
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerItem, IAvaOutlinerItem);
 
-	FAvaOutlinerItem(FAvaOutliner& InOutliner);
+	FAvaOutlinerItem(IAvaOutliner& InOutliner);
 
 	virtual ~FAvaOutlinerItem() override;
 
 	//~ Begin IAvaOutlinerItem
-	virtual TSharedRef<FAvaOutliner> GetOwnerOutliner() const override;
+	virtual TSharedRef<IAvaOutliner> GetOwnerOutliner() const override;
 	virtual bool IsItemValid() const override;
 	virtual void RefreshChildren() override;
 	virtual const TArray<FAvaOutlinerItemPtr>& GetChildren() const override { return Children; }
@@ -79,14 +79,11 @@ protected:
 	/** Careful handling of multiple children being detected and added to this item children array */
 	void HandleNewSortableChildren(TArray<FAvaOutlinerItemPtr> InSortableChildren);
 
-	/** The implementation when an Outliner item has dropped on this item */
-	FReply HandleItemDragDrop(const FAvaOutlinerItemDragDropOp& ItemDragDrop, EItemDropZone DropZone);
-
 	/** Handling when an Asset from Content Browser has been dragged on to this item */
 	FReply CreateItemsFromAssetDrop(const TSharedPtr<FAssetDragDropOp>& AssetDragDropOp, EItemDropZone DropZone, ULevel* Level);
 
 	/** Reference to the Owning Outliner */
-	FAvaOutliner& Outliner;
+	IAvaOutliner& Outliner;
 
 	/** Weak pointer to the Parent Item. Can be null, but if valid, the Parent should have this item in the Children Array */
 	TWeakPtr<IAvaOutlinerItem> ParentWeak;

@@ -25,8 +25,10 @@ void FAvaOutlinerTreeRoot::FindChildren(TArray<FAvaOutlinerItemPtr>& OutChildren
 		return;
 	}
 
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+
 	// All the Actors that don't have an Outliner Parent will be at the Root
-	const TArray<TWeakObjectPtr<AActor>> RootChildren = Outliner.GetActorSceneOutlinerChildren(nullptr);
+	const TArray<TWeakObjectPtr<AActor>> RootChildren = OutlinerPrivate.GetActorSceneOutlinerChildren(nullptr);
 
 	// Worst case and most likely case: all Outliner Children are valid.
 	// Note: if recursive, re-allocations will still need to be done past this reserve count, as it's unknown at this point how many items are going to be added
@@ -60,12 +62,14 @@ bool FAvaOutlinerTreeRoot::AddChild(const FAvaOutlinerAddItemParams& InAddItemPa
 
 	// Is it a new actor that we just spawned
 	const bool bSpawning = InAddItemParams.Item.IsValid() && !Children.Contains(InAddItemParams.Item);
-	
+
 	const bool bResult = FAvaOutlinerItem::AddChild(InAddItemParams);
-	
+
 	if ((bSpawning || bRearranging) && InAddItemParams.Item->IsA<FAvaOutlinerActor>())
 	{
-		UAvaOutlinerSubsystem* const OutlinerSubsystem = Outliner.GetOutlinerSubsystem();
+		FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+
+		UAvaOutlinerSubsystem* const OutlinerSubsystem = OutlinerPrivate.GetOutlinerSubsystem();
 		
 		AActor* const Actor = StaticCastSharedPtr<FAvaOutlinerActor>(InAddItemParams.Item)->GetActor();
 		

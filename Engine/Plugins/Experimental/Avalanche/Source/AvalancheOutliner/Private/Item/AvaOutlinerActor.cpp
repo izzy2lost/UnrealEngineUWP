@@ -17,7 +17,7 @@
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerActor"
 
-FAvaOutlinerActor::FAvaOutlinerActor(FAvaOutliner& InOutliner, AActor* InActor)
+FAvaOutlinerActor::FAvaOutlinerActor(IAvaOutliner& InOutliner, AActor* InActor)
 	: Super(InOutliner, InActor)
 	, Actor(InActor)
 {
@@ -33,7 +33,8 @@ void FAvaOutlinerActor::FindChildren(TArray<FAvaOutlinerItemPtr>& OutChildren, b
 		return;
 	}
 
-	const TArray<TWeakObjectPtr<AActor>> OutlinerChildren = Outliner.GetActorSceneOutlinerChildren(UnderlyingActor);
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+	const TArray<TWeakObjectPtr<AActor>> OutlinerChildren = OutlinerPrivate.GetActorSceneOutlinerChildren(UnderlyingActor);
 
 	// Worst case and most likely case: all Outliner Children are valid.
 	// Note: if recursive, re-allocations will still need to be done past this reserve count, as it's unknown at this point how many items are going to be added
@@ -107,8 +108,9 @@ bool FAvaOutlinerActor::AddChild(const FAvaOutlinerAddItemParams& InAddItemParam
 				{
 					ChangeType = EAvaOutlinerHierarchyChangeType::Rearranged;
 				}
-				
-				if (UAvaOutlinerSubsystem* const OutlinerSubsystem = Outliner.GetOutlinerSubsystem())
+
+				FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+				if (UAvaOutlinerSubsystem* const OutlinerSubsystem = OutlinerPrivate.GetOutlinerSubsystem())
 				{
 					OutlinerSubsystem->BroadcastActorHierarchyChanged(ChildActor, ParentActor, ChangeType);
 				}
@@ -141,8 +143,9 @@ bool FAvaOutlinerActor::RemoveChild(const FAvaOutlinerRemoveItemParams& InRemove
 					{
 						OldParentActor->Modify(false);
 						ChildRoot->DetachFromComponent(InRemoveItemParams.DetachmentTransformRules.Get(FDetachmentTransformRules::KeepWorldTransform));
-						
-						if (UAvaOutlinerSubsystem* const OutlinerSubsystem = Outliner.GetOutlinerSubsystem())
+
+						FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+						if (UAvaOutlinerSubsystem* const OutlinerSubsystem = OutlinerPrivate.GetOutlinerSubsystem())
 						{
 							OutlinerSubsystem->BroadcastActorHierarchyChanged(ChildActor, ParentActor
 								, EAvaOutlinerHierarchyChangeType::Detached);
@@ -158,7 +161,8 @@ bool FAvaOutlinerActor::RemoveChild(const FAvaOutlinerRemoveItemParams& InRemove
 
 bool FAvaOutlinerActor::IsAllowedInOutliner() const
 {
-	return Outliner.IsActorAllowedInOutliner(GetActor());
+	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+	return OutlinerPrivate.IsActorAllowedInOutliner(GetActor());
 }
 
 EAvaOutlinerItemViewMode FAvaOutlinerActor::GetSupportedViewModes(const FAvaOutlinerView& InOutlinerView) const

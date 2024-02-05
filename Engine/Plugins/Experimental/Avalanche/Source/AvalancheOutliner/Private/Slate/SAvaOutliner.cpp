@@ -2,6 +2,7 @@
 
 #include "Slate/SAvaOutliner.h"
 #include "AvaOutliner.h"
+#include "AvaOutlinerModule.h"
 #include "AvaOutlinerSettings.h"
 #include "AvaOutlinerView.h"
 #include "Columns/IAvaOutlinerColumn.h"
@@ -448,10 +449,10 @@ void SAvaOutliner::OnAssetSearchSuggestionFilter(const FText& InSearchText, TArr
 	FString FilterValue;
 	UE::AvaOutliner::Private::ExtractAssetSearchFilterTerms(InSearchText, &FilterKey, &FilterValue, nullptr);
 
-	const IAvaOutlinerModule& AvaOutlinerModule = IAvaOutlinerModule::Get();
+	const FAvaOutlinerModule& OutlinerModule = FAvaOutlinerModule::Get();
 	const TSharedRef<FAvaFilterSuggestionPayload> GenericPayload(MakeShared<FAvaFilterSuggestionPayload>(OutPossibleSuggestions,FilterValue));
 
-	for (const TSharedPtr<IAvaFilterSuggestionFactory>& GenericSuggestion : AvaOutlinerModule.GetSuggestions(EAvaFilterSuggestionType::Generic))
+	for (const TSharedPtr<IAvaFilterSuggestionFactory>& GenericSuggestion : OutlinerModule.GetSuggestions(EAvaFilterSuggestionType::Generic))
 	{
 		GenericSuggestion->AddSuggestion(GenericPayload);
 	}
@@ -466,7 +467,7 @@ void SAvaOutliner::OnAssetSearchSuggestionFilter(const FText& InSearchText, TArr
 
 			for (const FAvaOutlinerItemPtr& RootChildFromRoot : OutlinerPtr->GetTreeRoot()->GetChildren())
 			{
-				for (const TSharedPtr<IAvaFilterSuggestionFactory>& ItemSuggestion : AvaOutlinerModule.GetSuggestions(EAvaFilterSuggestionType::ItemBased))
+				for (const TSharedPtr<IAvaFilterSuggestionFactory>& ItemSuggestion : OutlinerModule.GetSuggestions(EAvaFilterSuggestionType::ItemBased))
 				{
 					ItemBasedPayload->Item = RootChildFromRoot;
 					ItemSuggestion->AddSuggestion(ItemBasedPayload);
@@ -477,7 +478,7 @@ void SAvaOutliner::OnAssetSearchSuggestionFilter(const FText& InSearchText, TArr
 
 				for (const FAvaOutlinerItemPtr& Child : Children)
 				{
-					for (const TSharedPtr<IAvaFilterSuggestionFactory>& ItemSuggestion : AvaOutlinerModule.GetSuggestions(EAvaFilterSuggestionType::ItemBased))
+					for (const TSharedPtr<IAvaFilterSuggestionFactory>& ItemSuggestion : OutlinerModule.GetSuggestions(EAvaFilterSuggestionType::ItemBased))
 					{
 						ItemBasedPayload->Item = Child;
 						ItemSuggestion->AddSuggestion(ItemBasedPayload);

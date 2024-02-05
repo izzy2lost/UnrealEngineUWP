@@ -14,7 +14,7 @@ class AVALANCHEOUTLINER_API FAvaOutlinerComponent : public FAvaOutlinerObject
 public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaOutlinerComponent, FAvaOutlinerObject);
 
-	FAvaOutlinerComponent(FAvaOutliner& InOutliner, USceneComponent* InComponent);
+	FAvaOutlinerComponent(IAvaOutliner& InOutliner, USceneComponent* InComponent);
 
 	//~ Begin IAvaOutlinerItem
 	virtual void FindChildren(TArray<FAvaOutlinerItemPtr>& OutChildren, bool bRecursive) override;
