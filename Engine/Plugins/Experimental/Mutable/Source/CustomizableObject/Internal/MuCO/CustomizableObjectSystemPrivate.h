@@ -9,6 +9,7 @@
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectExtension.h"
+#include "MuCO/CustomizableInstanceLODManagement.h"
 #include "Containers/Ticker.h"
 
 #include "MuCO/CustomizableObjectInstanceDescriptor.h"
@@ -18,7 +19,10 @@
 #include "MuR/Image.h"
 #include "UObject/GCObject.h"
 #include "WorldCollision.h"
+#include "Engine/StreamableManager.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "MuCO/FMutableTaskGraph.h"
+#include "AssetRegistry/AssetData.h"
 
 // This define could come from MuR/System.h
 #ifdef MUTABLE_USE_NEW_TASKGRAPH
@@ -36,6 +40,14 @@ class UEditorImageProvider;
 class UCustomizableObjectSystem;
 namespace LowLevelTasks { enum class ETaskPriority : int8; }
 struct FTexturePlatformData;
+
+
+// Split StreamedBulkData into chunks smaller than MUTABLE_STREAMED_DATA_MAXCHUNKSIZE
+#define MUTABLE_STREAMED_DATA_MAXCHUNKSIZE		(512 * 1024 * 1024)
+
+
+/** End a Customizable Object Instance Update. All code paths of an update have to end here. */
+void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context);
 
 
 struct FMutablePendingInstanceUpdate
@@ -536,6 +548,19 @@ struct FMutableReleasePlatformOperationData
 };
 
 
+USTRUCT()
+struct FPendingReleaseSkeletalMeshInfo
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
+
+	UPROPERTY()
+	double TimeStamp = 0.0f;
+};
+
+
 UCLASS()
 class UCustomizableObjectSystemPrivate : public UObject
 {
@@ -683,6 +708,43 @@ public:
 	int32 NumSkeletalMeshes = 0;
 
 	bool bAutoCompileCommandletEnabled = false;
+
+	UPROPERTY()
+	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
+	
+	UPROPERTY(Transient)
+	TObjectPtr<UCustomizableInstanceLODManagementBase> DefaultInstanceLODManagement = nullptr;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCustomizableInstanceLODManagementBase> CurrentInstanceLODManagement = nullptr;
+
+	// Array where textures are added temporarily while the mutable thread may want to
+	// reused them for some instance under construction.
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> ProtectedCachedTextures;
+	
+	// For async material loading
+	FStreamableManager StreamableManager;
+	
+#if WITH_EDITOR
+	FCustomizableObjectCompilerBase* RecompileCustomizableObjectsCompiler = nullptr;
+	
+	TArray<FAssetData> ObjectsToRecompile;
+	uint32 TotalNumObjectsToRecompile = 0;
+	uint32 NumObjectsCompiled = 0;
+
+	/** Recompile progress bar handle */
+	FProgressNotificationHandle RecompileNotificationHandle;
+
+	// Array to keep track of cached objects
+	TArray<FGuid> UncompiledCustomizableObjectIds;
+
+	/** Weak pointer to the Uncompiled Customizable Objects notification */
+	TWeakPtr<SNotificationItem> UncompiledCustomizableObjectsNotificationPtr;
+
+	/** Map used to cache per platform MaxChunkSize. If MaxChunkSize > 0, streamed data will be split in multiple files */
+	TMap<FString, int64> PlatformMaxChunkSize;
+#endif
 };
 
 

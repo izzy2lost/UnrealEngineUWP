@@ -25,6 +25,7 @@
 #include "Interfaces/ITargetPlatform.h"
 #include "Misc/App.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuR/Model.h"
 #include "MuR/ModelPrivate.h"
 
@@ -242,7 +243,7 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 	FCookLoadScope CookLoadScope(ECookLoadType::EditorOnly);
 	if (ArrayAssetToStream.Num() > 0)
 	{
-		FStreamableManager& Streamable = System->GetStreamableManager();
+		FStreamableManager& Streamable = System->GetPrivate()->StreamableManager;
 
 		if (bAsync) 
 		{

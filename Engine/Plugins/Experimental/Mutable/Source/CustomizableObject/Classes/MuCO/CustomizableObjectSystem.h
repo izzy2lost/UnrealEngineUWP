@@ -33,12 +33,6 @@ struct FFrame;
 struct FGuid;
 
 
-// Split StreamedBulkData into chunks smaller than MUTABLE_STREAMED_DATA_MAXCHUNKSIZE
-#define MUTABLE_STREAMED_DATA_MAXCHUNKSIZE		(512 * 1024 * 1024)
-
-// In case of async file operations, what priority to use
-#define MUTABLE_SYSTEM_ASYNC_STREAMING_PRIORITY			EAsyncIOPriorityAndFlags::AIOP_Normal
-
 extern TAutoConsoleVariable<bool> CVarClearWorkingMemoryOnUpdateEnd;
 
 extern TAutoConsoleVariable<bool> CVarReuseImagesBetweenInstances;
@@ -74,18 +68,6 @@ namespace EMutableProfileMetric
 	constexpr Type UpdateOperations = 2;
 	constexpr Type Count = 4;
 
-};
-
-USTRUCT()
-struct FPendingReleaseSkeletalMeshInfo
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
-
-	UPROPERTY()
-	double TimeStamp = 0.0f;
 };
 
 
@@ -177,13 +159,12 @@ public:
 };
 
 
-/** End a Customizable Object Instance Update. All code paths of an update have to end here. */
-void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context);
-
-
 UCLASS(Blueprintable, BlueprintType)
 class CUSTOMIZABLEOBJECT_API UCustomizableObjectSystem : public UObject
 {
+	// Friends
+	friend class UCustomizableObjectSystemPrivate;
+
 public:
 	GENERATED_BODY()
 
@@ -198,8 +179,7 @@ public:
 	static UCustomizableObjectSystem* GetInstanceChecked();
 
 	/** Determines if the result of the instance update is valid or not.
-	* @return true if the result is successful or has warnings, false if the result is from the Error category
-	 */
+	 * @return true if the result is successful or has warnings, false if the result is from the Error category */
 	UFUNCTION(BlueprintCallable, Category = Status)
 	static bool IsUpdateResultValid(const EUpdateResult UpdateResult);
 	
@@ -252,9 +232,6 @@ public:
 	
 	// If true, uncompiled Customizable Objects will be compiled synchronously
 	bool IsAutoCompilationSync() const;
-
-	// Copy of the Mutable Editor Settings tied to CO compilation. They are updated whenever changed
-	FEditorCompileSettings EditorSettings;
 #endif
 	
 	// Return the current MinLodQualityLevel for skeletal meshes.
@@ -272,11 +249,6 @@ public:
 	void SetImagePixelFormatOverride(const mu::FImageOperator::FImagePixelFormatFunc&);
 #endif
 
-private:
-	UPROPERTY()
-	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
-
-public:
 	/** [Texture Parameters] Get a list of all the possible values for external texture parameters according to the various providers registered with RegisterImageProvider. */
 	TArray<FCustomizableObjectExternalTexture> GetTextureParameterValues();
 
@@ -286,7 +258,7 @@ public:
 	/** [Texture Parameters] Remove a previously registered provider. */
 	void UnregisterImageProvider(UCustomizableSystemImageProvider* Provider);
 
-	/** [Texture Parameters] Interface to actually cache Images in the Mutable system and make them availabe at run-time.
+	/** [Texture Parameters] Interface to actually cache Images in the Mutable system and make them available at run-time.
 		Any cached image has to be registered by an Image provider before caching it.
 		Have in mind that once an image has been cached, it will spend memory according to its size, except in the case
 		of images of type UCustomizableSystemImageProvider::ValueType::Unreal_Deferred, where only a very small amount of
@@ -303,7 +275,7 @@ public:
 	// being used and it's not compiled.  Callers can add additional information to the error log.
 	void AddUncompiledCOWarning(const UCustomizableObject& InObject, FString const* OptionalLogInfo = nullptr);
 
-	// Enables the collection of internal mutabe performance data. It has a performance cost.
+	// Enables the collection of internal Mutable performance data. It has a performance cost.
 	void EnableBenchmark();
 	// Writes the benchmark results
 	void EndBenchmark();
@@ -314,11 +286,6 @@ public:
 	// Give access to the internal object data.
 	UCustomizableObjectSystemPrivate* GetPrivate();
 	const UCustomizableObjectSystemPrivate* GetPrivate() const;
-
-	UCustomizableObjectSystemPrivate* GetPrivateChecked();
-	const UCustomizableObjectSystemPrivate* GetPrivateChecked() const;
-	
-	FStreamableManager& GetStreamableManager();
 
 	UCustomizableInstanceLODManagementBase* GetInstanceLODManagement() const;
 
@@ -368,24 +335,7 @@ public:
 
 	void ClearCurrentMutableOperation();
 
-	UPROPERTY(Transient)
-	TObjectPtr<UCustomizableInstanceLODManagementBase> DefaultInstanceLODManagement = nullptr;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UCustomizableInstanceLODManagementBase> CurrentInstanceLODManagement = nullptr;
-
-	// Array where textures are added temporarily while the mutable thread may want to
-	// reused them for some instance under construction.
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTexture2D>> ProtectedCachedTextures;
-
 private:
-	UPROPERTY(Transient)
-	TObjectPtr<UCustomizableObjectSystemPrivate> Private = nullptr;
-
-	// For async material loading
-	FStreamableManager StreamableManager;
-
 	// Most of the work in this plugin happens here.
 	bool Tick(float DeltaTime);
 
@@ -408,6 +358,7 @@ private:
 
 	void StartNextRecompile();
 	void TickRecompileCustomizableObjects();
+#endif
 
 public:
 	/** Set Mutable's working memory limit (bytes). Mutable will flush internal caches to try to keep its memory consumption below the WorkingMemory (i.e., it is not a hard limit).
@@ -418,29 +369,15 @@ public:
 
 	/** Get Mutable's working memory limit (bytes). See SetWorkingMemory(int32). */
 	int32 GetWorkingMemory() const;
-	
-private:
-	FCustomizableObjectCompilerBase* RecompileCustomizableObjectsCompiler = nullptr;
-	
-	TArray<FAssetData> ObjectsToRecompile;
-	uint32 TotalNumObjectsToRecompile = 0;
-	uint32 NumObjectsCompiled = 0;
 
-	/** Recompile progress bar handle */
-	FProgressNotificationHandle RecompileNotificationHandle;
-
-	// Array to keep track of cached objects
-	TArray<FGuid> UncompiledCustomizableObjectIds;
-
-	/** Weak pointer to the Uncompiled Customizable Objects notification */
-	TWeakPtr<SNotificationItem> UncompiledCustomizableObjectsNotificationPtr;
-
-	/** Map used to cache per platform MaxChunkSize. If MaxChunkSize > 0, streamed data will be split in multiple files */
-	TMap<FString, int64> PlatformMaxChunkSize;
+#if WITH_EDITOR
+	// Copy of the Mutable Editor Settings tied to CO compilation. They are updated whenever changed
+	FEditorCompileSettings EditorSettings;
 #endif
 	
-	// Friends
-	friend class UCustomizableObjectSystemPrivate;
+private:
+	UPROPERTY(Transient)
+	TObjectPtr<UCustomizableObjectSystemPrivate> Private = nullptr;
 };
 
 
