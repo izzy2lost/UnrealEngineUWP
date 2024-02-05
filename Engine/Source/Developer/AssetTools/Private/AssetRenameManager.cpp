@@ -872,9 +872,19 @@ void FAssetRenameManager::LoadReferencingPackages(TArray<FAssetRenameDataWithRef
 		
 		FAssetRenameDataWithReferencers& RenameData = AssetsToRename[AssetIdx];
 
+		TSet<FName> ReferencingExternalPackageNames;
+
 		UObject* Asset = RenameData.Asset.Get();
 		if (Asset)
 		{
+			// External packages must always be resaved
+			for (UPackage* ExternalPackage : Asset->GetPackage()->GetExternalPackages())
+			{
+				FName ExternalPackageName = ExternalPackage->GetFName();
+				ReferencingExternalPackageNames.Add(ExternalPackageName);
+				OutReferencingPackagesToSave.Add(ExternalPackage);
+			}
+
 			// Make sure this asset is local. Only local assets should be renamed without a redirector
 			if (bCheckStatus)
 			{
@@ -920,17 +930,6 @@ void FAssetRenameManager::LoadReferencingPackages(TArray<FAssetRenameDataWithRef
 
 		TArray<UPackage*> PackagesToSaveForThisAsset;
 		bool bAllPackagesLoadedForThisAsset = true;
-
-		TSet<FName> ReferencingExternalPackageNames;
-		if (Asset)
-		{
-			for (UPackage* ExternalPackage : Asset->GetPackage()->GetExternalPackages())
-			{
-				FName ExternalPackageName = ExternalPackage->GetFName();
-				ReferencingExternalPackageNames.Add(ExternalPackageName);
-				OutReferencingPackagesToSave.Add(ExternalPackage);
-			}
-		}
 
 		for (auto It = RenameData.NotRenamedReferencingPackageNames.CreateIterator(); It; ++It)
 		{
