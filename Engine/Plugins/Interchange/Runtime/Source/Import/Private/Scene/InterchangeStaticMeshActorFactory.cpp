@@ -16,7 +16,7 @@ UClass* UInterchangeStaticMeshActorFactory::GetFactoryClass() const
 	return AStaticMeshActor::StaticClass();
 }
 
-UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer)
+UObject* UInterchangeStaticMeshActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer, const FImportSceneObjectsParams& /*Params*/)
 {
 	using namespace UE::Interchange;
 

@@ -18,7 +18,7 @@ UClass* UInterchangeLightActorFactory::GetFactoryClass() const
 	return ALight::StaticClass();
 }
 
-UObject* UInterchangeLightActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer)
+UObject* UInterchangeLightActorFactory::ProcessActor(AActor& SpawnedActor, const UInterchangeActorFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer, const FImportSceneObjectsParams& /*Params*/)
 {
 	if (ALight* LightActor = Cast<ALight>(&SpawnedActor))
 	{

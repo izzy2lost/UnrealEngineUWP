@@ -86,7 +86,7 @@ public:
 		/** The translator is use to retrieve the PayLoad data in case the factory need it */
 		const UInterchangeTranslatorBase* Translator = nullptr;
 
-		/** The source data, mainly use to set the asset import data file. TODO: we have to refactor UAssetImportData, the source data should be the base class for this now */
+		/** The source data. TODO: we have to refactor UAssetImportData, the source data should be the base class for this now */
 		const UInterchangeSourceData* SourceData = nullptr;
 
 		/** The node container associate with the current source index */
@@ -196,7 +196,10 @@ public:
 
 		/** The node container associated with the current source index */
 		const UInterchangeBaseNodeContainer* NodeContainer = nullptr;
-	
+
+		/** The source data. TODO: we have to refactor UAssetImportData, the source data should be the base class for this now */
+		const UInterchangeSourceData* SourceData = nullptr;
+
 		/**
 		 * If not null, the factory must perform a reimport of the scene node
 		 */
