@@ -76,6 +76,17 @@ static TAutoConsoleVariable<int32> CVarManyLightsHardwareRayTracingMaxIterations
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+// #ml_todo: Separate config cvars from Lumen once we support multiple SBT with same RayTracingPipeline or Global Uniform Buffers in Ray Tracing
+static TAutoConsoleVariable<bool> CVarManyLightsHardwareRayTracingAvoidSelfIntersections(
+	TEXT("r.ManyLights.HardwareRayTracing.AvoidSelfIntersections"),
+	true,
+	TEXT("Whether to avoid self-intersections.\n")
+	TEXT("Currently shares config with Lumen:\n")
+	TEXT("- r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance\n")
+	TEXT("- r.Lumen.HardwareRayTracing.SkipTwoSidedHitDistance\n"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarManyLightsHairVoxelTraces(
 	TEXT("r.ManyLights.HairVoxelTraces"),
 	1,
@@ -244,9 +255,10 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
+	class FAvoidSelfIntersections : SHADER_PERMUTATION_BOOL("AVOID_SELF_INTERSECTIONS");
 	class FHairVoxelTraces : SHADER_PERMUTATION_BOOL("HAIR_VOXEL_TRACES");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FHairVoxelTraces, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FAvoidSelfIntersections, FHairVoxelTraces, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
@@ -365,6 +377,7 @@ void FDeferredShadingSceneRenderer::PrepareManyLightsLumenMaterial(const FViewIn
 		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
 		{
 			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(HairVoxelTraces != 0);
 			PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(ManyLights::GetDebugMode() != 0);
 			TShaderRef<FHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
@@ -380,6 +393,7 @@ namespace ManyLights
 		FRDGBuilder& GraphBuilder,
 		const FCompactedTraceParameters& CompactedTraceParameters,
 		const FManyLightsParameters& ManyLightsParameters,
+		const FHairVoxelTraceParameters& HairVoxelTraceParameters,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
 		FHardwareRayTraceLightSamples::FParameters* PassParameters);
@@ -390,12 +404,14 @@ void ManyLights::SetHardwareRayTracingPassParameters(
 	FRDGBuilder& GraphBuilder,
 	const ManyLights::FCompactedTraceParameters& CompactedTraceParameters,
 	const FManyLightsParameters& ManyLightsParameters,
+	const FHairVoxelTraceParameters& HairVoxelTraceParameters,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleRayDistance,
 	FHardwareRayTraceLightSamples::FParameters* PassParameters)
 {
 	PassParameters->CompactedTraceParameters = CompactedTraceParameters;
 	PassParameters->ManyLightsParameters = ManyLightsParameters;
+	PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
 	PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 	PassParameters->LightSampleRayDistance = LightSampleRayDistance;
 	PassParameters->RayTracingBias = CVarManyLightsHardwareRayTracingBias.GetValueOnRenderThread();
@@ -555,23 +571,24 @@ void ManyLights::RayTraceLightSamples(
 
 		if (ManyLights::UseHardwareRayTracing())
 		{
-			#if RHI_RAYTRACING
+#if RHI_RAYTRACING
+			FHardwareRayTraceLightSamples::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamples::FParameters>();
+			ManyLights::SetHardwareRayTracingPassParameters(
+				View,
+				GraphBuilder,
+				CompactedTraceParameters,
+				ManyLightsParameters,
+				HairVoxelTraceParameters,
+				LightSamples,
+				LightSampleRayDistance,
+				PassParameters);
+
+			FHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FHardwareRayTraceLightSamples::FAvoidSelfIntersections>(CVarManyLightsHardwareRayTracingAvoidSelfIntersections.GetValueOnRenderThread());
+			PermutationVector.Set<FHardwareRayTraceLightSamples::FHairVoxelTraces>(bHairVoxelTraces);
+			PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
 			if (ManyLights::UseInlineHardwareRayTracing())
 			{
-				FHardwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamplesCS::FParameters>();
-				ManyLights::SetHardwareRayTracingPassParameters(
-					View,
-					GraphBuilder,
-					CompactedTraceParameters,
-					ManyLightsParameters,
-					LightSamples,
-					LightSampleRayDistance,
-					PassParameters);
-				PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
-
-				FHardwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FHardwareRayTraceLightSamplesCS::FHairVoxelTraces>(bHairVoxelTraces);
-				PermutationVector.Set<FHardwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
 				auto ComputeShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesCS>(PermutationVector);
 
 				FComputeShaderUtils::AddPass(
@@ -585,20 +602,6 @@ void ManyLights::RayTraceLightSamples(
 			}
 			else
 			{
-				FHardwareRayTraceLightSamplesRGS::FParameters* PassParameters = GraphBuilder.AllocParameters<FHardwareRayTraceLightSamplesRGS::FParameters>();
-				ManyLights::SetHardwareRayTracingPassParameters(
-					View,
-					GraphBuilder,
-					CompactedTraceParameters,
-					ManyLightsParameters,
-					LightSamples,
-					LightSampleRayDistance,
-					PassParameters);
-				PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
-
-				FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FHairVoxelTraces>(bHairVoxelTraces);
-				PermutationVector.Set<FHardwareRayTraceLightSamplesRGS::FDebugMode>(bDebug);
 				auto RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
 
 				AddLumenRayTraceDispatchIndirectPass(

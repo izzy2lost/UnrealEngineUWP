@@ -7,6 +7,7 @@
 #include "ManyLights.ush"
 #include "ManyLightsRayTracing.ush"
 #include "../Lumen/LumenHardwareRayTracingPayloadCommon.ush"
+#include "../Lumen/LumenHardwareRayTracingCommon.ush"
 #if HAIR_VOXEL_TRACES
 	#include "../HairStrands/HairStrandsRaytracing.ush"
 #endif
@@ -19,12 +20,6 @@ uint MaxTraversalIterations;
 RaytracingAccelerationStructure TLAS;
 
 #if LUMEN_HARDWARE_INLINE_RAYTRACING
-	struct FHitGroupRootConstants
-	{
-		uint BaseInstanceIndex;
-		uint UserData;
-	};
-
 	StructuredBuffer<FHitGroupRootConstants> HitGroupData;
 	StructuredBuffer<FRayTracingSceneMetadataRecord> RayTracingSceneMetadata;
 #endif
@@ -72,61 +67,33 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 
 		ApplyPositionBias(Ray.Origin, Ray.Direction, SceneWorldNormal, RayTracingNormalBias);
 
-		uint RayFlags = RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH;
-		uint RayMask = RAY_TRACING_MASK_OPAQUE;
+		FRayCone RayCone = (FRayCone)0;
+		FRayTracedLightingContext LightingContext = CreateRayTracedLightingContext(
+			RayCone,
+			0,
+			0, // dummy coordinate
+			RAY_FLAG_NONE,
+			MaxTraversalIterations);
 
-		FLumenMinimalPayload Payload = (FLumenMinimalPayload)0;
+		// Shadows don't need closest hit distance
+		LightingContext.bAcceptFirstHitAndEndSearch = true;
 
-		// #ml_todo: Share it with LumenHardwareRayTracingCommon.ush
-		#if LUMEN_HARDWARE_INLINE_RAYTRACING
-		{
-			FTraceRayInlineContext TraceRayInlineContext = CreateTraceRayInlineContext();
-			TraceRayInlineContext.MaxIterations = MaxTraversalIterations;
+#if LUMEN_HARDWARE_INLINE_RAYTRACING
+		LightingContext.HitGroupData = HitGroupData;
+		LightingContext.RayTracingSceneMetadata = RayTracingSceneMetadata;
+#endif // LUMEN_HARDWARE_INLINE_RAYTRACING
 
-			FTraceRayInlineResult TraceResult = TraceRayInline(TLAS, RayFlags, RayMask, Ray.GetNativeDesc(), TraceRayInlineContext);
+		LightingContext.InstanceMask = RAY_TRACING_MASK_OPAQUE;
 
-			if (TraceResult.IsHit())
-			{
-				Payload.HitT = TraceResult.HitT;
-
-				// Our SBTs always have 2 slots per material. Therefore InstanceContributionToHitGroupIndex has a RAY_TRACING_NUM_SHADER_SLOTS multiplier.
-				// But because we only encode 1 material into LumenHardwareRayTracingHitDataBuffer we want to get actual material index.
-				uint InstanceContributionIndex = TraceResult.InstanceContributionToHitGroupIndex / RAY_TRACING_NUM_SHADER_SLOTS;
-				uint HitGroupIndex = TraceResult.GeometryIndex + InstanceContributionIndex;
-
-				FHitGroupRootConstants HitData = HitGroupData[HitGroupIndex];
-
-				const int Primitive = TraceResult.InstanceID;
-				const int PrimitiveInstanceIndex = TraceResult.InstanceIndex - HitData.BaseInstanceIndex;
-				const uint GPUSceneInstanceIndex = GetGPUSceneInstanceIndex(Primitive, PrimitiveInstanceIndex);
-				Payload.SetGPUSceneInstanceIndex(GPUSceneInstanceIndex);
-
-				uint MaterialShaderIndex = HitData.UserData & 0x3FFFFFFF;
-				Payload.SetMaterialShaderIndex(MaterialShaderIndex);
-
-				uint bIsTranslucent = (HitData.UserData >> 31) & 0x1;
-				Payload.SetIsTranslucent(bIsTranslucent);
-
-				uint bIsTwoSided = (HitData.UserData >> 30) & 0x1;
-				Payload.SetIsTwoSided(bIsTwoSided);
-			}
-			else
-			{
-				Payload.SetMiss();
-			}
-		}
-		#else
-		{
-			TraceRay(TLAS, RayFlags, RayMask, /*ShaderSlotIndex*/ 0, RAY_TRACING_NUM_SHADER_SLOTS, 0, Ray.GetNativeDesc(), Payload);
-		}
-		#endif
+		FLumenMinimalRayResult TraceResult = TraceLumenMinimalRay(TLAS, Ray, LightingContext);
 
 		#if HAIR_VOXEL_TRACES
 		{
 			// #ml_todo: replace with spatiotemporal blue noise
 			RandomSequence RandSequence;
 			RandomSequence_Initialize(RandSequence, SampleCoord, 0, ManyLightsStateFrameIndex, 1);
-			Payload.HitT = TraverseHair(ScreenCoord, RandSequence, Ray.Origin, Ray.Direction, Payload.HitT, VirtualVoxel.Raytracing_ShadowOcclusionThreshold);
+			TraceResult.HitT = TraverseHair(ScreenCoord, RandSequence, Ray.Origin, Ray.Direction, TraceResult.HitT, VirtualVoxel.Raytracing_ShadowOcclusionThreshold);
+			TraceResult.bHit = TraceResult.HitT > 0;
 		}
 		#endif
 
@@ -137,14 +104,14 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
 			float3 RayStart = Ray.Origin + Ray.Direction * Ray.TMin;
-			float3 RayEnd = Ray.Origin + Ray.Direction * (Payload.IsHit() ? Payload.HitT : Ray.TMax);
+			float3 RayEnd = Ray.Origin + Ray.Direction * (TraceResult.bHit ? TraceResult.HitT : Ray.TMax);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
 			AddLineTWS(Context, RayStart, RayEnd, RayColor);	
 		}
 		#endif
 
-		if (Payload.IsHit())
+		if (TraceResult.bHit)
 		{
 			LightSample.bCompleted = true;
 			LightSample.bVisible = false;
