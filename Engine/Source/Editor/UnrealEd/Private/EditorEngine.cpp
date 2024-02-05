@@ -754,6 +754,11 @@ static bool GetDisplayMultiboxHooks()
 	return GetDefault<UEditorPerProjectUserSettings>()->bDisplayUIExtensionPoints;
 }
 
+static int GetMenuSearchFieldVisibilityThreshold()
+{
+	return GetDefault<UEditorStyleSettings>()->MenuSearchFieldVisibilityThreshold;
+}
+
 void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 {
 	// Allow remote execution of derived data builds from this point
@@ -777,6 +782,7 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 	// Set slate options
 	FMultiBoxSettings::UseSmallToolBarIcons = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateStatic(&GetSmallToolBarIcons));
 	FMultiBoxSettings::DisplayMultiboxHooks = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateStatic(&GetDisplayMultiboxHooks));
+	FMultiBoxSettings::MenuSearchFieldVisibilityThreshold = TAttribute<int>::Create(TAttribute<int>::FGetter::CreateStatic(&GetMenuSearchFieldVisibilityThreshold));
 
 	if ( FSlateApplication::IsInitialized() )
 	{

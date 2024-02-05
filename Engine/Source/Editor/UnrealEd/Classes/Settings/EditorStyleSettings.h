@@ -99,6 +99,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category=UserInterface)
 	uint32 bUseSmallToolBarIcons:1;
 
+	/** Menus longer than this threshold show their search field by default. Use 0 to always show, or a high number to always hide. When a searchable menu is open but the field is hidden, you can still start a search by typing. */
+	UPROPERTY(EditAnywhere, config, Category=UserInterface, meta = (UIMin="0", UIMax="100"))
+	uint32 MenuSearchFieldVisibilityThreshold = 10;
+
 	/** If true the material editor and blueprint editor will show a grid on it's background. */
 	UPROPERTY(EditAnywhere, config, Category = Graphs, meta = (DisplayName = "Use Grids In The Material And Blueprint Editor"))
 	uint32 bUseGrid : 1;

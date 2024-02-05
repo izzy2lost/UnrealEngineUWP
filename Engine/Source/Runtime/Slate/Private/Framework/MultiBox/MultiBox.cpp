@@ -26,6 +26,7 @@
 #include "Framework/MultiBox/SClippingHorizontalBox.h"
 #include "Framework/MultiBox/SWidgetBlock.h"
 #include "Framework/MultiBox/SToolBarComboButtonBlock.h"
+#include "HAL/PlatformMath.h"
 
 #include "Framework/Commands/UICommandDragDropOp.h"
 #include "Framework/MultiBox/SUniformToolbarPanel.h"
@@ -85,15 +86,10 @@ static FString ToString(const TArray<FText>& SearchTextHierarchyComponents)
 } // namespace MultiBoxUtils
 } // namespace UE
 
-TAutoConsoleVariable<bool> AlwaysShowMenuSearchField(
-	TEXT("Slate.AlwaysShowMenuSearchField"),
-	false,
-	TEXT("Always show the search field in menus (default false). When this is disabled, the user has to type for the search field to appear."));
-
 TAttribute<bool> FMultiBoxSettings::UseSmallToolBarIcons;
 TAttribute<bool> FMultiBoxSettings::DisplayMultiboxHooks;
 FMultiBoxSettings::FConstructToolTip FMultiBoxSettings::ToolTipConstructor = FConstructToolTip::CreateStatic( &FMultiBoxSettings::ConstructDefaultToolTip );
-
+TAttribute<int> FMultiBoxSettings::MenuSearchFieldVisibilityThreshold;
 
 FMultiBoxSettings::FMultiBoxSettings()
 {
@@ -883,7 +879,7 @@ void SMultiBoxWidget::CreateSearchTextWidget()
 		return;
 	}
 
-	const FText SearchHint = AlwaysShowMenuSearchField.GetValueOnAnyThread()
+	const FText SearchHint = ShouldShowMenuSearchField()
 							   ? LOCTEXT("SearchHintStartTyping", "Start typing to search")
 							   : LOCTEXT("SearchHint", "Search");
 
@@ -918,7 +914,7 @@ void SMultiBoxWidget::OnFilterTextChanged(const FText& InFilterText)
 		if (SearchTextWidget.IsValid() && SearchBlockWidget.IsValid())
 		{
 			// We only have to do this if we're not always showing the search widget.
-			if (!AlwaysShowMenuSearchField.GetValueOnAnyThread())
+			if (!ShouldShowMenuSearchField())
 			{
 				// Make the search box visible and focused
 				SearchBlockWidget->SetVisibility(EVisibility::Visible);
@@ -1586,7 +1582,7 @@ FReply SMultiBoxWidget::OnFocusReceived( const FGeometry& MyGeometry, const FFoc
 
 void SMultiBoxWidget::OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent)
 {
-	if (!AlwaysShowMenuSearchField.GetValueOnAnyThread())
+	if (!ShouldShowMenuSearchField())
 	{
 		return;
 	}
@@ -1655,7 +1651,7 @@ void SMultiBoxWidget::BeginSearch(const TCHAR InChar)
 		if (SearchTextWidget.IsValid() && SearchBlockWidget.IsValid())
 		{
 			// We only have to do this if we're not always showing the search widget.
-			if (!AlwaysShowMenuSearchField.GetValueOnAnyThread())
+			if (!ShouldShowMenuSearchField())
 			{
 				// Make the search box visible and focused
 				SearchBlockWidget->SetVisibility(EVisibility::Visible);
@@ -1770,6 +1766,33 @@ void SMultiBoxWidget::FlattenSubMenusRecursive(uint32 MaxRecursionLevels)
 	}
 }
 
+bool SMultiBoxWidget::ShouldShowMenuSearchField()
+{
+	const int SearchFieldTreshold = FMultiBoxSettings::MenuSearchFieldVisibilityThreshold.Get();
+
+	const TArray<TSharedRef<const FMultiBlock>> Blocks = MultiBox->GetBlocks();
+
+	int NumUserCountableEntries = 0;
+	for (const TSharedRef<const FMultiBlock>& Block : Blocks)
+	{
+		// Don't count headers and separators.
+		const EMultiBlockType BlockType = Block->GetType();
+		if (BlockType == EMultiBlockType::Heading
+		 || BlockType == EMultiBlockType::Separator)
+		{
+			continue;
+		}
+
+		++NumUserCountableEntries;
+	}
+
+	// Subtract 1 to account for the search field widget. After that widget is created,
+	// it's added at the start of the menu regardless if it's visible or not.
+	NumUserCountableEntries = FMath::Max<int>(0, NumUserCountableEntries-1);
+
+	return NumUserCountableEntries >= SearchFieldTreshold;
+}
+
 void SMultiBoxWidget::FilterMultiBoxEntries()
 {
 	VisibleFlattenHierarchyTips.Empty();
@@ -1782,7 +1805,7 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 		}
 
 		// We only have to do this if we're not always showing the search widget.
-		if (!AlwaysShowMenuSearchField.GetValueOnAnyThread())
+		if (!ShouldShowMenuSearchField())
 		{
 			if (SearchBlockWidget.IsValid())
 			{
@@ -1812,7 +1835,7 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 		const TSharedPtr<SWidget>& Widget = It.Key();
 
 		// Skip the search widget itself when scanning for searchable items.
-		if (AlwaysShowMenuSearchField.GetValueOnAnyThread())
+		if (ShouldShowMenuSearchField())
 		{
 			if (Widget == SearchBlockWidget)
 			{
@@ -1865,7 +1888,7 @@ void SMultiBoxWidget::FilterMultiBoxEntries()
 	}
 
 	// If we always show the search widget, we're skipping it in the code above and do not need to show it here to compensate.
-	if (!AlwaysShowMenuSearchField.GetValueOnAnyThread())
+	if (!ShouldShowMenuSearchField())
 	{
 		// Show the search widget again, it was hidden by the above code.
 		if (SearchBlockWidget.IsValid())

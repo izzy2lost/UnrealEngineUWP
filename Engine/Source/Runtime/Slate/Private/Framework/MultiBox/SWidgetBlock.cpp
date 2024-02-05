@@ -79,7 +79,9 @@ void SWidgetBlock::Construct( const FArguments& InArgs )
  */
 void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FName& StyleName)
 {
-	TSharedPtr< const FMultiBox > MultiBox = OwnerMultiBoxWidget.Pin()->GetMultiBox();
+	TSharedPtr<SMultiBoxWidget> OwnerMultiBoxWidgetPinned = OwnerMultiBoxWidget.Pin();
+
+	TSharedPtr< const FMultiBox > MultiBox = OwnerMultiBoxWidgetPinned->GetMultiBox();
 	TSharedRef< const FWidgetBlock > WidgetBlock = StaticCastSharedRef< const FWidgetBlock >( MultiBlock.ToSharedRef() );
 
 	// Support menus which do not have a defined widget style yet
@@ -100,8 +102,6 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 
 		LabelStyle = &StyleSet->GetWidgetStyle<FTextBlockStyle>(ISlateStyle::Join(StyleName, ".Label"));
 	}
-
-	TSharedPtr<SMultiBoxWidget> OwnerMultiBoxWidgetPinned = OwnerMultiBoxWidget.Pin();
 
 	if(OwnerMultiBoxWidgetPinned->GetMultiBox()->GetType() == EMultiBoxType::Menu)
 	{
@@ -148,12 +148,9 @@ void SWidgetBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, const FNam
 		OwnerMultiBoxWidgetPinned->SetSearchBlockWidget(this->AsWidget());
 
 		// When we are always showing the search widget, we should not hide it here.
-		if (IConsoleVariable* AlwaysShowMenuSearchFieldVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Slate.AlwaysShowMenuSearchField")))
+		if (!OwnerMultiBoxWidgetPinned->ShouldShowMenuSearchField())
 		{
-			if (!AlwaysShowMenuSearchFieldVar->GetBool())
-			{
-				this->AsWidget()->SetVisibility(EVisibility::Collapsed);
-			}
+			this->AsWidget()->SetVisibility(EVisibility::Collapsed);
 		}
 	}
 

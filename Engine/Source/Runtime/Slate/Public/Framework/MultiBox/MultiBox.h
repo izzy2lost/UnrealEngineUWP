@@ -810,6 +810,8 @@ public:
 	 */
 	SLATE_API double GetSummonedMenuTime() const;
 
+	bool ShouldShowMenuSearchField();
+
 private:
 	/** Adds a block Widget to this widget */
 	SLATE_API void AddBlockWidget(const FMultiBlock& Block, TSharedPtr<SHorizontalBox> HorizontalBox, TSharedPtr<SVerticalBox> VerticalBox, EMultiBlockLocation::Type InLocation, bool bSectionContainsIcons, TSharedPtr<const FToolBarComboButtonBlock> OptionsBlock);
