@@ -183,6 +183,8 @@ public:
 
 	// Debug functions exposed via console commands
 	void PrintDynamicFilterClassConfig() const;
+	void PrintReplicatedObjects() const;
+	void PrintRelevantObjects() const;
 
 protected:
 	IRISCORE_API virtual ~UObjectReplicationBridge();
