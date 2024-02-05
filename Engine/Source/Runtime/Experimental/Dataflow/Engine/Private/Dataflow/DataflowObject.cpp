@@ -47,9 +47,15 @@ void UDataflow::PostEditCallback()
 
 void UDataflow::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
-	Super::AddReferencedObjects(InThis, Collector);
 	UDataflow* const This = CastChecked<UDataflow>(InThis);
+
+	for(TObjectPtr<const UDataflowEdNode> Target : This->GetRenderTargets())
+	{
+		Collector.AddReferencedObject(Target);
+	}
+
 	This->Dataflow->AddReferencedObjects(Collector);
+	Super::AddReferencedObjects(InThis, Collector);
 }
 
 #if WITH_EDITOR
@@ -98,14 +104,14 @@ void UDataflow::PostLoad()
 	UObject::PostLoad();
 }
 
-void UDataflow::AddRenderTarget(UDataflowEdNode* InNode)
+void UDataflow::AddRenderTarget(TObjectPtr<UDataflowEdNode> InNode)
 {
 	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
 	InNode->bRenderInAssetEditor = true;
 	RenderTargets.AddUnique(InNode);
 }
 
-void UDataflow::RemoveRenderTarget(UDataflowEdNode* InNode)
+void UDataflow::RemoveRenderTarget(TObjectPtr<UDataflowEdNode> InNode)
 {
 	LastModifiedRenderTarget = Dataflow::FTimestamp::Current();
 	InNode->bRenderInAssetEditor = false;
