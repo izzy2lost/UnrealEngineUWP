@@ -247,7 +247,6 @@ void UTG_Pin::SetSelfVarValueFromString(const FString& InValueStr, bool bIsTweak
 	}
 	EditSelfVar()->SetValueFromStr(DefaultValue);
 
-	EditSelfVar()->CopyTo(GetNodePtr()->GetExpression(), Argument);
 	NotifyPinSelfVarChanged(bIsTweaking);
 }
 
