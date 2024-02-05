@@ -57,7 +57,7 @@ public:
 	bool bUsePerVertexExtrudeFrames = true;
 
 	/**
-	 * Function queried for new verex positions. ExtrudeFrame origin is Position, unless it is not initialized
+	 * Function queried for new vertex positions. ExtrudeFrame origin is Position, unless it is not initialized
 	 *  due to bUsePerVertexExtrudeFrames being false.
 	 * The default given here assumes that bUsePerVertexExtrudeFrames is true, and extrudes along the X axis of the extrude frame.
 	 */
