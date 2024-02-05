@@ -863,14 +863,14 @@ public:
 		}
 	}
 
-	bool Issue(FBulkDataRequest::FCompletionCallback&& Callback) 
+	void Issue(FBulkDataRequest::FCompletionCallback&& Callback) 
 	{
 		CompletionCallback = MoveTemp(Callback);
 
 		if (Requests.IsEmpty())
 		{
 			CompleteBatch(FBulkDataRequest::EStatus::Ok);
-			return false;
+			return;
 		}
 
 		TRACE_COUNTER_INCREMENT(BulkDataBatchRequest_PendingCount);
@@ -894,8 +894,6 @@ public:
 
 			TRACE_COUNTER_DECREMENT(BulkDataBatchRequest_PendingCount);
 		});
-
-		return true;
 	}
 
 private:
@@ -1034,27 +1032,18 @@ FBulkDataBatchRequest::FBatchHandle& FBulkDataBatchRequest::FBuilder::GetBatch()
 	return *Batch;
 }
 
-FBulkDataRequest::EStatus FBulkDataBatchRequest::FBuilder::IssueBatch(FBulkDataBatchRequest* OutRequest, FCompletionCallback&& Callback)
+void FBulkDataBatchRequest::FBuilder::IssueBatch(FBulkDataBatchRequest* OutRequest, FCompletionCallback&& Callback)
 {
 	check(Batch.IsValid());
 	checkf(OutRequest != nullptr || Batch->GetRefCount() > 1, TEXT("At least one request handle needs to be used when creating a batch request"));
 
 	TRefCountPtr<FBulkDataBatchRequest::FBatchHandle> NewBatch = MoveTemp(Batch);
-	const bool bOk = NewBatch->Issue(MoveTemp(Callback));
+	NewBatch->Issue(MoveTemp(Callback));
 
 	if (OutRequest)
 	{
-		if (bOk)
-		{
-			*OutRequest = FBulkDataBatchRequest(NewBatch.GetReference());
-		}
-		else
-		{
-			*OutRequest = FBulkDataBatchRequest(new FHandleBase(EStatus::Error));
-		}
+		*OutRequest = FBulkDataBatchRequest(NewBatch.GetReference());
 	}
-
-	return bOk ? EStatus::Ok : EStatus::Error;
 }
 
 FBulkDataBatchRequest::FBatchBuilder::FBatchBuilder(int32 MaxCount)
@@ -1124,27 +1113,32 @@ FBulkDataBatchRequest::FBatchBuilder& FBulkDataBatchRequest::FBatchBuilder::Read
 	return *this;
 }
 
-FBulkDataRequest::EStatus FBulkDataBatchRequest::FBatchBuilder::Issue(FBulkDataBatchRequest& OutRequest)
+void FBulkDataBatchRequest::FBatchBuilder::Issue(FCompletionCallback&& Callback, FBulkDataBatchRequest& OutRequest)
 {
 	if (NumLoaded > 0 && BatchCount == 0)
 	{
 		OutRequest = FBulkDataBatchRequest(new FHandleBase(EStatus::Ok));
-		return EStatus::Ok;
+		return;
 	}
 
-	return IssueBatch(&OutRequest, FCompletionCallback());
+	IssueBatch(&OutRequest, MoveTemp(Callback));
 }
 
-FBulkDataRequest::EStatus FBulkDataBatchRequest::FBatchBuilder::Issue()
+void FBulkDataBatchRequest::FBatchBuilder::Issue(FBulkDataBatchRequest& OutRequest)
+{
+	Issue(FCompletionCallback(), OutRequest);
+}
+
+void FBulkDataBatchRequest::FBatchBuilder::Issue()
 {
 	check(NumLoaded > 0 || BatchCount > 0);
 
 	if (NumLoaded > 0 && BatchCount == 0)
 	{
-		return EStatus::Ok;	
+		return;
 	}
 
-	return IssueBatch(nullptr, FCompletionCallback());
+	IssueBatch(nullptr, FCompletionCallback());
 }
 
 FBulkDataBatchRequest::FScatterGatherBuilder::FScatterGatherBuilder(int32 MaxCount)
@@ -1184,7 +1178,7 @@ FBulkDataBatchRequest::FScatterGatherBuilder& FBulkDataBatchRequest::FScatterGat
 	return *this;
 }
 
-FBulkDataRequest::EStatus FBulkDataBatchRequest::FScatterGatherBuilder::Issue(FIoBuffer& Dst, EAsyncIOPriorityAndFlags Priority, FCompletionCallback&& Callback, FBulkDataBatchRequest& OutRequest)
+void FBulkDataBatchRequest::FScatterGatherBuilder::Issue(FIoBuffer& Dst, EAsyncIOPriorityAndFlags Priority, FCompletionCallback&& Callback, FBulkDataBatchRequest& OutRequest)
 {
 	check(Requests.IsEmpty() == false);
 
@@ -1214,7 +1208,7 @@ FBulkDataRequest::EStatus FBulkDataBatchRequest::FScatterGatherBuilder::Issue(FI
 		DstView.RightChopInline(Request.Size);
 	}
 
-	return IssueBatch(&OutRequest, MoveTemp(Callback));
+	IssueBatch(&OutRequest, MoveTemp(Callback));
 }
 
 //////////////////////////////////////////////////////////////////////////////

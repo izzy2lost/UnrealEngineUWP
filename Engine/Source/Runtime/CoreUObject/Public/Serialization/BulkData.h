@@ -1416,7 +1416,7 @@ private:
 	protected:
 		COREUOBJECT_API explicit FBuilder(int32 MaxCount);
 		COREUOBJECT_API FBulkDataBatchRequest::FBatchHandle& GetBatch();
-		COREUOBJECT_API EStatus IssueBatch(FBulkDataBatchRequest* OutRequest, FCompletionCallback&& Callback);
+		COREUOBJECT_API void IssueBatch(FBulkDataBatchRequest* OutRequest, FCompletionCallback&& Callback);
 
 		int32 BatchCount = 0;
 		int32 NumLoaded = 0;
@@ -1473,17 +1473,21 @@ public:
 
 		/**
 		 * Issue the batch.
+		 * @param Callback		Completion callback.	
 		 * @param OutRequest	A handle to the batch request.
-		 * @return				Status of the issue operation.
 		 */
-		COREUOBJECT_API EStatus Issue(FBulkDataBatchRequest& OutRequest);
+		COREUOBJECT_API void Issue(FCompletionCallback&& Callback, FBulkDataBatchRequest& OutRequest);
+		/**
+		 * Issue the batch.
+		 * @param OutRequest	A handle to the batch request.
+		 */
+		COREUOBJECT_API void Issue(FBulkDataBatchRequest& OutRequest);
 		/**
 		 * Issue the batch. 
-		 * @return				Status of the issue operation.
 		 *
 		 * @note Assumes one or more handle(s) has been passed into any of the read operations.
 		 */
-		[[nodiscard]] COREUOBJECT_API EStatus Issue();
+		COREUOBJECT_API void Issue();
 
 	private:
 		COREUOBJECT_API FBatchBuilder& Read(const FBulkData& BulkData, uint64 Offset, uint64 Size, EAsyncIOPriorityAndFlags Priority, FIoBuffer& Dst, FBulkDataBatchReadRequest* OutRequest);
@@ -1502,11 +1506,10 @@ public:
 		 * @param Priority		The I/O priority.
 		 * @param Callback		A callback triggered when the operation is completed.
 		 * @param OutRequest	A handle to the batch request.
-		 * @return				Status of the issue operation.
 		 *
 		 * @note Assumes one or more handle(s) has been passed into any of the read operations.
 		 */
-		COREUOBJECT_API EStatus Issue(FIoBuffer& Dst, EAsyncIOPriorityAndFlags Priority, FCompletionCallback&& Callback, FBulkDataBatchRequest& OutRequest);
+		COREUOBJECT_API void Issue(FIoBuffer& Dst, EAsyncIOPriorityAndFlags Priority, FCompletionCallback&& Callback, FBulkDataBatchRequest& OutRequest);
 
 	private:
 		struct FRequest
