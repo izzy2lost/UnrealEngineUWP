@@ -961,7 +961,8 @@ FIoHash FAssetPackageData::GetPackageSavedHash() const
 {
 	FIoHash Result;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	FMemory::Memcpy(&Result.GetBytes(), &this->PackageGuid, FMath::Min(sizeof(Result.GetBytes()), sizeof(PackageGuid))); // -V568
+	FMemory::Memcpy(&Result.GetBytes(), &this->PackageGuid,
+		FMath::Min(sizeof(decltype(Result.GetBytes())), sizeof(PackageGuid)));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	return Result;
 }
@@ -970,7 +971,8 @@ void FAssetPackageData::SetPackageSavedHash(const FIoHash& InHash)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	PackageGuid = FGuid();
-	FMemory::Memcpy(&PackageGuid, &InHash.GetBytes(), FMath::Min(sizeof(PackageGuid), sizeof(InHash.GetBytes()))); // -V568
+	FMemory::Memcpy(&PackageGuid, &InHash.GetBytes(),
+		FMath::Min(sizeof(PackageGuid), sizeof(decltype(InHash.GetBytes()))));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 

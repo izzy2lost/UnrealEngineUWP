@@ -2282,7 +2282,8 @@ void FCookGenerationInfo::CreatePackageHash()
 		TOptional<FAssetPackageData> DependencyData = AssetRegistry.GetAssetPackageDataCopy(Dependency.AssetId.PackageName);
 		if (DependencyData)
 		{
-			Blake3.Update(&DependencyData->GetPackageSavedHash().GetBytes(), sizeof(DependencyData->GetPackageSavedHash().GetBytes()));
+			Blake3.Update(&DependencyData->GetPackageSavedHash().GetBytes(),
+				sizeof(decltype(DependencyData->GetPackageSavedHash().GetBytes())));
 		}
 	}
 	PackageHash = FIoHash(Blake3.Finalize());
@@ -2290,7 +2291,7 @@ void FCookGenerationInfo::CreatePackageHash()
 	// so we have to remove any data which doesn't fit into FGuid. This can be removed when we remove the deprecated
 	// Guid storage on UPackage.
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	constexpr int SizeDifference = sizeof(PackageHash) - sizeof(DeclVal<UPackage>().GetGuid());
+	constexpr int SizeDifference = sizeof(PackageHash) - sizeof(decltype(DeclVal<UPackage>().GetGuid()));
 	if (SizeDifference > 0)
 	{
 		FMemory::Memset(((uint8*)&PackageHash.GetBytes()) + (sizeof(PackageHash.GetBytes()) - SizeDifference),

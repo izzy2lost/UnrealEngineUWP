@@ -401,7 +401,8 @@ FIoHash UPackage::GetSavedHash()
 #else
 	FIoHash Result;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	FMemory::Memcpy(&Result.GetBytes(), &Guid, FMath::Min(sizeof(Result.GetBytes()), sizeof(Guid)));
+	FMemory::Memcpy(&Result.GetBytes(), &Guid,
+		FMath::Min(sizeof(decltype(Result.GetBytes())), sizeof(Guid)));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	return Result;
 #endif
@@ -412,7 +413,8 @@ void UPackage::SetSavedHash(const FIoHash& InSavedHash)
 #if !UE_STRIP_DEPRECATED_PROPERTIES
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Guid = FGuid();
-	FMemory::Memcpy(&Guid, &InSavedHash.GetBytes(), FMath::Min(sizeof(Guid), sizeof(InSavedHash.GetBytes())));
+	FMemory::Memcpy(&Guid, &InSavedHash.GetBytes(),
+		FMath::Min(sizeof(Guid), sizeof(decltype(InSavedHash.GetBytes()))));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 #endif
 }

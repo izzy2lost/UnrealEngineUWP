@@ -275,7 +275,7 @@ void operator<<(FStructuredArchive::FSlot Slot, FPackageFileSummary& Sum)
 				FIoHash SavedHash = Sum.GetSavedHash();
 				Sum.PersistentGuid = FGuid();
 				FMemory::Memcpy(&Sum.PersistentGuid, &SavedHash.GetBytes(),
-					FMath::Min(sizeof(Sum.PersistentGuid), sizeof(SavedHash.GetBytes())));
+					FMath::Min(sizeof(Sum.PersistentGuid), sizeof(decltype(SavedHash.GetBytes()))));
 			}
 
 			// The owner persistent guid was added in VER_UE4_ADDED_PACKAGE_OWNER but removed in the next version VER_UE4_NON_OUTER_PACKAGE_IMPORT
@@ -455,7 +455,8 @@ FIoHash FPackageFileSummary::GetSavedHash() const
 {
 	FIoHash Result;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	FMemory::Memcpy(&Result.GetBytes(), &Guid, FMath::Min(sizeof(Result.GetBytes()), sizeof(Guid)));
+	FMemory::Memcpy(&Result.GetBytes(), &Guid,
+		FMath::Min(sizeof(decltype(Result.GetBytes())), sizeof(Guid)));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	return Result;
 }
@@ -464,7 +465,8 @@ void FPackageFileSummary::SetSavedHash(const FIoHash& InSavedHash)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	Guid = FGuid();
-	FMemory::Memcpy(&Guid, &InSavedHash.GetBytes(), FMath::Min(sizeof(Guid), sizeof(InSavedHash.GetBytes())));
+	FMemory::Memcpy(&Guid, &InSavedHash.GetBytes(),
+		FMath::Min(sizeof(Guid), sizeof(decltype(InSavedHash.GetBytes()))));
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 }
 #endif
