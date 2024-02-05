@@ -853,7 +853,7 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 	// Sorting increases the chances of linearizing the decompression later
 	RawFloatCurves.Sort([](const FFloatCurve& InLHS, const FFloatCurve& InRHS)
 	{
-		return InLHS.GetName().FastLess(InRHS.GetName());
+		return InLHS.GetName().LexicalLess(InRHS.GetName());
 	});
 	
 	// Apply any key reduction if possible

@@ -4062,6 +4062,11 @@ void UAnimSequence::EnableRootMotionSettingFromMontage(bool bInEnableRootMotion,
 	}
 }
 
+bool UAnimSequence::GetEnableRootMotionSettingFromMontage() const
+{
+	return bRootMotionSettingsCopiedFromMontage;
+}
+
 bool UAnimSequence::IsCompressedDataValid() const
 {
 	// For bone compressed data, we don't check if we have a codec. It is valid to have no compressed data

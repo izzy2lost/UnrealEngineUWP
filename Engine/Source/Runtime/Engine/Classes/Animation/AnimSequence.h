@@ -701,6 +701,7 @@ public:
 
 	// to support anim sequence base to all montages
 	ENGINE_API virtual void EnableRootMotionSettingFromMontage(bool bInEnableRootMotion, const ERootMotionRootLock::Type InRootMotionRootLock) override;
+	ENGINE_API virtual bool GetEnableRootMotionSettingFromMontage() const override;
 
 #if WITH_EDITOR
 	virtual class UAnimSequence* GetAdditiveBasePose() const override 
