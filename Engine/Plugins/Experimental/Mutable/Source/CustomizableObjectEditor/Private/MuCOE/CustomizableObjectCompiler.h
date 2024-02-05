@@ -168,13 +168,13 @@ private:
 	/** Launches the compile task in another thread when compiling a CO in the editor
 	* @param bShowNotification [in] whether to show the compiling CO notification or not
 	* @return nothing */
-	void LaunchMutableCompile(bool bShowNotification);
+	void LaunchMutableCompile();
 
 	/** Launches the save derived data task in another thread after compiling a CO in the
 	* editor
 	* @param bShowNotification [in] whether to show the saving DD notification or not
 	* @return nothing */
-	void SaveCODerivedData(bool bShowNotification);
+	void SaveCODerivedData();
 
 	/** When compiling a CO in the editor, flag to know if there's a mutable task pending to be launched through LaunchMutableCompile */
 	bool CompilationLaunchPending;
