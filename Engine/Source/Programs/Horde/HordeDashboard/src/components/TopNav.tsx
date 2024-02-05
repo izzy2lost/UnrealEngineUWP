@@ -538,6 +538,12 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       });
 
       hordeItems.push({
+         key: "server_api",
+         text: "API Browser",
+         link: `/swagger/index.html`
+      });
+
+      hordeItems.push({
          key: "server_docs_releasenotes",
          text: "Release Notes",
          link: `/docs/ReleaseNotes.md`
