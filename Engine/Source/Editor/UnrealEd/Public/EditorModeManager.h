@@ -460,7 +460,7 @@ public:
 	 * Returns the selection set for the toolkit host.
 	 * (i.e. the selection set for the level editor)
 	 */
-	UNREALED_API UTypedElementSelectionSet* GetEditorSelectionSet() const;
+	UNREALED_API virtual UTypedElementSelectionSet* GetEditorSelectionSet() const;
 
 	/**
 	 * Stores the current selection under the given key, and clears the current selection state if requested.
@@ -491,6 +491,7 @@ public:
 	 * Whether or not the current selection has a scene component selected
  	 */
 	UNREALED_API bool SelectionHasSceneComponent() const;
+	UNREALED_API void SetSelectionHasSceneComponent(bool bHasSceneComponent);
 
 	UNREALED_API bool IsSelectionAllowed(AActor* InActor, const bool bInSelected) const;
 

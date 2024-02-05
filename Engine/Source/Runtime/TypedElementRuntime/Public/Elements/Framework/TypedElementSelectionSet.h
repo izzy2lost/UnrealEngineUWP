@@ -251,6 +251,11 @@ public:
 	TYPEDELEMENTRUNTIME_API bool AllowSelectionModifiers(const FTypedElementHandle& InElementHandle) const;
 
 	/**
+	 * Sets the name to use for teds integration so that it can be reapplied on undo/redo
+	 */
+	TYPEDELEMENTRUNTIME_API void SetNameForTedsIntegration(const FName InNameForIntegration);
+
+	/**
 	 * Given an element, return the element that should actually perform a selection operation.
 	 */
 	TYPEDELEMENTRUNTIME_API FTypedElementHandle GetSelectionElement(const FTypedElementHandle& InElementHandle, const ETypedElementSelectionMethod InSelectionMethod) const;
@@ -691,4 +696,6 @@ private:
 	 * and is then replaced with the state loaded from Serialize to be applied in PostEditUndo.
 	 */
 	TUniquePtr<FTypedElementSelectionSetState> PendingUndoRedoState;
+
+	FName ListNameForTedsIntegration;
 };
