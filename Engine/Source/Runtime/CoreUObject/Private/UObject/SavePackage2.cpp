@@ -1116,7 +1116,7 @@ ESavePackageResult BuildLinker(FSaveContext& SaveContext)
 	{
 		FIoHash SavedHash;
 		FMemory::Memcpy(&SavedHash.GetBytes(), OutputPackageGuid,
-			FMath::Min(sizeof(SavedHash.GetBytes()), sizeof(*OutputPackageGuid)));
+			FMath::Min(sizeof(decltype(SavedHash.GetBytes())), sizeof(*OutputPackageGuid)));
 		SaveContext.GetLinker()->Summary.SetSavedHash(SavedHash);
 	}
 	else
@@ -1127,7 +1127,8 @@ ESavePackageResult BuildLinker(FSaveContext& SaveContext)
 			// Remove IsKeepGuid and OutputPackageGuid when that occurs.
 			FGuid Guid = FGuid::NewGuid();
 			FIoHash SavedHash;
-			FMemory::Memcpy(&SavedHash.GetBytes(), &Guid, FMath::Min(sizeof(SavedHash.GetBytes()), sizeof(Guid)));
+			FMemory::Memcpy(&SavedHash.GetBytes(), &Guid,
+				FMath::Min(sizeof(decltype(SavedHash.GetBytes())), sizeof(Guid)));
 			SaveContext.GetPackage()->SetSavedHash(SavedHash);
 		}
 		SaveContext.GetLinker()->Summary.SetSavedHash(SaveContext.GetPackage()->GetSavedHash());
