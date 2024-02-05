@@ -145,6 +145,7 @@ void FNiagaraOpInfo::Init()
 		Op->CompactName = FText::FromString(TEXT("+"));
 		Op->CompactNameFontSizeOverride = 30.f;
 		Op->Description = NSLOCTEXT("NiagaraOpInfo", "Add Desc", "Result = A + B");
+		Op->AlternateSearchName = FName("+");
 		Op->Keywords = FText::FromString(TEXT("+"));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(A, NumericType, AText, AText, DefaultStr_Zero));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(B, NumericType, BText, BText, DefaultStr_Zero));
@@ -198,6 +199,7 @@ void FNiagaraOpInfo::Init()
 		Op->CompactName = FText::FromString(TEXT("-"));
 		Op->CompactNameFontSizeOverride = 28.f;
 		Op->Description = NSLOCTEXT("NiagaraOpInfo", "Subtract Desc", "Result = A - B");
+		Op->AlternateSearchName = FName("-");
 		Op->Keywords = FText::FromString(TEXT("-"));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(A, NumericType, AText, AText, DefaultStr_Zero));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(B, NumericType, BText, BText, DefaultStr_Zero));
@@ -255,6 +257,7 @@ void FNiagaraOpInfo::Init()
 		Op->CompactName = FText::FromString(TEXT("\xD7"));
 		Op->CompactNameFontSizeOverride = 30.f;
 		Op->Description = NSLOCTEXT("NiagaraOpInfo", "Multiply Desc", "Result = A * B");
+		Op->AlternateSearchName = FName("*");
 		Op->Keywords = FText::FromString(TEXT("*"));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(A, NumericType, AText, AText, DefaultStr_One));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(B, NumericType, BText, BText, DefaultStr_One));
@@ -289,6 +292,7 @@ void FNiagaraOpInfo::Init()
 		Op->CompactName = FText::FromString(TEXT("\xF7"));
 		Op->CompactNameFontSizeOverride = 25.f;
 		Op->Description = NSLOCTEXT("NiagaraOpInfo", "Divide Desc", "Result = A / B");
+		Op->AlternateSearchName = FName("/");
 		Op->Keywords = FText::FromString(TEXT("/"));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(A, NumericType, AText, AText, DefaultStr_One));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(B, NumericType, BText, BText, DefaultStr_One));
@@ -326,6 +330,7 @@ void FNiagaraOpInfo::Init()
 		Op->CompactName = FText::FromString(CompactNameString);
 		Op->bShowPinNamesInCompactMode = true;
 		Op->Description = NSLOCTEXT("NiagaraOpInfo", "MultiplyAdd Desc", "Result = (A * B) + C");
+		Op->AlternateSearchName = FName("*+");
 		Op->Inputs.Add(FNiagaraOpInOutInfo(A, NumericType, AText, AText, DefaultStr_One));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(B, NumericType, BText, BText, DefaultStr_One));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(C, NumericType, CText, CText, DefaultStr_Zero));
@@ -456,6 +461,7 @@ void FNiagaraOpInfo::Init()
 		Op->CompactName = FText::FromString(TEXT("1-A"));
 		Op->bShowPinNamesInCompactMode = true;
 		Op->Description = NSLOCTEXT("NiagaraOpInfo", "One Minus Desc", "Result = 1 - A");
+		Op->AlternateSearchName = FName("1-");
 		Op->Keywords = FText::FromString(TEXT("1-x"));
 		Op->Inputs.Add(FNiagaraOpInOutInfo(A, NumericType, AText, AText, DefaultStr_One));
 		Op->Outputs.Add(FNiagaraOpInOutInfo(Result, NumericType, ResultText, ResultText, DefaultStr_One, TEXT("1 - {0}")));

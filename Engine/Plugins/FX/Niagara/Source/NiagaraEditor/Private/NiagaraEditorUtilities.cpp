@@ -1705,6 +1705,14 @@ int32 FNiagaraEditorUtilities::GetWeightForItem(const TSharedPtr<FNiagaraMenuAct
 	InCurrentAction->DisplayName.ToString().ParseIntoArray(DisplayNameArray, TEXT(" "), true);
 	WeightedArrayList.Add(FArrayWithWeight(&DisplayNameArray, DisplayNameWeight, 10, StartsWith));
 
+	// Alternate Name
+	TArray<FString> AlternameNameArray;
+	if(InCurrentAction->AlternateSearchName.IsSet())
+	{
+		InCurrentAction->AlternateSearchName.GetValue().ToString().ParseIntoArray(AlternameNameArray, TEXT(" "), true);
+		WeightedArrayList.Add(FArrayWithWeight(&AlternameNameArray, DisplayNameWeight, 10, StartsWith));
+	}
+
 	// Keywords
 	TArray<FString> KeywordsArray;
 	InCurrentAction->Keywords.ToString().ParseIntoArray(KeywordsArray, TEXT(" "), true);
