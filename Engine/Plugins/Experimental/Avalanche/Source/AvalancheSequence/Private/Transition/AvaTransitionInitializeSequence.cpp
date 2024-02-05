@@ -2,6 +2,7 @@
 
 #include "Transition/AvaTransitionInitializeSequence.h"
 #include "AvaSequencePlaybackObject.h"
+#include "Math/NumericLimits.h"
 
 TArray<UAvaSequencePlayer*> FAvaTransitionInitializeSequence::ExecuteSequenceTask(FStateTreeExecutionContext& InContext) const
 {
@@ -12,7 +13,10 @@ TArray<UAvaSequencePlayer*> FAvaTransitionInitializeSequence::ExecuteSequenceTas
 	}
 
 	FAvaSequencePlayParams PlaySettings;
-	PlaySettings.Start = PlaySettings.End = InitializeTime;
+
+	// Set start to largest double, so that it gets clamped down to be at the End Time (i.e. time that the Sequence should evaluate)
+	PlaySettings.Start = FAvaSequenceTime(TNumericLimits<double>::Max());
+	PlaySettings.End = InitializeTime;
 	PlaySettings.PlayMode = PlayMode;
 
 	switch (QueryType)
