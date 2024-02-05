@@ -2036,6 +2036,8 @@ bool FSequencer::CanSnapToFrame() const
 
 void FSequencer::TransformSelectedKeysAndSections(FFrameTime InDeltaTime, float InScale)
 {
+	using namespace UE::Sequencer;
+
 	FScopedTransaction TransformKeysAndSectionsTransaction(NSLOCTEXT("Sequencer", "TransformKeysandSections_Transaction", "Transform Keys and Sections"));
 	bool bAnythingChanged = false;
 
@@ -2166,6 +2168,26 @@ void FSequencer::TransformSelectedKeysAndSections(FFrameTime InDeltaTime, float 
 					Channel->SetKeyTimes(KeyHandles, NewKeyTimes);
 				}
 			}
+		}
+
+		// Marked frames
+		const FMarkedFrameSelection& SelectedMarkedFrames = ViewModel->GetSelection()->MarkedFrames;
+		if (SelectedMarkedFrames.Num() > 0)
+		{
+			bAnythingChanged = true;
+
+			UMovieScene* FocusedMovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
+			FocusedMovieScene->Modify();
+			
+			for (TSet<int32>::TConstIterator It = SelectedMarkedFrames.GetSelected(); It; ++It)
+			{
+				const int32 MarkIndex = *It;
+				FFrameNumber FrameNumber = FocusedMovieScene->GetMarkedFrames()[MarkIndex].FrameNumber;
+				FrameNumber = (OriginTime + InDeltaTime + (FrameNumber - OriginTime) * InScale).FloorToFrame();
+				FocusedMovieScene->SetMarkedFrame(MarkIndex, FrameNumber);
+			}
+
+			FocusedMovieScene->SortMarkedFrames();
 		}
 	}
 	
