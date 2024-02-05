@@ -406,6 +406,13 @@ enum class ENiagaraDebugHUDPerfSampleMode
 };
 
 UENUM()
+enum class ENiagaraDebugHUDPerfUnits
+{
+	Microseconds,
+	Milliseconds,
+};
+
+UENUM()
 enum class ENiagaraDebugHUDDOverviewSort
 {
 	/** Lexical sort on system name */
@@ -665,6 +672,9 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview")
 	ENiagaraDebugHUDPerfSampleMode PerfSampleMode = ENiagaraDebugHUDPerfSampleMode::FrameTotal;
 
+	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview")
+	ENiagaraDebugHUDPerfUnits PerfUnits = ENiagaraDebugHUDPerfUnits::Microseconds;
+
 	/** Time range of the Y Axis of the perf graph */
 	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview")
 	ENiagaraDebugHUDPerfGraphMode PerfGraphMode = ENiagaraDebugHUDPerfGraphMode::GameThread;
@@ -673,8 +683,12 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview")
 	int32 PerfHistoryFrames = 600;
 
+	/** Use the specified user range when enabled, otherwise we will auto detect the range to use. */
+	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview", meta = (InlineEditConditionToggle))
+	bool bUsePerfGraphTimeRange = false;
+
 	/** Time range of the Y Axis of the perf graph */
-	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview")
+	UPROPERTY(Config, EditAnywhere, Category = "Perf Overview", meta = (EditCondition = "bUsePerfGraphTimeRange"))
 	float PerfGraphTimeRange = 500.0f;
 
 	/** Pixel size of the perf graph. */
