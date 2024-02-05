@@ -86,7 +86,7 @@ void STG_OutputSelectionDlg::AddExportItems()
 			if (Variant.IsTexture())
 			{
 				UTG_EdGraphNode* EdNode = EdGraph->GetViewModelNode(Node->GetId());
-				TiledBlobPtr ThumbBlob = EdNode->GetCachedThumbBlob(Id);
+				TiledBlobPtr ThumbBlob = EdGraph->GetCachedThumbBlob(Id);
 
 				if (!ThumbBlob)
 				{

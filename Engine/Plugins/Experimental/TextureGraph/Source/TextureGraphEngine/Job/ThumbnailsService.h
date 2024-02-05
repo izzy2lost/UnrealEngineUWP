@@ -33,6 +33,8 @@ protected:
 	JobBatchPtr						GetNextUpdateCycle();
 
 public:
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnThumbnailBatchDoneDelegate, JobBatchPtr Batch)
+	FOnThumbnailBatchDoneDelegate	OnUpdateThumbnailDelegate;
 									ThumbnailsService();
 	virtual							~ThumbnailsService() override;
 

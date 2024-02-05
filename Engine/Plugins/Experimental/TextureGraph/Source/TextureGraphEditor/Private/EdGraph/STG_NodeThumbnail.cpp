@@ -79,49 +79,48 @@ void STG_NodeThumbnail::UpdateParams(TiledBlobPtr InBlob)
 {
 	if (!InBlob)
 		return;
+	
+	// we should assume that the block is finalised at this point
+	check (InBlob->IsFinalised());
 
-	/// We don't assume that te blob would be finalised when we get to this point
-	InBlob->OnFinalise().then([=, this]()
+	if (InBlob->IsFinalised())
+	{
+		UTexture* BlobTexture = GetTextureFromBlob(InBlob);
+		check(BlobTexture);
+
+		//FRHITexture* SlateTexture = (FRHITexture*)(AssetThumbnail->GetViewportRenderTargetTexture());
+		UTexture2D* Texture2D = Cast<UTexture2D>(BlobTexture);
+		UTextureRenderTarget2D* TextureRT2D = Cast<UTextureRenderTarget2D>(BlobTexture);
+	
+		float ShowChecker = 1.0;
+		if (BlobTexture)
 		{
-			if (DoesSharedInstanceExist())
-			{
-				UTexture* BlobTexture = GetTextureFromBlob(InBlob);
-				check(BlobTexture);
+			ShowChecker = 0.0;
+			BrushMaterial->SetTextureParameterValue("ThumbTex", BlobTexture);
+		}
 
-				//FRHITexture* SlateTexture = (FRHITexture*)(AssetThumbnail->GetViewportRenderTargetTexture());
-				UTexture2D* Texture2D = Cast<UTexture2D>(BlobTexture);
-				UTextureRenderTarget2D* TextureRT2D = Cast<UTextureRenderTarget2D>(BlobTexture);
-				
-				float ShowChecker = 1.0;
-				if (BlobTexture)
-				{
-					ShowChecker = 0.0;
-					BrushMaterial->SetTextureParameterValue("ThumbTex", BlobTexture);
-				}
+		float SingleChannel = 0.0;
 
-				float SingleChannel = 0.0;
+		if (Texture2D)
+		{
+			SingleChannel = GPixelFormats[Texture2D->GetPixelFormat()].NumComponents == 1 ? 1.0 : 0.0;
+		}
 
-				if (Texture2D)
-				{
-					SingleChannel = GPixelFormats[Texture2D->GetPixelFormat()].NumComponents == 1 ? 1.0 : 0.0;
-				}
+		if (TextureRT2D)
+		{
+			SingleChannel = GPixelFormats[TextureRT2D->GetFormat()].NumComponents == 1 ? 1.0 : 0.0;
+		}
 
-				if (TextureRT2D)
-				{
-					SingleChannel = GPixelFormats[TextureRT2D->GetFormat()].NumComponents == 1 ? 1.0 : 0.0;
-				}
-
-				BrushMaterial->SetScalarParameterValue("ShowChecker", ShowChecker);
-				BrushMaterial->SetScalarParameterValue("SingleChannel", SingleChannel);
-				Brush->SetResourceObject(BrushMaterial);
-			}
-		});
+		BrushMaterial->SetScalarParameterValue("ShowChecker", ShowChecker);
+		BrushMaterial->SetScalarParameterValue("SingleChannel", SingleChannel);
+		Brush->SetResourceObject(BrushMaterial);
+	}
 }
 
 void STG_NodeThumbnail::UpdateBlob(TiledBlobPtr InBlob)
 {
 	UpdateParams(InBlob);
-
+	
 	TSharedPtr<SOverlay> overlay;
 	ChildSlot
 	[

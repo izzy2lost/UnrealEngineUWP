@@ -52,12 +52,22 @@ public:
 	 * Force refresh Editor details
 	 */
 	void RefreshEditorDetails() const;
+
+	/**
+	 * Tells the node to create a thumbnail for its output pins
+	 * @param Node 
+	 * @param EvaluationContext 
+	 */
+	void OnNodeCreateThumbnail(UTG_Node* Node, const FTG_EvaluationContext* EvaluationContext);
 	
 	UPROPERTY()
 	TObjectPtr<UTextureGraph> TextureGraph = nullptr;
 	
 	TWeakPtr<FTG_Editor> TGEditor = nullptr;
 	FTG_PinSelectionManager PinSelectionManager;
+
+	void CacheThumbBlob(FTG_Id PinId, TiledBlobPtr InBlob);
+	TiledBlobPtr GetCachedThumbBlob(FTG_Id PinId);
 
 private:
 	// Generate the viewmodel matching the Script
@@ -70,6 +80,7 @@ private:
 	void GraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweaking);
 
 
+	TMap<FTG_Id, TiledBlobPtr> PinThumbBlobMap;
 public:
 	//void UpdateParams();
 };

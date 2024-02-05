@@ -8,11 +8,13 @@
 #include "TextureGraph.h"
 #include "TG_Editor.h"
 #include "TG_Graph.h"
+#include "Transform/Layer/T_Thumbnail.h"
 
 void UTG_EdGraph::InitializeFromTextureGraph(UTextureGraph* InTextureGraph, TWeakPtr<FTG_Editor> InTGEditor)
 {
 	TextureGraph = InTextureGraph;
 	TGEditor = InTGEditor;
+
 	// And now build the EdGraph viewmodel matching the script
 	BuildEdGraphViewmodel();
 }
@@ -41,6 +43,16 @@ bool UTG_EdGraph::CreateViewModelLinkFromModelPins(const UTG_Pin* pinFrom, const
 
 	UE_LOG(LogTemp, Warning, TEXT("UTG_EdGraph::CreateViewModelLinkFromModelPins Invalid Link attempted %s => %s"), *pinFrom->GetArgumentName().ToString(), *pinTo->GetArgumentName().ToString())
 	return false;
+}
+
+void UTG_EdGraph::CacheThumbBlob(FTG_Id PinId, TiledBlobPtr InBlob)
+{
+	PinThumbBlobMap.FindOrAdd(PinId) = InBlob;
+}
+
+TiledBlobPtr UTG_EdGraph::GetCachedThumbBlob(FTG_Id PinId)
+{
+	return (PinThumbBlobMap.IsEmpty() || !PinThumbBlobMap.Contains(PinId)) ? nullptr : *PinThumbBlobMap.Find(PinId);
 }
 
 void UTG_EdGraph::BuildEdGraphViewmodel()
@@ -120,6 +132,39 @@ void UTG_EdGraph::RefreshEditorDetails() const
 	}
 }
 
+void UTG_EdGraph::OnNodeCreateThumbnail(UTG_Node* InNode, const FTG_EvaluationContext* InContext)
+{
+	UTG_EdGraphNode* EdGraphNode = GetViewModelNode(InNode->GetId());
+	if (EdGraphNode)
+	{
+		TArray<UTG_Pin*> OutputPins;
+		InNode->GetOutputPins(OutputPins);
+		// Loop over all Output pins
+		for(UTG_Pin* Pin : OutputPins)
+		{
+			check (Pin);
+			if (Pin->IsArgTexture())
+			{
+				FTG_Texture OutTexture;
+				if(Pin->GetValue(OutTexture))
+				{
+					UMixInterface* Mix = InContext->Cycle->GetMix();
+					auto TargetId = InContext->TargetId;
+
+					if (!OutTexture.RasterBlob)
+					{
+						OutTexture = FTG_Texture::GetBlack();
+					}
+
+					TiledBlobPtr ThumbBlob = T_Thumbnail::Bind(Mix, Pin, OutTexture.RasterBlob, TargetId);
+
+					CacheThumbBlob(Pin->GetId(), ThumbBlob);
+				}
+			}
+		}
+	}
+}
+
 void UTG_EdGraph::GraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweaking)
 {
 	if (InNode)
@@ -145,5 +190,6 @@ void UTG_EdGraph::OnNodePostEvaluation(UTG_Node* InNode, const FTG_EvaluationCon
 	{
 		EdGraphNode->OnNodePostEvaluate(Context);
 	}
+	OnNodeCreateThumbnail(InNode, Context);
 }
 	

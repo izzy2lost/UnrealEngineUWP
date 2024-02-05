@@ -343,9 +343,6 @@ void UTG_EdGraphNode::ReconstructNode()
 	// Store copy of old pins
 	TArray<UEdGraphPin*> OldPins = MoveTemp(Pins);
 	Pins.Reset();
-
-	// clear cache of thumb blobs
-	PinThumbBlobMap.Reset();
 	
 	// Generate new pins
 	AllocateDefaultPins();

@@ -34,13 +34,13 @@ TiledBlobRef T_Thumbnail::Bind(UMixInterface* Mix, UObject* Model, TiledBlobPtr 
 
 	JobUPtr JobPtr = std::make_unique<Job>(Mix, InTargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));
 	JobPtr->AddArg(ARG_BLOB(InBlobToBind, "SourceTexture"));
-
+	JobPtr->SetTiled(false);
 	BufferDescriptor Desc = InBlobToBind->GetDescriptor();
 	Desc.Width = RenderMaterial_Thumbnail::GThumbWidth;
 	Desc.Height = RenderMaterial_Thumbnail::GThumbHeight;
 	
 	TiledBlobPtr Result = JobPtr->InitResult(TEXT("T_Thumbnail"), &Desc);
-	//Result->MakeSingleBlob();
+	Result->MakeSingleBlob();
 
 	AddThumbJobToCycle(InBlobToBind, std::move(JobPtr), Model, InTargetId);
 
