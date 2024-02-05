@@ -29,7 +29,7 @@ namespace ChaosTest {
 		const Softs::FSolverReal Damping=0.04)
 	{
 		Chaos::Softs::FSolverParticles Particles;
-		Chaos::Softs::FSolverRigidParticles RigidParticles;
+		Chaos::Softs::FSolverCollisionParticles RigidParticles;
 		TUniquePtr<Softs::FPBDEvolution> Evolution(
 			new Softs::FPBDEvolution(
 				MoveTemp(Particles),
