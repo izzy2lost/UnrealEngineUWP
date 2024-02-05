@@ -18,7 +18,6 @@
 #include "PixelStreamingUtils.h"
 #include "PixelStreamingCoderUtils.h"
 #include "Utils.h"
-#include "UtilsRender.h"
 
 #if PLATFORM_LINUX
 	#include "CudaModule.h"

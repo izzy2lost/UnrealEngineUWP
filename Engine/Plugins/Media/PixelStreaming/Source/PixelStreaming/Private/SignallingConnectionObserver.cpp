@@ -56,7 +56,7 @@ namespace UE::PixelStreaming
 
 	void FPixelStreamingSignallingConnectionObserver::OnSignallingRemoteIceCandidate(FPixelStreamingPlayerId PlayerId, const FString& SdpMid, int SdpMLineIndex, const FString& Sdp)
 	{
-		if (FPlayerContext* PlayerContext = Streamer.Players.Find(PlayerId))
+		if (FPlayerContext* PlayerContext = Streamer.Players->Find(PlayerId))
 		{
 			PlayerContext->PeerConnection->AddRemoteIceCandidate(SdpMid, SdpMLineIndex, Sdp);
 		}
@@ -75,7 +75,7 @@ namespace UE::PixelStreaming
 
 	void FPixelStreamingSignallingConnectionObserver::OnSignallingSFUPeerDataChannels(FPixelStreamingPlayerId SFUId, FPixelStreamingPlayerId PlayerId, int32 SendStreamId, int32 RecvStreamId)
 	{
-		FPlayerContext* PlayerContext = Streamer.Players.Find(SFUId);
+		FPlayerContext* PlayerContext = Streamer.Players->Find(SFUId);
 		if (PlayerContext == nullptr)
 		{
 			UE_LOG(LogPixelStreaming, Error, TEXT("Trying to create data channels from SFU connection but no SFU connection found."));
