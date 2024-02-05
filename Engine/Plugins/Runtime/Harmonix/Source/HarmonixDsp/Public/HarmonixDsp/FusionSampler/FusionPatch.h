@@ -20,17 +20,13 @@ struct HARMONIXDSP_API FFusionPatchData
 	GENERATED_BODY()
 
 public:
-	friend class FFusionPatchJsonImporter;
 	friend class UFusionPatch;
 
 	IMPL_AUDIORENDERABLE_PROXYABLE(FFusionPatchData)
 
 	FFusionPatchData() {};
-
 	const TArray<FKeyzoneSettings>& GetKeyzones() const { return Keyzones; };
 	const FFusionPatchSettings& GetSettings() const { return Settings; }
-	void UpdateSettings(const FFusionPatchSettings& InSettings) { Settings = InSettings; }
-
 	void InitProxyData(const Audio::FProxyDataInitParams& InitParams);
 
 	void DisconnectSampler(const FFusionSampler* sampler);
@@ -73,17 +69,19 @@ class HARMONIXDSP_API UFusionPatch : public UObject, public IAudioProxyDataFacto
 public:
 	// IAudioProxyDataFactory
 	virtual TSharedPtr<Audio::IProxyData> CreateProxyData(const Audio::FProxyDataInitParams& InitParams);
-
-public:
 	
-	static const int32 kMaxLayersPerNote = 128;
 	static const int32 kVoicePriorityNoSteal = 0;
 
 	UFusionPatch();
 
+	void UpdatePatch(const FFusionPatchData& InPatchData);
+
 	const FFusionPatchSettings& GetSettings() const { return FusionPatchData.GetSettings(); }
 	void UpdateSettings(const FFusionPatchSettings& InSettings);
+
 	const TArray<FKeyzoneSettings>& GetKeyzones() const { return FusionPatchData.GetKeyzones(); }
+	int32 GetNumKeyzones() const { return FusionPatchData.GetKeyzones().Num(); }
+	void UpdateKeyzones(const TArray<FKeyzoneSettings>& NewKeyzones);
 
 #if WITH_EDITORONLY_DATA
 
@@ -111,9 +109,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fusion Patch")
 	FFusionPatchData FusionPatchData;
 private:
-
-	friend class FFusionPatchJsonImporter;
-
 	// Notice here that we cache a pointer the Proxy's "Queue" so we can...
 	// 1 - Supply it to all instances of Metasound nodes rendering this data. How?
 	//     CreateNewProxyData instantiates a NEW unique ptr to an FFusionPatchDataProxy

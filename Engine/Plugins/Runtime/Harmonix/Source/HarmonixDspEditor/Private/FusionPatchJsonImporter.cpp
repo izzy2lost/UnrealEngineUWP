@@ -52,9 +52,9 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		UE_LOG(LogHarmonixJsonImporter, Warning, TEXT("Bad version number importing Fusion Patch! \"version\" = %d, must be >= %d)"), Version, kMinVersion);
 	};
 	
-	FFusionPatchData& FusionPatchData = FusionPatch->FusionPatchData;
-
 	// import patch settings and keyzones first
+	// make a copy of the settings and update it with the imported settings
+	FFusionPatchSettings PatchSettingsImport = FusionPatch->GetSettings();
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "presets"))
 	{
 		TSharedPtr<FJsonObject> PresetObject = nullptr;
@@ -75,15 +75,12 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 				UE_LOG(LogFusionPatchJsonImporter, Warning, TEXT("Unable to parse preset in json"));
 				continue;
 			}
-
-			FFusionPatchSettings PatchSettings;
-			if (!FSettingsJsonImporter::TryParseJson(PresetJson, PatchSettings))
+			
+			if (!FSettingsJsonImporter::TryParseJson(PresetJson, PatchSettingsImport))
 			{
 				UE_LOG(LogFusionPatchJsonImporter, Warning, TEXT("Unable to parse preset in json"));
 				continue;
 			}
-
-			FusionPatchData.UpdateSettings(PatchSettings);
 			// we only support one "preset" and that's the settings
 			break;
 		}
@@ -94,6 +91,8 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 	bool AllFilesExist = true;
 	TMap<int, int> KeyzoneIdxToPathIdx;
 
+	// make a copy of the keyzones and update it with the imported settings
+	TArray<FKeyzoneSettings> KeyzonesImported = FusionPatch->GetKeyzones();
 	int NumKeyzones = 0;
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "keymap"))
 	{
@@ -106,20 +105,15 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		if (!TryGetObjectField(KeyzoneObject, "keyzone", KeyzoneValue))
 			continue;
 
-		// append elements to the list until the number of keyzones 
-		// is the same as the number of imported keyzones
-		while (!FusionPatchData.Keyzones.IsValidIndex(KeyzoneIdx))
-		{
-			FKeyzoneSettings Settings;
-			FusionPatchData.Keyzones.Add(Settings);
-		}
+		// Update array to contain keyzones up to this index
+		KeyzonesImported.SetNum(KeyzoneIdx + 1);
 
-		while (!KeyzoneIdxToPathIdx.Contains(KeyzoneIdx))
+		if (!KeyzoneIdxToPathIdx.Contains(KeyzoneIdx))
 		{
 			KeyzoneIdxToPathIdx.Add(KeyzoneIdx, -1);
 		}
 
-		FKeyzoneSettings& Settings = FusionPatchData.Keyzones[KeyzoneIdx];
+		FKeyzoneSettings& Settings = KeyzonesImported[KeyzoneIdx];
 		NumKeyzones++;
 
 		if (!FSettingsJsonImporter::TryParseJson(KeyzoneValue, Settings))
@@ -149,12 +143,8 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 	
 	// prune the list to match the size of the newly imported asset
 	// KeyzoneIdx, at this point, will be equal to the number of _imported_ keyzones
-	while (FusionPatchData.Keyzones.Num() > NumKeyzones)
-	{
-		FusionPatchData.Keyzones.RemoveAt(FusionPatchData.Keyzones.Num() - 1);
-	}
-
-	check(KeyzoneIdxToPathIdx.Num() == FusionPatchData.Keyzones.Num());
+	KeyzonesImported.SetNum(NumKeyzones);
+	check(KeyzoneIdxToPathIdx.Num() == KeyzonesImported.Num());
 
 	if (!AllFilesExist)
 	{
@@ -183,13 +173,13 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 		}
 	}
 
-	for (int KeyzoneIdx = 0; KeyzoneIdx < FusionPatchData.Keyzones.Num(); ++KeyzoneIdx)
+	for (int KeyzoneIdx = 0; KeyzoneIdx < KeyzonesImported.Num(); ++KeyzoneIdx)
 	{
 		int32 PathIndex = KeyzoneIdxToPathIdx.Contains(KeyzoneIdx) ? KeyzoneIdxToPathIdx[KeyzoneIdx] : INDEX_NONE;
 
 		if (PathIndex == INDEX_NONE)
 		{
-			FString SamplePath = FusionPatchData.Keyzones[KeyzoneIdx].SamplePath;
+			FString SamplePath = KeyzonesImported[KeyzoneIdx].SamplePath;
 			FString AssetName = ImportedAssets[KeyzoneIdx]->GetName();
 			OutErrors.Add(FString::Printf(TEXT("Imported asset (Name: %s) failed to map asset (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx));
 			UE_LOG(LogFusionPatchJsonImporter, Error, TEXT("Failed to import FusionPatch. Imported asset (Name: %s) failed to map asset (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx);
@@ -198,7 +188,7 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 
 		if (!AudioSampleFiles.IsValidIndex(PathIndex))
 		{
-			FString SamplePath = FusionPatchData.Keyzones[KeyzoneIdx].SamplePath;
+			FString SamplePath = KeyzonesImported[KeyzoneIdx].SamplePath;
 			FString AssetName = AudioSampleFiles[KeyzoneIdx];
 			OutErrors.Add(FString::Printf(TEXT("Imported asset (Name: %s) failed to map file (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx));
 			UE_LOG(LogFusionPatchJsonImporter, Error, TEXT("Failed to import FusionPatch. Imported asset (Name: %s) failed to map asset (%s) to keyzone: %d"), *AssetName, *SamplePath, KeyzoneIdx);
@@ -229,12 +219,16 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 
 		if (SoundWave)
 		{
-			FusionPatchData.Keyzones[KeyzoneIdx].SoundWave = SoundWave;
+			KeyzonesImported[KeyzoneIdx].SoundWave = SoundWave;
 		}
 	}
 
-	FusionPatch->UpdateRenderableForNonTrivialChange();
-
+	// no errors, update the FusionPatchData with the imported data
+	if (OutErrors.Num() == 0)
+	{
+		FusionPatch->UpdateSettings(PatchSettingsImport);
+		FusionPatch->UpdateKeyzones(KeyzonesImported);
+	}
 	return true;
 }
 

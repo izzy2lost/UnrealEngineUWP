@@ -52,6 +52,25 @@ void UFusionPatch::UpdateRenderableForNonTrivialChange()
 	RenderableFusionPatchData->SetNewSettings(NewSettings);
 }
 
+void UFusionPatch::UpdateSettings(const FFusionPatchSettings& InSettings)
+{
+	FusionPatchData.Settings = InSettings;
+	UpdateRenderableForNonTrivialChange();
+}
+
+void UFusionPatch::UpdateKeyzones(const TArray<FKeyzoneSettings>& NewKeyzones)
+{
+	FusionPatchData.Keyzones = NewKeyzones;
+	UpdateRenderableForNonTrivialChange();
+}
+
+
+void UFusionPatch::UpdatePatch(const FFusionPatchData& InPatchData)
+{
+	FusionPatchData = InPatchData;
+	UpdateRenderableForNonTrivialChange();
+}
+
 #if WITH_EDITORONLY_DATA
 
 void UFusionPatch::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
