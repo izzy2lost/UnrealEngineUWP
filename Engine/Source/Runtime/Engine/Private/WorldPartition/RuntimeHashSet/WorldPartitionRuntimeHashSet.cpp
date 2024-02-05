@@ -678,24 +678,11 @@ UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetC
 
 	// Build cell unique name
 	{
-		TStringBuilder<128> CellNameBuilder;
-
 		UWorld* OuterWorld = GetTypedOuter<UWorld>();
 		check(OuterWorld);
 
+		FString InstanceSuffix;
 		FString WorldName = FPackageName::GetShortName(OuterWorld->GetPackage());
-
-		CellNameBuilder.Appendf(TEXT("%s_%s"), *WorldName, *CellNameID.ToString());
-
-		if (DataLayersID.GetHash())
-		{
-			CellNameBuilder.Appendf(TEXT("_d%X"), DataLayersID.GetHash());
-		}
-
-		if (ContentBundleID.IsValid())
-		{
-			CellNameBuilder.Appendf(TEXT("_c%s"), *UContentBundleDescriptor::GetContentBundleCompactString(ContentBundleID));
-		}
 
 		if (!IsRunningCookCommandlet() && OuterWorld->IsGameWorld())
 		{
@@ -714,9 +701,27 @@ UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetC
 
 				if (int32 Index = InstancePackageName.Find(SourcePackageName); Index != INDEX_NONE)
 				{
-					CellNameBuilder.Appendf(TEXT("_i%s"), *InstancePackageName.Mid(Index + SourcePackageName.Len()));
+					InstanceSuffix = InstancePackageName.Mid(Index + SourcePackageName.Len());
 				}
 			}
+		}
+
+		TStringBuilder<128> CellNameBuilder;
+		CellNameBuilder.Appendf(TEXT("%s_%s"), *WorldName, *CellNameID.ToString());
+
+		if (DataLayersID.GetHash())
+		{
+			CellNameBuilder.Appendf(TEXT("_d%X"), DataLayersID.GetHash());
+		}
+
+		if (ContentBundleID.IsValid())
+		{
+			CellNameBuilder.Appendf(TEXT("_c%s"), *UContentBundleDescriptor::GetContentBundleCompactString(ContentBundleID));
+		}
+
+		if (!InstanceSuffix.IsEmpty())
+		{
+			CellNameBuilder.Appendf(TEXT("_i%s"), *InstanceSuffix);
 		}
 	
 		CellUniqueId.Name = CellNameBuilder.ToString();
