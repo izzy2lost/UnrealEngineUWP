@@ -259,7 +259,7 @@ namespace impl
 					return;
 				}
 
-				System->GetPrivateChecked()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
+				System->GetPrivate()->LogBenchmarkUtil.FinishUpdateImage(CustomizableObjectPathName, InstancePathName, Time, PeakMemory, RealMemoryPeak);
 			},
 			TStatId{},
 			nullptr,

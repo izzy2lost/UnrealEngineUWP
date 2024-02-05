@@ -224,7 +224,7 @@ TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThrea
 	DebugString = FString::Printf(TEXT("UnrealExtensionDataStreamer for %s"), *Object->GetPathName());
 #endif
 
-	FStreamableManager& Manager = UCustomizableObjectSystem::GetInstance()->GetStreamableManager();
+	FStreamableManager& Manager = UCustomizableObjectSystem::GetInstance()->GetPrivate()->StreamableManager;
 
 	return Manager.RequestAsyncLoad(
 		TargetsToStream,
