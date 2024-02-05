@@ -42,6 +42,29 @@ namespace PCGTextureSamplingHelpers
 	}
 
 	template<typename ValueType>
+	ValueType SampleInternal(FVector2D PositionLocalSpace,
+		int32 Width,
+		int32 Height,
+		TFunctionRef<ValueType(int32 Index)> SamplingFunction)
+	{
+		// Accounts for texel values being at texel centers
+		const double TexelX = (PositionLocalSpace.X * Width - 0.5);
+		const double TexelY = (PositionLocalSpace.Y * Height - 0.5);
+
+		const int32 X0 = FMath::Clamp(FMath::FloorToInt(TexelX), 0, Width - 1);
+		const int32 X1 = FMath::Min(X0 + 1, Width - 1);
+		const int32 Y0 = FMath::Clamp(FMath::FloorToInt(TexelY), 0, Height - 1);
+		const int32 Y1 = FMath::Min(Y0 + 1, Height - 1);
+
+		const ValueType SampleX0Y0 = SamplingFunction(X0 + Y0 * Width);
+		const ValueType SampleX1Y0 = SamplingFunction(X1 + Y0 * Width);
+		const ValueType SampleX0Y1 = SamplingFunction(X0 + Y1 * Width);
+		const ValueType SampleX1Y1 = SamplingFunction(X1 + Y1 * Width);
+
+		return FMath::BiLerp(SampleX0Y0, SampleX1Y0, SampleX0Y1, SampleX1Y1, TexelX - X0, TexelY - Y0);
+	}
+
+	template<typename ValueType>
 	bool Sample(const FVector2D& InPosition,
 		const FBox2D& InSurface,
 		const UPCGBaseTextureData* InTextureData,
@@ -62,8 +85,8 @@ namespace PCGTextureSamplingHelpers
 		FVector2D Pos = FVector2D::ZeroVector;
 		if (!InTextureData->bUseAdvancedTiling)
 		{
-			// TODO: There seems to be a bias issue here, as the bounds size are not in the same space as the texels.
-			Pos = LocalSpacePos * FVector2D(Width, Height);
+			Pos.X = FMath::Clamp(LocalSpacePos.X, 0.0, 1.0);
+			Pos.Y = FMath::Clamp(LocalSpacePos.Y, 0.0, 1.0);
 		}
 		else
 		{
@@ -91,43 +114,10 @@ namespace PCGTextureSamplingHelpers
 			FVector::FReal X = FMath::Frac(SamplePosition.X + 0.5);
 			FVector::FReal Y = FMath::Frac(SamplePosition.Y + 0.5);
 
-			X *= Width;
-			Y *= Height;
-
 			Pos = FVector2D(X, Y);
 		}
 
-		// TODO: this isn't super robust, if that becomes an issue
-		int32 X0 = FMath::FloorToInt(Pos.X);
-		if (X0 < 0 || X0 >= Width)
-		{
-			X0 = 0;
-		}
-
-		int32 X1 = FMath::CeilToInt(Pos.X);
-		if (X1 < 0 || X1 >= Width)
-		{
-			X1 = 0;
-		}
-
-		int32 Y0 = FMath::FloorToInt(Pos.Y);
-		if (Y0 < 0 || Y0 >= Height)
-		{
-			Y0 = 0;
-		}
-
-		int32 Y1 = FMath::CeilToInt(Pos.Y);
-		if (Y1 < 0 || Y1 >= Height)
-		{
-			Y1 = 0;
-		}
-
-		ValueType SampleX0Y0 = SamplingFunction(X0 + Y0 * Width);
-		ValueType SampleX1Y0 = SamplingFunction(X1 + Y0 * Width);
-		ValueType SampleX0Y1 = SamplingFunction(X0 + Y1 * Width);
-		ValueType SampleX1Y1 = SamplingFunction(X1 + Y1 * Width);
-
-		SampledValue = FMath::BiLerp(SampleX0Y0, SampleX1Y0, SampleX0Y1, SampleX1Y1, Pos.X - X0, Pos.Y - Y0);
+		SampledValue = SampleInternal(Pos, Width, Height, SamplingFunction);
 		return true;
 	}
 
@@ -177,7 +167,6 @@ bool UPCGBaseTextureData::SamplePoint(const FTransform& InTransform, const FBox&
 	// TODO: embed local bounds center offset at this time?
 	OutPoint.Transform = InTransform;
 	FVector PointPositionInLocalSpace = Transform.InverseTransformPosition(InTransform.GetLocation());
-	PointPositionInLocalSpace.Z = 0;
 	OutPoint.Transform.SetLocation(Transform.TransformPosition(PointPositionInLocalSpace));
 	OutPoint.SetLocalBounds(InBounds); // TODO: should set Min.Z = Max.Z = 0;
 
@@ -191,7 +180,7 @@ bool UPCGBaseTextureData::SamplePoint(const FTransform& InTransform, const FBox&
 	{
 		OutPoint.Color = Color;
 		OutPoint.Density = ((DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(Color, ColorChannel));
-		return OutPoint.Density > 0;
+		return OutPoint.Density > 0 || bKeepZeroDensityPoints;
 	}
 	else
 	{
@@ -270,6 +259,25 @@ const UPCGPointData* UPCGBaseTextureData::CreatePointData(FPCGContext* Context) 
 bool UPCGBaseTextureData::IsValid() const
 {
 	return Height > 0 && Width > 0;
+}
+
+bool UPCGBaseTextureData::SamplePointLocal(const FVector2D& LocalPosition, FVector4& OutColor, float& OutDensity) const
+{
+	if (!ensure(Width > 0 && Height > 0))
+	{
+		return false;
+	}
+
+	FVector2D Pos;
+	Pos.X = FMath::Frac(LocalPosition.X);
+	Pos.Y = FMath::Frac(LocalPosition.Y);
+
+	const FLinearColor OutSample = PCGTextureSamplingHelpers::SampleInternal<FLinearColor>(Pos, Width, Height, [this](int32 Index) { return ColorData[Index]; });
+
+	OutColor = OutSample;
+	OutDensity = (DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(OutSample, ColorChannel);
+	
+	return OutDensity > 0.0 || bKeepZeroDensityPoints;
 }
 
 void UPCGBaseTextureData::CopyBaseTextureData(UPCGBaseTextureData* NewTextureData) const
@@ -589,12 +597,27 @@ bool UPCGTextureData::InitializeFromGPUTexture(const TFunction<void()>& PostInit
 #if WITH_EDITOR
 bool UPCGTextureData::InitializeGPUTextureFromCPU()
 {
-	if (!DuplicateTexture || !PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(DuplicateTexture))
+	// There's a bit of a mix of texture types in this class currently, due to some functionality for readback being 2D-only.
+	UTexture2D* TextureAs2D = Cast<UTexture2D>(Texture.Get());
+	if (!TextureAs2D)
 	{
-		return false;
+		if (UTexture2DArray* Texture2DArray = Cast<UTexture2DArray>(Texture))
+		{
+			TextureAs2D = Texture2DArray->SourceTextures.IsValidIndex(TextureIndex) ? Texture2DArray->SourceTextures[TextureIndex] : nullptr;
+		}
 	}
 
-	FTexturePlatformData* PlatformData = DuplicateTexture->GetPlatformData();
+	UTexture2D* TextureForReadback = nullptr;
+	if (TextureAs2D && PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(TextureAs2D))
+	{
+		TextureForReadback = TextureAs2D;
+	}
+	else if (PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(DuplicateTexture))
+	{
+		TextureForReadback = DuplicateTexture;
+	}
+
+	FTexturePlatformData* PlatformData = TextureForReadback ? TextureForReadback->GetPlatformData() : nullptr;
 	if (!PlatformData)
 	{
 		return false;

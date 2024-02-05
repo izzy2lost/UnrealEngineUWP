@@ -26,6 +26,13 @@ enum class EPCGTextureDensityFunction : uint8
 	Multiply
 };
 
+UENUM()
+enum class EPCGTextureAddressMode : uint8
+{
+	Clamp UMETA(ToolTip = "Clamps UV to 0-1."),
+	Wrap UMETA(ToolTip = "Tiles the texture to fit.")
+};
+
 namespace PCGTextureSamplingHelpers
 {
 	/** Returns true if a texture is CPU-accessible. */
@@ -54,6 +61,9 @@ public:
 	//~Begin UPCGSpatialDataWithPointCache interface
 	virtual const UPCGPointData* CreatePointData(FPCGContext* Context) const override;
 	//~End UPCGSpatialDataWithPointCache interface
+
+	/** Sample using a local space 'UV' position. */
+	bool SamplePointLocal(const FVector2D& LocalPosition, FVector4& OutColor, float& OutDensity) const;
 
 	virtual bool IsValid() const;
 
