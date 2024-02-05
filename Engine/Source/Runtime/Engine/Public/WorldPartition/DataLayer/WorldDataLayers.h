@@ -113,7 +113,10 @@ public:
 	ENGINE_API bool SetUseExternalPackageDataLayerInstances(bool bInNewValue, bool bInInteractiveMode = false);
 #endif
 
-	static FName GetWorldPartionWorldDataLayersName() { return FName(TEXT("WorldDataLayers")); } // reserved for ULevel::WorldDataLayers
+	UE_DEPRECATED(5.4, "Use GetWorldPartitionWorldDataLayersName() instead.")
+	static FName GetWorldPartionWorldDataLayersName() { return GetWorldPartitionWorldDataLayersName(); }
+
+	static FName GetWorldPartitionWorldDataLayersName() { return FName(TEXT("WorldDataLayers")); } // reserved for ULevel::WorldDataLayers
 	
 	ENGINE_API void DumpDataLayers(FOutputDevice& OutputDevice) const;
 	ENGINE_API bool ContainsDataLayer(const UDataLayerInstance* InDataLayer) const;

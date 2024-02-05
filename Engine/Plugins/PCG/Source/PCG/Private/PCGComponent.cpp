@@ -1596,7 +1596,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 			bool bIsNowPartitioned = bIsComponentPartitioned;
 			bIsComponentPartitioned = !bIsComponentPartitioned;
 
-			// SetIsPartioned cleans up before, so keep track if we were generated or not.
+			// SetIsPartitioned cleans up before, so keep track if we were generated or not.
 			bool bWasGenerated = bGenerated;
 			SetIsPartitioned(bIsNowPartitioned);
 

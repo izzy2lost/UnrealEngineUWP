@@ -3837,7 +3837,7 @@ UFoliageType* AInstancedFoliageActor::AddFoliageType(const UFoliageType* InType,
 
 FFoliageInfo* AInstancedFoliageActor::AddMesh(UStaticMesh* InMesh, UFoliageType** OutSettings, const UFoliageType_InstancedStaticMesh* DefaultSettings)
 {
-	// This function is deprecated in a partioned world.
+	// This function is deprecated in a partitioned world.
 	// FoliageType cannot have an AInstancedFoliageActor as their Outer
 	// This creates issues with the Foliage Edit mode.
 	// Proper way is to Create an asset for the UFoliageType and call

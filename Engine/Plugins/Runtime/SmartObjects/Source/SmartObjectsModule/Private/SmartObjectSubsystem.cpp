@@ -2751,7 +2751,7 @@ int32 USmartObjectSubsystem::GetRegisteredSmartObjectsCompatibleWithCollection(
 
 void USmartObjectSubsystem::IterativelyBuildCollections()
 {
-	ensureMsgf(bIsPartitionedWorld, TEXT("%s expected to be called in World Paritioned worlds"), ANSI_TO_TCHAR(__FUNCTION__));
+	ensureMsgf(bIsPartitionedWorld, TEXT("%s expected to be called in World Partitioned worlds"), ANSI_TO_TCHAR(__FUNCTION__));
 
 	if (RegisteredSOComponents.Num() == 0)
 	{

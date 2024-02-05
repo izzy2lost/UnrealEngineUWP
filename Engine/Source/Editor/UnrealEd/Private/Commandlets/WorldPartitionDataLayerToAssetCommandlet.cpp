@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
- UDataLayerToAssetCommandlet.cpp: Commandlet used to convert a partionned ULevel's data layers to assets
+ UDataLayerToAssetCommandlet.cpp: Commandlet used to convert a partitioned ULevel's data layers to assets
 =============================================================================*/
 
 #include "Commandlets/WorldPartitionDataLayerToAssetCommandLet.h"
