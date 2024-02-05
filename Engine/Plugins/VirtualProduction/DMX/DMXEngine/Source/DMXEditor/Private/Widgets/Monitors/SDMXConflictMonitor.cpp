@@ -333,13 +333,13 @@ namespace UE::DMX
 
 	void SDMXConflictMonitor::UpdateStatusInfo()
 	{
-		if (!GetCanTick())
-		{
-			StatusInfo = EDMXConflictMonitorStatusInfo::Idle;
-		}
-		else if (bIsPaused)
+		if (bIsPaused)
 		{
 			StatusInfo = EDMXConflictMonitorStatusInfo::Paused;
+		}
+		else if (!GetCanTick())
+		{
+			StatusInfo = EDMXConflictMonitorStatusInfo::Idle;
 		}
 		else if (Models.IsEmpty())
 		{
@@ -350,7 +350,6 @@ namespace UE::DMX
 			StatusInfo = EDMXConflictMonitorStatusInfo::Conflict;
 		}
 	}
-
 }
 
 #undef LOCTEXT_NAMESPACE
