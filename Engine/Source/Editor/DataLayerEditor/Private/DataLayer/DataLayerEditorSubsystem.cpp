@@ -191,18 +191,22 @@ void FDataLayersBroadcast::Initialize()
 
 void FDataLayersBroadcast::OnObjectPostEditChange(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent)
 {
+	if (!Object || Object->IsTemplate() || PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+	{
+		return;
+	}
+	
 	// Ignore changed on game world objects
-	UWorld* World = Object ? Object->GetWorld() : nullptr;
+	const UWorld* World = Object->GetWorld();
 	const bool bIsGameWorld = World && World->IsGameWorld();
-
-	if (Object && !bIsGameWorld && (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive))
+	if (!bIsGameWorld)
 	{
 		bool bRefresh = false;
 		if (Object->IsA<UDataLayerInstance>() || Object->IsA<UDataLayerAsset>())
 		{
 			bRefresh = true;
 		}
-		else if (AActor* Actor = Cast<AActor>(Object))
+		else if (const AActor* Actor = Cast<AActor>(Object))
 		{
 			bRefresh = Actor->IsPropertyChangedAffectingDataLayers(PropertyChangedEvent);
 		}
