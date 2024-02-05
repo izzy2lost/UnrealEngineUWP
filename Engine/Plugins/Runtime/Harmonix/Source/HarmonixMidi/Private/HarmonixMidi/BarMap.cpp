@@ -56,6 +56,11 @@ int32 FBarMap::MusicTimestampToTick(const FMusicTimestamp& Timestamp) const
 		--Index;
 	}
 
+	if (!Points.IsValidIndex(Index))
+	{
+		Index = 0;
+	}
+
 	int32 BarDelta = BarIndex - Points[Index].BarIndex;
 	return (int32)(Points[Index].StartTick +
 		BarDelta * GetTicksInBarAfterPoint(Index) +
@@ -88,6 +93,11 @@ int32 FBarMap::BarIncludingCountInToTick(int32 BarIndex, int32 * OutBeatsPerBar,
 	if (TimeSigIndex > 0)
 	{
 		--TimeSigIndex;
+	}
+
+	if (!Points.IsValidIndex(TimeSigIndex))
+	{
+		TimeSigIndex = 0;
 	}
 
 	if (OutBeatsPerBar)
@@ -135,6 +145,11 @@ int32 FBarMap::BarBeatTickIncludingCountInToTick(int32 BarIndex, int32 BeatInBar
 		--TimeSigIndex;
 	}
 
+	if (!Points.IsValidIndex(TimeSigIndex))
+	{
+		TimeSigIndex = 0;
+	}
+
 	int32 BarDelta = BarIndex - Points[TimeSigIndex].BarIndex;
 	int32 TicksInBeat = GetTicksInBeatAfterPoint(TimeSigIndex);
 	if (BeatInBar >= Points[TimeSigIndex].TimeSignature.Numerator)
@@ -172,7 +187,7 @@ FMusicTimestamp FBarMap::TickToMusicTimestamp(int32 Tick, int32* OutBeatsPerBar)
 	}
 
 	int32 TimeSigIndex = FMusicMapUtl::GetPointIndexForTick(Points, Tick);
-	if (TimeSigIndex < 0)
+	if (!Points.IsValidIndex(TimeSigIndex))
 	{
 		TimeSigIndex = 0;
 	}
@@ -292,7 +307,7 @@ float FBarMap::TickToFractionalBarIncludingCountIn(int32 Tick) const
 	}
 
 	int32 TimeSigIndex = FMusicMapUtl::GetPointIndexForTick(Points, Tick);
-	if (TimeSigIndex < 0)
+	if (!Points.IsValidIndex(TimeSigIndex))
 	{
 		TimeSigIndex = 0;
 	}
@@ -310,7 +325,7 @@ int32 FBarMap::TickToBarIncludingCountIn(int32 Tick) const
 		return FMath::FloorToInt32((float)Tick / (float)(TicksPerQuarterNote * 4));
 	}
 	int32 TimeSigIndex = FMusicMapUtl::GetPointIndexForTick(Points, Tick);
-	if (TimeSigIndex < 0)
+	if (!Points.IsValidIndex(TimeSigIndex))
 	{
 		TimeSigIndex = 0;
 	}
@@ -334,6 +349,11 @@ int32 FBarMap::FractionalBarIncludingCountInToTick(float Bar) const
 	if (TimeSigIndex > 0)
 	{
 		--TimeSigIndex;
+	}
+
+	if (!Points.IsValidIndex(TimeSigIndex))
+	{
+		TimeSigIndex = 0;
 	}
 
 	float BarsPassed = Bar - (float)Points[TimeSigIndex].BarIndex;
@@ -399,21 +419,35 @@ int32 FBarMap::GetPointIndexForTick(int32 Tick) const
 
 const FTimeSignaturePoint& FBarMap::GetTimeSignaturePoint(int32 Index) const
 {
+	check(!Points.IsEmpty());
+
+	if (!Points.IsValidIndex(Index))
+	{
+		Index = 0;
+	}
+
 	return Points[Index];
 }
 
 FTimeSignaturePoint& FBarMap::GetTimeSignaturePoint(int32 Index)
 {
+	check(!Points.IsEmpty());
+
+	if (!Points.IsValidIndex(Index))
+	{
+		Index = 0;
+	}
+
 	return Points[Index];
 }
 
 const FTimeSignature& FBarMap::GetTimeSignatureAtTick(int32 Tick) const
 {
 	check(!Points.IsEmpty());
-		
+	
 	int32 Index = FMusicMapUtl::GetPointIndexForTick(Points, Tick);
 
-	if (Index < 0)
+	if (!Points.IsValidIndex(Index))
 	{
 		Index = 0;
 	}
@@ -432,6 +466,11 @@ const FTimeSignature& FBarMap::GetTimeSignatureAtBar(int32 Bar) const
 	if (Index > 0)
 	{
 		--Index;
+	}
+
+	if (!Points.IsValidIndex(Index))
+	{
+		Index = 0;
 	}
 
 	return Points[Index].TimeSignature;
