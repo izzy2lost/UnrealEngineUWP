@@ -9,7 +9,7 @@ class AActor;
 class ULevel;
 class UToolMenu;
 
-class SVGIMPORTEREDITOR_API ISVGImporterEditorModule : public IModuleInterface
+class ISVGImporterEditorModule : public IModuleInterface
 {
 	static constexpr const TCHAR* ModuleName = TEXT("SVGImporterEditor");
 

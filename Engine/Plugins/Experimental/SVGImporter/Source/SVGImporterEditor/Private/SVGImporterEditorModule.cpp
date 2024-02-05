@@ -22,6 +22,7 @@
 #include "SVGData.h"
 #include "SVGDynamicMeshVisualizer.h"
 #include "SVGImporter.h"
+#include "SVGImporterEditorCommands.h"
 #include "SVGImporterEditorUtils.h"
 #include "SVGParsingUtils.h"
 #include "SVGThumbnailRenderer.h"
@@ -53,6 +54,8 @@ FName FSVGImporterEditorModule::SVGImporterCategoryName = TEXT("SVGImporter");;
 
 void FSVGImporterEditorModule::StartupModule()
 {
+	FSVGImporterEditorCommands::Register();
+
 	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
 	AssetTools.RegisterAdvancedAssetCategory(GetSVGImporterMenuCategoryName(), LOCTEXT("SVGImporterCategoryName", "SVGImporter"));
 
@@ -83,6 +86,8 @@ void FSVGImporterEditorModule::StartupModule()
 
 void FSVGImporterEditorModule::ShutdownModule()
 {
+	FSVGImporterEditorCommands::Unregister();
+
 	if (FSVGImporterModule::Get().OnDefaultSVGDataRequested.IsBoundToObject(this))
 	{
 		FSVGImporterModule::Get().OnDefaultSVGDataRequested.Unbind();

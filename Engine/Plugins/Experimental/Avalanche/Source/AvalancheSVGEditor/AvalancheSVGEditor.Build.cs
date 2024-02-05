@@ -8,19 +8,13 @@ public class AvalancheSVGEditor : ModuleRules
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(
-            new string[]
-            {
-                "Core",
-            }
-        );
-
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
 	            "ActorModifierCore",
 	            "AvalancheInteractiveTools",
 	            "AvalancheModifiers",
+                "Core",
 	            "CoreUObject",
                 "Engine",
                 "InteractiveToolsFramework",

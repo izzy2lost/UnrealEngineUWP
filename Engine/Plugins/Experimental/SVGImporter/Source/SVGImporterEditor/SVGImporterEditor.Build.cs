@@ -15,7 +15,6 @@ public class SVGImporterEditor : ModuleRules
 			new string[]
 			{
 				"Core",
-				"Engine",
 			}
 		);
 
