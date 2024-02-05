@@ -7074,6 +7074,11 @@ FAsyncPackage2* FAsyncPackage2::UpdateDependenciesStateRecursive(FAsyncLoadingTh
 			FAllDependenciesState::RemoveFromWaitList(Context.StateMemberPtr, WaitingForPackage, this);
 			WaitingForPackage = nullptr;
 		}
+		else if (ThreadState.PackagesOnStack.Contains(WaitingForPackage))
+		{
+			FAllDependenciesState::RemoveFromWaitList(Context.StateMemberPtr, WaitingForPackage, this);
+			WaitingForPackage = nullptr;
+		}
 		else
 		{
 			return WaitingForPackage;
