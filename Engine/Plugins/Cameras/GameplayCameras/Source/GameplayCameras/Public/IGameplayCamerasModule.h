@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Modules/ModuleInterface.h"
+#include "Templates/SharedPointerFwd.h"
 
 #if WITH_EDITOR
 class IGameplayCamerasLiveEditManager;

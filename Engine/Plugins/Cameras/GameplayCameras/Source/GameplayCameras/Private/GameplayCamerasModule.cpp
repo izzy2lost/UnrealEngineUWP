@@ -9,6 +9,7 @@
 #include "GameplayCameras.h"
 #include "Logging/MessageLog.h"
 #include "Modules/ModuleManager.h"
+#include "Templates/SharedPointer.h"
 
 DEFINE_LOG_CATEGORY(LogCameraSystem);
 
