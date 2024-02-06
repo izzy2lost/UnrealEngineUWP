@@ -56,6 +56,7 @@ int32 GetWorldSolverID(const UWorld* World)
 		
 		FChaosVDContext NewSceneQueryContext;
 		NewSceneQueryContext.Id = FChaosVDRuntimeModule::Get().GenerateUniqueID();
+		NewSceneQueryContext.SetDataChannel(CVDDC_SceneQueries);
 
 		if (CurrentCVDContext.Type ==  static_cast<int32>(EChaosVDContextType::Query) || CurrentCVDContext.Type == static_cast<int32>(EChaosVDContextType::SubTraceQuery))
 		{

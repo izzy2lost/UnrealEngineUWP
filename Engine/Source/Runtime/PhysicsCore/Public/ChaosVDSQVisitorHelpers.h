@@ -11,6 +11,7 @@
 /** Initializes a CVD Wrapper for a SQ visit with the provider data, and traces it as soon it goes iut of scope if we are recording */
 #ifndef CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER
 	#define CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(Type, ParticleTransform, ParticleIndex, ShapeIndex, CurData) \
+	CVD_SCOPED_DATA_CHANNEL_OVERRIDE(CVDDC_SceneQueries) \
 	FChaosVDQueryVisitStep CVDSQVisitStepData; \
 	CVD_TRACE_SCOPED_SCENE_QUERY_VISIT(CVDSQVisitStepData); \
 	Chaos::VisualDebugger::TraceHelpers::FillCVDQueryVisitData(CVDSQVisitStepData, Type, ParticleTransform, ParticleIndex, ShapeIndex, CurData);

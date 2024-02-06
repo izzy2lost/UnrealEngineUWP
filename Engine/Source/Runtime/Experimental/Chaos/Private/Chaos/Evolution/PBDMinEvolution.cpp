@@ -124,7 +124,7 @@ namespace Chaos
 	{
 		SCOPE_CYCLE_COUNTER(STAT_MinEvolution_AdvanceOneTimeStep);
 
-		CVD_SCOPE_TRACE_SOLVER_STEP(TEXT("Evolution Advance"));
+		CVD_SCOPE_TRACE_SOLVER_STEP(CVDDC_Default, TEXT("Evolution Advance"));
 
 		Integrate(Dt);
 
