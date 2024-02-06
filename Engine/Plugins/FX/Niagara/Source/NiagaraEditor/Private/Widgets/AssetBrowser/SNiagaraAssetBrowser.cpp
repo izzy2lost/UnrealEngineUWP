@@ -25,20 +25,6 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 #define LOCTEXT_NAMESPACE "NiagaraAssetBrowser"
 
-struct FNiagaraAssetBrowserTabs
-{
-	// Tab identifiers
-	static const FName MainSelectionTabID;
-	static const FName ContentBrowserTabID;
-	static const FName DetailsTabID;
-	static const FName UserProvidedControlsTabID;
-};
-
-const FName FNiagaraAssetBrowserTabs::MainSelectionTabID(TEXT("MainSelection"));
-const FName FNiagaraAssetBrowserTabs::ContentBrowserTabID(TEXT("ContentBrowser"));
-const FName FNiagaraAssetBrowserTabs::DetailsTabID(TEXT("Details"));
-const FName FNiagaraAssetBrowserTabs::UserProvidedControlsTabID(TEXT("UserProvidedControls"));
-
 void SNiagaraAssetBrowser::Construct(const FArguments& InArgs)
 {
 	AvailableClasses = InArgs._AvailableClasses;
@@ -173,6 +159,11 @@ FARFilter SNiagaraAssetBrowser::GetCurrentBackendFilter() const
 
 bool SNiagaraAssetBrowser::ShouldFilterAsset(const FAssetData& AssetData) const
 {
+	if(GetDefault<UNiagaraEditorSettings>()->IsAllowedAssetByClassUsage(AssetData) == false)
+	{
+		return true;
+	}
+	
 	// TODO (ME) This currently implies only one main filter/folder can be active at a time. is this wanted?
 	for(const TSharedRef<FNiagaraAssetBrowserMainFilter>& MainFilter : MainFilterSelector->GetSelectedItems())
 	{
