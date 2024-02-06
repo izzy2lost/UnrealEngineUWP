@@ -54,7 +54,7 @@ float FBeatMap::GetFractionalBeatAtTick(float Tick) const
 		return WholeBeats + FractionalBeats + 1.0f; // +1 because position is always 1 based.
 	}
 
-	return FMusicMapUtl::GetFrationalPointForTick(Points, Tick);
+	return FMusicMapUtl::GetFractionalPointForTick(Points, Tick);
 }
 
 float FBeatMap::GetFractionalTickAtBeat(float Beat) const
@@ -67,12 +67,12 @@ float FBeatMap::GetFractionalTickAtBeat(float Beat) const
 	return FMusicMapUtl::GetFractionalTickForFractionalPoint(Points, Beat);
 }
 
-EMusicalBeatType FBeatMap::GetBeatTypeAtTick(float Tick) const
+EMusicalBeatType FBeatMap::GetBeatTypeAtTick(int32 Tick) const
 {
 	if (Points.IsEmpty())
 	{
 		// assume 4/4
-		int32 Beat = FMath::FloorToInt(Tick / (float)TicksPerQuarterNote);
+		int32 Beat = Tick / TicksPerQuarterNote;
 		if (Beat % 4 == 0)
 		{
 			return EMusicalBeatType::Downbeat;
@@ -80,7 +80,7 @@ EMusicalBeatType FBeatMap::GetBeatTypeAtTick(float Tick) const
 		return EMusicalBeatType::Normal;
 	}
 
-	const FBeatMapPoint* Point = FMusicMapUtl::GetPointInfoForTick(Points, FMath::FloorToInt(Tick));
+	const FBeatMapPoint* Point = FMusicMapUtl::GetPointInfoForTick(Points, Tick);
 	if (!Point)
 	{
 		return EMusicalBeatType::Normal;
@@ -95,26 +95,26 @@ float FBeatMap::GetBeatInPulseBarAtTick(float Tick) const
 	{
 		return 1.0f; // 1 because beats relative to a bar are always 1 based.
 	}
-	float ProgressInBeat = Points[PointIndex].Progress(FMath::FloorToInt(Tick));
+	float ProgressInBeat = Points[PointIndex].Progress(Tick);
 	if (Bars.IsEmpty())
 	{
-		return (float)PointIndex + ProgressInBeat + 1.0f; // +1 because beats relative to a bar are always 1 based.
+		return PointIndex + ProgressInBeat + 1.0f; // +1 because beats relative to a bar are always 1 based.
 	}
 
 	int32 BarIndex = Points[PointIndex].PulseBar;
 	const FPulseBar& PulseBar = Bars[BarIndex];
-	float BeatInBar = PointIndex - PulseBar.FirstIncludedBeatIndex;
+	int32 BeatInBar = PointIndex - PulseBar.FirstIncludedBeatIndex;
 	return BeatInBar + ProgressInBeat + 1.0f; // +1 because beats relative to a bar are always 1 based.
 }
 
-float FBeatMap::GetNumBeatsInPulseBarAt(float Tick) const
+int32 FBeatMap::GetNumBeatsInPulseBarAt(int32 Tick) const
 {
 	if (Bars.IsEmpty())
 	{
 		return Points.Num();
 	}
 
-	int32 BeatIndex = FMusicMapUtl::GetPointIndexForTick(Points, FMath::Floor(Tick));
+	int32 BeatIndex = FMusicMapUtl::GetPointIndexForTick(Points, Tick);
 	if (BeatIndex == -1)
 	{
 		return 0;
@@ -150,7 +150,7 @@ int32 FBeatMap::FindDownbeatIndexAtOrAfterBeat(float Beat) const
 	int32 BeatIndex = FMath::FloorToInt32(Beat);
 	if (Points.IsEmpty())
 	{
-		return (((Beat + 3) / 4) * 4);
+		return (((BeatIndex + 3) / 4) * 4);
 	}
 
 	for (int32 TestIndex = BeatIndex; TestIndex < Points.Num(); ++TestIndex)

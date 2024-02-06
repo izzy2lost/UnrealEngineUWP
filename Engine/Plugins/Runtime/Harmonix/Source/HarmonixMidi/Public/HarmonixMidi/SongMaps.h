@@ -51,8 +51,8 @@ public:
 	bool LoadFromStdMidiFile(void* Buffer, int32 BufferSize, const FString& Filename);
 	bool LoadFromStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename);
 
-	float TickToMs(int32 Tick) const;
-	int32 MsToTick(float Ms) const;
+	float TickToMs(float Tick) const;
+	float MsToTick(float Ms) const;
 	float GetCountInSeconds() const;
 
 	// tracks
@@ -79,15 +79,15 @@ public:
 	float                 GetMsPerBeatAtMs(float Ms) const;
 	float                 GetMsPerBeatAtTick(int32 Tick) const;
 	float                 GetFractionalBeatAtMs(float Ms) const;
-	float                 GetFractionalBeatAtTick(int32 Tick) const;
+	float                 GetFractionalBeatAtTick(float Tick) const;
 	int32                 GetBeatIndexAtMs(float Ms) const;
 	int32                 GetBeatIndexAtTick(int32 Tick) const;
 	EMusicalBeatType      GetBeatTypeAtMs(float Ms) const;
 	EMusicalBeatType      GetBeatTypeAtTick(int32 Tick) const;
 	float                 GetBeatInPulseBarAtMs(float Ms) const;
-	float                 GetBeatInPulseBarAtTick(int32 Tick) const;
-	float                 GetNumBeatsInPulseBarAtMs(float Ms) const ;
-	float                 GetNumBeatsInPulseBarAtTick(int32 Tick) const;
+	float                 GetBeatInPulseBarAtTick(float Tick) const;
+	int32                 GetNumBeatsInPulseBarAtMs(float Ms) const ;
+	int32                 GetNumBeatsInPulseBarAtTick(int32 Tick) const;
 	FBeatMap&             GetBeatMap() { return BeatMap; }
 	const FBeatMap&       GetBeatMap() const { return BeatMap; }
 	bool                  BeatMapIsEmpty() { return BeatMap.GetNumMapPoints() == 0; }
@@ -98,9 +98,9 @@ public:
 	const FTimeSignature* GetTimeSignatureAtTick(int32 Tick) const;
 	const FTimeSignature* GetTimeSignatureAtBar(int32 Bar) const;
 	float                 GetBarIncludingCountInAtMs(float Ms) const;
-	float                 GetBarIncludingCountInAtTick(int32 Tick) const;
+	float                 GetBarIncludingCountInAtTick(float Tick) const;
 	float                 GetMsPerBarAtMs(float Ms) const;
-	float                 GetMsPerBarAtTick(int32 Tick) const;
+	float                 GetMsPerBarAtTick(float Tick) const;
 	FBarMap&              GetBarMap() { return BarMap; }
 	const FBarMap&        GetBarMap() const { return BarMap; }
 	bool                  BarMapIsEmpty() { return BarMap.GetNumTimeSignaturePoints() == 0; }
@@ -124,7 +124,7 @@ public:
 
 	// chords
 	const FChordMapPoint* GetChordAtMs(float Ms) const;
-	const FChordMapPoint* GetChordAtTick(float Tick) const;
+	const FChordMapPoint* GetChordAtTick(int32 Tick) const;
 	FName                 GetChordNameAtMs(float Ms) const;
 	FName                 GetChordNameAtTick(int32 Tick) const;
 	float                 GetChordLengthMsAtMs(float Ms) const;

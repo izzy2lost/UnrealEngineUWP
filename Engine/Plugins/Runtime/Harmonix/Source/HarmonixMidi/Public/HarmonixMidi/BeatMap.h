@@ -113,11 +113,11 @@ public:
 
 	float GetFractionalTickAtBeat(float InBeat) const;
 
-	EMusicalBeatType GetBeatTypeAtTick(float Tick) const;
+	EMusicalBeatType GetBeatTypeAtTick(int32 Tick) const;
 
-	float GetBeatInPulseBarAtTick(float tick) const;
+	float GetBeatInPulseBarAtTick(float Tick) const;
 
-	float GetNumBeatsInPulseBarAt(float Tick) const;
+	int32 GetNumBeatsInPulseBarAt(int32 Tick) const;
 
 	/** Is the specified "from count in" beat the first beat in its bar? */
 	bool IsDownbeat(float Beat) const;

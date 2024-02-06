@@ -28,14 +28,14 @@ public:
 	int32 LengthTicks;
 
 	FORCEINLINE int32 EndTick() const { return StartTick + LengthTicks; };
-	FORCEINLINE int32 ContainsTick(int32 Tick) const { return Tick >= StartTick && Tick < StartTick + LengthTicks; }
-	FORCEINLINE int32 TickInPoint(int32 Tick) const { return FMath::Clamp(Tick - StartTick, 0, LengthTicks - 1); }
-	FORCEINLINE float Progress(int32 Tick) const { return LengthTicks < 2 ? 1.0f : (float)TickInPoint(Tick) / (float)(LengthTicks - 1); }
+	FORCEINLINE bool ContainsTick(float Tick) const { return Tick >= StartTick && Tick < StartTick + LengthTicks; }
+	FORCEINLINE float TickInPoint(float Tick) const { return FMath::Clamp(Tick - StartTick, 0, LengthTicks - 1); }
+	FORCEINLINE float Progress(float Tick) const { return LengthTicks < 2 ? 1.0f : TickInPoint(Tick) / (LengthTicks - 1); }
 	// friend FArchive& operator<<(FArchive& Archive, FMusicMapTimespanBase& Info);
 	struct LessThan
 	{
-		bool operator()(const FMusicMapTimespanBase& Point, int32 Tick) const { return Point.StartTick < Tick; }
-		bool operator()(int32 Tick, const FMusicMapTimespanBase& Point) const { return Tick < Point.StartTick; }
+		bool operator()(const FMusicMapTimespanBase& Point, float Tick) const { return Point.StartTick < Tick; }
+		bool operator()(float Tick, const FMusicMapTimespanBase& Point) const { return Tick < Point.StartTick; }
 		bool operator()(const FMusicMapTimespanBase& Point1, const FMusicMapTimespanBase& Point2) const { return Point1.StartTick < Point2.StartTick; }
 	};
 };
@@ -47,7 +47,7 @@ struct HARMONIXMIDI_API FMusicMapBaseInterface
 	GENERATED_BODY()
 public:
 	virtual int32 GetPointIndexForTick(int32 Tick) const = 0;
-	virtual float GetFrationalPointForTick(int32 Tick) const = 0;
+	virtual float GetFractionalPointForTick(int32 Tick) const = 0;
 	virtual float GetFractionalTickForFractionalPoint(float Point) const = 0;
 	virtual void Finalize(int32 LastTick = 0) = 0;
 	virtual void RemovePointsOnAndAfterTick(int32 Tick) = 0;
@@ -93,14 +93,14 @@ public:
 	}
 
 	template<typename T>
-	static float GetFrationalPointForTick(const TArray<T>& Points, int32 Tick)
+	static float GetFractionalPointForTick(const TArray<T>& Points, float Tick)
 	{
-		int32 Index = GetPointIndexForTick(Points, Tick);
+		int32 Index = GetPointIndexForTick(Points, int32(Tick));
 		if (Index == -1)
 		{
 			return 0.0f;
 		}
-		return (float)Index + Points[Index].Progress(Tick);
+		return Index + Points[Index].Progress(Tick);
 	}
 
 	template<typename T>
@@ -118,7 +118,7 @@ public:
 		{
 			return 0.0f;
 		}
-		return (float)Points[Index].StartTick + ((float)Points[Index].LengthTicks * FMath::Frac(Point));
+		return Points[Index].StartTick + Points[Index].LengthTicks * FMath::Frac(Point);
 	}
 
 	template<typename T>

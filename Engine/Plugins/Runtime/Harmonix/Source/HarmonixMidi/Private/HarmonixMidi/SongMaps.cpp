@@ -42,11 +42,11 @@ void FSongMaps::Copy(const FSongMaps& Other, int32 StartTick, int32 EndTick)
 	LengthData.LastTick = LastTick;
 	LengthData.LengthTicks = LengthData.LastTick + 1;
 	FMusicTimestamp Timestamp;
-	Timestamp = BarMap.TickToMusicTimestamp(LengthData.LastTick);
+	Timestamp = BarMap.TickToMusicTimestamp(float(LengthData.LastTick));
 	LengthData.LengthBars = FMath::IsNearlyZero(Timestamp.Beat-1.0f,1.0E-4) ? Timestamp.Bar - 1 : Timestamp.Bar;
 	if (LengthData.LengthBars == Timestamp.Bar)
 	{
-		LengthData.LengthTicks = BarMap.MusicTimestampToTick({LengthData.LengthBars + BarMap.GetStartBar(), 1.0f}); 
+		LengthData.LengthTicks = int32(BarMap.MusicTimestampToTick({LengthData.LengthBars + BarMap.GetStartBar(), 1.0f}));
 		LengthData.LastTick = LengthData.LengthTicks - 1;
 	}
 }
@@ -72,7 +72,7 @@ bool FSongMaps::LoadFromStdMidiFile(TSharedPtr<FArchive> Archive, const FString&
 	return ReadWithReader(Reader);
 }
 
-float FSongMaps::TickToMs(int32 Tick) const
+float FSongMaps::TickToMs(float Tick) const
 {
 	if (TempoMap.IsEmpty())
 	{
@@ -82,20 +82,20 @@ float FSongMaps::TickToMs(int32 Tick) const
 	return TempoMap.TickToMs(Tick);
 }
 
-int32 FSongMaps::MsToTick(float Ms) const
+float FSongMaps::MsToTick(float Ms) const
 {
 	if (TempoMap.IsEmpty())
 	{
 		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0;
 	}
-	return FMath::FloorToInt(TempoMap.MsToTick(Ms));
+	return TempoMap.MsToTick(Ms);
 }
 
 float FSongMaps::GetCountInSeconds() const
 {
-	int32 BarOneBeatOneTick = BarMap.MusicTimestampToTick({1,1.0f});
-	return TempoMap.TickToSeconds(BarOneBeatOneTick);
+	float BarOneBeatOneTick = BarMap.MusicTimestampToTick({ 1, 1.0f });
+	return TempoMap.TickToMs(BarOneBeatOneTick) / 1000.f;
 }
 
 bool FSongMaps::FinalizeRead(IMidiReader* Reader)
@@ -118,11 +118,11 @@ bool FSongMaps::FinalizeRead(IMidiReader* Reader)
 	LengthData.LastTick = LastTick;
 	LengthData.LengthTicks = LengthData.LastTick + 1;
 	FMusicTimestamp Timestamp;
-	Timestamp = BarMap.TickToMusicTimestamp(LengthData.LastTick);
+	Timestamp = BarMap.TickToMusicTimestamp(float(LengthData.LastTick));
 	LengthData.LengthBars = FMath::IsNearlyZero(Timestamp.Beat - 1.0f, 1.0E-4) ? Timestamp.Bar - 1 : Timestamp.Bar;
 	if (LengthData.LengthBars == Timestamp.Bar)
 	{
-		LengthData.LengthTicks = BarMap.MusicTimestampToTick({ LengthData.LengthBars + BarMap.GetStartBar(), 1.0f });
+		LengthData.LengthTicks = int32(BarMap.MusicTimestampToTick({ LengthData.LengthBars + BarMap.GetStartBar(), 1.0f }));
 		LengthData.LastTick = LengthData.LengthTicks - 1;
 	}
 	return true;
@@ -154,7 +154,7 @@ void FSongMaps::EmptyAllMaps()
 
 float FSongMaps::GetSongLengthMs() const
 {
-	return TickToMs(GetSongLengthData().LengthTicks);
+	return TickToMs(float(GetSongLengthData().LengthTicks));
 }
 
 int32 FSongMaps::GetSongLengthBeats() const
@@ -249,7 +249,7 @@ const FTempoInfoPoint* FSongMaps::GetTempoInfoForMs(float Ms) const
 		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return nullptr;
 	}
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return TempoMap.GetTempoPointAtTick(Tick);
 }
 
@@ -270,7 +270,7 @@ float FSongMaps::GetTempoAtMs(float Ms) const
 		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Tempo Map."));
 		return 0.0f;
 	}
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return TempoMap.GetTempoAtTick(Tick);
 }
 
@@ -293,7 +293,7 @@ const FBeatMapPoint* FSongMaps::GetBeatAtMs(float Ms) const
 		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
 		return nullptr;
 	}
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return BeatMap.GetPointInfoForTick(Tick);
 }
 
@@ -345,7 +345,7 @@ const FBeatMapPoint* FSongMaps::GetBeatAtTick(int32 Tick) const
 
 float FSongMaps::GetMsPerBeatAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetMsPerBeatAtTick(Tick);
 }
 
@@ -362,18 +362,18 @@ float FSongMaps::GetMsPerBeatAtTick(int32 Tick) const
 		float BeatsPerMinute = QuarterNotesPerMinute / ((float)TimeSignature->Denominator / 4.0f /* quarter note / 4 == 1 */);
 		return 60000.0f / BeatsPerMinute;
 	}
-	return  TickToMs(BeatInfo->StartTick + BeatInfo->LengthTicks) - TickToMs(BeatInfo->StartTick);
+	return TickToMs(float(BeatInfo->StartTick + BeatInfo->LengthTicks)) - TickToMs(float(BeatInfo->StartTick));
 }
 
 float FSongMaps::GetFractionalBeatAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	float Tick = MsToTick(Ms);
 	return GetFractionalBeatAtTick(Tick);
 }
 
-float FSongMaps::GetFractionalBeatAtTick(int32 Tick) const
+float FSongMaps::GetFractionalBeatAtTick(float Tick) const
 {
-	int32 BeatIndex = GetBeatIndexAtTick(Tick);
+	int32 BeatIndex = GetBeatIndexAtTick(int32(Tick));
 	if (BeatIndex < 0 || BeatMap.IsEmpty())
 	{
 		return 1.0f; // 1 based position!
@@ -381,14 +381,14 @@ float FSongMaps::GetFractionalBeatAtTick(int32 Tick) const
 
 	const FBeatMapPoint* BeatInfo = &BeatMap.GetBeatPointInfo(BeatIndex);
 	check(BeatInfo);
-	int32 TickInBeat = Tick - BeatInfo->StartTick;
-	float FractionalPart = (float)TickInBeat / (float)BeatInfo->LengthTicks;
-	return (float)BeatIndex + FractionalPart + 1.0f; // +1 for musical position
+	float TickInBeat = Tick - BeatInfo->StartTick;
+	float FractionalPart = TickInBeat / BeatInfo->LengthTicks;
+	return BeatIndex + FractionalPart + 1.0f; // +1 for musical position
 }
 
 int32 FSongMaps::GetBeatIndexAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetBeatIndexAtTick(Tick);
 }
 
@@ -404,7 +404,7 @@ int32 FSongMaps::GetBeatIndexAtTick(int32 Tick) const
 
 EMusicalBeatType FSongMaps::GetBeatTypeAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetBeatTypeAtTick(Tick);
 }
 
@@ -420,11 +420,11 @@ EMusicalBeatType FSongMaps::GetBeatTypeAtTick(int32 Tick) const
 
 float FSongMaps::GetBeatInPulseBarAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	float Tick = MsToTick(Ms);
 	return GetBeatInPulseBarAtTick(Tick);
 }
 
-float FSongMaps::GetBeatInPulseBarAtTick(int32 Tick) const
+float FSongMaps::GetBeatInPulseBarAtTick(float Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
@@ -434,18 +434,18 @@ float FSongMaps::GetBeatInPulseBarAtTick(int32 Tick) const
 	return BeatMap.GetBeatInPulseBarAtTick(Tick);
 }
 
-float FSongMaps::GetNumBeatsInPulseBarAtMs(float Ms) const
+int32 FSongMaps::GetNumBeatsInPulseBarAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetNumBeatsInPulseBarAtTick(Tick);
 }
 
-float FSongMaps::GetNumBeatsInPulseBarAtTick(int32 Tick) const
+int32 FSongMaps::GetNumBeatsInPulseBarAtTick(int32 Tick) const
 {
 	if (BeatMap.IsEmpty())
 	{
 		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Beat Map."));
-		return 0.0f;
+		return 0;
 	}
 	return BeatMap.GetNumBeatsInPulseBarAt(Tick);
 }
@@ -455,7 +455,7 @@ float FSongMaps::GetNumBeatsInPulseBarAtTick(int32 Tick) const
 
 const FTimeSignature* FSongMaps::GetTimeSignatureAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetTimeSignatureAtTick(Tick);
 }
 
@@ -486,11 +486,11 @@ const FTimeSignature* FSongMaps::GetTimeSignatureAtBar(int32 Bar) const
 
 float FSongMaps::GetBarIncludingCountInAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	float Tick = MsToTick(Ms);
 	return GetBarIncludingCountInAtTick(Tick);
 }
 
-float FSongMaps::GetBarIncludingCountInAtTick(int32 Tick) const
+float FSongMaps::GetBarIncludingCountInAtTick(float Tick) const
 {
 	if (BarMap.IsEmpty())
 	{
@@ -502,11 +502,11 @@ float FSongMaps::GetBarIncludingCountInAtTick(int32 Tick) const
 
 float FSongMaps::GetMsPerBarAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	float Tick = MsToTick(Ms);
 	return GetMsPerBarAtTick(Tick);
 }
 
-float FSongMaps::GetMsPerBarAtTick(int32 Tick) const
+float FSongMaps::GetMsPerBarAtTick(float Tick) const
 {
 	if (TempoMap.IsEmpty())
 	{
@@ -518,8 +518,8 @@ float FSongMaps::GetMsPerBarAtTick(int32 Tick) const
 		UE_LOG(LogMidi, Log, TEXT("SongMaps does not contain a Bar Map."));
 		return 0.0f;
 	}
-	float Bpm = TempoMap.GetTempoAtTick(Tick); // quarter noted per minute
-	const FTimeSignature* TimeSignature = GetTimeSignatureAtTick(Tick);
+	float Bpm = TempoMap.GetTempoAtTick(int32(Tick)); // quarter notes per minute
+	const FTimeSignature* TimeSignature = GetTimeSignatureAtTick(int32(Tick));
 	float QuarterNotesInBar;
 	if (TimeSignature)
 	{
@@ -547,7 +547,7 @@ void FSongMaps::SetLengthTotalBars(int32 Bars)
 
 const FSongSection* FSongMaps::GetSectionAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetSectionAtTick(Tick);
 }
 
@@ -573,7 +573,7 @@ const FSongSection* FSongMaps::GetSectionWithName(const FString& Name) const
 
 FString FSongMaps::GetSectionNameAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetSectionNameAtTick(Tick);
 }
 
@@ -589,32 +589,32 @@ FString FSongMaps::GetSectionNameAtTick(int32 Tick) const
 
 float FSongMaps::GetSectionLengthMsAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetSectionLengthMsAtTick(Tick);
 }
 
 float FSongMaps::GetSectionStartMsAtMs(float Ms) const
 {
-	const int32 Tick = MsToTick(Ms);
+	const int32 Tick = int32(MsToTick(Ms));
 	const FSongSection* SectionAtTick = GetSectionAtTick(Tick);
 	if (!SectionAtTick)
 	{
 		return 0.0f;
 	}
 
-	return TickToMs(SectionAtTick->StartTick);
+	return TickToMs(float(SectionAtTick->StartTick));
 }
 
 float FSongMaps::GetSectionEndMsAtMs(float Ms) const
 {
-	const int32 Tick = MsToTick(Ms);
+	const int32 Tick = int32(MsToTick(Ms));
 	const FSongSection* SectionAtTick = GetSectionAtTick(Tick);
 	if (!SectionAtTick)
 	{
 		return 0.0f;
 	}
 
-	return TickToMs(SectionAtTick->EndTick());
+	return TickToMs(float(SectionAtTick->EndTick()));
 }
 
 float FSongMaps::GetSectionLengthMsAtTick(int32 Tick) const
@@ -625,8 +625,8 @@ float FSongMaps::GetSectionLengthMsAtTick(int32 Tick) const
 		return 0.0f;
 	}
 
-	float StartMs = TickToMs(SectionAtTick->StartTick);
-	float EndMs = TickToMs(SectionAtTick->EndTick());
+	float StartMs = TickToMs(float(SectionAtTick->StartTick));
+	float EndMs = TickToMs(float(SectionAtTick->EndTick()));
 	return EndMs - StartMs;
 }
 
@@ -635,11 +635,11 @@ float FSongMaps::GetSectionLengthMsAtTick(int32 Tick) const
 
 const FChordMapPoint* FSongMaps::GetChordAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetChordAtTick(Tick);
 }
 
-const FChordMapPoint* FSongMaps::GetChordAtTick(float Tick) const
+const FChordMapPoint* FSongMaps::GetChordAtTick(int32 Tick) const
 {
 	if (ChordMap.IsEmpty())
 	{
@@ -651,7 +651,7 @@ const FChordMapPoint* FSongMaps::GetChordAtTick(float Tick) const
 
 FName FSongMaps::GetChordNameAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetChordNameAtTick(Tick);
 }
 
@@ -667,7 +667,7 @@ FName FSongMaps::GetChordNameAtTick(int32 Tick) const
 
 float FSongMaps::GetChordLengthMsAtMs(float Ms) const
 {
-	int32 Tick = MsToTick(Ms);
+	int32 Tick = int32(MsToTick(Ms));
 	return GetChordLengthMsAtTick(Tick);
 }
 
@@ -678,8 +678,8 @@ float FSongMaps::GetChordLengthMsAtTick(int32 Tick) const
 	{
 		return 0.0f;
 	}
-	float ChordStartMs = TickToMs(ChordInfo->StartTick);
-	float ChordEndMs = TickToMs(ChordInfo->EndTick());
+	float ChordStartMs = TickToMs(float(ChordInfo->StartTick));
+	float ChordEndMs = TickToMs(float(ChordInfo->EndTick()));
 	return ChordEndMs - ChordStartMs;
 }
 
