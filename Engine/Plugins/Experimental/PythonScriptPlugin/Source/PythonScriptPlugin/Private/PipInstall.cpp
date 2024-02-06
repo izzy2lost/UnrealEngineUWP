@@ -111,43 +111,33 @@ const FString FPipInstall::ExtraUrlsFilename = TEXT("extra_urls.txt");
 const FString FPipInstall::ParsedRequirementsFilename = TEXT("merged_requirements.txt");
 
 
-bool FPipInstall::EnabledOnStartup()
+FPipInstall& FPipInstall::Get()
 {
-	bool bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
-	bool bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
+	static FPipInstall Instance;
+	return Instance;
+}
 
+
+bool FPipInstall::IsEnabled()
+{
 	return bRunOnStartup && !bCmdLineDisable;
+}
+
+bool FPipInstall::IsCmdLineDisabled()
+{
+	return bCmdLineDisable;
 }
 
 FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::WritePluginsListing);
 
-	const FString PipInstallPath = GetPipInstallPath();
-
 	OutPythonPlugins.Empty();
 
 	// List of plugins with pip dependencies
 	TArray<FString> PipPluginPaths;
-	// List of enabled plugins' site-packages folders
-	TArray<FString> PluginSitePackagePaths;
 	for ( const TSharedRef<IPlugin>& Plugin : IPluginManager::Get().GetEnabledPlugins() )
 	{
-		const FString PythonContentPath = FPaths::ConvertRelativePathToFull(Plugin->GetContentDir() / TEXT("Python"));
-		const FString PluginPlatformSitePackagesPath = PythonContentPath / TEXT("Lib") / FPlatformMisc::GetUBTPlatform() / TEXT("site-packages");
-		const FString PluginGeneralSitePackagesPath = PythonContentPath / TEXT("Lib") / TEXT("site-packages");
-
-		// Write platform/general site-packages paths per-plugin to .pth file to account for packaged python dependencies during pip install
-		if (FPaths::DirectoryExists(PluginPlatformSitePackagesPath))
-		{
-			PluginSitePackagePaths.Add(PluginPlatformSitePackagesPath);
-		}
-
-		if (FPaths::DirectoryExists(PluginGeneralSitePackagesPath))
-		{
-			PluginSitePackagePaths.Add(PluginGeneralSitePackagesPath);
-		}
-
 		const FPluginDescriptor& PluginDesc = Plugin->GetDescriptor();
 		if (PluginDesc.CachedJson->HasTypedField(TEXT("PythonRequirements"), EJson::Array))
 		{
@@ -161,9 +151,8 @@ FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonP
 	const FString PyPluginsListingFile = PipInstallPath / PluginsListingFilename;
 	FFileHelper::SaveStringArrayToFile(PipPluginPaths, *PyPluginsListingFile);
 
-	// Create .pth file in PipInstall/Lib/site-packages to account for plugins with packaged dependencies
-	const FString PyPluginsSitePackageFile = GetPipSitePackagesPath() / PluginsSitePackageFilename;
-	FFileHelper::SaveStringArrayToFile(PluginSitePackagePaths, *PyPluginsSitePackageFile);
+	// Create .pth file in site-packages dir to account for plugins with packaged dependencies
+	WriteSitePackagePthFile();
 
     return PyPluginsListingFile;
 }
@@ -171,8 +160,6 @@ FString FPipInstall::WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonP
 FString FPipInstall::WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::WritePluginDependencies);
-
-	const FString PipInstallPath = GetPipInstallPath();
 
 	OutRequirements.Empty();
 	OutExtraUrls.Empty();
@@ -309,7 +296,6 @@ void FPipInstall::CheckInvalidPipEnv()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::CheckInvalidPipEnv);
 
-	const FString PipInstallPath = GetPipInstallPath();
 	if (!FPaths::DirectoryExists(PipInstallPath))
 	{
 		return;
@@ -322,7 +308,7 @@ void FPipInstall::CheckInvalidPipEnv()
 		return;
 	}
 
-	const FString VenvVersion = ParseVenvVersion(PipInstallPath);
+	const FString VenvVersion = ParseVenvVersion();
 	if (VenvVersion == TEXT(PY_VERSION))
 	{
 		return;
@@ -338,12 +324,9 @@ void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* =
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::SetupPipEnv);
 
-	const FString PipInstallPath = GetPipInstallPath();
-	const FString VenvInterp = GetVenvInterpreter(PipInstallPath);
-
 	if (!bForceRebuild && FPaths::FileExists(VenvInterp))
 	{
-		SetupPipInstallUtils(VenvInterp, Context);
+		SetupPipInstallUtils(Context);
 		return;
 	}
 
@@ -363,16 +346,14 @@ void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* =
 		return;
 	}
 
-	SetupPipInstallUtils(VenvInterp, Context);
+	SetupPipInstallUtils(Context);
 }
 
 void FPipInstall::RemoveParsedDependencyFiles()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::ParsePluginDependencies);
 
-	const FString PipInstallPath = GetPipInstallPath();
 	const FString ParsedReqsFile = PipInstallPath / ParsedRequirementsFilename;
-
 	if (FPaths::FileExists(ParsedReqsFile))
 	{
 		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
@@ -383,9 +364,6 @@ void FPipInstall::RemoveParsedDependencyFiles()
 FString FPipInstall::ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::ParsePluginDependencies);
-
-	const FString PipInstallPath = GetPipInstallPath();
-	const FString VenvInterp = GetVenvInterpreter(PipInstallPath);
 
 	const FString ParsedReqsFile = PipInstallPath / ParsedRequirementsFilename;
 
@@ -398,9 +376,6 @@ FString FPipInstall::ParsePluginDependencies(const FString& MergedInRequirements
 bool FPipInstall::RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly, const FString& ForceIndexUrl)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::RunPipInstall);
-
-	const FString PipInstallPath = GetPipInstallPath();
-	const FString VenvInterp = GetVenvInterpreter(PipInstallPath);
 
 	const FString ParsedReqsFile = PipInstallPath / ParsedRequirementsFilename;
 	const FString ExtraUrlsFile = PipInstallPath / ExtraUrlsFilename;
@@ -431,7 +406,7 @@ bool FPipInstall::RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly, co
 	}
 	else if (!ForceIndexUrl.IsEmpty())
 	{
-		Cmd += TEXT("--index-url ") + ForceIndexUrl;
+		Cmd += TEXT(" --index-url ") + ForceIndexUrl;
 	}
 	else if (!ExtraUrls.IsEmpty())
 	{
@@ -446,6 +421,19 @@ bool FPipInstall::RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly, co
 	TSharedPtr<IProgressParser> ProgParser = MakeShared<FPipProgressParser>(ReqCount);
 	int32 Result = RunPythonCmd(LOCTEXT("PipInstall.InstallRequirements", "Installing pip requirements..."), VenvInterp, Cmd, Context, ProgParser);
 	return (Result == 0);
+}
+
+int FPipInstall::NumPackagesToInstall()
+{
+	const FString ParsedReqsFile = FPaths::ConvertRelativePathToFull(PipInstallPath / ParsedRequirementsFilename);
+
+	TArray<FString> ParsedReqLines;
+	if (!FPaths::FileExists(ParsedReqsFile) || !FFileHelper::LoadFileToStringArray(ParsedReqLines, *ParsedReqsFile))
+	{
+		return 0;
+	}
+
+	return FPipInstall::CountInstallLines(ParsedReqLines);
 }
 
 int FPipInstall::CountInstallLines(const TArray<FString>& RequirementLines)
@@ -465,7 +453,7 @@ int FPipInstall::CountInstallLines(const TArray<FString>& RequirementLines)
 
 FString FPipInstall::GetPipInstallPath()
 {
-	return FPaths::ProjectIntermediateDir() / TEXT("PipInstall");
+	return PipInstallPath;
 }
 
 FString FPipInstall::GetPipSitePackagesPath()
@@ -481,16 +469,98 @@ FString FPipInstall::GetPipSitePackagesPath()
 }
 
 
-void FPipInstall::SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context)
+FPipInstall::FPipInstall()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::FPipInstall);
+
+	// Check settings/cmd-line for whether pip installer is enabled
+	bRunOnStartup = GetDefault<UPythonScriptPluginSettings>()->bRunPipInstallOnStartup;
+	bCmdLineDisable = FParse::Param(FCommandLine::Get(), TEXT("DisablePipInstall"));
+
+	// Default install path: <ProjectDir>/PipInstall
+	PipInstallPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectIntermediateDir() / TEXT("PipInstall"));
+
+	// Check for UE_PIPINSTALL_PATH install path override
+	const FString EnvInstallPath = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_PIPINSTALL_PATH"));
+	if (!EnvInstallPath.IsEmpty())
+	{
+		FText ErrReason;
+		if (FPaths::ValidatePath(EnvInstallPath, &ErrReason))
+		{
+			PipInstallPath = FPaths::ConvertRelativePathToFull(EnvInstallPath);
+		}
+		else
+		{
+			UE_LOG(LogPython, Warning, TEXT("UE_PIPINSTALL_PATH: Invalid path specified: %s"), *ErrReason.ToString());
+		}
+	}
+
+	VenvInterp = GetVenvInterpreter(PipInstallPath);
+}
+
+
+void FPipInstall::WriteSitePackagePthFile()
+{
+	// Write all paths from script-plugin
+	// TODO: Should we directly use PyUtil::GetSystemPaths instead?
+	// TArray<FString> PluginSitePackagePaths = PyUtil::GetSystemPaths();
+
+	// List of enabled plugins' site-packages folders
+	TArray<FString> PluginSitePackagePaths;
+	for ( const TSharedRef<IPlugin>& Plugin : IPluginManager::Get().GetEnabledPlugins() )
+	{
+		const FString PythonContentPath = FPaths::ConvertRelativePathToFull(Plugin->GetContentDir() / TEXT("Python"));
+		const FString PluginPlatformSitePackagesPath = PythonContentPath / TEXT("Lib") / FPlatformMisc::GetUBTPlatform() / TEXT("site-packages");
+		const FString PluginGeneralSitePackagesPath = PythonContentPath / TEXT("Lib") / TEXT("site-packages");
+
+		// Write platform/general site-packages paths per-plugin to .pth file to account for packaged python dependencies during pip install
+		if (FPaths::DirectoryExists(PluginPlatformSitePackagesPath))
+		{
+			PluginSitePackagePaths.Add(PluginPlatformSitePackagesPath);
+		}
+
+		if (FPaths::DirectoryExists(PluginGeneralSitePackagesPath))
+		{
+			PluginSitePackagePaths.Add(PluginGeneralSitePackagesPath);
+		}
+	}
+
+	// Additional paths
+	for (const FDirectoryPath& AdditionalPath : GetDefault<UPythonScriptPluginSettings>()->AdditionalPaths)
+	{
+		const FString AddPath = FPaths::ConvertRelativePathToFull(AdditionalPath.Path);
+		if (FPaths::DirectoryExists(AddPath))
+		{
+			PluginSitePackagePaths.Add(AddPath);
+		}
+	}
+
+	// UE_PYTHONPATH
+	TArray<FString> SystemEnvPaths;
+	FPlatformMisc::GetEnvironmentVariable(TEXT("UE_PYTHONPATH")).ParseIntoArray(SystemEnvPaths, FPlatformMisc::GetPathVarDelimiter());
+	for (const FString& SystemEnvPath : SystemEnvPaths)
+	{
+		if (FPaths::DirectoryExists(SystemEnvPath))
+		{
+			PluginSitePackagePaths.Add(SystemEnvPath);
+		}
+	}
+
+	// Create .pth file in PipInstall/Lib/site-packages to account for plugins with packaged dependencies
+	const FString PyPluginsSitePackageFile = GetPipSitePackagesPath() / PluginsSitePackageFilename;
+	FFileHelper::SaveStringArrayToFile(PluginSitePackagePaths, *PyPluginsSitePackageFile);
+}
+
+
+void FPipInstall::SetupPipInstallUtils(FFeedbackContext* Context)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::SetupPipInstallUtils);
 
-	if (CheckPipInstallUtils(VenvInterp, Context))
+	if (CheckPipInstallUtils(Context))
 	{
 		return;
 	}
 
-	const FString PipInstallPath = GetPipInstallPath();
 	const FString PythonScriptDir = GetPythonScriptPluginPath();
 	if (PythonScriptDir.IsEmpty())
 	{
@@ -507,7 +577,7 @@ void FPipInstall::SetupPipInstallUtils(const FString& VenvInterp, FFeedbackConte
 }
 
 
-bool FPipInstall::CheckPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context)
+bool FPipInstall::CheckPipInstallUtils(FFeedbackContext* Context)
 {
 	// Verify that correct version of pip install utils is already available
 	const FString Cmd = FString::Printf(TEXT("-c \"import pkg_resources;dist=pkg_resources.working_set.find(pkg_resources.Requirement.parse('ue-pipinstall-utils'));exit(dist.version!='%s' if dist is not None else 1)\""), *PipInstallUtilsVer);
@@ -518,7 +588,7 @@ int32 FPipInstall::RunPythonCmd(const FText& Description, const FString& PythonI
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::RunPythonCmd);
 
-	UE_LOG(LogPython, Log, TEXT("Running python command: python %s"), *Cmd);
+	UE_LOG(LogPython, Log, TEXT("Running python command: \"%s\" %s"), *PythonInterp, *Cmd);
 
 	int32 Result = 0;
 	RunLoggedSubprocess(&Result, Description, FPaths::ConvertRelativePathToFull(PythonInterp), Cmd, Context, CmdParser);
@@ -593,9 +663,9 @@ FString FPipInstall::GetPythonScriptPluginPath()
 	return PythonPlugin->GetBaseDir();
 }
 
-FString FPipInstall::ParseVenvVersion(const FString& InstallPath)
+FString FPipInstall::ParseVenvVersion()
 {
-	FString VenvConfig = InstallPath / TEXT("pyvenv.cfg");
+	FString VenvConfig = PipInstallPath / TEXT("pyvenv.cfg");
 	if (!FPaths::FileExists(VenvConfig))
 	{
 		return TEXT("");

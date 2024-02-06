@@ -166,8 +166,6 @@ private:
 
 	void RunPipInstaller();
 
-	bool RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context);
-
 	void RequestStubCodeGeneration();
 
 	void GenerateStubCode();
