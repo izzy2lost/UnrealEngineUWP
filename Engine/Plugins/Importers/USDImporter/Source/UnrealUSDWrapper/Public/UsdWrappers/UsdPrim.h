@@ -28,6 +28,8 @@ namespace UE
 	class FUsdReferences;
 	class FUsdVariantSet;
 	class FUsdVariantSets;
+	class FUsdRelationship;
+	
 
 	namespace Internal
 	{
@@ -110,6 +112,7 @@ namespace UE
 
 		const FSdfPath GetPrimPath() const;
 		FUsdStage GetStage() const;
+		FUsdRelationship GetRelationship(const TCHAR* RelationshipName) const;
 
 		FName GetName() const;
 

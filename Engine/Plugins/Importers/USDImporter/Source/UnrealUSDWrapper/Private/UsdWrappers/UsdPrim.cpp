@@ -9,6 +9,7 @@
 #include "UsdWrappers/UsdPayloads.h"
 #include "UsdWrappers/UsdReferences.h"
 #include "UsdWrappers/UsdStage.h"
+#include "UsdWrappers/UsdRelationship.h"
 #include "UsdWrappers/UsdVariantSets.h"
 
 #if USE_USD_SDK
@@ -16,6 +17,7 @@
 #include "pxr/usd/sdf/schema.h"
 #include "pxr/usd/usd/attribute.h"
 #include "pxr/usd/usd/prim.h"
+#include "pxr/usd/usd/relationship.h"
 #include "USDIncludesEnd.h"
 #endif	  // #if USE_USD_SDK
 
@@ -404,6 +406,15 @@ namespace UE
 		return FUsdStage(Impl->PxrUsdPrim.Get().GetStage());
 #else
 		return FUsdStage();
+#endif	  // #if USE_USD_SDK
+	}
+
+	FUsdRelationship FUsdPrim::GetRelationship(const TCHAR* RelationshipName) const
+	{
+#if USE_USD_SDK
+		return FUsdRelationship(Impl->PxrUsdPrim.Get().GetRelationship(pxr::TfToken(TCHAR_TO_ANSI(RelationshipName))));
+#else
+		return FUsdRelationship();
 #endif	  // #if USE_USD_SDK
 	}
 
