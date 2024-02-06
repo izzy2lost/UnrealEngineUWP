@@ -36,6 +36,15 @@ public:
 	}
 	
 	/**
+	 * Attempt to create a new outer from the given arguments, and fill in OutOuter.
+	 * @return True if this function handled the creation attempt (this doesn't mean that OutOuter isn't null!).
+	 */
+	virtual bool CreateOuter(UObject*& OutOuter, const FString& OuterPathName) const
+	{
+		return false;
+	}
+
+	/**
 	 * Attempt to create a new object from the given arguments, and fill in OutObject.
 	 * @return True if this function handled the creation attempt (this doesn't mean that OutObject isn't null!), or false if we should fallback to using NewObject.
 	 */
