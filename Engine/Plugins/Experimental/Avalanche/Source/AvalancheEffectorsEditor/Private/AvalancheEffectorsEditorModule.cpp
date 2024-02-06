@@ -63,4 +63,4 @@ void FAvalancheEffectorsEditorModule::RegisterComponentVisualizers()
 	IAvalancheComponentVisualizersModule::RegisterComponentVisualizer<UCEClonerComponent, FAvaClonerActorVisualizer>(&Visualizers);
 }
 
-IMPLEMENT_MODULE(FAvalancheEffectorsEditorModule, AvalancheEffectorsEditorModule)
+IMPLEMENT_MODULE(FAvalancheEffectorsEditorModule, AvalancheEffectorsEditor)

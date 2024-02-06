@@ -93,14 +93,19 @@ TArray<AActor*> FAvalancheEffectorsModule::GetOrderedChildrenActors(const AActor
 	{
 		TArray<AActor*> AttachedActors;
 		InParentActor->GetAttachedActors(AttachedActors, true, false);
-		ChildrenActors.Reserve(AttachedActors.Num());
+		ChildrenActors.SetNumUninitialized(AttachedActors.Num(), EAllowShrinking::No);
 		const FAvaSceneTree& SceneTree = SceneInterface->GetSceneTree();
 
 		for (AActor* ChildActor : AttachedActors)
 		{
 			if (const FAvaSceneTreeNode* ChildNode = SceneTree.FindTreeNode(FAvaSceneItem(ChildActor, ClonerWorld)))
 			{
-				ChildrenActors.Insert(ChildActor, ChildNode->GetLocalIndex());
+				const int32 ChildIndex = ChildNode->GetLocalIndex();
+
+				if (ChildrenActors.IsValidIndex(ChildIndex))
+				{
+					ChildrenActors[ChildIndex] = ChildActor;
+				}
 			}
 		}
 	}
@@ -112,4 +117,4 @@ TArray<AActor*> FAvalancheEffectorsModule::GetOrderedChildrenActors(const AActor
 	return ChildrenActors;
 }
 
-IMPLEMENT_MODULE(FAvalancheEffectorsModule, AvalancheEffectorsModule)
+IMPLEMENT_MODULE(FAvalancheEffectorsModule, AvalancheEffectors)
