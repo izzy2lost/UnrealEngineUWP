@@ -8,22 +8,16 @@ public class AvalancheEffectors : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-				"CoreUObject",
-				"Engine"
-			}
-		);
-
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"AvalancheCore",
 				"Avalanche",
+				"AvalancheCore",
 				"AvalancheSceneTree",
-				"ClonerEffector"
+				"ClonerEffector",
+				"Core",
+				"CoreUObject",
+				"Engine",
 			}
 		);
 

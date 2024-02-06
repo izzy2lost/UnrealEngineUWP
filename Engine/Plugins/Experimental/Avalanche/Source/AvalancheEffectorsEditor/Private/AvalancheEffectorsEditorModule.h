@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include "IAvalancheInteractiveToolsModule.h"
+#include "Containers/Array.h"
 #include "Modules/ModuleInterface.h"
+#include "Templates/SharedPointerFwd.h"
 
 class FComponentVisualizer;
+class IAvalancheInteractiveToolsModule;
 
 class FAvalancheEffectorsEditorModule : public IModuleInterface
 {
