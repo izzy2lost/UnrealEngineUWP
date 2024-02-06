@@ -950,6 +950,12 @@ void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 	check(Resources->RuntimeResourceID != INDEX_NONE && Resources->HierarchyOffset != INDEX_NONE);
 
 #if RHI_RAYTRACING
+	if (IsRayTracingAllowed())
+	{
+		// copy RayTracingGeometryGroupHandle from FStaticMeshRenderData since UStaticMesh can be released before the proxy is destroyed
+		RayTracingGeometryGroupHandle = RenderData->RayTracingGeometryGroupHandle;
+	}
+
 	if (IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
 	{
 		CreateDynamicRayTracingGeometries(RHICmdList);
@@ -1993,6 +1999,12 @@ ERayTracingPrimitiveFlags FSceneProxy::GetCachedRayTracingInstance(FRayTracingIn
 	}
 
 	return ResultFlags;
+}
+
+RayTracing::GeometryGroupHandle FSceneProxy::GetRayTracingGeometryGroupHandle() const
+{
+	check(IsInRenderingThread());
+	return RayTracingGeometryGroupHandle;
 }
 
 #endif // RHI_RAYTRACING

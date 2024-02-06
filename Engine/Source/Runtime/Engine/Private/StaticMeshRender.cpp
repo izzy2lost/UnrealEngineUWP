@@ -753,6 +753,12 @@ void FStaticMeshSceneProxy::ReleaseDynamicRayTracingGeometries()
 void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 {
 #if RHI_RAYTRACING
+	if (IsRayTracingAllowed())
+	{
+		// copy RayTracingGeometryGroupHandle from FStaticMeshRenderData since UStaticMesh can be released before the proxy is destroyed
+		RayTracingGeometryGroupHandle = RenderData->RayTracingGeometryGroupHandle;
+	}
+
 	if(IsRayTracingAllowed() && bNeedsDynamicRayTracingGeometries)
 	{
 		CreateDynamicRayTracingGeometries(RHICmdList);
@@ -1869,6 +1875,12 @@ TArray<FRayTracingGeometry*> FStaticMeshSceneProxy::GetStaticRayTracingGeometrie
 	}
 
 	return {};
+}
+
+RayTracing::GeometryGroupHandle FStaticMeshSceneProxy::GetRayTracingGeometryGroupHandle() const
+{
+	check(IsInRenderingThread());
+	return RayTracingGeometryGroupHandle;
 }
 
 void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGatheringContext& Context, TArray<FRayTracingInstance>& OutRayTracingInstances )

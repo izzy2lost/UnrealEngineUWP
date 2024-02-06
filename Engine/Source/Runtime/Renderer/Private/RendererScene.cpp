@@ -5780,8 +5780,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 #if RHI_RAYTRACING
 				if (SceneProxy->IsNaniteMesh() && SceneProxy->HasRayTracingRepresentation())
 				{
-					auto* NaniteProxy = static_cast<Nanite::FSceneProxy*>(SceneProxy);
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(NaniteProxy, NaniteProxy->GetStaticMesh());
+					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(SceneProxy, SceneProxy->GetRayTracingGeometryGroupHandle());
 
 					Nanite::GRayTracingManager.Remove(PrimitiveSceneInfo);
 				}
@@ -6095,8 +6094,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 #if RHI_RAYTRACING
 				if (SceneProxy->IsNaniteMesh() && SceneProxy->HasRayTracingRepresentation())
 				{
-					auto* NaniteProxy = static_cast<Nanite::FSceneProxy*>(SceneProxy);
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RegisterProxyWithCachedRayTracingState(NaniteProxy, NaniteProxy->GetStaticMesh());
+					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RegisterProxyWithCachedRayTracingState(SceneProxy, SceneProxy->GetRayTracingGeometryGroupHandle());
 
 					Nanite::GRayTracingManager.Add(PrimitiveSceneInfo);
 				}
