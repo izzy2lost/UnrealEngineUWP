@@ -22,6 +22,10 @@ public:
 		SHADER_PARAMETER(float, MaxValue)
 	END_SHADER_PARAMETER_STRUCT()
 
+	class FInvertIncludeAlpha : SHADER_PERMUTATION_BOOL("INVERT_INCLUDE_ALPHA");
+	class FInvertClamp : SHADER_PERMUTATION_BOOL("INVERT_CLAMP");
+	using FPermutationDomain = TShaderPermutationDomain<FInvertIncludeAlpha, FInvertClamp>;
+
 public:
 	static bool						ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
 	{
@@ -36,5 +40,5 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	/// Static functions
 	//////////////////////////////////////////////////////////////////////////
-	static TiledBlobPtr				Create(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, TiledBlobPtr Source, float MaxValue, int32 TargetId);
+	static TiledBlobPtr				Create(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredOutputDesc, TiledBlobPtr Source, float MaxValue, int32 TargetId, bool bIncludeAlpha, bool bClamp);
 };

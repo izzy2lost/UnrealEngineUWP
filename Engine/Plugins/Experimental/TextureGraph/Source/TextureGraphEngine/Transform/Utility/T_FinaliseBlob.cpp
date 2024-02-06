@@ -72,23 +72,15 @@ protected:
 						return JobResult->Finalise(true, nullptr);
 				}
 
-				EndNative();
-
 				return static_cast<AsyncBufferResultPtr>(cti::make_ready_continuable<BufferResultPtr>(std::make_shared<BufferResult>()));
 			})
-			.then([this](BufferResultPtr result) mutable
+			.then([this](BufferResultPtr) mutable
 			{
-				auto JobResult = OriginalJobObj->GetResultRef();
+				BlobRef JobResult = OriginalJobObj->GetResultRef();
 
 				if (JobResult)
 				{
 					OriginalJobObj->AddResultToBlobber();
-					//TextureGraphEngine::Blobber()->AddTiledResult(jobResult->Hash(), jobResult,
-					//	{
-					//		false,
-					//		_runInfo.cycle->NoCache()
-					//	});
-
 					TransformResultPtr TResult = std::make_shared<TransformResult>();
 					TResult->Target = JobResult;
 				}

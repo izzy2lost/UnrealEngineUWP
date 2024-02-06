@@ -40,6 +40,11 @@ Blob::Blob() : Buffer(Device_Null::Get()->Create(BufferDescriptor(), nullptr))
 Blob::Blob(DeviceBufferRef InBuffer) 
 	: Buffer(InBuffer)
 {
+	if (InBuffer && InBuffer->IsValid() && !InBuffer->IsNull())
+	{
+		bIsFinalised = true;
+		FinaliseTS = FDateTime::Now();
+	}
 }
 
 /// Allocate a NULL device buffer by default

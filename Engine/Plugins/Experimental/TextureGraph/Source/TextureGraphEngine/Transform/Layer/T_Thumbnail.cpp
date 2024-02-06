@@ -25,6 +25,9 @@ JobBatchPtr AddThumbJobToCycle(TiledBlobPtr InBlobToBind, JobUPtr JobPtr, UObjec
 
 TiledBlobRef T_Thumbnail::Bind(UMixInterface* Mix, UObject* Model, TiledBlobPtr InBlobToBind, int32 InTargetId)
 {
+	if (InBlobToBind->IsTransient())
+		return TextureHelper::GetBlack();
+
 	check(InBlobToBind);
 
 	UE_LOG(LogJob, VeryVerbose, TEXT("T_Thumbnail::Bind [%s]"), *InBlobToBind->Name());
@@ -33,13 +36,18 @@ TiledBlobRef T_Thumbnail::Bind(UMixInterface* Mix, UObject* Model, TiledBlobPtr 
 	RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterialOfType_FX<Fx_FullScreenCopy>(ThmJobName);
 
 	JobUPtr JobPtr = std::make_unique<Job>(Mix, InTargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));
-	JobPtr->AddArg(ARG_BLOB(InBlobToBind, "SourceTexture"));
-	JobPtr->SetTiled(false);
+	JobPtr
+		->AddArg(ARG_BLOB(InBlobToBind, "SourceTexture"))
+		->SetTiled(false)
+		;
+
 	BufferDescriptor Desc = InBlobToBind->GetDescriptor();
 	Desc.Width = RenderMaterial_Thumbnail::GThumbWidth;
 	Desc.Height = RenderMaterial_Thumbnail::GThumbHeight;
+
+	FString Name = FString::Printf(TEXT("T_Thumbnail [%s]"), *InBlobToBind->GetDescriptor().Name);
 	
-	TiledBlobPtr Result = JobPtr->InitResult(TEXT("T_Thumbnail"), &Desc);
+	TiledBlobPtr Result = JobPtr->InitResult(Name, &Desc);
 	Result->MakeSingleBlob();
 
 	AddThumbJobToCycle(InBlobToBind, std::move(JobPtr), Model, InTargetId);

@@ -997,6 +997,30 @@ void TiledBlob::SetLODLevel(int32 Level, BlobPtr Blob_, BlobPtrW LODParent_, Blo
 	});
 }
 
+void TiledBlob::FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash)
+{
+	check(IsInGameThread());
+
+	UE_LOG(LogJob, Verbose, TEXT("Finalised tiled BlobObj: %s"), *Desc.Name);
+
+	/// Debug: check that all Tiles are valid
+	for (int32 TileX = 0; TileX < Tiles.Rows(); TileX++)
+	{
+		for (int32 TileY = 0; TileY < Tiles.Cols(); TileY++)
+		{
+			check(Tiles[TileX][TileY]);
+			BlobPtr Tile = Tiles[TileX][TileY];
+			Tile->FinaliseNow(bNoCalcHash, nullptr);
+		}
+	}
+
+	if (SingleBlob)
+		SingleBlob->FinaliseNow(bNoCalcHash, nullptr);
+
+	bIsFinalised = true;
+	FinaliseTS = FDateTime::Now();
+}
+
 //////////////////////////////////////////////////////////////////////////
 TiledBlob_Promise::TiledBlob_Promise(TiledBlobPtr Source) : TiledBlob(Source->GetDescriptor(), Source->GetTiles())
 {
@@ -1059,20 +1083,7 @@ void TiledBlob_Promise::FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash)
 	check(IsInGameThread());
 
 	UE_LOG(LogJob, Verbose, TEXT("Finalised promised BlobObj: %s"), *Desc.Name);
-
-	/// Debug: check that all Tiles are valid
-	for (int32 TileX = 0; TileX < Tiles.Rows(); TileX++)
-	{
-		for (int32 TileY = 0; TileY < Tiles.Cols(); TileY++)
-		{
-			check(Tiles[TileX][TileY]);
-			BlobPtr Tile = Tiles[TileX][TileY];
-			Tile->FinaliseNow(bNoCalcHash, nullptr);
-		}
-	}
-
-	bIsFinalised = true;
-	FinaliseTS = FDateTime::Now();
+	TiledBlob::FinaliseNow(bNoCalcHash, FixedHash);
 
 	/// Trigger the callbacks - Should always be the last step of finalize
 	NotifyCallbacks();

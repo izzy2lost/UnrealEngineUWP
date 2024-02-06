@@ -80,9 +80,8 @@ void STG_NodeThumbnail::UpdateParams(TiledBlobPtr InBlob)
 	if (!InBlob)
 		return;
 	
-	// we should assume that the block is finalised at this point
-	check (InBlob->IsFinalised());
-
+	/// If the blob hasn't been finalised then we don't do anything. This sort of scenario can happen if you end 
+	/// up with your thumbnail generation split between multiple batches on the ThumbnailsService
 	if (InBlob->IsFinalised())
 	{
 		UTexture* BlobTexture = GetTextureFromBlob(InBlob);

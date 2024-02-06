@@ -31,10 +31,18 @@ public:
 	UPROPERTY(meta = (TGType = "TG_Input", PinDisplayName = ""))
 	FTG_Texture							Input;
 
+	// Whether to invert the Alpha channel as well?
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinNotConnectable = true))
+	bool								IncludeAlpha = false;
+
+	// Saturate/clamp values in the [0, 1] range or not
+	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinNotConnectable = true))
+	bool								Clamp = false;
+
 	// The inverted output. This is calculated as MaxValue - Input for every pixel in every channel
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))
 	FTG_Texture							Output;
 	
-	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Inverts the input, i.e. computes one minus the pixel value.")); } 
+	virtual FText						GetTooltipText() const override { return FText::FromString(TEXT("Inverts the input, i.e. computes one minus the pixel value. Alpha is only inverted if the flag is checked.")); } 
 };
 
