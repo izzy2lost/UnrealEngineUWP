@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/GraphHandle.h"
-
-#include "Graph/Graph.h"
 #include "Graph/GraphElement.h"
 #include "Graph/GraphEdge.h"
 #include "Graph/GraphIsland.h"
@@ -13,19 +11,35 @@
 
 DEFINE_LOG_CATEGORY(LogGameplayGraph)
 
-FGraphVertexHandle FGraphVertexHandle::Invalid;
-FGraphEdgeHandle FGraphEdgeHandle::Invalid;
-FGraphIslandHandle FGraphIslandHandle::Invalid;
-
-FGraphHandle::FGraphHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph)
-	: UniqueIndex(InUniqueIndex)
-	, WeakGraph(InGraph)
+FGraphHandle::FGraphHandle()
 {
+
+}
+
+FGraphHandle::FGraphHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+	: UniqueIndex(InUniqueIndex)
+	, Element(InElement)
+{
+}
+
+void FGraphHandle::SetElement(TObjectPtr<UGraphElement> InElement)
+{
+	Element = InElement;
+}
+
+TObjectPtr<UGraphElement> FGraphHandle::GetElement() const
+{
+	return Element.Get();
 }
 
 bool FGraphHandle::IsValid() const
 {
 	return UniqueIndex.IsValid();
+}
+
+bool FGraphHandle::HasElement() const
+{
+	return Element.IsValid();
 }
 
 bool FGraphHandle::IsComplete() const
@@ -51,7 +65,7 @@ bool FGraphHandle::operator<(const FGraphHandle& Other) const
 void FGraphHandle::Clear()
 {
 	UniqueIndex = FGraphUniqueIndex();
-	WeakGraph = nullptr;
+	Element = nullptr;
 }
 
 uint32 GetTypeHash(const FGraphHandle& Handle)
@@ -59,62 +73,31 @@ uint32 GetTypeHash(const FGraphHandle& Handle)
 	return GetTypeHash(Handle.UniqueIndex);
 }
 
-UGraphVertex* FGraphVertexHandle::GetVertex() const
+FGraphVertexHandle::FGraphVertexHandle()
 {
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetVertices().FindRef(*this);
-	}
-
-	return nullptr;
 }
 
-bool FGraphVertexHandle::HasElement() const
+TObjectPtr<UGraphVertex> FGraphVertexHandle::GetVertex() const
 {
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetVertices().Contains(*this);
-	}
-
-	return false;
+	return Cast<UGraphVertex>(GetElement());
 }
 
-UGraphEdge* FGraphEdgeHandle::GetEdge() const
+FGraphEdgeHandle::FGraphEdgeHandle()
 {
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetEdges().FindRef(*this);
-	}
 
-	return nullptr;
 }
 
-bool FGraphEdgeHandle::HasElement() const
+TObjectPtr<UGraphEdge> FGraphEdgeHandle::GetEdge() const
 {
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetEdges().Contains(*this);
-	}
-
-	return false;
+	return Cast<UGraphEdge>(GetElement());
 }
 
-UGraphIsland* FGraphIslandHandle::GetIsland() const
+FGraphIslandHandle::FGraphIslandHandle()
 {
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetIslands().FindRef(*this);
-	}
 
-	return nullptr;
 }
 
-bool FGraphIslandHandle::HasElement() const
+TObjectPtr<UGraphIsland> FGraphIslandHandle::GetIsland() const
 {
-	if (UGraph* Graph = GetGraph())
-	{
-		return Graph->GetIslands().Contains(*this);
-	}
-
-	return false;
+	return Cast<UGraphIsland>(GetElement());
 }
