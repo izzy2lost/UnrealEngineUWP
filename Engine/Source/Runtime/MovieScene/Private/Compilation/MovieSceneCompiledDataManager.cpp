@@ -666,6 +666,26 @@ bool UMovieSceneCompiledDataManager::IsDirty(UMovieSceneSequence* Sequence) cons
 	return true;
 }
 
+bool UMovieSceneCompiledDataManager::ValidateEntry(FMovieSceneCompiledDataID DataID, UMovieSceneSequence* Sequence) const
+{
+	if (!ensureMsgf(
+			CompiledDataEntries.IsValidIndex(DataID.Value),
+			TEXT("Given DataID %d is not valid! (%d entries in the data manager)"), DataID.Value, CompiledDataEntries.Num()))
+	{
+		return false;
+	}
+
+	const FMovieSceneCompiledDataEntry& Entry = CompiledDataEntries[DataID.Value];
+	UMovieSceneSequence* EntrySequence = Entry.GetSequence();
+	if (!ensureMsgf(
+			EntrySequence == Sequence,
+			TEXT("Unexpected sequence for data ID! Expected '%s', but data manager has '%s'."), *GetNameSafe(Sequence), *GetNameSafe(EntrySequence)))
+	{
+		return false;
+	}
+
+	return true;
+}
 
 void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID)
 {

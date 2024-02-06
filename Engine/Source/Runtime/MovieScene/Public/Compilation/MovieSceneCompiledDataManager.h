@@ -248,6 +248,8 @@ public:
 
 	MOVIESCENE_API bool IsDirty(const FMovieSceneCompiledDataEntry& Entry) const;
 
+	MOVIESCENE_API bool ValidateEntry(FMovieSceneCompiledDataID DataID, UMovieSceneSequence* Sequence) const;
+
 	/**
 	 * Return a reference to a compiled data entry.
 	 * WARNING: This reference will become invalid if any sequence in this manager is (re)compiled

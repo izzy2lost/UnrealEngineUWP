@@ -162,14 +162,43 @@ void FSequenceInstance::InitializeLegacyEvaluator()
 
 void FSequenceInstance::InvalidateCachedData()
 {
-	ensureMsgf(bInitialized, TEXT("This instance hasn't been initialized yet!"));
+	ensureMsgf(bInitialized, TEXT("Sequence instance hasn't been initialized yet!"));
+
+	UMovieSceneSequence* RootSequence = SharedPlaybackState->GetRootSequence();
+	if (!ensureMsgf(RootSequence, TEXT("Sequence instance has a null root sequence!")))
+	{
+		return;
+	}
+
+	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
+	if (!ensureMsgf(
+				CompiledDataManager, 
+				TEXT("Sequence instance (%s) has no compiled data manager! Re-building a default one."),
+				*RootSequence->GetPathName()))
+	{
+		CompiledDataManager = UMovieSceneCompiledDataManager::GetPrecompiledData();
+	}
+
+	FMovieSceneCompiledDataID RootCompiledDataID = SharedPlaybackState->GetRootCompiledDataID();
+	if (!ensureMsgf(
+				RootCompiledDataID.IsValid(), 
+				TEXT("Sequence instance (%s) has invalid data ID for root sequence! Re-building it."),
+				*RootSequence->GetPathName()))
+	{
+		RootCompiledDataID = CompiledDataManager->GetDataID(RootSequence);
+	}
+
+	if (!ensureMsgf(
+				CompiledDataManager->ValidateEntry(RootCompiledDataID, RootSequence),
+				TEXT("Sequence instance (%s) has invalid data ID for root sequence! Aborting invalidation of cached data."),
+				*RootSequence->GetPathName()))
+	{
+		return;
+	}
 
 	Ledger.Invalidate();
 
 	UpdateFlags = ESequenceInstanceUpdateFlags::None;
-
-	UMovieSceneCompiledDataManager* CompiledDataManager = SharedPlaybackState->GetCompiledDataManager();
-	const FMovieSceneCompiledDataID RootCompiledDataID = SharedPlaybackState->GetRootCompiledDataID();
 
 	FMovieSceneEvaluationState* State = SharedPlaybackState->FindCapability<FMovieSceneEvaluationState>();
 
