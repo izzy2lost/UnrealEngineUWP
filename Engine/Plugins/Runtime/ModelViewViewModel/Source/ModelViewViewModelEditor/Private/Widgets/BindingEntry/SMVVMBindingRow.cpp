@@ -125,6 +125,7 @@ TSharedRef<SWidget> SBindingRow::BuildRowWidget()
 					.OnDrop(this, &SBindingRow::HandleFieldSelectorDrop, false)
 					.OnDragEnter(this, &SBindingRow::HandleFieldSelectorDragEnter, false)
 					.ShowContext(false)
+					.ToolTipText(FText::Join(FText::FromString("\n"), LOCTEXT("MVVMDestTooltipHeader", "Destination"), LOCTEXT("MVVMDestTooltipBody", "The property to hook data into.")))
 				]
 			]
 
@@ -169,6 +170,7 @@ TSharedRef<SWidget> SBindingRow::BuildRowWidget()
 					.OnGetSelectionContext(this, &SBindingRow::GetSelectedSelectionContext, true)
 					.OnDrop(this, &SBindingRow::HandleFieldSelectorDrop, true)
 					.OnDragEnter(this, &SBindingRow::HandleFieldSelectorDragEnter, true)
+					.ToolTipText(FText::Join(FText::FromString("\n"), LOCTEXT("MVVMSrcTooltipHeader", "Source"), LOCTEXT("MVVMSrcTooltipBody", "The source of data to bind to.")))
 				]
 			]
 
@@ -688,7 +690,7 @@ FText SBindingRow::GetCurrentBindingModeLabel() const
 {
 	if (FMVVMBlueprintViewBinding* ViewBinding = GetThisViewBinding())
 	{
-		return GetBindingModeLabel(ViewBinding->BindingType);
+		return FText::Join(FText::FromString(TEXT("\n")), LOCTEXT("BindingMode", "Mode"), GetBindingModeLabel(ViewBinding->BindingType));
 	}
 	return FText::GetEmpty();
 }

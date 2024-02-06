@@ -50,6 +50,8 @@ FText GetSourceDisplayName(const FBindingSource& Source)
 
 void SBindingContextEntry::Construct(const FArguments& InArgs)
 {
+	ToolTipDescription = InArgs._ToolTipDescription;
+
 	ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -84,13 +86,19 @@ void SBindingContextEntry::RefreshSource(const FBindingSource& Source)
 	{
 		if (const UClass* SourceClass = Source.GetClass())
 		{
-			const FText ToolTipText = FText::Join(FText::FromString(TEXT("\n")), Source.GetDisplayName(), SourceClass->GetDisplayNameText());
+			const FText ToolTipText = ToolTipDescription.IsEmpty() ? 
+				FText::Join(FText::FromString(TEXT("\n")), Source.GetDisplayName(), SourceClass->GetDisplayNameText()) 
+				: FText::Join(FText::FromString(TEXT("\n")), ToolTipDescription, Source.GetDisplayName(), SourceClass->GetDisplayNameText());
 			SetToolTipText(ToolTipText);
 		}
 		else
 		{
-			SetToolTipText(Source.GetDisplayName());
+			SetToolTipText(ToolTipDescription.IsEmpty() ? Source.GetDisplayName() : FText::Join(FText::FromString(TEXT("\n")), ToolTipDescription, Source.GetDisplayName()));
 		}
+	}
+	else if (!ToolTipDescription.IsEmpty())
+	{
+		SetToolTipText(ToolTipDescription);
 	}
 }
 
