@@ -29,6 +29,8 @@ namespace UnrealBuildTool.Rules
                     "GeometryCache"
                 }
             );
-        }
-    }
+
+			UnsafeTypeCastWarningLevel = WarningLevel.Error;
+		}
+	}
 }

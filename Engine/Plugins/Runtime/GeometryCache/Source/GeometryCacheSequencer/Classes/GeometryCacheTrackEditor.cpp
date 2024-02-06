@@ -102,14 +102,14 @@ int32 FGeometryCacheSection::OnPaintSection(FSequencerSectionPainter& Painter) c
 	// Add lines where the animation starts and ends/loops
 	const float AnimPlayRate = FMath::IsNearlyZero(Section.Params.PlayRate) ? 1.0f : Section.Params.PlayRate;
 	const float Duration = Section.Params.GetSequenceLength();
-	const float SeqLength = Duration - TickResolution.AsSeconds(Section.Params.StartFrameOffset + Section.Params.EndFrameOffset) / AnimPlayRate;
-	const float FirstLoopSeqLength = SeqLength - TickResolution.AsSeconds(Section.Params.FirstLoopStartFrameOffset) / AnimPlayRate;
+	const float SeqLength = static_cast<float>(Duration - TickResolution.AsSeconds(Section.Params.StartFrameOffset + Section.Params.EndFrameOffset) / AnimPlayRate);
+	const float FirstLoopSeqLength = static_cast<float>(SeqLength - TickResolution.AsSeconds(Section.Params.FirstLoopStartFrameOffset) / AnimPlayRate);
 
 	if (!FMath::IsNearlyZero(SeqLength, KINDA_SMALL_NUMBER) && SeqLength > 0)
 	{
-		float MaxOffset = Section.GetRange().Size<FFrameTime>() / TickResolution;
+		float MaxOffset = static_cast<float>(Section.GetRange().Size<FFrameTime>() / TickResolution);
 		float OffsetTime = FirstLoopSeqLength;
-		float StartTime = Section.GetInclusiveStartFrame() / TickResolution;
+		float StartTime = static_cast<float>(Section.GetInclusiveStartFrame() / TickResolution);
 
 		while (OffsetTime < MaxOffset)
 		{
@@ -152,7 +152,7 @@ int32 FGeometryCacheSection::OnPaintSection(FSequencerSectionPainter& Painter) c
 			// Flip the text position if getting near the end of the view range
 			static const float TextOffsetPx = 10.f;
 			bool  bDrawLeft = (Painter.SectionGeometry.Size.X - Time) < (TextSize.X + 22.f) - TextOffsetPx;
-			float TextPosition = bDrawLeft ? Time - TextSize.X - TextOffsetPx : Time + TextOffsetPx;
+			float TextPosition = bDrawLeft ? static_cast<float>(Time - TextSize.X - TextOffsetPx) : Time + TextOffsetPx;
 			//handle mirrored labels
 			const float MajorTickHeight = 9.0f;
 			FVector2D TextOffset(TextPosition, Painter.SectionGeometry.Size.Y - (MajorTickHeight + TextSize.Y));

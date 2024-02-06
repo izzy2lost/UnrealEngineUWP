@@ -177,9 +177,9 @@ public:
 		FKey MaxKey = MakeKey(InBox.Max);
 
 		// compute in doubles to avoid overflow issues (queries using WORLD_MAX bounds can produce very large numbers...)
-		double CellsX = (MaxKey.X - MinKey.X + 1);
-		double CellsY = (MaxKey.Y - MinKey.Y + 1);
-		double CellsZ = (MaxKey.Z - MinKey.Z + 1);
+		double CellsX = static_cast<double>((MaxKey.X - MinKey.X + 1));
+		double CellsY = static_cast<double>((MaxKey.Y - MinKey.Y + 1));
+		double CellsZ = static_cast<double>((MaxKey.Z - MinKey.Z + 1));
 		double CellCount = CellsX * CellsY * CellsZ;
 
 		// The idea here is to decide when it is faster to just check every populated cell.

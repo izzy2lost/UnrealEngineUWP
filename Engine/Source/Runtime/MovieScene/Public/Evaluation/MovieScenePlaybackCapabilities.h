@@ -469,7 +469,7 @@ protected:
 
 		// Get the header for this capability
 		const int32 Index = GetCapabilityIndex(CapabilityBit);
-		const FPlaybackCapabilityHeader& Header = GetHeader(Index);
+		const FPlaybackCapabilityHeader& Header = GetHeader(static_cast<uint8>(Index));
 
 		// Check that we are overwriting the same storage mode
 		using FStorageTraits = TPlaybackCapabilityStorageTraits<StorageType, CapabilityType>;

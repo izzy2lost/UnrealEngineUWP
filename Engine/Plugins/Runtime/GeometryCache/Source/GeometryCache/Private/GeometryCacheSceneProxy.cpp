@@ -246,10 +246,10 @@ static float OneOver255 = 1.0f / 255.0f;
 inline FPackedNormal InterpolatePackedNormal(const FPackedNormal& A, const FPackedNormal& B, int32 ScaledFactor, int32 OneMinusScaledFactor)
 {
 	FPackedNormal result;
-	result.Vector.X = (A.Vector.X * OneMinusScaledFactor + B.Vector.X * ScaledFactor) * OneOver255;
-	result.Vector.Y = (A.Vector.Y * OneMinusScaledFactor + B.Vector.Y * ScaledFactor) * OneOver255;
-	result.Vector.Z = (A.Vector.Z * OneMinusScaledFactor + B.Vector.Z * ScaledFactor) * OneOver255;
-	result.Vector.W = (A.Vector.W * OneMinusScaledFactor + B.Vector.W * ScaledFactor) * OneOver255;
+	result.Vector.X = static_cast<int8>(static_cast<float>(A.Vector.X * OneMinusScaledFactor + B.Vector.X * ScaledFactor) * OneOver255);
+	result.Vector.Y = static_cast<int8>(static_cast<float>(A.Vector.Y * OneMinusScaledFactor + B.Vector.Y * ScaledFactor) * OneOver255);
+	result.Vector.Z = static_cast<int8>(static_cast<float>(A.Vector.Z * OneMinusScaledFactor + B.Vector.Z * ScaledFactor) * OneOver255);
+	result.Vector.W = static_cast<int8>(static_cast<float>(A.Vector.W * OneMinusScaledFactor + B.Vector.W * ScaledFactor) * OneOver255);
 	return result;
 }
 
@@ -257,10 +257,10 @@ inline FPackedNormal InterpolatePackedNormal(const FPackedNormal& A, const FPack
 inline FColor InterpolatePackedColor(const FColor& A, const FColor& B, int32 ScaledFactor, int32 OneMinusScaledFactor)
 {
 	FColor result;
-	result.R = (A.R * OneMinusScaledFactor + B.R * ScaledFactor) * OneOver255;
-	result.G = (A.G * OneMinusScaledFactor + B.G * ScaledFactor) * OneOver255;
-	result.B = (A.B * OneMinusScaledFactor + B.B * ScaledFactor) * OneOver255;
-	result.A = (A.A * OneMinusScaledFactor + B.A * ScaledFactor) * OneOver255;
+	result.R = static_cast<uint8>(static_cast<float>(A.R * OneMinusScaledFactor + B.R * ScaledFactor) * OneOver255);
+	result.G = static_cast<uint8>(static_cast<float>(A.G * OneMinusScaledFactor + B.G * ScaledFactor) * OneOver255);
+	result.B = static_cast<uint8>(static_cast<float>(A.B * OneMinusScaledFactor + B.B * ScaledFactor) * OneOver255);
+	result.A = static_cast<uint8>(static_cast<float>(A.A * OneMinusScaledFactor + B.A * ScaledFactor) * OneOver255);
 	return result;
 }
 
@@ -538,7 +538,7 @@ void FGeometryCacheSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterial
 			const int32 MaterialIndex = TrackProxy->Materials.IsValidIndex(BatchInfo.MaterialIndex) ? BatchInfo.MaterialIndex : SegmentIndex;
 			MeshBatch.MaterialRenderProxy = TrackProxy->Materials[MaterialIndex]->GetRenderProxy();
 			MeshBatch.CastRayTracedShadow = IsShadowCast(Context.ReferenceView);
-			MeshBatch.SegmentIndex = SegmentIndex;
+			MeshBatch.SegmentIndex = static_cast<uint8>(SegmentIndex);
 
 			RayTracingInstance.Materials.Add(MeshBatch);
 		}
@@ -583,7 +583,7 @@ uint32 FGeometryCacheSceneProxy::GetMemoryFootprint(void) const
 
 uint32 FGeometryCacheSceneProxy::GetAllocatedSize(void) const
 {
-	return(FPrimitiveSceneProxy::GetAllocatedSize());
+	return static_cast<uint32>(FPrimitiveSceneProxy::GetAllocatedSize());
 }
 
 void FGeometryCacheSceneProxy::UpdateAnimation(FRHICommandListBase& RHICmdList, float NewTime, bool bNewLooping, bool bNewIsPlayingBackwards, float NewPlaybackSpeed, float NewMotionVectorScale)
@@ -819,7 +819,7 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 
 				Scratch.Prepare(NumVerts, bHasMotionVectors);
 
-				const float OneMinusInterp = 1.0 - InterpolationFactor;
+				const float OneMinusInterp = 1.0f - InterpolationFactor;
 				const int32 InterpFixed = (int32)(InterpolationFactor * 255.0f);
 				const int32 OneMinusInterpFixed = 255 - InterpFixed;
 				const VectorRegister4Float WeightA = VectorSetFloat1( OneMinusInterp );
@@ -1014,7 +1014,7 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 					// It represents the delta interpolation factor between each sub-frame (due to temporal subsampling)
 					// but we don't want to affect the motion vectors when sampling at multiples of frame so it's clamped to 1
 					float DeltaInterpolationFactor = InterpolationFactor - TrackProxy->PreviousInterpolationFactor;
-					DeltaInterpolationFactor += (TrackProxy->FrameIndex - TrackProxy->PreviousFrameIndex);
+					DeltaInterpolationFactor += static_cast<float>(TrackProxy->FrameIndex - TrackProxy->PreviousFrameIndex);
 					DeltaInterpolationFactor = FMath::Clamp(FMath::Abs(DeltaInterpolationFactor), 0.0f, 1.0f); // the Abs accounts for playing backwards
 					TrackProxy->SubframeInterpolationFactor = FMath::IsNearlyEqual(DeltaInterpolationFactor, 1.0f, KINDA_SMALL_NUMBER) ? 1.0f : DeltaInterpolationFactor;
 
@@ -1208,7 +1208,7 @@ void FGeometryCacheSceneProxy::FrameUpdate(FRHICommandListBase& RHICmdList) cons
 						}
 
 						float DeltaInterpolationFactor = InterpolationFactor - TrackProxy->PreviousInterpolationFactor;
-						DeltaInterpolationFactor += (TrackProxy->FrameIndex - TrackProxy->PreviousFrameIndex);
+						DeltaInterpolationFactor += static_cast<float>(TrackProxy->FrameIndex - TrackProxy->PreviousFrameIndex);
 						DeltaInterpolationFactor = FMath::Clamp(FMath::Abs(DeltaInterpolationFactor), 0.0f, 1.0f);
 						TrackProxy->SubframeInterpolationFactor = FMath::IsNearlyEqual(DeltaInterpolationFactor, 1.0f, KINDA_SMALL_NUMBER) ? 1.0f : DeltaInterpolationFactor;
 

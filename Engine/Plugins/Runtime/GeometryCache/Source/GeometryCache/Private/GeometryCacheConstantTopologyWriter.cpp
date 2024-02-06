@@ -346,7 +346,7 @@ namespace UE::GeometryCacheHelpers
 		int32 MaxRecordedFrame = -1;
 		for (int32 Frame = 0; Frame < NumFrames; ++Frame)
 		{
-			const float Time = Frame / ConfigRef.FPS;
+			const float Time = static_cast<float>(Frame) / ConfigRef.FPS;
 			FFrameData& FrameData = FramesToMoveFrom[Frame];
 			if (FrameData.Positions.Num() != NumVertices)
 			{
@@ -418,7 +418,7 @@ namespace UE::GeometryCacheHelpers
 		}
 		check(MaxRecordedFrame >= 0);
 		TArray<FMatrix> Mats { FMatrix::Identity, FMatrix::Identity };
-		TArray<float> MatTimes { 0.0f, MaxRecordedFrame / ConfigRef.FPS };
+		TArray<float> MatTimes { 0.0f, static_cast<float>(MaxRecordedFrame) / ConfigRef.FPS };
 		TrackStreamable->SetMatrixSamples(Mats, MatTimes);
 		
 		if (ensureAlways(TrackStreamable->EndCoding()))

@@ -955,7 +955,7 @@ protected:
 	The max number of substeps per frame can be set via fx.Niagara.SystemSimulation.MaxTickSubsteps
 	*/
 	UPROPERTY(EditAnywhere, Category = "System", meta = (EditCondition = "bFixedTickDelta", ForceUnits=s))
-	float FixedTickDeltaTime = 0.01667;
+	float FixedTickDeltaTime = 0.01667f;
 
 #if WITH_EDITORONLY_DATA
 	/** Settings used inside the baker */
