@@ -1492,11 +1492,10 @@ ShutdownRunningServiceUsingEffectivePort(uint16 EffectiveListenPort, double Maxi
 			return false;
 		}
 		Entry = ServerState.LookupByEffectiveListenPort(EffectiveListenPort);
-		if (!Entry)
+		if (Entry)
 		{
-			return AttemptShutdownUsingPortOnly(ServerState, EffectiveListenPort, MaximumWaitDurationSeconds - ZenShutdownWaitDuration);
+			ServicePid = Entry->Pid.load(std::memory_order_relaxed);
 		}
-		ServicePid = Entry->Pid.load(std::memory_order_relaxed);
 	}
 	return true;
 }
