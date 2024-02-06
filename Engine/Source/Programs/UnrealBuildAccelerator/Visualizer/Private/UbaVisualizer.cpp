@@ -1737,9 +1737,8 @@ namespace uba
 		{
 			posY += 4;
 			auto drawStatusText = [&]() { posY = posY + FontHeight + 2; };
-			drawStatusText();
 			for (auto& kv : m_traceView.statusMap)
-				if (!kv.second.text.empty())
+				if (!kv.second.name.empty() || !kv.second.text.empty())
 					drawStatusText();
 			posY += 4;
 		}

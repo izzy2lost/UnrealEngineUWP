@@ -455,6 +455,7 @@ namespace uba
 		//info.shouldWriteToDisk = shouldWriteToDisk;
 		info.rootDir = g_rootDir.data;
 		//info.traceName.Append(TC("TESTTRACE"));
+		info.remoteLogEnabled = true;
 		info.deleteSessionsOlderThanSeconds = 1;
 		auto session = new SessionServer(info);
 		auto destroySession = MakeGuard([&]() { delete session; });
