@@ -3054,7 +3054,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 				
 				if (LODUpdateWithSameInstance)
 				{
-					LODUpdateWithSameInstance->ApplyLODUpdateParamsToInstance(&PendingInstanceUpdateFound->Context.Get());
+					LODUpdateWithSameInstance->ApplyLODUpdateParamsToInstance(PendingInstanceUpdateFound->Context.Get());
 				}
 
 				Private->StartUpdateSkeletalMesh(PendingInstanceUpdateFound->Context);				
@@ -3062,13 +3062,14 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 			}
 			else if (LODUpdateCandidateFound)
 			{
-				// Commit the LOD changes
-				LODUpdateCandidateFound->ApplyLODUpdateParamsToInstance();
-
 				UCustomizableObjectInstance* Instance = LODUpdateCandidateFound->CustomizableObjectInstance;
 				FCustomizableObjectInstanceDescriptor& Descriptor = Instance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::NotGenerated ? Instance->GetDescriptor() : Instance->GetPrivate()->CommittedDescriptor;
 
 				const TSharedRef<FUpdateContextPrivate> Context = MakeShared<FUpdateContextPrivate>(*Instance, Descriptor);
+
+				// Commit the LOD changes
+				LODUpdateCandidateFound->ApplyLODUpdateParamsToInstance(*Context);
+
 				Private->StartUpdateSkeletalMesh(Context);
 			}
 		}

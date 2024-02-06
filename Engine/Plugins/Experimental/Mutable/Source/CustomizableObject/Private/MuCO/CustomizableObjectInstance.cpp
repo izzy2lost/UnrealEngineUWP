@@ -2919,18 +2919,15 @@ void FMutableUpdateCandidate::Issue()
 }
 
 
-void FMutableUpdateCandidate::ApplyLODUpdateParamsToInstance(FUpdateContextPrivate* Context)
+void FMutableUpdateCandidate::ApplyLODUpdateParamsToInstance(FUpdateContextPrivate& Context)
 {
 	CustomizableObjectInstance->Descriptor.MinLOD = MinLOD;
 	CustomizableObjectInstance->Descriptor.MaxLOD = MaxLOD;
 	CustomizableObjectInstance->Descriptor.RequestedLODLevels = RequestedLODLevels;
 
-	if (Context)
-	{
-		Context->SetMinLOD(MinLOD);
-		Context->SetMaxLOD(MaxLOD);
-		Context->SetRequestedLODs(RequestedLODLevels);
-	}
+	Context.SetMinLOD(MinLOD);
+	Context.SetMaxLOD(MaxLOD);
+	Context.SetRequestedLODs(RequestedLODLevels);
 }
 
 
