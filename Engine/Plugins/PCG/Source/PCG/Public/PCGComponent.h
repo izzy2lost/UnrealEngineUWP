@@ -222,6 +222,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Settings, meta = (EditCondition = "!bIsComponentLocal", EditConditionHides, DisplayPriority = 200))
 	EPCGComponentGenerationTrigger GenerationTrigger = EPCGComponentGenerationTrigger::GenerateOnLoad;
 
+	/** When Generation Trigger is OnDemand, we can still force the component to generate on drop. */
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Settings|Advanced" , meta = (EditCondition = "GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnDemand"))
+	bool bGenerateOnDropWhenTriggerOnDemand = false;
+
 	/** Manual overrides for the graph generation radii and cleanup radius multiplier. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = RuntimeGeneration, meta = (EditCondition = "GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime", EditConditionHides))
 	bool bOverrideGenerationRadii = false;

@@ -2152,9 +2152,16 @@ bool UPCGComponent::ShouldGenerateBPPCGAddedToWorld() const
 	}
 	else
 	{
-		// Generate on drop can be disabled by global settings or locally by not having "GenerateOnLoad" as a generation trigger.
-		const UPCGEngineSettings* Settings = GetDefault<UPCGEngineSettings>();
-		return Settings ? (Settings->bGenerateOnDrop && bForceGenerateOnBPAddedToWorld && (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)) : false;
+		// Generate on drop can be disabled by global settings or locally by not having "GenerateOnLoad" as a generation trigger (and Generate on Drop option to false).
+		if (const UPCGEngineSettings* Settings = GetDefault<UPCGEngineSettings>())
+		{
+			return Settings->bGenerateOnDrop && bForceGenerateOnBPAddedToWorld &&
+				(GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad || (GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnDemand && bGenerateOnDropWhenTriggerOnDemand));
+		}
+		else
+		{
+			return false;
+		}
 	}
 }
 
