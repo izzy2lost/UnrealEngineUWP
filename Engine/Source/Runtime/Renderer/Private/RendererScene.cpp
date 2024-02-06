@@ -6732,7 +6732,7 @@ bool FScene::ShouldRenderSkylightInBasePass(bool bIsTranslucent) const
 	}
 	else
 	{
-		bool bRenderSkyLight = SkyLight && !SkyLight->bHasStaticLighting && !(ShouldRenderRayTracingSkyLight(SkyLight) && !IsForwardShadingEnabled(GetShaderPlatform()));
+		bool bRenderSkyLight = SkyLight && !SkyLight->bHasStaticLighting && !(ShouldRenderRayTracingSkyLight(SkyLight, GetShaderPlatform()) && !IsForwardShadingEnabled(GetShaderPlatform()));
 
 		if (bIsTranslucent)
 		{

@@ -696,7 +696,7 @@ bool ShouldRenderDeferredDynamicSkyLight(const FScene* Scene, const FSceneViewFa
 		&& Scene->GetFeatureLevel() >= ERHIFeatureLevel::SM5
 		&& !IsForwardShadingEnabled(Scene->GetShaderPlatform())
 		&& !ViewFamily.EngineShowFlags.VisualizeLightCulling
-		&& !ShouldRenderRayTracingSkyLight(Scene->SkyLight); // Disable diffuse sky contribution if evaluated by RT Sky;
+		&& !ShouldRenderRayTracingSkyLight(Scene->SkyLight, Scene->GetShaderPlatform()); // Disable diffuse sky contribution if evaluated by RT Sky;
 }
 
 bool ShouldDoReflectionEnvironment(const FScene* Scene, const FSceneViewFamily& ViewFamily)

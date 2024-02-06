@@ -125,9 +125,9 @@ int32 GetSkyLightSamplesPerPixel(const FSkyLightSceneProxy* SkyLightSceneProxy)
 	return GRayTracingSkyLightSamplesPerPixel >= 0 ? GRayTracingSkyLightSamplesPerPixel : FMath::Max(SkyLightSceneProxy->SamplesPerPixel, 2);
 }
 
-bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLightSceneProxy)
+bool ShouldRenderRayTracingSkyLight(const FSkyLightSceneProxy* SkyLightSceneProxy, EShaderPlatform ShaderPlatform)
 {
-	if (SkyLightSceneProxy == nullptr)
+	if (SkyLightSceneProxy == nullptr || !IsRayTracingEnabled(ShaderPlatform))
 	{
 		return false;
 	}
@@ -260,7 +260,7 @@ IMPLEMENT_GLOBAL_SHADER(FRayTracingSkyLightRGS, "/Engine/Private/Raytracing/Rayt
 
 void FDeferredShadingSceneRenderer::PrepareRayTracingSkyLight(const FViewInfo& View, const FScene& Scene, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	if (!ShouldRenderRayTracingSkyLight(Scene.SkyLight))
+	if (!ShouldRenderRayTracingSkyLight(Scene.SkyLight, View.GetShaderPlatform()))
 	{
 		return;
 	}
@@ -369,7 +369,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 	FSkyLightSceneProxy* SkyLight = Scene->SkyLight;
 	
 	// Fill Sky Light parameters
-	const bool bShouldRenderRayTracingSkyLight = ShouldRenderRayTracingSkyLight(SkyLight);
+	const bool bShouldRenderRayTracingSkyLight = ShouldRenderRayTracingSkyLight(SkyLight, Scene->GetShaderPlatform());
 	FPathTracingSkylight SkylightParameters;
 	FSkyLightData SkyLightData;
 	if (!SetupSkyLightParameters(GraphBuilder, Scene, Views[0], bShouldRenderRayTracingSkyLight, &SkylightParameters, &SkyLightData))

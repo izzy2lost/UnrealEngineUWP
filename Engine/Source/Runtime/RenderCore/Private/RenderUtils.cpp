@@ -1630,7 +1630,9 @@ bool IsRayTracingAllowed()
 
 bool IsRayTracingEnabled(EShaderPlatform ShaderPlatform)
 {
-	return IsRayTracingEnabled() && RHISupportsRayTracing(ShaderPlatform);
+	const bool bRayTracingRequireSM6 = (GRayTracingRequireSM6 != 0);
+
+	return IsRayTracingEnabled() && RHISupportsRayTracing(ShaderPlatform) && (IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) || !bRayTracingRequireSM6);
 }
 
 ERayTracingMode GetRayTracingMode()
