@@ -1209,6 +1209,10 @@ namespace Metasound
 					{
 						OutputMeter = MakeShared<AudioWidgets::FAudioMeter>(MetaSoundSource->NumChannels, AudioDeviceId);
 					}
+					else if (OutputMeter->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
+					{
+						OutputMeter->Init(MetaSoundSource->NumChannels, AudioDeviceId, nullptr);
+					}
 
 					const uint32 MetaSoundNumChannels = static_cast<uint32>(MetaSoundSource->NumChannels);
 
@@ -1227,11 +1231,11 @@ namespace Metasound
 							OscilloscopeAnalysisPeriodMs,
 							OscilloscopePanelLayoutType);
 					}
-					else
+					else if (OutputOscilloscope->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
 					{
 						OutputOscilloscope->CreateAudioBus(MetaSoundNumChannels);
 						OutputOscilloscope->CreateDataProvider(AudioDeviceId, OscilloscopeTimeWindowMs, OscilloscopeMaxTimeWindowMs, OscilloscopeAnalysisPeriodMs, OscilloscopePanelLayoutType);
-						OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, EAudioPanelLayoutType::Basic);
+						OutputOscilloscope->CreateOscilloscopeWidget(MetaSoundNumChannels, OscilloscopePanelLayoutType);
 					}
 
 					// Init Vectorscope
@@ -1249,7 +1253,7 @@ namespace Metasound
 							VectorscopeAnalysisPeriodMs,
 							VectorscopePanelLayoutType);
 					}
-					else
+					else if (OutputVectorscope->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
 					{
 						OutputVectorscope->CreateAudioBus(MetaSoundNumChannels);
 						OutputVectorscope->CreateDataProvider(AudioDeviceId, VectorscopeTimeWindowMs, VectorscopeMaxTimeWindowMs, VectorscopeAnalysisPeriodMs);
@@ -1259,6 +1263,10 @@ namespace Metasound
 					if (!OutputSpectrumAnalyzer.IsValid())
 					{
 						OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(MetaSoundSource->NumChannels, AudioDeviceId);
+					}
+					else if (OutputSpectrumAnalyzer->GetAudioBus()->GetNumChannels() != MetaSoundSource->NumChannels)
+					{
+						OutputSpectrumAnalyzer->Init(MetaSoundSource->NumChannels, AudioDeviceId, nullptr);
 					}
 
 					return;
