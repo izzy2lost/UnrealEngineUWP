@@ -411,7 +411,10 @@ FReply FSchematicGraphGroupNode::OnClicked(const FPointerEvent& InMouseEvent)
 {
 	if(GetNumChildNodes() > 0)
 	{
-		SetExpanded(!IsExpanded());
+		if(!InMouseEvent.GetModifierKeys().AnyModifiersDown())
+		{
+			SetExpanded(!IsExpanded());
+		}
 		return FReply::Handled();
 	}
 	return FSchematicGraphNode::OnClicked(InMouseEvent);
