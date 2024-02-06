@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HarmonixMetasound/Nodes/MidiStreamTransposerNode.h"
+
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
 #include "MetasoundNodeInterface.h"
@@ -16,18 +18,192 @@ DEFINE_LOG_CATEGORY_STATIC(LogMidiStreamTransposer, Log, All);
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
-namespace HarmonixMetasound
+namespace HarmonixMetasound::Nodes::MidiNoteTranspose
 {
 	using namespace Metasound;
 
-	class FMidiStreamTransposerOperator : public TExecutableOperator<FMidiStreamTransposerOperator>
+	const FNodeClassName& GetClassName()
+	{
+		static const FNodeClassName ClassName{ HarmonixNodeNamespace, TEXT("MidiStreamTransposer"), TEXT("") };
+		return ClassName;
+	}
+
+	int32 GetCurrentMajorVersion()
+	{
+		return 1;
+	}
+
+	namespace Inputs
+	{
+		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiStream, CommonPinNames::Inputs::MidiStream);
+		DEFINE_METASOUND_PARAM_ALIAS(Transposition, CommonPinNames::Inputs::Transposition);
+	}
+
+	namespace Outputs
+	{
+		DEFINE_METASOUND_PARAM_ALIAS(MidiStream, CommonPinNames::Outputs::MidiStream);
+	}
+
+	class FMidiNoteTransposeOperator final : public TExecutableOperator<FMidiNoteTransposeOperator>
+	{
+	public:
+		static const FNodeClassMetadata& GetNodeInfo()
+		{
+			auto InitNodeInfo = []() -> FNodeClassMetadata
+			{
+				FNodeClassMetadata Info;
+				Info.ClassName        = { HarmonixNodeNamespace, TEXT("MidiStreamTransposer"), TEXT("")};
+				Info.MajorVersion     = 1;
+				Info.MinorVersion     = 0;
+				Info.DisplayName      = METASOUND_LOCTEXT("MidiNoteTransposeNode_DisplayName", "MIDI Note Transpose");
+				Info.Description      = METASOUND_LOCTEXT("MidiNoteTransposeNode_Description", "Duplicates the incoming MIDI stream to its output with the note on/off messages transposed by the specified number of semitones.");
+				Info.Author           = PluginAuthor;
+				Info.PromptIfMissing  = PluginNodeMissingPrompt;
+				Info.DefaultInterface = GetVertexInterface();
+				Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+				return Info;
+			};
+
+			static const FNodeClassMetadata Info = InitNodeInfo();
+
+			return Info;
+		}
+		
+		static const FVertexInterface& GetVertexInterface()
+		{
+			static const FVertexInterface Interface(
+				FInputVertexInterface(
+					TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
+					TInputDataVertex<FMidiStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiStream)),
+					TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Transposition), 0)
+				),
+				FOutputVertexInterface(
+					TOutputDataVertex<FMidiStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Outputs::MidiStream))
+				)
+			);
+
+			return Interface;
+		}
+
+		struct FInputs
+		{
+			FBoolReadRef Enabled;
+			FMidiStreamReadRef MidiStream;
+			FInt32ReadRef Transposition;
+		};
+
+		struct FOutputs
+		{
+			FMidiStreamWriteRef MidiStream;
+		};
+
+		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
+		{
+			const FInputVertexInterfaceData& InputData = InParams.InputData;
+
+			FInputs Inputs
+			{
+				InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::Enable), InParams.OperatorSettings),
+				InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), InParams.OperatorSettings),
+				InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::Transposition), InParams.OperatorSettings)
+			};
+
+			FOutputs Outputs
+			{
+				FMidiStreamWriteRef::CreateNew(InParams.OperatorSettings)
+			};
+
+			return MakeUnique<FMidiNoteTransposeOperator>(InParams, MoveTemp(Inputs), MoveTemp(Outputs));
+		}
+
+		FMidiNoteTransposeOperator(const FBuildOperatorParams& InParams, FInputs&& InInputs, FOutputs&& InOutputs)
+			: Inputs(MoveTemp(InInputs))
+			, Outputs(MoveTemp(InOutputs))
+		{
+			Reset(InParams);
+		}
+
+		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override
+		{
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable), Inputs.Enabled);
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), Inputs.MidiStream);
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Transposition), Inputs.Transposition);
+
+			ReassignOutputClock = true;
+		}
+
+		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override
+		{
+			InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiStream), Outputs.MidiStream);
+
+			ReassignOutputClock = true;
+		}
+
+		void Reset(const FResetParams&)
+		{
+			ReassignOutputClock = true;
+		}
+
+		void Execute()
+		{
+			if (!*Inputs.Enabled)
+			{
+				return;
+			}
+			
+			if (ReassignOutputClock)
+			{
+				if (const FMidiClockReadRef* Clock = Inputs.MidiStream->GetMidiClockSource())
+				{
+					Outputs.MidiStream->SetClockSource(*Clock);
+				}
+
+				ReassignOutputClock = false;
+			}
+
+			const int32 Transposition = *Inputs.Transposition;
+
+			const auto Transformer = [Transposition](const FMidiStreamEvent& InEvent) -> FMidiStreamEvent
+			{
+				FMidiStreamEvent NewEvent = InEvent;
+				
+				if (NewEvent.MidiMessage.IsNoteOn() || NewEvent.MidiMessage.IsNoteOff())
+				{
+					NewEvent.MidiMessage.Data1 = FMath::Clamp(NewEvent.MidiMessage.Data1 + Transposition, 0, 127);
+				}
+				
+				return NewEvent;
+			};
+			
+			Outputs.MidiStream->Copy(Inputs.MidiStream, [](const FMidiStreamEvent&){return true;}, Transformer);
+		}
+		
+	private:
+		FInputs Inputs;
+		FOutputs Outputs;
+		bool ReassignOutputClock = true;
+	};
+
+	class FMidiNoteTransposeNode final : public FNodeFacade
+	{
+	public:
+		explicit FMidiNoteTransposeNode(const FNodeInitData& InInitData)
+			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiNoteTransposeOperator>())
+		{}
+		virtual ~FMidiNoteTransposeNode() override = default;
+	};
+
+	METASOUND_REGISTER_NODE(FMidiNoteTransposeNode)
+
+	class FMidiStreamTransposerOperator_V0 : public TExecutableOperator<FMidiStreamTransposerOperator_V0>
 	{
 	public:
 		static const FNodeClassMetadata& GetNodeInfo();
 		static const FVertexInterface& GetVertexInterface();
 		static TUniquePtr<IOperator> CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults);
 
-		FMidiStreamTransposerOperator(const FBuildOperatorParams& InParams,
+		FMidiStreamTransposerOperator_V0(const FBuildOperatorParams& InParams,
 								  const FBoolReadRef&       InEnabled,
 								  const FStringReadRef&     InTrackSelect,
 								  const FStringReadRef&     InChannelSelect,
@@ -36,8 +212,6 @@ namespace HarmonixMetasound
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
-		virtual FDataReferenceCollection GetInputs() const override;
-		virtual FDataReferenceCollection GetOutputs() const override;
 
 		void Reset(const FResetParams& ResetParams);
 
@@ -60,18 +234,18 @@ namespace HarmonixMetasound
 		FMidiStreamEventTrackChannelFilter Filter;
 	};
 
-	class FMidiStreamTransposerNode : public FNodeFacade
+	class FMidiStreamTransposerNode_v0 : public FNodeFacade
 	{
 	public:
-		FMidiStreamTransposerNode(const FNodeInitData& InInitData)
-			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiStreamTransposerOperator>())
+		FMidiStreamTransposerNode_v0(const FNodeInitData& InInitData)
+			: FNodeFacade(InInitData.InstanceName, InInitData.InstanceID, TFacadeOperatorClass<FMidiStreamTransposerOperator_V0>())
 		{}
-		virtual ~FMidiStreamTransposerNode() = default;
+		virtual ~FMidiStreamTransposerNode_v0() = default;
 	};
 
-	METASOUND_REGISTER_NODE(FMidiStreamTransposerNode)
+	METASOUND_REGISTER_NODE(FMidiStreamTransposerNode_v0)
 		
-	const FNodeClassMetadata& FMidiStreamTransposerOperator::GetNodeInfo()
+	const FNodeClassMetadata& FMidiStreamTransposerOperator_V0::GetNodeInfo()
 	{
 		auto InitNodeInfo = []() -> FNodeClassMetadata
 		{
@@ -85,6 +259,7 @@ namespace HarmonixMetasound
 			Info.PromptIfMissing  = PluginNodeMissingPrompt;
 			Info.DefaultInterface = GetVertexInterface();
 			Info.CategoryHierarchy.Emplace(NodeCategories::Music);
+			Info.bDeprecated = true;
 			return Info;
 		};
 
@@ -93,15 +268,13 @@ namespace HarmonixMetasound
 		return Info;
 	}
 
-	const FVertexInterface& FMidiStreamTransposerOperator::GetVertexInterface()
+	const FVertexInterface& FMidiStreamTransposerOperator_V0::GetVertexInterface()
 	{
-		using namespace CommonPinNames;
-
 		static const FVertexInterface Interface(
 			FInputVertexInterface(
 				TInputDataVertex<bool>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Enable), true),
-				TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiTrackIndexFilterSpecifier), FString(TEXT("*"))),
-				TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiChannelFilterSpecifier), FString(TEXT("*"))),
+				TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MidiTrackIndexFilterSpecifier), FString(TEXT("*"))),
+				TInputDataVertex<FString>(METASOUND_GET_PARAM_NAME_AND_METADATA(CommonPinNames::Inputs::MidiChannelFilterSpecifier), FString(TEXT("*"))),
 				TInputDataVertex<int32>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::Transposition), 0),
 				TInputDataVertex<FMidiStream>(METASOUND_GET_PARAM_NAME_AND_METADATA(Inputs::MidiStream))
 			),
@@ -113,20 +286,18 @@ namespace HarmonixMetasound
 		return Interface;
 	}
 
-	TUniquePtr<IOperator> FMidiStreamTransposerOperator::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
+	TUniquePtr<IOperator> FMidiStreamTransposerOperator_V0::CreateOperator(const FBuildOperatorParams& InParams, FBuildResults& OutResults)
 	{
-		using namespace CommonPinNames;
-
-		const FMidiStreamTransposerNode& LoggerNode = static_cast<const FMidiStreamTransposerNode&>(InParams.Node);
+		const FMidiStreamTransposerNode_v0& LoggerNode = static_cast<const FMidiStreamTransposerNode_v0&>(InParams.Node);
 
 		const FInputVertexInterfaceData& InputData = InParams.InputData;
 		FBoolReadRef InEnabled = InputData.GetOrCreateDefaultDataReadReference<bool>(METASOUND_GET_PARAM_NAME(Inputs::Enable), InParams.OperatorSettings);
-		FStringReadRef InTrackFilter = InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(Inputs::MidiTrackIndexFilterSpecifier), InParams.OperatorSettings);
-		FStringReadRef InMidiChannelFilter = InputData.GetOrCreateDefaultDataReadReference<FString>(METASOUND_GET_PARAM_NAME(Inputs::MidiChannelFilterSpecifier), InParams.OperatorSettings);
+		FStringReadRef InTrackFilter = InputData.GetOrCreateDefaultDataReadReference<FString>(CommonPinNames::METASOUND_GET_PARAM_NAME(Inputs::MidiTrackIndexFilterSpecifier), InParams.OperatorSettings);
+		FStringReadRef InMidiChannelFilter = InputData.GetOrCreateDefaultDataReadReference<FString>(CommonPinNames::METASOUND_GET_PARAM_NAME(Inputs::MidiChannelFilterSpecifier), InParams.OperatorSettings);
 		FInt32ReadRef InTransposition = InputData.GetOrCreateDefaultDataReadReference<int32>(METASOUND_GET_PARAM_NAME(Inputs::Transposition), InParams.OperatorSettings);
 		FMidiStreamReadRef InMidiStream = InputData.GetOrConstructDataReadReference<FMidiStream>(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), InParams.OperatorSettings);
 
-		return MakeUnique<FMidiStreamTransposerOperator>(InParams, 
+		return MakeUnique<FMidiStreamTransposerOperator_V0>(InParams, 
 			InEnabled,
 			InTrackFilter,
 			InMidiChannelFilter,
@@ -134,7 +305,7 @@ namespace HarmonixMetasound
 			InMidiStream);
 	}
 
-	FMidiStreamTransposerOperator::FMidiStreamTransposerOperator(const FBuildOperatorParams& InParams,
+	FMidiStreamTransposerOperator_V0::FMidiStreamTransposerOperator_V0(const FBuildOperatorParams& InParams,
 											   const FBoolReadRef& InEnabled,
 											   const FStringReadRef& InTrackSelect,
 											   const FStringReadRef& InChannelSelect,
@@ -150,37 +321,23 @@ namespace HarmonixMetasound
 		Reset(InParams);
 	}
 
-	void FMidiStreamTransposerOperator::BindInputs(FInputVertexInterfaceData& InVertexData)
+	void FMidiStreamTransposerOperator_V0::BindInputs(FInputVertexInterfaceData& InVertexData)
 	{
 		using namespace CommonPinNames;
 
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Enable), EnableInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiTrackIndexFilterSpecifier), TrackSelectInPin);
-		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiChannelFilterSpecifier), ChannelSelectInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MidiTrackIndexFilterSpecifier), TrackSelectInPin);
+		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(CommonPinNames::Inputs::MidiChannelFilterSpecifier), ChannelSelectInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::Transposition), TranspositionInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Inputs::MidiStream), MidiStreamInPin);
 	}
 
-	void FMidiStreamTransposerOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
+	void FMidiStreamTransposerOperator_V0::BindOutputs(FOutputVertexInterfaceData& InVertexData)
 	{
-		using namespace CommonPinNames;
-
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiStream), MidiStreamOutPin);
 	}
 
-	FDataReferenceCollection FMidiStreamTransposerOperator::GetInputs() const
-	{
-		checkNoEntry();
-		return {};
-	}
-
-	FDataReferenceCollection FMidiStreamTransposerOperator::GetOutputs() const
-	{
-		checkNoEntry();
-		return {};
-	}
-
-	void FMidiStreamTransposerOperator::Reset(const FResetParams& ResetParams)
+	void FMidiStreamTransposerOperator_V0::Reset(const FResetParams& ResetParams)
 	{
 		MidiStreamOutPin->PrepareBlock();
 		
@@ -204,7 +361,7 @@ namespace HarmonixMetasound
 		}
 	}
 
-	void FMidiStreamTransposerOperator::Execute()
+	void FMidiStreamTransposerOperator_V0::Execute()
 	{
 		if (CurrentTrackFilter != *TrackSelectInPin)
 		{
