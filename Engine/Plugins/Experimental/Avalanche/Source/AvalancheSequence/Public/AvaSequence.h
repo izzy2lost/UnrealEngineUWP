@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "AvaAnimBindingReference.h"
 #include "AvaSequenceShared.h"
 #include "AvaTagHandle.h"
 #include "Containers/Array.h"
@@ -132,9 +131,6 @@ public:
 
 	int32 UpdateBindings(const FTopLevelAssetPath* InOldContext, const FTopLevelAssetPath& InNewContext);
 
-	/** Move the Ava Bindings to use the Level Sequence Bindings */
-	void MigrateLegacyBindings(UObject* InPlaybackContext);
-
 	/** Gets the Objects Bound for this Sequence. Potentially slow */
 	TArrayView<TWeakObjectPtr<>> FindObjectsFromGuid(const FGuid& InGuid);
 
@@ -168,10 +164,6 @@ protected:
 	/** The list of Marks in this Sequence */
 	UPROPERTY(EditAnywhere, EditFixedSize, Category = "Sequence Settings", meta=(NoResetToDefault, AllowPrivateAccess="true"))
 	TSet<FAvaMark> Marks;
-
-	/** Legacy Bindings. Should be read-only now. Not Deprecating so that duplication of older versions still copies this property */
-	UPROPERTY()
-	FAvaAnimBindingReferences ObjectBindingReferences;
 
 	/** Delegate called after the node has finished cleaning up itself its children */
 	FSimpleMulticastDelegate OnTreeNodeUpdated;
