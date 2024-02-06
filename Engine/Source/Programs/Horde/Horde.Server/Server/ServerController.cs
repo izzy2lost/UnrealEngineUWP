@@ -84,7 +84,7 @@ namespace Horde.Server.Server
 			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;
 			response.OsDescription = RuntimeInformation.OSDescription;
 
-			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.DefaultAgentSoftwareToolId, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, _globalConfig.Value);
 			if (tool != null)
 			{
 				IToolDeployment? deployment = tool.GetCurrentDeployment(1.0, _clock.UtcNow);

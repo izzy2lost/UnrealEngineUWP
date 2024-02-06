@@ -436,6 +436,10 @@ namespace Horde.Agent.Services
 			// Add the max supported compute protocol version
 			agent.Properties.Add($"ComputeProtocol={(int)ComputeProtocol.Latest}");
 
+			// Whether the agent is packaged as a self-contained .NET app
+			// Used during the transition period over from multi-platform, non-self-contained agent packages.
+			agent.Properties.Add($"SelfContained={AgentApp.IsSelfContained}");
+
 			// Add any additional properties from the config file
 			agent.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));
 			return agent;
