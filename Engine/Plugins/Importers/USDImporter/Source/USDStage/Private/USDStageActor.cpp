@@ -1077,10 +1077,13 @@ AUsdStageActor::AUsdStageActor()
 				TArray<FString> SupportedExtensions = UnrealUSDWrapper::GetNativeFileFormats();
 				if (SupportedExtensions.Num() > 0)
 				{
-					FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT("; *."));	// Combine "usd" and "usda" into "usd; *.usda"
+					// Note: Cannot have space after semicolon or else the parsing breaks on the Mac...
+					FString JoinedWithSemicolon = FString::Join(SupportedExtensions, TEXT(";*."));
+					FString JoinedWithComma = FString::Join(SupportedExtensions, TEXT(", *."));
+
 					Property->SetMetaData(
 						TEXT("FilePathFilter"),
-						FString::Printf(TEXT("Universal Scene Description files|*.%s"), *JoinedExtensions, *JoinedExtensions)
+						FString::Printf(TEXT("Universal Scene Description files (*.%s)|*.%s"), *JoinedWithComma, *JoinedWithSemicolon)
 					);
 				}
 				break;
