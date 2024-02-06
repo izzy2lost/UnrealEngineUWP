@@ -42,6 +42,8 @@ namespace UE::Audio::Insights
 		TSharedRef<SWidget> MakePlotsWidget();
 
 	private:
+		void ResetPlots();
+		void OnPIEStopped(bool bSimulating);
 		void UpdatePlotsWidgetsData();
 		void UpdateSoloMuteState();
 
