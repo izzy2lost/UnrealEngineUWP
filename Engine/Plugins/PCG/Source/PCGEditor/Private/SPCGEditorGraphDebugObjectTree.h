@@ -49,6 +49,8 @@ public:
 	virtual UPCGComponent* GetPCGComponent() const = 0;
 	virtual const FPCGStack* GetPCGStack() const { return nullptr; }
 	virtual const UObject* GetObject() const  = 0;
+	virtual const UPCGGraph* GetPCGGraph() const { return nullptr; }
+	virtual bool IsLoopIteration() const { return false; }
 
 protected:
 	TWeakPtr<FPCGEditorGraphDebugObjectItem> Parent;
@@ -99,6 +101,7 @@ public:
 	virtual const UObject* GetObject() const override { return PCGComponent.Get(); };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
 	virtual bool IsDebuggable() const override { return bIsDebuggable; }
+	virtual const UPCGGraph* GetPCGGraph() const override { return PCGGraph.Get(); }
 
 protected:
 	TWeakObjectPtr<UPCGComponent> PCGComponent = nullptr;
@@ -129,6 +132,7 @@ public:
 	virtual const UObject* GetObject() const override { return PCGNode.Get(); };
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
 	virtual bool IsDebuggable() const override { return bIsDebuggable; }
+	virtual const UPCGGraph* GetPCGGraph() const override { return PCGGraph.Get(); }
 
 protected:
 	TWeakObjectPtr<const UPCGNode> PCGNode = nullptr;
@@ -162,6 +166,8 @@ public:
 	virtual const FPCGStack* GetPCGStack() const override { return &PCGStack; }
 	virtual int32 GetSortPriority() const override { return LoopIndex; }
 	virtual bool IsDebuggable() const override { return bIsDebuggable; }
+	virtual bool IsLoopIteration() const override { return true; }
+	virtual const UPCGGraph* GetPCGGraph() const override { return Cast<UPCGGraph>(LoopedPCGGraph.Get()); }
 
 protected:
 	int32 LoopIndex = INDEX_NONE;
@@ -179,9 +185,7 @@ public:
 	SLATE_BEGIN_ARGS(SPCGEditorGraphDebugObjectItemRow)
 		: _OnDoubleClickFunc()
 	{}
-
 		SLATE_ARGUMENT(FDoubleClickFunc, OnDoubleClickFunc)
-
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, FPCGEditorGraphDebugObjectItemPtr InItem);
@@ -245,6 +249,12 @@ private:
 	/** Expand the given row and select the deepest entry as the debug object if it is unambiguous (the only entry at its level in the tree). */
 	void ExpandAndSelectDebugObject(FPCGEditorGraphDebugObjectItemPtr InItem);
 
+	TSharedPtr<SWidget> OpenContextMenu();
+
+	/** Jump-to context menu command. */
+	void ContextMenu_JumpToGraphInTree();
+	bool ContextMenu_JumpToGraphInTree_CanExecute() const;
+
 	TWeakPtr<FPCGEditor> PCGEditor;
 
 	TSharedPtr<STreeView<FPCGEditorGraphDebugObjectItemPtr>> DebugObjectTreeView;
@@ -261,6 +271,9 @@ private:
 
 	/** Used to retain item selection state across tree refreshes. */
 	FPCGStack SelectedStack;
+
+	/** The previous stack that the user selected. */
+	FPCGStack PreviouslySelectedStack;
 
 	const UPCGNode* PCGNodeBeingInspected = nullptr;
 };

@@ -369,6 +369,26 @@ void FPCGEditor::JumpToNode(const UEdGraphNode* InNode)
 	}
 }
 
+void FPCGEditor::JumpToNode(const UPCGNode* InNode)
+{
+	if (!ensure(PCGEditorGraph))
+	{
+		return;
+	}
+
+	for (const UEdGraphNode* EdGraphNode : PCGEditorGraph->Nodes)
+	{
+		if (const UPCGEditorGraphNodeBase* PCGEdGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
+		{
+			if (PCGEdGraphNode->GetPCGNode() == InNode)
+			{
+				JumpToNode(EdGraphNode);
+				break;
+			}
+		}
+	}
+}
+
 void FPCGEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
 {
 	WorkspaceMenuCategory = InTabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("WorkspaceMenu_PCGEditor", "PCG Editor"));
