@@ -67,7 +67,7 @@ private:
 	TSet<FString> RelevantGFPs;
 	TMap<FString, FGFPInstall> ActiveGFPInstalls;
 
-	/** Delegate handle for a consolve variable sink */
+	/** Delegate handle for a console variable sink */
 	FConsoleVariableSinkHandle CVarSinkHandle;
 
 	bool bEnabled = false;

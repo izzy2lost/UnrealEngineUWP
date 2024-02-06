@@ -34,7 +34,7 @@ void UGameFeatureOptionalContentInstaller::Init(TUniqueFunction<TArray<FName>(FS
 	GetOptionalBundlePredicate = MoveTemp(InGetOptionalBundlePredicate);
 	BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 
-	// Create the cvar sink and set up the thread pool
+	// Create the cvar sink
 	CVarSinkHandle = IConsoleManager::Get().RegisterConsoleVariableSink_Handle(
 		FConsoleCommandDelegate::CreateUObject(this, &UGameFeatureOptionalContentInstaller::OnCVarsChanged));
 	bEnabledCVar = GameFeatureOptionalContentInstaller::CVarEnableOptionalContentInstaller.GetValueOnGameThread();
