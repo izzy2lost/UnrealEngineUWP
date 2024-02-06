@@ -24,7 +24,7 @@ struct FEdgeFaceIntersection
 
 // Returned array has NOT been shrunk
 template<typename SpatialAccelerator, typename SolverParticlesOrRange>
-static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const SpatialAccelerator& Spatial, const SolverParticlesOrRange& Particles, TArray<FEdgeFaceIntersection>& Intersections)
+static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const TArray<int32>& IntersectableEdges, bool bSkipKinematic, const TArray<bool>& FaceIsKinematic, const SpatialAccelerator& Spatial, const SolverParticlesOrRange& Particles, TArray<FEdgeFaceIntersection>& Intersections)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_IntersectionQuery);
 
@@ -32,9 +32,11 @@ static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const S
 	const TArray<TVec2<int32>>& EdgeToFaces = TriangleMesh.GetEdgeToFaces();
 	const TArray<TVec3<int32>>& Elements = TriangleMesh.GetElements();
 
+	const int32 NumIntersectableEdges = IntersectableEdges.IsEmpty() ? SegmentMesh.GetNumElements() : IntersectableEdges.Num();
+
 	// Preallocate enough space for (more than) typical number of expected intersections.
 	constexpr int32 PreallocatedIntersectionsPerEdge = 3;
-	const int32 PreallocatedIntersectionsNum = PreallocatedIntersectionsPerEdge * SegmentMesh.GetNumElements();
+	const int32 PreallocatedIntersectionsNum = PreallocatedIntersectionsPerEdge * NumIntersectableEdges;
 	Intersections.Reset();
 	Intersections.SetNumUninitialized(PreallocatedIntersectionsNum);
 	std::atomic<int32> IntersectionIndex(0);
@@ -42,9 +44,10 @@ static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const S
 	// Extra intersections that require a lock to write to if you have more than PreallocatedIntersectionsPerEdge 
 	TArray<FEdgeFaceIntersection> ExtraIntersections;
 	FCriticalSection CriticalSection;
-	PhysicsParallelFor(SegmentMesh.GetNumElements(),
-		[&Spatial, &TriangleMesh, &Particles, &SegmentMesh, &EdgeToFaces, &Elements, &IntersectionIndex, &Intersections, PreallocatedIntersectionsNum, &ExtraIntersections, &CriticalSection](int32 EdgeIndex)
+	PhysicsParallelFor(NumIntersectableEdges,
+		[&Spatial, &TriangleMesh, &Particles, &SegmentMesh, &EdgeToFaces, &Elements, &IntersectionIndex, &Intersections, PreallocatedIntersectionsNum, &ExtraIntersections, &CriticalSection, &IntersectableEdges, bSkipKinematic, &FaceIsKinematic](int32 IntersectableEdgeIndex)
 		{
+			const int32 EdgeIndex = IntersectableEdges.IsEmpty() ? IntersectableEdgeIndex : IntersectableEdges[IntersectableEdgeIndex];
 
 			TArray< TTriangleCollisionPoint<FSolverReal> > Result;
 
@@ -52,13 +55,22 @@ static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const S
 			const int32 EdgePointIndex1 = SegmentMesh.GetElements()[EdgeIndex][1];
 			const FSolverVec3& EdgePosition0 = Particles.X(EdgePointIndex0);
 			const FSolverVec3& EdgePosition1 = Particles.X(EdgePointIndex1);
-
+			const bool bEdgeIsKinematic = Particles.InvM(EdgePointIndex0) == (FSolverReal)0. && Particles.InvM(EdgePointIndex1) == (FSolverReal)0.;
+			if (bSkipKinematic && bEdgeIsKinematic)
+			{
+				return;
+			}
 
 			if (TriangleMesh.EdgeIntersectionQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), EdgeIndex, EdgePosition0, EdgePosition1,
-				[&Elements, EdgePointIndex0, EdgePointIndex1](int32 EdgeIndex, int32 TriangleIndex)
+				[&Elements, EdgePointIndex0, EdgePointIndex1, bSkipKinematic, bEdgeIsKinematic, &FaceIsKinematic,  &Particles](int32 EdgeIndex, int32 TriangleIndex)
 				{
 					if (EdgePointIndex0 == Elements[TriangleIndex][0] || EdgePointIndex0 == Elements[TriangleIndex][1] || EdgePointIndex0 == Elements[TriangleIndex][2] ||
 						EdgePointIndex1 == Elements[TriangleIndex][0] || EdgePointIndex1 == Elements[TriangleIndex][1] || EdgePointIndex1 == Elements[TriangleIndex][2])
+					{
+						return false;
+					}
+
+					if((bSkipKinematic || bEdgeIsKinematic) && FaceIsKinematic[TriangleIndex])
 					{
 						return false;
 					}
@@ -1275,9 +1287,109 @@ struct FPBDTriangleMeshCollisions::FScratchBuffers
 };
 
 template<typename SolverParticlesOrRange>
+void FPBDTriangleMeshCollisions::FTriangleSubMesh::Init(const SolverParticlesOrRange& Particles, const TSet<int32>& InDisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& InEnabledKinematicFaces)
+{
+	SubMesh.Init(TArray<TVec3<int32>>());
+	SubMeshToFullElements.Reset();
+	FullToSubMeshElements.Reset();
+	SubMeshElementIsKinematic.Reset();
+	CollidableVertices.Reset();
+	IntersectableSubmeshEdges.Reset();
+	bSubMeshIsFullMesh = true;
+
+	if (InDisabledFaces.IsEmpty() && bCollideAgainstAllKinematicVertices)
+	{
+		const TArray<TVec3<int32>>& FullElements = FullMesh.GetElements();
+		SubMeshElementIsKinematic.SetNumUninitialized(FullMesh.GetNumElements());
+
+		for (int32 FullElementIndex = 0; FullElementIndex < FullMesh.GetNumElements(); ++FullElementIndex)
+		{
+			const bool bIsKinematic =
+				Particles.InvM(FullElements[FullElementIndex][0]) == (FSolverReal)0.f &&
+				Particles.InvM(FullElements[FullElementIndex][1]) == (FSolverReal)0.f &&
+				Particles.InvM(FullElements[FullElementIndex][2]) == (FSolverReal)0.f;
+			SubMeshElementIsKinematic[FullElementIndex] = bIsKinematic;
+		}
+		return;
+	}
+
+	// Build a sub mesh of just colliding faces.
+	bSubMeshIsFullMesh = false;
+	TArray<TVec3<int32>> SubElements;
+	SubElements.Reserve(FullMesh.GetNumElements());
+	FullToSubMeshElements.SetNumUninitialized(FullMesh.GetNumElements());
+	SubMeshToFullElements.Reserve(FullMesh.GetNumElements());
+	SubMeshElementIsKinematic.Reserve(FullMesh.GetNumElements());
+	const TArray<TVec3<int32>>& FullElements = FullMesh.GetElements();
+	for (int32 FullElementIndex = 0; FullElementIndex < FullMesh.GetNumElements(); ++FullElementIndex)
+	{
+		if (InDisabledFaces.Contains(FullElementIndex))
+		{
+			FullToSubMeshElements[FullElementIndex] = INDEX_NONE;
+			continue;
+		}
+		const bool bIsKinematic =
+			Particles.InvM(FullElements[FullElementIndex][0]) == (FSolverReal)0.f &&
+			Particles.InvM(FullElements[FullElementIndex][1]) == (FSolverReal)0.f &&
+			Particles.InvM(FullElements[FullElementIndex][2]) == (FSolverReal)0.f;
+
+		if (!bCollideAgainstAllKinematicVertices &&
+			bIsKinematic &&
+			!InEnabledKinematicFaces.Contains(FullElementIndex))
+		{
+			FullToSubMeshElements[FullElementIndex] = INDEX_NONE;
+			continue;
+		}
+
+		const int32 SubElementIndex = SubElements.Add(FullElements[FullElementIndex]);
+		SubMeshToFullElements.Add(FullElementIndex);
+		SubMeshElementIsKinematic.Add(bIsKinematic);
+		FullToSubMeshElements[FullElementIndex] = SubElementIndex;
+	}
+
+	// Use same Vertex range for submesh.
+	const TVec2<int32> VertexRange = FullMesh.GetVertexRange();
+	constexpr bool bCullDegenerateFalse = false;
+	SubMesh.Init(MoveTemp(SubElements), VertexRange[0], VertexRange[1], bCullDegenerateFalse);
+	check(SubMesh.GetNumElements() == SubMeshToFullElements.Num());
+	check(SubMesh.GetNumElements() == SubMeshElementIsKinematic.Num());
+
+	const TSet<int32> VertexSet = SubMesh.GetVertices();
+	CollidableVertices.Reserve(VertexSet.Num());
+	for (const int32 Vertex : VertexSet)
+	{
+		if (Particles.InvM(Vertex) > (FSolverReal)0.)
+		{
+			CollidableVertices.Add(Vertex);
+		}
+	}
+
+	const FSegmentMesh& SegmentMesh = const_cast<const FTriangleMesh&>(SubMesh).GetSegmentMesh();
+	IntersectableSubmeshEdges.Reserve(SegmentMesh.GetNumElements());
+	for (int32 EdgeIndex = 0; EdgeIndex < SegmentMesh.GetNumElements(); ++EdgeIndex)
+	{
+		const int32 EdgePointIndex0 = SegmentMesh.GetElements()[EdgeIndex][0];
+		const int32 EdgePointIndex1 = SegmentMesh.GetElements()[EdgeIndex][1];
+		if (Particles.InvM(EdgePointIndex0) > (FSolverReal)0. || Particles.InvM(EdgePointIndex1) > (FSolverReal)0)
+		{
+			IntersectableSubmeshEdges.Add(EdgeIndex);
+		}
+	}
+}
+
+template<typename SolverParticlesOrRange>
 void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, const FSolverReal MinProximityQueryRadius)
 {
-	if (TriangleMesh.GetNumElements() == 0)
+	const bool bDoSelfIntersections = bGlobalIntersectionAnalysis || bContourMinimization;
+	if (bCollidableSubMeshDirty)
+	{		
+		CollidableSubMesh.Init(Particles, DisabledFaces, bSelfCollideAgainstAllKinematicVertices, EnabledKinematicFaces);
+		bCollidableSubMeshDirty = false;
+	}
+
+	const FTriangleMesh& CollidableMesh = CollidableSubMesh.GetCollidableMesh();
+
+	if (CollidableMesh.GetNumElements() == 0)
 	{
 		return;
 	}
@@ -1285,17 +1397,17 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_BuildSpatialHash);
 		constexpr FSolverReal RadiusToLodSizeMultiplier = 2.; // Radius to Diameter
-		TriangleMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), SpatialHash, RadiusToLodSizeMultiplier * MinProximityQueryRadius);
+		CollidableMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), SpatialHash, RadiusToLodSizeMultiplier * MinProximityQueryRadius);
 	}
 	ContourMinimizationIntersections.Reset();
 	VertexGIAColors.Reset();
 	VertexGIAColors.SetNumZeroed(NumParticles);
 	TriangleGIAColors.Reset();
-	TriangleGIAColors.SetNumZeroed(TriangleMesh.GetNumElements());
+	TriangleGIAColors.SetNumZeroed(CollidableMesh.GetNumElements());
 	IntersectionContourPoints.Reset();
 	IntersectionContourTypes.Reset();
 
-	if (!bGlobalIntersectionAnalysis && !bContourMinimization)
+	if (!bDoSelfIntersections)
 	{
 		return;
 	}
@@ -1307,7 +1419,8 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 	ScratchBuffers->Reset();
 
 	// Detect all EdgeFace Intersections
-	FindEdgeFaceIntersections(TriangleMesh, SpatialHash, Particles, ScratchBuffers->EdgeFaceIntersections);
+	constexpr bool bSkipKinematicTrue = true;
+	FindEdgeFaceIntersections(CollidableMesh, CollidableSubMesh.GetIntersectableSubmeshEdges(), bSkipKinematicTrue, CollidableSubMesh.GetSubMeshElementIsKinematic(), SpatialHash, Particles, ScratchBuffers->EdgeFaceIntersections);
 	if (ScratchBuffers->EdgeFaceIntersections.Num() == 0)
 	{
 		return;
@@ -1316,9 +1429,9 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 	if (bGlobalIntersectionAnalysis)
 	{ 
 		// Walk EdgeFace intersections to build global contours
-		GIA::ContourBuilding::BuildIntersectionContours(TriangleMesh, ScratchBuffers->EdgeFaceIntersections, ScratchBuffers->IntersectionContours, IntersectionContourPoints);
+		GIA::ContourBuilding::BuildIntersectionContours(CollidableMesh, ScratchBuffers->EdgeFaceIntersections, ScratchBuffers->IntersectionContours, IntersectionContourPoints);
 		// Flood fill global contours to determine intersecting regions.
-		GIA::FloodFill::FloodFillContours(TriangleMesh, NumParticles, Offset, ScratchBuffers->IntersectionContours, VertexGIAColors, TriangleGIAColors);
+		GIA::FloodFill::FloodFillContours(CollidableMesh, NumParticles, Offset, ScratchBuffers->IntersectionContours, VertexGIAColors, TriangleGIAColors);
 		GIA::FloodFill::AssignContourPointTypes(ScratchBuffers->IntersectionContours, IntersectionContourPoints, IntersectionContourTypes);
 	}
 
@@ -1327,12 +1440,12 @@ void FPBDTriangleMeshCollisions::Init(const SolverParticlesOrRange& Particles, c
 		if (bGlobalIntersectionAnalysis)
 		{
 			// Global contours which are non-closed or loop are handled via ContourMinimization impulses. Build global gradient (by adding contribution across all intersections per contour).
-			ContourMinimization::BuildGlobalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->IntersectionContours, ContourMinimizationIntersections);
+			ContourMinimization::BuildGlobalContourMinimizationIntersections(CollidableMesh, Particles, ScratchBuffers->IntersectionContours, ContourMinimizationIntersections);
 		}
 		else
 		{
 			// Just build local gradient for all Intersections
-			ContourMinimization::BuildLocalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->EdgeFaceIntersections, ContourMinimizationIntersections);
+			ContourMinimization::BuildLocalContourMinimizationIntersections(CollidableMesh, Particles, ScratchBuffers->EdgeFaceIntersections, ContourMinimizationIntersections);
 		}
 	}
 }
@@ -1342,7 +1455,8 @@ template CHAOS_API void FPBDTriangleMeshCollisions::Init(const FSolverParticlesR
 template<typename SolverParticlesOrRange>
 void FPBDTriangleMeshCollisions::PostStepInit(const SolverParticlesOrRange& Particles)
 {
-	if (TriangleMesh.GetNumElements() == 0)
+	const FTriangleMesh& CollidableMesh = CollidableSubMesh.GetCollidableMesh();
+	if (CollidableMesh.GetNumElements() == 0)
 	{
 		return;
 	}
@@ -1356,7 +1470,7 @@ void FPBDTriangleMeshCollisions::PostStepInit(const SolverParticlesOrRange& Part
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ChaosFPBDTriangleMeshCollisions_BuildSpatialHash);
 			constexpr FSolverReal MinSpatialLodSize = 1.f;
-			TriangleMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), SpatialHash, MinSpatialLodSize);
+			CollidableMesh.BuildSpatialHash(static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), SpatialHash, MinSpatialLodSize);
 
 			if (!ScratchBuffers)
 			{
@@ -1365,17 +1479,18 @@ void FPBDTriangleMeshCollisions::PostStepInit(const SolverParticlesOrRange& Part
 			ScratchBuffers->Reset();
 
 			// Detect all EdgeFace Intersections
-			FindEdgeFaceIntersections(TriangleMesh, SpatialHash, Particles, ScratchBuffers->EdgeFaceIntersections);
+			constexpr bool bSkipKinematicTrue = true;
+			FindEdgeFaceIntersections(CollidableMesh, CollidableSubMesh.GetIntersectableSubmeshEdges(), bSkipKinematicTrue, CollidableSubMesh.GetSubMeshElementIsKinematic(), SpatialHash, Particles, ScratchBuffers->EdgeFaceIntersections);
 
 			if (bUseGlobalPostStepContours)
 			{
-				GIA::ContourBuilding::BuildIntersectionContours(TriangleMesh, ScratchBuffers->EdgeFaceIntersections, ScratchBuffers->IntersectionContours, PostStepIntersectionContourPoints);
-				ContourMinimization::BuildGlobalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->IntersectionContours, PostStepContourMinimizationIntersections);
+				GIA::ContourBuilding::BuildIntersectionContours(CollidableMesh, ScratchBuffers->EdgeFaceIntersections, ScratchBuffers->IntersectionContours, PostStepIntersectionContourPoints);
+				ContourMinimization::BuildGlobalContourMinimizationIntersections(CollidableMesh, Particles, ScratchBuffers->IntersectionContours, PostStepContourMinimizationIntersections);
 			}
 			else
 			{
 				// Just build local gradient for all Intersections
-				ContourMinimization::BuildLocalContourMinimizationIntersections(TriangleMesh, Particles, ScratchBuffers->EdgeFaceIntersections, PostStepContourMinimizationIntersections);
+				ContourMinimization::BuildLocalContourMinimizationIntersections(CollidableMesh, Particles, ScratchBuffers->EdgeFaceIntersections, PostStepContourMinimizationIntersections);
 			}
 		}
 	}

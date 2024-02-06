@@ -206,6 +206,12 @@ TMap<FString, const TSet<int32>*> FClothingSimulationMesh::GetVertexSets(int32 L
 	return TMap<FString, const TSet<int32>*>();
 }
 
+TMap<FString, const TSet<int32>*> FClothingSimulationMesh::GetFaceSets(int32 LODIndex) const
+{
+	// Not supported
+	return TMap<FString, const TSet<int32>*>();
+}
+
 TMap<FString, TConstArrayView<int32>> FClothingSimulationMesh::GetFaceIntMaps(int32 LODIndex) const
 {
 	// Not supported

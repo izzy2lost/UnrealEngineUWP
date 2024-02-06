@@ -122,6 +122,7 @@ void FTriangleMesh::Init(TArray<TVec3<int32>>&& Elements, const int32 StartIdx, 
 	MElements = MoveTemp(Elements);
 	MStartIdx = 0;
 	MNumIndices = 0;
+	ResetAuxiliaryStructures();
 	InitHelper(StartIdx, EndIdx, CullDegenerateElements);
 }
 
@@ -130,6 +131,7 @@ void FTriangleMesh::Init(const TArray<TVec3<int32>>& Elements, const int32 Start
 	MElements = Elements;
 	MStartIdx = 0;
 	MNumIndices = 0;
+	ResetAuxiliaryStructures();
 	InitHelper(StartIdx, EndIdx, CullDegenerateElements);
 }
 

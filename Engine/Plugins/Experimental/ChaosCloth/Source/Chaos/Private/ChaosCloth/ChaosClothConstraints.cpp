@@ -469,7 +469,7 @@ void FClothConstraints::AddRules(
 	}
 
 	// Call new AddRules function
-	AddRules(ConfigProperties, TriangleMesh, nullptr, WeightMaps, TMap<FString, const TSet<int32>*>(),
+	AddRules(ConfigProperties, TriangleMesh, nullptr, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(),
 		TMap<FString, TConstArrayView<int32>>(), Tethers, MeshScale, bEnabled);
 }
 
@@ -481,7 +481,7 @@ void FClothConstraints::AddRules(
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
 	Softs::FSolverReal MeshScale, bool bEnabled)
 {
-	AddRules(ConfigProperties, TriangleMesh, PatternData, WeightMaps, TMap<FString, const TSet<int32>*>(),
+	AddRules(ConfigProperties, TriangleMesh, PatternData, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(),
 		TMap<FString, TConstArrayView<int32>>(), Tethers, MeshScale, bEnabled);
 }
 
@@ -797,12 +797,13 @@ void FClothConstraints::AddRules(
 	const FClothingPatternData* PatternData,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	const TMap<FString, const TSet<int32>*>& VertexSets,
+	const TMap<FString, const TSet<int32>*>& FaceSets,
 	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
 	Softs::FSolverReal MeshScale, bool bEnabled)
 {
 	// Self collisions
-	CreateSelfCollisionConstraints(ConfigProperties, VertexSets, FaceIntMaps, TriangleMesh);
+	CreateSelfCollisionConstraints(ConfigProperties, VertexSets, FaceSets, FaceIntMaps, TriangleMesh);
 
 	// Edge constraints
 	CreateStretchConstraints(ConfigProperties, WeightMaps, TriangleMesh, PatternData);
@@ -869,6 +870,7 @@ void FClothConstraints::AddRules(
 
 void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionPropertyConstFacade& ConfigProperties, 
 	const TMap<FString, const TSet<int32>*>& VertexSets,
+	const TMap<FString, const TSet<int32>*>& FaceSets,
 	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps, const FTriangleMesh& TriangleMesh)
 {
 	const bool bUseSelfCollisions = ConfigProperties.GetValue<bool>(TEXT("UseSelfCollisions"));
@@ -878,6 +880,7 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 		SelfCollisionInit = MakeShared<Softs::FPBDTriangleMeshCollisions>(
 			ParticleOffset,
 			NumParticles,
+			FaceSets,
 			TriangleMesh,
 			ConfigProperties);
 		++NumConstraintInits;
@@ -1592,7 +1595,7 @@ void FClothConstraints::CreateForceBasedRules()
 			}
 			// Thickness * 2 to account for collision radius for both particles
 			SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
-			SelfCollisionConstraints->Init(Particles, SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
+			SelfCollisionConstraints->Init(Particles, Dt, SelfCollisionInit->GetCollidableSubMesh(), SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
 		});
 
 		constexpr bool bPostCollisions = true;
@@ -1990,7 +1993,7 @@ void FClothConstraints::CreatePBDRules()
 	if (SelfCollisionInit && SelfCollisionConstraints)
 	{
 		ConstraintInits[ConstraintInitIndex++] =
-			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal /*Dt*/)
+			[this](Softs::FSolverParticles& Particles, const Softs::FSolverReal Dt)
 			{
 				if (bSkipSelfCollisionInit)
 				{
@@ -1998,7 +2001,7 @@ void FClothConstraints::CreatePBDRules()
 				}
 				// Thickness * 2 to account for collision radius for both particles
 				SelfCollisionInit->Init(Particles, SelfCollisionConstraints->GetThickness() * (Softs::FSolverReal)2.f);
-				SelfCollisionConstraints->Init(Particles, SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
+				SelfCollisionConstraints->Init(Particles, Dt, SelfCollisionInit->GetCollidableSubMesh(), SelfCollisionInit->GetSpatialHash(), SelfCollisionInit->GetVertexGIAColors(), SelfCollisionInit->GetTriangleGIAColors());
 			};
 
 		PostCollisionConstraintRules[PostCollisionConstraintRuleIndex++] =
@@ -2096,6 +2099,7 @@ void FClothConstraints::Update(
 	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	const TMap<FString, const TSet<int32>*>& VertexSets,
+	const TMap<FString, const TSet<int32>*>& FaceSets,
 	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 	Softs::FSolverReal MeshScale,
 	Softs::FSolverReal MaxDistancesScale)
@@ -2166,7 +2170,7 @@ void FClothConstraints::Update(
 	}
 	if (SelfCollisionInit)
 	{
-		SelfCollisionInit->SetProperties(ConfigProperties);
+		SelfCollisionInit->SetProperties(ConfigProperties, FaceSets);
 	}
 	if (SelfCollisionSphereConstraints)
 	{
@@ -2208,7 +2212,7 @@ void FClothConstraints::Update(
 	Softs::FSolverReal MeshScale,
 	Softs::FSolverReal MaxDistancesScale)
 {
-	Update(ConfigProperties, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
+	Update(ConfigProperties, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
 }
 
 // Deprecated
@@ -2217,7 +2221,7 @@ void FClothConstraints::Update(
 	Softs::FSolverReal MeshScale,
 	Softs::FSolverReal MaxDistancesScale)
 {
-	Update(ConfigProperties, TMap<FString, TConstArrayView<FRealSingle>>(), TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
+	Update(ConfigProperties, TMap<FString, TConstArrayView<FRealSingle>>(), TMap<FString, const TSet<int32>*>(), TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
 }
 
 }  // End namespace Chaos

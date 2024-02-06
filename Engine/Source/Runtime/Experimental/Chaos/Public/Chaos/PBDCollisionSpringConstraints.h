@@ -11,8 +11,6 @@ namespace Chaos::Softs
 class FPBDCollisionSpringConstraints : public FPBDCollisionSpringConstraintsBase
 {
 	typedef FPBDCollisionSpringConstraintsBase Base;
-	using Base::Barys;
-	using Base::Constraints;
 
 public:
 	static constexpr FSolverReal MinFrictionCoefficient = (FSolverReal)0.;
@@ -40,12 +38,18 @@ public:
 			(FSolverReal)FMath::Max(GetSelfCollisionThickness(PropertyCollection, Base::BackCompatThickness), 0.f),
 			(FSolverReal)FMath::Clamp(GetSelfCollisionStiffness(PropertyCollection, Base::BackCompatStiffness), 0.f, 1.f),
 			FMath::Clamp((FSolverReal)GetSelfCollisionFriction(PropertyCollection, Base::BackCompatFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
+			(FSolverReal)FMath::Max(GetSelfCollisionKinematicColliderThickness(PropertyCollection, Base::DefaultKinematicColliderThickness), 0.f),
+			(FSolverReal)FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderStiffness(PropertyCollection, Base::DefaultKinematicColliderStiffness), 0.f, 1.f),
+			FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderFriction(PropertyCollection, Base::DefaultKinematicColliderFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
 			(FSolverReal)GetSelfCollisionProximityStiffness(PropertyCollection, Base::DefaultProximityStiffness))
 		, SelfCollisionThicknessIndex(PropertyCollection)
 		, SelfCollisionStiffnessIndex(PropertyCollection)
 		, SelfCollisionFrictionIndex(PropertyCollection)
 		, SelfCollisionProximityStiffnessIndex(PropertyCollection)
 		, SelfCollisionLayersIndex(PropertyCollection)
+		, SelfCollisionKinematicColliderThicknessIndex(PropertyCollection)
+		, SelfCollisionKinematicColliderStiffnessIndex(PropertyCollection)
+		, SelfCollisionKinematicColliderFrictionIndex(PropertyCollection)
 	{}
 
 	UE_DEPRECATED(5.4, "Use constructor with FaceIntMaps")
@@ -56,22 +60,14 @@ public:
 		const TArray<FSolverVec3>* InRestPositions,
 		TSet<TVec2<int32>>&& InDisabledCollisionElements,
 		const FCollectionPropertyConstFacade& PropertyCollection)
-		: Base(
+		: FPBDCollisionSpringConstraints(
 			InOffset,
 			InNumParticles,
 			InTriangleMesh,
 			InRestPositions,
-			MoveTemp(InDisabledCollisionElements),
-			TConstArrayView<int32>(),
-			(FSolverReal)FMath::Max(GetSelfCollisionThickness(PropertyCollection, Base::BackCompatThickness), 0.f),
-			(FSolverReal)FMath::Clamp(GetSelfCollisionStiffness(PropertyCollection, Base::BackCompatStiffness), 0.f, 1.f),
-			FMath::Clamp((FSolverReal)GetSelfCollisionFriction(PropertyCollection, Base::BackCompatFrictionCoefficient), MinFrictionCoefficient, MaxFrictionCoefficient),
-			(FSolverReal)GetSelfCollisionProximityStiffness(PropertyCollection, Base::DefaultProximityStiffness))
-		, SelfCollisionThicknessIndex(PropertyCollection)
-		, SelfCollisionStiffnessIndex(PropertyCollection)
-		, SelfCollisionFrictionIndex(PropertyCollection)
-		, SelfCollisionProximityStiffnessIndex(PropertyCollection)
-		, SelfCollisionLayersIndex(PropertyCollection)
+			TMap<FString, TConstArrayView<int32>>(),
+			PropertyCollection
+		)
 	{}
 
 	FPBDCollisionSpringConstraints(
@@ -98,6 +94,9 @@ public:
 		, SelfCollisionFrictionIndex(ForceInit)
 		, SelfCollisionProximityStiffnessIndex(ForceInit)
 		, SelfCollisionLayersIndex(ForceInit)
+		, SelfCollisionKinematicColliderThicknessIndex(ForceInit)
+		, SelfCollisionKinematicColliderStiffnessIndex(ForceInit)
+		, SelfCollisionKinematicColliderFrictionIndex(ForceInit)
 	{}
 
 	virtual ~FPBDCollisionSpringConstraints() override {}
@@ -130,6 +129,10 @@ public:
 				const FString& FaceIntMapName = GetSelfCollisionLayersString(PropertyCollection);
 				Base::UpdateCollisionLayers(FaceIntMaps.FindRef(FaceIntMapName));
 			}
+		}
+		if (IsSelfCollisionKinematicColliderStiffnessMutable(PropertyCollection))
+		{
+			KinematicColliderStiffness = FMath::Clamp((FSolverReal)GetSelfCollisionKinematicColliderStiffness(PropertyCollection), 0.f, 1.f);
 		}
 	}
 
@@ -172,6 +175,9 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionProximityStiffness, float);
 	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(SelfCollisionDisableNeighborDistance, int32);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionLayers, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionKinematicColliderThickness, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionKinematicColliderStiffness, float);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionKinematicColliderFriction, float);
 };
 
 }  // End namespace Chaos::Softs

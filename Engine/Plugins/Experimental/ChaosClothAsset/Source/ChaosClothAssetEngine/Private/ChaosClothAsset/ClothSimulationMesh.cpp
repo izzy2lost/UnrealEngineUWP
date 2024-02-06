@@ -137,6 +137,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return VertexSets;
 	}
 
+	TMap<FString, const TSet<int32>*> FClothSimulationMesh::GetFaceSets(int32 LODIndex) const
+	{
+		TMap<FString, const TSet<int32>*> FaceSets;
+		if (ClothSimulationModel.ClothSimulationLodModels.IsValidIndex(LODIndex))
+		{
+			FaceSets.Reserve(ClothSimulationModel.ClothSimulationLodModels[LODIndex].FaceSets.Num());
+			for (TMap<FName, TSet<int32>>::TConstIterator Iter = ClothSimulationModel.ClothSimulationLodModels[LODIndex].FaceSets.CreateConstIterator(); Iter; ++Iter)
+			{
+				FaceSets.Emplace(Iter.Key().ToString(), &Iter.Value());
+			}
+		}
+		return FaceSets;
+	}
+
 	TMap<FString, TConstArrayView<int32>> FClothSimulationMesh::GetFaceIntMaps(int32 LODIndex) const
 	{
 		TMap<FString, TConstArrayView<int32>> FaceIntMaps;

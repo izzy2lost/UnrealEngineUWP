@@ -36,11 +36,13 @@ namespace UE::Chaos::ClothAsset::Private
 			FCollectionClothSelectionConstFacade Selection(ClothCollection);
 			if (Selection.IsValid())
 			{
-				// Just checksum the sets that are SimVertex3D sets since those are the only ones we care about right now
+				// Just checksum the sets that are SimVertex3D and SimFace sets since those are the only ones we care about right now
 				const TArray<FName> SelectionNames = Selection.GetNames();
 				for (const FName& SelectionName : SelectionNames)
 				{
-					if (Selection.GetSelectionGroup(SelectionName) == ClothCollectionGroup::SimVertices3D)
+					const FName SelectionGroup = Selection.GetSelectionGroup(SelectionName);
+					if (SelectionGroup == ClothCollectionGroup::SimVertices3D ||
+						SelectionGroup == ClothCollectionGroup::SimFaces)
 					{
 						const TArray<int32> SelectionAsArray = Selection.GetSelectionSet(SelectionName).Array();
 						Checksum = HashCombineFast(Checksum, GetTypeHash(SelectionName));
@@ -189,9 +191,11 @@ void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Data
 				const TArray<FName> InSelectionNames = InSelection.GetNames();
 				for (const FName& InSelectionName : InSelectionNames)
 				{
-					if (InSelection.GetSelectionGroup(InSelectionName) == ClothCollectionGroup::SimVertices3D)
+					const FName SelectionGroup = InSelection.GetSelectionGroup(InSelectionName);
+					if (SelectionGroup == ClothCollectionGroup::SimVertices3D || 
+						SelectionGroup == ClothCollectionGroup::SimFaces)
 					{
-						Selection.FindOrAddSelectionSet(InSelectionName, ClothCollectionGroup::SimVertices3D) = InSelection.GetSelectionSet(InSelectionName);
+						Selection.FindOrAddSelectionSet(InSelectionName, SelectionGroup) = InSelection.GetSelectionSet(InSelectionName);
 					}
 				}
 			}
