@@ -7,6 +7,7 @@
 #include "IAvaSceneInterface.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Modules/ModuleManager.h"
 #include "Subsystems/CEClonerSubsystem.h"
 
 #if WITH_EDITOR
