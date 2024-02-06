@@ -2,7 +2,7 @@ Availability: NoPublish
 Title: Build Configuration Properties Page
 Crumbs:
 Description: This is a procedurally generated markdown page.
-Version: 5.4
+Version: 5.5
 
 ### Read-Only Properties
 
@@ -487,6 +487,8 @@ $ bCheckSystemHeadersForModification (Boolean): Whether headers in system paths 
 $ bDisableLinking (Boolean): Whether to disable linking for this target.
 
 $ bIgnoreBuildOutputs (Boolean): Whether to ignore tracking build outputs for this target.
+
+$ bDisableEngineDeprecations (Boolean): Whether to disable UE_DEPRECATED_FORENGINE deprecation warnings in non-engine modules. This should only be used in the short-term as these deprecations will get removed.
 
 $ bFormalBuild (Boolean): Indicates that this is a formal build, intended for distribution. This flag is automatically set to true when Build.version has a changelist set and is a promoted build. The only behavior currently bound to this flag is to compile the default resource file separately for each binary so that the OriginalFilename field is set correctly. By default, we only compile the resource once to reduce build times.
 
