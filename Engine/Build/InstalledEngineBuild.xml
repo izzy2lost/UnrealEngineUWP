@@ -52,6 +52,7 @@
 
 	<!-- Whether to sign any executables produced -->
 	<Option Name="SignExecutables" Restrict="true|false" DefaultValue="false" Description="Sign the executables produced where signing is available"/>
+	<Option Name="SignWindowsExecutablesInParallel" Restrict="true|false" DefaultValue="false" Description="Sign the executables in parallel, Windows only"/>
 
 	<!-- The analytics type -->
 	<Option Name="AnalyticsTypeOverride" DefaultValue="" Description="Identifier for analytic events to send"/>
@@ -194,7 +195,7 @@
 			<Do If="'$(SignExecutables)' == true">
 				<Tag Files="#UnrealEditor Win64" Filter="$(WindowsSignFilter)" Except="$(PluginsExceptions)" With="#UnrealEditor Win64 Unsigned"/>
 				<Copy Files="#UnrealEditor Win64 Unsigned" From="$(RootDir)" To="$(SavedOutput)" Tag="#Editor_ToSign_Win64"/>
-				<Sign Files="#Editor_ToSign_Win64" Tag="#UnrealEditor Win64 Signed"/>
+				<Sign Files="#Editor_ToSign_Win64" Parallel="$(SignWindowsExecutablesInParallel)" Tag="#UnrealEditor Win64 Signed"/>
 			</Do>
 			<Tag Files="#UnrealEditor Win64" Except="$(PluginsExceptions)" With="#UnrealEditor Win64 WithExceptions"/>
 
@@ -302,7 +303,7 @@
 			<Do If="'$(SignExecutables)' == true">
 				<Tag Files="#UnrealGame Win64" Filter="$(WindowsSignFilter)" With="#UnrealGame Win64 Unsigned"/>
 				<Copy Files="#UnrealGame Win64 Unsigned" From="$(RootDir)" To="$(SavedOutput)" Tag="#Game_ToSign_Win64"/>
-				<Sign Files="#Game_ToSign_Win64" Tag="#UnrealGame Win64 Signed"/>
+				<Sign Files="#Game_ToSign_Win64" Parallel="$(SignWindowsExecutablesInParallel)" Tag="#UnrealGame Win64 Signed"/>
 			</Do>
 		</Node>
 	</Agent>
@@ -553,7 +554,7 @@
 			<Tag Files="$(CsToolsDir)/Engine/..." With="#SourceForDocumentation" />
 
 			<!-- Sign the binaries -->
-			<Sign Files="#Sign Binaries" If="'$(SignExecutables)' == true"/>
+			<Sign Files="#Sign Binaries" Parallel="$(SignWindowsExecutablesInParallel)" If="'$(SignExecutables)' == true"/>
 		</Node>
 		<Node Name="Build Tools Linux" Requires="Update Version Files">
 			<Compile Target="CrashReportClient" Platform="Linux" Configuration="Shipping" Tag="#Build Tools Linux" Arguments="$(CrashReporterCompileArgs)"/>
@@ -1096,7 +1097,7 @@
 				<!-- Copy then Sign required files in their final location -->
 				<Copy Files="#Sign Tools for Installed Win64" From="$(RootDir)" To="$(LocalInstalledDir)" Tag="#Files to Sign"/>
 				<Copy Files="#Sign CS Tools for Installed Win64" From="$(CsToolsDir)" To="$(LocalInstalledDir)" Tag="#Files to Sign"/>
-				<Sign Files="#Files to Sign" Tag="#Installed Build Win64 Files"/>
+				<Sign Files="#Files to Sign" Parallel="$(SignWindowsExecutablesInParallel)" Tag="#Installed Build Win64 Files"/>
 			</Do>
 
 			<!-- Copy the compressed DDC -->
