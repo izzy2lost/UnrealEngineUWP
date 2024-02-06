@@ -3,8 +3,8 @@
 #include "DMXPixelMappingPixelMapRenderer.h"
 
 #include "DMXPixelMappingRenderElement.h"
+#include "DMXPixelMappingRenderPixelMapProxy.h"
 #include "Engine/TextureRenderTarget2D.h"
-#include "RenderPixelMapProxy.h"
 #include "RenderingThread.h"
 
 
@@ -13,7 +13,7 @@ const FIntPoint UDMXPixelMappingPixelMapRenderer::MaxPixelMapSize = FIntPoint(40
 UDMXPixelMappingPixelMapRenderer::UDMXPixelMappingPixelMapRenderer()
 {
 	using namespace UE::DMXPixelMapping::Rendering::Private;
-	RendererPixelMapProxy = MakeShared<FRenderPixelMapProxy>();
+	RendererPixelMapProxy = MakeShared<FDMXPixelMappingRenderPixelMapProxy>();
 }
 
 void UDMXPixelMappingPixelMapRenderer::SetElements(const TArray<TSharedRef<UE::DMXPixelMapping::Rendering::FPixelMapRenderElement>>& InElements, EPixelFormat InFormat)

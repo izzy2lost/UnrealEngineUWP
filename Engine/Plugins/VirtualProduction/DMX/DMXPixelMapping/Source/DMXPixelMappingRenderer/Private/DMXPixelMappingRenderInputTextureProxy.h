@@ -13,11 +13,11 @@ class UTexture;
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	/** Proxy responsible for the input texture */
-	class FPreprocessRenderInputTextureProxy
+	class FDMXPixelMappingRenderInputTextureProxy
 		: public IPreprocessRenderInputProxy
 	{
 	public:
-		FPreprocessRenderInputTextureProxy(UTexture* InTexture);
+		FDMXPixelMappingRenderInputTextureProxy(UTexture* InTexture);
 
 		//~ Begin IPreprocessRenderInputProxy interface
 		virtual void Render() override;

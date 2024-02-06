@@ -14,12 +14,12 @@ class UTextureRenderTarget2D;
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	/** Proxy responsible for the input user widget */
-	class FPreprocessRenderInputUserWidgetProxy
+	class FDMXPixelMappingRenderInputUserWidgetProxy
 		: public IPreprocessRenderInputProxy
 		, public FGCObject
 	{
 	public:
-		FPreprocessRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize, EPixelFormat InFormat);
+		FDMXPixelMappingRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize, EPixelFormat InFormat);
 
 		//~ Begin IPreprocessRenderInputProxy interface
 		virtual void Render() override;
@@ -32,7 +32,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 		virtual FString GetReferencerName() const override
 		{
-			return TEXT("DMXPixelMapping::Rendering::Private::FPreprocessRenderInputUserWidgetProxy");
+			return TEXT("DMXPixelMapping::Rendering::Private::FDMXPixelMappingRenderInputUserWidgetProxy");
 		}
 		//~ End FGCObject interface
 

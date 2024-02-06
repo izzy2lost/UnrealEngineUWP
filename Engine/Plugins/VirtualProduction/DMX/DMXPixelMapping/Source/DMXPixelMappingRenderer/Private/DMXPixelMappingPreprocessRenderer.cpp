@@ -2,13 +2,13 @@
 
 #include "DMXPixelMappingPreprocessRenderer.h"
 
+#include "DMXPixelMappingApplyFilterMaterialProxy.h"
+#include "DMXPixelMappingRenderInputMaterialProxy.h"
+#include "DMXPixelMappingRenderInputTextureProxy.h"
+#include "DMXPixelMappingRenderInputUserWidgetProxy.h"
 #include "DMXStats.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
-#include "PreprocessApplyFilterMaterialProxy.h"
-#include "PreprocessRenderInputMaterialProxy.h"
-#include "PreprocessRenderInputTextureProxy.h"
-#include "PreprocessRenderInputUserWidgetProxy.h"
 #include "UObject/Package.h"
 
 
@@ -17,8 +17,8 @@ DECLARE_CYCLE_STAT(TEXT("PixelMapping PreprocessInputTexture"), STAT_DMXPixelMap
 void UDMXPixelMappingPreprocessRenderer::SetInputTexture(UTexture* InTexture, EPixelFormat InFormat)
 {
 	using namespace UE::DMXPixelMapping::Rendering::Preprocess::Private;
-	RenderInputProxy = MakeShared<FPreprocessRenderInputTextureProxy>(InTexture);
-	ApplyMaterialProxy = MakeShared<FPreprocessApplyFilterMaterialProxy>(InFormat);
+	RenderInputProxy = MakeShared<FDMXPixelMappingRenderInputTextureProxy>(InTexture);
+	ApplyMaterialProxy = MakeShared<FDMXPixelMappingApplyFilterMaterialProxy>(InFormat);
 
 	bShowInputSize = false;
 }
@@ -26,8 +26,8 @@ void UDMXPixelMappingPreprocessRenderer::SetInputTexture(UTexture* InTexture, EP
 void UDMXPixelMappingPreprocessRenderer::SetInputMaterial(UMaterialInterface* InMaterial, EPixelFormat InFormat)
 {
 	using namespace UE::DMXPixelMapping::Rendering::Preprocess::Private;
-	RenderInputProxy = MakeShared<FPreprocessRenderInputMaterialProxy>(InMaterial, InputSize, InFormat);
-	ApplyMaterialProxy = MakeShared<FPreprocessApplyFilterMaterialProxy>(InFormat);
+	RenderInputProxy = MakeShared<FDMXPixelMappingRenderInputMaterialProxy>(InMaterial, InputSize, InFormat);
+	ApplyMaterialProxy = MakeShared<FDMXPixelMappingApplyFilterMaterialProxy>(InFormat);
 
 	bShowInputSize = true;
 }
@@ -35,8 +35,8 @@ void UDMXPixelMappingPreprocessRenderer::SetInputMaterial(UMaterialInterface* In
 void UDMXPixelMappingPreprocessRenderer::SetInputUserWidget(UUserWidget* InUserWidget, EPixelFormat InFormat)
 {
 	using namespace UE::DMXPixelMapping::Rendering::Preprocess::Private;
-	RenderInputProxy = MakeShared<FPreprocessRenderInputUserWidgetProxy>(InUserWidget, InputSize, InFormat);
-	ApplyMaterialProxy = MakeShared<FPreprocessApplyFilterMaterialProxy>(InFormat);
+	RenderInputProxy = MakeShared<FDMXPixelMappingRenderInputUserWidgetProxy>(InUserWidget, InputSize, InFormat);
+	ApplyMaterialProxy = MakeShared<FDMXPixelMappingApplyFilterMaterialProxy>(InFormat);
 
 	bShowInputSize = true;
 }

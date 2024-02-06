@@ -13,7 +13,7 @@ namespace UE::DMXPixelMapping::Rendering { class FPixelMapRenderElement; }
 namespace UE::DMXPixelMapping::Rendering::Private
 {
 	/** Interface for the object responsible to render the input texture/material/umg widget. */
-	class FRenderPixelMapProxy
+	class FDMXPixelMappingRenderPixelMapProxy
 		: public IRenderPixelMapProxy
 		, public FGCObject
 	{
@@ -37,7 +37,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 	protected:
 		//~ Begin FGCObject interface
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-		virtual FString GetReferencerName() const override { return TEXT("FRenderPixelMapProxy"); }
+		virtual FString GetReferencerName() const override { return TEXT("FDMXPixelMappingRenderPixelMapProxy"); }
 		//~ End FGCObject interface
 
 	private:

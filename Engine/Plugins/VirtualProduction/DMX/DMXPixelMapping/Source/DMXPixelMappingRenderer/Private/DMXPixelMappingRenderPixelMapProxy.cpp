@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RenderPixelMapProxy.h"
+#include "DMXPixelMappingRenderPixelMapProxy.h"
 
 #include "DMXPixelMappingRenderElement.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -72,7 +72,7 @@ IMPLEMENT_GLOBAL_SHADER(FDMXPixelMappingRendererPS, "/Plugin/DMXPixelMapping/Pri
 
 namespace UE::DMXPixelMapping::Rendering::Private
 {
-	void FRenderPixelMapProxy::Render(
+	void FDMXPixelMappingRenderPixelMapProxy::Render(
 		UTexture* InInputTexture,
 		UTextureRenderTarget2D* InRenderTarget,
 		const TArray<TSharedRef<FPixelMapRenderElement>>& InElements,
@@ -87,7 +87,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 
 		// Actual rendering
 		ENQUEUE_RENDER_COMMAND(RenderTargetResource)(
-			[SharedThis = StaticCastSharedRef<FRenderPixelMapProxy>(AsShared()), this, Elements = InElements, Brightness]
+			[SharedThis = StaticCastSharedRef<FDMXPixelMappingRenderPixelMapProxy>(AsShared()), this, Elements = InElements, Brightness]
 			(FRHICommandListImmediate& RHICmdList)
 			{				
 				SCOPED_GPU_STAT(RHICmdList, DMXPixelMappingShadersStat);
@@ -198,7 +198,7 @@ namespace UE::DMXPixelMapping::Rendering::Private
 			});
 	}
 
-	void FRenderPixelMapProxy::AddReferencedObjects(FReferenceCollector& Collector)
+	void FDMXPixelMappingRenderPixelMapProxy::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(InputTexture);
 		Collector.AddReferencedObject(RenderTarget);

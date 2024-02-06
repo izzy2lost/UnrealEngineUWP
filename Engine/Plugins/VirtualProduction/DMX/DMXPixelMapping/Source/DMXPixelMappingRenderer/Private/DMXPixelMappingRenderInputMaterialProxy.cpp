@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PreprocessRenderInputMaterialProxy.h"
+#include "DMXPixelMappingRenderInputMaterialProxy.h"
 
 #include "DMXPixelMappingPreprocessRenderer.h"
 #include "DMXStats.h"
@@ -16,7 +16,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputMaterial"), STAT_DMXPixelMappingPreprocessRenderInputMaterial, STATGROUP_DMX);
 
-	FPreprocessRenderInputMaterialProxy::FPreprocessRenderInputMaterialProxy(UMaterialInterface* InMaterial, const FVector2D& InInputSize, EPixelFormat InFormat)
+	FDMXPixelMappingRenderInputMaterialProxy::FDMXPixelMappingRenderInputMaterialProxy(UMaterialInterface* InMaterial, const FVector2D& InInputSize, EPixelFormat InFormat)
 		: WeakMaterial(InMaterial)
 	{
 		if (InMaterial)
@@ -37,7 +37,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		MaterialRenderer = MakeShared<FWidgetRenderer>(bUseGammaCorrection);
 	}
 
-	void FPreprocessRenderInputMaterialProxy::Render()
+	void FDMXPixelMappingRenderInputMaterialProxy::Render()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_DMXPixelMappingPreprocessRenderInputMaterial);
 
@@ -66,18 +66,18 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 	}
 
-	UTexture* FPreprocessRenderInputMaterialProxy::GetRenderedTexture() const
+	UTexture* FDMXPixelMappingRenderInputMaterialProxy::GetRenderedTexture() const
 	{
 		return IntermediateRenderTarget;
 	}
 
-	FVector2D FPreprocessRenderInputMaterialProxy::GetSize2D() const
+	FVector2D FDMXPixelMappingRenderInputMaterialProxy::GetSize2D() const
 	{
 		check(IntermediateRenderTarget);
 		return FVector2D(IntermediateRenderTarget->GetSurfaceWidth(), IntermediateRenderTarget->GetSurfaceHeight());
 	}
 
-	void FPreprocessRenderInputMaterialProxy::AddReferencedObjects(FReferenceCollector& Collector)
+	void FDMXPixelMappingRenderInputMaterialProxy::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(IntermediateRenderTarget);
 	}
