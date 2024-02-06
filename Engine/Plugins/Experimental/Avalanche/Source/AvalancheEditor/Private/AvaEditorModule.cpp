@@ -79,8 +79,6 @@ struct FAvaViewportColorPickerLightAdapter : public FAvaViewportColorPickerActor
 	}
 };
 
-const FName AvalancheCategoryName(TEXT("AvalancheCategory"));
-
 namespace UE::AvalancheEditor::Private
 {
 	static FString LevelTemplatesPath = FString::Printf(TEXT("/%hs/%s"), UE_PLUGIN_NAME, TEXT("LevelTemplates"));
@@ -181,7 +179,7 @@ void FAvaEditorModule::RegisterAssetTools()
 {
 	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
 
-	AssetTools.RegisterAdvancedAssetCategory(AvalancheCategoryName
+	AssetTools.RegisterAdvancedAssetCategory(TEXT("MotionDesignCategory")
 		, LOCTEXT("MotionDesignCategoryName", "Motion Design"));
 
 }

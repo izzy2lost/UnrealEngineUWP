@@ -15,7 +15,7 @@ UAvaTagCollectionFactory::UAvaTagCollectionFactory()
 uint32 UAvaTagCollectionFactory::GetMenuCategories() const
 {
 	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
-	return AssetTools.FindAdvancedAssetCategory("AvalancheCategory");
+	return AssetTools.FindAdvancedAssetCategory(TEXT("MotionDesignCategory"));
 }
 
 UObject* UAvaTagCollectionFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags InFlags, UObject* InContext, FFeedbackContext* InWarn)
