@@ -1377,13 +1377,27 @@ int32 UAvaRundown::RemovePagesFromSubList(int32 InSubListIndex, const TArray<int
 
 namespace UE::AvaMedia::Rundown::Private
 {
-	const UAvaRundownPagePlayer* FindPagePlayerForPreviewChannel(const FName& InPreviewChannel, const TArray<TObjectPtr<UAvaRundownPagePlayer>>& InPagePlayers)
+	const UAvaPlayableGroup* FindPlayableGroup(const UAvaRundownPagePlayer* InPagePlayer)
 	{
-		const TObjectPtr<UAvaRundownPagePlayer>* PreviewingPagePlayerPtr = InPagePlayers.FindByPredicate([InPreviewChannel](const UAvaRundownPagePlayer* InPagePlayer)
+		if (!InPagePlayer)
 		{
-			return InPagePlayer->bIsPreview && InPagePlayer->ChannelName == InPreviewChannel;
-		});
-		return PreviewingPagePlayerPtr ? *PreviewingPagePlayerPtr : nullptr;
+			return nullptr;
+		}
+
+		for (const TObjectPtr<UAvaRundownPlaybackInstancePlayer>& InstancePlayer : InPagePlayer->InstancePlayers)
+		{
+			if (InstancePlayer->IsPlaying())
+			{
+				if (const UAvaPlayable* const Playable = InstancePlayer->Playback->GetFirstPlayable())
+				{
+					if (const UAvaPlayableGroup* const PlayableGroup = Playable->GetPlayableGroup())
+					{
+						return PlayableGroup;
+					}
+				}
+			}
+		}
+		return nullptr;
 	}
 }
 
@@ -1401,25 +1415,19 @@ UTextureRenderTarget2D* UAvaRundown::GetPreviewRenderTarget(const FName& InPrevi
 
 	// If there is no channel, we can get the render target from the playable group of a previewing page's playable
 	// in the given channel. When playable group composition is implemented, this may have to change. 
-	
-	using namespace UE::AvaMedia::Rundown::Private;
-	const UAvaRundownPagePlayer* PreviewingPagePlayer = FindPagePlayerForPreviewChannel(InPreviewChannel, PagePlayers);
 
-	if (!PreviewingPagePlayer)
+	using namespace UE::AvaMedia::Rundown::Private;
+	for (const TObjectPtr<UAvaRundownPagePlayer>& PagePlayer : PagePlayers)
 	{
-		return nullptr;
-	}
-	
-	if (const UAvaPlaybackGraph* Playback = PreviewingPagePlayer->GetPlayback())
-	{
-		if (const UAvaPlayable* const Playable = Playback->GetFirstPlayable())
+		if (PagePlayer->bIsPreview && PagePlayer->ChannelName == InPreviewChannel)
 		{
-			if (const UAvaPlayableGroup* const PlayableGroup = Playable->GetPlayableGroup())
+			if (const UAvaPlayableGroup* PlayableGroup = FindPlayableGroup(PagePlayer))
 			{
-				return PlayableGroup->IsRenderTargetReady() ? PlayableGroup->GetRenderTarget() : nullptr;
+				return PlayableGroup->IsRenderTargetReady() ? PlayableGroup->GetRenderTarget() : nullptr;	
 			}
 		}
 	}
+	
 	return nullptr;
 }
 
