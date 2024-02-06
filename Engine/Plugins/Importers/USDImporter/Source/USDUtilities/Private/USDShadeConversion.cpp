@@ -130,7 +130,7 @@ namespace UE
 #endif	  // WITH_EDITOR
 
 			// Given an AssetPath, resolve it to an actual file path
-			FString ResolveTexturePath(const pxr::SdfLayerHandle& LayerHandle, const FString& AssetPath)
+			FString ResolveAssetPath(const pxr::SdfLayerHandle& LayerHandle, const FString& AssetPath)
 			{
 				// TODO: Most of this stuff is incompatible with custom resolvers, as these asset paths may be URLs
 				// or just GUIDs or anything like that, where relative vs absolute path make no sense. We will need
@@ -653,7 +653,7 @@ namespace UE
 
 					if (FileInput && FileInput.GetTypeName() == pxr::SdfValueTypeNames->Asset)	  // Check that FileInput is of type Asset
 					{
-						const FString TexturePath = UsdUtils::GetResolvedTexturePath(FileInput.GetAttr());
+						const FString TexturePath = UsdUtils::GetResolvedAssetPath(FileInput.GetAttr());
 						// We will assume the texture is valid, and show a warning if we fail to parse this later.
 						// Note that we don't even check that the file exists: If we have a texture bound to opacity then we
 						// assume this material is meant to be translucent, even if the texture path is invalid (or points inside an USDZ archive)
@@ -1352,7 +1352,7 @@ namespace UE
 						TextureFactory->UdimRegexPattern = MoveTemp(UdimRegexPattern);
 					}
 
-					const FString ResolvedTexturePath = UsdUtils::GetResolvedTexturePath(TextureAssetPathAttr);
+					const FString ResolvedTexturePath = UsdUtils::GetResolvedAssetPath(TextureAssetPathAttr);
 					if (!ResolvedTexturePath.IsEmpty())
 					{
 						EObjectFlags ObjectFlags = RF_Transactional | RF_Transient;
@@ -1420,7 +1420,7 @@ namespace UE
 
 				if (!TexturePath.IsEmpty())
 				{
-					const FString ResolvedTexturePath = UsdUtils::GetResolvedTexturePath(TextureAssetPathAttr);
+					const FString ResolvedTexturePath = UsdUtils::GetResolvedAssetPath(TextureAssetPathAttr);
 					if (!ResolvedTexturePath.IsEmpty())
 					{
 						// Try checking if the texture is inside an USDZ archive first, or else TextureFactory throws an error
@@ -2129,7 +2129,7 @@ namespace UE
 					// we're doing, as it happens with a pure USD python script. (this with USD 21.05 in June 2021)
 					if (ShadeInputValue.IsHolding<pxr::SdfAssetPath>())
 					{
-						FString ResolvedPath = UsdUtils::GetResolvedTexturePath(ShadeInput.GetAttr());
+						FString ResolvedPath = UsdUtils::GetResolvedAssetPath(ShadeInput.GetAttr());
 						InOutHashState.UpdateWithString(*ResolvedPath, ResolvedPath.Len());
 					}
 					else if (ShadeInputValue.IsHolding<pxr::TfToken>())
@@ -2918,14 +2918,19 @@ bool UnrealToUsd::ConvertFlattenMaterial(
 
 #endif	  // WITH_EDITOR
 
-FString UsdUtils::GetResolvedTexturePath(const pxr::UsdAttribute& TextureAssetPathAttr)
+FString UsdUtils::GetResolvedAssetPath(const pxr::UsdAttribute& AssetPathAttr, pxr::UsdTimeCode TimeCode)
 {
+	if (!AssetPathAttr)
+	{
+		return {};
+	}
+
 	FScopedUsdAllocs UsdAllocs;
 
-	pxr::SdfAssetPath TextureAssetPath;
-	TextureAssetPathAttr.Get<pxr::SdfAssetPath>(&TextureAssetPath);
+	pxr::SdfAssetPath AssetPath;
+	AssetPathAttr.Get<pxr::SdfAssetPath>(&AssetPath, TimeCode);
 
-	std::string AssetIdentifier = TextureAssetPath.GetResolvedPath();
+	std::string AssetIdentifier = AssetPath.GetResolvedPath();
 	// Don't normalize an empty path as the result will be "."
 	if (AssetIdentifier.size() > 0)
 	{
@@ -2938,22 +2943,23 @@ FString UsdUtils::GetResolvedTexturePath(const pxr::UsdAttribute& TextureAssetPa
 
 	if (ResolvedTexturePath.IsEmpty())
 	{
-		FString TexturePath = UsdToUnreal::ConvertString(TextureAssetPath.GetAssetPath());
+		FString TexturePath = UsdToUnreal::ConvertString(AssetPath.GetAssetPath());
 		FPaths::NormalizeFilename(TexturePath);
 
 		if (!TexturePath.IsEmpty())
 		{
-			pxr::SdfLayerRefPtr TextureLayer = UsdUtils::FindLayerForAttribute(TextureAssetPathAttr, pxr::UsdTimeCode::EarliestTime().GetValue());
-			ResolvedTexturePath = UsdShadeConversionImpl::ResolveTexturePath(TextureLayer, TexturePath);
+			pxr::SdfLayerRefPtr TextureLayer = UsdUtils::FindLayerForAttribute(AssetPathAttr, TimeCode.GetValue());
+			ResolvedTexturePath = UsdShadeConversionImpl::ResolveAssetPath(TextureLayer, TexturePath);
 		}
 	}
 
-	if (ResolvedTexturePath.IsEmpty())
-	{
-		UE_LOG(LogUsd, Warning, TEXT("Failed to resolve texture path on attribute '%s'"), *UsdToUnreal::ConvertPath(TextureAssetPathAttr.GetPath()));
-	}
-
 	return ResolvedTexturePath;
+}
+
+// Deprecated
+FString UsdUtils::GetResolvedTexturePath(const pxr::UsdAttribute& TextureAssetPathAttr)
+{
+	return UsdUtils::GetResolvedAssetPath(TextureAssetPathAttr);
 }
 
 FString UsdUtils::GetTextureHash(

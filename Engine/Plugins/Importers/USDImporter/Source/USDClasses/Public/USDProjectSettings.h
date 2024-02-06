@@ -111,6 +111,15 @@ public:
 	// Note that the below properties being FSoftObjectPath ensure that these materials are cooked into packaged games
 
 	/**
+	 * Material to use when handling .vdb files as Sparse Volume Textures. An instance of this material will be
+	 * added to the AHeterogeneousVolume, and will use the parsed SparseVolumeTexture as a texture parameter.
+	 * Note that alternatively Volume prims can have material bindings to Unreal materials, and the importer
+	 * will prioritize trying to use those as the volumetric materials for the Sparse Volume Textures instead.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "USD|Reference Materials", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath ReferenceDefaultSVTMaterial = FSoftObjectPath{TEXT("/USDImporter/Materials/ReferenceDefaultSVTMaterial.ReferenceDefaultSVTMaterial")};
+
+	/**
 	 * What material to use for UUsdDrawModeComponents with "Cards" draw mode and provided textures (corresponding to
 	 * UsdGeomModelAPI with the "cards" drawMode).
 	 * Each face of the card geometry will use a separate texture material instance, and the UTexture2D will be set

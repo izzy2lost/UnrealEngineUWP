@@ -110,8 +110,8 @@ namespace UnrealIdentifiers
 	const TfToken UnrealSVTMappedMaterialParameters = TfToken("unreal:SVT:mappedMaterialParameters");
 	const TfToken UnrealSVTMappedGridComponents = TfToken("unreal:SVT:mappedGridComponents");
 	const TfToken UnrealSVTMappedAttributeChannels = TfToken("unreal:SVT:mappedAttributeChannels");
-	const TfToken UnrealSVTAttributesADataType = TfToken("unreal:SVT:attributesAdataType");
-	const TfToken UnrealSVTAttributesBDataType = TfToken("unreal:SVT:attributesBdataType");
+	const TfToken UnrealSVTAttributesADataType = TfToken("unreal:SVT:attributesADataType");
+	const TfToken UnrealSVTAttributesBDataType = TfToken("unreal:SVT:attributesBDataType");
 
 	const TfToken DiffuseColor = TfToken("diffuseColor");
 	const TfToken EmissiveColor = TfToken("emissiveColor");

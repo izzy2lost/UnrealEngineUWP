@@ -14,6 +14,7 @@
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture.h"
+#include "Engine/Texture2D.h"
 #include "EngineAnalytics.h"
 #include "GeometryCache.h"
 #include "GroomAsset.h"
@@ -31,6 +32,7 @@
 #include "Misc/SecureHash.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/JsonSerializer.h"
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "UObject/NameTypes.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
@@ -423,6 +425,10 @@ TSet<UObject*> IUsdClassesModule::GetAssetDependencies(UObject* Asset)
 	else if (UAnimBlueprint* AnimBP = Cast<UAnimBlueprint>(Asset))
 	{
 		// Do nothing. AnimBlueprints have no additional dependencies
+	}
+	else if (USparseVolumeTexture* SparseVolumeTexture = Cast<USparseVolumeTexture>(Asset))
+	{
+		// Do nothing. SparseVolumeTextures have no additional dependencies
 	}
 	else
 	{

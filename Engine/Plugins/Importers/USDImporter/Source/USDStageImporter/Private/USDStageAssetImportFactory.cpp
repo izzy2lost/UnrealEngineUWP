@@ -117,8 +117,20 @@ bool UUsdStageAssetImportFactory::CanReimport(UObject* Obj, TArray<FString>& Out
 {
 	if (UAssetImportData* ImportData = UsdUtils::GetAssetImportData(Obj))
 	{
-		OutFilenames.Add(ImportData->GetFirstFilename());
-		return true;
+		const FString FileName = ImportData->GetFirstFilename();
+		const FString FileExtension = FPaths::GetExtension(FileName);
+
+		// Reimporting from here means opening FileName as a USD stage and trying to re-read the same prims,
+		// so make sure we only claim we can reimport something if that would work. Otherwise we may intercept
+		// some other formats like .vdb files and then fail to open them as stages
+		for (const FString& Extension : UnrealUSDWrapper::GetNativeFileFormats())
+		{
+			if (Extension == FileExtension)
+			{
+				OutFilenames.Add(ImportData->GetFirstFilename());
+				return true;
+			}
+		}
 	}
 
 	return false;

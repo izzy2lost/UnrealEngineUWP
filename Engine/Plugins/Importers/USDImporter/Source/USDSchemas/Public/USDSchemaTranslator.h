@@ -283,6 +283,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** If true, means we will try generating GroomAssets, GroomCaches and GroomBindings */
 	bool bAllowParsingGroomAssets = true;
 
+	/** If true, means we will try generating Sparse Volume Textures */
+	bool bAllowParsingSparseVolumeTextures = true;
+
 	/** Skip the import of materials that aren't being used by any prim on the stage */
 	bool bTranslateOnlyUsedMaterials = false;
 

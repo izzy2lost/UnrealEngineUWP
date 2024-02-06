@@ -36,6 +36,7 @@
 #include "CineCameraComponent.h"
 #include "Compilation/MovieSceneCompiledDataManager.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/HeterogeneousVolumeComponent.h"
 #include "Components/LightComponent.h"
 #include "Components/LightComponentBase.h"
 #include "Components/PointLightComponent.h"
@@ -68,6 +69,7 @@
 #include "Sections/MovieSceneSubSection.h"
 #include "Sequencer/MovieSceneControlRigParameterSection.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Templates/SharedPointer.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
@@ -381,13 +383,14 @@ namespace UsdLevelSequenceHelperImpl
 			// of the playback range, which we do here
 			ControlRigSectionStartFrame -= UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange());
 
+			const bool bResetControls = true;
 			ParamSection->LoadAnimSequenceIntoThisSection(
 				AnimSequence,
 				MovieScene,
 				SkeletalMeshComp,
 				bReduceKeys,
 				Tolerance,
-				true,
+				bResetControls,
 				ControlRigSectionStartFrame,
 				EMovieSceneKeyInterpolation::SmartAuto
 			);
@@ -638,6 +641,7 @@ private:
 	void AddSkeletalTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddGroomTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 	void AddGeometryCacheTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
+	void AddVolumeTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim);
 
 	template<typename TrackType>
 	TrackType* AddTrack(
@@ -2378,6 +2382,175 @@ void FUsdLevelSequenceHelperImpl::AddGroomTracks(const UUsdPrimTwin& PrimTwin, c
 	PrimPathByLevelSequenceName.AddUnique(GroomAnimationSequence->GetFName(), PrimPath);
 }
 
+void FUsdLevelSequenceHelperImpl::AddVolumeTracks(const UUsdPrimTwin& PrimTwin, const UE::FUsdPrim& Prim)
+{
+	using namespace UnrealIdentifiers;
+
+	UHeterogeneousVolumeComponent* VolumeComponent = Cast<UHeterogeneousVolumeComponent>(PrimTwin.GetSceneComponent());
+	if (!VolumeComponent)
+	{
+		return;
+	}
+
+	UE::FSdfLayer PrimLayer = UsdUtils::FindLayerForPrim(Prim);
+	ULevelSequence* PrimSequence = FindSequenceForIdentifier(PrimLayer.GetIdentifier());
+	if (!PrimSequence)
+	{
+		return;
+	}
+
+	UMovieScene* MovieScene = PrimSequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return;
+	}
+
+	const FName PropertyPath = GET_MEMBER_NAME_CHECKED(UHeterogeneousVolumeComponent, Frame);
+
+	// Here we'll just get *any* of the filePath attrs from this Volume prim to check for the
+	// muted bool. We won't use the attribute itself for the baking though, as our timeSamples are already
+	// on the SparseVolumeTexture AssetUserData, and the keyframe values are just their indices
+	TArray<UE::FUsdAttribute> Attrs = UnrealToUsd::GetAttributesForProperty(Prim, PropertyPath);
+	if (Attrs.Num() < 1)
+	{
+		return;
+	}
+	UE::FUsdAttribute MainAttr = Attrs[0];
+	const bool bIsMuted = MainAttr && MainAttr.GetNumTimeSamples() > 0 && UsdUtils::IsAttributeMuted(MainAttr, UsdStage);
+
+	UUsdSparseVolumeTextureAssetUserData* UserData = nullptr;
+	const int32 ElementIndex = 0;
+	UMaterialInterface* CurrentMaterial = VolumeComponent->GetMaterial(ElementIndex);
+	if (CurrentMaterial)
+	{
+		TArray<FMaterialParameterInfo> ParameterInfo;
+		TArray<FGuid> ParameterIds;
+		CurrentMaterial->GetAllSparseVolumeTextureParameterInfo(ParameterInfo, ParameterIds);
+
+		for (const FMaterialParameterInfo& Info : ParameterInfo)
+		{
+			USparseVolumeTexture* SparseVolumeTexture = nullptr;
+			if (CurrentMaterial->GetSparseVolumeTextureParameterValue(Info, SparseVolumeTexture) && SparseVolumeTexture)
+			{
+				if (SparseVolumeTexture->GetNumFrames() > 1)
+				{
+					UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(UsdUtils::GetAssetUserData(SparseVolumeTexture));
+				}
+			}
+
+			// Follow the theme of only ever caring about the first SVT parameter of the material, as that is all
+			// that the UHeterogeneousVolumeComponent will ever animate anyway. If we're in here we already know
+			// that this first SVT should be animated at any case
+			break;
+		}
+	}
+	if (!UserData)
+	{
+		return;
+	}
+
+	TArray<double>* TimeSamples = &UserData->TimeSamplePathTimeCodes;
+	TArray<int32>* FrameIndices = nullptr;
+	if (UserData->TimeSamplePathIndices.Num() == UserData->TimeSamplePathTimeCodes.Num())
+	{
+		FrameIndices = &UserData->TimeSamplePathIndices;
+	}
+	else
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT(
+				"Ignoring AssetUserData TimeSamplePathIndices when generating Sequencer tracks for Prim '%s' because it has %d entries, while it should have the same number of entries as TimeSamplePathTimeCodes (%d)"
+			),
+			*Prim.GetPrimPath().GetString(),
+			UserData->TimeSamplePathIndices.Num(),
+			UserData->TimeSamplePathTimeCodes.Num()
+		);
+	}
+
+	if (!TimeSamples || TimeSamples->Num() < 2)
+	{
+		return;
+	}
+
+	// Our TimeSamples are local to the layer where they were defined, but we need to convert them
+	// to be with respect to the stage in order to find the right locations for the key frames
+	UE::FUsdPrim PrimForOffsetCalculation = Prim;
+	if (UserData->SourceOpenVDBAssetPrimPaths.Num() > 0)
+	{
+		const FString& FirstAssetPrimPath = UserData->SourceOpenVDBAssetPrimPaths[0];
+		UE::FUsdPrim FirstAssetPrim = Prim.GetStage().GetPrimAtPath(UE::FSdfPath{*FirstAssetPrimPath});
+		if (FirstAssetPrim)
+		{
+			PrimForOffsetCalculation = FirstAssetPrim;
+		}
+	}
+	UE::FSdfLayerOffset CombinedOffset = UsdUtils::GetPrimToStageOffset(UE::FUsdPrim{PrimForOffsetCalculation});
+	TArray<double> ConvertedTimeSamples;
+	ConvertedTimeSamples.Reserve(TimeSamples->Num());
+	for (double TimeSample : *TimeSamples)
+	{
+		ConvertedTimeSamples.Add(TimeSample * CombinedOffset.Scale + CombinedOffset.Offset);
+	}
+
+	// We still have a Sequence transform though, as that converts the TimeSamples from being global
+	// to the stage to the particular subsequence where they are going to be added to.
+	//
+	// This may seem like it undoes the calculation in ConvertedTimeSamples, and it really does: For cases
+	// where we have a sublayer with an offset and scale, we'll end up adding the layer-local time samples
+	// to the subsequence, like we want. Using the CombinedOffset AND the SequenceTransform is needed for
+	// a different case however: Prim references with sublayer and offsets. In that case the prim itself
+	// may have a sublayer and offset, but its track will be placed in the levelsequence for the *referencer*
+	// layer: This means we want to see the keys on that layer instead, at times relative to it
+	FMovieSceneSequenceTransform SequenceTransform;
+	FMovieSceneSequenceID SequenceID = SequencesID.FindRef(PrimSequence);
+	if (FMovieSceneSubSequenceData* SubSequenceData = SequenceHierarchyCache.FindSubData(SequenceID))
+	{
+		SequenceTransform = SubSequenceData->RootToSequenceTransform;
+	}
+
+	// Unlike the other cases we can create our Reader right here, because the only thing we need to generate
+	// the track are the TimeSamples
+	UsdToUnreal::FPropertyTrackReader Reader;
+	Reader.FloatReader = [&ConvertedTimeSamples, FrameIndices, TargetIndex = 0](double UsdTimeCode) mutable -> float
+	{
+		// Reference: FUsdVolVolumeTranslator::UpdateComponents
+		for (; TargetIndex + 1 < ConvertedTimeSamples.Num(); ++TargetIndex)
+		{
+			if (ConvertedTimeSamples[TargetIndex + 1] > UsdTimeCode)
+			{
+				break;
+			}
+		}
+		TargetIndex = FMath::Clamp(TargetIndex, 0, ConvertedTimeSamples.Num() - 1);
+
+		if (FrameIndices && FrameIndices->IsValidIndex(TargetIndex))
+		{
+			TargetIndex = (*FrameIndices)[TargetIndex];
+		}
+
+		return static_cast<float>(TargetIndex);
+	};
+
+	if (UMovieSceneFloatTrack* FloatTrack = AddTrack<UMovieSceneFloatTrack>(PropertyPath, PrimTwin, *VolumeComponent, *PrimSequence, bIsMuted))
+	{
+		// The component won't really linearly interpolate anything and will just do the analogous of constant interpolation,
+		// so it would be nice if our keys showed that too
+		ERichCurveInterpMode InterpolationModeOverride = ERichCurveInterpMode::RCIM_Constant;
+		UsdToUnreal::ConvertFloatTimeSamples(
+			UsdStage,
+			ConvertedTimeSamples,
+			Reader.FloatReader,
+			*FloatTrack,
+			SequenceTransform,
+			InterpolationModeOverride
+		);
+	}
+
+	PrimPathByLevelSequenceName.AddUnique(PrimSequence->GetFName(), Prim.GetPrimPath().GetString());
+}
+
 void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVisibilityTracks, TOptional<bool> HasAnimatedBounds)
 {
 	if (!UsdStage)
@@ -2441,6 +2614,10 @@ void FUsdLevelSequenceHelperImpl::AddPrim(UUsdPrimTwin& PrimTwin, bool bForceVis
 	else if (UsdUtils::PrimHasSchema(UsdPrim, UnrealIdentifiers::GroomAPI))
 	{
 		AddGroomTracks(PrimTwin, UsdPrim);
+	}
+	else if (UsdPrim.IsA(TEXT("Volume")))
+	{
+		AddVolumeTracks(PrimTwin, UsdPrim);
 	}
 
 	AddCommonTracks(PrimTwin, UsdPrim, bForceVisibilityTracks);
@@ -3882,6 +4059,16 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 
 				if (const UMovieSceneFloatTrack* FloatTrack = Cast<const UMovieSceneFloatTrack>(&Track))
 				{
+					// We won't need a SequenceTransform in this case because the FloatWriter will be ready to receive and write
+					// keyframes local to its own sequence/layer
+					if (const UHeterogeneousVolumeComponent* VolumeComponent = Cast<const UHeterogeneousVolumeComponent>(BoundSceneComponent))
+					{
+						if (PropertyTrack->GetPropertyName() == GET_MEMBER_NAME_CHECKED(UHeterogeneousVolumeComponent, Frame))
+						{
+							SequenceTransform = {};
+						}
+					}
+
 					UnrealToUsd::ConvertFloatTrack(*FloatTrack, SequenceTransform, Writer.FloatWriter, UsdPrim);
 				}
 				else if (const UMovieSceneBoolTrack* BoolTrack = Cast<const UMovieSceneBoolTrack>(&Track))

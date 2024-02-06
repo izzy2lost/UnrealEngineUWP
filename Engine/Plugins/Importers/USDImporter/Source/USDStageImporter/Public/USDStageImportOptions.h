@@ -74,6 +74,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "DataToImport", meta = (DisplayName = "Groom Assets"))
 	bool bImportGroomAssets;
 
+	/** Whether to import OpenVDB volumes as Sparse Volume Textures */
+	UPROPERTY(BlueprintReadWrite, config, EditAnywhere, Category = "DataToImport", meta = (DisplayName = "Sparse Volume Textures"))
+	bool bImportSparseVolumeTextures;
+
 	/**
 	 * If this is checked, only materials actively used by the stage and import settings will be parsed.
 	 * If this is unchecked, all materials present on the stage will be parsed.
