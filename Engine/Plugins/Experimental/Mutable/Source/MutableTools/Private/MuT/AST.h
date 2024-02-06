@@ -24,10 +24,8 @@
 
 #include <array>
 #include <atomic>
-#include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <set>
 
 #include "MuT/Compiler.h"

@@ -16,8 +16,6 @@
 #include "MuT/NodeScalarTable.h"
 #include "MuT/NodeScalarVariation.h"
 
-#include <stdint.h>
-
 
 namespace mu
 {
