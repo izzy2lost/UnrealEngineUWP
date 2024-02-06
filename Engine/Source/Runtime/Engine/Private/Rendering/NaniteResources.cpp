@@ -1706,7 +1706,8 @@ int32 FSceneProxy::GetFirstValidRaytracingGeometryLODIndex() const
 	// find the first valid RT geometry index
 	for (; LODIndex < NumLODs; ++LODIndex)
 	{
-		if (RenderData->LODResources[LODIndex].RayTracingGeometry.IsValid())
+		const FRayTracingGeometry& RayTracingGeometry = RenderData->LODResources[LODIndex].RayTracingGeometry;
+		if (RayTracingGeometry.IsValid() && !RayTracingGeometry.HasPendingBuildRequest())
 		{
 			return LODIndex;
 		}

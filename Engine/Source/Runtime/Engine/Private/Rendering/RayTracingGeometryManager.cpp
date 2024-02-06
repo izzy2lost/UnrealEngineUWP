@@ -199,18 +199,6 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 				}
 			}
 		}
-
-		{
-			checkf(IsInRenderingThread(), TEXT("Can only access RegisteredGroups on render thread otherwise need a critical section"));
-
-			for (FRayTracingGeometryGroup& RayTracingGroup : RegisteredGroups)
-			{
-				for (FPrimitiveSceneProxy* Proxy : RayTracingGroup.ProxiesWithCachedRayTracingState)
-				{
-					Proxy->GetScene().UpdateCachedRayTracingState(Proxy);
-				}
-			}
-		}
 	}
 	else
 	{
@@ -342,6 +330,11 @@ void FRayTracingGeometryManager::SetupBuildParams(const FBuildRequest& InBuildRe
 	InBuildParams.Add(BuildParam);
 
 	InBuildRequest.Owner->RayTracingBuildRequestIndex = INDEX_NONE;
+
+	if (InBuildRequest.Owner->GroupHandle != INDEX_NONE)
+	{
+		RequestUpdateCachedRenderState(InBuildRequest.Owner->GroupHandle);
+	}
 
 	if (bRemoveFromRequestArray)
 	{
