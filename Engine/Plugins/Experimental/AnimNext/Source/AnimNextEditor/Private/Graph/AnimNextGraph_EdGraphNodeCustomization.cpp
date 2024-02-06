@@ -5,7 +5,7 @@
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "Graph/AnimNextGraph_EdGraphNode.h"
-#include "Graph/RigDecorator_AnimNextCppDecorator.h"
+#include "Graph/RigDecorator_AnimNextCppTrait.h"
 #include "Logging/LogScopedVerbosityOverride.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "RigVMModel/RigVMController.h"
@@ -29,7 +29,7 @@ void FAnimNextGraph_EdGraphNodeCustomization::CustomizeDetails(IDetailLayoutBuil
 	{
 		if (URigVMNode* ModelNode = EdGraphNode->GetModelNode())
 		{
-			// If there are any decorators in the node, treat it as a decorator stack
+			// If there are any decorators in the node, treat it as a trait stack
 			const TArray<URigVMPin*> DecoratorPins = ModelNode->GetDecoratorPins();
 			if (DecoratorPins.Num() > 0)
 			{
@@ -56,7 +56,7 @@ void FAnimNextGraph_EdGraphNodeCustomization::CustomizeDetails(IDetailLayoutBuil
 							FRigVMPinDefaultValueImportErrorContext ErrorPipe;
 							LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ELogVerbosity::Verbose);
 							const FString DefaultValue = DecoratorPin->GetDefaultValue();
-							DecoratorSharedInstanceData->ImportText(*DefaultValue, ScopedSharedData->GetStructMemory(), nullptr, PPF_None, &ErrorPipe, DecoratorSharedInstanceData->GetName());
+							DecoratorSharedInstanceData->ImportText(*DefaultValue, ScopedSharedData->GetStructMemory(), nullptr, PPF_SerializedAsImportText, &ErrorPipe, DecoratorSharedInstanceData->GetName());
 						}
 						else // or use the decorator itself for simple decorators
 						{

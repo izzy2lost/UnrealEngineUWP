@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/SyncGroup_GraphInstanceComponent.h"
-#include "DecoratorInterfaces/IGroupSynchronization.h"
+#include "TraitInterfaces/IGroupSynchronization.h"
 
 namespace UE::AnimNext
 {
-	void FSyncGroupGraphInstanceComponent::RegisterWithGroup(FName GroupName, EAnimGroupRole::Type GroupRole, const FWeakDecoratorPtr& DecoratorPtr, const FDecoratorUpdateState& DecoratorState)
+	void FSyncGroupGraphInstanceComponent::RegisterWithGroup(FName GroupName, EAnimGroupRole::Type GroupRole, const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState)
 	{
 		FSyncGroupState& GroupState = SyncGroupMap.FindOrAdd(GroupName);
-		GroupState.Members.Add(FSyncGroupMember{ DecoratorState, DecoratorPtr, GroupRole });
+		GroupState.Members.Add(FSyncGroupMember{ TraitState, TraitPtr, GroupRole });
 	}
 
 	void FSyncGroupGraphInstanceComponent::PreUpdate(FExecutionContext& Context)
@@ -19,7 +19,7 @@ namespace UE::AnimNext
 
 	void FSyncGroupGraphInstanceComponent::PostUpdate(FExecutionContext& Context)
 	{
-		TDecoratorBinding<IGroupSynchronization> GroupSyncDecorator;
+		TTraitBinding<IGroupSynchronization> GroupSyncTrait;
 
 		// Now that we have discovered all groups and their memberships, we can perform synchronization
 		for (const TTuple<FName, FSyncGroupState>& It : SyncGroupMap)
@@ -42,10 +42,10 @@ namespace UE::AnimNext
 				case EAnimGroupRole::CanBeLeader:
 				case EAnimGroupRole::TransitionLeader:
 					// Highest weight is the leader
-					if (GroupMember.DecoratorState.GetTotalWeight() > LeaderTotalWeight)
+					if (GroupMember.TraitState.GetTotalWeight() > LeaderTotalWeight)
 					{
 						LeaderIndex = MemberIndex;
-						LeaderTotalWeight = GroupMember.DecoratorState.GetTotalWeight();
+						LeaderTotalWeight = GroupMember.TraitState.GetTotalWeight();
 					}
 					break;
 				case EAnimGroupRole::AlwaysLeader:
@@ -73,10 +73,10 @@ namespace UE::AnimNext
 			{
 				const FSyncGroupMember& GroupLeader = GroupState.Members[LeaderIndex];
 
-				Context.BindTo(GroupLeader.DecoratorPtr);
-				ensure(Context.GetInterface(GroupLeader.DecoratorPtr, GroupSyncDecorator));
+				Context.BindTo(GroupLeader.TraitPtr);
+				ensure(Context.GetInterface(GroupLeader.TraitPtr, GroupSyncTrait));
 
-				LeaderProgressRatio = GroupSyncDecorator.AdvanceBy(Context, GroupLeader.DecoratorState.GetDeltaTime());
+				LeaderProgressRatio = GroupSyncTrait.AdvanceBy(Context, GroupLeader.TraitState.GetDeltaTime());
 			}
 
 			// Advance every follower to the same progress ratio as the leader
@@ -89,10 +89,10 @@ namespace UE::AnimNext
 
 				const FSyncGroupMember& GroupMember = GroupState.Members[MemberIndex];
 
-				Context.BindTo(GroupMember.DecoratorPtr);
-				ensure(Context.GetInterface(GroupMember.DecoratorPtr, GroupSyncDecorator));
+				Context.BindTo(GroupMember.TraitPtr);
+				ensure(Context.GetInterface(GroupMember.TraitPtr, GroupSyncTrait));
 
-				GroupSyncDecorator.AdvanceToRatio(Context, LeaderProgressRatio);
+				GroupSyncTrait.AdvanceToRatio(Context, LeaderProgressRatio);
 			}
 		}
 	}

@@ -1,0 +1,236 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Traits/SubGraphHost.h"
+
+#include "TraitCore/ExecutionContext.h"
+#include "Graph/AnimNextGraphInstance.h"
+
+namespace UE::AnimNext
+{
+	AUTO_REGISTER_ANIM_TRAIT(FSubGraphHostTrait)
+
+	// Trait implementation boilerplate
+	#define TRAIT_INTERFACE_ENUMERATOR(GeneratorMacro) \
+		GeneratorMacro(IDiscreteBlend) \
+		GeneratorMacro(IGarbageCollection) \
+		GeneratorMacro(IHierarchy) \
+		GeneratorMacro(IUpdate) \
+
+	GENERATE_ANIM_TRAIT_IMPLEMENTATION(FSubGraphHostTrait, TRAIT_INTERFACE_ENUMERATOR)
+	#undef TRAIT_INTERFACE_ENUMERATOR
+
+	void FSubGraphHostTrait::FInstanceData::Construct(const FExecutionContext& Context, const FTraitBinding& Binding)
+	{
+		FTrait::FInstanceData::Construct(Context, Binding);
+
+		IGarbageCollection::RegisterWithGC(Context, Binding);
+
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		ReferencePoseChildPtr = Context.AllocateNodeInstance(Binding, SharedData->ReferencePoseChild);
+	}
+
+	void FSubGraphHostTrait::FInstanceData::Destruct(const FExecutionContext& Context, const FTraitBinding& Binding)
+	{
+		FTrait::FInstanceData::Destruct(Context, Binding);
+
+		IGarbageCollection::UnregisterWithGC(Context, Binding);
+	}
+
+	uint32 FSubGraphHostTrait::GetNumChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+		return InstanceData->SubGraphSlots.Num();
+	}
+
+	void FSubGraphHostTrait::GetChildren(const FExecutionContext& Context, const TTraitBinding<IHierarchy>& Binding, FChildrenArray& Children) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		for (const FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)
+		{
+			if (SubGraphEntry.State == ESlotState::ActiveWithReferencePose)
+			{
+				Children.Add(InstanceData->ReferencePoseChildPtr);
+			}
+			else
+			{
+				// Even if the slot is inactive, we queue an empty handle
+				Children.Add(SubGraphEntry.GraphInstance.GetGraphRootPtr());
+			}
+		}
+	}
+
+	void FSubGraphHostTrait::PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
+	{
+		const FSharedData* SharedData = Binding.GetSharedData<FSharedData>();
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		const bool bHasActiveSubGraph = InstanceData->CurrentlyActiveSubGraphIndex != INDEX_NONE;
+
+		TObjectPtr<const UAnimNextGraph> CurrentActiveSubGraph;
+		FName CurrentActiveEntryPoint = NAME_None;
+		if (bHasActiveSubGraph)
+		{
+			const FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[InstanceData->CurrentlyActiveSubGraphIndex];
+			CurrentActiveSubGraph = SubGraphSlot.SubGraph;
+			CurrentActiveEntryPoint = SubGraphSlot.EntryPoint;
+		}
+
+		const TObjectPtr<const UAnimNextGraph> DesiredSubGraph = SharedData->GetSubGraph(Context, Binding);
+		const FName EntryPoint = SharedData->GetEntryPoint(Context, Binding);
+
+		// Check for reentrancy and early-out if we are linking back to the current instance
+		FAnimNextGraphInstance& GraphInstance = Context.GetGraphInstance();
+		if(GraphInstance.UsesGraph(DesiredSubGraph) && GraphInstance.UsesEntryPoint(EntryPoint))
+		{
+			return;
+		}
+
+		if (!bHasActiveSubGraph || CurrentActiveSubGraph != DesiredSubGraph || CurrentActiveEntryPoint != EntryPoint)
+		{
+			// Find an empty slot we can use
+			int32 FreeSlotIndex = INDEX_NONE;
+
+			const int32 NumSubGraphSlots = InstanceData->SubGraphSlots.Num();
+			for (int32 SlotIndex = 0; SlotIndex < NumSubGraphSlots; ++SlotIndex)
+			{
+				if (InstanceData->SubGraphSlots[SlotIndex].State == ESlotState::Inactive)
+				{
+					// This slot is inactive, we can re-use it
+					FreeSlotIndex = SlotIndex;
+					break;
+				}
+			}
+
+			if (FreeSlotIndex == INDEX_NONE)
+			{
+				// All slots are in use, add a new one
+				FreeSlotIndex = InstanceData->SubGraphSlots.AddDefaulted();
+			}
+
+			FSubGraphSlot& SubGraphSlot = InstanceData->SubGraphSlots[FreeSlotIndex];
+			SubGraphSlot.SubGraph = DesiredSubGraph;
+			SubGraphSlot.State = DesiredSubGraph ? ESlotState::ActiveWithGraph : ESlotState::ActiveWithReferencePose;
+			SubGraphSlot.EntryPoint = EntryPoint;
+
+			const int32 OldChildIndex = InstanceData->CurrentlyActiveSubGraphIndex;
+			const int32 NewChildIndex = FreeSlotIndex;
+
+			InstanceData->CurrentlyActiveSubGraphIndex = FreeSlotIndex;
+
+			TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
+			Context.GetInterface(Binding, DiscreteBlendTrait);
+
+			DiscreteBlendTrait.OnBlendTransition(Context, OldChildIndex, NewChildIndex);
+		}
+	}
+
+	void FSubGraphHostTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		const int32 NumSubGraphs = InstanceData->SubGraphSlots.Num();
+		if (NumSubGraphs == 0)
+		{
+			return;
+		}
+
+		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
+		Context.GetInterface(Binding, DiscreteBlendTrait);
+
+		for (int32 SubGraphIndex = 0; SubGraphIndex < NumSubGraphs; ++SubGraphIndex)
+		{
+			const float BlendWeight = DiscreteBlendTrait.GetBlendWeight(Context, SubGraphIndex);
+
+			FTraitUpdateState SubGraphTraitState = TraitState.WithWeight(BlendWeight);
+			if (SubGraphIndex != InstanceData->CurrentlyActiveSubGraphIndex)
+			{
+				SubGraphTraitState = SubGraphTraitState.AsBlendingOut();
+			}
+
+			TraversalQueue.Push(InstanceData->SubGraphSlots[SubGraphIndex].GraphInstance.GetGraphRootPtr(), SubGraphTraitState);
+		}
+	}
+
+	float FSubGraphHostTrait::GetBlendWeight(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		if (ChildIndex == InstanceData->CurrentlyActiveSubGraphIndex)
+		{
+			return 1.0f;	// Active child has full weight
+		}
+		else if (InstanceData->SubGraphSlots.IsValidIndex(ChildIndex))
+		{
+			return 0.0f;	// Other children have no weight
+		}
+		else
+		{
+			// Invalid child index
+			return -1.0f;
+		}
+	}
+
+	int32 FSubGraphHostTrait::GetBlendDestinationChildIndex(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding) const
+	{
+		const FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		return InstanceData->CurrentlyActiveSubGraphIndex;
+	}
+
+	void FSubGraphHostTrait::OnBlendTransition(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 OldChildIndex, int32 NewChildIndex) const
+	{
+		TTraitBinding<IDiscreteBlend> DiscreteBlendTrait;
+		Context.GetInterface(Binding, DiscreteBlendTrait);
+
+		// We initiate immediately when we transition
+		DiscreteBlendTrait.OnBlendInitiated(Context, NewChildIndex);
+
+		// We terminate immediately when we transition
+		DiscreteBlendTrait.OnBlendTerminated(Context, OldChildIndex);
+	}
+
+	void FSubGraphHostTrait::OnBlendInitiated(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	{
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		if (InstanceData->SubGraphSlots.IsValidIndex(ChildIndex))
+		{
+			// Allocate our new sub-graph instance
+			FSubGraphSlot& SubGraphEntry = InstanceData->SubGraphSlots[ChildIndex];
+
+			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
+			{
+				SubGraphEntry.SubGraph->AllocateInstance(Context.GetGraphInstance(), SubGraphEntry.GraphInstance, SubGraphEntry.EntryPoint);
+			}
+		}
+	}
+
+	void FSubGraphHostTrait::OnBlendTerminated(const FExecutionContext& Context, const TTraitBinding<IDiscreteBlend>& Binding, int32 ChildIndex) const
+	{
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		if (InstanceData->SubGraphSlots.IsValidIndex(ChildIndex))
+		{
+			// Deallocate our sub-graph instance
+			FSubGraphSlot& SubGraphEntry = InstanceData->SubGraphSlots[ChildIndex];
+
+			if (SubGraphEntry.State == ESlotState::ActiveWithGraph)
+			{
+				InstanceData->SubGraphSlots[ChildIndex].GraphInstance.Release();
+			}
+
+			SubGraphEntry.State = ESlotState::Inactive;
+		}
+	}
+
+	void FSubGraphHostTrait::AddReferencedObjects(const FExecutionContext& Context, const TTraitBinding<IGarbageCollection>& Binding, FReferenceCollector& Collector) const
+	{
+		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
+
+		for (FSubGraphSlot& SubGraphEntry : InstanceData->SubGraphSlots)
+		{
+			Collector.AddPropertyReferencesWithStructARO(FAnimNextGraphInstancePtr::StaticStruct(), &SubGraphEntry.GraphInstance);
+		}
+	}
+}

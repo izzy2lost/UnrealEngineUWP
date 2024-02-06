@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DecoratorBase/DecoratorPtr.h"
+#include "TraitCore/TraitPtr.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 
 #include "AnimNextGraphInstance.generated.h"
@@ -53,8 +53,8 @@ struct FAnimNextGraphInstance
 	// Returns the entry point in Graph that this instance corresponds to 
 	FName GetEntryPoint() const;
 	
-	// Returns a weak handle to the root decorator instance
-	UE::AnimNext::FWeakDecoratorPtr GetGraphRootPtr() const;
+	// Returns a weak handle to the root trait instance
+	UE::AnimNext::FWeakTraitPtr GetGraphRootPtr() const;
 
 	// Returns the parent graph instance that owns us or nullptr for the root graph instance or if we are invalid
 	FAnimNextGraphInstance* GetParentGraphInstance() const;
@@ -115,7 +115,7 @@ private:
 	FName EntryPoint;
 
 	// Hard reference to the graph instance data, we own it
-	UE::AnimNext::FDecoratorPtr GraphInstancePtr;
+	UE::AnimNext::FTraitPtr GraphInstancePtr;
 
 	// The graph instance that owns us
 	FAnimNextGraphInstance* ParentGraphInstance = nullptr;

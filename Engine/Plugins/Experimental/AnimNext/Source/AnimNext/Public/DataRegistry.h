@@ -76,27 +76,32 @@ public:
 	{
 		FParamTypeHandle ParamTypeHandle = FParamTypeHandle::GetHandle<DataType>();
 
-		const FDataTypeDef* TypeDef = nullptr;
+		bool bIsTypeDefValid = false;
+		FDataTypeDef TypeDef;
 		{
 			FRWScopeLock Lock(DataTypeDefsLock, SLT_ReadOnly);
-			TypeDef = DataTypeDefs.Find(ParamTypeHandle);
+			if (const FDataTypeDef* TypeDefPtr = DataTypeDefs.Find(ParamTypeHandle))
+			{
+				bIsTypeDefValid = true;
+				TypeDef = *TypeDefPtr;
+			}
 		}
 
-		if (TypeDef == nullptr)
+		if (!bIsTypeDefValid)
 		{
 			TypeDef = RegisterDataType_Impl<DataType>(DEFAULT_BLOCK_SIZE);
 			// TODO : Log if we allocate more than DEFAULT_BLOCK_SIZE elements of that type
 		}
 
-		if (ensure(TypeDef != nullptr && TypeDef->ParamTypeHandle.IsValid()))
+		if (ensure(TypeDef.ParamTypeHandle.IsValid()))
 		{
-			const int32 ElementSize = TypeDef->ElementSize;
-			const int32 ElementAlign = TypeDef->ElementAlign;
+			const int32 ElementSize = TypeDef.ElementSize;
+			const int32 ElementAlign = TypeDef.ElementAlign;
 			const int32 AlignedSize = Align(ElementSize, ElementAlign);
 
 			const int32 BufferSize = NumElements * AlignedSize;
 
-			uint8* Memory = (uint8*)FMemory::Malloc(BufferSize, TypeDef->ElementAlign);    // TODO : This should come from preallocated chunks, use malloc / free for now
+			uint8* Memory = (uint8*)FMemory::Malloc(BufferSize, TypeDef.ElementAlign);    // TODO : This should come from preallocated chunks, use malloc / free for now
 
 			Private::FAllocatedBlock* AllocatedBlock = new Private::FAllocatedBlock(Memory, NumElements, ParamTypeHandle); // TODO : avoid memory fragmentation
 			AllocatedBlock->AddRef();
@@ -181,7 +186,7 @@ private:
 
 	// Registers a type and sets the allocation block size
 	template<typename DataType>
-	FDataTypeDef* RegisterDataType_Impl(int32 AllocationBlockSize)
+	FDataTypeDef RegisterDataType_Impl(int32 AllocationBlockSize)
 	{
 		FParamTypeHandle ParamTypeHandle = FParamTypeHandle::GetHandle<DataType>();
 		check(ParamTypeHandle.IsValid());
@@ -199,15 +204,14 @@ private:
 			}
 		};
 
-		FDataTypeDef* AddedDef = nullptr;
 		{
 			FRWScopeLock WriteLock(DataTypeDefsLock, SLT_Write);
 
-			AddedDef = &DataTypeDefs.FindOrAdd(ParamTypeHandle, { ParamTypeHandle, DestroyFn, ElementSize, ElementAlign, AllocationBlockSize });
+			FDataTypeDef* AddedDef = &DataTypeDefs.FindOrAdd(ParamTypeHandle, { ParamTypeHandle, DestroyFn, ElementSize, ElementAlign, AllocationBlockSize });
 			check(AddedDef->ParamTypeHandle == ParamTypeHandle); // check we have not added two different types with the same ID
-		}
 
-		return AddedDef;
+			return *AddedDef;
+		}
 	}
 
 	void OnLODRequiredBonesUpdate(USkeletalMeshComponent* SkeletalMeshComponent, int32 LODLevel, const TArray<FBoneIndexType>& LODRequiredBones);

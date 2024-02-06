@@ -3,7 +3,7 @@
 #pragma once
 
 #include "AnimNextExecuteContext.h"
-#include "DecoratorBase/DecoratorHandle.h"
+#include "TraitCore/TraitHandle.h"
 
 #include "RigUnit_AnimNextGraphRoot.generated.h"
 
@@ -28,7 +28,7 @@ struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
 
 	// The execution result
 	UPROPERTY(EditAnywhere, Category = Result, meta = (Input))
-	FAnimNextDecoratorHandle Result;
+	FAnimNextTraitHandle Result;
 
 	// In order for this node to be considered an executable RigUnit, it needs a pin to derive from FRigVMExecuteContext
 	// We keep it hidden it since we don't need it

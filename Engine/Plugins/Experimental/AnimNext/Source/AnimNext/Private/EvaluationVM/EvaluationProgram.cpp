@@ -46,7 +46,7 @@ namespace UE::AnimNext
 				{
 					PropertyValue.Reset();
 
-					const bool bIsDefaultValue = !Property->ExportText_InContainer(0, PropertyValue, Task.Get(), nullptr, nullptr, PPF_None);
+					const bool bIsDefaultValue = !Property->ExportText_InContainer(0, PropertyValue, Task.Get(), nullptr, nullptr, PPF_SerializedAsImportText);
 
 					if (bIsDefaultValue)
 					{

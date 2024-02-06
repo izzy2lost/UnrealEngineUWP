@@ -8,8 +8,8 @@
 #include "Modules/ModuleManager.h"
 #include "Misc/CoreDelegates.h"
 #include "DataRegistry.h"
-#include "DecoratorBase/DecoratorRegistry.h"
-#include "DecoratorBase/NodeTemplateRegistry.h"
+#include "TraitCore/TraitRegistry.h"
+#include "TraitCore/NodeTemplateRegistry.h"
 #include "Graph/AnimNextGraph.h"
 #include "RigVMCore/RigVMRegistry.h"
 #include "RigVMRuntimeDataRegistry.h"
@@ -25,9 +25,9 @@
 #include "HAL/IConsoleManager.h"
 #include "UObject/UObjectIterator.h"
 
-#include "DecoratorBase/DecoratorTemplate.h"
-#include "DecoratorBase/NodeDescription.h"
-#include "DecoratorBase/NodeTemplate.h"
+#include "TraitCore/TraitTemplate.h"
+#include "TraitCore/NodeDescription.h"
+#include "TraitCore/NodeTemplate.h"
 #endif
 
 namespace UE::AnimNext
@@ -54,7 +54,7 @@ public:
 		FObjectProxyFactory::Init();
 		FExternalParameterRegistry::Init();
 		FDataRegistry::Init();
-		FDecoratorRegistry::Init();
+		FTraitRegistry::Init();
 		FNodeTemplateRegistry::Init();
 		FScheduler::Init();
 		FRigVMRuntimeDataRegistry::Init();
@@ -83,7 +83,7 @@ public:
 		FRigVMRuntimeDataRegistry::Destroy();
 		FScheduler::Destroy();
 		FNodeTemplateRegistry::Destroy();
-		FDecoratorRegistry::Destroy();
+		FTraitRegistry::Destroy();
 		FDataRegistry::Destroy();
 		FObjectProxyFactory::Destroy();
 		FExternalParameterRegistry::Destroy();
@@ -110,7 +110,7 @@ public:
 		LogAnimation.SetVerbosity(ELogVerbosity::All);
 
 		const FNodeTemplateRegistry& NodeTemplateRegistry = FNodeTemplateRegistry::Get();
-		const FDecoratorRegistry& DecoratorRegistry = FDecoratorRegistry::Get();
+		const FTraitRegistry& TraitRegistry = FTraitRegistry::Get();
 
 		UE_LOG(LogAnimation, Log, TEXT("===== AnimNext Node Templates ====="));
 		UE_LOG(LogAnimation, Log, TEXT("Template Buffer Size: %u bytes"), NodeTemplateRegistry.TemplateBuffer.GetAllocatedSize());
@@ -120,35 +120,35 @@ public:
 			const FNodeTemplateRegistryHandle Handle = It.Value();
 			const FNodeTemplate* NodeTemplate = NodeTemplateRegistry.Find(Handle);
 
-			const uint32 NumDecorators = NodeTemplate->GetNumDecorators();
+			const uint32 NumTraits = NodeTemplate->GetNumTraits();
 
-			UE_LOG(LogAnimation, Log, TEXT("[%x] has %u decorators ..."), NodeTemplate->GetUID(), NumDecorators);
+			UE_LOG(LogAnimation, Log, TEXT("[%x] has %u traits ..."), NodeTemplate->GetUID(), NumTraits);
 			UE_LOG(LogAnimation, Log, TEXT("    Template Size: %u bytes"), NodeTemplate->GetNodeTemplateSize());
 			UE_LOG(LogAnimation, Log, TEXT("    Shared Data Size: %u bytes"), NodeTemplate->GetNodeSharedDataSize());
 			UE_LOG(LogAnimation, Log, TEXT("    Instance Data Size: %u bytes"), NodeTemplate->GetNodeInstanceDataSize());
-			UE_LOG(LogAnimation, Log, TEXT("    Decorators ..."));
+			UE_LOG(LogAnimation, Log, TEXT("    Traits ..."));
 
-			const FDecoratorTemplate* DecoratorTemplates = NodeTemplate->GetDecorators();
-			for (uint32 DecoratorIndex = 0; DecoratorIndex < NumDecorators; ++DecoratorIndex)
+			const FTraitTemplate* TraitTemplates = NodeTemplate->GetTraits();
+			for (uint32 TraitIndex = 0; TraitIndex < NumTraits; ++TraitIndex)
 			{
-				const FDecoratorTemplate* DecoratorTemplate = DecoratorTemplates + DecoratorIndex;
-				const FDecorator* Decorator = DecoratorRegistry.Find(DecoratorTemplate->GetRegistryHandle());
-				const FString DecoratorName = Decorator != nullptr ? Decorator->GetDecoratorName() : TEXT("<Unknown>");
+				const FTraitTemplate* TraitTemplate = TraitTemplates + TraitIndex;
+				const FTrait* Trait = TraitRegistry.Find(TraitTemplate->GetRegistryHandle());
+				const FString TraitName = Trait != nullptr ? Trait->GetTraitName() : TEXT("<Unknown>");
 
-				const uint32 NextDecoratorIndex = DecoratorIndex + 1;
-				const uint32 EndOfNextDecoratorSharedData = NextDecoratorIndex < NumDecorators ? DecoratorTemplates[NextDecoratorIndex].GetNodeSharedOffset() : NodeTemplate->GetNodeSharedDataSize();
-				const uint32 DecoratorSharedDataSize = EndOfNextDecoratorSharedData - DecoratorTemplate->GetNodeSharedOffset();
+				const uint32 NextTraitIndex = TraitIndex + 1;
+				const uint32 EndOfNextTraitSharedData = NextTraitIndex < NumTraits ? TraitTemplates[NextTraitIndex].GetNodeSharedOffset() : NodeTemplate->GetNodeSharedDataSize();
+				const uint32 TraitSharedDataSize = EndOfNextTraitSharedData - TraitTemplate->GetNodeSharedOffset();
 
-				const uint32 EndOfNextDecoratorInstanceData = NextDecoratorIndex < NumDecorators ? DecoratorTemplates[NextDecoratorIndex].GetNodeInstanceOffset() : NodeTemplate->GetNodeInstanceDataSize();
-				const uint32 DecoratorInstanceDataSize = EndOfNextDecoratorInstanceData - DecoratorTemplate->GetNodeInstanceOffset();
+				const uint32 EndOfNextTraitInstanceData = NextTraitIndex < NumTraits ? TraitTemplates[NextTraitIndex].GetNodeInstanceOffset() : NodeTemplate->GetNodeInstanceDataSize();
+				const uint32 TraitInstanceDataSize = EndOfNextTraitInstanceData - TraitTemplate->GetNodeInstanceOffset();
 
-				UE_LOG(LogAnimation, Log, TEXT("            %u: [%x] %s (%s)"), DecoratorIndex, DecoratorTemplate->GetUID().GetUID(), *DecoratorName, DecoratorTemplate->GetMode() == EDecoratorMode::Base ? TEXT("Base") : TEXT("Additive"));
-				UE_LOG(LogAnimation, Log, TEXT("                Shared Data: [Offset: %u bytes, Size: %u bytes]"), DecoratorTemplate->GetNodeSharedOffset(), DecoratorSharedDataSize);
-				if (DecoratorTemplate->HasLatentProperties() && Decorator != nullptr)
+				UE_LOG(LogAnimation, Log, TEXT("            %u: [%x] %s (%s)"), TraitIndex, TraitTemplate->GetUID().GetUID(), *TraitName, TraitTemplate->GetMode() == ETraitMode::Base ? TEXT("Base") : TEXT("Additive"));
+				UE_LOG(LogAnimation, Log, TEXT("                Shared Data: [Offset: %u bytes, Size: %u bytes]"), TraitTemplate->GetNodeSharedOffset(), TraitSharedDataSize);
+				if (TraitTemplate->HasLatentProperties() && Trait != nullptr)
 				{
-					UE_LOG(LogAnimation, Log, TEXT("                Shared Data Latent Property Handles: [Offset: %u bytes, Count: %u]"), DecoratorTemplate->GetNodeSharedLatentPropertyHandlesOffset(), Decorator->GetNumLatentDecoratorProperties());
+					UE_LOG(LogAnimation, Log, TEXT("                Shared Data Latent Property Handles: [Offset: %u bytes, Count: %u]"), TraitTemplate->GetNodeSharedLatentPropertyHandlesOffset(), Trait->GetNumLatentTraitProperties());
 				}
-				UE_LOG(LogAnimation, Log, TEXT("                Instance Data: [Offset: %u bytes, Size: %u bytes]"), DecoratorTemplate->GetNodeInstanceOffset(), DecoratorInstanceDataSize);
+				UE_LOG(LogAnimation, Log, TEXT("                Instance Data: [Offset: %u bytes, Size: %u bytes]"), TraitTemplate->GetNodeInstanceOffset(), TraitInstanceDataSize);
 			}
 		}
 
@@ -181,7 +181,7 @@ public:
 		AnimGraphs.Sort(FCompareObjectNames());
 
 		const FNodeTemplateRegistry& NodeTemplateRegistry = FNodeTemplateRegistry::Get();
-		const FDecoratorRegistry& DecoratorRegistry = FDecoratorRegistry::Get();
+		const FTraitRegistry& TraitRegistry = FTraitRegistry::Get();
 		const bool bDetailedOutput = true;
 
 		UE_LOG(LogAnimation, Log, TEXT("===== AnimNext Animation Graphs ====="));
@@ -222,34 +222,34 @@ public:
 					const FNodeDescription* NodeDesc = reinterpret_cast<const FNodeDescription*>(&AnimGraph->SharedDataBuffer[NodeOffset]);
 					const FNodeTemplate* NodeTemplate = NodeTemplateRegistry.Find(NodeDesc->GetTemplateHandle());
 
-					const uint32 NumDecorators = NodeTemplate->GetNumDecorators();
+					const uint32 NumTraits = NodeTemplate->GetNumTraits();
 
-					UE_LOG(LogAnimation, Log, TEXT("        Node %u: [Template %x with %u decorators]"), NodeDesc->GetUID().GetNodeIndex(), NodeTemplate->GetUID(), NumDecorators);
+					UE_LOG(LogAnimation, Log, TEXT("        Node %u: [Template %x with %u traits]"), NodeDesc->GetUID().GetNodeIndex(), NodeTemplate->GetUID(), NumTraits);
 					UE_LOG(LogAnimation, Log, TEXT("            Shared Data: [Offset: %u bytes, Size: %u bytes]"), NodeOffset, NodeTemplate->GetNodeSharedDataSize());
 					UE_LOG(LogAnimation, Log, TEXT("            Instance Data Size: %u bytes"), NodeDesc->GetNodeInstanceDataSize());
-					UE_LOG(LogAnimation, Log, TEXT("            Decorators ..."));
+					UE_LOG(LogAnimation, Log, TEXT("            Traits ..."));
 
-					const FDecoratorTemplate* DecoratorTemplates = NodeTemplate->GetDecorators();
-					for (uint32 DecoratorIndex = 0; DecoratorIndex < NumDecorators; ++DecoratorIndex)
+					const FTraitTemplate* TraitTemplates = NodeTemplate->GetTraits();
+					for (uint32 TraitIndex = 0; TraitIndex < NumTraits; ++TraitIndex)
 					{
-						const FDecoratorTemplate* DecoratorTemplate = DecoratorTemplates + DecoratorIndex;
-						const FDecorator* Decorator = DecoratorRegistry.Find(DecoratorTemplate->GetRegistryHandle());
-						const FString DecoratorName = Decorator != nullptr ? Decorator->GetDecoratorName() : TEXT("<Unknown>");
+						const FTraitTemplate* TraitTemplate = TraitTemplates + TraitIndex;
+						const FTrait* Trait = TraitRegistry.Find(TraitTemplate->GetRegistryHandle());
+						const FString TraitName = Trait != nullptr ? Trait->GetTraitName() : TEXT("<Unknown>");
 
-						const uint32 NextDecoratorIndex = DecoratorIndex + 1;
-						const uint32 EndOfNextDecoratorSharedData = NextDecoratorIndex < NumDecorators ? DecoratorTemplates[NextDecoratorIndex].GetNodeSharedOffset() : NodeTemplate->GetNodeSharedDataSize();
-						const uint32 DecoratorSharedDataSize = EndOfNextDecoratorSharedData - DecoratorTemplate->GetNodeSharedOffset();
+						const uint32 NextTraitIndex = TraitIndex + 1;
+						const uint32 EndOfNextTraitSharedData = NextTraitIndex < NumTraits ? TraitTemplates[NextTraitIndex].GetNodeSharedOffset() : NodeTemplate->GetNodeSharedDataSize();
+						const uint32 TraitSharedDataSize = EndOfNextTraitSharedData - TraitTemplate->GetNodeSharedOffset();
 
-						const uint32 EndOfNextDecoratorInstanceData = NextDecoratorIndex < NumDecorators ? DecoratorTemplates[NextDecoratorIndex].GetNodeInstanceOffset() : NodeTemplate->GetNodeInstanceDataSize();
-						const uint32 DecoratorInstanceDataSize = EndOfNextDecoratorInstanceData - DecoratorTemplate->GetNodeInstanceOffset();
+						const uint32 EndOfNextTraitInstanceData = NextTraitIndex < NumTraits ? TraitTemplates[NextTraitIndex].GetNodeInstanceOffset() : NodeTemplate->GetNodeInstanceDataSize();
+						const uint32 TraitInstanceDataSize = EndOfNextTraitInstanceData - TraitTemplate->GetNodeInstanceOffset();
 
-						UE_LOG(LogAnimation, Log, TEXT("                    %u: [%x] %s (%s)"), DecoratorIndex, DecoratorTemplate->GetUID().GetUID(), *DecoratorName, DecoratorTemplate->GetMode() == EDecoratorMode::Base ? TEXT("Base") : TEXT("Additive"));
-						UE_LOG(LogAnimation, Log, TEXT("                        Shared Data: [Offset: %u bytes, Size: %u bytes]"), DecoratorTemplate->GetNodeSharedOffset(), DecoratorSharedDataSize);
-						if (DecoratorTemplate->HasLatentProperties() && Decorator != nullptr)
+						UE_LOG(LogAnimation, Log, TEXT("                    %u: [%x] %s (%s)"), TraitIndex, TraitTemplate->GetUID().GetUID(), *TraitName, TraitTemplate->GetMode() == ETraitMode::Base ? TEXT("Base") : TEXT("Additive"));
+						UE_LOG(LogAnimation, Log, TEXT("                        Shared Data: [Offset: %u bytes, Size: %u bytes]"), TraitTemplate->GetNodeSharedOffset(), TraitSharedDataSize);
+						if (TraitTemplate->HasLatentProperties() && Trait != nullptr)
 						{
-							UE_LOG(LogAnimation, Log, TEXT("                        Shared Data Latent Property Handles: [Offset: %u bytes, Count: %u]"), DecoratorTemplate->GetNodeSharedLatentPropertyHandlesOffset(), Decorator->GetNumLatentDecoratorProperties());
+							UE_LOG(LogAnimation, Log, TEXT("                        Shared Data Latent Property Handles: [Offset: %u bytes, Count: %u]"), TraitTemplate->GetNodeSharedLatentPropertyHandlesOffset(), Trait->GetNumLatentTraitProperties());
 						}
-						UE_LOG(LogAnimation, Log, TEXT("                        Instance Data: [Offset: %u bytes, Size: %u bytes]"), DecoratorTemplate->GetNodeInstanceOffset(), DecoratorInstanceDataSize);
+						UE_LOG(LogAnimation, Log, TEXT("                        Instance Data: [Offset: %u bytes, Size: %u bytes]"), TraitTemplate->GetNodeInstanceOffset(), TraitInstanceDataSize);
 					}
 
 					NodeOffset += NodeTemplate->GetNodeSharedDataSize();

@@ -7,9 +7,9 @@
 #include "AnimNextRigVMAsset.h"
 #include "RigUnit_AnimNextGraphRoot.h"
 #include "RigVMCore/RigVM.h"
-#include "DecoratorBase/DecoratorPtr.h"
-#include "DecoratorBase/DecoratorHandle.h"
-#include "DecoratorBase/EntryPointHandle.h"
+#include "TraitCore/TraitPtr.h"
+#include "TraitCore/TraitHandle.h"
+#include "TraitCore/EntryPointHandle.h"
 #include "Graph/GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextGraphEvaluator.h"
 #include "Param/ParamId.h"
@@ -134,10 +134,10 @@ protected:
 	UPROPERTY()
 	TArray<FAnimNextGraphEntryPoint> EntryPoints;
 
-	// This is a resolved handle to the root decorator in our graph, for each entry point 
-	TMap<FName, FAnimNextDecoratorHandle> ResolvedRootDecoratorHandles;
+	// This is a resolved handle to the root trait in our graph, for each entry point 
+	TMap<FName, FAnimNextTraitHandle> ResolvedRootTraitHandles;
 
-	// This is the graph shared data used by the decorator system, the output of FDecoratorReader
+	// This is the graph shared data used by the trait system, the output of FTraitReader
 	// We de-serialize manually into this buffer from the archive buffer, this is never saved on disk
 	TArray<uint8> SharedDataBuffer;
 
@@ -172,7 +172,7 @@ protected:
 	TArray<FAnimNextParam> RequiredParameters;
 
 #if WITH_EDITORONLY_DATA
-	// This buffer holds the output of the FDecoratorWriter post compilation
+	// This buffer holds the output of the FTraitWriter post compilation
 	// We serialize it manually and it is discarded at runtime
 	TArray<uint8> SharedDataArchiveBuffer;
 #endif

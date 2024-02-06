@@ -3,7 +3,7 @@
 
 #include "AnimNextRuntimeTest.h"
 
-#include "DecoratorBase/DecoratorReader.h"
+#include "TraitCore/TraitReader.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/RigUnit_AnimNextGraphRoot.h"
 #include "Misc/AutomationTest.h"
@@ -33,23 +33,23 @@ namespace UE::AnimNext
 
 		FAnimNextGraphEntryPoint& EntryPoint = Graph.EntryPoints.AddDefaulted_GetRef();
 		EntryPoint.EntryPointName = FRigUnit_AnimNextGraphRoot::DefaultEntryPoint;
-		EntryPoint.RootDecoratorHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
+		EntryPoint.RootTraitHandle = FAnimNextEntryPointHandle(NodeHandles[0]);
 		Graph.ExecuteDefinition = ExecuteDefinition;
 		Graph.SharedDataArchiveBuffer = SharedDataArchiveBuffer;
 		Graph.GraphReferencedObjects.Empty();
 
 		// Reconstruct our graph shared data
 		FMemoryReader GraphSharedDataArchive(SharedDataArchiveBuffer);
-		FDecoratorReader DecoratorReader(Graph.GraphReferencedObjects, GraphSharedDataArchive);
+		FTraitReader TraitReader(Graph.GraphReferencedObjects, GraphSharedDataArchive);
 
-		const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(Graph.SharedDataBuffer);
-		if (ErrorState == FDecoratorReader::EErrorState::None)
+		const FTraitReader::EErrorState ErrorState = TraitReader.ReadGraph(Graph.SharedDataBuffer);
+		if (ErrorState == FTraitReader::EErrorState::None)
 		{
-			Graph.ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, DecoratorReader.ResolveEntryPointHandle(Graph.EntryPoints[0].RootDecoratorHandle));
+			Graph.ResolvedRootTraitHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, TraitReader.ResolveEntryPointHandle(Graph.EntryPoints[0].RootTraitHandle));
 
 			for (FNodeHandle& NodeHandle : NodeHandles)
 			{
-				NodeHandle = DecoratorReader.ResolveNodeHandle(NodeHandle);
+				NodeHandle = TraitReader.ResolveNodeHandle(NodeHandle);
 			}
 
 			// Make sure our execute method is registered
@@ -59,7 +59,7 @@ namespace UE::AnimNext
 		else
 		{
 			Graph.SharedDataBuffer.Empty(0);
-			Graph.ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextDecoratorHandle());
+			Graph.ResolvedRootTraitHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextTraitHandle());
 			return false;
 		}
 	}

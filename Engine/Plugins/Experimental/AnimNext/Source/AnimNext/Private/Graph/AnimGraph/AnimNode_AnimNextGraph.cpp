@@ -17,8 +17,8 @@
 #include "Param/ParamStack.h"
 #include "AnimGraphParamStackScope.h"
 #include "Scheduler/ScheduleContext.h"
-#include "DecoratorInterfaces/IEvaluate.h"
-#include "DecoratorInterfaces/IUpdate.h"
+#include "TraitInterfaces/IEvaluate.h"
+#include "TraitInterfaces/IUpdate.h"
 #include "EvaluationVM/EvaluationVM.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_AnimNextGraph)

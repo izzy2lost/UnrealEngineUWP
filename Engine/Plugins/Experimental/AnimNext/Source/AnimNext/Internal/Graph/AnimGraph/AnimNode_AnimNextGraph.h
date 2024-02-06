@@ -5,7 +5,7 @@
 #include "Animation/AnimNode_CustomProperty.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
-#include "DecoratorBase/DecoratorPtr.h"
+#include "TraitCore/TraitPtr.h"
 #include "Context.h"
 #include "AnimNode_AnimNextGraph.generated.h"
 

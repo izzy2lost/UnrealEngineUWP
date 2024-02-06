@@ -8,7 +8,7 @@
 #include "AnimNextGraph_EdGraphNode.generated.h"
 
 // EdGraphNode representation for AnimNext nodes
-// A node can hold a decorator stack or a decorator entry
+// A node can hold a trait stack or a trait entry
 UCLASS(MinimalAPI)
 class UAnimNextGraph_EdGraphNode : public URigVMEdGraphNode
 {
@@ -26,10 +26,10 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	// Our implementation
 
-	// Returns whether this node is a decorator stack or not
-	ANIMNEXTUNCOOKEDONLY_API bool IsDecoratorStack() const;
+	// Returns whether this node is a trait stack or not
+	ANIMNEXTUNCOOKEDONLY_API bool IsTraitStack() const;
 
 private:
-	// Populates the SubMenu with entries for each decorator that can be added through the context menu
-	void BuildAddDecoratorContextMenu(class UToolMenu* SubMenu);
+	// Populates the SubMenu with entries for each trait that can be added through the context menu
+	void BuildAddTraitContextMenu(class UToolMenu* SubMenu);
 };

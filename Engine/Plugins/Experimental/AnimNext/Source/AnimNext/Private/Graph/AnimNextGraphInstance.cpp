@@ -3,7 +3,7 @@
 #include "Graph/AnimNextGraphInstance.h"
 
 #include "AnimNextStats.h"
-#include "DecoratorBase/ExecutionContext.h"
+#include "TraitCore/ExecutionContext.h"
 #include "Graph/AnimNextGraph.h"
 #include "Graph/GC_GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
@@ -45,7 +45,7 @@ FName FAnimNextGraphInstance::GetEntryPoint() const
 	return EntryPoint;
 }
 
-UE::AnimNext::FWeakDecoratorPtr FAnimNextGraphInstance::GetGraphRootPtr() const
+UE::AnimNext::FWeakTraitPtr FAnimNextGraphInstance::GetGraphRootPtr() const
 {
 	return GraphInstancePtr;
 }
@@ -159,9 +159,9 @@ void FAnimNextGraphInstance::Thaw()
 
 		{
 			UE::AnimNext::FExecutionContext Context(*this);
-			if(const FAnimNextDecoratorHandle* FoundHandle = GraphPtr->ResolvedRootDecoratorHandles.Find(EntryPoint))
+			if(const FAnimNextTraitHandle* FoundHandle = GraphPtr->ResolvedRootTraitHandles.Find(EntryPoint))
 			{
-				GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), *FoundHandle);
+				GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakTraitPtr(), *FoundHandle);
 			}
 		}
 

@@ -8,8 +8,8 @@
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
 #include "Param/ParamTypeHandle.h"
-#include "DecoratorBase/DecoratorReader.h"
-#include "DecoratorBase/ExecutionContext.h"
+#include "TraitCore/TraitReader.h"
+#include "TraitCore/ExecutionContext.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "Graph/GC_GraphInstanceComponent.h"
 #include "Graph/AnimNextGraphInstance.h"
@@ -48,8 +48,8 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 	Instance.Release();
 
 	const FName EntryPoint = (InEntryPoint == NAME_None) ? DefaultEntryPoint : InEntryPoint;
-	const FAnimNextDecoratorHandle ResolvedRootDecoratorHandle = ResolvedRootDecoratorHandles.FindRef(EntryPoint);
-	if (!ResolvedRootDecoratorHandle.IsValid())
+	const FAnimNextTraitHandle ResolvedRootTraitHandle = ResolvedRootTraitHandles.FindRef(EntryPoint);
+	if (!ResolvedRootTraitHandle.IsValid())
 	{
 		return;
 	}
@@ -73,7 +73,7 @@ void UAnimNextGraph::AllocateInstanceImpl(FAnimNextGraphInstance* ParentGraphIns
 
 	{
 		UE::AnimNext::FExecutionContext Context(Instance);
-		Instance.Impl->GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakDecoratorPtr(), ResolvedRootDecoratorHandle);
+		Instance.Impl->GraphInstancePtr = Context.AllocateNodeInstance(UE::AnimNext::FWeakTraitPtr(), ResolvedRootTraitHandle);
 	}
 
 	if (!Instance.IsValid())
@@ -169,14 +169,14 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 
 	// Reconstruct our graph shared data
 	FMemoryReader GraphSharedDataArchive(InSharedDataArchiveBuffer);
-	FDecoratorReader DecoratorReader(GraphReferencedObjects, GraphSharedDataArchive);
+	FTraitReader TraitReader(GraphReferencedObjects, GraphSharedDataArchive);
 
-	const FDecoratorReader::EErrorState ErrorState = DecoratorReader.ReadGraph(SharedDataBuffer);
-	if (ErrorState == FDecoratorReader::EErrorState::None)
+	const FTraitReader::EErrorState ErrorState = TraitReader.ReadGraph(SharedDataBuffer);
+	if (ErrorState == FTraitReader::EErrorState::None)
 	{
 		for(FAnimNextGraphEntryPoint& EntryPoint : EntryPoints)
 		{
-			ResolvedRootDecoratorHandles.Add(EntryPoint.EntryPointName, DecoratorReader.ResolveEntryPointHandle(EntryPoint.RootDecoratorHandle));
+			ResolvedRootTraitHandles.Add(EntryPoint.EntryPointName, TraitReader.ResolveEntryPointHandle(EntryPoint.RootTraitHandle));
 		}
 
 		// Make sure our execute method is registered
@@ -186,7 +186,7 @@ bool UAnimNextGraph::LoadFromArchiveBuffer(const TArray<uint8>& InSharedDataArch
 	else
 	{
 		SharedDataBuffer.Empty(0);
-		ResolvedRootDecoratorHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextDecoratorHandle());
+		ResolvedRootTraitHandles.Add(FRigUnit_AnimNextGraphRoot::DefaultEntryPoint, FAnimNextTraitHandle());
 		return false;
 	}
 }

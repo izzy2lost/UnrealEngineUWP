@@ -2,42 +2,42 @@
 
 #include "Graph/GC_GraphInstanceComponent.h"
 
-#include "DecoratorBase/ExecutionContext.h"
-#include "DecoratorInterfaces/IGarbageCollection.h"
+#include "TraitCore/ExecutionContext.h"
+#include "TraitInterfaces/IGarbageCollection.h"
 
 namespace UE::AnimNext
 {
-	void FGCGraphInstanceComponent::Register(FAnimNextGraphInstance& GraphInstance, const FWeakDecoratorPtr& DecoratorPtr)
+	void FGCGraphInstanceComponent::Register(FAnimNextGraphInstance& GraphInstance, const FWeakTraitPtr& TraitPtr)
 	{
-		DecoratorsWithReferences.Add(FEntry(GraphInstance, DecoratorPtr));
+		TraitsWithReferences.Add(FEntry(GraphInstance, TraitPtr));
 	}
 
-	void FGCGraphInstanceComponent::Unregister(const FWeakDecoratorPtr& DecoratorPtr)
+	void FGCGraphInstanceComponent::Unregister(const FWeakTraitPtr& TraitPtr)
 	{
-		const int32 EntryIndex = DecoratorsWithReferences.IndexOfByPredicate(
-			[&DecoratorPtr](const FEntry& Entry)
+		const int32 EntryIndex = TraitsWithReferences.IndexOfByPredicate(
+			[&TraitPtr](const FEntry& Entry)
 			{
-				return Entry.DecoratorPtr == DecoratorPtr;
+				return Entry.TraitPtr == TraitPtr;
 			});
 
 		if (ensure(EntryIndex != INDEX_NONE))
 		{
-			DecoratorsWithReferences.RemoveAtSwap(EntryIndex);
+			TraitsWithReferences.RemoveAtSwap(EntryIndex);
 		}
 	}
 
 	void FGCGraphInstanceComponent::AddReferencedObjects(FReferenceCollector& Collector) const
 	{
 		FExecutionContext Context;
-		TDecoratorBinding<IGarbageCollection> GCDecorator;
+		TTraitBinding<IGarbageCollection> GCTrait;
 
 		// TODO: If we kept the entries sorted by graph instance, we could re-use the execution context
-		for (const FEntry& Entry : DecoratorsWithReferences)
+		for (const FEntry& Entry : TraitsWithReferences)
 		{
 			Context.BindTo(Entry.GraphInstance);
-			ensure(Context.GetInterface(Entry.DecoratorPtr, GCDecorator));
+			ensure(Context.GetInterface(Entry.TraitPtr, GCTrait));
 
-			GCDecorator.AddReferencedObjects(Context, Collector);
+			GCTrait.AddReferencedObjects(Context, Collector);
 		}
 	}
 }

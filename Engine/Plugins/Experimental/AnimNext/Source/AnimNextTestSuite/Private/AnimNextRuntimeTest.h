@@ -9,9 +9,9 @@
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
 
-#include "DecoratorBase/DecoratorUID.h"
-#include "DecoratorBase/NodeTemplate.h"
-#include "DecoratorBase/NodeTemplateRegistry.h"
+#include "TraitCore/TraitUID.h"
+#include "TraitCore/NodeTemplate.h"
+#include "TraitCore/NodeTemplateRegistry.h"
 
 class UAnimNextGraph;
 
@@ -20,10 +20,10 @@ namespace UE::AnimNext
 	struct FNodeHandle;
 
 	// Converts a property value into its string representation using UE reflection
-	template<class DecoratorSharedDataType, typename PropertyType>
+	template<class TraitSharedDataType, typename PropertyType>
 	static FString ToString(const FString& PropertyName, PropertyType PropertyValue)
 	{
-		const UScriptStruct* SharedDataStruct = DecoratorSharedDataType::StaticStruct();
+		const UScriptStruct* SharedDataStruct = TraitSharedDataType::StaticStruct();
 		if (const FProperty* Property = SharedDataStruct->FindPropertyByName(*PropertyName))
 		{
 			void* PropertyDefaults = Property->AllocateAndInitializeValue();

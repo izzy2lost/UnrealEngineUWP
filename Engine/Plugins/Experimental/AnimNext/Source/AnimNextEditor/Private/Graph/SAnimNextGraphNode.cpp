@@ -4,7 +4,7 @@
 #include "Graph/AnimNextGraph_EdGraphNode.h"
 #include "SGraphPin.h"
 #include "RigVMModel/Nodes/RigVMDispatchNode.h"
-#include "DecoratorBase/DecoratorHandle.h"
+#include "TraitCore/TraitHandle.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -162,8 +162,8 @@ void SAnimNextGraphNode::UpdatePinTreeView()
 			PinInfo.bIsContainer = false;
 		}
 
-		// Decorator handle pins have special packing that are not user editable, hide their innards
-		if (ModelPin->GetCPPTypeObject() == FAnimNextDecoratorHandle::StaticStruct())
+		// Trait handle pins have special packing that are not user editable, hide their innards
+		if (ModelPin->GetCPPTypeObject() == FAnimNextTraitHandle::StaticStruct())
 		{
 			PinInfo.bHasChildren = false;
 			PinInfo.bIsContainer = false;
@@ -236,7 +236,7 @@ void SAnimNextGraphNode::UpdatePinTreeView()
 		
 		if(UEdGraphPin* InputEdGraphPin = RigGraphNode->FindPin(ModelPin->GetPinPath(), EEdGraphPinDirection::EGPD_Input))
 		{
-			// Make sure to handle input pins that we explicitly hide, like decorator handles
+			// Make sure to handle input pins that we explicitly hide, like trait handles
 			if (!InputEdGraphPin->bHidden)
 			{
 				if (const int32* PinIndexPtr = EdGraphPinToInputPin.Find(InputEdGraphPin))

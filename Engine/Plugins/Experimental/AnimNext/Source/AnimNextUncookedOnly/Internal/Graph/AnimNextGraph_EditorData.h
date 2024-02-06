@@ -13,7 +13,7 @@
 
 class UAnimNextGraph;
 enum class ERigVMGraphNotifType : uint8;
-class FAnimationAnimNextRuntimeTest_GraphAddDecorator;
+class FAnimationAnimNextRuntimeTest_GraphAddTrait;
 class FAnimationAnimNextRuntimeTest_GraphExecute;
 class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
 
@@ -65,7 +65,7 @@ class UAnimNextGraph_EditorData : public UAnimNextRigVMAssetEditorData
 	friend class UE::AnimNext::Editor::SAnimNextGraphView;
 	friend struct FAnimNextGraphSchemaAction_RigUnit;
 	friend struct FAnimNextGraphSchemaAction_DispatchFactory;
-	friend class FAnimationAnimNextRuntimeTest_GraphAddDecorator;
+	friend class FAnimationAnimNextRuntimeTest_GraphAddTrait;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecute;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
 	

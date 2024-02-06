@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DecoratorBase/DecoratorPtr.h"
+#include "TraitCore/TraitPtr.h"
 
 #include "AnimNextGraphInstancePtr.generated.h"
 
@@ -50,8 +50,8 @@ struct ANIMNEXT_API FAnimNextGraphInstancePtr
 	// Returns the graph used by this instance or nullptr if the instance is invalid
 	const UAnimNextGraph* GetGraph() const;
 
-	// Returns a weak handle to the root decorator instance
-	UE::AnimNext::FWeakDecoratorPtr GetGraphRootPtr() const;
+	// Returns a weak handle to the root trait instance
+	UE::AnimNext::FWeakTraitPtr GetGraphRootPtr() const;
 
 	// Returns the graph instance implementation
 	FAnimNextGraphInstance* GetImpl() const;

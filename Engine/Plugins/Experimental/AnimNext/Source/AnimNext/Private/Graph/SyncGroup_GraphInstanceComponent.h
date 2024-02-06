@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimationAsset.h"
-#include "DecoratorBase/DecoratorPtr.h"
-#include "DecoratorInterfaces/IUpdate.h"
+#include "TraitCore/TraitPtr.h"
+#include "TraitInterfaces/IUpdate.h"
 #include "Graph/GraphInstanceComponent.h"
 
 namespace UE::AnimNext
@@ -19,7 +19,7 @@ namespace UE::AnimNext
 	{
 		DECLARE_ANIM_GRAPH_INSTANCE_COMPONENT(FSyncGroupGraphInstanceComponent)
 
-		void RegisterWithGroup(FName GroupName, EAnimGroupRole::Type GroupRole, const FWeakDecoratorPtr& DecoratorPtr, const FDecoratorUpdateState& DecoratorState);
+		void RegisterWithGroup(FName GroupName, EAnimGroupRole::Type GroupRole, const FWeakTraitPtr& TraitPtr, const FTraitUpdateState& TraitState);
 
 		// FGraphInstanceComponent impl
 		virtual void PreUpdate(FExecutionContext& Context) override;
@@ -28,8 +28,8 @@ namespace UE::AnimNext
 	private:
 		struct FSyncGroupMember
 		{
-			FDecoratorUpdateState				DecoratorState;
-			FWeakDecoratorPtr					DecoratorPtr;
+			FTraitUpdateState					TraitState;
+			FWeakTraitPtr						TraitPtr;
 			TEnumAsByte<EAnimGroupRole::Type>	GroupRole;
 		};
 

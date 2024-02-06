@@ -45,9 +45,9 @@ const UAnimNextGraph* FAnimNextGraphInstancePtr::GetGraph() const
 	return Impl ? Impl->GetGraph() : nullptr;
 }
 
-UE::AnimNext::FWeakDecoratorPtr FAnimNextGraphInstancePtr::GetGraphRootPtr() const
+UE::AnimNext::FWeakTraitPtr FAnimNextGraphInstancePtr::GetGraphRootPtr() const
 {
-	return Impl ? Impl->GetGraphRootPtr() : UE::AnimNext::FWeakDecoratorPtr();
+	return Impl ? Impl->GetGraphRootPtr() : UE::AnimNext::FWeakTraitPtr();
 }
 
 FAnimNextGraphInstance* FAnimNextGraphInstancePtr::GetImpl() const
