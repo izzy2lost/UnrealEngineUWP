@@ -391,6 +391,9 @@ void FStaticMeshEditor::PostInitAssetEditor()
 		FStaticMeshEditorViewportClient& ViewportClient = StaticMeshViewport->GetViewportClient();
 		ViewportClient.ReceivedFocus(ViewportClient.Viewport);
 	}
+
+	// Static mesh editor code generally assumes the SocketManager exists, so make sure it does (in case the tab manager / sockets window hasn't already done so)
+	InitSocketManager();
 }
 
 void FStaticMeshEditor::GenerateSecondaryToolbar()
@@ -588,12 +591,7 @@ TSharedRef<SDockTab> FStaticMeshEditor::SpawnTab_SocketManager( const FSpawnTabA
 {
 	check( Args.GetTabId() == SocketManagerTabId );
 
-	if (!SocketManager)
-	{
-		FSimpleDelegate OnSocketSelectionChanged = FSimpleDelegate::CreateSP( SharedThis(this), &FStaticMeshEditor::OnSocketSelectionChanged );
-
-		SocketManager = ISocketManager::CreateSocketManager( SharedThis(this) , OnSocketSelectionChanged );
-}
+	InitSocketManager();
 
 	return SNew(SDockTab)
 		.Label( LOCTEXT("StaticMeshSocketManager_TabTitle", "Socket Manager") )
@@ -1046,6 +1044,16 @@ void FStaticMeshEditor::DuplicateSelectedSocket()
 void FStaticMeshEditor::RequestRenameSelectedSocket()
 {
 	SocketManager->RequestRenameSelectedSocket();
+}
+
+void FStaticMeshEditor::InitSocketManager()
+{
+	if (!SocketManager)
+	{
+		FSimpleDelegate OnSocketSelectionChanged = FSimpleDelegate::CreateSP(SharedThis(this), &FStaticMeshEditor::OnSocketSelectionChanged);
+
+		SocketManager = ISocketManager::CreateSocketManager(SharedThis(this), OnSocketSelectionChanged);
+	}
 }
 
 bool FStaticMeshEditor::IsPrimValid(const FPrimData& InPrimData) const
