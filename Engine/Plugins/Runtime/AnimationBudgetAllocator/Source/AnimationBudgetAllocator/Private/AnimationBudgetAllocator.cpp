@@ -66,6 +66,7 @@ FAnimationBudgetAllocator::FAnimationBudgetAllocator(UWorld* InWorld)
 	, ReducedComponentWorkCounter(0)
 	, CurrentFrameOffset(0)
 	, bEnabled(false)
+	, bHasBegunPlay(InWorld->HasBegunPlay())
 {
 	FAnimationBudgetAllocator::bCachedEnabled = GAnimationBudgetEnabled == 1;
 	
@@ -101,6 +102,8 @@ IAnimationBudgetAllocator* IAnimationBudgetAllocator::Get(UWorld* InWorld)
 
 void FAnimationBudgetAllocator::SetComponentTickEnabled(USkeletalMeshComponentBudgeted* Component, bool bShouldTick)
 {
+	checkSlow(World == Component->GetWorld());
+
 	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
 	{
 		int32 Handle = Component->GetAnimationBudgetHandle();
@@ -119,6 +122,8 @@ void FAnimationBudgetAllocator::SetComponentTickEnabled(USkeletalMeshComponentBu
 
 bool FAnimationBudgetAllocator::IsComponentTickEnabled(USkeletalMeshComponentBudgeted* Component) const
 {
+	checkSlow(World == Component->GetWorld());
+
 	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
 	{
 		int32 Handle = Component->GetAnimationBudgetHandle();
@@ -137,18 +142,17 @@ bool FAnimationBudgetAllocator::IsComponentTickEnabled(USkeletalMeshComponentBud
 
 void FAnimationBudgetAllocator::SetComponentSignificance(USkeletalMeshComponentBudgeted* Component, float Significance, bool bAlwaysTick, bool bTickEvenIfNotRendered, bool bAllowReducedWork, bool bNeverThrottle)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
+	checkSlow(World == Component->GetWorld());
+
+	int32 Handle = Component->GetAnimationBudgetHandle();
+	if(Handle != INDEX_NONE)
 	{
-		int32 Handle = Component->GetAnimationBudgetHandle();
-		if(Handle != INDEX_NONE)
-		{
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[Handle];
-			ComponentData.Significance = Significance;
-			ComponentData.bAlwaysTick = bAlwaysTick;
-			ComponentData.bTickEvenIfNotRendered = bTickEvenIfNotRendered;
-			ComponentData.bAllowReducedWork = !bAlwaysTick && bAllowReducedWork;	// Dont allow reduced work if we are set to 'always tick'
-			ComponentData.bNeverThrottle = bNeverThrottle;
-		}
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[Handle];
+		ComponentData.Significance = Significance;
+		ComponentData.bAlwaysTick = bAlwaysTick;
+		ComponentData.bTickEvenIfNotRendered = bTickEvenIfNotRendered;
+		ComponentData.bAllowReducedWork = !bAlwaysTick && bAllowReducedWork;	// Dont allow reduced work if we are set to 'always tick'
+		ComponentData.bNeverThrottle = bNeverThrottle;
 	}
 }
 
@@ -927,57 +931,60 @@ static USkeletalMeshComponentBudgeted* FindRootPrerequisite(USkeletalMeshCompone
 
 void FAnimationBudgetAllocator::RegisterComponent(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
+	checkSlow(World == InComponent->GetWorld());
+
+	const bool bIsCurrentlyEnabled = FAnimationBudgetAllocator::bCachedEnabled && bEnabled;
+
+	if (bIsCurrentlyEnabled)
 	{
-		if (InComponent->GetAnimationBudgetHandle() == INDEX_NONE)
-		{
-			InComponent->bEnableUpdateRateOptimizations = false;
-			InComponent->EnableExternalTickRateControl(true);
-			InComponent->SetAnimationBudgetHandle(AllComponentData.Num());
+		InComponent->bEnableUpdateRateOptimizations = false;
+		InComponent->EnableExternalTickRateControl(true);
+	}
 
-			// Setup frame offset
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData.Emplace_GetRef(InComponent, Parameters.InitialEstimatedWorkUnitTimeMs, Parameters.StateChangeThrottleInFrames);
-			USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
-			ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
-			ComponentData.FrameOffset = CurrentFrameOffset++;
-			ComponentData.bAutoCalculateSignificance = InComponent->GetAutoCalculateSignificance();
+	if (InComponent->GetAnimationBudgetHandle() == INDEX_NONE)
+	{
+		InComponent->SetAnimationBudgetHandle(AllComponentData.Num());
 
-			InComponent->SetAnimationBudgetAllocator(this);
-		}
-		else
-		{
-			UpdateComponentTickPrerequsites(InComponent);
-		}
+		// Setup frame offset
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData.Emplace_GetRef(InComponent, Parameters.InitialEstimatedWorkUnitTimeMs, Parameters.StateChangeThrottleInFrames);
+		USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
+		ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
+		ComponentData.FrameOffset = CurrentFrameOffset++;
+		ComponentData.bAutoCalculateSignificance = InComponent->GetAutoCalculateSignificance();
+
+		InComponent->SetAnimationBudgetAllocator(this);
+	}
+	else
+	{
+		UpdateComponentTickPrerequsites(InComponent);
 	}
 }
 
 void FAnimationBudgetAllocator::UnregisterComponent(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
-	{
-		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
-		if (ManagerHandle != INDEX_NONE)
-		{
-			RemoveHelper(ManagerHandle, InComponent);
+	checkSlow(World == InComponent->GetWorld());
 
-			InComponent->bEnableUpdateRateOptimizations = true;
-			InComponent->EnableExternalTickRateControl(false);
-			InComponent->SetAnimationBudgetAllocator(nullptr);
-		}
+	int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+	if (ManagerHandle != INDEX_NONE)
+	{
+		RemoveHelper(ManagerHandle, InComponent);
+
+		InComponent->bEnableUpdateRateOptimizations = true;
+		InComponent->EnableExternalTickRateControl(false);
+		InComponent->SetAnimationBudgetAllocator(nullptr);
 	}
 }
 
 void FAnimationBudgetAllocator::UpdateComponentTickPrerequsites(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
+	checkSlow(World == InComponent->GetWorld());
+
+	int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+	if(ManagerHandle != INDEX_NONE)
 	{
-		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
-		if(ManagerHandle != INDEX_NONE)
-		{
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
-			USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
-			ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
-		}
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
+		USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
+		ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
 	}
 }
 
@@ -1030,14 +1037,13 @@ void FAnimationBudgetAllocator::SetGameThreadLastCompletionTimeMs(int32 InManage
 
 void FAnimationBudgetAllocator::SetIsRunningReducedWork(USkeletalMeshComponentBudgeted* InComponent, bool bInReducedWork)
 {
-	if (GAnimationBudgetEnabled && bEnabled)
+	checkSlow(World == InComponent->GetWorld());
+
+	int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+	if(ManagerHandle != INDEX_NONE)
 	{
-		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
-		if(ManagerHandle != INDEX_NONE)
-		{
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
-			ComponentData.bReducedWork = bInReducedWork;
-		}
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
+		ComponentData.bReducedWork = bInReducedWork;
 	}
 }
 
@@ -1045,25 +1051,32 @@ void FAnimationBudgetAllocator::SetEnabled(bool bInEnabled)
 {
 	bEnabled = bInEnabled;
 
-	if(!bEnabled)
+	if (bEnabled)
 	{
-		// Remove all components we are currently tracking
 		for(int32 DataIndex = 0; DataIndex < AllComponentData.Num(); ++DataIndex)
 		{
 			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[DataIndex];
 			if(ComponentData.Component != nullptr)
 			{
-				ComponentData.Component->SetAnimationBudgetHandle(INDEX_NONE);
+				ComponentData.Component->bEnableUpdateRateOptimizations = false;
+				ComponentData.Component->EnableExternalTickRateControl(true);
+			}
+		}
+	}
+	else
+	{
+		for(int32 DataIndex = 0; DataIndex < AllComponentData.Num(); ++DataIndex)
+		{
+			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[DataIndex];
+			if(ComponentData.Component != nullptr)
+			{
 				ComponentData.Component->bEnableUpdateRateOptimizations = true;
 				ComponentData.Component->EnableExternalTickRateControl(false);
-				ComponentData.Component->SetAnimationBudgetAllocator(nullptr);
 
 				// Re-enable ticking in case the component was currently skipping
 				TickEnableHelper(ComponentData.Component, true);
 			}
 		}
-
-		AllComponentData.Reset();
 	}
 }
 
@@ -1079,16 +1092,15 @@ void FAnimationBudgetAllocator::SetParameters(const FAnimationBudgetAllocatorPar
 
 void FAnimationBudgetAllocator::ForceNextTickThisFrame(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (GAnimationBudgetEnabled && bEnabled)
-	{
-		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
-		if (ManagerHandle != INDEX_NONE)
-		{
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
+	checkSlow(World == InComponent->GetWorld());
 
-			// set frameoffset so next tick will be on this frame
-			ComponentData.FrameOffset += (ComponentData.TickRate - ((GFrameCounter + ComponentData.FrameOffset) % ComponentData.TickRate));
-		}
+	int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+	if (ManagerHandle != INDEX_NONE)
+	{
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
+
+		// set frameoffset so next tick will be on this frame
+		ComponentData.FrameOffset += (ComponentData.TickRate - ((GFrameCounter + ComponentData.FrameOffset) % ComponentData.TickRate));
 	}
 }
 
@@ -1106,6 +1118,8 @@ void FAnimationBudgetAllocator::HandleWorldBeginPlay()
 {
 	// This will catch worlds in (e.g.) PIE that try to set the CVar on startup
 	FAnimationBudgetAllocator::bCachedEnabled = GAnimationBudgetEnabled == 1;
+
+	bHasBegunPlay = true;
 
 	// Run thru all deferred registrations
 	for(USkeletalMeshComponentBudgeted* Component : DeferredRegistrations)

@@ -155,7 +155,10 @@ public:
 
 	// Registers a component for deferred registration (post begin play)
 	void RegisterComponentDeferred(USkeletalMeshComponentBudgeted* InComponent);
-	
+
+	// Checks whether this allocator's world has begun play
+	bool HasBegunPlay() const { return bHasBegunPlay; } 
+
 protected:
 	/** We tick before all actors in the world using this delegate */
 	void OnWorldPreActorTick(UWorld* InWorld, ELevelTick InLevelTick, float InDeltaSeconds);
@@ -283,4 +286,7 @@ protected:
 
 	/** Cached enabled flag that is copied from the CVar each tick */
 	static bool bCachedEnabled;
+
+	/** Flag to indidcate whether begin play has been called for this allocator's world */
+	bool bHasBegunPlay;
 };
