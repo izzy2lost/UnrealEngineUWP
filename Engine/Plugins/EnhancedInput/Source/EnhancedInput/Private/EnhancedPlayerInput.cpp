@@ -34,6 +34,13 @@ UEnhancedPlayerInput::UEnhancedPlayerInput()
 	, bIsFlushingInputThisFrame(false)
 	, CurrentlyInUseAnyKeySubstitute(NAME_None)
 {
+	// We don't want to attempt to load stuff on the CDO. Any subobjects on the IMC (triggers, modifiers, Player mappable key settings)
+	// will likely not have been loaded yet if they are defined by the end user or in a different module.
+	if (HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
+	{
+		return;
+	}
+
 	if (UE::Input::EnableDefaultMappingContexts)
 	{
 		for (const FDefaultContextSetting& DefaultContext : GetDefault<UEnhancedInputDeveloperSettings>()->DefaultMappingContexts)
