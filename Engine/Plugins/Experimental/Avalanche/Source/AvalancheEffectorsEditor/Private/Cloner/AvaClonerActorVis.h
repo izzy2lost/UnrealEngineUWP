@@ -2,23 +2,23 @@
 
 #pragma once
 
-#include "AvaClonerEffectorShared.h"
+#include "CEClonerEffectorShared.h"
 #include "AvaVisBase.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-class AAvaClonerActor;
-class UAvaClonerComponent;
+class ACEClonerActor;
+class UCEClonerComponent;
 
 struct HAvaClonerActorSpacingHitProxy : HAvaHitProxy
 {
 	DECLARE_HIT_PROXY();
 
-	HAvaClonerActorSpacingHitProxy(const UActorComponent* InComponent, EAvaClonerAxis InAxis)
+	HAvaClonerActorSpacingHitProxy(const UActorComponent* InComponent, ECEClonerAxis InAxis)
 		: HAvaHitProxy(InComponent)
 		, Axis(InAxis)
 	{}
 
-	EAvaClonerAxis Axis = EAvaClonerAxis::Custom;
+	ECEClonerAxis Axis = ECEClonerAxis::Custom;
 };
 
 /** Custom visualization for cloner actor to handle spacing in various layouts */
@@ -26,10 +26,10 @@ class FAvaClonerActorVisualizer : public FAvaVisualizerBase
 {
 public:
 	typedef FAvaVisualizerBase Super;
-	typedef UAvaClonerComponent MeshType;
+	typedef UCEClonerComponent MeshType;
 
 	FAvaClonerActorVisualizer();
-	
+
 	//~ Begin FAvaVisualizerBase
 	virtual UActorComponent* GetEditedComponent() const override;
 	virtual TMap<UObject*, TArray<FProperty*>> GatherEditableProperties(UObject* InObject) const override;
@@ -47,20 +47,20 @@ public:
 	virtual void DrawVisualizationEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	virtual void DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	//~ End FAvaVisualizerBase
-	
-	AAvaClonerActor* GetClonerActor() const
+
+	ACEClonerActor* GetClonerActor() const
 	{
 		return ClonerActorWeak.Get();
 	}
 
 protected:
-	FVector GetHandleSpacingLocation(const AAvaClonerActor* InClonerActor, EAvaClonerAxis InAxis) const;
-	void DrawSpacingButton(const AAvaClonerActor* InClonerActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, EAvaClonerAxis InAxis, FLinearColor InColor) const;
+	FVector GetHandleSpacingLocation(const ACEClonerActor* InClonerActor, ECEClonerAxis InAxis) const;
+	void DrawSpacingButton(const ACEClonerActor* InClonerActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, ECEClonerAxis InAxis, FLinearColor InColor) const;
 
 	void OnPropertyModified(UObject* InPropertyObject, FName InPropertyName, EPropertyChangeType::Type InType = EPropertyChangeType::Interactive);
-	
-	TWeakObjectPtr<AAvaClonerActor> ClonerActorWeak = nullptr;
+
+	TWeakObjectPtr<ACEClonerActor> ClonerActorWeak = nullptr;
 	FVector InitialSpacing = FVector::ZeroVector;
 	bool bEditingSpacing = false;
-	EAvaClonerAxis EditingAxis = EAvaClonerAxis::X;
+	ECEClonerAxis EditingAxis = ECEClonerAxis::X;
 };

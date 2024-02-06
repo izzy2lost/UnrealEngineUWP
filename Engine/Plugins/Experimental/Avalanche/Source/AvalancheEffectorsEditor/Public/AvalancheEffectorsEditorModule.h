@@ -10,8 +10,6 @@ class FComponentVisualizer;
 class FAvalancheEffectorsEditorModule : public IModuleInterface
 {
 public:
-	static FAvalancheEffectorsEditorModule& Get();
-
 	//~ Begin IModuleInterface interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
@@ -23,9 +21,6 @@ private:
 	void RegisterTools(IAvalancheInteractiveToolsModule* InModule);
 
 	void RegisterComponentVisualizers();
-
-	void RegisterCustomLayouts();
-	void UnregisterCustomLayouts();
 
 	TArray<TSharedPtr<FComponentVisualizer>> Visualizers;
 };

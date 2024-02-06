@@ -4,11 +4,11 @@
 #include "AvaEffectorsEditorCommands.h"
 #include "AvaInteractiveToolsSettings.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
-#include "Cloner/AvaClonerActor.h"
+#include "Cloner/CEClonerActor.h"
 
 UAvaClonerActorTool::UAvaClonerActorTool()
 {
-	ActorClass = AAvaClonerActor::StaticClass();
+	ActorClass = ACEClonerActor::StaticClass();
 }
 
 bool UAvaClonerActorTool::UseIdentityRotation() const

@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEditorStyle.h"
-#include "AvaClonerEffectorShared.h"
 #include "Brushes/SlateImageBrush.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
@@ -210,20 +209,6 @@ void FAvaEditorStyle::Init()
 	Set("AvalancheEditor.RectLightTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/RectLight_16",        Icon16));
 	Set("AvalancheEditor.SpotLightTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/SpotLight_16",        Icon16));
 	Set("AvalancheEditor.SkyLightTool",         new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/SkyLight_16",         Icon16));
-
-	// Easing
-	if (const UEnum* EasingEnum = StaticEnum<EAvaClonerEasing>())
-	{
-		for (int32 Idx = 0; Idx < EasingEnum->GetMaxEnumValue(); Idx++)
-		{
-			FText ValueText;
-			EasingEnum->GetDisplayValueAsText(static_cast<EAvaClonerEasing>(Idx), ValueText);
-			const FString EasingString = ValueText.ToString().Replace(TEXT(" "), TEXT(""));
-			const FName StyleName(TEXT("AvalancheIcons.Easing.") + EasingString);
-			
-			Set(StyleName, new IMAGE_BRUSH_SVG("Icons/ClonerIcons/" + EasingString, Icon32));
-		}
-	}
 	
 	// Colors
 	Set("AvalancheEditor.PalettesTab.ExpanderHeader", new FSlateColorBrush(FStyleColors::Header));

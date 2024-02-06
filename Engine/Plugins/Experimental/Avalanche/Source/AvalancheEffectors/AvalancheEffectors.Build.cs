@@ -11,26 +11,19 @@ public class AvalancheEffectors : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"AvalancheCore",
 				"Core",
 				"CoreUObject",
-				"Engine",
-				"Niagara",
-				"NiagaraCore"
+				"Engine"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AvalancheCore",
 				"Avalanche",
 				"AvalancheSceneTree",
-				"GeometryCore",
-				"GeometryFramework",
-				"GeometryScriptingCore",
-				"DynamicMesh",
-				"ProceduralMeshComponent",
-				"StaticMeshDescription"
+				"ClonerEffector"
 			}
 		);
 
@@ -39,9 +32,7 @@ public class AvalancheEffectors : ModuleRules
 			PrivateDependencyModuleNames.AddRange(new string[]
 			{
 				"AvalancheOutliner",
-				"UnrealEd",
-				"Slate",
-				"SlateCore"
+				"UnrealEd"
 			});
 		}
 	}

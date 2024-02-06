@@ -296,6 +296,10 @@
 		{
 			"Name": "GeometryMask",
 			"Enabled": true
+		},
+		{
+			"Name": "ClonerEffector",
+			"Enabled": true
 		}
 	]
 }

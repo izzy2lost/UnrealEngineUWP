@@ -4,11 +4,11 @@
 #include "AvaEffectorsEditorCommands.h"
 #include "AvaInteractiveToolsSettings.h"
 #include "Builders/AvaInteractiveToolsToolBuilder.h"
-#include "Effector/AvaEffectorActor.h"
+#include "Effector/CEEffectorActor.h"
 
 UAvaEffectorActorTool::UAvaEffectorActorTool()
 {
-	ActorClass = AAvaEffectorActor::StaticClass();
+	ActorClass = ACEEffectorActor::StaticClass();
 }
 
 bool UAvaEffectorActorTool::UseIdentityRotation() const
