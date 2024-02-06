@@ -925,9 +925,13 @@ namespace UE::PoseSearch
 		}
 	}
 
-	void SDatabaseAssetTree::FinalizeTreeChanges(bool bRecoverSelection)
+	void SDatabaseAssetTree::FinalizeTreeChanges(bool bRecoverSelection, bool bRefreshView)
 	{
-		RefreshTreeView(false, bRecoverSelection);
+		if (bRefreshView)
+		{
+			RefreshTreeView(false, bRecoverSelection);
+		}
+
 		EditorViewModel.Pin()->BuildSearchIndex();
 	}
 

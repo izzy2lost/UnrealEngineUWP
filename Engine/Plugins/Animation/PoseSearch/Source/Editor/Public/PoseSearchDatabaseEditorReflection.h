@@ -23,7 +23,13 @@ public:
 	void SetSourceLink(
 		const TWeakPtr<UE::PoseSearch::FDatabaseAssetTreeNode>& InWeakAssetTreeNode,
 		const TSharedPtr<UE::PoseSearch::SDatabaseAssetTree>& InAssetTreeWidget);
+	
+	virtual bool ApplyChanges() const { return false; };
 
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	
 protected:
 	TWeakPtr<UE::PoseSearch::FDatabaseAssetTreeNode> WeakAssetTreeNode;
 	TSharedPtr<UE::PoseSearch::SDatabaseAssetTree> AssetTreeWidget;
@@ -52,10 +58,8 @@ class UPoseSearchDatabaseSequenceReflection : public UPoseSearchDatabaseReflecti
 public:
 	UPROPERTY(EditAnywhere, Category = "Selected Sequence")
 	FPoseSearchDatabaseSequenceEx Sequence;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
+	
+	virtual bool ApplyChanges() const override;
 };
 
 USTRUCT()
@@ -81,10 +85,8 @@ class UPoseSearchDatabaseBlendSpaceReflection : public UPoseSearchDatabaseReflec
 public:
 	UPROPERTY(EditAnywhere, Category = "Selected Blend Space")
 	FPoseSearchDatabaseBlendSpaceEx BlendSpace;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
+	
+	virtual bool ApplyChanges() const override;
 };
 
 USTRUCT()
@@ -110,10 +112,8 @@ class UPoseSearchDatabaseAnimCompositeReflection : public UPoseSearchDatabaseRef
 public:
 	UPROPERTY(EditAnywhere, Category = "Selected Anim Composite")
 	FPoseSearchDatabaseAnimCompositeEx AnimComposite;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
+	
+	virtual bool ApplyChanges() const override;
 };
 
 USTRUCT()
@@ -139,10 +139,8 @@ class UPoseSearchDatabaseAnimMontageReflection : public UPoseSearchDatabaseRefle
 public:
 	UPROPERTY(EditAnywhere, Category = "Selected Anim Montage")
 	FPoseSearchDatabaseAnimMontageEx AnimMontage;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
+	
+	virtual bool ApplyChanges() const override;
 };
 
 USTRUCT()
@@ -168,10 +166,8 @@ class UPoseSearchDatabaseMultiSequenceReflection : public UPoseSearchDatabaseRef
 public:
 	UPROPERTY(EditAnywhere, Category = "Selected Sequence")
 	FPoseSearchDatabaseMultiSequenceEx MultiSequence;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
+	
+	virtual bool ApplyChanges() const override;
 };
 
 USTRUCT()

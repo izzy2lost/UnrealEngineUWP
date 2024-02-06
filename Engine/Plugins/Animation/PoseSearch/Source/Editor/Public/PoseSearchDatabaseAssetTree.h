@@ -37,7 +37,7 @@ namespace UE::PoseSearch
 		// End FEditorUndoClient interface
 		
 		void RefreshTreeView(bool bIsInitialSetup = false, bool bRecoverSelection = false);
-		void FinalizeTreeChanges(bool bRecoverSelection = false);
+		void FinalizeTreeChanges(bool bRecoverSelection = false, bool bRefreshView = true);
 
 		void SetSelectedItem(int32 SourceAssetIdx, bool bClearSelection);
 		FDetailColumnSizeData& GetColumnSizeData() { return ColumnSizeData; }

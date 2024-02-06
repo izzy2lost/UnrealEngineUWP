@@ -5,6 +5,7 @@
 #include "PoseSearchDatabaseAssetTree.h"
 #include "PoseSearchDatabaseAssetTreeNode.h"
 #include "PoseSearchDatabaseViewModel.h"
+#include "PoseSearch/PoseSearchDerivedData.h"
 #include "PoseSearch/PoseSearchSchema.h"
 
 #define LOCTEXT_NAMESPACE "UPoseSearchDatabaseReflection"
@@ -19,10 +20,26 @@ void UPoseSearchDatabaseReflectionBase::SetSourceLink(
 	AssetTreeWidget = InAssetTreeWidget;
 }
 
-void UPoseSearchDatabaseSequenceReflection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+void UPoseSearchDatabaseReflectionBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
+	// Skip changes during EPropertyChangeType::Interactive since they are always followed by a PostEditChangeProperty() call
+	// with EPropertyChangeType::ValueSet holding the final values.
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Interactive)
+	{
+		return;
+	}
+	
+	if (ApplyChanges())
+	{
+		const bool bShouldRefreshView = (PropertyChangedEvent.Property == nullptr) || !PropertyChangedEvent.Property->IsA(FFloatProperty::StaticClass());
+		AssetTreeWidget->FinalizeTreeChanges(true, bShouldRefreshView);
+	}
+}
+
+bool UPoseSearchDatabaseSequenceReflection::ApplyChanges() const 
+{
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseViewModel> ViewModel = WeakAssetTreeNode.Pin()->EditorViewModel.Pin())
 	{
 		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
@@ -33,80 +50,89 @@ void UPoseSearchDatabaseSequenceReflection::PostEditChangeProperty(struct FPrope
 			{
 				*DatabaseSequence = Sequence;
 				Database->MarkPackageDirty();
-		
-				AssetTreeWidget->FinalizeTreeChanges(true);
+
+				return true;
 			}
 		}
 	}
+
+	return false;
 }
 
-void UPoseSearchDatabaseBlendSpaceReflection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+bool UPoseSearchDatabaseBlendSpaceReflection::ApplyChanges() const
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseViewModel> ViewModel = WeakAssetTreeNode.Pin()->EditorViewModel.Pin())
 	{
 		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
 		if (IsValid(Database))
 		{
-			FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
-			if (FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseBlendSpace>())
+			if (UE::PoseSearch::EAsyncBuildIndexResult::Success == UE::PoseSearch::FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, UE::PoseSearch::ERequestAsyncBuildFlag::ContinueRequest))
 			{
-				*DatabaseBlendSpace = BlendSpace;
-				Database->MarkPackageDirty();
+				FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
+				if (FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseBlendSpace>())
+				{
+					*DatabaseBlendSpace = BlendSpace;
+					Database->MarkPackageDirty();
 
-				AssetTreeWidget->FinalizeTreeChanges(true);
+					return true;
+				}
 			}
 		}
 	}
+
+	return false;
 }
 
-void UPoseSearchDatabaseAnimCompositeReflection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+bool UPoseSearchDatabaseAnimCompositeReflection::ApplyChanges() const
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseViewModel> ViewModel = WeakAssetTreeNode.Pin()->EditorViewModel.Pin())
 	{
 		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
 		if (IsValid(Database))
 		{
-			FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
-			if (FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseAnimComposite>())
+			if (UE::PoseSearch::EAsyncBuildIndexResult::Success == UE::PoseSearch::FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, UE::PoseSearch::ERequestAsyncBuildFlag::ContinueRequest))
 			{
-				*DatabaseAnimComposite = AnimComposite;
-				Database->MarkPackageDirty();
+				FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
+				if (FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseAnimComposite>())
+				{
+					*DatabaseAnimComposite = AnimComposite;
+					Database->MarkPackageDirty();
 
-				AssetTreeWidget->FinalizeTreeChanges(true);
+					return true;
+				}
 			}
 		}
 	}
+
+	return false;
 }
 
-void UPoseSearchDatabaseAnimMontageReflection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+bool UPoseSearchDatabaseAnimMontageReflection::ApplyChanges() const
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseViewModel> ViewModel = WeakAssetTreeNode.Pin()->EditorViewModel.Pin())
 	{
 		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
 		if (IsValid(Database))
 		{
-			FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
-			if (FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseAnimMontage>())
+			if (UE::PoseSearch::EAsyncBuildIndexResult::Success == UE::PoseSearch::FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, UE::PoseSearch::ERequestAsyncBuildFlag::ContinueRequest))
 			{
-				*DatabaseAnimMontage = AnimMontage;
-				Database->MarkPackageDirty();
+				FInstancedStruct& DatabaseAsset = Database->GetMutableAnimationAssetStruct(WeakAssetTreeNode.Pin()->SourceAssetIdx);
+				if (FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = DatabaseAsset.GetMutablePtr<FPoseSearchDatabaseAnimMontage>())
+				{
+					*DatabaseAnimMontage = AnimMontage;
+					Database->MarkPackageDirty();
 
-				AssetTreeWidget->FinalizeTreeChanges(true);
+					return true;
+				}
 			}
 		}
 	}
+
+	return false;
 }
 
-void UPoseSearchDatabaseMultiSequenceReflection::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
+bool UPoseSearchDatabaseMultiSequenceReflection::ApplyChanges() const
 {
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
 	if (const TSharedPtr<UE::PoseSearch::FDatabaseViewModel> ViewModel = WeakAssetTreeNode.Pin()->EditorViewModel.Pin())
 	{
 		UPoseSearchDatabase* Database = ViewModel->GetPoseSearchDatabase();
@@ -118,10 +144,12 @@ void UPoseSearchDatabaseMultiSequenceReflection::PostEditChangeProperty(struct F
 				*DatabaseMultiSequence = MultiSequence;
 				Database->MarkPackageDirty();
 
-				AssetTreeWidget->FinalizeTreeChanges(true);
+				return true;
 			}
 		}
 	}
+
+	return false;
 }
 
 #endif // WITH_EDITOR
