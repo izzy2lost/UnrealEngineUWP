@@ -7753,6 +7753,29 @@ void UEditorEngine::OnEffectivePreviewShaderPlatformChange()
 	}
 }
 
+static void SaveFeatureLevelAsDisabled(FPreviewPlatformInfo& PreviewPlatform)
+{
+	auto* Settings = GetMutableDefault<UEditorPerProjectUserSettings>();
+
+	Settings->PreviewFeatureLevel = 0;
+	Settings->PreviewPlatformName = NAME_None;
+	Settings->PreviewShaderFormatName = NAME_None;
+	Settings->bPreviewFeatureLevelActive = false;
+	Settings->bPreviewFeatureLevelWasDefault = true;
+	Settings->PreviewDeviceProfileName = NAME_None;
+	Settings->PreviewShaderPlatformName = NAME_None;
+
+	Settings->SaveConfig();
+
+	Settings->PreviewFeatureLevel = (int32)PreviewPlatform.PreviewFeatureLevel;
+	Settings->PreviewPlatformName = PreviewPlatform.PreviewPlatformName;
+	Settings->PreviewShaderFormatName = PreviewPlatform.PreviewShaderFormatName;
+	Settings->bPreviewFeatureLevelActive = PreviewPlatform.bPreviewFeatureLevelActive;
+	Settings->bPreviewFeatureLevelWasDefault = (PreviewPlatform.PreviewFeatureLevel == GMaxRHIFeatureLevel);
+	Settings->PreviewDeviceProfileName = PreviewPlatform.DeviceProfileName;
+	Settings->PreviewShaderPlatformName = PreviewPlatform.PreviewShaderPlatformName;
+}
+
 void UEditorEngine::SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPlatform, bool bSaveSettings)
 {
 	// Get the requested preview platform, make sure it is valid.
@@ -7773,6 +7796,9 @@ void UEditorEngine::SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPla
 
 	// Record the new preview platform
 	PreviewPlatform = NewPreviewPlatform;
+
+	// Initially set preview as disabled in case it fails
+	SaveFeatureLevelAsDisabled(PreviewPlatform);
 
 	// If we changed the preview platform, we need to update the material quality settings
 	if (bChangedPreviewShaderPlatform)
