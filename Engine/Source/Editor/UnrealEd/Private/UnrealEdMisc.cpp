@@ -95,6 +95,7 @@
 #include "HAL/PlatformTime.h"
 #include "StudioAnalytics.h"
 #include "DeveloperToolSettingsDelegates.h"
+#include "Cooker/CookConfigAccessTracker.h"
 #include "Cooker/PackageBuildDependencyTracker.h"
 
 #define USE_UNIT_TESTS 0
@@ -222,11 +223,16 @@ FUnrealEdMisc::FUnrealEdMisc() :
 	NavigationBuildingNotificationHandler(NULL)
 {
 	//This is an early entry-point into the UnrealEd module to perform some editor-specific configuration
-#if UE_WITH_PACKAGE_ACCESS_TRACKING
+#if UE_WITH_PACKAGE_ACCESS_TRACKING || UE_WITH_CONFIG_TRACKING
 	const bool bBuildDependencyTrackingNeeded = GIsEditor && (IsRunningCookCommandlet() || !GetDefault<UEditorExperimentalSettings>()->bDisableCookInEditor);
 	if (!bBuildDependencyTrackingNeeded)
 	{
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
 		FPackageBuildDependencyTracker::Get().Disable();
+#endif
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::FCookConfigAccessTracker::Get().Disable();
+#endif
 	}
 #endif
 }

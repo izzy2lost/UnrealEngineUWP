@@ -391,11 +391,11 @@ void FConfigSection::HandleAddCommand(FName ValueName, FString&& Value, bool bAp
 	{
 		if (bAppendValueIfNotArrayOfStructsKeyUsed)
 		{
-			Add(ValueName, FConfigValue(MoveTemp(Value)));
+			Add(ValueName, FConfigValue(this, ValueName, MoveTemp(Value)));
 		}
 		else
 		{
-			AddUnique(ValueName, FConfigValue(MoveTemp(Value)));
+			AddUnique(ValueName, FConfigValue(this, ValueName, MoveTemp(Value)));
 		}
 	}
 }
@@ -619,7 +619,38 @@ FConfigFile::~FConfigFile()
 
 	delete SourceConfigFile;
 	SourceConfigFile = nullptr;
+#if UE_WITH_CONFIG_TRACKING 
+	if (FileAccess)
+	{
+		FileAccess->ConfigFile = nullptr;
+	}
+#endif
 }
+
+#if UE_WITH_CONFIG_TRACKING 
+void FConfigFile::SuppressReporting()
+{
+	LoadType = UE::ConfigAccessTracking::ELoadType::SuppressReporting;
+	if (FileAccess)
+	{
+		FileAccess->ConfigFile = nullptr;
+		FileAccess.SafeRelease();
+	}
+}
+
+UE::ConfigAccessTracking::FFile* FConfigFile::GetFileAccess() const
+{
+	if (!FileAccess)
+	{
+		if (LoadType == UE::ConfigAccessTracking::ELoadType::SuppressReporting)
+		{
+			return nullptr;
+		}
+		FileAccess.Set(new UE::ConfigAccessTracking::FFile(this));
+	}
+	return FileAccess.GetReference();
+}
+#endif
 
 bool FConfigFile::operator==( const FConfigFile& Other ) const
 {
@@ -653,7 +684,15 @@ FConfigSection* FConfigFile::FindOrAddSectionInternal(const FString& SectionName
 	FConfigSection* Section = FindInternal(SectionName);
 	if (Section == nullptr)
 	{
-		Section = &Add(SectionName, FConfigSection());
+		UE::ConfigAccessTracking::FSection* SectionAccess = nullptr;
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::FFile* LocalFileAccess = GetFileAccess();
+		if (LocalFileAccess)
+		{
+			SectionAccess = new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(SectionName));
+		}
+#endif
+		Section = &Add(SectionName, FConfigSection(SectionAccess));
 	}
 	return Section;
 }
@@ -971,7 +1010,7 @@ void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHi
 				else if( Cmd=='-' )
 				{
 					// Remove if present.
-					CurrentSection->RemoveSingle(Key, ProcessedValue);
+					CurrentSection->RemoveSingle(Key, FConfigValue(CurrentSection, Key, ProcessedValue));
 					CurrentSection->CompactStable();
 				}
 				else if ( Cmd=='.' )
@@ -1003,7 +1042,7 @@ void FConfigFile::CombineFromBuffer(const FString& Buffer, const FString& FileHi
 						if (!ConfigValue)
 						{
 							CurrentSection->Add(Key,
-								FConfigValue(MoveTemp(ProcessedValue)));
+								FConfigValue(CurrentSection, Key, MoveTemp(ProcessedValue)));
 						}
 						else
 						{
@@ -1041,6 +1080,16 @@ void FConfigFile::ProcessInputFileContents(FStringView Contents, const FString& 
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(FileName, ELLMTagSet::Assets);
 	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigFileClassName, ELLMTagSet::AssetClasses);
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FileName, ConfigFileClassName, FileName);
+#if UE_WITH_CONFIG_TRACKING
+	if (LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	{
+		LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
+	}
+	if (Name.IsNone())
+	{
+		Name = FileName;
+	}
+#endif
 
 	const TCHAR* Ptr = Contents.Len() > 0 ? Contents.GetData() : nullptr;
 	FConfigSection* CurrentSection = nullptr;
@@ -1147,12 +1196,12 @@ void FConfigFile::ProcessInputFileContents(FStringView Contents, const FString& 
 					FParse::QuotedString(Value, ProcessedValue);
 
 					// Add this pair to the current FConfigSection
-					CurrentSection->Add(KeyName, FConfigValue(MoveTemp(ProcessedValue)));
+					CurrentSection->Add(KeyName, FConfigValue(CurrentSection, KeyName, MoveTemp(ProcessedValue)));
 				}
 				else
 				{
 					// Add this pair to the current FConfigSection
-					CurrentSection->Add(KeyName, FConfigValue(Value));
+					CurrentSection->Add(KeyName, FConfigValue(CurrentSection, KeyName, Value));
 				}
 			}
 		}
@@ -1868,7 +1917,10 @@ void FConfigFile::AddMissingProperties( const FConfigFile& InSourceFile )
 					SourceSection.MultiFindPointer(SourcePropertyName, Results, true);
 					for (const FConfigValue* Result : Results)
 					{
-						DestSection->Add(SourcePropertyName, *Result);
+						FConfigValue& AddedValue = DestSection->Add(SourcePropertyName, *Result);
+#if UE_WITH_CONFIG_TRACKING 
+						AddedValue.SetSectionAccess(DestSection->SectionAccess.GetReference());
+#endif
 						Dirty = true;
 					}
 				}
@@ -2029,7 +2081,7 @@ void FConfigFile::SetString( const TCHAR* Section, const TCHAR* Key, const TCHAR
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( ConfigValue == nullptr )
 	{
-		Sec->Add(Key, FConfigValue(Value));
+		Sec->Add(Key, FConfigValue(Sec, FName(Key), Value));
 		Dirty = true;
 	}
 	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
@@ -2050,7 +2102,7 @@ void FConfigFile::SetText( const TCHAR* Section, const TCHAR* Key, const FText& 
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( ConfigValue == nullptr )
 	{
-		Sec->Add(Key, FConfigValue(MoveTemp(StrValue)));
+		Sec->Add(Key, FConfigValue(Sec, FName(Key), MoveTemp(StrValue)));
 		Dirty = true;
 	}
 	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
@@ -2099,7 +2151,7 @@ void FConfigFile::SetArray(const TCHAR* Section, const TCHAR* Key, const TArray<
 
 	for (int32 i = 0; i < Value.Num(); i++)
 	{
-		Sec->Add(Key, FConfigValue(Value[i]));
+		Sec->Add(Key, FConfigValue(Sec, FName(Key), Value[i]));
 		Dirty = true;
 	}
 }
@@ -2107,7 +2159,7 @@ void FConfigFile::SetArray(const TCHAR* Section, const TCHAR* Key, const TArray<
 bool FConfigFile::AddToSection(const TCHAR* SectionName, FName Key, const FString& Value)
 {
 	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
-	Section->Add(Key, FConfigValue(Value));
+	Section->Add(Key, FConfigValue(Section, Key, Value));
 	Dirty = true;
 	return true;
 }
@@ -2115,13 +2167,13 @@ bool FConfigFile::AddToSection(const TCHAR* SectionName, FName Key, const FStrin
 bool FConfigFile::AddUniqueToSection(const TCHAR* SectionName, FName Key, const FString& Value)
 {
 	FConfigSection* Section = FindOrAddSectionInternal(SectionName);
-	if (Section->FindPair(Key, FConfigValue(Value)))
+	if (Section->FindPair(Key, FConfigValue(Section, Key, Value)))
 	{
 		return false;
 	}
 	
 	// just call Add since we already checked above if it exists (AddUnique can't return whether or not it existed)
-	Section->Add(Key, FConfigValue(Value));
+	Section->Add(Key, FConfigValue(Section, Key, Value));
 	Dirty = true;
 	return true;
 }
@@ -2144,13 +2196,13 @@ bool FConfigFile::RemoveFromSection(const TCHAR* SectionName, FName Key, const F
 {
 	FConfigSection* Section = FindInternal(SectionName);
 	// if it doesn't contain the pair, do nothing
-	if (Section == nullptr || !Section->FindPair(Key, FConfigValue(Value)))
+	if (Section == nullptr || !Section->FindPair(Key, FConfigValue(Section, Key, Value)))
 	{
 		return false;
 	}
 
 	// remove any copies of the pair
-	Section->Remove(Key, FConfigValue(Value));
+	Section->Remove(Key, FConfigValue(Section, Key, Value));
 	Dirty = true;
 	return true;
 }
@@ -2196,6 +2248,9 @@ void FConfigFile::ProcessSourceAndCheckAgainstBackup()
 		FConfigFile BackupFile;
 		ProcessIniContents(*BackupFilename, *BackupFilename, &BackupFile, false, false);
 
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::FFile* LocalFileAccess = GetFileAccess();
+#endif
 		for (TMap<FString,FConfigSection>::TIterator SectionIterator(*SourceConfigFile); SectionIterator; ++SectionIterator)
 		{
 			const FString& SectionName = SectionIterator.Key();
@@ -2205,7 +2260,16 @@ void FConfigFile::ProcessSourceAndCheckAgainstBackup()
 			if (BackupSection && !UE::ConfigCacheIni::Private::FAccessor::AreSectionsEqualForWriting(SourceSection, *BackupSection))
 			{
 				this->Remove( SectionName );
-				this->Add( SectionName, SourceSection );
+				FConfigSection& AddedSection = this->Add( SectionName, SourceSection );
+#if UE_WITH_CONFIG_TRACKING
+				UE::ConfigAccessTracking::FSection* SectionAccess = LocalFileAccess ?
+					new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(SectionName)) : nullptr;
+				AddedSection.SectionAccess = SectionAccess;
+				for (TPair<FName, FConfigValue>& Pair : AddedSection)
+				{
+					Pair.Value.SetSectionAccess(SectionAccess);
+				}
+#endif
 			}
 		}
 
@@ -2315,9 +2379,10 @@ static TMap<FName, TFuture<void>>& GetPlatformConfigFutures()
 }
 #endif
 
-FConfigCacheIni::FConfigCacheIni(EConfigCacheType InType)
+FConfigCacheIni::FConfigCacheIni(EConfigCacheType InType, bool bInGloballyRegistered)
 	: bAreFileOperationsDisabled(false)
 	, bIsReadyForUse(false)
+	, bGloballyRegistered(bInGloballyRegistered)
 	, Type(InType)
 {
 }
@@ -2416,6 +2481,14 @@ FConfigFile& FConfigCacheIni::Add(const FString& Filename, const FConfigFile& Fi
 		delete Result;
 	}
 	Result = new FConfigFile(File);
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::FFile* FileAccess = Result->GetFileAccess();
+	if (FileAccess)
+	{
+		FileAccess->SetAsLoadTypeConfigSystem(*this, *Result);
+		FileAccess->OverrideFilenameToLoad = FName(FStringView(Filename));
+	}
+#endif
 	return *Result;
 }
 
@@ -2824,7 +2897,12 @@ const FConfigSection* FConfigCacheIni::GetSection( const TCHAR* Section, const b
 	const FConfigSection* Sec = File->FindSection( Section );
 	if (!Sec && Force)
 	{
-		Sec = &File->Add(Section, FConfigSection());
+		UE::ConfigAccessTracking::FSection* SectionAccess = nullptr;
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::FFile* LocalFileAccess = File->GetFileAccess();
+		SectionAccess = LocalFileAccess ? new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(Section)) : nullptr;
+#endif
+		Sec = &File->Add(Section, FConfigSection(SectionAccess));
 		File->Dirty = true;
 	}
 
@@ -2882,7 +2960,7 @@ void FConfigCacheIni::SetText( const TCHAR* Section, const TCHAR* Key, const FTe
 	FConfigValue* ConfigValue = Sec->Find( Key );
 	if( !ConfigValue )
 	{
-		Sec->Add(Key, FConfigValue(MoveTemp(StrValue)));
+		Sec->Add(Key, FConfigValue(Sec, FName(Key), MoveTemp(StrValue)));
 		File->Dirty = true;
 	}
 	// Use GetSavedValueForWriting rather than GetSavedValue to avoid reporting the value as having been accessed for dependency tracking
@@ -3861,6 +3939,17 @@ bool FConfigCacheIni::InitializeKnownConfigFiles(FConfigContext& Context)
 	for (uint8 KnownIndex = 0; KnownIndex < (uint8)EKnownIniFile::NumKnownFiles; KnownIndex++)
 	{
 		FConfigCacheIni::FKnownConfigFiles::FKnownConfigFile& KnownFile = Context.ConfigSystem->KnownFiles.Files[KnownIndex];
+#if UE_WITH_CONFIG_TRACKING
+		// We cannot set KnownFiles' LoadType in the FConfigCacheIni constructor because we need to compare with GConfig,
+		// which is not set during GConfig's constructor. We have to set it before calling Load on the ConfigFile, since
+		// Load can read values and LoadType must be set before any values are read.
+		UE::ConfigAccessTracking::FFile* FileAccess = KnownFile.IniFile.GetFileAccess();
+		if (FileAccess)
+		{
+			FileAccess->SetAsLoadTypeConfigSystem(*Context.ConfigSystem, KnownFile.IniFile);
+			FileAccess->OverrideFilenameToLoad = KnownFile.IniName;
+		}
+#endif
 
 		// allow for scalability to come from another platform (made above)
 		FConfigContext& ContextToUse = (KnownIndex == (uint8)EKnownIniFile::Scalability && ScalabilityPlatformOverrideContext) ? *ScalabilityPlatformOverrideContext : Context;
@@ -3963,7 +4052,7 @@ bool FConfigCacheIni::CreateGConfigFromSaved(const TCHAR* Filename)
 	// serialize right out of the preloaded data
 	FLargeMemoryReader MemoryReader((uint8*)PreloadedData, Size);
 	FKnownConfigFiles Names;
-	GConfig = new FConfigCacheIni(EConfigCacheType::Temporary);
+	GConfig = new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */);
 
 	// make an object that we can use to pass to delegates for any extra binary data they want to write
 //	FCoreDelegates::FExtraBinaryConfigData ExtraData(*GConfig, false);
@@ -4026,6 +4115,13 @@ static void InitializeConfigRemap()
 	// read in the single remap file
 	FConfigFile RemapFile;
 	FConfigContext Context = FConfigContext::ReadSingleIntoLocalFile(RemapFile);
+
+#if UE_WITH_CONFIG_TRACKING 
+	// Do not report reads of ConfigRemap. The values inside of ConfigRemap permanently affect the operation of
+	// ConfigFiles for the rest of the process lifetime, and we cannot handle rereading it for access tracking.
+	// TODO: For iterative cooks, we should instead hash RemapFile.ini and add it to a key that invalidates all packages.
+	RemapFile.SuppressReporting();
+#endif
 	
 	// read in engine and project ini files (these are not hierarchical, so it has to be done in two passes)
 	for (int Pass = 0; Pass < 2; Pass++)
@@ -4100,7 +4196,7 @@ void FConfigCacheIni::InitializeConfigSystem()
 		if (FFileHelper::LoadFileToArray(FileContent, *IniBootstrapFilename, FILEREAD_Silent))
 		{
 			FMemoryReader MemoryReader(FileContent, true);
-			GConfig = new FConfigCacheIni(EConfigCacheType::Temporary);
+			GConfig = new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */);
 			GConfig->SerializeStateForBootstrap_Impl(MemoryReader);
 			GConfig->bIsReadyForUse = true;
 			TRACE_CPUPROFILER_EVENT_SCOPE(ConfigReadyForUseBroadcast);
@@ -4117,7 +4213,7 @@ void FConfigCacheIni::InitializeConfigSystem()
 	FConfigManifest::UpgradeFromPreviousVersions();
 
 	// create GConfig
-	GConfig = new FConfigCacheIni(EConfigCacheType::DiskBacked);
+	GConfig = new FConfigCacheIni(EConfigCacheType::DiskBacked, true /* bInGloballyRegistered */);
 
 	// create a context object that we will use for all of the main ini files
 	FConfigContext Context = FConfigContext::ReadIntoGConfig();
@@ -4236,6 +4332,13 @@ bool FConfigCacheIni::LoadExternalIniFile(FConfigFile & ConfigFile, const TCHAR 
 	Context.bAllowGeneratedIniWhenCooked = bAllowGeneratedIniWhenCooked;
 	Context.GeneratedConfigDir = GeneratedConfigDir;
 	Context.bWriteDestIni = bWriteDestIni;
+#if UE_WITH_CONFIG_TRACKING
+	if (ConfigFile.LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+	{
+		ConfigFile.LoadType = bIsBaseIniName ? UE::ConfigAccessTracking::ELoadType::ExternalIniFile :
+			UE::ConfigAccessTracking::ELoadType::ExternalSingleIniFile;
+	}
+#endif
 	return Context.Load(IniName);
 }
 
@@ -4377,6 +4480,9 @@ FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile)
 		ConfigFile.Dirty = bDirty;
 		ConfigFile.NoSave = bNoSave;
 		ConfigFile.bHasPlatformName = bHasPlatformName;
+#if UE_WITH_CONFIG_TRACKING
+		ConfigFile.LoadType = UE::ConfigAccessTracking::ELoadType::Manual;
+#endif
 	}
 
 	return Ar;
@@ -4730,7 +4836,7 @@ void FConfigCacheIni::AsyncInitializeConfigForPlatforms()
 	for (const TPair<FName, FDataDrivenPlatformInfo>& Pair : AllPlatformInfos)
 	{
 		GetPlatformConfigFutures().Emplace(Pair.Key);
-		GConfigForPlatform.Add(Pair.Key, new FConfigCacheIni(EConfigCacheType::Temporary));
+		GConfigForPlatform.Add(Pair.Key, new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */));
 	}
 
 	for (const TPair<FName, FDataDrivenPlatformInfo>& Pair : AllPlatformInfos)
@@ -4787,7 +4893,7 @@ FConfigCacheIni* FConfigCacheIni::ForPlatform(FName PlatformName)
 	{
 		double Start = FPlatformTime::Seconds();
 		
-		PlatformConfig = GConfigForPlatform.Add(PlatformName, new FConfigCacheIni(EConfigCacheType::Temporary));
+		PlatformConfig = GConfigForPlatform.Add(PlatformName, new FConfigCacheIni(EConfigCacheType::Temporary, true /* bInGloballyRegistered */));
 		FConfigContext Context = FConfigContext::ReadIntoConfigSystem(PlatformConfig, PlatformName.ToString());
 		InitializeKnownConfigFiles(Context);
 

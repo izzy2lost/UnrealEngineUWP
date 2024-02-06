@@ -3578,51 +3578,6 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 				}
 				UE_LOG(LogInit, Display, TEXT("\n%s"), *FileList);
 #endif
-
-#if 0 && CONFIG_REMEMBER_ACCESS_PATTERN
-
-				TArray<FString> ConfigFilenames;
-				GConfig->GetConfigFilenames(ConfigFilenames);
-				for (const FString& ConfigFilename : ConfigFilenames)
-				{
-					const FConfigFile* Config = GConfig->FindConfigFile(ConfigFilename);
-
-					for (auto& ConfigSection : *Config)
-					{
-						TSet<FName> ProcessedValues;
-						const FName SectionName = FName(*ConfigSection.Key);
-
-						for (auto& ConfigValue : ConfigSection.Value)
-						{
-							const FName& ValueName = ConfigValue.Key;
-							if (ProcessedValues.Contains(ValueName))
-								continue;
-
-							ProcessedValues.Add(ValueName);
-
-							TArray<FConfigValue> ValueArray;
-							ConfigSection.Value.MultiFind(ValueName, ValueArray, true);
-
-							bool bHasBeenAccessed = false;
-							for (const auto& ValueArrayEntry : ValueArray)
-							{
-								if (ValueArrayEntry.HasBeenRead())
-								{
-									bHasBeenAccessed = true;
-									break;
-								}
-							}
-
-							if (bHasBeenAccessed)
-							{
-								UE_LOG(LogInit, Display, TEXT("Accessed Ini Setting %s %s %s"), *ConfigFilename, *SectionName.ToString(), *ValueName.ToString());
-							}
-
-						}
-					}
-
-				}
-#endif
 			}
 			else
 			{

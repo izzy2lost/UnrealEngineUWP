@@ -424,16 +424,8 @@ private:
 
 	//////////////////////////////////////////////////////////////////////////
 	// iterative ini settings checking
-	// growing list of ini settings which are accessed over the course of the cook
 
-	mutable FCriticalSection ConfigFileCS;
-	mutable UE::Cook::FIniSettingContainer AccessedIniStrings;
-	TArray<const FConfigFile*> OpenConfigFiles;
 	TArray<FString> ConfigSettingDenyList;
-	void OnFConfigDeleted(const FConfigFile* Config);
-	void OnFConfigCreated(const FConfigFile* Config);
-
-	void ProcessAccessedIniSettings(const FConfigFile* Config, UE::Cook::FIniSettingContainer& AccessedIniStrings) const;
 
 	void OnRequestClusterCompleted(const UE::Cook::FRequestCluster& RequestCluster);
 
@@ -1565,6 +1557,8 @@ private:
 	UE::Cook::FPackageData* SavingPackageData = nullptr;
 	/** Helper struct for running cooking in diagnostic modes */
 	TUniquePtr<FDiffModeCookServerUtils> DiffModeHelper;
+
+	TRefCountPtr<UE::Cook::IMPCollector> ConfigCollector;
 
 	/**
 	 * Heap of Pollables to tick, ordered by NextTimeSeconds.

@@ -4,6 +4,7 @@
 
 #if UE_WITH_PACKAGE_ACCESS_TRACKING
 #include "Async/UniqueLock.h"
+#include "Cooker/CookConfigAccessTracker.h"
 #include "HAL/Platform.h"
 #include "Logging/LogMacros.h"
 #include "Misc/PackageAccessTrackingOps.h"
@@ -158,15 +159,14 @@ void FPackageBuildDependencyTracker::StaticOnObjectHandleRead(const TArrayView<c
 		}
 	}
 }
-
-void DumpBuildDependencyTrackerStats()
-{
-	FPackageBuildDependencyTracker::Get().DumpStats();
-}
-
-#else
-void DumpBuildDependencyTrackerStats()
-{
-}
-
 #endif // UE_WITH_OBJECT_HANDLE_TRACKING
+
+void DumpBuildDependencyTrackerStats()
+{
+#if UE_WITH_PACKAGE_ACCESS_TRACKING
+	FPackageBuildDependencyTracker::Get().DumpStats();
+#endif
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::FCookConfigAccessTracker::Get().DumpStats();
+#endif
+}

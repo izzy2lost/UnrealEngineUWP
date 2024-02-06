@@ -26,8 +26,8 @@
 #include "Math/Vector.h"
 #include "Math/Vector2D.h"
 #include "Math/Vector4.h"
-#include "Misc/AccessDetection.h"
 #include "Misc/Build.h"
+#include "Misc/ConfigAccessTracking.h"
 #include "Misc/ConfigTypes.h"
 #include "Misc/Paths.h"
 #include "Serialization/Archive.h"
@@ -48,7 +48,6 @@ CORE_API DECLARE_LOG_CATEGORY_EXTERN(LogConfig, Log, All);
 
 // Server builds should be tweakable even in Shipping
 #define ALLOW_INI_OVERRIDE_FROM_COMMANDLINE			(UE_SERVER || !(UE_BUILD_SHIPPING))
-#define CONFIG_REMEMBER_ACCESS_PATTERN (WITH_EDITOR || 0)
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -116,16 +115,34 @@ namespace UE::ConfigCacheIni::Private { struct FAccessor; }
 namespace UE::ConfigCacheIni::Private { struct FImpl; }
 
 class FConfigContext;
+#if UE_WITH_CONFIG_TRACKING
+UE::ConfigAccessTracking::FSection* GetSectionAccess(const FConfigSection* InSection);
+#endif
 
 struct FConfigValue
 {
 public:
-	FConfigValue() { }
+	FConfigValue()
+		: FConfigValue(nullptr, NAME_None)
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName)
+#if UE_WITH_CONFIG_TRACKING
+		: SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
+#endif
+	{
+	}
 
 	FConfigValue(const TCHAR* InValue)
+		: FConfigValue(nullptr, NAME_None, InValue)
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName, const TCHAR* InValue)
 		: SavedValue(InValue)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(false)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
 #endif
 	{
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
@@ -133,9 +150,14 @@ public:
 	}
 
 	FConfigValue(const FString& InValue)
+		: FConfigValue(nullptr, NAME_None, InValue)
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName, const FString& InValue)
 		: SavedValue(InValue)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(false)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
 #endif
 	{
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
@@ -143,9 +165,14 @@ public:
 	}
 
 	FConfigValue(FString&& InValue)
+		: FConfigValue(nullptr, NAME_None, MoveTemp(InValue))
+	{}
+
+	FConfigValue(const FConfigSection* InSection, FName InValueName, FString&& InValue)
 		: SavedValue(MoveTemp(InValue))
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(false)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(GetSectionAccess(InSection))
+		, ValueName(InValueName)
 #endif
 	{
 		SavedValueHash = FTextLocalizationResource::HashString(SavedValue);
@@ -156,8 +183,9 @@ public:
 		: SavedValue(InConfigValue.SavedValue)
 		, ExpandedValue(InConfigValue.ExpandedValue)
 		, SavedValueHash(InConfigValue.SavedValueHash)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(InConfigValue.bRead)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(InConfigValue.SectionAccess)
+		, ValueName(InConfigValue.ValueName)
 #endif
 	{
 		// shouldn't need to expand value it's assumed that the other FConfigValue has done this already
@@ -167,8 +195,9 @@ public:
 		: SavedValue(MoveTemp(InConfigValue.SavedValue))
 		, ExpandedValue(MoveTemp(InConfigValue.ExpandedValue))
 		, SavedValueHash(InConfigValue.SavedValueHash)
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		, bRead(InConfigValue.bRead)
+#if UE_WITH_CONFIG_TRACKING
+		, SectionAccess(MoveTemp(InConfigValue.SectionAccess))
+		, ValueName(InConfigValue.ValueName)
 #endif
 	{
 		// shouldn't need to expand value it's assumed that the other FConfigValue has done this already
@@ -179,8 +208,9 @@ public:
 		SavedValue = MoveTemp(RHS.SavedValue);
 		ExpandedValue = MoveTemp(RHS.ExpandedValue);
 		SavedValueHash = RHS.SavedValueHash;
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = RHS.bRead;
+#if UE_WITH_CONFIG_TRACKING
+		SectionAccess = MoveTemp(RHS.SectionAccess);
+		ValueName = RHS.ValueName;
 #endif
 
 		return *this;
@@ -191,8 +221,9 @@ public:
 		SavedValue = RHS.SavedValue;
 		ExpandedValue = RHS.ExpandedValue;
 		SavedValueHash = RHS.SavedValueHash;
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = RHS.bRead;
+#if UE_WITH_CONFIG_TRACKING
+		SectionAccess = RHS.SectionAccess;
+		ValueName = RHS.ValueName;
 #endif
 
 		return *this;
@@ -220,9 +251,8 @@ public:
 	// Returns the ini setting with any macros expanded out
 	const FString& GetValue() const 
 	{
-		UE::AccessDetection::ReportAccess(UE::AccessDetection::EType::Ini);
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = true; 
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::Private::OnConfigValueRead(SectionAccess, ValueName, *this);
 #endif
 		return (ExpandedValue.Len() > 0 ? ExpandedValue : SavedValue); 
 	}
@@ -230,20 +260,25 @@ public:
 	// Returns the original ini setting without macro expansion
 	const FString& GetSavedValue() const 
 	{
-		UE::AccessDetection::ReportAccess(UE::AccessDetection::EType::Ini);
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-		bRead = true; 
+#if UE_WITH_CONFIG_TRACKING
+		UE::ConfigAccessTracking::Private::OnConfigValueRead(SectionAccess, ValueName, *this);
 #endif
 		return SavedValue; 
 	}
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
+#if UE_WITH_CONFIG_TRACKING
+	UE_DEPRECATED(5.4, "No longer written. Use UE::ConfigAccessTracking::AddConfigValueReadCallback instead")
 	inline const bool HasBeenRead() const
 	{
-		return bRead;
+		return false;
 	}
+	UE_DEPRECATED(5.4, "No longer read.")
 	inline void SetHasBeenRead(bool InBRead ) const
 	{
-		bRead = InBRead;
+	}
+
+	void SetSectionAccess(UE::ConfigAccessTracking::FSection* InSectionAccess)
+	{
+		SectionAccess = InSectionAccess;
 	}
 #endif
 
@@ -263,9 +298,6 @@ public:
 		if (Slot.GetUnderlyingArchive().IsLoading())
 		{
 			ConfigSection.ExpandValueInternal();
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-			ConfigSection.bRead = false;
-#endif
 		}
 	}
 
@@ -327,8 +359,9 @@ private:
 	FString SavedValue;
 	FString ExpandedValue;
 	uint32 SavedValueHash;
-#if CONFIG_REMEMBER_ACCESS_PATTERN 
-	mutable bool bRead; // has this value been read since the config system started
+#if UE_WITH_CONFIG_TRACKING
+	TRefCountPtr<UE::ConfigAccessTracking::FSection> SectionAccess;
+	FMinimalName ValueName;
 #endif
 };
 
@@ -338,6 +371,18 @@ typedef TMultiMap<FName,FConfigValue> FConfigSectionMap;
 class FConfigSection : public FConfigSectionMap
 {
 public:
+	FConfigSection()
+		: FConfigSection(nullptr)
+	{
+	}
+
+	FConfigSection(UE::ConfigAccessTracking::FSection* InSectionAccess)
+#if UE_WITH_CONFIG_TRACKING
+		: SectionAccess(InSectionAccess)
+#endif
+	{
+	}
+
 	/**
 	* Check whether the input string is surrounded by quotes
 	*
@@ -376,6 +421,9 @@ public:
 
 	// look for "array of struct" keys for overwriting single entries of an array
 	TMap<FName, FString> ArrayOfStructKeys;
+#if UE_WITH_CONFIG_TRACKING
+	TRefCountPtr<UE::ConfigAccessTracking::FSection> SectionAccess;
+#endif
 
 	friend struct UE::ConfigCacheIni::Private::FAccessor;
 	friend FArchive& operator<<(FArchive& Ar, FConfigSection& ConfigSection);
@@ -427,6 +475,9 @@ public:
 	// by default, we allow saving - this is going to be applied to config files that are not loaded from disk
 	// (when loading, this will get set to false, and then the ini sections will be checked)
 	bool bCanSaveAllSections : 1; // = true;
+#if UE_WITH_CONFIG_TRACKING
+	UE::ConfigAccessTracking::ELoadType LoadType = UE::ConfigAccessTracking::ELoadType::Uninitialized;
+#endif
 
 	/** The name of this config file */
 	FName Name;
@@ -452,6 +503,10 @@ private:
 	// This holds per-object config class names, with their ArrayOfStructKeys. Since the POC sections are all unique,
 	// we can't track it just in that section. This is expected to be empty/small
 	TMap<FString, TMap<FName, FString> > PerObjectConfigArrayOfStructKeys;
+
+#if UE_WITH_CONFIG_TRACKING
+	mutable UE::ConfigAccessTracking::Private::FFilePtrClearOnCopy FileAccess;
+#endif
 
 public:
 	CORE_API FConfigFile();
@@ -722,6 +777,12 @@ public:
 	void AddDynamicLayerToHeirarchy(const FString& Filename) { AddDynamicLayerToHierarchy(Filename); }
 
 	friend FArchive& operator<<(FArchive& Ar, FConfigFile& ConfigFile);
+
+#if UE_WITH_CONFIG_TRACKING
+	CORE_API void SuppressReporting();
+	CORE_API UE::ConfigAccessTracking::FFile* GetFileAccess() const;
+#endif
+
 private:
 	/** 
 	 * Save the source hierarchy which was loaded out to a backup file so we can check future changes in the base/default configs
@@ -773,7 +834,7 @@ class FConfigCacheIni
 {
 public:
 	// Basic functions.
-	CORE_API FConfigCacheIni(EConfigCacheType Type);
+	CORE_API FConfigCacheIni(EConfigCacheType Type, bool bInGloballyRegistered=false);
 
 	/** DO NOT USE. This constructor is for internal usage only for hot-reload purposes. */
 	CORE_API FConfigCacheIni();
@@ -801,6 +862,12 @@ public:
 	bool IsReadyForUse()
 	{
 		return bIsReadyForUse;
+	}
+
+	/** Return whether this is one of the global ConfigSystems: GConfig or FConfigCacheIni::ForPlatform. */
+	bool IsGloballyRegistered() const
+	{
+		return bGloballyRegistered;
 	}
 
 	/**
@@ -1480,6 +1547,8 @@ private:
 
 	/** true after the base .ini files have been loaded, and GConfig is generally "ready for use" */
 	bool bIsReadyForUse;
+
+	bool bGloballyRegistered;
 	
 	/** The type of the cache (basically, do we call Flush in the destructor) */
 	EConfigCacheType Type;
@@ -1558,3 +1627,10 @@ CORE_API void DeleteRecordedConfigReadsFromIni();
  */
 UE_DEPRECATED(5.1, "Use UE::ConfigUtilities::ConvertValueFromHumanFriendlyValue")
 CORE_API const TCHAR* ConvertValueFromHumanFriendlyValue(const TCHAR* Value);
+
+#if UE_WITH_CONFIG_TRACKING
+inline UE::ConfigAccessTracking::FSection* GetSectionAccess(const FConfigSection* InSection)
+{
+	return InSection ? InSection->SectionAccess.GetReference() : nullptr;
+}
+#endif

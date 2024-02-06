@@ -100,6 +100,9 @@ bool FDataDrivenPlatformInfoRegistry::LoadDataDrivenIniFile(int32 Index, FConfig
 			PlatformName = FPaths::GetCleanFilename(FPaths::GetPath(IniFilenames[Index]));
 		}
 
+		IniFile.PlatformName = PlatformName;
+		IniFile.bHasPlatformName = !PlatformName.IsEmpty();
+
 		return true;
 	}
 
@@ -250,7 +253,7 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 	if (!FParse::Param(FCommandLine::Get(), TEXT("NoPreviewPlatforms")))
 	{
 		// walk over the file looking for PreviewPlatform sections
-		for (auto Section : IniFile)
+		for (const auto& Section : IniFile)
 		{
 			if (Section.Key.StartsWith(TEXT("PreviewPlatform ")))
 			{

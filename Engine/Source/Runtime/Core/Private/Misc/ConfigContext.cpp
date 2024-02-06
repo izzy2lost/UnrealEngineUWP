@@ -355,6 +355,22 @@ bool FConfigContext::PerformLoad()
 		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH_FNAME(ConfigContextClassName, ELLMTagSet::AssetClasses);
 		UE_TRACE_METADATA_SCOPE_ASSET_FNAME(BaseName, ConfigContextClassName, BaseName);
 
+#if UE_WITH_CONFIG_TRACKING
+		if (ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+		{
+			ConfigFile->LoadType = UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile;
+		}
+		if (ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::LocalSingleIniFile || 
+			ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::ExternalSingleIniFile)
+		{
+			UE::ConfigAccessTracking::FFile* FileAccess = ConfigFile->GetFileAccess();
+			if (FileAccess)
+			{
+				FileAccess->OverrideFilenameToLoad = FName(FStringView(DestIniFilename));
+			}
+		}
+#endif
+
 		// load the .ini file straight up
 		LoadAnIniFile(*DestIniFilename, *ConfigFile);
 
@@ -390,6 +406,17 @@ bool FConfigContext::PerformLoad()
 		// clear previous source config file and reset
 		delete ConfigFile->SourceConfigFile;
 		ConfigFile->SourceConfigFile = new FConfigFile();
+#if UE_WITH_CONFIG_TRACKING
+		// Ignore the SourceConfigFile for access tracking since it is not publicly accessible
+		ConfigFile->SourceConfigFile->SuppressReporting();
+
+		// Set the LoadType before calling GenerateDestIniFile, because it will set it if not
+		// already set.
+		if (ConfigFile->LoadType == UE::ConfigAccessTracking::ELoadType::Uninitialized)
+		{
+			ConfigFile->LoadType = UE::ConfigAccessTracking::ELoadType::LocalIniFile;
+		}
+#endif
 
 		// now generate and make sure it's up to date (using IniName as a Base for an ini filename)
 		// @todo This bNeedsWrite afaict is always true even if it loaded a completely valid generated/final .ini, and the write below will
@@ -788,6 +815,19 @@ bool FConfigContext::GenerateDestIniFile()
 			// this will make sure the in-memory version has what is on disk, so when Flush happens later, it does not write out an outdated value
 			// note: we only want to copy the TMap base class slice of the FConfigFile, none of the specific members of the FConfigFile class itself
 			ConfigFile->TMap<FString, FConfigSection>::operator=(*ConfigFile->SourceConfigFile);
+#if UE_WITH_CONFIG_TRACKING
+			UE::ConfigAccessTracking::FFile* LocalFileAccess = ConfigFile->GetFileAccess();
+			for (TPair<FString, FConfigSection>& SectionPair : static_cast<TMap<FString, FConfigSection>>(*ConfigFile))
+			{
+				UE::ConfigAccessTracking::FSection* SectionAccess = LocalFileAccess ?
+					new UE::ConfigAccessTracking::FSection(*LocalFileAccess, FStringView(SectionPair.Key)) : nullptr;
+				SectionPair.Value.SectionAccess = SectionAccess;
+				for (TPair<FName, FConfigValue>& ValuePair : SectionPair.Value)
+				{
+					ValuePair.Value.SetSectionAccess(SectionAccess);
+				}
+			}
+#endif
 		}
 
 		LoadAnIniFile(*DestIniFilename, *ConfigFile);
@@ -817,7 +857,10 @@ bool FConfigContext::GenerateDestIniFile()
 			InDestConfigFile.SourceConfigFile = nullptr;
 		}
 		InDestConfigFile.SourceConfigFile = new FConfigFile(InDestConfigFile);
-
+#if UE_WITH_CONFIG_TRACKING
+		// Ignore the SourceConfigFile for access tracking since it is not publicly accessible
+		InDestConfigFile.SourceConfigFile->SuppressReporting();
+#endif
 		// mark it as dirty (caller may want to save)
 		InDestConfigFile.Dirty = true;
 
@@ -947,7 +990,7 @@ bool FConfigContext::GenerateDestIniFile()
 		if (FConfigSection* DestConfigSectionIniVersion = ConfigFile->FindOrAddSectionInternal(CurrentIniVersionString))
 		{
 			// Update the version. If it's already there then good but if not, we add it.
-			DestConfigSectionIniVersion->FindOrAdd(VersionName, FConfigValue(FString::FromInt(SourceConfigVersionNum)));
+			DestConfigSectionIniVersion->FindOrAdd(VersionName, FConfigValue(DestConfigSectionIniVersion, VersionName, FString::FromInt(SourceConfigVersionNum)));
 		}
 
 		// Add back any preserved sections.
