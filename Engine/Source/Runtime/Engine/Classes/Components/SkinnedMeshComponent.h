@@ -290,6 +290,12 @@ public:
 		return (LeaderPoseComponentPtr ? LeaderPoseComponentPtr->CurrentBoneTransformRevisionNumber : CurrentBoneTransformRevisionNumber);
 	}
 
+	uint32 GetPreviousBoneTransformRevisionNumber() const
+	{
+		const USkinnedMeshComponent* LeaderPoseComponentPtr = LeaderPoseComponent.Get();
+		return (LeaderPoseComponentPtr ? LeaderPoseComponentPtr->PreviousBoneTransformRevisionNumber : PreviousBoneTransformRevisionNumber);
+	}
+
 	/* this update renderer with new revision number twice so to clear bone velocity for motion blur or temporal AA */
 	ENGINE_API void ClearMotionVector();
 	
