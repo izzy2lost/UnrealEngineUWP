@@ -127,6 +127,16 @@ public:
 		return Object;
 	}
 
+	/*
+	 * WARNING: Hack that can be used under extraordinary circumstances. Pointers here 
+	 * should always be valid but might be in the EDefaultConstructNonNullPtr state 
+	 * during initialization.
+	 */
+	FORCEINLINE bool IsInitialized() const
+	{
+		return Object != nullptr;
+	}
+
 private:
 
 	/** The object we're holding a reference to. */
