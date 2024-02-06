@@ -259,7 +259,13 @@ void FSVGImporterEditorModule::CreateSVGActorFromClipboard(ULevel* InLevel)
 
 	if (!ClipboardContent.IsEmpty())
 	{
-		USVGData* SVGData = FSVGImporterEditorUtils::CreateSVGDataFromTextBuffer(ClipboardContent, GetTransientPackage(), TEXT("SVGData"), RF_Transactional | RF_Transient);
+		const FName SVGDataUniqueName = MakeUniqueObjectName(GetTransientPackage(), USVGData::StaticClass(), FName(TEXT("SVGData")));
+		USVGData* SVGData = FSVGImporterEditorUtils::CreateSVGDataFromTextBuffer(ClipboardContent, GetTransientPackage(), SVGDataUniqueName, RF_Transactional | RF_Transient);
+		if (!SVGData)
+		{
+			return;
+		}
+
 		if (ASVGActor* NewSVGActor = Cast<ASVGActor>(FActorFactoryAssetProxy::AddActorForAsset(SVGData)))
 		{
 			// We change the object outer so that SVGData belongs to SVGActor
