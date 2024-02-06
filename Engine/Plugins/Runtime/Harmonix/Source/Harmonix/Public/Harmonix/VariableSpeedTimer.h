@@ -21,6 +21,8 @@ public:
 	void Reset(double InitialMs = 0.0);
 
 private:
+	double GetSeconds();
+
 	// NOTE: Internally we track time in seconds because that is what the 
 	// Unreal "platform time" interface works in. BUT, this means that we 
 	// need to convert seconds <-> milliseconds for the user of this class.
