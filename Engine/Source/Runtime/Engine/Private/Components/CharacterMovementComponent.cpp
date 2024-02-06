@@ -5427,9 +5427,9 @@ void UCharacterMovementComponent::PhysWalking(float deltaTime, int32 Iterations)
 		ApplyRootMotionToVelocity(timeTick);
 		devCode(ensureMsgf(!Velocity.ContainsNaN(), TEXT("PhysWalking: Velocity contains NaN after Root Motion application (%s)\n%s"), *GetPathNameSafe(this), *Velocity.ToString()));
 
-		if( IsFalling() )
+		if (MovementMode != MOVE_Walking)
 		{
-			// Root motion could have put us into Falling.
+			// Root motion could have taken us out of walking mode
 			// No movement has taken place this movement tick so we pass on full time/past iteration count
 			StartNewPhysics(remainingTime+timeTick, Iterations-1);
 			return;
@@ -5450,9 +5450,15 @@ void UCharacterMovementComponent::PhysWalking(float deltaTime, int32 Iterations)
 			// try to move forward
 			MoveAlongFloor(MoveVelocity, timeTick, &StepDownResult);
 
-			if ( IsFalling() )
+			if (IsSwimming()) //just entered water
 			{
-				// pawn decided to jump up
+				StartSwimming(OldLocation, OldVelocity, timeTick, remainingTime, Iterations);
+				return;
+			}
+			else if (MovementMode != MOVE_Walking)
+			{
+				// pawn ended up in a different mode, probably due to the step-up-and-over flow
+				// let's refund the estimated unused time (if any) and keep moving in the new mode
 				const float DesiredDist = Delta.Size();
 				if (DesiredDist > UE_KINDA_SMALL_NUMBER)
 				{
@@ -5460,11 +5466,6 @@ void UCharacterMovementComponent::PhysWalking(float deltaTime, int32 Iterations)
 					remainingTime += timeTick * (1.f - FMath::Min(1.f,ActualDist/DesiredDist));
 				}
 				StartNewPhysics(remainingTime,Iterations);
-				return;
-			}
-			else if ( IsSwimming() ) //just entered water
-			{
-				StartSwimming(OldLocation, OldVelocity, timeTick, remainingTime, Iterations);
 				return;
 			}
 		}
@@ -5625,9 +5626,9 @@ void UCharacterMovementComponent::PhysNavWalking(float deltaTime, int32 Iteratio
 
 	ApplyRootMotionToVelocity(deltaTime);
 
-	if( IsFalling() )
+	if (MovementMode != MOVE_NavWalking)
 	{
-		// Root motion could have put us into Falling
+		// Root motion could have taken us out of walking mode
 		StartNewPhysics(deltaTime, Iterations);
 		return;
 	}
