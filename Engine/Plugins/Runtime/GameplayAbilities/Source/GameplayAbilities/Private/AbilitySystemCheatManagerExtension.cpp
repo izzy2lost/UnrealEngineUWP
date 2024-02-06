@@ -453,7 +453,11 @@ void UAbilitySystemCheatManagerExtension::EffectApply(const FString& PartialName
 	FActiveGameplayEffectHandle ActiveGEHandle = ASC->ApplyGameplayEffectSpecToSelf(GESpec, FakePredictionKey);
 	if (ActiveGEHandle.IsValid())
 	{
-		UE_LOG(LogConsoleResponse, Log, TEXT("Successfully Applied Gameplay Effect '%s' on Player '%s'."), *GameplayEffectClass->GetName(), *PC->GetName());
+		UE_LOG(LogConsoleResponse, Log, TEXT("Successfully Applied (Non-Instant) Gameplay Effect '%s' on Player '%s'."), *GameplayEffectClass->GetName(), *PC->GetName());
+	}
+	else if (ActiveGEHandle.WasSuccessfullyApplied())
+	{
+		UE_LOG(LogConsoleResponse, Log, TEXT("Executed (Instant) Gameplay Effect '%s' on Player '%s'."), *GameplayEffectClass->GetName(), *PC->GetName());
 	}
 	else
 	{
