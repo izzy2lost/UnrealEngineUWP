@@ -94,21 +94,6 @@ struct FRigVMBranchInfoKey
 	FName Label;
 };
 
-// A runtime cache for determining if a set of instruction has to
-// run for this execution of the VM
-USTRUCT(BlueprintType)
-struct RIGVM_API FRigVMInstructionSetExecuteState
-{
-	GENERATED_BODY()
-
-	FRigVMInstructionSetExecuteState()
-	{
-	}
-
-	UPROPERTY()
-	TArray<uint32> HashPerSlice;
-};
-
 // A description of a predicate branch in the VM's bytecode
 USTRUCT()
 struct RIGVM_API FRigVMPredicateBranch

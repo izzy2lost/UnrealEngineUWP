@@ -61,6 +61,21 @@ namespace RigVM
 	}
 }
 
+// A runtime cache for determining if a set of instruction has to
+// run for this execution of the VM
+USTRUCT(BlueprintType)
+struct RIGVM_API FRigVMInstructionSetExecuteState
+{
+	GENERATED_BODY()
+
+	FRigVMInstructionSetExecuteState()
+	{
+	}
+
+	UPROPERTY()
+	TMap<uint32, uint32> HashPerSlice;
+};
+
 /**
  * The FRigVMOperand represents an argument used for an operator
  * within the virtual machine. Operands provide information about

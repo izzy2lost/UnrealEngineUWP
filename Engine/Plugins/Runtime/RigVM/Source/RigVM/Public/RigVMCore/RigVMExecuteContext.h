@@ -182,6 +182,11 @@ public:
 		}
 	}
 
+	uint32 GetHash() const
+	{
+		return HashCombine(GetTypeHash(LowerBound), GetTypeHash(Index));
+	}
+
 private:
 
 	int32 LowerBound;
@@ -496,14 +501,6 @@ struct TStructOpsTypeTraits<FRigVMExecuteContext> : public TStructOpsTypeTraitsB
 	};
 };
 
-/**
- * Lazy branch data required by each instance of the VM
- */
-struct RIGVM_API FRigVMLazyBranchInstanceData
-{
-	TArray<int32> LastVMNumExecutions;
-};
-
 struct RIGVM_API FRigVMExternalVariableRuntimeData
 {
 	explicit FRigVMExternalVariableRuntimeData(uint8* InMemory)
@@ -647,6 +644,16 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 		return GetSlice().IsComplete();
 	}
 
+	uint32 GetSliceHash() const
+	{
+		uint32 Hash = 0;
+		for(const FRigVMSlice& Slice : Slices)
+		{
+			Hash = HashCombine(Hash, Slice.GetHash());
+		}
+		return Hash;
+	}
+
 	bool IsValidArrayIndex(int32& InOutIndex, const FScriptArrayHelper& InArrayHelper) const
 	{
 		return IsValidArrayIndex(InOutIndex, InArrayHelper.Num());
@@ -701,7 +708,7 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	void InvalidateCachedMemory()
 	{
 		CachedMemoryHandles.Reset();
-		LazyBranchInstanceData.Reset();
+		LazyBranchExecuteState.Reset();
 	}
 
 	uint32 GetNumExecutions() const
@@ -767,7 +774,7 @@ struct RIGVM_API FRigVMExtendedExecuteContext
 	FExecutionReachedExitEvent OnExecutionReachedExit;
 	FExecutionReachedExitEvent& ExecutionReachedExit() { return OnExecutionReachedExit; }
 
-	TArray<FRigVMLazyBranchInstanceData> LazyBranchInstanceData;
+	TArray<FRigVMInstructionSetExecuteState> LazyBranchExecuteState;
 	TArray<FRigVMExternalVariableRuntimeData> ExternalVariableRuntimeData;
 
 #if WITH_EDITOR
