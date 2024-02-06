@@ -759,7 +759,7 @@ public:
 
 	void Issue();
 
-	void ApplyLODUpdateParamsToInstance(FUpdateContextPrivate* Context = nullptr);
+	void ApplyLODUpdateParamsToInstance(FUpdateContextPrivate& Context);
 
 private:
 	/** If true it means that EnqueueUpdateSkeletalMesh has decided this update should be performed, if false it should be ignored. Just used for consistency checks */
