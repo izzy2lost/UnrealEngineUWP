@@ -603,7 +603,7 @@ void FDMXPixelMappingToolkit::FlipGroup(EOrientation Orientation, bool bTransact
 	{
 		const FText TransactionText = FText::Format(LOCTEXT("FilpCellsTransaction", "Flip Group {0}"), Orientation == EOrientation::Orient_Horizontal ? 
 			LOCTEXT("FlipHorizontalText", "Horizontally") :
-			LOCTEXT("FlipHorizontalText", "Vertically"));
+			LOCTEXT("FlipVerticalText", "Vertically"));
 
 		FilpCellsTransaction = MakeShared<FScopedTransaction>(TransactionText);
 	}
