@@ -8,6 +8,9 @@ public class AndroidTargetPlatformControls : ModuleRules
 	{
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		BinariesSubFolder = "Android";
+		// We need a short name here since this can run afoul very easily of the `MAX_PATH` limit when
+		// combined with building other targets that make use of this.
+		ShortName = "AndTPCon";
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
