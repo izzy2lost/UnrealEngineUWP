@@ -12,6 +12,28 @@
 class UPCGLandscapeCache;
 namespace EEndPlayReason { enum Type : int; }
 
+/** This record uniquely identifies a partition actor. */
+USTRUCT(BlueprintType)
+struct FPCGPartitionActorRecord
+{
+	GENERATED_BODY()
+
+	/** Unique ID for the grid this actor belongs to. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	FGuid GridGuid;
+
+	/** The grid size this actor lives on. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	uint32 GridSize;
+
+	/** The specific grid cell this actor lives in. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	FIntVector GridCoords;
+
+	bool operator==(const FPCGPartitionActorRecord& InOther) const;
+	friend uint32 GetTypeHash(const FPCGPartitionActorRecord& In);
+};
+
 UCLASS(MinimalAPI, NotBlueprintable, NotPlaceable)
 class APCGWorldActor : public AActor
 {
@@ -24,6 +46,22 @@ public:
 	virtual void PostInitProperties() override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+#if WITH_EDITOR
+	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
+	virtual bool IsUserManaged() const override { return false; }
+	virtual bool ShouldExport() override { return false; }
+	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
+	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
+	//~End AActor Interface
+#endif
+
+	//~ Begin UObject Interface.
+#if WITH_EDITOR
+	virtual void PostLoad() override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	virtual void BeginDestroy() override;
+	//~ End UObject Interface.
 
 	/** Creates guids for unused grid sizes. */
 	void CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes, bool bAreGridsSerialized);
@@ -34,28 +72,22 @@ public:
 	/** Returns the transient grid GUIDs used for the partitioned actors, one per grid size. */
 	void GetTransientGridGuids(PCGHiGenGrid::FSizeToGuidMap& OutSizeToGuidMap) const;
 
+	/** Add a record for tracking loaded and unloaded partition actors. */
+	void AddSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { SerializedPartitionActorRecords.Add(PartitionActorRecord); Modify(); }
+
+	/** Remove a record for tracking loaded and unloaded partition actors. */
+	void RemoveSerializedPartitionActorRecord(const FPCGPartitionActorRecord& PartitionActorRecord) { SerializedPartitionActorRecords.Remove(PartitionActorRecord); Modify(); }
+
+	/** Returns true if there is record of a partition actor living in a certain grid cell, regardless of whether or not it is loaded. */
+	bool DoesSerializedPartitionActorExist(const FGuid& GridGuid, uint32 GridSize, const FIntVector& GridCoords) const { return SerializedPartitionActorRecords.Contains({ GridGuid, GridSize, GridCoords }); }
+
 	void MergeFrom(APCGWorldActor* OtherWorldActor);
 
 #if WITH_EDITOR
-	virtual bool CanChangeIsSpatiallyLoadedFlag() const override { return false; }
-	virtual bool IsUserManaged() const override { return false; }
-	virtual bool ShouldExport() override { return false; }
-	virtual bool ShouldImport(FStringView ActorPropString, bool IsMovingLevel) override { return false; }
-	virtual void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
-	//~End AActor Interface
-
 	static APCGWorldActor* CreatePCGWorldActor(UWorld* InWorld);
 #endif
 
 	static inline constexpr uint32 DefaultPartitionGridSize = 25600; // 256m
-
-	//~ Begin UObject Interface.
-#if WITH_EDITOR
-	virtual void PostLoad() override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
-	virtual void BeginDestroy() override;
-	//~ End UObject Interface.
 
 	/** Size of the PCG partition actor grid for non-hierarchical-generation graphs. */
 	UPROPERTY(config, EditAnywhere, Category = GenerationSettings)
@@ -92,6 +124,10 @@ private:
 	UPROPERTY(Transient)
 	TMap<uint32, FGuid> TransientGridGuids;
 	mutable FRWLock TransientGridGuidsLock;
+
+	/** Keeps a record of what grid cells contain a serialized partition actor. Useful for tracking the existence of PAs even when they are not yet loaded. */
+	UPROPERTY(VisibleAnywhere, Category = Debug)
+	TSet<FPCGPartitionActorRecord> SerializedPartitionActorRecords;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

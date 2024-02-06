@@ -5,11 +5,14 @@
 #include "PCGCommon.h"
 #include "UObject/WeakObjectPtr.h"
 
-class FPCGActorAndComponentMapping;
-class UPCGComponent;
-class IPCGGenSourceBase;
 class APCGPartitionActor;
 class APCGWorldActor;
+class FPCGActorAndComponentMapping;
+class FPCGGenSourceManager;
+class IPCGGenSourceBase;
+class UPCGComponent;
+class UPCGSubsystem;
+class UWorld;
 
 /**
  * The Runtime Generation Scheduler system handles the scheduling of PCG Components marked as GenerateAtRuntime.
@@ -78,9 +81,6 @@ protected:
 
 	/** Refresh a generated component. bRemovePartitionActors will also perform a full cleanup of PAs and local components. */
 	void RefreshComponent(UPCGComponent* InComponent, bool bRemovePartitionActors = false);
-
-	/** Creates an empty RuntimeGen PA on demand if one cannot already be found in the level. PA will be created for the given GridSize and GridCoords. */
-	APCGPartitionActor* FindOrCreatePartitionActor(uint32 GridSize, const FIntVector& GridCoords);
 	
 	/** Grabs an empty RuntimeGen PA from the PartitionActorPool and initializes it at the given GridSize and GridCoords. If no PAs are available in the pool,
 	* the pool capacity will double and new PAs will be created.
@@ -118,8 +118,9 @@ private:
 	uint32 ScheduleFrameCounter = 0;
 
 	FPCGActorAndComponentMapping* ActorAndComponentMapping = nullptr;
-	class FPCGGenSourceManager* GenSourceManager = nullptr;
-	class UWorld* World = nullptr;
+	FPCGGenSourceManager* GenSourceManager = nullptr;
+	UPCGSubsystem* Subsystem = nullptr;
+	UWorld* World = nullptr;
 
 	bool bPoolingWasEnabledLastFrame = true;
 	uint32 BasePoolSizeLastFrame = 0;

@@ -162,7 +162,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("DeletePCGPartitionActors", "Delete all PCG partition actors"),
-		LOCTEXT("DeletePCGPartitionActors_Tooltip", "Deletes all PCG partition actors in the current world"),
+		LOCTEXT("DeletePCGPartitionActors_Tooltip", "Deletes all serialized PCG partition actors in the current world"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda([]() {
@@ -170,7 +170,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 				{
 					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
 					{
-						PCGSubsystem->DeletePartitionActors(/*bOnlyDeleteUnused=*/false);
+						PCGSubsystem->DeleteSerializedPartitionActors(/*bOnlyDeleteUnused=*/false);
 					}
 				}
 			})),
@@ -178,7 +178,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 	
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("DeletePCGPartitionActorsChildren", "Delete all PCG partition actors children"),
-		LOCTEXT("DeletePCGPartitionActorsChildren_Tooltip", "Deletes all PCG partition actors children in the current world, but not the Partition Actors themselves"),
+		LOCTEXT("DeletePCGPartitionActorsChildren_Tooltip", "Deletes all serialized PCG partition actors children in the current world, but not the Partition Actors themselves"),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda([]() {
@@ -186,7 +186,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 				{
 					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
 					{
-						PCGSubsystem->DeletePartitionActors(/*bOnlyDeleteUnused=*/false, /*bOnlyChildren=*/true);
+						PCGSubsystem->DeleteSerializedPartitionActors(/*bOnlyDeleteUnused=*/false, /*bOnlyChildren=*/true);
 					}
 				}
 			})),
@@ -194,7 +194,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("DeleteUnusedPCGPartitionActors", "Delete all unused PCG partition actors"),
-		LOCTEXT("DeleteUnusedPCGPartitionActors_Tooltip", "Deletes all PCG partition actors in the current world that doesn't intersect with any PCG Component."),
+		LOCTEXT("DeleteUnusedPCGPartitionActors_Tooltip", "Deletes all serialized PCG partition actors in the current world that doesn't intersect with any PCG Component."),
 		FSlateIcon(),
 		FUIAction(
 			FExecuteAction::CreateLambda([]() {
@@ -202,7 +202,7 @@ void FPCGEditorModule::PopulateMenuActions(FMenuBuilder& MenuBuilder)
 				{
 					if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetInstance(GEditor->GetEditorWorldContext().World()))
 					{
-						PCGSubsystem->DeletePartitionActors(/*bOnlyDeleteUnused=*/true);
+						PCGSubsystem->DeleteSerializedPartitionActors(/*bOnlyDeleteUnused=*/true);
 					}
 				}
 			})),

@@ -322,19 +322,6 @@ bool FPCGActorAndComponentMapping::RegisterOrUpdatePartitionedPCGComponent(UPCGC
 
 	PartitionedOctree.AddOrUpdateComponent(InComponent, Bounds, bComponentHasChanged, bComponentWasAdded);
 
-#if WITH_EDITOR
-	// In Editor only, we will create new partition actors depending on the new bounds and generation trigger. Runtime managed components should not create PAs here
-	// TODO: For now it will always create the PA. But if we want to create them only when we generate, we need to make
-	// sure to update the runtime flow, for them to also create PA if they need to.
-	if ((bComponentHasChanged || bComponentWasAdded) && !InComponent->IsManagedByRuntimeGenSystem())
-	{
-		bool bHasUnbounded = false;
-		PCGHiGenGrid::FSizeArray GridSizes;
-		ensure(PCGHelpers::GetGenerationGridSizes(InComponent ? InComponent->GetGraph() : nullptr, PCGSubsystem->GetPCGWorldActor(), GridSizes, bHasUnbounded));
-		PCGSubsystem->CreatePartitionActorsWithinBounds(Bounds, GridSizes);
-	}
-#endif // WITH_EDITOR
-
 	// After adding/updating, try to do the mapping (if we asked for it and the component changed)
 	if (bDoActorMapping)
 	{
@@ -538,7 +525,7 @@ TArray<UPCGComponent*> FPCGActorAndComponentMapping::GetAllIntersectingComponent
 
 void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* InActor, bool bDoComponentMapping)
 {
-	check(InActor);
+	check(InActor && PCGSubsystem);
 
 	const uint32 GridSize = InActor->GetPCGGridSize();
 	const FIntVector GridCoord = InActor->GetGridCoord();
@@ -560,32 +547,48 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 		PartitionActorsMapGrid.Add(GridCoord, InActor);
 	}
 
+	APCGWorldActor* WorldActor = PCGSubsystem->GetPCGWorldActor();
+	check(WorldActor);
+
 	// For deprecration: bUse2DGrid is now true by default. But if we already have Partition Actors that were created when the flag was false by default,
 	// we keep this flag
-	if (APCGWorldActor* WorldActor = PCGSubsystem->GetPCGWorldActor())
+	if (WorldActor->bUse2DGrid != InActor->IsUsing2DGrid())
 	{
-		if (WorldActor->bUse2DGrid != InActor->IsUsing2DGrid())
-		{
-			WorldActor->bUse2DGrid = InActor->IsUsing2DGrid();
-		}
+		WorldActor->bUse2DGrid = InActor->IsUsing2DGrid();
 	}
 
 	// Register to all the components that intersect with the PA. Ignore for runtime generated, it is handled manually
 	if (!bIsRuntimeGenerated)
 	{
+		WorldActor->AddSerializedPartitionActorRecord({ InActor->PCGGuid, GridSize, GridCoord });
+
 		FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
-		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(InActor->GetFixedBounds()), [this, InActor, bDoComponentMapping](UPCGComponent* Component)
+		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(InActor->GetFixedBounds()), [this, InActor, bDoComponentMapping, WorldActor](UPCGComponent* Component)
 		{
 			// For each component, do the mapping if we ask it explicitly, or if the component is generated
-			if (bDoComponentMapping || Component->bGenerated)
+			if (Component && (bDoComponentMapping || Component->bGenerated))
 			{
-				TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(Component);
-				// In editor we might load/create partition actors while the component is registering. Because of that,
-				// the mapping might not already exists, even if the component is marked generated.
-				if (PartitionActorsPtr)
+				if (TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(Component))
 				{
-					InActor->AddGraphInstance(Component);
-					PartitionActorsPtr->Add(InActor);
+					// TODO: This will need to be revisited when execution domains become a broader concept.
+					const bool bSameDomain = !Component->IsManagedByRuntimeGenSystem();
+
+					// Only create the component mapping if actor and component are from the same execution domain.
+					if (bSameDomain)
+					{
+						bool bHasUnbounded = false;
+						PCGHiGenGrid::FSizeArray GridSizes;
+						ensure(PCGHelpers::GetGenerationGridSizes(Component->GetGraph(), WorldActor, GridSizes, bHasUnbounded));
+
+						// Only create the component mapping if the original component demands the same grid the actor lives on.
+						if (GridSizes.Contains(InActor->GetPCGGridSize()))
+						{
+							// In editor we might load/create partition actors while the component is registering. Because of that,
+							// the mapping might not already exists, even if the component is marked generated.
+							InActor->AddGraphInstance(Component);
+							PartitionActorsPtr->Add(InActor);
+						}
+					}
 				}
 			}
 		});
@@ -708,9 +711,19 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 
 	if (const APCGWorldActor* WorldActor = PCGSubsystem->GetPCGWorldActor())
 	{
-		const bool bIsHiGenEnabled = InComponent->GetGraph() && InComponent->GetGraph()->IsHierarchicalGenerationEnabled();
+		// Get the generation grids as a bitflag to compare against.
+		uint32 ValidGrids = static_cast<uint32>(EPCGHiGenGrid::Uninitialized);
 
-		auto UpdateMapping = [this, InComponent, &Bounds, &RemovedActors, WorldActor, bIsHiGenEnabled](TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map, FRWLock& Lock)
+		bool bHasUnbounded = false;
+		PCGHiGenGrid::FSizeArray GridSizes;
+		ensure(PCGHelpers::GetGenerationGridSizes(InComponent->GetGraph(), WorldActor, GridSizes, bHasUnbounded));
+
+		for (uint32 GridSize : GridSizes)
+		{
+			ValidGrids |= GridSize;
+		}
+
+		auto UpdateMapping = [this, InComponent, &Bounds, &RemovedActors, WorldActor, ValidGrids](TMap<const UPCGComponent*, TSet<TObjectPtr<APCGPartitionActor>>>& Map, FRWLock& Lock)
 		{
 			FWriteScopeLock WriteLock(Lock);
 			TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = Map.Find(InComponent);
@@ -723,11 +736,20 @@ void FPCGActorAndComponentMapping::UpdateMappingPCGComponentPartitionActor(UPCGC
 			}
 
 			TSet<TObjectPtr<APCGPartitionActor>> NewMapping;
-			ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, bIsHiGenEnabled](APCGPartitionActor* Actor)
+			ForAllIntersectingPartitionActors(Bounds, [&NewMapping, InComponent, WorldActor, ValidGrids](APCGPartitionActor* Actor)
 			{
-				// If this graph does not have HiGen enabled, we should only add a graph instance for
-				// the partition actors whose grid size matches the WorldActor's partition grid size
-				if (bIsHiGenEnabled || (Actor && Actor->GetPCGGridSize() == WorldActor->PartitionGridSize))
+				if (!Actor)
+				{
+					return;
+				}
+
+				// TODO: This will need to be revisited when execution domains become a broader concept.
+				const bool bSameDomain = Actor->IsRuntimeGenerated() == InComponent->IsManagedByRuntimeGenSystem();
+
+				// Only add a graph instance to partition actors that are:
+				// * In the same execution domain as the original component.
+				// * On a valid grid for the original component.
+				if (bSameDomain && (ValidGrids & Actor->GetPCGGridSize()))
 				{
 					Actor->AddGraphInstance(InComponent);
 					NewMapping.Add(Actor);
@@ -822,9 +844,9 @@ TSet<UPCGComponent*> FPCGActorAndComponentMapping::GetAllRegisteredComponents() 
 	return Res;
 }
 
-UPCGComponent* FPCGActorAndComponentMapping::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated)
+UPCGComponent* FPCGActorAndComponentMapping::GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated) const
 {
-	TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& ActorsMap = bRuntimeGenerated ? RuntimeGenPartitionActorsMap : PartitionActorsMap;
+	const TMap<uint32, TMap<FIntVector, TObjectPtr<APCGPartitionActor>>>& ActorsMap = bRuntimeGenerated ? RuntimeGenPartitionActorsMap : PartitionActorsMap;
 	FReadScopeLock ReadLock(bRuntimeGenerated ? RuntimeGenPartitionActorsMapLock : PartitionActorsMapLock);
 
 	if (const TMap<FIntVector, TObjectPtr<APCGPartitionActor>>* PartitionActorsOnGrid = ActorsMap.Find(GridSize))

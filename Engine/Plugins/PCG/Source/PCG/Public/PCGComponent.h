@@ -155,8 +155,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = PCG)
 	void CleanupLocal(bool bRemoveComponents, bool bSave = false);
 
-	/* Same as CleanupLocal, but without any delayed tasks. All is done immediately. */
-	void CleanupLocalImmediate(bool bRemoveComponents);
+	/**
+	 * Same as CleanupLocal, but without any delayed tasks. All is done immediately. If 'bCleanupLocalComponents' is true and the
+	 * component is partitioned, we will forward the calls to its registered local components.
+	 */
+	void CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupLocalComponents = false);
 
 	/** Networked generation call that also activates the component as needed */
 	UFUNCTION(BlueprintCallable, NetMulticast, Reliable, Category = PCG)
@@ -209,7 +212,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayPriority = 100))
 	bool bActivated = true;
 
-	/* In World Partition map, will partition the component in a grid, according to PCGWorldActor settings, dispatching the generation to multiple local components.*/
+	/** 
+	 * Will partition the component in a grid, dispatching the generation to multiple local components. Grid size is determined by the
+	 * PCGWorldActor unless the graph has Hierarchical Generation enabled, in which case grid sizes are determined by the graph.
+	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bIsComponentLocal", DisplayName = "Is Partitioned", DisplayPriority = 500))
 	bool bIsComponentPartitioned = false;
 
@@ -425,7 +431,7 @@ private:
 
 	/* Internal call that allows to delay a Generate/Cleanup call, chain with dependencies and keep track of the task id created. This task id is also returned. */
 	FPCGTaskId GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCGComponentGenerationTrigger RequestedGenerationTrigger, const TArray<FPCGTaskId>& Dependencies);
-	FPCGTaskId CleanupInternal(bool bRemoveComponents, bool bSave, const TArray<FPCGTaskId>& Dependencies);
+	FPCGTaskId CleanupInternal(bool bRemoveComponents, const TArray<FPCGTaskId>& Dependencies);
 
 	/* Internal call to create tasks to generate the component. If there is nothing to do, an invalid task id will be returned. Should only be used by the subsystem. */
 	FPCGTaskId CreateGenerateTask(bool bForce, const TArray<FPCGTaskId>& Dependencies);

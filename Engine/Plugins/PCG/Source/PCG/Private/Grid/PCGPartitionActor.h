@@ -35,7 +35,6 @@ public:
 	//~Begin AActor Interface
 	virtual void BeginPlay();
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-	virtual void Destroyed() override;
 	virtual void GetActorBounds(bool bOnlyCollidingComponents, FVector& Origin, FVector& BoxExtent, bool bIncludeFromChildActors) const override;
 	virtual void PostRegisterAllComponents() override;
 	virtual void PostUnregisterAllComponents() override;
@@ -55,8 +54,6 @@ public:
 
 	FBox GetFixedBounds() const;
 	FIntVector GetGridCoord() const;
-
-	void SetPCGGridSize(uint32 InPCGGridSize) { PCGGridSize = InPCGGridSize; }
 	uint32 GetPCGGridSize() const { return PCGGridSize; }
 
 	bool IsUsing2DGrid() const { return bUse2DGrid; }
@@ -69,7 +66,7 @@ public:
 	bool Teleport(const FVector& NewLocation);
 
 	/** Register with the PCG Subsystem. */
-	void RegisterPCG(bool bDoComponentMapping);
+	void RegisterPCG();
 
 	/** Unregister with the PCG Subsystem. */
 	void UnregisterPCG();
@@ -82,8 +79,8 @@ public:
 	// When a local component is destroyed. It calls this function. We make sure we don't keep mappings that are dead.
 	void RemoveLocalComponent(UPCGComponent* LocalComponent);
 
-	/** To be called after the creation of a new actor to copy the GridSize property (Editor only) into the PCGGridSize property */
-	void PostCreation(const FGuid& InGridGUID);
+	/** To be called after the creation of a new actor to set the grid guid and size. */
+	void PostCreation(const FGuid& InGridGUID, uint32 InGridSize);
 
 	/** [Game thread only] Return if the actor is safe for deletion, meaning no generation is currently running on all original components. */
 	bool IsSafeForDeletion() const;
@@ -93,6 +90,9 @@ public:
 
 	/** Return a set of all the PCGComponents linked to this actor */
 	TSet<TObjectPtr<UPCGComponent>> GetAllOriginalPCGComponents() const;
+
+	/** Return true if this PA has any graph instances. */
+	bool HasGraphInstances() const { return LocalToOriginal.Num() > 0; }
 
 	/** Changes transient state for the local component matching the given original component. Returns true if PA becomes empty */
 	bool ChangeTransientState(UPCGComponent* OriginalComponent, EPCGEditorDirtyMode EditingMode);
@@ -148,8 +148,9 @@ private:
 	bool bWasPostCreatedLoaded = false;
 
 public:
-	/** Gets the name this actor would have if it were Runtime Generated.
-	* This does not respect traditional PA name contents like GridGuid, ShouldIncludeGridSizeInName, or ContextHash.
-	*/
-	static FString GetRuntimeGenActorName(uint32 GridSize, const FIntVector& GridCoords);
+	/** 
+	 * Gets the name this partition actor should have.
+	 * This does not respect traditional PA name contents like GridGuid, ShouldIncludeGridSizeInName, or ContextHash.
+	 */
+	static FString GetPCGPartitionActorName(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated);
 };
