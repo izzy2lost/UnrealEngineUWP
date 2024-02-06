@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PreprocessRenderInputUserWidgetProxy.h"
+#include "DMXPixelMappingRenderInputUserWidgetProxy.h"
 
 #include "Blueprint/UserWidget.h"
 #include "DMXStats.h"
@@ -13,7 +13,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputUserWidget"), STAT_PreprocessRenderInputUserWidget, STATGROUP_DMX);
 
-	FPreprocessRenderInputUserWidgetProxy::FPreprocessRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize, EPixelFormat InFormat)
+	FDMXPixelMappingRenderInputUserWidgetProxy::FDMXPixelMappingRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize, EPixelFormat InFormat)
 		: WeakUserWidget(InUserWidget)
 	{
 		constexpr bool bForceLinearGamma = false;
@@ -27,7 +27,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		UMGRenderer = MakeShared<FWidgetRenderer>(bUseGammaCorrection);
 	}
 
-	void FPreprocessRenderInputUserWidgetProxy::Render()
+	void FDMXPixelMappingRenderInputUserWidgetProxy::Render()
 	{
 		SCOPE_CYCLE_COUNTER(STAT_PreprocessRenderInputUserWidget);
 
@@ -41,18 +41,18 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 	}
 
-	UTexture* FPreprocessRenderInputUserWidgetProxy::GetRenderedTexture() const
+	UTexture* FDMXPixelMappingRenderInputUserWidgetProxy::GetRenderedTexture() const
 	{
 		return IntermediateRenderTarget;
 	}
 
-	FVector2D FPreprocessRenderInputUserWidgetProxy::GetSize2D() const
+	FVector2D FDMXPixelMappingRenderInputUserWidgetProxy::GetSize2D() const
 	{
 		check(IntermediateRenderTarget);
 		return FVector2D(IntermediateRenderTarget->GetSurfaceWidth(), IntermediateRenderTarget->GetSurfaceHeight());
 	}
 
-	void FPreprocessRenderInputUserWidgetProxy::AddReferencedObjects(FReferenceCollector& Collector)
+	void FDMXPixelMappingRenderInputUserWidgetProxy::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(IntermediateRenderTarget);
 	}

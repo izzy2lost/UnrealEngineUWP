@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PreprocessApplyFilterMaterialProxy.h"
+#include "DMXPixelMappingApplyFilterMaterialProxy.h"
 
 #include "CanvasTypes.h"
 #include "CommonRenderResources.h"
@@ -23,12 +23,12 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	DECLARE_CYCLE_STAT(TEXT("PixelMapping ApplyFilterMaterial"), STAT_PreprocessApplyFilterMaterial, STATGROUP_DMX);
 
-	FDrawPreprocessMaterialCanvas::FDrawPreprocessMaterialCanvas()
+	FDMXPixelMappingPreprocessMaterialCanvas::FDMXPixelMappingPreprocessMaterialCanvas()
 	{
 		Canvas = NewObject<UCanvas>();
 	}
 
-	void FDrawPreprocessMaterialCanvas::DrawMaterialToRenderTarget(UTextureRenderTarget2D* TextureRenderTarget, UMaterialInterface* Material)
+	void FDMXPixelMappingPreprocessMaterialCanvas::DrawMaterialToRenderTarget(UTextureRenderTarget2D* TextureRenderTarget, UMaterialInterface* Material)
 	{
 		if (!Material || !TextureRenderTarget || !TextureRenderTarget->GetResource())
 		{
@@ -73,16 +73,16 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 	}
 
-	void FDrawPreprocessMaterialCanvas::AddReferencedObjects(FReferenceCollector& Collector)
+	void FDMXPixelMappingPreprocessMaterialCanvas::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(Canvas);
 	}
 
-	FPreprocessApplyFilterMaterialProxy::FPreprocessApplyFilterMaterialProxy(EPixelFormat InFormat)
+	FDMXPixelMappingApplyFilterMaterialProxy::FDMXPixelMappingApplyFilterMaterialProxy(EPixelFormat InFormat)
 		: Format(InFormat)
 	{}
 
-	void FPreprocessApplyFilterMaterialProxy::Render(UTexture* InInputTexture, const UDMXPixelMappingPreprocessRenderer& InPreprocessRenderer)
+	void FDMXPixelMappingApplyFilterMaterialProxy::Render(UTexture* InInputTexture, const UDMXPixelMappingPreprocessRenderer& InPreprocessRenderer)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_PreprocessApplyFilterMaterial);
 
@@ -137,24 +137,24 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 	}
 
-	UTexture* FPreprocessApplyFilterMaterialProxy::GetRenderedTexture() const
+	UTexture* FDMXPixelMappingApplyFilterMaterialProxy::GetRenderedTexture() const
 	{
 		return CanRender() ? OutputRenderTarget : WeakInputTexture.Get();
 	}
 
-	void FPreprocessApplyFilterMaterialProxy::AddReferencedObjects(FReferenceCollector& Collector)
+	void FDMXPixelMappingApplyFilterMaterialProxy::AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObject(MaterialInstanceDynamic);
 		Collector.AddReferencedObjects(DownsampleRenderTargets);
 		Collector.AddReferencedObject(OutputRenderTarget);
 	}
 
-	bool FPreprocessApplyFilterMaterialProxy::CanRender() const
+	bool FDMXPixelMappingApplyFilterMaterialProxy::CanRender() const
 	{
 		return WeakInputTexture.IsValid() && OutputRenderTarget && FApp::CanEverRender();
 	}
 
-	void FPreprocessApplyFilterMaterialProxy::UpdateRenderTargets(int32 NumDownsamplePasses, const TOptional<FVector2D>& OptionalOutputSize)
+	void FDMXPixelMappingApplyFilterMaterialProxy::UpdateRenderTargets(int32 NumDownsamplePasses, const TOptional<FVector2D>& OptionalOutputSize)
 	{
 		if (!WeakInputTexture.IsValid())
 		{
@@ -235,7 +235,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 	}
 
-	void FPreprocessApplyFilterMaterialProxy::RenderTextureToTarget(UTexture* Texture, UTextureRenderTarget2D* RenderTarget) const
+	void FDMXPixelMappingApplyFilterMaterialProxy::RenderTextureToTarget(UTexture* Texture, UTextureRenderTarget2D* RenderTarget) const
 	{
 		IRendererModule* RendererModule = FModuleManager::GetModulePtr<IRendererModule>("Renderer");
 		ENQUEUE_RENDER_COMMAND(PixelMappingPreprocessDownsamplePass)(

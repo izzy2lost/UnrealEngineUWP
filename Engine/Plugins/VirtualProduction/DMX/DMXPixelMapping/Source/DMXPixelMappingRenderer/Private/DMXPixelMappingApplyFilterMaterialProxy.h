@@ -17,12 +17,12 @@ class UTextureRenderTarget2D;
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	/** Canvas implementation for pixelmapping */
-	class FDrawPreprocessMaterialCanvas
+	class FDMXPixelMappingPreprocessMaterialCanvas
 		: public FGCObject
 	{
 	public:
 		/** Constructor */
-		FDrawPreprocessMaterialCanvas();
+		FDMXPixelMappingPreprocessMaterialCanvas();
 
 		/** Draws a material to a render target */
 		void DrawMaterialToRenderTarget(UTextureRenderTarget2D* TextureRenderTarget, UMaterialInterface* Material);
@@ -32,7 +32,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 		virtual FString GetReferencerName() const override
 		{
-			return TEXT("DMXPixelMapping::Rendering::FDrawPreprocessMaterialCanvas");
+			return TEXT("DMXPixelMapping::Rendering::FDMXPixelMappingPreprocessMaterialCanvas");
 		}
 		//~ End FGCObject interface
 
@@ -42,12 +42,12 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 	};
 
 	/** Proxy to filter the texture used in Pixel Mapping */
-	class FPreprocessApplyFilterMaterialProxy
+	class FDMXPixelMappingApplyFilterMaterialProxy
 		: public IPreprocessApplyFilterMaterialProxy
 		, public FGCObject
 	{
 	public:
-		FPreprocessApplyFilterMaterialProxy(EPixelFormat InFormat);
+		FDMXPixelMappingApplyFilterMaterialProxy(EPixelFormat InFormat);
 
 		//~ Begin IPreprocessApplyFilterMaterialProxy interface
 		virtual void Render(UTexture* InInputTexture, const UDMXPixelMappingPreprocessRenderer& InPreprocessRenderer) override;
@@ -59,7 +59,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 		virtual FString GetReferencerName() const override
 		{
-			return TEXT("FPreprocessApplyFilterMaterialProxy");
+			return TEXT("FDMXPixelMappingApplyFilterMaterialProxy");
 		}
 		//~ End FGCObject interface
 
@@ -89,6 +89,6 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		TObjectPtr<UTextureRenderTarget2D> OutputRenderTarget;
 
 		/** Canvas used to draw materials */
-		FDrawPreprocessMaterialCanvas DrawMaterialCanvas;
+		FDMXPixelMappingPreprocessMaterialCanvas DrawMaterialCanvas;
 	};
 }

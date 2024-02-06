@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PreprocessRenderInputTextureProxy.h"
+#include "DMXPixelMappingRenderInputTextureProxy.h"
 
 #include "Engine/Texture.h"
 
 
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
-	FPreprocessRenderInputTextureProxy::FPreprocessRenderInputTextureProxy(UTexture* InTexture)
+	FDMXPixelMappingRenderInputTextureProxy::FDMXPixelMappingRenderInputTextureProxy(UTexture* InTexture)
 		:  WeakInputTexture(InTexture)
 	{
 		if (InTexture)
@@ -16,17 +16,17 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 	}
 
-	void FPreprocessRenderInputTextureProxy::Render()
+	void FDMXPixelMappingRenderInputTextureProxy::Render()
 	{
 		// No rendering required
 	}
 
-	UTexture* FPreprocessRenderInputTextureProxy::GetRenderedTexture() const
+	UTexture* FDMXPixelMappingRenderInputTextureProxy::GetRenderedTexture() const
 	{
 		return WeakInputTexture.Get();
 	}
 
-	FVector2D FPreprocessRenderInputTextureProxy::GetSize2D() const
+	FVector2D FDMXPixelMappingRenderInputTextureProxy::GetSize2D() const
 	{
 		return WeakInputTexture.IsValid() ?
 			FVector2D(WeakInputTexture->GetSurfaceWidth(), WeakInputTexture->GetSurfaceHeight()) :
