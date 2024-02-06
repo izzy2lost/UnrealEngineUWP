@@ -1,15 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaActorUtils.h"
-#include "AvaBlueprint.h"
 #include "AvaDefs.h"
+#include "AvaSceneItem.h"
 #include "AvaSceneSubsystem.h"
+#include "AvaSceneTree.h"
 #include "Components/PrimitiveComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Framework/AvaGameInstance.h"
 #include "GameFramework/Actor.h"
+#include "IAvaSceneInterface.h"
 #include "Math/MathFwd.h"
 #include "Math/OrientedBox.h"
 

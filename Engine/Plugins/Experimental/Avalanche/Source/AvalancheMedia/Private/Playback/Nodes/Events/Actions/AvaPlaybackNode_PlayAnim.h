@@ -26,6 +26,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Motion Design")
 	TMap<FSoftObjectPath, FAvaPlaybackAnimations> AnimationMap;
 
-	//All the Blueprints connected to this Node from the Dry Run (only populated while Dry Running!)
+	//All the assets connected to this Node from the Dry Run (only populated while Dry Running!)
 	TSet<FSoftObjectPath> SeenAssetsInDryRun;
 };

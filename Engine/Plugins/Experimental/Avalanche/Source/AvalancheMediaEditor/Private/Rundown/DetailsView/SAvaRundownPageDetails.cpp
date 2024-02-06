@@ -229,7 +229,7 @@ void SAvaRundownPageDetails::OnManagedInstanceCacheEntryInvalidated(const FSoftO
 						bRefreshSelectedPageQueued = true;
 						// Queue a refresh on next tick.
 						// We don't want to refresh immediately to avoid issues with
-						// cascading events within the managed blueprint cache.
+						// cascading events within the managed instance cache.
 						TWeakPtr<SWidget> ThisWeak(AsShared());
 						AsyncTask(ENamedThreads::GameThread, [ThisWeak]()
 							{

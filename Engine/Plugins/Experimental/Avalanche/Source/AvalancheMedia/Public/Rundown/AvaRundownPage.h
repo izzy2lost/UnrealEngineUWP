@@ -7,7 +7,6 @@
 #include "Playable/AvaPlayableRemoteControlValues.h"
 #include "AvaRundownPage.generated.h"
 
-class UAvalancheBlueprint;
 class UAvaRundown;
 
 UENUM()
@@ -245,11 +244,8 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Motion Design")
 	FString PageName;
 
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use AssetPath."))
-	TSoftObjectPtr<UAvalancheBlueprint> AvalancheBlueprint_DEPRECATED;
-
 	/** Template property: path for this template. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Motion Design", meta=(AllowedClasses="/Script/Engine.World, /Script/Avalanche.AvalancheBlueprint"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Motion Design", meta=(AllowedClasses="/Script/Engine.World"))
 	FSoftObjectPath AssetPath;
 
 	/** Template property: List the Ids of all instances. */

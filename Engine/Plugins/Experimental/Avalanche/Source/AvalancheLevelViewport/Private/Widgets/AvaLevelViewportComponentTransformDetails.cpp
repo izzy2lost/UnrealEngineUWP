@@ -687,27 +687,7 @@ void FAvaLevelViewportComponentTransformDetails::UpdatePropertyHandlesObjects(TA
 
 bool FAvaLevelViewportComponentTransformDetails::GetIsEnabled() const
 {
-	if (SelectedActorInfo.NumSelected == 0)
-	{
-		return false;
-	}
-
-	/*
-	 * @TODO Locked actors
-	 *
-	bool bHasLockedActors = false;
-	
-	if (BlueprintEditor.IsValid())
-	{
-		if (TSharedPtr<FAvaEditorModeTools> ModeTools = BlueprintEditor.Pin()->GetAvaModeTools())
-		{
-			bHasLockedActors = ModeTools->HasLockedActorSelected();
-		}
-	}
-
-	return !bHasLockedActors;
-	*/
-	return true;
+	return SelectedActorInfo.NumSelected > 0;
 }
 
 const FSlateBrush* FAvaLevelViewportComponentTransformDetails::GetPreserveScaleRatioImage() const

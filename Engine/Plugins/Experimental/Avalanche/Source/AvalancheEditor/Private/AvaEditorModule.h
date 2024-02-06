@@ -30,19 +30,14 @@ private:
 	/** Avalanche for the Level Editor*/
 	TSharedPtr<IAvaEditor> AvaLevelEditor;
 
-	/** All created asset type actions.  Cached here so that we can unregister it during shutdown. */
-	TArray<TSharedPtr<IAssetTypeActions>> AssetTypeActions;
-
 	void CreateAvaLevelEditor();
 
 	void PostEngineInit();
 	void PreExit();
 
 	void RegisterAssetTools();
-	void UnregisterAssetTools();
-
 	void RegisterPropertyEditorCategories();
-	
+
 	void RegisterCustomLayouts();
 	void UnregisterCustomLayouts();
 

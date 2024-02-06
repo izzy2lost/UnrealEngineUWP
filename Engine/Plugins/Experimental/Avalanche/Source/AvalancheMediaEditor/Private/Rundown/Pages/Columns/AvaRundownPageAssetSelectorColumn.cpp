@@ -3,7 +3,7 @@
 #include "AvaRundownPageAssetSelectorColumn.h"
 
 #include "AssetRegistry/IAssetRegistry.h"
-#include "AvaBlueprint.h"
+#include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
 #include "PropertyCustomizationHelpers.h"
 #include "Rundown/Pages/PageViews/IAvaRundownPageView.h"
@@ -42,7 +42,6 @@ namespace UE::AvaPageAssetSelectorColumn::Private
 
 		constexpr bool bAllowClear = true;
 		TArray<const UClass*> AllowedClasses;
-		AllowedClasses.Add(UAvalancheBlueprint::StaticClass());
 		AllowedClasses.Add(UWorld::StaticClass());
 
 		const FAssetData AssetData = IAssetRegistry::Get()->GetAssetByObjectPath(InPageView->GetObjectPath(Rundown));

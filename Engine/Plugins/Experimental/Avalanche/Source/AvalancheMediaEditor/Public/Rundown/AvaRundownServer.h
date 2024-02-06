@@ -197,7 +197,7 @@ private:
 	/** Cached data for page editing commands (GetPages and GetPageDetails). */
 	struct FRundownEditCommandData : public FRundownCache
 	{
-		/** PageId of the current managed ava blueprint. */
+		/** PageId of the current managed ava asset. */
 		int32 ManagedPageId = FAvaRundownPage::InvalidPageId;
 		TSharedPtr<FAvaRundownManagedInstance> ManagedInstance;
 

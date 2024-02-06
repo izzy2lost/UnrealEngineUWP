@@ -53,7 +53,7 @@ namespace UE::AvaRemoteControl::Private
 }
 
 /**
- *	Since the runtime Avalanche Blueprint is not in the world where the
+ *	Since the runtime Avalanche Scene Object is not in the world where the
  *	remote control bindings were done, it needs to be rebound.
  *	
  *	The original FRemoteControlPresetRebindingManager::Rebind_NewAlgo

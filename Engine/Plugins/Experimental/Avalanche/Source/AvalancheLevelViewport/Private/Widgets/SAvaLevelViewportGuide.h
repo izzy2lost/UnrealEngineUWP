@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "AvaBlueprint.h"
 #include "AvaViewportGuideInfo.h"
 #include "Input/DragAndDrop.h"
 #include "Templates/SharedPointer.h"

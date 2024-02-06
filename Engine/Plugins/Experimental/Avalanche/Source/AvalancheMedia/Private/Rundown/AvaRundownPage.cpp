@@ -542,11 +542,6 @@ void FAvaRundownPage::SetRemoteControlControllerValue(const FGuid& InId, const F
 
 void FAvaRundownPage::PostLoad()
 {
-	if (!AvalancheBlueprint_DEPRECATED.IsNull() && !AssetPath.IsValid())
-	{
-		AssetPath = AvalancheBlueprint_DEPRECATED.ToSoftObjectPath();
-	}
-	AvalancheBlueprint_DEPRECATED.Reset();
 }
 
 int32 FAvaRundownPage::GetNumTemplates(const UAvaRundown* InRundown) const

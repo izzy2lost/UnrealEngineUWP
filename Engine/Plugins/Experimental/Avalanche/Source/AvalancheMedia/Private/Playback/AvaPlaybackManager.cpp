@@ -4,7 +4,6 @@
 
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/IAssetRegistry.h"
-#include "AvaBlueprint.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Engine/Engine.h"
 #include "Framework/AvaGameInstance.h"
@@ -14,7 +13,6 @@
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/AvaPlayableGroupManager.h"
 #include "Playback/AvaPlaybackUtils.h"
-#include "Playback/Nodes/AvaPlaybackNodeBlueprintPlayer.h"
 #include "Playback/Nodes/AvaPlaybackNodeLevelPlayer.h"
 #include "Playback/Transition/AvaPlaybackTransition.h"
 #include "UnrealClient.h"
@@ -368,7 +366,7 @@ UAvaPlaybackGraph*  FAvaPlaybackManager::LoadPlaybackObject(const FSoftObjectPat
 
 		// Todo: Investigate LoadPackageAsync.
 		// For now, we tolerate a sync load here because there will be hitch from converting the
-		// Motion Design blueprint to a world.
+		// Motion Design Asset to a world.
 		TempPackage = LoadPackage(nullptr, *PackageName, LOAD_None );
 	}
 	
@@ -379,14 +377,6 @@ UAvaPlaybackGraph*  FAvaPlaybackManager::LoadPlaybackObject(const FSoftObjectPat
 			// When the asset is an Motion Design Playback, it is loaded directly.
 			if (UAvaPlaybackGraph* const AvaPlayback = Cast<UAvaPlaybackGraph>(FoundObject))
 			{
-				return AvaPlayback;
-			}
-			
-			// When the asset is an Motion Design Blueprint, it is wrapped in a playback object.
-			if (const UAvalancheBlueprint* const AvaBlueprint = Cast<UAvalancheBlueprint>(FoundObject))
-			{
-				UAvaPlaybackGraph* const AvaPlayback = BuildPlaybackFromBlueprint(AvaBlueprint, InChannelName);
-				check(AvaPlayback);
 				return AvaPlayback;
 			}
 
@@ -417,25 +407,12 @@ UAvaPlaybackGraph*  FAvaPlaybackManager::LoadPlaybackObject(const FSoftObjectPat
 	return nullptr;
 }
 
-UAvaPlaybackGraph* FAvaPlaybackManager::BuildPlaybackFromBlueprint(const UAvalancheBlueprint* InBlueprint, const FString& InChannelName) const
-{
-	using namespace UE::AvaPlaybackManager::Private;
-	FAvaPlaybackGraphBuilder GraphBuilder(GetPlayableGroupManager());
-
-	// Construct Player Node and assign the Blueprint that we passed in
-	UAvaPlaybackNodeBlueprintPlayer* const PlayerNode = GraphBuilder.ConstructPlaybackNode<UAvaPlaybackNodeBlueprintPlayer>();
-	PlayerNode->SetAsset(InBlueprint);
-	
-	GraphBuilder.ConnectToRoot(InChannelName, PlayerNode);
-	return GraphBuilder.FinishBuilding();
-}
-
 UAvaPlaybackGraph* FAvaPlaybackManager::BuildPlaybackFromWorld(const TSoftObjectPtr<UWorld>& InWorld, const FString& InChannelName) const
 {
 	using namespace UE::AvaPlaybackManager::Private;
 	FAvaPlaybackGraphBuilder GraphBuilder(GetPlayableGroupManager());
 
-	// Construct Player Node and assign the Blueprint that we passed in
+	// Construct Player Node and assign the World that we passed in
 	UAvaPlaybackNodeLevelPlayer* const PlayerNode = GraphBuilder.ConstructPlaybackNode<UAvaPlaybackNodeLevelPlayer>();
 	PlayerNode->SetAsset(InWorld);
 	

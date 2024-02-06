@@ -190,8 +190,8 @@ public:
 	TArray<UAvaGameInstance*> GetActiveGameInstances() const;
 	
 	/**
-	 *	Determines if the graph contains a node with the given source Motion Design blueprint.
-	 *	This works even if the Motion Design blueprint running.
+	 *	Determines if the graph contains a node with the given source Motion Design Asset.
+	 *	This works even if the Motion Design asset running.
 	 */
 	bool HasPlayerNodeForSourceAsset(const FSoftObjectPath& InSourceAssetPath) const;
 

@@ -67,7 +67,7 @@ bool FAvaRemoteControlUtils::RegisterRemoteControlPreset(URemoteControlPreset* I
 		RemoteControlComponentsSubsystem->RegisterPreset(InRemoteControlPreset);
 	}
 
-	// Avalanche's RCPs, either from blueprint or level asset, are considered "embedded" because
+	// Avalanche's RCPs, from an ava asset (e.g. level) are considered "embedded" because
 	// they are not an asset.
 	constexpr bool bReplaceExisting = true;
 	return RemoteControlModule.RegisterEmbeddedPreset(InRemoteControlPreset, bReplaceExisting);

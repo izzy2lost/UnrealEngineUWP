@@ -3,13 +3,11 @@
 #include "AvaPlaybackNode_PlayAnim.h"
 
 #include "Async/Async.h"
-#include "AvaBlueprint.h"
 #include "AvaScene.h"
 #include "AvaSequence.h"
 #include "Broadcast/AvaBroadcast.h"
 #include "Engine/Level.h"
 #include "Playback/AvaPlaybackGraph.h"
-#include "Playback/Nodes/AvaPlaybackNodeBlueprintPlayer.h"
 #include "Playback/Nodes/AvaPlaybackNodeLevelPlayer.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlaybackNode_PlayAnim"
@@ -95,22 +93,6 @@ void UAvaPlaybackNode_PlayAnim::DryRun(const TArray<UAvaPlaybackNode*>& InAncest
 {
 	for (UAvaPlaybackNode* const PlaybackNode : InAncestors)
 	{
-		if (UAvaPlaybackNodeBlueprintPlayer* const PlayerNode = Cast<UAvaPlaybackNodeBlueprintPlayer>(PlaybackNode))
-		{
-			TSoftObjectPtr<UAvalancheBlueprint> Asset = PlayerNode->GetAsset();
-			if (UAvalancheBlueprint* const AvalancheBlueprint = Asset.LoadSynchronous())
-			{
-				SeenAssetsInDryRun.Add(PlayerNode->GetAssetPath());
-				FAvaPlaybackAnimations& Animations = AnimationMap.FindOrAdd(PlayerNode->GetAssetPath());
-				for (const TObjectPtr<UAvaSequence>& Animation : AvalancheBlueprint->GetSequences())
-				{
-					if (Animation)
-					{
-						Animations.AvailableAnimations.FindOrAdd(UE::AvaMedia::NodePlayAnim::Private::GetSequenceName(Animation));
-					}
-				}
-			}
-		}
 		if (UAvaPlaybackNodeLevelPlayer* const PlayerNode = Cast<UAvaPlaybackNodeLevelPlayer>(PlaybackNode))
 		{
 			TSoftObjectPtr<UWorld> Asset = PlayerNode->GetAsset();

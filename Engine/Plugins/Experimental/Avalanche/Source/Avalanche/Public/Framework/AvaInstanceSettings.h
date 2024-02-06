@@ -5,7 +5,7 @@
 #include "AvaInstanceSettings.generated.h"
 
 /**
- * Settings applied when instancing a Motion Design blueprint for playback.
+ * Settings applied when instancing a Motion Design Asset for playback.
  */
 USTRUCT()
 struct FAvaInstanceSettings

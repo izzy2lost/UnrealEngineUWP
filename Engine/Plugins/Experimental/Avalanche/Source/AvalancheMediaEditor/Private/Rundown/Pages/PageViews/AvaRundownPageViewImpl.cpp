@@ -135,7 +135,7 @@ void FAvaRundownPageViewImpl::OnObjectChanged(const FAssetData& InAssetData)
 		SetPageSelection(EAvaRundownPageViewSelectionChangeType::ReplaceSelection);
 	}
 
-	PerformWorkOnPages(LOCTEXT("SetAvaBlueprint", "Set Motion Design Blueprint"),
+	PerformWorkOnPages(LOCTEXT("UpdateAsset", "Update Motion Design Asset"),
 		[this, &InAssetData](FAvaRundownPage& InPage)->bool
 		{
 			if (!InPage.UpdateAsset(InAssetData.GetSoftObjectPath())) 

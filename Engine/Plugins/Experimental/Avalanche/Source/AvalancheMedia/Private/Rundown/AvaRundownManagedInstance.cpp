@@ -17,7 +17,7 @@ void FAvaRundownManagedInstance::InvalidateFromCache()
 {
 	if (ParentCache)
 	{
-		// The managed blueprint is not deleted immediately to avoid issues
+		// The managed asset is not deleted immediately to avoid issues
 		// with destroying delegates while they are being called.
 		ParentCache->InvalidateNoDelete(SourceAssetPath);
 		ParentCache = nullptr;

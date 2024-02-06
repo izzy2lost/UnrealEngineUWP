@@ -2,7 +2,6 @@
 
 #include "Framework/AvaGameInstance.h"
 #include "AudioDevice.h"
-#include "AvaBlueprint.h"
 #include "AvaRemoteControlRebind.h"
 #include "Components/ReflectionCaptureComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -14,6 +13,7 @@
 #include "Misc/TimeGuard.h"
 #include "Slate/SceneViewport.h"
 #include "Viewport/AvaCameraManager.h"
+#include "Viewport/AvaViewportQualitySettings.h"
 
 namespace UE::AvaGameInstance::Private
 {
@@ -38,13 +38,7 @@ namespace UE::AvaGameInstance::Private
 			MarkedIgnoreDeltaSecondsFrame = 0;
 		}
 	}
-	
-	static void MarkSynchronousAssetLoadingThisFrame()
-	{
-		UpdateFrameMarkers();
-		MarkedSynchronousAssetLoadingFrame = GFrameCounter;
-	}
-	
+
 	static bool ShouldIgnoreDeltaSecondsForCurrentFrame()
 	{
 		UpdateFrameMarkers();
@@ -54,14 +48,6 @@ namespace UE::AvaGameInstance::Private
 
 UAvaGameInstance::FOnAvaGameInstanceEvent UAvaGameInstance::OnEndPlay;
 UAvaGameInstance::FOnAvaGameInstanceEvent UAvaGameInstance::OnRenderTargetReady;
-
-UAvaGameInstance* UAvaGameInstance::Create(UObject* InOuter, const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprintTemplate)
-{
-	UAvaGameInstance* GameInstance = NewObject<UAvaGameInstance>(InOuter ? InOuter : GEngine);
-	GameInstance->CreateWorld();
-	GameInstance->LoadMotionDesignBlueprint(InBlueprintTemplate);
-	return GameInstance;
-}
 
 UAvaGameInstance* UAvaGameInstance::Create(UObject* InOuter)
 {
@@ -126,55 +112,6 @@ bool UAvaGameInstance::CreateWorld()
 	return true;
 }
 
-bool UAvaGameInstance::LoadMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint)
-{
-	if (ManagedBlueprint && SourceBlueprint == InBlueprint)
-	{
-		return false;
-	}
-
-	if (!bWorldCreated)
-	{
-		CreateWorld();
-	}
-
-	UAvalancheBlueprint* Source;
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::LoadSourceAvaBp);
-		Source = InBlueprint.LoadSynchronous();
-		check(Source);
-	}
-
-#if WITH_EDITORONLY_DATA
-	FGuardValue_Bitfield(Source->bDuplicatingReadOnly, true);
-#endif
-
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::DupAvaBp);
-		const FName AvaInstanceName = MakeUniqueObjectName(this, UAvalancheBlueprint::StaticClass(), Source->GetFName());
-		ManagedBlueprint = Cast<UAvalancheBlueprint>(StaticDuplicateObject(Source, this, AvaInstanceName, RF_Transient));
-	}
-	
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::LoadAvaBpWorld);
-		ManagedBlueprint->SetAvalancheWorld(PlayWorld.Get());
-		ManagedBlueprint->LoadAvalancheWorld();
-	}
-	
-	ManagedBlueprint->UpdatePlaceholderActor();
-
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UAvaGameInstance::LoadAsset::RebindRCP);
-		ManagedBlueprint->RegisterRemoteControlPreset();
-		FAvaRemoteControlRebind::RebindUnboundEntities(ManagedBlueprint->GetRemoteControlPreset());
-	}
-	
-	MarkSynchronousAssetLoadingThisFrame();
-
-	SourceBlueprint = InBlueprint;
-	return true;
-}
-
 bool UAvaGameInstance::BeginPlayWorld(const FAvaInstancePlaySettings& InWorldPlaySettings)
 {
 	// Make sure we don't have pending unload or stop requests left over in the game instance. 
@@ -234,42 +171,6 @@ void UAvaGameInstance::RequestEndPlayWorld(bool bForceImmediate)
 	}
 }
 
-void UAvaGameInstance::BeginPlayMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint, const FAvaInstancePlaySettings& InWorldPlaySettings)
-{
-	// World States: Created -> Playing
-	// Asset States: Unloaded -> Loading -> Loaded -> Playing (Visible)
-	const FSoftObjectPath& SourceAssetPath = InBlueprint.ToSoftObjectPath();
-
-	if (!bWorldPlaying)
-	{
-		BeginPlayWorld(InWorldPlaySettings);
-	}
-	else
-	{
-		UpdateRenderTarget(InWorldPlaySettings.RenderTarget);
-		UpdateSceneViewportSize(InWorldPlaySettings.ViewportSize);
-	}
-
-	// Check if the asset is loaded.
-	if (SourceBlueprint != InBlueprint)
-	{
-		LoadMotionDesignBlueprint(InBlueprint);
-	}	
-	
-	if (ManagedBlueprint && SourceBlueprint == InBlueprint)
-	{
-		// Verify if this can be changed on the fly.
-		ManagedBlueprint->GetViewportQualitySettings().Apply(ViewportClient->EngineShowFlags);
-	
-		// Old code using ava camera manager. To retire.
-		constexpr bool bIsCanvasController = false;
-		ViewportClient->GetCameraManager()->Init(ManagedBlueprint->GetPlaybackObject(), bIsCanvasController);
-#if WITH_EDITOR
-		ViewportClient->GetCameraManager()->SetDefaultViewTarget(PlayWorld, ManagedBlueprint->GetStartupCameraName());
-#endif
-	}
-}
-
 void UAvaGameInstance::RequestUnloadWorld(bool bForceImmediate)
 {
 	if (bWorldCreated)
@@ -317,11 +218,6 @@ void UAvaGameInstance::UpdateSceneViewportSize(const FIntPoint& InViewportSize)
 		// either because it is private. Calling the only function we can call.		
 		Viewport->UpdateViewportRHI(false, InViewportSize.X, InViewportSize.Y, EWindowMode::Type::Windowed, PF_Unknown);
 	}
-}
-
-void UAvaGameInstance::MarkSynchronousAssetLoadingThisFrame()
-{
-	UE::AvaGameInstance::Private::MarkSynchronousAssetLoadingThisFrame();
 }
 
 void UAvaGameInstance::Tick(float DeltaSeconds)
@@ -418,13 +314,6 @@ void UAvaGameInstance::UnloadWorld()
 	bWorldCreated = false;
 	bRequestUnloadWorld = false;
 
-	if (IsValid(ManagedBlueprint.Get()))
-	{
-		ManagedBlueprint->UnregisterRemoteControlPreset();
-	}
-	SourceBlueprint.Reset();
-	ManagedBlueprint = nullptr;
-	
 	if (PlayWorld)
 	{
 		if (FAudioDeviceHandle AudioDevice = PlayWorld->GetAudioDevice())
