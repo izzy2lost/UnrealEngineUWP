@@ -42,7 +42,7 @@ namespace Metasound::Frontend
 {
 	namespace RegistryPrivate
 	{
-		TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface)
+		TScriptInterface<IMetaSoundDocumentInterface> BuildRegistryDocument(TScriptInterface<IMetaSoundDocumentInterface> DocumentInterface, bool bForceCopy)
 		{
 			using namespace Metasound::Frontend;
 
@@ -87,7 +87,14 @@ namespace Metasound::Frontend
 			}
 #endif // !NO_LOGGING
 
-			return DocumentInterface;
+			if (bForceCopy)
+			{
+				return &UMetaSoundBuilderDocument::Create(*DocumentInterface.GetInterface());
+			}
+			else
+			{
+				return DocumentInterface;
+			}
 		}
 
 		// FGraphNode is used to create unique INodes based off of a IGraph.
@@ -430,7 +437,7 @@ namespace Metasound::Frontend
 		return MakeUnique<FNodeRegistryTransactionStream>(TransactionBuffer);
 	}
 
-	FGraphRegistryKey FRegistryContainerImpl::RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync)
+	FGraphRegistryKey FRegistryContainerImpl::RegisterGraph(const TScriptInterface<IMetaSoundDocumentInterface>& InDocumentInterface, bool bAsync, bool bForceCopy)
 	{
 		using namespace UE;
 
@@ -442,7 +449,7 @@ namespace Metasound::Frontend
 		// Use the asset path of the provided document interface object for identification, *NOT* the
 		// built version as the build process may in fact create a new object with a transient path.
 		const FTopLevelAssetPath AssetPath = InDocumentInterface->GetAssetPathChecked();
-		const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = RegistryPrivate::BuildRegistryDocument(InDocumentInterface);
+		const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = RegistryPrivate::BuildRegistryDocument(InDocumentInterface, bForceCopy);
 
 		UObject* OwningObject = RegistryDocInterface.GetObject();
 		check(OwningObject);

@@ -269,13 +269,16 @@ void FMetasoundAssetBase::RegisterGraphWithFrontend(Metasound::Frontend::FMetaSo
 	check(Owner);
 	const FString AssetName = Owner->GetName();
 
-	// Async registration is only available if:
-	// 1. The IMetaSoundDocumentInterface is not actively modified by a builder
-	//    (built graph must be released synchronously to avoid a race condition on
-	//    reading/writing the IMetaSoundDocumentInterface on the Game Thread)
-	// 2. Async registration is globally disabled via console variable.
-	const bool bAsync = !(IsBuilderActive() || ConsoleVariables::bDisableAsyncGraphRegistration);
-	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner, bAsync);
+	// Register graphs async by default;
+	const bool bAsync = !ConsoleVariables::bDisableAsyncGraphRegistration;
+	// Force a copy if async registration is enabled and we need to protect against
+	// race conditions from external modifications.
+	bool bForceCopy = (IsBuilderActive() && bAsync);
+#if WITH_EDITOR
+	bForceCopy |= InRegistrationOptions.bRegisterCopyIfAsync;
+#endif // WITH_EDITOR
+
+	GraphRegistryKey = FRegistryContainerImpl::Get().RegisterGraph(Owner, bAsync, bForceCopy);
 
 	if (GraphRegistryKey.IsValid())
 	{

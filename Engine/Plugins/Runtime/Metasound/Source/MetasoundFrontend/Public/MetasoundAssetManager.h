@@ -62,6 +62,10 @@ namespace Metasound
 
 			// Attempt to rebuild referenced classes (only run if class not registered or set to force re-register)
 			bool bRebuildReferencedAssetClasses = true;
+
+			// If true and the registration will be perform asynchronously, a copy of the graph will be used for
+			// async registration. 
+			bool bRegisterCopyIfAsync = false;
 #endif // WITH_EDITOR
 		};
 
