@@ -1061,6 +1061,27 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 };
 IMPLEMENT_GLOBAL_SHADER(FRasterBinBuild_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinBuild", SF_Compute);
 
+class FRasterBinInit_CS : public FNaniteGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FRasterBinInit_CS);
+	SHADER_USE_PARAMETER_STRUCT(FRasterBinInit_CS, FNaniteGlobalShader);
+
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteRasterBinMeta>, OutRasterBinMeta)
+
+		SHADER_PARAMETER(uint32, RasterBinCount)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("RASTER_BIN_PASS"), NANITE_RASTER_BIN_INIT);
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(FRasterBinInit_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinInit", SF_Compute);
+
 class FRasterBinReserve_CS : public FNaniteGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FRasterBinReserve_CS);
@@ -3477,6 +3498,31 @@ FBinningData FRenderer::AddPass_Binning(
 	if (BinningData.BinCount > 0)
 	{
 		BinningData.MetaBuffer = DispatchContext.MetaBuffer;
+
+		// Initialize Bin Ranges
+		{
+			FRasterBinInit_CS::FParameters* InitPassParameters = GraphBuilder.AllocParameters<FRasterBinInit_CS::FParameters>();
+			InitPassParameters->OutRasterBinMeta = GraphBuilder.CreateUAV(BinningData.MetaBuffer);
+			InitPassParameters->RasterBinCount = BinningData.BinCount;
+
+			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinInit_CS>();
+			ClearUnusedGraphResources(ComputeShader, InitPassParameters);
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("RasterBinInit"),
+				InitPassParameters,
+				PassFlags,
+				[InitPassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				{
+					FComputeShaderUtils::Dispatch(
+						RHICmdList,
+						ComputeShader,
+						*InitPassParameters,
+						FComputeShaderUtils::GetGroupCountWrapped(BinCount, 64)
+					);
+				}
+			);
+		}
 
 		BinningData.IndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(BinningData.BinCount * NANITE_RASTERIZER_ARG_COUNT), TEXT("Nanite.RasterBinIndirectArgs"));
 

@@ -14,22 +14,32 @@
 #include "NaniteAttributeDecode.ush"
 #include "NaniteTessellation.ush"
 
-#if (RASTER_BIN_PASS == NANITE_RASTER_BIN_COUNT)
+#if (RASTER_BIN_PASS == NANITE_RASTER_BIN_INIT)
+	#define RASTER_BIN_INIT		1
+	#define RASTER_BIN_COUNT	0
+	#define RASTER_BIN_SCATTER	0
+	#define RASTER_BIN_RESERVE	0
+	#define RASTER_BIN_FINALIZE	0
+#elif (RASTER_BIN_PASS == NANITE_RASTER_BIN_COUNT)
+	#define RASTER_BIN_INIT		0
 	#define RASTER_BIN_COUNT	1
 	#define RASTER_BIN_SCATTER	0
 	#define RASTER_BIN_RESERVE	0
 	#define RASTER_BIN_FINALIZE	0
 #elif (RASTER_BIN_PASS == NANITE_RASTER_BIN_SCATTER)
+	#define RASTER_BIN_INIT		0
 	#define RASTER_BIN_COUNT	0
 	#define RASTER_BIN_SCATTER	1
 	#define RASTER_BIN_RESERVE	0
 	#define RASTER_BIN_FINALIZE	0
 #elif (RASTER_BIN_PASS == NANITE_RASTER_BIN_RESERVE)
+	#define RASTER_BIN_INIT		0
 	#define RASTER_BIN_COUNT	0
 	#define RASTER_BIN_SCATTER	0
 	#define RASTER_BIN_RESERVE	1
 	#define RASTER_BIN_FINALIZE	0
 #else
+	#define RASTER_BIN_INIT		0
 	#define RASTER_BIN_COUNT	0
 	#define RASTER_BIN_SCATTER	0
 	#define RASTER_BIN_RESERVE	0
@@ -47,6 +57,13 @@ RWStructuredBuffer<FNaniteRasterBinMeta> OutRasterBinMeta;
 FNaniteMaterialFlags GetRasterBinMaterialFlags(uint BinIndex)
 {
 	return UnpackNaniteMaterialFlags(OutRasterBinMeta[BinIndex].MaterialFlags);
+}
+
+void InitRasterBin(uint BinIndex)
+{
+	OutRasterBinMeta[BinIndex].ClusterOffset	= 0;
+	OutRasterBinMeta[BinIndex].BinSWCount		= 0;
+	OutRasterBinMeta[BinIndex].BinHWCount		= 0;
 }
 
 uint2 GetRasterBinCount(uint BinIndex)
@@ -89,7 +106,34 @@ uint GetRemappedRasterBinFromIndex(
 	return RemapRasterBin(RasterBin, InRenderFlags, MaterialFlags);
 }
 
-#if RASTER_BIN_RESERVE
+#if NANITE_TESSELLATION
+
+[numthreads(1, 1, 1)]
+void InitVisiblePatchesArgs() 
+{
+	const uint NumVisiblePatches = RWVisiblePatchesArgs[3];
+
+	RWVisiblePatchesArgs[0] = ( NumVisiblePatches + 63u ) / 64u;
+	RWVisiblePatchesArgs[1] = 1;
+	RWVisiblePatchesArgs[2] = 1;
+}
+
+#endif
+
+#if RASTER_BIN_INIT
+
+uint RasterBinCount;
+
+[numthreads(64, 1, 1)]
+void RasterBinInit(uint RasterBinIndex : SV_DispatchThreadID)
+{
+	if (RasterBinIndex < RasterBinCount)
+	{
+		InitRasterBin(RasterBinIndex);
+	}
+}
+
+#elif RASTER_BIN_RESERVE
 
 uint RasterBinCount;
 
@@ -313,18 +357,6 @@ void ScalarizeForEachMatching( T Value, FFunction Function )
 		}
 	}
 }
-
-#if NANITE_TESSELLATION
-[numthreads(1, 1, 1)]
-void InitVisiblePatchesArgs() 
-{
-	const uint NumVisiblePatches = RWVisiblePatchesArgs[3];
-
-	RWVisiblePatchesArgs[0] = ( NumVisiblePatches + 63u ) / 64u;
-	RWVisiblePatchesArgs[1] = 1;
-	RWVisiblePatchesArgs[2] = 1;
-}
-#endif
 
 [numthreads(64, 1, 1)]
 void RasterBinBuild(uint RelativeClusterIndex : SV_DispatchThreadID, uint GroupThreadIndex : SV_GroupIndex)
