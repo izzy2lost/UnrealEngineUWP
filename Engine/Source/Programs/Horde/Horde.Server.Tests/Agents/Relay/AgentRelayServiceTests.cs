@@ -60,6 +60,13 @@ public class AgentRelayServiceTests : TestSetup
 		_service = new AgentRelayService(GetRedisServiceSingleton(), Clock, NullLogger<AgentRelayService>.Instance);
 	}
 
+	public override async ValueTask DisposeAsync()
+	{
+		await _service.DisposeAsync();
+		await base.DisposeAsync();
+		GC.SuppressFinalize(this);
+	}
+
 	[TestInitialize]
 	public async Task SetupAsync()
 	{

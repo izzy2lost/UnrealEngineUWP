@@ -251,7 +251,7 @@ namespace Horde.Server.Notifications
 			{
 				_logger.LogInformation("Queuing job notifications for {JobId}:{BatchId}:{StepId}", job.Id, batchId, stepId);
 				EnqueueTask(() => SendJobNotificationsAsync(job, graph));
-				EnqueueTask(() => RecordJobCompleteMetrics(job));
+				EnqueueTask(() => RecordJobCompleteMetricsAsync(job));
 			}
 		}
 		
@@ -476,7 +476,7 @@ namespace Horde.Server.Notifications
 			}
 		}
 
-		internal Task ExecuteBackgroundForTest(CancellationToken stoppingToken)
+		internal Task ExecuteBackgroundForTestAsync(CancellationToken stoppingToken)
 		{
 			return ExecuteAsync(stoppingToken);
 		}
@@ -531,7 +531,7 @@ namespace Horde.Server.Notifications
 			_logger.LogDebug("Finished sending notifications for job {JobId}", job.Id);
 		}
 
-		private Task RecordJobCompleteMetrics(IJob job)
+		private Task RecordJobCompleteMetricsAsync(IJob job)
 		{
 			void RecordMetric(string type, JobStepOutcome outcome, DateTimeOffset? startTime, DateTimeOffset? finishTime)
 			{

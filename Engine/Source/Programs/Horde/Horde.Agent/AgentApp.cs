@@ -175,7 +175,9 @@ namespace Horde.Agent
 			.ConfigurePrimaryHttpMessageHandler(() =>
 			{
 				HttpClientHandler handler = new HttpClientHandler();
+#pragma warning disable MA0039
 				handler.ServerCertificateCustomValidationCallback += (sender, cert, chain, errors) => CertificateHelper.CertificateValidationCallBack(certificateLogger, sender, cert, chain, errors, serverProfile);
+#pragma warning restore MA0039
 				return handler;
 			})
 			.AddTransientHttpErrorPolicy(builder =>

@@ -144,7 +144,7 @@ namespace Horde.Agent.Leases.Handlers
 				process.StartInfo.UseShellExecute = false;
 				process.EnableRaisingEvents = true;
 
-				TaskCompletionSource<int> exitCodeSource = new TaskCompletionSource<int>();
+				TaskCompletionSource<int> exitCodeSource = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 				process.Exited += (sender, args) => { exitCodeSource.SetResult(process.ExitCode); };
 
 				process.Start();

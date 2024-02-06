@@ -126,6 +126,7 @@ namespace Horde.Agent.Utility
 			string? serverAndPort = String.IsNullOrEmpty(workspace.ServerAndPort)? null : workspace.ServerAndPort;
 			string? userName = String.IsNullOrEmpty(workspace.UserName)? null : workspace.UserName;
 			string? password = String.IsNullOrEmpty(workspace.Password)? null : workspace.Password;
+			string? ticket = String.IsNullOrEmpty(workspace.Ticket)? null : workspace.Ticket;
 
 			if (serverAndPort == null)
 			{
@@ -140,10 +141,14 @@ namespace Horde.Agent.Utility
 			}
 
 			// Create the connection
-			IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = false }, logger);
+			IPerforceConnection perforce = await PerforceConnection.CreateAsync(new PerforceSettings(serverAndPort, userName) { PreferNativeClient = false, Password = ticket}, logger);
 			if (userName != null)
 			{
-				if (password != null)
+				if (ticket != null)
+				{
+					Environment.SetEnvironmentVariable("P4PASSWD", ticket);
+				}
+				else if (password != null)
 				{
 					await perforce.LoginAsync(password, cancellationToken);
 				}

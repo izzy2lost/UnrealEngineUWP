@@ -253,7 +253,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			Task _compressPacketsTask = Task.CompletedTask;
 
 			// Event which is signalled after the bundle is written to storage
-			readonly TaskCompletionSource<bool> _completeEvent = new TaskCompletionSource<bool>();
+			readonly TaskCompletionSource<bool> _completeEvent = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			// Task signalled after the write is complete
 			public Task CompleteTask => _completeEvent.Task;

@@ -62,8 +62,8 @@ namespace Horde.Server.Server
 			_mongoService = mongoService;
 			_redisService = redisService;
 			_logger = logger;
-			_stoppingTaskCompletionSource = new TaskCompletionSource<bool>();
-			_preStoppingTaskCompletionSource = new TaskCompletionSource<bool>();
+			_stoppingTaskCompletionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+			_preStoppingTaskCompletionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 			_registration = lifetime.ApplicationStopping.Register(ApplicationStopping);
 		}
 

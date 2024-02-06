@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
 using Horde.Server.Compute;
+using Horde.Server.Utilities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -17,10 +18,11 @@ namespace Horde.Server.Aws;
 /// <summary>
 /// Exports metric inside Horde server to AWS CloudWatch
 /// </summary>
-public class AwsCloudWatchMetricExporter : IHostedService
+public sealed class AwsCloudWatchMetricExporter : IHostedService, IAsyncDisposable
 {
 	private readonly ComputeService _computeService;
 	private readonly IAmazonCloudWatch _cloudWatch;
+	private readonly AsyncTaskQueue _asyncTaskQueue;
 	private readonly ILogger<AwsCloudWatchMetricExporter> _logger;
 	
 	/// <summary>
@@ -33,12 +35,23 @@ public class AwsCloudWatchMetricExporter : IHostedService
 	{
 		_computeService = computeService;
 		_cloudWatch = cloudWatch;
+		_asyncTaskQueue = new AsyncTaskQueue(logger);
 		_logger = logger;
 	}
 
-	private async void OnResourceNeedsUpdatedAsync(string clusterId, string poolId, string resourceName, int totalValue)
+	/// <inheritdoc/>
+	public async ValueTask DisposeAsync()
 	{
-		// Method declared as "async void" - make sure to catch exceptions inside
+		await _asyncTaskQueue.DisposeAsync();
+	}
+
+	private void OnResourceNeedsUpdated(string clusterId, string poolId, string resourceName, int totalValue)
+	{
+		_asyncTaskQueue.Enqueue(cancellationToken => OnResourceNeedsUpdatedAsync(clusterId, poolId, resourceName, totalValue, cancellationToken));
+	}
+
+	private async Task OnResourceNeedsUpdatedAsync(string clusterId, string poolId, string resourceName, int totalValue, CancellationToken cancellationToken)
+	{
 		try
 		{
 			DateTime utcNow = DateTime.UtcNow;
@@ -61,7 +74,7 @@ public class AwsCloudWatchMetricExporter : IHostedService
 			};
 		
 			PutMetricDataRequest request = new() { Namespace = "Horde", MetricData = metricDatums };
-			PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request);
+			PutMetricDataResponse response = await _cloudWatch.PutMetricDataAsync(request, cancellationToken);
 			
 			if (response.HttpStatusCode != HttpStatusCode.OK)
 			{
@@ -70,22 +83,22 @@ public class AwsCloudWatchMetricExporter : IHostedService
 		}
 		catch (Exception e)
 		{
-			_logger.LogError(e, "Error while updating resource needs with AWS CloudWatch");
+			_logger.LogError(e, "Error while updating resource needs with AWS CloudWatch: {Message}", e.Message);
 		}
 	}
 
 	/// <inheritdoc/>
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
-		_computeService.OnResourceNeedsUpdated += OnResourceNeedsUpdatedAsync;
+		_computeService.OnResourceNeedsUpdated += OnResourceNeedsUpdated;
 		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc/>
-	public Task StopAsync(CancellationToken cancellationToken)
+	public async Task StopAsync(CancellationToken cancellationToken)
 	{
-		_computeService.OnResourceNeedsUpdated -= OnResourceNeedsUpdatedAsync;
-		return Task.CompletedTask;
+		_computeService.OnResourceNeedsUpdated -= OnResourceNeedsUpdated;
+		await _asyncTaskQueue.FlushAsync(cancellationToken);
 	}
 }
 

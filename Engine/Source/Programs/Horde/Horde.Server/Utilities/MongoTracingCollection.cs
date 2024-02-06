@@ -9,6 +9,8 @@ using MongoDB.Driver;
 using MongoDB.Driver.Search;
 using OpenTelemetry.Trace;
 
+#pragma warning disable VSTHRD002 // Synchronous waits 
+
 namespace Horde.Server.Utilities
 {
 	/// <summary>

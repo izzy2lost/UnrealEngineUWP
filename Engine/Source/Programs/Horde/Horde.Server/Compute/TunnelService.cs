@@ -28,6 +28,11 @@ namespace Horde.Server.Compute
 		private Task? _serverTask;
 
 		/// <summary>
+		/// Accessor for the server task, for tests
+		/// </summary>
+		internal Task? ServerTask => _serverTask;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public TunnelService(IOptions<ServerSettings> settings, ILogger<TunnelService> logger)
@@ -55,10 +60,9 @@ namespace Horde.Server.Compute
 		/// </summary>
 		/// <param name="address">Address to listen on</param>
 		/// <returns>Task representing the TCP listener</returns>
-		public Task Start(IPAddress address)
+		public void Start(IPAddress address)
 		{
 			_serverTask = RunTcpListenerAsync(address, _settings.ComputeTunnelPort, HandleClientAsync, _cancellationSource.Token);
-			return _serverTask;
 		}
 
 		/// <inheritdoc/>

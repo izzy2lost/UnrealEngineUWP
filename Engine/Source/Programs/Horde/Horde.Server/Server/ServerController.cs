@@ -62,7 +62,7 @@ namespace Horde.Server.Server
 		[HttpGet]
 		[AllowAnonymous]
 		[Route("/api/v1/server/version")]
-		public ActionResult GetVersionAsync()
+		public ActionResult GetVersion()
 		{
 			FileVersionInfo fileVersionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			return Ok(fileVersionInfo.ProductVersion);
@@ -84,7 +84,7 @@ namespace Horde.Server.Server
 			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;
 			response.OsDescription = RuntimeInformation.OSDescription;
 
-			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.DefaultAgentSoftwareToolId, _globalConfig.Value);
+			ITool? tool = await _toolCollection.GetAsync(AgentExtensions.AgentToolId, _globalConfig.Value);
 			if (tool != null)
 			{
 				IToolDeployment? deployment = tool.GetCurrentDeployment(1.0, _clock.UtcNow);

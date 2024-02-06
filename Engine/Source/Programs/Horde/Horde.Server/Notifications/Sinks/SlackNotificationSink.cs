@@ -2382,7 +2382,7 @@ namespace Horde.Server.Notifications.Sinks
 			if (recipient != null)
 			{
 				_logger.LogDebug("Sending device service notification to {Recipient}", recipient);
-				await SendDeviceServiceMessage(recipient, message, device, pool, streamConfig, job, step, node, user);
+				await SendDeviceServiceMessageAsync(recipient, message, device, pool, streamConfig, job, step, node, user);
 			}
 		}
 
@@ -2398,9 +2398,8 @@ namespace Horde.Server.Notifications.Sinks
 		/// <param name="step">The job step that completed.</param>
 		/// <param name="node">The node for the job step.</param>
 		/// <param name="user">The user to notify.</param>
-		private Task SendDeviceServiceMessage(string recipient, string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? streamConfig = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null)
+		private Task SendDeviceServiceMessageAsync(string recipient, string message, IDevice? device = null, IDevicePool? pool = null, StreamConfig? streamConfig = null, IJob? job = null, IJobStep? step = null, INode? node = null, IUser? user = null)
 		{
-
 			if (user != null)
 			{
 				return SendMessageAsync(recipient, message);

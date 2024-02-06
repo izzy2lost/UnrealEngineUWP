@@ -79,7 +79,7 @@ namespace Horde.Server.Issues.External
 		/// </summary>
 		/// <param name="streamConfig"></param>
 		/// <returns></returns>;
-		Task<List<IExternalIssueProject>> GetProjects(StreamConfig streamConfig);
+		Task<List<IExternalIssueProject>> GetProjectsAsync(StreamConfig streamConfig);
 	}
 
 	/// <summary>
@@ -106,7 +106,7 @@ namespace Horde.Server.Issues.External
 		}
 
 		/// <inheritdoc/>
-		public Task<List<IExternalIssueProject>> GetProjects(StreamConfig streamConfig)
+		public Task<List<IExternalIssueProject>> GetProjectsAsync(StreamConfig streamConfig)
 		{
 			return Task.FromResult(new List<IExternalIssueProject>());
 		}

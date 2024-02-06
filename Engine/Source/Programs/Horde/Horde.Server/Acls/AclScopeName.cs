@@ -10,7 +10,7 @@ namespace Horde.Server.Acls
 	/// <summary>
 	/// Name of an ACL scope
 	/// </summary>
-	[DebuggerDisplay("{Name}")]
+	[DebuggerDisplay("{Text}")]
 	[JsonConverter(typeof(AclScopeNameJsonConverter))]
 	public record struct AclScopeName(string Text)
 	{

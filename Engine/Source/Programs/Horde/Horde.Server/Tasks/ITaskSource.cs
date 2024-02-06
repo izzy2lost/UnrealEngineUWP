@@ -235,7 +235,7 @@ namespace Horde.Server.Tasks
         /// </summary>
         /// <param name="token">The cancellation token</param>
         /// <returns>Lease task</returns>
-        protected static Task<AgentLease?> Skip(CancellationToken token)
+        protected static Task<AgentLease?> SkipAsync(CancellationToken token)
         {
 			_ = token;
             return Task.FromResult<AgentLease?>(null);
@@ -257,7 +257,7 @@ namespace Horde.Server.Tasks
         /// </summary>
         /// <param name="lease">Lease to create the task from</param>
         /// <returns></returns>
-        protected static Task<AgentLease?> Lease(AgentLease lease)
+        protected static Task<AgentLease?> LeaseAsync(AgentLease lease)
         {
             return Task.FromResult<AgentLease?>(lease);
         }

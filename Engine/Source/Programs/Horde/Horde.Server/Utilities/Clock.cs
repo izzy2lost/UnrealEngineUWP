@@ -337,11 +337,6 @@ namespace HordeCommon
 				return Task.CompletedTask;
 			}
 
-			public void Dispose()
-			{
-				DisposeAsync().AsTask().Wait();
-			}
-
 			public ValueTask DisposeAsync()
 			{
 				lock (_outer._triggers)

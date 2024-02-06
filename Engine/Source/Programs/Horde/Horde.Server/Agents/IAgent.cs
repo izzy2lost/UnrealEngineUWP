@@ -173,6 +173,7 @@ namespace Horde.Server.Agents
 				ServerAndPort = server.ServerAndPort,
 				UserName = credentials?.UserName ?? UserName,
 				Password = credentials?.Password,
+				Ticket = credentials?.Ticket,
 				Identifier = Identifier,
 				Stream = Stream,
 				Incremental = Incremental,
@@ -426,6 +427,11 @@ namespace Horde.Server.Agents
 		public const string OsFamily = "OSFamily";
 
 		/// <summary>
+		/// Whether the agent is a .NET self-contained app
+		/// </summary>
+		public const string SelfContained = "SelfContained";
+
+		/// <summary>
 		/// Pools that this agent belongs to
 		/// </summary>
 		public const string Pool = "Pool";
@@ -613,19 +619,49 @@ namespace Horde.Server.Agents
 	public static class AgentExtensions
 	{
 		/// <summary>
-		/// Default tool id for agent software
+		/// Default tool ID for agent software (multi-platform, shipped without a .NET runtime)
+		/// This is being deprecated in favor of the platform-specific and self-contained versions of the agent below
 		/// </summary>
-		public static ToolId DefaultAgentSoftwareToolId { get; } = new ToolId("horde-agent");
+		public static ToolId AgentToolId { get; } = new ("horde-agent");
+		
+		/// <summary>
+		/// Tool ID for Windows-specific and self-contained agent software
+		/// </summary>
+		public static ToolId AgentWinX64ToolId { get; } = new ("horde-agent-win-x64");
+		
+		/// <summary>
+		/// Tool ID for Linux-specific and self-contained agent software
+		/// </summary>
+		public static ToolId AgentLinuxX64ToolId { get; } = new ("horde-agent-linux-x64");
+		
+		/// <summary>
+		/// Tool ID for Mac-specific and self-contained agent software
+		/// </summary>
+		public static ToolId AgentMacX64ToolId { get; } = new ("horde-agent-osx-x64");
 
 		/// <summary>
-		/// Gets the tool id for the software the given agent should be running
+		/// Gets the tool ID for the software the given agent should be running
 		/// </summary>
 		/// <param name="agent">Agent to check</param>
 		/// <param name="globalConfig">Current global config</param>
 		/// <returns>Identifier for the tool that the agent should be using</returns>
 		public static ToolId GetSoftwareToolId(this IAgent agent, GlobalConfig globalConfig)
 		{
-			ToolId toolId = DefaultAgentSoftwareToolId;
+			ToolId toolId = AgentToolId;
+
+			if (agent.IsSelfContained())
+			{
+				// Skip support for condition-based software configs below by returning early when self-contained
+				// Getting this wrong can lead to a self-contained agent getting non-self-contained updates and vice versa.
+                return RuntimePlatform.Current switch
+				{
+					RuntimePlatform.Type.Windows => AgentWinX64ToolId,
+					RuntimePlatform.Type.Linux => AgentLinuxX64ToolId,
+					RuntimePlatform.Type.Mac => AgentMacX64ToolId,
+					_ => throw new ArgumentOutOfRangeException("Unknown platform " + RuntimePlatform.Current)
+				};
+			}
+			
 			foreach (AgentSoftwareConfig softwareConfig in globalConfig.Software)
 			{
 				if (softwareConfig.Condition != null && agent.SatisfiesCondition(softwareConfig.Condition))
@@ -673,6 +709,17 @@ namespace Horde.Server.Agents
 				yield return poolId;
 			}
 		}
+		
+		/// <summary>
+		/// Tests whether an agent has reported as being a self-contained .NET package
+		/// </summary>
+		/// <param name="agent">Agent to query</param>
+		/// <returns>True if self-contained</returns>
+		public static bool IsSelfContained(this IAgent agent)
+		{
+			List<string> values = agent.GetPropertyValues(KnownPropertyNames.SelfContained).ToList();
+			return values.Count > 0 && values[0].Equals("true", StringComparison.OrdinalIgnoreCase);
+		} 
 
 		/// <summary>
 		/// Tests whether an agent has a particular property
@@ -927,6 +974,7 @@ namespace Horde.Server.Agents
 				ServerAndPort = serverAndPort,
 				UserName = credentials?.UserName ?? workspace.UserName,
 				Password = credentials?.Password,
+				Ticket = credentials?.Ticket,
 				Identifier = workspace.Identifier,
 				Stream = workspace.Stream,
 				Incremental = workspace.Incremental,

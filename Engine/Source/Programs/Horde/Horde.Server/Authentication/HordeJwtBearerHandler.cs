@@ -52,7 +52,7 @@ public class HordeJwtBearerHandler
 	/// This cannot be done by the default JwtBearer handler as it can only handle "Bearer" prefix.
 	/// </summary>
 	/// <param name="context">Message context</param>
-	private Task OnMessageReceived(MessageReceivedContext context)
+	private Task OnMessageReceivedAsync(MessageReceivedContext context)
 	{
 		string? authorization = context.Request.Headers.Authorization;
 		if (!String.IsNullOrEmpty(authorization))
@@ -195,7 +195,7 @@ public class HordeJwtBearerHandler
 		{
 			options.Authority = _settings.OidcAuthority;
 			options.Audience = _settings.OidcAudience;
-			options.Events = new JwtBearerEvents() { OnMessageReceived = OnMessageReceived, OnTokenValidated = OnTokenValidatedAsync };
+			options.Events = new JwtBearerEvents() { OnMessageReceived = OnMessageReceivedAsync, OnTokenValidated = OnTokenValidatedAsync };
 
 			options.TokenValidationParameters.ValidAudience = _settings.OidcAudience;
 			options.TokenValidationParameters.RequireExpirationTime = true;

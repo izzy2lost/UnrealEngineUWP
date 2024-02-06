@@ -55,7 +55,7 @@ namespace Horde.Server.Server
 			_logger = logger;
 
 			// Ensure the initial value to be correct
-			TickAsync(CancellationToken.None).AsTask().Wait();
+			Tick();
 
 			_ticker = clock.AddTicker<DowntimeService>(TimeSpan.FromMinutes(1.0), TickAsync, logger);
 		}
@@ -75,6 +75,12 @@ namespace Horde.Server.Server
 		/// <param name="stoppingToken">Token indicating that the service should stop</param>
 		/// <returns>Async task</returns>
 		ValueTask TickAsync(CancellationToken stoppingToken)
+		{
+			Tick();
+			return new ValueTask();
+		}
+
+		void Tick()
 		{
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
@@ -108,8 +114,6 @@ namespace Horde.Server.Server
 					_logger.LogInformation("Leaving downtime");
 				}
 			}
-
-			return new ValueTask();
 		}
 	}
 }

@@ -1092,7 +1092,7 @@ namespace EpicGames.Core
 		/// <returns></returns>
 		public async Task CopyToAsync(Func<byte[], int, int, CancellationToken, Task> writeOutputAsync, int bufferSize, CancellationToken cancellationToken)
 		{
-			TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>();
+			TaskCompletionSource<bool> taskCompletionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 			using (CancellationTokenRegistration registration = cancellationToken.Register(() => taskCompletionSource.SetResult(false)))
 			{
 				byte[] buffer = new byte[bufferSize];

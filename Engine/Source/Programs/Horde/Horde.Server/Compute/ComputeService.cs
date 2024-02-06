@@ -656,7 +656,7 @@ namespace Horde.Server.Compute
 				return null;
 			}
 
-			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIds(parentLeaseId.Value);
+			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIdsAsync(parentLeaseId.Value);
 			return childLeaseIds.Count;
 		}
 

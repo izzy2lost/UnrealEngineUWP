@@ -65,7 +65,9 @@ namespace EpicGames.Horde.Storage
 
 			public void Dispose()
 			{
+#pragma warning disable VSTHRD002
 				InitTask.Result.Dispose();
+#pragma warning restore VSTHRD002
 			}
 
 			async Task<IDisposable> RunAndUnlockAsync(Func<Task<IDisposable>> initTask)

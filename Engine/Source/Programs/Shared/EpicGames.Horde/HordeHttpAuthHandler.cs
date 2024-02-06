@@ -125,10 +125,12 @@ namespace EpicGames.Horde
 		{
 			lock (_lockObject)
 			{
+#pragma warning disable VSTHRD002
 				if (_authHeaderTask != null && _authHeaderTask.IsCompleted && Object.Equals(_authHeaderTask.Result, authHeader))
 				{
 					_authHeaderTask = null;
 				}
+#pragma warning restore VSTHRD002
 			}
 		}
 

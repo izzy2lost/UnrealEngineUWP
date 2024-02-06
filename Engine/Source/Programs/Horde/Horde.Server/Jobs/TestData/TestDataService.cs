@@ -93,7 +93,7 @@ namespace Horde.Server.Jobs.TestData
 		public async Task<List<ITestStream>> FindTestStreamsAsync(StreamId[] streamIds)
 		{
 
-			return await _testData.FindTestStreams(streamIds);			
+			return await _testData.FindTestStreamsAsync(streamIds);			
 		}
 
 		/// <summary>
@@ -129,7 +129,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <returns></returns>
 		public async Task<List<ITestMeta>> FindTestMetaAsync(string[]? projectNames = null, string[]? platforms = null, string[]? configurations = null, string[]? buildTargets = null, string? rhi = null, string? variation = null, TestMetaId[]? metaIds = null)
 		{
-			return await _testData.FindTestMeta(projectNames, platforms, configurations, buildTargets, rhi, variation, metaIds);
+			return await _testData.FindTestMetaAsync(projectNames, platforms, configurations, buildTargets, rhi, variation, metaIds);
 		}
 
 		/// <summary>
@@ -149,7 +149,7 @@ namespace Horde.Server.Jobs.TestData
 			TestId[]? tids = testIds?.ConvertAll(x => TestId.Parse(x));
 			TestSuiteId[]? sids = suiteIds?.ConvertAll(x => TestSuiteId.Parse(x));
 
-			return await _testData.FindTestRefs(streamIds, metaIds, tids, sids, minCreateTime, maxCreateTime, minChange, maxChange);
+			return await _testData.FindTestRefsAsync(streamIds, metaIds, tids, sids, minCreateTime, maxCreateTime, minChange, maxChange);
 		}
 
 		/// <summary>
@@ -159,7 +159,7 @@ namespace Horde.Server.Jobs.TestData
 		/// <returns></returns>
 		public async Task<List<ITestDataDetails>> FindTestDetailsAsync(TestRefId[] ids)
 		{
-			return await _testData.FindTestDetails(ids);
+			return await _testData.FindTestDetailsAsync(ids);
 		}
 	}
 }

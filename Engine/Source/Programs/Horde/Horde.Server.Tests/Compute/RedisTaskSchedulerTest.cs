@@ -25,7 +25,7 @@ namespace Horde.Server.Tests.Compute
 
 		public override async ValueTask DisposeAsync()
 		{
-			_scheduler.Dispose();
+			await _scheduler.DisposeAsync();
 			await base.DisposeAsync();
 			GC.SuppressFinalize(this);
 		}

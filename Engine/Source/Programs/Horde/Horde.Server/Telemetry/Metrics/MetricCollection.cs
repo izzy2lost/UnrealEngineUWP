@@ -2,7 +2,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -192,7 +191,6 @@ namespace Horde.Server.Telemetry.Metrics
 			}
 		}
 
-		[return: NotNullIfNotNull("text")]
 		static string EscapeCsv(IEnumerable<string> items)
 		{
 			return String.Join(",", items.Select(x => EscapeCsv(x)));

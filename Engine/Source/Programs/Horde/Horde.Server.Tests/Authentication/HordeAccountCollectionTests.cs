@@ -54,11 +54,11 @@ namespace Horde.Server.Tests.Authentication
 		[TestMethod]
 		public async Task GetByLoginAsync()
 		{
-			IHordeAccount sa = (await _hordeAccounts.GetByLogin(_hordeAccount.Login))!;
+			IHordeAccount sa = (await _hordeAccounts.GetByLoginAsync(_hordeAccount.Login))!;
 			Assert.AreEqual(_hordeAccount.Id, sa.Id);
 			Assert.AreEqual(_hordeAccount.Login, sa.Login);
 			
-			Assert.IsNull(await _hordeAccounts.GetByLogin("does-not-exist"));
+			Assert.IsNull(await _hordeAccounts.GetByLoginAsync("does-not-exist"));
 		}
 		
 		[TestMethod]

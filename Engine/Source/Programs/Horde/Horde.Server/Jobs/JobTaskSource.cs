@@ -176,7 +176,7 @@ namespace Horde.Server.Jobs
 			/// <summary>
 			/// Completion source for the waiting agent. If a new queue item becomes available, the result will be passed through 
 			/// </summary>
-			public TaskCompletionSource<AgentLease?> LeaseSource { get; } = new TaskCompletionSource<AgentLease?>();
+			public TaskCompletionSource<AgentLease?> LeaseSource { get; } = new TaskCompletionSource<AgentLease?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			/// <summary>
 			/// Constructor
@@ -710,9 +710,9 @@ namespace Horde.Server.Jobs
 				{
 					if (result == null)
 					{
-						return Task.FromResult(Skip(cancellationToken));
+						return Task.FromResult(SkipAsync(cancellationToken));
 					}
-					return Task.FromResult(Lease(result));
+					return Task.FromResult(LeaseAsync(result));
 				}
 				_waiters.Add(waiter);
 			}

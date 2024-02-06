@@ -1,6 +1,6 @@
-[Horde](../Home.md) > [Deployment](../Deployment.md) > [Server](Server.md) > Server.json Reference
+[Horde](../Home.md) > [Deployment](../Deployment.md) > [Server](Server.md) > Server.json
 
-# Server.json (Server)
+# Server.json
 
 All Horde-specific settings are stored in a root object called `Horde`. Other .NET functionality may be configured using properties in the root of this file.
 

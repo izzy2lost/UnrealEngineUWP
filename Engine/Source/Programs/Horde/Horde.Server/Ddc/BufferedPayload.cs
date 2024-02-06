@@ -203,7 +203,7 @@ namespace Horde.Server.Ddc
 		/// <summary>
 		/// Create a new buffered payload from an HTTP request
 		/// </summary>
-		public Task<BufferedPayload> CreateFromRequest(HttpRequest request)
+		public Task<BufferedPayload> CreateFromRequestAsync(HttpRequest request)
 		{
 			long? contentLength = request.ContentLength;
 

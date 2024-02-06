@@ -599,7 +599,7 @@ namespace Horde.Server.Ddc
 
 			try
 			{
-				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequest(Request);
+				using BufferedPayload payload = await _bufferedPayloadFactory.CreateFromRequestAsync(Request);
 
 				string? hashHeaderValue = null;
 				if (Request.Headers.ContainsKey(CommonHeaders.HashHeaderName))

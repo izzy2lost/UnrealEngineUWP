@@ -16,7 +16,7 @@ using MongoDB.Driver;
 
 namespace Horde.Server.Auditing
 {
-	class AuditLog<TSubject> : IAuditLog<TSubject>, IAsyncDisposable, IDisposable
+	class AuditLog<TSubject> : IAuditLog<TSubject>, IAsyncDisposable
 	{
 		class AuditLogMessage : IAuditLogMessage<TSubject>
 		{
@@ -189,11 +189,6 @@ namespace Horde.Server.Auditing
 			await _backgroundTask;
 		}
 
-		public void Dispose()
-		{
-			DisposeAsync().AsTask().Wait();
-		}
-
 		/// <summary>
 		/// Flush any pending messages to database
 		/// Exposed as internal for use in tests
@@ -242,7 +237,7 @@ namespace Horde.Server.Auditing
 		public async Task FlushAsync(CancellationToken cancellationToken)
 		{
 			// Get the existing task completion source, or create a new one
-			TaskCompletionSource newTcs = new TaskCompletionSource();
+			TaskCompletionSource newTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 			TaskCompletionSource? tcs = Interlocked.CompareExchange(ref _flushEvent, newTcs, null) ?? newTcs;
 
 			// Force the background task to run once 

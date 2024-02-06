@@ -399,7 +399,7 @@ namespace Horde.Server.Configuration
 			public string Name { get; }
 			public PropertyInfo PropertyInfo { get; }
 
-			public Property(string name, PropertyInfo propertyInfo)
+			protected Property(string name, PropertyInfo propertyInfo)
 			{
 				Name = name;
 				PropertyInfo = propertyInfo;

@@ -16,6 +16,7 @@ namespace Horde.Server.Logs
 		/// <summary>
 		/// Stack item for traversing the tree
 		/// </summary>
+		[StructLayout(LayoutKind.Auto)]
 		struct StackItem
 		{
 			/// <summary>

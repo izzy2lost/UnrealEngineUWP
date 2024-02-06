@@ -224,7 +224,7 @@ namespace Horde.Agent.Execution
 
 		protected Dictionary<string, string> _envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-		public JobExecutor(JobExecutorOptions options, ILogger logger)
+		protected JobExecutor(JobExecutorOptions options, ILogger logger)
 		{
 			Session = options.Session;
 			StorageFactory = options.StorageFactory;

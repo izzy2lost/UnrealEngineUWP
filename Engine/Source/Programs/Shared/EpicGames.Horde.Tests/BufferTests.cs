@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public void TestOverflow()
+		public async Task TestOverflowAsync()
 		{
 			using PooledBuffer buffer = new PooledBuffer(2, 20);
 			using ComputeBufferReader bufferReader = buffer.CreateReader();
@@ -73,7 +73,7 @@ namespace EpicGames.Horde.Tests
 			Assert.IsTrue(waitToReadTask.IsCompleted);
 
 			Assert.AreEqual(20, bufferReader.GetReadBuffer().Length);
-			Assert.IsTrue(waitToWriteTask.IsCompleted);
+			await waitToWriteTask;
 
 			// Make sure both reader and writer have something to work with
 			Assert.AreEqual(20, bufferReader.GetReadBuffer().Length);

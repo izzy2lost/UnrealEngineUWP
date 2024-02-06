@@ -1016,7 +1016,7 @@ namespace Horde.Server.Devices
 		/// Create a device pool telemetry snapshot
 		/// </summary>
 		/// <returns></returns>
-		public async Task CreatePoolTelemetrySnapshot(List<IDevicePool> pools, int problemCooldown)
+		public async Task CreatePoolTelemetrySnapshotAsync(List<IDevicePool> pools, int problemCooldown)
 		{
 			List<IDevice> devices = await FindAllDevicesAsync();			
 			List<IDeviceReservation> reservations = await FindAllDeviceReservationsAsync();

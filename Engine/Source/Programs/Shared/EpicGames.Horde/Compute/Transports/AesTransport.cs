@@ -9,6 +9,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 
+#pragma warning disable VSTHRD003 // Avoid awaiting or returning a Task representing work that was not started within your context as that can lead to deadlocks.
+
 namespace EpicGames.Horde.Compute.Transports
 {
 	/// <summary>

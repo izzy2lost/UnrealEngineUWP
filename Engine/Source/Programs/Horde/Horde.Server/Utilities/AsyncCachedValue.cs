@@ -108,7 +108,7 @@ namespace Horde.Server.Utilities
 
 		async Task<T> GetInternalAsync(TimeSpan maxAge)
 		{
-			Task<State> stateTask = CreateOrGetStateTask(ref _current);
+			Task<State> stateTask = CreateOrGetStateTaskAsync(ref _current);
 
 			State state = await stateTask;
 			if (state._next != null && state._next.IsCompleted)
@@ -118,17 +118,17 @@ namespace Horde.Server.Utilities
 			}
 			if (state.Elapsed > maxAge)
 			{
-				state = await CreateOrGetStateTask(ref state._next);
+				state = await CreateOrGetStateTaskAsync(ref state._next);
 			}
 			if (state.Elapsed > _minRefreshTime)
 			{
-				_ = CreateOrGetStateTask(ref state._next);
+				_ = CreateOrGetStateTaskAsync(ref state._next);
 			}
 
 			return state.Value;
 		}
 
-		Task<State> CreateOrGetStateTask(ref Task<State>? stateTask)
+		Task<State> CreateOrGetStateTaskAsync(ref Task<State>? stateTask)
 		{
 			for(; ;)
 			{

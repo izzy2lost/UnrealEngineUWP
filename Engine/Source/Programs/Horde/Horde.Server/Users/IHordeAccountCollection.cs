@@ -49,7 +49,7 @@ namespace Horde.Server.Users
 		/// </summary>
 		/// <param name="login">Login or username to use for searching</param>
 		/// <returns>The service account</returns>
-		Task<IHordeAccount?> GetByLogin(string login);
+		Task<IHordeAccount?> GetByLoginAsync(string login);
 
 		/// <summary>
 		/// Update an account from the collection

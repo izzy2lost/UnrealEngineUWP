@@ -16,6 +16,7 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Horde.Common.Rpc;
 using Horde.Server.Server;
+using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -69,7 +70,7 @@ public class PortMappingResult
 /// The Horde agent can be started in a special mode where it will relay traffic to and from other agents.
 /// It connects back to this service over gRPC and mirror the current port mappings set by the server.
 /// </summary>
-public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
+public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, IAsyncDisposable
 {
 	private record PortMappingsInfo(int Revision, List<PortMapping> PortMappings);
 	
@@ -88,6 +89,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	private readonly ConcurrentDictionary<ClusterId, PortMappingsInfo> _clusterPortMappings = new();
 	private TimeSpan _longPollTimeout = TimeSpan.FromSeconds(20);
 	private TimeSpan _agentExpirationTimeout;
+	private readonly AsyncTaskQueue _updateTaskQueue;
 	private IAsyncDisposable? _redisSubscription;
 	private int _minPort = 10000;
 	private int _maxPort = 50000;
@@ -103,13 +105,20 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 		_redis = redis;
 		_clock = clock;
 		_logger = logger;
+		_updateTaskQueue = new AsyncTaskQueue(logger);
 		_agentExpirationTimeout = _longPollTimeout + TimeSpan.FromSeconds(5);
+	}
+
+	/// <inheritdoc/>
+	public async ValueTask DisposeAsync()
+	{
+		await _updateTaskQueue.DisposeAsync();
 	}
 	
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
-		_redisSubscription = await SubscribeToUpdateEventAsync(OnPortMappingUpdateAsync);
+		_redisSubscription = await SubscribeToUpdateEventAsync(OnPortMappingUpdate);
 	}
 	
 	/// <inheritdoc/>
@@ -120,6 +129,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 			await _redisSubscription.DisposeAsync();
 			_redisSubscription = null;
 		}
+		await _updateTaskQueue.FlushAsync(cancellationToken);
 	}
 	
 	/// <summary>
@@ -339,8 +349,13 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService
 	{
 		return await _redis.GetDatabase().Multiplexer.SubscribeAsync(RedisChannelUpdate, onUpdate);
 	}
-	
-	private async void OnPortMappingUpdateAsync(string clusterIdStr)
+
+	private void OnPortMappingUpdate(string clusterIdStr)
+	{
+		_updateTaskQueue.Enqueue(_ => OnPortMappingUpdateAsync(clusterIdStr));
+	}
+
+	private async Task OnPortMappingUpdateAsync(string clusterIdStr)
 	{
 		try
 		{

@@ -150,9 +150,7 @@ namespace Horde.Server.Server
 		/// <param name="context">HTTP Context</param>
 		/// <param name="service">The RequestTrackerService singleton</param>
 		/// <returns></returns>
-#pragma warning disable IDE1006 // Naming Styles
-		public async Task Invoke(HttpContext context, RequestTrackerService service)
-#pragma warning restore IDE1006 // Naming Styles
+		public async Task InvokeAsync(HttpContext context, RequestTrackerService service)
 		{
 			if (!context.Request.Path.StartsWithSegments("/health", StringComparison.Ordinal))
 			{

@@ -325,7 +325,12 @@ namespace Horde.Server.Configuration
 		}
 
 		/// <inheritdoc/>
-		public GlobalConfig Create(string name) => _stateTask.Result.GlobalConfig;
+		public GlobalConfig Create(string name)
+		{
+#pragma warning disable VSTHRD002 // Synchronous wait
+			return _stateTask.Result.GlobalConfig;
+#pragma warning restore VSTHRD002 // Synchronous wait
+		}
 
 		/// <inheritdoc/>
 		public IChangeToken GetChangeToken() => _changeToken;

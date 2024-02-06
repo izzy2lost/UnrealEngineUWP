@@ -160,7 +160,7 @@ public class AgentCollectionTests : TestSetup
 		await AgentCollection.TryAddLeaseAsync(_agent, _leaseWithParent4);
 		await UpdateAgentAsync();
 
-		List<LeaseId> leases = await AgentCollection.GetChildLeaseIds(_leaseWithParent3.ParentId!.Value);
+		List<LeaseId> leases = await AgentCollection.GetChildLeaseIdsAsync(_leaseWithParent3.ParentId!.Value);
 
 		Assert.AreEqual(2, leases.Count);
 		Assert.IsTrue(leases.Contains(_leaseWithParent3.Id));

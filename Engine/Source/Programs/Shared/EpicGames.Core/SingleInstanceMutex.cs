@@ -15,7 +15,7 @@ namespace EpicGames.Core
 		class SingleInstanceMutexImpl : IDisposable
 		{
 			readonly string? _name;
-			readonly TaskCompletionSource _readyTcs = new TaskCompletionSource();
+			readonly TaskCompletionSource _readyTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 			readonly ManualResetEvent _disposing = new ManualResetEvent(false);
 			Thread? _thread;
 

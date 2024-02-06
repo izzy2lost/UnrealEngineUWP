@@ -705,7 +705,7 @@ namespace Horde.Server.Issues
 				return Forbid(StreamAclAction.ViewStream, streamIdValue);
 			}
 
-			List<IExternalIssueProject> projects = await _externalIssueService.GetProjects(streamConfig);
+			List<IExternalIssueProject> projects = await _externalIssueService.GetProjectsAsync(streamConfig);
 			List<GetExternalIssueProjectResponse> response = new List<GetExternalIssueProjectResponse>();
 
 			projects.ForEach(project =>

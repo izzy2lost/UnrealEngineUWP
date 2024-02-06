@@ -451,7 +451,7 @@ namespace EpicGames.Horde.Compute
 
 				_logger.LogWarning("Note: Loading and running {Assembly} in process", assemblyPath);
 
-				TaskCompletionSource<int> resultTcs = new TaskCompletionSource<int>();
+				TaskCompletionSource<int> resultTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 				Thread thread = new Thread(() => resultTcs.SetResult(AppDomain.CurrentDomain.ExecuteAssembly(assemblyPath, mainArgs)));
 				thread.Start();

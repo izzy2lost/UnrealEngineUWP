@@ -689,7 +689,7 @@ namespace EpicGames.Horde.Storage
 			{
 				FileInfo fileInfo = FileReference.Combine(dirRef, fileEntry.Name.ToString()).ToFileInfo();
 
-				fileState = TryMoveCachedDataAsync(fileEntry.StreamHash, dirState, fileEntry.Name);
+				fileState = TryMoveCachedData(fileEntry.StreamHash, dirState, fileEntry.Name);
 				if (fileState == null)
 				{
 					fileState = dirState.FindOrAddFile(fileEntry.Name);
@@ -758,7 +758,7 @@ namespace EpicGames.Horde.Storage
 			await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 		}
 
-		FileState? TryMoveCachedDataAsync(IoHash hash, DirectoryState targetDirState, string targetName)
+		FileState? TryMoveCachedData(IoHash hash, DirectoryState targetDirState, string targetName)
 		{
 			HashInfo? hashInfo;
 			if (_hashes.TryGetValue(hash, out hashInfo))
