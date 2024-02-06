@@ -13,10 +13,7 @@ void UCustomizableObjectNodeProjectorParameter::PostEditChangeProperty(FProperty
 {
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
 
-	if (PropertyName == "ProjectionType")
-	{
-	}
-	else if (PropertyName == "ProjectionAngle")
+	if (PropertyName == "ProjectionAngle")
 	{
 		DefaultValue.Angle = FMath::DegreesToRadians(ProjectionAngle);
 	}
@@ -41,9 +38,22 @@ void UCustomizableObjectNodeProjectorParameter::AllocateDefaultPins(UCustomizabl
 }
 
 
+void UCustomizableObjectNodeProjectorParameter::BackwardsCompatibleFixup()
+{
+	Super::BackwardsCompatibleFixup();
+
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ProjectorNodesDefaultValueFix)
+	{
+		DefaultValue.ProjectionType = ProjectionType_DEPRECATED;
+	}
+}
+
+
 ECustomizableObjectProjectorType UCustomizableObjectNodeProjectorParameter::GetProjectorType() const
 {
-	return ProjectionType;
+	return DefaultValue.ProjectionType;
 }
 
 

@@ -968,7 +968,20 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateFloatWidget(const int3
 
 float FCustomizableInstanceDetails::GetFloatParameterValue(FString ParamName, int32 RangeIndex) const
 {
-	return CustomInstance->GetFloatParameterSelectedOption(ParamName, RangeIndex);
+	if (RangeIndex == INDEX_NONE)
+	{
+		return CustomInstance->GetFloatParameterSelectedOption(ParamName, RangeIndex);
+	}
+	else //multidimensional
+	{
+		// We may have deleted a range but the Instance has not been updated yet
+		if (CustomInstance->GetFloatValueRange(ParamName) > RangeIndex)
+		{
+			return CustomInstance->GetFloatParameterSelectedOption(ParamName, RangeIndex);
+		}
+	}
+
+	return 0;
 }
 
 
@@ -1443,7 +1456,7 @@ TSharedRef<SWidget> FCustomizableInstanceDetails::GenerateMultidimensionalProjec
 		FString OpacitySliderParamName = ParamName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
 
 		TArray<FString> OptionNamesAttribute;
-		FString Value = CustomInstance->GetIntParameterSelectedOption(ParamName, RangeIndex);
+		FString Value = CustomInstance->GetIntParameterSelectedOption(TextureSwitchEnumParamName, RangeIndex);
 		int32 ValueIndex = 0;
 
 		const UProjectorParameter* ProjectorParameter = Editor->GetProjectorParameter();

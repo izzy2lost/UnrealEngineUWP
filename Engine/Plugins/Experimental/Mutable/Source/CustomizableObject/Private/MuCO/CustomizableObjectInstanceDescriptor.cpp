@@ -605,6 +605,8 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 						}
 					};
 
+					CopyProjector(ProjectorParameter.Value);
+
 					if (const mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex))
 					{
 						for (int32 RangeIndex = 0; RangeIndex < ProjectorParameter.RangeValues.Num(); ++RangeIndex)
@@ -612,10 +614,6 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 							RangeIdxPtr->SetPosition(0, RangeIndex);
 							CopyProjector(ProjectorParameter.RangeValues[RangeIndex], RangeIdxPtr);
 						}
-					}
-					else
-					{
-						CopyProjector(ProjectorParameter.Value);
 					}
 				}
 			}
@@ -844,28 +842,19 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 				
 				if (mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex)) // Is multidimensional
 				{
-					// Find the max RangeIndex of this parameter 
-					int32 RangeNum = 0;
-					const int32 ValueCount = MutableParameters->GetValueCount(ParamIndex);
-					for (int32 ValueIndex = 0; ValueIndex < ValueCount; ++ValueIndex)
-					{
-						mu::RangeIndexPtr RangeValueIdxPtr = MutableParameters->GetValueIndex(ParamIndex, ValueIndex);
-						RangeNum = FMath::Max(RangeNum, RangeValueIdxPtr->GetPosition(0));
-					}
-					
-					Param.ParameterRangeValueNames.Reserve(RangeNum); 
+					// Get num of ranges (layers) from the instance
+					int32 ValueCount = Result->ParameterRangeValueNames.Num();
+					Param.ParameterRangeValueNames.Reserve(ValueCount);
 
-					for (int32 RangeIndex = 0; RangeIndex < RangeNum; ++RangeIndex)
+					for (int32 RangeIndex = 0; RangeIndex < ValueCount; ++RangeIndex)
 					{
-						if (const FString& OldValue = Result->ParameterRangeValueNames[RangeIndex];
-							ValueExists(OldValue)) // Value still exits
+						// Checking if the selected value still exists as option in the parameter
+						if (const FString& OldValue = Result->ParameterRangeValueNames[RangeIndex]; ValueExists(OldValue))
 						{
-							Param.ParameterRangeValueNames.Add(OldValue);							
+							Param.ParameterRangeValueNames.Add(OldValue);
 						}
 						else
 						{
-							RangeIdxPtr->SetPosition(0, RangeIndex);
-							
 							const int32 Value = MutableParameters->GetIntValue(ParamIndex, RangeIdxPtr);
 							const FString AuxParameterValueName = CustomizableObject->FindIntParameterValueName(ParamIndex, Value);
 							Param.ParameterRangeValueNames.Add(AuxParameterValueName);
@@ -1000,6 +989,9 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 			Param.ParameterName = Name;
 			Param.Id = Uid;
 
+			// Projector to check if the porojector's type has changed
+			FCustomizableObjectProjector DefaultProjectorValue = CustomizableObject->GetProjectorParameterDefaultValue(Name);
+
 			auto FindByNameAndUid = [&](const FCustomizableObjectProjectorParameterValue& P)
 			{
 				return P.ParameterName == Name || (Uid.IsValid() && P.Id == Uid);
@@ -1010,10 +1002,17 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 				if (mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex))
 				{
 					Param.RangeValues = Result->RangeValues;
+					Param.Value.ProjectionType = DefaultProjectorValue.ProjectionType;
+
+					for (FCustomizableObjectProjector& Projector : Param.RangeValues)
+					{
+						Projector.ProjectionType = DefaultProjectorValue.ProjectionType;
+					}
 				}
 				else
 				{
 					Param.Value = Result->Value;
+					Param.Value.ProjectionType = DefaultProjectorValue.ProjectionType;
 				}
 			} 
 			else // Not found in Instance Parameters. Use Mutable Parameters.
@@ -1040,7 +1039,9 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 						Value.Scale[2] = -Value.Scale[0];
 						Value.Scale[0] = Value.Scale[1] = Value.Scale[1] * 2.0f;
 					}
-				}; 
+				};
+
+				GetProjector(Param.Value);
 
 				if (mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex))
 				{
@@ -1058,10 +1059,6 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 						GetProjector(Param.RangeValues[RangeIndex], RangeValueIdxPtr);
 					}
-				}
-				else
-				{
-					GetProjector(Param.Value);
 				}
 			}
 

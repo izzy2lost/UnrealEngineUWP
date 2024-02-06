@@ -12,7 +12,6 @@ class UCustomizableObjectNodeRemapPins;
 
 UCustomizableObjectNodeProjectorConstant::UCustomizableObjectNodeProjectorConstant()
 	: Super()
-	, ProjectionType(ECustomizableObjectProjectorType::Planar)
 	, ProjectionAngle(360.0f)
 	, BoneComboBoxLocation(FVector::ZeroVector)
 	, BoneComboBoxForwardDirection(FVector::ZeroVector)
@@ -51,9 +50,22 @@ void UCustomizableObjectNodeProjectorConstant::AllocateDefaultPins(UCustomizable
 }
 
 
+void UCustomizableObjectNodeProjectorConstant::BackwardsCompatibleFixup()
+{
+	Super::BackwardsCompatibleFixup();
+
+	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::ProjectorNodesDefaultValueFix)
+	{
+		Value.ProjectionType = ProjectionType_DEPRECATED;
+	}
+}
+
+
 ECustomizableObjectProjectorType UCustomizableObjectNodeProjectorConstant::GetProjectorType() const
 {
-	return ProjectionType;
+	return Value.ProjectionType;
 }
 
 

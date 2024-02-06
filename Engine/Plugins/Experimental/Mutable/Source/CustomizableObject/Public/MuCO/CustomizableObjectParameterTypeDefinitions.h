@@ -230,23 +230,23 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectProjector
 {
 	GENERATED_USTRUCT_BODY()
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	UPROPERTY()
 	FVector3f Position = FVector3f(0, 0, 0);
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	UPROPERTY()
 	FVector3f Direction = FVector3f(1, 0, 0);
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	UPROPERTY()
 	FVector3f Up = FVector3f(0, 1, 0);
 
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	UPROPERTY()
 	FVector3f Scale = FVector3f(10, 10, 100);
 
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	ECustomizableObjectProjectorType ProjectionType = ECustomizableObjectProjectorType::Planar;
 
 	// Just for cylindrical projectors, in radians
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	UPROPERTY()
 	float Angle = 2.0f * PI;
 };
 
