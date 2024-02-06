@@ -14,14 +14,7 @@ public:
 
 	GENERATED_BODY()
 
-	FRigPoseElement()
-	: Index()
-	, GlobalTransform(FTransform::Identity)
-	, LocalTransform(FTransform::Identity)
-	, PreferredEulerAngle(FVector::ZeroVector)
-	, CurveValue(0.f)
-	{
-	}
+	FRigPoseElement();
 
 	UPROPERTY()
 	FCachedRigElement Index;
@@ -34,6 +27,9 @@ public:
 
 	UPROPERTY()
 	FVector PreferredEulerAngle;
+
+	UPROPERTY()
+	FRigElementKey ActiveParent;
 
 	UPROPERTY()
 	float CurveValue;

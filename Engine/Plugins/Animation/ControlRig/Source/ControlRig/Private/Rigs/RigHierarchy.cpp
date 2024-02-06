@@ -2991,6 +2991,7 @@ FRigPose URigHierarchy::GetPose(bool bInitial, ERigElementType InElementType,
 		{
 			PoseElement.LocalTransform = GetTransform(TransformElement, bInitial ? ERigTransformType::InitialLocal : ERigTransformType::CurrentLocal);
 			PoseElement.GlobalTransform = GetTransform(TransformElement, bInitial ? ERigTransformType::InitialGlobal : ERigTransformType::CurrentGlobal);
+			PoseElement.ActiveParent = GetActiveParent(Element->GetKey());
 
 			if(FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
 			{
@@ -3076,6 +3077,7 @@ void URigHierarchy::SetPose(const FRigPose& InPose, ERigTransformType::Type InTr
 					TransformToSet = FControlRigMathLibrary::LerpTransform(PreviousTransform, TransformToSet, U);
 				}
 
+				SwitchToParent(Element->GetKey(), PoseElement.ActiveParent);
 				SetTransform(TransformElement, TransformToSet, InTransformType, true);
 			}
 			else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Element))
