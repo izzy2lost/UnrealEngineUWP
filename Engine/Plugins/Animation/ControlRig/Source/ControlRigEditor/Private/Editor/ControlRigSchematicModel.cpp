@@ -1763,11 +1763,14 @@ void FControlRigSchematicModel::OnHierarchyModified(ERigHierarchyNotification In
 	{
 		case ERigHierarchyNotification::ElementSelected:
 		{
-			if(FControlRigSchematicRigElementKeyNode* Node = FindElementKeyNode(InElement->GetKey()))
+			if(InHierarchy->GetSelectedKeys().Num() == 1)
 			{
-				if(FSchematicGraphGroupNode* GroupNode = Node->GetGroupNode())
+				if(FControlRigSchematicRigElementKeyNode* Node = FindElementKeyNode(InElement->GetKey()))
 				{
-					GroupNode->SetExpanded(true);
+					if(FSchematicGraphGroupNode* GroupNode = Node->GetGroupNode())
+					{
+						GroupNode->SetExpanded(true);
+					}
 				}
 			}
 			break;
