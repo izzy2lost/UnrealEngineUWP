@@ -18,7 +18,9 @@
 			"Name": "TextureGraphEngine",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+			"PlatformAllowList": [
+				"Win64"
+			]
 		},
 		{
 			"Name": "TextureGraphInsight",
@@ -40,13 +42,17 @@
 			"Name": "TextureGraph",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+			"PlatformAllowList": [
+				"Win64"
+			]
 		},
 		{
 			"Name": "TextureGraphEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+			"PlatformAllowList": [
+				"Win64"
+			]
 		}
 	],
 	"Plugins": [
@@ -67,5 +73,7 @@
 			"Enabled": true
 		}
 	],
-	"SupportedTargetPlatforms": [ "Win64", "Linux", "Mac" ]
+	"SupportedTargetPlatforms": [
+		"Win64"
+	]
 }
