@@ -33,6 +33,8 @@ struct FFrame;
 struct FGuid;
 
 
+constexpr uint64 KEY_OFFSET_COMPILATION_OUT_OF_DATE = 1;
+
 extern TAutoConsoleVariable<bool> CVarClearWorkingMemoryOnUpdateEnd;
 
 extern TAutoConsoleVariable<bool> CVarReuseImagesBetweenInstances;

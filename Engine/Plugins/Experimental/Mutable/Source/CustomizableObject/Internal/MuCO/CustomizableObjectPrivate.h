@@ -573,6 +573,11 @@ public:
 	// See UCustomizableObjectSystem::LockObject()
 	bool IsLocked() const;
 
+#if WITH_EDITORONLY_DATA
+	/** Return true if the CO is not compiled or the ParticipatingObjects system has detected a change (participating objects dirty or re-saved since last compilation). */
+	bool IsCompilationOutOfDate() const;
+#endif
+	
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;
 

@@ -39,6 +39,8 @@
 #endif
 
 
+#include "MuCO/CustomizableObjectSystemPrivate.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObject)
 
 #define LOCTEXT_NAMESPACE "CustomizableObject"
@@ -852,13 +854,6 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	// Don't compile compiled objects
 	if (IsCompiled())
 	{
-		// Show a warning if the compilation was not done with optimizations.
-		if (GetPrivate()->bIsCompiledWithOptimization)
-		{
-			FString Msg = FString::Printf(TEXT("Warning: Customizable Object [%s] was compiled without optimization."), *GetName());
-			GEngine->AddOnScreenDebugMessage((uint64)((PTRINT)this), 10.0f, FColor::Red, Msg);
-		}
-
 		return true;
 	}
 
@@ -1186,6 +1181,8 @@ FString UCustomizableObject::GetStateParameterName(int32 StateIndex, int32 Param
 void UCustomizableObject::PostCompile()
 {
 	GetPrivate()->PostCompileDelegate.Broadcast();
+
+	UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(*GetPrivate());	
 }
 #endif
 
@@ -1914,6 +1911,60 @@ FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCooking)
 }
 #endif
 
+
+#if WITH_EDITORONLY_DATA
+bool UCustomizableObjectPrivate::IsCompilationOutOfDate() const
+{
+	if (Status.Get() != FCustomizableObjectStatus::EState::ModelLoaded)
+	{
+		return false;
+	}
+	
+	if (GetPackage()->IsDirty())
+	{
+		return true;
+	}
+	
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	for (const TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
+	{
+		TSoftObjectPtr Object(ParticipatingObject.Key.ToString());
+		if (Object) // If loaded
+		{
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			const FGuid PackageGuid = Object->GetPackage()->GetGuid();
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+			if (Object->GetPackage()->IsDirty() || PackageGuid != ParticipatingObject.Value)
+			{
+				return true;
+			}
+		}
+		else // Not loaded
+		{
+			FAssetPackageData AssetPackageData;
+			const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
+				
+			if (Result != UE::AssetRegistry::EExists::Exists)
+			{
+				return true;
+			}
+
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			const FGuid PackageGuid = AssetPackageData.PackageGuid;
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+			if (PackageGuid != ParticipatingObject.Value)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+#endif
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
