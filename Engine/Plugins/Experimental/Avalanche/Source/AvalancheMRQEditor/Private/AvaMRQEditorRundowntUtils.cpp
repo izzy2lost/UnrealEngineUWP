@@ -257,32 +257,3 @@ void FAvaMRQEditorRundownUtils::RenderSelectedPages(TConstArrayView<TWeakPtr<con
 		Private::RenderPages(ScopedRender, *Rundown, PageIds);
 	}
 }
-
-void FAvaMRQEditorRundownUtils::RenderPages(const UAvaRundown& InRundown, TConstArrayView<int32> InPageIds)
-{
-	if (InPageIds.IsEmpty())
-	{
-		return;
-	}
-
-	using namespace UE::AvaMRQEditor;
-	Private::FAvaMRQScopedRender ScopedRender;
-	if (!ScopedRender.IsValid())
-	{
-		return;
-	}
-
-	Private::RenderPages(ScopedRender, InRundown, InPageIds);
-}
-
-void FAvaMRQEditorRundownUtils::RenderPage(const UAvaRundown& InRundown, const FAvaRundownPage& InPage)
-{
-	using namespace UE::AvaMRQEditor;
-	Private::FAvaMRQScopedRender ScopedRender;
-	if (!ScopedRender.IsValid())
-	{
-		return;
-	}
-
-	Private::RenderPage(ScopedRender, InRundown, InPage);
-}
