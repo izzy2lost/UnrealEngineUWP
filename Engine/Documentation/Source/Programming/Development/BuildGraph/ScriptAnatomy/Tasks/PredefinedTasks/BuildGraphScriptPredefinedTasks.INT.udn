@@ -421,7 +421,7 @@ Executes MsBuild
 
 ### NuGet-LicenseCheck
 
-Spawns Docker and waits for it to complete.
+Verifies which licenses are in use by nuget dependencies
 
 |                |                    |          |                                                                                                                                                          |
 | -------------- | ------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
