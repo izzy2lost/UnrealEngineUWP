@@ -1001,7 +1001,6 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 	if (GetSkinnedAsset())
 	{
 		BoneTransformUpdateMethodQueue.Reset();
-		PreviousBoneTransformRevisionNumber = CurrentBoneTransformRevisionNumber;
 
 		// Update dynamic data
 		if(MeshObject)
@@ -1042,6 +1041,8 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 				MeshObject->Update(ModifiedLODLevel, this, ActiveMorphTargets, MorphTargetWeights, EPreviousBoneTransformUpdateMode::UpdatePrevious, GetExternalMorphWeights(ModifiedLODLevel));  // send to rendering thread
 			}
 		}
+
+		PreviousBoneTransformRevisionNumber = CurrentBoneTransformRevisionNumber;
 
 		// scene proxy update of material usage based on active morphs
 		UpdateMorphMaterialUsageOnProxy();
