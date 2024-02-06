@@ -170,7 +170,7 @@ namespace Metasound
 									TSharedPtr<FEditor> ParentEditor = FGraphBuilder::GetEditorForMetasound(*Source.Get());
 									if (ParentEditor.IsValid())
 									{
-										ParentEditor->DestroyAnalyzers();
+										ParentEditor->Stop();
 									};
 								}
 							}));
