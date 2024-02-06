@@ -108,21 +108,35 @@ namespace Chaos::VisualDebugger
 	TSharedRef<FChaosVDOptionalDataChannel> CreateDataChannel(FName InChannelID, const TSharedRef<FText>& InDisplayName, EChaosVDDataChannelInitializationFlags InitializationFlags);
 }
 
-#define CVD_CONCAT_NX(A, B) A ## B
-#define CVD_CONCAT(A, B) CVD_CONCAT_NX(A,B)
-#define CVD_STRINGIZE_NX(A) #A
-#define CVD_STRINGIZE(A) CVD_STRINGIZE_NX(A)
+#ifndef CVD_CONCAT_NX
+	#define CVD_CONCAT_NX(A, B) A ## B
+#endif
+
+#ifndef CVD_CONCAT
+	#define CVD_CONCAT(A, B) CVD_CONCAT_NX(A,B)
+#endif
+
+#ifndef CVD_STRINGIZE_NX
+	#define CVD_STRINGIZE_NX(A) #A
+#endif
+
+#ifndef CVD_STRINGIZE
+	#define CVD_STRINGIZE(A) CVD_STRINGIZE_NX(A)
+#endif
 
 /** Declares an Optional CVD Data channel to be available globally. The data channel can be accessed by using CVDDC_TheNameOfTheChannelUsedWithThisMacro */
-#define CVD_DECLARE_OPTIONAL_DATA_CHANNEL(DataChannelName) \
-			extern CHAOS_API TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CVDDC_##DataChannelName;
+#ifndef CVD_DECLARE_OPTIONAL_DATA_CHANNEL
+	#define CVD_DECLARE_OPTIONAL_DATA_CHANNEL(DataChannelName) \
+				extern CHAOS_API TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CVDDC_##DataChannelName;
+#endif
 
 /** Defines and initializes an Optional CVD Data Channel */
-#define CVD_DEFINE_OPTIONAL_DATA_CHANNEL(DataChannelName, InitializationFlags) \
-			TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CVDDC_##DataChannelName = Chaos::VisualDebugger::CreateDataChannel(#DataChannelName, MakeShared<FText>(NSLOCTEXT(CVD_STRINGIZE(ChaosVisualDebugger), CVD_STRINGIZE(CVD_CONCAT(DataChannelName,_ChannelName)), #DataChannelName)), InitializationFlags);
+#ifndef CVD_DEFINE_OPTIONAL_DATA_CHANNEL
+	#define CVD_DEFINE_OPTIONAL_DATA_CHANNEL(DataChannelName, InitializationFlags) \
+				TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CVDDC_##DataChannelName = Chaos::VisualDebugger::CreateDataChannel(#DataChannelName, MakeShared<FText>(NSLOCTEXT(CVD_STRINGIZE(ChaosVisualDebugger), CVD_STRINGIZE(CVD_CONCAT(DataChannelName,_ChannelName)), #DataChannelName)), InitializationFlags);
+#endif
 
 // Declare CVD's Default set of channels
-
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(Default);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionStart);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(Integrate);
