@@ -382,9 +382,12 @@ TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> SNiagaraAssetBrowser::GetMain
 				TArray<TSharedRef<FNiagaraAssetBrowserMainFilter>> TagChildFilters;
 				for(const FNiagaraAssetTagDefinition& AssetTagDefinition : AssetTagDefinitionsAsset->GetAssetTagDefinitions())
 				{
-					TSharedRef<FNiagaraAssetBrowserMainFilter> AssetTagFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag);
-					AssetTagFilter->AssetTagDefinition = AssetTagDefinition;
-					TagChildFilters.Add(AssetTagFilter);
+					if(IsAssetTagDefinitionValid(AssetTagDefinition))
+					{
+						TSharedRef<FNiagaraAssetBrowserMainFilter> AssetTagFilter = MakeShared<FNiagaraAssetBrowserMainFilter>(FNiagaraAssetBrowserMainFilter::EFilterMode::NiagaraAssetTag);
+						AssetTagFilter->AssetTagDefinition = AssetTagDefinition;
+						TagChildFilters.Add(AssetTagFilter);
+					}
 				}
 
 				AssetTagDefinitionsAssetsFilter->ChildFilters = TagChildFilters;
