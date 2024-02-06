@@ -519,8 +519,8 @@ float4x4 LWCHackToFloat(FLWCInverseMatrix v) { return (float4x4)0.0f; }
 		/* Used rounding, removes fractional data stored in Tile, so the resulting coordinate is 'normalized' */				\
 		/* T+C-C benchmarked slightly faster than round(), can also shift C right to retain some fractional bits */ 			\
 		const float C = 8388608; /* = 2^23 (23 mantisse bits for int part, 0 for fraction) */ 									\
-		FFloatType Tile = mad(In.High, 1 / UE_LWC_RENDER_TILE_SIZE, C) - C;														\
-		FFloatType Offset = mad(Tile, -UE_LWC_RENDER_TILE_SIZE, In.High) + In.Low;												\
+		FFloatType Tile = INVARIANT(FMA(In.High, 1 / UE_LWC_RENDER_TILE_SIZE, C) - C);											\
+		FFloatType Offset = INVARIANT(FMA(Tile, -UE_LWC_RENDER_TILE_SIZE, In.High) + In.Low);									\
 																																\
 		return LWCConstructor(Tile, Offset);																					\
 	}																															\

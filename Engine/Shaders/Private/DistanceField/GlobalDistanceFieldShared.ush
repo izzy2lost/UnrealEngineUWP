@@ -443,7 +443,7 @@ float CalculateDistanceFieldApproxAO(FDFVector3 WorldPosition, float3 WorldNorma
 
 float CalculateDistanceFieldApproxAO(FLWCVector3 WorldPosition, float3 WorldNormal, uint NumSteps, float StepDistance, float StepScale, float DistanceBias, float MaxDistance)
 {
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, DFToTileOffset(ResolvedView.PreViewTranslation)));
+	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.TileOffset.PreViewTranslation));
 	return CalculateDistanceFieldApproxAO(TranslatedWorldPosition, WorldNormal, NumSteps, StepDistance, StepScale, DistanceBias, MaxDistance);
 }
 
