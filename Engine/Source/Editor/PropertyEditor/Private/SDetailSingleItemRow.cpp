@@ -1084,7 +1084,7 @@ void SDetailSingleItemRow::PopulateContextMenu(UToolMenu* ToolMenu)
 			// Paste
 			{
 				// Paste is only enabled if property editing is enabled
-				if (OwningDetailsView && OwningDetailsView->IsPropertyEditingEnabled() && WidgetRow.EditConditionValue.Get())
+				if (OwningDetailsView && OwningDetailsView->IsPropertyEditingEnabled() && WidgetRow.EditConditionValue.Get(true /*DefaultValue*/))
 				{
 					TAttribute<FText> Label;
 					TAttribute<FText> ToolTip;
