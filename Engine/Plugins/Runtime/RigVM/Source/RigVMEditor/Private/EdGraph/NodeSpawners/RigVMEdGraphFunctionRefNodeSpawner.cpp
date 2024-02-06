@@ -97,7 +97,7 @@ URigVMEdGraphFunctionRefNodeSpawner* URigVMEdGraphFunctionRefNodeSpawner::Create
 	MenuSignature.MenuName = FText::FromName(InPublicFunction.Name);
 	MenuSignature.Category = FText::FromString(InPublicFunction.Category);
 	MenuSignature.Keywords = FText::FromString(InPublicFunction.Keywords);
-	MenuSignature.Tooltip = InPublicFunction.Tooltip;
+	MenuSignature.Tooltip = InPublicFunction.GetTooltip();
 
 	const FString PackagePathString = InAssetData.PackageName.ToString();
 	if(MenuSignature.Tooltip.IsEmpty())

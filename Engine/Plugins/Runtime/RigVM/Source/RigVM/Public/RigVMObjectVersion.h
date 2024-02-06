@@ -36,6 +36,8 @@ struct RIGVM_API FRigVMObjectVersion
 		// VM Bytecode Stores the Public Context Path
 		VMBytecodeStorePublicContextPath,
 
+		// Removing unused tooltip property from frunction header
+		VMRemoveTooltipFromFunctionHeader,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

@@ -19,7 +19,7 @@ FLinearColor URigVMFunctionReferenceNode::GetNodeColor() const
 
 FText URigVMFunctionReferenceNode::GetToolTipText() const
 {
-	return ReferencedFunctionHeader.Tooltip;
+	return ReferencedFunctionHeader.GetTooltip();
 }
 
 FString URigVMFunctionReferenceNode::GetNodeCategory() const
@@ -139,7 +139,7 @@ uint32 URigVMFunctionReferenceNode::GetStructureHash() const
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.NodeTitle));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.LibraryPointer.LibraryNode.ToString()));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.Keywords));
-	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.Tooltip.ToString()));
+	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.Description));
 	Hash = HashCombine(Hash, GetTypeHash(ReferencedFunctionHeader.NodeColor));
 
 	for(const FRigVMGraphFunctionArgument& Argument : ReferencedFunctionHeader.Arguments)

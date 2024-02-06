@@ -238,6 +238,7 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	}	
     
     Header.Name = GetFName();
+	Header.Description = GetNodeDescription();
     Header.Category = GetNodeCategory();
     Header.Keywords = GetNodeKeywords();
 	

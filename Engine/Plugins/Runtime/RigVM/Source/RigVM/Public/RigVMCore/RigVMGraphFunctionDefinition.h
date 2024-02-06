@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "RigVMObjectVersion.h"
 #include "RigVMCore/RigVMExternalVariable.h"
 #include "RigVMCore/RigVMByteCode.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -422,14 +423,17 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FLinearColor NodeColor = FLinearColor::White;
 
+	UPROPERTY(meta=(DeprecatedProperty))
+	FText Tooltip_DEPRECATED;
+
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
-	FText Tooltip;
+	FString Description;
 	
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	FString Category;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
-	FString Keywords;	
+	FString Keywords;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionHeader)
 	TArray<FRigVMGraphFunctionArgument> Arguments;
@@ -463,13 +467,40 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 
 	FRigVMGraphFunctionData* GetFunctionData(bool bLoadIfNecessary = true) const;
 
+	FText GetTooltip() const
+	{
+		FString TooltipStr = FString::Printf(TEXT("%s (%s)\n%s"),
+		*NodeTitle,
+		*LibraryPointer.LibraryNode.GetAssetPathString(),
+		*Description);
+		return FText::FromString(TooltipStr);
+	}
+
 	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionHeader& Data)
 	{
+		Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
+		
 		Ar << Data.LibraryPointer;
 		Ar << Data.Name;
 		Ar << Data.NodeTitle;
 		Ar << Data.NodeColor;
-		Ar << Data.Tooltip;
+
+		if (Ar.IsLoading())
+		{
+			if (Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::VMRemoveTooltipFromFunctionHeader)
+			{
+				Ar << Data.Tooltip_DEPRECATED;
+			}
+			else
+			{
+				Ar << Data.Description;
+			}
+		}
+		else
+		{
+			Ar << Data.Description;
+		}
+		
 		Ar << Data.Category;
 		Ar << Data.Keywords;
 		Ar << Data.Arguments;
