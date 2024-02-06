@@ -1748,7 +1748,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 		}
 
-		if (IsRayTracingEnabled() && RHISupportsRayTracingShaders(ViewFamily.GetShaderPlatform()))
+		if (IsRayTracingEnabled(ViewFamily.GetShaderPlatform()) && RHISupportsRayTracingShaders(ViewFamily.GetShaderPlatform()))
 		{
 			// Nanite raytracing manager update must run before GPUScene update since it can modify primitive data
 			Nanite::GRayTracingManager.Update();
@@ -2787,7 +2787,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			}
 
 		#if RHI_RAYTRACING
-			if (ShouldRenderRayTracingSkyLight(Scene->SkyLight) 
+			if (ShouldRenderRayTracingSkyLight(Scene->SkyLight, Scene->GetShaderPlatform()) 
 				//@todo - integrate RenderRayTracingSkyLight into RenderDiffuseIndirectAndAmbientOcclusion
 				&& GetViewPipelineState(Views[0]).DiffuseIndirectMethod != EDiffuseIndirectMethod::Lumen
 				&& ViewFamily.EngineShowFlags.GlobalIllumination)
@@ -3413,7 +3413,7 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 
 	return ShouldRenderRayTracingAmbientOcclusion(View)
 		|| ShouldRenderRayTracingTranslucency(View)
-		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight)
+		|| ShouldRenderRayTracingSkyLight(Scene->SkyLight, View.GetShaderPlatform())
 		|| ShouldRenderRayTracingShadows()
 		|| Scene->bHasRayTracedLights
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
