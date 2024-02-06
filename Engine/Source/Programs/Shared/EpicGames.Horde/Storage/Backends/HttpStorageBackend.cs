@@ -144,7 +144,7 @@ namespace EpicGames.Horde.Storage.Backends
 					{
 						if (!response.IsSuccessStatusCode)
 						{
-							string responseText = await response.Content.ReadAsStringAsync();
+							string responseText = await response.Content.ReadAsStringAsync(cancellationToken);
 							throw new StorageException($"Upload to {request.RequestUri} failed ({response.StatusCode}). Response: {responseText}");
 						}
 
