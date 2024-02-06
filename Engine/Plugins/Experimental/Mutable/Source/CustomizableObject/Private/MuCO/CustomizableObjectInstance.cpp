@@ -2213,7 +2213,7 @@ int32 UCustomizableObjectInstance::RemoveValueFromIntRange(const FString& ParamN
 
 int32 UCustomizableObjectInstance::RemoveValueFromIntRange(const FString& ParamName, int32 RangeIndex)
 {
-	return Descriptor.RemoveValueFromIntRange(ParamName);
+	return Descriptor.RemoveValueFromIntRange(ParamName, RangeIndex);
 
 }
 

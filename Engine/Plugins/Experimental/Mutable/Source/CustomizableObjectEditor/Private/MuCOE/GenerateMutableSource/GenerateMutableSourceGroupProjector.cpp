@@ -326,8 +326,15 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 
 		if (GroupProjectorTempData.NodeProjectorParameterPtr)
 		{
-			// Use the projector parameter uid + suffix to identify parameters derived from this node
-			FString ProjectorParamUid = GroupProjectorTempData.NodeProjectorParameterPtr->GetUid();
+			// Use the projector parameter uid + num to identify parameters derived from this node
+			FGuid NumLayersParamUid = Node->NodeGuid;
+			NumLayersParamUid.D += 1;
+			FGuid SelectedPoseParamUid = Node->NodeGuid;
+			SelectedPoseParamUid.D += 2;
+			FGuid OpacityParamUid = Node->NodeGuid;
+			OpacityParamUid.D += 3;
+			FGuid SelectedImageParamUid = Node->NodeGuid;
+			SelectedImageParamUid.D += 4;
 
 			// Add to UCustomizableObjectNodeGroupProjectorParameter::OptionImages those textures that are present in
 			// UCustomizableObjectNodeGroupProjectorParameter::OptionImagesDataTable avoiding any repeated element
@@ -345,7 +352,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			mu::NodeScalarParameterPtr NodeScalarParam = new mu::NodeScalarParameter;
 			FString NodeScalarParamName = ProjParamNode->ParameterName + FMultilayerProjector::NUM_LAYERS_PARAMETER_POSTFIX;
 			NodeScalarParam->SetName(NodeScalarParamName);
-			NodeScalarParam->SetUid(ProjectorParamUid + FString("_NL"));
+			NodeScalarParam->SetUid(NumLayersParamUid.ToString());
 			GenerationContext.AddParameterNameUnique(originalGroup, NodeScalarParamName);
 			NodeScalarParam->SetDefaultValue(0.f);
 
@@ -364,7 +371,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			mu::NodeScalarEnumParameterPtr PoseEnumParameterNode = new mu::NodeScalarEnumParameter;
 			FString PoseNodeEnumParamName = ProjParamNode->ParameterName + FMultilayerProjector::POSE_PARAMETER_POSTFIX;
 			PoseEnumParameterNode->SetName(PoseNodeEnumParamName);
-			PoseEnumParameterNode->SetUid(ProjectorParamUid + FString("_SP"));
+			PoseEnumParameterNode->SetUid(SelectedPoseParamUid.ToString());
 			GenerationContext.AddParameterNameUnique(originalGroup, PoseNodeEnumParamName);
 			PoseEnumParameterNode->SetValueCount(ProjParamNode->OptionPoses.Num() + 1);
 			PoseEnumParameterNode->SetDefaultValueIndex(0);
@@ -378,7 +385,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			mu::NodeScalarParameterPtr OpacityParameterNode = new mu::NodeScalarParameter;
 			FString OpacityParameterNodeName = ProjParamNode->ParameterName + FMultilayerProjector::OPACITY_PARAMETER_POSTFIX;
 			OpacityParameterNode->SetName(OpacityParameterNodeName);
-			OpacityParameterNode->SetUid(ProjectorParamUid + FString("_O"));
+			OpacityParameterNode->SetUid(OpacityParamUid.ToString());
 			GenerationContext.AddParameterNameUnique(originalGroup, OpacityParameterNodeName);
 			OpacityParameterNode->SetDefaultValue(0.75f);
 			OpacityParameterNode->SetRangeCount(1);
@@ -425,7 +432,7 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			mu::NodeScalarEnumParameterPtr EnumParameterNode = new mu::NodeScalarEnumParameter;
 			FString NodeEnumParamName = ProjParamNode->ParameterName + FMultilayerProjector::IMAGE_PARAMETER_POSTFIX;
 			EnumParameterNode->SetName(NodeEnumParamName);
-			EnumParameterNode->SetUid(ProjectorParamUid + FString("_SI"));
+			EnumParameterNode->SetUid(SelectedImageParamUid.ToString());
 			GenerationContext.AddParameterNameUnique(originalGroup, NodeEnumParamName);
 			EnumParameterNode->SetValueCount(ArrayOptionImage.Num());
 			EnumParameterNode->SetDefaultValueIndex(0);

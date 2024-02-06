@@ -39,7 +39,7 @@ struct FGroupProjectorParameterPose
 };
 
 
-UCLASS(hideCategories = (CustomizableObjectHide))
+UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeGroupProjectorParameter : public UCustomizableObjectNodeProjectorParameter
 {
 public:

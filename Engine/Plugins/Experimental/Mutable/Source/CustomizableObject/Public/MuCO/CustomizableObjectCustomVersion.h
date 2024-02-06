@@ -112,6 +112,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		AddedAnyTextureTypeToPassThroughTextures,
 
+		ProjectorNodesDefaultValueFix,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -14,7 +14,7 @@ class UObject;
 struct FPropertyChangedEvent;
 
 
-UCLASS(hideCategories = (CustomizableObjectHide))
+UCLASS()
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeProjectorConstant : public UCustomizableObjectNode
 {
 public:
@@ -23,14 +23,11 @@ public:
 	UCustomizableObjectNodeProjectorConstant();
 
 	/**  */
-	UPROPERTY(EditAnywhere, Category= CustomizableObjectHide)
+	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (ShowOnlyInnerProperties))
 	FCustomizableObjectProjector Value;
 
 	UPROPERTY(EditAnywhere, Category = UI, meta = (DisplayName = "Parameter UI Metadata"))
 	FMutableParamUIMetadata ParamUIMetadata;
-
-	UPROPERTY(EditAnywhere, Category = CustomizableObject)
-	ECustomizableObjectProjectorType ProjectionType;
 
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, Meta = (DisplayName = "Projection Angle (degrees)"))
 	float ProjectionAngle;
@@ -60,6 +57,7 @@ public:
 
 	// UCustomizableObjectNode interface
 	void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
+	virtual void BackwardsCompatibleFixup() override;
 
 	// Own interface
 	UEdGraphPin* ValuePin();
@@ -85,5 +83,10 @@ public:
 	float GetProjectorAngle();
 
 	void SetProjectorAngle(float Angle);
+
+private:
+
+	UPROPERTY()
+	ECustomizableObjectProjectorType ProjectionType_DEPRECATED;
 };
 
