@@ -1827,6 +1827,10 @@ namespace Metasound
 			FMetaSoundAssetRegistrationOptions RegOptions;
 			RegOptions.bForceReregister = true;
 			RegOptions.bForceViewSynchronization = bInForceViewSynchronization;
+			// Protect against race conditions by utilizing a copy of the graph. Race conditions can happen
+			// if registration is performed asynchronously while the editor is still modifying the graph.
+			RegOptions.bRegisterCopyIfAsync = true; 
+			
 			// if EditedReferencingMetaSounds is empty, then no MetaSounds are open
 			// that reference this MetaSound, so just register this asset. Otherwise,
 			// this graph will recursively get updated when the open referencing graphs
