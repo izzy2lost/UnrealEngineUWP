@@ -1,14 +1,32 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Outliner/AvaOutlinerRCTrackerComponent.h"
+#include "Editor.h"
 #include "IAvaOutliner.h"
+#include "RemoteControlPreset.h"
 #include "RemoteControlTrackerComponent.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 #include "Subsystems/RemoteControlComponentsEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerRemoteControlComponent"
 
-FAvaOutlinerRCTrackerComponent::FOnAvaOutlinerRCTrackerComponentSelected FAvaOutlinerRCTrackerComponent::OnRCTrackerSelectedDelegate;
+namespace UE::AvaRCEditor::Private
+{
+	void OpenRCPreset(const URemoteControlTrackerComponent& InTrackerComponent)
+	{
+		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+		if (!AssetEditorSubsystem)
+		{
+			return;
+		}
+
+		if (URemoteControlPreset* RCPreset = InTrackerComponent.GetCurrentPreset())
+		{
+			AssetEditorSubsystem->OpenEditorForAsset(RCPreset, EToolkitMode::WorldCentric);
+		}
+	}
+}
 
 FAvaOutlinerRCTrackerComponent::FAvaOutlinerRCTrackerComponent(IAvaOutliner& InOutliner, URemoteControlTrackerComponent* InComponent)
 	: FAvaOutlinerObject(InOutliner, InComponent)
@@ -45,7 +63,7 @@ void FAvaOutlinerRCTrackerComponent::Select(FAvaOutlinerScopedSelection& InSelec
 	{
 		if (InSelection.IsSelected(TrackerComponent))
 		{
-			OnRemoteControlTrackerSelected().Broadcast(TrackerComponent);
+			UE::AvaRCEditor::Private::OpenRCPreset(*TrackerComponent);
 		}
 	}
 }

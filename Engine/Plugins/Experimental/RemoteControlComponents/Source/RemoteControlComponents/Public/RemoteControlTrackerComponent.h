@@ -57,9 +57,9 @@ public:
 	/** Get the Actor owning this Tracker Component */
 	AActor* GetTrackedActor() const;
 
-protected:
 	URemoteControlPreset* GetCurrentPreset() const;
-	
+
+protected:
 	//~ Begin UActorComponent Interface
 	virtual void OnComponentCreated() override;
 	virtual void OnComponentDestroyed(bool bInDestroyingHierarchy) override;
@@ -75,6 +75,7 @@ protected:
 #endif
 	//~ End UObject
 
+private:
 	void RegisterTrackedActor() const;
 	void UnregisterTrackedActor() const;
 
@@ -90,7 +91,6 @@ protected:
 
 	int32 GetTrackedPropertyIndex(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const;
 
-private:
 	UPROPERTY()
 	TArray<FRemoteControlTrackerProperty> TrackedProperties;
 };

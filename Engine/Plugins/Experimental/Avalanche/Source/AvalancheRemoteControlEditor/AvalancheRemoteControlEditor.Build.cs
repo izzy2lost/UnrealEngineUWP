@@ -8,27 +8,22 @@ public class AvalancheRemoteControlEditor : ModuleRules
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(
-            new string[]
-            {
-	            "AvalancheEditorCore",
-	            "AvalancheOutliner",
-                "Core",
-            }
-        );
-
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
+                "AvalancheEditorCore",
+                "AvalancheOutliner",
                 "AvalancheRemoteControl",
+                "Core",
                 "CoreUObject",
                 "Engine",
-                "RemoteControlUI",
                 "RemoteControlComponents",
                 "RemoteControlComponentsEditor",
+                "RemoteControlUI",
                 "Slate",
                 "SlateCore",
                 "ToolMenus",
+                "UnrealEd",
             }
         );
 
