@@ -134,11 +134,11 @@ void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyChang
 	}
 }
 
-bool FOverridableManager::ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
+bool FOverridableManager::ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
 {
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		return ThisObjectOverriddenProperties->ClearOverriddenProperty(PropertyEvent, PropertyChain.GetHead());
+		return ThisObjectOverriddenProperties->ClearOverriddenProperty(PropertyEvent, PropertyNode);
 	}
 	return false;
 }
@@ -167,11 +167,11 @@ void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType N
 	}
 }
 
-EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain, bool* bOutInheritedState)
+EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation)
 {
 	if (const FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyEvent, PropertyChain.GetHead(), bOutInheritedState);
+		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyEvent, PropertyNode, bOutInheritedOperation);
 	}
 	return EOverriddenPropertyOperation::None;
 }
