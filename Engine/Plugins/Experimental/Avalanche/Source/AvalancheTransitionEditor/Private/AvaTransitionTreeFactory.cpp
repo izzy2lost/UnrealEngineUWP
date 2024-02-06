@@ -17,7 +17,7 @@ UAvaTransitionTreeFactory::UAvaTransitionTreeFactory()
 uint32 UAvaTransitionTreeFactory::GetMenuCategories() const
 {
 	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
-	return AssetTools.FindAdvancedAssetCategory("AvalancheCategory");
+	return AssetTools.FindAdvancedAssetCategory(TEXT("MotionDesignCategory"));
 }
 
 UObject* UAvaTransitionTreeFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags InFlags, UObject* InContext, FFeedbackContext* InWarn)
