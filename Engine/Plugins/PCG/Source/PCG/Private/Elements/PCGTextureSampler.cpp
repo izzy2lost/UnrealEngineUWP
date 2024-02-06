@@ -172,6 +172,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	const bool bUseAbsoluteTransform = Settings->bUseAbsoluteTransform;
 	const EPCGTextureDensityFunction DensityFunction = Settings->DensityFunction;
 	const EPCGTextureColorChannel ColorChannel = Settings->ColorChannel;
+	const EPCGTextureFilter Filter = Settings->Filter;
 	const float TexelSize = Settings->TexelSize;
 	const bool bUseAdvancedTiling = Settings->bUseAdvancedTiling;
 	const FVector2D& Tiling = Settings->Tiling;
@@ -221,6 +222,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 
 	TextureData->DensityFunction = DensityFunction;
 	TextureData->ColorChannel = ColorChannel;
+	TextureData->Filter = Filter;
 	TextureData->TexelSize = TexelSize;
 	TextureData->bUseAdvancedTiling = bUseAdvancedTiling;
 	TextureData->Tiling = Tiling;

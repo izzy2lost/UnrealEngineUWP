@@ -45,23 +45,45 @@ namespace PCGTextureSamplingHelpers
 	ValueType SampleInternal(FVector2D PositionLocalSpace,
 		int32 Width,
 		int32 Height,
+		EPCGTextureFilter Filter,
 		TFunctionRef<ValueType(int32 Index)> SamplingFunction)
 	{
-		// Accounts for texel values being at texel centers
-		const double TexelX = (PositionLocalSpace.X * Width - 0.5);
-		const double TexelY = (PositionLocalSpace.Y * Height - 0.5);
+		const double TexelX = PositionLocalSpace.X * Width;
+		const double TexelY = PositionLocalSpace.Y * Height;
 
-		const int32 X0 = FMath::Clamp(FMath::FloorToInt(TexelX), 0, Width - 1);
-		const int32 X1 = FMath::Min(X0 + 1, Width - 1);
-		const int32 Y0 = FMath::Clamp(FMath::FloorToInt(TexelY), 0, Height - 1);
-		const int32 Y1 = FMath::Min(Y0 + 1, Height - 1);
+		ValueType Result{};
 
-		const ValueType SampleX0Y0 = SamplingFunction(X0 + Y0 * Width);
-		const ValueType SampleX1Y0 = SamplingFunction(X1 + Y0 * Width);
-		const ValueType SampleX0Y1 = SamplingFunction(X0 + Y1 * Width);
-		const ValueType SampleX1Y1 = SamplingFunction(X1 + Y1 * Width);
+		if (Filter == EPCGTextureFilter::Point)
+		{
+			const int32 X = FMath::Clamp(FMath::FloorToInt(TexelX), 0, Width - 1);
+			const int32 Y = FMath::Clamp(FMath::FloorToInt(TexelY), 0, Height - 1);
 
-		return FMath::BiLerp(SampleX0Y0, SampleX1Y0, SampleX0Y1, SampleX1Y1, TexelX - X0, TexelY - Y0);
+			Result = SamplingFunction(X + Y * Width);
+		}
+		else if (Filter == EPCGTextureFilter::Bilinear)
+		{
+			// Accounts for texel values being at texel centers
+			const double TexelXOffset = TexelX - 0.5;
+			const double TexelYOffset = TexelY - 0.5;
+
+			const int32 X0 = FMath::Clamp(FMath::FloorToInt(TexelXOffset), 0, Width - 1);
+			const int32 X1 = FMath::Min(X0 + 1, Width - 1);
+			const int32 Y0 = FMath::Clamp(FMath::FloorToInt(TexelYOffset), 0, Height - 1);
+			const int32 Y1 = FMath::Min(Y0 + 1, Height - 1);
+
+			const ValueType SampleX0Y0 = SamplingFunction(X0 + Y0 * Width);
+			const ValueType SampleX1Y0 = SamplingFunction(X1 + Y0 * Width);
+			const ValueType SampleX0Y1 = SamplingFunction(X0 + Y1 * Width);
+			const ValueType SampleX1Y1 = SamplingFunction(X1 + Y1 * Width);
+
+			Result = FMath::BiLerp(SampleX0Y0, SampleX1Y0, SampleX0Y1, SampleX1Y1, TexelXOffset - X0, TexelYOffset - Y0);
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Unrecognized PCG texture filtering mode."));
+		}
+
+		return Result;
 	}
 
 	template<typename ValueType>
@@ -117,7 +139,7 @@ namespace PCGTextureSamplingHelpers
 			Pos = FVector2D(X, Y);
 		}
 
-		SampledValue = SampleInternal(Pos, Width, Height, SamplingFunction);
+		SampledValue = SampleInternal(Pos, Width, Height, InTextureData->Filter, SamplingFunction);
 		return true;
 	}
 
@@ -272,7 +294,7 @@ bool UPCGBaseTextureData::SamplePointLocal(const FVector2D& LocalPosition, FVect
 	Pos.X = FMath::Frac(LocalPosition.X);
 	Pos.Y = FMath::Frac(LocalPosition.Y);
 
-	const FLinearColor OutSample = PCGTextureSamplingHelpers::SampleInternal<FLinearColor>(Pos, Width, Height, [this](int32 Index) { return ColorData[Index]; });
+	const FLinearColor OutSample = PCGTextureSamplingHelpers::SampleInternal<FLinearColor>(Pos, Width, Height, Filter, [this](int32 Index) { return ColorData[Index]; });
 
 	OutColor = OutSample;
 	OutDensity = (DensityFunction == EPCGTextureDensityFunction::Ignore) ? 1.0f : PCGTextureSamplingHelpers::SampleFloatChannel(OutSample, ColorChannel);
