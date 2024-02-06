@@ -1060,19 +1060,6 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 		{
 			RemovedActions.Remove(Mapping.Action);
 
-			// Was this key pressed last frame? If so, then we need to mark it to be ignored by PlayerInput
-			// until it is released to avoid re-processing a triggered event.
-			// This also prevents actions from triggering if the key is being held whilst the IMC is added and bIgnoreAllPressedKeysUntilReleaseOnRebuild
-			// has been set by the user.
-			if (bIgnoreAllPressedKeysUntilReleaseOnRebuild && Mapping.Action->ValueType == EInputActionValueType::Boolean)
-			{				
-				const FKeyState* KeyState = PlayerInput->GetKeyState(Mapping.Key);
-				if(KeyState && KeyState->bDown)
-				{
-					Mapping.bShouldBeIgnored = true;
-				}
-			}
-
 			// Retain old mapping trigger/modifier state for identical key -> action mappings.
 			TArray<FEnhancedActionKeyMapping>::SizeType Idx = OldMappings.IndexOfByPredicate(
 				[&Mapping](const FEnhancedActionKeyMapping& Other)
@@ -1084,10 +1071,24 @@ void IEnhancedInputSubsystemInterface::RebuildControlMappings()
 					// replace new mappings for old ones with different Trigger and Modifier settings.
 					return Mapping.Equals(Other);
 				});
+
 			if (Idx != INDEX_NONE)
 			{
 				Mapping = MoveTemp(OldMappings[Idx]);
 				OldMappings.RemoveAtSwap(Idx);
+			}
+
+			// Was this key pressed last frame? If so, then we need to mark it to be ignored by PlayerInput
+			// until it is released to avoid re-processing a triggered event.
+			// This also prevents actions from triggering if the key is being held whilst the IMC is added and bIgnoreAllPressedKeysUntilReleaseOnRebuild
+			// has been set by the user.
+			if (bIgnoreAllPressedKeysUntilReleaseOnRebuild && Mapping.Action->ValueType == EInputActionValueType::Boolean)
+			{				
+				const FKeyState* KeyState = PlayerInput->GetKeyState(Mapping.Key);
+				if(KeyState && KeyState->bDown)
+				{
+					Mapping.bShouldBeIgnored = true;
+				}
 			}
 		}
 		for (const UInputAction* Action : RemovedActions)
