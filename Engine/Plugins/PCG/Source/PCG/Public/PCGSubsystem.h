@@ -97,11 +97,11 @@ public:
 
 	UPCGLandscapeCache* GetLandscapeCache();
 
-	// Schedule graph (owner -> graph)
-	FPCGTaskId ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiGenGrid Grid, bool bSave, const TArray<FPCGTaskId>& InDependencies);
+	/** Schedule graph(owner->graph) */
+	FPCGTaskId ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiGenGrid Grid, bool bForce, const TArray<FPCGTaskId>& InDependencies);
 
-	/** Schedule cleanup(owner->graph). Note that in non-partitioned mode, cleanup is immediate. */
-	FPCGTaskId ScheduleCleanup(UPCGComponent* PCGComponent, bool bRemoveComponents, bool bSave, const TArray<FPCGTaskId>& Dependencies);
+	/** Schedule cleanup(owner->graph). */
+	FPCGTaskId ScheduleCleanup(UPCGComponent* PCGComponent, bool bRemoveComponents, const TArray<FPCGTaskId>& Dependencies);
 
 	// Schedule graph (used internally for dynamic subgraph execution)
 	FPCGTaskId ScheduleGraph(
@@ -109,7 +109,7 @@ public:
 		UPCGComponent* SourceComponent,
 		FPCGElementPtr PreGraphElement,
 		FPCGElementPtr InputElement,
-		const TArray<FPCGTaskId>& Dependencies, 
+		const TArray<FPCGTaskId>& Dependencies,
 		const FPCGStack* InFromStack,
 		bool bAllowHierarchicalGeneration);
 
@@ -202,8 +202,23 @@ public:
 	/** Traverses the hierarchy associated with the given component and calls InFunc for each overlapping component. */
 	void ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComponent, const TFunctionRef<void(UPCGComponent*)>& InFunc) const;
 
+	/**
+	 * Call InFunc to all partition grid cells matching 'InGridSizes' and overlapping with 'InBounds'. 'InFunc' can schedule work or execute immediately.
+	 * 'InGridSizes' should be sorted in descending order. If 'bCanCreateActor' is true, it will create the partition actor at that cell if necessary.
+	 */
+	FPCGTaskId ForAllOverlappingCells(const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes, bool bCanCreateActor, const TArray<FPCGTaskId>& Dependencies, TFunctionRef<FPCGTaskId(APCGPartitionActor*, const FBox&)> InFunc) const;
+
+	/** Immediately cleanup the local components associated with an original component. */
+	void CleanupLocalComponentsImmediate(UPCGComponent* InOriginalComponent, bool bRemoveComponents);
+
 	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component found. */
-	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient = false);
+	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient = false) const;
+
+	/** Retrieves a registered partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
+	APCGPartitionActor* GetRegisteredPCGPartitionActor(uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated = false) const;
+
+	/** Creates a new partition actor if one does not already exist with the same grid size, coords, and generation mode. */
+	APCGPartitionActor* FindOrCreatePCGPartitionActor(const FGuid& Guid, uint32 GridSize, const FIntVector& GridCoords, bool bRuntimeGenerated, bool bCanCreateActor = true) const;
 
 	/** True if graph cache debugging is enabled. */
 	bool IsGraphCacheDebuggingEnabled() const;
@@ -215,15 +230,11 @@ public:
 	/** Schedule refresh on the current or next frame */
 	FPCGTaskId ScheduleRefresh(UPCGComponent* SourceComponent, bool bForceRefresh, bool bForceCleanup);
 
-	/** Schedules an operation to cleanup the graph in the given bounds */
-	FPCGTaskId CleanupGraph(UPCGComponent* Component, const FBox& InBounds, bool bRemoveComponents, bool bSave);
-
 	/** Immediately dirties the partition actors in the given bounds */
 	void DirtyGraph(UPCGComponent* Component, const FBox& InBounds, EPCGComponentDirtyFlag DirtyFlag);
 
-	/** Partition actors methods */
-	void CleanupPartitionActors(const FBox& InBounds);
-	void DeletePartitionActors(bool bOnlyDeleteUnused, bool bOnlyChildren = false);
+	/** Delete serialized partition actors in the level. If 'bOnlyDeleteUnused' is true, only PAs with no graph instances will be deleted. */
+	void DeleteSerializedPartitionActors(bool bOnlyDeleteUnused, bool bOnlyChildren = false);
 
 	/** Propagate to the graph compiler graph changes */
 	void NotifyGraphChanged(UPCGGraph* InGraph);

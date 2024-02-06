@@ -23,6 +23,18 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGWorldActor)
 
+bool FPCGPartitionActorRecord::operator==(const FPCGPartitionActorRecord& InOther) const
+{
+	return GridGuid == InOther.GridGuid && GridSize == InOther.GridSize && GridCoords == InOther.GridCoords;
+}
+
+uint32 GetTypeHash(const FPCGPartitionActorRecord& In)
+{
+	uint32 HashResult = HashCombine(GetTypeHash(In.GridGuid), GetTypeHash(In.GridSize));
+	HashResult = HashCombine(HashResult, GetTypeHash(In.GridCoords));
+	return HashResult;
+}
+
 APCGWorldActor::APCGWorldActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -212,6 +224,14 @@ void APCGWorldActor::MergeFrom(APCGWorldActor* OtherWorldActor)
 	// TODO: Is this really important to check? It seems it can fail, cf FORT-664546. We might want to do something special about it.
 	// ensure(PartitionGridSize == OtherWorldActor->PartitionGridSize && bUse2DGrid == OtherWorldActor->bUse2DGrid && GridGuids.OrderIndependentCompareEqual(OtherWorldActor->GridGuids));
 	LandscapeCacheObject->TakeOwnership(OtherWorldActor->LandscapeCacheObject);
+
+	// TODO: We could support this better by somehow auto-collapsing new PAs in the same cell into one PA?
+	if (SerializedPartitionActorRecords.Num() > 0 && OtherWorldActor->SerializedPartitionActorRecords.Num() > 0)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Merged two world actors that both manage serialized PCG partition actors, which is not supported. If you have multiple PCG"
+			" partition actors in the same cell, you should delete all serialized partition actors via \"Tools > PCG Framework > Delete all PCG partition actors\""
+			" and regenerate the partitioned components."));
+	}
 }
 
 #if WITH_EDITOR
@@ -293,9 +313,9 @@ void APCGWorldActor::OnPartitionGridSizeChanged()
 	}
 
 	// Then delete all PCGPartitionActors
-	PCGSubsystem->DeletePartitionActors(/*bDeleteOnlyUnused=*/false);
+	PCGSubsystem->DeleteSerializedPartitionActors(/*bDeleteOnlyUnused=*/false);
 
-	// And finally, refresh all components that are partitioned (registered to the PCGSubsystem)
+	// And finally, regenerate all components that are partitioned (registered to the PCGSubsystem)
 	// to let them recreate the needed PCG Partition Actors.
 	for (UPCGComponent* PCGComponent : PCGSubsystem->GetAllRegisteredPartitionedComponents())
 	{

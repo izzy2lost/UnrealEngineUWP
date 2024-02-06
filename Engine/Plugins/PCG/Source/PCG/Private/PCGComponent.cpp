@@ -61,8 +61,6 @@
 
 namespace PCGComponent
 {
-	const bool bSaveOnCleanupAndGenerate = false;
-
 	static TAutoConsoleVariable<bool> CVarGlobalDisableRefresh(
 		TEXT("pcg.GlobalDisableRefresh"),
 		false,
@@ -86,9 +84,7 @@ UPCGComponent::UPCGComponent(const FObjectInitializer& InObjectInitializer)
 
 bool UPCGComponent::CanPartition() const
 {
-	// Support/Force partitioning on non-PCG partition actors in WP worlds. GenerateAtRuntime components can be partitioned even if WorldPartition is not enabled.
-	return ((GetOwner() && GetOwner()->GetWorld() && GetOwner()->GetWorld()->GetWorldPartition() != nullptr) || IsManagedByRuntimeGenSystem())
-		&& Cast<APCGPartitionActor>(GetOwner()) == nullptr;
+	return Cast<APCGPartitionActor>(GetOwner()) == nullptr;
 }
 
 bool UPCGComponent::IsPartitioned() const
@@ -290,7 +286,7 @@ void UPCGComponent::Generate()
 	FScopedTransaction Transaction(LOCTEXT("PCGGenerate", "Execute generation on PCG component"));
 #endif
 
-	GenerateLocal(/*bForce=*/PCGComponent::bSaveOnCleanupAndGenerate);
+	GenerateLocal(/*bForce=*/false);
 }
 
 void UPCGComponent::Generate_Implementation(bool bForce)
@@ -327,7 +323,7 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 
 	Modify(!IsInPreviewMode());
 
-	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, /*bSave=*/bForce, Dependencies);
+	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, bForce, Dependencies);
 
 #if WITH_EDITOR
 	if (CurrentGenerationTask != InvalidPCGTaskId)
@@ -584,20 +580,20 @@ void UPCGComponent::Cleanup()
 	FScopedTransaction Transaction(LOCTEXT("PCGCleanup", "Clean up PCG component"));
 #endif
 
-	CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/PCGComponent::bSaveOnCleanupAndGenerate);
+	CleanupLocal(/*bRemoveComponents=*/true);
 }
 
 void UPCGComponent::Cleanup_Implementation(bool bRemoveComponents, bool bSave)
 {
-	CleanupLocal(bRemoveComponents, bSave);
+	CleanupLocal(bRemoveComponents);
 }
 
 void UPCGComponent::CleanupLocal(bool bRemoveComponents, bool bSave)
 {
-	CleanupInternal(bRemoveComponents, bSave, {});
+	CleanupInternal(bRemoveComponents, {});
 }
 
-FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, bool bSave, const TArray<FPCGTaskId>& Dependencies)
+FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, const TArray<FPCGTaskId>& Dependencies)
 {
 	if ((!bGenerated && !IsGenerating()) || !GetSubsystem() || IsCleaningUp())
 	{
@@ -613,7 +609,7 @@ FPCGTaskId UPCGComponent::CleanupInternal(bool bRemoveComponents, bool bSave, co
 	ExtraCapture.ResetCapturedMessages();
 #endif
 
-	CurrentCleanupTask = GetSubsystem()->ScheduleCleanup(this, bRemoveComponents, bSave, Dependencies);
+	CurrentCleanupTask = GetSubsystem()->ScheduleCleanup(this, bRemoveComponents, Dependencies);
 	return CurrentCleanupTask;
 }
 
@@ -848,58 +844,75 @@ bool UPCGComponent::MoveResourcesToNewActor(AActor* InNewActor, bool bCreateChil
 	return bHasMovedResources;
 }
 
-void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents)
+void UPCGComponent::CleanupLocalImmediate(bool bRemoveComponents, bool bCleanupLocalComponents)
 {
 	PCGGeneratedResourcesLogging::LogCleanupLocalImmediate(bRemoveComponents, GeneratedResources);
 
-	// Cancels generation of this component if there is an ongoing generation in progress.
-	CancelGeneration();
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	check(Subsystem);
 
-	TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
+	bool bHasUnbounded = false;
+	PCGHiGenGrid::FSizeArray GridSizes;
+	ensure(PCGHelpers::GetGenerationGridSizes(GetGraph(), Subsystem->GetPCGWorldActor(), GridSizes, bHasUnbounded));
 
-	if (!bRemoveComponents && UPCGManagedResource::DebugForcePurgeAllResourcesOnGenerate())
+	// Cleanup original component if non-partitioned, or if it has nodes that will execute at the Unbounded level.
+	if (!IsPartitioned() || bHasUnbounded)
 	{
-		bRemoveComponents = true;
-	}
+		// Cancels generation of this component if there is an ongoing generation in progress.
+		CancelGeneration();
 
-	{
-		FScopeLock ResourcesLock(&GeneratedResourcesLock);
-		check(!GeneratedResourcesInaccessible);
-		for (int32 ResourceIndex = GeneratedResources.Num() - 1; ResourceIndex >= 0; --ResourceIndex)
+		TSet<TSoftObjectPtr<AActor>> ActorsToDelete;
+
+		if (!bRemoveComponents && UPCGManagedResource::DebugForcePurgeAllResourcesOnGenerate())
 		{
-			// Note: resources can be null here in some loading + bp object cases
-			UPCGManagedResource* Resource = GeneratedResources[ResourceIndex];
+			bRemoveComponents = true;
+		}
 
-			PCGGeneratedResourcesLogging::LogCleanupLocalImmediateResource(Resource);
-
-			if (!Resource || Resource->Release(bRemoveComponents, ActorsToDelete))
+		{
+			FScopeLock ResourcesLock(&GeneratedResourcesLock);
+			check(!GeneratedResourcesInaccessible);
+			for (int32 ResourceIndex = GeneratedResources.Num() - 1; ResourceIndex >= 0; --ResourceIndex)
 			{
-				if (Resource)
-				{
-#if WITH_EDITOR
-					if (Resource->IsMarkedTransientOnLoad())
-					{
-						LoadedPreviewResources.Add(Resource);
-					}
-					else
-					{
-						Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
-					}
-#endif
-				}
+				// Note: resources can be null here in some loading + bp object cases
+				UPCGManagedResource* Resource = GeneratedResources[ResourceIndex];
 
-				GeneratedResources.RemoveAtSwap(ResourceIndex);
+				PCGGeneratedResourcesLogging::LogCleanupLocalImmediateResource(Resource);
+
+				if (!Resource || Resource->Release(bRemoveComponents, ActorsToDelete))
+				{
+					if (Resource)
+					{
+#if WITH_EDITOR
+						if (Resource->IsMarkedTransientOnLoad())
+						{
+							LoadedPreviewResources.Add(Resource);
+						}
+						else
+						{
+							Resource->Rename(nullptr, nullptr, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+						}
+#endif
+					}
+
+					GeneratedResources.RemoveAtSwap(ResourceIndex);
+				}
 			}
 		}
-	}
 
-	UPCGActorHelpers::DeleteActors(GetWorld(), ActorsToDelete.Array());
+		UPCGActorHelpers::DeleteActors(GetWorld(), ActorsToDelete.Array());
+	}
 
 	// If bRemoveComponents is true, it means we are in a "real" cleanup, not a pre-cleanup before a generate.
 	// So call PostCleanup in this case.
 	if (bRemoveComponents)
 	{
 		PostCleanupGraph();
+	}
+
+	// If the component is partitioned, we will forward the calls to its local components.
+	if (bCleanupLocalComponents && IsPartitioned())
+	{
+		Subsystem->CleanupLocalComponentsImmediate(this, bRemoveComponents);
 	}
 
 	PCGGeneratedResourcesLogging::LogCleanupLocalImmediateFinished(GeneratedResources);
@@ -1324,11 +1337,6 @@ void UPCGComponent::PostLoad()
 		// Make sure we update the transient state if we have been forced into Preview mode by runtime generation.
 		if (CurrentEditingMode != SerializedEditingMode)
 		{
-			if (bGenerated)
-			{
-				CleanupLocalImmediate(/*bRemoveComponents=*/true);
-			}
-
 			PreviousEditingMode = SerializedEditingMode;
 			ChangeTransientState(CurrentEditingMode);
 		}
@@ -1495,7 +1503,7 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGCh
 		else
 		{
 			// With no graph, we clean up
-			CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/ false);
+			CleanupLocal(/*bRemoveComponents=*/true);
 		}
 
 		ClearInspectionData();
@@ -1520,7 +1528,7 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGCh
 		}
 		else if (!bHasGraph)
 		{
-			CleanupLocal(/*bRemoveComponents=*/true, /*bSave=*/ false);
+			CleanupLocal(/*bRemoveComponents=*/true);
 		}
 	}
 }
@@ -1656,8 +1664,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 		if (IsManagedByRuntimeGenSystem())
 		{
 			// If we have been set to GenerateAtRuntime, we should cleanup any artifacts.
-			// TODO: Should this include PartitionActors?
-			CleanupLocalImmediate(/*bRemoveComponents=*/true);
+			CleanupLocalImmediate(/*bRemoveComponents=*/true, /*bCleanupLocalComponents=*/true);
 
 			PreviousEditingMode = CurrentEditingMode;
 

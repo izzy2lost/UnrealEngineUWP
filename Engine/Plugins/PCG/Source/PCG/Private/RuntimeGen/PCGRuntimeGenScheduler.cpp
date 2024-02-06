@@ -61,6 +61,7 @@ FPCGRuntimeGenScheduler::FPCGRuntimeGenScheduler(UWorld* InWorld, FPCGActorAndCo
 	check(InWorld && InActorAndComponentMapping);
 
 	World = InWorld;
+	Subsystem = UPCGSubsystem::GetInstance(World);
 	ActorAndComponentMapping = InActorAndComponentMapping;
 	GenSourceManager = new FPCGGenSourceManager(InWorld);
 	bPoolingWasEnabledLastFrame = PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread();
@@ -327,7 +328,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 						FVector MaxBounds = ModifiedBounds.Max;
 
 						MinBounds.Z = 0;
-						MaxBounds.Z = FMath::Max<double>(0.0, GridSize - 1.0); // -1 to be just below the GridSize.
+						MaxBounds.Z = GridSize;
 						ModifiedBounds = FBox(MinBounds, MaxBounds);
 
 						// In case of 2D grid, it's like the actor has infinite bounds on the Z axis.
@@ -552,7 +553,7 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::TickScheduleGeneration);
 
-	check(ActorAndComponentMapping);
+	check(Subsystem && ActorAndComponentMapping);
 
 	for (const TPair<FGridGenerationKey, double>& GenerateEntry : ComponentsToGenerate)
 	{
@@ -592,29 +593,29 @@ void FPCGRuntimeGenScheduler::TickScheduleGeneration(TMap<FGridGenerationKey, do
 				// Local component & PA do not exist, create them.
 				if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnablePooling.GetValueOnAnyThread())
 				{
+					// Get RuntimeGenPA from pool.
+					PartitionActor = GetPartitionActorFromPool(GridSize, GridCoords);
+
 					if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
 					{
 						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] UNPOOL PARTITION ACTOR: '%s' (priority %lf, %d remaining out of %d)"),
-							*APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords),
+							*APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, /*bRuntimeGenerated=*/true),
 							Priority,
 							PartitionActorPool.Num(),
 							PartitionActorPoolSize);
 					}
-
-					// Get RuntimeGenPA from pool.
-					PartitionActor = GetPartitionActorFromPool(GridSize, GridCoords);
 				}
 				else
 				{
 					if (PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationEnableDebugging.GetValueOnAnyThread())
 					{
 						UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] CREATE PARTITION ACTOR: '%s' (priority %lf)"),
-							*APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords),
+							*APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, /*bRuntimeGenerated=*/true),
 							Priority);
 					}
 
 					// Find or Create RuntimeGenPA.
-					PartitionActor = FindOrCreatePartitionActor(GridSize, GridCoords);
+					PartitionActor = Subsystem->FindOrCreatePCGPartitionActor(FGuid(), GridSize, GridCoords, /*bRuntimeGenerated=*/true);
 				}
 
 				if (!ensure(PartitionActor))
@@ -1060,57 +1061,15 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 	}
 }
 
-APCGPartitionActor* FPCGRuntimeGenScheduler::FindOrCreatePartitionActor(uint32 GridSize, const FIntVector& GridCoords)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::FindOrCreatePartitionActor);
-
-	check(ActorAndComponentMapping);
-
-	if (!World)
-	{
-		UE_LOG(LogPCG, Error, TEXT("[FindOrCreatePartitionActor] World is null"));
-		return nullptr;
-	}
-
-	// Attempt to find an existing RuntimeGen PA.
-	if (APCGPartitionActor* ExistingActor = ActorAndComponentMapping->GetPartitionActor(GridSize, GridCoords, /*bRuntimeGenerated=*/true))
-	{
-		return ExistingActor;
-	}
-
-	FActorSpawnParameters SpawnParams;
-#if WITH_EDITOR
-	SpawnParams.Name = *APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords);
-	SpawnParams.NameMode = FActorSpawnParameters::ESpawnActorNameMode::Requested;
-#endif
-	SpawnParams.ObjectFlags |= RF_Transient;
-	SpawnParams.ObjectFlags &= ~RF_Transactional;
-
-	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridSize);
-	APCGPartitionActor* NewActor = CastChecked<APCGPartitionActor>(World->SpawnActor(APCGPartitionActor::StaticClass(), &CellCenter, nullptr, SpawnParams));
-	NewActor->SetToRuntimeGenerated();
-	NewActor->SetPCGGridSize(GridSize);
-
-#if WITH_EDITOR
-	NewActor->SetLockLocation(true);
-	NewActor->SetActorLabel(SpawnParams.Name.ToString());
-#endif
-
-	// Empty GUID, RuntimeGen PAs don't need one.
-	NewActor->PostCreation(FGuid());
-
-	return NewActor;
-}
-
 APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 GridSize, const FIntVector& GridCoords)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::FindOrCreatePartitionActor);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::GetPartitionActorFromPool);
 
 	check(ActorAndComponentMapping);
 
 	if (!World)
 	{
-		UE_LOG(LogPCG, Error, TEXT("[FindOrCreatePartitionActor] World is null"));
+		UE_LOG(LogPCG, Error, TEXT("[GetPartitionActorFromPool] World is null."));
 		return nullptr;
 	}
 
@@ -1137,10 +1096,9 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 
 	check(!PartitionActorPool.IsEmpty());
 	APCGPartitionActor* PartitionActor = PartitionActorPool.Pop();
-	PartitionActor->SetPCGGridSize(GridSize);
 
 #if WITH_EDITOR
-	const FName ActorName = *APCGPartitionActor::GetRuntimeGenActorName(GridSize, GridCoords);
+	const FName ActorName = *APCGPartitionActor::GetPCGPartitionActorName(GridSize, GridCoords, /*bRuntimeGenerated=*/true);
 
 	PartitionActor->Rename(*ActorName.ToString(), PartitionActor->GetOuter(), REN_NonTransactional | REN_DoNotDirty | REN_ForceNoResetLoaders);
 	PartitionActor->SetActorLabel(ActorName.ToString());
@@ -1149,7 +1107,7 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 	const FVector CellCenter(FVector(GridCoords.X + 0.5, GridCoords.Y + 0.5, GridCoords.Z + 0.5) * GridSize);
 	if (!PartitionActor->Teleport(CellCenter))
 	{
-		UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Could not set the location of RuntimeGen partition actor '%s'"), *PartitionActor->GetActorNameOrLabel());
+		UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Could not set the location of RuntimeGen partition actor '%s'."), *PartitionActor->GetActorNameOrLabel());
 	}
 
 #if WITH_EDITOR
@@ -1157,7 +1115,7 @@ APCGPartitionActor* FPCGRuntimeGenScheduler::GetPartitionActorFromPool(uint32 Gr
 #endif
 
 	// Empty GUID, RuntimeGen PAs don't need one.
-	PartitionActor->PostCreation(FGuid());
+	PartitionActor->PostCreation(FGuid(), GridSize);
 
 	return PartitionActor;
 }

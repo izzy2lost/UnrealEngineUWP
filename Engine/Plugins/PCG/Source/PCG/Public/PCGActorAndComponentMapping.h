@@ -87,7 +87,7 @@ public:
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const;
 
 	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component is found. */
-	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated = false);
+	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bRuntimeGenerated = false) const;
 
 	/** Retrieves a partition actor using grid size and grid coordinates, returns nullptr if no such partition actor is found. */
 	APCGPartitionActor* GetPartitionActor(uint32 GridSize, const FIntVector& CellCoords, bool bRuntimeGenerated = false) const;
