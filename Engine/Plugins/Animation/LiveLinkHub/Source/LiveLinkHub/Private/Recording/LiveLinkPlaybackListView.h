@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if 0 // This file is broken.. delete?
+
 #include "Widgets/SCompoundWidget.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.RecordingListView"
@@ -106,3 +108,5 @@ public:
 };
 
 #undef LOCTEXT_NAMESPACE /*LiveLinkHub.RecordingListView*/
+
+#endif

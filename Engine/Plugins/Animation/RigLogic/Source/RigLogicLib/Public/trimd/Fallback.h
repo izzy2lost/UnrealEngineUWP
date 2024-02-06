@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <string_view> // std::swap
+
 namespace trimd {
 
 namespace fallback {

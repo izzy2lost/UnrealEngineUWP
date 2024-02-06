@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 namespace UE::MultiUserClient
 {
 	/** Various reasons in which an object can be when considering changing its authority */

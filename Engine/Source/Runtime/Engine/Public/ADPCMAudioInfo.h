@@ -3,6 +3,9 @@
 /**
  * DEPRECATED 5.4 ADPCMAudioInfo.h. please use the module path of Decoders/ADPCMAudioInfo.h instead.
  */
+
+// HEADER_UNIT_SKIP - Deprecated
+
 #pragma once
 
 #ifdef _MSC_VER

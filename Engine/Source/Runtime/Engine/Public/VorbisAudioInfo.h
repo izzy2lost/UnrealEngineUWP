@@ -3,6 +3,9 @@
 /**
  * DEPRECATED 5.4 VorbisAudioInfo.h. please use the module path of Decoders/VorbisAudioInfo.h instead.
  */
+
+// HEADER_UNIT_SKIP - Deprecated
+
 #pragma once
 
 #ifdef _MSC_VER

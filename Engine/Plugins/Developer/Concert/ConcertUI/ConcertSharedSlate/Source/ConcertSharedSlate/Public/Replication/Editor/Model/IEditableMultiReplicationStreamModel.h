@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "IMultiReplicationStreamModel.h"
-
 #include "Delegates/Delegate.h"
 #include "Misc/EBreakBehavior.h"
+#include "IEditableReplicationStreamModel.h"
+#include "IMultiReplicationStreamModel.h"
+#include "IReplicationStreamModel.h"
 #include "Templates/SharedPointer.h"
 
 namespace UE::ConcertSharedSlate

@@ -5,6 +5,7 @@
 #include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
 #include "Misc/ScopeLock.h"
+#include "Templates/SharedPointer.h"
 
 namespace UE::PixelStreaming
 {

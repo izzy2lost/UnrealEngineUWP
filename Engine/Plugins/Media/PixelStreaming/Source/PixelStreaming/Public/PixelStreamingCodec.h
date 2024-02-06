@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 enum class EPixelStreamingCodec
 {
 	Invalid,

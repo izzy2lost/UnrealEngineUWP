@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Async/Async.h"
 #include "Clients/LiveLinkHubProvider.h"
 #include "Clients/LiveLinkHubUEClientInfo.h"
 #include "Features/IModularFeatures.h"

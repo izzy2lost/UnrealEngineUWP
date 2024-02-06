@@ -4,6 +4,7 @@
 
 #include "Algo/AnyOf.h"
 #include "Replication/IConcertClientReplicationBridge.h"
+#include "UObject/SoftObjectPath.h"
 
 namespace UE::ConcertSyncTests::Replication
 {

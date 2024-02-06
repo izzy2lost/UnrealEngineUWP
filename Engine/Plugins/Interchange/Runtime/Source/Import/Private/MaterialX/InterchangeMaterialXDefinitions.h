@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved. 
 #pragma once
 
-// Interchange currently only brings in MaterialX when in the editor, so we
-// define its namespace macros ourselves otherwise.
-#if WITH_EDITOR
-
 #include "Math/Color.h"
 #include "Math/MathFwd.h"
 #include "Math/Vector.h"
+
+// Interchange currently only brings in MaterialX when in the editor, so we
+// define its namespace macros ourselves otherwise.
+#if WITH_EDITOR
 
 THIRD_PARTY_INCLUDES_START
 #include "MaterialXCore/Library.h"

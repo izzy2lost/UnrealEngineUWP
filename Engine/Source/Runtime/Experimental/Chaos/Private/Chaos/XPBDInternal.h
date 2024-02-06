@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "HAL/Platform.h"
+
 namespace Chaos::Softs
 {
 // Used for controlling damping model for xpbd springs (CVar-based testing only)

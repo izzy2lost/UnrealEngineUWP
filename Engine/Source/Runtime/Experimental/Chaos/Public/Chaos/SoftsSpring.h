@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
+
 #include "Chaos/SoftsEvolutionLinearSystem.h"
+#include "Chaos/SoftsSolverParticlesRange.h"
 
 namespace Chaos::Softs
 {

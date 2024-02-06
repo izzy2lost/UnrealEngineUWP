@@ -4,6 +4,7 @@
 
 #include "HAL/Platform.h"
 #include "ColorManagementDefines.h"
+#include "Misc/AssertionMacros.h"
 
 namespace ElectraColorimetryUtils
 {

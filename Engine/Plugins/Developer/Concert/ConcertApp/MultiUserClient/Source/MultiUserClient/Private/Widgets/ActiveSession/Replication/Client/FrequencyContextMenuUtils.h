@@ -3,10 +3,10 @@
 #pragma once
 
 #include "Containers/ArrayView.h"
+#include "UObject/SoftObjectPath.h"
 
 class FMenuBuilder;
 struct FGuid;
-struct FSoftObjectPath;
 
 namespace UE::MultiUserClient
 {

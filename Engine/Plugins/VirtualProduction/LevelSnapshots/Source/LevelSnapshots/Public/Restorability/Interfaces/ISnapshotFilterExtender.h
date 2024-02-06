@@ -5,6 +5,7 @@
 #include "Filtering/PropertySelection.h"
 
 class AActor;
+class ULevelSnapshot;
 class UObject;
 struct FPropertySelectionMap;
 

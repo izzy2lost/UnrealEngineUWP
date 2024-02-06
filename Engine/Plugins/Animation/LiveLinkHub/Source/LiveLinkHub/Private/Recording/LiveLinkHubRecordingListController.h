@@ -8,7 +8,6 @@
 #include "LiveLinkHub.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubPlaybackController.h"
-#include "LiveLinkHubRecordingListController.h"
 #include "SLiveLinkHubRecordingListView.h"
 #include "LiveLinkRecording.h"
 #include "Modules/ModuleManager.h"

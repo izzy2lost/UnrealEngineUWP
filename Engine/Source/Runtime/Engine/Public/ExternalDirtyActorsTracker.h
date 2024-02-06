@@ -3,8 +3,12 @@
 #pragma once
 
 #if WITH_EDITOR
+#include "GameFramework/Actor.h"
 #include "TickableEditorObject.h"
 #include "UObject/Package.h"
+#include "UObject/WeakObjectPtr.h"
+
+class ULevel;
 
 /**
  * TExternalDirtyActorsTracker is a tracker for dirty external actors, with custom storage through the StoreType interface.

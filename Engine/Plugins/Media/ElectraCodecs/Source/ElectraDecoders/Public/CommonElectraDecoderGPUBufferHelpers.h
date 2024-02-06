@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 // Provide fallback defaults for various defines
 #ifndef ELECTRA_MEDIAGPUBUFFER_DX12
 #define	ELECTRA_MEDIAGPUBUFFER_DX12 0

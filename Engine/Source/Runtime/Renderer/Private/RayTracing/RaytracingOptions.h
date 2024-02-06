@@ -17,6 +17,7 @@ class FScene;
 class FSceneView;
 class FSceneViewFamily;
 class FLightSceneProxy;
+enum EShaderPlatform : uint16;
 struct FEngineShowFlags;
 
 // be sure to also update the definition in the `RayTracingPrimaryRays.usf`

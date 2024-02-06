@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/VVMProcedure.h"
@@ -80,3 +82,5 @@ private:
 };
 
 } // namespace Verse
+
+#endif

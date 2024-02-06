@@ -8,6 +8,8 @@
 #include "LumenRadianceCacheInterpolation.h"
 #include "LumenFrontLayerTranslucency.h"
 
+DECLARE_UNIFORM_BUFFER_STRUCT(FSceneTextureUniformParameters, ENGINE_API);
+
 class FSceneTextureParameters;
 struct FLumenSceneFrameTemporaries;
 class FLumenCardTracingParameters;

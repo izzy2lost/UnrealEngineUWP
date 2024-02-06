@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SHeaderRow.h"
 

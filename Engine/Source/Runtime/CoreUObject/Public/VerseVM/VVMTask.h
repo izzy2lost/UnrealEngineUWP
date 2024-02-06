@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/VVMReturnSlot.h"
@@ -76,3 +78,5 @@ private:
 	}
 };
 } // namespace Verse
+
+#endif

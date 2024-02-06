@@ -17,6 +17,7 @@
 #include "SPositiveActionButton.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateTypes.h"
+#include "Textures/SlateIcon.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SScaleBox.h"

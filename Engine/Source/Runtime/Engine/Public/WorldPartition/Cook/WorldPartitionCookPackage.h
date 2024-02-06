@@ -7,6 +7,8 @@
 #include "Misc/Paths.h"
 #include "WorldPartition/WorldPartitionLog.h"
 #include "UObject/Package.h"
+#else
+#include "Containers/StringFwd.h"
 #endif
 
 struct FWorldPartitionCookPackage

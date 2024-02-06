@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuR/MeshPrivate.h"
+#include "MuR/MutableRuntimeModule.h"
 #include "MuR/MutableTrace.h"
 #include "MuR/Platform.h"
 #include "MuR/OpMeshRemove.h"

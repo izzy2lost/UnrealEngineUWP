@@ -5,6 +5,7 @@
 #include "MuR/ExtensionData.h"
 #include "MuT/NodeExtensionDataSwitch.h"
 #include "MuT/NodePrivate.h"
+#include "MuT/NodeScalar.h"
 
 namespace mu
 {

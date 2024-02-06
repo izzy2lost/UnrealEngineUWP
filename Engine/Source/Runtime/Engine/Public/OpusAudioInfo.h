@@ -3,6 +3,9 @@
 /**
  * DEPRECATED 5.4 OpusAudioInfo.h. please use the module path of Decoders/OpusAudioInfo.h instead.
  */
+
+// HEADER_UNIT_SKIP - Deprecated
+
 #pragma once
 
 #ifdef _MSC_VER

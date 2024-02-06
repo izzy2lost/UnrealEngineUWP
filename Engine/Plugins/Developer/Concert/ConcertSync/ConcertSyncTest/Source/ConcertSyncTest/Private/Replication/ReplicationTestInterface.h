@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Templates/SharedPointer.h"
+
 class IConcertClientSession;
 class IConcertServerSession;
 class IConcertClientReplicationBridge;

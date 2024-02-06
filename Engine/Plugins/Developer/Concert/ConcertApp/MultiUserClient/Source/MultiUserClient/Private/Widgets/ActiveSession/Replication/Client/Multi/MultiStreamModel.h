@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "Replication/Editor/Model/IEditableMultiReplicationStreamModel.h"
-
 #include "Containers/Set.h"
+#include "Replication/Editor/Model/IEditableMultiReplicationStreamModel.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 

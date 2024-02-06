@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if 0 // Broken, this does not compile
+
 #include "CoreMinimal.h"
 
 #if PLATFORM_WINDOWS
@@ -14,3 +16,5 @@ NNE_THIRD_PARTY_INCLUDES_START
 #undef TEXT
 #include "onnxruntime_cxx_api.h"
 NNE_THIRD_PARTY_INCLUDES_END
+
+#endif

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "NNE.h"
 #include "NNERuntimeCPU.h"
 #include "NNERuntimeRDG.h"
 #include "RenderGraph.h"

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Async/Async.h"
+#include "IStructureDetailsView.h"
 #include "Widgets/SCompoundWidget.h"
 
 #include "Delegates/DelegateCombinations.h"

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Delegates/DelegateCombinations.h"
+#include "Delegates/Delegate.h"
 #include "Templates/SharedPointer.h"
 
 struct FEditorSysConfigIssue;

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+
 #include "VerseVM/VVMContext.h"
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMWriteBarrier.h"
@@ -79,3 +81,5 @@ private:
 	EReturnKind Kind;
 };
 } // namespace Verse
+
+#endif

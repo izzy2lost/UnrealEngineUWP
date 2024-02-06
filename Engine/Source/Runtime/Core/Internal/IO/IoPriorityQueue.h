@@ -4,6 +4,7 @@
 
 #include "Algo/BinarySearch.h"
 #include "Algo/IsSorted.h"
+#include "Containers/AllowShrinking.h"
 
 template<typename T>
 class TIoPriorityQueue

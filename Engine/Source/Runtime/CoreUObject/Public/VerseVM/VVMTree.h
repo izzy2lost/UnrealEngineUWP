@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+
 #include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
@@ -88,3 +90,5 @@ struct TIntrusiveTree
 	}
 };
 } // namespace Verse
+
+#endif

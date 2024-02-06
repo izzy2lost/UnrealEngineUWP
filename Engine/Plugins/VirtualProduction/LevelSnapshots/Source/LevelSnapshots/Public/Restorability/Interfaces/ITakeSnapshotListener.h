@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include "CoreTypes.h"
+
 class ULevelSnapshot;
+class UObject;
 
 namespace UE::LevelSnapshots
 {

@@ -6,6 +6,7 @@
 #include "LiveLinkHubSubjectSessionConfig.h"
 #include "LiveLinkTypes.h"
 #include "Session/LiveLinkHubSession.h"
+#include "Session/LiveLinkHubSessionManager.h"
 
 
 /** Subject Model used by the view to access the subject settings. */

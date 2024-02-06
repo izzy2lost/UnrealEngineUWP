@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "MovieSceneMarkedFrame.h"
 #include "MovieSceneObjectBindingID.h" // for EMovieSceneObjectBindingSpace
 #include "MovieSceneTrack.h"
 #include "MovieSceneTimeUnit.h"
@@ -15,7 +16,6 @@ enum class EMovieSceneEvaluationType : uint8;
 enum class EUpdateClockSource : uint8;
 struct FFrameRate;
 struct FMovieSceneBindingProxy;
-struct FMovieSceneMarkedFrame;
 struct FSequencerScriptingRange;
 struct FTimecode;
 template <typename T> class TSubclassOf;

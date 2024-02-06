@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/StringConv.h"
 #include "HAL/FileManager.h"
 
 

@@ -2,10 +2,13 @@
 
 #pragma once
 
+#include "IStructureDetailsView.h"
+#include "LiveLinkHub.h"
 #include "LiveLinkHubModule.h"
 #include "LiveLinkTypes.h"
 #include "Modules/ModuleManager.h"
 #include "Session/LiveLinkHubSession.h"
+#include "Session/LiveLinkHubSessionManager.h"
 #include "SLiveLinkHubSubjectView.h"
 
 /** Controller responsible for handling the hub's subjects and creating the subject view. */

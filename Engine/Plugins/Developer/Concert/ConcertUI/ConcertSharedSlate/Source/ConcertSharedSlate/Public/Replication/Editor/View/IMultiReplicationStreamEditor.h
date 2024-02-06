@@ -8,6 +8,7 @@ namespace UE::ConcertSharedSlate
 {
 	class IEditableMultiReplicationStreamModel;
 	class IReplicationStreamEditor;
+	class IReplicationStreamModel;
 	
 	/**
 	 * Widget which edits multiple replication stream.

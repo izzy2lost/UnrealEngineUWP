@@ -6,6 +6,7 @@
 #include "Templates/SharedPointer.h"
 
 struct FGuid;
+struct FConcertStreamFrequencySettings;
 struct FConcertObjectReplicationMap;
 
 namespace UE::MultiUserClient

@@ -2,9 +2,7 @@
 
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Async/ExternalMutex.h"
 #include "Async/UniqueLock.h"
@@ -184,3 +182,5 @@ inline VMapBase& VMapBase::New(FAllocationContext Context, uint32 MaxNumEntries,
 }
 
 } // namespace Verse
+
+#endif

@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
-#error In order to use VerseVM, WITH_VERSE_VM must be set
-#endif
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "UObject/Class.h"
 #include "VerseVM/VVMRestValue.h"
@@ -22,3 +20,5 @@ public:
 
 	Verse::TWriteBarrier<Verse::VShape> Shape;
 };
+
+#endif
