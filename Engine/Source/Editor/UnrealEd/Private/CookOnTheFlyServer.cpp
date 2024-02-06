@@ -1819,8 +1819,12 @@ void UCookOnTheFlyServer::UpdateDisplay(UE::Cook::FTickStackData& StackData, boo
 		{
 			if (!(StackData.TickFlags & ECookTickFlags::HideProgressDisplay) && (GCookProgressDisplay != (int32)ECookProgressDisplayMode::Nothing))
 			{
-				UE_LOG(LogCook, Display, TEXT("Cook Diagnostics: OpenFileHandles=%d, VirtualMemory=%dMiB"),
-					OpenFileHandles, FPlatformMemory::GetStats().UsedVirtual / 1024 / 1024);
+				const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
+				UE_LOG(LogCook, Display, TEXT("Cook Diagnostics: OpenFileHandles=%d, VirtualMemory=%dMiB, VirtualMemoryAvailable=%dMiB"),
+					OpenFileHandles,
+					MemoryStats.UsedVirtual / 1024 / 1024,
+					MemoryStats.AvailableVirtual / 1024 / 1024
+				);
 				if (CookDirector)
 				{
 					CookDirector->UpdateDisplayDiagnostics();
