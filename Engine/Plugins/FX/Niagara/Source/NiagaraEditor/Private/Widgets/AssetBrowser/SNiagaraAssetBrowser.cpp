@@ -173,11 +173,6 @@ FARFilter SNiagaraAssetBrowser::GetCurrentBackendFilter() const
 
 bool SNiagaraAssetBrowser::ShouldFilterAsset(const FAssetData& AssetData) const
 {
-	if(GetDefault<UNiagaraEditorSettings>()->IsAllowedAssetByClassUsage(AssetData) == false)
-	{
-		return true;
-	}
-	
 	// TODO (ME) This currently implies only one main filter/folder can be active at a time. is this wanted?
 	for(const TSharedRef<FNiagaraAssetBrowserMainFilter>& MainFilter : MainFilterSelector->GetSelectedItems())
 	{
