@@ -83,6 +83,7 @@ public:
 	virtual void					ResolveLateBound(const BufferDescriptor& Desc, bool bOverrideExisting = false);
 	virtual void					CopyResolveLateBound(BlobPtr RHS);
 	virtual void					SetTransient();
+	virtual void					FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash) override;
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Min/Max related

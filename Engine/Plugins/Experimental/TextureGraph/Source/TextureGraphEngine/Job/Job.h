@@ -76,7 +76,6 @@ protected:
 	JobPtrW							Generator;			/// The job that generated this job. This is useful in certain situations
 	FString							DebugJobName;		/// The name of the job
 
-
 	//std::vector<std::shared_ptr<cti::promise<TiledBlobPtr>>> _blobPreparedPromises;
 
 	typedef std::pair<int32, int32>	IndexPair;
@@ -182,10 +181,9 @@ public:
 	FORCEINLINE void				SetQueueId(int32 NewQueueId) { QueueId = NewQueueId; }
 	FORCEINLINE BlobTransformPtr	GetTransform() const { return Transform; }
 	FORCEINLINE TiledBlobRef		GetResult() const { return Result; }
-	
 
 	FORCEINLINE bool				GetTiled() const { return bIsTiled; }
-	FORCEINLINE void				SetTiled(bool bTiled) { bIsTiled = bTiled; }
+	FORCEINLINE Job*				SetTiled(bool bTiled) { bIsTiled = bTiled; return this; }
 
 	FORCEINLINE JobStats			GetStats() const { return Stats; }
 
@@ -213,7 +211,6 @@ public:
 	FORCEINLINE TiledBlob_PromisePtr GetResultPromise() const { return std::static_pointer_cast<TiledBlob_Promise>(Result.get()); }
 
 	FORCEINLINE UObject*			GetErrorOwner() const { return ErrorOwner.Get(); }
-
 };
 
 //////////////////////////////////////////////////////////////////////////

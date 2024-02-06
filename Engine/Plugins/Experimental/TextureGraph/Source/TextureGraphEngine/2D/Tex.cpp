@@ -1145,6 +1145,7 @@ AsyncTiledBlobRef Tex::ToBlob(int32 XTiles, int32 YTiles, uint32 Width /* = 0 */
 			BlobDesc.Name = Desc.Name;
 			
 			TiledBlobPtr TiledBlobObj = TiledBlob::InitFromTiles(BlobDesc, ResultTiles);
+			TiledBlobObj->FinaliseNow(false, nullptr);
 
 			if (HashObj && HashObj->IsFinal())
 			{

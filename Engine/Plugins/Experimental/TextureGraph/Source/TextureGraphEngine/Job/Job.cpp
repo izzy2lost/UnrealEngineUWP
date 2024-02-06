@@ -392,18 +392,15 @@ bool Job::CheckCached()
 	{
 		check(ExistingResult->IsTiled());
 
-		BufferDescriptor ResultDesc = ExistingResult->GetDescriptor();
-
-		if (ResultDesc.bIsTransient == IsDiscard())
-		{
-			Result = ExistingResult;
-		}
+		if (ResultOrg)
+			ResultOrg->FinaliseFrom(ExistingResult.get());
 		else
 		{
 			ResultOrg = std::make_shared<TiledBlob_Promise>(ExistingResult->GetDescriptor(), ExistingResult->Rows(), ExistingResult->Cols(), ExistingResult->Hash());
 			ResultOrg->FinaliseFrom(ExistingResult.get());
-			Result = TiledBlobRef(std::static_pointer_cast<TiledBlob>(ResultOrg), true, false);
 		}
+
+		Result = TiledBlobRef(std::static_pointer_cast<TiledBlob>(ResultOrg), true, false);
 
 		FinalJobResult = std::make_shared<JobResult>(GetResultRef(), nullptr);
 		bIsCulled = true;
@@ -1061,6 +1058,7 @@ void Job::MarkJobDone()
 {
 	Stats.EndNativeTime = Util::Time();
 
+	check((!Result || Result->IsFinalised()) && (!ResultOrg || ResultOrg->IsFinalised()));
 	if (RunInfo.Batch)
 		RunInfo.Batch->OnJobDone(this, GetJobId());
 
@@ -1097,7 +1095,7 @@ void Job::AddResultToBlobber()
 #endif 
 
 		Result = TextureGraphEngine::GetBlobber()->AddTiledResult(TempHash, ResultOrg, CacheOpt);
-		ResultOrg = nullptr;
+		//ResultOrg = nullptr;
 
 		check(Result && Result->IsTiled());
 	}
@@ -1198,7 +1196,6 @@ int32 Job::Exec()
 	Run(RunInfo).apply(cti::transforms::wait());
 	Stats.EndNativeTime = Util::Time();
 
-	MarkJobDone();
 	SetPromise(0);
 
 	return 0;
@@ -1251,13 +1248,13 @@ void Job::GetDependencies(JobPtrVec& Prior, JobPtrVec& After, JobRunInfo InRunIn
 	FinaliseJob->RunInfo = RunInfoCopy;
 	FinaliseJob->Generator = ThisJob;
 
-	JobRunInfo prepareRunInfo = RunInfo;
-	prepareRunInfo.Dev = PrepareJob->GetTransform()->TargetDevice(0);
-	PrepareJob->GetDependencies(Prior, After, prepareRunInfo);
+	JobRunInfo PrepareRunInfo = RunInfo;
+	PrepareRunInfo.Dev = PrepareJob->GetTransform()->TargetDevice(0);
+	PrepareJob->GetDependencies(Prior, After, PrepareRunInfo);
 
-	JobRunInfo afterRunInfo = RunInfo;
-	afterRunInfo.Dev = FinaliseJob->GetTransform()->TargetDevice(0);
-	FinaliseJob->GetDependencies(Prior, After, afterRunInfo);
+	JobRunInfo AfterRunInfo = RunInfo;
+	AfterRunInfo.Dev = FinaliseJob->GetTransform()->TargetDevice(0);
+	FinaliseJob->GetDependencies(Prior, After, AfterRunInfo);
 
 	JobsGeneratedPrior.push_back(PrepareJob);
 	JobsGeneratedAfter.push_back(FinaliseJob);
@@ -1291,13 +1288,7 @@ void Job::GetDependencies(JobPtrVec& Prior, JobPtrVec& After, JobRunInfo InRunIn
 
 void Job::PostExec()
 {
-	//size_t threadId = Util::GetCurrentThreadId();
-
-	//check(threadId > 0 && threadId == _runInfo.device->GetPostExecThreadId());
-
 	UE_LOG(LogJob, VeryVerbose, TEXT("PostExec::%s"), *Transform->GetName());
-
-
 	DeviceNativeTask::PostExec();
 }
 

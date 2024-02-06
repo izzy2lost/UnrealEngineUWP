@@ -46,8 +46,11 @@ Blobber::BlobCacheEntryPtr Blobber::FindInternal(HashType Hash)
 
 	FScopeLock CacheLock(&BlobLookupLock);
 	HashType OrgHash = Hash;
+	static const int32 MaxIter = 4;
 
-	while (Hash != DataUtil::GNullHash)
+	int32 NumIter = 0;
+
+	while (Hash != DataUtil::GNullHash && NumIter++ < MaxIter)
 	{
 		check(Hash != DataUtil::GNullHash);
 		const BlobCacheEntryPtr* BlobEntry = BlobCache.Find(Hash, false);
@@ -83,6 +86,14 @@ Blobber::BlobCacheEntryPtr Blobber::FindInternal(HashType Hash)
 			/// Otherwise, we need to use the RHS of the mapping
 			CHashPtr MappedHash = HashIter->second;
 			UE_LOG(LogBlob, VeryVerbose, TEXT("Blobber Find_Internal Remapped: %#016llu => %#016llu"), Hash, MappedHash->Value());
+
+			if (Hash == *MappedHash)
+			{
+				HashMappings.erase(HashIter);
+				return nullptr;
+			}
+
+			check(Hash != *MappedHash);
 			Hash = MappedHash->Value();
 
 			/// This is a cyclical link
