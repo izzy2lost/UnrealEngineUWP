@@ -2109,7 +2109,7 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 					(Op.EndInstruction >= Op.StartInstruction))
 				{
 					const uint32 SliceHash = Context.GetSliceHash();
-					uint32& StoredHash = ExecutionState.HashPerSlice.FindOrAdd(SliceHash, UINT32_MAX);
+					uint32& StoredHash = ExecutionState.SliceHashToNumInstruction.FindOrAdd(SliceHash, UINT32_MAX);
 						
 					const uint32 Hash = GetTypeHash(ContextPublicData.GetNumExecutions());
 					if(StoredHash != Hash)

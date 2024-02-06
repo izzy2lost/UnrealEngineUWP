@@ -96,7 +96,7 @@ ERigVMExecuteResult FRigVMLazyBranch::ExecuteIfRequired(FRigVMExtendedExecuteCon
 	check(VM);
 
 	const uint32 Hash = GetTypeHash(Context.GetNumExecutions());
-	uint32& StoredHash = Context.LazyBranchExecuteState[BranchInfo.Index].HashPerSlice.FindOrAdd(InSliceHash, UINT32_MAX);
+	uint32& StoredHash = Context.LazyBranchExecuteState[BranchInfo.Index].SliceHashToNumInstruction.FindOrAdd(InSliceHash, UINT32_MAX);
 	if(Hash != StoredHash)
 	{
 		const ERigVMExecuteResult Result = Execute(Context);

@@ -72,8 +72,8 @@ struct RIGVM_API FRigVMInstructionSetExecuteState
 	{
 	}
 
-	UPROPERTY()
-	TMap<uint32, uint32> HashPerSlice;
+	UPROPERTY(transient)
+	TMap<uint32, uint32> SliceHashToNumInstruction;
 };
 
 /**
