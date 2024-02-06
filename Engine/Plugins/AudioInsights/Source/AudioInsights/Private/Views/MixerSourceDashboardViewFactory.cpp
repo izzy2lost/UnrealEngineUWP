@@ -6,6 +6,7 @@
 #include "AudioInsightsDashboardAssetCommands.h"
 #include "AudioInsightsModule.h"
 #include "AudioInsightsStyle.h"
+#include "Editor.h"
 #include "Internationalization/Text.h"
 #include "IPropertyTypeCustomization.h"
 #include "Providers/MixerSourceTraceProvider.h"
@@ -332,6 +333,25 @@ namespace UE::Audio::Insights
 				});
 			}
 		}
+	}
+
+	void FMixerSourceDashboardViewFactory::ResetPlots()
+	{
+		for (const auto& KVP : PlotWidgetCurveIdToPointDataMapPerColumn)
+		{
+			const TSharedPtr<FPointDataPerCurveMap>& PointDataPerCurveMap = KVP.Value;
+			PointDataPerCurveMap->Empty();
+		}
+
+		PlotWidgetMetadataPerCurve->Empty();
+
+		BeginTimestamp = TNumericLimits<double>::Max();
+		CurrentTimestamp = 0;
+	}
+
+	void FMixerSourceDashboardViewFactory::OnPIEStopped(bool bSimulating)
+	{
+		ResetPlots();
 	}
 
 	TSharedPtr<SWidget> FMixerSourceDashboardViewFactory::OnConstructContextMenu()
@@ -922,6 +942,7 @@ namespace UE::Audio::Insights
 	TSharedRef<SWidget> FMixerSourceDashboardViewFactory::MakeWidget()
 	{
 		FDashboardFactory::OnActiveAudioDeviceChanged.AddSP(this, &FMixerSourceDashboardViewFactory::ClearMutesAndSolos);
+		FEditorDelegates::EndPIE.AddSP(this, &FMixerSourceDashboardViewFactory::OnPIEStopped);
 
 		TSharedRef<SWidget> MuteSoloWidget = MakeMuteSoloWidget();
 		TSharedRef<SWidget> TableDashboardWidget = FTraceTableDashboardViewFactory::MakeWidget();
