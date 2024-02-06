@@ -290,14 +290,6 @@ namespace Metasound
 
 			InOutGraphOperatorData.OperatorOrder = Order;
 
-			// Update the entry into the various runtime tables dependent upon when the operator exists
-			// in the operator order array.
-			for (const TPair<FOperatorID, FOperatorInfo>& OpIDAndInfo : InOutGraphOperatorData.OperatorMap)
-			{
-				IOperator* Operator = OpIDAndInfo.Value.Operator.Get();
-				UpdateGraphRuntimeTableEntries(OpIDAndInfo.Key, Operator, InOutGraphOperatorData);
-			}
-
 			// Sort operator tables to be in the correct order.
 			FTableSorter::SortTable(Order, InOutGraphOperatorData.ExecuteTable);
 			FTableSorter::SortTable(Order, InOutGraphOperatorData.PostExecuteTable);
@@ -307,8 +299,9 @@ namespace Metasound
 		}
 
 		// Add an operator to the grpah
-		FAddOperator::FAddOperator(FOperatorID InOperatorID, FOperatorInfo&& InInfo)
+		FAddOperator::FAddOperator(FOperatorID InOperatorID, EExecutionOrderInsertLocation InLocation, FOperatorInfo&& InInfo)
 		: OperatorID(InOperatorID)
+		, Location(InLocation)
 		, OperatorInfo(MoveTemp(InInfo))
 		{
 		}
@@ -332,23 +325,50 @@ namespace Metasound
 					FRemoveOperator(OperatorID).Transform(InGraphOperatorData);
 				}
 
-				InGraphOperatorData.OperatorOrder.Add(OperatorID);
 				InGraphOperatorData.OperatorMap.Add(OperatorID, MoveTemp(OperatorInfo));
-
-				// Update execution tables
-				if (IOperator::FExecuteFunction ExecuteFunc = Operator->GetExecuteFunction())
+				switch (Location)
 				{
-					InGraphOperatorData.ExecuteTable.Add(FExecuteEntry(OperatorID, *Operator, ExecuteFunc));
-				}
+					case EExecutionOrderInsertLocation::First:
+						{
+							InGraphOperatorData.OperatorOrder.Insert(OperatorID, 0);
+							// Update execution tables
+							if (IOperator::FExecuteFunction ExecuteFunc = Operator->GetExecuteFunction())
+							{
+								InGraphOperatorData.ExecuteTable.Insert(FExecuteEntry(OperatorID, *Operator, ExecuteFunc), 0);
+							}
 
-				if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator->GetPostExecuteFunction())
-				{
-					InGraphOperatorData.PostExecuteTable.Add(FPostExecuteEntry(OperatorID, *Operator, PostExecuteFunc));
-				}
+							if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator->GetPostExecuteFunction())
+							{
+								InGraphOperatorData.PostExecuteTable.Insert(FPostExecuteEntry(OperatorID, *Operator, PostExecuteFunc), 0);
+							}
 
-				if (IOperator::FResetFunction ResetFunc = Operator->GetResetFunction())
-				{
-					InGraphOperatorData.ResetTable.Add(FResetEntry(OperatorID, *Operator, ResetFunc));
+							if (IOperator::FResetFunction ResetFunc = Operator->GetResetFunction())
+							{
+								InGraphOperatorData.ResetTable.Insert(FResetEntry(OperatorID, *Operator, ResetFunc), 0);
+							}
+						}
+						break;
+
+					case EExecutionOrderInsertLocation::Last:
+						{
+							InGraphOperatorData.OperatorOrder.Add(OperatorID);
+							// Update execution tables
+							if (IOperator::FExecuteFunction ExecuteFunc = Operator->GetExecuteFunction())
+							{
+								InGraphOperatorData.ExecuteTable.Add(FExecuteEntry(OperatorID, *Operator, ExecuteFunc));
+							}
+
+							if (IOperator::FPostExecuteFunction PostExecuteFunc = Operator->GetPostExecuteFunction())
+							{
+								InGraphOperatorData.PostExecuteTable.Add(FPostExecuteEntry(OperatorID, *Operator, PostExecuteFunc));
+							}
+
+							if (IOperator::FResetFunction ResetFunc = Operator->GetResetFunction())
+							{
+								InGraphOperatorData.ResetTable.Add(FResetEntry(OperatorID, *Operator, ResetFunc));
+							}
+						}
+						break;
 				}
 			}
 
