@@ -7,6 +7,7 @@
 #include "Components/DynamicMeshComponent.h"
 #include "Dataflow/CollectionRenderingPatternUtility.h"
 #include "Dataflow/DataflowEditor.h"
+#include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "Dataflow/DataflowEditorUtil.h"
@@ -101,7 +102,7 @@ void FDataflowConstructionScene::AddReferencedObjects(FReferenceCollector& Colle
 	FDataflowPreviewScene::AddReferencedObjects(Collector);
 
 	Collector.AddReferencedObjects(DynamicMeshComponents);
-	Collector.AddReferencedObject(WireframeDraw);
+	Collector.AddReferencedObjects(WireframeElements);
 }
 
 FORCEINLINE Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, const ::Dataflow::FContext* Context)
@@ -146,9 +147,9 @@ void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 		}
 	}
 
-	if (WireframeDraw)
+	for (FRenderWireElement Elem : WireframeElements)
 	{
-		WireframeDraw->OnTick(DeltaSeconds);
+		Elem.Value->OnTick(DeltaSeconds);
 	}
 }
 
@@ -167,24 +168,32 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 		const TSharedPtr<Dataflow::FEngineContext>& DataflowContext = DataflowContent->GetDataflowContext();
 		if(DataflowAsset && DataflowContext)
 		{
-			for (const UDataflowEdNode* Target : DataflowAsset->GetRenderTargets())
+			for (TObjectPtr<const UDataflowEdNode> Target : DataflowAsset->GetRenderTargets())
 			{
 				if (Target)
 				{
-					FDynamicMesh3 DynamicMesh;
 					TSharedPtr<FManagedArrayCollection> RenderCollection(new FManagedArrayCollection);
 					GeometryCollection::Facades::FRenderingFacade Facade(*RenderCollection);
 					Facade.DefineSchema();
 
 					Target->Render(Facade, DataflowContext);
-					Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, DynamicMesh);
-					
-					if (Target == DataflowContent->GetPrimarySelectedNode())
+
+					int32 NumGeometry = Facade.NumGeometry();
+					for (int32 MeshIndex = 0; MeshIndex < NumGeometry; MeshIndex++)
 					{
-						DataflowContent->SetPrimaryRenderCollection(RenderCollection);
+						FDynamicMesh3 DynamicMesh;
+						Dataflow::Conversion::RenderingFacadeToDynamicMesh(Facade, MeshIndex, DynamicMesh);
+
+						if (DynamicMesh.VertexCount())
+						{
+							if (Target == DataflowContent->GetPrimarySelectedNode())
+							{
+								DataflowContent->SetPrimaryRenderCollection(RenderCollection);
+							}
+
+							AddDynamicMeshComponent({Target, MeshIndex }, MoveTemp(DynamicMesh), {});
+						}
 					}
-					
-					AddDynamicMeshComponent(MoveTemp(DynamicMesh), {});
 				}
 			}
 		}
@@ -194,8 +203,10 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 void FDataflowConstructionScene::ResetDynamicMeshComponents()
 {
 	USelection* SelectedComponents = DataflowModeManager->GetSelectedComponents();
-	for(const TObjectPtr<UDynamicMeshComponent>& DynamicMeshComponent : DynamicMeshComponents)
+	for (FRenderElement RenderElement : DynamicMeshComponents)
 	{
+		TObjectPtr<UDynamicMeshComponent>& DynamicMeshComponent = RenderElement.Value;
+
 		DynamicMeshComponent->SelectionOverrideDelegate.Unbind();
 		if (SelectedComponents->IsSelected(DynamicMeshComponent))
 		{
@@ -207,10 +218,11 @@ void FDataflowConstructionScene::ResetDynamicMeshComponents()
 	DynamicMeshComponents.Reset();
 }
 
-TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshComponent(UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet)
+TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshComponent(FDataflowRenderKey InKey, UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet)
 {
-	TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent = NewObject<UDynamicMeshComponent>(RootSceneActor);
-		
+	TObjectPtr<UDataflowEditorCollectionComponent> DynamicMeshComponent = NewObject<UDataflowEditorCollectionComponent>(RootSceneActor);
+	DynamicMeshComponent->MeshIndex = InKey.Value;
+	DynamicMeshComponent->Node = InKey.Key;;
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 	
 	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
@@ -235,43 +247,44 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	DynamicMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
 	DynamicMeshComponent->UpdateBounds();
 
-	AddComponent(DynamicMeshComponent, DynamicMeshComponent->GetRelativeTransform());
-		
-	const int32 ElementIndex = DynamicMeshComponents.Emplace(DynamicMeshComponent);
-	return DynamicMeshComponents[ElementIndex];
+	AddComponent(DynamicMeshComponent, DynamicMeshComponent->GetRelativeTransform());	
+	DynamicMeshComponents.Emplace(InKey, DynamicMeshComponent);
+	return DynamicMeshComponents[InKey];
 }
 
 void FDataflowConstructionScene::AddWireframeMeshElementsVisualizer()
 {
-	ensure(WireframeDraw==nullptr);
-	if (DynamicMeshComponents.Num())
+	ensure(WireframeElements.Num()==0);
+	for(FRenderElement Elem : DynamicMeshComponents)
 	{
+		TObjectPtr<UDynamicMeshComponent> DynamicMeshComponent = Elem.Value;
+
 		// Set up the wireframe display of the rest space mesh.
 
-		WireframeDraw = NewObject<UMeshElementsVisualizer>(RootSceneActor);
-		WireframeDraw->CreateInWorld(GetWorld(), FTransform::Identity);
+		TObjectPtr<UMeshElementsVisualizer> WireframeDraw = NewObject<UMeshElementsVisualizer>(RootSceneActor);
+		WireframeElements.Add(DynamicMeshComponent, WireframeDraw);
 
+		WireframeDraw->CreateInWorld(GetWorld(), FTransform::Identity);
 		WireframeDraw->Settings->DepthBias = 2.0;
 		WireframeDraw->Settings->bAdjustDepthBiasUsingMeshSize = false;
 		WireframeDraw->Settings->bShowWireframe = true;
 		WireframeDraw->Settings->bShowBorders = true;
 		WireframeDraw->Settings->bShowUVSeams = false;
-
 		WireframeDraw->WireframeComponent->BoundaryEdgeThickness = 2;
 
-		WireframeDraw->SetMeshAccessFunction([this](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc) 
+		WireframeDraw->SetMeshAccessFunction([DynamicMeshComponent](UMeshElementsVisualizer::ProcessDynamicMeshFunc ProcessFunc)
 		{
-			for (auto DynamicMeshComponent : DynamicMeshComponents) ProcessFunc(*DynamicMeshComponent->GetMesh());
+			ProcessFunc(*DynamicMeshComponent->GetMesh());
 		});
 
-		for (auto DynamicMeshComponent : DynamicMeshComponents)
+		for (FRenderElement RenderElement : DynamicMeshComponents)
 		{
-			DynamicMeshComponent->OnMeshChanged.Add(FSimpleMulticastDelegate::FDelegate::CreateLambda([this]()
+			RenderElement.Value->OnMeshChanged.Add(FSimpleMulticastDelegate::FDelegate::CreateLambda([WireframeDraw,this]()
 			{
 				WireframeDraw->NotifyMeshChanged();
 			}));
 
-			const bool bRestSpaceMeshVisible = DynamicMeshComponent->GetVisibleFlag();
+			const bool bRestSpaceMeshVisible = RenderElement.Value->GetVisibleFlag();
 			WireframeDraw->Settings->bVisible = bRestSpaceMeshVisible && bConstructionViewWireframe;
 		}
 		PropertyObjectsToTick.Add(WireframeDraw->Settings);
@@ -280,11 +293,11 @@ void FDataflowConstructionScene::AddWireframeMeshElementsVisualizer()
 
 void FDataflowConstructionScene::ResetWireframeMeshElementsVisualizer()
 {
-	if (WireframeDraw)
+	for (FRenderWireElement Elem : WireframeElements)
 	{
-		WireframeDraw->Disconnect();
+		Elem.Value->Disconnect();
 	}
-	WireframeDraw = nullptr;
+	WireframeElements.Empty();
 }
 
 void FDataflowConstructionScene::UpdateWireframeMeshElementsVisualizer()
@@ -295,9 +308,9 @@ void FDataflowConstructionScene::UpdateWireframeMeshElementsVisualizer()
 
 bool FDataflowConstructionScene::HasRenderableGeometry()
 {
-	for (auto& DynamicMeshComponent : DynamicMeshComponents)
+	for (FRenderElement RenderElement : DynamicMeshComponents)
 	{
-		if (DynamicMeshComponent->GetMesh()->TriangleCount() > 0)
+		if (RenderElement.Value->GetMesh()->TriangleCount() > 0)
 		{
 			return true;
 		}
@@ -334,10 +347,10 @@ void FDataflowConstructionScene::UpdateConstructionScene()
     {
     	USelection* SelectedComponents = DataflowModeManager->GetSelectedComponents();
     	SelectedComponents->DeselectAll();
-    	for (const TObjectPtr<UDynamicMeshComponent>& DynamicMeshComponent : DynamicMeshComponents)
+    	for (FRenderElement RenderElement : DynamicMeshComponents)
     	{
-    		SelectedComponents->Select(DynamicMeshComponent);
-    		DynamicMeshComponent->PushSelectionToProxy();
+    		SelectedComponents->Select(RenderElement.Value);
+			RenderElement.Value->PushSelectionToProxy();
     	}
     }
 	DataflowContent->SetIsDirty(false);

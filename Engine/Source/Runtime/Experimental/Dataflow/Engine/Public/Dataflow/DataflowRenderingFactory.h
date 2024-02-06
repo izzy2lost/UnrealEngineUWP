@@ -14,13 +14,15 @@ namespace Dataflow
 	class FContext;
 
 	struct FGraphRenderingState {
-		FGraphRenderingState(const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext)
-			: Node(InNode)
+		FGraphRenderingState(const FGuid InGuid, const FDataflowNode* InNode, const FRenderingParameter& InParameters, Dataflow::FContext& InContext)
+			: NodeGuid(InGuid)
+			, Node(InNode)
 			, RenderType(InParameters.Type)
 			, RenderOutputs(InParameters.Outputs)
 			, Context(InContext)
 		{}
 
+		const FGuid& GetGuid() const { return NodeGuid; }
 		const FName& GetRenderType() const { return RenderType; }
 		const TArray<FName>& GetRenderOutputs() const { return RenderOutputs; }
 
@@ -38,6 +40,7 @@ namespace Dataflow
 		}
 
 	private:
+		const FGuid NodeGuid;
 		const FDataflowNode* Node = nullptr;
 
 		FName RenderType;

@@ -14,6 +14,211 @@
 #include "UDynamicMesh.h"
 namespace Dataflow
 {
+	void RenderBasicGeometryCollection(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State)
+	{
+		FManagedArrayCollection Default;
+		FName PrimaryOutput = State.GetRenderOutputs()[0]; // "Collection"
+		const FManagedArrayCollection& Collection = State.GetValue<FManagedArrayCollection>(PrimaryOutput, Default);
+
+		const TManagedArray<int32>& BoneIndex = Collection.GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+		const TManagedArray<int32>& Parents = Collection.GetAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+		const TManagedArray<FTransform3f>& Transforms = Collection.GetAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+
+		TArray<FTransform> M;
+		GeometryCollectionAlgo::GlobalMatrices(Transforms, Parents, M);
+
+		// If Collection has "ExplodedVector" attribute then use it to modify the global matrices (ExplodedView node creates it)
+		GeometryCollection::Facades::FCollectionExplodedVectorFacade ExplodedViewFacade(Collection);
+		ExplodedViewFacade.UpdateGlobalMatricesWithExplodedVectors(M);
+
+		auto ToD = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
+		auto ToF = [](FVector3d V) { return FVector3f(V.X, V.Y, V.Z); };
+
+
+		const TManagedArray<FVector3f>& Vertex = Collection.GetAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
+		const TManagedArray<FIntVector>& Faces = Collection.GetAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+		const TManagedArray<bool>* FaceVisible = Collection.FindAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
+
+		TArray<FVector3f> Vertices; Vertices.AddUninitialized(Vertex.Num());
+		TArray<FIntVector> Tris; Tris.AddUninitialized(Faces.Num());
+		TArray<bool> Visited; Visited.Init(false, Vertices.Num());
+
+		int32 Tdx = 0;
+		for (int32 FaceIdx = 0; FaceIdx < Faces.Num(); ++FaceIdx)
+		{
+			if (FaceVisible && !(*FaceVisible)[FaceIdx]) continue;
+
+			const FIntVector& Face = Faces[FaceIdx];
+
+			FIntVector Tri = FIntVector(Face[0], Face[1], Face[2]);
+			FTransform Ms[3] = { M[BoneIndex[Tri[0]]], M[BoneIndex[Tri[1]]], M[BoneIndex[Tri[2]]] };
+
+			Tris[Tdx++] = Tri;
+			if (!Visited[Tri[0]]) Vertices[Tri[0]] = ToF(Ms[0].TransformPosition(ToD(Vertex[Tri[0]])));
+			if (!Visited[Tri[1]]) Vertices[Tri[1]] = ToF(Ms[1].TransformPosition(ToD(Vertex[Tri[1]])));
+			if (!Visited[Tri[2]]) Vertices[Tri[2]] = ToF(Ms[2].TransformPosition(ToD(Vertex[Tri[2]])));
+
+			Visited[Tri[0]] = true; Visited[Tri[1]] = true; Visited[Tri[2]] = true;
+		}
+
+		Tris.SetNum(Tdx);
+
+		// Maybe these buffers should be shrunk, but there are unused vertices in the buffer. 
+		for (int i = 0; i < Visited.Num(); i++) if (!Visited[i]) Vertices[i] = FVector3f(0);
+
+		// Copy VertexNormals from the Collection if exists otherwise compute and set it
+		TArray<FVector3f> VertexNormals; VertexNormals.AddUninitialized(Vertex.Num());
+		if (const TManagedArray<FVector3f>* VertexNormal = Collection.FindAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup))
+		{
+			for (int32 VertexIdx = 0; VertexIdx < VertexNormals.Num(); ++VertexIdx)
+			{
+				VertexNormals[VertexIdx] = (*VertexNormal)[VertexIdx];
+			}
+		}
+		else
+		{
+			for (int32 VertexIdx = 0; VertexIdx < VertexNormals.Num(); ++VertexIdx)
+			{
+				// TODO: Compute the normal
+				VertexNormals[VertexIdx] = FVector3f(0.f);
+			}
+		}
+
+		// Copy VertexColors from the Collection if exists otherwise set it to IDataflowEnginePlugin::SurfaceColor
+		TArray<FLinearColor> VertexColors; VertexColors.AddUninitialized(Vertex.Num());
+		if (const TManagedArray<FLinearColor>* VertexColorManagedArray = Collection.FindAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup))
+		{
+			for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
+			{
+				VertexColors[VertexIdx] = (*VertexColorManagedArray)[VertexIdx];
+			}
+		}
+		else
+		{
+			for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
+			{
+				VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+			}
+		}
+
+		// Set the data on the RenderCollection
+		int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
+		RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
+		RenderCollection.EndGeometryGroup(GeometryIndex);
+
+	}
+
+	void RenderMeshIndexedGeometryCollection(GeometryCollection::Facades::FRenderingFacade& RenderCollection, const Dataflow::FGraphRenderingState& State)
+	{
+		auto ToD = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
+		auto ToF = [](FVector3d V) { return FVector3f(V.X, V.Y, V.Z); };
+
+		FManagedArrayCollection Default;
+		FName PrimaryOutput = State.GetRenderOutputs()[0]; // "Collection"
+		const FManagedArrayCollection& Collection = State.GetValue<FManagedArrayCollection>(PrimaryOutput, Default);
+
+		const TManagedArray<int32>& BoneIndex = Collection.GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+		const TManagedArray<int32>& Parents = Collection.GetAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
+		const TManagedArray<FTransform3f>& Transforms = Collection.GetAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
+		const TManagedArray<FVector3f>& Vertex = Collection.GetAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
+		const TManagedArray<FIntVector>& Faces = Collection.GetAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+		const TManagedArray<bool>* FaceVisible = Collection.FindAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
+
+		const TManagedArray<int32>& VertexStart = Collection.GetAttribute<int32>("VertexStart", FGeometryCollection::GeometryGroup);
+		const TManagedArray<int32>& VertexCount = Collection.GetAttribute<int32>("VertexCount", FGeometryCollection::GeometryGroup);
+		const TManagedArray<int32>& FacesStart = Collection.GetAttribute<int32>("FaceStart", FGeometryCollection::GeometryGroup);
+		const TManagedArray<int32>& FacesCount = Collection.GetAttribute<int32>("FaceCount", FGeometryCollection::GeometryGroup);
+
+		TArray<FTransform> M;
+		GeometryCollectionAlgo::GlobalMatrices(Transforms, Parents, M);
+		GeometryCollection::Facades::FCollectionExplodedVectorFacade ExplodedViewFacade(Collection);
+		ExplodedViewFacade.UpdateGlobalMatricesWithExplodedVectors(M);
+
+		for (int Gdx = 0; Gdx < Collection.NumElements(FGeometryCollection::GeometryGroup); Gdx++)
+		{
+			TArray<FVector3f> Vertices; Vertices.AddUninitialized(VertexCount[Gdx]);
+			TArray<FIntVector> Tris; Tris.AddUninitialized(FacesCount[Gdx]);
+			TArray<bool> Visited; Visited.Init(false, VertexCount[Gdx]);
+
+			int32 Tdx = 0;
+			int32 LastFaceIndex = FacesStart[Gdx] + FacesCount[Gdx];
+			for (int32 FaceIdx = FacesStart[Gdx]; FaceIdx < LastFaceIndex; ++FaceIdx)
+			{
+				if (FaceVisible && !(*FaceVisible)[FaceIdx]) continue;
+
+				const FIntVector& Face = Faces[FaceIdx];
+
+				FIntVector Tri = FIntVector(Face[0], Face[1], Face[2]);
+				FTransform Ms[3] = { M[BoneIndex[Tri[0]]], M[BoneIndex[Tri[1]]], M[BoneIndex[Tri[2]]] };
+				FIntVector MovedTri = FIntVector(Face[0]- VertexStart[Gdx], Face[1] - VertexStart[Gdx], Face[2] - VertexStart[Gdx]);
+
+				Tris[Tdx++] = MovedTri;
+				if (!Visited[MovedTri[0]]) Vertices[Tri[0] - VertexStart[Gdx]] = ToF(Ms[0].TransformPosition(ToD(Vertex[Tri[0]])));
+				if (!Visited[MovedTri[1]]) Vertices[Tri[1] - VertexStart[Gdx]] = ToF(Ms[1].TransformPosition(ToD(Vertex[Tri[1]])));
+				if (!Visited[MovedTri[2]]) Vertices[Tri[2] - VertexStart[Gdx]] = ToF(Ms[2].TransformPosition(ToD(Vertex[Tri[2]])));
+
+				Visited[MovedTri[0]] = true; Visited[MovedTri[1]] = true; Visited[MovedTri[2]] = true;
+			}
+
+			Tris.SetNum(Tdx);
+
+			// move the unused points too. Need to keep them for vertex alignment with ediior tools. 
+			for (int i = 0; i < Visited.Num(); i++)
+			{
+				if (!Visited[i])
+				{
+					Vertices[i] = ToF(M[BoneIndex[i+ VertexStart[Gdx]]].TransformPosition(ToD(Vertex[i+ VertexStart[Gdx]])));
+				}
+			}
+
+			// Copy VertexNormals from the Collection if exists otherwise compute and set it
+			ensure(VertexCount[Gdx] == Vertices.Num());
+			TArray<FVector3f> VertexNormals; VertexNormals.AddUninitialized(Vertices.Num());
+			if (const TManagedArray<FVector3f>* VertexNormal = Collection.FindAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup))
+			{
+				int32 LastVertIndex = VertexStart[Gdx] + VertexCount[Gdx];
+				for (int32 VertexIdx = VertexStart[Gdx], SrcVertexIdx = 0; VertexIdx < LastVertIndex; ++VertexIdx, ++SrcVertexIdx)
+				{
+					VertexNormals[SrcVertexIdx] = (*VertexNormal)[VertexIdx];
+				}
+			}
+			else
+			{
+				for (int32 VertexIdx = 0; VertexIdx < Vertices.Num(); ++VertexIdx)
+				{
+					// TODO: Compute the normal
+					VertexNormals[VertexIdx] = FVector3f(0.f);
+				}
+			}
+
+			// Copy VertexColors from the Collection if exists otherwise set it to IDataflowEnginePlugin::SurfaceColor
+			TArray<FLinearColor> VertexColors; VertexColors.AddUninitialized(Vertices.Num());
+			if (const TManagedArray<FLinearColor>* VertexColorManagedArray = Collection.FindAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup))
+			{
+				int32 LastVertIndex = VertexStart[Gdx] + VertexCount[Gdx];
+				for (int32 VertexIdx = VertexStart[Gdx], SrcVertexIdx = 0; VertexIdx < LastVertIndex; ++VertexIdx, ++SrcVertexIdx)
+				{
+					VertexColors[SrcVertexIdx] = (*VertexColorManagedArray)[VertexIdx];
+				}
+			}
+			else
+			{
+				for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
+				{
+					VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
+				}
+			}
+
+			// Set the data on the RenderCollection
+			if (Vertices.Num() && Tris.Num())
+			{
+				FString GeometryName = State.GetGuid().ToString(); GeometryName.AppendChar('.').AppendInt(Gdx);
+				int32 GeometryIndex = RenderCollection.StartGeometryGroup(GeometryName);
+				RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
+				RenderCollection.EndGeometryGroup(GeometryIndex);
+			}
+		}
+	}
 
 	void RenderingCallbacks()
 	{
@@ -31,109 +236,34 @@ namespace Dataflow
 			{
 				if (State.GetRenderOutputs().Num())
 				{
-					FName PrimaryOutput = State.GetRenderOutputs()[0]; // "Collection"
-
 					FManagedArrayCollection Default;
+					FName PrimaryOutput = State.GetRenderOutputs()[0]; // "Collection"
 					const FManagedArrayCollection& Collection = State.GetValue<FManagedArrayCollection>(PrimaryOutput, Default);
+
 					const bool bFoundIndices = Collection.FindAttributeTyped<FIntVector>("Indices", FGeometryCollection::FacesGroup) != nullptr;
 					const bool bFoundVertices = Collection.FindAttributeTyped<FVector3f>("Vertex", FGeometryCollection::VerticesGroup) != nullptr;
 					const bool bFoundTransforms = Collection.FindAttributeTyped<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup) != nullptr;
 					const bool bFoundBoneMap = Collection.FindAttributeTyped<int32>("BoneMap", FGeometryCollection::VerticesGroup) != nullptr;
 					const bool bFoundParents = Collection.FindAttributeTyped<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup) != nullptr;
 					UE_LOG(LogTemp, Warning, TEXT("Render GC with found params = %d %d %d %d %d"), bFoundIndices, bFoundVertices, bFoundTransforms, bFoundBoneMap, bFoundParents);
-					
-					if (Collection.FindAttributeTyped<FIntVector>("Indices", FGeometryCollection::FacesGroup)
-						&& Collection.FindAttributeTyped<FVector3f>("Vertex", FGeometryCollection::VerticesGroup)
-						&& Collection.FindAttributeTyped<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup)
-						&& Collection.FindAttributeTyped<int32>("BoneMap", FGeometryCollection::VerticesGroup)
-						&& Collection.FindAttributeTyped<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup))
+					bool bFoundRenderData = bFoundIndices && bFoundVertices && bFoundTransforms && bFoundBoneMap && bFoundParents 
+						&& Collection.NumElements(FTransformCollection::TransformGroup) > 0;
+
+					const bool bFoundVertexStart = Collection.FindAttributeTyped<int32>("VertexStart", FGeometryCollection::GeometryGroup) != nullptr;
+					const bool bFoundVertexCount = Collection.FindAttributeTyped<int32>("VertexCount", FGeometryCollection::GeometryGroup) != nullptr;
+					const bool bFoundFaceStart = Collection.FindAttributeTyped<int32>("FaceStart", FGeometryCollection::GeometryGroup) != nullptr;
+					const bool bFoundFaceCount = Collection.FindAttributeTyped<int32>("FaceCount", FGeometryCollection::GeometryGroup) != nullptr;
+					UE_LOG(LogTemp, Warning, TEXT("Render GC with found mesh group params = %d %d %d %d"), bFoundVertexStart, bFoundVertexCount, bFoundFaceStart, bFoundFaceCount);
+					bool bFoundGeometryAttributes = bFoundVertexStart && bFoundVertexCount && bFoundFaceStart && bFoundFaceCount
+						&& Collection.NumElements(FGeometryCollection::GeometryGroup) > 0;
+
+					if (bFoundRenderData && bFoundGeometryAttributes )
 					{
-						if (Collection.NumElements(FTransformCollection::TransformGroup) > 0)
-						{
-							const TManagedArray<int32>& BoneIndex = Collection.GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
-							const TManagedArray<int32>& Parents = Collection.GetAttribute<int32>(FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup);
-							const TManagedArray<FTransform3f>& Transforms = Collection.GetAttribute<FTransform3f>(FTransformCollection::TransformAttribute, FTransformCollection::TransformGroup);
-
-							TArray<FTransform> M;
-							GeometryCollectionAlgo::GlobalMatrices(Transforms, Parents, M);
-
-							// If Collection has "ExplodedVector" attribute then use it to modify the global matrices (ExplodedView node creates it)
-							GeometryCollection::Facades::FCollectionExplodedVectorFacade ExplodedViewFacade(Collection);
-							ExplodedViewFacade.UpdateGlobalMatricesWithExplodedVectors(M);
-
-							auto ToD = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
-							auto ToF = [](FVector3d V) { return FVector3f(V.X, V.Y, V.Z); };
-
-
-							const TManagedArray<FVector3f>& Vertex = Collection.GetAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
-							const TManagedArray<FIntVector>& Faces = Collection.GetAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
-							const TManagedArray<bool>* FaceVisible = Collection.FindAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
-
-							TArray<FVector3f> Vertices; Vertices.AddUninitialized(Vertex.Num());
-							TArray<FIntVector> Tris; Tris.AddUninitialized(Faces.Num());
-							TArray<bool> Visited; Visited.Init(false, Vertices.Num());
-
-							int32 Tdx = 0;
-							for (int32 FaceIdx = 0; FaceIdx < Faces.Num(); ++FaceIdx)
-							{				
-								if (FaceVisible && !(*FaceVisible)[FaceIdx]) continue;
-
-								const FIntVector& Face = Faces[FaceIdx];
-
-								FIntVector Tri = FIntVector(Face[0], Face[1], Face[2]);
-								FTransform Ms[3] = { M[BoneIndex[Tri[0]]], M[BoneIndex[Tri[1]]], M[BoneIndex[Tri[2]]] };
-
-								Tris[Tdx++] = Tri;
-								if (!Visited[Tri[0]]) Vertices[Tri[0]] = ToF(Ms[0].TransformPosition(ToD(Vertex[Tri[0]])));
-								if (!Visited[Tri[1]]) Vertices[Tri[1]] = ToF(Ms[1].TransformPosition(ToD(Vertex[Tri[1]])));
-								if (!Visited[Tri[2]]) Vertices[Tri[2]] = ToF(Ms[2].TransformPosition(ToD(Vertex[Tri[2]])));
-
-								Visited[Tri[0]] = true; Visited[Tri[1]] = true; Visited[Tri[2]] = true;
-							}
-
-							Tris.SetNum(Tdx);
-
-							// Maybe these buffers should be shrunk, but there are unused vertices in the buffer. 
-							for (int i = 0; i < Visited.Num(); i++) if (!Visited[i]) Vertices[i] = FVector3f(0);
-
-							// Copy VertexNormals from the Collection if exists otherwise compute and set it
-							TArray<FVector3f> VertexNormals; VertexNormals.AddUninitialized(Vertex.Num());
-							if (const TManagedArray<FVector3f>* VertexNormal = Collection.FindAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup))
-							{
-								for (int32 VertexIdx = 0; VertexIdx < VertexNormals.Num(); ++VertexIdx)
-								{
-									VertexNormals[VertexIdx] = (*VertexNormal)[VertexIdx];
-								}
-							}
-							else
-							{
-								for (int32 VertexIdx = 0; VertexIdx < VertexNormals.Num(); ++VertexIdx)
-								{
-									// TODO: Compute the normal
-									VertexNormals[VertexIdx] = FVector3f(0.f);
-								}
-							}
-
-							// Copy VertexColors from the Collection if exists otherwise set it to IDataflowEnginePlugin::SurfaceColor
-							TArray<FLinearColor> VertexColors; VertexColors.AddUninitialized(Vertex.Num());
-							if (const TManagedArray<FLinearColor>* VertexColorManagedArray = Collection.FindAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup))
-							{
-								for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
-								{
-									VertexColors[VertexIdx] = (*VertexColorManagedArray)[VertexIdx];
-								}
-							}
-							else
-							{
-								for (int32 VertexIdx = 0; VertexIdx < VertexColors.Num(); ++VertexIdx)
-								{
-									VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
-								}
-							}
-
-							// Set the data on the RenderCollection
-							RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
-						}
+						RenderMeshIndexedGeometryCollection(RenderCollection, State);
+					}
+					else if (bFoundRenderData)
+					{
+						RenderBasicGeometryCollection(RenderCollection, State);
 					}
 				}
 			});
@@ -192,7 +322,9 @@ namespace Dataflow
 								VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
 							}
 
+							int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
 							RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
+							RenderCollection.EndGeometryGroup(GeometryIndex);
 						}
 					}
 				}
@@ -254,7 +386,9 @@ namespace Dataflow
 						VertexColors[VertexIdx] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
 					}
 
+					int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
 					RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
+					RenderCollection.EndGeometryGroup(GeometryIndex);
 				}
 			});
 
@@ -301,7 +435,10 @@ namespace Dataflow
 							VertexNormals[3*i+2] = TriangleNormal;
 							VertexColors[i] = FLinearColor(IDataflowEnginePlugin::SurfaceColor);
 						}
+
+						int32 GeometryIndex = RenderCollection.StartGeometryGroup(State.GetGuid().ToString());
 						RenderCollection.AddSurface(MoveTemp(Vertices), MoveTemp(Tris), MoveTemp(VertexNormals), MoveTemp(VertexColors));
+						RenderCollection.EndGeometryGroup(GeometryIndex);
 					}
 				}
 			});

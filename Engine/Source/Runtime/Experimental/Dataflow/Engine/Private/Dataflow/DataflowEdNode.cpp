@@ -501,13 +501,11 @@ bool UDataflowEdNode::Render(GeometryCollection::Facades::FRenderingFacade& Rend
 			{
 				if (GetRenderParameters().Num())
 				{
-					int32 GeometryIndex = RenderData.StartGeometryGroup(GetDataflowNodeGuid().ToString());
 					for (Dataflow::FRenderingParameter& Parameter : GetRenderParameters())
 					{
-						Factory->RenderNodeOutput(RenderData, {NodeTarget.Get(), Parameter, *Context});
+						Factory->RenderNodeOutput(RenderData, { GetDataflowNodeGuid(), NodeTarget.Get(), Parameter, *Context});
 						bNeedsRefresh = true;
 					}
-					RenderData.EndGeometryGroup(GeometryIndex);
 				}
 			}
 		}

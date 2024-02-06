@@ -13,6 +13,7 @@
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintBrushOps.h"
 #include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 #include "Dataflow/DataflowSNode.h"
@@ -94,13 +95,22 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 
 	if (UMeshSurfacePointMeshEditingToolBuilder::CanBuildTool(SceneState))
 	{
-		if (UDataflowBaseContent* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowBaseContent>())
+		if (SceneState.SelectedComponents.Num() == 1)
 		{
-			if (const TSharedPtr<Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
+			if (TObjectPtr<UDataflowEditorCollectionComponent> Component = Cast<UDataflowEditorCollectionComponent>(SceneState.SelectedComponents[0]))
 			{
-				if (const FDataflowNode* PrimarySelection = ContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
+				if (UDataflowBaseContent* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowBaseContent>())
 				{
-					return HasRenderableCollection(PrimarySelection, EvaluationContext);
+					if (ContextObject->GetPrimarySelectedNode() == Component->Node)
+					{
+						if (const TSharedPtr<Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
+						{
+							if (const FDataflowNode* PrimarySelection = ContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
+							{
+								return HasRenderableCollection(PrimarySelection, EvaluationContext);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -1675,7 +1685,11 @@ void UDataflowEditorWeightMapPaintTool::UpdateSelectedNode()
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		WeightMapNodeToUpdate->VertexWeights.Init(0.f, WeightToDynamicMesh.Num());
+		if (WeightToDynamicMesh.Num() != WeightMapNodeToUpdate->VertexWeights.Num())
+		{
+			WeightMapNodeToUpdate->VertexWeights.Init(0.f, WeightToDynamicMesh.Num());
+		}
+
 		for (int32 DynamicMeshIdx = 0; DynamicMeshIdx < CurrentWeights.Num(); ++DynamicMeshIdx)
 		{
 			WeightMapNodeToUpdate->VertexWeights[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];

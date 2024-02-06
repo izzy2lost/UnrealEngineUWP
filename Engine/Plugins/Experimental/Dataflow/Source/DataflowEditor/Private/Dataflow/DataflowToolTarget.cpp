@@ -105,7 +105,7 @@ FDynamicMesh3 UDataflowReadOnlyToolTarget::GetDynamicMesh()
 	FDynamicMesh3 DynamicMesh;
 	if(IsValid())
 	{
-		Dataflow::Conversion::DataflowToDynamicMesh(Context, Asset, Dataflow, DynamicMesh);
+		// @todo(dataflow)
 	}
 	return DynamicMesh;
 }
@@ -147,7 +147,7 @@ void UDataflowToolTarget::CommitDynamicMesh(const FDynamicMesh3& DynamicMesh, co
 {
 	if(IsValid())
 	{
-		Dataflow::Conversion::DynamicMeshToDataflow(DynamicMesh, Dataflow);
+		// @todo(dataflow)
 	}
 }
 
@@ -161,7 +161,7 @@ bool UDataflowReadOnlyToolTargetFactory::CanBuildTarget(UObject* SourceObject, c
 	// If you want to make the tool target work with some subclass of UDataflow,
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
-	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
+	const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(SourceObject);
 	if(BaseContent)
 	{
 		const UDataflow* Dataflow = BaseContent->GetDataflowAsset();
@@ -203,7 +203,7 @@ bool UDataflowToolTargetFactory::CanBuildTarget(UObject* SourceObject, const FTo
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
 
-	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
+	const TObjectPtr<UDataflowBaseContent> BaseContent = Cast<UDataflowBaseContent>(SourceObject);
 	if(BaseContent)
 	{
 		const UDataflow* Dataflow = BaseContent->GetDataflowAsset();
