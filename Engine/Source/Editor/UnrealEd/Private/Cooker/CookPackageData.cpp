@@ -2294,7 +2294,7 @@ void FCookGenerationInfo::CreatePackageHash()
 	constexpr int SizeDifference = sizeof(PackageHash) - sizeof(decltype(DeclVal<UPackage>().GetGuid()));
 	if (SizeDifference > 0)
 	{
-		FMemory::Memset(((uint8*)&PackageHash.GetBytes()) + (sizeof(PackageHash.GetBytes()) - SizeDifference),
+		FMemory::Memset(((uint8*)&PackageHash.GetBytes()) + (sizeof(decltype(PackageHash.GetBytes())) - SizeDifference),
 			0, SizeDifference);
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
