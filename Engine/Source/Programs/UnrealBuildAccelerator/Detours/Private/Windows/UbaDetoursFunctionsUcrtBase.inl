@@ -257,12 +257,18 @@ int Detoured__write(int fd, const void* buffer, unsigned int count)
 
 int Detoured_fputs(const char* str, FILE* stream)
 {
-	int fno = _fileno(stream); (void)fno;
-	int errfno = _fileno(stderr);
-	if (fno == errfno || fno == _fileno(stdout))
+	// This code is not working properly on wine helpers.
+	// When using iwyu on remote wine helper we get a fno that matches stderr but it is not a stderr.. it is supposed to write to a file
+	// Unfortunately I can't remember the initial reason this code was added so I can't change it and know if I broke something or not
+	if (!g_runningRemote || !g_isRunningWine)
 	{
-		Shared_WriteConsole(str, u32(strlen(str)), fno == errfno);
-		return 1;
+		int fno = _fileno(stream); (void)fno;
+		int errfno = _fileno(stderr);
+		if (fno == errfno || fno == _fileno(stdout))
+		{
+			Shared_WriteConsole(str, u32(strlen(str)), fno == errfno);
+			return 1;
+		}
 	}
 	return True_fputs(str, stream);
 }
