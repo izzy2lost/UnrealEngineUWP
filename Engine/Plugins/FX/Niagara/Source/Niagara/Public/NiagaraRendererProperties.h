@@ -107,9 +107,9 @@ struct FNiagaraRendererVariableInfo
 
 	FNiagaraRendererVariableInfo() {}
 	FNiagaraRendererVariableInfo(int32 InDataOffset, int32 InGPUBufferOffset, int32 InNumComponents, bool bInUpload, bool bInHalfType)
-		: DatasetOffset(InDataOffset)
-		, GPUBufferOffset(InGPUBufferOffset)
-		, NumComponents(InNumComponents)
+		: DatasetOffset(static_cast<uint16>(InDataOffset))
+		, GPUBufferOffset(static_cast<uint16>(InGPUBufferOffset))
+		, NumComponents(static_cast<uint16>(InNumComponents))
 		, bUpload(bInUpload)
 		, bHalfType(bInHalfType)
 	{

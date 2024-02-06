@@ -343,7 +343,7 @@ private:
 		TArray<FColor> InterpolatedColors;
 		TArray<FVector3f> InterpolatedMotionVectors;
 
-		void Prepare(SIZE_T NumVertices, bool bHasMotionVectors)
+		void Prepare(int32 NumVertices, bool bHasMotionVectors)
 		{
 			// Clear entries but keep allocations.
 			InterpolatedPositions.Reset();

@@ -30,6 +30,8 @@ public class GeometryCache : ModuleRules
             DynamicallyLoadedModuleNames.Add("GeometryCacheEd");
             PrivateDependencyModuleNames.Add("MeshUtilitiesCommon");
             PrivateDependencyModuleNames.Add("UnrealEd");
-        }        
+        }
+
+		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 	}
 }

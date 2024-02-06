@@ -724,7 +724,7 @@ struct FNiagaraDebugHUDSettingsData
 
 	// In world text if an error is detected
 	UPROPERTY(EditAnywhere, Category = "Colors")
-	FLinearColor InWorldErrorTextColor = FLinearColor(1.0f, 0.4, 0.3, 1.0f);
+	FLinearColor InWorldErrorTextColor = FLinearColor(1.0f, 0.4f, 0.3f, 1.0f);
 	// In world text color
 	UPROPERTY(EditAnywhere, Category = "Colors")
 	FLinearColor InWorldTextColor = FLinearColor::White;
@@ -735,11 +735,11 @@ struct FNiagaraDebugHUDSettingsData
 
 	// Message display warning text color
 	UPROPERTY(EditAnywhere, Category = "Colors")
-	FLinearColor MessageWarningTextColor = FLinearColor(0.9f, 0.7f, 0.0, 1.0f);
+	FLinearColor MessageWarningTextColor = FLinearColor(0.9f, 0.7f, 0.0f, 1.0f);
 
 	// Message display error text color
 	UPROPERTY(EditAnywhere, Category = "Colors")
-	FLinearColor MessageErrorTextColor = FLinearColor(1.0f, 0.4, 0.3, 1.0f);
+	FLinearColor MessageErrorTextColor = FLinearColor(1.0f, 0.4f, 0.3f, 1.0f);
 	
 	/** Opacity of the system color background tile in overview table rows. */
 	UPROPERTY(Config, EditAnywhere, Category = "Colors")

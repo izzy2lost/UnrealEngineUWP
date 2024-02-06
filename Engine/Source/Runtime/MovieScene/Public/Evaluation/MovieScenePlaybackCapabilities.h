@@ -312,13 +312,13 @@ protected:
 			for (; Index < NewCapabilityIndex; ++Index)
 			{
 				RequiredSizeof = Align(RequiredSizeof, (uint64)ExistingHeaders[Index].Alignment);
-				NewCapabilityOffsets[Index] = RequiredSizeof;
+				NewCapabilityOffsets[Index] = static_cast<uint16>(RequiredSizeof);
 				RequiredSizeof += ExistingHeaders[Index].Sizeof;
 			}
 
 			// Count up the size and alignment for the new capability
 			RequiredSizeof = Align(RequiredSizeof, alignof(StorageType));
-			NewCapabilityOffsets[Index] = RequiredSizeof;
+			NewCapabilityOffsets[Index] = static_cast<uint16>(RequiredSizeof);
 			RequiredSizeof += sizeof(StorageType);
 			++Index;
 
@@ -326,7 +326,7 @@ protected:
 			for (; Index < ExistingNum+1; ++Index)
 			{
 				RequiredSizeof = Align(RequiredSizeof, (uint64)ExistingHeaders[Index-1].Alignment);
-				NewCapabilityOffsets[Index] = RequiredSizeof;
+				NewCapabilityOffsets[Index] = static_cast<uint16>(RequiredSizeof);
 				RequiredSizeof += ExistingHeaders[Index-1].Sizeof;
 			}
 		}
@@ -342,7 +342,7 @@ protected:
 		if (bNeedsReallocation)
 		{
 			// Use the greater of the required size or double the current size to allow some additional capcity
-			Capacity = FMath::Max(RequiredSizeof, uint64(Capacity)*2);
+			Capacity = static_cast<uint16>(FMath::Max(RequiredSizeof, uint64(Capacity)*2));
 			Memory = reinterpret_cast<uint8*>(FMemory::Malloc(Capacity, RequiredAlignment));
 		}
 
@@ -469,7 +469,7 @@ protected:
 
 		// Get the header for this capability
 		const int32 Index = GetCapabilityIndex(CapabilityBit);
-		const FPlaybackCapabilityHeader& Header = GetHeader(Index);
+		const FPlaybackCapabilityHeader& Header = GetHeader(static_cast<uint8>(Index));
 
 		// Check that we are overwriting the same storage mode
 		using FStorageTraits = TPlaybackCapabilityStorageTraits<StorageType, CapabilityType>;

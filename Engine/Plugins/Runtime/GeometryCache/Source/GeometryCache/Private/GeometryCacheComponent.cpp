@@ -533,7 +533,7 @@ float UGeometryCacheComponent::GetTimeAtFrame(const int32 Frame) const
 	const float FrameTime = GetNumberOfFrames() > 1 ? Duration / (float)(GetNumberOfFrames() - 1) : 0.0f;
 	const int32 StartFrame = GeometryCache != nullptr ? GeometryCache->GetStartFrame() : 0;
 
-	return FMath::Clamp(FrameTime * (Frame - StartFrame), 0.0f, Duration);
+	return FMath::Clamp(FrameTime * static_cast<float>(Frame - StartFrame), 0.0f, Duration);
 }
 
 int32 UGeometryCacheComponent::GetNumberOfFrames() const

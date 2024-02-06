@@ -256,7 +256,7 @@ void FNiagaraRendererGeometryCache::PostSystemTick_GameThread(const UNiagaraRend
 	const FVector3f DefaultRotation = ParameterStore.GetParameterValueOrDefault(Properties->RotationBinding.GetParamMapBindableVariable(), FVector3f::ZeroVector);
 	const FVector3f DefaultScale = ParameterStore.GetParameterValueOrDefault(Properties->ScaleBinding.GetParamMapBindableVariable(), FVector3f::OneVector);
 	const float DefaultElapsedTime = ParameterStore.GetParameterValueOrDefault(Properties->ElapsedTimeBinding.GetParamMapBindableVariable(), 0.0f);
-	const float CurrentTime = AttachComponent->GetWorld()->GetRealTimeSeconds();
+	const float CurrentTime = static_cast<float>(AttachComponent->GetWorld()->GetRealTimeSeconds());
 
 	const FNiagaraLWCConverter LwcConverter = SystemInstance->GetLWCConverter(Emitter->IsLocalSpace());
 	const bool bIsRendererEnabled = IsRendererEnabled(InProperties, Emitter);
