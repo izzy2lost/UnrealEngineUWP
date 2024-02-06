@@ -20,8 +20,8 @@ struct FAvaMRQRundownPage
 	int32 PageId = 0;
 };
 
-UCLASS(DisplayName = "Rundown Page")
-class AVALANCHEMRQ_API UAvaMRQRundownPageSetting : public UMoviePipelineSetting
+UCLASS(MinimalAPI, DisplayName = "Rundown Page")
+class UAvaMRQRundownPageSetting : public UMoviePipelineSetting
 {
 	GENERATED_BODY()
 
@@ -31,7 +31,7 @@ public:
 
 protected:
 	//~ Begin UMoviePipelineSetting
-	virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline) override;
+	AVALANCHEMRQ_API virtual void SetupForPipelineImpl(UMoviePipeline* InPipeline) override;
 	virtual bool IsValidOnShots() const override { return false; }
 	virtual bool IsValidOnPrimary() const override { return true; }
 	//~ End UMoviePipelineSetting

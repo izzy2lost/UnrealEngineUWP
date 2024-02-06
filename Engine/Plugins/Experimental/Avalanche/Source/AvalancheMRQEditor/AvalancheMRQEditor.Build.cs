@@ -8,23 +8,17 @@ public class AvalancheMRQEditor : ModuleRules
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicDependencyModuleNames.AddRange(
-            new string[]
-            {
-                "Core",
-                "CoreUObject",
-                "AvalancheMedia",
-                "AvalancheMediaEditor",
-            }
-        );
-
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
                 "Avalanche",
                 "AvalancheMRQ",
+                "AvalancheMedia",
+                "AvalancheMediaEditor",
                 "AvalancheSequence",
                 "AvalancheSequencer",
+                "Core",
+                "CoreUObject",
                 "Engine",
                 "MovieRenderPipelineCore",
                 "MovieRenderPipelineEditor",
