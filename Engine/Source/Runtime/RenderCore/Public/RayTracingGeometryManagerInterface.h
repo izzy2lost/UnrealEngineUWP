@@ -14,6 +14,11 @@ class FRHIComputeCommandList;
 enum class EAccelerationStructureBuildMode;
 enum class ERTAccelerationStructureBuildPriority;
 
+namespace RayTracing
+{
+	using GeometryGroupHandle = int32;
+}
+
 class IRayTracingGeometryManager
 {
 public:
@@ -37,6 +42,14 @@ public:
 
 	RENDERCORE_API virtual RayTracingGeometryHandle RegisterRayTracingGeometry(FRayTracingGeometry* InGeometry) = 0;
 	RENDERCORE_API virtual void ReleaseRayTracingGeometryHandle(RayTracingGeometryHandle Handle) = 0;
+
+	/*
+	* RayTracing::GeometryGroupHandle is used to group multiple FRayTracingGeometry that are associated with the same asset.
+	* For example, the FRayTracingGeometry of all the LODs of UStaticMesh should use the same RayTracing::GeometryGroupHandle.
+	* This grouping is useful to keep track which proxies need to be invalidated when a FRayTracingGeometry is built or made resident.
+	*/
+	RENDERCORE_API virtual RayTracing::GeometryGroupHandle RegisterRayTracingGeometryGroup() = 0;
+	RENDERCORE_API virtual void ReleaseRayTracingGeometryGroup(RayTracing::GeometryGroupHandle Handle) = 0;
 
 	RENDERCORE_API virtual void Tick(FRHICommandList& RHICmdList) = 0;
 };

@@ -146,6 +146,7 @@ public:
 		const bool bIsStaticInstance = !bDynamicRayTracingGeometry;
 		return bIsStaticInstance && !HasViewDependentDPG() && !(bAllowStaticLighting && HasStaticLighting() && !HasValidSettingsForStaticLighting());
 	}
+	ENGINE_API virtual RayTracing::GeometryGroupHandle GetRayTracingGeometryGroupHandle() const override;
 #endif // RHI_RAYTRACING
 
 	ENGINE_API virtual void GetLCIs(FLCIArray& LCIs) override;
@@ -242,10 +243,13 @@ protected:
 	bool bSupportRayTracing : 1;
 	bool bDynamicRayTracingGeometry : 1;
 	bool bNeedsDynamicRayTracingGeometries : 1;
+
 	TArray<FRayTracingGeometry, TInlineAllocator<MAX_MESH_LOD_COUNT>> DynamicRayTracingGeometries;
 	TArray<FMeshBatch> CachedRayTracingMaterials;
 	int16 CachedRayTracingMaterialsLODIndex = INDEX_NONE;
 	FRayTracingMaskAndFlags CachedRayTracingInstanceMaskAndFlags;
+
+	RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = INDEX_NONE;
 #endif
 	/**
 	 * The forcedLOD set in the static mesh editor, copied from the mesh component
