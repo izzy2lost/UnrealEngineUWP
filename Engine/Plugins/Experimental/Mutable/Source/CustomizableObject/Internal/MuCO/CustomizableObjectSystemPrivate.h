@@ -693,6 +693,13 @@ public:
 	void CacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
 
 	void UnCacheTextureParameters(const TArray<FCustomizableObjectTextureParameterValue>& TextureParameters) const;
+
+#if WITH_EDITORONLY_DATA
+	/**	PIE CO on-screen warnings. */
+	static void ShowOnScreenCompileWarnings();
+
+	static void HideOnScreenCompileWarnings(const UCustomizableObjectPrivate& ObjectPrivate);
+#endif
 	
 	/** Mutable TaskGraph system (Mutable Thread). */
 	FMutableTaskGraph MutableTaskGraph;
