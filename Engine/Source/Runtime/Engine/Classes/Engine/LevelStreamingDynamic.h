@@ -63,6 +63,9 @@ class ULevelStreamingDynamic : public ULevelStreaming
 
 		/** Set EditorPath Owner */
 		UObject* EditorPathOwner = nullptr;
+
+		/** Callback when ULevelStreaming object is created */
+		TUniqueFunction<void(ULevelStreaming*)> LevelStreamingCreatedCallback;
 	};
 
 	/**  

@@ -687,6 +687,9 @@ protected:
 	/** Called by SetLoadedLevel */
 	virtual void OnLevelLoadedChanged(ULevel* Level) {}
 
+	/** Called when the current state changes */
+	virtual void OnCurrentStateChanged(ELevelStreamingState OldState, ELevelStreamingState NewState) {}
+
 	/** Called by RequestLevel to detect existing streaming level with same world asset */
 	bool ValidateUniqueWorldAsset(UWorld* PersistentWorld);
 

@@ -536,11 +536,17 @@ void ULevelStreaming::OnLevelRemoved()
 
 void ULevelStreaming::SetCurrentState(ELevelStreamingState NewState)
 {
+	ELevelStreamingState OldState = CurrentState;
+	CurrentState = NewState;
+
+	if (OldState != NewState)
+	{
+		OnCurrentStateChanged(OldState, NewState);
+	}
+
 	// TODO: We should only fire the delegate when the current state has changed, but first AsyncLevelLoadComplete needs to be fixed to 
 	// only set the new state once the LoadedLevel is assigned. Clients currently rely on getting a repeated notification after the loaded
 	// level is available.
-	ELevelStreamingState OldState = CurrentState;
-	CurrentState = NewState;
 	FLevelStreamingDelegates::OnLevelStreamingStateChanged.Broadcast(GetWorld(), this, GetLoadedLevel(), OldState, NewState);
 }
 
@@ -2613,6 +2619,10 @@ ULevelStreamingDynamic* ULevelStreamingDynamic::LoadLevelInstance_Internal(const
     
 	// Setup streaming level object that will load specified map
 	ULevelStreamingDynamic* StreamingLevel = NewObject<ULevelStreamingDynamic>(Params.World, LevelStreamingClass, NAME_None, RF_Transient, NULL);
+	if (Params.LevelStreamingCreatedCallback)
+	{
+		Params.LevelStreamingCreatedCallback(StreamingLevel);
+	}
 
 	FSoftObjectPath WorldAssetPath(*WriteToString<512>(UnmodifiedLevelPackageName, TEXT("."), ShortPackageName));
     StreamingLevel->SetWorldAsset(TSoftObjectPtr<UWorld>(WorldAssetPath));
