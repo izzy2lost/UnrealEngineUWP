@@ -37,7 +37,6 @@ public:
 	virtual bool StartSession(const TArray<FAnalyticsEventAttribute>& Attributes) override;
 	virtual void EndSession() override;
 	virtual void FlushEvents() override;
-	virtual void BlockUntilFlushed(float InTimeoutSec) override;
 
 	virtual void SetUserID(const FString& InUserID) override;
 	virtual FString GetUserID() const override;

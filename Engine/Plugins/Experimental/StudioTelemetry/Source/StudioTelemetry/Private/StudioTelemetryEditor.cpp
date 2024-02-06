@@ -937,10 +937,11 @@ void FStudioTelemetryEditor::Initialize()
 
 				if (EnumHasAllFlags(Flags, UE::Virtualization::EAnalyticsFlags::Flush))
 				{
-					if (TSharedPtr<IAnalyticsProvider> Provider = FStudioTelemetry::Get().GetProvider().Pin())
-					{
-						Provider->BlockUntilFlushed(60.0f);
-					}
+					// TODO: Flush currently does nothing while we rework the API
+					//if (TSharedPtr<IAnalyticsProvider> Provider = FStudioTelemetry::Get().GetProvider().Pin())
+					//{
+					//	Provider->BlockUntilFlushed(60.0f);
+					//}
 				}
 			});
 	}

@@ -115,13 +115,6 @@ void FAnalyticsProviderFileLogging::FlushEvents()
 	}
 }
 
-void FAnalyticsProviderFileLogging::BlockUntilFlushed(float InTimeoutSec)
-{
-	// We don't really need to block when flushing in this provider so we
-	// can just call flush.
-	FlushEvents();
-}
-
 void FAnalyticsProviderFileLogging::SetUserID(const FString& InUserID)
 {
 	if (!bHasSessionStarted)
