@@ -37,11 +37,14 @@ public:
 	/** Edits the specified PCGGraph */
 	void Initialize(const EToolkitMode::Type InMode, const TSharedPtr<class IToolkitHost>& InToolkitHost, UPCGGraph* InPCGGraph);
 
-	/** Get the PCG graph being edited */
+	/** Get the PCG editor graph being edited. */
 	UPCGEditorGraph* GetPCGEditorGraph();
 
 	/** Gets/Creates the PCG graph editor for a given PCG graph */
 	static UPCGEditorGraph* GetPCGEditorGraph(UPCGGraph* InGraph);
+
+	/** Get the PCG graph being edited. */
+	const UPCGGraph* GetPCGGraph() { return PCGGraphBeingEdited; }
 
 	/** Sets the execution stack that want to inspect. */
 	void SetStackBeingInspected(const FPCGStack& FullStack);
@@ -54,6 +57,7 @@ public:
 
 	/** Focus the graph view on a specific node */
 	void JumpToNode(const UEdGraphNode* InNode);
+	void JumpToNode(const UPCGNode* InNode);
 
 	/** Helper to get to the subsystem. */
 	static class UPCGSubsystem* GetSubsystem();

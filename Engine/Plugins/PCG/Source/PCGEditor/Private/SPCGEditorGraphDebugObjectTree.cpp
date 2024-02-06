@@ -252,16 +252,17 @@ void SPCGEditorGraphDebugObjectTree::Construct(const FArguments& InArgs, TShared
 		.Thickness(FVector2D(12.0f, 12.0f));
 
 	DebugObjectTreeView = SNew(STreeView<FPCGEditorGraphDebugObjectItemPtr>)
-				.TreeItemsSource(&RootItems)
-				.OnGenerateRow(this, &SPCGEditorGraphDebugObjectTree::MakeTreeRowWidget)
-				.OnGetChildren(this, &SPCGEditorGraphDebugObjectTree::OnGetChildren)
-				.OnSelectionChanged(this, &SPCGEditorGraphDebugObjectTree::OnSelectionChanged)
-				.OnExpansionChanged(this, &SPCGEditorGraphDebugObjectTree::OnExpansionChanged)
-				.OnSetExpansionRecursive(this, &SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive)
-				.ItemHeight(18)
-				.AllowOverscroll(EAllowOverscroll::No)
-				.ExternalScrollbar(VerticalScrollBar)
-				.ConsumeMouseWheel(EConsumeMouseWheel::Always);
+		.TreeItemsSource(&RootItems)
+		.OnGenerateRow(this, &SPCGEditorGraphDebugObjectTree::MakeTreeRowWidget)
+		.OnGetChildren(this, &SPCGEditorGraphDebugObjectTree::OnGetChildren)
+		.OnSelectionChanged(this, &SPCGEditorGraphDebugObjectTree::OnSelectionChanged)
+		.OnExpansionChanged(this, &SPCGEditorGraphDebugObjectTree::OnExpansionChanged)
+		.OnSetExpansionRecursive(this, &SPCGEditorGraphDebugObjectTree::OnSetExpansionRecursive)
+		.ItemHeight(18)
+		.AllowOverscroll(EAllowOverscroll::No)
+		.ExternalScrollbar(VerticalScrollBar)
+		.ConsumeMouseWheel(EConsumeMouseWheel::Always)
+		.OnContextMenuOpening(FOnContextMenuOpening::CreateSP(this, &SPCGEditorGraphDebugObjectTree::OpenContextMenu));
 
 	const TSharedRef<SWidget> SetButton = PropertyCustomizationHelpers::MakeUseSelectedButton(
 		FSimpleDelegate::CreateSP(this, &SPCGEditorGraphDebugObjectTree::SetDebugObjectFromSelection_OnClicked),
@@ -880,7 +881,14 @@ void SPCGEditorGraphDebugObjectTree::OnGetChildren(FPCGEditorGraphDebugObjectIte
 
 void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo)
 {
-	if (const FPCGStack* Stack = (InItem && InItem->IsDebuggable()) ? InItem->GetPCGStack() : nullptr)
+	// If the user selects a new item, record the previous stack. This is helpful to give previous selection information to 
+	// context menu commands, because right clicking an item changes the selection.
+	if (InSelectInfo != ESelectInfo::Direct)
+	{
+		PreviouslySelectedStack = SelectedStack;
+	}
+
+	if (const FPCGStack* Stack = InItem ? InItem->GetPCGStack() : nullptr)
 	{
 		SelectedStack = *Stack;
 	}
@@ -983,6 +991,95 @@ void SPCGEditorGraphDebugObjectTree::ExpandAndSelectDebugObject(FPCGEditorGraphD
 	{
 		OnSelectionChanged(Item, ESelectInfo::Direct);
 	}
+}
+
+TSharedPtr<SWidget> SPCGEditorGraphDebugObjectTree::OpenContextMenu()
+{
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, /*InCommandList=*/nullptr);
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("JumpToSelectedGraph", "Jump To"),
+		LOCTEXT("JumpToSelectedGraphTooltip", "Jumps to the selected graph."),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "SystemWideCommands.FindInContentBrowser.Small"),
+		FUIAction(FExecuteAction::CreateSP(this, &SPCGEditorGraphDebugObjectTree::ContextMenu_JumpToGraphInTree), FCanExecuteAction::CreateSP(this, &SPCGEditorGraphDebugObjectTree::ContextMenu_JumpToGraphInTree_CanExecute))
+	);
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SPCGEditorGraphDebugObjectTree::ContextMenu_JumpToGraphInTree()
+{
+	// If we were previously debugging a target and we're jumping to a parent graph, jump to the subgraph/loop node
+	// that corresponds to the previously selected stack.
+	// 
+	// Example:
+	//		Jump target: Component/TopGraph
+	//		Previous stack: Component/TopGraph/SubgraphNode/Subgraph
+	// 
+	// Here the "subject" of the jump here is SubgraphNode - obtain this from the previous stack, frame index after TopGraph.
+
+	const TArray<FPCGEditorGraphDebugObjectItemPtr> SelectedItems = DebugObjectTreeView->GetSelectedItems();
+	for (const FPCGEditorGraphDebugObjectItemPtr& SelectedItem : SelectedItems)
+	{
+		UPCGGraph* JumpToPCGGraph = nullptr;
+		UPCGNode* JumpToPCGNode = nullptr;
+
+		if (SelectedItem->IsDebuggable())
+		{
+			// Debuggable target graphs correspond to the currently edited graph. For this case open the parent graph and jump to the corresponding subgraph node.
+			
+			// Search the stack for the parent graph.
+			for (int i = SelectedStack.GetStackFrames().Num() - 2; i > 0; --i) 
+			{
+				if (SelectedStack.GetStackFrames()[i].Object != nullptr && SelectedStack.GetStackFrames()[i].Object->IsA<UPCGGraph>())
+				{
+					JumpToPCGGraph = const_cast<UPCGGraph*>(Cast<const UPCGGraph>(SelectedStack.GetStackFrames()[i].Object));
+					JumpToPCGNode = const_cast<UPCGNode*>(Cast<const UPCGNode>(SelectedStack.GetStackFrames()[i + 1].Object));
+					break;
+				}
+			}
+		}
+		else 
+		{
+			// Non-debuggable target graphs are graphs that are not the current edited graph.
+			JumpToPCGGraph = const_cast<UPCGGraph*>(SelectedItem->GetPCGGraph());
+
+			// When the user right clicks, the selection moves. PreviouslySelectedStack will hold the previous selection, and
+			// we retrieve our subject node from there, which can be found 1 frame after the jump to graph, hence the Num() below.
+			const int SubjectNodeFrameIndex = SelectedStack.GetStackFrames().Num();
+			if (PreviouslySelectedStack.GetStackFrames().IsValidIndex(SubjectNodeFrameIndex))
+			{
+				JumpToPCGNode = const_cast<UPCGNode*>(Cast<const UPCGNode>(PreviouslySelectedStack.GetStackFrames()[SubjectNodeFrameIndex].Object));
+			}
+		}
+
+		if (JumpToPCGGraph && JumpToPCGNode)
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(JumpToPCGGraph);
+
+			if (IAssetEditorInstance* EditorInstance = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(JumpToPCGGraph, /*bFocusIfOpen*/true))
+			{
+				static_cast<FPCGEditor*>(EditorInstance)->JumpToNode(JumpToPCGNode);
+			}
+		}
+	}
+}
+
+bool SPCGEditorGraphDebugObjectTree::ContextMenu_JumpToGraphInTree_CanExecute() const
+{
+	const TArray<FPCGEditorGraphDebugObjectItemPtr> SelectedItems = DebugObjectTreeView->GetSelectedItems();
+	for (const FPCGEditorGraphDebugObjectItemPtr& SelectedItem : SelectedItems)
+	{
+		const UPCGGraph* PCGGraphBeingEdited = PCGEditor.IsValid() ? PCGEditor.Pin()->GetPCGGraph() : nullptr;
+		const UPCGGraph* SelectedPCGGraph = SelectedItem->GetPCGGraph();
+
+		// Offer jump-to command if any selected item is a graph or a subgraph loop iteration.
+		if (SelectedPCGGraph || SelectedItem->IsLoopIteration())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE
