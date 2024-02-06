@@ -497,23 +497,13 @@ namespace EpicGames.Horde
 				options.Value.ConfigureHttpClient?.Invoke(httpClient);
 				configureClient(serviceProvider, httpClient);
 
-				// Only use the token from the environment if the configured base address is missing or matches the one configured in the environment
-				string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
-				if (!String.IsNullOrEmpty(hordeUrlEnvVar))
+				// If the server URL isn't set, take it from the environment
+				if (httpClient.BaseAddress == null)
 				{
-					Uri hordeUrl = new Uri(hordeUrlEnvVar);
-					if (httpClient.BaseAddress == null || String.Equals(httpClient.BaseAddress.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
+					string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
+					if (!String.IsNullOrEmpty(hordeUrlEnvVar))
 					{
-						httpClient.BaseAddress ??= hordeUrl;
-
-						if (httpClient.DefaultRequestHeaders.Authorization == null)
-						{
-							string? hordeToken = Environment.GetEnvironmentVariable(HordeHttpClient.HordeTokenEnvVarName);
-							if (!String.IsNullOrEmpty(hordeToken))
-							{
-								httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", hordeToken);
-							}
-						}
+						httpClient.BaseAddress = new Uri(hordeUrlEnvVar);
 					}
 				}
 

@@ -1,4 +1,4 @@
-FROM node:18.13.0 as build-env
+FROM node:20.11.0 as build-env
 ARG VersionInfo
 ARG DashboardConfig
 ENV REACT_APP_VERSION_INFO=${VersionInfo}

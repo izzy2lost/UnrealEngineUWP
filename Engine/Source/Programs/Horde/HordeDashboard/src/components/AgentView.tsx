@@ -2777,7 +2777,7 @@ export const AgentView: React.FC = () => {
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />
-      <Breadcrumbs items={[{ text: 'Admin' }, { text: 'Agents' }]} />
+      <Breadcrumbs items={[{ text: 'Agents' }]} />
       <Stack horizontal>
          <Stack grow styles={{ root: { backgroundColor: hordeTheme.horde.neutralBackground } }} />
          <Stack tokens={{ maxWidth: 1440, childrenGap: 4 }} styles={{ root: { width: 1440, height: '100vh', backgroundColor: hordeTheme.horde.neutralBackground, paddingTop: 18, paddingLeft: 12 } }}>

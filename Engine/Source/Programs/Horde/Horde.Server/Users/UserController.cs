@@ -98,5 +98,15 @@ namespace Horde.Server.Users
 			await _userCollection.UpdateSettingsAsync(userId.Value, request.EnableExperimentalFeatures, request.AlwaysTagPreflightCL, request.DashboardSettings?.ToBsonValue(), request.AddPinnedJobIds?.Select(x => JobId.Parse(x)), request.RemovePinnedJobIds?.Select(x => JobId.Parse(x)), null, request.AddPinnedBisectTaskIds?.Select(x => BisectTaskId.Parse(x)), request.RemovePinnedBisectTaskIds?.Select(x => BisectTaskId.Parse(x)));
 			return Ok();
 		}
+
+		/// <summary>
+		/// Gets claims for the current user
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/user/claims")]
+		public ActionResult<object[]> GetUserClaims()
+		{
+			return User.Claims.Select(x => new { x.Type, x.Value }).ToArray();
+		}
 	}
 }

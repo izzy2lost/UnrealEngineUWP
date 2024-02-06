@@ -47,6 +47,11 @@ namespace EpicGames.Horde
 					// If an explicit access token is specified, just use that
 					request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Value.AccessToken);
 				}
+				else if (request.RequestUri != null && TryGetAccessTokenFromEnvironment(request.RequestUri, out string? accessToken))
+				{
+					// Use the access token specified in the environment
+					request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+				}
 				else if (_options.Value.AllowAuthPrompt)
 				{
 					// Try to use the cached auth header
@@ -77,6 +82,28 @@ namespace EpicGames.Horde
 				}
 			}
 			return await base.SendAsync(request, cancellationToken);
+		}
+
+		static bool TryGetAccessTokenFromEnvironment(Uri requestUri, out string? accessToken)
+		{
+			// Only use the token from the environment if the configured base address is missing or matches the one configured in the environment
+			string? hordeUrlEnvVar = Environment.GetEnvironmentVariable(HordeHttpClient.HordeUrlEnvVarName);
+			if (!String.IsNullOrEmpty(hordeUrlEnvVar))
+			{
+				Uri hordeUrl = new Uri(hordeUrlEnvVar);
+				if (String.Equals(requestUri.Host, hordeUrl.Host, StringComparison.OrdinalIgnoreCase))
+				{
+					string? hordeToken = Environment.GetEnvironmentVariable(HordeHttpClient.HordeTokenEnvVarName);
+					if (!String.IsNullOrEmpty(hordeToken))
+					{
+						accessToken = hordeToken;
+						return true;
+					}
+				}
+			}
+
+			accessToken = null;
+			return false;
 		}
 	}
 
