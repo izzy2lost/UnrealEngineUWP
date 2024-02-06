@@ -77,6 +77,9 @@ private:
 
 	FReply HandleCreateViewModelClicked();
 
+	EVisibility GetViewModelMessageVisibility() const;
+	EVisibility GetBindingMessageVisibility() const;
+
 	EVisibility GetVisibility(bool bVisibleWithBindings) const;
 
 	ECheckBoxState GetDetailsVisibleCheckState() const;

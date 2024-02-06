@@ -393,7 +393,7 @@ TSharedRef<SWidget> SBindingsPanel::CreateDrawerDockButton()
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
 				.VAlign(VAlign_Center)
-				.Padding(4.0, 0.0f)
+				.Padding(4.0f, 0.0f)
 				[
 					SNew(SImage)
 					.ColorAndOpacity(FSlateColor::UseForeground())
@@ -401,7 +401,7 @@ TSharedRef<SWidget> SBindingsPanel::CreateDrawerDockButton()
 				]
 				+ SHorizontalBox::Slot()
 				.VAlign(VAlign_Center)
-				.Padding(4.0, 0.0f)
+				.Padding(4.0f, 0.0f)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("DockInLayout", "Dock in Layout"))
@@ -692,22 +692,11 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 		[
 			SNew(SBorder)
 			.BorderImage(FMVVMEditorStyle::Get().GetBrush("BindingView.ViewModelWarning"))
-			.Visibility_Lambda([this]()
-				{
-					if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
-					{
-						if (MVVMExtensionPtr->GetBlueprintView() != nullptr && 
-							MVVMExtensionPtr->GetBlueprintView()->GetViewModels().Num() > 0)
-						{
-							return EVisibility::Collapsed;
-						}
-					}
-					return EVisibility::Visible;
-				})
+			.Visibility(this, &SBindingsPanel::GetViewModelMessageVisibility)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.Padding(20, 20, 12, 20)
+				.Padding(20.0f, 20.0f, 12.0f, 20.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Left)
 				.AutoWidth()
@@ -716,7 +705,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 					.Image(FAppStyle::Get().GetBrush("Icons.Warning"))
 				]
 				+ SHorizontalBox::Slot()
-				.Padding(0, 0, 8, 0)
+				.Padding(0.0f, 0.0f, 8.0f, 0.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Center)
 				.AutoWidth()
@@ -725,7 +714,7 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 					.Text(LOCTEXT("MissingViewModel", "This editor requires a viewmodel that widgets can bind to, would you like to add a viewmodel now?"))
 				]
 				+ SHorizontalBox::Slot()
-				.Padding(0, 0, 20, 0)
+				.Padding(0.0f, 0.0f, 20.0f, 0.0f)
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Right)
 				[
@@ -735,6 +724,35 @@ TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 						SNew(STextBlock)
 						.Text(LOCTEXT("CreateViewModel", "Add Viewmodel"))
 					]
+				]
+			]
+		]
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SBorder)
+			.BorderImage(FMVVMEditorStyle::Get().GetBrush("BindingView.ViewModelWarning"))
+			.Visibility(this, &SBindingsPanel::GetBindingMessageVisibility)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(20.0f, 20.0f, 12.0f, 20.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.Image(FAppStyle::Get().GetBrush("Icons.Info"))
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(0.0f, 0.0f, 20.0f, 0.0f)
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Right)
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("DragWidgetCreateBinding", "Drag a widget from the Hierarchy to create a binding."))
 				]
 			]
 		]
@@ -825,6 +843,33 @@ FReply SBindingsPanel::HandleCreateViewModelClicked()
 		}
 	}
 	return FReply::Handled();
+}
+
+EVisibility SBindingsPanel::GetViewModelMessageVisibility() const
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		if (MVVMExtensionPtr->GetBlueprintView() != nullptr &&
+			MVVMExtensionPtr->GetBlueprintView()->GetViewModels().Num() > 0)
+		{
+			return EVisibility::Collapsed;
+		}
+	}
+	return EVisibility::Visible;
+}
+
+EVisibility SBindingsPanel::GetBindingMessageVisibility() const
+{
+	if (UMVVMWidgetBlueprintExtension_View* MVVMExtensionPtr = MVVMExtension.Get())
+	{
+		if (MVVMExtensionPtr->GetBlueprintView() != nullptr &&
+			MVVMExtensionPtr->GetBlueprintView()->GetViewModels().Num() > 0 &&
+			MVVMExtensionPtr->GetBlueprintView()->GetBindings().Num() == 0)
+		{
+			return EVisibility::Visible;
+		}
+	}
+	return EVisibility::Collapsed;
 }
 
 } // namespace UE::MVVM
