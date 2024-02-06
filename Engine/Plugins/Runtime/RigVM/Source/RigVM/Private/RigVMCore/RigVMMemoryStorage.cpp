@@ -91,24 +91,16 @@ ERigVMExecuteResult FRigVMLazyBranch::Execute(FRigVMExtendedExecuteContext& Cont
 	return FunctionPtr();
 }
 
-ERigVMExecuteResult FRigVMLazyBranch::ExecuteIfRequired(FRigVMExtendedExecuteContext& Context, int32 InSliceIndex)
+ERigVMExecuteResult FRigVMLazyBranch::ExecuteIfRequired(FRigVMExtendedExecuteContext& Context, uint32 InSliceHash)
 {
 	check(VM);
 
-	if(InSliceIndex == INDEX_NONE)
-	{
-		InSliceIndex = 0;
-	}
-	
-	while(!Context.LazyBranchInstanceData[BranchInfo.Index].LastVMNumExecutions.IsValidIndex(InSliceIndex))
-	{
-		Context.LazyBranchInstanceData[BranchInfo.Index].LastVMNumExecutions.Add(INDEX_NONE);
-	}
-
-	if(Context.GetNumExecutions() != Context.LazyBranchInstanceData[BranchInfo.Index].LastVMNumExecutions[InSliceIndex])
+	const uint32 Hash = GetTypeHash(Context.GetNumExecutions());
+	uint32& StoredHash = Context.LazyBranchExecuteState[BranchInfo.Index].HashPerSlice.FindOrAdd(InSliceHash, UINT32_MAX);
+	if(Hash != StoredHash)
 	{
 		const ERigVMExecuteResult Result = Execute(Context);
-		Context.LazyBranchInstanceData[BranchInfo.Index].LastVMNumExecutions[InSliceIndex] = Context.GetNumExecutions();
+		StoredHash = Hash;
 		return Result;
 	}
 	
@@ -122,7 +114,7 @@ const uint8* TRigVMLazyValueBase::GetData(const FRigVMExecuteContext& Context) c
 		if(MemoryHandle->IsLazy())
 		{
 			check(Context.ExtendedExecuteContext != nullptr);
-			MemoryHandle->ComputeLazyValueIfNecessary(*Context.ExtendedExecuteContext, SliceIndex);
+			MemoryHandle->ComputeLazyValueIfNecessary(*Context.ExtendedExecuteContext, SliceHash);
 		}
 		return MemoryHandle->GetData(bFollowPropertyPath, INDEX_NONE);
 	}
@@ -131,10 +123,10 @@ const uint8* TRigVMLazyValueBase::GetData(const FRigVMExecuteContext& Context) c
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FRigVMMemoryHandle::ComputeLazyValueIfNecessary(FRigVMExtendedExecuteContext& Context, int32 InSliceIndex)
+bool FRigVMMemoryHandle::ComputeLazyValueIfNecessary(FRigVMExtendedExecuteContext& Context, uint32 InSliceHash)
 {
 	check(IsLazy());
-	return LazyBranch->ExecuteIfRequired(Context, InSliceIndex) != ERigVMExecuteResult::Failed;
+	return LazyBranch->ExecuteIfRequired(Context, InSliceHash) != ERigVMExecuteResult::Failed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

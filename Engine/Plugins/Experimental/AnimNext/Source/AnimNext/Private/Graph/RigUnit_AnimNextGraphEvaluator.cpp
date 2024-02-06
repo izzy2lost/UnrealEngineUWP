@@ -54,7 +54,7 @@ void FRigUnit_AnimNextGraphEvaluator::StaticExecute(FRigVMExtendedExecuteContext
 		// value we expect but it'll work. The ensure will signal that we need to fix the bug.
 		if (ensure(MemoryHandle.IsLazy()))
 		{
-			MemoryHandle.ComputeLazyValueIfNecessary(RigVMExecuteContext, RigVMExecuteContext.GetSlice().GetIndex());
+			MemoryHandle.ComputeLazyValueIfNecessary(RigVMExecuteContext, RigVMExecuteContext.GetSliceHash());
 		}
 
 		const uint8* SourcePtr = MemoryHandle.GetData();

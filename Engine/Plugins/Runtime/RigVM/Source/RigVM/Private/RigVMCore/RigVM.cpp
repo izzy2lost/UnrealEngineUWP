@@ -1481,8 +1481,8 @@ bool URigVM::InitializeInstance(FRigVMExtendedExecuteContext& Context, bool bCop
 	Context.CachedMemoryHandles.Reset(MemoryHandleCount);
 
 	const int32 LazyBranchSize = GetByteCode().BranchInfos.Num();
-	Context.LazyBranchInstanceData.Reset(LazyBranchSize);
-	Context.LazyBranchInstanceData.SetNumZeroed(LazyBranchSize);
+	Context.LazyBranchExecuteState.Reset(LazyBranchSize);
+	Context.LazyBranchExecuteState.SetNumZeroed(LazyBranchSize);
 
 	if (bCopyMemory)
 	{
@@ -2108,17 +2108,14 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 					(Op.EndInstruction != INDEX_NONE) &&
 					(Op.EndInstruction >= Op.StartInstruction))
 				{
-					const int32 SliceIndex = FMath::Max(0, Context.GetSlice().GetIndex());
-					while(!ExecutionState.HashPerSlice.IsValidIndex(SliceIndex))
-					{
-						ExecutionState.HashPerSlice.Add(UINT32_MAX);
-					}
+					const uint32 SliceHash = Context.GetSliceHash();
+					uint32& StoredHash = ExecutionState.HashPerSlice.FindOrAdd(SliceHash, UINT32_MAX);
 						
 					const uint32 Hash = GetTypeHash(ContextPublicData.GetNumExecutions());
-					if(ExecutionState.HashPerSlice[SliceIndex] != Hash)
+					if(StoredHash != Hash)
 					{
 						ExecuteInstructions(Context, Op.StartInstruction, Op.EndInstruction);
-						ExecutionState.HashPerSlice[SliceIndex] = Hash;
+						StoredHash = Hash;
 					}
 				}
 

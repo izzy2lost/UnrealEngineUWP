@@ -74,7 +74,7 @@ void FRigVMExtendedExecuteContext::Reset()
 
 	CachedMemoryHandles.Reset();
 
-	LazyBranchInstanceData.Reset();
+	LazyBranchExecuteState.Reset();
 	ExternalVariableRuntimeData.Reset();
 
 	if(PublicDataScope.IsValid())
@@ -149,7 +149,7 @@ FRigVMExtendedExecuteContext& FRigVMExtendedExecuteContext::operator =(const FRi
 
 	CachedMemoryHandles = Other.CachedMemoryHandles;
 
-	LazyBranchInstanceData = Other.LazyBranchInstanceData;
+	LazyBranchExecuteState = Other.LazyBranchExecuteState;
 	ExternalVariableRuntimeData = Other.ExternalVariableRuntimeData;
 
 	return *this;

@@ -146,7 +146,7 @@ public:
 	{}
 
 	ERigVMExecuteResult Execute(FRigVMExtendedExecuteContext& Context);
-	ERigVMExecuteResult ExecuteIfRequired(FRigVMExtendedExecuteContext& Context, int32 InSliceIndex);
+	ERigVMExecuteResult ExecuteIfRequired(FRigVMExtendedExecuteContext& Context, uint32 InSliceHash);
 
 private:
 
@@ -167,7 +167,7 @@ public:
 
 	TRigVMLazyValueBase()
 		: bFollowPropertyPath(false)
-		, SliceIndex(INDEX_NONE)
+		, SliceHash(UINT32_MAX)
 		, MemoryHandle(nullptr)
 	{
 	}
@@ -178,7 +178,7 @@ public:
 protected:
 	
 	bool bFollowPropertyPath;
-	int32 SliceIndex;
+	uint32 SliceHash;
 	FRigVMMemoryHandle* MemoryHandle;
 	
 	friend class URigVM;
@@ -304,7 +304,7 @@ public:
 	 * Computes the data if necessary and returns true if the value is valid
 	 * @return True if the value of the handle is valid after the compute
 	 */
-	RIGVM_API bool ComputeLazyValueIfNecessary(FRigVMExtendedExecuteContext& Context, int32 InSliceIndex = INDEX_NONE);
+	RIGVM_API bool ComputeLazyValueIfNecessary(FRigVMExtendedExecuteContext& Context, uint32 InSliceHash);
 
 	// Returns the head property of this handle
 	const FProperty* GetProperty() const
@@ -869,13 +869,13 @@ private:
 		return Ptr;
 	}
 
-	TRigVMLazyValueBase GetDataLazily_Internal(bool bFollowPropertyPath, int32 InSliceIndex) const
+	TRigVMLazyValueBase GetDataLazily_Internal(bool bFollowPropertyPath, uint32 InSliceHash) const
 	{
 		// note: this works also for memory handles which don't provide a lazy branch
 		TRigVMLazyValueBase LazyValue;
 		LazyValue.MemoryHandle = (FRigVMMemoryHandle*)this;
 		LazyValue.bFollowPropertyPath = bFollowPropertyPath;
-		LazyValue.SliceIndex = InSliceIndex;
+		LazyValue.SliceHash = InSliceHash;
 		return LazyValue;
 	}
 
