@@ -246,7 +246,7 @@ bool UsdToUnreal::ConvertDomeLight(
 	// Revert the allocator in case we end up creating a texture on the ansi allocator or something like that
 	FScopedUnrealAllocs UEAllocs;
 
-	const FString ResolvedDomeTexturePath = UsdUtils::GetResolvedTexturePath(DomeLight.GetTextureFileAttr());
+	const FString ResolvedDomeTexturePath = UsdUtils::GetResolvedAssetPath(DomeLight.GetTextureFileAttr());
 	if (ResolvedDomeTexturePath.IsEmpty())
 	{
 		FScopedUsdAllocs Allocs;

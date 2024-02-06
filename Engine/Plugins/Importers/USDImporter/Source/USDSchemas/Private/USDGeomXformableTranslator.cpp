@@ -930,7 +930,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 	{
 		if (Attr && Attr.HasAuthoredValue())
 		{
-			const FString ResolvedPath = UsdUtils::GetResolvedTexturePath(Attr);
+			const FString ResolvedPath = UsdUtils::GetResolvedAssetPath(Attr);
 			if (ResolvedPath.IsEmpty())
 			{
 				pxr::SdfAssetPath TextureAssetPath;

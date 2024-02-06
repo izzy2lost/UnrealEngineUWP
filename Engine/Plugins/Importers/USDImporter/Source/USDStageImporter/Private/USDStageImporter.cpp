@@ -55,6 +55,7 @@
 #include "PackageTools.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "Serialization/ArchiveReplaceObjectRef.h"
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "UObject/UObjectIterator.h"
 
@@ -613,6 +614,13 @@ namespace UE::USDStageImporter::Private
 
 			AssetPrefix = TEXT("ABP_");
 		}
+		else if (USparseVolumeTexture* SparseVolumeTexture = Cast<USparseVolumeTexture>(Asset))
+		{
+			AssetPrefix = TEXT("SVT_");
+
+			// Same situation as the UTexture case
+			AssetName = SparseVolumeTexture->GetFName().GetPlainNameString();
+		}
 
 		if (!AssetName.StartsWith(AssetPrefix))
 		{
@@ -645,7 +653,7 @@ namespace UE::USDStageImporter::Private
 		if (ImportData)
 		{
 			// Don't force update textures as they will already have this preset to their actual texture path
-			if (!Asset->IsA<UTexture>())
+			if (!Asset->IsA<UTexture>() && !Asset->IsA<USparseVolumeTexture>())
 			{
 				ImportData->UpdateFilenameOnly(MainFilePath);
 			}
@@ -924,6 +932,7 @@ namespace UE::USDStageImporter::Private
 		TArray<UObject*> Grooms;
 		TArray<UObject*> GroomCaches;
 		TArray<UObject*> GroomBindings;
+		TArray<UObject*> SparseVolumeTextures;
 
 		TSet<FString> UniqueAssetNames;
 		TMap<UObject*, FString> AssetToContentFolder;
@@ -1016,6 +1025,11 @@ namespace UE::USDStageImporter::Private
 				}
 				GroomBindings.Add(Asset);
 			}
+			else if (Asset->IsA(USparseVolumeTexture::StaticClass()))
+			{
+				AssetTypeFolderPtr = &TexturesFolder;
+				SparseVolumeTextures.Add(Asset);
+			}
 			else
 			{
 				// We don't know what to do with this asset
@@ -1083,6 +1097,7 @@ namespace UE::USDStageImporter::Private
 		PublishAssetType(GeometryCaches);
 		PublishAssetType(Materials);
 		PublishAssetType(Textures);
+		PublishAssetType(SparseVolumeTextures);
 	}
 
 	void ResolveComponentConflict(
@@ -1697,6 +1712,7 @@ namespace UE::USDStageImporter::Private
 			int32 NumGroomAssets = 0;
 			int32 NumGroomBindings = 0;
 			int32 NumGroomCaches = 0;
+			int32 NumSparseVolumeTextures = 0;
 			for (UObject* ImportedAsset : ImportedAssets)
 			{
 				if (!ImportedAsset)
@@ -1744,6 +1760,10 @@ namespace UE::USDStageImporter::Private
 				{
 					++NumGroomCaches;
 				}
+				else if (ImportedAsset->IsA<USparseVolumeTexture>())
+				{
+					++NumSparseVolumeTextures;
+				}
 			}
 			EventAttributes.Emplace(TEXT("NumStaticMeshes"), LexToString(NumStaticMeshes));
 			EventAttributes.Emplace(TEXT("NumSkeletalMeshes"), LexToString(NumSkeletalMeshes));
@@ -1755,6 +1775,7 @@ namespace UE::USDStageImporter::Private
 			EventAttributes.Emplace(TEXT("NumGroomAssets"), LexToString(NumGroomAssets));
 			EventAttributes.Emplace(TEXT("NumGroomBindings"), LexToString(NumGroomBindings));
 			EventAttributes.Emplace(TEXT("NumGroomCaches"), LexToString(NumGroomCaches));
+			EventAttributes.Emplace(TEXT("NumSparseVolumeTextures"), LexToString(NumSparseVolumeTextures));
 
 			FString RootLayerIdentifier = ImportContext.FilePath;
 			if (ImportContext.Stage)
@@ -1801,19 +1822,20 @@ namespace UE::USDStageImporter::Private
 				continue;
 			}
 
-			if ((!ImportContext.ImportOptions->bImportGeometry
-				 && (Asset->IsA<UStaticMesh>() || Asset->IsA<USkeletalMesh>() || Asset->IsA<USkeleton>() || Asset->IsA<UPhysicsAsset>()
-					 || Asset->IsA<UGeometryCache>()))
-				|| (!bImportSkeletalAnimations && (Asset->IsA<UAnimSequence>()))
-				|| (!ImportContext.ImportOptions->bImportLevelSequences && (Asset->IsA<ULevelSequence>()))
-				|| (!ImportContext.ImportOptions->bImportMaterials && (Asset->IsA<UMaterialInterface>() || Asset->IsA<UTexture>()))
-				|| (!ImportContext.ImportOptions->bImportGroomAssets
-					&& (Asset->IsA<UGroomAsset>() || Asset->IsA<UGroomCache>() || Asset->IsA<UGroomBindingAsset>())))
+			// clang-format off
+			if ((!ImportContext.ImportOptions->bImportGeometry && (Asset->IsA<UStaticMesh>() || Asset->IsA<USkeletalMesh>() || Asset->IsA<USkeleton>() || Asset->IsA<UPhysicsAsset>() || Asset->IsA<UGeometryCache>())) ||
+				(!bImportSkeletalAnimations && (Asset->IsA<UAnimSequence>())) ||
+				(!ImportContext.ImportOptions->bImportLevelSequences && (Asset->IsA<ULevelSequence>())) ||
+				(!ImportContext.ImportOptions->bImportMaterials && (Asset->IsA<UMaterialInterface>() || Asset->IsA<UTexture>())) ||
+				(!ImportContext.ImportOptions->bImportGroomAssets && (Asset->IsA<UGroomAsset>() || Asset->IsA<UGroomCache>() || Asset->IsA<UGroomBindingAsset>())) ||
+				(!ImportContext.ImportOptions->bImportSparseVolumeTextures && (Asset->IsA<USparseVolumeTexture>()))
+			)
 			{
 				ObjectsToRemap.Add(Asset, nullptr);
 				SoftObjectsToRemap.Add(Asset, nullptr);
 				It.RemoveCurrent();
 			}
+			// clang-format on
 		}
 	}
 
@@ -2018,6 +2040,7 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	TranslationContext->bAllowParsingSkeletalAnimations = ImportContext.ImportOptions->bImportGeometry
 														  && ImportContext.ImportOptions->bImportSkeletalAnimations;
 	TranslationContext->bAllowParsingGroomAssets = ImportContext.ImportOptions->bImportGroomAssets;
+	TranslationContext->bAllowParsingSparseVolumeTextures = ImportContext.ImportOptions->bImportSparseVolumeTextures;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
 	TranslationContext->InfoCache = InfoCache;
 	TranslationContext->BBoxCache = ImportContext.BBoxCache;
@@ -2201,6 +2224,7 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	TranslationContext->bAllowParsingSkeletalAnimations = ImportContext.ImportOptions->bImportGeometry
 														  && ImportContext.ImportOptions->bImportSkeletalAnimations;
 	TranslationContext->bAllowParsingGroomAssets = ImportContext.ImportOptions->bImportGroomAssets;
+	TranslationContext->bAllowParsingSparseVolumeTextures = ImportContext.ImportOptions->bImportSparseVolumeTextures;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
 	TranslationContext->InfoCache = InfoCache;
 	TranslationContext->BBoxCache = ImportContext.BBoxCache;

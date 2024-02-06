@@ -47,6 +47,7 @@ class USceneComponent;
 class USkeletalMeshComponent;
 class UUsdAssetCache2;
 class UUsdDrawModeComponent;
+enum ERichCurveInterpMode : int;
 struct FFrameRate;
 struct FMovieSceneSequenceTransform;
 struct FUsdCombinedPrimMetadata;
@@ -141,7 +142,8 @@ namespace UsdToUnreal
 		const TArray<double>& UsdTimeSamples,
 		const TFunction<float(double)>& ReaderFunc,
 		UMovieSceneFloatTrack& MovieSceneTrack,
-		const FMovieSceneSequenceTransform& SequenceTransform
+		const FMovieSceneSequenceTransform& SequenceTransform,
+		TOptional<ERichCurveInterpMode> InterpolationModeOverride = {}
 	);
 	USDUTILITIES_API bool ConvertColorTimeSamples(
 		const UE::FUsdStage& UsdStage,

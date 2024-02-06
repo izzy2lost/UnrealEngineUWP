@@ -71,6 +71,7 @@ namespace UnrealBuildTool.Rules
 						"MeshUtilities",
 						"PhysicsUtilities", // For generating UPhysicsAssets for SkeletalMeshes and ConvexDecompTool
 						"PropertyEditor",
+						"SparseVolumeTexture",
 						"UnrealEd",
 					}
 				);

@@ -24,6 +24,7 @@
 #include "USDMemory.h"
 #include "USDShadeMaterialTranslator.h"
 #include "USDSkelSkeletonTranslator.h"
+#include "USDVolVolumeTranslator.h"
 #endif	  // #if USE_USD_SDK
 
 class FUsdSchemasModule : public IUsdSchemasModule
@@ -51,7 +52,8 @@ public:
 			Registry.Register<FUsdGeomXformableTranslator>(TEXT("UsdGeomXformable")),
 			Registry.Register<FUsdShadeMaterialTranslator>(TEXT("UsdShadeMaterial")),
 			Registry.Register<FUsdLuxLightTranslator>(TEXT("UsdLuxBoundableLightBase")),
-			Registry.Register<FUsdLuxLightTranslator>(TEXT("UsdLuxNonboundableLightBase"))};
+			Registry.Register<FUsdLuxLightTranslator>(TEXT("UsdLuxNonboundableLightBase")),
+			Registry.Register<FUsdVolVolumeTranslator>(TEXT("UsdVolVolume"))};
 
 #if WITH_EDITOR
 		ShaderRegistry.Register(FMaterialXUsdShadeMaterialTranslator::MaterialXRenderContext);

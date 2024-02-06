@@ -30,6 +30,7 @@
 #include "CineCameraComponent.h"
 #include "Components/BrushComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/HeterogeneousVolumeComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/LightComponent.h"
 #include "Components/LocalLightComponent.h"
@@ -57,6 +58,7 @@
 #include "Sections/MovieSceneFloatSection.h"
 #include "Sections/MovieSceneVectorSection.h"
 #include "Sections/MovieSceneVisibilitySection.h"
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Tracks/MovieScene3DTransformTrack.h"
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneColorTrack.h"
@@ -112,6 +114,8 @@
 #include "pxr/usd/usdSkel/skeleton.h"
 #include "pxr/usd/usdSkel/skeletonQuery.h"
 #include "pxr/usd/usdUtils/stageCache.h"
+#include "pxr/usd/usdVol/openVDBAsset.h"
+#include "pxr/usd/usdVol/volume.h"
 #include "USDIncludesEnd.h"
 
 static bool GConsiderAllPrimsHaveAnimatedBounds = false;
@@ -652,7 +656,8 @@ bool UsdToUnreal::ConvertFloatTimeSamples(
 	const TArray<double>& UsdTimeSamples,
 	const TFunction<float(double)>& ReaderFunc,
 	UMovieSceneFloatTrack& MovieSceneTrack,
-	const FMovieSceneSequenceTransform& SequenceTransform
+	const FMovieSceneSequenceTransform& SequenceTransform,
+	TOptional<ERichCurveInterpMode> InterpolationModeOverride
 )
 {
 	if (!ReaderFunc)
@@ -683,7 +688,8 @@ bool UsdToUnreal::ConvertFloatTimeSamples(
 	const double StageTimeCodesPerSecond = UsdStage->GetTimeCodesPerSecond();
 	const FFrameRate StageFrameRate(StageTimeCodesPerSecond, 1);
 
-	const ERichCurveInterpMode InterpMode = (UsdStage->GetInterpolationType() == pxr::UsdInterpolationTypeLinear)
+	const ERichCurveInterpMode InterpMode = InterpolationModeOverride.IsSet() ? InterpolationModeOverride.GetValue()
+											: (UsdStage->GetInterpolationType() == pxr::UsdInterpolationTypeLinear)
 												? ERichCurveInterpMode::RCIM_Linear
 												: ERichCurveInterpMode::RCIM_Constant;
 
@@ -4011,7 +4017,8 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 		return Result;
 	}
 
-	pxr::UsdAttribute Attr;
+	TArray<pxr::UsdAttribute> Attrs = {pxr::UsdAttribute{}};
+	pxr::UsdAttribute& Attr = Attrs[0];
 	{
 		pxr::SdfChangeBlock ChangeBlock;
 
@@ -4471,6 +4478,96 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 				}
 			}
 		}
+		else if (const UHeterogeneousVolumeComponent* VolumeComponent = Cast<const UHeterogeneousVolumeComponent>(&Component))
+		{
+			if (Track.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UHeterogeneousVolumeComponent, Frame))
+			{
+				const TArray<FString>* TimeSamplePaths = nullptr;
+				const TArray<FString>* SourceOpenVDBAssetPrimPaths = nullptr;
+
+				const int32 ElementIndex = 0;
+				if (UMaterialInterface* CurrentMaterial = VolumeComponent->GetMaterial(ElementIndex))
+				{
+					TArray<FMaterialParameterInfo> ParameterInfo;
+					TArray<FGuid> ParameterIds;
+					CurrentMaterial->GetAllSparseVolumeTextureParameterInfo(ParameterInfo, ParameterIds);
+
+					for (const FMaterialParameterInfo& Info : ParameterInfo)
+					{
+						USparseVolumeTexture* SparseVolumeTexture = nullptr;
+						if (CurrentMaterial->GetSparseVolumeTextureParameterValue(Info, SparseVolumeTexture) && SparseVolumeTexture)
+						{
+							if (SparseVolumeTexture->GetNumFrames() > 1)
+							{
+								if (UUsdSparseVolumeTextureAssetUserData* UserData = Cast<UUsdSparseVolumeTextureAssetUserData>(
+										UsdUtils::GetAssetUserData(SparseVolumeTexture)
+									))
+								{
+									SourceOpenVDBAssetPrimPaths = &UserData->SourceOpenVDBAssetPrimPaths;
+									TimeSamplePaths = &UserData->TimeSamplePaths;
+								}
+							}
+						}
+
+						// Only care about animation on first SVT parameter
+						break;
+					}
+				}
+
+				// Collect the Attrs we'll need to write out to.
+				// Realistically this is a single Attr, but there could be more in case multiple OpenVDBAsset prims refer to the
+				// exact same VDB file paths
+				if (SourceOpenVDBAssetPrimPaths && SourceOpenVDBAssetPrimPaths->Num() > 0)
+				{
+					Attrs.Reset(SourceOpenVDBAssetPrimPaths->Num());
+
+					for (const FString& OpenVDBPrimPath : *SourceOpenVDBAssetPrimPaths)
+					{
+						pxr::UsdPrim OpenVDBPrim = UsdStage->GetPrimAtPath(UnrealToUsd::ConvertPath(*OpenVDBPrimPath).Get());
+						if (pxr::UsdVolOpenVDBAsset OpenVDBAsset{OpenVDBPrim})
+						{
+							Attrs.Add(OpenVDBAsset.CreateFilePathAttr());
+						}
+					}
+
+					Attr = Attrs[0];
+				}
+
+				if (TimeSamplePaths)
+				{
+					TArray<pxr::SdfAssetPath> FrameIndexToPath;
+					FrameIndexToPath.Reserve(TimeSamplePaths->Num());
+					for (const FString& TimeSamplePath : *TimeSamplePaths)
+					{
+						FrameIndexToPath.Add(pxr::SdfAssetPath{UnrealToUsd::ConvertString(*TimeSamplePath).Get()});
+					}
+
+					Result.FloatWriter = [Attrs,
+										  FrameIndexToPath = MoveTemp(FrameIndexToPath),
+										  LastPath = TUsdStore<pxr::SdfAssetPath>{}](float UEValue, double UsdTimeCode) mutable
+					{
+						// The UEValue here corresponds to a frame index into the SVT (with constant interpolation).
+						// Regardless of what the change was on the track, we can assume here that our TimeSampleX arrays are up
+						// to date with the generated SVT. This means we essentially just need to author a timeSample at UsdTimeCode
+						// that points at the file path that corresponds to that frame
+
+						const int32 FrameIndex = FMath::FloorToInt32(UEValue);
+						const pxr::SdfAssetPath& TimeSamplePath = FrameIndexToPath[FrameIndex];
+
+						// This check prevents us from writing the same identical path on every single bake tick
+						if (TimeSamplePath != LastPath.Get())
+						{
+							for (const pxr::UsdAttribute& Attr : Attrs)
+							{
+								Attr.Set(TimeSamplePath, UsdTimeCode);
+							}
+						}
+
+						LastPath = TimeSamplePath;
+					};
+				}
+			}
+		}
 		// Bounds component properties
 		else
 		{
@@ -4520,22 +4617,30 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 		}
 	}
 
-	if (Attr)
+	for (const pxr::UsdAttribute& SomeAttr : Attrs)
 	{
-		std::vector<double> TimeSamples;
-		Attr.GetTimeSamples(&TimeSamples);
-		for (double TimeSample : TimeSamples)
+		if (SomeAttr)
 		{
-			Attr.ClearAtTime(TimeSample);
-		}
+			// Weirdly enough GetTimeSamples() will return time codes with the offset and scale applied, while
+			// ClearAtTime() expects time codes without offset and scale applied, so we must manually undo them here
+			UE::FSdfLayerOffset CombinedOffset = UsdUtils::GetPrimToStageOffset(UE::FUsdPrim{SomeAttr.GetPrim()});
 
-		// Note that we must do this only after the change block is destroyed!
-		// This is important because if we don't have spec for this attribute on the current edit target, we're relying
-		// on the previous code to create it, and we need to let USD emit its internal notices and fully commit the
-		// "attribute creation" spec first. This because NotifyIfOverriddenOpinion will go through the attribute's
-		// spec stack and consider our attribute overriden if it finds a stronger opinion than the one on the edit
-		// target. Well if our own spec hasn't been created yet it will misfire when it runs into any other spec
-		UsdUtils::NotifyIfOverriddenOpinion(Attr);
+			std::vector<double> TimeSamples;
+			SomeAttr.GetTimeSamples(&TimeSamples);
+			for (double TimeSample : TimeSamples)
+			{
+				double LocalTime = (TimeSample - CombinedOffset.Offset) / CombinedOffset.Scale;
+				SomeAttr.ClearAtTime(LocalTime);
+			}
+
+			// Note that we must do this only after the change block is destroyed!
+			// This is important because if we don't have spec for this attribute on the current edit target, we're relying
+			// on the previous code to create it, and we need to let USD emit its internal notices and fully commit the
+			// "attribute creation" spec first. This because NotifyIfOverriddenOpinion will go through the attribute's
+			// spec stack and consider our attribute overriden if it finds a stronger opinion than the one on the edit
+			// target. Well if our own spec hasn't been created yet it will misfire when it runs into any other spec
+			UsdUtils::NotifyIfOverriddenOpinion(SomeAttr);
+		}
 	}
 
 	return Result;
@@ -4940,6 +5045,33 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty(const UE::FUsdPr
 			return {UE::FUsdAttribute(Boundable.GetExtentAttr())};
 		}
 	}
+	else if (PropertyPath == GET_MEMBER_NAME_CHECKED(UHeterogeneousVolumeComponent, Frame))
+	{
+		if (pxr::UsdVolVolume Volume{Prim})
+		{
+			pxr::UsdStageRefPtr Stage = Prim.GetStage();
+
+			TArray<UE::FUsdAttribute> Attrs;
+
+			const std::map<pxr::TfToken, pxr::SdfPath>& FieldMap = Volume.GetFieldPaths();
+			Attrs.Reserve(FieldMap.size());
+
+			for (std::map<pxr::TfToken, pxr::SdfPath>::const_iterator Iter = FieldMap.cbegin(); Iter != FieldMap.cend(); ++Iter)
+			{
+				const pxr::SdfPath& AssetPrimPath = Iter->second;
+
+				if (pxr::UsdVolOpenVDBAsset OpenVDBAsset{Stage->GetPrimAtPath(AssetPrimPath)})
+				{
+					if (pxr::UsdAttribute FilePathAttr = OpenVDBAsset.GetFilePathAttr())
+					{
+						Attrs.Add(UE::FUsdAttribute{FilePathAttr});
+					}
+				}
+			}
+
+			return Attrs;
+		}
+	}
 
 	return {};
 }
@@ -5090,7 +5222,7 @@ bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawMode
 					if (FaceTexture->AssetImportData)
 					{
 						FString TextureSourcePath = FaceTexture->AssetImportData->GetFirstFilename();
-						FString ResolvedPath = UsdUtils::GetResolvedTexturePath(Attr);
+						FString ResolvedPath = UsdUtils::GetResolvedAssetPath(Attr);
 
 						// Avoid authoring anything unless they point at different files because in the general case the
 						// asset import data will have an absolute path, while the path on the attribute may be currently relative.

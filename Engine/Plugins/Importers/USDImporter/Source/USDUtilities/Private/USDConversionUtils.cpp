@@ -27,6 +27,7 @@
 #include "CineCameraActor.h"
 #include "CineCameraComponent.h"
 #include "Components/DirectionalLightComponent.h"
+#include "Components/HeterogeneousVolumeComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -49,6 +50,7 @@
 #include "LandscapeProxy.h"
 #include "Misc/PackageName.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #if USE_USD_SDK
@@ -83,6 +85,8 @@
 #include "pxr/usd/usdSkel/cache.h"
 #include "pxr/usd/usdSkel/root.h"
 #include "pxr/usd/usdSkel/skeletonQuery.h"
+#include "pxr/usd/usdVol/openVDBAsset.h"
+#include "pxr/usd/usdVol/volume.h"
 #include "USDIncludesEnd.h"
 
 #include <string>
@@ -464,6 +468,10 @@ UClass* UsdUtils::GetActorTypeForPrim(const pxr::UsdPrim& Prim)
 	else if (Prim.IsA<pxr::UsdLuxDomeLight>())
 	{
 		return ASkyLight::StaticClass();
+	}
+	else if (Prim.IsA<pxr::UsdVolVolume>())
+	{
+		return AHeterogeneousVolume::StaticClass();
 	}
 	else
 	{
@@ -963,6 +971,26 @@ bool UsdUtils::IsAnimated(const pxr::UsdPrim& Prim)
 				std::vector<double> BlendShapeTimeSamples;
 				if ((AnimQuery.GetJointTransformTimeSamples(&JointTimeSamples) && JointTimeSamples.size() > 0)
 					|| (AnimQuery.GetBlendShapeWeightTimeSamples(&BlendShapeTimeSamples) && BlendShapeTimeSamples.size() > 0))
+				{
+					return true;
+				}
+			}
+		}
+	}
+	else if (pxr::UsdVolVolume Volume{Prim})
+	{
+		pxr::UsdStageRefPtr Stage = Prim.GetStage();
+
+		const std::map<pxr::TfToken, pxr::SdfPath>& FieldMap = Volume.GetFieldPaths();
+		for (std::map<pxr::TfToken, pxr::SdfPath>::const_iterator Iter = FieldMap.cbegin(); Iter != FieldMap.cend(); ++Iter)
+		{
+			const pxr::SdfPath& AssetPrimPath = Iter->second;
+
+			if (pxr::UsdVolOpenVDBAsset OpenVDBAsset{Stage->GetPrimAtPath(AssetPrimPath)})
+			{
+				std::vector<double> TimeSamples;
+				pxr::UsdAttribute FilePathAttr = OpenVDBAsset.GetFilePathAttr();
+				if (FilePathAttr && FilePathAttr.GetTimeSamples(&TimeSamples) && TimeSamples.size() > 1)
 				{
 					return true;
 				}
@@ -1681,6 +1709,10 @@ UUsdAssetImportData* UsdUtils::GetAssetImportData(UObject* Asset)
 	{
 		ImportData = Cast<UUsdAssetImportData>(GroomCache->AssetImportData);
 	}
+	else if (UStreamableSparseVolumeTexture* SparseVolumeTexture = Cast<UStreamableSparseVolumeTexture>(Asset))
+	{
+		ImportData = Cast<UUsdAssetImportData>(SparseVolumeTexture->AssetImportData);
+	}
 
 #endif
 	return ImportData;
@@ -1725,6 +1757,10 @@ void UsdUtils::SetAssetImportData(UObject* Asset, UAssetImportData* ImportData)
 	else if (UGroomCache* GroomCache = Cast<UGroomCache>(Asset))
 	{
 		GroomCache->AssetImportData = ImportData;
+	}
+	else if (UStreamableSparseVolumeTexture* SparseVolumeTexture = Cast<UStreamableSparseVolumeTexture>(Asset))
+	{
+		SparseVolumeTexture->AssetImportData = ImportData;
 	}
 #endif	  // WITH_EDITOR
 }
@@ -3511,8 +3547,7 @@ void UsdUtils::CollectSchemaAnalytics(const UE::FUsdStage& Stage, const FString&
 		"Volume",
 		"VolumeLightAPI",
 		"Xform",
-		"XformCommonAPI"
-	};
+		"XformCommonAPI"};
 
 	FString ConcatenatedSeenSchemas;
 	for (const FString& SchemaName : SeenSchemas)
