@@ -1,0 +1,136 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#if WITH_CHAOS_VISUAL_DEBUGGER
+
+#include "Templates/SharedPointer.h"
+
+class FText;
+class FName;
+
+/** Set of flags to control how a CVD Data Channel gets initialized*/
+enum class EChaosVDDataChannelInitializationFlags : uint8
+{
+	/** If Set, the data channel will start in a enabled state */
+	StartEnabled = 1 << 0,
+	/** If Set, the data channel can be toggle on and off as desired */
+	CanChangeEnabledState = 1 << 1
+};
+ENUM_CLASS_FLAGS(EChaosVDDataChannelInitializationFlags)
+
+namespace Chaos::VisualDebugger
+{
+	/** Structure holding the state of a CVD data channel. Used to enabled and disable recording of specific categories of data */
+	struct FChaosVDOptionalDataChannel : TSharedFromThis<FChaosVDOptionalDataChannel>
+	{
+		explicit FChaosVDOptionalDataChannel(const TSharedRef<FName>& InChannelID, const TSharedRef<FText>& InDisplayName, EChaosVDDataChannelInitializationFlags InitializationFlags)
+				: LocalizableChannelName(InDisplayName), ChannelId(InChannelID)
+		{
+			bIsEnabled = EnumHasAnyFlags(InitializationFlags, EChaosVDDataChannelInitializationFlags::StartEnabled);
+			bCanChangeEnabledState = EnumHasAnyFlags(InitializationFlags, EChaosVDDataChannelInitializationFlags::CanChangeEnabledState);
+		}
+
+		/** Registers itself with the optional channel data manager */
+		void Initialize();
+
+		/** The localizable display name that will be used for this channel in UI elements */
+		CHAOS_API const FText& GetDisplayName() const;
+
+		/** A name used as ID to find this changed using the CVD Channel Manager */
+		FName GetId() const { return *ChannelId; }
+
+		/** Returns true if this data channel is enabled */
+		FORCEINLINE bool IsChannelEnabled() const { return bIsEnabled; }
+
+		/** Enables or disabled this Data Channel */
+		CHAOS_API void SetChannelEnabled(bool bNewEnabled);
+
+		/** Returns true if the enabled state of this channel can be changed */
+		bool CanChangeEnabledState() const { return bCanChangeEnabledState;}
+
+	private:
+		TSharedRef<FText> LocalizableChannelName;
+		TSharedRef<FName> ChannelId;
+		std::atomic<bool> bIsEnabled = true;
+		bool bCanChangeEnabledState = false;
+	};
+
+	/** Manager that provides a way to iterate trough all existing CVD Data channels or get a specific one */
+	class CHAOS_API FChaosVDDataChannelsManager
+	{
+	public:
+
+		static FChaosVDDataChannelsManager& Get();
+
+		/** Iterates trough all the available data channels and executes the provided callback passing each channel as an argument.
+		 * If the callback returns false, the iteration will be stopped.
+		 */
+		template<typename TCallback>
+		void EnumerateChannels(TCallback Callback)
+		{
+			for (const TPair<FName, TSharedPtr<FChaosVDOptionalDataChannel>>& ChannelWithName : AvailableChannels)
+			{
+				if (!Callback(ChannelWithName.Value.ToSharedRef()))
+				{
+					return;
+				}
+			}
+		}
+
+		/** Returns the CVD Data Channel instance for the provided ID*/
+		TSharedPtr<FChaosVDOptionalDataChannel> GetChannelById(FName ChannelId)
+		{
+			if (TSharedPtr<FChaosVDOptionalDataChannel>* ChannelFound = AvailableChannels.Find(ChannelId))
+			{
+				return *ChannelFound;
+			}
+
+			return nullptr;
+		}
+
+	private:
+		
+		/** Registers a CVD Data channel instance - Do not call directly */
+		void RegisterChannel(const TSharedRef<FChaosVDOptionalDataChannel>& NewChannel)
+		{
+			AvailableChannels.Add(NewChannel->GetId(), NewChannel);
+		}
+
+		TMap<FName, TSharedPtr<FChaosVDOptionalDataChannel>> AvailableChannels;
+
+		friend FChaosVDOptionalDataChannel;
+	};
+
+	void ParseChannelListFromCommandArgument(TArray<FString>& OutParsedChannelList, const FString& InCommandArgument);
+
+	/** Creates a CVD Data Channel Instance - Only to be used by the CVD Macros */
+	TSharedRef<FChaosVDOptionalDataChannel> CreateDataChannel(FName InChannelID, const TSharedRef<FText>& InDisplayName, EChaosVDDataChannelInitializationFlags InitializationFlags);
+}
+
+#define CVD_CONCAT_NX(A, B) A ## B
+#define CVD_CONCAT(A, B) CVD_CONCAT_NX(A,B)
+#define CVD_STRINGIZE_NX(A) #A
+#define CVD_STRINGIZE(A) CVD_STRINGIZE_NX(A)
+
+/** Declares an Optional CVD Data channel to be available globally. The data channel can be accessed by using CVDDC_TheNameOfTheChannelUsedWithThisMacro */
+#define CVD_DECLARE_OPTIONAL_DATA_CHANNEL(DataChannelName) \
+			extern CHAOS_API TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CVDDC_##DataChannelName;
+
+/** Defines and initializes an Optional CVD Data Channel */
+#define CVD_DEFINE_OPTIONAL_DATA_CHANNEL(DataChannelName, InitializationFlags) \
+			TSharedRef<Chaos::VisualDebugger::FChaosVDOptionalDataChannel> CVDDC_##DataChannelName = Chaos::VisualDebugger::CreateDataChannel(#DataChannelName, MakeShared<FText>(NSLOCTEXT(CVD_STRINGIZE(ChaosVisualDebugger), CVD_STRINGIZE(CVD_CONCAT(DataChannelName,_ChannelName)), #DataChannelName)), InitializationFlags);
+
+// Declare CVD's Default set of channels
+
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(Default);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionStart);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(Integrate);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(ApplyKinematicTargets);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(CollisionDetectionBroadPhase);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(CollisionDetectionNarrowPhase);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EndOfEvolutionCollisionConstraints);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionEnd);
+CVD_DECLARE_OPTIONAL_DATA_CHANNEL(SceneQueries);
+
+#endif

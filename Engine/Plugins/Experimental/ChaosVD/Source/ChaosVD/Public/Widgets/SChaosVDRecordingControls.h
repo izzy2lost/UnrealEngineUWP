@@ -6,6 +6,11 @@
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
 
+namespace Chaos::VisualDebugger
+{
+	struct FChaosVDOptionalDataChannel;
+}
+
 class SButton;
 class SChaosVDMainTab;
 class FReply;
@@ -17,6 +22,8 @@ enum class EChaosVDRecordingMode
 	File,
 	Live
 };
+
+typedef Chaos::VisualDebugger::FChaosVDOptionalDataChannel FCVDDataChannel;
 
 class SChaosVDRecordingControls : public SCompoundWidget
 {
@@ -30,7 +37,12 @@ public:
 
 protected:
 
-	TSharedRef<SButton>GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip);
+	TSharedRef<SButton> GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip);
+	TSharedRef<SWidget> GenerateDataChannelsMenu();
+
+	void ToggleChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel);
+	bool IsChannelEnabled(TWeakPtr<FCVDDataChannel> Channel);
+	bool CanChangeChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel);
 
 	const FSlateBrush* GetRecordOrStopButton(EChaosVDRecordingMode RecordingMode) const;
 	

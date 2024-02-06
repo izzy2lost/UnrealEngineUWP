@@ -11,10 +11,12 @@
 #include "Input/Reply.h"
 #include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Styling/SlateBrush.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SChaosVDMainTab.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
@@ -54,6 +56,32 @@ void SChaosVDRecordingControls::Construct(const FArguments& InArgs, const TShare
 					.Text_Raw(this, &SChaosVDRecordingControls::GetRecordingTimeText)
 					.ColorAndOpacity(FColor::White)
 			]
+
+			+SHorizontalBox::Slot()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			.Padding(12.0f, 0.0f, 0.0f, 0.0f)
+			[
+				SNew(SComboButton)
+				.ContentPadding(FMargin(6.0f, 0.0f))
+				.MenuPlacement(MenuPlacement_AboveAnchor)
+				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+				.OnGetMenuContent(this, &SChaosVDRecordingControls::GenerateDataChannelsMenu)
+				.HasDownArrow(true)
+				.ButtonContent()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("DataChannelsButton", "Data Channels"))
+						.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("DialogButtonText"))
+					]
+				]
+			]
 		]
 	];
 
@@ -82,6 +110,60 @@ TSharedRef<SButton> SChaosVDRecordingControls::GenerateToggleRecordingStateButto
 		];
 }
 
+TSharedRef<SWidget> SChaosVDRecordingControls::GenerateDataChannelsMenu()
+{
+	using namespace Chaos::VisualDebugger;
+
+	FMenuBuilder MenuBuilder(true, nullptr);
+
+	MenuBuilder.BeginSection("CVDRecordingWidget", LOCTEXT("CVDRecordingMenuChannels", "Data Channels"));
+	{
+		FChaosVDDataChannelsManager::Get().EnumerateChannels([this, &MenuBuilder](const TSharedRef<FCVDDataChannel>& Channel)
+		{
+			MenuBuilder.AddMenuEntry(
+				Channel->GetDisplayName(),
+				FText::Format(LOCTEXT("ChannelDesc", "Enable/disable the {0} channel"), Channel->GetDisplayName()),
+				FSlateIcon(),
+				FUIAction(FExecuteAction::CreateSP(this, &SChaosVDRecordingControls::ToggleChannelEnabledState, Channel.ToWeakPtr()),
+					FCanExecuteAction::CreateSP(this, &SChaosVDRecordingControls::CanChangeChannelEnabledState, Channel.ToWeakPtr()), FIsActionChecked::CreateSP(this, &SChaosVDRecordingControls::IsChannelEnabled,  Channel.ToWeakPtr())), NAME_None, EUserInterfaceActionType::ToggleButton);
+
+			return true;
+		});
+	}
+
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SChaosVDRecordingControls::ToggleChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel)
+{
+	if (const TSharedPtr<FCVDDataChannel>& ChannelPtr = Channel.Pin())
+	{
+		const bool bIsEnabled = ChannelPtr->IsChannelEnabled();
+		ChannelPtr->SetChannelEnabled(!bIsEnabled);
+	}
+}
+
+bool SChaosVDRecordingControls::IsChannelEnabled(TWeakPtr<FCVDDataChannel> Channel)
+{
+	if (const TSharedPtr<Chaos::VisualDebugger::FChaosVDOptionalDataChannel>& ChannelPtr = Channel.Pin())
+	{
+		return ChannelPtr->IsChannelEnabled();
+	}
+	
+	return false;
+}
+
+bool SChaosVDRecordingControls::CanChangeChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel)
+{
+	if (const TSharedPtr<FCVDDataChannel>& ChannelPtr = Channel.Pin())
+	{
+		return ChannelPtr->CanChangeEnabledState();
+	}
+	
+	return false;
+}
 
 SChaosVDRecordingControls::~SChaosVDRecordingControls()
 {
