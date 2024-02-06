@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "Effector/AvaEffectorActor.h"
+#include "Effector/CEEffectorActor.h"
 #include "AvaVisBase.h"
 
-class UAvaEffectorComponent;
+class UCEEffectorComponent;
 
 struct HAvaEffectorActorZoneHitProxy : HAvaHitProxy
 {
@@ -26,7 +26,7 @@ public:
 	typedef FAvaVisualizerBase Super;
 
 	FAvaEffectorActorVisualizer();
-	
+
 	//~ Begin FAvaVisualizerBase
 	virtual UActorComponent* GetEditedComponent() const override;
 	virtual TMap<UObject*, TArray<FProperty*>> GatherEditableProperties(UObject* InObject) const override;
@@ -44,20 +44,20 @@ public:
 	virtual void DrawVisualizationEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	virtual void DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex) override;
 	//~ End FAvaVisualizerBase
-	
-	AAvaEffectorActor* GetEffectorActor() const { return EffectorActorWeak.Get(); };
+
+	ACEEffectorActor* GetEffectorActor() const { return EffectorActorWeak.Get(); };
 protected:
 
-	FVector GetHandleZoneLocation(const AAvaEffectorActor* InEffectorActor, bool bInInnerSize) const;
-	void DrawZoneButton(const AAvaEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const;
+	FVector GetHandleZoneLocation(const ACEEffectorActor* InEffectorActor, bool bInInnerSize) const;
+	void DrawZoneButton(const ACEEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const;
 
 	FProperty* InnerRadiusProperty;
 	FProperty* OuterRadiusProperty;
 	FProperty* InnerExtentProperty;
 	FProperty* OuterExtentProperty;
 	FProperty* PlaneSpacingProperty;
-	
-	TWeakObjectPtr<AAvaEffectorActor> EffectorActorWeak = nullptr;
+
+	TWeakObjectPtr<ACEEffectorActor> EffectorActorWeak = nullptr;
 	float InitialInnerRadius = 0.f;
 	float InitialOuterRadius = 0.f;
 	FVector InitialInnerExtent = FVector(0.f);

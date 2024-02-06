@@ -6,7 +6,7 @@
 #include "AvalancheShapesEditorModule.h"
 #include "AvaVisBase.h"
 #include "EditorViewportClient.h"
-#include "Effector/AvaEffectorComponent.h"
+#include "Effector/CEEffectorComponent.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
 #include "IAvalancheComponentVisualizersModule.h"
@@ -21,11 +21,11 @@ FAvaEffectorActorVisualizer::FAvaEffectorActorVisualizer()
 	: FAvaVisualizerBase()
 {
 	using namespace UE::AvaCore;
-	InnerRadiusProperty  = GetProperty<AAvaEffectorActor>(GET_MEMBER_NAME_CHECKED(AAvaEffectorActor, InnerRadius));
-	OuterRadiusProperty  = GetProperty<AAvaEffectorActor>(GET_MEMBER_NAME_CHECKED(AAvaEffectorActor, OuterRadius));
-	InnerExtentProperty  = GetProperty<AAvaEffectorActor>(GET_MEMBER_NAME_CHECKED(AAvaEffectorActor, InnerExtent));
-	OuterExtentProperty  = GetProperty<AAvaEffectorActor>(GET_MEMBER_NAME_CHECKED(AAvaEffectorActor, OuterExtent));
-	PlaneSpacingProperty = GetProperty<AAvaEffectorActor>(GET_MEMBER_NAME_CHECKED(AAvaEffectorActor, PlaneSpacing));
+	InnerRadiusProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerRadius));
+	OuterRadiusProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterRadius));
+	InnerExtentProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, InnerExtent));
+	OuterExtentProperty  = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, OuterExtent));
+	PlaneSpacingProperty = GetProperty<ACEEffectorActor>(GET_MEMBER_NAME_CHECKED(ACEEffectorActor, PlaneSpacing));
 }
 
 void FAvaEffectorActorVisualizer::StoreInitialValues()
@@ -46,19 +46,19 @@ void FAvaEffectorActorVisualizer::StoreInitialValues()
 
 FBox FAvaEffectorActorVisualizer::GetComponentBounds(const UActorComponent* InComponent) const
 {
-	if (const UAvaEffectorComponent* EffectorComponent = Cast<UAvaEffectorComponent>(InComponent))
+	if (const UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InComponent))
 	{
-		if (const AAvaEffectorActor* EffectorActor = Cast<AAvaEffectorActor>(EffectorComponent->GetOwner()))
+		if (const ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(EffectorComponent->GetOwner()))
 		{
-			if (EffectorActor->GetType() == EAvaClonerEffectorType::Box)
+			if (EffectorActor->GetType() == ECEClonerEffectorType::Box)
 			{
 				return FBox(-EffectorActor->GetOuterExtent(), EffectorActor->GetOuterExtent());
 			}
-			if (EffectorActor->GetType() == EAvaClonerEffectorType::Sphere)
+			if (EffectorActor->GetType() == ECEClonerEffectorType::Sphere)
 			{
 				return FBox(-FVector(EffectorActor->GetOuterRadius() / 2), FVector(EffectorActor->GetOuterRadius() / 2));
 			}
-			if (EffectorActor->GetType() == EAvaClonerEffectorType::Plane)
+			if (EffectorActor->GetType() == ECEClonerEffectorType::Plane)
 			{
 				return FBox(-FVector(EffectorActor->GetPlaneSpacing() / 2), FVector(EffectorActor->GetPlaneSpacing() / 2));
 			}
@@ -75,13 +75,13 @@ bool FAvaEffectorActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient
 		return false;
 	}
 
-	if (AAvaEffectorActor* EffectorActor = EffectorActorWeak.Get())
+	if (ACEEffectorActor* EffectorActor = EffectorActorWeak.Get())
 	{
 		if (GetViewportWidgetMode(InViewportClient) == UE::Widget::WM_Translate)
 		{
 			if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::XYZ)
 			{
-				if (EffectorActor->GetType() == EAvaClonerEffectorType::Box)
+				if (EffectorActor->GetType() == ECEClonerEffectorType::Box)
 				{
 					if (bEditingInnerZone)
 					{
@@ -103,7 +103,7 @@ bool FAvaEffectorActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient
 			}
 			if (GetViewportWidgetAxisList(InViewportClient) & EAxisList::Y)
 			{
-				if (EffectorActor->GetType() == EAvaClonerEffectorType::Plane)
+				if (EffectorActor->GetType() == ECEClonerEffectorType::Plane)
 				{
 					if (bEditingOuterZone || bEditingInnerZone)
 					{
@@ -115,7 +115,7 @@ bool FAvaEffectorActorVisualizer::HandleInputDeltaInternal(FEditorViewportClient
 					
 					return true;
 				}
-				if (EffectorActor->GetType() == EAvaClonerEffectorType::Sphere)
+				if (EffectorActor->GetType() == ECEClonerEffectorType::Sphere)
 				{
 					if (bEditingInnerZone)
 					{
@@ -149,21 +149,21 @@ void FAvaEffectorActorVisualizer::DrawVisualizationEditing(const UActorComponent
 {
 	Super::DrawVisualizationEditing(InComponent, InView, InPDI, InOutIconIndex);
 
-	const UAvaEffectorComponent* EffectorComponent = Cast<UAvaEffectorComponent>(InComponent);
+	const UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InComponent);
 
 	if (!EffectorComponent)
 	{
 		return;
 	}
 
-	const AAvaEffectorActor* EffectorActor = Cast<AAvaEffectorActor>(EffectorComponent->GetOwner());
+	const ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(EffectorComponent->GetOwner());
 
 	if (!EffectorActor)
 	{
 		return;
 	}
 
-	if (EffectorActor->GetType() != EAvaClonerEffectorType::Plane)
+	if (EffectorActor->GetType() != ECEClonerEffectorType::Plane)
 	{
 		if (!bEditingInnerZone)
 		{
@@ -183,21 +183,21 @@ void FAvaEffectorActorVisualizer::DrawVisualizationNotEditing(const UActorCompon
 {
 	Super::DrawVisualizationNotEditing(InComponent, InView, InPDI, InOutIconIndex);
 
-	const UAvaEffectorComponent* EffectorComponent = Cast<UAvaEffectorComponent>(InComponent);
+	const UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InComponent);
 
 	if (!EffectorComponent)
 	{
 		return;
 	}
 
-	const AAvaEffectorActor* EffectorActor = Cast<AAvaEffectorActor>(EffectorComponent->GetOwner());
+	const ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(EffectorComponent->GetOwner());
 
 	if (!EffectorActor)
 	{
 		return;
 	}
 
-	if (EffectorActor->GetType() != EAvaClonerEffectorType::Plane)
+	if (EffectorActor->GetType() != ECEClonerEffectorType::Plane)
 	{
 		DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, true, FAvaVisualizerBase::Inactive);
 		InOutIconIndex++;
@@ -207,13 +207,13 @@ void FAvaEffectorActorVisualizer::DrawVisualizationNotEditing(const UActorCompon
 	InOutIconIndex++;
 }
 
-FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const AAvaEffectorActor* InEffectorActor, bool bInInnerSize) const
+FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const ACEEffectorActor* InEffectorActor, bool bInInnerSize) const
 {
 	const FVector EffectorScale = InEffectorActor->GetActorScale();
 	const FRotator EffectorRotation = InEffectorActor->GetActorRotation();
 	FVector OutLocation = InEffectorActor->GetActorLocation();
 
-	if (InEffectorActor->GetType() == EAvaClonerEffectorType::Box)
+	if (InEffectorActor->GetType() == ECEClonerEffectorType::Box)
 	{
 		if (bInInnerSize)
 		{
@@ -224,12 +224,12 @@ FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const AAvaEffectorAct
 			OutLocation += EffectorRotation.RotateVector(InEffectorActor->GetOuterExtent()) * EffectorScale;
 		}
 	}
-	else if (InEffectorActor->GetType() == EAvaClonerEffectorType::Plane)
+	else if (InEffectorActor->GetType() == ECEClonerEffectorType::Plane)
 	{
 		const float ComponentScale = (EffectorRotation.RotateVector(-FVector::YAxisVector) * EffectorScale).Length();
 		OutLocation += EffectorRotation.RotateVector(FVector::YAxisVector) * (InEffectorActor->GetPlaneSpacing() / 2) * ComponentScale;
 	}
-	else if (InEffectorActor->GetType() == EAvaClonerEffectorType::Sphere)
+	else if (InEffectorActor->GetType() == ECEClonerEffectorType::Sphere)
 	{
 		const float MinComponentScale = FMath::Min<float>(FMath::Min<float>(EffectorScale.X, EffectorScale.Y), EffectorScale.Z);
 		if (bInInnerSize)
@@ -245,7 +245,7 @@ FVector FAvaEffectorActorVisualizer::GetHandleZoneLocation(const AAvaEffectorAct
 	return OutLocation;
 }
 
-void FAvaEffectorActorVisualizer::DrawZoneButton(const AAvaEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const
+void FAvaEffectorActorVisualizer::DrawZoneButton(const ACEEffectorActor* InEffectorActor, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32 InIconIndex, bool bInInnerZone, FLinearColor InColor) const
 {
 	UTexture2D* ZoneSprite = IAvalancheComponentVisualizersModule::Get().GetSettings()->GetVisualizerSprite(FAvalancheShapesEditorModule::BevelSprite);
 
@@ -272,19 +272,19 @@ UActorComponent* FAvaEffectorActorVisualizer::GetEditedComponent() const
 
 TMap<UObject*, TArray<FProperty*>> FAvaEffectorActorVisualizer::GatherEditableProperties(UObject* InObject) const
 {
-	if (UAvaEffectorComponent* EffectorComponent = Cast<UAvaEffectorComponent>(InObject))
+	if (UCEEffectorComponent* EffectorComponent = Cast<UCEEffectorComponent>(InObject))
 	{
-		if (AAvaEffectorActor* EffectorActor = EffectorComponent->GetOuterAAvaEffectorActor())
+		if (ACEEffectorActor* EffectorActor = EffectorComponent->GetOuterACEEffectorActor())
 		{
 			switch (EffectorActor->GetType())
 			{
-				case EAvaClonerEffectorType::Plane:
+				case ECEClonerEffectorType::Plane:
 					return {{EffectorActor, {PlaneSpacingProperty}}};
 
-				case EAvaClonerEffectorType::Box:
+				case ECEClonerEffectorType::Box:
 					return {{EffectorActor, {InnerExtentProperty, OuterExtentProperty}}};
 
-				case EAvaClonerEffectorType::Sphere:
+				case ECEClonerEffectorType::Sphere:
 					return {{EffectorActor, {InnerRadiusProperty, OuterRadiusProperty}}};
 			}
 		}
@@ -303,7 +303,7 @@ bool FAvaEffectorActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InV
 
 	UActorComponent* Component = const_cast<UActorComponent*>(InVisProxy->Component.Get());
 
-	if (!Component || !Component->GetOwner()->IsA<AAvaEffectorActor>())
+	if (!Component || !Component->GetOwner()->IsA<ACEEffectorActor>())
 	{
 		return Super::VisProxyHandleClick(InViewportClient, InVisProxy, InClick);
 	}
@@ -311,7 +311,7 @@ bool FAvaEffectorActorVisualizer::VisProxyHandleClick(FEditorViewportClient* InV
 	if (InVisProxy->IsA(HAvaEffectorActorZoneHitProxy::StaticGetType()))
 	{
 		EndEditing();
-		EffectorActorWeak = Cast<AAvaEffectorActor>(InVisProxy->Component->GetOwner());
+		EffectorActorWeak = Cast<ACEEffectorActor>(InVisProxy->Component->GetOwner());
 		bEditingInnerZone = static_cast<HAvaEffectorActorZoneHitProxy*>(InVisProxy)->bInnerZone;
 		bEditingOuterZone = !bEditingInnerZone;
 		StartEditing(InViewportClient, Component);
@@ -350,7 +350,7 @@ bool FAvaEffectorActorVisualizer::GetWidgetAxisList(const FEditorViewportClient*
 {
 	if (bEditingOuterZone || bEditingInnerZone)
 	{
-		if (EffectorActorWeak->GetType() != EAvaClonerEffectorType::Box)
+		if (EffectorActorWeak->GetType() != ECEClonerEffectorType::Box)
 		{
 			OutAxisList = EAxisList::Type::Y;
 		}
@@ -370,7 +370,7 @@ bool FAvaEffectorActorVisualizer::GetWidgetAxisListDragOverride(const FEditorVie
 {
 	if (bEditingOuterZone || bEditingInnerZone)
 	{
-		if (EffectorActorWeak->GetType() != EAvaClonerEffectorType::Box)
+		if (EffectorActorWeak->GetType() != ECEClonerEffectorType::Box)
 		{
 			OutAxisList = EAxisList::Type::Y;
 			return true;
@@ -389,14 +389,14 @@ bool FAvaEffectorActorVisualizer::ResetValue(FEditorViewportClient* InViewportCl
 	
 	const HAvaEffectorActorZoneHitProxy* ComponentHitProxy = static_cast<HAvaEffectorActorZoneHitProxy*>(InHitProxy);
 	
-	if (!ComponentHitProxy->Component.IsValid() || !ComponentHitProxy->Component->IsA<UAvaEffectorComponent>())
+	if (!ComponentHitProxy->Component.IsValid() || !ComponentHitProxy->Component->IsA<UCEEffectorComponent>())
 	{
 		return Super::ResetValue(InViewportClient, InHitProxy);
 	}
 
-	if (AAvaEffectorActor* EffectorActor = Cast<AAvaEffectorActor>(ComponentHitProxy->Component->GetOwner()))
+	if (ACEEffectorActor* EffectorActor = Cast<ACEEffectorActor>(ComponentHitProxy->Component->GetOwner()))
 	{
-		if (EffectorActor->GetType() == EAvaClonerEffectorType::Box)
+		if (EffectorActor->GetType() == ECEClonerEffectorType::Box)
 		{
 			if (ComponentHitProxy->bInnerZone)
 			{
@@ -415,7 +415,7 @@ bool FAvaEffectorActorVisualizer::ResetValue(FEditorViewportClient* InViewportCl
 				NotifyPropertyModified(EffectorActor, OuterExtentProperty, EPropertyChangeType::ValueSet);
 			}
 		}
-		else if (EffectorActor->GetType() == EAvaClonerEffectorType::Plane)
+		else if (EffectorActor->GetType() == ECEClonerEffectorType::Plane)
 		{
 			FScopedTransaction Transaction(LOCTEXT("VisualizerResetValue", "Visualizer Reset Value"));
 			EffectorActor->SetFlags(RF_Transactional);
@@ -423,7 +423,7 @@ bool FAvaEffectorActorVisualizer::ResetValue(FEditorViewportClient* InViewportCl
 			EffectorActor->Modify();
 			NotifyPropertyModified(EffectorActor, PlaneSpacingProperty, EPropertyChangeType::ValueSet);
 		}
-		else if (EffectorActor->GetType() == EAvaClonerEffectorType::Sphere)
+		else if (EffectorActor->GetType() == ECEClonerEffectorType::Sphere)
 		{
 			if (ComponentHitProxy->bInnerZone)
 			{

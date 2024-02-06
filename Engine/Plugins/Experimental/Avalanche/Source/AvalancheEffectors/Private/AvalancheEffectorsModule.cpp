@@ -1,5 +1,115 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Modules/ModuleManager.h"
+#include "AvalancheEffectorsModule.h"
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, AvalancheEffectors)
+#include "AvaActorUtils.h"
+#include "AvaSceneTree.h"
+#include "IAvaSceneInterface.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "Subsystems/CEClonerSubsystem.h"
+
+#if WITH_EDITOR
+#include "IAvaOutliner.h"
+#include "AvaOutlinerDefines.h"
+#include "AvaOutlinerSubsystem.h"
+#include "Item/AvaOutlinerActor.h"
+#endif
+
+void FAvalancheEffectorsModule::StartupModule()
+{
+	UCEClonerSubsystem::OnSubsystemInitialized().AddRaw(this, &FAvalancheEffectorsModule::RegisterCustomActorResolver);
+}
+
+void FAvalancheEffectorsModule::ShutdownModule()
+{
+	UCEClonerSubsystem::OnSubsystemInitialized().RemoveAll(this);
+
+	UnregisterCustomActorResolver();
+}
+
+void FAvalancheEffectorsModule::RegisterCustomActorResolver()
+{
+	if (UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get())
+	{
+		Subsystem->RegisterCustomActorResolver(UCEClonerSubsystem::FOnGetOrderedActors::CreateRaw(this, &FAvalancheEffectorsModule::GetOrderedChildrenActors));
+	}
+}
+
+void FAvalancheEffectorsModule::UnregisterCustomActorResolver()
+{
+	if (UObjectInitialized())
+	{
+		if (UCEClonerSubsystem* Subsystem = UCEClonerSubsystem::Get())
+		{
+			Subsystem->UnregisterCustomActorResolver();
+		}
+	}
+}
+
+TArray<AActor*> FAvalancheEffectorsModule::GetOrderedChildrenActors(const AActor* InParentActor)
+{
+	TArray<AActor*> ChildrenActors;
+
+	if (!InParentActor)
+	{
+		return ChildrenActors;
+	}
+
+	UWorld* ClonerWorld = InParentActor->GetTypedOuter<UWorld>();
+	if (!ClonerWorld)
+	{
+		return ChildrenActors;
+	}
+
+#if WITH_EDITOR
+	if (const UAvaOutlinerSubsystem* const OutlinerSubsystem = ClonerWorld->GetSubsystem<UAvaOutlinerSubsystem>())
+	{
+		if (const TSharedPtr<IAvaOutliner> AvaOutliner = OutlinerSubsystem->GetOutliner())
+		{
+			const FAvaOutlinerItemPtr OutlinerClonerItem = AvaOutliner->FindItem(InParentActor);
+			if (OutlinerClonerItem.IsValid())
+			{
+				for (FAvaOutlinerItemPtr OutlinerChild : OutlinerClonerItem->GetChildren())
+				{
+					if (!OutlinerChild.IsValid() || !OutlinerChild->IsA<FAvaOutlinerActor>())
+					{
+						continue;
+					}
+
+					if (const FAvaOutlinerActor* OutlinerActor = OutlinerChild->CastTo<FAvaOutlinerActor>())
+					{
+						ChildrenActors.Add(OutlinerActor->GetActor());
+					}
+				}
+			}
+
+			return ChildrenActors;
+		}
+	}
+#endif
+
+	if (const IAvaSceneInterface* SceneInterface = FAvaActorUtils::GetSceneInterfaceFromActor(InParentActor))
+	{
+		TArray<AActor*> AttachedActors;
+		InParentActor->GetAttachedActors(AttachedActors, true, false);
+		ChildrenActors.Reserve(AttachedActors.Num());
+		const FAvaSceneTree& SceneTree = SceneInterface->GetSceneTree();
+
+		for (AActor* ChildActor : AttachedActors)
+		{
+			if (const FAvaSceneTreeNode* ChildNode = SceneTree.FindTreeNode(FAvaSceneItem(ChildActor, ClonerWorld)))
+			{
+				ChildrenActors.Insert(ChildActor, ChildNode->GetLocalIndex());
+			}
+		}
+	}
+	else
+	{
+		InParentActor->GetAttachedActors(ChildrenActors, true, false);
+	}
+
+	return ChildrenActors;
+}
+
+IMPLEMENT_MODULE(FAvalancheEffectorsModule, AvalancheEffectorsModule)
