@@ -49,7 +49,7 @@ struct FAnimationAssetSamplers
 	TArray<const FMirrorDataCache*> MirrorDataCaches;
 };
 
-class FAssetIndexer
+class POSESEARCH_API FAssetIndexer
 {
 public:
 	struct FStats
