@@ -257,7 +257,8 @@ FAnimNode_Base* FPoseLinkBase::GetLinkNode()
 	return LinkedNode;
 }
 
-const FExposedValueHandler& FAnimNode_Base::GetEvaluateGraphExposedInputs() const
+// Don't inline this function to keep the stack usage down
+FORCENOINLINE const FExposedValueHandler& FAnimNode_Base::GetEvaluateGraphExposedInputs() const
 {
 	if(NodeData)
 	{
