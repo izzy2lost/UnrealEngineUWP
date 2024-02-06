@@ -25,8 +25,8 @@ class MESHMODELINGTOOLS_API UPolyEditBevelEdgeProperties : public UInteractiveTo
 	GENERATED_BODY()
 
 public:
-	/** Distance that each beveled mesh edge is inset from it's initial position*/
-	UPROPERTY(EditAnywhere, Category = Bevel)
+	/** Distance that each beveled mesh edge is inset from its initial position */
+	UPROPERTY(EditAnywhere, Category = Bevel, meta = (UIMin = ".001", UIMax = "100", ClampMin = "0.0001", ClampMax = "10000", SliderExponent = "3"))
 	double BevelDistance = 4.0;
 
 	/** Number of edge loops added along the bevel faces */
