@@ -7862,9 +7862,10 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 				{
 					AsyncPackageLookup.Empty(DefaultAsyncPackagesReserveCount);
 				}
+
+#if WITH_EDITOR
 				if (!Package->bLoadHasFailed)
 				{
-#if WITH_EDITOR
 					// In the editor we need to find any assets and packages and add them to list for later callback
 					EditorCompletedUPackages.Add(Package->LinkerRoot);
 					if (GIsEditor)
@@ -7877,9 +7878,11 @@ EAsyncPackageState::Type FAsyncLoadingThread2::ProcessLoadedPackagesFromGameThre
 							}
 						}
 					}
-#endif
-					Package->ClearConstructedObjects();
 				}
+#endif
+
+				Package->ClearConstructedObjects();
+
 #if ALT2_ENABLE_LINKERLOAD_SUPPORT
 				Package->DetachLinker();
 #endif
