@@ -1802,24 +1802,13 @@ bool FPackageName::FixPackageNameCase(FString& LongPackageName, FStringView Exte
 
 bool FPackageName::DoesPackageExist(const FString& LongPackageName, FString* OutFilename, bool InAllowTextFormats)
 {
-	// Make sure interpreting LongPackageName as a filename is supported.
 	FPackagePath PackagePath;
+	EErrorCode FailureReason;
+	if (!TryConvertToMountedPackagePath(LongPackageName, PackagePath, FailureReason))
 	{
-		SCOPED_LOADTIMER(FPackageName_DoesPackageExist);
-		TStringBuilder<64> PackageNameRoot;
-		TStringBuilder<64> FilePathRoot;
-		TStringBuilder<256> RelPath;
-		TStringBuilder<64> UnusedObjectName; // DoesPackageExist accepts ObjectPaths and ignores the ObjectName portion and uses only the PackageName
-		TStringBuilder<16> CustomExtension;
-		EPackageExtension Extension;
-		EErrorCode FailureReason;
-		if (!FPackageName::TryConvertToMountedPathComponents(LongPackageName, PackageNameRoot, FilePathRoot, RelPath, UnusedObjectName, Extension, CustomExtension, nullptr /* OutFlexNameType */, &FailureReason))
-		{
-			FString Message = FString::Printf(TEXT("DoesPackageExist called on PackageName that will always return false. Reason: %s"), *FormatErrorAsString(LongPackageName, FailureReason));
-			UE_LOG(LogPackageName, Warning, TEXT("%s"), *Message);
-			return false;
-		}
-		PackagePath = FPackagePath::FromMountedComponents(PackageNameRoot, FilePathRoot, RelPath, Extension, CustomExtension);
+		FString Message = FString::Printf(TEXT("DoesPackageExist called on PackageName that will always return false. Reason: %s"), *FormatErrorAsString(LongPackageName, FailureReason));
+		UE_LOG(LogPackageName, Warning, TEXT("%s"), *Message);
+		return false;
 	}
 	if (!DoesPackageExist(PackagePath, false /* bMatchCaseOnDisk */, &PackagePath))
 	{
@@ -1856,12 +1845,12 @@ FPackageName::EPackageLocationFilter FPackageName::DoesPackageExistEx(const FPac
 		return EPackageLocationFilter::None;
 	}
 
-#if 0 // WITH_EDITOR // Temporarily disabled due to deadlock, UE-205707
+#if WITH_EDITOR
 	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
 
 	// Todo: The AssetRegistry currently cannot determine if a package comes from the Filesystem 
 	// or cooked content so we avoid registry lookups since we can't provide a reliable Location
-	if (AssetRegistry && ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem) && 
+	if (AssetRegistry && ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem) &&
 		(!FIoDispatcher::IsInitialized() || FIoDispatcher::Get().GetTotalLoaded() == 0))
 	{
 		FName PackageName = PackagePath.GetPackageFName();
@@ -1889,6 +1878,42 @@ FPackageName::EPackageLocationFilter FPackageName::DoesPackageExistEx(const FPac
 	}
 #endif
 
+	return InternalDoesPackageExistEx(PackagePath, Filter, bMatchCaseOnDisk, OutPackagePath);
+}
+
+bool FPackageName::TryConvertToMountedPackagePath(const FString& InPath, FPackagePath& OutPackagePath, EErrorCode& OutFailureReason)
+{
+	SCOPED_LOADTIMER(TryConvertToPackagePath);
+	TStringBuilder<64> PackageNameRoot;
+	TStringBuilder<64> FilePathRoot;
+	TStringBuilder<256> RelPath;
+	TStringBuilder<64> UnusedObjectName; // DoesPackageExist accepts ObjectPaths and ignores the ObjectName portion and uses only the PackageName
+	TStringBuilder<16> CustomExtension;
+	EPackageExtension Extension;
+	if (!FPackageName::TryConvertToMountedPathComponents(InPath, PackageNameRoot, FilePathRoot, RelPath, UnusedObjectName, Extension, CustomExtension, nullptr /* OutFlexNameType */, &OutFailureReason))
+	{
+		return false;
+	}
+	OutPackagePath = FPackagePath::FromMountedComponents(PackageNameRoot, FilePathRoot, RelPath, Extension, CustomExtension);
+	return true;
+}
+
+FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(const FString& LongPackageName, EPackageLocationFilter Filter, bool bMatchCaseOnDisk, FPackagePath* OutPackagePath)
+{
+	FPackagePath PackagePath;
+	EErrorCode FailureReason;
+	if (!TryConvertToMountedPackagePath(LongPackageName, PackagePath, FailureReason))
+	{
+		FString Message = FString::Printf(TEXT("DoesPackageExist called on PackageName that will always return false. Reason: %s"), *FormatErrorAsString(LongPackageName, FailureReason));
+		UE_LOG(LogPackageName, Warning, TEXT("%s"), *Message);
+		return EPackageLocationFilter::None;
+	}
+
+	return InternalDoesPackageExistEx(PackagePath, Filter, bMatchCaseOnDisk, OutPackagePath);
+}
+
+FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(const FPackagePath & PackagePath, EPackageLocationFilter Filter, bool bMatchCaseOnDisk, FPackagePath * OutPackagePath)
+{
 	TStringBuilder<256> PackageName;
 	PackagePath.AppendPackageName(PackageName);
 

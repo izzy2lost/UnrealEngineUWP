@@ -24,6 +24,7 @@ class FPackagePath;
 class UPackage;
 struct FFileStatData;
 struct FGuid;
+namespace UE::AssetRegistry::Impl { struct FScanPathContext; }
 
 DECLARE_LOG_CATEGORY_EXTERN(LogPackageName, Log, All);
 
@@ -865,6 +866,16 @@ private:
 	static COREUOBJECT_API bool TryConvertToMountedPathComponents(FStringView InPath, FStringBuilderBase& OutMountPointPackageName, FStringBuilderBase& OutMountPointFilePath, FStringBuilderBase& OutRelPath,
 		FStringBuilderBase& OutObjectName, EPackageExtension& OutExtension, FStringBuilderBase& OutCustomExtension, EFlexNameType* OutFlexNameType = nullptr, EErrorCode* OutFailureReason = nullptr);
 
+	/**
+	 * Internal helper to create a FPackagePath given LocalFilePath or PackageName, and if found, return the MountPoint, RelativePath, and PackageExtension
+	 *
+	 * @param InPath The path to test, either a LocalFilePath, PackageName, or ObjectPath
+	 * @param OutPackagePath FPackagePath to store the converted InPath
+	 * @param OutFailureReason it is set to the failurereason if the MountPoint is not found, otherwise it is set to EErrorCode::PackageNameUnknown
+	 * @return True if InPath be converted (was not malformed)
+	 */
+	static COREUOBJECT_API bool TryConvertToMountedPackagePath(const FString& InPath, FPackagePath& OutPackagePath, EErrorCode& OutFailureReason);
+
 	/** Event that is triggered when a new content path is mounted */
 	static COREUOBJECT_API FOnContentPathMountedEvent OnContentPathMountedEvent;
 
@@ -875,5 +886,12 @@ private:
 	static COREUOBJECT_API FDoesPackageExistOverride DoesPackageExistOverrideDelegate;
 
 	friend class FPackagePath;
+
+	// Internal helper not meant for public use. These versions of DoesPackageExist do not use the AssetRegistry; any code that might be holding an AssetRegistry lock should call these functions instead
+	friend class FAssetRegistryConsoleCommands;
+	friend class UAssetRegistryImpl;
+	friend struct ::UE::AssetRegistry::Impl::FScanPathContext;
+	static COREUOBJECT_API EPackageLocationFilter InternalDoesPackageExistEx(const FPackagePath& PackagePath, EPackageLocationFilter Filterconst, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
+	static COREUOBJECT_API EPackageLocationFilter InternalDoesPackageExistEx(const FString& LongPackageName, EPackageLocationFilter Filterconst, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
 };
 

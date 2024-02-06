@@ -25,6 +25,7 @@
 #include "Misc/Optional.h"
 #include "Misc/PackageAccessTracking.h"
 #include "Misc/PackageAccessTrackingOps.h"
+#include "Misc/PackageSegment.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
 #include "Misc/RedirectCollector.h"
@@ -2872,11 +2873,13 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 			// presence of map -> .umap
 			// But we can only assume lack of map -> .uasset if we know the type of every object in the package.
 			// If we don't, because there was a redirector, we have to check the package on disk
-			FString FileName;
-			if (FPackageName::DoesPackageExist(PackageNameStr, &FileName, false /* InAllowTextFormats */))
+
+			// Note, the 'internal' version of DoesPackageExist must be used to avoid re-entering the AssetRegistry's lock resulting in deadlock
+			FPackagePath PackagePath;
+			if (FPackageName::InternalDoesPackageExistEx(PackageNameStr, FPackageName::EPackageLocationFilter::Any, 
+				false /*bMatchCaseOnDisk*/, &PackagePath) != FPackageName::EPackageLocationFilter::None)
 			{
-				check(!FileName.IsEmpty());
-				return FPaths::GetExtension(FileName, true /* bIncludeDot */);
+				return FString(PackagePath.GetExtensionString(EPackageSegment::Header));
 			}
 		}
 		return bContainsMap ? FPackageName::GetMapPackageExtension() : FPackageName::GetAssetPackageExtension();
@@ -2903,17 +2906,19 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 		const static bool bVerifyNegativeResults = FParse::Param(FCommandLine::Get(), TEXT("AssetRegistryValidatePackageExists"));
 		if (bVerifyNegativeResults && !AssetPackageData)
 		{
-			FString FileName;
-			if (FPackageName::DoesPackageExist(PackageNameStr, &FileName, false /* InAllowTextFormats */))
+			// Note, the 'internal' version of DoesPackageExist must be used to avoid re-entering the AssetRegistry's lock resulting in deadlock
+			FPackagePath PackagePath;
+			if (FPackageName::InternalDoesPackageExistEx(PackageNameStr, FPackageName::EPackageLocationFilter::Any, 
+				false /*bMatchCaseOnDisk*/, &PackagePath) != FPackageName::EPackageLocationFilter::None)
 			{
 				UE_LOG(LogAssetRegistry, Warning, TEXT("Package %s exists on disk but does not exist in the AssetRegistry"), *PackageNameStr);
 				if (OutCorrectCasePackageName)
 				{
-					FPackageName::TryConvertLongPackageNameToFilename(FileName, *OutCorrectCasePackageName);
+					*OutCorrectCasePackageName = PackagePath.GetLocalFullPath();
 				}
 				if (OutExtension)
 				{
-					*OutExtension = FPaths::GetExtension(FileName, true /* bIncludeDot */);
+					*OutExtension = PackagePath.GetExtensionString(EPackageSegment::Header);
 				}
 				return true;
 			}
@@ -2932,11 +2937,12 @@ bool UAssetRegistryImpl::DoesPackageExistOnDisk(FName PackageName, FString* OutC
 		{
 			if (AssetPackageData->Extension == EPackageExtension::Unspecified || AssetPackageData->Extension == EPackageExtension::Custom)
 			{
-				FString FileName;
-				if (FPackageName::DoesPackageExist(PackageNameStr, &FileName, false /* InAllowTextFormats */))
+				// Note, the 'internal' version of DoesPackageExist must be used to avoid re-entering the AssetRegistry's lock resulting in deadlock
+				FPackagePath PackagePath;
+				if(FPackageName::InternalDoesPackageExistEx(PackageNameStr, FPackageName::EPackageLocationFilter::Any, 
+					false /* bMatchCaseOnDisk*/, &PackagePath) != FPackageName::EPackageLocationFilter::None)
 				{
-					check(!FileName.IsEmpty());
-					*OutExtension = FPaths::GetExtension(FileName, true /* bIncludeDot */);
+					*OutExtension = PackagePath.GetExtensionString(EPackageSegment::Header);
 				}
 				else
 				{
@@ -5134,13 +5140,15 @@ FScanPathContext::FScanPathContext(FEventContext& InEventContext, FClassInherita
 			if (!IFileManager::Get().FileExists(*LocalPath))
 			{
 				// Find the extension
+				// Note, the 'internal' version of DoesPackageExist must be used to avoid re-entering the AssetRegistry's lock resulting in deadlock
 				FPackagePath PackagePath = FPackagePath::FromLocalPath(LocalPath);
-				if (!FPackageName::DoesPackageExist(PackagePath, &PackagePath))
+				if (FPackageName::InternalDoesPackageExistEx(PackagePath, FPackageName::EPackageLocationFilter::Any,
+					false /* bMatchCaseOnDisk */, &PackagePath) == FPackageName::EPackageLocationFilter::None)
 				{
 					UE_LOG(LogAssetRegistry, Warning, TEXT("ScanPathsSynchronous: Package %s does not exist, will not scan."), *InFile);
 					continue;
 				}
-				Extension = LexToString(PackagePath.GetHeaderExtension());
+				Extension = PackagePath.GetExtensionString(EPackageSegment::Header);
 			}
 		}
 		LocalFiles.Add(LocalPath + Extension);
