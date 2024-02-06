@@ -11,6 +11,8 @@ FChaosClothAssetSimulationSelfCollisionConfigNode::FChaosClothAssetSimulationSel
 {
 	RegisterCollectionConnections();
 	RegisterInputConnection(&SelfCollisionLayers.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+	RegisterInputConnection(&SelfCollisionDisabledFaces.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+	RegisterInputConnection(&SelfCollisionEnabledKinematicFaces.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 }
 
 void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
@@ -21,6 +23,12 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyH
 	PropertyHelper.SetProperty(this, &SelfCollisionFriction);
 	PropertyHelper.SetProperty(this, &SelfCollisionDisableNeighborDistance, {}, ECollectionPropertyFlags::None); // Non animatable
 	PropertyHelper.SetPropertyString(this, &SelfCollisionLayers);
+	PropertyHelper.SetPropertyString(this, &SelfCollisionDisabledFaces);
+	PropertyHelper.SetPropertyBool(this, &bSelfCollideAgainstAllKinematicVertices);
+	PropertyHelper.SetPropertyString(this, &SelfCollisionEnabledKinematicFaces);
+	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderThickness);
+	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderStiffness);
+	PropertyHelper.SetProperty(this, &SelfCollisionKinematicColliderFriction);
 
 	PropertyHelper.SetPropertyBool(this, &bUseSelfIntersections);
 	PropertyHelper.SetPropertyBool(this, &bUseGlobalIntersectionAnalysis);

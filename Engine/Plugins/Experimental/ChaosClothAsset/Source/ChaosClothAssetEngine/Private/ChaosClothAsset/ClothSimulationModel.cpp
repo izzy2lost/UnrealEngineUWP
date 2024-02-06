@@ -147,6 +147,8 @@ bool FChaosClothSimulationLodModel::Serialize(FArchive& Ar)
 
 	Ar << VertexSets;
 	Ar << FaceIntMaps;
+	Ar << FaceSets;
+
 
 	// Return true to confirm that serialization has already been taken care of
 	return true;
@@ -182,15 +184,21 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 			LodModel.WeightMaps.Add(WeightMapName) = Cloth.GetWeightMap(WeightMapName);
 		}
 
-		// Copy vertex sets
+		// Copy vertex and face sets
 		FCollectionClothSelectionConstFacade Selection(ClothCollections[LodIndex]);
 		const TArray<FName> SelectionNames = Selection.GetNames();
-		LodModel.VertexSets.Reserve(SelectionNames.Num()); // At this point, only the SimVertex3d selections should be in the collection.
+		LodModel.VertexSets.Reserve(SelectionNames.Num());
+		LodModel.FaceSets.Reserve(SelectionNames.Num());
 		for (const FName& SelectionName : SelectionNames)
 		{
-			if (Selection.GetSelectionGroup(SelectionName) == ClothCollectionGroup::SimVertices3D)
+			const FName SelectionGroup = Selection.GetSelectionGroup(SelectionName);
+			if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
 			{
 				LodModel.VertexSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
+			}
+			else if (SelectionGroup == ClothCollectionGroup::SimFaces)
+			{
+				LodModel.FaceSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
 			}
 		}
 

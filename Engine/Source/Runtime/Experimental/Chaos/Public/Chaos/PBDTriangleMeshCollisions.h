@@ -109,6 +109,73 @@ public:
 		Count
 	};
 
+	class FTriangleSubMesh
+	{
+	public:
+		FTriangleSubMesh(const FTriangleMesh& InFullMesh)
+			: FullMesh(InFullMesh)
+			, bSubMeshIsFullMesh(true)
+		{}
+
+		template<typename SolverParticlesOrRange>
+		void Init(const SolverParticlesOrRange& Particles, const TSet<int32>& DisabledFaces, bool bCollideAgainstAllKinematicVertices, const TSet<int32>& EnabledKinematicFaces);
+
+		const FTriangleMesh& GetCollidableMesh() const
+		{
+			if (bSubMeshIsFullMesh)
+			{
+				return FullMesh;
+			}
+			return SubMesh;
+		}
+
+		const FTriangleMesh& GetFullMesh() const 
+		{
+			return FullMesh;
+		}
+
+		int32 FullMeshIndexFromSubIndex(int32 SubIndex) const
+		{
+			if (bSubMeshIsFullMesh)
+			{
+				return SubIndex;
+			}
+
+			return SubMeshToFullElements[SubIndex];
+		}
+
+		int32 SubMeshIndexFromFullIndex(int32 FullIndex) const
+		{
+			if (bSubMeshIsFullMesh)
+			{
+				return FullIndex;
+			}
+			return FullToSubMeshElements[FullIndex];
+		}
+
+		bool GetSubMeshIsFullMesh() const { return bSubMeshIsFullMesh; }
+
+		const TArray<bool>& GetSubMeshElementIsKinematic() const 
+		{
+			return SubMeshElementIsKinematic;
+		}
+
+		// Will be empty when bSubMeshIsFullMesh
+		const TArray<int32>& GetCollidableVertices() const { return CollidableVertices; }
+		// Will be empty when bSubMeshIsFullMesh
+		const TArray<int32>& GetIntersectableSubmeshEdges() const { return IntersectableSubmeshEdges; }
+
+	private:
+		const FTriangleMesh& FullMesh;
+		FTriangleMesh SubMesh;
+		TArray<int32> SubMeshToFullElements;
+		TArray<int32> FullToSubMeshElements;
+		TArray<bool> SubMeshElementIsKinematic;
+		TArray<int32> CollidableVertices;
+		TArray<int32> IntersectableSubmeshEdges;
+		bool bSubMeshIsFullMesh;
+	};
+
 	static bool IsEnabled(const FCollectionPropertyConstFacade& PropertyCollection)
 	{
 		return PropertyCollection.IsEnabled(FName(TEXT("SelfCollisionStiffness")).ToString(), false);  // Don't use UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME here, SelfCollisionStiffness is only needed for activation
@@ -117,10 +184,11 @@ public:
 	FPBDTriangleMeshCollisions(
 		const int32 InOffset,
 		const int32 InNumParticles,
+		const TMap<FString, const TSet<int32>*>& FaceSets,
 		const FTriangleMesh& InTriangleMesh,
 		const FCollectionPropertyConstFacade& PropertyCollection
 	)
-		:TriangleMesh(InTriangleMesh)
+		: CollidableSubMesh(InTriangleMesh)
 		, Offset(InOffset)
 		, NumParticles(InNumParticles)
 		, bUseSelfIntersections(GetUseSelfIntersections(PropertyCollection, false))
@@ -128,11 +196,30 @@ public:
 		, bContourMinimization(GetUseSelfIntersections(PropertyCollection, false) && GetUseContourMinimization(PropertyCollection, true))
 		, NumContourMinimizationPostSteps(GetUseSelfIntersections(PropertyCollection, false) ? GetNumContourMinimizationPostSteps(PropertyCollection, 0) : 0)
 		, bUseGlobalPostStepContours(GetUseGlobalPostStepContours(PropertyCollection, true))
+		, bSelfCollideAgainstAllKinematicVertices(GetSelfCollideAgainstAllKinematicVertices(PropertyCollection, false))
+		, bCollidableSubMeshDirty(true)
 		, UseSelfIntersectionsIndex(PropertyCollection)
 		, UseGlobalIntersectionAnalysisIndex(PropertyCollection)
 		, UseContourMinimizationIndex(PropertyCollection)
 		, NumContourMinimizationPostStepsIndex(PropertyCollection)
 		, UseGlobalPostStepContoursIndex(PropertyCollection)
+		, SelfCollideAgainstAllKinematicVerticesIndex(PropertyCollection)
+		, SelfCollisionDisabledFacesIndex(PropertyCollection)
+		, SelfCollisionEnabledKinematicFacesIndex(PropertyCollection)
+	{
+		if (const TSet<int32>* const InDisabledFaces = FaceSets.FindRef(GetSelfCollisionDisabledFacesString(PropertyCollection, SelfCollisionDisabledFacesName.ToString()), nullptr))
+		{
+			DisabledFaces = *InDisabledFaces;
+		}	
+	}
+
+	UE_DEPRECATED(5.4, "Use Constructor with FaceSets")
+	FPBDTriangleMeshCollisions(
+		const int32 InOffset,
+		const int32 InNumParticles,
+		const FTriangleMesh& InTriangleMesh,
+		const FCollectionPropertyConstFacade& PropertyCollection)
+		: FPBDTriangleMeshCollisions(InOffset, InNumParticles, TMap<FString, const TSet<int32>*>(), InTriangleMesh, PropertyCollection)
 	{}
 
 	FPBDTriangleMeshCollisions(
@@ -142,22 +229,28 @@ public:
 		bool bInGlobalIntersectionAnalysis,
 		bool bInContourMinimization
 	)
-		:TriangleMesh(InTriangleMesh)
+		:CollidableSubMesh(InTriangleMesh)
 		, Offset(InOffset)
 		, NumParticles(InNumParticles)
 		, bUseSelfIntersections(bInGlobalIntersectionAnalysis || bInContourMinimization)
 		, bGlobalIntersectionAnalysis(bInGlobalIntersectionAnalysis)
 		, bContourMinimization(bInContourMinimization)
+		, bSelfCollideAgainstAllKinematicVertices(false)
+		, bCollidableSubMeshDirty(true)
 		, UseSelfIntersectionsIndex(ForceInit)
 		, UseGlobalIntersectionAnalysisIndex(ForceInit)
 		, UseContourMinimizationIndex(ForceInit)
 		, NumContourMinimizationPostStepsIndex(ForceInit)
 		, UseGlobalPostStepContoursIndex(ForceInit)
+		, SelfCollideAgainstAllKinematicVerticesIndex(ForceInit)
+		, SelfCollisionDisabledFacesIndex(ForceInit)
+		, SelfCollisionEnabledKinematicFacesIndex(ForceInit)
 	{}
 
 	virtual ~FPBDTriangleMeshCollisions() = default;
 
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
+	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection,
+		const TMap<FString, const TSet<int32>*>& FaceSets)
 	{
 		const bool bSelfIntersectionsMutable = IsUseSelfIntersectionsMutable(PropertyCollection);
 		if (bSelfIntersectionsMutable)
@@ -188,6 +281,54 @@ public:
 			bGlobalIntersectionAnalysis = bContourMinimization = false;
 			NumContourMinimizationPostSteps = 0;
 		}
+
+		if (IsSelfCollideAgainstAllKinematicVerticesMutable(PropertyCollection))
+		{
+			const bool bNewValue = GetSelfCollideAgainstAllKinematicVertices(PropertyCollection);
+			if (bNewValue != bSelfCollideAgainstAllKinematicVertices)
+			{
+				bSelfCollideAgainstAllKinematicVertices = bNewValue;
+				bCollidableSubMeshDirty = true;
+			}
+		}
+		if (IsSelfCollisionDisabledFacesMutable(PropertyCollection) && IsSelfCollisionDisabledFacesStringDirty(PropertyCollection))
+		{
+			if (const TSet<int32>* const InDisabledFaces = FaceSets.FindRef(GetSelfCollisionDisabledFacesString(PropertyCollection, SelfCollisionDisabledFacesName.ToString()), nullptr))
+			{
+				DisabledFaces = *InDisabledFaces;
+				bCollidableSubMeshDirty = true;
+			}
+			else
+			{
+				if (!DisabledFaces.IsEmpty())
+				{
+					DisabledFaces.Reset();
+					bCollidableSubMeshDirty = true;
+				}
+			}
+		}
+		if (IsSelfCollisionEnabledKinematicFacesMutable(PropertyCollection) && IsSelfCollisionEnabledKinematicFacesStringDirty(PropertyCollection))
+		{
+			if (const TSet<int32>* const InEnabledFaces = FaceSets.FindRef(GetSelfCollisionEnabledKinematicFacesString(PropertyCollection, SelfCollisionEnabledKinematicFacesName.ToString()), nullptr))
+			{
+				EnabledKinematicFaces = *InEnabledFaces;
+				bCollidableSubMeshDirty = true;
+			}
+			else
+			{
+				if (!EnabledKinematicFaces.IsEmpty())
+				{
+					EnabledKinematicFaces.Reset();
+					bCollidableSubMeshDirty = true;
+				}
+			}
+		}
+	}
+
+	UE_DEPRECATED(5.4, "Use version with FaceSets")
+	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
+	{
+		SetProperties(PropertyCollection, TMap<FString, const TSet<int32>*>());
 	}
 
 	template<typename SolverParticlesOrRange>
@@ -204,6 +345,7 @@ public:
 		return NumContourMinimizationPostSteps;
 	}
 
+	const FTriangleSubMesh& GetCollidableSubMesh() const { return CollidableSubMesh; }
 	const FTriangleMesh::TSpatialHashType<FSolverReal>& GetSpatialHash() const { return SpatialHash; }
 	const TArray<FContourMinimizationIntersection>& GetContourMinimizationIntersections() const { return ContourMinimizationIntersections; }
 	const TConstArrayView<FGIAColor> GetVertexGIAColors() const { return bGlobalIntersectionAnalysis && VertexGIAColors.Num() == NumParticles ? TConstArrayView<FGIAColor>(VertexGIAColors.GetData() - Offset, NumParticles + Offset) : TConstArrayView<FGIAColor>(); }
@@ -217,15 +359,19 @@ public:
 	const TArray<TArray<FBarycentricPoint>>& GetPostStepIntersectionContourPoints() const { return PostStepIntersectionContourPoints; }
 private:
 
-	const FTriangleMesh& TriangleMesh;
+	FTriangleSubMesh CollidableSubMesh;
 	int32 Offset;
 	int32 NumParticles;
 	bool bUseSelfIntersections;
 	bool bGlobalIntersectionAnalysis;
-	bool bContourMinimization;
-	
+	bool bContourMinimization;	
 	int32 NumContourMinimizationPostSteps = 0;
 	bool bUseGlobalPostStepContours = true;
+	bool bSelfCollideAgainstAllKinematicVertices;
+	TSet<int32> DisabledFaces;
+	TSet<int32> EnabledKinematicFaces;
+
+	bool bCollidableSubMeshDirty = true;
 	
 	FTriangleMesh::TSpatialHashType<FSolverReal> SpatialHash;
 	TArray<FContourMinimizationIntersection> ContourMinimizationIntersections;
@@ -249,6 +395,9 @@ private:
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(UseContourMinimization, bool);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(NumContourMinimizationPostSteps, int32);
 	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(UseGlobalPostStepContours, bool);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollideAgainstAllKinematicVertices, bool);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionDisabledFaces, bool);
+	UE_CHAOS_DECLARE_PROPERTYCOLLECTION_NAME(SelfCollisionEnabledKinematicFaces, bool);
 };
 
 }  // End namespace Chaos::Softs

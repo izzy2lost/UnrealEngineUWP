@@ -14,7 +14,7 @@ struct FChaosClothAssetSimulationSelfCollisionConfigNode : public FChaosClothAss
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationSelfCollisionConfigNode, "SimulationSelfCollisionConfig", "Cloth", "Cloth Simulation Self Collision Config")
 
 public:
-	/** The radius of the spheres used in self collision (i.e., offset per side. total thickness of cloth is 2x this value). */
+	/** The self collision offset per side. Total thickness of cloth is 2x this value. */
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", EditCondition = "bUseSelfCollisions"))
 	float SelfCollisionThickness = 0.5f;
 
@@ -36,6 +36,30 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties")
 	FChaosClothAssetConnectableIStringValue SelfCollisionLayers = { TEXT("SelfCollisionLayers") };
+
+	/** Sim face selection set of faces which should not self collide */
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties")
+	FChaosClothAssetConnectableIStringValue SelfCollisionDisabledFaces = { TEXT("SelfCollisionDisabledFaces") };
+
+	/** Self collide against all kinematic vertices. Kinematic colliders do not do Self Intersections. They always collide against the front-face.*/
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders")
+	bool bSelfCollideAgainstAllKinematicVertices = false;
+
+	/** Sim face selection set of kinematic faces which should self collide. Kinematic colliders do not do Self Intersections. They always collide against the front-face. */
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders", meta = (EditCondition = "!bSelfCollideAgainstAllKinematicVertices"))
+	FChaosClothAssetConnectableIStringValue SelfCollisionEnabledKinematicFaces = { TEXT("SelfCollisionEnabledKinematicFaces") };
+
+	/** Thickness of kinematic colliders. Total offset between cloth and kinematic colliders is SelfCollisionThickness + SelfCollisionKinematicColliderThickness. */
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", EditCondition = "bUseSelfCollisions"))
+	float SelfCollisionKinematicColliderThickness = 0.f;
+
+	/** The stiffness of the springs used to control self collision (PBD Solver). */
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
+	float SelfCollisionKinematicColliderStiffness = 1.f;
+
+	/** Friction coefficient for cloth - kinematic cloth interaction. */
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties - Kinematic Colliders", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
+	float SelfCollisionKinematicColliderFriction = 0.0f;
 
 	/** Enable self intersection resolution. This will try to fix any cloth intersections that are not handled by collision repulsions. */
 	UPROPERTY(EditAnywhere, Category = "Experimental")

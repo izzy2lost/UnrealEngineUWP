@@ -173,6 +173,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return VertexSets;
 	}
 
+	TMap<FString, const TSet<int32>*> FClothingSimulationSkeletalMesh::GetFaceSets(int32 LODIndex) const
+	{
+		// Not supported
+		return TMap<FString, const TSet<int32>*>();
+	}
+
 	TMap<FString, TConstArrayView<int32>> FClothingSimulationSkeletalMesh::GetFaceIntMaps(int32 LODIndex) const
 	{
 		// Not supported
