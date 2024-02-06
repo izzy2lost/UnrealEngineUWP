@@ -19,12 +19,6 @@
 
 struct FPropertyChangedEvent;
 
-namespace CVars
-{
-	extern bool bPhysicalMaterial_ShowExperimentalProperties;
-}
-
-
 /**
  * Defines the directional strengths of a physical material in term of force per surface area
  */
@@ -76,25 +70,6 @@ struct FPhysicalMaterialDamageModifier
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "PhysicalMaterial|DamageModifier", meta = (ClampMin = 0))
 	float DamageThresholdMultiplier;
 };
-
-/**
-* Soft collision mode for a physical material.
-* 
-* NOTE: Must match EChaosPhysicsMaterialSoftCollisionMode
-*/
-UENUM()
-enum class EPhysicalMaterialSoftCollisionMode : uint8
-{
-	// No soft collisionss
-	None,
-
-	// SoftCollisionThickess is a fraction of the bounds (minimum axis). Should be less than 0.5
-	RelativeThickness,
-
-	// SoftCollisionThickess is an absolute value in cm
-	AbsoluteThickess,
-};
-
 
 /**
  * Physical materials are used to define the response of a physical object when interacting dynamically with the world.
@@ -185,30 +160,6 @@ class UPhysicalMaterial : public UObject
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PhysicalProperties)
 	FPhysicalMaterialDamageModifier DamageModifier;
-
-	//
-	// Experimental properties
-	//
-
-	/** Experimental material properties are enabled via the p.PhysicalMaterial_ShowExperimentalProperties console variable.
-		NOTE: These are _experimental_ properties which may change. Use at your own risk! */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Experimental")
-	bool bShowExperimentalProperties = CVars::bPhysicalMaterial_ShowExperimentalProperties;
-
-	/** For enable soft collision shell thickness mode */
-	UPROPERTY(EditAnywhere, Category = "Experimental|Softness", meta = (EditCondition = "bShowExperimentalProperties"))
-	EPhysicalMaterialSoftCollisionMode SoftCollisionMode;
-
-	/** Thickness of the layer just inside the collision shape in which contact is considered "soft".
-		The units depend on SoftCollisionMode */
-	UPROPERTY(EditAnywhere, Category = "Experimental|Softness", meta = (ClampMin = 0, EditCondition = "bShowExperimentalProperties"))
-	float SoftCollisionThickness;
-
-	/** A friction (positional) impulse of at least this magnitude may be applied,
-		regardless the normal force. This is analogous to adding only the lateral part of a
-		"stickiness" to a material */
-	UPROPERTY(EditAnywhere, Category = "Experimental|Stickiness", meta = (ClampMin = 0, Units = kgcm, EditCondition = "bShowExperimentalProperties"))
-	float BaseFrictionImpulse;
 
 public:
 

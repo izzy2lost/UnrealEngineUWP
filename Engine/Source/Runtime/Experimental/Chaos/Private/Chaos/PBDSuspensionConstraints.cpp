@@ -217,7 +217,6 @@ namespace Chaos
 			FPBDCollisionSolver* Solver = &CollisionSolvers[ConstraintIndex];
 			Solver->Reset(&CollisionSolverManifoldPoints[ConstraintIndex], 1);
 			Solver->SetStiffness(1);
-			Solver->SetHardContact();
 
 			FSolverBody* Body0 = ConstraintSolverBodies[ConstraintIndex];	// vehicle chassis			
 			FSolverBody* Body1 = &StaticCollisionBodies[ConstraintIndex];	// Spoofed terrain
@@ -258,7 +257,7 @@ namespace Chaos
 				Solver->SetSolverBodies(*Body0, *Body1);
 				Solver->SolverBody0().Init();
 				Solver->SolverBody1().Init();
-				Solver->SetFriction(0, 0, 0, 0);
+				Solver->SetFriction(0, 0, 0);
 
 #if CHAOS_DEBUG_DRAW
 				if (bChaos_Suspension_DebugDraw_Hardstop)

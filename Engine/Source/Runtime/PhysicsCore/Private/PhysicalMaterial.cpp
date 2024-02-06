@@ -8,16 +8,8 @@
 #include "PhysicalMaterials/PhysicalMaterialPropertyBase.h"
 #include "UObject/UObjectIterator.h"
 #include "Chaos/PhysicalMaterials.h"
-#include "HAL/IConsoleManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PhysicalMaterial)
-
-namespace CVars
-{
-	bool bPhysicalMaterial_ShowExperimentalProperties = false;
-
-	FAutoConsoleVariableRef CVarPhysicalMaterial_ShowExperimentalProperties(TEXT("p.PhysicalMaterial_ShowExperimentalProperties"), bPhysicalMaterial_ShowExperimentalProperties, TEXT(""));
-}
 
 UDEPRECATED_PhysicalMaterialPropertyBase::UDEPRECATED_PhysicalMaterialPropertyBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -50,11 +42,6 @@ UPhysicalMaterial::UPhysicalMaterial(const FObjectInitializer& ObjectInitializer
 	SleepCounterThreshold = 4;
 	bOverrideFrictionCombineMode = false;
 	UserData = FChaosUserData(this);
-
-	SoftCollisionMode = EPhysicalMaterialSoftCollisionMode::None;
-	SoftCollisionThickness = 0;
-
-	BaseFrictionImpulse = 0;
 }
 
 UPhysicalMaterial::UPhysicalMaterial(FVTableHelper& Helper)

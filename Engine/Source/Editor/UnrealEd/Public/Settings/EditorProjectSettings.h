@@ -104,12 +104,6 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Units, AdvancedDisplay, meta = (DisplayName = "Torque", Tooltip = "Choose the units in which to display torques.", ValidEnumValues = "NewtonMeters, KilogramCentimetersSquaredPerSecondSquared"))
 	EUnit TorqueUnits;
 
-	UPROPERTY(EditAnywhere, config, Category = Units, AdvancedDisplay, meta = (DisplayName = "Impulse", Tooltip = "Choose the units in which to display impulses.", ValidEnumValues = "NewtonSeconds"))
-	EUnit ImpulseUnits;
-
-	UPROPERTY(EditAnywhere, config, Category = Units, AdvancedDisplay, meta = (DisplayName = "PositionalImpulse", Tooltip = "Choose the units in which to display positional impulses.", ValidEnumValues = "KilogramMeters, KilogramCentimeters"))
-	EUnit PositionalImpulseUnits;
-
 	// Should the Reference Viewer have 'Show Searchable Names' checked by default when opened in this project
 	UPROPERTY(EditAnywhere, config, Category=ReferenceViewer)
 	EReferenceViewerSettingMode ShowSearchableNames;
