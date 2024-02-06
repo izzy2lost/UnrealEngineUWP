@@ -38,7 +38,8 @@ void FExposedValueHandler::Initialize(UClass* InClass, const FPropertyAccessLibr
 	}
 }
 
-void FExposedValueHandler::Execute(const FAnimationBaseContext& Context) const
+// Don't inline this function to keep the stack usage down
+FORCENOINLINE void FExposedValueHandler::Execute(const FAnimationBaseContext& Context) const
 {
 	if (Handler)
 	{
