@@ -2,9 +2,11 @@
 
 #include "SAudioSpectrogram.h"
 
+#include "ConstantQ.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layout/WidgetPath.h"
+#include "SynesthesiaSpectrumAnalysis.h"
 
 #define LOCTEXT_NAMESPACE "SAudioSpectrogram"
 
@@ -29,6 +31,42 @@ void SAudioSpectrogram::Construct(const FArguments& InArgs)
 void SAudioSpectrogram::AddFrame(const FAudioSpectrogramFrameData& SpectrogramFrameData)
 {
 	SpectrogramViewport->AddFrame(SpectrogramFrameData);
+}
+
+void SAudioSpectrogram::AddFrame(const FSynesthesiaSpectrumResults& SpectrumResults, const float SampleRate)
+{
+	const TConstArrayView<float> SquaredMagnitudes(SpectrumResults.SpectrumValues);
+	const int32 FFTSize = 2 * (SquaredMagnitudes.Num() - 1);
+	const float BinSize = SampleRate / FFTSize;
+
+	// Just ignoring the Nyquist sample here to get us a power of two length:
+	ensure(FMath::IsPowerOfTwo(SquaredMagnitudes.Num() - 1));
+	const TConstArrayView<float> SquaredMagnitudesNoNyquist = SquaredMagnitudes.LeftChop(1);
+
+	const FAudioSpectrogramFrameData SpectrogramFrameData
+	{
+		.SquaredMagnitudes = SquaredMagnitudesNoNyquist,
+		.MinFrequency = 0.0f,
+		.MaxFrequency = (SquaredMagnitudesNoNyquist.Num() - 1) * BinSize,
+		.bLogSpacedFreqencies = false,
+	};
+
+	AddFrame(SpectrogramFrameData);
+}
+
+void SAudioSpectrogram::AddFrame(const FConstantQResults& ConstantQResults, const float StartingFrequencyHz, const float NumBandsPerOctave)
+{
+	const int32 NumBands = ConstantQResults.SpectrumValues.Num();
+
+	const FAudioSpectrogramFrameData SpectrogramFrameData
+	{
+		.SquaredMagnitudes = ConstantQResults.SpectrumValues,
+		.MinFrequency = StartingFrequencyHz,
+		.MaxFrequency = StartingFrequencyHz * FMath::Pow(2.0f, (NumBands - 1) / NumBandsPerOctave),
+		.bLogSpacedFreqencies = true,
+	};
+
+	AddFrame(SpectrogramFrameData);
 }
 
 TSharedRef<const FExtensionBase> SAudioSpectrogram::AddContextMenuExtension(EExtensionHook::Position HookPosition, const TSharedPtr<FUICommandList>& CommandList, const FMenuExtensionDelegate& MenuExtensionDelegate)
@@ -181,11 +219,11 @@ TSharedRef<SWidget> SAudioSpectrogram::BuildDefaultContextMenu()
 
 void SAudioSpectrogram::BuildColorMapSubMenu(FMenuBuilder& SubMenu)
 {
-	const UEnum* EnumClass = StaticEnum<EAudioColorMap>();
+	const UEnum* EnumClass = StaticEnum<EAudioColorGradient>();
 	const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
 	for (int32 Index = 0; Index < NumEnumValues; Index++)
 	{
-		const auto EnumValue = static_cast<EAudioColorMap>(EnumClass->GetValueByIndex(Index));
+		const auto EnumValue = static_cast<EAudioColorGradient>(EnumClass->GetValueByIndex(Index));
 
 		SubMenu.AddMenuEntry(
 			EnumClass->GetDisplayNameTextByIndex(Index),

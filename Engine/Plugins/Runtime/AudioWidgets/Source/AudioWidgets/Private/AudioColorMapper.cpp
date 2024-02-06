@@ -9,9 +9,9 @@ FColor FAudioColorMapper::GetColorFromValue(const float Value) const
 	switch (ColorMap)
 	{
 	default:
-	case EAudioColorMap::BlackToWhite:
+	case EAudioColorGradient::BlackToWhite:
 		return ColorMapBlackToWhite(ScaledClampedValue);
-	case EAudioColorMap::WhiteToBlack:
+	case EAudioColorGradient::WhiteToBlack:
 		return ColorMapWhiteToBlack(ScaledClampedValue);
 	}
 }

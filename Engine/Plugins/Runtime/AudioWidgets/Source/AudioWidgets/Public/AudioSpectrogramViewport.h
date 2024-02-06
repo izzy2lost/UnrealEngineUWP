@@ -34,7 +34,7 @@ struct FAudioSpectrogramViewportRenderParams
 	float ViewMaxFrequency = 0.0f;
 	float ColorMapMinSoundLevel = 0.0f;
 	float ColorMapMaxSoundLevel = 0.0f;
-	EAudioColorMap ColorMap = EAudioColorMap::BlackToWhite;
+	EAudioColorGradient ColorMap = EAudioColorGradient::BlackToWhite;
 	EAudioSpectrogramFrequencyAxisScale FrequencyAxisScale = EAudioSpectrogramFrequencyAxisScale::Logarithmic;
 	EAudioSpectrogramFrequencyAxisPixelBucketMode FrequencyAxisPixelBucketMode = EAudioSpectrogramFrequencyAxisPixelBucketMode::Average;
 };
