@@ -112,6 +112,13 @@ namespace UnrealBuildTool.Modes
 			DirectoryReference InstallDir = DirectoryReference.Combine(ProjectDir, "Intermediate", "PipInstall");
 			UnrealTargetPlatform Platform = TargetDescriptor.Platform;
 
+			// Let env variable override pip install path
+			DirectoryReference? EnvInstallPath = DirectoryReference.FromString(Environment.GetEnvironmentVariable("UE_PIPINSTALL_PATH"));
+			if (EnvInstallPath != null)
+			{
+				InstallDir = EnvInstallPath;
+			}
+
 			PipEnv Pip = new(InstallDir, Platform, Logger, ProgressWriter.bWriteMarkup);
 			if ((Action & (PipAction)ActionBits.GenReqs) != 0)
 			{
@@ -237,12 +244,19 @@ namespace UnrealBuildTool.Modes
 
 		public void WritePluginsListing(UEBuildTarget Target, ILogger Logger)
 		{
+			// TODO: The path listing file won't match the .pth generated in-engine.
+			// In particular the additional paths setting
+
 			FileReference PluginsListingFile = FileReference.Combine(InstallDir, PluginsListingFilename);
 
 			DirectoryReference PipSitePackagesPath = DirectoryReference.Combine(InstallDir, "Lib", "site-packages");
 			FileReference PyPluginsSitePackageFile = FileReference.Combine(PipSitePackagesPath, PluginsSitePackageFilename);
 
-			FileReference.Delete(PluginsListingFile);
+			if (FileReference.Exists(PluginsListingFile))
+			{
+				FileReference.Delete(PluginsListingFile);
+			}
+
 			if (Target.EnabledPlugins == null)
 			{
 				return;
@@ -277,6 +291,17 @@ namespace UnrealBuildTool.Modes
 				{
 					PluginsList.Add(Plugin.File.ToString());
 					break;
+				}
+			}
+
+			// Add UE_PYTHONPATH to .pth file
+			string? UEPythonPaths = Environment.GetEnvironmentVariable("UE_PYTHONPATH");
+			if (UEPythonPaths != null)
+			{
+				string[] EnvPaths = UEPythonPaths.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+				foreach (string EnvPath in EnvPaths)
+				{
+					PluginsSitePackages.Add(EnvPath);
 				}
 			}
 
