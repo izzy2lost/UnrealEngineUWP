@@ -392,6 +392,8 @@ void UDMXPixelMappingMatrixComponent::SetPosition(const FVector2D& NewPosition)
 #if WITH_EDITOR
 	EditorPositionWithRotation = CachedGeometry.GetPositionRotatedAbsolute();
 #endif
+
+	InvalidatePixelMapRenderer();
 }
 
 void UDMXPixelMappingMatrixComponent::SetPositionRotated(FVector2D NewRotatedPosition)
@@ -406,6 +408,8 @@ void UDMXPixelMappingMatrixComponent::SetPositionRotated(FVector2D NewRotatedPos
 #if WITH_EDITOR
 	EditorPositionWithRotation = CachedGeometry.GetPositionRotatedAbsolute();
 #endif
+
+	InvalidatePixelMapRenderer();
 }
 
 void UDMXPixelMappingMatrixComponent::SetSize(const FVector2D& NewSize)
@@ -422,6 +426,8 @@ void UDMXPixelMappingMatrixComponent::SetSize(const FVector2D& NewSize)
 	SetPosition(CachedGeometry.GetPositionAbsolute());
 
 	CachedGeometry.PropagonateSizeChangesToChildren(DeltaSize, DeltaPosition);
+
+	InvalidatePixelMapRenderer();
 }
 
 void UDMXPixelMappingMatrixComponent::SetRotation(double NewRotation)
@@ -434,6 +440,8 @@ void UDMXPixelMappingMatrixComponent::SetRotation(double NewRotation)
 #if WITH_EDITOR
 	EditorPositionWithRotation = CachedGeometry.GetPositionRotatedAbsolute();
 #endif
+
+	InvalidatePixelMapRenderer();
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -514,6 +522,8 @@ void UDMXPixelMappingMatrixComponent::HandleMatrixChanged()
 		bUpdateSizeRecursive);
 
 	SetRotation(RestoreRotation);
+
+	InvalidatePixelMapRenderer();
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GetOnMatrixChanged().Broadcast(PixelMapping, this);

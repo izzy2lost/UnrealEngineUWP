@@ -963,8 +963,9 @@ void SDMXPixelMappingDesignerView::ResolvePendingSelectedComponents(bool bClearP
 	const bool bHasPendingSelectedComponent = PendingSelectedComponent.IsValid();
 	if (Toolkit.IsValid() && bHasPendingSelectedComponent)
 	{
-		// Never select matrix cells
-		if (UDMXPixelMappingMatrixCellComponent* MatrixCellComponent = Cast<UDMXPixelMappingMatrixCellComponent>(PendingSelectedComponent))
+		// Select matrix cells only if they're not locked in designer. By default they're locked.
+		UDMXPixelMappingMatrixCellComponent* MatrixCellComponent = Cast<UDMXPixelMappingMatrixCellComponent>(PendingSelectedComponent);
+		if (MatrixCellComponent && MatrixCellComponent->IsLockInDesigner())
 		{
 			PendingSelectedComponent = MatrixCellComponent->GetParent();
 		}
