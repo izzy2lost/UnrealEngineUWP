@@ -511,30 +511,6 @@ UObject* UAvaSequence::GetParentObject(UObject* InObject) const
 void UAvaSequence::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FAvaSequenceVersion::GUID);
-	const int32 Version = Ar.CustomVer(FAvaSequenceVersion::GUID);
-
-	// Temporarily add a Redirector for BindingReference->ObjectBindingReferences for older versions
-	// as the BindingReference here would refer to the previous name for UAvaSequence::ObjectBindingReferences
-	// rather than ULevelSequence::BindingReferences
-	if (Version < FAvaSequenceVersion::LevelSequence)
-	{
-		TArray<FCoreRedirect> Redirects;
-
-		constexpr const TCHAR* SourceString = TEXT("AvaSequence");
-
-		Redirects.Emplace(ECoreRedirectFlags::Type_Property
-			, TEXT("/Script/AvalancheSequence.AvaSequence.BindingReferences")
-			, TEXT("/Script/AvalancheSequence.AvaSequence.ObjectBindingReferences"));
-
-		FCoreRedirects::AddRedirectList(Redirects, SourceString);
-
-		Super::Serialize(Ar);
-
-		FCoreRedirects::RemoveRedirectList(Redirects, SourceString);
-
-		return;
-	}
-
 	Super::Serialize(Ar);
 }
 
@@ -619,33 +595,6 @@ int32 UAvaSequence::UpdateBindings(const FTopLevelAssetPath* InOldContext, const
 	}
 
 	return BindingsUpdatedCount;
-}
-
-void UAvaSequence::MigrateLegacyBindings(UObject* InPlaybackContext)
-{
-	if (!ensureAlways(IsValid(InPlaybackContext)))
-	{
-		return;	
-	}
-
-	const FAvaAnimBindingReferences LegacyBindings = MoveTemp(ObjectBindingReferences);
-
-	for (const TPair<FGuid, FAvaAnimBindingReferenceArray>& Binding : LegacyBindings.BindingIdToReferences)
-	{
-		for (const FAvaAnimBindingReference& BindingReference : Binding.Value.References)
-		{
-			if (UObject* const ResolvedObject = FindObject<UObject>(InPlaybackContext, *BindingReference.ObjectPath, false))
-			{
-				UObject* const ParentObject = GetParentObject(ResolvedObject);
-
-				UObject* Context = bParentContextsAreSignificant && IsValid(ParentObject)
-					? ParentObject
-					: InPlaybackContext;
-
-				BindPossessableObject(Binding.Key, *ResolvedObject, Context);
-			}
-		}
-	}
 }
 
 TArrayView<TWeakObjectPtr<>> UAvaSequence::FindObjectsFromGuid(const FGuid& InGuid)
