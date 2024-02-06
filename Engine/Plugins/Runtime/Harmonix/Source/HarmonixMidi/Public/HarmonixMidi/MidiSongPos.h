@@ -83,4 +83,7 @@ public:
 	bool operator>(const FMidiSongPos& rhs) const;
 	bool operator>=(const FMidiSongPos& rhs) const;
 	bool operator==(const FMidiSongPos& rhs) const;
+
+private:
+	void SetByTimeAndTick(float Ms, float Tick, const FSongMaps& Maps);
 };

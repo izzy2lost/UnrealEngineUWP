@@ -16,9 +16,9 @@ namespace SmoothedPlayCursor
 FSmoothedMidiPlayCursor::FSmoothedMidiPlayCursor()
 {
 	SetupMsLookahead(-SmoothingLatencyMs, FMidiPlayCursor::ESyncOptions::NoBroadcastNoPreRoll);
-	SmoothingTimer.SetSpeed(1.0f);
+	SmoothingTimer.SetSpeed(1.0);
 	SmoothingTimer.Start();
-	SmoothingTimer.Reset(0.0f);
+	SmoothingTimer.Reset(0.0);
 }
 
 void FSmoothedMidiPlayCursor::SetSpeed(float NewSpeed)
@@ -91,11 +91,11 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 	SetSpeed(Owner->GetCurrentAdvanceRate());
 
 	float RawMs = CurrentMs;
-	float SmoothMs = SmoothingTimer.Ms();
+	double SmoothMs = SmoothingTimer.Ms();
 
 	if (bEnableErrorCorrection)
 	{
-		float Error = (SmoothMs - RawMs) * (1.0f / (float)SmoothingTimer.GetSpeed());
+		float Error = float((SmoothMs - RawMs) * (1.0 / SmoothingTimer.GetSpeed()));
 		ErrorTracker.Push(Error);
 		float MinRecentError = ErrorTracker.Min();
 		float AbsError = FMath::Abs(MinRecentError);
@@ -108,7 +108,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 			SmoothingTimer.Reset(RawMs);
 			SmoothedMs = RawMs;
 			SmoothedMsDelta = 0.0f;
-			SmoothedTick = Owner->GetTempoMap().MsToTick(SmoothedMs);
+			SmoothedTick = Owner->GetTempoMap().MsToTick(RawMs);
 			ErrorTracker.Reset();
 			return;
 		}
@@ -143,7 +143,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 
 	// keep track of the difference in Ms between the current time and the smoothed time
 	// update the MsDelta before applying any looping so that it's 
-	SmoothedMsDelta = SmoothMs - RawMs;
+	SmoothedMsDelta = float(SmoothMs - RawMs);
 
 	// we need to see if the smoothed position is a position that we have never played!
 	float LoopStartMs = Owner->GetLoopStartMs();
@@ -166,7 +166,7 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 			SmoothMs = LoopStartMs + (SmoothMs - LoopEndMs);
 		}
 	}
-	SmoothedMs = SmoothMs;
+	SmoothedMs = float(SmoothMs);
 	SmoothedTick = Owner->GetTempoMap().MsToTick(SmoothedMs);
 	LoopedThisPass = false;
 }

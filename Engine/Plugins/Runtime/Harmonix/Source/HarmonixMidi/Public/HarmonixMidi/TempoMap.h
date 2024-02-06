@@ -79,11 +79,6 @@ public:
 
 	/** Get the time (in milliseconds) at a given tick: */
 	float TickToMs(float Tick) const;
-	/** Get the time (in milliseconds) at a given tick: */
-	float TickToMs(int32 Tick) const;
-
-	float TickToSeconds(float Tick) const;
-	float TickToSeconds(int32 Tick) const;
 
 	/**
 	 * Get the time (in milliseconds) at the given tick.
@@ -113,8 +108,6 @@ public:
 		* @param NextIndex Fills in with the tempo point most likely to contain the next tick you are likely to request.
 		*/
 	float MsToTick(float TimeMs, int32 Index, int32* NextIndex) const;
-
-	inline float SecondsToTick(const float Seconds) const { return MsToTick(Seconds * 1000.f); }
 
 	/** Get the tempo in ms/quarter-note */
 	float GetMsPerQuarterNoteAtTick(int32 Tick) const;
@@ -165,18 +158,3 @@ private:
 	float MsToTickInternal(float TimeMs, const FTempoInfoPoint& prevTempoInfoPoint) const;
 
 };
-
-inline float FTempoMap::TickToMs(int32 Tick) const
-{
-	return TickToMs(static_cast<float>(Tick));
-}
-
-inline float FTempoMap::TickToSeconds(int32 Tick) const
-{
-	return TickToMs(Tick) / 1000.0f;
-}
-
-inline float FTempoMap::TickToSeconds(float Tick) const
-{
-	return TickToMs(Tick) / 1000.0f;
-}

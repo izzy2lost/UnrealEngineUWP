@@ -158,7 +158,7 @@ public:
 	 * @param Timestamp
 	 * @return The 0-based absolute tick in the midi data.
 	 */
-	int32 MusicTimestampToTick(const FMusicTimestamp& Timestamp) const;
+	float MusicTimestampToTick(const FMusicTimestamp& Timestamp) const;
 
 	/**
 	 * Takes an absolute tick and calculates a music timestamp. Uses the collection of time signatures,
@@ -169,7 +169,7 @@ public:
 	 * @param OutBeatPerBar Is not nullptr it will be filled in with the number of total beats in the described bar.
 	 * @return The FMusicTimestamp where Bar 1 Beat 1 is the "beginning of the song" after count-in and pickup bars.
 	 */
-	FMusicTimestamp TickToMusicTimestamp(int32 Tick, int32* OutBeatsPerBar = nullptr) const;
+	FMusicTimestamp TickToMusicTimestamp(float Tick, int32* OutBeatsPerBar = nullptr) const;
 
 	/**
 	 * Takes an tick relative to "bar 1 beat 1" and calculates a music timestamp. Uses the collection of 
@@ -181,7 +181,7 @@ public:
 	 * @param OutBeatPerBar Is not nullptr it will be filled in with the number of total beats in the described bar.
 	 * @return The FMusicTimestamp where Bar 1 Beat 1 is the "beginning of the song" after count-in and pickup bars.
 	 */
-	FMusicTimestamp TickFromBarOneToMusicTimestamp(int32 Tick, int32* OutBeatsPerBar = nullptr) const;
+	FMusicTimestamp TickFromBarOneToMusicTimestamp(float Tick, int32* OutBeatsPerBar = nullptr) const;
 
 
 	/**
@@ -245,7 +245,7 @@ public:
 	 * @param Tick 0-based 'raw total ticks'
 	 * @return The 0-based fractional bar index
 	 */
-	float TickToFractionalBarIncludingCountIn(int32 Tick) const;
+	float TickToFractionalBarIncludingCountIn(float Tick) const;
 
 	/**
 	 * Takes an absolute tick (from the beginning of the midi data) and calculates the bar index,
@@ -268,7 +268,7 @@ public:
 	* @param FractionalBarIndex 0-based fractional bar
 	* @return The 0-based raw tick
 	*/
-	int32 FractionalBarIncludingCountInToTick(float FractionalBarIndex) const;
+	float FractionalBarIncludingCountInToTick(float FractionalBarIndex) const;
 
 	/**
 	 * Adds a time signature at the specified position, in this case a bar number as one would find
@@ -323,7 +323,7 @@ public:
 
 	void Finalize(int32 InLastTick);
 
-	int32 GetTickOfBarOne() const { return MusicTimestampBarBeatTickToTick(1,1,0); }
+	int32 GetTickOfBarOne() const { return MusicTimestampBarBeatTickToTick(1, 1, 0); }
 
 	void SetStartBar(int32 InStartBar) { StartBar = InStartBar; }
 	int32 GetStartBar() const { return StartBar; }
