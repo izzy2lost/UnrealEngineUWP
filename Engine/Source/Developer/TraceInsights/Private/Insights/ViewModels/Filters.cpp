@@ -278,6 +278,20 @@ TSharedRef<FFilterState> FFilterState::DeepCopy() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+FText FFilterWithSuggestionsValueConverter::GetTooltipText() const
+{
+	return LOCTEXT("FilterWithSuggestionsValueConverterTooltip", "Enter the value to search for. This field has auto-complete. Start typing or press the arrow down or arrow up key to see options.");
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+FText FFilterWithSuggestionsValueConverter::GetHintText() const
+{
+	return LOCTEXT("FilterWithSuggestionsValueConverterHint", "Start typing or press arrow down or up to see options.");
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 } // namespace Insights
 
 #undef LOCTEXT_NAMESPACE

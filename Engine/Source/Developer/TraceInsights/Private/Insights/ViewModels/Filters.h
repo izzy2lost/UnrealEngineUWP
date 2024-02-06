@@ -266,6 +266,16 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+class FFilterWithSuggestionsValueConverter : public IFilterValueConverter
+{
+public:
+	virtual bool Convert(const FString& Input, double& Output, FText& OutError) const override { return true; }
+	virtual FText GetTooltipText() const override;
+	virtual FText GetHintText() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class FFilterWithSuggestions : public FFilter
 {
 	INSIGHTS_DECLARE_RTTI(FFilterWithSuggestions, FFilter)
@@ -277,6 +287,11 @@ public:
 	FFilterWithSuggestions(int32 InKey, FText InName, FText InDesc, EFilterDataType InDataType, TSharedPtr<IFilterValueConverter> InConverter, SupportedOperatorsArrayPtr InSupportedOperators)
 		: FFilter(InKey, InName, InDesc, InDataType, InConverter, InSupportedOperators)
 	{
+		if (!InConverter.IsValid())
+		{
+			// Add a default converter to add a hint text describing that this filter supports auto-complete.
+			Converter = MakeShared<FFilterWithSuggestionsValueConverter>();
+		}
 	}
 
 	virtual ~FFilterWithSuggestions()
