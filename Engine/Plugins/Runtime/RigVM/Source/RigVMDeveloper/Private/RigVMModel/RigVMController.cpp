@@ -11290,15 +11290,22 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNodeFromDescr
 		return nullptr;
 	}
 
-	if(!GetSchema()->SupportsGraphFunction(this, &InFunctionDefinition))
+	// Update the function header from the host itself (in case the spawner has outdated information)
+	const FRigVMGraphFunctionHeader* FunctionHeader = &InFunctionDefinition;
+	if (const FRigVMGraphFunctionData* FunctionData = InFunctionDefinition.GetFunctionData())
+	{
+		FunctionHeader = &FunctionData->Header;
+	}
+	
+	if(!GetSchema()->SupportsGraphFunction(this, FunctionHeader))
 	{
 		return nullptr;
 	}
 
-	FString NodeName = GetSchema()->GetValidNodeName(Graph, InNodeName.IsEmpty() ? InFunctionDefinition.Name.ToString() : InNodeName);
+	FString NodeName = GetSchema()->GetValidNodeName(Graph, InNodeName.IsEmpty() ? FunctionHeader->Name.ToString() : InNodeName);
 	URigVMFunctionReferenceNode* FunctionRefNode = NewObject<URigVMFunctionReferenceNode>(Graph, *NodeName);
 	FunctionRefNode->Position = InNodePosition;
-	FunctionRefNode->ReferencedFunctionHeader = InFunctionDefinition;
+	FunctionRefNode->ReferencedFunctionHeader = *FunctionHeader;
 
 	if(!AddGraphNode(FunctionRefNode, false))
 	{
@@ -11316,7 +11323,7 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNodeFromDescr
 		BuildData->RegisterFunctionReference(FunctionRefNode->GetReferencedFunctionHeader().LibraryPointer, FunctionRefNode);
 	}
 	
-	for (const FRigVMGraphFunctionArgument& Argument : InFunctionDefinition.Arguments)
+	for (const FRigVMGraphFunctionArgument& Argument : FunctionHeader->Arguments)
 	{
 		if (URigVMPin* TargetPin = FunctionRefNode->FindPin(Argument.Name.ToString()))
 		{
@@ -11338,12 +11345,12 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNodeFromDescr
 	if (bPrintPythonCommand)
 	{
 		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
-		const FString FunctionDefinitionName = GetSchema()->GetSanitizedNodeName(InFunctionDefinition.Name.ToString());
+		const FString FunctionDefinitionName = GetSchema()->GetSanitizedNodeName(FunctionHeader->Name.ToString());
 
 		bool bLocal = false;
 		if(IRigVMClientHost* ClientHost = GetImplementingOuter<IRigVMClientHost>())
 		{
-			if (InFunctionDefinition.LibraryPointer.HostObject == Cast<UObject>(ClientHost->GetRigVMGraphFunctionHost()))
+			if (FunctionHeader->LibraryPointer.HostObject == Cast<UObject>(ClientHost->GetRigVMGraphFunctionHost()))
 			{
 				bLocal = true;
 				RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
@@ -11360,7 +11367,7 @@ URigVMFunctionReferenceNode* URigVMController::AddFunctionReferenceNodeFromDescr
 			RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
 				FString::Printf(TEXT("blueprint.get_controller_by_name('%s').add_external_function_reference_node('%s', '%s', %s, '%s')"),
 						*GraphName,
-						*InFunctionDefinition.LibraryPointer.HostObject.ToString(),
+						*FunctionHeader->LibraryPointer.HostObject.ToString(),
 						*FunctionDefinitionName,
 						*RigVMPythonUtils::Vector2DToPythonString(InNodePosition), 
 						*NodeName));
