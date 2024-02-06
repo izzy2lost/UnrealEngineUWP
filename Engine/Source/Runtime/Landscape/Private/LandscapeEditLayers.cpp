@@ -1832,12 +1832,12 @@ bool ALandscape::HasNormalCaptureBPBrushLayer()
 	return false;
 }
 
-void ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
+bool ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 {
 	ULandscapeInfo* Info = GetLandscapeInfo();
 	if (Info == nullptr)
 	{
-		return;
+		return false;
 	}
 
 	const FIntPoint ComponentCounts = ComputeComponentCounts();
@@ -1845,7 +1845,7 @@ void ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 	// No components, can't update the render targets	
 	if (ComponentCounts.X <= 0 || ComponentCounts.Y <= 0)
 	{
-		return;
+		return false;
 	}
 
 	ALandscape* Landscape = GetLandscapeActor();
@@ -1881,6 +1881,20 @@ void ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 				CurrentMipSizeY += ComponentVerts;
 			}
 		}
+
+		//static bool bWarned = false;
+		if (CurrentMipSizeX > GRHIGlobals.MaxTextureDimensions || CurrentMipSizeY > GRHIGlobals.MaxTextureDimensions)
+		{
+			if (!bWarnedGlobalMergeDimensionsExceeded)
+			{
+				UE_LOG(LogLandscape, Error, TEXT("Cannot initialize resources for Landscape Layer Merge because the current device does not support render targets of the required size.  Please reduce landscape size, or use a different render device, or try to enable local merge with `landscape.EditLayersLocalMerge.Enable 1` (local merge works only if no landscape blueprint brushes are used)"));
+				bWarnedGlobalMergeDimensionsExceeded = true;
+			}
+			return false;
+		}
+
+		// once the issue is fixed, clear the warn flag
+		bWarnedGlobalMergeDimensionsExceeded = false;
 
 		bool bCreateFromScratch = (Landscape->HeightmapRTList.Num() == 0);
 		if (bCreateFromScratch)
@@ -1986,6 +2000,7 @@ void ALandscape::CreateLayersRenderingResource(bool bUseNormalCapture)
 
 		InitializeLayersWeightmapResources();
 	}
+	return true;
 }
 
 void ALandscape::ToggleCanHaveLayersContent()
@@ -8278,6 +8293,12 @@ void ALandscape::UpdateLayersContent(bool bInWaitForStreaming, bool bInSkipMonit
 		InitializeLayers(bUseNormalCapture);
 	}
 
+	if (!bLandscapeLayersAreInitialized)
+	{
+		// we failed to initialize layers, cannot continue
+		return;
+	}
+
 	if (!bInSkipMonitorLandscapeEdModeChanges)
 	{
 		MonitorLandscapeEdModeChanges();
@@ -8632,10 +8653,11 @@ void ALandscape::InitializeLayers(bool bUseNormalCapture)
 {
 	check(HasLayersContent());
 
-	CreateLayersRenderingResource(bUseNormalCapture);
-	InitializeLandscapeLayersWeightmapUsage();
-
-	bLandscapeLayersAreInitialized = true;
+	if (CreateLayersRenderingResource(bUseNormalCapture))
+	{
+		InitializeLandscapeLayersWeightmapUsage();
+		bLandscapeLayersAreInitialized = true;
+	}
 }
 
 void ALandscape::OnPreSave()

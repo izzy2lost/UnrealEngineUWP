@@ -417,7 +417,7 @@ private:
 	bool SupportsEditLayersLocalMerge();
 	bool HasNormalCaptureBPBrushLayer();
 
-	void CreateLayersRenderingResource(bool bUseNormalCapture);
+	bool CreateLayersRenderingResource(bool bUseNormalCapture);
 	void PrepareEditLayersLocalMergeResources();
 	void UpdateLayersContent(bool bInWaitForStreaming = false, bool bInSkipMonitorLandscapeEdModeChanges = false, bool bIntermediateRender = false, bool bFlushRender = false);
 	void MonitorShaderCompilation();
@@ -540,6 +540,9 @@ public:
 
 	UPROPERTY(Transient)
 	bool bEnableEditorLayersTick = true;
+
+	UPROPERTY(Transient, DuplicateTransient, TextExportTransient, NonPIEDuplicateTransient)
+	bool bWarnedGlobalMergeDimensionsExceeded = false;
 
 	UPROPERTY()
 	TArray<FLandscapeLayer> LandscapeLayers;
