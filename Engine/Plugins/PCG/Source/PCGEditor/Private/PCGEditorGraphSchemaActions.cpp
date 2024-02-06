@@ -23,6 +23,30 @@
 
 #define LOCTEXT_NAMESPACE "PCGEditorGraphSchemaActions"
 
+/** Disables reconstruct on the owning node of a pin and re-enables in destructor. */
+struct FPCGDeferNodeReconstructScope
+{
+	FPCGDeferNodeReconstructScope(UEdGraphPin* FromPin)
+		: Node(FromPin ? Cast<UPCGEditorGraphNodeBase>(FromPin->GetOwningNode()) : nullptr)
+	{
+		if (Node)
+		{
+			Node->EnableDeferredReconstruct();
+		}
+	}
+
+	~FPCGDeferNodeReconstructScope()
+	{
+		if (Node)
+		{
+			Node->DisableDeferredReconstruct();
+		}
+	}
+
+private:
+	UPCGEditorGraphNodeBase* Node = nullptr;
+};
+
 UEdGraphNode* FPCGEditorGraphSchemaAction_NewNativeElement::PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
 {
 	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(ParentGraph);
@@ -38,6 +62,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNativeElement::PerformAction(UEdGra
 		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
 		return nullptr;
 	}
+
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNativeElement", "PCG Editor: New Native Element"), nullptr);
 	EditorGraph->Modify();
@@ -111,6 +138,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSettingsElement::PerformAction(UEdG
 		UE_LOG(LogPCGEditor, Error, TEXT("Invalid settings"));
 		return nullptr;
 	}
+
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
 	bool bCreateInstance = false;
 
@@ -220,6 +250,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSettingsElement::MakeSettingsNode(U
 		return nullptr;
 	}
 
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate InFromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(InFromPin);
+
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewSettingsElement", "PCG Editor: New Settings Element"), nullptr);
 	InEditorGraph->Modify();
 
@@ -275,6 +308,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewBlueprintElement::PerformAction(UEd
 		return nullptr;
 	}
 
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
+
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewBlueprintELement", "PCG Editor: New Blueprint Element"), nullptr);
 	EditorGraph->Modify();
 
@@ -322,6 +358,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewSubgraphElement::PerformAction(UEdG
 		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
 		return nullptr;
 	}
+
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
 	UPCGGraph* Subgraph = CastChecked<UPCGGraph>(SubgraphObjectPath.TryLoad());
 
@@ -398,6 +437,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewReroute::PerformAction(class UEdGra
 		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
 		return nullptr;
 	}
+
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewReroute", "PCG Editor: New Reroute Node"), nullptr);
 	EditorGraph->Modify();
@@ -498,6 +540,9 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteDeclaration::PerformAct
 		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
 		return nullptr;
 	}
+
+	// Important - do not reconstruct the editor graph node/pins midway through this function as this will invalidate FromPin.
+	const FPCGDeferNodeReconstructScope DisableReconstruct(FromPin);
 
 	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNamedRerouteDeclaration", "PCG Editor: New Named Reroute Node Declaration"), nullptr);
 	EditorGraph->Modify();
