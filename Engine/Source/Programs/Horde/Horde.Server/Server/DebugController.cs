@@ -291,16 +291,6 @@ namespace Horde.Server.Server
 		}
 
 		/// <summary>
-		/// Gets claims for the current user
-		/// </summary>
-		[HttpGet]
-		[Route("/api/v1/debug/claims")]
-		public ActionResult<Claim[]> GetUserClaims()
-		{
-			return User.Claims.ToArray();
-		}
-
-		/// <summary>
 		/// Prints all the environment variables
 		/// </summary>
 		/// <returns>Http result</returns>
