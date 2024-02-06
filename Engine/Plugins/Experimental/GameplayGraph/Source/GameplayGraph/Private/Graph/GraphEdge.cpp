@@ -21,13 +21,9 @@ const FGraphVertexHandle& UGraphEdge::GetOtherNode(const FGraphVertexHandle& InN
 	{
 		return B;
 	}
-	else if (InNode == B)
-	{
-		return A;
-	}
 	else
 	{
-		return FGraphVertexHandle::Invalid;
+		return A;
 	}
 }
 

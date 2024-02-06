@@ -40,7 +40,7 @@ public:
 
 	FGraphEdgeHandle Handle() const
 	{
-		return FGraphEdgeHandle{ GetUniqueIndex(), GetGraph() };
+		return FGraphEdgeHandle{ GetUniqueIndex(), const_cast<UGraphEdge*>(this) };
 	}
 
 	FSerializedEdgeData GetSerializedData() const;

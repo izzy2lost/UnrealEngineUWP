@@ -6,7 +6,7 @@
 
 #include "GraphHandle.generated.h"
 
-class UGraph;
+class UGraphElement;
 class UGraphVertex;
 class UGraphEdge;
 class UGraphIsland;
@@ -102,19 +102,20 @@ struct GAMEPLAYGRAPH_API FGraphHandle
 {
 	GENERATED_BODY()
 public:
-	FGraphHandle() = default;
-	FGraphHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph);
-	virtual ~FGraphHandle() = default;
+	FGraphHandle();
+	FGraphHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement);
 
 	void Clear();
 
 	/** Whether or not this handle has been initialized. */
 	bool IsValid() const;
+	bool HasElement() const;
 	bool IsComplete() const;
-	virtual bool HasElement() const { return false; }
 
 	FGraphUniqueIndex GetUniqueIndex() const { return UniqueIndex; }
-	UGraph* GetGraph() const { return WeakGraph.Get(); }
+
+	void SetElement(TObjectPtr<UGraphElement> InElement);
+	TObjectPtr<UGraphElement> GetElement() const;
 
 	bool operator==(const FGraphHandle& Other) const;
 	bool operator!=(const FGraphHandle& Other) const;
@@ -128,7 +129,7 @@ private:
 
 	/** Pointer to the graph */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<UGraph> WeakGraph;
+	TWeakObjectPtr<UGraphElement> Element;
 };
 
 USTRUCT()
@@ -136,15 +137,12 @@ struct GAMEPLAYGRAPH_API FGraphVertexHandle : public FGraphHandle
 {
 	GENERATED_BODY()
 
-	static FGraphVertexHandle Invalid;
-
-	FGraphVertexHandle() = default;
-	FGraphVertexHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph)
-		: FGraphHandle(InUniqueIndex, InGraph)
+	FGraphVertexHandle();
+	FGraphVertexHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement = nullptr)
+		: FGraphHandle(InUniqueIndex, InElement)
 	{}
 
-	UGraphVertex* GetVertex() const;
-	virtual bool HasElement() const override;
+	TObjectPtr<UGraphVertex> GetVertex() const;
 };
 
 USTRUCT()
@@ -152,15 +150,12 @@ struct GAMEPLAYGRAPH_API FGraphEdgeHandle : public FGraphHandle
 {
 	GENERATED_BODY()
 
-	static FGraphEdgeHandle Invalid;
-
-	FGraphEdgeHandle() = default;
-	FGraphEdgeHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph)
-		: FGraphHandle(InUniqueIndex, InGraph)
+	FGraphEdgeHandle();
+	FGraphEdgeHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+		: FGraphHandle(InUniqueIndex, InElement)
 	{}
 
-	UGraphEdge* GetEdge() const;
-	virtual bool HasElement() const override;
+	TObjectPtr<UGraphEdge> GetEdge() const;
 };
 
 USTRUCT()
@@ -168,13 +163,10 @@ struct GAMEPLAYGRAPH_API FGraphIslandHandle : public FGraphHandle
 {
 	GENERATED_BODY()
 
-	static FGraphIslandHandle Invalid;
-
-	FGraphIslandHandle() = default;
-	FGraphIslandHandle(FGraphUniqueIndex InUniqueIndex, UGraph* InGraph)
-		: FGraphHandle(InUniqueIndex, InGraph)
+	FGraphIslandHandle();
+	FGraphIslandHandle(FGraphUniqueIndex InUniqueIndex, TObjectPtr<UGraphElement> InElement)
+		: FGraphHandle(InUniqueIndex, InElement)
 	{}
 
-	UGraphIsland* GetIsland() const;
-	virtual bool HasElement() const override;
+	TObjectPtr<UGraphIsland> GetIsland() const;
 };
