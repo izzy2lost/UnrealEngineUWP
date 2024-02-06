@@ -5,6 +5,7 @@
 #include "ChaosVDRecording.h"
 #include "Trace/Analyzer.h"
 #include "Templates/SharedPointer.h"
+#include "ChaosVisualDebugger/ChaosVDOptionalDataChannel.h"
 
 struct FChaosVDStepData;
 class FChaosVDTraceProvider;
@@ -57,10 +58,6 @@ private:
 	
 	FChaosVDTraceAnalysisComplete ChaosVDTraceAnalysisCompleteDelegate;
 };
-
-#ifndef CVD_STRINGIZE
-	#define CVD_STRINGIZE(x) #x
-#endif
 
 #ifndef CVD_READ_TRACE_VECTOR
 	#define CVD_READ_TRACE_VECTOR(Vector, VectorName, ValueType, EventData) \
