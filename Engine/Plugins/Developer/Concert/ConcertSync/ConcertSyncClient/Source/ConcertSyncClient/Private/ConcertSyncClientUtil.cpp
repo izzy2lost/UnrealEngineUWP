@@ -215,8 +215,8 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 	const bool bIsOuterChange = !InNewOuterPath.IsNone();
 	const bool bIsPackageChange = !InNewPackageName.IsNone();
 
-	const FName ObjectOuterPathToFind = InObjectId.ObjectOuterPathName;
-	const FName ObjectOuterPathToCreate = bIsOuterChange ? InNewOuterPath : ObjectOuterPathToFind;
+	const FString ObjectOuterPathToFind = InObjectId.ObjectOuterPathName.ToString();
+	const FString ObjectOuterPathToCreate = bIsOuterChange ? InNewOuterPath.ToString() : ObjectOuterPathToFind;
 
 	const FName ObjectNameToFind = InObjectId.ObjectName;
 	const FName ObjectNameToCreate = bIsRename ? InNewName : ObjectNameToFind;
@@ -253,6 +253,13 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 		}
 	};
 
+	// We need the object class to find or create the object
+	UClass* ObjectClass = FindOrLoadClass(InObjectId.ObjectClassPathName);
+	if (!ObjectClass)
+	{
+		return FGetObjectResult();
+	}
+
 	// Find the outer for the existing object.
 	// Note that we use FSoftObjectPath::ResolveObject() here to ensure that if
 	// world partitioning is involved, we're able to resolve a non-partitioned
@@ -261,18 +268,9 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 	// TODO: If a case arises where we need to go the other direction and get
 	// an object with a non-partitioned path from a partitioned path, a
 	// different mechanism for that would be needed here.
-	if (UObject* ExistingObjectOuter = FSoftObjectPath(ObjectOuterPathToFind.ToString()).ResolveObject())
+	if (UObject* ExistingObjectOuter = FSoftObjectPath(ObjectOuterPathToFind).ResolveObject())
 	{
-		UClass* ObjectClass = FindOrLoadClass(InObjectId.ObjectClassPathName);
-		UObject* ExistingObject = nullptr;
-
-		// We need the object class to find or create the object
-		if (ObjectClass)
-		{
-			// Find the existing object
-			ExistingObject = StaticFindObject(ObjectClass, ExistingObjectOuter, *ObjectNameToFind.ToString(), /*bExactClass*/true);
-		}
-
+		UObject* ExistingObject = StaticFindObject(ObjectClass, ExistingObjectOuter, *ObjectNameToFind.ToString(), /*bExactClass*/true);
 		if (!ExistingObject)
 		{
 			// Find the existing object through the outer and potentially load if not loaded
@@ -281,9 +279,7 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 				// Test for null here because UWorldPartition::ResolveSubobject returns true if FWorldPartitionActorDesc exists even if object not in memory (FORT-647612)
 				if (ExistingObject)
 				{
-					ObjectClass = FindOrLoadClass(InObjectId.ObjectClassPathName);
-
-					if (!ObjectClass || (ExistingObject->GetClass() != ObjectClass))
+					if (ExistingObject->GetClass() != ObjectClass)
 					{
 						ExistingObject = nullptr;
 					}
@@ -293,8 +289,6 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 		
 		if (ExistingObject)
 		{
-			check(ObjectClass);
-
 			EGetObjectResultFlags ResultFlags = EGetObjectResultFlags::None;
 
 			// Perform any renames or outer changes
@@ -304,7 +298,7 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 				if (bIsOuterChange)
 				{
 					//@todo FH: what if our new outer isn't loaded yet?
-					NewObjectOuter = StaticFindObject(UObject::StaticClass(), nullptr, *ObjectOuterPathToCreate.ToString());
+					NewObjectOuter = StaticFindObject(UObject::StaticClass(), nullptr, *ObjectOuterPathToCreate);
 				}
 
 				// Find the new object (in case something already created it)
@@ -333,100 +327,103 @@ FGetObjectResult GetObject(const FConcertObjectId& InObjectId, const FName InNew
 		}
 	}
 
+	const UConcertClientObjectFactory* Factory = UConcertClientObjectFactory::FindFactoryForClass(ObjectClass);
+
 	// Find the outer for the new object.
 	// As above, we use FSoftObjectPath::ResolveObject() here to account for
 	// the possibility of world partitioning.
-	if (UObject* NewObjectOuter = FSoftObjectPath(ObjectOuterPathToCreate.ToString()).ResolveObject())
+	UObject* NewObjectOuter = FSoftObjectPath(ObjectOuterPathToCreate).ResolveObject();
+	if (!NewObjectOuter && bAllowCreate && Factory)
 	{
-		// We need the object class to find or create the object
-		if (UClass* ObjectClass = FindOrLoadClass(InObjectId.ObjectClassPathName))
+		Factory->CreateOuter(NewObjectOuter, ObjectOuterPathToCreate);
+	}
+	if (NewObjectOuter)
+	{
+		// Find the new object (in case something already created it)
+		if (UObject* NewObject = StaticFindObject(ObjectClass, NewObjectOuter, *ObjectNameToCreate.ToString(), /*bExactClass*/true))
 		{
-			// Find the new object (in case something already created it)
-			if (UObject* NewObject = StaticFindObject(ObjectClass, NewObjectOuter, *ObjectNameToCreate.ToString(), /*bExactClass*/true))
+			// Update the object flags
+			NewObject->SetFlags((EObjectFlags)InObjectId.ObjectPersistentFlags);
+
+			// if we have any package assignment, do it here
+			AssignExternalPackage(NewObject);
+
+			return FGetObjectResult(NewObject);
+		}
+
+		if (bAllowCreate)
+		{
+			FGetObjectResult ObjectResult;
+			ObjectResult.Factory = Factory;
+
+			// Create the new object
+			bool bFactoryHandledCreation = false;
+			if (Factory)
 			{
-				// Update the object flags
-				NewObject->SetFlags((EObjectFlags)InObjectId.ObjectPersistentFlags);
-
-				// if we have any package assignment, do it here
-				AssignExternalPackage(NewObject);
-
-				return FGetObjectResult(NewObject);
+				bFactoryHandledCreation = Factory->CreateObject(ObjectResult.Obj, NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
 			}
-
-			if (bAllowCreate)
+			if (!bFactoryHandledCreation)
 			{
-				FGetObjectResult ObjectResult;
-				ObjectResult.Factory = UConcertClientObjectFactory::FindFactoryForClass(ObjectClass);
-
-				// Create the new object
-				bool bFactoryHandledCreation = false;
-				if (ObjectResult.Factory)
+				if (ObjectClass->IsChildOf<AActor>())
 				{
-					bFactoryHandledCreation = ObjectResult.Factory->CreateObject(ObjectResult.Obj, NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
-				}
-				if (!bFactoryHandledCreation)
-				{
-					if (ObjectClass->IsChildOf<AActor>())
+					// Actors should go through SpawnActor where possible
+					if (ULevel* OuterLevel = Cast<ULevel>(NewObjectOuter))
 					{
-						// Actors should go through SpawnActor where possible
-						if (ULevel* OuterLevel = Cast<ULevel>(NewObjectOuter))
+						UWorld* OwnerWorld = OuterLevel->GetWorld();
+						if (!OwnerWorld)
 						{
-							UWorld* OwnerWorld = OuterLevel->GetWorld();
-							if (!OwnerWorld)
-							{
-								OwnerWorld = OuterLevel->GetTypedOuter<UWorld>();
-							}
+							OwnerWorld = OuterLevel->GetTypedOuter<UWorld>();
+						}
 
-							if (OwnerWorld)
+						if (OwnerWorld)
+						{
+							UObject* ExistingObjectOfDifferentClass = StaticFindObjectFast(nullptr, OuterLevel, ObjectNameToCreate);
+							if (!ExistingObjectOfDifferentClass)
 							{
-								UObject* ExistingObjectOfDifferentClass = StaticFindObjectFast(nullptr, OuterLevel, ObjectNameToCreate);
-								if (!ExistingObjectOfDifferentClass)
-								{
-									FActorSpawnParameters SpawnParams;
-									SpawnParams.Name = ObjectNameToCreate;
-									SpawnParams.OverrideLevel = OuterLevel;
-									SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-									SpawnParams.bNoFail = true;
-									SpawnParams.ObjectFlags = (EObjectFlags)InObjectId.ObjectPersistentFlags;
-									ObjectResult.Obj = OwnerWorld->SpawnActor<AActor>(ObjectClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
-								}
-								else
-								{
-									UE_LOG(LogConcert, Warning, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
-									ensureMsgf(!ExistingObjectOfDifferentClass, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
-								}
+								FActorSpawnParameters SpawnParams;
+								SpawnParams.Name = ObjectNameToCreate;
+								SpawnParams.OverrideLevel = OuterLevel;
+								SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+								SpawnParams.bNoFail = true;
+								SpawnParams.ObjectFlags = (EObjectFlags)InObjectId.ObjectPersistentFlags;
+								ObjectResult.Obj = OwnerWorld->SpawnActor<AActor>(ObjectClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
 							}
 							else
 							{
-								UE_LOG(LogConcert, Warning, TEXT("Actor '%s' could not find an owner World! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
+								UE_LOG(LogConcert, Warning, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
+								ensureMsgf(!ExistingObjectOfDifferentClass, TEXT("Actor '%s' already exists! Expected class: '%s'"), *ExistingObjectOfDifferentClass->GetFullName(), *ObjectClass->GetPathName());
 							}
 						}
 						else
 						{
-							UE_LOG(LogConcert, Warning, TEXT("Actor '%s' wasn't directly outered to a Level! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
+							UE_LOG(LogConcert, Warning, TEXT("Actor '%s' could not find an owner World! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
 						}
 					}
 					else
 					{
-						ObjectResult.Obj = NewObject<UObject>(NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
-
-						if (UActorComponent* NewComponent = Cast<UActorComponent>(ObjectResult.Obj))
-						{
-							NewComponent->RegisterComponent();
-						}
+						UE_LOG(LogConcert, Warning, TEXT("Actor '%s' wasn't directly outered to a Level! This is unexpected and the Actor will be created via NewObject rather than SpawnActor."), *ObjectNameToCreate.ToString());
 					}
 				}
-				
-				if (ObjectResult.Obj)
+				else
 				{
-					// if we have any package assignment, do it here
-					AssignExternalPackage(ObjectResult.Obj);
+					ObjectResult.Obj = NewObject<UObject>(NewObjectOuter, ObjectClass, *ObjectNameToCreate.ToString(), (EObjectFlags)InObjectId.ObjectPersistentFlags);
 
-					ObjectResult.Flags |= EGetObjectResultFlags::NewlyCreated;
+					if (UActorComponent* NewComponent = Cast<UActorComponent>(ObjectResult.Obj))
+					{
+						NewComponent->RegisterComponent();
+					}
 				}
-
-				return ObjectResult;
 			}
+				
+			if (ObjectResult.Obj)
+			{
+				// if we have any package assignment, do it here
+				AssignExternalPackage(ObjectResult.Obj);
+
+				ObjectResult.Flags |= EGetObjectResultFlags::NewlyCreated;
+			}
+
+			return ObjectResult;
 		}
 	}
 
