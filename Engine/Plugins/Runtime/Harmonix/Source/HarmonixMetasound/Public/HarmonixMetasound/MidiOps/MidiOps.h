@@ -8,6 +8,8 @@ DECLARE_LOG_CATEGORY_EXTERN(LogHarmonixMidiOps, Log, All)
 
 namespace Harmonix::Midi::Ops
 {
+	using FMidiTrackIndex = uint16;
+	
 	constexpr uint16 AllChannelsOn = 0xffff;
 	constexpr uint16 AllChannelsOff = 0;
 	

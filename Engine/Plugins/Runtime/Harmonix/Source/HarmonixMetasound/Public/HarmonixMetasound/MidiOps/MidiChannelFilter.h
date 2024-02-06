@@ -3,6 +3,8 @@
 #pragma once
 
 #include "MidiOps.h"
+#include "StuckNoteGuard.h"
+
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 
 namespace Harmonix::Midi::Ops
@@ -38,8 +40,6 @@ namespace Harmonix::Midi::Ops
 		// bitfield to store which channels are enabled
 		uint16 EnabledChannels = AllChannelsOff;
 
-		// Keep track of active voices in case we turn off a channel.
-		// If we do turn off a channel, we will immediately send note offs for any active voices in that channel so they don't become stuck.
-		TArray<FMidiVoiceId> ActiveVoices[MidiConstants::kNumChannels];
+		FStuckNoteGuard StuckNoteGuard;
 	};
 }
