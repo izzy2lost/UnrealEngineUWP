@@ -8,17 +8,6 @@ public class AvalancheEffectorsEditor : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore"
-			}
-		);
-
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -30,10 +19,15 @@ public class AvalancheEffectorsEditor : ModuleRules
 				"AvalancheShapesEditor",
 				"ClonerEffector",
 				"ComponentVisualizers",
+				"Core",
+				"CoreUObject",
+				"Engine",
 				"InputCore",
 				"InteractiveToolsFramework",
 				"Projects",
-				"UnrealEd"
+				"Slate",
+				"SlateCore",
+				"UnrealEd",
 			}
 		);
 	}
