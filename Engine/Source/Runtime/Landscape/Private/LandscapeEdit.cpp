@@ -87,6 +87,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "Misc/TransactionObjectEvent.h"
 #endif
 #include "Algo/Count.h"
 #include "Algo/Transform.h"
@@ -5645,6 +5646,27 @@ bool ALandscapeProxy::CanEditChange(const FProperty* InProperty) const
 	}
 
 	return true;
+}
+
+void ALandscapeProxy::PostTransacted(const FTransactionObjectEvent& InTransactionEvent)
+{
+	if (InTransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
+	{
+		const TArray<FName>& ChangedProperties = InTransactionEvent.GetChangedProperties();
+		
+		for (const FName& ChangedProperty : ChangedProperties)
+		{
+			FProperty* Property = FindFProperty<FProperty>(GetClass(), ChangedProperty);
+
+			if (Property == nullptr)
+			{
+				continue;
+			}
+			
+			FPropertyChangedEvent PropertyChangedEvent(Property);
+			PostEditChangeProperty(PropertyChangedEvent);
+		}
+	}
 }
 
 void ALandscapeProxy::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
