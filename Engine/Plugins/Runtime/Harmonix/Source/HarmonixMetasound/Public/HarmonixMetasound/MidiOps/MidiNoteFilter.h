@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "StuckNoteGuard.h"
+
 #include "HarmonixDsp/Parameters/Parameter.h"
 
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
@@ -49,13 +51,6 @@ namespace Harmonix::Midi::Ops
 		FMidiDataParam MaxVelocity{ 0, 127, 127 };
 
 	private:
-		// Keep track of active notes so if the filter changes such that they would become stuck, we can unstick them immediately.
-		struct FActiveVoice
-		{
-			uint8 Channel;
-			uint8 NoteNumber;
-			uint8 Velocity;
-		};
-		TMap<FMidiVoiceId, FActiveVoice> ActiveVoices;
+		FStuckNoteGuard StuckNoteGuard;
 	};
 }

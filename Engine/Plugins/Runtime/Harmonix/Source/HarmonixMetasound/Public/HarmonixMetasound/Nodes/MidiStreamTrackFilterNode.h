@@ -6,7 +6,22 @@
 
 #include "HarmonixMetasound/Common.h"
 
-namespace HarmonixMetasound::Nodes::MidiStreamTrackFilter
+namespace HarmonixMetasound::Nodes::MidiTrackFilter
 {
-	const HARMONIXMETASOUND_API Metasound::FNodeClassName& GetClassName();
+	HARMONIXMETASOUND_API const Metasound::FNodeClassName& GetClassName();
+	HARMONIXMETASOUND_API int32 GetCurrentMajorVersion();
+
+	namespace Inputs
+	{
+		DECLARE_METASOUND_PARAM_EXTERN(Enable);
+		DECLARE_METASOUND_PARAM_EXTERN(MidiStream);
+		DECLARE_METASOUND_PARAM_EXTERN(MinTrackIndex);
+		DECLARE_METASOUND_PARAM_EXTERN(MaxTrackIndex);
+		DECLARE_METASOUND_PARAM_EXTERN(IncludeConductorTrack);
+	}
+
+	namespace Outputs
+	{
+		DECLARE_METASOUND_PARAM_EXTERN(MidiStream);
+	}
 }
