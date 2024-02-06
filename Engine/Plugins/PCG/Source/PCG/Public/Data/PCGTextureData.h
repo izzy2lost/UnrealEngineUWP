@@ -26,6 +26,14 @@ enum class EPCGTextureDensityFunction : uint8
 	Multiply
 };
 
+/** Method used to determine the value for a sample based on the value of nearby texels. */
+UENUM(BlueprintType)
+enum class EPCGTextureFilter : uint8
+{
+	Point UMETA(Tooltip="Takes the value of whatever texel the sample lands in."),
+	Bilinear UMETA(Tooltip="Bilinearly interpolates the values of the four nearest texels to the sample location.")
+};
+
 UENUM()
 enum class EPCGTextureAddressMode : uint8
 {
@@ -73,6 +81,10 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	EPCGTextureColorChannel ColorChannel = EPCGTextureColorChannel::Alpha;
+
+	/** Method used to determine the value for a sample based on the value of nearby texels. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	EPCGTextureFilter Filter = EPCGTextureFilter::Bilinear;
 
 	/** The size of one texel in cm, used when calling ToPointData. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (UIMin = "1.0", ClampMin = "1.0"))
