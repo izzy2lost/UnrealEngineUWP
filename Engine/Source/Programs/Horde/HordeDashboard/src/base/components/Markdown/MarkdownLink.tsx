@@ -103,7 +103,11 @@ export const MarkdownLink: React.FunctionComponent<ILinkProps> = props => {
          if (inDocs && !href.startsWith("/") && !href.startsWith("http")) {            
             href = absolute(window.location.pathname, href);
             if (!href.startsWith("/docs/")) {
-               href = "/docs/" + href;
+               let base = "/docs";
+               if (!href.startsWith("/")) {
+                  base += "/";
+               }
+               href = base + href;
             }
          }
          
