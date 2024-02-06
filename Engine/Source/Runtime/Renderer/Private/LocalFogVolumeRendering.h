@@ -51,7 +51,7 @@ public:
 
 	float GetUniformScale() 
 	{
-		union { float F; uint32 U; } FU = { Data0[3] };
+		union { uint32 U; float F; } FU = { Data0[3] };
 		return FU.F;
 	}
 };
