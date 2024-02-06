@@ -1,19 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Framework/AvaSoftAssetPtr.h"
-#include "AvaBlueprint.h"
+#include "Engine/World.h"
 
 EAvalancheAssetType FAvaSoftAssetPath::GetAssetTypeFromClass(const FSoftClassPath& InAssetClassPath, bool bInLoadIfUnknown)
 {
-	static const FSoftClassPath AvalancheClassPath(UAvalancheBlueprint::StaticClass());
 	static const FSoftClassPath WorldClassPath(UWorld::StaticClass());
 
-	// Try comparing the asset paths directly.
-	// That is probably the fastest way, but can fail for derived types.
-	if (InAssetClassPath == AvalancheClassPath)
-	{
-		return EAvalancheAssetType::Blueprint;
-	}
 	if (InAssetClassPath == WorldClassPath)
 	{
 		return EAvalancheAssetType::World;
@@ -23,10 +16,6 @@ EAvalancheAssetType FAvaSoftAssetPath::GetAssetTypeFromClass(const FSoftClassPat
 	if (InAssetClassPath.IsValid())
 	{
 		const UClass* AssetClass = InAssetClassPath.ResolveClass();
-		if (AssetClass->IsChildOf(UAvalancheBlueprint::StaticClass()))
-		{
-			return EAvalancheAssetType::Blueprint;
-		}
 		if (AssetClass->IsChildOf(UWorld::StaticClass()))
 		{
 			return EAvalancheAssetType::World;
@@ -42,7 +31,7 @@ EAvalancheAssetType FAvaSoftAssetPtr::GetAssetType(bool bInLoadIfUnknown) const
 	{
 		return AssetTypeFromClass;
 	}
-	
+
 	if (bInLoadIfUnknown)
 	{
 		// Todo: problem with loading the asset sync here.
@@ -54,17 +43,12 @@ EAvalancheAssetType FAvaSoftAssetPtr::GetAssetType(bool bInLoadIfUnknown) const
 			const FSoftObjectPtr SourceAvalancheAsset(AssetPtr.ToSoftObjectPath());
 			LoadedSourceAsset = SourceAvalancheAsset.LoadSynchronous();
 		}
-	
-		if (Cast<UAvalancheBlueprint>(LoadedSourceAsset))
-		{
-			return EAvalancheAssetType::Blueprint;
-		}
-	
+
 		if (Cast<UWorld>(LoadedSourceAsset))
 		{
 			return EAvalancheAssetType::World;
 		}
 	}
-	
+
 	return EAvalancheAssetType::Unknown;
 }

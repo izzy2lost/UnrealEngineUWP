@@ -2,7 +2,6 @@
 
 #include "AvaEditorModule.h"
 #include "AssetRegistry/AssetRegistryModule.h"
-#include "AssetTypeActions/AssetTypeActions_AvaBlueprint.h"
 #include "AvaEditorActorUtils.h"
 #include "AvaEditorCommands.h"
 #include "AvaEditorIntegration.h"
@@ -28,6 +27,7 @@
 #include "Widgets/AvaViewportColorPickerActorClassRegistry.h"
 
 // Details View
+#include "AssetToolsModule.h"
 #include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
 #include "DetailView/Customizations/AvaAnchorAlignmentPropertyTypeCustomization.h"
 #include "DetailView/Customizations/AvaCategoryHiderCustomization.h"
@@ -124,7 +124,6 @@ void FAvaEditorModule::ShutdownModule()
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 	FCoreDelegates::OnPreExit.RemoveAll(this);
 
-	UnregisterAssetTools();
 	if (UObjectInitialized() && !IsEngineExitRequested())
 	{
 		UnregisterCustomLayouts();
@@ -185,24 +184,6 @@ void FAvaEditorModule::RegisterAssetTools()
 	AssetTools.RegisterAdvancedAssetCategory(AvalancheCategoryName
 		, LOCTEXT("MotionDesignCategoryName", "Motion Design"));
 
-	TSharedRef<IAssetTypeActions> AvaBlueprintActions = MakeShared<FAssetTypeActions_AvaBlueprint>();
-	AssetTools.RegisterAssetTypeActions(AvaBlueprintActions);
-	AssetTypeActions.Add(AvaBlueprintActions);
-}
-
-void FAvaEditorModule::UnregisterAssetTools()
-{
-	// Unregister all the asset types that we registered
-	if (FAssetToolsModule::IsModuleLoaded())
-	{
-		IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
-		for (const TSharedPtr<IAssetTypeActions>& AssetTypeAction : AssetTypeActions)
-		{
-			AssetTools.UnregisterAssetTypeActions(AssetTypeAction.ToSharedRef());
-		}
-	}
-
-	AssetTypeActions.Empty();
 }
 
 void FAvaEditorModule::RegisterPropertyEditorCategories()

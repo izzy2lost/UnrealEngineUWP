@@ -55,8 +55,7 @@ enum class EAvaPlayableCommandResult : uint8
  * Design goal:
  *
  * The design goal is to abstract the implementation of a playable.
- * So far we have 2 implementations:
- * - Motion Design Blueprint that requires to be in it's own game instance/world.
+ * So far we have 1 implementation:
  * - Level Streaming that can be streamed with other levels in the same game instance.
  *
  * To support multiple playable in the same channel/output, there are 2 ways:

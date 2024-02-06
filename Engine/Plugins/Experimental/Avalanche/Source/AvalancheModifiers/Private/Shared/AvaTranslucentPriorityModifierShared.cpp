@@ -2,10 +2,12 @@
 
 #include "Shared/AvaTranslucentPriorityModifierShared.h"
 #include "AvaActorUtils.h"
-#include "AvaBlueprint.h"
+#include "AvaSceneTree.h"
+#include "AvaSceneTreeNode.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Framework/AvaGameInstance.h"
+#include "IAvaSceneInterface.h"
 
 #if WITH_EDITOR
 #include "AvaOutlinerUtils.h"

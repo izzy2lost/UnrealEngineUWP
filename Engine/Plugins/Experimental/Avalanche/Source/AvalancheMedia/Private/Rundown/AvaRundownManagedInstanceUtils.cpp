@@ -23,7 +23,7 @@ UPackage* FAvaRundownManagedInstanceUtils::MakeManagedInstancePackage(const FSof
 	}
 	InstancePackageName += InstanceSubPath;
 
-	UPackage* ManagedMotionDesignBlueprintPackage = nullptr;
+	UPackage* ManagedInstancePackage = nullptr;
 
 	// Make sure the package name is unique. We don't want stomping of existing instances.
 	if (FindObject<UPackage>( nullptr, *InstancePackageName))
@@ -37,10 +37,10 @@ UPackage* FAvaRundownManagedInstanceUtils::MakeManagedInstancePackage(const FSof
 		InstancePackageName = UniqueInstancePackageName;
 	}
 	
-	ManagedMotionDesignBlueprintPackage = CreatePackage(*InstancePackageName);
-	if (ManagedMotionDesignBlueprintPackage)
+	ManagedInstancePackage = CreatePackage(*InstancePackageName);
+	if (ManagedInstancePackage)
 	{
-		ManagedMotionDesignBlueprintPackage->SetFlags(RF_Transient | RF_Public);
+		ManagedInstancePackage->SetFlags(RF_Transient | RF_Public);
 	}
 	else
 	{
@@ -49,7 +49,7 @@ UPackage* FAvaRundownManagedInstanceUtils::MakeManagedInstancePackage(const FSof
 			TEXT("Unable to create package \"%s\" for Motion Design Managed Instance."),
 			*InstancePackageName);
 	}
-	return ManagedMotionDesignBlueprintPackage;
+	return ManagedInstancePackage;
 }
 
 void FAvaRundownManagedInstanceUtils::PreventWorldFromBeingSeenAsLeakingByLevelEditor(UWorld* InWorld)

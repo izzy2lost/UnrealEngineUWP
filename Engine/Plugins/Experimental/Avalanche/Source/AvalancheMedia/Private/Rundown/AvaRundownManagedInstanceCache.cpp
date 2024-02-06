@@ -9,7 +9,6 @@
 #include "Engine/World.h"
 #include "IAvaMediaModule.h"
 #include "Playback/AvaPlaybackUtils.h"
-#include "Rundown/AvaRundownManagedInstanceBlueprint.h"
 #include "Rundown/AvaRundownManagedInstanceLevel.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/Package.h"
@@ -69,10 +68,6 @@ TSharedPtr<FAvaRundownManagedInstance> FAvaRundownManagedInstanceCache::GetOrLoa
 	{
 		NewEntry = MakeShared<FAvaRundownManagedInstanceLevel>(this, InAssetPath);
 	}
-	else
-	{
-		NewEntry = MakeShared<FAvaRundownManagedInstanceBlueprint>(this, InAssetPath);
-	}
 
 	if (NewEntry.IsValid() && NewEntry->IsValid())
 	{
@@ -123,9 +118,9 @@ void FAvaRundownManagedInstanceCache::Flush(const FSoftObjectPath& InAssetPath)
 
 void FAvaRundownManagedInstanceCache::Flush()
 {
-	RemoveEntries([](const FSoftObjectPath& InAssetPath, const TSharedPtr<FAvaRundownManagedInstance>& InManagedBlueprint)
+	RemoveEntries([](const FSoftObjectPath& InAssetPath, const TSharedPtr<FAvaRundownManagedInstance>& InManagedInstance)
 	{
-		return (InManagedBlueprint.GetSharedReferenceCount() <= 1) ? true : false;
+		return (InManagedInstance.GetSharedReferenceCount() <= 1) ? true : false;
 	}, false);
 }
 
@@ -201,7 +196,7 @@ void FAvaRundownManagedInstanceCache::OnPackageSaved(const FString& InPackageFil
 void FAvaRundownManagedInstanceCache::OnAvaSyncPackageModified(IAvaMediaSyncProvider* InAvaMediaSyncProvider, const FName& InPackageName)
 {
 	UE_LOG(LogAvaMedia, Verbose,
-		TEXT("A sync operation has touched the package \"%s\" on disk. Managed Motion Design Blueprint Cache notified."),
+		TEXT("A sync operation has touched the package \"%s\" on disk. Managed Motion Design Instance Cache notified."),
 		*InPackageName.ToString());
 
 	OnPackageModified(InPackageName);
@@ -221,7 +216,7 @@ void FAvaRundownManagedInstanceCache::OnPackageModified(const FName& InPackageNa
 			if (InAssetPath.GetLongPackageFName() == InPackageName)
 			{
 				UE_LOG(LogAvaMedia, Log,
-					TEXT("Managed Motion Design Blueprint Cache: Package \"%s\" being touched caused asset \"%s\" to be invalidated."),
+					TEXT("Managed Motion Design Instance Cache: Package \"%s\" being touched caused asset \"%s\" to be invalidated."),
 					*InPackageName.ToString(), *InAssetPath.ToString());
 				return true;
 			}

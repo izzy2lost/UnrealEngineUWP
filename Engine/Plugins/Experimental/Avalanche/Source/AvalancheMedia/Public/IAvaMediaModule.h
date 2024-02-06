@@ -115,7 +115,7 @@ public:
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const = 0;
 	
 	/**
-	 *	This is the backend for playing Motion Design blueprints locally.
+	 *	This is the backend for playing Motion Design assets locally.
 	 */
 	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const = 0;
 

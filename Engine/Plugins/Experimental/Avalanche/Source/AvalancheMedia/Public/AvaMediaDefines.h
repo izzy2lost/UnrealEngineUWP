@@ -232,7 +232,7 @@ ENUM_CLASS_FLAGS(EAvaRundownPageChanges);
  *
  *	This is also sometimes referred to as the "source" asset, by contrast to the
  *	runtime (or managed) transient asset for runtime playback. It will also refer to
- *	the source Motion Design blueprint, rather than a playback object.
+ *	the source Motion Design asset, rather than a playback object.
  */
 UENUM()
 enum class EAvaPlaybackAssetStatus

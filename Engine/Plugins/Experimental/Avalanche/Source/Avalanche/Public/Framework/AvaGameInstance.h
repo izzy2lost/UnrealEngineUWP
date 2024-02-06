@@ -9,7 +9,6 @@
 
 class FRenderCommandFence;
 class FSceneViewport;
-class UAvalancheBlueprint;
 class UTextureRenderTarget2D;
 struct FAvaViewportQualitySettings;
 struct FAvaInstanceSettings;
@@ -31,17 +30,10 @@ class AVALANCHE_API UAvaGameInstance : public UGameInstance
 public:
 	/**
 	 * Creates a new Motion Design Game instance from the given Motion Design Template Asset.
-	 * Supported asset types: UMotion DesignBlueprint, UWorld (Level).
-	 *
-	 * Remark: For Motion Design Blueprints, the instanced embedded RemoteControlPreset will be registered
-	 * under the name of the outer Package Name. It is thus required that each instance be contained in
-	 * a unique package to avoid stomping the registered RCPs.
+	 * Supported asset types: UWorld (Level).
 	 */
 	static UAvaGameInstance* Create(UObject* InOuter);
 
-	// Legacy - will create and load a Motion Design blueprint.
-	static UAvaGameInstance* Create(UObject* InOuter, const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprintTemplate);
-	
 	/** Create the game world */
 	bool CreateWorld();
 
@@ -49,12 +41,6 @@ public:
 
 	UWorld* GetPlayWorld() const { return PlayWorld.Get(); }
 
-	// Legacy
-	bool LoadMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint);
-
-	// Legacy
-	void BeginPlayMotionDesignBlueprint(const TSoftObjectPtr<UAvalancheBlueprint>& InBlueprint, const FAvaInstancePlaySettings& InWorldPlaySettings);
-	
 	bool BeginPlayWorld(const FAvaInstancePlaySettings& InWorldPlaySettings);
 
 	/**
@@ -105,11 +91,6 @@ public:
 	 * @remark Only valid within a BeginPlay()/EndPlay() scope. Null otherwise.
 	 */
 	UAvaGameViewportClient* GetAvaGameViewportClient() const { return ViewportClient; }
-	
-	/*
-	 * @return The Motion Design Blueprint used in play. Can be null if called outside play
-	 */
-	UAvalancheBlueprint* GetMotionDesignBlueprint() const { return ManagedBlueprint; }
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAvaGameInstanceEvent, UAvaGameInstance* /*InGameInstance*/, FName /*InChannelName*/);
 
@@ -119,15 +100,6 @@ public:
 	/** Event called when the render target becomes ready. */
 	static FOnAvaGameInstanceEvent& GetOnRenderTargetReady() { return OnRenderTargetReady; }
 
-	/*
-	 * Mark the current frame as a frame in which an asset was loaded synchronously.
-	 * When an asset has been loaded synchronously (i.e. Motion Design Blueprint), it will cause a
-	 * large delta seconds to occur on the next tick. By marking that particular frame it can be
-	 * used on the next tick to clamp the delta seconds to avoid animations skipping by the
-	 * amount of the sync load time.
-	 */
-	void MarkSynchronousAssetLoadingThisFrame();
-
 protected:
 	void Tick(float DeltaSeconds);
 
@@ -135,24 +107,10 @@ protected:
 	void EndPlayWorld();
 	void OnEndFrameTick();
 	void OnEnginePreExit();
-	
+
 	//~ Begin UObject
 	virtual void BeginDestroy() override;
 	//~ End UObject
-
-	/*
-	 * A Soft Ptr to the Source Motion Design (i.e. the actual asset).
-	 * It's a Soft Ptr because it can become stale if it's only a Weak Object Ptr
-	 * and we want to reload it if that happens
-	 */
-	TSoftObjectPtr<UAvalancheBlueprint> SourceBlueprint;
-
-	/*
-	 * The Managed Motion Design Blueprint. A Duplication of the Source Blueprint when Begin Play was called.
-	 * This shouldn't be GCd while in play, as it contains Animation and other data used during play.
-	 */
-	UPROPERTY(Transient)
-	TObjectPtr<UAvalancheBlueprint> ManagedBlueprint;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UWorld> PlayWorld;

@@ -183,7 +183,7 @@ public:
 	FAvaInstanceSettings AvaInstanceSettings;
 
 	/**
-	 * Maximum cached Managed Motion Design Blueprints used for rundown editor's page details.
+	 * Maximum cached Managed Motion Design assets used for rundown editor's page details.
 	 * A value of 0 indicate the cache will grow without limit.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Managed Motion Design Instance Cache", meta = (DisplayName = "Maximum Cache Size"))

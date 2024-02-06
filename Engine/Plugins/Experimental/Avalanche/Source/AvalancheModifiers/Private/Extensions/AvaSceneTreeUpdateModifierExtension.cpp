@@ -2,9 +2,10 @@
 
 #include "Extensions/AvaSceneTreeUpdateModifierExtension.h"
 #include "AvaActorUtils.h"
-#include "AvaBlueprint.h"
 #include "AvaSceneTree.h"
+#include "Containers/Ticker.h"
 #include "GameFramework/Actor.h"
+#include "IAvaSceneInterface.h"
 
 #if WITH_EDITOR
 #include "AvaOutlinerSubsystem.h"

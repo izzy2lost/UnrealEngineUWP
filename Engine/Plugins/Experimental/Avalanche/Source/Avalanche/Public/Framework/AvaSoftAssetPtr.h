@@ -7,13 +7,12 @@
 enum class EAvalancheAssetType
 {
 	Unknown,
-	Blueprint,
 	World
 };
 
 /**
  * Avalanche Extension to FSoftObjectPath.
- * Adding the class information along to resolve between blueprint and level without loading anything.
+ * Adding the class information along to resolve about a Motion Design Asset without loading anything.
  */
 struct FAvaSoftAssetPath
 {
@@ -29,7 +28,7 @@ struct FAvaSoftAssetPath
 
 /**
  * Avalanche Extension to FSoftObjectPtr.
- * Adding the class information along to resolve between blueprint and level without loading anything.
+ * Adding the class information along to resolve a Motion Design Asset without loading anything.
  */
 
 struct FAvaSoftAssetPtr

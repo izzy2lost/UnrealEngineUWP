@@ -9,7 +9,6 @@
 class FAvaPlaybackManager;
 class FAvaPlaybackSourceAssetEntry;
 class IAvaMediaSyncProvider;
-class UAvalancheBlueprint;
 class UAvaPlayableGroupManager;
 class UAvaPlaybackTransition;
 struct FAvaPlaybackAnimPlaySettings;	// private
@@ -216,13 +215,12 @@ public:
 	void InvalidatePlaybackAssetEntry(const FSoftObjectPath& InAssetPath);
 	
 	UAvaPlaybackGraph* LoadPlaybackObject(const FSoftObjectPath& InAssetPath, const FString& InChannelName) const;
-	UAvaPlaybackGraph* BuildPlaybackFromBlueprint(const UAvalancheBlueprint* InBlueprint, const FString& InChannelName) const;
 	UAvaPlaybackGraph* BuildPlaybackFromWorld(const TSoftObjectPtr<UWorld>& InWorld, const FString& InChannelName) const;
 	
 	/**
 	 * Stops all currently playing playback objects.
 	 * @param bInUnload if true, will also unload the objects.
-	 * @return Returns the list of all source blueprint assets that where stopped.
+	 * @return Returns the list of all source assets that were stopped.
 	 **/
 	TArray<FSoftObjectPath> StopAllPlaybacks(bool bInUnload);
 

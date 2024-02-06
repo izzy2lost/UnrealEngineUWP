@@ -11,7 +11,6 @@
 #include "IAvaSequenceProvider.h"
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
-#include "Playable/Playables/AvaPlayableBlueprint.h"
 #include "Playable/Playables/AvaPlayableLevelStreaming.h"
 #include "Playable/Playables/AvaPlayableRemoteProxy.h"
 #include "Playback/AvaPlaybackUtils.h"
@@ -368,8 +367,6 @@ UAvaPlayable* UAvaPlayable::CreateLocalPlayable(UObject* InOuter, const FPlayabl
 {
 	switch (InPlayableInfo.SourceAsset.GetAssetType())
 	{
-	case EAvalancheAssetType::Blueprint:
-		return NewObject<UAvaPlayableBlueprint>(InOuter ? InOuter : GEngine);
 	case EAvalancheAssetType::World:
 		return NewObject<UAvaPlayableLevelStreaming>(InOuter ? InOuter : GEngine);
 	default:

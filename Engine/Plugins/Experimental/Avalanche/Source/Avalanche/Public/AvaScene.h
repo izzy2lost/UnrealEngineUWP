@@ -25,7 +25,6 @@ class URemoteControlPreset;
 
 #if WITH_EDITOR
 class ISequencer;
-class UAvalancheBlueprint;
 #endif
 
 UCLASS(MinimalAPI, NotPlaceable, Hidden, NotBlueprintable, NotBlueprintType, DisplayName = "Motion Design Scene")
@@ -35,10 +34,6 @@ class AAvaScene : public AActor, public IAvaSequenceProvider, public IAvaSceneIn
 
 public:
 	AVALANCHE_API static AAvaScene* GetScene(ULevel* InLevel, bool bInCreateSceneIfNotFound);
-
-#if WITH_EDITOR
-	AVALANCHE_API static AAvaScene* CreateFromBlueprint(ULevel* InNewLevel, UAvalancheBlueprint* InBlueprint);
-#endif
 
 	AAvaScene();
 

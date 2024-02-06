@@ -18,13 +18,13 @@ void FAvaRundownFilterPathSuggestionFactory::AddSuggestion(const TSharedRef<FAva
 		const FText PathCategoryLabel = LOCTEXT("PathCategoryLabel", "Ava-Rundown-Asset");
 		const FString AssetName = PageItem.GetAssetPath(InPayload->Rundown).GetAssetName();
 
-		FString BlueprintNameSuggestion = FString::Printf(TEXT("Asset=%s"), *AssetName);
-		const bool bIsFilterValueValid = InPayload->FilterValue.IsEmpty() || BlueprintNameSuggestion.Contains(InPayload->FilterValue);
+		FString AssetNameSuggestion = FString::Printf(TEXT("Asset=%s"), *AssetName);
+		const bool bIsFilterValueValid = InPayload->FilterValue.IsEmpty() || AssetNameSuggestion.Contains(InPayload->FilterValue);
 
-		if (bIsFilterValueValid && !InPayload->FilterCache.Contains(BlueprintNameSuggestion))
+		if (bIsFilterValueValid && !InPayload->FilterCache.Contains(AssetNameSuggestion))
 		{
-			InPayload->FilterCache.Add(BlueprintNameSuggestion);
-			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(BlueprintNameSuggestion), FText::FromString(AssetName), PathCategoryLabel});
+			InPayload->FilterCache.Add(AssetNameSuggestion);
+			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(AssetNameSuggestion), FText::FromString(AssetName), PathCategoryLabel});
 		}
 	}
 }

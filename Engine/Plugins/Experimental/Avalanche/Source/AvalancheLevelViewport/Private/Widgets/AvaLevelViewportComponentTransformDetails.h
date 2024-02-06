@@ -392,14 +392,14 @@ private:
 	/** Holds the property handles' outer objects. Used to update the handles' objects when the actor construction script runs. */
 	TArray<TWeakObjectPtr<UObject>> CachedHandlesObjects;
 
-	// Link to the blueprint editor for which this is displaying details
+	// Link to the viewport client for which this is displaying details
 	TWeakPtr<FAvaLevelViewportClient> AvaViewportClientWeak;
 
 	// If true, use the multi-select as an ad-hoc parent
 	static bool bUseSelectionAsParent;
 	bool bLastUseSelectionAsParent;
 
-	// If true, we can use the multi-select as a parent (valid blueprint, etc)
+	// If true, we can use the multi-select as a parent
 	bool bCanUseSelectionAsParent;
 
 	TSharedPtr<SBox> TransformBox;

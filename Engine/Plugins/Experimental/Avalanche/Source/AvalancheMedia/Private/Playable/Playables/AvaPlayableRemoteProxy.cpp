@@ -187,18 +187,6 @@ bool UAvaPlayableRemoteProxy::InitPlayable(const FPlayableCreationInfo& InPlayab
 	// Remote playables have proxy playable groups imitating the same setup as local ones.
 	switch (InPlayableInfo.SourceAsset.GetAssetType())
 	{
-	case EAvalancheAssetType::Blueprint:
-		{
-			UAvaPlayableGroup::FPlayableGroupCreationInfo PlayableGroupCreationInfo;
-			PlayableGroupCreationInfo.PlayableGroupManager = InPlayableInfo.PlayableGroupManager;
-			PlayableGroupCreationInfo.SourceAssetPath = InPlayableInfo.SourceAsset.ToSoftObjectPath();
-			PlayableGroupCreationInfo.ChannelName = InPlayableInfo.ChannelName;
-			PlayableGroupCreationInfo.bIsRemoteProxy = bIsRemoteProxy;
-			PlayableGroupCreationInfo.bIsSharedGroup = false;
-			
-			PlayableGroup = UAvaPlayableGroup::MakePlayableGroup(InPlayableInfo.PlayableGroupManager, PlayableGroupCreationInfo);
-		}
-		break;
 	case EAvalancheAssetType::World:
 		PlayableGroup = InPlayableInfo.PlayableGroupManager->GetOrCreateSharedLevelGroup(InPlayableInfo.ChannelName, bIsRemoteProxy);
 		break;

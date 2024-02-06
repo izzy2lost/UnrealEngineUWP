@@ -8,7 +8,7 @@ class IAvaMediaSyncProvider;
 class UPackage;
 
 /**
- * Cache for the managed Motion Design Blueprint instances.
+ * Cache for the managed Motion Design instances.
  *
  * This is LRU cache. 
  */

@@ -165,11 +165,6 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "AvalancheTest",
-			"Type": "UncookedOnly",
-			"LoadingPhase": "Default"
-		},
-		{
 			"Name": "AvalancheTransition",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

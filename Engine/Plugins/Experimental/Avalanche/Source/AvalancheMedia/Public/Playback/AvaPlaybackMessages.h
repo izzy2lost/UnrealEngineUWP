@@ -308,7 +308,7 @@ struct AVALANCHEMEDIA_API FAvaPlaybackCommand
 	UPROPERTY()
 	FSoftObjectPath AssetPath;
 
-	/** Channel to Play, only considered when the Asset in question is an Motion Design Playable (Blueprint or Level). */
+	/** Channel to Play, only considered when the Asset in question is an Motion Design Playable. */
 	UPROPERTY()
 	FString ChannelName;
 	

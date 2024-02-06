@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Viewport/AvaCameraManager.h"
-#include "AvaActor.h"
 #include "AvaSequencePlaybackObject.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraTypes.h"

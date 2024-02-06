@@ -22,8 +22,8 @@ DECLARE_LOG_CATEGORY_EXTERN(LogAvaPlaybackServer, Log, All);
  *
  * The playback server implements the commands for broadcast (channels and outputs) and playback.
  * Playback assets are either "playables" or "playback graphs", however the playback server will
- * create playback graphs for everything. If the asset to play is a "playable" (either a level or
- * a ava blueprint), it will create a transient playback graph for it.
+ * create playback graphs for everything. If the asset to play is a "playable" (e.g. a level),
+ * it will create a transient playback graph for it.
  *
  * A lot of the playback commands are geared toward running a playback graph with a single playable node,
  * mostly because this system is only used with rundowns or playback graphs run on the client side.
