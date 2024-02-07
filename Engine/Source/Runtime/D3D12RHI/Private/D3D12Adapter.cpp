@@ -571,6 +571,14 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 
 	if (!bDeviceCreated)
 	{
+#if INTEL_EXTENSIONS
+		// Enable Intel App Discovery
+		if (IsRHIDeviceIntel() && bAllowVendorDevice)
+		{
+			EnableIntelAppDiscovery(GRHIDeviceId);
+		}
+#endif
+
 		// Creating the Direct3D device.
 		VERIFYD3D12RESULT(D3D12CreateDevice(
 			GetAdapter(),
