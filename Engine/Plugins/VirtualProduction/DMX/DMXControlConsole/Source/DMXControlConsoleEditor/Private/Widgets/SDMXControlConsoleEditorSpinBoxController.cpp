@@ -365,7 +365,9 @@ namespace UE::DMX::Private
 
 	bool SDMXControlConsoleEditorSpinBoxController::IsElementControllerSpinBoxActive() const
 	{
-		return ElementControllerModel.IsValid() && !ElementControllerModel->IsMuted();
+		const UDMXControlConsoleElementController* ElementController = GetElementController();
+		const bool bIsControllerEnabled = ElementController && ElementController->GetEnabledState() == ECheckBoxState::Checked;
+		return bIsControllerEnabled;
 	}
 
 	FText SDMXControlConsoleEditorSpinBoxController::GetToolTipText() const
@@ -385,12 +387,14 @@ namespace UE::DMX::Private
 
 	const FSlateBrush* SDMXControlConsoleEditorSpinBoxController::GetSpinBoxBorderImage() const
 	{
-		if (!ElementControllerModel.IsValid())
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		if (!ElementController)
 		{
 			return nullptr;
 		}
 
-		if (ElementControllerModel->IsMuted() || ElementControllerModel->IsLocked())
+		const bool bIsControllerEnabled = ElementController->GetEnabledState() == ECheckBoxState::Checked;
+		if (ElementControllerModel->IsLocked() || !bIsControllerEnabled)
 		{
 			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.DefaultBrush");
 		}

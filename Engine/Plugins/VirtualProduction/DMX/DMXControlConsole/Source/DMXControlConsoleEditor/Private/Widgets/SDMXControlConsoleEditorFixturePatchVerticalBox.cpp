@@ -26,243 +26,244 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleEditorFixturePatchVerticalBox"
 
-void SDMXControlConsoleEditorFixturePatchVerticalBox::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
+namespace UE::DMX::Private
 {
-	if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct fixture patch vertical box widget correctly.")))
+	void SDMXControlConsoleEditorFixturePatchVerticalBox::Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel)
 	{
-		return;
-	}
-
-	EditorModel = InEditorModel;
-
-	const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
-	UDMXLibrary* DMXLibrary = ControlConsoleData ? ControlConsoleData->GetDMXLibrary() : nullptr;
-
-	ChildSlot
-		.Padding(0.f, 8.f, 0.f, 0.f)
-		[
-			SNew(SVerticalBox)
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				GenerateFixturePatchListToolbar()
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				SAssignNew(FixturePatchList, SDMXControlConsoleFixturePatchList, EditorModel.Get())
-				.DMXLibrary(DMXLibrary)
-			]
-		];
-}
-
-void SDMXControlConsoleEditorFixturePatchVerticalBox::ForceRefresh()
-{
-	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-	if (ControlConsoleData && FixturePatchList.IsValid())
-	{
-		UDMXLibrary* NewLibrary = ControlConsoleData->GetDMXLibrary();
-		FixturePatchList->SetDMXLibrary(NewLibrary);
-	}
-}
-
-TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::GenerateFixturePatchListToolbar()
-{
-	const auto GenerateAddButtonContentLambda = [](const FText& AddButtonText, const FText& AddButtonToolTip)
+		if (!ensureMsgf(InEditorModel, TEXT("Invalid control console editor model, can't constuct fixture patch vertical box widget correctly.")))
 		{
-			return
-				SNew(SHorizontalBox)
+			return;
+		}
 
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Center)
+		EditorModel = InEditorModel;
+
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+		UDMXLibrary* DMXLibrary = ControlConsoleData ? ControlConsoleData->GetDMXLibrary() : nullptr;
+
+		ChildSlot
+			.Padding(0.f, 8.f, 0.f, 0.f)
+			[
+				SNew(SVerticalBox)
+
+				+ SVerticalBox::Slot()
+				.AutoHeight()
 				[
-					SNew(SImage)
-					.ColorAndOpacity(FStyleColors::AccentGreen)
-					.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
+					GenerateFixturePatchListToolbar()
 				]
 
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.VAlign(VAlign_Center)
-				.Padding(3.f, 0.f, 0.f, 0.f)
+				+ SVerticalBox::Slot()
+				.AutoHeight()
 				[
-					SNew(STextBlock)
-					.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-					.Text(AddButtonText)
-					.ToolTipText(AddButtonToolTip)
-					.TextStyle(FAppStyle::Get(), "SmallButtonText")
-				];
-		};
-
-	const TSharedRef<SWidget> FixturePatchListToolbar =
-		SNew(SHorizontalBox)
-		.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchListToolbarVisibility))
-
-		// Add All Button
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.MaxWidth(160.f)
-		.HAlign(HAlign_Left)
-		.Padding(8.f, 0.f, 4.f, 8.f)
-		[
-			SNew(SButton)
-			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
-			.ForegroundColor(FSlateColor::UseStyle())
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.IsEnabled(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddAllPatchesButtonEnabled)
-			.OnClicked(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked)
-			[
-				GenerateAddButtonContentLambda
-				(
-					LOCTEXT("AddAllFixturePatchFromList", "Add All Patches"),
-					LOCTEXT("AddAllFixturePatchFromList_ToolTip", "Add all Fixture Patches from the list.")
-				)
-			]
-		]
-
-		// Add Combo Button
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.MaxWidth(160.f)
-		.HAlign(HAlign_Left)
-		.Padding(4.f, 0.f, 8.f, 8.f)
-		[
-			SNew(SComboButton)
-			.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
-			.ForegroundColor(FSlateColor::UseStyle())
-			.HasDownArrow(true)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.OnGetMenuContent(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPatchMenu)
-			.ButtonContent()
-			[
-				GenerateAddButtonContentLambda
-				(
-					LOCTEXT("AddFixturePatchFromList", "Add Patch"),
-					LOCTEXT("AddFixturePatchFromList_ToolTip", "Add a Fixture Patch from the list.")
-				)
-			]
-		];
-
-	return FixturePatchListToolbar;
-}
-
-TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPatchMenu()
-{
-	if (!EditorModel.IsValid())
-	{
-		return SNullWidget::NullWidget;
+					SAssignNew(FixturePatchList, SDMXControlConsoleFixturePatchList, EditorModel.Get())
+					.DMXLibrary(DMXLibrary)
+				]
+			];
 	}
 
-	// Show Add Patch buttons only if the current layout is the user layout
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	if (!ControlConsoleLayouts)
+	void SDMXControlConsoleEditorFixturePatchVerticalBox::ForceRefresh()
 	{
-		return SNullWidget::NullWidget;
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		if (ControlConsoleData && FixturePatchList.IsValid())
+		{
+			UDMXLibrary* NewLibrary = ControlConsoleData->GetDMXLibrary();
+			FixturePatchList->SetDMXLibrary(NewLibrary);
+		}
 	}
 
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (ActiveLayout && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
+	TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::GenerateFixturePatchListToolbar()
 	{
-		TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> WeakFixturePatches;
-		TArray<UDMXEntityFixturePatch*> SelectedFixturePatches = FixturePatchList->GetSelectedFixturePatches();
-		Algo::Transform(SelectedFixturePatches, WeakFixturePatches, [](UDMXEntityFixturePatch* FixturePatch)
+		const auto GenerateAddButtonContentLambda = [](const FText& AddButtonText, const FText& AddButtonToolTip)
 			{
-				return FixturePatch;
-			});
+				return
+					SNew(SHorizontalBox)
 
-		return SNew(SDMXControlConsoleAddFixturePatchMenu, WeakFixturePatches, EditorModel.Get());
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SImage)
+						.ColorAndOpacity(FStyleColors::AccentGreen)
+						.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.Padding(3.f, 0.f, 0.f, 0.f)
+					[
+						SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+						.Text(AddButtonText)
+						.ToolTipText(AddButtonToolTip)
+						.TextStyle(FAppStyle::Get(), "SmallButtonText")
+					];
+			};
+
+		const TSharedRef<SWidget> FixturePatchListToolbar =
+			SNew(SHorizontalBox)
+			.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchListToolbarVisibility))
+
+			// Add All Button
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.MaxWidth(160.f)
+			.HAlign(HAlign_Left)
+			.Padding(8.f, 0.f, 4.f, 8.f)
+			[
+				SNew(SButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
+				.ForegroundColor(FSlateColor::UseStyle())
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.IsEnabled(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddAllPatchesButtonEnabled)
+				.OnClicked(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked)
+				[
+					GenerateAddButtonContentLambda
+					(
+						LOCTEXT("AddAllFixturePatchFromList", "Add All Patches"),
+						LOCTEXT("AddAllFixturePatchFromList_ToolTip", "Add all Fixture Patches from the list.")
+					)
+				]
+			]
+
+			// Add Combo Button
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.MaxWidth(160.f)
+			.HAlign(HAlign_Left)
+			.Padding(4.f, 0.f, 8.f, 8.f)
+			[
+				SNew(SComboButton)
+				.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("Button"))
+				.ForegroundColor(FSlateColor::UseStyle())
+				.HasDownArrow(true)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnGetMenuContent(this, &SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPatchMenu)
+				.ButtonContent()
+				[
+					GenerateAddButtonContentLambda
+					(
+						LOCTEXT("AddFixturePatchFromList", "Add Patch"),
+						LOCTEXT("AddFixturePatchFromList_ToolTip", "Add a Fixture Patch from the list.")
+					)
+				]
+			];
+
+		return FixturePatchListToolbar;
 	}
 
-	return SNullWidget::NullWidget;
-}
-
-FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
-{
-	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-	if (!ControlConsoleData || !ControlConsoleLayouts)
+	TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPatchMenu()
 	{
-		return FReply::Handled();
+		if (!EditorModel.IsValid())
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		// Show Add Patch buttons only if the current layout is the user layout
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		if (!ControlConsoleLayouts)
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+		if (ActiveLayout && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		{
+			TArray<TWeakObjectPtr<UDMXEntityFixturePatch>> WeakFixturePatches;
+			TArray<UDMXEntityFixturePatch*> SelectedFixturePatches = FixturePatchList->GetSelectedFixturePatches();
+			Algo::Transform(SelectedFixturePatches, WeakFixturePatches, [](UDMXEntityFixturePatch* FixturePatch)
+				{
+					return FixturePatch;
+				});
+
+			return SNew(SDMXControlConsoleAddFixturePatchMenu, WeakFixturePatches, EditorModel.Get());
+		}
+
+		return SNullWidget::NullWidget;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout)
+	FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
 	{
-		return FReply::Handled();
-	}
-
-	const FScopedTransaction AddAllPatchesTransaction(LOCTEXT("AddAllPatchesTransaction", "Add All Patches"));
-	ActiveLayout->PreEditChange(nullptr);
-
-	const TArray<UDMXControlConsoleFaderGroupRow*> FaderGroupRows = ControlConsoleData->GetFaderGroupRows();
-	for (const UDMXControlConsoleFaderGroupRow* FaderGroupRow : FaderGroupRows)
-	{
-		if (!FaderGroupRow)
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+		if (!ControlConsoleData || !ControlConsoleLayouts)
 		{
-			continue;
+			return FReply::Handled();
 		}
 
-		TArray<UDMXControlConsoleFaderGroup*> FaderGroups = FaderGroupRow->GetFaderGroups();
-		if (FaderGroups.IsEmpty())
+		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+		if (!ActiveLayout)
 		{
-			continue;
+			return FReply::Handled();
 		}
 
-		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->AddNewRowToLayout();
-		if (!LayoutRow)
-		{
-			continue;
-		}
+		const FScopedTransaction AddAllPatchesTransaction(LOCTEXT("AddAllPatchesTransaction", "Add All Patches"));
+		ActiveLayout->PreEditChange(nullptr);
 
-		// Remove Fader Groups already in the layout and all unpatched Fader Groups
-		for (UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+		const TArray<UDMXControlConsoleFaderGroupRow*>& FaderGroupRows = ControlConsoleData->GetFaderGroupRows();
+		for (const UDMXControlConsoleFaderGroupRow* FaderGroupRow : FaderGroupRows)
 		{
-			if (!FaderGroup || ActiveLayout->ContainsFaderGroup(FaderGroup))
+			if (!FaderGroupRow)
 			{
 				continue;
 			}
 
-			LayoutRow->PreEditChange(nullptr);
-			UDMXControlConsoleFaderGroupController* NewController = LayoutRow->CreateFaderGroupController(FaderGroup, FaderGroup->GetFaderGroupName());
-			LayoutRow->PostEditChange();
-			if (NewController)
+			const TArray<UDMXControlConsoleFaderGroup*>& FaderGroups = FaderGroupRow->GetFaderGroups();
+			if (FaderGroups.IsEmpty())
 			{
-				NewController->Modify();
-				NewController->SetIsActive(true);
-				ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+				continue;
+			}
+
+			UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->AddNewRowToLayout();
+			if (!LayoutRow)
+			{
+				continue;
+			}
+
+			// Remove Fader Groups already in the layout and all unpatched Fader Groups
+			for (UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+			{
+				if (!FaderGroup || ActiveLayout->ContainsFaderGroup(FaderGroup))
+				{
+					continue;
+				}
+
+				LayoutRow->Modify();
+				UDMXControlConsoleFaderGroupController* NewController = LayoutRow->CreateFaderGroupController(FaderGroup, FaderGroup->GetFaderGroupName());
+				if (NewController)
+				{
+					NewController->Modify();
+					NewController->SetIsActive(true);
+					ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+				}
 			}
 		}
+
+		ActiveLayout->PostEditChange();
+
+		return FReply::Handled();
 	}
 
-	ActiveLayout->PostEditChange();
-
-	return FReply::Handled();
-}
-
-bool SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddAllPatchesButtonEnabled() const
-{
-	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-	return ControlConsoleData && ControlConsoleData->GetDMXLibrary();
-}
-
-EVisibility SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchListToolbarVisibility() const
-{
-	bool bIsVisible = false;
-
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-	if (ControlConsoleLayouts)
+	bool SDMXControlConsoleEditorFixturePatchVerticalBox::IsAddAllPatchesButtonEnabled() const
 	{
-		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		bIsVisible = IsValid(ActiveLayout) && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked();
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
+		return ControlConsoleData && ControlConsoleData->GetDMXLibrary();
 	}
 
-	return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	EVisibility SDMXControlConsoleEditorFixturePatchVerticalBox::GetFixturePatchListToolbarVisibility() const
+	{
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
+		if (ControlConsoleLayouts)
+		{
+			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
+			const bool bIsVisible = IsValid(ActiveLayout) && ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked();
+			return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+
+		return EVisibility::Collapsed;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

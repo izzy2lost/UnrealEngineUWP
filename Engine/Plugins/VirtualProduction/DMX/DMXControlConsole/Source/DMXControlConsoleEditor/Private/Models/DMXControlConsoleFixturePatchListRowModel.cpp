@@ -2,6 +2,7 @@
 
 #include "DMXControlConsoleFixturePatchListRowModel.h"
 
+#include "DMXControlConsoleFaderGroup.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
@@ -12,103 +13,99 @@
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleFixturePatchListRowModel"
 
-FDMXControlConsoleFixturePatchListRowModel::FDMXControlConsoleFixturePatchListRowModel(const TWeakObjectPtr<UDMXEntityFixturePatch> InWeakFixturePatch, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
-	: WeakFixturePatch(InWeakFixturePatch)
-	, WeakEditorModel(InWeakEditorModel)
-{}
-
-bool FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled() const
+namespace UE::DMX::Private
 {
-	const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
-	if (!FixturePatch)
-	{
-		return true;
-	}
+	FDMXControlConsoleFixturePatchListRowModel::FDMXControlConsoleFixturePatchListRowModel(const TWeakObjectPtr<UDMXEntityFixturePatch> InWeakFixturePatch, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
+		: WeakFixturePatch(InWeakFixturePatch)
+		, WeakEditorModel(InWeakEditorModel)
+	{}
 
-	const UDMXControlConsoleEditorModel* EditorModel = WeakEditorModel.Get();
-	if (!EditorModel)
+	bool FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled() const
 	{
-		return true;
-	}
+		const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
+		if (!FixturePatch)
+		{
+			return true;
+		}
 
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	if (!ControlConsoleLayouts)
-	{
-		return true;
-	}
+		const UDMXControlConsoleEditorModel* EditorModel = WeakEditorModel.Get();
+		if (!EditorModel)
+		{
+			return true;
+		}
 
-	// Do only if active layout is not default Layout
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-	if (!ActiveLayout)
-	{
-		return true;
-	}
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ActiveLayout)
+		{
+			return true;
+		}
 
-	if (ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
-	{
-		return true;
-	}
+		// Do only if active layout is not default Layout
+		if (ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		{
+			return true;
+		}
 
-	const UDMXControlConsoleFaderGroupController* FaderGroupController = ActiveLayout->FindFaderGroupControllerByFixturePatch(FixturePatch);
-	return !IsValid(FaderGroupController);
-}
-
-ECheckBoxState FDMXControlConsoleFixturePatchListRowModel::GetFaderGroupMutedState() const
-{	
-	const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
-	if (!FixturePatch)
-	{
-		// Fixture groups shown in the list always have a fixture patch
-		return ECheckBoxState::Undetermined;
-	}
-
-	const UDMXControlConsoleEditorModel* EditorModel = WeakEditorModel.Get();
-	if (!EditorModel)
-	{
-		return ECheckBoxState::Undetermined;
-	}
-
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
-	if (ActiveLayout)
-	{
 		const UDMXControlConsoleFaderGroupController* FaderGroupController = ActiveLayout->FindFaderGroupControllerByFixturePatch(FixturePatch);
-		return IsValid(FaderGroupController) && FaderGroupController->IsMuted() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+		return !IsValid(FaderGroupController);
 	}
 
-	return ECheckBoxState::Undetermined;
-}
-
-void FDMXControlConsoleFixturePatchListRowModel::SetFaderGroupMuted(bool bMuted)
-{
-	const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
-	if (!FixturePatch)
+	ECheckBoxState FDMXControlConsoleFixturePatchListRowModel::GetFaderGroupEnabledState() const
 	{
-		return;
+		const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
+		if (!FixturePatch)
+		{
+			// Fixture groups shown in the list always have a fixture patch
+			return ECheckBoxState::Undetermined;
+		}
+
+		const UDMXControlConsoleEditorModel* EditorModel = WeakEditorModel.Get();
+		if (!EditorModel)
+		{
+			return ECheckBoxState::Undetermined;
+		}
+
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+		if (ControlConsoleData)
+		{
+			const UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
+			return FaderGroup && FaderGroup->IsEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		}
+
+		return ECheckBoxState::Undetermined;
 	}
 
-	const UDMXControlConsoleEditorModel* EditorModel = WeakEditorModel.Get();
-	if (!EditorModel)
+	void FDMXControlConsoleFixturePatchListRowModel::SetFaderGroupEnabled(bool bEnable)
 	{
-		return;
-	}
+		const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
+		if (!FixturePatch)
+		{
+			return;
+		}
 
-	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
-	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
-	if (!ActiveLayout)
-	{
-		return;
-	}
+		const UDMXControlConsoleEditorModel* EditorModel = WeakEditorModel.Get();
+		if (!EditorModel)
+		{
+			return;
+		}
 
-	if (UDMXControlConsoleFaderGroupController* FaderGroupController = ActiveLayout->FindFaderGroupControllerByFixturePatch(FixturePatch))
-	{
-		const FText TransactionText = bMuted ?
-			LOCTEXT("MuteFaderGroupTransaction", "Mute Fader Group") :
-			LOCTEXT("UnmuteFaderGroupTransaction", "Unmute Fader Group");
-		const FScopedTransaction SetFaderGroupMutedTransaction(TransactionText);
+		const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
+		if (!ControlConsoleData)
+		{
+			return;
+		}
 
-		FaderGroupController->Modify();
-		FaderGroupController->SetMute(bMuted);
+		if (UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch))
+		{
+			const FText TransactionText = bEnable ?
+				LOCTEXT("EnableFaderGroupTransaction", "Enable Fader Group") :
+				LOCTEXT("DisableFaderGroupTransaction", "Disable Fader Group");
+			const FScopedTransaction SetFaderGroupEnabledTransaction(TransactionText);
+
+			FaderGroup->Modify();
+			FaderGroup->SetEnabled(bEnable);
+		}
 	}
 }
 

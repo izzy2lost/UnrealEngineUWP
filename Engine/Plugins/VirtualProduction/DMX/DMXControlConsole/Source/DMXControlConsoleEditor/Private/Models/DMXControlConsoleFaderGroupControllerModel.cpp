@@ -139,11 +139,6 @@ namespace UE::DMX::Private
 		return bCanAdd;
 	}
 
-	bool FDMXControlConsoleFaderGroupControllerModel::IsMuted() const
-	{
-		return WeakFaderGroupController.IsValid() && WeakFaderGroupController->IsMuted();
-	}
-
 	bool FDMXControlConsoleFaderGroupControllerModel::IsLocked() const
 	{
 		return WeakFaderGroupController.IsValid() && WeakFaderGroupController->IsLocked();

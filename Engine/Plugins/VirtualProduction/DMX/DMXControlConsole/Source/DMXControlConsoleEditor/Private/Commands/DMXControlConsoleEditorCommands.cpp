@@ -29,10 +29,10 @@ void FDMXControlConsoleEditorCommands::RegisterCommands()
 	UI_COMMAND(ResetToDefault, "Reset to Default", "Resets all the elements in the Control Console to their default values", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ResetToZero, "Reset to Zero", "Resets all the elements in the Control Console to zero", EUserInterfaceActionType::Button, FInputChord());
 	
-	UI_COMMAND(Mute, "Mute", "Mutes the selected Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(MuteAll, "Mute All", "Mutes all the Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(Unmute, "Unmute", "Unmutes the selected Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(UnmuteAll, "Unmute All", "Mutes all the Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Enable, "Enable", "Enables the selected Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(EnableAll, "Enable All", "Enables all the Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Disable, "Disable", "Disables the selected Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(DisableAll, "Disable All", "Disables all the Fader Groups.", EUserInterfaceActionType::Button, FInputChord());
 
 	UI_COMMAND(AddPatchRight, "Add Patches to the right", "Adds the selected Fixture Patches to the right on the same row.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(AddPatchNextRow, "Add Patches on new row", "Adds the selected Fixture Patches to the next row.", EUserInterfaceActionType::Button, FInputChord());

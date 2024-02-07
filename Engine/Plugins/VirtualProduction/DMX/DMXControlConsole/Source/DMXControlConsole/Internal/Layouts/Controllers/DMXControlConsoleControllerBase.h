@@ -15,21 +15,13 @@ class DMXCONTROLCONSOLE_API UDMXControlConsoleControllerBase
 	GENERATED_BODY()
 
 public:
-	/** True if the Controller can't send DMX data */
-	bool IsMuted() const { return bIsMuted; }
-
 	/** True if the value of the Controller can't be changed */
 	bool IsLocked() const { return bIsLocked; }
 
 	// Property Name getters
-	FORCEINLINE static FName GetIsMutedPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleControllerBase, bIsMuted); }
 	FORCEINLINE static FName GetIsLockedPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleControllerBase, bIsLocked); }
 
 protected:
-	/** If true, the Controller doesn't send DMX */
-	UPROPERTY(EditAnywhere, Category = "DMX Controller")
-	bool bIsMuted = false;
-
 	/** If true, the value of the Controller can't be changed */
 	UPROPERTY(EditAnywhere, Category = "DMX Controller")
 	bool bIsLocked = false;

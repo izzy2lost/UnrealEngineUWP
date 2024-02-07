@@ -5,40 +5,44 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/SDMXReadOnlyFixturePatchListRow.h"
 
-class FDMXControlConsoleFixturePatchListRowModel;
 class UDMXControlConsoleEditorModel;
 
 
-/** Entity Fixture Patch as a row in a list in DMX Control Console */
-class SDMXControlConsoleFixturePatchListRow
-	: public SDMXReadOnlyFixturePatchListRow
+namespace UE::DMX::Private
 {
-public:
-	SLATE_BEGIN_ARGS(SDMXControlConsoleFixturePatchListRow)
-	{}
-		/** Delegate broadcast when the fader group muted state changed */
-		SLATE_EVENT(FSimpleDelegate, OnFaderGroupMutedChanged)
+	class FDMXControlConsoleFixturePatchListRowModel;
 
-	SLATE_END_ARGS()
+	/** Entity Fixture Patch as a row in a list in DMX Control Console */
+	class SDMXControlConsoleFixturePatchListRow
+		: public SDMXReadOnlyFixturePatchListRow
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXControlConsoleFixturePatchListRow)
+			{}
+			/** Delegate broadcast when the fader group muted state changed */
+			SLATE_EVENT(FSimpleDelegate, OnFaderGroupMutedChanged)
 
-	/** Constructs this widget */
-	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
+		SLATE_END_ARGS()
 
-protected:
-	//~ Begin SMultiColumnTableRow interface
-	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
-	//~ End SMultiColumnTableRow interface
+		/** Constructs this widget */
+		void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
 
-private:
-	/** Generates the row that displays the check box for Fixture Patch active state */
-	TSharedRef<SWidget> GenerateCheckBoxRow();
+	protected:
+		//~ Begin SMultiColumnTableRow interface
+		virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
+		//~ End SMultiColumnTableRow interface
 
-	/** Model for this row */
-	TSharedPtr<FDMXControlConsoleFixturePatchListRowModel> RowModel;
+	private:
+		/** Generates the row that displays the check box for Fixture Patch active state */
+		TSharedRef<SWidget> GenerateCheckBoxRow();
 
-	/** Weak reference to the Control Console editor model */
-	TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
+		/** Model for this row */
+		TSharedPtr<FDMXControlConsoleFixturePatchListRowModel> RowModel;
 
-	// Slate arguments
-	FSimpleDelegate OnFaderGroupMutedChanged;
-};
+		/** Weak reference to the Control Console editor model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
+
+		// Slate arguments
+		FSimpleDelegate OnFaderGroupMutedChanged;
+	};
+}

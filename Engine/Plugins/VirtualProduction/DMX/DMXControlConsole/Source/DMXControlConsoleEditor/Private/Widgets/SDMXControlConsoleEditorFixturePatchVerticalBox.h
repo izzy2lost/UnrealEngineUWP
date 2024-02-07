@@ -5,50 +5,54 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FReply;
-class SDMXControlConsoleFixturePatchList;
 class UDMXControlConsoleEditorModel;
 
 
-/** A container for the Fixture Patch List widget */
-class SDMXControlConsoleEditorFixturePatchVerticalBox
-	: public SCompoundWidget
+namespace UE::DMX::Private
 {
-public:
-	SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFixturePatchVerticalBox)
-	{}
+	class SDMXControlConsoleFixturePatchList;
 
-	SLATE_END_ARGS()
+	/** A container for the Fixture Patch List widget */
+	class SDMXControlConsoleEditorFixturePatchVerticalBox
+		: public SCompoundWidget
+	{
+	public:
+		SLATE_BEGIN_ARGS(SDMXControlConsoleEditorFixturePatchVerticalBox)
+			{}
 
-	/** Constructs the widget */
-	void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
+		SLATE_END_ARGS()
 
-	/** Refreshes the widget */
-	void ForceRefresh();
+		/** Constructs the widget */
+		void Construct(const FArguments& InArgs, UDMXControlConsoleEditorModel* InEditorModel);
 
-protected:
-	//~ Begin SWidget interface
-	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override { return FReply::Handled(); }
-	//~ End SWidget interface
+		/** Refreshes the widget */
+		void ForceRefresh();
 
-private:
-	/** Generates a toolbar for the FixturePatchList widget */
-	TSharedRef<SWidget> GenerateFixturePatchListToolbar();
+	protected:
+		//~ Begin SWidget interface
+		virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override { return FReply::Handled(); }
+		//~ End SWidget interface
 
-	/** Creates a menu for the Add Patch combo button */
-	TSharedRef<SWidget> CreateAddPatchMenu();
+	private:
+		/** Generates a toolbar for the FixturePatchList widget */
+		TSharedRef<SWidget> GenerateFixturePatchListToolbar();
 
-	/** Called on Add All Patches button clicked to generate Fader Group Controllers form a Library */
-	FReply OnAddAllPatchesClicked();
+		/** Creates a menu for the Add Patch combo button */
+		TSharedRef<SWidget> CreateAddPatchMenu();
 
-	/** Gets the enable state for the Add All Patches button when a DMX Library is selected */
-	bool IsAddAllPatchesButtonEnabled() const;
+		/** Called on Add All Patches button clicked to generate Fader Group Controllers form a Library */
+		FReply OnAddAllPatchesClicked();
 
-	/** Gets the visibility for the FixturePatchList toolbar  */
-	EVisibility GetFixturePatchListToolbarVisibility() const;
+		/** Gets the enable state for the Add All Patches button when a DMX Library is selected */
+		bool IsAddAllPatchesButtonEnabled() const;
 
-	/** Reference to the FixturePatchList widget */
-	TSharedPtr<SDMXControlConsoleFixturePatchList> FixturePatchList;
+		/** Gets the visibility for the FixturePatchList toolbar  */
+		EVisibility GetFixturePatchListToolbarVisibility() const;
 
-	/** Weak reference to the Control Console editor model */
-	TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
-};
+		/** Reference to the FixturePatchList widget */
+		TSharedPtr<SDMXControlConsoleFixturePatchList> FixturePatchList;
+
+		/** Weak reference to the Control Console editor model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> EditorModel;
+	};
+}

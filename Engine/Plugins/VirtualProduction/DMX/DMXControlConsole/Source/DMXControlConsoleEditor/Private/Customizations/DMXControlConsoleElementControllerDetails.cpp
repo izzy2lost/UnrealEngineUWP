@@ -48,9 +48,6 @@ namespace UE::DMX::Private
 		MaxValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleElementControllerDetails::OnSelectedElementControllersMaxValueChanged));
 		ElementControllerCategory.AddProperty(MaxValueHandle);
 
-		// bIsMuted property handle
-		ElementControllerCategory.AddProperty(UDMXControlConsoleControllerBase::GetIsMutedPropertyName(), UDMXControlConsoleControllerBase::StaticClass());
-
 		// bIsLocked property handle
 		const TSharedRef<IPropertyHandle> LockStateHandle = InDetailLayout.GetProperty(UDMXControlConsoleControllerBase::GetIsLockedPropertyName(), UDMXControlConsoleControllerBase::StaticClass());
 		ElementControllerCategory.AddProperty(LockStateHandle);
@@ -109,13 +106,13 @@ namespace UE::DMX::Private
 			}
 
 			const bool bIsLocked = ElementController->IsLocked();
-			ElementController->SetLock(bIsLocked);
+			ElementController->SetLocked(bIsLocked);
 		}
 	}
 
 	TArray<UDMXControlConsoleElementController*> FDMXControlConsoleElementControllerDetails::GetValidElementControllersBeingEdited() const
 	{
-		const TArray<TWeakObjectPtr<UObject>> EditedObjects = PropertyUtilities->GetSelectedObjects();
+		const TArray<TWeakObjectPtr<UObject>>& EditedObjects = PropertyUtilities->GetSelectedObjects();
 		TArray<UDMXControlConsoleElementController*> Result;
 		Algo::TransformIf(EditedObjects, Result,
 			[](TWeakObjectPtr<UObject> Object)

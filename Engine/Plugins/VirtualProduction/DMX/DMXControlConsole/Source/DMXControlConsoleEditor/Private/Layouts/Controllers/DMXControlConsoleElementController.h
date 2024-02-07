@@ -7,6 +7,7 @@
 
 #include "DMXControlConsoleElementController.generated.h"
 
+enum class ECheckBoxState : uint8;
 class IDMXControlConsoleFaderGroupElement;
 class UDMXControlConsoleFaderBase;
 class UDMXControlConsoleFaderGroupController;
@@ -82,23 +83,17 @@ public:
 	/** Resets all the Elements in this Controller to their default attribute values */
 	void ResetToDefault();
 
-	/** Sets the mute state of this Controller */
-	void SetMute(bool bMute);
-
-	/** Mutes/Unmutes this Controller */
-	void ToggleMute();
-
 	/** Sets the lock state of this Controller */
-	void SetLock(bool bLock);
-
-	/** Locks/Unlocks this Controller */
-	void ToggleLock();
+	void SetLocked(bool bLock);
 
 	/** Gets the activity state of the Controller */
 	bool IsActive() const;
 
 	/** True if any of the Elements in the Controller matches the Control Console filtering system */
 	bool IsMatchingFilter() const;
+
+	/** Gets the enable state of the controller according to the possesed fader groups */
+	ECheckBoxState GetEnabledState() const;
 
 	/** Destroys the Controller */
 	virtual void Destroy();

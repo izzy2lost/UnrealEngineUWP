@@ -6,6 +6,7 @@
 
 #include "DMXControlConsoleFaderGroupController.generated.h"
 
+enum class ECheckBoxState : uint8;
 class IDMXControlConsoleFaderGroupElement;
 class UDMXControlConsoleData;
 class UDMXControlConsoleEditorGlobalLayoutBase;
@@ -83,17 +84,8 @@ public:
 	/** True if the Controller has any patched Fader Group */
 	bool HasFixturePatch() const;
 
-	/** Sets the mute state of this Controller */
-	void SetMute(bool bMute);
-
-	/** Mutes/Unmutes this Controller */
-	void ToggleMute();
-
 	/** Sets the lock state of this Controller */
-	void SetLock(bool bLock);
-
-	/** Locks/Unlocks this Controller */
-	void ToggleLock();
+	void SetLocked(bool bLock);
 
 	/** Gets Fader Group Controller color for Editor representation */
 	const FLinearColor& GetEditorColor() const { return EditorColor; }
@@ -112,6 +104,9 @@ public:
 
 	/** True if any of the Fader Groups in the Controller matches the Control Console filtering system */
 	bool IsMatchingFilter() const;
+
+	/** Gets the enable state of the controller according to the possesed fader groups */
+	ECheckBoxState GetEnabledState() const;
 
 	/** Destroys the Controller */
 	virtual void Destroy();

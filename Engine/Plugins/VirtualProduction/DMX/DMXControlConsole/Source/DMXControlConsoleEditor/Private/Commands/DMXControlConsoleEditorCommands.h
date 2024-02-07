@@ -25,10 +25,10 @@ public:
 	TSharedPtr<FUICommandInfo> ResetToDefault;
 	TSharedPtr<FUICommandInfo> ResetToZero;
 
-	TSharedPtr<FUICommandInfo> Mute;
-	TSharedPtr<FUICommandInfo> MuteAll;
-	TSharedPtr<FUICommandInfo> Unmute;
-	TSharedPtr<FUICommandInfo> UnmuteAll;
+	TSharedPtr<FUICommandInfo> Enable;
+	TSharedPtr<FUICommandInfo> EnableAll;
+	TSharedPtr<FUICommandInfo> Disable;
+	TSharedPtr<FUICommandInfo> DisableAll;
 
 	TSharedPtr<FUICommandInfo> AddPatchRight;
 	TSharedPtr<FUICommandInfo> AddPatchNextRow;

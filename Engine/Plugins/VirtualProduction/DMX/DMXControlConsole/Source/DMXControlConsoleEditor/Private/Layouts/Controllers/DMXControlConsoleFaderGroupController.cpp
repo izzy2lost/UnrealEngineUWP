@@ -2,6 +2,7 @@
 
 #include "DMXControlConsoleFaderGroupController.h"
 
+#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
 #include "Algo/StableSort.h"
@@ -14,6 +15,7 @@
 #include "DMXControlConsoleMatrixCellController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Library/DMXEntityFixturePatch.h"
+#include "Styling/SlateTypes.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleFaderGroupController"
@@ -416,17 +418,7 @@ bool UDMXControlConsoleFaderGroupController::HasFixturePatch() const
 	return bIsAnyFaderGroupPatched;
 }
 
-void UDMXControlConsoleFaderGroupController::SetMute(bool bMute)
-{
-	bIsMuted = bMute;
-}
-
-void UDMXControlConsoleFaderGroupController::ToggleMute()
-{
-	SetMute(!bIsMuted);
-}
-
-void UDMXControlConsoleFaderGroupController::SetLock(bool bLock)
+void UDMXControlConsoleFaderGroupController::SetLocked(bool bLock)
 {
 	bIsLocked = bLock;
 
@@ -438,13 +430,8 @@ void UDMXControlConsoleFaderGroupController::SetLock(bool bLock)
 		}
 
 		ElementController->Modify();
-		ElementController->SetLock(bIsLocked);
+		ElementController->SetLocked(bIsLocked);
 	}
-}
-
-void UDMXControlConsoleFaderGroupController::ToggleLock()
-{
-	SetLock(!bIsLocked);
 }
 
 void UDMXControlConsoleFaderGroupController::SetIsExpanded(bool bExpanded, bool bNotify)
@@ -470,6 +457,28 @@ bool UDMXControlConsoleFaderGroupController::IsMatchingFilter() const
 		});
 
 	return bIsAnyFaderGroupMatchingFilter;
+}
+
+ECheckBoxState UDMXControlConsoleFaderGroupController::GetEnabledState() const
+{
+	const bool bAreAllFaderGorupsEnabled = Algo::AllOf(FaderGroups,
+		[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+		{
+			return FaderGroup.IsValid() && FaderGroup->IsEnabled();
+		});
+
+	if (bAreAllFaderGorupsEnabled)
+	{
+		return ECheckBoxState::Checked;
+	}
+
+	const bool bIsAnyFaderGroupEnabled = Algo::AnyOf(FaderGroups,
+		[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+		{
+			return FaderGroup.IsValid() && FaderGroup->IsEnabled();
+		});
+
+	return bIsAnyFaderGroupEnabled ? ECheckBoxState::Undetermined : ECheckBoxState::Unchecked;
 }
 
 void UDMXControlConsoleFaderGroupController::Destroy()

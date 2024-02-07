@@ -244,15 +244,10 @@ TMap<int32, TMap<int32, uint8>> UDMXControlConsoleFaderGroup::GetUniverseToFragm
 	UDMXSubsystem* DMXSubsystem = UDMXSubsystem::GetDMXSubsystem_Pure();
 	check(DMXSubsystem);
 
-	for (UDMXControlConsoleFaderBase* Fader : GetAllFaders())
+	const TArray<UDMXControlConsoleFaderBase*> AllFaders = GetAllFaders();
+	for (UDMXControlConsoleFaderBase* Fader : AllFaders)
 	{
-		if (!Fader)
-		{
-			continue;
-		}
-
-		const UDMXControlConsoleControllerBase* FaderController = Fader->GetElementController();
-		if (!FaderController || FaderController->IsMuted())
+		if (!Fader || !Fader->IsEnabled())
 		{
 			continue;
 		}
@@ -289,13 +284,7 @@ TMap<FDMXAttributeName, int32> UDMXControlConsoleFaderGroup::GetAttributeMap() c
 
 	for (UDMXControlConsoleFaderBase* Fader : GetAllFaders())
 	{
-		if (!Fader)
-		{
-			continue;
-		}
-
-		const UDMXControlConsoleControllerBase* FaderController = Fader->GetElementController();
-		if (!FaderController || FaderController->IsMuted())
+		if (!Fader || !Fader->IsEnabled())
 		{
 			continue;
 		}
@@ -341,13 +330,7 @@ TMap<FIntPoint, TMap<FDMXAttributeName, float>> UDMXControlConsoleFaderGroup::Ge
 		const TArray<UDMXControlConsoleFaderBase*>& MatrixCellFaders = MatrixCell->GetFaders();
 		for (UDMXControlConsoleFaderBase* Fader : MatrixCellFaders)
 		{
-			if (!Fader)
-			{
-				continue;
-			}
-
-			const UDMXControlConsoleControllerBase* FaderController = Fader->GetElementController();
-			if (!FaderController || FaderController->IsMuted())
+			if (!Fader || !Fader->IsEnabled())
 			{
 				continue;
 			}
@@ -407,6 +390,11 @@ void UDMXControlConsoleFaderGroup::Destroy()
 #if WITH_EDITOR
 	FaderGroupRow.PostEditChange();
 #endif // WITH_EDITOR
+}
+
+void UDMXControlConsoleFaderGroup::SetEnabled(bool bEnable)
+{
+	bIsEnabled = bEnable;
 }
 
 #if WITH_EDITOR

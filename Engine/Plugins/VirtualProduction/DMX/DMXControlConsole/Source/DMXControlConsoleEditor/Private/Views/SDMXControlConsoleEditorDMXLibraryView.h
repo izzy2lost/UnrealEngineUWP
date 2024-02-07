@@ -6,12 +6,13 @@
 #include "Widgets/SCompoundWidget.h"
 
 class IDetailsView;
-class SDMXControlConsoleEditorFixturePatchVerticalBox;
 class UDMXControlConsoleEditorModel;
 
 
 namespace UE::DMX::Private
 {
+	class SDMXControlConsoleEditorFixturePatchVerticalBox;
+
 	/** View for displaying the dmx library handler for the edited Control Console */
 	class SDMXControlConsoleEditorDMXLibraryView
 		: public SCompoundWidget

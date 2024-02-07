@@ -67,11 +67,17 @@ public:
 	/** Gets wheter this Fader uses LSB mode or not */
 	bool GetUseLSBMode() const { return bUseLSBMode; }
 
+	/** True if the Fader can't send DMX data */
+	bool IsEnabled() const { return bIsEnabled; }
+
+	/** Sets the enable state of this Fader */
+	void SetEnabled(bool bEnable);
+
 	/** True if the value of the Fader can't be changed */
-	bool IsLocked();
+	bool IsLocked() const;
 
 	/** Sets lock state of this Controller */
-	void SetLock(bool bLock);
+	void SetLocked(bool bLock);
 
 	/** Resets the fader to its default value */
 	void ResetToDefault();
@@ -91,6 +97,7 @@ public:
 	FORCEINLINE static FName GetMinValuePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, MinValue); }
 	FORCEINLINE static FName GetMaxValuePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, MaxValue); }
 	FORCEINLINE static FName GetUseLSBModePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, bUseLSBMode); }
+	FORCEINLINE static FName GetIsEnabledPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, bIsEnabled); }
 
 protected:
 	/** Sets a new universe ID, checking for its validity */
@@ -145,6 +152,10 @@ protected:
 	UPROPERTY(EditAnywhere, meta = (DisplayPriority = "9", HideEditConditionToggle, EditCondition = "bCanEditDMXAssignment"), Category = "DMX Fader")
 	bool bUseLSBMode = false;
 
+	/** If true, the Fader doesn't send DMX */
+	UPROPERTY(EditAnywhere, Category = "DMX Fader")
+	bool bIsEnabled = true;
+
 	/** If true, the value of the Fader can't be changed */
 	UPROPERTY()
 	bool bIsLocked = false;
@@ -161,8 +172,8 @@ protected:
 	TArray<UDMXControlConsoleFaderBase*> ThisFaderAsArray;
 
 #if WITH_EDITORONLY_DATA
+	/** If true, dmx related properties are editable in the editor */
 	UPROPERTY()
-	/** If true, the property is editable in editor */
 	bool bCanEditDMXAssignment = false;
 #endif // WITH_EDITORONLY_DATA
 };

@@ -52,9 +52,7 @@ namespace UE::DMX::Private
 		FaderGroupControllerCategory.AddProperty(UserNameHandle);
 		FaderGroupControllerCategory.AddProperty(EditorColorHandle)
 			.Visibility(TAttribute<EVisibility>::CreateSP(this, &FDMXControlConsoleFaderGroupControllerDetails::GetEditorColorVisibility));
-		
-		FaderGroupControllerCategory.AddProperty(UDMXControlConsoleControllerBase::GetIsMutedPropertyName(), UDMXControlConsoleControllerBase::StaticClass());
-
+	
 		// Lock CheckBox section
 		FaderGroupControllerCategory.AddCustomRow(FText::GetEmpty())
 			.NameContent()
@@ -93,7 +91,7 @@ namespace UE::DMX::Private
 	bool FDMXControlConsoleFaderGroupControllerDetails::AreAllFaderGroupControllersUnpatched() const
 	{
 		const TArray<UDMXControlConsoleFaderGroupController*> SelectedFaderGroupControllers = GetValidFaderGroupControllersBeingEdited();
-		for (UDMXControlConsoleFaderGroupController* SelectedFaderGroupController : SelectedFaderGroupControllers)
+		for (const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController : SelectedFaderGroupControllers)
 		{
 			if (!SelectedFaderGroupController)
 			{
@@ -119,7 +117,8 @@ namespace UE::DMX::Private
 	ECheckBoxState FDMXControlConsoleFaderGroupControllerDetails::IsLockChecked() const
 	{
 		const TArray<UDMXControlConsoleFaderGroupController*> SelectedFaderGroupControllers = GetValidFaderGroupControllersBeingEdited();
-		const bool bAreAllFaderGroupControllersUnlocked = Algo::AllOf(SelectedFaderGroupControllers, [](const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController)
+		const bool bAreAllFaderGroupControllersUnlocked = Algo::AllOf(SelectedFaderGroupControllers, 
+			[](const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController)
 			{
 				return SelectedFaderGroupController && !SelectedFaderGroupController->IsLocked();
 			});
@@ -129,7 +128,8 @@ namespace UE::DMX::Private
 			return ECheckBoxState::Unchecked;
 		}
 
-		const bool bIsAnyFaderGroupControllerUnlocked = Algo::AnyOf(SelectedFaderGroupControllers, [](const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController)
+		const bool bIsAnyFaderGroupControllerUnlocked = Algo::AnyOf(SelectedFaderGroupControllers, 
+			[](const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController)
 			{
 				return SelectedFaderGroupController && !SelectedFaderGroupController->IsLocked();
 			});
@@ -210,8 +210,7 @@ namespace UE::DMX::Private
 			FaderGroupControllersToUnselect.Add(SelectedFaderGroupController);
 		}
 
-		const TSharedRef<FDMXControlConsoleEditorSelection>& SelectionHandler = WeakEditorModel->GetSelectionHandler();
-		
+		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
 		constexpr bool bNotifySelectionChange = false;
 		SelectionHandler->AddToSelection(FaderGroupControllersToSelect, bNotifySelectionChange);
 		SelectionHandler->RemoveFromSelection(FaderGroupControllersToUnselect);
@@ -229,7 +228,7 @@ namespace UE::DMX::Private
 			if (SelectedFaderGroupController && SelectedFaderGroupController->IsMatchingFilter())
 			{
 				const bool bIsLocked = CheckState == ECheckBoxState::Checked;
-				SelectedFaderGroupController->SetLock(bIsLocked);
+				SelectedFaderGroupController->SetLocked(bIsLocked);
 			}
 		}
 	}
@@ -253,7 +252,7 @@ namespace UE::DMX::Private
 
 	TArray<UDMXControlConsoleFaderGroupController*> FDMXControlConsoleFaderGroupControllerDetails::GetValidFaderGroupControllersBeingEdited() const
 	{
-		const TArray<TWeakObjectPtr<UObject>> EditedObjects = PropertyUtilities->GetSelectedObjects();
+		const TArray<TWeakObjectPtr<UObject>>& EditedObjects = PropertyUtilities->GetSelectedObjects();
 		TArray<UDMXControlConsoleFaderGroupController*> Result;
 		Algo::TransformIf(EditedObjects, Result,
 			[](TWeakObjectPtr<UObject> Object)

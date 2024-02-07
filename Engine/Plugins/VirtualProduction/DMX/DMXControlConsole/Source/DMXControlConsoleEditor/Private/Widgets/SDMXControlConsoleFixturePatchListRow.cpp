@@ -13,64 +13,67 @@
 
 #define LOCTEXT_NAMESPACE "SDMXControlConsoleFixturePatchListRow"
 
-void SDMXControlConsoleFixturePatchListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
-{
-	if (!InWeakEditorModel.IsValid())
+namespace UE::DMX::Private
+{ 
+	void SDMXControlConsoleFixturePatchListRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, const TSharedRef<FDMXReadOnlyFixturePatchListItem>& InItem, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel)
 	{
-		return;
-	}
+		if (!InWeakEditorModel.IsValid())
+		{
+			return;
+		}
 
-	WeakEditorModel = InWeakEditorModel;
-	OnFaderGroupMutedChanged = InArgs._OnFaderGroupMutedChanged;
+		WeakEditorModel = InWeakEditorModel;
+		OnFaderGroupMutedChanged = InArgs._OnFaderGroupMutedChanged;
 
-	RowModel = MakeShared<FDMXControlConsoleFixturePatchListRowModel>(InItem->GetFixturePatch(), WeakEditorModel);
+		RowModel = MakeShared<FDMXControlConsoleFixturePatchListRowModel>(InItem->GetFixturePatch(), WeakEditorModel);
 	
-	SetEnabled(TAttribute<bool>::CreateSP(RowModel.Get(), &FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled));
+		SetEnabled(TAttribute<bool>::CreateSP(RowModel.Get(), &FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled));
 
-	SDMXReadOnlyFixturePatchListRow::Construct(
-		SDMXReadOnlyFixturePatchListRow::FArguments(),
-		InOwnerTable,
-		InItem);
-}
-
-TSharedRef<SWidget> SDMXControlConsoleFixturePatchListRow::GenerateWidgetForColumn(const FName& ColumnName)
-{
-	if (ColumnName == FDMXControlConsoleReadOnlyFixturePatchListCollumnIDs::FaderGroupEnabled)
-	{
-		// Add the fixture group enabled checkbox
-		return GenerateCheckBoxRow();
+		SDMXReadOnlyFixturePatchListRow::Construct(
+			SDMXReadOnlyFixturePatchListRow::FArguments(),
+			InOwnerTable,
+			InItem);
 	}
 
-	return SDMXReadOnlyFixturePatchListRow::GenerateWidgetForColumn(ColumnName);
-}
+	TSharedRef<SWidget> SDMXControlConsoleFixturePatchListRow::GenerateWidgetForColumn(const FName& ColumnName)
+	{
+		if (ColumnName == FDMXControlConsoleReadOnlyFixturePatchListCollumnIDs::FaderGroupEnabled)
+		{
+			// Add the fixture group enabled checkbox
+			return GenerateCheckBoxRow();
+		}
 
-TSharedRef<SWidget> SDMXControlConsoleFixturePatchListRow::GenerateCheckBoxRow()
-{
-	return
-		SNew(SBorder)
-		.BorderImage(FAppStyle::GetBrush("NoBorder"))
-		[
-			SNew(SBox)
-			.WidthOverride(20.f)
-			.HeightOverride(20.f)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.Padding(2.f)
+		return SDMXReadOnlyFixturePatchListRow::GenerateWidgetForColumn(ColumnName);
+	}
+
+	TSharedRef<SWidget> SDMXControlConsoleFixturePatchListRow::GenerateCheckBoxRow()
+	{
+		return
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("NoBorder"))
 			[
-				SNew(SCheckBox)
-				.IsChecked_Lambda([this]()
+				SNew(SBox)
+				.WidthOverride(20.f)
+				.HeightOverride(20.f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Padding(2.f)
+				[
+					SNew(SCheckBox)
+					.IsChecked_Lambda([this]()
+						{
+							return RowModel->GetFaderGroupEnabledState();
+						})
+					.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
 					{
-						return RowModel->GetFaderGroupMutedState();
-					})
-				.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckBoxState)
-				{
-					bool bMuted = InCheckBoxState != ECheckBoxState::Checked;
-					RowModel->SetFaderGroupMuted(bMuted);
+						const bool bEnabled = InCheckBoxState == ECheckBoxState::Checked;
+						RowModel->SetFaderGroupEnabled(bEnabled);
 
-					OnFaderGroupMutedChanged.ExecuteIfBound();
-				})
-			]
-		];
+						OnFaderGroupMutedChanged.ExecuteIfBound();
+					})
+				]
+			];
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

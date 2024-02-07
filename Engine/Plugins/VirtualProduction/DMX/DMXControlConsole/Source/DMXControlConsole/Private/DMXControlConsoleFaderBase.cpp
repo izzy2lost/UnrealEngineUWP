@@ -78,13 +78,18 @@ void UDMXControlConsoleFaderBase::SetMaxValue(uint32 NewMaxValue)
 	Value = FMath::Clamp(Value, MinValue, MaxValue);
 }
 
-bool UDMXControlConsoleFaderBase::IsLocked()
+void UDMXControlConsoleFaderBase::SetEnabled(bool bEnable)
+{
+	bIsEnabled = bEnable;
+}
+
+bool UDMXControlConsoleFaderBase::IsLocked() const
 {
 	const UDMXControlConsoleControllerBase* ElementController = GetElementController();
 	return ElementController && ElementController->IsLocked();
 }
 
-void UDMXControlConsoleFaderBase::SetLock(bool bLock)
+void UDMXControlConsoleFaderBase::SetLocked(bool bLock)
 {
 	bIsLocked = bLock;
 }
