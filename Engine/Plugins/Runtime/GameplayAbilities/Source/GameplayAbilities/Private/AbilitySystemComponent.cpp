@@ -2507,6 +2507,8 @@ void UAbilitySystemComponent::Debug_Internal(FAbilitySystemComponentDebugInfo& I
 		}
 	}
 
+	DebugLine(Info, TEXT("Tip: Use the GameplayDebugger for enhanced functionality"), 4.0f, 0.0f);
+
 	FGameplayTagContainer OwnerTags;
 	GetOwnedGameplayTags(OwnerTags);
 
