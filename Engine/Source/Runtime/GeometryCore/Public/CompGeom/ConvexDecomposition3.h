@@ -75,18 +75,29 @@ struct FNegativeSpaceSampleSettings
 	// Attempt to keep negative space computation deterministic, at some additional runtime cost
 	bool bDeterministic = true;
 
+	// Whether to allow samples to be added inside the mesh, based on winding number. Can enabled for non-solid meshes; note the convex decomposition should then set bTreatAsSolid to false as well.
+	bool bAllowSamplesInsideMesh = false;
+
 	// @return the scale factor that has been applied by Rescale()
 	double GetAppliedScaleFactor() const
 	{
 		return AppliedScaleFactor;
 	}
 
+	UE_DEPRECATED(5.4, "Use SetResultTransform instead")
 	void Rescale(double ScaleFactor)
 	{
-		MinSpacing *= ScaleFactor;
-		ReduceRadiusMargin *= ScaleFactor;
-		MinRadius *= ScaleFactor;
-		AppliedScaleFactor *= ScaleFactor;
+		RescaleSettings(ScaleFactor);
+	}
+	
+	void SetResultTransform(FTransform InResultTransform)
+	{
+		RescaleSettings(ResultTransform.GetScale3D().X / InResultTransform.GetScale3D().X);
+		ResultTransform = InResultTransform;
+	}
+	FTransform GetResultTransform() const
+	{
+		return ResultTransform;
 	}
 
 	// Make sure the settings values are in valid ranges
@@ -103,6 +114,17 @@ private:
 
 	// Track how the settings have been rescaled
 	double AppliedScaleFactor = 1;
+
+	// Track how to transform back to the original space
+	FTransform ResultTransform = FTransform::Identity;
+	
+	void RescaleSettings(double ScaleFactor)
+	{
+		MinSpacing *= ScaleFactor;
+		ReduceRadiusMargin *= ScaleFactor;
+		MinRadius *= ScaleFactor;
+		AppliedScaleFactor *= ScaleFactor;
+	}
 };
 
 // Define a volume with a set of spheres
@@ -183,6 +205,12 @@ public:
 		}
 	}
 
+	void AddSphere(FVector3d InCenter, double InRadius)
+	{
+		Position.Add(InCenter);
+		Radius.Add(InRadius);
+	}
+
 private:
 	// Sphere centers
 	TArray<FVector3d> Position;
@@ -240,7 +268,7 @@ public:
 	 * @param Settings	Settings to use to find the negative space
 	 * @return			False on failure -- e.g., if there was no mesh available
 	 */
-	GEOMETRYCORE_API bool InitializeNegativeSpace(const FNegativeSpaceSampleSettings& Settings);
+	GEOMETRYCORE_API bool InitializeNegativeSpace(const FNegativeSpaceSampleSettings& Settings, TArrayView<const FVector3d> RequestedSamples = TArrayView<const FVector3d>());
 
 	//
 	// Settings
@@ -272,6 +300,16 @@ public:
 	// Larger values will cost more to run but can let the algorithm find a cleaner decomposition
 	int32 MaxConvexEdgePlanes = 50;
 
+	// Whether to, after each split, also detect whether a part is made up of disconnected pieces and further split them if so
+	bool bSplitDisconnectedComponents = true;
+
+	// Whether to treat the input mesh as a solid shape -- controls whether, e.g., a hole-fill is performed after splitting the mesh to close off the resulting parts
+	bool bTreatAsSolid = true;
+
+	// If greater than zero, we can 'inflate' the input shape by this amount along any degenerate axes in cases where the hull failed to construct due to the input being coplanar/colinear.
+	// Note: This should be less than the smallest tolerance used negative space spheres. Do not use this parameter to control minimum thickness of the output shapes; that can be better enforced later (after merges).
+	double ThickenAfterHullFailure = 0;
+
 
 	// If > 0, search for best merges will be restricted to a greedy local search after testing this many connections. Helpful when there are many potential merges.
 	int32 RestrictMergeSearchToLocalAfterTestNumConnections = -1;
@@ -296,7 +334,8 @@ public:
 	// Note: could return 0 if no splits were possible
 	// @param bCanSkipUnreliableGeoVolumes		if true, don't split hulls where we have questionable geometry volume results, unless there is no hull with good geometry volume results
 	// @param bOnlySplitIfNegativeSpaceCovered	if true, don't split hulls unless they overlap with some covered Negative Space (stored in the corresponding member variable)
-	GEOMETRYCORE_API int32 SplitWorst(bool bCanSkipUnreliableGeoVolumes = false, double ErrorTolerance = 0.0, bool bOnlySplitIfNegativeSpaceCovered = false);
+	// @param MinSplitSize						if > 0, don't split hulls with max bounds dimension lower than this
+	GEOMETRYCORE_API int32 SplitWorst(bool bCanSkipUnreliableGeoVolumes = false, double ErrorTolerance = 0.0, bool bOnlySplitIfNegativeSpaceCovered = false, double MinSplitSizeInWorldSpace = -1);
 
 	// Merge the pairs of convex hulls in the decomposition that will least increase the error.  Intermediate results can be used across merges, so it is best to do all merges in one call.
 	// Note: A future version of this function may replace NumOutputHulls with MaxOutputHulls, but this version keeps both parameters for compatibility / consistent behavior.
@@ -475,6 +514,7 @@ public:
 		FVector3d GeoCenter = FVector3d::ZeroVector; // Some central point of the geometry (e.g., an average of vertices)
 		FAxisAlignedBox3d Bounds;
 		bool bGeometryVolumeUnreliable = false;
+		bool bSplitFailed = false; // flag indicating that cutting has been attempted and failed, so the part should not be considered for splitting
 
 		// Flag indicating the hull should be merged into another part during a MergeBest() call
 		bool bMustMerge = false;
@@ -625,6 +665,9 @@ private:
 
 	// Negative space to attempt to protect; can be referenced by the Decomposition parts
 	FSphereCovering NegativeSpace;
+
+	// Helper to implement SplitWorst
+	bool SplitWorstHelper(bool bCanSkipUnreliableGeoVolumes, double ErrorTolerance, bool bOnlySplitIfNegativeSpaceCovered, double MinSplitSizeInWorldSpace);
 };
 
 } // end namespace UE::Geometry
