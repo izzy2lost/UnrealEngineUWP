@@ -468,6 +468,7 @@ FArchive& operator<<(FArchive& Ar, FActorInstanceHandle& Handle)
 	if (Ar.IsLoading())
 	{
 		Handle.ManagerInterface = FActorInstanceManagerInterface(WeakManagerObject.Get());
+		Handle.ResolutionStatus = FActorInstanceHandle::EResolutionStatus::Resolved;
 	}
 
 	return Ar;
