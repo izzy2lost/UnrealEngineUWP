@@ -1,21 +1,26 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionEditorStyle.h"
+#include "Brushes/SlateImageBrush.h"
 #include "AvaTransitionTree.h"
 #include "Interfaces/IPluginManager.h"
+#include "Layout/Margin.h"
 #include "Misc/Paths.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
 
 FAvaTransitionEditorStyle::FAvaTransitionEditorStyle()
-	: FSlateStyleSet(TEXT("AvaTransitionEditorStyle"))
+	: FSlateStyleSet(TEXT("AvaTransitionEditor"))
 {
 	const FVector2f Icon16(16.f);
 	const FVector2f Icon20(20.f);
 	const FVector2f Icon64(64.f);
 
-	ContentRootDir     = FPaths::EngineContentDir() / TEXT("Editor/Slate");
-	CoreContentRootDir = FPaths::EngineContentDir() / TEXT("Slate");
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
+	check(Plugin.IsValid());
+
+	SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
+	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
 	// Re-use the Behavior Tree Icon
 	Set("ClassIcon.AvaTransitionTree"     , new IMAGE_BRUSH("Icons/AssetIcons/BehaviorTree_16x", Icon16));
@@ -30,11 +35,6 @@ FAvaTransitionEditorStyle::FAvaTransitionEditorStyle()
 	Set("AvaTransitionEditorCommands.ReimportTransitionTree", new CORE_IMAGE_BRUSH_SVG("Starship/Common/import_20", Icon20));
 	Set("AvaTransitionEditorCommands.ExportTransitionTree"  , new CORE_IMAGE_BRUSH_SVG("Starship/Common/export_20", Icon20));
 	Set("AvaTransitionEditorCommands.ToggleDebug"           , new IMAGE_BRUSH_SVG("Starship/Common/Debug"         , Icon20));
-
-	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
-	check(Plugin.IsValid());
-
-	ContentRootDir = (FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
 
 	Set("DebugIndicatorBorder", new BOX_BRUSH("Images/NamespaceBorder", FMargin(0.25f)));
 

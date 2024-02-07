@@ -79,8 +79,6 @@ void FAvaMediaEditorModule::StartupModule()
 	FAvaPlaybackCommands::Register();
 	FAvaRundownCommands::Register();
 
-	FAvaMediaEditorStyle::Initialize();
-
 	if (FSlateApplication::IsInitialized())
 	{
 		AddEditorToolbarButtons();
@@ -156,7 +154,6 @@ void FAvaMediaEditorModule::ShutdownModule()
 		UnregisterCustomizations();
 	}
 
-	FAvaMediaEditorStyle::Shutdown();
 	FAvaPlaybackCommands::Unregister();
 	FAvaRundownCommands::Unregister();
 
@@ -199,13 +196,13 @@ FSlateIcon FAvaMediaEditorModule::GetToolbarBroadcastButtonIcon() const
 
 	if (MediaModule.IsMediaPlaybackClientStarted())
 	{
-		return FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastClient", "AvaMediaEditor.BroadcastClient.Small");
+		return FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), "AvaMediaEditor.BroadcastClient", "AvaMediaEditor.BroadcastClient.Small");
 	}
 	else if (MediaModule.IsMediaPlaybackServerStarted())
 	{
-		return FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastServer", "AvaMediaEditor.BroadcastServer.Small");
+		return FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), "AvaMediaEditor.BroadcastServer", "AvaMediaEditor.BroadcastServer.Small");
 	}
-	return FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
+	return FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
 }
 
 bool FAvaMediaEditorModule::CanFilterSupportComparisonOperation(const FName& InFilterKey, ETextFilterComparisonOperation InOperation, EAvaRundownSearchListType InRundownSearchListType) const

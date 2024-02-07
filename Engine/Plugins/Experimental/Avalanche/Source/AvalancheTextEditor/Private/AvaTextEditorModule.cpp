@@ -6,7 +6,6 @@
 #include "AvaTextActor.h"
 #include "AvaTextDefs.h"
 #include "AvaTextEditorCommands.h"
-#include "AvaTextEditorStyle.h"
 #include "DetailsView/AvaLinearGradientSettingsCustomization.h"
 #include "DetailsView/AvaTextAlignmentCustomization.h"
 #include "DetailsView/AvaTextComponentCustomization.h"
@@ -27,7 +26,6 @@ void FAvaTextEditorModule::StartupModule()
 {
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAvaTextEditorModule::PostEngineInit);
 
-	FAvaTextEditorStyle::Initialize();
 	FAvaTextEditorCommands::Register();
 	RegisterCustomLayouts();
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvaTextEditorModule::RegisterTools);
@@ -41,7 +39,6 @@ void FAvaTextEditorModule::ShutdownModule()
 {
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
-	FAvaTextEditorStyle::Shutdown();
 	FAvaTextEditorCommands::Unregister();
 
 	if (UObjectInitialized() && !IsEngineExitRequested())

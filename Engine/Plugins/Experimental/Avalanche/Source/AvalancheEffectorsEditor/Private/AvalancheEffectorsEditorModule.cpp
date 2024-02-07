@@ -21,7 +21,6 @@ void FAvalancheEffectorsEditorModule::StartupModule()
 {
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAvalancheEffectorsEditorModule::PostEngineInit);
 
-	FAvaEffectorsEditorStyle::Get();
 	FAvaEffectorsEditorCommands::Register();
 
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvalancheEffectorsEditorModule::RegisterTools);

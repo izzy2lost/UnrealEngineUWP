@@ -2,20 +2,17 @@
 
 #pragma once
 
-#include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 
-class FAvaEditorStyle : public FSlateStyleSet
+class FAvaEditorStyle final : public FSlateStyleSet
 {
 public:
-	static const FAvaEditorStyle& Get();
-
-	static void Shutdown();
+	static FAvaEditorStyle& Get()
+	{
+		static FAvaEditorStyle Instance;
+		return Instance;
+	}
 
 	FAvaEditorStyle();
-
-private:
-	static TSharedPtr<FAvaEditorStyle> StyleInstance;
-
-	void Init();
+	virtual ~FAvaEditorStyle() override;
 };

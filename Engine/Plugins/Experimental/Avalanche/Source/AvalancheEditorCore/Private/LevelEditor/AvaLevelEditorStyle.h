@@ -4,16 +4,15 @@
 
 #include "Styling/SlateStyle.h"
 
-class FAvaLevelEditorStyle : public FSlateStyleSet
+class FAvaLevelEditorStyle final : public FSlateStyleSet
 {
 public:
-	FAvaLevelEditorStyle();
-
-	virtual ~FAvaLevelEditorStyle() override;
-
 	static FAvaLevelEditorStyle& Get()
 	{
-		static FAvaLevelEditorStyle StyleSet;
-		return StyleSet;
+		static FAvaLevelEditorStyle Instance;
+		return Instance;
 	}
+
+	FAvaLevelEditorStyle();
+	virtual ~FAvaLevelEditorStyle() override;
 };

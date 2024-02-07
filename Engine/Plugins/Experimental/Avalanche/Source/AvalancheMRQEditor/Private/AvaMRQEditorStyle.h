@@ -4,16 +4,15 @@
 
 #include "Styling/SlateStyle.h"
 
-class FAvaMRQEditorStyle : public FSlateStyleSet
+class FAvaMRQEditorStyle final : public FSlateStyleSet
 {
 public:
-	FAvaMRQEditorStyle();
-
-	virtual ~FAvaMRQEditorStyle() override;
-
 	static FAvaMRQEditorStyle& Get()
 	{
-		static FAvaMRQEditorStyle StyleSet;
-		return StyleSet;
+		static FAvaMRQEditorStyle Instance;
+		return Instance;
 	}
+
+	FAvaMRQEditorStyle();
+	virtual ~FAvaMRQEditorStyle() override;
 };

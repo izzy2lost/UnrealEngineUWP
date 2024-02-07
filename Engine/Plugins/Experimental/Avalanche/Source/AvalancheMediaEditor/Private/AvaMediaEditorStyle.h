@@ -2,37 +2,17 @@
 
 #pragma once
 
-#include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 
-class UTexture2D;
-struct FSlateBrush;
-
-class FAvaMediaEditorStyle
+class FAvaMediaEditorStyle final : public FSlateStyleSet
 {
 public:
-
-	static void Initialize();
-
-	static void Shutdown();
-	
-	static const ISlateStyle& Get();
-
-	static FName GetStyleSetName();
-
-	static const FLinearColor& GetColor(FName PropertyName, const ANSICHAR* Specifier = nullptr);
-
-	static const FSlateBrush* GetBrush(FName PropertyName, const ANSICHAR* Specifier = nullptr);
-
-	template< typename WidgetStyleType >
-	static const WidgetStyleType& GetWidgetStyle(FName PropertyName, const ANSICHAR* Specifier = nullptr)
+	static FAvaMediaEditorStyle& Get()
 	{
-		return StyleInstance->GetWidgetStyle<WidgetStyleType>(PropertyName, Specifier);
+		static FAvaMediaEditorStyle Instance;
+		return Instance;
 	}
 
-private:
-
-	static TSharedRef<FSlateStyleSet> Create();
-	static TSharedPtr<FSlateStyleSet> StyleInstance;
-	static TMap<FName,UTexture2D*> Sprites;
+	FAvaMediaEditorStyle();
+	virtual ~FAvaMediaEditorStyle() override;
 };

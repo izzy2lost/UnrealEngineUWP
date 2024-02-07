@@ -27,7 +27,6 @@ namespace UE::AvalancheLevelViewport::Private
 
 void FAvalancheLevelViewportModule::StartupModule()
 {
-	FAvaLevelViewportStyle::Initialize();
 	FAvaLevelViewportCommands::Register();
 
 	ViewportCameraHistory = MakeShared<FAvaViewportCameraHistory>();
@@ -46,7 +45,6 @@ void FAvalancheLevelViewportModule::ShutdownModule()
 
 	ViewportCameraHistory.Reset();
 
-	FAvaLevelViewportStyle::Shutdown();
 	FAvaLevelViewportCommands::Unregister();
 
 	if (AvaLevelViewportClientCasterDelegateHandle.IsValid())

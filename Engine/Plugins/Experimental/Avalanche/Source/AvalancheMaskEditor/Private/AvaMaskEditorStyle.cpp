@@ -1,68 +1,34 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMaskEditorStyle.h"
-
-#include "Framework/Application/SlateApplication.h"
+#include "Brushes/SlateImageBrush.h"
 #include "Interfaces/IPluginManager.h"
+#include "Math/MathFwd.h"
+#include "Styling/AppStyle.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
 
-namespace UE::AvalancheMaskEditor::Private
+FAvaMaskEditorStyle::FAvaMaskEditorStyle()
+	: FSlateStyleSet(TEXT("AvaMaskEditor"))
 {
-	static FName NAME_StyleSet = TEXT("AvalancheMaskEditorStyle");
-}
+	const FVector2D Icon16x16(16.0f, 16.0f);
+	const FVector2D Icon20x20(20.0f, 20.0f);
 
-#define RootToContentDir Style->RootToContentDir
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
+	check(Plugin.IsValid());
 
-TSharedPtr<FSlateStyleSet> FAvalancheMaskEditorStyle::StyleInstance = nullptr;
+	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 
-void FAvalancheMaskEditorStyle::Initialize()
-{
-	if (!StyleInstance.IsValid())
-	{
-		StyleInstance = Create();
-		FSlateStyleRegistry::RegisterSlateStyle(*StyleInstance);
-	}
-}
-
-void FAvalancheMaskEditorStyle::Shutdown()
-{
-	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleInstance);
-	ensure(StyleInstance.IsUnique());
-	StyleInstance.Reset();
-}
-
-FName FAvalancheMaskEditorStyle::GetStyleSetName()
-{
-	return UE::AvalancheMaskEditor::Private::NAME_StyleSet;
-}
-
-const ISlateStyle& FAvalancheMaskEditorStyle::Get()
-{
-	return *StyleInstance;
-}
-
-const FVector2D Icon16x16(16.0f, 16.0f);
-const FVector2D Icon20x20(20.0f, 20.0f);
-const FVector2D Icon32x32(32.0f, 32.0f);
-
-TSharedRef<FSlateStyleSet> FAvalancheMaskEditorStyle::Create()
-{
-	TSharedRef<FSlateStyleSet> Style = MakeShared<FSlateStyleSet>(UE::AvalancheMaskEditor::Private::NAME_StyleSet);
-
-	FString ContentRoot = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME)->GetBaseDir() / TEXT("Resources");
-	Style->SetContentRoot(ContentRoot);
-
-	Style->Set("AvalancheMaskEditor.ToggleMaskMode.Small", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Mode_On"), Icon16x16));
-	Style->Set("AvalancheMaskEditor.ToggleMaskMode", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Mode_On"), Icon20x20));
-	Style->Set("AvalancheMaskEditor.ToggleShowAllMasks", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Disable"), Icon20x20));
-	Style->Set("AvalancheMaskEditor.ToggleDisableMask", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Disable"), Icon20x20));
-	Style->Set("AvalancheMaskEditor.ToggleIsolateMask", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Disable"), Icon20x20));
+	Set("AvalancheMaskEditor.ToggleMaskMode.Small", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Mode_On"), Icon16x16));
+	Set("AvalancheMaskEditor.ToggleMaskMode", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Mode_On"), Icon20x20));
+	Set("AvalancheMaskEditor.ToggleShowAllMasks", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Disable"), Icon20x20));
+	Set("AvalancheMaskEditor.ToggleDisableMask", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Disable"), Icon20x20));
+	Set("AvalancheMaskEditor.ToggleIsolateMask", new IMAGE_BRUSH_SVG(TEXT("Icons/MaskIcons/Disable"), Icon20x20));
 
 	{
-		FToolBarStyle ViewportOverlayToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("AssetEditorToolbar");
+		FToolBarStyle ViewportOverlayToolbarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>(TEXT("AssetEditorToolbar"));
 
 		ViewportOverlayToolbarStyle.SetButtonPadding(       FMargin(0.0f, 0.0f));
 		ViewportOverlayToolbarStyle.SetCheckBoxPadding(     FMargin(0.0f, 0.0f));
@@ -76,16 +42,13 @@ TSharedRef<FSlateStyleSet> FAvalancheMaskEditorStyle::Create()
 		ViewportOverlayToolbarStyle.SetButtonPadding(0);
 		ViewportOverlayToolbarStyle.SetCheckBoxPadding(0);
 		
-		Style->Set("AvalancheMaskEditor.ViewportOverlayToolbar", ViewportOverlayToolbarStyle);
+		Set("AvalancheMaskEditor.ViewportOverlayToolbar", ViewportOverlayToolbarStyle);
 	}
 	
-	return Style;
+	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 
-void FAvalancheMaskEditorStyle::ReloadTextures()
+FAvaMaskEditorStyle::~FAvaMaskEditorStyle()
 {
-	if (FSlateApplication::IsInitialized())
-	{
-		FSlateApplication::Get().GetRenderer()->ReloadTextureResources();
-	}
+	FSlateStyleRegistry::UnRegisterSlateStyle(*this);
 }

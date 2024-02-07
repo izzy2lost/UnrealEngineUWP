@@ -4,7 +4,6 @@
 
 #include "Application/ThrottleManager.h"
 #include "AvaMediaSettings.h"
-#include "AvaMediaStyle.h"
 #include "Broadcast/OutputDevices/AvaBroadcastRenderTargetMediaUtils.h"
 #include "IMediaIOCoreModule.h"
 #include "Interfaces/IPluginManager.h"
@@ -37,7 +36,6 @@ void FAvaMediaModule::StartupModule()
 {
 	using namespace UE::AvaMediaModule::Private;
 	
-	FAvaMediaStyle::Initialize();
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 
@@ -157,8 +155,6 @@ void FAvaMediaModule::ShutdownModule()
 	
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
-	
-	FAvaMediaStyle::Shutdown();
 
 	if (IMediaIOCoreModule::IsAvailable())
 	{

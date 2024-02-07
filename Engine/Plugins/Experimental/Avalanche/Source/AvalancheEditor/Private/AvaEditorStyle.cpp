@@ -1,46 +1,27 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEditorStyle.h"
+#include "Brushes/SlateColorBrush.h"
 #include "Brushes/SlateImageBrush.h"
-#include "Engine/Texture2D.h"
-#include "Framework/Application/SlateApplication.h"
+#include "Brushes/SlateNoResource.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Containers/StringFwd.h"
 #include "Interfaces/IPluginManager.h"
-#include "MediaPlate.h"
+#include "Layout/Margin.h"
+#include "Math/MathFwd.h"
+#include "Misc/Paths.h"
 #include "SlateOptMacros.h"
 #include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
 #include "Styling/SlateIconFinder.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/StyleColors.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateStyleRegistry.h"
-
-TSharedPtr<FAvaEditorStyle> FAvaEditorStyle::StyleInstance = nullptr;
-
-void FAvaEditorStyle::Shutdown()
-{
-	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleInstance);
-	ensure(StyleInstance.IsUnique());
-	StyleInstance.Reset();
-}
-
-const FAvaEditorStyle& FAvaEditorStyle::Get()
-{
-	if (!StyleInstance.IsValid())
-	{
-		StyleInstance = MakeShared<FAvaEditorStyle>();
-		FSlateStyleRegistry::RegisterSlateStyle(*StyleInstance);
-	}
-
-	return *StyleInstance;
-}
+#include "Styling/SlateTypes.h"
 
 FAvaEditorStyle::FAvaEditorStyle()
-	: FSlateStyleSet(TEXT("AvalancheEditor"))
-{
-	Init();
-}
-
-namespace UE::AvalancheEditor::Private
+	: FSlateStyleSet(TEXT("AvaEditor"))
 {
 	const FVector2f Icon16(16.f);
 	const FVector2f Icon20(20.f);
@@ -48,23 +29,11 @@ namespace UE::AvalancheEditor::Private
 	const FVector2f Icon25(25.f);
 	const FVector2f Icon32(32.f);
 	const FVector2f Icon40(40.f);
-	const FVector2f Icon64(64.f);
-}
 
-BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
-void FAvaEditorStyle::Init()
-{
-	using namespace UE::AvalancheEditor::Private;
-
-	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Avalanche"));
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 
-	if (Plugin.IsValid())
-	{
-		SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
-	}
-
+	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
 
 	// Custom Class Icons
@@ -277,6 +246,11 @@ void FAvaEditorStyle::Init()
 	const FCheckBoxStyle& AppStyle_RadioButton = FAppStyle::GetWidgetStyle<FCheckBoxStyle>("RadioButton");
 	Set("AvalancheEditor.BlackRadioButton", FCheckBoxStyle(AppStyle_RadioButton)
 		.SetBackgroundImage(*GetBrush("AvalancheIcons.Editor.Radio.BlackBackground")));
+
+	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 
-END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+FAvaEditorStyle::~FAvaEditorStyle()
+{
+	FSlateStyleRegistry::UnRegisterSlateStyle(*this);
+}

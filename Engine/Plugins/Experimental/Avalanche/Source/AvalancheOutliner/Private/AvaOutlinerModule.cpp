@@ -21,7 +21,7 @@
 
 void FAvaOutlinerModule::StartupModule()
 {
-	FAvaOutlinerStyle::Initialize();
+	FAvaOutlinerStyle::Get();
 	FAvaOutlinerCommands::Register();
 	ItemProxyRegistry.RegisterItemProxyWithDefaultFactory<FAvaOutlinerMaterialProxy, 10>();
 	ItemProxyRegistry.RegisterItemProxyWithDefaultFactory<FAvaOutlinerComponentProxy, 20>();
@@ -32,7 +32,6 @@ void FAvaOutlinerModule::StartupModule()
 
 void FAvaOutlinerModule::ShutdownModule()
 {
-	FAvaOutlinerStyle::Shutdown();
 	FAvaOutlinerCommands::Unregister();
 }
 

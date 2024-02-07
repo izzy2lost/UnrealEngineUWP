@@ -1,24 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEaseCurveStyle.h"
-
-#include "Framework/Application/SlateApplication.h"
-#include "Interfaces/IPluginManager.h"
 #include "Brushes/SlateImageBrush.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
+#include "Interfaces/IPluginManager.h"
+#include "Fonts/SlateFontInfo.h"
+#include "Layout/Margin.h"
 #include "Styling/AppStyle.h"
-#include "Styling/SlateStyle.h"
+#include "Styling/CoreStyle.h"
+#include "Styling/StyleColors.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/SlateTypes.h"
-#include "Styling/StyleColors.h"
 
 FAvaEaseCurveStyle::FAvaEaseCurveStyle()
-	: FSlateStyleSet(TEXT("AvaEaseCurveStyle"))
+	: FSlateStyleSet(TEXT("EaseCurveTool"))
 {
-	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Avalanche"));
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 	
-	SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
+	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 
 	Set("Preset.Selected", new FSlateRoundedBoxBrush(FStyleColors::Transparent, FVector4(4.f, 0.f, 0.f, 4.f), FStyleColors::Select.GetSpecifiedColor(), 1.f));
 

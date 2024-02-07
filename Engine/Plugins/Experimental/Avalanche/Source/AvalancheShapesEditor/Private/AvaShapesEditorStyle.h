@@ -2,24 +2,17 @@
 
 #pragma once
 
-#include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 
-struct FSlateBrush;
-
-class FAvaShapesEditorStyle
+class FAvaShapesEditorStyle final : public FSlateStyleSet
 {
 public:
-	static void Initialize();
-	static void Shutdown();
+	static FAvaShapesEditorStyle& Get()
+	{
+		static FAvaShapesEditorStyle Instance;
+		return Instance;
+	}
 
-	static FName GetStyleSetName();
-	static const ISlateStyle& Get();
-
-	static const FSlateBrush* GetBrush(FName PropertyName, const ANSICHAR* Specifier = nullptr);
-
-private:
-	static TSharedPtr<FSlateStyleSet> StyleInstance;
-
-	static TSharedRef<FSlateStyleSet> Create();
+	FAvaShapesEditorStyle();
+	virtual ~FAvaShapesEditorStyle() override;
 };

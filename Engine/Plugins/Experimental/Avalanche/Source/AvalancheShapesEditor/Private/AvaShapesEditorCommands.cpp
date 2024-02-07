@@ -10,7 +10,7 @@ FAvaShapesEditorCommands::FAvaShapesEditorCommands()
 		TEXT("AvalancheShapesEditor")
 		, LOCTEXT("MotionDesignShapesEditor", "Motion Design Shapes Editor")
 		, NAME_None
-		, FAvaShapesEditorStyle::GetStyleSetName()
+		, FAvaShapesEditorStyle::Get().GetStyleSetName()
 	)
 {
 }

@@ -4,7 +4,6 @@
 #include "AvaInteractiveToolsDelegates.h"
 #include "AvaShapeActor.h"
 #include "AvaShapesEditorCommands.h"
-#include "AvaShapesEditorStyle.h"
 #include "ComponentVisualizers.h"
 #include "Engine/Texture2D.h"
 #include "IAvalancheComponentVisualizersModule.h"
@@ -82,7 +81,6 @@ FAvalancheShapesEditorModule& FAvalancheShapesEditorModule::Get()
 
 void FAvalancheShapesEditorModule::StartupModule()
 {
-	FAvaShapesEditorStyle::Initialize();
 	FAvaShapesEditorCommands::Register();
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().AddRaw(this, &FAvalancheShapesEditorModule::RegisterShapeTools);
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAvalancheShapesEditorModule::RegisterVisualizers);
@@ -119,7 +117,6 @@ void FAvalancheShapesEditorModule::StartupModule()
 
 void FAvalancheShapesEditorModule::ShutdownModule()
 {
-	FAvaShapesEditorStyle::Shutdown();
 	FAvaShapesEditorCommands::Unregister();
 	FAvaInteractiveToolsDelegates::GetRegisterToolsDelegate().RemoveAll(this);
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);

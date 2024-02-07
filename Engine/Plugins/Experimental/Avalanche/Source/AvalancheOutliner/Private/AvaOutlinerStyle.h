@@ -2,31 +2,17 @@
 
 #pragma once
 
-#include "Styling/ISlateStyle.h"
 #include "Styling/SlateStyle.h"
 
-struct FLinearColor;
-struct FSlateBrush;
-
-class FAvaOutlinerStyle
+class FAvaOutlinerStyle final : public FSlateStyleSet
 {
 public:
-	static void Initialize();
-	static void Shutdown();
-
-	static FName GetStyleSetName();
-	static const ISlateStyle& Get();
-
-	static const FLinearColor& GetColor(FName InPropertyName, const ANSICHAR* InSpecifier = nullptr);
-	static const FSlateBrush* GetBrush(FName InPropertyName, const ANSICHAR* InSpecifier = nullptr);
-
-	template<typename InWidgetStyleType>
-	static const InWidgetStyleType& GetWidgetStyle(FName InPropertyName, const ANSICHAR* InSpecifier = nullptr)
+	static FAvaOutlinerStyle& Get()
 	{
-		return StyleInstance->GetWidgetStyle<InWidgetStyleType>(InPropertyName, InSpecifier);
+		static FAvaOutlinerStyle Instance;
+		return Instance;
 	}
 
-private:
-	static TSharedRef<FSlateStyleSet> Create();
-	static TSharedPtr<FSlateStyleSet> StyleInstance;
+	FAvaOutlinerStyle();
+	virtual ~FAvaOutlinerStyle() override;
 };

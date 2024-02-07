@@ -29,9 +29,6 @@ IMPLEMENT_MODULE(FAvaTransitionEditorModule, AvalancheTransitionEditor)
 
 void FAvaTransitionEditorModule::StartupModule()
 {
-	// Trigger Registration of the Style on Module Startup
-	FAvaTransitionEditorStyle::Get();
-
 #if WITH_STATETREE_DEBUGGER
 	FAvaTransitionTraceModule::Startup();
 #endif

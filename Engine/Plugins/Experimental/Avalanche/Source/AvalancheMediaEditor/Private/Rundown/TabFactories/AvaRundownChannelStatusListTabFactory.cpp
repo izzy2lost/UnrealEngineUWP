@@ -13,7 +13,7 @@ FAvaRundownChannelStatusListTabFactory::FAvaRundownChannelStatusListTabFactory(c
 	: FAvaRundownTabFactory(TabID, InRundownEditor)
 {
 	TabLabel = LOCTEXT("ChannelStatus_TabLabel", "Channel Status");
-	TabIcon = FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
+	TabIcon = FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), TEXT("AvaMediaEditor.BroadcastIcon"));
 
 	bIsSingleton = true;
 	bShouldAutosize = true;

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaTransitionCommands.h"
+
+#include "AvaTransitionEditorStyle.h"
 #include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionEditorCommands"
@@ -9,7 +11,7 @@ FAvaTransitionEditorCommands::FAvaTransitionEditorCommands()
 	: TCommands(TEXT("AvaTransitionEditorCommands")
 	, LOCTEXT("AvaTransitionEditor", "Motion Design Transition Logic Editor")
 	, NAME_None
-	, TEXT("AvaTransitionEditorStyle"))
+	, FAvaTransitionEditorStyle::Get().GetStyleSetName())
 {
 }
 

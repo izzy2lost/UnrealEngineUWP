@@ -5,7 +5,6 @@
 #include "AvaEditorActorUtils.h"
 #include "AvaEditorCommands.h"
 #include "AvaEditorIntegration.h"
-#include "AvaEditorStyle.h"
 #include "AvaShapeActor.h"
 #include "Components/LightComponentBase.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
@@ -88,7 +87,6 @@ namespace UE::AvalancheEditor::Private
 
 void FAvaEditorModule::StartupModule()
 {
-	FAvaEditorStyle::Get(); // Initialises
 	FAvaEditorCommands::Register();
 
 	// Add the menu subsection
@@ -116,7 +114,6 @@ void FAvaEditorModule::StartupModule()
 
 void FAvaEditorModule::ShutdownModule()
 {
-	FAvaEditorStyle::Shutdown();
 	FAvaEditorCommands::Unregister();
 
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);

@@ -4,7 +4,6 @@
 #include "AvaInteractiveToolsCommands.h"
 #include "AvaInteractiveToolsDelegates.h"
 #include "AvaInteractiveToolsSettings.h"
-#include "AvaInteractiveToolsStyle.h"
 #include "Builders/AvaInteractiveToolsActorToolBuilder.h"
 #include "Interfaces/IPluginManager.h"
 #include "IPlacementModeModule.h"
@@ -23,7 +22,6 @@ namespace UE::AvalancheInteractiveTools::Private
 
 void FAvalancheInteractiveToolsModule::StartupModule()
 {
-	FAvaInteractiveToolsStyle::Initialize();
 	FAvaInteractiveToolsCommands::Register();
 	bHasActiveTool = false;
 
@@ -39,7 +37,6 @@ void FAvalancheInteractiveToolsModule::StartupModule()
 
 void FAvalancheInteractiveToolsModule::ShutdownModule()
 {
-	FAvaInteractiveToolsStyle::Shutdown();
 	FAvaInteractiveToolsCommands::Unregister();
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 }

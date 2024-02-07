@@ -4,7 +4,6 @@
 
 #include "AvaMaskEditorCommands.h"
 #include "AvaMaskEditorMode.h"
-#include "AvaMaskEditorStyle.h"
 #include "AvaMaskEditorSubsystem.h"
 #include "EditorModeManager.h"
 #include "Templates/SharedPointer.h"
@@ -16,7 +15,6 @@
 
 void FAvalancheMaskEditorModule::StartupModule()
 {
-	FAvalancheMaskEditorStyle::Initialize();
 	FAvaMaskEditorCommands::Register();
 
 	CommandList = MakeShared<FUICommandList>();
@@ -29,7 +27,6 @@ void FAvalancheMaskEditorModule::ShutdownModule()
 	UToolMenus::UnRegisterStartupCallback(this);
 	UToolMenus::UnregisterOwner(this);
 	
-	FAvalancheMaskEditorStyle::Shutdown();
 	FAvaMaskEditorCommands::Unregister();
 }
 
@@ -73,7 +70,7 @@ void FAvalancheMaskEditorModule::RegisterMenus()
 			{
 				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleMaskMode));				
 				Entry.Label.Set(FText::GetEmpty());
-				Entry.Icon.Set(FSlateIcon(FAvalancheMaskEditorStyle::GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleMaskMode.Small")));
+				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleMaskMode.Small")));
 				
 				Entry.SetCommandList(CommandList);
 			}
