@@ -13,3 +13,4 @@
 #include "HairStrands/HairStrandsDeepShadowCommonStruct.ush"
 
 #include "/Engine/Shared/LightSceneData.h"
+#include "/Engine/Shared/RayTracingTypes.h"
