@@ -245,6 +245,13 @@ struct FPropertyAccessEditorSystem
 				}
 
 				InContext.CurrentStruct = Segment.Struct;
+#if WITH_EDITOR
+				if (InContext.CurrentStruct && InContext.CurrentStruct->IsA<UClass>())
+				{
+					// Try to use the skeleton class if possible in editor as the regular class may have yet to be compiled
+					InContext.CurrentStruct = FBlueprintEditorUtils::GetMostUpToDateClass(CastChecked<UClass>(InContext.CurrentStruct));
+				}
+#endif
 			}
 
 			if(InContext.Segments.Num() > 0)

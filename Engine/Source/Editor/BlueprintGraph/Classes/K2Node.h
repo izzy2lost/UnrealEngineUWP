@@ -430,6 +430,9 @@ public:
 
 	/** Return whether this node references the specified variable, give the supplied scope. Used when variable types are changed. */
 	virtual bool ReferencesVariable(const FName& InVarName, const UStruct* InScope) const { return false; }
+
+	/** Handle when a function is renamed in the Blueprint Palette */
+	virtual void HandleFunctionRenamed(UBlueprint* InBlueprint, UClass* InFunctionClass, UEdGraph* InGraph, const FName& InOldFuncName, const FName& InNewFuncName) {}
 	
 	/** Return whether this node references the specified function, identified by a name and guid pair **/
 	virtual bool ReferencesFunction(const FName& InFunctionName, const UStruct* InScope) const { return false; };

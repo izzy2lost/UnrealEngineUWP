@@ -318,6 +318,34 @@ static bool RenameVariableReferencesInGraph(UBlueprint* InBlueprint, UClass* InV
 	return bFoundReference;
 }
 
+
+/**
+ * Looks through the specified graph for any references to the specified 
+ * function, and renames them accordingly.
+ * 
+ * @param  InBlueprint		The blueprint that you want to search through.
+ * @param  InFunctionClass	The class that owns the function that we're renaming
+ * @param  InGraph			Graph to scope the rename to
+ * @param  InOldFuncName	The current name of the function we want to replace
+ * @param  InNewFuncName	The name that we wish to change all references to
+ */
+static bool RenameFunctionReferencesInGraph(UBlueprint* InBlueprint, UClass* InFunctionClass, UEdGraph* InGraph, const FName& InOldFuncName, const FName& InNewFuncName)
+{
+	bool bFoundReference = false;
+
+	for(UEdGraphNode* GraphNode : InGraph->Nodes)
+	{
+		// Allow node to handle function renaming
+		if (UK2Node* const K2Node = Cast<UK2Node>(GraphNode))
+		{
+			bFoundReference |= K2Node->ReferencesFunction(InOldFuncName, nullptr);
+			K2Node->HandleFunctionRenamed(InBlueprint, InFunctionClass, InGraph, InOldFuncName, InNewFuncName);
+		}
+	}
+
+	return bFoundReference;
+}
+
 /**
  * Gathers all variable nodes from all graph's subgraph nodes
  *
@@ -354,6 +382,25 @@ void FBlueprintEditorUtils::RenameVariableReferences(UBlueprint* Blueprint, UCla
 	}
 
 	OnRenameVariableReferencesEvent.Broadcast(Blueprint, VariableClass, OldVarName, NewVarName);
+}
+
+FBlueprintEditorUtils::FOnRenameFunctionReferences FBlueprintEditorUtils::OnRenameFunctionReferencesEvent;
+
+void FBlueprintEditorUtils::RenameFunctionReferences(UBlueprint* Blueprint, UClass* FunctionClass, const FName& OldFuncName, const FName& NewFuncName)
+{
+	TArray<UEdGraph*> AllGraphs;
+	Blueprint->GetAllGraphs(AllGraphs);
+
+	// Update any graph nodes that reference the old function name to instead reference the new name
+	for(UEdGraph* CurrentGraph : AllGraphs)
+	{
+		if (RenameFunctionReferencesInGraph(Blueprint, FunctionClass, CurrentGraph, OldFuncName, NewFuncName))
+		{
+			MarkBlueprintAsModified(Blueprint);
+		}
+	}
+
+	OnRenameFunctionReferencesEvent.Broadcast(Blueprint, FunctionClass, OldFuncName, NewFuncName);
 }
 
 //////////////////////////////////////
@@ -2651,6 +2698,9 @@ void FBlueprintEditorUtils::RenameGraph(UEdGraph* Graph, const FString& NewNameS
 				}
 			}
 		}
+
+		// Replace any other nodes that reference this function
+		ReplaceFunctionReferences(Blueprint, OldGraphName, NewGraphName);
 
 		// We should let the blueprint know we renamed a graph, some stuff may need to be fixed up.
 		Blueprint->NotifyGraphRenamed(Graph, OldGraphName, NewGraphName);
@@ -5704,6 +5754,21 @@ void FBlueprintEditorUtils::ReplaceVariableReferences(UBlueprint* Blueprint, con
 {
 	check((OldVariable != nullptr) && (NewVariable != nullptr));
 	ReplaceVariableReferences(Blueprint, OldVariable->GetFName(), NewVariable->GetFName());
+}
+
+void FBlueprintEditorUtils::ReplaceFunctionReferences(UBlueprint* Blueprint, const FName OldName, const FName NewName)
+{
+	check((OldName != NAME_None) && (NewName != NAME_None));
+
+	FBlueprintEditorUtils::RenameFunctionReferences(Blueprint, Blueprint->GeneratedClass, OldName, NewName);
+
+	TArray<UBlueprint*> Dependents;
+	FindDependentBlueprints(Blueprint, Dependents);
+
+	for (UBlueprint* DependentBp : Dependents)
+	{
+		FBlueprintEditorUtils::RenameFunctionReferences(DependentBp, Blueprint->GeneratedClass, OldName, NewName);
+	}
 }
 
 bool FBlueprintEditorUtils::IsVariableComponent(const FBPVariableDescription& Variable)
