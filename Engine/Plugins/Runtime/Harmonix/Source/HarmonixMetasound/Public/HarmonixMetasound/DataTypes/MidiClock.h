@@ -203,7 +203,6 @@ namespace HarmonixMetasound
 		//*****************************************************************************************
 
 		void WriteAdvance(int32 StartFrameIndex, int32 EndFrameIndex, float InSpeed = 1.0f);
-		void WriteNoAdvance(int32 StartFrameIndex, int32 EndFrameIndex);
 		void SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget, int32 InPrerollBars);
 		// copy speed and tempo changes from in clock to this clock
 		// with an optional Speed multiplier to adjust the out going speed on this clock

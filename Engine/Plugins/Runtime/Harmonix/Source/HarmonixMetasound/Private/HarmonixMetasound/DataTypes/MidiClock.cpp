@@ -486,12 +486,6 @@ namespace HarmonixMetasound
 		FramesUntilNextProcess -= FramesToProcess;
 	}
 
-	void FMidiClock::WriteNoAdvance(int32 StartFrameIndex, int32 EndFrameIndex)
-	{
-		EMusicPlayerTransportState ClockTransport = GetTransportStateAtBlockSampleFrame(StartFrameIndex);
-		check(ClockTransport != EMusicPlayerTransportState::Playing);
-	}
-
 	void FMidiClock::SeekTo(int32 BlockFrameIndex, const FMusicSeekTarget& InTarget, int32 InPrerollBars)
 	{
 		CurrentBlockFrameIndex = BlockFrameIndex;

@@ -420,11 +420,9 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Invalid:
 			case EMusicPlayerTransportState::Preparing:
 				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Prepared);
-				DrivingMidiClock.WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 				return EMusicPlayerTransportState::Prepared;
 
 			case EMusicPlayerTransportState::Prepared:
-				DrivingMidiClock.WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 				return CurrentState;
 
 			case EMusicPlayerTransportState::Starting:
@@ -458,21 +456,17 @@ namespace HarmonixMetasound
 
 			case EMusicPlayerTransportState::Pausing:
 				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Paused);
-				DrivingMidiClock.WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 				return EMusicPlayerTransportState::Paused;
 
 			case EMusicPlayerTransportState::Paused:
-				DrivingMidiClock.WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 				return EMusicPlayerTransportState::Paused;
 
 			case EMusicPlayerTransportState::Stopping:
 				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Prepared);
-				DrivingMidiClock.WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 				return EMusicPlayerTransportState::Prepared;
 
 			case EMusicPlayerTransportState::Killing:
 				AddTransportStateChangeToMidiClock(StartFrameIndex, EMusicPlayerTransportState::Prepared);
-				DrivingMidiClock.WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 				return EMusicPlayerTransportState::Prepared;
 
 			default:

@@ -579,16 +579,12 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Preparing:
 				// midi clock out
 				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Prepared });
-				MidiClockOut->WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 
 				// midi out
 				MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Prepared);
 				return EMusicPlayerTransportState::Prepared;
 
 			case EMusicPlayerTransportState::Prepared:
-				// midi clock out
-				MidiClockOut->WriteNoAdvance(StartFrameIndex, EndFrameIndex);
-
 				// midi out
 				MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, CurrentState);
 				return CurrentState;
@@ -622,22 +618,17 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Pausing:
 				// midi clock out
 				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Paused });
-				MidiClockOut->WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 
 				// midi out
 				return EMusicPlayerTransportState::Paused;
 
 			case EMusicPlayerTransportState::Paused:
-				// midi clock out
-				MidiClockOut->WriteNoAdvance(StartFrameIndex, EndFrameIndex);
-
 				// midi out
 				return EMusicPlayerTransportState::Paused;
 
 			case EMusicPlayerTransportState::Stopping:
 				// midi clock out
 				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Prepared });
-				MidiClockOut->WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 
 				// midi out
 				MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Stopping);
@@ -646,7 +637,6 @@ namespace HarmonixMetasound
 			case EMusicPlayerTransportState::Killing:
 				// midi clock out
 				MidiClockOut->AddTransportStateChangeToBlock({ StartFrameIndex, 0.0f, EMusicPlayerTransportState::Prepared });
-				MidiClockOut->WriteNoAdvance(StartFrameIndex, EndFrameIndex);
 
 				// midi out
 				MidiOutPin->AddTransportStateChangeMessage(StartFrameIndex, EMusicPlayerTransportState::Killing);
