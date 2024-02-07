@@ -10,6 +10,9 @@
 #include "Misc/Paths.h"
 #include "PluginReferenceDescriptor.h"
 
+#include "Dom/JsonObject.h"
+#include "Dom/JsonValue.h"
+
 DEFINE_LOG_CATEGORY(LogAssetReferenceRestrictions);
 
 #define LOCTEXT_NAMESPACE "AssetReferencingPolicy"
@@ -243,7 +246,16 @@ void FDomainDatabase::RebuildFromScratch()
 	TArray<TSharedRef<IPlugin>> EnabledPlugins = IPluginManager::Get().GetEnabledPlugins();
 	for (const TSharedRef<IPlugin>& Plugin : EnabledPlugins)
 	{
-		if (Plugin->CanContainContent())
+		// Temporary until NoGameFeatureContent is removed. Don't add dependencies for GFPs that have no content
+		// other than the GameFeatureData
+		bool bNoGameFeatureContent = false;
+		Plugin->GetDescriptorJson()->TryGetBoolField(TEXT("NoGameFeatureContent"), bNoGameFeatureContent);
+		
+		if (bNoGameFeatureContent)
+		{
+			BuildUnrestrictedDomainFromPlugin(Plugin);
+		}
+		else if (Plugin->CanContainContent())
 		{
 			BuildDomainFromPlugin(Plugin);
 		}
@@ -444,6 +456,18 @@ void FDomainDatabase::BuildDomainFromPlugin(TSharedRef<IPlugin> Plugin)
 			}
 		}
 	}
+}
+
+void FDomainDatabase::BuildUnrestrictedDomainFromPlugin(TSharedRef<IPlugin> Plugin)
+{
+	const FString NewDomainName = Plugin->GetName();
+	DomainsDefinedByPlugins.Add(NewDomainName);
+
+	TSharedPtr<FDomainData> Domain = FindOrAddDomainByName(NewDomainName);
+
+	Domain->Reset();
+	Domain->DomainRootPaths.Add(Plugin->GetMountedAssetPath());
+	Domain->bCanBeSeenByEverything = true;
 }
 
 void FDomainDatabase::ValidateAllDomains()
