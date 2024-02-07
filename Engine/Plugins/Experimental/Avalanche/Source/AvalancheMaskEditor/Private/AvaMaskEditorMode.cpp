@@ -78,22 +78,22 @@ void UAvaMaskEditorMode::Enter()
     		static FName ToolkitOverlayMenuName = UE::AvalancheMaskEditor::Internal::ToolkitOverlayMenuName;
     		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(ToolkitOverlayMenuName);
     		Menu->SetStyleSet(&FAvaMaskEditorStyle::Get());
-    		Menu->StyleName = TEXT("AvalancheMaskEditor.ViewportOverlayToolbar");
+    		Menu->StyleName = TEXT("AvaMaskEditor.ViewportOverlayToolbar");
     		{
     			FToolMenuSection& Section = Menu->FindOrAddSection(TEXT("Default"));
     			{
     				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleShowAllMasks));
-    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleShowAllMasks")));
+    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvaMaskEditor.ToggleShowAllMasks")));
     			}
     
     			{
     				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleEnableMask));
-    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleDisableMask")));
+    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvaMaskEditor.ToggleDisableMask")));
     			}
     
     			{
     				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleIsolateMask));
-    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleIsolateMask")));
+    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvaMaskEditor.ToggleIsolateMask")));
     			}
     		}
     
@@ -128,7 +128,7 @@ void UAvaMaskEditorMode::Enter()
 						.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
 						[
 							SNew(SImage)
-							.Image(FAvaMaskEditorStyle::Get().GetBrush(TEXT("AvalancheMaskEditor.ToggleMaskMode")))
+							.Image(FAvaMaskEditorStyle::Get().GetBrush(TEXT("AvaMaskEditor.ToggleMaskMode")))
 						]
 
 						+SHorizontalBox::Slot()

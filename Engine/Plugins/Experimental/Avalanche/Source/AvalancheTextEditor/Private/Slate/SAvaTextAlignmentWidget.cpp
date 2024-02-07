@@ -92,7 +92,7 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 TSharedRef<SButton> SAvaTextAlignmentWidget::GetHorizontalAlignmentButton(TSharedPtr<SButton>& OutButton, EText3DHorizontalTextAlignment InHorizontalAlignment, FName Image, FText Tooltip)
 {
-	const ISlateStyle* AvalancheEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvalancheEditor");
+	const ISlateStyle* AvalancheEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvaEditor");
 
 	OutButton = SNew(SButton)
 		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
@@ -111,7 +111,7 @@ TSharedRef<SButton> SAvaTextAlignmentWidget::GetHorizontalAlignmentButton(TShare
 
 TSharedRef<SButton> SAvaTextAlignmentWidget::GetVerticalAlignmentButton(TSharedPtr<SButton>& OutButton, EText3DVerticalTextAlignment InVerticalAlignment, FName Image, FText Tooltip)
 {
-	const ISlateStyle* AvalancheEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvalancheEditor");
+	const ISlateStyle* AvalancheEditorStyle = FSlateStyleRegistry::FindSlateStyle("AvaEditor");
 
 	OutButton = SNew(SButton)
 		.ButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton"))
