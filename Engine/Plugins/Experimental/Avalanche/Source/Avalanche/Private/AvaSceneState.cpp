@@ -4,7 +4,7 @@
 #include "AvaSceneSettings.h"
 #include "AvaTagHandle.h"
 
-void UAvaSceneState::OnBeginPlay(UAvaSceneSettings* InSceneSettings)
+void UAvaSceneState::SetSceneSettings(UAvaSceneSettings* InSceneSettings)
 {
 	SceneSettingsWeak = InSceneSettings;
 }

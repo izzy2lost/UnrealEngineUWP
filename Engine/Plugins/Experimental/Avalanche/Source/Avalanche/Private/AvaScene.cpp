@@ -62,6 +62,11 @@ AAvaScene::AAvaScene()
 
 	SceneState = CreateDefaultSubobject<UAvaSceneState>(TEXT("SceneState"));
 
+	if (SceneState)
+	{
+		SceneState->SetSceneSettings(SceneSettings);
+	}
+
 	RemoteControlPreset = CreateDefaultSubobject<URemoteControlPreset>(TEXT("RemoteControlPreset"));
 
 	StartupCameraName = NAME_None;
@@ -243,16 +248,6 @@ void AAvaScene::RebuildSequenceTree()
 {
 	bPendingAnimTreeUpdate = false;
 	IAvaSequenceProvider::RebuildSequenceTree();
-}
-
-void AAvaScene::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (SceneState)
-	{
-		SceneState->OnBeginPlay(SceneSettings);
-	}
 }
 
 void AAvaScene::PostActorCreated()

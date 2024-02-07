@@ -82,7 +82,6 @@ public:
 	//~ End IAvaSequenceProvider
 
 	//~ Begin AActor
-	virtual void BeginPlay() override;
 	virtual void PostActorCreated() override;
 #if WITH_EDITOR
 	virtual bool IsSelectable() const override { return false; }
