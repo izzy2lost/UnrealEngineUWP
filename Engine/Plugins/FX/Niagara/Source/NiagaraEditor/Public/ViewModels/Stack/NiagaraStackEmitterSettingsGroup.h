@@ -100,7 +100,7 @@ public:
 
 protected:
 	virtual bool GetShouldShowInStack() const override { return false; }
-	virtual bool GetShouldShowInOverview() const override { return false; }
+	virtual bool GetShouldShowInOverview() const override { return true; }
 	
 	NIAGARAEDITOR_API virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
 
