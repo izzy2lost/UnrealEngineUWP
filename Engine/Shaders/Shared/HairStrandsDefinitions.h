@@ -45,14 +45,16 @@
 // Max split for raytracing geometry
 #define STRANDS_PROCEDURAL_INTERSECTOR_MAX_SPLITS 4
 
-// Use triangle strip for HW raster path
-#define USE_HAIR_TRIANGLE_STRIP 1
-
 // Number of vertex per control-point
+#define HAIR_POINT_TO_VERTEX_FOR_TRISTRP 2u
+#define HAIR_POINT_TO_VERTEX_FOR_TRILIST 6u
+
+#ifndef __cplusplus
 #if USE_HAIR_TRIANGLE_STRIP
-#define HAIR_POINT_TO_VERTEX 2u
+#define HAIR_POINT_TO_VERTEX HAIR_POINT_TO_VERTEX_FOR_TRISTRP
 #else
-#define HAIR_POINT_TO_VERTEX 6u
+#define HAIR_POINT_TO_VERTEX HAIR_POINT_TO_VERTEX_FOR_TRILIST
+#endif
 #endif
 
 // Number of triangle per control-point

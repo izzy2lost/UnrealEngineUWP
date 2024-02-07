@@ -263,6 +263,16 @@ static FHairGroupDesc GetGroomGroupsDesc(const UGroomAsset* Asset, const UGroomC
 	return O;
 }
 
+static EPrimitiveType GetPrimitiveType(EHairGeometryType In)
+{
+	return (In == EHairGeometryType::Strands && GetHairStrandsUsesTriangleStrips()) ? PT_TriangleStrip : PT_TriangleList;
+}
+
+static uint32 GetPointToVertexCount()
+{
+	return GetHairStrandsUsesTriangleStrips() ? HAIR_POINT_TO_VERTEX_FOR_TRISTRP : HAIR_POINT_TO_VERTEX_FOR_TRILIST;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -923,7 +933,7 @@ public:
 			VertexFactory = (FVertexFactory*)Instance->Strands.VertexFactory;
 			PrimitiveIdMode = Instance->Strands.VertexFactory->GetPrimitiveIdMode(FeatureLevel);
 			HairVertexCount = Instance->HairGroupPublicData->GetActiveStrandsPointCount();
-			MaxVertexIndex = HairVertexCount * HAIR_POINT_TO_VERTEX;
+			MaxVertexIndex = HairVertexCount * GetPointToVertexCount();
 			bUseCulling = Instance->Strands.bCullingEnable;
 			NumPrimitive = bUseCulling ? 0 : HairVertexCount * HAIR_POINT_TO_TRIANGLE;
 			if (MaterialRenderProxy == nullptr)
@@ -1039,11 +1049,7 @@ public:
 		BatchElement.UserData = reinterpret_cast<void*>(uint64(ComponentId));
 		Mesh.ReverseCulling = bUseCardsOrMeshes ? IsLocalToWorldDeterminantNegative() : false;
 		Mesh.bDisableBackfaceCulling = GeometryType == EHairGeometryType::Strands;
-		#if USE_HAIR_TRIANGLE_STRIP
-		Mesh.Type = GeometryType == EHairGeometryType::Strands ? PT_TriangleStrip : PT_TriangleList;
-		#else
-		Mesh.Type = PT_TriangleList;
-		#endif
+		Mesh.Type = GetPrimitiveType(GeometryType);
 		Mesh.DepthPriorityGroup = SDPG_World;
 		Mesh.bCanApplyViewModeOverrides = false;
 		Mesh.BatchHitProxyId = PrimSceneInfo->DefaultDynamicHitProxyId;
@@ -3143,11 +3149,7 @@ void UGroomComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePreca
 		UMaterialInterface* MaterialInterface = GetMaterial(GetMaterialIndexWithFallback(VFsPerMaterial.MaterialIndex), VFsPerMaterial.HairGeometryType, true);
 		if (MaterialInterface)
 		{
-#if USE_HAIR_TRIANGLE_STRIP
-			PrecachePSOParams.PrimitiveType = VFsPerMaterial.HairGeometryType == EHairGeometryType::Strands ? PT_TriangleStrip : PT_TriangleList;
-#else
-			PrecachePSOParams.PrimitiveType = PT_TriangleList;
-#endif
+			PrecachePSOParams.PrimitiveType = GetPrimitiveType(VFsPerMaterial.HairGeometryType);
 
 			FMaterialInterfacePSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
 			ComponentParams.MaterialInterface = MaterialInterface;

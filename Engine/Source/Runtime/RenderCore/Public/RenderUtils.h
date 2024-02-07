@@ -578,6 +578,8 @@ RENDERCORE_API bool GetTranslucentUsesLightFunctionAtlas();
 RENDERCORE_API bool GetTranslucentUsesLightRectLights();
 RENDERCORE_API bool GetTranslucentUsesLightIESProfiles();
 
+RENDERCORE_API bool GetHairStrandsUsesTriangleStrips();
+
 // LuminanceMax is the amount of light that will cause the sensor to saturate at EV100.
 //  See also https://en.wikipedia.org/wiki/Film_speed and https://en.wikipedia.org/wiki/Exposure_value for more info.
 FORCEINLINE float EV100ToLuminance(float LuminanceMax, float EV100)

@@ -1683,6 +1683,12 @@ static TAutoConsoleVariable<int32> CVarIESProfileTranslucent(
 	TEXT("Enable IES profiles support for translucent surfaces. When enabled, it will add an extrat sampler to the pixel shader (limited to 16 on dx11 based system)"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarHairStrandsUsesTriangleStrips(
+	TEXT("r.HairStrands.Strands.UseTriangleStrips"),
+	1,
+	TEXT("Enable triangle strip geometry for hair strands rendering. This improves performances, but removes the last segments of each curve."),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 int32 GetLightFunctionAtlasFormat()
 {
 	return CVarLightFunctionAtlasFormat.GetValueOnAnyThread();
@@ -1706,6 +1712,11 @@ bool GetTranslucentUsesLightRectLights()
 bool GetTranslucentUsesLightIESProfiles()
 {
 	return CVarIESProfileTranslucent.GetValueOnAnyThread() > 0;
+}
+
+bool GetHairStrandsUsesTriangleStrips()
+{
+	return CVarHairStrandsUsesTriangleStrips.GetValueOnAnyThread() > 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
