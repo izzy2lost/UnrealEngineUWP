@@ -22,6 +22,13 @@ namespace UE::Chaos::ClothAsset
 		 */
 		static CHAOSCLOTHASSETDATAFLOWNODES_API void MakeWeightMapName(FString& InOutString);
 	};
+	
+	/** Weight value bounds that could be used to build a cloth asset weighted value */
+	struct FWeightedValueBounds
+	{
+		float Low;
+		float High;
+	};
 }
 
 USTRUCT()

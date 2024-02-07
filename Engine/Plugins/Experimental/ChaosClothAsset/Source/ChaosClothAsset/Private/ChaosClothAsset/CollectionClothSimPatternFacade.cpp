@@ -60,6 +60,11 @@ namespace UE::Chaos::ClothAsset
 			ClothCollection->GetSimFacesEnd(),
 			GetElementIndex());
 	}
+	
+	int32 FCollectionClothSimPatternConstFacade::GetFabricIndex() const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetSimPatternFabric())[GetElementIndex()];
+	}
 
 	int32 FCollectionClothSimPatternConstFacade::GetSimFacesOffset() const
 	{
@@ -108,9 +113,11 @@ namespace UE::Chaos::ClothAsset
 	}
 
 	template<typename IndexType, typename TEnableIf<TIsIndexType<IndexType>::Value, int>::type>
-	void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices)
+	void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex)
 	{
 		Reset();
+
+		SetFabricIndex(FabricIndex);
 
 		const int32 NumSimVertices = Positions2D.Num();
 		check(NumSimVertices == Positions3D.Num());
@@ -173,13 +180,15 @@ namespace UE::Chaos::ClothAsset
 			SimNormal[SimVertexIndex + StartVertexIndex[1]] = SimNormal[SimVertexIndex + StartVertexIndex[1]].GetSafeNormal(UE_SMALL_NUMBER, FVector3f::XAxisVector);
 		}
 	}
-	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<int32>& Indices);
-	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<uint32>& Indices);
-	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<FIntVector3>& Indices);
+	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<int32>& Indices, const int32 FabricIndex);
+	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<uint32>& Indices, const int32 FabricIndex);
+	template CHAOSCLOTHASSET_API void FCollectionClothSimPatternFacade::Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<FIntVector3>& Indices, const int32 FabricIndex);
 
-	void FCollectionClothSimPatternFacade::Initialize(const FCollectionClothSimPatternConstFacade& Other, const int32 SimVertex3DOffset)
+	void FCollectionClothSimPatternFacade::Initialize(const FCollectionClothSimPatternConstFacade& Other, const int32 SimVertex3DOffset, const int32 FabricsOffset)
 	{
 		Reset();
+
+		SetFabricIndex(FabricsOffset+Other.GetFabricIndex());
 
 		// Sim Vertices 2D Group
 		SetNumSimVertices2D(Other.GetNumSimVertices2D());
@@ -263,6 +272,11 @@ namespace UE::Chaos::ClothAsset
 			GetElementIndex());
 	}
 
+	void FCollectionClothSimPatternFacade::SetFabricIndex(const int32 FabricIndex)
+	{
+		GetClothCollection()->GetElements(GetClothCollection()->GetSimPatternFabric())[GetElementIndex()] = FabricIndex;
+	}
+
 	TArrayView<FIntVector3> FCollectionClothSimPatternFacade::GetSimIndices2D()
 	{
 		return GetClothCollection()->GetElements(
@@ -312,6 +326,7 @@ namespace UE::Chaos::ClothAsset
 		(*GetClothCollection()->GetSimVertices2DEnd())[ElementIndex] = INDEX_NONE;
 		(*GetClothCollection()->GetSimFacesStart())[ElementIndex] = INDEX_NONE;
 		(*GetClothCollection()->GetSimFacesEnd())[ElementIndex] = INDEX_NONE;
+		(*GetClothCollection()->GetSimPatternFabric())[ElementIndex] = INDEX_NONE;
 	}
 
 	void FCollectionClothSimPatternFacade::SetNumSimVertices2D(int32 NumSimVertices)

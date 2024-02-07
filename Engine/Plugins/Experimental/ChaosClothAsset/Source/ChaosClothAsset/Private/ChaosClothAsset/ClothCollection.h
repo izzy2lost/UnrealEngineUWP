@@ -164,11 +164,22 @@ namespace UE::Chaos::ClothAsset
 		const TManagedArray<FIntVector2>* GetSeamStitch2DEndIndices() const { return SeamStitch2DEndIndices; }
 		const TManagedArray<int32>* GetSeamStitch3DIndex() const { return SeamStitch3DIndex; }
 
+		//~ Fabric Group
+		const TManagedArray<FVector3f>* GetFabricBendingStiffness() const { return FabricBendingStiffness; }
+		const TManagedArray<FVector3f>* GetFabricBucklingStiffness() const { return FabricBucklingStiffness; }
+		const TManagedArray<FVector3f>* GetFabricStretchStiffness() const { return FabricStretchStiffness; }
+		const TManagedArray<float>* GetFabricBucklingRatio() const { return FabricBucklingRatio; }
+		const TManagedArray<float>* GetFabricDensity() const { return FabricClothDensity; }
+		const TManagedArray<float>* GetFabricFriction() const { return FabricClothFriction; }
+		const TManagedArray<float>* GetFabricThickness() const { return FabricClothThickness; }
+		const TManagedArray<float>* GetFabricDamping() const { return FabricClothDamping; }
+		
 		//~ Sim Patterns Group
 		const TManagedArray<int32>* GetSimVertices2DStart() const { return SimVertices2DStart; }
 		const TManagedArray<int32>* GetSimVertices2DEnd() const { return SimVertices2DEnd; }
 		const TManagedArray<int32>* GetSimFacesStart() const { return SimFacesStart; }
 		const TManagedArray<int32>* GetSimFacesEnd() const { return SimFacesEnd; }
+		const TManagedArray<int32>* GetSimPatternFabric() const { return SimPatternFabric; }
 
 		//~ Render Patterns Group
 		const TManagedArray<int32>* GetRenderVerticesStart() const { return RenderVerticesStart; }
@@ -212,6 +223,16 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<FString>* GetPhysicsAssetPathName(){ return PhysicsAssetPathName; }
 		TManagedArray<FString>* GetSkeletalMeshPathName() { return SkeletalMeshPathName; }
 
+		//~ Fabric Group
+		TManagedArray<FVector3f>* GetFabricBendingStiffness() { return FabricBendingStiffness; }
+		TManagedArray<FVector3f>* GetFabricBucklingStiffness() { return FabricBucklingStiffness; }
+		TManagedArray<FVector3f>* GetFabricStretchStiffness() { return FabricStretchStiffness; }
+		TManagedArray<float>* GetFabricBucklingRatio() { return FabricBucklingRatio; }
+		TManagedArray<float>* GetFabricDensity() { return FabricClothDensity; }
+		TManagedArray<float>* GetFabricFriction() { return FabricClothFriction; }
+		TManagedArray<float>* GetFabricThickness() { return FabricClothThickness; }
+		TManagedArray<float>* GetFabricDamping() { return FabricClothDamping; }
+		
 		//~ Seam Group
 		TManagedArray<int32>* GetSeamStitchStart() { return SeamStitchStart; }
 		TManagedArray<int32>* GetSeamStitchEnd() { return SeamStitchEnd; }
@@ -225,6 +246,7 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<int32>* GetSimVertices2DEnd() { return SimVertices2DEnd; }
 		TManagedArray<int32>* GetSimFacesStart() { return SimFacesStart; }
 		TManagedArray<int32>* GetSimFacesEnd() { return SimFacesEnd; }
+		TManagedArray<int32>* GetSimPatternFabric() { return SimPatternFabric; }
 
 		//~ Render Patterns Group
 		TManagedArray<int32>* GetRenderVerticesStart() { return RenderVerticesStart; }
@@ -272,6 +294,16 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<FString>* PhysicsAssetPathName;
 		TManagedArray<FString>* SkeletalMeshPathName;
 
+		//! Fabrics Group
+		TManagedArray<FVector3f>* FabricBendingStiffness;
+		TManagedArray<FVector3f>* FabricBucklingStiffness;
+		TManagedArray<FVector3f>* FabricStretchStiffness;
+		TManagedArray<float>* FabricBucklingRatio;
+		TManagedArray<float>* FabricClothDensity;
+		TManagedArray<float>* FabricClothFriction;
+		TManagedArray<float>* FabricClothThickness;
+		TManagedArray<float>* FabricClothDamping;
+
 		//~ Seam Group
 		TManagedArray<int32>* SeamStitchStart;
 		TManagedArray<int32>* SeamStitchEnd;
@@ -285,6 +317,7 @@ namespace UE::Chaos::ClothAsset
 		TManagedArray<int32>* SimVertices2DEnd;
 		TManagedArray<int32>* SimFacesStart;
 		TManagedArray<int32>* SimFacesEnd;
+		TManagedArray<int32>* SimPatternFabric;
 
 		//~ Render Patterns Group
 		TManagedArray<int32>* RenderVerticesStart;

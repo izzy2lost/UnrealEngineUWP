@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationMassConfigNode.h"
+#include "ChaosClothAsset/SimulationFabricConfigNode.h"
+#include "ChaosClothAsset/CollectionClothFacade.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "UObject/FortniteValkyrieBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationMassConfigNode)
 
 FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
-	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
+	: FChaosClothAssetSimulationFabricConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
 	RegisterInputConnection(&UniformMassWeighted.WeightMap);
@@ -16,27 +18,40 @@ FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNo
 
 void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
-	switch (MassMode)
+	UE::Chaos::ClothAsset::FCollectionClothFacade ClothFacade(PropertyHelper.GetClothCollection());
+	if(!CanUseFabrics(ClothFacade))
 	{
-	default:
-	case EClothMassMode::UniformMass:
+		PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
+		switch (MassMode)
+		{
+		default:
+		case EClothMassMode::UniformMass:
+			{
+				PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), UniformMassWeighted, {}, ECollectionPropertyFlags::Intrinsic);
+			}
+			break;
+		case EClothMassMode::TotalMass:
+			{
+				PropertyHelper.SetProperty(FName(TEXT("MassValue")), TotalMass, {}, ECollectionPropertyFlags::Intrinsic);
+			}
+			break;
+		case EClothMassMode::Density:
+			{
+				PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, {}, ECollectionPropertyFlags::Intrinsic);
+			}
+			break;
+		}
+	}
+	else
 	{
-		PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), UniformMassWeighted, {}, ECollectionPropertyFlags::Intrinsic);
-	}
-	break;
-	case EClothMassMode::TotalMass:
-	{
-		PropertyHelper.SetProperty(FName(TEXT("MassValue")), TotalMass, {}, ECollectionPropertyFlags::Intrinsic);
-	}
-	break;
-	case EClothMassMode::Density:
-	{
-		PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, {}, ECollectionPropertyFlags::Intrinsic);
-	}
-	break;
-	}
+		constexpr EClothMassMode MassModeProperty = EClothMassMode::Density;
+		PropertyHelper.SetPropertyEnum(FName(TEXT("MassMode")), MassModeProperty, {}, ECollectionPropertyFlags::Intrinsic);
 
+		SetFabricPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, ClothFacade, PropertyHelper, [](const UE::Chaos::ClothAsset::FCollectionClothFabricFacade& FabricFacade)-> float
+		 {
+			 return FabricFacade.GetDensityWeighted();
+		 }, {}, ECollectionPropertyFlags::Intrinsic);
+	}
 	PropertyHelper.SetProperty(this, &MinPerParticleMass, {}, ECollectionPropertyFlags::Intrinsic);
 }
 

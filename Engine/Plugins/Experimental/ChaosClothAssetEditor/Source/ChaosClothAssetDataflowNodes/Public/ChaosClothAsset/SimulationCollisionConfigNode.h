@@ -2,23 +2,23 @@
 
 #pragma once 
 
-#include "ChaosClothAsset/SimulationBaseConfigNode.h"
+#include "ChaosClothAsset/SimulationFabricConfigNode.h"
 #include "SimulationCollisionConfigNode.generated.h"
 
 /** Physics mesh collision properties configuration node. */
 USTRUCT(Meta = (DataflowCloth))
-struct FChaosClothAssetSimulationCollisionConfigNode : public FChaosClothAssetSimulationBaseConfigNode
+struct FChaosClothAssetSimulationCollisionConfigNode : public FChaosClothAssetSimulationFabricConfigNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationCollisionConfigNode, "SimulationCollisionConfig", "Cloth", "Cloth Simulation Collision Config")
 
 public:
 	/** The added thickness of collision shapes. */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", EditCondition = "bImportProperties == false", EditConditionHides))
 	float CollisionThickness = 1.0f;
 
 	/** Friction coefficient for cloth - collider interaction. */
-	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10"))
+	UPROPERTY(EditAnywhere, Category = "Collision Properties", Meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "10", EditCondition = "bImportProperties == false", EditConditionHides))
 	float FrictionCoefficient = 0.8f;
 
 	/** Stiffness for proximity repulsion forces (Force-based solver only). Units = kg cm/ s^2 (same as XPBD springs)*/

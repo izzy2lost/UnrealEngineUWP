@@ -15,6 +15,27 @@ namespace UE::Chaos::ClothAsset::Private
 		SkeletalMeshPathNameAttribute
 	};
 
+	// Fabrics Group
+	static const FName FabricBendingStiffnessAttribute(TEXT("FabricBendingStiffness"));
+	static const FName FabricBucklingStiffnessAttribute(TEXT("FabricBucklingStiffness"));
+	static const FName FabricStretchStiffnessAttribute(TEXT("FabricStretchStiffness"));
+	static const FName FabricBucklingRatioAttribute(TEXT("FabricBucklingRatio"));
+	static const FName FabricClothDensityAttribute(TEXT("FabricClothDensity"));
+	static const FName FabricClothFrictionAttribute(TEXT("FabricClothFriction"));
+	static const FName FabricClothThicknessAttribute(TEXT("FabricClothThickness"));
+	static const FName FabricClothDampingAttribute(TEXT("FabricClothDamping"));
+	static const TArray<FName> SimFabricGroupAttributes =
+	{
+		FabricBendingStiffnessAttribute,
+		FabricBucklingStiffnessAttribute,
+		FabricStretchStiffnessAttribute,
+		FabricBucklingRatioAttribute,
+		FabricClothDensityAttribute,
+		FabricClothFrictionAttribute,
+		FabricClothThicknessAttribute,
+		FabricClothDampingAttribute
+	};
+
 	// Seam Group
 	static const FName SeamStitchStartAttribute(TEXT("SeamStitchStart"));
 	static const FName SeamStitchEndAttribute(TEXT("SeamStitchEnd"));
@@ -38,12 +59,14 @@ namespace UE::Chaos::ClothAsset::Private
 	static const FName SimVertices2DEndAttribute(TEXT("SimVertices2DEnd"));
 	static const FName SimFacesStartAttribute(TEXT("SimFacesStart"));
 	static const FName SimFacesEndAttribute(TEXT("SimFacesEnd"));
+	static const FName SimPatternFabricAttribute(TEXT("SimPatternFabric"));
 	static const TArray<FName> SimPatternsGroupAttributes =
 	{ 
 		SimVertices2DStartAttribute,
 		SimVertices2DEndAttribute,
 		SimFacesStartAttribute,
 		SimFacesEndAttribute,
+		SimPatternFabricAttribute
 	};
 
 	// RenderPatterns Group
@@ -140,7 +163,8 @@ namespace UE::Chaos::ClothAsset::Private
 		{ ClothCollectionGroup::SimVertices2D, SimVertices2DGroupAttributes },
 		{ ClothCollectionGroup::SimVertices3D, SimVertices3DGroupAttributes },
 		{ ClothCollectionGroup::RenderFaces, RenderFacesGroupAttributes },
-		{ ClothCollectionGroup::RenderVertices, RenderVerticesGroupAttributes }
+		{ ClothCollectionGroup::RenderVertices, RenderVerticesGroupAttributes },
+		{ ClothCollectionGroup::Fabrics, SimFabricGroupAttributes }
 	};
 }  // End namespace UE::Chaos::ClothAsset::Private
 
@@ -168,6 +192,7 @@ namespace UE::Chaos::ClothAsset
 		SimVertices2DEnd = ManagedArrayCollection->FindAttribute<int32>(SimVertices2DEndAttribute, ClothCollectionGroup::SimPatterns);
 		SimFacesStart = ManagedArrayCollection->FindAttribute<int32>(SimFacesStartAttribute, ClothCollectionGroup::SimPatterns);
 		SimFacesEnd = ManagedArrayCollection->FindAttribute<int32>(SimFacesEndAttribute, ClothCollectionGroup::SimPatterns);
+		SimPatternFabric = ManagedArrayCollection->FindAttribute<int32>(SimPatternFabricAttribute, ClothCollectionGroup::SimPatterns);
 
 		// Render Patterns Group
 		RenderVerticesStart = ManagedArrayCollection->FindAttribute<int32>(RenderVerticesStartAttribute, ClothCollectionGroup::RenderPatterns);
@@ -176,6 +201,16 @@ namespace UE::Chaos::ClothAsset
 		RenderFacesEnd = ManagedArrayCollection->FindAttribute<int32>(RenderFacesEndAttribute, ClothCollectionGroup::RenderPatterns);
 		RenderMaterialPathName = ManagedArrayCollection->FindAttribute<FString>(RenderMaterialPathNameAttribute, ClothCollectionGroup::RenderPatterns);
 
+		//~ Fabric Group
+		FabricBendingStiffness = ManagedArrayCollection->FindAttribute<FVector3f>(FabricBendingStiffnessAttribute, ClothCollectionGroup::Fabrics);
+		FabricBucklingStiffness = ManagedArrayCollection->FindAttribute<FVector3f>(FabricBucklingStiffnessAttribute, ClothCollectionGroup::Fabrics);
+		FabricStretchStiffness = ManagedArrayCollection->FindAttribute<FVector3f>(FabricStretchStiffnessAttribute, ClothCollectionGroup::Fabrics);
+		FabricBucklingRatio = ManagedArrayCollection->FindAttribute<float>(FabricBucklingRatioAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothDensity = ManagedArrayCollection->FindAttribute<float>(FabricClothDensityAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothFriction = ManagedArrayCollection->FindAttribute<float>(FabricClothFrictionAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothThickness = ManagedArrayCollection->FindAttribute<float>(FabricClothThicknessAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothDamping = ManagedArrayCollection->FindAttribute<float>(FabricClothDampingAttribute, ClothCollectionGroup::Fabrics);
+		
 		// Sim Faces Group
 		SimIndices2D = ManagedArrayCollection->FindAttribute<FIntVector3>(SimIndices2DAttribute, ClothCollectionGroup::SimFaces);
 		SimIndices3D = ManagedArrayCollection->FindAttribute<FIntVector3>(SimIndices3DAttribute, ClothCollectionGroup::SimFaces);
@@ -228,6 +263,7 @@ namespace UE::Chaos::ClothAsset
 			SimVertices2DEnd &&
 			SimFacesStart &&
 			SimFacesEnd &&
+			SimPatternFabric &&
 
 			// Render Patterns Group
 			RenderVerticesStart &&
@@ -239,6 +275,16 @@ namespace UE::Chaos::ClothAsset
 			// Sim Faces Group
 			SimIndices2D &&
 			SimIndices3D &&
+
+			// Fabrics Group
+			FabricBendingStiffness &&
+			FabricBucklingStiffness &&
+			FabricStretchStiffness &&
+			FabricBucklingRatio &&
+			FabricClothDensity &&
+			FabricClothFriction &&
+			FabricClothThickness &&
+			FabricClothDamping &&
 
 			// Sim Vertices 2D Group
 			SimPosition2D  &&
@@ -279,6 +325,7 @@ namespace UE::Chaos::ClothAsset
 		FManagedArrayCollection::FConstructionParameters RenderFacesDependency(ClothCollectionGroup::RenderFaces, bSaved, bAllowCircularDependency);
 		FManagedArrayCollection::FConstructionParameters RenderVerticesDependency(ClothCollectionGroup::RenderVertices, bSaved, bAllowCircularDependency);
 		FManagedArrayCollection::FConstructionParameters SimFacesDependency(ClothCollectionGroup::SimFaces, bSaved, bAllowCircularDependency);
+		FManagedArrayCollection::FConstructionParameters SimFabricsDependency(ClothCollectionGroup::Fabrics, bSaved, bAllowCircularDependency);
 		FManagedArrayCollection::FConstructionParameters SimVertices2DDependency(ClothCollectionGroup::SimVertices2D, bSaved, bAllowCircularDependency);
 		FManagedArrayCollection::FConstructionParameters SimVertices3DDependency(ClothCollectionGroup::SimVertices3D, bSaved, bAllowCircularDependency);  // Any attribute with this dependency must handle welding and splitting in FCollectionClothSeamFacade
 
@@ -299,6 +346,7 @@ namespace UE::Chaos::ClothAsset
 		SimVertices2DEnd = &ManagedArrayCollection->AddAttribute<int32>(SimVertices2DEndAttribute, ClothCollectionGroup::SimPatterns, SimVertices2DDependency);
 		SimFacesStart = &ManagedArrayCollection->AddAttribute<int32>(SimFacesStartAttribute, ClothCollectionGroup::SimPatterns, SimFacesDependency);
 		SimFacesEnd = &ManagedArrayCollection->AddAttribute<int32>(SimFacesEndAttribute, ClothCollectionGroup::SimPatterns, SimFacesDependency);
+		SimPatternFabric = &ManagedArrayCollection->AddAttribute<int32>(SimPatternFabricAttribute, ClothCollectionGroup::SimPatterns, SimFabricsDependency);
 
 		// Render Patterns Group
 		RenderVerticesStart = &ManagedArrayCollection->AddAttribute<int32>(RenderVerticesStartAttribute, ClothCollectionGroup::RenderPatterns, RenderVerticesDependency);
@@ -307,6 +355,16 @@ namespace UE::Chaos::ClothAsset
 		RenderFacesEnd = &ManagedArrayCollection->AddAttribute<int32>(RenderFacesEndAttribute, ClothCollectionGroup::RenderPatterns, RenderFacesDependency);
 		RenderMaterialPathName = &ManagedArrayCollection->AddAttribute<FString>(RenderMaterialPathNameAttribute, ClothCollectionGroup::RenderPatterns);
 
+		//~ Fabric Group
+		FabricBendingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(FabricBendingStiffnessAttribute, ClothCollectionGroup::Fabrics);
+		FabricBucklingStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(FabricBucklingStiffnessAttribute, ClothCollectionGroup::Fabrics);
+		FabricStretchStiffness = &ManagedArrayCollection->AddAttribute<FVector3f>(FabricStretchStiffnessAttribute, ClothCollectionGroup::Fabrics);
+		FabricBucklingRatio = &ManagedArrayCollection->AddAttribute<float>(FabricBucklingRatioAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothDensity = &ManagedArrayCollection->AddAttribute<float>(FabricClothDensityAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothFriction = &ManagedArrayCollection->AddAttribute<float>(FabricClothFrictionAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothThickness = &ManagedArrayCollection->AddAttribute<float>(FabricClothThicknessAttribute, ClothCollectionGroup::Fabrics);
+		FabricClothDamping = &ManagedArrayCollection->AddAttribute<float>(FabricClothDampingAttribute, ClothCollectionGroup::Fabrics);
+		
 		// Sim Faces Group
 		SimIndices2D = &ManagedArrayCollection->AddAttribute<FIntVector3>(SimIndices2DAttribute, ClothCollectionGroup::SimFaces, SimVertices2DDependency);
 		SimIndices3D = &ManagedArrayCollection->AddAttribute<FIntVector3>(SimIndices3DAttribute, ClothCollectionGroup::SimFaces, SimVertices3DDependency);

@@ -25,7 +25,9 @@
 #include "USDStageImportOptions.h"
 #include "USDTypesConversion.h"
 #include "USDValueConversion.h"
+#include "Chaos/CollectionPropertyFacade.h"
 #include "UsdWrappers/UsdPrim.h"
+#include "UsdWrappers/UsdRelationship.h"
 #include "UsdWrappers/VtValue.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(USDImportNode)
@@ -566,6 +568,127 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 		}
 	}
 
+	auto FillIntDatas = [](const UE::FUsdPrim& FabricPrim, const FString& DatasName, uint32& IntDatas) 
+	{
+		const UE::FUsdAttribute IntDatasAttr = FabricPrim.GetAttribute(*DatasName);
+		if (IntDatasAttr.HasValue() && IntDatasAttr.GetTypeName() == TEXT("uint"))
+		{
+			UE::FVtValue Value;
+			IntDatasAttr.Get(Value);
+			const TOptional<uint32> Optional = UsdUtils::GetUnderlyingValue<uint32>(Value);
+			IntDatas = Optional.IsSet() ? Optional.GetValue() : 0;
+		}
+	};
+
+	// Fabrics
+	TArray<uint32> FabricIds;
+	const UE::FSdfPath FabricsPath = UE::FSdfPath(UE::FSdfPath::AbsoluteRootPath()).AppendChild(TEXT("SimulationData")).AppendChild(TEXT("Fabrics"));
+	if (const UE::FUsdPrim FabricsPrim = UsdStage.GetPrimAtPath(FabricsPath))
+	{
+		auto FillFloatDatas = [](const UE::FUsdPrim& FabricPrim, const FString& DatasName, float& FloatDatas) 
+		{
+			const UE::FUsdAttribute FloatDatasAttr = FabricPrim.GetAttribute(*DatasName);
+			if (FloatDatasAttr.HasValue() && FloatDatasAttr.GetTypeName() == TEXT("float"))
+			{
+				UE::FVtValue Value;
+				FloatDatasAttr.Get(Value);
+				const TOptional<float> Optional = UsdUtils::GetUnderlyingValue<float>(Value);
+				FloatDatas = Optional.IsSet() ? Optional.GetValue() : 0.0f;
+			}
+		};
+		for (const UE::FUsdPrim& FabricPrim : FabricsPrim.GetChildren())
+		{
+			float BendingBiasLeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BendingBiasLeft"), BendingBiasLeft);
+
+			float BendingBiasRight= 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BendingBiasRight"), BendingBiasRight);
+
+			float BendingWarp = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BendingWarp"), BendingWarp);
+
+			float BendingWeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BendingWeft"), BendingWeft);
+
+			float BucklingRatioBiasLeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingRatioBiasLeft"), BucklingRatioBiasLeft);
+
+			float BucklingRatioBiasRight = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingRatioBiasRight"), BucklingRatioBiasRight);
+			
+			float BucklingRatioWarp = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingRatioWarp"), BucklingRatioWarp);
+
+			float BucklingRatioWeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingRatioWeft"), BucklingRatioWeft);
+
+			float BucklingStiffnessBiasLeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingStiffnessBiasLeft"), BucklingStiffnessBiasLeft);
+
+			float BucklingStiffnessBiasRight = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingStiffnessBiasRight"), BucklingStiffnessBiasRight);
+
+			float BucklingStiffnessWarp = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingStiffnessWarp"), BucklingStiffnessWarp);
+
+			float BucklingStiffnessWeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("BucklingStiffnessWeft"), BucklingStiffnessWeft);
+
+			float Density = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("Density"), Density);
+
+			float Friction = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("Friction"), Friction);
+
+			float InternalDamping = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("InternalDamping"), InternalDamping);
+
+			float Thickness = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("Thickness"), Thickness);
+
+			float ShearLeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("ShearLeft"), ShearLeft);
+
+			float ShearRight = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("ShearRight"), ShearRight);
+
+			float StretchWarp = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("StretchWarp"), StretchWarp);
+
+			float StretchWeft = 0.0f;
+			FillFloatDatas(FabricPrim, TEXT("StretchWeft"), StretchWeft);
+
+			uint32 FabricId = 0;
+			FillIntDatas(FabricPrim, TEXT("FabricId"), FabricId);
+
+			FCollectionClothFabricFacade Fabric = ClothFacade.AddGetFabric();
+
+			static constexpr float BendingScaling = 1e-5f; // from g.mm2/s2 to kg.cm2/s2
+			static constexpr float StretchShearScaling = 1e-3f; // from g/s2 to kg.cm/s2
+			static constexpr float DensityScaling = 1e+3f; // from g/mm2 to kg/m2
+			static constexpr float ThicknessScaling = 1e-1f; // from mm to cm
+			
+			FCollectionClothFabricFacade::FAnisotropicData BendingStiffness(
+				  BendingWeft*BendingScaling, BendingWarp*BendingScaling, 0.5f * (BendingBiasLeft+BendingBiasRight)*BendingScaling);
+			
+			FCollectionClothFabricFacade::FAnisotropicData StretchStiffness(
+				StretchWeft*StretchShearScaling, StretchWarp*StretchShearScaling, 0.5f * (ShearLeft+ShearRight)*StretchShearScaling);
+			
+			FCollectionClothFabricFacade::FAnisotropicData BucklingStiffness(
+				BendingStiffness.Weft * BucklingStiffnessWeft, BendingStiffness.Warp * BucklingStiffnessWarp,
+				BendingStiffness.Bias * 0.5f * (BucklingStiffnessBiasLeft+BucklingStiffnessBiasRight));
+
+			// Only scalar value used in the solver right now
+			const float BucklingRatio = (BucklingRatioWeft + BucklingRatioWarp +
+				0.5f * (BucklingRatioBiasLeft+BucklingRatioBiasRight)) / 3.0f;
+
+			Fabric.Initialize(BendingStiffness, BucklingRatio, BucklingStiffness, StretchStiffness,
+				Density * DensityScaling, Friction, InternalDamping, Thickness * ThicknessScaling);
+
+			FabricIds.Add(FabricId);
+		}
+	}
+
 	// Patterns
 	const UE::FSdfPath PatternsPath = UE::FSdfPath(UE::FSdfPath::AbsoluteRootPath()).AppendChild(TEXT("SimulationData")).AppendChild(TEXT("Patterns"));
 	if (const UE::FUsdPrim PatternsPrim = UsdStage.GetPrimAtPath(PatternsPath))
@@ -573,33 +696,31 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 		for (const UE::FUsdPrim& PatternPrim : PatternsPrim.GetChildren())
 		{
 			uint32 TriangleCount = 0;
-			const UE::FUsdAttribute TriangleCountAttr = PatternPrim.GetAttribute(TEXT("TriangleCount"));
-			if (TriangleCountAttr.HasValue() && TriangleCountAttr.GetTypeName() == TEXT("uint"))
-			{
-				UE::FVtValue Value;
-				TriangleCountAttr.Get(Value);
-				const TOptional<uint32> Optional = UsdUtils::GetUnderlyingValue<uint32>(Value);
-				TriangleCount = Optional.IsSet() ? Optional.GetValue() : 0;
-			}
+			FillIntDatas(PatternPrim, TEXT("TriangleCount"), TriangleCount);
 
 			uint32 VertexCount = 0;
-			const UE::FUsdAttribute VertexCountAttr = PatternPrim.GetAttribute(TEXT("VertexCount"));
-			if (VertexCountAttr.HasValue() && VertexCountAttr.GetTypeName() == TEXT("uint"))
-			{
-				UE::FVtValue Value;
-				VertexCountAttr.Get(Value);
-				const TOptional<uint32> Optional = UsdUtils::GetUnderlyingValue<uint32>(Value);
-				VertexCount = Optional.IsSet() ? Optional.GetValue() : 0;
-			}
+			FillIntDatas(PatternPrim, TEXT("VertexCount"), VertexCount);
 
 			uint32 PatternId = 0;
-			const UE::FUsdAttribute PatternIdAttr = PatternPrim.GetAttribute(TEXT("PatternId"));
-			if (PatternIdAttr.HasValue() && PatternIdAttr.GetTypeName() == TEXT("uint"))
+			FillIntDatas(PatternPrim, TEXT("PatternId"), PatternId);
+
+			uint32 FabricIndex= 0;
+			if(UE::FUsdRelationship Relationship = PatternPrim.GetRelationship(TEXT("fabric")))
 			{
-				UE::FVtValue Value;
-				PatternIdAttr.Get(Value);
-				const TOptional<uint32> Optional = UsdUtils::GetUnderlyingValue<uint32>(Value);
-				PatternId = Optional.IsSet() ? Optional.GetValue() : 0;
+				TArray<UE::FSdfPath> TargetsPath;
+				if(Relationship.GetTargets(TargetsPath))
+				{
+					if (TargetsPath.Num() > 0)
+                    {
+						UE::FUsdPrim FabricPrim = PatternPrim.GetStage().GetPrimAtPath(TargetsPath[0]);
+
+						uint32 FabricId = 0;
+						FillIntDatas(FabricPrim, TEXT("FabricId"), FabricId);
+
+						// The fabric index referenced in the pattern is the index of the fabric in the managed array collection
+						FabricIndex = FabricIds.Find(FabricId);
+                    }
+				}
 			}
 
 			UE_LOG(LogChaosClothAssetDataflowNodes,
@@ -713,7 +834,7 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 				// Add the new pattern
 				const int32 SimPatternIndex = ClothFacade.AddSimPattern();
 				FCollectionClothSimPatternFacade SimPattern = ClothFacade.GetSimPattern(SimPatternIndex);
-				SimPattern.Initialize(OutRestPositions2D, OutDrapedPositions3D, OutTriangleToVertexIndex);
+				SimPattern.Initialize(OutRestPositions2D, OutDrapedPositions3D, OutTriangleToVertexIndex, FabricIndex);
 
 				// Remap this pattern's stitches
 				check(SeamPatterns.Num() == SeamStitches.Num());
@@ -777,7 +898,7 @@ bool FChaosClothAssetUSDImportNode::ImportFromFile(const FString& UsdFilePath, c
 		FCollectionClothSeamFacade Seam = ClothFacade.AddGetSeam();
 		Seam.Initialize(SeamStitches[SeamIndex]);
 	}
-
+	
 	SlowTask.EnterProgressFrame(1.f);
 	SlowTask.ForceRefresh();
 	return true;

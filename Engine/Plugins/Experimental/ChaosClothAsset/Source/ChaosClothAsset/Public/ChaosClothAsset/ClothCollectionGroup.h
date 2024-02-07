@@ -31,5 +31,7 @@ namespace UE::Chaos::ClothAsset
 		inline const FName RenderFaces = FName(TEXT("RenderFaces"));
 		/** Contains 3D render model. */
 		inline const FName RenderVertices = FName(TEXT("RenderVertices"));
+		/** Contains all the fabrics simulation parameters used by the sim patterns . */
+		inline const FName Fabrics = FName(TEXT("Fabrics"));
 	}
 }  // End namespace UE::Chaos::ClothAsset

@@ -4,19 +4,8 @@
 
 #include "ChaosClothAsset/SimulationBaseConfigNode.h"
 #include "ChaosClothAsset/WeightedValue.h"
-#include "Chaos/PBDBendingConstraintsBase.h"
+#include "ChaosClothAsset/SimulationConfigNodePropertyTypes.h"
 #include "SimulationPBDBendingElementConfigNode.generated.h"
-
-UENUM()
-enum class EChaosClothAssetRestAngleConstructionType : uint8
-{
-	/** Calculate rest angles using the 3D draped space simulation mesh. */
-	Use3DRestAngles = (uint8)Chaos::Softs::FPBDBendingConstraintsBase::ERestAngleConstructionType::Use3DRestAngles,
-	/** Calculate rest angles using the FlatnessRatio property. */
-	FlatnessRatio = (uint8)Chaos::Softs::FPBDBendingConstraintsBase::ERestAngleConstructionType::FlatnessRatio,
-	/** Calculate rest angles using the RestAngle property. */
-	RestAngle = (uint8)Chaos::Softs::FPBDBendingConstraintsBase::ERestAngleConstructionType::ExplicitRestAngles
-};
 
 /** Bending element constraint property configuration node. */
 USTRUCT(Meta = (DataflowCloth))
