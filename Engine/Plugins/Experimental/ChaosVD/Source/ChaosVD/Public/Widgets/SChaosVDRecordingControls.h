@@ -40,10 +40,14 @@ protected:
 	TSharedRef<SButton> GenerateToggleRecordingStateButton(EChaosVDRecordingMode RecordingMode, const FText& StartRecordingTooltip);
 	TSharedRef<SWidget> GenerateDataChannelsMenu();
 
+#if WITH_CHAOS_VISUAL_DEBUGGER
 	void ToggleChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel);
 	bool IsChannelEnabled(TWeakPtr<FCVDDataChannel> Channel);
 	bool CanChangeChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel);
+#endif
 
+	bool HasDataChannelsSupport() const;
+	
 	const FSlateBrush* GetRecordOrStopButton(EChaosVDRecordingMode RecordingMode) const;
 	
 	void HandleRecordingStop();

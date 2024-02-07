@@ -65,6 +65,7 @@ void SChaosVDRecordingControls::Construct(const FArguments& InArgs, const TShare
 			[
 				SNew(SComboButton)
 				.ContentPadding(FMargin(6.0f, 0.0f))
+				.IsEnabled_Raw(this, &SChaosVDRecordingControls::HasDataChannelsSupport)
 				.MenuPlacement(MenuPlacement_AboveAnchor)
 				.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
 				.OnGetMenuContent(this, &SChaosVDRecordingControls::GenerateDataChannelsMenu)
@@ -116,6 +117,7 @@ TSharedRef<SWidget> SChaosVDRecordingControls::GenerateDataChannelsMenu()
 
 	FMenuBuilder MenuBuilder(true, nullptr);
 
+#if WITH_CHAOS_VISUAL_DEBUGGER
 	MenuBuilder.BeginSection("CVDRecordingWidget", LOCTEXT("CVDRecordingMenuChannels", "Data Channels"));
 	{
 		FChaosVDDataChannelsManager::Get().EnumerateChannels([this, &MenuBuilder](const TSharedRef<FCVDDataChannel>& Channel)
@@ -130,11 +132,14 @@ TSharedRef<SWidget> SChaosVDRecordingControls::GenerateDataChannelsMenu()
 			return true;
 		});
 	}
+#endif //WITH_CHAOS_VISUAL_DEBUGGER
 
 	MenuBuilder.EndSection();
 
 	return MenuBuilder.MakeWidget();
 }
+
+#if WITH_CHAOS_VISUAL_DEBUGGER
 
 void SChaosVDRecordingControls::ToggleChannelEnabledState(TWeakPtr<FCVDDataChannel> Channel)
 {
@@ -163,6 +168,17 @@ bool SChaosVDRecordingControls::CanChangeChannelEnabledState(TWeakPtr<FCVDDataCh
 	}
 	
 	return false;
+}
+
+#endif // WITH_CHAOS_VISUAL_DEBUGGER
+
+bool SChaosVDRecordingControls::HasDataChannelsSupport() const
+{
+#if WITH_CHAOS_VISUAL_DEBUGGER
+	return true;
+#else
+	return false;
+#endif
 }
 
 SChaosVDRecordingControls::~SChaosVDRecordingControls()
