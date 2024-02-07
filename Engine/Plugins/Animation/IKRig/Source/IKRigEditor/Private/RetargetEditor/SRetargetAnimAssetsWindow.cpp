@@ -19,6 +19,8 @@
 #include "RetargetEditor/IKRetargeterController.h"
 #include "Retargeter/IKRetargeter.h"
 #include "Viewports.h"
+#include "Animation/AimOffsetBlendSpace.h"
+#include "Animation/AimOffsetBlendSpace1D.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SkyLightComponent.h"
 #include "Editor/EditorPerProjectUserSettings.h"
@@ -290,7 +292,7 @@ FText SBatchExportPathDialog::GetPrefixName() const
 
 void SBatchExportPathDialog::SetPrefixName(const FText &InText)
 {
-	BatchContext->NameRule.Prefix = InText.ToString();
+	BatchContext->NameRule.Prefix = ConvertToCleanString(InText);
 	UpdateExampleText();
 }
 
@@ -301,7 +303,7 @@ FText SBatchExportPathDialog::GetSuffixName() const
 
 void SBatchExportPathDialog::SetSuffixName(const FText &InText)
 {
-	BatchContext->NameRule.Suffix = InText.ToString();
+	BatchContext->NameRule.Suffix = ConvertToCleanString(InText);
 	UpdateExampleText();
 }
 
@@ -312,7 +314,7 @@ FText SBatchExportPathDialog::GetReplaceFrom() const
 
 void SBatchExportPathDialog::SetReplaceFrom(const FText &InText)
 {
-	BatchContext->NameRule.ReplaceFrom = InText.ToString();
+	BatchContext->NameRule.ReplaceFrom = ConvertToCleanString(InText);
 	UpdateExampleText();
 }
 
@@ -323,7 +325,7 @@ FText SBatchExportPathDialog::GetReplaceTo() const
 
 void SBatchExportPathDialog::SetReplaceTo(const FText &InText)
 {
-	BatchContext->NameRule.ReplaceTo = InText.ToString();
+	BatchContext->NameRule.ReplaceTo = ConvertToCleanString(InText);
 	UpdateExampleText();
 }
 
@@ -342,6 +344,22 @@ void SBatchExportPathDialog::UpdateExampleText()
 FText SBatchExportPathDialog::GetFolderPath() const
 {
 	return FText::FromString(BatchContext->NameRule.FolderPath);
+}
+
+FString SBatchExportPathDialog::ConvertToCleanString(const FText& ToClean)
+{
+	static TSet<TCHAR> IllegalChars = {' ','$', '&', '^', '/', '\\', '#', '@', '!', '*', '_', '(', ')'};
+	
+	FString StrToClean = ToClean.ToString();
+	for (TCHAR& Char : StrToClean)
+	{
+		if (IllegalChars.Contains(Char))
+		{
+			Char = TEXT('_'); // Replace illegal char with underscore
+		}
+	}
+
+	return MoveTemp(StrToClean);
 }
 
 UBatchExportOptions* UBatchExportOptions::GetInstance()
@@ -680,6 +698,10 @@ void SRetargetExporterAssetBrowser::RefreshView()
 	AssetPickerConfig.Filter.ClassPaths.Add(UAnimSequence::StaticClass()->GetClassPathName());
 	AssetPickerConfig.Filter.ClassPaths.Add(UAnimMontage::StaticClass()->GetClassPathName());
 	AssetPickerConfig.Filter.ClassPaths.Add(UPoseAsset::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UBlendSpace::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UBlendSpace1D::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UAimOffsetBlendSpace::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UAimOffsetBlendSpace1D::StaticClass()->GetClassPathName());
 	AssetPickerConfig.InitialAssetViewType = EAssetViewType::Column;
 	AssetPickerConfig.bAddFilterUI = true;
 	AssetPickerConfig.DefaultFilterMenuExpansion = EAssetTypeCategories::Animation;
@@ -757,7 +779,7 @@ bool SRetargetExporterAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetD
 	const TObjectPtr<UBatchRetargetSettings> BatchRetargetSettings = RetargetWindow.Get()->GetSettings();
 	if (!ensure(BatchRetargetSettings))
 	{
-		return false;
+		return true;
 	}
 	
 	if (!BatchRetargetSettings->SourceSkeletalMesh)
@@ -1225,11 +1247,18 @@ void SRetargetAnimAssetsWindow::SetRetargetAsset(UIKRetargeter* RetargeterToUse)
 	else if (Settings->RetargetAsset)
 	{
 		// if user assigned a custom retarget asset, set the skeletal meshes based on that asset
+		// BUT, only do this if the user hasn't already specified their own skeletal mesh
 		const UIKRetargeterController* Controller = UIKRetargeterController::GetController(Settings->RetargetAsset);
-		USkeletalMesh* SourceMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Source);
-		USkeletalMesh* TargetMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target);
-		SetSkeletalMesh(SourceMesh, ERetargetSourceOrTarget::Source);
-		SetSkeletalMesh(TargetMesh, ERetargetSourceOrTarget::Target);
+		if (!Settings->SourceSkeletalMesh)
+		{
+			USkeletalMesh* SourceMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Source);
+			SetSkeletalMesh(SourceMesh, ERetargetSourceOrTarget::Source);
+		}
+		if (!Settings->TargetSkeletalMesh)
+		{
+			USkeletalMesh* TargetMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target);
+			SetSkeletalMesh(TargetMesh, ERetargetSourceOrTarget::Target);
+		}
 	}
 	
 	// store the asset to use in the context
