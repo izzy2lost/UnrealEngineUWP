@@ -375,13 +375,19 @@ void UDMXPixelMappingRendererComponent::LetChildrenFollowSize()
 		{
 			if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component))
 			{
-				OutputComponent->Modify();
+				if (OutputComponent->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass() ||
+					OutputComponent->GetClass() == UDMXPixelMappingFixtureGroupItemComponent::StaticClass() ||
+					OutputComponent->GetClass() == UDMXPixelMappingMatrixComponent::StaticClass())
+				{
+					OutputComponent->Modify();
 
-				const FVector2D NewPosition = OutputComponent->GetPosition() * Scalar;
-				OutputComponent->SetPosition(NewPosition);
+					const FVector2D NewPosition = OutputComponent->GetPosition() * Scalar;
+					OutputComponent->SetPosition(NewPosition);
 
-				const FVector2D NewSize = OutputComponent->GetSize() * Scalar;
-				OutputComponent->SetSize(NewSize);
+					const FVector2D NewSize = OutputComponent->GetSize() * Scalar;
+					OutputComponent->SetSize(NewSize);
+				}
+
 			}
 		}, 
 		bRecursive);
