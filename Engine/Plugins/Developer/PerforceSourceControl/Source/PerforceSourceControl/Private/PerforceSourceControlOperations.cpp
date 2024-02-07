@@ -2022,7 +2022,13 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		using namespace TypedElementQueryBuilder;
 		using DSI = ITypedElementDataStorageInterface;
 
-		DSI* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+		if (!Registry)
+		{
+			return;
+		}
+
+		DSI* DataStorage = Registry->GetMutableDataStorage();
 		if (!DataStorage)
 		{
 			return;
