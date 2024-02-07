@@ -4,7 +4,7 @@
 
 import { FontIcon, Stack } from '@fluentui/react';
 import React, { CSSProperties } from 'react';
-import { FindIssueResponse, GetAgentLeaseResponse, GetBatchResponse, GetIssueResponse, GetJobStepRefResponse, GetStepResponse, IssueSeverity, JobStepBatchError, JobStepOutcome, JobStepState, LabelOutcome, LabelState, LeaseOutcome, LeaseState } from '../backend/Api';
+import { DeviceStatus, FindIssueResponse, GetAgentLeaseResponse, GetBatchResponse, GetIssueResponse, GetJobStepRefResponse, GetStepResponse, IssueSeverity, JobStepBatchError, JobStepOutcome, JobStepState, LabelOutcome, LabelState, LeaseOutcome, LeaseState } from '../backend/Api';
 import dashboard, { StatusColor } from "../backend/Dashboard";
 import { JobLabel } from '../backend/JobDetails';
 
@@ -193,6 +193,26 @@ export const StepRefStatusIcon: React.FC<{ stepRef: GetJobStepRefResponse, style
 export const StepStatusIcon: React.FC<{ step: GetStepResponse, style?: CSSProperties }> = ({ step, style }) => {
 
    return <StepStateStatusIcon state={step.state} outcome={step.outcome} style={style} />;
+}
+
+export const DeviceStatusIcon: React.FC<{ status: DeviceStatus, style?: CSSProperties }> = ({status, style}) => {
+
+   const colors = dashboard.getStatusColors();
+
+   style = style ?? {};
+   style.fontSize = style.fontSize ?? 13;
+   style.paddingTop = style.paddingTop ?? 3;
+   style.paddingRight = style.paddingRight ?? 8;
+
+   const icon = 'Square';
+
+   if (status == DeviceStatus.Normal) {
+      style.color = colors.get(StatusColor.Success);
+   } else {
+      style.color = colors.get(StatusColor.Failure);
+   }
+
+   return <StatusIcon iconName={icon} style={style} />
 }
 
 export const LeaseStatusIcon: React.FC<{ lease: GetAgentLeaseResponse, style?: CSSProperties }> = ({ lease, style }) => {

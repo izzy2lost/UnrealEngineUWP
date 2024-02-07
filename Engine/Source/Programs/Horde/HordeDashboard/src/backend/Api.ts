@@ -56,6 +56,15 @@ export enum JobStepState {
 
 }
 
+export enum DeviceStatus {
+
+	// Device encountered an error
+	Error = "Error",
+
+	// Device is operating normally
+	Normal = "Normal"
+}
+
 // Outcome of a jobstep run
 export enum JobStepOutcome {
 
@@ -4574,7 +4583,7 @@ export type DevicePoolTelemetryQuery = {
 };
 
 export type DeviceTelemetryQuery = {
-	deviceIds?: string[];
+	Id?: string[];
 	poolId?: string;
 	platformId?: string;
 	minCreateTime?: string;
