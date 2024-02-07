@@ -225,23 +225,42 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 				SimTickParams.TimeStep = SubTimeStep;
 				SimTickParams.ProposedMove = CombinedMove;
 
-				// Check any transitions that have been registered with the current movement mode
-				bool bTransitionTriggered = false;
+				// Check for any transitions, first those registered with the current movement mode, then global ones that could occur from any mode
+				FTransitionEvalResult EvalResult = FTransitionEvalResult::NoTransition;
+				TObjectPtr<UBaseMovementModeTransition> TransitionToTrigger;
+
 				for (UBaseMovementModeTransition* Transition : CurrentMode->Transitions)
 				{
-					FTransitionEvalResult EvalResult = Transition->DoEvaluate(SimTickParams);
+					EvalResult = Transition->DoEvaluate(SimTickParams);
 
 					if (!EvalResult.NextMode.IsNone())
 					{
-						OutputState.MovementEndState.NextModeName = EvalResult.NextMode;
-						OutputState.MovementEndState.RemainingMs = SimTickParams.TimeStep.StepMs; 	// Pass all remaining time to next mode
-						Transition->DoTrigger(SimTickParams);
-						bTransitionTriggered = true;
+						TransitionToTrigger = Transition;
 						break;
 					}
 				}
 
-				if (!bTransitionTriggered)
+				if (EvalResult.NextMode.IsNone())
+				{
+					for (UBaseMovementModeTransition* Transition : MoverComp->Transitions)
+					{
+						EvalResult = Transition->DoEvaluate(SimTickParams);
+
+						if (!EvalResult.NextMode.IsNone())
+						{
+							TransitionToTrigger = Transition;
+							break;
+						}
+					}
+				}
+
+				if (!EvalResult.NextMode.IsNone())
+				{
+					OutputState.MovementEndState.NextModeName = EvalResult.NextMode;
+					OutputState.MovementEndState.RemainingMs = SimTickParams.TimeStep.StepMs; 	// Pass all remaining time to next mode
+					TransitionToTrigger->DoTrigger(SimTickParams);
+				}
+				else
 				{
 					CurrentMode->DoSimulationTick(SimTickParams, OutputState);
 				}

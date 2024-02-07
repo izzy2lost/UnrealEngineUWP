@@ -112,6 +112,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Mover)
 	FName StartingMovementMode;
 
+	// Transition checks that are always evaluated regardless of mode. Evaluated in order, stopping at the first successful transition check. Mode-owned transitions take precedence. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Instanced, Category=Mover)
+	TArray<TObjectPtr<UBaseMovementModeTransition>> Transitions;
+
 	/** List of types that should always be present in this actor's sync state */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category=Mover)
 	TArray<FMoverDataPersistence> PersistentSyncStateDataTypes;
