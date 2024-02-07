@@ -96,8 +96,8 @@ public:
 		}
 		Input.Environment.SetDefine(TEXT("OPENGL_PROFILE"), 1);
 
-		const bool bUseDXC = ShouldUseDXC(Input.Environment.CompilerFlags);
-		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), bUseDXC ? 2 : 1);
+		constexpr int32 HlslccSubstituteValueForDxc = 2;
+		Input.Environment.SetDefine(TEXT("COMPILER_HLSLCC"), HlslccSubstituteValueForDxc);
 		Input.Environment.SetDefine(TEXT("COMPILER_SUPPORTS_ATTRIBUTES"), (uint32)1);
 
 		if (Input.Environment.FullPrecisionInPS || (IsValidRef(Input.SharedEnvironment) && Input.SharedEnvironment->FullPrecisionInPS))

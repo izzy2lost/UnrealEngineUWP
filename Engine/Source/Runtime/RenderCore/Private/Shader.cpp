@@ -1441,13 +1441,8 @@ bool IsDxcEnabledForPlatform(EShaderPlatform Platform, bool bHlslVersion2021)
 		static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.D3D.ForceDXC"));
 		return ((CVar && CVar->GetInt() != 0));
 	}
-	if (IsOpenGLPlatform(Platform))
-	{
-		static const IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.OpenGL.ForceDXC"));
-		return (bHlslVersion2021 || (CVar && CVar->GetInt() != 0));
-	}
-	// Hlslcc has been removed for Metal and Vulkan. There is only DXC now.
-	if (IsMetalPlatform(Platform) || IsVulkanPlatform(Platform))
+	// Hlslcc has been removed for Metal, Vulkan, and OpenGL backends. There is only DXC now.
+	if (IsMetalPlatform(Platform) || IsVulkanPlatform(Platform) || IsOpenGLPlatform(Platform))
 	{
 		return true;
 	}
@@ -1458,17 +1453,9 @@ bool IsUsingEmulatedUniformBuffers(EShaderPlatform Platform)
 {
 	if (IsOpenGLPlatform(Platform))
 	{
-		// Currently DXC only supports emulated uniform buffers on GLES
-		static const auto CForceDXCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.OpenGL.ForceDXC"));
-		if (CForceDXCVar && CForceDXCVar->GetInt() != 0)
-		{
-			return true;
-		}
-
-		static auto* CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("OpenGL.UseEmulatedUBs"));
-		return (CVar && CVar->GetValueOnAnyThread() != 0);
+		// DXC only supports emulated uniform buffers on GLES
+		return true;
 	}
-
 	return false;
 }
 

@@ -2245,14 +2245,6 @@ static TAutoConsoleVariable<int32> CVarD3DForceDXC(
 	TEXT(" 1: Force new compiler for all shaders"),
 	ECVF_ReadOnly);
 
-static TAutoConsoleVariable<int32> CVarOpenGLForceDXC(
-	TEXT("r.OpenGL.ForceDXC"),
-	1,
-	TEXT("Forces DirectX Shader Compiler (DXC) to be used for all OpenGL shaders instead of hlslcc.\n")
-	TEXT(" 0: Disable\n")
-	TEXT(" 1: Force new compiler for all shaders (default)"),
-	ECVF_ReadOnly);
-
 static TAutoConsoleVariable<int32> CVarWarpCulling(
 	TEXT("r.WarpCulling"),
 	0,

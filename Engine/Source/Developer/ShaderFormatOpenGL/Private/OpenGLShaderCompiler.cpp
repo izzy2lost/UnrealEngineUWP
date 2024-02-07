@@ -25,7 +25,6 @@
 #include "ShaderCore.h"
 #include "ShaderPreprocessor.h"
 #include "ShaderCompilerCommon.h"
-#include "GlslBackend.h"
 #if PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <GL/glcorearb.h>
@@ -61,16 +60,10 @@
 #include "OpenGLUtil.h"
 #include "OpenGLShaderResources.h"
 
-#ifndef DXC_SUPPORTED
-	#define DXC_SUPPORTED (PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX) 
-#endif
-
-#if DXC_SUPPORTED
 THIRD_PARTY_INCLUDES_START
 #include "spirv_reflect.h"
 #include <map>
 THIRD_PARTY_INCLUDES_END
-#endif // DXC_SUPPORTED
 
 DEFINE_LOG_CATEGORY_STATIC(LogOpenGLShaderCompiler, Log, All);
 
@@ -912,16 +905,6 @@ void BuildShaderOutputInternal(
 	}
 }
 
-void FOpenGLFrontend::BuildShaderOutput(
-	FShaderCompilerOutput& ShaderOutput,
-	const FShaderCompilerInput& ShaderInput,
-	const ANSICHAR* InShaderSource,
-	int32 SourceLen,
-	GLSLVersion Version)
-{
-	BuildShaderOutputInternal(ShaderOutput, ShaderInput, InShaderSource, SourceLen, Version);
-}
-
 static void ConvertOpenGLVersionFromGLSLVersionInternal(GLSLVersion InVersion, int& OutMajorVersion, int& OutMinorVersion)
 {
 	switch(InVersion)
@@ -941,11 +924,6 @@ static void ConvertOpenGLVersionFromGLSLVersionInternal(GLSLVersion InVersion, i
 			OutMinorVersion = 0;
 			break;
 	}
-}
-
-void FOpenGLFrontend::ConvertOpenGLVersionFromGLSLVersion(GLSLVersion InVersion, int& OutMajorVersion, int& OutMinorVersion)
-{
-	return ConvertOpenGLVersionFromGLSLVersionInternal(InVersion, OutMajorVersion, OutMinorVersion);
 }
 
 /**
@@ -1046,11 +1024,6 @@ static void PrecompileShaderInternal(FShaderCompilerOutput& ShaderOutput, const 
 	PlatformReleaseOpenGL(ContextPtr, PrevContextPtr);
 }
 
-void FOpenGLFrontend::PrecompileShader(FShaderCompilerOutput& ShaderOutput, const FShaderCompilerInput& ShaderInput, const ANSICHAR* ShaderSource, GLSLVersion Version, EHlslShaderFrequency Frequency)
-{
-	PrecompileShaderInternal(ShaderOutput, ShaderInput, ShaderSource, Version, Frequency);
-}
-
 static EHlslCompileTarget GetCompileTarget(GLSLVersion Version)
 {
 	switch (Version)
@@ -1063,21 +1036,6 @@ static EHlslCompileTarget GetCompileTarget(GLSLVersion Version)
 			checkNoEntry();
 	}
 	return HCT_InvalidTarget;
-}
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS		// FShaderCompilerDefinitions will be made internal in the future, marked deprecated until then
-
-void FOpenGLFrontend::SetupPerVersionCompilationEnvironment(GLSLVersion Version, FShaderCompilerDefinitions& AdditionalDefines, EHlslCompileTarget& HlslCompilerTarget)
-{
-	// this function is deprecated; SetupDefines is removed and all per-version defines are now set in ModifyShaderCompilerInput on the IShaderFormat implementation.
-	HlslCompilerTarget = GetCompileTarget(Version);
-}
-
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-uint32 FOpenGLFrontend::GetMaxSamplers(GLSLVersion Version)
-{
-	return 16;
 }
 
 static uint32 CalculateCrossCompilerFlagsInternal(GLSLVersion Version, const bool bFullPrecisionInPS, const FShaderCompilerFlags& CompilerFlags)
@@ -1104,43 +1062,6 @@ static uint32 CalculateCrossCompilerFlagsInternal(GLSLVersion Version, const boo
 
 	return CCFlags;
 }
-
-uint32 FOpenGLFrontend::CalculateCrossCompilerFlags(GLSLVersion Version, const bool bFullPrecisionInPS, const FShaderCompilerFlags& CompilerFlags)
-{
-	return CalculateCrossCompilerFlagsInternal(Version, bFullPrecisionInPS, CompilerFlags);
-}
-
-FGlslCodeBackend* CreateBackendInternal(GLSLVersion Version, uint32 CCFlags, EHlslCompileTarget HlslCompilerTarget)
-{
-	return new FGlslCodeBackend(CCFlags, HlslCompilerTarget);
-}
-
-
-FGlslCodeBackend* FOpenGLFrontend::CreateBackend(GLSLVersion Version, uint32 CCFlags, EHlslCompileTarget HlslCompilerTarget)
-{
-	return CreateBackendInternal(Version, CCFlags, HlslCompilerTarget);
-}
-
-class FGlsl430LanguageSpec : public FGlslLanguageSpec
-{
-public:
-	FGlsl430LanguageSpec(bool bInDefaultPrecisionIsHalf)
-		: FGlslLanguageSpec(bInDefaultPrecisionIsHalf)
-	{}
-	virtual bool EmulateStructuredWithTypedBuffers() const override { return false; }
-};
-
-FGlslLanguageSpec* CreateLanguageSpecInternal(GLSLVersion Version, bool bDefaultPrecisionIsHalf)
-{
-	return new FGlslLanguageSpec(bDefaultPrecisionIsHalf);
-}
-
-FGlslLanguageSpec* FOpenGLFrontend::CreateLanguageSpec(GLSLVersion Version, bool bDefaultPrecisionIsHalf)
-{
-	return CreateLanguageSpecInternal(Version, bDefaultPrecisionIsHalf);
-}
-
-#if DXC_SUPPORTED
 
 static const ANSICHAR* GetFrequencyPrefix(EShaderFrequency Frequency)
 {
@@ -3231,17 +3152,6 @@ static bool CompileToGlslWithShaderConductor(
 	return !bCompilationFailed;
 }
 
-#endif // DXC_SUPPORTED
-
-bool ShouldUseDXC(FShaderCompilerFlags Flags)
-{
-#if DXC_SUPPORTED
-	return Flags.Contains(CFLAG_ForceDXC);
-#else
-	return false;
-#endif
-}
-
 /**
  * Compile a shader for OpenGL on Windows.
  * @param Input - The input shader code and environment.
@@ -3270,7 +3180,6 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 
 	const EHlslCompileTarget HlslCompilerTarget = GetCompileTarget(Version);
 
-	const bool bUseSC = ShouldUseDXC(Input.Environment.CompilerFlags);
 	const bool bDumpDebugInfo = Input.DumpDebugInfoEnabled();
 	
 	char* GlslShaderSource = nullptr;
@@ -3305,45 +3214,7 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 	// Required as we added the RemoveUniformBuffersFromSource() function (the cross-compiler won't be able to interpret comments w/o a preprocessor)
 	CCFlags &= ~HLSLCC_NoPreprocess;
 
-	bool bCompilationSucceeded = false;
-
-#if DXC_SUPPORTED
-	if (bUseSC)
-	{
-		bCompilationSucceeded = CompileToGlslWithShaderConductor(Input, Output, Version, Frequency, PreprocessedSource, GlslShaderSource);
-	}
-	else
-#endif // DXC_SUPPORTED
-	{
-		CCFlags |= HLSLCC_NoValidation;
-		FGlslCodeBackend* BackEnd = CreateBackendInternal(Version, CCFlags, HlslCompilerTarget);
-
-		const bool bDefaultPrecisionIsHalf = (CCFlags & HLSLCC_UseFullPrecisionInPS) == 0;
-		FGlslLanguageSpec* LanguageSpec = CreateLanguageSpecInternal(Version, bDefaultPrecisionIsHalf);
-
-		{
-			FScopeLock HlslCcLock(CrossCompiler::GetCrossCompilerLock());
-			FHlslCrossCompilerContext CrossCompilerContext(CCFlags, HlslFrequency, HlslCompilerTarget);
-			if (CrossCompilerContext.Init(TCHAR_TO_ANSI(*Input.VirtualSourceFilePath), LanguageSpec))
-			{
-				bCompilationSucceeded = CrossCompilerContext.Run(
-					TCHAR_TO_ANSI(*PreprocessedSource),
-					TCHAR_TO_ANSI(*Input.EntryPointName),
-					BackEnd,
-					&GlslShaderSource,
-					&ErrorLog
-				);
-			}
-		}
-		delete BackEnd;
-		delete LanguageSpec;
-
-		if (bDumpDebugInfo && bCompilationSucceeded && GlslShaderSource != nullptr)
-		{
-			const TCHAR* ShaderFileExt = CrossCompiler::FShaderConductorContext::GetShaderFileExt(CrossCompiler::EShaderConductorLanguage::Essl, Frequency);
-			DumpDebugShaderText(Input, GlslShaderSource, FCStringAnsi::Strlen(GlslShaderSource), ShaderFileExt);
-		}
-	}
+	const bool bCompilationSucceeded = CompileToGlslWithShaderConductor(Input, Output, Version, Frequency, PreprocessedSource, GlslShaderSource);
 
 	if (bCompilationSucceeded)
 	{
@@ -3372,20 +3243,6 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 			}
 		}
 	}
-	else if (!bUseSC)
-	{
-		const bool bUseAbsolutePaths = EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::CompileFromDebugUSF);
-
-		const FString Tmp = ANSI_TO_TCHAR(ErrorLog);
-		TArray<FString> ErrorLines;
-		Tmp.ParseIntoArray(ErrorLines, TEXT("\n"), true);
-
-		for (int32 LineIndex = 0; LineIndex < ErrorLines.Num(); ++LineIndex)
-		{
-			const FString& Line = ErrorLines[LineIndex];
-			CrossCompiler::ParseHlslccError(Output.Errors, Line, bUseAbsolutePaths);
-		}
-	}
 
 	if (GlslShaderSource)
 	{
@@ -3400,13 +3257,6 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 	//ShaderParameterParser.ValidateShaderParameterTypes(Input, Output);
 }
 
-void FOpenGLFrontend::CompileShader(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, GLSLVersion Version)
-{
-	FShaderPreprocessOutput PreprocessOutput;
-	PreprocessShader(PreprocessOutput, Input, Input.Environment);
-	CompileOpenGLShader(Input, PreprocessOutput, Output, WorkingDirectory, Version);
-}
-
 static void FillDeviceCapsOfflineCompilationInternal(struct FDeviceCapabilities& Capabilities, const GLSLVersion ShaderVersion)
 {
 	FMemory::Memzero(Capabilities);
@@ -3419,11 +3269,6 @@ static void FillDeviceCapsOfflineCompilationInternal(struct FDeviceCapabilities&
 	{
 		Capabilities.TargetPlatform = EPlatformType::Desktop;
 	}
-}
-
-void FOpenGLFrontend::FillDeviceCapsOfflineCompilation(struct FDeviceCapabilities& Capabilities, const GLSLVersion ShaderVersion) const
-{
-	FillDeviceCapsOfflineCompilationInternal(Capabilities, ShaderVersion);
 }
 
 static bool MoveHashLines(FString& Destination, FString &Source)
@@ -3541,19 +3386,9 @@ static TSharedPtr<ANSICHAR> PrepareCodeForOfflineCompilationInternal(const GLSLV
 	return RetShaderSource;
 }
 
-TSharedPtr<ANSICHAR> FOpenGLFrontend::PrepareCodeForOfflineCompilation(const GLSLVersion ShaderVersion, EShaderFrequency Frequency, const ANSICHAR* InShaderSource) const
-{
-	return PrepareCodeForOfflineCompilationInternal(ShaderVersion, Frequency, InShaderSource);
-}
-
 static bool PlatformSupportsOfflineCompilationInternal(const GLSLVersion ShaderVersion)
 {
 	return ShaderVersion == GLSL_ES3_1_ANDROID;
-}
-
-bool FOpenGLFrontend::PlatformSupportsOfflineCompilation(const GLSLVersion ShaderVersion) const
-{
-	return PlatformSupportsOfflineCompilationInternal(ShaderVersion);
 }
 
 static void CompileOfflineInternal(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const GLSLVersion ShaderVersion, const ANSICHAR* InShaderSource)
@@ -3570,20 +3405,10 @@ static void CompileOfflineInternal(const FShaderCompilerInput& Input, FShaderCom
 	PlatformCompileOfflineInternal(Input, Output, ShaderSource.Get(), ShaderVersion);
 }
 
-void FOpenGLFrontend::CompileOffline(const FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const GLSLVersion ShaderVersion, const ANSICHAR* InShaderSource)
-{
-	CompileOfflineInternal(Input, Output, ShaderVersion, InShaderSource);
-}
-
 static void PlatformCompileOfflineInternal(const FShaderCompilerInput& Input, FShaderCompilerOutput& ShaderOutput, const ANSICHAR* ShaderSource, const GLSLVersion ShaderVersion)
 {
 	if (ShaderVersion == GLSL_ES3_1_ANDROID)
 	{
 		CompileOfflineMali(Input, ShaderOutput, ShaderSource, FPlatformString::Strlen(ShaderSource), false);
 	}
-}
-
-void FOpenGLFrontend::PlatformCompileOffline(const FShaderCompilerInput& Input, FShaderCompilerOutput& ShaderOutput, const ANSICHAR* ShaderSource, const GLSLVersion ShaderVersion)
-{
-	PlatformCompileOfflineInternal(Input, ShaderOutput, ShaderSource, ShaderVersion);
 }
