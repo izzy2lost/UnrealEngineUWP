@@ -573,7 +573,7 @@ void FD3D12Adapter::CreateRootDevice(bool bWithDebug)
 	{
 #if INTEL_EXTENSIONS
 		// Enable Intel App Discovery
-		if (IsRHIDeviceIntel() && bAllowVendorDevice)
+		if (IsRHIDeviceIntel() && UE::RHICore::AllowVendorDevice())
 		{
 			EnableIntelAppDiscovery(GRHIDeviceId);
 		}
