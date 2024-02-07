@@ -310,107 +310,107 @@ public:
 
 public:
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetNullAction(const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Null")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetNullAction(const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Null")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetContinuousActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetContinuousActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetContinuousAction(TArray<float>& OutValues, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
-	UPARAM(DisplayName = "Success") bool GetContinuousActionToArrayView(TArrayView<float> OutValues, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetContinuousAction(TArray<float>& OutValues, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	bool GetContinuousActionToArrayView(TArrayView<float> OutValues, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Continuous")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetExclusiveDiscreteAction(int32& OutIndex, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteExclusive")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetExclusiveDiscreteAction(int32& OutIndex, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteExclusive")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveDiscreteActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteAction(TArray<int32>& OutIndices, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
-	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteActionToArrayView(TArrayView<int32> OutIndices, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveDiscreteAction(TArray<int32>& OutIndices, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
+	bool GetInclusiveDiscreteActionToArrayView(TArrayView<int32> OutIndices, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("DiscreteInclusive")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStructActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStructActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStructAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStructAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStructActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
-	UPARAM(DisplayName = "Success") bool GetStructActionToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStructActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
+	bool GetStructActionToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Struct")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetExclusiveUnionAction(FName& OutElementName, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("ExclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetExclusiveUnionAction(FName& OutElementName, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("ExclusiveUnion")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveUnionActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveUnionAction(TMap<FName, FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionActionToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveUnionActionToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	bool GetInclusiveUnionActionToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStaticArrayActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStaticArrayActionNum(int32& OutNum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStaticArrayAction(TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
-	UPARAM(DisplayName = "Success") bool GetStaticArrayActionToArrayView(TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStaticArrayAction(TArray<FLearningAgentsActionObjectElement>& OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	bool GetStaticArrayActionToArrayView(TArrayView<FLearningAgentsActionObjectElement> OutElements, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("StaticArray")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetPairAction(FLearningAgentsActionObjectElement& OutKey, FLearningAgentsActionObjectElement& OutValue, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Pair")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetPairAction(FLearningAgentsActionObjectElement& OutKey, FLearningAgentsActionObjectElement& OutValue, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Pair")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetEnumAction(uint8& OutEnumValue, const UEnum* Enum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Enum")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetEnumAction(uint8& OutEnumValue, const UEnum* Enum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Enum")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetBitmaskAction(int32& OutBitmaskValue, const UEnum* Enum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Bitmask")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetBitmaskAction(int32& OutBitmaskValue, const UEnum* Enum, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Bitmask")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutOption"))
-	UPARAM(DisplayName = "Success") bool GetOptionalAction(ELearningAgentsOptionalAction& OutOption, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Optional")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutOption", ReturnDisplayName = "Success"))
+	bool GetOptionalAction(ELearningAgentsOptionalAction& OutOption, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Optional")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutEither"))
-	UPARAM(DisplayName = "Success") bool GetEitherAction(ELearningAgentsEitherAction& OutEither, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Either")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutEither", ReturnDisplayName = "Success"))
+	bool GetEitherAction(ELearningAgentsEitherAction& OutEither, FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Either")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetEncodingAction(FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Encoding")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetEncodingAction(FLearningAgentsActionObjectElement& OutElement, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Encoding")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetBoolAction(bool& bOutValue, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Bool")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetBoolAction(bool& bOutValue, const FLearningAgentsActionObjectElement Element, const FName Name = TEXT("Bool")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetFloatAction(float& OutValue, const FLearningAgentsActionObjectElement Element, const float FloatScale = 1.0f, const FName Name = TEXT("Float")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetFloatAction(float& OutValue, const FLearningAgentsActionObjectElement Element, const float FloatScale = 1.0f, const FName Name = TEXT("Float")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetLocationAction(FVector& OutLocation, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Location")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetLocationAction(FVector& OutLocation, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Location")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetRotationAction(FRotator& OutRotation, const FLearningAgentsActionObjectElement Element, const FRotator RelativeRotation = FRotator::ZeroRotator, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation")) const;
-	UPARAM(DisplayName = "Success") bool GetRotationActionAsQuat(FQuat& OutRotation, const FLearningAgentsActionObjectElement Element, const FQuat RelativeRotation = FQuat::Identity, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetRotationAction(FRotator& OutRotation, const FLearningAgentsActionObjectElement Element, const FRotator RelativeRotation = FRotator::ZeroRotator, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation")) const;
+	bool GetRotationActionAsQuat(FQuat& OutRotation, const FLearningAgentsActionObjectElement Element, const FQuat RelativeRotation = FQuat::Identity, const float RotationScale = 90.0f, const FName Name = TEXT("Rotation")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetScaleAction(FVector& OutScale, const FLearningAgentsActionObjectElement Element, const FVector RelativeScale = FVector(1,1,1), const float Scale = 1.0f, const FName Name = TEXT("Scale")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetScaleAction(FVector& OutScale, const FLearningAgentsActionObjectElement Element, const FVector RelativeScale = FVector(1,1,1), const float Scale = 1.0f, const FName Name = TEXT("Scale")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetTransformAction(FTransform& OutTransform, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const float RotationScale = 1.0f, const float ScaleScale = 1.0f, const FName Name = TEXT("Transform")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetTransformAction(FTransform& OutTransform, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const float RotationScale = 1.0f, const float ScaleScale = 1.0f, const FName Name = TEXT("Transform")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetAngleAction(float& OutAngle, const FLearningAgentsActionObjectElement Element, const float RelativeAngle = 0.0f, const float AngleScale = 90.0f, const FName Name = TEXT("Angle")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetAngleAction(float& OutAngle, const FLearningAgentsActionObjectElement Element, const float RelativeAngle = 0.0f, const float AngleScale = 90.0f, const FName Name = TEXT("Angle")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetAngleActionRadians(float& OutAngle, const FLearningAgentsActionObjectElement Element, const float RelativeAngle = 0.0f, const float AngleScale = 1.57079632679f, const FName Name = TEXT("Angle")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetAngleActionRadians(float& OutAngle, const FLearningAgentsActionObjectElement Element, const float RelativeAngle = 0.0f, const float AngleScale = 1.57079632679f, const FName Name = TEXT("Angle")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetVelocityAction(FVector& OutVelocity, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetVelocityAction(FVector& OutVelocity, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetDirectionAction(FVector& OutDirection, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetDirectionAction(FVector& OutDirection, const FLearningAgentsActionObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetSpeedAction(float& OutSpeed, const FLearningAgentsActionObjectElement Element, const float SpeedScale = 200.0f, const FName Name = TEXT("Speed")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetSpeedAction(float& OutSpeed, const FLearningAgentsActionObjectElement Element, const float SpeedScale = 200.0f, const FName Name = TEXT("Speed")) const;
 
 private:
 

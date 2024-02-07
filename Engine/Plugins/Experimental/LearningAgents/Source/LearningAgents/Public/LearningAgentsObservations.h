@@ -12,6 +12,7 @@
 
 #include "LearningAgentsObservations.generated.h"
 
+class ULearningAgentsManagerListener;
 class ULearningAgentsObservationSchema;
 class ULearningAgentsObservationObject;
 struct FLearningAgentsObservationSchemaElement;
@@ -76,7 +77,7 @@ class ULearningAgentsObservationFunctions : public UBlueprintFunctionLibrary
 
 	/** Find an Enum type by Name. This can be used to find Enum types defined in C++. This call can be expensive so the result should be cached. */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
-	static UEnum* FindEnumByName(const FString Name);
+	static UEnum* FindEnumByName(const FString& Name);
 };
 
 /**
@@ -254,12 +255,6 @@ private:
 	UE::Learning::Observation::FSchema ObservationSchema;
 };
 
-UCLASS(BlueprintType)
-class LEARNINGAGENTS_API ULearningAgentsObservationVisualLoggerObject : public UObject
-{
-	GENERATED_BODY()
-};
-
 /**
  * Observation Object
  *
@@ -382,15 +377,19 @@ public:
 	 * @param Value The new value of this observation.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 2, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeBoolObservation(
 		const bool bValue,
 		const FName Name = TEXT("Bool"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -401,16 +400,20 @@ public:
 	 * @param FloatScale Used to normalize the data for this observation.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeFloatObservation(
 		const float Value,
 		const float FloatScale = 1.0f,
 		const FName Name = TEXT("Float"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -422,17 +425,21 @@ public:
 	 * @param LocationScale Used to normalize the data for this observation.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeLocationObservation(
 		const FVector Location,
 		const FTransform RelativeTransform = FTransform(),
 		const float LocationScale = 100.0f,
 		const FName Name = TEXT("Location"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -443,16 +450,22 @@ public:
 	 * @param RelativeRotation The rotation the provided rotation should be encoded relative to.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
+	 * @param VisualLoggerRotationLocation A location for the visual logger to display the rotation in the world.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeRotationObservation(
 		const FRotator Rotation,
 		const FRotator RelativeRotation = FRotator::ZeroRotator,
 		const FName Name = TEXT("Rotation"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
+		const FVector VisualLoggerRotationLocation = FVector::ZeroVector,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -463,16 +476,22 @@ public:
 	 * @param RelativeRotation The rotation the provided rotation should be encoded relative to.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
+	 * @param VisualLoggerRotationLocation A location for the visual logger to display the rotation in the world.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeRotationObservationFromQuat(
 		const FQuat Rotation,
 		const FQuat RelativeRotation,
 		const FName Name = TEXT("Rotation"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
+		const FVector VisualLoggerRotationLocation = FVector::ZeroVector,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -483,16 +502,22 @@ public:
 	 * @param RelativeScale The scale the provided scale should be encoded relative to.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
+	 * @param VisualLoggerScaleLocation A location for the visual logger to display the scale in the world.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeScaleObservation(
 		const FVector Scale,
 		const FVector RelativeScale = FVector(1,1,1),
 		const FName Name = TEXT("Scale"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
+		const FVector VisualLoggerScaleLocation = FVector::ZeroVector,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -504,17 +529,21 @@ public:
 	 * @param LocationScale Used to normalize the transform's location for this observation.
 	 * @param Name The name of the corresponding observation. Must match the name given during Specify.
 	 * @param bVisualLoggerEnabled When true, debug data will be sent to the visual logger.
+	 * @param VisualLoggerListener The listener object which is making this observation. This must be set to use logging.
+	 * @param VisualLoggerAgentId The agent id associated with this observation.
 	 * @param VisualLoggerLocation A location for the visual logger information in the world.
 	 * @param VisualLoggerColor The color for the visual logger display.
 	 * @return The newly created observation object element.
 	 */
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeTransformObservation(
 		const FTransform Transform,
 		const FTransform RelativeTransform = FTransform(),
 		const float LocationScale = 100.0f,
 		const FName Name = TEXT("Transform"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
@@ -527,19 +556,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeVelocityObservation(const FVector Velocity, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 3, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeDirectionObservation(
 		const FVector Direction,
 		const FTransform RelativeTransform = FTransform(),
 		const FName Name = TEXT("Direction"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
+		const FVector VisualLoggerDirectionLocation = FVector::ZeroVector,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const float VisualLoggerArrowLength = 100.0f,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	// Spline Observations
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 5))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 5, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeLocationAlongSplineObservation(
 		const USplineComponent* SplineComponent,
 		const float DistanceAlongSpline,
@@ -547,19 +579,23 @@ public:
 		const float LocationScale = 100.0f,
 		const FName Name = TEXT("LocationAlongSpline"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
 
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	FLearningAgentsObservationObjectElement MakeProportionAlongSplineObservation(const USplineComponent* SplineComponent, const float DistanceAlongSpline, const FName Name = TEXT("ProportionAlongSpline"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4))
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (AdvancedDisplay = 4, DefaultToSelf = "VisualLoggerListener"))
 	FLearningAgentsObservationObjectElement MakeDirectionAlongSplineObservation(
 		const USplineComponent* SplineComponent,
 		const float DistanceAlongSpline,
 		const FTransform RelativeTransform = FTransform(),
 		const FName Name = TEXT("DirectionAlongSpline"),
 		const bool bVisualLoggerEnabled = false,
+		ULearningAgentsManagerListener* VisualLoggerListener = nullptr,
+		const int32 VisualLoggerAgentId = -1,
 		const FVector VisualLoggerLocation = FVector::ZeroVector,
 		const float VisualLoggerArrowLength = 100.0f,
 		const FLinearColor VisualLoggerColor = FLinearColor::Red);
@@ -579,171 +615,166 @@ public:
 
 	// Basic Observations
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetNullObservation(const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Null")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta=(ReturnDisplayName = "Success"))
+	bool GetNullObservation(const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Null")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetContinuousObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetContinuousObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Continuous")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetContinuousObservation(TArray<float>& OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Continuous")) const;
-	UPARAM(DisplayName = "Success") bool GetContinuousObservationToArrayView(TArrayView<float> OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetContinuousObservation(TArray<float>& OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Continuous")) const;
+	bool GetContinuousObservationToArrayView(TArrayView<float> OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Continuous")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetExclusiveDiscreteObservation(int32& OutIndex, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ExclusiveDiscrete")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetExclusiveDiscreteObservation(int32& OutIndex, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ExclusiveDiscrete")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveDiscrete")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveDiscreteObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveDiscrete")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteObservation(TArray<int32>& OutIndices, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveDiscrete")) const;
-	UPARAM(DisplayName = "Success") bool GetInclusiveDiscreteObservationToArrayView(TArrayView<int32> OutIndices, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveDiscrete")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveDiscreteObservation(TArray<int32>& OutIndices, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveDiscrete")) const;
+	bool GetInclusiveDiscreteObservationToArrayView(TArrayView<int32> OutIndices, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveDiscrete")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetIndexObservation(int32& OutIndex, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Index")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetIndexObservation(int32& OutIndex, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Index")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetCountObservation(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Name = TEXT("Count")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetCountObservation(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const int32 MaxNum, const FName Name = TEXT("Count")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStructObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStructObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStructObservation(TMap<FName, FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStructObservation(TMap<FName, FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStructObservationToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
-	UPARAM(DisplayName = "Success") bool GetStructObservationToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStructObservationToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
+	bool GetStructObservationToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Struct")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetExclusiveUnionObservation(FName& OutElementName, FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ExclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetExclusiveUnionObservation(FName& OutElementName, FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ExclusiveUnion")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveUnionObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionObservation(TMap<FName, FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveUnionObservation(TMap<FName, FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionObservationToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
-	UPARAM(DisplayName = "Success") bool GetInclusiveUnionObservationToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetInclusiveUnionObservationToArrays(TArray<FName>& OutElementNames, TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
+	bool GetInclusiveUnionObservationToArrayViews(TArrayView<FName> OutElementNames, TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("InclusiveUnion")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStaticArrayObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStaticArrayObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("StaticArray")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetStaticArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("StaticArray")) const;
-	UPARAM(DisplayName = "Success") bool GetStaticArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetStaticArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("StaticArray")) const;
+	bool GetStaticArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("StaticArray")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetSetObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetSetObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetSetObservation(TSet<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetSetObservation(TSet<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetSetObservationToArray(TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
-	UPARAM(DisplayName = "Success") bool GetSetObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetSetObservationToArray(TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
+	bool GetSetObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Set")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetPairObservation(FLearningAgentsObservationObjectElement& OutKey, FLearningAgentsObservationObjectElement& OutValue, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Pair")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetPairObservation(FLearningAgentsObservationObjectElement& OutKey, FLearningAgentsObservationObjectElement& OutValue, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Pair")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetArrayObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Array")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetArrayObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Array")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Array")) const;
-	UPARAM(DisplayName = "Success") bool GetArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Array")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetArrayObservation(TArray<FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Array")) const;
+	bool GetArrayObservationToArrayView(TArrayView<FLearningAgentsObservationObjectElement> OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Array")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetMapObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetMapObservationNum(int32& OutNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetMapObservation(TMap<FLearningAgentsObservationObjectElement,FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetMapObservation(TMap<FLearningAgentsObservationObjectElement,FLearningAgentsObservationObjectElement>& OutElements, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
 	
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetMapObservationToArrays(TArray<FLearningAgentsObservationObjectElement>& OutKeys, TArray<FLearningAgentsObservationObjectElement>& OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
-	UPARAM(DisplayName = "Success") bool GetMapObservationToArrayViews(TArrayView<FLearningAgentsObservationObjectElement> OutKeys, TArrayView<FLearningAgentsObservationObjectElement> OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetMapObservationToArrays(TArray<FLearningAgentsObservationObjectElement>& OutKeys, TArray<FLearningAgentsObservationObjectElement>& OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
+	bool GetMapObservationToArrayViews(TArrayView<FLearningAgentsObservationObjectElement> OutKeys, TArrayView<FLearningAgentsObservationObjectElement> OutValues, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Map")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetEnumObservation(uint8& OutEnumValue, const UEnum* Enum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Enum")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetEnumObservation(uint8& OutEnumValue, const UEnum* Enum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Enum")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetBitmaskObservation(int32& OutBitmaskValue, const UEnum* Enum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Bitmask")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetBitmaskObservation(int32& OutBitmaskValue, const UEnum* Enum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Bitmask")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutOption"))
-	UPARAM(DisplayName = "Success") bool GetOptionalObservation(ELearningAgentsOptionalObservation& OutOption, FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Optional")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutOption", ReturnDisplayName = "Success"))
+	bool GetOptionalObservation(ELearningAgentsOptionalObservation& OutOption, FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Optional")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutEither"))
-	UPARAM(DisplayName = "Success") bool GetEitherObservation(ELearningAgentsEitherObservation& OutEither, FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Either")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ExpandEnumAsExecs = "OutEither", ReturnDisplayName = "Success"))
+	bool GetEitherObservation(ELearningAgentsEitherObservation& OutEither, FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Either")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetEncodingObservation(FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Encoding")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetEncodingObservation(FLearningAgentsObservationObjectElement& OutElement, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Encoding")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetBoolObservation(bool& bOutValue, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Bool")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetBoolObservation(bool& bOutValue, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("Bool")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetFloatObservation(float& OutValue, const FLearningAgentsObservationObjectElement Element, const float FloatScale = 1.0f, const FName Name = TEXT("Float")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetFloatObservation(float& OutValue, const FLearningAgentsObservationObjectElement Element, const float FloatScale = 1.0f, const FName Name = TEXT("Float")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetLocationObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Location")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetLocationObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Location")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetRotationObservation(FRotator& OutRotation, const FLearningAgentsObservationObjectElement Element, const FRotator RelativeRotation = FRotator::ZeroRotator, const FName Name = TEXT("Rotation")) const;
-	UPARAM(DisplayName = "Success") bool GetRotationObservationAsQuat(FQuat& OutRotation, const FLearningAgentsObservationObjectElement Element, const FQuat RelativeRotation = FQuat::Identity, const FName Name = TEXT("Rotation")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetRotationObservation(FRotator& OutRotation, const FLearningAgentsObservationObjectElement Element, const FRotator RelativeRotation = FRotator::ZeroRotator, const FName Name = TEXT("Rotation")) const;
+	bool GetRotationObservationAsQuat(FQuat& OutRotation, const FLearningAgentsObservationObjectElement Element, const FQuat RelativeRotation = FQuat::Identity, const FName Name = TEXT("Rotation")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetScaleObservation(FVector& OutScale, const FLearningAgentsObservationObjectElement Element, const FVector RelativeScale = FVector(1, 1, 1), const FName Name = TEXT("Scale")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetScaleObservation(FVector& OutScale, const FLearningAgentsObservationObjectElement Element, const FVector RelativeScale = FVector(1, 1, 1), const FName Name = TEXT("Scale")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetTransformObservation(FTransform& OutTransform, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Transform")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetTransformObservation(FTransform& OutTransform, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("Transform")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetAngleObservation(float& OutAngle, const FLearningAgentsObservationObjectElement Element, const float RelativeAngle = 0.0f, const FName Name = TEXT("Angle")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetAngleObservation(float& OutAngle, const FLearningAgentsObservationObjectElement Element, const float RelativeAngle = 0.0f, const FName Name = TEXT("Angle")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetAngleObservationRadians(float& OutAngle, const FLearningAgentsObservationObjectElement Element, const float RelativeAngle = 0.0f, const FName Name = TEXT("Angle")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetAngleObservationRadians(float& OutAngle, const FLearningAgentsObservationObjectElement Element, const float RelativeAngle = 0.0f, const FName Name = TEXT("Angle")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetVelocityObservation(FVector& OutVelocity, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetVelocityObservation(FVector& OutVelocity, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float VelocityScale = 200.0f, const FName Name = TEXT("Velocity")) const;
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetDirectionObservation(FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction")) const;
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetDirectionObservation(FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("Direction")) const;
 
 	// Spline Observations
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetLocationAlongSplineObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("LocationAlongSpline"));
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetLocationAlongSplineObservation(FVector& OutLocation, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("LocationAlongSpline"));
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetProportionAlongSplineObservation(bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongSpline"));
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetProportionAlongSplineObservation(bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongSpline"));
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetDirectionAlongSplineObservation(FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("DirectionAlongSpline"));
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetDirectionAlongSplineObservation(FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const FName Name = TEXT("DirectionAlongSpline"));
 
-	UFUNCTION(BlueprintPure = false, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetPropertiesAlongSplineObservation(FVector& OutLocation, bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("PropertiesAlongSpline"));
+	UFUNCTION(BlueprintPure = false, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetPropertiesAlongSplineObservation(FVector& OutLocation, bool& bOutIsClosedLoop, float& OutAngle, float& OutPropotion, FVector& OutDirection, const FLearningAgentsObservationObjectElement Element, const FTransform RelativeTransform = FTransform(), const float LocationScale = 100.0f, const FName Name = TEXT("PropertiesAlongSpline"));
 
 	// Ray Cast Observations
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetProportionAlongRayObservation(float& OutProportion, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRay"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetProportionAlongRayObservation(float& OutProportion, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRay"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetProportionAlongRaysObservationNum(int32& OutProportionNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRays"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetProportionAlongRaysObservationNum(int32& OutProportionNum, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRays"));
 
-	UFUNCTION(BlueprintPure, Category = "LearningAgents")
-	UPARAM(DisplayName = "Success") bool GetProportionAlongRaysObservation(TArray<float>& OutProportions, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRays"));
-	UPARAM(DisplayName = "Success") bool GetProportionAlongRaysObservationToArrayView(TArrayView<float> OutProportions, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRays"));
+	UFUNCTION(BlueprintPure, Category = "LearningAgents", meta = (ReturnDisplayName = "Success"))
+	bool GetProportionAlongRaysObservation(TArray<float>& OutProportions, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRays"));
+	bool GetProportionAlongRaysObservationToArrayView(TArrayView<float> OutProportions, const FLearningAgentsObservationObjectElement Element, const FName Name = TEXT("ProportionAlongRays"));
 
 
 private:
 
 	UE::Learning::Observation::FObject ObservationObject;
-
-	const ULearningAgentsObservationVisualLoggerObject* GetOrAddVisualLoggerObject(const FName Name);
-
-	UPROPERTY()
-	TMap<FName, TObjectPtr<const ULearningAgentsObservationVisualLoggerObject>> VisualLoggerObjects;
 };

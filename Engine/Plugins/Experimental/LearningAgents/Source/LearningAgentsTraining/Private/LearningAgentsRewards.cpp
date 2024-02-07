@@ -2,57 +2,486 @@
 
 #include "LearningAgentsRewards.h"
 
+#include "LearningAgentsManagerListener.h"
+#include "LearningAgentsDebug.h"
+
 #include "LearningLog.h"
 
 #include "Components/SplineComponent.h"
 
-float ULearningAgentsRewards::RewardOnCondition(const bool bCondition, const float RewardScale)
+float ULearningAgentsRewards::MakeReward(
+	const float RewardValue,
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId, 
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return bCondition ? RewardScale : 0.0f;
+	const float Reward = RewardValue * RewardScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nValue: [% 6.1f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			RewardValue,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
 
-float ULearningAgentsRewards::RewardOnLocationDifferenceBelowThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold, const float RewardScale)
+float ULearningAgentsRewards::MakeRewardOnCondition(
+	const bool bCondition, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return RewardOnCondition(FVector::Distance(LocationA, LocationB) < DistanceThreshold, RewardScale);
+	const float Reward = bCondition ? RewardScale : 0.0f;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			bCondition ? TEXT("true") : TEXT("false"),
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
 
-float ULearningAgentsRewards::RewardFromLocationSimilarity(const FVector LocationA, const FVector LocationB, const float LocationScale, const float RewardScale)
+float ULearningAgentsRewards::MakeRewardOnLocationDifferenceBelowThreshold(
+	const FVector LocationA, 
+	const FVector LocationB, 
+	const float DistanceThreshold, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
+{
+	const float Distance = FVector::Distance(LocationA, LocationB);
+	const bool bCondition = Distance < DistanceThreshold;
+	const float Reward = MakeRewardOnCondition(bCondition, RewardScale);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			LocationB,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationB,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nThreshold: [% 6.2f]\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			LocationA.X, LocationA.Y, LocationA.Z,
+			LocationB.X, LocationB.Y, LocationB.Z,
+			Distance,
+			DistanceThreshold,
+			bCondition ? TEXT("true") : TEXT("false"),
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
+}
+
+float ULearningAgentsRewards::MakeRewardOnLocationDifferenceAboveThreshold(
+	const FVector LocationA,
+	const FVector LocationB,
+	const float DistanceThreshold,
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
+{
+	const float Distance = FVector::Distance(LocationA, LocationB);
+	const bool bCondition = Distance > DistanceThreshold;
+	const float Reward = MakeRewardOnCondition(bCondition, RewardScale);
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			LocationB,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationB,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nThreshold: [% 6.2f]\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			LocationA.X, LocationA.Y, LocationA.Z,
+			LocationB.X, LocationB.Y, LocationB.Z,
+			Distance,
+			DistanceThreshold,
+			bCondition ? TEXT("true") : TEXT("false"),
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
+}
+
+float ULearningAgentsRewards::MakeRewardFromLocationSimilarity(
+	const FVector LocationA, 
+	const FVector LocationB, 
+	const float LocationScale, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	const float LocationDifference = FVector::Dist(LocationA, LocationB);
-	return RewardScale * FMath::InvExpApprox(FMath::Square(LocationDifference / FMath::Max(LocationScale, UE_SMALL_NUMBER)));
+	const float Similarity = FMath::InvExpApprox(FMath::Square(LocationDifference / FMath::Max(LocationScale, UE_SMALL_NUMBER)));
+	const float Reward = Similarity * RewardScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_SEGMENT(VisualLoggerObject, LogLearning, Display,
+			LocationA,
+			LocationB,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
+			LocationB,
+			10,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDifference: [% 6.2f]\nLocationScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			LocationA.X, LocationA.Y, LocationA.Z,
+			LocationB.X, LocationB.Y, LocationB.Z,
+			LocationDifference,
+			LocationScale,
+			Similarity,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
 
-float ULearningAgentsRewards::RewardFromAngleSimilarity(const float AngleA, const float AngleB, const float AngleScale, const float RewardScale)
+float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
+	const float AngleA, 
+	const float AngleB, 
+	const float AngleScale, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerAngleLocationA,
+	const FVector VisualLoggerAngleLocationB,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	const float AngleDifference = FMath::FindDeltaAngleRadians(FMath::DegreesToRadians(AngleA), FMath::DegreesToRadians(AngleB));
-	return RewardScale * FMath::InvExpApprox(FMath::Square(AngleDifference / FMath::Max(FMath::DegreesToRadians(AngleScale), UE_SMALL_NUMBER)));
+	const float AngleDifference = FMath::FindDeltaAngleDegrees(AngleA, AngleB);
+	const float Similarity = FMath::InvExpApprox(FMath::Square(AngleDifference / FMath::Max(AngleScale, UE_SMALL_NUMBER)));
+	const float Reward = Similarity * RewardScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_ANGLE(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			AngleA,
+			0.0f,
+			VisualLoggerAngleLocationA,
+			5.0f,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_ANGLE(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			AngleB,
+			0.0f,
+			VisualLoggerAngleLocationB,
+			5.0f,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nAngleA [% 6.2f]\nAngleB [% 6.2f]\nDifference: [% 6.2f]\nAngleScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			AngleA,
+			AngleB,
+			AngleDifference,
+			AngleScale,
+			Similarity,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
 
-float ULearningAgentsRewards::RewardFromRotationSimilarityAsQuats(const FQuat RotationA, const FQuat RotationB, const float AngleScale, const float RewardScale)
+float ULearningAgentsRewards::MakeRewardFromRotationSimilarityAsQuats(
+	const FQuat RotationA, 
+	const FQuat RotationB, 
+	const float AngleScale, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerRotationLocationA,
+	const FVector VisualLoggerRotationLocationB,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	FQuat Difference = RotationA.Inverse() * RotationB;
 	Difference.EnforceShortestArcWith(FQuat::Identity);
-	return RewardScale * FMath::InvExpApprox(FMath::Square(Difference.GetAngle() / (FMath::Max(FMath::DegreesToRadians(AngleScale), UE_SMALL_NUMBER))));
+	const float AngleDifference = FMath::RadiansToDegrees(Difference.GetAngle());
+	const float Similarity = FMath::InvExpApprox(FMath::Square(AngleDifference / (FMath::Max(AngleScale, UE_SMALL_NUMBER))));
+	const float Reward = Similarity * RewardScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			VisualLoggerRotationLocationA,
+			RotationA,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_TRANSFORM(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			VisualLoggerRotationLocationB,
+			RotationB,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nRotationA [% 6.2f % 6.2f % 6.2f % 6.2f]\nRotationB [% 6.2f % 6.2f % 6.2f % 6.2f]\nDifference: [% 6.2f]\nAngleScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			RotationA.X, RotationA.Y, RotationA.Z, RotationA.W,
+			RotationB.X, RotationB.Y, RotationB.Z, RotationB.W,
+			AngleDifference,
+			AngleScale,
+			Similarity,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
 
-float ULearningAgentsRewards::RewardFromRotationSimilarity(const FRotator RotationA, const FRotator RotationB, const float AngleScale, const float RewardScale)
+float ULearningAgentsRewards::MakeRewardFromRotationSimilarity(
+	const FRotator RotationA, 
+	const FRotator RotationB, 
+	const float AngleScale, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerRotationLocationA,
+	const FVector VisualLoggerRotationLocationB,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
-	return RewardScale * RewardFromRotationSimilarityAsQuats(RotationA.Quaternion(), RotationB.Quaternion(), AngleScale);
+	return MakeRewardFromRotationSimilarityAsQuats(
+		RotationA.Quaternion(), 
+		RotationB.Quaternion(), 
+		AngleScale, 
+		RewardScale, 
+		Name, 
+		bVisualLoggerEnabled, 
+		VisualLoggerListener, 
+		VisualLoggerAgentId,
+		VisualLoggerRotationLocationA,
+		VisualLoggerRotationLocationB,
+		VisualLoggerLocation, 
+		VisualLoggerColor);
 }
 
-float ULearningAgentsRewards::RewardFromDirectionSimilarity(const FVector DirectionA, const FVector DirectionB, const float AngleScale, const float RewardScale)
+float ULearningAgentsRewards::MakeRewardFromDirectionSimilarity(
+	const FVector DirectionA, 
+	const FVector DirectionB, 
+	const float AngleScale, 
+	const float RewardScale,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerDirectionLocationA,
+	const FVector VisualLoggerDirectionLocationB,
+	const FVector VisualLoggerLocation,
+	const float VisualLoggerArrowLength,
+	const FLinearColor VisualLoggerColor)
 {
-	const float AngleDifference = FMath::Acos(DirectionA.Dot(DirectionB));
-	return RewardScale * FMath::InvExpApprox(FMath::Square(AngleDifference / FMath::Max(FMath::DegreesToRadians(AngleScale), UE_SMALL_NUMBER)));
+	const float AngleDifference = FMath::RadiansToDegrees(FMath::Acos(DirectionA.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector).Dot(DirectionB.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector))));
+	const float Similarity = FMath::InvExpApprox(FMath::Square(AngleDifference / FMath::Max(AngleScale, UE_SMALL_NUMBER)));
+	const float Reward = Similarity * RewardScale;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_ARROW(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			VisualLoggerDirectionLocationA,
+			VisualLoggerDirectionLocationA + VisualLoggerArrowLength * DirectionA,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_ARROW(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			VisualLoggerDirectionLocationB,
+			VisualLoggerDirectionLocationB + VisualLoggerArrowLength * DirectionB,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nDirectionA [% 6.2f % 6.2f % 6.2f]\nDirectionB [% 6.2f % 6.2f % 6.2f]\nDifference: [% 6.2f]\nAngleScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			DirectionA.X, DirectionA.Y, DirectionA.Z,
+			DirectionB.X, DirectionB.Y, DirectionB.Z,
+			AngleDifference,
+			AngleScale,
+			Similarity,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
 
 // Spline Rewards
 
-float ULearningAgentsRewards::RewardFromVelocityAlongSpline(const USplineComponent* SplineComponent, const FVector Position, const FVector Velocity, const float VelocityScale, const float RewardScale, const float FiniteDifferenceDelta)
+float ULearningAgentsRewards::MakeRewardFromVelocityAlongSpline(
+	const USplineComponent* SplineComponent, 
+	const FVector Location, 
+	const FVector Velocity, 
+	const float VelocityScale, 
+	const float RewardScale, 
+	const float FiniteDifferenceDelta,
+	const FName Name,
+	const bool bVisualLoggerEnabled,
+	ULearningAgentsManagerListener* VisualLoggerListener,
+	const int32 VisualLoggerAgentId,
+	const FVector VisualLoggerLocation,
+	const FLinearColor VisualLoggerColor)
 {
 	if (!SplineComponent)
 	{
-		UE_LOG(LogLearning, Error, TEXT("RewardFromVelocityAlongSpline: SplineComponent is nullptr."));
+		UE_LOG(LogLearning, Error, TEXT("MakeRewardFromVelocityAlongSpline: SplineComponent is nullptr."));
 		return 0.0f;
 	}
 
@@ -60,12 +489,12 @@ float ULearningAgentsRewards::RewardFromVelocityAlongSpline(const USplineCompone
 
 	if (FiniteDiff < UE_KINDA_SMALL_NUMBER)
 	{
-		UE_LOG(LogLearning, Warning, TEXT("RewardFromVelocityAlongSpline: FiniteDifferenceDelta is too small (%6.4f). Clamping to %6.4f."), FiniteDifferenceDelta, UE_KINDA_SMALL_NUMBER);
+		UE_LOG(LogLearning, Warning, TEXT("MakeRewardFromVelocityAlongSpline: FiniteDifferenceDelta is too small (%6.4f). Clamping to %6.4f."), FiniteDifferenceDelta, UE_KINDA_SMALL_NUMBER);
 		FiniteDiff = UE_KINDA_SMALL_NUMBER;
 	}
 
-	const float RawDistance0 = SplineComponent->GetDistanceAlongSplineAtLocation(Position, ESplineCoordinateSpace::World);
-	const float RawDistance1 = SplineComponent->GetDistanceAlongSplineAtLocation(Position + FiniteDiff * Velocity.GetSafeNormal(), ESplineCoordinateSpace::World);
+	const float RawDistance0 = SplineComponent->GetDistanceAlongSplineAtLocation(Location, ESplineCoordinateSpace::World);
+	const float RawDistance1 = SplineComponent->GetDistanceAlongSplineAtLocation(Location + FiniteDiff * Velocity.GetSafeNormal(), ESplineCoordinateSpace::World);
 
 	float Distance0 = RawDistance0, Distance1 = RawDistance1;
 
@@ -83,49 +512,40 @@ float ULearningAgentsRewards::RewardFromVelocityAlongSpline(const USplineCompone
 		}
 	}
 
-	return RewardScale * ((Distance1 - Distance0) / FiniteDiff) * (Velocity.Length() / FMath::Max(VelocityScale, UE_SMALL_NUMBER));
+	const float DistanceVelocity = ((Distance1 - Distance0) / FiniteDiff) * (Velocity.Length() / FMath::Max(VelocityScale, UE_SMALL_NUMBER));
+	const float Reward = RewardScale * DistanceVelocity;
+
+#if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
+	if (bVisualLoggerEnabled && VisualLoggerListener)
+	{
+		const FVector SplineLocation0 = SplineComponent->GetLocationAtDistanceAlongSpline(RawDistance0, ESplineCoordinateSpace::World);
+		const FVector SplineLocation1 = SplineComponent->GetLocationAtDistanceAlongSpline(RawDistance1, ESplineCoordinateSpace::World);
+		const FVector SplineVelocityDirection = (SplineLocation1 - SplineLocation0).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
+
+		UE_LEARNING_AGENTS_VLOG_ARROW(
+			VisualLoggerObject,
+			LogLearning,
+			Display,
+			SplineLocation0,
+			SplineLocation0 + DistanceVelocity * SplineVelocityDirection,
+			VisualLoggerColor.ToFColor(true),
+			TEXT(""));
+
+		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
+			VisualLoggerColor.ToFColor(true),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocation [% 6.2f % 6.2f % 6.2f]\nVelocity [% 6.2f % 6.2f % 6.2f]\nDistanceVelocity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			*VisualLoggerListener->GetName(),
+			*Name.ToString(),
+			VisualLoggerAgentId,
+			Location.X, Location.Y, Location.Z,
+			Velocity.X, Velocity.Y, Velocity.Z,
+			DistanceVelocity,
+			RewardScale,
+			Reward);
+	}
+#endif
+
+	return Reward;
 }
-
-
-// Penalties
-
-float ULearningAgentsRewards::PenaltyOnCondition(const bool bCondition, const float PenaltyScale)
-{
-	return bCondition ? -PenaltyScale : 0.0f;
-}
-
-float ULearningAgentsRewards::PenaltyOnLocationDifferenceAboveThreshold(const FVector LocationA, const FVector LocationB, const float DistanceThreshold, const float PenaltyScale)
-{
-	return PenaltyOnCondition(FVector::Distance(LocationA, LocationB) > DistanceThreshold, PenaltyScale);
-}
-
-float ULearningAgentsRewards::PenaltyFromLocationDifference(const FVector LocationA, const FVector LocationB, const float LocationScale, const float PenaltyScale)
-{
-	const float LocationDifference = FVector::Dist(LocationA, LocationB);
-	return PenaltyScale  * (-LocationDifference / FMath::Max(LocationScale, UE_SMALL_NUMBER));
-}
-
-float ULearningAgentsRewards::PenaltyFromAngleDifference(const float AngleA, const float AngleB, const float AngleScale, const float PenaltyScale)
-{
-	const float AngleDifference = FMath::FindDeltaAngleRadians(FMath::DegreesToRadians(AngleA), FMath::DegreesToRadians(AngleB));
-	return PenaltyScale  * (-AngleDifference / FMath::Max(FMath::DegreesToRadians(AngleScale), UE_SMALL_NUMBER));
-}
-
-float ULearningAgentsRewards::PenaltyFromRotationDifferenceAsQuats(const FQuat RotationA, const FQuat RotationB, const float AngleScale, const float PenaltyScale)
-{
-	FQuat Difference = RotationA.Inverse() * RotationB;
-	Difference.EnforceShortestArcWith(FQuat::Identity);
-	return PenaltyScale  * (-Difference.GetAngle() / (FMath::Max(FMath::DegreesToRadians(AngleScale), UE_SMALL_NUMBER)));
-}
-
-float ULearningAgentsRewards::PenaltyFromRotationDifference(const FRotator RotationA, const FRotator RotationB, const float AngleScale, const float PenaltyScale)
-{
-	return PenaltyFromRotationDifferenceAsQuats(RotationA.Quaternion(), RotationB.Quaternion(), AngleScale, PenaltyScale);
-}
-
-float ULearningAgentsRewards::PenaltyFromDirectionDifference(const FVector DirectionA, const FVector DirectionB, const float AngleScale, const float PenaltyScale)
-{
-	const float AngleDifference = FMath::Acos(DirectionA.Dot(DirectionB));
-	return PenaltyScale  * (-AngleDifference / FMath::Max(FMath::DegreesToRadians(AngleScale), UE_SMALL_NUMBER));
-}
-

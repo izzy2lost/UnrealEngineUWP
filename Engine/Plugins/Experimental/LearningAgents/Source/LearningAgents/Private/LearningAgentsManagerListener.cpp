@@ -96,3 +96,20 @@ bool ULearningAgentsManagerListener::IsSetup() const
 {
 	return bIsSetup;
 }
+
+const ULearningAgentsVisualLoggerObject* ULearningAgentsManagerListener::GetOrAddVisualLoggerObject(const FName Name)
+{
+	const TObjectPtr<const ULearningAgentsVisualLoggerObject>* Value = VisualLoggerObjects.Find(Name);
+
+	if (Value)
+	{
+		return Value->Get();
+	}
+	else
+	{
+		const FName UniqueName = MakeUniqueObjectName(this, ULearningAgentsVisualLoggerObject::StaticClass(), Name, EUniqueObjectNameOptions::GloballyUnique);
+		const ULearningAgentsVisualLoggerObject* NewLoggerObject = NewObject<ULearningAgentsVisualLoggerObject>(this, UniqueName);
+		VisualLoggerObjects.Add(Name, NewLoggerObject);
+		return NewLoggerObject;
+	}
+}
