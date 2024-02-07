@@ -14,6 +14,8 @@ FAvaRundownRCControllerItem::FAvaRundownRCControllerItem(int32 InInstanceIndex, 
 	
 	if (InController)
 	{
+		DisplayIndex = InController->DisplayIndex;
+		
 		const FName DisplayName = InController->DisplayName.IsNone()
 			? InController->PropertyName
 			: InController->DisplayName;
