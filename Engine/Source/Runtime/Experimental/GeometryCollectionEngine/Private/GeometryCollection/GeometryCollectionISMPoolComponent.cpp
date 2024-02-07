@@ -38,9 +38,33 @@ FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
 	TEXT("Target size for number of ISM components in the recycling free list."));
 
 
-FGeometryCollectionMeshGroup::FMeshId FGeometryCollectionMeshGroup::AddMesh(const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, const FGeometryCollectionMeshInfo& ISMInstanceInfo)
+void FGeometryCollectionMeshInfo::ShadowCopyCustomData(int32 InstanceCount, int32 NumCustomDataFloatsPerInstance, TArrayView<const float> CustomDataFloats)
+{
+	CustomData.SetNum(InstanceCount * NumCustomDataFloatsPerInstance + NumCustomDataFloatsPerInstance, true);
+
+	for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
+	{
+		int32 Offset = InstanceIndex * NumCustomDataFloatsPerInstance;
+		FMemory::Memcpy(&CustomData[Offset], CustomDataFloats.GetData() + Offset, NumCustomDataFloatsPerInstance * CustomDataFloats.GetTypeSize());
+	}
+}
+
+TArrayView<const float> FGeometryCollectionMeshInfo::CustomDataSlice(int32 InstanceIndex, int32 NumCustomDataFloatsPerInstance)
+{
+	TArrayView<const float> DataView = CustomData;
+	return DataView.Slice(InstanceIndex * NumCustomDataFloatsPerInstance, NumCustomDataFloatsPerInstance);
+}
+
+FGeometryCollectionMeshGroup::FMeshId FGeometryCollectionMeshGroup::AddMesh(const FGeometryCollectionStaticMeshInstance& MeshInstance, int32 InstanceCount, const FGeometryCollectionMeshInfo& ISMInstanceInfo, TArrayView<const float> CustomDataFloats)
 {
 	const FMeshId MeshInfoIndex = MeshInfos.Emplace(ISMInstanceInfo);
+
+	if (bAllowPerInstanceRemoval)
+	{
+		FGeometryCollectionMeshInfo& MeshInfo = MeshInfos[MeshInfoIndex];
+		MeshInfo.ShadowCopyCustomData(InstanceCount, MeshInstance.Desc.NumCustomDataFloats, CustomDataFloats);
+	}
+
 	return MeshInfoIndex;
 }
 
@@ -298,7 +322,9 @@ bool FGeometryCollectionISMPool::BatchUpdateInstancesTransforms(FGeometryCollect
 			else if (!Transform.GetScale3D().IsZero() && !InstanceId.IsValid())
 			{
 				// Re-add the instance to the ISM if the scale becomes non-zero.
-				ISM.InstanceIds[InstanceGroup.Start + InstanceIndex] = ISM.ISMComponent->AddInstanceById(Transform, bWorldSpace);
+				FPrimitiveInstanceId Id = ISM.ISMComponent->AddInstanceById(Transform, bWorldSpace);
+				ISM.InstanceIds[InstanceGroup.Start + InstanceIndex] = Id;
+				ISM.ISMComponent->SetCustomDataById(Id, MeshInfo.CustomDataSlice(InstanceIndex, ISM.ISMComponent->NumCustomDataFloats));
 				continue;
 			}
 		}
@@ -604,7 +630,7 @@ UGeometryCollectionISMPoolComponent::FMeshId UGeometryCollectionISMPoolComponent
 	if (FGeometryCollectionMeshGroup* MeshGroup = MeshGroups.Find(MeshGroupId))
 	{
 		const FGeometryCollectionMeshInfo ISMInstanceInfo = Pool.AddInstancesToISM(this, MeshInstance, InstanceCount, CustomDataFloats);
-		return MeshGroup->AddMesh(MeshInstance, InstanceCount, ISMInstanceInfo);
+		return MeshGroup->AddMesh(MeshInstance, InstanceCount, ISMInstanceInfo, CustomDataFloats);
 	}
 	UE_LOG(LogChaos, Warning, TEXT("UGeometryCollectionISMPoolComponent : Trying to add a mesh to a mesh group (%d) that does not exists"), MeshGroupId);
 	return INDEX_NONE;
