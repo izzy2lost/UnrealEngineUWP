@@ -32,6 +32,8 @@ public:
 	
 	void PerformSelectedTrackingForFrame(FChaosVDGameFrameData* FrameData);
 
+	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
+
 private:
 	void HandleObjectFocused(UObject* FocusedObject);
 	void HandleActorMoving(AActor* MovedActor) const;
