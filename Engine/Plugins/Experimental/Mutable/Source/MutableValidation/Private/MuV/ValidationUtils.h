@@ -22,10 +22,11 @@ void PrepareAssetRegistry();
 /**
  * Compiles a CO synchronously
  * @param InCustomizableObject The Customizable Object we want to synchronously compile
+ * @param bLogMutableLogs Enables or disables the logging of Log category logs relevant to the CO compilation. Required to avoid a MongoDB limitation with the duplication of MongoDB document names.
  * @param InCompilationOptionsOverride The configuration for the compilation of the CO we want to use instead of the one part of the CO.
  * @return True if the compilation was successful and false if it failed.
  */
-bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const FCompilationOptions* InCompilationOptionsOverride = nullptr);
+bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const bool bLogMutableLogs = true, const FCompilationOptions* InCompilationOptionsOverride = nullptr);
 
 
 /**

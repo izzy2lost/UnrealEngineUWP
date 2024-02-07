@@ -13,22 +13,13 @@
 void PrepareAssetRegistry()
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName);
-	if (AssetRegistryModule.Get().IsSearchAllAssets())
-	{
-		UE_LOG(LogMutable,Display,TEXT("Asset search already in progress. Waitting for it to complete."));
-		AssetRegistryModule.Get().WaitForCompletion();
-	}
-	else
-	{
-		UE_LOG(LogMutable,Display,TEXT("Searching all assets (this will take some time)..."));
-		AssetRegistryModule.Get().SearchAllAssets(true /* bSynchronousSearch */);
-	}
-
+	UE_LOG(LogMutable,Display,TEXT("Searching all assets (this will take some time)..."));
+	AssetRegistryModule.Get().SearchAllAssets(true /* bSynchronousSearch */);
 	UE_LOG(LogMutable,Display,TEXT("Asset searching completed!"));
 }
 
 
-bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const FCompilationOptions* InCompilationOptionsOverride  /* nullptr */)
+bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const bool bLogMutableLogs /* = true */, const FCompilationOptions* InCompilationOptionsOverride  /* nullptr */)
 {
 	if (!InCustomizableObject)
 	{
@@ -49,15 +40,7 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
 		CompilationOptions = InCustomizableObject->CompileOptions;
 		UE_LOG(LogMutable,Display,TEXT("Compiling CO using it's own compilation options."));
 	}
-
-	UE_LOG(LogMutable, Log, TEXT("(string) model_compile_options_overriden : %s "), bOverrideCompilationOptions ? TEXT("true") : TEXT("false"));
 	
-	// TODO: Add logs for the other relevant configs of the model being compiled
-	// Print MTU parseable logs
-	UE_LOG(LogMutable, Log, TEXT("(int) model_optimization_level : %d "), CompilationOptions.OptimizationLevel);
-	UE_LOG(LogMutable, Log, TEXT("(string) model_texture_compression : %s "), *UEnum::GetValueAsString(CompilationOptions.TextureCompression));
-	UE_LOG(LogMutable, Log, TEXT("(string) model_disk_compilation : %s "), CompilationOptions.bUseDiskCompilation ? TEXT("true") : TEXT("false"));
-
 	// Request a compiler to be able to locate the root and to compile it
 	const TUniquePtr<FCustomizableObjectCompilerBase> Compiler =
 		TUniquePtr<FCustomizableObjectCompilerBase>(UCustomizableObjectSystem::GetInstanceChecked()->GetNewCompiler());
@@ -73,13 +56,10 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
     // --------------------------------------------------------------------------
 	UE_LOG(LogMutable,Display,TEXT("Compilation of CO completed!"));
 
-	UE_LOG(LogMutable, Log, TEXT("(double) model_compile_time_ms : %f "), CompilationEndSeconds * 1000);
 	UE_LOG(LogMutable, Display, TEXT("The compilation of the %s model took %f seconds."), *InCustomizableObject->GetName(), CompilationEndSeconds);
-
 	
     // Get the compilation result
     const ECustomizableObjectCompilationState CompilationEndResult = Compiler->GetCompilationState();
-	UE_LOG(LogMutable, Log, TEXT("(string) model_compile_end_state : %s "), *UEnum::GetValueAsString(CompilationEndResult));
 	
     const bool bWasCoCompilationSuccessful = CompilationEndResult == ECustomizableObjectCompilationState::Completed;
     if (bWasCoCompilationSuccessful)
@@ -90,7 +70,22 @@ bool CompileCustomizableObject(UCustomizableObject* InCustomizableObject, const 
     {
     	UE_LOG(LogMutable, Error, TEXT("The compilation of the %s model failed."), *InCustomizableObject->GetName());
     }
-    
+
+	
+	// Print MTU parseable logs only if asked. The addition of duplicated entries in MongoDB is not available so this way we avoid having to handle them
+	// when we are sure we do not require it.
+	if (bLogMutableLogs)
+	{
+		UE_LOG(LogMutable, Log, TEXT("(string) model_compile_options_overriden : %s "), bOverrideCompilationOptions ? TEXT("true") : TEXT("false"));
+		UE_LOG(LogMutable, Log, TEXT("(int) model_optimization_level : %d "), CompilationOptions.OptimizationLevel);
+		UE_LOG(LogMutable, Log, TEXT("(string) model_texture_compression : %s "), *UEnum::GetValueAsString(CompilationOptions.TextureCompression));
+		UE_LOG(LogMutable, Log, TEXT("(string) model_disk_compilation : %s "), CompilationOptions.bUseDiskCompilation ? TEXT("true") : TEXT("false"));
+		UE_LOG(LogMutable, Log, TEXT("(double) model_compile_time_ms : %f "), CompilationEndSeconds * 1000);
+		UE_LOG(LogMutable, Log, TEXT("(string) model_compile_end_state : %s "), *UEnum::GetValueAsString(CompilationEndResult));
+		// TODO: Add logs for the other relevant configs of the model being compiled
+	}
+
+
 	return bWasCoCompilationSuccessful;
 }
 
