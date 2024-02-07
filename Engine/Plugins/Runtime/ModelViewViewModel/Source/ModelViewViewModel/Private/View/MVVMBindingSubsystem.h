@@ -36,7 +36,7 @@ public:
 	}
 	virtual ETickableTickType GetTickableTickType() const override
 	{
-		return ETickableTickType::Always;
+		return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Always);
 	}
 
 	virtual void Tick(float DeltaTime) override;

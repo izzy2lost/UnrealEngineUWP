@@ -263,7 +263,7 @@ UWorld* UInputDeviceSubsystem::GetTickableGameObjectWorld() const
 
 ETickableTickType UInputDeviceSubsystem::GetTickableTickType() const
 {
-	return ETickableTickType::Conditional;
+	return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional);
 }
 
 bool UInputDeviceSubsystem::IsAllowedToTick() const
