@@ -289,18 +289,18 @@ protected:
 																			/// the Blit function will create a one at the time of blitting
 
 public:
-	explicit FxMaterial_Compute(FString outputId, const CmpSHPermutationDomain* permDomain = nullptr, 
-	                            int numThreadsX = GDefaultNumThreadsXY, int numThreadsY = GDefaultNumThreadsXY,int numThreadsZ = 1, 
-	                            FUnorderedAccessViewRHIRef unorderedAccessView = nullptr) 
+	explicit FxMaterial_Compute(FString InOutputId, const CmpSHPermutationDomain* InPermDomain = nullptr, 
+	                            int InNumThreadsX = GDefaultNumThreadsXY, int InNumThreadsY = GDefaultNumThreadsXY, 
+								int InNumThreadsZ= 1, FUnorderedAccessViewRHIRef InUnorderedAccessView = nullptr) 
 		: FxMaterial()
-		, OutputId(outputId)
-		, NumThreadsX(numThreadsX)
-		, NumThreadsY(numThreadsY)
-		, NumThreadsZ(numThreadsZ)
-		, UnorderedAccessView(unorderedAccessView)
+		, OutputId(InOutputId)
+		, NumThreadsX(InNumThreadsX)
+		, NumThreadsY(InNumThreadsY)
+		, NumThreadsZ(InNumThreadsZ)
+		, UnorderedAccessView(InUnorderedAccessView)
 	{
-		if (permDomain)
-			PermutationDomain = *permDomain;
+		if (InPermDomain)
+			PermutationDomain = *InPermDomain;
 
 		TShaderRef<CmpSH_Type> CSH = TShaderMapRef<CmpSH_Type>(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationDomain);
 		FString CSHHashStr = CSH->GetHash().ToString();
