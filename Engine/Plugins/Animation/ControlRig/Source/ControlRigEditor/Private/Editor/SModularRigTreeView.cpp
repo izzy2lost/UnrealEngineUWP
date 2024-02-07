@@ -1026,11 +1026,11 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 					{
 						Opacity = 0.6;
 					}
-					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorOptional");
+					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorOptional");
 				}
 				else
 				{
-					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorSecondary");
+					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorSecondary");
 				}
 			}
 		}
