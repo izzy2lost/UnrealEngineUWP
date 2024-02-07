@@ -2002,22 +2002,6 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 	);
 }
 
-bool FMeshMergeUtilities::IsValidBaseMaterial(const UMaterialInterface* InBaseMaterial, bool bShowToaster) const
-{
-	bool bIsValid = FMaterialUtilities::IsValidFlattenMaterial(InBaseMaterial);
-	if (!bIsValid && bShowToaster)
-	{
-		FFormatNamedArguments Arguments;
-		Arguments.Add(TEXT("MaterialName"), FText::FromString(InBaseMaterial->GetName()));
-		FText ErrorMessage = FText::Format(LOCTEXT("UHierarchicalLODSettings_PostEditChangeProperty", "Material {MaterialName} is missing required Material Parameters (check log for details)"), Arguments);
-		FNotificationInfo Info(ErrorMessage);
-		Info.ExpireDuration = 5.0f;
-		FSlateNotificationManager::Get().AddNotification(Info);
-	}
-
-	return bIsValid;
-}
-
 void FMeshMergeUtilities::RetrieveMeshDescription(const UStaticMeshComponent* InStaticMeshComponent, int32 LODIndex, FMeshDescription& InOutMeshDescription, bool bPropagateMeshData) const
 {
 	FMeshMergeHelpers::RetrieveMesh(InStaticMeshComponent, LODIndex, InOutMeshDescription, bPropagateMeshData);
