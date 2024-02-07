@@ -46,11 +46,11 @@ public:
 	/** Add the data for one spectrum frame to the spectrogram display */
 	void AddFrame(const FAudioSpectrogramFrameData& SpectrogramFrameData);
 
-	/** Add the data for one spectrum frame to the spectrogram display (convenience helper for when using USynesthesiaSpectrumAnalyzer). Results are required to be EAudioSpectrumType::PowerSpectrum */
-	void AddFrame(const FSynesthesiaSpectrumResults& SpectrumResults, const float SampleRate);
+	/** Add the data for one spectrum frame to the spectrogram display (convenience helper for when using USynesthesiaSpectrumAnalyzer) */
+	void AddFrame(const FSynesthesiaSpectrumResults& SpectrumResults, const EAudioSpectrumType SpectrumType, const float SampleRate);
 
-	/** Add the data for one spectrum frame to the spectrogram display (convenience helper for when using UConstantQAnalyzer). Results are required to be EAudioSpectrumType::PowerSpectrum */
-	void AddFrame(const FConstantQResults& ConstantQResults, const float StartingFrequencyHz, const float NumBandsPerOctave);
+	/** Add the data for one spectrum frame to the spectrogram display (convenience helper for when using UConstantQAnalyzer) */
+	void AddFrame(const FConstantQResults& ConstantQResults, const float StartingFrequencyHz, const float NumBandsPerOctave, const EAudioSpectrumType SpectrumType);
 
 	void SetViewMinFrequency(const float InViewMinFrequency) { ViewMinFrequency = InViewMinFrequency; }
 	void SetViewMaxFrequency(const float InViewMaxFrequency) { ViewMaxFrequency = InViewMaxFrequency; }

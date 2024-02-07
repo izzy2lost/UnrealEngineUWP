@@ -251,7 +251,7 @@ void FAudioSpectrogramViewport::UpdateTextureData(const bool bInvalidateCachedPi
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 FAudioSpectrogramViewport::FHistoryFrameData::FHistoryFrameData(const FAudioSpectrogramFrameData& SpectrogramFrameData, const EAudioSpectrogramFrequencyAxisPixelBucketMode InFrequencyAxisPixelBucketMode)
-	: NumSoundLevels(SpectrogramFrameData.SquaredMagnitudes.Num())
+	: NumSoundLevels(SpectrogramFrameData.SpectrumValues.Num())
 	, SpectrumDataMinFrequency(SpectrogramFrameData.MinFrequency)
 	, SpectrumDataMaxFrequency(SpectrogramFrameData.MaxFrequency)
 	, bSpectrumDataHasLogSpacedFreqencies(SpectrogramFrameData.bLogSpacedFreqencies)
@@ -260,12 +260,19 @@ FAudioSpectrogramViewport::FHistoryFrameData::FHistoryFrameData(const FAudioSpec
 	// Allocate required space for mip chain:
 	SetMipChainLengthUninitialized(InFrequencyAxisPixelBucketMode);
 
-	// Convert squared magnitudes to dB, and write to mip zero:
-	const float ClampMinMagnitudeSquared = FMath::Pow(10.0f, -200.0f / 10.0f); // Clamp at -200dB
-	for (int Index = 0; Index < NumSoundLevels; Index++)
+	// Copy spectrum data to mip zero, converting to dB if necessary:
+	switch (SpectrogramFrameData.SpectrumType)
 	{
-		const float MagnitudeSquared = FMath::Max(SpectrogramFrameData.SquaredMagnitudes[Index], ClampMinMagnitudeSquared);
-		SoundLevelsMipChain[Index] = 10.0f * FMath::LogX(10.0f, MagnitudeSquared);
+		case EAudioSpectrumType::MagnitudeSpectrum:
+			ArrayMagnitudeToDecibel(SpectrogramFrameData.SpectrumValues, SoundLevelsMipChain, -200.0f);
+			break;
+		case EAudioSpectrumType::PowerSpectrum:
+			ArrayPowerToDecibel(SpectrogramFrameData.SpectrumValues, SoundLevelsMipChain, -200.0f);
+			break;
+		default:
+		case EAudioSpectrumType::Decibel:
+			FMemory::Memcpy(SoundLevelsMipChain.GetData(), SpectrogramFrameData.SpectrumValues.GetData(), NumSoundLevels * sizeof(float));
+			break;
 	}
 
 	// Generate remaining mips if required:
@@ -425,3 +432,24 @@ float FAudioSpectrogramViewport::FHistoryFrameData::GetInterpolatedSoundLevel(co
 	return FMath::Lerp(MipData[IndexLo], MipData[IndexHi], LerpParam);
 }
 
+void FAudioSpectrogramViewport::FHistoryFrameData::ArrayMagnitudeToDecibel(TConstArrayView<float> InValues, TArrayView<float> OutValues, float InMinimumDb)
+{
+	const float ClampMinMagnitude = Audio::ConvertToLinear(InMinimumDb);
+	const float Scale = 20.0f / FMath::Loge(10.0f);
+	for (int32 Index = 0; Index < InValues.Num(); Index++)
+	{
+		const float Magnitude = FMath::Max(InValues[Index], ClampMinMagnitude);
+		OutValues[Index] = Scale * FMath::Loge(Magnitude);
+	}
+}
+
+void FAudioSpectrogramViewport::FHistoryFrameData::ArrayPowerToDecibel(TConstArrayView<float> InValues, TArrayView<float> OutValues, float InMinimumDb)
+{
+	const float ClampMinMagnitudeSquared = FMath::Pow(10.0f, InMinimumDb / 10.0f);
+	const float Scale = 10.0f / FMath::Loge(10.0f);
+	for (int32 Index = 0; Index < InValues.Num(); Index++)
+	{
+		const float MagnitudeSquared = FMath::Max(InValues[Index], ClampMinMagnitudeSquared);
+		OutValues[Index] = Scale * FMath::Loge(MagnitudeSquared);
+	}
+}

@@ -33,34 +33,36 @@ void SAudioSpectrogram::AddFrame(const FAudioSpectrogramFrameData& SpectrogramFr
 	SpectrogramViewport->AddFrame(SpectrogramFrameData);
 }
 
-void SAudioSpectrogram::AddFrame(const FSynesthesiaSpectrumResults& SpectrumResults, const float SampleRate)
+void SAudioSpectrogram::AddFrame(const FSynesthesiaSpectrumResults& SpectrumResults, const EAudioSpectrumType SpectrumType, const float SampleRate)
 {
-	const TConstArrayView<float> SquaredMagnitudes(SpectrumResults.SpectrumValues);
-	const int32 FFTSize = 2 * (SquaredMagnitudes.Num() - 1);
+	const TConstArrayView<float> SpectrumValues(SpectrumResults.SpectrumValues);
+	const int32 FFTSize = 2 * (SpectrumValues.Num() - 1);
 	const float BinSize = SampleRate / FFTSize;
 
 	// Just ignoring the Nyquist sample here to get us a power of two length:
-	ensure(FMath::IsPowerOfTwo(SquaredMagnitudes.Num() - 1));
-	const TConstArrayView<float> SquaredMagnitudesNoNyquist = SquaredMagnitudes.LeftChop(1);
+	ensure(FMath::IsPowerOfTwo(SpectrumValues.Num() - 1));
+	const TConstArrayView<float> SpectrumValuesNoNyquist = SpectrumValues.LeftChop(1);
 
 	const FAudioSpectrogramFrameData SpectrogramFrameData
 	{
-		.SquaredMagnitudes = SquaredMagnitudesNoNyquist,
+		.SpectrumValues = SpectrumValuesNoNyquist,
+		.SpectrumType = SpectrumType,
 		.MinFrequency = 0.0f,
-		.MaxFrequency = (SquaredMagnitudesNoNyquist.Num() - 1) * BinSize,
+		.MaxFrequency = (SpectrumValuesNoNyquist.Num() - 1) * BinSize,
 		.bLogSpacedFreqencies = false,
 	};
 
 	AddFrame(SpectrogramFrameData);
 }
 
-void SAudioSpectrogram::AddFrame(const FConstantQResults& ConstantQResults, const float StartingFrequencyHz, const float NumBandsPerOctave)
+void SAudioSpectrogram::AddFrame(const FConstantQResults& ConstantQResults, const float StartingFrequencyHz, const float NumBandsPerOctave, const EAudioSpectrumType SpectrumType)
 {
 	const int32 NumBands = ConstantQResults.SpectrumValues.Num();
 
 	const FAudioSpectrogramFrameData SpectrogramFrameData
 	{
-		.SquaredMagnitudes = ConstantQResults.SpectrumValues,
+		.SpectrumValues = ConstantQResults.SpectrumValues,
+		.SpectrumType = SpectrumType,
 		.MinFrequency = StartingFrequencyHz,
 		.MaxFrequency = StartingFrequencyHz * FMath::Pow(2.0f, (NumBands - 1) / NumBandsPerOctave),
 		.bLogSpacedFreqencies = true,
