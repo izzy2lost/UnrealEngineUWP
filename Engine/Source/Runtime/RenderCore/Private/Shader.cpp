@@ -2021,6 +2021,11 @@ void ShaderMapAppendKeyString(EShaderPlatform Platform, FString& KeyString)
 		}
 	}
 
+	if (GetHairStrandsUsesTriangleStrips())
+	{
+		KeyString += FString::Printf(TEXT("_STRDSTRIP"));
+	}
+
 	if (Substrate::IsSubstrateEnabled())
 	{
 		{
