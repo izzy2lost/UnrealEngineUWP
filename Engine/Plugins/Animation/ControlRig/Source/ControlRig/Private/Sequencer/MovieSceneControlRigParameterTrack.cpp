@@ -560,11 +560,11 @@ void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed_GameThread()
 
 void UMovieSceneControlRigParameterTrack::HandleOnPostConstructed(UControlRig* Subject, const FName& InEventName)
 {
-	MovieSceneControlRigTrack::AsyncHelpers::ExecuteOnGameThread<void>([this]()
+	if(IsInGameThread())
 	{
 		HandleOnPostConstructed_GameThread();
 
-	}).Wait();
+	}
 }
 
 #if WITH_EDITORONLY_DATA
