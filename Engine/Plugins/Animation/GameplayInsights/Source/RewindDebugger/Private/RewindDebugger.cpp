@@ -469,9 +469,7 @@ bool FRewindDebugger::ShouldAutoRecordOnPIE() const
 
 void FRewindDebugger::SetShouldAutoRecordOnPIE(bool value)
 {
-	URewindDebuggerSettings& RewindDebuggerSettings = URewindDebuggerSettings::Get();
-	RewindDebuggerSettings.Modify();
-	RewindDebuggerSettings.bShouldAutoRecordOnPIE = value;
+	URewindDebuggerSettings::Get().bShouldAutoRecordOnPIE = value;
 }
 
 bool FRewindDebugger::ShouldAutoEject() const
@@ -481,9 +479,7 @@ bool FRewindDebugger::ShouldAutoEject() const
 
 void FRewindDebugger::SetShouldAutoEject(bool value)
 {
-	URewindDebuggerSettings& RewindDebuggerSettings = URewindDebuggerSettings::Get();
-	RewindDebuggerSettings.Modify();
-	RewindDebuggerSettings.bShouldAutoEject = value;
+	URewindDebuggerSettings::Get().bShouldAutoEject = value;
 }
 
 void FRewindDebugger::StopRecording()

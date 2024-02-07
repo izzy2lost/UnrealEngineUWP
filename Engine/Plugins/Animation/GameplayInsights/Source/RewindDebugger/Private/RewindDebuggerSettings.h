@@ -19,7 +19,7 @@ enum class ERewindDebuggerCameraMode
 /**
  * Implements the settings for the Rewind Debugger.
  */
-UCLASS(config = EditorPerProjectUserSettings, meta=(DisplayName="Rewind Debugger"))
+UCLASS(Config=Editor, meta=(DisplayName="Rewind Debugger"))
 class URewindDebuggerSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
