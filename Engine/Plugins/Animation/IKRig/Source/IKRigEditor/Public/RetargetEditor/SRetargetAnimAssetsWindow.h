@@ -22,7 +22,9 @@ class UDebugSkelMeshComponent;
 // dialog to select path to export to
 class SBatchExportPathDialog: public SWindow
 {
+	
 public:
+	
 	SLATE_BEGIN_ARGS(SBatchExportPathDialog){}
 	SLATE_ARGUMENT(FIKRetargetBatchOperationContext*, BatchContext)
 	SLATE_ARGUMENT(bool, ExportRetargetAssets)
@@ -32,11 +34,11 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-public:
 	// displays the dialog in a blocking fashion
 	EAppReturnType::Type ShowModal();
 
-protected:
+private:
+	
 	void OnPathChange(const FString& NewPath);
 	FReply OnButtonClick(EAppReturnType::Type ButtonID);
 	
@@ -56,6 +58,9 @@ protected:
 	void UpdateExampleText();
 	// modify folder output path
 	FText GetFolderPath() const;
+
+	// remove characters not allowed in asset names
+	static FString ConvertToCleanString(const FText& ToClean);
 	
 	FText ExampleText; // The rename rule sample text
 	EAppReturnType::Type UserResponse;
