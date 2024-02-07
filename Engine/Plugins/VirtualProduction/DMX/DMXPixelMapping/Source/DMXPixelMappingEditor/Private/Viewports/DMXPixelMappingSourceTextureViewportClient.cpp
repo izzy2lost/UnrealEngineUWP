@@ -120,15 +120,19 @@ void FDMXPixelMappingSourceTextureViewportClient::Draw(FViewport* InViewport, FC
 		{
 			return;
 		}
-
+	
 		FCanvasTileItem TileItem(FVector2D::ZeroVector, InputTexture->GetResource(), SceneViewport->GetSizeXY(), UV0, UV1, ColorWithExposure);
 		TileItem.BlendMode = ESimpleElementBlendMode::SE_BLEND_MAX;
+
+		bUseDPIScaling = false;
 		Canvas->DrawItem(TileItem);
 	}
 	else
 	{
 		FCanvasTileItem TileItem(VisibleRect.Min * DesignerView->GetZoomAmount(), InputTexture->GetResource(), VisibleRect.GetSize() * DesignerView->GetZoomAmount(), UV0, UV1, ColorWithExposure);
 		TileItem.BlendMode = ESimpleElementBlendMode::SE_BLEND_MAX;
+		
+		bUseDPIScaling = true;
 		Canvas->DrawItem(TileItem);
 	}
 }
