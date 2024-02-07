@@ -50,6 +50,7 @@ public:
 	{
 	public:
 		FDeviceSpace(XrAction InAction, XrPath InPath);
+		FDeviceSpace(XrAction InAction, XrPath InPath, XrPath InSubactionPath);
 		~FDeviceSpace();
 
 		bool CreateSpace(XrSession InSession);
@@ -58,6 +59,7 @@ public:
 		XrAction Action;
 		XrSpace Space;
 		XrPath Path;
+		XrPath SubactionPath;
 	};
 
 	class FTrackingSpace
@@ -405,6 +407,7 @@ public:
 	bool IsRunning() const override;
 	bool IsFocused() const override;
 	int32 AddTrackedDevice(XrAction Action, XrPath Path) override;
+	int32 AddTrackedDevice(XrAction Action, XrPath Path, XrPath SubActionPath) override;
 	void ResetTrackedDevices() override;
 	XrPath GetTrackedDevicePath(const int32 DeviceId) override;
 	XrSpace GetTrackedDeviceSpace(const int32 DeviceId) override;

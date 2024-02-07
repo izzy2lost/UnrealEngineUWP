@@ -19,6 +19,7 @@ public:
 	OPENXRHMD_API virtual bool IsFocused() const = 0;
 
 	OPENXRHMD_API virtual int32 AddTrackedDevice(XrAction Action, XrPath Path) = 0;
+	OPENXRHMD_API virtual int32 AddTrackedDevice(XrAction Action, XrPath Path, XrPath SubactionPath) = 0;
 	OPENXRHMD_API virtual void ResetTrackedDevices() = 0;
 	OPENXRHMD_API virtual XrPath GetTrackedDevicePath(const int32 DeviceId) = 0;
 	OPENXRHMD_API virtual XrSpace GetTrackedDeviceSpace(const int32 DeviceId) = 0;
