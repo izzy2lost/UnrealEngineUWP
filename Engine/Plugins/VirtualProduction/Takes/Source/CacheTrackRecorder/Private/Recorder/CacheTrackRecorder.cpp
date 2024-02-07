@@ -36,6 +36,7 @@
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
+#include "Application/ThrottleManager.h"
 
 // LevelEditor includes
 #include "IAssetViewport.h"
@@ -725,6 +726,10 @@ void UCacheTrackRecorder::PreRecord()
 	// we set this global variable to prevent things like auto-save to trigger during a recording
 	GIsSlowTask = true;
 	OnStopCleanup.Add([]() { GIsSlowTask = false; });
+
+	// prevent dropped frames from slate throttling
+	FSlateThrottleManager::Get().DisableThrottle(true);
+	OnStopCleanup.Add([]() { FSlateThrottleManager::Get().DisableThrottle(false); });
 
 	if (Parameters.Project.bCacheTrackRecorderControlsClockTime)
 	{
