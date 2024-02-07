@@ -315,7 +315,7 @@ void UControlRig::OnAddShapeLibrary(const FControlRigExecuteContext* InContext, 
 bool UControlRig::OnShapeExists(const FName& InShapeName) const
 {
 	const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& Libraries = GetShapeLibraries();
-	if (UControlRigShapeLibrary::GetShapeByName(InShapeName, GetShapeLibraries(), ShapeLibraryNameMap))
+	if (UControlRigShapeLibrary::GetShapeByName(InShapeName, GetShapeLibraries(), ShapeLibraryNameMap, false))
 	{
 		return true;
 	}

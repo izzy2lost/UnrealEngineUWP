@@ -110,7 +110,7 @@ const FControlRigShapeDefinition* UControlRigShapeLibrary::GetShapeByName(const 
 	return nullptr;
 }
 
-const FControlRigShapeDefinition* UControlRigShapeLibrary::GetShapeByName(const FName& InName, const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& InShapeLibraries, const TMap<FString, FString>& InLibraryNameMap)
+const FControlRigShapeDefinition* UControlRigShapeLibrary::GetShapeByName(const FName& InName, const TArray<TSoftObjectPtr<UControlRigShapeLibrary>>& InShapeLibraries, const TMap<FString, FString>& InLibraryNameMap, bool bUseDefaultIfNotFound)
 {
 	const FString InString = InName.ToString();
 	FString Left, Right;
@@ -149,8 +149,8 @@ const FControlRigShapeDefinition* UControlRigShapeLibrary::GetShapeByName(const 
 			if(ShapeLibraryName.Equals(Left) || Left.IsEmpty())
 			{
 				// only fall back on the default shape for the very last shape library
-				const bool bUseDefaultShapeIfNotFound = (Pass > 0) && (Index == 0);
-				if(const FControlRigShapeDefinition* Shape = ShapeLibrary->GetShapeByName(RightName, bUseDefaultShapeIfNotFound))
+				const bool bFallBackToDefaultShape = (Pass > 0) && (Index == 0) && bUseDefaultIfNotFound;
+				if(const FControlRigShapeDefinition* Shape = ShapeLibrary->GetShapeByName(RightName, bFallBackToDefaultShape))
 				{
 					return Shape;
 				}
