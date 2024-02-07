@@ -118,6 +118,11 @@ bool AllowDebugViewShaderMode(EDebugViewShaderMode ShaderMode, EShaderPlatform P
 
 bool ShouldCompileDebugViewModeShader(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
+	if(!CVarEnableDebugViewModeHelpers.GetValueOnAnyThread())
+	{
+		return false;
+	}
+
 	if (!PlatformSupportsDebugViewShaders(Parameters.Platform))
 	{
 		return false;
