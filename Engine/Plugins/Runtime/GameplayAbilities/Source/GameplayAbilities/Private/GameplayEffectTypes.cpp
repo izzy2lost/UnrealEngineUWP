@@ -1296,6 +1296,7 @@ void FMinimalReplicationTagCountMap::RemoveTag(const FGameplayTag& Tag)
 	}
 }
 
+// WARNING: Changes to this implementation REQUIRES making sure FMinimalReplicationTagCountMapNetSerializer and FMinimalReplicationTagCountMapReplicationFragment remains compatible.
 bool FMinimalReplicationTagCountMap::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
 	const int32 CountBits = UAbilitySystemGlobals::Get().MinimalReplicationTagCountBits;

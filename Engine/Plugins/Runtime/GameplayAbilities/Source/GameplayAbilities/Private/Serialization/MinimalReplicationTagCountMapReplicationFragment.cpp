@@ -110,29 +110,20 @@ void FMinimalReplicationTagCountMapReplicationFragment::MimicMinimalReplicationT
 	uint8* ExternalStatePointer = reinterpret_cast<uint8*>(Owner) + ReplicationStateDescriptor->MemberProperties[0]->GetOffset_ForGC();
 	FMinimalReplicationTagCountMap* ExternalSourceState = reinterpret_cast<FMinimalReplicationTagCountMap*>(ExternalStatePointer);
 
-	// Check whether we need to perform the complex logic or not.
-	UAbilitySystemComponent* StateOwner = ExternalSourceState->Owner;
-	bool UpdateOwnerTagMap = StateOwner != nullptr;
-	if (ExternalSourceState->bRequireNonOwningNetConnection && StateOwner)
-	{
-		if (AActor* OwningActor = StateOwner->GetOwner())
-		{			
-			if (const UNetConnection* OwnerNetConnection = OwningActor->GetNetConnection())
-			{
-				if (OwnerNetConnection->GetConnectionId() == Context.NetSerializationContext->GetLocalConnectionId())
-				{
-					UpdateOwnerTagMap = false;
-				}
-			}
-		}
-	}
+	// Mark map dirty for replay
+	ExternalSourceState->MapID++;
 
-	if (!UpdateOwnerTagMap)
-	{
-		return;
-	}
+	// UpdateOwnerTagMap performs most of the logic regarding whether it should update or not and needs LastConnection to do it.
+	const uint32 ConnectionId = Context.NetSerializationContext->GetLocalConnectionId();
+	UObject* UserData = Context.NetSerializationContext->GetLocalConnectionUserData(ConnectionId);
+	ExternalSourceState->LastConnection = Cast<UNetConnection>(UserData);
 
-	ExternalSourceState->UpdateOwnerTagMap();
+	const UAbilitySystemComponent* StateOwner = ExternalSourceState->Owner;
+	const bool bUpdateOwnerTagMap = StateOwner != nullptr;
+	if (bUpdateOwnerTagMap)
+	{
+		ExternalSourceState->UpdateOwnerTagMap();
+	}
 }
 
 void FMinimalReplicationTagCountMapReplicationFragment::CallRepNotify(FReplicationStateApplyContext& ApplyContext)
