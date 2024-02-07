@@ -26,6 +26,11 @@ public class ChaosClothAssetEngine : ModuleRules
 			}
 		);
 
+		if (Target.bBuildEditor || Target.bCompileAgainstEditor)
+		{
+			PrivateDependencyModuleNames.Add("PropertyEditor");  // For adding the Cloth Component "Cloth Sim" section to the Details panel UI
+		}
+
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] {
 				"DerivedDataCache",
