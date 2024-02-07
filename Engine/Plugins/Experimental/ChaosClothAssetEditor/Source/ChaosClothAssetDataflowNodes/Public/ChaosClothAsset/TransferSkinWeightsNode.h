@@ -34,6 +34,29 @@ enum class EChaosClothAssetMaxNumInfluences : uint8
 	Twelve = 12			UMETA(DisplayName = "12")
 };
 
+UENUM(BlueprintType)
+enum class EChaosClothAssetTransferTargetMeshType : uint8
+{
+	/** Perform the skin weights transfer for both the simulation and render meshes. */
+	All,
+
+	/** Perform the skin weights transfer for the simulation mesh only. */
+	Simulation,
+	
+	/** Perform the skin weights transfer for the render mesh only. */
+	Render
+};
+
+UENUM(BlueprintType)
+enum class EChaosClothAssetTransferRenderMeshSource : uint8
+{
+	/** For render mesh, transfer weights from the source skeletal mesh. */
+	SkeletalMesh,
+
+	/** For render mesh, transfer weights from the simulation mesh. */
+	SimulationMesh
+};
+
 /** Transfer the skinning weights set on a skeletal mesh to the simulation and/or render mesh stored in the cloth collection. */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetTransferSkinWeightsNode : public FDataflowNode
@@ -56,6 +79,14 @@ public:
 	/** The relative transform between the skeletal mesh and the cloth asset. */
 	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Source Mesh")
 	FTransform Transform;
+
+	/** The type of the mesh the transfer will be applied to. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Target Mesh Type"))
+	EChaosClothAssetTransferTargetMeshType TargetMeshType = EChaosClothAssetTransferTargetMeshType::All;
+
+	/** For the render mesh, choose which source to use. */
+	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Render Mesh Source Type", EditCondition="TargetMeshType!=EChaosClothAssetTransferTargetMeshType::Simulation"))
+	EChaosClothAssetTransferRenderMeshSource RenderMeshSourceType = EChaosClothAssetTransferRenderMeshSource::SimulationMesh;
 
 	/** Algorithm used for the transfer method. Use the simple ClosestPointOnSurface method or the more complex InpaintWeights method for better results. */
 	UPROPERTY(EditAnywhere, Category = "Transfer Skin Weights|Transfer Method", Meta = (DisplayName = "Algorithm"))
