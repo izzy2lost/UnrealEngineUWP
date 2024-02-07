@@ -267,6 +267,14 @@ namespace Horde.Server.Streams
 
 			foreach (TemplateRefConfig template in Templates)
 			{
+				foreach (ParameterData parameter in template.Parameters)
+				{
+					parameter.PostLoad();
+				}
+			}
+
+			foreach (TemplateRefConfig template in Templates)
+			{
 				ScheduleConfig? schedule = template.Schedule;
 				if (schedule != null)
 				{
