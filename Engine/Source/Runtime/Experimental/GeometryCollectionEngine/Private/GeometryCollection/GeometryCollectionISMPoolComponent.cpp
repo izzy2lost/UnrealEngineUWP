@@ -40,7 +40,7 @@ FAutoConsoleVariableRef CVarISMPoolComponentFreeListTargetSize(
 
 void FGeometryCollectionMeshInfo::ShadowCopyCustomData(int32 InstanceCount, int32 NumCustomDataFloatsPerInstance, TArrayView<const float> CustomDataFloats)
 {
-	CustomData.SetNum(InstanceCount * NumCustomDataFloatsPerInstance + NumCustomDataFloatsPerInstance, true);
+	CustomData.SetNum(InstanceCount * NumCustomDataFloatsPerInstance + NumCustomDataFloatsPerInstance);
 
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceCount; ++InstanceIndex)
 	{
