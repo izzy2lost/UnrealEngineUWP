@@ -240,21 +240,25 @@ static D3D_SHADER_MODEL FindHighestShaderModel(ID3D12Device* Device)
 }
 
 #if INTEL_EXTENSIONS
-void DestroyIntelExtensionsContext(INTCExtensionContext* IntelExtensionContext)
+static INTCExtensionAppInfo1 GetIntelApplicationInfo()
 {
-	if (IntelExtensionContext)
-	{
-		const HRESULT hr = INTC_DestroyDeviceExtensionContext(&IntelExtensionContext);
+	// CVar set to disable workload registration
+	static TConsoleVariableData<int32>* CVarDisableEngineAndAppRegistration = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.DisableEngineAndAppRegistration"));
 
-		if (hr == S_OK)
-		{
-			UE_LOG(LogD3D12RHI, Log, TEXT("Intel Extensions Framework unloaded"));
-		}
-		else if (hr == E_INVALIDARG)
-		{
-			UE_LOG(LogD3D12RHI, Log, TEXT("Intel Extensions Framework error when unloading"));
-		}
+	INTCExtensionAppInfo1 AppInfo{};
+
+	if (!(CVarDisableEngineAndAppRegistration && CVarDisableEngineAndAppRegistration->GetValueOnAnyThread() != 0))
+	{
+		AppInfo.pApplicationName = FApp::HasProjectName() ? FApp::GetProjectName() : TEXT("");
+		//AppInfo.ApplicationVersion = FApp::GetBuildVersion();		// Currently no support for version
+
+		AppInfo.pEngineName = TEXT("Unreal Engine");
+		AppInfo.EngineVersion.major = FEngineVersion::Current().GetMajor();
+		AppInfo.EngineVersion.minor = FEngineVersion::Current().GetMinor();
+		AppInfo.EngineVersion.patch = FEngineVersion::Current().GetPatch();
 	}
+
+	return AppInfo;
 }
 
 INTCExtensionContext* CreateIntelExtensionsContext(ID3D12Device* Device, INTCExtensionInfo& INTCExtensionInfo)
@@ -294,11 +298,8 @@ INTCExtensionContext* CreateIntelExtensionsContext(ID3D12Device* Device, INTCExt
 	}
 
 	INTCExtensionContext* IntelExtensionContext = nullptr;
-	INTCExtensionAppInfo1 AppInfo{};
-	AppInfo.pEngineName = TEXT("Unreal Engine");
-	AppInfo.EngineVersion.major = FEngineVersion::Current().GetMajor();
-	AppInfo.EngineVersion.minor = FEngineVersion::Current().GetMinor();
-	AppInfo.EngineVersion.patch = FEngineVersion::Current().GetPatch();
+	// Fill in registration information for this workload (App name and Engine name)
+	INTCExtensionAppInfo1 AppInfo = GetIntelApplicationInfo();
 
 	const HRESULT hr = INTC_D3D12_CreateDeviceExtensionContext1(Device, &IntelExtensionContext, &INTCExtensionInfo, &AppInfo);
 
@@ -334,6 +335,22 @@ INTCExtensionContext* CreateIntelExtensionsContext(ID3D12Device* Device, INTCExt
 	}
 
 	return IntelExtensionContext;
+}
+
+void DestroyIntelExtensionsContext(INTCExtensionContext* IntelExtensionContext)
+{
+	if (IntelExtensionContext)
+	{
+		const HRESULT hr = INTC_DestroyDeviceExtensionContext(&IntelExtensionContext);
+		if (SUCCEEDED(hr))
+		{
+			UE_LOG(LogD3D12RHI, Log, TEXT("Intel Extensions Framework unloaded"));
+		}
+		else
+		{
+			UE_LOG(LogD3D12RHI, Log, TEXT("Intel Extensions Framework error when unloading: 0x%08x"), hr);
+		}
+	}
 }
 
 bool EnableIntelAtomic64Support(INTCExtensionContext* IntelExtensionContext, INTCExtensionInfo& INTCExtensionInfo)
@@ -374,7 +391,22 @@ bool EnableIntelAtomic64Support(INTCExtensionContext* IntelExtensionContext, INT
 
 	return GDX12INTCAtomicUInt64Emulation;
 }
-#endif
+
+void EnableIntelAppDiscovery(uint32 DeviceId)
+{
+	if (FAILED(INTC_LoadExtensionsLibrary(false, (uint32)EGpuVendorId::Intel, DeviceId)))
+	{
+		UE_LOG(LogD3D12RHI, Log, TEXT("Failed to load Intel Extensions Library (App Discovery)"));
+		return;
+	}
+
+	// Fill in registration information for this workload (App name and Engine name)
+	INTCExtensionAppInfo1 AppInfo = GetIntelApplicationInfo();
+
+	// Intel Application Discovery - registering UE5 application info in the driver
+	INTC_D3D12_SetApplicationInfo(&AppInfo);
+}
+#endif // INTEL_EXTENSIONS
 
 static bool CheckDeviceForEmulatedAtomic64Support(IDXGIAdapter* Adapter, ID3D12Device* Device)
 {
@@ -860,6 +892,7 @@ void FD3D12DynamicRHIModule::FindAdapter()
 	}
 
 	const EGpuVendorId PreferredVendor = RHIGetPreferredAdapterVendor();
+	const bool bAllowVendorDevice = !FParse::Param(FCommandLine::Get(), TEXT("novendordevice"));
 
 	// Enumerate the DXGIFactory's adapters.
 	for (uint32 AdapterIndex = 0; FD3D12AdapterDesc::EnumAdapters(AdapterIndex, GpuPreference, DXGIFactory4, DXGIFactory6, TempAdapter.GetInitReference()) != DXGI_ERROR_NOT_FOUND; ++AdapterIndex)
@@ -868,13 +901,23 @@ void FD3D12DynamicRHIModule::FindAdapter()
 		if (TempAdapter)
 		{
 			FD3D12DeviceBasicInfo DeviceInfo;
+			// Log some information about the available D3D12 adapters.
+			DXGI_ADAPTER_DESC AdapterDesc{};
+			VERIFYD3D12RESULT(TempAdapter->GetDesc(&AdapterDesc));
+
+#if INTEL_EXTENSIONS
+			// Enable Intel App Discovery
+			if (AdapterDesc.VendorId == (uint32)EGpuVendorId::Intel && bAllowVendorDevice)
+			{
+				// Intel's App information needs to be registered *before* device creation, so we have to do it here at the last second.
+				// Even though it takes the device ID as an argument, we've been told by Intel that this isn't going to cause problems if multiple Intel devices are detected.
+				EnableIntelAppDiscovery(AdapterDesc.DeviceId);
+			}
+#endif
+
 			if (SafeTestD3D12CreateDevice(TempAdapter, MinRequiredFeatureLevel, DeviceInfo))
 			{
 				check(DeviceInfo.NumDeviceNodes > 0);
-
-				// Log some information about the available D3D12 adapters.
-				DXGI_ADAPTER_DESC AdapterDesc{};
-				VERIFYD3D12RESULT(TempAdapter->GetDesc(&AdapterDesc));
 
 				const uint32 OutputCount = CountAdapterOutputs(TempAdapter);
 
