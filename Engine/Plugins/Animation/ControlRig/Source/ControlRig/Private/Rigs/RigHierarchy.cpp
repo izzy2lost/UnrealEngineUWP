@@ -3077,7 +3077,10 @@ void URigHierarchy::SetPose(const FRigPose& InPose, ERigTransformType::Type InTr
 					TransformToSet = FControlRigMathLibrary::LerpTransform(PreviousTransform, TransformToSet, U);
 				}
 
-				SwitchToParent(Element->GetKey(), PoseElement.ActiveParent);
+				if (PoseElement.ActiveParent.IsValid())
+				{
+					SwitchToParent(Element->GetKey(), PoseElement.ActiveParent);
+				}
 				SetTransform(TransformElement, TransformToSet, InTransformType, true);
 			}
 			else if(FRigCurveElement* CurveElement = Cast<FRigCurveElement>(Element))

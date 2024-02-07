@@ -98,6 +98,9 @@ struct CONTROLRIG_API FControlRigObjectVersion
 		// Add type (primary, secondary) and optional bool to FRigConnectorSettings
 		ConnectorsWithType,
 
+		// Add parent key to control rig pose
+		RigPoseWithParentKey,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
