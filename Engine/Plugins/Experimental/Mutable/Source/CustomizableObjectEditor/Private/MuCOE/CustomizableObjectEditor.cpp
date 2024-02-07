@@ -1214,7 +1214,7 @@ void FCustomizableObjectEditor::ExtendToolbar()
 		{
 			ToolbarBuilder.BeginSection("Compilation");
 			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().Compile);
-			//ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().CompileOnlySelected); // Disabled due to a crash with this mode (MTBL-1716). 
+			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().CompileOnlySelected);
 			ToolbarBuilder.AddComboButton(
 				FUIAction(),
 				FOnGetContent::CreateSP(Editor, &FCustomizableObjectEditor::GenerateCompileOptionsMenuContent, CommandList.ToSharedRef()),

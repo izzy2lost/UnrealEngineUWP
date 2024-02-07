@@ -1859,7 +1859,7 @@ namespace mu
         Result.op = currentOp;
     }
 
-
+	
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateImage_Table(const FImageGenerationOptions& Options, FImageGenerationResult& Result, const NodeImageTable* InNode)
 	{
@@ -1882,6 +1882,8 @@ namespace mu
 				{
 					FString Msg = FString::Printf(TEXT("Table has a missing image in column %d, row %d."), colIndex, row);
 					pErrorLog->GetPrivate()->Add(Msg, ELMT_ERROR, node.m_errorContext);
+
+					return ImageOp;
 				}
 				else
 				{
