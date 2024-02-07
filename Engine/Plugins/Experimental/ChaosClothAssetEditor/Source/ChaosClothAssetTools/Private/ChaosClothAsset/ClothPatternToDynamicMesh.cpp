@@ -336,7 +336,7 @@ public:
 
 	bool HasBiTangents() const
 	{
-		return false;
+		return VertexDataType == EClothPatternVertexType::Render;
 	}
 
 	bool HasColors() const
