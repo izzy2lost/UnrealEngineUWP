@@ -34,4 +34,9 @@ FString GetFullName( const UObject* Obj, const UObject* StopOuter, EObjectFullNa
 {
 	return Obj->GetFullName(StopOuter, Flags);
 }
+
+bool HasAnyFlags(const UObject* Obj, int32 FlagsToCheck)
+{
+	return Obj->HasAnyFlags(EObjectFlags(FlagsToCheck));
+}
 }

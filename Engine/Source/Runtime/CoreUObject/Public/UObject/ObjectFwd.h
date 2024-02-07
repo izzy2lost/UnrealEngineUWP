@@ -40,4 +40,6 @@ COREUOBJECT_API FString GetPathName( const UObject* Obj, const UObject* StopOute
 COREUOBJECT_API UClass* GetClass(UObject* Obj);
 COREUOBJECT_API FName GetFName(const UObject* Obj);
 COREUOBJECT_API UObject* GetOuter(const UObject* Obj);
+
+COREUOBJECT_API bool HasAnyFlags(const UObject* Obj, int32 FlagsToCheck);
 }

@@ -102,11 +102,23 @@ public:
 
 	FORCEINLINE UObject* Get() const
 	{
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		// Ensure the handle is resolved first (for late resolve), even if it's not considered type safe.
+		UObject* ResolvedObject = UE::CoreUObject::Private::ResolveObjectHandle(Handle);
+		return IsObjectHandleTypeSafe(Handle) ? ResolvedObject : nullptr;
+#else
 		return UE::CoreUObject::Private::ResolveObjectHandle(Handle);
+#endif
 	}
 
 	FORCEINLINE UClass* GetClass() const
 	{
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		if (!IsObjectHandleTypeSafe(Handle))
+		{
+			return nullptr;
+		}
+#endif
 		return UE::CoreUObject::Private::ResolveObjectHandleClass(Handle);
 	}
 
@@ -178,13 +190,13 @@ public:
 	FORCEINLINE UObject& operator*() const { return *Get(); }
 
 	UE_DEPRECATED(5.1, "IsNull is deprecated, please use operator bool instead.")
-	FORCEINLINE bool IsNull() const { return UE::CoreUObject::Private::ResolveObjectHandleNoRead(Handle) == nullptr; }
+	FORCEINLINE bool IsNull() const { return IsNullNoResolve_Internal() || (UE::CoreUObject::Private::ResolveObjectHandleNoRead(Handle) == nullptr); }
 	
 	UE_DEPRECATED(5.1, "IsNullNoResolve is deprecated, please use operator bool instead.")
-	FORCEINLINE bool IsNullNoResolve() const { return IsObjectHandleNull(Handle); }
+	FORCEINLINE bool IsNullNoResolve() const { return IsNullNoResolve_Internal(); }
 	
-	FORCEINLINE bool operator!() const { return IsObjectHandleNull(Handle); }
-	explicit FORCEINLINE operator bool() const { return !IsObjectHandleNull(Handle); }
+	FORCEINLINE bool operator!() const { return IsNullNoResolve_Internal(); }
+	explicit FORCEINLINE operator bool() const { return !IsNullNoResolve_Internal(); }
 
 	FORCEINLINE bool IsResolved() const { return IsObjectHandleResolved(Handle); }
 
@@ -299,6 +311,15 @@ private:
 		}
 	}
 #endif // UE_OBJECT_PTR_GC_BARRIER
+
+	FORCEINLINE bool IsNullNoResolve_Internal() const
+	{
+#if UE_WITH_OBJECT_HANDLE_TYPE_SAFETY
+		return IsObjectHandleNull(Handle) || !IsObjectHandleTypeSafe(Handle);
+#else
+		return IsObjectHandleNull(Handle);
+#endif
+	}
 };
 
 template <typename T>
