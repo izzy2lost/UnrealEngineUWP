@@ -196,7 +196,6 @@ public:
 	FRHITextureReference* GetPageTableTexture() const			{ check(IsInParallelRenderingThread()); return PageTableTextureReferenceRHI.GetReference(); }
 	FRHITextureReference* GetPhysicalTileDataATexture() const	{ check(IsInParallelRenderingThread()); return PhysicalTileDataATextureReferenceRHI.GetReference(); }
 	FRHITextureReference* GetPhysicalTileDataBTexture() const	{ check(IsInParallelRenderingThread()); return PhysicalTileDataBTextureReferenceRHI.GetReference(); }
-	FRHIShaderResourceView* GetStreamingInfoBufferSRV() const	{ check(IsInParallelRenderingThread()); return StreamingInfoBufferSRVRHI.GetReference(); }
 	ENGINE_API void GetPackedUniforms(FUintVector4& OutPacked0, FUintVector4& OutPacked1) const;
 	// Updates the GlobalVolumeResolution member in a thread-safe way.
 	ENGINE_API void SetGlobalVolumeResolution_GameThread(const FIntVector3& GlobalVolumeResolution);
@@ -215,7 +214,6 @@ private:
 	FTextureReferenceRHIRef PageTableTextureReferenceRHI;
 	FTextureReferenceRHIRef PhysicalTileDataATextureReferenceRHI;
 	FTextureReferenceRHIRef PhysicalTileDataBTextureReferenceRHI;
-	FShaderResourceViewRHIRef StreamingInfoBufferSRVRHI;
 };
 
 }

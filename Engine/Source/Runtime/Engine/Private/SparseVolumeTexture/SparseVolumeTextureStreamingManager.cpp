@@ -9,13 +9,15 @@
 #include "GlobalShader.h"
 #include "ShaderCompilerCore.h" // AllowGlobalShaderLoad()
 #include "Async/ParallelFor.h"
+#include "SparseVolumeTextureTileDataTexture.h"
+#include "SparseVolumeTextureUpload.h"
 
 #if WITH_EDITORONLY_DATA
 #include "DerivedDataCache.h"
 #include "DerivedDataRequestOwner.h"
 #endif
 
-DEFINE_LOG_CATEGORY_STATIC(LogSparseVolumeTextureStreamingManager, Log, All);
+DEFINE_LOG_CATEGORY(LogSparseVolumeTextureStreamingManager);
 
 #ifndef SVT_STREAMING_LOG_VERBOSE
 #define SVT_STREAMING_LOG_VERBOSE 0
@@ -50,14 +52,6 @@ static FAutoConsoleVariableRef CVarSVTStreamingAsync(
 	TEXT("r.SparseVolumeTexture.Streaming.AsyncThread"),
 	GSVTStreamingAsyncThread,
 	TEXT("Perform most of the SVT streaming on an asynchronous worker thread instead of the rendering thread."),
-	ECVF_RenderThreadSafe
-);
-
-static int32 GSVTStreamingAsyncCompute = 1;
-static FAutoConsoleVariableRef CVarSVTStreamingAsyncCompute(
-	TEXT("r.SparseVolumeTexture.Streaming.AsyncCompute"),
-	GSVTStreamingAsyncCompute,
-	TEXT("Schedule GPU work in async compute queue."),
 	ECVF_RenderThreadSafe
 );
 
@@ -104,739 +98,6 @@ static bool DoesPlatformSupportSparseVolumeTexture(EShaderPlatform Platform)
 	return AllowGlobalShaderLoad();
 }
 
-static FIntVector3 ComputeTileDataVolumeResolution(int32 NumAllocatedPages)
-{
-	int32 TileVolumeResolutionCube = 1;
-	while (TileVolumeResolutionCube * TileVolumeResolutionCube * TileVolumeResolutionCube < NumAllocatedPages)
-	{
-		TileVolumeResolutionCube++;				// We use a simple loop to compute the minimum resolution of a cube to store all the tile data
-	}
-	FIntVector3 TileDataVolumeResolution = FIntVector3(TileVolumeResolutionCube, TileVolumeResolutionCube, TileVolumeResolutionCube);
-	
-	// Trim volume to reclaim some space
-	while ((TileDataVolumeResolution.X * TileDataVolumeResolution.Y * (TileDataVolumeResolution.Z - 1)) > NumAllocatedPages)
-	{
-		TileDataVolumeResolution.Z--;
-	}
-	while ((TileDataVolumeResolution.X * (TileDataVolumeResolution.Y - 1) * TileDataVolumeResolution.Z) > NumAllocatedPages)
-	{
-		TileDataVolumeResolution.Y--;
-	}
-	while (((TileDataVolumeResolution.X - 1) * TileDataVolumeResolution.Y * TileDataVolumeResolution.Z) > NumAllocatedPages)
-	{
-		TileDataVolumeResolution.X--;
-	}
-
-	return TileDataVolumeResolution * SPARSE_VOLUME_TILE_RES_PADDED;
-}
-
-static FIntVector3 ComputeLargestPossibleTileDataVolumeResolution(int32 VoxelMemSize)
-{
-	const int64 TileMemSize = SVT::NumVoxelsPerPaddedTile * VoxelMemSize;
-	const int64 NumMaxTiles = SVT::MaxResourceSize / TileMemSize;
-	int64 ResourceSize = NumMaxTiles * TileMemSize;
-
-	// Find a cube with a volume as close to NumMaxTiles as possible
-	int32 TileVolumeResolutionCube = 1;
-	while (((TileVolumeResolutionCube + 1) * (TileVolumeResolutionCube + 1) * (TileVolumeResolutionCube + 1)) <= NumMaxTiles)
-	{
-		++TileVolumeResolutionCube;
-	}
-
-	// Try to add to the sides to get closer to NumMaxTiles
-	FIntVector3 ResolutionInTiles = FIntVector3(TileVolumeResolutionCube, TileVolumeResolutionCube, TileVolumeResolutionCube);
-	if (((ResolutionInTiles.X + 1) * ResolutionInTiles.Y * ResolutionInTiles.Z) <= NumMaxTiles)
-	{
-		++ResolutionInTiles.X;
-	}
-	if ((ResolutionInTiles.X * (ResolutionInTiles.Y + 1) * ResolutionInTiles.Z) <= NumMaxTiles)
-	{
-		++ResolutionInTiles.Y;
-	}
-	if ((ResolutionInTiles.X * ResolutionInTiles.Y * (ResolutionInTiles.Z + 1)) <= NumMaxTiles)
-	{
-		++ResolutionInTiles.Z;
-	}
-
-	const FIntVector3 Resolution = ResolutionInTiles * SPARSE_VOLUME_TILE_RES_PADDED;
-	check(Resolution.X <= SVT::MaxVolumeTextureDim && Resolution.Y <= SVT::MaxVolumeTextureDim && Resolution.Z <= SVT::MaxVolumeTextureDim);
-	check(((int64)Resolution.X * (int64)Resolution.Y * (int64)Resolution.Z) < SVT::MaxResourceSize);
-
-	return Resolution;
-}
-
-class FSparseVolumeTextureUpdateFromBufferCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromBufferCS);
-	SHADER_USE_PARAMETER_STRUCT(FSparseVolumeTextureUpdateFromBufferCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureA)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureB)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, DstTileCoords)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SrcPhysicalTileBufferA)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SrcPhysicalTileBufferB)
-		SHADER_PARAMETER(uint32, TileCoordsBufferOffset)
-		SHADER_PARAMETER(uint32, TileDataBufferOffsetInTiles)
-		SHADER_PARAMETER(uint32, NumTilesToCopy)
-		SHADER_PARAMETER(uint32, NumDispatchedGroups)
-		SHADER_PARAMETER(uint32, PaddedTileSize)
-		SHADER_PARAMETER(uint32, bCopyTexureAOnlyUI)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("UPDATE_TILE_TEXTURE_FROM_BUFFER"), 1);
-	}
-};
-IMPLEMENT_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromBufferCS, "/Engine/Private/SparseVolumeTexture/UpdateSparseVolumeTexture.usf", "SparseVolumeTextureUpdateFromBufferCS", SF_Compute);
-
-class FSparseVolumeTextureUpdateFromSparseBufferCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromSparseBufferCS);
-	SHADER_USE_PARAMETER_STRUCT(FSparseVolumeTextureUpdateFromSparseBufferCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureA)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureB)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SrcPhysicalTileBufferA)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SrcPhysicalTileBufferB)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, OccupancyBitsBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, TileDataOffsetsBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, DstTileCoordsBuffer)
-		SHADER_PARAMETER(FVector4f, FallbackValueA)
-		SHADER_PARAMETER(FVector4f, FallbackValueB)
-		SHADER_PARAMETER(uint32, TileIndexOffset)
-		SHADER_PARAMETER(uint32, SrcVoxelDataOffsetA)
-		SHADER_PARAMETER(uint32, SrcVoxelDataOffsetB)
-		SHADER_PARAMETER(uint32, NumTilesToCopy)
-		SHADER_PARAMETER(uint32, BufferTileStep)
-		SHADER_PARAMETER(uint32, NumDispatchedGroups)
-		SHADER_PARAMETER(uint32, PaddedTileSize)
-		SHADER_PARAMETER(uint32, CopyTexureMask)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("UPDATE_TILE_TEXTURE_FROM_SPARSE_BUFFER"), 1);
-	}
-};
-IMPLEMENT_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromSparseBufferCS, "/Engine/Private/SparseVolumeTexture/UpdateSparseVolumeTexture.usf", "SparseVolumeTextureUpdateFromSparseBufferCS", SF_Compute);
-
-class FSparseVolumeTextureUpdatePageTableCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FSparseVolumeTextureUpdatePageTableCS);
-	SHADER_USE_PARAMETER_STRUCT(FSparseVolumeTextureUpdatePageTableCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, PageTable)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, PageTableUpdates)
-		SHADER_PARAMETER(uint32, UpdateCoordOffset)
-		SHADER_PARAMETER(uint32, UpdatePayloadOffset)
-		SHADER_PARAMETER(uint32, NumUpdates)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("UPDATE_PAGE_TABLE"), 1);
-	}
-};
-IMPLEMENT_GLOBAL_SHADER(FSparseVolumeTextureUpdatePageTableCS, "/Engine/Private/SparseVolumeTexture/UpdateSparseVolumeTexture.usf", "SparseVolumeTextureUpdatePageTableCS", SF_Compute);
-
-class FSparseVolumeTextureUpdateStreamingInfoBufferCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FSparseVolumeTextureUpdateStreamingInfoBufferCS);
-	SHADER_USE_PARAMETER_STRUCT(FSparseVolumeTextureUpdateStreamingInfoBufferCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, StreamingInfoBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, StreamingInfoBufferUpdates)
-		SHADER_PARAMETER(uint32, UpdateOffset)
-		SHADER_PARAMETER(uint32, NumUpdates)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("UPDATE_STREAMING_INFO_BUFFER"), 1);
-	}
-};
-IMPLEMENT_GLOBAL_SHADER(FSparseVolumeTextureUpdateStreamingInfoBufferCS, "/Engine/Private/SparseVolumeTexture/UpdateSparseVolumeTexture.usf", "SparseVolumeTextureUpdateStreamingInfoBufferCS", SF_Compute);
-
-// Utility class for uploading tiles to a physical tile data texture
-class FTileUploader
-{
-public:
-
-	struct FAddResult
-	{
-		TStaticArray<uint8*, 2> OccupancyBitsPtrs;
-		TStaticArray<uint8*, 2> TileDataOffsetsPtrs;
-		TStaticArray<uint8*, 2> TileDataPtrs;
-		TStaticArray<uint32, 2> TileDataBaseOffsets; // Caller needs to add this value to all data written to TileDataOffsetsPtrs
-		uint8* PackedPhysicalTileCoordsPtr;
-	};
-
-	FTileUploader()
-	{
-		ResetState();
-	}
-
-	void Init(FRDGBuilder& GraphBuilder, int32 InMaxNumTiles, int32 InMaxNumVoxelsA, int32 InMaxNumVoxelsB, EPixelFormat InFormatA, EPixelFormat InFormatB)
-	{
-		check(InFormatA != PF_Unknown || InFormatB != PF_Unknown);
-		ResetState();
-		MaxNumTiles = InMaxNumTiles;
-		MaxNumVoxelsA = InMaxNumVoxelsA;
-		MaxNumVoxelsB = InMaxNumVoxelsB;
-		FormatA = InFormatA;
-		FormatB = InFormatB;
-		FormatSizeA = GPixelFormats[FormatA].BlockBytes;
-		FormatSizeB = GPixelFormats[FormatB].BlockBytes;
-
-		// Create a new set of buffers if the old set is already queued into RDG.
-		if (IsRegistered(GraphBuilder, DstTileCoordsUploadBuffer))
-		{
-			OccupancyBitsUploadBuffer = nullptr;
-			TileDataOffsetsUploadBuffer = nullptr;
-			DstTileCoordsUploadBuffer = nullptr;
-			TileDataAUploadBuffer = nullptr;
-			TileDataBUploadBuffer = nullptr;
-		}
-
-		const int32 NumTextures = (FormatA == PF_Unknown || FormatB == PF_Unknown) ? 1 : 2;
-
-		if (MaxNumTiles > 0)
-		{
-			FRHICommandListBase& RHICmdList = GraphBuilder.RHICmdList;
-
-			// Occupancy bits
-			{
-				const uint32 BufferSize = NumTextures * MaxNumTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32);
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressUploadDesc(BufferSize);
-				BufferDesc.Usage |= EBufferUsageFlags::Dynamic; // Skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-				AllocatePooledBuffer(BufferDesc, OccupancyBitsUploadBuffer, TEXT("SparseVolumeTexture.OccupancyBitsUploadBuffer"));
-
-				OccupancyBitsAPtr = (uint8*)RHICmdList.LockBuffer(OccupancyBitsUploadBuffer->GetRHI(), 0, BufferSize, RLM_WriteOnly);
-				OccupancyBitsBPtr = OccupancyBitsAPtr + (FormatA != PF_Unknown ? (MaxNumTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32)) : 0);
-			}
-			// Tile data offsets
-			{
-				const uint32 BufferSize = NumTextures * MaxNumTiles * sizeof(uint32);
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressUploadDesc(BufferSize);
-				BufferDesc.Usage |= EBufferUsageFlags::Dynamic; // Skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-				AllocatePooledBuffer(BufferDesc, TileDataOffsetsUploadBuffer, TEXT("SparseVolumeTexture.TileDataOffsetsUploadBuffer"));
-
-				// Due to a limit on the maximum number of texels in a buffer SRV, we need to upload the data in smaller chunks. In order to figure out the chunk offsets/sizes,
-				// we need to read the TileDataOffset values the caller has written to the returned pointers. We want to avoid reading from a mapped upload buffer pointer,
-				// which is why we use a temporary allocation to write the upload data to.
-				TileDataOffsets.SetNumUninitialized(NumTextures * MaxNumTiles);
-				TileDataOffsetsAPtr = (uint8*)TileDataOffsets.GetData();
-				TileDataOffsetsBPtr = TileDataOffsetsAPtr + (FormatA != PF_Unknown ? (MaxNumTiles * sizeof(uint32)) : 0);
-			}
-			// TileCoords
-			{
-				const uint32 BufferSize = MaxNumTiles * sizeof(uint32);
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressUploadDesc(BufferSize);
-				BufferDesc.Usage |= EBufferUsageFlags::Dynamic; // Skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-				AllocatePooledBuffer(BufferDesc, DstTileCoordsUploadBuffer, TEXT("SparseVolumeTexture.TileCoordsUploadBuffer"));
-
-				TileCoordsPtr = (uint8*)RHICmdList.LockBuffer(DstTileCoordsUploadBuffer->GetRHI(), 0, BufferSize, RLM_WriteOnly);
-			}
-
-			// TileData
-			if (FormatSizeA > 0)
-			{
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateUploadDesc(FormatSizeA, FMath::Max(MaxNumVoxelsA, 1));
-				BufferDesc.Usage |= EBufferUsageFlags::Dynamic; // Skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-				AllocatePooledBuffer(BufferDesc, TileDataAUploadBuffer, TEXT("SparseVolumeTexture.TileDataAUploadBuffer"));
-
-				TileDataAPtr = (uint8*)RHICmdList.LockBuffer(TileDataAUploadBuffer->GetRHI(), 0, FMath::Max(MaxNumVoxelsA, 1) * FormatSizeA, RLM_WriteOnly);
-			}
-			if (FormatSizeB > 0)
-			{
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateUploadDesc(FormatSizeB, FMath::Max(MaxNumVoxelsB, 1));
-				BufferDesc.Usage |= EBufferUsageFlags::Dynamic; // Skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-				AllocatePooledBuffer(BufferDesc, TileDataBUploadBuffer, TEXT("SparseVolumeTexture.TileDataBUploadBuffer"));
-
-				TileDataBPtr = (uint8*)RHICmdList.LockBuffer(TileDataBUploadBuffer->GetRHI(), 0, FMath::Max(MaxNumVoxelsB, 1) * FormatSizeB, RLM_WriteOnly);
-			}
-		}
-	}
-
-	FAddResult Add_GetRef(int32 NumTiles, int32 NumVoxelsA, int32 NumVoxelsB)
-	{
-		check((NumWrittenTiles + NumTiles) <= MaxNumTiles);
-		check((NumWrittenVoxelsA + NumVoxelsA) <= MaxNumVoxelsA);
-		check((NumWrittenVoxelsB + NumVoxelsB) <= MaxNumVoxelsB);
-		check(TileCoordsPtr);
-		check(FormatSizeA <= 0 || TileDataAPtr);
-		check(FormatSizeB <= 0 || TileDataBPtr);
-
-		FAddResult Result = {};
-		Result.OccupancyBitsPtrs[0] = TileDataAPtr ? OccupancyBitsAPtr + (NumWrittenTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32)) : nullptr;
-		Result.OccupancyBitsPtrs[1] = TileDataBPtr ? OccupancyBitsBPtr + (NumWrittenTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32)) : nullptr;
-		Result.TileDataOffsetsPtrs[0] = TileDataAPtr ? TileDataOffsetsAPtr + (NumWrittenTiles * sizeof(uint32)) : nullptr;
-		Result.TileDataOffsetsPtrs[1] = TileDataBPtr ? TileDataOffsetsBPtr + (NumWrittenTiles * sizeof(uint32)) : nullptr;
-		Result.TileDataPtrs[0] = TileDataAPtr ? TileDataAPtr + (NumWrittenVoxelsA * FormatSizeA) : nullptr;
-		Result.TileDataPtrs[1] = TileDataBPtr ? TileDataBPtr + (NumWrittenVoxelsB * FormatSizeB) : nullptr;
-		Result.TileDataBaseOffsets[0] = NumWrittenVoxelsA;
-		Result.TileDataBaseOffsets[1] = NumWrittenVoxelsB;
-		Result.PackedPhysicalTileCoordsPtr = TileCoordsPtr + NumWrittenTiles * sizeof(uint32);
-		
-		NumWrittenTiles += NumTiles;
-		NumWrittenVoxelsA += NumVoxelsA;
-		NumWrittenVoxelsB += NumVoxelsB;
-
-		return Result;
-	}
-
-	void Release()
-	{
-		OccupancyBitsUploadBuffer.SafeRelease();
-		TileDataOffsetsUploadBuffer.SafeRelease();
-		DstTileCoordsUploadBuffer.SafeRelease();
-		TileDataAUploadBuffer.SafeRelease();
-		TileDataBUploadBuffer.SafeRelease();
-		TileDataOffsets.Reset();
-		ResetState();
-	}
-
-	void ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* DstTextureA, FRHITexture* DstTextureB, const FVector4f& FallbackValueA, const FVector4f& FallbackValueB)
-	{
-		check(DstTextureA || FormatSizeA <= 0);
-		check(DstTextureB || FormatSizeB <= 0);
-		if (MaxNumTiles > 0)
-		{
-			FRHICommandListBase& RHICmdList = GraphBuilder.RHICmdList;
-
-			RHICmdList.UnlockBuffer(OccupancyBitsUploadBuffer->GetRHI());
-			RHICmdList.UnlockBuffer(DstTileCoordsUploadBuffer->GetRHI());
-
-			// TileDataOffset values were written to a temporary allocation so that we can access them later in this function. Unlike the other buffers, we now need to copy that data over to the actual upload buffer.
-			void* TileDataOffsetsUploadPtr = RHICmdList.LockBuffer(TileDataOffsetsUploadBuffer->GetRHI(), 0, TileDataOffsets.Num() * sizeof(TileDataOffsets[0]), RLM_WriteOnly);
-			FMemory::Memcpy(TileDataOffsetsUploadPtr, TileDataOffsets.GetData(), TileDataOffsets.Num() * sizeof(TileDataOffsets[0]));
-			RHICmdList.UnlockBuffer(TileDataOffsetsUploadBuffer->GetRHI());
-
-			if (TileDataAPtr)
-			{
-				RHICmdList.UnlockBuffer(TileDataAUploadBuffer->GetRHI());
-			}
-			if (TileDataBPtr)
-			{
-				RHICmdList.UnlockBuffer(TileDataBUploadBuffer->GetRHI());
-			}
-
-			if (NumWrittenTiles > 0)
-			{
-				FRDGTexture* DummyTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create3D(FIntVector(1), PF_R8, FClearValueBinding::None, ETextureCreateFlags::UAV), TEXT("SparseVolumeTexture.DummyTexture"));
-				FRDGTexture* DstTextureARDG = DstTextureA ? GraphBuilder.RegisterExternalTexture(CreateRenderTarget(DstTextureA, TEXT("SparseVolumeTexture.TileDataTextureA"))) : nullptr;
-				FRDGTexture* DstTextureBRDG = DstTextureB ? GraphBuilder.RegisterExternalTexture(CreateRenderTarget(DstTextureB, TEXT("SparseVolumeTexture.TileDataTextureB"))) : nullptr;
-				FRDGBuffer* SrcBufferARDG = FormatSizeA > 0 ? GraphBuilder.RegisterExternalBuffer(TileDataAUploadBuffer) : nullptr;
-				FRDGBuffer* SrcBufferBRDG = FormatSizeB > 0 ? GraphBuilder.RegisterExternalBuffer(TileDataBUploadBuffer) : nullptr;
-				check(SrcBufferARDG || SrcBufferBRDG);
-
-				FRDGTextureUAV* DummyTextureUAV = GraphBuilder.CreateUAV(DummyTexture);
-				FRDGTextureUAV* DstTextureAUAV = DstTextureARDG ? GraphBuilder.CreateUAV(DstTextureARDG) : nullptr;
-				FRDGTextureUAV* DstTextureBUAV = DstTextureBRDG ? GraphBuilder.CreateUAV(DstTextureBRDG) : nullptr;
-
-				FRDGBufferSRV* OccupancyBitsBufferSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(OccupancyBitsUploadBuffer));
-				FRDGBufferSRV* TileDataOffsetsBufferSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(TileDataOffsetsUploadBuffer));
-				FRDGBufferSRV* DstTileCoordsBufferSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(DstTileCoordsUploadBuffer));
-				// Either SrcBufferARDG or SrcBufferBRDG must exist and will have at least 1 element.
-				FRDGBufferSRV* DummySrcBufferSRV = SrcBufferARDG ? GraphBuilder.CreateSRV(SrcBufferARDG, FormatA) : GraphBuilder.CreateSRV(SrcBufferBRDG, FormatB);
-
-				auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdateFromSparseBufferCS>();
-
-				int32 NumUploadedTiles = 0;
-				int32 NumUploadedVoxelsA = 0;
-				int32 NumUploadedVoxelsB = 0;
-
-				// This is a limit on some platforms on the maximum number of texels in a texel/typed buffer. Unfortunately for R8 (1 byte) formats, this means that we can upload only 1/16 of all the texels of a 2GB texture.
-				// In order to work around this issue, the data to be uploaded is split into chunks such that this limit is not violated. We can use the TileDataOffsets values to get the number of voxels per tile and then
-				// just add as many tiles to the batch as we can.
-				const int32 MaxNumTexelsPerResource = 1 << 27;
-
-				while (NumUploadedTiles < NumWrittenTiles)
-				{
-					// Determine the number of tiles to upload in this iteration
-					int32 NumTilesInThisBatch = 0;
-					int32 NumVoxelsAInThisBatch = 0;
-					int32 NumVoxelsBInThisBatch = 0;
-					for (int32 TileIndex = NumUploadedTiles; TileIndex < NumWrittenTiles; ++TileIndex)
-					{
-						const int32 VoxelOffsetA = FormatSizeA > 0 ? reinterpret_cast<uint32*>(TileDataOffsetsAPtr)[TileIndex] : 0;
-						const int32 VoxelOffsetB = FormatSizeB > 0 ? reinterpret_cast<uint32*>(TileDataOffsetsBPtr)[TileIndex] : 0;
-						const int32 VoxelEndIndexA = FormatSizeA > 0 && (TileIndex + 1) < NumWrittenTiles ? reinterpret_cast<uint32*>(TileDataOffsetsAPtr)[TileIndex + 1] : NumWrittenVoxelsA;
-						const int32 VoxelEndIndexB = FormatSizeB > 0 && (TileIndex + 1) < NumWrittenTiles ? reinterpret_cast<uint32*>(TileDataOffsetsBPtr)[TileIndex + 1] : NumWrittenVoxelsB;
-						const int32 TileNumVoxelsA = VoxelEndIndexA - VoxelOffsetA;
-						const int32 TileNumVoxelsB = VoxelEndIndexB - VoxelOffsetB;
-						check(TileNumVoxelsA >= 0 && TileNumVoxelsA <= SVT::NumVoxelsPerPaddedTile);
-						check(TileNumVoxelsB >= 0 && TileNumVoxelsB <= SVT::NumVoxelsPerPaddedTile);
-
-						// Adding additional voxels to the batch would exceed the limit, so exit the loop and upload the data.
-						if ((NumVoxelsAInThisBatch + TileNumVoxelsA) > MaxNumTexelsPerResource || (NumVoxelsBInThisBatch + TileNumVoxelsB) > MaxNumTexelsPerResource)
-						{
-							break;
-						}
-
-						NumTilesInThisBatch += 1;
-						NumVoxelsAInThisBatch += TileNumVoxelsA;
-						NumVoxelsBInThisBatch += TileNumVoxelsB;
-					}
-
-					FRDGBufferSRV* TileDataABufferSRV = nullptr;
-					FRDGBufferSRV* TileDataBBufferSRV = nullptr;
-
-					// This is the critical part: For every batch we create a SRV scoped to a range within the voxel data upload buffer still fitting within the typed buffer texel limit.
-					if (FormatSizeA && NumVoxelsAInThisBatch)
-					{
-						FRDGBufferSRVDesc SRVDesc(SrcBufferARDG, FormatA);
-						SRVDesc.StartOffsetBytes = NumUploadedVoxelsA * FormatSizeA;
-						SRVDesc.NumElements = NumVoxelsAInThisBatch;
-						TileDataABufferSRV = GraphBuilder.CreateSRV(SRVDesc);
-					}
-					if (FormatSizeB && NumVoxelsBInThisBatch)
-					{
-						FRDGBufferSRVDesc SRVDesc(SrcBufferBRDG, FormatB);
-						SRVDesc.StartOffsetBytes = NumUploadedVoxelsB * FormatSizeB;
-						SRVDesc.NumElements = NumVoxelsBInThisBatch;
-						TileDataBBufferSRV = GraphBuilder.CreateSRV(SRVDesc);
-					}
-
-					FSparseVolumeTextureUpdateFromSparseBufferCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSparseVolumeTextureUpdateFromSparseBufferCS::FParameters>();
-					PassParameters->DstPhysicalTileTextureA = DstTextureAUAV ? DstTextureAUAV : DummyTextureUAV;
-					PassParameters->DstPhysicalTileTextureB = DstTextureBUAV ? DstTextureBUAV : DummyTextureUAV;
-					PassParameters->SrcPhysicalTileBufferA = TileDataABufferSRV ? TileDataABufferSRV : DummySrcBufferSRV;
-					PassParameters->SrcPhysicalTileBufferB = TileDataBBufferSRV ? TileDataBBufferSRV : DummySrcBufferSRV;
-					PassParameters->OccupancyBitsBuffer = OccupancyBitsBufferSRV;
-					PassParameters->TileDataOffsetsBuffer = TileDataOffsetsBufferSRV;
-					PassParameters->DstTileCoordsBuffer = DstTileCoordsBufferSRV;
-					PassParameters->FallbackValueA = FallbackValueA;
-					PassParameters->FallbackValueB = FallbackValueB;
-					PassParameters->TileIndexOffset = NumUploadedTiles; // This lets the shader know how many tiles have already been processed in previous dispatches.
-					PassParameters->SrcVoxelDataOffsetA = NumUploadedVoxelsA; // SrcVoxelDataOffsetA and SrcVoxelDataOffsetB are subtracted from the calculated voxel data buffer read indices
-					PassParameters->SrcVoxelDataOffsetB = NumUploadedVoxelsB;
-					PassParameters->NumTilesToCopy = NumTilesInThisBatch;
-					PassParameters->BufferTileStep = MaxNumTiles;
-					PassParameters->NumDispatchedGroups = FMath::Min(NumTilesInThisBatch, GRHIMaxDispatchThreadGroupsPerDimension.X);
-					PassParameters->PaddedTileSize = SPARSE_VOLUME_TILE_RES_PADDED;
-					PassParameters->CopyTexureMask = 0;
-					PassParameters->CopyTexureMask |= FormatSizeA > 0 ? 0x1u : 0x0u;
-					PassParameters->CopyTexureMask |= FormatSizeB > 0 ? 0x2u : 0x0u;
-
-					// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
-					const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
-
-					FComputeShaderUtils::AddPass(
-						GraphBuilder,
-						RDG_EVENT_NAME("Upload SVT Tiles (TileCount: %u)", NumTilesInThisBatch),
-						bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
-						ComputeShader,
-						PassParameters,
-						FIntVector3(PassParameters->NumDispatchedGroups, 1, 1)
-					);
-
-					NumUploadedTiles += NumTilesInThisBatch;
-					NumUploadedVoxelsA += NumVoxelsAInThisBatch;
-					NumUploadedVoxelsB += NumVoxelsBInThisBatch;
-				}
-
-				check(NumUploadedTiles == NumWrittenTiles);
-				check(NumUploadedVoxelsA == NumWrittenVoxelsA);
-				check(NumUploadedVoxelsB == NumWrittenVoxelsB);
-			}
-		}
-		Release();
-	}
-
-private:
-	TRefCountPtr<FRDGPooledBuffer> OccupancyBitsUploadBuffer;
-	TRefCountPtr<FRDGPooledBuffer> TileDataOffsetsUploadBuffer;
-	TRefCountPtr<FRDGPooledBuffer> DstTileCoordsUploadBuffer;
-	TRefCountPtr<FRDGPooledBuffer> TileDataAUploadBuffer;
-	TRefCountPtr<FRDGPooledBuffer> TileDataBUploadBuffer;
-	TArray<uint32> TileDataOffsets; // CPU-readable per-tile offsets into tile data
-	uint8* OccupancyBitsAPtr = nullptr;
-	uint8* OccupancyBitsBPtr = nullptr;
-	uint8* TileDataOffsetsAPtr = nullptr;
-	uint8* TileDataOffsetsBPtr = nullptr;
-	uint8* TileCoordsPtr = nullptr;
-	uint8* TileDataAPtr = nullptr;
-	uint8* TileDataBPtr = nullptr;
-	int32 MaxNumTiles = 0;
-	int32 MaxNumVoxelsA = 0;
-	int32 MaxNumVoxelsB = 0;
-	EPixelFormat FormatA = PF_Unknown;
-	EPixelFormat FormatB = PF_Unknown;
-	int32 FormatSizeA = 0;
-	int32 FormatSizeB = 0;
-	int32 NumWrittenTiles = 0;
-	int32 NumWrittenVoxelsA = 0;
-	int32 NumWrittenVoxelsB = 0;
-
-	void ResetState()
-	{
-		OccupancyBitsAPtr = nullptr;
-		OccupancyBitsBPtr = nullptr;
-		TileDataOffsetsAPtr = nullptr;
-		TileDataOffsetsBPtr = nullptr;
-		TileCoordsPtr = nullptr;
-		TileDataAPtr = nullptr;
-		TileDataBPtr = nullptr;
-		MaxNumTiles = 0;
-		MaxNumVoxelsA = 0;
-		MaxNumVoxelsB = 0;
-		FormatA = PF_Unknown;
-		FormatB = PF_Unknown;
-		FormatSizeA = 0;
-		FormatSizeB = 0;
-		NumWrittenTiles = 0;
-		NumWrittenVoxelsA = 0;
-		NumWrittenVoxelsB = 0;
-	}
-};
-
-// Utility class for writing page table entries
-class FPageTableUpdater
-{
-public:
-	FPageTableUpdater()
-	{
-		ResetState();
-	}
-
-	void Init(FRDGBuilder& GraphBuilder, int32 InMaxNumUpdates, int32 InEstimatedNumBatches)
-	{
-		ResetState();
-		MaxNumUpdates = InMaxNumUpdates;
-		Batches.Reserve(InEstimatedNumBatches);
-
-		// Create a new buffer if the old one is already queued into RDG.
-		if (IsRegistered(GraphBuilder, UpdatesUploadBuffer))
-		{
-			UpdatesUploadBuffer = nullptr;
-		}
-
-		if (MaxNumUpdates > 0)
-		{
-			// Add EBufferUsageFlags::Dynamic to skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-			FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressUploadDesc(MaxNumUpdates * 2 * sizeof(uint32));
-			BufferDesc.Usage |= EBufferUsageFlags::Dynamic;
-			AllocatePooledBuffer(BufferDesc, UpdatesUploadBuffer, TEXT("SparseVolumeTexture.PageTableUpdatesUploadBuffer"));
-
-			DataPtr = (uint8*)GraphBuilder.RHICmdList.LockBuffer(UpdatesUploadBuffer->GetRHI(), 0, MaxNumUpdates * 2 * sizeof(uint32), RLM_WriteOnly);
-		}
-	}
-
-	void Add_GetRef(FRHITexture* PageTable, int32 MipLevel, int32 NumUpdates, uint8*& OutCoordsPtr, uint8*& OutPayloadPtr)
-	{
-		check((NumWrittenUpdates + NumUpdates) <= MaxNumUpdates);
-		check(DataPtr);
-		FBatch* Batch = Batches.IsEmpty() ? nullptr : &Batches.Last();
-		if (!Batch || Batch->PageTable != PageTable || Batch->MipLevel != MipLevel)
-		{
-			Batch = &Batches.Add_GetRef(FBatch(PageTable, MipLevel));
-		}
-
-		OutCoordsPtr = DataPtr + NumWrittenUpdates * sizeof(uint32);
-		OutPayloadPtr = DataPtr + (MaxNumUpdates + NumWrittenUpdates) * sizeof(uint32);
-
-		Batch->NumUpdates += NumUpdates;
-		NumWrittenUpdates += NumUpdates;
-	}
-
-	void Release()
-	{
-		UpdatesUploadBuffer.SafeRelease();
-		ResetState();
-	}
-
-	void Apply(FRDGBuilder& GraphBuilder)
-	{
-		if (MaxNumUpdates > 0)
-		{
-			GraphBuilder.RHICmdList.UnlockBuffer(UpdatesUploadBuffer->GetRHI());
-
-			if (NumWrittenUpdates > 0)
-			{
-				// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
-				const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
-				auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdatePageTableCS>();
-
-				uint32 UpdatesOffset = 0;
-				for (const FBatch& Batch : Batches)
-				{
-					FRDGTexture* PageTableRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Batch.PageTable, TEXT("SparseVolumeTexture.PageTableTexture")));
-					FRDGTextureUAV* PageTableUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(PageTableRDG, Batch.MipLevel, PF_R32_UINT));
-					FRDGBufferSRV* UpdatesBufferSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(UpdatesUploadBuffer));
-
-					FSparseVolumeTextureUpdatePageTableCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSparseVolumeTextureUpdatePageTableCS::FParameters>();
-					PassParameters->PageTable = PageTableUAV;
-					PassParameters->PageTableUpdates = UpdatesBufferSRV;
-					PassParameters->UpdateCoordOffset = UpdatesOffset;
-					PassParameters->UpdatePayloadOffset = MaxNumUpdates + UpdatesOffset;
-					PassParameters->NumUpdates = Batch.NumUpdates;
-
-					FComputeShaderUtils::AddPass(
-						GraphBuilder,
-						RDG_EVENT_NAME("Update SVT PageTable (UpdateCount: %u)", Batch.NumUpdates),
-						bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
-						ComputeShader,
-						PassParameters,
-						FComputeShaderUtils::GetGroupCount(Batch.NumUpdates, 64)
-					);
-
-					UpdatesOffset += Batch.NumUpdates;
-				}
-			}
-		}
-		
-		Release();
-	}
-
-private:
-	struct FBatch
-	{
-		FRHITexture* PageTable;
-		int32 MipLevel;
-		int32 NumUpdates;
-
-		FBatch() = default;
-		FBatch(FRHITexture* InPageTable, int32 InMipLevel) : PageTable(InPageTable), MipLevel(InMipLevel), NumUpdates(0) {}
-	};
-
-	TRefCountPtr<FRDGPooledBuffer> UpdatesUploadBuffer;
-	TArray<FBatch> Batches;
-	uint8* DataPtr = nullptr;
-	int32 NumWrittenUpdates = 0;
-	int32 MaxNumUpdates = 0;
-
-
-	void ResetState()
-	{
-		Batches.Reset();
-		DataPtr = nullptr;
-		NumWrittenUpdates = 0;
-		MaxNumUpdates = 0;
-	}
-};
-
-// Updates entries in the streaming info buffers of multiple SVTs
-class FStreamingInfoBufferUpdater
-{
-public:
-	FStreamingInfoBufferUpdater()
-	{
-		ResetState();
-	}
-
-	void Add(TRefCountPtr<FRDGPooledBuffer> StreamingInfoBuffer, int32 FrameIndex, int32 LowestResidentMipLevel)
-	{
-		FBatch* Batch = Batches.IsEmpty() ? nullptr : &Batches.Last();
-		if (!Batch || Batch->StreamingInfoBuffer != StreamingInfoBuffer)
-		{
-			Batch = &Batches.Add_GetRef(FBatch(StreamingInfoBuffer, Updates.Num()));
-		}
-
-		Updates.Add(FrameIndex);
-		Updates.Add(LowestResidentMipLevel);
-
-		++Batch->NumUpdates;
-	}
-
-	void Apply(FRDGBuilder& GraphBuilder)
-	{
-		if (!Updates.IsEmpty())
-		{
-			TRefCountPtr<FRDGPooledBuffer> UpdatesUploadBuffer;
-			{
-				// Add EBufferUsageFlags::Dynamic to skip the unneeded copy from upload to VRAM resource on d3d12 RHI
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressUploadDesc(Updates.Num() * sizeof(uint32));
-				BufferDesc.Usage |= EBufferUsageFlags::Dynamic;
-				AllocatePooledBuffer(BufferDesc, UpdatesUploadBuffer, TEXT("SparseVolumeTexture.StreamingInfoUploadBuffer"));
-
-				void* DataPtr = GraphBuilder.RHICmdList.LockBuffer(UpdatesUploadBuffer->GetRHI(), 0, Updates.Num() * sizeof(uint32), RLM_WriteOnly);
-				FMemory::Memcpy(DataPtr, Updates.GetData(), Updates.Num() * sizeof(uint32));
-				GraphBuilder.RHICmdList.UnlockBuffer(UpdatesUploadBuffer->GetRHI());
-			}
-
-			// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
-			const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
-			auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdateStreamingInfoBufferCS>();
-
-			uint32 UpdatesOffset = 0;
-			for (const FBatch& Batch : Batches)
-			{
-				FRDGBufferUAV* StreamingInfoBufferUAV = GraphBuilder.CreateUAV(GraphBuilder.RegisterExternalBuffer(Batch.StreamingInfoBuffer), PF_R32_UINT);
-				FRDGBufferSRV* UpdatesBufferSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(UpdatesUploadBuffer));
-
-				FSparseVolumeTextureUpdateStreamingInfoBufferCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSparseVolumeTextureUpdateStreamingInfoBufferCS::FParameters>();
-				PassParameters->StreamingInfoBuffer = StreamingInfoBufferUAV;
-				PassParameters->StreamingInfoBufferUpdates = UpdatesBufferSRV;
-				PassParameters->UpdateOffset = UpdatesOffset;
-				PassParameters->NumUpdates = Batch.NumUpdates;
-
-				FComputeShaderUtils::AddPass(
-					GraphBuilder,
-					RDG_EVENT_NAME("Update SVT StreamingInfoBuffer (UpdateCount: %u)", Batch.NumUpdates),
-					bAsyncCompute ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
-					ComputeShader,
-					PassParameters,
-					FComputeShaderUtils::GetGroupCount(Batch.NumUpdates, 64)
-				);
-
-				UpdatesOffset += Batch.NumUpdates;
-			}
-		}
-		
-		ResetState();
-	}
-
-private:
-	struct FBatch
-	{
-		TRefCountPtr<FRDGPooledBuffer> StreamingInfoBuffer;
-		int32 UpdatesOffset;
-		int32 NumUpdates;
-
-		FBatch() = default;
-		FBatch(TRefCountPtr<FRDGPooledBuffer> InStreamingInfoBuffer, int32 InUpdatesOffset) : StreamingInfoBuffer(InStreamingInfoBuffer), UpdatesOffset(InUpdatesOffset), NumUpdates(0) {}
-	};
-
-	TArray<FBatch> Batches;
-	TArray<uint32> Updates;
-
-	void ResetState()
-	{
-		Batches.Reset();
-		Updates.Reset();
-	}
-};
-
 struct FStreamingUpdateParameters
 {
 	FStreamingManager* StreamingManager = nullptr;
@@ -876,7 +137,6 @@ void FStreamingManager::InitRHI(FRHICommandListBase& RHICmdList)
 	MaxPendingMipLevels = GSVTStreamingMaxPendingMipLevels;
 	PendingMipLevels.SetNum(MaxPendingMipLevels);
 	PageTableUpdater = MakeUnique<FPageTableUpdater>();
-	StreamingInfoBufferUpdater = MakeUnique<FStreamingInfoBufferUpdater>();
 
 #if WITH_EDITORONLY_DATA
 	RequestOwner = MakeUnique<FRequestOwner>(EPriority::Normal);
@@ -1173,18 +433,30 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 				continue; // Skip mip level install. SVT no longer exists or mip level was "streamed out" before it was even installed in the first place.
 			}
 
+			// Prepare tile data texture for upload
+			const FTileDataTexture::EUploaderState UploaderState = SVTInfo->TileDataTexture->GetUploaderState();
+			check(UploaderState == FTileDataTexture::EUploaderState::Ready || UploaderState == FTileDataTexture::EUploaderState::Reserving);
+			if (UploaderState == FTileDataTexture::EUploaderState::Ready)
+			{
+				SVTInfo->TileDataTexture->BeginReserveUpload();
+			}
+
 			const int32 FormatSizeA = GPixelFormats[SVTInfo->FormatA].BlockBytes;
 			const int32 FormatSizeB = GPixelFormats[SVTInfo->FormatB].BlockBytes;
 			const FResources* Resources = SVTInfo->PerFrameInfo[PendingMipLevel.FrameIndex].Resources;
-			SVTInfo->TileDataTexture->NumTilesToUpload += Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].NumPhysicalTiles;
-			SVTInfo->TileDataTexture->NumVoxelsToUploadA += FormatSizeA > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[0] / FormatSizeA : 0;
-			SVTInfo->TileDataTexture->NumVoxelsToUploadB += FormatSizeB > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[1] / FormatSizeB : 0;
+			const int32 NumTilesToUpload = Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].NumPhysicalTiles;
+			const int32 NumVoxelsToUploadA = FormatSizeA > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[0] / FormatSizeA : 0;
+			const int32 NumVoxelsToUploadB = FormatSizeB > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[1] / FormatSizeB : 0;
+
+			SVTInfo->TileDataTexture->ReserveUpload(NumTilesToUpload, NumVoxelsToUploadA, NumVoxelsToUploadB);
+
 			TileDataTexturesToUpdate.Add(SVTInfo->TileDataTexture.Get());
 		}
 
 		for (FTileDataTexture* TileDataTexture : TileDataTexturesToUpdate)
 		{
-			TileDataTexture->TileUploader->Init(GraphBuilder, TileDataTexture->NumTilesToUpload, TileDataTexture->NumVoxelsToUploadA, TileDataTexture->NumVoxelsToUploadB, TileDataTexture->FormatA, TileDataTexture->FormatB);
+			TileDataTexture->EndReserveUpload();
+			TileDataTexture->BeginUpload(GraphBuilder);
 		}
 	}
 
@@ -1223,51 +495,11 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 	}
 	AsyncTaskEvents.Empty();
 
-	// Clear unused mip levels to 0. SVT_TODO: We can probably skip this because the page table lookup in the shader is clamped
-	if (!PageTableClears.IsEmpty())
-	{
-		for (auto& Clear : PageTableClears)
-		{
-			FRDGTexture* PageTableTextureRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Clear.PageTableTexture, TEXT("SparseVolumeTexture.PageTableTexture")));
-			FRDGTextureUAVDesc UAVDesc(PageTableTextureRDG, static_cast<uint8>(Clear.MipLevel), PF_R32_UINT);
-			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(UAVDesc), FUintVector4(ForceInitToZero));
-		}
-		PageTableClears.Reset();
-	}
-
 	// Issue the actual data uploads
 	for (FTileDataTexture* TileDataTexture : TileDataTexturesToUpdate)
 	{
-		TileDataTexture->TileUploader->ResourceUploadTo(GraphBuilder, TileDataTexture->TileDataTextureARHIRef, TileDataTexture->TileDataTextureBRHIRef, TileDataTexture->FallbackValueA, TileDataTexture->FallbackValueB);
-		TileDataTexture->NumTilesToUpload = 0;
-		TileDataTexture->NumVoxelsToUploadA = 0;
-		TileDataTexture->NumVoxelsToUploadB = 0;
+		TileDataTexture->EndUpload(GraphBuilder);
 	}
-
-	// Update streaming info buffers
-	for (FStreamingInfo* SVTInfo : SVTsWithInvalidatedStreamingInfoBuffer)
-	{
-#if DO_CHECK
-		bool bSVTInfoExists = false;
-		for (const auto& Pair : StreamingInfo)
-		{
-			if (Pair.Value.Get() == SVTInfo)
-			{
-				bSVTInfoExists = true;
-				break;
-			}
-		}
-		check(bSVTInfoExists);
-#endif
-		
-		for (TConstSetBitIterator It(SVTInfo->DirtyStreamingInfoData); It; ++It)
-		{
-			const int32 FrameIndex = It.GetIndex();
-			StreamingInfoBufferUpdater->Add(SVTInfo->StreamingInfoBuffer, FrameIndex, SVTInfo->PerFrameInfo[FrameIndex].LowestResidentMipLevel);
-		}
-	}
-	SVTsWithInvalidatedStreamingInfoBuffer.Reset();
-	StreamingInfoBufferUpdater->Apply(GraphBuilder);
 
 	// Update page table with newly streamed in/out pages and make sure descendant pages in the hierarchy have correct fallback values
 	PatchPageTable(GraphBuilder);
@@ -1386,19 +618,10 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 	{
 		const int32 TileFactor = NumFrames <= 1 ? 1 : 3;
 		const int32 NumPhysicalTilesCapacity = FMath::Max(1, NumRootPhysicalTiles + (TileFactor * MaxNumPhysicalTiles)); // Ensure a minimum size of 1
-		const FIntVector3 TileDataVolumeResolution = ComputeTileDataVolumeResolution(NumPhysicalTilesCapacity);
-		const FIntVector3 TileDataVolumeResolutionInTiles = TileDataVolumeResolution / SPARSE_VOLUME_TILE_RES_PADDED;
+		const FIntVector3 TileDataVolumeResolutionInTiles = FTileDataTexture::GetVolumeResolutionInTiles(NumPhysicalTilesCapacity);
 
 		SVTInfo.TileDataTexture = MakeUnique<FTileDataTexture>(TileDataVolumeResolutionInTiles, SVTInfo.FormatA, SVTInfo.FormatB, SVTInfo.FallbackValueA, SVTInfo.FallbackValueB);
 		SVTInfo.TileDataTexture->InitResource(GraphBuilder.RHICmdList);
-
-		// Create streaming info buffer
-		{
-			FRDGBufferRef StreamingInfoBufferRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateByteAddressDesc(sizeof(uint32) * NumFrames), TEXT("SparseVolumeTexture.StreamingInfo.RHIBuffer"));
-			SVTInfo.StreamingInfoBuffer = GraphBuilder.ConvertToExternalBuffer(StreamingInfoBufferRDG);
-			SVTInfo.StreamingInfoBufferSRVRHIRef = SVTInfo.StreamingInfoBuffer->GetSRV();
-			SVTInfo.DirtyStreamingInfoData.Init(true, NumFrames);
-		}
 
 		FTileUploader RootTileUploader;
 		RootTileUploader.Init(GraphBuilder, NumRootPhysicalTiles + 1 /*null tile*/, NumRootVoxelsA, NumRootVoxelsB, SVTInfo.FormatA, SVTInfo.FormatB);
@@ -1450,11 +673,10 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 
 			// Initialize TextureRenderResources
 			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PageTableTextureReferenceRHI, FrameInfo.PageTableTextureRHIRef);
-			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataATextureReferenceRHI, SVTInfo.TileDataTexture->TileDataTextureARHIRef);
-			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataBTextureReferenceRHI, SVTInfo.TileDataTexture->TileDataTextureBRHIRef);
-			FrameInfo.TextureRenderResources->StreamingInfoBufferSRVRHI = SVTInfo.StreamingInfoBufferSRVRHIRef;
+			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataATextureReferenceRHI, SVTInfo.TileDataTexture->GetTileDataTextureA());
+			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataBTextureReferenceRHI, SVTInfo.TileDataTexture->GetTileDataTextureB());
 			FrameInfo.TextureRenderResources->Header = Resources->Header;
-			FrameInfo.TextureRenderResources->TileDataTextureResolution = SVTInfo.TileDataTexture->ResolutionInTiles * SPARSE_VOLUME_TILE_RES_PADDED;
+			FrameInfo.TextureRenderResources->TileDataTextureResolution = SVTInfo.TileDataTexture->GetResolutionInTiles() * SPARSE_VOLUME_TILE_RES_PADDED;
 			FrameInfo.TextureRenderResources->FrameIndex = FrameIdx;
 			FrameInfo.TextureRenderResources->NumLogicalMipLevels = NumMipLevels;
 
@@ -1505,10 +727,8 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 			InvalidatedSVTFrames.Add(&FrameInfo);
 		}
 
-		RootTileUploader.ResourceUploadTo(GraphBuilder, SVTInfo.TileDataTexture->TileDataTextureARHIRef, SVTInfo.TileDataTexture->TileDataTextureBRHIRef, SVTInfo.FallbackValueA, SVTInfo.FallbackValueB);
+		RootTileUploader.ResourceUploadTo(GraphBuilder, SVTInfo.TileDataTexture->GetTileDataTextureA(), SVTInfo.TileDataTexture->GetTileDataTextureB(), SVTInfo.FallbackValueA, SVTInfo.FallbackValueB);
 	}
-
-	SVTsWithInvalidatedStreamingInfoBuffer.Add(&SVTInfo);
 
 	// Add requests for all mips the first frame. This is necessary for cases where UAnimatedSparseVolumeTexture or UStaticSparseVolumeTexture
 	// are directly bound to the material without getting a specific frame through USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest().
@@ -1565,8 +785,6 @@ void FStreamingManager::RemoveInternal(UStreamableSparseVolumeTexture* SparseVol
 			SVTInfo->TileDataTexture->ReleaseResource();
 			SVTInfo->TileDataTexture.Reset();
 		}
-
-		SVTsWithInvalidatedStreamingInfoBuffer.Remove(SVTInfo);
 
 		StreamingInfo.Remove(SparseVolumeTexture);
 	}
@@ -1750,7 +968,7 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 		check(TileDataTexture);
 
 		// Ensure that enough tiles are available in the tile texture
-		const int32 TileDataTextureCapacity = TileDataTexture->PhysicalTilesCapacity;
+		const int32 TileDataTextureCapacity = TileDataTexture->GetTileCapacity();
 		const int32 NumAvailableTiles = TileDataTexture->GetNumAvailableTiles();
 		const int32 NumRequiredTiles = MipLevelStreamingInfo.NumPhysicalTiles;
 		if (NumAvailableTiles < NumRequiredTiles)
@@ -1959,24 +1177,14 @@ void FStreamingManager::StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRU
 		FrameInfo.LowestResidentMipLevel, NewLowestResidentMipLevel);
 #endif
 
-	// Only clear page table mip if the mip to be freed is actually resident.
-	const bool bNeedsPageTableClear = MipLevelIndex >= FrameInfo.LowestResidentMipLevel;
 	FrameInfo.LowestRequestedMipLevel = NewLowestRequestedMipLevel;
 	FrameInfo.LowestResidentMipLevel = NewLowestResidentMipLevel;
 	
-	// Update the streaming info buffer data
-	SVTInfo->DirtyStreamingInfoData[FrameIndex] = true;
-	SVTsWithInvalidatedStreamingInfoBuffer.Add(SVTInfo);
 	InvalidatedSVTFrames.Add(&FrameInfo);
 
 	// Unlink
 	LRUNode->Remove();
 	LRUNode->LastRequested = INDEX_NONE;
-
-	if (bNeedsPageTableClear)
-	{
-		PageTableClears.Push({ FrameInfo.PageTableTextureRHIRef, MipLevelIndex });
-	}
 
 	// Free allocated tiles
 	for (uint32& TileCoord : FrameInfo.TileAllocations[MipLevelIndex])
@@ -2167,7 +1375,7 @@ void FStreamingManager::InstallReadyMipLevels()
 		check((MipLevelStreamingInfo.PageTableSize % (sizeof(uint32) * 2)) == 0);
 		const int32 NumPageTableUpdates = MipLevelStreamingInfo.PageTableSize / (sizeof(uint32) * 2);
 
-		FTileUploader::FAddResult TileDataAddResult = SVTInfo->TileDataTexture->TileUploader->Add_GetRef(NumPhysicalTiles, NumVoxelsA, NumVoxelsB);
+		FTileUploader::FAddResult TileDataAddResult = SVTInfo->TileDataTexture->AddUpload(NumPhysicalTiles, NumVoxelsA, NumVoxelsB);
 
 		// Tile data
 		{
@@ -2219,9 +1427,6 @@ void FStreamingManager::InstallReadyMipLevels()
 		check(FrameInfo.LowestResidentMipLevel == (PendingMipLevel.MipLevelIndex + 1));
 		FrameInfo.LowestResidentMipLevel = PendingMipLevel.MipLevelIndex;
 
-		// Update the streaming info buffer data
-		SVTInfo->DirtyStreamingInfoData[PendingMipLevel.FrameIndex] = true;
-		SVTsWithInvalidatedStreamingInfoBuffer.Add(SVTInfo);
 		InvalidatedSVTFrames.Add(&FrameInfo);
 
 		const int32 LRUNodeIndex = PendingMipLevel.FrameIndex * SVTInfo->NumMipLevelsGlobal + PendingMipLevel.MipLevelIndex;
@@ -2532,84 +1737,6 @@ void FStreamingManager::RequestDDCData(TConstArrayView<UE::DerivedData::FCacheGe
 }
 
 #endif // WITH_EDITORONLY_DATA
-
-FStreamingManager::FTileDataTexture::FTileDataTexture(const FIntVector3& InResolutionInTiles, EPixelFormat InFormatA, EPixelFormat InFormatB, const FVector4f& InFallbackValueA, const FVector4f& InFallbackValueB)
-	: ResolutionInTiles(InResolutionInTiles), 
-	PhysicalTilesCapacity(InResolutionInTiles.X * InResolutionInTiles.Y * InResolutionInTiles.Z), 
-	FormatA(InFormatA),
-	FormatB(InFormatB),
-	FallbackValueA(InFallbackValueA),
-	FallbackValueB(InFallbackValueB),
-	TileUploader(MakeUnique<FTileUploader>()),
-	NumTilesToUpload(0),
-	NumVoxelsToUploadA(0),
-	NumVoxelsToUploadB(0)
-{
-	const int64 MaxFormatSize = FMath::Max(GPixelFormats[FormatA].BlockBytes, GPixelFormats[FormatB].BlockBytes);
-	const FIntVector3 LargestPossibleResolution = ComputeLargestPossibleTileDataVolumeResolution(MaxFormatSize);
-	const int32 LargestPossiblePhysicalTilesCapacity = LargestPossibleResolution.X * LargestPossibleResolution.Y * LargestPossibleResolution.Z;
-	
-	// Ensure that the tile data texture(s) do not exceed the memory size and resolution limits.
-	if (PhysicalTilesCapacity > LargestPossiblePhysicalTilesCapacity
-		|| (ResolutionInTiles.X * SPARSE_VOLUME_TILE_RES_PADDED) > SVT::MaxVolumeTextureDim
-		|| (ResolutionInTiles.Y * SPARSE_VOLUME_TILE_RES_PADDED) > SVT::MaxVolumeTextureDim
-		|| (ResolutionInTiles.Z * SPARSE_VOLUME_TILE_RES_PADDED) > SVT::MaxVolumeTextureDim)
-	{
-		ResolutionInTiles = LargestPossibleResolution;
-		PhysicalTilesCapacity = LargestPossiblePhysicalTilesCapacity;
-
-		UE_LOG(LogSparseVolumeTextureStreamingManager, Warning, TEXT("Requested SparseVolumeTexture tile data texture resolution (in tiles) (%i, %i, %i) exceeds the resource size limit. Using the maximum value of (%i, %i. %i) instead."),
-			InResolutionInTiles.X, InResolutionInTiles.Y, InResolutionInTiles.Z,
-			LargestPossibleResolution.X, LargestPossibleResolution.Y, LargestPossibleResolution.Z);
-	}
-
-	const FIntVector3 Resolution = ResolutionInTiles * SPARSE_VOLUME_TILE_RES_PADDED;
-	check(Resolution.X <= SVT::MaxVolumeTextureDim && Resolution.Y <= SVT::MaxVolumeTextureDim && Resolution.Z <= SVT::MaxVolumeTextureDim);
-	check(((int64)Resolution.X * (int64)Resolution.Y * (int64)Resolution.Z * (int64)GPixelFormats[FormatA].BlockBytes) <= SVT::MaxResourceSize);
-	check(((int64)Resolution.X * (int64)Resolution.Y * (int64)Resolution.Z * (int64)GPixelFormats[FormatB].BlockBytes) <= SVT::MaxResourceSize);
-	
-	TileCoords.SetNum(PhysicalTilesCapacity);
-
-	int32 TileCoordsIndex = 0;
-	for (int32 Z = 0; Z < ResolutionInTiles.Z; ++Z)
-	{
-		for (int32 Y = 0; Y < ResolutionInTiles.Y; ++Y)
-		{
-			for (int32 X = 0; X < ResolutionInTiles.X; ++X)
-			{
-				uint32 PackedCoord = 0;
-				PackedCoord |= (X & 0xFFu);
-				PackedCoord |= (Y & 0xFFu) << 8u;
-				PackedCoord |= (Z & 0xFFu) << 16u;
-				TileCoords[TileCoordsIndex++] = PackedCoord;
-			}
-		}
-	}
-	check(TileCoordsIndex == PhysicalTilesCapacity);
-}
-
-void FStreamingManager::FTileDataTexture::InitRHI(FRHICommandListBase&)
-{
-	const FIntVector3 Resolution = ResolutionInTiles * SPARSE_VOLUME_TILE_RES_PADDED;
-	if (FormatA != PF_Unknown)
-	{
-		const FRHITextureCreateDesc Desc =
-			FRHITextureCreateDesc::Create3D(TEXT("SparseVolumeTexture.PhysicalTileDataA.RHITexture"), Resolution.X, Resolution.Y, Resolution.Z, FormatA)
-			.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV);
-		TileDataTextureARHIRef = RHICreateTexture(Desc);
-	}
-	if (FormatB != PF_Unknown)
-	{
-		const FRHITextureCreateDesc Desc =
-			FRHITextureCreateDesc::Create3D(TEXT("SparseVolumeTexture.PhysicalTileDataB.RHITexture"), Resolution.X, Resolution.Y, Resolution.Z, FormatB)
-			.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV);
-		TileDataTextureBRHIRef = RHICreateTexture(Desc);
-	}
-}
-
-void FStreamingManager::FTileDataTexture::ReleaseRHI()
-{
-}
 
 }
 }

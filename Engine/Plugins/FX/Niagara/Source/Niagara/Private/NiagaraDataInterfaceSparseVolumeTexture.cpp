@@ -287,7 +287,6 @@ void UNiagaraDataInterfaceSparseVolumeTexture::SetShaderParameters(const FNiagar
 	Parameters->PageTableTexture = GBlackUintVolumeTexture->TextureRHI;
 	Parameters->PhysicalTileDataATexture = GBlackVolumeTexture->TextureRHI;
 	Parameters->PhysicalTileDataBTexture = GBlackVolumeTexture->TextureRHI;
-	Parameters->StreamingInfoBuffer = GEmptyStructuredBufferWithUAV->ShaderResourceViewRHI;
 	Parameters->PackedUniforms0 = FUintVector4();
 	Parameters->PackedUniforms1 = FUintVector4();
 	Parameters->TextureSize = FIntVector3::ZeroValue;
@@ -298,12 +297,10 @@ void UNiagaraDataInterfaceSparseVolumeTexture::SetShaderParameters(const FNiagar
 		FRHITexture* PageTableTexture = RTInstanceData->RenderResources->GetPageTableTexture();
 		FRHITexture* PhysicalTileDataATexture = RTInstanceData->RenderResources->GetPhysicalTileDataATexture();
 		FRHITexture* PhysicalTileDataBTexture = RTInstanceData->RenderResources->GetPhysicalTileDataBTexture();
-		FRHIShaderResourceView* StreamingInfoBufferSRV = RTInstanceData->RenderResources->GetStreamingInfoBufferSRV();
 
 		Parameters->PageTableTexture = PageTableTexture ? PageTableTexture : Parameters->PageTableTexture;
 		Parameters->PhysicalTileDataATexture = PhysicalTileDataATexture ? PhysicalTileDataATexture : Parameters->PhysicalTileDataATexture;
 		Parameters->PhysicalTileDataBTexture = PhysicalTileDataBTexture ? PhysicalTileDataBTexture : Parameters->PhysicalTileDataBTexture;
-		Parameters->StreamingInfoBuffer = StreamingInfoBufferSRV ? StreamingInfoBufferSRV : Parameters->StreamingInfoBuffer;
 		RTInstanceData->RenderResources->GetPackedUniforms(Parameters->PackedUniforms0, Parameters->PackedUniforms1);
 		Parameters->TextureSize = RTInstanceData->TextureSize;
 		Parameters->MipLevels = RTInstanceData->MipLevels;

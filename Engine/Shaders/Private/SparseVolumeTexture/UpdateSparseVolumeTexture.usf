@@ -205,22 +205,3 @@ void SparseVolumeTextureUpdatePageTableCS(uint3 DispatchThreadID : SV_DispatchTh
 }
 
 #endif // UPDATE_PAGE_TABLE
-
-#ifdef UPDATE_STREAMING_INFO_BUFFER
-
-RWByteAddressBuffer StreamingInfoBuffer;
-ByteAddressBuffer StreamingInfoBufferUpdates;
-uint UpdateOffset;
-uint NumUpdates;
-
-[numthreads(64, 1, 1)]
-void SparseVolumeTextureUpdateStreamingInfoBufferCS(uint3 DispatchThreadID : SV_DispatchThreadID)
-{
-	if (DispatchThreadID.x < NumUpdates)
-	{
-		uint2 Update = StreamingInfoBufferUpdates.Load2(((DispatchThreadID.x + UpdateOffset) * 2) << 2);
-		StreamingInfoBuffer.Store(Update.x << 2, Update.y);
-	}
-}
-
-#endif // UPDATE_STREAMING_INFO_BUFFER

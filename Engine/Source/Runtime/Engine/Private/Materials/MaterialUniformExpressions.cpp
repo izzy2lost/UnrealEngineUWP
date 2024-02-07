@@ -406,7 +406,6 @@ FShaderParametersMetadata* FUniformExpressionSet::CreateBufferStruct()
 	static FString SparseVolumeTexturePageTableNames[128];
 	static FString SparseVolumeTexturePhysicalANames[128];
 	static FString SparseVolumeTexturePhysicalBNames[128];
-	static FString SparseVolumeTextureStreamingInfoBufferNames[128];
 	static FString SparseVolumeTexturePhysicalSamplerNames[128];
 	static bool bInitializedTextureNames = false;
 	if (!bInitializedTextureNames)
@@ -434,7 +433,6 @@ FShaderParametersMetadata* FUniformExpressionSet::CreateBufferStruct()
 			SparseVolumeTexturePageTableNames[i] = FString::Printf(TEXT("SparseVolumeTexturePageTable_%d"), i);
 			SparseVolumeTexturePhysicalANames[i] = FString::Printf(TEXT("SparseVolumeTexturePhysicalA_%d"), i);
 			SparseVolumeTexturePhysicalBNames[i] = FString::Printf(TEXT("SparseVolumeTexturePhysicalB_%d"), i);
-			SparseVolumeTextureStreamingInfoBufferNames[i] = FString::Printf(TEXT("SparseVolumeTextureStreamingInfoBuffer_%d"), i);
 			SparseVolumeTexturePhysicalSamplerNames[i] = FString::Printf(TEXT("SparseVolumeTexturePhysical_%dSampler"), i);
 		}
 	}
@@ -509,11 +507,6 @@ FShaderParametersMetadata* FUniformExpressionSet::CreateBufferStruct()
 		// Physical B
 		check((NextMemberOffset% SHADER_PARAMETER_POINTER_ALIGNMENT) == 0);
 		new(Members) FShaderParametersMetadata::FMember(*SparseVolumeTexturePhysicalBNames[i], TEXT("Texture3D"), __LINE__, NextMemberOffset, UBMT_TEXTURE, EShaderPrecisionModifier::Float, 1, 1, 0, NULL);
-		NextMemberOffset += SHADER_PARAMETER_POINTER_ALIGNMENT;
-
-		// Streaming Info Buffer
-		check((NextMemberOffset% SHADER_PARAMETER_POINTER_ALIGNMENT) == 0);
-		new(Members) FShaderParametersMetadata::FMember(*SparseVolumeTextureStreamingInfoBufferNames[i], TEXT("ByteAddressBuffer"), __LINE__, NextMemberOffset, UBMT_SRV, EShaderPrecisionModifier::Float, 1, 1, 0, NULL);
 		NextMemberOffset += SHADER_PARAMETER_POINTER_ALIGNMENT;
 
 		// Sampler
@@ -1003,7 +996,7 @@ void FUniformExpressionSet::FillUniformBuffer(const FMaterialRenderContext& Mate
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::Array2D].Num() * 2
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::ArrayCube].Num() * 2
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::Volume].Num() * 2
-				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::SparseVolume].Num() * 5
+				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::SparseVolume].Num() * 4
 				+ UniformExternalTextureParameters.Num() * 2
 				+ UniformTextureParameters[(uint32)EMaterialTextureParameterType::Virtual].Num() * 2
 				+ NumPageTableTextures
@@ -1276,16 +1269,14 @@ void FUniformExpressionSet::FillUniformBuffer(const FMaterialRenderContext& Mate
 			void** ResourceTableTexturePageTablePtr = (void**)((uint8*)BufferCursor + 0 * SHADER_PARAMETER_POINTER_ALIGNMENT);
 			void** ResourceTableTexturePhysicalAPtr = (void**)((uint8*)BufferCursor + 1 * SHADER_PARAMETER_POINTER_ALIGNMENT);
 			void** ResourceTableTexturePhysicalBPtr = (void**)((uint8*)BufferCursor + 2 * SHADER_PARAMETER_POINTER_ALIGNMENT);
-			void** ResourceTableStreamingInfoBufferPtr = (void**)((uint8*)BufferCursor + 3 * SHADER_PARAMETER_POINTER_ALIGNMENT);
-			void** ResourceTablePhysicalSamplerPtr = (void**)((uint8*)BufferCursor + 4 * SHADER_PARAMETER_POINTER_ALIGNMENT);
-			BufferCursor = ((uint8*)BufferCursor) + (SHADER_PARAMETER_POINTER_ALIGNMENT * 5);
+			void** ResourceTablePhysicalSamplerPtr = (void**)((uint8*)BufferCursor + 3 * SHADER_PARAMETER_POINTER_ALIGNMENT);
+			BufferCursor = ((uint8*)BufferCursor) + (SHADER_PARAMETER_POINTER_ALIGNMENT * 4);
 			check(BufferCursor <= TempBuffer + TempBufferSize);
 
 			check(GBlackVolumeTexture->TextureRHI);
 			*ResourceTableTexturePageTablePtr = GBlackUintVolumeTexture->TextureRHI;
 			*ResourceTableTexturePhysicalAPtr = GBlackVolumeTexture->TextureRHI;
 			*ResourceTableTexturePhysicalBPtr = GBlackVolumeTexture->TextureRHI;
-			*ResourceTableStreamingInfoBufferPtr = GEmptyStructuredBufferWithUAV->ShaderResourceViewRHI;
 			check(GBlackVolumeTexture->SamplerStateRHI);
 			*ResourceTablePhysicalSamplerPtr = GBlackVolumeTexture->SamplerStateRHI;
 			
@@ -1299,13 +1290,11 @@ void FUniformExpressionSet::FillUniformBuffer(const FMaterialRenderContext& Mate
 					FRHITexture* PageTableTexture = RenderResources->GetPageTableTexture();
 					FRHITexture* TileDataATexture = RenderResources->GetPhysicalTileDataATexture();
 					FRHITexture* TileDataBTexture = RenderResources->GetPhysicalTileDataBTexture();
-					FRHIShaderResourceView* StreamingInfoBufferSRV = RenderResources->GetStreamingInfoBufferSRV();
 
 					// It's possible for RenderResources to be valid, but PageTableTexture still null, so we need to have a fallback (a black uint volume texture)
 					*ResourceTableTexturePageTablePtr = PageTableTexture ? PageTableTexture : *ResourceTableTexturePageTablePtr;
 					*ResourceTableTexturePhysicalAPtr = TileDataATexture ? TileDataATexture : *ResourceTableTexturePhysicalAPtr;
 					*ResourceTableTexturePhysicalBPtr = TileDataBTexture ? TileDataBTexture : *ResourceTableTexturePhysicalBPtr;
-					*ResourceTableStreamingInfoBufferPtr = StreamingInfoBufferSRV ? StreamingInfoBufferSRV : *ResourceTableStreamingInfoBufferPtr;
 					*ResourceTablePhysicalSamplerPtr = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 				}
 			}

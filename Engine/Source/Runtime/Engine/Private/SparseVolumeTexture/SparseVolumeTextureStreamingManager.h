@@ -15,6 +15,8 @@
 #include "Containers/Union.h"
 #include "RenderGraphBuilder.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogSparseVolumeTextureStreamingManager, Log, All);
+
 class UStreamableSparseVolumeTexture;
 class USparseVolumeTextureFrame;
 
@@ -35,6 +37,9 @@ namespace SVT
 struct FResources;
 struct FMipLevelStreamingInfo;
 class FTextureRenderResources;
+class FTileDataTexture;
+class FTileUploader;
+class FPageTableUpdater;
 
 // Uniquely identifies the mip level of a frame in a static or animated SparseVolumeTexture
 struct FMipLevelKey
@@ -101,68 +106,6 @@ public:
 private:
 	friend class FStreamingUpdateTask;
 
-	// SVT_TODO: actually implement streaming in/out of page table mips greater than this value.
-	static constexpr int32 NumAlwaysResidentPageTableMipLevels = 6;
-
-	// Represents the physical tile data texture that serves as backing memory for the streamed in tiles. While this is treated as a single logical texture,
-	// it currently supports up to two actual RHI textures.
-	struct FTileDataTexture : public FRenderResource
-	{
-	public:
-		static constexpr uint32 PhysicalCoordMask = (1u << 24u) - 1u; // Lower 24 bits are used for storing XYZ in 8 bit each. Upper 8 bit can be used by the caller. 
-
-		FIntVector3 ResolutionInTiles;
-		int32 PhysicalTilesCapacity;
-		EPixelFormat FormatA;
-		EPixelFormat FormatB;
-		FVector4f FallbackValueA;
-		FVector4f FallbackValueB;
-		FTextureRHIRef TileDataTextureARHIRef;
-		FTextureRHIRef TileDataTextureBRHIRef;
-		TUniquePtr<class FTileUploader> TileUploader;
-		int32 NumTilesToUpload;
-		int32 NumVoxelsToUploadA;
-		int32 NumVoxelsToUploadB;
-
-		// Constructor. May change the requested ResolutionInTiles (and resulting PhysicalTilesCapacity) if it exceeds hardware limits.
-		FTileDataTexture(const FIntVector3& ResolutionInTiles, EPixelFormat FormatA, EPixelFormat FormatB, const FVector4f& FallbackValueA, const FVector4f& FallbackValueB);
-
-		// Allocate a tile slot in the texture. The resulting value is a packed coordinate (8 bit per component) of the allocated slot or INDEX_NONE if the allocation failed.
-		// The upper 8 bit are free to be used by the caller.
-		uint32 Allocate() 
-		{ 
-			check(PhysicalTilesCapacity == TileCoords.Num());
-			return TileCoords.IsValidIndex(NextFreeTileCoordIndex) ? TileCoords[NextFreeTileCoordIndex++] : INDEX_NONE; 
-		}
-
-		// Frees a previously allocated tile slot. The upper 8 bit (user data) are automatically cleared by this function.
-		void Free(uint32 PackedPhysicalCoord) 
-		{ 
-			check(PackedPhysicalCoord != INDEX_NONE)
-			PackedPhysicalCoord &= PhysicalCoordMask;
-			check(PhysicalTilesCapacity == TileCoords.Num());
-			check(NextFreeTileCoordIndex > 0);
-#if DO_GUARD_SLOW
-			for (int32 i = NextFreeTileCoordIndex; i < PhysicalTilesCapacity; ++i)
-			{
-				check(TileCoords[i] != PackedPhysicalCoord);
-			}
-#endif
-			TileCoords[--NextFreeTileCoordIndex] = PackedPhysicalCoord;
-		}
-
-		// Number of tiles available for allocation.
-		int32 GetNumAvailableTiles() { return PhysicalTilesCapacity - NextFreeTileCoordIndex; }
-		virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
-		virtual void ReleaseRHI() override;
-
-	private:
-
-		TArray<uint32> TileCoords;
-		int32 NextFreeTileCoordIndex = 0;
-		uint32 NumRefs = 0;
-	};
-
 	// Represents a context or "window" into the frame sequence that moves along the playback direction. It is used to cache the prefetch direction.
 	struct FStreamingWindow
 	{
@@ -218,9 +161,6 @@ private:
 		TArray<FStreamingWindow> StreamingWindows;
 
 		TUniquePtr<FTileDataTexture> TileDataTexture;
-		TRefCountPtr<FRDGPooledBuffer> StreamingInfoBuffer; // One uint32 per frame storing the LowestResidentMipLevel
-		FShaderResourceViewRHIRef StreamingInfoBufferSRVRHIRef;
-		TBitArray<> DirtyStreamingInfoData; // One bit per frame, potentially marking the streaming info data as dirty/in need of an update
 	};
 
 	// Represents an IO request for a mip level
@@ -296,12 +236,6 @@ private:
 		TUnion<FTileDataTask, FPageTableTask> Union;
 	};
 
-	struct FPageTableClear
-	{
-		FTextureRHIRef PageTableTexture;
-		int32 MipLevel;
-	};
-
 	struct FAsyncState
 	{
 		int32 NumReadyMipLevels = 0;
@@ -330,7 +264,6 @@ private:
 #endif
 
 	TUniquePtr<class FPageTableUpdater> PageTableUpdater;
-	TUniquePtr<class FStreamingInfoBufferUpdater> StreamingInfoBufferUpdater;
 	FGraphEventArray AsyncTaskEvents;
 	FAsyncState AsyncState;
 	int32 MaxPendingMipLevels = 0;
@@ -341,11 +274,9 @@ private:
 	// Transient lifetime
 	TArray<FStreamingRequest> ParentRequestsToAdd;
 	TSet<FTileDataTexture*> TileDataTexturesToUpdate;
-	TSet<FStreamingInfo*> SVTsWithInvalidatedStreamingInfoBuffer; // Changes in the lowest resident mip level cause invalidation
 	TSet<FFrameInfo*> InvalidatedSVTFrames; // Set of SVT frames where pages have been streamed in or out. Used in PatchPageTable().
 	TArray<FStreamingRequest> PrioritizedRequestsHeap;
 	TArray<FStreamingRequest> SelectedRequests;
-	TArray<FPageTableClear> PageTableClears;
 	TArray<FUploadTask> UploadTasks; // accessed on the async thread
 	TArray<FPendingMipLevel*> UploadCleanupTasks; // accessed on the async thread
 
