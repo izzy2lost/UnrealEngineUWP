@@ -85,6 +85,7 @@ struct FExistingSkelMeshData
 	USkeletalMeshLODSettings*				ExistingLODSettings;
 	TSubclassOf<UAnimInstance>				ExistingPostProcessAnimBlueprint;
 	TSoftObjectPtr<UObject>					ExistingDefaultAnimatingRig;
+	UMeshDeformer*							ExistingDefaultMeshDeformer;
 	//////////////////////////////////////////////////////////////////////////
 
 	bool									bExistingUseFullPrecisionUVs;
