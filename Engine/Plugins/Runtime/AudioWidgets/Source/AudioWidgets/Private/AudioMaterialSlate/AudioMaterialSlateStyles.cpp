@@ -119,3 +119,28 @@ void FAudioMaterialMeterStyle::GetResources(TArray<const FSlateBrush*>& OutBrush
 {
 	// Add any brush resources here so that Slate can correctly atlas and reference them
 }
+
+
+FAudioMaterialEnvelopeStyle::FAudioMaterialEnvelopeStyle()
+:CurveColor(FLinearColor(0.15f, 0.45f, 0.75f, 1.f)),
+BackgroundColor(FLinearColor(0.01f, 0.01f, 0.01f, 1.f)),
+OutlineColor(FLinearColor(0.05f, 0.05f, 0.05f, 1.f))
+{
+}
+
+FAudioMaterialEnvelopeStyle::~FAudioMaterialEnvelopeStyle()
+{
+}
+
+const FName FAudioMaterialEnvelopeStyle::TypeName(TEXT("FAudioMaterialKnobStyle"));
+
+const FAudioMaterialEnvelopeStyle& FAudioMaterialEnvelopeStyle::GetDefault()
+{
+	static FAudioMaterialEnvelopeStyle Default;
+	return Default;
+}
+
+void FAudioMaterialEnvelopeStyle::GetResources(TArray<const FSlateBrush*>& OutBrushes) const
+{
+	// Add any brush resources here so that Slate can correctly atlas and reference them
+}

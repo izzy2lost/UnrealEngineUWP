@@ -182,3 +182,31 @@ struct AUDIOWIDGETS_API FAudioMaterialMeterStyle : public FAudioMaterialStyle
 	FLinearColor MeterOffFillColor;
 	
 };
+
+/**
+ *Represents the appearance of an Audio Material Envelope
+ */
+USTRUCT(BlueprintType)
+struct AUDIOWIDGETS_API FAudioMaterialEnvelopeStyle : public FAudioMaterialStyle
+{
+	GENERATED_USTRUCT_BODY()
+
+	FAudioMaterialEnvelopeStyle();
+	virtual ~FAudioMaterialEnvelopeStyle();
+
+	// FSlateWidgetStyle
+	virtual void GetResources(TArray<const FSlateBrush*>& OutBrushes) const override;
+	static const FName TypeName;
+	virtual const FName GetTypeName() const override { return TypeName; };
+	static const FAudioMaterialEnvelopeStyle& GetDefault();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor CurveColor;	
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor BackgroundColor;	
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	FLinearColor OutlineColor;
+	
+};

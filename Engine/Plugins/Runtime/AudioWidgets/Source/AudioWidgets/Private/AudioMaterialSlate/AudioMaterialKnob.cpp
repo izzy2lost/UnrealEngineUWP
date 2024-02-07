@@ -43,11 +43,6 @@ void UAudioMaterialKnob::SetValue(float InValue)
 	if (Knob.IsValid())
 	{
 		Knob->SetValue(InValue);
-	}
-
-	if (Value != InValue)
-	{
-		Value = InValue;
 		HandleOnKnobValueChanged(InValue);
 	}
 }
@@ -65,8 +60,11 @@ TSharedRef<SWidget> UAudioMaterialKnob::RebuildWidget()
 
 void UAudioMaterialKnob::HandleOnKnobValueChanged(float InValue)
 {
-	Value = InValue;
-	OnKnobValueChanged.Broadcast(InValue);	
+	if (Value != InValue)
+	{
+		Value = InValue;
+		OnKnobValueChanged.Broadcast(InValue);	
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
