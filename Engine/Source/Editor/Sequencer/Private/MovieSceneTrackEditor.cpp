@@ -32,7 +32,7 @@ namespace UE::Sequencer
 			{
 				if (TViewModelPtr<FChannelModel> Channel = WeakChannel.Pin())
 				{
-					if (Channel->GetKeyArea()->CanCreateKeyEditor())
+					if (Channel->GetKeyArea())
 					{
 						return true;
 					}
