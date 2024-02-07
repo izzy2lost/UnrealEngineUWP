@@ -206,7 +206,7 @@ export const DeviceStatusIcon: React.FC<{ status: DeviceStatus, style?: CSSPrope
 
    const icon = 'Square';
 
-   if (status == DeviceStatus.Normal) {
+   if (status === DeviceStatus.Normal) {
       style.color = colors.get(StatusColor.Success);
    } else {
       style.color = colors.get(StatusColor.Failure);

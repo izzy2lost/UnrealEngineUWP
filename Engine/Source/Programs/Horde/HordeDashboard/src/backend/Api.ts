@@ -4583,7 +4583,7 @@ export type DevicePoolTelemetryQuery = {
 };
 
 export type DeviceTelemetryQuery = {
-	Id?: string[];
+	id?: string[];
 	poolId?: string;
 	platformId?: string;
 	minCreateTime?: string;
