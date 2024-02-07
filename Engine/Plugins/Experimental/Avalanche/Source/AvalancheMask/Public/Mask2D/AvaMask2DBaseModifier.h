@@ -21,6 +21,7 @@ class IGeometryMaskWriteInterface;
 class UActorComponent;
 class UAvaMaskMaterialInstanceSubsystem;
 class UAvaObjectHandleSubsystem;
+class UCanvasRenderTarget2D;
 class UGeometryMaskCanvas;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
