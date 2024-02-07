@@ -3552,6 +3552,7 @@ bool FControlRigEditMode::CheckMovieSceneSig()
 				{
 					SetObjects_Internal();
 				}
+				DetailKeyFrameCache->ResetCachedData();
 			}
 		}
 	}
@@ -5480,6 +5481,11 @@ EPropertyKeyedStatus FDetailKeyFrameCacheAndHandler::GetPropertyKeyedStatus(cons
 	if (const EPropertyKeyedStatus* ExistingKeyedStatus = CachedPropertyKeyedStatusMap.Find(&PropertyHandle))
 	{
 		return *ExistingKeyedStatus;
+	}
+	//hack so we can get the reset cache state updated, use ToggleEditable state
+	{
+		IPropertyHandle* NotConst = const_cast<IPropertyHandle*>(&PropertyHandle);
+		NotConst->NotifyPostChange(EPropertyChangeType::ToggleEditable);
 	}
 
 	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();

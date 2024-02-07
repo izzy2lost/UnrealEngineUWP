@@ -1860,11 +1860,11 @@ static void SetVector2DValuesFromContext(UControlRig* ControlRig, FRigControlEle
 	FVector3f Value = ControlValue.Get<FVector3f>();
 
 	EControlRigContextChannelToKey ChannelsToKey = (EControlRigContextChannelToKey)Context.KeyMask;
-	if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::RotationX) == false)
+	if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::TranslationX) == false)
 	{
 		Val.X = Value.X;
 	}
-	if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::RotationZ) == false)
+	if (EnumHasAnyFlags(ChannelsToKey, EControlRigContextChannelToKey::TranslationY) == false)
 	{
 		Val.Y = Value.Y;
 	}
