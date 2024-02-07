@@ -221,7 +221,7 @@ namespace UnrealGameSync
 				{
 					await ReadPerforceToolsAsync(perforce, tools, cancellationToken);
 				}
-				catch (Exception ex)
+				catch (Exception ex) when (ex is not OperationCanceledException)
 				{
 					_logger.LogWarning(ex, "Error while polling Perforce for available tools: {Message}", ex.Message);
 				}
@@ -234,7 +234,7 @@ namespace UnrealGameSync
 					{
 						await ReadHordeToolsAsync(hordeHttpClient, tools, cancellationToken);
 					}
-					catch (Exception ex)
+					catch (Exception ex) when (ex is not OperationCanceledException)
 					{
 						_logger.LogWarning(ex, "Error while polling Horde for available tools: {Message}", ex.Message);
 					}

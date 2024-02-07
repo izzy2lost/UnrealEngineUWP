@@ -119,7 +119,7 @@ namespace UnrealGameSync
 
 					ServiceCollection services = new ServiceCollection();
 					services.AddLogging(builder => builder.AddProvider(new LoggerProviderAdapter(logger)));
-					services.AddHordeHttpClient((sp, client) => client.BaseAddress = hordeServerUrl);
+					services.AddHorde(options => options.ServerUrl = hordeServerUrl);
 
 					await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 					HordeHttpClient httpClient = serviceProvider.GetRequiredService<HordeHttpClient>();

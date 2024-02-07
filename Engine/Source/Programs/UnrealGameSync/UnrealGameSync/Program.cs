@@ -198,7 +198,7 @@ namespace UnrealGameSync
 
 				if (launcherSettings.HordeServer != null)
 				{
-					services.AddHordeHttpClient(x => x.BaseAddress = new Uri(launcherSettings.HordeServer));
+					services.AddHorde(options => options.ServerUrl = new Uri(launcherSettings.HordeServer));
 				}
 
 				await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
