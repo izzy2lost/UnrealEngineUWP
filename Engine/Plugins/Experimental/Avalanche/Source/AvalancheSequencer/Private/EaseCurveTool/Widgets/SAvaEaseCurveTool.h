@@ -33,7 +33,8 @@ public:
 
 	void Construct(const FArguments& InArgs, const TSharedRef<FAvaEaseCurveTool>& InEaseCurveTool);
 	
-	void SetTangents(const FAvaEaseCurveTangents& InTangents, const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const;
+	void SetTangents(const FAvaEaseCurveTangents& InTangents, FAvaEaseCurveTool::EOperation InOperation,
+		const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const;
 
 	float GetStartTangent() const;
 	float GetStartTangentWeight() const;

@@ -396,7 +396,7 @@ void SAvaEaseCurveEditor::CreateLinesForSegment(const ERichCurveInterpMode InInt
 	, const FTrackScaleInfo& InScaleInfo) const
 {
 	FLinearColor FadedCurveColor = CurveColor;
-	FadedCurveColor.A = 0.2f;
+	FadedCurveColor.A = 0.05f;
 
 	switch (InInterpMode)
 	{
