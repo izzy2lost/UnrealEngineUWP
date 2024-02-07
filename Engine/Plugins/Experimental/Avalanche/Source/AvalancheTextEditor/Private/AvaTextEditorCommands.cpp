@@ -10,7 +10,7 @@ FAvaTextEditorCommands::FAvaTextEditorCommands()
 		TEXT("AvaTextEditor")
 		, LOCTEXT("AvaTextEditor", "Motion Design Text Editor")
 		, NAME_None
-		, FAvaTextEditorStyle::GetStyleSetName()
+		, FAvaTextEditorStyle::Get().GetStyleSetName()
 	)
 {
 }

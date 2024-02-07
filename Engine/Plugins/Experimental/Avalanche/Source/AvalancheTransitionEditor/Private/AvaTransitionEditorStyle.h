@@ -4,18 +4,17 @@
 
 #include "Styling/SlateStyle.h"
 
-class FAvaTransitionEditorStyle : public FSlateStyleSet
+class FAvaTransitionEditorStyle final : public FSlateStyleSet
 {
 public:
-	FAvaTransitionEditorStyle();
-
-	virtual ~FAvaTransitionEditorStyle() override;
-
 	static FAvaTransitionEditorStyle& Get()
 	{
-		static FAvaTransitionEditorStyle StyleSet;
-		return StyleSet;
+		static FAvaTransitionEditorStyle Instance;
+		return Instance;
 	}
+
+	FAvaTransitionEditorStyle();
+	virtual ~FAvaTransitionEditorStyle() override;
 
 	static FLinearColor LerpColorSRGB(const FLinearColor& InA, const FLinearColor& InB, float InAlpha);
 };

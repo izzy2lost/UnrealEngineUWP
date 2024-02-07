@@ -4,16 +4,15 @@
 
 #include "Styling/SlateStyle.h"
 
-class FAvaTagEditorStyle : public FSlateStyleSet
+class FAvaTagEditorStyle final : public FSlateStyleSet
 {
 public:
-	FAvaTagEditorStyle();
-
-	virtual ~FAvaTagEditorStyle() override;
-
 	static FAvaTagEditorStyle& Get()
 	{
-		static FAvaTagEditorStyle StyleSet;
-		return StyleSet;
+		static FAvaTagEditorStyle Instance;
+		return Instance;
 	}
+
+	FAvaTagEditorStyle();
+	virtual ~FAvaTagEditorStyle() override;
 };

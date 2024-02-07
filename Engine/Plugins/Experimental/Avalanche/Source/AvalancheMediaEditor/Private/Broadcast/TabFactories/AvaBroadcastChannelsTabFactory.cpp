@@ -15,7 +15,7 @@ FAvaBroadcastChannelsTabFactory::FAvaBroadcastChannelsTabFactory(const TSharedPt
 	: FAvaBroadcastTabFactory(TabID, InBroadcastEditor)
 {
 	TabLabel = LOCTEXT("BroadcastChannels_TabLabel", "Channels");
-	TabIcon = FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
+	TabIcon = FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
 
 	bIsSingleton = true;
 

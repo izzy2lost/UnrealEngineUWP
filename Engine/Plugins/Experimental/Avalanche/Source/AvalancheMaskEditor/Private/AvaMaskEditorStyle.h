@@ -1,29 +1,18 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Styling/SlateStyle.h"
-#include "Templates/SharedPointer.h"
 
-class FSlateStyleSet;
-
-class FAvalancheMaskEditorStyle
+class FAvaMaskEditorStyle final : public FSlateStyleSet
 {
 public:
-	static void Initialize();
-	static void Shutdown();
+	static FAvaMaskEditorStyle& Get()
+	{
+		static FAvaMaskEditorStyle Instance;
+		return Instance;
+	}
 
-	/** reloads textures used by slate renderer */
-	static void ReloadTextures();
-
-	/** @return The Slate style set for the Shooter game */
-	static const ISlateStyle& Get();
-
-	static FName GetStyleSetName();
-
-private:
-	static TSharedRef<FSlateStyleSet> Create();
-
-private:
-	static TSharedPtr<FSlateStyleSet> StyleInstance;
+	FAvaMaskEditorStyle();
+	virtual ~FAvaMaskEditorStyle() override;
 };

@@ -1,27 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaModifiersEditorStyle.h"
+#include "Brushes/SlateImageBrush.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
 #include "Interfaces/IPluginManager.h"
-#include "Misc/Paths.h"
+#include "Math/MathFwd.h"
 #include "Modifiers/ActorModifierCoreBase.h"
-#include "Styling/SlateStyleMacros.h"
 #include "Styling/StyleColors.h"
+#include "Styling/SlateColor.h"
 #include "Styling/SlateTypes.h"
+#include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
 FAvaModifiersEditorStyle::FAvaModifiersEditorStyle()
-	: FSlateStyleSet(TEXT("AvalancheModifiersEditor"))
+	: FSlateStyleSet(TEXT("AvaModifiersEditor"))
 {
 	const FVector2f Icon16x16(16.f, 16.f);
 
-	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("Avalanche"));
-
+	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
 
-	ContentRootDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources"));
+	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 
 	Set("ClassIcon.AvaBaseModifier", new IMAGE_BRUSH_SVG("Icons/ModifierIcons/BaseModifier", Icon16x16));
 

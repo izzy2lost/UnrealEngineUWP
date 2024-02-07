@@ -13,7 +13,7 @@ FAvaRundownChannelLayerStatusListTabFactory::FAvaRundownChannelLayerStatusListTa
 	: FAvaRundownTabFactory(TabID, InRundownEditor)
 {
 	TabLabel = LOCTEXT("ChannelLayerStatus_TabLabel", "Layer Status");
-	TabIcon = FSlateIcon(FAvaMediaEditorStyle::GetStyleSetName(), "AvaMediaEditor.BroadcastIcon");
+	TabIcon = FSlateIcon(FAvaMediaEditorStyle::Get().GetStyleSetName(), TEXT("AvaMediaEditor.BroadcastIcon"));
 
 	bIsSingleton = true;
 	bShouldAutosize = true;

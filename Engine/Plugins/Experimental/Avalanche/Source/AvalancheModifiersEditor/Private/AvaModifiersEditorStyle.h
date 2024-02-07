@@ -7,18 +7,17 @@
 
 struct FActorModifierCoreMetadata;
 
-class FAvaModifiersEditorStyle : public FSlateStyleSet
+class FAvaModifiersEditorStyle final : public FSlateStyleSet
 {
 public:
-	FAvaModifiersEditorStyle();
-
-	virtual ~FAvaModifiersEditorStyle() override;
-
 	static FAvaModifiersEditorStyle& Get()
 	{
-		static FAvaModifiersEditorStyle StyleSet;
-		return StyleSet;
+		static FAvaModifiersEditorStyle Instance;
+		return Instance;
 	}
+
+	FAvaModifiersEditorStyle();
+	virtual ~FAvaModifiersEditorStyle() override;
 
 	const FSlateColor& GetModifierCategoryColor(FName CategoryName);
 

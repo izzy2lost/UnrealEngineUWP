@@ -1,31 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaEffectorsEditorStyle.h"
-
+#include "Brushes/SlateImageBrush.h"
 #include "Interfaces/IPluginManager.h"
-#include "Misc/Paths.h"
+#include "Math/MathFwd.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/StyleColors.h"
 #include "Styling/SlateTypes.h"
 #include "Styling/SlateStyleRegistry.h"
 
 FAvaEffectorsEditorStyle::FAvaEffectorsEditorStyle()
-	: FSlateStyleSet(UE_MODULE_NAME)
+	: FSlateStyleSet(TEXT("AvaEffectorsEditor"))
 {
 	const FVector2f Icon20x20(20.0f, 20.0f);
 	const FVector2f Icon32x32(32.0f, 32.0f);
-
+	
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
-
 	check(Plugin.IsValid());
-
-	ContentRootDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources"));
+	
+	SetContentRoot(Plugin->GetBaseDir() / TEXT("Resources"));
 
 	Set("AvalancheEffectorsEditor.Tool_Actor_Effector", new IMAGE_BRUSH_SVG("Icons/ToolboxIcons/effector", Icon20x20));
 	Set("AvalancheEffectorsEditor.Tool_Actor_Cloner", new IMAGE_BRUSH_SVG("Icons/ToolboxIcons/cloner", Icon20x20));
 	Set("Tool_Actor_Effector", new IMAGE_BRUSH_SVG("Icons/ToolboxIcons/effector", Icon20x20));
 	Set("Tool_Actor_Cloner", new IMAGE_BRUSH_SVG("Icons/ToolboxIcons/cloner", Icon20x20));
-
+	
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }
 

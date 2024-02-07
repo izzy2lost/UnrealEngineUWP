@@ -9,8 +9,8 @@ class FAvaEaseCurveStyle final : public FSlateStyleSet
 public:
 	static FAvaEaseCurveStyle& Get()
 	{
-		static FAvaEaseCurveStyle StyleSet;
-		return StyleSet;
+		static FAvaEaseCurveStyle Instance;
+		return Instance;
 	}
 
 	FAvaEaseCurveStyle();

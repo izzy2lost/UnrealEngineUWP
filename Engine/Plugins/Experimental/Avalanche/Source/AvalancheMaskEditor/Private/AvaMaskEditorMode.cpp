@@ -77,23 +77,23 @@ void UAvaMaskEditorMode::Enter()
     	{
     		static FName ToolkitOverlayMenuName = UE::AvalancheMaskEditor::Internal::ToolkitOverlayMenuName;
     		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(ToolkitOverlayMenuName);
-    		Menu->SetStyleSet(&FAvalancheMaskEditorStyle::Get());
-    		Menu->StyleName = "AvalancheMaskEditor.ViewportOverlayToolbar";
+    		Menu->SetStyleSet(&FAvaMaskEditorStyle::Get());
+    		Menu->StyleName = TEXT("AvalancheMaskEditor.ViewportOverlayToolbar");
     		{
     			FToolMenuSection& Section = Menu->FindOrAddSection(TEXT("Default"));
     			{
     				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleShowAllMasks));
-    				Entry.Icon.Set(FSlateIcon(FAvalancheMaskEditorStyle::GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleShowAllMasks")));
+    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleShowAllMasks")));
     			}
     
     			{
     				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleEnableMask));
-    				Entry.Icon.Set(FSlateIcon(FAvalancheMaskEditorStyle::GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleDisableMask")));
+    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleDisableMask")));
     			}
     
     			{
     				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleIsolateMask));
-    				Entry.Icon.Set(FSlateIcon(FAvalancheMaskEditorStyle::GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleIsolateMask")));
+    				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleIsolateMask")));
     			}
     		}
     
@@ -118,7 +118,7 @@ void UAvaMaskEditorMode::Enter()
 				.Padding(FMargin(0.0f, 0.0f, 0.f, 15.f))
 				[
 					SNew(SBorder)
-					.BorderImage(FAppStyle::Get().GetBrush("EditorViewport.OverlayBrush"))
+					.BorderImage(FAppStyle::Get().GetBrush(TEXT("EditorViewport.OverlayBrush")))
 					.Padding(8.f)
 					[
 						SNew(SHorizontalBox)
@@ -128,7 +128,7 @@ void UAvaMaskEditorMode::Enter()
 						.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
 						[
 							SNew(SImage)
-							.Image(FAvalancheMaskEditorStyle::Get().GetBrush(TEXT("AvalancheMaskEditor.ToggleMaskMode")))
+							.Image(FAvaMaskEditorStyle::Get().GetBrush(TEXT("AvalancheMaskEditor.ToggleMaskMode")))
 						]
 
 						+SHorizontalBox::Slot()
@@ -145,8 +145,8 @@ void UAvaMaskEditorMode::Enter()
 						.Padding(FMargin(2.0, 0.f, 0.f, 0.f))
 						[
 							SNew(SButton)
-							.ButtonStyle(FAppStyle::Get(), "PrimaryButton")
-							.TextStyle(FAppStyle::Get(), "DialogButtonText")
+							.ButtonStyle(FAppStyle::Get(), TEXT("PrimaryButton"))
+							.TextStyle(FAppStyle::Get(), TEXT("DialogButtonText"))
 							.Text(LOCTEXT("ExitEdit", "Exit"))
 							.ToolTipText(LOCTEXT("ExitTooltip", "Exit Mask Mode"))
 							.HAlign(HAlign_Center)

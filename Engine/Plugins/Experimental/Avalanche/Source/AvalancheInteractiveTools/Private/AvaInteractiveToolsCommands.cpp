@@ -10,7 +10,7 @@ FAvaInteractiveToolsCommands::FAvaInteractiveToolsCommands()
 		TEXT("AvalancheInteractiveTools")
 		, LOCTEXT("MotionDesignInteractiveTools", "Motion Design Interactive Tools")
 		, NAME_None
-		, FAvaInteractiveToolsStyle::GetStyleSetName()
+		, FAvaInteractiveToolsStyle::Get().GetStyleSetName()
 	)
 {
 }

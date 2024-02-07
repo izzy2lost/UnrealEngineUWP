@@ -15,7 +15,7 @@ public:
 			TEXT("AvalancheMaskEditor"),
 			LOCTEXT("MotionDesignMaskEditor", "Motion Design Masking"),
 			NAME_None,
-			FAvalancheMaskEditorStyle::GetStyleSetName())
+			FAvaMaskEditorStyle::Get().GetStyleSetName())
 	{
 	}
 

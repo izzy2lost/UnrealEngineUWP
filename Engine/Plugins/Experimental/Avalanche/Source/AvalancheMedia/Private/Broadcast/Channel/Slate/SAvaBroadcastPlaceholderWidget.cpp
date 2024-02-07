@@ -45,7 +45,7 @@ void SAvaBroadcastPlaceholderWidget::Construct(const FArguments& InArgs)
 			.Stretch(EStretch::ScaleToFit)
 			[
 				SNew(SImage)
-				.Image(FAvaMediaStyle::GetBrush(TEXT("AvaMedia.UnrealIcon")))
+				.Image(FAvaMediaStyle::Get().GetBrush(TEXT("AvaMedia.UnrealIcon")))
 			]
 		]
 

@@ -8,7 +8,7 @@
 #include "Styling/StyleColors.h"
 
 FAvaTagEditorStyle::FAvaTagEditorStyle()
-	: FSlateStyleSet(TEXT("AvaTagEditorStyle"))
+	: FSlateStyleSet(TEXT("AvaTagEditor"))
 {
 	const FTableRowStyle& TableRowStyle = FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row");
 
