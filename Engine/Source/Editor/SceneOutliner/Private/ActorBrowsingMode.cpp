@@ -1719,7 +1719,7 @@ void FActorBrowsingMode::PinItems(const TArray<FSceneOutlinerTreeItemPtr>& InIte
 		{
 			if (FWorldPartitionHandle ActorHandle(WorldPartition, ActorGuid); ActorHandle.IsValid())
 			{
-				if (AActor* PinnedActor = ActorHandle.GetInstance()->GetActor())
+				if (AActor* PinnedActor = ActorHandle->GetActor())
 				{
 					GEditor->SelectActor(PinnedActor, /*bInSelected=*/true, /*bNotify=*/false);
 					LastPinnedActor = PinnedActor;
@@ -1923,7 +1923,7 @@ bool FActorBrowsingMode::CompareItemWithClassName(SceneOutliner::FilterBarType I
 	}
 	else if (const FActorDescTreeItem* ActorDescItem = InItem.CastTo<FActorDescTreeItem>())
 	{
-		if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
+		if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 		{
 			// For Unloaded Actors, grab the native class 
 			FTopLevelAssetPath ClassPath = ActorDescInstance->GetNativeClass();

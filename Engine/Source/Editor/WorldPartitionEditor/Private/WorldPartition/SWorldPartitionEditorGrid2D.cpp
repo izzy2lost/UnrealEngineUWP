@@ -1368,8 +1368,8 @@ void SWorldPartitionEditorGrid2D::Tick(const FGeometry& AllottedGeometry, const 
 	UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(GetWorld());
 	for (const FWorldPartitionHandle& SelectedActorHandle : WorldPartitionSubsystem->SelectedActorHandles)
 	{
-		ShownActorGuids.Add(SelectedActorHandle.GetInstance()->GetGuid());
-		SelectedActorGuids.Add(SelectedActorHandle.GetInstance()->GetGuid());
+		ShownActorGuids.Add(SelectedActorHandle->GetGuid());
+		SelectedActorGuids.Add(SelectedActorHandle->GetGuid());
 	}
 }
 
@@ -2198,7 +2198,7 @@ void SWorldPartitionEditorGrid2D::FocusSelection()
 	UWorldPartitionSubsystem* WorldPartitionSubsystem = UWorld::GetSubsystem<UWorldPartitionSubsystem>(GetWorld());
 	for (const FWorldPartitionHandle& SelectedActorHandle : WorldPartitionSubsystem->SelectedActorHandles)
 	{
-		SelectionBox += SelectedActorHandle.GetInstance()->GetEditorBounds();
+		SelectionBox += SelectedActorHandle->GetEditorBounds();
 	}
 
 	if (SelectionBox.IsValid)

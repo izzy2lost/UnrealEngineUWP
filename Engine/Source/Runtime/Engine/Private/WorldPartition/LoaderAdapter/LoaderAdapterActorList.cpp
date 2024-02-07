@@ -65,7 +65,7 @@ void FLoaderAdapterActorList::RemoveActors(const TArray<FWorldPartitionHandle>& 
 
 	for (const FWorldPartitionHandle& ActorHandle : ActorHandles)
 	{
-		if (ActorHandle.GetInstance()->IsChildContainerInstance())
+		if (ActorHandle->IsChildContainerInstance())
 		{
 			if (UWorldPartition* ContainerWorldPartition = GetLoadedChildWorldPartition(ActorHandle); ContainerWorldPartition && ContainerWorldPartition->IsStreamingEnabledInEditor())
 			{

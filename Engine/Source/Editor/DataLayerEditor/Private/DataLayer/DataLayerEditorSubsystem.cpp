@@ -1320,14 +1320,14 @@ bool UDataLayerEditorSubsystem::PassDataLayersFilter(UWorld* World, const FWorld
 		// If Actor is loaded and dirty, use a newly resolved DataLayerInstanceNames array
 		auto GetLatestDataLayerInstanceNames = [DataLayerManager, ActorHandle]() -> FDataLayerInstanceNames
 		{
-			if(AActor* Actor = ActorHandle.GetInstance()->GetActor(false); Actor && Actor->GetPackage()->IsDirty())
+			if(AActor* Actor = ActorHandle->GetActor(false); Actor && Actor->GetPackage()->IsDirty())
 			{
 				TUniquePtr<FWorldPartitionActorDesc> NewActorDesc = Actor->CreateActorDesc();
 				return FDataLayerUtils::ResolveDataLayerInstanceNames(DataLayerManager, NewActorDesc.Get());
 			}
 			else
 			{
-				return ActorHandle.GetInstance()->GetDataLayerInstanceNames();
+				return ActorHandle->GetDataLayerInstanceNames();
 			}
 		};
 

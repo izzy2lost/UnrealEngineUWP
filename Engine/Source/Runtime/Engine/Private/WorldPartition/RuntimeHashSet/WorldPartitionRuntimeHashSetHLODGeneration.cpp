@@ -137,8 +137,8 @@ namespace PrivateUtils
 		}
 		else
 		{
-			DeletePackage(Handle.GetInstance()->GetActorPackage().ToString(), SourceControlHelper);
-			WorldPartition->RemoveActor(Handle.GetInstance()->GetGuid());
+			DeletePackage(Handle->GetActorPackage().ToString(), SourceControlHelper);
+			WorldPartition->RemoveActor(Handle->GetGuid());
 		}
 	}
 }

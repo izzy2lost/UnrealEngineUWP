@@ -26,7 +26,7 @@ void FLoaderAdapterList::ForEachActor(TFunctionRef<void(const FWorldPartitionHan
 
 void FLoaderAdapterList::HandleActorContainer(const FWorldPartitionHandle& InActor, TFunctionRef<void(const FWorldPartitionHandle&)> InOperation) const
 {
-	if (InActor.GetInstance()->IsChildContainerInstance())
+	if (InActor->IsChildContainerInstance())
 	{
 		if (UWorldPartition* ContainerWorldPartition = GetLoadedChildWorldPartition(InActor); ContainerWorldPartition && ContainerWorldPartition->IsStreamingEnabledInEditor())
 		{

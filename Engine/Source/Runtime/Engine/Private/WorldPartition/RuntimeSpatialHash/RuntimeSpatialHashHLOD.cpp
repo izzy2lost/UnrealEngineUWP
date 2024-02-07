@@ -583,7 +583,7 @@ bool UWorldPartitionRuntimeSpatialHash::SetupHLODActors(const IStreamingGenerati
 
 	auto DeleteHLODActor = [&SourceControlHelper, WorldPartition](FWorldPartitionHandle ActorHandle)
 	{
-		FWorldPartitionActorDescInstance* ActorDescInstance = ActorHandle.GetInstance();
+		FWorldPartitionActorDescInstance* ActorDescInstance = *ActorHandle;
 		check(ActorDescInstance);
 
 		DeletePackage(WorldPartition, ActorDescInstance, SourceControlHelper);

@@ -185,7 +185,7 @@ void FWorldPartitionHelpers::ForEachActorWithLoading(UWorldPartition* WorldParti
 				WorldPartitionHelpers::LoadReferences(WorldPartition, ActorDescInstance->GetGuid(), Result.ActorReferences);
 
 				FWorldPartitionReference ActorReference(WorldPartition, ActorDescInstance->GetGuid());
-				if (!Func(ActorReference.GetInstance()))
+				if (!Func(*ActorReference))
 				{
 					return false;
 				}

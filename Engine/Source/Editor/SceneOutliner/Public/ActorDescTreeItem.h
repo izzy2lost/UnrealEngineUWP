@@ -22,12 +22,12 @@ public:
 
 	bool Filter(FFilterPredicate Pred) const
 	{
-		return Pred.Execute(ActorDescHandle.GetInstance());
+		return Pred.Execute(*ActorDescHandle);
 	}
 
 	bool GetInteractiveState(FInteractivePredicate Pred) const
 	{
-		return Pred.Execute(ActorDescHandle.GetInstance());
+		return Pred.Execute(*ActorDescHandle);
 	}
 
 	/** The actor desc this tree item is associated with. */
@@ -56,7 +56,7 @@ public:
 	FActorDescTreeItem(const FGuid& InActorGuid, class UActorDescContainer* InContainer) : IActorBaseTreeItem(Type) {}
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
-	virtual bool IsValid() const override { return ActorDescHandle.GetInstance() != nullptr; }
+	virtual bool IsValid() const override { return *ActorDescHandle != nullptr; }
 	virtual FSceneOutlinerTreeItemID GetID() const override;
 	virtual FString GetDisplayString() const override;
 	virtual bool CanInteract() const override;

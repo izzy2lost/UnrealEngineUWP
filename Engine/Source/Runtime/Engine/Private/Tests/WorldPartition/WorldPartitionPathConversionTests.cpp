@@ -90,7 +90,7 @@ namespace WorldPartitionTests
 			return false;
 		}
 
-		UObject* ResolvedObject = ActorHandle.GetInstance()->GetActorSoftPath().TryLoad();
+		UObject* ResolvedObject = ActorHandle->GetActorSoftPath().TryLoad();
 		if (!TestNotNull(TEXT("Actor Handle Loaded"), ActorHandle.GetActor()))
 		{
 			return false;

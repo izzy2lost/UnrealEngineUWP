@@ -49,7 +49,7 @@ public:
 	{
 		if (ActorDescHandle.IsValid())
 		{
-			UActorDescContainerInstance* ContainerInstance = ActorDescHandle.GetContainerInstance();
+			UActorDescContainerInstance* ContainerInstance = ActorDescHandle->GetContainerInstance();
 			UWorld* OwningWorld = ContainerInstance->GetOuterWorldPartition()->GetWorld();
 			ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(OwningWorld);
 			ULevel* Level = ContainerInstance->GetTypedOuter<UWorld>()->PersistentLevel;
@@ -75,12 +75,12 @@ public:
 
 	bool Filter(FFilterPredicate Pred) const
 	{
-		return Pred.Execute(ActorDescHandle.GetInstance(), DataLayer.Get());
+		return Pred.Execute(*ActorDescHandle, DataLayer.Get());
 	}
 
 	bool GetInteractiveState(FInteractivePredicate Pred) const
 	{
-		return Pred.Execute(ActorDescHandle.GetInstance(), DataLayer.Get());
+		return Pred.Execute(*ActorDescHandle, DataLayer.Get());
 	}
 
 	/* Begin ISceneOutlinerTreeItem Implementation */

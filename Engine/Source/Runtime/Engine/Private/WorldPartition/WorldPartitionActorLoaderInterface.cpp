@@ -122,7 +122,7 @@ void IWorldPartitionActorLoaderInterface::ILoaderAdapter::UnregisterDelegates()
 
 bool IWorldPartitionActorLoaderInterface::ILoaderAdapter::PassActorDescFilter(const FWorldPartitionHandle& Actor) const
 {
-	return Actor.GetInstance()->IsEditorRelevant();
+	return Actor->IsEditorRelevant();
 }
 
 void IWorldPartitionActorLoaderInterface::ILoaderAdapter::RefreshLoadedState()
@@ -135,16 +135,16 @@ void IWorldPartitionActorLoaderInterface::ILoaderAdapter::RefreshLoadedState()
 			TArray<FWorldPartitionHandle> ActorsToUnload;			
 			ForEachActor([this, &ActorsToLoad, &ActorsToUnload](const FWorldPartitionHandle& ActorHandle)
 			{
-				const FActorReferenceMap* ActorReferences = GetContainerReferencesConst(ActorHandle.GetContainerInstance());
+				const FActorReferenceMap* ActorReferences = GetContainerReferencesConst(ActorHandle->GetContainerInstance());
 
 				if (ShouldActorBeLoaded(ActorHandle))
 				{
-					if (!ActorReferences || !ActorReferences->Contains(ActorHandle.GetInstance()->GetGuid()))
+					if (!ActorReferences || !ActorReferences->Contains(ActorHandle->GetGuid()))
 					{
 						ActorsToLoad.Add(ActorHandle);
 					}
 				}
-				else if (ActorReferences && ActorReferences->Contains(ActorHandle.GetInstance()->GetGuid()))
+				else if (ActorReferences && ActorReferences->Contains(ActorHandle->GetGuid()))
 				{
 					ActorsToUnload.Add(ActorHandle);
 				}
@@ -246,7 +246,7 @@ bool IWorldPartitionActorLoaderInterface::ILoaderAdapter::ShouldActorBeLoaded(co
 {
 	check(Actor.IsValid());
 
-	Actor.GetInstance()->SetUnloadedReason(nullptr);
+	Actor->SetUnloadedReason(nullptr);
 
 	if (!PassActorDescFilter(Actor))
 	{
@@ -257,7 +257,7 @@ bool IWorldPartitionActorLoaderInterface::ILoaderAdapter::ShouldActorBeLoaded(co
 	{
 		if (!ActorDescFilter.Get().PassFilter(World, Actor))
 		{
-			Actor.GetInstance()->SetUnloadedReason(ActorDescFilter.Get().GetFilterReason());
+			Actor->SetUnloadedReason(ActorDescFilter.Get().GetFilterReason());
 			return false;
 		}
 	}
@@ -289,14 +289,14 @@ void IWorldPartitionActorLoaderInterface::ILoaderAdapter::AddReferenceToActor(FW
 {
 	TFunction<void(const FWorldPartitionHandle&, FReferenceMap&)> AddReferences = [this, &AddReferences](const FWorldPartitionHandle& Handle, FReferenceMap& ReferenceMap)
 	{
-		const FWorldPartitionActorDescInstance* ActorDescInstance = Handle.GetInstance();
+		const FWorldPartitionActorDescInstance* ActorDescInstance = *Handle;
 		if (!ReferenceMap.Contains(ActorDescInstance->GetGuid()))
 		{
 			ReferenceMap.Emplace(ActorDescInstance->GetGuid(), Handle.ToReference());
 			
 			for (const FGuid& ReferencedActorGuid : ActorDescInstance->GetReferences())
 			{
-				FWorldPartitionHandle ReferenceActorHandle(Handle.GetContainerInstance(), ReferencedActorGuid);
+				FWorldPartitionHandle ReferenceActorHandle(Handle->GetContainerInstance(), ReferencedActorGuid);
 
 				if (ReferenceActorHandle.IsValid())
 				{
@@ -306,14 +306,14 @@ void IWorldPartitionActorLoaderInterface::ILoaderAdapter::AddReferenceToActor(FW
 		}
 	};
 
-	FActorReferenceMap& ActorReferences = GetContainerReferences(ActorHandle.GetContainerInstance());
-	AddReferences(ActorHandle, ActorReferences.Emplace(ActorHandle.GetInstance()->GetGuid()));
+	FActorReferenceMap& ActorReferences = GetContainerReferences(ActorHandle->GetContainerInstance());
+	AddReferences(ActorHandle, ActorReferences.Emplace(ActorHandle->GetGuid()));
 }
 
 void IWorldPartitionActorLoaderInterface::ILoaderAdapter::RemoveReferenceToActor(FWorldPartitionHandle& ActorHandle)
 {
-	FActorReferenceMap& ActorReferences = GetContainerReferences(ActorHandle.GetContainerInstance());
-	ActorReferences.Remove(ActorHandle.GetInstance()->GetGuid());
+	FActorReferenceMap& ActorReferences = GetContainerReferences(ActorHandle->GetContainerInstance());
+	ActorReferences.Remove(ActorHandle->GetGuid());
 }
 
 void IWorldPartitionActorLoaderInterface::ILoaderAdapter::OnRefreshLoadedState(bool bFromUserOperation)
@@ -358,7 +358,7 @@ UWorldPartition* IWorldPartitionActorLoaderInterface::ILoaderAdapter::GetLoadedC
 
 UWorldPartition* IWorldPartitionActorLoaderInterface::GetLoadedChildWorldPartition(const FWorldPartitionHandle& Handle)
 {
-	if (FWorldPartitionActorDescInstance* Instance = Handle.GetInstance())
+	if (FWorldPartitionActorDescInstance* Instance = *Handle)
 	{
 		return Instance->GetLoadedChildWorldPartition();
 	}

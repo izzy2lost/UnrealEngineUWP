@@ -318,30 +318,19 @@ public:
 		return *this;
 	}
 
-	UE_DEPRECATED(5.4, "Use GetInstance instead")
-	FORCEINLINE FWorldPartitionActorDesc* operator->() const
+	FORCEINLINE FWorldPartitionActorDescInstance* operator->() const
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return Get();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		return GetInstance();
 	}
 
-	UE_DEPRECATED(5.4, "Use GetInstance instead")
-	FORCEINLINE FWorldPartitionActorDesc* operator*() const
+	FORCEINLINE FWorldPartitionActorDescInstance* operator*() const
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return Get();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		return GetInstance();
 	}
 
 	FORCEINLINE FWorldPartitionActorDescInstance* GetInstance() const
 	{
 		return IsValid() ? ActorDescInstance->Get() : nullptr;
-	}
-
-	FORCEINLINE UActorDescContainerInstance* GetContainerInstance() const
-	{
-		return IsValid() ? Impl::GetActorDescContainerInstance(ActorDescInstance) : nullptr;
 	}
 
 	FORCEINLINE bool IsValid() const

@@ -3295,7 +3295,7 @@ bool FObjectMixerOutlinerMode::CompareItemWithClassName(SceneOutliner::FilterBar
 	}
 	else if (const FActorDescTreeItem* ActorDescItem = InItem.CastTo<FActorDescTreeItem>())
 	{
-		if (const FWorldPartitionActorDescInstance* ActorDescInstance = ActorDescItem->ActorDescHandle.GetInstance())
+		if (const FWorldPartitionActorDescInstance* ActorDescInstance = *ActorDescItem->ActorDescHandle)
 		{
 			// For Unloaded Actors, grab the native class 
 			FTopLevelAssetPath ClassPath = ActorDescInstance->GetNativeClass();
