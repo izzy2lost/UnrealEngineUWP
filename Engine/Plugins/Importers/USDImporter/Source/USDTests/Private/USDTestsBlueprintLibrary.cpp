@@ -55,9 +55,9 @@ bool USDTestsBlueprintLibrary::RecompileBlueprintStageActor(AUsdStageActor* Blue
 		UE_LOG(LogUsd, Error, TEXT("Blueprint is in an unexpected state after compiling (%s)"), *BP->GetName());
 		return false;
 	}
-#endif	  // WITH_EDITOR
-
+#else
 	return false;
+#endif	  // WITH_EDITOR
 }
 
 void USDTestsBlueprintLibrary::DirtyStageActorBlueprint(AUsdStageActor* BlueprintDerivedStageActor)
