@@ -2,7 +2,7 @@
 
 #include "SGMEResourceItem.h"
 
-#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "SlateOptMacros.h"
 #include "ViewModels/GMEResourceItemViewModel.h"
 
@@ -16,7 +16,7 @@ void SGMEResourceItem::Construct(
 	ViewModel = InViewModel;
 
 	TextureBrush = MakeShared<FSlateBrush>();
-	TextureBrush->SetResourceObject(const_cast<UTextureRenderTarget2D*>(InViewModel->GetResourceTexture()));
+	TextureBrush->SetResourceObject(const_cast<UCanvasRenderTarget2D*>(InViewModel->GetResourceTexture()));
 	TextureBrush->ImageSize = FVector2D(InViewModel->GetResourceTexture()->SizeX, InViewModel->GetResourceTexture()->SizeY);
 
 	ImageWidget = SNew(SImage)

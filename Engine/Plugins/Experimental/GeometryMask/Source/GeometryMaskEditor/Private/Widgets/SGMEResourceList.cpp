@@ -40,7 +40,7 @@ void SGMEResourceList::Construct(const FArguments& InArgs, TSharedRef<FGMEResour
 
 	Refresh();
 
-	TWeakPtr<SGMEResourceList> WeakThisPtr = SharedThis(this);
+	TWeakPtr<SGMEResourceList> ThisWeak = SharedThis(this);
 
 	ChildSlot
 	[
@@ -64,11 +64,11 @@ void SGMEResourceList::Construct(const FArguments& InArgs, TSharedRef<FGMEResour
 				.Padding(Padding)
 				[
 					SNew(STextBlock)
-					.Text_Lambda([WeakThisPtr]()
+					.Text_Lambda([ThisWeak]()
 					{
-						if (WeakThisPtr.IsValid())
+						if (ThisWeak.IsValid())
 						{
-							return FText::AsNumber(WeakThisPtr.Pin()->ResourceItems.Num());
+							return FText::AsNumber(ThisWeak.Pin()->ResourceItems.Num());
 						}
 						return FText::AsNumber(0);
 					})
@@ -92,12 +92,12 @@ void SGMEResourceList::Construct(const FArguments& InArgs, TSharedRef<FGMEResour
 				.Padding(Padding)
 				[
 					SNew(STextBlock)
-					.Text_Lambda([WeakThisPtr]()
+					.Text_Lambda([ThisWeak]()
 					{
-						if (WeakThisPtr.IsValid())
+						if (ThisWeak.IsValid())
 						{
 							float Memory = 0.0f;
-							for (TSharedPtr<IGMETreeNodeViewModel>& ChildItem : WeakThisPtr.Pin()->ResourceItems)
+							for (TSharedPtr<IGMETreeNodeViewModel>& ChildItem : ThisWeak.Pin()->ResourceItems)
 							{
 								if (TSharedPtr<FGMEResourceItemViewModel> ResourceItem = StaticCastSharedPtr<FGMEResourceItemViewModel>(ChildItem))
 								{

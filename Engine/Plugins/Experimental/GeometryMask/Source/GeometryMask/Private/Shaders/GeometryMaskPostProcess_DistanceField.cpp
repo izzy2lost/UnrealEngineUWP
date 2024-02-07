@@ -2,16 +2,22 @@
 
 #include "GeometryMaskPostProcess_DistanceField.h"
 
+#include "GeometryMaskModule.h"
 #include "GlobalShader.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
 #include "RHIStaticStates.h"
 #include "UnrealClient.h"
 
+DECLARE_GPU_STAT_NAMED(GeometryMaskJFInit, TEXT("GeometryMaskJFInit"));
+DECLARE_GPU_STAT_NAMED(GeometryMaskJFStep, TEXT("GeometryMaskJFStep"));
+DECLARE_GPU_STAT_NAMED(GeometryMaskJFtoDF, TEXT("GeometryMaskJFtoDF"));
+
 namespace UE::GeometryMask::Private
 {
 	static constexpr int32 MaxNumChannels = 4;
 	static constexpr int32 NumNeighbors = 8;
+	static constexpr int32 MaxSteps = 13;
 
 	static FIntVector4 CalculateStepCount(const FIntVector4& InRadiusSizes)
 	{
@@ -81,7 +87,9 @@ public:
 	{
 		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 
+		OutEnvironment.SetDefine(TEXT("TILE_SIZE"), FComputeShaderUtils::kGolden2DGroupSize);
 		OutEnvironment.SetDefine(TEXT("NUM_CHANNELS"), NumChannels);
+		OutEnvironment.SetDefine(TEXT("KERNEL_SIZE"), 3);
 	}
 };
 
@@ -116,6 +124,8 @@ public:
 		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("TILE_SIZE"), FComputeShaderUtils::kGolden2DGroupSize);
+		OutEnvironment.SetDefine(TEXT("MAX_STEPS"), UE::GeometryMask::Private::MaxSteps);
+		OutEnvironment.SetDefine(TEXT("KERNEL_SIZE"), 3);
 	}
 };
 
@@ -232,10 +242,19 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 {
 	ensure(IsInRenderingThread());
 
+	uint8 DebugPass = 0; // 0 = no debug
+	
+#if WITH_EDITORONLY_DATA
+	DebugPass = GetDefault<UGeometryMaskSettings>()->DebugDF;
+#endif
+
 	FRDGBuilder GraphBuilder(InRHICmdList);
 	{
 		FIntPoint InputSize = InTexture->GetSizeXY();
 		FVector2f OneOverInputSize = FVector2f::One() / InputSize;
+
+		bool bInputSizeChanged = LastInputSize != InputSize;
+		LastInputSize = InputSize;
 
 		// Scales UV's such that the X axis is always 1.0
 		FVector2f InputHeightOverWidth = FVector2f(1.0f, static_cast<float>(InputSize.Y) / static_cast<float>(InputSize.X));
@@ -268,6 +287,9 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 		{
 			SizeFromRadius[ChannelIdx] = Parameters.PerChannelRadius[ChannelIdx];
 		}
+
+		bool bNumActiveChannelsChanged = LastNumActiveChannels != NumActiveChannels;
+		LastNumActiveChannels = NumActiveChannels;
 
 		FIntPoint BufferSize = InputSize;
 		BufferSize.X *= NumActiveChannels;
@@ -324,24 +346,47 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 
 		FRDGTextureRef InputTexture = InTexture->GetRenderTargetTexture(GraphBuilder);
 		FRDGTextureSRVRef InputTexture_SRV = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(InputTexture));
+		FRDGTextureUAVRef InputTexture_UAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(InputTexture));
 
-		FRDGBufferDesc InitOutputBufferDesc =
-			FRDGBufferDesc::CreateBufferDesc(
-				sizeof(FVector4f),
-				BufferLength);
+#if WITH_EDITOR
+		bInputSizeChanged = DebugPass > 0;
+#endif
 
-		FRDGBufferRef InitOutputBuffer = GraphBuilder.CreateBuffer(InitOutputBufferDesc, TEXT("GeometryMaskJFInit.OutputBuffer"));
-		
-		FVector4f* BufferData = GraphBuilder.AllocPODArray<FVector4f>(BufferLength);
-		GraphBuilder.QueueBufferUpload(InitOutputBuffer, BufferData, sizeof(FVector4f) * BufferLength, ERDGInitialDataFlags::NoCopy);
+		FVector4f* BufferData = nullptr;
+		if (bInputSizeChanged || bNumActiveChannelsChanged)
+		{
+			BufferData = GraphBuilder.AllocPODArray<FVector4f>(BufferLength);
+		}
+
+		FRDGBufferRef InitOutputBuffer = nullptr;
+		if (bInputSizeChanged || bNumActiveChannelsChanged)
+		{
+			FRDGBufferDesc InitOutputBufferDesc =
+				FRDGBufferDesc::CreateBufferDesc(
+					sizeof(FVector4f),
+					BufferLength);
+			InitOutputBufferDesc.Usage = EBufferUsageFlags::UnorderedAccess;
+
+			InitOutputBuffer = GraphBuilder.CreateBuffer(InitOutputBufferDesc, TEXT("GeometryMaskJFInit.OutputBuffer"));
+			StoredInitOutputBuffer = GraphBuilder.ConvertToExternalBuffer(InitOutputBuffer);
+
+			GraphBuilder.QueueBufferUpload(InitOutputBuffer, BufferData, sizeof(FVector4f) * BufferLength, ERDGInitialDataFlags::NoCopy);
+		}
+		else
+		{
+			InitOutputBuffer = GraphBuilder.RegisterExternalBuffer(StoredInitOutputBuffer, TEXT("GeometryMaskJFInit.OutputBuffer"));
+		}
 
 		// 1. Init from input binary-ish texture
 		{
 			FRDGBufferUAVRef OutputBuffer_UAV = GraphBuilder.CreateUAV(InitOutputBuffer, EPixelFormat::PF_FloatRGBA);
 
 			{
+				RDG_GPU_STAT_SCOPE(GraphBuilder, GeometryMaskJFInit);
 				RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFInit");
-				
+				TRACE_CPUPROFILER_EVENT_SCOPE(GeometryMaskJFInit);
+				DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FGeometryMaskPostProcess_DistanceField::GeometryMaskJFInit"), STAT_GeometryMask_GeometryMaskJFInit, STATGROUP_GeometryMask);
+
 				FGeometryMaskJFInitCSBase::FParameters* PassParameters = GraphBuilder.AllocParameters<FGeometryMaskJFInitCSBase::FParameters>();
 				{
 					PassParameters->InputDimensions = InputSize;
@@ -353,8 +398,6 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 					PassParameters->OutputBuffer = OutputBuffer_UAV;
 				}
 
-				ClearUnusedGraphResources(InitComputeShader, PassParameters);
-			
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
 					RDG_EVENT_NAME("Init"),
@@ -367,40 +410,40 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 
 		FRDGBufferSRVRef StepOutputBuffer_SRV = nullptr;
 
+		
+#if WITH_EDITOR
+		// DebugPass == 1 - Only sobel
+		if (DebugPass == 1)
+		{
+			StepOutputBuffer_SRV = GraphBuilder.CreateSRV(InitOutputBuffer, EPixelFormat::PF_FloatRGBA);
+		}
+		else
+#endif
 		// 2. JumpFlood steps
 		{
-			FRDGBufferDesc StepIntermediateBufferDescA =
-				FRDGBufferDesc::CreateBufferDesc(
-					sizeof(FVector4f),
-					BufferLength);
-			StepIntermediateBufferDescA.Usage = EBufferUsageFlags::UnorderedAccess;
-
-			FRDGBufferDesc StepIntermediateBufferDescB =
-				FRDGBufferDesc::CreateBufferDesc(
-					sizeof(FVector4f),
-					BufferLength);
-			StepIntermediateBufferDescB.Usage = EBufferUsageFlags::UnorderedAccess;
-
-			FRDGBufferRef StepIntermediateBufferA = GraphBuilder.CreateBuffer(StepIntermediateBufferDescA, TEXT("GeometryMaskJFStep.IntermediateBufferA"));
-			FRDGBufferRef StepIntermediateBufferB = GraphBuilder.CreateBuffer(StepIntermediateBufferDescB, TEXT("GeometryMaskJFStep.IntermediateBufferB"));
-
-			// BufferData = GraphBuilder.AllocPODArray<FVector4f>(BufferLength);
-			GraphBuilder.QueueBufferUpload(StepIntermediateBufferA, BufferData, sizeof(FVector4f) * BufferLength, ERDGInitialDataFlags::NoCopy);
-			
-			// BufferData = GraphBuilder.AllocPODArray<FVector4f>(BufferLength);
-			GraphBuilder.QueueBufferUpload(StepIntermediateBufferB, BufferData, sizeof(FVector4f) * BufferLength, ERDGInitialDataFlags::NoCopy);
-
-			// Copy init input to intermediate A
+			FRDGBufferRef StepIntermediateBufferB = nullptr;
+			if (bInputSizeChanged || bNumActiveChannelsChanged)
 			{
-				RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFStep.CopyInitToStep");
+				FRDGBufferDesc StepIntermediateBufferDescB =
+					FRDGBufferDesc::CreateBufferDesc(
+						sizeof(FVector4f),
+						BufferLength);
+				StepIntermediateBufferDescB.Usage = EBufferUsageFlags::UnorderedAccess;
 
-				AddCopyBufferPass(GraphBuilder, StepIntermediateBufferA, InitOutputBuffer);
+				StepIntermediateBufferB = GraphBuilder.CreateBuffer(StepIntermediateBufferDescB, TEXT("GeometryMaskJFStep.IntermediateBufferB"));
+				StoredStepIntermediateBufferB = GraphBuilder.ConvertToExternalBuffer(StepIntermediateBufferB);
+
+				GraphBuilder.QueueBufferUpload(StepIntermediateBufferB, BufferData, sizeof(FVector4f) * BufferLength, ERDGInitialDataFlags::NoCopy);
 			}
-			
-			FRDGBufferUAVRef StepIntermediateBufferA_UAV = GraphBuilder.CreateUAV(StepIntermediateBufferA, EPixelFormat::PF_FloatRGBA);
+			else
+			{
+				StepIntermediateBufferB = GraphBuilder.RegisterExternalBuffer(StoredInitOutputBuffer, TEXT("GeometryMaskJFInit.IntermediateBufferB"));
+			}
+
+			FRDGBufferUAVRef StepIntermediateBufferA_UAV = GraphBuilder.CreateUAV(InitOutputBuffer, EPixelFormat::PF_FloatRGBA);
 			FRDGBufferUAVRef StepIntermediateBufferB_UAV = GraphBuilder.CreateUAV(StepIntermediateBufferB, EPixelFormat::PF_FloatRGBA);
 
-			FRDGBufferSRVRef StepIntermediateBufferA_SRV = GraphBuilder.CreateSRV(StepIntermediateBufferA, EPixelFormat::PF_FloatRGBA);
+			FRDGBufferSRVRef StepIntermediateBufferA_SRV = GraphBuilder.CreateSRV(InitOutputBuffer, EPixelFormat::PF_FloatRGBA);
 			FRDGBufferSRVRef StepIntermediateBufferB_SRV = GraphBuilder.CreateSRV(StepIntermediateBufferB, EPixelFormat::PF_FloatRGBA);
 
 			StepOutputBuffer_SRV = StepIntermediateBufferA_SRV;
@@ -410,11 +453,26 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 				FIntVector4 ChannelMask(ForceInitToZero);
 				int32 MaxStepCount = FMath::Max(FMath::Max(FMath::Max(StepCount.X, StepCount.Y), StepCount.Z), StepCount.W);
 				int32 BufferIdx = 0;
+
+#if WITH_EDITOR
+				if (MaxStepCount > UE::GeometryMask::Private::MaxSteps)
+				{
+					UE_LOG(LogGeometryMask, Warning, TEXT("JumpFlood requires too many steps (%u), maximum is %u."), MaxStepCount, UE::GeometryMask::Private::MaxSteps);
+				}
 				
+				if (DebugPass > 1)
+				{
+					MaxStepCount = FMath::Min(MaxStepCount, DebugPass - 1);
+				}
+#endif
+
 				for (int32 StepIdx = 0; StepIdx < MaxStepCount; ++StepIdx)
 				{
+					RDG_GPU_STAT_SCOPE(GraphBuilder, GeometryMaskJFStep);
 					RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFStep");
-			
+					TRACE_CPUPROFILER_EVENT_SCOPE(GeometryMaskJFStep);
+					DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FGeometryMaskPostProcess_DistanceField::GeometryMaskJFStep"), STAT_GeometryMask_GeometryMaskJFStep, STATGROUP_GeometryMask);
+
 					FGeometryMaskJFStepCSBase::FParameters* PassParameters = GraphBuilder.AllocParameters<FGeometryMaskJFStepCSBase::FParameters>();
 					{
 						PassParameters->InputDimensions = InputSize;
@@ -433,8 +491,6 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 							: StepIntermediateBufferB_UAV;
 					}
 
-					ClearUnusedGraphResources(StepComputeShader, PassParameters);
-			
 					FComputeShaderUtils::AddPass(
 						GraphBuilder,
 						RDG_EVENT_NAME("Step"),
@@ -454,19 +510,12 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 
 		// 3. JF to DF
 		{
-			FRDGTextureDesc OutputTextureDesc(
-				FRDGTextureDesc::Create2D(
-					InputTexture->Desc.Extent,
-					InputTexture->Desc.Format,
-					FClearValueBinding::Green,
-					TexCreate_ShaderResource | TexCreate_UAV));
-
-			FRDGTextureRef OutputTexture = GraphBuilder.CreateTexture(OutputTextureDesc, TEXT("GeometryMaskJFtoDF.OutputTexture"));
-			FRDGTextureUAVRef OutputTexture_UAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
-
 			{
+				RDG_GPU_STAT_SCOPE(GraphBuilder, GeometryMaskJFtoDF);
 				RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskJFtoDF");
-			
+				TRACE_CPUPROFILER_EVENT_SCOPE(GeometryMaskJFtoDF);
+				DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FGeometryMaskPostProcess_DistanceField::GeometryMaskJFtoDF"), STAT_GeometryMask_GeometryMaskJFtoDF, STATGROUP_GeometryMask);
+
 				FGeometryMaskJFtoDFCSBase::FParameters* PassParameters = GraphBuilder.AllocParameters<FGeometryMaskJFtoDFCSBase::FParameters>();
 				{
 					FVector4f StepDistanceMultipliers;
@@ -484,11 +533,9 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 					PassParameters->OriginalInputTexture = InputTexture_SRV;
 					PassParameters->OriginalInputSampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 					PassParameters->InputBuffer = StepOutputBuffer_SRV;
-					PassParameters->OutputTexture = OutputTexture_UAV;
+					PassParameters->OutputTexture = InputTexture_UAV;
 				}
 
-				ClearUnusedGraphResources(OutputComputeShader, PassParameters);
-			
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
 					RDG_EVENT_NAME("CopyToDF"),
@@ -496,13 +543,6 @@ void FGeometryMaskPostProcess_DistanceField::Execute_RenderThread(
 					OutputComputeShader,
 					PassParameters,
 					NumGroups);
-			}
-
-			// Copy back to RenderTarget
-			{
-				RDG_EVENT_SCOPE(GraphBuilder, "GeometryMaskDF.PostCopy");
-
-				AddCopyTexturePass(GraphBuilder, OutputTexture, InputTexture, FRHICopyTextureInfo());
 			}
 		}
 	}

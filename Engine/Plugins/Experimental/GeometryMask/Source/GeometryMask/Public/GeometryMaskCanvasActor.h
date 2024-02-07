@@ -27,7 +27,7 @@ public:
 
 	/** Returns the Canvas Texture. */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
-	UTextureRenderTarget2D* GetTexture();
+	UCanvasRenderTarget2D* GetTexture();
 
 	virtual void BeginPlay() override;
 

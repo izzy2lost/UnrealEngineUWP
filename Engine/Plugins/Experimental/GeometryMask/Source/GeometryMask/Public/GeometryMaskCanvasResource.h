@@ -13,7 +13,7 @@ class FCanvas;
 class FSceneView;
 class IGeometryMaskPostProcess;
 class UCanvas;
-class UTextureRenderTarget2D;
+class UCanvasRenderTarget2D;
 enum class EGeometryMaskColorChannel : uint8;
 
 using FOnGeometryMaskCanvasDraw = TMulticastDelegate<void(FCanvas*)>;
@@ -31,7 +31,8 @@ public:
 	static constexpr int32 MaxTextureSize = 8192;
 	
 	UGeometryMaskCanvasResource();
-
+	virtual ~UGeometryMaskCanvasResource() override;
+	
 	/** Will return the first available color channel without a canvas assigned. EGeometryMaskColorChannel::None if not available. */
 	const EGeometryMaskColorChannel GetNextAvailableColorChannel() const;
 
@@ -48,11 +49,14 @@ public:
 	/** Returns required viewport padding, in pixels - determined by certain effects. */
 	int32 GetViewportPadding() const;
 
-	UTextureRenderTarget2D* GetRenderTargetTexture();
+	UCanvasRenderTarget2D* GetRenderTargetTexture();
 
 	FOnGeometryMaskCanvasDraw& OnDrawToCanvas() { return OnDrawToCanvasDelegate; }
 
 	void UpdateRenderParameters(EGeometryMaskColorChannel InColorChannel, bool bInApplyBlur, double InBlurStrength, bool bInApplyFeather, int32 InOuterFeatherRadius, int32 InInnerFeatherRadius);
+
+	/** Resets the render parameters for the given channel. */
+	void ResetRenderParameters(EGeometryMaskColorChannel InColorChannel);
 
 	/** Updates the canvas, intended to be called every frame. */
 	void Update(UWorld* InWorld, FSceneView& InView);
@@ -75,7 +79,7 @@ private:
 	
 	/** The underlying Render Target texture. */
 	UPROPERTY(DuplicateTransient)
-	TObjectPtr<UTextureRenderTarget2D> RenderTargetTexture;
+	TObjectPtr<UCanvasRenderTarget2D> RenderTargetTexture;
 
 	FOnGeometryMaskCanvasDraw OnDrawToCanvasDelegate;
 

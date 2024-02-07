@@ -139,13 +139,15 @@ class GEOMETRYMASK_API UGeometryMaskCanvasReferenceComponentBase
 	GENERATED_BODY()
 
 public:
+	virtual ~UGeometryMaskCanvasReferenceComponentBase() override;
+	
 	/** Implement to perform an operation with the provided canvas. */
 	UFUNCTION(BlueprintImplementableEvent, CallInEditor, Category = "Canvas", meta = (DisplayName = "Canvas Changed"))
 	void ReceiveSetCanvas(const UGeometryMaskCanvas* InCanvas);
 
 	/** Returns the Canvas Texture. */
 	UFUNCTION(BlueprintCallable, Category="Rendering")
-	UTextureRenderTarget2D* GetTexture();
+	UCanvasRenderTarget2D* GetTexture();
 
 protected:
 	virtual void BeginPlay() override;
@@ -156,6 +158,8 @@ protected:
 	virtual bool TryResolveCanvas() PURE_VIRTUAL(UGeometryMaskCanvasReferenceComponentBase::TryResolveCanvas, return false; )
 	
 	bool TryResolveNamedCanvas(FName InCanvasName);
+
+	[[maybe_unused]] virtual bool Cleanup();
 	
 protected:
 	FOnGeometryMaskSetCanvasNativeDelegate OnSetCanvasDelegate;

@@ -3,7 +3,7 @@
 #include "GeometryMaskCanvasResource.h"
 
 #include "Engine/Canvas.h"
-#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/World.h"
 #include "GeometryMaskModule.h"
 #include "GeometryMaskSettings.h"
@@ -17,6 +17,8 @@
 
 namespace UE::GeometryMask::Private
 {
+	static constexpr ETextureRenderTargetSampleCount RenderTargetSampleCount = ETextureRenderTargetSampleCount::RTSC_4;
+	
 	void OverscanProjectionMatrix(FMatrix& InOutMatrix, const FIntPoint& InSize, const int32 InPadding)
 	{
 		const FVector2f Multiplier(
@@ -42,12 +44,22 @@ UGeometryMaskCanvasResource::UGeometryMaskCanvasResource()
 	};
 
 	FGeometryMaskPostProcessParameters_Blur PostProcessParameters_Blur;
+	PostProcessParameters_Blur.bPerChannelApplyBlur.SetRange(0, 4, false);
 	PostProcessParameters_Blur.PerChannelBlurStrength = { 16, 16, 16, 16};
 	PostProcess_Blur = MakeShared<FGeometryMaskPostProcess_Blur>(PostProcessParameters_Blur);
 
 	FGeometryMaskPostProcessParameters_DistanceField PostProcessParameters_DistanceField;
-	PostProcessParameters_DistanceField.bPerChannelCalculateDF.SetRange(0, 4, true);
+	PostProcessParameters_DistanceField.bPerChannelCalculateDF.SetRange(0, 4, false);
 	PostProcess_DistanceField = MakeShared<FGeometryMaskPostProcess_DistanceField>(PostProcessParameters_DistanceField);
+}
+
+UGeometryMaskCanvasResource::~UGeometryMaskCanvasResource()
+{
+	if (!IsUnreachable() && IsValid(CanvasObject) && CanvasObject->Canvas)
+	{
+		delete CanvasObject->Canvas;
+		CanvasObject->Canvas = nullptr;
+	}
 }
 
 const EGeometryMaskColorChannel UGeometryMaskCanvasResource::GetNextAvailableColorChannel() const
@@ -89,6 +101,7 @@ bool UGeometryMaskCanvasResource::Checkin(const FName InRequestingCanvasName)
 		{
 			// Effectively free this ColorChannel and make available for Checkout
 			ColorChannelCanvas.Value = NAME_None;
+			ResetRenderParameters(ColorChannelCanvas.Key);
 			return true;
 		}
 	}
@@ -100,7 +113,8 @@ bool UGeometryMaskCanvasResource::Checkin(const FName InRequestingCanvasName)
 void UGeometryMaskCanvasResource::UpdateViewportSize()
 {
 	if (ViewportSize.Size() > 0
-		&& RenderTargetTexture)
+		&& IsValid(RenderTargetTexture)
+		&& !IsUnreachable())
 	{
 		const float SizeMultiplier = GetDefault<UGeometryMaskSettings>()->GetDefaultResolutionMultiplier();
 		
@@ -125,6 +139,12 @@ void UGeometryMaskCanvasResource::UpdateViewportSize()
 			// Height too big, cap to max and reduce width proportionally
 			SizeY = MaxTextureSize;
 			SizeX /= RatioY;
+		}
+
+		if (RenderTargetTexture->SizeX == SizeX
+			&& RenderTargetTexture->SizeY == SizeY)
+		{
+			return;
 		}
 
 		// Update RT size to viewport size
@@ -200,11 +220,29 @@ void UGeometryMaskCanvasResource::UpdateRenderParameters(
 		PostProcess_DistanceField->SetParameters(DFParameters);
 	}
 
-	// Effects may have changed viewport padding
-	UpdateViewportSize();
-
 	bApplyBlur = BlurParameters.bPerChannelApplyBlur.CountSetBits(0) > 0; // if any channels have blur
 	bApplyDF = DFParameters.bPerChannelCalculateDF.CountSetBits(0) > 0; // if any channels have DF
+
+	if (UCanvasRenderTarget2D* Texture = GetRenderTargetTexture())
+	{
+		if (bInApplyBlur || bInApplyFeather)
+		{
+			// MSAA not supported for these effects (they need UAV access)
+			Texture->SetSampleCount(ETextureRenderTargetSampleCount::RTSC_1);
+		}
+		else
+		{
+			Texture->SetSampleCount(UE::GeometryMask::Private::RenderTargetSampleCount);
+		}
+	}
+
+	// Effects may have changed viewport padding
+    UpdateViewportSize();
+}
+
+void UGeometryMaskCanvasResource::ResetRenderParameters(EGeometryMaskColorChannel InColorChannel)
+{
+	UpdateRenderParameters(InColorChannel, false, 0.0, false, 0, 0);
 }
 
 void UGeometryMaskCanvasResource::SetViewportSize(const FIntPoint& InViewportSize)
@@ -243,17 +281,18 @@ int32 UGeometryMaskCanvasResource::GetViewportPadding() const
 		}
 	}
 
-	
 	return FMath::Max(MaxFeatherRadius, MaxBlurRadius);
 }
 
-UTextureRenderTarget2D* UGeometryMaskCanvasResource::GetRenderTargetTexture()
+UCanvasRenderTarget2D* UGeometryMaskCanvasResource::GetRenderTargetTexture()
 {
-	if (!RenderTargetTexture)
+	if (!IsValid(RenderTargetTexture))
 	{
-		const FName ObjectName = MakeUniqueObjectName(this, UTextureRenderTarget2D::StaticClass(), FName(FString::Printf(TEXT("GeometryMaskCanvasResource_RenderTarget"))));
-		RenderTargetTexture = NewObject<UTextureRenderTarget2D>(this, ObjectName);
+		const FName ObjectName = MakeUniqueObjectName(this, UCanvasRenderTarget2D::StaticClass(), FName(FString::Printf(TEXT("GeometryMaskCanvasResource_RenderTarget"))));
+		RenderTargetTexture = NewObject<UCanvasRenderTarget2D>(this, ObjectName);
 		RenderTargetTexture->bForceLinearGamma = false;
+		RenderTargetTexture->bAutoGenerateMips = false;
+		RenderTargetTexture->SetSampleCount(UE::GeometryMask::Private::RenderTargetSampleCount);
 		RenderTargetTexture->InitAutoFormat(ViewportSize.X, ViewportSize.Y);
 	}
 
@@ -274,11 +313,22 @@ void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView)
 		return;
 	}
 
-	if (UTextureRenderTarget2D* Texture = GetRenderTargetTexture())
+	if (UCanvasRenderTarget2D* Texture = GetRenderTargetTexture())
 	{
 		if (!CanvasObject)
 		{
 			CanvasObject = NewObject<UCanvas>(GetTransientPackage());
+
+			FTextureRenderTargetResource* RenderTargetResource = Texture->GameThread_GetRenderTargetResource();
+			FCanvas* NewCanvas = new FCanvas(
+				RenderTargetResource,
+				nullptr,
+				InWorld,
+				InWorld->GetFeatureLevel(),
+				// Draw immediately so that interleaved SetVectorParameter (etc) function calls work as expected
+				FCanvas::CDM_ImmediateDrawing);
+
+			CanvasObject->Init(Texture->SizeX, Texture->SizeY, &InView, NewCanvas);
 		}
 
 		// Begin
@@ -294,16 +344,8 @@ void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView)
 			
 			InWorld->FlushDeferredParameterCollectionInstanceUpdates();
 
-			FTextureRenderTargetResource* RenderTargetResource = Texture->GameThread_GetRenderTargetResource();
-			FCanvas* NewCanvas = new FCanvas(
-				RenderTargetResource,
-				nullptr,
-				InWorld,
-				InWorld->GetFeatureLevel(),
-				// Draw immediately so that interleaved SetVectorParameter (etc) function calls work as expected
-				FCanvas::CDM_ImmediateDrawing);
-
-			CanvasObject->Init(Texture->SizeX, Texture->SizeY, &InView, NewCanvas);
+			CanvasObject->SizeX = Texture->SizeX;
+			CanvasObject->SizeY = Texture->SizeY;
 			CanvasObject->Update();
 			CanvasObject->SetView(&InView);
 			CanvasObject->Canvas->Clear(GetRenderTargetTexture()->ClearColor);
@@ -346,9 +388,6 @@ void UGeometryMaskCanvasResource::Draw(UWorld* InWorld, FSceneView& InView)
 						PostProcess_Blur->Execute(RenderTarget);
 					}
 				}
-
-				delete CanvasObject->Canvas;
-				CanvasObject->Canvas = nullptr;
 			}
 		}
 	}

@@ -85,20 +85,22 @@ TArray<TSharedPtr<IAvaMaskMaterialHandle>> FAvaMaskAvaShapeMaterialCollectionHan
 		RefreshMaterials();
 	}
 	
-	for (const TPair<int32, TSharedPtr<IAvaMaskMaterialHandle>>& MaterialHandle : MaterialHandles)
+	for (TPair<int32, TSharedPtr<IAvaMaskMaterialHandle>>& SlotMaterialHandle : MaterialHandles)
 	{
-		if (IsSlotOccupied(MaterialHandle.Key) && !UE::Ava::Internal::IsHandleValid(MaterialHandle.Value))
+		// Account for empty/unoccupied slot
+		if (TSharedPtr<IAvaMaskMaterialHandle>& MaterialHandle = SlotMaterialHandle.Value)
 		{
-			if (RefreshMaterials())
+			if (!UE::Ava::Internal::IsHandleValid(MaterialHandle))
 			{
-				return GetMaterialHandles();
-			}
+				if (RefreshMaterials())
+				{
+					return GetMaterialHandles();
+				}
 
-			return { };
-		}
-		else
-		{
-			MtlHandles.Emplace(MaterialHandle.Value);
+				return { };
+			}
+		
+			MtlHandles.Emplace(MaterialHandle);
 		}
 	}
 	
@@ -338,6 +340,7 @@ bool FAvaMaskAvaShapeMaterialCollectionHandle::RefreshMaterials()
 	UAvaObjectHandleSubsystem* HandleSubsystem = UE::Ava::Internal::GetObjectHandleSubsystem();
 	if (!HandleSubsystem)
 	{
+		UE_LOG(LogAvaMask, Error, TEXT("ObjectHandleSubsystem was invalid"));
 		return false;
 	}
 	

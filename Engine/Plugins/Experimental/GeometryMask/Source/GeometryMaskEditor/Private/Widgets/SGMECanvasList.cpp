@@ -40,7 +40,7 @@ void SGMECanvasList::Construct(const FArguments& InArgs, TSharedRef<FGMECanvasLi
 
 	Refresh();
 
-	TWeakPtr<SGMECanvasList> WeakThisPtr = SharedThis(this);
+	TWeakPtr<SGMECanvasList> ThisWeak = SharedThis(this);
 
 	ChildSlot
 	[
@@ -64,11 +64,11 @@ void SGMECanvasList::Construct(const FArguments& InArgs, TSharedRef<FGMECanvasLi
 				.Padding(Padding)
 				[
 					SNew(STextBlock)
-					.Text_Lambda([WeakThisPtr]()
+					.Text_Lambda([ThisWeak]()
 					{
-						if (WeakThisPtr.IsValid())
+						if (ThisWeak.IsValid())
 						{
-							return FText::AsNumber(WeakThisPtr.Pin()->CanvasItems.Num());
+							return FText::AsNumber(ThisWeak.Pin()->CanvasItems.Num());
 						}
 						return FText::AsNumber(0);
 					})

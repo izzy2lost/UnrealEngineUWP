@@ -23,7 +23,7 @@ AGeometryMaskCanvasActor::AGeometryMaskCanvasActor(const FObjectInitializer& Obj
 	Canvas = nullptr;
 }
 
-UTextureRenderTarget2D* AGeometryMaskCanvasActor::GetTexture()
+UCanvasRenderTarget2D* AGeometryMaskCanvasActor::GetTexture()
 {
 	return Canvas ? Canvas->GetTexture() : nullptr;
 }

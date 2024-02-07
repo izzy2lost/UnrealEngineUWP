@@ -2,7 +2,7 @@
 
 #include "GMEResourceItemViewModel.h"
 
-#include "Engine/TextureRenderTarget2D.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "GeometryMaskCanvasResource.h"
 
 TSharedRef<FGMEResourceItemViewModel> FGMEResourceItemViewModel::Create(
@@ -15,7 +15,7 @@ TSharedRef<FGMEResourceItemViewModel> FGMEResourceItemViewModel::Create(
 
 float FGMEResourceItemViewModel::GetMemoryUsage() const
 {
-	if (const UTextureRenderTarget2D* Texture = GetResourceTexture())
+	if (const UCanvasRenderTarget2D* Texture = GetResourceTexture())
 	{
 		return (static_cast<float>(Texture->CalcTextureMemorySizeEnum(TMC_ResidentMips)) / (1024.0f * 1024.0f));
 	}
@@ -25,7 +25,7 @@ float FGMEResourceItemViewModel::GetMemoryUsage() const
 
 FIntPoint FGMEResourceItemViewModel::GetDimensions() const
 {
-	if (const UTextureRenderTarget2D* Texture = GetResourceTexture())
+	if (const UCanvasRenderTarget2D* Texture = GetResourceTexture())
 	{
 		return {Texture->SizeX, Texture->SizeY};
 	}
@@ -40,7 +40,7 @@ FGMEResourceItemViewModel::FGMEResourceItemViewModel(
 	if (const UGeometryMaskCanvasResource* Resource = InResource.Get())
 	{
 		UniqueId = Resource->GetUniqueID();
-		ResourceTexture = const_cast<UGeometryMaskCanvasResource*>(Resource)->GetRenderTargetTexture();
+		ResourceTextureWeak = const_cast<UGeometryMaskCanvasResource*>(Resource)->GetRenderTargetTexture();
 	}
 }
 

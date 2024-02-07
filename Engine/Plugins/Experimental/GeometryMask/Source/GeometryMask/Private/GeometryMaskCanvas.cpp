@@ -4,10 +4,11 @@
 
 #include "Algo/RemoveIf.h"
 #include "CanvasTypes.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
-#include "Engine/TextureRenderTarget2D.h"
 #include "Engine/World.h"
 #include "GeometryMaskCanvasResource.h"
+#include "GeometryMaskModule.h"
 #include "IGeometryMaskWriteInterface.h"
 
 void UGeometryMaskCanvas::BeginDestroy()
@@ -65,7 +66,7 @@ void UGeometryMaskCanvas::RemoveWriter(const TScriptInterface<IGeometryMaskWrite
 	Writers.Remove(InWriter.GetObject());
 }
 
-UTextureRenderTarget2D* UGeometryMaskCanvas::GetTexture() const
+UCanvasRenderTarget2D* UGeometryMaskCanvas::GetTexture() const
 {
 	if (CanvasResource)
 	{
@@ -179,6 +180,7 @@ void UGeometryMaskCanvas::OnDrawToCanvas(FCanvas* InCanvas)
 		if (Writer.IsValid())
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(UGeometryMaskCanvas::OnDrawToCanvas);
+			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("UGeometryMaskCanvas::OnDrawToCanvas"), STAT_GeometryMask_Update, STATGROUP_GeometryMask);
 			Writer->DrawToCanvas(InCanvas);	
 		}
 	}

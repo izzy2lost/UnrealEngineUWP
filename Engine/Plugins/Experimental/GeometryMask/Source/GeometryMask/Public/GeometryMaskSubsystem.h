@@ -30,9 +30,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Canvas")
 	static TArray<FName> GetCanvasNames();
 
+	int32 GetNumActiveCanvasResources() const;
+
 	const TArray<TObjectPtr<UGeometryMaskCanvasResource>>& GetCanvasResources() const;
 
 	void Update(UWorld* InWorld, FSceneViewFamily& InViewFamily);
+
+	/** Toggles if no arg given. */
+	void ToggleUpdate(const TOptional<bool>& bInShouldUpdate = {});
 
 	/** Remove all canvases without any Readers or Writers. Return the number of canvases removed. */
 	int32 RemoveWithoutWriters();
@@ -55,6 +60,8 @@ private:
 
 	FOnGeometryMaskCanvasCreated OnGeometryMaskCanvasCreatedDelegate;
 	FOnGeometryMaskResourceCreated OnGeometryMaskResourceCreatedDelegate;
+
+	std::atomic<bool> bDoUpdates = true;
 
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UGeometryMaskCanvas>> NamedCanvases;

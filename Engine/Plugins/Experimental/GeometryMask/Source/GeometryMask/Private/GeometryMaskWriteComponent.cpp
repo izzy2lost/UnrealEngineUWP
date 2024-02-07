@@ -76,7 +76,7 @@ void UGeometryMaskWriteMeshComponent::DrawToCanvas(FCanvas* InCanvas)
 			const FName KeyName = KeyNames[TaskIdx];
 			FTransform LocalToWorld;
 			
-			if (const USceneComponent* Component = CachedComponents[KeyName].Get())
+			if (const USceneComponent* Component = CachedComponentsWeak[KeyName].Get())
 			{
 				LocalToWorld = Component->GetComponentToWorld();
 			}
@@ -145,11 +145,7 @@ void UGeometryMaskWriteMeshComponent::OnComponentDestroyed(bool bDestroyingHiera
 {
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
 
-	if (UGeometryMaskCanvas* Canvas = CanvasWeak.Get())
-	{
-		Canvas->RemoveWriter(this);
-		CanvasWeak.Reset();
-	}
+	Cleanup();
 }
 
 void UGeometryMaskWriteMeshComponent::UpdateCachedData()
@@ -166,7 +162,7 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedData()
 		}
 
 		LastPrimitiveComponentCount = PrimitiveComponents.Num();
-		CachedComponents.Reserve(LastPrimitiveComponentCount);
+		CachedComponentsWeak.Reserve(LastPrimitiveComponentCount);
 		CachedMeshData.Reserve(LastPrimitiveComponentCount);
 
 		UpdateCachedStaticMeshData(PrimitiveComponents);
@@ -256,7 +252,7 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedStaticMeshData(TConstArrayView
 
 						StaticMeshObjectNames.Add(StaticMesh->GetFName());
 						StaticMeshResources.Add(&RenderData->LODResources[0]);
-						CachedComponents.Add(StaticMesh->GetFName(), StaticMeshComponent);
+						CachedComponentsWeak.Add(StaticMesh->GetFName(), StaticMeshComponent);
 					}
 				}
 			}
@@ -354,7 +350,7 @@ void UGeometryMaskWriteMeshComponent::UpdateCachedDynamicMeshData(TConstArrayVie
 				{
 					DynamicMeshObjectNames.Add(DynamicMeshComponent->GetFName());
 					DynamicMeshes.Add(DynamicMesh);
-					CachedComponents.Add(DynamicMeshComponent->GetFName(), DynamicMeshComponent);
+					CachedComponentsWeak.Add(DynamicMeshComponent->GetFName(), DynamicMeshComponent);
 				}
 			}
 		}
@@ -427,6 +423,23 @@ bool UGeometryMaskWriteMeshComponent::TryResolveCanvas()
 			Canvas->AddWriter(this);
 			return true;
 		}
+	}
+
+	return false;
+}
+
+bool UGeometryMaskWriteMeshComponent::Cleanup()
+{
+	if (!Super::Cleanup())
+	{
+		return false;
+	}
+
+	if (UGeometryMaskCanvas* Canvas = CanvasWeak.Get())
+	{
+		Canvas->RemoveWriter(this);
+		CanvasWeak.Reset();
+		return true;
 	}
 
 	return false;

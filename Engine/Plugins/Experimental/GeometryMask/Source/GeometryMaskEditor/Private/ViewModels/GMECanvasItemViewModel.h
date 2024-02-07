@@ -42,7 +42,7 @@ public:
 private:
 	FName CanvasName;
 	EGeometryMaskColorChannel ColorChannel;
-	TWeakObjectPtr<UTexture> CanvasTexture;
+	TWeakObjectPtr<UTexture> CanvasTextureWeak;
 	int32 KnownReaderCount;
 	int32 KnownWriterCount;
 };

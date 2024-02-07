@@ -2,10 +2,6 @@
 
 #include "/Engine/Public/Platform.ush"
 
-#define TILE_SIZE 8
-#define KERNEL_SIZE 3
-#define MAX_STEPS 13
-
 uint2 InputDimensions;
 float2 OneOverInputDimensions;
 float2 UVRatioAdjustment;
@@ -54,24 +50,24 @@ void MainCS(
 	float Y = (float)PixelCoord.y + 0.5;
 	const float2 UV = float2(X, Y) * OneOverInputDimensions * UVRatioAdjustment;
 
-    // Perform on each of R,G,B,A
-    [unroll]
-    for (int ChannelIdx = 0; ChannelIdx < NUM_CHANNELS; ++ChannelIdx)
-    {
-    	float4 Input = InputBuffer[PixelCoord1D + ChannelIdx];
-    	const uint2 StepSizeWithChannel = StepSize[ChannelIdx] * uint2(1, 1);
+	// Perform on each of R,G,B,A
+	[unroll]
+	for (int ChannelIdx = 0; ChannelIdx < NUM_CHANNELS; ++ChannelIdx)
+	{
+		float4 Input = InputBuffer[PixelCoord1D + ChannelIdx];
+		const uint2 StepSizeWithChannel = StepSize[ChannelIdx] * uint2(1, 1);
 
-    	// Check if we should calculate this channel (for this step)
-    	if (ChannelMask[ChannelIdx] == 0)
-    	{
-    		MinSample[ChannelIdx] = Input[ChannelIdx];
-    		continue;
-    	}
+		// Check if we should calculate this channel (for this step)
+		if (ChannelMask[ChannelIdx] == 0)
+		{
+			MinSample[ChannelIdx] = Input[ChannelIdx];
+			continue;
+		}
 
-    	MinDistance[ChannelIdx] = 1000000000;
-    	MinSample[ChannelIdx] = float4(0,0,0,0);
+		MinDistance[ChannelIdx] = 1000000000;
+		MinSample[ChannelIdx] = float4(0,0,0,0);
 
-    	[unroll]
+		[unroll]
 		for (int HorizontalIdx = 0; HorizontalIdx < 3; ++HorizontalIdx)
 		{
 			[unroll]
@@ -79,10 +75,9 @@ void MainCS(
 			{
 				uint NeighborIdx = (VerticalIdx * KERNEL_SIZE) + HorizontalIdx;
 				uint2 NeighborPixelCoord = PixelCoord + (NeighborOffsetIndices[NeighborIdx] * StepSizeWithChannel);
-				if (NeighborPixelCoord.x > InputDimensions.x - 1 || NeighborPixelCoord.y > InputDimensions.y - 1)
-				{
-					continue;
-				}
+
+				// Prevents border banding
+				NeighborPixelCoord = min(InputDimensions - 1, max(uint2(1,1), NeighborPixelCoord));
 
 				uint NeighborPixelCoord1D = (NeighborPixelCoord.y * RowLength) + (NeighborPixelCoord.x * NUM_CHANNELS);
 
@@ -101,7 +96,7 @@ void MainCS(
 			}
 		}
 
-    	MinSample[ChannelIdx].a = Input.a;
-    	OutputBuffer[PixelCoord1D + ChannelIdx] = MinSample[ChannelIdx];
-    }
+		MinSample[ChannelIdx].a = Input.a;
+		OutputBuffer[PixelCoord1D + ChannelIdx] = MinSample[ChannelIdx];
+	}
 }

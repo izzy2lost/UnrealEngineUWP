@@ -124,6 +124,7 @@ TArray<TSharedPtr<IAvaMaskMaterialHandle>> FAvaMaskActorMaterialCollectionHandle
 
 					return { };
 				}
+				
 				MtlHandles.Emplace(MaterialHandle);
 			}
 		}

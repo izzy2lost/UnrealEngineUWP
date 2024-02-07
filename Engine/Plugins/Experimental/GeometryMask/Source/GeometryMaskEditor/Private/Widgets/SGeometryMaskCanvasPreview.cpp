@@ -2,9 +2,9 @@
 
 #include "Widgets/SGeometryMaskCanvasPreview.h"
 
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "Engine/Texture.h"
-#include "Engine/TextureRenderTarget2D.h"
 #include "GeometryMaskEditorLog.h"
 #include "GeometryMaskSubsystem.h"
 #include "GeometryMaskTypes.h"
@@ -104,7 +104,7 @@ void SGeometryMaskCanvasPreview::Tick(const FGeometry& InAllottedGeometry, const
 {
 	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
 
-	UpdateBrush(Canvas.Get(), nullptr);
+	UpdateBrush(CanvasWeak.Get(), nullptr);
 }
 
 const FName SGeometryMaskCanvasPreview::GetCanvasName() const
@@ -184,7 +184,7 @@ void SGeometryMaskCanvasPreview::SetOpacity(const float InValue)
 
 UGeometryMaskCanvas* SGeometryMaskCanvasPreview::GetCanvas() const
 {
-	return Canvas.Get();
+	return CanvasWeak.Get();
 }
 
 FOptionalSize SGeometryMaskCanvasPreview::GetAspectRatio()
@@ -222,11 +222,11 @@ bool SGeometryMaskCanvasPreview::TryResolveCanvas()
 {
 	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
 	{
-		Canvas = Subsystem->GetNamedCanvas(GetCanvasName());
-		UpdateBrush(Canvas.Get(), nullptr);
+		CanvasWeak = Subsystem->GetNamedCanvas(GetCanvasName());
+		UpdateBrush(CanvasWeak.Get(), nullptr);
 	}
 
-	return Canvas != nullptr;
+	return CanvasWeak != nullptr;
 }
 
 void SGeometryMaskCanvasPreview::UpdateBrush(const UGeometryMaskCanvas* InCanvas, UTexture* InTexture)

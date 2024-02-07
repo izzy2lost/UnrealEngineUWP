@@ -2,7 +2,7 @@
 
 #include "/Engine/Public/Platform.ush"
 
-#define TILE_SIZE 8
+#define DEBUG_SOBEL 0
 
 uint2 InputDimensions;
 float2 OneOverInputDimensions;
@@ -36,6 +36,10 @@ void MainCS(
 	float4 Outline = OriginalInputTexture.Load(int3(PixelCoord, 0));
 	float4 Mask = float4(1,1,1,1);
 
+#if DEBUG_SOBEL
+	float4 Sample = InputBuffer[PixelCoord1D];
+	Outline[0] = saturate(distance(UV, Sample.xy));
+#else
 	// Perform on each of R,G,B,A
 	[unroll]
 	for (int ChannelIdx = 0; ChannelIdx < NUM_CHANNELS; ++ChannelIdx)
@@ -43,14 +47,16 @@ void MainCS(
 		const uint OutputChannelIdx = ChannelMap[ChannelIdx];
 		
 		float4 Sample = InputBuffer[PixelCoord1D + ChannelIdx];
+
 		Mask[OutputChannelIdx] = (Sample.x + Sample.y + Sample.a > 0.001);
 
 		Outline[OutputChannelIdx] = saturate(distance(UV, Sample.xy) * StepDistanceMultipliers[OutputChannelIdx]);
 
-		// Set range such that inner going from 0.0-0.5, outer goes from 0.5-1.0
+		// Set range such that inner goes from 0.0-0.5, outer goes from 0.5-1.0
 		Outline[OutputChannelIdx] = mad(Outline[OutputChannelIdx], 0.5, 0.5);
 		Outline[OutputChannelIdx] = 1.0 - abs(Outline[OutputChannelIdx] - saturate(Sample.a));
 	}
+#endif
 
 	Outline = lerp(0, Outline, Mask);
 

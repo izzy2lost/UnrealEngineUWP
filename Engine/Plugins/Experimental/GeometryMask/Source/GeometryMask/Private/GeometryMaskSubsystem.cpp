@@ -2,7 +2,6 @@
 
 #include "GeometryMaskSubsystem.h"
 
-#include "Algo/RemoveIf.h"
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/LocalPlayer.h"
@@ -10,6 +9,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GeometryMaskCanvas.h"
 #include "GeometryMaskCanvasResource.h"
+#include "GeometryMaskModule.h"
 #include "SceneView.h"
 #include "UnrealClient.h"
 
@@ -51,6 +51,11 @@ TArray<FName> UGeometryMaskSubsystem::GetCanvasNames()
 	return {};
 }
 
+int32 UGeometryMaskSubsystem::GetNumActiveCanvasResources() const
+{
+	return NamedCanvases.Num();
+}
+
 const TArray<TObjectPtr<UGeometryMaskCanvasResource>>& UGeometryMaskSubsystem::GetCanvasResources() const
 {
 	return CanvasResources;
@@ -60,21 +65,41 @@ void UGeometryMaskSubsystem::Update(
 	UWorld* InWorld,
 	FSceneViewFamily& InViewFamily)
 {
+	if (!bDoUpdates)
+	{
+		return;
+	}
+	
 	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
 	{
+		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("UGeometryMaskSubsystem::Update"), STAT_GeometryMask_UpdateAll, STATGROUP_GeometryMask);
+	
 		for (const FSceneView*& View : InViewFamily.Views)
 		{
 			FSceneView* MutableView = const_cast<FSceneView*>(View);
+
+			// Removes invalid writers
 			for (const TPair<FName, TObjectPtr<UGeometryMaskCanvas>>& NamedCanvas : Subsystem->NamedCanvases)
 			{
 				NamedCanvas.Value->Update(InWorld, *MutableView);			
 			}
 
+			// Updates the texture resource
 			for (const TObjectPtr<UGeometryMaskCanvasResource>& Resource : CanvasResources)
 			{
 				Resource->Update(InWorld, *MutableView);
 			}
 		}
+	}
+}
+
+void UGeometryMaskSubsystem::ToggleUpdate(const TOptional<bool>& bInShouldUpdate)
+{
+	// New value should be user provided, or the inverse of the existing value (toggle)
+	bool bShouldUpdate = bInShouldUpdate.Get(!bDoUpdates);
+	if (bDoUpdates != bShouldUpdate)
+	{
+		bDoUpdates = bShouldUpdate;
 	}
 }
 

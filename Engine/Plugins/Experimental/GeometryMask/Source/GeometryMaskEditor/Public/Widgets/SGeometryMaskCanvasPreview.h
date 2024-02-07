@@ -86,7 +86,7 @@ private:
 	FSoftObjectPath DefaultTexturePath;
 	TObjectPtr<UTexture> DefaultTexture;
 
-	TWeakObjectPtr<UGeometryMaskCanvas> Canvas;
+	TWeakObjectPtr<UGeometryMaskCanvas> CanvasWeak;
 
 	/** Name of the currently referenced canvas. */
 	TAttribute<FName> CanvasName;
