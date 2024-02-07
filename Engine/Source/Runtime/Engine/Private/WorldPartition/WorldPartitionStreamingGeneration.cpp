@@ -501,14 +501,13 @@ class FWorldPartitionStreamingGenerator
 						ActorSetInstance.DataLayers = StreamingGenerator->GetRuntimeDataLayerInstances(PerInstanceData.DataLayers);
 
 						ActorSetInstance.Bounds.Init();
-						const FTransform& ContainerCollectionInstanceDescriptorTransform = ContainerCollectionInstanceDescriptor.Transform;
-						ActorSetInstance.ForEachActor([this, &ActorSetInstance, &ContainerCollectionInstanceDescriptorTransform](const FGuid& ActorGuid)
+						ActorSetInstance.ForEachActor([this, &ActorSetInstance](const FGuid& ActorGuid)
 						{
 							const FStreamingGenerationActorDescView& ActorDescView = ActorSetInstance.ActorSetContainerInstance->ActorDescViewMap->FindByGuidChecked(ActorGuid);
 							const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
 							if (RuntimeBounds.IsValid)
 							{
-								ActorSetInstance.Bounds += RuntimeBounds.TransformBy(ContainerCollectionInstanceDescriptorTransform);
+								ActorSetInstance.Bounds += RuntimeBounds;
 							}
 						});
 					}
@@ -874,7 +873,7 @@ class FWorldPartitionStreamingGenerator
 						const FBox RuntimeBounds = ActorDescView.GetRuntimeBounds();
 						check(RuntimeBounds.IsValid);
 
-						ContainerCollectionInstanceDescriptor.Bounds += RuntimeBounds.TransformBy(ContainerCollectionInstanceDescriptor.Transform);
+						ContainerCollectionInstanceDescriptor.Bounds += RuntimeBounds;
 					}
 				});
 
@@ -2057,7 +2056,7 @@ FStreamingGenerationContainerInstanceCollection::FStreamingGenerationContainerIn
 
 UWorld* FStreamingGenerationContainerInstanceCollection::GetWorld() const
 {
-	UWorldPartition* WorldPartition = GetBaseContainerInstance()->GetWorldPartition();
+	UWorldPartition* WorldPartition = GetBaseContainerInstance()->GetOuterWorldPartition();
 	check(WorldPartition);
 	UWorld* World = WorldPartition->GetWorld();
 	check(World);
@@ -2231,7 +2230,7 @@ void UWorldPartition::CheckForErrors(const FCheckForErrorsParams& InParams)
 	{
 		TErrorHandlerSelector<FStreamingGenerationLogErrorHandler> ErrorHandlerSelector(InParams.ErrorHandler);
 		const UActorDescContainerInstance* BaseContainerInstance = InCollection.GetBaseContainerInstance();
-		const UWorldPartition* WorldPartition = BaseContainerInstance->GetWorldPartition();
+		const UWorldPartition* WorldPartition = BaseContainerInstance->GetOuterWorldPartition();
 		const TObjectPtr<UWorldPartitionRuntimeHash>& WorldPartitionRuntimeHash = WorldPartition ? WorldPartition->RuntimeHash : nullptr;
 
 		FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams StreamingGeneratorParams = FWorldPartitionStreamingGenerator::FWorldPartitionStreamingGeneratorParams()

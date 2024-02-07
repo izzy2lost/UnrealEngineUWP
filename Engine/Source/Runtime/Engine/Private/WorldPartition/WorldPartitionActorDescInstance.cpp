@@ -67,7 +67,7 @@ TWeakObjectPtr<AActor>* FWorldPartitionActorDescInstance::GetActorPtr(bool bEven
 
 FSoftObjectPath FWorldPartitionActorDescInstance::GetActorSoftPath() const
 {
-	return ActorPath.IsSet() ? ActorPath.GetValue() : GetActorDesc()->GetActorSoftPath();
+	return ActorPath.IsSet() ? ActorPath.GetValue() : ActorDesc->GetActorSoftPath();
 }
 
 FName FWorldPartitionActorDescInstance::GetActorName() const
@@ -77,17 +77,27 @@ FName FWorldPartitionActorDescInstance::GetActorName() const
 
 bool FWorldPartitionActorDescInstance::IsValid() const
 {
-	return !!GetActorDesc();
+	return !!ActorDesc;
 }
 
 bool FWorldPartitionActorDescInstance::IsEditorRelevant() const
 {
-	return GetActorDesc()->IsEditorRelevant(this);
+	return ActorDesc->IsEditorRelevant(this);
 }
 
 bool FWorldPartitionActorDescInstance::IsRuntimeRelevant() const
 {
-	return GetActorDesc()->IsRuntimeRelevant(this);
+	return ActorDesc->IsRuntimeRelevant(this);
+}
+
+FBox FWorldPartitionActorDescInstance::GetEditorBounds() const
+{
+	return ActorDesc->GetEditorBounds().TransformBy(GetContainerInstance()->GetTransform());
+}
+
+FBox FWorldPartitionActorDescInstance::GetRuntimeBounds() const
+{
+	return ActorDesc->GetRuntimeBounds().TransformBy(GetContainerInstance()->GetTransform());
 }
 
 bool FWorldPartitionActorDescInstance::StartAsyncLoad()
@@ -152,7 +162,7 @@ void FWorldPartitionActorDescInstance::MarkUnload()
 	FlushAsyncLoad();
 
 	// Notify Desc as it can have some custom code to run on the actor depending on type
-	GetActorDesc()->OnUnloadingInstance(this);
+	ActorDesc->OnUnloadingInstance(this);
 
 	if (AActor* Actor = GetActor())
 	{
@@ -206,7 +216,7 @@ const FText& FWorldPartitionActorDescInstance::GetUnloadedReason() const
 
 FString FWorldPartitionActorDescInstance::ToString(FWorldPartitionActorDesc::EToStringMode Mode) const
 {
-	return GetActorDesc()->ToString(Mode);
+	return ActorDesc->ToString(Mode);
 }
 
 void FWorldPartitionActorDescInstance::RegisterChildContainerInstance()
@@ -214,7 +224,7 @@ void FWorldPartitionActorDescInstance::RegisterChildContainerInstance()
 	check(IsChildContainerInstance());
 	check(!ChildContainerInstance);
 
-	ChildContainerInstance = GetActorDesc()->CreateChildContainerInstance(this);
+	ChildContainerInstance = ActorDesc->CreateChildContainerInstance(this);
 	check(ChildContainerInstance);
 	ContainerInstance->OnRegisterChildContainerInstance(GetGuid(), ChildContainerInstance);
 }
@@ -231,7 +241,7 @@ void FWorldPartitionActorDescInstance::UpdateChildContainerInstance()
 {
 	// Create before unregistering so that we benefit from shared containers (use GetActorDesc->IsChildContainerInstance as we want to know if our updated desc should be a Container instance or not)
 	// ChildContainerInstance member might be non null and we don't want IsChildContainerInstance() to return true in this case if the ActorDesc isn't a Container anymore
-	UActorDescContainerInstance* NewChildContainerInstance = GetActorDesc()->IsChildContainerInstance() ? GetActorDesc()->CreateChildContainerInstance(this) : nullptr;
+	UActorDescContainerInstance* NewChildContainerInstance = ActorDesc->IsChildContainerInstance() ? ActorDesc->CreateChildContainerInstance(this) : nullptr;
 	
 	// Unregister previous
 	if (ChildContainerInstance)

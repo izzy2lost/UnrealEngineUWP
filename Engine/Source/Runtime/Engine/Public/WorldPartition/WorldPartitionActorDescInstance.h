@@ -61,8 +61,8 @@ public:
 	virtual FName GetFolderPath() const { return ActorDesc->GetFolderPath(); }
 	virtual const FGuid& GetFolderGuid() const { return ActorDesc->GetFolderGuid(); }
 
-	virtual FBox GetEditorBounds() const { return ActorDesc->GetEditorBounds(); }
-	virtual FBox GetRuntimeBounds() const { return ActorDesc->GetRuntimeBounds(); }
+	ENGINE_API virtual FBox GetEditorBounds() const;
+	ENGINE_API virtual FBox GetRuntimeBounds() const;
 
 	virtual bool GetProperty(FName PropertyName, FName* PropertyValue) const { return ActorDesc->GetProperty(PropertyName, PropertyValue); }
 	virtual bool HasProperty(FName PropertyName) const { return ActorDesc->HasProperty(PropertyName); }
