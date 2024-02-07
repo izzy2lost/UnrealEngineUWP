@@ -86,7 +86,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
 			schedule.MaxChanges = 10;
-			schedule.Patterns.Add(new SchedulePatternConfig { Interval = 1 });
+			schedule.Patterns.Add(new SchedulePatternConfig { Interval = new ScheduleInterval(1) });
 			schedule.Files = files.ToList();
 			await SetScheduleAsync(schedule);
 
@@ -201,7 +201,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 //			Schedule.LastTriggerTime = StartTime;
 			await SetScheduleAsync(schedule);
 
@@ -230,7 +230,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 			await SetScheduleAsync(schedule);
 
 			// Initial tick
@@ -273,7 +273,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 			schedule.MaxChanges = 2;
 			schedule.Commits.Add(CommitTag.Code);
 			await SetScheduleAsync(schedule);
@@ -311,7 +311,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 			schedule.MaxChanges = 2;
 			schedule.Commits.Add(CommitTag.Code);
 			await SetScheduleAsync(schedule);
@@ -350,7 +350,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
 			schedule.RequireSubmittedChange = false;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 			schedule.MaxActive = 1;
 			await SetScheduleAsync(schedule);
 
@@ -392,8 +392,8 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
-			/*IStream stream = */await SetScheduleAsync(schedule);
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
+			_ = await SetScheduleAsync(schedule);
 
 			// Trigger a job
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
@@ -517,7 +517,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			newTemplate2.Schedule.MaxChanges = 4;
 			newTemplate2.Schedule.Commits.Add(CommitTag.Code);
 			newTemplate2.Schedule.Gate = new ScheduleGateConfig { TemplateId = newTemplateRefId1, Target = "TriggerNext" };
-			newTemplate2.Schedule.Patterns.Add(new SchedulePatternConfig { Interval = 10 });// (null, 0, null, 10));
+			newTemplate2.Schedule.Patterns.Add(new SchedulePatternConfig { Interval = ScheduleInterval.Parse("10m") });// (null, 0, null, 10));
 //			NewTemplate2.Schedule.LastTriggerTime = StartTime;
 
 //			IStream? stream = await StreamService.GetStreamAsync(StreamId);
@@ -586,7 +586,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
 			schedule.RequireSubmittedChange = false;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 			schedule.MaxActive = 2;
 			await SetScheduleAsync(schedule);
 
@@ -622,7 +622,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 
 			ScheduleConfig schedule = new ScheduleConfig();
 			schedule.Enabled = true;
-			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 });
+			schedule.Patterns.Add(new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") });
 			IStream stream = await SetScheduleAsync(schedule);
 
 			IStreamCollection streamCollection = ServiceProvider.GetRequiredService<IStreamCollection>();
@@ -684,7 +684,7 @@ namespace Horde.Server.Tests.Jobs.Schedules
 			templateConfig.Schedule = new ScheduleConfig
 			{
 				Enabled = true,
-				Patterns = new List<SchedulePatternConfig> { new SchedulePatternConfig { MinTime = 13 * 60, MaxTime = 14 * 60, Interval = 15 } }
+				Patterns = new List<SchedulePatternConfig> { new SchedulePatternConfig { MinTime = ScheduleTimeOfDay.Parse("13:00"), MaxTime = ScheduleTimeOfDay.Parse("14:00"), Interval = ScheduleInterval.Parse("15m") } }
 			};
 
 			StreamConfig streamConfig = new StreamConfig();

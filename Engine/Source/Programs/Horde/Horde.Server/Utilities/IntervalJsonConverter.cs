@@ -3,6 +3,7 @@
 using System;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Horde.Server.Utilities
@@ -26,10 +27,17 @@ namespace Horde.Server.Utilities
 		/// <inheritdoc/>
 		public override TimeSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 		{
-			string? time = reader.GetString();
+			return Parse(reader.GetString());
+		}
+
+		/// <summary>
+		/// Parse a string as a time interval
+		/// </summary>
+		public static TimeSpan Parse(string? time)
+		{
 			if (String.IsNullOrEmpty(time))
 			{
-				throw new JsonException("TimeSpan may not be empty");
+				throw new FormatException("TimeSpan may not be empty");
 			}
 
 			if (TimeSpan.TryParse(time, out TimeSpan result))
@@ -51,7 +59,7 @@ namespace Horde.Server.Utilities
 				}
 				if (length == 0)
 				{
-					throw new JsonException($"Unable to parse '{time}' as a TimeSpan. Invalid value.");
+					throw new FormatException($"Unable to parse '{time}' as a TimeSpan. Invalid value.");
 				}
 				span = span.Slice(length);
 
@@ -69,7 +77,7 @@ namespace Horde.Server.Utilities
 					}
 					if (suffixIdx == s_timeSuffixes.Length)
 					{
-						throw new JsonException($"Unable to parse '{time}' as a TimeSpan. Invalid suffix.");
+						throw new FormatException($"Unable to parse '{time}' as a TimeSpan. Invalid suffix.");
 					}
 					span = span.Slice(length);
 				}

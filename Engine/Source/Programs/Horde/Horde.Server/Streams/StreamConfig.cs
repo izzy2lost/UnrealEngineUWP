@@ -26,6 +26,8 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Replicators;
 using EpicGames.Horde.Replicators;
+using System.Text.Json;
+using Horde.Server.Utilities;
 
 namespace Horde.Server.Streams
 {
@@ -890,17 +892,17 @@ namespace Horde.Server.Streams
 		/// <summary>
 		/// Time during the day for the first schedule to trigger. Measured in minutes from midnight.
 		/// </summary>
-		public int MinTime { get; set; }
+		public ScheduleTimeOfDay MinTime { get; set; } = new ScheduleTimeOfDay(0);
 
 		/// <summary>
 		/// Time during the day for the last schedule to trigger. Measured in minutes from midnight.
 		/// </summary>
-		public int? MaxTime { get; set; }
+		public ScheduleTimeOfDay? MaxTime { get; set; }
 
 		/// <summary>
 		/// Interval between each schedule triggering
 		/// </summary>
-		public int? Interval { get; set; }
+		public ScheduleInterval? Interval { get; set; }
 
 		/// <summary>
 		/// Constructor
@@ -919,9 +921,9 @@ namespace Horde.Server.Streams
 		public SchedulePatternConfig(List<DayOfWeek>? daysOfWeek, int minTime, int? maxTime, int? interval)
 		{
 			DaysOfWeek = daysOfWeek;
-			MinTime = minTime;
-			MaxTime = maxTime;
-			Interval = interval;
+			MinTime = new ScheduleTimeOfDay(minTime);
+			MaxTime = (maxTime != null)? new ScheduleTimeOfDay(maxTime.Value) : null;
+			Interval = (interval != null)? new ScheduleInterval(interval.Value) : null;
 		}
 
 		/// <summary>
@@ -945,21 +947,21 @@ namespace Horde.Server.Streams
 					int lastTimeMinutes = (int)(lastTime - baseTime).TotalMinutes;
 
 					// Get the time of the first trigger of this day. If the last time is less than this, this is the next trigger.
-					if (lastTimeMinutes < MinTime)
+					if (lastTimeMinutes < MinTime.Minutes)
 					{
-						return baseTime.AddMinutes(MinTime).UtcDateTime;
+						return baseTime.AddMinutes(MinTime.Minutes).UtcDateTime;
 					}
 
 					// Otherwise, get the time for the last trigger in the day.
-					if (Interval.HasValue && Interval.Value > 0)
+					if (Interval != null && Interval.Minutes > 0)
 					{
-						int actualMaxTime = MaxTime ?? ((24 * 60) - 1);
+						int actualMaxTime = MaxTime?.Minutes ?? ((24 * 60) - 1);
 						if (lastTimeMinutes < actualMaxTime)
 						{
-							int lastIndex = (lastTimeMinutes - MinTime) / Interval.Value;
+							int lastIndex = (lastTimeMinutes - MinTime.Minutes) / Interval.Minutes;
 							int nextIndex = lastIndex + 1;
 
-							int nextTimeMinutes = MinTime + (nextIndex * Interval.Value);
+							int nextTimeMinutes = MinTime.Minutes + (nextIndex * Interval.Minutes);
 							if (nextTimeMinutes <= actualMaxTime)
 							{
 								return baseTime.AddMinutes(nextTimeMinutes).UtcDateTime;
@@ -969,6 +971,80 @@ namespace Horde.Server.Streams
 				}
 				baseTime = baseTime.AddDays(1.0);
 			}
+		}
+	}
+
+	/// <summary>
+	/// Time of day value for a schedule
+	/// </summary>
+	[JsonSchemaString]
+	[JsonConverter(typeof(ScheduleTimeOfDayJsonConverter))]
+	public record class ScheduleTimeOfDay(int Minutes)
+	{
+		/// <summary>
+		/// Parse a string as a time of day
+		/// </summary>
+		[return: NotNullIfNotNull("text")]
+		public static ScheduleTimeOfDay? Parse(string? text)
+			=> (text != null)? new ScheduleTimeOfDay((int)TimeOfDayJsonConverter.Parse(text).TotalMinutes) : null;
+	}
+
+	class ScheduleTimeOfDayJsonConverter : JsonConverter<ScheduleTimeOfDay>
+	{
+		/// <inheritdoc/>
+		public override ScheduleTimeOfDay? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			if (reader.TokenType == JsonTokenType.Number)
+			{
+				return new ScheduleTimeOfDay(reader.GetInt32());
+			}
+			else
+			{
+				return ScheduleTimeOfDay.Parse(reader.GetString());
+			}
+		}
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, ScheduleTimeOfDay value, JsonSerializerOptions options)
+		{
+			writer.WriteNumberValue(value.Minutes);
+		}
+	}
+
+	/// <summary>
+	/// Time of day value for a schedule
+	/// </summary>
+	[JsonSchemaString]
+	[JsonConverter(typeof(ScheduleIntervalJsonConverter))]
+	public record class ScheduleInterval(int Minutes)
+	{
+		/// <summary>
+		/// Parse a string as a time of day
+		/// </summary>
+		[return: NotNullIfNotNull("text")]
+		public static ScheduleInterval? Parse(string? text)
+			=> (text != null) ? new ScheduleInterval((int)IntervalJsonConverter.Parse(text).TotalMinutes) : null;
+	}
+
+	class ScheduleIntervalJsonConverter : JsonConverter<ScheduleInterval>
+	{
+		/// <inheritdoc/>
+		public override ScheduleInterval? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			if (reader.TokenType == JsonTokenType.Number)
+			{
+				return new ScheduleInterval(reader.GetInt32());
+			}
+			else
+			{
+				return ScheduleInterval.Parse(reader.GetString());
+			}
+		}
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, ScheduleInterval value, JsonSerializerOptions options)
+		{
+			writer.WriteNumberValue(value.Minutes);
 		}
 	}
 
