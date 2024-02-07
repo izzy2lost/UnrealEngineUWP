@@ -150,7 +150,9 @@ struct FSSDSampleAccumulationInfos
 	FSSDSignalFrequency Frequency;
 
 	// Weight of the sample in the kernel.
-	float FinalWeight;
+	// FinalWeight.x: regular weight of the sample
+	// FinalWeight.y: weight for transmission distance. It should not blend across subsurface profile shading model
+	float2 FinalWeights;
 
 	// 1 / SignalFrequency
 	float InvFrequency;
@@ -178,14 +180,14 @@ float AmendWorldBluringRadiusCausedByPixelSize(float WorldBluringDistance)
 /** Accumulate a sample withing the accumulator. */
 void AccumulateSampleInOneBin(inout FSSDSignalAccumulator Accumulator, FSSDSampleAccumulationInfos SampleInfos)
 {
-	float SampleWeight = SampleInfos.FinalWeight;
+	float2 SampleWeights = SampleInfos.FinalWeights;
 	
 	#if COMPILE_MOMENT1_ACCUMULATOR
-		Accumulator.Moment1 = AddSignal(Accumulator.Moment1, MulSignal(SampleInfos.Sample, SampleWeight));
+		Accumulator.Moment1 = AddSignal(Accumulator.Moment1, MulSignals(SampleInfos.Sample, SampleWeights));
 	#endif
 	
 	#if COMPILE_MOMENT2_ACCUMULATOR
-		Accumulator.Moment2 = AddSignal(Accumulator.Moment2, MulSignal(PowerSignal(SampleInfos.Sample, 2), SampleWeight));
+		Accumulator.Moment2 = AddSignal(Accumulator.Moment2, MulSignals(PowerSignal(SampleInfos.Sample, 2), SampleWeights));
 	#endif
 }
 
@@ -196,7 +198,7 @@ void AccumulateSampleInOneBin(inout FSSDSignalAccumulator Accumulator, FSSDSampl
 void AccumulateSampleInDomainBoundaries(inout FSSDSignalAccumulator Accumulator, FSSDSampleAccumulationInfos SampleInfos)
 {
 	FLATTEN
-	if (SampleInfos.FinalWeight > 0)
+	if (SampleInfos.FinalWeights.x > 0)
 	{
 		#if COMPILE_MINMAX_ACCUMULATOR
 		{
@@ -262,9 +264,9 @@ void AccumulateSampleInDRB(inout FSSDSignalAccumulator Accumulator, FSSDSampleAc
 	
 	// Accumulate current bucket.
 	{
-		float CurrentWeight = A.FinalWeight * bBelongsToCurrent;
-		Accumulator.Current = AddSignal(Accumulator.Current, MulSignal(A.Sample, CurrentWeight));
-		Accumulator.CurrentInvFrequency += A.Sample.SampleCount * ClampedInvFrequency * CurrentWeight;
+		float2 CurrentWeights = A.FinalWeights * bBelongsToCurrent;
+		Accumulator.Current = AddSignal(Accumulator.Current, MulSignals(A.Sample, CurrentWeights));
+		Accumulator.CurrentInvFrequency += A.Sample.SampleCount * ClampedInvFrequency * CurrentWeights.x;
 	}
 
 	// Accumulate current bucket translucency.
@@ -283,9 +285,9 @@ void AccumulateSampleInDRB(inout FSSDSignalAccumulator Accumulator, FSSDSampleAc
 
 	// Accumulate previous bucket.
 	{
-		float PreviousWeight = A.FinalWeight * bBelongsToPrevious;
-		Accumulator.Previous = AddSignal(Accumulator.Previous, MulSignal(A.Sample, PreviousWeight));
-		Accumulator.PreviousInvFrequency += A.Sample.SampleCount * ClampedInvFrequency * PreviousWeight;
+		float2 PreviousWeights = A.FinalWeights * bBelongsToPrevious;
+		Accumulator.Previous = AddSignal(Accumulator.Previous, MulSignals(A.Sample, PreviousWeights));
+		Accumulator.PreviousInvFrequency += A.Sample.SampleCount * ClampedInvFrequency * PreviousWeights.x;
 	}
 }
 

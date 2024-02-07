@@ -734,7 +734,7 @@ void AccumulateSampledMultiplexedSignals(
 		}
 	
 		// Compute the weight to be applied to do bilateral rejection.
-		float BilateralWeight = ComputeBilateralWeight(
+		float2 BilateralWeights = ComputeBilateralWeight(
 			KernelConfig.BilateralSettings[SignalMultiplexId],
 			FinalWorldBluringDistance,
 			DomainKnowledge,
@@ -745,12 +745,12 @@ void AccumulateSampledMultiplexedSignals(
 		FSSDSampleAccumulationInfos SampleInfos;
 		SampleInfos.Sample = Sample;
 		SampleInfos.Frequency = SampleFrequency;
-		SampleInfos.FinalWeight = KernelSampleWeight * BilateralWeight;
+		SampleInfos.FinalWeights = KernelSampleWeight * BilateralWeights;
 		SampleInfos.InvFrequency = SignalConvolutionBluringRadius;
 
 		if (bForceSample || KernelConfig.bForceAllAccumulation)
 		{
-			SampleInfos.FinalWeight = 1;
+			SampleInfos.FinalWeights = 1;
 		}
 
 		// TODO(Denoiser): bIsOutsideFrustum could afect number of samples for DRB.

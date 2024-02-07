@@ -895,7 +895,7 @@ void MainCS(
 				FSSDSampleAccumulationInfos SampleInfos;
 				SampleInfos.Sample = CenterSample;
 				SampleInfos.Frequency = RefFrequencies.Array[SignalMultiplexId];
-				SampleInfos.FinalWeight = 1.0;
+				SampleInfos.FinalWeights = 1.0;
 				SampleInfos.InvFrequency = GetSignalWorldBluringRadius(SampleInfos.Frequency, RefSceneMetadata, DomainKnowledge);
 				
 				if (KernelConfig.BilateralDistanceComputation == SIGNAL_WORLD_FREQUENCY_PRECOMPUTED_BLURING_RADIUS)
