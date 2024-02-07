@@ -12,6 +12,7 @@
 class FGeometryMaskPostProcess_Blur;
 class IGeometryMaskWriteInterface;
 class UCanvas;
+class UCanvasRenderTarget2D;
 class UGeometryMaskCanvasResource;
 class UGeometryMaskPrimitive;
 class UGeometryMaskSubsystem;
