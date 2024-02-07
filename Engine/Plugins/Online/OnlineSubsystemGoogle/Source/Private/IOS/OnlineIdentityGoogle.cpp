@@ -9,11 +9,9 @@
 
 FOnlineIdentityGoogle::FOnlineIdentityGoogle(FOnlineSubsystemGoogle* InSubsystem)
 	: FOnlineIdentityGoogleCommon(InSubsystem)
+	, bAllowSilentSignIn(false)
 {
-	if (!GConfig->GetString(TEXT("OnlineSubsystemGoogle.OnlineIdentityGoogle"), TEXT("ReversedClientId"), ReversedClientId, GEngineIni))
-	{
-		UE_LOG_ONLINE_IDENTITY(Warning, TEXT("Missing ReversedClientId= in [OnlineSubsystemGoogle.OnlineIdentityGoogle] of DefaultEngine.ini"));
-	}
+	GConfig->GetBool(TEXT("OnlineSubsystemGoogle.OnlineIdentityGoogle"), TEXT("bAllowedSilentSignIn"), bAllowSilentSignIn, GEngineIni);
 
 	// Setup permission scope fields
 	GConfig->GetArray(TEXT("OnlineSubsystemGoogle.OnlineIdentityGoogle"), TEXT("ScopeFields"), ScopeFields, GEngineIni);
@@ -21,10 +19,13 @@ FOnlineIdentityGoogle::FOnlineIdentityGoogle(FOnlineSubsystemGoogle* InSubsystem
 	ScopeFields.AddUnique(TEXT(GOOGLE_PERM_PUBLIC_PROFILE));
 }
 
+FOnlineIdentityGoogle::~FOnlineIdentityGoogle()
+{
+}
+
 bool FOnlineIdentityGoogle::Init()
 {
-	GoogleHelper = [[FGoogleHelper alloc] initwithClientId: GoogleSubsystem->GetAppId().GetNSString() withBasicProfile: true];
-	[GoogleHelper retain];
+	GoogleHelper = [[FGoogleHelper alloc] init];
 
 	FOnGoogleSignInCompleteDelegate OnSignInDelegate;
 	OnSignInDelegate.BindRaw(this, &FOnlineIdentityGoogle::OnSignInComplete);
@@ -103,8 +104,7 @@ bool FOnlineIdentityGoogle::Login(int32 LocalUserNum, const FOnlineAccountCreden
 						}
 					});
 
-					[GoogleHelper login: Permissions];
-					[Permissions release];
+					[GoogleHelper Login: Permissions attemptSilentSignIn: bAllowSilentSignIn];
 				}
 				else
 				{
@@ -211,7 +211,7 @@ bool FOnlineIdentityGoogle::Logout(int32 LocalUserNum)
 			});
 
 			bTriggeredLogout = true;
-			[GoogleHelper logout];
+			[GoogleHelper Logout];
 		}
 		else
 		{

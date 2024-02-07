@@ -7,14 +7,15 @@
 #include "IOS/IOSAppDelegate.h"
 
 #include "OnlineIdentityGoogle.h"
-//#include "OnlineExternalUIInterfaceGoogle.h"
+#include "OnlineExternalUIInterfaceGoogleIOS.h"
+
+THIRD_PARTY_INCLUDES_START
 #import <GoogleSignIn/GoogleSignIn.h>
+THIRD_PARTY_INCLUDES_END
 
 static void OnGoogleOpenURL(UIApplication* application, NSURL* url, NSString* sourceApplication, id annotation)
 {
-	bool bResult = [[GIDSignIn sharedInstance] handleURL:url
-								       sourceApplication:sourceApplication
-									   annotation:annotation];
+	bool bResult = [[GIDSignIn sharedInstance] handleURL:url];
 	UE_LOG_ONLINE(Display, TEXT("OnGoogleOpenURL %s %d"), *FString(url.absoluteString), bResult);
 }
 
@@ -27,6 +28,7 @@ static void OnGoogleAppDidBecomeActive()
 FOnlineSubsystemGoogle::FOnlineSubsystemGoogle(FName InInstanceName)
 	: FOnlineSubsystemGoogleCommon(InInstanceName)
 {
+	
 }
 
 FOnlineSubsystemGoogle::~FOnlineSubsystemGoogle()
@@ -46,7 +48,7 @@ bool FOnlineSubsystemGoogle::Init()
 			GoogleIdentity = TempPtr;
 		}
 		
-		//GoogleExternalUI = MakeShareable(new FOnlineExternalUIGoogle(this));
+		GoogleExternalUI = MakeShareable(new FOnlineExternalUIGoogleIOS(this));
 		return GoogleIdentity.IsValid();
 	}
 
