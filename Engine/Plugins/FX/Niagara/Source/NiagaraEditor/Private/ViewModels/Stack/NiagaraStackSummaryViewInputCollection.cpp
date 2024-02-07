@@ -86,12 +86,7 @@ void UNiagaraStackSummaryViewCollection::RefreshForAdvancedToggle()
 
 bool UNiagaraStackSummaryViewCollection::GetShouldShowInStack() const
 {
-	if(GetEmitterViewModel().IsValid())
-	{
-		return GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView();
-	}
-
-	return false;
+	return true;
 }
 
 void UNiagaraStackSummaryViewCollection::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)

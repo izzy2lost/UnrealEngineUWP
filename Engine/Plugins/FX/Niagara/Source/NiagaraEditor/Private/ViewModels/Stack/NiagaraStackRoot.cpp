@@ -147,6 +147,8 @@ void UNiagaraStackRoot::RefreshEmitterFullChildren(const TArray<UNiagaraStackEnt
 
 	NewChildren.Add(GetOrCreateEmitterPropertiesGroup(CurrentChildren));
 
+	NewChildren.Add(GetOrCreateEmitterSummaryGroup(CurrentChildren));
+
 	UNiagaraStackEntry* EmitterSpawnEntry = GetCurrentScriptGroup(CurrentChildren, ENiagaraScriptUsage::EmitterSpawnScript, FGuid());
 	if (EmitterSpawnEntry == nullptr)
 	{
