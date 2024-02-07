@@ -363,27 +363,44 @@ namespace Horde.Server.Server
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			await Task.WhenAll(_collectionUpgradeTasks.Values);
+			try
+			{
+				await Task.WhenAll(_collectionUpgradeTasks.Values);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogInformation(ex, "Discarded upgrade task exception: {Message}", ex.Message);
+			}
 
 			if (_mongoProcess != null)
 			{
-				GenerateConsoleCtrlEvent(CtrlCEvent, _mongoProcess.Id);
-
-				if (_mongoOutputTask != null)
+				try
 				{
-					await _mongoOutputTask;
-					_mongoOutputTask = null;
-				}
+					GenerateConsoleCtrlEvent(CtrlCEvent, _mongoProcess.Id);
 
-				await _mongoProcess.WaitForExitAsync();
-				_mongoProcess.Dispose();
-				_mongoProcess = null;
+					if (_mongoOutputTask != null)
+					{
+						await _mongoOutputTask;
+						_mongoOutputTask = null;
+					}
+
+					await _mongoProcess.WaitForExitAsync();
+
+					_mongoProcess.Dispose();
+					_mongoProcess = null;
+				}
+				catch (Exception ex)
+				{
+					_logger.LogInformation(ex, "Unable to terminate mongo process: {Message}", ex.Message);
+				}
 			}
+
 			if (_mongoProcessGroup != null)
 			{
 				_mongoProcessGroup.Dispose();
 				_mongoProcessGroup = null;
 			}
+
 			//_upgradeSema.Dispose();
 			s_existingInstance = null;
 		}
