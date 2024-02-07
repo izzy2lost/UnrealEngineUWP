@@ -242,6 +242,19 @@ void FDataflowEditorModeToolkit::OnToolStarted(UInteractiveToolManager* Manager,
 
 void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
+	auto GetConstructionScene = [&]() 
+	{
+		if (OwningEditorMode.IsValid(/*bEvenIfPendingKill*/ false))
+		{
+			UEdMode* const Mode = OwningEditorMode.Get();
+			if (UDataflowEditorMode* DataflowEdMode = Cast<UDataflowEditorMode>(Mode))
+			{
+				return DataflowEdMode->GetDataflowConstructionScene();
+			}
+		}
+		return (FDataflowConstructionScene* )nullptr;
+	};
+
 	FModeToolkit::OnToolEnded(Manager, Tool);
 
 	ActiveToolName = FText::GetEmpty();
@@ -258,11 +271,22 @@ void FDataflowEditorModeToolkit::OnToolEnded(UInteractiveToolManager* Manager, U
 		CurTool->OnPropertySetsModified.RemoveAll(this);
 		CurTool->OnPropertyModifiedDirectlyByTool.RemoveAll(this);
 	}
+
+
+	if (FDataflowConstructionScene* ConstructionScene = GetConstructionScene())
+	{
+		if (TObjectPtr<UDataflowBaseContent> Content = ConstructionScene->GetDataflowContent())
+		{
+			Content->SetIsDirty(true);
+		}
+	}
+
 }
 
 void FDataflowEditorModeToolkit::SetRestSpaceViewportWidget(TWeakPtr<SDataflowEditorViewport> InRestSpaceViewportWidget)
 {
 	RestSpaceViewportWidget = InRestSpaceViewportWidget;
 }
+
 
 #undef LOCTEXT_NAMESPACE
