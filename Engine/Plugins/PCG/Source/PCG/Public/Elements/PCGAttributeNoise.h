@@ -13,7 +13,7 @@
 
 #include "PCGAttributeNoise.generated.h"
 
-UENUM()
+UENUM(BlueprintType)
 enum class EPCGAttributeNoiseMode : uint8
 {
 	Set,
