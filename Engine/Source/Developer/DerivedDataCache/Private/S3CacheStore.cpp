@@ -58,8 +58,8 @@
 namespace UE::DerivedData
 {
 
-TRACE_DECLARE_INT_COUNTER(S3DDC_Get, TEXT("S3DDC Get"));
-TRACE_DECLARE_INT_COUNTER(S3DDC_GetHit, TEXT("S3DDC Get Hit"));
+TRACE_DECLARE_ATOMIC_INT_COUNTER(S3DDC_Get, TEXT("S3DDC Get"));
+TRACE_DECLARE_ATOMIC_INT_COUNTER(S3DDC_GetHit, TEXT("S3DDC Get Hit"));
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
