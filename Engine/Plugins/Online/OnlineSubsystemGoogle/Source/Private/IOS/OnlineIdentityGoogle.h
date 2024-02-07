@@ -49,9 +49,7 @@ public:
 	/**
 	 * Destructor
 	 */
-	virtual ~FOnlineIdentityGoogle()
-	{
-	}
+	virtual ~FOnlineIdentityGoogle();
 
 	bool Init();
 
@@ -67,20 +65,20 @@ PACKAGE_SCOPE:
 	void Login(int32 LocalUserNum, const FAuthTokenGoogle& InToken, const FOnLoginCompleteDelegate& InCompletionDelegate);
 
 private:
-
 	void OnSignInComplete(const FGoogleSignInData& InSignInData);
 	void OnSignOutComplete(const FGoogleSignOutData& InSignOutData);
 
 	void OnAccessTokenLoginComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UniqueId, const FString& Error);
 	void OnLoginAttemptComplete(int32 LocalUserNum, const FString& ErrorStr);
 
-	FString ReversedClientId;
-	
 	/** ObjC helper for access to SDK methods and callbacks */
 	FGoogleHelper* GoogleHelper;
 
 	/** Config based list of permission scopes to use when logging in */
 	TArray<FString> ScopeFields;
+	
+	/** Is it allowed to try to refresh the tokens instead of full a login? */
+	bool bAllowSilentSignIn;
 
 	/** Delegate holder for all internal related login callbacks */
 	DECLARE_DELEGATE_TwoParams(FOnInternalLoginComplete, EGoogleLoginResponse /*InLoginResponse*/, const FAuthTokenGoogle& /*AccessToken*/);
