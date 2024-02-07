@@ -667,7 +667,9 @@ typedef uint32 ELazyLoaderFlags;
  * @param LinkerLoadedCallback Callback when the linker is loaded (or not found)
  * @return Pointer to the loaded linker or null if the file didn't exist
  */
+UE_DEPRECATED(5.4, "Use GetPackageLinker instead")
 COREUOBJECT_API FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const FPackagePath& PackagePath, uint32 LoadFlags, UPackageMap* Sandbox, FArchive* InReaderOverride, TFunctionRef<void(FLinkerLoad* LoadedLinker)> LinkerLoadedCallback);
+UE_DEPRECATED(5.4, "Use GetPackageLinker instead")
 COREUOBJECT_API FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const FPackagePath& PackagePath, uint32 LoadFlags = LOAD_None, UPackageMap* Sandbox = nullptr, FArchive* InReaderOverride = nullptr);
 
 UE_DEPRECATED(5.0, "Use version that takes a FPackagePath without a FGuid instead")
@@ -676,7 +678,7 @@ UE_DEPRECATED(5.0, "Use version that takes a FPackagePath without a FGuid instea
 COREUOBJECT_API FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const TCHAR* InLongPackageName, uint32 LoadFlags = LOAD_None, UPackageMap* Sandbox = nullptr, FGuid* CompatibleGuid = nullptr, FArchive* InReaderOverride = nullptr);
 
 /** 
- * Gets a linker for a package and returns it without loading any objects. This call must be preceeded by BeginLoad and followed by EndLoad calls
+ * Gets a linker for a package and returns it without loading any objects.
  * @param InOuter Package if known, can be null
  * @param PackagePath Package resource to load, must not be empty
  * @param LoadFlags Flags to pass to the new linker

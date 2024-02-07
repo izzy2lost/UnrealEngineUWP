@@ -818,7 +818,7 @@ int32 ULoadPackageCommandlet::Main( const FString& Params )
 
 		if (bCheckForLegacyPackages)
 		{
-			FLinkerLoad* Linker = LoadPackageLinker(nullptr, PackagePath, LOAD_NoVerify);
+			FLinkerLoad* Linker = GetPackageLinker(nullptr, PackagePath, LOAD_NoVerify, nullptr);
 			MinVersion = FMath::Min<int32>(MinVersion, Linker->Summary.GetFileVersionUE().ToValue());
 		}
 		else
