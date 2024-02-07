@@ -9,13 +9,11 @@
 UGraphIsland::UGraphIsland()
 	: Super(EGraphElementType::Island)
 {
-	bPendingDestroy = false;
 }
 
 void UGraphIsland::Destroy()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraphIsland::Destroy);
-	bPendingDestroy = true;
 	TSet<FGraphVertexHandle> VertexCopy = Vertices;
 	Vertices.Empty();
 
