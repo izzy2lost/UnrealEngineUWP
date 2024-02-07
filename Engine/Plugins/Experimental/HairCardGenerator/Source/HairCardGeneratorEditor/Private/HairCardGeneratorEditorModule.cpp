@@ -363,29 +363,40 @@ static bool HairCardGeneratorEditor_Impl::GenerateCardsGeometry(TObjectPtr<const
 		return FHairCardGenCardSubdivider::GetToleranceFromLengthAndCurvRadius(AvgLength, AvgCurvRadius, NumSubdivisions);
 	};
 
+	int const InitialTargetTriCount = Settings->GetFilterGroupSettings(index)->TargetTriangleCount;
+
 	FHairCardGenCardSubdivider Subdivider(
-		GetSubdToleranceFromTriCount(Settings->GetFilterGroupSettings(index)->TargetTriangleCount),
+		GetSubdToleranceFromTriCount(InitialTargetTriCount),
 		Settings->GetFilterGroupSettings(index)->UseAdaptiveSubdivision,
 		Settings->GetFilterGroupSettings(index)->MaxVerticalSegmentsPerCard);
 
-	auto CountTriangles = [&Subdivider, &AvgCurves]() 
+	if (InitialTargetTriCount <= 2 * TotalNumCards)
 	{
-		int TriCount = 0;
-		for (int CardId = 0; CardId < AvgCurves.Num(); CardId++) TriCount += 2 * (Subdivider.GetSubdivisionPoints(AvgCurves[CardId]).Num() / 3 - 1);
-		return TriCount;
-	};
-
-	const int InitialTargetTriCount = Settings->GetFilterGroupSettings(index)->TargetTriangleCount;
-	const int InitialTriCount = CountTriangles();
-
-	const int ShiftedTargetTriCount = 2 * InitialTargetTriCount - InitialTriCount;
-	Subdivider.SetSubdTolerance(GetSubdToleranceFromTriCount(ShiftedTargetTriCount));
-	const int ShiftedTriCount = CountTriangles();
-
-	if (InitialTriCount != ShiftedTriCount)
+		Subdivider.SetSubdTolerance(-1.);
+	}
+	else
 	{
-		const int CorrectedTargetTriCount = InitialTargetTriCount + int(float(ShiftedTargetTriCount - InitialTargetTriCount) / float(ShiftedTriCount - InitialTriCount) * float(InitialTargetTriCount - InitialTriCount));
-		Subdivider.SetSubdTolerance(GetSubdToleranceFromTriCount(CorrectedTargetTriCount));
+		auto CountTriangles = [&Subdivider, &AvgCurves]() 
+		{
+			int TriCount = 0;
+			for (int CardId = 0; CardId < AvgCurves.Num(); CardId++) TriCount += 2 * (Subdivider.GetSubdivisionPoints(AvgCurves[CardId]).Num() / 3 - 1);
+			return TriCount;
+		};
+
+		const int InitialTriCount = CountTriangles();
+
+		int ShiftedTargetTriCount = 2 * InitialTargetTriCount - InitialTriCount;
+		int const MinTargetTriCount = 2.2 * float(TotalNumCards * InitialTargetTriCount) / float(InitialTriCount);
+		if (ShiftedTargetTriCount < MinTargetTriCount) ShiftedTargetTriCount = MinTargetTriCount;
+
+		Subdivider.SetSubdTolerance(GetSubdToleranceFromTriCount(ShiftedTargetTriCount));
+		const int ShiftedTriCount = CountTriangles();
+
+		if (InitialTriCount != ShiftedTriCount)
+		{
+			const int CorrectedTargetTriCount = InitialTargetTriCount + int(float(ShiftedTargetTriCount - InitialTargetTriCount) / float(ShiftedTriCount - InitialTriCount) * float(InitialTargetTriCount - InitialTriCount));
+			Subdivider.SetSubdTolerance(GetSubdToleranceFromTriCount(CorrectedTargetTriCount));
+		}
 	}
 
 	CardId = 0;

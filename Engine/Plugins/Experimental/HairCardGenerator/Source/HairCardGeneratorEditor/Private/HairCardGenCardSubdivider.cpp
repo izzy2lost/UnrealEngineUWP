@@ -172,9 +172,17 @@ TArray<float> FHairCardGenCardSubdivider::GetSubdivisionPoints(const MatrixXf Po
 
 	if (UseAdaptive)
 	{
-		SubdTolerance = SubdToleranceInitial;
-		MeanCurve = LinearInterpolation(Points, NumInterpPoints);
-		SubdPoints = GetAdaptiveSubdPoints();
+		if (SubdToleranceInitial > 0.)
+		{
+			SubdTolerance = SubdToleranceInitial;
+
+			MeanCurve = LinearInterpolation(Points, NumInterpPoints);
+			SubdPoints = GetAdaptiveSubdPoints();
+		}
+		else
+		{
+			SubdPoints = MatrixXfToTArray(LinearInterpolation(Points, 2));
+		}
 	}
 	else
 	{
@@ -186,10 +194,10 @@ TArray<float> FHairCardGenCardSubdivider::GetSubdivisionPoints(const MatrixXf Po
 
 float FHairCardGenCardSubdivider::GetToleranceFromLengthAndCurvRadius(float Length, float CurvRadius, float Subdivisions)
 {
-	if (Subdivisions < 1.) Subdivisions = 1.;
+	if (Subdivisions <= 0.5) return -1.;
 
 	float Num = Length * Length * Length;
-	float Den = 3 * CurvRadius * CurvRadius * (2 * Subdivisions - 1) * (2 * Subdivisions - 1) * (2 * Subdivisions - 1);
+	float Den = 3. * CurvRadius * CurvRadius * (2. * Subdivisions - 1.) * (2. * Subdivisions - 1.) * (2. * Subdivisions - 1.);
 
 	return Num / Den;
 }
