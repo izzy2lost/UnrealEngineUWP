@@ -2172,15 +2172,18 @@ void FOpenXRHMD::DestroySession()
 		bNeedReBuildOcclusionMesh = true;
 	}
 }
-
 int32 FOpenXRHMD::AddTrackedDevice(XrAction Action, XrPath Path)
+{
+	return AddTrackedDevice(Action, Path, XR_NULL_PATH);
+}
+int32 FOpenXRHMD::AddTrackedDevice(XrAction Action, XrPath Path, XrPath SubactionPath)
 {
 	FWriteScopeLock DeviceLock(DeviceMutex);
 
 	// Ensure the HMD device is already emplaced
 	ensure(DeviceSpaces.Num() > 0);
 
-	int32 DeviceId = DeviceSpaces.Emplace(Action, Path);
+	int32 DeviceId = DeviceSpaces.Emplace(Action, Path, SubactionPath);
 
 	//FReadScopeLock Lock(SessionHandleMutex); // This is called from StartSession(), which already has this lock.
 	if (Session)
@@ -4169,6 +4172,15 @@ FOpenXRHMD::FDeviceSpace::FDeviceSpace(XrAction InAction, XrPath InPath)
 	: Action(InAction)
 	, Space(XR_NULL_HANDLE)
 	, Path(InPath)
+	, SubactionPath(XR_NULL_PATH)
+{
+}
+
+FOpenXRHMD::FDeviceSpace::FDeviceSpace(XrAction InAction, XrPath InPath, XrPath InSubactionPath)
+	: Action(InAction)
+	, Space(XR_NULL_HANDLE)
+	, Path(InPath)
+	, SubactionPath(InSubactionPath)
 {
 }
 
@@ -4187,7 +4199,7 @@ bool FOpenXRHMD::FDeviceSpace::CreateSpace(XrSession InSession)
 	XrActionSpaceCreateInfo ActionSpaceInfo;
 	ActionSpaceInfo.type = XR_TYPE_ACTION_SPACE_CREATE_INFO;
 	ActionSpaceInfo.next = nullptr;
-	ActionSpaceInfo.subactionPath = XR_NULL_PATH;
+	ActionSpaceInfo.subactionPath = SubactionPath;
 	ActionSpaceInfo.poseInActionSpace = ToXrPose(FTransform::Identity);
 	ActionSpaceInfo.action = Action;
 	return XR_ENSURE(xrCreateActionSpace(InSession, &ActionSpaceInfo, &Space));
