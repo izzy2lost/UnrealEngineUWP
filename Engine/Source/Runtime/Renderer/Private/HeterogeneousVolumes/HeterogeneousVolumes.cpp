@@ -507,8 +507,10 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
 
 	FVoxelGridBuildOptions BuildOptions;
-	BuildOptions.bJitter = false;
 	BuildOptions.MinimumVoxelSizeOutsideFrustum = 10.0;
+	BuildOptions.bBuildOrthoGrid = true;
+	BuildOptions.bBuildFrustumGrid = false;
+	BuildOptions.bJitter = false;
 
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = nullptr;
 	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = nullptr;

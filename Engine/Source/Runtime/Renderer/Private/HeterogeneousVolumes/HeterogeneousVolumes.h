@@ -207,8 +207,11 @@ END_UNIFORM_BUFFER_STRUCT()
 
 struct FVoxelGridBuildOptions
 {
-	bool bJitter = HeterogeneousVolumes::ShouldJitter();
 	float MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
+
+	bool bBuildOrthoGrid = true;
+	bool bBuildFrustumGrid = true;
+	bool bJitter = HeterogeneousVolumes::ShouldJitter();
 };
 
 void BuildOrthoVoxelGrid(
