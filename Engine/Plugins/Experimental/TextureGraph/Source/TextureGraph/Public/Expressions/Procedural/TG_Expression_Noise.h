@@ -35,15 +35,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting"))
 	TEnumAsByte<ENoiseType>				NoiseType = NOISETYPE_Simplex;
 
-	// The seed value to use
+	// A value used to initialize or "seed" a random number generator when generating procedural noise. Changing the noise seed produces different patterns or variations in the generated noise.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "-100", ClampMin = "-100", UIMax = "100", ClampMax = "100"))
 	int32								Seed = 75;
 
-	// The amplitude of the noise signal
+	// The magnitude or strength of the variations introduced by procedural noise. Adjusting this parameter can control the intensity or impact of procedural noise on textures or effects.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "10", ClampMax = "10"))
 	float								Amplitude = 1;
 
-	// The frequency of the noise signal
+	// Determines how quickly or slowly the patterns change within the generated noise
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "20", ClampMax = "20"))
 	float								Frequency = 5;
 

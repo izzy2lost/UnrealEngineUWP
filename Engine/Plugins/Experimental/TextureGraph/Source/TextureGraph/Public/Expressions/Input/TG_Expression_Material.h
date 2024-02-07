@@ -28,8 +28,9 @@ public:
 	
 	void SetMaterial(UMaterialInterface* InMaterial);
 
+	// The attribute identifier among all the attributes of the material that is rendered in the output
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting"))
-	EDrawMaterialAttributeTarget RenderedAttributeId = EDrawMaterialAttributeTarget::BaseColor;	// The attribute identifier among all the attributes of the material that is rendered in the output
+	EDrawMaterialAttributeTarget RenderedAttributeId = EDrawMaterialAttributeTarget::BaseColor;	
 	
 	virtual bool CanHandleAsset(UObject* Asset) override;
 	virtual void SetAsset(UObject* Asset) override;

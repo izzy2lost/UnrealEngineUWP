@@ -22,11 +22,11 @@ public:
 	TG_DECLARE_EXPRESSION(TG_Category::Adjustment);
 	virtual void							Evaluate(FTG_EvaluationContext* InContext) override;
 
-	// The desired brightness of the image
+	// Adjusts the overall lightness or darkness of an image. Increasing brightness makes it brighter, while decreasing brightness makes it darker.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "-1", ClampMin = "-1", UIMax = "1", ClampMax = "1"))
 		float								Brightness = 0;
 
-	// The desired contrast in the image
+	// Modifies the difference between light and dark areas within an image. Increasing contrast makes light areas lighter and dark areas darker, while decreasing contrast reduces this difference, resulting in a more uniform appearance.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "10", ClampMax = "10"))
 		float								Contrast = 1;
 

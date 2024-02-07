@@ -24,11 +24,13 @@ struct TEXTUREGRAPH_API FTG_TextureDescriptor
 	}
 
 public:
+	// Width of the texture in pixels. Auto means system will detect automatically based on other images
 	UPROPERTY(EditAnywhere, Category = "TextureDescriptor")
-		EResolution Width = EResolution::Auto;		/// Width of the texture in pixels. Auto means system will detect automatically based on other images
+		EResolution Width = EResolution::Auto;		
 
+	// Height of the texture in pixels. Auto means system will detect automatically based on other images
 	UPROPERTY(EditAnywhere, Category = "TextureDescriptor")
-		EResolution Height = EResolution::Auto;	/// Height of the texture in pixels
+		EResolution Height = EResolution::Auto;	
 
 #if WITH_EDITORONLY_DATA
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

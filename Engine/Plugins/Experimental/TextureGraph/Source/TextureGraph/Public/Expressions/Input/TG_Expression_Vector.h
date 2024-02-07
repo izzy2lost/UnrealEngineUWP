@@ -18,7 +18,7 @@ public:
 
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
 
-	// The color value
+	// The 4 dimensional vector X, Y, Z and W.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_InputParam", PinDisplayName = ""))
     FVector4f Vector = FVector4f(0);
     

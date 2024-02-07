@@ -40,7 +40,7 @@ private:
 	FSlateRoundedBoxBrush* CheckedBrush;
 
 	TSharedRef<SWidget> MakeChannelControlWidget();
-	TSharedRef<SWidget> CreateChannelWidget(ETSChannelButton Type, FString Name);
+	TSharedRef<SWidget> CreateChannelWidget(ETSChannelButton Type, FString Name, FText ToolTipText);
 	void OnChannelButtonCheckStateChanged(ETSChannelButton Button);
 	ECheckBoxState OnGetChannelButtonCheckState(ETSChannelButton Button) const;
 };

@@ -18,6 +18,7 @@ public:
 	TG_DECLARE_EXPRESSION(TG_Category::Maths)
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
 
+	// Blend mode determine how inputs texture mix together.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting"))
 	TEnumAsByte<EBlendModes> BlendMode = EBlendModes::Normal;
 

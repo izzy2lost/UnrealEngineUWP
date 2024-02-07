@@ -269,8 +269,7 @@ FString	UTG_Pin::LogTooltip() const
 		ExprTooltip = *Prop->GetToolTipText().ToString();
 #endif 
 	
-	return FString::Printf(TEXT("Id%s : %s : %s - %s"),
-		*Id.ToString(),
+	return FString::Printf(TEXT("%s : %s - %s"),
 		*GetAliasName().ToString(),
 		*GetArgumentCPPTypeName().ToString(),
 		*ExprTooltip);
