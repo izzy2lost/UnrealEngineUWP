@@ -283,6 +283,7 @@ CreateDirectoryManifest(const FPath& Root, const FComputeBlocksParams& Params)
 	FDirectoryManifest Result;
 
 	Result.Algorithm = Params.Algorithm;
+	Result.Version	 = FDirectoryManifest::VERSION;
 
 	FTimePoint TimeBegin = TimePointNow();
 
