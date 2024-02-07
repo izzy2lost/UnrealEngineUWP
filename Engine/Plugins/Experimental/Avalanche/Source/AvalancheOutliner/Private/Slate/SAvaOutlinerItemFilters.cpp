@@ -72,7 +72,7 @@ void SAvaOutlinerItemFilters::Construct(const FArguments& InArgs, const TSharedR
 			.OnClicked(this, &SAvaOutlinerItemFilters::ToggleShowItemFilters)
 			[
 				SNew(SImage)
-				.Image(FAvaOutlinerStyle::Get().GetBrush(TEXT("AvalancheOutliner.FilterIcon")))
+				.Image(FAvaOutlinerStyle::Get().GetBrush(TEXT("AvaOutliner.FilterIcon")))
 				.DesiredSizeOverride(FVector2D(24.f))
 			]
 		];

@@ -8,8 +8,8 @@
 #define LOCTEXT_NAMESPACE "AvaTransitionEditorCommands"
 
 FAvaTransitionEditorCommands::FAvaTransitionEditorCommands() 
-	: TCommands(TEXT("AvaTransitionEditorCommands")
-	, LOCTEXT("AvaTransitionEditor", "Motion Design Transition Logic Editor")
+	: TCommands(TEXT("AvaTransitionEditor")
+	, LOCTEXT("MotionDesignTransitionEditor", "Motion Design Transition Logic Editor")
 	, NAME_None
 	, FAvaTransitionEditorStyle::Get().GetStyleSetName())
 {

@@ -10,7 +10,7 @@ class FAvaPlaybackCommands : public TCommands<FAvaPlaybackCommands>
 public:
 	
 	FAvaPlaybackCommands() : TCommands<FAvaPlaybackCommands>(TEXT("AvaPlayback")
-		, NSLOCTEXT("AvaPlaybackCommands", "AvaPlaybackCommands", "Motion Design Playback")
+		, NSLOCTEXT("MotionDesignPlaybackCommands", "MotionDesignPlaybackCommands", "Motion Design Playback")
 		, NAME_None
 		, FAppStyle::GetAppStyleSetName())
 	{

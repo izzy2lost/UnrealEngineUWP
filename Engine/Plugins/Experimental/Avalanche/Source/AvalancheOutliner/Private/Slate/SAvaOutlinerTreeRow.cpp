@@ -23,7 +23,7 @@ void SAvaOutlinerTreeRow::Construct(const FArguments& InArgs
 	SetColorAndOpacity(TAttribute<FLinearColor>::CreateSP(&*InOutlinerView, &FAvaOutlinerView::GetItemBrushColor, Item));
 
 	SMultiColumnTableRow::Construct(FSuperRowType::FArguments()
-			.Style(&FAvaOutlinerStyle::Get().GetWidgetStyle<FTableRowStyle>("AvalancheOutliner.TableViewRow"))
+			.Style(&FAvaOutlinerStyle::Get().GetWidgetStyle<FTableRowStyle>("AvaOutliner.TableViewRow"))
 			.OnCanAcceptDrop(InOutlinerView, &FAvaOutlinerView::OnCanDrop)
 			.OnDragDetected(InOutlinerView, &FAvaOutlinerView::OnDragDetected, Item)
 			.OnDragEnter(InOutlinerView, &FAvaOutlinerView::OnDragEnter, Item)

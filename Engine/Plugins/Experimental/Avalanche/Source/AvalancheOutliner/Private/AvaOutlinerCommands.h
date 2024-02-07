@@ -12,7 +12,7 @@ class FAvaOutlinerCommands
 {
 public:
 	FAvaOutlinerCommands()
-		: TCommands<FAvaOutlinerCommands>(TEXT("AvalancheOutliner")
+		: TCommands<FAvaOutlinerCommands>(TEXT("AvaOutliner")
 		, LOCTEXT("MotionDesignOutliner", "Motion Design Outliner")
 		, NAME_None
 		, FAppStyle::GetAppStyleSetName())

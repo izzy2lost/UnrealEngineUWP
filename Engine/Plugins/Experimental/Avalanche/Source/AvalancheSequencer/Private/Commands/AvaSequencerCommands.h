@@ -9,8 +9,8 @@ class FAvaSequencerCommands : public TCommands<FAvaSequencerCommands>
 {
 public:
 	FAvaSequencerCommands()
-		: TCommands<FAvaSequencerCommands>(TEXT("AvalancheSequencerCommands")
-		, NSLOCTEXT("AvaSequencerCommands", "AvaSequencerCommands", "Motion Design Sequencer Commands")
+		: TCommands<FAvaSequencerCommands>(TEXT("AvaSequencerCommands")
+		, NSLOCTEXT("MotionDesignSequencerCommands", "MotionDesignSequencerCommands", "Motion Design Sequencer Commands")
 		, NAME_None
 		, FAppStyle::GetAppStyleSetName())
 	{

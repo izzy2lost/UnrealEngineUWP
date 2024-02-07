@@ -8,7 +8,7 @@
 FAvaTextEditorCommands::FAvaTextEditorCommands()
 	: TCommands<FAvaTextEditorCommands>(
 		TEXT("AvaTextEditor")
-		, LOCTEXT("AvaTextEditor", "Motion Design Text Editor")
+		, LOCTEXT("MotionDesignTextEditor", "Motion Design Text Editor")
 		, NAME_None
 		, FAvaTextEditorStyle::Get().GetStyleSetName()
 	)

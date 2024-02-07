@@ -7,7 +7,7 @@
 
 FAvaEffectorsEditorCommands::FAvaEffectorsEditorCommands()
 	: TCommands<FAvaEffectorsEditorCommands>(
-		TEXT("AvalancheEffectorsEditor")
+		TEXT("AvaEffectorsEditor")
 		, LOCTEXT("MotionDesignEffectorsEditor", "Motion Design Effects Editor")
 		, NAME_None
 		, FAvaEffectorsEditorStyle::Get().GetStyleSetName()
