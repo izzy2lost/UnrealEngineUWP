@@ -137,6 +137,7 @@ public:
 	/**
 	 * Pushes new selection state to the render thread primitive proxy
 	 */
+	UE_DEPRECATED(5.4, "This method has no effect, calls to this method may be safely removed.")
 	ENGINE_API void PushSelectionToProxy();
 
 protected:

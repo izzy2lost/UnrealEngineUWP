@@ -5229,11 +5229,6 @@ void AActor::PushSelectionToProxies()
 				PrimComponent->PushSelectionToProxy();
 			}
 
-			if(UDecalComponent* DecalComponent = Cast<UDecalComponent>(Component))
-			{
-				DecalComponent->PushSelectionToProxy();
-			}
-
 			if (ULightComponent* LightComponent = Cast<ULightComponent>(Component))
 			{
 				LightComponent->PushSelectionToProxy();
