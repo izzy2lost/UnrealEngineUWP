@@ -14,12 +14,12 @@ uint2 ViewportResolution;
 uint FrameIndex;
 uint FrameThreshold;
 
-StructuredBuffer<uint> ValuesBuffer;
+Buffer<uint> ValuesBuffer;
 Buffer<uint> SymbolsBuffer;
 
-RWStructuredBuffer<uint> RWValuesBuffer;
+RWBuffer<uint> RWValuesBuffer;
 RWBuffer<uint> RWSymbolsBuffer;
-RWStructuredBuffer<uint> RWStateBuffer;
+RWBuffer<uint> RWStateBuffer;
 
 RWBuffer<uint> RWIndirectDispatchArgsBuffer;
 RWBuffer<uint> RWIndirectDrawArgsBuffer;

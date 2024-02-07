@@ -53,8 +53,8 @@ uint {DataInterfaceName}_MaxSymbolCount;
 uint {DataInterfaceName}_MaxStateCount;
 uint {DataInterfaceName}_MaxLineCount;
 uint {DataInterfaceName}_MaxTriangleCount;
-StructuredBuffer<uint> {DataInterfaceName}_StateBuffer;
-RWStructuredBuffer<uint> {DataInterfaceName}_RWEntryBuffer;
+Buffer<uint> {DataInterfaceName}_StateBuffer;
+RWBuffer<uint> {DataInterfaceName}_RWEntryBuffer;
 
 FDebugDraw ReadDebugDraw_{DataInterfaceName}()
 {

@@ -43,8 +43,8 @@ namespace ShaderPrint
 	// ShaderPrint parameter struct declaration
 	BEGIN_SHADER_PARAMETER_STRUCT(FShaderParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FShaderPrintCommonParameters, Common)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, ShaderPrint_StateBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<ShaderPrintItem>, ShaderPrint_RWEntryBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, ShaderPrint_StateBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, ShaderPrint_RWEntryBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	// Does the platform support the ShaderPrint system?

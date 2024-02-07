@@ -331,8 +331,8 @@ struct FShaderPrintConfig
 
 struct FShaderPrintBuffers
 {
-	StructuredBuffer<uint> StateBuffer;
-	RWStructuredBuffer<uint> RWEntryBuffer;
+	Buffer<uint> StateBuffer;
+	RWBuffer<uint> RWEntryBuffer;
 };
 
 struct FShaderPrintContext
