@@ -597,7 +597,12 @@ void URigVMDetailsViewWrapperObject::PostEditChangeChainProperty(FPropertyChange
 	const TDoubleLinkedList<FProperty*>::TDoubleLinkedListNode* PropertyNode = PropertyChangedEvent.PropertyChain.GetHead();
 	do
 	{
-		const FString PropertyName = PropertyNode->GetValue()->GetNameCPP();
+		FString PropertyName = PropertyNode->GetValue()->GetNameCPP();
+		int32 Index = PropertyChangedEvent.GetArrayIndex(PropertyName);
+		if (Index != INDEX_NONE)
+		{
+			PropertyName = FString::Printf(TEXT("%s[%d]"), *PropertyName, Index);
+		}
 		if(PropertyPath.IsEmpty())
 		{
 			PropertyPath = PropertyName;
