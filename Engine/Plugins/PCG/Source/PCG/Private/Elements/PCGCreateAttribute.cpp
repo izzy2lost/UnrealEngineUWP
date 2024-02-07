@@ -333,7 +333,15 @@ bool FPCGAddAttributeElement::ExecuteInternal(FPCGContext* Context) const
 		}
 		else
 		{
-			bSuccess = PCGMetadataHelpers::CopyAttributes(FirstSourceParamData, Settings->InputSource, TargetData, Settings->OutputTarget, /*bSameOrigin=*/false, Context);
+			PCGMetadataHelpers::FPCGCopyAttributeParams Params{};
+			Params.SourceData = FirstSourceParamData;
+			Params.TargetData = TargetData;
+			Params.InputSource = Settings->InputSource;
+			Params.OutputTarget = Settings->OutputTarget;
+			Params.OptionalContext = Context;
+			Params.bSameOrigin = false;
+
+			bSuccess = PCGMetadataHelpers::CopyAttribute(Params);
 		}
 
 		if (bSuccess)
