@@ -15,34 +15,42 @@ struct TEXTUREGRAPH_API FTG_OutputSettings
 {
 	GENERATED_USTRUCT_BODY()
 
-public:
+	// Export name of the textured asset.
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Basic", DisplayName = "File Name", Meta = (NoResetToDefault))
 		FName BaseName;
 
 	UPROPERTY(EditAnywhere, Category = "Basic", Meta = (NoResetToDefault))
 		FName OutputName;
 
+	// Export path for the textured asset.
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Basic", DisplayName = "Path", Meta = (NoResetToDefault))
 		FName FolderPath;
 
+	// Width of the texture in pixels. Auto means system will detect automatically based on other images
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Advanced", Meta = (NoResetToDefault))
 		EResolution Width = EResolution::Auto;
 
+	// Height of the texture in pixels. Auto means system will detect automatically based on other images
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Advanced", Meta = (NoResetToDefault))
 		EResolution Height = EResolution::Auto;
 
+	// List of available texture formats. Auto means system will detect automatically based on the input
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Advanced", DisplayName = "Texture Format", Meta = (NoResetToDefault))
 		ETG_TextureFormat TextureFormat = ETG_TextureFormat::BGRA8;
 
+	// List of available texture presets available for export. 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "Texture Type", Meta = (NoResetToDefault))
 		ETG_TexturePresetType TexturePresetType = ETG_TexturePresetType::None;
 
+	// The Level of detail group of the texture
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "LOD Texture Group", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None"))
 		TEnumAsByte<enum TextureGroup> LODGroup = TextureGroup::TEXTUREGROUP_World;
 
+	// Compression methods available for exporting textured asset.
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "Compression", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None") )
 		TEnumAsByte <enum TextureCompressionSettings> Compression = TextureCompressionSettings::TC_Default;
 
+	// Adjust the color space of exporting textured asset. Can be in Linear or Gamma color space. 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "sRGB", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None"))
 		bool bSRGB = false;
 

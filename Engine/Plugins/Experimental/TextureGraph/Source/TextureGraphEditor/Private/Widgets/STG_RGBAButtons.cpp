@@ -25,14 +25,14 @@ TSharedRef<SWidget> STG_RGBAButtons::MakeChannelControlWidget()
 		.Padding(1.0f)
 		.AutoWidth()
 		[
-			CreateChannelWidget(ETSChannelButton::Red, "R")
+			CreateChannelWidget(ETSChannelButton::Red, "R", LOCTEXT("RBAButton_R_Channel_ToolTip", "Toggle the preview of R Channel of the texture"))
 		]
 	+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.Padding(1.0f)
 		.AutoWidth()
 		[
-			CreateChannelWidget(ETSChannelButton::Green, "G")
+			CreateChannelWidget(ETSChannelButton::Green, "G", LOCTEXT("RBAButton_G_Channel_ToolTip", "Toggle the preview of G Channel of the texture"))
 		]
 
 	+ SHorizontalBox::Slot()
@@ -40,21 +40,21 @@ TSharedRef<SWidget> STG_RGBAButtons::MakeChannelControlWidget()
 		.Padding(1.0f)
 		.AutoWidth()
 		[
-			CreateChannelWidget(ETSChannelButton::Blue, "B")
+			CreateChannelWidget(ETSChannelButton::Blue, "B", LOCTEXT("RBAButton_B_Channel_ToolTip", "Toggle the preview of B Channel of the texture"))
 		]
 	+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.Padding(1.0f)
 		.AutoWidth()
 		[
-			CreateChannelWidget(ETSChannelButton::Alpha, "A")
+			CreateChannelWidget(ETSChannelButton::Alpha, "A", LOCTEXT("RBAButton_A_Channel_ToolTip", "Toggle the preview of A Channel of the texture"))
 		]
 	;
 
 	return ChannelControl;
 }
 
-TSharedRef<SWidget> STG_RGBAButtons::CreateChannelWidget(ETSChannelButton Type, FString Name)
+TSharedRef<SWidget> STG_RGBAButtons::CreateChannelWidget(ETSChannelButton Type, FString Name, FText TooltipText)
 {
 	auto OnChannelCheckStateChanged = [this](ECheckBoxState NewState, ETSChannelButton Button)
 	{
@@ -84,7 +84,8 @@ TSharedRef<SWidget> STG_RGBAButtons::CreateChannelWidget(ETSChannelButton Type, 
 			.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 			.Text(FText::FromString(Name))
 			]
-		];
+		]
+	.ToolTipText(TooltipText);
 }
 
 void STG_RGBAButtons::OnChannelButtonCheckStateChanged(ETSChannelButton Button)

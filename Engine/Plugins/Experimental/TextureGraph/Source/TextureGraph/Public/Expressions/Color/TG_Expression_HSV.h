@@ -75,15 +75,16 @@ public:
 	UPROPERTY(meta = (TGType = "TG_Input", PinDisplayName = ""))
 	FTG_Texture							Input;
 
+	// Defines the basic color tone, such as red, green, or blue, without considering brightness or intensity. Adjusting the hue changes the overall color appearance while maintaining its saturation and brightness.
 	// The normalized hue. Please divide your [0, 359] hue values by 359 for this input
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1", PinDisplayName = "Hue (Normalized)", DisplayName = "Hue (Normalized)"))
 	float								Hue = 1.0f;
 	
-	// The saturation
+	// Controls the intensity of the color. Higher values represent more vivid colors, while lower values produce muted tones.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1"))
 	float								Saturation = 1.0f;
 
-	// The value 
+	// Specifies the brightness or darkness of the color. Higher values correspond to brighter colors, while lower values result in darker shades.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "1", ClampMax = "1"))
 	float								Value = 1.0f;
 
