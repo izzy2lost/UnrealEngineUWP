@@ -5,7 +5,6 @@
 #include "Framework/Docking/LayoutExtender.h"
 #include "IAvaSceneInterface.h"
 #include "LevelEditor.h"
-#include "Outliner/AvaOutlinerRCTrackerComponent.h"
 #include "RemoteControlTrackerComponent.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Subsystems/RemoteControlComponentsSubsystem.h"
@@ -21,13 +20,11 @@ URemoteControlPreset* FAvaRCExtension::GetRemoteControlPreset() const
 
 void FAvaRCExtension::Activate()
 {
-	FAvaOutlinerRCTrackerComponent::OnRemoteControlTrackerSelected().AddSP(this, &FAvaRCExtension::OnRemoteControlTrackerOutlinerSelection);
 	OpenRemoteControlTab();
 }
 
 void FAvaRCExtension::Deactivate()
 {
-	FAvaOutlinerRCTrackerComponent::OnRemoteControlTrackerSelected().RemoveAll(this);
 	CloseRemoteControlTab();
 }
 
@@ -84,11 +81,6 @@ void FAvaRCExtension::CloseRemoteControlTab() const
 			AssetEditorSubsystem->CloseAllEditorsForAsset(RemoteControlPreset);
 		}
 	}
-}
-
-void FAvaRCExtension::OnRemoteControlTrackerOutlinerSelection(const URemoteControlTrackerComponent* InTrackerComponent) const
-{
-	OpenRemoteControlTab();
 }
 
 #undef LOCTEXT_NAMESPACE

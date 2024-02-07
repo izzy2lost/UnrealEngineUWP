@@ -27,6 +27,4 @@ protected:
 	void OpenRemoteControlTab() const;
 
 	void CloseRemoteControlTab() const;
-
-	void OnRemoteControlTrackerOutlinerSelection(const URemoteControlTrackerComponent* InTrackerComponent) const;
 };
