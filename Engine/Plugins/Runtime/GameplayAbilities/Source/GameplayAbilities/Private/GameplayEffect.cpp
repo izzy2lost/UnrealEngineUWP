@@ -787,6 +787,41 @@ void UGameplayEffect::ConvertUIComponent()
 		UIData = nullptr;
 	}
 }
+
+void UGameplayEffect::PreSave(FObjectPreSaveContext SaveContext)
+{
+	Super::PreSave(SaveContext);
+
+	// Don't need any more data updates because during Cook the data shouldn't have changed
+	if (SaveContext.IsCooking())
+	{
+		return;
+	}
+
+	// Since we've deprecated these fields in favor of GEComponents, we should also manually
+	// clear them out of their gameplay tag references, then rebuild them using the new data, 
+	// otherwise we would end up with stale references when a GEComponent is removed.
+	if (GetVersion() >= EGameplayEffectVersion::Modular53)
+	{
+		InheritableGameplayEffectTags = FInheritedTagContainer{};
+		InheritableOwnedTagsContainer = FInheritedTagContainer{};
+		InheritableBlockedAbilityTagsContainer = FInheritedTagContainer{};
+		OngoingTagRequirements = FGameplayTagRequirements{};
+		ApplicationTagRequirements = FGameplayTagRequirements{};
+		RemovalTagRequirements = FGameplayTagRequirements{};
+		RemoveGameplayEffectsWithTags = FInheritedTagContainer{};
+		GrantedApplicationImmunityTags = FGameplayTagRequirements{};
+		GrantedApplicationImmunityQuery = FGameplayEffectQuery{};
+		RemoveGameplayEffectQuery = FGameplayEffectQuery{};
+		GrantedAbilities.Empty();
+
+		// Now that we've removed all of the stale data, run through the upgrade path again which will copy the new components
+		// back into the deprecated variables.  This allows us to keep for extended backwards compatibility.
+		FPostCDOCompiledContext PostCDOCompiledContext;
+		PostCDOCompiled(PostCDOCompiledContext);
+	}
+}
+
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /** Let's keep track of the version so that we can upgrade the Components properly.  This will be set properly in PostLoad after upgrades. */

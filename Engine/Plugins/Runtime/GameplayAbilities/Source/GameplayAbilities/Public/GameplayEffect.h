@@ -2168,6 +2168,9 @@ protected:
 	/** Sets the Version of the class to denote it's been upgraded */
 	void SetVersion(EGameplayEffectVersion Version);
 
+	/** We should intercept the Save call and revalidate all of our deprecated values to avoid hanging onto stale data */
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
+
 private:
 	// Helper functions for converting data to use components
 	void ConvertAbilitiesComponent();
