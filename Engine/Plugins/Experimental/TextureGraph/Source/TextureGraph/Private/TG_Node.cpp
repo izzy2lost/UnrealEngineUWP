@@ -34,7 +34,7 @@ FTG_Name UTG_Node::GetNodeName() const
 #if WITH_EDITOR
 void UTG_Node::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("Node Changed."));
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Node::PostEditChangeProperty."));
 }
 
 void UTG_Node::PostEditUndo()
@@ -54,7 +54,10 @@ void UTG_Node::OnPostUndo()
 		{
 			auto Arg = Pin->GetArgument();
 			Pin->EditSelfVar()->CopyFrom(GetExpression(), Arg);	
+
 		}
+
+		Signature = GetExpression()->GetSignature();
 	}
 }
 #endif
@@ -255,7 +258,7 @@ void UTG_Node::Initialize(FTG_Id InId)
 
 int32 UTG_Node::ForEachInputPins(std::function<void(const UTG_Pin* /*pin*/, uint32 /*index*/)> visitor) const
 {
-	int32 Num = Signature->GetInArguments().Num();
+	int32 Num = GetSignature().GetInArguments().Num();
 	for (int32 i = 0; i < Num; ++i)
 	{
 		visitor(Pins[i], i);
@@ -265,8 +268,8 @@ int32 UTG_Node::ForEachInputPins(std::function<void(const UTG_Pin* /*pin*/, uint
 
 int32 UTG_Node::ForEachOutputPins(std::function<void(const UTG_Pin* /*pin*/, uint32 /*index*/)> visitor) const
 {
-	int32 Offset = Signature->GetInArguments().Num();
-	int32 Num = Signature->GetOutArguments().Num();
+	int32 Offset = GetSignature().GetInArguments().Num();
+	int32 Num = GetSignature().GetOutArguments().Num();
 	for (int32 i = 0; i < Num; ++i)
 	{
 		visitor(Pins[i + Offset], i);
@@ -320,20 +323,20 @@ FTG_Id UTG_Node::GetPinId(FName Name) const
 
 FTG_Id UTG_Node::GetInputPinIdAt(FTG_Index inIndex) const
 {
-	if (inIndex >= 0 && inIndex < Signature->GetInArguments().Num())		
+	if (inIndex >= 0 && inIndex < GetSignature().GetInArguments().Num())		
 		return FTG_Id(GetId().NodeIdx(), inIndex);
 	return FTG_Id();
 }
 FTG_Id UTG_Node::GetOutputPinIdAt(FTG_Index outIndex) const
 {
-	if (outIndex >= 0 && outIndex < Signature->GetOutArguments().Num())
-		return FTG_Id(GetId().NodeIdx(), outIndex + Signature->GetInArguments().Num());
+	if (outIndex >= 0 && outIndex < GetSignature().GetOutArguments().Num())
+		return FTG_Id(GetId().NodeIdx(), outIndex + GetSignature().GetInArguments().Num());
 	return FTG_Id();
 }
 FTG_Id UTG_Node::GetPrivatePinIdAt(FTG_Index privateIndex) const
 {
-	if (privateIndex >= 0 && privateIndex < Signature->GetPrivateArguments().Num())
-		return FTG_Id(GetId().NodeIdx(), privateIndex + Signature->GetInArguments().Num() + Signature->GetOutArguments().Num());
+	if (privateIndex >= 0 && privateIndex < GetSignature().GetPrivateArguments().Num())
+		return FTG_Id(GetId().NodeIdx(), privateIndex + GetSignature().GetInArguments().Num() + GetSignature().GetOutArguments().Num());
 	return FTG_Id();
 }
 
@@ -350,32 +353,32 @@ TArray<FTG_Id> MakeIdArray(int32 NodeIdx, int32 Num, int32 IdxOffset)
 
 TArray<FTG_Id> UTG_Node::GetInputPinIds() const
 {
-	return MakeIdArray(GetId().NodeIdx(), Signature->GetInArguments().Num(), 0);
+	return MakeIdArray(GetId().NodeIdx(), GetSignature().GetInArguments().Num(), 0);
 }
 TArray<FTG_Id> UTG_Node::GetOutputPinIds() const
 {
-	int32 IdxOffset = Signature->GetInArguments().Num();
-	return MakeIdArray(GetId().NodeIdx(), Signature->GetOutArguments().Num(), IdxOffset);
+	int32 IdxOffset = GetSignature().GetInArguments().Num();
+	return MakeIdArray(GetId().NodeIdx(), GetSignature().GetOutArguments().Num(), IdxOffset);
 }
 TArray<FTG_Id> UTG_Node::GetPrivatePinIds() const
 {
-	int32 IdxOffset = Signature->GetInArguments().Num() + Signature->GetOutArguments().Num();
-	return MakeIdArray(GetId().NodeIdx(), Signature->GetPrivateArguments().Num(), IdxOffset);
+	int32 IdxOffset = GetSignature().GetInArguments().Num() + GetSignature().GetOutArguments().Num();
+	return MakeIdArray(GetId().NodeIdx(), GetSignature().GetPrivateArguments().Num(), IdxOffset);
 }
 
 FTG_Id UTG_Node::GetInputPinID(FTG_Name& Name) const
 {
-    FTG_Index i = Signature->FindInputArgument(Name);
+    FTG_Index i = GetSignature().FindInputArgument(Name);
     return (i == FTG_Id::INVALID_INDEX ? FTG_Id::INVALID : GetInputPinIdAt(i));
 }
 FTG_Id UTG_Node::GetOutputPinID(FTG_Name& Name) const
 {
-	FTG_Index i = Signature->FindOutputArgument(Name);
+	FTG_Index i = GetSignature().FindOutputArgument(Name);
 	return (i == FTG_Id::INVALID_INDEX ? FTG_Id::INVALID : GetOutputPinIdAt(i));
 }
 FTG_Id UTG_Node::GetPrivatePinID(FTG_Name& Name) const
 {
-	FTG_Index i = Signature->FindPrivateArgument(Name);
+	FTG_Index i = GetSignature().FindPrivateArgument(Name);
 	return (i == FTG_Id::INVALID_INDEX ? FTG_Id::INVALID : GetPrivatePinIdAt(i));
 }
 

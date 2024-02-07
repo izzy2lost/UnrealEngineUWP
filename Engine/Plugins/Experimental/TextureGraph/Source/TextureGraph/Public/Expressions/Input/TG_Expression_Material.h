@@ -18,7 +18,8 @@ class TEXTUREGRAPH_API UTG_Expression_Material : public UTG_Expression_MaterialB
 	GENERATED_BODY()
 public:
 #if WITH_EDITOR
-	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditUndo() override;
 #endif
 
 	// The input material to employ for rendering

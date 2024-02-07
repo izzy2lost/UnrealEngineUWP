@@ -11,7 +11,7 @@
 #if WITH_EDITOR
 void UTG_Graph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
-	UE_LOG(LogTextureGraph, Log, TEXT("PostEditChangeProperty::Graph Changed."));
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::PostEditChangeProperty."));
 }
 
 bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
@@ -19,9 +19,16 @@ bool UTG_Graph::Modify(bool bAlwaysMarkDirty)
 	// Runtime state is about to get dirty
 	// And remember it as such for undo redo
 	bIsGraphTraversalDirty = true;
-	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Modify: Graph Changed."));
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::Modify: Graph Modified."));
 
 	return Super::Modify(bAlwaysMarkDirty);
+}
+
+
+void UTG_Graph::PostEditUndo()
+{
+	UE_LOG(LogTextureGraph, Log, TEXT("UTG_Graph::PostEditUndo."));
+	UObject::PostEditUndo();
 }
 
 #endif
@@ -250,11 +257,11 @@ void UTG_Graph::RegenerateNode(UTG_Node* InNode)
 void UTG_Graph::AllocateNodePins(UTG_Node* Node)
 {
 	// All the pins are created from the signature 
-	for (auto& Arg : Node->Signature->GetInArguments())
+	for (auto& Arg : Node->GetSignature().GetInArguments())
 		AllocatePin(Node, Arg);
-	for (auto& Arg : Node->Signature->GetOutArguments())
+	for (auto& Arg : Node->GetSignature().GetOutArguments())
 		AllocatePin(Node, Arg);
-	for (auto& Arg : Node->Signature->GetPrivateArguments())
+	for (auto& Arg : Node->GetSignature().GetPrivateArguments())
 		AllocatePin(Node, Arg);
 }
 

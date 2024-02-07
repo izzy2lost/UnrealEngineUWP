@@ -102,6 +102,9 @@ protected:
 protected:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
+	// Override PostEditUndo method of UObject
+	virtual void PostEditUndo() override;
+
 public:
 	// Overwrite the modify to also mark the transient states as dirty
 	virtual bool Modify(bool bAlwaysMarkDirty = true) override;

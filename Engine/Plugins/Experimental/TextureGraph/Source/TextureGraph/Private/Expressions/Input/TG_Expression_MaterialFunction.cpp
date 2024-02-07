@@ -45,6 +45,16 @@ void UTG_Expression_MaterialFunction::PostEditChangeProperty(FPropertyChangedEve
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
+void UTG_Expression_MaterialFunction::PostEditUndo()
+{
+	// Make sure the signature is in sync after undo in case we undo a materialFunction assignment:
+	// So recreate it internally without notifying, normally, the node's pins should match
+	DynSignature.Reset();
+	GetSignature();
+
+	Super::PostEditUndo();
+}
 #endif
 
 void UTG_Expression_MaterialFunction::Initialize()

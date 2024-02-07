@@ -108,6 +108,15 @@ void UTG_Expression_TextureGraph::PostEditChangeProperty(FPropertyChangedEvent& 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
+void UTG_Expression_TextureGraph::PostEditUndo()
+{
+	// Make sure the signature is in sync after undo in case we undo a TextureGRaph assignment:
+	// So recreate it internally without notifying, normally, the node's pins should match
+	DynSignature.Reset();
+	GetSignature();
+
+	Super::PostEditUndo();
+}
 #endif
 
 void UTG_Expression_TextureGraph::OnTextureGraphPreSave(UObject* Object, FObjectPreSaveContext SaveContext)

@@ -44,7 +44,7 @@ class TEXTUREGRAPH_API UTG_Node : public UObject
     GENERATED_BODY()
 
     friend class UTG_Graph;
-	FTG_SignaturePtr Signature;
+	TSharedPtr<FTG_Signature> Signature;
 
 	// Note: This property is assigned at construction of the node in the Construct call
 	UPROPERTY()
