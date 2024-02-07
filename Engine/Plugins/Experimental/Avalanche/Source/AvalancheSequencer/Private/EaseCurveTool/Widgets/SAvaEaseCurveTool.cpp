@@ -388,7 +388,7 @@ TSharedRef<SWidget> SAvaEaseCurveTool::ConstructTangentNumBox(const FText& InLab
 
 void SAvaEaseCurveTool::HandleEditorTangentsChanged(const FAvaEaseCurveTangents& InTangents) const
 {
-	SetTangents(InTangents, true, true, true);
+	SetTangents(InTangents, ToolOperation.Get(), true, true, true);
 }
 
 void SAvaEaseCurveTool::OnEditorDragStart() const
@@ -401,7 +401,8 @@ void SAvaEaseCurveTool::OnEditorDragEnd() const
 	EaseCurveTool->EndTransaction();
 }
 
-void SAvaEaseCurveTool::SetTangents(const FAvaEaseCurveTangents& InTangents, const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const
+void SAvaEaseCurveTool::SetTangents(const FAvaEaseCurveTangents& InTangents, FAvaEaseCurveTool::EOperation InOperation
+	, const bool bInSetEaseCurve, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents) const
 {
 	if (CurvePresetWidget.IsValid())
 	{
@@ -414,7 +415,7 @@ void SAvaEaseCurveTool::SetTangents(const FAvaEaseCurveTangents& InTangents, con
 	// To change the graph UI tangents, we need to change the ease curve object tangents and the graph will reflect.
 	if (bInSetEaseCurve && EaseCurveTool.IsValid())
 	{
-		EaseCurveTool->SetEaseCurveTangents(InTangents, bInBroadcastUpdate, bInSetSequencerTangents);
+		EaseCurveTool->SetEaseCurveTangents(InTangents, InOperation, bInBroadcastUpdate, bInSetSequencerTangents);
 	}
 
 	if (GetDefault<UAvaEaseCurveToolSettings>()->GetAutoZoomToFit())
@@ -447,33 +448,33 @@ void SAvaEaseCurveTool::OnStartTangentSpinBoxChanged(const float InNewValue) con
 {
 	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.Start = InNewValue;
-	SetTangents(NewTangents, true, true, true);
+	SetTangents(NewTangents, ToolOperation.Get(), true, true, true);
 }
 
 void SAvaEaseCurveTool::OnStartTangentWeightSpinBoxChanged(const float InNewValue) const
 {
 	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.StartWeight = InNewValue;
-	SetTangents(NewTangents, true, true, true);
+	SetTangents(NewTangents, ToolOperation.Get(), true, true, true);
 }
 
 void SAvaEaseCurveTool::OnEndTangentSpinBoxChanged(const float InNewValue) const
 {
 	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.End = InNewValue;
-	SetTangents(NewTangents, true, true, true);
+	SetTangents(NewTangents, ToolOperation.Get(), true, true, true);
 }
 
 void SAvaEaseCurveTool::OnEndTangentWeightSpinBoxChanged(const float InNewValue) const
 {
 	FAvaEaseCurveTangents NewTangents = EaseCurveTool->GetEaseCurveTangents();
 	NewTangents.EndWeight = InNewValue;
-	SetTangents(NewTangents, true, true, true);
+	SetTangents(NewTangents, ToolOperation.Get(), true, true, true);
 }
 
 void SAvaEaseCurveTool::OnPresetChanged(const TSharedPtr<FAvaEaseCurvePreset>& InPreset) const
 {
-	SetTangents(InPreset->Tangents, true, true, true);
+	SetTangents(InPreset->Tangents, ToolOperation.Get(), true, true, true);
 
 	FSlateApplication::Get().SetAllUserFocus(CurveEaseEditorWidget);
 }
@@ -538,31 +539,31 @@ void SAvaEaseCurveTool::BindCommands()
 		, FIsActionChecked::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::IsToolOperation, FAvaEaseCurveTool::EOperation::In));
 
 	CommandList->MapAction(EaseCurveToolCommands.ResetTangents
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, true, true));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, FAvaEaseCurveTool::EOperation::InOut));
 
 	CommandList->MapAction(EaseCurveToolCommands.ResetStartTangent
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, true, false));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, FAvaEaseCurveTool::EOperation::Out));
 
 	CommandList->MapAction(EaseCurveToolCommands.ResetEndTangent
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, false, true));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ResetEaseCurveTangents, FAvaEaseCurveTool::EOperation::In));
 
 	CommandList->MapAction(EaseCurveToolCommands.FlattenTangents
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, true, true));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, FAvaEaseCurveTool::EOperation::InOut, true));
 
 	CommandList->MapAction(EaseCurveToolCommands.FlattenStartTangent
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, false, true));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, FAvaEaseCurveTool::EOperation::Out, true));
 
 	CommandList->MapAction(EaseCurveToolCommands.FlattenEndTangent
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, false, true, true));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, FAvaEaseCurveTool::EOperation::In, true));
 
 	CommandList->MapAction(EaseCurveToolCommands.StraightenTangents
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, true, false));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, FAvaEaseCurveTool::EOperation::InOut, false));
 
 	CommandList->MapAction(EaseCurveToolCommands.StraightenStartTangent
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, true, false, false));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, FAvaEaseCurveTool::EOperation::Out, false));
 
 	CommandList->MapAction(EaseCurveToolCommands.StraightenEndTangent
-		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, false, true, false));
+		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::FlattenOrStraightenTangents, FAvaEaseCurveTool::EOperation::In, false));
 
 	CommandList->MapAction(EaseCurveToolCommands.CopyTangents
 		, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::CopyTangentsToClipboard)

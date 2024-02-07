@@ -152,9 +152,24 @@ FAvaEaseCurveTangents FAvaEaseCurveTool::GetEaseCurveTangents() const
 	return EaseCurve->GetTangents();
 }
 
-void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents)
+void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation
+	, const bool bInBroadcastUpdate, const bool bInSetSequencerTangents)
 {
-	EaseCurve->SetTangents(InTangents);
+	const FScopedTransaction Transaction(LOCTEXT("SetEaseCurveTangents", "Set Ease Curve Tangents"));
+	EaseCurve->Modify();
+
+	switch (InOperation)
+	{
+	case EOperation::InOut:
+		EaseCurve->SetTangents(InTangents);
+		break;
+	case EOperation::In:
+		EaseCurve->SetEndTangent(InTangents.End, InTangents.EndWeight);
+		break;
+	case EOperation::Out:
+		EaseCurve->SetStartTangent(InTangents.Start, InTangents.StartWeight);
+		break;
+	}
 
 	if (bInBroadcastUpdate)
 	{
@@ -163,83 +178,74 @@ void FAvaEaseCurveTool::SetEaseCurveTangents(const FAvaEaseCurveTangents& InTang
 
 	if (bInSetSequencerTangents)
 	{
-		SetSequencerKeySelectionTangents(InTangents);
+		SetSequencerKeySelectionTangents(InTangents, InOperation);
 	}
 }
 
-void FAvaEaseCurveTool::ResetEaseCurveTangents(const bool bInStartTangent, const bool bInEndTangent)
+void FAvaEaseCurveTool::ResetEaseCurveTangents(const EOperation InOperation)
 {
 	FText TransactionText;
-	if (bInStartTangent && !bInEndTangent)
+
+	switch (InOperation)
 	{
-		TransactionText = LOCTEXT("ResetStartTangents", "Reset Start Tangents");
-	}
-	else if (!bInStartTangent && bInEndTangent)
-	{
-		TransactionText = LOCTEXT("ResetEndTangents", "Reset End Tangents");
-	}
-	else
-	{
+	case EOperation::InOut:
 		TransactionText = LOCTEXT("ResetTangents", "Reset Tangents");
+		break;
+	case EOperation::In:
+		TransactionText = LOCTEXT("ResetEndTangents", "Reset End Tangents");
+		break;
+	case EOperation::Out:
+		TransactionText = LOCTEXT("ResetStartTangents", "Reset Start Tangents");
+		break;
 	}
+
 	const FScopedTransaction Transaction(TransactionText);
 	EaseCurve->ModifyOwner();
 
-	FAvaEaseCurveTangents NewTangents = GetEaseCurveTangents();
-	if (bInStartTangent)
-	{
-		NewTangents.Start = 0.f;
-		NewTangents.StartWeight = 0.f;
-	}
-	if (bInEndTangent)
-	{
-		NewTangents.End = 0.f;
-		NewTangents.EndWeight = 0.f;
-	}
-	SetEaseCurveTangents(NewTangents, true, true);
+	SetEaseCurveTangents(FAvaEaseCurveTangents(0.0, 0.0, 0.0, 0.0), InOperation, true, true);
 }
 
-void FAvaEaseCurveTool::FlattenOrStraightenTangents(const bool bInStartTangent, const bool bInEndTangent, const bool bInFlattenTangents) const
+void FAvaEaseCurveTool::FlattenOrStraightenTangents(const EOperation InOperation, const bool bInFlattenTangents) const
 {
 	FText TransactionText;
 	if (bInFlattenTangents)
 	{
-		if (bInStartTangent && !bInEndTangent)
+		switch (InOperation)
 		{
-			TransactionText = LOCTEXT("FlattenStartTangents", "Flatten Start Tangents");
-		}
-		else if (!bInStartTangent && bInEndTangent)
-		{
-			TransactionText = LOCTEXT("FlattenEndTangents", "Flatten End Tangents");
-		}
-		else
-		{
+		case EOperation::InOut:
 			TransactionText = LOCTEXT("FlattenTangents", "Flatten Tangents");
+			break;
+		case EOperation::In:
+			TransactionText = LOCTEXT("FlattenEndTangents", "Flatten End Tangents");
+			break;
+		case EOperation::Out:
+			TransactionText = LOCTEXT("FlattenStartTangents", "Flatten Start Tangents");
+			break;
 		}
 	}
 	else
 	{
-		if (bInStartTangent && !bInEndTangent)
+		switch (InOperation)
 		{
-			TransactionText = LOCTEXT("StraightenStartTangents", "Straighten Start Tangents");
-		}
-		else if (!bInStartTangent && bInEndTangent)
-		{
-			TransactionText = LOCTEXT("StraightenEndTangents", "Straighten End Tangents");
-		}
-		else
-		{
+		case EOperation::InOut:
 			TransactionText = LOCTEXT("StraightenTangents", "Straighten Tangents");
+			break;
+		case EOperation::In:
+			TransactionText = LOCTEXT("StraightenEndTangents", "Straighten End Tangents");
+			break;
+		case EOperation::Out:
+			TransactionText = LOCTEXT("StraightenStartTangents", "Straighten Start Tangents");
+			break;
 		}
 	}
 	const FScopedTransaction Transaction(TransactionText);
 	EaseCurve->ModifyOwner();
 
-	if (bInStartTangent)
+	if (InOperation == EOperation::Out || InOperation == EOperation::InOut)
 	{
 		EaseCurve->FlattenOrStraightenTangents(EaseCurve->GetStartKeyHandle(), bInFlattenTangents);
 	}
-	if (bInEndTangent)
+	if (InOperation == EOperation::In || InOperation == EOperation::InOut)
 	{
 		EaseCurve->FlattenOrStraightenTangents(EaseCurve->GetEndKeyHandle(), bInFlattenTangents);
 	}
@@ -264,7 +270,7 @@ void FAvaEaseCurveTool::ApplyQuickEaseToSequencerKeySelections(const EOperation 
 		return;
 	}
 
-	SetEaseCurveTangents(Tangents, true, true);
+	SetEaseCurveTangents(Tangents, InOperation, true, true);
 
 	if (ToolWidget.IsValid())
 	{
@@ -431,7 +437,7 @@ void FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections()
 		}
 	}
 
-	SetEaseCurveTangents(FAvaEaseCurveTangents::Average(KeySetTangents), true, false);
+	SetEaseCurveTangents(FAvaEaseCurveTangents::Average(KeySetTangents), EOperation::InOut, true, false);
 }
 
 UCurveBase* FAvaEaseCurveTool::CreateCurveAsset() const

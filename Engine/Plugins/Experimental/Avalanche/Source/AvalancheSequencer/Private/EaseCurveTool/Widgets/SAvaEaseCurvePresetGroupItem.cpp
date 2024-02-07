@@ -299,20 +299,20 @@ FText SAvaEaseCurvePresetGroupItem::GetQuickPresetIconToolTip() const
 
 	if (EaseCurveToolCommands.QuickEase->GetFirstValidChord()->IsValidChord())
 	{
-		CommandText = FText::Format(LOCTEXT("QuickEaseIconInputInOutTooltip", "{0} - Apply quick preset to Out (Leave) and In (Arrive) tangents\n")
-			, EaseCurveToolCommands.QuickEase->GetInputText());
+		CommandText = FText::Format(LOCTEXT("QuickEaseIconInOutTooltip", "{0}{1} - Apply to Out (Leave) and In (Arrive) tangents\n")
+			, CommandText, EaseCurveToolCommands.QuickEase->GetInputText());
 	}
 
 	if (EaseCurveToolCommands.QuickEaseIn->GetFirstValidChord()->IsValidChord())
 	{
-		CommandText = FText::Format(LOCTEXT("QuickEaseIconInputInTooltip", "{0} - Apply quick preset to In (Arrive) tangent only\n")
-			, EaseCurveToolCommands.QuickEaseIn->GetInputText());
+		CommandText = FText::Format(LOCTEXT("QuickEaseIconInTooltip", "{0}{1} - Apply to In (Arrive) tangent only\n")
+			, CommandText, EaseCurveToolCommands.QuickEaseIn->GetInputText());
 	}
 
 	if (EaseCurveToolCommands.QuickEaseOut->GetFirstValidChord()->IsValidChord())
 	{
-		CommandText = FText::Format(LOCTEXT("QuickEaseIconInputOutTooltip", "{0} - Apply quick preset to Out (Leave) tangent only\n")
-			, EaseCurveToolCommands.QuickEaseOut->GetInputText());
+		CommandText = FText::Format(LOCTEXT("QuickEaseIconOutTooltip", "{0}{1} - Apply to Out (Leave) tangent only\n")
+			, CommandText, EaseCurveToolCommands.QuickEaseOut->GetInputText());
 	}
 
 	return CommandText.IsEmpty() ? QuickEaseText : FText::Format(LOCTEXT("QuickEasePresetIconTooltip", "{0}\n\n{1}"), QuickEaseText, CommandText);

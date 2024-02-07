@@ -73,10 +73,13 @@ public:
 	FRichCurve* GetToolRichCurve() const;
 
 	FAvaEaseCurveTangents GetEaseCurveTangents() const;
-	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const bool bBroadcastUpdate, const bool bInSetSequencerTangents);
-	void ResetEaseCurveTangents(const bool bInStartTangent, const bool bInEndTangent);
 
-	void FlattenOrStraightenTangents(const bool bInStartTangent, const bool bInEndTangent, const bool bInFlattenTangents) const;
+	void SetEaseCurveTangents(const FAvaEaseCurveTangents& InTangents, const EOperation InOperation,
+		const bool bBroadcastUpdate, const bool bInSetSequencerTangents);
+
+	void ResetEaseCurveTangents(const EOperation InOperation);
+
+	void FlattenOrStraightenTangents(const EOperation InOperation, const bool bInFlattenTangents) const;
 
 	FORCEINLINE EOperation GetOperation() const { return OperationMode; }
 	FORCEINLINE void SetOperation(const EOperation InOperation) { OperationMode = InOperation; }
