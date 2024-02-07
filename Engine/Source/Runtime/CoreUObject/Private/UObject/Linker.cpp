@@ -845,39 +845,30 @@ FLinkerLoad* GetPackageLinker
 
 FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const FPackagePath& PackagePath, uint32 LoadFlags, UPackageMap* Sandbox, FArchive* InReaderOverride, TFunctionRef<void(FLinkerLoad* LoadedLinker)> LinkerLoadedCallback)
 {
-	FLinkerLoad* Linker = nullptr;
-	TRefCountPtr<FUObjectSerializeContext> LoadContext(FUObjectThreadContext::Get().GetSerializeContext());
-	BeginLoad(LoadContext);
-	{
-		FUObjectSerializeContext* InOutLoadContext = LoadContext;
-		Linker = GetPackageLinker(InOuter, PackagePath, LoadFlags, Sandbox, InReaderOverride, &InOutLoadContext);
-		if (InOutLoadContext != LoadContext)
-		{
-			// The linker already existed and was associated with another context
-			LoadContext->DecrementBeginLoadCount();
-			LoadContext = InOutLoadContext;
-			LoadContext->IncrementBeginLoadCount();
-		}
-	}
-	// Allow external code to work with the linker before EndLoad()
+	FLinkerLoad* Linker = GetPackageLinker(InOuter, PackagePath, LoadFlags, Sandbox, InReaderOverride);
 	LinkerLoadedCallback(Linker);
-	EndLoad(Linker ? Linker->GetSerializeContext() : LoadContext.GetReference());
 	return Linker;
 }
 
 FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const FPackagePath& PackagePath, uint32 LoadFlags, UPackageMap* Sandbox, FArchive* InReaderOverride)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return LoadPackageLinker(InOuter, PackagePath, LoadFlags, Sandbox, InReaderOverride, [](FLinkerLoad* InLinker) {});
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const TCHAR* InLongPackageName, uint32 LoadFlags, UPackageMap* Sandbox, FGuid* CompatibleGuid, FArchive* InReaderOverride, TFunctionRef<void(FLinkerLoad* LoadedLinker)> LinkerLoadedCallback)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return LoadPackageLinker(InOuter, GetPackagePath(InOuter, InLongPackageName), LoadFlags, Sandbox, InReaderOverride, LinkerLoadedCallback);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FLinkerLoad* LoadPackageLinker(UPackage* InOuter, const TCHAR* InLongPackageName, uint32 LoadFlags, UPackageMap* Sandbox, FGuid* CompatibleGuid, FArchive* InReaderOverride)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return LoadPackageLinker(InOuter, GetPackagePath(InOuter, InLongPackageName), LoadFlags, Sandbox, InReaderOverride, [](FLinkerLoad* InLinker) {});
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 

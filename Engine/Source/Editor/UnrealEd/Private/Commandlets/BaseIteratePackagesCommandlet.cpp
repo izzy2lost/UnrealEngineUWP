@@ -578,29 +578,8 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 
 		// Get the package linker.
 		VerboseMessage(TEXT("Pre GetPackageLinker"));
-#define USE_OLD_LOADLINKERPATH 0
-#if USE_OLD_LOADLINKERPATH
-		FLinkerLoad* Linker = LoadPackageLinker(nullptr, PackagePath, LOAD_NoVerify | LOAD_SkipLoadImportedPackages);
-	
-		// Bail early if we don't have a valid linker (package was out of date, etc)
-		if( !Linker )
-		{
-			VerboseMessage(TEXT("Aborting...package could not be loaded"));
-			CollectGarbage(RF_NoFlags);
-			return;
-		}
-
-		VerboseMessage(TEXT("Post GetPackageLinker"));
 
 		bool bSavePackage = true;
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage::PerformPreloadOperations);
-			PerformPreloadOperations(Linker, bSavePackage);
-		}
-		VerboseMessage(FString::Printf(TEXT("Post PerformPreloadOperations, Resave? %d"), bSavePackage));
-#else
-		bool bSavePackage = true;
-#endif
 		
 		if (bSavePackage)
 		{
@@ -632,11 +611,11 @@ void UBaseIteratePackagesCommandlet::LoadAndSaveOnePackage(const FString& Filena
 					check(Package);
 				}
 			}
-#if !USE_OLD_LOADLINKERPATH
+
 			FLinkerLoad* Linker = Package->GetLinker();
 			PerformPreloadOperations(Linker, bSavePackage); 
 			VerboseMessage(FString::Printf(TEXT("Post PerformPreloadOperations, Resave? %d"), bSavePackage));
-#endif
+
 			VerboseMessage(TEXT("Post LoadPackage"));
 
 			// if we are only saving dirty packages and the package is not dirty, then we do not want to save the package (remember the default behavior is to ALWAYS save the package)
