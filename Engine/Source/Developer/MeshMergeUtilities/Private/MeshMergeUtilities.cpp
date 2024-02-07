@@ -2473,12 +2473,12 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 		if (InBasePackageName.IsEmpty())
 		{
 			AssetName = TEXT("SM_MERGED_") + FPackageName::GetShortName(MergedAssetPackageName);
-			PackageName = FPackageName::GetLongPackagePath(MergedAssetPackageName) + TEXT("/") + AssetName;
+			PackageName = FPackageName::GetLongPackagePath(MergedAssetPackageName) / AssetName;
 		}
 		else
 		{
-			AssetName = FPackageName::GetShortName(InBasePackageName);
-			PackageName = InBasePackageName;
+			AssetName = TEXT("SM_") + FPackageName::GetShortName(InBasePackageName);
+			PackageName = FPackageName::GetLongPackagePath(InBasePackageName) / AssetName;
 		}
 
 		UPackage* Package = InOuter;
