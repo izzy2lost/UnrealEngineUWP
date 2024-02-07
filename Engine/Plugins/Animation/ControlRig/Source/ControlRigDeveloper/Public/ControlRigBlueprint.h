@@ -270,11 +270,11 @@ private:
 #endif
 
 	/** The skeleton from import into a hierarchy */
-	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable, EditAnywhere, Category="Control Rig Blueprint")
 	TSoftObjectPtr<UObject> SourceHierarchyImport;
 
 	/** The skeleton from import into a curve */
-	UPROPERTY(DuplicateTransient, AssetRegistrySearchable)
+	UPROPERTY(DuplicateTransient, AssetRegistrySearchable, EditAnywhere, Category="Control Rig Blueprint")
 	TSoftObjectPtr<UObject> SourceCurveImport;
 
 	/** If set to true, this control rig has animatable controls */
