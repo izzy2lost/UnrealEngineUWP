@@ -959,7 +959,10 @@ void FNiagaraSystemCompilationTask::FCompileTaskInfo::RetrieveTranslateResult()
 		}
 	}
 
-	ExeData->LastCompileEvents.Append(TranslateResults.CompileEvents);
+	for (const FNiagaraCompileEvent& Event : TranslateResults.CompileEvents)
+	{
+		ExeData->LastCompileEvents.AddUnique(Event);
+	}
 	ExeData->ExternalDependencies = TranslateResults.CompileDependencies;
 	ExeData->CompileTags = TranslateResults.CompileTags;
 	ExeData->CompileTagsEditorOnly = TranslateResults.CompileTagsEditorOnly;

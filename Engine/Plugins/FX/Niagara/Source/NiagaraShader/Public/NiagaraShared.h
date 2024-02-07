@@ -110,6 +110,10 @@ public:
 	UPROPERTY()
 	FNiagaraCompileEventSource Source;
 
+	bool operator==(const FNiagaraCompileEvent& Other) const
+	{
+		return Other.Severity == Severity && Other.Message == Message && Other.ShortDescription == ShortDescription && Other.NodeGuid == NodeGuid && Other.PinGuid == PinGuid && Other.Source == Source;
+	}
 };
 
 //
