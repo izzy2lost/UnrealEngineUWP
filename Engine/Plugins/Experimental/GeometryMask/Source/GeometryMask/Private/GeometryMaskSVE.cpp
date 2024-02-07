@@ -13,12 +13,13 @@ FGeometryMaskSceneViewExtension::FGeometryMaskSceneViewExtension(
 	UWorld* InWorld)
 	: FWorldSceneViewExtension(AutoRegister, InWorld)
 {
+	GeometryMaskSubsystemWeak = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>();
 }
 
 void FGeometryMaskSceneViewExtension::BeginRenderViewFamily(
 	FSceneViewFamily& InViewFamily)
 {
-	if (UGeometryMaskSubsystem* Subsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	if (UGeometryMaskSubsystem* Subsystem = GeometryMaskSubsystemWeak.Get())
 	{
 		Subsystem->Update(GetWorld(), InViewFamily);
 	}

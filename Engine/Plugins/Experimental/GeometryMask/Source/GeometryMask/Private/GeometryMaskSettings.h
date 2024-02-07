@@ -12,6 +12,12 @@ class UGeometryMaskSettings : public UDeveloperSettings
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	uint8 DebugDF = 0;
+#endif
+	
+public:
 	virtual FName GetContainerName() const override { return FName(TEXT("Project")); }
 	virtual FName GetCategoryName() const override { return FName(TEXT("Plugins")); }
 	virtual FName GetSectionName() const override { return FName(TEXT("Geometry Mask")); }

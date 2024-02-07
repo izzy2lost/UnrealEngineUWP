@@ -29,6 +29,10 @@ private:
 
 	void ExecuteShowVisualizer(const TArray<FString>& InArgs);
 
+	void ExecutePause(const TArray<FString>& InArgs);
+
+	void ExecuteFlush(const TArray<FString>& InArgs);
+
 private:
 	static const FName VisualizerTabId;
 	

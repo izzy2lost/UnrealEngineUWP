@@ -317,6 +317,11 @@ bool TAvaMaskMaterialCollectionHandle<HandleDataType>::ValidateMaterials(FText& 
 		, const bool bInIsSlotOccupied
 		, const TSharedPtr<IAvaMaskMaterialHandle>& InMaterialHandle)
 	{
+		if (!bInIsSlotOccupied)
+		{
+			return true;
+		}
+
 		TArray<FString> MissingParameterNames;
 		if (!InMaterialHandle->HasRequiredParameters(MissingParameterNames))
 		{

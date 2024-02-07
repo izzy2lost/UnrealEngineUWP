@@ -9,10 +9,10 @@
 #include "UObject/NameTypes.h"
 #include "UObject/WeakObjectPtr.h"
 
+class UCanvasRenderTarget2D;
 class UGeometryMaskCanvasResource;
 class UGeometryMaskCanvas;
 class UTexture;
-class UTextureRenderTarget2D;
 
 class FGMEResourceItemViewModel
 	: public TSharedFromThis<FGMEResourceItemViewModel>
@@ -30,7 +30,7 @@ public:
 
 	uint32 GetId() const { return UniqueId; }
 
-	const UTextureRenderTarget2D* GetResourceTexture() const { return ResourceTexture.Get(); }
+	const UCanvasRenderTarget2D* GetResourceTexture() const { return ResourceTextureWeak.Get(); }
 	float GetMemoryUsage() const;
 	FIntPoint GetDimensions() const;
 
@@ -43,5 +43,5 @@ public:
 
 private:
 	uint32 UniqueId;
-	TWeakObjectPtr<UTextureRenderTarget2D> ResourceTexture;
+	TWeakObjectPtr<UCanvasRenderTarget2D> ResourceTextureWeak;
 };

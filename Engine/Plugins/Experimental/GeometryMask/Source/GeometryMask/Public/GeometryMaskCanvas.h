@@ -48,7 +48,7 @@ public:
 
 	/** Get the underlying render target. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Rendering")
-	UTextureRenderTarget2D* GetTexture() const;
+	UCanvasRenderTarget2D* GetTexture() const;
 
 	/** Whether blur is applied or not. */
 	bool IsBlurApplied() const;

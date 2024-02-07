@@ -4,6 +4,7 @@
 
 #include "SceneViewExtension.h"
 
+class UGeometryMaskSubsystem;
 class UGeometryMaskCanvas;
 
 class FGeometryMaskSceneViewExtension
@@ -18,4 +19,7 @@ public:
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
 	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const override;
 	// ~End ISceneViewExtension
+
+private:
+	TWeakObjectPtr<UGeometryMaskSubsystem> GeometryMaskSubsystemWeak;
 };

@@ -6,8 +6,8 @@
 #include "AvaMaskSubsystem.h"
 #include "AvaMaskUtilities.h"
 #include "Components/PrimitiveComponent.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
-#include "Engine/TextureRenderTarget2D.h"
 #include "Framework/AvaGizmoComponent.h"
 #include "GeometryMaskCanvas.h"
 #include "GeometryMaskReadComponent.h"
@@ -184,6 +184,30 @@ void UAvaMask2DBaseModifier::OnModifierAdded(EActorModifierCoreEnableReason InRe
 		|| InReason == EActorModifierCoreEnableReason::Duplicate)
 	{
 		SetupChannelName();
+	}
+}
+
+void UAvaMask2DBaseModifier::OnModifierRemoved(EActorModifierCoreDisableReason InReason)
+{
+	Super::OnModifierRemoved(InReason);
+
+	TRACE_BOOKMARK(TEXT("UAvaMask2DModifier::OnModifierRemoved"));
+
+	TArray<AActor*> ActorDataActors;
+	ActorDataActors.Reserve(ActorData.Num());	
+	Algo::Transform(ActorData, ActorDataActors, [](const TPair<TWeakObjectPtr<AActor>, FAvaMask2DActorData>& InActorDataPair)
+	{
+		return InActorDataPair.Key.Get();
+	});
+	
+	for (AActor* Actor : ActorDataActors)
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		
+		RemoveFromActor(Actor);
 	}
 }
 

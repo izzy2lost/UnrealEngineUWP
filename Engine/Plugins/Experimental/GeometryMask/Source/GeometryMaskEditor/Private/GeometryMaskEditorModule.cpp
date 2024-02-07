@@ -2,7 +2,10 @@
 
 #include "GeometryMaskEditorModule.h"
 
+#include "Engine/Engine.h"
 #include "Framework/Docking/TabManager.h"
+#include "GeometryMaskEditorLog.h"
+#include "GeometryMaskSubsystem.h"
 #include "Materials/Material.h"
 #include "Styling/SlateIconFinder.h"
 #include "ViewModels/GMECanvasListViewModel.h"
@@ -83,6 +86,20 @@ void FGeometryMaskEditorModule::RegisterConsoleCommands()
 		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FGeometryMaskEditorModule::ExecuteShowVisualizer),
 		ECVF_Default
 	));
+
+	ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("GeometryMask.Pause"),
+		TEXT("Disable ticking of GeometryMask objects"),
+		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FGeometryMaskEditorModule::ExecutePause),
+		ECVF_Default
+	));
+
+	ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
+		TEXT("GeometryMask.Flush"),
+		TEXT("Flush unused canvas's"),
+		FConsoleCommandWithArgsDelegate::CreateRaw(this, &FGeometryMaskEditorModule::ExecuteFlush),
+		ECVF_Default
+	));
 }
 
 void FGeometryMaskEditorModule::UnregisterConsoleCommands()
@@ -100,6 +117,37 @@ void FGeometryMaskEditorModule::ExecuteShowVisualizer(const TArray<FString>& InA
 	if (!VisualizerTabWeak.IsValid())
 	{
 		VisualizerTabWeak = FGlobalTabmanager::Get()->TryInvokeTab(VisualizerTabId); 
+	}
+}
+
+void FGeometryMaskEditorModule::ExecutePause(const TArray<FString>& InArgs)
+{
+	if (UGeometryMaskSubsystem* GeometryMaskSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	{
+		TOptional<bool> bShouldPauseUpdate;
+		if (!InArgs.IsEmpty())
+		{
+			FString ArgStr = InArgs[0];
+			if (ArgStr.IsNumeric())
+			{
+				// Be explicit if arg given
+				GeometryMaskSubsystem->ToggleUpdate(FCString::Atoi64(*ArgStr) == 0);
+				return;
+			}
+		}
+
+		// Otherwise toggle
+		GeometryMaskSubsystem->ToggleUpdate();
+	}
+}
+
+void FGeometryMaskEditorModule::ExecuteFlush(const TArray<FString>& InArgs)
+{
+	if (UGeometryMaskSubsystem* GeometryMaskSubsystem = GEngine->GetEngineSubsystem<UGeometryMaskSubsystem>())
+	{
+		const int32 RemovedCanvasNum = GeometryMaskSubsystem->RemoveWithoutWriters();
+		const int32 ActiveCanvasNum = GeometryMaskSubsystem->GetCanvasNames().Num();
+		UE_LOG(LogGeometryMaskEditor, Display, TEXT("%u canvas's removed because they had no writers - %u canvas's remaining."), RemovedCanvasNum, ActiveCanvasNum);
 	}
 }
 

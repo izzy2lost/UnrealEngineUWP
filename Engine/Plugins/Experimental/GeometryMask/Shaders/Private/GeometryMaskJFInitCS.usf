@@ -2,9 +2,6 @@
 
 #include "/Engine/Public/Platform.ush"
 
-#define TILE_SIZE 8
-#define KERNEL_SIZE 3
-
 uint2 InputDimensions;
 float2 OneOverInputDimensions;
 float2 UVRatioAdjustment;

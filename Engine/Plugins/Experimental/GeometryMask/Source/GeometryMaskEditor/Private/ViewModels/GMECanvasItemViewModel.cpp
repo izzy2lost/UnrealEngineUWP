@@ -2,8 +2,8 @@
 
 #include "GMECanvasItemViewModel.h"
 
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Texture.h"
-#include "Engine/TextureRenderTarget2D.h"
 #include "GeometryMaskCanvas.h"
 
 TSharedRef<FGMECanvasItemViewModel> FGMECanvasItemViewModel::Create(const TWeakObjectPtr<const UGeometryMaskCanvas>& InCanvas)
@@ -15,9 +15,9 @@ TSharedRef<FGMECanvasItemViewModel> FGMECanvasItemViewModel::Create(const TWeakO
 
 const UTexture* FGMECanvasItemViewModel::GetCanvasTexture() const
 {
-	if (CanvasTexture.IsValid())
+	if (CanvasTextureWeak.IsValid())
 	{
-		return CanvasTexture.Get();
+		return CanvasTextureWeak.Get();
 	}
 	
 	return nullptr;
@@ -41,7 +41,7 @@ FGMECanvasItemViewModel::FGMECanvasItemViewModel(FPrivateToken, const TWeakObjec
 	{
 		CanvasName = Canvas->GetCanvasName();
 		ColorChannel = Canvas->GetColorChannel();
-		CanvasTexture = Canvas->GetTexture();
+		CanvasTextureWeak = Canvas->GetTexture();
 		KnownWriterCount = Canvas->GetWriters().Num();
 	}
 }

@@ -69,6 +69,7 @@ protected:
 	
 	//~ Begin UGeometryMaskCanvasReferenceComponentBase
     virtual bool TryResolveCanvas() override;
+	virtual bool Cleanup() override;
     //~ End UGeometryMaskCanvasReferenceComponentBase
     	
 	void UpdateCachedData();
@@ -91,7 +92,7 @@ protected:
 	int32 LastPrimitiveComponentCount;
 
 	UPROPERTY(DuplicateTransient)
-	TMap<FName, TWeakObjectPtr<USceneComponent>> CachedComponents;
+	TMap<FName, TWeakObjectPtr<USceneComponent>> CachedComponentsWeak;
 	
 	UPROPERTY(DuplicateTransient)
 	TMap<FName, FGeometryMaskBatchElementData> CachedMeshData;

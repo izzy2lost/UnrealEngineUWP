@@ -38,7 +38,12 @@ namespace UE::GeometryMask
 	}
 }
 
-UTextureRenderTarget2D* UGeometryMaskCanvasReferenceComponentBase::GetTexture()
+UGeometryMaskCanvasReferenceComponentBase::~UGeometryMaskCanvasReferenceComponentBase()
+{
+	Cleanup();
+}
+
+UCanvasRenderTarget2D* UGeometryMaskCanvasReferenceComponentBase::GetTexture()
 {
 	if (const UGeometryMaskCanvas* Canvas = CanvasWeak.Get())
 	{
@@ -114,4 +119,14 @@ bool UGeometryMaskCanvasReferenceComponentBase::TryResolveNamedCanvas(FName InCa
 	}
 
 	return CanvasWeak.IsValid();
+}
+
+bool UGeometryMaskCanvasReferenceComponentBase::Cleanup()
+{
+	if (!GEngine)
+	{
+		return false;
+	}
+
+	return true;
 }
