@@ -6,6 +6,15 @@
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "RemeshNode.generated.h"
 
+
+UENUM(BlueprintType)
+enum class EChaosClothAssetRemeshMethod : uint8
+{
+	Remesh,
+	Simplify
+};
+
+
 /** Remesh the cloth surface(s) to get the specified mesh resolution(s).
  *  NOTE: Weight Maps, Skinning Data, Self Collision Spheres, and Long Range Attachment Constraints will be reconstructed on the output mesh, however all other Selections will be removed
  */
@@ -26,7 +35,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Sim Mesh", meta=(UIMin = "1", UIMax = "200", ClampMin = "1", EditCondition = "bRemeshSim"))
 	int32 TargetPercentSim = 100;
 
-	UPROPERTY(EditAnywhere, Category = "Sim Mesh", meta = (UIMin = "0", UIMax = "20", ClampMin = "0", ClampMax = "100", EditCondition = "bRemeshSim"))
+	UPROPERTY(EditAnywhere, Category = "Sim Mesh", meta = (UIMin = "0", UIMax = "20", ClampMin = "0", ClampMax = "200", EditCondition = "bRemeshSim"))
 	int32 IterationsSim = 10;
 
 	UPROPERTY(EditAnywhere, Category = "Sim Mesh", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0", EditCondition = "bRemeshSim"))
@@ -38,10 +47,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Render Mesh", meta=(UIMin = "1", UIMax = "200", ClampMin = "1", EditCondition = "bRemeshRender"))
 	int32 TargetPercentRender = 100;
 
-	UPROPERTY(EditAnywhere, Category = "Render Mesh", meta = (UIMin = "0", UIMax = "20", ClampMin = "0", ClampMax = "100", EditCondition = "bRemeshRender"))
+	UPROPERTY(EditAnywhere, Category = "Render Mesh", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0", EditCondition = "bRemeshRender"))
+	EChaosClothAssetRemeshMethod RemeshMethodRender = EChaosClothAssetRemeshMethod::Remesh;
+
+	UPROPERTY(EditAnywhere, Category = "Render Mesh", meta = (UIMin = "0", UIMax = "20", ClampMin = "0", ClampMax = "100", EditCondition = "bRemeshRender && RemeshMethodRender == EChaosClothAssetRemeshMethod::Remesh"))
 	int32 IterationsRender = 10;
 
-	UPROPERTY(EditAnywhere, Category = "Render Mesh", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0", EditCondition = "bRemeshRender"))
+	UPROPERTY(EditAnywhere, Category = "Render Mesh", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0", EditCondition = "bRemeshRender && RemeshMethodRender == EChaosClothAssetRemeshMethod::Remesh"))
 	double SmoothingRender = 0.25;
 
 	FChaosClothAssetRemeshNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
@@ -60,8 +72,6 @@ private:
 
 	void EmptyRenderSelections(const TSharedRef<FManagedArrayCollection>& ClothCollection) const;
 
-	void RemeshRenderPattern(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
-		int32 PatternIndex,
+	void RemeshRenderMesh(const TSharedRef<const FManagedArrayCollection>& ClothCollection,
 		const TSharedRef<FManagedArrayCollection>& OutClothCollection) const;
-
 };
