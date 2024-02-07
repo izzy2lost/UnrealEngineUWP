@@ -72,6 +72,8 @@ public:
 
 	virtual void RequestRefresh() override {}
 
+	virtual void RequestForceRefresh() override {}
+
 	virtual TSharedPtr<class FAssetThumbnailPool> GetThumbnailPool() const override
 	{
 		return bShouldHideAssetThumbnail ? nullptr : UThumbnailManager::Get().GetSharedThumbnailPool();

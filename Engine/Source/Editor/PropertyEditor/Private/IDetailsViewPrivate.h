@@ -46,6 +46,9 @@ public:
 	 */
 	virtual TSharedPtr<IPropertyUtilities> GetPropertyUtilities() = 0;
 
+	/** Request the details view to be refreshed (new widgets generated) with the current set of objects on the next Tick */
+	virtual void RequestForceRefresh() = 0;
+
 	/** Causes the details view to be refreshed (new widgets generated) with the current set of objects */
 	virtual void ForceRefresh() = 0;
 

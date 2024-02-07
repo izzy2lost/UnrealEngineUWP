@@ -135,6 +135,7 @@ public:
 	bool GetCustomSavedExpansionState(const FString& NodePath) const override;
 	virtual void NotifyFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent) override;
 	void RefreshTree() override;
+	virtual void RequestForceRefresh() override;
 	TSharedPtr<FAssetThumbnailPool> GetThumbnailPool() const override;
 	virtual const TArray<TSharedRef<IClassViewerFilter>>& GetClassViewerFilters() const override;
 	TSharedPtr<IPropertyUtilities> GetPropertyUtilities() override;
@@ -397,6 +398,8 @@ protected:
 
 	/** Set timer to force refresh if one not already set */
 	void SetPendingRefreshTimer();
+	/** Clear timer to force refresh if set */
+	void ClearPendingRefreshTimer();
 	/** Force refresh during editor tick */
 	void HandlePendingRefreshTimer();
 
@@ -522,11 +525,11 @@ protected:
 	/** Timer has already been set to be run next tick */
 	bool bPendingCleanupTimerSet : 1;
 
-	/** Refresh timer has already been set to be run next tick */
-	bool bPendingRefreshTimerSet : 1;
-
 	/** Are we currently running deferred actions? */
 	bool bRunningDeferredActions : 1;
+
+	/** Handle to the pending refresh request, if any */
+	FTimerHandle PendingRefreshTimerHandle;
 
 	mutable TSharedPtr<FEditConditionParser> EditConditionParser;
 	
