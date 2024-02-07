@@ -50,7 +50,7 @@ public:
 		if (ActorDescHandle.IsValid())
 		{
 			UActorDescContainerInstance* ContainerInstance = ActorDescHandle.GetContainerInstance();
-			UWorld* OwningWorld = ContainerInstance->GetWorldPartition()->GetWorld();
+			UWorld* OwningWorld = ContainerInstance->GetOuterWorldPartition()->GetWorld();
 			ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(OwningWorld);
 			ULevel* Level = ContainerInstance->GetTypedOuter<UWorld>()->PersistentLevel;
 			if (LevelInstanceSubsystem && Level && (Level != OwningWorld->GetCurrentLevel()))

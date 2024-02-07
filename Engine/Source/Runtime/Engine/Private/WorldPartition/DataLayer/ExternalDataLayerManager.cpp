@@ -743,7 +743,7 @@ bool UExternalDataLayerManager::UnregisterExternalDataLayerActorDescContainer(co
 	if (ActorDescContainerInstance)
 	{
 		// Unregister the ActorDescContainerInstance
-		UWorldPartition* WorldPartition = ActorDescContainerInstance->GetWorldPartition();
+		UWorldPartition* WorldPartition = ActorDescContainerInstance->GetOuterWorldPartition();
 		if (!WorldPartition || !WorldPartition->UnregisterActorDescContainerInstance(ActorDescContainerInstance))
 		{
 			UE_LOG(LogWorldPartition, Error, TEXT("[EDL: %s] Failed to unregister the ActorDescContainer of this External Data Layer."), *InExternalDataLayerAsset->GetName());

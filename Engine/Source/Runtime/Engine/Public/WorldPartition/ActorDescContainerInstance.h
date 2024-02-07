@@ -101,11 +101,12 @@ public:
 	ENGINE_API bool IsInitialized() const { return bIsInitialized; }
 	ENGINE_API virtual void Uninitialize();
 
-	ENGINE_API UWorldPartition* GetWorldPartition() const;
-	ENGINE_API bool HasWorldPartition() const;
+	ENGINE_API UWorldPartition* GetTopWorldPartition() const;
+	ENGINE_API UWorldPartition* GetOuterWorldPartition() const;
 	ENGINE_API const FTransform& GetTransform() const;
 	ENGINE_API const FLinkerInstancingContext* GetInstancingContext() const;
 	const FActorContainerID& GetContainerID() const { return ContainerID; }
+	FGuid GetContainerActorGuid() const { return ContainerActorGuid; }
 
 	ENGINE_API static FName GetContainerPackageNameFromWorld(UWorld* InWorld);
 	ENGINE_API FName GetContainerPackage() const;
@@ -131,6 +132,8 @@ public:
 	ENGINE_API bool IsEmpty() const { return ActorDescList.IsEmpty(); }
 		
 	ENGINE_API void LoadAllActors(TArray<FWorldPartitionReference>& OutReferences);
+
+	ENGINE_API const TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>& GetChildContainerInstances() const { return ChildContainerInstances; }
 		
 protected:
 	virtual void RegisterContainer(const FInitializeParams& InParams);
@@ -175,12 +178,12 @@ private:
 	TOptional<FLinkerInstancingContext>							InstancingContext;
 			
 	FActorContainerID											ContainerID;
+	FGuid														ContainerActorGuid;
 	TOptional<FTransform>										Transform;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UActorDescContainer>								Container;
 		
-	// Keep reference off FActorDescInstance registered ChildContainerInstances for GC Ownership
 	UPROPERTY(Transient)
 	TMap<FGuid, TObjectPtr<UActorDescContainerInstance>>		ChildContainerInstances;
 

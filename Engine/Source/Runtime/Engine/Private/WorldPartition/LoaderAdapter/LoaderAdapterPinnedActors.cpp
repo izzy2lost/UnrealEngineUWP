@@ -34,7 +34,7 @@ namespace LoaderAdapterPinnedActorsUtils
 
 		if (UActorDescContainerInstance* ContainerInstance = InActorDescInstance->GetContainerInstance())
 		{
-			const UWorldPartition* ContainerWorldPartition = ContainerInstance->GetWorldPartition();
+			const UWorldPartition* ContainerWorldPartition = ContainerInstance->GetOuterWorldPartition();
 			return ContainerWorldPartition && (ContainerWorldPartition->IsMainWorldPartition() || !bCheckIsMainWorldPartition);
 		}
 

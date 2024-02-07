@@ -107,7 +107,11 @@ protected:
 	SCENEOUTLINER_API bool CheckLevelInstanceEditing(UWorld* World, AActor* Actor) const;
 
 	// Create a SceneOutlinerTreeItem for the given actor
-	virtual FSceneOutlinerTreeItemPtr CreateItemForActor(AActor* InActor, bool bForce = false) const;
+	SCENEOUTLINER_API virtual FSceneOutlinerTreeItemPtr CreateItemForActor(AActor* InActor, bool bForce = false) const;
+
+	// Create a SceneOutlinerTreeItem for the given actor descriptor instance
+	SCENEOUTLINER_API virtual FSceneOutlinerTreeItemPtr CreateItemForActorDescInstance(const FWorldPartitionActorDescInstance* InActorDescInstance, bool bForce = false) const;
+
 protected:
 	/** Send a an event indicating a full refresh of the hierarchy is required */
 	void FullRefreshEvent();

@@ -245,6 +245,22 @@ FActorDescTreeItem::FActorDescTreeItem(const FGuid& InActorGuid, UActorDescConta
 	}
 }
 
+FActorDescTreeItem::FActorDescTreeItem(const FWorldPartitionActorDescInstance* InActorDescInstance)
+	: IActorBaseTreeItem(Type)
+	, ActorDescHandle(InActorDescInstance->GetContainerInstance(), InActorDescInstance->GetGuid())
+	, ID(ComputeTreeItemID(InActorDescInstance->GetGuid(), InActorDescInstance->GetContainerInstance()))
+	, ActorGuid(InActorDescInstance->GetGuid())
+{
+	if (const FWorldPartitionActorDescInstance* const ActorDescInstance = ActorDescHandle.GetInstance())
+	{
+		DisplayString = ActorDescInstance->GetActorLabel().ToString();
+	}
+	else
+	{
+		DisplayString = LOCTEXT("ActorLabelForMissingActor", "(Deleted Actor)").ToString();
+	}
+}
+
 FSceneOutlinerTreeItemID FActorDescTreeItem::ComputeTreeItemID(FGuid InActorGuid, UActorDescContainerInstance* InContainerInstance)
 {
 	FArchiveMD5 Ar;
@@ -328,7 +344,7 @@ bool FActorDescTreeItem::GetPinnedState() const
 {
 	if (ActorDescHandle.IsValid() && ActorDescHandle.GetContainerInstance())
 	{
-		UWorldPartition* WorldPartition = ActorDescHandle.GetContainerInstance()->GetWorldPartition();
+		UWorldPartition* WorldPartition = ActorDescHandle.GetContainerInstance()->GetOuterWorldPartition();
 		return WorldPartition ? WorldPartition->IsActorPinned(GetGuid()) : false;
 	}
 	return false;
