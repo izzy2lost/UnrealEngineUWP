@@ -17,7 +17,7 @@ uint2 SampleCoordToDownsampledScreenCoord(uint2 SampleCoord)
 uint2 SampleCoordToScreenCoord(uint2 SampleCoord)
 {
 	uint2 DownsampledScreenCoord = SampleCoordToDownsampledScreenCoord(SampleCoord);
-	return DownsampledScreenCoord * DOWNSAMPLE_FACTOR + GetSampleScreenCoordJitter();
+	return DownsampledScreenCoord * DOWNSAMPLE_FACTOR + GetSampleScreenCoordJitter(DownsampledScreenCoord);
 }
 
 bool GenerateShadowRay(
