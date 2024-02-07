@@ -49,6 +49,7 @@ public:
 	// Begin FTickableGameObject
 	virtual bool IsTickable() const override;
 	virtual void Tick(float DeltaTime) override;
+	virtual ETickableTickType GetTickableTickType() const override { return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional); }
 	virtual TStatId GetStatId() const override;
 	// End FTickableGameObject
 

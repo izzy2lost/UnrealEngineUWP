@@ -47,7 +47,7 @@ void UCommonBoundActionBar::Tick(float DeltaTime)
 
 ETickableTickType UCommonBoundActionBar::GetTickableTickType() const
 {
-	return ETickableTickType::Always;
+	return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Always);
 }
 
 TStatId UCommonBoundActionBar::GetStatId() const

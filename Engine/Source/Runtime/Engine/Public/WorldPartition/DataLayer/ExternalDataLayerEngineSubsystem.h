@@ -38,6 +38,7 @@ public:
 #endif
 	virtual bool IsTickable() const override;
 	virtual void Tick(float DeltaTime) override;
+	virtual ETickableTickType GetTickableTickType() const override { return (IsTemplate() ? ETickableTickType::Never : ETickableTickType::Conditional); }
 	virtual TStatId GetStatId() const override;
 
 	ENGINE_API void RegisterExternalDataLayerAsset(const UExternalDataLayerAsset* InExternalDataLayerAsset, const UObject* InClient);
