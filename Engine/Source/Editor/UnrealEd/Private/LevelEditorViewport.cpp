@@ -2384,6 +2384,8 @@ FLevelEditorViewportClient::FLevelEditorViewportClient(const TSharedPtr<SLevelVi
 	ModeTools->SetWidgetMode(UE::Widget::WM_Translate);
 	Widget->SetUsesEditorModeTools(ModeTools.Get());
 
+	ModeTools->OnWidgetModeChanged().AddRaw(this, &FLevelEditorViewportClient::OnWidgetModeChanged);
+
 	// Register for editor cleanse events so we can release references to hovered actors
 	FEditorSupportDelegates::CleanseEditor.AddRaw(this, &FLevelEditorViewportClient::OnEditorCleanse);
 
@@ -2430,6 +2432,8 @@ FLevelEditorViewportClient::~FLevelEditorViewportClient()
 		Registry->OnProcessingDeferredElementsToDestroy().RemoveAll(this);
 	}
 	ResetElementsToManipulate();
+
+	ModeTools->OnWidgetModeChanged().RemoveAll(this);
 
 	// Unregister for all global callbacks to this object
 	FEditorSupportDelegates::CleanseEditor.RemoveAll(this);
@@ -4232,10 +4236,17 @@ void FLevelEditorViewportClient::CacheElementsToManipulate(const bool bForceRefr
 		const UTypedElementSelectionSet* SelectionSet = GetSelectionSet();
 		SelectionSet->GetNormalizedSelection(NormalizationOptions, CachedElementsToManipulate);
 
+		const UE::Widget::EWidgetMode WidgetMode = GetWidgetMode();
+
 		// Remove any elements that cannot be moved
-		CachedElementsToManipulate->RemoveAll<ITypedElementWorldInterface>([this](const TTypedElement<ITypedElementWorldInterface>& InWorldElement)
+		CachedElementsToManipulate->RemoveAll<ITypedElementWorldInterface>([this, WidgetMode](const TTypedElement<ITypedElementWorldInterface>& InWorldElement)
 		{
 			if (!InWorldElement.CanMoveElement(bIsSimulateInEditorViewport ? ETypedElementWorldType::Game : ETypedElementWorldType::Editor))
+			{
+				return true;
+			}
+
+			if (WidgetMode == UE::Widget::WM_Scale && !InWorldElement.CanScaleElement())
 			{
 				return true;
 			}
@@ -5681,6 +5692,12 @@ void FLevelEditorViewportClient::ClearHoverFromObjects()
 
 		HoveredObjects.Empty();
 	}
+}
+
+void FLevelEditorViewportClient::OnWidgetModeChanged(UE::Widget::EWidgetMode NewMode)
+{
+	// We need this in case the current selection allowed the previous widget mode but not the new one or vice versa.
+	ResetElementsToManipulate();
 }
 
 void FLevelEditorViewportClient::OnEditorCleanse()

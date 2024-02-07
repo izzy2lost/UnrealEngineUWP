@@ -702,6 +702,9 @@ protected:
 	 */
 	UNREALED_API bool CanDropBlueprintAsset ( const struct FSelectedAssetInfo& );
 
+	/** Called when the widget mode changes. */
+	void OnWidgetModeChanged(UE::Widget::EWidgetMode NewMode);
+
 	/** Called when editor cleanse event is triggered */
 	UNREALED_API void OnEditorCleanse();
 
