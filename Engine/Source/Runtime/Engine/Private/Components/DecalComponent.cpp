@@ -50,7 +50,6 @@ FDeferredDecalProxy::FDeferredDecalProxy(const UDecalComponent* InComponent)
 	Component = InComponent;
 	DecalMaterial = EffectiveMaterial;
 	SetTransformIncludingDecalSize(InComponent->GetTransformIncludingDecalSize(), InComponent->CalcBounds(InComponent->GetComponentTransform()));
-	bOwnerSelected = InComponent->IsOwnerSelected();
 	SortOrder = InComponent->SortOrder;
 
 #if WITH_EDITOR
@@ -87,7 +86,6 @@ FDeferredDecalProxy::FDeferredDecalProxy(const USceneComponent* InComponent, UMa
 	}
 
 	SetTransformIncludingDecalSize(FTransform::Identity, InComponent->CalcBounds(InComponent->GetComponentTransform()));
-	bOwnerSelected = InComponent->IsOwnerSelected();
 	SortOrder = 0;
 
 #if WITH_EDITOR
@@ -344,7 +342,8 @@ void UDecalComponent::PrecachePSOs()
 
 void UDecalComponent::PushSelectionToProxy()
 {
-	MarkRenderStateDirty();	
+	// The decal's proxy does not actually need to know if the decal is selected or not, so there is nothing to do here.
+	// This function has been marked as deprecated and can eventually be removed.
 }
 
 class UMaterialInterface* UDecalComponent::GetDecalMaterial() const

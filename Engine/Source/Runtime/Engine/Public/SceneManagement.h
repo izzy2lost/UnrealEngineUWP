@@ -1404,8 +1404,6 @@ private:
 
 public:
 
-	bool bOwnerSelected;
-
 	/** Larger values draw later (on top). */
 	int32 SortOrder;
 
