@@ -371,6 +371,10 @@ public:
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Add permissions to support Voice chat (RECORD_AUDIO)"))
 	bool bAndroidVoiceEnabled;
 
+	// Request permission at startup (SplashActivity) for Voice chat (RECORD_AUDIO)
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Request permission at startup for Voice chat (RECORD_AUDIO)", EditCondition = "bAndroidVoiceEnabled"))
+	bool bRecordPermissionAtStartupEnabled;
+
 	// Add required permission and support to allow multicast/broadcast Wi-Fi traffic through network interface
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Add support for multicast Wi-Fi traffic (CHANGE_WIFI_MULTICAST_STATE)"))
 	bool bEnableMulticastSupport;
