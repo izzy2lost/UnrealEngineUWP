@@ -109,7 +109,8 @@ namespace PCGMetadataHelpers
 		return false;
 	}
 
-	bool CopyAttributes(UPCGData* TargetData, const UPCGData* SourceData, const TArray<TPair<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector>>& AttributeSelectors, bool bSameOrigin, FPCGContext* OptionalContext)
+
+	bool CopyAttributes(UPCGData* TargetData, const UPCGData* SourceData, const TArray<TTuple<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector, EPCGMetadataTypes>>& AttributeSelectorsWithOutputType, bool bSameOrigin, FPCGContext* OptionalContext)
 	{
 		check(TargetData && SourceData);
 		const UPCGMetadata* SourceMetadata = SourceData->ConstMetadata();
@@ -122,10 +123,11 @@ namespace PCGMetadataHelpers
 
 		bool bSuccess = false;
 
-		for (const auto& SelectorPair : AttributeSelectors)
+		for (const auto& SelectorTuple : AttributeSelectorsWithOutputType)
 		{
-			const FPCGAttributePropertyInputSelector& InputSource = SelectorPair.Key;
-			const FPCGAttributePropertyOutputSelector& OutputTarget = SelectorPair.Value;
+			const FPCGAttributePropertyInputSelector& InputSource = SelectorTuple.Get<0>();
+			const FPCGAttributePropertyOutputSelector& OutputTarget = SelectorTuple.Get<1>();
+			const EPCGMetadataTypes RequestedOutputType = SelectorTuple.Get<2>();
 
 			const FName LocalSourceAttribute = InputSource.GetName();
 			const FName LocalDestinationAttribute = OutputTarget.GetName();
@@ -142,8 +144,10 @@ namespace PCGMetadataHelpers
 			const bool bOutputHasAnyExtra = !OutputTarget.GetExtraNames().IsEmpty();
 			const bool bSourceIsAttribute = InputSource.GetSelection() == EPCGAttributePropertySelection::Attribute;
 			const bool bTargetIsAttribute = OutputTarget.GetSelection() == EPCGAttributePropertySelection::Attribute;
+			// Cast is only required if it is on an output attribute that has no extra (that we will create)
+			const bool bOutputTypeCast = bTargetIsAttribute && !bOutputHasAnyExtra && (RequestedOutputType != EPCGMetadataTypes::Unknown);
 
-			const bool bNeedAccessors = bIsMultiEntries || bInputHasAnyExtra || bOutputHasAnyExtra || !bSourceIsAttribute || !bTargetIsAttribute;
+			const bool bNeedAccessors = bIsMultiEntries || bInputHasAnyExtra || bOutputHasAnyExtra || !bSourceIsAttribute || !bTargetIsAttribute || bOutputTypeCast;
 
 			// If no accessor, copy over the attribute
 			if (!bNeedAccessors)
@@ -183,17 +187,39 @@ namespace PCGMetadataHelpers
 					continue;
 				}
 
+				const uint16 OutputType = bOutputTypeCast ? static_cast<uint16>(RequestedOutputType) : InputAccessor->GetUnderlyingType();
+
+				if (bOutputTypeCast && InputAccessor->GetUnderlyingType() == OutputType && bSameOrigin && LocalSourceAttribute == LocalDestinationAttribute)
+				{
+					// Nothing to do if we try to cast an attribute on itself with the same type
+					continue;
+				}
+
+				// If we have a cast, make sure it is valid
+				if (bOutputTypeCast && !PCG::Private::IsBroadcastableOrConstructible(InputAccessor->GetUnderlyingType(), OutputType))
+				{
+					PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("CastInvalid", "Cannot convert InputAttribute '{0}' of type {1} into {2}"), InputSource.GetDisplayText(), PCG::Private::GetTypeNameText(InputAccessor->GetUnderlyingType()), PCG::Private::GetTypeNameText(OutputType)), OptionalContext);
+					continue;
+				}
+
 				// If the target is an attribute, only create a new one if the attribute we don't have any extra.
 				// If it has any extra, it will try to write to it.
 				if (!bOutputHasAnyExtra && bTargetIsAttribute)
 				{
-					auto CreateAttribute = [TargetMetadata, LocalDestinationAttribute](auto Dummy)
+					auto CreateAttribute = [TargetMetadata, LocalDestinationAttribute, &InputAccessor](auto Dummy) -> bool
 					{
 						using AttributeType = decltype(Dummy);
-						return PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(TargetMetadata, LocalDestinationAttribute) != nullptr;
+						AttributeType DefaultValue{};
+						if (!InputAccessor->Get(DefaultValue, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcast | EPCGAttributeAccessorFlags::AllowConstructible))
+						{
+							// It's OK to fail getting the default value, if for example the input accessor is a property. In that case, just fallback on 0.
+							DefaultValue = PCG::Private::MetadataTraits<AttributeType>::ZeroValue();
+						}
+
+						return PCGMetadataElementCommon::ClearOrCreateAttribute<AttributeType>(TargetMetadata, LocalDestinationAttribute, std::move(DefaultValue)) != nullptr;
 					};
 
-					if (!PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), CreateAttribute))
+					if (!PCGMetadataAttribute::CallbackWithRightType(OutputType, CreateAttribute))
 					{
 						PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FailedToCreateNewAttribute", "Failed to create new attribute '{0}'"), FText::FromName(LocalDestinationAttribute)), OptionalContext);
 						continue;
@@ -215,10 +241,10 @@ namespace PCGMetadataHelpers
 					continue;
 				}
 
-				// Final verification, if we can put the value of input into output
-				if (!PCG::Private::IsBroadcastableOrConstructible(InputAccessor->GetUnderlyingType(), OutputAccessor->GetUnderlyingType()))
+				// Final verification (if not already done), if we can put the value of input into output
+				if (!bOutputTypeCast && !PCG::Private::IsBroadcastableOrConstructible(OutputType, OutputAccessor->GetUnderlyingType()))
 				{
-					PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("CannotConvertTypes", "Cannot convert input type {0} into output type {1}"), PCG::Private::GetTypeNameText(InputAccessor->GetUnderlyingType()), PCG::Private::GetTypeNameText(OutputAccessor->GetUnderlyingType())), OptionalContext);
+					PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("CannotConvertTypes", "Cannot convert input type {0} into output type {1}"), PCG::Private::GetTypeNameText(OutputType), PCG::Private::GetTypeNameText(OutputAccessor->GetUnderlyingType())), OptionalContext);
 					continue;
 				}
 
@@ -244,19 +270,19 @@ namespace PCGMetadataHelpers
 		return bSuccess;
 	}
 
-	bool CopyAttributes(const UPCGData* SourceData, const FPCGAttributePropertyInputSelector& _InputSource, UPCGData* TargetData, const FPCGAttributePropertyOutputSelector& _OutputTarget, bool bSameOrigin, FPCGContext* OptionalContext)
+	bool CopyAttribute(const FPCGCopyAttributeParams& InParams)
 	{
-		if (!TargetData || !SourceData)
+		if (!InParams.TargetData || !InParams.SourceData)
 		{
 			return false;
 		}
 
-		TArray<TPair<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector>> AttributeSelectors;
-		FPCGAttributePropertyInputSelector InputSource = _InputSource.CopyAndFixLast(SourceData);
-		FPCGAttributePropertyOutputSelector OutputTarget = _OutputTarget.CopyAndFixSource(&InputSource, SourceData);
+		TArray<TTuple<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector, EPCGMetadataTypes>> AttributeSelectors;
+		FPCGAttributePropertyInputSelector InputSource = InParams.InputSource.CopyAndFixLast(InParams.SourceData);
+		FPCGAttributePropertyOutputSelector OutputTarget = InParams.OutputTarget.CopyAndFixSource(&InputSource, InParams.SourceData);
 
-		AttributeSelectors.Emplace(MoveTemp(InputSource), MoveTemp(OutputTarget));
-		return CopyAttributes(TargetData, SourceData, AttributeSelectors, bSameOrigin, OptionalContext);
+		AttributeSelectors.Emplace(MoveTemp(InputSource), MoveTemp(OutputTarget), InParams.OutputType);
+		return CopyAttributes(InParams.TargetData, InParams.SourceData, AttributeSelectors, InParams.bSameOrigin, InParams.OptionalContext);
 	}
 
 	bool CopyAllAttributes(const UPCGData* SourceData, UPCGData* TargetData, FPCGContext* OptionalContext)
@@ -272,16 +298,17 @@ namespace PCGMetadataHelpers
 			return false;
 		}
 
-		TArray<TPair<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector>> AttributeSelectors;
+		TArray<TTuple<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector, EPCGMetadataTypes>> AttributeSelectors;
 		TArray<FName> AttributeNames;
 		TArray<EPCGMetadataTypes> AttributeTypes;
 		SourceMetadata->GetAttributes(AttributeNames, AttributeTypes);
 
 		for (const FName& AttributeName : AttributeNames)
 		{
-			TPair<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector>& Selectors = AttributeSelectors.Emplace_GetRef();
-			Selectors.Key.SetAttributeName(AttributeName);
-			Selectors.Value.SetAttributeName(AttributeName);
+			TTuple<FPCGAttributePropertyInputSelector, FPCGAttributePropertyOutputSelector, EPCGMetadataTypes>& Selectors = AttributeSelectors.Emplace_GetRef();
+			Selectors.Get<0>().SetAttributeName(AttributeName);
+			Selectors.Get<1>().SetAttributeName(AttributeName);
+			Selectors.Get<2>() = EPCGMetadataTypes::Unknown;
 		}
 
 		return CopyAttributes(TargetData, SourceData, AttributeSelectors, /*bSameOrigin=*/false, OptionalContext);
