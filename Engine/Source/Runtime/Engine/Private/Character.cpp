@@ -1548,9 +1548,12 @@ void ACharacter::PreReplication( IRepChangedPropertyTracker & ChangedPropertyTra
 	}
 	else
 	{
+		const bool bWasRootMotionPreviouslyActive = RepRootMotion.bIsActive;
 		RepRootMotion.Clear();
 
-		DOREPLIFETIME_ACTIVE_OVERRIDE_FAST( ACharacter, RepRootMotion, false );
+		// Replicate RepRootMotion one last time when root motion ends, so that clients see the change.
+		// Then deactivate subsequent property comparisons and replication updates until root motion starts again.
+		DOREPLIFETIME_ACTIVE_OVERRIDE_FAST( ACharacter, RepRootMotion, bWasRootMotionPreviouslyActive );
 	}
 
 	bProxyIsJumpForceApplied = (JumpForceTimeRemaining > 0.0f);
