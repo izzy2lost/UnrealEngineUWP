@@ -15,7 +15,7 @@ class UAvaSceneState : public UObject
 	GENERATED_BODY()
 
 public:
-	void OnBeginPlay(UAvaSceneSettings* InSceneSettings);
+	void SetSceneSettings(UAvaSceneSettings* InSceneSettings);
 
 	AVALANCHE_API bool AddTagAttribute(const FAvaTagHandle& InTagHandle);
 
