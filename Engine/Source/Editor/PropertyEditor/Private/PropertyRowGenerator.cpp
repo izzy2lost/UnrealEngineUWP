@@ -65,6 +65,11 @@ public:
 			Generator->RequestRefresh();
 		}
 	}
+	virtual void RequestForceRefresh() override
+	{
+		// RequestRefresh is already a deferred ForceRefresh
+		RequestRefresh();
+	}
 
 	virtual TSharedPtr<class FAssetThumbnailPool> GetThumbnailPool() const override
 	{

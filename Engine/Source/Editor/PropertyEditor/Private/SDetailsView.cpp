@@ -515,6 +515,9 @@ EVisibility SDetailsView::GetActorNameAreaVisibility() const
 void SDetailsView::ForceRefresh()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("SDetailsView::ForceRefresh");
+
+	ClearPendingRefreshTimer();
+
 	TArray<UObject*> NewObjectList;
 	NewObjectList.Reserve(UnfilteredSelectedObjects.Num());
 	TArray<TWeakObjectPtr<UObject>> ValidSelectedObjects;

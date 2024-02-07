@@ -71,6 +71,12 @@ public:
 		View.RequestRefresh();
 	}
 
+	virtual void RequestForceRefresh() override
+	{
+		// RequestRefresh is already a deferred ForceRefresh
+		RequestRefresh();
+	}
+
 	virtual bool IsPropertyEditingEnabled() const override
 	{
 		return true;

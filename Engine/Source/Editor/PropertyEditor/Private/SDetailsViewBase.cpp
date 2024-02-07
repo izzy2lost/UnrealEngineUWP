@@ -29,7 +29,6 @@ SDetailsViewBase::SDetailsViewBase() :
 	, bHasOpenColorPicker(false)
 	, bDisableCustomDetailLayouts(false)
 	, bPendingCleanupTimerSet(false)
-	, bPendingRefreshTimerSet(false)
 	, bRunningDeferredActions(false)
 {
 	UDetailsConfig::Initialize();
@@ -45,9 +44,9 @@ SDetailsViewBase::SDetailsViewBase() :
 		CurrentFilter.bShowOnlyModified = ViewConfig->bShowOnlyModified;
 	}
 
-	// Avoid calling ForceRefresh until next tick otherwise the editor can lock up for several minutes in one frame refreshing multiple times
-	PropertyPermissionListChangedDelegate = FPropertyEditorPermissionList::Get().PermissionListUpdatedDelegate.AddLambda([this](TSoftObjectPtr<UStruct> Struct, FName Owner) { SetPendingRefreshTimer(); });
-	PropertyPermissionListEnabledDelegate = FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddRaw(this, &SDetailsViewBase::SetPendingRefreshTimer);
+	// RequestForceRefresh is deferred until next tick to avoid the editor locking up for several minutes in one frame when refreshing multiple times
+	PropertyPermissionListChangedDelegate = FPropertyEditorPermissionList::Get().PermissionListUpdatedDelegate.AddLambda([this](TSoftObjectPtr<UStruct> Struct, FName Owner) { RequestForceRefresh(); });
+	PropertyPermissionListEnabledDelegate = FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddRaw(this, &SDetailsViewBase::RequestForceRefresh);
 }
 
 SDetailsViewBase::~SDetailsViewBase()
@@ -802,6 +801,11 @@ void SDetailsViewBase::RefreshTree()
 	DetailTree->RequestTreeRefresh();
 }
 
+void SDetailsViewBase::RequestForceRefresh()
+{
+	SetPendingRefreshTimer();
+}
+
 void SDetailsViewBase::SaveCustomExpansionState(const FString& NodePath, bool bIsExpanded)
 {
 	if (bIsExpanded)
@@ -1117,19 +1121,30 @@ void SDetailsViewBase::HandlePendingCleanup()
 
 void SDetailsViewBase::SetPendingRefreshTimer()
 {
-	if (!bPendingRefreshTimerSet)
+	if (!PendingRefreshTimerHandle.IsValid())
 	{
 		if (GEditor && GEditor->IsTimerManagerValid())
 		{
-			bPendingRefreshTimerSet = true;
-			GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDetailsViewBase::HandlePendingRefreshTimer));
+			PendingRefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDetailsViewBase::HandlePendingRefreshTimer));
 		}
+	}
+}
+
+void SDetailsViewBase::ClearPendingRefreshTimer()
+{
+	if (PendingRefreshTimerHandle.IsValid())
+	{
+		if (GEditor && GEditor->IsTimerManagerValid())
+		{
+			GEditor->GetTimerManager()->ClearTimer(PendingRefreshTimerHandle);
+		}
+		PendingRefreshTimerHandle.Invalidate();
 	}
 }
 
 void SDetailsViewBase::HandlePendingRefreshTimer()
 {
-	bPendingRefreshTimerSet = false;
+	PendingRefreshTimerHandle.Invalidate();
 	ForceRefresh();
 }
 

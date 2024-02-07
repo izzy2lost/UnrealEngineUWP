@@ -271,6 +271,8 @@ void SStructureDetailsView::SetCustomName(const FText& Text)
 
 void SStructureDetailsView::ForceRefresh()
 {
+	ClearPendingRefreshTimer();
+
 	SetStructureProvider(StructProvider);
 }
 
