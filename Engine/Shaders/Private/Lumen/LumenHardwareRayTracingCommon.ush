@@ -2,6 +2,9 @@
 
 #pragma once
 
+// Change this to force recompilation of all Lumen HWRT shaders
+#pragma message("UESHADERMETADATA_VERSION D785AE61-2AB9-4012-B09C-8FE948A2A0B7")
+
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
 
