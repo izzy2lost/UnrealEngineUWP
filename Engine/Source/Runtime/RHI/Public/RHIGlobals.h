@@ -582,6 +582,9 @@ struct FRHIGlobals
 	/** Whether current RHI supports shader bundle dispatch. */
 	bool SupportsShaderBundleDispatch = false;
 
+	/** Whether current RHI supports shader bundle dispatch and RHI parallel translate. */
+	bool SupportsShaderBundleParallel = false;
+
 	/** true if the RHI supports Mesh and Amplification shaders with tier0 capability */
 	bool SupportsMeshShadersTier0 = false;
 
@@ -804,6 +807,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GRHISupportsConservativeRasterization                  GRHIGlobals.SupportsConservativeRasterization
 #define GRHISupportsShaderRootConstants                        GRHIGlobals.SupportsShaderRootConstants
 #define GRHISupportsShaderBundleDispatch                       GRHIGlobals.SupportsShaderBundleDispatch
+#define GRHISupportsShaderBundleParallel                       GRHIGlobals.SupportsShaderBundleParallel
 #define GRHISupportsMeshShadersTier0                           GRHIGlobals.SupportsMeshShadersTier0
 #define GRHISupportsMeshShadersTier1                           GRHIGlobals.SupportsMeshShadersTier1
 #define GRHISupportsShaderTimestamp                            GRHIGlobals.SupportsShaderTimestamp

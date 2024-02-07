@@ -398,20 +398,34 @@ public:
 
 		// Parallel translate might be explicitly disabled (e.g. platform RHI doesn't support parallel translate)
 		if (!bAllowParallelTranslate)
+		{
 			return false;
+		}
 
 		// All commands recorded by the immediate command list must not be parallel translated.
 		// This is mostly for legacy reasons, since various parts of the renderer / RHI expect immediate commands to be single-threaded.
 		if (PersistentState.bImmediate)
+		{
 			return false;
+		}
 
 		// Command lists that use RHIThreadFence(true) are going to mutate resource state, so must be single-threaded.
 		if (LastLockFenceCommand)
+		{
 			return false;
+		}
 
 		// SetTrackedAccess mutates the FRHIViewableResource::TrackedAccess member.
 		if (bUsesSetTrackedAccess)
+		{
 			return false;
+		}
+
+		// Some shader bundle implementations do not currently support parallel translate
+		if (bUsesShaderBundles && !GRHISupportsShaderBundleParallel)
+		{
+			return false;
+		}
 
 		return true;
 	}
@@ -996,6 +1010,7 @@ protected:
 	bool bExecuting              = false;
 	bool bAllowParallelTranslate = true;
 	bool bUsesSetTrackedAccess   = false;
+	bool bUsesShaderBundles      = false;
 
 	// The currently selected pipeline that RHI commands are directed to, during command list recording.
 	// This is also adjusted during command list execution based on recorded use of SwitchPipeline().
@@ -1604,6 +1619,8 @@ FRHICOMMAND_MACRO(FRHICommandDispatchIndirectComputeShader)
 	}
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
+
+using FRHIRecordBundleDispatchCallback = TFunction<void(FRHIShaderBundleDispatch& Dispatch)>;
 
 FRHICOMMAND_MACRO(FRHICommandDispatchShaderBundle)
 {
@@ -2761,12 +2778,34 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		bool bEmulated
 	)
 	{
+		bUsesShaderBundles = true;
+
 		if (Bypass())
 		{
 			GetContext().RHIDispatchShaderBundle(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
 			return;
 		}
 		ALLOC_COMMAND(FRHICommandDispatchShaderBundle)(ShaderBundle, RecordArgBufferSRV, RecordDataBufferSRV, ExecutionBufferUAV, Dispatches, bEmulated);
+	}
+
+	FORCEINLINE_DEBUGGABLE void DispatchShaderBundle(
+		TFunction<void(FRHICommandDispatchShaderBundle&)>&& RecordCallback
+	)
+	{
+		bUsesShaderBundles = true;
+
+		// Need to explicitly enqueue the RHI command so we can avoid an unnecessary copy of the dispatches array.
+		if (Bypass())
+		{
+			FRHICommandDispatchShaderBundle DispatchBundleCommand;
+			RecordCallback(DispatchBundleCommand);
+			DispatchBundleCommand.Execute(*this);
+		}
+		else
+		{
+			FRHICommandDispatchShaderBundle& DispatchBundleCommand = *ALLOC_COMMAND_CL(*this, FRHICommandDispatchShaderBundle);
+			RecordCallback(DispatchBundleCommand);
+		}
 	}
 
 	FORCEINLINE_DEBUGGABLE void BeginUAVOverlap()

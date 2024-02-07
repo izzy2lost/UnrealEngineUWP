@@ -1322,19 +1322,7 @@ void DispatchBasePass(
 					}
 				};
 
-				// Need to explicitly enqueue the RHI command so we can avoid an unnecessary copy of the dispatches array.
-				// Because of this, we need to special case RHI bypass vs. threaded instead of calling RHICmdList.DispatchShaderBundle().
-				if (RHICmdList.Bypass())
-				{
-					FRHICommandDispatchShaderBundle DispatchBundleCommand;
-					RecordDispatches(DispatchBundleCommand);
-					DispatchBundleCommand.Execute(RHICmdList);
-				}
-				else
-				{
-					FRHICommandDispatchShaderBundle& DispatchBundleCommand = *ALLOC_COMMAND_CL(RHICmdList, FRHICommandDispatchShaderBundle);
-					RecordDispatches(DispatchBundleCommand);
-				}
+				RHICmdList.DispatchShaderBundle(RecordDispatches);
 			}
 			else // !bDispatchBundle
 			{
