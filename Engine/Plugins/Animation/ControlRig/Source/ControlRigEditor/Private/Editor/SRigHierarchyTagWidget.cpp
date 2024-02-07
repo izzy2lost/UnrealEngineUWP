@@ -19,6 +19,7 @@ void SRigHierarchyTagWidget::Construct(const FArguments& InArgs)
 {
 	Text = InArgs._Text;
 	Icon = InArgs._Icon;
+	IconColor = InArgs._IconColor;
 	Color = InArgs._Color;
 	Radius = InArgs._Radius;
 	Padding = InArgs._Padding;
@@ -49,6 +50,8 @@ void SRigHierarchyTagWidget::Construct(const FArguments& InArgs)
 				return Icon.Get() ? EVisibility::Visible : EVisibility::Collapsed;
 			})
 			.Image(Icon)
+			.ColorAndOpacity(IconColor)
+			.DesiredSizeOverride(InArgs._IconSize)
 		]
 
 		+ SHorizontalBox::Slot()

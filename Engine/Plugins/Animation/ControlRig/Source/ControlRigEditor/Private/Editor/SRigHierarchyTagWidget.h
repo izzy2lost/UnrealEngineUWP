@@ -19,6 +19,7 @@ public:
 		, _TooltipText()
 		, _Icon(nullptr)
 		, _Color(FLinearColor(.2, .2, .2))
+		, _IconColor(FLinearColor::White)
 		, _TextColor(FLinearColor(.8, .8, .8))
 		, _Radius(5)
 		, _Padding(10, 0, 0, 0)
@@ -32,7 +33,9 @@ public:
 		SLATE_ATTRIBUTE(FText, Text)
 		SLATE_ATTRIBUTE(FText, TooltipText)
 		SLATE_ATTRIBUTE(const FSlateBrush*, Icon)
+		SLATE_ATTRIBUTE(TOptional<FVector2d>, IconSize)
 		SLATE_ATTRIBUTE(FLinearColor, Color)
+		SLATE_ATTRIBUTE(FSlateColor, IconColor)
 		SLATE_ATTRIBUTE(FSlateColor, TextColor)
 		SLATE_ARGUMENT(float, Radius)
 		SLATE_ARGUMENT(FMargin, Padding)
@@ -59,6 +62,7 @@ private:
 	TAttribute<FText> Text;
 	TAttribute<const FSlateBrush*> Icon;
 	TAttribute<FLinearColor> Color;
+	TAttribute<FSlateColor> IconColor;
 	float Radius = 5.f;
 	FMargin Padding;
 	FMargin ContentPadding;
