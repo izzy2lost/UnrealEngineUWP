@@ -4,7 +4,6 @@
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 
-#include "ChaosVDRuntimeModule.h"
 #include "HAL/IConsoleManager.h"
 #include "Internationalization/Text.h"
 #include "Internationalization/Internationalization.h"
@@ -50,7 +49,7 @@ namespace Chaos::VisualDebugger
 
 	void FChaosVDOptionalDataChannel::SetChannelEnabled(bool bNewEnabled)
 	{
-		
+		bIsEnabled = bNewEnabled;
 	}
 
 	FChaosVDDataChannelsManager& FChaosVDDataChannelsManager::Get()

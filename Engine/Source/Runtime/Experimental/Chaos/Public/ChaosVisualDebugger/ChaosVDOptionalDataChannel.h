@@ -108,6 +108,8 @@ namespace Chaos::VisualDebugger
 	TSharedRef<FChaosVDOptionalDataChannel> CreateDataChannel(FName InChannelID, const TSharedRef<FText>& InDisplayName, EChaosVDDataChannelInitializationFlags InitializationFlags);
 }
 
+#endif //WITH_CHAOS_VISUAL_DEBUGGER
+
 #ifndef CVD_CONCAT_NX
 	#define CVD_CONCAT_NX(A, B) A ## B
 #endif
@@ -123,6 +125,8 @@ namespace Chaos::VisualDebugger
 #ifndef CVD_STRINGIZE
 	#define CVD_STRINGIZE(A) CVD_STRINGIZE_NX(A)
 #endif
+
+#if WITH_CHAOS_VISUAL_DEBUGGER
 
 /** Declares an Optional CVD Data channel to be available globally. The data channel can be accessed by using CVDDC_TheNameOfTheChannelUsedWithThisMacro */
 #ifndef CVD_DECLARE_OPTIONAL_DATA_CHANNEL
@@ -147,4 +151,16 @@ CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EndOfEvolutionCollisionConstraints);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(EvolutionEnd);
 CVD_DECLARE_OPTIONAL_DATA_CHANNEL(SceneQueries);
 
+#else  //WITH_CHAOS_VISUAL_DEBUGGER
+
+/** Declares an Optional CVD Data channel to be available globally. The data channel can be accessed by using CVDDC_TheNameOfTheChannelUsedWithThisMacro */
+#ifndef CVD_DECLARE_OPTIONAL_DATA_CHANNEL
+	#define CVD_DECLARE_OPTIONAL_DATA_CHANNEL(DataChannelName)
 #endif
+
+/** Defines and initializes an Optional CVD Data Channel */
+#ifndef CVD_DEFINE_OPTIONAL_DATA_CHANNEL
+	#define CVD_DEFINE_OPTIONAL_DATA_CHANNEL(DataChannelName, InitializationFlags)
+#endif
+
+#endif  //WITH_CHAOS_VISUAL_DEBUGGER
