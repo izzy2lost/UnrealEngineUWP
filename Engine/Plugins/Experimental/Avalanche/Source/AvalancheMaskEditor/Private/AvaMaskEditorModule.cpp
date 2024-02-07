@@ -70,7 +70,7 @@ void FAvalancheMaskEditorModule::RegisterMenus()
 			{
 				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FAvaMaskEditorCommands::Get().ToggleMaskMode));				
 				Entry.Label.Set(FText::GetEmpty());
-				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvalancheMaskEditor.ToggleMaskMode.Small")));
+				Entry.Icon.Set(FSlateIcon(FAvaMaskEditorStyle::Get().GetStyleSetName(), TEXT("AvaMaskEditor.ToggleMaskMode.Small")));
 				
 				Entry.SetCommandList(CommandList);
 			}
