@@ -333,6 +333,17 @@ void FChaosVDPlaybackViewportClient::PerformSelectedTrackingForFrame(FChaosVDGam
 	}
 }
 
+bool FChaosVDPlaybackViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
+{
+	// Each time we requested a re-draw means we move something in the scene, so we need to re-create the cached hit proxy map.
+	if (bNeedsRedraw)
+	{
+		RequestInvalidateHitProxy(Viewport);
+	}
+	
+	return FEditorViewportClient::InputKey(EventArgs);
+}
+
 void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
 	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = ModeTools.IsValid() ? StaticCastSharedPtr<SChaosVDMainTab>(ModeTools->GetToolkitHost()) : nullptr;
