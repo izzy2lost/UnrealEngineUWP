@@ -12,6 +12,7 @@
 #include "ChaosVDTabsIDs.h"
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
+#include "SceneView.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
 #include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
 #include "Widgets/SChaosVDMainTab.h"
@@ -265,6 +266,16 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawSceneQuery(const UActorCompo
 	const bool bHideSubQueries = EnumHasAnyFlags(EChaosVDSceneQueryVisualizationFlags::HideSubQueries, static_cast<EChaosVDSceneQueryVisualizationFlags>(VisualizationContext.VisualizationFlags));
 	if (bHideSubQueries && Query->ParentQueryID != INDEX_NONE)
 	{
+		return;
+	}
+
+	//TODO: Should we try to calculate actual bounds?
+	constexpr float MinVisibleRadius = 100.0f;
+	const float QueryHalfDistance = (Query->EndLocation - Query->StartLocation).Size() * 0.5;
+	const float VisibleRadius = FMath::Max(QueryHalfDistance, MinVisibleRadius);
+	if (!View->ViewFrustum.IntersectSphere(Query->StartLocation, VisibleRadius))
+	{
+		// If this query location is not even visible, just ignore it.
 		return;
 	}
 

@@ -2,9 +2,11 @@
 
 #include "Actors/ChaosVDSolverInfoActor.h"
 
+#include "ChaosVDModule.h"
 #include "ChaosVDParticleActor.h"
 #include "ChaosVDScene.h"
 #include "EditorActorFolders.h"
+#include "Components/ChaosVDParticleDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
 #include "Engine/World.h"
@@ -15,6 +17,7 @@
 AChaosVDSolverInfoActor::AChaosVDSolverInfoActor(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	CollisionDataComponent = CreateDefaultSubobject<UChaosVDSolverCollisionDataComponent>(TEXT("SolverCollisionDataComponent"));
+	ParticleDataComponent = CreateDefaultSubobject<UChaosVDParticleDataComponent>(TEXT("ParticleCollisionDataComponent"));
 	bIsServer = false;
 }
 
@@ -49,6 +52,34 @@ AChaosVDParticleActor* AChaosVDSolverInfoActor::GetParticleActor(int32 ParticleI
 	AChaosVDParticleActor** FoundParticleActor = SolverParticlesByID.Find(ParticleID);
 
 	return FoundParticleActor ? *FoundParticleActor : nullptr;
+}
+
+bool AChaosVDSolverInfoActor::IsParticleSelectedByID(int32 ParticleID)
+{
+	// Currently CVD does not support multi selection, so this should not be slow.
+	// But we might want to find another container for faster search after multi selection support is added
+	return SelectedParticlesID.Contains(ParticleID);
+}
+
+bool AChaosVDSolverInfoActor::SelectParticleByID(int32 ParticleIDToSelect)
+{
+	const TSharedPtr<FChaosVDScene> CVDScene = SceneWeakPtr.Pin();
+	if (!CVDScene)
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Tried to select a particle without a valid CVD Scene."), ANSI_TO_TCHAR(__FUNCTION__))
+		return false;
+	}
+
+	AChaosVDParticleActor* ParticleToSelect = GetParticleActor(ParticleIDToSelect);
+	if (!ParticleToSelect)
+	{
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Particle ID [%d] not found in Solver [%s]"), ANSI_TO_TCHAR(__FUNCTION__), ParticleIDToSelect, *GetSolverName());
+		return false;
+	}
+
+	CVDScene->SetSelectedObject(ParticleToSelect);
+
+	return true;
 }
 
 void AChaosVDSolverInfoActor::HandleVisibilitySettingsUpdated()

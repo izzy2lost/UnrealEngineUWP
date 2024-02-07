@@ -138,6 +138,8 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 	{
 		return;
 	}
+
+	SolverSceneData->SetSimulationTransform(InFrameData.SimulationTransform);
 	
 	TSet<int32> ParticlesIDsInRecordedStepData;
 	ParticlesIDsInRecordedStepData.Reserve(InRecordedStepData.RecordedParticlesData.Num());

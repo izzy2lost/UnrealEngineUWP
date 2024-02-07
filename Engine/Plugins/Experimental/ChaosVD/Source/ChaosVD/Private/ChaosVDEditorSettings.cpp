@@ -3,6 +3,7 @@
 #include "ChaosVDEditorSettings.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "Chaos/ImplicitObjectType.h"
+#include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
 
 FColor FChaosDebugDrawColorsByState::GetColorFromState(EChaosVDObjectStateType State) const
 {
@@ -19,6 +20,69 @@ FColor FChaosDebugDrawColorsByState::GetColorFromState(EChaosVDObjectStateType S
 		default:
 			return FColor::Purple;
 	}
+}
+
+FColor FChaosParticleDataDebugDrawColors::GetColorForDataID(EChaosVDParticleDataVisualizationFlags DataID, bool bIsSelected) const
+{
+	constexpr float DefaultIntensityFactor = 0.6f;
+	constexpr float SelectedIntensityFactor = 1.0f;
+	const float IntensityFactor = bIsSelected ? SelectedIntensityFactor : DefaultIntensityFactor;
+
+	return (GetLinearColorForDataID(DataID) * IntensityFactor).ToFColorSRGB();
+}
+
+const FLinearColor& FChaosParticleDataDebugDrawColors::GetLinearColorForDataID(EChaosVDParticleDataVisualizationFlags DataID) const
+{
+	static FLinearColor InvalidColor = FColor::Purple;
+	switch (DataID)
+	{
+	case EChaosVDParticleDataVisualizationFlags::Acceleration:
+		return AccelerationColor;
+	case EChaosVDParticleDataVisualizationFlags::Velocity:
+		return VelocityColor;
+	case EChaosVDParticleDataVisualizationFlags::AngularVelocity:
+		return AngularVelocityColor;
+	case EChaosVDParticleDataVisualizationFlags::AngularAcceleration:
+		return AngularAccelerationColor;
+	case EChaosVDParticleDataVisualizationFlags::LinearImpulse:
+		return LinearImpulseColor;
+	case EChaosVDParticleDataVisualizationFlags::AngularImpulse:
+		return AngularImpulseColor;
+	case EChaosVDParticleDataVisualizationFlags::ClusterConnectivityEdge:
+		return ConnectivityDataColor;
+	case EChaosVDParticleDataVisualizationFlags::CenterOfMass:
+		return CenterOfMassColor;
+	case EChaosVDParticleDataVisualizationFlags::None:
+	case EChaosVDParticleDataVisualizationFlags::DrawDataOnlyForSelectedParticle:
+	default:
+		return InvalidColor;
+	}
+}
+
+
+float FChaosParticleDataDebugDrawSettings::GetScaleFortDataID(EChaosVDParticleDataVisualizationFlags DataID) const
+{
+	switch (DataID)
+    {
+    	case EChaosVDParticleDataVisualizationFlags::Acceleration:
+    		return AccelerationScale;
+    	case EChaosVDParticleDataVisualizationFlags::Velocity:
+    		return VelocityScale;
+    	case EChaosVDParticleDataVisualizationFlags::AngularVelocity:
+    		return AngularVelocityScale;
+    	case EChaosVDParticleDataVisualizationFlags::AngularAcceleration:
+    		return AngularAccelerationScale;
+    	case EChaosVDParticleDataVisualizationFlags::LinearImpulse:
+    		return LinearImpulseScale;
+    	case EChaosVDParticleDataVisualizationFlags::AngularImpulse:
+    		return AngularImpulseScale;
+    	case EChaosVDParticleDataVisualizationFlags::ClusterConnectivityEdge:
+    	case EChaosVDParticleDataVisualizationFlags::CenterOfMass:
+    	case EChaosVDParticleDataVisualizationFlags::None:
+    	case EChaosVDParticleDataVisualizationFlags::DrawDataOnlyForSelectedParticle:
+    	default:
+    		return 1.0f;
+    }
 }
 
 FColor FChaosDebugDrawColorsByShapeType::GetColorFromShapeType(Chaos::EImplicitObjectType ShapeType) const

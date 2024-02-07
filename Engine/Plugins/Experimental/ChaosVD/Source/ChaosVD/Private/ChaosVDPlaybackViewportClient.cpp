@@ -18,6 +18,7 @@
 #include "Selection.h"
 #include "UnrealWidget.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
+#include "Components/ChaosVDParticleDataComponent.h"
 #include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Visualizers/ChaosVDDebugDrawUtils.h"
@@ -344,6 +345,14 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 	{
 		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverInfoWithID : ScenePtr->GetSolverInfoActorsMap())
 		{
+			if (const UChaosVDParticleDataComponent* ParticleDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetParticleDataComponent() : nullptr)
+			{
+				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(ParticleDataComponent->StaticClass()))
+				{
+					Visualizer->DrawVisualization(ParticleDataComponent, View, PDI);
+				}
+			}
+	
 			if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetCollisionDataComponent() : nullptr)
 			{
 				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(CollisionDataComponent->StaticClass()))
@@ -361,15 +370,6 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 			}
 		}
 		
-		TArray<AActor*> SelectedActors = ScenePtr->GetElementSelectionSet()->GetSelectedObjects<AActor>();
-
-		for (AActor* SelectedActor : SelectedActors)
-		{
-			if (IChaosVDVisualizerContainerInterface* VisualizerContainer = Cast<IChaosVDVisualizerContainerInterface>(SelectedActor))
-			{
-				VisualizerContainer->DrawVisualization(View, PDI);
-			}
-		}
 	}
 
 	FEditorViewportClient::Draw(View, PDI);
