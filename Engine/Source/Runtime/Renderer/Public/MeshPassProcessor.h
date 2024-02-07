@@ -2450,15 +2450,14 @@ public:
 
 	virtual void FinalizeCommand(FRayTracingMeshCommand& RayTracingMeshCommand) override final
 	{
-		const bool bHasDecalInstanceIndex = RayTracingDecalInstanceIndex != INDEX_NONE;
-
+		if(RayTracingInstanceIndex != INDEX_NONE)
 		{
-			const bool bHidden = bHasDecalInstanceIndex && RayTracingMeshCommand.bDecal;
+			const bool bHidden = RayTracingMeshCommand.bDecal;
 			FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingInstanceIndex, bHidden);
 			VisibleCommands.Add(NewVisibleMeshCommand);
 		}
 
-		if (bHasDecalInstanceIndex)
+		if (RayTracingDecalInstanceIndex != INDEX_NONE)
 		{
 			const bool bHidden = !RayTracingMeshCommand.bDecal;
 			FVisibleRayTracingMeshCommand NewVisibleMeshCommand(&RayTracingMeshCommand, RayTracingDecalInstanceIndex, bHidden);
