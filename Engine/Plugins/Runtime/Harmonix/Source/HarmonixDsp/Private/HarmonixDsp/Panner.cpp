@@ -15,7 +15,7 @@ void FPanner::SetPanOffsetTarget_Stereo(float InMinusOneToOne)
 	float LeftRad = -FGainTable::Get().GetDirectChannelAzimuthInCurrentLayout(ESpeakerChannelAssignment::LeftFront);
 	float RightRad = -LeftRad;
 	OffsetPan = (((InMinusOneToOne + 1.0f) / 2.0f) * (RightRad - LeftRad)) + LeftRad;
-	UpdatePanRamper(true);
+	UpdatePanRamper(false);
 }
 
 void FPanner::UpdatePanRamper(bool Snap)
