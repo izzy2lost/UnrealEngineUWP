@@ -13,6 +13,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml;
 
 namespace UnrealGameSync
@@ -22,6 +23,11 @@ namespace UnrealGameSync
 	/// </summary>
 	public partial class DeploymentSettings
 	{
+		/// <summary>
+		/// Default update source for UGS
+		/// </summary>
+		public LauncherUpdateSource UpdateSource { get; set; }
+
 		/// <summary>
 		/// Url for the Horde server
 		/// </summary>
@@ -85,6 +91,7 @@ namespace UnrealGameSync
 					{
 						byte[] data = FileReference.ReadAllBytes(settingsFile);
 						JsonSerializerOptions options = new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip };
+						options.Converters.Add(new JsonStringEnumConverter());
 						s_instance = JsonSerializer.Deserialize<DeploymentSettings>(data, options);
 					}
 
