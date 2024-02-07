@@ -3121,7 +3121,8 @@ void FStaticMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, UStatic
 		{
 			FFormatNamedArguments Args;
 			Args.Add(TEXT("StaticMeshName"), FText::FromString( Owner->GetName() ) );
-			FStaticMeshStatusMessageContext StatusContext( FText::Format( NSLOCTEXT("Engine", "BuildingStaticMeshStatus", "Building static mesh {StaticMeshName}..."), Args ) );
+			Args.Add(TEXT("EstimatedMemory"), FText::FromString( FString::SanitizeFloat(double(Owner->GetBuildRequiredMemoryEstimate()) / (1024.0 * 1024.0), 3) ));
+			FStaticMeshStatusMessageContext StatusContext( FText::Format( NSLOCTEXT("Engine", "BuildingStaticMeshStatus", "Building static mesh {StaticMeshName} (Required Memory Estimate: {EstimatedMemory} MB)..."), Args ) );
 
 			checkf(!Owner->HasAnyFlags(RF_NeedLoad), TEXT("StaticMesh %s being PostLoaded before having been serialized - this suggests an async loading problem."), *GetPathNameSafe(Owner));
 			checkf(Owner->IsMeshDescriptionValid(0), TEXT("Bad MeshDescription on %s"), *GetPathNameSafe(Owner));
@@ -6003,7 +6004,7 @@ void UStaticMesh::ReleaseAsyncProperty(EStaticMeshAsyncProperties AsyncPropertie
 	LockedProperties &= ~(uint32)AsyncProperties;
 }
 
-int64 UStaticMesh::GetBuildRequiredMemory() const
+int64 UStaticMesh::GetBuildRequiredMemoryEstimate() const
 {
 	// We have to base our estimate on something accessible and known before the build, for now use the biggest bulk data size.
 	int64 BiggestBulkDataSize = -1;
@@ -6082,7 +6083,7 @@ void UStaticMesh::PostLoad()
 		}
 
 		AsyncTask = MakeUnique<FStaticMeshAsyncBuildTask>(this, MakeUnique<FStaticMeshPostLoadContext>(MoveTemp(Context)));
-		AsyncTask->StartBackgroundTask(StaticMeshThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait, GetBuildRequiredMemory(), TEXT("StaticMesh"));
+		AsyncTask->StartBackgroundTask(StaticMeshThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait, GetBuildRequiredMemoryEstimate(), TEXT("StaticMesh"));
 		FStaticMeshCompilingManager::Get().AddStaticMeshes({this});
 	}
 	else
