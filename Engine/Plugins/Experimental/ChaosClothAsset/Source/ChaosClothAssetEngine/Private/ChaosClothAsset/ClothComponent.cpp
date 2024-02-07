@@ -17,6 +17,9 @@ CSV_DECLARE_CATEGORY_MODULE_EXTERN(ENGINE_API, Animation);
 
 UChaosClothComponent::UChaosClothComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+#if WITH_EDITORONLY_DATA
+	, bSimulateInEditor(0)
+#endif
 	, bUseAttachedParentAsPoseComponent(1)  // By default use the parent component as leader pose component
 	, bWaitForParallelTask(0)
 	, bEnableSimulation(1)
@@ -164,12 +167,16 @@ void UChaosClothComponent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 	// Set the skinned asset pointer with the alias pointer (must happen before the call to Super::PostEditChangeProperty)
 	if (const FProperty* const Property = PropertyChangedEvent.Property)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UChaosClothComponent, ClothAsset))
-			{
-				SetClothAsset(ClothAsset);
-			}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UChaosClothComponent, ClothAsset))
+		{
+			SetClothAsset(ClothAsset);
+		}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UChaosClothComponent, bSimulateInEditor))
+		{
+			bTickInEditor = bSimulateInEditor;
+		}
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -242,7 +249,7 @@ void UChaosClothComponent::TickComponent(float DeltaTime, enum ELevelTick TickTy
 	}
 
 #if WITH_EDITOR
-	if (TickType == LEVELTICK_ViewportsOnly && bTickOnceInEditor)
+	if (TickType == LEVELTICK_ViewportsOnly && bTickOnceInEditor && !bSimulateInEditor)
 	{
 		// Only tick once in editor when requested. This is used to update from caches by the Chaos Cache Manager.
 		bTickInEditor = false;

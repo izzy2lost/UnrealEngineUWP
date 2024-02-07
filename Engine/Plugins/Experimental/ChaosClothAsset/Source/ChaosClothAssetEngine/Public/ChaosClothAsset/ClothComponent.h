@@ -37,23 +37,23 @@ public:
 	~UChaosClothComponent();
 
 	/** Set the cloth asset used by this component. */
-	UFUNCTION(BlueprintCallable, Category = "Components|ClothAsset", Meta = (Keywords = "Chaos Cloth Asset"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Asset"))
 	void SetClothAsset(UChaosClothAsset* InClothAsset);
 
 	/** Get the cloth asset used by this component. */
-	UFUNCTION(BlueprintPure, Category = "Components|ClothAsset", Meta = (Keywords = "Chaos Cloth Asset"))
+	UFUNCTION(BlueprintPure, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Asset"))
 	UChaosClothAsset* GetClothAsset() const;
 
 	/** Reset the teleport mode. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Teleport", Meta = (Keywords = "Chaos Cloth Teleport"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Teleport"))
 	void ResetTeleportMode() { bTeleport = bReset = false; }
 
 	/** Teleport the cloth particles to the new reference bone location keeping pose and velocities prior to advancing the simulation. */
-	UFUNCTION(BlueprintCallable, Category = "Components||Teleport", Meta = (Keywords = "Chaos Cloth Teleport"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Teleport"))
 	void ForceNextUpdateTeleport() { bTeleport = true; bReset = false; }
 
 	/** Teleport the cloth particles to the new reference bone location while reseting the pose and velocities prior to advancing the simulation. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (Keywords = "Chaos Cloth Teleport Reset"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Teleport Reset"))
 	void ForceNextUpdateTeleportAndReset() { bTeleport = bReset = true; }
 
 	/** Return whether teleport is currently requested. */
@@ -63,31 +63,31 @@ public:
 	bool NeedsReset() const { return bReset; }
 
 	/** Stop the simulation, and keep the cloth in its last pose. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (UnsafeDuringActorConstruction, Keywords = "Chaos Cloth Simulation Suspend"))
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "ClothComponent", Meta = (UnsafeDuringActorConstruction, Keywords = "Chaos Cloth Simulation Suspend"))
 	void SuspendSimulation() { bSuspendSimulation = true; }
 
 	/** Resume a previously suspended simulation. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (UnsafeDuringActorConstruction, Keywords = "Chaos Cloth Simulation Resume"))
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "ClothComponent", Meta = (UnsafeDuringActorConstruction, Keywords = "Chaos Cloth Simulation Resume"))
 	void ResumeSimulation() { bSuspendSimulation = false; }
 
 	/** Return whether or not the simulation is currently suspended. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (Keywords = "Chaos Cloth Simulation Suspend"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Simulation Suspend"))
 	bool IsSimulationSuspended() const;
 
 	/** Set whether or not to enable simulation. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (UnsafeDuringActorConstruction, Keywords = "Chaos Cloth Simulation Enable"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (UnsafeDuringActorConstruction, Keywords = "Chaos Cloth Simulation Enable"))
 	void SetEnableSimulation(bool bEnable) { bEnableSimulation = bEnable; }
 
 	/** Return whether or not the simulation is currently enabled. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (Keywords = "Chaos Cloth Simulation Enable"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Simulation Enable"))
 	bool IsSimulationEnabled() const;
 
 	/** Reset all cloth simulation config properties to the values stored in the original cloth asset. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (Keywords = "Chaos Cloth Config Property"))
+	UFUNCTION(BlueprintCallable, Category = "ClothComponent", Meta = (Keywords = "Chaos Cloth Config Property"))
 	void ResetConfigProperties();
 
 	/** Hard reset the cloth simulation by recreating the proxy. */
-	UFUNCTION(BlueprintCallable, Category = "Components|Simulation", Meta = (Keywords = "Chaos Cloth Recreate Simulation Proxy"))
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "ClothComponent", Meta = (DisplayName = "Hard Reset Simulation", Keywords = "Chaos Cloth Recreate Simulation Proxy"))
 	void RecreateClothSimulationProxy();
 
 	/**
@@ -111,7 +111,7 @@ public:
 	void WaitForExistingParallelClothSimulation_GameThread();
 
 #if WITH_EDITOR
-	/** This will cause the component to tick once in editor. Both flags will be consumed on that tick */
+	/** This will cause the component to tick once in editor. Both flags will be consumed on that tick. Used for the cache adapter. */
 	void SetTickOnceInEditor() { bTickOnceInEditor = true; bTickInEditor = true; }
 #endif
 
@@ -158,8 +158,12 @@ private:
 #if WITH_EDITORONLY_DATA
 	/** Cloth asset used by this component. */
 	UE_DEPRECATED(5.1, "This property isn't deprecated, but getter and setter must be used at all times to preserve correct operations.")
-	UPROPERTY(EditAnywhere, Transient, Setter = SetClothAsset, BlueprintSetter = SetClothAsset, Getter = GetClothAsset, BlueprintGetter = GetClothAsset, Category = ClothAsset)
+	UPROPERTY(EditAnywhere, Transient, Setter = SetClothAsset, BlueprintSetter = SetClothAsset, Getter = GetClothAsset, BlueprintGetter = GetClothAsset, Category = ClothComponent)
 	TObjectPtr<UChaosClothAsset> ClothAsset;
+
+	/** Whether to run the simulation in editor. */
+	UPROPERTY(EditInstanceOnly, Transient, Category = ClothComponent)
+	uint8 bSimulateInEditor : 1;
 #endif
 
 	/** If enabled, and the parent is another Skinned Mesh Component (e.g. another Cloth Component, Poseable Mesh Component, Skeletal Mesh Component, ...etc.), use its pose. */
