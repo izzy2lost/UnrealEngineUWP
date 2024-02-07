@@ -42,6 +42,8 @@ int PrimitiveId;
 
 // Volume data
 int3 VoxelResolution;
+int3 VoxelMin;
+int3 VoxelMax;
 
 // Lighting
 int bApplyEmissionAndTransmittance;
@@ -229,8 +231,8 @@ void RenderLightingCacheWithLiveShadingCS(
 	uint3 DispatchThreadId : SV_DispatchThreadID
 )
 {
-	float3 VoxelIndex = DispatchThreadId;
-	if (any(DispatchThreadId > LightingCacheResolution))
+	float3 VoxelIndex = DispatchThreadId + VoxelMin;
+	if (any(DispatchThreadId > VoxelMax))
 	{
 		return;
 	}
