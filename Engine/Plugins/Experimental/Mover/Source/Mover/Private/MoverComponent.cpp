@@ -452,7 +452,6 @@ void UMoverComponent::HandleImpact(FMoverOnImpactParams& ImpactParams)
 	}
 	
 	OnHandleImpact(ImpactParams);
-	OnImpact.Broadcast(ImpactParams);
 }
 
 void UMoverComponent::OnHandleImpact(const FMoverOnImpactParams& ImpactParams)
