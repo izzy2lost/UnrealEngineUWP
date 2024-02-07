@@ -1048,6 +1048,10 @@ void FPackageHarvester::HarvestImport(TObjectPtr<UObject> InObject)
 	ForEachExportHarvestingRealm([this, InObject](ESaveRealm HarvestingRealm)
 		{
 			SaveContext.GetHarvestedRealm(HarvestingRealm).AddImport(InObject);
+			if (CurrentExportDependencies.ProcessImportDepth == 0)
+			{
+				SaveContext.GetHarvestedRealm(HarvestingRealm).AddDirectImport(InObject);
+			}
 		});
 }
 

@@ -666,7 +666,8 @@ ESavePackageResult ValidateExports(FSaveContext& SaveContext)
 	return ReturnSuccessOrCancel();
 }
 
-ESavePackageResult ValidateIllegalReferences(FSaveContext& SaveContext, TArray<UObject*>& PrivateObjects, TArray<UObject*>& ObjectsInOtherMaps)
+ESavePackageResult ValidateIllegalReferences(FSaveContext& SaveContext, TArray<UObject*>& PrivateObjects,
+	TArray<UObject*>& PrivateContentObjects, TArray<UObject*>& ObjectsInOtherMaps)
 {
 	FFormatNamedArguments Args;
 
@@ -707,6 +708,25 @@ ESavePackageResult ValidateIllegalReferences(FSaveContext& SaveContext, TArray<U
 		if (SaveContext.IsGenerateSaveError())
 		{
 			SaveContext.GetError()->Logf(ELogVerbosity::Warning, TEXT("Can't save %s: Graph is linked to external private object %s"), SaveContext.GetFilename(), *CulpritString);
+		}
+		return ESavePackageResult::Error;
+	}
+
+	if (PrivateContentObjects.Num() > 0)
+	{
+		UObject* MostLikelyCulprit = nullptr;
+		FString CulpritString = TEXT("Unknown");
+		FString Referencer;
+		UE::SavePackageUtilities::FindMostLikelyCulprit(PrivateContentObjects, MostLikelyCulprit, Referencer, &SaveContext);
+		CulpritString = FString::Printf(TEXT("%s (%s)"),
+			(MostLikelyCulprit != nullptr) ? *MostLikelyCulprit->GetFullName() : TEXT("(unknown culprit)"),
+			*Referencer);
+
+		if (SaveContext.IsGenerateSaveError())
+		{
+			SaveContext.GetError()->Logf(ELogVerbosity::Warning,
+				TEXT("Can't save package: PKG_NotExternallyReferenceable: Package %s imports object %s, which is in a different mount point and its package is marked as PKG_NotExternallyReferenceable."),
+				SaveContext.GetFilename(), *CulpritString);
 		}
 		return ESavePackageResult::Error;
 	}
@@ -807,8 +827,10 @@ ESavePackageResult ValidateImports(FSaveContext& SaveContext)
 
 	// Warn for private objects & map object references
 	TArray<UObject*> PrivateObjects;
+	TArray<UObject*> PrivateContentObjects;
 	TArray<UObject*> ObjectsInOtherMaps;
 	const TSet<TObjectPtr<UObject>>& Imports = SaveContext.GetImports();
+	const TSet<TObjectPtr<UObject>>& DirectImports = SaveContext.GetDirectImports();
 	for (const TObjectPtr<UObject>& Import : Imports)
 	{
 		TObjectPtr<UPackage> ImportPackage = Import.GetPackage();
@@ -876,8 +898,10 @@ ESavePackageResult ValidateImports(FSaveContext& SaveContext)
 			}
 		}
 
-		// Enforce that Private content can only be referenced by something within the same Mount Point
-		if (!ImportPackage->IsExternallyReferenceable())
+		// Enforce that Private content can only be directly referenced by something within the same Mount Point
+		// This only applies to direct imports. Transitive imports (A -> PackageB.B, B -> B.Class -> PackageC) are
+		// allowed even for private content.
+		if (!ImportPackage->IsExternallyReferenceable() && DirectImports.Contains(Import))
 		{
 			FName MountPointName = FPackageName::GetPackageMountPoint(PackageName);
 
@@ -887,18 +911,18 @@ ESavePackageResult ValidateImports(FSaveContext& SaveContext)
 			{
 				if (MountPointName != ImportMountPointName)
 				{
-					PrivateObjects.Add(Import);
+					PrivateContentObjects.Add(Import);
 				}
 			}
 			else
 			{
-				PrivateObjects.Add(Import);
+				PrivateContentObjects.Add(Import);
 			}
 		}
 	}
-	if (PrivateObjects.Num() > 0 || ObjectsInOtherMaps.Num() > 0)
+	if (PrivateObjects.Num() > 0 || PrivateContentObjects.Num() > 0 || ObjectsInOtherMaps.Num() > 0)
 	{
-		return ValidateIllegalReferences(SaveContext, PrivateObjects, ObjectsInOtherMaps);
+		return ValidateIllegalReferences(SaveContext, PrivateObjects, PrivateContentObjects, ObjectsInOtherMaps);
 	}
 
 	// Validate External Import Rules

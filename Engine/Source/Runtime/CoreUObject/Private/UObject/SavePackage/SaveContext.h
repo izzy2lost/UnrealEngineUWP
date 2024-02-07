@@ -135,6 +135,11 @@ struct FHarvestedRealm
 		}
 	}
 
+	void AddDirectImport(TObjectPtr<UObject> InObject)
+	{
+		DirectImports.Add(InObject);
+	}
+
 	void AddImport(TObjectPtr<UObject> InObject)
 	{
 		Imports.Add(InObject);
@@ -192,6 +197,11 @@ struct FHarvestedRealm
 	const TSet<FTaggedExport>& GetExports() const
 	{
 		return Exports;
+	}
+
+	const TSet<TObjectPtr<UObject>>& GetDirectImports() const
+	{
+		return DirectImports;
 	}
 
 	const TSet<TObjectPtr<UObject>>& GetImports() const
@@ -375,6 +385,11 @@ private:
 	TSet<FTaggedExport> Exports;
 	// Set of objects marked as import
 	TSet<TObjectPtr<UObject>> Imports;
+	// Set of objects that were referenced directly from an export. Some imports are transitively added by
+	// FPackageHarvester::ProcessImport (Outer, Class, CDO, CDO subobjects, others?) for long-standing reasons
+	// (performance, loading behavior, other?)/ But some features such as allowed-import access warnings need
+	// to consider only the direct imports.
+	TSet<TObjectPtr<UObject>> DirectImports;
 	// Set of names referenced from export serialization
 	TSet<FNameEntryId> NamesReferencedFromExportData;
 	// Set of names referenced from the package header (import and export table object names etc)
@@ -773,6 +788,11 @@ public:
 		GetHarvestedRealm().AddImport(InObject);
 	}
 
+	void AddDirectImport(UObject* InObject)
+	{
+		GetHarvestedRealm().AddDirectImport(InObject);
+	}
+
 	void AddExport(FTaggedExport InTagObj)
 	{
 		GetHarvestedRealm().AddExport(MoveTemp(InTagObj));
@@ -806,6 +826,11 @@ public:
 	const TSet<TObjectPtr<UObject>>& GetImports() const
 	{
 		return GetHarvestedRealm().GetImports();
+	}
+
+	const TSet<TObjectPtr<UObject>>& GetDirectImports() const
+	{
+		return GetHarvestedRealm().GetDirectImports();
 	}
 
 	const TSet<TObjectPtr<UObject>>& GetImportsUsedInGame() const
