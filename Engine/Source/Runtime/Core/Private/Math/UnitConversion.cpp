@@ -80,6 +80,10 @@ constexpr FParseCandidate ParseCandidates[] = {
 	{ TEXT("NewtonMeters"),			EUnit::NewtonMeters },			{ TEXT("Nm"),		EUnit::NewtonMeters },
 	{ TEXT("KilogramsCentimetersSquaredPerSecondSquared"),	EUnit::KilogramCentimetersSquaredPerSecondSquared },		{ TEXT("kgcm2/s2"),	EUnit::KilogramCentimetersSquaredPerSecondSquared },	{ TEXT("kgcm\u00B2/s\u00B2"),	EUnit::KilogramCentimetersSquaredPerSecondSquared },
 
+	{ TEXT("NewtonSeconds"),		EUnit::NewtonSeconds },			{ TEXT("Ns"),		EUnit::NewtonSeconds },
+	{ TEXT("KilogramCentimeters"),	EUnit::KilogramCentimeters },	{ TEXT("kgcm"),		EUnit::KilogramCentimeters },
+	{ TEXT("KilogramMeters"),		EUnit::KilogramMeters },		{ TEXT("kgm"),		EUnit::KilogramMeters },
+
 	{ TEXT("Hertz"),				EUnit::Hertz },					{ TEXT("Hz"),		EUnit::Hertz },
 	{ TEXT("Kilohertz"),			EUnit::Kilohertz },				{ TEXT("KHz"),		EUnit::Kilohertz },
 	{ TEXT("Megahertz"),			EUnit::Megahertz },				{ TEXT("MHz"),		EUnit::Megahertz },
@@ -144,6 +148,8 @@ constexpr const TCHAR* const DisplayStrings[] = {
 	TEXT("N"), TEXT("lbf"), TEXT("kgf"), TEXT("kgcm/s\u00B2"),
 
 	TEXT("Nm"), TEXT("kgcm\u00B2/s\u00B2"),
+
+	TEXT("Ns"), TEXT("kgcm"), TEXT("kgm"),
 
 	TEXT("Hz"), TEXT("KHz"), TEXT("MHz"), TEXT("GHz"), TEXT("rpm"),
 
@@ -214,6 +220,10 @@ constexpr const TCHAR* const SupportedUnitsStrings[] = {
 	TEXT("NewtonMeters"),			
 	TEXT("KilogramsCentimetersSquaredPerSecondSquared"),
 
+	TEXT("NewtonSeconds"),
+	TEXT("KilogramCentimeters"),
+	TEXT("KilogramMeters"),
+
 	TEXT("Hertz"),				
 	TEXT("Kilohertz"),			
 	TEXT("Megahertz"),			
@@ -281,6 +291,8 @@ constexpr EUnitType UnitTypes[] = {
 	EUnitType::Force,		EUnitType::Force,		EUnitType::Force,		EUnitType::Force,
 
 	EUnitType::Torque,		EUnitType::Torque,
+
+	EUnitType::Impulse,		EUnitType::PositionalImpulse, EUnitType::PositionalImpulse,
 
 	EUnitType::Frequency,	EUnitType::Frequency,	EUnitType::Frequency,	EUnitType::Frequency,	EUnitType::Frequency,
 
@@ -566,6 +578,8 @@ FUnitSettings::FUnitSettings()
 	DisplayUnits[(uint8)EUnitType::Density].Add(EUnit::GramsPerCubicCentimeter);
 	DisplayUnits[(uint8)EUnitType::Force].Add(EUnit::Newtons);
 	DisplayUnits[(uint8)EUnitType::Torque].Add(EUnit::NewtonMeters);
+	DisplayUnits[(uint8)EUnitType::Impulse].Add(EUnit::NewtonSeconds);
+	DisplayUnits[(uint8)EUnitType::PositionalImpulse].Add(EUnit::KilogramCentimeters);
 	DisplayUnits[(uint8)EUnitType::Frequency].Add(EUnit::Hertz);
 	DisplayUnits[(uint8)EUnitType::DataSize].Add(EUnit::Megabytes);
 	DisplayUnits[(uint8)EUnitType::LuminousFlux].Add(EUnit::Lumens);
@@ -804,6 +818,16 @@ namespace UnitConversion
 		{
 		case EUnit::KilogramCentimetersSquaredPerSecondSquared:	return 0.0001;
 		default: 												return 1;
+		}
+	}
+
+	double PositionalImpulseUnificationFactor(EUnit From)
+	{
+		// Convert to KilogramMeters
+		switch (From)
+		{
+		case EUnit::KilogramCentimeters:	return 0.01;
+		default:							return 1;
 		}
 	}
 
