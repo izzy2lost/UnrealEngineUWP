@@ -1062,6 +1062,14 @@ void UAnimGraphNode_Base::HandleVariableRenamed(UBlueprint* InBlueprint, UClass*
 	}
 }
 
+void UAnimGraphNode_Base::HandleFunctionRenamed(UBlueprint* InBlueprint, UClass* InFunctionClass, UEdGraph* InGraph, const FName& InOldFuncName, const FName& InNewFuncName)
+{
+	if (Binding)
+	{
+		Binding->HandleFunctionRenamed(InBlueprint, InFunctionClass, InGraph, InOldFuncName, InNewFuncName);
+	}
+}
+
 void UAnimGraphNode_Base::ReplaceReferences(UBlueprint* InBlueprint, UBlueprint* InReplacementBlueprint, const FMemberReference& InSource, const FMemberReference& InReplacement)
 {
 	if (Binding)

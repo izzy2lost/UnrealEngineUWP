@@ -137,7 +137,7 @@ void UAnimGraphNodeBinding_Base::HandleVariableRenamed(UBlueprint* InBlueprint, 
 {
 	IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
 
-	UClass* SkeletonVariableClass = FBlueprintEditorUtils::GetSkeletonClass(InVariableClass);
+	UClass* SkeletonVariableClass = FBlueprintEditorUtils::GetMostUpToDateClass(InVariableClass);
 	UBlueprint* OuterBlueprint = GetTypedOuter<UBlueprint>();
 
 	if(OuterBlueprint)
@@ -168,15 +168,52 @@ void UAnimGraphNodeBinding_Base::HandleVariableRenamed(UBlueprint* InBlueprint, 
 	}
 }
 
+void UAnimGraphNodeBinding_Base::HandleFunctionRenamed(UBlueprint* InBlueprint, UClass* InFunctionClass, UEdGraph* InGraph, const FName& InOldFuncName, const FName& InNewFuncName)
+{
+	IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
+
+	UBlueprint* OuterBlueprint = GetTypedOuter<UBlueprint>();
+
+	if(OuterBlueprint)
+	{
+		UClass* SkeletonFunctionClass = FBlueprintEditorUtils::GetMostUpToDateClass(InFunctionClass);
+
+		// See if any of bindings reference the variable
+		for (auto& BindingPair : PropertyBindings)
+		{
+			TArray<int32> RenameIndices;
+			IPropertyAccessEditor::FResolvePropertyAccessArgs ResolveArgs;
+			ResolveArgs.FunctionFunction = [InOldFuncName, SkeletonFunctionClass, &RenameIndices](int32 InSegmentIndex, UFunction* InFunction, FProperty* InReturnProperty)
+			{
+				const UClass* OwnerSkeletonFunctionClass = FBlueprintEditorUtils::GetMostUpToDateClass(InFunction->GetOuterUClass());
+				if (OwnerSkeletonFunctionClass && InFunction->GetFName() == InOldFuncName && OwnerSkeletonFunctionClass->IsChildOf(SkeletonFunctionClass))
+				{
+					RenameIndices.Add(InSegmentIndex);
+				}
+			};
+
+			PropertyAccessEditor.ResolvePropertyAccess(OuterBlueprint->SkeletonGeneratedClass, BindingPair.Value.PropertyPath, ResolveArgs);
+
+			// Rename any references we found
+			for (const int32& RenameIndex : RenameIndices)
+			{
+				BindingPair.Value.PropertyPath[RenameIndex] = InNewFuncName.ToString();
+				BindingPair.Value.PathAsText = PropertyAccessEditor.MakeTextPath(BindingPair.Value.PropertyPath, OuterBlueprint->SkeletonGeneratedClass);
+			}
+		}
+	}
+}
+
 void UAnimGraphNodeBinding_Base::ReplaceReferences(UBlueprint* InBlueprint, UBlueprint* InReplacementBlueprint, const FMemberReference& InSource, const FMemberReference& InReplacement)
 {
 	IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
 
-	UClass* SkeletonClass = InBlueprint->SkeletonGeneratedClass;
 	UBlueprint* OuterBlueprint = GetTypedOuter<UBlueprint>();
 
 	if (OuterBlueprint)
 	{
+		UClass* SkeletonClass = InBlueprint->SkeletonGeneratedClass;
+
 		FMemberReference Source = InSource;
 		FProperty* SourceProperty = Source.ResolveMember<FProperty>(InBlueprint);
 		FMemberReference Replacement = InReplacement;
@@ -211,11 +248,12 @@ bool UAnimGraphNodeBinding_Base::ReferencesVariable(const FName& InVarName, cons
 {
 	IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
 
-	const UClass* SkeletonVariableClass = FBlueprintEditorUtils::GetSkeletonClass(Cast<UClass>(InScope));
 	UBlueprint* OuterBlueprint = GetTypedOuter<UBlueprint>();
 
 	if(OuterBlueprint)
 	{
+		const UClass* SkeletonVariableClass = FBlueprintEditorUtils::GetMostUpToDateClass(Cast<UClass>(InScope));
+
 		// See if any of bindings reference the variable
 		for (const auto& BindingPair : PropertyBindings)
 		{
@@ -226,7 +264,7 @@ bool UAnimGraphNodeBinding_Base::ReferencesVariable(const FName& InVarName, cons
 			{
 				if (SkeletonVariableClass)
 				{
-					const UClass* OwnerSkeletonVariableClass = FBlueprintEditorUtils::GetSkeletonClass(Cast<UClass>(InProperty->GetOwnerStruct()));
+					const UClass* OwnerSkeletonVariableClass = FBlueprintEditorUtils::GetMostUpToDateClass(Cast<UClass>(InProperty->GetOwnerStruct()));
 
 					if (OwnerSkeletonVariableClass && InProperty->GetFName() == InVarName && OwnerSkeletonVariableClass->IsChildOf(SkeletonVariableClass))
 					{
@@ -255,11 +293,12 @@ bool UAnimGraphNodeBinding_Base::ReferencesFunction(const FName& InFunctionName,
 {
 	IPropertyAccessEditor& PropertyAccessEditor = IModularFeatures::Get().GetModularFeature<IPropertyAccessEditor>("PropertyAccessEditor");
 
-	const UClass* SkeletonFunctionClass = FBlueprintEditorUtils::GetSkeletonClass(Cast<UClass>(InScope));
 	UBlueprint* OuterBlueprint = GetTypedOuter<UBlueprint>();
 
 	if(OuterBlueprint)
 	{
+		const UClass* SkeletonFunctionClass = FBlueprintEditorUtils::GetMostUpToDateClass(Cast<UClass>(InScope));
+
 		// See if any of bindings reference the function
 		for (const auto& BindingPair : PropertyBindings)
 		{
@@ -270,7 +309,7 @@ bool UAnimGraphNodeBinding_Base::ReferencesFunction(const FName& InFunctionName,
 			{
 				if (SkeletonFunctionClass)
 				{
-					const UClass* OwnerSkeletonFunctionClass = FBlueprintEditorUtils::GetSkeletonClass(InFunction->GetOuterUClass());
+					const UClass* OwnerSkeletonFunctionClass = FBlueprintEditorUtils::GetMostUpToDateClass(InFunction->GetOuterUClass());
 
 					if (OwnerSkeletonFunctionClass && InFunction->GetFName() == InFunctionName && OwnerSkeletonFunctionClass->IsChildOf(SkeletonFunctionClass))
 					{
