@@ -90,15 +90,15 @@ protected:
 	friend class UAnimGraphNode_SequencePlayer;
 
 #if WITH_EDITORONLY_DATA
-	// The group name (NAME_None if it is not part of any group)
+	// The group name that we synchronize with (NAME_None if it is not part of any group). 
 	UPROPERTY(EditAnywhere, Category=Sync, meta=(FoldProperty))
 	FName GroupName = NAME_None;
 
-	// The role this player can assume within the group (ignored if GroupIndex is INDEX_NONE)
+	// The role this node can assume within the group (ignored if GroupName is not set)
 	UPROPERTY(EditAnywhere, Category=Sync, meta=(FoldProperty))
 	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
 
-	// How synchronization is determined
+	// How this node will synchronize with other animations.
 	UPROPERTY(EditAnywhere, Category=Sync, meta=(FoldProperty))
 	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
 
@@ -174,15 +174,15 @@ struct FAnimNode_SequencePlayer_Standalone : public FAnimNode_SequencePlayerBase
 	GENERATED_BODY()
 
 protected:
-	// The group name (NAME_None if it is not part of any group)
+	// The group name that we synchronize with (NAME_None if it is not part of any group). 
 	UPROPERTY(EditAnywhere, Category=Sync)
 	FName GroupName = NAME_None;
 
-	// The role this player can assume within the group (ignored if GroupIndex is INDEX_NONE)
+	// The role this node can assume within the group (ignored if GroupName is not set)
 	UPROPERTY(EditAnywhere, Category=Sync)
 	TEnumAsByte<EAnimGroupRole::Type> GroupRole = EAnimGroupRole::CanBeLeader;
 
-	// How synchronization is determined
+	// How this node will synchronize with other animations.
 	UPROPERTY(EditAnywhere, Category=Sync)
 	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
 

@@ -959,15 +959,15 @@ struct FAnimationGroupReference
 {
 	GENERATED_USTRUCT_BODY()
 	
-	// How an asset will synchronize with other assets
+	// How this animation will synchronize with other animations. 
 	UPROPERTY(EditAnywhere, Category=Settings)
 	EAnimSyncMethod Method;
 
-	// The name of the group
+	// The group name that we synchronize with (NAME_None if it is not part of any group). 
 	UPROPERTY(EditAnywhere, Category=Settings, meta = (EditCondition = "Method == EAnimSyncMethod::SyncGroup"))
 	FName GroupName;
 
-	// The type of membership in the group (potential leader, always follower, etc...)
+	// The role this animation can assume within the group (ignored if GroupName is not set)
 	UPROPERTY(EditAnywhere, Category=Settings, meta = (EditCondition = "Method == EAnimSyncMethod::SyncGroup"))
 	TEnumAsByte<EAnimGroupRole::Type> GroupRole;
 
