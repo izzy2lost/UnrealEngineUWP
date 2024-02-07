@@ -796,10 +796,11 @@ bool UIKRigController::MoveSolverInStack(int32 SolverToMoveIndex, int32 TargetSo
 	FScopedTransaction Transaction(LOCTEXT("ReorderSolver_Label", "Reorder Solvers"));
 	FScopedReinitializeIKRig Reinitialize(this);
 	Asset->Modify();
+	
 	UIKRigSolver* SolverToMove = Asset->Solvers[SolverToMoveIndex];
+	Asset->Solvers.RemoveAt(SolverToMoveIndex);
 	Asset->Solvers.Insert(SolverToMove, TargetSolverIndex);
-	const int32 SolverToRemove = TargetSolverIndex > SolverToMoveIndex ? SolverToMoveIndex : SolverToMoveIndex + 1;
-	Asset->Solvers.RemoveAt(SolverToRemove);
+
 	return true;
 }
 

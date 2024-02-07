@@ -517,10 +517,19 @@ FReply SIKRigSolverStack::OnAcceptDrop(
 	}
 
 	const FSolverStackElement& DraggedElement = *DragDropOp.Get()->Element.Pin().Get();
+	if (DraggedElement.IndexInStack == TargetItem->IndexInStack)
+	{
+		return FReply::Handled();
+	}
+	
 	UIKRigController* AssetController = Controller->AssetController;
-	const int32 IndexOffset = DropZone == EItemDropZone::BelowItem || DropZone == EItemDropZone::OntoItem ? 1 : 0;
-	const bool bWasReparented = AssetController->MoveSolverInStack(DraggedElement.IndexInStack, TargetItem.Get()->IndexInStack + IndexOffset);
-	if (bWasReparented)
+	int32 TargetIndex = TargetItem.Get()->IndexInStack;
+	if ( DropZone == EItemDropZone::AboveItem)
+	{
+		TargetIndex = FMath::Max(0, TargetIndex-1);
+	}
+	const bool bWasMoved = AssetController->MoveSolverInStack(DraggedElement.IndexInStack, TargetIndex);
+	if (bWasMoved)
 	{
 		RefreshStackView();
 		Controller->RefreshTreeView(); // update solver indices in effector items
