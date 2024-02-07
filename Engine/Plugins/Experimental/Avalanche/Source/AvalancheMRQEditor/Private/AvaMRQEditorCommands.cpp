@@ -6,8 +6,8 @@
 #define LOCTEXT_NAMESPACE "AvaMRQEditorCommands"
 
 FAvaMRQEditorCommands::FAvaMRQEditorCommands()
-	: TCommands<FAvaMRQEditorCommands>(TEXT("AvaMRQEditorCommands")
-	, LOCTEXT("AvaMRQEditorCommands", "Motion Design MRQ Editor Commands")
+	: TCommands<FAvaMRQEditorCommands>(TEXT("AvaMRQEditor")
+	, LOCTEXT("MotionDesignMRQEditorCommands", "Motion Design MRQ Editor Commands")
 	, NAME_None
 	, FAvaMRQEditorStyle::Get().GetStyleSetName())
 {

@@ -7,7 +7,7 @@
 
 FAvaInteractiveToolsCommands::FAvaInteractiveToolsCommands()
 	: TCommands<FAvaInteractiveToolsCommands>(
-		TEXT("AvalancheInteractiveTools")
+		TEXT("AvaInteractiveTools")
 		, LOCTEXT("MotionDesignInteractiveTools", "Motion Design Interactive Tools")
 		, NAME_None
 		, FAvaInteractiveToolsStyle::Get().GetStyleSetName()

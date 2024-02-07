@@ -14,7 +14,7 @@ FAvaMRQEditorStyle::FAvaMRQEditorStyle()
 	SetContentRoot(FPaths::EngineContentDir() / TEXT("Editor/Slate"));
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 
-	Set("AvaMRQEditorCommands.RenderSelectedPages", new IMAGE_BRUSH_SVG("Starship/MainToolbar/cinematics", Icon20));
+	Set("AvaMRQEditor.RenderSelectedPages", new IMAGE_BRUSH_SVG("Starship/MainToolbar/cinematics", Icon20));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

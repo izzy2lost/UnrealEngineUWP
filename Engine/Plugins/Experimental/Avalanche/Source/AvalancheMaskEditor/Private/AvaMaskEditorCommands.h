@@ -12,7 +12,7 @@ class FAvaMaskEditorCommands : public TCommands<FAvaMaskEditorCommands>
 public:
 	FAvaMaskEditorCommands()
 		: TCommands<FAvaMaskEditorCommands>(
-			TEXT("AvalancheMaskEditor"),
+			TEXT("AvaMaskEditor"),
 			LOCTEXT("MotionDesignMaskEditor", "Motion Design Masking"),
 			NAME_None,
 			FAvaMaskEditorStyle::Get().GetStyleSetName())

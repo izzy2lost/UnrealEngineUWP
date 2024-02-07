@@ -7,7 +7,7 @@
 
 FAvaLevelEditorCommands::FAvaLevelEditorCommands()
 	: TCommands<FAvaLevelEditorCommands>(TEXT("AvaLevelEditor")
-	, LOCTEXT("AvaLevelEditor", "Motion Design Level Editor")
+	, LOCTEXT("MotionDesignLevelEditor", "Motion Design Level Editor")
 	, NAME_None
 	, FAvaLevelEditorStyle::Get().GetStyleSetName())
 {

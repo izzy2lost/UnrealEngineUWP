@@ -9,7 +9,7 @@
 #define LOCTEXT_NAMESPACE "AvaEditorCommands"
 
 FAvaEditorCommands::FAvaEditorCommands()
-	: TCommands<FAvaEditorCommands>(TEXT("AvalancheEditor")
+	: TCommands<FAvaEditorCommands>(TEXT("AvaEditor")
 		, LOCTEXT("MotionDesignEditor", "Motion Design Editor")
 		, NAME_None
 		, FAvaEditorStyle::Get().GetStyleSetName()

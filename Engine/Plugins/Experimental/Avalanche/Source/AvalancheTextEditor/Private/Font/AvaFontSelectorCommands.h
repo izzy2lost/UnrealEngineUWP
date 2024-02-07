@@ -12,7 +12,7 @@ class FAvaFontSelectorCommands
 {
 public:
 	FAvaFontSelectorCommands()
-		: TCommands<FAvaFontSelectorCommands>(TEXT("AvalancheFontSelector")
+		: TCommands<FAvaFontSelectorCommands>(TEXT("AvaFontSelector")
 		, LOCTEXT("MotionDesignFontSelector", "Motion Design Font Selector")
 		, NAME_None
 		, FAppStyle::GetAppStyleSetName())

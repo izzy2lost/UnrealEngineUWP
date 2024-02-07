@@ -24,11 +24,11 @@ FAvaOutlinerStyle::FAvaOutlinerStyle()
 	SetContentRoot(FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources")));
 	SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Slate"));
 	
-	Set("AvalancheOutliner.FilterIcon", new IMAGE_BRUSH("Icons/OutlinerIcons/FilterIcon", Icon20x20));
+	Set("AvaOutliner.FilterIcon", new IMAGE_BRUSH("Icons/OutlinerIcons/FilterIcon", Icon20x20));
 	
 	// Table View Row Style
 	const FTableRowStyle& TableRowStyle = FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("SceneOutliner.TableViewRow");
-	Set("AvalancheOutliner.TableViewRow", FTableRowStyle(TableRowStyle)
+	Set("AvaOutliner.TableViewRow", FTableRowStyle(TableRowStyle)
 		.SetEvenRowBackgroundBrush(FSlateNoResource())
 		.SetOddRowBackgroundBrush(FSlateColorBrush(FStyleColors::Background)));
 

@@ -13,8 +13,8 @@ class FAvaRundownCommands : public TCommands<FAvaRundownCommands>
 public:
 	
 	FAvaRundownCommands()
-		: TCommands<FAvaRundownCommands>(TEXT("AvaRundownCommands")
-		, LOCTEXT("AvaRundownCommands", "Motion Design Rundown")
+		: TCommands<FAvaRundownCommands>(TEXT("AvaRundown")
+		, LOCTEXT("MotionDesignRundownCommands", "Motion Design Rundown")
 		, NAME_None
 		, FAvaMediaEditorStyle::Get().GetStyleSetName())
 	{

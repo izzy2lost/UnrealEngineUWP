@@ -154,33 +154,33 @@ FAvaEditorStyle::FAvaEditorStyle()
 	Set("AvalancheIcons.Lock3d", new IMAGE_BRUSH("Icons/DetailsPanelIcons/Lock3d", Icon16));
 	Set("AvalancheIcons.Unlock", new IMAGE_BRUSH("Icons/DetailsPanelIcons/Unlock", Icon16));
 
-	Set("AvalancheEditor.Thumbnail.Invalid", new FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.0f, FLinearColor(1.0f, 0.2f, 0.2f, 1.0f), 1.0f));
+	Set("AvaEditor.Thumbnail.Invalid", new FSlateRoundedBoxBrush(FStyleColors::Transparent, 4.0f, FLinearColor(1.0f, 0.2f, 0.2f, 1.0f), 1.0f));
 
-	Set("AvalancheEditor.StaticMeshToolsCategory", new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/StaticMeshActor_16", Icon16));
-	Set("AvalancheEditor.CameraToolsCategory",     new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraActor_16", Icon16));
-	Set("AvalancheEditor.LightsToolsCategory",     new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/PointLight_16", Icon16));
+	Set("AvaEditor.StaticMeshToolsCategory", new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/StaticMeshActor_16", Icon16));
+	Set("AvaEditor.CameraToolsCategory",     new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraActor_16", Icon16));
+	Set("AvaEditor.LightsToolsCategory",     new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/PointLight_16", Icon16));
 
-	Set("AvalancheEditor.CubeTool",     new IMAGE_BRUSH("Icons/ToolboxIcons/cube",     Icon16));
-	Set("AvalancheEditor.SphereTool",   new IMAGE_BRUSH("Icons/ToolboxIcons/sphere",   Icon16));
-	Set("AvalancheEditor.CylinderTool", new IMAGE_BRUSH("Icons/ToolboxIcons/cylinder", Icon16));
-	Set("AvalancheEditor.ConeTool",     new IMAGE_BRUSH("Icons/ToolboxIcons/cone",     Icon20));
-	Set("AvalancheEditor.PlaneTool",    new IMAGE_BRUSH("Icons/ToolboxIcons/plane",    Icon20));
+	Set("AvaEditor.CubeTool",     new IMAGE_BRUSH("Icons/ToolboxIcons/cube",     Icon16));
+	Set("AvaEditor.SphereTool",   new IMAGE_BRUSH("Icons/ToolboxIcons/sphere",   Icon16));
+	Set("AvaEditor.CylinderTool", new IMAGE_BRUSH("Icons/ToolboxIcons/cylinder", Icon16));
+	Set("AvaEditor.ConeTool",     new IMAGE_BRUSH("Icons/ToolboxIcons/cone",     Icon20));
+	Set("AvaEditor.PlaneTool",    new IMAGE_BRUSH("Icons/ToolboxIcons/plane",    Icon20));
 
-	Set("AvalancheEditor.CameraTool",               new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraActor_16",       Icon16));
-	Set("AvalancheEditor.CineCameraTool",           new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CineCameraActor_16",   Icon16));
-	Set("AvalancheEditor.CameraRigCraneTool",       new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraRig_Crane_16",   Icon16));
-	Set("AvalancheEditor.CameraRigRailTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraRig_Rail_16",    Icon16));
-	Set("AvalancheEditor.CameraShakeSourceTool",    new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraShake",          Icon16));
-	Set("AvalancheEditor.AvaPostProcessVolumeTool", new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/PostProcessVolume_16", Icon16));
+	Set("AvaEditor.CameraTool",               new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraActor_16",       Icon16));
+	Set("AvaEditor.CineCameraTool",           new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CineCameraActor_16",   Icon16));
+	Set("AvaEditor.CameraRigCraneTool",       new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraRig_Crane_16",   Icon16));
+	Set("AvaEditor.CameraRigRailTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraRig_Rail_16",    Icon16));
+	Set("AvaEditor.CameraShakeSourceTool",    new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/CameraShake",          Icon16));
+	Set("AvaEditor.AvaPostProcessVolumeTool", new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/PostProcessVolume_16", Icon16));
 
-	Set("AvalancheEditor.PointLightTool",       new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/PointLight_16",       Icon16));
-	Set("AvalancheEditor.DirectionalLightTool", new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/DirectionalLight_16", Icon16));
-	Set("AvalancheEditor.RectLightTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/RectLight_16",        Icon16));
-	Set("AvalancheEditor.SpotLightTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/SpotLight_16",        Icon16));
-	Set("AvalancheEditor.SkyLightTool",         new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/SkyLight_16",         Icon16));
+	Set("AvaEditor.PointLightTool",       new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/PointLight_16",       Icon16));
+	Set("AvaEditor.DirectionalLightTool", new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/DirectionalLight_16", Icon16));
+	Set("AvaEditor.RectLightTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/RectLight_16",        Icon16));
+	Set("AvaEditor.SpotLightTool",        new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/SpotLight_16",        Icon16));
+	Set("AvaEditor.SkyLightTool",         new CORE_IMAGE_BRUSH_SVG("Starship/AssetIcons/SkyLight_16",         Icon16));
 	
 	// Colors
-	Set("AvalancheEditor.PalettesTab.ExpanderHeader", new FSlateColorBrush(FStyleColors::Header));
+	Set("AvaEditor.PalettesTab.ExpanderHeader", new FSlateColorBrush(FStyleColors::Header));
 
 	// Buttons
 	const FTextBlockStyle& AppStyle_ContentBrowserTopBarFont = FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("ContentBrowser.TopBar.Font");
@@ -188,42 +188,41 @@ FAvaEditorStyle::FAvaEditorStyle()
 	ButtonTextColor.A /= 2;
 	FLinearColor ButtonShadowColorAndOpacity = AppStyle_ContentBrowserTopBarFont.ShadowColorAndOpacity;
 	ButtonShadowColorAndOpacity.A /= 2;
-	Set("AvalancheEditor.Button.TextStyle", FTextBlockStyle(AppStyle_ContentBrowserTopBarFont)
+	Set("AvaEditor.Button.TextStyle", FTextBlockStyle(AppStyle_ContentBrowserTopBarFont)
 		.SetColorAndOpacity(ButtonTextColor)
 		.SetShadowColorAndOpacity(ButtonShadowColorAndOpacity));
 
 	const FButtonStyle& AppStyle_SimpleButton = FAppStyle::Get().GetWidgetStyle<FButtonStyle>("SimpleButton");
 
-	Set("AvalancheEditor.BorderlessButton", FButtonStyle(AppStyle_SimpleButton)
+	Set("AvaEditor.BorderlessButton", FButtonStyle(AppStyle_SimpleButton)
 		.SetNormalPadding(0.0f)
 		.SetPressedPadding(0.0f));
 
-	Set("AvalancheEditor.HighlightButton", FButtonStyle(AppStyle_SimpleButton)
+	Set("AvaEditor.HighlightButton", FButtonStyle(AppStyle_SimpleButton)
 		.SetNormal(FSlateColorBrush(FStyleColors::Secondary))
 		.SetHovered(FSlateColorBrush(FStyleColors::Hover))
 		.SetPressed(FSlateColorBrush(FStyleColors::Header))
 		.SetDisabled(FSlateColorBrush(FStyleColors::Dropdown)));
 
-
-	Set("AvalancheEditor.SuperBarButton", FButtonStyle(AppStyle_SimpleButton)
+	Set("AvaEditor.SuperBarButton", FButtonStyle(AppStyle_SimpleButton)
 		.SetNormal(FSlateNoResource())
 		.SetHovered(FSlateColorBrush(FStyleColors::Secondary))
 		.SetPressed(FSlateColorBrush(FStyleColors::Hover))
 		.SetDisabled(FSlateNoResource()));
 
-	Set("AvalancheEditor.SuperBarButton.Rounded", FButtonStyle(AppStyle_SimpleButton)
+	Set("AvaEditor.SuperBarButton.Rounded", FButtonStyle(AppStyle_SimpleButton)
 		.SetNormal(FSlateNoResource())
 		.SetHovered(FSlateRoundedBoxBrush(FStyleColors::Secondary, 4.0f))
 		.SetPressed(FSlateRoundedBoxBrush(FStyleColors::Hover, 4.0f))
 		.SetDisabled(FSlateNoResource()));
 
-	Set("AvalancheEditor.SuperBarSubMenuButton", FButtonStyle(AppStyle_SimpleButton)
+	Set("AvaEditor.SuperBarSubMenuButton", FButtonStyle(AppStyle_SimpleButton)
 		.SetNormal(FSlateNoResource())
 		.SetHovered(FSlateNoResource())
 		.SetPressed(FSlateNoResource())
 		.SetDisabled(FSlateNoResource()));
 
-	Set("AvalancheEditor.DarkButton", FButtonStyle(AppStyle_SimpleButton)
+	Set("AvaEditor.DarkButton", FButtonStyle(AppStyle_SimpleButton)
 		.SetNormal(FSlateColorBrush(FStyleColors::Recessed))
 		.SetHovered(FSlateColorBrush(FStyleColors::Hover))
 		.SetPressed(FSlateColorBrush(FStyleColors::Header))
@@ -237,14 +236,14 @@ FAvaEditorStyle::FAvaEditorStyle()
 
 	// Text
 	const FTextBlockStyle& AppStyle_GraphCompactNodeTitle = FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("Graph.CompactNode.Title");
-	Set("AvalancheEditor.FilterRow.And", FTextBlockStyle(AppStyle_GraphCompactNodeTitle)
+	Set("AvaEditor.FilterRow.And", FTextBlockStyle(AppStyle_GraphCompactNodeTitle)
 		.SetFont(DEFAULT_FONT("BoldCondensed", 16)));
-	Set("AvalancheEditor.FilterRow.Or", FTextBlockStyle(AppStyle_GraphCompactNodeTitle)
+	Set("AvaEditor.FilterRow.Or", FTextBlockStyle(AppStyle_GraphCompactNodeTitle)
 		.SetFont(DEFAULT_FONT("BoldCondensed", 18)));
 
 	// Check Boxes
 	const FCheckBoxStyle& AppStyle_RadioButton = FAppStyle::GetWidgetStyle<FCheckBoxStyle>("RadioButton");
-	Set("AvalancheEditor.BlackRadioButton", FCheckBoxStyle(AppStyle_RadioButton)
+	Set("AvaEditor.BlackRadioButton", FCheckBoxStyle(AppStyle_RadioButton)
 		.SetBackgroundImage(*GetBrush("AvalancheIcons.Editor.Radio.BlackBackground")));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);

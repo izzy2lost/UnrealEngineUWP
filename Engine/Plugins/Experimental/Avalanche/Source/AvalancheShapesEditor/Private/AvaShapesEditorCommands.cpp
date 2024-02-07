@@ -7,7 +7,7 @@
 
 FAvaShapesEditorCommands::FAvaShapesEditorCommands()
 	: TCommands<FAvaShapesEditorCommands>(
-		TEXT("AvalancheShapesEditor")
+		TEXT("AvaShapesEditor")
 		, LOCTEXT("MotionDesignShapesEditor", "Motion Design Shapes Editor")
 		, NAME_None
 		, FAvaShapesEditorStyle::Get().GetStyleSetName()

@@ -9,8 +9,8 @@ class FAvaEaseCurveToolCommands : public TCommands<FAvaEaseCurveToolCommands>
 {
 public:
 	FAvaEaseCurveToolCommands()
-		: TCommands<FAvaEaseCurveToolCommands>(TEXT("AvalancheEaseCurveToolCommands")
-			, NSLOCTEXT("AvaEaseCurveToolCommands", "AvaEaseCurveToolCommands", "Motion Design Curve Ease Tool Commands")
+		: TCommands<FAvaEaseCurveToolCommands>(TEXT("AvaEaseCurveTool")
+			, NSLOCTEXT("MotionDesignEaseCurveToolCommands", "MotionDesignEaseCurveToolCommands", "Motion Design Curve Ease Tool Commands")
 			, NAME_None
 			, FAppStyle::GetAppStyleSetName())
 	{
