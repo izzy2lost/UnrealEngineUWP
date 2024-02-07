@@ -2099,7 +2099,7 @@ void SProfileParametersWindow::OnNameChange(const FText& NewName, ETextCommit::T
 		RequestDestroyWindow();
 
 		UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-		CustomizableObject->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
+		CustomizableObject->GetPrivate()->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
 
 		if (CustomInstance->bSelectedProfileDirty && CustomInstance->SelectedProfileIndex != INDEX_NONE)
 		{
@@ -2124,7 +2124,7 @@ FReply SProfileParametersWindow::OnButtonClick(EAppReturnType::Type ButtonID)
 		RequestDestroyWindow();
 
 		UCustomizableObject* CustomizableObject = CustomInstance->GetCustomizableObject();
-		CustomizableObject->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
+		CustomizableObject->GetPrivate()->AddNewParameterProfile(GetFileName(), *CustomInstance.Get());
 
 		if (CustomInstance->bSelectedProfileDirty && CustomInstance->SelectedProfileIndex != INDEX_NONE)
 		{

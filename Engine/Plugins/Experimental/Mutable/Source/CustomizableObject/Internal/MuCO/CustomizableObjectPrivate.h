@@ -28,6 +28,9 @@ class UAssetUserData;
 class UCustomizableObject;
 
 
+FGuid CUSTOMIZABLEOBJECT_API GenerateIdentifier(const UCustomizableObject& CustomizableObject);
+
+
 class CUSTOMIZABLEOBJECT_API FCustomizableObjectCompilerBase
 {
 public:
@@ -573,6 +576,90 @@ public:
 	// See UCustomizableObjectSystem::LockObject()
 	bool IsLocked() const;
 
+	/** Modify the provided mutable parameters so that the forced values for the given customizable object state are applied. */
+	void ApplyStateForcedValuesToParameters(int32 State, mu::Parameters* Parameters);
+
+	int32 FindParameter(const FString& Name) const;
+
+	EMutableParameterType GetParameterType(int32 ParamIndex) const;
+
+	int32 FindIntParameterValue(int32 ParamIndex, const FString& Value) const;
+
+	FParameterUIData GetStateUIMetadataFromIndex(int32 StateIndex) const;
+
+	FParameterUIData GetStateUIMetadata(const FString& StateName) const;
+
+	FString GetStateName(int32 StateIndex) const;
+
+#if WITH_EDITORONLY_DATA
+	void PostCompile();
+#endif
+
+	/** Returns a pointer to the BulkData subobject, only valid in packaged builds. */
+	const UCustomizableObjectBulk* GetStreamableBulkData() const;
+
+	UCustomizableObject* GetPublic() const;
+
+#if WITH_EDITOR
+	/** Compose file name. */
+	FString GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform = nullptr, bool bIsDiskStreamer = false);
+#endif
+	
+	/** Rebuild ParameterProperties from the current compiled model. */
+	void UpdateParameterPropertiesFromModel(const TSharedPtr<mu::Model>& Model);
+
+	void AddUncompiledCOWarning(const FString& AdditionalLoggingInfo);
+
+#if WITH_EDITOR
+	// Create new GUID for this CO
+	void UpdateVersionId();
+	
+	FGuid GetVersionId() const;
+
+	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
+	void ClearCompiledData(bool bIsCooking);
+
+	void SaveEmbeddedData(FArchive& Ar);
+
+	// Compile the object for a specific platform - Compile for Cook Customizable Object
+	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);
+	
+	// Add a profile that stores the values of the parameters used by the CustomInstance.
+	FReply AddNewParameterProfile(FString Name, class UCustomizableObjectInstance& CustomInstance);
+
+	// Compose folder name where the data is stored
+	FString GetCompiledDataFolderPath() const;
+
+	/** Generic Save/Load methods to write/read compiled data */
+	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
+	void LoadCompiledData(FArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
+
+	/** Load compiled data for the running platform from disk, this is used to load Editor Compilations. */
+	void LoadCompiledDataFromDisk();
+
+	/** Cache platform data for cook */
+	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes);
+	
+	/** Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
+	  * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.
+      * Returns whether the data was successfully loaded. */
+	bool TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform);
+#endif
+
+	// Data that may be stored in the asset itself, only in packaged builds.
+	void LoadEmbeddedData(FArchive& Ar);
+	
+	/** Compute bIsChildObject if currently possible to do so. Return whether it was computed. */
+	bool TryUpdateIsChildObject();
+
+	void SetIsChildObject(bool bIsChildObject);
+
+	/** Return the names used by mutable to identify which mu::Image should be considered of LowPriority. */
+	void GetLowPriorityTextureNames(TArray<FString>& OutTextureNames);
+
+	/** Return the MinLOD index to generate based on the active LODSettings (PerPlatformMinLOD or PerQualityLevelMinLOD) */
+	int32 GetMinLODIndex() const;
+	
 #if WITH_EDITORONLY_DATA
 	/** Return true if the CO is not compiled or the ParticipatingObjects system has detected a change (participating objects dirty or re-saved since last compilation). */
 	bool IsCompilationOutOfDate() const;

@@ -619,14 +619,14 @@ void UCustomizableObjectInstance::PreSave(FObjectPreSaveContext ObjectSaveContex
 	{
 		return;
 	}
-	if (CustomizableObject->TryUpdateIsChildObject() && CustomizableObject->bIsChildObject)
+	if (CustomizableObject->GetPrivate()->TryUpdateIsChildObject() && CustomizableObject->IsChildObject())
 	{
 		UE_LOG(LogMutable, Error,
 			TEXT("CO Instance [%s] has an invalid dependency on CO that is a child object: [%s]. The instance will be unusable at runtime and may crash."),
 			*GetPathName(), *CustomizableObject->GetPathName());
 	}
 
-	CustomizableObject->TryLoadCompiledCookDataForPlatform(TargetPlatform);
+	CustomizableObject->GetPrivate()->TryLoadCompiledCookDataForPlatform(TargetPlatform);
 	Descriptor.ReloadParameters();
 }
 #endif
@@ -6199,7 +6199,7 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 	}
 
 	if (CVarPreserveUserLODsOnFirstGeneration.GetValueOnGameThread() &&
-		GetCustomizableObject()->IsPreserveUserLODsOnFirstGeneration() &&
+		GetCustomizableObject()->bPreserveUserLODsOnFirstGeneration &&
 		GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
 	{
 		return;
@@ -6217,7 +6217,7 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 	FMutableUpdateCandidate MutableUpdateCandidate(this);
 
 	// Clamp Min LOD
-	const int32 MinLODIdx = GetCustomizableObject()->GetMinLODIndex();
+	const int32 MinLODIdx = GetCustomizableObject()->GetPrivate()->GetMinLODIndex();
 	InMinLOD = FMath::Min(FMath::Max(InMinLOD, MinLODIdx), MinLODIdx + PrivateData->NumMaxLODsToStream);
 
 	// Clamp Max LOD

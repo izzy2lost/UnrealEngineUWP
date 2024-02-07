@@ -94,7 +94,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 			TArray<uint8> EmbeddedDataBytes{};
 			FMemoryWriter SerializationTarget{EmbeddedDataBytes, false};
 			
-			ToTestCustomizableObject->SaveEmbeddedData(SerializationTarget);
+			ToTestCustomizableObject->GetPrivate()->SaveEmbeddedData(SerializationTarget);
 			const int64 COEmbeddedDataSizeBytes = EmbeddedDataBytes.Num();
 			
 			UE_LOG(LogMutable, Log,TEXT("(int) co_embedded_data_bytes : %lld "), COEmbeddedDataSizeBytes);

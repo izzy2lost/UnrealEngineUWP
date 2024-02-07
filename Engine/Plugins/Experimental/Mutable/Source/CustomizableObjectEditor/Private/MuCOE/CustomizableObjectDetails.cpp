@@ -137,7 +137,7 @@ void FCustomizableObjectDetails::CustomizeDetails( IDetailLayoutBuilder& DetailB
 
 	if (Property->IsValidHandle() && CustomizableObject)
 	{
-		if (CustomizableObject->bIsChildObject)
+		if (CustomizableObject->IsChildObject())
 		{
 			Property->MarkHiddenByCustomization();
 		}

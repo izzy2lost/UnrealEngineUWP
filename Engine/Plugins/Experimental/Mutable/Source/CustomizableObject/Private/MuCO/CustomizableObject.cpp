@@ -92,9 +92,15 @@ bool UCustomizableObject::IsEditorOnly() const
 }
 
 
-void UCustomizableObject::UpdateVersionId()
+void UCustomizableObjectPrivate::UpdateVersionId()
 {
-	VersionId = FGuid::NewGuid();
+	GetPublic()->VersionId = FGuid::NewGuid();
+}
+
+
+FGuid UCustomizableObjectPrivate::GetVersionId() const
+{
+	return GetPublic()->VersionId;
 }
 
 
@@ -126,7 +132,7 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	Super::PreSave(ObjectSaveContext);
 
 	// Update the derived child object flag
-	if (TryUpdateIsChildObject())
+	if (GetPrivate()->TryUpdateIsChildObject())
 	{
 		if (bIsChildObject)
 		{
@@ -143,7 +149,7 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	{
 		const ITargetPlatform* TargetPlatform = ObjectSaveContext.GetTargetPlatform();
 		// Load cached data before saving
-		if (TryLoadCompiledCookDataForPlatform(TargetPlatform))
+		if (GetPrivate()->TryLoadCompiledCookDataForPlatform(TargetPlatform))
 		{
 			// Create an export object to manage the streamable data
 			if (!BulkData)
@@ -161,18 +167,18 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			UE_LOG(LogMutable, Warning, TEXT("Cook: Customizable Object [%s] is missing [%s] platform data."), *GetName(),
 				*ObjectSaveContext.GetTargetPlatform()->PlatformName());
 			
-			ClearCompiledData(true);
+			GetPrivate()->ClearCompiledData(true);
 		}
 	}
 #endif
 }
 
-bool UCustomizableObject::TryUpdateIsChildObject()
+bool UCustomizableObjectPrivate::TryUpdateIsChildObject()
 {
 	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
 	if (Compiler)
 	{
-		bIsChildObject = !Compiler->IsRootObject(this);
+		GetPublic()->bIsChildObject = !Compiler->IsRootObject(GetPublic());
 		delete Compiler;
 		return true;
 	}
@@ -182,10 +188,23 @@ bool UCustomizableObject::TryUpdateIsChildObject()
 	}
 }
 
-#if WITH_EDITOR
-bool UCustomizableObject::TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform)
+
+bool UCustomizableObject::IsChildObject() const
 {
-	const FMutableCachedPlatformData* PlatformData = GetPrivate()->CachedPlatformsData.Find(TargetPlatform->PlatformName());
+	return bIsChildObject;
+}
+
+
+void UCustomizableObjectPrivate::SetIsChildObject(bool bIsChildObject)
+{
+	GetPublic()->bIsChildObject = bIsChildObject;
+}
+
+
+#if WITH_EDITOR
+bool UCustomizableObjectPrivate::TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform)
+{
+	const FMutableCachedPlatformData* PlatformData = CachedPlatformsData.Find(TargetPlatform->PlatformName());
 	if (!PlatformData)
 	{
 		return false;
@@ -218,7 +237,7 @@ void UCustomizableObject::PostLoad()
 			{
 				if (GetPackage() == Pkg)
 				{
-					UpdateVersionId();
+					GetPrivate()->UpdateVersionId();
 				}
 			});
 	}
@@ -235,11 +254,11 @@ void UCustomizableObject::PostLoad()
 		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 		if (AssetRegistryModule.Get().IsLoadingAssets())
 		{
-			AssetRegistryModule.Get().OnFilesLoaded().AddUObject(this, &UCustomizableObject::LoadCompiledDataFromDisk);
+			AssetRegistryModule.Get().OnFilesLoaded().AddUObject(GetPrivate(), &UCustomizableObjectPrivate::LoadCompiledDataFromDisk);
 		}
 		else
 		{
-			LoadCompiledDataFromDisk();
+			GetPrivate()->LoadCompiledDataFromDisk();
 		}
 	}
 #endif
@@ -264,7 +283,7 @@ void UCustomizableObject::Serialize(FArchive& Ar_Asset)
 		if (Ar_Asset.IsSaving())
 		{
 			UE_LOG(LogMutable, Verbose, TEXT("Serializing cooked data for Customizable Object [%s]."), *GetName());
-			SaveEmbeddedData(Ar_Asset);
+			GetPrivate()->SaveEmbeddedData(Ar_Asset);
 		}
 	}
 	else
@@ -276,7 +295,7 @@ void UCustomizableObject::Serialize(FArchive& Ar_Asset)
 #else
 	if (Ar_Asset.IsLoading())
 	{
-		LoadEmbeddedData(Ar_Asset);
+		GetPrivate()->LoadEmbeddedData(Ar_Asset);
 	}
 #endif
 }
@@ -304,8 +323,8 @@ void UCustomizableObject::BeginCacheForCookedPlatformData(const ITargetPlatform*
 	if (Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) == INDEX_NONE)
 	{
 		// Compile and save in the CachedPlatformsData map
-		CompileForTargetPlatform(TargetPlatform);
-		Private->CachedPlatformNames.Add(TargetPlatform->PlatformName());
+		GetPrivate()->CompileForTargetPlatform(TargetPlatform);
+		GetPrivate()->CachedPlatformNames.Add(TargetPlatform->PlatformName());
 	}
 }
 
@@ -326,24 +345,24 @@ FGuid GenerateIdentifier(const UCustomizableObject& CustomizableObject)
 }
 
 
-void UCustomizableObject::ClearCompiledData(bool bIsCooking)
+void UCustomizableObjectPrivate::ClearCompiledData(bool bIsCooking)
 {
-	Private->GetModelResources(bIsCooking) = FModelResources();
+	GetModelResources(bIsCooking) = FModelResources();
 
-	ContributingMorphTargetsInfo.Empty();
-	MorphTargetReconstructionData.Empty();
-	ClothMeshToMeshVertData.Empty();
-	ContributingClothingAssetsData.Empty();
-	ClothSharedConfigsData.Empty();
+	GetPublic()->ContributingMorphTargetsInfo.Empty();
+	GetPublic()->MorphTargetReconstructionData.Empty();
+	GetPublic()->ClothMeshToMeshVertData.Empty();
+	GetPublic()->ContributingClothingAssetsData.Empty();
+	GetPublic()->ClothSharedConfigsData.Empty();
 
 #if WITH_EDITORONLY_DATA
-	GetPrivate()->CustomizableObjectPathMap.Empty();
-	GetPrivate()->GroupNodeMap.Empty();
-	Private->ParticipatingObjects.Empty();
+	CustomizableObjectPathMap.Empty();
+	GroupNodeMap.Empty();
+	ParticipatingObjects.Empty();
 #endif
 
-	HashToStreamableBlock.Empty();
-	BulkData = nullptr;
+	GetPublic()->HashToStreamableBlock.Empty();
+	GetPublic()->BulkData = nullptr;
 }
 
 
@@ -458,100 +477,100 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 }
 
 
-void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooking)
+void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooking)
 {
 	int32 InternalVersion = UCustomizableObjectPrivate::CurrentSupportedVersion;
-	MutableCompiledDataStreamHeader Header(InternalVersion, VersionId);
+	MutableCompiledDataStreamHeader Header(InternalVersion, GetVersionId());
 	MemoryWriter << Header;
 
-	FModelResources& ModelResources = Private->GetModelResources(false);
+	FModelResources& LocalModelResources = GetModelResources(false);
 
-	MemoryWriter << ModelResources.ReferenceSkeletalMeshesData;
+	MemoryWriter << LocalModelResources.ReferenceSkeletalMeshesData;
 
-	SerializeStreamedResources(MemoryWriter, this, StreamedResourceData, bIsCooking);
+	SerializeStreamedResources(MemoryWriter, GetPublic(), GetPublic()->StreamedResourceData, bIsCooking);
 
-	int32 NumReferencedMaterials = ModelResources.Materials.Num();
+	int32 NumReferencedMaterials = LocalModelResources.Materials.Num();
 	MemoryWriter << NumReferencedMaterials;
 
-	for (const TSoftObjectPtr<UMaterialInterface>& Material : ModelResources.Materials)
+	for (const TSoftObjectPtr<UMaterialInterface>& Material : LocalModelResources.Materials)
 	{
 		FString StringRef = Material.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	int32 NumReferencedSkeletons = ModelResources.Skeletons.Num();
+	int32 NumReferencedSkeletons = LocalModelResources.Skeletons.Num();
 	MemoryWriter << NumReferencedSkeletons;
 
-	for (const TSoftObjectPtr<USkeleton>& Skeleton : ModelResources.Skeletons)
+	for (const TSoftObjectPtr<USkeleton>& Skeleton : LocalModelResources.Skeletons)
 	{
 		FString StringRef = Skeleton.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	int32 NumPassthroughTextures = ModelResources.PassThroughTextures.Num();
+	int32 NumPassthroughTextures = LocalModelResources.PassThroughTextures.Num();
 	MemoryWriter << NumPassthroughTextures;
 
-	for (const TSoftObjectPtr<UTexture>& PassthroughTexture : ModelResources.PassThroughTextures)
+	for (const TSoftObjectPtr<UTexture>& PassthroughTexture : LocalModelResources.PassThroughTextures)
 	{
 		FString StringRef = PassthroughTexture.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	int32 NumPhysicsAssets = ModelResources.PhysicsAssets.Num();
+	int32 NumPhysicsAssets = LocalModelResources.PhysicsAssets.Num();
 	MemoryWriter << NumPhysicsAssets;
 
-	for (const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset : ModelResources.PhysicsAssets)
+	for (const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset : LocalModelResources.PhysicsAssets)
 	{
 		FString StringRef = PhysicsAsset.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	int32 NumAnimBps = ModelResources.AnimBPs.Num();
+	int32 NumAnimBps = LocalModelResources.AnimBPs.Num();
 	MemoryWriter << NumAnimBps;
 
-	for (const TSoftClassPtr<UAnimInstance>& AnimBp : ModelResources.AnimBPs)
+	for (const TSoftClassPtr<UAnimInstance>& AnimBp : LocalModelResources.AnimBPs)
 	{
 		FString StringRef = AnimBp.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	MemoryWriter << ModelResources.AnimBpOverridePhysiscAssetsInfo;
+	MemoryWriter << LocalModelResources.AnimBpOverridePhysiscAssetsInfo;
 
-	MemoryWriter << ModelResources.MaterialSlotNames;
-	MemoryWriter << ModelResources.BoneNames;
-	MemoryWriter << ModelResources.SocketArray;
+	MemoryWriter << LocalModelResources.MaterialSlotNames;
+	MemoryWriter << LocalModelResources.BoneNames;
+	MemoryWriter << LocalModelResources.SocketArray;
 
-	MemoryWriter << ModelResources.SkinWeightProfilesInfo;
+	MemoryWriter << LocalModelResources.SkinWeightProfilesInfo;
 
-	MemoryWriter << ModelResources.ImageProperties;
-	MemoryWriter << ModelResources.ParameterUIDataMap;
-	MemoryWriter << ModelResources.StateUIDataMap;
+	MemoryWriter << LocalModelResources.ImageProperties;
+	MemoryWriter << LocalModelResources.ParameterUIDataMap;
+	MemoryWriter << LocalModelResources.StateUIDataMap;
 
-	MemoryWriter << ContributingMorphTargetsInfo;
-	MemoryWriter << MorphTargetReconstructionData;
+	MemoryWriter << GetPublic()->ContributingMorphTargetsInfo;
+	MemoryWriter << GetPublic()->MorphTargetReconstructionData;
 	
-	MemoryWriter << ClothMeshToMeshVertData;
-	MemoryWriter << ContributingClothingAssetsData;
-	MemoryWriter << ClothSharedConfigsData; 
+	MemoryWriter << GetPublic()->ClothMeshToMeshVertData;
+	MemoryWriter << GetPublic()->ContributingClothingAssetsData;
+	MemoryWriter << GetPublic()->ClothSharedConfigsData; 
 
-	MemoryWriter << HashToStreamableBlock;
+	MemoryWriter << GetPublic()->HashToStreamableBlock;
 
-	MemoryWriter << LODSettings.NumLODsInRoot;
-	MemoryWriter << NumMeshComponentsInRoot;
+	MemoryWriter << GetPublic()->LODSettings.NumLODsInRoot;
+	MemoryWriter << GetPublic()->NumMeshComponentsInRoot;
 
-	MemoryWriter << LODSettings.FirstLODAvailable;
+	MemoryWriter << GetPublic()->LODSettings.FirstLODAvailable;
 
-	MemoryWriter << LODSettings.NumLODsToStream;
-	MemoryWriter << LODSettings.bLODStreamingEnabled;
+	MemoryWriter << GetPublic()->LODSettings.NumLODsToStream;
+	MemoryWriter << GetPublic()->LODSettings.bLODStreamingEnabled;
 
 	// Editor Only data
-	MemoryWriter << GetPrivate()->bIsCompiledWithOptimization;
-	MemoryWriter << GetPrivate()->CustomizableObjectPathMap;
-	MemoryWriter << GetPrivate()->GroupNodeMap;
-	MemoryWriter << GetPrivate()->ParticipatingObjects;
+	MemoryWriter << bIsCompiledWithOptimization;
+	MemoryWriter << CustomizableObjectPathMap;
+	MemoryWriter << GroupNodeMap;
+	MemoryWriter << ParticipatingObjects;
 }
 
-void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
+void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
 {
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> LoadedModel;
 	ClearCompiledData(bIsCooking);
@@ -564,17 +583,17 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 		// Make sure mutable has been initialised.
 		UCustomizableObjectSystem::GetInstance();
 
-		FModelResources& ModelResources = Private->GetModelResources(bIsCooking);
-		ModelResources = FModelResources();
+		FModelResources& LocalModelResource = GetModelResources(bIsCooking);
+		LocalModelResource = FModelResources();
 
-		MemoryReader << ModelResources.ReferenceSkeletalMeshesData;
+		MemoryReader << LocalModelResource.ReferenceSkeletalMeshesData;
 
-		SerializeStreamedResources(MemoryReader, this, StreamedResourceData, bIsCooking);
+		SerializeStreamedResources(MemoryReader, GetPublic(), GetPublic()->StreamedResourceData, bIsCooking);
 
 		// Initialize resources. 
-		for(FMutableRefSkeletalMeshData& ReferenceSkeletalMeshData : ModelResources.ReferenceSkeletalMeshesData)
+		for(FMutableRefSkeletalMeshData& ReferenceSkeletalMeshData : LocalModelResource.ReferenceSkeletalMeshesData)
 		{
-			ReferenceSkeletalMeshData.InitResources(this, InTargetPlatform);
+			ReferenceSkeletalMeshData.InitResources(GetPublic(), InTargetPlatform);
 		}
 
 		int32 NumReferencedMaterials = 0;
@@ -585,7 +604,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ModelResources.Materials.Add(TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StringRef)));
+			LocalModelResource.Materials.Add(TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StringRef)));
 		}
 
 		int32 NumReferencedSkeletons = 0;
@@ -596,7 +615,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ModelResources.Skeletons.Add(TSoftObjectPtr<USkeleton>(FSoftObjectPath(StringRef)));
+			LocalModelResource.Skeletons.Add(TSoftObjectPtr<USkeleton>(FSoftObjectPath(StringRef)));
 		}
 
 		int32 NumPassthroughTextures = 0;
@@ -607,7 +626,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ModelResources.PassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
+			LocalModelResource.PassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
 		}
 
 		int32 NumPhysicsAssets = 0;
@@ -618,7 +637,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ModelResources.PhysicsAssets.Add(TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(StringRef)));
+			LocalModelResource.PhysicsAssets.Add(TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(StringRef)));
 		}
 
 		int32 NumAnimBps = 0;
@@ -629,48 +648,46 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ModelResources.AnimBPs.Add(TSoftClassPtr<UAnimInstance>(StringRef));
+			LocalModelResource.AnimBPs.Add(TSoftClassPtr<UAnimInstance>(StringRef));
 		}
 
-		MemoryReader << ModelResources.AnimBpOverridePhysiscAssetsInfo;
+		MemoryReader << LocalModelResource.AnimBpOverridePhysiscAssetsInfo;
 
-		MemoryReader << ModelResources.MaterialSlotNames;
-		MemoryReader << ModelResources.BoneNames;
-		MemoryReader << ModelResources.SocketArray;
+		MemoryReader << LocalModelResource.MaterialSlotNames;
+		MemoryReader << LocalModelResource.BoneNames;
+		MemoryReader << LocalModelResource.SocketArray;
 
-		MemoryReader << ModelResources.SkinWeightProfilesInfo;
+		MemoryReader << LocalModelResource.SkinWeightProfilesInfo;
 
-		MemoryReader << ModelResources.ImageProperties;
-		MemoryReader << ModelResources.ParameterUIDataMap;
-		MemoryReader << ModelResources.StateUIDataMap;
+		MemoryReader << LocalModelResource.ImageProperties;
+		MemoryReader << LocalModelResource.ParameterUIDataMap;
+		MemoryReader << LocalModelResource.StateUIDataMap;
 
 
-		MemoryReader << ContributingMorphTargetsInfo;
-		MemoryReader << MorphTargetReconstructionData;
+		MemoryReader << GetPublic()->ContributingMorphTargetsInfo;
+		MemoryReader << GetPublic()->MorphTargetReconstructionData;
 
-		MemoryReader << ClothMeshToMeshVertData;
-		MemoryReader << ContributingClothingAssetsData;
-		MemoryReader << ClothSharedConfigsData;
+		MemoryReader << GetPublic()->ClothMeshToMeshVertData;
+		MemoryReader << GetPublic()->ContributingClothingAssetsData;
+		MemoryReader << GetPublic()->ClothSharedConfigsData;
 
-		MemoryReader << HashToStreamableBlock;
+		MemoryReader << GetPublic()->HashToStreamableBlock;
 
-		MemoryReader << LODSettings.NumLODsInRoot;
-		MemoryReader << NumMeshComponentsInRoot;
+		MemoryReader << GetPublic()->LODSettings.NumLODsInRoot;
+		MemoryReader << GetPublic()->NumMeshComponentsInRoot;
 
-		MemoryReader << LODSettings.FirstLODAvailable;
+		MemoryReader << GetPublic()->LODSettings.FirstLODAvailable;
 
-		MemoryReader << LODSettings.NumLODsToStream;
-		MemoryReader << LODSettings.bLODStreamingEnabled;
+		MemoryReader << GetPublic()->LODSettings.NumLODsToStream;
+		MemoryReader << GetPublic()->LODSettings.bLODStreamingEnabled;
 
 		bool bForceRecompilation = false;
 
 		// Editor Only data
 		{
-			MemoryReader << GetPrivate()->bIsCompiledWithOptimization;
-			MemoryReader << GetPrivate()->CustomizableObjectPathMap;
-			MemoryReader << GetPrivate()->GroupNodeMap;
-
-			TMap<FName, FGuid>& ParticipatingObjects = GetPrivate()->ParticipatingObjects;
+			MemoryReader << bIsCompiledWithOptimization;
+			MemoryReader << CustomizableObjectPathMap;
+			MemoryReader << GroupNodeMap;
 			MemoryReader << ParticipatingObjects;
 
 			if (!bIsCooking)
@@ -715,11 +732,11 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 	}
 	
 	UpdateParameterPropertiesFromModel(LoadedModel);
-	Private->SetModel(LoadedModel, GenerateIdentifier(*this));
+	SetModel(LoadedModel, GenerateIdentifier(*GetPublic()));
 }
 
 
-void UCustomizableObject::LoadCompiledDataFromDisk()
+void UCustomizableObjectPrivate::LoadCompiledDataFromDisk()
 {
 	ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
 	const ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
@@ -763,7 +780,7 @@ void UCustomizableObject::LoadCompiledDataFromDisk()
 			&&
 			CompiledDataHeader.VersionId == StreamableDataHeader.VersionId)
 		{
-			if (IsRunningGame() || CompiledDataHeader.VersionId == VersionId)
+			if (IsRunningGame() || CompiledDataHeader.VersionId == GetVersionId())
 			{ 
 				int64 CompiledDataSize = CompiledDataFileHandle->Size() - HeaderSize;
 				TArray64<uint8> CompiledDataBytes;
@@ -781,22 +798,20 @@ void UCustomizableObject::LoadCompiledDataFromDisk()
 		delete StreamableDataFileHandle;
 	}
 
-	UCustomizableObjectPrivate* CustomizableObjectPrivate = GetPrivate();
-
-	if (!CustomizableObjectPrivate->GetModel()) // Not failed to load the model
+	if (!GetModel()) // Not failed to load the model
 	{
-		CustomizableObjectPrivate->Status.NextState(FCustomizableObjectStatusTypes::EState::NoModel);
+		Status.NextState(FCustomizableObjectStatusTypes::EState::NoModel);
 	}
 }
 
 
-void UCustomizableObject::CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InModelBytes, const TArray64< uint8>& InBulkBytes)
+void UCustomizableObjectPrivate::CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InModelBytes, const TArray64< uint8>& InBulkBytes)
 {
 	FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
 
-	check(!GetPrivate()->CachedPlatformsData.Find(PlatformName));
+	check(!CachedPlatformsData.Find(PlatformName));
 
-	FMutableCachedPlatformData& Data = GetPrivate()->CachedPlatformsData.Add(PlatformName);
+	FMutableCachedPlatformData& Data = CachedPlatformsData.Add(PlatformName);
 
 	// Cache CO data and mu::Model
 	FMemoryWriter64 MemoryWriter(Data.ModelData);
@@ -809,7 +824,7 @@ void UCustomizableObject::CachePlatformData(const ITargetPlatform* InTargetPlatf
 }
 
 
-void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* TargetPlatform)
+void UCustomizableObjectPrivate::CompileForTargetPlatform(const ITargetPlatform* TargetPlatform)
 {
 	if (!TargetPlatform)
 	{
@@ -818,12 +833,12 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 
 	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
 
-	bool bIsRootObject = Compiler->IsRootObject(this);
+	bool bIsRootObject = Compiler->IsRootObject(GetPublic());
 	
 	bool bIsRelevantForThisTarget =
-		(Relevancy == ECustomizableObjectRelevancy::All)
+		(GetPublic()->Relevancy == ECustomizableObjectRelevancy::All)
 		||
-		(Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
+		(GetPublic()->Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
 
 	if (bIsRootObject && bIsRelevantForThisTarget)
 	{
@@ -834,7 +849,7 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 		Options.TargetPlatform = TargetPlatform;
 		Options.CustomizableObjectNumBoneInfluences = ICustomizableObjectModule::Get().GetNumBoneInfluences();
 
-		Compiler->Compile(*this, Options, false);
+		Compiler->Compile(*GetPublic(), Options, false);
 	}
 
 	delete Compiler;
@@ -907,9 +922,8 @@ bool UCustomizableObject::ConditionalAutoCompile()
 }
 
 
-FReply UCustomizableObject::AddNewParameterProfile(FString Name, UCustomizableObjectInstance& CustomInstance)
+FReply UCustomizableObjectPrivate::AddNewParameterProfile(FString Name, UCustomizableObjectInstance& CustomInstance)
 {
-
 	if (Name.IsEmpty())
 	{
 		Name = "Unnamed_Profile";
@@ -921,7 +935,7 @@ FReply UCustomizableObject::AddNewParameterProfile(FString Name, UCustomizableOb
 	bool bUniqueNameFound = false;
 	while (!bUniqueNameFound)
 	{
-		FProfileParameterDat* Found = InstancePropertiesProfiles.FindByPredicate(
+		FProfileParameterDat* Found = GetPublic()->InstancePropertiesProfiles.FindByPredicate(
 			[&ProfileName](const FProfileParameterDat& Profile) { return Profile.ProfileName == ProfileName; });
 
 		bUniqueNameFound = static_cast<bool>(!Found);
@@ -932,9 +946,9 @@ FReply UCustomizableObject::AddNewParameterProfile(FString Name, UCustomizableOb
 		}
 	}
 
-	int32 ProfileIndex = InstancePropertiesProfiles.Emplace();
+	int32 ProfileIndex = GetPublic()->InstancePropertiesProfiles.Emplace();
 
-	InstancePropertiesProfiles[ProfileIndex].ProfileName = ProfileName;
+	GetPublic()->InstancePropertiesProfiles[ProfileIndex].ProfileName = ProfileName;
 	CustomInstance.SaveParametersToProfile(ProfileIndex);
 
 	Modify();
@@ -943,16 +957,16 @@ FReply UCustomizableObject::AddNewParameterProfile(FString Name, UCustomizableOb
 }
 
 
-FString UCustomizableObject::GetCompiledDataFolderPath() const
+FString UCustomizableObjectPrivate::GetCompiledDataFolderPath() const
 {	
 	return FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir() + TEXT("MutableStreamedDataEditor/"));
 }
 
 
-FString UCustomizableObject::GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform, bool bIsDiskStreamer)
+FString UCustomizableObjectPrivate::GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform, bool bIsDiskStreamer)
 {
 	const FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
-	const FString FileIdentifier = bIsDiskStreamer ? GetPrivate()->Identifier.ToString() : GenerateIdentifier(*this).ToString();
+	const FString FileIdentifier = bIsDiskStreamer ? Identifier.ToString() : GenerateIdentifier(*GetPublic()).ToString();
 	const FString Extension = bIsModel ? TEXT("_M.mut") : TEXT("_S.mut");
 	return PlatformName + FileIdentifier + Extension;
 }
@@ -966,37 +980,37 @@ FString UCustomizableObject::GetDesc()
 }
 
 
-void UCustomizableObject::SaveEmbeddedData(FArchive& Ar)
+void UCustomizableObjectPrivate::SaveEmbeddedData(FArchive& Ar)
 {
 	UE_LOG(LogMutable, Verbose, TEXT("Saving embedded data for Customizable Object [%s] now at position %d."), *GetName(), int(Ar.Tell()));
 
-	int32 InternalVersion = Private->GetModel() ? UCustomizableObjectPrivate::CurrentSupportedVersion : -1;
+	int32 InternalVersion = GetModel() ? CurrentSupportedVersion : -1;
 	Ar << InternalVersion;
 
-	if (Private->GetModel())
+	if (GetModel())
 	{
 		// General derived flags
-		Ar << GetPrivate()->bDisableTextureStreaming;
+		Ar << bDisableTextureStreaming;
 
 		// Serialize morph data
 		{
-			Ar << ContributingMorphTargetsInfo;
-			Ar << MorphTargetReconstructionData;
+			Ar << GetPublic()->ContributingMorphTargetsInfo;
+			Ar << GetPublic()->MorphTargetReconstructionData;
 		}
 		
 		{
-			Ar << ClothMeshToMeshVertData;
-			Ar << ContributingClothingAssetsData;
-			Ar << ClothSharedConfigsData;
+			Ar << GetPublic()->ClothMeshToMeshVertData;
+			Ar << GetPublic()->ContributingClothingAssetsData;
+			Ar << GetPublic()->ClothSharedConfigsData;
 		}
 
 		// Serialise the entire model, but unload the streamable data first.
 		{
-			Private->GetModel()->UnloadExternalData();
+			GetModel()->UnloadExternalData();
 
 			UnrealMutableOutputStream stream(Ar);
 			mu::OutputArchive arch(&stream);
-			mu::Model::Serialise(Private->GetModel().Get(), arch);
+			mu::Model::Serialise(GetModel().Get(), arch);
 		}
 
 		UE_LOG(LogMutable, Verbose, TEXT("Saved embedded data for Customizable Object [%s] now at position %d."), *GetName(), int(Ar.Tell()));
@@ -1005,7 +1019,7 @@ void UCustomizableObject::SaveEmbeddedData(FArchive& Ar)
 
 #endif // End WITH_EDITOR 
 
-void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
+void UCustomizableObjectPrivate::LoadEmbeddedData(FArchive& Ar)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObject::LoadEmbeddedData)
 
@@ -1014,23 +1028,23 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 
 	// If this fails, something went wrong with the packaging: we have data that belongs
 	// to a different version than the code.
-	check(UCustomizableObjectPrivate::CurrentSupportedVersion==InternalVersion);
+	check(CurrentSupportedVersion == InternalVersion);
 
-	if(UCustomizableObjectPrivate::CurrentSupportedVersion == InternalVersion)
+	if(CurrentSupportedVersion == InternalVersion)
 	{
 		// General derived flags
-		Ar << GetPrivate()->bDisableTextureStreaming;
+		Ar << bDisableTextureStreaming;
 
 		// Load morph data
 		{
-			Ar << ContributingMorphTargetsInfo;
-			Ar << MorphTargetReconstructionData;
+			Ar << GetPublic()->ContributingMorphTargetsInfo;
+			Ar << GetPublic()->MorphTargetReconstructionData;
 		}
 		
 		{
-			Ar << ClothMeshToMeshVertData;
-			Ar << ContributingClothingAssetsData;
-			Ar << ClothSharedConfigsData;
+			Ar << GetPublic()->ClothMeshToMeshVertData;
+			Ar << GetPublic()->ContributingClothingAssetsData;
+			Ar << GetPublic()->ClothSharedConfigsData;
 		}
 		
 		// Load model
@@ -1041,7 +1055,7 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 		// Create parameter properties
 		UpdateParameterPropertiesFromModel(Model);
 
-		Private->SetModel( Model, FGuid());
+		SetModel( Model, FGuid());
 	}
 }
 
@@ -1061,7 +1075,7 @@ bool UCustomizableObject::IsCompiled() const
 }
 
 
-void UCustomizableObject::AddUncompiledCOWarning(const FString& AdditionalLoggingInfo)
+void UCustomizableObjectPrivate::AddUncompiledCOWarning(const FString& AdditionalLoggingInfo)
 {
 	// Send a warning (on-screen notification, log error, and in-editor notification)
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
@@ -1070,7 +1084,7 @@ void UCustomizableObject::AddUncompiledCOWarning(const FString& AdditionalLoggin
 		return;
 	}
 
-	System->AddUncompiledCOWarning(*this, &AdditionalLoggingInfo);
+	System->AddUncompiledCOWarning(*GetPublic(), &AdditionalLoggingInfo);
 }
 
 
@@ -1120,11 +1134,17 @@ int32 UCustomizableObject::GetStateCount() const
 
 FString UCustomizableObject::GetStateName(int32 StateIndex) const
 {
+	return GetPrivate()->GetStateName(StateIndex);
+}
+
+
+FString UCustomizableObjectPrivate::GetStateName(int32 StateIndex) const
+{
 	FString Result;
 
-	if (Private->GetModel())
+	if (GetModel())
 	{
-		Result = Private->GetModel()->GetStateName(StateIndex);
+		Result = GetModel()->GetStateName(StateIndex);
 	}
 
 	return Result;
@@ -1178,13 +1198,28 @@ FString UCustomizableObject::GetStateParameterName(int32 StateIndex, int32 Param
 
 
 #if WITH_EDITORONLY_DATA
-void UCustomizableObject::PostCompile()
+void UCustomizableObjectPrivate::PostCompile()
 {
-	GetPrivate()->PostCompileDelegate.Broadcast();
+	PostCompileDelegate.Broadcast();
 
-	UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(*GetPrivate());	
+	UCustomizableObjectSystemPrivate::HideOnScreenCompileWarnings(*this);	
 }
 #endif
+
+
+const UCustomizableObjectBulk* UCustomizableObjectPrivate::GetStreamableBulkData() const
+{
+	return GetPublic()->BulkData;
+}
+
+
+UCustomizableObject* UCustomizableObjectPrivate::GetPublic() const
+{
+	UCustomizableObject* Public = StaticCast<UCustomizableObject*>(GetOuter());
+	check(Public);
+
+	return Public;
+}
 
 
 FPostCompileDelegate& UCustomizableObject::GetPostCompileDelegate() const
@@ -1207,35 +1242,6 @@ UCustomizableObjectInstance* UCustomizableObject::CreateInstance()
 }
 
 
-#if WITH_EDITOR
-void UCustomizableObject::SetModel(TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model)
-{
-	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
-	if (Model)
-	{
-		uint64 Offset = 0;
-
-		const int32 NumStreamingFiles = Model->GetRomCount();
-		HashToStreamableBlock.Empty(NumStreamingFiles);
-
-		for (size_t FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
-		{
-			const uint32 ResourceId = Model->GetRomId(FileIndex);
-			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
-
-			HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock({0, Offset, ResourceSize }));
-			Offset += ResourceSize;
-		}
-	}
-
-	// Generate ParameterProperties and IntParameterLookUpTable
-	UpdateParameterPropertiesFromModel(Model);
-
-	Private->SetModel(Model, GenerateIdentifier(*this));
-}
-#endif // End WITH_EDITOR
-
-
 int32 UCustomizableObject::GetNumLODs() const
 {
 	return LODSettings.NumLODsInRoot;
@@ -1254,9 +1260,15 @@ int32 UCustomizableObject::GetParameterCount() const
 
 EMutableParameterType UCustomizableObject::GetParameterType(int32 ParamIndex) const
 {
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	return GetPrivate()->GetParameterType(ParamIndex);
+}
+
+
+EMutableParameterType UCustomizableObjectPrivate::GetParameterType(int32 ParamIndex) const
+{
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		return GetPrivate()->ParameterProperties[ParamIndex].Type;
+		return ParameterProperties[ParamIndex].Type;
 	}
 	else
 	{
@@ -1310,15 +1322,15 @@ const FString & UCustomizableObject::GetParameterName(int32 ParamIndex) const
 }
 
 
-void UCustomizableObject::UpdateParameterPropertiesFromModel(const TSharedPtr<mu::Model>& Model)
+void UCustomizableObjectPrivate::UpdateParameterPropertiesFromModel(const TSharedPtr<mu::Model>& Model)
 {
 	if (Model)
 	{
 		mu::ParametersPtr MutableParameters = mu::Model::NewParameters(Model);
 		int paramCount = MutableParameters->GetCount();
 
-		GetPrivate()->ParameterProperties.Reset(paramCount);
-		GetPrivate()->ParameterPropertiesLookupTable.Empty(paramCount);
+		ParameterProperties.Reset(paramCount);
+		ParameterPropertiesLookupTable.Empty(paramCount);
 		for (int paramIndex = 0; paramIndex<paramCount; ++paramIndex)
 		{
 			FMutableModelParameterProperties Data;
@@ -1380,14 +1392,14 @@ void UCustomizableObject::UpdateParameterPropertiesFromModel(const TSharedPtr<mu
 				break;
 			}
 
-			GetPrivate()->ParameterProperties.Add(Data);
-			GetPrivate()->ParameterPropertiesLookupTable.Add(Data.Name, paramIndex);
+			ParameterProperties.Add(Data);
+			ParameterPropertiesLookupTable.Add(Data.Name, paramIndex);
 		}
 	}
 	else
 	{
-		GetPrivate()->ParameterProperties.Empty();
-		GetPrivate()->ParameterPropertiesLookupTable.Empty();
+		ParameterProperties.Empty();
+		ParameterPropertiesLookupTable.Empty();
 	}
 }
 
@@ -1437,7 +1449,13 @@ const FString& UCustomizableObject::GetIntParameterAvailableOption(int32 ParamIn
 
 int32 UCustomizableObject::FindParameter(const FString& Name) const
 {
-	const int32 * Found = GetPrivate()->ParameterPropertiesLookupTable.Find(Name);
+	return GetPrivate()->FindParameter(Name);
+}
+
+
+int32 UCustomizableObjectPrivate::FindParameter(const FString& Name) const
+{
+	const int32 * Found = ParameterPropertiesLookupTable.Find(Name);
 	if (Found == nullptr)
 	{
 		return INDEX_NONE;
@@ -1448,10 +1466,16 @@ int32 UCustomizableObject::FindParameter(const FString& Name) const
 
 int32 UCustomizableObject::FindIntParameterValue(int32 ParamIndex, const FString& Value) const
 {
+	return GetPrivate()->FindIntParameterValue(ParamIndex, Value);
+}
+
+
+int32 UCustomizableObjectPrivate::FindIntParameterValue(int32 ParamIndex, const FString& Value) const
+{
 	int32 MinValueIndex = 0;
-	if (ParamIndex >= 0 && ParamIndex < GetPrivate()->ParameterProperties.Num())
+	if (ParamIndex >= 0 && ParamIndex < ParameterProperties.Num())
 	{
-		const TArray<FMutableModelParameterValue>& PossibleValues = GetPrivate()->ParameterProperties[ParamIndex].PossibleValues;
+		const TArray<FMutableModelParameterValue>& PossibleValues = ParameterProperties[ParamIndex].PossibleValues;
 		if (PossibleValues.Num())
 		{
 			MinValueIndex = PossibleValues[0].Value;
@@ -1520,13 +1544,25 @@ FParameterUIData UCustomizableObject::GetParameterUIMetadataFromIndex(int32 Para
 
 FParameterUIData UCustomizableObject::GetStateUIMetadata(const FString& StateName) const
 {
-	const FParameterUIData* StateUIData = Private->GetModelResources().StateUIDataMap.Find(StateName);
+	return GetPrivate()->GetStateUIMetadata(StateName);
+}
+
+
+FParameterUIData UCustomizableObjectPrivate::GetStateUIMetadata(const FString& StateName) const
+{
+	const FParameterUIData* StateUIData = GetModelResources().StateUIDataMap.Find(StateName);
 
 	return StateUIData ? *StateUIData : FParameterUIData();
 }
 
 
 FParameterUIData UCustomizableObject::GetStateUIMetadataFromIndex(int32 StateIndex) const
+{
+	return GetPrivate()->GetStateUIMetadataFromIndex(StateIndex);
+}
+
+
+FParameterUIData UCustomizableObjectPrivate::GetStateUIMetadataFromIndex(int32 StateIndex) const
 {
 	return GetStateUIMetadata(GetStateName(StateIndex));
 }
@@ -1700,7 +1736,7 @@ bool UCustomizableObject::IsParameterMultidimensional(const int32& InParamIndex)
 }
 
 
-void UCustomizableObject::ApplyStateForcedValuesToParameters( int32 State, mu::Parameters* Parameters)
+void UCustomizableObjectPrivate::ApplyStateForcedValuesToParameters( int32 State, mu::Parameters* Parameters)
 {
 	FParameterUIData StateMetaData = GetStateUIMetadataFromIndex(State);
 	for (const TPair<FString, FString>& ForcedParameter : StateMetaData.ForcedParameterValues)
@@ -1747,17 +1783,17 @@ void UCustomizableObject::ApplyStateForcedValuesToParameters( int32 State, mu::P
 }
 
 
-void UCustomizableObject::GetLowPriorityTextureNames(TArray<FString>& OutTextureNames)
+void UCustomizableObjectPrivate::GetLowPriorityTextureNames(TArray<FString>& OutTextureNames)
 {
-	OutTextureNames.Reset(LowPriorityTextures.Num());
+	OutTextureNames.Reset(GetPublic()->LowPriorityTextures.Num());
 
-	if (!LowPriorityTextures.IsEmpty())
+	if (!GetPublic()->LowPriorityTextures.IsEmpty())
 	{
-		const FModelResources& ModelResources = Private->GetModelResources();
-		const int32 ImageCount = ModelResources.ImageProperties.Num();
+		const FModelResources& LocalModelResources = GetModelResources();
+		const int32 ImageCount = LocalModelResources.ImageProperties.Num();
 		for (int32 ImageIndex = 0; ImageIndex < ImageCount; ++ImageIndex)
 		{
-			if (LowPriorityTextures.Find(FName(ModelResources.ImageProperties[ImageIndex].TextureParameterName)) != INDEX_NONE)
+			if (GetPublic()->LowPriorityTextures.Find(FName(LocalModelResources.ImageProperties[ImageIndex].TextureParameterName)) != INDEX_NONE)
 			{
 				OutTextureNames.Add(FString::FromInt(ImageIndex));
 			}
@@ -1766,7 +1802,7 @@ void UCustomizableObject::GetLowPriorityTextureNames(TArray<FString>& OutTexture
 }
 
 
-int32 UCustomizableObject::GetMinLODIndex() const
+int32 UCustomizableObjectPrivate::GetMinLODIndex() const
 {
 	int32 MinLODIdx = 0;
 
@@ -1774,27 +1810,15 @@ int32 UCustomizableObject::GetMinLODIndex() const
 	{
 		if (UCustomizableObjectSystem::GetInstance() != nullptr)
 		{
-			MinLODIdx = LODSettings.MinQualityLevelLOD.GetValue(UCustomizableObjectSystem::GetInstance()->GetSkeletalMeshMinLODQualityLevel());
+			MinLODIdx = GetPublic()->LODSettings.MinQualityLevelLOD.GetValue(UCustomizableObjectSystem::GetInstance()->GetSkeletalMeshMinLODQualityLevel());
 		}
 	}
 	else
 	{
-		MinLODIdx = LODSettings.MinLOD.GetValue();
+		MinLODIdx = GetPublic()->LODSettings.MinLOD.GetValue();
 	}
 
-	return FMath::Max(MinLODIdx, LODSettings.FirstLODAvailable);
-}
-
-
-bool UCustomizableObject::IsEnableUseRefSkeletalMeshAsPlaceholder() const
-{
-	return bEnableUseRefSkeletalMeshAsPlaceholder;
-}
-
-
-bool UCustomizableObject::IsMeshCacheEnabled() const
-{
-	return bEnableMeshCache;
+	return FMath::Max(MinLODIdx, GetPublic()->LODSettings.FirstLODAvailable);
 }
 
 
@@ -2015,12 +2039,6 @@ TArray<TSharedPtr<IAsyncReadFileHandle>> UCustomizableObjectBulk::GetAsyncReadFi
 	}
 
 	return ReadFileHandles;
-}
-
-
-bool UCustomizableObject::IsPreserveUserLODsOnFirstGeneration() const
-{
-	return bPreserveUserLODsOnFirstGeneration;
 }
 
 
@@ -2315,7 +2333,7 @@ void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, co
 	check(InOuter);
 
 	const bool bHasServer = InTargetPlatform ? !InTargetPlatform->IsClientOnly() : false;
-	if (InOuter->IsEnableUseRefSkeletalMeshAsPlaceholder() || bHasServer)
+	if (InOuter->bEnableUseRefSkeletalMeshAsPlaceholder || bHasServer)
 	{
 		SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(SoftSkeletalMesh).LoadSynchronous();
 	}

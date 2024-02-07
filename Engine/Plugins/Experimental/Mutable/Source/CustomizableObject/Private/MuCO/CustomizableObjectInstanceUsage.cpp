@@ -213,7 +213,7 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMe
 		}
 		
 		if (CustomizableObject &&
-			CustomizableObject->IsMeshCacheEnabled() &&
+			CustomizableObject->bEnableMeshCache &&
 			CVarEnableMeshCache.GetValueOnAnyThread())
 		{
 			if (FCustomizableInstanceComponentData* ComponentData = Instance->GetPrivate()->GetComponentData(GetComponentIndex()))
@@ -490,7 +490,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 		{
 			// If not generated yet, conditionally set the SkeletalMesh of reference
 			if (!bInstanceGenerated && !GetSkipSetReferenceSkeletalMesh() && 
-				CustomizableObject->IsEnableUseRefSkeletalMeshAsPlaceholder())
+				CustomizableObject->bEnableUseRefSkeletalMeshAsPlaceholder)
 			{
 				// Can be nullptr
 				SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
@@ -516,7 +516,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 
 			if (CustomizableObject &&
 				bInstanceGenerated &&
-				CustomizableObject->IsMeshCacheEnabled() &&
+				CustomizableObject->bEnableMeshCache &&
 				CVarEnableMeshCache.GetValueOnAnyThread())
 			{
 				if (FCustomizableInstanceComponentData* ComponentData = CustomizableObjectInstance->GetPrivate()->GetComponentData(GetComponentIndex()))
