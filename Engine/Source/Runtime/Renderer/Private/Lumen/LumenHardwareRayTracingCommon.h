@@ -77,6 +77,8 @@ public:
 	FLumenHardwareRayTracingShaderBase(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
 	
 	class FUseThreadGroupSize64 : SHADER_PERMUTATION_BOOL("RAY_TRACING_USE_THREAD_GROUP_SIZE_64");
+	using FBasePermutationDomain = TShaderPermutationDomain<FUseThreadGroupSize64>;
+	using FPermutationDomain = TShaderPermutationDomain<FBasePermutationDomain>; // The default that is used if derived classes don't define their own
 
 	static constexpr const Lumen::ERayTracingShaderDispatchSize DispatchSize = Lumen::ERayTracingShaderDispatchSize::DispatchSize2D;
 
@@ -91,86 +93,6 @@ public:
 	static bool UseThreadGroupSize64(EShaderPlatform ShaderPlatform);
 };
 
-template <typename TargetDim, typename... Dimensions>
-struct ApplyOnPermutationDimensionHelper;
-
-template <typename TargetDim, typename Dimension, typename... Tail>
-struct ApplyOnPermutationDimensionHelper<TargetDim, Dimension, Tail...>
-{
-	template<typename PermutationDomain, typename Function>
-	static bool Apply(PermutationDomain&& PermutationVector, Function& Func)
-	{
-		if (Func(PermutationVector, Dimension{}))
-		{
-			return true;
-		}
-		return ApplyOnPermutationDimensionHelper<TargetDim, Tail...>::Apply(PermutationVector, Func);
-	}
-};
-
-template <typename TargetDim>
-struct ApplyOnPermutationDimensionHelper<TargetDim>
-{
-	template<typename PermutationDomain, typename Function>
-	static bool Apply(const PermutationDomain&, Function&)
-	{
-		return false;
-	}
-};
-
-template <typename TargetDim>
-struct GetPermutationValueHelper
-{
-	template <typename PermutationDomain, typename Dim>
-	bool operator()(const PermutationDomain& PermutationVector, Dim const&)
-	{
-		return false;
-	}
-
-	template<typename PermutationDomain>
-	bool operator()(const PermutationDomain& PermutationVector, TargetDim const&)
-	{
-		*Result = PermutationVector.template Get<TargetDim>();
-		return true;
-	}
-	typename TargetDim::Type* Result;
-};
-
-template <typename TargetDim>
-struct SetPermutationValueHelper
-{
-	template <typename PermutationDomain, typename Dim>
-	bool operator()(PermutationDomain& PermutationVector, Dim const&)
-	{
-		return false;
-	}
-
-	template<typename PermutationDomain>
-	bool operator()(PermutationDomain& PermutationVector, TargetDim const&)
-	{
-		PermutationVector.template Set<TargetDim>(Value);
-		return true;
-	}
-	typename TargetDim::Type Value;
-};
-
-// Returns true if the permutation dimension Dim exists in the TShaderPermutationDomain and returns its value in OutValue
-// Otherwise returns false and does not modify OutValue
-template <typename TargetDim, typename... Dimensions>
-bool TryGetPermutationValue(const TShaderPermutationDomain<Dimensions...>& PermutationVector, typename TargetDim::Type& OutValue)
-{
-	GetPermutationValueHelper<TargetDim> Getter{ &OutValue };
-	return ApplyOnPermutationDimensionHelper<TargetDim, Dimensions...>::Apply(PermutationVector, Getter);
-}
-
-// Returns true if the permutation dimension Dim exists in the TShaderPermutationDomain and sets its new value to Value
-// Otherwise returns false
-template <typename TargetDim, typename... Dimensions>
-bool TrySetPermutationValue(TShaderPermutationDomain<Dimensions...>& PermutationVector, typename TargetDim::Type const& Value)
-{
-	SetPermutationValueHelper<TargetDim> Setter{ Value };
-	return ApplyOnPermutationDimensionHelper<TargetDim, Dimensions...>::Apply(PermutationVector, Setter);
-}
 
 #define DECLARE_LUMEN_RAYTRACING_SHADER(ShaderClass, ShaderDispatchSize) \
 	public: \
@@ -188,9 +110,8 @@ bool TrySetPermutationValue(TShaderPermutationDomain<Dimensions...>& Permutation
 		SHADER_USE_PARAMETER_STRUCT(ShaderClass##CS, ShaderClass) \
 		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) \
 		{ \
-			ShaderClass::FPermutationDomain PermutationVector(Parameters.PermutationId); \
-			bool UseThreadGroupSize64 = false; \
-			if (TryGetPermutationValue<FUseThreadGroupSize64>(PermutationVector, UseThreadGroupSize64) && UseThreadGroupSize64 && !RHISupportsWaveSize64(Parameters.Platform)) \
+			FPermutationDomain PermutationVector(Parameters.PermutationId); \
+			if (PermutationVector.Get<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>().Get<FUseThreadGroupSize64>() && !RHISupportsWaveSize64(Parameters.Platform)) \
 			{ \
 				return false; \
 			} \
@@ -198,29 +119,33 @@ bool TrySetPermutationValue(TShaderPermutationDomain<Dimensions...>& Permutation
 		}\
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)\
 		{ \
-			ShaderClass::FPermutationDomain PermutationVector(Parameters.PermutationId); \
-			bool UseThreadGroupSize64 = false; \
-			(void) TryGetPermutationValue<FUseThreadGroupSize64>(PermutationVector, UseThreadGroupSize64); \
+			FPermutationDomain PermutationVector(Parameters.PermutationId); \
+			const bool UseThreadGroupSize64 = PermutationVector.Get<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>().Get<FUseThreadGroupSize64>() ; \
 			FIntPoint Size = GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64); \
 			OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_X"), Size.X); \
 			OutEnvironment.SetDefine(TEXT("INLINE_RAY_TRACING_THREAD_GROUP_SIZE_Y"), Size.Y); \
 			ShaderClass::ModifyCompilationEnvironment(Parameters, Lumen::ERayTracingShaderDispatchType::Inline, OutEnvironment); \
 			ModifyCompilationEnvironmentInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64, OutEnvironment); \
 		}\
+		static FPermutationDomain MakePermutationVector(ShaderClass::FPermutationDomain PermutationVector, EShaderPlatform ShaderPlatform) \
+		{ \
+			FLumenHardwareRayTracingShaderBase::FBasePermutationDomain Base; \
+			Base.Set<FUseThreadGroupSize64>(UseThreadGroupSize64(ShaderPlatform)); \
+			PermutationVector.Set<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>(Base); \
+			return PermutationVector; \
+		} \
 		static FIntPoint GetThreadGroupSize(EShaderPlatform ShaderPlatform) { return GetThreadGroupSizeInternal(Lumen::ERayTracingShaderDispatchType::Inline, DispatchSize, UseThreadGroupSize64(ShaderPlatform)); } \
 		static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId) { return static_cast<ERayTracingPayloadType>(0); } \
 		static void AddLumenRayTracingDispatchIndirect(FRDGBuilder& GraphBuilder, FRDGEventName&& EventName, const FViewInfo& View, ShaderClass::FPermutationDomain PermutationVector, \
 			ShaderClass::FParameters* PassParameters, FRDGBufferRef IndirectArgsBuffer, uint32 IndirectArgsOffset, ERDGPassFlags ComputePassFlags) \
 		{ \
-			TrySetPermutationValue<FUseThreadGroupSize64>(PermutationVector, UseThreadGroupSize64(View.GetShaderPlatform())); \
-			TShaderRef<ShaderClass##CS> ComputeShader = View.ShaderMap->GetShader<ShaderClass##CS>(PermutationVector); \
+			TShaderRef<ShaderClass##CS> ComputeShader = View.ShaderMap->GetShader<ShaderClass##CS>(MakePermutationVector(PermutationVector, View.GetShaderPlatform())); \
 			FComputeShaderUtils::AddPass(GraphBuilder, std::move(EventName), ComputePassFlags, ComputeShader, PassParameters, IndirectArgsBuffer, IndirectArgsOffset); \
 		} \
 		static void AddLumenRayTracingDispatch(FRDGBuilder& GraphBuilder, FRDGEventName&& EventName, const FViewInfo& View, ShaderClass::FPermutationDomain PermutationVector, \
 			ShaderClass::FParameters* PassParameters, FIntVector GroupCount, ERDGPassFlags ComputePassFlags) \
 		{ \
-			TrySetPermutationValue<FUseThreadGroupSize64>(PermutationVector, UseThreadGroupSize64(View.GetShaderPlatform())); \
-			TShaderRef<ShaderClass##CS> ComputeShader = View.ShaderMap->GetShader<ShaderClass##CS>(PermutationVector); \
+			TShaderRef<ShaderClass##CS> ComputeShader = View.ShaderMap->GetShader<ShaderClass##CS>(MakePermutationVector(PermutationVector, View.GetShaderPlatform())); \
 			FComputeShaderUtils::AddPass(GraphBuilder, std::move(EventName), ComputePassFlags, ComputeShader, PassParameters, GroupCount); \
 		} \
 	};
@@ -296,11 +221,10 @@ static void AddLumenRayTraceDispatchIndirectPass(
 		SHADER_USE_ROOT_PARAMETER_STRUCT(ShaderClass##RGS, ShaderClass) \
 		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) \
 		{ \
-			ShaderClass::FPermutationDomain PermutationVector(Parameters.PermutationId); \
-			bool UseThreadGroupSize64 = true; \
-			if (TryGetPermutationValue<FUseThreadGroupSize64>(PermutationVector, UseThreadGroupSize64) && UseThreadGroupSize64) \
+			FPermutationDomain PermutationVector(Parameters.PermutationId); \
+			if (PermutationVector.Get<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain>().Get<FUseThreadGroupSize64>()) \
 			{ \
-				return false; \
+				return false; /* Wave 64 is only relevant for CS */ \
 			} \
 			return ShaderClass::ShouldCompilePermutation(Parameters, Lumen::ERayTracingShaderDispatchType::RayGen); \
 		} \

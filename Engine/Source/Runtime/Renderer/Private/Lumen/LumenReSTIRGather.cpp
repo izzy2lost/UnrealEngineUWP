@@ -303,7 +303,7 @@ class FLumenValidateReservoirs : public FLumenHardwareRayTracingShaderBase
 	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenValidateReservoirs, Lumen::ERayTracingShaderDispatchSize::DispatchSize2D)
 
 	class FHitLighting : SHADER_PERMUTATION_BOOL("HIT_LIGHTING");
-	using FPermutationDomain = TShaderPermutationDomain<FHitLighting>;
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FHitLighting>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
@@ -353,7 +353,7 @@ class FLumenInitialSampling : public FLumenHardwareRayTracingShaderBase
 	DECLARE_LUMEN_RAYTRACING_SHADER(FLumenInitialSampling, Lumen::ERayTracingShaderDispatchSize::DispatchSize2D)
 
 	class FHitLighting : SHADER_PERMUTATION_BOOL("HIT_LIGHTING");
-	using FPermutationDomain = TShaderPermutationDomain<FHitLighting>;
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FHitLighting>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)

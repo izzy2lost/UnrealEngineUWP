@@ -258,7 +258,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 	class FAvoidSelfIntersections : SHADER_PERMUTATION_BOOL("AVOID_SELF_INTERSECTIONS");
 	class FHairVoxelTraces : SHADER_PERMUTATION_BOOL("HAIR_VOXEL_TRACES");
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
-	using FPermutationDomain = TShaderPermutationDomain<FAvoidSelfIntersections, FHairVoxelTraces, FDebugMode>;
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FAvoidSelfIntersections, FHairVoxelTraces, FDebugMode>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
 	{
@@ -589,29 +589,26 @@ void ManyLights::RayTraceLightSamples(
 			PermutationVector.Set<FHardwareRayTraceLightSamples::FDebugMode>(bDebug);
 			if (ManyLights::UseInlineHardwareRayTracing())
 			{
-				auto ComputeShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesCS>(PermutationVector);
-
-				FComputeShaderUtils::AddPass(
+				FHardwareRayTraceLightSamplesCS::AddLumenRayTracingDispatchIndirect(
 					GraphBuilder,
 					RDG_EVENT_NAME("HardwareRayTraceLightSamples Inline"),
-					ERDGPassFlags::Compute,
-					ComputeShader,
+					View,
+					PermutationVector,
 					PassParameters,
 					CompactedTraceParameters.IndirectArgs,
-					(int32)ManyLights::ECompactedTraceIndirectArgs::NumTracesDiv32);
+					(int32)ManyLights::ECompactedTraceIndirectArgs::NumTracesDiv32,
+					ERDGPassFlags::Compute);
 			}
 			else
 			{
-				auto RayGenerationShader = View.ShaderMap->GetShader<FHardwareRayTraceLightSamplesRGS>(PermutationVector);
-
-				AddLumenRayTraceDispatchIndirectPass(
+				FHardwareRayTraceLightSamplesRGS::AddLumenRayTracingDispatchIndirect(
 					GraphBuilder,
 					RDG_EVENT_NAME("HardwareRayTraceLightSamples RayGen"),
-					RayGenerationShader,
+					View,
+					PermutationVector,
 					PassParameters,
 					PassParameters->CompactedTraceParameters.IndirectArgs,
 					(int32)ManyLights::ECompactedTraceIndirectArgs::NumTraces,
-					View,
 					/*bUseMinimalPayload*/ true);
 			}
 			#endif

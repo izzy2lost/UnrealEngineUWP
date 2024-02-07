@@ -759,38 +759,33 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->MaxTraversalIterations = LumenHardwareRayTracing::GetMaxTraversalIterations();
 		PassParameters->MinTraceDistanceToSampleSurfaceCache = LumenHardwareRayTracing::GetMinTraceDistanceToSampleSurfaceCache();
 
-		FLumenRadiosityHardwareRayTracingRGS::FPermutationDomain PermutationVector;
+		FLumenRadiosityHardwareRayTracing::FPermutationDomain PermutationVector;
 
 		const FIntPoint DispatchResolution = FIntPoint(NumThreadsToDispatch, 1);
 		FString Resolution = FString::Printf(TEXT("%ux%u"), DispatchResolution.X, DispatchResolution.Y);
 
 		if (bInlineRayTracing)
 		{
-			TShaderRef<FLumenRadiosityHardwareRayTracingCS> ComputeShader = GlobalShaderMap->GetShader<FLumenRadiosityHardwareRayTracingCS>(PermutationVector);
-			
-			// Inline always runs as an indirect compute shader
-			FComputeShaderUtils::AddPass(
+			FLumenRadiosityHardwareRayTracingCS::AddLumenRayTracingDispatchIndirect(
 				GraphBuilder,
 				RDG_EVENT_NAME("HardwareRayTracingCS <indirect> %ux%u probes at %u spacing", HemisphereProbeResolution, HemisphereProbeResolution, ProbeSpacing),
-				ComputePassFlags,
-				ComputeShader,
-				PassParameters,
-				PassParameters->HardwareRayTracingIndirectArgs,
-				(uint32)ERadiosityIndirectArgs::HardwareRayTracingThreadPerTrace + ViewIndex * (uint32)ERadiosityIndirectArgs::MAX * sizeof(FRHIDispatchIndirectParameters));
-		
-		}
-		else
-		{
-			TShaderRef<FLumenRadiosityHardwareRayTracingRGS> RayGenerationShader = GlobalShaderMap->GetShader<FLumenRadiosityHardwareRayTracingRGS>(PermutationVector);
-
-			AddLumenRayTraceDispatchIndirectPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("HardwareRayTracingRGS %s %ux%u probes at %u spacing", *Resolution, HemisphereProbeResolution, HemisphereProbeResolution, ProbeSpacing),
-				RayGenerationShader,
+				View,
+				PermutationVector,
 				PassParameters,
 				PassParameters->HardwareRayTracingIndirectArgs,
 				(uint32)ERadiosityIndirectArgs::HardwareRayTracingThreadPerTrace + ViewIndex * (uint32)ERadiosityIndirectArgs::MAX * sizeof(FRHIDispatchIndirectParameters),
+				ComputePassFlags);
+		}
+		else
+		{
+			FLumenRadiosityHardwareRayTracingRGS::AddLumenRayTracingDispatchIndirect(
+				GraphBuilder,
+				RDG_EVENT_NAME("HardwareRayTracingRGS %s %ux%u probes at %u spacing", *Resolution, HemisphereProbeResolution, HemisphereProbeResolution, ProbeSpacing),
 				View,
+				PermutationVector,
+				PassParameters,
+				PassParameters->HardwareRayTracingIndirectArgs,
+				(uint32)ERadiosityIndirectArgs::HardwareRayTracingThreadPerTrace + ViewIndex * (uint32)ERadiosityIndirectArgs::MAX * sizeof(FRHIDispatchIndirectParameters),
 				bUseMinimalPayload);
 		}
 #endif

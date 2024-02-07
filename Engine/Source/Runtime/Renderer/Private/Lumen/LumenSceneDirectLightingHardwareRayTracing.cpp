@@ -61,7 +61,7 @@ class FLumenDirectLightingHardwareRayTracingBatched : public FLumenHardwareRayTr
 
 	class FEnableFarFieldTracing : SHADER_PERMUTATION_BOOL("ENABLE_FAR_FIELD_TRACING");
 	class FEnableHeightfieldProjectionBias : SHADER_PERMUTATION_BOOL("ENABLE_HEIGHTFIELD_PROJECTION_BIAS");
-	using FPermutationDomain = TShaderPermutationDomain<FEnableFarFieldTracing, FEnableHeightfieldProjectionBias, FUseThreadGroupSize64>;
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FEnableFarFieldTracing, FEnableHeightfieldProjectionBias>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenHardwareRayTracingShaderBase::FSharedParameters, SharedParameters)
