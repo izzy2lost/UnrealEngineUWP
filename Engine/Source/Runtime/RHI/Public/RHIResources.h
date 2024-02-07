@@ -755,6 +755,12 @@ public:
 	#define RHI_INCLUDE_SHADER_DEBUG_DATA 0
 #endif
 
+#if RHI_INCLUDE_SHADER_DEBUG_DATA
+	#define RHI_IF_SHADER_DEBUG_DATA(...)	__VA_ARGS__
+#else
+	#define RHI_IF_SHADER_DEBUG_DATA(...)
+#endif
+
 class FRHIShader : public FRHIResource
 {
 public:
