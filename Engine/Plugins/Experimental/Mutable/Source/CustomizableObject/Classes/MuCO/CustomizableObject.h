@@ -822,6 +822,7 @@ public:
 	// Customizable Object Population data end --------------------------------------------------------
 
 #if WITH_EDITORONLY_DATA
+private:
 	/** True if this object references a parent object. This is used basically to exclude this object
 	  * from cooking. This is actually derived from the source graph object node pointing to another
 	  * object or not, but it needs to be cached here because the source graph is not always available.
