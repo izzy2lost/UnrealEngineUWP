@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using Horde.Server.Commands;
@@ -218,9 +217,9 @@ namespace Horde.Server
 			{
 				builder = builder.AddJsonFile(serverConfigFile.FullName, optional: true, reloadOnChange: true);
 			}
-			if (readInstalledConfig)
+			if (readInstalledConfig && OperatingSystem.IsWindows())
 			{
-				builder = builder.Add(new RegistryConfigSource());
+				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Server", ServerSettings.SectionName));
 			}
 
 			return builder.AddEnvironmentVariables().Build();
@@ -241,49 +240,6 @@ namespace Horde.Server
 						{
 							using FileStream sourceStream = FileReference.Open(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
 							await sourceStream.CopyToAsync(targetStream);
-						}
-					}
-				}
-			}
-		}
-
-		class RegistryConfigSource : IConfigurationSource
-		{
-			public IConfigurationProvider Build(IConfigurationBuilder builder)
-				=> new RegistryConfigProvider();
-		}
-
-		class RegistryConfigProvider : ConfigurationProvider
-		{
-			public override void Load()
-			{
-				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-				{
-					Dictionary<string, string?> data = new Dictionary<string, string?>();
-					GetValues(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Server", ServerSettings.SectionName, data);
-					Data = data;
-				}
-			}
-
-			[SupportedOSPlatform("windows")]
-			static void GetValues(RegistryKey baseKey, string keyPath, string baseConfigName, Dictionary<string, string?> data)
-			{
-				using RegistryKey? registryKey = baseKey.OpenSubKey(keyPath);
-				if (registryKey != null)
-				{
-					string[] subKeyNames = registryKey.GetSubKeyNames();
-					foreach (string subKeyName in subKeyNames)
-					{
-						GetValues(registryKey, subKeyName, $"{baseConfigName}:{subKeyName}", data);
-					}
-
-					string[] valueNames = registryKey.GetValueNames();
-					foreach (string valueName in valueNames)
-					{
-						object? value = registryKey.GetValue(valueName);
-						if (value != null)
-						{
-							data[$"{baseConfigName}:{valueName}"] = value.ToString();
 						}
 					}
 				}

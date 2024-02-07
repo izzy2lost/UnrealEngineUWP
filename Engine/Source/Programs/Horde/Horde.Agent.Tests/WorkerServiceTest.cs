@@ -96,7 +96,7 @@ namespace Horde.Agent.Tests
 
 				settings.ServerProfiles.Add(profile);
 				settings.Server = "test";
-				settings.WorkingDir = Path.GetTempPath();
+				settings.WorkingDir = new DirectoryReference(Path.GetTempPath());
 				settings.Executor = TestExecutor.Name; // Not really used since the executor is overridden in the tests
 			});
 

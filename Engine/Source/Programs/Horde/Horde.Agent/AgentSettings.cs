@@ -186,6 +186,13 @@ namespace Horde.Agent
 		public string? Name { get; set; }
 
 		/// <summary>
+		/// Whether the server is running in 'installed' mode. In this mode, on Windows, the default data directory will use the common 
+		/// application data folder (C:\ProgramData\Epic\Horde), and configuration data will be read from here and the registry.
+		/// This setting is overridden to false for local builds from appsettings.Local.json.
+		/// </summary>
+		public bool Installed { get; set; } = true;
+
+		/// <summary>
 		/// Whether agent should register as being ephemeral.
 		/// Doing so will not persist any long-lived data on the server and
 		/// once disconnected it's assumed to have been deleted permanently.
@@ -211,7 +218,7 @@ namespace Horde.Agent
 		/// <summary>
 		/// Working directory
 		/// </summary>
-		public string? WorkingDir { get; set; } = DirectoryReference.Combine(AgentApp.DataDir, "Data").FullName;
+		public DirectoryReference WorkingDir { get; set; } = DirectoryReference.Combine(AgentApp.DataDir, "Sandbox");
 
 		/// <summary>
 		/// Whether to mount the specified list of network shares
@@ -273,11 +280,6 @@ namespace Horde.Agent
 		/// How often to report telemetry events to server in milliseconds
 		/// </summary>
 		public int TelemetryReportInterval { get; set; } = 30 * 1000;
-
-		/// <summary>
-		/// Directory to use for caching bundles
-		/// </summary>
-		public string? BundleCacheDir { get; set; }
 
 		/// <summary>
 		/// Maximum size of the bundle cache, in megabytes.
@@ -357,7 +359,7 @@ namespace Horde.Agent
 		/// <returns>Path to file which may or may not exist</returns>
 		public FileReference GetTerminationSignalFile()
 		{
-			return new FileReference(Path.Combine(WorkingDir ?? Path.GetTempPath(), ".horde-termination-signal"));
+			return FileReference.Combine(WorkingDir, ".horde-termination-signal");
 		}
 
 		internal string GetAgentName()
