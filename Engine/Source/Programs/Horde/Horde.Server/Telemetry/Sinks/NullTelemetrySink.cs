@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Telemetry;
+
 namespace Horde.Server.Telemetry.Sinks
 {
 	/// <summary>
@@ -11,7 +13,7 @@ namespace Horde.Server.Telemetry.Sinks
 		public bool Enabled => false;
 
 		/// <inheritdoc/>
-		public void SendEvent(TelemetryEvent telemetryEvent)
+		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
 		}
 	}

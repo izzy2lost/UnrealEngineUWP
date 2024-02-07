@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
 using Horde.Server.Server;
 using Horde.Server.Telemetry;
@@ -40,8 +41,12 @@ namespace Horde.Server.Tests.Telemetry
 			metricConfig.Filter = JsonPath.Parse("$[?(@.Payload.EventName == 'Included')]");
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -49,13 +54,13 @@ namespace Horde.Server.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1 });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2 });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 3 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 3 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+				List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(3, metrics[0].Value);
@@ -74,8 +79,12 @@ namespace Horde.Server.Tests.Telemetry
 			metricConfig.Interval = TimeSpan.FromHours(1.0);
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -83,13 +92,13 @@ namespace Horde.Server.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2 });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+				List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(6, metrics[0].Value);
@@ -98,11 +107,11 @@ namespace Horde.Server.Tests.Telemetry
 
 			// Test 2
 			{
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+				List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(9, metrics[0].Value);
@@ -113,11 +122,11 @@ namespace Horde.Server.Tests.Telemetry
 			{
 				await Clock.AdvanceAsync(TimeSpan.FromHours(1.0));
 
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+				List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 				Assert.AreEqual(2, metrics.Count);
 
 				Assert.AreEqual(new DateTime(2023, 6, 8, 5, 0, 0), metrics[0].Time);
@@ -147,9 +156,13 @@ namespace Horde.Server.Tests.Telemetry
 			metricConfig2.Interval = TimeSpan.FromHours(1.0);
 			metricConfig2.Property = JsonPath.Parse("$.Payload.bar.baz");
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig1);
+			telemetryStoreConfig.Metrics.Add(metricConfig2);
+			
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig1);
-			globalConfig.Telemetry.Metrics.Add(metricConfig2);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -157,19 +170,19 @@ namespace Horde.Server.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, bar = 201 });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, bar = new { baz = 101 } });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, bar = 201 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, bar = new { baz = 101 } });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync([metricConfig1.Id]);
+				List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig1.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(6, metrics[0].Value);
 				Assert.AreEqual(3, metrics[0].Count);
 
-				List<IMetric> metrics2 = await collection.FindAsync([metricConfig2.Id]);
+				List<IMetric> metrics2 = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig2.Id]);
 				Assert.AreEqual(1, metrics2.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics2[0].Time);
 				Assert.AreEqual(101, metrics2[0].Value);
@@ -208,8 +221,12 @@ namespace Horde.Server.Tests.Telemetry
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 			metricConfig.Percentile = 75;
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -217,13 +234,13 @@ namespace Horde.Server.Tests.Telemetry
 
 			foreach (double value in values)
 			{
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = value });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = value });
 			}
 
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
-			List<IMetric> metrics = await collection.FindAsync([metricConfig.Id], maxResults: 1);
+			List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id], maxResults: 1);
 			Assert.AreEqual(1, metrics.Count);
 			Assert.AreEqual(values.Length, metrics[0].Count);
 			Assert.AreEqual(result, metrics[0].Value);
@@ -241,22 +258,26 @@ namespace Horde.Server.Tests.Telemetry
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 			metricConfig.GroupBy = "$.Payload.group";
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
 			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
 
-			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1, group = "first" });
-			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, group = "first" });
-			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, group = "first" });
-			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4, group = "second" });
-			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 5 });
+			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 1, group = "first" });
+			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 2, group = "first" });
+			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 3, group = "first" });
+			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 4, group = "second" });
+			sink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 5 });
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
-			List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+			List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 			metrics = metrics.OrderBy(x => x.Group).ToList();
 			Assert.AreEqual(3, metrics.Count);
 
@@ -285,18 +306,22 @@ namespace Horde.Server.Tests.Telemetry
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 			metricConfig.GroupBy = "$.Payload.group";
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
 			IMetricCollection collection = ServiceProvider.GetRequiredService<IMetricCollection>();
 
-			sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { foo = 123, group = "first, second & third" });
+			sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { foo = 123, group = "first, second & third" });
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
-			List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+			List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 			metrics = metrics.OrderBy(x => x.Group).ToList();
 			Assert.AreEqual(1, metrics.Count);
 
@@ -339,8 +364,12 @@ namespace Horde.Server.Tests.Telemetry
 				metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 			}
 
+			TelemetryStoreConfig telemetryStoreConfig = new TelemetryStoreConfig();
+			telemetryStoreConfig.Id = TelemetryStoreId.Default;
+			telemetryStoreConfig.Metrics.Add(metricConfig);
+
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Telemetry.Metrics.Add(metricConfig);
+			globalConfig.TelemetryStores.Add(telemetryStoreConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -348,17 +377,17 @@ namespace Horde.Server.Tests.Telemetry
 
 			// Test 1
 			{
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1, groupFacetA = "groupA" });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2, groupFacetA = "groupA" });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 3, groupFacetA = "groupA", groupFacetB = "groupB" });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 4, groupFacetB = "groupB" });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 5, groupFacetB = "groupA,groupB" });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB",  groupFacetC = "groupC" });
-				sink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 6 });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 1, groupFacetA = "groupA" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 2, groupFacetA = "groupA" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 3, groupFacetA = "groupA", groupFacetB = "groupB" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 4, groupFacetB = "groupB" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 5, groupFacetB = "groupA,groupB" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Included", foo = 6, groupFacetA = "groupA", groupFacetB = "groupB",  groupFacetC = "groupC" });
+				sink.SendEvent(telemetryStoreConfig.Id, TelemetryRecordMeta.CurrentHordeInstance, new { EventName = "Excluded", foo = 6 });
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
+				List<IMetric> metrics = await collection.FindAsync(telemetryStoreConfig.Id, [metricConfig.Id]);
 				metrics = metrics.OrderBy(x => x.Group).ToList();
 
 				Assert.AreEqual(5, metrics.Count);

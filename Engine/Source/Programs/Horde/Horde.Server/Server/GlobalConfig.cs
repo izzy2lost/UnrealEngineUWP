@@ -19,6 +19,7 @@ using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Tools;
 using EpicGames.Horde.Users;
 using EpicGames.Perforce;
@@ -238,7 +239,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
 		/// </summary>
-		public TelemetryConfig Telemetry { get; set; } = new TelemetryConfig();
+		public List<TelemetryStoreConfig> TelemetryStores { get; set; } = new List<TelemetryStoreConfig>();
 
 		/// <summary>
 		/// Access control list
@@ -259,6 +260,7 @@ namespace Horde.Server.Server
 		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 		private readonly Dictionary<SecretId, SecretConfig> _secretLookup = new Dictionary<SecretId, SecretConfig>();
 		private readonly Dictionary<PoolId, PoolConfig> _poolLookup = new Dictionary<PoolId, PoolConfig>();
+		private readonly Dictionary<TelemetryStoreId, TelemetryStoreConfig> _telemetryStoreLookup = new Dictionary<TelemetryStoreId, TelemetryStoreConfig>();
 
 		/// <summary>
 		/// Called after the config file has been read
@@ -331,6 +333,13 @@ namespace Horde.Server.Server
 			}
 			ConfigType.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
 			UpdateWorkspacesForPools();
+
+			_telemetryStoreLookup.Clear();
+			foreach (TelemetryStoreConfig telemetryStore in TelemetryStores)
+			{
+				_telemetryStoreLookup.Add(telemetryStore.Id, telemetryStore);
+				telemetryStore.PostLoad();
+			}
 
 			Storage.PostLoad(this);
 		}
@@ -425,8 +434,8 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <param name="streamId">The stream identifier</param>
 		/// <param name="templateId">Template identifier</param>
-		/// <param name="config">Configuration for the stream</param>
-		/// <returns>True if the stream configuration was found</returns>
+		/// <param name="config">Configuration for the template</param>
+		/// <returns>True if the template configuration was found</returns>
 		public bool TryGetTemplate(StreamId streamId, TemplateId templateId, [NotNullWhen(true)] out TemplateRefConfig? config)
 		{
 			if (!_streamLookup.TryGetValue(streamId, out StreamConfig? streamConfig))
@@ -441,7 +450,7 @@ namespace Horde.Server.Server
 		/// Attempts to get configuration for a tool from this object
 		/// </summary>
 		/// <param name="toolId">The tool identifier</param>
-		/// <param name="config">Configuration for the stream</param>
+		/// <param name="config">Configuration for the tool</param>
 		/// <returns>True if the tool configuration was found</returns>
 		public bool TryGetTool(ToolId toolId, [NotNullWhen(true)] out ToolConfig? config) => _toolLookup.TryGetValue(toolId, out config);
 
@@ -449,9 +458,17 @@ namespace Horde.Server.Server
 		/// Attempts to get configuration for a pool from this object
 		/// </summary>
 		/// <param name="poolId">The pool identifier</param>
-		/// <param name="config">Configuration for the stream</param>
+		/// <param name="config">Configuration for the pool</param>
 		/// <returns>True if the pool configuration was found</returns>
 		public bool TryGetPool(PoolId poolId, [NotNullWhen(true)] out PoolConfig? config) => _poolLookup.TryGetValue(poolId, out config);
+
+		/// <summary>
+		/// Attempts to get configuration for a pool from this object
+		/// </summary>
+		/// <param name="telemetryStoreId">The pool identifier</param>
+		/// <param name="config">Configuration for the telemetry store</param>
+		/// <returns>True if the telemetry configuration was found</returns>
+		public bool TryGetTelemetryStore(TelemetryStoreId telemetryStoreId, [NotNullWhen(true)] out TelemetryStoreConfig? config) => _telemetryStoreLookup.TryGetValue(telemetryStoreId, out config);
 
 		/// <summary>
 		/// Attempt to resolve an IP address to a network config

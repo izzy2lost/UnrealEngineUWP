@@ -2,10 +2,13 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
+using Horde.Server.Acls;
 using Horde.Server.Configuration;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -125,8 +128,18 @@ namespace Horde.Server.Telemetry.Metrics
 	[JsonSchema("https://unrealengine.com/horde/telemetry")]
 	[JsonSchemaCatalog("Horde Telemetry", "Horde telemetry configuration file", new[] { "*.telemetry.json", "*.metrics.json", "Metrics/*.json" })]
  	[ConfigIncludeRoot]
-	public class TelemetryConfig
+	public class TelemetryStoreConfig
 	{
+		/// <summary>
+		/// Identifier for this store
+		/// </summary>
+		public TelemetryStoreId Id { get; set; }
+
+		/// <summary>
+		/// Permissions for this store
+		/// </summary>
+		public AclConfig? Acl { get; set; }
+
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
 		/// </summary>
@@ -137,5 +150,27 @@ namespace Horde.Server.Telemetry.Metrics
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
 
+		readonly Dictionary<MetricId, MetricConfig> _metricLookup = new Dictionary<MetricId, MetricConfig>();
+
+		/// <summary>
+		/// Called after the store has been deserialized to compute cached values
+		/// </summary>
+		public void PostLoad()
+		{
+			_metricLookup.Clear();
+			foreach (MetricConfig metric in Metrics)
+			{
+				_metricLookup.Add(metric.Id, metric);
+			}
+		}
+
+		/// <summary>
+		/// Attempt to get config for a metric with the given id
+		/// </summary>
+		/// <param name="metricId">Metric id</param>
+		/// <param name="metricConfig">Receives the config object on success</param>
+		/// <returns>True if the metric was found</returns>
+		public bool TryGetMetric(MetricId metricId, [NotNullWhen(true)] out MetricConfig? metricConfig)
+			=> _metricLookup.TryGetValue(metricId, out metricConfig);
 	}
 }

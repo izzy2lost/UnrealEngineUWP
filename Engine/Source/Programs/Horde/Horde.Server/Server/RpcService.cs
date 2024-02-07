@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Tools;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
@@ -545,7 +546,7 @@ namespace Horde.Server.Server
 				FieldDescriptor caseDescriptor = oneofDescriptor.Accessor.GetCaseFieldDescriptor(wrappedEvent);
 
 				object wrappedValue = caseDescriptor.Accessor.GetValue(wrappedEvent);
-				_telemetrySink.SendEvent(agentMeta, wrappedValue);
+				_telemetrySink.SendEvent(TelemetryStoreId.Default, agentMeta, wrappedValue);
 			}
 
 			return new Empty();

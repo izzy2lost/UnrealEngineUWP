@@ -13,6 +13,7 @@ using OpenTelemetry.Trace;
 using Horde.Server.Telemetry.Sinks;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
+using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Telemetry
 {
@@ -58,7 +59,7 @@ namespace Horde.Server.Telemetry
 		}
 
 		/// <inheritdoc/>
-		public void SendEvent(TelemetryEvent telemetryEvent)
+		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(TelemetryManager)}.{nameof(SendEvent)}");
 			foreach (ITelemetrySinkInternal sink in _telemetrySinks)
@@ -71,7 +72,7 @@ namespace Horde.Server.Telemetry
 				{
 					try
 					{
-						sink.SendEvent(telemetryEvent);
+						sink.SendEvent(telemetryStoreId, telemetryEvent);
 					}
 					catch (Exception e)
 					{

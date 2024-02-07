@@ -3,6 +3,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Telemetry
 {
@@ -19,8 +20,9 @@ namespace Horde.Server.Telemetry
 		/// <summary>
 		/// Sends a telemetry event with the given information
 		/// </summary>
+		/// <param name="storeId">Identifier for the telemetry store</param>
 		/// <param name="telemetryEvent">The telemetry event that was received</param>
-		void SendEvent(TelemetryEvent telemetryEvent);
+		void SendEvent(TelemetryStoreId storeId, TelemetryEvent telemetryEvent);
 	}
 
 	/// <summary>
@@ -44,9 +46,9 @@ namespace Horde.Server.Telemetry
 		/// <summary>
 		/// Sends a telemetry event with the given information
 		/// </summary>
-		public static void SendEvent(this ITelemetrySink sink, TelemetryRecordMeta recordMeta, object payload)
+		public static void SendEvent(this ITelemetrySink sink, TelemetryStoreId storeId, TelemetryRecordMeta recordMeta, object payload)
 		{
-			sink.SendEvent(new TelemetryEvent(recordMeta, payload));
+			sink.SendEvent(storeId, new TelemetryEvent(recordMeta, payload));
 		}
 	}
 }
