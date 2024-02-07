@@ -1592,6 +1592,7 @@ protected:
 	bool bAlreadyFullyDecayed = false;
 
 	int32 VersionProcessed = INDEX_NONE;
+	int32 DynamicRepDataVersionProcessed = INDEX_NONE;
 
 	// The last time (in milliseconds) the async physics component tick fired.
 	// We track this on the client to be able to turn off the tick for perf reasons
