@@ -4,6 +4,7 @@
 
 #include "AvaMaskUtilities.h"
 #include "Components/PrimitiveComponent.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "Framework/AvaGizmoComponent.h"
 #include "GeometryMaskCanvas.h"
