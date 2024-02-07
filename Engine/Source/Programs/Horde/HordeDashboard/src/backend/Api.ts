@@ -2300,6 +2300,16 @@ export type ListParameterItemData = ParameterData & {
 	/// </summary>
 	argumentIfDisabled?: string;
 
+	/// <summary>
+	/// Arguments to pass with this parameter, if enabled
+	/// </summary>
+	argumentsIfEnabled?: string[];
+
+	/// <summary>
+	/// Arguments to pass with this parameter, if disabled
+	/// </summary>
+	argumentsIfDisabled?: string[];
+
 	/**Whether this item is selected by default */
 	default: boolean;
 
@@ -2330,6 +2340,12 @@ export type BoolParameterData = ParameterData & {
 
 	/**Value if disabled */
 	argumentIfDisabled?: string;
+
+	/**Arguments if enabled */
+	argumentsIfEnabled?: string[];
+
+	/**Arguments if disabled */
+	argumentsIfDisabled?: string[];
 
 	/**Whether this argument is enabled by default */
 	default: boolean;
