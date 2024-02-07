@@ -190,7 +190,7 @@ void UTypedElementTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDa
 void UTypedElementTransformHeadsUpWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace TypedElementDataStorage;
 
 	DataStorageUi.RegisterWidgetFactory<FTypedElementTransformHeadsUpWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
 		FColumn<FTypedElementLocalTransformColumn>());

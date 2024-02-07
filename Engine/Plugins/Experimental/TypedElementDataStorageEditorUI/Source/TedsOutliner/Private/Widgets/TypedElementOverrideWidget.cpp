@@ -21,7 +21,7 @@
 void UTypedElementOverrideWidgetFactory::RegisterWidgetConstructors(
 	ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementQueryBuilder;
+	using namespace TypedElementDataStorage;
 
 	// The  widget is a specific widget for the Scene Outliner's item label column
 	DataStorageUi.RegisterWidgetFactory<FTypedElementOverrideWidgetConstructor>(FTypedElementSceneOutlinerQueryBinder::ItemLabelCellWidgetPurpose,

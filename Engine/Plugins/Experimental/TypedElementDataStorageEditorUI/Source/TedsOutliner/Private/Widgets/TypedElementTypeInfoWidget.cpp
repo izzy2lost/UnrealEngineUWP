@@ -17,7 +17,7 @@ void UTypedElementTypeInfoWidgetFactory::RegisterWidgetConstructors(ITypedElemen
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	DataStorageUi.RegisterWidgetFactory<FTypedElementTypeInfoWidgetConstructor>(FName(TEXT("General.Cell")),
-		TypedElementQueryBuilder::FColumn<FTypedElementClassTypeInfoColumn>());
+		TypedElementDataStorage::FColumn<FTypedElementClassTypeInfoColumn>());
 
 }
 
