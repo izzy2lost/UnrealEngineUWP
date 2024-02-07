@@ -2,6 +2,7 @@
 
 #include "GeometryMaskTypes.h"
 
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/Engine.h"
 #include "GeometryMaskSubsystem.h"
 #include "UObject/UObjectThreadContext.h"

@@ -7,6 +7,7 @@
 
 #include "GeometryMaskTypes.generated.h"
 
+class UCanvasRenderTarget2D;
 class UGeometryMaskCanvas;
 
 UENUM(BlueprintType)

@@ -2,6 +2,7 @@
 
 #include "GeometryMaskReadComponent.h"
 
+#include "Engine/CanvasRenderTarget2D.h"
 #include "GeometryMaskCanvas.h"
 
 void UGeometryMaskReadComponent::SetParameters(FGeometryMaskReadParameters& InParameters)
