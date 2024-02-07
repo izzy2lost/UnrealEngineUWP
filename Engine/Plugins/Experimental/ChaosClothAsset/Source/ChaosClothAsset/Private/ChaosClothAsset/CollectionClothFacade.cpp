@@ -58,6 +58,7 @@ namespace UE::Chaos::ClothAsset
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimVertices2DEnd()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimFacesStart()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimFacesEnd()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimPatternFabric()));
 
 		//~ Render Patterns Group
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderVerticesStart()));
@@ -75,18 +76,28 @@ namespace UE::Chaos::ClothAsset
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimVertex3DLookup()));
 		
 		//~ Sim Vertices 3D Group
-		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimPosition3D()));
-		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimNormal()));
+    	ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimPosition3D()));
+    	ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimNormal()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimBoneIndices()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimBoneWeights()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetTetherKinematicIndex()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetTetherReferenceLength()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSimVertex2DLookup()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetSeamStitchLookup()));
+		
+		//~ Fabrics Group
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricBendingStiffness()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricBucklingRatio()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricBucklingStiffness()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricDamping()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricDensity()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricFriction()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricThickness()));
+		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetFabricStretchStiffness()));
 
 		//~ Render Faces Group
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderIndices()));
-
+		
 		//~ Render Vertices Group
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderPosition()));
 		ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetRenderNormal()));
@@ -272,6 +283,16 @@ namespace UE::Chaos::ClothAsset
 	FCollectionClothSeamConstFacade FCollectionClothConstFacade::GetSeam(int32 SeamIndex) const
 	{
 		return FCollectionClothSeamConstFacade(ClothCollection, SeamIndex);
+	}
+
+	int32 FCollectionClothConstFacade::GetNumFabrics() const
+	{
+		return ClothCollection->GetNumElements(ClothCollectionGroup::Fabrics);
+	}
+
+	FCollectionClothFabricConstFacade FCollectionClothConstFacade::GetFabric(int32 FabricIndex) const
+	{
+		return FCollectionClothFabricConstFacade(ClothCollection, FabricIndex);
 	}
 
 	int32 FCollectionClothConstFacade::GetNumRenderVertices() const
@@ -472,16 +493,24 @@ namespace UE::Chaos::ClothAsset
 		FClothCollection::CopyArrayViewDataAndApplyOffset(GetTetherKinematicIndex().Right(OtherNumSimVertices3D), Other.GetTetherKinematicIndex(), StartNumSimVertices3D);
 		FClothCollection::CopyArrayViewData(GetTetherReferenceLength().Right(OtherNumSimVertices3D), Other.GetTetherReferenceLength());
 
+		// Fabrics Group
+		const int32 StartNumFabrics = GetNumFabrics();
+		const int32 OtherNumFabrics = Other.GetNumFabrics();
+		SetNumFabrics(StartNumFabrics + OtherNumFabrics);
+		for (int32 FabricIndex = 0; FabricIndex < OtherNumFabrics; ++FabricIndex)
+		{
+			GetFabric(FabricIndex + StartNumFabrics).Initialize(Other.GetFabric(FabricIndex));
+		}
+
 		// Sim Patterns Group
 		const int32 StartNumSimVertices2D = GetNumSimVertices2D();
 		const int32 StartNumSimPatterns = GetNumSimPatterns();
-		const int32 StartNumSimFaces = GetNumSimFaces();
 		const int32 OtherNumSimPatterns = Other.GetNumSimPatterns();
 		const int32 OtherNumSimFaces = Other.GetNumSimFaces();
 		SetNumSimPatterns(StartNumSimPatterns + OtherNumSimPatterns);
 		for (int32 PatternIndex = 0; PatternIndex < OtherNumSimPatterns; ++PatternIndex)
 		{
-			GetSimPattern(StartNumSimPatterns + PatternIndex).Initialize(Other.GetSimPattern(PatternIndex), StartNumSimVertices3D);
+			GetSimPattern(StartNumSimPatterns + PatternIndex).Initialize(Other.GetSimPattern(PatternIndex), StartNumSimVertices3D, StartNumFabrics);
 		}
 
 		// Seams Group
@@ -492,7 +521,7 @@ namespace UE::Chaos::ClothAsset
 		{
 			GetSeam(SeamIndex + StartNumSeams).Initialize(Other.GetSeam(SeamIndex), StartNumSimVertices2D, StartNumSimVertices3D);
 		}
-
+		
 		// Sim Vertices 3D Group (lookups)
 		FClothCollection::CopyArrayViewDataAndApplyOffset(
 			GetClothCollection()->GetElements(GetClothCollection()->GetSimVertex2DLookup()).Right(OtherNumSimVertices3D), 
@@ -749,6 +778,44 @@ namespace UE::Chaos::ClothAsset
 			GetSeam(SeamToRemove).Reset();
 		}
 		GetClothCollection()->RemoveElements(ClothCollectionGroup::Seams, SortedDeletionList);
+	}
+
+	void FCollectionClothFacade::SetNumFabrics(int32 InNumFabrics)
+	{
+		const int32 NumFabrics = GetNumFabrics();
+
+		for (int32 FabricIndex = InNumFabrics; FabricIndex < NumFabrics; ++FabricIndex)
+		{
+			GetFabric(FabricIndex).Reset();
+		}
+
+		GetClothCollection()->SetNumElements(InNumFabrics, ClothCollectionGroup::Fabrics);
+
+		for (int32 FabricIndex = NumFabrics; FabricIndex < InNumFabrics; ++FabricIndex)
+		{
+			GetFabric(FabricIndex).SetDefaults();
+		}
+	}
+
+	int32 FCollectionClothFacade::AddFabric()
+	{
+		const int32 FabricIndex = GetNumFabrics();
+		SetNumFabrics(FabricIndex + 1);
+		return FabricIndex;
+	}
+
+	FCollectionClothFabricFacade FCollectionClothFacade::GetFabric(int32 FabricIndex)
+	{
+		return FCollectionClothFabricFacade(GetClothCollection(), FabricIndex);
+	}
+
+	void FCollectionClothFacade::RemoveFabrics(const TArray<int32>& SortedDeletionList)
+	{
+		for (const int32 FabricToRemove : SortedDeletionList)
+		{
+			GetFabric(FabricToRemove).Reset();
+		}
+		GetClothCollection()->RemoveElements(ClothCollectionGroup::Fabrics, SortedDeletionList);
 	}
 
 	//~ Render Vertices Group

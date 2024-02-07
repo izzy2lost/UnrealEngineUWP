@@ -52,6 +52,9 @@ namespace UE::Chaos::ClothAsset
 
 		/** Return the Pattern index this facade has been created with. */
 		int32 GetPatternIndex() const { return PatternIndex; }
+		
+		/** Return the Pattern index this facade has been created with. */
+        int32 GetFabricIndex() const;
 
 	protected:
 		friend class FCollectionClothSimPatternFacade;  // For other instances access
@@ -88,10 +91,10 @@ namespace UE::Chaos::ClothAsset
 
 		/** Initialize the cloth pattern using the specified 3D and 2D positions, and topology. */
 		template<typename IndexType, TEMPLATE_REQUIRES(TIsIndexType<IndexType>::Value)>
-		void Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices);
+		void Initialize(const TArray<FVector2f>& Positions2D, const TArray<FVector3f>& Positions3D, const TArray<IndexType>& Indices, const int32 FabricIndex = INDEX_NONE);
 
 		/** Initialize this pattern using another pattern collection. */
-		void Initialize(const FCollectionClothSimPatternConstFacade& Other, const int32 SimVertex3DOffset);
+		void Initialize(const FCollectionClothSimPatternConstFacade& Other, const int32 SimVertex3DOffset, const int32 FabricsOffset = 0);
 
 		//~ Sim Vertices 2D Group
 		// Note: Use the FCollectionClothConstFacade accessors instead of these for the array indices to match the SimIndices2D values
@@ -109,6 +112,9 @@ namespace UE::Chaos::ClothAsset
 		TArrayView<FIntVector3> GetSimIndices2D();
 		TArrayView<FIntVector3> GetSimIndices3D();
 		void RemoveSimFaces(const TArray<int32>& SortedDeletionList);
+
+		/** Set the fabric index used by this pattern */
+		void SetFabricIndex(const int32 InFabricIndex);
 
 	private:
 		friend class FCollectionClothFacade;

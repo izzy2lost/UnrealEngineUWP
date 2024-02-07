@@ -6,6 +6,7 @@
 #include "ChaosClothAsset/CollectionClothRenderPatternFacade.h"
 #include "ChaosClothAsset/CollectionClothSeamFacade.h"
 #include "ChaosClothAsset/IsUserAttributeType.h"
+#include "ChaosClothAsset/CollectionClothFabricFacade.h"
 
 namespace Chaos
 {
@@ -106,6 +107,12 @@ namespace UE::Chaos::ClothAsset
 		/** Return a seam facade for the specified seam index. */
 		FCollectionClothSeamConstFacade GetSeam(int32 SeamIndex) const;
 
+		//~ Fabric Group
+		/** Return the number of fabrics in this collection. */
+		int32 GetNumFabrics() const;
+		/** Return a fabric facade for the specified fabric index. */
+		FCollectionClothFabricConstFacade GetFabric(int32 FabricIndex) const;
+
 		//~ Render Vertices Group
 		/** Return the total number of render vertices for this collection. */
 		int32 GetNumRenderVertices() const;
@@ -145,6 +152,9 @@ namespace UE::Chaos::ClothAsset
 
 		friend class FCollectionClothSeamFacade;
 		friend class FCollectionClothSeamConstFacade;
+		friend class FCollectionClothFabricFacade;
+		friend class FCollectionClothFabricConstFacade;
+		
 		explicit FCollectionClothConstFacade(const TSharedRef<const class FClothCollection>& ClothCollection);
 	};
 
@@ -248,6 +258,18 @@ namespace UE::Chaos::ClothAsset
 		FCollectionClothSeamFacade AddGetSeam() { return GetSeam(AddSeam()); }
 		/** Remove a sorted list of seams. */
 		void RemoveSeams(const TArray<int32>& SortedDeletionList);
+		
+		//~ Fabric Group
+		/** Set the new number of fabrics to this cloth. */
+		void SetNumFabrics(int32 NumFabrics);
+		/** Add a new fabric to this cloth and return its index in the fabric list. */
+		int32 AddFabric();
+		/** Return a fabric facade for the specified fabric index. */
+		FCollectionClothFabricFacade GetFabric(int32 FabricIndex);
+		/** Add a new fabric to this cloth and return the fabric facade set to its index. */
+		FCollectionClothFabricFacade AddGetFabric() { return GetFabric(AddFabric()); }
+		/** Remove a sorted list of fabrics. */
+		void RemoveFabrics(const TArray<int32>& SortedDeletionList);
 
 		//~ Render Vertices Group
 		/** SetNumRenderVertices per pattern within pattern facade. */
@@ -287,6 +309,7 @@ namespace UE::Chaos::ClothAsset
 
 		friend class FCollectionClothSeamFacade;
 		friend class FCollectionClothSimPatternFacade;
+		friend class FCollectionClothFabricFacade;
 
 		explicit FCollectionClothFacade(const TSharedRef<class FClothCollection>& InClothCollection);
 
