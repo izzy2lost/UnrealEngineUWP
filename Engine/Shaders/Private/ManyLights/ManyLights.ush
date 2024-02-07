@@ -97,22 +97,22 @@ uint ManyLightsStateFrameIndex;
 /** 
  * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
  */
-uint2 GetSampleScreenCoordJitter()
+uint2 GetSampleScreenCoordJitter(uint2 DownsampledScreenCoord)
 {
-	return Hammersley16(ManyLightsStateFrameIndex, 8, 0) * DOWNSAMPLE_FACTOR;
-}
+	uint2 CellIndex = DownsampledScreenCoord % 2;
+	uint LinearIndex = CellIndex.x + CellIndex.y * 2;
+	LinearIndex = (LinearIndex + ManyLightsStateFrameIndex) % 4;
 
-/** 
- * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1] from the last frame
- */
-uint2 GetHistorySampleScreenCoordJitter()
-{
-	return Hammersley16(ManyLightsStateFrameIndex + 7, 8, 0) * DOWNSAMPLE_FACTOR;
+	// 4 rooks sampling pattern
+	uint2 Jitter;
+	Jitter.x = LinearIndex & 0x02 ? 1 : 0;
+	Jitter.y = LinearIndex & 0x01 ? 0 : 1;
+	return Jitter;
 }
 
 uint2 DownsampledScreenCoordToScreenCoord(uint2 DownsampledScreenCoord)
 {
-	return DownsampledScreenCoord * DOWNSAMPLE_FACTOR + GetSampleScreenCoordJitter();
+	return DownsampledScreenCoord * DOWNSAMPLE_FACTOR + GetSampleScreenCoordJitter(DownsampledScreenCoord);
 }
 
 float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
