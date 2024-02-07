@@ -8,7 +8,6 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "GameFramework/Actor.h"
-#include "Visualizers/ChaosVDDataVisualizerBase.h"
 #include "Visualizers/IChaosVDParticleVisualizationDataProvider.h"
 
 #include "ChaosVDParticleActor.generated.h"
@@ -40,7 +39,7 @@ DECLARE_DELEGATE(FChaosVDParticleDataUpdatedDelegate)
 
 /** Actor used to represent a Chaos Particle in the Visual Debugger's world */
 UCLASS(HideCategories=(Transform))
-class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider, public IChaosVDVisualizerContainerInterface,
+class AChaosVDParticleActor : public AActor, public IChaosVDParticleVisualizationDataProvider,
 								public FChaosVDSceneObjectBase, public IChaosVDCollisionDataProviderInterface
 {
 	GENERATED_BODY()
@@ -59,15 +58,9 @@ public:
 	virtual void Destroyed() override;
 
 	virtual const FChaosVDParticleDataWrapper* GetParticleData() override { return ParticleDataPtr.Get(); }
-	virtual void GetVisualizationContext(FChaosVDVisualizationContext& OutVisualizationContext) override;
-
-	void CreateVisualizers();
-
-	virtual void DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	
 #if WITH_EDITOR
 	virtual bool IsSelectedInEditor() const override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void SetIsTemporarilyHiddenInEditor(bool bIsHidden) override;
 #endif
 
@@ -109,9 +102,6 @@ protected:
 
 	template<typename TTaskCallback>
 	void VisitGeometryInstances(const TTaskCallback& VisitorCallback);
-	
-	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
-	uint8 LocalParticleDataVisualizationFlags;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags")
 	bool bShowDebugText = false;
@@ -123,8 +113,6 @@ protected:
 	bool bIsGeometryDataGenerationStarted = false;
 
 	FDelegateHandle GeometryUpdatedDelegate;
-
-	TMap<FStringView, TUniquePtr<FChaosVDDataVisualizerBase>> CVDVisualizers;
 
 	TArray<TSharedPtr<FChaosVDMeshDataInstanceHandle>> MeshDataHandles;
 

@@ -7,7 +7,7 @@
 #include "Engine/StaticMesh.h"
 #include "UObject/Object.h"
 #include "UObject/SoftObjectPtr.h"
-#include "Visualizers/ChaosVDParticleDataVisualizer.h"
+#include "Visualizers/ChaosVDParticleDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDSceneQueryDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 
@@ -106,6 +106,90 @@ struct FChaosDebugDrawColorsByState
 	FColor GetColorFromState(EChaosVDObjectStateType State) const;
 };
 
+USTRUCT()
+struct FChaosParticleDataDebugDrawColors
+{
+	GENERATED_BODY()
+
+	/** Color to apply to the Velocity vector when drawing it */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor VelocityColor = FColor::Green;
+
+	/** Color to apply to the Angular Velocity vector when drawing it */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor AngularVelocityColor = FColor::Blue;
+
+	/** Color to apply to the Acceleration vector when drawing it */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor AccelerationColor = FColor::Orange;
+
+	/** Color to apply to the Angular Acceleration vector when drawing it */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor AngularAccelerationColor = FColor::Silver;
+
+	/** Color to apply to the Linear Impulse when drawing it */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor LinearImpulseColor = FColor::Turquoise;
+
+	/** Color to apply to the Angular Impulse vector when drawing it */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor AngularImpulseColor = FColor::Emerald;
+
+	/** Color to apply the debug drawn sphere representing the center of mass location */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor CenterOfMassColor = FColor::Red;
+
+	/** Color to apply to when drawing the connectivity data */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FLinearColor ConnectivityDataColor = FColor::Yellow;
+	
+	FColor GetColorForDataID(EChaosVDParticleDataVisualizationFlags DataID, bool bIsSelected = false) const;
+	const FLinearColor& GetLinearColorForDataID(EChaosVDParticleDataVisualizationFlags DataID) const;
+};
+
+USTRUCT()
+struct FChaosParticleDataDebugDrawSettings
+{
+	GENERATED_BODY()
+
+	/** The depth priority used for while drawing contact data. Can be World or Foreground (with this one the shapes will be drawn on top of the geometry and be always visible) */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	TEnumAsByte<ESceneDepthPriorityGroup> DepthPriority = ESceneDepthPriorityGroup::SDPG_World;
+
+	/** Scale to apply to the Velocity vector before draw it. Unit is cm/s */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float VelocityScale = 0.5f;
+
+	/** Scale to apply to the Angular Velocity vector before draw it. Unit is rad/s */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float AngularVelocityScale = 50.0f;
+
+	/** Scale to apply to the Acceleration vector before draw it. Unit is cm/s2 */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float AccelerationScale = 0.005f;
+
+	/** Scale to apply to the Angular Acceleration vector before draw it. Unit is rad/s2 */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float AngularAccelerationScale = 0.5f;
+
+	/** Scale to apply to the Linear Impulse vector before draw it. Unit is g.m/s */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float LinearImpulseScale = 0.001;
+
+	/** Scale to apply to the Angular Impulse vector before draw it. Unit is g.m2/s */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float AngularImpulseScale = 0.1f;
+
+	/** Radius to use when creating the sphere that will represent the center of mass location */
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	float CenterOfMassRadius = 10.0f;
+
+	float GetScaleFortDataID(EChaosVDParticleDataVisualizationFlags DataID) const;
+	
+	UPROPERTY(EditAnywhere, Category=DebugDraw)
+	FChaosParticleDataDebugDrawColors ColorSettings;
+};
+
 /** Structure holding the settings using to debug draw Particles shape based on their shape type on the Chaos Visual Debugger */
 USTRUCT()
 struct FChaosDebugDrawColorsByShapeType
@@ -171,10 +255,14 @@ struct FChaosDebugDrawColorsByClientServer
 UENUM()
 enum class EChaosVDParticleDebugColorMode
 {
-	None, // Draw particles with the default gray color
-	State, // Draw particles with a specific color based on the recorded particle state
-	ShapeType, // Draw particles with a specific color based on their shape type
-	ClientServer, // Draw particles with a specific color based on if they are a Server Particle or Client particle
+	/** Draw particles with the default gray color */
+	None,
+	/** Draw particles with a specific color based on the recorded particle state */
+	State,
+	/** Draw particles with a specific color based on their shape type */
+	ShapeType,
+	/** Draw particles with a specific color based on if they are a Server Particle or Client particle */
+	ClientServer,
 };
 
 UCLASS(config = Engine)
@@ -197,7 +285,7 @@ public:
 
 	/** Set of flags to enable/disable visualization of specific particle data as debug draw */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDParticleDataVisualizationFlags"))
-	uint32 GlobalParticleDataVisualizationFlags = 0;
+	uint32 GlobalParticleDataVisualizationFlags = static_cast<uint32>(EChaosVDParticleDataVisualizationFlags::Velocity | EChaosVDParticleDataVisualizationFlags::AngularVelocity | EChaosVDParticleDataVisualizationFlags::DrawDataOnlyForSelectedParticle);
 
 	/** Set of flags to enable/disable visualization of specific collision data as debug draw */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDCollisionVisualizationFlags"))
@@ -205,7 +293,7 @@ public:
 
 	/** Set of flags to enable/disable visualization of specific scene queries data as debug draw */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization Flags", meta = (Bitmask, BitmaskEnum = "/Script/ChaosVD.EChaosVDSceneQueryVisualizationFlags"))
-	uint32 GlobalSceneQueriesVisualizationFlags = static_cast<uint8>(EChaosVDSceneQueryVisualizationFlags::DrawClientQueries | EChaosVDSceneQueryVisualizationFlags::DrawServerQueries |  EChaosVDSceneQueryVisualizationFlags::DrawHits | EChaosVDSceneQueryVisualizationFlags::DrawLineTraceQueries);
+	uint32 GlobalSceneQueriesVisualizationFlags = static_cast<uint32>(EChaosVDSceneQueryVisualizationFlags::DrawClientQueries | EChaosVDSceneQueryVisualizationFlags::DrawServerQueries |  EChaosVDSceneQueryVisualizationFlags::DrawHits | EChaosVDSceneQueryVisualizationFlags::DrawLineTraceQueries);
 
 	/** If true, text information (if available) will be drawn alongside any other debug draw shape */
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
@@ -213,6 +301,9 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalCollisionDataVisualizationFlags != 0", EditConditionHides))
 	FChaosVDContactDebugDrawSettings ContactDebugDrawSettings;
+
+	UPROPERTY(EditAnywhere, Category = "Viewport Visualization",  meta=(EditCondition = "GlobalParticleDataVisualizationFlags != 0", EditConditionHides))
+	FChaosParticleDataDebugDrawSettings ParticleDataDebugDrawSettings;
 
 	UPROPERTY(EditAnywhere, Category = "Viewport Visualization")
 	EChaosVDParticleDebugColorMode ParticleColorMode;

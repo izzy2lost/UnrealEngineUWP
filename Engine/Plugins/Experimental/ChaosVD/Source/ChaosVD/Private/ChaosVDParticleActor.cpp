@@ -13,10 +13,7 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
-#include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
-#include "Visualizers/ChaosVDParticleDataVisualizer.h"
-#include "Visualizers/ChaosVDSolverCollisionDataComponentVisualizer.h"
 
 namespace Chaos::VisualDebugger::Cvars
 {
@@ -32,8 +29,6 @@ AChaosVDParticleActor::AChaosVDParticleActor(const FObjectInitializer& ObjectIni
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComponent0"));
 	RootComponent->SetCanEverAffectNavigation(false);
 	RootComponent->bNavigationRelevant = false;
-
-	CreateVisualizers();
 }
 
 void AChaosVDParticleActor::UpdateFromRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InRecordedData, const Chaos::FRigidTransform3& SimulationTransform)
@@ -323,18 +318,6 @@ void AChaosVDParticleActor::Destroyed()
 	Super::Destroyed();
 }
 
-void AChaosVDParticleActor::GetVisualizationContext(FChaosVDVisualizationContext& OutVisualizationContext)
-{
-	OutVisualizationContext.SpaceTransform = CachedSimulationTransform;
-	OutVisualizationContext.CVDScene = SceneWeakPtr;
-	OutVisualizationContext.SolverID = ParticleDataPtr ? ParticleDataPtr->SolverID : INDEX_NONE;
-}
-
-void AChaosVDParticleActor::CreateVisualizers()
-{
-	CVDVisualizers.Add(FChaosVDParticleDataVisualizer::VisualizerID,MakeUnique<FChaosVDParticleDataVisualizer>(*this));
-}
-
 #if WITH_EDITOR
 
 bool AChaosVDParticleActor::IsSelectedInEditor() const
@@ -347,19 +330,6 @@ bool AChaosVDParticleActor::IsSelectedInEditor() const
 	}
 
 	return false;
-}
-
-void AChaosVDParticleActor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-
-	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_STRING_CHECKED(AChaosVDParticleActor, LocalParticleDataVisualizationFlags))
-	{
-		if (TUniquePtr<FChaosVDDataVisualizerBase>* ParticleDataVisualizer = CVDVisualizers.Find(FChaosVDParticleDataVisualizer::VisualizerID))
-		{
-			ParticleDataVisualizer->Get()->UpdateVisualizationFlags(LocalParticleDataVisualizationFlags);
-		}
-	}
 }
 
 #if WITH_EDITOR
@@ -522,17 +492,6 @@ void AChaosVDParticleActor::SetIsActive(bool bNewActive)
 		if (const TSharedPtr<FChaosVDScene> ScenePtr = SceneWeakPtr.Pin())
 		{
 			ScenePtr->OnActorActiveStateChanged().Broadcast(this);
-		}
-	}
-}
-
-void AChaosVDParticleActor::DrawVisualization(const FSceneView* View, FPrimitiveDrawInterface* PDI)
-{
-	for (const TPair<FStringView, TUniquePtr<FChaosVDDataVisualizerBase>>& VisualizerWithID : CVDVisualizers)
-	{
-		if (VisualizerWithID.Value)
-		{
-			VisualizerWithID.Value->DrawVisualization(View, PDI);
 		}
 	}
 }

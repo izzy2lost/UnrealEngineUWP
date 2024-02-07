@@ -11,7 +11,7 @@
 
 TQueue<FChaosVDDebugDrawUtils::FChaosVDQueuedTextToDraw> FChaosVDDebugDrawUtils::TexToDrawQueue = TQueue<FChaosVDQueuedTextToDraw>();
 
-void FChaosVDDebugDrawUtils::DrawArrowVector(FPrimitiveDrawInterface* PDI, const FVector& StartLocation, const FVector& EndLocation, FStringView DebugText, const FColor& Color, ESceneDepthPriorityGroup DepthPriority)
+void FChaosVDDebugDrawUtils::DrawArrowVector(FPrimitiveDrawInterface* PDI, const FVector& StartLocation, const FVector& EndLocation, FStringView DebugText, const FColor& Color, ESceneDepthPriorityGroup DepthPriority, float Thickness)
 {
 	if (!PDI)
 	{
@@ -35,7 +35,7 @@ void FChaosVDDebugDrawUtils::DrawArrowVector(FPrimitiveDrawInterface* PDI, const
 	const float ProportionalArrowSize = MaxTipOfArrowSize * (ArrowLength / MaxVectorSizeForArrow);
 	const float ArrowSize = FMath::Clamp(ProportionalArrowSize, MinTipOfArrowSize, MaxTipOfArrowSize);
 	
-	DrawDirectionalArrow(PDI, ArrowTransformMatrix, Color, ArrowLength, ArrowSize, DepthPriority);
+	DrawDirectionalArrow(PDI, ArrowTransformMatrix, Color, ArrowLength, ArrowSize, DepthPriority, Thickness);
 
 	if (!DebugText.IsEmpty())
 	{
@@ -83,7 +83,7 @@ void FChaosVDDebugDrawUtils::DrawCircle(FPrimitiveDrawInterface* PDI, const FVec
 		return;
 	}
 
-	constexpr float DepthBias = 0;
+	constexpr float DepthBias = 0.0f;
 	const bool bScreenSpace = Thickness > 0;
 
 	// Need at least 2 sides
@@ -106,7 +106,7 @@ void FChaosVDDebugDrawUtils::DrawCircle(FPrimitiveDrawInterface* PDI, const FVec
 	}
 }
 
-void FChaosVDDebugDrawUtils::DrawBox(FPrimitiveDrawInterface* PDI, const FVector& InExtents, const FColor& InColor, const FTransform& InTransform, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+void FChaosVDDebugDrawUtils::DrawBox(FPrimitiveDrawInterface* PDI, const FVector& InExtents, const FColor& InColor, const FTransform& InTransform, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority, float Thickness)
 {
 	if (!PDI)
 	{
@@ -132,9 +132,8 @@ void FChaosVDDebugDrawUtils::DrawBox(FPrimitiveDrawInterface* PDI, const FVector
 		{FVector(-1, 1,1), FVector(-1,1,-1)},
 	};
 
-	constexpr float Thickness = 2.0f;
-	constexpr float DepthBias = 0;
-	constexpr bool bScreenSpace = Thickness > 0;
+	constexpr float DepthBias = 0.0f;
+	const bool bScreenSpace = Thickness > 0;
 
 	for (int32 BoxLineIndex = 0; BoxLineIndex < MaxBoxLines; BoxLineIndex++)
 	{
@@ -150,16 +149,15 @@ void FChaosVDDebugDrawUtils::DrawBox(FPrimitiveDrawInterface* PDI, const FVector
 	}
 }
 
-void FChaosVDDebugDrawUtils::DrawLine(FPrimitiveDrawInterface* PDI, const FVector& InStartPosition, const FVector& InEndPosition, const FColor& InColor, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+void FChaosVDDebugDrawUtils::DrawLine(FPrimitiveDrawInterface* PDI, const FVector& InStartPosition, const FVector& InEndPosition, const FColor& InColor, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority, float Thickness)
 {
 	if (!PDI)
 	{
 		return;
 	}
 
-	constexpr float Thickness = 2.0f;
-	constexpr float DepthBias = 0;
-	constexpr bool bScreenSpace = Thickness > 0;
+	constexpr float DepthBias = 0.0f;
+	const bool bScreenSpace = Thickness > 0;
 
 	PDI->DrawLine(InStartPosition, InEndPosition, InColor, DepthPriority, Thickness, DepthBias, bScreenSpace);
 
@@ -171,7 +169,7 @@ void FChaosVDDebugDrawUtils::DrawLine(FPrimitiveDrawInterface* PDI, const FVecto
 	}
 }
 
-void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, const TSharedPtr<FChaosVDGeometryBuilder>& GeometryGenerator, const Chaos::FConstImplicitObjectPtr& ImplicitObject, const FTransform& InWorldTransform, const FColor& InColor, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, const TSharedPtr<FChaosVDGeometryBuilder>& GeometryGenerator, const Chaos::FConstImplicitObjectPtr& ImplicitObject, const FTransform& InWorldTransform, const FColor& InColor, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority, float Thickness)
 {
 	if (!PDI)
 	{
@@ -196,9 +194,9 @@ void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, co
 			FVector VertexB = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.B]);
 			FVector VertexC = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.C]);
 	
-			DrawLine(PDI, VertexA, VertexB, InColor, nullptr, DepthPriority);
-			DrawLine(PDI, VertexB, VertexC, InColor, nullptr, DepthPriority);
-			DrawLine(PDI, VertexC, VertexA, InColor, nullptr, DepthPriority);
+			DrawLine(PDI, VertexA, VertexB, InColor, nullptr, DepthPriority, Thickness);
+			DrawLine(PDI, VertexB, VertexC, InColor, nullptr, DepthPriority, Thickness);
+			DrawLine(PDI, VertexC, VertexA, InColor, nullptr, DepthPriority, Thickness);
 		}	
 	}
 
@@ -207,7 +205,6 @@ void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, co
 		DrawText(DebugText, InWorldTransform.GetLocation(), InColor);
 	}
 }
-
 
 void FChaosVDDebugDrawUtils::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
 {
@@ -221,6 +218,11 @@ void FChaosVDDebugDrawUtils::DrawCanvas(FViewport& InViewport, FSceneView& View,
 		FChaosVDQueuedTextToDraw TextToDraw;
 		if (TexToDrawQueue.Dequeue(TextToDraw))
 		{
+			if (!View.ViewFrustum.IntersectPoint(TextToDraw.WorldPosition))
+			{
+				continue;
+			}
+
 			FVector2D PixelLocation;
 			if (View.WorldToPixel(TextToDraw.WorldPosition, PixelLocation))
 			{
