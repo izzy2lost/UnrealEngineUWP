@@ -1641,6 +1641,9 @@ void FD3D12DynamicRHI::Init()
 		{
 			// Tier 2 is guaranteed for all adapters with feature level 12_0.
 			GRHIGlobals.ReservedResources.Supported = Options.TiledResourcesTier >= D3D12_TILED_RESOURCES_TIER_2;
+
+			// Tier 3 is required to create volume textures. Some hardware may support it.
+			GRHIGlobals.ReservedResources.SupportsVolumeTextures = Options.TiledResourcesTier >= D3D12_TILED_RESOURCES_TIER_3;
 		}
 	}
 
