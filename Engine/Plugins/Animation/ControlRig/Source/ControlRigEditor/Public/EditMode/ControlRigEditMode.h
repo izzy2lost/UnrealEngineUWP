@@ -110,11 +110,12 @@ struct FDetailKeyFrameCacheAndHandler: public IDetailKeyframeHandler
 	/** Map to the last calculated property keyed status. Resets when Scrubbing, changing Movie Scene Data, etc */
 	mutable TMap<const IPropertyHandle*, EPropertyKeyedStatus> CachedPropertyKeyedStatusMap;
 
+	void ResetCachedData();
+
 private:
 	TWeakPtr<ISequencer> WeakSequencer;
 	FControlRigEditMode* EditMode = nullptr;
 
-	void ResetCachedData();
 };
 
 

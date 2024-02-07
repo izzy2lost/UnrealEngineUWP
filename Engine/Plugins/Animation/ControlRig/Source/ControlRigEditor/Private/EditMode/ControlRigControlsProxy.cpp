@@ -10,7 +10,6 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "MovieSceneCommonHelpers.h"
-#include "PropertyHandle.h"
 #include "Sequencer/ControlRigSequencerHelpers.h"
 #include "ISequencer.h"
 #include "CurveEditor.h"
@@ -219,6 +218,10 @@ void UControlRigControlsProxy::SelectionChanged(bool bInSelected)
 void UControlRigControlsProxy::PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeChainProperty(PropertyChangedEvent);
+	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ToggleEditable)//hack so we can clear the reset cache for this property and not actually send this to our controls
+	{
+		return;
+	}
 	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UControlRigControlsProxy, bSelected))
 	{
 		if (OwnerControlElement && OwnerControlRig.IsValid())
