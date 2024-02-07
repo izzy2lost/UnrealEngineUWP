@@ -120,6 +120,23 @@ struct PCG_API FPCGSplineSamplerParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeTangents"))
 	FName LeaveTangentAttribute = TEXT("LeaveTangent");
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	bool bComputeAlpha = false;
+
+	/**
+	 * Attribute that will contain a value in [0,1] representing how far along the point is to the end of the line. Each segment on the line represents a same-size interval.
+	 * For example, if there are three segments, each segment will take up 0.333... of the interval.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeAlpha"))
+	FName AlphaAttribute = TEXT("Alpha");
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (InlineEditConditionToggle))
+	bool bComputeDistance = false;
+
+	/** Attribute that will contain the distance along the spline at the sample point. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bComputeDistance"))
+	FName DistanceAttribute = TEXT("Distance");
+
 	/** If no Bounding Shape input is provided, the actor bounds are used to limit the sample generation domain.
 	* This option allows ignoring the actor bounds and generating over the entire spline. Use with caution as this
 	* may generate a lot of points.

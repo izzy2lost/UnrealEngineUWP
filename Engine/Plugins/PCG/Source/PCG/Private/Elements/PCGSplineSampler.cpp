@@ -346,6 +346,8 @@ namespace PCGSplineSamplerHelpers
 		FVector LeaveTangent = FVector::Zero();
 		FVector::FReal PreviousDeltaAngle = 0;
 		FVector::FReal NextDeltaAngle = 0;
+		FVector::FReal Alpha = 0.0f;
+		FVector::FReal Distance = 0.0f;
 	};
 
 	void SetSeed(FPCGPoint& Point, const FVector& LSPosition, const FPCGSplineSamplerParams& Params)
@@ -380,6 +382,8 @@ namespace PCGSplineSamplerHelpers
 		FStepSampler(const UPCGPolyLineData* InLineData, const FPCGSplineSamplerParams& Params)
 			: LineData(InLineData)
 			, bComputeCurvature(Params.bComputeCurvature)
+			, bComputeAlpha(Params.bComputeAlpha)
+			, bComputeDistance(Params.bComputeDistance)
 		{
 			check(LineData);
 			CurrentSegmentIndex = 0;
@@ -390,7 +394,10 @@ namespace PCGSplineSamplerHelpers
 
 		const UPCGPolyLineData* LineData = nullptr;
 		int CurrentSegmentIndex = 0;
+		FVector::FReal DistanceToCurrentSegment = 0.0f;
 		bool bComputeCurvature = false;
+		bool bComputeAlpha = false;
+		bool bComputeDistance = false;
 	};
 
 	struct FSubdivisionStepSampler : public FStepSampler
@@ -445,6 +452,22 @@ namespace PCGSplineSamplerHelpers
 				}
 			}
 
+			if (bComputeAlpha)
+			{
+				OutResult.Alpha = LineData->GetAlphaAtDistance(SegmentIndex, DistanceAlongSegment);
+			}
+
+			if (bComputeDistance)
+			{
+				// When we step onto a new segment, add the length of the previous segment onto the distance to our current segment.
+				if (SegmentIndex > 0 && !bLastKeyPoint && SubpointIndex == 0)
+				{
+					DistanceToCurrentSegment += LineData->GetSegmentLength(SegmentIndex - 1);
+				}
+
+				OutResult.Distance = DistanceToCurrentSegment + DistanceAlongSegment;
+			}
+
 			if (SubpointIndex == 0)
 			{
 				const FVector::FReal PreviousSegmentLength = LineData->GetSegmentLength(PreviousSegmentIndex);
@@ -481,9 +504,9 @@ namespace PCGSplineSamplerHelpers
 			return CurrentSegmentIndex >= NumSegmentsWhenDone;
 		}
 
-		int NumSegments;
-		int SubdivisionsPerSegment;
-		int SubpointIndex;
+		int NumSegments = 0;
+		int SubdivisionsPerSegment = 0;
+		int SubpointIndex = 0;
 		bool bComputeTangents = false;
 	};
 
@@ -513,11 +536,27 @@ namespace PCGSplineSamplerHelpers
 				OutResult.Curvature = LineData->GetCurvatureAtDistance(CurrentSegmentIndex, CurrentDistance);
 			}
 
+			if (bComputeAlpha)
+			{
+				OutResult.Alpha = LineData->GetAlphaAtDistance(CurrentSegmentIndex, CurrentDistance);
+			}
+
+			if (bComputeDistance)
+			{
+				OutResult.Distance = DistanceToCurrentSegment + CurrentDistance;
+			}
+
 			CurrentDistance += DistanceIncrement;
 			while(CurrentDistance > CurrentSegmentLength)
 			{
 				CurrentDistance -= CurrentSegmentLength;
 				++CurrentSegmentIndex;
+
+				if (bComputeDistance)
+				{
+					DistanceToCurrentSegment += CurrentSegmentLength;
+				}
+
 				if (!IsDone())
 				{
 					CurrentSegmentLength = LineData->GetSegmentLength(CurrentSegmentIndex);
@@ -534,8 +573,8 @@ namespace PCGSplineSamplerHelpers
 			return CurrentSegmentIndex >= LineData->GetNumSegments();
 		}
 
-		FVector::FReal DistanceIncrement;
-		FVector::FReal CurrentDistance;
+		FVector::FReal CurrentDistance = 0.0f;
+		FVector::FReal DistanceIncrement = 0.0f;
 	};
 
 	struct FDimensionSampler
@@ -556,7 +595,9 @@ namespace PCGSplineSamplerHelpers
 					|| Params.bComputeCurvature
 					|| Params.bComputeSegmentIndex
 					|| Params.bComputeSubsegmentIndex
-					|| Params.bComputeTangents))
+					|| Params.bComputeTangents
+					|| Params.bComputeAlpha
+					|| Params.bComputeDistance))
 			{
 				constexpr double DefaultValue = 0.0;
 				if (Params.bComputeDirectionDelta)
@@ -590,6 +631,18 @@ namespace PCGSplineSamplerHelpers
 
 					LeaveTangentAttribute = OutPointData->Metadata->FindOrCreateAttribute<FVector>(Params.LeaveTangentAttribute, FVector::Zero());
 					bSetMetadata |= (LeaveTangentAttribute != nullptr);
+				}
+
+				if (Params.bComputeAlpha)
+				{
+					AlphaAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.AlphaAttribute, DefaultValue);
+					bSetMetadata |= (AlphaAttribute != nullptr);
+				}
+
+				if (Params.bComputeDistance)
+				{
+					DistanceAttribute = OutPointData->Metadata->FindOrCreateAttribute<double>(Params.DistanceAttribute, DefaultValue);
+					bSetMetadata |= (DistanceAttribute != nullptr);
 				}
 			}
 		}
@@ -631,6 +684,16 @@ namespace PCGSplineSamplerHelpers
 			if (LeaveTangentAttribute)
 			{
 				LeaveTangentAttribute->SetValue(OutPoint.MetadataEntry, InResult.LeaveTangent);
+			}
+
+			if (AlphaAttribute)
+			{
+				AlphaAttribute->SetValue(OutPoint.MetadataEntry, InResult.Alpha);
+			}
+
+			if (DistanceAttribute)
+			{
+				DistanceAttribute->SetValue(OutPoint.MetadataEntry, InResult.Distance);
 			}
 		}
 
@@ -679,6 +742,8 @@ namespace PCGSplineSamplerHelpers
 		FPCGMetadataAttribute<int>* SubsegmentIndexAttribute = nullptr;
 		FPCGMetadataAttribute<FVector>* LeaveTangentAttribute = nullptr;
 		FPCGMetadataAttribute<FVector>* ArriveTangentAttribute = nullptr;
+		FPCGMetadataAttribute<double>* AlphaAttribute = nullptr;
+		FPCGMetadataAttribute<double>* DistanceAttribute = nullptr;
 	};
 
 	/** Samples in a volume surrounding the poly line. */
