@@ -40,21 +40,6 @@ namespace UE
 namespace SVT
 {
 
-bool IsInBounds(const FIntVector3& Point, const FIntVector3& Min, const FIntVector3& Max)
-{
-	return Point.X >= Min.X && Point.Y >= Min.Y && Point.Z >= Min.Z
-		&& Point.X < Max.X && Point.Y < Max.Y && Point.Z < Max.Z;
-}
-
-FIntVector3 ShiftRightAndMax(const FIntVector3& Value, uint32 ShiftBy, int32 MinValue)
-{
-	FIntVector3 Result = FIntVector3(
-		FMath::Max(Value.X >> ShiftBy, MinValue),
-		FMath::Max(Value.Y >> ShiftBy, MinValue),
-		FMath::Max(Value.Z >> ShiftBy, MinValue));
-	return Result;
-}
-
 bool FTextureData::Create(const ITextureDataProvider& DataProvider)
 {
 	const FTextureDataCreateInfo CreateInfo = DataProvider.GetCreateInfo();

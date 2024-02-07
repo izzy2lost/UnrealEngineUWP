@@ -974,7 +974,6 @@ void FTextureRenderResources::ReleaseRHI()
 	PageTableTextureReferenceRHI.SafeRelease();
 	PhysicalTileDataATextureReferenceRHI.SafeRelease();
 	PhysicalTileDataBTextureReferenceRHI.SafeRelease();
-	StreamingInfoBufferSRVRHI.SafeRelease();
 }
 
 }

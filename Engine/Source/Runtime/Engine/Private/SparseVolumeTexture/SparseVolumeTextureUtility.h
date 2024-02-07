@@ -22,6 +22,10 @@ namespace SVT
 	FVector4f ReadVoxel(int64 VoxelIndex, const uint8* TileData, EPixelFormat Format);
 	void WriteVoxel(int64 VoxelIndex, uint8* TileData, EPixelFormat Format, const FVector4f& Value, int32 DstComponent = -1);
 	bool IsSupportedFormat(EPixelFormat Format);
+	// Returns true if Point >= Min && Point < Max for all components
+	bool IsInBounds(const FIntVector3& Point, const FIntVector3& Min, const FIntVector3& Max);
+	// Computes Max(Value >> ShiftBy, MinValue)
+	FIntVector3 ShiftRightAndMax(const FIntVector3& Value, uint32 ShiftBy, int32 MinValue);
 
 namespace Private
 {

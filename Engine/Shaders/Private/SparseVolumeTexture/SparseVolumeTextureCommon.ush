@@ -48,10 +48,9 @@ struct FSparseVolumeTextureUniforms
 	float3			TileDataTexelSize;
 	int				FrameIndex;
 	int             HighestMipLevel;
-	int				LowestResidentMipLevel;
 };
 
-FSparseVolumeTextureUniforms SparseVolumeTextureUnpackUniforms(const uint4 Packed0, const uint4 Packed1, ByteAddressBuffer StreamingInfoBuffer)
+FSparseVolumeTextureUniforms SparseVolumeTextureUnpackUniforms(const uint4 Packed0, const uint4 Packed1)
 {
 	FSparseVolumeTextureUniforms Result;
 	Result.VolumePageResolution = asfloat(Packed0.xyz);
@@ -61,7 +60,6 @@ FSparseVolumeTextureUniforms SparseVolumeTextureUnpackUniforms(const uint4 Packe
 	Result.TileDataTexelSize = asfloat(Packed1.xyz);
 	Result.FrameIndex = int(Packed1.w & 0xFFFFu);
 	Result.HighestMipLevel = int((Packed1.w >> 16u) & 0xFFFFu);
-	Result.LowestResidentMipLevel = asint(StreamingInfoBuffer.Load(Result.FrameIndex << 2));
 
 	return Result;
 }
