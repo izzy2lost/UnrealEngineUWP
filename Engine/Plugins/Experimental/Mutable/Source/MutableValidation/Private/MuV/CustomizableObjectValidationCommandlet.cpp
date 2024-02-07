@@ -62,7 +62,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		CompilationOptions.OptimizationLevel = 2;			// Set the optimization level to the max
 		CompilationOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
 
-		bWasCoCompilationSuccessful = CompileCustomizableObject(ToTestCustomizableObject, &CompilationOptions);
+		bWasCoCompilationSuccessful = CompileCustomizableObject(ToTestCustomizableObject, true, &CompilationOptions);
 	}
 	// -------------------------------------------------------------------------------------------------------------- //
 	

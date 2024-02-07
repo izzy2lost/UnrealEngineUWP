@@ -123,7 +123,7 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		
 		// Compile the current CO object
 		const FString CustomizableObjectName = CustomizableObjectToCompile->GetName();
-		if (!CompileCustomizableObject(CustomizableObjectToCompile))
+		if (!CompileCustomizableObject(CustomizableObjectToCompile, false))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
 		{
 			UE_LOG(LogMutable,Error,TEXT("The CO %s could not be compiled succesfully. Skipping the update of all COIs that use it."), *CustomizableObjectName )
 			continue;
