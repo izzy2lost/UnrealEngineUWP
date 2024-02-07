@@ -21,17 +21,40 @@ public:
 	virtual FBox GetBounds() const override;
 	//~End UPCGSpatialData interface
 
+	/** Get the world-space transform of the entire line. */
 	virtual FTransform GetTransform() const { return FTransform::Identity; }
-	virtual int GetNumSegments() const PURE_VIRTUAL(UPCGPolyLineData::GetNumSegments, return 0;);
-	virtual FVector::FReal GetSegmentLength(int SegmentIndex) const PURE_VIRTUAL(UPCGPolyLineData::GetSegmentLength, return 0;);
-	virtual FVector::FReal GetLength() const;
-	virtual FTransform GetTransformAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace = true, FBox* OutBounds = nullptr) const PURE_VIRTUAL(UPCGPolyLine::GetTransformAtDistance, return FTransform(););
-	virtual FVector::FReal GetCurvatureAtDistance(int SegmentIndex, FVector::FReal Distance) const { return 0; }
-	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const;
-	virtual bool IsClosed() const { return false; }
 
+	/** Get the number of segments in this line. If the line is closed, this will be the same as the number of control points in the line. */
+	virtual int GetNumSegments() const PURE_VIRTUAL(UPCGPolyLineData::GetNumSegments, return 0;);
+
+	/** Get the length of a specific segment of the line. */
+	virtual FVector::FReal GetSegmentLength(int SegmentIndex) const PURE_VIRTUAL(UPCGPolyLineData::GetSegmentLength, return 0;);
+
+	/** Get the total length of the line. */
+	virtual FVector::FReal GetLength() const;
+
+	/** Get the location at a distance along the line. */
+	virtual FTransform GetTransformAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace = true, FBox* OutBounds = nullptr) const PURE_VIRTUAL(UPCGPolyLine::GetTransformAtDistance, return FTransform(););
+
+	/** Get the location at a distance along the line. */
 	virtual FVector GetLocationAtDistance(int SegmentIndex, FVector::FReal Distance, bool bWorldSpace = true) const { return GetTransformAtDistance(SegmentIndex, Distance, bWorldSpace).GetLocation(); }
+
+	/** Get the curvature at a distance along the line. */
+	virtual FVector::FReal GetCurvatureAtDistance(int SegmentIndex, FVector::FReal Distance) const { return 0; }
+
+	/**
+	 * Get a value [0,1] representing how far along the point is to the end of the line. Each segment on the line represents a same-size interval.
+	 * For example, if there are three segments, each segment will take up 0.333... of the interval.
+	 */
+	virtual float GetAlphaAtDistance(int SegmentIndex, FVector::FReal Distance) const;
+
+	/** Get the arrive and leave tangents for a control point via its segment index. */
+	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const;
+
+	/** True if the line is a closed loop. */
+	virtual bool IsClosed() const { return false; }
 };
+
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"

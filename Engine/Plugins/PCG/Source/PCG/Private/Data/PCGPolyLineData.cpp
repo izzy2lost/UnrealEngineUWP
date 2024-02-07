@@ -37,3 +37,10 @@ void UPCGPolyLineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutA
 	OutArriveTangent = FVector::Zero();
 	OutLeaveTangent = FVector::Zero();
 }
+
+float UPCGPolyLineData::GetAlphaAtDistance(int SegmentIndex, FVector::FReal Distance) const
+{
+	const int32 NumSegments = GetNumSegments();
+	const FVector::FReal SegmentLength = GetSegmentLength(SegmentIndex);
+	return SegmentIndex / static_cast<float>(NumSegments) + (Distance / SegmentLength / NumSegments);
+}
