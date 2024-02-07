@@ -136,7 +136,7 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 	Parameters = Descriptor.GetParameters();
 	NumComponents = InInstance.GetCustomizableObject()->GetComponentCount();
 	
-	InInstance.GetCustomizableObject()->ApplyStateForcedValuesToParameters(CapturedDescriptor.GetState(), Parameters.get());
+	InInstance.GetCustomizableObject()->GetPrivate()->ApplyStateForcedValuesToParameters(CapturedDescriptor.GetState(), Parameters.get());
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 	System->GetPrivate()->CacheTextureParameters(CapturedDescriptor.GetTextureParameters());
@@ -2734,14 +2734,14 @@ namespace impl
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
-		Operation->bUseMeshCache = CustomizableObject->IsMeshCacheEnabled() && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
+		Operation->bUseMeshCache = CustomizableObject->bEnableMeshCache && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
 #if WITH_EDITOR
 		Operation->PixelFormatOverride = SystemPrivateData->ImageFormatOverrideFunc;
 #endif
 
 		if (!CandidateInstancePrivateData->HasCOInstanceFlags(ForceGenerateMipTail))
 		{
-			CustomizableObject->GetLowPriorityTextureNames(Operation->LowPriorityTextures);
+			CustomizableObject->GetPrivate()->GetLowPriorityTextureNames(Operation->LowPriorityTextures);
 		}
 
 		bool bIsInEditorViewport = false;
@@ -3358,13 +3358,13 @@ void UCustomizableObjectSystem::AddUncompiledCOWarning(const UCustomizableObject
 
 #if WITH_EDITOR
 	// Mutable will spam these warnings constantly due to the tick and LOD manager checking for instances to update with every tick. Send only one message per CO in the editor.
-	if (GetPrivate()->UncompiledCustomizableObjectIds.Find(InObject.GetVersionId()) != INDEX_NONE)
+	if (GetPrivate()->UncompiledCustomizableObjectIds.Find(InObject.GetPrivate()->GetVersionId()) != INDEX_NONE)
 	{
 		return;
 	}
 	
 	// Add notification
-	GetPrivate()->UncompiledCustomizableObjectIds.Add(InObject.GetVersionId());
+	GetPrivate()->UncompiledCustomizableObjectIds.Add(InObject.GetPrivate()->GetVersionId());
 
 	FMessageLog MessageLog("Mutable");
 	MessageLog.Warning(FText::FromString(Msg));
@@ -3441,7 +3441,7 @@ void UCustomizableObjectSystem::OnPreBeginPIE(const bool bIsSimulatingInEditor)
 		}
 		
 		const UCustomizableObject* Object = Cast<UCustomizableObject>(Asset.GetAsset());
-		if (!Object || Object->IsCompiled() || Object->GetPrivate()->IsLocked() || Object->bIsChildObject)
+		if (!Object || Object->IsCompiled() || Object->GetPrivate()->IsLocked() || Object->IsChildObject())
 		{
 			continue;
 		}

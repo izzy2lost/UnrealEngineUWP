@@ -87,8 +87,8 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 		NewData.Model = TWeakPtr<const mu::Model>(CustomizableObject->GetPrivate()->GetModel());
 
 #if WITH_EDITOR
-		FString FolderPath = CustomizableObject->GetCompiledDataFolderPath();
-		FString FullFileName = FolderPath + CustomizableObject->GetCompiledDataFileName(false, nullptr, true);
+		FString FolderPath = CustomizableObject->GetPrivate()->GetCompiledDataFolderPath();
+		FString FullFileName = FolderPath + CustomizableObject->GetPrivate()->GetCompiledDataFileName(false, nullptr, true);
 
 		const TSharedPtr<IAsyncReadFileHandle> ReadFileHandle = MakeShareable(FPlatformFileManager::Get().GetPlatformFile().OpenAsyncRead(*FullFileName));
 		if (!ReadFileHandle)
@@ -99,7 +99,7 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 
 		NewData.ReadFileHandles.Add(ReadFileHandle);
 #else
-		const UCustomizableObjectBulk* BulkData = CustomizableObject->GetStreamableBulkData();
+		const UCustomizableObjectBulk* BulkData = CustomizableObject->GetPrivate()->GetStreamableBulkData();
 		if (!BulkData)
 		{
 			UE_LOG(LogMutable, Warning, TEXT("Streaming: Customizable Object %s is missing the BulkData export."), *CustomizableObject->GetName());

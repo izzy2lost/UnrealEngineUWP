@@ -6,6 +6,7 @@
 #include "Logging/MessageLog.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/CustomizableObjectExtension.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCOE/CustomizableObjectEditorLogger.h"
 #include "MuCOE/CustomizableObjectGraph.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
@@ -88,7 +89,7 @@ void UCustomizableObjectNodeObject::PostEditChangeProperty(FPropertyChangedEvent
 	UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>( GetCustomizableObjectGraph()->GetOuter() );
 	if (CustomizableObject)
 	{
-		CustomizableObject->bIsChildObject = ParentObject != nullptr;
+		CustomizableObject->GetPrivate()->SetIsChildObject(ParentObject != nullptr);
 	}
 
 	FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
@@ -321,7 +322,7 @@ void UCustomizableObjectNodeObject::SetParentObject(UCustomizableObject* Customi
 		UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(GetCustomizableObjectGraph()->GetOuter());
 		if (CustomizableObject)
 		{
-			CustomizableObject->bIsChildObject = ParentObject != nullptr;
+			CustomizableObject->GetPrivate()->SetIsChildObject(ParentObject != nullptr);
 
 			TSharedPtr<ICustomizableObjectEditor> Editor = GetGraphEditor();
 

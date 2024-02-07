@@ -97,7 +97,7 @@ bool FCustomizableObjectCompiler::Tick()
 
 		FinishSavingDerivedData();
 	
-		CurrentObject->PostCompile();
+		CurrentObject->GetPrivate()->PostCompile();
 
 		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Finished Saving Derived Data task."), FPlatformTime::Seconds());
 		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
@@ -1113,7 +1113,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			CleanCachedReferencers();
 			UpdateArrayGCProtect();
 
-			CurrentObject->PostCompile(); 
+			CurrentObject->GetPrivate()->PostCompile(); 
 
 			SetCompilationState(ECustomizableObjectCompilationState::Completed);
 		}
@@ -1215,8 +1215,29 @@ void FCustomizableObjectCompiler::FinishCompilation()
 	UpdateCompilerLogData();
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = CompileTask->Model;
 
-	CurrentObject->SetModel(Model);
+	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
+	if (Model)
+	{
+		uint64 Offset = 0;
 
+		const int32 NumStreamingFiles = Model->GetRomCount();
+		CurrentObject->HashToStreamableBlock.Empty(NumStreamingFiles);
+
+		for (size_t FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
+		{
+			const uint32 ResourceId = Model->GetRomId(FileIndex);
+			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
+
+			CurrentObject->HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock({0, Offset, ResourceSize }));
+			Offset += ResourceSize;
+		}
+	}
+
+	// Generate ParameterProperties and IntParameterLookUpTable
+	CurrentObject->GetPrivate()->UpdateParameterPropertiesFromModel(Model);
+
+	CurrentObject->GetPrivate()->SetModel(Model, GenerateIdentifier(*CurrentObject));
+	
 	// Reset all instances, as the parameters may need to be rebuilt.
 	for (TObjectIterator<UCustomizableObjectInstance> It; It; ++It)
 	{
@@ -1255,7 +1276,7 @@ void FCustomizableObjectCompiler::FinishSavingDerivedData()
 
 	if (Options.bIsCooking)
 	{
-		CurrentObject->CachePlatformData(SaveDDTask->GetTargetPlatform(), SaveDDTask->GetModelBytes(), SaveDDTask->GetBulkBytes());
+		CurrentObject->GetPrivate()->CachePlatformData(SaveDDTask->GetTargetPlatform(), SaveDDTask->GetModelBytes(), SaveDDTask->GetBulkBytes());
 	}
 
 	// Order matters

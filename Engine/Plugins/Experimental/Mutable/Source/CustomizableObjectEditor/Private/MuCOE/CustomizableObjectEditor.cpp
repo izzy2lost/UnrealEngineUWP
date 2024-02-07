@@ -1412,7 +1412,7 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 		// Sometimes when another CO is open in another editor window/tab, it triggers this callback, so prevent the modification of this object by a callback triggered by another one
 		if (UCustomizableObject* AuxCustomizableObject = Cast<UCustomizableObject>(Object))
 		{
-			AuxCustomizableObject->UpdateVersionId();
+			AuxCustomizableObject->GetPrivate()->UpdateVersionId();
 		}
 		else if (UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(Object))
 		{
@@ -1420,7 +1420,7 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 			{
 				if (UCustomizableObject* AuxOuterCustomizableObject = Cast<UCustomizableObject>(Graph->GetOuter()))
 				{
-					AuxOuterCustomizableObject->UpdateVersionId();
+					AuxOuterCustomizableObject->GetPrivate()->UpdateVersionId();
 				}
 			}
 		}
@@ -1428,7 +1428,7 @@ void FCustomizableObjectEditor::OnObjectModified(UObject* Object)
 		{
 			if (UCustomizableObject* AuxOuterCustomizableObject = Cast<UCustomizableObject>(Graph->GetOuter()))
 			{
-				AuxOuterCustomizableObject->UpdateVersionId();
+				AuxOuterCustomizableObject->GetPrivate()->UpdateVersionId();
 			}
 		}
 	}

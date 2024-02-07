@@ -421,7 +421,7 @@ struct FMutableLODSettings
 	UPROPERTY()
 	int32 NumLODsInRoot = 0;
 
-	/** Frist LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
+	/** First LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
 	UPROPERTY()
 	int32 FirstLODAvailable = 0;
 
@@ -490,20 +490,11 @@ public:
 	UCustomizableObject();
 
 #if WITH_EDITORONLY_DATA
-	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh 
-	* properties for everything that Mutable doesn't create or modify. This includes data like LOD distances, Physics
-	* properties, Bounding Volumes, Skeleton, etc.
-	*
-	* While a CustomizableObject instance is being created for the first time, and in some situation with lots of 
-	* objects this may require some seconds, the Reference Skeletal Mesh is used for the actor. This works as a better
-	* solution than the alternative of not showing anything, although this can be disabled with the function
-	* "SetReplaceDiscardedWithReferenceMeshEnabled" (See the c++ section).
-	* 
-	* For more information on this topic read the Basic Concepts at work.anticto.com.
-	*/
+private:
 	UPROPERTY()
 	TObjectPtr<USkeletalMesh> ReferenceSkeletalMesh_DEPRECATED;
 
+public:
 	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
 	* properties for everything that Mutable doesn't create or modify. This includes data like LOD distances, Physics
 	* properties, Bounding Volumes, Skeleton, etc.
@@ -511,14 +502,11 @@ public:
 	* While a CustomizableObject instance is being created for the first time, and in some situation with lots of
 	* objects this may require some seconds, the Reference Skeletal Mesh is used for the actor. This works as a better
 	* solution than the alternative of not showing anything, although this can be disabled with the function
-	* "SetReplaceDiscardedWithReferenceMeshEnabled" (See the c++ section).
-	*
-	* For more information on this topic read the Basic Concepts at work.anticto.com.
-	*/
+	* "SetReplaceDiscardedWithReferenceMeshEnabled" (See the c++ section). */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<TObjectPtr<USkeletalMesh>> ReferenceSkeletalMeshes;
 #endif
-
+	
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (DisplayName = "LOD Settings"))
 	FMutableLODSettings LODSettings;
 	
@@ -549,7 +537,6 @@ public:
 	UPROPERTY()
 	TArray<FCustomizableObjectStreamedResourceData> StreamedResourceData;
 
-private:
 	/** Use the SkeletalMesh of reference as a placeholder until the custom mesh is ready to use.
 	  * Note: If disabled, a null mesh will be used to replace the discarded mesh due to 'ReplaceDiscardedWithReferenceMesh' being enabled. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
@@ -564,22 +551,21 @@ private:
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	bool bEnableMeshCache = false;
 	
-public:
 #if WITH_EDITORONLY_DATA
+private:
 	// Hide this property because it is not used yet.
 	//UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	UPROPERTY()
 	ECustomizableObjectRelevancy Relevancy;
 
+public:
 	// Compilation options to use in editor and for packaging for this object.
 	UPROPERTY()
 	FCompilationOptions CompileOptions;
 
-	//
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnableRealTimeMorphTargets = false;
 
-	//
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnableClothing = false;
 
@@ -587,11 +573,9 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = CompileOptions)
 	bool bEnable16BitBoneWeights = false;
 
-	//
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnableAltSkinWeightProfiles = false;
 
-	//
 	UPROPERTY(EditAnywhere, Category = CompileOptions)
 	bool bEnablePhysicsAssetMerge = false;
 
@@ -614,19 +598,19 @@ public:
 	UPROPERTY()
 	TObjectPtr<UEdGraph> Source;
 
+private:
 	// Used to verify the derived data matches this version of the Customizable Object.
 	UPROPERTY()
 	FGuid VersionId;
 
-	// 
+public:
 	UPROPERTY()
-	TArray<FProfileParameterDat>  InstancePropertiesProfiles;
-
+	TArray<FProfileParameterDat> InstancePropertiesProfiles;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Amount of components in this CO. Set at the end of the model compilation process. */
 	UPROPERTY()
-	int32 NumMeshComponentsInRoot = 0;
+	int32 NumMeshComponentsInRoot = 0; // TODO UE-205600, move to FModelResources
 	
 	/** Get the number of components this Customizable Object has. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
@@ -661,69 +645,49 @@ public:
 	int32 GetIntParameterNumOptions(int32 ParamIndex) const;
 
 	/** Gets the Name of the option at position K in the list of available options for the int parameter.
-	 * Useful to enumerate the int parameter's possible options (Ex: "Hat1", "Hat2", "Cap", "Nothing")
-	 */
+	  * Useful to enumerate the int parameter's possible options (Ex: "Hat1", "Hat2", "Cap", "Nothing") */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	const FString& GetIntParameterAvailableOption(int32 ParamIndex, int32 K) const;
 
 	int32 FindIntParameterValue( int32 ParamIndex, const FString& Value ) const;
 	FString FindIntParameterValueName(int32 ParamIndex, int32 ParamValue) const;
 
-	//
 	USkeletalMesh* GetRefSkeletalMesh(int32 ComponentIndex = 0) const;
-	
-private:
 
-	
-	/** Returns true or false if the parameter with name can be located and it has the type the caller is looking for. It will also
-	 * check if the model has been set to ensure access to it can take place at the calculated parameter index.
-	 * @param InParameterName The name of the parameter to look for.
-	 * @param InParameterType The type the parameter we are looking for we know has. If the name does not match this type this check will fail and return false.
-	 * @param OutParameterIndex The index of the parameter.
-	 * @return True if the parameter can be accessed for it's default values, false if it can not be accessed.
-	 */
-	bool CanDefaultParameterBeAccessed(const FString& InParameterName,const EMutableParameterType& InParameterType, int32& OutParameterIndex) const;
-
-public:
 	/** Get the default value of a parameter of type Float.
-	 * @param InParameterName The name of the Float parameter to get the default value of.
-	 * @return The default value of the provided parameter name.
-	 */
+	  * @param InParameterName The name of the Float parameter to get the default value of.
+	  * @return The default value of the provided parameter name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	float GetFloatParameterDefaultValue(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
 	
 	/** Get the default value of a parameter of type Int. 
-	 * @param InParameterName The name of the Int parameter to get the default value of.
-	 * @return The default value of the provided parameter name.
-	 */
+	  * @param InParameterName The name of the Int parameter to get the default value of.
+	  * @return The default value of the provided parameter name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	int32 GetIntParameterDefaultValue(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
  
 	/** Get the default value of a parameter of type Bool.
-	 * @param InParameterName The name of the Bool parameter to get the default value of.
-	 * @return The default value of the provided parameter name.
-	 */
+	  * @param InParameterName The name of the Bool parameter to get the default value of.
+	  * @return The default value of the provided parameter name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	bool GetBoolParameterDefaultValue(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
 
 	/** Get the default value of a parameter of type Color.
-	 * @param InParameterName The name of the Color parameter to get the default value of.
-	 * @return The default value of the provided parameter name.
-	*/
+	  * @param InParameterName The name of the Color parameter to get the default value of.
+	  * @return The default value of the provided parameter name. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FLinearColor GetColorParameterDefaultValue(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
 	
 	/** Get the default value of a parameter of type Projector.
-	 * @param InParameterName The name of the Projector parameter to get the default value of.
-	 * @param OutPos The default position of the Projector.
-	 * @param OutDirection The default projection direction of the Projector.
-	 * @param OutUp The default up vector of the Projector.
-	 * @param OutScale The default scale of the Projector.
-	 * @param OutAngle The default angle of the Projector.
-	 * @param OutType The default type of the Projector.
-	 */
+	  * @param InParameterName The name of the Projector parameter to get the default value of.
+	  * @param OutPos The default position of the Projector.
+	  * @param OutDirection The default projection direction of the Projector.
+	  * @param OutUp The default up vector of the Projector.
+	  * @param OutScale The default scale of the Projector.
+	  * @param OutAngle The default angle of the Projector.
+	  * @param OutType The default type of the Projector. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	void GetProjectorParameterDefaultValue (
+	void GetProjectorParameterDefaultValue(
 		UPARAM(DisplayName = "Parameter Name") const FString& InParameterName,
 		UPARAM(DisplayName = "Position") FVector3f& OutPos,
 		UPARAM(DisplayName = "Direction") FVector3f& OutDirection,
@@ -733,38 +697,29 @@ public:
 		UPARAM(DisplayName = "Type") ECustomizableObjectProjectorType& OutType) const;
 
 	/** Get the default value of a projector with the provided name
-	 * @param InParameterName The name of the parameter to get the default value of.
-	 * @return A data structure containing all the default data for the targeted projector parameter.
-	 */
-	FCustomizableObjectProjector GetProjectorParameterDefaultValue ( const FString& InParameterName) const;
+	  * @param InParameterName The name of the parameter to get the default value of.
+	  * @return A data structure containing all the default data for the targeted projector parameter. */
+	FCustomizableObjectProjector GetProjectorParameterDefaultValue(const FString& InParameterName) const;
 	
 	/** Get the default value of a parameter of type Texture.
-	 * @param InParameterName The name of the Projector parameter to get the default value of.
-	 * @return An id representing the default parameter's texture.
-	 */
-	FName GetTextureParameterDefaultValue (const FString& InParameterName) const;
+	  * @param InParameterName The name of the Projector parameter to get the default value of.
+	  * @return An id representing the default parameter's texture. */
+	FName GetTextureParameterDefaultValue(const FString& InParameterName) const;
 
 	/** Return true if the parameter at the index provided is multidimensional.
-	 * @param InParamIndex The index of the parameter to check.
-	 * @return True if the parameter is multidimensional and false if it is not.
-	 */
+	  * @param InParamIndex The index of the parameter to check.
+	  * @return True if the parameter is multidimensional and false if it is not. */
 	bool IsParameterMultidimensional(const int32& InParamIndex) const;
 	
 	/** Return true if the parameter at the index provided is multidimensional.
-	 * @param InParameterName The name of the parameter to check.
-	 * @return True if the parameter is multidimensional and false if it is not.
-	 */
+	  * @param InParameterName The name of the parameter to check.
+	  * @return True if the parameter is multidimensional and false if it is not. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	bool IsParameterMultidimensional ( UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
-	
-private: 
-	// Rebuild ParameterProperties from the current compiled model.
-	void UpdateParameterPropertiesFromModel(const TSharedPtr<mu::Model>& Model);
+	bool IsParameterMultidimensional(UPARAM(DisplayName = "Parameter Name") const FString& InParameterName) const;
 
-public:
-
-	void AddUncompiledCOWarning(const FString& AdditionalLoggingInfo);
-
+	// Begin UObject interface.
+	void PostLoad() override;
+	void Serialize(FArchive& Ar) override;
 #if WITH_EDITOR
 	
 	// Compile the object for a specific platform - Compile for Cook Customizable Object
@@ -774,8 +729,8 @@ public:
 	void ClearCompiledData(bool bIsCooking);
 
 	/** Compile the object if Automatic Compilation is enabled and has not been already compiled.
-	 * Automatic compilation can be enabled/disabled in the Mutable's Plugin Settings.
-	 * @return true if compiled */
+	  * Automatic compilation can be enabled/disabled in the Mutable's Plugin Settings.
+	  * @return true if compiled */
 	bool ConditionalAutoCompile();
 	
 	// Add a profile that stores the values of the parameters used by the CustomInstance.
@@ -791,55 +746,21 @@ public:
 	// Compose file name 
 	FString GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform = nullptr, bool bIsDiskStreamer = false);
 
-	/** Used to set the flag IsRoot */
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
 
 	/** Returns a one line description of an object for viewing in the thumbnail view of the generic browser */
 	FString GetDesc() override;
-
 	bool IsEditorOnly() const override;
-
-	// Begin UObject interface.
 	void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
-	void PostRename(UObject* OldOuter, const FName OldName) override;
-	
+	void PostRename(UObject* OldOuter, const FName OldName) override;	
 	void BeginCacheForCookedPlatformData(const ITargetPlatform* TargetPlatform) override;
 	bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
+#endif
 	// End UObject interface.
 
-	
-	/** Generic Save/Load methods to write/read compiled data */
-	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
-	void LoadCompiledData(FArchive& Ar, const ITargetPlatform* InTargetPlatform, bool bSkipEditorOnlyData = false);
-
-	/** Load compiled data for the running platform from disk, this is used to load Editor Compilations. */
-	void LoadCompiledDataFromDisk();
-
-	/** Cache platform data for cook */
-	void CachePlatformData(const ITargetPlatform* InTargetPlatform, const TArray64<uint8>& InObjectBytes, const TArray64<uint8>& InBulkBytes);
-	/**
-	 * Loads data previously compiled in BeginCacheForCookedPlatformData onto the UProperties in *this,
-	 * in preparation for saving the cooked package for *this or for a CustomizableObjectInstance using *this.
-	 * Returns whether the data was successfully loaded.
-	 */
-	bool TryLoadCompiledCookDataForPlatform(const ITargetPlatform* TargetPlatform);
-	
-	void SaveEmbeddedData(FArchive& Ar);
-
-#endif
-	/** Compute bIsChildObject if currently possible to do so. Return whether it was computed. */
-	bool TryUpdateIsChildObject();
-
-	// Data that may be stored in the asset itself, only in packaged builds.
-	void LoadEmbeddedData(FArchive& Ar);
-
-	void PostLoad() override;
-
-	void Serialize(FArchive& Ar) override;
-
-	int32 FindState( const FString& Name ) const;
+	int32 FindState(const FString& Name) const;
 
 	/** Return the number of object states that are defined in the CustomizableObject. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
@@ -877,9 +798,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetParameterUIMetadataFromIndex(int32 ParamIndex) const;
 
-	/** See bPreserveUserLODsOnFirstGeneration. */
-	bool IsPreserveUserLODsOnFirstGeneration() const;
-
 	/** Textures marked as low priority will generate defaulted resident mips (if texture streaming is enabled).
 	  * Generating defaulted resident mips greatly reduce initial generation times. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
@@ -887,14 +805,14 @@ public:
 
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
 	UPROPERTY()
-	TMap<uint64, FMutableStreamableBlock> HashToStreamableBlock;
+	TMap<uint64, FMutableStreamableBlock> HashToStreamableBlock; // TODO UE-205600, move to FModelResources
 
 	// Customizable Object Population data start ------------------------------------------------------
 	/** Array to store the selected Population Class tags for this Customizable Object */
 	UPROPERTY()
 	TArray<FString> CustomizableObjectClassTags;
 	
-	/** Array to strore all the Population Class tags */
+	/** Array to store all the Population Class tags */
 	UPROPERTY()
 	TArray<FString> PopulationClassTags;
 
@@ -904,7 +822,6 @@ public:
 	// Customizable Object Population data end --------------------------------------------------------
 
 #if WITH_EDITORONLY_DATA
-
 	/** True if this object references a parent object. This is used basically to exclude this object
 	  * from cooking. This is actually derived from the source graph object node pointing to another
 	  * object or not, but it needs to be cached here because the source graph is not always available.
@@ -912,19 +829,14 @@ public:
 	  * that is the conservative case and shouldn't cause a problem. */
 	UPROPERTY()
 	bool bIsChildObject = false;
-
-	void PostCompile();
-
 #endif
-
+	
+public:
 	FPostCompileDelegate& GetPostCompileDelegate() const;
 	
 	/** Create a new instance of this object. The instance parameters will be initialized with the object default values. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	class UCustomizableObjectInstance* CreateInstance();
-
-	// Return a pointer to the BulkData subobject, only valid in packaged builds
-	const UCustomizableObjectBulk* GetStreamableBulkData() const { return BulkData; }
+	UCustomizableObjectInstance* CreateInstance();
 
 	UCustomizableObjectPrivate* GetPrivate() const;
 
@@ -932,29 +844,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	bool IsCompiled() const;
 
-#if WITH_EDITOR
-	void SetModel(TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model);
-#endif
-
 	int32 GetNumLODs() const;
 
-	/** Modify the provided mutable parameters so that the forced values for the given customizable object state are applied. */
-	void ApplyStateForcedValuesToParameters(int32 State, mu::Parameters* Parameters);
-
-	/** Return the names used by mutable to identify which mu::Image should be considered of LowPriority. */
-	void GetLowPriorityTextureNames(TArray<FString>& OutTextureNames);
-
-	/** Return the MinLOD index to generate based on the active LODSettings (PerPlatformMinLOD or PerQualityLevelMinLOD) */
-	int32 GetMinLODIndex() const;
-
-	/** See bEnableUseRefSkeletalMeshAsPlaceholder. */
-	bool IsEnableUseRefSkeletalMeshAsPlaceholder() const;
-
-	/** See bEnableUseMeshCache. */
-	bool IsMeshCacheEnabled() const;
+	bool IsChildObject() const;
 
 private:
-
 	/** BulkData that stores all in-game resources used by Mutable when generating instances.
 	  * Only valid in packaged builds */
 	UPROPERTY()

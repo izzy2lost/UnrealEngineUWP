@@ -1257,7 +1257,7 @@ bool FCustomizableObjectInstanceDescriptor::HasAnyParameters() const
 	if (!CustomizableObject->IsCompiled()) \
 	{ \
 		FString AdditionalLoggingInfo = FString::Printf(TEXT("Calling function: %hs.  %s"), __FUNCTION__, ErrorMessage); \
-		CustomizableObject->AddUncompiledCOWarning(AdditionalLoggingInfo);\
+		CustomizableObject->GetPrivate()->AddUncompiledCOWarning(AdditionalLoggingInfo);\
 		return; \
 	} \
 
@@ -1267,7 +1267,7 @@ bool FCustomizableObjectInstanceDescriptor::HasAnyParameters() const
 	if (!ensureMsgf(CustomizableObject->IsCompiled(), TEXT("Customizable Object (%s) was not compiled."), *GetNameSafe(CustomizableObject))) \
 	{ \
 		FString AdditionalLoggingInfo = FString::Printf(TEXT("Calling function: %hs.  %s"), __FUNCTION__, ErrorMessage); \
-		CustomizableObject->AddUncompiledCOWarning(AdditionalLoggingInfo);\
+		CustomizableObject->GetPrivate()->AddUncompiledCOWarning(AdditionalLoggingInfo);\
 		return; \
 	} \
  
