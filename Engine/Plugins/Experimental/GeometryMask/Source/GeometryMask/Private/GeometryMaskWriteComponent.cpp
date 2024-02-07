@@ -8,6 +8,7 @@
 #include "CanvasTypes.h"
 #include "Components/DynamicMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/CanvasRenderTarget2D.h"
 #include "Engine/StaticMesh.h"
 #include "GeometryMaskCanvas.h"
 #include "GlobalRenderResources.h"

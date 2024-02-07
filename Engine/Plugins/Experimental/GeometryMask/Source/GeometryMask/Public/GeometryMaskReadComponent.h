@@ -8,6 +8,7 @@
 
 #include "GeometryMaskReadComponent.generated.h"
 
+class UCanvasRenderTarget2D;
 class UGeometryMaskCanvas;
 
 UCLASS(Blueprintable, BlueprintType, HideCategories=(Activation, Cooking, AssetUserData, Navigation), meta=(BlueprintSpawnableComponent))

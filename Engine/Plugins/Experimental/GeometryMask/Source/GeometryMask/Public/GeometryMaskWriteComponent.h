@@ -8,6 +8,7 @@
 
 #include "GeometryMaskWriteComponent.generated.h"
 
+class UCanvasRenderTarget2D;
 class UDynamicMeshComponent;
 class UStaticMeshComponent;
 
