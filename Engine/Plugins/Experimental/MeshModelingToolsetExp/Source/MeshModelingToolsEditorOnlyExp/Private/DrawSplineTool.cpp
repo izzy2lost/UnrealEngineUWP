@@ -984,6 +984,12 @@ void UDrawSplineTool::OnTick(float DeltaTime)
 		PlaneMechanic->Tick(DeltaTime);
 	}
 
+	// check if we've invalidated the WorkingSpline
+	if (PreviewActor && !WorkingSpline.IsValid())
+	{
+		bNeedToRerunConstructionScript = true;
+	}
+
 	if (bNeedToRerunConstructionScript)
 	{
 		bNeedToRerunConstructionScript = false;
