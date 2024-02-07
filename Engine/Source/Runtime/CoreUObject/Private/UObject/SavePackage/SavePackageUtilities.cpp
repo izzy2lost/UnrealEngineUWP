@@ -419,6 +419,19 @@ void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLik
 			OutReferencer = TEXT("Unknown property");
 		}
 	}
+
+	if (MostLikelyCulprit == nullptr)
+	{
+		// Make sure we report something
+		for (UObject* BadObject : BadObjects)
+		{
+			if (BadObject)
+			{
+				MostLikelyCulprit = BadObject;
+				break;
+			}
+		}
+	}
 }
 
 ESavePackageResult FinalizeTempOutputFiles(const FPackagePath& PackagePath, const FSavePackageOutputFileArray& OutputFiles, const FDateTime& FinalTimeStamp)
