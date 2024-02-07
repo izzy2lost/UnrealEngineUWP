@@ -75,8 +75,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDebugDrawDataInterfaceParameters, )
 	SHADER_PARAMETER(uint32, MaxStateCount)
 	SHADER_PARAMETER(uint32, MaxLineCount)
 	SHADER_PARAMETER(uint32, MaxTriangleCount)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, StateBuffer)
-	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<ShaderPrintItem>, RWEntryBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, StateBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWEntryBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 void UOptimusDebugDrawDataInterface::GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
