@@ -13,6 +13,13 @@
 
 class ULearningAgentsManager;
 
+/** Dummy class used for visual logging */
+UCLASS(BlueprintType)
+class LEARNINGAGENTS_API ULearningAgentsVisualLoggerObject : public UObject
+{
+	GENERATED_BODY()
+};
+
 /**
  * Base class for objects which can be added to a ULearningAgentsManager to receive callbacks whenever agents are added, remove or reset.
  */
@@ -122,6 +129,9 @@ public:
 	/** Checks if the object has an associated agent manager. */
 	bool HasAgentManager() const;
 
+	/** Either gets or adds a visual logger object for the given name */
+	const ULearningAgentsVisualLoggerObject* GetOrAddVisualLoggerObject(const FName Name);
+
 protected:
 
 	/** True if this object has been setup. Otherwise, false. */
@@ -131,4 +141,8 @@ protected:
 	/** The manager this object is associated with. */
 	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
 	TObjectPtr<ULearningAgentsManager> Manager;
+
+	/** The visual logger objects associated with this listener. */
+	UPROPERTY(VisibleAnywhere, Transient, Category = "LearningAgents")
+	TMap<FName, TObjectPtr<const ULearningAgentsVisualLoggerObject>> VisualLoggerObjects;
 };
