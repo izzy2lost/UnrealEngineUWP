@@ -6,6 +6,7 @@ AnimCurveCompressionSettingsFactory.cpp: Factory for animation curve compression
 
 #include "Factories/AnimCurveCompressionSettingsFactory.h"
 #include "Animation/AnimCurveCompressionSettings.h"
+#include "Animation/AnimCurveCompressionCodec_CompressedRichCurve.h"
 
 UAnimCurveCompressionSettingsFactory::UAnimCurveCompressionSettingsFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -16,5 +17,9 @@ UAnimCurveCompressionSettingsFactory::UAnimCurveCompressionSettingsFactory(const
 
 UObject* UAnimCurveCompressionSettingsFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
-	return NewObject<UAnimCurveCompressionSettings>(InParent, Class, Name, Flags);
+	UAnimCurveCompressionSettings* Settings = NewObject<UAnimCurveCompressionSettings>(InParent, Class, Name, Flags);
+	Settings->Codec = NewObject<UAnimCurveCompressionCodec_CompressedRichCurve>(Settings);
+	Settings->Codec->SetFlags(RF_Transactional);
+
+	return Settings;
 }
