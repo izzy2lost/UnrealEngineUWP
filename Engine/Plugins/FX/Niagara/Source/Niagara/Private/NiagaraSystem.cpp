@@ -2045,7 +2045,6 @@ void UNiagaraSystem::ComputeEmittersExecutionOrder()
 
 		if (!EmitterHandle.GetIsEnabled())
 		{
-			EmitterData->ForEachEnabledRenderer([&] (const UNiagaraRendererProperties*) { ++SystemRendererIndex; });
 			continue;
 		}
 
