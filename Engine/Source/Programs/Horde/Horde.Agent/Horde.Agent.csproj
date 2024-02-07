@@ -101,6 +101,11 @@
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
       <DependentUpon>appsettings.json</DependentUpon>
     </Content>
+    <Content Include="Defaults\agent.json">
+      <Generator></Generator>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

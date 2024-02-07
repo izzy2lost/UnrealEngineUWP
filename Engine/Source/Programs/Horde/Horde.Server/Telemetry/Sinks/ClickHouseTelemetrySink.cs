@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde.Telemetry;
 using HordeCommon.Rpc.Messages.Telemetry;
 using Microsoft.Extensions.Logging;
 
@@ -51,7 +52,7 @@ namespace Horde.Server.Telemetry.Sinks
 		}
 		
 		/// <inheritdoc/>
-		public void SendEvent(TelemetryEvent telemetryEvent)
+		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
 			_queuedEvents.Enqueue(telemetryEvent);
 		}

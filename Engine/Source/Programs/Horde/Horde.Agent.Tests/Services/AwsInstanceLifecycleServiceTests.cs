@@ -91,7 +91,7 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		});
 		
 		DirectoryInfo tempDir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "horde-agent-test-" + Path.GetRandomFileName()));
-		AgentSettings settings = new () { WorkingDir = tempDir.FullName };
+		AgentSettings settings = new () { WorkingDir = new DirectoryReference(tempDir) };
 		_terminationSignalFile = settings.GetTerminationSignalFile();
 
 		_statusService  = new(loggerFactory.CreateLogger<StatusService>());

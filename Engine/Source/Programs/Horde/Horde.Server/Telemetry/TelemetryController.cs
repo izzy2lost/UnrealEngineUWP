@@ -52,22 +52,47 @@ namespace Horde.Server.Telemetry
 		[HttpGet]
 		[Authorize]
 		[Route("/api/v1/telemetry/metrics")]
-		public async Task<ActionResult<List<GetTelemetryMetricsResponse>>> GetMetricsAsync([FromQuery] MetricId[] id, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
+		[Obsolete("Pass a telemetry store id in the route instead")]
+		public Task<ActionResult<List<GetTelemetryMetricsResponse>>> GetMetricsAsync([FromQuery] MetricId[] id, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
+		{
+			return GetMetricsAsync(TelemetryStoreId.Default, id, minTime, maxTime, group, results, cancellationToken);
+		}
+
+		/// <summary>
+		/// Queries aggregated metrics from the telemetry system
+		/// </summary>
+		/// <param name="telemetryStoreId">The telemetry store id</param>
+		/// <param name="id">The metrics to query</param>
+		/// <param name="minTime">Minimum time interval to query</param>
+		/// <param name="maxTime">Maximum time interval to query</param>
+		/// <param name="group">Grouping key</param>
+		/// <param name="results">Number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		[HttpGet]
+		[Authorize]
+		[Route("/api/v1/telemetry/{storeId}/metrics")]
+		public async Task<ActionResult<List<GetTelemetryMetricsResponse>>> GetMetricsAsync(TelemetryStoreId telemetryStoreId, [FromQuery] MetricId[] id, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
 			{
 				return Forbid(TelemetryAclAction.QueryMetrics);
 			}
 
+			TelemetryStoreConfig? telemetryStoreConfig;
+			if (!_globalConfig.Value.TryGetTelemetryStore(telemetryStoreId, out telemetryStoreConfig))
+			{
+				return NotFound(telemetryStoreId);
+			}
+
 			List<GetTelemetryMetricsResponse> result = new List<GetTelemetryMetricsResponse>();
 
-			List<IMetric> metrics = await _metricCollection.FindAsync(id, minTime, maxTime, group, results, cancellationToken);
+			List<IMetric> metrics = await _metricCollection.FindAsync(telemetryStoreId, id, minTime, maxTime, group, results, cancellationToken);
 
 			HashSet<MetricId> unique = new HashSet<MetricId>(metrics.Select(m => m.MetricId));
 
 			foreach (MetricId metricId in unique)
 			{
-				MetricConfig? metricConfig = _globalConfig.Value.Telemetry.Metrics.Find(m => m.Id == metricId);
+				MetricConfig? metricConfig = telemetryStoreConfig.Metrics.Find(m => m.Id == metricId);
 
 				if (metricConfig == null)
 				{
@@ -107,7 +132,24 @@ namespace Horde.Server.Telemetry
 		/// <param name="uploadType">Type of data being uploaded</param>
 		[HttpPost]
 		[Route("/api/v1/telemetry")]
+		[Obsolete("Pass a telemetry store id in the route")]
 		public ActionResult PostEvent([FromBody] PostTelemetryEventStreamRequest request, [FromQuery][Required] string appId, [FromQuery][Required] string appVersion, [FromQuery][Required] string appEnvironment, [FromQuery][Required] TelemetryUploadType uploadType)
+		{
+			return PostEvent(TelemetryStoreId.Default, request, appId, appVersion, appEnvironment, uploadType);
+		}
+
+		/// <summary>
+		/// Posts a new telemetry event. This API is modeled after Epic's external data router, allowing events in the engine to be sent to Horde using the same mechanism.
+		/// </summary>
+		/// <param name="storeId">The telemetry store</param>
+		/// <param name="request">The event data</param>
+		/// <param name="appId">Identifier of the application sending the event</param>
+		/// <param name="appVersion">Version number of the application</param>
+		/// <param name="appEnvironment">Name of the environment that the sending application is running in</param>
+		/// <param name="uploadType">Type of data being uploaded</param>
+		[HttpPost]
+		[Route("/api/v1/telemetry/{storeId}")]
+		public ActionResult PostEvent(TelemetryStoreId storeId, [FromBody] PostTelemetryEventStreamRequest request, [FromQuery][Required] string appId, [FromQuery][Required] string appVersion, [FromQuery][Required] string appEnvironment, [FromQuery][Required] TelemetryUploadType uploadType)
 		{
 			if (uploadType != TelemetryUploadType.EtEventStream)
 			{
@@ -117,7 +159,7 @@ namespace Horde.Server.Telemetry
 			TelemetryRecordMeta recordMeta = new TelemetryRecordMeta(AppId: appId, AppVersion: appVersion, AppEnvironment: appEnvironment);
 			foreach (JsonObject eventPayload in request.Events)
 			{
-				_telemetryManager.SendEvent(recordMeta, eventPayload);
+				_telemetryManager.SendEvent(storeId, recordMeta, eventPayload);
 			}
 
 			return NoContent();

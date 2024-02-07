@@ -8,6 +8,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Telemetry;
 using Horde.Server.Server;
 using HordeCommon;
 using Microsoft.Extensions.Hosting;
@@ -28,6 +29,9 @@ namespace Horde.Server.Telemetry.Sinks
 		{
 			public ObjectId Id { get; set; }
 
+			[BsonElement("ts")]
+			public TelemetryStoreId TelemetryStoreId { get; set; }
+
 			[BsonElement("data")]
 			public BsonDocument Data { get; set; }
 
@@ -37,9 +41,10 @@ namespace Horde.Server.Telemetry.Sinks
 				Data = new BsonDocument();
 			}
 
-			public EventDocument(BsonDocument data)
+			public EventDocument(TelemetryStoreId telemetryStoreId, BsonDocument data)
 			{
 				Id = ObjectId.GenerateNewId();
+				TelemetryStoreId = telemetryStoreId;
 				Data = data;
 			}
 		}
@@ -63,7 +68,7 @@ namespace Horde.Server.Telemetry.Sinks
 		public MongoTelemetrySink(MongoService mongoService, IClock clock, IOptions<ServerSettings> serverSettings, ILogger<MongoTelemetrySink> logger)
 		{
 			_config = serverSettings.Value.Telemetry.Select(x => x as MongoTelemetryConfig).FirstOrDefault(x => x != null);
-			_telemetry = mongoService.GetCollection<EventDocument>("Telemetry");
+			_telemetry = mongoService.GetCollection<EventDocument>("Telemetry", builder => builder.Ascending(x => x.TelemetryStoreId).Descending(x => x.Id));
 			_backgroundTask = new BackgroundTask(BackgroundFlushAsync);
 			_cleanupTicker = clock.AddSharedTicker<MongoTelemetrySink>(TimeSpan.FromHours(4.0), CleanupAsync, logger);
 			_logger = logger;
@@ -149,10 +154,10 @@ namespace Horde.Server.Telemetry.Sinks
 		}
 
 		/// <inheritdoc/>
-		public void SendEvent(TelemetryEvent telemetryEvent)
+		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
 			BsonDocument bson = BsonDocument.Parse(JsonSerializer.Serialize(telemetryEvent, _jsonOptions));
-			_queue.Enqueue(new EventDocument(bson));
+			_queue.Enqueue(new EventDocument(telemetryStoreId, bson));
 			_newDataEvent.Set();
 
 			const int FlushCount = 50;

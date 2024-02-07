@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -28,6 +29,9 @@ namespace Horde.Server.Telemetry.Metrics
 		{
 			public ObjectId Id { get; set; }
 
+			[BsonElement("ts")]
+			public TelemetryStoreId TelemetryStoreId { get; set; }
+
 			[BsonElement("met")]
 			public MetricId MetricId { get; set; }
 
@@ -47,7 +51,7 @@ namespace Horde.Server.Telemetry.Metrics
 			public byte[]? State { get; set; }
 		}
 
-		record class SampleKey(MetricId Metric, string Group, DateTime Time);
+		record class SampleKey(TelemetryStoreId Store, MetricId Metric, string Group, DateTime Time);
 
 		readonly object _lockObject = new object();
 		readonly IMongoCollection<MetricDocument> _metrics;
@@ -63,7 +67,7 @@ namespace Horde.Server.Telemetry.Metrics
 		public MetricCollection(MongoService mongoService, IClock clock, IOptionsMonitor<GlobalConfig> globalConfig, ILogger<MetricCollection> logger)
 		{
 			List<MongoIndex<MetricDocument>> indexes = new List<MongoIndex<MetricDocument>>();
-			indexes.Add(MongoIndex.Create<MetricDocument>(keys => keys.Descending(x => x.Time).Ascending(x => x.MetricId).Ascending(x => x.Group)));
+			indexes.Add(MongoIndex.Create<MetricDocument>(keys => keys.Ascending(x => x.TelemetryStoreId).Descending(x => x.Time).Ascending(x => x.MetricId).Ascending(x => x.Group)));
 			_metrics = mongoService.GetCollection<MetricDocument>("Metrics", indexes);
 
 			_flushTask = new BackgroundTask(BackgroundTickAsync);
@@ -92,20 +96,23 @@ namespace Horde.Server.Telemetry.Metrics
 		}
 
 		/// <inheritdoc/>
-		public void AddEvent(JsonNode node)
+		public void AddEvent(TelemetryStoreId storeId, JsonNode node)
 		{
 			JsonArray array = new JsonArray { node };
 
-			GlobalConfig globalConfig = _globalConfig.CurrentValue;
-			foreach (MetricConfig metric in globalConfig.Telemetry.Metrics)
+			TelemetryStoreConfig? telemetryStoreConfig;
+			if (_globalConfig.CurrentValue.TryGetTelemetryStore(storeId, out telemetryStoreConfig))
 			{
-				AddEvent(metric, node, array);
+				foreach (MetricConfig metric in telemetryStoreConfig.Metrics)
+				{
+					AddEvent(storeId, metric, node, array);
+				}
 			}
 
 			array.Remove(node);
 		}
 
-		void AddEvent(MetricConfig metric, JsonNode node, JsonArray array)
+		void AddEvent(TelemetryStoreId telemetryStoreId, MetricConfig metric, JsonNode node, JsonArray array)
 		{
 			if (metric.Filter != null)
 			{
@@ -181,7 +188,7 @@ namespace Horde.Server.Telemetry.Metrics
 				DateTime utcNow = _clock.UtcNow;
 				DateTime sampleTime = new DateTime(utcNow.Ticks - (utcNow.Ticks % metric.Interval.Ticks), DateTimeKind.Utc);
 
-				SampleKey key = new SampleKey(metric.Id, group.ToString(), sampleTime);
+				SampleKey key = new SampleKey(telemetryStoreId, metric.Id, group.ToString(), sampleTime);
 				lock (_lockObject)
 				{
 					QueueSampleValues(key, values);
@@ -251,10 +258,10 @@ namespace Horde.Server.Telemetry.Metrics
 			{
 				foreach ((SampleKey sampleKey, List<double> sampleValues) in samples)
 				{
-					MetricConfig? metricConfig = _globalConfig.CurrentValue.Telemetry.Metrics.FirstOrDefault(x => x.Id == sampleKey.Metric);
-					if (metricConfig != null)
+					MetricConfig? metricConfig;
+					if(_globalConfig.CurrentValue.TryGetTelemetryStore(sampleKey.Store, out TelemetryStoreConfig? telemetryStoreConfig) && telemetryStoreConfig.TryGetMetric(sampleKey.Metric, out metricConfig))
 					{
-						await CombineValuesAsync(metricConfig, sampleKey.Group, sampleKey.Time, sampleValues, cancellationToken);
+						await CombineValuesAsync(sampleKey.Store, metricConfig, sampleKey.Group, sampleKey.Time, sampleValues, cancellationToken);
 					}
 				}
 			}
@@ -271,12 +278,12 @@ namespace Horde.Server.Telemetry.Metrics
 			}
 		}
 
-		async Task CombineValuesAsync(MetricConfig metricConfig, string group, DateTime time, List<double> values, CancellationToken cancellationToken)
+		async Task CombineValuesAsync(TelemetryStoreId telemetryStoreId, MetricConfig metricConfig, string group, DateTime time, List<double> values, CancellationToken cancellationToken)
 		{
 			for (; ; )
 			{
 				// Find or add the current metric document
-				FilterDefinition<MetricDocument> filter = Builders<MetricDocument>.Filter.Expr(x => x.MetricId == metricConfig.Id && x.Group == group && x.Time == time);
+				FilterDefinition<MetricDocument> filter = Builders<MetricDocument>.Filter.Expr(x => x.TelemetryStoreId == telemetryStoreId && x.MetricId == metricConfig.Id && x.Group == group && x.Time == time);
 				UpdateDefinition<MetricDocument> update = Builders<MetricDocument>.Update.SetOnInsert(x => x.Count, 0);
 				MetricDocument metric = await _metrics.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<MetricDocument, MetricDocument> { IsUpsert = true, ReturnDocument = ReturnDocument.After }, cancellationToken);
 
@@ -319,7 +326,7 @@ namespace Horde.Server.Telemetry.Metrics
 				}
 
 				// Update the document
-				ReplaceOneResult result = await _metrics.ReplaceOneAsync(x => x.Id == metric.Id && x.Count == prevCount, metric, cancellationToken: cancellationToken);
+				ReplaceOneResult result = await _metrics.ReplaceOneAsync(x => x.TelemetryStoreId == telemetryStoreId && x.Id == metric.Id && x.Count == prevCount, metric, cancellationToken: cancellationToken);
 				if (result.MatchedCount > 0)
 				{
 					break;
@@ -328,9 +335,10 @@ namespace Horde.Server.Telemetry.Metrics
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IMetric>> FindAsync(MetricId[] metricIds, DateTime? minTime = null, DateTime? maxTime = null, string? group = null, int maxResults = 50, CancellationToken cancellationToken = default)
+		public async Task<List<IMetric>> FindAsync(TelemetryStoreId telemetryStoreId, MetricId[] metricIds, DateTime? minTime = null, DateTime? maxTime = null, string? group = null, int maxResults = 50, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<MetricDocument> filter = FilterDefinition<MetricDocument>.Empty;
+			filter &= Builders<MetricDocument>.Filter.Eq(x => x.TelemetryStoreId, telemetryStoreId);
 
 			if (minTime != null)
 			{

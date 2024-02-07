@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Telemetry;
 using Horde.Server.Telemetry.Metrics;
 
 namespace Horde.Server.Telemetry.Sinks
@@ -34,12 +35,12 @@ namespace Horde.Server.Telemetry.Sinks
 		public ValueTask FlushAsync(CancellationToken cancellationToken) => default;
 
 		/// <inheritdoc/>
-		public void SendEvent(TelemetryEvent telemetryEvent)
+		public void SendEvent(TelemetryStoreId telemetryStoreId, TelemetryEvent telemetryEvent)
 		{
 			JsonNode? node = JsonSerializer.SerializeToNode(telemetryEvent, _jsonOptions);
 			if (node != null)
 			{
-				_metricCollection.AddEvent(node);
+				_metricCollection.AddEvent(telemetryStoreId, node);
 			}
 		}
 	}

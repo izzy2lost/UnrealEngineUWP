@@ -97,7 +97,7 @@ namespace UnrealGameSync
 				using (EventWaitHandle activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, "ActivateUnrealGameSync"))
 				{
 #if DEBUG
-					bool runUpdateCheck = args.Contains("-UpdateCheck", StringComparer.OrdinalIgnoreCase);
+					bool runUpdateCheck = args.Contains("-UpdateCheck", StringComparer.OrdinalIgnoreCase) || args.Contains("-Settings", StringComparer.OrdinalIgnoreCase);
 #else
 					bool runUpdateCheck = !args.Contains("-NoUpdateCheck", StringComparer.OrdinalIgnoreCase);
 #endif
@@ -198,7 +198,7 @@ namespace UnrealGameSync
 
 				if (launcherSettings.HordeServer != null)
 				{
-					services.AddHordeHttpClient(x => x.BaseAddress = new Uri(launcherSettings.HordeServer));
+					services.AddHorde(options => options.ServerUrl = new Uri(launcherSettings.HordeServer));
 				}
 
 				await using (ServiceProvider serviceProvider = services.BuildServiceProvider())

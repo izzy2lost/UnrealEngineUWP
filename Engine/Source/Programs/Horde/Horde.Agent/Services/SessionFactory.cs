@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using EpicGames.Core;
@@ -145,8 +144,7 @@ namespace Horde.Agent.Services
 				throw new Exception("WorkingDir is not set. Unable to run service.");
 			}
 
-			DirectoryReference baseDir = new FileReference(Assembly.GetExecutingAssembly().Location).Directory;
-			DirectoryReference workingDir = DirectoryReference.Combine(baseDir, currentSettings.WorkingDir);
+			DirectoryReference workingDir = currentSettings.WorkingDir;
 			logger.LogInformation("WorkingDir: {WorkingDir}", workingDir);
 			DirectoryReference.CreateDirectory(workingDir);
 

@@ -22,6 +22,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Win32;
 using OpenTracing.Util;
 using Polly;
 
@@ -72,7 +73,7 @@ namespace Horde.Agent
 		/// <summary>
 		/// Path to the default data directory
 		/// </summary>
-		public static DirectoryReference DataDir { get; } = GetDataDir();
+		public static DirectoryReference DataDir { get; private set; } = DirectoryReference.Combine(AppDir, "Data");
 
 		/// <summary>
 		/// The launch arguments
@@ -108,12 +109,6 @@ namespace Horde.Agent
 		{
 			AgentApp.Args = args;
 
-			string? environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-			if (String.IsNullOrEmpty(environment))
-			{
-				environment = "Production";
-			}
-
 			CommandLineArguments arguments = new CommandLineArguments(args);
 
 			Dictionary<string, string?> configOverrides = new Dictionary<string, string?>();
@@ -126,15 +121,27 @@ namespace Horde.Agent
 				configOverrides.Add($"{AgentSettings.SectionName}:{nameof(AgentSettings.WorkingDir)}", workingDirOverride);
 			}
 
-			IConfiguration configuration = new ConfigurationBuilder()
-				.SetBasePath(AppDir.FullName)
-				.AddJsonFile("appsettings.json", optional: false)
-				.AddJsonFile("appsettings.Build.json", optional: true) // specific settings for builds (installer/dockerfile)
-				.AddJsonFile($"appsettings.{environment}.json", optional: true) // environment variable overrides, also used in k8s setups with Helm
-				.AddJsonFile("appsettings.User.json", optional: true)
-				.AddInMemoryCollection(configOverrides)
-				.AddEnvironmentVariables()
-				.Build();
+			// Create the base configuration data by just reading from the application directory. We need to check some settings before
+			// being able to read user configuration files.
+			IConfiguration configuration = CreateConfig(false, null, configOverrides);
+			AgentSettings settings = BindSettings(configuration);
+
+			if (settings.Installed)
+			{
+				if (OperatingSystem.IsWindows())
+				{
+					DirectoryReference? commonAppDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
+					if (commonAppDataDir != null)
+					{
+						DataDir = DirectoryReference.Combine(commonAppDataDir, "Epic", "Horde", "Agent");
+						await CopyDefaultConfigFilesAsync(DataDir);
+					}
+				}
+
+				FileReference agentConfigFile = FileReference.Combine(DataDir, "agent.json");
+				configuration = CreateConfig(true, agentConfigFile, configOverrides);
+				settings = BindSettings(configuration);
+			}
 
 			using ILoggerFactory loggerFactory = Logging.CreateLoggerFactory(configuration);
 
@@ -156,9 +163,6 @@ namespace Horde.Agent
 			// Add all the default 
 			IConfigurationSection configSection = configuration.GetSection(AgentSettings.SectionName);
 			services.AddOptions<AgentSettings>().Configure(options => configSection.Bind(options)).ValidateDataAnnotations();
-
-			AgentSettings settings = new AgentSettings();
-			configSection.Bind(settings);
 
 			ServerProfile serverProfile = settings.GetCurrentServerProfile();
 			ConfigureTracing(serverProfile.Environment, AgentApp.Version);
@@ -252,10 +256,65 @@ namespace Horde.Agent
 			return await CommandHost.RunAsync(arguments, serviceProvider, typeof(Commands.Service.RunCommand));
 		}
 
+		static IConfiguration CreateConfig(bool readInstalledConfig, FileReference? agentConfigFile, Dictionary<string, string?> configOverrides)
+		{
+			string? environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+			if (String.IsNullOrEmpty(environment))
+			{
+				environment = "Production";
+			}
+
+			IConfigurationBuilder builder = new ConfigurationBuilder()
+				.SetBasePath(AppDir.FullName)
+				.AddJsonFile("appsettings.json", optional: false)
+				.AddJsonFile("appsettings.Build.json", optional: true) // specific settings for builds (installer/dockerfile)
+				.AddJsonFile($"appsettings.{environment}.json", optional: true) // environment variable overrides, also used in k8s setups with Helm
+				.AddJsonFile("appsettings.User.json", optional: true);
+
+			if (agentConfigFile != null)
+			{
+				builder = builder.AddJsonFile(agentConfigFile.FullName, optional: true, reloadOnChange: true);
+			}
+			if (readInstalledConfig && OperatingSystem.IsWindows())
+			{
+				builder = builder.Add(new RegistryConfigurationSource(Registry.LocalMachine, "SOFTWARE\\Epic Games\\Horde\\Agent", AgentSettings.SectionName));
+			}
+
+			return builder
+				.AddInMemoryCollection(configOverrides)
+				.AddEnvironmentVariables()
+				.Build();
+		}
+
+		static AgentSettings BindSettings(IConfiguration configuration)
+		{
+			AgentSettings settings = new AgentSettings();
+			configuration.GetSection(AgentSettings.SectionName).Bind(settings);
+			return settings;
+		}
+
+		static async Task CopyDefaultConfigFilesAsync(DirectoryReference configDir)
+		{
+			DirectoryReference defaultsDir = DirectoryReference.Combine(AppDir, "Defaults");
+			if (DirectoryReference.Exists(defaultsDir))
+			{
+				foreach (FileReference sourceFile in DirectoryReference.EnumerateFiles(defaultsDir, "*.json"))
+				{
+					FileReference targetFile = FileReference.Combine(configDir, sourceFile.GetFileName());
+					if (!FileReference.Exists(targetFile))
+					{
+						using FileStream targetStream = FileReference.Open(targetFile, FileMode.Create, FileAccess.Write, FileShare.Read);
+						using FileStream sourceStream = FileReference.Open(sourceFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+						await sourceStream.CopyToAsync(targetStream);
+					}
+				}
+			}
+		}
+
 		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)
 		{
 			AgentSettings settings = serviceProvider.GetRequiredService<IOptions<AgentSettings>>().Value;
-			DirectoryReference cacheDir = DirectoryReference.Combine(GetDataDir(), String.IsNullOrEmpty(settings.BundleCacheDir) ? "Cache" : settings.BundleCacheDir);
+			DirectoryReference cacheDir = DirectoryReference.Combine(settings.WorkingDir, "Saved", "Bundles");
 			return new StorageBackendCache(cacheDir, settings.BundleCacheSize * 1024 * 1024, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
 		}
 
@@ -303,23 +362,6 @@ namespace Horde.Agent
 			
 			// When C# project is packaged as a single file, GetExecutingAssembly above does not work
 			return DirectoryReference.FromFile(new FileReference(Environment.ProcessPath!));
-		}
-
-		/// <summary>
-		/// Gets the default data directory
-		/// </summary>
-		/// <returns></returns>
-		static DirectoryReference GetDataDir()
-		{
-			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			{
-				DirectoryReference? programDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
-				if (programDataDir != null)
-				{
-					return DirectoryReference.Combine(programDataDir, "Epic", "Horde", "Agent");
-				}
-			}
-			return GetAppDir();
 		}
 	}
 }

@@ -88,7 +88,7 @@ namespace EpicGames.AspNet
 				logger.LogError(ex, "Unable to parse compact binary: {Dump}", FormatHexDump(data, 256));
 				foreach ((string name, StringValues values) in context.HttpContext.Request.Headers)
 				{
-					foreach (string value in values)
+					foreach (string? value in values)
 					{
 						logger.LogInformation("Header {Name}: {Value}", name, value);
 					}

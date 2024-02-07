@@ -12,6 +12,7 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Secrets;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Tools;
 using Horde.Server.Acls;
 using Microsoft.AspNetCore.Http;
@@ -298,6 +299,15 @@ namespace Horde.Server.Utilities
 		protected ActionResult NotFound(StreamId streamId, TemplateId templateId)
 		{
 			return NotFound("Template {TemplateId} not found on stream {StreamId}", templateId, streamId);
+		}
+
+		/// <summary>
+		/// Returns a 404 response for the given object
+		/// </summary>
+		[NonAction]
+		protected ActionResult NotFound(TelemetryStoreId telemetryStoreId)
+		{
+			return NotFound("Telemetry store {TelemetryStoreId} not found", telemetryStoreId);
 		}
 
 		/// <summary>

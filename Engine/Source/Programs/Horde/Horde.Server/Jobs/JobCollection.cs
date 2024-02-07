@@ -35,6 +35,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs.Bisect;
+using EpicGames.Horde.Telemetry;
 
 namespace Horde.Server.Jobs
 {
@@ -451,7 +452,7 @@ namespace Horde.Server.Jobs
 
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new 
+				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new 
 				{
 					EventName = "State.Job",
 					Id = newJob.Id,

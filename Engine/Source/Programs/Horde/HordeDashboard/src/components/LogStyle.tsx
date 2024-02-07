@@ -161,6 +161,15 @@ export const getLogStyles = () => {
       logLine: [
          {
             fontSize: logMetricNormal.fontSize,
+            selectors: {
+               "#infoview": {
+                  opacity: 0
+               },
+               ":hover #infoview": {
+                  opacity: 1
+               },
+            },
+   
          }
       ],
       gutter: [
@@ -193,6 +202,15 @@ export const getLogStyles = () => {
       logLine: [
          {
             fontSize: logMetricSmall.fontSize,
+            selectors: {
+               "#infoview": {
+                  opacity: 0
+               },
+               ":hover #infoview": {
+                  opacity: 1
+               },
+            },
+   
          }
       ],
       gutter: [

@@ -13,6 +13,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
+using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Users;
 using EpicGames.Redis.Utility;
 using Horde.Server.Auditing;
@@ -725,7 +726,7 @@ namespace Horde.Server.Issues
 		{
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
 					EventName = "State.Issue", 
 					Id = issue.Id,
@@ -1495,7 +1496,7 @@ namespace Horde.Server.Issues
 		{
 			if (_telemetrySink.Enabled)
 			{
-				_telemetrySink.SendEvent(TelemetryRecordMeta.CurrentHordeInstance, new
+				_telemetrySink.SendEvent(TelemetryStoreId.Default, TelemetryRecordMeta.CurrentHordeInstance, new
 				{
 					EventName = "State.IssueSpan",
 					Id = issueSpan.Id,
