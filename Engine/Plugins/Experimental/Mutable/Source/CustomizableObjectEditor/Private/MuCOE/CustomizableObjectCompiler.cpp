@@ -879,11 +879,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 	FMutableGraphGenerationContext GenerationContext(Object, this, Options);
 	GenerationContext.ParamNamesToSelectedOptions = ParamNamesToSelectedOptions;
-	if (ParamNamesToSelectedOptions.Num() > 0)
-	{
-		// A partial compilation shouldn't update the derived data cache, because it would force a recompilation at the next restart of the editor
-		Options.bDontUpdateStreamedDataAndCache = true;
-	}
 
 	// If we don't have the target platform yet (in editor) we need to get it
 	if (!GenerationContext.Options.TargetPlatform)
