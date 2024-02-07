@@ -226,6 +226,13 @@ const TArrayView<const ESlatePostRT> SPostBufferUpdate::GetBuffersToUpdate() con
 UMG_API void SPostBufferUpdate::ReleasePostBufferUpdater()
 {
 #if !UE_SERVER
+	// Copy the pointer onto a lambda to defer the final deletion to after any pending uses on the renderthread
+	TSharedPtr<FPostBufferUpdater, ESPMode::ThreadSafe> ReleaseMe = PostBufferUpdater;
+	ENQUEUE_RENDER_COMMAND(ReleaseCommand)([ReleaseMe](FRHICommandList& RHICmdList) mutable
+	{
+		ReleaseMe.Reset();
+	});
+
 	PostBufferUpdater.Reset();
 #endif // !UE_SERVER
 }
