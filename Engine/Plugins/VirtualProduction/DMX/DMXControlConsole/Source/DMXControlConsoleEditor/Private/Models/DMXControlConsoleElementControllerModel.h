@@ -60,9 +60,6 @@ namespace UE::DMX::Private
 		/** True if all Elements in the controller are raw faders */
 		bool HasOnlyRawFaders() const;
 
-		/** True if all the Elements in the Controller are muted */
-		bool IsMuted() const;
-
 		/** True if all the Elements in the Controller are locked */
 		bool IsLocked() const;
 

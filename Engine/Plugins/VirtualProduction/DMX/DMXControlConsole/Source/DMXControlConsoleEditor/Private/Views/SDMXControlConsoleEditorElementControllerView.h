@@ -80,8 +80,8 @@ namespace UE::DMX::Private
 		/** Called when a new text on maximum value editable text box is committed */
 		void OnMaxValueTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo);
 
-		/** Called when the mute option is selected */
-		void OnMuteElementController(bool bMute) const;
+		/** Called when the enable option is selected */
+		void OnEnableElementController(bool bEnable) const;
 
 		/** Called when the remove option is selected */
 		void OnRemoveElementController() const;
@@ -95,11 +95,11 @@ namespace UE::DMX::Private
 		/** Called to lock/unlock this element controller */
 		FReply OnLockClicked();
 
-		/** Checks the current mute state of the element controller */
-		ECheckBoxState IsMuteChecked() const;
+		/** Checks the current enable state of the element controller */
+		ECheckBoxState IsEnableChecked() const;
 
-		/** Called to toggle the mute state of this element controller */
-		void OnMuteToggleChanged(ECheckBoxState CheckState);
+		/** Called to toggle the enable state of this element controller */
+		void OnEnableToggleChanged(ECheckBoxState CheckState);
 
 		/** Gets the height of the element controller according to the current view mode  */
 		FOptionalSize GetElementControllerHeightByViewMode() const;

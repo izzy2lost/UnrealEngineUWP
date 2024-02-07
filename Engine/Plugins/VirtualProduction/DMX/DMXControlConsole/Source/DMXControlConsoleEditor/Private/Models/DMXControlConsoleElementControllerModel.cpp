@@ -163,7 +163,8 @@ namespace UE::DMX::Private
 		}
 
 		const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
-		const bool bHasUniformDataType = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+		const bool bHasUniformDataType = Algo::AllOf(Faders, 
+			[FirstFader](const UDMXControlConsoleFaderBase* Fader)
 			{
 				return Fader && Fader->GetDataType() == FirstFader->GetDataType();
 			});
@@ -191,7 +192,8 @@ namespace UE::DMX::Private
 		}
 
 		// Check if the values of all the faders in the controller are uniform
-		const bool bHasUniformValue = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+		const bool bHasUniformValue = Algo::AllOf(Faders, 
+			[FirstFader](const UDMXControlConsoleFaderBase* Fader)
 			{
 				return Fader && Fader->GetValue() == FirstFader->GetValue();
 			});
@@ -219,7 +221,8 @@ namespace UE::DMX::Private
 		}
 
 		// Check if the values of all the faders in the controller are uniform
-		const bool bHasUniformMinValue = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+		const bool bHasUniformMinValue = Algo::AllOf(Faders, 
+			[FirstFader](const UDMXControlConsoleFaderBase* Fader)
 			{
 				return Fader && Fader->GetMinValue() == FirstFader->GetMinValue();
 			});
@@ -247,7 +250,8 @@ namespace UE::DMX::Private
 		}
 
 		// Check if the values of all the faders in the controller are uniform
-		const bool bHasUniformMaxValue = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+		const bool bHasUniformMaxValue = Algo::AllOf(Faders, 
+			[FirstFader](const UDMXControlConsoleFaderBase* Fader)
 			{
 				return Fader && Fader->GetMaxValue() == FirstFader->GetMaxValue();
 			});
@@ -267,11 +271,6 @@ namespace UE::DMX::Private
 			{
 				return Element && IsValid(Cast<UDMXControlConsoleRawFader>(Element.GetObject()));
 			});
-	}
-
-	bool FDMXControlConsoleElementControllerModel::IsMuted() const
-	{
-		return WeakElementController.IsValid() && WeakElementController->IsMuted();
 	}
 
 	bool FDMXControlConsoleElementControllerModel::IsLocked() const

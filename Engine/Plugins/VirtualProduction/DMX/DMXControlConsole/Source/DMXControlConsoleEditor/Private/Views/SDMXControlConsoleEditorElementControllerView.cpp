@@ -2,6 +2,8 @@
 
 #include "SDMXControlConsoleEditorElementControllerView.h"
 
+#include "Algo/AllOf.h"
+#include "Algo/AnyOf.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
@@ -188,8 +190,8 @@ namespace UE::DMX::Private
 							.AutoHeight()
 							[
 								SNew(SCheckBox)
-								.IsChecked(this, &SDMXControlConsoleEditorElementControllerView::IsMuteChecked)
-								.OnCheckStateChanged(this, &SDMXControlConsoleEditorElementControllerView::OnMuteToggleChanged)
+								.IsChecked(this, &SDMXControlConsoleEditorElementControllerView::IsEnableChecked)
+								.OnCheckStateChanged(this, &SDMXControlConsoleEditorElementControllerView::OnEnableToggleChanged)
 							]
 						]
 					]
@@ -292,23 +294,15 @@ namespace UE::DMX::Private
 
 		MenuBuilder.BeginSection("Options", LOCTEXT("FaderOptionsCategory", "Options"));
 		{
+			constexpr bool bEnableController = true;
 			MenuBuilder.AddMenuEntry
 			(
-				LOCTEXT("MuteLabel", "Mute"),
+				LOCTEXT("EnableLabel", "Enable"),
 				FText::GetEmpty(),
-				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.Fader.Mute"),
+				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.Fader.Unmute"),
 				FUIAction
 				(
-					FExecuteAction::CreateSP(this, &SDMXControlConsoleEditorElementControllerView::OnMuteElementController, true),
-					FCanExecuteAction::CreateLambda([this]() 
-						{ 
-							return ElementControllerModel.IsValid() && !ElementControllerModel->IsMuted(); 
-						}),
-					FIsActionChecked(),
-					FIsActionButtonVisible::CreateLambda([this]() 
-						{
-							return ElementControllerModel.IsValid() && !ElementControllerModel->IsMuted(); 
-						})
+					FExecuteAction::CreateSP(this, &SDMXControlConsoleEditorElementControllerView::OnEnableElementController, bEnableController)
 				),
 				NAME_None,
 				EUserInterfaceActionType::Button
@@ -316,21 +310,12 @@ namespace UE::DMX::Private
 
 			MenuBuilder.AddMenuEntry
 			(
-				LOCTEXT("UnmuteLabel", "Unmute"),
+				LOCTEXT("DisableLabel", "Disable"),
 				FText::GetEmpty(),
-				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.Fader.Unmute"),
+				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.Fader.Mute"),
 				FUIAction
 				(
-					FExecuteAction::CreateSP(this, &SDMXControlConsoleEditorElementControllerView::OnMuteElementController, false),
-					FCanExecuteAction::CreateLambda([this]() 
-						{ 
-							return ElementControllerModel.IsValid() && ElementControllerModel->IsMuted(); 
-						}),
-					FIsActionChecked(),
-					FIsActionButtonVisible::CreateLambda([this]() 
-						{ 
-							return ElementControllerModel.IsValid() && ElementControllerModel->IsMuted(); 
-						})
+					FExecuteAction::CreateSP(this, &SDMXControlConsoleEditorElementControllerView::OnEnableElementController, !bEnableController)
 				),
 				NAME_None,
 				EUserInterfaceActionType::Button
@@ -699,15 +684,24 @@ namespace UE::DMX::Private
 		ElementController->PostEditChange();
 	}
 
-	void SDMXControlConsoleEditorElementControllerView::OnMuteElementController(bool bMute) const
+	void SDMXControlConsoleEditorElementControllerView::OnEnableElementController(bool bEnable) const
 	{
 		UDMXControlConsoleElementController* ElementController = GetElementController();
-		if (ElementController)
+		if (!ElementController)
 		{
-			const FScopedTransaction MuteElementControllerOptionTransaction(LOCTEXT("MuteElementControllerOptionTransaction", "Edit Fader mute state"));
-			ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetIsMutedPropertyName()));
-			ElementController->SetMute(bMute);
-			ElementController->PostEditChange();
+			return;
+		}
+		const FScopedTransaction EnableElementControllerOptionTransaction(LOCTEXT("EnableElementControllerOptionTransaction", "Edit Enable state"));
+		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = ElementController->GetElements();
+		for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
+		{
+			UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element.GetObject());
+			if (Fader)
+			{
+				Fader->PreEditChange(UDMXControlConsoleFaderBase::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderBase::GetIsEnabledPropertyName()));
+				Fader->SetEnabled(bEnable);
+				Fader->PostEditChange();
+			}
 		}
 	}
 
@@ -766,7 +760,7 @@ namespace UE::DMX::Private
 		{
 			const FScopedTransaction LockElementControllerOptionTransaction(LOCTEXT("LockElementControllerOptionTransaction", "Edit Fader lock state"));
 			ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetIsLockedPropertyName()));
-			ElementController->SetLock(bLock);
+			ElementController->SetLocked(bLock);
 			ElementController->PostEditChange();
 		}
 	}
@@ -781,14 +775,14 @@ namespace UE::DMX::Private
 
 		const FScopedTransaction ElementControllerLockStateEditedtTransaction(LOCTEXT("ElementControllerLockStateEditedtTransaction", "Edit Lock state"));
 		ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetIsLockedPropertyName()));
-		ElementController->ToggleLock();
+		ElementController->SetLocked(!ElementController->IsLocked());
 		ElementController->PostEditChange();
 
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 		const TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
 		if (!SelectedElementControllers.IsEmpty() && SelectedElementControllers.Contains(ElementController))
 		{
-			for (const TWeakObjectPtr<UObject> SelectElementControllerObject : SelectedElementControllers)
+			for (const TWeakObjectPtr<UObject>& SelectElementControllerObject : SelectedElementControllers)
 			{
 				UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectElementControllerObject);
 				if (!SelectedElementController || !SelectedElementController->IsMatchingFilter())
@@ -797,7 +791,7 @@ namespace UE::DMX::Private
 				}
 
 				SelectedElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetIsLockedPropertyName()));
-				SelectedElementController->SetLock(ElementController->IsLocked());
+				SelectedElementController->SetLocked(ElementController->IsLocked());
 				SelectedElementController->PostEditChange();
 			}
 		}
@@ -805,24 +799,35 @@ namespace UE::DMX::Private
 		return FReply::Handled();
 	}
 
-	void SDMXControlConsoleEditorElementControllerView::OnMuteToggleChanged(ECheckBoxState CheckState)
+	void SDMXControlConsoleEditorElementControllerView::OnEnableToggleChanged(ECheckBoxState CheckState)
 	{
-		UDMXControlConsoleElementController* ElementController = GetElementController();
+		UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
 		if (!EditorModel.IsValid() || !ElementController)
 		{
 			return;
 		}
 
-		const FScopedTransaction ElementControllerMuteStateEditedtTransaction(LOCTEXT("ElementControllerMuteStateEditedtTransaction", "Edit Mute state"));
-		ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetIsMutedPropertyName()));
-		ElementController->ToggleMute();
-		ElementController->PostEditChange();
+		const FScopedTransaction SetEnabledTransaction(LOCTEXT("SetEnabledTransaction", "Edit Enable state"));
+		
+		const bool bIsControllerEnabled = CheckState == ECheckBoxState::Checked;
+		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = ElementController->GetElements();
+		for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
+		{
+			UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element.GetObject());
+			if (Fader)
+			{
+				Fader->PreEditChange(UDMXControlConsoleFaderBase::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderBase::GetIsEnabledPropertyName()));
+				Fader->SetEnabled(bIsControllerEnabled);
+				Fader->PostEditChange();
+			}
+		}
 
+		// If the controller is selected, set the enable state of all the other selected controllers
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 		const TArray<TWeakObjectPtr<UObject>> SelectedElementControllers = SelectionHandler->GetSelectedElementControllers();
-		if (!SelectedElementControllers.IsEmpty() && SelectedElementControllers.Contains(ElementController))
+		if (SelectedElementControllers.Contains(ElementController))
 		{
-			for (const TWeakObjectPtr<UObject> SelectElementControllerObject : SelectedElementControllers)
+			for (const TWeakObjectPtr<UObject>& SelectElementControllerObject : SelectedElementControllers)
 			{
 				UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectElementControllerObject);
 				if (!SelectedElementController || !SelectedElementController->IsMatchingFilter())
@@ -830,14 +835,22 @@ namespace UE::DMX::Private
 					continue;
 				}
 
-				SelectedElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetIsMutedPropertyName()));
-				SelectedElementController->SetMute(ElementController->IsMuted());
-				SelectedElementController->PostEditChange();
+				const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& SelectedElements = SelectedElementController->GetElements();
+				for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& SelectedElement : SelectedElements)
+				{
+					UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(SelectedElement.GetObject());
+					if (Fader)
+					{
+						Fader->PreEditChange(UDMXControlConsoleFaderBase::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderBase::GetIsEnabledPropertyName()));
+						Fader->SetEnabled(bIsControllerEnabled);
+						Fader->PostEditChange();
+					}
+				}
 			}
 		}
 	}
 
-	ECheckBoxState SDMXControlConsoleEditorElementControllerView::IsMuteChecked() const
+	ECheckBoxState SDMXControlConsoleEditorElementControllerView::IsEnableChecked() const
 	{
 		const UDMXControlConsoleElementController* ElementController = GetElementController();
 		if (!ElementController)
@@ -845,13 +858,15 @@ namespace UE::DMX::Private
 			return ECheckBoxState::Undetermined;
 		}
 
-		if (ElementController->IsMuted())
+		const UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = ElementController->GetOwnerFaderGroupControllerChecked();
+		const ECheckBoxState FaderGroupControllerEnableState = OwnerFaderGroupController.GetEnabledState();
+		const ECheckBoxState ElementControllerEnableState = ElementController->GetEnabledState();
+		if (FaderGroupControllerEnableState == ECheckBoxState::Checked || ElementControllerEnableState == ECheckBoxState::Unchecked)
 		{
-			return ECheckBoxState::Unchecked;
+			return ElementControllerEnableState;
 		}
 
-		const UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = ElementController->GetOwnerFaderGroupControllerChecked();
-		return OwnerFaderGroupController.IsMuted() ? ECheckBoxState::Undetermined : ECheckBoxState::Checked;
+		return ECheckBoxState::Undetermined;
 	}
 
 	FOptionalSize SDMXControlConsoleEditorElementControllerView::GetElementControllerHeightByViewMode() const

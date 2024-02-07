@@ -2,6 +2,7 @@
 
 #include "DMXControlConsoleElementController.h"
 
+#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Sort.h"
 #include "Algo/Transform.h"
@@ -9,6 +10,7 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupController.h"
 #include "Oscillators/DMXControlConsoleFloatOscillator.h"
+#include "Styling/SlateTypes.h"
 
 
 #define LOCTEXT_NAMESPACE "DMXControlConsoleElementController"
@@ -254,17 +256,7 @@ void UDMXControlConsoleElementController::ResetToDefault()
 	SetMaxValue(1.f);
 }
 
-void UDMXControlConsoleElementController::SetMute(bool bMute)
-{
-	bIsMuted = bMute;
-}
-
-void UDMXControlConsoleElementController::ToggleMute()
-{
-	SetMute(!bIsMuted);
-}
-
-void UDMXControlConsoleElementController::SetLock(bool bLock)
+void UDMXControlConsoleElementController::SetLocked(bool bLock)
 {
 	bIsLocked = bLock;
 
@@ -277,13 +269,8 @@ void UDMXControlConsoleElementController::SetLock(bool bLock)
 		}
 
 		Fader->Modify();
-		Fader->SetLock(bIsLocked);
+		Fader->SetLocked(bIsLocked);
 	}
-}
-
-void UDMXControlConsoleElementController::ToggleLock()
-{
-	SetLock(!bIsLocked);
 }
 
 bool UDMXControlConsoleElementController::IsActive() const
@@ -300,6 +287,30 @@ bool UDMXControlConsoleElementController::IsMatchingFilter() const
 		});
 
 	return bIsAnyElementMatchingFilter;
+}
+
+ECheckBoxState UDMXControlConsoleElementController::GetEnabledState() const
+{
+	const bool bAreAllElementsEnabled = Algo::AllOf(Elements,
+		[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
+		{
+			const UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element.GetObject());
+			return Fader && Fader->IsEnabled();
+		});
+
+	if (bAreAllElementsEnabled)
+	{
+		return ECheckBoxState::Checked;
+	}
+
+	const bool bIsAnyElementEnabled = Algo::AnyOf(Elements,
+		[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
+		{
+			const UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Element.GetObject());
+			return Fader && Fader->IsEnabled();
+		});
+
+	return bIsAnyElementEnabled ? ECheckBoxState::Undetermined : ECheckBoxState::Unchecked;
 }
 
 void UDMXControlConsoleElementController::Destroy()
@@ -386,7 +397,7 @@ void UDMXControlConsoleElementController::SyncElements() const
 		Fader->SetValue(NewFaderValue);
 		Fader->SetMinValue(NewFaderMinValue);
 		Fader->SetMaxValue(NewFaderMaxValue);
-		Fader->SetLock(bIsLocked);
+		Fader->SetLocked(bIsLocked);
 	}
 }
 

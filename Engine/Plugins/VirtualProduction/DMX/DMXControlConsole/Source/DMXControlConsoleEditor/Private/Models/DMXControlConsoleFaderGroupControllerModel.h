@@ -42,9 +42,6 @@ namespace UE::DMX::Private
 		/** True if a new Element Controller can be added */
 		bool CanAddElementController() const;
 
-		/** True if all the Fader Groups in the Controller are muted */
-		bool IsMuted() const;
-
 		/** True if all the Fader Groups in the Controller are locked */
 		bool IsLocked() const;
 

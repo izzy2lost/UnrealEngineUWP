@@ -898,7 +898,7 @@ namespace UE::DMX::Private
 
 		const FScopedTransaction LockFaderGroupControllerOptionTransaction(LOCTEXT("LockFaderGroupControllerOptionTransaction", "Edit Fader Group lock state"));
 		FaderGroupController->PreEditChange(UDMXControlConsoleFaderGroupController::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroupController::GetIsLockedPropertyName()));
-		FaderGroupController->SetLock(bLock);
+		FaderGroupController->SetLocked(bLock);
 		FaderGroupController->PostEditChange();
 	}
 

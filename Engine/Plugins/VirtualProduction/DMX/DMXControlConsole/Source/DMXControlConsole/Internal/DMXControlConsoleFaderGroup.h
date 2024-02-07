@@ -107,6 +107,12 @@ public:
 	/** Destroys this Fader Group */
 	void Destroy();
 
+	/** True if the Fader Group can't send DMX data */
+	bool IsEnabled() const { return bIsEnabled; }
+
+	/** Sets the enable state of this Fader Group */
+	void SetEnabled(bool bEnable);
+
 #if WITH_EDITOR
 	/** True if Fader Group matches Control Console filtering system */
 	bool IsMatchingFilter() const { return bIsMatchingFilter; }
@@ -140,6 +146,7 @@ public:
 	FORCEINLINE static FName GetFaderGroupNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, FaderGroupName); }
 	FORCEINLINE static FName GetSoftFixturePatchPtrPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, SoftFixturePatchPtr); }
 	FORCEINLINE static FName GetCachedWeakFixturePatchPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, CachedWeakFixturePatch); }
+	FORCEINLINE static FName GetIsEnabledPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, bIsEnabled); }
 
 #if WITH_EDITORONLY_DATA
 	/** Last string from Editor filtering */
@@ -201,6 +208,10 @@ private:
 	/** Elements in this Fader Group */
 	UPROPERTY()
 	TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements;
+
+	/** If true, the Fader Group doesn't send DMX */
+	UPROPERTY(EditAnywhere, Category = "DMX Fader Group")
+	bool bIsEnabled = true;
 
 #if WITH_EDITORONLY_DATA
 	/** True if Fader Group matches Control Console filtering system */

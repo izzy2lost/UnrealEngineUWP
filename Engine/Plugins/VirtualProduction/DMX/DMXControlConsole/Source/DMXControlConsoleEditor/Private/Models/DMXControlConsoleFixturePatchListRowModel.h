@@ -10,26 +10,29 @@ class UDMXControlConsoleEditorModel;
 class UDMXEntityFixturePatch;
 
 
-/** Model for a row in the control console fixture patch list */
-class FDMXControlConsoleFixturePatchListRowModel
-	: public TSharedFromThis<FDMXControlConsoleFixturePatchListRowModel>
+namespace UE::DMX::Private
 {
-public:
-	FDMXControlConsoleFixturePatchListRowModel(const TWeakObjectPtr<UDMXEntityFixturePatch> InWeakFixturePatch, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
+	/** Model for a row in the control console fixture patch list */
+	class FDMXControlConsoleFixturePatchListRowModel
+		: public TSharedFromThis<FDMXControlConsoleFixturePatchListRowModel>
+	{
+	public:
+		FDMXControlConsoleFixturePatchListRowModel(const TWeakObjectPtr<UDMXEntityFixturePatch> InWeakFixturePatch, const TWeakObjectPtr<UDMXControlConsoleEditorModel> InWeakEditorModel);
 
-	/** Returns true if the row widget is enabled */
-	bool IsRowEnabled() const;
+		/** Returns true if the row widget is enabled */
+		bool IsRowEnabled() const;
 
-	/** Returns the fixture group muted state. Checked means it is not muted. */
-	ECheckBoxState GetFaderGroupMutedState() const;
+		/** Returns the fader group enable state. Checked means it is enabled. */
+		ECheckBoxState GetFaderGroupEnabledState() const;
 
-	/** Sets if the fixture group is muted. */
-	void SetFaderGroupMuted(bool bEnabled);
+		/** Sets if the fader group is enabled. */
+		void SetFaderGroupEnabled(bool bEnable);
 
-private:
-	/** The fixture patch of this row */
-	TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch;
+	private:
+		/** The fixture patch of this row */
+		TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch;
 
-	/** Weak reference to the Control Console edior model */
-	TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
-};
+		/** Weak reference to the Control Console edior model */
+		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;
+	};
+}

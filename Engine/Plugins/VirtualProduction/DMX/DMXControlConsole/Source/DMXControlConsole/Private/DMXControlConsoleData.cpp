@@ -89,7 +89,8 @@ UDMXControlConsoleFaderGroup* UDMXControlConsoleData::FindFaderGroupByFixturePat
 	if (InFixturePatch)
 	{
 		const TArray<UDMXControlConsoleFaderGroup*> AllFaderGroups = GetAllFaderGroups();
-		UDMXControlConsoleFaderGroup* const* FaderGroupPtr = Algo::FindByPredicate(AllFaderGroups, [InFixturePatch](const UDMXControlConsoleFaderGroup* FaderGroup)
+		UDMXControlConsoleFaderGroup* const* FaderGroupPtr = Algo::FindByPredicate(AllFaderGroups, 
+			[InFixturePatch](const UDMXControlConsoleFaderGroup* FaderGroup)
 			{
 				return IsValid(FaderGroup) && FaderGroup->GetFixturePatch() == InFixturePatch;
 			});
@@ -329,13 +330,7 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 	const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = GetAllFaderGroups();
 	for (const UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
 	{
-		if (!FaderGroup)
-		{
-			continue;
-		}
-
-		const UDMXControlConsoleControllerBase* FaderGroupController = FaderGroup->GetFaderGroupController();
-		if (!FaderGroupController || FaderGroupController->IsMuted())
+		if (!FaderGroup || !FaderGroup->IsEnabled())
 		{
 			continue;
 		}
@@ -357,8 +352,7 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 				for (const TTuple<FIntPoint, TMap<FDMXAttributeName, float>>& CoordinateToAttribute : CoordinateToAttributeMap)
 				{
 					const FIntPoint CellCoordinate = CoordinateToAttribute.Key;
-
-					TMap<FDMXAttributeName, float> AttributeToRelativeValueMap = CoordinateToAttribute.Value;
+					const TMap<FDMXAttributeName, float> AttributeToRelativeValueMap = CoordinateToAttribute.Value;
 					for (const TTuple<FDMXAttributeName, float>& AttributeToRelativeValue : AttributeToRelativeValueMap)
 					{
 						const FDMXAttributeName& AttributeName = AttributeToRelativeValue.Key;
