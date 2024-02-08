@@ -764,8 +764,8 @@ EFileJournalResult GetJournalDescriptor(HANDLE JournalWindowsHandle, const TCHAR
 			{
 				// Can also create using DeviceIoControl with FSCTL_CREATE_USN_JOURNAL
 				*OutError = FString::Printf(TEXT("NTFS Journal is not active for volume '%s'. ")
-					TEXT("Launch cmd.exe as admin and run command `fsutil usn createJournal %s m=<SizeInBytes>`."),
-					TEXT("Recommended <SizeInBytes> is 100000000 (100MB)."),
+					TEXT("Launch cmd.exe as admin and run command `fsutil usn createJournal %s m=<SizeInBytes>`. ")
+					TEXT("Recommended <SizeInBytes> is 1000000000 (1GB)."),
 					VolumeName, VolumeName);
 			}
 			return EFileJournalResult::JournalNotActive;

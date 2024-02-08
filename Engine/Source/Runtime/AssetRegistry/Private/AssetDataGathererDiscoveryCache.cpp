@@ -78,7 +78,7 @@ void FAssetDataDiscoveryCache::LoadAndUpdateCache()
 			(!bReadEnabled ? TEXT("read") : TEXT("written"));
 		UE_LOG(LogAssetRegistry, Display,
 			TEXT("PlatformFileJournal is not available on volume '%s' of project directory '%s', so AssetDiscovery cache will not be %s. Unavailability reason:\n\t%s"),
-			*TestVolumeName, *ProjectDir, MissingOperation, *TestError);
+			*TestVolumeName, *FPaths::ConvertRelativePathToFull(ProjectDir), MissingOperation, *TestError);
 	}
 
 	if (!bReadEnabled)
