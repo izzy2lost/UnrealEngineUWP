@@ -495,8 +495,8 @@ public:
 
 private:
 #if WITH_EDITORONLY_DATA
-	// Transient, to keep track the undo/redo changed the graph.
-	UPCGGraphInterface* UndoRedoGraphCache = nullptr;
+	// Transient, to keep track of the previous graph when it changed.
+	UPCGGraphInterface* PreGraphCache = nullptr;
 #endif // WITH_EDITORONLY_DATA
 };
 
