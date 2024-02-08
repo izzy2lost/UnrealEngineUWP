@@ -98,7 +98,7 @@ enum class ENiagaraStripScriptByteCodeOption : uint8
 {
 	Default = 0 UMETA(DisplayName = "No Stripping"),
 	Strip_Original = 1 UMETA(DisplayName = "Strip Original ByteCode"),
-	Strip_Experimental = 2 UMETA(DisplayName = "Strip Experimental ByteCode"),
+	Strip_Experimental = 2 UMETA(DisplayName = "Strip Optimized ByteCode"),
 };
 
 #if WITH_EDITORONLY_DATA
@@ -107,7 +107,7 @@ enum class ENiagaraCompilationMode : int32
 {
 	Original = 0	UMETA(DisplayName = "Standard Compilation"),
 	AsyncTasks = 1	UMETA(DisplayName = "Experimental - Async Compilation"),
-	Verify = 2		UMETA(DisplayName = "Experimental - Validate Async")
+	Verify = 2      UMETA(Hidden)
 };
 #endif
 
@@ -151,11 +151,11 @@ class UNiagaraSettings : public UDeveloperSettings
 	bool bEnforceStrictStackTypes = true;
 
 	/**
-	 True indicates that we will generate byte code for the new experimental VM.  Control over whether the new VM will
+	 True indicates that we will generate byte code for the new optimized VM.  Control over whether the new VM will
 	 be used when executing NiagaraScripts will also take into account the overrides on the system (bDisableExperimentalVM) and
 	 the cvars fx.NiagaraScript.StripByteCodeOnLoad and fx.ForceExecVMPath.
 	*/
-	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable building data for Experimental VM"))
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable building data for Optimized VM"))
 	bool bExperimentalVMEnabled = false;
 
 	/**
@@ -193,7 +193,7 @@ class UNiagaraSettings : public UDeveloperSettings
 	FLinearColor PositionPinTypeColor;
 
 	/**
-	 Controls how byte code will be stripped when loading assets that have multiple sets of bytecode (i.e. experimental).
+	 Controls how byte code will be stripped when loading assets that have multiple sets of bytecode (i.e. optimized).
 	 */
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Option for how to strip bytecode"))
 	ENiagaraStripScriptByteCodeOption ByteCodeStripOption = ENiagaraStripScriptByteCodeOption::Default;

@@ -422,10 +422,13 @@ void FNiagaraSystemToolkit::SetupCommands()
 		FExecuteAction::CreateRaw(this, &FNiagaraSystemToolkit::ResetSimulation)); 
 
 	GetToolkitCommands()->MapAction(
-        FNiagaraEditorCommands::Get().ToggleStatPerformance,
-        FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ToggleStatPerformance),
-        FCanExecuteAction(),
-        FIsActionChecked::CreateSP(this, &FNiagaraSystemToolkit::IsStatPerformanceChecked));
+		FNiagaraEditorCommands::Get().ToggleStatPerformance,
+		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ToggleStatPerformance),
+		FCanExecuteAction::CreateLambda([this]()
+		{
+			return System && System->SupportsStatScopedPerformanceMode();
+		}),
+		FIsActionChecked::CreateSP(this, &FNiagaraSystemToolkit::IsStatPerformanceChecked));
 	GetToolkitCommands()->MapAction(
         FNiagaraEditorCommands::Get().ClearStatPerformance,
         FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ClearStatPerformance));
