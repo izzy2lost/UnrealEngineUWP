@@ -3669,7 +3669,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 					}
 					
 					// Getting the mutable table mesh column name
-					FString MutableColumnName = TypedNodeTable->GetMutableColumnName(Pin, LODIndex);
+					FString MutableColumnName = TypedNodeTable->GenerateSkeletalMeshMutableColumName(DataTableColumnName, LODIndex, SectionIndex);
 
 					// Generating a new Mesh column if not exists
 					if (Table->FindColumn(MutableColumnName) == INDEX_NONE)
