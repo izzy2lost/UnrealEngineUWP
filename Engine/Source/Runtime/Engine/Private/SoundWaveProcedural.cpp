@@ -40,7 +40,7 @@ void USoundWaveProcedural::QueueAudio(const uint8* AudioData, const int32 Buffer
 	TArray<uint8> NewAudioBuffer;
 	NewAudioBuffer.AddUninitialized(BufferSize);
 	FMemory::Memcpy(NewAudioBuffer.GetData(), AudioData, BufferSize);
-	QueuedAudio.Enqueue(NewAudioBuffer);
+	QueuedAudio.Enqueue(MoveTemp(NewAudioBuffer));
 
 	AvailableByteCount.Add(BufferSize);
 }
