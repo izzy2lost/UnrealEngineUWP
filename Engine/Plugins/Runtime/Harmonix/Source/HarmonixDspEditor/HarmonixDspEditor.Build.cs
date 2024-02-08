@@ -21,6 +21,7 @@ public class HarmonixDspEditor : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
+				"ContentBrowser",
 				"Engine",
 				"EditorWidgets",
 				"EditorScriptingUtilities",
@@ -31,11 +32,13 @@ public class HarmonixDspEditor : ModuleRules
 				"UnrealEd",
 				"Json",
 				"AssetDefinition",
+				"AssetTools",
 				"PropertyEditor",
 				"DetailCustomizations",
 				"Slate",
 				"SlateCore",
 				"Settings",
+				"ToolMenus",
 				"InputCore"
 			}
 		);

@@ -7,6 +7,8 @@
 
 #include "AssetDefinition_FusionPatch.generated.h"
 
+struct FToolMenuContext;
+
 UCLASS()
 class UAssetDefinition_FusionPatch : public UAssetDefinitionDefault
 {
@@ -24,4 +26,11 @@ public:
 	}
 	virtual bool CanImport() const { return true; }
 
+};
+
+class FFusionPatchExtension
+{
+public:
+	static void RegisterMenus();
+	static void ExecuteCreateFusionPatch(const FToolMenuContext& MenuContext);
 };

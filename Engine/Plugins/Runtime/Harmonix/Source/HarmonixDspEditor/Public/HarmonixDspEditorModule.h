@@ -12,4 +12,7 @@ class FHarmonixDspEditorModule : public IModuleInterface
 public:
 	virtual void StartupModule();
 	virtual void ShutdownModule();
+
+private:
+	void RegisterMenus();
 };
