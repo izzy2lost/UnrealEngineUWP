@@ -1,8 +1,0 @@
-<resources>
-
-    <style name="Theme.UnrealEngine.NoActionBar" parent="Theme.AppCompat">
-        <item name="windowActionBar">false</item>
-        <item name="windowNoTitle">true</item>
-    </style>
-	
-</resources>
