@@ -8,6 +8,7 @@
 #include "EaseCurveTool/AvaEaseCurveTool.h"
 #include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "EaseCurveTool/AvaEaseCurveToolSettings.h"
+#include "EaseCurveTool/AvaEaseCurveSubsystem.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurveEditor.h"
 #include "EaseCurveTool/Widgets/SAvaEaseCurvePreset.h"
 #include "Editor.h"
@@ -15,6 +16,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IAvaSequencer.h"
 #include "Math/UnrealMathUtility.h"
+#include "Misc/MessageDialog.h"
 #include "SCurveEditor.h"
 #include "Styling/AppStyle.h"
 #include "Styling/StyleColors.h"
@@ -498,6 +500,8 @@ void SAvaEaseCurveTool::BindCommands()
 
 	CommandList->MapAction(EaseCurveToolCommands.OpenToolSettings, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::OpenToolSettings));
 
+	CommandList->MapAction(EaseCurveToolCommands.ResetToDefaultPresets, FExecuteAction::CreateSP(this, &SAvaEaseCurveTool::ResetToDefaultPresets));
+
 	CommandList->MapAction(EaseCurveToolCommands.Refresh, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::UpdateEaseCurveFromSequencerKeySelections));
 	
 	CommandList->MapAction(EaseCurveToolCommands.Apply, FExecuteAction::CreateSP(EaseCurveToolRef, &FAvaEaseCurveTool::ApplyEaseCurveToSequencerKeySelections));
@@ -860,6 +864,10 @@ void SAvaEaseCurveTool::MakeContextMenuSettings(FMenuBuilder& InMenuBuilder)
 	InMenuBuilder.AddSeparator();
 
 	InMenuBuilder.AddMenuEntry(EaseCurveToolCommands.ToggleAutoZoomToFit);
+
+	InMenuBuilder.AddSeparator();
+
+	InMenuBuilder.AddMenuEntry(EaseCurveToolCommands.ResetToDefaultPresets);
 }
 
 void SAvaEaseCurveTool::UndoAction()
@@ -930,6 +938,19 @@ FText SAvaEaseCurveTool::GetEndTooltipText() const
 	return (ToolMode.Get(FAvaEaseCurveTool::EMode::DualKeyEdit) == FAvaEaseCurveTool::EMode::DualKeyEdit)
 		? LOCTEXT("EndTooltipText", "End: The next key's arrive tangent")
 		: LOCTEXT("LeaveTooltipText", "Leave");
+}
+
+void SAvaEaseCurveTool::ResetToDefaultPresets()
+{
+	const FText MessageBoxTitle = LOCTEXT("ResetToDefaultPresets", "Reset To Default Presets");
+	const EAppReturnType::Type Response = FMessageDialog::Open(EAppMsgType::YesNoCancel
+		, LOCTEXT("ConfirmResetToDefaultPresets", "Are you sure you want to reset to default presets?\n\n"
+			"*CAUTION* All directories and files inside '[Project]/Config/EaseCurves' will be lost!")
+		, MessageBoxTitle);
+	if (Response == EAppReturnType::Yes)
+	{
+		UAvaEaseCurveSubsystem::Get().ResetToDefaultPresets(false);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

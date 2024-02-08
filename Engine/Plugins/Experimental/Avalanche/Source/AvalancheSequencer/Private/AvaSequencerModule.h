@@ -118,6 +118,8 @@ private:
 
 	void RegisterDirectorCompiler();
 
+	void OnEditorInitialized(const double InDuration);
+
 	TSharedPtr<FAvaActorSubobjectSchema> ActorSubobjectSchema;
 
 	FDelegateHandle SequenceEditorHandle;
@@ -131,4 +133,6 @@ private:
 	FDelegateHandle OutlinerProxiesExtensionDelegateHandle;
 
 	TArray<const UClass*> CustomizedClasses;
+
+	FDelegateHandle EditorInitializedDelegate;
 };

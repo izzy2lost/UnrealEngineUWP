@@ -6,7 +6,10 @@
 #include "Editor.h"
 #include "Engine/World.h"
 #include "HAL/FileManager.h"
+#include "HAL/PlatformFileManager.h"
+#include "Interfaces/IPluginManager.h"
 #include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaEaseCurveSubsystem, Log, All);
@@ -20,8 +23,7 @@ namespace UE::EaseCurveTool::Json::Private
 		const UAvaEaseCurveToolSettings* const Settings = GetDefault<UAvaEaseCurveToolSettings>();
 		check(Settings);
 
-		FString PresetsPath = Settings->GetPresetsPath();
-		PresetsPath = FPaths::ConvertRelativePathToFull(PresetsPath);
+		const FString PresetsPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::ProjectPresetPath());
 
 		if (!FPaths::DirectoryExists(PresetsPath))
 		{
@@ -46,10 +48,9 @@ namespace UE::EaseCurveTool::Json::Private
 			InCategory = EaseCurveTool_NewPresetCategory;
 		}
 
-		PresetsPath = FPaths::Combine(PresetsPath, InCategory) + TEXT(".json");
-		OutFilePath = PresetsPath;
+		OutFilePath = FPaths::Combine(PresetsPath, InCategory) + TEXT(".json");
 
-		return FPaths::FileExists(PresetsPath);
+		return FPaths::FileExists(OutFilePath);
 	}
 
 	bool LoadCurvePresetsJson(const FString& InFilePath, TSharedPtr<FJsonObject>& OutRootObject)
@@ -305,18 +306,28 @@ void UAvaEaseCurveSubsystem::Initialize(FSubsystemCollectionBase& InCollection)
 
 void UAvaEaseCurveSubsystem::ExploreJsonPresetsFolder()
 {
-	const FString EaseCurvePresetsPath = FPaths::ConvertRelativePathToFull(GetDefault<UAvaEaseCurveToolSettings>()->GetPresetsPath());
+	const FString EaseCurvePresetsPath = FPaths::ConvertRelativePathToFull(ProjectPresetPath());
 	FPlatformProcess::ExploreFolder(*EaseCurvePresetsPath);
+}
+
+FString UAvaEaseCurveSubsystem::ProjectPresetPath()
+{
+	return FPaths::ProjectConfigDir() / TEXT("EaseCurves");
+}
+
+FString UAvaEaseCurveSubsystem::PluginPresetPath()
+{
+	if (const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME))
+	{
+		return Plugin->GetBaseDir() / TEXT("Config/EaseCurves");
+	}
+	return FString();
 }
 
 void UAvaEaseCurveSubsystem::ReloadPresetsFromJson()
 {
-	const UAvaEaseCurveToolSettings* const EaseCurveToolSettings = GetDefault<UAvaEaseCurveToolSettings>();
-	check(EaseCurveToolSettings);
-	const FString EaseCurvePresetsPath = EaseCurveToolSettings->GetPresetsPath();
-
 	TArray<FString> JsonFiles;
-	IFileManager::Get().FindFilesRecursive(JsonFiles, *EaseCurvePresetsPath, TEXT("*.json"), true, false);
+	IFileManager::Get().FindFilesRecursive(JsonFiles, *ProjectPresetPath(), TEXT("*.json"), true, false);
 
 	// Load all Json files found as their own separate category. Category Name = File Name
 	Presets.Empty();
@@ -617,4 +628,33 @@ bool UAvaEaseCurveSubsystem::RenamePreset(const FString& InCategory, const FStri
 	}
 
 	return true;
+}
+
+void UAvaEaseCurveSubsystem::ResetToDefaultPresets(const bool bInOnlyIfNoProjectPresets)
+{
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+
+	const FString ProjectPresetPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::ProjectPresetPath());
+
+	if (!bInOnlyIfNoProjectPresets)
+	{
+		PlatformFile.DeleteDirectoryRecursively(*ProjectPresetPath);
+		PlatformFile.CreateDirectory(*ProjectPresetPath);
+	}
+
+	TArray<FString> JsonFiles;
+	IFileManager::Get().FindFilesRecursive(JsonFiles, *ProjectPresetPath, TEXT("*.json"), true, false);
+
+	if (JsonFiles.IsEmpty())
+	{
+		const FString PluginPresetPath = FPaths::ConvertRelativePathToFull(UAvaEaseCurveSubsystem::PluginPresetPath());
+
+		if (PlatformFile.CopyDirectoryTree(*ProjectPresetPath, *PluginPresetPath, false))
+		{
+			UE_LOG(LogAvaEaseCurveSubsystem, Warning, TEXT("Motion Design ease curve tool project presets are empty. "
+				"Copied default presets to [Project]/Config/EaseCurves"));
+
+			ReloadPresetsFromJson();
+		}
+	}
 }

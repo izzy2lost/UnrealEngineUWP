@@ -13,7 +13,9 @@
 #include "Director/AvaSequenceDirectorBlueprint.h"
 #include "Director/AvaSequenceDirectorCompiler.h"
 #include "EaseCurveTool/AvaEaseCurveStyle.h"
+#include "EaseCurveTool/AvaEaseCurveSubsystem.h"
 #include "EaseCurveTool/AvaEaseCurveToolCommands.h"
+#include "Editor.h"
 #include "IAvaOutliner.h"
 #include "IAvaOutlinerModule.h"
 #include "ISequencerModule.h"
@@ -54,6 +56,8 @@ void FAvaSequencerModule::StartupModule()
 	RegisterDirectorCompiler();
 
 	FAvaSequenceTransitionCompiler::Get().Register();
+
+	EditorInitializedDelegate = FEditorDelegates::OnEditorInitialized.AddRaw(this, &FAvaSequencerModule::OnEditorInitialized);
 }
 
 void FAvaSequencerModule::ShutdownModule()
@@ -78,6 +82,8 @@ void FAvaSequencerModule::ShutdownModule()
 	UnregisterCustomLayouts();
 
 	FAvaSequenceTransitionCompiler::Get().Unregister();
+
+	FEditorDelegates::OnEditorInitialized.Remove(EditorInitializedDelegate);
 }
 
 void FAvaSequencerModule::RegisterSequenceEditor(ISequencerModule& InSequencerModule)
@@ -201,6 +207,13 @@ void FAvaSequencerModule::RegisterDirectorCompiler()
 				, InCompilerOptions);
 		}
 	);
+}
+
+void FAvaSequencerModule::OnEditorInitialized(const double InDuration)
+{
+	// Copy default ease curve presets from the plugin to the project configured directory
+	// only if the project presets directory is empty.
+	UAvaEaseCurveSubsystem::Get().ResetToDefaultPresets(true);
 }
 
 IMPLEMENT_MODULE(FAvaSequencerModule, AvalancheSequencer)

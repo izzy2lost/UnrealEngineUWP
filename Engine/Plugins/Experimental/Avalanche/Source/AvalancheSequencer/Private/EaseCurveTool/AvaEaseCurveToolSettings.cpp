@@ -8,6 +8,5 @@ UAvaEaseCurveToolSettings::UAvaEaseCurveToolSettings()
 	CategoryName = TEXT("Motion Design");
 	SectionName = TEXT("Ease Curve Tool");
 
-	PresetsPath = FPaths::ProjectConfigDir() / TEXT("EaseCurves");
 	NewPresetCategory = TEXT("Custom");
 }
