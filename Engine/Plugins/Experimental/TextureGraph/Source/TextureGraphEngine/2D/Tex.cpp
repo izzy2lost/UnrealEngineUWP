@@ -219,7 +219,7 @@ Tex::Tex()
 
 Tex::~Tex()
 {
-	//Free();
+	Free();
 }
 
 void Tex::FreeTexture(UTexture2D** Texture)
@@ -235,6 +235,11 @@ void Tex::FreeGenericTexture(UTexture** Texture)
 	if (Texture && *Texture)
 	{
 		UE_LOG(LogTexture, Verbose, TEXT("Deleting Texture: %s [Ptr = 0x%llx]"), *((*Texture)->GetName()), (*Texture));
+		FTextureResource* TextureResource = (*Texture)->GetResource();
+
+		if (!TextureGraphEngine::IsDestroying() && TextureResource && TextureResource->IsInitialized())
+			(*Texture)->ReleaseResource();
+
 		(*Texture) = nullptr;
 	}
 }
@@ -244,12 +249,18 @@ void Tex::FreeRT(UTextureRenderTarget2D** RT)
 	if (RT && *RT)
 	{
 		UE_LOG(LogTexture, Verbose, TEXT("Deleting render target: %s [Ptr = 0x%llx]"), *((*RT)->GetName()), (*RT));
+		FTextureResource* RTResource = (*RT)->GetResource();
+
+		if (!TextureGraphEngine::IsDestroying() && RTResource && RTResource->IsInitialized())
+			(*RT)->ReleaseResource();
+
 		(*RT) = nullptr;
 	}
 }
 
 void Tex::Free()
 {
+	check(IsInGameThread());
 	/// IMPORTANT: Do not free the _image in this function
 	FreeTexture(ToRawPtr(MutableView(Texture)));
 	FreeRT(ToRawPtr(MutableView(RT)));
