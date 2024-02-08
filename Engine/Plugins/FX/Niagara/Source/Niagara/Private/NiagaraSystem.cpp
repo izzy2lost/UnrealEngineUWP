@@ -942,6 +942,12 @@ void UNiagaraSystem::RecomputeExecutionOrderForDataInterface(class UNiagaraDataI
 	}
 }
 
+bool UNiagaraSystem::SupportsStatScopedPerformanceMode() const
+{
+	const UNiagaraSettings* Settings = GetDefault<UNiagaraSettings>();
+	return bDisableExperimentalVM || !Settings || !Settings->bExperimentalVMEnabled;
+}
+
 #endif
 
 void UNiagaraSystem::Serialize(FArchive& Ar)
