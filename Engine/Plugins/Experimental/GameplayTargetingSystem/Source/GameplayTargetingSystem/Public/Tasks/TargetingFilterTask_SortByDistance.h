@@ -30,6 +30,17 @@ class UTargetingFilterTask_SortByDistance : public UTargetingSortTask_Base
 protected:
 	virtual float GetScoreForTarget(const FTargetingRequestHandle& TargetingHandle, const FTargetingDefaultResultData& TargetData) const override;
 
+	/** Use the distance to the nearest blocking collision surface on each actor instead of the distance to the actor's location */
+	UPROPERTY(EditAnywhere, Category = "Target Sorting | Sort By Distance Data")
+	bool bUseDistanceToNearestBlockingCollider = false;
+
+	/** 
+	* Collision channel used to determine the closest point on a actor's collider. 
+	* Colliders will only be considered if they block this channel
+	*/
+	UPROPERTY(EditAnywhere, Category = "Target Sorting | Sort By Distance Data", Meta=(EditCondition="bUseDistanceToNearestBlockingCollider "))
+	TEnumAsByte<ECollisionChannel> DistanceToCollisionChannel = ECollisionChannel::ECC_WorldDynamic;
+
 private:
 	/** Returns the Source location, whether that comes from the source actor or the Source location in the Source Context */
 	FVector GetSourceLocation(const FTargetingRequestHandle& TargetingHandle) const;

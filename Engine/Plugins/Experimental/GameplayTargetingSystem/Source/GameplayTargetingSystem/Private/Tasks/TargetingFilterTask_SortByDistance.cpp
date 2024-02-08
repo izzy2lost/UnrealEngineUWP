@@ -11,7 +11,20 @@ float UTargetingFilterTask_SortByDistance::GetScoreForTarget(const FTargetingReq
 	FVector SourceLocation = GetSourceLocation(TargetingHandle);
 	if (AActor* TargetActor = TargetData.HitResult.GetActor())
 	{
-		FVector TargetLocation = TargetActor->GetActorLocation();
+		FVector TargetLocation;
+		
+		if (bUseDistanceToNearestBlockingCollider)
+		{
+			const float DistanceToCollision = TargetActor->ActorGetDistanceToCollision(SourceLocation, DistanceToCollisionChannel, TargetLocation);
+
+			if (DistanceToCollision >= 0.f)
+			{
+				return DistanceToCollision * DistanceToCollision;
+			}
+		}
+
+		TargetLocation = TargetActor->GetActorLocation();
+
 		return FVector::DistSquared(SourceLocation, TargetLocation);
 	}
 	return 0.f;
