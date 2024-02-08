@@ -475,8 +475,6 @@ public:
 		OutEnvironment.SetDefine(TEXT("NANITE_USE_UNIFORM_BUFFER"), 0);
 		OutEnvironment.SetDefine(TEXT("NANITE_USE_VIEW_UNIFORM_BUFFER"), 0);
 
-		OutEnvironment.SetDefine(TEXT("NANITE_TESSELLATION"), (Parameters.MaterialParameters.bHasDisplacementConnected && NaniteTessellationSupported()) ? 1 : 0);
-
 		// Force definitions of GetObjectWorldPosition(), etc..
 		OutEnvironment.SetDefine(TEXT("HAS_PRIMITIVE_UNIFORM_BUFFER"), 1);
 

@@ -1060,6 +1060,27 @@ class FRasterBinBuild_CS : public FNaniteGlobalShader
 };
 IMPLEMENT_GLOBAL_SHADER(FRasterBinBuild_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinBuild", SF_Compute);
 
+class FRasterBinInit_CS : public FNaniteGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FRasterBinInit_CS);
+	SHADER_USE_PARAMETER_STRUCT(FRasterBinInit_CS, FNaniteGlobalShader);
+
+	using FPermutationDomain = TShaderPermutationDomain<>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteRasterBinMeta>, OutRasterBinMeta)
+
+		SHADER_PARAMETER(uint32, RasterBinCount)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("RASTER_BIN_PASS"), NANITE_RASTER_BIN_INIT);
+	}
+};
+IMPLEMENT_GLOBAL_SHADER(FRasterBinInit_CS, "/Engine/Private/Nanite/NaniteRasterBinning.usf", "RasterBinInit", SF_Compute);
+
 class FRasterBinReserve_CS : public FNaniteGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FRasterBinReserve_CS);
@@ -1308,9 +1329,21 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
 	class FVertexProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_VERTEX_PROGRAMMABLE");
 	class FPixelProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_PIXEL_PROGRAMMABLE");
+	class FTessellationDim : SHADER_PERMUTATION_BOOL("NANITE_TESSELLATION");
 	class FPatchesDim : SHADER_PERMUTATION_BOOL("PATCHES");
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
-	using FPermutationDomain = TShaderPermutationDomain<FDepthOnlyDim, FTwoSidedDim, FVisualizeDim, FVirtualTextureTargetDim, FVertexProgrammableDim, FPixelProgrammableDim, FPatchesDim, FSplineDeformDim>;
+	
+	using FPermutationDomain = TShaderPermutationDomain<
+		FDepthOnlyDim,
+		FTwoSidedDim,
+		FVisualizeDim,
+		FVirtualTextureTargetDim,
+		FVertexProgrammableDim,
+		FPixelProgrammableDim,
+		FTessellationDim,
+		FPatchesDim,
+		FSplineDeformDim
+	>;
 
 	using FParameters = FRasterizePassParameters;
 
@@ -1365,13 +1398,19 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 			return false;
 		}
 
-		if (PermutationVector.Get<FPatchesDim>())
+		if (PermutationVector.Get<FTessellationDim>() || PermutationVector.Get<FPatchesDim>())
 		{
 			// TODO Don't compile useless shaders for default material
 			if (!NaniteTessellationSupported() || (!Parameters.MaterialParameters.bIsDefaultMaterial && !Parameters.MaterialParameters.bHasDisplacementConnected))
 			{
 				return false;
 			}
+		}
+
+		if (PermutationVector.Get<FTessellationDim>() && !PermutationVector.Get<FVertexProgrammableDim>())
+		{
+			// Tessellation implies vertex programmable (see FNaniteMaterialShader::IsVertexProgrammable)
+			return false;
 		}
 
 		if (PermutationVector.Get<FSplineDeformDim>())
@@ -1395,7 +1434,7 @@ class FMicropolyRasterizeCS : public FNaniteMaterialShader
 		OutEnvironment.SetDefine(TEXT("USE_ANALYTIC_DERIVATIVES"), 1);
 		OutEnvironment.SetDefine(TEXT("NANITE_MULTI_VIEW"), 1);
 
-		if (PermutationVector.Get<FPixelProgrammableDim>() || (NaniteTessellationSupported() && Parameters.MaterialParameters.bHasDisplacementConnected))
+		if (PermutationVector.Get<FPixelProgrammableDim>() || PermutationVector.Get<FTessellationDim>())
 		{
 			OutEnvironment.SetDefine(TEXT("NANITE_VERT_REUSE_BATCH"), 1);
 			OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
@@ -1807,6 +1846,7 @@ void SetupPermutationVectors(
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FVisualizeDim>(bEnableVisualize);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FVirtualTextureTargetDim>(bHasVirtualShadowMapArray);
 
+	PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FTessellationDim>(true);
 	PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPatchesDim>(true); // Patches
 	PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FDepthOnlyDim>(bDepthOnly);
 	PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FVisualizeDim>(bEnableVisualize);
@@ -1819,12 +1859,15 @@ static void GetMaterialShaderTypes(
 	bool bPixelProgrammable,
 	bool bIsTwoSided,
 	bool bSplineMesh,
+	bool bDisplacement,
 	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
 	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
 	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Cluster,
+	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Patch,
 	FMaterialShaderTypes& ProgrammableShaderTypes,
-	FMaterialShaderTypes& NonProgrammableShaderTypes)
+	FMaterialShaderTypes& NonProgrammableShaderTypes,
+	FMaterialShaderTypes& PatchShaderTypes)
 {
 	check(!bSplineMesh || NaniteSplineMeshesSupported());
 
@@ -1874,6 +1917,7 @@ static void GetMaterialShaderTypes(
 	}
 
 	// Programmable micropoly features
+	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FTessellationDim>(bDisplacement);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FPatchesDim>(false);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FTwoSidedDim>(bIsTwoSided);
 	PermutationVectorCS_Cluster.Set<FMicropolyRasterizeCS::FSplineDeformDim>(bSplineMesh);
@@ -1887,6 +1931,51 @@ static void GetMaterialShaderTypes(
 	{
 		NonProgrammableShaderTypes.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Cluster.ToDimensionValueId());
 	}
+
+	if (bDisplacement)
+	{
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FTessellationDim>(true);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPatchesDim>(true);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FTwoSidedDim>(bIsTwoSided);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FSplineDeformDim>(bSplineMesh);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(bVertexProgrammable);
+		PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(bPixelProgrammable);
+		PatchShaderTypes.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Patch.ToDimensionValueId());
+	}
+}
+
+void GetMaterialShaderTypesNoDisplacement(
+	const ERasterHardwarePath HardwarePath,
+	bool bVertexProgrammable,
+	bool bPixelProgrammable,
+	bool bIsTwoSided,
+	bool bSplineMesh,
+	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
+	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
+	FHWRasterizePS::FPermutationDomain& PermutationVectorPS,
+	FMicropolyRasterizeCS::FPermutationDomain& PermutationVectorCS_Cluster,
+	FMaterialShaderTypes& ProgrammableShaderTypes,
+	FMaterialShaderTypes& NonProgrammableShaderTypes)
+{
+	FMaterialShaderTypes PatchShaderTypes;
+	FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch;
+	const bool bDisplacement = false;
+	GetMaterialShaderTypes(
+		HardwarePath,
+		bVertexProgrammable,
+		bPixelProgrammable,
+		bIsTwoSided,
+		bSplineMesh,
+		bDisplacement,
+		PermutationVectorVS,
+		PermutationVectorMS,
+		PermutationVectorPS,
+		PermutationVectorCS_Cluster,
+		PermutationVectorCS_Patch,
+		ProgrammableShaderTypes,
+		NonProgrammableShaderTypes,
+		PatchShaderTypes
+	);
 }
 
 void CollectRasterPSOInitializersForPermutation(
@@ -1906,7 +1995,7 @@ void CollectRasterPSOInitializersForPermutation(
 	FMaterialShaderTypes ProgrammableShaderTypes;
 	FMaterialShaderTypes NonProgrammableShaderTypes;
 
-	GetMaterialShaderTypes(
+	GetMaterialShaderTypesNoDisplacement(
 		HardwarePath,
 		bVertexProgrammable,
 		bPixelProgrammable,
@@ -3409,6 +3498,31 @@ FBinningData FRenderer::AddPass_Binning(
 	{
 		BinningData.MetaBuffer = DispatchContext.MetaBuffer;
 
+		// Initialize Bin Ranges
+		{
+			FRasterBinInit_CS::FParameters* InitPassParameters = GraphBuilder.AllocParameters<FRasterBinInit_CS::FParameters>();
+			InitPassParameters->OutRasterBinMeta = GraphBuilder.CreateUAV(BinningData.MetaBuffer);
+			InitPassParameters->RasterBinCount = BinningData.BinCount;
+
+			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinInit_CS>();
+			ClearUnusedGraphResources(ComputeShader, InitPassParameters);
+
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("RasterBinInit"),
+				InitPassParameters,
+				PassFlags,
+				[InitPassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				{
+					FComputeShaderUtils::Dispatch(
+						RHICmdList,
+						ComputeShader,
+						*InitPassParameters,
+						FComputeShaderUtils::GetGroupCountWrapped(BinCount, 64)
+					);
+				}
+			);
+		}
+
 		BinningData.IndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(BinningData.BinCount * NANITE_RASTERIZER_ARG_COUNT), TEXT("Nanite.RasterBinIndirectArgs"));
 
 		const uint32 MaxVisibleClusters = Nanite::FGlobalResources::GetMaxVisibleClusters();
@@ -3737,30 +3851,23 @@ void FRenderer::PrepareRasterizerPasses(
 			{
 				FMaterialShaderTypes ProgrammableShaderTypes;
 				FMaterialShaderTypes NonProgrammableShaderTypes;
+				FMaterialShaderTypes PatchShaderType;
 				GetMaterialShaderTypes(
 					HardwarePath,
 					RasterizerPass.bVertexProgrammable,
 					RasterizerPass.bPixelProgrammable,
 					RasterizerPass.RasterPipeline.bIsTwoSided,
 					RasterizerPass.RasterPipeline.bSplineMesh,
+					RasterizerPass.bDisplacement,
 					PermutationVectorVS,
 					PermutationVectorMS,
 					PermutationVectorPS,
 					PermutationVectorCS_Cluster,
+					PermutationVectorCS_Patch,
 					ProgrammableShaderTypes,
-					NonProgrammableShaderTypes
+					NonProgrammableShaderTypes,
+					PatchShaderType
 				);
-
-				FMaterialShaderTypes PatchShaderType;
-				if (RasterizerPass.bDisplacement)
-				{
-					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPatchesDim>(true);
-					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FTwoSidedDim>(RasterizerPass.RasterPipeline.bIsTwoSided);
-					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FSplineDeformDim>(RasterizerPass.RasterPipeline.bSplineMesh);
-					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FVertexProgrammableDim>(RasterizerPass.bVertexProgrammable);
-					PermutationVectorCS_Patch.Set<FMicropolyRasterizeCS::FPixelProgrammableDim>(RasterizerPass.bPixelProgrammable);
-					PatchShaderType.AddShaderType<FMicropolyRasterizeCS>(PermutationVectorCS_Patch.ToDimensionValueId());
-				}
 
 				const FMaterialRenderProxy* ProgrammableRasterProxy = RasterEntry.RasterPipeline.RasterMaterial;
 				while (ProgrammableRasterProxy)

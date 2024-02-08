@@ -316,6 +316,9 @@ void EmitDepthTargets(
 
 	if (UseComputeDepthExport())
 	{
+		// NOTE: We intentionally skip calling AddClearRenderTargetPass on the ShadingMask here, since we will explicitly
+		// write all pixels during the export depth pass below
+
 		// Emit depth, stencil, mask and velocity
 
 		if (GNaniteDecompressDepth != 0)
