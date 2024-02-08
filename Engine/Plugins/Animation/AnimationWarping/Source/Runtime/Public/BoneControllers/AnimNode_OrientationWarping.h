@@ -114,7 +114,7 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinHiddenByDefault))
-	EOrientationWarpingSpace WarpingSpace;
+	EOrientationWarpingSpace WarpingSpace = EOrientationWarpingSpace::ComponentTransform;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinHiddenByDefault))
 	FTransform WarpingSpaceTransform;
