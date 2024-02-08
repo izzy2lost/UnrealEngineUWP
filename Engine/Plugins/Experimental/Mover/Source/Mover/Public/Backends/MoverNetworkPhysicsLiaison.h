@@ -57,9 +57,6 @@ struct MOVER_API FNetworkPhysicsMoverState : public FNetworkPhysicsData
 	UPROPERTY()
 	FMoverSyncState SyncStateContext;
 
-	UPROPERTY()
-	FMoverAuxStateContext AuxStateContext;
-
 	/**  Apply the data onto the network physics component */
 	virtual void ApplyData(UActorComponent* NetworkComponent) const override;
 
@@ -121,18 +118,18 @@ public:
 	// Required for Network Physics Rewind/Resim data
 	void GetCurrentInputData(OUT FMoverInputCmdContext& InputCmd) const;
 	void SetCurrentInputData(const FMoverInputCmdContext& InputCmd);
-	void GetCurrentStateData(OUT FMoverSyncState& SyncState, OUT FMoverAuxStateContext& AuxState) const;
-	void SetCurrentStateData(const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState);
+	void GetCurrentStateData(OUT FMoverSyncState& SyncState) const;
+	void SetCurrentStateData(const FMoverSyncState& SyncState);
 
 	// Used by the manager to uniquely identify the component
 	Chaos::FUniqueIdx GetUniqueIdx() const;
 
-	void GameThread_ProduceInput(float DeltaSeconds, OUT FPhysicsMoverAsyncInput& Input);
-	void GameThread_ConsumeOutput(const FPhysicsMoverAsyncOutput& Output);
+	void ProduceInput_External(float DeltaSeconds, OUT FPhysicsMoverAsyncInput& Input);
+	void ConsumeOutput_External(const FPhysicsMoverAsyncOutput& Output, const double OutputTimeInSeconds);
 
-	void AsyncPhysics_ProcessInputs(int32 PhysicsStep, float DeltaTime, const FPhysicsMoverAsyncInput& Input) const;
-	void AsyncPhysics_OnPreSimulate(const FPhysicsMoverSimulationTickParams& TickParams, const FPhysicsMoverAsyncInput& Input, OUT FPhysicsMoverAsyncOutput& SimOutput) const;
-	void ASyncPhysics_OnContactModification(const FPhysicsMoverAsyncInput& Input, Chaos::FCollisionContactModifier& Modifier) const;
+	void ProcessInputs_Internal(int32 PhysicsStep, float DeltaTime, const FPhysicsMoverAsyncInput& Input) const;
+	void OnPreSimulate_Internal(const FPhysicsMoverSimulationTickParams& TickParams, const FPhysicsMoverAsyncInput& Input, OUT FPhysicsMoverAsyncOutput& SimOutput) const;
+	void OnContactModification_Internal(const FPhysicsMoverAsyncInput& Input, Chaos::FCollisionContactModifier& Modifier) const;
 
 protected:
 	UFUNCTION()
@@ -143,20 +140,35 @@ protected:
 	void DestroyConstraint();
 	void SetupConstraint();
 
-	void UpdateConstraintSettings(const FMoverAuxStateContext& AuxState);
+	void UpdateConstraintSettings();
 	void TeleportParticle(Chaos::FGeometryParticleHandle* Particle, const FVector& Position, const FQuat& Rotation) const;
 	void WakeParticleIfSleeping(Chaos::FGeometryParticleHandle* Particle) const;
 
-	FMoverTimeStep GetCurrentMoverTimeStep() const;
+	int32 GetNetworkPhysicsTickOffset() const;
+
+	// Time step on the physics thread
+	FMoverTimeStep GetCurrentMoverTimeStep_Internal() const;
+
+	// Time step on the game thread. Uses physics results time
+	FMoverTimeStep GetCurrentMoverTimeStep_External() const;
 
 	// These are written to by the network input and state data
 	FMoverInputCmdContext NetInputCmd;
 	FMoverSyncState NetSyncState;
-	FMoverAuxStateContext NetAuxState;
 
 	TUniquePtr<Chaos::FCharacterGroundConstraint> Constraint;
-	TObjectPtr<UNetworkPhysicsComponent> NetworkPhysicsComponent;
 	TObjectPtr<UMoverComponent> MoverComp;
 	TObjectPtr<const UCommonLegacyMovementSettings> CommonMovementSettings;
+
+	TObjectPtr<UNetworkPhysicsComponent> NetworkPhysicsComponent;
+
+	// The cached physics state is the latest output from the physics thread
+	// This can be different from the cached sync state on the mover component
+	// which is interpolated to match the interpolated physics particle
+	// Note: Time is physics solver time
+	FMoverSyncState CachedLastPhysicsSyncState;
+	double CachedLastPhysicsSyncStateOutputTime;
+	bool bCachedLastPhysicsSyncStateIsValid = false;
+
 	bool bCachedInputIsValid = false;
 };

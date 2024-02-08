@@ -71,6 +71,7 @@ void UPhysicsMoverManager::PrePhysicsUpdate(FPhysScene* PhysScene, float DeltaTi
 
 	while (Chaos::TSimCallbackOutputHandle<FPhysicsMoverManagerAsyncOutput> ManagerAsyncOutput = AsyncCallback->PopFutureOutputData_External())
 	{
+		const double OutputTime = ManagerAsyncOutput->InternalTime;
 		for (TWeakObjectPtr<UMoverNetworkPhysicsLiaisonComponent> PhysicsMoverComp : PhysicsMoverComponents)
 		{
 			Chaos::FUniqueIdx Idx = PhysicsMoverComp->GetUniqueIdx();
@@ -78,7 +79,7 @@ void UPhysicsMoverManager::PrePhysicsUpdate(FPhysScene* PhysScene, float DeltaTi
 			{
 				if (TUniquePtr<FPhysicsMoverAsyncOutput>* OutputData = ManagerAsyncOutput->PhysicsMoverToAsyncOutput.Find(Idx))
 				{
-					PhysicsMoverComp->GameThread_ConsumeOutput(**OutputData);
+					PhysicsMoverComp->ConsumeOutput_External(**OutputData, OutputTime);
 				}
 			}
 		}
@@ -93,7 +94,7 @@ void UPhysicsMoverManager::PrePhysicsUpdate(FPhysScene* PhysScene, float DeltaTi
 		for (TWeakObjectPtr<UMoverNetworkPhysicsLiaisonComponent> PhysicsMoverComp : PhysicsMoverComponents)
 		{
 			TUniquePtr<FPhysicsMoverAsyncInput> InputData = MakeUnique<FPhysicsMoverAsyncInput>();
-			PhysicsMoverComp->GameThread_ProduceInput(DeltaTime, *InputData);
+			PhysicsMoverComp->ProduceInput_External(DeltaTime, *InputData);
 			ManagerAsyncInput->AsyncInput.Add(MoveTemp(InputData));
 		}
 	}
