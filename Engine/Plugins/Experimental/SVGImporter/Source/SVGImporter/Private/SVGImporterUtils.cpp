@@ -172,6 +172,11 @@ bool FSVGImporterUtils::ShouldPolygonBeDrawn(const FSVGPathPolygon& ShapeToCheck
 	// Let's check the Ray against all other shapes
 	for (const FSVGPathPolygon& Shape : Polygons)
 	{
+		if (Shape.GetPolygon().GetVertices() == ShapeToCheck.GetPolygon().GetVertices())
+		{
+			continue;
+		}
+		
 		TArray<UE::Geometry::TSegment2<double>> Intersections;
 		if (FindIntersectingSegments(Ray, Shape.GetPolygon(), Intersections))
 		{

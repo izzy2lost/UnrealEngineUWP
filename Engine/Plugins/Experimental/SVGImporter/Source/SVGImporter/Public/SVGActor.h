@@ -128,8 +128,7 @@ protected:
 	void AddStrokeComponent(const TArray<FVector>& InPoints, float InThickness, const FColor& InColor, bool bIsClosed, bool bIsClockwise
 		, float InExtrudeOffset = 0.0f, const FString& InName = TEXT(""));
 
-	void AddFillComponent(const TArray<TArray<FVector2D>>& InShapesToDraw, const FColor& InColor, const TArray<TArray<FVector2D>>& InShapesToRemove
-		, float InExtrudeOffset = 0.0f, const FString& InName = TEXT(""));
+	void AddFillComponent(const TArray<FSVGPathPolygon>& InShapesToDraw, const FColor& InColor, float InExtrudeOffset = 0.0f, const FString& InName = TEXT(""));
 
 	void UpdateFillShapesSmoothing();
 	void UpdateFillShapesSmoothingEnable();

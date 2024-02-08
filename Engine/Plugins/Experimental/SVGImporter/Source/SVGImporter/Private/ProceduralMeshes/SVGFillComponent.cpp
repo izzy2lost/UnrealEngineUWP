@@ -13,9 +13,19 @@
 #include "Misc/TransactionObjectEvent.h"
 #endif
 
+void FSVGFillMeshData::Init(const TArray<FSVGPathPolygon>& InShapes)
+{
+	ShapesToDraw.Reset(InShapes.Num());
+	for (const FSVGPathPolygon& Shape : InShapes)
+	{
+		FSVGFillShape FillShape(Shape.Get2DVertices(), Shape.GetShouldBeDrawn());
+		ShapesToDraw.Emplace(FillShape);
+	}
+}
+
 void USVGFillComponent::GenerateFillMesh(const FSVGFillParameters& InFillParameters)
 {
-	FillMeshData.Init(InFillParameters.ShapesToDraw, InFillParameters.ShapesToRemove);
+	FillMeshData.Init(InFillParameters.Shapes);
 
 	SVGColor = InFillParameters.Color;
 	Color = SVGColor;
@@ -39,7 +49,7 @@ void USVGFillComponent::GenerateFillMeshInternal()
 	InitBasePolygons();
 
 	LoadCachedMeshToDynamicMesh(CachedBasePolygon);
-	ApplyExtrudeAndSubtract(GetExtrudeDepth());
+	ApplyExtrude(GetExtrudeDepth());
 	ApplySimplifyAndBevel();
 	ApplyFinalMeshChanges();
 	StoreCurrentMesh();
@@ -55,57 +65,62 @@ void USVGFillComponent::InitBasePolygons()
 	UDynamicMesh* DynamicMesh = NewObject<UDynamicMesh>();
 
 	// main polygon mesh
-	constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
 	for (const FSVGFillShape& ShapeToDraw : FillMeshData.ShapesToDraw)
 	{
 		if (ShapeToDraw.ShapeVertices.Num() >= 3)
 		{
-			if (bBypassClipper)
-			{
-				UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTriangulatedPolygon(DynamicMesh, PrimitiveOptions,  FTransform::Identity, ShapeToDraw.ShapeVertices);
-			}
-			else
-			{
-				UE::Geometry::FGeneralPolygon2d ShapePath{ShapeToDraw.ShapeVertices};
-				TArray<UE::Geometry::FGeneralPolygon2d> OffsetResult;
+			constexpr FGeometryScriptPrimitiveOptions PrimitiveOptions;
 
-				UE::Geometry::PolygonsOffset(SmoothingOffset, {ShapePath}, OffsetResult, true, 1.0, UE::Geometry::EPolygonOffsetJoinType::Round, UE::Geometry::EPolygonOffsetEndType::Polygon);
-
-				if (!OffsetResult.IsEmpty())
+			// Add shape
+			if (ShapeToDraw.bShouldBeDrawn)
+			{
+				if (bBypassClipper)
 				{
-					UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTriangulatedPolygon(DynamicMesh, PrimitiveOptions, FTransform::Identity, OffsetResult[0].GetOuter().GetVertices());
+					UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTriangulatedPolygon(DynamicMesh, PrimitiveOptions,  FTransform::Identity, ShapeToDraw.ShapeVertices);
+				}
+				else
+				{
+					UE::Geometry::FGeneralPolygon2d ShapePath{ShapeToDraw.ShapeVertices};
+					TArray<UE::Geometry::FGeneralPolygon2d> OffsetResult;
+
+					UE::Geometry::PolygonsOffset(SmoothingOffset, {ShapePath}, OffsetResult, true, 1.0, UE::Geometry::EPolygonOffsetJoinType::Round, UE::Geometry::EPolygonOffsetEndType::Polygon);
+
+					if (!OffsetResult.IsEmpty())
+					{
+						UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTriangulatedPolygon(DynamicMesh, PrimitiveOptions, FTransform::Identity, OffsetResult[0].GetOuter().GetVertices());
+					}
 				}
 			}
-
-			DynamicMesh->ProcessMesh([this](const FDynamicMesh3& Mesh)
+			// Cut hole
+			else
 			{
-				CachedBasePolygon = Mesh;
-			});
-		}
-	}
+				UDynamicMesh* SubtractMesh = NewObject<UDynamicMesh>();
+				UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTriangulatedPolygon(SubtractMesh, PrimitiveOptions, FTransform::Identity, ShapeToDraw.ShapeVertices);
 
-	DynamicMesh->Reset();
+				FTransform SubtractMeshTransform = FTransform::Identity;
+				SubtractMeshTransform.SetTranslation(FVector::DownVector * 0.5f);
+				UGeometryScriptLibrary_MeshTransformFunctions::TransformMesh(SubtractMesh, SubtractMeshTransform);
 
-	// holes polygon mesh
-	for (const FSVGFillShape& ShapeToRemove : FillMeshData.ShapesToRemove)
-	{
-		if (ShapeToRemove.ShapeVertices.Num() >= 3)
-		{
-			UE::Geometry::FGeneralPolygon2d ShapePath{ShapeToRemove.ShapeVertices};
-			TArray<UE::Geometry::FGeneralPolygon2d> OffsetResult;
+				FGeometryScriptMeshLinearExtrudeOptions ExtrudeOptions;
+				ExtrudeOptions.Distance  = 1.0f;
+				ExtrudeOptions.Direction = FVector::UpVector;
 
-			UE::Geometry::PolygonsOffset(SmoothingOffset, {ShapePath}, OffsetResult, true, 1.0, UE::Geometry::EPolygonOffsetJoinType::Round, UE::Geometry::EPolygonOffsetEndType::Polygon);
+				UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshLinearExtrudeFaces(SubtractMesh
+					, ExtrudeOptions
+					, FGeometryScriptMeshSelection()
+					, nullptr);
 
-			if (!OffsetResult.IsEmpty())
-			{
-				UGeometryScriptLibrary_MeshPrimitiveFunctions::AppendTriangulatedPolygon(DynamicMesh, PrimitiveOptions, FTransform::Identity, OffsetResult[0].GetOuter().GetVertices());
+				FGeometryScriptMeshBooleanOptions SubtractOptions;
+				SubtractOptions.bFillHoles = false;
+				SubtractOptions.bSimplifyOutput = true;
+				UGeometryScriptLibrary_MeshBooleanFunctions::ApplyMeshBoolean(DynamicMesh, FTransform::Identity, SubtractMesh, FTransform::Identity, EGeometryScriptBooleanOperation::Subtract, SubtractOptions);
 			}
 		}
 	}
 
 	DynamicMesh->ProcessMesh([this](const FDynamicMesh3& Mesh)
 	{
-		CachedCutPolygon = Mesh;
+		CachedBasePolygon = Mesh;
 	});
 }
 
@@ -166,32 +181,6 @@ void USVGFillComponent::RefreshNormals()
 	UGeometryScriptLibrary_MeshNormalsFunctions::RecomputeNormals(FillMesh, NormalsOptions);
 }
 
-void USVGFillComponent::CreateSubtractMesh(TWeakObjectPtr<UDynamicMesh>& SubtractMesh, float InExtrude) const
-{
-	SubtractMesh = NewObject<UDynamicMesh>();
-
-	if (CachedCutPolygon.IsSet())
-	{
-		SubtractMesh->EditMesh([this](FDynamicMesh3& EditMesh)
-		{
-			EditMesh = CachedCutPolygon.GetValue();
-		});
-
-		FTransform SubtractMeshTransform = FTransform::Identity;
-		SubtractMeshTransform.SetTranslation(FVector::DownVector * InExtrude * 0.5);
-		UGeometryScriptLibrary_MeshTransformFunctions::TransformMesh(SubtractMesh.Get(), SubtractMeshTransform);
-
-		FGeometryScriptMeshLinearExtrudeOptions ExtrudeOptions;
-		ExtrudeOptions.Distance  = InExtrude;
-		ExtrudeOptions.Direction = FVector::UpVector;
-
-		UGeometryScriptLibrary_MeshModelingFunctions::ApplyMeshLinearExtrudeFaces(SubtractMesh.Get()
-			, ExtrudeOptions
-			, FGeometryScriptMeshSelection()
-			, nullptr);
-	}
-}
-
 void USVGFillComponent::LoadCachedMeshToDynamicMesh(const TOptional<UE::Geometry::FDynamicMesh3>& InSourceMesh)
 {
 	if (!InSourceMesh.IsSet())
@@ -212,9 +201,9 @@ void USVGFillComponent::LoadCachedMeshToDynamicMesh(const TOptional<UE::Geometry
 	});
 }
 
-void USVGFillComponent::ApplyExtrudeAndSubtract(float InExtrudeValue)
+void USVGFillComponent::ApplyExtrude(float InExtrudeValue)
 {
-	UDynamicMesh* FillMesh = GetDynamicMesh();
+	const UDynamicMesh* FillMesh = GetDynamicMesh();
 	if (!FillMesh)
 	{
 		return;
@@ -232,18 +221,7 @@ void USVGFillComponent::ApplyExtrudeAndSubtract(float InExtrudeValue)
 			, nullptr);
 	}
 
-	// store it for later use
-	TWeakObjectPtr<UDynamicMesh> SubtractMesh;
-
-	const float SubtractExtrude = FMath::IsNearlyZero(InExtrudeValue) ? 1.0f : InExtrudeValue * 2.0f;
-	CreateSubtractMesh(SubtractMesh, SubtractExtrude);
-
-	FGeometryScriptMeshBooleanOptions SubtractOptions;
-	SubtractOptions.bFillHoles = false;
-	SubtractOptions.bSimplifyOutput = true;
-	UGeometryScriptLibrary_MeshBooleanFunctions::ApplyMeshBoolean(FillMesh, FTransform::Identity, SubtractMesh.Get(), FTransform::Identity, EGeometryScriptBooleanOperation::Subtract, SubtractOptions);
-
-	// store extruded mesh, pre-bevel
+	// Store extruded mesh, pre-bevel
 	FillMesh->ProcessMesh([&](const FDynamicMesh3& SourceEditMesh)
 	{
 		CachedExtrudedMesh = SourceEditMesh;
@@ -279,7 +257,7 @@ void USVGFillComponent::ApplyFillExtrude()
 	}
 
 	LoadCachedMeshToDynamicMesh(CachedBasePolygon);
-	ApplyExtrudeAndSubtract(MinExtrudeValue + Extrude);
+	ApplyExtrude(MinExtrudeValue + Extrude);
 	ApplySimplifyAndBevel();
 	ApplyFinalMeshChanges();
 	StoreCurrentMesh();

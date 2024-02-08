@@ -362,8 +362,7 @@ void ASVGActor::AddStrokeComponent(const TArray<FVector>& InPoints, float InThic
 	}
 }
 
-void ASVGActor::AddFillComponent(const TArray<TArray<FVector2D>>& InShapesToDraw, const FColor& InColor, const TArray<TArray<FVector2D>>& InShapesToRemove
-	, float InExtrudeOffset /* = 0 */, const FString& InName /* = "" */)
+void ASVGActor::AddFillComponent(const TArray<FSVGPathPolygon>& InShapesToDraw, const FColor& InColor, float InExtrudeOffset /* = 0 */, const FString& InName /* = "" */)
 {
 	if (!InShapesToDraw.IsEmpty())
 	{
@@ -389,7 +388,7 @@ void ASVGActor::AddFillComponent(const TArray<TArray<FVector2D>>& InShapesToDraw
 
 		DynFillComponent->SetExtrudeType(ExtrudeType);
 
-		FSVGFillParameters FillParams(InShapesToDraw, InShapesToRemove);
+		FSVGFillParameters FillParams(InShapesToDraw);
 		FillParams.Color = InColor;
 		FillParams.Extrude = InExtrudeOffset;
 		FillParams.bSimplify =  UE::SVGImporter::Private::bSimplifyFills;
@@ -455,10 +454,8 @@ void ASVGActor::CreateMeshesFromShape(const FSVGShape& InShape)
 		CurrExtrudeForDepth += DepthExtrude;
 	}
 
-	// each shape is made of a list of vertices
-	TArray<TArray<FVector2D>> FillShapesToCut;
-	TArray<TArray<FVector2D>> FillShapesToRender;
-
+	// Fill shapes need some information other than just vertices in order to be properly generated
+	TArray<FSVGPathPolygon> FillShapesToRender;
 	TArray<TArray<FVector>> StrokesToRender;
 
 	bool bForceFill = false;
@@ -470,28 +467,16 @@ void ASVGActor::CreateMeshesFromShape(const FSVGShape& InShape)
 			StrokesToRender.Add(ShapeToCheck.GetVertices());
 		}
 
-		bool bShouldDrawFill;
+		bool bShouldDrawFill = true;
 
 		if (InShape.PolygonsNum() == 1)
 		{
 			bShouldDrawFill = InShape.HasFill();
 		}
-		else
-		{
-			bShouldDrawFill = ShapeToCheck.GetShouldBeDrawn();
-		}
 
 		if (bShouldDrawFill)
 		{
-			TArray<FVector2D> FillShapeVertices;
-			FillShapeVertices.Append(ShapeToCheck.Get2DVertices());
-			FillShapesToRender.Add(FillShapeVertices);
-		}
-		else
-		{
-			TArray<FVector2D> FillShapeVertices;
-			FillShapeVertices.Append(ShapeToCheck.Get2DVertices());
-			FillShapesToCut.Add(FillShapeVertices);
+			FillShapesToRender.Add(ShapeToCheck);
 		}
 
 		bForceFill = bShouldDrawFill;
@@ -501,7 +486,7 @@ void ASVGActor::CreateMeshesFromShape(const FSVGShape& InShape)
 
 	if (InShape.HasFill() || bForceFill)
 	{
-		AddFillComponent(FillShapesToRender, InShape.GetFillColor(), FillShapesToCut, CurrExtrudeForDepth, InShape.GetId());
+		AddFillComponent(FillShapesToRender, InShape.GetFillColor(), CurrExtrudeForDepth, InShape.GetId());
 		bIncreaseExtrudeForDepth = true;
 	}
 
@@ -1021,6 +1006,12 @@ void ASVGActor::OnShapesGenerationEnd()
 #endif
 
 	ShowShapes();
+
+	// Make sure shapes are updated after generation
+	RefreshFillShapesBevel(EPropertyChangeType::ValueSet);
+	RefreshFillShapesExtrude(EPropertyChangeType::ValueSet);
+	RefreshStrokeShapesExtrude(EPropertyChangeType::ValueSet);
+	ApplyOffset();
 }
 
 void ASVGActor::OnShapesExtrudeEnd()
