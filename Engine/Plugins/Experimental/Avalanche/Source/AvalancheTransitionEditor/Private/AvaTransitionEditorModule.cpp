@@ -115,6 +115,9 @@ void FAvaTransitionEditorModule::ValidateStateTree(UAvaTransitionTree* InTransit
 		return;
 	}
 
+	// Disable Tree by default if being set up for the first time
+	InTransitionTree->SetEnabled(false);
+
 	UAvaTransitionTreeEditorData* const EditorData = NewObject<UAvaTransitionTreeEditorData>(InTransitionTree, NAME_None, RF_Transactional);
 	check(EditorData);
 

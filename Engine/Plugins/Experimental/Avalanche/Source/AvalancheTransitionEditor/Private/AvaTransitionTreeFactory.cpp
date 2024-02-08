@@ -28,6 +28,9 @@ UObject* UAvaTransitionTreeFactory::FactoryCreateNew(UClass* InClass, UObject* I
 		if (TransitionTree)
 		{
 			IAvaTransitionModule::Get().GetOnValidateTransitionTree().ExecuteIfBound(TransitionTree);
+
+			// Transition Tree Assets are always Enabled by Default
+			TransitionTree->SetEnabled(true);
 		}
 		return TransitionTree;
 	}

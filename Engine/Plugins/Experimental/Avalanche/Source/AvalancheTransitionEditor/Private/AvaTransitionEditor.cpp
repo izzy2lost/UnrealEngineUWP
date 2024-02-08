@@ -136,6 +136,7 @@ void FAvaTransitionEditor::SetupReadOnlyMenuProfiles(FReadOnlyAssetEditorCustomi
 	}
 
 	TSharedRef<FAvaTransitionToolbar> ViewModelToolbar = EditorViewModel->GetToolbar();
+	ViewModelToolbar->SetReadOnlyProfileName(FAssetEditorToolkit::GetToolMenuToolbarName(), GetReadOnlyMenuProfileName());
 	ViewModelToolbar->SetupReadOnlyCustomization(InReadOnlyCustomization);
 }
 
