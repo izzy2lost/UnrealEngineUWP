@@ -7,12 +7,13 @@ import { useSearchParams } from "react-router-dom";
 import { GetTelemetryChartResponse, GetTelemetryMetricsResponse, GetTelemetryVariableResponse, GetTelemetryViewResponse } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { useWindowSize } from "../../base/utilities/hooks";
-import { msecToElapsed } from "../../base/utilities/timeUtils";
+import { displayTimeZone, msecToElapsed } from "../../base/utilities/timeUtils";
 import { getHordeStyling } from "../../styles/Styles";
 import { Breadcrumbs } from "../Breadcrumbs";
 import { TopNav } from "../TopNav";
 import { TelemetryViewData, clearTelemetryViewMetrics, getTelemetryViewData, graphColors } from "./TelemetryData";
 import { TelemetryLineRenderer } from "./TelemetryLineGraph";
+import moment from "moment";
 
 const timeSelections: TimeSelection[] = [
    {
@@ -819,7 +820,7 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
          barStack.push({ value: 10, color: color, brightness: brightness });
       }
 
-      const name = legend.find(v => v.key === m.key)?.display ?? m.key;      
+      const name = legend.find(v => v.key === m.key)?.display ?? m.key;
 
       const element = <Stack horizontal verticalAlign="center" key={`indicator_bar_${metricIdCounter++}`}>
          <Stack style={{ width: 340 }}>
@@ -843,11 +844,121 @@ const IndicatorTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
    </Stack>
 })
 
+
+class Tooltip {
+   constructor() {
+      makeObservable(this);
+   }
+
+   subscribe() {
+      if (this.updated) { }
+   }
+
+   @action
+   set(key: string, x: number, y: number, time: Date, value: number, color: string) {
+
+      if (key === "__clear__") {
+         this.show = false;
+         this.updated++;
+         return;
+      }
+      this.show = true;
+      this.color = color;
+      this.key = key;
+      this.x = x;
+      this.y = y;
+      this.time = time;
+      this.value = value;
+      this.updated++;
+   }
+
+   show = false;
+
+   key: string = "";
+   x: number = 0;
+   y: number = 0;
+   time: Date = new Date();
+   value: number = 0;
+   color: string = "";
+
+   @observable
+   private updated = 0;
+}
+
+const GraphTooltip: React.FC<{ chart: GetTelemetryChartResponse, tooltip: Tooltip, legend: LegendEntry[] }> = observer(({ chart, tooltip, legend }) => {
+
+   const { modeColors } = getHordeStyling();
+
+   tooltip.subscribe();
+
+   if (!tooltip.show) {
+      return null;
+   }
+
+   let tipX = tooltip.x;
+   let offsetX = 32;
+   let translateX = "0%";
+
+   if (tipX > 800) {
+      offsetX = -32;
+      translateX = "-100%";
+   }
+
+   const translateY = "-50%";
+
+   const time = moment(tooltip.time).tz(displayTimeZone());   
+
+   let value = "";
+
+   if (chart.display === "Ratio") {
+      value = Math.round((tooltip.value * 100)).toString() + "%"
+   }
+   else if (chart.display === "Value") {
+      value = Math.round(tooltip.value).toString();
+   }
+   else {
+      value = msecToElapsed((tooltip.value) * 1000, true, true);
+   }
+
+   let name = legend.find(k => k.key === tooltip.key)?.display ?? tooltip.key;
+
+   return <div style={{
+      position: "absolute",
+      display: "block",
+      top: `${tooltip.y}px`,
+      left: `${tooltip.x + offsetX}px`,
+      backgroundColor: modeColors.background,
+      zIndex: 1,
+      border: "solid",
+      borderWidth: "1px",
+      borderRadius: "3px",
+      width: "max-content",
+      borderColor: dashboard.darktheme ? "#413F3D" : "#2D3F5F",
+      pointerEvents: "none",
+      transform: `translate(${translateX}, ${translateY})`
+   }}>
+      <Stack style={{padding: "16px 16px"}} tokens={{childrenGap: 8}}>
+         <Stack horizontal tokens={{childrenGap: 4}}>
+            <FontIcon style={{ color: tooltip.color , paddingTop: 3 }} iconName="Square" />
+            <Text>{name}</Text>
+         </Stack>
+         <Stack>
+            <Text>{time.format("MM/DD HH:mm")}</Text>
+         </Stack>
+         <Stack>
+            <Text>{value}</Text>
+         </Stack>
+      </Stack>
+   </div>
+
+})
+
 const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer(({ chart }) => {
 
    const [scale] = useState(1);
    const [container, setContainer] = useState<HTMLDivElement | null>(null);
    const renderer = useConst(chart.graph === "Line" ? new TelemetryLineRenderer() : new TelemetryLineRenderer());
+   const tooltip = useConst(new Tooltip());
 
    const { hordeClasses, modeColors } = getHordeStyling();
 
@@ -878,7 +989,12 @@ const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
             handler.onTimeSelect(chartName, minTime, maxTime);
          }
 
-         const zoomed = renderer.render(chart, metrics, legend.map(v => v.key), handler.minDate!, handler.maxDate!, container, onZoom, onTimeSelect, scale);
+         const onDataHover = (key: string, x: number, y: number, time: Date, value: number, color: string) => {
+
+            tooltip.set(key, x, y, time, value, color);
+         }
+
+         const zoomed = renderer.render(chart, metrics, legend.map(v => v.key), handler.minDate!, handler.maxDate!, container, onZoom, onTimeSelect, onDataHover, scale);
          handler.setZoomHandler(chart.name, zoomed);
 
       } catch (err) {
@@ -889,7 +1005,8 @@ const LineGraphTile: React.FC<{ chart: GetTelemetryChartResponse }> = observer((
 
    return <Stack className={hordeClasses.horde} key={`metric_graph_stack_${chart.name}`}>
       <Stack style={{ width: "100%", paddingTop: 16, paddingBottom: 16, paddingLeft: 16, backgroundColor: modeColors.background }} horizontal tokens={{ childrenGap: 12 }}>
-         <Stack style={{ width: width }}>
+         <Stack style={{ width: width, position: "relative" }}>
+            <GraphTooltip chart={chart} tooltip={tooltip} legend={legend} />
             <div id={graph_container_id} style={{ shapeRendering: "geometricPrecision", userSelect: "none" }} ref={(ref: HTMLDivElement) => setContainer(ref)} onMouseEnter={() => { }} onMouseLeave={() => { }} />
          </Stack>
          <Stack>

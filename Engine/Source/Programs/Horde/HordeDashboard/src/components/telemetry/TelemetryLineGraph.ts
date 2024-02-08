@@ -5,15 +5,15 @@ import dashboard from "../../backend/Dashboard";
 import { displayTimeZone, msecToElapsed } from "../../base/utilities/timeUtils";
 import { graphColors } from "./TelemetryData";
 
-
 type SelectionType = d3.Selection<SVGGElement, unknown, null, undefined>;
 type Zoom = d3.ZoomBehavior<Element, unknown>;
 type Scalar = d3.ScaleLinear<number, number, never>;
 
+type DataPoint = [number, number, string, number, number];
 
 export class TelemetryLineRenderer {
 
-   render(chart: GetTelemetryChartResponse, metrics: GetTelemetryMetricsResponse[], legend: string[], minTime: Date, maxTime: Date, container: HTMLDivElement, onZoom: (name: string, event: any) => void, onTimeSelect: (name: string, minTime: Date, maxTime: Date) => void, scale = 1.0): any {
+   render(chart: GetTelemetryChartResponse, metrics: GetTelemetryMetricsResponse[], legend: string[], minTime: Date, maxTime: Date, container: HTMLDivElement, onZoom: (name: string, event: any) => void, onTimeSelect: (name: string, minTime: Date, maxTime: Date) => void, onDataHover: (key: string, x: number, y: number, time: Date, value: number, color: string) => void, scale = 1.0): any {
 
       let minValue = Number.MAX_SAFE_INTEGER
       let maxValue = Number.MIN_SAFE_INTEGER
@@ -75,7 +75,7 @@ export class TelemetryLineRenderer {
          .attr("width", width - margin.left - margin.right + 2)
          .attr("height", height);
 
-      const points = allMetrics.map((m) => [x(m.time.getTime() / 1000), y(m.value), m.key, legend.indexOf(m.key) % graphColors.length]);
+      const points = allMetrics.map((m, index) => [x(m.time.getTime() / 1000), y(m.value), m.key, legend.indexOf(m.key) % graphColors.length, index]) as DataPoint[];
       const groups = d3.rollup(points, v => Object.assign(v, { z: v[0][2] }), d => d[2]);
       const gvalues = Array.from(groups.values());
 
@@ -92,20 +92,19 @@ export class TelemetryLineRenderer {
          .attr("stroke", d => { return d[0][3] !== undefined ? graphColors[d[0][3] as number] : "#8ab8ff" })
          .attr("d", line as any);
 
-      /*
-      const radius = 3.5
       svg.append("g")
          .selectAll("circle")
-         .data(gvalues)
+         .data(points)
          .join("circle")
-         .attr("id", i => `circle_whee`)
-         .attr("cx", i => {            
-            return (i[0][0] as number)
+         .attr("id", i => {
+            return `circle_id_${i[4]}`
          })
-         .attr("cy", i => (i[0][1] as number))
-         .attr("fill", i => "#00FFFF")
-         .attr("r", radius);
-      */
+         .attr("cx", (i) => {
+            return i[0];
+         })
+         .attr("cy", i => i[1])
+         .attr("fill", i => { return i[3] !== undefined ? graphColors[i[3] as number] : "#8ab8ff" })
+         .attr("r", 0);
 
       let ticks: number[] = [];
       const inc = (maxTime.getTime() - minTime.getTime()) / 10;
@@ -213,6 +212,70 @@ export class TelemetryLineRenderer {
          .call(brush);
 
       //svg.on("wheel", (event) => { event.preventDefault(); })
+
+      const keyPoints = new Map<string, DataPoint[]>();
+      points.forEach(p => {
+
+         if (!keyPoints.has(p[2])) {
+            keyPoints.set(p[2], [])
+         }
+         keyPoints.get(p[2])!.push(p);
+      });
+
+      const handleMouseMove = (event: any) => {
+
+         const mouseX = d3.pointer(event)[0];
+         const mouseY = d3.pointer(event)[1];
+
+         // find closest point on x axis for each data key
+         const closestX = new Map<string, DataPoint>();
+
+         keyPoints.forEach((values, key) => {
+
+            let closest = values.reduce((best, data, i) => {
+
+               let absx = Math.abs(data[0] - mouseX);
+
+               if (absx < best.value) {
+                  return { index: i, value: absx };
+               }
+               else {
+                  return best;
+               }
+
+            }, { index: 0, value: Number.MAX_SAFE_INTEGER });
+
+            closestX.set(key, values[closest.index]);
+         })
+
+         svg!.selectAll(`circle`).attr("r", 0);
+
+         let closestY: DataPoint | undefined;
+
+         closestX.forEach((point) => {
+
+            if (!closestY) {
+               closestY = point;
+            } else if (Math.abs(point[1] - mouseY) < Math.abs(closestY[1] - mouseY)) {
+               closestY = point;
+            }
+            svg!.select(`#circle_id_${point[4]}`).attr("r", 4);
+         })
+
+         if (closestY && Math.abs(closestY[1] - mouseY) < 16 && Math.abs(closestY[0] - mouseX) < 16) {
+            onDataHover(closestY[2], mouseX, mouseY, new Date(x.invert(closestY[0]) * 1000), y.invert(closestY[1]), closestY[3] !== undefined ? graphColors[closestY[3] as number] : "#8ab8ff")
+         } else {
+            onDataHover("__clear__", 0, 0, new Date(), 0, "");
+         }
+      }
+
+      const handleMouseLeave = (event: any) => {
+         svg!.selectAll(`circle`).attr("r", 0);
+         onDataHover("__clear__", 0, 0, new Date(), 0, "");
+      }
+
+      svg.on("mousemove", (event) => handleMouseMove(event))
+      svg.on("mouseleave", (event) => handleMouseLeave(event))
 
       return undefined;  //zoomed;
    }
