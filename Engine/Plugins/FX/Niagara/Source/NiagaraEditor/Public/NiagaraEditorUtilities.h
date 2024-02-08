@@ -250,7 +250,7 @@ namespace FNiagaraEditorUtilities
 
 	NIAGARAEDITOR_API bool IsScriptAssetInLibrary(const FAssetData& ScriptAssetData);
 
-	NIAGARAEDITOR_API bool IsEnginePluginAsset(const FAssetData& InAssetData);
+	NIAGARAEDITOR_API bool IsEnginePluginAsset(const FTopLevelAssetPath& InTopLevelAssetPath);
 
 	NIAGARAEDITOR_API int32 GetWeightForItem(const TSharedPtr<FNiagaraMenuAction_Generic>& Item, const TArray<FString>& FilterTerms);
 

@@ -514,22 +514,6 @@ int32 UNiagaraEditorSettings::GetAssetStatsSearchLimit() const
 	return AffectedAssetSearchLimit;
 }
 
-FNiagaraNewAssetDialogConfig UNiagaraEditorSettings::GetNewAssetDailogConfig(FName InDialogConfigKey) const
-{
-	const FNiagaraNewAssetDialogConfig* Config = NewAssetDialogConfigMap.Find(InDialogConfigKey);
-	if (Config != nullptr)
-	{
-		return *Config;
-	}
-	return FNiagaraNewAssetDialogConfig();
-}
-
-void UNiagaraEditorSettings::SetNewAssetDialogConfig(FName InDialogConfigKey, const FNiagaraNewAssetDialogConfig& InNewAssetDialogConfig)
-{
-	NewAssetDialogConfigMap.Add(InDialogConfigKey, InNewAssetDialogConfig);
-	SaveConfig();
-}
-
 FNiagaraNamespaceMetadata UNiagaraEditorSettings::GetDefaultNamespaceMetadata() const
 {
 	return DefaultNamespaceMetadata;
@@ -686,9 +670,14 @@ void UNiagaraEditorSettings::SetOnIsClassPathAllowed(const FOnIsClassPathAllowed
 	OnIsClassPathAllowedDelegate = InOnIsClassPathAllowed;
 }
 
-void UNiagaraEditorSettings::SetOnShouldFilterAssetByClassUsage(const FOnShouldFilterAssetByClassUsage& InOnShouldFilterAssetByClassUsage)
+void UNiagaraEditorSettings::SetOnShouldFilterAssetByClassUsage(const FOnShouldFilterAsset& InOnShouldFilterAssetByClassUsage)
 {
 	OnShouldFilterAssetByClassUsage = InOnShouldFilterAssetByClassUsage;
+}
+
+void UNiagaraEditorSettings::SetOnShouldFilterAssetInNiagaraAssetBrowser(const FOnShouldFilterAsset& InOnShouldFilterAssetInNiagaraAssetBrowser)
+{
+	OnShouldFilterAssetInNiagaraAssetBrowser = InOnShouldFilterAssetInNiagaraAssetBrowser;
 }
 
 bool UNiagaraEditorSettings::IsAllowedClass(const UClass* InClass) const
@@ -889,6 +878,16 @@ bool UNiagaraEditorSettings::IsAllowedAssetObjectByClassUsage(const UObject& InA
 	}
 
 	return IsAllowedAssetObjectByClassUsageInternal(InAssetObject, CheckedAssetObjects);
+}
+
+bool UNiagaraEditorSettings::IsAllowedAssetInNiagaraAssetBrowser(const FAssetData& InAssetData) const
+{
+	if(OnShouldFilterAssetInNiagaraAssetBrowser.IsBound())
+	{
+		return OnShouldFilterAssetInNiagaraAssetBrowser.Execute(FTopLevelAssetPath(InAssetData.GetObjectPathString())) == false;
+	}
+
+	return true;
 }
 
 bool UNiagaraEditorSettings::GetUpdateStackValuesOnCommitOnly() const

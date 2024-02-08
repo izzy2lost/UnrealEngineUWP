@@ -1639,11 +1639,10 @@ bool FNiagaraEditorUtilities::IsScriptAssetInLibrary(const FAssetData& ScriptAss
 	return GetScriptAssetVisibility(ScriptAssetData) == ENiagaraScriptLibraryVisibility::Library;
 }
 
-bool FNiagaraEditorUtilities::IsEnginePluginAsset(const FAssetData& InAssetData)
+bool FNiagaraEditorUtilities::IsEnginePluginAsset(const FTopLevelAssetPath& InTopLevelAssetPath)
 {
 	FString PackagePathLocal = "";
-	return 
-		FPackageName::TryConvertGameRelativePackagePathToLocalPath(InAssetData.PackagePath.ToString(), PackagePathLocal) &&
+	return FPackageName::TryConvertGameRelativePackagePathToLocalPath(InTopLevelAssetPath.ToString(), PackagePathLocal) &&
 		FPaths::IsUnderDirectory(PackagePathLocal, FPaths::EnginePluginsDir() + "FX/Niagara");
 }
 

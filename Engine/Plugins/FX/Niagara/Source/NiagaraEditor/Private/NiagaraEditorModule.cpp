@@ -2440,7 +2440,7 @@ void FNiagaraEditorModule::PreloadSelectablePluginAssetsByClass(UClass* InClass)
 		AssetRegistryModule.Get().GetAssetsByClass(InClass->GetClassPathName(), AllClassAssets);
 		for (FAssetData& ClassAsset : AllClassAssets)
 		{
-			if (ClassAsset.HasAnyPackageFlags(PKG_Cooked) && ClassAsset.IsAssetLoaded() == false && FNiagaraEditorUtilities::IsEnginePluginAsset(ClassAsset))
+			if (ClassAsset.HasAnyPackageFlags(PKG_Cooked) && ClassAsset.IsAssetLoaded() == false && FNiagaraEditorUtilities::IsEnginePluginAsset(FTopLevelAssetPath(ClassAsset.GetSoftObjectPath().ToString())))
 			{
 				ClassAsset.GetAsset();
 			}
