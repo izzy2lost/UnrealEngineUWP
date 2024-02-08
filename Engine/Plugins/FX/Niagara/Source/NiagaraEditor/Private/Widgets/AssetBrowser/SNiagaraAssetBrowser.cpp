@@ -159,7 +159,13 @@ FARFilter SNiagaraAssetBrowser::GetCurrentBackendFilter() const
 
 bool SNiagaraAssetBrowser::ShouldFilterAsset(const FAssetData& AssetData) const
 {
-	if(GetDefault<UNiagaraEditorSettings>()->IsAllowedAssetByClassUsage(AssetData) == false)
+	const UNiagaraEditorSettings* Settings = GetDefault<UNiagaraEditorSettings>();
+	if(Settings->IsAllowedAssetInNiagaraAssetBrowser(AssetData) == false)
+	{
+		return true;
+	}
+	
+	if(Settings->IsAllowedAssetByClassUsage(AssetData) == false)
 	{
 		return true;
 	}
