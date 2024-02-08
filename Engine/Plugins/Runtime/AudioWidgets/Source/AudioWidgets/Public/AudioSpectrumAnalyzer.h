@@ -4,9 +4,17 @@
 #include "ConstantQ.h"
 #include "SAudioSpectrumPlot.h"
 #include "Sound/AudioBus.h"
+#include "SynesthesiaSpectrumAnalysis.h"
 #include "UObject/StrongObjectPtr.h"
 
 class UWorld;
+
+UENUM(BlueprintType)
+enum class EAudioSpectrumAnalyzerType : uint8
+{
+	FFT UMETA(ToolTip = "Fast Fourier Transform"),
+	CQT UMETA(ToolTip = "Constant-Q Transform"),
+};
 
 namespace AudioWidgets
 {
@@ -28,16 +36,27 @@ namespace AudioWidgets
 		void Init(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
 
 	protected:
+		void StartAnalyzing();
+		void StopAnalyzing();
+
+		void OnSpectrumResults(USynesthesiaSpectrumAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FSynesthesiaSpectrumResults>& InSpectrumResultsArray);
 		void OnConstantQResults(UConstantQAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FConstantQResults>& InSpectrumResultsArray);
+		void UpdateARSmoothing(const float TimeStamp, TConstArrayView<float> SquaredMagnitudes);
+
 		FAudioPowerSpectrumData GetAudioSpectrumData() const;
+
 		void ExtendSpectrumPlotContextMenu(FMenuBuilder& MenuBuilder);
 		void BuildBallisticsSubMenu(FMenuBuilder& SubMenu);
+		void BuildAnalyzerTypeSubMenu(FMenuBuilder& SubMenu);
+
+		void SetAnalyzerType(const EAudioSpectrumAnalyzerType InAnalyzerType);
 
 	private:
 		void Teardown();
 
-		/** Audio analyzer object. */
-		TStrongObjectPtr<UConstantQAnalyzer> Analyzer;
+		/** Audio analyzer objects. */
+		TStrongObjectPtr<USynesthesiaSpectrumAnalyzer> SpectrumAnalyzer;
+		TStrongObjectPtr<UConstantQAnalyzer> ConstantQAnalyzer;
 
 		/** The audio bus used for analysis. */
 		TStrongObjectPtr<UAudioBus> AudioBus;
@@ -48,17 +67,22 @@ namespace AudioWidgets
 		/** Cached spectrum data, with AR smoothing applied. */
 		TArray<float> ARSmoothedSquaredMagnitudes;
 
-		/** Handle for results delegate for analyzer. */
-		FDelegateHandle ResultsDelegateHandle;
+		/** Handles for results delegate for analyzers. */
+		FDelegateHandle SpectrumResultsDelegateHandle;
+		FDelegateHandle ConstantQResultsDelegateHandle;
 
 		/** Analyzer settings. */
-		TStrongObjectPtr<UConstantQSettings> Settings;
+		TStrongObjectPtr<USynesthesiaSpectrumAnalysisSettings> SpectrumAnalysisSettings;
+		TStrongObjectPtr<UConstantQSettings> ConstantQSettings;
 
 		/** Slate widget for spectrum display */
 		TSharedPtr<SAudioSpectrumPlot> Widget;
 		TSharedPtr<const FExtensionBase> ContextMenuExtension;
 
+		Audio::FDeviceId AudioDeviceId = INDEX_NONE;
 		bool bUseExternalAudioBus = false;
+
+		EAudioSpectrumAnalyzerType AnalyzerType = EAudioSpectrumAnalyzerType::CQT;
 
 		TOptional<float> PrevTimeStamp;
 		float AttackTimeMsec = 300.0f;
