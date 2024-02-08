@@ -15,8 +15,8 @@
 
 	#include "Windows/HideWindowsPlatformTypes.h"
 #else
-#if PLATFORM_SWITCH
-	#include "SwitchSocketApiWrapper.h"
+#ifdef UE_SOCKET_API_WRAPPER
+	#include UE_SOCKET_API_WRAPPER
 #else
 	#include <unistd.h>
 	#include <sys/socket.h>
