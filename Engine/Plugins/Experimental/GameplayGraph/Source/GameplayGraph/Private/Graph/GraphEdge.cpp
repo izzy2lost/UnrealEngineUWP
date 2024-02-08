@@ -35,11 +35,3 @@ bool UGraphEdge::ContainsNode(const FGraphVertexHandle& InNode) const
 {
 	return (InNode == A) || (InNode == B);
 }
-
-FSerializedEdgeData UGraphEdge::GetSerializedData() const
-{
-	FSerializedEdgeData Nodes;
-	Nodes.Node1 = A;
-	Nodes.Node2 = B;
-	return Nodes;
-}

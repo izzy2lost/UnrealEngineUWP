@@ -5,19 +5,6 @@
 #include "Graph/GraphElement.h"
 #include "GraphIsland.generated.h"
 
-USTRUCT()
-struct FSerializedIslandData
-{
-	GENERATED_BODY()
-
-	UPROPERTY(SaveGame)
-	TArray<FGraphVertexHandle> Vertices;
-
-	// Comparison operators
-	friend bool operator==(const FSerializedIslandData& Lhs, const FSerializedIslandData& Rhs) = default;
-	friend bool operator!=(const FSerializedIslandData& Lhs, const FSerializedIslandData& Rhs) = default;
-};
-
 /**
  * These are the possible operations that can be done to an island. The graph
  * will attempt to check that the island is allowing these operations before
@@ -28,7 +15,7 @@ enum class EGraphIslandOperations : int32
 {
 	None = 0,
 	Add = 1 << 0,
-	Split = 1 << 1,
+Split = 1 << 1,
 	Merge = 1 << 2,
 	Destroy = 1 << 3,
 	All = Add | Split | Merge | Destroy
@@ -66,7 +53,6 @@ public:
 	bool IsEmpty() const { return Vertices.IsEmpty(); }
 	const TSet<FGraphVertexHandle>& GetVertices() const { return Vertices; }
 	int32 Num() const { return Vertices.Num(); }
-	FSerializedIslandData GetSerializedData() const;
 
 	bool IsOperationAllowed(EGraphIslandOperations Op) const { return EnumHasAnyFlags(AllowedOperations, Op); }
 	void SetOperationAllowed(EGraphIslandOperations Op, bool bAllowed);

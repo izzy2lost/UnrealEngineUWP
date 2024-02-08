@@ -14,6 +14,9 @@
 
 #include "Graph.generated.h"
 
+class IGraphSerialization;
+class IGraphDeserialization;
+
 USTRUCT()
 struct FGraphProperties
 {
@@ -30,31 +33,6 @@ struct FGraphProperties
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphVertexCreated, const FGraphVertexHandle&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphEdgeCreated, const FGraphEdgeHandle&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnGraphIslandCreated, const FGraphIslandHandle&);
-
-/**
- * The minimum amount of data we need to serialize to be able to reconstruct the graph as it was.
- * Note that classes that inherit from UGraph and its elements will no doubt want to extend the graph
- * with actual information on each node/edge/island. In that case, they should extend FSerializableGraph
- * to contain the extra information per graph handle. Furthermore, they'll need to extend UGraph to have
- * its own typed serialization save/load functions that call the base functions in UGraph first.
- */
-USTRUCT()
-struct FSerializableGraph
-{
-	GENERATED_BODY()
-
-	UPROPERTY(SaveGame)
-	FGraphProperties Properties;
-
-	UPROPERTY(SaveGame)
-	TArray<FGraphVertexHandle> Vertices;
-
-	UPROPERTY(SaveGame)
-	TMap<FGraphEdgeHandle, FSerializedEdgeData> Edges;
-
-	UPROPERTY(SaveGame)
-	TMap<FGraphIslandHandle, FSerializedIslandData> Islands;
-};
 
 struct FEdgeCreationParameters
 {
@@ -91,9 +69,6 @@ class GAMEPLAYGRAPH_API UGraph: public UObject
 	GENERATED_BODY()
 public:
 	UGraph() = default;
-
-	FSerializableGraph GetSerializableGraph() const;
-	void LoadFromSerializedGraph(const FSerializableGraph& Input);
 
 	void Empty();
 	void InitializeFromProperties(const FGraphProperties& Properties);
@@ -146,6 +121,24 @@ public:
 	const TMap<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& GetIslands() const { return Islands; }
 	const FGraphProperties& GetProperties() const { return Properties; }
 
+	UGraphVertex* GetSafeVertexFromHandle(const FGraphVertexHandle& Handle) const;
+	UGraphEdge* GetSafeEdgeFromHandle(const FGraphEdgeHandle& Handle) const;
+	UGraphIsland* GetSafeIslandFromHandle(const FGraphIslandHandle& Handle) const;
+
+	GAMEPLAYGRAPH_API friend void operator<<(IGraphSerialization& Output, const UGraph& Graph);
+	GAMEPLAYGRAPH_API friend void operator>>(const IGraphDeserialization& Input, UGraph& Graph);
+
+protected:
+	/** When we add multiple edges into the graph. This function will ensure that the interactions we make externally are kept to a minimum. */
+	void MergeOrCreateIslands(const TArray<FGraphEdgeHandle>& InEdges);
+
+	/** After a change, this function will remove the island if it's empty or will attempt to split it into two smaller islands. */
+	void RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island);
+
+	/** Used for bulk loading in vertices/edges/islands. */
+	void ReserveVertices(int32 Delta);
+	void ReserveEdges(int32 Delta);
+	void ReserveIslands(int32 Delta);
 private:
 	UPROPERTY()
 	TMap<FGraphVertexHandle, TObjectPtr<UGraphVertex>> Vertices;
@@ -171,12 +164,6 @@ private:
 
 	/** Add an island to the graph and modifies the NextAvailableIslandUniqueIndex as necessary to maintain its validity. */
 	void RegisterIsland(TObjectPtr<UGraphIsland> Edge);
-
-	/** When we add multiple edges into the graph. This function will ensure that the interactions we make externally are kept to a minimum. */
-	void MergeOrCreateIslands(const TArray<FGraphEdgeHandle>& InEdges);
-
-	/** After a change, this function will remove the island if it's empty or will attempt to split it into two smaller islands. */
-	void RemoveOrSplitIsland(TObjectPtr<UGraphIsland> Island);
 
 	/** Need this so that users aren't able to pass in bHandleIslands = false. */
 	void RemoveEdgeInternal(const FGraphEdgeHandle& EdgeHandle, bool bHandleIslands);

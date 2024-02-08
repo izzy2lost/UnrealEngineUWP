@@ -2,6 +2,8 @@
 #include "TestHarness.h"
 #include "TestGraphBuilder.h"
 
+#include "Graph/GraphDefaultSerialization.h"
+
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Write", "[graph]")
 {
 	PopulateVertices(6, true);
@@ -11,7 +13,9 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Write", "[graph]")
 	CHECK(Graph->NumEdges() == 4);
 	CHECK(Graph->NumIslands() == 2);
 
-	FSerializableGraph SerializedGraph = Graph->GetSerializableGraph();
+	FDefaultGraphSerialization Serializer;
+	Serializer << *Graph;
+	const FSerializableGraph& SerializedGraph = Serializer.GetData();
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(SerializedGraph.Vertices.Num() == 6);
 	CHECK(SerializedGraph.Vertices.Contains(VertexHandles[0]) == true);
@@ -78,7 +82,9 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read (normal)", "[gra
 
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr }, FSerializedIslandData { TArray{SerializedGraph.Vertices[0], SerializedGraph.Vertices[1], SerializedGraph.Vertices[2]} });
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr }, FSerializedIslandData { TArray{SerializedGraph.Vertices[3], SerializedGraph.Vertices[4], SerializedGraph.Vertices[5]} });
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 6);
@@ -135,7 +141,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Vertex:
 	SerializedGraph.Properties.bGenerateIslands = true;
 	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex{ FGuid{0, 0, 0, 0} }, nullptr });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 0);
 	CHECK(Graph->NumEdges() == 0);
@@ -150,7 +157,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Edge::I
 	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr });
 	SerializedGraph.Edges.Add(FGraphEdgeHandle { FGraphUniqueIndex{FGuid{0, 0, 0, 0}}, nullptr }, FSerializedEdgeData{ SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 2);
 	CHECK(Graph->NumEdges() == 0);
@@ -165,7 +173,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Edge::I
 	SerializedGraph.Vertices.Add(FGraphVertexHandle { FGraphUniqueIndex{FGuid{0, 0, 0, 2}}, nullptr });
 	SerializedGraph.Edges.Add(FGraphEdgeHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr }, FSerializedEdgeData{ SerializedGraph.Vertices[0], FGraphVertexHandle { FGraphUniqueIndex{FGuid{0, 0, 0, 3}}, nullptr } });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 2);
 	CHECK(Graph->NumEdges() == 0);
@@ -181,7 +190,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	SerializedGraph.Edges.Add(FGraphEdgeHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr }, FSerializedEdgeData{ SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] });
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{0, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray{SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] } });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 2);
 	CHECK(Graph->NumEdges() == 1);
@@ -198,7 +208,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	SerializedGraph.Edges.Add(FGraphEdgeHandle { FGraphUniqueIndex::CreateUniqueIndex(), nullptr }, FSerializedEdgeData{ SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] });
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray{ SerializedGraph.Vertices[0], SerializedGraph.Vertices[1], FGraphVertexHandle { FGraphUniqueIndex{FGuid{0, 0, 0, 3}}, nullptr } } });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 2);
 	CHECK(Graph->NumEdges() == 1);
@@ -226,7 +237,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0], SerializedGraph.Vertices[1] } });
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{2, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[2] } });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 3);
 	CHECK(Graph->NumEdges() == 2);
@@ -255,7 +267,8 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Serialization::Read::Errors::Island:
 
 	SerializedGraph.Islands.Add(FGraphIslandHandle { FGraphUniqueIndex{FGuid{1, 0, 0, 0}}, nullptr }, FSerializedIslandData { TArray { SerializedGraph.Vertices[0], SerializedGraph.Vertices[1], SerializedGraph.Vertices[2] } });
 
-	Graph->LoadFromSerializedGraph(SerializedGraph);
+	FDefaultGraphDeserialization Deserializer { SerializedGraph };
+	Deserializer >> *Graph;
 	CHECK(SerializedGraph.Properties == Graph->GetProperties());
 	CHECK(Graph->NumVertices() == 3);
 	CHECK(Graph->NumEdges() == 1);

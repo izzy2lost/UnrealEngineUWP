@@ -68,24 +68,12 @@ void UGraphIsland::RemoveVertex(const FGraphVertexHandle& Node)
 		return;
 	}
 
-	TObjectPtr<UGraphVertex> NodePtr = Node.GetVertex();
-	if (!NodePtr)
+	if (UGraphVertex* NodePtr = Node.GetVertex())
 	{
-		return;
+		NodePtr->SetParentIsland({});
 	}
-	NodePtr->SetParentIsland({});
 	Vertices.Remove(Node);
 	HandleOnVertexRemoved(Node);
-}
-
-FSerializedIslandData UGraphIsland::GetSerializedData() const
-{
-	FSerializedIslandData Out;
-	for (const FGraphVertexHandle& Handle : Vertices)
-	{
-		Out.Vertices.Add(Handle);
-	}
-	return Out;
 }
 
 void UGraphIsland::HandleOnVertexAdded(const FGraphVertexHandle& Handle)
