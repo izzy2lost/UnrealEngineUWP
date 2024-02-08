@@ -357,7 +357,10 @@ public:
 	{
 		ValidatePipeline(Initializer);
 		FGraphicsPipelineStateRHIRef PSO = RHI->RHICreateGraphicsPipelineState(Initializer);
-		PSO->DSMode = Initializer.DepthStencilState->ActualDSMode;
+		if (PSO.IsValid())
+		{
+			PSO->DSMode = Initializer.DepthStencilState->ActualDSMode;
+		}
 		return PSO;
 	}
 
@@ -370,7 +373,10 @@ public:
 	{
 		ValidatePipeline(Initializer);
 		FGraphicsPipelineStateRHIRef PSO = RHI->RHICreateGraphicsPipelineState(Initializer);
-		PSO->DSMode = Initializer.DepthStencilState->ActualDSMode;
+		if (PSO.IsValid())
+		{
+			PSO->DSMode = Initializer.DepthStencilState->ActualDSMode;
+		}
 		return PSO;
 	}
 
