@@ -323,11 +323,6 @@ void AAvaScene::SetStartupCameraName(FName InName)
 {
 	StartupCameraName = InName;
 }
-
-void AAvaScene::SetViewportGuideData(const TConstArrayView<FAvaViewportGuideInfo_Deprecated>& InGuideData)
-{
-	GuideData = InGuideData;
-}
 #endif
 
 #undef LOCTEXT_NAMESPACE
