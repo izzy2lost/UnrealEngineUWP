@@ -22,6 +22,7 @@
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EditorFramework/AssetImportData.h"
 #include "Engine/Level.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/Texture2D.h"
@@ -764,7 +765,12 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 
 namespace UE::UsdXformableTranslatorImpl::Private
 {
-	void AssignDrawModeComponentTextures(UE::FUsdPrim Prim, UUsdDrawModeComponent* DrawModeComponent, UUsdAssetCache2& AssetCache, FUsdInfoCache& InfoCache)
+	void AssignDrawModeComponentTextures(
+		UE::FUsdPrim Prim,
+		UUsdDrawModeComponent* DrawModeComponent,
+		UUsdAssetCache2& AssetCache,
+		FUsdInfoCache& InfoCache
+	)
 	{
 		if (!Prim)
 		{
@@ -784,9 +790,10 @@ namespace UE::UsdXformableTranslatorImpl::Private
 		}
 
 		// Collect textures from the info cache (they will all be linked to this Prim but will have within their AssetUserData the attribute
-		// that they originated from)
+		// that they originated from).
+		// The info cache may have old textures in case we're changing editing the stage, so we track multiple textures per attribute.
 		TArray<UTexture2D*> Textures = InfoCache.GetAssetsForPrim<UTexture2D>(Prim.GetPrimPath());
-		std::unordered_map<pxr::SdfPath, UTexture2D*, pxr::SdfPath::Hash> AttrPathToTextures;
+		std::unordered_map<pxr::SdfPath, TArray<UTexture2D*>, pxr::SdfPath::Hash> AttrPathToTextures;
 		for (UTexture2D* Texture : Textures)
 		{
 			if (UUsdAssetUserData* AssetUserData = Texture->GetAssetUserData<UUsdAssetUserData>())
@@ -801,7 +808,8 @@ namespace UE::UsdXformableTranslatorImpl::Private
 					pxr::SdfPath SdfPath = UnrealToUsd::ConvertPath(*TexturePath).Get();
 					if (SdfPath.IsPropertyPath())
 					{
-						AttrPathToTextures.insert({SdfPath, Texture});
+						TArray<UTexture2D*>& TexturesForAttr = AttrPathToTextures[SdfPath];
+						TexturesForAttr.AddUnique(Texture);
 					}
 				}
 			}
@@ -842,12 +850,26 @@ namespace UE::UsdXformableTranslatorImpl::Private
 
 				if (TextureSetter)
 				{
-					std::unordered_map<pxr::SdfPath, UTexture2D*, pxr::SdfPath::Hash>::iterator iter = AttrPathToTextures.find(Attr.GetPath());
+					std::unordered_map<pxr::SdfPath, TArray<UTexture2D*>, pxr::SdfPath::Hash>::iterator iter = AttrPathToTextures.find(Attr.GetPath());
 					if (iter != AttrPathToTextures.end())
 					{
-						if (UTexture2D* Texture = iter->second)
+						const FString TexturePath = UsdUtils::GetResolvedAssetPath(Attr);
+
+						const TArray<UTexture2D*>& Textures = iter->second;
+						for (UTexture2D* Texture : Textures)
 						{
-							(DrawModeComponent->*TextureSetter)(Texture);
+							if (!Texture)
+							{
+								continue;
+							}
+
+							if (UAssetImportData* ImportData = Texture->AssetImportData)
+							{
+								if (FPaths::IsSamePath(TexturePath, ImportData->GetFirstFilename()))
+								{
+									(DrawModeComponent->*TextureSetter)(Texture);
+								}
+							}
 						}
 					}
 				}
