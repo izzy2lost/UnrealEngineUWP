@@ -1870,20 +1870,22 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			continue;
 		}
 
-		if (OperationData->bUseMeshCache)
-		{
-			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[Component.Id]))
-			{
-				SkeletalMeshes[Component.Id] = CachedMesh;
-				continue;
-			}
-		}
-
 		if (!ComponentsData.IsValidIndex(Component.Id))
 		{
 			bSuccess = false;
 			ensure(false);
 			continue;
+		}
+
+		if (OperationData->bUseMeshCache)
+		{
+			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[Component.Id]))
+			{
+				check(OperationData->MeshDescriptors[Component.Id].Num() == MAX_MESH_LOD_COUNT);
+				ComponentsData[Component.Id].LastMeshIdPerLOD = OperationData->MeshDescriptors[Component.Id];
+				SkeletalMeshes[Component.Id] = CachedMesh;
+				continue;
+			}
 		}
 
 		// Reset last mesh IDs.
