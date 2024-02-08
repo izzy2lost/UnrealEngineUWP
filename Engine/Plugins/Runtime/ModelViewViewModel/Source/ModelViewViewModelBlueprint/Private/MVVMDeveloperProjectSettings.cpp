@@ -76,7 +76,7 @@ bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const UStruct* ObjectSt
 
 namespace UE::MVVM::Private
 {
-bool ShouldDoPropertyEditorPermission(const UBlueprint* GeneratingFor, const UClass* FieldOwner)
+bool ShouldDoFieldEditorPermission(const UBlueprint* GeneratingFor, const UClass* FieldOwner)
 {
 	if (GeneratingFor && FieldOwner)
 	{
@@ -96,7 +96,7 @@ bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const UBlueprint* Generati
 	const UClass* AuthoritativeClass = Cast<const UClass>(ObjectStruct);
 	AuthoritativeClass = AuthoritativeClass ? AuthoritativeClass->GetAuthoritativeClass() : nullptr;
 
-	const bool bDoPropertyEditorPermission = UE::MVVM::Private::ShouldDoPropertyEditorPermission(GeneratingFor, AuthoritativeClass);
+	const bool bDoPropertyEditorPermission = UE::MVVM::Private::ShouldDoFieldEditorPermission(GeneratingFor, AuthoritativeClass);
 	if (bDoPropertyEditorPermission)
 	{
 		if (!FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(AuthoritativeClass, Property->GetFName()))
@@ -110,7 +110,7 @@ bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const UBlueprint* Generati
 		TStringBuilder<512> StringBuilder;
 		AuthoritativeClass->GetPathName(nullptr, StringBuilder);
 		FSoftClassPath StructPath;
-		StructPath.SetPath(StringBuilder);
+		StructPath.SetPath(StringBuilder.ToView());
 
 		for (const TPair<FSoftClassPath, FMVVMDeveloperProjectWidgetSettings>& PermissionItem : FieldSelectorPermissions)
 		{
@@ -142,26 +142,29 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* Generati
 		return false;
 	}
 
-	TStringBuilder<512> StringBuilder;
-	const FPathPermissionList& FunctionPermissions = GetMutableDefault<UBlueprintEditorSettings>()->GetFunctionPermissions();
-	if (FunctionPermissions.HasFiltering())
+	const bool bDoPropertyEditorPermission = UE::MVVM::Private::ShouldDoFieldEditorPermission(GeneratingFor, AuthoritativeClass);
+	if (bDoPropertyEditorPermission)
 	{
-		const UFunction* FunctionToTest = AuthoritativeClass->FindFunctionByName(Function->GetFName());
-		if (FunctionToTest == nullptr)
+		const FPathPermissionList& FunctionPermissions = GetMutableDefault<UBlueprintEditorSettings>()->GetFunctionPermissions();
+		if (FunctionPermissions.HasFiltering())
 		{
-			return false;
-		}
+			const UFunction* FunctionToTest = AuthoritativeClass->FindFunctionByName(Function->GetFName());
+			if (FunctionToTest == nullptr)
+			{
+				return false;
+			}
 
-		StringBuilder.Reset();
-		FunctionToTest->GetPathName(nullptr, StringBuilder);
-		if (!FunctionPermissions.PassesFilter(StringBuilder.ToView()))
-		{
-			return false;
+			TStringBuilder<512> StringBuilder;
+			FunctionToTest->GetPathName(nullptr, StringBuilder);
+			if (!FunctionPermissions.PassesFilter(StringBuilder.ToView()))
+			{
+				return false;
+			}
 		}
 	}
 
 	{
-		StringBuilder.Reset();
+		TStringBuilder<512> StringBuilder;
 		AuthoritativeClass->GetPathName(nullptr, StringBuilder);
 		FSoftClassPath StructPath;
 		StructPath.SetPath(StringBuilder);
