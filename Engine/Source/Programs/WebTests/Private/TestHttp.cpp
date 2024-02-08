@@ -729,6 +729,30 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout",
 	HttpRequest->ProcessRequest();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request won't trigger activity timeout after cancelling", HTTP_TAG)
+{
+	HttpModule->HttpActivityTimeout = 2.0f;
+
+	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 5/*ChunkLatency*/));
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+
+	const double TimeToWaitBeforeCancel = 1.0f;
+	const double StartTime = FPlatformTime::Seconds();
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, TimeToWaitBeforeCancel](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TimeToWaitBeforeCancel, HTTP_TIME_DIFF_TOLERANCE));
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::Cancelled);
+	});
+	HttpRequest->ProcessRequest();
+	FPlatformProcess::Sleep(TimeToWaitBeforeCancel);
+	HttpRequest->CancelRequest();
+	FPlatformProcess::Sleep(3.0f); // Just make sure there is no warning or assert triggered by the activity timeout callback
+}
+
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request receive won't timeout for streaming request", HTTP_TAG)
 {
 	HttpModule->HttpActivityTimeout = 3.0f;
@@ -753,12 +777,12 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request total timeout with
 	DisableWarningsInThisTest();
 
 	float TotalTimeoutSetting = 3.0f;
-	HttpModule->HttpTotalTimeout = TotalTimeoutSetting;
 	HttpModule->HttpConnectionTimeout = 5.0f;
 
 	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
 	HttpRequest->SetURL(UrlMockLatency(10));
 	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->SetTimeout(TotalTimeoutSetting);
 
 	const double StartTime = FPlatformTime::Seconds();
 
