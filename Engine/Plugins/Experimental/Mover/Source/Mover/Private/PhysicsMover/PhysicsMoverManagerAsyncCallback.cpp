@@ -33,7 +33,7 @@ void FPhysicsMoverManagerAsyncCallback::ProcessInputs_Internal(int32 PhysicsStep
 		const FPhysicsMoverAsyncInput& AsyncInput = *InputDataArray[Idx];
 		if (AsyncInput.IsValid())
 		{
-			AsyncInput.MoverSimulation->AsyncPhysics_ProcessInputs(PhysicsStep, DeltaTime, AsyncInput);
+			AsyncInput.MoverSimulation->ProcessInputs_Internal(PhysicsStep, DeltaTime, AsyncInput);
 		}
 	};
 
@@ -65,7 +65,7 @@ void FPhysicsMoverManagerAsyncCallback::OnPreSimulate_Internal()
 		if (AsyncInput.IsValid())
 		{
 			TUniquePtr<FPhysicsMoverAsyncOutput> AsyncOutput = MakeUnique<FPhysicsMoverAsyncOutput>();
-			AsyncInput.MoverSimulation->AsyncPhysics_OnPreSimulate(TickParams, AsyncInput, *AsyncOutput);
+			AsyncInput.MoverSimulation->OnPreSimulate_Internal(TickParams, AsyncInput, *AsyncOutput);
 			ManagerAsyncOutput.PhysicsMoverToAsyncOutput.Add(AsyncInput.MoverIdx, MoveTemp(AsyncOutput));
 		}
 	};
@@ -95,7 +95,7 @@ void FPhysicsMoverManagerAsyncCallback::OnContactModification_Internal(Chaos::FC
 		const FPhysicsMoverAsyncInput& AsyncInput = *InputDataArray[Idx];
 		if (AsyncInput.IsValid())
 		{
-			AsyncInput.MoverSimulation->ASyncPhysics_OnContactModification(AsyncInput, Modifier);
+			AsyncInput.MoverSimulation->OnContactModification_Internal(AsyncInput, Modifier);
 		}
 	};
 

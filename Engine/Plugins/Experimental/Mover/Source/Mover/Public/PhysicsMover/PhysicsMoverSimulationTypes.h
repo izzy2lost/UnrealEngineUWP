@@ -33,23 +33,6 @@ struct FPhysicsMoverSimulationTickParams
 	float DeltaTimeSeconds = 0.0f;
 };
 
-struct FPhysicsMoverSimulationInput
-{
-	FMoverInputCmdContext InputCmd;
-	FMoverSyncState SyncState;
-	FMoverAuxStateContext AuxState;
-};
-
-struct FPhysicsMoverSimulationOutput
-{
-	bool IsValid() const { return bIsValid; }
-
-	FMoverSyncState SyncState;
-	FMoverAuxStateContext AuxState;
-	FFloorCheckResult FloorResult;
-	bool bIsValid = false;
-};
-
 namespace Chaos { class FCharacterGroundConstraintHandle; }
 
 struct FPhysicsMoverAsyncInput
@@ -62,7 +45,6 @@ struct FPhysicsMoverAsyncInput
 	// Input is modified during ProcessInputs_Internal
 	mutable FMoverInputCmdContext InputCmd;
 	mutable FMoverSyncState SyncState;
-	mutable FMoverAuxStateContext AuxState;
 
 	TWeakObjectPtr<class UMoverNetworkPhysicsLiaisonComponent> MoverSimulation;
 	Chaos::FUniqueIdx MoverIdx;
@@ -71,7 +53,6 @@ struct FPhysicsMoverAsyncInput
 struct FPhysicsMoverAsyncOutput
 {
 	FMoverSyncState SyncState;
-	FMoverAuxStateContext AuxState;
 	FFloorCheckResult FloorResult;
 	bool bIsValid = false;
 };
