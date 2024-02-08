@@ -72,8 +72,13 @@ namespace Chaos
 
 	struct FClusterUnionParticleProperties
 	{
+		FClusterUnionParticleProperties()
+			: bIsAuxiliaryParticle(0)
+			, bEdgesAreGenerated(0)
+		{}
 		// An auxiliary particle will be removed from the cluster union if FRigidClustering::HandleConnectivityOnReleaseClusterParticle detects an island made up of only auxiliary particles.
-		bool bIsAuxiliaryParticle = false;
+		uint8 bIsAuxiliaryParticle: 1;
+		uint8 bEdgesAreGenerated: 1;
 	};
 
 	struct FClusterUnion
@@ -207,6 +212,8 @@ namespace Chaos
 
 		// Update the cluster union's properties after its set of particle changes.
 		CHAOS_API void UpdateAllClusterUnionProperties(FClusterUnion& ClusterUnion, EUpdateClusterUnionPropertiesFlags Flags = EUpdateClusterUnionPropertiesFlags::All);
+
+		CHAOS_API  void AddParticleToConnectionGraphInCluster(FClusterUnion& ClusterUnion, FPBDRigidParticleHandle* Particle);
 
 		// Returns all cluster unions. Really meant only to be used for debugging.
 		const TMap<FClusterUnionIndex, FClusterUnion>& GetAllClusterUnions() const { return ClusterUnions; }
