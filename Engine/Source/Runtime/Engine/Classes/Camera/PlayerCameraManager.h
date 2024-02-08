@@ -408,6 +408,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager)
 	uint32 bIsOrthographic : 1;
 
+	/** True when this camera should automatically calculated the Near+Far planes */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerCameraManager)
+	uint32 bAutoCalculateOrthoPlanes : 1;
+
 	/** True if black bars should be added if the destination view has a different aspect ratio (only used when a view target doesn't specify whether or not to constrain the aspect ratio; most of the time the value from a camera component is used instead) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=PlayerCameraManager)
 	uint32 bDefaultConstrainAspectRatio : 1;

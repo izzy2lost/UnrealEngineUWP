@@ -39,6 +39,7 @@ APlayerCameraManager::APlayerCameraManager(const FObjectInitializer& ObjectIniti
 	DefaultAspectRatio = 1.33333f;
 	bDefaultConstrainAspectRatio = false;
 	DefaultOrthoWidth = 512.0f;
+	bAutoCalculateOrthoPlanes = true;
 	SetHidden(true);
 	bReplicates = false;
 	FreeCamDistance = 256.0f;
@@ -363,6 +364,15 @@ void APlayerCameraManager::UpdateViewTarget(FTViewTarget& OutVT, float DeltaTime
 	OutVT.POV.bConstrainAspectRatio = bDefaultConstrainAspectRatio;
 	OutVT.POV.ProjectionMode = bIsOrthographic ? ECameraProjectionMode::Orthographic : ECameraProjectionMode::Perspective;
 	OutVT.POV.PostProcessBlendWeight = 1.0f;
+
+	if (bAutoCalculateOrthoPlanes)
+	{
+		OutVT.POV.bAutoCalculateOrthoPlanes = true;
+		if (OutVT.Target)
+		{
+			OutVT.POV.SetOrthoCameraArmLengthFromOwnerLocation(OutVT.Target->GetActorLocation());
+		}
+	}
 
 	bool bDoNotApplyModifiers = false;
 

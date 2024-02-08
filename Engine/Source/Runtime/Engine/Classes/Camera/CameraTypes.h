@@ -57,6 +57,10 @@ struct FMinimalViewInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	float OrthoWidth;
 
+	/** Option for the Ortho camera to automatically calculated the near/far plane */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
+	bool bAutoCalculateOrthoPlanes;
+
 	/** The near plane distance of the orthographic view (in world units) */
 	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category=Camera)
 	float OrthoNearClipPlane;
@@ -103,12 +107,19 @@ struct FMinimalViewInfo
 	/** Optional transform to be considered as this view's previous transform */
 	TOptional<FTransform> PreviousViewTransform;
 
+private:
+	// Only used for Ortho camera auto plane calculations, tells the Near plane of the extra distance that needs to be added.
+	float OrthoCameraArmLength;
+
+public:
+
 	FMinimalViewInfo()
 		: Location(ForceInit)
 		, Rotation(ForceInit)
 		, FOV(90.0f)
 		, DesiredFOV(90.0f)
 		, OrthoWidth(512.0f)
+		, bAutoCalculateOrthoPlanes(true)
 		, OrthoNearClipPlane(0.0f)
 		, OrthoFarClipPlane(UE_OLD_WORLD_MAX)
 		, PerspectiveNearClipPlane(-1.0f)
@@ -118,6 +129,7 @@ struct FMinimalViewInfo
 		, ProjectionMode(ECameraProjectionMode::Perspective)
 		, PostProcessBlendWeight(0.0f)
 		, OffCenterProjectionOffset(ForceInitToZero)
+		, OrthoCameraArmLength(0.0f)
 	{
 	}
 
@@ -138,14 +150,23 @@ struct FMinimalViewInfo
 	ENGINE_API FMatrix CalculateProjectionMatrix(float ForceOrthoNegativeNearPlane = 0.0f) const;
 
 	/** Calculates the projection matrix (and potentially a constrained view rectangle) given a FMinimalViewInfo and partially configured projection data (must have the view rect already set) */
-	ENGINE_API static void CalculateProjectionMatrixGivenView(const FMinimalViewInfo& ViewInfo, TEnumAsByte<enum EAspectRatioAxisConstraint> AspectRatioAxisConstraint, class FViewport* Viewport, struct FSceneViewProjectionData& InOutProjectionData);
+	ENGINE_API static void CalculateProjectionMatrixGivenView(FMinimalViewInfo& ViewInfo, TEnumAsByte<enum EAspectRatioAxisConstraint> AspectRatioAxisConstraint, class FViewport* Viewport, struct FSceneViewProjectionData& InOutProjectionData);
 	/** Calculates the projection matrix (and potentially a constrained view rectangle) given a FMinimalViewInfo and partially configured projection data (must have the view rect already set). ConstrainedViewRectangle is only used if the ViewInfo.bConstrainAspectRatio is set. */
-	ENGINE_API static void CalculateProjectionMatrixGivenViewRectangle(const FMinimalViewInfo& ViewInfo, TEnumAsByte<enum EAspectRatioAxisConstraint> AspectRatioAxisConstraint, const FIntRect& ConstrainedViewRectangle, FSceneViewProjectionData& InOutProjectionData);
+	ENGINE_API static void CalculateProjectionMatrixGivenViewRectangle(FMinimalViewInfo& ViewInfo, TEnumAsByte<enum EAspectRatioAxisConstraint> AspectRatioAxisConstraint, const FIntRect& ConstrainedViewRectangle, FSceneViewProjectionData& InOutProjectionData);
 
 	/** The near plane distance of the perspective view (in world units). Returns the value of PerspectiveNearClipPlane if positive, and GNearClippingPlane otherwise */
 	FORCEINLINE float GetFinalPerspectiveNearClipPlane() const
 	{
 		return PerspectiveNearClipPlane > 0.0f ? PerspectiveNearClipPlane : GNearClippingPlane;
+	}
+
+	/** Automatically calculates the Near/Far plane values for an Ortho camera */
+	ENGINE_API bool AutoCalculateOrthoPlanes(const FSceneViewProjectionData& InOutProjectionData);
+
+	/** Sets the camera distance from view target for AutoCalculateOrthoPlanes */
+	ENGINE_API inline void SetOrthoCameraArmLengthFromOwnerLocation(const FVector ActorLocation)
+	{
+		OrthoCameraArmLength = (ActorLocation - Location).Length();
 	}
 };
 
