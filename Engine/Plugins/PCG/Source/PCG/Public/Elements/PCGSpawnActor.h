@@ -3,7 +3,7 @@
 #pragma once
 
 #include "PCGSubgraph.h"
-#include "Metadata/PCGActorPropertyOverride.h"
+#include "Metadata/PCGObjectPropertyOverride.h"
 
 #include "PCGSpawnActor.generated.h"
 
@@ -74,7 +74,7 @@ public:
 	TObjectPtr<AActor> TemplateActor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition = "Option != EPCGSpawnActorOption::CollapseActors", EditConditionHides))
-	TArray<FPCGActorPropertyOverrideDescription> SpawnedActorPropertyOverrideDescriptions;
+	TArray<FPCGObjectPropertyOverrideDescription> SpawnedActorPropertyOverrideDescriptions;
 
 	UPROPERTY(meta = (PCG_Overridable))
 	TSoftObjectPtr<AActor> RootActor;

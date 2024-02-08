@@ -46,6 +46,7 @@ struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadin
 	// Per-input context variables
 	bool bCurrentInputSetup = false;
 	bool bSelectionDone = false;
+	bool bPartitionDone = false;
 
 	const UPCGPointData* CurrentPointData = nullptr;
 	UPCGPointData* CurrentOutputPointData = nullptr;
@@ -67,6 +68,10 @@ struct FPCGStaticMeshSpawnerContext : public FPCGContext, public IPCGAsyncLoadin
 
 	// Used in the weighted by category selector
 	TMap<PCGMetadataValueKey, FPCGInstancesAndWeights> CategoryEntryToInstancesAndWeights;
+
+	// Used for mesh property overrides
+	TArray<TArray<int32>> AttributeOverridePartition;
+	TArray<FSoftISMComponentDescriptor> OverriddenDescriptors;
 
 	void ResetInputIterationData();
 };

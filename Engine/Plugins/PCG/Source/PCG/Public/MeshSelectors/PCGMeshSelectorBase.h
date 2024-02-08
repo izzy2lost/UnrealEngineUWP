@@ -28,6 +28,7 @@ struct FPCGMeshInstanceList
 
 	explicit FPCGMeshInstanceList(const FSoftISMComponentDescriptor& InDescriptor)
 		: Descriptor(InDescriptor)
+		, AttributePartitionIndex(INDEX_NONE)
 	{}
 
 	UPROPERTY(EditAnywhere, Category = Settings)
@@ -38,6 +39,9 @@ struct FPCGMeshInstanceList
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	TArray<int64> InstancesMetadataEntry;
+
+	/** Tracks which partition the instance list belongs to. */
+	int64 AttributePartitionIndex;
 };
 
 UENUM()

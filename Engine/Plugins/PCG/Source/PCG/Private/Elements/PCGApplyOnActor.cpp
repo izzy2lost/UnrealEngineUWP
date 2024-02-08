@@ -21,7 +21,7 @@ TArray<FPCGPinProperties> UPCGApplyOnActorSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultDependencyOnlyLabel, EPCGDataType::Any, /*bAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true, PCGApplyOnActorConstants::DependencyTooltip);
-	PinProperties.Add(PCGActorPropertyOverrideHelpers::CreateActorPropertiesOverridePin(PCGApplyOnActorConstants::ActorPropertyOverridesLabel, PCGApplyOnActorConstants::ActorPropertyOverridesTooltip));
+	PinProperties.Add(PCGObjectPropertyOverrideHelpers::CreateObjectPropertiesOverridePin(PCGApplyOnActorConstants::ActorPropertyOverridesLabel, PCGApplyOnActorConstants::ActorPropertyOverridesTooltip));
 	return PinProperties;
 }
 
@@ -46,7 +46,7 @@ bool FPCGApplyOnActorElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
-	PCGActorPropertyOverrideHelpers::ApplyOverridesFromParams(Settings->PropertyOverrideDescriptions, TargetActor, PCGApplyOnActorConstants::ActorPropertyOverridesLabel, Context);
+	PCGObjectPropertyOverrideHelpers::ApplyOverridesFromParams(Settings->PropertyOverrideDescriptions, TargetActor, PCGApplyOnActorConstants::ActorPropertyOverridesLabel, Context);
 
 	for (UFunction* Function : PCGHelpers::FindUserFunctions(TargetActor->GetClass(), Settings->PostProcessFunctionNames, { UPCGFunctionPrototypes::GetPrototypeWithNoParams() }, Context))
 	{

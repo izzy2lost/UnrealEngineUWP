@@ -122,6 +122,12 @@ bool UPCGMeshSelectorWeighted::SelectInstances(
 	TArray<TArray<FPCGMeshInstanceList>>& MeshInstances = Context.WeightedMeshInstances;
 	TArray<int>& CumulativeWeights = Context.CumulativeWeights;
 
+	// TODO: Remove this log once the other selection modes are available
+	if (!Settings->StaticMeshComponentPropertyOverrides.IsEmpty())
+	{
+		PCGE_LOG_C(Log, LogOnly, &Context, LOCTEXT("AttributeToPropertyOverrideUnavailable", "Attribute to Property Overrides are only currently available with the 'By Attribute' Selector"));
+	}
+
 	// Setup
 	if (Context.CurrentPointIndex == 0)
 	{

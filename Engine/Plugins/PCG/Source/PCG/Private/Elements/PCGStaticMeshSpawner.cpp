@@ -12,6 +12,7 @@
 #include "Helpers/PCGHelpers.h"
 #include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
 #include "MeshSelectors/PCGMeshSelectorBase.h"
+#include "MeshSelectors/PCGMeshSelectorByAttribute.h"
 #include "MeshSelectors/PCGMeshSelectorWeighted.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
@@ -518,6 +519,20 @@ void UPCGStaticMeshSpawnerSettings::PostEditChangeProperty(FPropertyChangedEvent
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+bool UPCGStaticMeshSpawnerSettings::CanEditChange(const FProperty* InProperty) const
+{
+	// TODO: In place temporarily, until the other two modes are supported
+	if (InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGStaticMeshSpawnerSettings, StaticMeshComponentPropertyOverrides))
+	{
+		if (!MeshSelectorType->IsChildOf(UPCGMeshSelectorByAttribute::StaticClass()))
+		{
+			return false;
+		}
+	}
+
+	return Super::CanEditChange(InProperty);
 }
 #endif
 
