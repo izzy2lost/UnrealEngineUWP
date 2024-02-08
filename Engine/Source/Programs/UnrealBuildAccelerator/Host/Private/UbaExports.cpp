@@ -216,6 +216,13 @@ extern "C"
 		}
 		#endif
 
+		StringBuffer<256> zoneTemp;
+		if (!zone || !*zone)
+		{
+			zoneTemp.count = GetEnvironmentVariableW(TC("UBA_ZONE"), zoneTemp.data, zoneTemp.capacity);
+			zone = zoneTemp.data;
+		}
+
 		StorageServerCreateInfo info(server, rootDir, writer);
 		info.casCapacityBytes = casCapacityBytes;
 		info.storeCompressed = storeCompressed;
