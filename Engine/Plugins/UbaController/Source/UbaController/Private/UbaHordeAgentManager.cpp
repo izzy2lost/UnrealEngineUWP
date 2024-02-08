@@ -37,6 +37,7 @@ FUbaHordeAgentManager::FUbaHordeAgentManager(const FString& InWorkingDir, uba::N
 	,	LastRequestFailTime(1)
 	,	TargetCoreCount(0)
 	,	EstimatedCoreCount(0)
+	,   ActiveCoreCount(0)
 	,	AskForAgents(true)
 {
 	ParseConfig();
@@ -84,6 +85,17 @@ void FUbaHordeAgentManager::SetTargetCoreCount(uint32 Count)
 			Iterator.RemoveCurrentSwap();
 		}
 	}
+}
+
+int32 FUbaHordeAgentManager::GetAgentCount() const
+{
+	FScopeLock AgentsScopeLock(&AgentsLock);
+	return Agents.Num();
+}
+
+uint32 FUbaHordeAgentManager::GetActiveCoreCount() const
+{
+	return ActiveCoreCount;
 }
 
 // Creates a bundle blob (one of several chunks of a file) to be uploaded to Horde

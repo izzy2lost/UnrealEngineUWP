@@ -26,7 +26,8 @@ public:
 	virtual void InitializeController() override final;
 	virtual FString CreateUniqueFilePath() override final;
 	virtual TFuture<FDistributedBuildTaskResult> EnqueueTask(const FTaskCommandData& CommandData) override final;
-	
+	virtual bool PollStats(FDistributedBuildStats& OutStats) override;
+
 	void ReportJobProcessed(const FTaskResponse& InTaskResponse, FTask* CompileTask);
 	void CleanWorkingDirectory() const;
 

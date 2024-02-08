@@ -16,6 +16,12 @@ public:
 
 	void SetTargetCoreCount(uint32 Count);
 
+	// Returns the number of agents currently handled by this agent manager.
+	int32 GetAgentCount() const;
+
+	// Returns the active number of cores allocated across all agents.
+	uint32 GetActiveCoreCount() const;
+
 private:
 	struct FHordeAgentWrapper
 	{
@@ -40,7 +46,7 @@ private:
 	FCriticalSection UbaAgentBundleFilePathLock;
 	FString UbaAgentBundleFilePath;
 
-	FCriticalSection AgentsLock;
+	mutable FCriticalSection AgentsLock;
 	TArray<TUniquePtr<FHordeAgentWrapper>> Agents;
 
 	TAtomic<uint64> LastRequestFailTime;

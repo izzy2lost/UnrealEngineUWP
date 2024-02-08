@@ -212,6 +212,11 @@ TFuture<FDistributedBuildTaskResult> FUbaControllerModule::EnqueueTask(const FTa
 	return MoveTemp(Future);
 }
 
+bool FUbaControllerModule::PollStats(FDistributedBuildStats& OutStats)
+{
+	return JobDispatcherThread != nullptr && JobDispatcherThread->PollStats(OutStats);
+}
+
 void FUbaControllerModule::ReportJobProcessed(const FTaskResponse& InTaskResponse, FTask* CompileTask)
 {
 	if (CompileTask)

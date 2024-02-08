@@ -4720,6 +4720,11 @@ void FShaderCompilerStats::WriteStatSummary()
 		UE_LOG(LogShaderCompilers, Display, TEXT("Total thread preprocess time: %s s"), *FormatNumber(TotalThreadPreprocessTimeForAllShaders));
 		UE_LOG(LogShaderCompilers, Display, TEXT("Percentage time preprocessing: %.2f%%"), TotalThreadTimeForAllShaders > 0.0 ? (TotalThreadPreprocessTimeForAllShaders / TotalThreadTimeForAllShaders) * 100.0 : 0.0);
 
+		if (Counters.MaxRemoteAgents > 0)
+		{
+			UE_LOG(LogShaderCompilers, Display, TEXT("Highest number of remote agents active in parallel: %u (%u active cores peak)"), Counters.MaxRemoteAgents, Counters.MaxActiveAgentCores);
+		}
+
 		if (TotalTimeAtLeastOneJobWasInFlight > 0.0)
 		{
 			double EffectiveParallelization = TotalThreadTimeForAllShaders / TotalTimeAtLeastOneJobWasInFlight;
@@ -5272,6 +5277,13 @@ void FShaderCompilerStats::RegisterJobBatch(int32 NumJobs, EExecutionType ExecTy
 	{
 		checkNoEntry();
 	}
+}
+
+void FShaderCompilerStats::RegisterDistributedBuildStats(const FDistributedBuildStats& InStats)
+{
+	FScopeLock Lock(&CompileStatsLock);
+	Counters.MaxRemoteAgents = FMath::Max(Counters.MaxRemoteAgents, InStats.MaxRemoteAgents);
+	Counters.MaxActiveAgentCores = FMath::Max(Counters.MaxActiveAgentCores, InStats.MaxActiveAgentCores);
 }
 
 void FShaderCompilerStats::FMaterialCounters::WriteStatSummary(const TCHAR* AggregatedSuffix)

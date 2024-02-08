@@ -6,6 +6,7 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 #include "UbaExports.h"
+#include "DistributedBuildControllerInterface.h"
 
 class FUbaControllerModule;
 class FUbaHordeAgentManager;
@@ -37,6 +38,8 @@ public:
 
 	bool HasJobsInFlight() const;
 
+	bool PollStats(FDistributedBuildStats& OutStats);
+
 private:
 
 	void CalculateKnownInputs();
@@ -44,6 +47,8 @@ private:
 
 	void StartUba();
 	void ShutDownUba();
+
+	void UpdateStats();
 
 	/** The runnable thread */
 	FRunnableThread* Thread;
@@ -75,4 +80,7 @@ private:
 	TArray<uba::tchar> KnownInputsBuffer;
 
 	uba::CallbackLogWriter LogWriter;
+
+	FCriticalSection StatsLock;
+	FDistributedBuildStats Stats;
 };

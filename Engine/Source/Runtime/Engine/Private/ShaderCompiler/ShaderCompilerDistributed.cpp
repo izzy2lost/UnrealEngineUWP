@@ -102,6 +102,12 @@ void FShaderCompileDistributedThreadRunnable_Interface::DispatchShaderCompileJob
 			MoveTemp(OutputFilePath)
 		)
 	);
+
+	FDistributedBuildStats Stats;
+	if (CachedController.PollStats(Stats))
+	{
+		GShaderCompilerStats->RegisterDistributedBuildStats(Stats);
+	}
 }
 
 TArray<FString> FShaderCompileDistributedThreadRunnable_Interface::GetDependencyFilesForJobs(

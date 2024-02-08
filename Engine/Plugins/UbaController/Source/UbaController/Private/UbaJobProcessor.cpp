@@ -407,6 +407,8 @@ uint32 FUbaJobProcessor::Run()
 			
 			// TODO: Not sure this is a good idea in a cooking scenario where number of queued processes are going up and down
 			SessionServer_SetMaxRemoteProcessCount(UbaSessionServer, TargetCoreCount);
+
+			UpdateStats();
 		}
 
 		lock.Unlock();
@@ -522,4 +524,22 @@ bool FUbaJobProcessor::HasJobsInFlight() const
 	uint32 finished = 0;
 	Scheduler_GetStats(UbaScheduler, queued, activeLocal, activeRemote, finished);	
 	return (queued + activeLocal + activeRemote) != 0;
+}
+
+bool FUbaJobProcessor::PollStats(FDistributedBuildStats& OutStats)
+{
+	// Return current stats and reset internal data
+	FScopeLock StatsLockGuard(&StatsLock);
+	OutStats = Stats;
+	Stats = FDistributedBuildStats();
+	return true;
+}
+
+void FUbaJobProcessor::UpdateStats()
+{
+	FScopeLock StatsLockGuard(&StatsLock);
+
+	// Update maximum
+	Stats.MaxRemoteAgents = FMath::Max(Stats.MaxRemoteAgents, (uint32)HordeAgentManager->GetAgentCount());
+	Stats.MaxActiveAgentCores = FMath::Max(Stats.MaxActiveAgentCores, HordeAgentManager->GetActiveCoreCount());
 }

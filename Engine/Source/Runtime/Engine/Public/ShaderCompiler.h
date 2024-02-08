@@ -308,6 +308,8 @@ private:
 /** Results for a single compiled and finalized shader map. */
 using FShaderMapFinalizeResults = FShaderMapCompileResults;
 
+struct FDistributedBuildStats;
+
 class FShaderCompilerStats
 {
 public:
@@ -435,6 +437,9 @@ public:
 	/** Informs statistics about a new job batch, so we can tally up batches. */
 	void RegisterJobBatch(int32 NumJobs, EExecutionType ExecType);
 
+	/** Informs about current distributed build statistics. */
+	void RegisterDistributedBuildStats(const FDistributedBuildStats& InStats);
+
 	ENGINE_API void GatherAnalytics(const FString& BaseName, TArray<FAnalyticsEventAttribute>& Attributes);
 
 private:
@@ -540,6 +545,12 @@ private:
 		/** Memory budget allocated for the job cache */
 		uint64 CacheMemBudget = 0;
 
+		/** Maximum number of remote agents used during compilation. */
+		uint32 MaxRemoteAgents = 0;
+
+		/** Maximum number of CPU cores active across all remote agents. */
+		uint32 MaxActiveAgentCores = 0;
+
 		FCounters& operator+=(const FCounters& Other)
 		{
 			AccumulatedLocalWorkerIdleTime += Other.AccumulatedLocalWorkerIdleTime;
@@ -576,6 +587,8 @@ private:
 			UniqueCacheOutputs += Other.UniqueCacheOutputs;
 			CacheMemUsed += Other.CacheMemUsed;
 			CacheMemBudget += Other.CacheMemBudget;
+			MaxRemoteAgents += Other.MaxRemoteAgents;
+			MaxActiveAgentCores += Other.MaxActiveAgentCores;
 
 			return *this;
 		}
