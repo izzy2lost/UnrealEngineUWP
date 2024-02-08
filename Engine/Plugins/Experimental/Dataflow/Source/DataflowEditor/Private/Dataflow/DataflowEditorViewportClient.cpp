@@ -10,6 +10,7 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowPreviewScene.h"
 #include "EditorModeManager.h"
+#include "EdModeInteractiveToolsContext.h"
 #include "GraphEditor.h"
 #include "PreviewScene.h"
 #include "Selection.h"
@@ -133,21 +134,36 @@ void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* Hi
 		}
 	};
 	
-	if (USelection* SelectedComponents = ModeTools->GetSelectedComponents())
+	auto IsInteractiveToolActive = [&]()
 	{
-
-		UpdateSelectedComponentInViewport(SelectedComponents);
-
-		if (bool bIsAltKeyDown = Viewport->KeyState(EKeys::LeftAlt) || Viewport->KeyState(EKeys::RightAlt))
+		if (UDataflowEditorMode* DataflowMode = Cast<UDataflowEditorMode>(
+			PreviewScene->GetDataflowModeManager()->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
 		{
-			if (UDataflowEditorCollectionComponent* DataflowComponent
-				= SelectedComponents->GetBottom<UDataflowEditorCollectionComponent>())
+			if (UEditorInteractiveToolsContext* const ToolsContext = DataflowMode->GetInteractiveToolsContext())
 			{
-				SelectSingleNodeInGraph(DataflowComponent->Node);
+				return ToolsContext->HasActiveTool();
 			}
 		}
+		return false;
+	};
 
-		EnableToolForSelectedNode(SelectedComponents);
+	if (!IsInteractiveToolActive())
+	{
+		if (USelection* SelectedComponents = ModeTools->GetSelectedComponents())
+		{
+			UpdateSelectedComponentInViewport(SelectedComponents);
+
+			if (bool bIsAltKeyDown = Viewport->KeyState(EKeys::LeftAlt) || Viewport->KeyState(EKeys::RightAlt))
+			{
+				if (UDataflowEditorCollectionComponent* DataflowComponent
+					= SelectedComponents->GetBottom<UDataflowEditorCollectionComponent>())
+				{
+					SelectSingleNodeInGraph(DataflowComponent->Node);
+				}
+			}
+
+			EnableToolForSelectedNode(SelectedComponents);
+		}
 	}
 }
 

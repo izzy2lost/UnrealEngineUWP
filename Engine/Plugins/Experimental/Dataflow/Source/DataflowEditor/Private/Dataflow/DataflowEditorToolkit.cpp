@@ -583,7 +583,6 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				}
 			}
 			SelectedComponents->EndBatchSelectOperation();
-			//GetDataflowContent()->SetIsDirty(true);
 		}
 	};
 
