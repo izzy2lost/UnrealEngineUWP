@@ -54,6 +54,7 @@ public:
 	/** Dataflow Content Access */
 	const TObjectPtr<UDataflowBaseContent> GetDataflowContent() const;
 	TObjectPtr<UDataflowBaseContent> GetDataflowContent();
+	const TSharedPtr<SDataflowGraphEditor> GetDataflowGraphEditor() const { return GraphEditor; }
 
 	// IToolkit interface
 	virtual FName GetToolkitFName() const override;

@@ -531,6 +531,15 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 		}
 	};
 
+	auto IsControlDown = [&DataflowEditor = GraphEditor]()
+	{
+		if (DataflowEditor)
+		{
+			return DataflowEditor->IsControlDown();
+		}
+		return false;
+	};
+
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
@@ -601,7 +610,6 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 
 				EditorContent->SetPrimarySelectedNode(PrimarySelection);
 			}
-			EditorContent->SetIsDirty(true);
 		}
 	}
 }

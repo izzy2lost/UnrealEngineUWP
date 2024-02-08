@@ -449,6 +449,11 @@ void UDataflowEditorWeightMapPaintTool::Shutdown(EToolShutdownType ShutdownType)
 		PolygonSelectionMechanic = nullptr;
 	}
 
+	if (WeightMapNodeToUpdate)
+	{
+		WeightMapNodeToUpdate->Invalidate();
+	}
+
 	UMeshSculptToolBase::Shutdown(ShutdownType);
 }
 

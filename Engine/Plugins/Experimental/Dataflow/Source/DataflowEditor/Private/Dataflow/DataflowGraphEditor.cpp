@@ -204,6 +204,11 @@ FReply SDataflowGraphEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEv
 	return SGraphEditor::OnKeyUp(MyGeometry, InKeyEvent);
 }
 
+bool SDataflowGraphEditor::IsControlDown() const
+{
+	return LeftControlKeyDown || RightControlKeyDown;
+}
+
 
 FReply SDataflowGraphEditor::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {

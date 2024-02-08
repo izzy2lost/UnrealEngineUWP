@@ -1,9 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Dataflow/DataflowEditorViewportClient.h"
 
+#include "AssetEditorModeManager.h"
 #include "Dataflow/DataflowObject.h"
+#include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorToolkit.h"
+#include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowEngineSceneHitProxies.h"
+#include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowPreviewScene.h"
 #include "EditorModeManager.h"
 #include "PreviewScene.h"
@@ -52,32 +56,72 @@ void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* Hi
 {
 	Super::ProcessClick(View, HitProxy, Key, Event, HitX, HitY);
 
-	USelection* SelectedComponents = ModeTools->GetSelectedComponents();
-
-	TArray<UPrimitiveComponent*> PreviouslySelectedComponents;
-	SelectedComponents->GetSelectedObjects<UPrimitiveComponent>(PreviouslySelectedComponents);
-
-	SelectedComponents->Modify();
-	SelectedComponents->BeginBatchSelectOperation();
-
-	SelectedComponents->DeselectAll();
-
-	if (HitProxy && HitProxy->IsA(HActor::StaticGetType()))
+	auto EnableToolForSelectedNode = [&](USelection* SelectedComponents)
 	{
-		const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
-		if (ActorProxy && ActorProxy->PrimComponent && ActorProxy->Actor)
+		if (TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin())
 		{
-			UPrimitiveComponent* Component = const_cast<UPrimitiveComponent*>(ActorProxy->PrimComponent.Get());
-			SelectedComponents->Select(Component);
+			if (PreviewScene && PreviewScene->GetDataflowModeManager())
+			{
+				if (UDataflowEditorMode* DataflowMode = Cast<UDataflowEditorMode>(PreviewScene->GetDataflowModeManager()->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)))
+				{
+					if (TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowEditorToolkit->GetDataflowGraphEditor())
+					{
+						if (UEdGraphNode* SelectedNode = GraphEditor->GetSingleSelectedNode())
+						{
+							if (SelectedComponents && SelectedComponents->Num() == 1)
+							{
+								if (UDataflowEditorCollectionComponent* CollectionComponent =
+									Cast< UDataflowEditorCollectionComponent>(SelectedComponents->GetSelectedObject(0)))
+								{
+									if (CollectionComponent->Node == SelectedNode)
+									{
+										// Start the corresponding tool
+										DataflowMode->StartToolForSelectedNode(SelectedNode);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	};
+
+	auto UpdateSelectedComponentInViewport = [&](USelection* SelectedComponents)
+	{
+		TArray<UPrimitiveComponent*> PreviouslySelectedComponents;
+		SelectedComponents->GetSelectedObjects<UPrimitiveComponent>(PreviouslySelectedComponents);
+
+		SelectedComponents->Modify();
+		SelectedComponents->BeginBatchSelectOperation();
+
+		SelectedComponents->DeselectAll();
+
+		if (HitProxy && HitProxy->IsA(HActor::StaticGetType()))
+		{
+			const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
+			if (ActorProxy && ActorProxy->PrimComponent && ActorProxy->Actor)
+			{
+				UPrimitiveComponent* Component = const_cast<UPrimitiveComponent*>(ActorProxy->PrimComponent.Get());
+				SelectedComponents->Select(Component);
+				Component->PushSelectionToProxy();
+			}
+		}
+
+		SelectedComponents->EndBatchSelectOperation();
+
+		for (UPrimitiveComponent* const Component : PreviouslySelectedComponents)
+		{
 			Component->PushSelectionToProxy();
 		}
-	}
 
-	SelectedComponents->EndBatchSelectOperation();
-
-	for (UPrimitiveComponent* const Component : PreviouslySelectedComponents)
+	};
+	
+	const bool bIsCtrltKeyDown = Viewport->KeyState(EKeys::LeftControl) || Viewport->KeyState(EKeys::RightControl);
+	if (USelection* SelectedComponents = ModeTools->GetSelectedComponents())
 	{
-		Component->PushSelectionToProxy();
+		UpdateSelectedComponentInViewport(SelectedComponents);
+		EnableToolForSelectedNode(SelectedComponents);
 	}
 }
 

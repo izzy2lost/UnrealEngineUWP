@@ -40,7 +40,7 @@ void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
 	Collector.AddReferencedObject(DataflowContent);
 	Collector.AddReferencedObject(RootSceneActor);
-	
+
 	GetDataflowContent()->AddContentObjects(Collector);
 }
 
@@ -342,17 +342,6 @@ void FDataflowConstructionScene::UpdateConstructionScene()
 	// Attach a wireframe renderer to the DynamicMeshComponents
 	UpdateWireframeMeshElementsVisualizer();
 
-	// Manage Selection and Tool Interaction
-    if (DataflowModeManager.IsValid())
-    {
-    	USelection* SelectedComponents = DataflowModeManager->GetSelectedComponents();
-    	SelectedComponents->DeselectAll();
-    	for (FRenderElement RenderElement : DynamicMeshComponents)
-    	{
-    		SelectedComponents->Select(RenderElement.Value);
-			RenderElement.Value->PushSelectionToProxy();
-    	}
-    }
 	DataflowContent->SetIsDirty(false);
 }
 

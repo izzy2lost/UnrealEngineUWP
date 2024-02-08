@@ -72,6 +72,9 @@ public:
 		return ActiveToolsContext;
 	}
 
+
+	void StartToolForSelectedNode(const UObject* SelectedNode);
+
 private:
 	friend class FDataflowEditorToolkit;
 	friend class FDataflowEditorModeToolkit;
@@ -107,7 +110,6 @@ private:
 	void RefocusRestSpaceViewportClient();
 	void FirstTimeFocusRestSpaceViewport();
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
-	void StartToolForSelectedNode(const UObject* SelectedNode);
 	void OnDataflowNodeDeleted(const TSet<UObject*>& DeletedNodes);
 
 	/**
