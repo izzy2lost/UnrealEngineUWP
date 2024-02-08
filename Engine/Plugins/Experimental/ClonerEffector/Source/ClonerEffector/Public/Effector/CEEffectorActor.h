@@ -27,9 +27,6 @@ public:
 
 	ACEEffectorActor();
 
-	CLONEREFFECTOR_API void LinkCloner(ACEClonerActor* InCloner);
-	CLONEREFFECTOR_API void UnlinkCloner(ACEClonerActor* InCloner);
-
 	UFUNCTION(BlueprintCallable, Category="Effector")
 	CLONEREFFECTOR_API void SetType(ECEClonerEffectorType InType);
 
@@ -357,6 +354,10 @@ public:
 #endif
 
 protected:
+	/** Used to trigger a refresh on linked cloner */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEffectorIdentifierChanged, ACEEffectorActor* /** InEffectorActor */)
+	static FOnEffectorIdentifierChanged OnEffectorRefreshClonerDelegate;
+
 	//~ Begin AActor
 	virtual void Destroyed() override;
 	virtual void PostActorCreated() override;
@@ -375,34 +376,11 @@ protected:
 	virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
 	//~ End UObject
 
-	/** For each valid cloner that has this effector registered, loops in the internal cloner array */
-	void ForEachCloner(TFunctionRef<bool(ACEClonerActor*, int32)> InFunction, bool bSkipIdxCheck = false);
+	int32 GetChannelIdentifier() const;
 
-	void OnEffectorSubsystemInitialized(const UWorld* World);
-
-	/** Registers this effector to data channel */
-	void RegisterToChannel();
-
-	/** Called when this effector identifier changed to update linked cloners */
-	void OnEffectorIdentifierChanged();
-
-	FCEClonerEffectorChannelData& GetEffectorChannelData()
-	{
-		return ChannelData;
-	}
+	FCEClonerEffectorChannelData& GetChannelData();
 
 	void OnEffectorTransformed(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport);
-
-	void OnClonerUpdated(ACEClonerActor* InCloner, int32 InEffectorIdx) {}
-	void OnClonerLinked(ACEClonerActor* InCloner, int32 InEffectorIdx);
-	void OnClonerUnlinked(ACEClonerActor* InCloner, int32 InEffectorIdx);
-
-	/** Will update cloner system only if effector is enabled or force update is true, update will happen next tick */
-	void RefreshClonerParameters(ACEClonerActor* InCloner, bool bInForce = false) const;
-	void RefreshClonersParameters(bool bInForce = false);
-
-	/** Will register this effector with linked clones */
-	void RegisterToCloners();
 
 	/** Will update all values of this effector on all clones */
 	void OnEffectorChanged();
@@ -412,9 +390,6 @@ protected:
 
 	/** Called when we disable this effector */
 	void OnEffectorDisabled();
-
-	/** Called when cloners set is updated */
-	void OnClonersChanged();
 
 	/** Update mode for this effector */
 	void OnModeChanged();
@@ -471,10 +446,6 @@ protected:
 	/** The ratio effect of the effector on clones */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetMagnitude", Getter="GetMagnitude", Category="Effector", meta=(ClampMin="0", ClampMax="1"))
 	float Magnitude = 1.f;
-
-	/** Cloners affected by this effector */
-	UPROPERTY(EditAnywhere, Category="Effector", meta=(AllowPrivateAccess = "true"))
-	TSet<TWeakObjectPtr<ACEClonerActor>> Cloners;
 
 	/** Type of effector to apply on cloners instances */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetType", Getter="GetType", Category="Type")
@@ -637,7 +608,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UBoxComponent> OuterPlaneComponent;
 
-	/** Internal cloners array */
+	/** Internal cloners array, deprecated since it will be moved to the cloners and emptied out on post load */
 	UPROPERTY(NonTransactional)
 	TSet<TWeakObjectPtr<ACEClonerActor>> InternalCloners;
 

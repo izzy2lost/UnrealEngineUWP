@@ -379,10 +379,14 @@ public:
 	void SpawnDefaultActorAttached();
 #endif
 
-	bool GetClonerInitialized() const
-	{
-		return bClonerInitialized;
-	}
+	/** Links a new effector to apply transformation on clones */
+	CLONEREFFECTOR_API bool LinkEffector(ACEEffectorActor* InEffector);
+
+	/** Unlinks the effector and reset the cloner simulation */
+	CLONEREFFECTOR_API bool UnlinkEffector(ACEEffectorActor* InEffector);
+
+	/** Checks if an effector is linked with this cloner */
+	CLONEREFFECTOR_API bool IsEffectorLinked(const ACEEffectorActor* InEffector) const;
 
 protected:
 	//~ Begin UObject
@@ -420,31 +424,21 @@ protected:
 	/** Will force a system update to refresh user parameters */
 	void RequestClonerUpdate(bool bInImmediate = false);
 
-	void UpdateLayoutOptions();
-	void UpdateClonerEffectors();
+	void UpdateLayoutOptions();;
 
 	/** Used by effector actors to apply transformations to this cloner instances */
 	const FCEClonerEffectorDataInterfaces* GetEffectorDataInterfaces() const;
 
-	/** Register a new effector and return the index of this effector to match niagara data interface */
-	int32 RegisterEffector(ACEEffectorActor* InEffector);
-
-	/** Unregister the effector and reorganize the niagara data interface to match with the new array indexes */
-	bool UnregisterEffector(ACEEffectorActor* InEffector);
-
-	/** Checks if an effector is registered with this cloner */
-	bool IsEffectorRegistered(const ACEEffectorActor* InEffector) const;
-
-	/** Gets the index of an effector in this cloner */
-	int32 GetEffectorIndex(ACEEffectorActor* InEffector) const;
-
 	/** For each valid effector that has this cloner registered */
 	void ForEachEffector(TFunctionRef<bool(ACEEffectorActor*, int32)> InFunction);
 
-	void OnClonerTransformed(USceneComponent*, EUpdateTransformFlags, ETeleportType);
-	void OnClonerMeshUpdated();
+	void OnClonerMeshUpdated(UCEClonerComponent* InClonerComponent);
 	void OnClonerSystemChanged();
 
+	void OnEffectorIdentifierChanged(ACEEffectorActor* InEffector);
+	void OnEffectorRefreshCloner(ACEEffectorActor* InEffector);
+
+	void OnEffectorsChanged();
 	void OnEnabledChanged();
 	void OnMeshRenderModeChanged();
 	void OnMeshRendererOptionsChanged();
@@ -637,10 +631,6 @@ private:
 	/** Initiate and perform operation */
 	void InitializeCloner();
 
-	/** Effectors that applies to this cloner, index match niagara data interface arrays */
-	UPROPERTY(Transient)
-	TArray<TWeakObjectPtr<ACEEffectorActor>> Effectors;
-
 	/** Cloner niagara component */
 	UPROPERTY()
 	TObjectPtr<UCEClonerComponent> ClonerComponent;
@@ -648,6 +638,10 @@ private:
 	/** Previously used layout instances cached */
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UCEClonerLayoutBase>> LayoutInstances;
+
+	/** Effectors linked to this cloner */
+	UPROPERTY(EditInstanceOnly, Category="Cloner", meta=(DisplayName="Effectors"))
+	TArray<TWeakObjectPtr<ACEEffectorActor>> EffectorsWeak;
 
 	/**
 	* Below properties are deprecated and no longer in use,
@@ -695,6 +689,8 @@ private:
 	bool bClonerInitialized = false;
 
 #if WITH_EDITOR
+	bool bSpawnDefaultActorAttached = false;
+
 	/** Used for PECP */
 	static const TCEPropertyChangeDispatcher<ACEClonerActor> PropertyChangeDispatcher;
 #endif

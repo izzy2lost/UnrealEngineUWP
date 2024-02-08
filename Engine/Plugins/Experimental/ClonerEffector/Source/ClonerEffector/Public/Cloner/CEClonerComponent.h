@@ -17,11 +17,11 @@ class UCEClonerComponent : public UNiagaraComponent
 
 public:
 	/** Called when meshes have been updated */
-	DECLARE_MULTICAST_DELEGATE(FOnClonerMeshUpdated)
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerMeshUpdated, UCEClonerComponent* /** ClonerComponent */)
 	static FOnClonerMeshUpdated OnClonerMeshUpdated;
 
 	/** Called when cloner layout system is loaded */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnClonerSystemLoaded, UCEClonerLayoutBase* /** InLayout */)
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnClonerSystemLoaded, UCEClonerComponent* /** ClonerComponent */, UCEClonerLayoutBase* /** InLayout */)
 	static FOnClonerSystemLoaded OnClonerSystemLoaded;
 
 	UCEClonerComponent();

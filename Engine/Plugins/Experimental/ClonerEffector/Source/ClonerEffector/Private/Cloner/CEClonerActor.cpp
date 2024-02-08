@@ -18,6 +18,7 @@
 #include "NiagaraMeshRendererProperties.h"
 #include "NiagaraSystem.h"
 #include "Subsystems/CEClonerSubsystem.h"
+#include "Subsystems/CEEffectorSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 
 #if WITH_EDITOR
@@ -35,6 +36,7 @@ ACEClonerActor::ACEClonerActor()
 	PrimaryActorTick.bCanEverTick          = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 	PrimaryActorTick.bTickEvenWhenPaused   = true;
+	PrimaryActorTick.bHighPriority         = true;
 
 	ClonerComponent = CreateDefaultSubobject<UCEClonerComponent>(TEXT("AvaClonerComponent"));
 	SetRootComponent(ClonerComponent);
@@ -52,8 +54,10 @@ ACEClonerActor::ACEClonerActor()
 		}
 #endif
 
-		ClonerComponent->TransformUpdated.AddUObject(this, &ACEClonerActor::OnClonerTransformed);
 		ClonerComponent->OnClonerMeshUpdated.AddUObject(this, &ACEClonerActor::OnClonerMeshUpdated);
+
+		UCEEffectorSubsystem::OnEffectorIdentifierChangedDelegate.AddUObject(this, &ACEClonerActor::OnEffectorIdentifierChanged);
+		ACEEffectorActor::OnEffectorRefreshClonerDelegate.AddUObject(this, &ACEClonerActor::OnEffectorRefreshCloner);
 
 		const TArray<FString> LayoutNames = GetClonerLayoutNames();
 
@@ -80,6 +84,7 @@ const TCEPropertyChangeDispatcher<ACEClonerActor> ACEClonerActor::PropertyChange
 {
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, bEnabled), &ACEClonerActor::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, Seed), &ACEClonerActor::OnSeedChanged },
+	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, EffectorsWeak), &ACEClonerActor::OnEffectorsChanged },
 	/** Layout */
 	{ GET_MEMBER_NAME_CHECKED(ACEClonerActor, LayoutName), &ACEClonerActor::OnLayoutNameChanged },
 	/** Advanced */
@@ -295,7 +300,7 @@ void ACEClonerActor::PostActorCreated()
 	Super::PostActorCreated();
 
 #if WITH_EDITOR
-	SpawnDefaultActorAttached();
+	bSpawnDefaultActorAttached = true;
 #endif
 }
 
@@ -349,33 +354,6 @@ void ACEClonerActor::UpdateLayoutOptions()
 	OnRangeOptionsChanged();
 	OnSpawnOptionsChanged();
 	OnLifetimeOptionsChanged();
-}
-
-void ACEClonerActor::UpdateClonerEffectors()
-{
-	Effectors.RemoveAll([](const TWeakObjectPtr<ACEEffectorActor>& InEffector)
-	{
-		return !InEffector.IsValid();
-	});
-
-	if (const UCEClonerLayoutBase* LayoutSystem = GetActiveLayout())
-	{
-		// Effectors could be registered before system is loaded
-		const int32 EffectorCount = GetEffectorCount();
-
-		if (LayoutSystem->GetDataInterfaces().Num() != EffectorCount)
-		{
-			LayoutSystem->GetDataInterfaces().Resize(EffectorCount);
-
-			RequestClonerUpdate();
-		}
-	}
-
-	ForEachEffector([this](ACEEffectorActor* InEffector, int32 InIdx)
-	{
-		InEffector->OnClonerUpdated(this, InIdx);
-		return true;
-	});
 }
 
 void ACEClonerActor::SetTreeUpdateInterval(float InInterval)
@@ -882,85 +860,54 @@ int32 ACEClonerActor::GetMeshCount() const
 	return 0;
 }
 
-int32 ACEClonerActor::RegisterEffector(ACEEffectorActor* InEffector)
+bool ACEClonerActor::LinkEffector(ACEEffectorActor* InEffector)
 {
-	if (!InEffector)
-	{
-		return INDEX_NONE;
-	}
-
-	int32 Index = Effectors.Find(InEffector);
-
-	if (Index != INDEX_NONE)
-	{
-		return Index;
-	}
-
-	Index = Effectors.Add(InEffector);
-
-	if (const UCEClonerLayoutBase* LayoutSystem = GetActiveLayout())
-	{
-		const int32 EffectorCount = GetEffectorCount();
-		LayoutSystem->GetDataInterfaces().Resize(EffectorCount);
-	}
-
-	InEffector->OnClonerLinked(this, Index);
-
-	constexpr bool bImmediateUpdate = true;
-	RequestClonerUpdate(bImmediateUpdate);
-
-	return Index;
-}
-
-bool ACEClonerActor::UnregisterEffector(ACEEffectorActor* InEffector)
-{
-	if (!InEffector)
+	if (!IsValid(InEffector) || EffectorsWeak.Contains(InEffector))
 	{
 		return false;
 	}
 
-	const int32 OldIndex = Effectors.Find(InEffector);
+	EffectorsWeak.Add(InEffector);
 
-	if (OldIndex == INDEX_NONE)
-	{
-		return false;
-	}
+	OnEffectorsChanged();
 
-	Effectors.RemoveAt(OldIndex);
-
-	if (const UCEClonerLayoutBase* LayoutSystem = GetActiveLayout())
-	{
-		LayoutSystem->GetDataInterfaces().Remove(OldIndex);
-	}
-
-	InEffector->OnClonerUnlinked(this, OldIndex);
-
-	constexpr bool bImmediateUpdate = true;
-	RequestClonerUpdate(bImmediateUpdate);
+	UE_LOG(LogCEClonerActor, Log, TEXT("%s : Effector %s linked to Cloner"), *GetActorNameOrLabel(), *InEffector->GetActorNameOrLabel());
 
 	return true;
 }
 
-bool ACEClonerActor::IsEffectorRegistered(const ACEEffectorActor* InEffector) const
+bool ACEClonerActor::UnlinkEffector(ACEEffectorActor* InEffector)
 {
-	return InEffector && Effectors.Contains(InEffector);
+	if (!InEffector)
+	{
+		return false;
+	}
+
+	if (EffectorsWeak.Remove(InEffector) > 0)
+	{
+		OnEffectorsChanged();
+
+		UE_LOG(LogCEClonerActor, Log, TEXT("%s : Effector %s unlinked from Cloner"), *GetActorNameOrLabel(), *InEffector->GetActorNameOrLabel());
+	}
+
+	return true;
 }
 
-int32 ACEClonerActor::GetEffectorIndex(ACEEffectorActor* InEffector) const
+bool ACEClonerActor::IsEffectorLinked(const ACEEffectorActor* InEffector) const
 {
-	return InEffector ? Effectors.Find(InEffector) : INDEX_NONE;
+	return InEffector && EffectorsWeak.Contains(InEffector);
 }
 
 int32 ACEClonerActor::GetEffectorCount() const
 {
-	return Effectors.Num();
+	return EffectorsWeak.Num();
 }
 
 void ACEClonerActor::ForEachEffector(TFunctionRef<bool(ACEEffectorActor*, int32)> InFunction)
 {
-	for (int32 Idx = 0; Idx < Effectors.Num(); Idx++)
+	for (int32 Idx = 0; Idx < EffectorsWeak.Num(); Idx++)
 	{
-		ACEEffectorActor* Effector = Effectors[Idx].Get();
+		ACEEffectorActor* Effector = EffectorsWeak[Idx].Get();
 		if (!Effector)
 		{
 			continue;
@@ -1085,20 +1032,74 @@ void ACEClonerActor::OnLifetimeOptionsChanged()
 	RequestClonerUpdate();
 }
 
-void ACEClonerActor::OnClonerTransformed(USceneComponent*, EUpdateTransformFlags, ETeleportType)
+void ACEClonerActor::OnClonerMeshUpdated(UCEClonerComponent* InClonerComponent)
 {
-	UpdateClonerEffectors();
-}
-
-void ACEClonerActor::OnClonerMeshUpdated()
-{
-	RequestClonerUpdate();
+	if (InClonerComponent == ClonerComponent)
+	{
+		RequestClonerUpdate();
+	}
 }
 
 void ACEClonerActor::OnClonerSystemChanged()
 {
 	UpdateLayoutOptions();
-	UpdateClonerEffectors();
+}
+
+void ACEClonerActor::OnEffectorIdentifierChanged(ACEEffectorActor* InEffector)
+{
+	if (EffectorsWeak.Contains(InEffector))
+	{
+		OnEffectorsChanged();
+	}
+}
+
+void ACEClonerActor::OnEffectorRefreshCloner(ACEEffectorActor* InEffector)
+{
+	if (EffectorsWeak.Contains(InEffector))
+	{
+		RequestClonerUpdate();
+	}
+}
+
+void ACEClonerActor::OnEffectorsChanged()
+{
+	const FCEClonerEffectorDataInterfaces* EffectorDataInterfaces = GetEffectorDataInterfaces();
+
+	if (!EffectorDataInterfaces || !EffectorDataInterfaces->GetIndexArray())
+	{
+		return;
+	}
+
+	// Remove duplicates
+	const TSet<TWeakObjectPtr<ACEEffectorActor>> SetEffectorsWeak(EffectorsWeak);
+	EffectorsWeak = SetEffectorsWeak.Array();
+
+	TArray<int32> EffectorIndexes;
+	EffectorIndexes.Reserve(EffectorsWeak.Num());
+
+	for (const TWeakObjectPtr<ACEEffectorActor>& EffectorWeak : EffectorsWeak)
+	{
+		if (const ACEEffectorActor* Effector = EffectorWeak.Get())
+		{
+			const int32 ChannelIdentifier = Effector->GetChannelIdentifier();
+
+			if (ChannelIdentifier != INDEX_NONE)
+			{
+				EffectorIndexes.AddUnique(ChannelIdentifier);
+			}
+		}
+	}
+
+	EffectorDataInterfaces->Clear();
+	TArray<int32>& EffectorIndexArray = EffectorDataInterfaces->GetIndexArray()->GetArrayReference();
+
+	for (const int32 EffectorIndex : EffectorIndexes)
+	{
+		EffectorIndexArray.Add(EffectorIndex);
+	}
+
+	constexpr bool bImmediateUpdate = false;
+	RequestClonerUpdate(bImmediateUpdate);
 }
 
 void ACEClonerActor::RequestClonerUpdate(bool bInImmediate)
@@ -1248,18 +1249,37 @@ void ACEClonerActor::SpawnLinkedEffector()
 		return;
 	}
 
-	EffectorActor->LinkCloner(this);
 	FActorLabelUtilities::RenameExistingActor(EffectorActor, EffectorActor->GetDefaultActorLabel(), true);
 
 	// Set default offset for visual feedback
 	EffectorActor->SetOffset(FVector(0, 0, 100));
+
+	LinkEffector(EffectorActor);
 }
 
 void ACEClonerActor::SpawnDefaultActorAttached()
 {
+	if (!bSpawnDefaultActorAttached)
+	{
+		return;
+	}
+
+	bSpawnDefaultActorAttached = false;
+
 	// Only spawn if world is valid and not a preview actor
 	UWorld* World = GetWorld();
 	if (!World || bIsEditorPreviewActor)
+	{
+		return;
+	}
+
+	// Only spawn if no actor is attached below it
+	TArray<AActor*> AttachedActors;
+	constexpr bool bReset = true;
+	constexpr bool bRecursive = false;
+	GetAttachedActors(AttachedActors, bReset, bRecursive);
+
+	if (!AttachedActors.IsEmpty())
 	{
 		return;
 	}
@@ -1393,6 +1413,11 @@ void ACEClonerActor::InitializeCloner()
 
 #if WITH_EDITOR
 	OnReduceMotionGhostingChanged();
+
+	if (bSpawnDefaultActorAttached)
+	{
+		SpawnDefaultActorAttached();
+	}
 #endif
 
 	// For new cloner instances no need to migrate anything
@@ -1401,4 +1426,5 @@ void ACEClonerActor::InitializeCloner()
 	bClonerInitialized = true;
 
 	OnLayoutNameChanged();
+	OnEffectorsChanged();
 }
