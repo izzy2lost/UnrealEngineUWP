@@ -54,7 +54,7 @@ namespace Metasound
 	);
 }
 
-int32 SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization Division, int32 CurrentTick, const FSongMaps& SongMap);
+HARMONIXMETASOUND_API int32 SubdivisionToMidiTicks(EMidiClockSubdivisionQuantization Division, int32 CurrentTick, const FSongMaps& SongMap);
 
 namespace HarmonixMetasound
 {
