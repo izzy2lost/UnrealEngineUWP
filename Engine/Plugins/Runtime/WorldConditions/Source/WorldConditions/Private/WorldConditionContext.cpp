@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WorldConditionContext.h"
-
+#include "VisualLogger/VisualLogger.h"
 
 bool FWorldConditionContext::Activate() const
 {
@@ -31,10 +31,18 @@ bool FWorldConditionContext::Activate() const
 	for (int32 Index = 0; Index < Conditions.Num(); Index++)
 	{
 		const FWorldConditionBase& Condition = Conditions[Index].Get<const FWorldConditionBase>();
-		bSuccess &= Condition.Activate(*this);
+		if (!Condition.Activate(*this))
+		{
+			UE_VLOG_ALWAYS_UELOG(QueryState.GetOwner(), LogWorldCondition, Error, TEXT("Failed to activate condition at index %d"), Index);
+			bSuccess = false;
+		}
 	}
 
-	if (!bSuccess)
+	if (LIKELY(bSuccess))
+	{
+		QueryState.SetConditionsActivated(true);
+	}
+	else
 	{
 		Deactivate();
 	}
@@ -59,6 +67,11 @@ bool FWorldConditionContext::IsTrue() const
 	{
 		// Empty query is true.
 		return true;
+	}
+
+	if (!ensureMsgf(QueryState.AreConditionsActivated(), TEXT("Can not evaluate non activated conditions. Activate must be called first.")))
+	{
+		return false;
 	}
 
 	static_assert(UE::WorldCondition::MaxExpressionDepth == 4);
@@ -128,5 +141,6 @@ void FWorldConditionContext::Deactivate() const
 		}
 	}
 
+	QueryState.SetConditionsActivated(false);
 	QueryState.Free();
 }
