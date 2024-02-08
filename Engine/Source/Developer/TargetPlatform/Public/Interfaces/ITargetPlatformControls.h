@@ -338,13 +338,6 @@ public:
 	virtual FName GetPhysicsFormat(class UBodySetup* Body) const = 0;
 
 	/**
-	 * Gets a list of modules that may contain the GetAllTargetedShaderFormats. This is optional -
-	 * if any required shader format isn't found in this list, then it will use the old path
-	 * of loading all shader format modules to gather all available shader formats
-	 */
-	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const = 0;
-
-	/**
 	 * Gets the texture format to use for each layer in the given texture, for each of the platform's formats.
 	 * _Most_ platforms only supply one format for a given texture, so OutFormats.Num() is usually 1. The exception is Android_Multi,
 	 * where you can get several formats due to targeting different devices.

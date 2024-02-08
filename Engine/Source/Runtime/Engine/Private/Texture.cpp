@@ -1225,7 +1225,7 @@ void UTexture::PostLoad()
 
 #endif
 
-	if (IsCookPlatformTilingDisabled(nullptr)) // nullptr TargetPlatform means it will use UDeviceProfileManager::Get().GetActiveProfile() to get the tiling settings
+	if (IsCookPlatformTilingDisabled(static_cast<ITargetPlatformSettings*>(nullptr))) // nullptr TargetPlatform means it will use UDeviceProfileManager::Get().GetActiveProfile() to get the tiling settings
 	{
 		// The texture was not processed/tiled during cook, so it has to be tiled when uploaded to the GPU if necessary
 		bNotOfflineProcessed = true;
@@ -1516,15 +1516,15 @@ TextureMipGenSettings UTexture::GetMipGenSettingsFromString(const TCHAR* InStr, 
 	return bTextureGroup ? TMGS_SimpleAverage : TMGS_FromTextureGroup;
 }
 
-bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatform) const
+bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatformSettings* TargetPlatformSettings) const
 {
 	if (CookPlatformTilingSettings.GetValue() == TextureCookPlatformTilingSettings::TCPTS_FromTextureGroup)
 	{
 		const UTextureLODSettings* TextureLODSettings = nullptr;
 
-		if (TargetPlatform)
+		if (TargetPlatformSettings)
 		{
-			TextureLODSettings = &TargetPlatform->GetTextureLODSettings();
+			TextureLODSettings = &TargetPlatformSettings->GetTextureLODSettings();
 		}
 		else
 		{
@@ -1546,6 +1546,11 @@ bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatfor
 	}
 
 	return CookPlatformTilingSettings.GetValue() == TextureCookPlatformTilingSettings::TCPTS_DoNotTile;
+}
+
+bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatform) const
+{
+	return IsCookPlatformTilingDisabled(TargetPlatform ? TargetPlatform->GetTargetPlatformSettings(): static_cast<ITargetPlatformSettings*>(nullptr));
 }
 
 void UTexture::SetDeterministicLightingGuid()

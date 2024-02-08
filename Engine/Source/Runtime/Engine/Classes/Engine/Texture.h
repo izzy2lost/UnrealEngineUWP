@@ -1929,9 +1929,14 @@ public:
 	 * Checks whether this texture should be tiled to a platform-specific format during cook, or whether the bNotOfflineProcessed flag 
 	 * should be set to true at runtime because it has not been tiled at cook
 	 * 
-	 * @param  TargetPlatform	The platform for which the texture is being cooked and texture group info will be extracted from. 
-	 *                          If null, this info will be extracted from UDeviceProfileManager::Get().GetActiveProfile(), possibly at runtime
+	 * @param  TargetPlatformSettings	The platform for which the texture is being cooked and texture group info will be extracted from. 
+	 *									If null, this info will be extracted from UDeviceProfileManager::Get().GetActiveProfile(), possibly at runtime
 	 * @return true if platform tiling during cook is disabled for this texture 
+	 */
+	ENGINE_API bool IsCookPlatformTilingDisabled(const ITargetPlatformSettings* TargetPlatformSettings) const;
+
+	/**
+	 * Legacy function to support the old API, will call IsCookPlatformTilingDisabled with ITargetPlatformSettings
 	 */
 	ENGINE_API bool IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatform) const;
 
