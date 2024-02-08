@@ -5,6 +5,7 @@
 #include "UObject/Object.h"
 
 #include "RetargetEditor/IKRetargeterPoseGenerator.h"
+#include "Retargeter/IKRetargeter.h"
 
 #include "IKRetargeterController.generated.h"
 
@@ -373,6 +374,7 @@ struct FScopedReinitializeIKRetargeter
 	{
 		if (--Controller->ReinitializeScopeCounter == 0)
 		{
+			Controller->GetAsset()->IncrementVersion();
 			Controller->BroadcastNeedsReinitialized();
 		}
 	};

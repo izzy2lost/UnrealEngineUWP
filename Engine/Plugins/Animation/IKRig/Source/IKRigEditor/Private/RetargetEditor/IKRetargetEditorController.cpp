@@ -247,27 +247,14 @@ void FIKRetargetEditorController::HandleRetargeterNeedsInitialized() const
 	FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Source);
 	FixZeroHeightRetargetRoot(ERetargetSourceOrTarget::Target);
 	
-	ReinitializeProcessor();
+	// clear the output log
+	ClearOutputLog();
+
+	// force running instances to reinitialize on next tick
+	AssetController->GetAsset()->IncrementVersion();
 	
 	// refresh all the UI views
 	RefreshAllViews();	
-}
-
-void FIKRetargetEditorController::ReinitializeProcessor() const
-{
-	// clear the output log
-	ClearOutputLog();
-	
-	// force reinit the retarget processor (also inits the target IK Rig processor)
-	if (UIKRetargetProcessor* Processor = GetRetargetProcessor())
-	{
-		constexpr bool bSuppressWarnings = false;
-		Processor->Initialize(
-			GetSkeletalMesh(ERetargetSourceOrTarget::Source),
-			GetSkeletalMesh(ERetargetSourceOrTarget::Target),
-			AssetController->GetAsset(),
-			bSuppressWarnings);
-	}
 }
 
 void FIKRetargetEditorController::HandleIKRigReplaced(ERetargetSourceOrTarget SourceOrTarget)

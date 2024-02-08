@@ -256,6 +256,11 @@ public:
 	// Get the retarget profile by name (may be null) 
 	const FRetargetProfile* GetProfileByName(const FName& ProfileName) const;
 
+	// get current version of the data (to compare against running processor instances)
+	int32 GetVersion() const { return Version; };
+	// do this after any edit that would require running instance to reinitialize
+	void IncrementVersion() { ++Version; };
+
 	// BLUEPRINT GETTERS 
 
 	// Returns the chain settings associated with a given Goal in an IK Retargeter Asset using the given profile name (optional) 
@@ -374,6 +379,10 @@ public:
 private:
 
 	void CleanAndInitialize();
+	
+	// incremented by any edits that require re-initialization
+	UPROPERTY(Transient)
+	int32 Version = INDEX_NONE;
 
 	// The rig to copy animation FROM.
 	UPROPERTY(EditAnywhere, Category = Source)
@@ -451,12 +460,12 @@ public:
 	UPROPERTY()
 	float BoneDrawSize = 1.0f;
 
-	/** The controller responsible for managing this asset's data (all editor mutation goes through this) */
+	// The controller responsible for managing this asset's data (all editor mutation goes through this)
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional )
 	TObjectPtr<UObject> Controller;
 	
 private:
-
+	
 	// only ask to fix the root height once, then warn thereafter (don't nag) 
 	TSet<TObjectPtr<USkeletalMesh>> MeshesAskedToFixRootHeightFor;
 #endif

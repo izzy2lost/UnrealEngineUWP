@@ -201,7 +201,7 @@ struct FPoleVectorMatcher
 		const FRetargetSkeleton& TargetSkeleton);
 
 	void MatchPoleVector(
-		const FTargetChainSettings& Settings,
+		const FTargetChainFKSettings& Settings,
 		const TArray<int32>& SourceIndices,
 		const TArray<int32>& TargetIndices,
 		const TArray<FTransform> &SourceGlobalPose,
@@ -291,14 +291,14 @@ struct FChainDecoderFK : public FChainFK
 	
 	void DecodePose(
 		const FRootRetargeter& RootRetargeter,
-		const FTargetChainSettings& Settings,
+		const FTargetChainFKSettings& Settings,
 		const TArray<int32>& TargetBoneIndices,
 		FChainEncoderFK& SourceChain,
 		const FTargetSkeleton& TargetSkeleton,
 		TArray<FTransform> &InOutGlobalPose);
 
 	void MatchPoleVector(
-		const FTargetChainSettings& Settings,
+		const FTargetChainFKSettings& Settings,
 		const TArray<int32>& TargetBoneIndices,
 		FChainEncoderFK& SourceChain,
 		const FTargetSkeleton& TargetSkeleton,
@@ -382,7 +382,8 @@ struct FChainRetargeterIK
 	void EncodePose(const TArray<FTransform> &SourceInputGlobalPose);
 	
 	void DecodePose(
-		const FTargetChainSettings& Settings,
+		const FTargetChainIKSettings& Settings,
+		const FTargetChainSpeedPlantSettings& SpeedPlantSettings,
 		const FRootRetargeter& RootRetargeter,
 		const TMap<FName, float>& SpeedValuesFromCurves,
 		const float DeltaTime,
@@ -393,8 +394,6 @@ struct FChainRetargeterIK
 
 struct FRetargetChainPair
 {
-	FTargetChainSettings Settings;
-	
 	TArray<int32> SourceBoneIndices;
 	TArray<int32> TargetBoneIndices;
 	
@@ -421,6 +420,7 @@ private:
 
 struct FRetargetChainPairFK : FRetargetChainPair
 {
+	FTargetChainFKSettings Settings;
 	FChainEncoderFK FKEncoder;
 	FChainDecoderFK FKDecoder;
 	FPoleVectorMatcher PoleVectorMatcher;
@@ -435,6 +435,8 @@ struct FRetargetChainPairFK : FRetargetChainPair
 
 struct FRetargetChainPairIK : FRetargetChainPair
 {
+	FTargetChainIKSettings Settings;
+	FTargetChainSpeedPlantSettings SpeedPlantSettings;
 	FChainRetargeterIK IKChainRetargeter;
 	FName IKGoalName;
 	FName PoleVectorGoalName;
@@ -504,7 +506,7 @@ public:
 	FName GetRetargetRoot(ERetargetSourceOrTarget SourceOrTarget) const;
 	
 	/** Get whether this processor is ready to call RunRetargeter() and generate new poses. */
-	bool IsInitialized() const { return bIsInitialized && (bRootsInitialized || bAtLeastOneValidBoneChainPair); };
+	bool IsInitialized() const { return bIsInitialized; };
 
 	/** Get whether this processor was initialized with these skeletal meshes and retarget asset*/
 	bool WasInitializedWithTheseAssets(
@@ -568,6 +570,7 @@ private:
 
 	/** Only true once Initialize() has successfully completed.*/
 	bool bIsInitialized = false;
+	int32 AssetVersionInitializedWith = -1;
 	/** true when roots are able to be retargeted */
 	bool bRootsInitialized = false;
 	/** true when at least one pair of bone chains is able to be retargeted */

@@ -103,7 +103,6 @@ public:
 	void HandleRetargetChainRemoved(UIKRigDefinition* ModifiedIKRig, const FName InChainRemoved) const;
 	// callback when IK Retargeter asset requires reinitialization
 	void HandleRetargeterNeedsInitialized() const;
-	void ReinitializeProcessor() const;
 	FDelegateHandle RetargeterReInitDelegateHandle;
 	// callback when IK Rig asset has been swapped out
 	void HandleIKRigReplaced(ERetargetSourceOrTarget SourceOrTarget);
