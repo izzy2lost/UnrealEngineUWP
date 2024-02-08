@@ -20,24 +20,8 @@ UAvaRundownFactory::~UAvaRundownFactory()
 
 uint32 UAvaRundownFactory::GetMenuCategories() const
 {
-	IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
+	const IAssetTools& AssetTools = FAssetToolsModule::GetModule().Get();
 	return AssetTools.FindAdvancedAssetCategory("MotionDesignCategory");
-}
-
-bool UAvaRundownFactory::ConfigureProperties()
-{
-	return Super::ConfigureProperties();
-}
-
-bool UAvaRundownFactory::ShouldShowInNewMenu() const
-{
-	return Super::ShouldShowInNewMenu();
-}
-
-UObject* UAvaRundownFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags
-	, UObject* Context, FFeedbackContext* Warn, FName CallingContext)
-{
-	return Super::FactoryCreateNew(Class, InParent, Name, Flags, Context, Warn, CallingContext);
 }
 
 UObject* UAvaRundownFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags
@@ -49,16 +33,6 @@ UObject* UAvaRundownFactory::FactoryCreateNew(UClass* Class, UObject* InParent, 
 		Rundown = NewObject<UAvaRundown>(InParent, Name, Flags);
 	}
 	return Rundown;
-}
-
-bool UAvaRundownFactory::DoesSupportClass(UClass* Class)
-{
-	return Class == UAvaRundown::StaticClass();
-}
-
-UClass* UAvaRundownFactory::ResolveSupportedClass()
-{
-	return Super::ResolveSupportedClass();
 }
 
 FString UAvaRundownFactory::GetDefaultNewAssetName() const
