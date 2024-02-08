@@ -191,6 +191,7 @@ TSharedRef<SWidget> FAssetViewItemHelper::CreateListTileItemContents(T* const In
 
 		const bool bDeveloperFolder = ContentBrowserUtils::IsItemDeveloperContent(InTileOrListItem->AssetItem->GetItem());
 		const bool bCodeFolder = EnumHasAnyFlags(InTileOrListItem->AssetItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Class);
+		const bool bPluginFolder = EnumHasAnyFlags(InTileOrListItem->AssetItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Plugin);
 
 		const bool bCollectionFolder = EnumHasAnyFlags(InTileOrListItem->AssetItem->GetItem().GetItemCategory(), EContentBrowserItemFlags::Category_Collection);
 		ECollectionShareType::Type CollectionFolderShareType = ECollectionShareType::CST_All;
@@ -199,11 +200,23 @@ TSharedRef<SWidget> FAssetViewItemHelper::CreateListTileItemContents(T* const In
 			ContentBrowserUtils::IsCollectionPath(InTileOrListItem->AssetItem->GetItem().GetVirtualPath().ToString(), nullptr, &CollectionFolderShareType);
 		}
 
-		const FSlateBrush* FolderBaseImage = bDeveloperFolder
-			? FAppStyle::GetBrush("ContentBrowser.ListViewDeveloperFolderIcon") 
-			: bCodeFolder
-				? FAppStyle::GetBrush("ContentBrowser.ListViewCodeFolderIcon")
-				: FAppStyle::GetBrush("ContentBrowser.ListViewFolderIcon");
+		const FSlateBrush* FolderBaseImage = nullptr;
+		if (bDeveloperFolder)
+		{
+			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewDeveloperFolderIcon");
+		}
+		else if (bCodeFolder)
+		{
+			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewCodeFolderIcon");
+		}
+		else if (bPluginFolder)
+		{
+			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewPluginFolderIcon");
+		}
+		else
+		{
+			FolderBaseImage = FAppStyle::GetBrush("ContentBrowser.ListViewFolderIcon");
+		}
 
 		// Folder base
 		ItemContentsOverlay->AddSlot()
