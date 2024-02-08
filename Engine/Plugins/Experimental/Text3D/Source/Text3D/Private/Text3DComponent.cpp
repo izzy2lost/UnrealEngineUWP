@@ -1105,7 +1105,7 @@ void UText3DComponent::TriggerInternalRebuild(const EText3DModifyFlags InModifyF
 		MarkForGeometryUpdate();
 	}
 
-	if (EnumHasAnyFlags(ModifyFlags, EText3DModifyFlags::Layout))
+	if (EnumHasAnyFlags(InModifyFlags, EText3DModifyFlags::Layout))
 	{
 		MarkForLayoutUpdate();
 	}
