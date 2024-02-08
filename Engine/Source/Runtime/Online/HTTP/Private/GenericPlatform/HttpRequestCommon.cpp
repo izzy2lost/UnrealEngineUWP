@@ -195,6 +195,7 @@ void FHttpRequestCommon::SetTimeout(float InTimeoutSecs)
 void FHttpRequestCommon::ClearTimeout()
 {
 	TimeoutSecs.Reset();
+	StopTotalTimeoutTimer();
 }
 
 TOptional<float> FHttpRequestCommon::GetTimeout() const
@@ -213,6 +214,8 @@ void FHttpRequestCommon::CancelRequest()
 	{
 		return;
 	}
+
+	StopActivityTimeoutTimer();
 
 	bCanceled = true;
 	UE_LOG(LogHttp, Verbose, TEXT("HTTP request canceled. URL=%s"), *GetURL());
@@ -392,6 +395,7 @@ void FHttpRequestCommon::StopTotalTimeoutTimer()
 		TotalTimeoutHttpTaskTimerHandle.Reset();
 	}
 }
+
 void FHttpRequestCommon::Shutdown()
 {
 	FHttpRequestImpl::Shutdown();
