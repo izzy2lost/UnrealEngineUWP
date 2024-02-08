@@ -51,15 +51,14 @@ Texture2D SceneVelocityTexture;
 
 RWTexture2D<float2> DilatedVelocityOutput;
 RWTexture2D<float2> ClosestDepthOutput;
-globallycoherent RWTexture2D<uint> PrevUseCountOutput;
-globallycoherent RWTexture2D<uint> PrevClosestDepthOutput;
+globallycoherent RWTexture2DArray<uint> PrevAtomicOutput;
 RWTexture2DArray<uint> R8Output;
 
 RWTexture2D<float3>	VelocityFlattenOutput;
 RWTexture2DArray<float4> VelocityTileArrayOutput;
 
 
-//------------------------------------------------------- ENTRY POINT
+//------------------------------------------------------- UTILITY
 
 uint PackDepthAndOffset(const int2 Offset, float DeviceZ)
 {
@@ -73,6 +72,90 @@ void UnpackDepthAndOffset(uint Packed, out int2 Offset, out float DeviceZ)
 	Offset.y = int((Packed >> 2) & 0x3) - 1;
 }
 
+
+//------------------------------------------------------- FUNCTION
+
+void ScatterClosestOccluder(bool bValidOutputPixel, float2 ScreenPos, float2 FinalScreenVelocity, float PrevClosestDeviceZ)
+{
+	float2 PrevScreenPos = ScreenPos - FinalScreenVelocity.xy;
+	float2 PrevInputBufferUV = (InputInfo_ScreenPosToViewportScale * PrevScreenPos + InputInfo_ScreenPosToViewportBias) * InputInfo_ExtentInverse;
+
+	float2 PixelVelocity = FinalScreenVelocity.xy * 0.5 * InputInfo_ViewportSize;
+	uint EncodedHoleFillingVelocity = EncodeHoleFillingVelocity(PixelVelocity);
+
+	bool bValidHistoryCoord = bValidOutputPixel && all(and(PrevInputBufferUV > PrevOutputBufferUVMin, PrevInputBufferUV < PrevOutputBufferUVMax));
+
+	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(PrevInputBufferUV, InputInfo_Extent, InputInfo_ExtentInverse);
+	
+	#if CONFIG_SUPPORT_ORTHO_VIEW
+	BRANCH
+	if (IsOrthoProjection())
+	{
+		uint Depth = clamp(uint(round(PrevClosestDeviceZ * 8388607.0)), 0, 8388607) << 9;
+
+		uint PrevClosestDepth0 = Depth | ((EncodedHoleFillingVelocity >> 9u) & 0x1FFu);
+		uint PrevClosestDepth1 = Depth | ((EncodedHoleFillingVelocity >> 0u) & 0x1FFu);
+		
+		UNROLL_N(4)
+		for (uint i = 0; i < 4; i++)
+		{
+			float Weight = GetSampleWeight(BilinearInter, i);
+			uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
+
+			uint FinalAdd = uint(round(Weight * PREV_USE_COUNT_QUANTIZATION));
+			
+			PixelPos.x = ((FinalAdd > 0) && bValidHistoryCoord) ? PixelPos.x : (~0);
+
+			#if COMPRESS_PREV_USE_COUNT
+				uint2 CompressedUseCountPixelPos;
+				uint Shift;
+				ComputeCompressedUseCountPixelCoordinates(PixelPos, /* out */ CompressedUseCountPixelPos, /* out */ Shift);
+
+				FinalAdd = FinalAdd << (8 * Shift);
+			#else
+				uint2 CompressedUseCountPixelPos = PixelPos;
+			#endif
+
+			InterlockedAdd(PrevAtomicOutput[tsr_ushort3(CompressedUseCountPixelPos, 0)], FinalAdd);
+
+			uint PreviousDepth0;
+			InterlockedMax(PrevAtomicOutput[tsr_ushort3(PixelPos, 1)], PrevClosestDepth0, /* out */ PreviousDepth0);
+
+			PixelPos.x = select(PreviousDepth0 < PrevClosestDepth0, PixelPos.x, ~0u);
+			InterlockedMax(PrevAtomicOutput[tsr_ushort3(PixelPos, 2)], PrevClosestDepth1);
+		}
+	}
+	else
+	#endif // CONFIG_SUPPORT_ORTHO_VIEW
+	{
+		uint PrevClosestDepth = (f32tof16(PrevClosestDeviceZ) << VELOCITY_HOLE_FILLING_BITS) | EncodedHoleFillingVelocity;
+			
+		UNROLL_N(4)
+		for (uint i = 0; i < 4; i++)
+		{
+			float Weight = GetSampleWeight(BilinearInter, i);
+			uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
+
+			uint FinalAdd = uint(round(Weight * PREV_USE_COUNT_QUANTIZATION));
+			
+			PixelPos.x = ((FinalAdd > 0) && bValidHistoryCoord) ? PixelPos.x : (~0);
+
+			#if COMPRESS_PREV_USE_COUNT
+				uint2 CompressedUseCountPixelPos;
+				uint Shift;
+				ComputeCompressedUseCountPixelCoordinates(PixelPos, /* out */ CompressedUseCountPixelPos, /* out */ Shift);
+
+				FinalAdd = FinalAdd << (8 * Shift);
+			#else
+				uint2 CompressedUseCountPixelPos = PixelPos;
+			#endif
+
+			InterlockedAdd(PrevAtomicOutput[tsr_ushort3(CompressedUseCountPixelPos, 0)], FinalAdd);
+			InterlockedMax(PrevAtomicOutput[tsr_ushort3(PixelPos, 1)], PrevClosestDepth);
+		}
+	}
+}
+		
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -319,47 +402,6 @@ void MainCS(
 	{
 		bool bValidOutputPixel = all(InputPixelPos < InputInfo_ViewportMax);
 		
-		// Scatter parallax rejection
-		#if 1
-		{
-			float2 PrevScreenPos = ScreenPos - FinalScreenVelocity.xy;
-			float2 PrevInputBufferUV = (InputInfo_ScreenPosToViewportScale * PrevScreenPos + InputInfo_ScreenPosToViewportBias) * InputInfo_ExtentInverse;
-
-			float2 PixelVelocity = FinalScreenVelocity.xy * 0.5 * InputInfo_ViewportSize;
-			uint EncodedHoleFillingVelocity = EncodeHoleFillingVelocity(PixelVelocity);
-
-			uint PrevClosestDepth = (f32tof16(PrevClosestDeviceZ) << VELOCITY_HOLE_FILLING_BITS) | EncodedHoleFillingVelocity;
-			
-			bool bValidHistoryCoord = bValidOutputPixel && all(and(PrevInputBufferUV > PrevOutputBufferUVMin, PrevInputBufferUV < PrevOutputBufferUVMax));
-
-			FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(PrevInputBufferUV, InputInfo_Extent, InputInfo_ExtentInverse);
-
-			UNROLL_N(4)
-			for (uint i = 0; i < 4; i++)
-			{
-				float Weight = GetSampleWeight(BilinearInter, i);
-				uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
-
-				uint FinalAdd = uint(round(Weight * PREV_USE_COUNT_QUANTIZATION));
-			
-				PixelPos.x = ((FinalAdd > 0) && bValidHistoryCoord) ? PixelPos.x : (~0);
-
-				#if COMPRESS_PREV_USE_COUNT
-					uint2 CompressedUseCountPixelPos;
-					uint Shift;
-					ComputeCompressedUseCountPixelCoordinates(PixelPos, /* out */ CompressedUseCountPixelPos, /* out */ Shift);
-
-					FinalAdd = FinalAdd << (8 * Shift);
-				#else
-					uint2 CompressedUseCountPixelPos = PixelPos;
-				#endif
-
-				InterlockedAdd(PrevUseCountOutput[CompressedUseCountPixelPos], FinalAdd);
-				InterlockedMax(PrevClosestDepthOutput[PixelPos], PrevClosestDepth);
-			}
-		}
-		#endif
-		
 		float4 EncodedVelocity = SceneVelocityTexture[uint2(InputBufferUV * InputInfo_Extent)];
 		
 		uint2 OutputPixelPos = bValidOutputPixel ? InputPixelPos : uint(~0).xx;
@@ -383,7 +425,10 @@ void MainCS(
 			StoreVelocityRange(VelocityTileArrayOutput, OutputTilePos, PolarToCartesian(VelocityPolarRange));
 		}
 		#endif
-
+		
+		// Scatter parallax rejection
+		ScatterClosestOccluder(bValidOutputPixel, ScreenPos, FinalScreenVelocity.xy, PrevClosestDeviceZ);
+		
 		#if DEBUG_OUTPUT && 0 // running out of UAVs
 		{
 			DebugOutput[tsr_short3(OutputPixelPos, 0)] = Debug;
