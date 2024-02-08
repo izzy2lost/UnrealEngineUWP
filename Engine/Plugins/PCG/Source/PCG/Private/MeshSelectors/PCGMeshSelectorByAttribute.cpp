@@ -3,10 +3,14 @@
 #include "MeshSelectors/PCGMeshSelectorByAttribute.h"
 
 #include "Data/PCGPointData.h"
+#include "Data/PCGSpatialData.h"
 #include "Elements/PCGStaticMeshSpawner.h"
 #include "Elements/PCGStaticMeshSpawnerContext.h"
-#include "Data/PCGSpatialData.h"
+#include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "MeshSelectors/PCGMeshSelectorBase.h"
+#include "Metadata/PCGObjectPropertyOverride.h"
+#include "Metadata/PCGMetadataPartitionCommon.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #include "Engine/StaticMesh.h"
 
@@ -22,13 +26,15 @@ namespace PCGMeshSelectorAttribute
 		const FSoftISMComponentDescriptor& TemplateDescriptor,
 		TSoftObjectPtr<UStaticMesh> Mesh,
 		const TArray<TSoftObjectPtr<UMaterialInterface>>& MaterialOverrides,
-		bool bReverseCulling)
+		bool bReverseCulling,
+		const int AttributePartitionIndex = INDEX_NONE)
 	{
 		for (FPCGMeshInstanceList& InstanceList : InstanceLists)
 		{
 			if (InstanceList.Descriptor.StaticMesh == Mesh &&
 				InstanceList.Descriptor.bReverseCulling == bReverseCulling &&
-				InstanceList.Descriptor.OverrideMaterials == MaterialOverrides)
+				InstanceList.Descriptor.OverrideMaterials == MaterialOverrides &&
+				InstanceList.AttributePartitionIndex == AttributePartitionIndex)
 			{
 				return InstanceList;
 			}
@@ -38,6 +44,7 @@ namespace PCGMeshSelectorAttribute
 		NewInstanceList.Descriptor.StaticMesh = Mesh;
 		NewInstanceList.Descriptor.OverrideMaterials = MaterialOverrides;
 		NewInstanceList.Descriptor.bReverseCulling = bReverseCulling;
+		NewInstanceList.AttributePartitionIndex = AttributePartitionIndex;
 
 		return NewInstanceList;
 	}
@@ -96,7 +103,7 @@ void UPCGMeshSelectorByAttribute::PostLoad()
 
 bool UPCGMeshSelectorByAttribute::SelectInstances(
 	FPCGStaticMeshSpawnerContext& Context,
-	const UPCGStaticMeshSpawnerSettings* Settings, 
+	const UPCGStaticMeshSpawnerSettings* Settings,
 	const UPCGPointData* InPointData,
 	TArray<FPCGMeshInstanceList>& OutMeshInstances,
 	UPCGPointData* OutPointData) const
@@ -136,7 +143,7 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 	}
 	else if (PCG::Private::IsOfTypes<FString>(AttributeBase->GetTypeId()))
 	{
-		MeshPathGetter = [AttributeBase, &Context](PCGMetadataValueKey InValueKey, FSoftObjectPath& OutMeshPath)
+		MeshPathGetter = [AttributeBase](PCGMetadataValueKey InValueKey, FSoftObjectPath& OutMeshPath)
 		{
 			const FPCGMetadataAttribute<FString>* Attribute = static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase);
 
@@ -181,12 +188,65 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 	constexpr int32 TimeSlicingCheckFrequency = 1024;
 	TMap<PCGMetadataValueKey, TSoftObjectPtr<UStaticMesh>>& ValueKeyToMesh = Context.ValueKeyToMesh;
 
+	// No partition needed if there are no overrides
+	if (Settings->StaticMeshComponentPropertyOverrides.IsEmpty())
+	{
+		Context.bPartitionDone = true;
+	}
+
+	if (!Context.bPartitionDone)
+	{
+		// Validate all the selectors are actual FSoftISMComponentDescriptor properties
+		TArray<FPCGAttributePropertySelector> ValidSelectorOverrides;
+		for (const FPCGObjectPropertyOverrideDescription& PropertyOverride : Settings->StaticMeshComponentPropertyOverrides)
+		{
+			if (FSoftISMComponentDescriptor::StaticStruct()->FindPropertyByName(FName(PropertyOverride.PropertyTarget)))
+			{
+				ValidSelectorOverrides.Emplace_GetRef() = FPCGAttributePropertySelector::CreateFromOtherSelector<FPCGAttributePropertySelector>(PropertyOverride.InputSource);
+			}
+			else
+			{
+				PCGE_LOG_C(Error, GraphAndLog, &Context, FText::Format(LOCTEXT("OverriddenPropertyNotFound", "Property '{0}' not a valid property with an ISM Descriptor. It will be ignored."), FText::FromString(PropertyOverride.PropertyTarget)));
+			}
+		}
+
+		// If there are valid overrides, partition the points on those attributes so that an instance can be created for each
+		if (!ValidSelectorOverrides.IsEmpty())
+		{
+			Context.AttributeOverridePartition = PCGMetadataPartitionCommon::AttributeGenericPartition(InPointData, ValidSelectorOverrides, &Context);
+		}
+
+		// Set the descriptors to match the partition count. Uninitialized, because it will be copied from the template below
+		Context.OverriddenDescriptors.Reserve(Context.AttributeOverridePartition.Num());
+		for (int I = 0; I < Context.AttributeOverridePartition.Num(); ++I)
+		{
+			FSoftISMComponentDescriptor& Descriptor = Context.OverriddenDescriptors.Add_GetRef(TemplateDescriptor);
+
+			// Use the Object Override to map the user's input selector and property to the descriptor
+			FPCGObjectOverrides Overrides(&Descriptor);
+			Overrides.Initialize(Settings->StaticMeshComponentPropertyOverrides, &Descriptor, InPointData, &Context);
+
+			// Since they are already partitioned and identical, we can just use the value on the first point
+			check(!Context.AttributeOverridePartition[I].IsEmpty());
+			int32 AnyPointIndexOnThisPartition = Context.AttributeOverridePartition[I][0];
+			Overrides.Apply(AnyPointIndexOnThisPartition);
+		}
+
+		// Given partitioning is expensive, check if we're out of time for this frame
+		Context.bPartitionDone = true;
+		if (Context.ShouldStop())
+		{
+			return false;
+		}
+	}
+
 	const TArray<FPCGPoint>& Points = InPointData->GetPoints();
 
 	while (CurrentPointIndex < Points.Num())
 	{
-		const FPCGPoint& Point = Points[CurrentPointIndex++];
-		
+		int32 ThisPointIndex = CurrentPointIndex++;
+		const FPCGPoint& Point = Points[ThisPointIndex];
+
 		const PCGMetadataValueKey ValueKey = AttributeBase->GetValueKey(Point.MetadataEntry);
 		TSoftObjectPtr<UStaticMesh>* NewMesh = ValueKeyToMesh.Find(ValueKey);
 		TSoftObjectPtr<UStaticMesh> Mesh = nullptr;
@@ -223,20 +283,35 @@ bool UPCGMeshSelectorByAttribute::SelectInstances(
 			continue;
 		}
 
+		// TODO: Revisit this when attribute partitioning is returned in a more optimized form
+		// The partition index is used to assign the point to the correct partition's instance
+		int32 CurrentPointPartitionIndex = INDEX_NONE;
+		for (int PartitionIndex = 0; PartitionIndex < Context.AttributeOverridePartition.Num(); ++PartitionIndex)
+		{
+			TArray<int32>& Partition = Context.AttributeOverridePartition[PartitionIndex];
+			if (Partition.Contains(ThisPointIndex))
+			{
+				CurrentPointPartitionIndex = PartitionIndex;
+				break;
+			}
+		}
+
+		// If the point wasn't found in a partition (likely due to no partitions or an invalid property target), just default to the template
+		const FSoftISMComponentDescriptor& CurrentPartitionDescriptor = CurrentPointPartitionIndex != INDEX_NONE ? Context.OverriddenDescriptors[CurrentPointPartitionIndex] : TemplateDescriptor;
 		const bool bReverseTransform = (Point.Transform.GetDeterminant() < 0);
-		FPCGMeshInstanceList& InstanceList = PCGMeshSelectorAttribute::GetInstanceList(OutMeshInstances, TemplateDescriptor, Mesh, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bReverseTransform);
+
+		FPCGMeshInstanceList& InstanceList = PCGMeshSelectorAttribute::GetInstanceList(OutMeshInstances, CurrentPartitionDescriptor, Mesh, MaterialOverrideHelper.GetMaterialOverrides(Point.MetadataEntry), bReverseTransform, CurrentPointPartitionIndex);
 		InstanceList.Instances.Emplace(Point.Transform);
 		InstanceList.InstancesMetadataEntry.Emplace(Point.MetadataEntry);
 
 		if (OutPointData && Settings->bApplyMeshBoundsToPoints)
 		{
 			TArray<int32>& PointIndices = Context.MeshToOutPoints.FindOrAdd(Mesh).FindOrAdd(OutPointData);
-			// CurrentPointIndex - 1, because CurrentPointIndex is incremented at the beginning of the loop
-			PointIndices.Emplace(CurrentPointIndex - 1);
+			PointIndices.Emplace(ThisPointIndex);
 		}
 
 		// Check if we should stop here and continue in a subsequent call
-		if(CurrentPointIndex - LastCheckpointIndex >= TimeSlicingCheckFrequency)
+		if (CurrentPointIndex - LastCheckpointIndex >= TimeSlicingCheckFrequency)
 		{
 			if (Context.ShouldStop())
 			{

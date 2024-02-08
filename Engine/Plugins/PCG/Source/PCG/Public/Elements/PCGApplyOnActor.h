@@ -3,7 +3,7 @@
 #pragma once
 
 #include "PCGSettings.h"
-#include "Metadata/PCGActorPropertyOverride.h"
+#include "Metadata/PCGObjectPropertyOverride.h"
 
 #include "PCGApplyOnActor.generated.h"
 
@@ -38,7 +38,7 @@ public:
 
 	/** Override the default property values on the target actor. Applied before post-process functions. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
-	TArray<FPCGActorPropertyOverrideDescription> PropertyOverrideDescriptions;
+	TArray<FPCGObjectPropertyOverrideDescription> PropertyOverrideDescriptions;
 
 	/** Specify a list of functions to be called on the target actor. Functions need to be parameter-less and with "CallInEditor" flag enabled. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)

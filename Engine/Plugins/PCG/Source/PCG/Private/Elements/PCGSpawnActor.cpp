@@ -754,7 +754,7 @@ void FPCGSpawnActorElement::SpawnActors(FPCGSubgraphContext* Context, AActor* Ta
 
 	check(TemplateActor);
 
-	FPCGActorOverrides ActorOverrides(TemplateActor);
+	FPCGObjectOverrides ActorOverrides(TemplateActor);
 	ActorOverrides.Initialize(Settings->SpawnedActorPropertyOverrideDescriptions, TemplateActor, PointData, Context);
 
 	FActorSpawnParameters SpawnParams;

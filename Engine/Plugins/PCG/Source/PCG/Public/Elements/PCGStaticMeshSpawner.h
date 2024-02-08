@@ -4,6 +4,8 @@
 
 #include "PCGSettings.h"
 
+#include "Metadata/PCGObjectPropertyOverride.h"
+
 #include "Engine/CollisionProfile.h"
 
 #include "PCGStaticMeshSpawner.generated.h"
@@ -64,6 +66,7 @@ public:
 	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
 	// ~End UObject interface
 #endif
 
@@ -87,6 +90,12 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Instanced, Category = InstanceDataPacker)
 	TObjectPtr<UPCGInstanceDataPackerBase> InstanceDataPackerParameters = nullptr;
+
+	/** Map an attribute directly to an ISM Descriptor property, the value of which will be overriden when generated.
+	 * Note: Currently only enabled using SelectByAttribute mesh selection.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	TArray<FPCGObjectPropertyOverrideDescription> StaticMeshComponentPropertyOverrides;
 
 	/** Attribute name to store mesh SoftObjectPaths inside if the output pin is connected. Note: Will overwrite existing data if the attribute name already exists. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
@@ -124,7 +133,7 @@ public:
 protected:
 	virtual FPCGContext* CreateContext() override;
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
-	virtual bool ExecuteInternal(FPCGContext* Context) const override;	
+	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	void SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData& PackedCustomData) const;
 };
 
