@@ -1040,6 +1040,14 @@ void SRigHierarchyTreeView::AddConnectorResolveWarningTag(TSharedPtr<FRigTreeEle
 	check(InRigElement);
 	check(InRigElement->GetType() == ERigElementType::Connector);
 
+	if(const FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(InRigElement))
+	{
+		if(ConnectorElement->IsOptional())
+		{
+			return;
+		}
+	}
+
 	if(UControlRig* ControlRig = InHierarchy->GetTypedOuter<UControlRig>())
 	{
 		TWeakObjectPtr<UControlRig> ControlRigPtr(ControlRig);
