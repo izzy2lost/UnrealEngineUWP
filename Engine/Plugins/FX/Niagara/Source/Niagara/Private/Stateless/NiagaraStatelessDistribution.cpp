@@ -160,6 +160,18 @@ namespace NiagaraStatelessDistributionPrivate
 #endif
 } //NiagaraStatelessCommon
 
+void FNiagaraDistributionRangeInt::InitConstant(int32 Value)
+{
+	Mode = ENiagaraDistributionMode::UniformConstant;
+	Min = Value;
+	Max = Value;
+}
+
+FNiagaraStatelessRangeInt FNiagaraDistributionRangeInt::CalculateRange(const int32 Default) const
+{
+	return Mode == ENiagaraDistributionMode::UniformConstant ? FNiagaraStatelessRangeInt(Min, Min) : FNiagaraStatelessRangeInt(Min, Max);
+}
+
 void FNiagaraDistributionRangeFloat::InitConstant(float Value)
 {
 	Mode = ENiagaraDistributionMode::UniformConstant;
@@ -230,6 +242,15 @@ FNiagaraStatelessRangeFloat FNiagaraDistributionFloat::CalculateRange(const floa
 	return Range;
 }
 
+void FNiagaraDistributionVector2::InitConstant(const float Value)
+{
+	Mode = ENiagaraDistributionMode::UniformConstant;
+	Values = TArray<FVector2f>({ FVector2f(Value, Value), FVector2f(Value, Value) });
+#if WITH_EDITORONLY_DATA
+	ChannelConstantsAndRanges = TArray<float>({ Value, Value });
+#endif
+}
+
 void FNiagaraDistributionVector2::InitConstant(const FVector2f& Value)
 {
 	Mode = ENiagaraDistributionMode::NonUniformConstant;
@@ -253,6 +274,15 @@ FNiagaraStatelessRangeVector2 FNiagaraDistributionVector2::CalculateRange(const 
 		}
 	}
 	return Range;
+}
+
+void FNiagaraDistributionVector3::InitConstant(const float Value)
+{
+	Mode = ENiagaraDistributionMode::UniformConstant;
+	Values = TArray<FVector3f>({ FVector3f(Value, Value, Value), FVector3f(Value, Value, Value) });
+#if WITH_EDITORONLY_DATA
+	ChannelConstantsAndRanges = TArray<float>({ Value, Value });
+#endif
 }
 
 void FNiagaraDistributionVector3::InitConstant(const FVector3f& Value)
@@ -313,6 +343,31 @@ FNiagaraStatelessRangeColor FNiagaraDistributionColor::CalculateRange(const FLin
 }
 
 #if WITH_EDITORONLY_DATA
+void FNiagaraDistributionBase::PostEditChangeProperty(UObject* OwnerObject, FPropertyChangedEvent& PropertyChangedEvent)
+{
+	FStructProperty* StructProperty = CastField<FStructProperty>(PropertyChangedEvent.Property);
+	if (StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FNiagaraDistributionBase::StaticStruct()))
+	{
+		FNiagaraDistributionBase* ValuePtr = nullptr;
+		if (PropertyChangedEvent.Property != PropertyChangedEvent.MemberProperty)
+		{
+			// Properties stored in a UStruct inside a UObject need to first offset from UObject -> UStruct then UStruct -> Property
+			FStructProperty* MemberStructProperty = CastField<FStructProperty>(PropertyChangedEvent.MemberProperty);
+			void* StructPtr = MemberStructProperty->ContainerPtrToValuePtr<void>(OwnerObject);
+			ValuePtr = StructProperty->ContainerPtrToValuePtr<FNiagaraDistributionBase>(StructPtr);
+		}
+		else
+		{
+			ValuePtr = StructProperty->ContainerPtrToValuePtr<FNiagaraDistributionBase>(OwnerObject);
+		}
+
+		if (ValuePtr != nullptr)
+		{
+			ValuePtr->UpdateValuesFromDistribution();
+		}
+	}
+}
+
 void FNiagaraDistributionRangeFloat::UpdateValuesFromDistribution()
 {
 	NiagaraStatelessDistributionPrivate::UpdateDistributionValues(

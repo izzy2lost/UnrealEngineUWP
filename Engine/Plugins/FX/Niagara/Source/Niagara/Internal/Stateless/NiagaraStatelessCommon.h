@@ -19,6 +19,7 @@ struct FNiagaraStatelessRange
 	ValueType Max = {};
 };
 
+using FNiagaraStatelessRangeInt		= FNiagaraStatelessRange<int32>;
 using FNiagaraStatelessRangeFloat	= FNiagaraStatelessRange<float>;
 using FNiagaraStatelessRangeVector2	= FNiagaraStatelessRange<FVector2f>;
 using FNiagaraStatelessRangeVector3	= FNiagaraStatelessRange<FVector3f>;

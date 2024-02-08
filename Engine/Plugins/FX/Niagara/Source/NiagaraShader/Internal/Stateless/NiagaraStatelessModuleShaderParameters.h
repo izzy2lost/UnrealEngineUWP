@@ -53,9 +53,8 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleMeshSizeBySpeedModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(int32,		ScaleMeshSizeBySpeed_Offset)
-		SHADER_PARAMETER(float,		ScaleMeshSizeBySpeed_VelocityNorm)
-		SHADER_PARAMETER(int32,		ScaleMeshSizeBySpeed_Length)
+		SHADER_PARAMETER(FUintVector2,	ScaleMeshSizeBySpeed_ScaleDistribution)
+		SHADER_PARAMETER(float,			ScaleMeshSizeBySpeed_VelocityNorm)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleSpriteSizeModule_ShaderParameters, NIAGARASHADER_API)
@@ -63,9 +62,8 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleSpriteSizeBySpeedModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(float,		ScaleSpriteSizeBySpeed_VelocityNorm)
-		SHADER_PARAMETER(int32,		ScaleSpriteSizeBySpeed_Offset)
-		SHADER_PARAMETER(int32,		ScaleSpriteSizeBySpeed_Length)
+		SHADER_PARAMETER(FUintVector2,	ScaleSpriteSizeBySpeed_ScaleDistribution)
+		SHADER_PARAMETER(float,			ScaleSpriteSizeBySpeed_VelocityNorm)
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FSpriteFacingAndAlignmentModule_ShaderParameters, NIAGARASHADER_API)

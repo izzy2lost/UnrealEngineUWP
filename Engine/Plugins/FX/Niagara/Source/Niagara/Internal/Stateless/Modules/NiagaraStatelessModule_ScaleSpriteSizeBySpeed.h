@@ -15,9 +15,8 @@ class UNiagaraStatelessModule_ScaleSpriteSizeBySpeed : public UNiagaraStatelessM
 
 	struct FModuleBuiltData
 	{
-		float	VelocityNorm = 0.0f;
-		int32	TableOffset = 0;
-		int32	TableLength = 0;
+		float			VelocityNorm = 0.0f;
+		FUintVector2	ScaleDistribution = FUintVector2::ZeroValue;
 	};
 
 public:
@@ -26,17 +25,26 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (ClampMin = "0.01", UIMin = "0.01"))
 	float VelocityThreshold = 1000.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
-	TArray<FVector2f>	ScaleValues = { FVector2f(1.0f, 1.0f), FVector2f(2.0f, 2.0f) };
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (DisplayName = "Scale", DisableRangeDistribution))
+	FNiagaraDistributionVector2 ScaleDistribution = FNiagaraDistributionVector2(1.0f);
 
 	virtual void BuildEmitterData(FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
 	{
 		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
 		if (IsModuleEnabled())
 		{
-			BuiltData->VelocityNorm	= VelocityThreshold > 0.0f ? 1.0f / (VelocityThreshold * VelocityThreshold) : 0.0f;
-			BuiltData->TableOffset	= BuildContext.AddStaticData(ScaleValues);
-			BuiltData->TableLength	= ScaleValues.Num();
+			BuiltData->VelocityNorm			= VelocityThreshold > 0.0f ? 1.0f / (VelocityThreshold * VelocityThreshold) : 0.0f;
+			if (ScaleDistribution.IsCurve() && ScaleDistribution.Values.Num() > 1)
+			{
+				BuiltData->ScaleDistribution.X = BuildContext.AddStaticData(ScaleDistribution.Values);
+				BuiltData->ScaleDistribution.Y = ScaleDistribution.Values.Num() - 1;
+			}
+			else
+			{
+				const FVector2f Values[] = { FVector2f::One(), ScaleDistribution.Values.Num() > 0 ? ScaleDistribution.Values[0] : FVector2f::One() };
+				BuiltData->ScaleDistribution.X = BuildContext.AddStaticData(Values);
+				BuiltData->ScaleDistribution.Y = 1;
+			}
 		}
 	}
 
@@ -45,9 +53,8 @@ public:
 		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
 
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		Parameters->ScaleSpriteSizeBySpeed_VelocityNorm		= ModuleBuiltData->VelocityNorm;
-		Parameters->ScaleSpriteSizeBySpeed_Offset			= ModuleBuiltData->TableOffset;
-		Parameters->ScaleSpriteSizeBySpeed_Length			= ModuleBuiltData->TableLength;
+		Parameters->ScaleSpriteSizeBySpeed_VelocityNorm			= ModuleBuiltData->VelocityNorm;
+		Parameters->ScaleSpriteSizeBySpeed_ScaleDistribution	= ModuleBuiltData->ScaleDistribution;
 	}
 
 #if WITH_EDITOR

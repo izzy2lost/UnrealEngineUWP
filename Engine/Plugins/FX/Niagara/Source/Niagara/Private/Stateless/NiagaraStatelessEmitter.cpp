@@ -144,6 +144,8 @@ bool UNiagaraStatelessEmitter::NeedsLoadForTargetPlatform(const ITargetPlatform*
 #if WITH_EDITOR
 void UNiagaraStatelessEmitter::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
+	FNiagaraDistributionBase::PostEditChangeProperty(this, PropertyChangedEvent);
+
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	//-TODO: This should be done differently
@@ -237,7 +239,7 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 		StatelessEmitterData->SpawnInfos,
 		[this](const FNiagaraStatelessSpawnInfo& SpawnInfo)
 		{
-			return SpawnInfo.IsValid(EmitterState.LoopDurationMax);
+			return SpawnInfo.IsValid(EmitterState.LoopDuration.Max);
 		}
 	);
 

@@ -126,6 +126,30 @@ float2 GetStaticFloat2(int BaseOffset, int Element)	{ return float2(Common_Stati
 float3 GetStaticFloat3(int BaseOffset, int Element)	{ return float3(Common_StaticFloatBuffer[BaseOffset + Element*3], Common_StaticFloatBuffer[BaseOffset + 1 + Element*3], Common_StaticFloatBuffer[BaseOffset + 2 + Element*3]); }
 float4 GetStaticFloat4(int BaseOffset, int Element)	{ return float4(Common_StaticFloatBuffer[BaseOffset + Element*4], Common_StaticFloatBuffer[BaseOffset + 1 + Element*4], Common_StaticFloatBuffer[BaseOffset + 2 + Element*4], Common_StaticFloatBuffer[BaseOffset + 3 + Element*4]); }
 
+float LerpStaticFloat (uint2 Parameters, float U)
+{
+	const float Offset = U * float(Parameters.y);
+	const float Value0 = GetStaticFloat(Parameters.x, floor(Offset));
+	const float Value1 = GetStaticFloat(Parameters.x, ceil(Offset));
+	return lerp(Value0, Value1, frac(Offset));
+}
+
+float2 LerpStaticFloat2(uint2 Parameters, float U)
+{
+	const float  Offset = U * float(Parameters.y);
+	const float2 Value0 = GetStaticFloat2(Parameters.x, floor(Offset));
+	const float2 Value1 = GetStaticFloat2(Parameters.x, ceil(Offset));
+	return lerp(Value0, Value1, frac(Offset));
+}
+
+float3 LerpStaticFloat3(uint2 Parameters, float U)
+{
+	const float  Offset = U * float(Parameters.y);
+	const float3 Value0 = GetStaticFloat3(Parameters.x, floor(Offset));
+	const float3 Value1 = GetStaticFloat3(Parameters.x, ceil(Offset));
+	return lerp(Value0, Value1, frac(Offset));
+}
+	
 uint GetComponentOffset(uint OutputIndex, int ComponentOffset)
 {
 	return ComponentOffset * Common_OutputBufferStride + OutputIndex;

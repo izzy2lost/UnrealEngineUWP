@@ -6,6 +6,8 @@
 #include "NiagaraEditorStyle.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
+#include "Stateless/NiagaraDistributionPropertyCustomization.h"
+#include "Stateless/NiagaraDistributionIntPropertyCustomization.h"
 #include "Stateless/NiagaraStatelessEmitter.h"
 #include "Styling/AppStyle.h"
 #include "ViewModels/Stack/NiagaraStackItemPropertyHeaderValueShared.h"
@@ -120,6 +122,7 @@ void UNiagaraStackStatelessEmitterSpawnItem::Initialize(FRequiredEntryData InReq
 	StatelessEmitterWeak = InStatelessEmitter;
 	Index = InIndex;
 	SourceId = InStatelessEmitter->GetSpawnInfoByIndex(InIndex)->SourceId;
+	OnDataObjectModified().AddUObject(this, &UNiagaraStackStatelessEmitterSpawnItem::OnSpawnInfoModified);
 }
 
 FText UNiagaraStackStatelessEmitterSpawnItem::GetDisplayName() const
@@ -164,16 +167,26 @@ void UNiagaraStackStatelessEmitterSpawnItem::RefreshChildrenInternal(const TArra
 		}
 
 		UNiagaraStackObject* SpawnInfoObject = SpawnInfoObjectWeak.Get();
-		if (SpawnInfoObject == nullptr || SpawnInfoObject->GetObject() != StatelessEmitterWeak.Get() ||
+		UObject* StatelessEmitterObject = StatelessEmitterWeak.Get();
+		if (SpawnInfoObject == nullptr || SpawnInfoObject->GetObject() != StatelessEmitterObject ||
 			SpawnInfoObject->GetDisplayedStruct().IsValid() == false || SpawnInfoObject->GetDisplayedStruct()->GetStructMemory() != (uint8*)SpawnInfo)
 		{
 			bool bIsInTopLevelStruct = true;
 			bool bHideTopLevelCategories = true;
 			SpawnInfoObject = NewObject<UNiagaraStackObject>(this);
-			SpawnInfoObject->Initialize(CreateDefaultChildRequiredData(), StatelessEmitterWeak.Get(), SpawnInfoStructOnScope.ToSharedRef(), TEXT("SpawnInfo"), bIsInTopLevelStruct, bHideTopLevelCategories, GetStackEditorDataKey());
+			SpawnInfoObject->Initialize(CreateDefaultChildRequiredData(), StatelessEmitterObject, SpawnInfoStructOnScope.ToSharedRef(), TEXT("SpawnInfo"), bIsInTopLevelStruct, bHideTopLevelCategories, GetStackEditorDataKey());
 			SpawnInfoObject->SetOnFilterDetailNodes(
 				FNiagaraStackObjectShared::FOnFilterDetailNodes::CreateStatic(&UNiagaraStackStatelessEmitterSpawnItem::FilterDetailNodes),
 				UNiagaraStackObject::EDetailNodeFilterMode::FilterAllNodes);
+			//SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionFloat::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeFloatInstance, StatelessEmitterObject));
+			//SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionVector2::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector2Instance));
+			//SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionVector3::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector3Instance));
+			//SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionColor::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeColorInstance));
+			SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionRangeFloat::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeFloatInstance, StatelessEmitterObject));
+			//SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionRangeVector2::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector2Instance));
+			//SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionRangeVector3::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionPropertyCustomization::MakeVector3Instance));
+			SpawnInfoObject->RegisterInstancedCustomPropertyTypeLayout(FNiagaraDistributionRangeInt::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FNiagaraDistributionIntPropertyCustomization::MakeIntInstance, StatelessEmitterObject));
+
 			SpawnInfoObjectWeak = SpawnInfoObject;
 		}
 		NewChildren.Add(SpawnInfoObject);
@@ -181,7 +194,7 @@ void UNiagaraStackStatelessEmitterSpawnItem::RefreshChildrenInternal(const TArra
 		if (bGeneratedHeaderValueHandlers == false)
 		{
 			bGeneratedHeaderValueHandlers = true;
-			FNiagaraStackItemPropertyHeaderValueShared::GenerateHeaderValueHandlers(*StatelessEmitterWeak.Get(), (uint8*)SpawnInfo, *SpawnInfo->StaticStruct(), FSimpleDelegate::CreateUObject(this, &UNiagaraStackStatelessEmitterSpawnItem::OnHeaderValueChanged), HeaderValueHandlers);
+			FNiagaraStackItemPropertyHeaderValueShared::GenerateHeaderValueHandlers(*StatelessEmitterObject, (uint8*)SpawnInfo, *SpawnInfo->StaticStruct(), FSimpleDelegate::CreateUObject(this, &UNiagaraStackStatelessEmitterSpawnItem::OnHeaderValueChanged), HeaderValueHandlers);
 		}
 		else
 		{
@@ -237,6 +250,17 @@ void UNiagaraStackStatelessEmitterSpawnItem::OnHeaderValueChanged()
 		TArray<UObject*> ChangedObjects;
 		ChangedObjects.Add(StatelessEmitter);
 		OnDataObjectModified().Broadcast(ChangedObjects, ENiagaraDataObjectChange::Changed);
+	}
+}
+
+//-TODO:Stateless: There should be cleaner way of doing this
+void UNiagaraStackStatelessEmitterSpawnItem::OnSpawnInfoModified(TArray<UObject*> Objects, ENiagaraDataObjectChange ChangeType)
+{
+	UNiagaraStatelessEmitter* StatelessEmitter = StatelessEmitterWeak.Get();
+	if (Objects.Num() == 1 && Objects[0] == StatelessEmitter && StatelessEmitter)
+	{
+		FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
+		SpawnInfo->Rate.UpdateValuesFromDistribution();
 	}
 }
 

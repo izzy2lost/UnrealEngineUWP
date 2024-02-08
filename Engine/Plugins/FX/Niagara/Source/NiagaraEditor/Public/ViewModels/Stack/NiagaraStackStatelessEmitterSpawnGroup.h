@@ -80,6 +80,7 @@ private:
 	static void FilterDetailNodes(const TArray<TSharedRef<IDetailTreeNode>>& InSourceNodes, TArray<TSharedRef<IDetailTreeNode>>& OutFilteredNodes);
 
 	void OnHeaderValueChanged();
+	void OnSpawnInfoModified(TArray<UObject*> Objects, ENiagaraDataObjectChange ChangeType);
 
 private:
 	TWeakObjectPtr<UNiagaraStatelessEmitter> StatelessEmitterWeak;

@@ -23,9 +23,7 @@ struct FNiagaraDistributionBase
 {
 	GENERATED_BODY()
 
-	virtual ~FNiagaraDistributionBase() 
-	{
-	}
+	virtual ~FNiagaraDistributionBase() = default;
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	ENiagaraDistributionMode Mode = ENiagaraDistributionMode::UniformConstant;
@@ -46,7 +44,30 @@ struct FNiagaraDistributionBase
 
 	virtual bool AllowCurves() const { return true; }
 	virtual void UpdateValuesFromDistribution() { }
+
+	static void PostEditChangeProperty(UObject* OwnerObject, FPropertyChangedEvent& PropertyChangedEvent);
 #endif
+};
+
+USTRUCT()
+struct FNiagaraDistributionRangeInt
+{
+	GENERATED_BODY()
+
+	FNiagaraDistributionRangeInt() = default;
+	explicit FNiagaraDistributionRangeInt(int32 ConstantValue) { InitConstant(ConstantValue); }
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	ENiagaraDistributionMode Mode = ENiagaraDistributionMode::UniformConstant;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	int32 Min = 0;
+
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	int32 Max = 0;
+
+	NIAGARA_API void InitConstant(int32 Value);
+	NIAGARA_API FNiagaraStatelessRangeInt CalculateRange(const int32 Default = 0) const;
 };
 
 USTRUCT()
@@ -143,11 +164,13 @@ struct FNiagaraDistributionVector2 : public FNiagaraDistributionBase
 	GENERATED_BODY()
 
 	FNiagaraDistributionVector2() = default;
+	explicit FNiagaraDistributionVector2(const float ConstantValue) { InitConstant(ConstantValue); }
 	explicit FNiagaraDistributionVector2(const FVector2f& ConstantValue) { InitConstant(ConstantValue); }
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector2f> Values;
 
+	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector2f& Value);
 	NIAGARA_API FNiagaraStatelessRangeVector2 CalculateRange(const FVector2f& Default = FVector2f::ZeroVector) const;
 
@@ -162,11 +185,13 @@ struct FNiagaraDistributionVector3 : public FNiagaraDistributionBase
 	GENERATED_BODY()
 
 	FNiagaraDistributionVector3() = default;
+	explicit FNiagaraDistributionVector3(const float ConstantValue) { InitConstant(ConstantValue); }
 	explicit FNiagaraDistributionVector3(const FVector3f& ConstantValue) { InitConstant(ConstantValue); }
 
 	UPROPERTY(EditAnywhere, Category = "Parameters")
 	TArray<FVector3f> Values;
 
+	NIAGARA_API void InitConstant(const float Value);
 	NIAGARA_API void InitConstant(const FVector3f& Value);
 	NIAGARA_API FNiagaraStatelessRangeVector3 CalculateRange(const FVector3f& Default = FVector3f::ZeroVector) const;
 

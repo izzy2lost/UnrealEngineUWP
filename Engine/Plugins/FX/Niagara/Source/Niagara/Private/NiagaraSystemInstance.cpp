@@ -2994,8 +2994,8 @@ void FNiagaraSystemInstance::InitSystemState()
 	SystemState_RandomStream.Initialize(RandomSeed + RandomSeedOffset);
 
 	SystemState_LoopCount			= 0;
-	SystemState_CurrentLoopDuration = SystemState_RandomStream.FRandRange(SystemStateData.LoopDurationMin, SystemStateData.LoopDurationMax);
-	SystemState_CurrentLoopDelay	= SystemState_RandomStream.FRandRange(SystemStateData.LoopDelayMin, SystemStateData.LoopDelayMax);
+	SystemState_CurrentLoopDuration = SystemState_RandomStream.FRandRange(SystemStateData.LoopDuration.Min, SystemStateData.LoopDuration.Max);
+	SystemState_CurrentLoopDelay	= SystemState_RandomStream.FRandRange(SystemStateData.LoopDelay.Min, SystemStateData.LoopDelay.Max);
 	SystemState_CurrentLoopAgeStart	= 0.0f;
 	SystemState_CurrentLoopAgeEnd	= SystemState_CurrentLoopAgeStart + SystemState_CurrentLoopDelay + SystemState_CurrentLoopDuration;
 }
@@ -3036,7 +3036,7 @@ void FNiagaraSystemInstance::TickSystemState()
 
 				if (SystemStateData.bRecalculateDurationEachLoop)
 				{
-					SystemState_CurrentLoopDuration = SystemState_RandomStream.FRandRange(SystemStateData.LoopDurationMin, SystemStateData.LoopDurationMax);
+					SystemState_CurrentLoopDuration = SystemState_RandomStream.FRandRange(SystemStateData.LoopDuration.Min, SystemStateData.LoopDuration.Max);
 				}
 
 				if (SystemStateData.bDelayFirstLoopOnly)
@@ -3045,7 +3045,7 @@ void FNiagaraSystemInstance::TickSystemState()
 				}
 				else if (SystemStateData.bRecalculateDelayEachLoop)
 				{
-					SystemState_CurrentLoopDelay = SystemState_RandomStream.FRandRange(SystemStateData.LoopDelayMin, SystemStateData.LoopDelayMax);
+					SystemState_CurrentLoopDelay = SystemState_RandomStream.FRandRange(SystemStateData.LoopDelay.Min, SystemStateData.LoopDelay.Max);
 				}
 
 				SystemState_CurrentLoopAgeStart	= SystemState_CurrentLoopAgeEnd;

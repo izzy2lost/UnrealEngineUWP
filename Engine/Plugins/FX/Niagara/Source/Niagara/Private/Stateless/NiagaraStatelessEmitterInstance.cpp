@@ -232,8 +232,8 @@ void FNiagaraStatelessEmitterInstance::InitEmitterState()
 {
 	const FNiagaraEmitterStateData& EmitterState = EmitterData->EmitterState;
 	LoopCount			= 0;
-	CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDurationMin, EmitterState.LoopDurationMax);
-	CurrentLoopDelay	= RandomStream.FRandRange(EmitterState.LoopDelayMin, EmitterState.LoopDelayMax);
+	CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDuration.Min, EmitterState.LoopDuration.Max);
+	CurrentLoopDelay	= RandomStream.FRandRange(EmitterState.LoopDelay.Min, EmitterState.LoopDelay.Max);
 	CurrentLoopAgeStart	= 0.0f;
 	CurrentLoopAgeEnd	= CurrentLoopAgeStart + CurrentLoopDelay + CurrentLoopDuration;
 }
@@ -275,7 +275,7 @@ void FNiagaraStatelessEmitterInstance::TickEmitterState()
 
 			if (EmitterState.bRecalculateDurationEachLoop)
 			{
-				CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDurationMin, EmitterState.LoopDurationMax);
+				CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDuration.Min, EmitterState.LoopDuration.Max);
 			}
 
 			if (EmitterState.bDelayFirstLoopOnly)
@@ -284,7 +284,7 @@ void FNiagaraStatelessEmitterInstance::TickEmitterState()
 			}
 			else if ( EmitterState.bRecalculateDelayEachLoop )
 			{
-				CurrentLoopDelay	= RandomStream.FRandRange(EmitterState.LoopDelayMin, EmitterState.LoopDelayMax);
+				CurrentLoopDelay	= RandomStream.FRandRange(EmitterState.LoopDelay.Min, EmitterState.LoopDelay.Max);
 			}
 
 			CurrentLoopAgeStart	= CurrentLoopAgeEnd;
@@ -327,7 +327,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfos()
 	{
 		if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
 		{
-			const float SpawnRate = RandomStream.FRandRange(SpawnInfo.RateMin, SpawnInfo.RateMax);
+			const float SpawnRate = RandomStream.FRandRange(SpawnInfo.Rate.Min, SpawnInfo.Rate.Max);
 			if (SpawnRate > 0.0f)
 			{
 				FActiveSpawnRate& ActiveSpawnRate = ActiveSpawnRates.AddDefaulted_GetRef();
@@ -379,7 +379,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop()
 			continue;
 		}
 
-		const int32 SpawnAmount = RandomStream.RandRange(SpawnInfo.AmountMin, SpawnInfo.AmountMax);
+		const int32 SpawnAmount = RandomStream.RandRange(SpawnInfo.Amount.Min, SpawnInfo.Amount.Max);
 		if (SpawnAmount <= 0)
 		{
 			continue;

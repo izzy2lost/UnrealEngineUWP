@@ -9,6 +9,7 @@ class INiagaraDistributionAdapter;
 class FNiagaraDistributionPropertyCustomization : public IPropertyTypeCustomization
 {
 public:
+	static TSharedRef<IPropertyTypeCustomization> MakeFloatInstance(UObject* OptionalOuter);
 	static TSharedRef<IPropertyTypeCustomization> MakeFloatInstance();
 	static TSharedRef<IPropertyTypeCustomization> MakeVector2Instance();
 	static TSharedRef<IPropertyTypeCustomization> MakeVector3Instance();

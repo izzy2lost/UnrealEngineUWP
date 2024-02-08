@@ -7,10 +7,10 @@ bool FNiagaraStatelessSpawnInfo::IsValid(TOptional<float> LoopDuration) const
 	switch (Type)
 	{
 		case ENiagaraStatelessSpawnInfoType::Burst:
-			return (AmountMin + AmountMax) > 0 && SpawnTime >= 0.0f && SpawnTime < LoopDuration.Get(SpawnTime + UE_SMALL_NUMBER);
+			return (Amount.Min + Amount.Max) > 0 && SpawnTime >= 0.0f && SpawnTime < LoopDuration.Get(SpawnTime + UE_SMALL_NUMBER);
 
 		case ENiagaraStatelessSpawnInfoType::Rate:
-			return (RateMin + RateMax) > 0.0f;
+			return (Rate.Min + Rate.Max) > 0.0f;
 
 		default:
 			checkNoEntry();
