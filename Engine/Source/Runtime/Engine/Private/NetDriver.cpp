@@ -247,11 +247,21 @@ namespace UE::Net::Private
 	static bool bIgnoreStaticActorDestruction = false;
 
 
-	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams)
+	void ApplyReplicationSystemConfig(const FNetDriverReplicationSystemConfig& ReplicationSystemConfig, UReplicationSystem::FReplicationSystemParams& OutParams, bool bIsServer)
 	{
-		if (ReplicationSystemConfig.MaxReplicatedObjectCount != 0)
+		if (bIsServer)
 		{
-			OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectCount;
+			if (ReplicationSystemConfig.MaxReplicatedObjectServerCount != 0)
+			{
+				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectServerCount;
+			}
+		}
+		else
+		{
+			if (ReplicationSystemConfig.MaxReplicatedObjectClientCount != 0)
+			{
+				OutParams.MaxReplicatedObjectCount = ReplicationSystemConfig.MaxReplicatedObjectClientCount;
+			}
 		}
 
 		if (ReplicationSystemConfig.MaxDeltaCompressedObjectCount != 0)
@@ -6788,7 +6798,7 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		Params.bAllowObjectReplication = !bInitAsClient;
 		Params.ForwardNetRPCCallDelegate.BindUObject(this, &UNetDriver::ForwardRemoteFunction);
 
-		UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfig, Params);
+		UE::Net::Private::ApplyReplicationSystemConfig(ReplicationSystemConfig, Params, !bInitAsClient);
 
 		SetReplicationSystem(UE::Net::FReplicationSystemFactory::CreateReplicationSystem(Params));
 	}
