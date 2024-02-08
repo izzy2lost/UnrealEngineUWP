@@ -203,8 +203,9 @@ protected:
 
 	float ExpansionRadius = 60.f;
 	FLinearColor ExpansionColor = FLinearColor::White * FLinearColor(1.f, 1.f, 1.f, 0.5f);
-	float EnterDelayDuration = 0.4f;
-	float LeaveDelayDuration = 1.f;
+	float EnterDelayDuration = 0.25f;
+	float LeaveDelayDuration = 0.75f;
+	TOptional<bool> LastExpansionState;
 	TEasingAttributeInterpolator<float>::FSettings AnimationSettings;
 	TSharedPtr<TAnimatedAttribute<float>> ExpansionState;
 

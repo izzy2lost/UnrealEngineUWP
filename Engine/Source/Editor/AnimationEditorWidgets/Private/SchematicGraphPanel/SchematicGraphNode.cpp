@@ -313,6 +313,7 @@ void FSchematicGraphGroupNode::SetExpanded(bool InExpanded, bool bAutoCloseParen
 	if(!InExpanded && GetExpansionState() < SMALL_NUMBER)
 	{
 		ExpansionState->SetValueAndStop(0.f);
+		LastExpansionState.Reset();
 	}
 	else
 	{
@@ -324,9 +325,14 @@ void FSchematicGraphGroupNode::SetExpanded(bool InExpanded, bool bAutoCloseParen
 				ExpansionState->SetValueAndStop(SMALL_NUMBER * 2.f);
 			}
 		}
-		if(!ExpansionState->GetDelay().IsSet())
+		
+		if(!LastExpansionState.IsSet() || (LastExpansionState.Get(InExpanded) != InExpanded))
 		{
-			ExpansionState->SetDelayOneShot(GetDelayDuration(InExpanded));
+			if(!ExpansionState->GetDelay().IsSet())
+			{
+				ExpansionState->SetDelayOneShot(GetDelayDuration(InExpanded));
+			}
+			LastExpansionState = InExpanded;
 		}
 		ExpansionState->Set(InExpanded ? 1.f : 0.f);
 	}
@@ -338,7 +344,7 @@ void FSchematicGraphGroupNode::SetExpanded(bool InExpanded, bool bAutoCloseParen
 			GroupNode->SetExpanded(InExpanded, bAutoCloseParentGroups);
 		}
 	}
-
+	
 	if(InExpanded)
 	{
 		Model->SetLastExpandedNode(this);
