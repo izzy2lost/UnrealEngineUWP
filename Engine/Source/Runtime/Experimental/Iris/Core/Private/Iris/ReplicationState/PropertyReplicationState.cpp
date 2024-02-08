@@ -548,11 +548,14 @@ bool FPropertyReplicationState::IsCustomConditionEnabled(uint32 Index) const
 	const FReplicationStateDescriptor* Descriptor = ReplicationStateDescriptor;
 	const FReplicationStateMemberChangeMaskDescriptor& ChangeMaskInfo = Descriptor->MemberChangeMaskDescriptors[Index];
 
-	// $TODO: Test any bits if check triggers?
-	checkSlow(ChangeMaskInfo.BitCount == 1);
+	if (ChangeMaskInfo.BitCount > 0)
+	{
+		FNetBitArrayView MemberConditionalChangeMask = Private::GetMemberConditionalChangeMask(StateBuffer, Descriptor);
+		return MemberConditionalChangeMask.GetBit(ChangeMaskInfo.BitOffset);
+	}
 
-	FNetBitArrayView MemberConditionalChangeMask = Private::GetMemberConditionalChangeMask(StateBuffer, Descriptor);
-	return MemberConditionalChangeMask.GetBit(ChangeMaskInfo.BitOffset);
+	// If there's no bitmask the property cannot be disabled.
+	return true;
 }
 
 }
