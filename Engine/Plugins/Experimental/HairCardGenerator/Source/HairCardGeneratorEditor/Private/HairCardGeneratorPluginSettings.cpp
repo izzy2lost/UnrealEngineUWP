@@ -309,7 +309,7 @@ bool HairCardSettings_Converter::WriteSettingsToJson(UObject* SettingsObject, TS
 /* UHairCardGeneratorPluginSettings
  *****************************************************************************/
 
-void UHairCardGeneratorPluginSettings::SetSource(TObjectPtr<const UGroomAsset> InSourceObject, int32 GenLODIndex, int32 PhysGroupIndex)
+void UHairCardGeneratorPluginSettings::SetSource(TObjectPtr<UGroomAsset> InSourceObject, int32 GenLODIndex, int32 PhysGroupIndex)
 {
 	GroomAsset = InSourceObject;
 	LODIndex = GenLODIndex;
@@ -531,6 +531,7 @@ void UHairCardGeneratorPluginSettings::PostResetUpdates()
 {
 	UpdateOutputPaths();
 	UpdateParentInfo();
+	UpdateHairWidths();
 }
 
 void UHairCardGeneratorPluginSettings::UpdateOutputPaths()
@@ -557,6 +558,31 @@ void UHairCardGeneratorPluginSettings::UpdateParentInfo()
 
 	for ( int index = 0; index < FilterGroupGenerationSettings.Num(); ++index )
 		FilterGroupGenerationSettings[index]->UpdateParentName(BaseParentName, index);
+}
+
+void UHairCardGeneratorPluginSettings::UpdateHairWidths()
+{
+	int const NumPhysGroups = GroomAsset->GetHairDescriptionGroups().HairGroups.Num();
+
+	HairWidths.Init(-1.0, NumPhysGroups);
+	RootScales.Init(1.0, NumPhysGroups);
+	TipScales.Init(1.0, NumPhysGroups);
+	if ( bUseGroomAssetStrandWidth )
+	{
+		for ( int PhysGroupIdx = 0; PhysGroupIdx<NumPhysGroups; PhysGroupIdx++ )
+		{
+			const FHairGeometrySettings& GeometrySettings = GroomAsset->GetHairGroupsRendering()[PhysGroupIdx].GeometrySettings;
+
+			bOverrideHairWidth = GeometrySettings.HairWidth_Override;
+
+			if ( bOverrideHairWidth )
+			{
+				HairWidths[PhysGroupIdx] = GeometrySettings.HairWidth;
+			}
+			RootScales[PhysGroupIdx] = GeometrySettings.HairRootScale;
+			TipScales[PhysGroupIdx] = GeometrySettings.HairTipScale;
+		}
+	}
 }
 
 bool UHairCardGeneratorPluginSettings::FindDerivedTextureSettings()
@@ -999,6 +1025,10 @@ void UHairCardGeneratorPluginSettings::PostEditChangeProperty(FPropertyChangedEv
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UHairCardGeneratorPluginSettings, bUseReservedSpaceFromPreviousLOD))
 	{
 		UpdateParentInfo();
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UHairCardGeneratorPluginSettings, bUseGroomAssetStrandWidth))
+	{
+		UpdateHairWidths();
 	}
 }
 

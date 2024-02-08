@@ -128,7 +128,7 @@ public:
 	bool bGenerateGeometryForAllGroups = true;
 
 	// Seed value for pseudo-random number generation (set to a specific value for repeatable results)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Randomness")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Randomness", meta=(ClampMin="0", ClampMax="10000"))
 	int RandomSeed = 0;
 
 	// Place new card textures in reserved space from previous LOD
@@ -147,6 +147,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Texture Rendering")
 	bool bUseGroomAssetStrandWidth = true;
 
+	UPROPERTY(BlueprintReadOnly, Category="Texture Rendering")
+	bool bOverrideHairWidth;
+
+	UPROPERTY(BlueprintReadOnly, Category="Texture Rendering")
+	TArray<float> HairWidths;
+
+	UPROPERTY(BlueprintReadOnly, Category="Texture Rendering")
+	TArray<float> RootScales;
+
+	UPROPERTY(BlueprintReadOnly, Category="Texture Rendering")
+	TArray<float> TipScales;
+
 	// Minimum strand depth value (mapped to 0 in depth texture)
 	UPROPERTY(BlueprintReadOnly, Category="Texture Rendering|Advanced", meta=(ClampMin="-10.0", ClampMax="0.0"))
 	float DepthMinimum = -2.0f;
@@ -162,7 +174,7 @@ public:
 	UPROPERTY(Transient, BlueprintReadOnly, Category="Asset")
 	FString OutputPath;
 
-	void SetSource(TObjectPtr<const UGroomAsset> SourceObject, int32 GenLODIndex = 0, int32 PhysGroupIndex = 0);
+	void SetSource(TObjectPtr<UGroomAsset> SourceObject, int32 GenLODIndex = 0, int32 PhysGroupIndex = 0);
 	// Load last-run values for options from card source description or defaults if no last-run info
 	void ResetFromSourceDescription(const FHairGroupsCardsSourceDescription& SourceDesc);
 	// Load settings from Json file if one exists
@@ -232,6 +244,7 @@ public:
 private:
 	void UpdateOutputPaths();
 	void UpdateParentInfo();
+	void UpdateHairWidths();
 	bool FindDerivedTextureSettings();
 	TSharedPtr<FJsonObject> GetParentTextureSettings() const;
 
@@ -286,7 +299,7 @@ private:
 	TArray<int> StrandFilterGroupIndexMap;
 
 	UPROPERTY(Transient)
-	TObjectPtr<const UGroomAsset> GroomAsset = nullptr;
+	TObjectPtr<UGroomAsset> GroomAsset = nullptr;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UStaticMesh> OldGeneratedMesh = nullptr;
