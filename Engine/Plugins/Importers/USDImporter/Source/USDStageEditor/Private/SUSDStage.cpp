@@ -10,6 +10,7 @@
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
 #include "USDLayerUtils.h"
+#include "USDLog.h"
 #include "USDProjectSettings.h"
 #include "USDSchemasModule.h"
 #include "USDSchemaTranslator.h"
@@ -2252,11 +2253,11 @@ void SUsdStage::FileExportAllLayers(const FString& OutputDirectory)
 	// We will need to actually load these as opposed to just copy-paste the files as we may need to update references/paths
 	SUSDStageImpl::AppendAllExternalReferences(LayerStack);
 
-	// Discard session layers
+	// Discard session layers, but keep the root layer if it's anonymous (temp stage)
 	for (int32 Index = LayerStack.Num() - 1; Index >= 0; --Index)
 	{
 		UE::FSdfLayer& Layer = LayerStack[Index];
-		if (Layer.IsAnonymous())
+		if (Layer.IsAnonymous() && UsdStage.GetRootLayer() != Layer)
 		{
 			const int32 Count = 1;
 			LayerStack.RemoveAt(Index, Count, EAllowShrinking::No);
@@ -2378,7 +2379,11 @@ void SUsdStage::FileExportFlattenedStage(const FString& OutputLayer)
 
 	double StartTime = FPlatformTime::Cycles64();
 
-	UsdStage.Export(*OutputLayerCopy);
+	const bool bResult = UsdStage.Export(*OutputLayerCopy);
+	if (!bResult)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to export flattened USD Stage to path '%s'!"), *OutputLayerCopy);
+	}
 
 	// Send analytics
 	if (FEngineAnalytics::IsAvailable())

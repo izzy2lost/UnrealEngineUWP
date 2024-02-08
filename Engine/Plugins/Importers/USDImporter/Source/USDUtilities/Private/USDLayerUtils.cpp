@@ -233,8 +233,14 @@ TOptional<FString> UsdUtils::BrowseUsdFile(EBrowseFileMode Mode)
 		SupportedExtensions.Remove(TEXT("usdz"));
 	}
 
-	FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT(";*."));	   // Combine "usd" and "usda" into "usd; *.usda"
-	FString FileTypes = FString::Printf(TEXT("Universal Scene Description files (*.%s)|*.%s|"), *JoinedExtensions, *JoinedExtensions);
+	// Show an option for "all supported extensions" at the same time, but only if not saving: For saving the user should have to pick one directly
+	FString FileTypes;
+	if (Mode != EBrowseFileMode::Save)
+	{
+		FString JoinedExtensions = FString::Join(SupportedExtensions, TEXT(";*."));	   // Combine "usd" and "usda" into "usd; *.usda"
+		FileTypes = FString::Printf(TEXT("Universal Scene Description files (*.%s)|*.%s|"), *JoinedExtensions, *JoinedExtensions);
+	}
+
 	for (const FString& SupportedExtension : SupportedExtensions)
 	{
 		const bool bIsTextNative = NativeTextExtensionsSet.Contains(SupportedExtension);
