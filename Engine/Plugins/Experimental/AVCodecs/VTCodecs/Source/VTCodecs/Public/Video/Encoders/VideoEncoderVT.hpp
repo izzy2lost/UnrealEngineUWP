@@ -121,19 +121,15 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
                 CONDITIONAL_RELEASE(PixelFormat);
 				
 				// Encoder specifications
-				const size_t EncoderSpecsSize = 2;
-				CFTypeRef EncoderKeys[AttributesSize] = 
+				const size_t EncoderSpecsSize = 1;
+				CFTypeRef EncoderKeys[EncoderSpecsSize] =
 				{
 					// We want HW acceleration for best latency, if we can't get it then fail creating the session
 					kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder,
-					
-					// Low latency mode is ideal for WebRTC, infinite GOP, no bframes, temporal layer structure etc
-					kVTVideoEncoderSpecification_EnableLowLatencyRateControl
 				};
 				
 				CFTypeRef EncoderValues[EncoderSpecsSize] =
 				{
-					kCFBooleanTrue, 
 					kCFBooleanTrue
 				};
 				
@@ -186,8 +182,6 @@ FAVResult TVideoEncoderVT<TResource>::ConfigureCompressionSession(FVideoEncoderC
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, (int32_t)Config.KeyframeInterval);
     
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, (Config.KeyframeInterval > 0 ? (int32_t)(Config.KeyframeInterval / Config.FrameRate) : 0));
-	
-	VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, (int32_t)Config.KeyframeInterval);
     
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MinAllowedFrameQP, (int32_t)Config.MinQP);
 	

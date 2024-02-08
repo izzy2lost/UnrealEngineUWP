@@ -14,7 +14,7 @@
 #include "OpenColorIORendering.h"
 #include "OrderedAsyncGate.h"
 #include "PixelFormat.h"
-#include "RenderGraphResources.h"
+#include "RenderGraphUtils.h"
 #include "RHI.h"
 #include "RHIResources.h"
 #include "Tasks/Task.h"
@@ -414,6 +414,16 @@ public:
 
 	static const TSet<EPixelFormat>& GetSupportedRgbaSwizzleFormats();
 
+	virtual TRefCountPtr<IPooledRenderTarget> InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const FString& TextureName) const
+	{
+		return AllocatePooledTexture(TextureDesc, *TextureName);
+	}
+
+	virtual TRefCountPtr<FRDGPooledBuffer> InitializePassOutputBuffer(FRDGBufferDesc BufferDesc, const FString& BufferName) const
+	{
+		return AllocatePooledBuffer(BufferDesc, *BufferName);
+	}
+
 	/** Get the name of the media output that created this capture. */
 	FString GetMediaOutputName() const
 	{
@@ -575,6 +585,15 @@ protected:
 	{
 		return DesiredOutputBufferDescription;
 	}
+
+	/** Get the output texture's flags.
+     * This can overriden to specify custom texture flags for the output texture.
+     * This method can be overriden when doing a custom capture pass; however, this is advanced usage so proceed with caution when changing these.
+     */
+    virtual ETextureCreateFlags GetOutputTextureFlags() const
+    {
+        return TexCreate_Shared | TexCreate_RenderTargetable | TexCreate_UAV;
+    }
 
 protected:
 	UTextureRenderTarget2D* GetTextureRenderTarget() const;
