@@ -9,9 +9,11 @@ namespace uba
 	CriticalSection::CriticalSection()
 	{
 		#if PLATFORM_WINDOWS
+		static_assert(alignof(CRITICAL_SECTION) == alignof(CriticalSection));
 		static_assert(sizeof(data) >= sizeof(CRITICAL_SECTION));
 		InitializeCriticalSection((CRITICAL_SECTION*)&data);
 		#else
+		static_assert(alignof(pthread_mutex_t) == alignof(CriticalSection));
 		static_assert(sizeof(data) >= sizeof(pthread_mutex_t));
 		pthread_mutexattr_t attr;
 		pthread_mutexattr_init(&attr);
@@ -51,8 +53,10 @@ namespace uba
 	{
 		#if PLATFORM_WINDOWS
 		static_assert(sizeof(data) >= sizeof(SRWLOCK));
+		static_assert(alignof(SRWLOCK) == alignof(ReaderWriterLock));
 		InitializeSRWLock((SRWLOCK*)&data);
 		#else
+		static_assert(alignof(pthread_rwlock_t) == alignof(ReaderWriterLock));
 		static_assert(sizeof(data) >= sizeof(pthread_rwlock_t));
 		pthread_rwlock_init((pthread_rwlock_t*)data, NULL);
 		#endif

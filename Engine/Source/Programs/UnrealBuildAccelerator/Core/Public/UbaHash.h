@@ -15,6 +15,7 @@ namespace uba
 		u64 b;
 		bool operator==(const StringKey& o) const { return a == o.a && b == o.b; }
 		bool operator!=(const StringKey& o) const { return a != o.a || b != o.b; }
+		bool operator<(const StringKey& o) const { if (a != o.a) return a < o.a; return b < o.b; }
 	};
 	constexpr StringKey StringKeyZero;
 
@@ -29,6 +30,7 @@ namespace uba
 		u32 c;
 		bool operator==(const CasKey& o) const { return a == o.a && b == o.b && c == o.c; }
 		bool operator!=(const CasKey& o) const { return a != o.a || b != o.b || c != o.c; }
+		bool operator<(const CasKey& o) const { if (a != o.a) return a < o.a; if (b != o.b) return b < o.b; return c < o.c; }
 	};
 #pragma pack(pop)
 

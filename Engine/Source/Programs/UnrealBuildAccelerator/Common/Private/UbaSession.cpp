@@ -2304,7 +2304,7 @@ namespace uba
 		if (fd != -1)
 		{
 			char buffer[512];
-			int size = read(fd, buffer, 512);
+			int size = read(fd, buffer, sizeof_array(buffer) - 1);
 			if (size != -1)
 			{
 				buffer[size] = 0;
