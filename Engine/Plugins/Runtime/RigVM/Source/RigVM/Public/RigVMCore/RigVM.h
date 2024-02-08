@@ -497,17 +497,6 @@ public:
 		return TArray<int32>();
 	}
 
-	UE_DEPRECATED(5.3, "Please, use SetFirstEntryEventInEventQueue with Context param")
-	const void SetFirstEntryEventInEventQueue(const FName& InFirstEventName) {}
-
-	const void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) 
-	{ 
-		if (FRigVMInstructionVisitInfo* InstructionVisitInfo = Context.GetRigVMInstructionVisitInfo())
-		{
-			InstructionVisitInfo->SetFirstEntryEventInEventQueue(InFirstEventName);
-		}
-	}
-
 	bool ResumeExecution(FRigVMExtendedExecuteContext& Context, const FName& InEntryName = NAME_None);
 
 	UE_DEPRECATED(5.3, "Please, use ResumeExecution with Context param")

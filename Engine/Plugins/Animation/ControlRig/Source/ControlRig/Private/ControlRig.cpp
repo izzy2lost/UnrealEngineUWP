@@ -690,7 +690,10 @@ bool UControlRig::Execute(const FName& InEventName)
 
 	// Only top-level rigs should execute this function.
 	// Rig modules/nested rigs should run through Execute_Internal
-	ensureMsgf(GetTypedOuter<UControlRig>() == nullptr, TEXT("UControlRig::Execute running from a nested rig in %s"), *GetPackage()->GetPathName());
+	if (InEventName != FRigUnit_PrepareForExecution::EventName)
+	{
+		ensureMsgf(GetTypedOuter<UControlRig>() == nullptr, TEXT("UControlRig::Execute running from a nested rig in %s"), *GetPackage()->GetPathName());
+	}
 	ensureMsgf(InEventName != FRigUnit_PreBeginExecution::EventName &&
 						InEventName != FRigUnit_PostBeginExecution::EventName, TEXT("Requested execution of invalid event %s on top level rig in %s"), *InEventName.ToString(), *GetPackage()->GetPathName());
 
@@ -738,17 +741,6 @@ bool UControlRig::Execute(const FName& InEventName)
 #if UE_RIGVM_DEBUG_EXECUTION
 	PublicContext.bDebugExecution = bDebugExecutionEnabled;
 #endif
-
-	if (VM)
-	{
-#if WITH_EDITOR
-		// default to always clear data after each execution
-		// only set a valid first entry event later when execution
-		// has passed the initialization stage and there are multiple events present in one evaluation
-		// first entry event is used to determined when to clear data during an evaluation
-		SetFirstEntryEventInEventQueue(ExtendedExecuteContext, NAME_None);
-#endif
-	}
 
 #if WITH_EDITOR
 	ExtendedExecuteContext.SetInstructionVisitInfo(&InstructionVisitInfo);
@@ -1077,11 +1069,10 @@ bool UControlRig::Execute(const FName& InEventName)
 	else
 	{
 #if WITH_EDITOR
-		// only set a valid first entry event when execution
-		// has passed the initialization stage and there are multiple events present
-		if (EventQueueToRun.Num() >= 2 && VM)
+		// only set a valid first entry event when none has been set
+		if (InstructionVisitInfo.GetFirstEntryEventInEventQueue() == NAME_None && !EventQueueToRun.IsEmpty() && VM)
 		{
-			SetFirstEntryEventInEventQueue(ExtendedExecuteContext, EventQueueToRun[0]);
+			InstructionVisitInfo.SetFirstEntryEventInEventQueue(EventQueueToRun[0]);
 		}
 
 		// Transform Overrride is generated using a Transient Control 

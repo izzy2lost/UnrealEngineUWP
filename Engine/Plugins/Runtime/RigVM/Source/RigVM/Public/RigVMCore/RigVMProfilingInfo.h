@@ -27,7 +27,13 @@ struct RIGVM_API FRigVMInstructionVisitInfo
 
 	inline void ResetInstructionVisitedDuringLastRun(int32 NewSize = 0) { InstructionVisitedDuringLastRun.Reset(NewSize); }
 	inline void SetNumInstructionVisitedDuringLastRunZeroed(int32 Num) { InstructionVisitedDuringLastRun.SetNumZeroed(Num); }
-	inline void SetInstructionVisitedDuringLastRun(int32 InstructionIndex) { InstructionVisitedDuringLastRun[InstructionIndex]++; }
+	inline void SetInstructionVisitedDuringLastRun(int32 InstructionIndex)
+	{
+		if (InstructionVisitedDuringLastRun.IsValidIndex(InstructionIndex))
+		{
+			InstructionVisitedDuringLastRun[InstructionIndex]++;
+		}
+	}
 	inline int32 GetInstructionVisitedCountDuringLastRun(int32 InstructionIndex) const { return InstructionVisitedDuringLastRun.IsValidIndex(InstructionIndex) ? InstructionVisitedDuringLastRun[InstructionIndex] : 0; }
 	inline const TArray<int32>& GetInstructionVisitedCountDuringLastRun() const { return InstructionVisitedDuringLastRun; }
 
@@ -49,6 +55,28 @@ private:
 	// A RigVMHost can run multiple events per evaluation, such as the Backward&Forward Solve Mode,
 	// store the first event such that we know when to reset data for a new round of rig evaluation
 	FName FirstEntryEventInQueue = NAME_None;
+
+	friend class URigVMHost;
+	friend struct FFirstEntryEventGuard;
+};
+
+struct RIGVM_API FFirstEntryEventGuard
+{
+public:
+	FFirstEntryEventGuard(FRigVMInstructionVisitInfo* InVisitInfo, const FName& InFirstEvent)
+		: VisitInfo(InVisitInfo)
+	{
+		OldEntry = VisitInfo->FirstEntryEventInQueue;
+		VisitInfo->FirstEntryEventInQueue = InFirstEvent;
+	}
+
+	~FFirstEntryEventGuard()
+	{
+		VisitInfo->FirstEntryEventInQueue = OldEntry;
+	}
+
+	FName OldEntry;
+	FRigVMInstructionVisitInfo* VisitInfo;
 };
 
 USTRUCT()

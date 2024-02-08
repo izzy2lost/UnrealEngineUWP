@@ -20,13 +20,6 @@ UAdditiveControlRig::UAdditiveControlRig(const FObjectInitializer& ObjectInitial
 	bResetInitialTransformsBeforeConstruction = false;
 }
 
-#if WITH_EDITOR
-void UAdditiveControlRig::SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName)
-{
-	VM->SetFirstEntryEventInEventQueue(Context, NAME_None);
-}
-#endif
-
 FName UAdditiveControlRig::GetControlName(const FName& InBoneName)
 {
 	if (InBoneName != NAME_None)

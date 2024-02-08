@@ -629,8 +629,6 @@ protected:
 
 
 #if WITH_EDITOR
-	virtual void SetFirstEntryEventInEventQueue(FRigVMExtendedExecuteContext& Context, const FName& InFirstEventName) { VM->SetFirstEntryEventInEventQueue(Context, NAME_None); }
-
 	static void OnHierarchyTransformUndoRedoWeak(URigHierarchy* InHierarchy, const FRigElementKey& InKey, ERigTransformType::Type InTransformType, const FTransform& InTransform, bool bIsUndo, TWeakObjectPtr<UControlRig> WeakThis)
 	{
 		if(WeakThis.IsValid() && InHierarchy != nullptr)
