@@ -19,9 +19,24 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FSmartObjectComponentEventNativeSignature, 
 
 enum class ESmartObjectRegistrationType : uint8
 {
-	None, // corresponds to "not registered"
-	WithCollection,
-	Dynamic
+	/** Not registered yet */
+	NotRegistered,
+
+	/**
+	 * Registered and bound to a SmartObject already created from a persistent collection entry or from method CreateSmartObject.
+	 * Lifetime of the SmartObject is not bound to the component unregistration but by method UnregisterCollection in the case of 
+	 * a collection entry or by method DestroySmartObject when CreateSmartObject was used.
+	 */
+	BindToExistingInstance,
+
+	/**
+	 * Component is registered and bound to a newly created SmartObject.
+	 * The lifetime of the SmartObject is bound to the component unregistration will be unbound/destroyed by UnregisterSmartObject/RemoveSmartObject.
+	 */
+	Dynamic,
+	
+	None UE_DEPRECATED(5.4, "Use NotRegistered enumeration value instead.") = NotRegistered,
+	WithCollection UE_DEPRECATED(5.4, "Use NotRegistered enumeration value instead.") = BindToExistingInstance,
 };
 
 enum class ESmartObjectUnregistrationType : uint8
@@ -57,7 +72,7 @@ public:
 	/** Sets the Smart Object Definition. */
 	UFUNCTION(BlueprintCallable, Category = "SmartObject", meta=(DisplayName="Sets Smart Object Definition asset."))
 	void SetDefinition(USmartObjectDefinition* DefinitionAsset);
-	
+
 	bool GetCanBePartOfCollection() const { return bCanBePartOfCollection; }
 
 	ESmartObjectRegistrationType GetRegistrationType() const { return RegistrationType; }
@@ -151,7 +166,7 @@ protected:
 	UPROPERTY(Transient, VisibleAnywhere, Category = SmartObject, BlueprintReadOnly, Replicated)
 	FSmartObjectHandle RegisteredHandle;
 
-	ESmartObjectRegistrationType RegistrationType = ESmartObjectRegistrationType::None;
+	ESmartObjectRegistrationType RegistrationType = ESmartObjectRegistrationType::NotRegistered;
 
 	FDelegateHandle EventDelegateHandle;
 	

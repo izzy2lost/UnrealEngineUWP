@@ -35,6 +35,17 @@ enum class ESmartObjectSlotState : uint8
 };
 
 /**
+ * Indicates if the subsystem should try to spawn the actor associated to the smartobject
+ * if it is currently owned by an instanced actor.
+ */
+UENUM()
+enum class ETrySpawnActorIfDehydrated : uint8
+{
+	No,
+	Yes
+};
+
+/**
  * Struct describing a reservation between a user and a smart object slot.
  */
 USTRUCT(BlueprintType)
@@ -175,9 +186,15 @@ public:
 	/** @return User data struct that can be associated to the slot when claimed or used. */
 	FConstStructView GetUserData() const { return UserData; }
 
-	FInstancedStructContainer& GetMutableStateData() { return StateData; };
-	const FInstancedStructContainer& GetStateData() const { return StateData; };
-	
+	FInstancedStructContainer& GetMutableStateData() { return StateData; }
+	const FInstancedStructContainer& GetStateData() const { return StateData; }
+
+	/** Indicates if preconditions were successfully initialized. */
+	bool ArePreconditionsInitialized() const
+	{
+		return PreconditionState.IsInitialized();
+	}
+
 protected:
 	/** Struct could have been nested inside the subsystem but not possible with USTRUCT */
 	friend class USmartObjectSubsystem;
@@ -299,11 +316,21 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 */
 	void SetEnabled(FGameplayTag ReasonTag, bool bEnabled);
 
-	/** @return Pointer to owner actor if present. */
-	AActor* GetOwnerActor() const;
+	/**
+	 * Returns the actor associated to the smart object instance.
+	 * @param TrySpawnActorIfDehydrated Indicates if the instance should try to spawn the actor/component
+	 *        associated to the smartobject if it is currently owned by an instanced actor.
+	 * @return Pointer to owner actor if present.
+	 */
+	AActor* GetOwnerActor(ETrySpawnActorIfDehydrated TrySpawnActorIfDehydrated = ETrySpawnActorIfDehydrated::No) const;
 
-	/** @return Pointer to owning component if present. */
-	USmartObjectComponent* GetOwnerComponent() const;
+	/**
+	 * Returns the actor associated to the smart object instance.
+	 * @param TrySpawnActorIfDehydrated Indicates if the instance should try to spawn the actor/component
+	 *        associated to the smartobject if it is currently owned by an instanced actor.
+	 * @return Pointer to owning component if present.
+	 */
+	USmartObjectComponent* GetOwnerComponent(ETrySpawnActorIfDehydrated TrySpawnActorIfDehydrated = ETrySpawnActorIfDehydrated::No) const;
 
 	/** @return handle of the specified slot. */
 	const FSmartObjectRuntimeSlot& GetSlot(const int32 Index) const
@@ -327,6 +354,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return {};
 	}
 
+	/** Indicates if preconditions were successfully initialized. */
+	bool ArePreconditionsInitialized() const
+	{
+		return PreconditionState.IsInitialized();
+	}
+
 #if WITH_SMARTOBJECT_DEBUG
 	FString DebugGetDisableFlagsString() const;
 #endif // WITH_SMARTOBJECT_DEBUG
@@ -348,6 +381,12 @@ private:
 	 */
 	void SetEnabled(bool bEnabled, uint16 ReasonMask);
 
+	/**
+	 * Creates full actor from instanced actor owner, if any.
+	 * That actor will register its SmartObjectComponents that will then update OwnerComponent.
+	 */
+	bool ResolveOwnerActor() const;
+
 	/** World condition runtime state. */
 	UPROPERTY(Transient)
 	mutable FWorldConditionQueryState PreconditionState;
@@ -363,6 +402,9 @@ private:
 	/** Component that owns the Smart Object. May be empty if the parent Actor is not loaded. */
 	UPROPERTY()
 	TWeakObjectPtr<USmartObjectComponent> OwnerComponent;
+
+	/** Struct used to store contextual data of the owner of that SmartObject. */
+	FInstancedStruct OwnerData;
 	
 	/** Instance specific transform */
 	UPROPERTY(Transient, VisibleAnywhere, Category=SmartObjects)

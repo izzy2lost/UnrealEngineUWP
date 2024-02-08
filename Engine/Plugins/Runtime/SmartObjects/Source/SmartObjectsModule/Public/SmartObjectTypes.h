@@ -2,24 +2,31 @@
 
 #pragma once
 
-#include "EngineDefines.h"
-#include "Engine/EngineTypes.h"
-#include "Engine/CollisionProfile.h"
 #include "CollisionShape.h"
-#include "GameplayTagContainer.h"
-#include "Math/Box.h"
-#include "InstancedStruct.h"
-#include "StructView.h"
 #include "Containers/ArrayView.h"
+#include "Engine/ActorInstanceHandle.h"
+#include "Engine/CollisionProfile.h"
+#include "Engine/EngineTypes.h"
+#include "EngineDefines.h"
+#include "GameplayTagContainer.h"
+#include "InstancedStruct.h"
+#include "Math/Box.h"
+#include "StructView.h"
 #include "SmartObjectTypes.generated.h"
 
 class FDebugRenderSceneProxy;
 class UNavigationQueryFilter;
 class USmartObjectSlotValidationFilter;
+class USmartObjectComponent;
+class UWorld;
 
 #define WITH_SMARTOBJECT_DEBUG (!(UE_BUILD_SHIPPING || UE_BUILD_SHIPPING_WITH_EDITOR || UE_BUILD_TEST) && 1)
 
 SMARTOBJECTSMODULE_API DECLARE_LOG_CATEGORY_EXTERN(LogSmartObject, Warning, All);
+
+/** Delegate called when Smart Object or Slot is changed. */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnSmartObjectEvent, const FSmartObjectEventData& /*Event*/);
+
 
 namespace UE::SmartObject
 {
@@ -634,7 +641,7 @@ enum class ESmartObjectChangeReason : uint8
 };
 
 /**
- * Strict describing a change in Smart Object or Slot. 
+ * Struct describing a change in Smart Object or Slot. 
  */
 USTRUCT(BlueprintType)
 struct SMARTOBJECTSMODULE_API FSmartObjectEventData
@@ -709,5 +716,32 @@ struct SMARTOBJECTSMODULE_API FSmartObjectActorUserData
 	TWeakObjectPtr<const AActor> UserActor = nullptr;
 };
 
-/** Delegate called when Smart Object or Slot is changed. */
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnSmartObjectEvent, const FSmartObjectEventData& /*Event*/);
+/**
+ * Struct that can be used to pass data related to the owner of a created SmartObject.
+ * It identifies an instanced actor that could be in its lightweight representation or a normal actor.
+ */
+USTRUCT()
+struct SMARTOBJECTSMODULE_API FSmartObjectActorOwnerData
+{
+	GENERATED_BODY()
+
+	FSmartObjectActorOwnerData() = default;
+	explicit FSmartObjectActorOwnerData(AActor* Actor): Handle(Actor)
+	{
+	}
+	explicit FSmartObjectActorOwnerData(const FActorInstanceHandle& Handle) : Handle(Handle)
+	{
+	}
+
+	UPROPERTY()
+	FActorInstanceHandle Handle;
+};
+
+/**
+ * Struct used as a friend to FSmartObjectHandle that is the only caller allowed to create a handle from a uint64.
+ */
+struct FSmartObjectHandleFactory
+{
+	static FSmartObjectHandle CreateHandleForDynamicObject();
+	static FSmartObjectHandle CreateHandleForComponent(const UWorld& World, const USmartObjectComponent& Component);
+};
