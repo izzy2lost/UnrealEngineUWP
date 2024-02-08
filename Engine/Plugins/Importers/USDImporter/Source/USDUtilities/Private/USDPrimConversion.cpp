@@ -1668,7 +1668,12 @@ UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader(
 	return Reader;
 }
 
-bool UsdToUnreal::ConvertDrawMode(const pxr::UsdPrim& Prim, UUsdDrawModeComponent* DrawModeComponent, double EvalTime, pxr::UsdGeomBBoxCache* BBoxCache)
+bool UsdToUnreal::ConvertDrawMode(
+	const pxr::UsdPrim& Prim,
+	UUsdDrawModeComponent* DrawModeComponent,
+	double EvalTime,
+	pxr::UsdGeomBBoxCache* BBoxCache
+)
 {
 	// We're not going to check if Prim actually has the "bounds" draw mode or if it has "applyDrawMode" set
 	// to true, as that can be expensive and this can get called from UpdateComponents, which can get called
@@ -5076,7 +5081,12 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty(const UE::FUsdPr
 	return {};
 }
 
-bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawModeComponent, pxr::UsdPrim& UsdPrim, bool bWriteExtents, double UsdTimeCode)
+bool UnrealToUsd::ConvertDrawModeComponent(
+	const UUsdDrawModeComponent& DrawModeComponent,
+	pxr::UsdPrim& UsdPrim,
+	bool bWriteExtents,
+	double UsdTimeCode
+)
 {
 	if (!UsdPrim)
 	{
@@ -5158,11 +5168,11 @@ bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawMode
 	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelDrawModeAttr())
 	{
 		Attr.Set(
-			DrawModeComponent.DrawMode == EUsdDrawMode::Origin	  ? pxr::UsdGeomTokens->origin
-			: DrawModeComponent.DrawMode == EUsdDrawMode::Bounds	  ? pxr::UsdGeomTokens->bounds
-			: DrawModeComponent.DrawMode == EUsdDrawMode::Cards	  ? pxr::UsdGeomTokens->cards
+			DrawModeComponent.DrawMode == EUsdDrawMode::Origin		? pxr::UsdGeomTokens->origin
+			: DrawModeComponent.DrawMode == EUsdDrawMode::Bounds	? pxr::UsdGeomTokens->bounds
+			: DrawModeComponent.DrawMode == EUsdDrawMode::Cards		? pxr::UsdGeomTokens->cards
 			: DrawModeComponent.DrawMode == EUsdDrawMode::Inherited ? pxr::UsdGeomTokens->inherited
-																  : pxr::UsdGeomTokens->default_,
+																	: pxr::UsdGeomTokens->default_,
 			UsdTimeCode
 		);
 	}
@@ -5172,7 +5182,7 @@ bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawMode
 		Attr.Set(
 			DrawModeComponent.CardGeometry == EUsdModelCardGeometry::Cross ? pxr::UsdGeomTokens->cross
 			: DrawModeComponent.CardGeometry == EUsdModelCardGeometry::Box ? pxr::UsdGeomTokens->box
-																		 : pxr::UsdGeomTokens->fromTexture,
+																		   : pxr::UsdGeomTokens->fromTexture,
 			UsdTimeCode
 		);
 	}
@@ -5205,7 +5215,10 @@ bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawMode
 	using GetAttrFuncType = decltype(&pxr::UsdGeomModelAPI::GetModelCardTextureXPosAttr);
 
 	TFunction<void(EUsdModelCardFace, GetAttrFuncType, CreateAttrFuncType)> ExportCardFace =
-		[&DrawModeComponent, AuthoredFaces, UsdTimeCode, &GeomModelAPI](EUsdModelCardFace Face, GetAttrFuncType GetAttr, CreateAttrFuncType CreateAttr)
+		[&DrawModeComponent,
+		 AuthoredFaces,
+		 UsdTimeCode,
+		 &GeomModelAPI](EUsdModelCardFace Face, GetAttrFuncType GetAttr, CreateAttrFuncType CreateAttr)
 	{
 		UTexture2D* FaceTexture = DrawModeComponent.GetTextureForFace(Face);
 
@@ -5283,36 +5296,43 @@ bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawMode
 			}
 		}
 	};
-	ExportCardFace(
-		EUsdModelCardFace::XPos,
-		&pxr::UsdGeomModelAPI::GetModelCardTextureXPosAttr,
-		&pxr::UsdGeomModelAPI::CreateModelCardTextureXPosAttr
-	);
-	ExportCardFace(
-		EUsdModelCardFace::YPos,
-		&pxr::UsdGeomModelAPI::GetModelCardTextureYPosAttr,
-		&pxr::UsdGeomModelAPI::CreateModelCardTextureYPosAttr
-	);
-	ExportCardFace(
-		EUsdModelCardFace::ZPos,
-		&pxr::UsdGeomModelAPI::GetModelCardTextureZPosAttr,
-		&pxr::UsdGeomModelAPI::CreateModelCardTextureZPosAttr
-	);
-	ExportCardFace(
-		EUsdModelCardFace::XNeg,
-		&pxr::UsdGeomModelAPI::GetModelCardTextureXNegAttr,
-		&pxr::UsdGeomModelAPI::CreateModelCardTextureXNegAttr
-	);
-	ExportCardFace(
-		EUsdModelCardFace::YNeg,
-		&pxr::UsdGeomModelAPI::GetModelCardTextureYNegAttr,
-		&pxr::UsdGeomModelAPI::CreateModelCardTextureYNegAttr
-	);
-	ExportCardFace(
-		EUsdModelCardFace::ZNeg,
-		&pxr::UsdGeomModelAPI::GetModelCardTextureZNegAttr,
-		&pxr::UsdGeomModelAPI::CreateModelCardTextureZNegAttr
-	);
+
+	GetAttrFuncType XPosGet = &pxr::UsdGeomModelAPI::GetModelCardTextureXPosAttr;
+	CreateAttrFuncType XPosCreate = &pxr::UsdGeomModelAPI::CreateModelCardTextureXPosAttr;
+	GetAttrFuncType YPosGet = &pxr::UsdGeomModelAPI::GetModelCardTextureYPosAttr;
+	CreateAttrFuncType YPosCreate = &pxr::UsdGeomModelAPI::CreateModelCardTextureYPosAttr;
+	GetAttrFuncType ZPosGet = &pxr::UsdGeomModelAPI::GetModelCardTextureZPosAttr;
+	CreateAttrFuncType ZPosCreate = &pxr::UsdGeomModelAPI::CreateModelCardTextureZPosAttr;
+	GetAttrFuncType XNegGet = &pxr::UsdGeomModelAPI::GetModelCardTextureXNegAttr;
+	CreateAttrFuncType XNegCreate = &pxr::UsdGeomModelAPI::CreateModelCardTextureXNegAttr;
+	GetAttrFuncType YNegGet = &pxr::UsdGeomModelAPI::GetModelCardTextureYNegAttr;
+	CreateAttrFuncType YNegCreate = &pxr::UsdGeomModelAPI::CreateModelCardTextureYNegAttr;
+	GetAttrFuncType ZNegGet = &pxr::UsdGeomModelAPI::GetModelCardTextureZNegAttr;
+	CreateAttrFuncType ZNegCreate = &pxr::UsdGeomModelAPI::CreateModelCardTextureZNegAttr;
+
+	// We swap these when importing so that they look right in UE (e.g. ZPos is always pointing at UE +Z axis),
+	// so when writing back we need to swap back too
+	FUsdStageInfo StageInfo{UsdPrim.GetStage()};
+	if (StageInfo.UpAxis == EUsdUpAxis::ZAxis)
+	{
+		Swap(YPosGet, YNegGet);
+		Swap(YPosCreate, YNegCreate);
+	}
+	else
+	{
+		Swap(YPosGet, ZPosGet);
+		Swap(YPosCreate, ZPosCreate);
+
+		Swap(YNegGet, ZNegGet);
+		Swap(YNegCreate, ZNegCreate);
+	}
+
+	ExportCardFace(EUsdModelCardFace::XPos, XPosGet, XPosCreate);
+	ExportCardFace(EUsdModelCardFace::YPos, YPosGet, YPosCreate);
+	ExportCardFace(EUsdModelCardFace::ZPos, ZPosGet, ZPosCreate);
+	ExportCardFace(EUsdModelCardFace::XNeg, XNegGet, XNegCreate);
+	ExportCardFace(EUsdModelCardFace::YNeg, YNegGet, YNegCreate);
+	ExportCardFace(EUsdModelCardFace::ZNeg, ZNegGet, ZNegCreate);
 
 	return true;
 }
