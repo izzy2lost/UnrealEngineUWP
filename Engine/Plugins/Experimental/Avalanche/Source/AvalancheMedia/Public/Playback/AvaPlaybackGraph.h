@@ -136,6 +136,11 @@ struct AVALANCHEMEDIA_API FAvaPlaybackPlayableGroup
 	}
 };
 
+/**
+ * A Playback Graph is used for playing Motion Design assets integrated with the broadcast framework.
+ * It allows the creation of a playback graph with some logic and inputs routed to player nodes, the results of which can be routed
+ * to broadcast channels. This is the lowest implementation layer that supports distributed playback (over message bus).
+ */
 UCLASS(NotBlueprintable, BlueprintType, ClassGroup = "Motion Design Playback", 
 	meta = (DisplayName = "Motion Design Playback Graph"))
 class AVALANCHEMEDIA_API UAvaPlaybackGraph : public UObject
