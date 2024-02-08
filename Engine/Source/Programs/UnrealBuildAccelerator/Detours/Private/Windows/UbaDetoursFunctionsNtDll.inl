@@ -1035,7 +1035,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	UNICODE_STRING str;
 	str.Buffer = temp.data;
 	str.Length = u16(temp.count * 2);
-	str.MaximumLength = str.Length;
+	str.MaximumLength = str.Length + 2;
 	ObjectAttributes->ObjectName = &str;
 	// TODO!!! THIS NEEDS TO set the ObjectAttributes->ObjectName->Buffer and ObjectAttributes->ObjectName->Length;
 	//wcscpy_s(ObjectAttributes->ObjectName->Buffer + 4, ObjectAttributes->ObjectName->MaximumLength/2 - 8, lpFileName);
