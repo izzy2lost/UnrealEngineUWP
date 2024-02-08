@@ -83,6 +83,7 @@ void SSceneOutliner::Construct(const FArguments& InArgs, const FSceneOutlinerIni
 	bNeedsRefresh = true;
 	bNeedsColumRefresh = true;
 	bShouldCacheColumnVisibility = true;
+	bForceParentItemsExpanded = false;
 	bIsReentrant = false;
 	bSortDirty = true;
 	bSelectionDirty = true;
@@ -1068,12 +1069,15 @@ void SSceneOutliner::AddUnfilteredItemToTree(FSceneOutlinerTreeItemRef Item)
 
 void SSceneOutliner::SetParentsExpansionState() const
 {
+	// If we have an active search filter, auto expand parents of items that passes the filter so they appear automatically in the outliner
+	bForceParentItemsExpanded = !SearchBoxFilter->GetRawFilterText().IsEmpty();
+
 	for (const auto& Pair : TreeItemMap)
 	{
 		auto& Item = Pair.Value;
 		if (Item->GetChildren().Num())
 		{
-			OutlinerTreeView->SetItemExpansion(Item, Item->Flags.bIsExpanded);
+			OutlinerTreeView->SetItemExpansion(Item, bForceParentItemsExpanded || Item->Flags.bIsExpanded);
 		}
 	}
 }
@@ -1979,6 +1983,11 @@ void SSceneOutliner::OnOutlinerTreeItemScrolledIntoView( FSceneOutlinerTreeItemP
 	
 void SSceneOutliner::OnItemExpansionChanged(FSceneOutlinerTreeItemPtr TreeItem, bool bIsExpanded) const
 {
+	if (bForceParentItemsExpanded)
+	{
+		return;
+	}
+
 	TreeItem->Flags.bIsExpanded = bIsExpanded;
 	TreeItem->OnExpansionChanged();
 
