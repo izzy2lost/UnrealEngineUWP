@@ -985,22 +985,6 @@ FString UCustomizableObjectNodeTable::GetColumnNameByPin(const UEdGraphPin* Pin)
 }
 
 
-FString UCustomizableObjectNodeTable::GetMutableColumnName(const UEdGraphPin* Pin, const int32& LOD) const
-{
-	UCustomizableObjectNodeTableMeshPinData* MeshData = Cast<UCustomizableObjectNodeTableMeshPinData >(GetPinData(*Pin));
-
-	if (MeshData)
-	{
-		FString ColumnName = MeshData->ColumnName;
-		int32 MaterialIndex = MeshData->Material;
-
-		return GenerateSkeletalMeshMutableColumName(MeshData->ColumnName, LOD, MeshData->Material);
-	}
-
-	return FString();
-}
-
-
 void UCustomizableObjectNodeTable::GetPinLODAndSection(const UEdGraphPin* Pin, int32& LODIndex, int32& SectionIndex) const
 {
 	if (const UCustomizableObjectNodeTableMeshPinData* PinData = Cast<UCustomizableObjectNodeTableMeshPinData >(GetPinData(*Pin)))

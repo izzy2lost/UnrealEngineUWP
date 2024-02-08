@@ -264,9 +264,6 @@ public:
 	// Returns the name of the table column related to a pin
 	FString GetColumnNameByPin(const UEdGraphPin* Pin) const;
 
-	// Returns the name of a Mesh Mutable Column from its LOD and pin (Only for AutomaticFromMesh LOD Strategy)
-	FString GetMutableColumnName(const UEdGraphPin* Pin, const int32& LOD) const;
-
 	// Returns the LOD of the mesh associated to the input pin
 	void GetPinLODAndSection(const UEdGraphPin* Pin, int32& LODIndex, int32& SectionIndex) const;
 
