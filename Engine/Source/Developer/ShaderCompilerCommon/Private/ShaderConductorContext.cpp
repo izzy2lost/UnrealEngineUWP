@@ -680,9 +680,12 @@ namespace CrossCompiler
 		ShaderConductor::Compiler::ResultDesc ResultDesc;
 		ScRewriteWrapper(ScSourceDesc, ScOptions, ResultDesc);
 
-		if (!ResultDesc.hasError && ResultDesc.target.Size() > 0)
+		if (!ResultDesc.hasError && ResultDesc.target.Size() > 1)
 		{
-			FAnsiStringView ResultView(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data()), ResultDesc.target.Size());
+			// Note: We don't want to include the '\0' included in the result string (thanks to DxcCreateBlob), hence the -1
+			check(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data())[ResultDesc.target.Size() - 1] == '\0');
+			FAnsiStringView ResultView(reinterpret_cast<const ANSICHAR*>(ResultDesc.target.Data()), ResultDesc.target.Size() - 1);
+
 			// Copy rewritten HLSL code into intermediate source code.
 			Intermediates->ShaderSource.CopyAnsi(ResultView);
 
