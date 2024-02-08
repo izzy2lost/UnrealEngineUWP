@@ -331,6 +331,15 @@ void URigVMHost::Evaluate_AnyThread()
 			EventQueueToRun.Insert(Pair.Key, Pair.Value);
 		}
 	}
+
+#if WITH_EDITOR
+	FName FirstEvent = NAME_None;
+	if (!EventQueueToRun.IsEmpty())
+	{
+		FirstEvent = EventQueueToRun[0];
+	}
+	FFirstEntryEventGuard FirstEntryEventGuard(&InstructionVisitInfo, FirstEvent);
+#endif
 	
 	for (const FName& EventName : EventQueueToRun)
 	{
@@ -539,18 +548,6 @@ bool URigVMHost::Execute(const FName& InEventName)
 		ExtendedExecuteContext.SetProfilingInfo(nullptr);
 	}
 #endif
-
-	if (VM)
-	{
-#if WITH_EDITOR
-		// default to always clear data after each execution
-		// only set a valid first entry event later when execution
-		// has passed the initialization stage and there are multiple events present in one evaluation
-		// first entry event is used to determined when to clear data during an evaluation
-		VM->SetFirstEntryEventInEventQueue(GetRigVMExtendedExecuteContext(), NAME_None);
-		VM->SetFirstEntryEventInEventQueue(GetRigVMExtendedExecuteContext(), NAME_None);
-#endif
-	}
 
 	// setup the draw interface for debug drawing
 	if(!bIsEventInQueue || bIsEventFirstInQueue)

@@ -425,6 +425,10 @@ void UModularRig::ExecuteQueue()
 	FRigVMExtendedExecuteContext& Context = GetRigVMExtendedExecuteContext();
 	FControlRigExecuteContext& PublicContext = Context.GetPublicDataSafe<FControlRigExecuteContext>();
 	URigHierarchy* Hierarchy = GetHierarchy();
+
+#if WITH_EDITOR
+	TMap<FRigModuleInstance*, FFirstEntryEventGuard> FirstModuleEvent;
+#endif
 	
 	while(ExecutionQueue.IsValidIndex(ExecutionQueueFront))
 	{
@@ -466,6 +470,14 @@ void UModularRig::ExecuteQueue()
 				RigPublicContext.SetFramesPerSecond(PublicContext.GetFramesPerSecond());
 				RigPublicContext.SetToWorldSpaceTransform(PublicContext.GetToWorldSpaceTransform());
 				RigPublicContext.RuntimeSettings = PublicContext.RuntimeSettings;
+
+#if WITH_EDITOR
+				if (!FirstModuleEvent.Contains(ModuleInstance))
+				{
+					//ModuleRig->InstructionVisitInfo.FirstEntryEventInQueue = ExecutionElement.EventName;
+					FirstModuleEvent.Add(ModuleInstance, FFirstEntryEventGuard(&ModuleRig->InstructionVisitInfo, ExecutionElement.EventName));
+				}
+#endif
 
 				// re-initialize the module in case only the VM side got recompiled.
 				// this happens when the user relies on auto recompilation when editing the
