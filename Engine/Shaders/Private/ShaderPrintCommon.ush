@@ -165,6 +165,14 @@ void ClearCounters(RWBuffer<uint> InRWBuffer)
 #define SHADER_PRINT_RWSTATEBUFFER(Ctx, Idx) Ctx.Buffers.StateBuffer[Idx]
 #endif
 
+// Currently a bug Metal shader translation cause compilation to fails due to atomic operation.
+// As a workaround, disabling interlock add on Metal
+#if COMPILER_METAL
+#define SHADER_PRINT_INTERLOCKEDADD(InBuffer, InIncrement, OutOldValue) 
+#else
+#define SHADER_PRINT_INTERLOCKEDADD(InBuffer, InIncrement, OutOldValue) InterlockedAdd(InBuffer, InIncrement, OutOldValue)
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Font Color
 
@@ -373,7 +381,7 @@ void ShaderPrint_Internal(FShaderPrintContext Ctx, in FShaderPrintItem Item)
 
 	// Buffer counter is stored in first element .Value
 	int IndexToStore = 0;
-	InterlockedAdd(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_SYMBOL), 1, IndexToStore);
+	SHADER_PRINT_INTERLOCKEDADD(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_SYMBOL), 1, IndexToStore);
 
 	// Prevent writing off the buffer
 	// Note that counter still increases so need clamp when reading it in later passes
@@ -457,7 +465,7 @@ float2 ShaderPrintText_Internal(FShaderPrintContext Ctx, bool bIsActive, float2 
 		// Prevent writing off the buffer
 		// Note that counter still increases so need clamp when reading it in later passes
 		int IndexToStore = 0;
-		InterlockedAdd(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_SYMBOL), Count, IndexToStore);
+		SHADER_PRINT_INTERLOCKEDADD(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_SYMBOL), Count, IndexToStore);
 		if (uint(IndexToStore + Count) < Ctx.Config.MaxCharacterCount)
 		{
 			for (uint i = Begin; i < End; ++i)
@@ -797,7 +805,7 @@ bool AllocateTriangleElement(FShaderPrintContext Ctx, uint Count, inout uint Out
 		return false;
 	}
 
-	InterlockedAdd(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_TRIANGLE), Count, OutIndex);
+	SHADER_PRINT_INTERLOCKEDADD(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_TRIANGLE), Count, OutIndex);
 	return (OutIndex + Count) < Ctx.Config.MaxTriangleCount;
 }
 
@@ -996,7 +1004,7 @@ bool AllocateLineElement(FShaderPrintContext Ctx, uint Count, inout uint OutInde
 		return false;
 	}
 
-	InterlockedAdd(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_LINE), Count, OutIndex);
+	SHADER_PRINT_INTERLOCKEDADD(SHADER_PRINT_RWENTRYBUFFER(Ctx,SHADER_PRINT_COUNTER_OFFSET_LINE), Count, OutIndex);
 	return (OutIndex + Count) < Ctx.Config.MaxLineCount;
 }
 
