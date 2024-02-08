@@ -152,14 +152,14 @@ namespace UE::Learning::Observation
 	 */
 	struct LEARNING_API FSchema
 	{
-		FSchemaElement CreateNull(const FName Tag = NAME_None);
-		FSchemaElement CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag = NAME_None);
-		FSchemaElement CreateAnd(const FSchemaAndParameters Parameters, const FName Tag = NAME_None);
-		FSchemaElement CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Tag = NAME_None);
-		FSchemaElement CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Tag = NAME_None);
-		FSchemaElement CreateArray(const FSchemaArrayParameters Parameters, const FName Tag = NAME_None);
-		FSchemaElement CreateSet(const FSchemaSetParameters Parameters, const FName Tag = NAME_None);
-		FSchemaElement CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateNull(const FName Name = NAME_None);
+		FSchemaElement CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateAnd(const FSchemaAndParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateArray(const FSchemaArrayParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateSet(const FSchemaSetParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Name = NAME_None);
 
 		FSchemaContinuousParameters GetContinuous(const FSchemaElement Element) const;
 		FSchemaAndParameters GetAnd(const FSchemaElement Element) const;
@@ -175,8 +175,8 @@ namespace UE::Learning::Observation
 		// Gets the type of the given element
 		EType GetType(const FSchemaElement Element) const;
 
-		// Gets the tag of the given element
-		FName GetTag(const FSchemaElement Element) const;
+		// Gets the name of the given element
+		FName GetName(const FSchemaElement Element) const;
 
 		// Get the observation vector size of the given element
 		int32 GetObservationVectorSize(const FSchemaElement Element) const;
@@ -250,7 +250,7 @@ namespace UE::Learning::Observation
 
 		/** These have entries for each Schema Element */
 		TArray<EType> Types;
-		TArray<FName> Tags;
+		TArray<FName> Names;
 		TArray<int32> ObservationVectorSizes;
 		TArray<int32> EncodedVectorSizes;
 		TArray<int32> TypeDataIndices;
@@ -337,14 +337,14 @@ namespace UE::Learning::Observation
 	 */
 	struct LEARNING_API FObject
 	{
-		FObjectElement CreateNull(const FName Tag = NAME_None);
-		FObjectElement CreateContinuous(const FObjectContinuousParameters Parameters, const FName Tag = NAME_None);
-		FObjectElement CreateAnd(const FObjectAndParameters Parameters, const FName Tag = NAME_None);
-		FObjectElement CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Tag = NAME_None);
-		FObjectElement CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Tag = NAME_None);
-		FObjectElement CreateArray(const FObjectArrayParameters Parametes, const FName Tag = NAME_None);
-		FObjectElement CreateSet(const FObjectSetParameters Parameters, const FName Tag = NAME_None);
-		FObjectElement CreateEncoding(const FObjectEncodingParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateNull(const FName Name = NAME_None);
+		FObjectElement CreateContinuous(const FObjectContinuousParameters Parameters, const FName Name = NAME_None);
+		FObjectElement CreateAnd(const FObjectAndParameters Parameters, const FName Name = NAME_None);
+		FObjectElement CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Name = NAME_None);
+		FObjectElement CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Name = NAME_None);
+		FObjectElement CreateArray(const FObjectArrayParameters Parametes, const FName Name = NAME_None);
+		FObjectElement CreateSet(const FObjectSetParameters Parameters, const FName Name = NAME_None);
+		FObjectElement CreateEncoding(const FObjectEncodingParameters Parameters, const FName Name = NAME_None);
 
 		FObjectContinuousParameters GetContinuous(const FObjectElement Element) const;
 		FObjectAndParameters GetAnd(const FObjectElement Element) const;
@@ -360,8 +360,8 @@ namespace UE::Learning::Observation
 		// Gets the type of the given element
 		EType GetType(const FObjectElement Element) const;
 
-		// Gets the tag of the given element
-		FName GetTag(const FObjectElement Element) const;
+		// Gets the name of the given element
+		FName GetName(const FObjectElement Element) const;
 
 		// Get the current generation
 		uint32 GetGeneration() const;
@@ -377,7 +377,7 @@ namespace UE::Learning::Observation
 		uint32 Generation = 0;
 
 		TArray<EType> Types;
-		TArray<FName> Tags;
+		TArray<FName> Names;
 		TArray<int32> ContinuousDataOffsets;
 		TArray<int32> ContinuousDataNums;
 		TArray<int32> SubElementDataOffsets;

@@ -12,7 +12,7 @@
 float ULearningAgentsRewards::MakeReward(
 	const float RewardValue,
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId, 
@@ -24,13 +24,13 @@ float ULearningAgentsRewards::MakeReward(
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nValue: [% 6.1f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nValue: [% 6.1f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			RewardValue,
 			RewardScale,
@@ -44,7 +44,7 @@ float ULearningAgentsRewards::MakeReward(
 float ULearningAgentsRewards::MakeRewardOnCondition(
 	const bool bCondition, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -56,13 +56,13 @@ float ULearningAgentsRewards::MakeRewardOnCondition(
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			bCondition ? TEXT("true") : TEXT("false"),
 			RewardScale,
@@ -78,7 +78,7 @@ float ULearningAgentsRewards::MakeRewardOnLocationDifferenceBelowThreshold(
 	const FVector LocationB, 
 	const float DistanceThreshold, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -92,7 +92,7 @@ float ULearningAgentsRewards::MakeRewardOnLocationDifferenceBelowThreshold(
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
 			LocationA,
@@ -114,9 +114,9 @@ float ULearningAgentsRewards::MakeRewardOnLocationDifferenceBelowThreshold(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nThreshold: [% 6.2f]\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nThreshold: [% 6.2f]\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			LocationA.X, LocationA.Y, LocationA.Z,
 			LocationB.X, LocationB.Y, LocationB.Z,
@@ -136,7 +136,7 @@ float ULearningAgentsRewards::MakeRewardOnLocationDifferenceAboveThreshold(
 	const FVector LocationB,
 	const float DistanceThreshold,
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -150,7 +150,7 @@ float ULearningAgentsRewards::MakeRewardOnLocationDifferenceAboveThreshold(
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
 			LocationA,
@@ -172,9 +172,9 @@ float ULearningAgentsRewards::MakeRewardOnLocationDifferenceAboveThreshold(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nThreshold: [% 6.2f]\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDistance: [% 6.2f]\nThreshold: [% 6.2f]\nCondition: [%s]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			LocationA.X, LocationA.Y, LocationA.Z,
 			LocationB.X, LocationB.Y, LocationB.Z,
@@ -194,7 +194,7 @@ float ULearningAgentsRewards::MakeRewardFromLocationSimilarity(
 	const FVector LocationB, 
 	const float LocationScale, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -208,7 +208,7 @@ float ULearningAgentsRewards::MakeRewardFromLocationSimilarity(
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_LOCATION(VisualLoggerObject, LogLearning, Display,
 			LocationA,
@@ -230,9 +230,9 @@ float ULearningAgentsRewards::MakeRewardFromLocationSimilarity(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDifference: [% 6.2f]\nLocationScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocationA: [% 6.1f % 6.1f % 6.1f]\nLocationB: [% 6.1f % 6.1f % 6.1f]\nDifference: [% 6.2f]\nLocationScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			LocationA.X, LocationA.Y, LocationA.Z,
 			LocationB.X, LocationB.Y, LocationB.Z,
@@ -250,8 +250,9 @@ float ULearningAgentsRewards::MakeRewardFromLocationSimilarity(
 float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
 	const float AngleA, 
 	const float AngleB, 
+	const float AngleScale, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -261,13 +262,13 @@ float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
 	const FLinearColor VisualLoggerColor)
 {
 	const float AngleDifference = FMath::FindDeltaAngleDegrees(AngleA, AngleB);
-	const float Similarity = 1.0f - FMath::Abs(AngleDifference) / 180.0f;
+	const float Similarity = FMath::InvExpApprox(FMath::Square(AngleDifference / FMath::Max(AngleScale, UE_SMALL_NUMBER)));
 	const float Reward = Similarity * RewardScale;
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_ANGLE(
 			VisualLoggerObject,
@@ -293,13 +294,14 @@ float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nAngleA [% 6.2f]\nAngleB [% 6.2f]\nDifference: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nAngleA [% 6.2f]\nAngleB [% 6.2f]\nDifference: [% 6.2f]\nAngleScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			AngleA,
 			AngleB,
 			AngleDifference,
+			AngleScale,
 			Similarity,
 			RewardScale,
 			Reward);
@@ -312,8 +314,9 @@ float ULearningAgentsRewards::MakeRewardFromAngleSimilarity(
 float ULearningAgentsRewards::MakeRewardFromRotationSimilarityAsQuats(
 	const FQuat RotationA, 
 	const FQuat RotationB, 
+	const float AngleScale, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -325,13 +328,13 @@ float ULearningAgentsRewards::MakeRewardFromRotationSimilarityAsQuats(
 	FQuat Difference = RotationA.Inverse() * RotationB;
 	Difference.EnforceShortestArcWith(FQuat::Identity);
 	const float AngleDifference = FMath::RadiansToDegrees(Difference.GetAngle());
-	const float Similarity = 1.0f - FMath::Abs(AngleDifference) / 180.0f;
+	const float Similarity = FMath::InvExpApprox(FMath::Square(AngleDifference / (FMath::Max(AngleScale, UE_SMALL_NUMBER))));
 	const float Reward = Similarity * RewardScale;
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_TRANSFORM(
 			VisualLoggerObject,
@@ -353,13 +356,14 @@ float ULearningAgentsRewards::MakeRewardFromRotationSimilarityAsQuats(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nRotationA [% 6.2f % 6.2f % 6.2f % 6.2f]\nRotationB [% 6.2f % 6.2f % 6.2f % 6.2f]\nDifference: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nRotationA [% 6.2f % 6.2f % 6.2f % 6.2f]\nRotationB [% 6.2f % 6.2f % 6.2f % 6.2f]\nDifference: [% 6.2f]\nAngleScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			RotationA.X, RotationA.Y, RotationA.Z, RotationA.W,
 			RotationB.X, RotationB.Y, RotationB.Z, RotationB.W,
 			AngleDifference,
+			AngleScale,
 			Similarity,
 			RewardScale,
 			Reward);
@@ -372,8 +376,9 @@ float ULearningAgentsRewards::MakeRewardFromRotationSimilarityAsQuats(
 float ULearningAgentsRewards::MakeRewardFromRotationSimilarity(
 	const FRotator RotationA, 
 	const FRotator RotationB, 
+	const float AngleScale, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -385,8 +390,9 @@ float ULearningAgentsRewards::MakeRewardFromRotationSimilarity(
 	return MakeRewardFromRotationSimilarityAsQuats(
 		RotationA.Quaternion(), 
 		RotationB.Quaternion(), 
+		AngleScale, 
 		RewardScale, 
-		Tag, 
+		Name, 
 		bVisualLoggerEnabled, 
 		VisualLoggerListener, 
 		VisualLoggerAgentId,
@@ -399,8 +405,9 @@ float ULearningAgentsRewards::MakeRewardFromRotationSimilarity(
 float ULearningAgentsRewards::MakeRewardFromDirectionSimilarity(
 	const FVector DirectionA, 
 	const FVector DirectionB, 
+	const float AngleScale, 
 	const float RewardScale,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -411,13 +418,13 @@ float ULearningAgentsRewards::MakeRewardFromDirectionSimilarity(
 	const FLinearColor VisualLoggerColor)
 {
 	const float AngleDifference = FMath::RadiansToDegrees(FMath::Acos(DirectionA.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector).Dot(DirectionB.GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector))));
-	const float Similarity = 1.0f - FMath::Abs(AngleDifference) / 180.0f;
+	const float Similarity = FMath::InvExpApprox(FMath::Square(AngleDifference / FMath::Max(AngleScale, UE_SMALL_NUMBER)));
 	const float Reward = Similarity * RewardScale;
 
 #if UE_LEARNING_AGENTS_ENABLE_VISUAL_LOG
 	if (bVisualLoggerEnabled && VisualLoggerListener)
 	{
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_ARROW(
 			VisualLoggerObject,
@@ -439,13 +446,14 @@ float ULearningAgentsRewards::MakeRewardFromDirectionSimilarity(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nDirectionA [% 6.2f % 6.2f % 6.2f]\nDirectionB [% 6.2f % 6.2f % 6.2f]\nDifference: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nDirectionA [% 6.2f % 6.2f % 6.2f]\nDirectionB [% 6.2f % 6.2f % 6.2f]\nDifference: [% 6.2f]\nAngleScale: [% 6.2f]\nSimilarity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			DirectionA.X, DirectionA.Y, DirectionA.Z,
 			DirectionB.X, DirectionB.Y, DirectionB.Z,
 			AngleDifference,
+			AngleScale,
 			Similarity,
 			RewardScale,
 			Reward);
@@ -464,7 +472,7 @@ float ULearningAgentsRewards::MakeRewardFromVelocityAlongSpline(
 	const float VelocityScale, 
 	const float RewardScale, 
 	const float FiniteDifferenceDelta,
-	const FName Tag,
+	const FName Name,
 	const bool bVisualLoggerEnabled,
 	ULearningAgentsManagerListener* VisualLoggerListener,
 	const int32 VisualLoggerAgentId,
@@ -514,7 +522,7 @@ float ULearningAgentsRewards::MakeRewardFromVelocityAlongSpline(
 		const FVector SplineLocation1 = SplineComponent->GetLocationAtDistanceAlongSpline(RawDistance1, ESplineCoordinateSpace::World);
 		const FVector SplineVelocityDirection = (SplineLocation1 - SplineLocation0).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
 
-		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Tag);
+		const ULearningAgentsVisualLoggerObject* VisualLoggerObject = VisualLoggerListener->GetOrAddVisualLoggerObject(Name);
 
 		UE_LEARNING_AGENTS_VLOG_ARROW(
 			VisualLoggerObject,
@@ -527,9 +535,9 @@ float ULearningAgentsRewards::MakeRewardFromVelocityAlongSpline(
 
 		UE_LEARNING_AGENTS_VLOG_STRING(VisualLoggerObject, LogLearning, Display, VisualLoggerLocation,
 			VisualLoggerColor.ToFColor(true),
-			TEXT("Listener: %s\nTag: %s\nAgent Id: % 3i\nLocation [% 6.2f % 6.2f % 6.2f]\nVelocity [% 6.2f % 6.2f % 6.2f]\nDistanceVelocity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
+			TEXT("Listener: %s\nName: %s\nAgent Id: % 3i\nLocation [% 6.2f % 6.2f % 6.2f]\nVelocity [% 6.2f % 6.2f % 6.2f]\nDistanceVelocity: [% 6.2f]\nScale: [% 6.2f]\nReward: [% 6.2f]"),
 			*VisualLoggerListener->GetName(),
-			*Tag.ToString(),
+			*Name.ToString(),
 			VisualLoggerAgentId,
 			Location.X, Location.Y, Location.Z,
 			Velocity.X, Velocity.Y, Velocity.Z,
