@@ -3573,7 +3573,10 @@ void UGroomComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, F
 		});
 	}
 	
-	if(GetHairSwapBufferType() == EHairBufferSwapType::RenderFrame)
+	// Need to run SendRenderDynamicData_Concurrent() 
+	// * If SwapBufferType is based on RenderFrame
+	// * If groom has a mesh deformer
+	if(GetHairSwapBufferType() == EHairBufferSwapType::RenderFrame || MeshDeformerInstance != nullptr)
 	{
 		MarkRenderDynamicDataDirty();
 	}
