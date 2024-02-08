@@ -529,6 +529,20 @@ void FD3D12Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 			// Use ConditionalResetSwapChain to call SetFullscreenState, to handle the failure case.
 			// Ignore the viewport's focus state; since Resize is called as the result of a user action we assume authority without waiting for Focus.
 			ConditionalResetSwapChain(true);
+
+#if D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
+			if (!bIsFullscreen)
+			{
+				// When exiting fullscreen, make sure that the window has the correct size. This is necessary in the following scenario:
+				//	* we enter exclusive fullscreen with a resolution lower than the monitor's native resolution, or from windowed with a window size smaller than the screen
+				//	* the application loses focus, so Slate asks us to switch to Windowed Fullscreen (see FSlateRenderer::IsViewportFullscreen)
+				//	* InSizeX and InSizeY are given to us as the monitor resolution, so we resize the buffers to the correct resolution below (in ResizeInternal)
+				//	* however, the target still has the smaller size, because Slate doesn't know it has to resize the window too (as far as it's concerned, it's already the right size)
+				//	* therefore, we need to call ResizeTarget, which in windowed mode behaves like SetWindowPos.
+				const DXGI_MODE_DESC BufferDesc = SetupDXGI_MODE_DESC();
+				SwapChain1->ResizeTarget(&BufferDesc);
+			}
+#endif // D3D12_VIEWPORT_EXPOSES_SWAP_CHAIN
 		}
 	}
 
