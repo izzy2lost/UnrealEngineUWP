@@ -3,7 +3,7 @@
 
 #if WITH_EDITOR
 
-#include "Animation/AnimatedAttribute.h"
+#include "Framework/Animation/AnimatedAttribute.h"
 #include "SchematicGraphTag.h"
 #include "Input/Events.h"
 #include "Input/Reply.h"

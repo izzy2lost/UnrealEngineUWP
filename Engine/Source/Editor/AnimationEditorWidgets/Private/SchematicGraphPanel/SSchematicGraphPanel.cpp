@@ -7,7 +7,6 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Engine/Font.h"
 #include "Engine/Engine.h"
-#include "Animation/AnimatedAttributeManager.h"
 #include <SchematicGraphPanel/SchematicGraphStyle.h>
 #include "Fonts/FontMeasure.h"
 
@@ -1033,10 +1032,6 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 			const FVector2D MouseCursorLocation = FSlateApplication::Get().GetCursorPos();
 			if(GetPaintSpaceGeometry().GetRenderBoundingRect().ContainsPoint(MouseCursorLocation))
 			{
-				// when dragging and dropping we want the UI to update
-				// for that we are forcing an update on the tick of the animated attributes
-				FAnimatedAttributeManager::Get().Tick(DeltaTime);
-
 				// if we haven't seen this operation yet we need to let our model know
 				if(!DragDropOpFromOutside.IsValid())
 				{

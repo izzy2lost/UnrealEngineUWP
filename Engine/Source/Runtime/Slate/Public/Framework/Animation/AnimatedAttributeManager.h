@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Containers/Ticker.h"
+#include "Framework/Application/SlateApplication.h"
 
 /**
  * Animated Attribute Base Layer - used for registering the attribute centrally
@@ -12,11 +12,11 @@ class TAnimatedAttributeBase : public TSharedFromThis<TAnimatedAttributeBase>
 {
 protected:
 	
-	SLATECORE_API TAnimatedAttributeBase();
-	SLATECORE_API virtual ~TAnimatedAttributeBase();
+	SLATE_API TAnimatedAttributeBase();
+	SLATE_API virtual ~TAnimatedAttributeBase();
 
-	SLATECORE_API void Register();
-	SLATECORE_API void Unregister();
+	SLATE_API void Register();
+	SLATE_API void Unregister();
 
 	virtual void Tick(float InDeltaTime) = 0;
 
@@ -41,11 +41,11 @@ public:
 	FAnimatedAttributeManager();
 	~FAnimatedAttributeManager();
 
-	SLATECORE_API static FAnimatedAttributeManager& Get();
-	SLATECORE_API bool Tick(float InDeltaTime);
+	SLATE_API static FAnimatedAttributeManager& Get();
+	SLATE_API void Tick(float InDeltaTime);
 
-	SLATECORE_API void SetupTick();
-	SLATECORE_API void TeardownTick();
+	SLATE_API void SetupTick();
+	SLATE_API void TeardownTick();
 
 private:
 
@@ -53,7 +53,7 @@ private:
 	void UnregisterAttribute(const TSharedRef<TAnimatedAttributeBase>& InAttribute);
 
 	TArray<TWeakPtr<TAnimatedAttributeBase>> Attributes;
-	FTSTicker::FDelegateHandle TickHandle;
+	FDelegateHandle TickHandle;
 
 	friend class TAnimatedAttributeBase;
 };

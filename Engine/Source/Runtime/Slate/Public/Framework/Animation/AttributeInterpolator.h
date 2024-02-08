@@ -368,7 +368,7 @@ enum class EEasingInterpolatorType : uint8
 	BounceEaseInOut
 };
 
-SLATECORE_API float EaseInterpolatorRatio(EEasingInterpolatorType InEasingType, float InRatio);
+SLATE_API float EaseInterpolatorRatio(EEasingInterpolatorType InEasingType, float InRatio);
 
 template< typename NumericType >
 class TEasingAttributeInterpolator;
