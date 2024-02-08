@@ -988,8 +988,13 @@ void DoCompileMetalShader(
                 // Must be done as VSM uses 2DArray and requires atomics support. And Metal does not
                 // support atomics on 2Darray...
 				TargetDesc.CompileFlags->SetDefine(TEXT("flatten_2d_array"), 1);
-                TargetDesc.CompileFlags->SetDefine(TEXT("flatten_2d_array_names"), TEXT("VirtualShadowMap_PhysicalPagePool,OutPhysicalPagePool,OutDepthBufferArray,PhysicalPagePool,ShadowDepthPass_OutDepthBufferArray"));
+                TargetDesc.CompileFlags->SetDefine(TEXT("flatten_2d_array_names"), TEXT("VirtualShadowMap_PhysicalPagePool,OutPhysicalPagePool,OutDepthBufferArray,PhysicalPagePool,ShadowDepthPass_OutDepthBufferArray,PrevAtomicTextureArray,PrevAtomicOutput"));
             }
+			else if(Input.Target.Platform == SP_METAL_SM5)
+			{
+				TargetDesc.CompileFlags->SetDefine(TEXT("flatten_2d_array"), 1);
+				TargetDesc.CompileFlags->SetDefine(TEXT("flatten_2d_array_names"), TEXT("PrevAtomicTextureArray,PrevAtomicOutput"));
+			}
 
 			switch (Semantics)
 			{
