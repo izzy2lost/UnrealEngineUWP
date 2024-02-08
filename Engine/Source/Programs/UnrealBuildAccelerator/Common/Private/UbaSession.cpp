@@ -233,11 +233,15 @@ namespace uba
 				g_debugLogger.Info(TC("    %s (Size: %llu, Key: %s, Id: %llu)\n"), e.name, e.size, KeyToString(fileKey).data, e.id);
 				#endif
 
+				u64 id = e.id;
+				if (id == 0xffffffffffffffffllu) // When using projfs we might not have the file yet and in that case we need to make this up.
+					id = ++m_fileIndexCounter;
+
 				res.first->second = u32(memoryWriter.GetPosition()); // Temporary offset that will be used further down to calculate the real offset
 				memoryWriter.WriteU64(e.lastWritten);
 				memoryWriter.WriteU32(e.attributes);
 				memoryWriter.WriteU32(e.volumeSerial);
-				memoryWriter.WriteU64(e.id);
+				memoryWriter.WriteU64(id);
 				memoryWriter.WriteU64(e.size);
 
 				FileEntryAdded(res.first->first, e.lastWritten, e.size);

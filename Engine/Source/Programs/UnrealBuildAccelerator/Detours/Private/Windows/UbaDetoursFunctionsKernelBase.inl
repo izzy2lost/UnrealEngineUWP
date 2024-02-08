@@ -1821,7 +1821,20 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 			{
 				SuppressDetourScope _;
 				WIN32_FILE_ATTRIBUTE_DATA data;
-				if (True_GetFileAttributesExW(fi.originalName, GetFileExInfoStandard, &data))
+				if (dh.trueHandle != INVALID_HANDLE_VALUE)
+				{
+					BY_HANDLE_FILE_INFORMATION bhfi;
+					auto res2 = True_GetFileInformationByHandle(dh.trueHandle, &bhfi);
+					UBA_ASSERT(res2 == TRUE);
+					u64 size = ToLargeInteger(bhfi.nFileSizeHigh, bhfi.nFileSizeLow).QuadPart; (void)size;
+					u64 fileIndex = ToLargeInteger(bhfi.nFileIndexHigh, bhfi.nFileIndexLow).QuadPart; (void)fileIndex;
+					UBA_ASSERTF(fileSize == size, L"File size used: %llu Actual file size: %llu (%s)", fileSize, size, fi.originalName);
+					//UBA_ASSERTF(entryInfo.attributes == bhfi.dwFileAttributes, L"Attributes used: 0x%x Actual: 0x%x (%s)", entryInfo.attributes, bhfi.dwFileAttributes, fi.originalName);
+					UBA_ASSERTF(entryInfo.volumeSerial == bhfi.dwVolumeSerialNumber, L"VolumeSerial used: %u Actual: %u (%s)", entryInfo.volumeSerial, bhfi.dwVolumeSerialNumber, fi.originalName);
+					UBA_ASSERTF(entryInfo.fileIndex == fileIndex, L"FileIndex used: %llu Actual: %llu (%s)", entryInfo.fileIndex, fileIndex, fi.originalName);
+					UBA_ASSERTF(bhfi.nNumberOfLinks == 1, L"Links used: %llu Actual: %llu (%s)", 1, bhfi.nNumberOfLinks, fi.originalName);
+				}
+				else if (True_GetFileAttributesExW(fi.originalName, GetFileExInfoStandard, &data))
 				{
 					u64 size = ToLargeInteger(data.nFileSizeHigh, data.nFileSizeLow).QuadPart; (void)size;
 					UBA_ASSERTF(fileSize == size, L"File size used: %llu Actual file size: %llu (%s)", fileSize, size, fi.originalName);
