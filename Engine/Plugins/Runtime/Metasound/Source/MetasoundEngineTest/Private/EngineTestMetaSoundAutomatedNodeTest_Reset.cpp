@@ -152,14 +152,14 @@ bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKeyStri
 		}
 		else if (OpExecFunc || OpPostExecFunc)
 		{
-			AddError(FString::Printf(TEXT("Missing initialize function when execute function exists for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
+			AddError(FString::Printf(TEXT("Missing Reset(...) function when execute function exists for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
 		}
 
 		// Check that after returning all inputs to their original state and calling
 		// reset on the operator, that all output values have returned to their initail state. 
 		if (!OutputTester.AreAllOutputValuesEqualToCapturedValues())
 		{
-			AddError(FString::Printf(TEXT("Reset function resulted in different starting conditions for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
+			AddError(FString::Printf(TEXT("Reset(...) function resulted in different starting conditions for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
 		}
 	};
 
