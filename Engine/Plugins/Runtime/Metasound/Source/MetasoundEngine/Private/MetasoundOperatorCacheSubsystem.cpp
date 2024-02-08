@@ -96,13 +96,20 @@ void UMetaSoundCacheSubsystem::PrecacheMetaSound(UMetaSoundSource* InMetaSound, 
 	OperatorPool = Module->GetOperatorPool();
 	const FMixerDevice* MixerDevice = GetMixerDevice();
 
-	if (!ensure(MixerDevice && InMetaSound && OperatorPool))
+	if (!ensure(MixerDevice && OperatorPool))
 	{
 		return;
 	}
 
-	if (!ensure(InNumInstances > 0))
+	if (!InMetaSound)
 	{
+		UE_LOG(LogMetaSound, Error, TEXT("PrecacheMetaSound called without being provided a MetaSound, ignoring request"));
+		return;
+	}
+
+	if (InNumInstances < 1)
+	{
+		UE_LOG(LogMetaSound, Error, TEXT("PrecacheMetaSound called with invaled NumInstances %i, ignoring request"), InNumInstances);
 		return;
 	}
 
