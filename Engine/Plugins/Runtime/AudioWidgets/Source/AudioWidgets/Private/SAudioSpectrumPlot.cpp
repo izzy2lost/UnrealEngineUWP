@@ -4,9 +4,12 @@
 
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "SlateOptMacros.h"
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+#define LOCTEXT_NAMESPACE "SAudioSpectrumPlot"
 
 /**
  * Helper class for drawing grid lines with text labels. Includes logic to avoid drawing overlapping labels if the grid lines are close together.
@@ -189,6 +192,7 @@ bool FAudioSpectrumPlotGridAndLabelDrawingHelper::IsOverlappingPreviouslyDrawnLa
 };
 
 
+FName SAudioSpectrumPlot::ContextMenuExtensionHook("SpectrumPlotDisplayOptions");
 
 void SAudioSpectrumPlot::Construct(const FArguments& InArgs)
 {
@@ -207,7 +211,72 @@ void SAudioSpectrumPlot::Construct(const FArguments& InArgs)
 	GridColor = InArgs._GridColor;
 	AxisLabelColor = InArgs._AxisLabelColor;
 	SpectrumColor = InArgs._SpectrumColor;
+	bAllowContextMenu = InArgs._AllowContextMenu;
+	OnContextMenuOpening = InArgs._OnContextMenuOpening;
 	OnGetAudioSpectrumData = InArgs._OnGetAudioSpectrumData;
+}
+
+TSharedRef<const FExtensionBase> SAudioSpectrumPlot::AddContextMenuExtension(EExtensionHook::Position HookPosition, const TSharedPtr<FUICommandList>& CommandList, const FMenuExtensionDelegate& MenuExtensionDelegate)
+{
+	if (!ContextMenuExtender.IsValid())
+	{
+		ContextMenuExtender = MakeShared<FExtender>();
+	}
+
+	return ContextMenuExtender->AddMenuExtension(ContextMenuExtensionHook, HookPosition, CommandList, MenuExtensionDelegate);
+}
+
+void SAudioSpectrumPlot::RemoveContextMenuExtension(const TSharedRef<const FExtensionBase>& Extension)
+{
+	if (ensure(ContextMenuExtender.IsValid()))
+	{
+		ContextMenuExtender->RemoveExtension(Extension);
+	}
+}
+
+FReply SAudioSpectrumPlot::OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (!HasMouseCapture())
+	{
+		if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+		{
+			// Right clicking to summon context menu, but we'll do that on mouse-up.
+			return FReply::Handled().CaptureMouse(AsShared()).SetUserFocus(AsShared(), EFocusCause::Mouse);
+		}
+	}
+
+	return SCompoundWidget::OnMouseButtonDown(InMyGeometry, InMouseEvent);
+}
+
+FReply SAudioSpectrumPlot::OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+{
+	// The mouse must have been captured by mouse down before we'll process mouse ups
+	if (HasMouseCapture())
+	{
+		if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+		{
+			if (InMyGeometry.IsUnderLocation(InMouseEvent.GetScreenSpacePosition()) && bAllowContextMenu.Get())
+			{
+				TSharedPtr<SWidget> ContextMenu = OnContextMenuOpening.IsBound() ? OnContextMenuOpening.Execute() : BuildDefaultContextMenu();
+
+				if (ContextMenu.IsValid())
+				{
+					const FWidgetPath WidgetPath = (InMouseEvent.GetEventPath() != nullptr) ? *InMouseEvent.GetEventPath() : FWidgetPath();
+
+					FSlateApplication::Get().PushMenu(
+						AsShared(),
+						WidgetPath,
+						ContextMenu.ToSharedRef(),
+						InMouseEvent.GetScreenSpacePosition(),
+						FPopupTransitionEffect::ESlideDirection::ContextMenu);
+				}
+			}
+
+			return FReply::Handled().ReleaseMouseCapture();
+		}
+	}
+
+	return SCompoundWidget::OnMouseButtonUp(InMyGeometry, InMouseEvent);
 }
 
 int32 SAudioSpectrumPlot::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
@@ -515,4 +584,117 @@ FLinearColor SAudioSpectrumPlot::GetSpectrumColor(const FWidgetStyle& InWidgetSt
 	const FSlateColor& SlateColor = (SpectrumColor.Get() != FSlateColor::UseStyle()) ? SpectrumColor.Get() : Style->SpectrumColor;
 	return SlateColor.GetColor(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint();
 }
+
+TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
+{
+	constexpr bool bShouldCloseWindowAfterMenuSelection = true;
+	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr, ContextMenuExtender);
+
+	MenuBuilder.BeginSection(ContextMenuExtensionHook, LOCTEXT("DisplayOptions", "Display Options"));
+
+	if (!FrequencyAxisPixelBucketMode.IsBound())
+	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("FrequencyAxisPixelBucketMode", "Pixel Plot Mode"),
+			FText(),
+			FNewMenuDelegate::CreateSP(this, &SAudioSpectrumPlot::BuildFrequencyAxisPixelBucketModeSubMenu));
+	}
+
+	if (!FrequencyAxisScale.IsBound())
+	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("FrequencyAxisScale", "Frequency Scale"),
+			FText(),
+			FNewMenuDelegate::CreateSP(this, &SAudioSpectrumPlot::BuildFrequencyAxisScaleSubMenu));
+	}
+
+	if (!bDisplayFrequencyAxisLabels.IsBound())
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("DisplayFrequencyAxisLabels", "Display Frequency Axis Labels"),
+			FText(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSPLambda(this, [this]() { bDisplayFrequencyAxisLabels = !bDisplayFrequencyAxisLabels.Get(); }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this]() { return bDisplayFrequencyAxisLabels.Get(); })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
+
+	if (!bDisplaySoundLevelAxisLabels.IsBound())
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("DisplaySoundLevelAxisLabels", "Display Sound Level Axis Labels"),
+			FText(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSPLambda(this, [this]() { bDisplaySoundLevelAxisLabels = !bDisplaySoundLevelAxisLabels.Get(); }),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this]() { return bDisplaySoundLevelAxisLabels.Get(); })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
+
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SAudioSpectrumPlot::BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu)
+{
+	const UEnum* EnumClass = StaticEnum<EAudioSpectrumPlotFrequencyAxisScale>();
+	const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
+	for (int32 Index = 0; Index < NumEnumValues; Index++)
+	{
+		const auto EnumValue = static_cast<EAudioSpectrumPlotFrequencyAxisScale>(EnumClass->GetValueByIndex(Index));
+
+		SubMenu.AddMenuEntry(
+			EnumClass->GetDisplayNameTextByIndex(Index),
+#if WITH_EDITOR
+			EnumClass->GetToolTipTextByIndex(Index),
+#else
+			FText(),
+#endif
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SAudioSpectrumPlot::SetFrequencyAxisScale, EnumValue),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (FrequencyAxisScale.Get() == EnumValue); })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
+}
+
+void SAudioSpectrumPlot::BuildFrequencyAxisPixelBucketModeSubMenu(FMenuBuilder& SubMenu)
+{
+	const UEnum* EnumClass = StaticEnum<EAudioSpectrumPlotFrequencyAxisPixelBucketMode>();
+	const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
+	for (int32 Index = 0; Index < NumEnumValues; Index++)
+	{
+		const auto EnumValue = static_cast<EAudioSpectrumPlotFrequencyAxisPixelBucketMode>(EnumClass->GetValueByIndex(Index));
+
+		SubMenu.AddMenuEntry(
+			EnumClass->GetDisplayNameTextByIndex(Index),
+#if WITH_EDITOR
+			EnumClass->GetToolTipTextByIndex(Index),
+#else
+			FText(),
+#endif
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SAudioSpectrumPlot::SetFrequencyAxisPixelBucketMode, EnumValue),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (FrequencyAxisPixelBucketMode.Get() == EnumValue); })
+			),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE
+
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION

@@ -15,7 +15,7 @@ namespace AudioWidgets
 	 * Exponential time-smoothing is applied to the spectrum.
 	 * Can either create an Audio Bus to analyze, or analyze the given Bus.
 	 */
-	class AUDIOWIDGETS_API FAudioSpectrumAnalyzer
+	class AUDIOWIDGETS_API FAudioSpectrumAnalyzer : public TSharedFromThis<FAudioSpectrumAnalyzer>
 	{
 	public:
 		FAudioSpectrumAnalyzer(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
@@ -30,6 +30,8 @@ namespace AudioWidgets
 	protected:
 		void OnConstantQResults(UConstantQAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FConstantQResults>& InSpectrumResultsArray);
 		FAudioPowerSpectrumData GetAudioSpectrumData() const;
+		void ExtendSpectrumPlotContextMenu(FMenuBuilder& MenuBuilder);
+		void BuildBallisticsSubMenu(FMenuBuilder& SubMenu);
 
 	private:
 		void Teardown();
@@ -54,11 +56,13 @@ namespace AudioWidgets
 
 		/** Slate widget for spectrum display */
 		TSharedPtr<SAudioSpectrumPlot> Widget;
+		TSharedPtr<const FExtensionBase> ContextMenuExtension;
 
 		bool bUseExternalAudioBus = false;
 
 		TOptional<float> PrevTimeStamp;
 		float AttackTimeMsec = 300.0f;
 		float ReleaseTimeMsec = 300.0f;
+		bool bIsAnalogAttackRelease = false;
 	};
 } // namespace AudioWidgets
