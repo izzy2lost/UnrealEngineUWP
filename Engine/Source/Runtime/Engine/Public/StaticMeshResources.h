@@ -522,7 +522,7 @@ public:
 	/** Serialize. */
 	void Serialize(FArchive& Ar, UObject* Owner, int32 Idx);
 
-	void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const;
+	ENGINE_API void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const;
 
 #if RHI_RAYTRACING
 	void SetupRayTracingGeometryInitializer(FRayTracingGeometryInitializer& Initializer, const FName& DebugName, const FName& OwnerName) const;
@@ -780,7 +780,7 @@ public:
 	ENGINE_API void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const;
 
 	/** Get the estimated memory overhead of buffers marked as NeedsCPUAccess. */
-	SIZE_T GetCPUAccessMemoryOverhead() const;
+	ENGINE_API SIZE_T GetCPUAccessMemoryOverhead() const;
 
 	/** Allocate LOD resources. */
 	ENGINE_API void AllocateLODResources(int32 NumLODs);
