@@ -38,9 +38,6 @@ public:
 	void SetAutoFlipTangents(const bool bInAutoFlipTangents) { bAutoFlipTangents = bInAutoFlipTangents; }
 	void ToggleAutoFlipTangents() { bAutoFlipTangents = !bAutoFlipTangents; }
 
-	FString GetPresetsPath() const { return PresetsPath; }
-	void SetPresetsPath(const FString& InPresetsPath) { PresetsPath = InPresetsPath; }
-
 	FString GetNewPresetCategory() const { return NewPresetCategory; }
 	void SetNewPresetCategory(const FString& InNewPresetCategory) { NewPresetCategory = InNewPresetCategory; }
 
@@ -71,10 +68,6 @@ private:
 	/** If true, auto flips tangents when sequential key frame curve values are descending. */
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Auto Flip Tangents"))
 	bool bAutoFlipTangents = true;
-
-	/** The location to search for ease curve preset Json files. */
-	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "Presets Path"))
-	FString PresetsPath;
 
 	/** The name of the category to place newly created curve presets. */
 	UPROPERTY(Config, EditAnywhere, Category = "EaseCurveTool", meta = (DisplayName = "New Preset Category"))

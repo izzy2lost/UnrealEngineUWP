@@ -20,6 +20,9 @@ public:
 
 	static void ExploreJsonPresetsFolder();
 
+	static FString ProjectPresetPath();
+	static FString PluginPresetPath();
+
 	void ReloadPresetsFromJson();
 
 	TArray<FString> GetEaseCurveCategories() const;
@@ -47,6 +50,8 @@ public:
 	bool RemovePresetCategory(const FString& InCategory);
 
 	bool RenamePreset(const FString& InCategory, const FString& InPreset, const FString& InNewPresetName);
+
+	void ResetToDefaultPresets(const bool bInOnlyIfNoProjectPresets);
 
 	//~ Begin USubsystem
 	virtual void Initialize(FSubsystemCollectionBase& InCollection) override;

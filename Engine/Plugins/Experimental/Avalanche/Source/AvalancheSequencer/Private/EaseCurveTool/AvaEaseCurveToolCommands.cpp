@@ -17,6 +17,14 @@ void FAvaEaseCurveToolCommands::RegisterCommands()
 		, EUserInterfaceActionType::Button
 		, FInputChord());
 
+	
+	UI_COMMAND(ResetToDefaultPresets
+		, "Reset To Default Presets"
+		, "Reset presets to the defaults.\n\n"
+			"*CAUTION* All directories and files inside '[Project]/Config/EaseCurves' will be replaced with defaults!"
+		, EUserInterfaceActionType::Button
+		, FInputChord());
+
 	FUICommandInfo::MakeCommandInfo(SharedThis
 		, Refresh
 		, TEXT("Refresh")

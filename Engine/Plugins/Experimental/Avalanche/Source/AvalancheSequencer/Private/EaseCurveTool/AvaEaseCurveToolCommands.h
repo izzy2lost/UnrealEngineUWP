@@ -20,6 +20,8 @@ public:
 
 	TSharedPtr<FUICommandInfo> OpenToolSettings;
 
+	TSharedPtr<FUICommandInfo> ResetToDefaultPresets;
+
 	TSharedPtr<FUICommandInfo> Refresh;
 	TSharedPtr<FUICommandInfo> Apply;
 
