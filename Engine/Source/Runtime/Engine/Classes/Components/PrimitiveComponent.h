@@ -734,6 +734,7 @@ public:
 	/** 
 	 * Channels that this component should be in.  Lights with matching channels will affect the component.  
 	 * These channels only apply to opaque materials, direct lighting, and dynamic lighting and shadowing.
+	 * Lighting channels are only supported on translucent materials using forward shading (i.e. when not using the translucency lighting volume).
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	FLightingChannels LightingChannels;

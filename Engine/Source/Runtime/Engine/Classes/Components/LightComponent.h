@@ -150,6 +150,7 @@ class ULightComponent : public ULightComponentBase
 	/** 
 	 * Channels that this light should affect.  
 	 * These channels only apply to opaque materials, direct lighting, and dynamic lighting and shadowing.
+	 * Lighting channels are only supported on translucent materials using forward shading (i.e. when not using the translucency lighting volume).
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Light)
 	FLightingChannels LightingChannels;
