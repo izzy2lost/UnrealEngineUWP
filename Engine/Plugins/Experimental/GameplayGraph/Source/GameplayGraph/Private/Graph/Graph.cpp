@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "Graph/Graph.h"
+
+#include "Graph/Algorithms/Connectivity/ConnectedComponents.h"
 #include "Graph/GraphEdge.h"
 #include "Graph/GraphVertex.h"
-#include "Graph/Algorithms/Connectivity/ConnectedComponents.h"
+#include "Graph/GraphSerialization.h"
 #include "GenericPlatform/GenericPlatformMath.h"
 #include "HAL/IConsoleManager.h"
 
@@ -12,114 +13,8 @@
 
 namespace Graph
 {
-	static bool bFixupGraphOnLoad = false;
+	static bool bFixupGraphOnLoad = true;
 	static FAutoConsoleVariableRef FixupGraphOnLoadCVar(TEXT("GameplayGraph.FixupGraphOnLoad"), bFixupGraphOnLoad, TEXT("Merge and split islands when loaded from serialization."));
-}
-
-FSerializableGraph UGraph::GetSerializableGraph() const
-{
-	FSerializableGraph Out;
-	Out.Properties = Properties;
-	Out.Vertices.Reserve(Vertices.Num());
-	Out.Edges.Reserve(Edges.Num());
-	Out.Islands.Reserve(Islands.Num());
-
-	for (const TPair<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& Kvp : Vertices)
-	{
-		if (!Kvp.Key.IsComplete() || !Kvp.Value)
-		{
-			continue;
-		}
-		Out.Vertices.Add(Kvp.Key);
-	}
-
-	for (const TPair<FGraphEdgeHandle, TObjectPtr<UGraphEdge>>& Kvp : Edges)
-	{
-		if (!Kvp.Key.IsComplete() || !Kvp.Value)
-		{
-			continue;
-		}
-
-		Out.Edges.Add(Kvp.Key, Kvp.Value->GetSerializedData());
-	}
-
-	for (const TPair<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& Kvp : Islands)
-	{
-		if (!Kvp.Key.IsComplete() || !Kvp.Value)
-		{
-			continue;
-		}
-
-		Out.Islands.Add(Kvp.Key, Kvp.Value->GetSerializedData());
-	}
-
-	return Out;
-}
-
-void UGraph::LoadFromSerializedGraph(const FSerializableGraph& Input)
-{
-	InitializeFromProperties(Input.Properties);
-
-	for (const FGraphVertexHandle& Handle : Input.Vertices)
-	{
-		if (!Handle.IsValid())
-		{
-			continue;
-		}
-
-		CreateVertex(Handle.GetUniqueIndex());
-	}
-
-	TArray<FGraphEdgeHandle> AllEdges;
-	AllEdges.Reserve(Input.Edges.Num());
-	for (const TPair<FGraphEdgeHandle, FSerializedEdgeData>& Kvp : Input.Edges)
-	{
-		if (!Kvp.Key.IsValid())
-		{
-			continue;
-		}
-
-		AllEdges.Emplace(CreateEdge(
-			GetCompleteNodeHandle(Kvp.Value.Node1),
-			GetCompleteNodeHandle(Kvp.Value.Node2),
-			Kvp.Key.GetUniqueIndex(),
-			false
-		));
-	}
-
-	TArray<FGraphIslandHandle> AllIslands;
-	AllIslands.Reserve(Input.Islands.Num());
-	for (const TPair<FGraphIslandHandle, FSerializedIslandData>& Kvp : Input.Islands)
-	{
-		if (!Kvp.Key.IsValid())
-		{
-			continue;
-		}
-
-		TArray<FGraphVertexHandle> IslandVertices;
-		IslandVertices.Reserve(Kvp.Value.Vertices.Num());
-		
-		for (const FGraphVertexHandle& VertexHandle : Kvp.Value.Vertices)
-		{
-			FGraphVertexHandle CompleteHandle = GetCompleteNodeHandle(VertexHandle);
-			if (CompleteHandle.IsComplete())
-			{
-				IslandVertices.Add(CompleteHandle);
-			}
-		}
-
-		AllIslands.Emplace(CreateIsland(IslandVertices, Kvp.Key.GetUniqueIndex()));
-	}
-
-	if (Graph::bFixupGraphOnLoad)
-	{
-		MergeOrCreateIslands(AllEdges);
-
-		for (const FGraphIslandHandle& NewIslandHandle : AllIslands)
-		{
-			RemoveOrSplitIsland(NewIslandHandle.GetIsland());
-		}
-	}
 }
 
 void UGraph::Empty()
@@ -365,7 +260,7 @@ void UGraph::RemoveIsland(const FGraphIslandHandle& IslandHandle)
 		return;
 	}
 
-	if (TObjectPtr<UGraphIsland> Island = IslandHandle.GetIsland())
+	if (UGraphIsland* Island = GetSafeIslandFromHandle(IslandHandle))
 	{
 		if (!Island->IsOperationAllowed(EGraphIslandOperations::Destroy))
 		{
@@ -602,39 +497,40 @@ void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
 
 	TSet<FGraphIslandHandle> AffectedIslands;
 
+	TArray<FGraphVertexHandle> AffectedVertices;
+	AffectedVertices.Reserve(InHandles.Num());
+
 	for (const FGraphVertexHandle& NodeHandle : InHandles)
 	{
-		if (NodeHandle.IsValid())
+		if (UGraphVertex* Node = GetSafeVertexFromHandle(NodeHandle))
 		{
-			if (TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex())
+			if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
 			{
-				if (TObjectPtr<UGraphIsland> Island = Node->GetParentIsland().GetIsland())
-				{
-					AffectedIslands.Add(Node->GetParentIsland());
-					Island->RemoveVertex(NodeHandle);
-				}
-
-				// We must remove every edge this node is a part of. Need to make a copy of the edges because
-				// otherwise we're modifying the container during iteration over it in ForEachAdjacentVertex.
-				TArray<FGraphEdgeHandle> EdgeCopy;
-				EdgeCopy.Reserve(Node->NumEdges());
-				Node->ForEachAdjacentVertex(
-					[&EdgeCopy](const FGraphVertexHandle& OtherNodeHandle, const FGraphEdgeHandle& EdgeHandle)
-					{
-						EdgeCopy.Add(EdgeHandle);
-					}
-				);
-
-				for (const FGraphEdgeHandle& EdgeHandle : EdgeCopy)
-				{
-					// Don't immediately handle islands. We'll do it later.
-					RemoveEdgeInternal(EdgeHandle, false);
-				}
+				AffectedIslands.Add(Node->GetParentIsland());
+				Island->RemoveVertex(NodeHandle);
 			}
 
+			// We must remove every edge this node is a part of. Need to make a copy of the edges because
+			// otherwise we're modifying the container during iteration over it in ForEachAdjacentVertex.
+			TArray<FGraphEdgeHandle> EdgeCopy;
+			EdgeCopy.Reserve(Node->NumEdges());
+			Node->ForEachAdjacentVertex(
+				[&EdgeCopy](const FGraphVertexHandle& OtherNodeHandle, const FGraphEdgeHandle& EdgeHandle)
+				{
+					EdgeCopy.Add(EdgeHandle);
+				}
+			);
+
+			for (const FGraphEdgeHandle& EdgeHandle : EdgeCopy)
+			{
+				// Don't immediately handle islands. We'll do it later.
+				RemoveEdgeInternal(EdgeHandle, false);
+			}
+
+			AffectedVertices.Add(NodeHandle);
 		}
 	}
-	
+
 	if (Properties.bGenerateIslands)
 	{
 		for (const FGraphIslandHandle& IslandHandle : AffectedIslands)
@@ -645,16 +541,13 @@ void UGraph::RemoveBulkVertices(const TArray<FGraphVertexHandle>& InHandles)
 
 	// A final pass after generation of islands to clean up book-keeping.
 	// TODO: Not sure if this is necessary and can be done before we regenerate islands?
-	for (const FGraphVertexHandle& NodeHandle : InHandles)
+	for (const FGraphVertexHandle& NodeHandle : AffectedVertices)
 	{
-		if (NodeHandle.IsValid())
+		if (UGraphVertex* Node = NodeHandle.GetVertex())
 		{
-			if (TObjectPtr<UGraphVertex> Node = NodeHandle.GetVertex())
-			{
-				Node->HandleOnVertexRemoved();
-			}
-			Vertices.Remove(NodeHandle);
+			Node->HandleOnVertexRemoved();
 		}
+		Vertices.Remove(NodeHandle);
 	}
 }
 
@@ -859,4 +752,147 @@ void UGraph::RefreshIslandConnectivity(const FGraphIslandHandle& IslandHandle)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UGraph::RefreshIslandConnectivity);
 	RemoveOrSplitIsland(IslandHandle.GetIsland());
+}
+
+UGraphVertex* UGraph::GetSafeVertexFromHandle(const FGraphVertexHandle& Handle) const
+{
+	return Handle.IsComplete() ? Handle.GetVertex() : Vertices.FindRef(Handle).Get();
+}
+
+UGraphEdge* UGraph::GetSafeEdgeFromHandle(const FGraphEdgeHandle& Handle) const
+{
+	return Handle.IsComplete() ? Handle.GetEdge() : Edges.FindRef(Handle).Get();
+}
+
+UGraphIsland* UGraph::GetSafeIslandFromHandle(const FGraphIslandHandle& Handle) const
+{
+	return Handle.IsComplete() ? Handle.GetIsland() : Islands.FindRef(Handle).Get();
+}
+
+void UGraph::ReserveVertices(int32 Delta)
+{
+	Vertices.Reserve(Vertices.Num() + Delta);
+}
+
+void UGraph::ReserveEdges(int32 Delta)
+{
+	Edges.Reserve(Edges.Num() + Delta);
+}
+
+void UGraph::ReserveIslands(int32 Delta)
+{
+	Islands.Reserve(Islands.Num() + Delta);
+}
+
+void operator<<(IGraphSerialization& Output, const UGraph& Graph)
+{
+	Output.WriteGraphProperties(Graph.GetProperties());
+	for (const TPair<FGraphVertexHandle, TObjectPtr<UGraphVertex>>& Kvp : Graph.GetVertices())
+	{
+		if (!ensure(Kvp.Key.IsComplete() && Kvp.Value))
+		{
+			continue;
+		}
+
+		Output.WriteGraphVertex(Kvp.Key, Kvp.Value);
+	}
+
+	for (const TPair<FGraphEdgeHandle, TObjectPtr<UGraphEdge>>& Kvp : Graph.GetEdges())
+	{
+		if (!ensure(Kvp.Key.IsComplete() && Kvp.Value))
+		{
+			continue;
+		}
+
+		Output.WriteGraphEdge(Kvp.Key, Kvp.Value);
+	}
+
+	for (const TPair<FGraphIslandHandle, TObjectPtr<UGraphIsland>>& Kvp : Graph.GetIslands())
+	{
+		if (!ensure(Kvp.Key.IsComplete() && Kvp.Value))
+		{
+			continue;
+		}
+
+		Output.WriteGraphIsland(Kvp.Key, Kvp.Value);
+	}
+}
+
+void operator>>(const IGraphDeserialization& Input, UGraph& Graph)
+{
+	Graph.InitializeFromProperties(Input.GetProperties());
+
+	Graph.ReserveVertices(Input.NumVertices());
+	Input.ForEveryVertex(
+		[&Graph](const FGraphVertexHandle& InHandle)
+		{
+			if (!ensure(InHandle.IsValid()))
+			{
+				return FGraphVertexHandle{};
+			}
+
+			return Graph.CreateVertex(InHandle.GetUniqueIndex());
+		}
+	);
+
+	TArray<FGraphEdgeHandle> AllEdges;
+	AllEdges.Reserve(Input.NumEdges());
+	Graph.ReserveEdges(Input.NumEdges());
+	Input.ForEveryEdge(
+		[&Graph, &AllEdges](const FGraphEdgeHandle& InHandle, const IGraphDeserialization::FEdgeConstructionData& Data)
+		{
+			if (!ensure(InHandle.IsValid()))
+			{
+				return FGraphEdgeHandle{};
+			}
+
+			FGraphEdgeHandle Handle = Graph.CreateEdge(
+				Graph.GetCompleteNodeHandle(Data.Vertex1),
+				Graph.GetCompleteNodeHandle(Data.Vertex2),
+				InHandle.GetUniqueIndex(),
+				false
+			);
+			AllEdges.Add(Handle);
+			return Handle;
+		}
+	);
+
+	TArray<FGraphIslandHandle> AllIslands;
+	AllIslands.Reserve(Input.NumIslands());
+	Graph.ReserveIslands(Input.NumIslands());
+	Input.ForEveryIsland(
+		[&Graph, &AllIslands](const FGraphIslandHandle& InHandle, const IGraphDeserialization::FIslandConstructionData& Data)
+		{
+			if (!ensure(InHandle.IsValid()))
+			{
+				return FGraphIslandHandle{};
+			}
+
+			TArray<FGraphVertexHandle> IslandVertices;
+			IslandVertices.Reserve(Data.Vertices.Num());
+		
+			for (const FGraphVertexHandle& VertexHandle : Data.Vertices)
+			{
+				FGraphVertexHandle CompleteHandle = Graph.GetCompleteNodeHandle(VertexHandle);
+				if (CompleteHandle.IsComplete())
+				{
+					IslandVertices.Add(CompleteHandle);
+				}
+			}
+
+			FGraphIslandHandle NewIslandHandle = Graph.CreateIsland(IslandVertices, InHandle.GetUniqueIndex());
+			AllIslands.Add(NewIslandHandle);
+			return NewIslandHandle;
+		}
+	);
+
+	if (Graph::bFixupGraphOnLoad)
+	{
+		Graph.MergeOrCreateIslands(AllEdges);
+
+		for (const FGraphIslandHandle& NewIslandHandle : AllIslands)
+		{
+			Graph.RemoveOrSplitIsland(NewIslandHandle.GetIsland());
+		}
+	}
 }

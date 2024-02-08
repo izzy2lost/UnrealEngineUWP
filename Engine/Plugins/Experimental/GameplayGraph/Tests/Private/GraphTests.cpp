@@ -557,6 +557,28 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Bulk::Linear", "[grap
 	CHECK(Graph->NumIslands() == 3);
 }
 
+TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Vertex::Incomplete Handle", "[graph]")
+{
+	PopulateVertices(5, true);
+	BuildLinearEdges(5);
+
+	FGraphVertexHandle RemoveHandle{ VertexHandles[0].GetUniqueIndex(), nullptr };
+	CHECK(Graph->NumVertices() == 5);
+	CHECK(Graph->NumEdges() == 4);
+	CHECK(Graph->NumIslands() == 1);
+
+	UGraphIsland* Island = IslandHandles[0].GetIsland();
+	REQUIRE(Island != nullptr);
+	CHECK(Island->Num() == 5);
+
+	Graph->RemoveVertex(RemoveHandle);
+
+	CHECK(Graph->NumVertices() == 4);
+	CHECK(Graph->NumEdges() == 3);
+	CHECK(Graph->NumIslands() == 1);
+	CHECK(Island->Num() == 4);
+}
+
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Remove Island", "[graph]")
 {
 	PopulateVertices(10, true);

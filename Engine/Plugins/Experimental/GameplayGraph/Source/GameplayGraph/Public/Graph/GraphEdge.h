@@ -6,22 +6,6 @@
 
 class UGraphVertex;
 
-USTRUCT()
-struct FSerializedEdgeData
-{
-	GENERATED_BODY()
-
-	UPROPERTY(SaveGame)
-	FGraphVertexHandle Node1;
-
-	UPROPERTY(SaveGame)
-	FGraphVertexHandle Node2;
-
-	// Comparison operators
-	friend bool operator==(const FSerializedEdgeData& Lhs, const FSerializedEdgeData& Rhs) = default;
-	friend bool operator!=(const FSerializedEdgeData& Lhs, const FSerializedEdgeData& Rhs) = default;
-};
-
 UCLASS()
 class GAMEPLAYGRAPH_API UGraphEdge : public UGraphElement
 {
@@ -42,8 +26,6 @@ public:
 	{
 		return FGraphEdgeHandle{ GetUniqueIndex(), GetGraph() };
 	}
-
-	FSerializedEdgeData GetSerializedData() const;
 
 	friend class UGraph;
 

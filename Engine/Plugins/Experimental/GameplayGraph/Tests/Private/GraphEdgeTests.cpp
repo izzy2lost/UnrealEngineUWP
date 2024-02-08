@@ -31,10 +31,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Edge::Create", "[graph][edge]")
 		CHECK(E->GetOtherNode(VertexHandles[0]) == VertexHandles[1]);
 		CHECK(E->GetOtherNode(VertexHandles[1]) == VertexHandles[0]);
 		CHECK(E->GetOtherNode(VertexHandles[2]) == FGraphVertexHandle{});
-
-		FSerializedEdgeData Serialized = E->GetSerializedData();
-		CHECK(Serialized.Node1 == VertexHandles[0]);
-		CHECK(Serialized.Node2 == VertexHandles[1]);
 	}
 
 	SECTION("Remove Edge")

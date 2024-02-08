@@ -717,26 +717,6 @@ TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Operation Allowed::Disable D
 	CHECK(Island->GetVertices().Contains(VertexHandles[3]) == true);
 }
 
-TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Get Serialized Data", "[graph][island]")
-{
-	PopulateVertices(4, true);
-	BuildLinearEdges(4);
-
-	REQUIRE(IslandHandles.Num() == 1);
-
-	UGraphIsland* Island = IslandHandles[0].GetIsland();
-	REQUIRE(Island != nullptr);
-
-	FSerializedIslandData Serialized = Island->GetSerializedData();
-	CHECK(Island->Num() == Serialized.Vertices.Num());
-	TSet<FGraphVertexHandle> SerializedVertexSet{ Serialized.Vertices };
-	CHECK(Island->GetVertices().Num() == SerializedVertexSet.Num());
-	for (const FGraphVertexHandle& Handle : SerializedVertexSet)
-	{
-		CHECK(Island->GetVertices().Contains(Handle));
-	}
-}
-
 TEST_CASE_METHOD(FTestGraphBuilder, "Graph::Island::Events::Vertex Added", "[graph][island]")
 {
 	PopulateVertices(2, true);
