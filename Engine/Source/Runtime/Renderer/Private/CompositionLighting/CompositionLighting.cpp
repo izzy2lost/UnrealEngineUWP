@@ -548,7 +548,7 @@ void FCompositionLighting::TryInit()
 	bInitialized = true;
 }
 
-void FCompositionLighting::ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBufferTextures& DBufferTextures)
+void FCompositionLighting::ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBufferTextures& DBufferTextures, FInstanceCullingManager& InstanceCullingManager)
 {
 	if (HasRayTracedOverlay(ViewFamily))
 	{
@@ -581,7 +581,7 @@ void FCompositionLighting::ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBu
 		if (bEnableDBuffer)
 		{
 			FDeferredDecalPassTextures DecalPassTextures = GetDeferredDecalPassTextures(GraphBuilder, View, SceneTextures, &DBufferTextures);
-			AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, EDecalRenderStage::BeforeBasePass);
+			AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::BeforeBasePass);
 		}
 
 		if (bEnableSSAO)
@@ -598,7 +598,7 @@ void FCompositionLighting::ProcessBeforeBasePass(FRDGBuilder& GraphBuilder, FDBu
 	}
 }
 
-void FCompositionLighting::ProcessAfterBasePass(FRDGBuilder& GraphBuilder, EProcessAfterBasePassMode Mode)
+void FCompositionLighting::ProcessAfterBasePass(FRDGBuilder& GraphBuilder, FInstanceCullingManager& InstanceCullingManager, EProcessAfterBasePassMode Mode)
 {
 	if (HasRayTracedOverlay(ViewFamily))
 	{
@@ -626,13 +626,13 @@ void FCompositionLighting::ProcessAfterBasePass(FRDGBuilder& GraphBuilder, EProc
 		{
 			// We can disable this pass if using DBuffer decals
 			// Decals are before AmbientOcclusion so the decal can output a normal that AO is affected by
-			AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, EDecalRenderStage::BeforeLighting);
+			AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::BeforeLighting);
 		}
 
 		if (bEnableDecals && Mode != EProcessAfterBasePassMode::OnlyBeforeLightingDecals)
 		{
 			// DBuffer decals with emissive component
-			AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, EDecalRenderStage::Emissive);
+			AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::Emissive);
 		}
 
 		// Forward shading SSAO is applied before the base pass using only the depth buffer.
@@ -675,7 +675,7 @@ void FCompositionLighting::ProcessAfterBasePass(FRDGBuilder& GraphBuilder, EProc
 					if (bEnableDecals)
 					{
 						DecalPassTextures.ScreenSpaceAO = AmbientOcclusion.Texture;
-						AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, EDecalRenderStage::AmbientOcclusion);
+						AddDeferredDecalPass(GraphBuilder, View, DecalPassTextures, InstanceCullingManager, EDecalRenderStage::AmbientOcclusion);
 					}
 				}
 			}

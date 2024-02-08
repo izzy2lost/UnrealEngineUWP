@@ -48,6 +48,7 @@ void AddDeferredDecalPass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& ViewInfo,
 	const FDeferredDecalPassTextures& Textures,
+	FInstanceCullingManager& InstanceCullingManager,
 	EDecalRenderStage RenderStage);
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FDeferredDecalUniformParameters, )
@@ -66,7 +67,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FDeferredDecalPassParameters, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 	SHADER_PARAMETER_STRUCT_REF(FDeferredDecalUniformParameters, DeferredDecal)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FDecalPassUniformParameters, DecalPass)
-	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FInstanceCullingGlobalUniforms, InstanceCulling)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceCullingDrawParams, InstanceCullingDrawParams)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -93,8 +94,10 @@ void GetDeferredDecalPassParameters(
 
 void RenderMeshDecals(
 	FRDGBuilder& GraphBuilder,
+	const FScene& Scene,
 	const FViewInfo& View,
 	const FDeferredDecalPassTextures& DecalPassTextures,
+	FInstanceCullingManager& InstanceCullingManager, 
 	EDecalRenderStage DecalRenderStage);
 
 void ExtractNormalsForNextFrameReprojection(

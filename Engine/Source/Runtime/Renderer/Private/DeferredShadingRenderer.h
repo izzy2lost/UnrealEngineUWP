@@ -659,6 +659,7 @@ private:
 		FRDGBuilder& GraphBuilder,
 		class FCompositionLighting& CompositionLighting,
 		FSceneTextures& SceneTextures,
+		FInstanceCullingManager& InstanceCullingManager,
 		const FLumenSceneFrameTemporaries& LumenFrameTemporaries,
 		FRDGTextureRef LightingChannelsTexture,
 		bool bHasLumenLights,

@@ -1278,7 +1278,7 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			if (bRequiresDBufferDecals)
 			{
 				DBufferTextures = CreateDBufferTextures(GraphBuilder, SceneTextures.Config.Extent, ShaderPlatform);
-				RenderDBuffer(GraphBuilder, SceneTextures, DBufferTextures);
+				RenderDBuffer(GraphBuilder, SceneTextures, DBufferTextures, InstanceCullingManager);
 			}
 		}
 

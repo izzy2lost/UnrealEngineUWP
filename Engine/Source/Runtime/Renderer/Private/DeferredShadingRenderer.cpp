@@ -2364,7 +2364,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		{
 			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, DeferredShadingSceneRenderer_DBuffer);
 			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_DBuffer);
-			CompositionLighting.ProcessBeforeBasePass(GraphBuilder, DBufferTextures);
+			CompositionLighting.ProcessBeforeBasePass(GraphBuilder, DBufferTextures, InstanceCullingManager);
 		}
 		
 		if (IsForwardShadingEnabled(ShaderPlatform))
@@ -2574,6 +2574,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				GraphBuilder,
 				CompositionLighting,
 				SceneTextures,
+				InstanceCullingManager,
 				LumenFrameTemporaries,
 				LightingChannelsTexture,
 				/*bHasLumenLights*/ false,
@@ -2683,7 +2684,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			const FCompositionLighting::EProcessAfterBasePassMode Mode = AsyncLumenIndirectLightingOutputs.bHasDrawnBeforeLightingDecals ?
 				FCompositionLighting::EProcessAfterBasePassMode::SkipBeforeLightingDecals : FCompositionLighting::EProcessAfterBasePassMode::All;
 
-			CompositionLighting.ProcessAfterBasePass(GraphBuilder, Mode);
+			CompositionLighting.ProcessAfterBasePass(GraphBuilder, InstanceCullingManager, Mode);
 		}
 
 		// Rebuild scene textures to include velocity, custom depth, and SSAO.
