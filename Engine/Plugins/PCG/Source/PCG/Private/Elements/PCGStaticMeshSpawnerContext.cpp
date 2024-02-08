@@ -6,6 +6,7 @@ void FPCGStaticMeshSpawnerContext::ResetInputIterationData()
 {
 	bCurrentInputSetup = false;
 	bSelectionDone = false;
+	bPartitionDone = false;
 	CurrentPointData = nullptr;
 	CurrentOutputPointData = nullptr;
 	MaterialOverrideHelper.Reset();
@@ -15,4 +16,6 @@ void FPCGStaticMeshSpawnerContext::ResetInputIterationData()
 	MeshToValueKey.Reset();
 	CumulativeWeights.Reset();
 	CategoryEntryToInstancesAndWeights.Reset();
+	AttributeOverridePartition.Reset();
+	OverriddenDescriptors.Reset();
 }
