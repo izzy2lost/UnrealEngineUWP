@@ -305,7 +305,7 @@
 		<ForEach Name="Project" Values="$(AllProjects)">
 
 			<!-- Each project should be setup by invoking the SetupPerfProject macro which will set up the various variables we'll need for the tests -->
-			<Property Name="ProjectCombinedArgs" Value="$($(Project)__SpecificArgs) $($(Project)__MapArgs) $(AdditionalRuntimeArgs)"/>
+			<Property Name="ProjectCombinedArgs" Value="$($(Project)__SpecificArgs) $($(Project)__MapArgs) $($(Project)__ExtraNonCopyableArgs) $(AdditionalRuntimeArgs)"/>
 			<Property Name="ProjectTarget" Value="$($(Project)__ProjectTarget)"/>
 			<Property Name="EditorTarget" Value="$($(Project)__EditorTarget)"/>
 
