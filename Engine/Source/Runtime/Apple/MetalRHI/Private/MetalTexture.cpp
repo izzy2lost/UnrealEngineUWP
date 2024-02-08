@@ -613,7 +613,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 		}
         else if (bTextureArrayWithAtomics)
         {
-            checkf(GMaxRHIFeatureLevel == ERHIFeatureLevel::SM6, TEXT("Requested texture array with atomics that is unsupported on this platform"));
+            checkf(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5, TEXT("Requested texture array with atomics that is unsupported on this platform"));
             
             MTL::Device* Device = GetMetalDeviceContext().GetDevice();
 
