@@ -66,6 +66,7 @@ public:
 	float Exponent;
 	float InverseExposureBlend = 0.0f;
 	float VolumetricScatteringIntensity;
+	float SpecularScale = 1.0f;
 	bool bAffectTranslucency;
 };
 
