@@ -1474,6 +1474,12 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGCh
 		return;
 	}
 
+	if (ChangeType == EPCGChangeType::Cosmetic || ChangeType == EPCGChangeType::None)
+	{
+		// If it is a cosmetic change (or no change), nothing to do
+		return;
+	}
+
 	const bool bHasGraph = (InGraph && InGraph->GetGraph());
 
 	const bool bIsStructural = ((ChangeType & (EPCGChangeType::Edge | EPCGChangeType::Structural)) != EPCGChangeType::None);
@@ -3207,7 +3213,7 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 
 #if WITH_EDITOR
 			// bDirtyGenerated is transient.
-			PCGComponent->bDirtyGenerated = SourceComponent->bDirtyGenerated; 
+			PCGComponent->bDirtyGenerated = SourceComponent->bDirtyGenerated;
 
 			// While this is serialized, it is not properly copied because it is not visible. This is needed otherwise a refresh can retoggle from not generated to generated
 			PCGComponent->bForceGenerateOnBPAddedToWorld = SourceComponent->bForceGenerateOnBPAddedToWorld;
