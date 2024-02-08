@@ -24,11 +24,15 @@ enum class EPCGGraphParameterEvent
 	GraphChanged,
 	GraphPostLoad,
 	Added,
-	Removed,
-	PropertyModified,
+	RemovedUnused,
+	RemovedUsed,
+	PropertyMoved,
+	PropertyRenamed,
+	PropertyTypeModified,
 	ValueModifiedLocally,
 	ValueModifiedByParent,
-	MultiplePropertiesAdded
+	MultiplePropertiesAdded,
+	None
 };
 
 #if WITH_EDITOR
@@ -51,8 +55,8 @@ public:
 	/** Add/Remove given property from overrides, and reset its value if it is removed. Returns true if the value was changed. */
 	bool UpdatePropertyOverride(const FProperty* InProperty, bool bMarkAsOverridden, const FInstancedPropertyBag* ParentUserParameters);
 
-	/** Reset overridden property to its parent value. */
-	void ResetPropertyToDefault(const FProperty* InProperty, const FInstancedPropertyBag* ParentUserParameters);
+	/** Reset overridden property to its parent value. Return true if the value was different. */
+	bool ResetPropertyToDefault(const FProperty* InProperty, const FInstancedPropertyBag* ParentUserParameters);
 
 	/** Return if the property is currently marked overridden. */
 	bool IsPropertyOverridden(const FProperty* InProperty) const;
@@ -162,6 +166,9 @@ public:
 protected:
 	virtual void OnGraphParametersChanged(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName) PURE_VIRTUAL(UPCGGraphInterface::OnGraphParametersChanged, )
 	virtual FInstancedPropertyBag* GetMutableUserParametersStruct() PURE_VIRTUAL(UPCGGraphInterface::GetMutableUserParametersStruct, return nullptr;)
+
+	/** Detecting if we need to refresh the graph depending on the type of change in the Graph Parameter. */
+	EPCGChangeType GetChangeTypeForGraphParameterChange(EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName);
 };
 
 UCLASS(BlueprintType, ClassGroup = (Procedural), hidecategories=(Object))
@@ -415,12 +422,14 @@ private:
 	/** Remove invalid edges and edges to nodes that are not present in the node array. */
 	void FixInvalidEdges();
 
+	// Keep track of the previous PropertyBag, to see if we had a change in the number of properties, or if it is a rename/move.
+	TObjectPtr<const UPropertyBag> PreviousPropertyBag;
+
 	int32 GraphChangeNotificationsDisableCounter = 0;
-	bool bDelayedChangeNotification = false;
 	EPCGChangeType DelayedChangeType = EPCGChangeType::None;
+	bool bDelayedChangeNotification = false;
 	bool bIsNotifying = false;
 	bool bUserPausedNotificationsInGraphEditor = false;
-	int32 NumberOfUserParametersPreEdit = 0;
 	bool bIsInspecting = false;
 #endif // WITH_EDITOR
 };
