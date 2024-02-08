@@ -74,9 +74,6 @@ public:
 	bool LoadSettings(const UHairCardGeneratorPluginSettings* GeneratorSettings);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = Python)
-	bool UpdateWidthMultipliers(const TArray<float>& HairWidths, const TArray<float>& RootScales, const TArray<float>& TipScales);
-
-	UFUNCTION(BlueprintImplementableEvent, Category = Python)
 	bool GenerateCardsGeometry();
 
 	UFUNCTION(BlueprintImplementableEvent, Category = Python)

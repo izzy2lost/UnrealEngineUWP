@@ -719,28 +719,6 @@ bool FHairCardGeneratorEditorModule::GenerateHairCardsForLOD(UGroomAsset* NewGro
 		return false;
 	}
 
-	TArray <float> HairWidths, RootScales, TipScales;
-	HairWidths.Init(-1.0, NumPhysGroups);
-	RootScales.Init(1.0, NumPhysGroups);
-	TipScales.Init(1.0, NumPhysGroups);
-	if ( GenerationSettings->bUseGroomAssetStrandWidth )
-	{
-		for ( int PhysGroupIdx = 0; PhysGroupIdx<NumPhysGroups; PhysGroupIdx++ )
-		{
-			const FHairGeometrySettings& GeometrySettings = NewGroomAsset->GetHairGroupsRendering()[PhysGroupIdx].GeometrySettings;
-			if ( GeometrySettings.HairWidth_Override )
-			{
-				HairWidths[PhysGroupIdx] = GeometrySettings.HairWidth;
-			}
-			RootScales[PhysGroupIdx] = GeometrySettings.HairRootScale;
-			TipScales[PhysGroupIdx] = GeometrySettings.HairTipScale;
-		}
-	}
-	if ( !CardGenController->UpdateWidthMultipliers(HairWidths, RootScales, TipScales) )
-	{
-		UE_LOG(LogHairCardGenerator, Warning, TEXT("Strand width values inconsistent with number of physics groups, not using widths."));
-	}
-
 	// Run card group generation in loop
 	bool bAllGenerated = true;
 	for ( int i=0; i < GenerationSettings->GetFilterGroupSettings().Num(); ++i )
