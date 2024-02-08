@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
@@ -57,7 +56,7 @@ namespace Horde.Agent.Commands.Certs
 
 			if (PrivateCertFile == null)
 			{
-				FileReference solutionFile = FileReference.Combine(new FileReference(Assembly.GetExecutingAssembly().Location).Directory, "..", "..", "..", "..", "Horde.sln");
+				FileReference solutionFile = FileReference.Combine(new DirectoryReference(AppContext.BaseDirectory), "..", "..", "..", "..", "Horde.sln");
 				if (!FileReference.Exists(solutionFile))
 				{
 					logger.LogError("The -PrivateCertFile=... arguments must be specified when running outside the default build directory");

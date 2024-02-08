@@ -79,10 +79,18 @@ namespace Horde.Agent.Leases.Handlers
 
 				if (executeTask.JobOptions.RunInSeparateProcess ?? false)
 				{
+					if (AgentApp.IsSelfContained)
+					{
+						// TODO: Implement handling for invoking a self-contained agent process (i.e handle "dotnet" below)
+						throw new NotSupportedException("Running job in a separate process not supported for self-contained agents");
+					}
+					
 					using (ManagedProcessGroup processGroup = new ManagedProcessGroup())
 					{
 						List<string> arguments = new List<string>();
+#pragma warning disable IL3000 // Avoid accessing Assembly file path when publishing as a single file
 						arguments.Add(Assembly.GetExecutingAssembly().Location);
+#pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file						
 						arguments.Add("execute");
 						arguments.Add("job");
 						arguments.Add($"-Server={_settings.GetCurrentServerProfile().Name}");

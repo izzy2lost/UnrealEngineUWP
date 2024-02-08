@@ -52,7 +52,7 @@ namespace Horde.Agent.Commands.Service
 				HashSet<string> targetFiles = new HashSet<string>(targetDir.EnumerateFiles("*", SearchOption.AllDirectories).Select(x => x.FullName), StringComparer.OrdinalIgnoreCase);
 
 				// Find all the source files
-				DirectoryInfo sourceDir = new DirectoryInfo(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!);
+				DirectoryInfo sourceDir = new (AppContext.BaseDirectory);
 				HashSet<string> sourceFiles = new HashSet<string>(sourceDir.EnumerateFiles("*", SearchOption.AllDirectories).Select(x => x.FullName), StringComparer.OrdinalIgnoreCase);
 
 				// Exclude all the source files from the list of target files, since we may be in a subdirectory
@@ -182,9 +182,11 @@ namespace Horde.Agent.Commands.Service
 				}
 				else
 				{
+#pragma warning disable IL3000 // Avoid accessing Assembly file path when publishing as a single file
 					executable = "dotnet";
 					string assemblyFileName = Path.Combine(TargetDir.FullName, Path.GetFileName(Assembly.GetExecutingAssembly().Location));
 					arguments.AppendArgument(assemblyFileName);
+#pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file					
 				}
 				arguments.Append(' ');
 				arguments.Append(Arguments);

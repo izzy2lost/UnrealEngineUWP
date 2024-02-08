@@ -88,7 +88,9 @@ namespace Horde.Agent.Commands.Service
 				}
 				else
 				{
+#pragma warning disable IL3000 // Avoid accessing Assembly file path when publishing as a single file
 					commandLine.AppendFormat("{0} \"{1}\" service run", DotNetExecutable, Assembly.GetEntryAssembly()!.Location);
+#pragma warning restore IL3000 // Avoid accessing Assembly file path when publishing as a single file					
 				}
 				
 				if(Server != null)

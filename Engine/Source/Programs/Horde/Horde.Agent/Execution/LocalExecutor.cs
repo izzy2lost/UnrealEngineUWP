@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Reflection;
 using EpicGames.Core;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -31,8 +30,8 @@ namespace Horde.Agent.Execution
 		{
 			const string HordeSlnRelativePath = "Engine/Source/Programs/Horde/Horde.sln";
 
-			FileReference executableFile = new FileReference(Assembly.GetExecutingAssembly().Location);
-			for (DirectoryReference? directory = executableFile.Directory; directory != null; directory = directory.ParentDirectory)
+			DirectoryReference executableFileDir = new (AppContext.BaseDirectory);
+			for (DirectoryReference? directory = executableFileDir; directory != null; directory = directory.ParentDirectory)
 			{
 				FileReference hordeSln = FileReference.Combine(directory, HordeSlnRelativePath);
 				if (FileReference.Exists(hordeSln))
@@ -41,7 +40,7 @@ namespace Horde.Agent.Execution
 				}
 			}
 
-			throw new Exception($"Unable to find workspace root directory (looking for '{HordeSlnRelativePath}' in a parent directory of '{executableFile.Directory}'");
+			throw new Exception($"Unable to find workspace root directory (looking for '{HordeSlnRelativePath}' in a parent directory of '{executableFileDir}'");
 		}
 
 		protected override Task<bool> SetupAsync(JobStepInfo step, ILogger logger, CancellationToken cancellationToken)
