@@ -55,6 +55,8 @@
 // which on 16bit, if linear color spaces ends up close to half(65504.0), this can go +inf on if the compiler transform a * 0.5 + b * 0.5 into (a + b) * 0.5.
 #define CONFIG_FP16_PRECISE_MULTIPLY_ORDER 1
 
+#define CONFIG_SUPPORT_ORTHO_VIEW 1
+
 
 //------------------------------------------------------- CONSTANTS
 
