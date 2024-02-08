@@ -3,6 +3,7 @@
 #include "SparseVolumeTextureTileDataTexture.h"
 #include "SparseVolumeTextureUtility.h"
 #include "SparseVolumeTextureStreamingManager.h" // LogSparseVolumeTextureStreamingManager
+#include "RenderTargetPool.h"
 
 namespace UE
 {
@@ -161,26 +162,21 @@ FTileUploader::FAddResult FTileDataTexture::AddUpload(int32 NumTiles, int32 NumV
 void FTileDataTexture::EndUpload(FRDGBuilder& GraphBuilder)
 {
 	check(UploaderState == EUploaderState::Uploading);
-	TileUploader->ResourceUploadTo(GraphBuilder, TileDataTextureARHIRef, TileDataTextureBRHIRef, FallbackValueA, FallbackValueB);
+	TileUploader->ResourceUploadTo(GraphBuilder, TileDataTextureA, TileDataTextureB, FallbackValueA, FallbackValueB);
 	UploaderState = EUploaderState::Ready;
 }
 
-void FTileDataTexture::InitRHI(FRHICommandListBase&)
+void FTileDataTexture::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	const FIntVector3 Resolution = ResolutionInTiles * SPARSE_VOLUME_TILE_RES_PADDED;
+	const ETextureCreateFlags Flags = TexCreate_ShaderResource | TexCreate_UAV | TexCreate_3DTiling | TexCreate_ReduceMemoryWithTilingMode;
 	if (FormatA != PF_Unknown)
 	{
-		const FRHITextureCreateDesc Desc =
-			FRHITextureCreateDesc::Create3D(TEXT("SparseVolumeTexture.PhysicalTileDataA.RHITexture"), Resolution.X, Resolution.Y, Resolution.Z, FormatA)
-			.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV);
-		TileDataTextureARHIRef = RHICreateTexture(Desc);
+		TileDataTextureA = GRenderTargetPool.FindFreeElement(RHICmdList, FRDGTextureDesc::Create3D(Resolution, FormatA, FClearValueBinding::Black, Flags), TEXT("SparseVolumeTexture.PhysicalTileDataA.RHITexture"));
 	}
 	if (FormatB != PF_Unknown)
 	{
-		const FRHITextureCreateDesc Desc =
-			FRHITextureCreateDesc::Create3D(TEXT("SparseVolumeTexture.PhysicalTileDataB.RHITexture"), Resolution.X, Resolution.Y, Resolution.Z, FormatB)
-			.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV);
-		TileDataTextureBRHIRef = RHICreateTexture(Desc);
+		TileDataTextureB = GRenderTargetPool.FindFreeElement(RHICmdList, FRDGTextureDesc::Create3D(Resolution, FormatB, FClearValueBinding::Black, Flags), TEXT("SparseVolumeTexture.PhysicalTileDataB.RHITexture"));
 	}
 }
 

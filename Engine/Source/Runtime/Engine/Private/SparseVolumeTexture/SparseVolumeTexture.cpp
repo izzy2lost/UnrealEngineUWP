@@ -962,11 +962,11 @@ void FTextureRenderResources::SetGlobalVolumeResolution_GameThread(const FIntVec
 		});
 }
 
-void FTextureRenderResources::InitRHI(FRHICommandListBase&)
+void FTextureRenderResources::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	PageTableTextureReferenceRHI = RHICreateTextureReference(GBlackUintVolumeTexture->TextureRHI);
-	PhysicalTileDataATextureReferenceRHI = RHICreateTextureReference(GBlackVolumeTexture->TextureRHI);
-	PhysicalTileDataBTextureReferenceRHI = RHICreateTextureReference(GBlackVolumeTexture->TextureRHI);
+	PageTableTextureReferenceRHI = RHICmdList.CreateTextureReference(GBlackUintVolumeTexture->TextureRHI);
+	PhysicalTileDataATextureReferenceRHI = RHICmdList.CreateTextureReference(GBlackVolumeTexture->TextureRHI);
+	PhysicalTileDataBTextureReferenceRHI = RHICmdList.CreateTextureReference(GBlackVolumeTexture->TextureRHI);
 }
 
 void FTextureRenderResources::ReleaseRHI()

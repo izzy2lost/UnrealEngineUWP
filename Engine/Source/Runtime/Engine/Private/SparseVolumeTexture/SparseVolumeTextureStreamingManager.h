@@ -132,7 +132,7 @@ private:
 		TBitArray<> ResidentPages; //  One bit for every (non-zero) page (in the sparse page octree) for all mip levels, starting at the highest mip
 		TBitArray<> ResidentPagesNew; // Reflects changes made during an update of the streaming system
 		TBitArray<> InvalidatedPages; // All pages that need updated page table entries
-		FTextureRHIRef PageTableTextureRHIRef;
+		TRefCountPtr<IPooledRenderTarget> PageTableTexture;
 	};
 
 	// Used to keep track of the least-recently-used order of mip levels. This is done per mip level and not per frame, so that lower resolution mip levels are kept in memory for longer.
