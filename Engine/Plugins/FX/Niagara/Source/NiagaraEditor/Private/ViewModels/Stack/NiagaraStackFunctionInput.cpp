@@ -24,6 +24,7 @@
 #include "NiagaraNodeOutput.h"
 #include "NiagaraNodeParameterMapGet.h"
 #include "NiagaraNodeParameterMapSet.h"
+#include "NiagaraParameterDefinitions.h"
 #include "NiagaraRendererProperties.h"
 #include "NiagaraScript.h"
 #include "ViewModels/NiagaraScriptGraphViewModel.h"
@@ -1300,6 +1301,10 @@ void UNiagaraStackFunctionInput::RefreshFromMetaData(TArray<FStackIssue>& NewIss
 			{
 				InputMetaData = *FoundMetaData;
 			}
+		}
+		else if (UNiagaraScriptVariable* ScriptVariable = GetSystemViewModel()->FindSubscribedParameterDefinitionsScriptVarByName(InputParameterHandle.GetName()))
+		{
+			InputMetaData = ScriptVariable->Metadata;
 		}
 	}
 	else if (OwningFunctionCallNode->FunctionScript != nullptr)
