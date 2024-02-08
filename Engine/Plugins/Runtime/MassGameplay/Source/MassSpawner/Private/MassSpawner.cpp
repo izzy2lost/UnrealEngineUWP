@@ -285,6 +285,12 @@ void AMassSpawner::DoSpawning()
 		UE_VLOG_UELOG(this, LogMassSpawner, Warning, TEXT("No Spawn Data Generators configured."));
 		return;
 	}
+	
+	if (EntityTypes.Num() == 0)
+	{
+		UE_VLOG_UELOG(this, LogMassSpawner, Warning, TEXT("No EntityTypes configured."));
+		return;
+	}
 
 	AllGeneratedResults.Reset();
 	
