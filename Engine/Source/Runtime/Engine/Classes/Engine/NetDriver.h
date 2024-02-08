@@ -627,9 +627,13 @@ struct FNetDriverReplicationSystemConfig
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Override the max object count. If 0 use the default system value. */
+	/** Override the max object count when running as a client. If 0 use the default system value. */
 	UPROPERTY()
-	uint32 MaxReplicatedObjectCount = 0;
+	uint32 MaxReplicatedObjectClientCount = 0;
+
+	/** Override the max object count when running as a server. If 0 use the default system value. */
+	UPROPERTY()
+	uint32 MaxReplicatedObjectServerCount = 0;
 	
 	/** Override the max compressed object count. If 0 use the default system value. */
 	UPROPERTY()
