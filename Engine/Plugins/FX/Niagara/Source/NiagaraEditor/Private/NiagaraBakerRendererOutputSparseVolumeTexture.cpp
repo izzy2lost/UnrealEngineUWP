@@ -302,7 +302,7 @@ void FNiagaraBakerRendererOutputSparseVolumeTexture::BakeFrame(FNiagaraBakerFeed
 			return;
 		}
 
-		if (!SVTAsset->AppendFrame(SparseTextureData))
+		if (!SVTAsset->AppendFrame(SparseTextureData, FTransform::Identity))
 		{
 			UE_LOG(LogNiagaraBaker, Error, TEXT("Cannot append frame to SVT"));
 		}

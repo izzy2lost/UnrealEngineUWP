@@ -259,6 +259,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Texture")
 	virtual int32 GetNumMipLevels() const { return 0; }
 
+	UFUNCTION(BlueprintCallable, Category = "Texture")
+	virtual FTransform GetFrameTransform() const { return FTransform::Identity; }
+
 	virtual FIntVector GetVolumeResolution() const { return FIntVector(); }
 	virtual EPixelFormat GetFormat(int32 AttributesIndex) const { return PF_Unknown; }
 	virtual FVector4f GetFallbackValue(int32 AttributesIndex) const { return FVector4f(); }
@@ -306,7 +309,7 @@ public:
 	// If streaming cooked data from disk, the highest priority will be used, but no guarantee is given.
 	static ENGINE_API USparseVolumeTextureFrame* GetFrameAndIssueStreamingRequest(USparseVolumeTexture* SparseVolumeTexture, float FrameIndex, int32 MipLevel, bool bBlocking);
 
-	ENGINE_API bool Initialize(USparseVolumeTexture* InOwner, int32 InFrameIndex, UE::SVT::FTextureData& UncookedFrame);
+	ENGINE_API bool Initialize(USparseVolumeTexture* InOwner, int32 InFrameIndex, const FTransform& InFrameTransform, UE::SVT::FTextureData& UncookedFrame);
 	int32 GetFrameIndex() const { return FrameIndex; }
 	UE::SVT::FResources* GetResources() { return &Resources; }
 	// Creates TextureRenderResources if they don't already exist. Returns false if they already existed.
@@ -335,6 +338,7 @@ public:
 	//~ Begin USparseVolumeTexture Interface.
 	virtual int32 GetNumFrames() const override { return 1; }
 	virtual int32 GetNumMipLevels() const override { return Owner->GetNumMipLevels(); }
+	virtual FTransform GetFrameTransform() const override { return Transform; }
 	virtual FIntVector GetVolumeResolution() const override { return Owner->GetVolumeResolution(); }
 	virtual EPixelFormat GetFormat(int32 AttributesIndex) const override { return Owner->GetFormat(AttributesIndex); }
 	virtual FVector4f GetFallbackValue(int32 AttributesIndex) const override { return Owner->GetFallbackValue(AttributesIndex); }
@@ -351,6 +355,9 @@ private:
 
 	UPROPERTY()
 	int32 FrameIndex;
+
+	UPROPERTY(VisibleAnywhere, Category = "Texture", AssetRegistrySearchable)
+	FTransform Transform;
 
 #if WITH_EDITORONLY_DATA
 	// FTextureData from which the FResources data can be built with a call to FResources::Build()
@@ -424,11 +431,11 @@ public:
 	// The NumExpectedFrames parameter on BeginInitialize() just serves as a potential optimization to reserve memory for the frames to be appended
 	// and doesn't need to match the exact number if it is not known at the time.
 	ENGINE_API virtual bool BeginInitialize(int32 NumExpectedFrames);
-	ENGINE_API virtual bool AppendFrame(UE::SVT::FTextureData& UncookedFrame);
+	ENGINE_API virtual bool AppendFrame(UE::SVT::FTextureData& UncookedFrame, const FTransform& FrameTransform);
 	ENGINE_API virtual bool EndInitialize();
 
 	// Convenience function wrapping the multi-phase initialization functions above
-	virtual bool Initialize(const TArrayView<UE::SVT::FTextureData>& UncookedData);
+	virtual bool Initialize(const TArrayView<UE::SVT::FTextureData>& UncookedData, const TArrayView<FTransform>& FrameTransforms);
 	// Consider using USparseVolumeTextureFrame::GetFrameAndIssueStreamingRequest() if the frame should have streaming requests issued.
 	USparseVolumeTextureFrame* GetFrame(int32 FrameIndex) const { return Frames.IsValidIndex(FrameIndex) ? Frames[FrameIndex] : nullptr; }
 
@@ -457,6 +464,7 @@ public:
 	//~ Begin USparseVolumeTexture Interface.
 	virtual int32 GetNumFrames() const override { return Frames.Num(); }
 	virtual int32 GetNumMipLevels() const override { return NumMipLevels; }
+	virtual FTransform GetFrameTransform() const override { return Frames.IsEmpty() ? FTransform::Identity : Frames[0]->GetFrameTransform(); }
 	virtual FIntVector GetVolumeResolution() const override { return VolumeResolution; };
 	virtual EPixelFormat GetFormat(int32 AttributesIndex) const override { check(AttributesIndex >= 0 && AttributesIndex < 2) return AttributesIndex == 0 ? FormatA : FormatB; }
 	virtual FVector4f GetFallbackValue(int32 AttributesIndex) const override { check(AttributesIndex >= 0 && AttributesIndex < 2) return AttributesIndex == 0 ? FallbackValueA : FallbackValueB; }
@@ -509,7 +517,7 @@ public:
 
 	//~ Begin UStreamableSparseVolumeTexture Interface.
 	// Override AppendFrame() to ensure that there is never more than a single frame in a static SVT
-	ENGINE_API virtual bool AppendFrame(UE::SVT::FTextureData& UncookedFrame) override;
+	ENGINE_API virtual bool AppendFrame(UE::SVT::FTextureData& UncookedFrame, const FTransform& InFrameTransform) override;
 	//~ End UStreamableSparseVolumeTexture Interface.
 
 	//~ Begin USparseVolumeTexture Interface.

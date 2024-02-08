@@ -50,6 +50,15 @@ class USparseVolumeTextureViewerComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
 	uint32 bBlockingStreamingRequests : 1;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
+	uint32 bApplyPerFrameTransforms : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Asset Preview")
+	uint32 bLocalOriginAtCorner : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Preview")
+	float VoxelSize = 1.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Asset Preview", meta = (UIMin = 0.0, UIMax = 1.0, ClampMin = 0.0, ClampMax = 1.0, EditCondition = "!bAnimate"))
 	float AnimationFrame;
 
