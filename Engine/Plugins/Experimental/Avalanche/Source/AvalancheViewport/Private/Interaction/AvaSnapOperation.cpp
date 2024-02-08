@@ -23,7 +23,6 @@
 #include "Selection.h"
 #include "Selection/AvaSelectionProviderSubsystem.h"
 #include "Viewport/Interaction/AvaSnapPoint.h"
-#include "Viewport/Interaction/AvaViewportGuide.h"
 #include "Viewport/Interaction/IAvaSnapPointGenerator.h"
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
 #include "ViewportClient/IAvaViewportClient.h"

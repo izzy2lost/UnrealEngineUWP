@@ -42,13 +42,6 @@ enum class EAvaAnchors : uint8
 };
 
 UENUM(BlueprintType)
-enum class EAvaLayoutPlacementCenter : uint8
-{
-	Bounds,
-	Pivot
-};
-
-UENUM(BlueprintType)
 enum class EAvaVerticalAlignment : uint8
 {
 	Top,
@@ -70,27 +63,6 @@ enum class EAvaDepthAlignment : uint8
 	Front,
 	Center,
 	Back
-};
-
-UENUM(BlueprintType)
-enum class EAvaLayoutSizeBounds : uint8
-{
-	Explicit,
-	ScaleHeightToChildren,
-	ScaleWidthToChildren,
-	ScaleToChildren,
-};
-
-UENUM(BlueprintType)
-enum class EAvaLayoutRelationshipBounds : uint8
-{
-	DoNotScale,
-	ScaleToHeight,
-	ScaleToWidth,
-	ScaleToFit,
-	StretchHeight,
-	StretchWidth,
-	Stretch
 };
 
 /** Specifies the method for finding a reference actor based on it's position in the parent's hierarchy. */

@@ -10,11 +10,6 @@
 #include "UObject/ObjectPtr.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Viewport/Interaction/IAvaViewportDataProvider.h"
-
-#if WITH_EDITOR
-#include "Viewport/Interaction/AvaViewportGuide.h"
-#endif
-
 #include "AvaScene.generated.h"
 
 class IAvaSequencePlaybackObject;
@@ -100,8 +95,6 @@ public:
 	virtual FName GetStartupCameraName() const override { return StartupCameraName; }
 #if WITH_EDITOR
 	virtual void SetStartupCameraName(FName InName) override;
-	virtual TConstArrayView<FAvaViewportGuideInfo_Deprecated> GetViewportGuideData() const { return GuideData; }
-	virtual void SetViewportGuideData(const TConstArrayView<FAvaViewportGuideInfo_Deprecated>& InGuideData) override;
 #endif
 	//~ End IAvaViewportDataProvider
 
@@ -154,9 +147,4 @@ protected:
 	FSimpleMulticastDelegate OnTreeAnimationRebuilt;
 	
 	bool bPendingAnimTreeUpdate = false; 
-
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TArray<FAvaViewportGuideInfo_Deprecated> GuideData;
-#endif
 };
