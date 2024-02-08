@@ -330,6 +330,12 @@ private:
 	};
 	TArray<TSharedRef<FCompilerEvent>> ValidEvents;
 
+	/**
+	 * List of public expose function
+	 */
+	TArray<FName> FunctionPermissionsToAdd;
+
+private:
 	TMap<FName, UWidget*> WidgetNameToWidgetPointerMap;
 	FWidgetBlueprintCompilerContext& WidgetBlueprintCompilerContext;
 	TStrongObjectPtr<UMVVMBlueprintView> BlueprintView = nullptr;
