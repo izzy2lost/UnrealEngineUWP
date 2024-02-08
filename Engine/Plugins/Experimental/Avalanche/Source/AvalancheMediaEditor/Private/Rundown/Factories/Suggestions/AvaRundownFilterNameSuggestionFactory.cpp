@@ -8,14 +8,25 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownFilterNameSuggestionFactory"
 
-const FName FAvaRundownFilterNameSuggestionFactory::KeyName = FName(TEXT("NAME"));
+namespace UE::AvaMediaEditor::Suggestion::Name::Private
+{
+	static const FName KeyName = FName(TEXT("NAME"));
+	static const FText CategoryLabel = LOCTEXT("NameCategoryLabel", "Ava-Rundown-Name");
+}
+
+FName FAvaRundownFilterNameSuggestionFactory::GetSuggestionIdentifier() const
+{
+	using namespace UE::AvaMediaEditor::Suggestion::Name::Private;
+	return KeyName;
+}
 
 void FAvaRundownFilterNameSuggestionFactory::AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload)
 {
+	using namespace UE::AvaMediaEditor::Suggestion::Name::Private;
+
 	const FAvaRundownPage& PageItem = UAvaRundown::GetPageSafe(InPayload->Rundown, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText NameCategoryLabel = LOCTEXT("NameCategoryLabel", "Ava-Rundown-Name");
 		const FText PageText = PageItem.GetPageDescription();
 
 		FString PageName = TEXT("\"");
@@ -28,7 +39,7 @@ void FAvaRundownFilterNameSuggestionFactory::AddSuggestion(const TSharedRef<FAva
 		if (bIsFilterValueValid && !InPayload->FilterCache.Contains(NameSuggestion))
 		{
 			InPayload->FilterCache.Add(NameSuggestion);
-			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(NameSuggestion), PageText, NameCategoryLabel});
+			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(NameSuggestion), PageText, CategoryLabel});
 		}
 	}
 }

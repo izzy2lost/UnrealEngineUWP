@@ -5,10 +5,14 @@
 #include "Misc/TextFilterUtils.h"
 #include "Rundown/AvaRundownPage.h"
 
-const FName FAvaRundownFilterTransitionLayerExpressionFactory::KeyName = FName(TEXT("TRANSITIONLAYER"));
+namespace UE::AvaMediaEditor::Expression::Layer::Private
+{
+	static const FName KeyName = FName(TEXT("TRANSITIONLAYER"));
+}
 
 FName FAvaRundownFilterTransitionLayerExpressionFactory::GetFilterIdentifier() const
 {
+	using namespace UE::AvaMediaEditor::Expression::Layer::Private;
 	return KeyName;
 }
 
@@ -18,7 +22,7 @@ bool FAvaRundownFilterTransitionLayerExpressionFactory::FilterExpression(const F
 	{
 		return false;
 	}
-	return InArgs.ValueToCheck.CompareFString(InItem.GetTransitionLayer(InArgs.ItemRundown).ToString(), InArgs.ComparisonMode);
+	return InArgs.ValueToCheck.CompareFString(InItem.GetTransitionLayer(InArgs.ItemRundown).ToString().ToUpper(), InArgs.ComparisonMode);
 }
 
 bool FAvaRundownFilterTransitionLayerExpressionFactory::SupportsComparisonOperation(ETextFilterComparisonOperation InComparisonOperation, EAvaRundownSearchListType InRundownSearchListType) const

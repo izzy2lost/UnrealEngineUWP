@@ -7,10 +7,8 @@
 class FAvaRundownFilterStatusSuggestionFactory : public IAvaRundownFilterSuggestionFactory
 {
 public:
-	static const FName KeyName;
-
 	//~ Begin IAvaFilterSuggestionFactory interface
-	virtual FName GetSuggestionIdentifier() const override { return KeyName; }
+	virtual FName GetSuggestionIdentifier() const override;
 	virtual bool IsSimpleSuggestion() const override { return false; }
 	virtual void AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload) override;
 	virtual bool SupportSuggestionType(EAvaRundownSearchListType InSuggestionType) const override;

@@ -5,10 +5,14 @@
 #include "Misc/TextFilterUtils.h"
 #include "Rundown/AvaRundownPage.h"
 
-const FName FAvaRundownFilterPathExpressionFactory::KeyName = FName(TEXT("ASSET"));
+namespace UE::AvaMediaEditor::Expression::Path::Private
+{
+	static const FName KeyName = FName(TEXT("ASSET"));
+}
 
 FName FAvaRundownFilterPathExpressionFactory::GetFilterIdentifier() const
 {
+	using namespace UE::AvaMediaEditor::Expression::Path::Private;
 	return KeyName;
 }
 

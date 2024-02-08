@@ -6,10 +6,14 @@
 #include "Rundown/AvaRundownPage.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 
-const FName FAvaRundownFilterChannelExpressionFactory::KeyName = FName(TEXT("CHANNEL"));
+namespace UE::AvaMediaEditor::Expression::Channel::Private
+{
+	static const FName KeyName = FName(TEXT("CHANNEL"));
+}
 
 FName FAvaRundownFilterChannelExpressionFactory::GetFilterIdentifier() const
 {
+	using namespace UE::AvaMediaEditor::Expression::Channel::Private;
 	return KeyName;
 }
 

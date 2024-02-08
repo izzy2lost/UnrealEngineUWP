@@ -7,8 +7,6 @@
 class FAvaRundownFilterPathExpressionFactory : public IAvaRundownFilterExpressionFactory
 {
 public:
-	static const FName KeyName;
-
 	//~ Begin IAvaFilterExpressionFactory interface
 	virtual FName GetFilterIdentifier() const override;
 	virtual bool FilterExpression(const FAvaRundownPage& InItem, const FAvaRundownTextFilterArgs& InArgs) const override;

@@ -8,14 +8,25 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownFilterLayerSuggestionFactory"
 
-const FName FAvaRundownFilterTransitionLayerSuggestionFactory::KeyName = FName(TEXT("TRANSITIONLAYER"));
+namespace UE::AvaMediaEditor::Suggestion::Layer::Private
+{
+	static const FName KeyName = FName(TEXT("TRANSITIONLAYER"));
+	static const FText CategoryLabel = LOCTEXT("TransitionLayerCategoryLabel", "Ava-Rundown-Transition-Layer");
+}
+
+FName FAvaRundownFilterTransitionLayerSuggestionFactory::GetSuggestionIdentifier() const
+{
+	using namespace UE::AvaMediaEditor::Suggestion::Layer::Private;
+	return KeyName;
+}
 
 void FAvaRundownFilterTransitionLayerSuggestionFactory::AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload)
 {
+	using namespace UE::AvaMediaEditor::Suggestion::Layer::Private;
+
 	const FAvaRundownPage& PageItem = UAvaRundown::GetPageSafe(InPayload->Rundown, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText TransitionLayerCategoryLabel = LOCTEXT("TransitionLayerCategoryLabel", "Ava-Rundown-Transition-Layer");
 		const FString PageLayer = PageItem.GetTransitionLayer(InPayload->Rundown).ToString();
 
 		FString TransitionLayerSuggestion = FString::Printf(TEXT("TransitionLayer=%s"), *PageLayer);
@@ -24,7 +35,7 @@ void FAvaRundownFilterTransitionLayerSuggestionFactory::AddSuggestion(const TSha
 		if (bIsFilterValueValid && !InPayload->FilterCache.Contains(TransitionLayerSuggestion))
 		{
 			InPayload->FilterCache.Add(TransitionLayerSuggestion);
-			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(TransitionLayerSuggestion), FText::FromString(PageLayer), TransitionLayerCategoryLabel});
+			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(TransitionLayerSuggestion), FText::FromString(PageLayer), CategoryLabel});
 		}
 	}
 }

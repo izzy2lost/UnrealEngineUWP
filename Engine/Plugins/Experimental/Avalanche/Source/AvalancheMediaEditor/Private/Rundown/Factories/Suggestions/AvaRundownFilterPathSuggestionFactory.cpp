@@ -8,14 +8,25 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownFilterPathSuggestionFactory"
 
-const FName FAvaRundownFilterPathSuggestionFactory::KeyName = FName(TEXT("ASSET"));
+namespace UE::AvaMediaEditor::Suggestion::Path::Private
+{
+	static const FName KeyName = FName(TEXT("ASSET"));
+	static const FText CategoryLabel = LOCTEXT("PathCategoryLabel", "Ava-Rundown-Asset");
+}
+
+FName FAvaRundownFilterPathSuggestionFactory::GetSuggestionIdentifier() const
+{
+	using namespace UE::AvaMediaEditor::Suggestion::Path::Private;
+	return KeyName;
+}
 
 void FAvaRundownFilterPathSuggestionFactory::AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload)
 {
+	using namespace UE::AvaMediaEditor::Suggestion::Path::Private;
+
 	const FAvaRundownPage& PageItem = UAvaRundown::GetPageSafe(InPayload->Rundown, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText PathCategoryLabel = LOCTEXT("PathCategoryLabel", "Ava-Rundown-Asset");
 		const FString AssetName = PageItem.GetAssetPath(InPayload->Rundown).GetAssetName();
 
 		FString AssetNameSuggestion = FString::Printf(TEXT("Asset=%s"), *AssetName);
@@ -24,7 +35,7 @@ void FAvaRundownFilterPathSuggestionFactory::AddSuggestion(const TSharedRef<FAva
 		if (bIsFilterValueValid && !InPayload->FilterCache.Contains(AssetNameSuggestion))
 		{
 			InPayload->FilterCache.Add(AssetNameSuggestion);
-			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(AssetNameSuggestion), FText::FromString(AssetName), PathCategoryLabel});
+			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(AssetNameSuggestion), FText::FromString(AssetName), CategoryLabel});
 		}
 	}
 }

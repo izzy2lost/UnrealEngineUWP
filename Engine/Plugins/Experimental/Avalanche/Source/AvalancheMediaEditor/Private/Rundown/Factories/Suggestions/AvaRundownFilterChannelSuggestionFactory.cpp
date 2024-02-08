@@ -8,14 +8,25 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownFilterChannelSuggestionFactory"
 
-const FName FAvaRundownFilterChannelSuggestionFactory::KeyName = FName(TEXT("CHANNEL"));
+namespace UE::AvaMediaEditor::Suggestion::Channel::Private
+{
+	static const FName KeyName = FName(TEXT("CHANNEL"));
+	static const FText CategoryLabel = LOCTEXT("ChannelCategoryLabel", "Ava-Rundown-Channel");
+}
+
+FName FAvaRundownFilterChannelSuggestionFactory::GetSuggestionIdentifier() const
+{
+	using namespace UE::AvaMediaEditor::Suggestion::Channel::Private;
+	return KeyName;
+}
 
 void FAvaRundownFilterChannelSuggestionFactory::AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload)
 {
+	using namespace UE::AvaMediaEditor::Suggestion::Channel::Private;
+
 	const FAvaRundownPage& PageItem = UAvaRundown::GetPageSafe(InPayload->Rundown, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText ChannelCategoryLabel = LOCTEXT("ChannelCategoryLabel", "Ava-Rundown-Channel");
 		const FString ChannelName = PageItem.GetChannelName().ToString();
 
 		FString ChannelNameSuggestion = FString::Printf(TEXT("Channel=%s"), *ChannelName);
@@ -24,7 +35,7 @@ void FAvaRundownFilterChannelSuggestionFactory::AddSuggestion(const TSharedRef<F
 		if (bIsFilterValueValid && !InPayload->FilterCache.Contains(ChannelNameSuggestion))
 		{
 			InPayload->FilterCache.Add(ChannelNameSuggestion);
-			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(ChannelNameSuggestion), FText::FromString(ChannelName), ChannelCategoryLabel});
+			InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(ChannelNameSuggestion), FText::FromString(ChannelName), CategoryLabel});
 		}
 	}
 }

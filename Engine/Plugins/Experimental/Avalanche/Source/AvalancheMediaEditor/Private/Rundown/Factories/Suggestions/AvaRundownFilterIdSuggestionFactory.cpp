@@ -7,17 +7,29 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownFilterIdSuggestionFactory"
 
-const FName FAvaRundownFilterIdSuggestionFactory::KeyName = FName(TEXT("ID"));
+namespace UE::AvaMediaEditor::Suggestion::Id::Private
+{
+	static const FName KeyName = FName(TEXT("ID"));
+	static const FText CategoryLabel = LOCTEXT("IdCategoryLabel", "Ava-Rundown-Id");
+	static const FString Suggestion = TEXT("Id");
+	static const FText DisplayName = LOCTEXT("IdSuggestion","Id");
+}
+
+FName FAvaRundownFilterIdSuggestionFactory::GetSuggestionIdentifier() const
+{
+	using namespace UE::AvaMediaEditor::Suggestion::Id::Private;
+	return KeyName;
+}
 
 void FAvaRundownFilterIdSuggestionFactory::AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload)
 {
-	const FText IdCategoryLabel = LOCTEXT("IdCategoryLabel", "Ava-Rundown-Id");
-	FString IdNameSuggestion = TEXT("Id");
-	const bool bIsFilterValueValid = InPayload->FilterValue.IsEmpty() || IdNameSuggestion.Contains(InPayload->FilterValue);
-	if (bIsFilterValueValid && !InPayload->FilterCache.Contains(IdNameSuggestion))
+	using namespace UE::AvaMediaEditor::Suggestion::Id::Private;
+
+	const bool bIsFilterValueValid = InPayload->FilterValue.IsEmpty() || Suggestion.Contains(InPayload->FilterValue);
+	if (bIsFilterValueValid && !InPayload->FilterCache.Contains(Suggestion))
 	{
-		InPayload->FilterCache.Add(IdNameSuggestion);
-		InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(IdNameSuggestion), LOCTEXT("IdSuggestion","Id"), IdCategoryLabel});
+		InPayload->FilterCache.Add(Suggestion);
+		InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{Suggestion, DisplayName, CategoryLabel});
 	}
 }
 

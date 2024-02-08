@@ -8,14 +8,25 @@
 
 #define LOCTEXT_NAMESPACE "AvaRundownFilterStatusSuggestionFactory"
 
-const FName FAvaRundownFilterStatusSuggestionFactory::KeyName = FName(TEXT("STATUS"));
+namespace UE::AvaMediaEditor::Suggestion::Status::Private
+{
+	static const FName KeyName = FName(TEXT("STATUS"));
+	static const FText CategoryLabel = LOCTEXT("StatusCategoryLabel", "Ava-Rundown-Status");
+}
+
+FName FAvaRundownFilterStatusSuggestionFactory::GetSuggestionIdentifier() const
+{
+	using namespace UE::AvaMediaEditor::Suggestion::Status::Private;
+	return KeyName;
+}
 
 void FAvaRundownFilterStatusSuggestionFactory::AddSuggestion(const TSharedRef<FAvaRundownFilterSuggestionPayload>& InPayload)
 {
+	using namespace UE::AvaMediaEditor::Suggestion::Status::Private;
+
 	const FAvaRundownPage& PageItem = UAvaRundown::GetPageSafe(InPayload->Rundown, InPayload->ItemPageId);
 	if (PageItem.IsValidPage())
 	{
-		const FText StatusCategoryLabel = LOCTEXT("StatusCategoryLabel", "Ava-Rundown-Status");
 		TArray<FAvaRundownChannelPageStatus> StatusPages = PageItem.GetPageContextualStatuses(InPayload->Rundown);
 		for (FAvaRundownChannelPageStatus Status : StatusPages)
 		{
@@ -27,7 +38,7 @@ void FAvaRundownFilterStatusSuggestionFactory::AddSuggestion(const TSharedRef<FA
 			if (bIsFilterValueValid && !InPayload->FilterCache.Contains(StatusNameSuggestion))
 			{
 				InPayload->FilterCache.Add(StatusNameSuggestion);
-				InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(StatusNameSuggestion), FText::FromString(StatusName), StatusCategoryLabel});
+				InPayload->PossibleSuggestions.Add(FAssetSearchBoxSuggestion{MoveTemp(StatusNameSuggestion), FText::FromString(StatusName), CategoryLabel});
 			}
 		}
 	}
