@@ -394,7 +394,7 @@ UFont* FAvaFont::GetFontByName(const FString& InFontName)
 
 	for (const FAssetData& AssetData : AssetDataArray)
 	{
-		if (UFont* const CurrFont = CastChecked<UFont>(AssetData.GetAsset()))
+		if (UFont* const CurrFont = Cast<UFont>(AssetData.GetAsset()))
 		{
 			FString CurrFontName;
 			UE::Avalanche::FontUtilities::Public::GetFontName(CurrFont, CurrFontName);
