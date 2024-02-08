@@ -92,7 +92,7 @@ void OnChangeSkylightRealTimeReflectionCapture(IConsoleVariable* Var)
 	for (TObjectIterator<USkyLightComponent> It; It; ++It)
 	{
 		USkyLightComponent* SkylightComponent = *It;
-		if (IsValid(SkylightComponent) && SkylightComponent->IsRenderStateCreated())
+		if (IsValid(SkylightComponent))
 		{
 			SkylightComponent->SetCaptureIsDirty();
 		}
