@@ -43,6 +43,8 @@ UCEClonerComponent::UCEClonerComponent()
 {
 	CastShadow = true;
 	bReceivesDecals = true;
+	bAutoActivate = true;
+	bHiddenInGame = false;
 
 #if WITH_EDITOR
 	// Do not show bounding box around cloner for better visibility
@@ -1341,7 +1343,7 @@ void UCEClonerComponent::UpdateClonerMeshes()
 
 	UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Cloner mesh updated %i"), *ClonerActor->GetActorNameOrLabel(), ClonerTree.MergedBakedMeshes.Num());
 
-	OnClonerMeshUpdated.Broadcast();
+	OnClonerMeshUpdated.Broadcast(this);
 }
 
 bool UCEClonerComponent::SetClonerActiveLayout(UCEClonerLayoutBase* InLayout)
@@ -1368,7 +1370,7 @@ bool UCEClonerComponent::SetClonerActiveLayout(UCEClonerLayoutBase* InLayout)
 
 		UE_LOG(LogCEClonerComponent, Log, TEXT("%s : Cloner layout system loaded %s - %s"), *GetOwner()->GetActorNameOrLabel(), *InLayout->GetLayoutName().ToString(), *InLayout->GetLayoutAssetPath());
 
-		OnClonerSystemLoaded.Broadcast(InLayout);
+		OnClonerSystemLoaded.Broadcast(this, InLayout);
 	}
 
 	// Copy data interfaces to new layout

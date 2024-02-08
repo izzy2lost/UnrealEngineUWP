@@ -396,6 +396,7 @@ struct FCEClonerEffectorDataInterfaces
 	explicit FCEClonerEffectorDataInterfaces(const UNiagaraSystem* InSystem);
 	FCEClonerEffectorDataInterfaces() = default;
 
+	void Clear() const;
 	void CopyTo(FCEClonerEffectorDataInterfaces& InOther) const;
 	void Resize(int32 InSize) const;
 	void Remove(int32 InIndex) const;

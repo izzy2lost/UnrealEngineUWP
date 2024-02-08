@@ -138,6 +138,14 @@ FCEClonerEffectorDataInterfaces::FCEClonerEffectorDataInterfaces(const UNiagaraS
 	DataInterfaces.Add(EffectorIndexDIVar.GetName(), IndexArrayDI);
 }
 
+void FCEClonerEffectorDataInterfaces::Clear() const
+{
+	if (UNiagaraDataInterfaceArrayInt32* IndexArray = GetIndexArray())
+	{
+		IndexArray->GetArrayReference().Empty();
+	}
+}
+
 void FCEClonerEffectorDataInterfaces::CopyTo(FCEClonerEffectorDataInterfaces& InOther) const
 {
 	for (const TPair<FName, TObjectPtr<UNiagaraDataInterface>>& DataInterfacePair : DataInterfaces)

@@ -19,6 +19,10 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSubsystemInitialized, const UWorld*)
 	static FOnSubsystemInitialized OnSubsystemInitializedDelegate;
 
+	/** Broadcast when this effector identifier changed to update linked cloners */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEffectorIdentifierChanged, ACEEffectorActor* /** InEffectorActor */)
+	static FOnEffectorIdentifierChanged OnEffectorIdentifierChangedDelegate;
+
 	static inline constexpr TCHAR DataChannelAssetPath[] = TEXT("/Script/Niagara.NiagaraDataChannelAsset'/ClonerEffector/Channels/NDC_Effector.NDC_Effector'");
 
 	/** Get this subsystem instance */

@@ -11,6 +11,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogCEEffectorActor, Log, All);
 
+ACEEffectorActor::FOnEffectorIdentifierChanged ACEEffectorActor::OnEffectorRefreshClonerDelegate;
+
 ACEEffectorActor::ACEEffectorActor()
 {
 	SetCanBeDamaged(false);
@@ -100,8 +102,6 @@ ACEEffectorActor::ACEEffectorActor()
 	if (!IsTemplate())
 	{
 		SceneComponent->TransformUpdated.AddUObject(this, &ACEEffectorActor::OnEffectorTransformed);
-
-		RegisterToChannel();
 	}
 }
 
@@ -116,7 +116,6 @@ TCEPropertyChangeDispatcher<ACEEffectorActor> ACEEffectorActor::PropertyChangeDi
 	/** Effector */
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bEnabled), &ACEEffectorActor::OnEnabledChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Magnitude), &ACEEffectorActor::OnMagnitudeChanged },
-	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, Cloners), &ACEEffectorActor::OnClonersChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, VisualizerThickness), &ACEEffectorActor::OnVisualizerThicknessChanged },
 	{ GET_MEMBER_NAME_CHECKED(ACEEffectorActor, bVisualizerSpriteVisible), &ACEEffectorActor::OnVisualizerSpriteVisibleChanged },
 	/** Type */
@@ -167,23 +166,14 @@ void ACEEffectorActor::PostEditImport()
 {
 	Super::PostEditImport();
 
-	RegisterToCloners();
+	OnEffectorChanged();
 }
 
 void ACEEffectorActor::PostEditUndo()
 {
 	Super::PostEditUndo();
 
-	RegisterToChannel();
-
-	OnClonersChanged();
-
-	// Undo causes cloner to blackout, so refresh state
-	ForEachCloner([](ACEClonerActor* InCloner, int32 InIndex)
-	{
-		InCloner->ForceUpdateCloner();
-		return true;
-	});
+	OnEffectorChanged();
 }
 #endif
 
@@ -196,13 +186,6 @@ void ACEEffectorActor::Destroyed()
 	{
 		EffectorSubsystem->UnregisterChannelEffector(this);
 	}
-
-	// Remove this effector from the cloners it is linked to
-	ForEachCloner([this](ACEClonerActor* InCloner, int32 InIndex)
-	{
-		InCloner->UnregisterEffector(this);
-		return true;
-	});
 }
 
 void ACEEffectorActor::PostActorCreated()
@@ -216,73 +199,50 @@ void ACEEffectorActor::PostLoad()
 {
 	Super::PostLoad();
 
-	RegisterToCloners();
+	if (!InternalCloners.IsEmpty())
+	{
+		for (const TWeakObjectPtr<ACEClonerActor>& ClonerWeak : InternalCloners)
+		{
+			if (ACEClonerActor* Cloner = ClonerWeak.Get())
+			{
+				Cloner->LinkEffector(this);
+			}
+		}
+
+		InternalCloners.Empty();
+	}
+
+	OnEffectorChanged();
 }
 
 void ACEEffectorActor::PostDuplicate(EDuplicateMode::Type InDuplicateMode)
 {
 	Super::PostDuplicate(InDuplicateMode);
 
-	RegisterToCloners();
+	OnEffectorChanged();
 }
 
-void ACEEffectorActor::LinkCloner(ACEClonerActor* InCloner)
+int32 ACEEffectorActor::GetChannelIdentifier() const
 {
-	if (!InCloner || Cloners.Contains(InCloner))
-	{
-		return;
-	}
-
-	Cloners.Add(InCloner);
-	OnClonersChanged();
-}
-
-void ACEEffectorActor::UnlinkCloner(ACEClonerActor* InCloner)
-{
-	if (!InCloner || !Cloners.Contains(InCloner))
-	{
-		return;
-	}
-
-	Cloners.Remove(InCloner);
-	OnClonersChanged();
-}
-
-void ACEEffectorActor::OnEffectorIdentifierChanged()
-{
-	int32 Identifier = ChannelData.GetIdentifier();
+	const int32 Identifier = ChannelData.GetIdentifier();
 
 	if (Identifier == INDEX_NONE)
 	{
-		UE_LOG(LogCEEffectorActor, Log, TEXT("%s : Effector channel identifier is invalid"), *GetActorNameOrLabel());
-		return;
+		UCEEffectorSubsystem* EffectorSubsystem = !!GetWorld() ? UCEEffectorSubsystem::Get(GetWorld()) : nullptr;
+
+		// Register this effector to the effector channel
+		if (EffectorSubsystem)
+		{
+			EffectorSubsystem->RegisterChannelEffector(const_cast<ACEEffectorActor*>(this));
+		}
 	}
 
-	// Update effector identifier in linked cloners
-	ForEachCloner([Identifier](ACEClonerActor* InCloner, int32 InEffectorIndex)
-	{
-		if (const FCEClonerEffectorDataInterfaces* DataInterfaces = InCloner->GetEffectorDataInterfaces())
-		{
-			UNiagaraDataInterfaceArrayInt32* EffectorIndexDI = DataInterfaces->GetIndexArray();
+	return ChannelData.GetIdentifier();
+}
 
-			// This effector has a specific index in the cloner
-			if (EffectorIndexDI->GetArrayReference().IsValidIndex(InEffectorIndex))
-			{
-				const int32 PrevIdentifier = EffectorIndexDI->GetArrayReference()[InEffectorIndex];
-
-				// Only update if identifier is different
-				if (PrevIdentifier != Identifier)
-				{
-					EffectorIndexDI->GetArrayReference()[InEffectorIndex] = Identifier;
-
-					constexpr bool bImmediateUpdate = true;
-					InCloner->RequestClonerUpdate(bImmediateUpdate);
-				}
-			}
-		}
-
-		return true;
-	});
+FCEClonerEffectorChannelData& ACEEffectorActor::GetChannelData()
+{
+	return ChannelData;
 }
 
 void ACEEffectorActor::SetType(ECEClonerEffectorType InType)
@@ -740,52 +700,6 @@ void ACEEffectorActor::SetVisualizerSpriteVisible(bool bInVisible)
 }
 #endif
 
-void ACEEffectorActor::ForEachCloner(TFunctionRef<bool(ACEClonerActor*, int32)> InFunction, bool bSkipIdxCheck)
-{
-	for (TSet<TWeakObjectPtr<ACEClonerActor>>::TIterator It(InternalCloners); It; ++It)
-	{
-		ACEClonerActor* Cloner = It->Get();
-		if (!Cloner)
-		{
-			continue;
-		}
-
-		const int32 Idx = Cloner->GetEffectorIndex(this);
-		if (!bSkipIdxCheck && Idx == INDEX_NONE)
-		{
-			continue;
-		}
-
-		if (!InFunction(Cloner, Idx))
-		{
-			return;
-		}
-	}
-}
-
-void ACEEffectorActor::OnEffectorSubsystemInitialized(const UWorld* World)
-{
-	if (GetWorld() == World)
-	{
-		RegisterToChannel();
-	}
-}
-
-void ACEEffectorActor::RegisterToChannel()
-{
-	UCEEffectorSubsystem::OnSubsystemInitializedDelegate.RemoveAll(this);
-
-	// Register this effector to the effector channel
-	if (UCEEffectorSubsystem* EffectorSubsystem = UCEEffectorSubsystem::Get(GetWorld()))
-	{
-		EffectorSubsystem->RegisterChannelEffector(this);
-	}
-	else
-	{
-		UCEEffectorSubsystem::OnSubsystemInitializedDelegate.AddUObject(this, &ACEEffectorActor::OnEffectorSubsystemInitialized);
-	}
-}
-
 void ACEEffectorActor::OnEffectorTransformed(USceneComponent* InUpdatedComponent, EUpdateTransformFlags InUpdateTransformFlags, ETeleportType InTeleport)
 {
 	OnTransformChanged();
@@ -821,30 +735,6 @@ void ACEEffectorActor::OnEnabledChanged()
 void ACEEffectorActor::OnEffectorDisabled()
 {
 	OnMagnitudeChanged();
-}
-
-void ACEEffectorActor::OnClonersChanged()
-{
-	TSet<TWeakObjectPtr<ACEClonerActor>> AddedCloners = Cloners.Difference(InternalCloners);
-	TSet<TWeakObjectPtr<ACEClonerActor>> RemovedCloners = InternalCloners.Difference(Cloners);
-
-	// Unlink removed cloners
-	for (const TWeakObjectPtr<ACEClonerActor>& RemovedClonerWeak : RemovedCloners)
-	{
-		if (ACEClonerActor* RemovedCloner = RemovedClonerWeak.Get())
-		{
-			RemovedCloner->UnregisterEffector(this);
-		}
-	}
-
-	// Link added cloners
-	for (const TWeakObjectPtr<ACEClonerActor>& AddedClonerWeak : AddedCloners)
-	{
-		if (ACEClonerActor* AddedCloner = AddedClonerWeak.Get())
-		{
-			AddedCloner->RegisterEffector(this);
-		}
-	}
 }
 
 void ACEEffectorActor::OnModeChanged()
@@ -887,41 +777,6 @@ void ACEEffectorActor::OnTypeChanged()
 	OnPlaneChanged();
 }
 
-void ACEEffectorActor::RefreshClonerParameters(ACEClonerActor* InCloner, bool bInForce) const
-{
-	if (InCloner && (bEnabled || bInForce))
-	{
-		InCloner->RequestClonerUpdate();
-	}
-}
-
-void ACEEffectorActor::RefreshClonersParameters(bool bInForce)
-{
-	ForEachCloner([this, bInForce](ACEClonerActor* InCloner, int32 InIndex)
-	{
-		RefreshClonerParameters(InCloner, bInForce);
-		return true;
-	});
-}
-
-void ACEEffectorActor::RegisterToCloners()
-{
-	for (TSet<TWeakObjectPtr<ACEClonerActor>>::TIterator It = InternalCloners.CreateIterator(); It; ++It)
-	{
-		ACEClonerActor* Cloner = It->Get();
-
-		if (!Cloner)
-		{
-			It.RemoveCurrent();
-			continue;
-		}
-
-		Cloner->RegisterEffector(this);
-	}
-
-	OnEffectorChanged();
-}
-
 void ACEEffectorActor::OnEffectorChanged()
 {
 	if (!bEnabled)
@@ -940,32 +795,6 @@ void ACEEffectorActor::OnEffectorChanged()
 		OnVisualizerThicknessChanged();
 		OnVisualizerSpriteVisibleChanged();
 	}
-}
-
-void ACEEffectorActor::OnClonerLinked(ACEClonerActor* InCloner, int32 InEffectorIdx)
-{
-	if (!InCloner)
-	{
-		return;
-	}
-
-	InternalCloners.Add(InCloner);
-
-	OnEffectorIdentifierChanged();
-
-	UE_LOG(LogCEEffectorActor, Log, TEXT("%s : Effector linked to Cloner %s"), *GetActorNameOrLabel(), *InCloner->GetActorNameOrLabel());
-}
-
-void ACEEffectorActor::OnClonerUnlinked(ACEClonerActor* InCloner, int32 InEffectorIdx)
-{
-	if (!InCloner)
-	{
-		return;
-	}
-
-	InternalCloners.Remove(InCloner);
-
-	UE_LOG(LogCEEffectorActor, Log, TEXT("%s : Effector unlinked from cloner %s"), *GetActorNameOrLabel(), *InCloner->GetActorNameOrLabel());
 }
 
 void ACEEffectorActor::OnEasingChanged()
@@ -1249,7 +1078,11 @@ void ACEEffectorActor::OnForceOptionsChanged()
 
 void ACEEffectorActor::OnForceEnabledChanged()
 {
-	// Refresh cloners to reset clones transform
-	RefreshClonersParameters();
+	if (bEnabled)
+	{
+		// Refresh cloners to reset clones transform
+		OnEffectorRefreshClonerDelegate.Broadcast(this);
+	}
+
 	OnForceOptionsChanged();
 }
