@@ -124,6 +124,24 @@ void AGameSession::OnEndSessionComplete(FName InSessionName, bool bWasSuccessful
 	UE_LOG(LogGameSession, Verbose, TEXT("OnEndSessionComplete %s bSuccess: %d"), *InSessionName.ToString(), bWasSuccessful);
 }
 
+void AGameSession::PostReloadConfig(FProperty* PropertyThatWasLoaded)
+{
+	Super::PostReloadConfig(PropertyThatWasLoaded);
+
+	if (!IsTemplate())
+	{
+		if (MaxPlayersOptionOverride.IsSet())
+		{
+			MaxPlayers = *MaxPlayersOptionOverride;
+		}
+
+		if (MaxSpectatorsOptionOverride.IsSet())
+		{
+			MaxSpectators = *MaxSpectatorsOptionOverride;
+		}
+	}
+}
+
 bool AGameSession::HandleStartMatchRequest()
 {
 	return false;
@@ -135,8 +153,17 @@ void AGameSession::InitOptions( const FString& Options )
 	check(World);
 	AGameModeBase* const GameMode = World ? World->GetAuthGameMode() : nullptr;
 
-	MaxPlayers = UGameplayStatics::GetIntOption( Options, TEXT("MaxPlayers"), MaxPlayers );
-	MaxSpectators = UGameplayStatics::GetIntOption( Options, TEXT("MaxSpectators"), MaxSpectators );
+	if (UGameplayStatics::HasOption(Options, TEXT("MaxPlayers")))
+	{
+		MaxPlayers = UGameplayStatics::GetIntOption(Options, TEXT("MaxPlayers"), MaxPlayers);
+		MaxPlayersOptionOverride = MaxPlayers;
+	}
+
+	if (UGameplayStatics::HasOption(Options, TEXT("MaxSpectators")))
+	{
+		MaxSpectators = UGameplayStatics::GetIntOption(Options, TEXT("MaxSpectators"), MaxSpectators);
+		MaxSpectatorsOptionOverride = MaxSpectators;
+	}
 	
 	if (GameMode)
 	{
