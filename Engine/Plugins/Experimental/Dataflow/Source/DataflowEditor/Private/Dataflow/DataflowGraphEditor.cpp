@@ -197,6 +197,14 @@ FReply SDataflowGraphEditor::OnKeyDown(const FGeometry& MyGeometry, const FKeyEv
 	{
 		RightControlKeyDown = true;
 	}
+	if (InKeyEvent.GetKey() == EKeys::LeftAlt)
+	{
+		LeftAltKeyDown = true;
+	}
+	if (InKeyEvent.GetKey() == EKeys::RightAlt)
+	{
+		RightAltKeyDown = true;
+	}
 	if (InKeyEvent.GetKey() == EKeys::V)
 	{
 		VKeyDown = true;
@@ -208,6 +216,13 @@ bool SDataflowGraphEditor::IsControlDown() const
 {
 	return LeftControlKeyDown || RightControlKeyDown;
 }
+
+bool SDataflowGraphEditor::IsAltDown() const
+{
+	return LeftAltKeyDown || RightAltKeyDown;
+}
+
+
 
 
 FReply SDataflowGraphEditor::OnKeyUp(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -236,6 +251,14 @@ FReply SDataflowGraphEditor::OnKeyUp(const FGeometry& MyGeometry, const FKeyEven
 	if (InKeyEvent.GetKey() == EKeys::RightControl)
 	{
 		RightControlKeyDown = false;
+	}
+	if (InKeyEvent.GetKey() == EKeys::LeftAlt)
+	{
+		LeftAltKeyDown = false;
+	}
+	if (InKeyEvent.GetKey() == EKeys::RightAlt)
+	{
+		RightAltKeyDown = false;
 	}
 	if (InKeyEvent.GetKey() == EKeys::V)
 	{

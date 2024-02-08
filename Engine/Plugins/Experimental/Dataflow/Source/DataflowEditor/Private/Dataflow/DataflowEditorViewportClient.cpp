@@ -10,8 +10,13 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowPreviewScene.h"
 #include "EditorModeManager.h"
+#include "GraphEditor.h"
 #include "PreviewScene.h"
 #include "Selection.h"
+#include "SGraphPanel.h"
+#include "SNodePanel.h"
+
+
 
 FDataflowEditorViewportClient::FDataflowEditorViewportClient(FEditorModeTools* InModeTools,
                                                              FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
@@ -116,11 +121,32 @@ void FDataflowEditorViewportClient::ProcessClick(FSceneView& View, HHitProxy* Hi
 		}
 
 	};
+
+	auto SelectSingleNodeInGraph = [&](TObjectPtr<const UDataflowEdNode> Node)
+	{
+		if (TSharedPtr<FDataflowEditorToolkit> DataflowEditorToolkit = DataflowEditorToolkitPtr.Pin())
+		{
+			if (TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowEditorToolkit->GetDataflowGraphEditor())
+			{
+				GraphEditor->GetGraphPanel()->SelectionManager.SelectSingleNode((UObject*)Node.Get());
+			}
+		}
+	};
 	
-	const bool bIsCtrltKeyDown = Viewport->KeyState(EKeys::LeftControl) || Viewport->KeyState(EKeys::RightControl);
 	if (USelection* SelectedComponents = ModeTools->GetSelectedComponents())
 	{
+
 		UpdateSelectedComponentInViewport(SelectedComponents);
+
+		if (bool bIsAltKeyDown = Viewport->KeyState(EKeys::LeftAlt) || Viewport->KeyState(EKeys::RightAlt))
+		{
+			if (UDataflowEditorCollectionComponent* DataflowComponent
+				= SelectedComponents->GetBottom<UDataflowEditorCollectionComponent>())
+			{
+				SelectSingleNodeInGraph(DataflowComponent->Node);
+			}
+		}
+
 		EnableToolForSelectedNode(SelectedComponents);
 	}
 }

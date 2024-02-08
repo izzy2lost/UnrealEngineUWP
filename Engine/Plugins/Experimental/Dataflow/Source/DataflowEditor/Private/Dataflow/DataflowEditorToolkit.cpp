@@ -3,10 +3,12 @@
 #include "Dataflow/DataflowEditorToolkit.h"
 
 #include "AdvancedPreviewScene.h"
+#include "AssetEditorModeManager.h"
 #include "Animation/Skeleton.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowContent.h"
+#include "Dataflow/DataflowEditorCollectionComponent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorModeToolkit.h"
@@ -29,17 +31,20 @@
 #include "EditorViewportCommands.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Engine/SkeletalMesh.h"
-#include "GraphEditorActions.h"
-#include "Modules/ModuleManager.h"
-#include "PropertyEditorModule.h"
-#include "Styling/SlateStyleRegistry.h"
 #include "Framework/Commands/GenericCommands.h"
-#include "Widgets/Docking/SDockTab.h"
+#include "GameFramework/Actor.h"
+#include "GraphEditorActions.h"
 #include "ISkeletonTree.h"
-#include "AssetEditorModeManager.h"
 #include "ISkeletonEditorModule.h"
 #include "IStructureDetailsView.h"
+#include "Kismet/GameplayStatics.h"
 #include "Misc/MessageDialog.h"
+#include "Modules/ModuleManager.h"
+#include "PropertyEditorModule.h"
+#include "Selection.h"
+#include "Styling/SlateStyleRegistry.h"
+#include "Widgets/Docking/SDockTab.h"
+
 
 #define LOCTEXT_NAMESPACE "DataflowEditorToolkit"
 
@@ -540,6 +545,48 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 		return false;
 	};
 
+	auto SelectComponentsInView = [&](TObjectPtr<UDataflowEdNode> Node)
+	{
+		TArray<AActor*> FoundActors;
+		FDataflowConstructionScene* ConstructionScene = static_cast<FDataflowConstructionScene*>(ObjectScene.Get());
+		if (USelection* SelectedComponents = ConstructionScene->GetDataflowModeManager()->GetSelectedComponents())
+		{
+			SelectedComponents->Modify();
+			SelectedComponents->BeginBatchSelectOperation();
+
+			TArray<TWeakObjectPtr<UObject>> SelectedObjects;
+			const int32 NumSelected = SelectedComponents->GetSelectedObjects(SelectedObjects);
+			for (TWeakObjectPtr<UObject> WeakObject : SelectedObjects)
+			{
+				if (WeakObject.IsValid())
+				{
+					if (UDataflowEditorCollectionComponent* ActorComponent = Cast< UDataflowEditorCollectionComponent>(WeakObject.Get()))
+					{
+						SelectedComponents->Deselect(ActorComponent);
+						ActorComponent->PushSelectionToProxy();
+					}
+				}
+			}
+
+			if (TObjectPtr<AActor> RootActor = static_cast<FDataflowPreviewScene*>(ObjectScene.Get())->GetRootActor())
+			{
+				for (UActorComponent* ActorComponent : RootActor->GetComponents())
+				{
+					if (UDataflowEditorCollectionComponent* Component = Cast<UDataflowEditorCollectionComponent>(ActorComponent))
+					{
+						if (Component->Node == Node)
+						{
+							SelectedComponents->Select(Component);
+							Component->PushSelectionToProxy();
+						}
+					}
+				}
+			}
+			SelectedComponents->EndBatchSelectOperation();
+			//GetDataflowContent()->SetIsDirty(true);
+		}
+	};
+
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
@@ -609,6 +656,11 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				}
 
 				EditorContent->SetPrimarySelectedNode(PrimarySelection);
+			}
+
+			if (GetDataflowGraphEditor()->IsAltDown())
+			{
+				SelectComponentsInView(PrimarySelection);
 			}
 		}
 	}

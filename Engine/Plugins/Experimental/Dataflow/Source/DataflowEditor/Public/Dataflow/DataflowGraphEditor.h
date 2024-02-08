@@ -63,6 +63,7 @@ public:
 	virtual FReply OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	bool IsControlDown() const;
+	bool IsAltDown() const;
 	//virtual void OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	//virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 	// end SWidget
@@ -161,4 +162,6 @@ private:
 	bool VKeyDown = false;
 	bool LeftControlKeyDown = false;
 	bool RightControlKeyDown = false;
+	bool LeftAltKeyDown = false;
+	bool RightAltKeyDown = false;
 };
