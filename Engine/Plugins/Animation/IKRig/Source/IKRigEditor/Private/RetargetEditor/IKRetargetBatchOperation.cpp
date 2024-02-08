@@ -284,6 +284,8 @@ void UIKRetargetBatchOperation::RetargetAssets(
 		
 		// replace skeleton
 		AnimBlueprint->TargetSkeleton = NewSkeleton;
+		// replace preview mesh (uses skeleton default otherwise)
+		AnimBlueprint->SetPreviewMesh(Context.TargetMesh);
 
 		// if they have parent blueprint, make sure to re-link to the new one also
 		UAnimBlueprint* CurrentParentBP = Cast<UAnimBlueprint>(AnimBlueprint->ParentClass->ClassGeneratedBy);
