@@ -1049,8 +1049,14 @@ namespace Chaos
 		ConcreteGCProxy.CreateChildrenGeometry_Internal();
 		if (Chaos::FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(&ClusteredParticle))
 		{
-			ClusterUnion->PendingConnectivityOperations.Add({ &ClusteredParticle, Chaos::EClusterUnionConnectivityOperation::Add });
+			bool bHasBuiltAllEdges = false;
+			FClusterUnionParticleProperties* Properties = ClusterUnion->ChildProperties.Find(&ClusteredParticle);
+			if (Properties)
+			{
+				bHasBuiltAllEdges = Properties->bEdgesAreGenerated;
+			}
 
+			bool bAllNeighborsHasBuiltEdges = true;
 			const TArray<Chaos::TConnectivityEdge<Chaos::FReal>> Edges = ClusteredParticle.ConnectivityEdges();
 			for (const Chaos::TConnectivityEdge<Chaos::FReal>& Edge : Edges)
 			{
@@ -1061,11 +1067,22 @@ namespace Chaos
 					{
 						FGeometryCollectionPhysicsProxy* GCProxy = GetConcreteProxy<FGeometryCollectionPhysicsProxy>(Sibling);
 						GCProxy->CreateChildrenGeometry_Internal();
+						if (FClusterUnionParticleProperties* SiblingProperties = ClusterUnion->ChildProperties.Find(Sibling))
+						{
+							bAllNeighborsHasBuiltEdges &= SiblingProperties->bEdgesAreGenerated;
+						}
 					}
 				}
 			}
-			ClusterUnionManager.RequestDeferredClusterPropertiesUpdate(ClusterUnion->InternalIndex, Chaos::EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph);
-			ClusterUnionManager.HandleDeferredClusterUnionUpdateProperties();
+			// If has current GC has built all edges or if all neighbors have build all edges don't need to compute neighbors edges. 
+			if (!(bHasBuiltAllEdges || bAllNeighborsHasBuiltEdges))
+			{
+				ClusterUnionManager.AddParticleToConnectionGraphInCluster(*ClusterUnion, &ClusteredParticle);
+				if (Properties)
+				{
+					Properties->bEdgesAreGenerated = true;
+				}
+			}
 		}
 	}
 
