@@ -15,7 +15,7 @@ UMassLODDistanceCollectorProcessor::UMassLODDistanceCollectorProcessor()
 {
 	bAutoRegisterWithProcessingPhases = true;
 
-	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 
 	ExecutionOrder.ExecuteInGroup = UE::Mass::ProcessorGroupNames::LODCollector;
 	ExecutionOrder.ExecuteAfter.Add(UE::Mass::ProcessorGroupNames::SyncWorldToMass);

@@ -43,7 +43,7 @@ UMassZoneGraphLocationInitializer::UMassZoneGraphLocationInitializer()
 {
 	ObservedType = FMassZoneGraphLaneLocationFragment::StaticStruct();
 	Operation = EMassObservedOperation::Add;
-	ExecutionFlags = (int32)EProcessorExecutionFlags::All;
+	ExecutionFlags = (int32)EProcessorExecutionFlags::AllNetModes;
 }
 
 void UMassZoneGraphLocationInitializer::ConfigureQueries()
