@@ -149,15 +149,15 @@ namespace UE::Learning::Action
 	 */
 	struct LEARNING_API FSchema
 	{
-		FSchemaElement CreateNull(const FName Name = NAME_None);
-		FSchemaElement CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateDiscreteExclusive(const FSchemaDiscreteExclusiveParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateDiscreteInclusive(const FSchemaDiscreteInclusiveParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateAnd(const FSchemaAndParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateArray(const FSchemaArrayParameters Parameters, const FName Name = NAME_None);
-		FSchemaElement CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Name = NAME_None);
+		FSchemaElement CreateNull(const FName Tag = NAME_None);
+		FSchemaElement CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateDiscreteExclusive(const FSchemaDiscreteExclusiveParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateDiscreteInclusive(const FSchemaDiscreteInclusiveParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateAnd(const FSchemaAndParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateArray(const FSchemaArrayParameters Parameters, const FName Tag = NAME_None);
+		FSchemaElement CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Tag = NAME_None);
 
 		FSchemaContinuousParameters GetContinuous(const FSchemaElement Element) const;
 		FSchemaDiscreteExclusiveParameters GetDiscreteExclusive(const FSchemaElement Element) const;
@@ -174,8 +174,8 @@ namespace UE::Learning::Action
 		// Gets the type of the given element
 		EType GetType(const FSchemaElement Element) const;
 
-		// Gets the name of the given element
-		FName GetName(const FSchemaElement Element) const;
+		// Gets the tag of the given element
+		FName GetTag(const FSchemaElement Element) const;
 
 		// Get the encoded vector size of the given element
 		int32 GetEncodedVectorSize(const FSchemaElement Element) const;
@@ -252,7 +252,7 @@ namespace UE::Learning::Action
 
 		/** These have entries for each Schema Element */
 		TArray<EType> Types;
-		TArray<FName> Names;
+		TArray<FName> Tags;
 		TArray<int32> EncodedVectorSizes;
 		TArray<int32> ActionVectorSizes;
 		TArray<int32> ActionDistributionVectorSizes;
@@ -350,15 +350,15 @@ namespace UE::Learning::Action
 	 */
 	struct LEARNING_API FObject
 	{
-		FObjectElement CreateNull(const FName Name = NAME_None);
-		FObjectElement CreateContinuous(const FObjectContinuousParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateDiscreteExclusive(const FObjectDiscreteExclusiveParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateDiscreteInclusive(const FObjectDiscreteInclusiveParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateAnd(const FObjectAndParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateArray(const FObjectArrayParameters Parameters, const FName Name = NAME_None);
-		FObjectElement CreateEncoding(const FObjectEncodingParameters Parameters, const FName Name = NAME_None);
+		FObjectElement CreateNull(const FName Tag = NAME_None);
+		FObjectElement CreateContinuous(const FObjectContinuousParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateDiscreteExclusive(const FObjectDiscreteExclusiveParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateDiscreteInclusive(const FObjectDiscreteInclusiveParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateAnd(const FObjectAndParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateArray(const FObjectArrayParameters Parameters, const FName Tag = NAME_None);
+		FObjectElement CreateEncoding(const FObjectEncodingParameters Parameters, const FName Tag = NAME_None);
 
 		FObjectContinuousParameters GetContinuous(const FObjectElement Element) const;
 		FObjectDiscreteExclusiveParameters GetDiscreteExclusive(const FObjectElement Element) const;
@@ -375,8 +375,8 @@ namespace UE::Learning::Action
 		// Gets the type of the given element
 		EType GetType(const FObjectElement Element) const;
 
-		// Gets the name of the given element
-		FName GetName(const FObjectElement Element) const;
+		// Gets the tag of the given element
+		FName GetTag(const FObjectElement Element) const;
 
 		// Get the current generation
 		uint32 GetGeneration() const;
@@ -392,7 +392,7 @@ namespace UE::Learning::Action
 		uint32 Generation = 0;
 
 		TArray<EType> Types;
-		TArray<FName> Names;
+		TArray<FName> Tags;
 		TArray<int32> ContinuousDataOffsets;
 		TArray<int32> ContinuousDataNums;
 		TArray<int32> DiscreteDataOffsets;
