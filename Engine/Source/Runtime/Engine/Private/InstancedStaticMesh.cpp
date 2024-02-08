@@ -2032,9 +2032,11 @@ UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(FVTableHelper& Help
 {
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UInstancedStaticMeshComponent::~UInstancedStaticMeshComponent()
 {
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TStructOnScope<FActorComponentInstanceData> UInstancedStaticMeshComponent::GetComponentInstanceData() const
 {
@@ -3861,6 +3863,7 @@ bool UInstancedStaticMeshComponent::UpdateInstances(
 	int32 InNumCustomDataFloats,
 	const TArray<float>& CustomFloatData)
 {
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(UInstancedStaticMeshComponent_UpdateInstances);
 	TRACE_CPUPROFILER_EVENT_SCOPE_STR("UInstancedStaticMeshComponent::UpdateInstances");
 
@@ -4046,6 +4049,7 @@ bool UInstancedStaticMeshComponent::UpdateInstances(
 	FCsvProfiler::Get()->RecordCustomStat(NumBytesUpdated, CSV_CATEGORY_INDEX(InstancedStaticMeshComponent), TotalSizeUpdateBytes, ECsvCustomStatOp::Accumulate);
 #endif
 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return true;
 }
 
