@@ -69,14 +69,44 @@ void FSmartObjectRuntime::SetEnabled(const FGameplayTag ReasonTag, const bool bE
 	}
 }
 
-AActor* FSmartObjectRuntime::GetOwnerActor() const
+bool FSmartObjectRuntime::ResolveOwnerActor() const
 {
-	const USmartObjectComponent* Component = OwnerComponent.Get();
+	if (OwnerComponent.IsExplicitlyNull())
+	{
+		if (const FSmartObjectActorOwnerData* ActorOwnerData = OwnerData.GetPtr<const FSmartObjectActorOwnerData>())
+		{
+			// Fetching the actor from the handle will either return the cached actor if already available
+			// or will try to create one synchronously.
+			// This actor is then expected to own a SmartObjectComponent that will register itself to the subsystem.
+			// On successful registration the subsystem will update the OwnerComponent of the current runtime object.
+			if (ActorOwnerData->Handle.FetchActor() != nullptr)
+			{
+				ensureMsgf(!OwnerComponent.IsExplicitlyNull(), TEXT("Successfully resolved actor is expected to register its smartobject component for '%s'."), *LexToString(GetRegisteredHandle()));
+				return true;
+			}
+		}
+
+		// Unable to find owner data or to fetch actor from the Actor instance handle
+		return false;
+	}
+
+	// Success since it was already resolved
+	return true;
+}
+
+AActor* FSmartObjectRuntime::GetOwnerActor(const ETrySpawnActorIfDehydrated TrySpawnActorIfDehydrated) const
+{
+	const USmartObjectComponent* Component = GetOwnerComponent(TrySpawnActorIfDehydrated);
 	return Component != nullptr ? Component->GetOwner() : nullptr;
 }
 
-USmartObjectComponent* FSmartObjectRuntime::GetOwnerComponent() const
+USmartObjectComponent* FSmartObjectRuntime::GetOwnerComponent(const ETrySpawnActorIfDehydrated TrySpawnActorIfDehydrated) const
 {
+	if (TrySpawnActorIfDehydrated == ETrySpawnActorIfDehydrated::Yes)
+	{
+		ResolveOwnerActor();
+	}
+
 	return OwnerComponent.Get();
 }
 

@@ -141,12 +141,10 @@ void USmartObjectComponent::UnregisterFromSubsystem(const ESmartObjectUnregistra
 		if (USmartObjectSubsystem* Subsystem = USmartObjectSubsystem::GetCurrent(World))
 		{
 			if (UnregistrationType == ESmartObjectUnregistrationType::ForceRemove
-				|| IsBeingDestroyed()
-				|| (GetOwner() && GetOwner()->IsActorBeingDestroyed()))
+				|| (!World->IsGameWorld() && (IsBeingDestroyed() || (GetOwner() && GetOwner()->IsActorBeingDestroyed()))))
 			{
 				// note that this case is really only expected in the editor when the component is being unregistered 
 				// as part of DestroyComponent (or from its owner destruction).
-				// In default game flow EndPlay will get called first and once we make it here the RegisteredHandle should already be Invalid
 				Subsystem->RemoveSmartObject(*this);
 			}
 			else
@@ -176,12 +174,18 @@ void USmartObjectComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	const UWorld* World = GetWorld();
 	if (World != nullptr && World->IsGameWorld())
 	{
-		// When the object gets streamed out we unregister the component according to its registration type to preserve runtime data for persistent objects.
-		// In all other scenarios (e.g. Destroyed, EndPIE, Quit, etc.) we always remove the runtime data
-		const ESmartObjectUnregistrationType UnregistrationType =
-			(EndPlayReason == EEndPlayReason::RemovedFromWorld) ? ESmartObjectUnregistrationType::RegularProcess : ESmartObjectUnregistrationType::ForceRemove;
-
-		UnregisterFromSubsystem(UnregistrationType);
+		// When the object gets destroyed or streamed out we unregister the component according to its registration type
+		// to preserve runtime data for components bounds to existing objects.
+		if (EndPlayReason == EEndPlayReason::RemovedFromWorld
+			|| EndPlayReason == EEndPlayReason::Destroyed)
+		{
+			UnregisterFromSubsystem(ESmartObjectUnregistrationType::RegularProcess);
+		}
+		// In all other scenarios (e.g. LevelTransition, EndPIE, Quit, etc.) we always remove the runtime data
+		else
+		{
+			UnregisterFromSubsystem(ESmartObjectUnregistrationType::ForceRemove);
+		}
 	}
 
 	Super::EndPlay(EndPlayReason);
@@ -230,14 +234,14 @@ void USmartObjectComponent::SetRegisteredHandle(const FSmartObjectHandle Value, 
 	ensure(Value.IsValid());
 	ensure(RegisteredHandle.IsValid() == false || RegisteredHandle == Value);
 	RegisteredHandle = Value;
-	ensure(RegistrationType == ESmartObjectRegistrationType::None && InRegistrationType != ESmartObjectRegistrationType::None);
+	ensure(RegistrationType == ESmartObjectRegistrationType::NotRegistered && InRegistrationType != ESmartObjectRegistrationType::NotRegistered);
 	RegistrationType = InRegistrationType;
 }
 
 void USmartObjectComponent::InvalidateRegisteredHandle()
 {
 	RegisteredHandle = FSmartObjectHandle::Invalid;
-	RegistrationType = ESmartObjectRegistrationType::None;
+	RegistrationType = ESmartObjectRegistrationType::NotRegistered;
 }
 
 void USmartObjectComponent::OnRuntimeInstanceBound(FSmartObjectRuntime& RuntimeInstance)
