@@ -114,10 +114,6 @@ struct FMarkStackVisitor
 	{
 	}
 
-	FORCEINLINE void VisitBulkData(void* Data, uint64 DataSize, ConsumeElementName ElementName)
-	{
-	}
-
 	// NOTE: The Value parameter can not be passed by value.
 	template <typename T>
 	FORCEINLINE void Visit(const TWriteBarrier<T>& Value, ConsumeElementName ElementName)
@@ -126,41 +122,19 @@ struct FMarkStackVisitor
 	}
 
 	template <typename T>
-	FORCEINLINE void Visit(T Begin, T End)
-	{
-		for (; Begin != End; ++Begin)
-		{
-			Visit(*Begin, TEXT(""));
-		}
-	}
+	void Visit(T Begin, T End);
 
 	// Arrays
 	template <typename ElementType, typename AllocatorType>
-	FORCEINLINE void Visit(const TArray<ElementType, AllocatorType>& Values, ConsumeElementName ElementName)
-	{
-		Visit(Values.begin(), Values.end(), ElementName);
-	}
+	void Visit(const TArray<ElementType, AllocatorType>& Values, ConsumeElementName ElementName);
 
 	// Sets
 	template <typename ElementType, typename KeyFuncs, typename Allocator>
-	FORCEINLINE void Visit(const TSet<ElementType, KeyFuncs, Allocator>& Values, ConsumeElementName ElementName)
-	{
-		for (const auto& Value : Values)
-		{
-			Visit(Value, ElementName);
-		}
-	}
+	void Visit(const TSet<ElementType, KeyFuncs, Allocator>& Values, ConsumeElementName ElementName);
 
 	// Maps
 	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs>
-	FORCEINLINE void Visit(const TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, ConsumeElementName ElementName)
-	{
-		for (const auto& Kvp : Values)
-		{
-			Visit(Kvp.Key, TEXT("Key"));
-			Visit(Kvp.Value, TEXT("Value"));
-		}
-	}
+	void Visit(const TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, ConsumeElementName ElementName);
 
 	void ReportNativeBytes(size_t Bytes)
 	{
@@ -170,6 +144,10 @@ struct FMarkStackVisitor
 private:
 	FMarkStack& MarkStack;
 };
+
+// Helper method used by the container methods that allow for template specialization of types
+template <typename ValueType>
+void Visit(FMarkStackVisitor& Visitor, const ValueType& Value, FMarkStackVisitor::ConsumeElementName ElementName);
 
 } // namespace Verse
 #endif // WITH_VERSE_VM

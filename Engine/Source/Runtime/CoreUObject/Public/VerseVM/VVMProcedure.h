@@ -11,6 +11,8 @@
 
 namespace Verse
 {
+struct FAbstractVisitor;
+
 struct VProcedure : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
@@ -29,8 +31,13 @@ struct VProcedure : VCell
 	// In bytes.
 	uint32 BytecodeOffset(const FOp& Bytecode)
 	{
-		checkSlow(GetOpsBegin() <= &Bytecode && &Bytecode < GetOpsEnd());
-		return static_cast<uint32>(BitCast<char*>(&Bytecode) - BitCast<char*>(GetOpsBegin()));
+		return BytecodeOffset(&Bytecode);
+	}
+
+	uint32 BytecodeOffset(const void* Data)
+	{
+		checkSlow(GetOpsBegin() <= Data && Data < GetOpsEnd());
+		return static_cast<uint32>(BitCast<char*>(Data) - BitCast<char*>(GetOpsBegin()));
 	}
 
 	TWriteBarrier<VValue>* GetConstantsBegin()
@@ -62,6 +69,8 @@ struct VProcedure : VCell
 		return *new (Context.Allocate(Verse::FHeap::DestructorSpace, NumBytes)) VProcedure(Context, NumParameters, NumRegisters, NumConstants, NumOpBytes);
 	}
 
+	static void SerializeImpl(VProcedure*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
 private:
 	VProcedure(FAllocationContext Context, uint32 InNumArguments, uint32 InNumRegisters, uint32 InNumConstants, uint32 InNumOpBytes)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
@@ -79,6 +88,14 @@ private:
 	/// Overridden from `VCell` because we want to ensure that the variadic arguments allocated in the function get de-allocated
 	/// once the function object lifetime ends. Otherwise they would not get their destructors called normally.
 	~VProcedure();
+
+	template <typename FuncType>
+	void ForEachOpCode(FuncType&& Func);
+
+	template <typename TVisitor>
+	void VisitOpCodes(TVisitor& Visitor);
+	void LoadOpCodes(FAbstractVisitor& Visitor);
+	void SaveOpCodes(FAbstractVisitor& Visitor);
 };
 } // namespace Verse
 #endif // WITH_VERSE_VM

@@ -4,10 +4,10 @@
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentType.h"
 #include "VerseVM/VVMHeap.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMWeakKeyMapGuard.h"
 #include <type_traits>

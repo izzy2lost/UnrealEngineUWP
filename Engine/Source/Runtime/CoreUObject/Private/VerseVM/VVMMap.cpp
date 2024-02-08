@@ -8,8 +8,8 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMMapInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMWriteBarrier.h"
 

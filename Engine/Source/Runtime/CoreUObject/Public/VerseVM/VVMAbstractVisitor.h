@@ -168,52 +168,19 @@ struct FAbstractVisitor
 
 	// Simple arrays
 	template <typename T>
-	FORCEINLINE void Visit(T Begin, T End)
-	{
-		for (; Begin != End; ++Begin)
-		{
-			Visit(*Begin, TEXT(""));
-		}
-	}
+	FORCEINLINE void Visit(T Begin, T End);
 
 	// Arrays
 	template <typename ElementType, typename AllocatorType>
-	FORCEINLINE void Visit(const TArray<ElementType, AllocatorType>& Values, const TCHAR* ElementName)
-	{
-		uint64 ScratchNumElements = Values.Num();
-		BeginArray(ElementName, ScratchNumElements);
-		Visit(Values.begin(), Values.end());
-		EndArray();
-	}
+	FORCEINLINE void Visit(TArray<ElementType, AllocatorType>& Values, const TCHAR* ElementName);
 
 	// Sets
 	template <typename ElementType, typename KeyFuncs, typename Allocator>
-	FORCEINLINE void Visit(const TSet<ElementType, KeyFuncs, Allocator>& Values, const TCHAR* ElementName)
-	{
-		uint64 ScratchNumElements = Values.Num();
-		BeginSet(ElementName, ScratchNumElements);
-		for (const auto& Value : Values)
-		{
-			Visit(const_cast<ElementType&>(Value), TEXT(""));
-		}
-		EndSet();
-	}
+	FORCEINLINE void Visit(const TSet<ElementType, KeyFuncs, Allocator>& Values, const TCHAR* ElementName);
 
 	// Maps
 	template <typename KeyType, typename ValueType, typename SetAllocator, typename KeyFuncs>
-	FORCEINLINE void Visit(TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, const TCHAR* ElementName)
-	{
-		uint64 ScratchNumElements = Values.Num();
-		BeginMap(ElementName, ScratchNumElements);
-		for (auto& Kvp : Values)
-		{
-			BeginObject();
-			Visit(Kvp.Key, TEXT("Key"));
-			Visit(Kvp.Value, TEXT("Value"));
-			EndObject();
-		}
-		EndMap();
-	}
+	void Visit(TMap<KeyType, ValueType, SetAllocator, KeyFuncs>& Values, const TCHAR* ElementName);
 
 	virtual void ReportNativeBytes(size_t Bytes) {}
 
@@ -231,6 +198,10 @@ protected:
 private:
 	FReferrerContext* Context{nullptr};
 };
+
+// Helper method used by the container methods that allow for template specialization of types
+template <typename ValueType>
+void Visit(FAbstractVisitor& Visitor, ValueType& Value, const TCHAR* ElementName);
 
 } // namespace Verse
 #endif // WITH_VERSE_VM

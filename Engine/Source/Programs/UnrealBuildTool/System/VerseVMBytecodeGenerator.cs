@@ -290,6 +290,26 @@ namespace UnrealBuildTool
 					}
 				}
 				S.Append("    }\n\n");
+
+				if (!bIsSuspensionCapture)
+				{
+					S.Append("    template <typename FunctionType>\n");
+					S.Append($"    void ForEachOperandNoUnroll(FunctionType Function){ConstString}\n");
+					S.Append("    {\n");
+					foreach (Argument Arg in Inst.Args)
+					{
+						S.Append($"        Function({Arg.Role.ToCpp()}, {Arg.Name});\n");
+					}
+					S.Append("    }\n\n");
+					S.Append("    template <typename FunctionType>\n");
+					S.Append($"    void ForEachOperandWithNameNoUnroll(FunctionType Function){ConstString}\n");
+					S.Append("    {\n");
+					foreach (Argument Arg in Inst.Args)
+					{
+						S.Append($"        Function({Arg.Role.ToCpp()}, {Arg.Name}, \"{Arg.Name}\");\n");
+					}
+					S.Append("    }\n\n");
+				}
 			}
 			// Generate const and non-const versions since it is useful for being able to mutate operands (i.e. marking).
 			EmitForEachOperand(S, Inst, bIsSuspensionCapture, true);

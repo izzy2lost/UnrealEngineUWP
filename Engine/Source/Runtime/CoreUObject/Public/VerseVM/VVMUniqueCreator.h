@@ -7,10 +7,10 @@
 #include "Async/Mutex.h"
 #include "Async/UniqueLock.h"
 #include "Inline/VVMAbstractVisitorInline.h"
+#include "Inline/VVMMarkStackVisitorInline.h"
 #include "VVMContext.h"
 #include "VVMGlobalHeapRoot.h"
 #include "VVMLog.h"
-#include "VVMMarkStackVisitor.h"
 #include "VVMWriteBarrier.h"
 
 namespace Verse

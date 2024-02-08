@@ -7,8 +7,8 @@
 #include "Containers/Utf8String.h"
 #include "UObject/Package.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 
 namespace Verse
 {

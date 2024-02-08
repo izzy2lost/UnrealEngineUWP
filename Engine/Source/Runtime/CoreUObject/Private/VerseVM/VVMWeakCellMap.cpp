@@ -6,7 +6,7 @@
 #include "Async/UniqueLock.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMNativeAllocationGuard.h"
 #include "VerseVM/VVMWriteBarrier.h"
 

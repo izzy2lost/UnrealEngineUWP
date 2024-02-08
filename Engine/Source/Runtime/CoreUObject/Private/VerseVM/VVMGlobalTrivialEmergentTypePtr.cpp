@@ -3,7 +3,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 
 namespace Verse
 {

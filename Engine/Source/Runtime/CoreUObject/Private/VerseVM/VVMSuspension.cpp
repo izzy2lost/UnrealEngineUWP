@@ -4,11 +4,11 @@
 #include "VerseVM/VVMSuspension.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMBytecodesAndCaptures.h"
 #include "VerseVM/VVMCaptureSwitch.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMFailureContext.h"
-#include "VerseVM/VVMMarkStackVisitor.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTask.h"
 
