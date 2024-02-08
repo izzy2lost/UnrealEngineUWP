@@ -187,34 +187,20 @@ void UTG_EdGraphNode::AllocateDefaultPins()
 
 			NewPin->bNotConnectable = Pin->IsNotConnectable() || Pin->IsParam();
 
-			FString DefaultValue = Pin->GetSelfVar()->LogValue();
-			FProperty* Property = Pin->GetExpressionProperty(); //// BEWARE Pin do NOT all have a Property, it is potentially NULL
-			FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
-			if (ByteProperty)
-			{
-				UEnum* Enum = ByteProperty->GetIntPropertyEnum();
-				if (Enum)
-				{
-					DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
-				}
-				NewPin->bNotConnectable = true;
-			}
-			FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
-			if (EnumProperty)
-			{
-				UEnum* Enum = EnumProperty->GetEnum();
-				if (Enum)
-				{
-					DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
-				}
-				NewPin->bNotConnectable = true;
-			}
+			// Fetch the current pin value as a string and assign as the current value
+			FString DefaultValue = Pin->GetEvaluatedVarValue();
 			NewPin->DefaultValue = DefaultValue;
+
+			// Also grab the Property associated if exist
+			// BEWARE Pin do NOT all have a Property, it is potentially NULL
+			FProperty* Property = Pin->GetExpressionProperty();
+
 			// This updates the UObject (Texture/Material) picker UI in the Node to get updated
 			if (Property && Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()))
 			{
 				NewPin->DefaultObject = Pin->EditSelfVar()->GetAs<TObjectPtr<UObject>>();
 			}
+
 			NewPin->PinFriendlyName = FText::FromName(Pin->GetAliasName());
 			NewPin->PinToolTip = Pin->LogTooltip();
 
@@ -491,7 +477,8 @@ void UTG_EdGraphNode::PinDefaultValueChangedWithTweaking(UEdGraphPin* Pin, bool 
 {
 	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
 	UTG_Pin* TGPin = Schema->GetTGPinFromEdPin(Pin);
-	TGPin->SetSelfVarValueFromString(Pin->DefaultValue, bIsTweaking);
+
+	TGPin->SetValue(Pin->DefaultValue, bIsTweaking);
 
 	// This updates the UObject (Texture/Material) picker UI in the Node to get updated
 	FProperty* Property = TGPin->GetExpressionProperty();
@@ -609,35 +596,13 @@ bool UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGr
 	if (TSPin)
 	{
 		UTG_EdGraph* EdGraph = CastChecked<UTG_EdGraph>(GetGraph());
-		UTG_Graph* Graph = EdGraph->TextureGraph->Graph();
 		
-		FTG_Var* Var = Graph->GetVar(TSPin->GetVarId());
+		// Access the current pin evaluated value as a string
+		FString DefaultValue = TSPin->GetEvaluatedVarValue();
 
-		bool ShowSelfValue = TSPin->NeedsConformance() && TSPin->IsConnected();
-		FString DefaultValue =  ShowSelfValue ? TSPin->GetSelfVar()->LogValue() : Var->LogValue();
-		
-		// Enum requires special-case handling
-		// Needs help from the FProperty as the Var does not know the Enum type
+		// Also grab the Property associated if exist
 		FProperty* Property = TSPin->GetExpressionProperty();
-		FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
-		if (ByteProperty)
-		{
-			UEnum* Enum = ByteProperty->GetIntPropertyEnum();
-			if (Enum)
-			{
-				DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
-			}
-		}
-		FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
-		if (EnumProperty)
-		{
-			UEnum* Enum = EnumProperty->GetEnum();
-			if (Enum)
-			{
-				DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
-			}
-		}
-		
+
 #if WITH_EDITOR
 		// check here if the property has a tag for regen pins and value has changed
 		bShouldUpdatePinsVisibility = (Property != nullptr && Property->HasMetaData("RegenPinsOnChange"))

@@ -30,7 +30,6 @@ void UTG_Expression_Vector::Evaluate(FTG_EvaluationContext* InContext)
 
 	// The Value is updated either as an input or as a setting and then becomes the output for this expression
 	// The pin out is named "ValueOut"
-	// InContext->Outputs.GetVar("ValueOut")->EditAs<FLinearColor>() = Value;
 	ValueOut = Vector;
 }
 

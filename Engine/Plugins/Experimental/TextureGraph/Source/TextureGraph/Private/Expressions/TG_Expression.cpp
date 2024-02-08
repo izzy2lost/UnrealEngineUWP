@@ -63,15 +63,22 @@ FTG_Signature::FInit UTG_Expression::GetSignatureInitArgsFromClass() const
 	for (TFieldIterator<FProperty> Prop(GetClass()); Prop; ++Prop) {
 		FName PropName = FName(Prop->GetNameCPP());
 		FName PropTypeName = FName(Prop->GetCPPType());
-		uint8 MaskNotConnectable = 0;
+		bool bIsNotConnectable = false; // by default all arguments are connectable
 #if WITH_EDITORONLY_DATA
 		
 		auto PropertyTGType = Prop->GetMetaData(TEXT("TGType"));
-		bool PropertyPinNotConnectable = Prop->HasMetaData(TEXT("TGPinNotConnectable"));
-		MaskNotConnectable = PropertyPinNotConnectable ? static_cast<uint8>(ETG_Access::NotConnectableFlag) : 0;
+		bIsNotConnectable = Prop->HasMetaData(TEXT("TGPinNotConnectable"));
 #else
 		FString PropertyTGType;
 #endif
+		// Add NotConnectable for certain types:
+		{
+			FByteProperty* ByteProperty = CastField<FByteProperty>(*Prop);
+			bIsNotConnectable |= (ByteProperty != nullptr);
+			FEnumProperty* EnumProperty = CastField<FEnumProperty>(*Prop);
+			bIsNotConnectable |= (EnumProperty != nullptr);
+		}
+		uint8 MaskNotConnectable = bIsNotConnectable ? static_cast<uint8>(ETG_Access::NotConnectableFlag) : 0;
 		
 		if (PropertyTGType.Compare(TEXT("TG_InputParam")) == 0)
 		{

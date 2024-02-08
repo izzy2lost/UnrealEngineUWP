@@ -225,7 +225,51 @@ FProperty* UTG_Pin::GetExpressionProperty() const
 	return Property;
 }
 
-void UTG_Pin::SetSelfVarValueFromString(const FString& InValueStr, bool bIsTweaking /*= false*/)
+
+FString UTG_Pin::GetEvaluatedVarValue() const
+{
+	// First acces the true Var used from this Pin
+	const FTG_Var* CurrentVar = GetSelfVar();
+	if (IsInput() && IsConnected())
+	{
+		if (ConnectionNeedsConversion())
+		{
+			CurrentVar = &ConvertedVar;
+		}
+		else
+		{
+			CurrentVar = GetNodePtr()->GetGraph()->GetVar(Edges[0]);
+		}
+	}
+
+	FString CurrentValue = CurrentVar->LogValue();
+
+	// Enum requires special-case handling
+	// Needs help from the FProperty as the Var does not know the Enum type
+	FProperty* Property = GetExpressionProperty();
+	FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
+	if (ByteProperty)
+	{
+		UEnum* Enum = ByteProperty->GetIntPropertyEnum();
+		if (Enum)
+		{
+			CurrentValue = Enum->GetNameByValue(FCString::Atoi(*CurrentValue)).ToString();
+		}
+	}
+	FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
+	if (EnumProperty)
+	{
+		UEnum* Enum = EnumProperty->GetEnum();
+		if (Enum)
+		{
+			CurrentValue = Enum->GetNameByValue(FCString::Atoi(*CurrentValue)).ToString();
+		}
+	}
+
+	return CurrentValue;
+}
+
+void UTG_Pin::SetValue(const FString& InValueStr, bool bIsTweaking /*= false*/)
 {
 	Modify();
 
@@ -235,16 +279,20 @@ void UTG_Pin::SetSelfVarValueFromString(const FString& InValueStr, bool bIsTweak
 	// Enum requires special-case handling
 	// Needs help from the FProperty as the Var does not know the Enum type
 	FProperty* Property = GetExpressionProperty();
-	FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
-	FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
-	if (ByteProperty && ByteProperty->Enum)
+	if (Property)
 	{
-		DefaultValue = FString::FromInt(ByteProperty->Enum->GetValueByNameString(DefaultValue));
+		FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property);
+		FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
+		if (ByteProperty && ByteProperty->Enum)
+		{
+			DefaultValue = FString::FromInt(ByteProperty->Enum->GetValueByNameString(DefaultValue));
+		}
+		else if (EnumProperty && EnumProperty->GetEnum())
+		{
+			DefaultValue = FString::FromInt(EnumProperty->GetEnum()->GetValueByNameString(DefaultValue));
+		}
 	}
-	else if (EnumProperty && EnumProperty->GetEnum())
-	{
-		DefaultValue = FString::FromInt(EnumProperty->GetEnum()->GetValueByNameString(DefaultValue));
-	}
+
 	EditSelfVar()->SetValueFromStr(DefaultValue);
 
 	NotifyPinSelfVarChanged(bIsTweaking);
