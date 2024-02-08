@@ -974,21 +974,19 @@ void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 		}
 	}
 
-	bool bUseMipmapStreaming = !bOutNeverStream;
 	OutMipsToSkip = 0; // 0 means generate all mips
 
-	// Streaming disabled from platform settings?
+	// Streaming disabled from platform settings or from platform CustomizableObjectSystem properties?
 #if PLATFORM_SUPPORTS_TEXTURE_STREAMING
-	if (!IStreamingManager::Get().IsTextureStreamingEnabled())
+	if (!IStreamingManager::Get().IsTextureStreamingEnabled() || !EnableMutableProgressiveMipStreaming)
 	{
-		bUseMipmapStreaming = false;
+		bOutNeverStream = true;
 	}
 #else
-	bUseMipmapStreaming = false;
+	bOutNeverStream = true;
 #endif
-
-	// Streaming disabled from platform CustomizableObjectSystem properties?
-	if (bUseMipmapStreaming && EnableMutableProgressiveMipStreaming)
+	
+	if (!bOutNeverStream)
 	{
 		OutMipsToSkip = 255; // This means skip all possible mips until only UTexture::GetStaticMinTextureResidentMipCount() are left
 	}
