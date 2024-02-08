@@ -34,9 +34,6 @@ public:
 	/** called when all tracks have been read. */
 	virtual void Finalize(int32 InLastFileTick) {}
 
-	// For Midi type 0 files
-	virtual void AddDummyConductorTrack() {};
-
 	virtual void OnNewTrack(int32 NewTrackIndex) = 0;
 	virtual void OnEndOfTrack(int32 LastTick) = 0;
 	virtual void OnAllTracksRead() = 0;

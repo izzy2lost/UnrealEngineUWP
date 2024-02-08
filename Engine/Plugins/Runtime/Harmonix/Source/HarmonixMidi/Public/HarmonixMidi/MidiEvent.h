@@ -19,6 +19,11 @@ struct HARMONIXMIDI_API FMidiEvent
 public:
 	FMidiEvent(int32 Tick, const FMidiMsg& InMessage);
 
+	bool operator==(const FMidiEvent& Other) const
+	{
+		return Tick == Other.Tick && Message == Other.Message;
+	}
+
 	/** Save the event out in standard midi file format */
 	void WriteStdMidi(FMidiWriter& Writer, const FMidiTrack& Track) const;
 

@@ -6,6 +6,10 @@
 
 #include "AssetDefinition_MidiFile.generated.h"
 
+struct FToolMenuContext;
+class UContentBrowserAssetContextMenuContext;
+namespace EAppReturnType { enum Type; }
+
 UCLASS()
 class UAssetDefinition_MidiFile : public UAssetDefinitionDefault
 {
@@ -19,5 +23,10 @@ public:
 	virtual TConstArrayView<FAssetCategoryPath> GetAssetCategories() const override;
 	virtual bool CanImport() const override;
 
+	static void RegisterContextMenu();
 private:
+	static void ExecuteExportMidiFile(const FToolMenuContext& MenuContext);
+	static void ExportAllMidiToFolder(const UContentBrowserAssetContextMenuContext* Context);
+	static EAppReturnType::Type AskOverwrite(FString& OutPath);
+	static FString LastMidiExportFolder;
 };

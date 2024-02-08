@@ -113,6 +113,13 @@ public:
 		, TimeSignature(InTimeSignature)
 	{}
 
+	bool operator==(const FTimeSignaturePoint& Other) const
+	{
+		return	BarIndex == Other.BarIndex &&
+				BeatIndex == Other.BeatIndex &&
+				TimeSignature == Other.TimeSignature;
+	}
+
 	UPROPERTY()
 	int32 BarIndex; // 0 based since it is internal!
 	UPROPERTY()
@@ -138,7 +145,8 @@ public:
 	FBarMap()
 		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
 	{}
-	
+	friend bool operator==(const FBarMap& Left, const FBarMap& Right);
+
 	void Empty();
 	void Copy(const FBarMap& Other, int32 StartTick = 0, int32 EndTick = -1);
 	bool IsEmpty() const;

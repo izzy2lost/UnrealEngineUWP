@@ -26,6 +26,11 @@ public:
 	{
 	}
 
+	bool operator==(const FTempoInfoPoint& Other) const
+	{
+		return Ms == Other.Ms && MidiTempo == Other.MidiTempo;
+	}
+
 	float GetBPM() const { return MidiConstants::MidiTempoToBPM(MidiTempo); }
 
 	UPROPERTY()
@@ -59,6 +64,8 @@ public:
 		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
 	{}
 	virtual ~FTempoMap() {}
+
+	friend bool operator==(const FTempoMap& Left, const FTempoMap& Right);
 
 	void Empty();
 	void Copy(const FTempoMap& Other, int32 StartTick = 0, int32 EndTick = -1);

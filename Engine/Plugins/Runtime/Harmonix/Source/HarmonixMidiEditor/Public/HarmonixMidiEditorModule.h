@@ -16,5 +16,5 @@ public:
 	virtual void StartupModule();
 	virtual void ShutdownModule();
 private:
-
+	void RegisterAssetContextMenus();
 };

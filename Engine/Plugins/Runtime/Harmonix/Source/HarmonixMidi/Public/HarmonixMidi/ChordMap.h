@@ -24,6 +24,11 @@ public:
 		, Name(ChordName)
 	{}
 
+	bool operator==(const FChordMapPoint& Other) const
+	{
+		return Name == Other.Name;
+	}
+
 	UPROPERTY()
 	FName  Name;
 };
@@ -44,6 +49,7 @@ public:
 	FChordProgressionMap()
 		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
 	{}
+	friend bool operator==(const FChordProgressionMap& Left, const FChordProgressionMap& Right);
 
 	void Finalize(int32 LastTick);
 

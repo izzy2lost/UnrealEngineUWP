@@ -34,6 +34,9 @@ public class HarmonixMidiEditor : ModuleRules
 					"AssetDefinition",
 					"DetailCustomizations",
 					"InputCore",
+					"ContentBrowser",
+					"AssetTools",
+					"ToolMenus",
 				}
 		 );
 	}

@@ -85,6 +85,7 @@ private:
 	void ReadMidiEvent(int32 Tick, uint8 Status, uint8 Data1, FArchive& Archive);
 	void ReadSystemEvent(int32 Tick, uint8 Status, FArchive& Archive);
 	void ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive);
+	FString ReadText(FArchive& Archive, int32 Length);
 
 	// functions for sorting the midi before sending it out to the receivers
 	void QueueChannelMsg(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2);
@@ -110,7 +111,9 @@ private:
 	int32 DestinationTicksPerQuarterNote = MidiConstants::kTicksPerQuarterNoteInt;
 	float TickConversionFactor = 1.0f; // factor to convert from file's tick-per-quarternote to kTicksPerQuarterNote 
 
+	int16 Format = 1;             // Format 0 or Format 1 standard midi file?
 	int16 NumTracks = 0;          // Number of tracks.
+	int64 LastTracksFilePosition; // Position in the file of the current track's first byte.
 	int32 TrackEndPos = 0;        // end byte position of the current track
 	int32 CurrentFileTick = 0;    // Current tick in units of File's ticks-per-quarter.
 	int32 CurrentTick = 0;        // Current tick count for current track where one quarter note is TicksPerQuarterNote.
@@ -118,6 +121,14 @@ private:
 	uint8 PrevStatus = 0;         // Previous status byte (for running status).
 	int32 CurrentTrackIndex = -1; // What track are we currently reading?
 	FString CurrentTrackName;
+
+	enum class ETrackFilteringMode
+	{
+		None,
+		ConductorEvents,
+		NonConductorEvents,
+	};
+	ETrackFilteringMode TrackFilteringMode = ETrackFilteringMode::None;
 
 	// stuff for sorting Midi messages on the same tick
 	struct FRawMidiMsg

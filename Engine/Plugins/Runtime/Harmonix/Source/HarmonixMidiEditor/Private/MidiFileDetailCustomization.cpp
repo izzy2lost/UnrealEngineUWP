@@ -57,7 +57,7 @@ void FMidiFileDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Detail
 		//if the file doesn't need to be conformed (and hence never conformed), display the integer bar length, otherwise display fractional bar length
 		if (!MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundDown) && !MidiFileBeingEdited->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundUp))
 		{
-			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), (int32)MidiFileFractionalLength));
+			FileLengthText = FText::FromString(FString::Printf(TEXT("%d Bar(s)"), MidiFileLengthConformed));
 		}
 		else {
 			FileLengthText = FText::FromString(FString::Printf(TEXT("%.3f Bar(s)"), MidiFileFractionalLength));

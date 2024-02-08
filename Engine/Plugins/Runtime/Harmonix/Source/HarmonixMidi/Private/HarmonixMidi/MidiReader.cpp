@@ -238,6 +238,17 @@ void FStdMidiFileReader::ReadNextEventImpl()
 		ReadEvent(*InputArchive);
 		break;
 	case EState::NewTrack:
+		if (Format == 0 && CurrentTrackIndex == 0)
+		{
+			// we already ready the one and only track as the "conductor track".
+			// we have to read it again as "track 1", so...
+			InputArchive->Seek(LastTracksFilePosition);
+			TrackFilteringMode = ETrackFilteringMode::NonConductorEvents;
+		}
+		else 
+		{
+			LastTracksFilePosition = InputArchive->Tell();
+		}
 		ReadTrackHeader(*InputArchive);
 		break;
 	case EState::Start:
@@ -262,19 +273,33 @@ void FStdMidiFileReader::ReadFileHeader(FArchive& Archive)
 	//   0: A single multi-channel track
 	//   1: 1 or more simultaneous tracks
 	//   2: 1 or more sequentially independent tracks
-	// we only support type 1.
-	int16 Format;
+	// we only support type 0 & 1.
 	Archive << Format;
 	ensureMsgf(Format == 1 || Format == 0, TEXT("%s: Only type 0 or 1 MIDI files are supported; this file is type %d"), *Filename, Format);
 
-	Archive << NumTracks;
-
 	if (Format == 0)
 	{
-		// for midi type 0
-		Receiver->AddDummyConductorTrack();
-		++CurrentTrackIndex;
-		++NumTracks;  // we added a track
+		// We are starting to read a format 0 midi file, so on the first pass
+		// over the one and only track in the file gather the conductor type events...
+		TrackFilteringMode = ETrackFilteringMode::ConductorEvents;
+	}
+	else
+	{
+		TrackFilteringMode = ETrackFilteringMode::None;
+	}
+
+	Archive << NumTracks;
+
+	if (!ensureMsgf(Format != 0 || NumTracks == 1, TEXT("%s: Format 0 file expected only one track but found %d"), *Filename, NumTracks))
+	{
+		Failed = true;
+		return;
+	}
+	if (Format == 0)
+	{
+		// we are going to convert it to a format 1 file, with a conductor track
+		// and one track for non-conductor events...
+		NumTracks = 2;
 	}
 
 	if (NumTracks <= 0)
@@ -322,6 +347,12 @@ void FStdMidiFileReader::ReadTrackHeader(FArchive& Archive)
 	}
 
 	TrackEndPos = int32(Archive.Tell() + TrackHeader.GetLength());
+	if (TrackEndPos > (int32)Archive.TotalSize())
+	{
+		UE_LOG(LogMidi, Error, TEXT("%s: MIDI track %d data length as recorded in the header exceeds the amount of data in the file!"), *Filename, CurrentTrackIndex);
+		Failed = true;
+		return;
+	}
 
 	++CurrentTrackIndex; // update track num
 
@@ -334,6 +365,19 @@ void FStdMidiFileReader::ReadTrackHeader(FArchive& Archive)
 
 	// Let the midi receiver know that this is a new track.
 	Receiver->OnNewTrack(CurrentTrackIndex);
+
+	if (Format == 0)
+	{
+		if (CurrentTrackIndex == 0)
+		{
+			CurrentTrackName = TEXT("conductor");
+		}
+		else
+		{
+			CurrentTrackName = TEXT("Track-0");
+		}
+		Receiver->OnText(0, CurrentTrackName, MidiConstants::kMeta_TrackName);
+	}
 }
 
 // Read an event from the track
@@ -440,7 +484,7 @@ void FStdMidiFileReader::ReadMidiEvent(int32 Tick, uint8 Status, uint8 Data1, FA
 		break;
 	}
 
-	if (ValidMidiEvent)
+	if (ValidMidiEvent && TrackFilteringMode != ETrackFilteringMode::ConductorEvents)
 	{
 		// At this time, we only care about Note On / Note Off events.
 		QueueChannelMsg(Tick, Status, Data1, Data2);
@@ -481,66 +525,40 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 {
 	int32 Length = Midi::VarLenNumber::Read(Archive);
 	int32 StartPos = int32(Archive.Tell());
+	FString WorkingString;
 
 	switch (Type)
 	{
-	case MidiConstants::kMeta_Text:
-	case MidiConstants::kMeta_Copyright:
 	case MidiConstants::kMeta_TrackName:
-	case MidiConstants::kMeta_Lyric:
+		CurrentTrackName = ReadText(Archive, Length);
+		Receiver->OnText(Tick, CurrentTrackName, Type);
+		break;
+	case MidiConstants::kMeta_Copyright:
+	case MidiConstants::kMeta_Marker:
+	case MidiConstants::kMeta_CuePoint:
+		WorkingString = ReadText(Archive, Length);
+		if (TrackFilteringMode != ETrackFilteringMode::NonConductorEvents)
 		{
-			unsigned char* AsUtf8;
-			if (TextEncoding == MidiConstants::EMidiTextEventEncoding::Latin1)
-			{
-				unsigned char* AsLatin = (unsigned char*)FMemory::Malloc(Length + 1);
-				Archive.Serialize(AsLatin, Length);
-				AsLatin[Length] = 0;
-				AsUtf8 = (unsigned char*)FMemory::Malloc(Length * 2 + 2);
-
-				unsigned char* in = AsLatin;
-				unsigned char* out = AsUtf8;
-				while (*in)
-				{
-					if (*in < 128)
-					{
-						*out++ = *in++;
-					}
-					else
-					{
-						*out++ = 0xc0 | *in >> 6;
-						*out++ = 0x80 | (*in++ & 0x3f);
-					}
-				}
-				*out = 0;
-
-				FMemory::Free(AsLatin);
-			}
-			else
-			{
-				AsUtf8 = (unsigned char*)FMemory::Malloc(Length + 1);
-				Archive.Serialize(AsUtf8, Length);
-				AsUtf8[Length] = 0;
-			}
-
-			FString AsFString = UTF8_TO_TCHAR(AsUtf8);
-
-			if (Type == MidiConstants::kMeta_TrackName)
-			{
-				// Save ourselves a copy for better error messaging...
-				CurrentTrackName = AsFString;
-			}
-
-			Receiver->OnText(Tick, AsFString, Type);
-			FMemory::Free(AsUtf8);
+			Receiver->OnText(Tick, WorkingString, Type);
 		}
 		break;
-
+	case MidiConstants::kMeta_Text:
+	case MidiConstants::kMeta_Lyric:
+		WorkingString = ReadText(Archive, Length);
+		if (TrackFilteringMode != ETrackFilteringMode::ConductorEvents)
+		{
+			Receiver->OnText(Tick, WorkingString, Type);
+		}
+		break;
 	case MidiConstants::kMeta_Tempo:
 		{
 			uint8 Byte1, Byte2, Byte3;
 			Archive << Byte1 << Byte2 << Byte3;
 			int32 Tempo = (Byte1 << 16) + (Byte2 << 8) + Byte3;
-			Receiver->OnTempo(Tick, Tempo);
+			if (TrackFilteringMode != ETrackFilteringMode::NonConductorEvents)
+			{
+				Receiver->OnTempo(Tick, Tempo);
+			}
 		}
 		break;
 
@@ -581,19 +599,21 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 					*MidiTickFormat(Tick, BarMap.Get(), Midi::EMusicTimeStringFormat::Position), Numerator);
 			}
 
-			// before telling any receivers about the time signature we update our own local tempo map
-			// so we can print better error and warning messages...
-			FMusicTimestamp Timestamp;
-			check(Tick == 0 || BarMap->GetNumTimeSignaturePoints() > 0);
-			int32 BarIndex = BarMap->TickToBarIncludingCountIn(Tick);
-			if (!BarMap->AddTimeSignatureAtBarIncludingCountIn(BarIndex, Numerator, Denominator, true, false))
+			if (TrackFilteringMode != ETrackFilteringMode::NonConductorEvents)
 			{
-				UE_LOG(LogMidi, Warning, TEXT("%s (%s): Time signature %d/%d at %s overlaps or conflicts with nearby time signatures"),
-					*Filename, *CurrentTrackName, Numerator, Denominator, *MidiTickFormat(Tick, BarMap.Get(), Midi::EMusicTimeStringFormat::Position));
+				// before telling any receivers about the time signature we update our own local tempo map
+				// so we can print better error and warning messages...
+				FMusicTimestamp Timestamp;
+				check(Tick == 0 || BarMap->GetNumTimeSignaturePoints() > 0);
+				int32 BarIndex = BarMap->TickToBarIncludingCountIn(Tick);
+				if (!BarMap->AddTimeSignatureAtBarIncludingCountIn(BarIndex, Numerator, Denominator, true, false))
+				{
+					UE_LOG(LogMidi, Warning, TEXT("%s (%s): Time signature %d/%d at %s overlaps or conflicts with nearby time signatures"),
+						*Filename, *CurrentTrackName, Numerator, Denominator, *MidiTickFormat(Tick, BarMap.Get(), Midi::EMusicTimeStringFormat::Position));
+				}
+				// fill in our bar map
+				Receiver->OnTimeSignature(Tick, Numerator, Denominator, false);
 			}
-
-			// fill in our bar map
-			Receiver->OnTimeSignature(Tick, Numerator, Denominator, false);
 
 			// skip over next two bytes, "MIDI clocks per metronome click"
 			// and "32nd notes per MIDI quarter note"; they're not too useful
@@ -606,8 +626,6 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 	case MidiConstants::kMeta_KeySig:
 	case MidiConstants::kMeta_SMPTE:
 	case MidiConstants::kMeta_InstrumentName:
-	case MidiConstants::kMeta_Marker:
-	case MidiConstants::kMeta_CuePoint:
 		// these are valid events, but not currently supported by
 		// MidiReceiver; do nothing
 		break;
@@ -627,6 +645,46 @@ void FStdMidiFileReader::ReadMetaEvent(int32 Tick, uint8 Type, FArchive& Archive
 	Archive.Seek(StartPos + Length);
 }
 
+FString FStdMidiFileReader::ReadText(FArchive& Archive, int32 Length)
+{
+	unsigned char* AsUtf8 = nullptr;
+	if (TextEncoding == MidiConstants::EMidiTextEventEncoding::Latin1)
+	{
+		unsigned char* AsLatin = (unsigned char*)FMemory::Malloc(Length + 1);
+		Archive.Serialize(AsLatin, Length);
+		AsLatin[Length] = 0;
+		AsUtf8 = (unsigned char*)FMemory::Malloc(Length * 2 + 2);
+
+		unsigned char* in = AsLatin;
+		unsigned char* out = AsUtf8;
+		while (*in)
+		{
+			if (*in < 128)
+			{
+				*out++ = *in++;
+			}
+			else
+			{
+				*out++ = 0xc0 | *in >> 6;
+				*out++ = 0x80 | (*in++ & 0x3f);
+			}
+		}
+		*out = 0;
+
+		FMemory::Free(AsLatin);
+	}
+	else
+	{
+		AsUtf8 = (unsigned char*)FMemory::Malloc(Length + 1);
+		Archive.Serialize(AsUtf8, Length);
+		AsUtf8[Length] = 0;
+	}
+
+	FString AsFString = StringCast<TCHAR>((const UTF8CHAR*)AsUtf8).Get();
+	FMemory::Free(AsUtf8);
+	return AsFString;
+}
+
 // Queue all midi that is on the same tick, for sorting. 
 // Note that tick is already in terms of desired ticks per quarter note.
 void FStdMidiFileReader::QueueChannelMsg(int32 Tick, uint8 Status, uint8 Data1, uint8 Data2)
@@ -638,15 +696,18 @@ void FStdMidiFileReader::QueueChannelMsg(int32 Tick, uint8 Status, uint8 Data1, 
 // Check if MidiList has anything in it. If so, sort and send out.
 void FStdMidiFileReader::ProcessMidiList()
 {
-	EventsOnSameTick.StableSort(RawMidiLess());
-	for (auto& MidiItem : EventsOnSameTick)
+	if (TrackFilteringMode != ETrackFilteringMode::ConductorEvents)
 	{
-		Receiver->OnMidiMessage(MidiListTick, MidiItem.Status, MidiItem.Data1, MidiItem.Data2);
-
-		// state changed because SkipCurrentTrack was called. Stop processing.
-		if (State != EState::InTrack)
+		EventsOnSameTick.StableSort(RawMidiLess());
+		for (auto& MidiItem : EventsOnSameTick)
 		{
-			break;
+			Receiver->OnMidiMessage(MidiListTick, MidiItem.Status, MidiItem.Data1, MidiItem.Data2);
+
+			// state changed because SkipCurrentTrack was called. Stop processing.
+			if (State != EState::InTrack)
+			{
+				break;
+			}
 		}
 	}
 	EventsOnSameTick.Empty();

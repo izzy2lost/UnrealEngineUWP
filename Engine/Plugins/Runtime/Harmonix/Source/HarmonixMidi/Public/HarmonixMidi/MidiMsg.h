@@ -109,6 +109,10 @@ public:
 		, Data2(0)
 	{}
 
+	bool operator==(const FMidiMsg& Other) const
+	{
+		return Type == Other.Type && Status == Other.Status && Data1 == Other.Data1 && Data2 == Other.Data2;
+	}
 
 	EType Type;
 	// Use a union instead of subclassing MidiMsg so that MidiMsg is 

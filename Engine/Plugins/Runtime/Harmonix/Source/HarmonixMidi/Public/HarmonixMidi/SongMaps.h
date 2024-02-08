@@ -25,6 +25,13 @@ public:
 	int32 LengthBars = 0;
 	UPROPERTY()
 	int32 LastTick = 0;
+
+	bool operator==(const FSongLengthData& Other) const
+	{
+		return	LengthTicks == Other.LengthTicks &&
+				LengthBars == Other.LengthBars && 
+				LastTick == Other.LastTick;
+	}
 };
 
 /**
@@ -42,6 +49,7 @@ struct HARMONIXMIDI_API FSongMaps
 
 public:
 	FSongMaps();
+	friend bool operator==(const FSongMaps& Left, const FSongMaps& Right);
 
 	void Init(int32 InTicksPerQuarterNote);
 	void Copy(const FSongMaps& Other, int32 StartTick = 0, int32 EndTick = -1);
