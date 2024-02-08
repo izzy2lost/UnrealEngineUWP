@@ -20,6 +20,7 @@
 #include "Rundown/Customization/AvaRundownMacroKeyBindingCustomization.h"
 #include "Rundown/Factories/Filters/AvaRundownFactoriesUtils.h"
 #include "Rundown/Factories/Filters/AvaRundownFilterChannelExpressionFactory.h"
+#include "Rundown/Factories/Filters/AvaRundownFilterComboPageExpressionFactory.h"
 #include "Rundown/Factories/Filters/AvaRundownFilterIdExpressionFactory.h"
 #include "Rundown/Factories/Filters/AvaRundownFilterNameExpressionFactory.h"
 #include "Rundown/Factories/Filters/AvaRundownFilterPathExpressionFactory.h"
@@ -28,6 +29,7 @@
 #include "Rundown/Factories/Filters/IAvaRundownFilterExpressionFactory.h"
 #include "Rundown/Factories/Filters/IAvaRundownFilterSuggestionFactory.h"
 #include "Rundown/Factories/Suggestions/AvaRundownFilterChannelSuggestionFactory.h"
+#include "Rundown/Factories/Suggestions/AvaRundownFilterComboPageSuggestionFactory.h"
 #include "Rundown/Factories/Suggestions/AvaRundownFilterIdSuggestionFactory.h"
 #include "Rundown/Factories/Suggestions/AvaRundownFilterNameSuggestionFactory.h"
 #include "Rundown/Factories/Suggestions/AvaRundownFilterPathSuggestionFactory.h"
@@ -443,20 +445,22 @@ void FAvaMediaEditorModule::RegisterRundownFilterSuggestionFactory(InArgsType&&.
 
 void FAvaMediaEditorModule::RegisterRundownFilterExpressionFactories()
 {
-	RegisterRundownFilterExpressionFactory<FAvaRundownFilterNameExpressionFactory>();
-	RegisterRundownFilterExpressionFactory<FAvaRundownFilterIdExpressionFactory>();
-	RegisterRundownFilterExpressionFactory<FAvaRundownFilterPathExpressionFactory>();
 	RegisterRundownFilterExpressionFactory<FAvaRundownFilterChannelExpressionFactory>();
+	RegisterRundownFilterExpressionFactory<FAvaRundownFilterComboPageExpressionFactory>();
+	RegisterRundownFilterExpressionFactory<FAvaRundownFilterIdExpressionFactory>();
+	RegisterRundownFilterExpressionFactory<FAvaRundownFilterNameExpressionFactory>();
+	RegisterRundownFilterExpressionFactory<FAvaRundownFilterPathExpressionFactory>();
 	RegisterRundownFilterExpressionFactory<FAvaRundownFilterStatusExpressionFactory>();
 	RegisterRundownFilterExpressionFactory<FAvaRundownFilterTransitionLayerExpressionFactory>();
 }
 
 void FAvaMediaEditorModule::RegisterRundownFilterSuggestionFactories()
 {
-	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterNameSuggestionFactory>();
-	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterIdSuggestionFactory>();
-	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterPathSuggestionFactory>();
 	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterChannelSuggestionFactory>();
+	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterComboPageSuggestionFactory>();
+	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterIdSuggestionFactory>();
+	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterNameSuggestionFactory>();
+	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterPathSuggestionFactory>();
 	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterStatusSuggestionFactory>();
 	RegisterRundownFilterSuggestionFactory<FAvaRundownFilterTransitionLayerSuggestionFactory>();
 }
