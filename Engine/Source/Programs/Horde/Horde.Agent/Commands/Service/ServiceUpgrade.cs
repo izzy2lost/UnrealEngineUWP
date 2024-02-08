@@ -74,7 +74,7 @@ namespace Horde.Agent.Commands.Service
 						throw new InvalidDataException($"Expected {sourceFile} to be under {sourceDir.FullName}");
 					}
 
-					string targetFile = targetDir.FullName + sourceFile.Substring(sourceDir.FullName.Length);
+					string targetFile = Path.Combine(targetDir.FullName, sourceFile.Substring(sourceDir.FullName.Length));
 					Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
 
 					string targetFileBeforeRename = targetFile + ".new";
