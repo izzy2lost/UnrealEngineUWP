@@ -1568,11 +1568,6 @@ bool UAnimCompress_PerTrackCompression::DoReduction(const FCompressibleAnimData&
 		return false;
 	}
 
-	if (bResampleAnimation && CompressibleAnimData.NumberOfKeys < MinKeysForResampling)
-	{
-		return false;
-	}
-
 	ensure((MaxPosDiffBitwise > 0.0f) && (MaxAngleDiffBitwise > 0.0f) && (MaxScaleDiffBitwise > 0.0f) && (MaxZeroingThreshold >= 0.0f));
 	ensure(MaxZeroingThreshold <= MaxPosDiffBitwise);
 	ensure(!(bUseAdaptiveError2 && bUseAdaptiveError));
