@@ -2,7 +2,6 @@
 
 using System;
 using System.ComponentModel;
-using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -57,7 +56,7 @@ namespace Horde.Server.Commands.Generate
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
 					IBlobRef<DirectoryNode> dirNodeRef;
-					await using (DedupeBlobWriter writer = client.CreateBlobWriter(refName).WithDedupe())
+					await using (DedupeBlobWriter writer = client.CreateDedupeBlobWriter(refName))
 					{
 						logger.LogInformation("Populating cache with existing refs...");
 						await PopulateCacheAsync(client, writer, bundleDir, CancellationToken.None);

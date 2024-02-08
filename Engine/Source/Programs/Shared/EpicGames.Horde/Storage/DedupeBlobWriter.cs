@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -187,6 +186,29 @@ namespace EpicGames.Horde.Storage
 		/// Wraps a <see cref="IBlobWriter"/> with a <see cref="DedupeBlobWriter"/>
 		/// </summary>
 		public static DedupeBlobWriter WithDedupe(this IBlobWriter writer, int maxKeys = DedupeBlobWriter.DefaultMaxKeys) => new DedupeBlobWriter(writer, maxKeys);
+
+		/// <summary>
+		/// Creates a dedupe writer
+		/// </summary>
+		/// <param name="store">The store instance to read from</param>
+		/// <param name="maxKeys">Maximum number of keys to include in the cache</param>
+		public static DedupeBlobWriter CreateDedupeBlobWriter(this IStorageClient store, int maxKeys = DedupeBlobWriter.DefaultMaxKeys)
+		{
+			IBlobWriter writer = store.CreateBlobWriter();
+			return new DedupeBlobWriter(writer, maxKeys);
+		}
+
+		/// <summary>
+		/// Creates a writer using a refname as a base path
+		/// </summary>
+		/// <param name="store">The store instance to read from</param>
+		/// <param name="refName">Ref name to use as a base path</param>
+		/// <param name="maxKeys">Maximum number of keys to include in the cache</param>
+		public static DedupeBlobWriter CreateDedupeBlobWriter(this IStorageClient store, RefName refName, int maxKeys = DedupeBlobWriter.DefaultMaxKeys)
+		{
+			IBlobWriter writer = store.CreateBlobWriter(refName.ToString());
+			return new DedupeBlobWriter(writer, maxKeys);
+		}
 
 		/// <summary>
 		/// Adds a directory tree to the cache
