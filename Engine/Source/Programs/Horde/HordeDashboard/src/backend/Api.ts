@@ -3244,6 +3244,9 @@ export type GetTelemetryChartResponse = {
 	/// List of configured metrics	
 	metrics: GetTelemetryChartMetricResponse[];
 
+	/// The min unit value for clamping chart	
+	min?: number;
+
 	/// The max unit value for clamping chart	
 	max?: number;
 }
