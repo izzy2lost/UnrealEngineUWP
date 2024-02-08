@@ -4,6 +4,7 @@
 
 #include "BoneControllers/BoneControllerTypes.h"
 #include "BoneControllers/AnimNode_SkeletalControlBase.h"
+#include "Kismet/KismetMathLibrary.h"
 #include "AnimNode_Steering.generated.h"
 
 struct FAnimationInitializeContext;
@@ -19,24 +20,43 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_Steering : public FAnimNode_Skeleta
 	// The Orientation to steer towards
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	FQuat TargetOrientation = FQuat::Identity;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Filtering)
+	bool bEnableTargetSmoothing = false;
 	
-	// The number of seconds in the future before we should reach the TargetOrientation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Filtering)
+	float SmoothTargetStiffness = 300;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Filtering)
+	float SmoothTargetDamping = 1;
+	
+	// The number of seconds in the future before we should reach the TargetOrientation when play animations with no root motion rotation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
+	float ProceduralTargetTime = 0.2f;
+	
+	// Deprected old/unused parameter, to avoid breaking data
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	float TargetTime = 0.2f;
+	
+	// The number of seconds in the future before we should reach the TargetOrientation when playing animations with root motion rotation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
+	float AnimatedTargetTime = 0.2f;
 
 	// If less than this number of degrees of rotation is found over TargetTime seconds in the CurrentAnimAsset, then rotation will be added linearly to reach the TargetOrientation
 	// Otherwise the root motion will be scaled to reach the TargetOrientation over TargetTime seconds
-	UPROPERTY(EditAnywhere, Category=Evaluation)
+	UPROPERTY(EditAnywhere, DisplayName=RootMotionAngleThreshold, Category=Evaluation)
 	float RootMotionThreshold = 1.0f;
-	
-	
+
+	// below this movement speed (based on the root motion in the animation) disable steering
+	UPROPERTY(EditAnywhere, Category=Evaluation)
+	float DisableSteeringBelowSpeed = 1.0f;
 	
 	// Animation Asset for incorporating root motion data. If CurrentAnimAsset is set, and the animation has root motion rotation within the TargetTime, then those rotations will be scaled to reach the TargetOrientation
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
+	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	TObjectPtr<UAnimationAsset> CurrentAnimAsset;
 	
 	// Current playback time in seconds of the CurrentAnimAsset
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
+	UPROPERTY(EditAnywhere, Transient, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	float CurrentAnimAssetTime = 0.f;
 
 	// FAnimNodeBase interface
@@ -52,4 +72,10 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_Steering : public FAnimNode_Skeleta
 private:
 
 	FTransform RootBoneTransform;
+
+	bool bResetFilter = true;
+
+	FQuat FilteredTarget = FQuat::Identity;
+	FQuaternionSpringState TargetSmoothingState;
+	
 };
