@@ -449,6 +449,13 @@ class HAIRSTRANDSCORE_API UGroomAsset : public UObject, public IInterface_AssetU
 	DECLARE_MULTICAST_DELEGATE(FOnGroomAsyncLoadFinished);
 #endif
 
+private:
+	UPROPERTY(EditAnywhere, Category = "HairLOD", meta = (DisplayName = "LOD Mode", ToolTip = "Define how LOD adapts curves & points for strands geometry. Auto: adapts the curve count based on screen coverage. Manual: use the discrete LOD created for each groups"))
+	EGroomLODMode LODMode = EGroomLODMode::Default;
+
+	UPROPERTY(EditAnywhere, Category = "HairLOD", meta = (DisplayName = "Auto LOD Bias", ToolTip = "When Auto LOD is selected, decrease the screen size at which curves reduction will occur.", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1.0"))
+	float AutoLODBias = 0;
+
 public:
 	UE_DEPRECATED(5.3, "Please do not access this member directly; use UGroomAsset accessor.")
 	UPROPERTY(EditAnywhere, EditFixedSize, EditFixedSize, Category = "HairInfo", meta = (DisplayName = "Group"))
@@ -616,6 +623,11 @@ public:
 	const TArray<FHairGroupResources>& GetHairGroupsResources() const;
 	TArray<FHairGroupResources>& GetHairGroupsResources();
 
+	static FName GetLODModeMemberName();
+	EGroomLODMode GetLODMode() const;
+
+	static FName GetAutoLODBiasMemberName();
+	float GetAutoLODBias() const;
 public:
 
 	//~ Begin UObject Interface.

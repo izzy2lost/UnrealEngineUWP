@@ -549,6 +549,7 @@ void FHairStrandsBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 	Ar << Header.ImportedAttributeFlags;
 
 	Ar << Header.CurveToPointCount;
+	Ar << Header.CoverageScales;
 
 	Ar << Header.Strides.PositionStride;
 	Ar << Header.Strides.CurveStride;
@@ -671,6 +672,21 @@ void FHairStrandsBulkData::ResetLoadedSize()
 	Data.PointAttributes.LoadedSize	= 0;
 	Data.PointToCurve.LoadedSize	= 0;
 	Data.Curves.LoadedSize			= 0;
+}
+
+float FHairStrandsBulkData::GetCoverageScale(float InCurvePercentage /*[0..1]*/) const
+{ 
+	float Out = 1.f;
+	if (Header.CoverageScales.Num() > 0)
+	{
+		const uint32 ScaleCount = Header.CoverageScales.Num();
+		const float  fScaleIt = FMath::Clamp(InCurvePercentage * ScaleCount, 0u, ScaleCount-1u);
+		const uint32 ScaleIt0 = FMath::Floor(fScaleIt);
+		const uint32 ScaleIt1 = FMath::Min(ScaleIt0+1, ScaleCount-1);
+		const float S = fScaleIt - ScaleIt0;
+		Out = FMath::LerpStable(Header.CoverageScales[ScaleIt0], Header.CoverageScales[ScaleIt1], S);
+	}
+	return Out;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
