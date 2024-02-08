@@ -114,6 +114,7 @@ public:
 	virtual void Apply(const FNiagaraQueryCompilationOptions& Options) = 0;
 	virtual void ReportResults(const FNiagaraQueryCompilationOptions& Options) const = 0;
 	virtual bool BlocksBeginCacheForCooked() const { return false; }
+	virtual bool BlocksGarbageCollection() const { return true; }
 
 	void Invalidate()
 	{

@@ -2206,10 +2206,12 @@ void FNiagaraEditorModule::OnPreGarbageCollection()
 		// release is due to go out).
 		for (TObjectIterator<UNiagaraSystem> It; It; ++It)
 		{
-			UNiagaraSystem* System = *It;
-			if (System && System->HasOutstandingCompilationRequests())
+			if (UNiagaraSystem* System = *It)
 			{
-				System->WaitForCompilationComplete();
+				if (System->CompileRequestsShouldBlockGC())
+				{
+					System->WaitForCompilationComplete();
+				}
 			}
 		}
 	}

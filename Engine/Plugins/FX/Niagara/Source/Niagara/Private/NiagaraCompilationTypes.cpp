@@ -407,6 +407,11 @@ public:
 		}
 	}
 
+	virtual bool BlocksGarbageCollection() const override
+	{
+		return false;
+	}
+
 	FNiagaraCompilationTaskHandle CompileRequestHandle;
 	FNiagaraSystemAsyncCompileResults CompileResults;
 };

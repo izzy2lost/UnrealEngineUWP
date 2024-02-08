@@ -1860,6 +1860,20 @@ bool UNiagaraSystem::HasOutstandingCompilationRequests(bool bIncludingGPUShaders
 
 	return false;
 }
+
+bool UNiagaraSystem::CompileRequestsShouldBlockGC() const
+{
+	for (const TUniquePtr<FNiagaraActiveCompilation>& ActiveCompilation : ActiveCompilations)
+	{
+		if (ActiveCompilation && ActiveCompilation->BlocksGarbageCollection())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 #endif
 
 bool UNiagaraSystem::ComputeEmitterPriority(int32 EmitterIdx, TArray<int32, TInlineAllocator<32>>& EmitterPriorities, const TBitArray<TInlineAllocator<32>>& EmitterDependencyGraph)
