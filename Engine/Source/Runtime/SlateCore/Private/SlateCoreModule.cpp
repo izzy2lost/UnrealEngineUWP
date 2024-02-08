@@ -11,7 +11,6 @@
 #include "Modules/ModuleManager.h"
 #include "SlateGlobals.h"
 #include "Types/SlateStructs.h"
-#include "Animation/AnimatedAttributeManager.h"
 
 DEFINE_LOG_CATEGORY(LogSlate);
 DEFINE_LOG_CATEGORY(LogSlateStyles);
@@ -36,16 +35,6 @@ public:
 		SlateDebuggerUpdate = MakeUnique<FConsoleSlateDebuggerUpdate>();
 		SlateDebuggerBreak = MakeUnique<FConsoleSlateDebuggerBreak>();
 #endif
-	}
-
-	virtual void StartupModule() override
-	{
-		FAnimatedAttributeManager::Get().SetupTick();
-	}
-
-	virtual void ShutdownModule() override
-	{
-		FAnimatedAttributeManager::Get().TeardownTick();
 	}
 
 #if WITH_SLATE_DEBUGGING

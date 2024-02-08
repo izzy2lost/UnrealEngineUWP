@@ -6,7 +6,7 @@
 #include "SchematicGraphModel.h"
 #include "SNodePanel.h"
 #include "TickableEditorObject.h"
-#include "Animation/AnimatedAttribute.h"
+#include "Framework/Animation/AnimatedAttribute.h"
 
 class SSchematicGraphPanel;
 class SSchematicGraphNode;

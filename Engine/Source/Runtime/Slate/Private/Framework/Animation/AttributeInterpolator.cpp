@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Animation/AttributeInterpolator.h"
+#include "Framework/Animation/AttributeInterpolator.h"
 #include "AHEasing/easing.h"
 
 float EaseInterpolatorRatio(EEasingInterpolatorType InEasingType, float InRatio)

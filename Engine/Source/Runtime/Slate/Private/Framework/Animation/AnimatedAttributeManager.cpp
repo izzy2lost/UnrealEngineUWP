@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Animation/AnimatedAttributeManager.h"
+#include "Framework/Animation/AnimatedAttributeManager.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // TAnimatedAttributeBase
@@ -45,7 +45,7 @@ FAnimatedAttributeManager::~FAnimatedAttributeManager()
 {
 }
 
-bool FAnimatedAttributeManager::Tick(float InDeltaTime)
+void FAnimatedAttributeManager::Tick(float InDeltaTime)
 {
 	// remove state attributes
 	Attributes.RemoveAll([](const TWeakPtr<TAnimatedAttributeBase>& Attribute) {
@@ -57,21 +57,20 @@ bool FAnimatedAttributeManager::Tick(float InDeltaTime)
 	{
 		Attribute.Pin()->Tick(InDeltaTime);
 	}
-
-	return true;
 }
 
 void FAnimatedAttributeManager::SetupTick()
 {
-	const FTickerDelegate TickDelegate = FTickerDelegate::CreateRaw(this, &FAnimatedAttributeManager::Tick);
-	TickHandle = FTSTicker::GetCoreTicker().AddTicker(TickDelegate);
+	const FSlateApplication::FSlateTickEvent::FDelegate TickDelegate =
+		FSlateApplication::FSlateTickEvent::FDelegate::CreateRaw(this, &FAnimatedAttributeManager::Tick);
+	TickHandle = FSlateApplication::Get().OnPreTick().Add(TickDelegate);
 }
 
 void FAnimatedAttributeManager::TeardownTick()
 {
 	if(TickHandle.IsValid())
 	{
-		FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+		FSlateApplication::Get().OnPreTick().Remove(TickHandle);
 		TickHandle.Reset();
 	}
 }
