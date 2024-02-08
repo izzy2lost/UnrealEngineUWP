@@ -2200,6 +2200,33 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 		MaterialGroups.Add(PolygonGroupID);
 	}
 
+	// These are not always honest.
+	bool bHaveValidNormals = bHasNormals;
+	bool bHaveValidTangents = bHasNormals;
+	
+	for (int32 TriangleIndex = 0; TriangleIndex < Faces.Num(); TriangleIndex++)
+	{
+		const SkeletalMeshImportData::FTriangle &Triangle = Faces[TriangleIndex];
+
+		for (int32 Corner = 0; Corner < 3; Corner++)
+		{
+			if (!Triangle.TangentZ[Corner].IsNormalized())
+			{
+				bHaveValidNormals = false;
+			}
+			if (!Triangle.TangentX[Corner].IsNormalized() ||
+			    !Triangle.TangentY[Corner].IsNormalized())
+			{
+				bHaveValidTangents = false;
+			}
+
+			if (!bHaveValidNormals && !bHaveValidTangents)
+			{
+				break;
+			}
+		}
+	}
+
 	for (int32 TriangleIndex = 0; TriangleIndex < Faces.Num(); TriangleIndex++)
 	{
 		const SkeletalMeshImportData::FTriangle &Triangle = Faces[TriangleIndex];
@@ -2224,10 +2251,22 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 				{
 					VertexInstanceUVs.Set(VertexInstanceID, UVIndex, Wedge.UVs[UVIndex]);
 				}
-				VertexInstanceTangents.Set(VertexInstanceID, Triangle.TangentX[Corner]);
-				VertexInstanceNormals.Set(VertexInstanceID, Triangle.TangentZ[Corner]);
-				VertexInstanceBinormalSigns.Set(VertexInstanceID,
-					((Triangle.TangentZ[Corner] ^ Triangle.TangentX[Corner]) | Triangle.TangentY[Corner]) < 0 ? -1.0f : 1.0f);
+
+				if (bHaveValidNormals)
+				{
+					VertexInstanceNormals.Set(VertexInstanceID, Triangle.TangentZ[Corner]);
+				}
+				if (bHaveValidTangents)
+				{
+					VertexInstanceTangents.Set(VertexInstanceID, Triangle.TangentX[Corner]);
+
+					// We can only divine the bi-tangent sign if the normal is also given. 
+					if (bHaveValidNormals)
+					{
+						VertexInstanceBinormalSigns.Set(VertexInstanceID,
+							((Triangle.TangentZ[Corner] ^ Triangle.TangentX[Corner]) | Triangle.TangentY[Corner]) < 0 ? -1.0f : 1.0f);
+					}
+				}
 				
 				VertexInstanceIDMap[WedgeId] = VertexInstanceID;
 			}
@@ -2656,7 +2695,7 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	SkelMeshImportData.Points.SetNumUninitialized(InMeshDescription.Vertices().Num());
 	SkelMeshImportData.Influences.Reserve(InMeshDescription.Vertices().Num() * 4);
 	SkelMeshImportData.PointToRawMap.SetNumUninitialized(InMeshDescription.Vertices().Num());
-	
+
 	for (FVertexID VertexID : InMeshDescription.Vertices().GetElementIDs())
 	{
 		// We can use GetValue here because the mesh description was compacted before the copy
@@ -2687,11 +2726,32 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 		}
 	}
 
+	
+	bool bHaveValidNormals = true;
+	bool bHaveValidTangents = true;
+	for (FVertexInstanceID VertexInstanceID: InMeshDescription.VertexInstances().GetElementIDs())
+	{
+		if (!VertexInstanceNormals.Get(VertexInstanceID).IsNormalized())
+		{
+			bHaveValidNormals = false;
+		}
+		if (!VertexInstanceTangents.Get(VertexInstanceID).IsNormalized())
+		{
+			bHaveValidTangents = false;
+		}
+		if (!bHaveValidNormals && !bHaveValidTangents)
+		{
+			break;
+		}
+	}
+	
 	//////////////////////////////////////////////////////////////////////////
 	//Copy the triangle and vertex instances
 	SkelMeshImportData.Faces.AddZeroed(InMeshDescription.Triangles().Num());
 	SkelMeshImportData.Wedges.Reserve(InMeshDescription.VertexInstances().Num());
 	SkelMeshImportData.NumTexCoords = FMath::Min<int32>(VertexInstanceUVs.GetNumChannels(), (int32)MAX_TEXCOORDS);
+	SkelMeshImportData.bHasNormals = bHaveValidNormals;
+	SkelMeshImportData.bHasTangents = bHaveValidTangents;
 	for (FTriangleID TriangleID : InMeshDescription.Triangles().GetElementIDs())
 	{
 		FPolygonGroupID PolygonGroupID = InMeshDescription.GetTrianglePolygonGroup(TriangleID);
@@ -2722,18 +2782,24 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 			{
 				Wedge.UVs[UVChannelIndex] = VertexInstanceUVs.Get(VertexInstanceID, UVChannelIndex);
 			}
-			Face.TangentX[Corner] = VertexInstanceTangents[VertexInstanceID];
-			Face.TangentZ[Corner] = VertexInstanceNormals[VertexInstanceID];
-			Face.TangentY[Corner] = FVector3f::CrossProduct(VertexInstanceNormals[VertexInstanceID], VertexInstanceTangents[VertexInstanceID]).GetSafeNormal() * VertexInstanceBiNormalSigns[VertexInstanceID];
 
-			if (Face.TangentX[Corner] != FVector3f::ZeroVector)
+			if (bHaveValidNormals)
 			{
-				SkelMeshImportData.bHasTangents = true;
+				Face.TangentZ[Corner] = VertexInstanceNormals[VertexInstanceID];
 			}
-			
-			if (Face.TangentZ[Corner] != FVector3f::ZeroVector)
+			else
 			{
-				SkelMeshImportData.bHasNormals = true;
+				Face.TangentZ[Corner] = FVector3f::ZeroVector;
+			}
+
+			if (bHaveValidTangents && bHaveValidNormals)
+			{
+				Face.TangentX[Corner] = VertexInstanceTangents[VertexInstanceID];
+				Face.TangentY[Corner] = FVector3f::CrossProduct(VertexInstanceNormals[VertexInstanceID], VertexInstanceTangents[VertexInstanceID]).GetSafeNormal() * VertexInstanceBiNormalSigns[VertexInstanceID];
+			}
+			else
+			{
+				Face.TangentX[Corner] = FVector3f::ZeroVector;
 			}
 
 			Face.WedgeIndex[Corner] = SkelMeshImportData.Wedges.Add(Wedge);
