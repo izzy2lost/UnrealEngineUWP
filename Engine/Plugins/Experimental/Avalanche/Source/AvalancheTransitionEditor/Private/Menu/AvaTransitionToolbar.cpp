@@ -4,6 +4,7 @@
 #include "AvaTransitionCommands.h"
 #include "AvaTransitionEditorUtils.h"
 #include "AvaTransitionMenuContext.h"
+#include "AvaTransitionTree.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
@@ -11,6 +12,7 @@
 #include "Toolkits/AssetEditorToolkit.h"
 #include "ViewModels/AvaTransitionEditorViewModel.h"
 #include "ViewModels/AvaTransitionViewModelSharedData.h"
+#include "Widgets/AvaTransitionTreeStatus.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -18,17 +20,50 @@
 
 namespace UE::AvaTransitionEditor::Private
 {
-	static constexpr const TCHAR* TransitionLayerPickerName = TEXT("TransitionLogicLayerPicker");
+	FToolMenuEntry& AddLabelEntry(FToolMenuSection& InSection, FName InEntryName, const FText& InLabel)
+	{
+		TSharedRef<SWidget> LabelWidget = SNew(SBox)
+			.Padding(8.f, 0.f, 2.f, 0.f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(InLabel)
+				.Justification(ETextJustify::Right)
+			];
+		return InSection.AddEntry(FToolMenuEntry::InitWidget(InEntryName, LabelWidget, FText::GetEmpty()));
+	}
+}
+
+FAvaTransitionToolbar::FAvaTransitionToolbar(FAvaTransitionEditorViewModel& InOwner)
+	: Owner(InOwner)
+{
+}
+
+void FAvaTransitionToolbar::SetReadOnlyProfileName(FName InToolMenuToolbarName, FName InReadOnlyProfileName)
+{
+	ToolMenuToolbarName = InToolMenuToolbarName;
+	ReadOnlyProfileName = InReadOnlyProfileName;
 }
 
 void FAvaTransitionToolbar::ExtendEditorToolbar(UToolMenu* InToolbarMenu)
 {
+	using namespace UE::AvaTransitionEditor;
+
 	if (!InToolbarMenu)
 	{
 		return;
 	}
 
 	const bool bReadOnly = Owner.GetSharedData()->IsReadOnly();
+
+	const FName PermissionOwner = TEXT("FAvaTransitionToolbar");
+
+	FNamePermissionList ReadOnlyPermissionList;
+
+	auto AllowInReadOnly = [&ReadOnlyPermissionList, &PermissionOwner](FToolMenuEntry& InEntry)
+		{
+			ReadOnlyPermissionList.AddAllowListItem(PermissionOwner, InEntry.Name);;
+		};
 
 	FToolMenuSection& Section = InToolbarMenu->FindOrAddSection(TEXT("TransitionLogic"));
 
@@ -43,41 +78,53 @@ void FAvaTransitionToolbar::ExtendEditorToolbar(UToolMenu* InToolbarMenu)
 				return Owner.GetCompiler().GetCompileStatusIcon();
 			}))));
 
-	CompileButton.StyleNameOverride = "CalloutToolbar";
-
 	FToolMenuEntry& CompileOptions = Section.AddEntry(FToolMenuEntry::InitComboButton(TEXT("CompileComboButton")
 		, FUIAction()
 		, FNewToolMenuDelegate::CreateStatic(&FAvaTransitionCompiler::GenerateCompileOptionsMenu)
 		, LOCTEXT("CompileOptions_ToolbarTooltip", "Options to customize how State Trees compile")));
 
-	CompileOptions.StyleNameOverride = "CalloutToolbar";
 	CompileOptions.ToolBarData.bSimpleComboBox = true;
 
-	if (TSharedPtr<SWidget> LayerPicker = UE::AvaTransitionEditor::CreateTransitionLayerPicker(Owner.GetEditorData(), /*bInCompileOnLayerPicked*/false))
+	int32 SeparatorIndex = 0;
+	auto MakeSeparator = [&SeparatorIndex](FToolMenuSection& InSection)->FToolMenuEntry&
+		{
+			return InSection.AddSeparator(FName(TEXT("Separator"), SeparatorIndex++));
+		};
+
+	// Tree Status
+	{
+		TSharedRef<SWidget> TreeStatusWidget = SNew(SAvaTransitionTreeStatus, Owner.GetTransitionTree());
+		TreeStatusWidget->SetEnabled(!bReadOnly);
+
+		AllowInReadOnly(MakeSeparator(Section));
+
+		AllowInReadOnly(Private::AddLabelEntry(Section, TEXT("TreeStatusLabel"), LOCTEXT("StatusLabel", "Status")));
+
+		AllowInReadOnly(Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("TreeStatusWidget")
+			, TreeStatusWidget
+			, FText::GetEmpty())));
+	}
+
+	// Layer Picker
+	if (TSharedPtr<SWidget> LayerPicker = CreateTransitionLayerPicker(Owner.GetEditorData(), /*bInCompileOnLayerPicked*/false))
 	{
 		LayerPicker->SetEnabled(!bReadOnly);
 
-		Section.AddSeparator(NAME_None);
+		AllowInReadOnly(MakeSeparator(Section));
 
-		TSharedRef<SWidget> TransitionLayerWidget = SNew(SBox)
-			.Padding(8.f, 0.f, 2.f, 0.f)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("TransitionLayerText", "Layer"))
-				.Justification(ETextJustify::Right)
-			];
+		AllowInReadOnly(Private::AddLabelEntry(Section, TEXT("LayerPickerLabel"), LOCTEXT("LayerLabel", "Layer")));
 
-		Section.AddEntry(FToolMenuEntry::InitWidget("TransitionLayerWidget", TransitionLayerWidget, FText::GetEmpty()));
-		Section.AddEntry(FToolMenuEntry::InitWidget(UE::AvaTransitionEditor::Private::TransitionLayerPickerName
+		AllowInReadOnly(Section.AddEntry(FToolMenuEntry::InitWidget(TEXT("LayerPickerWidget")
 			, LayerPicker.ToSharedRef()
-			, LOCTEXT("TransitionLogicLabel", "Transition Logic Layer")));
+			, FText::GetEmpty())));
 	}
 
 #if WITH_STATETREE_DEBUGGER
-	Section.AddSeparator(NAME_None);
-	Section.AddEntry(FToolMenuEntry::InitToolBarButton(Commands.ToggleDebug));
+	AllowInReadOnly(MakeSeparator(Section));
+	AllowInReadOnly(Section.AddEntry(FToolMenuEntry::InitToolBarButton(Commands.ToggleDebug)));
 #endif
+
+	ApplyReadOnlyPermissionList(ReadOnlyPermissionList);
 }
 
 void FAvaTransitionToolbar::ExtendTreeToolbar(UToolMenu* InToolbarMenu)
@@ -107,15 +154,7 @@ void FAvaTransitionToolbar::ExtendTreeToolbar(UToolMenu* InToolbarMenu)
 
 void FAvaTransitionToolbar::SetupReadOnlyCustomization(FReadOnlyAssetEditorCustomization& InReadOnlyCustomization)
 {
-	const FName PermissionOwner = TEXT("FAvaTransitionToolbar");
-
-	const FAvaTransitionEditorCommands& Commands = FAvaTransitionEditorCommands::Get();
-
-	InReadOnlyCustomization.ToolbarPermissionList.AddAllowListItem(PermissionOwner, UE::AvaTransitionEditor::Private::TransitionLayerPickerName);
-
-#if WITH_STATETREE_DEBUGGER
-	InReadOnlyCustomization.ToolbarPermissionList.AddAllowListItem(PermissionOwner, Commands.ToggleDebug->GetCommandName());
-#endif
+	// Read Only Customizations not added here, as this is called before the Tool Menu is extended, and so the names are not known at this point
 }
 
 TSharedRef<SWidget> FAvaTransitionToolbar::GenerateTreeToolbarWidget()
@@ -123,13 +162,13 @@ TSharedRef<SWidget> FAvaTransitionToolbar::GenerateTreeToolbarWidget()
 	UToolMenus* const ToolMenus = UToolMenus::Get();
 	check(ToolMenus);
 
-	const FName ToolbarName = GetTreeToolbarName();
+	const FName TreeToolbarName = GetTreeToolbarName();
 
-	if (!ToolMenus->IsMenuRegistered(ToolbarName))
+	if (!ToolMenus->IsMenuRegistered(TreeToolbarName))
 	{
-		UToolMenu* const ToolBar = ToolMenus->RegisterMenu(ToolbarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
-		ToolBar->StyleName = "CalloutToolbar";
-		ToolBar->AddDynamicSection("PopulateToolbar", FNewToolMenuDelegate::CreateStatic([](UToolMenu* InToolMenu)
+		UToolMenu* const Toolbar = ToolMenus->RegisterMenu(TreeToolbarName, NAME_None, EMultiBoxType::SlimHorizontalToolBar);
+		Toolbar->StyleName = "CalloutToolbar";
+		Toolbar->AddDynamicSection("PopulateToolbar", FNewToolMenuDelegate::CreateStatic([](UToolMenu* InToolMenu)
 		{
 			if (InToolMenu)
 			{
@@ -150,7 +189,21 @@ TSharedRef<SWidget> FAvaTransitionToolbar::GenerateTreeToolbarWidget()
 	ContextObject->SetEditorViewModel(StaticCastSharedRef<FAvaTransitionEditorViewModel>(Owner.AsShared()));
 
 	FToolMenuContext Context(Owner.GetCommandList(), Extender, ContextObject);
-	return ToolMenus->GenerateWidget(ToolbarName, Context);
+	return ToolMenus->GenerateWidget(TreeToolbarName, Context);
+}
+
+void FAvaTransitionToolbar::ApplyReadOnlyPermissionList(const FNamePermissionList& InPermissionList)
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	if (!ToolMenus)
+	{
+		return;
+	}
+
+	if (FToolMenuProfile* ToolbarProfile = ToolMenus->FindRuntimeMenuProfile(ToolMenuToolbarName, ReadOnlyProfileName))
+	{
+		ToolbarProfile->MenuPermissions.Append(InPermissionList);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

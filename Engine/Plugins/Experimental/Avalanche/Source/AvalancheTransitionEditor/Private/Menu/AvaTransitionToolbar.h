@@ -6,6 +6,7 @@
 #include "UObject/NameTypes.h"
 
 class FAvaTransitionEditorViewModel;
+class FNamePermissionList;
 class SWidget;
 class UToolMenu;
 struct FReadOnlyAssetEditorCustomization;
@@ -13,15 +14,14 @@ struct FReadOnlyAssetEditorCustomization;
 class FAvaTransitionToolbar : public TSharedFromThis<FAvaTransitionToolbar>
 {
 public:
-	explicit FAvaTransitionToolbar(FAvaTransitionEditorViewModel& InOwner)
-		: Owner(InOwner)
-	{
-	}
+	explicit FAvaTransitionToolbar(FAvaTransitionEditorViewModel& InOwner);
 
 	static FName GetTreeToolbarName()
 	{
 		return TEXT("AvaTransitionTreeToolbar");
 	}
+
+	void SetReadOnlyProfileName(FName InToolMenuToolbarName, FName InReadOnlyProfileName);
 
 	void ExtendEditorToolbar(UToolMenu* InToolbarMenu);
 
@@ -32,5 +32,10 @@ public:
 	TSharedRef<SWidget> GenerateTreeToolbarWidget();
 
 private:
+	void ApplyReadOnlyPermissionList(const FNamePermissionList& InPermissionList);
+
 	FAvaTransitionEditorViewModel& Owner;
+
+	FName ToolMenuToolbarName;
+	FName ReadOnlyProfileName;
 };

@@ -20,6 +20,11 @@ public:
 
 	void SetEnabled(bool bInEnabled);
 
+	static FName GetEnabledPropertyName()
+	{
+		return GET_MEMBER_NAME_CHECKED(UAvaTransitionTree, bEnabled);
+	}
+
 private:
 	/** The Layer this Transition Logic Tree deals with */
 	UPROPERTY()
