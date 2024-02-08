@@ -23,6 +23,8 @@ public:
 	FMidiTrack();
 	FMidiTrack(const FString& name);
 
+	friend bool operator==(const FMidiTrack& Left, const FMidiTrack& Right);
+
 	const FMidiEventList& GetEvents() const;  		// this will ASSERT if events aren't sorted!
 	const FMidiEventList& GetUnsortedEvents() const; // this won't sort
 

@@ -23,6 +23,11 @@ public:
 		, Name(InName)
 	{}
 
+	bool operator==(const FSongSection& Other) const
+	{
+		return Name == Other.Name;
+	}
+
 	UPROPERTY(BlueprintReadOnly, Category = "SongSection")
 	FString Name;
 };
@@ -39,6 +44,7 @@ public:
 	FSectionMap()
 		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
 	{}
+	friend bool operator==(const FSectionMap& Left, const FSectionMap& Right);
 
 	void Finalize(int32 LastTick);
 

@@ -10,6 +10,8 @@
 #include "MidiFileDetailCustomization.h"
 #include "PropertyEditorDelegates.h"
 #include "IDetailCustomization.h"
+#include "ToolMenus.h"
+#include "AssetDefinition_MidiFile.h"
 
 #define LOCTEXT_NAMESPACE "Harmonix_Midi"
 
@@ -31,6 +33,14 @@ void FHarmonixMidiEditorModule::StartupModule()
 	);
 
 	PropertyModule.NotifyCustomizationModuleChanged();
+
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FHarmonixMidiEditorModule::RegisterAssetContextMenus));
+}
+
+void FHarmonixMidiEditorModule::RegisterAssetContextMenus()
+{
+	FToolMenuOwnerScoped MenuOwner(this);
+	UAssetDefinition_MidiFile::RegisterContextMenu();
 }
 
 void FHarmonixMidiEditorModule::ShutdownModule()

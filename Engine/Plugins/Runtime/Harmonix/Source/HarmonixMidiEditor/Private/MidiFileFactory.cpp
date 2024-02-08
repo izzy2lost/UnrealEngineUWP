@@ -106,7 +106,10 @@ void UMidiFileFactory::ShowConformMidiFileLengthDialog(int32 MidiFileAssetIndex)
 
 	// enable the Apply To All checkbox if importing more than 1 file 
 	(ImportedFiles.Num() > 1 && MidiFileAssetIndex != ImportedFiles.Num() - 1) ? ConformMidiFileLengthDialog->ApplyToAllCheckBox->SetVisibility(EVisibility::Visible) : ConformMidiFileLengthDialog->ApplyToAllCheckBox->SetVisibility(EVisibility::Collapsed);
-	
+
+	// we'll need this for a few options down below...	
+	float MidiFileFractionalLength = MidiFileAsset->GetSongMaps()->GetBarIncludingCountInAtTick(MidiFileAsset->GetLastEventTick() + 1);
+
 	//if the file has length less than 1 bar (e.g. 0.25 bars),it cannot be rounded down to 0 bar, this is checked in UMidiFile::ShouldConformFileLength(EMidiFileLengthConformOption Option)
 	//disable the Round Down checkbox and the Round To Nearest checkbox, the only available option should be Round Up
 	if (!MidiFileAsset->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundDown) && MidiFileAsset->ShouldConformMidiFileLength(EMidiFileLengthConformOption::RoundUp))
@@ -120,12 +123,32 @@ void UMidiFileFactory::ShowConformMidiFileLengthDialog(int32 MidiFileAssetIndex)
 		ConformMidiFileLengthDialog->RoundUpCheckBox->SetIsChecked(ECheckBoxState::Checked);
 		ConformMidiFileLengthDialog->ConformOption = EMidiFileLengthConformOption::RoundUp;
 	}
+	else
+	{
+		ConformMidiFileLengthDialog->RoundDownCheckBox->SetIsChecked(ECheckBoxState::Unchecked);
+		ConformMidiFileLengthDialog->RoundToNearestCheckBox->SetIsChecked(ECheckBoxState::Unchecked);
+		ConformMidiFileLengthDialog->RoundUpCheckBox->SetIsChecked(ECheckBoxState::Unchecked);
+		if (FMath::Frac(MidiFileFractionalLength) < 0.1f || FMath::Frac(MidiFileFractionalLength) > 0.9f)
+		{
+			ConformMidiFileLengthDialog->RoundToNearestCheckBox->SetIsChecked(ECheckBoxState::Checked);
+			ConformMidiFileLengthDialog->ConformOption = EMidiFileLengthConformOption::Nearest;
+		}
+		else if (FMath::Frac(MidiFileFractionalLength) < 0.2f)
+		{
+			ConformMidiFileLengthDialog->RoundDownCheckBox->SetIsChecked(ECheckBoxState::Checked);
+			ConformMidiFileLengthDialog->ConformOption = EMidiFileLengthConformOption::RoundDown;
+		}
+		else
+		{
+			ConformMidiFileLengthDialog->RoundUpCheckBox->SetIsChecked(ECheckBoxState::Checked);
+			ConformMidiFileLengthDialog->ConformOption = EMidiFileLengthConformOption::RoundUp;
+		}
+	}
 
 	//set text for text block that asks user whether or not to conform midi file length
 	FString MidiFileName = MidiFileAsset->GetName();
-	float MidiFileFractionalLength = MidiFileAsset->GetSongMaps()->GetBarIncludingCountInAtTick(MidiFileAsset->GetLastEventTick());
 	ConformMidiFileLengthDialog->AskConformFileLengthText->SetText(FText::FromString(FString::Printf(
-		TEXT("Midi File Name: %s.mid, Length: %.3f bars"),
+		TEXT("Midi File Name: %s.mid, Length: %.5f bars"),
 		*MidiFileName,
 		MidiFileFractionalLength)));
 

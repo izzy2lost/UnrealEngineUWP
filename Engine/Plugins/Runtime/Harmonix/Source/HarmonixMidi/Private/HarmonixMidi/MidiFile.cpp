@@ -41,8 +41,6 @@ private:
 	virtual void OnText(int32 Tick, const FString& Str, uint8 Type) override;
 	virtual void OnTimeSignature(int32 Tick, int32 Numerator, int32 Denominator, bool FailOnError = true) override;
 
-	virtual void AddDummyConductorTrack() override;
-
 	UMidiFile& File;
 	int32  LastTick = 0;
 	bool   CurrentTrackHasName = false;
@@ -734,12 +732,6 @@ void UMidiFile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 FMidiEventReceiver::FMidiEventReceiver(UMidiFile& file)
 	: File(file)
 {
-}
-
-void FMidiEventReceiver::AddDummyConductorTrack()
-{
-	// Add a dummy conductor track for midi type 0 files
-	File.GetTracks().Emplace("Conductor");
 }
 
 void FMidiEventReceiver::OnNewTrack(int32 newTrackIndex)

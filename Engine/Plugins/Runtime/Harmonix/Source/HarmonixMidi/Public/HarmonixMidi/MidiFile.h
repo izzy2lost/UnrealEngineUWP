@@ -65,6 +65,7 @@ struct HARMONIXMIDI_API FMidiFileData
 	*/
 	void AddTimeSigChange(int32 TrackIdx, int32 Tick, int32 TimeSigNum, int32 TimeSigDenom);
 
+	friend bool operator==(const FMidiFileData& Left, const FMidiFileData& Right);
 };
 
 template<>
@@ -91,6 +92,12 @@ public:
 	using FMidiTrackList = TArray<FMidiTrack>;
 
 	UMidiFile();
+
+	// A comparison operator. This allows for differences in members related to how
+	// a midi file was generated/imported, but compares the underlying "renderable"
+	// midi data.
+	friend bool operator==(const UMidiFile& Left, const UMidiFile& Right);
+
 	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	virtual void PostInitProperties() override;
 
@@ -107,7 +114,7 @@ public:
 	/** A method for exporting the midi track data to a standard midi file. */
 	void SaveStdMidiFile(const FString& FilePath);
 	/** A method for exporting the midi track data to a standard midi file. */
-	void SaveStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename);
+	void SaveStdMidiFile(TSharedPtr<FArchive> Archive, const FString& Filename = FString());
 
 	FMidiTrack* AddTrack(const FString& Name);
 

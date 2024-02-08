@@ -24,17 +24,6 @@ FMidiTrack::FMidiTrack(const FString& Name)
 	AddEvent(FMidiEvent(0, FMidiMsg::CreateText(stringIndex, MidiConstants::kMeta_TrackName)));
 }
 
-/*
-FArchive& operator<<(FArchive& Archive, FMidiTrack& Track)
-{
-	Archive << Track.Sorted;
-	Archive << Track.PrimaryMidiChannel;
-	Archive << Track.Events;
-	Archive << Track.Strings;
-	return Archive;
-}
-*/
-
 const FMidiEventList& FMidiTrack::GetEvents() const
 {
 	check(Sorted);

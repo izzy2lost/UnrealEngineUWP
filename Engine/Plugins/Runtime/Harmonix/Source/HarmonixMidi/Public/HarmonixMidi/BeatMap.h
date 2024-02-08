@@ -40,6 +40,11 @@ public:
 		, Type(InType)
 	{}
 
+	bool operator==(const FBeatMapPoint& Other) const
+	{
+		return PulseBar == Other.PulseBar && Type == Other.Type;
+	}
+
 	UPROPERTY()
 	int32 PulseBar;
 	UPROPERTY()
@@ -69,6 +74,11 @@ public:
 		, LastIncludedBeatIndex(InLastIncludedBeatIndex)
 	{}
 
+	bool operator==(const FPulseBar& Other) const
+	{
+		return StartTick == Other.StartTick && LengthTicks == Other.LengthTicks && FirstIncludedBeatIndex == Other.FirstIncludedBeatIndex && LastIncludedBeatIndex == Other.LastIncludedBeatIndex;
+	}
+
 	UPROPERTY()
 	int32 StartTick;
 	UPROPERTY()
@@ -91,6 +101,7 @@ public:
 	FBeatMap()
 		: TicksPerQuarterNote(MidiConstants::kTicksPerQuarterNoteInt)
 	{}
+	friend bool operator==(const FBeatMap& Left, const FBeatMap& Right);
 
 	void Empty();
 	void Copy(const FBeatMap& Other, int32 StartTick = 0, int32 EndTick = -1);
