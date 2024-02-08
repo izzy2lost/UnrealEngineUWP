@@ -45,21 +45,56 @@ struct FPendingFileRequest
 	FString FileName;
 };
 
-/** Struct to help generate Widgts for the DetailsPanel of the Bahviour */
+USTRUCT()
+struct FRCAssetPathElement
+{
+	GENERATED_BODY()
+
+	FRCAssetPathElement()
+		: bIsInput(false)
+		, Path(TEXT(""))
+	{}
+
+	FRCAssetPathElement(bool bInIsInput, const FString& InPath)
+		: bIsInput(bInIsInput)
+		, Path(InPath)
+	{}
+
+	UPROPERTY(EditAnywhere, Category="Path")
+	bool bIsInput;
+
+	UPROPERTY(EditAnywhere, Category="Path")
+	FString Path;
+};
+
+/** Struct to help generate Widgets for the DetailsPanel of the Behaviour */
 USTRUCT()
 struct FRCSetAssetPath
 {
 	GENERATED_BODY()
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// TODO [UE_DEPRECATED(5.4)] this rule of 5 is obligatory to avoid compile-time warning, delete them when the property is removed
 	FRCSetAssetPath()
 	{
-		// Add Empty index 0 when creating 
-		PathArray.Add("");
+		// Add Empty index 0 when creating
+		AssetPath.AddDefaulted();
 	}
-	
-	/** An Array of Strings holding the Path of an Asset, seperated in several String. Will concated back together later. */
+	~FRCSetAssetPath() = default;
+	FRCSetAssetPath(const FRCSetAssetPath&) = default;
+	FRCSetAssetPath(FRCSetAssetPath&&) = default;
+	FRCSetAssetPath& operator=(const FRCSetAssetPath&) = default;
+	FRCSetAssetPath& operator=(FRCSetAssetPath&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	/** An Array of Strings holding the Path of an Asset, seperated in several String. Will concatenated back together later. */
+	UPROPERTY(EditAnywhere, Category="Path")
+	TArray<FRCAssetPathElement> AssetPath;
+
+	/** An Array of Strings holding the Path of an Asset, seperated in several String. Will concatenated back together later. */
+	UE_DEPRECATED(5.4, "This property is deprecated please use AssetPathArray instead")
 	UPROPERTY()
-	TArray<FString> PathArray;
+	TArray<FString> PathArray_DEPRECATED;
 };
 
 /**
@@ -76,6 +111,8 @@ public:
 	virtual void Initialize() override;
 	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap) override;
 	//~ End URCBehaviour interface
+
+	virtual void PostLoad() override;
 
 	/** Given an Input Path, sets the Target Exposed Property to the Asset. */
 	bool SetAssetByPath(const FString& AssetPath, const FString& DefaultString);
