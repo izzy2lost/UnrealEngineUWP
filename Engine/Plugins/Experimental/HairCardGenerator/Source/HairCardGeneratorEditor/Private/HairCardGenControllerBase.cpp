@@ -106,16 +106,12 @@ void UHairCardGenControllerBase::CreateCardsStaticMesh(UStaticMesh* StaticMesh, 
 	StaticMesh->CommitMeshDescription(0);
 }
 
-TObjectPtr<UHairCardGeneratorPluginSettings>& UHairCardGenControllerBase::GetGroomSettings(TObjectPtr<UGroomAsset> Groom, int LODIndex, int GroupIndex)
+TObjectPtr<UHairCardGeneratorPluginSettings>& UHairCardGenControllerBase::GetGroomSettings(TObjectPtr<UGroomAsset> Groom, int LODIndex)
 {
 	const FString SettingsTag = Groom->GetPathName() + TEXT(":LOD") + FString::FromInt(LODIndex);
 
-	// HACK: Could keep multiple settings objects around per-lod and group, but the group id should use the same settings so just update group id
-	TObjectPtr<UHairCardGeneratorPluginSettings>& Settings = GroomSettingsMap.FindOrAdd(SettingsTag);
-	if ( Settings)
-		Settings->SetGenerateForGroomGroup(GroupIndex);
-
-	return Settings;
+	// NOTE: Only keep around one settings object per-lod
+	return GroomSettingsMap.FindOrAdd(SettingsTag);
 }
 
 void UHairCardGenControllerBase::UpdateGroomSettings(TObjectPtr<UGroomAsset> Groom, int LODIndex, int GroupID, TObjectPtr<UHairCardGeneratorPluginSettings> NewSettings)

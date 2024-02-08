@@ -94,7 +94,6 @@ namespace HairCardGeneratorEditor_Impl
 	static TObjectPtr<UGroomAsset> ParseGroomAssetArg(const TArray<FString>& Args, bool bOptional);
 	static FHairGroupsCardsSourceDescription* FindCardSourceDescription(TObjectPtr<UGroomAsset> Groom, int32 LODIndex);
 	static TObjectPtr<UHairCardGeneratorPluginSettings> CreateGroomSettingsLast(TObjectPtr<UGroomAsset> Groom, const FHairGroupsCardsSourceDescription& SourceDesc);
-	static TObjectPtr<UHairCardGeneratorPluginSettings> CreateGroomSettingsDefault(TObjectPtr<UGroomAsset> Groom, int32 LODIndex, int32 PhysGroupIndex);
 
 	static void DbgCmdCacheGroom(const TArray<FString>& Args);
 
@@ -178,15 +177,6 @@ static TObjectPtr<UHairCardGeneratorPluginSettings> HairCardGeneratorEditor_Impl
 		return NewSettings;
 
 	NewSettings->ResetFromSourceDescription(SourceDesc);
-	return NewSettings;
-}
-
-static TObjectPtr<UHairCardGeneratorPluginSettings> HairCardGeneratorEditor_Impl::CreateGroomSettingsDefault(TObjectPtr<UGroomAsset> Groom, int32 LODIndex, int32 PhysGroupIndex)
-{
-	TObjectPtr<UHairCardGeneratorPluginSettings> NewSettings = NewObject<UHairCardGeneratorPluginSettings>(/*Outer =*/Groom);
-	NewSettings->SetSource(Groom, LODIndex, PhysGroupIndex);
-	NewSettings->ResetToDefault();
-
 	return NewSettings;
 }
 
@@ -668,9 +658,17 @@ bool FHairCardGeneratorEditorModule::GenerateHairCardsForLOD(UGroomAsset* NewGro
 
 	UE_CLOG(CardsDesc.GenerationSettings && !IsCompatibleSettings(CardsDesc.GenerationSettings), LogHairCardGenerator, Warning, TEXT("Old hair-card generation settings (from a different generator) will be discarded when you run this generator."));
 
-	TObjectPtr<UHairCardGeneratorPluginSettings>& GenerationSettings = CardGenController->GetGroomSettings(NewGroomAsset, CardsDesc.LODIndex, CardsDesc.GroupIndex);
+	TObjectPtr<UHairCardGeneratorPluginSettings>& GenerationSettings = CardGenController->GetGroomSettings(NewGroomAsset, CardsDesc.LODIndex);
 	if ( !GenerationSettings )
+	{
 		GenerationSettings = HairCardGeneratorEditor_Impl::CreateGroomSettingsLast(NewGroomAsset, CardsDesc);
+	}
+	else
+	{
+		// Need to update all non-generation UI settings in case they've changed on groom asset
+		GenerationSettings->SetGenerateForGroomGroup(CardsDesc.GroupIndex);
+		GenerationSettings->PostResetUpdates();
+	}
 
 	bool bSuccess = false;
 	if ( !HairCardGenWindow_Utils::PromptUserWithHairCardGenDialog(GenerationSettings) )
