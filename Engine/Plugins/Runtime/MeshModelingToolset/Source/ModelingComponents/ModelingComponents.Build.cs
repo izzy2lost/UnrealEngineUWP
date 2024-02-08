@@ -43,6 +43,15 @@ public class ModelingComponents : ModuleRules
 				// ... add private dependencies that you statically link with here ...
 			}
 		);
+		
+		if (Target.bCompileAgainstEditor) // #if WITH_EDITOR
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"UnrealEd"
+				});
+		}
 
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]
