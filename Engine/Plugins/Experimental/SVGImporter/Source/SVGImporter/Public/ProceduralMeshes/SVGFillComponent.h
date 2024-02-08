@@ -3,6 +3,7 @@
 #pragma once
 
 #include "SVGDynamicMeshComponent.h"
+#include "SVGTypes.h"
 #include "SVGFillComponent.generated.h"
 
 USTRUCT()
@@ -13,8 +14,14 @@ struct FSVGFillShape
 	UPROPERTY()
 	TArray<FVector2D> ShapeVertices;
 
+	UPROPERTY()
+	bool bShouldBeDrawn = true;
+
 	FSVGFillShape(){}
-	FSVGFillShape(const TArray<FVector2D>& InVertices) : ShapeVertices(InVertices){}
+	FSVGFillShape(const TArray<FVector2D>& InVertices, bool bInShouldBeDrawn)
+	: ShapeVertices(InVertices)
+	, bShouldBeDrawn(bInShouldBeDrawn)
+	{}
 };
 
 USTRUCT()
@@ -25,61 +32,31 @@ struct FSVGFillMeshData
 	UPROPERTY()
 	TArray<FSVGFillShape> ShapesToDraw;
 
-	UPROPERTY()
-	TArray<FSVGFillShape> ShapesToRemove;
-
-	void Init(const TArray<TArray<FVector2D>>& InShapesToDraw, const TArray<TArray<FVector2D>>& InShapesToRemove)
-	{
-		for (const TArray<FVector2D>& Shape : InShapesToDraw)
-		{
-			ShapesToDraw.Emplace(Shape);
-		}
-
-		for (const TArray<FVector2D>& Shape : InShapesToRemove)
-		{
-			ShapesToRemove.Emplace(Shape);
-		}
-	}
-
-	void GetShapesArrays(TArray<TArray<FVector2D>>& OutShapesToDraw, TArray<TArray<FVector2D>>& OutShapesToRemove)
-	{
-		for (const FSVGFillShape& Elem : ShapesToDraw)
-		{
-			OutShapesToDraw.Add(Elem.ShapeVertices);
-		}
-
-		for (const FSVGFillShape& Elem : ShapesToRemove)
-		{
-			OutShapesToRemove.Add(Elem.ShapeVertices);
-		}
-	}
+	void Init(const TArray<FSVGPathPolygon>& InShapes);
 };
 
 struct FSVGFillParameters
 {
-	const TArray<TArray<FVector2D>>& ShapesToDraw;
-
-	const TArray<TArray<FVector2D>>& ShapesToRemove;
+	TArray<FSVGPathPolygon> Shapes;
 
 	FColor Color;
 
-	float Extrude = 0;
+	float Extrude = 0.0f;
 
 	bool bSimplify = false;
 
-	float BevelDistance = 0;
+	float BevelDistance = 0.0f;
 
 	bool bSmoothShapes = false;
 
-	float SmoothingOffset = 150.0;
+	float SmoothingOffset = 150.0f;
 
 	bool bUnlit = false;
 
 	bool bCastShadow = false;
 
-	FSVGFillParameters(const TArray<TArray<FVector2D>>& ShapesToDraw, const TArray<TArray<FVector2D>>& ShapesToRemove)
-		: ShapesToDraw(ShapesToDraw),
-		  ShapesToRemove(ShapesToRemove)
+	FSVGFillParameters(const TArray<FSVGPathPolygon>& InShapes)
+		:Shapes(InShapes)
 	{
 	}
 };
@@ -108,12 +85,11 @@ protected:
 	//~ End USVGDynamicMesh
 
 	void RefreshNormals();
-	void CreateSubtractMesh(TWeakObjectPtr<UDynamicMesh>& SubtractMesh, float InExtrude) const;
 	void InitBasePolygons();
 	void GenerateFillMeshInternal();
 
 	void LoadCachedMeshToDynamicMesh(const TOptional<UE::Geometry::FDynamicMesh3>& InSourceMesh);
-	void ApplyExtrudeAndSubtract(float InExtrudeValue);
+	void ApplyExtrude(float InExtrudeValue);
 	void ApplySimplifyAndBevel();
 
 	/** Applies all changes after extrusion. Includes beveling. */
@@ -126,7 +102,6 @@ protected:
 	void ApplyFillBevel();
 
 	TOptional<UE::Geometry::FDynamicMesh3> CachedExtrudedMesh;
-	TOptional<UE::Geometry::FDynamicMesh3> CachedCutPolygon;
 	TOptional<UE::Geometry::FDynamicMesh3> CachedBasePolygon;
 
 	UPROPERTY()

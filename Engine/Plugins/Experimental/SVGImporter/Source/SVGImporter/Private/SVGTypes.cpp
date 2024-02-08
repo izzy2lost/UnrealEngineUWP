@@ -160,6 +160,11 @@ void FSVGShape::AddPolygon(const TArray<FVector>& InPoints)
 
 void FSVGShape::ApplyFillRule()
 {
+	// We currently apply a "polygon" version of the nonzero fill rule.
+	// The way these rules are originally defined for SVGs seems to be reliant on a 2D usage of SVG data.
+	// Our polygon based implementation cannot properly handle certain shape "cut" configurations.
+	// In particular, this applies to overlapping geometry e.g. multiple rectangles intersecting and "cutting" each other.
+
 	for (FSVGPathPolygon& SubShape : Polygons)
 	{
 		bool bShouldDrawFill = false;
@@ -171,7 +176,40 @@ void FSVGShape::ApplyFillRule()
 		{
 			bShouldDrawFill = true;
 		}
-		
+
 		SubShape.SetShouldBeDrawn(bShouldDrawFill);
+	}
+
+	// It may happen that "cut" shapes are defined before the shape they actually cut.
+	// In this case, if the "cut" shape is fully contained by the "cut-destination" shape
+	// we try to swap them, so that the geometry operations later on can properly cut the geometry.
+	// This might not account for 100% of cases (e.g. overlapping shapes, see comment above)
+
+	int32 CurrShapeCount = 0;
+	for (FSVGPathPolygon& SubShape : Polygons)
+	{
+		if (!SubShape.GetShouldBeDrawn())
+		{
+			int32 OtherShapeCount = 0;
+			for (FSVGPathPolygon& OtherShape : Polygons)
+			{
+				if (CurrShapeCount != OtherShapeCount)
+				{
+					if (OtherShape.GetPolygon().Contains(SubShape.GetPolygon().GetVertices()))
+					{
+						if (OtherShapeCount > CurrShapeCount)
+						{
+							// Let's swap the shapes. Like this, the cut shape will be handled after the shape it needs to cut.
+							// The boolean modifier will be able to actually cut the geometry.
+							Polygons.Swap(OtherShapeCount, CurrShapeCount);
+						}
+					}
+				}
+
+				OtherShapeCount++;
+			}
+		}
+
+		CurrShapeCount++;
 	}
 }
