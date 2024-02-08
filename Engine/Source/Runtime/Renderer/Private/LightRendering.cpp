@@ -660,7 +660,7 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 	Out.LightParameters.Direction = FVector3f(1, 0, 0);
 	Out.LightParameters.Tangent = FVector3f(1, 0, 0);
 	Out.LightParameters.SpotAngles = FVector2f(-2, 1);
-	Out.LightParameters.SpecularScale = 1.0f;
+	Out.LightParameters.SpecularScale = SimpleLight.SpecularScale;
 	Out.LightParameters.SourceRadius = 0.0f;
 	Out.LightParameters.SoftSourceRadius = 0.0f;
 	Out.LightParameters.SourceLength = 0.0f;
