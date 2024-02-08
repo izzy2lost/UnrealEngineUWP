@@ -5682,12 +5682,12 @@ void TNiagaraHlslTranslator<GraphBridge>::ParameterMapSet(const FParamMapSetNode
 				continue;
 			}
 
-			FText WriteErrorText;
-			if (!IsWriteAllowedForNamespace(Var, ActiveHistoryForFunctionCalls.GetCurrentUsageContext(), WriteErrorText))
-			{
-				Error(WriteErrorText, SetNode, Inputs[i].Pin);
-				continue;
-			}
+			//FText WriteErrorText;
+			//if (!IsWriteAllowedForNamespace(Var, ActiveHistoryForFunctionCalls.GetCurrentUsageContext(), WriteErrorText))
+			//{
+			//	Error(WriteErrorText, SetNode, Inputs[i].Pin);
+			//	continue;
+			//}
 
 			Var = ActiveHistoryForFunctionCalls.ResolveAliases(Var);
 			
