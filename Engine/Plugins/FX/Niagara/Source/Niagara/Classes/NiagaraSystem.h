@@ -395,6 +395,8 @@ public:
 	/** Are there any pending compile requests?*/
 	NIAGARA_API bool HasOutstandingCompilationRequests(bool bIncludingGPUShaders = false) const;
 
+	NIAGARA_API bool CompileRequestsShouldBlockGC() const;
+
 	/** Determines if this system has the supplied emitter as an editable and simulating emitter instance. */
 	NIAGARA_API bool ReferencesInstanceEmitter(const FVersionedNiagaraEmitter& Emitter) const;
 
