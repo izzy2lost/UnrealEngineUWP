@@ -103,6 +103,7 @@ private:
 	TArray<TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe>> NewRequests;
 	TArray<TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe>> ActiveRequests;
 	TArray<TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe>> CompletedRequests;
+	TArray<TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe>> CanceledRequests;
 };
 
 /***************************************************************************************************************************************************/
@@ -189,9 +190,9 @@ public:
 
 	void Cancel() override
 	{
+		bCancel = true;
 		FScopeLock lock(&NotificationLock);
 		NotificationCallback.Unbind();
-		bCancel = true;
 	}
 
 	IElectraHTTPStreamResponsePtr GetResponse() override
@@ -496,39 +497,32 @@ void FElectraHTTPStreamRequestGeneric::OnProcessRequestComplete(FHttpRequestPtr 
 		Response->HTTPResponseCode = InHttpResponse->GetResponseCode();
 		Response->EffectiveURL = EffectiveURL;
 	}
-	if (bInSucceeded)
+	if (!bInSucceeded)
 	{
-		CurrentState = EState::Finished;
-	}
-	else
-	{
-		if (!WasCanceled())
+		if (Response->HTTPResponseCode)
 		{
-			if (Response->HTTPResponseCode)
+			Response->SetErrorMessage(FString::Printf(TEXT("Failed with HTTP status %d"), Response->HTTPResponseCode));
+		}
+		else
+		{
+			EHttpFailureReason fr = InHttpResponse.IsValid() ? InHttpResponse->GetFailureReason() : EHttpFailureReason::Other;
+			switch(fr)
 			{
-				Response->SetErrorMessage(FString::Printf(TEXT("Failed with HTTP status %d"), Response->HTTPResponseCode));
-			}
-			else
-			{
-				EHttpFailureReason fr = InHttpResponse.IsValid() ? InHttpResponse->GetFailureReason() : EHttpFailureReason::Other;
-				switch(fr)
+				case EHttpFailureReason::ConnectionError:
 				{
-					case EHttpFailureReason::ConnectionError:
-					{
-						Response->SetErrorMessage(FString::Printf(TEXT("Failed due to connection error")));
-						break;
-					}
-					default:
-					{
-						Response->SetErrorMessage(FString::Printf(TEXT("Connection failed")));
-						break;
-					}
+					Response->SetErrorMessage(FString::Printf(TEXT("Failed due to connection error")));
+					break;
+				}
+				default:
+				{
+					Response->SetErrorMessage(FString::Printf(TEXT("Connection failed")));
+					break;
 				}
 			}
-			ElectraHTTPStreamGeneric::LogError(Response->GetErrorMessage());
 		}
-		CurrentState = EState::Finished;
+		ElectraHTTPStreamGeneric::LogError(Response->GetErrorMessage());
 	}
+	CurrentState = EState::Finished;
 
 	TSharedPtr<FElectraHTTPStreamGeneric, ESPMode::ThreadSafe> PinnedOwner = Owner.Pin();
 	if (PinnedOwner.IsValid())
@@ -539,6 +533,10 @@ void FElectraHTTPStreamRequestGeneric::OnProcessRequestComplete(FHttpRequestPtr 
 
 void FElectraHTTPStreamRequestGeneric::OnHeaderReceived(FHttpRequestPtr InSourceHttpRequest, const FString& InHeaderName, const FString& InHeaderValue)
 {
+	if (WasCanceled())
+	{
+		return;
+	}
 	double Now = FPlatformTime::Seconds();
 	if (CurrentState < EState::ReceivingHeaders)
 	{
@@ -563,6 +561,10 @@ void FElectraHTTPStreamRequestGeneric::OnHeaderReceived(FHttpRequestPtr InSource
 void FElectraHTTPStreamRequestGeneric::OnStatusCodeReceived(FHttpRequestPtr InSourceHttpRequest, int32 InHttpStatusCode)
 {
 	ReceivedHttpStatusCode = InHttpStatusCode;
+	if (WasCanceled())
+	{
+		return;
+	}
 	// For the lack of better knowledge pretend this is a 1.1 transfer.
 	FString HeaderValue = FString::Printf(TEXT("HTTP/1.1 %d"), InHttpStatusCode);
 	OnHeaderReceived(InSourceHttpRequest, FString(), HeaderValue);
@@ -570,6 +572,14 @@ void FElectraHTTPStreamRequestGeneric::OnStatusCodeReceived(FHttpRequestPtr InSo
 
 bool FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, int64 InLength)
 {
+	if (InDataPtr == nullptr || InLength < 0)
+	{
+		return false;
+	}
+	if (WasCanceled())
+	{
+		return true;
+	}
 	double Now = FPlatformTime::Seconds();
 	if (CurrentState < EState::ReadingResponseData)
 	{
@@ -589,6 +599,12 @@ bool FElectraHTTPStreamRequestGeneric::OnProcessRequestStream(void *InDataPtr, i
 	NotifyCallback(EElectraHTTPStreamNotificationReason::ReadData, InLength);
 
 	Response->TimeOfMostRecentReceive = Now;
+
+	TSharedPtr<FElectraHTTPStreamGeneric, ESPMode::ThreadSafe> PinnedOwner = Owner.Pin();
+	if (PinnedOwner.IsValid())
+	{
+		PinnedOwner->TriggerWorkSignal();
+	}
 	return true;
 }
 
@@ -696,11 +712,14 @@ uint32 FElectraHTTPStreamGeneric::Run()
 	{
 		TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe> Req = ActiveRequests.Pop();
 		Req->Terminate();
-		CompletedRequests.Emplace(MoveTemp(Req));
+		CanceledRequests.Emplace(MoveTemp(Req));
 	}
 	RequestLock.Unlock();
-	HandleCompletedRequests();
-
+	while(CompletedRequests.Num() || CanceledRequests.Num())
+	{
+		HandleCompletedRequests();
+		FPlatformProcess::Sleep(0.1f);
+	}
 	return 0;
 }
 
@@ -751,6 +770,9 @@ void FElectraHTTPStreamGeneric::UpdateActiveRequests()
 		else if (Request->WasCanceled())
 		{
 			Request->CancelRunning();
+			ActiveRequests.RemoveAt(i);
+			--i;
+			CanceledRequests.Emplace(MoveTemp(Request));
 		}
 		if (bRemoveRequest)
 		{
@@ -763,6 +785,17 @@ void FElectraHTTPStreamGeneric::UpdateActiveRequests()
 
 void FElectraHTTPStreamGeneric::HandleCompletedRequests()
 {
+	for(int32 i=0; i<CanceledRequests.Num(); ++i)
+	{
+		TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe> Request = CanceledRequests[i];
+		if (Request->HasCompleted())
+		{
+			CanceledRequests.RemoveAt(i);
+			--i;
+			CompletedRequests.Emplace(MoveTemp(Request));
+		}
+	}
+
 	if (CompletedRequests.Num())
 	{
 		TArray<TSharedPtr<FElectraHTTPStreamRequestGeneric, ESPMode::ThreadSafe>> TempRequests;
