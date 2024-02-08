@@ -385,7 +385,7 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			DirectoryNode root;
 			{
-				await using DedupeStorageWriter writer = new DedupeStorageWriter(store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxBlobSize = 1024 }));
+				await using DedupeBlobWriter writer = new DedupeBlobWriter(store.CreateBlobWriter(bundleOptions: new BundleOptions { MaxBlobSize = 1024 }));
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);

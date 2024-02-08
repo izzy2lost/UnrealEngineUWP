@@ -115,11 +115,21 @@ namespace EpicGames.Horde.Storage
 		/// Create a typed blob handle
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
+		/// <param name="blobRef">Existing blob reference</param>
+		/// <param name="options">Options for deserializing the target blob</param>
+		/// <returns>Handle to the blob</returns>
+		public static IBlobRef<T> Create<T>(IBlobRef blobRef, BlobSerializerOptions? options = null)
+			=> new BlobRefImpl<T>(blobRef.Hash, blobRef, options ?? BlobSerializerOptions.Default);
+
+		/// <summary>
+		/// Create a typed blob handle
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
 		/// <param name="hash">Hash of the blob</param>
 		/// <param name="handle">Imported blob interface</param>
 		/// <param name="options">Options for deserializing the target blob</param>
 		/// <returns>Handle to the blob</returns>
-		public static IBlobRef<T> Create<T>(IoHash hash, IBlobHandle handle, BlobSerializerOptions? options)
+		public static IBlobRef<T> Create<T>(IoHash hash, IBlobHandle handle, BlobSerializerOptions? options = null)
 			=> new BlobRefImpl<T>(hash, handle, options ?? BlobSerializerOptions.Default);
 	}
 

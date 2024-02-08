@@ -2,10 +2,13 @@
 
 using System;
 using System.ComponentModel;
+using System.IO;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Utilities;
@@ -45,20 +48,30 @@ namespace Horde.Server.Commands.Generate
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
 			// Create the local agent bundle
-			DirectoryReference bundleDir = DirectoryReference.Combine(ServerDir, "Tools", Id);
+			DirectoryReference bundleDir = DirectoryReference.Combine(ServerDir, "Tools");
 			DirectoryReference.CreateDirectory(bundleDir);
 
-			RefName refName = new RefName("latest");
+			RefName refName = new RefName(Id);
 			await using (BundleCache bundleCache = new BundleCache())
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
 					IBlobRef<DirectoryNode> dirNodeRef;
-					await using (IBlobWriter writer = client.CreateBlobWriter(refName))
+					await using (DedupeBlobWriter writer = client.CreateBlobWriter(refName).WithDedupe())
 					{
+						logger.LogInformation("Populating cache with existing refs...");
+						await PopulateCacheAsync(client, writer, bundleDir, CancellationToken.None);
+
+						logger.LogInformation("");
+						logger.LogInformation("Writing tool data for {ToolId}", refName);
 						DirectoryNode dirNode = new DirectoryNode();
 						await dirNode.AddFilesAsync(InputDir.ToDirectoryInfo(), writer);
 						dirNodeRef = await writer.WriteBlobAsync(dirNode);
+
+						logger.LogInformation("");
+						writer.GetStats().Print(logger);
+
+						logger.LogInformation("");
 					}
 					await client.WriteRefAsync(refName, dirNodeRef);
 				}
@@ -90,6 +103,23 @@ namespace Horde.Server.Commands.Generate
 			}
 
 			return 0;
+		}
+
+		static async Task PopulateCacheAsync(IStorageClient client, DedupeBlobWriter writer, DirectoryReference searchDir, CancellationToken cancellationToken)
+		{
+			foreach (RefName refName in FileStorageBackend.EnumerateRefs(searchDir))
+			{
+				IBlobRef? blobRef = await client.TryReadRefAsync(refName, cancellationToken: cancellationToken);
+				if (blobRef != null)
+				{
+					BlobData blobData = await blobRef.ReadBlobDataAsync(cancellationToken);
+					if (blobData.Type.Guid == DirectoryNode.BlobTypeGuid)
+					{
+						IBlobRef<DirectoryNode> directoryRef = BlobRef.Create<DirectoryNode>(blobRef);
+						await writer.AddToCacheAsync(directoryRef, cancellationToken);
+					}
+				}
+			}
 		}
 	}
 }

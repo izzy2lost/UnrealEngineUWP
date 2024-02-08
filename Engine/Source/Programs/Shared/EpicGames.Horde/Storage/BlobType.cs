@@ -19,11 +19,6 @@ namespace EpicGames.Horde.Storage
 		public const int NumBytes = 20;
 
 		/// <summary>
-		/// Blob type used to indicate a leaf node. Data is an opaque blob and has no references.
-		/// </summary>
-		public static BlobType Leaf { get; } = new BlobType("{1080B643-4A4D-8015-FBC2-BBAD818D6C58}", 1);
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
 		public BlobType(string guid, int version)

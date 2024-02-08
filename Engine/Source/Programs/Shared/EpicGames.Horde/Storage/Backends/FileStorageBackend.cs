@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -93,6 +95,19 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
+
+		/// <summary>
+		/// Enumerate all the refs in a file store
+		/// </summary>
+		/// <param name="rootDir">Root directory to search</param>
+		public static IEnumerable<RefName> EnumerateRefs(DirectoryReference rootDir)
+		{
+			foreach (FileReference refFile in DirectoryReference.EnumerateFiles(rootDir, "*.ref", SearchOption.AllDirectories))
+			{
+				string name = Path.GetFileNameWithoutExtension(refFile.MakeRelativeTo(rootDir)).Replace(Path.DirectorySeparatorChar, '/');
+				yield return new RefName(name);
+			}
+		}
 
 		#region Aliases
 
