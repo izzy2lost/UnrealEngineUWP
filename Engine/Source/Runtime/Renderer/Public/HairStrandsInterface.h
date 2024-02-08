@@ -397,6 +397,7 @@ public:
 	float LODBias = 0;			// Current LOD bias
 	bool bLODVisibility = true; // Enable/disable hair rendering for this component
 	bool bAutoLOD = false;
+	float AutoLODBias = 0;
 
 	// Active/used point/curved based on select continuous LOD
 	uint32 ContinuousLODPointCount = 0;

@@ -1113,6 +1113,15 @@ class URendererSettings : public UDeveloperSettings
 		uint32 bOrderedIndependentTransparencyEnable : 1;
 
 	/**
+	"Enable hair strands Auto LOD mode by default."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = HairStrands, meta = (
+		ConsoleVariable = "r.HairStrands.LODMode", DisplayName = "Enable Hair Strands 'Auto' LOD mode",
+		ToolTip = "Enable hair strands Auto LOD mode by default. Otherwise use Manual LOD mode. Auto LOD mode adapts hair curves based on screen coverage. Manual LOD mode relies on LODs manually setup per groom asset. This global behavior can be overridden per groom asset",
+		ConfigRestartRequired = true))
+	uint32 bUseHairStrandsAutoLODMode  : 1;
+
+	/**
 	"Skin cache allows a compute shader to skin once each vertex, save those results into a new buffer and reuse those calculations when later running the depth, base and velocity passes. This also allows opting into the 'recompute tangents' for skinned mesh instance feature. Disabling will reduce the number of shader permutations required per material. Changing this setting requires restarting the editor."
 	*/
 	UPROPERTY(config, EditAnywhere, Category = Optimizations, meta = (

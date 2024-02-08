@@ -85,6 +85,14 @@ static TAutoConsoleVariable<int32> GHairStrandsWarningLogVerbosity(
 static int32 GHairStrandsDDCLogEnable = 0;
 static FAutoConsoleVariableRef CVarHairStrandsDDCLogEnable(TEXT("r.HairStrands.DDCLog"), GHairStrandsDDCLogEnable, TEXT("Enable DDC logging for groom assets and groom binding assets"));
 
+static int32 GHairStrands_LODMode = 0;
+static FAutoConsoleVariableRef CVarHairStrands_LODMode(TEXT("r.HairStrands.LODMode"), GHairStrands_LODMode, TEXT("Enable hair strands Auto LOD mode by default. Otherwise use Manual LOD mode. Auto LOD mode adapts hair curves based on screen coverage. Manual LOD mode relies on LODs manually setup per groom asset. This global behavior can be overridden per groom asset."), ECVF_RenderThreadSafe);
+
+EGroomLODMode GetHairStrandsLODMode()
+{
+	return GHairStrands_LODMode > 0 ? EGroomLODMode::Auto : EGroomLODMode::Manual;
+}
+
 static int32 GHairStrandsSupportCompressedPosition = 0;
 static FAutoConsoleVariableRef CVarHairStrandsSupportCompressedPosition(TEXT("r.HairStrands.CompressedPosition"), GHairStrandsSupportCompressedPosition, TEXT("Optional compessed position"), ECVF_ReadOnly);
 
@@ -1602,7 +1610,14 @@ void UGroomAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 	}
 
 	const bool bHairStrandsRaytracingRadiusChanged = PropertyName == GET_MEMBER_NAME_CHECKED(FHairShadowSettings, HairRaytracingRadiusScale);
-	
+
+	// Fast path to only rebuild the proxies
+	if (PropertyName == UGroomAsset::GetAutoLODBiasMemberName())
+	{
+		FGroomComponentRecreateRenderStateContext Context(this);
+		return;
+	}
+
 	// By pass update if bStrandsInterpolationChanged has the resources have already been recreated
 	if (!bNeedRebuildDerivedData)
 	{
@@ -3832,3 +3847,16 @@ void UGroomAsset::ChangeFeatureLevel(ERHIFeatureLevel::Type In)
 	}
 }
 #endif
+
+
+GROOMASSET_DEFINE_MEMBER_NAME(LODMode)
+EGroomLODMode UGroomAsset::GetLODMode() const
+{
+	return LODMode == EGroomLODMode::Default ? GetHairStrandsLODMode() : LODMode;
+}
+
+GROOMASSET_DEFINE_MEMBER_NAME(AutoLODBias)
+float UGroomAsset::GetAutoLODBias() const
+{
+	return AutoLODBias;
+}

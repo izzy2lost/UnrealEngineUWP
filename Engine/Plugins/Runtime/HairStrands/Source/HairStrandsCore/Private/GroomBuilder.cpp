@@ -51,7 +51,18 @@ bool DoesHairStrandsSupportCompressedPosition();
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v14");
+	return TEXT("v15c");
+}
+
+namespace GroomBuilder_Voxelization
+{
+	struct FCoverageScale
+	{
+		float ScreenSize = 0;
+		float CoverageScale = 0;
+	};
+
+	void ComputeHairCoverageScale(const FHairStrandsDatas& In, TArray<FCoverageScale>& Out);
 }
 
 // For debug purpose
@@ -182,7 +193,7 @@ namespace HairStrandsBuilder
 	}
 
 	/** Build the bulk/packed datas for gpu rendering/simulation */
-	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding, uint32 InGroupFlags)
+	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, const TArray<GroomBuilder_Voxelization::FCoverageScale>& InCoverageScales, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding, uint32 InGroupFlags)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsBuilder::BuildBulkData);
 
@@ -768,6 +779,12 @@ namespace HairStrandsBuilder
 		for (const FHairStrandsCurveFormat::Type& Curve : OutPackedCurves)
 		{
 			OutBulkData.Header.CurveToPointCount.Add(Curve.PointOffset + Curve.PointCount);
+		}
+
+		OutBulkData.Header.CoverageScales.Reserve(InCoverageScales.Num());
+		for (const GroomBuilder_Voxelization::FCoverageScale& Scale : InCoverageScales)
+		{
+			OutBulkData.Header.CoverageScales.Add(Scale.CoverageScale);
 		}
 
 		// Stride datas
@@ -1596,7 +1613,7 @@ namespace HairInterpolationBuilder
 						
 						const FVector3f& SimPointPosition0 = SimStrandsData.StrandsPoints.PointsPosition[Desc.Index0 + SimOffset];
 						const FVector3f& SimPointPosition1 = SimStrandsData.StrandsPoints.PointsPosition[Desc.Index1 + SimOffset];
-						const float Weight = 1.0f / FMath::Max(MinWeightDistance, FVector3f::Distance(RenPointPosition, FMath::Lerp(SimPointPosition0, SimPointPosition1, Desc.T)));
+						const float Weight = 1.0f / FMath::Max(MinWeightDistance, FVector3f::Distance(RenPointPosition, FMath::LerpStable(SimPointPosition0, SimPointPosition1, Desc.T)));
 
 						InterpolationData.PointSimIndices[PointGlobalIndex][KIndex] = Desc.Index0/* + SimOffset*/;
 						InterpolationData.PointSimLerps[PointGlobalIndex][KIndex] = Desc.T;
@@ -2389,8 +2406,11 @@ void FGroomBuilder::BuildBulkData(
 	FHairStrandsBulkData& OutBulkData, 
 	bool bAllowTranscoding)
 {
+	const bool bIsNotGuide = bAllowTranscoding;
+
 	OutBulkData.Reset();
 
+	// 1. Initialize curve seed
 	const int32 NumCurves = InData.GetNumCurves();
 	FRandomStream Random;
 	Random.Initialize(InInfo.GroupID);
@@ -2400,7 +2420,23 @@ void FGroomBuilder::BuildBulkData(
 	{
 		CurveSeeds[Index] = Random.RandHelper(255);
 	}
-	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, OutBulkData, bAllowTranscoding, InInfo.Flags);
+
+	// 2. Compute coverage scaling based on screen size & decimation
+	TArray<GroomBuilder_Voxelization::FCoverageScale> CoverageScales;
+	if (bIsNotGuide)
+	{
+		GroomBuilder_Voxelization::ComputeHairCoverageScale(InData, CoverageScales);
+	}
+	else
+	{
+		GroomBuilder_Voxelization::FCoverageScale Dummy;
+		Dummy.ScreenSize = 1;
+		Dummy.CoverageScale = 1;
+		CoverageScales.Init(Dummy, 10);
+	}
+
+	// 3. Build bulk data
+	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, CoverageScales, OutBulkData, bAllowTranscoding, InInfo.Flags);
 }
 
 void FGroomBuilder::BuildInterplationData(
@@ -2761,11 +2797,11 @@ struct FHairGrid
 	TArray<FVoxel> Voxels;
 };
 
-static void Voxelize(const FHairDescriptionGroups& InGroups, FHairGrid& Out)
+static void AllocateVoxels(const FBox3f& InBoundingBox, FHairGrid& Out)
 {
 	// 1. Compute the overal bound of for all hair groups
-	Out.MinBound = InGroups.Bounds.GetBox().Min;
-	Out.MaxBound = InGroups.Bounds.GetBox().Max;
+	Out.MinBound = InBoundingBox.Min;
+	Out.MaxBound = InBoundingBox.Max;
 	Out.Resolution = FIntVector::ZeroValue;
 
 	// 2. Based on the bound, determine the voxel grid resolution
@@ -2787,65 +2823,80 @@ static void Voxelize(const FHairDescriptionGroups& InGroups, FHairGrid& Out)
 		Out.MaxBound = Out.MinBound + FVector3f(Out.Resolution) * Out.VoxelSize;
 	}
 	Out.Voxels.SetNum(FMath::Max(Out.Resolution.X * Out.Resolution.Y * Out.Resolution.Z, 1));
+}
 
+static void VoxelizeCurves(const FHairStrandsDatas& InData, uint32 InGroupIndex, FHairGrid& Out)
+{
 	// 3. Voxelization curves
-	uint32 GroupIndex = 0;
-	for (const FHairDescriptionGroup& Group : InGroups.HairGroups)
+	// Local copy of the hair strands data, and build the derived data so that curve offset are available
+	FHairStrandsDatas In = InData;
+	HairStrandsBuilder::BuildInternalData(In);
+
+	const uint32 Attributes = In.GetAttributes();
+
+	// Fill in voxel (TODO: make it parallel)
+	for (uint32 CurveIt = 0, CurveCount = In.GetNumCurves(); CurveIt < CurveCount; ++CurveIt)
 	{
-		// Local copy of the hair strands data, and build the derived data so that curve offset are available
-		FHairStrandsDatas In = Group.Strands;
-		HairStrandsBuilder::BuildInternalData(In);
+		const uint32 PointOffset = In.StrandsCurves.CurvesOffset[CurveIt];
+		const uint32 PointCount = In.StrandsCurves.CurvesCount[CurveIt];
 
-		const uint32 Attributes = In.GetAttributes();
-
-		// Fill in voxel (TODO: make it parallel)
-		for (uint32 CurveIt = 0, CurveCount = In.GetNumCurves(); CurveIt < CurveCount; ++CurveIt)
+		uint32 PrevLinearCoord = ~0;
+		for (uint32 PointIndex = 0; PointIndex < PointCount - 1; ++PointIndex)
 		{
-			const uint32 PointOffset = In.StrandsCurves.CurvesOffset[CurveIt];
-			const uint32 PointCount = In.StrandsCurves.CurvesCount[CurveIt];
+			const uint32 Index0 = PointOffset + PointIndex;
+			const uint32 Index1 = PointOffset + PointIndex + 1;
+			const FVector3f& P0 = In.StrandsPoints.PointsPosition[Index0];
+			const FVector3f& P1 = In.StrandsPoints.PointsPosition[Index1];
+			const float R0 = In.StrandsPoints.PointsRadius[Index0];
+			const float R1 = In.StrandsPoints.PointsRadius[Index1];
+			const FVector3f C0 = HasHairAttribute(Attributes, EHairAttribute::Color) ? FVector3f(In.StrandsPoints.PointsBaseColor[Index0].R, In.StrandsPoints.PointsBaseColor[Index0].G, In.StrandsPoints.PointsBaseColor[Index0].B) : FVector3f(0);
+			const FVector3f C1 = HasHairAttribute(Attributes, EHairAttribute::Color) ? FVector3f(In.StrandsPoints.PointsBaseColor[Index1].R, In.StrandsPoints.PointsBaseColor[Index1].G, In.StrandsPoints.PointsBaseColor[Index1].B) : FVector3f(0);
+			const float Rough0 = HasHairAttribute(Attributes, EHairAttribute::Roughness) ? In.StrandsPoints.PointsRoughness[Index0] : 0;
+			const float Rough1 = HasHairAttribute(Attributes, EHairAttribute::Roughness) ? In.StrandsPoints.PointsRoughness[Index1] : 0;
+			const FVector3f Segment = P1 - P0;
 
-			uint32 PrevLinearCoord = ~0;
-			for (uint32 PointIndex = 0; PointIndex < PointCount - 1; ++PointIndex)
+			// This is a coarse/non-conservative voxelization, by ray-marching segment, instead of walking intersected voxels
+			const float Length = Segment.Size();
+			const uint32 StepCount = FMath::CeilToInt(Length / Out.VoxelSize);
+			for (uint32 StepIt = 0; StepIt < StepCount + 1; ++StepIt)
 			{
-				const uint32 Index0 = PointOffset + PointIndex;
-				const uint32 Index1 = PointOffset + PointIndex + 1;
-				const FVector3f& P0 = In.StrandsPoints.PointsPosition[Index0];
-				const FVector3f& P1 = In.StrandsPoints.PointsPosition[Index1];
-				const float R0 = In.StrandsPoints.PointsRadius[Index0];
-				const float R1 = In.StrandsPoints.PointsRadius[Index1];
-				const FVector3f C0 = HasHairAttribute(Attributes, EHairAttribute::Color) ? FVector3f(In.StrandsPoints.PointsBaseColor[Index0].R, In.StrandsPoints.PointsBaseColor[Index0].G, In.StrandsPoints.PointsBaseColor[Index0].B) : FVector3f(0);
-				const FVector3f C1 = HasHairAttribute(Attributes, EHairAttribute::Color) ? FVector3f(In.StrandsPoints.PointsBaseColor[Index1].R, In.StrandsPoints.PointsBaseColor[Index1].G, In.StrandsPoints.PointsBaseColor[Index1].B) : FVector3f(0);
-				const float Rough0 = HasHairAttribute(Attributes, EHairAttribute::Roughness) ? In.StrandsPoints.PointsRoughness[Index0] : 0;
-				const float Rough1 = HasHairAttribute(Attributes, EHairAttribute::Roughness) ? In.StrandsPoints.PointsRoughness[Index1] : 0;
-				const FVector3f Segment = P1 - P0;
-
-				// This is a coarse/non-conservative voxelization, by ray-marching segment, instead of walking intersected voxels
-				const float Length = Segment.Size();
-				const uint32 StepCount = FMath::CeilToInt(Length / Out.VoxelSize);
-				for (uint32 StepIt = 0; StepIt < StepCount + 1; ++StepIt)
+				const float T = float(StepIt) / float(StepCount);
+				const FVector3f P = P0 + Segment * T;
+				const FIntVector Coord = ToCoord(P, Out.Resolution, Out.MinBound, Out.VoxelSize);
+				const uint32 LinearCoord = ToLinearCoord(Coord, Out.Resolution);
+				if (LinearCoord != PrevLinearCoord)
 				{
-					const float T = float(StepIt) / float(StepCount);
-					const FVector3f P = P0 + Segment * T;
-					const FIntVector Coord = ToCoord(P, Out.Resolution, Out.MinBound, Out.VoxelSize);
-					const uint32 LinearCoord = ToLinearCoord(Coord, Out.Resolution);
-					if (LinearCoord != PrevLinearCoord)
-					{
-						FHairGrid::FCurve RCurve;
-						RCurve.CurveIndex = CurveIt;
-						RCurve.GroupIndex = GroupIndex;
-						RCurve.Radius = FMath::Lerp(R0, R1, T);
-						RCurve.BaseColor = FVector3f(FMath::Lerp(C0.X, C1.X, T), FMath::Lerp(C0.Y, C1.Y, T), FMath::Lerp(C0.Z, C1.Z, T));
-						RCurve.Roughness = FMath::Lerp(Rough0, Rough1, T);
-						Out.Voxels[LinearCoord].VoxelCurves.Add(RCurve);
+					FHairGrid::FCurve RCurve;
+					RCurve.CurveIndex = CurveIt;
+					RCurve.GroupIndex = InGroupIndex;
+					RCurve.Radius = FMath::LerpStable(R0, R1, T);
+					RCurve.BaseColor = FVector3f(FMath::LerpStable(C0.X, C1.X, T), FMath::LerpStable(C0.Y, C1.Y, T), FMath::LerpStable(C0.Z, C1.Z, T));
+					RCurve.Roughness = FMath::LerpStable(Rough0, Rough1, T);
+					Out.Voxels[LinearCoord].VoxelCurves.Add(RCurve);
 
-						PrevLinearCoord = LinearCoord;
-					}
+					PrevLinearCoord = LinearCoord;
 				}
 			}
 		}
+	}
+}
 
+static void Voxelize(const FHairDescriptionGroups& InGroups, FHairGrid& Out)
+{
+	AllocateVoxels(InGroups.Bounds.GetBox(), Out);
+	
+	uint32 GroupIndex = 0;
+	for (const FHairDescriptionGroup& Group : InGroups.HairGroups)
+	{
+		VoxelizeCurves(Group.Strands, GroupIndex, Out);
 		++GroupIndex;
 	}
+}
+
+static void Voxelize(const FHairStrandsDatas& InData, FHairGrid& Out)
+{
+	AllocateVoxels(InData.BoundingBox, Out);
+	VoxelizeCurves(InData, 0u /*GroupIndex not used*/, Out);
 }
 
 FORCEINLINE void SearchCell(const FHairStrandsVoxelData& In, const FIntVector& C, FHairStrandsVoxelData::FData& Out)
@@ -2854,6 +2905,168 @@ FORCEINLINE void SearchCell(const FHairStrandsVoxelData& In, const FIntVector& C
 	if (In.Datas[I].GroupIndex != FHairStrandsVoxelData::InvalidGroupIndex)
 	{
 		Out = In.Datas[I];
+	}
+}
+
+struct FVoxelCoverage
+{
+	uint32 CurveCount = 0;
+	float AvgRadius = 0;
+	float Coverage = 0;
+};
+
+static void ComputeCoverage(const float InGridVoxelSize, const TArray<GroomBuilder_Voxelization::FHairGrid::FVoxel>& InNonEmptyVoxels, TArray<FVoxelCoverage>& OutVoxelCoverages)
+{	
+	const uint32 VoxelCount = InNonEmptyVoxels.Num();
+	OutVoxelCoverages.SetNum(VoxelCount);
+
+	#if 1
+	ParallelFor(VoxelCount, 
+	[
+		InGridVoxelSize,
+		&InNonEmptyVoxels,
+		&OutVoxelCoverages
+	] (uint32 VoxelIt) 
+	#else
+	for (uint32 VoxelIt=0;VoxelIt<VoxelCount;++VoxelIt)
+	#endif
+	{
+		const GroomBuilder_Voxelization::FHairGrid::FVoxel& Voxel = InNonEmptyVoxels[VoxelIt];
+		FVoxelCoverage& Out = OutVoxelCoverages[VoxelIt];
+
+		Out.CurveCount = Voxel.VoxelCurves.Num();
+		for (const GroomBuilder_Voxelization::FHairGrid::FCurve& Curve : Voxel.VoxelCurves)
+		{
+			const float NormalizedRadius = Curve.Radius / InGridVoxelSize;
+			Out.AvgRadius += NormalizedRadius;
+		}
+		Out.AvgRadius /= FMath::Max(1u, Out.CurveCount);
+		Out.Coverage = GetHairCoverage(Out.CurveCount, Out.AvgRadius);
+	});
+}
+
+static float RemoveCurveAndComputeCoverageScaling(
+	const float InGridVoxelSize,
+	TArray<GroomBuilder_Voxelization::FHairGrid::FVoxel>& InNonEmptyVoxels,
+	const TArray<FVoxelCoverage>& InReferenceCoverage, 
+	uint32 InCurveIndexStart,
+	uint32 InCurveIndexEnd)
+{
+	check(InNonEmptyVoxels.Num() == InReferenceCoverage.Num());
+
+	// Certain platform don't support atomic<float>. To support these, we rely on fixed-point math for coverage computation.
+	// The (Radius/Count -> Coverage) LUT has precision up to 6 decimals, so quantizing to 10e6 should be enough
+	const uint64 FixedPointCoverageScale = 1000000u;
+	std::atomic<uint64> uAvgCoverage = 0;
+	//std::atomic<float> AvgCoverage = 0;
+
+	const uint32 VoxelCount = InNonEmptyVoxels.Num();
+	#if 1
+	ParallelFor(VoxelCount, 
+	[
+		InGridVoxelSize,
+		&InNonEmptyVoxels,
+		&InReferenceCoverage,
+		InCurveIndexStart,
+		InCurveIndexEnd,
+		FixedPointCoverageScale,
+		&uAvgCoverage
+	] (uint32 VoxelIt) 
+	#else
+	for (uint32 VoxelIt=0;VoxelIt<VoxelCount;++VoxelIt)
+	#endif
+	{
+		GroomBuilder_Voxelization::FHairGrid::FVoxel& Voxel = InNonEmptyVoxels[VoxelIt];
+
+		uint32 CurveCount = 0;
+		float AvgRadius = 0;
+
+		uint32 RemoveCount = 0;
+		for (GroomBuilder_Voxelization::FHairGrid::FCurve& Curve : Voxel.VoxelCurves)
+		{
+			if (InCurveIndexStart <= Curve.CurveIndex  && Curve.CurveIndex <= InCurveIndexEnd)
+			{
+				RemoveCount++;
+			}
+			else
+			{
+				CurveCount++;
+				const float NormalizedRadius = Curve.Radius / InGridVoxelSize;
+				AvgRadius += NormalizedRadius;
+			}
+		}
+
+		AvgRadius /= FMath::Max(CurveCount, 1u);
+
+		const float VoxelCoverage = GetHairCoverage(CurveCount, AvgRadius);
+		const float CoverageScale = VoxelCoverage > 0 ? InReferenceCoverage[VoxelIt].Coverage / VoxelCoverage : 1.f;
+		//AvgCoverage.fetch_add(CoverageScale, std::memory_order_relaxed);
+		//AvgCoverage += CoverageScale;
+
+		const uint64 uCoverageScale = CoverageScale * FixedPointCoverageScale;
+		uAvgCoverage  += uCoverageScale;
+
+		if (RemoveCount > 0)
+		{
+			Voxel.VoxelCurves.RemoveAll([InCurveIndexStart, InCurveIndexEnd](GroomBuilder_Voxelization::FHairGrid::FCurve& Curve) 
+			{ 
+				return InCurveIndexStart <= Curve.CurveIndex && Curve.CurveIndex <= InCurveIndexEnd;
+			});
+		}
+	});
+
+	const float AvgCoverage = uAvgCoverage / float(FixedPointCoverageScale);
+	return AvgCoverage / float(FMath::Max(VoxelCount, 1u));
+}
+
+void ComputeHairCoverageScale(const FHairStrandsDatas& In, TArray<FCoverageScale>& OutCoverageScales)
+{
+	// 1. Voxelize curves
+	GroomBuilder_Voxelization::FHairGrid Grid;
+	GroomBuilder_Voxelization::Voxelize(In, Grid);
+
+	// 2. Collect non-empty voxels
+	TArray<GroomBuilder_Voxelization::FHairGrid::FVoxel> NonEmptyVoxels;
+	NonEmptyVoxels.Reserve(Grid.Voxels.Num());
+	for (const GroomBuilder_Voxelization::FHairGrid::FVoxel& Voxel : Grid.Voxels)
+	{
+		if (Voxel.VoxelCurves.Num() > 0)
+		{
+			NonEmptyVoxels.Add(Voxel);
+		}
+	}
+
+	// 3. Compute reference coverage
+	TArray<FVoxelCoverage> ReferenceCoverage;
+	ComputeCoverage(Grid.VoxelSize, NonEmptyVoxels, ReferenceCoverage);
+
+	// 4. Compute coverage scale for every X curves removed
+	//    Compute scale for each decimated percent (i.e. 100 buckets)
+	const uint32 CurveCount = In.GetNumCurves();
+	uint32 BucketCount = FMath::Min(100u, CurveCount);
+	const uint32 BucketSize = FMath::DivideAndRoundUp(CurveCount, BucketCount);
+	BucketCount = FMath::DivideAndRoundUp(CurveCount, BucketSize);
+
+	check(BucketSize > 0);
+	check(BucketCount > 0);
+
+	FCoverageScale DefaultValue;
+	DefaultValue.ScreenSize = 1;
+	DefaultValue.CoverageScale = 1;
+	OutCoverageScales.Init(DefaultValue, BucketCount);
+	if (BucketCount > 1u)
+	{
+		float MaxCoverageScale = 1.f;
+		for (int32 BucketIt = BucketCount-1; BucketIt >= 0; --BucketIt)
+		{
+			const uint32 CurveIndexStart =  BucketIt * BucketSize;
+			const uint32 CurveIndexEnd   = FMath::Min(CurveCount-1u, (BucketIt+1) * BucketSize - 1u);
+			const uint32 CurveBucketCount = (CurveIndexEnd-CurveIndexStart)+1;
+			const float CoverageScale = RemoveCurveAndComputeCoverageScaling(Grid.VoxelSize, NonEmptyVoxels, ReferenceCoverage, CurveIndexStart, CurveIndexEnd);
+			MaxCoverageScale = FMath::Max(CoverageScale, MaxCoverageScale);
+			OutCoverageScales[BucketIt].CoverageScale = MaxCoverageScale;
+			OutCoverageScales[BucketIt].ScreenSize = 1.f; // TODO: compute the screen size / pixel area at which this decimation rate should be applied
+		}
 	}
 }
 

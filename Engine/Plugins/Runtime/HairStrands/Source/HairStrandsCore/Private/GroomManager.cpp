@@ -55,11 +55,19 @@ static int32 GHairStrands_Streaming_StreamOutThreshold = 2;
 static FAutoConsoleVariableRef CVarHairStrands_Streaming_StreamOutThreshold(TEXT("r.HairStrands.Streaming.StreamOutThreshold"), GHairStrands_Streaming_StreamOutThreshold, TEXT("Threshold used for streaming out data. In curve page. Default:2."));
 
 static int32 GHairStrands_AutoLOD_Force = 0;
-static float GHairStrands_AutoLOD_Scale = 1.f;
-static float GHairStrands_AutoLOD_Bias = 0.f;
-static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Force(TEXT("r.HairStrands.AutoLOD.Force"), GHairStrands_AutoLOD_Force, TEXT("Force all groom to use Auto LOD (experimental)."), ECVF_RenderThreadSafe);
-static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Scale(TEXT("r.HairStrands.AutoLOD.Scale"), GHairStrands_AutoLOD_Scale, TEXT("Hair strands Auto LOD rate at which curves get decimated based on screen coverage."), ECVF_RenderThreadSafe);
-static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Bias(TEXT("r.HairStrands.AutoLOD.Bias"), GHairStrands_AutoLOD_Bias, TEXT("Hair strands Auto LOD screen size bias at which curves get decimated."), ECVF_RenderThreadSafe);
+static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Force(TEXT("r.HairStrands.AutoLOD.Force"), GHairStrands_AutoLOD_Force, TEXT("Force Auto LOD on all grooms. Used for debugging purpose."), ECVF_RenderThreadSafe);
+static float GHairStrands_AutoLOD_Bias = 0.1f;
+static FAutoConsoleVariableRef CVarHairStrands_AutoLOD_Bias(TEXT("r.HairStrands.AutoLOD.Bias"), GHairStrands_AutoLOD_Bias, TEXT("Global bias for Auto LOD on all grooms. Used for debugging purpose."), ECVF_RenderThreadSafe);
+
+bool UseHairStrandsForceAutoLOD()
+{
+	return GHairStrands_AutoLOD_Force > 0;
+}
+
+float GetHairStrandsAutoLODBias()
+{
+	return FMath::Clamp(GHairStrands_AutoLOD_Bias, 0.f, 1.f);
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Foward declaration
@@ -106,11 +114,6 @@ EHairBufferSwapType GetHairSwapBufferType()
 	case 3: return EHairBufferSwapType::RenderFrame;
 	}
 	return EHairBufferSwapType::EndOfFrame;
-}
-
-bool IsHairStrandsForceAutoLODEnabled()
-{
-	return GHairStrands_AutoLOD_Force > 0;
 }
 
 uint32 GetStreamingCurvePage()
@@ -2361,17 +2364,17 @@ static FVector2f ComputeProjectedScreenPos(const FVector& InWorldPos, const FSce
 	return FVector2f(ScreenPos.X, ScreenPos.Y);
 }
 
-static float ComputeActiveCurveCoverageScale(uint32 InAvailableCurveCount, uint32 InRestCurveCount)
+static float ComputeActiveCurveCoverageScale(const FHairStrandsBulkData& InData, uint32 InAvailableCurveCount)
 {
-	// Compensate lost in curve by a coverage scale increase
-	const float CurveRatio = InAvailableCurveCount / float(InRestCurveCount);
-	return 1.f/FMath::Max(CurveRatio, 0.01f);
+	const uint32 RestCurveCount = InData.Header.CurveCount;
+	const float CurveRatio = InAvailableCurveCount / float(RestCurveCount);
+	return InData.GetCoverageScale(CurveRatio);
 }
 
-static uint32 ComputeActiveCurveCount(float InScreenSize, uint32 InCurveCount, uint32 InClusterCount)
+static uint32 ComputeActiveCurveCount(float InScreenSize, float InAutoLODBias, uint32 InCurveCount, uint32 InClusterCount)
 {
-	const float Power = FMath::Max(0.1f, GHairStrands_AutoLOD_Scale);
-	const float ScreenSizeBias = FMath::Clamp(GHairStrands_AutoLOD_Bias, 0.f, 1.f);
+	const float Power = 1.f;  // This could be exposed per asset
+	const float ScreenSizeBias = FMath::Clamp(FMath::Max(InAutoLODBias, GetHairStrandsAutoLODBias()), 0.f, 1.f);
 	uint32 OutCurveCount = InCurveCount * FMath::Pow(FMath::Clamp(InScreenSize + ScreenSizeBias, 0.f, 1.0f), Power);
 	// Ensure there is at least 1 curve per cluster
 	OutCurveCount = FMath::Max(InClusterCount, OutCurveCount);
@@ -2473,9 +2476,9 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 	if (Instance->Strands.ClusterResource && Instance->Strands.RestResource)
 	{
 		uint32 EffectiveCurveCount = 0;
-		if (bNeedAutoLOD && (Instance->HairGroupPublicData->bAutoLOD || IsHairStrandsForceAutoLODEnabled()))
+		if (bNeedAutoLOD && (Instance->HairGroupPublicData->bAutoLOD || UseHairStrandsForceAutoLOD()))
 		{
-			EffectiveCurveCount = ComputeActiveCurveCount(Out.ContinuousLODScreenSize, Instance->HairGroupPublicData->RestCurveCount, Instance->HairGroupPublicData->ClusterCount);
+			EffectiveCurveCount = ComputeActiveCurveCount(Out.ContinuousLODScreenSize, Instance->HairGroupPublicData->AutoLODBias, Instance->HairGroupPublicData->RestCurveCount, Instance->HairGroupPublicData->ClusterCount);
 			Out.HairLODIndex = MinLODIndexWithStrands;
 		}
 		else
@@ -2486,7 +2489,7 @@ static FHairLOD ComputeHairLODIndex(const FHairGroupInstance* Instance, const TA
 
 		Out.ContinuousLODCurveCount = EffectiveCurveCount;
 		Out.ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
-		Out.ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(EffectiveCurveCount, Instance->HairGroupPublicData->RestCurveCount);
+		Out.ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(Instance->Strands.GetData(), EffectiveCurveCount);
 	}
 
 	return Out;
@@ -2707,7 +2710,7 @@ static bool SelectValidLOD(
 		const uint32 EffectiveCurveCount = FMath::Min(ResourceStatus.AvailableCurveCount, Instance->HairGroupPublicData->ContinuousLODCurveCount);
 		Instance->HairGroupPublicData->ContinuousLODCurveCount = EffectiveCurveCount;
 		Instance->HairGroupPublicData->ContinuousLODPointCount = EffectiveCurveCount > 0 ? Instance->Strands.GetData().Header.CurveToPointCount[EffectiveCurveCount - 1] : 0;
-		Instance->HairGroupPublicData->ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(EffectiveCurveCount, Instance->HairGroupPublicData->RestCurveCount);
+		Instance->HairGroupPublicData->ContinuousLODCoverageScale = ComputeActiveCurveCoverageScale(Instance->Strands.GetData(), EffectiveCurveCount);
 		check(Instance->HairGroupPublicData->ContinuousLODPointCount <= Instance->HairGroupPublicData->RestPointCount);
 	}
 	return true;

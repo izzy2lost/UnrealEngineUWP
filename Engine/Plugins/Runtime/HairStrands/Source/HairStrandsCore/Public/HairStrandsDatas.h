@@ -622,6 +622,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 	bool IsValid() const { return Header.CurveCount > 0 && Header.PointCount > 0; }
 	void Reset();
 	virtual void ResetLoadedSize() override;
+	float GetCoverageScale(float InCurvePercentage /*[0..1]*/) const;
 
 	uint32 GetNumCurves() const { return Header.CurveCount;  };
 	uint32 GetNumPoints() const { return Header.PointCount; };
@@ -656,6 +657,9 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 
 		// Map 'curve' count to 'point' count (used for CLOD)
 		TArray<uint32> CurveToPointCount;
+
+		// Coverage scale
+		TArray<float> CoverageScales;
 
 		// Data transcoding parameters
 		struct FTranscoding

@@ -2743,7 +2743,8 @@ void UGroomComponent::InitResources(bool bIsBindingReloading)
 			HairGroupInstance->HairGroupPublicData->SetLODScreenSizes(CPULODScreenSize);
 			HairGroupInstance->HairGroupPublicData->SetLODVisibilities(LODVisibility);
 			HairGroupInstance->HairGroupPublicData->SetLODGeometryTypes(LODGeometryTypes);
-			HairGroupInstance->HairGroupPublicData->bAutoLOD = GroomAsset->GetHairGroupsLOD()[GroupIt].LODType == EGroomLODType::Auto;
+			HairGroupInstance->HairGroupPublicData->bAutoLOD = GroomAsset->GetLODMode() == EGroomLODMode::Auto;
+			HairGroupInstance->HairGroupPublicData->AutoLODBias = GroomAsset->GetAutoLODBias();
 		}
 
 		FHairResourceName ResourceName(GetFName(), GroupIt);

@@ -654,14 +654,14 @@ void FGroomCustomAssetEditorToolkit::InitCustomAssetEditor(const EToolkitMode::T
 		FGroomCustomAssetEditorToolkit* LocalToolKit = this;
 		auto InvalidateDetailViews = [LocalToolKit]()
 		{
-			LocalToolKit->DetailView_LODProperties->ForceRefresh();
-			LocalToolKit->DetailView_InterpolationProperties->ForceRefresh();
-			LocalToolKit->DetailView_RenderingProperties->ForceRefresh();
-			LocalToolKit->DetailView_PhysicsProperties->ForceRefresh();
-			LocalToolKit->DetailView_CardsProperties->ForceRefresh();
-			LocalToolKit->DetailView_MeshesProperties->ForceRefresh();
-			LocalToolKit->DetailView_MaterialProperties->ForceRefresh();
-			LocalToolKit->DetailView_BindingProperties->ForceRefresh();
+			if (LocalToolKit->DetailView_LODProperties)				{ LocalToolKit->DetailView_LODProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_InterpolationProperties)	{ LocalToolKit->DetailView_InterpolationProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_RenderingProperties)		{ LocalToolKit->DetailView_RenderingProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_PhysicsProperties)			{ LocalToolKit->DetailView_PhysicsProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_CardsProperties)			{ LocalToolKit->DetailView_CardsProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_MeshesProperties)			{ LocalToolKit->DetailView_MeshesProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_MaterialProperties)		{ LocalToolKit->DetailView_MaterialProperties->ForceRefresh(); }
+			if (LocalToolKit->DetailView_BindingProperties)			{ LocalToolKit->DetailView_BindingProperties->ForceRefresh(); }
 		};
 
 		PropertyListenDelegates.Add(GroomAsset->GetOnGroomAssetResourcesChanged().AddLambda(InvalidateDetailViews));
