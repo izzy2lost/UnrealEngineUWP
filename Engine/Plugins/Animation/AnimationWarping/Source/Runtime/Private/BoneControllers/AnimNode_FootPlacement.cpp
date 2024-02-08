@@ -94,7 +94,7 @@ namespace UE::Anim::FootPlacement
 		MovementComponent = CharacterOwner ? CharacterOwner->GetCharacterMovement() : nullptr;
 		OwningComponentToWorld = OwningComponent->GetComponentToWorld();
 
-		ApproachDirWS = OwningComponentToWorld.TransformVector(ApproachDirCS);
+		ApproachDirWS = OwningComponentToWorld.TransformVectorNoScale(ApproachDirCS);
 	
 		RootMotionTransformDelta = FTransform::Identity;
 		if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
@@ -528,7 +528,7 @@ void FAnimNode_FootPlacement::UpdatePlantingPlaneInterpolation(
 		UE::Anim::FootPlacement::FindPlantPlane(Context, TraceSettings, FootTransformWS.GetLocation(), true, InOutPlantPlane, ImpactLocationWS);
 	}
 
-	if (InterpolationSettings.bEnableFloorInterpolation)
+	if (InterpolationSettings.bEnableFloorInterpolation && !bIsFirstUpdate)
 	{
 		FVector CurrPlaneIntersection = UE::Anim::FootPlacement::PointDirectionPlaneIntersection(
 			FootTransformWS.GetLocation(),
