@@ -258,7 +258,7 @@ namespace Horde.Server.Tools
 
 		static GetToolResponse CreateGetToolResponse(ITool tool, List<GetToolDeploymentResponse> deployments)
 		{
-			return new GetToolResponse(tool.Id, tool.Config.Name, tool.Config.Description, deployments, tool.Config.Public, tool.Config.ShowInUgs);
+			return new GetToolResponse(tool.Id, tool.Config.Name, tool.Config.Description, tool.Config.ParentId, deployments, tool.Config.Public, tool.Config.ShowInUgs);
 		}
 
 		/// <summary>

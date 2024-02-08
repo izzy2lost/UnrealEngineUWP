@@ -43,6 +43,11 @@ namespace Horde.Server.Tools
 		public string Description { get; set; }
 
 		/// <summary>
+		/// Tool id to nest this tool under
+		/// </summary>
+		public ToolId? ParentId { get; set; }
+
+		/// <summary>
 		/// Whether this tool should be exposed for download on a public endpoint without authentication
 		/// </summary>
 		public bool Public { get; set; }

@@ -13,10 +13,11 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Id">Unique identifier for the tool</param>
 	/// <param name="Name">Name of the tool</param>
 	/// <param name="Description">Description for the tool</param>
+	/// <param name="ParentId">The parent tool id</param>
 	/// <param name="Deployments">Current deployments of this tool, sorted by time.</param>
 	/// <param name="Public">Whether this tool should be exposed for download on a public endpoint without authentication</param>
 	/// <param name="ShowInUgs">Whether to show this tool for download inside UGS</param>
-	public record class GetToolResponse(ToolId Id, string Name, string Description, List<GetToolDeploymentResponse> Deployments, bool Public, bool ShowInUgs);
+	public record class GetToolResponse(ToolId Id, string Name, string Description, ToolId? ParentId, List<GetToolDeploymentResponse> Deployments, bool Public, bool ShowInUgs);
 
 	/// <summary>
 	/// Summary for a particular tool.
