@@ -13,13 +13,13 @@
 #include "JsonImporterHelper.h"
 #include "FusionPatchJsonImporter.h"
 
+#include "Misc/FeedbackContext.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/Paths.h"
 #include "Misc/PackageName.h"
 #include "EditorFramework/AssetImportData.h"
 #include "UObject/Package.h"
 #include "HAL/FileManager.h"
-
 
 #define LOCTEXT_NAMESPACE "FusionPatchAssetFactory"
 
@@ -112,26 +112,6 @@ void UFusionPatchAssetFactory::PostImportCleanUp()
 	ReplaceExistingSamplesResponse = EAppReturnType::No;
 }
 
-const UFusionPatchImportOptions* UFusionPatchAssetFactory::GetImportOptions(const FString& DefaultSamplesImportPath)
-{
-	UFusionPatchImportOptions* ImportOptions = GetMutableDefault<UFusionPatchImportOptions>();
-	if (!ApplyOptionsToAllImport)
-	{
-		// prompt on the first asset and update user settings
-		if (ImportOptions->SamplesImportDir.Path.IsEmpty())
-		{
-			// otherwise, import audio samples into the destination path provided
-			ImportOptions->SamplesImportDir.Path = DefaultSamplesImportPath;
-		}
-		const FText ImportDialogTitle = NSLOCTEXT("FusionPatchImporter", "FusionPatchImportOptionsTitle", "Fusion Patch Import Options");
-		UEditorDialogLibrary::ShowObjectDetailsView(ImportDialogTitle, ImportOptions);
-		const FString DestPath = ImportOptions->SamplesImportDir.Path;
-
-		ApplyOptionsToAllImport = true;
-	}
-	return ImportOptions;
-}
-
 bool UFusionPatchAssetFactory::GetReplaceExistingSamplesResponse(const FString& InName)
 {
 	if (ReplaceExistingSamplesResponse == EAppReturnType::YesAll)
@@ -185,6 +165,40 @@ void UFusionPatchAssetFactory::UpdateFusionPatchImportNotificationItem(TSharedPt
 
 UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, const TCHAR* Type, const TCHAR*& Buffer, const TCHAR* BufferEnd, FFeedbackContext* Warn)
 {
+	const FString LongPackagePath = FPackageName::GetLongPackagePath(InParent->GetOutermost()->GetPathName());
+
+	const UFusionPatchImportOptions* ImportOptions = nullptr;
+	
+	if (!ApplyOptionsToAllImport)
+	{
+		bool WasOkayPressed = false;
+		UFusionPatchImportOptions::FArgs Args;
+		Args.Directory = LongPackagePath;
+		ImportOptions = UFusionPatchImportOptions::GetWithDialog(MoveTemp(Args), WasOkayPressed);
+		if (!WasOkayPressed)
+		{
+			// import cancelled by user
+			return nullptr;
+		}
+		ApplyOptionsToAllImport = true;
+	}
+	else
+	{
+		UFusionPatchImportOptions* MutableOptions = GetMutableDefault<UFusionPatchImportOptions>();
+		if (MutableOptions->SamplesImportDir.Path.IsEmpty())
+		{
+			MutableOptions->SamplesImportDir.Path = LongPackagePath;	
+		}
+		ImportOptions = MutableOptions;
+	}
+
+	if (Warn->ReceivedUserCancel())
+	{
+		return nullptr;
+	}
+
+	const bool ReplaceExistingSamples = GetReplaceExistingSamplesResponse(InName.ToString());
+	
 	const FString SourceFile = GetCurrentFilename();
 	AdditionalImportedObjects.Empty();
 	FString JsonString;
@@ -202,7 +216,7 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 			FusionPatch = NewObject<UFusionPatch>(InParent, InName, Flags);
 		}
 
-		const FString LongPackagePath = FPackageName::GetLongPackagePath(InParent->GetOutermost()->GetPathName());
+		
 		const FString SourcePath = FPaths::GetPath(SourceFile);
 		
 		//create a notification that displays the import progress at the lower right corner
@@ -210,9 +224,6 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 		ImportNotificationInfo.bFireAndForget = false;
 		TSharedPtr<SNotificationItem> ImportNotificationItem;
 		ImportNotificationItem = FSlateNotificationManager::Get().AddNotification(ImportNotificationInfo);
-
-		const UFusionPatchImportOptions* ImportOptions = GetImportOptions(LongPackagePath);
-		bool ReplaceExistingSamples = GetReplaceExistingSamplesResponse(InName.ToString());
 
 
 		// Pass import args to parser so it can import sub files
@@ -256,6 +267,25 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 	}
 
 	return nullptr;
+}
+
+UObject* UFusionPatchAssetFactory::FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
+{
+	UFusionPatch* NewAsset = NewObject<UFusionPatch>(InParent, InName, Flags);
+
+	if (!NewAsset)
+	{
+		return nullptr;
+	}
+
+	if (CreateOptions)
+	{
+		NewAsset->UpdateKeyzones(CreateOptions->Keyzones);
+		NewAsset->UpdateSettings(CreateOptions->FusionPatchSettings);
+		CreateOptions = nullptr;
+	}
+
+	return NewAsset;
 }
 
 #undef LOCTEXT_NAMESPACE
