@@ -10,7 +10,7 @@
 
 namespace uba
 {
-	const char*		Version = GetVersionString();
+	const tchar*	Version = GetVersionString();
 	u16				DefaultListenPort = DefaultPort + 1;
 	const wchar_t*	DefaultName = []() { static wchar_t buf[256]; GetComputerNameW(buf, sizeof_array(buf)); return buf; }();
 
@@ -25,7 +25,7 @@ namespace uba
 
 		logger.Info(L"");
 		logger.Info(L"------------------------");
-		logger.Info(L"   UbaProxy v%hs", Version);
+		logger.Info(L"   UbaProxy v%s", Version);
 		logger.Info(L"------------------------");
 		logger.Info(L"");
 		logger.Info(L"  When started UbaProxy will keep trying to connect to provided host address.");
@@ -120,7 +120,7 @@ int wmain(int argc, wchar_t *argv[])
 	#if UBA_DEBUG
 	dbgStr = L" (DEBUG)";
 	#endif
-	logger.Info(L"UbaStorageProxy v%hs%s", Version, dbgStr);
+	logger.Info(L"UbaStorageProxy v%s%s", Version, dbgStr);
 	logger.Info(L"");
 
 	while (true)

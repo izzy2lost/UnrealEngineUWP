@@ -185,10 +185,10 @@ namespace uba
 		}
 #else
 		out.Append(TC("ASSERT: ")).Append(*text ? text : TC("Unknown")).Append('\n');
-		if (strcmp(expr, "false") != 0)
-			out.Appendf(TC(" EXPR: %hs\n"), expr);
+		if (expr && strcmp(expr, "false") != 0)
+			out.Appendf(TC(" EXPR: %s\n"), expr);
 		if (file && *file)
-			out.Appendf(TC("LOCATION: %hs:%u"), file, line);
+			out.Appendf(TC("LOCATION: %s:%u"), file, line);
 
 		constexpr u32 maxCallers = 100;
 		void* buffer[maxCallers];
@@ -232,7 +232,7 @@ namespace uba
 							fileName = lastSlash + 1;
 						if (strncmp(fileName, "function.h", 10) == 0 || strncmp(fileName, "invoke.h:", 9) == 0)
 							continue;
-						out.Appendf(TC("  %hs"), fileName);
+						out.Appendf(TC("  %s"), fileName);
 					}
 					fclose(fp);
 					if (countBeforeCallstack != out.count)
@@ -248,7 +248,7 @@ namespace uba
 			return;
 		}
 		for (int i = 0; i < nptrs; ++i)
-			out.Appendf(TC("%hs\n"), strings[i]);
+			out.Appendf(TC("%s\n"), strings[i]);
 		free(strings);
 #endif
 	}

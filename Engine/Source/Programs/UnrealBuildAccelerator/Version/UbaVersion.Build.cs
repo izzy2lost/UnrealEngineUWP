@@ -10,6 +10,7 @@ public class UbaVersion : ModuleRules
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 		PCHUsage = PCHUsageMode.NoPCHs;
 
-		PrivateDefinitions.Add($"UBA_VERSION=\"{Target.Version.MajorVersion}.{Target.Version.MinorVersion}.{Target.Version.PatchVersion}-{Target.BuildVersion}\"");
+		string StringPrefix = Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ? "L" : "";
+		PrivateDefinitions.Add($"UBA_VERSION={StringPrefix}\"{Target.Version.MajorVersion}.{Target.Version.MinorVersion}.{Target.Version.PatchVersion}-{Target.BuildVersion}\"");
 	}
 }

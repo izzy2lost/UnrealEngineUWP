@@ -40,6 +40,23 @@ namespace uba
 		void deallocate(value_type* p, u64 n) { mi_free_size_aligned(p, sizeof(value_type)*n, alignof(value_type)); }
 		u64 max_size() const { return static_cast<size_t>(-1) / sizeof(value_type); }
 	};
+	#elif 0
+	template<typename Type>
+	class Allocator {
+	public:
+		using value_type = Type;
+
+		Allocator() {}
+		Allocator(const Allocator& o) {}
+		Allocator(Allocator&& o) noexcept {}
+		constexpr bool operator==(const Allocator&) const noexcept { return true; }
+		template <class _Other>
+		constexpr Allocator(const Allocator<_Other>&) noexcept {}
+
+		value_type* allocate(u64 n) { return (value_type*)aligned_alloc(16, AlignUp(sizeof(value_type)*n, 16)); }
+		void deallocate(value_type* p, u64 n) { free(p); }
+		u64 max_size() const { return static_cast<size_t>(-1) / sizeof(value_type); }
+	};
 	#else
 	template<typename Type>
 	using Allocator = std::allocator<Type>;

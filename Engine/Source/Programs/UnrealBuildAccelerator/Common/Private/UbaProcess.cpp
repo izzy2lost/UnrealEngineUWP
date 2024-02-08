@@ -1715,7 +1715,7 @@ namespace uba
 			int res = waitpid((pid_t)m_nativeProcessId, &status, 0);
 			if (res == -1)
 			{
-				logger.Error(TC("waitpid failed on %u (%hs)"), m_nativeProcessId, strerror(errno));
+				logger.Error(TC("waitpid failed on %u (%s)"), m_nativeProcessId, strerror(errno));
 				return UBA_EXIT_CODE(15);
 			}
 			if (WIFEXITED(status))

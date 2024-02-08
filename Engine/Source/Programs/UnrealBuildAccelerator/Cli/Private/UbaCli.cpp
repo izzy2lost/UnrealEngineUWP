@@ -19,7 +19,7 @@
 namespace uba
 {
 
-	const char*		Version = GetVersionString();
+	const tchar*	Version = GetVersionString();
 	u32				DefaultCapacityGb = 20;
 	const tchar*	DefaultRootDir = []() {
 		static tchar buf[256];
@@ -41,7 +41,7 @@ namespace uba
 		}
 		logger.Info(TC(""));
 		logger.Info(TC("-------------------------------------------"));
-		logger.Info(TC("   UbaCli v%hs"), Version);
+		logger.Info(TC("   UbaCli v%s"), Version);
 		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
 		logger.Info(TC("  UbaCli.exe [options...] <commandtype> <executable> [arguments...]"));
@@ -414,7 +414,7 @@ namespace uba
 		#if UBA_DEBUG
 		dbgStr = TC(" (DEBUG)");
 		#endif
-		logger.Info(TC("UbaCli v%hs%s (Rootdir: \"%s\", StoreCapacity: %uGb)\n"), Version, dbgStr, g_rootDir.data, storageCapacityGb);
+		logger.Info(TC("UbaCli v%s%s (Rootdir: \"%s\", StoreCapacity: %uGb)\n"), Version, dbgStr, g_rootDir.data, storageCapacityGb);
 
 		u64 storageCapacity = u64(storageCapacityGb)*1000*1000*1000;
 
@@ -425,8 +425,10 @@ namespace uba
 
 
 		StringBuffer<> logFile;
+		#if UBA_DEBUG
 		logFile.count = GetFullPathNameW(g_rootDir.data, logFile.capacity, logFile.data, nullptr);
 		logFile.EnsureEndsWithSlash().Append(TC("DebugLog.log"));
+		#endif
 
 		#if PLATFORM_WINDOWS
 		SetConsoleCtrlHandler(ConsoleHandler, TRUE);
@@ -450,6 +452,7 @@ namespace uba
 
 		SessionServerCreateInfo info(*storage, *server);
 		info.useUniqueId = false;
+		info.traceEnabled = true;
 		info.launchVisualizer = launchVisualizer;
 		info.disableCustomAllocator = disableCustomAllocator;
 		//info.shouldWriteToDisk = shouldWriteToDisk;
@@ -473,6 +476,7 @@ namespace uba
 		{
 			u64 start = GetTime();
 			ProcessStartInfo pinfo;
+			pinfo.description = app.c_str();
 			pinfo.application = app.c_str();
 			pinfo.arguments = arg.c_str();
 			pinfo.workingDir = workDir.data;
@@ -494,6 +498,7 @@ namespace uba
 		{
 			u64 start = GetTime();
 			ProcessStartInfo pinfo;
+			pinfo.description = app.c_str();
 			pinfo.application = app.c_str();
 			pinfo.arguments = arg.c_str();
 			pinfo.workingDir = workDir.data;

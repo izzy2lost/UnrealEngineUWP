@@ -36,7 +36,7 @@
 
 namespace uba
 {
-	const char*		Version = GetVersionString();
+	const tchar*		Version = GetVersionString();
 	constexpr u32	DefaultCapacityGb = 20;
 	constexpr u32	DefaultListenTimeout = 5;
 	const tchar*	DefaultRootDir = [](){
@@ -61,7 +61,7 @@ namespace uba
 		}
 		logger.Info(TC(""));
 		logger.Info(TC("-------------------------------------------"));
-		logger.Info(TC("   UbaAgent v%hs"), Version);
+		logger.Info(TC("   UbaAgent v%s"), Version);
 		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
 		logger.Info(TC("  When started UbaAgent will keep trying to connect to provided host address."));
@@ -685,7 +685,7 @@ namespace uba
 			char release[128];
 			char url[512];
 			size_t urlLen;
-			sprintf_s(release, sizeof_array(release), "BoxAgent@%s", Version);
+			sprintf_s(release, sizeof_array(release), "BoxAgent@%ls", Version);
 			wcstombs_s(&urlLen, url, sizeof_array(url), sentryUrl.data, sizeof_array(url) - 1);
 			sentry_options_t* options = sentry_options_new();
 			sentry_options_set_dsn(options, url);
@@ -728,7 +728,7 @@ namespace uba
 		#if UBA_DEBUG
 		dbgStr = TC(" (DEBUG)");
 		#endif
-		logger.Info(TC("UbaAgent v%hs%s (Cpu: %u, MaxCon: %u, Dir: \"%s\", StoreCapacity: %uGb%s)"), Version, dbgStr, maxProcessCount, maxTcpConnectionCount, g_rootDir.data, storageCapacityGb, extraInfo.data);
+		logger.Info(TC("UbaAgent v%s%s (Cpu: %u, MaxCon: %u, Dir: \"%s\", StoreCapacity: %uGb%s)"), Version, dbgStr, maxProcessCount, maxTcpConnectionCount, g_rootDir.data, storageCapacityGb, extraInfo.data);
 		if (!eventFile.IsEmpty())
 			logger.Info(TC("  Will poll for external events in file %s"), eventFile.data);
 		logger.Info(TC(""));
@@ -737,7 +737,7 @@ namespace uba
 #if PLATFORM_WINDOWS
 		{
 			StringBuffer<256> consoleTitle;
-			consoleTitle.Appendf(TC("UbaAgent v%hs%s"), Version, dbgStr);
+			consoleTitle.Appendf(TC("UbaAgent v%s%s"), Version, dbgStr);
 			SetConsoleTitleW(consoleTitle.data);
 		}
 #endif
@@ -1152,7 +1152,9 @@ namespace uba
 			else
 				logger.Info(TC("----------- Session %s started -----------"), sessionClient->GetId());
 
+			#if 0 
 			u64 lastLogTime = GetTime();
+			#endif
 
 			u32 tcpConnectionCount = 1;
 
@@ -1202,7 +1204,7 @@ namespace uba
 					}
 				}
 
-
+				#if 0 // Not needed anymore I think.. horde is now pinging in the background for itself
 				if (quiet)
 				{
 					u64 time = GetTime();
@@ -1213,6 +1215,7 @@ namespace uba
 						lastLogTime = time;
 					}
 				}
+				#endif
 			}
 
 			disconnectAndStopLoggingThread.Execute();

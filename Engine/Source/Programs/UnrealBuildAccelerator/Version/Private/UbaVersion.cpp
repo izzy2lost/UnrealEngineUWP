@@ -4,7 +4,7 @@
 
 namespace uba
 {
-	const char* GetVersionString()
+	const tchar* GetVersionString()
 	{
 		return UBA_VERSION;
 	}

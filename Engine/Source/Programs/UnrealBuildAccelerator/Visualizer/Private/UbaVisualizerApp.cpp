@@ -6,8 +6,6 @@
 
 using namespace uba;
 
-const char* Version = GetVersionString();
-
 int PrintHelp(const tchar* message)
 {
 	StringBuffer<64*1024> s;
@@ -16,7 +14,7 @@ int PrintHelp(const tchar* message)
 
 	s.Appendf(TC("\r\n"));
 	s.Appendf(TC("------------------------\r\n"));
-	s.Appendf(TC("   UbaVisualizer v%hs\r\n"), Version);
+	s.Appendf(TC("   UbaVisualizer v%s\r\n"), GetVersionString());
 	s.Appendf(TC("------------------------\r\n"));
 	s.Appendf(TC("\r\n"));
 	s.Appendf(TC("  When started UbaVisualizer will keep trying to connect to provided host address or named memory buffer.\r\n"));

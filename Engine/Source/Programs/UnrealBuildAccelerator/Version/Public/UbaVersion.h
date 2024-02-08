@@ -4,5 +4,11 @@
 
 namespace uba
 {
-	const char* GetVersionString();
+	#if PLATFORM_WINDOWS
+	using tchar = wchar_t;
+	#else
+	using tchar = char;
+	#endif
+
+	const tchar* GetVersionString();
 }
