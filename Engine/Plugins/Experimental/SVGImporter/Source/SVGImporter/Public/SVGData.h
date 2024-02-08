@@ -16,7 +16,7 @@ struct FSVGDataInitializer
 	FSVGDataInitializer()
 	{
 	}
-	
+
 	FSVGDataInitializer(const FString& InSVGTextBuffer, const FString& InSourceFilename = TEXT(""))
 		: SVGTextBuffer(InSVGTextBuffer)
 		, SourceFilename(InSourceFilename)
@@ -39,31 +39,49 @@ struct FSVGDataInitializer
 	TArray<TSharedRef<FSVGBaseElement>> Elements;
 };
 
-UCLASS(Blueprintable)
+
+/**
+ * Can be used to set the desired fidelity when converting SVG Splines into Polylines
+ */
+UENUM(BlueprintType)
+enum class ESVGSplineConversionQuality : uint8
+{
+	None UMETA(Hidden),
+	VeryLow,
+	Low,
+	Normal,
+	Increased,
+	High,
+	VeryHigh,
+};
+
+UCLASS()
 class SVGIMPORTER_API USVGData : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	void Reset()
-	{
-		SVGFileContent = TEXT("");
-		Shapes.Empty();
-	}
+#if WITH_EDITOR
+	DECLARE_MULTICAST_DELEGATE(FOnSVGDataReimport);
+	FOnSVGDataReimport& OnSVGDataReimport() { return OnSVGDataReimportDelegate; }
 
 	/** Initialize this SVGData with the information provided by the initializer */
 	void Initialize(const FSVGDataInitializer& InInitializer);
 
-#if WITH_EDITOR
+	void Reset();
+
 	/** Generate a texture from the SVG information */
 	void GenerateSVGTexture();
+	void Reimport();
 
 	/** Get the SVG source file path, if available */
 	const FString& GetSourceFilePath() const { return SourceFilePath; }
-#endif
+
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 
 	/** Create the shapes composing this SVG Data, starting from the information provided by SVG parsing */
 	void CreateShapes(const TArray<TSharedRef<FSVGBaseElement>>& InSVGElements);
+#endif
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SVG Data")
 	TObjectPtr<UTexture2D> SVGTexture;
@@ -77,5 +95,21 @@ public:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(VisibleAnywhere, Category = "Source Asset")
 	FString SourceFilePath = TEXT("");
+
+	/** Enable quality overriding option */
+	UPROPERTY(EditAnywhere, Category="SVG Data", meta=(InlineEditConditionToggle))
+	bool bEnableOverrideQuality = false;
+
+	/**
+	 * The quality used to convert SVG Spline Data into poly lines
+	 * Changing this value will trigger a re-import (existing geometry will need to be re-generated).
+	 */
+	UPROPERTY(EditAnywhere, Category="SVG Data", meta = (EditCondition = "bEnableOverrideQuality"))
+	ESVGSplineConversionQuality OverrideQuality = ESVGSplineConversionQuality::VeryHigh;
+
+private:
+	float GetConversionQualityFactor() const;
+
+	FOnSVGDataReimport OnSVGDataReimportDelegate;
 #endif
 };

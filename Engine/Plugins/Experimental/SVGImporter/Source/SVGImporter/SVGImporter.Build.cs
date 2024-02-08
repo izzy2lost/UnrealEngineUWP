@@ -20,6 +20,7 @@ public class SVGImporter : ModuleRules
 			{
 				"Core",
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
 				"GeometryAlgorithms",
 				"GeometryCore",
