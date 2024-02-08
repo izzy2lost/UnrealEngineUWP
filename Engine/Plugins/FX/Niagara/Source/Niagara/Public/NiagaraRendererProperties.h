@@ -25,6 +25,7 @@ class SWidget;
 class FAssetThumbnailPool;
 struct FNiagaraDataSetCompiledData;
 struct FSlateBrush;
+struct FStaticParameterSet;
 struct FStreamingRenderAssetPrimitiveInfo;
 
 #if WITH_EDITOR
@@ -454,7 +455,11 @@ protected:
 	/** utility function that can be used to fix up old vec3 bindings into position bindings. */
 	static NIAGARA_API void ChangeToPositionBinding(FNiagaraVariableAttributeBinding& Binding);
 
+	/** Generates the static parameter set for the parent emitter */
+	bool BuildMaterialStaticParameterSet(const FNiagaraRendererMaterialParameters& MaterialParameters, const UMaterialInterface* Material, FStaticParameterSet& StaticParameterSet) const;
+
 	/** Update MIC Static Parameters. */
+	UE_DEPRECATED(5.5, "This helper function has been deprecated.  Use BuildMaterialStaticParameterSet instead.")
 	NIAGARA_API bool UpdateMaterialStaticParameters(const FNiagaraRendererMaterialParameters& MaterialParameters, UMaterialInstanceConstant* MIC);
 
 	/** Utility function to updates MICs. */
