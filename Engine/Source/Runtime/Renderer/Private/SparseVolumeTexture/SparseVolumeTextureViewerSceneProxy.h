@@ -25,12 +25,14 @@ public:
 	virtual ~FSparseVolumeTextureViewerSceneProxy() = default;
 
 	const UE::SVT::FTextureRenderResources* TextureRenderResources;
-	FMatrix44f WorldToLocal;
-	FMatrix44f WorldToLocalNoScale;
+	FTransform GlobalTransform;
+	FTransform FrameTransform;
 	FVector3f VolumeResolution;
 	int32 MipLevel;
 	uint32 ComponentToVisualize;
 	float Extinction;
+	float VoxelSizeFactor;
+	bool bPivotAtCorner;
 
 protected:
 

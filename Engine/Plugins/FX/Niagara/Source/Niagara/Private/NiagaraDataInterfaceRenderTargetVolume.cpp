@@ -692,7 +692,7 @@ bool UNiagaraDataInterfaceRenderTargetVolume::SimCacheWriteFrame(UObject* Storag
 					return false;
 				}
 
-				CurrCache->AppendFrame(SparseTextureData);
+				CurrCache->AppendFrame(SparseTextureData, FTransform::Identity);
 #endif
 			}
 			else

@@ -35,14 +35,6 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSparseVolumeTextureFactory, Log, All);
 
-static int32 GSVTImportBakeFrameTranslations = 1;
-static FAutoConsoleVariableRef CVarSVTSImportBakeFrameTranslations(
-	TEXT("r.SparseVolumeTexture.Import.BakeVDBFrameTranslations"),
-	GSVTImportBakeFrameTranslations,
-	TEXT("If enabled, VDB sequences with translations that change across the frames/files will have the translation baked into the resulting SVT frames."),
-	ECVF_Default
-);
-
 static void ComputeDefaultOpenVDBGridAssignment(const TArray<TSharedPtr<FOpenVDBGridComponentInfo>>& GridComponentInfo, int32 NumFiles, FOpenVDBImportOptions* ImportOptions)
 {
 	for (FOpenVDBSparseVolumeAttributesDesc& AttributesDesc : ImportOptions->Attributes)
@@ -606,7 +598,7 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 	}
 
 	// Utility function for computing the bounding box encompassing the bounds of all frames in the SVT.
-	auto ExpandVolumeBounds = [](const FOpenVDBImportOptions& ImportOptions, const TArray<FOpenVDBGridInfo>& GridInfoArray, FIntVector3& VolumeBoundsMin, FIntVector3& VolumeBoundsMax, float* TransformMin, float* TransformMax)
+	auto ExpandVolumeBounds = [](const FOpenVDBImportOptions& ImportOptions, const TArray<FOpenVDBGridInfo>& GridInfoArray, FIntVector3& VolumeBoundsMin, FIntVector3& VolumeBoundsMax)
 	{
 		for (const FOpenVDBSparseVolumeAttributesDesc& Attributes : ImportOptions.Attributes)
 		{
@@ -622,15 +614,6 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 					VolumeBoundsMax.X = FMath::Max(VolumeBoundsMax.X, GridInfo.VolumeActiveAABBMax.X);
 					VolumeBoundsMax.Y = FMath::Max(VolumeBoundsMax.Y, GridInfo.VolumeActiveAABBMax.Y);
 					VolumeBoundsMax.Z = FMath::Max(VolumeBoundsMax.Z, GridInfo.VolumeActiveAABBMax.Z);
-
-					for (int32 y = 0; y < 4; ++y)
-					{
-						for (int32 x = 0; x < 4; ++x)
-						{
-							TransformMin[y * 4 + x] = FMath::Min(TransformMin[y * 4 + x], GridInfo.Transform.M[y][x]);
-							TransformMax[y * 4 + x] = FMath::Max(TransformMax[y * 4 + x], GridInfo.Transform.M[y][x]);
-						}
-					}
 				}
 			}
 		}
@@ -638,13 +621,6 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 
 	FIntVector3 VolumeBoundsMin = FIntVector3(INT32_MAX, INT32_MAX, INT32_MAX);
 	FIntVector3 VolumeBoundsMax = FIntVector3(INT32_MIN, INT32_MIN, INT32_MIN);
-	float TransformMin[16];
-	float TransformMax[16];
-	for (int32 i = 0; i < 16; ++i)
-	{
-		TransformMin[i] = FLT_MAX;
-		TransformMax[i] = -FLT_MAX;
-	}
 
 	// Import as either single static SVT or a sequence of frames, making up an animated SVT
 	if (!ImportOptions.bIsSequence)
@@ -654,10 +630,11 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 		FScopedSlowTask ImportTask(1.0f, LOCTEXT("ImportingVDBStatic", "Importing static OpenVDB"));
 		ImportTask.MakeDialog(true);
 
-		ExpandVolumeBounds(ImportOptions, PreviewData.GridInfo, VolumeBoundsMin, VolumeBoundsMax, TransformMin, TransformMax);
+		ExpandVolumeBounds(ImportOptions, PreviewData.GridInfo, VolumeBoundsMin, VolumeBoundsMax);
 
 		UE::SVT::FTextureData TextureData{};
-		const bool bConversionSuccess = ConvertOpenVDBToSparseVolumeTexture(PreviewData.LoadedFile, ImportOptions, VolumeBoundsMin, false /*bBakeTranslation*/, TextureData);
+		FTransform FrameTransform = FTransform::Identity;
+		const bool bConversionSuccess = ConvertOpenVDBToSparseVolumeTexture(PreviewData.LoadedFile, ImportOptions, VolumeBoundsMin, TextureData, FrameTransform);
 
 		if (!bConversionSuccess)
 		{
@@ -666,7 +643,7 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 		}
 
 		UStaticSparseVolumeTexture* StaticSVTexture = NewObject<UStaticSparseVolumeTexture>(InParent, UStaticSparseVolumeTexture::StaticClass(), InName, Flags);
-		const bool bInitSuccess = StaticSVTexture->Initialize(MakeArrayView<UE::SVT::FTextureData>(&TextureData, 1));
+		const bool bInitSuccess = StaticSVTexture->Initialize(MakeArrayView(&TextureData, 1), MakeArrayView(&FrameTransform, 1));
 		if (!bInitSuccess)
 		{
 			UE_LOG(LogSparseVolumeTextureFactory, Error, TEXT("Failed to initialize SparseVolumeTexture: %s"), *Filename);
@@ -696,14 +673,16 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 
 		// Allocate space for each frame
 		TArray<UE::SVT::FTextureData> UncookedFramesData;
+		TArray<FTransform> FrameTransforms;
 		UncookedFramesData.SetNum(NumFrames);
+		FrameTransforms.SetNum(NumFrames);
 
 		std::atomic_bool bErrored = false;
 		std::atomic_bool bCanceled = false;
 
 		// Compute volume bounds and check sequence files for compatiblity
 		std::mutex VolumeBoundsMutex;
-		ParallelFor(NumFrames, [&bErrored, &VolumeBoundsMutex, &VolumeBoundsMin, &VolumeBoundsMax, TransformMin = &TransformMin[0], TransformMax = &TransformMax[0], &ExpandVolumeBounds, &PreviewData, &ImportOptions](int32 FrameIdx)
+		ParallelFor(NumFrames, [&bErrored, &VolumeBoundsMutex, &VolumeBoundsMin, &VolumeBoundsMax, &ExpandVolumeBounds, &PreviewData, &ImportOptions](int32 FrameIdx)
 			{
 				if (bErrored.load())
 				{
@@ -757,46 +736,13 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 				// Update sequence volume bounds and increment ProcessedFramesCounter
 				{
 					std::lock_guard<std::mutex> Lock(VolumeBoundsMutex);
-					ExpandVolumeBounds(ImportOptions, FrameGridInfo, VolumeBoundsMin, VolumeBoundsMax, TransformMin, TransformMax);
+					ExpandVolumeBounds(ImportOptions, FrameGridInfo, VolumeBoundsMin, VolumeBoundsMax);
 				}
 			});
 
 		if (bErrored.load())
 		{
 			return nullptr;
-		}
-
-		FMatrix44f TransformMatrixMin;
-		FMatrix44f TransformMatrixMax;
-		for (int32 y = 0; y < 4; ++y)
-		{
-			for (int32 x = 0; x < 4; ++x)
-			{
-				TransformMatrixMin.M[y][x] = TransformMin[y * 4 + x];
-				TransformMatrixMax.M[y][x] = TransformMax[y * 4 + x];
-			}
-		}
-		const FVector3f TransformScaleMin = TransformMatrixMin.GetScaleVector();
-		const FVector3f TransformScaleMax = TransformMatrixMax.GetScaleVector();
-		const FVector3f TransformTransMin = TransformMatrixMin.GetOrigin();
-		const FVector3f TransformTransMax = TransformMatrixMax.GetOrigin();
-		const bool bSameScaleForAllFrames = (TransformScaleMax - TransformScaleMin).GetAbsMax() <= UE_SMALL_NUMBER;
-		const bool bSameTranslationForAllFrames = (TransformTransMax - TransformTransMin).GetAbsMax() <= UE_SMALL_NUMBER;
-
-		// We currently do not support changing scale/rotation across frames
-		if (!bSameScaleForAllFrames)
-		{
-			UE_LOG(LogSparseVolumeTextureFactory, Warning, TEXT("OpenVDB sequence is using different scalings and rotations across all frames"));
-		}
-
-		const bool bBakeTranslations = !bSameTranslationForAllFrames && (GSVTImportBakeFrameTranslations != 0);
-
-		// But we can bake translation changes into the SVT
-		if (bBakeTranslations)
-		{
-			FVector3f OffsetF = TransformTransMin / TransformScaleMin;
-			FIntVector3 Offset = FIntVector3(FMath::Floor(OffsetF.X), FMath::Floor(OffsetF.Y), FMath::Floor(OffsetF.Z));
-			VolumeBoundsMin += Offset;
 		}
 
 		ImportTask.EnterProgressFrame(1.0f, LOCTEXT("ConvertingVDBAnim", "Converting OpenVDB animation"));
@@ -826,8 +772,8 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 			};
 
 			AsyncTask(ENamedThreads::AnyNormalThreadNormalTask,
-				[FrameIdx, NumFrames, &PreviewData, &ImportOptions, &UncookedFramesData,
-				AllTasksFinishedEvent, &bErrored, &bCanceled, &FinishedTasksCounter, &ProcessedFramesCounter, &VolumeBoundsMin, bBakeTranslations]()
+				[FrameIdx, NumFrames, &PreviewData, &ImportOptions, &UncookedFramesData, &FrameTransforms,
+				AllTasksFinishedEvent, &bErrored, &bCanceled, &FinishedTasksCounter, &ProcessedFramesCounter, &VolumeBoundsMin]()
 				{
 					// Ensure the FinishedTasksCounter will be incremented in all cases
 					FScopedIncrementer Incremeter(FinishedTasksCounter, NumFrames, AllTasksFinishedEvent);
@@ -851,7 +797,8 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 					}
 
 					UE::SVT::FTextureData TextureData{};
-					const bool bConversionSuccess = ConvertOpenVDBToSparseVolumeTexture(LoadedFrameFile, ImportOptions, VolumeBoundsMin, bBakeTranslations, TextureData);
+					FTransform FrameTransform = FTransform::Identity;
+					const bool bConversionSuccess = ConvertOpenVDBToSparseVolumeTexture(LoadedFrameFile, ImportOptions, VolumeBoundsMin, TextureData, FrameTransform);
 
 					if (!bConversionSuccess)
 					{
@@ -861,6 +808,7 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 					}
 
 					UncookedFramesData[FrameIdx] = MoveTemp(TextureData);
+					FrameTransforms[FrameIdx] = FrameTransform;
 
 					// Increment ProcessedFramesCounter
 					ProcessedFramesCounter.fetch_add(1);
@@ -942,7 +890,7 @@ UObject* USparseVolumeTextureFactory::ImportInternal(UClass* InClass, UObject* I
 		}
 
 		UAnimatedSparseVolumeTexture* AnimatedSVTexture = NewObject<UAnimatedSparseVolumeTexture>(InParent, UAnimatedSparseVolumeTexture::StaticClass(), NewObjectName, Flags);
-		const bool bInitSuccess = AnimatedSVTexture->Initialize(UncookedFramesData);
+		const bool bInitSuccess = AnimatedSVTexture->Initialize(UncookedFramesData, FrameTransforms);
 		if (!bInitSuccess)
 		{
 			UE_LOG(LogSparseVolumeTextureFactory, Error, TEXT("Failed to initialize SparseVolumeTexture: %s"), *Filename);

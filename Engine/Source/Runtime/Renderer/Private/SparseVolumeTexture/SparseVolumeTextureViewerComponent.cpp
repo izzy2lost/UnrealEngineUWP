@@ -20,7 +20,7 @@
 
 #define LOCTEXT_NAMESPACE "SparseVolumeTextureViewerComponent"
 
-constexpr double SVTViewerDefaultVolumeExtent = 100.0;
+constexpr int32 SVTViewerDefaultVolumeResolution = 128;
 
 /*=============================================================================
 	USparseVolumeTextureViewerComponent implementation.
@@ -71,26 +71,26 @@ void USparseVolumeTextureViewerComponent::Serialize(FArchive& Ar)
 
 FBoxSphereBounds USparseVolumeTextureViewerComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
-	FBoxSphereBounds NormalizedBound;
-	NormalizedBound.Origin = FVector(0.0f, 0.0f, 0.0f);
-
+	FVector VolumeResolution = FVector(SVTViewerDefaultVolumeResolution);
 	if (SparseVolumeTexturePreview)
 	{
-		// We assume that the maximum bound will have a length of SVTViewerDefaultVolumeExtent (1 meter). 
-		// Then the other dimensions are scaled relatively.
-		// All this account for the size of volume with page table (they add padding).
-		// TODO can we recover world size from OpenVDB meta data in meter?
-		const FVector VolumeResolution = FVector(SparseVolumeTexturePreview->GetVolumeResolution());
-		const double MaxDim = FMath::Max(FMath::Max(VolumeResolution.X, VolumeResolution.Y), VolumeResolution.Z);
-		NormalizedBound.BoxExtent = VolumeResolution / MaxDim * SVTViewerDefaultVolumeExtent;
+		VolumeResolution = FVector(SparseVolumeTexturePreview->GetVolumeResolution());
+	}
+	
+	FBoxSphereBounds NewBounds;
+	if (bLocalOriginAtCorner)
+	{
+		NewBounds.Origin = -VolumeResolution * 0.5;
+		NewBounds.BoxExtent = VolumeResolution;
 	}
 	else
 	{
-		NormalizedBound.BoxExtent = FVector(SVTViewerDefaultVolumeExtent);
+		NewBounds.Origin = FVector::ZeroVector;
+		NewBounds.BoxExtent = VolumeResolution * 0.5;
 	}
+	NewBounds.SphereRadius = NewBounds.BoxExtent.Length();
 
-	NormalizedBound.SphereRadius = NormalizedBound.BoxExtent.Size();
-	return NormalizedBound.TransformBy(LocalToWorld);
+	return NewBounds.TransformBy(LocalToWorld);
 }
 
 void USparseVolumeTextureViewerComponent::CreateRenderState_Concurrent(FRegisterComponentContext* Context)
@@ -147,44 +147,33 @@ void USparseVolumeTextureViewerComponent::SendRenderTransformCommand()
 {
 	if (SparseVolumeTextureViewerSceneProxy)
 	{
-		FVector VolumeExtent = FVector(SVTViewerDefaultVolumeExtent);
-		FVector VolumeResolution = FVector(SVTViewerDefaultVolumeExtent * 2.0);
+		FVector VolumeResolution = FVector(SVTViewerDefaultVolumeResolution);
+		FTransform FrameTransform = FTransform::Identity;
 		if (SparseVolumeTextureFrame)
 		{
 			VolumeResolution = FVector(SparseVolumeTextureFrame->GetVolumeResolution());
-			const double MaxBoundsDim = FMath::Max(FMath::Max(VolumeResolution.X, VolumeResolution.Y), VolumeResolution.Z);
-			VolumeExtent = VolumeResolution / MaxBoundsDim * SVTViewerDefaultVolumeExtent;
+			if (bApplyPerFrameTransforms)
+			{
+				FrameTransform = SparseVolumeTextureFrame->GetFrameTransform();
+			}
 		}
 
-		const FTransform ToWorldTransform = GetComponentTransform();
-		const FVector Scale3D = ToWorldTransform.GetScale3D();
-		// Keep max scaling since the DDA algorithm has trouble with non-uniform scale.
-		// Note that using the other components in FScaleMatrix below is fine 
-		// because they cancel out with the actual volume resolution, producing uniformly scaled voxels.
-		const float MaxScaling = FMath::Max(Scale3D.X, FMath::Max(Scale3D.Y, Scale3D.Z));
-
-		const FRotationMatrix WorldToLocalRotation = FRotationMatrix(FRotator(ToWorldTransform.GetRotation().Inverse()));
-		const FMatrix44f ToLocalMatNoScale = FMatrix44f(WorldToLocalRotation);
-		const FMatrix44f ToLocalMat = FMatrix44f(
-			FTranslationMatrix(-ToWorldTransform.GetTranslation()) 
-			* WorldToLocalRotation 
-			* FScaleMatrix((VolumeExtent * MaxScaling).Reciprocal()));
-
+		const FTransform GlobalTransform = GetComponentTransform();
 		const FVector3f VolumeRes3f = FVector3f(VolumeResolution.X, VolumeResolution.Y, VolumeResolution.Z);
 
-
-		FSparseVolumeTextureViewerSceneProxy* SVTViewerSceneProxy = SparseVolumeTextureViewerSceneProxy;
+		FSparseVolumeTextureViewerSceneProxy* SVTSceneProxy = SparseVolumeTextureViewerSceneProxy;
 		ENQUEUE_RENDER_COMMAND(FUpdateSparseVolumeTextureViewerProxyTransformCommand)(
-			[SVTViewerSceneProxy, ToLocalMat, ToLocalMatNoScale, CompIdx = (uint32)PreviewAttribute, Ext = Extinction, Mip = MipLevel, VolumeRes3f]
-		(FRHICommandList& RHICmdList)
-			{
-				SVTViewerSceneProxy->WorldToLocal = ToLocalMat;
-				SVTViewerSceneProxy->WorldToLocalNoScale = ToLocalMatNoScale;
-				SVTViewerSceneProxy->VolumeResolution = VolumeRes3f;
-				SVTViewerSceneProxy->MipLevel = Mip;
-				SVTViewerSceneProxy->ComponentToVisualize = CompIdx;
-				SVTViewerSceneProxy->Extinction = Ext;
-			});
+		[SVTSceneProxy, GlobalTransform, FrameTransform, VolumeRes3f, CompIdx = (uint32)PreviewAttribute, Ext = Extinction, Mip = MipLevel, VoxelSizeFactor = VoxelSize, bPivotAtCorner = (bool)bLocalOriginAtCorner](FRHICommandList& RHICmdList)
+		{
+			SVTSceneProxy->GlobalTransform = GlobalTransform;
+			SVTSceneProxy->FrameTransform = FrameTransform;
+			SVTSceneProxy->VolumeResolution = VolumeRes3f;
+			SVTSceneProxy->MipLevel = Mip;
+			SVTSceneProxy->ComponentToVisualize = CompIdx;
+			SVTSceneProxy->Extinction = Ext;
+			SVTSceneProxy->VoxelSizeFactor = VoxelSizeFactor;
+			SVTSceneProxy->bPivotAtCorner = bPivotAtCorner;
+		});
 	}
 }
 

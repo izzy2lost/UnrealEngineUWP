@@ -51,18 +51,16 @@ enum class EOpenVDBGridType : uint8
 
 struct FOpenVDBGridInfo
 {
-	FMatrix44f Transform;
+	FTransform Transform;
 	FIntVector3 VolumeActiveAABBMin;
 	FIntVector3 VolumeActiveAABBMax;
 	FIntVector3 VolumeActiveDim;
-	FVector VolumeVoxelSize;
 	FString Name;
 	FString DisplayString; // Contains Index (into source file grids), Type and Name
 	uint32 Index;
 	uint32 NumComponents;
 	EOpenVDBGridType Type;
 	bool bIsInWorldSpace;
-	bool bHasUniformVoxels;
 };
 
 struct FOpenVDBGridComponentInfo

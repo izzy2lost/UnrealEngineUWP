@@ -1062,11 +1062,12 @@ USparseVolumeTextureFrame* USparseVolumeTextureFrame::GetFrameAndIssueStreamingR
 	return nullptr;
 }
 
-bool USparseVolumeTextureFrame::Initialize(USparseVolumeTexture* InOwner, int32 InFrameIndex, UE::SVT::FTextureData& UncookedFrame)
+bool USparseVolumeTextureFrame::Initialize(USparseVolumeTexture* InOwner, int32 InFrameIndex, const FTransform& InFrameTransform, UE::SVT::FTextureData& UncookedFrame)
 {
 #if WITH_EDITORONLY_DATA
 	Owner = InOwner;
 	FrameIndex = InFrameIndex;
+	Transform = InFrameTransform;
 	{
 		UE::Serialization::FEditorBulkDataWriter SourceDataArchiveWriter(SourceData);
 		SourceDataArchiveWriter << UncookedFrame;
@@ -1255,7 +1256,7 @@ bool UStreamableSparseVolumeTexture::BeginInitialize(int32 NumExpectedFrames)
 #endif
 }
 
-bool UStreamableSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& UncookedFrame)
+bool UStreamableSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& UncookedFrame, const FTransform& FrameTransform)
 {
 #if WITH_EDITORONLY_DATA
 	if (InitState != EInitState_Pending)
@@ -1273,9 +1274,14 @@ bool UStreamableSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& Uncooked
 		return false;
 	}
 
-	// SVT_TODO: Valide formats against list of supported formats
 	if (Frames.IsEmpty())
 	{
+		if (!UE::SVT::IsSupportedFormat(UncookedFrame.Header.AttributesFormats[0]) || !UE::SVT::IsSupportedFormat(UncookedFrame.Header.AttributesFormats[1]))
+		{
+			UE_LOG(LogSparseVolumeTexture, Error, TEXT("Tried to add a frame with unsupported formats to a SparseVolumeTexture! Formats: (%i %i)"),
+				(int)UncookedFrame.Header.AttributesFormats[0], (int)UncookedFrame.Header.AttributesFormats[1]);
+			return false;
+		}
 		FormatA = UncookedFrame.Header.AttributesFormats[0];
 		FormatB = UncookedFrame.Header.AttributesFormats[1];
 		FallbackValueA = UncookedFrame.Header.FallbackValues[0];
@@ -1316,7 +1322,7 @@ bool UStreamableSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& Uncooked
 	
 
 	USparseVolumeTextureFrame* Frame = NewObject<USparseVolumeTextureFrame>(this);
-	if (Frame->Initialize(this, Frames.Num(), UncookedFrame))
+	if (Frame->Initialize(this, Frames.Num(), FrameTransform, UncookedFrame))
 	{
 		Frames.Add(Frame);
 		return true;
@@ -1343,7 +1349,7 @@ bool UStreamableSparseVolumeTexture::EndInitialize()
 		UE_LOG(LogSparseVolumeTexture, Warning, TEXT("SVT has zero frames! Adding a dummy frame. SVT: %s"), *GetName());
 		UE::SVT::FTextureData DummyFrame;
 		DummyFrame.CreateDefault();
-		AppendFrame(DummyFrame);
+		AppendFrame(DummyFrame, FTransform::Identity);
 	}
 
 	check(VolumeResolution.X > 0 && VolumeResolution.Y > 0 && VolumeResolution.Z > 0);
@@ -1375,7 +1381,7 @@ bool UStreamableSparseVolumeTexture::EndInitialize()
 #endif
 }
 
-bool UStreamableSparseVolumeTexture::Initialize(const TArrayView<UE::SVT::FTextureData>& InUncookedData)
+bool UStreamableSparseVolumeTexture::Initialize(const TArrayView<UE::SVT::FTextureData>& InUncookedData, const TArrayView<FTransform>& InFrameTransforms)
 {
 	if (InUncookedData.IsEmpty())
 	{
@@ -1383,13 +1389,16 @@ bool UStreamableSparseVolumeTexture::Initialize(const TArrayView<UE::SVT::FTextu
 		return false;
 	}
 
-	if (!BeginInitialize(InUncookedData.Num()))
+	const int32 NumUncookedFrameData = InUncookedData.Num();
+	const int32 NumFrameTransforms = InFrameTransforms.Num();
+	const bool bHasValidFrameTransforms = NumUncookedFrameData <= NumFrameTransforms;
+	if (!BeginInitialize(NumUncookedFrameData))
 	{
 		return false;
 	}
-	for (UE::SVT::FTextureData& UncookedFrame : InUncookedData)
+	for (int32 i = 0; i < NumUncookedFrameData; ++i)
 	{
-		if (!AppendFrame(UncookedFrame))
+		if (!AppendFrame(InUncookedData[i], bHasValidFrameTransforms ? InFrameTransforms[i] : FTransform::Identity))
 		{
 			return false;
 		}
@@ -1600,14 +1609,14 @@ UStaticSparseVolumeTexture::UStaticSparseVolumeTexture(const FObjectInitializer&
 {
 }
 
-bool UStaticSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& UncookedFrame)
+bool UStaticSparseVolumeTexture::AppendFrame(UE::SVT::FTextureData& UncookedFrame, const FTransform& InFrameTransform)
 {
 	if (!Frames.IsEmpty())
 	{
 		UE_LOG(LogSparseVolumeTexture, Error, TEXT("Tried to initialize a UStaticSparseVolumeTexture with more than 1 frame"));
 		return false;
 	}
-	return Super::AppendFrame(UncookedFrame);
+	return Super::AppendFrame(UncookedFrame, InFrameTransform);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
