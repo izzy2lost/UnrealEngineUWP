@@ -779,25 +779,32 @@ void FEOSSDKManager::CallUIPrePresent(const EOS_UI_PrePresentOptions& Options)
 
 bool FEOSSDKManager::IsRenderReady()
 {
-	if (bRenderReady)
+	if (bEnablePlatformIntegration)
 	{
+		if (bRenderReady)
+		{
+			return true;
+		}
+
+		if (!FSlateApplication::IsInitialized())
+		{
+			return false;
+		}
+
+		FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer();
+		if (!Renderer)
+		{
+			return false;
+		}
+
+		Renderer->OnBackBufferReadyToPresent().AddRaw(this, &FEOSSDKManager::OnBackBufferReady_RenderThread);
+		bRenderReady = true;
 		return true;
 	}
-
-	if (!FSlateApplication::IsInitialized())
+	else
 	{
 		return false;
 	}
-
-	FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer();
-	if (!Renderer)
-	{
-		return false;
-	}
-
-	Renderer->OnBackBufferReadyToPresent().AddRaw(this, &FEOSSDKManager::OnBackBufferReady_RenderThread);
-	bRenderReady = true;
-	return true;
 }
 
 void FEOSSDKManager::SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle)
