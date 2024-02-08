@@ -12,4 +12,5 @@ urlpatterns = [
     path("httptests/redirect_from", views.redirect_from, name="redirect_from"),
     path("httptests/redirect_to", views.redirect_to, name="redirect_to"),
     path("httptests/mock_latency/<int:latency>/", views.mock_latency, name="mock_latency"),
+    path("httptests/mock_status/<int:status_code>/", views.mock_status, name="mock_status"),
 ]

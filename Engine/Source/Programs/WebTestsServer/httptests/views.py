@@ -8,6 +8,7 @@ from django.http import StreamingHttpResponse
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FileUploadParser
 import time
+import json
 import logging
 
 logger = logging.getLogger('django')
@@ -81,3 +82,19 @@ def redirect_to(request):
 def mock_latency(request, latency):
     time.sleep(latency)
     return JsonResponse({})
+
+@api_view(['GET', 'POST', 'DELETE', 'PUT'])
+def mock_status(request, status_code):
+    json_result = json.dumps({
+        "key_a": "value_a",
+        "key_b": "value_b"
+    })
+
+    headers_to_forward = ['Retry-After',]
+
+    response_headers = {}
+    for header_to_forward in headers_to_forward:
+        if header_to_forward in request.headers:
+            response_headers[header_to_forward] = request.headers[header_to_forward]
+
+    return HttpResponse(json_result, content_type="application/json", status=status_code, headers=response_headers)
