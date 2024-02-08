@@ -64,10 +64,10 @@ namespace UE::Learning::Observation
 		}
 	}
 
-	FSchemaElement FSchema::CreateNull(const FName Name)
+	FSchemaElement FSchema::CreateNull(const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::Null);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(0);
 		EncodedVectorSizes.Add(0);
 		TypeDataIndices.Add(INDEX_NONE);
@@ -75,7 +75,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Num >= 0);
 
@@ -83,7 +83,7 @@ namespace UE::Learning::Observation
 		ElementData.Num = Parameters.Num;
 
 		const int32 Index = Types.Add(EType::Continuous);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(Parameters.Num);
 		EncodedVectorSizes.Add(Parameters.Num);
 		TypeDataIndices.Add(ContinuousData.Add(ElementData));
@@ -91,7 +91,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateAnd(const FSchemaAndParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateAnd(const FSchemaAndParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
@@ -105,7 +105,7 @@ namespace UE::Learning::Observation
 		SubElementObjects.Append(Parameters.Elements);
 
 		const int32 Index = Types.Add(EType::And);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(Private::GetTotalObservationVectorSize(*this, Parameters.Elements));
 		EncodedVectorSizes.Add(Private::GetTotalEncodedObservationVectorSize(*this, Parameters.Elements));
 		TypeDataIndices.Add(AndData.Add(ElementData));
@@ -113,7 +113,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
@@ -128,7 +128,7 @@ namespace UE::Learning::Observation
 		SubElementObjects.Append(Parameters.Elements);
 
 		const int32 Index = Types.Add(EType::OrExclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(Private::GetMaxObservationVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
 		EncodedVectorSizes.Add(Parameters.EncodingSize + Parameters.Elements.Num());
 		TypeDataIndices.Add(OrExclusiveData.Add(ElementData));
@@ -136,7 +136,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
@@ -153,7 +153,7 @@ namespace UE::Learning::Observation
 		SubElementObjects.Append(Parameters.Elements);
 
 		const int32 Index = Types.Add(EType::OrInclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(Private::GetTotalObservationVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
 		EncodedVectorSizes.Add(Parameters.AttentionHeadNum * Parameters.ValueEncodingSize + Parameters.Elements.Num());
 		TypeDataIndices.Add(OrInclusiveData.Add(ElementData));
@@ -161,7 +161,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateArray(const FSchemaArrayParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateArray(const FSchemaArrayParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Num >= 0);
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
@@ -174,7 +174,7 @@ namespace UE::Learning::Observation
 		SubElementObjects.Add(Parameters.Element);
 
 		const int32 Index = Types.Add(EType::Array);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(GetObservationVectorSize(Parameters.Element) * Parameters.Num);
 		EncodedVectorSizes.Add(GetEncodedVectorSize(Parameters.Element) * Parameters.Num);
 		TypeDataIndices.Add(ArrayData.Add(ElementData));
@@ -182,7 +182,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateSet(const FSchemaSetParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateSet(const FSchemaSetParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
@@ -197,7 +197,7 @@ namespace UE::Learning::Observation
 		SubElementObjects.Add(Parameters.Element);
 
 		const int32 Index = Types.Add(EType::Set);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(GetObservationVectorSize(Parameters.Element) * Parameters.MaxNum + Parameters.MaxNum);
 		EncodedVectorSizes.Add(Parameters.ValueEncodingSize * Parameters.AttentionHeadNum + 1);
 		TypeDataIndices.Add(SetData.Add(ElementData));
@@ -205,7 +205,7 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
@@ -219,7 +219,7 @@ namespace UE::Learning::Observation
 		SubElementObjects.Add(Parameters.Element);
 
 		const int32 Index = Types.Add(EType::Encoding);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		ObservationVectorSizes.Add(GetObservationVectorSize(Parameters.Element));
 		EncodedVectorSizes.Add(Parameters.EncodingSize);
 		TypeDataIndices.Add(EncodingData.Add(ElementData));
@@ -238,10 +238,10 @@ namespace UE::Learning::Observation
 		return Types[Element.Index];
 	}
 
-	FName FSchema::GetName(const FSchemaElement Element) const
+	FName FSchema::GetTag(const FSchemaElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element));
-		return Names[Element.Index];
+		return Tags[Element.Index];
 	}
 
 	int32 FSchema::GetObservationVectorSize(const FSchemaElement Element) const
@@ -348,7 +348,7 @@ namespace UE::Learning::Observation
 	void FSchema::Empty()
 	{
 		Types.Empty();
-		Names.Empty();
+		Tags.Empty();
 		ObservationVectorSizes.Empty();
 		EncodedVectorSizes.Empty();
 		TypeDataIndices.Empty();
@@ -370,7 +370,7 @@ namespace UE::Learning::Observation
 	void FSchema::Reset()
 	{
 		Types.Reset();
-		Names.Reset();
+		Tags.Reset();
 		ObservationVectorSizes.Reset();
 		EncodedVectorSizes.Reset();
 		TypeDataIndices.Reset();
@@ -389,10 +389,10 @@ namespace UE::Learning::Observation
 		Generation++;
 	}
 
-	FObjectElement FObject::CreateNull(const FName Name)
+	FObjectElement FObject::CreateNull(const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::Null);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -403,10 +403,10 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateContinuous(const FObjectContinuousParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateContinuous(const FObjectContinuousParameters Parameters, const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::Continuous);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(Parameters.Values.Num());
@@ -419,14 +419,14 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateAnd(const FObjectAndParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateAnd(const FObjectAndParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::And);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -440,12 +440,12 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
 		const int32 Index = Types.Add(EType::OrExclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -459,14 +459,14 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::OrInclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -480,12 +480,12 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateArray(const FObjectArrayParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateArray(const FObjectArrayParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::Array);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -502,12 +502,12 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateSet(const FObjectSetParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateSet(const FObjectSetParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::Set);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -524,12 +524,12 @@ namespace UE::Learning::Observation
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateEncoding(const FObjectEncodingParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateEncoding(const FObjectEncodingParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
 		const int32 Index = Types.Add(EType::Encoding);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -554,10 +554,10 @@ namespace UE::Learning::Observation
 		return Types[Element.Index];
 	}
 
-	FName FObject::GetName(const FObjectElement Element) const
+	FName FObject::GetTag(const FObjectElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element));
-		return Names[Element.Index];
+		return Tags[Element.Index];
 	}
 
 	FObjectContinuousParameters FObject::GetContinuous(const FObjectElement Element) const
@@ -634,7 +634,7 @@ namespace UE::Learning::Observation
 	void FObject::Empty()
 	{
 		Types.Empty();
-		Names.Empty();
+		Tags.Empty();
 
 		ContinuousDataOffsets.Empty();
 		ContinuousDataNums.Empty();
@@ -652,7 +652,7 @@ namespace UE::Learning::Observation
 	void FObject::Reset()
 	{
 		Types.Reset();
-		Names.Reset();
+		Tags.Reset();
 
 		ContinuousDataOffsets.Reset();
 		ContinuousDataNums.Reset();
@@ -827,11 +827,11 @@ namespace UE::Learning::Observation
 
 			UE_LEARNING_CHECKF(ReturnElement.GetInputSize() == Schema.GetObservationVectorSize(SchemaElement),
 				TEXT("Encoder Network Input unexpected size for %s. Got %i, expected %i according to Schema."),
-				*Schema.GetName(SchemaElement).ToString(), ReturnElement.GetInputSize(), Schema.GetObservationVectorSize(SchemaElement));
+				*Schema.GetTag(SchemaElement).ToString(), ReturnElement.GetInputSize(), Schema.GetObservationVectorSize(SchemaElement));
 
 			UE_LEARNING_CHECKF(ReturnElement.GetOutputSize() == Schema.GetEncodedVectorSize(SchemaElement),
 				TEXT("Encoder Network Output unexpected size for %s. Got %i, expected %i according to Schema."),
-				*Schema.GetName(SchemaElement).ToString(), ReturnElement.GetOutputSize(), Schema.GetEncodedVectorSize(SchemaElement));
+				*Schema.GetTag(SchemaElement).ToString(), ReturnElement.GetOutputSize(), Schema.GetEncodedVectorSize(SchemaElement));
 
 			return ReturnElement;
 		}
@@ -1309,7 +1309,7 @@ namespace UE::Learning::Observation
 		// Check that the types match
 
 		const EType SchemaElementType = Schema.GetType(SchemaElement);
-		const FName SchemaElementName = Schema.GetName(SchemaElement);
+		const FName SchemaElementTag = Schema.GetTag(SchemaElement);
 
 		// Get Observation Vector Size
 
@@ -1323,7 +1323,7 @@ namespace UE::Learning::Observation
 
 		case EType::Null:
 		{
-			OutObjectElement = OutObject.CreateNull(SchemaElementName);
+			OutObjectElement = OutObject.CreateNull(SchemaElementTag);
 			return;
 		}
 
@@ -1331,7 +1331,7 @@ namespace UE::Learning::Observation
 		{
 			UE_LEARNING_CHECK(ObservationVectorSize == Schema.GetContinuous(SchemaElement).Num);
 
-			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ObservationVector.GetData(), ObservationVector.Num()) }, SchemaElementName);
+			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ObservationVector.GetData(), ObservationVector.Num()) }, SchemaElementTag);
 			return;
 		}
 
@@ -1360,7 +1360,7 @@ namespace UE::Learning::Observation
 			}
 			UE_LEARNING_CHECK(SubElementOffset == ObservationVectorSize);
 
-			OutObjectElement = OutObject.CreateAnd({ Parameters.ElementNames, SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateAnd({ Parameters.ElementNames, SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1396,7 +1396,7 @@ namespace UE::Learning::Observation
 				Parameters.Elements[SchemaElementIndex],
 				ObservationVector.Slice(0, SubElementSize));
 
-			OutObjectElement = OutObject.CreateOrExclusive({ Parameters.ElementNames[SchemaElementIndex], SubElement }, SchemaElementName);
+			OutObjectElement = OutObject.CreateOrExclusive({ Parameters.ElementNames[SchemaElementIndex], SubElement }, SchemaElementTag);
 			return;
 		}
 
@@ -1442,7 +1442,7 @@ namespace UE::Learning::Observation
 			}
 			UE_LEARNING_CHECK(SubElementOffset + Parameters.Elements.Num() == ObservationVectorSize);
 
-			OutObjectElement = OutObject.CreateOrInclusive({ SubElementNames, SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateOrInclusive({ SubElementNames, SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1467,7 +1467,7 @@ namespace UE::Learning::Observation
 					ObservationVector.Slice(ElementIdx * SubElementSize, SubElementSize));
 			}
 
-			OutObjectElement = OutObject.CreateArray({ SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateArray({ SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1505,7 +1505,7 @@ namespace UE::Learning::Observation
 				SubElements.Add(SubElement);
 			}
 
-			OutObjectElement = OutObject.CreateSet({ SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateSet({ SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1521,7 +1521,7 @@ namespace UE::Learning::Observation
 				Parameters.Element,
 				ObservationVector);
 
-			OutObjectElement = OutObject.CreateEncoding({ SubElement }, SchemaElementName);
+			OutObjectElement = OutObject.CreateEncoding({ SubElement }, SchemaElementTag);
 			return;
 		}
 

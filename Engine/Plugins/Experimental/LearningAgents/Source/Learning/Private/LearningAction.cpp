@@ -117,10 +117,10 @@ namespace UE::Learning::Action
 		}
 	}
 
-	FSchemaElement FSchema::CreateNull(const FName Name)
+	FSchemaElement FSchema::CreateNull(const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::Null);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(0);
 		ActionVectorSizes.Add(0);
 		ActionDistributionVectorSizes.Add(0);
@@ -129,13 +129,13 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateContinuous(const FSchemaContinuousParameters Parameters, const FName Tag)
 	{
 		FContinuousData ElementData;
 		ElementData.Num = Parameters.Num;
 
 		const int32 Index = Types.Add(EType::Continuous);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(2 * Parameters.Num);
 		ActionVectorSizes.Add(Parameters.Num);
 		ActionDistributionVectorSizes.Add(2 * Parameters.Num);
@@ -144,7 +144,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateDiscreteExclusive(const FSchemaDiscreteExclusiveParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateDiscreteExclusive(const FSchemaDiscreteExclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.PriorProbabilities.Num() == Parameters.Num);
 		UE_LEARNING_CHECK(Private::CheckPriorProbabilitiesExclusive(Parameters.PriorProbabilities));
@@ -156,7 +156,7 @@ namespace UE::Learning::Action
 		PriorProbabilities.Append(Parameters.PriorProbabilities);
 
 		const int32 Index = Types.Add(EType::DiscreteExclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(Parameters.Num);
 		ActionVectorSizes.Add(Parameters.Num);
 		ActionDistributionVectorSizes.Add(Parameters.Num);
@@ -165,7 +165,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateDiscreteInclusive(const FSchemaDiscreteInclusiveParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateDiscreteInclusive(const FSchemaDiscreteInclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.PriorProbabilities.Num() == Parameters.Num);
 		UE_LEARNING_CHECK(Private::CheckPriorProbabilitiesInclusive(Parameters.PriorProbabilities));
@@ -177,7 +177,7 @@ namespace UE::Learning::Action
 		PriorProbabilities.Append(Parameters.PriorProbabilities);
 
 		const int32 Index = Types.Add(EType::DiscreteInclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(Parameters.Num);
 		ActionVectorSizes.Add(Parameters.Num);
 		ActionDistributionVectorSizes.Add(Parameters.Num);
@@ -186,7 +186,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateAnd(const FSchemaAndParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateAnd(const FSchemaAndParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
@@ -200,7 +200,7 @@ namespace UE::Learning::Action
 		SubElementObjects.Append(Parameters.Elements);
 
 		const int32 Index = Types.Add(EType::And);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(Private::GetTotalEncodedActionVectorSize(*this, Parameters.Elements));
 		ActionVectorSizes.Add(Private::GetTotalActionVectorSize(*this, Parameters.Elements));
 		ActionDistributionVectorSizes.Add(Private::GetTotalActionDistributionVectorSize(*this, Parameters.Elements));
@@ -209,7 +209,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateOrExclusive(const FSchemaOrExclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
@@ -227,7 +227,7 @@ namespace UE::Learning::Action
 		PriorProbabilities.Append(Parameters.PriorProbabilities);
 
 		const int32 Index = Types.Add(EType::OrExclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(Private::GetTotalEncodedActionVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
 		ActionVectorSizes.Add(Private::GetMaxActionVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
 		ActionDistributionVectorSizes.Add(Private::GetTotalActionDistributionVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
@@ -236,7 +236,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateOrInclusive(const FSchemaOrInclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
@@ -254,7 +254,7 @@ namespace UE::Learning::Action
 		PriorProbabilities.Append(Parameters.PriorProbabilities);
 
 		const int32 Index = Types.Add(EType::OrInclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(Private::GetTotalEncodedActionVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
 		ActionVectorSizes.Add(Private::GetTotalActionVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
 		ActionDistributionVectorSizes.Add(Private::GetTotalActionDistributionVectorSize(*this, Parameters.Elements) + Parameters.Elements.Num());
@@ -263,7 +263,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateArray(const FSchemaArrayParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateArray(const FSchemaArrayParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 		UE_LEARNING_CHECK(Parameters.Num >= 0);
@@ -276,7 +276,7 @@ namespace UE::Learning::Action
 		SubElementObjects.Add(Parameters.Element);
 
 		const int32 Index = Types.Add(EType::Array);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(GetEncodedVectorSize(Parameters.Element) * Parameters.Num);
 		ActionVectorSizes.Add(GetActionVectorSize(Parameters.Element) * Parameters.Num);
 		ActionDistributionVectorSizes.Add(GetActionDistributionVectorSize(Parameters.Element) * Parameters.Num);
@@ -285,7 +285,7 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FSchemaElement FSchema::CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Name)
+	FSchemaElement FSchema::CreateEncoding(const FSchemaEncodingParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
@@ -299,7 +299,7 @@ namespace UE::Learning::Action
 		SubElementObjects.Add(Parameters.Element);
 
 		const int32 Index = Types.Add(EType::Encoding);
-		Names.Add(Name);
+		Tags.Add(Tag);
 		EncodedVectorSizes.Add(ElementData.EncodingSize);
 		ActionVectorSizes.Add(GetActionVectorSize(Parameters.Element));
 		ActionDistributionVectorSizes.Add(GetActionDistributionVectorSize(Parameters.Element));
@@ -319,10 +319,10 @@ namespace UE::Learning::Action
 		return Types[Element.Index];
 	}
 
-	FName FSchema::GetName(const FSchemaElement Element) const
+	FName FSchema::GetTag(const FSchemaElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element));
-		return Names[Element.Index];
+		return Tags[Element.Index];
 	}
 
 	int32 FSchema::GetEncodedVectorSize(const FSchemaElement Element) const
@@ -441,7 +441,7 @@ namespace UE::Learning::Action
 	void FSchema::Empty()
 	{
 		Types.Empty();
-		Names.Empty();
+		Tags.Empty();
 		EncodedVectorSizes.Empty();
 		ActionVectorSizes.Empty();
 		ActionDistributionVectorSizes.Empty();
@@ -466,7 +466,7 @@ namespace UE::Learning::Action
 	void FSchema::Reset()
 	{
 		Types.Reset();
-		Names.Reset();
+		Tags.Reset();
 		EncodedVectorSizes.Reset();
 		ActionVectorSizes.Reset();
 		ActionDistributionVectorSizes.Reset();
@@ -488,10 +488,10 @@ namespace UE::Learning::Action
 		Generation++;
 	}
 
-	FObjectElement FObject::CreateNull(const FName Name)
+	FObjectElement FObject::CreateNull(const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::Null);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -505,10 +505,10 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateContinuous(const FObjectContinuousParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateContinuous(const FObjectContinuousParameters Parameters, const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::Continuous);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(Parameters.Values.Num());
@@ -524,10 +524,10 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateDiscreteExclusive(const FObjectDiscreteExclusiveParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateDiscreteExclusive(const FObjectDiscreteExclusiveParameters Parameters, const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::DiscreteExclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -543,10 +543,10 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateDiscreteInclusive(const FObjectDiscreteInclusiveParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateDiscreteInclusive(const FObjectDiscreteInclusiveParameters Parameters, const FName Tag)
 	{
 		const int32 Index = Types.Add(EType::DiscreteInclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -562,14 +562,14 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateAnd(const FObjectAndParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateAnd(const FObjectAndParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::And);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -586,12 +586,12 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateOrExclusive(const FObjectOrExclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
 		const int32 Index = Types.Add(EType::OrExclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -608,14 +608,14 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateOrInclusive(const FObjectOrInclusiveParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Parameters.Elements.Num() == Parameters.ElementNames.Num());
 		UE_LEARNING_CHECK(!Private::ContainsDuplicates(Parameters.ElementNames));
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::OrInclusive);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -632,12 +632,12 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateArray(const FObjectArrayParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateArray(const FObjectArrayParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(Private::CheckAllValid(*this, Parameters.Elements));
 
 		const int32 Index = Types.Add(EType::Array);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -657,12 +657,12 @@ namespace UE::Learning::Action
 		return { Index, Generation };
 	}
 
-	FObjectElement FObject::CreateEncoding(const FObjectEncodingParameters Parameters, const FName Name)
+	FObjectElement FObject::CreateEncoding(const FObjectEncodingParameters Parameters, const FName Tag)
 	{
 		UE_LEARNING_CHECK(IsValid(Parameters.Element));
 
 		const int32 Index = Types.Add(EType::Encoding);
-		Names.Add(Name);
+		Tags.Add(Tag);
 
 		ContinuousDataOffsets.Add(ContinuousValues.Num());
 		ContinuousDataNums.Add(0);
@@ -690,10 +690,10 @@ namespace UE::Learning::Action
 		return Types[Element.Index];
 	}
 	
-	FName FObject::GetName(const FObjectElement Element) const
+	FName FObject::GetTag(const FObjectElement Element) const
 	{
 		UE_LEARNING_CHECK(IsValid(Element));
-		return Names[Element.Index];
+		return Tags[Element.Index];
 	}
 
 	FObjectContinuousParameters FObject::GetContinuous(const FObjectElement Element) const
@@ -779,7 +779,7 @@ namespace UE::Learning::Action
 	void FObject::Empty()
 	{
 		Types.Empty();
-		Names.Empty();
+		Tags.Empty();
 		ContinuousDataOffsets.Empty();
 		ContinuousDataNums.Empty();
 		DiscreteDataOffsets.Empty();
@@ -798,7 +798,7 @@ namespace UE::Learning::Action
 	void FObject::Reset()
 	{
 		Types.Reset();
-		Names.Reset();
+		Tags.Reset();
 		ContinuousDataOffsets.Reset();
 		ContinuousDataNums.Reset();
 		DiscreteDataOffsets.Reset();
@@ -1689,7 +1689,7 @@ namespace UE::Learning::Action
 		// Check that the types match
 
 		const EType SchemaElementType = Schema.GetType(SchemaElement);
-		const FName SchemaElementName = Schema.GetName(SchemaElement);
+		const FName SchemaElementTag = Schema.GetTag(SchemaElement);
 
 		// Get Action Vector Size
 
@@ -1703,7 +1703,7 @@ namespace UE::Learning::Action
 
 		case EType::Null:
 		{
-			OutObjectElement = OutObject.CreateNull(SchemaElementName);
+			OutObjectElement = OutObject.CreateNull(SchemaElementTag);
 			return;
 		}
 
@@ -1711,7 +1711,7 @@ namespace UE::Learning::Action
 		{
 			UE_LEARNING_CHECK(ActionVectorSize == Schema.GetContinuous(SchemaElement).Num);
 
-			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ActionVector.GetData(), ActionVector.Num()) }, SchemaElementName);
+			OutObjectElement = OutObject.CreateContinuous({ MakeArrayView(ActionVector.GetData(), ActionVector.Num()) }, SchemaElementTag);
 			return;
 		}
 
@@ -1732,7 +1732,7 @@ namespace UE::Learning::Action
 			}
 			UE_LEARNING_CHECK(ExclusiveIndex != INDEX_NONE);
 
-			OutObjectElement = OutObject.CreateDiscreteExclusive({ ExclusiveIndex }, SchemaElementName);
+			OutObjectElement = OutObject.CreateDiscreteExclusive({ ExclusiveIndex }, SchemaElementTag);
 			return;
 		}
 
@@ -1752,7 +1752,7 @@ namespace UE::Learning::Action
 				}
 			}
 
-			OutObjectElement = OutObject.CreateDiscreteInclusive({ InclusiveIndices }, SchemaElementName);
+			OutObjectElement = OutObject.CreateDiscreteInclusive({ InclusiveIndices }, SchemaElementTag);
 			return;
 		}
 
@@ -1781,7 +1781,7 @@ namespace UE::Learning::Action
 			}
 			UE_LEARNING_CHECK(SubElementOffset == ActionVectorSize);
 
-			OutObjectElement = OutObject.CreateAnd({ Parameters.ElementNames, SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateAnd({ Parameters.ElementNames, SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1817,7 +1817,7 @@ namespace UE::Learning::Action
 				Parameters.Elements[SchemaElementIndex],
 				ActionVector.Slice(0, SubElementSize));
 
-			OutObjectElement = OutObject.CreateOrExclusive({ Parameters.ElementNames[SchemaElementIndex], SubElement }, SchemaElementName);
+			OutObjectElement = OutObject.CreateOrExclusive({ Parameters.ElementNames[SchemaElementIndex], SubElement }, SchemaElementTag);
 			return;
 		}
 
@@ -1860,7 +1860,7 @@ namespace UE::Learning::Action
 			}
 			UE_LEARNING_CHECK(SubElementOffset + Parameters.Elements.Num() == ActionVectorSize);
 
-			OutObjectElement = OutObject.CreateOrInclusive({ SubElementNames, SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateOrInclusive({ SubElementNames, SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1885,7 +1885,7 @@ namespace UE::Learning::Action
 					ActionVector.Slice(ElementIdx * SubElementSize, SubElementSize));
 			}
 
-			OutObjectElement = OutObject.CreateArray({ SubElements }, SchemaElementName);
+			OutObjectElement = OutObject.CreateArray({ SubElements }, SchemaElementTag);
 			return;
 		}
 
@@ -1901,7 +1901,7 @@ namespace UE::Learning::Action
 				Parameters.Element,
 				ActionVector);
 
-			OutObjectElement = OutObject.CreateEncoding({ SubElement }, SchemaElementName);
+			OutObjectElement = OutObject.CreateEncoding({ SubElement }, SchemaElementTag);
 			return;
 		}
 

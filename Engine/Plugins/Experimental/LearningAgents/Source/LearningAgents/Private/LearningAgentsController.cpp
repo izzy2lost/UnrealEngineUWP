@@ -130,7 +130,7 @@ void ULearningAgentsController::EvaluateController()
 
 	// Run EvaluateAgentControllers Callback
 
-	Interactor->ActionObject->GetActionObject().Reset();
+	Interactor->ActionObject->ActionObject.Reset();
 	Interactor->ActionObjectElements.Empty(Manager->GetMaxAgentNum());
 	EvaluateAgentControllers(
 		Interactor->ActionObjectElements, 
@@ -149,16 +149,17 @@ void ULearningAgentsController::EvaluateController()
 
 	for (int32 AgentIdx = 0; AgentIdx < Manager->GetAgentNum(); AgentIdx++)
 	{
-		if (Interactor->ActionSchema->ValidateObjectMatchesSchema(
+		if (ULearningAgentsActions::ValidateObjectMatchesSchema(
+			Interactor->ActionSchema,
 			Interactor->ActionSchemaElement, 
 			Interactor->ActionObject, 
 			Interactor->ActionObjectElements[AgentIdx]))
 		{
 			UE::Learning::Action::SetVectorFromObject(
 				Interactor->ActionVectors[Manager->GetAllAgentSet()[AgentIdx]],
-				Interactor->ActionSchema->GetActionSchema(),
+				Interactor->ActionSchema->ActionSchema,
 				Interactor->ActionSchemaElement.SchemaElement,
-				Interactor->ActionObject->GetActionObject(),
+				Interactor->ActionObject->ActionObject,
 				Interactor->ActionObjectElements[AgentIdx].ObjectElement);
 
 			Interactor->ActionVectorIteration[Manager->GetAllAgentSet()[AgentIdx]]++;
