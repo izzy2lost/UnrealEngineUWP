@@ -1518,12 +1518,12 @@ void FRetargetOpStackCustomization::CustomizeDetails(IDetailLayoutBuilder& Detai
 			{
 				PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
 				{
-					Controller.Pin().Get()->ReinitializeProcessor();
+					Controller.Pin().Get()->HandleRetargeterNeedsInitialized();
 				}));
 				
 				PropertyHandle->SetOnChildPropertyValueChanged(FSimpleDelegate::CreateLambda([this]()
 				{
-						Controller.Pin().Get()->ReinitializeProcessor();
+					Controller.Pin().Get()->HandleRetargeterNeedsInitialized();
 				}));
 				
 				OpSettingCategory.AddProperty(PropertyHandle)

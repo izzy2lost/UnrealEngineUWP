@@ -180,8 +180,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Speed Planting")
 	FTargetChainSpeedPlantSettings SpeedPlanting;
 	
-	void CopySettingsFromAsset(const URetargetChainSettings* AssetChainSettings);
-
 	bool operator==(const FTargetChainSettings& Other) const;
 };
 
@@ -241,8 +239,6 @@ public:
 	*  At 1 the IK positions are calculated relative to the modified root location.*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Root Retarget Settings", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0", DisplayName = "Affect IK Vertical"))
 	float AffectIKVertical = 0.0f;
-
-	void CopySettingsFromAsset(const URetargetRootSettings* AssetChainSettings);
 
 	FVector GetAffectIKWeightVector() const
 	{
