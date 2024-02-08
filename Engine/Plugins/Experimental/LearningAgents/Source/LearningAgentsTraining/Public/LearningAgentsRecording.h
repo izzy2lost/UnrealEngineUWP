@@ -62,10 +62,6 @@ public:
 
 public:
 
-	/** Resets this recording asset to be empty. */
-	UFUNCTION(CallInEditor, Category = "LearningAgents")
-	void ResetRecording();
-
 	/** Load this recording from a file. */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (RelativePath))
 	void LoadRecordingFromFile(const FFilePath& File);

@@ -318,30 +318,6 @@ void ULearningAgentsRecorder::EndRecording()
 	bIsRecording = false;
 }
 
-void ULearningAgentsRecorder::EndRecordingAndDiscard()
-{
-	if (!IsSetup())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Setup not complete."), *GetName());
-		return;
-	}
-
-	if (!IsRecording())
-	{
-		UE_LOG(LogLearning, Error, TEXT("%s: Cannot end recording as we are not currently recording!"), *GetName());
-		return;
-	}
-
-	// Discard Records
-
-	for (const int32 AgentId : Manager->GetAllAgentSet())
-	{
-		RecordBuffers[AgentId].Empty();
-	}
-
-	bIsRecording = false;
-}
-
 void ULearningAgentsRecorder::BeginRecording()
 {
 	if (!IsSetup())

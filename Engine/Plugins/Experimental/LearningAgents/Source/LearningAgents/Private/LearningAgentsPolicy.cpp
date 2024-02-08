@@ -631,7 +631,7 @@ void ULearningAgentsPolicy::DecodeAndSampleActions(const float ActionNoiseScale)
 			Seeds[AgentId],
 			Interactor->ActionVectors[AgentId],
 			ActionDistributionVectors[AgentId],
-			Interactor->ActionSchema->ActionSchema,
+			Interactor->ActionSchema->GetActionSchema(),
 			Interactor->ActionSchemaElement.SchemaElement,
 			ActionNoiseScale);
 	}

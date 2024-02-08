@@ -107,10 +107,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
 	void EndRecording();
 
-	/** Ends the recording of the observations and actions of each agent and discards them. */
-	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
-	void EndRecordingAndDiscard();
-
 	/** Returns true if recording is active; Otherwise, false. */
 	UFUNCTION(BlueprintPure, Category = "LearningAgents")
 	bool IsRecording() const;

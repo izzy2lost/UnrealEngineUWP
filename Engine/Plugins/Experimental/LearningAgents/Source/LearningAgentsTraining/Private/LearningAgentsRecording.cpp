@@ -17,12 +17,6 @@ namespace UE::Learning::Agents::Recording::Private
 	static constexpr int32 VersionNumber = 1;
 }
 
-void ULearningAgentsRecording::ResetRecording()
-{
-	Records.Empty();
-	ForceMarkDirty();
-}
-
 void ULearningAgentsRecording::LoadRecordingFromFile(const FFilePath& File)
 {
 	TArray<uint8> RecordingData;
