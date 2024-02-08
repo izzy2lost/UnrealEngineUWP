@@ -477,9 +477,9 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 			Result.ShadowFactor = 0.0f;
 			// Shadow view matrix is rotation
 			float ReceiverDistance = length(ShadowTranslatedWorldPosition);
-			Result.OccluderDistance = RayStartDistance + ComputeOccluderDistancePerspective(
+			Result.OccluderDistance = ComputeOccluderDistancePerspective(
 				ProjectionData.ShadowViewToClipMatrix,
-				SmSample.Depth,
+				BiasedDepth,
 				ShadowUVz.z,
 				ReceiverDistance);
 		}
