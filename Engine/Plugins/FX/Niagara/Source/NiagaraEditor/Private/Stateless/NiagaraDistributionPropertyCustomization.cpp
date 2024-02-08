@@ -33,7 +33,11 @@ public:
 
 			const FName DisableCurveDistributionName("DisableCurveDistribution");
 			const FName DisableUniformDistributionName("DisableUniformDistribution");
+			const FName DisableNonUniformDistributionName("DisableNonUniformDistribution");
+			const FName DisableRangeDistributionName("DisableRangeDistribution");
 			bAllowUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableUniformDistributionName) == false : false;
+			bAllowNonUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableNonUniformDistributionName) == false : false;
+			bAllowRange = PropertyHandle ? PropertyHandle->HasMetaData(DisableRangeDistributionName) == false : false;
 			bAllowCurves = InDistribution->AllowCurves() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableCurveDistributionName) == false : false);
 		}
 	}
@@ -81,8 +85,14 @@ public:
 	{
 		if (SourceNumChannels == 1)
 		{
-			OutSupportedModes.Add(ENiagaraDistributionEditorMode::Constant);
-			OutSupportedModes.Add(ENiagaraDistributionEditorMode::Range);
+			if (bAllowUniform)
+			{
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::Constant);
+				if (bAllowRange)
+				{
+					OutSupportedModes.Add(ENiagaraDistributionEditorMode::Range);
+				}
+			}
 			if (bAllowCurves)
 			{
 				OutSupportedModes.Add(ENiagaraDistributionEditorMode::Curve);
@@ -93,14 +103,26 @@ public:
 			if (bAllowUniform)
 			{
 				OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformConstant);
-				OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformRange);
+				if (bAllowRange)
+				{
+					OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformRange);
+				}
 			}
-			OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformConstant);
-			OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformRange);
+			if (bAllowNonUniform)
+			{
+				OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformConstant);
+				if (bAllowRange)
+				{
+					OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformRange);
+				}
+			}
 			if (bAllowCurves)
 			{
 				OutSupportedModes.Add(ENiagaraDistributionEditorMode::UniformCurve);
-				OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformCurve);
+				if (bAllowNonUniform)
+				{
+					OutSupportedModes.Add(ENiagaraDistributionEditorMode::NonUniformCurve);
+				}
 			}
 		}
 	}
@@ -496,6 +518,8 @@ private:
 	bool bContinuousChangeActive = false;
 
 	bool bAllowUniform = true;
+	bool bAllowNonUniform = true;
+	bool bAllowRange = true;
 	bool bAllowCurves = true;
 };
 
@@ -547,13 +571,25 @@ private:
 	bool bUpdatingHandle = false;
 };
 
-TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeFloatInstance()
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeFloatInstance(UObject* OptionalOuter)
 {
-	FPropertyHandleToDistributionAdapter FloatDistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([](TSharedRef<IPropertyHandle> FloatDistributionPropertyHandle)
+	FPropertyHandleToDistributionAdapter FloatDistributionPropertyHandleToDistributionAdapter = FPropertyHandleToDistributionAdapter::CreateLambda([OptionalOuter](TSharedRef<IPropertyHandle> FloatDistributionPropertyHandle)
 	{
 		void* ValueData = nullptr;
 		TArray<UObject*> OuterObjects;
-		FloatDistributionPropertyHandle->GetOuterObjects(OuterObjects);
+		if (OptionalOuter)
+		{
+			TArray<TSharedPtr<FStructOnScope>> OutStructOnScopes;
+			FloatDistributionPropertyHandle->GetOuterStructs(OutStructOnScopes);
+			if (OutStructOnScopes.Num() == 1)
+			{
+				OuterObjects.Add(OptionalOuter);
+			}
+		}
+		else
+		{
+			FloatDistributionPropertyHandle->GetOuterObjects(OuterObjects);
+		}
 		if (OuterObjects.Num() == 1 && FloatDistributionPropertyHandle->GetValueData(ValueData) == FPropertyAccess::Success)
 		{
 			FNiagaraDistributionBase* FloatDistribution = static_cast<FNiagaraDistributionBase*>(ValueData);
@@ -563,6 +599,11 @@ TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization
 	});
 
 	return MakeShareable<FNiagaraDistributionPropertyCustomization>(new FNiagaraDistributionPropertyCustomization(FloatDistributionPropertyHandleToDistributionAdapter));
+}
+
+TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeFloatInstance()
+{
+	return MakeFloatInstance(nullptr);
 }
 
 TSharedRef<IPropertyTypeCustomization> FNiagaraDistributionPropertyCustomization::MakeVector2Instance()

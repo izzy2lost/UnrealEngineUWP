@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NiagaraCommon.h"
+#include "Stateless/NiagaraStatelessDistribution.h"
 
 #include "NiagaraSystemEmitterState.generated.h"
 
@@ -47,12 +48,9 @@ struct FNiagaraSystemStateData
 
 	UPROPERTY(EditAnywhere, Category = "System State")
 	ENiagaraLoopBehavior LoopBehavior = ENiagaraLoopBehavior::Once;
-	
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDurationMin = 0.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDurationMax = 0.0f;
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "0.0"))
+	FNiagaraDistributionRangeFloat LoopDuration = FNiagaraDistributionRangeFloat(0.0f);
 
 	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "1", EditCondition = "LoopBehavior == ENiagaraLoopBehavior::Multiple", EditConditionHides))
 	int LoopCount = 1;
@@ -60,11 +58,8 @@ struct FNiagaraSystemStateData
 	UPROPERTY(EditAnywhere, Category = "System State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
 	bool bRecalculateDurationEachLoop = false;
 
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDelayMin = 0.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDelayMax = 0.0f;
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "0.0"))
+	FNiagaraDistributionRangeFloat LoopDelay = FNiagaraDistributionRangeFloat(0.0f);
 
 	UPROPERTY(EditAnywhere, Category = "System State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
 	bool bDelayFirstLoopOnly = false;
@@ -91,19 +86,13 @@ struct FNiagaraEmitterStateData
 	int32 LoopCount = 1;
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDurationMin = 1.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDurationMax = 1.0f;
+	FNiagaraDistributionRangeFloat LoopDuration = FNiagaraDistributionRangeFloat(1.0f);
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
 	bool bRecalculateDurationEachLoop = false;
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDelayMin = 0.0f;
-
-	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (ClampMin = "0.0"))
-	float LoopDelayMax = 0.0f;
+	FNiagaraDistributionRangeFloat LoopDelay = FNiagaraDistributionRangeFloat(0.0f);
 
 	UPROPERTY(EditAnywhere, Category = "Emitter State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
 	bool bDelayFirstLoopOnly = false;

@@ -49,17 +49,17 @@ public:
 	int32 AddRendererBinding(const FNiagaraParameterBinding& Binding);
 	int32 AddRendererBinding(const FNiagaraParameterBindingWithValue& Binding);	
 
-	// Adds a distribution into the LUT if enabled and returns the packed information to send to the shader
-	template<typename TDistribution>
-	FUintVector3 AddDistribution(const TDistribution& Distribution, bool bEnabled)
+	// Adds an distribution into the LUT if enabled
+	template<typename TType>
+	FUintVector3 AddDistribution(ENiagaraDistributionMode Mode, TConstArrayView<TType> Values, bool bEnabled)
 	{
 		FUintVector3 Parameters = FUintVector3::ZeroValue;
-		if (bEnabled && Distribution.Values.Num() > 0)
+		if (bEnabled && Values.Num() > 0)
 		{
 			constexpr uint32 StatelessDistributionFlag_Random = 0x00000001;
 			constexpr uint32 StatelessDistributionFlag_Uniform = 0x00000002;
 
-			switch (Distribution.Mode)
+			switch (Mode)
 			{
 				case ENiagaraDistributionMode::UniformConstant:		Parameters.X = StatelessDistributionFlag_Random | StatelessDistributionFlag_Uniform; break;
 				case ENiagaraDistributionMode::NonUniformConstant:	Parameters.X = StatelessDistributionFlag_Random; break;
@@ -70,10 +70,17 @@ public:
 				default:											checkNoEntry(); break;
 			}
 
-			Parameters.Y = AddStaticData(Distribution.Values);
-			reinterpret_cast<float&>(Parameters.Z) = Distribution.Values.Num() - 1;
+			Parameters.Y = AddStaticData(Values);
+			reinterpret_cast<float&>(Parameters.Z) = Values.Num() - 1;
 		}
 		return Parameters;
+	}
+
+	// Adds a distribution into the LUT if enabled and returns the packed information to send to the shader
+	template<typename TDistribution>
+	FUintVector3 AddDistribution(const TDistribution& Distribution, bool bEnabled)
+	{
+		return AddDistribution(Distribution.Mode, MakeArrayView(Distribution.Values), bEnabled);
 	}
 
 private:

@@ -300,7 +300,7 @@ void UNiagaraOverviewNode::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 						)
 					)
 				);
-
+			#if 0
 				if (GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
 				{
 					Section.AddSubMenu(
@@ -340,6 +340,7 @@ void UNiagaraOverviewNode::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 							}
 						}));
 				}
+			#endif
 			}
 		}
 	}

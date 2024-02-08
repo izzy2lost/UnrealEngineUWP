@@ -60,15 +60,8 @@ bool UNiagaraStatelessModule::CanEditChange(const FProperty* InProperty) const
 
 void UNiagaraStatelessModule::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
-	FStructProperty* StructProperty = CastField<FStructProperty>(PropertyChangedEvent.MemberProperty);
-	if (StructProperty != nullptr && StructProperty->Struct->IsChildOf(FNiagaraDistributionBase::StaticStruct()))
-	{
-		FNiagaraDistributionBase* ValuePtr = StructProperty->ContainerPtrToValuePtr<FNiagaraDistributionBase>(this);
-		if (ValuePtr != nullptr)
-		{
-			ValuePtr->UpdateValuesFromDistribution();
-		}
-	}
+	FNiagaraDistributionBase::PostEditChangeProperty(this, PropertyChangedEvent);
+
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif //WITH_EDITOR
