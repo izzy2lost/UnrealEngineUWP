@@ -40,7 +40,7 @@ FVideoResourceMetal::FVideoResourceMetal(TSharedRef<FAVDevice> const& Device, CV
 {
     if (Raw)
     {
-        CVPixelBufferRetain(Raw);
+        CFRetain(Raw);
     }
 }
 
@@ -48,7 +48,7 @@ FVideoResourceMetal::~FVideoResourceMetal()
 {
     if (Raw)
     {
-        CVPixelBufferRelease(Raw);
+        CFRelease(Raw);
         Raw = nullptr;
     }
 }

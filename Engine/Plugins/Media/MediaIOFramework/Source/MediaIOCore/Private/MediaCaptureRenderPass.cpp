@@ -157,7 +157,7 @@ namespace UE::MediaCapture
 		ColorConversionOutputTextureDesc.ClearValue = FClearValueBinding(FLinearColor::White);
 		ColorConversionOutputTextureDesc.Reset();
 
-		TRefCountPtr<IPooledRenderTarget> RenderTarget = AllocatePooledTexture(ColorConversionOutputTextureDesc, *FString::Printf(TEXT("MediaCapture ColorConversion RenderTarget %d"), FrameId));
+		TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(ColorConversionOutputTextureDesc, FString::Printf(TEXT("MediaCapture ColorConversion RenderTarget %d"), FrameId));
 		return RenderTargetResource(MoveTemp(RenderTarget));
 	}
 
@@ -175,7 +175,7 @@ namespace UE::MediaCapture
 		ResampleOutputTextureDesc.Flags |= TexCreate_RenderTargetable | TexCreate_UAV | TexCreate_NoFastClear;
 		ResampleOutputTextureDesc.ClearValue = FClearValueBinding(FLinearColor(0, 0, 0, 0));
 
-		TRefCountPtr<IPooledRenderTarget> RenderTarget = AllocatePooledTexture(ResampleOutputTextureDesc, *FString::Printf(TEXT("MediaCapture Resample RenderTarget %d"), FrameId));
+		TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(ResampleOutputTextureDesc, FString::Printf(TEXT("MediaCapture Resample RenderTarget %d"), FrameId));
 		return RenderTargetResource(MoveTemp(RenderTarget));
 	}
 
@@ -296,7 +296,7 @@ namespace UE::MediaCapture
 		{
 			ConversionPass.InitializePassOutputDelegate = FRenderPass::FInitializePassOutput::CreateLambda([](const UE::MediaCapture::FInitializePassOutputArgs& Args, uint32 FrameId)
 			{
-				TRefCountPtr<IPooledRenderTarget> RenderTarget = AllocatePooledTexture(Args.MediaCapture->DesiredOutputTextureDescription, TEXT("MediaCapture Output RenderTarget"));
+				TRefCountPtr<IPooledRenderTarget> RenderTarget = Args.MediaCapture->InitializePassOutputTexture(Args.MediaCapture->DesiredOutputTextureDescription, TEXT("MediaCapture Output RenderTarget"));
 				return RenderTargetResource(MoveTemp(RenderTarget));
 			});
 		}
@@ -304,7 +304,7 @@ namespace UE::MediaCapture
 		{
 			ConversionPass.InitializePassOutputDelegate = FRenderPass::FInitializePassOutput::CreateLambda([](const UE::MediaCapture::FInitializePassOutputArgs& Args, uint32 FrameId)
 			{
-				TRefCountPtr<FRDGPooledBuffer> Buffer = AllocatePooledBuffer(Args.MediaCapture->DesiredOutputBufferDescription , TEXT("MediaCapture Output Buffer"));
+				TRefCountPtr<FRDGPooledBuffer> Buffer = Args.MediaCapture->InitializePassOutputBuffer(Args.MediaCapture->DesiredOutputBufferDescription, TEXT("MediaCapture Output Buffer"));
 				return BufferResource(MoveTemp(Buffer));
 			});
 		}

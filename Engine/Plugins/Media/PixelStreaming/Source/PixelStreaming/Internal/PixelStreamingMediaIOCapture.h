@@ -39,11 +39,29 @@ public:
 		int32 Height,
 		int32 BytesPerRow) override;
 
+	/**
+	 * Custom conversion operation for Mac
+	*/
+	virtual void OnCustomCapture_RenderingThread(
+		FRDGBuilder& GraphBuilder, 
+		const FCaptureBaseData& InBaseData, 
+		TSharedPtr<FMediaCaptureUserData, ESPMode::ThreadSafe> InUserData, 
+		FRDGTextureRef InSourceTexture, 
+		FRDGTextureRef OutputTexture, 
+		const FRHICopyTextureInfo& CopyInfo, 
+		FVector2D CropU, 
+		FVector2D CropV) override;
+
 	virtual bool InitializeCapture() override;
 	virtual bool PostInitializeCaptureViewport(TSharedPtr<FSceneViewport>& InSceneViewport) override;
 	virtual bool ShouldCaptureRHIResource() const { return bDoGPUCopy; }
 	virtual void StopCaptureImpl(bool bAllowPendingFrameToBeProcess) override;
 	virtual bool SupportsAnyThreadCapture() const override;
+	// We override the texture flags because on Mac we want the texture to have the CPU_Readback flag
+    virtual ETextureCreateFlags GetOutputTextureFlags() const override;
+	// We override the initialization of the pass output texture as we want to the `CreateRenderTarget` allocator as it doesn't force
+	// the SRV flag
+	virtual TRefCountPtr<IPooledRenderTarget> InitializePassOutputTexture(FRDGTextureDesc TextureDesc, const FString& TextureName) const override;
 	//~ End UMediaCapture interface
 
 	TSharedPtr<FSceneViewport> GetViewport() const { return SceneViewport.Pin(); }
