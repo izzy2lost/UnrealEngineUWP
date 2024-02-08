@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using EpicGames.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Horde.Agent.Utility
 {
@@ -97,6 +98,38 @@ namespace Horde.Agent.Utility
 		/// </summary>
 		/// <param name="jsonLogEvent">Event to write</param>
 		public int SanitizeAndWriteEvent(JsonLogEvent jsonLogEvent)
+		{
+			try
+			{
+				return SanitizeAndWriteEventInternal(jsonLogEvent);
+			}
+			catch (Exception ex)
+			{
+				StringBuilder escapedLineBuilder = new StringBuilder();
+
+				ReadOnlySpan<byte> span = jsonLogEvent.Data.Span;
+				for (int idx = 0; idx < span.Length; idx++)
+				{
+					if (span[idx] >= 32 && span[idx] <= 127)
+					{
+						escapedLineBuilder.Append((char)span[idx]);
+					}
+					else
+					{
+						escapedLineBuilder.Append($"\\x{span[idx]:x2}");
+					}
+				}
+
+				string escapedLine = escapedLineBuilder.ToString();
+				KeyValuePair<string, object>[] properties = new[] { new KeyValuePair<string, object>("Text", escapedLine) };
+				LogEvent newLogEvent = new LogEvent(DateTime.UtcNow, LogLevel.Error, default, $"Invalid json log event: {escapedLineBuilder}", "Invalid json log event: {Text}", properties, LogException.FromException(ex));
+				JsonLogEvent newJsonLogEvent = new JsonLogEvent(newLogEvent);
+
+				return SanitizeAndWriteEventInternal(newJsonLogEvent);
+			}
+		}
+
+		public int SanitizeAndWriteEventInternal(JsonLogEvent jsonLogEvent)
 		{
 			ReadOnlySpan<byte> span = jsonLogEvent.Data.Span;
 			if (jsonLogEvent.LineCount == 1 && span.IndexOf(s_escapedNewline) != -1)
