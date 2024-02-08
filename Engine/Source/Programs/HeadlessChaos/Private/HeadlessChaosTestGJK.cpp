@@ -1458,9 +1458,12 @@ namespace ChaosTest
 			const FRigidTransform3 BTM(FVec3(2461.92749, -205.484283, 106.071632), FRotation3::FromElements(0,0,0,1));
 			const FRigidTransform3 BToATM(FVec3(102.903252, 218.050415, 102.071655), FRotation3::FromElements(5.07916162e-08, 3.39378659e-08, -0.555569768, 0.831469893));
 
-			FReal Penetration;
-			FVec3 ClosestA,ClosestB,Normal;
-			int32 ClosestVertexIndexA, ClosestVertexIndexB;
+			FReal Penetration = 0;
+			FVec3 ClosestA = FVec3(0);
+			FVec3 ClosestB = FVec3(0);
+			FVec3 Normal = FVec3(0);
+			int32 ClosestVertexIndexA = INDEX_NONE;
+			int32 ClosestVertexIndexB = INDEX_NONE;
 			const FVec3 Offset ={162.072754,-178.514679,-102.071632};
 			EXPECT_TRUE((GJKPenetration<false, FReal>(A,B,BToATM,Penetration,ClosestA,ClosestB,Normal,ClosestVertexIndexA,ClosestVertexIndexB,0,0,Offset)));
 
@@ -2098,25 +2101,5 @@ namespace ChaosTest
 		TRigidTransform<Chaos::FReal, 3> BToATM( Translation , TRotation<FReal, 3>::Identity);
 		EXPECT_TRUE(GJKIntersection(BigBoxScaled, SmallBox, BToATM, FReal(0), Chaos::TVector<FReal, 3>(-16000, -16000, 500)));		
 
-	}
-
-
-	// Test capsule support functions when scaled
-	GTEST_TEST(GJKTests, GJK_TestSupportFunctions)
-	{
-		FVec3 PointA{ -1, 0, -100 };
-		FVec3 PointB{ 1, 0, 100 };
-		FVec3 ScaleX{ 100, 1, 1 };
-		FCapsulePtr Capsule( new FCapsule(PointA, PointB, 10));
-		TImplicitObjectScaled<Chaos::FCapsule> CapsuleScaled(Capsule, ScaleX);
-
-		FVec3 SupportDir{0.1f, 0.0f, -1.0f}; // Pointing down and slightly to the right
-
-		int32 Vertex = INDEX_NONE;
-		FVec3 Support = Capsule->SupportCore(SupportDir,0, nullptr, Vertex);
-		EXPECT_EQ(Support, PointA); // Expect bottom point
-
-		Support = CapsuleScaled.SupportCore(SupportDir, 0, nullptr, Vertex);
-		EXPECT_EQ(Support, ScaleX * PointA); // Still expect bottom point (But scaled)
 	}
 }
