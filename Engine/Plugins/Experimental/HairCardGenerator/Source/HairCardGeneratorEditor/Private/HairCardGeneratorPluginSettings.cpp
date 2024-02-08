@@ -325,7 +325,9 @@ void UHairCardGeneratorPluginSettings::ResetFromSourceDescription(const FHairGro
 	OldGeneratedMesh = SourceDesc.ImportedMesh;
 
 	if ( LastSettings == nullptr )
+	{
 		LastSettings = UHairCardGeneratorPluginSettings::StaticClass()->GetDefaultObject<UHairCardGeneratorPluginSettings>();
+	}
 
 	HairCardSettings_Helpers::ResetSettingsFromTemplate(this, LastSettings);
 	if (OldGeneratedMesh && LODIndex == LastSettings->LODIndex)
@@ -346,7 +348,9 @@ void UHairCardGeneratorPluginSettings::ResetFromSourceDescription(const FHairGro
 	{
 		TObjectPtr<UHairCardGeneratorGroupSettings> oldOpts;
 		if ( LastSettings->FilterGroupGenerationSettings.Num() > i )
+		{
 			oldOpts = LastSettings->FilterGroupGenerationSettings[i];
+		}
 		else
 		{
 			oldOpts = UHairCardGeneratorGroupSettings::StaticClass()->GetDefaultObject<UHairCardGeneratorGroupSettings>();
@@ -356,8 +360,7 @@ void UHairCardGeneratorPluginSettings::ResetFromSourceDescription(const FHairGro
 	}
 	ResetNumFilterGroups(GroupSettingsCount);
 
-	UpdateOutputPaths();
-	UpdateParentInfo();
+	PostResetUpdates();
 }
 
 bool UHairCardGeneratorPluginSettings::ResetFromSettingsJson()
@@ -376,8 +379,7 @@ bool UHairCardGeneratorPluginSettings::ResetFromSettingsJson()
 		return false;
 
 	ResetFromJson();
-	UpdateOutputPaths();
-	UpdateParentInfo();
+	PostResetUpdates();
 
 	return true;
 }
@@ -396,8 +398,7 @@ void UHairCardGeneratorPluginSettings::ResetToDefault()
 	ResetFilterGroupSettings(0, UHairCardGeneratorGroupSettings::StaticClass()->GetDefaultObject<UHairCardGeneratorGroupSettings>());
 	ResetNumFilterGroups(1);
 
-	UpdateOutputPaths();
-	UpdateParentInfo();
+	PostResetUpdates();
 }
 
 void UHairCardGeneratorPluginSettings::ResetFilterGroupSettingsToDefault(int FilterGroupIndex)
@@ -524,6 +525,12 @@ void UHairCardGeneratorPluginSettings::WritePipelineGeneratedFilterGroup(int Fil
 		return;
 
 	FilterGroupGenerationSettings[FilterGroupIndex]->WritePipelineGeneratedFilterGroup();
+}
+
+void UHairCardGeneratorPluginSettings::PostResetUpdates()
+{
+	UpdateOutputPaths();
+	UpdateParentInfo();
 }
 
 void UHairCardGeneratorPluginSettings::UpdateOutputPaths()

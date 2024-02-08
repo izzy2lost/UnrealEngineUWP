@@ -227,6 +227,8 @@ public:
 	TObjectPtr<UHairCardGeneratorGroupSettings>& GetFilterGroupSettings(int Index) { return FilterGroupGenerationSettings[Index]; }
 	const TObjectPtr<UHairCardGeneratorGroupSettings>& GetFilterGroupSettings(int Index) const { return FilterGroupGenerationSettings[Index]; }
 
+	void PostResetUpdates();
+
 private:
 	void UpdateOutputPaths();
 	void UpdateParentInfo();
