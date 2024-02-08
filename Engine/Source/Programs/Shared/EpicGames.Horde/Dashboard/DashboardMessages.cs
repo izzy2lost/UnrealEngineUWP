@@ -238,6 +238,11 @@ namespace EpicGames.Horde.Dashboard
 		public List<GetTelemetryChartMetricResponse> Metrics { get; set; } = new List<GetTelemetryChartMetricResponse>();
 
 		/// <summary>
+		/// The min unit value for clamping chart
+		/// </summary>
+		public int? Min { get; set; }
+
+		/// <summary>
 		/// The max unit value for clamping chart
 		/// </summary>
 		public int? Max { get; set; }

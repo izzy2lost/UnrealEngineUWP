@@ -93,6 +93,11 @@ namespace Horde.Server.Dashboard
 		public List<TelemetryChartMetricConfig> Metrics { get; set; } = new List<TelemetryChartMetricConfig>();
 
 		/// <summary>
+		/// The min unit value for clamping chart
+		/// </summary>
+		public int? Min { get; set; }
+
+		/// <summary>
 		/// The max unit value for clamping chart
 		/// </summary>
 		public int? Max {  get; set; }
