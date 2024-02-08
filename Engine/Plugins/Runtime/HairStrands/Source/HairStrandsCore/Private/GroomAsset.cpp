@@ -85,12 +85,9 @@ static TAutoConsoleVariable<int32> GHairStrandsWarningLogVerbosity(
 static int32 GHairStrandsDDCLogEnable = 0;
 static FAutoConsoleVariableRef CVarHairStrandsDDCLogEnable(TEXT("r.HairStrands.DDCLog"), GHairStrandsDDCLogEnable, TEXT("Enable DDC logging for groom assets and groom binding assets"));
 
-static int32 GHairStrands_LODMode = 0;
-static FAutoConsoleVariableRef CVarHairStrands_LODMode(TEXT("r.HairStrands.LODMode"), GHairStrands_LODMode, TEXT("Enable hair strands Auto LOD mode by default. Otherwise use Manual LOD mode. Auto LOD mode adapts hair curves based on screen coverage. Manual LOD mode relies on LODs manually setup per groom asset. This global behavior can be overridden per groom asset."), ECVF_RenderThreadSafe);
-
-EGroomLODMode GetHairStrandsLODMode()
+static EGroomLODMode InternalGetHairStrandsLODMode()
 {
-	return GHairStrands_LODMode > 0 ? EGroomLODMode::Auto : EGroomLODMode::Manual;
+	return GetHairStrandsLODMode() > 0 ? EGroomLODMode::Auto : EGroomLODMode::Manual;
 }
 
 static int32 GHairStrandsSupportCompressedPosition = 0;
@@ -3852,7 +3849,7 @@ void UGroomAsset::ChangeFeatureLevel(ERHIFeatureLevel::Type In)
 GROOMASSET_DEFINE_MEMBER_NAME(LODMode)
 EGroomLODMode UGroomAsset::GetLODMode() const
 {
-	return LODMode == EGroomLODMode::Default ? GetHairStrandsLODMode() : LODMode;
+	return LODMode == EGroomLODMode::Default ? InternalGetHairStrandsLODMode() : LODMode;
 }
 
 GROOMASSET_DEFINE_MEMBER_NAME(AutoLODBias)

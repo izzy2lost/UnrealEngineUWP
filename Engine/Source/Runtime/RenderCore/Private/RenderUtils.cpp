@@ -1689,6 +1689,12 @@ static TAutoConsoleVariable<int32> CVarHairStrandsUsesTriangleStrips(
 	TEXT("Enable triangle strip geometry for hair strands rendering. This improves performances, but removes the last segments of each curve."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarHairStrandsLODMode(
+	TEXT("r.HairStrands.LODMode"),
+	0,
+	TEXT("Enable hair strands Auto LOD mode by default. Otherwise use Manual LOD mode. Auto LOD mode adapts hair curves based on screen coverage. Manual LOD mode relies on LODs manually setup per groom asset. This global behavior can be overridden per groom asset."),
+	ECVF_RenderThreadSafe);
+
 int32 GetLightFunctionAtlasFormat()
 {
 	return CVarLightFunctionAtlasFormat.GetValueOnAnyThread();
@@ -1717,6 +1723,11 @@ bool GetTranslucentUsesLightIESProfiles()
 bool GetHairStrandsUsesTriangleStrips()
 {
 	return CVarHairStrandsUsesTriangleStrips.GetValueOnAnyThread() > 0;
+}
+
+uint32 GetHairStrandsLODMode()
+{
+	return FMath::Clamp(CVarHairStrandsLODMode.GetValueOnAnyThread(), 0, 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
