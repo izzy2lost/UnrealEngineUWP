@@ -79,6 +79,7 @@ class TEXTUREGRAPH_API UTG_Pin : public UObject {
 
 	// When an InputVarConverterKey is installed, then we host the result of the conversion as var value here
 	// this member is not saved and updated on every evaluation
+	// It is only useful during the evaluation to capture the value passed in and converted from a connected pin
 	UPROPERTY(Transient)
 		FTG_Var				ConvertedVar;
 
@@ -97,7 +98,7 @@ public:
 
 	bool				IsValid() const { return Id != FTG_Id::INVALID; }
 
-	UTG_Node* GetNodePtr() const;
+	UTG_Node*			GetNodePtr() const;
 	FTG_Id				GetNodeId() const;
 
 	FTG_Id				GetId() const { return Id; }
@@ -122,6 +123,9 @@ public:
 	const TArray<FTG_Id>& GetEdges() const { return Edges; }
 	bool				IsConnected() const { return !Edges.IsEmpty(); }
 
+	// Access the SelfVar of the Pin containing the currrent default value for the pin
+	// if an output pin, SelfVar contains the current result value produced by the node's expression by last evaluation
+	// if an input pin, SelfVar contains the current 'default' value of the pin used as expression input IF the pin is not connected.		
 	bool				IsValidSelfVar() const { return SelfVar.IsValid(); }
 	const FTG_Var*		GetSelfVar() const { return &SelfVar; }
 	FTG_Var*			EditSelfVar() { return &SelfVar; }
@@ -134,29 +138,22 @@ public:
 	//		if connected, it is the SelfVar Id of the Connected Pin
 	FTG_Id				GetVarId() const { return ((IsOutput() || Edges.IsEmpty()) ? GetId() : Edges[0]); }
 
-
 	// In the case the pin is an input, and is connected and the feeding pin var needs a conversion
 	// This implies that during the evaluation, the feeding Var is Converted into the SelfVar which is then input in the expression
 	bool				ConnectionNeedsConversion() const { return ((IsInput() || IsSetting()) && IsConnected() && !InputVarConverterKey.IsNone()); }
 	FName				GetInputVarConverterKey() const { return InputVarConverterKey; }
 
-	// GetConvertedInputVarId returns the VarId used to input its value in the pin's expression AFTER conversion
-	// This returns the self var id if the pin's ConnectionNeedsConversion()
-	// else it returns the GetVarId();
-	FTG_Id				GetConvertedInputVarId() const { return (ConnectionNeedsConversion() ? GetId() : GetVarId()); }
+	// EditConvertedVar returns the internal Var used to input its value in the pin's expression AFTER conversion
+	// Should only be accessed by the Graph Evaluation
 	FTG_Var*			EditConvertedVar() { return &ConvertedVar; }
 
 	FString				LogHead() const;
 	FString				Log(FString Tab) const;
-
 	FString				LogTooltip() const;
 
 	// Access the FProperty associated to this pin in the Expression::Class of the node
 	// A valid FProperty is returned if it exists, null otherwise
 	FProperty*			GetExpressionProperty() const;
-
-	void				SetSelfVarValueFromString(const FString& InValueStr, bool bIsTweaking = false);
-
 
 	FTG_Evaluation::VarConformer ConformerFunctor;
 	bool				NeedsConformance() const { return ConformerFunctor != nullptr; }
@@ -164,6 +161,7 @@ public:
 	// Hashing
 	static FTG_Hash		Hash(const UTG_Pin& Pin);
 	FTG_Hash			Hash() const { return Hash(*this); }
+
 
 	// Check the type of the argument's Var expected to be contained in the Pin's Var
 	bool IsArgScalar() const { return Argument.IsScalar(); }
@@ -191,7 +189,22 @@ public:
 	// After getting the value, the next step is to check the type contained in the variant.
 	bool GetValue(FTG_Variant& OutValue) const;
 
-	
+	// Useful for the UI:
+	// access the current value of this pin as passed to the evaluation if it is an input
+	// or received from the evaluation if it is an output 
+	// if output pin: the selfVar
+	// else if input pin:
+	//		if NOT connected: the selfVar
+	//		else if connected with a conversion: the convertedVar
+	//		else if connected without conversion: the Var from the connected pin
+	// This is MEANT TO BE USED for UI purpose !!!!
+	FString				GetEvaluatedVarValue() const;
+
+	// Set the self var value from string
+	// Used by UI to assign pin default value
+	// This is the same as the selfvar setter
+	void				SetValue(const FString& InValueStr, bool bIsTweaking = false);
+
 	// Setters for Scalar, Color, Vector arguments
 	bool SetValue(float Value);
 	bool SetValue(double Value) { return SetValue((float)Value); }
