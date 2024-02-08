@@ -80,6 +80,5 @@ private:
 	/** Regenerates and creates a new PathArray Widget if changed */
 	void RefreshPathAndPreview();
 
-	/** Creates a asset path, based on the selected Asset in the content browser. */
-	void CreateAssetPathFromSelection() const;
+	void RefreshPreview() const;
 };
