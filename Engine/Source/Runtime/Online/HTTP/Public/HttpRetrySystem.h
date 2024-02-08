@@ -123,19 +123,22 @@ namespace FHttpRetrySystem
 		/** Move to the next retry domain from our RetryDomains */
 		void MoveToNextRetryDomain();
 
-		EStatus::Type                        RetryStatus;
+		EStatus::Type RetryStatus;
 
-		FRetryLimitCountSetting              RetryLimitCountOverride;
+		FRetryLimitCountSetting RetryLimitCountOverride;
 		FRetryTimeoutRelativeSecondsSetting  RetryTimeoutRelativeSecondsOverride;
-		FRetryResponseCodes					 RetryResponseCodes;
-		FRetryVerbs                          RetryVerbs;
-		FRetryDomainsPtr					 RetryDomains;
+		FRetryResponseCodes RetryResponseCodes;
+		FRetryVerbs RetryVerbs;
+		FRetryDomainsPtr RetryDomains;
 		/** The current index in RetryDomains we are attempting */
-		int32								 RetryDomainsIndex = 0;
+		int32 RetryDomainsIndex = 0;
 		/** The original URL before replacing anything from RetryDomains */
-		FString								 OriginalUrl;
+		FString OriginalUrl;
 
-		TWeakPtr<FManager>					 RetryManager;
+		TWeakPtr<FManager> RetryManager;
+		/** Save the last response before the retry */
+		FHttpResponsePtr LastResponse;
+		bool bLastSucceeded = false;
 	};
 }
 
@@ -242,10 +245,13 @@ protected:
 
 	/**
 	 * Retry an HTTP request with delay
-	 * @param RequestToRetry request to retry
+	 * @param RequestEntry request retry
 	 * @param InDelay the delay to wait before retrying
+	 * @param bWasSucceeded was the request succeeded before retry
 	 */
-	void RetryHttpRequestWithDelay(const TSharedRef<FRequest>& Request, float InDelay);
+	void RetryHttpRequestWithDelay(FManager::FHttpRetryRequestEntry& RequestEntry, float InDelay, bool bWasSucceeded);
+
+	void HttpRequestTimeoutAfterDelay(FManager::FHttpRetryRequestEntry& RequestEntry, bool bWasSucceeded, float Delay);
 
 	// @return number of seconds to lockout for
 	float GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
