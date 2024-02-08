@@ -290,6 +290,9 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can do blocking call", HTTP_TAG
 	HttpRequest->SetURL(UrlToTestMethods());
 	HttpRequest->ProcessRequestUntilComplete();
 	CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Succeeded);
+	FHttpResponsePtr HttpResponse = HttpRequest->GetResponse();
+	REQUIRE(HttpResponse != nullptr);
+	CHECK(HttpResponse->GetResponseCode() == 200);
 }
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content without chunks", HTTP_TAG)
@@ -1271,10 +1274,10 @@ TEST_CASE_METHOD(FWaitUntilQuitFromTestFixture, "Http request pre check will fai
 	HttpRequest->ProcessRequest();
 }
 
-class FWaitUnitilQuitFromTestThreadedFixture : public FWaitUntilQuitFromTestFixture
+class FWaitUntilQuitFromTestThreadedFixture : public FWaitUntilQuitFromTestFixture
 {
 public:
-	~FWaitUnitilQuitFromTestThreadedFixture()
+	~FWaitUntilQuitFromTestThreadedFixture()
 	{
 		WaitUntilQuitFromTest();
 	}
@@ -1283,7 +1286,7 @@ public:
 };
 
 // Pre-check failed requests won't be added into http manager, so it can't rely on the requested added/completed callback in FWaitUntilCompleteHttpFixture
-TEST_CASE_METHOD(FWaitUnitilQuitFromTestThreadedFixture, "Threaded http request pre check will fail by thread policy", HTTP_TAG)
+TEST_CASE_METHOD(FWaitUntilQuitFromTestThreadedFixture, "Threaded http request pre check will fail by thread policy", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
@@ -1337,6 +1340,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Cancel http request connect bef
 	HttpRequest->ProcessRequest();
 	FPlatformProcess::Sleep(0.5);
 	HttpRequest->CancelRequest();
+	HttpRequest->CancelRequest(); // Duplicated calls to CancelRequest should be fine
 }
 
 class FThreadedBatchRequestsFixture : public FWaitThreadedHttpFixture
@@ -1366,7 +1370,7 @@ public:
 	}
 };
 
-TEST_CASE_METHOD(FThreadedBatchRequestsFixture, "Retry manager and http manager is thread safe", HTTP_TAG)
+TEST_CASE_METHOD(FThreadedBatchRequestsFixture, "Retry manager and http manager is thread safe for flushing", HTTP_TAG)
 {
 	DisableWarningsInThisTest();
 
@@ -1494,6 +1498,4 @@ TEST_CASE_METHOD(FLocalHttpServerFixture, "Local http server can serve large fil
 }
 
 #endif // (PLATFORM_WINDOWS && !WITH_CURL_XCURL) || PLATFORM_MAC || PLATFORM_UNIX
-
-// TODO: Add cancel test, with multiple cancel calls
 
