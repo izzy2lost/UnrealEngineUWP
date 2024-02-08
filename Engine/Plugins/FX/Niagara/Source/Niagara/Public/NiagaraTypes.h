@@ -1017,7 +1017,8 @@ public:
 		return FNiagaraTypeHelper::ToString(ValueData, ClassStructOrEnum);
 	}
 	
-	static NIAGARA_API bool TypesAreAssignable(const FNiagaraTypeDefinition& TypeA, const FNiagaraTypeDefinition& TypeB, bool bAllowLossyLWCConversions = false);
+	// Evaluates if two pin types are compatible for assignment.  Note that the assignment being evaluated is InputPinType = OutputPinType
+	static NIAGARA_API bool TypesAreAssignable(const FNiagaraTypeDefinition& InputPinType, const FNiagaraTypeDefinition& OutputPinType, bool bAllowLossyLWCConversions = false);
 	static NIAGARA_API bool IsLossyConversion(const FNiagaraTypeDefinition& FromType, const FNiagaraTypeDefinition& ToType);
 	static NIAGARA_API FNiagaraTypeDefinition GetNumericOutputType(TConstArrayView<FNiagaraTypeDefinition> TypeDefinintions, ENiagaraNumericOutputTypeSelectionMode SelectionMode);
 

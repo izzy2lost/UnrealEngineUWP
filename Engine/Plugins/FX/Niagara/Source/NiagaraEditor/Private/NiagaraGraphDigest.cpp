@@ -1568,7 +1568,7 @@ FNiagaraCompilationInputPin::FNiagaraCompilationInputPin(const FNiagaraCompilati
 			}
 		}
 
-		if (ensure(Variable.GetType() == TracedInputPin->Variable.GetType()))
+		if (ensure(FNiagaraTypeDefinition::TypesAreAssignable(Variable.GetType(), TracedInputPin->Variable.GetType())))
 		{
 			if (TracedInputPin->Variable.IsDataAllocated())
 			{
