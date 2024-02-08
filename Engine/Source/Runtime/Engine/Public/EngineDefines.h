@@ -56,6 +56,7 @@
 #define DEFAULT_ORTHOZOOM			10000.0						/* Default 2D viewport zoom */
 #define DEFAULT_ORTHOWIDTH			1536.0f						/* Default 2D ortho viewport width */
 #define DEFAULT_ORTHONEARPLANE		-DEFAULT_ORTHOWIDTH/2.0f	/* Default 2D ortho viewport nearplane */
+#define DEFAULT_ORTHOFARPLANE		UE_OLD_WORLD_MAX			/* Default 2D ortho viewport farplane */
 
 /** bits needed to store DPG value */
 #define SDPG_NumBits 3

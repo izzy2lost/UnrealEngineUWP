@@ -34,6 +34,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
 	float OrthoWidth;
 
+	/** Automatically determine a min/max Near/Far clip plane position depending on OrthoWidth value*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection)
+	bool bAutoCalculateOrthoPlanes;
+
 	/** Output render target of the scene capture that can be read in materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)
 	TObjectPtr<class UTextureRenderTarget2D> TextureTarget;

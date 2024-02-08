@@ -107,6 +107,9 @@ void FCameraDetails::CustomizeDetails( IDetailLayoutBuilder& DetailLayout )
 		IDetailPropertyRow& OrthoWidthRow = CameraCategory.AddProperty(DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UCameraComponent, OrthoWidth)));
 		OrthoWidthRow.Visibility(OrthographicVisibility);
 
+		IDetailPropertyRow& AutoCalculateOrthoPlanesRow = CameraCategory.AddProperty(DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UCameraComponent, bAutoCalculateOrthoPlanes)));
+		AutoCalculateOrthoPlanesRow.Visibility(OrthographicVisibility);
+
 		IDetailPropertyRow& OrthoNearClipPlaneRow = CameraCategory.AddProperty(DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UCameraComponent, OrthoNearClipPlane)));
 		OrthoNearClipPlaneRow.Visibility(OrthographicVisibility);
 

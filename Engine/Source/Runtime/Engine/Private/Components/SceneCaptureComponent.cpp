@@ -8,6 +8,7 @@
 #include "Camera/CameraTypes.h"
 #include "UObject/EditorObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "SceneInterface.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/StaticMeshComponent.h"
@@ -566,8 +567,8 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 {
 	FOVAngle = 90.0f;
 
-	const auto CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Ortho.DefaultCameraWidth"));
-	OrthoWidth = CVar ? CVar->GetFloat() : DEFAULT_ORTHOWIDTH;
+	OrthoWidth = DEFAULT_ORTHOWIDTH;
+	bAutoCalculateOrthoPlanes = true;
 
 	bUseCustomProjectionMatrix = false;
 	bAutoActivate = true;
@@ -700,6 +701,15 @@ void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& 
 	OutMinimalViewInfo.bConstrainAspectRatio = false;
 	OutMinimalViewInfo.ProjectionMode = ProjectionType;
 	OutMinimalViewInfo.OrthoWidth = OrthoWidth;
+		
+	if (bAutoCalculateOrthoPlanes)
+	{
+		OutMinimalViewInfo.bAutoCalculateOrthoPlanes = true;
+		if(const AActor* ViewTarget = GetOwner())
+		{
+			OutMinimalViewInfo.SetOrthoCameraArmLengthFromOwnerLocation(ViewTarget->GetActorLocation());
+		}
+	}
 }
 
 void USceneCaptureComponent2D::CaptureSceneDeferred()
@@ -844,6 +854,12 @@ void USceneCaptureComponent2D::Serialize(FArchive& Ar)
 	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::OrthographicCameraDefaultSettings)
 	{
 		OrthoWidth = 512.0f;
+	}
+
+	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
+	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::OrthographicAutoNearFarPlane)
+	{
+		bAutoCalculateOrthoPlanes = false;
 	}
 
 	Super::Serialize(Ar);

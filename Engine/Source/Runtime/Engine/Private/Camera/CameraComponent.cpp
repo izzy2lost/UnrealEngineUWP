@@ -20,32 +20,12 @@
 #include "IXRCamera.h"
 #include "Math/UnitConversion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "UObject/UE5ReleaseStreamObjectVersion.h"
 #include "UObject/UnrealType.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CameraComponent)
 
 #define LOCTEXT_NAMESPACE "CameraComponent"
-
-static TAutoConsoleVariable<float> CVarDefaultCameraOrthoWidth(
-	TEXT("r.Ortho.DefaultCameraWidth"),
-	DEFAULT_ORTHOWIDTH,
-	TEXT("Default Ortho Width when creating a new camera actor"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<float> CVarDefaultCameraNearPlane(
-	TEXT("r.Ortho.DefaultCameraNearPlane"),
-	DEFAULT_ORTHONEARPLANE,
-	TEXT("Default Ortho Near Plane when creating a new camera actor"),
-	ECVF_ReadOnly
-);
-
-static TAutoConsoleVariable<float> CVarDefaultCameraFarPlane(
-	TEXT("r.Ortho.DefaultCameraFarPlane"),
-	UE_OLD_WORLD_MAX,
-	TEXT("Default Ortho Far Plane when creating a new camera actor"),
-	ECVF_ReadOnly
-);
 
 //////////////////////////////////////////////////////////////////////////
 // UCameraComponent
@@ -66,9 +46,10 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 
 	FieldOfView = 90.0f;
 	AspectRatio = 1.777778f;
-	OrthoWidth = CVarDefaultCameraOrthoWidth.GetValueOnAnyThread();
-	OrthoNearClipPlane = CVarDefaultCameraNearPlane.GetValueOnAnyThread();
-	OrthoFarClipPlane = CVarDefaultCameraFarPlane.GetValueOnAnyThread();
+	OrthoWidth = DEFAULT_ORTHOWIDTH;
+	bAutoCalculateOrthoPlanes = true;
+	OrthoNearClipPlane = DEFAULT_ORTHONEARPLANE;
+	OrthoFarClipPlane = DEFAULT_ORTHOFARPLANE;
 	bConstrainAspectRatio = false;
 	bOverrideAspectRatioAxisConstraint = false;
 	bUseFieldOfViewForLOD = true;
@@ -319,6 +300,12 @@ void UCameraComponent::Serialize(FArchive& Ar)
 		OrthoFarClipPlane = UE_OLD_WORLD_MAX;
 	}
 
+	Ar.UsingCustomVersion(FUE5ReleaseStreamObjectVersion::GUID);
+	if (Ar.CustomVer(FUE5ReleaseStreamObjectVersion::GUID) < FUE5ReleaseStreamObjectVersion::OrthographicAutoNearFarPlane)
+	{
+		bAutoCalculateOrthoPlanes = false;
+	}
+
 	Super::Serialize(Ar);
 
 	if (Ar.IsLoading())
@@ -432,6 +419,15 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	DesiredView.OrthoWidth = OrthoWidth;
 	DesiredView.OrthoNearClipPlane = OrthoNearClipPlane;
 	DesiredView.OrthoFarClipPlane = OrthoFarClipPlane;
+
+	if (bAutoCalculateOrthoPlanes)
+	{
+		DesiredView.bAutoCalculateOrthoPlanes = true;
+		if (const AActor* ViewTarget = GetOwner())
+		{
+			DesiredView.SetOrthoCameraArmLengthFromOwnerLocation(ViewTarget->GetActorLocation());
+		}
+	}
 
 	if (bOverrideAspectRatioAxisConstraint)
 	{
