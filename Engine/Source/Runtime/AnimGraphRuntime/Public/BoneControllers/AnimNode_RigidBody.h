@@ -205,7 +205,12 @@ private:
 	FTransform PreviousTransform;
 
 	UPhysicsAsset* UsePhysicsAsset;
+
 public:
+	/** Enable if you want to ignore the p.RigidBodyLODThreshold CVAR and force the node to solely use the LOD threshold. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Performance, meta = (PinHiddenByDefault))
+	bool bUseLocalLODThresholdOnly = false;
+
 	/** Override gravity*/
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault, editcondition = "bOverrideWorldGravity"))
 	FVector OverrideWorldGravity;

@@ -1552,7 +1552,11 @@ void FAnimNode_RigidBody::PreUpdate(const UAnimInstance* InAnimInstance)
 
 int32 FAnimNode_RigidBody::GetLODThreshold() const
 {
-	if(CVarRigidBodyLODThreshold.GetValueOnAnyThread() != -1)
+	if (bUseLocalLODThresholdOnly || CVarRigidBodyLODThreshold.GetValueOnAnyThread() == -1)
+	{
+		return LODThreshold;
+	}
+	else
 	{
 		if(LODThreshold != -1)
 		{
@@ -1562,10 +1566,6 @@ int32 FAnimNode_RigidBody::GetLODThreshold() const
 		{
 			return CVarRigidBodyLODThreshold.GetValueOnAnyThread();
 		}
-	}
-	else
-	{
-		return LODThreshold;
 	}
 }
 
