@@ -16,42 +16,13 @@ static FAutoConsoleVariableRef CVarSVTStreamingAsyncCompute(
 	ECVF_RenderThreadSafe
 );
 
-class FSparseVolumeTextureUpdateFromBufferCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromBufferCS);
-	SHADER_USE_PARAMETER_STRUCT(FSparseVolumeTextureUpdateFromBufferCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureA)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureB)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, DstTileCoords)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SrcPhysicalTileBufferA)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SrcPhysicalTileBufferB)
-		SHADER_PARAMETER(uint32, TileCoordsBufferOffset)
-		SHADER_PARAMETER(uint32, TileDataBufferOffsetInTiles)
-		SHADER_PARAMETER(uint32, NumTilesToCopy)
-		SHADER_PARAMETER(uint32, NumDispatchedGroups)
-		SHADER_PARAMETER(uint32, PaddedTileSize)
-		SHADER_PARAMETER(uint32, bCopyTexureAOnlyUI)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("UPDATE_TILE_TEXTURE_FROM_BUFFER"), 1);
-	}
-};
-IMPLEMENT_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromBufferCS, "/Engine/Private/SparseVolumeTexture/UpdateSparseVolumeTexture.usf", "SparseVolumeTextureUpdateFromBufferCS", SF_Compute);
-
 class FSparseVolumeTextureUpdateFromSparseBufferCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FSparseVolumeTextureUpdateFromSparseBufferCS);
 	SHADER_USE_PARAMETER_STRUCT(FSparseVolumeTextureUpdateFromSparseBufferCS, FGlobalShader)
+
+	class FTextureUpdateMask : SHADER_PERMUTATION_SPARSE_INT("TEXTURE_UPDATE_MASK", 1, 2, 3);
+	using FPermutationDomain = TShaderPermutationDomain<FTextureUpdateMask>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D, DstPhysicalTileTextureA)
@@ -70,7 +41,6 @@ class FSparseVolumeTextureUpdateFromSparseBufferCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, BufferTileStep)
 		SHADER_PARAMETER(uint32, NumDispatchedGroups)
 		SHADER_PARAMETER(uint32, PaddedTileSize)
-		SHADER_PARAMETER(uint32, CopyTexureMask)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -242,7 +212,7 @@ void FTileUploader::Release()
 	ResetState();
 }
 
-void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* InDstTextureA, FRHITexture* InDstTextureB, const FVector4f& InFallbackValueA, const FVector4f& InFallbackValueB)
+void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, const TRefCountPtr<IPooledRenderTarget>& InDstTextureA, const TRefCountPtr<IPooledRenderTarget>& InDstTextureB, const FVector4f& InFallbackValueA, const FVector4f& InFallbackValueB)
 {
 	check(InDstTextureA || FormatSizeA <= 0);
 	check(InDstTextureB || FormatSizeB <= 0);
@@ -269,14 +239,23 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* InD
 	
 		if (NumWrittenTiles > 0)
 		{
-			FRDGTexture* DummyTexture = GraphBuilder.CreateTexture(FRDGTextureDesc::Create3D(FIntVector(1), PF_R8, FClearValueBinding::None, ETextureCreateFlags::UAV), TEXT("SparseVolumeTexture.DummyTexture"));
-			FRDGTexture* DstTextureARDG = InDstTextureA ? GraphBuilder.RegisterExternalTexture(CreateRenderTarget(InDstTextureA, TEXT("SparseVolumeTexture.TileDataTextureA"))) : nullptr;
-			FRDGTexture* DstTextureBRDG = InDstTextureB ? GraphBuilder.RegisterExternalTexture(CreateRenderTarget(InDstTextureB, TEXT("SparseVolumeTexture.TileDataTextureB"))) : nullptr;
+			FRDGTexture* DstTextureARDG = nullptr;
+			FRDGTexture* DstTextureBRDG = nullptr;
+			if (InDstTextureA)
+			{
+				DstTextureARDG = GraphBuilder.RegisterExternalTexture(InDstTextureA, ERDGTextureFlags::ForceImmediateFirstBarrier);
+				GraphBuilder.UseInternalAccessMode(DstTextureARDG);
+			}
+			if (InDstTextureB)
+			{
+				DstTextureBRDG = GraphBuilder.RegisterExternalTexture(InDstTextureB, ERDGTextureFlags::ForceImmediateFirstBarrier);
+				GraphBuilder.UseInternalAccessMode(DstTextureBRDG);
+			}
+
 			FRDGBuffer* SrcBufferARDG = FormatSizeA > 0 ? GraphBuilder.RegisterExternalBuffer(TileDataAUploadBuffer) : nullptr;
 			FRDGBuffer* SrcBufferBRDG = FormatSizeB > 0 ? GraphBuilder.RegisterExternalBuffer(TileDataBUploadBuffer) : nullptr;
 			check(SrcBufferARDG || SrcBufferBRDG);
 	
-			FRDGTextureUAV* DummyTextureUAV = GraphBuilder.CreateUAV(DummyTexture);
 			FRDGTextureUAV* DstTextureAUAV = DstTextureARDG ? GraphBuilder.CreateUAV(DstTextureARDG) : nullptr;
 			FRDGTextureUAV* DstTextureBUAV = DstTextureBRDG ? GraphBuilder.CreateUAV(DstTextureBRDG) : nullptr;
 	
@@ -286,7 +265,14 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* InD
 			// Either SrcBufferARDG or SrcBufferBRDG must exist and will have at least 1 element.
 			FRDGBufferSRV* DummySrcBufferSRV = SrcBufferARDG ? GraphBuilder.CreateSRV(SrcBufferARDG, FormatA) : GraphBuilder.CreateSRV(SrcBufferBRDG, FormatB);
 	
-			auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdateFromSparseBufferCS>();
+			uint32 TextureUpdateMask = 0;
+			TextureUpdateMask |= FormatSizeA > 0 ? 0x1u : 0x0u;
+			TextureUpdateMask |= FormatSizeB > 0 ? 0x2u : 0x0u;
+			check(TextureUpdateMask != 0);
+
+			FSparseVolumeTextureUpdateFromSparseBufferCS::FPermutationDomain CSPermutationDomain;
+			CSPermutationDomain.Set<FSparseVolumeTextureUpdateFromSparseBufferCS::FTextureUpdateMask>(TextureUpdateMask);
+			auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdateFromSparseBufferCS>(CSPermutationDomain);
 	
 			int32 NumUploadedTiles = 0;
 			int32 NumUploadedVoxelsA = 0;
@@ -345,9 +331,9 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* InD
 				}
 	
 				FSparseVolumeTextureUpdateFromSparseBufferCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSparseVolumeTextureUpdateFromSparseBufferCS::FParameters>();
-				PassParameters->DstPhysicalTileTextureA = DstTextureAUAV ? DstTextureAUAV : DummyTextureUAV;
-				PassParameters->DstPhysicalTileTextureB = DstTextureBUAV ? DstTextureBUAV : DummyTextureUAV;
-				PassParameters->SrcPhysicalTileBufferA = TileDataABufferSRV ? TileDataABufferSRV : DummySrcBufferSRV;
+				PassParameters->DstPhysicalTileTextureA = DstTextureAUAV;
+				PassParameters->DstPhysicalTileTextureB = DstTextureBUAV;
+				PassParameters->SrcPhysicalTileBufferA = TileDataABufferSRV ? TileDataABufferSRV : DummySrcBufferSRV; // TileDataABufferSRV and TileDataBBufferSRV can be null if there are no explicitly stored voxels to upload
 				PassParameters->SrcPhysicalTileBufferB = TileDataBBufferSRV ? TileDataBBufferSRV : DummySrcBufferSRV;
 				PassParameters->OccupancyBitsBuffer = OccupancyBitsBufferSRV;
 				PassParameters->TileDataOffsetsBuffer = TileDataOffsetsBufferSRV;
@@ -361,9 +347,6 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* InD
 				PassParameters->BufferTileStep = MaxNumTiles;
 				PassParameters->NumDispatchedGroups = FMath::Min(NumTilesInThisBatch, GRHIMaxDispatchThreadGroupsPerDimension.X);
 				PassParameters->PaddedTileSize = SPARSE_VOLUME_TILE_RES_PADDED;
-				PassParameters->CopyTexureMask = 0;
-				PassParameters->CopyTexureMask |= FormatSizeA > 0 ? 0x1u : 0x0u;
-				PassParameters->CopyTexureMask |= FormatSizeB > 0 ? 0x2u : 0x0u;
 	
 				// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
 				const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
@@ -385,6 +368,16 @@ void FTileUploader::ResourceUploadTo(FRDGBuilder& GraphBuilder, FRHITexture* InD
 			check(NumUploadedTiles == NumWrittenTiles);
 			check(NumUploadedVoxelsA == NumWrittenVoxelsA);
 			check(NumUploadedVoxelsB == NumWrittenVoxelsB);
+
+			// Transition back to SRV in case we want to access them using their raw RHI resources within this graph
+			if (DstTextureARDG)
+			{
+				GraphBuilder.UseExternalAccessMode(DstTextureARDG, ERHIAccess::SRVMask, ERHIPipeline::All);
+			}
+			if (DstTextureBRDG)
+			{
+				GraphBuilder.UseExternalAccessMode(DstTextureBRDG, ERHIAccess::SRVMask, ERHIPipeline::All);
+			}
 		}
 	}
 	Release();
@@ -439,7 +432,7 @@ void FPageTableUpdater::Init(FRDGBuilder& GraphBuilder, int32 InMaxNumUpdates, i
 	}
 }
 
-void FPageTableUpdater::Add_GetRef(FRHITexture* InPageTable, int32 InMipLevel, int32 InNumUpdates, uint8*& OutCoordsPtr, uint8*& OutPayloadPtr)
+void FPageTableUpdater::Add_GetRef(const TRefCountPtr<IPooledRenderTarget>& InPageTable, int32 InMipLevel, int32 InNumUpdates, uint8*& OutCoordsPtr, uint8*& OutPayloadPtr)
 {
 	check((NumWrittenUpdates + InNumUpdates) <= MaxNumUpdates);
 	check(DataPtr);
@@ -473,11 +466,23 @@ void FPageTableUpdater::Apply(FRDGBuilder& GraphBuilder)
 			// Disable async compute for streaming systems when MGPU is active, to work around GPU hangs
 			const bool bAsyncCompute = GSupportsEfficientAsyncCompute && (GSVTStreamingAsyncCompute != 0) && (GNumExplicitGPUsForRendering == 1);
 			auto ComputeShader = GetGlobalShaderMap(GMaxRHIFeatureLevel)->GetShader<FSparseVolumeTextureUpdatePageTableCS>();
+
+			// Register page table textures with RDG and set it to internal access mode
+			for (const FBatch& Batch : Batches)
+			{
+				FRDGTexture* PageTableRDG = GraphBuilder.FindExternalTexture(Batch.PageTable);
+				if (!PageTableRDG)
+				{
+					PageTableRDG = GraphBuilder.RegisterExternalTexture(Batch.PageTable, ERDGTextureFlags::ForceImmediateFirstBarrier);
+				}
+				GraphBuilder.UseInternalAccessMode(PageTableRDG); // Make sure to use graph tracking in case we previously called UseExternalAccessMode() within the current graph
+			}
 	
 			uint32 UpdatesOffset = 0;
 			for (const FBatch& Batch : Batches)
 			{
-				FRDGTexture* PageTableRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(Batch.PageTable, TEXT("SparseVolumeTexture.PageTableTexture")));
+				FRDGTexture* PageTableRDG = GraphBuilder.FindExternalTexture(Batch.PageTable);
+				check(PageTableRDG);
 				FRDGTextureUAV* PageTableUAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(PageTableRDG, Batch.MipLevel, PF_R32_UINT));
 				FRDGBufferSRV* UpdatesBufferSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(UpdatesUploadBuffer));
 	
@@ -498,6 +503,14 @@ void FPageTableUpdater::Apply(FRDGBuilder& GraphBuilder)
 				);
 	
 				UpdatesOffset += Batch.NumUpdates;
+			}
+
+			// Transition back to SRV in case we want to access the page table texture using its raw RHI resource within this graph
+			for (const FBatch& Batch : Batches)
+			{
+				FRDGTexture* PageTableRDG = GraphBuilder.FindExternalTexture(Batch.PageTable);
+				check(PageTableRDG);
+				GraphBuilder.UseExternalAccessMode(PageTableRDG, ERHIAccess::SRVMask, ERHIPipeline::All);
 			}
 		}
 	}

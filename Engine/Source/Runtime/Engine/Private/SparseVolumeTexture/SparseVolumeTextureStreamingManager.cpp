@@ -11,6 +11,7 @@
 #include "Async/ParallelFor.h"
 #include "SparseVolumeTextureTileDataTexture.h"
 #include "SparseVolumeTextureUpload.h"
+#include "GlobalRenderResources.h"
 
 #if WITH_EDITORONLY_DATA
 #include "DerivedDataCache.h"
@@ -657,24 +658,28 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 
 			// Create page table
 			{
-				// SVT_TODO: Currently we keep all mips of the page table resident. It would be better to stream in/out page table mips.
-				const int32 NumResidentMipLevels = NumMipLevels;
 				FIntVector3 PageTableResolution = Resources->Header.PageTableVolumeResolution;
 				PageTableResolution = FIntVector3(FMath::Max(1, PageTableResolution.X), FMath::Max(1, PageTableResolution.Y), FMath::Max(1, PageTableResolution.Z));
 
 				const EPixelFormat PageEntryFormat = PF_R32_UINT;
-				const FRHITextureCreateDesc Desc =
-					FRHITextureCreateDesc::Create3D(TEXT("SparseVolumeTexture.PageTable.RHITexture"), PageTableResolution.X, PageTableResolution.Y, PageTableResolution.Z, PageEntryFormat)
-					.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::UAV)
-					.SetNumMips((uint8)NumResidentMipLevels);
+				const ETextureCreateFlags Flags = TexCreate_ShaderResource | TexCreate_UAV | TexCreate_3DTiling | TexCreate_ReduceMemoryWithTilingMode;
+				FRDGTexture* PageTableRDG = GraphBuilder.CreateTexture(FRDGTextureDesc::Create3D(PageTableResolution, PageEntryFormat, FClearValueBinding::Black, Flags, (uint8)NumMipLevels), TEXT("SparseVolumeTexture.PageTableTexture"));
 
-				FrameInfo.PageTableTextureRHIRef = RHICreateTexture(Desc);
+				// Clear page table to zero
+				for (int32 MipLevelIndex = 0; MipLevelIndex < NumMipLevels; ++MipLevelIndex)
+				{
+					FRDGTextureUAV* UAV = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(PageTableRDG, MipLevelIndex, PageEntryFormat));
+					AddClearUAVPass(GraphBuilder, UAV, FUintVector4(ForceInitToZero));
+				}
+
+				FrameInfo.PageTableTexture = GraphBuilder.ConvertToExternalTexture(PageTableRDG);
+				GraphBuilder.UseExternalAccessMode(PageTableRDG, ERHIAccess::SRVMask, ERHIPipeline::All);
 			}
 
 			// Initialize TextureRenderResources
-			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PageTableTextureReferenceRHI, FrameInfo.PageTableTextureRHIRef);
-			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataATextureReferenceRHI, SVTInfo.TileDataTexture->GetTileDataTextureA());
-			RHIUpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataBTextureReferenceRHI, SVTInfo.TileDataTexture->GetTileDataTextureB());
+			GraphBuilder.RHICmdList.UpdateTextureReference(FrameInfo.TextureRenderResources->PageTableTextureReferenceRHI, FrameInfo.PageTableTexture->GetRHI());
+			GraphBuilder.RHICmdList.UpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataATextureReferenceRHI, SVTInfo.TileDataTexture->GetTileDataTextureA() ? SVTInfo.TileDataTexture->GetTileDataTextureA()->GetRHI() : GBlackVolumeTexture->TextureRHI.GetReference());
+			GraphBuilder.RHICmdList.UpdateTextureReference(FrameInfo.TextureRenderResources->PhysicalTileDataBTextureReferenceRHI, SVTInfo.TileDataTexture->GetTileDataTextureB() ? SVTInfo.TileDataTexture->GetTileDataTextureB()->GetRHI() : GBlackVolumeTexture->TextureRHI.GetReference());
 			FrameInfo.TextureRenderResources->Header = Resources->Header;
 			FrameInfo.TextureRenderResources->TileDataTextureResolution = SVTInfo.TileDataTexture->GetResolutionInTiles() * SPARSE_VOLUME_TILE_RES_PADDED;
 			FrameInfo.TextureRenderResources->FrameIndex = FrameIdx;
@@ -715,10 +720,6 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 						FMemory::Memcpy(AddResult.TileDataPtrs[AttributesIdx], SrcTileData, RootStreamingInfo->TileDataSize[AttributesIdx]);
 					}
 				}
-
-				// Update highest mip (1x1x1) in page table
-				const FUpdateTextureRegion3D UpdateRegion(0, 0, 0, 0, 0, 0, 1, 1, 1);
-				RHIUpdateTexture3D(FrameInfo.PageTableTextureRHIRef, NumMipLevels - 1, UpdateRegion, sizeof(uint32), sizeof(uint32), (uint8*)&TileCoord);
 			}
 
 			const FPageTopology::FMip& TopologyMipInfo = Resources->Topology.MipInfo[NumMipLevels - 1];
@@ -777,7 +778,7 @@ void FStreamingManager::RemoveInternal(UStreamableSparseVolumeTexture* SparseVol
 		// Release resources
 		for (FFrameInfo& FrameInfo : SVTInfo->PerFrameInfo)
 		{
-			FrameInfo.PageTableTextureRHIRef.SafeRelease();
+			FrameInfo.PageTableTexture.SafeRelease();
 			InvalidatedSVTFrames.Remove(&FrameInfo);
 		}
 		if (SVTInfo->TileDataTexture)
@@ -1620,7 +1621,7 @@ void FStreamingManager::PatchPageTable(FRDGBuilder& GraphBuilder)
 					MipUpdateWriteIndex = 0;
 					bEnteredNewMipRange = false;
 
-					PageTableUpdater->Add_GetRef(FrameInfo.PageTableTextureRHIRef, MipLevel, NumUpdatesThisMip, DstCoordsPtr, DstEntryPtr);
+					PageTableUpdater->Add_GetRef(FrameInfo.PageTableTexture, MipLevel, NumUpdatesThisMip, DstCoordsPtr, DstEntryPtr);
 				}
 
 				uint32 PageTableEntry = 0;

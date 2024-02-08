@@ -63,8 +63,8 @@ public:
 	int32 GetTileCapacity() const { return PhysicalTilesCapacity; }
 	int32 GetNumAvailableTiles() const { return PhysicalTilesCapacity - NextFreeTileCoordIndex; } // Number of tiles available for allocation.
 	FIntVector3 GetResolutionInTiles() const { return ResolutionInTiles; }
-	FTextureRHIRef GetTileDataTextureA() { return TileDataTextureARHIRef; }
-	FTextureRHIRef GetTileDataTextureB() { return TileDataTextureBRHIRef; }
+	TRefCountPtr<IPooledRenderTarget> GetTileDataTextureA() { return TileDataTextureA; }
+	TRefCountPtr<IPooledRenderTarget> GetTileDataTextureB() { return TileDataTextureB; }
 
 	// Transitions from EUploaderState::Ready (or EUploaderState::Reserved) to EUploaderState::Reserving and allows callers to call ReserveUpload() afterwards. Resets number of reserved tiles/voxels.
 	void BeginReserveUpload();
@@ -90,8 +90,8 @@ private:
 	EPixelFormat FormatB;
 	FVector4f FallbackValueA;
 	FVector4f FallbackValueB;
-	FTextureRHIRef TileDataTextureARHIRef;
-	FTextureRHIRef TileDataTextureBRHIRef;
+	TRefCountPtr<IPooledRenderTarget> TileDataTextureA;
+	TRefCountPtr<IPooledRenderTarget> TileDataTextureB;
 	TArray<uint32> TileCoords;
 	int32 NextFreeTileCoordIndex = 0;
 	EUploaderState UploaderState = EUploaderState::Ready;
