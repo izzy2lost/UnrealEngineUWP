@@ -95,7 +95,7 @@ int32 UIKRetargetBatchOperation::GenerateAssetLists(const FIKRetargetBatchOperat
 		}
 	}
 
-	return AnimationAssetsToRetarget.Num();
+	return AnimationAssetsToRetarget.Num() + AnimBlueprintsToRetarget.Num();
 }
 
 void UIKRetargetBatchOperation::DuplicateRetargetAssets(
