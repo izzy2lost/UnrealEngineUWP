@@ -906,7 +906,7 @@ namespace Audio
 
 	bool IAudioMixer::ShouldUseDeviceInfoCache()
 	{		
-#if PLATFORM_WINDOWS // PLATFORM_HOLOLENS uses old path.
+#if PLATFORM_WINDOWS 
 		return bUseAudioDeviceInfoCacheCVar != 0;
 #else //PLATFORM_WINDOWS
 		return false;
