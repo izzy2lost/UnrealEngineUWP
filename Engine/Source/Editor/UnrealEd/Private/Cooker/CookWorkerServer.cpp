@@ -49,6 +49,10 @@ FCookWorkerServer::~FCookWorkerServer()
 
 void FCookWorkerServer::DetachFromRemoteProcess()
 {
+	if (Socket != nullptr)
+	{
+		FCoreDelegates::OnMultiprocessWorkerDetached.Broadcast({WorkerId.GetMultiprocessId()});
+	}
 	Sockets::CloseSocket(Socket);
 	CookWorkerHandle = FProcHandle();
 	CookWorkerProcessId = 0;
@@ -532,6 +536,7 @@ void FCookWorkerServer::LaunchProcess()
 	{
 		UE_LOG(LogCook, Display, TEXT("CookWorkerServer %d launched CookWorker as WorkerId %d and PID %u with commandline \"%s\"."),
 			ProfileId, WorkerId.GetRemoteIndex(), CookWorkerProcessId, *LaunchInfo.WorkerCommandLine);
+		FCoreDelegates::OnMultiprocessWorkerCreated.Broadcast({WorkerId.GetMultiprocessId()});
 		SendToState(EConnectStatus::WaitForConnect);
 	}
 	else
