@@ -11,6 +11,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "LumenTracingUtils.h"
 #include "ShaderPrintParameters.h"
+#include "LumenRadiosity.h"
 
 static TAutoConsoleVariable<int32> CVarLumenSceneLightingForceFullUpdate(
 	TEXT("r.LumenScene.Lighting.ForceLightingUpdate"),
@@ -237,6 +238,9 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 				AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
 			}
 
+			LumenRadiosity::FFrameTemporaries RadiosityFrameTemporaries;
+			LumenRadiosity::InitFrameTemporaries(GraphBuilder, LumenSceneData, ViewFamily, Views, RadiosityFrameTemporaries);
+
 			FLumenCardUpdateContext DirectLightingCardUpdateContext;
 			FLumenCardUpdateContext IndirectLightingCardUpdateContext;
 			Lumen::BuildCardUpdateContext(
@@ -244,6 +248,7 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 				LumenSceneData,
 				Views,
 				FrameTemporaries,
+				RadiosityFrameTemporaries.bIndirectLightingHistoryValid,
 				DirectLightingCardUpdateContext,
 				IndirectLightingCardUpdateContext,
 				ComputePassFlags);
@@ -258,8 +263,7 @@ void FDeferredShadingSceneRenderer::RenderLumenSceneLighting(
 			RenderRadiosityForLumenScene(
 				GraphBuilder,
 				FrameTemporaries,
-				FrameTemporaries.IndirectLightingAtlas,
-				FrameTemporaries.RadiosityNumFramesAccumulatedAtlas,
+				RadiosityFrameTemporaries,
 				IndirectLightingCardUpdateContext,
 				ComputePassFlags);
 
@@ -401,6 +405,7 @@ class FBuildCardsUpdateListCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, MaxIndirectLightingTilesToUpdate)
 		SHADER_PARAMETER(float, DirectLightingUpdateFactor)
 		SHADER_PARAMETER(float, IndirectLightingUpdateFactor)
+		SHADER_PARAMETER(int32, IndirectLightingHistoryValid)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FSurfaceCacheFeedback : SHADER_PERMUTATION_BOOL("SURFACE_CACHE_FEEDBACK");
@@ -498,6 +503,7 @@ void Lumen::BuildCardUpdateContext(
 	const FLumenSceneData& LumenSceneData,
 	const TArray<FViewInfo>& Views,
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	bool bIndirectLightingHistoryValid,
 	FLumenCardUpdateContext& DirectLightingCardUpdateContext,
 	FLumenCardUpdateContext& IndirectLightingCardUpdateContext,
 	ERDGPassFlags ComputePassFlags)
@@ -656,6 +662,7 @@ void Lumen::BuildCardUpdateContext(
 		PassParameters->FreezeUpdateFrame = FreezeUpdateFrame;
 		PassParameters->FirstClipmapWorldExtentRcp = FirstClipmapWorldExtentRcp;
 		PassParameters->NumCameraOrigins = Views.Num();
+		PassParameters->IndirectLightingHistoryValid = bIndirectLightingHistoryValid ? 1 : 0;
 		check(Views.Num() <= PassParameters->WorldCameraOrigins.Num());
 
 		for (int32 i = 0; i < Views.Num(); i++)

@@ -24,6 +24,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "StaticMeshBatch.h"
 #include "LumenReflections.h"
+#include "LumenRadiosity.h"
 
 int32 GLumenFastCameraMode = 0;
 FAutoConsoleVariableRef CVarLumenFastCameraMode(
@@ -1648,7 +1649,7 @@ void UpdateLumenCardSceneUniformBuffer(
 	UniformParameters->NumPrimitiveGroups = LumenSceneData.PrimitiveGroups.Num();
 	UniformParameters->PhysicalAtlasSize = LumenSceneData.GetPhysicalAtlasSize();
 	UniformParameters->InvPhysicalAtlasSize = FVector2f(1.0f) / UniformParameters->PhysicalAtlasSize;
-	UniformParameters->IndirectLightingAtlasDownsampleFactor = Lumen::GetRadiosityAtlasDownsampleFactor();
+	UniformParameters->IndirectLightingAtlasDownsampleFactor = LumenRadiosity::GetAtlasDownsampleFactor();
 
 	if (FrameTemporaries.CardBufferSRV)
 	{
