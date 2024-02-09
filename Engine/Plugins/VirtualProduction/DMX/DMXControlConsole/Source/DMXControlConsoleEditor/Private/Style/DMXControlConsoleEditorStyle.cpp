@@ -86,17 +86,24 @@ FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 	// Faders
 	{
 		static const FLinearColor DefaultFaderBackColor = FLinearColor::FromSRGBColor(FColor::FromHex("191919"));
-		static const FLinearColor DefaultFaderFillColor = FLinearColor::FromSRGBColor(FColor::FromHex("0088f7"));
+		static const FLinearColor DefaultSingleFaderFillColor = FLinearColor::FromSRGBColor(FColor::FromHex("38a4fc"));
 		static const FLinearColor DefeaultFaderInactiveColor = FLinearColor::FromSRGBColor(FColor::FromHex("#8f8f8f"));
 		static const FLinearColor DefeaultFaderForeColor = FLinearColor::FromSRGBColor(FColor::FromHex("ffffff"));
 
-		Set("DMXControlConsole.Fader", FSpinBoxStyle(FAppStyle::GetWidgetStyle<FSpinBoxStyle>("SpinBox"))
+		static const FSpinBoxStyle SingleFaderSpinBoxStyle = FSpinBoxStyle()
 			.SetBackgroundBrush(CORE_BOX_BRUSH("Common/Spinbox", FMargin(4.f / 16.f), DefaultFaderBackColor))
 			.SetHoveredBackgroundBrush(CORE_BOX_BRUSH("Common/Spinbox", FMargin(4.f / 16.f), DefaultFaderBackColor))
-			.SetActiveFillBrush(CORE_BOX_BRUSH("Common/Spinbox_Fill", FMargin(4.f / 16.f), DefaultFaderFillColor))
+			.SetActiveFillBrush(CORE_BOX_BRUSH("Common/Spinbox_Fill", FMargin(4.f / 16.f), DefaultSingleFaderFillColor))
 			.SetInactiveFillBrush(CORE_BOX_BRUSH("Common/Spinbox_Fill", FMargin(4.f / 16.f), DefeaultFaderInactiveColor))
 			.SetForegroundColor(DefeaultFaderForeColor)
-			.SetArrowsImage(FSlateNoResource()));
+			.SetArrowsImage(FSlateNoResource());
+
+		static const FLinearColor DefaultMultiFaderFillColor = FLinearColor::FromSRGBColor(FColor::FromHex("025de6"));
+		static const FSpinBoxStyle MultiFaderSpinBoxStyle = FSpinBoxStyle(SingleFaderSpinBoxStyle)
+			.SetActiveFillBrush(CORE_BOX_BRUSH("Common/Spinbox_Fill", FMargin(4.f / 16.f), DefaultMultiFaderFillColor));
+
+		Set("DMXControlConsole.SingleFader", SingleFaderSpinBoxStyle);
+		Set("DMXControlConsole.MultiFader", MultiFaderSpinBoxStyle);
 
 		Set("DMXControlConsole.Fader", new FSlateColorBrush(FLinearColor(.2f, .2f, .2f, .2f)));
 		Set("DMXControlConsole.Fader_Highlighted", new FSlateColorBrush(FLinearColor(.4f, .4f, .4f, .4f)));
@@ -106,7 +113,8 @@ FDMXControlConsoleEditorStyle::FDMXControlConsoleEditorStyle()
 		Set("DMXControlConsole.Rounded.Fader_Highlighted", new FSlateRoundedBoxBrush(FLinearColor(.14f, .14f, .14f, 1.f), 4.f));
 
 		Set("DMXControlConsole.Rounded.SpinBoxBorder", new FSlateRoundedBoxBrush(FLinearColor(.03f, .03f, .03f, 1.f), 4.f));
-		Set("DMXControlConsole.Rounded.SpinBoxBorder_Hovered", new FSlateRoundedBoxBrush(DefaultFaderFillColor, 4.f));
+		Set("DMXControlConsole.Rounded.SpinBoxBorder_SingleHovered", new FSlateRoundedBoxBrush(DefaultSingleFaderFillColor, 4.f));
+		Set("DMXControlConsole.Rounded.SpinBoxBorder_MultiHovered", new FSlateRoundedBoxBrush(DefaultMultiFaderFillColor, 4.f));
 	}
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);

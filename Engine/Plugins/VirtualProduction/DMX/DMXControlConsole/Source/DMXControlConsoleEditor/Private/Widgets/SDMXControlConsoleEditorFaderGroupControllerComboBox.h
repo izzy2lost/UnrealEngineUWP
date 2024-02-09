@@ -46,11 +46,17 @@ namespace UE::DMX::Private
 		/** Called when a FixturePatchesComboBox element is selected */
 		void OnComboBoxSelectionChanged(const TSharedPtr<FDMXEntityFixturePatchRef> FixturePatchRef, ESelectInfo::Type SelectInfo);
 
+		/** Called when the Fader Group Controller has been grouped */
+		void OnFaderGroupControllerGrouped();
+
 		/** Gets the Fader Group Controller's editor color */
 		FSlateColor GetFaderGroupControllerEditorColor() const;
 
 		/** Gets the Fader Group Controller's fixture patch name, if valid */
 		FText GetFaderGroupControllerFixturePatchNameText() const;
+		
+		/** Gets the visibility for the combo box image */
+		EVisibility GetComboBoxImageVisibility() const;
 
 		/** Reference to the current DMX Library */
 		TWeakObjectPtr<UDMXLibrary> DMXLibrary;
