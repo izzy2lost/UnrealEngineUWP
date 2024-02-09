@@ -493,6 +493,13 @@ public:
 	virtual const FInstancedPropertyBag* GetUserParametersStruct() const override { return &ParametersOverrides.Parameters; }
 	virtual bool IsGraphParameterOverridden(const FName PropertyName) const override;
 
+	/** 
+	* When setting a graph instance as a base to another graph instance, we need to make sure we don't find this graph in the graph hierarchy.
+	* Otherwise it would cause infinite recursion (like A is an instance of B and B is an instance of A).
+	* This function will go up the graph hierarchy and returning false if `this` is ever encountered.
+	*/
+	bool CanGraphInterfaceBeSet(const UPCGGraphInterface* GraphInterface) const;
+
 private:
 #if WITH_EDITORONLY_DATA
 	// Transient, to keep track of the previous graph when it changed.
