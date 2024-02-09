@@ -127,7 +127,7 @@ namespace UE::DMX::Private
 					SNew(SBox)
 					.VAlign(VAlign_Center)
 					.WidthOverride(150.f)
-					.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::GetExpandedViewModeVisibility))
+					.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerToolbar::GetSearchBoxVisibility))
 					[
 						SAssignNew(ToolbarSearchBox, SFilterSearchBox)
 						.DelayChangeNotificationsWhileTyping(true)
@@ -817,6 +817,13 @@ namespace UE::DMX::Private
 			return false;
 		}
 
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ActiveLayout || ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		{
+			return false;
+		}
+
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 		const TArray<TWeakObjectPtr<UObject>>& SelectedFaderGroupControllers = SelectionHandler->GetSelectedFaderGroupControllers();
 		if (SelectedFaderGroupControllers.Num() <= 1)
@@ -838,6 +845,13 @@ namespace UE::DMX::Private
 	bool SDMXControlConsoleEditorFaderGroupControllerToolbar::CanUngroupFaderGroupControllers() const
 	{
 		if (!EditorModel.IsValid())
+		{
+			return false;
+		}
+
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ActiveLayout || ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
 			return false;
 		}
@@ -907,6 +921,21 @@ namespace UE::DMX::Private
 		const bool bIsVisible = 
 			IsExpandedViewModeEnabledDelegate.IsBound() && 
 			IsExpandedViewModeEnabledDelegate.Execute();
+
+		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	EVisibility SDMXControlConsoleEditorFaderGroupControllerToolbar::GetSearchBoxVisibility() const
+	{
+		// Visible only if the toolbar is expanded and the controller has more than the specified number of element controllers
+		constexpr int32 ElementControllersNumLimit = 4;
+
+		const UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController();
+		const bool bIsVisible =
+			FaderGroupController &&
+			FaderGroupController->GetElementControllers().Num() > ElementControllersNumLimit &&
+			IsExpandedViewModeEnabledDelegate.IsBound() &&
+			IsExpandedViewModeEnabledDelegate.Execute() ;
 
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
