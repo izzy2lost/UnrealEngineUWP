@@ -380,6 +380,15 @@ namespace Chaos
 	}
 }
 
+namespace PhysicsReplicationCVars
+{
+	namespace ResimulationCVars
+	{
+		bool bApplyTargetsWhileResimulating = false;
+		static FAutoConsoleVariableRef CVarResimApplyTargetsWhileResimulating(TEXT("np2.Resim.ApplyTargetsWhileResimulating"), bApplyTargetsWhileResimulating, TEXT("If false, target states from the server are only applied on rewind. If true, target states from the server are applied during resimulation if there are any available."));
+	}
+}
+
 namespace Chaos
 {
 	using namespace CVars;
@@ -1929,8 +1938,11 @@ namespace Chaos
 					{
 						if ((LastStep - Step) < RecordedPushData.Num())
 						{
-							// We need to reset all the particles having received a target from the server even if not at first resim frame
-							MRewindData->ApplyTargets(Step, bFirst);
+							if (PhysicsReplicationCVars::ResimulationCVars::bApplyTargetsWhileResimulating || bFirst)
+							{
+								// Update all the particles having received a target from the server
+								MRewindData->ApplyTargets(Step, bFirst);
+							}
 
 							FPushPhysicsData* PushData = RecordedPushData[LastStep - Step];	//push data is sorted as latest first
 							if (bFirst)

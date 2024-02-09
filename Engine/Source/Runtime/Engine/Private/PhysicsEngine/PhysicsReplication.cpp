@@ -1786,47 +1786,49 @@ bool FPhysicsReplicationAsync::ResimulationReplication(Chaos::FPBDRigidParticleH
 	}
 #endif
 
-	if (ShouldTriggerResim && Target.TickCount == 0 && LocalFrame > RewindData->GetBlockedResimFrame())
+	if (LocalFrame > RewindData->GetBlockedResimFrame())
 	{
-		// Trigger resimulation
-		RigidsSolver->GetEvolution()->GetIslandManager().SetParticleResimFrame(Handle, LocalFrame);
-
-		int32 ResimFrame = RewindData->GetResimFrame();
-		ResimFrame = (ResimFrame == INDEX_NONE) ? LocalFrame : FMath::Min(ResimFrame, LocalFrame);
-		RewindData->SetResimFrame(ResimFrame);
-	}
-	else if (SettingsCurrent.ResimulationSettings.GetRuntimeCorrectionEnabled())
-	{
-		const int32 NumPredictedFrames = RigidsSolver->GetCurrentFrame() - LocalFrame - Target.TickCount;
-
-		if (Target.TickCount <= NumPredictedFrames && NumPredictedFrames > 0)
+		if (ShouldTriggerResim && Target.TickCount == 0)
 		{
-			// Calculate correction to position
-			const float CorrectionAmountX = SettingsCurrent.ResimulationSettings.GetPosStabilityMultiplier() / NumPredictedFrames; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
-			const FVector CorrectedX = Handle->X() + (ErrorOffset * CorrectionAmountX);
+			// Trigger resimulation
+			RigidsSolver->GetEvolution()->GetIslandManager().SetParticleResimFrame(Handle, LocalFrame);
 
-			// Calculate correction to rotation
-			const float CorrectionAmountR = (1.f / NumPredictedFrames) * SettingsCurrent.ResimulationSettings.GetRotStabilityMultiplier();
-			const FQuat InvCurrentQuat = PastState.GetR().Inverse();
-			const FQuat DeltaQuat = Target.TargetState.Quaternion * InvCurrentQuat;
-			const FQuat TargetCorrectionR = Handle->GetR() * DeltaQuat;
-			const FQuat CorrectedR = FQuat::Slerp(Handle->GetR(), TargetCorrectionR, CorrectionAmountR);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
-			{
-				Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(Handle->X(), CorrectedX, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
-			}
-#endif
-			// Apply correction
-			Handle->SetX(CorrectedX);
-			Handle->SetR(CorrectedR);
+			int32 ResimFrame = RewindData->GetResimFrame();
+			ResimFrame = (ResimFrame == INDEX_NONE) ? LocalFrame : FMath::Min(ResimFrame, LocalFrame);
+			RewindData->SetResimFrame(ResimFrame);
 		}
+		else if (SettingsCurrent.ResimulationSettings.GetRuntimeCorrectionEnabled())
+		{
+			const int32 NumPredictedFrames = RigidsSolver->GetCurrentFrame() - LocalFrame - Target.TickCount;
 
-		// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received
-		bClearTarget = Target.TickCount >= NumPredictedFrames;
+			if (Target.TickCount <= NumPredictedFrames && NumPredictedFrames > 0)
+			{
+				// Calculate correction to position
+				const float CorrectionAmountX = SettingsCurrent.ResimulationSettings.GetPosStabilityMultiplier() / NumPredictedFrames; // Same result as (ErrorOffset / NumPredictedFrames) * PosStabilityMultiplier
+				const FVector CorrectedX = Handle->X() + (ErrorOffset * CorrectionAmountX);
+
+				// Calculate correction to rotation
+				const float CorrectionAmountR = (1.f / NumPredictedFrames) * SettingsCurrent.ResimulationSettings.GetRotStabilityMultiplier();
+				const FQuat InvTargetQuat = Target.TargetState.Quaternion;
+				const FQuat DeltaQuat = PastState.GetR().Inverse() * InvTargetQuat;
+				const FQuat TargetCorrectionR = Handle->GetR() * DeltaQuat;
+				const FQuat CorrectedR = FQuat::Slerp(Handle->GetR(), TargetCorrectionR, CorrectionAmountR);
+
+	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+				if (Chaos::FPhysicsSolverBase::CanDebugNetworkPhysicsPrediction())
+				{
+					Chaos::FDebugDrawQueue::GetInstance().DrawDebugDirectionalArrow(Handle->X(), CorrectedX, 5.0f, FColor::MakeRandomSeededColor(LocalFrame), true, CharacterMovementCVars::NetCorrectionLifetime, 0, 0.5f);
+				}
+	#endif
+				// Apply correction
+				Handle->SetX(CorrectedX);
+				Handle->SetR(CorrectedR);
+			}
+
+			// Keep target for NumPredictedFrames time to perform runtime corrections with until a new target is received
+			bClearTarget = Target.TickCount >= NumPredictedFrames;
+		}
 	}
-
 	return bClearTarget;
 }
 
