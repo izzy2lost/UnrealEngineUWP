@@ -52,7 +52,8 @@ private:
 	bool IsReadOnly() const;
 
 private:
-
+	DECLARE_DELEGATE_RetVal_OneParam(FText, FPropertyValidatorFunc, const FString&);
+	
 	TSharedPtr< class FPropertyEditor > PropertyEditor;
 
 	TSharedPtr< class SWidget > PrimaryWidget;
@@ -71,4 +72,7 @@ private:
 
 	/** The characters that are allowed in the value. If empty, any character is allowed. */
 	FCharRangeList AllowedCharacters;
+
+	/** An optional validator function that will be called each time the text is changed */
+	FPropertyValidatorFunc PropertyValidatorFunc;
 };
