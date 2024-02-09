@@ -267,13 +267,17 @@ private:
 	struct FPerNodeCache
 	{
 		FPerNodeCache()
-			: bHasParent(false)
+			: Guid()
+			, Label()
+			, bHasParent(false)
 			, Visibility(ESchematicGraphVisibility::Visible)
 			, bIsAutoScaling(false)
 			, Position(FVector2d::ZeroVector)
 			, Radius(0.0)
 		{}
 
+		FGuid Guid;
+		FText Label;
 		bool bHasParent;
 		ESchematicGraphVisibility::Type Visibility;
 		bool bIsAutoScaling;
@@ -282,6 +286,7 @@ private:
 	};
 
 	TArray<FPerNodeCache> PerNodeCaches;
+	TMap<FGuid, int32> GuidToNodeCache;
 	TMap<uint32, FGuid> GroupNodeGuidByHash;
 
 	TMap<FGuid, TSharedPtr<FSchematicLinkWidgetInfo>> LinkByGuid;

@@ -169,7 +169,7 @@ void FControlRigSchematicModel::Tick(float InDeltaTime)
 			}
 			if(Connectors.Num() == 1)
 			{
-				if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(Pair.Key))
+				if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(Connectors[0]))
 				{
 					if(!Connector->IsPrimary())
 					{
