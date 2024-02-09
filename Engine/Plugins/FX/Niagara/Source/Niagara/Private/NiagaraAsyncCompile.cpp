@@ -112,6 +112,39 @@ TSharedPtr<FNiagaraCompileRequestDuplicateDataBase, ESPMode::ThreadSafe> FNiagar
 	return PrecompileDuplicateData;
 }
 
+bool FNiagaraLazyPrecompileReference::IsValidForPrecompile() const
+{
+	if (System)
+	{
+		const TArray<FNiagaraEmitterHandle>& EmitterHandles = System->GetEmitterHandles();
+		for (TMap<UNiagaraScript*, int32>::TConstIterator It = EmitterScriptIndex.CreateConstIterator(); It; ++It)
+		{
+			if (EmitterHandles.IsValidIndex(It.Value()))
+			{
+				const FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[It.Value()];
+				const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
+				if (!EmitterHandle.GetIsEnabled() || !EmitterData)
+				{
+					return false;
+				}
+				TArray<UNiagaraScript*> EmitterScripts;
+				EmitterData->GetScripts(EmitterScripts, false, true);
+
+				if (!EmitterScripts.Contains(It.Key()))
+				{
+					return false;
+				}
+			}
+			else
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 FNiagaraAsyncCompileTask::FNiagaraAsyncCompileTask(UNiagaraSystem* InOwningSystem, FString InAssetPath, const FEmitterCompiledScriptPair& InScriptPair)
 {
 	OwningSystem = InOwningSystem;
@@ -274,6 +307,14 @@ void FNiagaraAsyncCompileTask::PrecompileData()
 	// we do one more check here to see if the source data has been changed out from under us, if it has then we abort the compilation attempt
 	if (!CompilationIdMatchesRequest())
 	{
+		AbortTask();
+		return;
+	}
+
+	// destructive changes (like emitters being deleted) can disrupt the precompile so we need to validate that we can continue.
+	if (!PrecompileReference->IsValidForPrecompile())
+	{
+		UE_LOG(LogNiagara, Warning, TEXT("Unable to proceed with compilation due to changes to asset %s.  Aborting."), *AssetPath);
 		AbortTask();
 		return;
 	}
@@ -778,14 +819,33 @@ bool FNiagaraActiveCompilationDefault::QueryCompileComplete(const FNiagaraQueryC
 
 void FNiagaraActiveCompilationDefault::Apply(const FNiagaraQueryCompilationOptions& Options)
 {
+	auto ShouldApplyTask = [](const FAsyncTaskPtr& AsyncTask) -> bool
+	{
+		if (AsyncTask->CurrentState == ENiagaraCompilationState::Aborted || !AsyncTask->ScriptPair.bResultsReady)
+		{
+			return false;
+		}
+
+		// for now also check some common failure points (the ComputedPrecompileDuplicateData being cleaned up/incomplete)
+		if (AsyncTask->ComputedPrecompileDuplicateData.IsValid())
+		{
+			if (AsyncTask->ComputedPrecompileDuplicateData->GetScriptSource() == nullptr)
+			{
+				return false;
+			}
+		}
+
+		return true;
+	};
+
 	if (bEvaluateParametersPending)
 	{
 		// run a first pass to apply the rapid iteration parameters across all of the tasks with results
 		for (FAsyncTaskPtr& AsyncTask : Tasks)
 		{
-			FEmitterCompiledScriptPair& EmitterCompiledScriptPair = AsyncTask->ScriptPair;
-			if (EmitterCompiledScriptPair.bResultsReady)
+			if (ShouldApplyTask(AsyncTask))
 			{
+				FEmitterCompiledScriptPair& EmitterCompiledScriptPair = AsyncTask->ScriptPair;
 				if (TSharedPtr<FNiagaraVMExecutableData> ExeData = EmitterCompiledScriptPair.CompileResults)
 				{
 					if (UNiagaraScript* CompiledScript = EmitterCompiledScriptPair.CompiledScript)
@@ -799,9 +859,9 @@ void FNiagaraActiveCompilationDefault::Apply(const FNiagaraQueryCompilationOptio
 
 	for (FAsyncTaskPtr& AsyncTask : Tasks)
 	{
-		FEmitterCompiledScriptPair& EmitterCompiledScriptPair = AsyncTask->ScriptPair;
-		if (EmitterCompiledScriptPair.bResultsReady)
+		if (ShouldApplyTask(AsyncTask))
 		{
+			FEmitterCompiledScriptPair& EmitterCompiledScriptPair = AsyncTask->ScriptPair;
 			TSharedPtr<FNiagaraVMExecutableData> ExeData = EmitterCompiledScriptPair.CompileResults;
 			UNiagaraScript* CompiledScript = EmitterCompiledScriptPair.CompiledScript;
 
