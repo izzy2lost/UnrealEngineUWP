@@ -6,6 +6,10 @@
 #include "StateTree.h"
 #include "AvaTransitionTree.generated.h"
 
+/**
+ * Motion Design Transition Tree is a State Tree with the purpose of executing user-defined logic
+ * when there's a Transition between multiple scenes in multiple layers.
+ */
 UCLASS(DisplayName = "Motion Design Transition Tree")
 class AVALANCHETRANSITION_API UAvaTransitionTree : public UStateTree
 {
