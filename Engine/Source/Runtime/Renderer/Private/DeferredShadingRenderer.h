@@ -41,6 +41,10 @@ namespace LumenRadianceCache
 	class FRadianceCacheInterpolationParameters;
 	class FUpdateInputs;
 }
+namespace LumenRadiosity
+{
+	struct FFrameTemporaries;
+}
 class FRenderLightParameters;
 class FRayTracingScene;
 class FNaniteVisibility;
@@ -594,8 +598,7 @@ private:
 	void RenderRadiosityForLumenScene(
 		FRDGBuilder& GraphBuilder,
 		const FLumenSceneFrameTemporaries& FrameTemporaries,
-		FRDGTextureRef RadiosityAtlas,
-		FRDGTextureRef RadiosityNumFramesAccumulatedAtlas,
+		const LumenRadiosity::FFrameTemporaries& RadiosityFrameTemporaries,
 		const FLumenCardUpdateContext& CardUpdateContext,
 		ERDGPassFlags ComputePassFlags);
 

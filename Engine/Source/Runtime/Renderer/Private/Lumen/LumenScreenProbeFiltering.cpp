@@ -674,7 +674,7 @@ void FilterScreenProbes(
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("ScreenProbeConvertToIrradiance Format:%d", (int32)ScreenProbeIrradianceFormat),
+			RDG_EVENT_NAME("ScreenProbeConvertToIrradiance Format:%d WaveOpWaveSize:%d", (int32)ScreenProbeIrradianceFormat, WaveOpWaveSize),
 			ComputePassFlags,
 			ComputeShader,
 			PassParameters,

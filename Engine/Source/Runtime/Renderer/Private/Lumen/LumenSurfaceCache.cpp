@@ -8,6 +8,7 @@
 #include "PixelShaderUtils.h"
 #include "LumenSceneLighting.h"
 #include "LumenSceneCardCapture.h"
+#include "LumenRadiosity.h"
 
 int32 GLumenSurfaceCacheCompress = 1;
 FAutoConsoleVariableRef CVarLumenSurfaceCacheCompress(
@@ -416,11 +417,11 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 	// Fill lighting for newly captured cards
 	{
 		// Downsampled radiosity atlas copy not implemented yet
-		check(Lumen::GetRadiosityAtlasDownsampleFactor() == 1);
+		check(LumenRadiosity::GetAtlasDownsampleFactor() == 1);
 
 		extern int32 GLumenSceneSurfaceCacheResampleLighting;
 		const bool bResample = GLumenSceneSurfaceCacheResampleLighting != 0 && ResampledCardCaptureAtlas.DirectLighting != nullptr;
-		const bool bRadiosityEnabled = Lumen::IsRadiosityEnabled(ViewFamily);
+		const bool bRadiosityEnabled = LumenRadiosity::IsEnabled(ViewFamily);
 
 		FCopyCardCaptureLightingToAtlasParameters* PassParameters = GraphBuilder.AllocParameters<FCopyCardCaptureLightingToAtlasParameters>();
 
