@@ -8,40 +8,99 @@
 #include "RemoteControlPreset.h"
 #include "Subsystems/RemoteControlComponentsSubsystem.h"
 
-void URemoteControlTrackerComponent::MarkPropertiesForRefresh()
+URemoteControlPreset* URemoteControlTrackerComponent::GetCurrentPreset() const
+{
+	if (const URemoteControlComponentsSubsystem* RemoteControlPresetComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
+	{
+		if (const UWorld* World = GetTypedOuter<UWorld>())
+		{
+			if (URemoteControlPreset* Preset = RemoteControlPresetComponentsSubsystem->GetRegisteredPreset(World))
+			{
+				return Preset;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+bool URemoteControlTrackerComponent::HasTrackedProperties() const
+{
+	return !TrackedProperties.IsEmpty();
+}
+
+void URemoteControlTrackerComponent::AddTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject)
+{
+	if (!IsTrackingProperty(InFieldPathInfo, InOwnerObject))
+	{
+		TrackedProperties.Add(FRemoteControlTrackerProperty(InFieldPathInfo, InOwnerObject));
+	}
+}
+
+void URemoteControlTrackerComponent::RemoveTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject)
+{
+	const int32 Index = GetTrackedPropertyIndex(InFieldPathInfo, InOwnerObject);
+	if (Index != INDEX_NONE)
+	{
+		TrackedProperties.RemoveAt(Index);
+	}
+}
+
+void URemoteControlTrackerComponent::ExposeAllProperties()
+{
+	if (URemoteControlPreset* Preset = GetCurrentPreset())
+	{
+		for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
+		{
+			TrackedProperty.Expose(Preset);
+		}
+	}
+}
+
+void URemoteControlTrackerComponent::UnexposeAllProperties()
+{
+	TArray<FRemoteControlTrackerProperty> PropertiesToRemove = MoveTemp(TrackedProperties);
+
+	for (FRemoteControlTrackerProperty& TrackedProperty : PropertiesToRemove)
+	{
+		TrackedProperty.Unexpose();
+	}
+	
+	UnregisterPropertyIdChangeDelegate();
+}
+
+void URemoteControlTrackerComponent::RefreshAllPropertyIds()
 {
 	for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
 	{
-		TrackedProperty.MarkUnexposed();
+		TrackedProperty.ReadPropertyIdFromPreset();
 	}
 }
 
-void URemoteControlTrackerComponent::RefreshExposedProperties()
+void URemoteControlTrackerComponent::WriteAllPropertyIdsToPreset()
 {
-	MarkPropertiesForRefresh();
-	ExposeAllProperties();
-}
-
-void URemoteControlTrackerComponent::RegisterTrackedActor() const
-{	
-	if (AActor* OuterActor = GetTrackedActor())
+	UnregisterPropertyIdChangeDelegate();
+	for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
 	{
-		if (URemoteControlComponentsSubsystem* RemoteControlComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
-		{
-			RemoteControlComponentsSubsystem->RegisterTrackedActor(OuterActor);
-		}
+		TrackedProperty.WritePropertyIdToPreset();
 	}
+	RegisterPropertyIdChangeDelegate();
 }
 
-void URemoteControlTrackerComponent::UnregisterTrackedActor() const
+bool URemoteControlTrackerComponent::IsTrackingProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const
 {
-	if (AActor* OuterActor = GetTrackedActor())
+	const int32 Index = GetTrackedPropertyIndex(InFieldPathInfo, InOwnerObject);
+	return Index != INDEX_NONE;
+}
+
+AActor* URemoteControlTrackerComponent::GetTrackedActor() const
+{
+	if (AActor* OuterActor = GetOwner())
 	{
-		if (URemoteControlComponentsSubsystem* RemoteControlComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
-		{
-			RemoteControlComponentsSubsystem->UnregisterTrackedActor(OuterActor);
-		}
+		return OuterActor;
 	}
+
+	return nullptr;
 }
 
 void URemoteControlTrackerComponent::OnComponentCreated()
@@ -72,24 +131,11 @@ void URemoteControlTrackerComponent::OnComponentDestroyed(bool bInDestroyingHier
 	}
 }
 
-void URemoteControlTrackerComponent::RefreshTracker()
-{
-	RegisterTrackedActor();
-	RefreshExposedProperties();
-}
-
 void URemoteControlTrackerComponent::PostInitProperties()
 {
 	Super::PostInitProperties();
 
 	RegisterTrackedActor();
-	RegisterPropertyIdChangeDelegate();
-}
-
-void URemoteControlTrackerComponent::OnTrackerDuplicated()
-{
-	RefreshTracker();
-	WriteAllPropertyIdsToPreset();
 	RegisterPropertyIdChangeDelegate();
 }
 
@@ -131,107 +177,53 @@ void URemoteControlTrackerComponent::PostTransacted(const FTransactionObjectEven
 }
 #endif
 
-int32 URemoteControlTrackerComponent::GetTrackedPropertyIndex(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const
-{
-	return TrackedProperties.IndexOfByPredicate([InFieldPathInfo, InOwnerObject](const FRemoteControlTrackerProperty& TrackerProperty)
+void URemoteControlTrackerComponent::RegisterTrackedActor() const
+{	
+	if (AActor* OuterActor = GetTrackedActor())
 	{
-		return TrackerProperty.MatchesParameters(InFieldPathInfo, InOwnerObject);
-	});
-}
-
-void URemoteControlTrackerComponent::AddTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject)
-{
-	if (!IsTrackingProperty(InFieldPathInfo, InOwnerObject))
-	{
-		TrackedProperties.Add(FRemoteControlTrackerProperty(InFieldPathInfo, InOwnerObject));
-	}
-}
-
-void URemoteControlTrackerComponent::RemoveTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject)
-{
-	const int32 Index = GetTrackedPropertyIndex(InFieldPathInfo, InOwnerObject);
-	if (Index != INDEX_NONE)
-	{
-		TrackedProperties.RemoveAt(Index);
-	}
-}
-
-URemoteControlPreset* URemoteControlTrackerComponent::GetCurrentPreset() const
-{
-	if (const URemoteControlComponentsSubsystem* RemoteControlPresetComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
-	{
-		if (const UWorld* World = GetTypedOuter<UWorld>())
+		if (URemoteControlComponentsSubsystem* RemoteControlComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
 		{
-			if (URemoteControlPreset* Preset = RemoteControlPresetComponentsSubsystem->GetRegisteredPreset(World))
-			{
-				return Preset;
-			}
-		}
-	}
-
-	return nullptr;
-}
-
-void URemoteControlTrackerComponent::ExposeAllProperties()
-{
-	if (URemoteControlPreset* Preset = GetCurrentPreset())
-	{
-		for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
-		{
-			TrackedProperty.Expose(Preset);
+			RemoteControlComponentsSubsystem->RegisterTrackedActor(OuterActor);
 		}
 	}
 }
 
-bool URemoteControlTrackerComponent::HasTrackedProperties() const
+void URemoteControlTrackerComponent::UnregisterTrackedActor() const
 {
-	return !TrackedProperties.IsEmpty();
-}
-
-bool URemoteControlTrackerComponent::IsTrackingProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const
-{
-	const int32 Index = GetTrackedPropertyIndex(InFieldPathInfo, InOwnerObject);
-	return Index != INDEX_NONE;
-}
-
-void URemoteControlTrackerComponent::UnexposeAllProperties()
-{
-	TArray<FRemoteControlTrackerProperty> PropertiesToRemove = MoveTemp(TrackedProperties);
-
-	for (FRemoteControlTrackerProperty& TrackedProperty : PropertiesToRemove)
+	if (AActor* OuterActor = GetTrackedActor())
 	{
-		TrackedProperty.Unexpose();
-	}
-	
-	UnregisterPropertyIdChangeDelegate();
-}
-
-void URemoteControlTrackerComponent::RefreshAllPropertyIds()
-{
-	for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
-	{
-		TrackedProperty.ReadPropertyIdFromPreset();
+		if (URemoteControlComponentsSubsystem* RemoteControlComponentsSubsystem = URemoteControlComponentsSubsystem::Get())
+		{
+			RemoteControlComponentsSubsystem->UnregisterTrackedActor(OuterActor);
+		}
 	}
 }
 
-void URemoteControlTrackerComponent::WriteAllPropertyIdsToPreset()
+void URemoteControlTrackerComponent::OnTrackerDuplicated()
 {
-	UnregisterPropertyIdChangeDelegate();
-	for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
-	{
-		TrackedProperty.WritePropertyIdToPreset();
-	}
+	RefreshTracker();
+	WriteAllPropertyIdsToPreset();
 	RegisterPropertyIdChangeDelegate();
 }
 
-AActor* URemoteControlTrackerComponent::GetTrackedActor() const
+void URemoteControlTrackerComponent::RefreshTracker()
 {
-	if (AActor* OuterActor = GetOwner())
-	{
-		return OuterActor;
-	}
+	RegisterTrackedActor();
+	RefreshExposedProperties();
+}
 
-	return nullptr;
+void URemoteControlTrackerComponent::RefreshExposedProperties()
+{
+	MarkPropertiesForRefresh();
+	ExposeAllProperties();
+}
+
+void URemoteControlTrackerComponent::MarkPropertiesForRefresh()
+{
+	for (FRemoteControlTrackerProperty& TrackedProperty : TrackedProperties)
+	{
+		TrackedProperty.MarkUnexposed();
+	}
 }
 
 void URemoteControlTrackerComponent::RegisterPropertyIdChangeDelegate()
@@ -260,4 +252,12 @@ void URemoteControlTrackerComponent::UnregisterPropertyIdChangeDelegate() const
 void URemoteControlTrackerComponent::OnPropertyIdUpdated()
 {
 	RefreshAllPropertyIds();
+}
+
+int32 URemoteControlTrackerComponent::GetTrackedPropertyIndex(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const
+{
+	return TrackedProperties.IndexOfByPredicate([InFieldPathInfo, InOwnerObject](const FRemoteControlTrackerProperty& TrackerProperty)
+	{
+		return TrackerProperty.MatchesParameters(InFieldPathInfo, InOwnerObject);
+	});
 }

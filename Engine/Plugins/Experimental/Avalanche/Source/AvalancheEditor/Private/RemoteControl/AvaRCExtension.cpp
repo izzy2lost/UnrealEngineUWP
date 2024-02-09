@@ -5,6 +5,7 @@
 #include "Framework/Docking/LayoutExtender.h"
 #include "IAvaSceneInterface.h"
 #include "LevelEditor.h"
+#include "RemoteControlPreset.h"
 #include "RemoteControlTrackerComponent.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Subsystems/RemoteControlComponentsSubsystem.h"

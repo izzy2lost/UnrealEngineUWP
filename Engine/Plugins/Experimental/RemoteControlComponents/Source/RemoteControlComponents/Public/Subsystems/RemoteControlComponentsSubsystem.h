@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "RemoteControlComponentsContext.h"
-#include "RemoteControlPreset.h"
 #include "Subsystems/EngineSubsystem.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/ObjectKey.h"
@@ -13,23 +11,23 @@ class FSubsystemCollectionBase;
 class UObject;
 class URemoteControlPreset;
 class URemoteControlTrackerComponent;
-
 struct FRCFieldPathInfo;
+struct FRemoteControlComponentsContext;
 
-UCLASS()
-class REMOTECONTROLCOMPONENTS_API URemoteControlComponentsSubsystem : public UEngineSubsystem
+UCLASS(MinimalAPI)
+class URemoteControlComponentsSubsystem : public UEngineSubsystem
 {
 	GENERATED_BODY()
 
 public:
 	/** Get this subsystem instance */
-	static URemoteControlComponentsSubsystem* Get();
+	REMOTECONTROLCOMPONENTS_API static URemoteControlComponentsSubsystem* Get();
 
 	/** Register the specified Preset, along with the World it resides in. */
-	void RegisterPreset(URemoteControlPreset* InRemoteControlPreset);
+	REMOTECONTROLCOMPONENTS_API void RegisterPreset(URemoteControlPreset* InRemoteControlPreset);
 
 	/** Unregister the specified Preset */
-	void UnregisterPreset(URemoteControlPreset* InRemoteControlPreset);
+	REMOTECONTROLCOMPONENTS_API void UnregisterPreset(URemoteControlPreset* InRemoteControlPreset);
 
 	/** Marks the specified Actor as a Tracked Actor, so that the Subsystem knows about it */
 	void RegisterTrackedActor(AActor* InActor);
@@ -60,7 +58,7 @@ public:
 	/** Fires when the active Preset is updated */
 	FOnActivePresetChanged& OnActivePresetChanged() { return OnActivePresetChangedDelegate; }
 
-protected:
+private:
 	FOnActorRegisterStateUpdate OnTrackedActorRegisteredDelegate;	
 	FOnActorRegisterStateUpdate OnTrackedActorUnregisteredDelegate;
 	FOnActivePresetChanged OnActivePresetChangedDelegate;

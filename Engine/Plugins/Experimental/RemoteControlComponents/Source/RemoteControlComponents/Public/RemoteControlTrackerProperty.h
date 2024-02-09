@@ -17,7 +17,7 @@ struct FRemoteControlTrackerProperty
 	GENERATED_BODY()
 
 public:
-	FRemoteControlTrackerProperty() {}
+	FRemoteControlTrackerProperty();
 
 	/**
 	 * Creates and initializes a Tracked Property
@@ -57,22 +57,11 @@ public:
 	 */
 	void MarkUnexposed();
 
-	bool operator==(const FRemoteControlTrackerProperty& Other) const
-	{
-		return
-			FieldPathInfo == Other.FieldPathInfo &&
-			OwnerObject == Other.OwnerObject;
-	}
+	bool operator==(const FRemoteControlTrackerProperty& Other) const;
 
-	bool operator!=(const FRemoteControlTrackerProperty& Other) const
-	{
-		return !(*this == Other);
-	}
+	bool operator!=(const FRemoteControlTrackerProperty& Other) const;
 
-	friend uint32 GetTypeHash(const FRemoteControlTrackerProperty& InBroadcastControlId)
-	{
-		return HashCombineFast(InBroadcastControlId.FieldPathInfo.PathHash, GetTypeHash(InBroadcastControlId.OwnerObject));
-	}
+	friend uint32 GetTypeHash(const FRemoteControlTrackerProperty& InBroadcastControlId);
 
 private:
 	/** Resolves the Tracked Property FieldPathInfo with its Owner */

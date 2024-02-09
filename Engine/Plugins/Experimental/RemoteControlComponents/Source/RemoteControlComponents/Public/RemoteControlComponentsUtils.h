@@ -17,6 +17,7 @@ class FRemoteControlComponentsUtils
 {
 	friend class URemoteControlComponentsSubsystem;
 	friend struct FRemoteControlTrackerProperty;
+
 public:
 	/** Add a RemoteControlTrackerComponent to the specified Actors */
 	REMOTECONTROLCOMPONENTS_API static void AddTrackerComponent(const TSet<TWeakObjectPtr<AActor>>& InActors, bool bInShouldTransact = true);
@@ -25,27 +26,27 @@ public:
 	REMOTECONTROLCOMPONENTS_API static void RemoveTrackerComponent(const TSet<TWeakObjectPtr<AActor>>& InActors);
 
 	/**
-	 * Gets the tracker component for the specified Actor. Tracker can be optionally added if missing.
-	 * @param InActor: the Actor for which we want to retrieve the Tracker Component. Object 
-	 * @param bInAddTrackerIfMissing: if true, function will add a tracker component when one is missing
-	 * @return The found or created tracker.
-	 */
-	REMOTECONTROLCOMPONENTS_API static URemoteControlTrackerComponent* GetTrackerComponent(AActor* InActor, bool bInAddTrackerIfMissing = false);
-
-	/** Gets the Remote Control Preset currently handling the specified Object */
-	REMOTECONTROLCOMPONENTS_API static URemoteControlPreset* GetCurrentPreset(const UObject* InObject);
-
-	/** Gets the Remote Control Preset currently handling the specified World */
-	REMOTECONTROLCOMPONENTS_API static URemoteControlPreset* GetCurrentPreset(const UWorld* InWorld);
-
-	/**
 	 * Unexpose all Tracked Properties of the specified Actor.
 	 * It will also stop tracking all unexposed properties.
 	 */
 	REMOTECONTROLCOMPONENTS_API static void UnexposeAllProperties(AActor* InActor);
 
+	/**
+	 * Gets the tracker component for the specified Actor. Tracker can be optionally added if missing.
+	 * @param InActor: the Actor for which we want to retrieve the Tracker Component. Object 
+	 * @param bInAddTrackerIfMissing: if true, function will add a tracker component when one is missing
+	 * @return The found or created tracker.
+	 */
+	static URemoteControlTrackerComponent* GetTrackerComponent(AActor* InActor, bool bInAddTrackerIfMissing = false);
+
+	/** Gets the Remote Control Preset currently handling the specified Object */
+	static URemoteControlPreset* GetCurrentPreset(const UObject* InObject);
+
+	/** Gets the Remote Control Preset currently handling the specified World */
+	static URemoteControlPreset* GetCurrentPreset(const UWorld* InWorld);
+
 	/** Call this function on any Actor to ensure its exposed RC properties are actually tracked */
-	REMOTECONTROLCOMPONENTS_API static void RefreshTrackedProperties(AActor* InActor);
+	static void RefreshTrackedProperties(AActor* InActor);
 	
 private:
 	/**

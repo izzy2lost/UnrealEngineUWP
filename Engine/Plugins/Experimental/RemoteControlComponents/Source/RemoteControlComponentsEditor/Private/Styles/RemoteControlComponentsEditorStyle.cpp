@@ -13,11 +13,10 @@ FRemoteControlComponentsEditorStyle::FRemoteControlComponentsEditorStyle()
 	
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(UE_PLUGIN_NAME);
 	check(Plugin.IsValid());
-	
+
 	ContentRootDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources"));
 
-	Set("ClassIcon.RemoteControlComponentsComponent"    , new IMAGE_BRUSH_SVG("EditorIcons/RemoteControlComponentsDefault", Icon16x16));
-	Set("ClassIcon.RemoteControlTracker"                , new IMAGE_BRUSH_SVG("EditorIcons/RemoteControlTracker", Icon16x16));
+	Set("ClassIcon.RemoteControlTrackerComponent", new IMAGE_BRUSH_SVG("EditorIcons/RemoteControlTracker", Icon16x16));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

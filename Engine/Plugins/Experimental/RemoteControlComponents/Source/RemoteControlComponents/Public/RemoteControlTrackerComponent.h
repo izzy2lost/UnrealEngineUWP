@@ -15,12 +15,18 @@ class URemoteControlPreset;
  * e.g. duplicating an Actor with this component will result in the same properties exposed by Source Actor
  * to be automatically exposed by Duplicate Actor.
  */
-UCLASS()
-class REMOTECONTROLCOMPONENTS_API URemoteControlTrackerComponent : public UActorComponent
+UCLASS(MinimalAPI)
+class URemoteControlTrackerComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
+	/** Gets the Current Preset this Tracker Component points to */
+	REMOTECONTROLCOMPONENTS_API URemoteControlPreset* GetCurrentPreset() const;
+
+	/** returns true if Tracker Component has at least one tracked/exposed property */
+	REMOTECONTROLCOMPONENTS_API bool HasTrackedProperties() const;
+
 	/** Add the specified property to the list of properties handled by this Tracker Component */
 	void AddTrackedProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject);
 	
@@ -48,16 +54,11 @@ public:
 	 */
 	void WriteAllPropertyIdsToPreset();
 
-	/** returns true if Tracker Component has at least one tracked/exposed property */
-	bool HasTrackedProperties() const;
-
 	/** returns true if Tracker Component is tracking the property for the specified FieldPathInfo and Owner Object */
 	bool IsTrackingProperty(const FRCFieldPathInfo& InFieldPathInfo, UObject* InOwnerObject) const;
 	
 	/** Get the Actor owning this Tracker Component */
 	AActor* GetTrackedActor() const;
-
-	URemoteControlPreset* GetCurrentPreset() const;
 
 protected:
 	//~ Begin UActorComponent Interface

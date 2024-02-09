@@ -6,8 +6,8 @@
 #include "RemoteControlPreset.h"
 #include "RemoteControlTrackerComponent.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
+#include "Styling/SlateIconFinder.h"
 #include "Subsystems/AssetEditorSubsystem.h"
-#include "Subsystems/RemoteControlComponentsEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "AvaOutlinerRemoteControlComponent"
 
@@ -32,7 +32,7 @@ FAvaOutlinerRCTrackerComponent::FAvaOutlinerRCTrackerComponent(IAvaOutliner& InO
 	: FAvaOutlinerObject(InOutliner, InComponent)
 	, TrackerComponentWeak(InComponent)
 {
-	TrackerIcon = FRemoteControlComponentsEditorUtils::GetIcon("ClassIcon.RemoteControlTracker");
+	TrackerIcon = FSlateIconFinder::FindIconForClass(URemoteControlTrackerComponent::StaticClass());
 }
 
 FSlateIcon FAvaOutlinerRCTrackerComponent::GetIcon() const

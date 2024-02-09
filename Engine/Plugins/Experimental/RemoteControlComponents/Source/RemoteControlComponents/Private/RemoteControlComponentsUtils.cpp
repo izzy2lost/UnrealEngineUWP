@@ -171,6 +171,29 @@ void FRemoteControlComponentsUtils::RemoveTrackerComponent(const TSet<TWeakObjec
 	}
 }
 
+void FRemoteControlComponentsUtils::UnexposeAllProperties(AActor* InActor)
+{
+	if (!InActor)
+	{
+		return;
+	}
+
+	if (URemoteControlTrackerComponent* TrackerComponent = FRemoteControlComponentsUtils::GetTrackerComponent(InActor))
+	{
+#if WITH_EDITOR
+		FScopedTransaction Transaction(LOCTEXT("UnexposeAllProperties", "Unexpose all properties"));
+		InActor->Modify();
+
+		if (URemoteControlPreset* Preset = FRemoteControlComponentsUtils::GetCurrentPreset(InActor))
+		{
+			Preset->Modify();
+		}
+#endif
+		
+		TrackerComponent->UnexposeAllProperties();
+	}
+}
+
 TWeakPtr<FRemoteControlProperty> FRemoteControlComponentsUtils::ExposeProperty(URemoteControlPreset* InPreset, UObject* InOwnerObject, const FRCFieldPathInfo& InPathInfo)
 {
 	if (!InPreset)
@@ -264,29 +287,6 @@ void FRemoteControlComponentsUtils::SetExposedPropertyId(URemoteControlPreset* I
 		{
 			PropertyRegistry->UpdateIdentifiedField(RCProperty.ToSharedRef());
 		}		
-	}
-}
-
-void FRemoteControlComponentsUtils::UnexposeAllProperties(AActor* InActor)
-{
-	if (!InActor)
-	{
-		return;
-	}
-
-	if (URemoteControlTrackerComponent* TrackerComponent = FRemoteControlComponentsUtils::GetTrackerComponent(InActor))
-	{
-#if WITH_EDITOR
-		FScopedTransaction Transaction(LOCTEXT("UnexposeAllProperties", "Unexpose all properties"));
-		InActor->Modify();
-
-		if (URemoteControlPreset* Preset = FRemoteControlComponentsUtils::GetCurrentPreset(InActor))
-		{
-			Preset->Modify();
-		}
-#endif
-		
-		TrackerComponent->UnexposeAllProperties();
 	}
 }
 
