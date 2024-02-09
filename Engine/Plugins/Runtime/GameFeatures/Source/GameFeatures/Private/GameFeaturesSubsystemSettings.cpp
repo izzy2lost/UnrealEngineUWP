@@ -34,7 +34,7 @@ bool UGameFeaturesSubsystemSettings::IsValidGameFeaturePlugin(const FString& Plu
 
 		for (FString& BuiltInFolder : BuiltInGameFeaturePluginsFolders)
 		{
-			BuiltInFolder = FPaths::ConvertRelativePathToFull(BuiltInFolder);
+			BuiltInFolder = FPaths::ConvertRelativePathToFull(BuiltInFolder + TEXT("/"));
 		}
 	}
 
