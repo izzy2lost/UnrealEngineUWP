@@ -1590,9 +1590,6 @@ FShaderPipelineCache::FShaderPipelineCache(EShaderPlatform Platform)
 			break;
 	}
 	
-	BatchSize = CVarPSOFileCacheBatchSize.GetValueOnAnyThread();
-	BatchTime = CVarPSOFileCacheBatchTime.GetValueOnAnyThread();
-	
 	FString StableShaderKeyFile;
 	if (FParse::Value(FCommandLine::Get(), TEXT("-shkfile="), StableShaderKeyFile) && !StableShaderKeyFile.IsEmpty())
 	{
