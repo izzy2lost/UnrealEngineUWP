@@ -151,17 +151,19 @@ protected:
 
 	bool IsGlobalOpacityEnabled() const;
 
-	FReply OnRGBButtonClicked_NoSlot();
+	ECheckBoxState GetRGBSlotCheckState_HasSlot() const;
+	void OnRGBSlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState);
 
-	FSlateColor GetRGBButtonColorAndOpacity_HasSlot() const;
-	FReply OnRGBButtonClicked_HasSlot();
+	ECheckBoxState GetRGBSlotCheckState_NoSlot() const;
+	void OnRGBSlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState);
 
-	FReply OnOpacityButtonClicked_NoSlot();
-	bool GetOpacityButtonEnabled_NoSlot() const;
-
-	FSlateColor GetOpacityButtonColorAndOpacity_HasSlot() const;
-	FReply OnOpacityButtonClicked_HasSlot();
 	bool GetOpacityButtonEnabled_HasSlot() const;
+	ECheckBoxState GetOpacitySlotCheckState_HasSlot() const;
+	void OnOpacitySlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState);
+
+	bool GetOpacityButtonEnabled_NoSlot() const;
+	ECheckBoxState GetOpacitySlotCheckState_NoSlot() const;
+	void OnOpacitySlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState);
 
 	FReply OnCreateMaterialButtonClicked(TWeakPtr<FDMObjectMaterialProperty> InMaterialProperty);
 

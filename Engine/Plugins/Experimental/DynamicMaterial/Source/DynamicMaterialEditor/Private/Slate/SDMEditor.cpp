@@ -751,11 +751,14 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 	if (Slots.IsValidIndex(0))
 	{
 		SlotSelector->AddSlot()
+			.Padding(3.f, 0.f, 3.f, 0.f)
 			[
-				SNew(SButton)
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.ButtonColorAndOpacity(this, &SDMEditor::GetRGBButtonColorAndOpacity_HasSlot)
-				.OnClicked(this, &SDMEditor::OnRGBButtonClicked_HasSlot)
+				.IsChecked(this, &SDMEditor::GetRGBSlotCheckState_HasSlot)
+				.OnCheckStateChanged(this, &SDMEditor::OnRGBSlotCheckStateChanged_HasSlot)
+				.Content()
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("RGBSlot", "RGB"))
@@ -765,13 +768,17 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 	else
 	{
 		SlotSelector->AddSlot()
+			.Padding(3.f, 0.f, 3.f, 0.f)
 			[
-				SNew(SButton)
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.OnClicked(this, &SDMEditor::OnRGBButtonClicked_NoSlot)
+				.IsChecked(this, &SDMEditor::GetRGBSlotCheckState_NoSlot)
+				.OnCheckStateChanged(this, &SDMEditor::OnRGBSlotCheckStateChanged_NoSlot)
+				.Content()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("AddRGBStack", "RGB"))
+					.Text(LOCTEXT("RGBSlot", "RGB"))
 				]
 			];
 	}
@@ -779,12 +786,15 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 	if (Slots.IsValidIndex(1))
 	{
 		SlotSelector->AddSlot()
+			.Padding(0.f, 0.f, 3.f, 0.f)
 			[
-				SNew(SButton)
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 				.HAlign(EHorizontalAlignment::HAlign_Center)
 				.IsEnabled(this, &SDMEditor::GetOpacityButtonEnabled_HasSlot)
-				.ButtonColorAndOpacity(this, &SDMEditor::GetOpacityButtonColorAndOpacity_HasSlot)
-				.OnClicked(this, &SDMEditor::OnOpacityButtonClicked_HasSlot)
+				.IsChecked(this, &SDMEditor::GetOpacitySlotCheckState_HasSlot)
+				.OnCheckStateChanged(this, &SDMEditor::OnOpacitySlotCheckStateChanged_HasSlot)
+				.Content()
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("OpacitySlot", "Opacity"))
@@ -794,11 +804,15 @@ TSharedRef<SWidget> SDMEditor::CreateSlotPickerWidget()
 	else
 	{
 		SlotSelector->AddSlot()
+			.Padding(0.f, 0.f, 3.f, 0.f)
 			[
-				SNew(SButton)
+				SNew(SCheckBox)
+				.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 				.HAlign(EHorizontalAlignment::HAlign_Center)
-				.IsEnabled(this, &SDMEditor::GetOpacityButtonEnabled_NoSlot)
-				.OnClicked(this, &SDMEditor::OnOpacityButtonClicked_NoSlot)
+				.IsEnabled(this, &SDMEditor::GetOpacityButtonEnabled_HasSlot)
+				.IsChecked(this, &SDMEditor::GetOpacitySlotCheckState_NoSlot)
+				.OnCheckStateChanged(this, &SDMEditor::OnOpacitySlotCheckStateChanged_NoSlot)
+				.Content()
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("AddOpacity", "Opacity"))
@@ -988,7 +1002,22 @@ bool SDMEditor::IsGlobalOpacityEnabled() const
 	return false;
 }
 
-FReply SDMEditor::OnRGBButtonClicked_NoSlot()
+ECheckBoxState SDMEditor::GetRGBSlotCheckState_HasSlot() const
+{
+	return GetActiveSlotIndex() == 0 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SDMEditor::OnRGBSlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState)
+{
+	SetActiveSlotIndex(0);
+}
+
+ECheckBoxState SDMEditor::GetRGBSlotCheckState_NoSlot() const
+{
+	return ECheckBoxState::Unchecked;
+}
+
+void SDMEditor::OnRGBSlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState)
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
@@ -998,28 +1027,45 @@ FReply SDMEditor::OnRGBButtonClicked_NoSlot()
 			SetActiveSlotIndex(0);
 		}
 	}
-
-	return FReply::Handled();
 }
 
-FSlateColor SDMEditor::GetRGBButtonColorAndOpacity_HasSlot() const
+bool SDMEditor::GetOpacityButtonEnabled_NoSlot() const
 {
-	if (GetActiveSlotIndex() == 0)
+	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
-		return FSlateColor(FStyleColors::AccentBlue.GetSpecifiedColor());
+		return ModelEditorOnlyData->GetDomain() != EMaterialDomain::MD_PostProcess
+			&& ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Opaque;
 	}
 
-	return FSlateColor(FStyleColors::AccentGray.GetSpecifiedColor());
+	return false;
 }
 
-FReply SDMEditor::OnRGBButtonClicked_HasSlot()
+bool SDMEditor::GetOpacityButtonEnabled_HasSlot() const
 {
-	SetActiveSlotIndex(0);
+	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
+	{
+		return ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Opaque;
+	}
 
-	return FReply::Handled();
+	return false;
 }
 
-FReply SDMEditor::OnOpacityButtonClicked_NoSlot()
+ECheckBoxState SDMEditor::GetOpacitySlotCheckState_HasSlot() const
+{
+	return GetActiveSlotIndex() == 1 ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SDMEditor::OnOpacitySlotCheckStateChanged_HasSlot(ECheckBoxState InCheckState)
+{
+	SetActiveSlotIndex(1);
+}
+
+ECheckBoxState SDMEditor::GetOpacitySlotCheckState_NoSlot() const
+{
+	return ECheckBoxState::Unchecked;
+}
+
+void SDMEditor::OnOpacitySlotCheckStateChanged_NoSlot(ECheckBoxState InCheckState)
 {
 	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
 	{
@@ -1046,46 +1092,6 @@ FReply SDMEditor::OnOpacityButtonClicked_NoSlot()
 			SetActiveSlotIndex(1);
 		}
 	}
-
-	return FReply::Handled();
-}
-
-bool SDMEditor::GetOpacityButtonEnabled_NoSlot() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		return ModelEditorOnlyData->GetDomain() != EMaterialDomain::MD_PostProcess
-			&& ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Opaque;
-	}
-
-	return false;
-}
-
-FSlateColor SDMEditor::GetOpacityButtonColorAndOpacity_HasSlot() const
-{
-	if (GetActiveSlotIndex() == 1)
-	{
-		return FSlateColor(FStyleColors::AccentBlue.GetSpecifiedColor());
-	}
-
-	return FSlateColor(FStyleColors::AccentGray.GetSpecifiedColor());
-}
-
-FReply SDMEditor::OnOpacityButtonClicked_HasSlot()
-{
-	SetActiveSlotIndex(1);
-
-	return FReply::Handled();
-}
-
-bool SDMEditor::GetOpacityButtonEnabled_HasSlot() const
-{
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelWeak))
-	{
-		return ModelEditorOnlyData->GetBlendMode() != EBlendMode::BLEND_Opaque;
-	}
-
-	return false;
 }
 
 FReply SDMEditor::OnCreateMaterialButtonClicked(TWeakPtr<FDMObjectMaterialProperty> InMaterialProperty)
