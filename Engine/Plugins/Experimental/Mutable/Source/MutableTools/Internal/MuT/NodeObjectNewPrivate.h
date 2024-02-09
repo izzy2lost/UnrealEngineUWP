@@ -3,12 +3,12 @@
 #pragma once
 
 #include "MuT/NodeObjectPrivate.h"
-#include "MuT/NodeLODPrivate.h"
-#include "MuT/CompilerPrivate.h"
 
 #include "MuT/NodeExtensionData.h"
 #include "MuT/NodeObjectNew.h"
 #include "MuT/NodeLayout.h"
+#include "MuT/NodeLOD.h"
+#include "MuT/Compiler.h"
 
 
 namespace mu

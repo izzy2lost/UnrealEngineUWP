@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "HAL/Platform.h"
 #include "MuR/MutableMemory.h"
 #include "MuR/Ptr.h"
@@ -11,6 +13,7 @@
 #include "Math/IntVector.h"
 #include "Math/Vector4.h"
 #include "MuR/MutableMath.h"
+
 
 namespace mu
 {    
@@ -411,6 +414,13 @@ namespace mu
 			Arch >> V[Index];
 		}
 	}
+
 	
+	MUTABLERUNTIME_API void operator>> ( InputArchive& arch, std::string& v );
+
+	// Bool size is not a standard
+	MUTABLERUNTIME_API void operator<< ( OutputArchive& arch, const bool& t );
+
+	MUTABLERUNTIME_API void operator>> ( InputArchive& arch, bool& t );
 }
 

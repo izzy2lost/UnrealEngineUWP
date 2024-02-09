@@ -69,8 +69,35 @@ namespace mu
 	    arch >> Temp;
 	    v = FName(Temp);
     }
+	
+
+	void operator>> ( InputArchive& arch, std::string& v )
+    {
+    	uint32 size;
+    	arch >> size;
+    	v.resize( size );
+    	if (size)
+    	{
+    		arch.GetPrivate()->m_pStream->Read( &v[0], (unsigned)size*sizeof(char) );
+    	}
+    }
+
+	
+	void operator<< ( OutputArchive& arch, const bool& t )
+    {
+    	uint8 s = t ? 1 : 0;
+    	arch.GetPrivate()->m_pStream->Write( &s, sizeof(uint8) );
+    }
 
 
+	void operator>> ( InputArchive& arch, bool& t )
+    {
+    	uint8 s;
+    	arch.GetPrivate()->m_pStream->Read( &s, sizeof(uint8) );
+    	t = s!=0;
+    }
+
+	
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------

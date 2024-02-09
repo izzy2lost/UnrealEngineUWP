@@ -3,7 +3,6 @@
 #pragma once
 
 #include "MuT/Node.h"
-#include "MuT/AST.h"
 #include "MuR/Operations.h"
 
 

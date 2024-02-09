@@ -4,7 +4,6 @@
 
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeSurfaceNew.h"
-#include "MuT/NodePatchImagePrivate.h"
 
 #include "MuT/NodeMesh.h"
 #include "MuT/NodePatchMesh.h"
