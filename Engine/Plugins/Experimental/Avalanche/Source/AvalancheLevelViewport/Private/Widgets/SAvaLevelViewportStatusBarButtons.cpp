@@ -35,14 +35,15 @@
 
 namespace UE::Ava::LevelViewportStatusBarButtons::Private
 {
-	static const FName StyleSetName = FAvaLevelViewportStyle::Get().GetStyleSetName();
-	static const FSlateIcon RGBChannelIcon = FSlateIcon(StyleSetName, "AvalancheIcons.PostProcess.RGB");
-	static const FSlateIcon BackplateIcon = FSlateIcon(StyleSetName, "Icons.Role");
-	static const FSlateIcon RedChannelIcon = FSlateIcon(StyleSetName, "AvalancheIcons.PostProcess.Red");
-	static const FSlateIcon GreenChannelIcon = FSlateIcon(StyleSetName, "AvalancheIcons.PostProcess.Green");
-	static const FSlateIcon BlueChannelIcon = FSlateIcon(StyleSetName, "AvalancheIcons.PostProcess.Blue");
-	static const FSlateIcon AlphaChannelIcon = FSlateIcon(StyleSetName, "AvalancheIcons.PostProcess.Alpha");
-	static const FSlateIcon CheckerboardIcon = FSlateIcon(StyleSetName, "Checker");
+	static const FName AvaLevelViewportStyleName = FAvaLevelViewportStyle::Get().GetStyleSetName();
+	static const FName AppStyleSetName = FAppStyle::Get().GetStyleSetName();
+	static const FSlateIcon RGBChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.RGB");
+	static const FSlateIcon BackplateIcon = FSlateIcon(AppStyleSetName, "Icons.Role");
+	static const FSlateIcon RedChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Red");
+	static const FSlateIcon GreenChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Green");
+	static const FSlateIcon BlueChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Blue");
+	static const FSlateIcon AlphaChannelIcon = FSlateIcon(AvaLevelViewportStyleName, "AvalancheIcons.PostProcess.Alpha");
+	static const FSlateIcon CheckerboardIcon = FSlateIcon(AppStyleSetName, "Checker");
 
 	static bool IsViewportPostProcessManagerEnabled(const TWeakPtr<SAvaLevelViewportFrame>& InViewportFrameWeak)
 	{

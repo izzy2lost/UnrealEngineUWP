@@ -215,15 +215,6 @@ void SAvaLevelViewport::FillCameraMenu(UToolMenu* InMenu)
 		FNewToolMenuDelegate::CreateSP(this, &SAvaLevelViewport::AddGuidePresetMenuEntries)
 	);
 
-	static const FText PostProcessLabel = LOCTEXT("ViewportPostProcess", "Post Process");
-
-	VirtualSection.AddSubMenu(
-		"ViewportPostProcess",
-		PostProcessLabel,
-		FText(),
-		FNewToolMenuDelegate::CreateSP(this, &SAvaLevelViewport::AddPostProcessMenuEntries)
-	);
-
 	static const FText CameraZoomLabel = LOCTEXT("ViewportCameraZoom", "Camera Zoom");
 
 	VirtualSection.AddSubMenu(
@@ -750,90 +741,6 @@ void SAvaLevelViewport::AddGuidePresetSavedMenu(UToolMenu* InMenu)
 			)
 		);
 	}
-}
-
-void SAvaLevelViewport::AddPostProcessMenuEntries(UToolMenu* InMenu)
-{
-	const FAvaLevelViewportCommands& LevelViewportCommands = FAvaLevelViewportCommands::Get();
-
-	FToolMenuSection& PostProcessSection = InMenu->AddSection("ViewportPostProcessType", LOCTEXT("ViewportPostProcessType", "Post Process Type"));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessNone
-	));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessBackplate
-	));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessChannelRed
-	));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessChannelGreen
-	));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessChannelBlue
-	));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessChannelAlpha
-	));
-
-	PostProcessSection.AddEntry(FToolMenuEntry::InitMenuEntry(
-		LevelViewportCommands.TogglePostProcessCheckerboard
-	));
-
-	if (!PostProcessOpacitySlider.IsValid())
-	{
-		PostProcessOpacitySlider = SNew(SSpinBox<float>)
-			.ClearKeyboardFocusOnCommit(true)
-			.MaxFractionalDigits(3)
-			.MinDesiredWidth(50.f)
-			.OnBeginSliderMovement(this, &SAvaLevelViewport::OnBackplateOpacitySliderBegin)
-			.OnEndSliderMovement(this, &SAvaLevelViewport::OnBackplateOpacitySliderEnd)
-			.OnValueCommitted(this, &SAvaLevelViewport::OnBackplateOpacityCommitted)
-			.Value(this, &SAvaLevelViewport::GetBackplateOpacity)
-			.MinValue(0.f)
-			.MinSliderValue(0.f)
-			.MaxValue(1.f)
-			.MaxSliderValue(1.f);
-	}
-
-	if (!BackplateTextureSelector.IsValid())
-	{
-		BackplateTextureSelector = SNew(SObjectPropertyEntryBox)
-			.AllowClear(true)
-			.AllowedClass(UTexture::StaticClass())
-			.DisplayBrowse(true)
-			.DisplayThumbnail(true)
-			.DisplayCompactSize(true)
-			.DisplayUseSelected(true)
-			.ThumbnailPool(UThumbnailManager::Get().GetSharedThumbnailPool())
-			.EnableContentPicker(true)
-			.ObjectPath(this, &SAvaLevelViewport::GetBackplateTextureObjectPath)
-			.OnObjectChanged(this, &SAvaLevelViewport::OnBackplateTextureChanged)
-			.OnShouldSetAsset(FOnShouldSetAsset::CreateLambda([](const FAssetData& InAssetData) { return false; }))
-			.IsEnabled(this, &SAvaLevelViewport::IsPostProcessBackplateEnabled);
-	}
-
-	FToolMenuSection& PostProcessSettingsSection = InMenu->AddSection("ViewportPostProcessSettings", LOCTEXT("ViewportPostProcessSettings", "Post Process Settings"));
-
-	PostProcessSettingsSection.AddEntry(FToolMenuEntry::InitWidget(
-		"PostProcessOpacity",
-		PostProcessOpacitySlider.ToSharedRef(),
-		LOCTEXT("PostProcessOpacity", "Opacity"),
-		true
-	));
-
-	PostProcessSettingsSection.AddEntry(FToolMenuEntry::InitWidget(
-		"PostProcessTexture", 
-		BackplateTextureSelector.ToSharedRef(),
-		LOCTEXT("PostProcessTexture", "Texture"),
-		true
-	));
 }
 
 void SAvaLevelViewport::AddCameraZoomMenuEntries(UToolMenu* InMenu)

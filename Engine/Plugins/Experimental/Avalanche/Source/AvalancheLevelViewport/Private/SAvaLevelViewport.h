@@ -218,8 +218,6 @@ private:
 	void AddGuidePresetCurrentMenu(UToolMenu* InMenu);
 	void AddGuidePresetSavedMenu(UToolMenu* InMenu);
 
-	void AddPostProcessMenuEntries(UToolMenu* InMenu);
-
 	void AddCameraZoomMenuEntries(UToolMenu* InMenu);
 
 	void AddVisualizerEntries(UToolMenu* InMenu);
