@@ -145,6 +145,8 @@ struct FPipelineCacheFileFormatPSO
 
 		uint8	MultiViewCount;
 		bool	bHasFragmentDensityAttachment;
+
+		bool	bDepthBounds;
 		
 		RHI_API FString ToString() const;
 		RHI_API void AddToReadableString(TReadableStringBuilder& OutBuilder) const;
