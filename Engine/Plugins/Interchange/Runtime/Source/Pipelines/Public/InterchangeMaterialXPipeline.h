@@ -35,19 +35,19 @@ enum class EInterchangeMaterialXShaders : uint8
 	/** Open PBR Surface shader	used for translucency*/
 	OpenPBRSurfaceTransmission,
 
-	/** Default settings for Autodesk's Standard Surface shader	*/
+	/** Default settings for Autodesk's Standard Surface shader.	*/
 	StandardSurface,
 
-	/** Standard Surface shader used for translucency */
+	/** Standard Surface shader used for translucency. */
 	StandardSurfaceTransmission,
 
-	/** Shader used for unlit surface*/
+	/** Shader used for unlit surfaces. */
 	SurfaceUnlit,
 
-	/** Default settings for USD's Surface shader */
+	/** Default settings for USD's Surface shader. */
 	UsdPreviewSurface,
 
-	/** Construct a surface shader from scattering and emission distribution functions.*/
+	/** A surface shader constructed from scattering and emission distribution functions. */
 	Surface,
 
 	MaxShaderCount UMETA(hidden)
@@ -83,7 +83,7 @@ enum class EInterchangeMaterialXBSDF : uint8
 	/** A microfacet BSDF for the back-scattering properties of cloth-like materials. */
 	Sheen,
 
-	/** Adds an iridescent thin film layer over a microfacet base BSDF. */
+	/** An iridescent thin film layer over a microfacet base BSDF. */
 	ThinFilm,
 
 	MaxBSDFCount UMETA(hidden)
@@ -96,10 +96,10 @@ enum class EInterchangeMaterialXEDF : uint8
 	/** An EDF node for uniform emission. */
 	Uniform,
 
-	/** Constructs an EDF emitting light inside a cone around the normal direction. */
+	/** An EDF emitting light inside a cone around the normal direction. */
 	Conical,
 
-	/** Constructs an EDF emitting light according to a measured IES light profile. */
+	/** An EDF emitting light according to a measured IES light profile. */
 	Measured,
 
 	MaxEDFCount UMETA(hidden)
@@ -109,10 +109,10 @@ UENUM(BlueprintType)
 /** Data type representing a Volume Distribution Function. */
 enum class EInterchangeMaterialXVDF : uint8
 {
-	/** Constructs a VDF for pure light absorption. */
+	/** A VDF for pure light absorption. */
 	Absorption,
 
-	/** Constructs a VDF scattering light for a participating medium, based on the Henyey-Greenstein phase function. */
+	/** A VDF scattering light for a participating medium, based on the Henyey-Greenstein phase function. */
 	Anisotropic,
 
 	MaxVDFCount UMETA(hidden)
@@ -124,7 +124,7 @@ uint32 INTERCHANGEPIPELINES_API GetTypeHash(EMaterialXSettings Key);
 
 bool INTERCHANGEPIPELINES_API operator==(EMaterialXSettings Lhs, EMaterialXSettings Rhs);
 
-UCLASS(config = Interchange, meta = (DisplayName = "Interchange MaterialX"))
+UCLASS(config = Interchange, meta = (DisplayName = "Interchange MaterialX", ToolTip = "Interchange settings for MaterialX conversions."))
 class INTERCHANGEPIPELINES_API UMaterialXPipelineSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()

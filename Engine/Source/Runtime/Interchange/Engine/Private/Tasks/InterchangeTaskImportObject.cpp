@@ -199,7 +199,7 @@ namespace UE::Interchange::Private
 					Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 					Message->DestinationAssetName = AssetName;
 					Message->AssetType = FactoryNode->GetObjectClass();
-					Message->Text = NSLOCTEXT("InternalImportObjectStartup", "BadPackage", "It was not possible to create the asset as its package was not created correctly.");
+					Message->Text = NSLOCTEXT("InternalImportObjectStartup", "BadPackage", "It was not possible to create the asset because its package was not created correctly.");
 					return ErrorImportAssetResult;
 				}
 
@@ -208,7 +208,7 @@ namespace UE::Interchange::Private
 					UInterchangeResultError_Generic* Message = Factory->AddMessage<UInterchangeResultError_Generic>();
 					Message->DestinationAssetName = AssetName;
 					Message->AssetType = FactoryNode->GetObjectClass();
-					Message->Text = NSLOCTEXT("InternalImportObjectStartup", "SourceDataOrTranslatorInvalid", "It was not possible to create the asset as its translator was not created correctly.");
+					Message->Text = NSLOCTEXT("InternalImportObjectStartup", "SourceDataOrTranslatorInvalid", "It was not possible to create the asset because its translator was not created correctly.");
 					return ErrorImportAssetResult;
 				}
 			}
@@ -297,7 +297,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 		Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 		Message->DestinationAssetName = ObjectToReimport ? ObjectToReimport->GetName() : FactoryNode->GetAssetName();
 		Message->AssetType = FactoryNode->GetObjectClass();
-		Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "GarbageCollectIsRunning_Error", "Cannot import asset '{0}'; the garbage collect is running during the import process.")
+		Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "GarbageCollectIsRunning_Error", "Cannot import asset '{0}'. The garbage collector is running during the import process.")
 			, FText::FromString(AssetName));
 		return;
 	}
@@ -309,7 +309,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 		Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 		Message->DestinationAssetName = ObjectToReimport ? ObjectToReimport->GetName() : FactoryNode->GetAssetName();
 		Message->AssetType = FactoryNode->GetObjectClass();
-		Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "InvalidBaseNodeContainer", "Cannot import asset '{0}'; the node container is invalid for this source index.")
+		Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "InvalidBaseNodeContainer", "Cannot import asset '{0}'. The node container is invalid for this source index.")
 			, FText::FromString(AssetName));
 		return;
 	}
@@ -356,7 +356,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 			Message->DestinationAssetName = AssetName;
 			Message->AssetType = FactoryNode->GetObjectClass();
-			Message->Text = NSLOCTEXT("FTaskImportObject_GameThread", "MapExistsWithSameName", "You cannot create an asset with this name, as there is already a map file with the same name in this folder.");
+			Message->Text = NSLOCTEXT("FTaskImportObject_GameThread", "MapExistsWithSameName", "You cannot create an asset with this name because there is already a map file with the same name in this folder.");
 			return;
 		}
 
@@ -383,7 +383,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 			Message->DestinationAssetName = AssetName;
 			Message->AssetType = FactoryNode->GetObjectClass();
-			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "CouldntCreatePackage", "It was not possible to create a package named '{0}'; the asset will not be imported.")
+			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "CouldntCreatePackage", "It was not possible to create a package named '{0}'. The asset will not be imported.")
 				, FText::FromString(PackageName));
 			return;
 		}
@@ -461,7 +461,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			const FText ExistingClassNameText = FText::FromString(ExistingAsset->GetClass()->GetName());
 			const FText AssetNameText = FText::FromString(AssetName);
 			const FText FolderNameText = FText::FromString(FPaths::GetPath(Pkg->GetPathName()));
-			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "AssetVersusFactoryClassWrong_Error", "You cannot create a '{0}' asset named '{1}' in '{2}', as there is already a '{3}' asset with the same name in this folder.")
+			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "AssetVersusFactoryClassWrong_Error", "You cannot create an asset of class '{0}' named '{1}' in '{2}' because there is already an asset of class '{3}' with the same name in that folder.")
 				, TargetClassNameText
 				, AssetNameText
 				, FolderNameText
@@ -479,7 +479,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 				Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 				Message->DestinationAssetName = AssetName;
 				Message->AssetType = FactoryNode->GetObjectClass();
-				Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "InvalidExistingAsset", "An invalid asset exist at the same asset location [{0}]. This asset will be skip.")
+				Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "InvalidExistingAsset", "An invalid asset exists at the same asset location [{0}]. This asset will be skipped.")
 					, FText::FromString(AssetName));
 				return;
 			}
@@ -499,7 +499,7 @@ void UE::Interchange::FTaskImportObject_GameThread::DoTask(ENamedThreads::Type C
 			Message->SourceAssetName = AsyncHelper->SourceDatas[SourceIndex]->GetFilename();
 			Message->DestinationAssetName = AssetName;
 			Message->AssetType = FactoryNode->GetObjectClass();
-			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "AssetCollisionBetweenImportTask", "Multiple import task are importing the same asset at the same location [{0}]. This asset will be skip. See more information in the log")
+			Message->Text = FText::Format(NSLOCTEXT("FTaskImportObject_GameThread", "AssetCollisionBetweenImportTask", "Multiple import tasks are importing the same asset at the same location [{0}]. This asset will be skipped. See the log for more information.")
 				, FText::FromString(AssetName));
 			return;
 		}

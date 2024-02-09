@@ -39,7 +39,7 @@ class UInterchangePipelineConfigurationBase : public UObject
 public:
 
 	/**
-	 * Non virtual helper to allow blueprint to implement event base function to implement the ShowPipelineConfigurationDialog,
+	 * Non-virtual helper that allows Blueprint to implement an event-based function to implement ShowPipelineConfigurationDialog().
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Translator")
 	INTERCHANGEENGINE_API EInterchangePipelineConfigurationDialogResult ScriptedShowPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
@@ -48,7 +48,7 @@ public:
 		, UInterchangeTranslatorBase* Translator
 		, UInterchangeBaseNodeContainer* BaseNodeContainer);
 
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecuteImportPipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ShowPipelineConfigurationDialog(). */
 	EInterchangePipelineConfigurationDialogResult ScriptedShowPipelineConfigurationDialog_Implementation(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, UInterchangeSourceData* SourceData
@@ -60,7 +60,7 @@ public:
 	}
 
 	/**
-	 * Non virtual helper to allow blueprint to implement event base function to implement the ShowScenePipelineConfigurationDialog,
+	 * Non-virtual helper that allows Blueprint to implement an event-based function to implement ShowScenePipelineConfigurationDialog().
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Translator")
 	INTERCHANGEENGINE_API EInterchangePipelineConfigurationDialogResult ScriptedShowScenePipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
@@ -69,7 +69,7 @@ public:
 		, UInterchangeTranslatorBase* Translator
 		, UInterchangeBaseNodeContainer* BaseNodeContainer);
 
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecuteImportPipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ShowScenePipelineConfigurationDialog(). */
 	EInterchangePipelineConfigurationDialogResult ScriptedShowScenePipelineConfigurationDialog_Implementation(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, UInterchangeSourceData* SourceData
@@ -81,7 +81,7 @@ public:
 	}
 
 	/**
-	 * Non virtual helper to allow blueprint to implement event base function to implement the ShowReimportPipelineConfigurationDialog,
+	 * Non-virtual helper that allows Blueprint to implement an event-based function to implement ShowReimportPipelineConfigurationDialog().
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Translator")
 	INTERCHANGEENGINE_API EInterchangePipelineConfigurationDialogResult ScriptedShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
@@ -91,7 +91,7 @@ public:
 		, UInterchangeBaseNodeContainer* BaseNodeContainer
 		, UObject* ReimportAsset);
 
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecuteImportPipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ShowReimportPipelineConfigurationDialog(). */
 	EInterchangePipelineConfigurationDialogResult ScriptedShowReimportPipelineConfigurationDialog_Implementation(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
 		, UInterchangeSourceData* SourceData
@@ -106,7 +106,7 @@ public:
 protected:
 
 	/**
-	 * This function show a dialog use to configure pipeline stacks and return a stack name that tell the caller the user choice.
+	 * This function shows a dialog used to configure pipeline stacks and returns a stack name that tells the caller the user's choice.
 	 */
 	virtual EInterchangePipelineConfigurationDialogResult ShowPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
@@ -119,7 +119,7 @@ protected:
 	}
 
 	/**
-	 * This function show a dialog use to configure pipeline stacks and return a stack name that tell the caller the user choice.
+	 * This function shows a dialog used to configure pipeline stacks and returns a stack name that tells the caller the user's choice.
 	 */
 	virtual EInterchangePipelineConfigurationDialogResult ShowScenePipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines
@@ -132,7 +132,7 @@ protected:
 	}
 
 	/**
-	 * This function show a dialog use to configure pipeline stacks and return a stack name that tell the caller the user choice.
+	 * This function shows a dialog used to configure pipeline stacks and returns a stack name that tells the caller the user's choice.
 	 */
 	virtual EInterchangePipelineConfigurationDialogResult ShowReimportPipelineConfigurationDialog(TArray<FInterchangeStackInfo>& PipelineStacks
 		, TArray<UInterchangePipelineBase*>& OutPipelines

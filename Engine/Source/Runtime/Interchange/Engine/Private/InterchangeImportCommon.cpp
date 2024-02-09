@@ -338,7 +338,7 @@ namespace UE::Interchange
 			{
 				if (!PreviousAssetNode)
 				{
-					UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot apply the re-import strategy for asset [%s], because there is no previous asset node in the import data."), *Asset->GetName());
+					UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot apply the reimport strategy for asset [%s], because there is no previous asset node in the import data."), *Asset->GetName());
 					return;
 				}
 				TArray<FAttributeKey> RemovedAttributes;
@@ -409,13 +409,13 @@ namespace UE::Interchange
 		// create a new static mesh or overwrite existing asset, if possible
 		if (!ExistingAsset)
 		{
-			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import the %s asset [%s], because it was not create on the game thread."), *AssetClass->GetName(), *AssetName);
+			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import the %s asset [%s] because it was not created on the game thread."), *AssetClass->GetName(), *AssetName);
 			return nullptr;
 		}
 
 		if (!ExistingAsset->GetClass()->IsChildOf(AssetClass))
 		{
-			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import the %s asset [%s], because it will override an asset of a different class (%s)."), *AssetClass->GetName(), *AssetName, *ExistingAsset->GetClass()->GetName());
+			UE_LOG(LogInterchangeEngine, Error, TEXT("Cannot import the %s asset [%s] because it will override an asset of a different class (%s)."), *AssetClass->GetName(), *AssetName, *ExistingAsset->GetClass()->GetName());
 			return nullptr;
 		}
 		return ExistingAsset;

@@ -98,7 +98,7 @@ namespace UE
 				bool FillStaticMeshDescriptionFromFbxMesh(FbxMesh* Mesh, const FTransform& MeshGlobalTransform);
 				
 				/*
-				 * Fill the mesh description using the Mesh parameter and also fill the OutJointNodeUniqueIDs so the MeshDescription bone Index can be map to the correct interchange joint scene node.
+				 * Fill the mesh description using the Mesh parameter, and also fill the OutJointNodeUniqueIDs so the MeshDescription bone Index can be mapped to the correct Interchange joint scene node.
 				 */
 				bool FillSkinnedMeshDescriptionFromFbxMesh(FbxMesh* Mesh, const FTransform& MeshGlobalTransform, TArray<FString>& OutJointUniqueNames);
 
@@ -108,7 +108,7 @@ namespace UE
 				bool FillMeshDescriptionFromFbxShape(FbxShape* Shape, const FTransform& MeshGlobalTransform);
 
 				/**
-				 * Add messages to the message log
+				 * Add messages to the message log.
 				 */
 				template <typename T>
 				T* AddMessage(FbxGeometryBase* FbxNode) const
@@ -200,7 +200,7 @@ namespace UE
 
 				TArray<FMorphTargetAnimationBuildingData>& GetMorphTargetAnimationsBuildingData() { return MorphTargetAnimationsBuildingData; }
 			protected:
-				/** Add joint to the interchange mesh node joint dependencies. Return false if there is no valid joint (not a valid skinned mesh) */
+				/** Add joints to the Interchange mesh node joint dependencies. Return false if there is no valid joint (not a valid skinned mesh). */
 				bool ExtractSkinnedMeshNodeJoints(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer, FbxMesh* Mesh, UInterchangeMeshNode* MeshNode);
 				UInterchangeMeshNode* CreateMeshNode(UInterchangeBaseNodeContainer& NodeContainer, const FString& NodeName, const FString& NodeUniqueID);
 

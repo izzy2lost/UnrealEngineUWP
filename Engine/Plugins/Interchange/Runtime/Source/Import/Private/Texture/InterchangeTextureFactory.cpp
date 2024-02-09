@@ -247,10 +247,10 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 		}
 
 		ensureMsgf(false
-			, TEXT("Unknow factory node class (%s). To add support for a new texture type either update this factory or register a new factory to interchange.\n\
-				If the factory node class is used to add functions for some custom attributes of a pipeline please don't do that.\n\
-				Use some static functions libraries or use some helper structs/objects instead.\n\
-				Here is exemple of what this could look like in c++:\n\n\
+			, TEXT("Unknown factory node class (%s). To add support for a new texture type, either update this factory or register a new factory to Interchange.\n\
+				However, if the factory node class is used to add functions for some custom attributes of a pipeline,\n\
+				use static function libraries or use helper structs/objects instead.\n\
+				Here is an example of what this could look like in C++:\n\n\
 				\tif (UCustomAttributeInterface::HasInterface(TextureFactoryNode))\n\
 				\t{\n\
 					\t\tFString MyPath = UCustomAttributeInterface::GetCustomPath(TextureFactoryNode);\n\
@@ -577,7 +577,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 			if (bMismatchedGammaSpace || bMismatchedFormats)
 			{
-				UE_LOG(LogInterchangeImport, Display, TEXT("Mismatched UDIM image %s, converting all to %s/%s ..."), bMismatchedGammaSpace ? TEXT("gamma spaces") : TEXT("pixel formats"),
+				UE_LOG(LogInterchangeImport, Display, TEXT("Mismatched UDIM image %s. Converting all to %s/%s ..."), bMismatchedGammaSpace ? TEXT("gamma spaces") : TEXT("pixel formats"),
 					ERawImageFormat::GetName(FImageCoreUtils::ConvertToRawImageFormat(BlockedImage.Format)), BlockedImage.bSRGB ? TEXT("sRGB") : TEXT("Linear"));
 
 				for (UE::Interchange::FImportImage& Image : Images)
@@ -600,7 +600,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 						if ( Image.NumMips != 1 )
 						{
-							UE_LOG(LogInterchangeImport, Warning, TEXT("UDIM Image had existing mips; they were discarded in format change") );
+							UE_LOG(LogInterchangeImport, Warning, TEXT("UDIM Image had existing mips. They were discarded in the format change.") );
 							Image.NumMips = 1; // discard imported mips, they won't be used in UDIM VT anyway
 							Image.MipGenSettings.Reset();
 						}
@@ -620,7 +620,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 				if ( ! BlockedImage.InitBlockFromImage(BlockX, BlockY, Images[Index]) )
 				{
-					UE_LOG(LogInterchangeImport, Warning, TEXT("UDIM InitBlockFromImage failed") );
+					UE_LOG(LogInterchangeImport, Warning, TEXT("UDIM InitBlockFromImage failed.") );
 					return { };
 				}
 
@@ -632,7 +632,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 
 			if (! BlockedImage.MigrateDataFromImagesToRawData(Images) )
 			{
-				UE_LOG(LogInterchangeImport, Warning, TEXT("UDIM MigrateDataFromImagesToRawData failed") );
+				UE_LOG(LogInterchangeImport, Warning, TEXT("UDIM MigrateDataFromImagesToRawData failed.") );
 				return { };
 			}
 			
@@ -686,7 +686,7 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 						const bool bShouldImportRawCache = bShoudImportCompressedImage;
 						if (GConfig->GetBool(TEXT("TextureImporter"), TEXT("RetainJpegFormat"), bShoudImportCompressedImage, GEditorIni) && bShouldImportRawCache != bShoudImportCompressedImage)
 						{
-							UE_LOG(LogInterchangeImport, Log, TEXT("JPEG file [%s]: Pipeline setting 'bPreferCompressedSourceData' has been overridden by Editor setting 'RetainJpegFormat'"), *SourceData->GetFilename());
+							UE_LOG(LogInterchangeImport, Log, TEXT("JPEG file [%s]: Pipeline setting 'bPreferCompressedSourceData' has been overridden by Editor setting 'RetainJpegFormat'."), *SourceData->GetFilename());
 						}
 					}
 
@@ -1574,7 +1574,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::BeginImp
 	const UClass* TextureClass = Arguments.AssetNode->GetObjectClass();
 	if (!TextureClass || !TextureClass->IsChildOf(UTexture::StaticClass()))
 	{
-		CouldNotCreateTextureLog(LOCTEXT("TextureFactory_NodeClassMissmatch", "Asset node parameter class doesnt derive from UTexture."));
+		CouldNotCreateTextureLog(LOCTEXT("TextureFactory_NodeClassMissmatch", "Asset node parameter class doesn't derive from UTexture."));
 		return ImportAssetResult;
 	}
 
@@ -1589,7 +1589,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::BeginImp
 	FTextureNodeVariant TextureNodeVariant = GetTextureNodeVariantFromFactoryVariant(GetAsTextureFactoryNodeVariant(Arguments.AssetNode, SupportedFactoryNodeClass), Arguments.NodeContainer);
 	if (TextureNodeVariant.IsType<FEmptyVariantState>())
 	{
-		FText Info = FText::Format(LOCTEXT("TextureFactory_InvalidTextureTranslated", "Asset factory node (%s) do not reference a valid texture translated node.")
+		FText Info = FText::Format(LOCTEXT("TextureFactory_InvalidTextureTranslated", "Asset factory node (%s) doesn't reference a valid texture translated node.")
 			, FText::FromString(SupportedFactoryNodeClass->GetAuthoredName()));
 		CouldNotCreateTextureLog(Info);
 		return ImportAssetResult;
@@ -1597,7 +1597,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::BeginImp
 
 	if (!HasPayloadKey(TextureNodeVariant))
 	{
-		CouldNotCreateTextureLog(LOCTEXT("TextureFactory_InvalidPayloadKey", "Texture translated node doesnt have a payload key."));
+		CouldNotCreateTextureLog(LOCTEXT("TextureFactory_InvalidPayloadKey", "Texture translated node doesn't have a payload key."));
 		return ImportAssetResult;
 	}
 
@@ -1642,7 +1642,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::BeginImp
 
 	if (!Texture)
 	{
-		CouldNotCreateTextureLog(LOCTEXT("TextureFactory_TextureCreateFail", "Texture creation fail."));
+		CouldNotCreateTextureLog(LOCTEXT("TextureFactory_TextureCreateFail", "Texture creation failed."));
 		return ImportAssetResult;
 	}
 
@@ -1677,7 +1677,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::ImportAs
 	const UClass* TextureClass = Arguments.AssetNode->GetObjectClass();
 	if (!TextureClass || !TextureClass->IsChildOf(UTexture::StaticClass()))
 	{
-		ImportTextureErrorLog(LOCTEXT("TextureFactory_Async_MissMatchClass", "UInterchangeTextureFactory: Asset node parameter class doesnt derive from UTexture."));
+		ImportTextureErrorLog(LOCTEXT("TextureFactory_Async_MissMatchClass", "UInterchangeTextureFactory: Asset node parameter class doesn't derive from UTexture."));
 		return ImportAssetResult;
 	}
 
@@ -1706,7 +1706,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::ImportAs
 	FTextureNodeVariant TextureNodeVariant = GetTextureNodeVariantFromFactoryVariant(TextureFactoryNodeVariant, Arguments.NodeContainer);
 	if (TextureNodeVariant.IsType<FEmptyVariantState>())
 	{
-		FText Info = FText::Format(LOCTEXT("TextureFactory_Async_InvalidTextureTranslated", "UInterchangeTextureFactory: Asset factory node (%s) do not reference a valid texture translated node.")
+		FText Info = FText::Format(LOCTEXT("TextureFactory_Async_InvalidTextureTranslated", "UInterchangeTextureFactory: Asset factory node (%s) doesn't reference a valid texture translated node.")
 			, FText::FromString(SupportedFactoryNodeClass->GetAuthoredName()));
 		ImportTextureErrorLog(Info);
 		return ImportAssetResult;
@@ -1715,7 +1715,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::ImportAs
 	const TOptional<FString>& PayLoadKey = GetPayloadKey(TextureNodeVariant);
 	if (!PayLoadKey.IsSet())
 	{
-		ImportTextureErrorLog(LOCTEXT("TextureFactory_Async_InvalidPayloadKey", "UInterchangeTextureFactory: Texture translated node (UInterchangeTexture2DNode) doesnt have a payload key."));
+		ImportTextureErrorLog(LOCTEXT("TextureFactory_Async_InvalidPayloadKey", "UInterchangeTextureFactory: Texture translated node (UInterchangeTexture2DNode) doesn't have a payload key."));
 		return ImportAssetResult;
 	}
 
@@ -1724,7 +1724,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeTextureFactory::ImportAs
 
 	if(TexturePayload.IsType<FEmptyVariantState>())
 	{
-		ImportTextureErrorLog(LOCTEXT("TextureFactory_Async_CannotRetrievePayload", "UInterchangeTextureFactory: Invalid translator couldn't retrive a payload."));
+		ImportTextureErrorLog(LOCTEXT("TextureFactory_Async_CannotRetrievePayload", "UInterchangeTextureFactory: Invalid translator couldn't retrieve a payload."));
 		return ImportAssetResult;
 	}
 

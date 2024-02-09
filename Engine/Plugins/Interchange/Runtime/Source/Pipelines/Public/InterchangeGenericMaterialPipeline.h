@@ -32,7 +32,9 @@ namespace UE::Interchange::Materials::HashUtils
 UENUM(BlueprintType)
 enum class EInterchangeMaterialImportOption : uint8
 {
+	/** Import all materials from the source as material assets. */
 	ImportAsMaterials,
+	/** Import all materials from the source as material instance assets. */
 	ImportAsMaterialInstances,
 };
 
@@ -71,18 +73,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	EInterchangeMaterialSearchLocation SearchLocation = EInterchangeMaterialSearchLocation::Local;
 
-	/** If not empty, and there is only one asset and one source data, we will name the asset with this string. */
+	/** If set, and there is only one asset and one source, the imported asset will be given this name. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials", meta = (StandAlonePipelineProperty = "True", AlwaysResetToDefault = "True"))
 	FString AssetName;
 
+	/** Determines what kind of material assets should be created for the imported materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials", Meta=(EditCondition="bImportMaterials"))
 	EInterchangeMaterialImportOption MaterialImport = EInterchangeMaterialImportOption::ImportAsMaterials;
 	
-	/** If set, reference materials along with respective material instances would be created*/
+	/** If set, reference materials along with respective material instances are created. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials", Meta = (EditCondition = "bImportMaterials"))
 	bool bIdentifyDuplicateMaterials = false;
 
-	/** If set, additional material instance would be created for reference/parent material*/
+	/** If set, additional material instances are created for reference/parent materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials", Meta=(EditCondition="bIdentifyDuplicateMaterials"))
 	bool bCreateMaterialInstanceForParent = false;
 
@@ -158,7 +161,7 @@ private:
 		return HasThinTranslucency(ShaderGraphNode);
 	}
 
-	/** True if the shader graph has a base color input (Metallic/Roughness model. */
+	/** True if the shader graph has a base color input (Metallic/Roughness model). */
 	bool IsMetalRoughModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const;
 	UE_DEPRECATED(5.3, "Deprecated. Use IsMetalRoughModel and IsSpecGlossModel to identify the correct PBR model.")
 	bool IsPBRModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const
@@ -172,7 +175,7 @@ private:
 	/** True if the shader graph has a diffuse color input. */
 	bool IsLambertModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const;
 
-	/** True if the shader graph has the surface unlit's shader type name */
+	/** True if the shader graph has the surface unlit's shader type name. */
 	bool IsSurfaceUnlitModel(const UInterchangeShaderGraphNode* ShaderGraphNode) const;
 
 	/** True if the shader graph has an unlit color input. */

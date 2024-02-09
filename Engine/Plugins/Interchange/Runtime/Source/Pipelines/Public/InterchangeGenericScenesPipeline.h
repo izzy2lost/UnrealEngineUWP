@@ -21,23 +21,23 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericLevelPipeline : public UInterc
 {
 	GENERATED_BODY()
 public:
-	/* Allow user to choose the re-import strategy when re-importing into level. */
+	/* Set the reimport strategy when reimporting into the level. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Actors properties", AdjustPipelineAndRefreshDetailOnChange = "True"))
 	EReimportStrategyFlags ReimportPropertyStrategy = EReimportStrategyFlags::ApplyNoProperties;
 
-	/* Enables or not the deletion of actors which were not part of the translation when re-importing into level. */
+	/* If enabled, deletes actors that were not part of the translation when reimporting into a level. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Actors"))
 	bool bDeleteMissingActors = false;
 
-	/* Enables or not spawning actors which were deleted in the editor prior to a reimport. */
+	/* If enabled, respawns actors that were deleted in the editor prior to a reimport. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Actors"))
 	bool bForceReimportDeletedActors = false;
 
-	/* Enables or not re-creating assets which were deleted in the editor prior to a reimport into level. */
+	/* If enabled, recreates assets that were deleted in the editor prior to reimporting into a level. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Assets"))
 	bool bForceReimportDeletedAssets = false;
 
-	/* Enables or not the deletion of assets which were not part of the translation when re-importing into level. */
+	/* If enabled, deletes assets that were not part of the translation when reimporting into a level. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Assets"))
 	bool bDeleteMissingAssets = false;
 

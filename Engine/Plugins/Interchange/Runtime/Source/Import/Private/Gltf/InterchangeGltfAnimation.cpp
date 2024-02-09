@@ -364,7 +364,7 @@ namespace UE::Interchange::Gltf::Private
 			}
 			case GLTF::FAnimation::EPath::Weights:
 			{
-				UE_LOG(LogInterchangeImport, Warning, TEXT("Animation[%d]:Channel[%d] : Morph Animation (Weight path) type not supported for Transform like Animations. (Morph Animations should be handled via \"GetMorphTargetAnimationPayloadData\" function."), AnimationIndex, ChannelIndex);
+				UE_LOG(LogInterchangeImport, Warning, TEXT("Animation[%d]:Channel[%d]: Morph Animation (weight path) type not supported for transform-like animations. Morph animations should be handled through the \"GetMorphTargetAnimationPayloadData\" function."), AnimationIndex, ChannelIndex);
 				break;
 			}
 			default:
@@ -660,7 +660,7 @@ namespace UE::Interchange::Gltf::Private
 				break;
 			}
 			default:
-				UE_LOG(LogInterchangeImport, Warning, TEXT("Animation type not supported"));
+				UE_LOG(LogInterchangeImport, Warning, TEXT("Animation type not supported."));
 				break;
 			}
 		}
@@ -859,7 +859,7 @@ namespace UE::Interchange::Gltf::Private
 							if (!ValidateChannelSampler(Channel, Sampler))
 							{
 								// if any of the channels are corrupt the joint will not receive any of the  animation data
-								UE_LOG(LogInterchangeImport, Warning, TEXT("GLTF Sampler Corrupt. Input and Output not meeting expectations."));
+								UE_LOG(LogInterchangeImport, Warning, TEXT("glTF sampler corrupt. Input and Output do not meet expectations."));
 								break;
 							}
 

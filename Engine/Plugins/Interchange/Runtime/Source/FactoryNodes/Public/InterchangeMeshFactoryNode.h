@@ -27,7 +27,7 @@ public:
 	UInterchangeMeshFactoryNode();
 
 	/**
-	 * Override serialize to restore SlotMaterialDependencies on load.
+	 * Override Serialize() to restore SlotMaterialDependencies on load.
 	 */
 	virtual void Serialize(FArchive& Ar) override
 	{
@@ -50,7 +50,7 @@ public:
 #endif //WITH_EDITOR
 
 public:
-	/** Return The number of LOD this static mesh has.*/
+	/** Return the number of LODs this static mesh has.*/
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	int32 GetLodDataCount() const;
 
@@ -63,27 +63,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool RemoveLodDataUniqueId(const FString& LodDataUniqueId);
 
-	/** Query whether the static mesh factory should replace the vertex color. Return false if the attribute was not set.*/
+	/** Query whether the static mesh factory should replace the vertex color. Return false if the attribute was not set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomVertexColorReplace(bool& AttributeValue) const;
 
-	/** Set whether the static mesh factory should replace the vertex color. Return false if the attribute cannot be set.*/
+	/** Set whether the static mesh factory should replace the vertex color. Return false if the attribute could not be set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomVertexColorReplace(const bool& AttributeValue);
 
-	/** Query whether the static mesh factory should ignore the vertex color. Return false if the attribute was not set.*/
+	/** Query whether the static mesh factory should ignore the vertex color. Return false if the attribute was not set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomVertexColorIgnore(bool& AttributeValue) const;
 
-	/** Set whether the static mesh factory should ignore the vertex color. Return false if the attribute cannot be set.*/
+	/** Set whether the static mesh factory should ignore the vertex color. Return false if the attribute could not be set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomVertexColorIgnore(const bool& AttributeValue);
 
-	/** Query whether the static mesh factory should override the vertex color. Return false if the attribute was not set.*/
+	/** Query whether the static mesh factory should override the vertex color. Return false if the attribute was not set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomVertexColorOverride(FColor& AttributeValue) const;
 
-	/** Set whether the static mesh factory should override the vertex color. Return false if the attribute cannot be set.*/
+	/** Set whether the static mesh factory should override the vertex color. Return false if the attribute could not be set. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomVertexColorOverride(const FColor& AttributeValue);
 
@@ -95,19 +95,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomKeepSectionsSeparate(const bool& AttributeValue);
 
-	/** Allow to retrieve the correspondence table between slot names and assigned materials for this object. */
+	/** Retrieve the correspondence table between slot names and assigned materials for this object. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	void GetSlotMaterialDependencies(TMap<FString, FString>& OutMaterialDependencies) const;
 
-	/** Allow to retrieve one Material dependency for a given slot of this object. */
+	/** Retrieve the Material dependency for the specified slot of this object. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetSlotMaterialDependencyUid(const FString& SlotName, FString& OutMaterialDependency) const;
 
-	/** Add one Material dependency to a specific slot name of this object. */
+	/** Add a Material dependency to the specified slot of this object. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetSlotMaterialDependencyUid(const FString& SlotName, const FString& MaterialDependencyUid);
 
-	/** Remove the Material dependency associated with the given slot name from this object. */
+	/** Remove the Material dependency associated with the specfied slot name of this object. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool RemoveSlotMaterialDependencyUid(const FString& SlotName);
 
@@ -115,19 +115,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool ResetSlotMaterialDependencies();
 
-	/** Query whether normals in the imported mesh are ignored and recomputed. When normals are recomputed the tangents are also recomputed. */
+	/** Query whether a custom LOD group is set for the mesh. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomLODGroup(FName& AttributeValue) const;
 
-	/** Set whether normals in the imported mesh are ignored and recomputed. When normals are recomputed the tangents are also recomputed. */
+	/** Set a custom LOD group for the mesh. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomLODGroup(const FName& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether normals in the imported mesh are ignored and recomputed. When normals are recomputed the tangents are also recomputed. */
+	/** Query whether normals in the imported mesh are ignored and recomputed. When normals are recomputed, the tangents are also recomputed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomRecomputeNormals(bool& AttributeValue) const;
 
-	/** Set whether normals in the imported mesh are ignored and recomputed. When normals are recomputed the tangents are also recomputed. */
+	/** Set whether normals in the imported mesh are ignored and recomputed. When normals are recomputed, the tangents are also recomputed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomRecomputeNormals(const bool& AttributeValue, bool bAddApplyDelegate = true);
 	
@@ -139,51 +139,51 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomRecomputeTangents(const bool& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether tangents recompute will use mikkt space if tangents are recomputed. */
+	/** Query whether tangents are recomputed using MikkTSpace when they need to be recomputed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomUseMikkTSpace(bool& AttributeValue) const;
 
-	/** Set whether tangents recompute will use mikkt space if tangents are recomputed. */
+	/** Set whether tangents are recomputed using MikkTSpace when they need to be recomputed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomUseMikkTSpace(const bool& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether normals recompute will use the surface area and the corner angle of the triangle as a ratio when computing the normals. */
+	/** Query whether normals are recomputed by weighting the surface area and the corner angle of the triangle as a ratio. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomComputeWeightedNormals(bool& AttributeValue) const;
 
-	/** Set whether normals recompute will use the surface area and the corner angle of the triangle as a ratio when computing the normals. */
+	/** Set whether normals are recomputed by weighting the surface area and the corner angle of the triangle as a ratio. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomComputeWeightedNormals(const bool& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether Tangents will be stored at 16 bit vs 8 bit precision. */
+	/** Query whether tangents are stored at 16-bit precision instead of the default 8-bit precision. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomUseHighPrecisionTangentBasis(bool& AttributeValue) const;
 
-	/** Set whether Tangents will be stored at 16 bit vs 8 bit precision. */
+	/** Set whether tangents are stored at 16-bit precision instead of the default 8-bit precision. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomUseHighPrecisionTangentBasis(const bool& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether UVs will be stored at full floating point precision. */
+	/** Query whether UVs are stored at full floating point precision. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomUseFullPrecisionUVs(bool& AttributeValue) const;
 
-	/** Set whether UVs will be stored at full floating point precision. */
+	/** Set whether UVs are stored at full floating point precision. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomUseFullPrecisionUVs(const bool& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether UVs will be stored at full floating point precision. */
+	/** Query whether UVs are converted to 16-bit by a legacy truncation process instead of the default rounding process. This may avoid differences when reimporting older content. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomUseBackwardsCompatibleF16TruncUVs(bool& AttributeValue) const;
 
-	/** Set whether UVs will be stored at full floating point precision. */
+	/** Set whether UVs are converted to 16-bit by a legacy truncation process instead of the default rounding process. This may avoid differences when reimporting older content. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomUseBackwardsCompatibleF16TruncUVs(const bool& AttributeValue, bool bAddApplyDelegate = true);
 
-	/** Query whether degenerate triangles will be removed. */
+	/** Query whether degenerate triangles are removed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool GetCustomRemoveDegenerates(bool& AttributeValue) const;
 
-	/** Set whether degenerate triangles will be removed. */
+	/** Set whether degenerate triangles are removed. */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | FactoryNode | Mesh")
 	bool SetCustomRemoveDegenerates(const bool& AttributeValue, bool bAddApplyDelegate = true);
 

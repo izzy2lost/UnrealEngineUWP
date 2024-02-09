@@ -115,7 +115,7 @@ struct FInterchangePipelinePropertyStates
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Property States")
 	bool bLocked = false;
 
-	/** The property states for the import context */
+	/** The property states for the import context. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
 	FInterchangePipelinePropertyStatePerContext BasicLayoutStates;
 
@@ -123,7 +123,7 @@ struct FInterchangePipelinePropertyStates
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
 	FInterchangePipelinePropertyStatePerContext ImportStates;
 
-	/** The property states for the reimport context */
+	/** The property states for the reimport context. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Context Properties States")
 	FInterchangePipelinePropertyStatePerContext ReimportStates;
 };
@@ -198,7 +198,7 @@ public:
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API void ScriptedExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath);
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecutePipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ExecutePipeline(). */
 	void ScriptedExecutePipeline_Implementation(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
 	{
 		//By default we call the virtual import pipeline execution
@@ -206,26 +206,26 @@ public:
 	}
 
 	/**
-	 * ScriptedExecutePostFactoryPipeline is call after the factory create the unreal asset but before calling PostEditChange.
-	 * @note - the FTaskPreCompletion task is calling this function not the virtual one that is call by the default implementation.
+	 * ScriptedExecutePostFactoryPipeline is called after the factory creates an Unreal asset, but before it calls PostEditChange.
+	 * @note - The FTaskPreCompletion task calls this function, not the virtual one that is called by the default implementation.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API void ScriptedExecutePostFactoryPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport);
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecutePostFactoryPipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ExecutePostFactoryPipeline(). */
 	void ScriptedExecutePostFactoryPipeline_Implementation(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport)
 	{
 		//By default we call the virtual import pipeline execution
 		ExecutePostFactoryPipeline(BaseNodeContainer, FactoryNodeKey, CreatedAsset, bIsAReimport);
 	}
 	/**
-	 * ScriptedExecutePostImportPipeline is call after we completely import an asset, PostEditChange is already called.
-	 * This can be useful if you need an asset build data to finish the setup of another asset.
-	 * @example - PhysicsAsset need skeletal mesh render data to be build properly.
-	 * @note - the FTaskPostImport is calling this function not the virtual one that is call by the default implementation.
+	 * ScriptedExecutePostImportPipeline is called after an asset is completely imported, after PostEditChange has already been called.
+	 * This can be useful if you need build data for one asset to finish setting up another asset.
+	 * @example - A PhysicsAsset needs skeletal mesh render data to be built properly.
+	 * @note - the FTaskPostImport calls this function not the virtual one that is call by the default implementation.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API void ScriptedExecutePostImportPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport);
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecutePostImportPipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ExecutePostImportPipeline(). */
 	void ScriptedExecutePostImportPipeline_Implementation(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& FactoryNodeKey, UObject* CreatedAsset, bool bIsAReimport)
 	{
 		//By default we call the virtual import pipeline execution
@@ -233,13 +233,13 @@ public:
 	}
 
 	/**
-	 * Non virtual helper to allow blueprint to implement event base function let the interchange know if it can run asynchronously.
-	 * the Interchange manager is calling this function not the virtual one that is call by the default implementation.
+	 * Non-virtual helper that allows Blueprint to implement an event-based function.
+	 * The Interchange manager calls this function, not the virtual one that is called by the default implementation.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API void ScriptedExecuteExportPipeline(UInterchangeBaseNodeContainer* BaseNodeContainer);
 
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecuteExportPipeline */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual ExecuteExportPipeline(). */
 	void ScriptedExecuteExportPipeline_Implementation(UInterchangeBaseNodeContainer* BaseNodeContainer)
 	{
 		ExecuteExportPipeline(BaseNodeContainer);
@@ -252,9 +252,9 @@ public:
 	}
 
 	/**
-	 * This function tell the interchange manager if we can execute this pipeline in async mode. If it return false, the ScriptedExecuteImportPipeline
-	 * will be call on the main thread (GameThread), if true it will be run in a background thread and possibly in parallel. If there is multiple
-	 * import process in same time.
+	 * This function tells the Interchange manager if this pipeline can be executed in async mode. If it returns false, the ScriptedExecuteImportPipeline
+	 * will be called on the main thread (GameThread). If it returns true, the pipeline will be run in a background thread and possibly in parallel if there are multiple
+	 * import processes at the same time.
 	 *
 	 */
 	INTERCHANGECORE_API virtual bool CanExecuteOnAnyThread(EInterchangePipelineTask PipelineTask)
@@ -263,24 +263,24 @@ public:
 	}
 
 	/**
-	 * Non virtual helper to allow blueprint to implement event base function.
-	 * the Interchange framework is calling this function not the virtual one that is called by the default implementation.
+	 * Non-virtual helper that allows Blueprint to implement an event-based function.
+	 * the Interchange framework calls this function, not the virtual one that is called by the default implementation.
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API void ScriptedSetReimportSourceIndex(UClass* ReimportObjectClass, const int32 SourceFileIndex);
 
-	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual SetReimportContentFromSourceIndex */
+	/** The default implementation, which is called if the Blueprint does not have any implementation, calls the virtual SetReimportContentFromSourceIndex(). */
 	void ScriptedSetReimportSourceIndex_Implementation(UClass* ReimportObjectClass, const int32 SourceFileIndex)
 	{
 		SetReimportSourceIndex(ReimportObjectClass, SourceFileIndex);
 	}
 
 	/**
-	 * Non scripted class should return false here, we have the default to true because scripted class cannot override
-	 * this function since it can be call in a asynchronous thread, which python cannot be executed.
+	 * A non-scripted class should return false here. The default is set to true because scripted classes cannot override
+	 * this function since it can be called in an asynchronous thread, which is not possible for Python.
 	 *
-	 * We cannot call ScriptedCanExecuteOnAnyThread for a scripted python pipeline from the task parsing async thread.
-	 * This function allow us to not call it and force the ScriptedExecutePostImportPipeline to execute on the game thread.
+	 * We cannot call ScriptedCanExecuteOnAnyThread for a scripted Python pipeline from the task parsing async thread.
+	 * This function allows us to not call it and force the ScriptedExecutePostImportPipeline to execute on the game thread.
 	 */
 	virtual bool IsScripted()
 	{
@@ -292,12 +292,12 @@ public:
 	INTERCHANGECORE_API void SaveSettings(const FName PipelineStackName);
 
 	/**
-	 * This function is call before we show the pipeline dialog. Pipeline that override it can change the existing settings according to the re-import type.
-	 * The function is also call when we import or re-import custom LOD and alternate skinning.
+	 * This function is called before we show the pipeline dialog. Pipelines that override it can change the existing settings according to the reimport type.
+	 * The function is also called when we import or reimport custom LOD and alternate skinning.
 	 *
-	 * @Note - The function will set the context of the pipeline
-	 * @Param ReimportType - Tell pipeline what re-import type the user want to achieve.
-	 * @Param ReimportAsset - This is an optional parameter which is set when re-importing an asset.
+	 * @Note - The function will set the context of the pipeline.
+	 * @Param ReimportType - Tells the pipeline what reimport type the user wants to achieve.
+	 * @Param ReimportAsset - This is an optional parameter which is set when reimporting an asset.
 	 */
 	INTERCHANGECORE_API virtual void AdjustSettingsForContext(EInterchangePipelineContext ReimportType, TObjectPtr<UObject> ReimportAsset);
 	INTERCHANGECORE_API virtual void AdjustSettingsFromCache();
@@ -311,13 +311,13 @@ public:
 	}
 
 	/**
-	 * This function is called before showing the import dialog it is not called doing a re-import.
+	 * This function is called before showing the import dialog. It is not called when doing a reimport.
 	 */
 	virtual void PreDialogCleanup(const FName PipelineStackName) {}
 
 	/**
 	 * This function should return true if all the pipeline settings are in a valid state to start the import.
-	 * The Interchange Pipeline Configuration Dialog will call this to know if the Import button can be enable.
+	 * The Interchange Pipeline Configuration Dialog will call this to know if the Import button can be enabled.
 	 */
 	virtual bool IsSettingsAreValid(TOptional<FText>& OutInvalidReason) const
 	{
@@ -326,8 +326,8 @@ public:
 
 #if WITH_EDITOR
 	/**
-	 * Filter the pipeline properties from the translated data. This function is call by the import dialog after having duplicate and load the settings of the pipeline.
-	 * If some specific options change, the UI must refresh the filter, see function IsPropertyChangeNeedRefresh.
+	 * Filter the pipeline properties from the translated data. This function is called by the import dialog after having duplicated and loaded the settings of the pipeline.
+	 * If some specific options change, the UI must refresh the filter. See the IsPropertyChangeNeedRefresh function.
 	 */
 	INTERCHANGECORE_API virtual void FilterPropertiesFromTranslatedData(UInterchangeBaseNodeContainer* InBaseNodeContainer)
 	{
@@ -335,8 +335,8 @@ public:
 	}
 
 	/**
-	 * The import dialog will call this function when the user change a specific property, return true if the pipeline UI should be refresh.
-	 * A refresh will call the function FilterPropertiesFromTranslatedData.
+	 * The import dialog will call this function when the user changes a specific property. Return true if the pipeline UI should be refreshed.
+	 * A refresh will call the FilterPropertiesFromTranslatedData function.
 	 */
 	INTERCHANGECORE_API virtual bool IsPropertyChangeNeedRefresh(const FPropertyChangedEvent& PropertyChangedEvent)
 	{
@@ -384,29 +384,29 @@ public:
 	}
 
 	/**
-	 * Return a const property states pointer. Return nullptr if the property do not exist
+	 * Return a const property states pointer. Return nullptr if the property does not exist.
 	 */
 	INTERCHANGECORE_API const FInterchangePipelinePropertyStates* GetPropertyStates(const FName PropertyPath) const;
 
 	/**
-	 * Return a mutable property states pointer. Return nullptr if the property do not exist
+	 * Return a mutable property states pointer. Return nullptr if the property does not exist.
 	 */
 	INTERCHANGECORE_API FInterchangePipelinePropertyStates* GetMutablePropertyStates(const FName PropertyPath);
 
 	/**
-	 * Return true if the property has valid states, false if no states was set for the property
+	 * Return true if the property has valid states, or false if no states were set for the property.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API bool DoesPropertyStatesExist(const FName PropertyPath) const;
 
 	/**
-	 * Return a mutable property states Reference. Add the property states if it doesnt exist.
+	 * Return a mutable property states reference. Add the property states if it doesn't exist.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Pipeline")
 	INTERCHANGECORE_API FInterchangePipelinePropertyStates& FindOrAddPropertyStates(const FName PropertyPath);
 
 	/**
-	 * Return the property name of the properties states map
+	 * Return the property name of the properties states map.
 	 */
 	static INTERCHANGECORE_API FName GetPropertiesStatesPropertyName();
 
@@ -429,10 +429,10 @@ public:
 #endif //WITH_EDITOR
 
 	/*
-	 * Return true if the pipeline is not a sub pipeline. Stand Alone Pipeline can have some extra properties.
-	 * The customize detail of the pipeline will call this function to show or hide those property.
-	 * The pipeline itself can call the function to know if a property must be use or not.
-	 * Example: the override asset name property
+	 * Return true if the pipeline is not a sub-pipeline. Standalone pipelines can have some extra properties.
+	 * The customize detail of the pipeline will call this function to show or hide those properties.
+	 * The pipeline itself can call the function to know whether a property must be used.
+	 * Example: the override asset name property.
 	 */
 	bool IsStandAlonePipeline()
 	{
@@ -440,7 +440,7 @@ public:
 	};
 
 	/*
-	* Update/Re-set the TWeakObjectPtrs to point to their original TObjectPtr
+	* Update/reset the TWeakObjectPtrs to point to their original TObjectPtr.
 	* Works based on Variable naming.
 	*/
 	INTERCHANGECORE_API void UpdateWeakObjectPtrs();
@@ -450,15 +450,15 @@ public:
 	/** End UObject overrides */
 
 	/*
-	 * If it return true it mean we want to save this pipeline in the asset import data.
-	 * We will reuse this pipeline when re-importing the asset.
-	 * If false its probably a debug helper pipeline we do not want to save into assets
+	 * If this returns true, this pipeline will be saved in the asset import data.
+	 * We will reuse this pipeline when reimporting the asset.
+	 * If false, it's probably a debug helper pipeline that we do not want to save into assets.
 	 */
 	INTERCHANGECORE_API virtual bool SupportReimport() const { return true; }
 
 	/*
-	 * The Unreal import system have an option to force a name if we import only one main asset (one texture, one mesh or one animation).
-	 * The generic asset pipeline is using this information to behave like expected.
+	 * The Unreal import system has an option to force a name if we import only one main asset (one texture, one mesh or one animation).
+	 * The generic asset pipeline uses this information to behave as expected.
 	 */
 	FString DestinationName;
 
@@ -471,17 +471,17 @@ protected:
 	}
 
 	/**
-	 * This function is called after the factory create an asset, but before PostEditChange is called.
-	 * It is always call on the game thread, code inside this function should not wait on other thread. (do not stall the game thread)
-	 * This is the place to do any change to the unreal asset before PostEditChange is call.
+	 * This function is called after the factory creates an asset, but before PostEditChange is called.
+	 * It is always called on the game thread. Code inside this function should not wait on other threads. Do not stall the game thread.
+	 * This is the place to make any changes to the Unreal asset before PostEditChange is called.
 	 */
 	virtual void ExecutePostFactoryPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
 	{
 	}
 
 	/**
-	 * This function is called after the unreal asset is completely import and PostEditChange was called.
-	 * @Note: Some unreal assets have asynchronous build, its possible they are still compiling.
+	 * This function is called after the Unreal asset is completely imported and PostEditChange was called.
+	 * @Note: Some Unreal assets have asynchronous build operations. It's possible they are still compiling.
 	 */
 	virtual void ExecutePostImportPipeline(const UInterchangeBaseNodeContainer* BaseNodeContainer, const FString& NodeKey, UObject* CreatedAsset, bool bIsAReimport)
 	{
@@ -510,19 +510,19 @@ protected:
 #endif //WITH_EDITOR
 	
 	/**
-	 * If true, the property editor for this pipeline instance will allow properties states edition.
-	 * If false, the property editor for this pipeline instance will apply the properties states.
+	 * If true, the property editor for this pipeline instance will allow editing property states.
+	 * If false, the property editor for this pipeline instance will apply the property states.
 	 *
-	 * Note: If you open in the content browser a pipeline asset you will be able to edit the properties states.
-	 *       If you import a file with interchange, the import dialog will apply properties states.
+	 * Note: If you open a pipeline asset in the Content Browser, you will be able to edit the property states.
+	 *       If you import a file with Interchange, the import dialog will apply property states.
 	 */
 	bool bAllowPropertyStatesEdition = true;
 
 	/**
-	 * If true, this pipeline instance is use for reimport.
-	 * If false, this pipeline instance is use for import.
+	 * If true, this pipeline instance is used for reimport.
+	 * If false, this pipeline instance is used for import.
 	 *
-	 * Note: This context must be set by the owner instancing this pipeline. This context will be use to hide or not some properties.
+	 * Note: This context must be set by the owner instancing this pipeline. This context will be used to determine whether to hide some properties.
 	 */
 	bool bIsReimportContext = false;
 
@@ -539,7 +539,7 @@ protected:
 
 	/**
 	 * Map of property path and lock status. Any properties that have a true lock status will be readonly when showing the import dialog.
-	 * Use the API to Get and Set the properties states
+	 * Use the API to Get and Set the properties states.
 	*/
 	UPROPERTY()
 	TMap<FName, FInterchangePipelinePropertyStates> PropertiesStates;

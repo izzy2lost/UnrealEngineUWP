@@ -30,24 +30,24 @@ namespace UE
 				{}
 
 				/**
-				 * Create a UInterchangeFextureNode and add it to the NodeContainer for all texture of type FbxFileTexture the fbx file contain.
+				 * Create a UInterchangeFextureNode and add it to the NodeContainer for each texture of type FbxFileTexture that the FBX file contains.
 				 *
-				 * @note - Any node that already exist in the NodeContainer will not be created or modified.
+				 * @note - Any node that already exists in the NodeContainer will not be created or modified.
 				 */
 				void AddAllTextures(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer);
 				
 				/**
-				 * Create a UInterchangeMaterialNode and add it to the NodeContainer for all material of type FbxSurfaceMaterial the fbx file contain.
+				 * Create a UInterchangeMaterialNode and add it to the NodeContainer for each material of type FbxSurfaceMaterial that the FBX file contains.
 				 * 
-				 * @note - Any node that already exist in the NodeContainer will not be created or modified.
+				 * @note - Any node that already exists in the NodeContainer will not be created or modified.
 				 */
 				void AddAllMaterials(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer);
 
 				/**
-				 * Create a UInterchangeMaterialNode and add it to the NodeContainer for all material of type FbxSurfaceMaterial the fbx ParentFbxNode contain.
-				 * It also set the dependencies of the node materials on the interchange ParentNode.
+				 * Create a UInterchangeMaterialNode and add it to the NodeContainer for each material of type FbxSurfaceMaterial that the FBX ParentFbxNode contains.
+				 * Also set the dependencies of the node materials on the Interchange ParentNode.
 				 * 
-				 * @note - Any material node that already exist in the NodeContainer will simply be add has a dependency.
+				 * @note - Any material node that already exists in the NodeContainer will be added as a dependency.
 				 */
 				void AddAllNodeMaterials(UInterchangeSceneNode* SceneNode, FbxNode* ParentFbxNode, UInterchangeBaseNodeContainer& NodeContainer);
 

@@ -194,7 +194,7 @@ namespace UE
 
 		/**
 		 * Enumerates the built-in types that can be stored in instances of FAttributeStorage.
-		 * We cannot change the value of a type to make sure the serialization of old asset is always working
+		 * We cannot change the value of a type to make sure the serialization of old assets is always working.
 		 */
 		enum class EAttributeTypes : int32
 		{
@@ -262,12 +262,12 @@ namespace UE
 		};
 
 		/**
-		 * Return the FString for the specified AttributeType
+		 * Return the FString for the specified AttributeType.
 		 */
 		INTERCHANGECORE_API FString AttributeTypeToString(EAttributeTypes AttributeType);
 
 		/**
-		 * Return the AttributeType for the specified FString, return EAttributeTypes::None if the string do not match any
+		 * Return the AttributeType for the specified FString, or return EAttributeTypes::None if the string does not match any
 		 * supported attribute type.
 		 */
 		INTERCHANGECORE_API EAttributeTypes StringToAttributeType(const FString& AttributeTypeString);
@@ -279,7 +279,7 @@ namespace UE
 		 * data types that are to be used internally by FAttributeStorage. Traits for the most commonly used built-in
 		 * types are declared below.
 		 *
-		 * Complex types, such as structures and classes can be serialized into a byte array
+		 * Complex types, such as structures and classes, can be serialized into a byte array
 		 * and then assigned to an attribute. Note that you will be responsible for ensuring
 		 * correct byte ordering when serializing those types.
 		 *
@@ -307,28 +307,28 @@ namespace UE
 		}
 
 		/**
-		 * Enum to return complete status of a storage operation
-		 * It support success with additional information
-		 * It support multiple errors
+		 * Enum to return complete status of a storage operation.
+		 * It supports success with additional information.
+		 * It supports multiple errors.
 		 */
 		enum class EAttributeStorageResult : uint64
 		{
 			None											= 0x0,
-			//success result
+			//Success result.
 			Operation_Success								= 0x1,
 		
 
-			//Operation error result from here
+			//Operation error results from here.
 
-			//The type of the value was not matching the existing type. We cannot change the type of an existing attribute
+			//The type of the value was not matching the existing type. We cannot change the type of an existing attribute.
 			Operation_Error_WrongType						= (0x1 << 20),
-			//The size of the value is different from the existing size. We cannot have a different size
+			//The size of the value is different from the existing size. We cannot have a different size.
 			Operation_Error_WrongSize						= (0x1 << 21),
-			//The AttributeAllocationTable has an attribute that the offset is no valid in the storage
+			//The AttributeAllocationTable has an attribute whose offset is not valid in the storage.
 			Operation_Error_AttributeAllocationCorrupted	= (0x1 << 22),
-			//We cannot find the specified key
+			//We cannot find the specified key.
 			Operation_Error_CannotFoundKey					= (0x1 << 23),
-			//There was an error when removing an attribute from the AttributeAllocationTable. The TArray remove has failed
+			//There was an error when removing an attribute from the AttributeAllocationTable. The TArray remove has failed.
 			Operation_Error_CannotRemoveAttribute			= (0x1 << 24),
 			//We try to override an attribute but the specified options do not allow override.
 			Operation_Error_CannotOverrideAttribute			= (0x1 << 25),
@@ -341,8 +341,8 @@ namespace UE
 		ENUM_CLASS_FLAGS(EAttributeStorageResult)
 
 		/**
-		 * Helper function to interpret storage result
-		 * @return true if the Result contain at least one of the RefResult flags
+		 * Helper function to interpret storage results.
+		 * @return true if the result contains at least one of the RefResult flags.
 		 */
 		FORCEINLINE bool HasAttributeStorageResult(const EAttributeStorageResult Result, const EAttributeStorageResult RefResult)
 		{
@@ -350,8 +350,8 @@ namespace UE
 		}
 	
 		/**
-		 * Helper function to determine if the storage result is success
-		 * @return true if result contain Operation_Success
+		 * Helper function to determine if the storage result is success.
+		 * @return true if the result contains Operation_Success.
 		 */
 		FORCEINLINE bool IsAttributeStorageResultSuccess(const EAttributeStorageResult Result)
 		{
@@ -360,27 +360,27 @@ namespace UE
 
 		/**
 		 * Helper function to transform an operation result into a LOG.
-		 * @param Result - The result we want to output a log for
-		 * @param OperationName - The operation name that end up with the speicified Result.
-		 * @param AttributeKey - The attribute we did apply the operation on.
+		 * @param Result - The result we want to output a log for.
+		 * @param OperationName - The operation name that ended up with the specified result.
+		 * @param AttributeKey - The attribute we applied the operation to.
 		 */
 		INTERCHANGECORE_API void LogAttributeStorageErrors(const EAttributeStorageResult Result, const FString OperationName, const FAttributeKey AttributeKey );
 
 
 		/**
-		 * Enum to pass options when we add an attribute
+		 * Enum to pass options when we add an attribute.
 		 */
 		enum class EAttributeStorageAddOptions : uint32
 		{
 			None					= 0x0,
 			Option_Override			= 0x1,
-			//allow the AddAttribute to override the value if it exist.
+			//allow the AddAttribute to override the value if it exists.
 		};
 
 		ENUM_CLASS_FLAGS(EAttributeStorageAddOptions)
 
 		/**
-		 * Helper function to interpret storage add options
+		 * Helper function to interpret storage add options.
 		 */
 		FORCEINLINE bool HasAttributeStorageAddOption(const EAttributeStorageAddOptions Options, const EAttributeStorageAddOptions RefOptions)
 		{
@@ -388,18 +388,18 @@ namespace UE
 		}
 
 		/**
-		 * Enumerates the attribute properties. Those properties affect how the attribute are stored or what they are use for
+		 * Enumerates the attribute properties. Those properties affect how the attribute are stored or what they are used for.
 		 */
 		enum class EAttributeProperty : uint32
 		{
 			None						= 0x0,
-			NoHash						= 0x1, /*No hash attribute will not be part of the hash result when calling GetStorageHash*/
+			NoHash						= 0x1, /* No hash attribute will not be part of the hash result when calling GetStorageHash. */
 		};
 
 		ENUM_CLASS_FLAGS(EAttributeProperty)
 
 		/**
-		 * Helper function to interpret attribute property
+		 * Helper function to interpret an attribute property.
 		 */
 		FORCEINLINE bool HasAttributeProperty(const EAttributeProperty PropertyA, const EAttributeProperty PropertyB)
 		{
@@ -407,7 +407,7 @@ namespace UE
 		}
 
 		/**
-		 * This is a helper class to specialize template function inside a class, it allow specialize template to not be static
+		 * This is a helper class to specialize template functions inside a class. It allows specialized templates to not be static.
 		 */
 		template<typename T>
 		struct TSpecializeType
@@ -417,19 +417,19 @@ namespace UE
 
 	
 		/**
-		 * This class is a Key/Value storage inside a TArray64<uint8>
-		 * The keys are of type FAttributeKey which is a FString, each key is unique and have only one value.
-		 * The value can be of any type contain in EAttributeTypes.
+		 * This class is a Key/Value storage inside a TArray64<uint8>.
+		 * The keys are of type FAttributeKey, which is an FString. Each key is unique and has only one value.
+		 * The value can be of any type contained in EAttributeTypes.
 		 * 
-		 * @notes
-		 * The storage is multi thread safe, it use a mutex to lock the storage for every read/write operation.
-		 * The hash of the storage is deterministic because it sort the attributes before calculating the hash.
+		 * @note
+		 * The storage is multi-thread safe. It uses a mutex to lock the storage for every read/write operation.
+		 * The hash of the storage is deterministic because it sorts the attributes before calculating the hash.
 		 */
 		class FAttributeStorage
 		{
 		public:
 			/**
-			 * Class to Get/Set an attribute of the storage 
+			 * Class to get/set an attribute of the storage.
 			 */
 			template<typename T>
 			class TAttributeHandle
@@ -443,7 +443,7 @@ namespace UE
 				{}
 
 				/**
-				* Return true if the storage contain a valid attribute key, false otherwise. 
+				* Return true if the storage contains a valid attribute key, or false otherwise. 
 				*/
 				FORCEINLINE bool IsValid() const
 				{
@@ -516,14 +516,14 @@ namespace UE
 
 			/**
 			 * Register an attribute in the storage. Return success if the attribute was properly added, or there is an existing
-			 * attribute of the same type, return error otherwise.
+			 * attribute of the same type. Return an error otherwise.
 			 *
-			 * @Param ElementAttributeKey - is the storage key (the path) of the attribute
-			 * @Param DefaultValue - is the default value for the registered attribute
+			 * @Param ElementAttributeKey - the storage key (the path) of the attribute.
+			 * @Param DefaultValue - the default value for the registered attribute.
 			 *
-			 * @note Possible errors
-			 * - Key exist with a different type
-			 * - Storage is corrupted
+			 * @note Possible errors:
+			 * - Key exists with a different type.
+			 * - Storage is corrupted.
 			 */
 			template<typename T>
 			EAttributeStorageResult RegisterAttribute(const FAttributeKey& ElementAttributeKey, const T& DefaultValue, EAttributeProperty AttributeProperty = EAttributeProperty::None)
@@ -573,19 +573,19 @@ namespace UE
 			/**
 			 * Remove an attribute from the storage.
 			 *
-			 * @param ElementAttributeKey - is the storage key (the path) of the attribute to remove.
+			 * @param ElementAttributeKey - the storage key (the path) of the attribute to remove.
 			 *
-			 * @note Possible errors
-			 * - Key do not exist
-			 * - Internal storage structure remove error
+			 * @note Possible errors:
+			 * - Key does not exist.
+			 * - Internal storage structure removal error.
 			 */
 			INTERCHANGECORE_API EAttributeStorageResult UnregisterAttribute(const FAttributeKey& ElementAttributeKey);
 
 			/**
-			 * Return an attribute handle for the specified attribute. This handle is compile type check and is use to Get and Set the attribute value type.
-			 * The function will assert if the key is missing or the type doesnt match the specified template type.
+			 * Return an attribute handle for the specified attribute. This handle is a compile type check and is use to get and set the attribute value type.
+			 * The function will assert if the key is missing or the type doesn't match the specified template type.
 			 *
-			 * @param ElementAttributeKey is the storage key (the path) of the attribute.
+			 * @param ElementAttributeKey - the storage key (the path) of the attribute.
 			 */
 			template<typename T>
 			TAttributeHandle<T> GetAttributeHandle(const FAttributeKey& ElementAttributeKey) const
@@ -596,87 +596,87 @@ namespace UE
 
 
 			/**
-			 * Return the attribute type if the key exist, return None if the key is missing
+			 * Return the attribute type if the key exists, or None if the key is missing.
 			 *
-			 * @param ElementAttributeKey - is the storage key (the path) of the attribute.
+			 * @param ElementAttributeKey - the storage key (the path) of the attribute.
 			 *
 			 */
 			INTERCHANGECORE_API EAttributeTypes GetAttributeType(const FAttributeKey& ElementAttributeKey) const;
 
 			/**
-			 * Return true if the attribute key point on an existing attribute in the storage. Return false otherwise
+			 * Return true if the attribute key points to an existing attribute in the storage. Return false otherwise.
 			 *
-			 * @param ElementAttributeKey - is the storage key (the path) of the attribute.
+			 * @param ElementAttributeKey - the storage key (the path) of the attribute.
 			 *
 			 */
 			INTERCHANGECORE_API bool ContainAttribute(const FAttributeKey& ElementAttributeKey) const;
 
 			/**
-			 * This function allow the user to retrieve the array of keys to iterate and do reflection on the storage content
+			 * Retrieve the array of keys that can be used to iterate and do reflection on the storage content.
 			 *
 			 */
 			INTERCHANGECORE_API void GetAttributeKeys(TArray<FAttributeKey>& AttributeKeys) const;
 	
 			/**
-			 * Return a FGuid build from the FSHA1 of the specified attribute data. If the Attribute do not exist it return an empty FGUID
+			 * Return an FGuid built from the FSHA1 of the specified attribute data. If the attribute does not exist, return an empty FGUID.
 			 *
-			 * @param ElementAttributeKey is the storage key (the path) of the attribute.
+			 * @param ElementAttributeKey - the storage key (the path) of the attribute.
 			 *
 			 */
 			INTERCHANGECORE_API FGuid GetAttributeHash(const FAttributeKey& ElementAttributeKey) const;
 	
 			/**
-			 * This function fill the OutGuid with the hash of the specified attribute. Return true if the attribute exist and the OutGuid was assign, return false otherwise without touching the OutGuid.
+			 * This function fills the OutGuid with the hash of the specified attribute. Return true if the attribute exists and the OutGuid was assigned, or false otherwise without touching the OutGuid.
 			 *
-			 * @param ElementAttributeKey - is the storage key (the path) of the attribute.
-			 * @param OutGuid - is where we put the attribute hash.
+			 * @param ElementAttributeKey - the storage key (the path) of the attribute.
+			 * @param OutGuid - where we put the attribute hash.
 			 *
 			 */
 			INTERCHANGECORE_API bool GetAttributeHash(const FAttributeKey& ElementAttributeKey, FGuid& OutGuid) const;
 
 			/**
-			 * Return a FGuid build from the FSHA1 of all the attribute data contain in the node.
-			 * The data include the UniqueID and the DisplayLabel.
+			 * Return an FGuid built from the FSHA1 of all the attribute data contained in the node.
+			 * The data includes the UniqueID and the DisplayLabel.
 			 *
-			 * @note the attribute are sorted by key when building the FSHA1 data. The hash will be deterministic for the same data whatever
+			 * @note the attributes are sorted by key when building the FSHA1 data. The hash will be deterministic for the same data whatever
 			 * the order we add the attributes.
 			 */
 			INTERCHANGECORE_API FGuid GetStorageHash() const;
 
 			/**
-			 * Compare two storage to know which properties was modified/added/removed.
+			 * Compare two storage objects to know which properties were modified/added/removed.
 			 *
-			 * @param BaseStorage - The storage reference
-			 * @param VersionStorage - The storage with the changes
-			 * @param RemovedAttribute - All attributes that are in base storage but not in version storage, contain key only valid for base storage
-			 * @param AddedAttributes - All attributes that are in version storage but not in base storage, contain key only valid for version storage
-			 * @param ModifiedAttributes - All attributes that are in both storage base storage but have a different hash (different value)
+			 * @param BaseStorage - The reference storage.
+			 * @param VersionStorage - The storage with the changes.
+			 * @param RemovedAttribute - All attributes that are in base storage but not in version storage. Contains keys that are only valid for the base storage.
+			 * @param AddedAttributes - All attributes that are in version storage but not in base storage. Contains keys that are only valid for the version storage.
+			 * @param ModifiedAttributes - All attributes that are in both storage but have a different hash (different value).
 			 *
 			 */
 			static INTERCHANGECORE_API void CompareStorage(const FAttributeStorage& BaseStorage, const FAttributeStorage& VersionStorage, TArray<FAttributeKey>& RemovedAttributes, TArray<FAttributeKey>& AddedAttributes, TArray<FAttributeKey>& ModifiedAttributes);
 
 			/**
-			 * Copy an array of attributes from the source storage to the destination storage. If the attribute already exist in the destination, the value will be updated.
-			 * If a key do not exist in the source it will not be copy/created in the destination
+			 * Copy an array of attributes from the source storage to the destination storage. If the attribute already exists in the destination, the value will be updated.
+			 * If a key does not exist in the source it will not be copied/created in the destination.
 			 *
-			 * @param SourceStorage - The storage source
-			 * @param DestinationStorage - The storage destination
-			 * @param AttributeKeys - All attributes that must be copy from the source to the destination.
+			 * @param SourceStorage - The storage source.
+			 * @param DestinationStorage - The storage destination.
+			 * @param AttributeKeys - All attributes that must be copied from the source to the destination.
 			 *
 			 */
 			static INTERCHANGECORE_API void CopyStorageAttributes(const FAttributeStorage& SourceStorage, FAttributeStorage& DestinationStorage, const TArray<FAttributeKey>& AttributeKeys);
 
 			/**
-			 * Return the defrag ratio. This ratio is use to know when we need to defrag the storage
+			 * Return the defrag ratio. This ratio is used to know when we need to defrag the storage.
 			 * @example - a ratio of 0.1f will defrag the storage if the memory lost is bigger then 10% of the storage allocation.
-			 * Defrag is call when we remove an attribute or when we set the defrag ratio
+			 * Defrag is called when we remove an attribute or when we set the defrag ratio.
 			 */
 			FORCEINLINE float GetDefragRatio() const
 			{
 				return DefragRatio;
 			}
 	
-			/** Set the defrag ratio. See the GetDefragRatio for the defrag documentation. */
+			/** Set the defrag ratio. See GetDefragRatio() for the defrag documentation. */
 			INTERCHANGECORE_API void SetDefragRatio(const float InDefragRatio);
 	
 			friend FArchive& operator<<(FArchive& Ar, FAttributeStorage& Storage)
@@ -691,13 +691,13 @@ namespace UE
 			/**
 			 * Reserve the allocation table and the storage data.
 			 * 
-			 * @param NewAttributeCount: The number of attribute we want to reserve. Zero value do not reserve attribute count
-			 * @param NewStorageSize: The size on the storage all those new attribute will need. Passing zero value do not reserve storage size
+			 * @param NewAttributeCount: The number of attributes we want to reserve. Passing a zero value does not reserve attribute count.
+			 * @param NewStorageSize: The size of the storage all the new attributes will need. Passing a zero value do not reserve storage size.
 			 */
 			INTERCHANGECORE_API void Reserve(int64 NewAttributeCount, int64 NewStorageSize);
 
 		protected:
-			/** Structure use to hold the attribute information store in the attribute allocation table. */
+			/** Structure used to hold the attribute information stored in the attribute allocation table. */
 			struct FAttributeAllocationInfo
 			{
         		//The offset in the storage
