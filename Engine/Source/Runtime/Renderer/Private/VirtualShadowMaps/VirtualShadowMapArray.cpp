@@ -1075,16 +1075,12 @@ void FVirtualShadowMapVisualizeLightSearch::CheckLight(const FLightSceneProxy* C
 		UE_LOG(LogRenderer, Display, TEXT("%s"), *CheckLightName);
 	}
 
-	const ULightComponent* Component = CheckProxy->GetLightComponent();
-	check(Component);
-
 	// Fill out new sort key and compare to our best found so far
 	SortKey CheckKey;
 	CheckKey.Packed = 0;
 	CheckKey.Fields.bExactNameMatch = (CheckLightName == GVirtualShadowMapVisualizeLightName);
 	CheckKey.Fields.bPartialNameMatch = CheckKey.Fields.bExactNameMatch || CheckLightName.Contains(GVirtualShadowMapVisualizeLightName);
-	CheckKey.Fields.bSelected = Component->IsSelected();
-	CheckKey.Fields.bOwnerSelected = Component->IsOwnerSelected();
+	CheckKey.Fields.bSelected = CheckProxy->IsSelected();
 	CheckKey.Fields.bDirectionalLight = CheckProxy->GetLightType() == LightType_Directional;
 	CheckKey.Fields.bExists = 1;
 

@@ -14,6 +14,7 @@
 #include "MaterialDomain.h"
 #include "UObject/ObjectSaveContext.h"
 #include "SceneInterface.h"
+#include "LightSceneProxy.h"
 #include "UObject/RenderingObjectVersion.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "UObject/UObjectAnnotation.h"
@@ -1437,7 +1438,18 @@ void ULightComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* InMate
 
 void ULightComponent::PushSelectionToProxy()
 {
-	MarkRenderStateDirty();
+	if (SceneProxy)
+	{
+		const bool bIsSelected = IsSelected() || IsOwnerSelected();
+		FLightSceneProxy* LocalSceneProxy = SceneProxy;
+		ENQUEUE_RENDER_COMMAND(SetLightSelection)(
+			[LocalSceneProxy, bIsSelected](FRHICommandListImmediate& RHICmdList)
+			{
+				// NOTE: The selection flag is currently used on the C++ side for debug features, so simply updating this flag is enough.
+				LocalSceneProxy->SetSelected(bIsSelected);
+			});
+	}
+
 }
 
 /** Stores a light and a channel it has been assigned to. */

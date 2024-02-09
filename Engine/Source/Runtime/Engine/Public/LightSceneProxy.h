@@ -213,6 +213,7 @@ public:
 	inline FName GetComponentFName() const { return ComponentName; }
 
 	inline bool IsSelected() const { return bSelected; }
+	inline void SetSelected(bool bNewSelected) { bSelected = bNewSelected; }
 
 	/**
 	 * Use to get the owning actor label (or component name as fallback, if the owner is null or ENABLE_DEBUG_LABELS is off) for diagnostic messages, debug or profiling.
@@ -434,7 +435,8 @@ protected:
 	/** Whether to render csm shadows for movable objects only (mobile). */
 	uint8 bUseWholeSceneCSMForMovableObjects : 1;
 
-	const uint8 bSelected : 1;
+    /** Is the light selected in the editor? */
+	uint8 bSelected : 1;
 
 	/** The index of the atmospheric light. Multiple lights can be considered when computing the sky/atmospheric scattering. */
 	const uint8 AtmosphereSunLightIndex;

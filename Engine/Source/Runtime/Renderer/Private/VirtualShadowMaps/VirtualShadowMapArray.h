@@ -204,7 +204,6 @@ private:
 			// NOTE: Lowest to highest priority
 			uint32 bExists : 1;				// Catch-all
 			uint32 bDirectionalLight : 1;
-			uint32 bOwnerSelected : 1;		// In editor
 			uint32 bSelected : 1;			// In editor
 			uint32 bPartialNameMatch : 1;
 			uint32 bExactNameMatch : 1;
