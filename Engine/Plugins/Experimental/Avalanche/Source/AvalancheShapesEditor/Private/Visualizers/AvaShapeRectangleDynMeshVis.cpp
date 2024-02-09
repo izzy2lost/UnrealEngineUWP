@@ -162,32 +162,14 @@ void FAvaShapeRectangleDynamicMeshVisualizer::DrawVisualizationEditing(const UAc
 	DrawGlobalBevelButton(DynMesh, InView, InPDI, InOutIconIndex, bEditingGlobalBevelSize ? Active : Inactive);
 	++InOutIconIndex;
 
-	if (!bEditingGlobalBevelSize)
+	if (ShouldDrawExtraHandles(InComponent, InView))
 	{
-		if (Corner != EAvaAnchors::TopLeft)
-		{
-			DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::TopLeft);
-		}
-		if (Corner != EAvaAnchors::TopRight)
-		{
-			DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::TopRight);
-		}
-		if (Corner != EAvaAnchors::BottomLeft)
-		{
-			DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::BottomLeft);
-		}
-		if (Corner != EAvaAnchors::BottomRight)
-		{
-			DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::BottomRight);
-		}
-		if (SlantSide != EAvaAnchors::Left)
-		{
-			DrawSlantButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::Left);
-		}
-		if (SlantSide != EAvaAnchors::Right)
-		{
-			DrawSlantButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::Right);
-		}
+		DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::TopLeft);
+		DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::TopRight);
+		DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::BottomLeft);
+		DrawBevelButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::BottomRight);
+		DrawSlantButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::Left);
+		DrawSlantButton(DynMesh, InView, InPDI, Inactive, EAvaAnchors::Right);
 	}
 }
 

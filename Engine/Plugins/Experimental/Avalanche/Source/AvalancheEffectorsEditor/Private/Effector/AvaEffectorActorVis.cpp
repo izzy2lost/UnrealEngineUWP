@@ -165,18 +165,12 @@ void FAvaEffectorActorVisualizer::DrawVisualizationEditing(const UActorComponent
 
 	if (EffectorActor->GetType() != ECEClonerEffectorType::Plane)
 	{
-		if (!bEditingInnerZone)
-		{
-			DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, true, FAvaVisualizerBase::Inactive);
-			InOutIconIndex++;
-		}
-	}
-
-	if (!bEditingOuterZone)
-	{
-		DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, false, bEditingOuterZone ? FAvaVisualizerBase::Active : FAvaVisualizerBase::Inactive);
+		DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, true, FAvaVisualizerBase::Inactive);
 		InOutIconIndex++;
 	}
+
+	DrawZoneButton(EffectorActor, InView, InPDI, InOutIconIndex, false, bEditingOuterZone ? FAvaVisualizerBase::Active : FAvaVisualizerBase::Inactive);
+	InOutIconIndex++;
 }
 
 void FAvaEffectorActorVisualizer::DrawVisualizationNotEditing(const UActorComponent* InComponent, const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex)
