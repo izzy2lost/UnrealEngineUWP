@@ -191,10 +191,7 @@ void FAvaShape3DDynamicMeshVisualizer::DrawVisualizationEditing(const UActorComp
 	{
 		for (const AvaAlignment Alignment : SupportedAlignments)
 		{
-			if (SizeDragAnchor != Alignment)
-			{
-				DrawSizeButton(DynMesh, InView, InPDI, Alignment);
-			}
+			DrawSizeButton(DynMesh, InView, InPDI, Alignment);
 		}
 	}
 }

@@ -156,16 +156,8 @@ void FAvaShapeIrregularPolygonDynamicMeshVisualizer::DrawVisualizationEditing(co
 
 	for (int32 PointIterIdx = 0; PointIterIdx < DynMesh->GetNumPoints(); ++PointIterIdx)
 	{
-		if (PointIterIdx != EditingPointIdx)
-		{
-			DrawPointButton(DynMesh, InView, InPDI, Inactive, PointIterIdx);
-		}
-
-		if (PointIterIdx != EditingBevelIdx)
-		{
-			DrawBevelButton(DynMesh, InView, InPDI, Inactive, PointIterIdx);
-		}
-
+		DrawPointButton(DynMesh, InView, InPDI, Inactive, PointIterIdx);
+		DrawBevelButton(DynMesh, InView, InPDI, Inactive, PointIterIdx);
 		DrawBreakButton(DynMesh, InView, InPDI, Inactive, PointIterIdx);
 	}
 }

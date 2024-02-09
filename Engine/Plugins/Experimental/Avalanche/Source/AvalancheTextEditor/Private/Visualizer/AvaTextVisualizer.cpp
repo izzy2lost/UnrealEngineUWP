@@ -999,15 +999,8 @@ void FAvaTextVisualizer::DrawVisualizationEditing(const UActorComponent* InCompo
 	DrawScaleProportionallyButton(AvaTextComponent, InView, InPDI, InOutIconIndex, AvaTextComponent->ScalesProportionally() ? Enabled : Disabled);
 	++InOutIconIndex;
 
-	if (AvaTextComponent->HasMaxWidth() && !bEditingWidth)
-	{
-		DrawMaxTextWidthHandle(AvaTextComponent, InView, InPDI, Inactive);
-	}
-
-	if (AvaTextComponent->HasMaxHeight() && !bEditingHeight)
-	{
-		DrawMaxTextHeightHandle(AvaTextComponent, InView, InPDI, Inactive);
-	}
+	DrawMaxTextWidthHandle(AvaTextComponent, InView, InPDI, Inactive);
+	DrawMaxTextHeightHandle(AvaTextComponent, InView, InPDI, Inactive);
 	
 	if (AvaTextComponent->GetColoringStyle() == EAvaTextColoringStyle::Gradient)
 	{

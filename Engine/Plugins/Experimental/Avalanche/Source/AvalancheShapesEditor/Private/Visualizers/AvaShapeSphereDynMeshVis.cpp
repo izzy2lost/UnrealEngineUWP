@@ -319,7 +319,7 @@ void FAvaShapeSphereDynamicMeshVisualizer::DrawVisualizationNotEditing(const UAc
 void FAvaShapeSphereDynamicMeshVisualizer::DrawVisualizationEditing(const UActorComponent* InComponent,
 	const FSceneView* InView, FPrimitiveDrawInterface* InPDI, int32& InOutIconIndex)
 {
-	Super::DrawVisualizationNotEditing(InComponent, InView, InPDI, InOutIconIndex);
+	Super::DrawVisualizationEditing(InComponent, InView, InPDI, InOutIconIndex);
 
 	const FMeshType* DynMesh = Cast<FMeshType>(InComponent);
 

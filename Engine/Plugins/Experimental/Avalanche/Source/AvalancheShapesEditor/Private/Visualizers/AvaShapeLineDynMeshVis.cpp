@@ -96,15 +96,8 @@ void FAvaShapeLineDynamicMeshVisualizer::DrawVisualizationEditing(const UActorCo
 		return;
 	}
 
-	if (!bEditingStart)
-	{
-		DrawStartButton(DynMesh, InView, InPDI, Inactive);
-	}
-
-	if (!bEditingEnd)
-	{
-		DrawEndButton(DynMesh, InView, InPDI, Inactive);
-	}
+	DrawStartButton(DynMesh, InView, InPDI, Inactive);
+	DrawEndButton(DynMesh, InView, InPDI, Inactive);
 }
 
 FVector FAvaShapeLineDynamicMeshVisualizer::GetStartWorldLocation(const FMeshType* InDynMesh) const
