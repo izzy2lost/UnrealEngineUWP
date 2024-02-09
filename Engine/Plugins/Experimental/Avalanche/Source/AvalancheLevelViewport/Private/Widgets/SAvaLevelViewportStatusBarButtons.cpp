@@ -2,8 +2,8 @@
 
 #include "Widgets/SAvaLevelViewportStatusBarButtons.h"
 #include "AvaEditorWidgetUtils.h"
-#include "AvalancheLevelViewportModule.h"
 #include "AvaLevelViewportCommands.h"
+#include "AvaLevelViewportModule.h"
 #include "AvaLevelViewportStyle.h"
 #include "AvaViewportPostProcessManager.h"
 #include "AvaViewportSettings.h"

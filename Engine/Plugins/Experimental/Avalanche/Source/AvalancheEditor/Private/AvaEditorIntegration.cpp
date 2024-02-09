@@ -10,7 +10,6 @@
 #include "MaterialDesigner/AvaLevelMaterialDesignerExtension.h"
 #include "OperatorStack/AvaOperatorStackExtension.h"
 #include "Outliner/AvaOutlinerExtension.h"
-#include "Palettes/AvaPaletteExtension.h"
 #include "RemoteControl/AvaRCExtension.h"
 #include "Scene/AvaSceneExtension.h"
 #include "Selection/AvaSelectionProviderExtension.h"
@@ -32,7 +31,6 @@ TSharedRef<IAvaEditor> FAvaLevelEditorIntegration::BuildEditor()
 		.AddExtension<FAvaRCExtension>()
 		.AddExtension<FAvaViewportExtension, FAvaLevelViewportExtension>()
 		.AddExtension<FAvaInteractiveToolsExtension>()
-		.AddExtension<FAvaPaletteExtension>()
 		.AddExtension<FAvaLevelMaterialDesignerExtension>()
 		.AddExtension<FAvaSceneExtension>()
 		.AddExtension<FAvaTransitionExtension>()

@@ -6,6 +6,8 @@
 #include "AvaEditorCommands.h"
 #include "AvaEditorIntegration.h"
 #include "AvaShapeActor.h"
+#include "ColorPicker/AvaViewportColorPickerActorClassRegistry.h"
+#include "ColorPicker/IAvaViewportColorPickerAdapter.h"
 #include "Components/LightComponentBase.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Editor/UnrealEdEngine.h"
@@ -23,7 +25,6 @@
 #include "Styling/SlateIconFinder.h"
 #include "UnrealEdGlobals.h"
 #include "Viewport/AvaViewportQualitySettings.h"
-#include "Widgets/AvaViewportColorPickerActorClassRegistry.h"
 
 // Details View
 #include "AssetToolsModule.h"
@@ -38,44 +39,38 @@ DEFINE_LOG_CATEGORY(AvaLog);
 
 #define LOCTEXT_NAMESPACE "AvalancheEditor"
 
-struct FAvaViewportColorPickerLightAdapter : public FAvaViewportColorPickerActorAdapter
+struct FAvaViewportColorPickerLightAdapter : IAvaViewportColorPickerAdapter
 {
-	virtual ~FAvaViewportColorPickerLightAdapter() override = default;
-
-	virtual FAvaColorChangeData GetColorData(const AActor* InActor) const override
+	//~ Begin IAvaViewportColorPickerActorAdapter
+	virtual bool GetColorData(const AActor& InActor, FAvaColorChangeData& OutColorData) const override
 	{
-		if (IsValid(InActor))
+		if (const ULightComponentBase* Component = InActor.FindComponentByClass<ULightComponentBase>())
 		{
-			if (const ULightComponentBase* Component = InActor->FindComponentByClass<ULightComponentBase>())
-			{
-				return {EAvaColorStyle::Solid, Component->GetLightColor(), FLinearColor::Black, /* bIsUnlit */ false};
-			}
+			OutColorData = { EAvaColorStyle::Solid, Component->GetLightColor(), FLinearColor::Black, /* bIsUnlit */ false };
+			return true;
 		}
-
-		return FAvaColorChangeData();
+		return false;
 	}
 
-	virtual void SetColorData(AActor* InActor, const FAvaColorChangeData& InColorData) const override
+	virtual void SetColorData(AActor& InActor, const FAvaColorChangeData& InColorData) const override
 	{
-		if (IsValid(InActor))
+		if (ULightComponentBase* Component = InActor.FindComponentByClass<ULightComponentBase>())
 		{
-			if (ULightComponentBase* Component = InActor->FindComponentByClass<ULightComponentBase>())
-			{
-				FProperty* LightColorProperty = Component->GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(ULightComponentBase, LightColor));
+			FProperty* LightColorProperty = Component->GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(ULightComponentBase, LightColor));
 
-				Component->PreEditChange(LightColorProperty);
+			Component->PreEditChange(LightColorProperty);
 
-				Component->LightColor = InColorData.PrimaryColor.ToFColorSRGB();
+			Component->LightColor = InColorData.PrimaryColor.ToFColorSRGB();
 
-				FPropertyChangedEvent PropertyChangedEvent = {
-					LightColorProperty,
-					EPropertyChangeType::Interactive
-				};
+			FPropertyChangedEvent PropertyChangedEvent = {
+				LightColorProperty,
+				EPropertyChangeType::Interactive
+			};
 
-				Component->PostEditChangeProperty(PropertyChangedEvent);
-			}
+			Component->PostEditChangeProperty(PropertyChangedEvent);
 		}
 	}
+	//~ End IAvaViewportColorPickerActorAdapter
 };
 
 namespace UE::AvalancheEditor::Private
@@ -106,10 +101,9 @@ void FAvaEditorModule::StartupModule()
 	IAvaOutlinerModule::Get().GetOnExtendOutlinerItemContextMenu()
     	.AddStatic(&FAvaOutlinerSVGActorContextMenu::OnExtendOutlinerContextMenu);
 
-	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter(ALight::StaticClass(), MakeShared<FAvaViewportColorPickerLightAdapter>());
-
-	// Does not extend from ALight
-	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter(ASkyLight::StaticClass(), MakeShared<FAvaViewportColorPickerLightAdapter>());
+	// Note: ASkylight Does not extend from ALight
+	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter<ALight, FAvaViewportColorPickerLightAdapter>();
+	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter<ASkyLight, FAvaViewportColorPickerLightAdapter>();
 }
 
 void FAvaEditorModule::ShutdownModule()

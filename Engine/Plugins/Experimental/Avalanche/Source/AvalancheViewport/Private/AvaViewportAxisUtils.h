@@ -23,7 +23,7 @@ struct FAvaViewportAxisOrientation
 
 using FAvaViewportAxisMap = TAvaAxisList<FAvaViewportAxisOrientation>;
 
-class AVALANCHEVIEWPORT_API FAvaViewportAxisUtils
+class FAvaViewportAxisUtils
 {
 public:
 	static constexpr FAvaViewportAxisMap WorldAxisIndexList = {

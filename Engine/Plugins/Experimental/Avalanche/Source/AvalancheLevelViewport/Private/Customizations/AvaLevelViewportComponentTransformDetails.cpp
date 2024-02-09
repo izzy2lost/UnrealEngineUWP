@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/AvaLevelViewportComponentTransformDetails.h"
+#include "Customizations/AvaLevelViewportComponentTransformDetails.h"
 #include "Algo/Transform.h"
 #include "Components/SceneComponent.h"
 #include "DetailLayoutBuilder.h"

@@ -6,6 +6,8 @@
 #include "AvaTextActor.h"
 #include "AvaTextDefs.h"
 #include "AvaTextEditorCommands.h"
+#include "ColorPicker/AvaViewportColorPickerActorClassRegistry.h"
+#include "ColorPicker/AvaViewportColorPickerAdapter.h"
 #include "DetailsView/AvaLinearGradientSettingsCustomization.h"
 #include "DetailsView/AvaTextAlignmentCustomization.h"
 #include "DetailsView/AvaTextComponentCustomization.h"
@@ -20,7 +22,6 @@
 #include "PropertyEditorModule.h"
 #include "Tool/AvaTextActorTool.h"
 #include "Visualizer/AvaTextVisualizer.h"
-#include "Widgets/AvaViewportColorPickerActorClassRegistry.h"
 
 void FAvaTextEditorModule::StartupModule()
 {
@@ -32,7 +33,7 @@ void FAvaTextEditorModule::StartupModule()
 
 	RegisterDynamicMaterialPropertyGenerator();
 
-	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter(AAvaTextActor::StaticClass(), MakeShared<TAvaViewportColorPickerActorAdapter<AAvaTextActor>>());
+	FAvaViewportColorPickerActorClassRegistry::RegisterDefaultClassAdapter<AAvaTextActor>();
 }
 
 void FAvaTextEditorModule::ShutdownModule()
