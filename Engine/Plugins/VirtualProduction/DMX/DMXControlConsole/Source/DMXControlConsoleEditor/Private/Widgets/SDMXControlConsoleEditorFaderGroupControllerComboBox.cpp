@@ -42,42 +42,53 @@ namespace UE::DMX::Private
 		EditorModel = InEditorModel;
 		WeakFaderGroupControllerModel = InFaderGroupControllerModel;
 
+		UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController();
+		if (FaderGroupController)
+		{
+			FaderGroupController->GetOnControllerGrouped().AddSP(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::OnFaderGroupControllerGrouped);
+		}
+
 		UpdateComboBoxSource();
 
 		ChildSlot
 			[
-				SAssignNew(FixturePatchesComboBox, SComboBox<TSharedPtr<FDMXEntityFixturePatchRef>>)
-				.OptionsSource(&ComboBoxSource)
-				.OnGenerateWidget(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GenerateFixturePatchesComboBoxWidget)
-				.OnComboBoxOpening(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::UpdateComboBoxSource)
-				.OnSelectionChanged(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::OnComboBoxSelectionChanged)
-				.ComboBoxStyle(&FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox")))
-				.ItemStyle(&FDMXControlConsoleEditorStyle::Get().GetWidgetStyle<FTableRowStyle>(TEXT("DMXControlConsole.FaderGroupToolbar")))
-				.ToolTipText(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerFixturePatchNameText)
+				SNew(SBox)
+				.MinDesiredWidth(120.f)
 				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.Padding(4.f)
-					.AutoWidth()
+					SAssignNew(FixturePatchesComboBox, SComboBox<TSharedPtr<FDMXEntityFixturePatchRef>>)
+					.OptionsSource(&ComboBoxSource)
+					.OnGenerateWidget(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GenerateFixturePatchesComboBoxWidget)
+					.OnComboBoxOpening(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::UpdateComboBoxSource)
+					.OnSelectionChanged(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::OnComboBoxSelectionChanged)
+					.ComboBoxStyle(&FAppStyle::Get().GetWidgetStyle<FComboBoxStyle>(TEXT("ComboBox")))
+					.ItemStyle(&FDMXControlConsoleEditorStyle::Get().GetWidgetStyle<FTableRowStyle>(TEXT("DMXControlConsole.FaderGroupToolbar")))
+					.ToolTipText(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerFixturePatchNameText)
 					[
-						SNew(SImage)
-						.Image(FDMXEditorStyle::Get().GetBrush("Icons.FixturePatch"))
-						.ColorAndOpacity(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerEditorColor)
-					]
-
-					+ SHorizontalBox::Slot()
-					.HAlign(HAlign_Left)
-					.VAlign(VAlign_Center)
-					.Padding(4.f, 0.f)
-					.AutoWidth()
-					[
-						SNew(SBox)
-						.WidthOverride(56.f)
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.Padding(4.f)
+						.AutoWidth()
 						[
-							SNew(STextBlock)
-							.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-							.Text(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerFixturePatchNameText)
-							.OverflowPolicy(ETextOverflowPolicy::Clip)
+							SNew(SImage)
+							.Image(FDMXEditorStyle::Get().GetBrush("Icons.FixturePatch"))
+							.ColorAndOpacity(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerEditorColor)
+							.Visibility(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetComboBoxImageVisibility)
+						]
+
+						+ SHorizontalBox::Slot()
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Center)
+						.Padding(4.f, 0.f)
+						.AutoWidth()
+						[
+							SNew(SBox)
+							.WidthOverride(56.f)
+							[
+								SNew(STextBlock)
+								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
+								.Text(this, &SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerFixturePatchNameText)
+								.OverflowPolicy(ETextOverflowPolicy::Clip)
+							]
 						]
 					]
 				]
@@ -191,7 +202,7 @@ namespace UE::DMX::Private
 			{
 				if (FixturePatch && IsFixturePatchStillAvailable(FixturePatch))
 				{
-					const TSharedPtr<FDMXEntityFixturePatchRef> FixturePatchRef = MakeShared<FDMXEntityFixturePatchRef>();
+					const TSharedRef<FDMXEntityFixturePatchRef> FixturePatchRef = MakeShared<FDMXEntityFixturePatchRef>();
 					FixturePatchRef->SetEntity(FixturePatch);
 					ComboBoxSource.Add(FixturePatchRef);
 				}
@@ -291,6 +302,16 @@ namespace UE::DMX::Private
 		EditorModel->RequestUpdateEditorModel();
 	}
 
+	void SDMXControlConsoleEditorFaderGroupControllerComboBox::OnFaderGroupControllerGrouped()
+	{
+		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
+		if (FaderGroupControllerModel.IsValid() && FixturePatchesComboBox.IsValid())
+		{
+			const bool bHasDownArrow = FaderGroupControllerModel->HasSingleFaderGroup();
+			FixturePatchesComboBox->SetHasDownArrow(bHasDownArrow);
+		}
+	}
+
 	FSlateColor SDMXControlConsoleEditorFaderGroupControllerComboBox::GetFaderGroupControllerEditorColor() const
 	{
 		if (const UDMXControlConsoleFaderGroupController* FaderGroupController = GetFaderGroupController())
@@ -317,7 +338,7 @@ namespace UE::DMX::Private
 
 		if (!FaderGroupControllerModel->HasSingleFaderGroup())
 		{
-			return LOCTEXT("ManyFixturePatchNameText", "Many");
+			return LOCTEXT("GroupFixturePatchNameText", "Group");
 		}
 
 		const UDMXControlConsoleFaderGroup* FaderGroup = FaderGroupControllerModel->GetFirstAvailableFaderGroup();
@@ -327,6 +348,13 @@ namespace UE::DMX::Private
 		}
 
 		return FText::FromString(FaderGroup->GetFixturePatch()->Name);
+	}
+
+	EVisibility SDMXControlConsoleEditorFaderGroupControllerComboBox::GetComboBoxImageVisibility() const
+	{
+		const TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel = WeakFaderGroupControllerModel.Pin();
+		const bool bIsVisible = FaderGroupControllerModel.IsValid() && FaderGroupControllerModel->HasSingleFaderGroup();
+		return bIsVisible ? EVisibility::Visible : EVisibility::Hidden;
 	}
 }
 

@@ -25,6 +25,7 @@
 #include "Styling/SlateColor.h"
 #include "Views/SDMXControlConsoleEditorElementControllerView.h"
 #include "Views/SDMXControlConsoleEditorMatrixCellControllerView.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -100,69 +101,89 @@ namespace UE::DMX::Private
 							SNew(SBox)
 							.MinDesiredHeight(TAttribute<FOptionalSize>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetFaderGroupControllerViewHeightByFadersViewMode))
 							[
-								SNew(SVerticalBox)
+								SNew(SHorizontalBox)
 
-								// Toolbar section
-								+ SVerticalBox::Slot()
-								.HAlign(HAlign_Left)
-								.VAlign(VAlign_Top)
-								.AutoHeight()
+								// Group Color Tag section
+								+SHorizontalBox::Slot()
+								.AutoWidth()
+								.Padding(-2.f, -4.f, 2.f, -4.f)
 								[
-									SAssignNew(FaderGroupControllerToolbar, SDMXControlConsoleEditorFaderGroupControllerToolbar, FaderGroupControllerModel, EditorModel.Get())
-									.OnAddFaderGroupController(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupController)
-									.OnAddFaderGroupControllerOnNewRow(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRow)
-									.OnExpanded(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnExpandArrowClicked)
-									.IsExpandedViewModeEnabled(this, &SDMXControlConsoleEditorFaderGroupControllerView::IsCurrentViewMode, EDMXControlConsoleEditorViewMode::Expanded)
+									SNew(SImage)
+									.DesiredSizeOverride(FVector2D(2.f))
+									.Image(FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.FaderGroupTag"))
+									.ColorAndOpacity(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetFaderGroupControllerViewBorderColor)
+									.Visibility(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetGroupColorTagImageVisibility)
 								]
 
-								// Core section
-								+ SVerticalBox::Slot()
+								+ SHorizontalBox::Slot()
+								.HAlign(HAlign_Center)
+								.AutoWidth()
 								[
-									SNew(SHorizontalBox)
+									SNew(SVerticalBox)
 
-									// Fader Group Core section
-									+ SHorizontalBox::Slot()
-									.Padding(20.f, 20.f, 8.f, 8.f)
-									.MaxWidth(116.f)
+									// Toolbar section
+									+ SVerticalBox::Slot()
+									.HAlign(HAlign_Left)
+									.VAlign(VAlign_Top)
+									.AutoHeight()
 									[
-										SNew(SDMXControlConsoleEditorFaderGroupControllerPanel, FaderGroupControllerModel)
-										.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetViewModeVisibility, EDMXControlConsoleEditorViewMode::Collapsed))
+										SAssignNew(FaderGroupControllerToolbar, SDMXControlConsoleEditorFaderGroupControllerToolbar, FaderGroupControllerModel, EditorModel.Get())
+										.OnAddFaderGroupController(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupController)
+										.OnAddFaderGroupControllerOnNewRow(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRow)
+										.OnExpanded(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnExpandArrowClicked)
+										.IsExpandedViewModeEnabled(this, &SDMXControlConsoleEditorFaderGroupControllerView::IsCurrentViewMode, EDMXControlConsoleEditorViewMode::Expanded)
 									]
 
-									// Add button section
-									+ SHorizontalBox::Slot()
-									.HAlign(HAlign_Left)
-									.VAlign(VAlign_Center)
-									.MaxWidth(16.f)
-									.AutoWidth()
+									// Core section
+									+ SVerticalBox::Slot()
+									[
+										SNew(SHorizontalBox)
+
+										// Fader Group Core section
+										+ SHorizontalBox::Slot()
+										.Padding(20.f, 20.f, 8.f, 8.f)
+										.MaxWidth(116.f)
+										[
+											SNew(SDMXControlConsoleEditorFaderGroupControllerPanel, FaderGroupControllerModel)
+											.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetViewModeVisibility, EDMXControlConsoleEditorViewMode::Collapsed))
+										]
+
+										// Add button section
+										+ SHorizontalBox::Slot()
+										.HAlign(HAlign_Left)
+										.VAlign(VAlign_Center)
+										.MaxWidth(16.f)
+										.AutoWidth()
+										.Padding(2.f, 0.f, 0.f, 0.f)
+										[
+											SNew(SDMXControlConsoleEditorAddButton)
+											.OnClicked(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerClicked)
+											.ToolTipText(LOCTEXT("AddFaderGroupButton_ToolTip", "Add a new Fader Group next."))
+											.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetAddButtonVisibility))
+										]
+
+										// Faders widget section
+										+ SHorizontalBox::Slot()
+										.HAlign(HAlign_Left)
+										.VAlign(VAlign_Center)
+										.Padding(4.f, 2.f)
+										.AutoWidth()
+										[
+											GenerateElementControllersWidget()
+										]
+									]
+
+									// Add row button
+									+ SVerticalBox::Slot()
+									.HAlign(HAlign_Center)
+									.VAlign(VAlign_Bottom)
+									.AutoHeight()
 									[
 										SNew(SDMXControlConsoleEditorAddButton)
-										.OnClicked(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerClicked)
-										.ToolTipText(LOCTEXT("AddFaderGroupButton_ToolTip", "Add a new Fader Group next."))
-										.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetAddButtonVisibility))
+										.OnClicked(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRowClicked)
+										.ToolTipText(LOCTEXT("AddFaderGroupOnNewRowButton_ToolTip", "Add a new Fader Group on the next row."))
+										.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetAddRowButtonVisibility))
 									]
-
-									// Faders widget section
-									+ SHorizontalBox::Slot()
-									.HAlign(HAlign_Left)
-									.VAlign(VAlign_Center)
-									.Padding(4.f, 2.f)
-									.AutoWidth()
-									[
-										GenerateElementControllersWidget()
-									]
-								]
-
-								// Add row button
-								+ SVerticalBox::Slot()
-								.HAlign(HAlign_Center)
-								.VAlign(VAlign_Bottom)
-								.AutoHeight()
-								[
-									SNew(SDMXControlConsoleEditorAddButton)
-									.OnClicked(this, &SDMXControlConsoleEditorFaderGroupControllerView::OnAddFaderGroupControllerOnNewRowClicked)
-									.ToolTipText(LOCTEXT("AddFaderGroupOnNewRowButton_ToolTip", "Add a new Fader Group on the next row."))
-									.Visibility(TAttribute<EVisibility>::CreateSP(this, &SDMXControlConsoleEditorFaderGroupControllerView::GetAddRowButtonVisibility))
 								]
 							]
 						]
@@ -247,7 +268,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetElementControllers();
+		const TArray<UDMXControlConsoleElementController*>& ElementControllers = FaderGroupController->GetElementControllers();
 		if (ElementControllers.Num() == ElementControllerWidgets.Num())
 		{
 			return;
@@ -320,8 +341,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetElementControllers();
-
+		const TArray<UDMXControlConsoleElementController*>& ElementControllers = FaderGroupController->GetElementControllers();
 		for (UDMXControlConsoleElementController* ElementController : ElementControllers)
 		{
 			if (!ElementController)
@@ -389,7 +409,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetElementControllers();
+		const TArray<UDMXControlConsoleElementController*>& ElementControllers = FaderGroupController->GetElementControllers();
 
 		TArray<TWeakPtr<SWidget>> ElementControllerWidgetsToRemove;
 		for (TWeakPtr<SWidget>& Widget : ElementControllerWidgets)
@@ -420,7 +440,7 @@ namespace UE::DMX::Private
 			ElementControllerWidgetsToRemove.Add(Widget);
 		}
 
-		ElementControllerWidgets.RemoveAll([&ElementControllerWidgetsToRemove](TWeakPtr<SWidget> ElementControllerWidget)
+		ElementControllerWidgets.RemoveAll([&ElementControllerWidgetsToRemove](TWeakPtr<SWidget>& ElementControllerWidget)
 			{
 				return !ElementControllerWidget.IsValid() || ElementControllerWidgetsToRemove.Contains(ElementControllerWidget);
 			});
@@ -433,7 +453,7 @@ namespace UE::DMX::Private
 			return false;
 		}
 
-		const auto IsElementControllerInUseLambda = [InElementController](const TWeakPtr<SWidget> Widget)
+		const auto IsElementControllerInUseLambda = [InElementController](const TWeakPtr<SWidget>& Widget)
 			{
 				if (!Widget.IsValid())
 				{
@@ -808,6 +828,12 @@ namespace UE::DMX::Private
 	{
 		const bool bIsVisble = FaderGroupControllerModel.IsValid() && FaderGroupControllerModel->CanAddElementController();
 		return bIsVisble ? EVisibility::Visible : EVisibility::Collapsed;
+	}
+
+	EVisibility SDMXControlConsoleEditorFaderGroupControllerView::GetGroupColorTagImageVisibility() const
+	{
+		const bool bIsVisble = FaderGroupControllerModel.IsValid() && !FaderGroupControllerModel->HasSingleFaderGroup();
+		return bIsVisble ? EVisibility::Visible : EVisibility::Hidden;
 	}
 }
 

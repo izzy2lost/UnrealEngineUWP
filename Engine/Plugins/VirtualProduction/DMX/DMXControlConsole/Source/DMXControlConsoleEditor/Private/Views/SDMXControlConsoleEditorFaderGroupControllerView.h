@@ -111,29 +111,32 @@ namespace UE::DMX::Private
 		/** Gets the border color of this view */
 		FSlateColor GetFaderGroupControllerViewBorderColor() const;
 
-		/** Changes brush when this widget is hovered */
+		/** Changes the brush when this widget is hovered */
 		const FSlateBrush* GetFaderGroupControllerViewBorderImage() const;
 
-		/** Changes background brush when this widget is hovered */
+		/** Changes the background brush when this widget is hovered */
 		const FSlateBrush* GetFaderGroupControllerViewBackgroundBorderImage() const;
 
-		/** Gets visibility according to the given View Mode */
+		/** Gets the visibility of this view according to the given View Mode */
 		EVisibility GetViewModeVisibility(EDMXControlConsoleEditorViewMode InViewMode) const;
 
-		/** Gets visibility for each Element Controller widget in this view */
+		/** Gets the visibility for each Element Controller widget in this view */
 		EVisibility GetElementControllerWidgetVisibility(TSharedPtr<FDMXControlConsoleElementControllerModel> ElementControllerModel) const;
 
-		/** Manages horizontal Add Button widget's visibility */
+		/** Gets the visibility of the horizontal Add Button widget */
 		EVisibility GetAddButtonVisibility() const;
 
-		/** Manages vertical Add Button widget's visibility */
+		/** Gets the visibility of the vertical Add Button widget */
 		EVisibility GetAddRowButtonVisibility() const;
 
-		/** Gets ElementControllersHorizontalBox widget visibility */
+		/** Gets the visibility of the ElementControllersHorizontalBox widget */
 		EVisibility GetElementControllersHorizontalBoxVisibility() const;
 
-		/** Gets add element controller button visibility */
+		/** Gets the visibility of the add element controller button */
 		EVisibility GetAddElementControllerButtonVisibility() const;
+
+		/** Gets the visibility of the group color tag image */
+		EVisibility GetGroupColorTagImageVisibility() const;
 
 		/** Current view mode */
 		EDMXControlConsoleEditorViewMode ViewMode;

@@ -11,6 +11,7 @@
 #include "Models/DMXControlConsoleElementControllerModel.h"
 #include "ScopedTransaction.h"
 #include "Style/DMXControlConsoleEditorStyle.h"
+#include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SDMXControlConsoleEditorSpinBoxVertical.h"
@@ -35,6 +36,10 @@ namespace UE::DMX::Private
 		EditorModel = InEditorModel;
 		ElementControllerModel = InElementControllerModel;
 
+		const FSpinBoxStyle& SpinBoxStyle = ElementControllerModel->HasSingleElement() ?
+			FDMXControlConsoleEditorStyle::Get().GetWidgetStyle<FSpinBoxStyle>("DMXControlConsole.SingleFader") :
+			FDMXControlConsoleEditorStyle::Get().GetWidgetStyle<FSpinBoxStyle>("DMXControlConsole.MultiFader");
+
 		ChildSlot
 			[
 				SNew(SBorder)
@@ -51,7 +56,7 @@ namespace UE::DMX::Private
 					.OnValueChanged(this, &SDMXControlConsoleEditorSpinBoxController::HandleValueChanged)
 					.OnValueCommitted(this, &SDMXControlConsoleEditorSpinBoxController::OnValueCommitted)
 					.IsActive(this, &SDMXControlConsoleEditorSpinBoxController::IsElementControllerSpinBoxActive)
-					.Style(FDMXControlConsoleEditorStyle::Get(), "DMXControlConsole.Fader")
+					.Style(&SpinBoxStyle)
 					.ToolTipText(this, &SDMXControlConsoleEditorSpinBoxController::GetToolTipText)
 					.MinDesiredWidth(40.0f)
 				]
@@ -399,20 +404,16 @@ namespace UE::DMX::Private
 			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.DefaultBrush");
 		}
 
-		if (IsHovered())
+		if (IsHovered() || IsSelected())
 		{
-			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.SpinBoxBorder_Hovered");
+			return
+				ElementControllerModel->HasSingleElement() ?
+				FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.SpinBoxBorder_SingleHovered") :
+				FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.SpinBoxBorder_MultiHovered");
 		}
 		else
 		{
-			if (IsSelected())
-			{
-				return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.SpinBoxBorder_Hovered");
-			}
-			else
-			{
-				return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.SpinBoxBorder");
-			}
+			return FDMXControlConsoleEditorStyle::Get().GetBrush("DMXControlConsole.Rounded.SpinBoxBorder");
 		}
 	}
 }
