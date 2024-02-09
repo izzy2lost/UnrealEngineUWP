@@ -357,55 +357,6 @@ static bool UsePrimitiveShader()
 	return CVarNanitePrimShaderRasterization.GetValueOnAnyThread() != 0 && GRHISupportsPrimitiveShaders;
 }
 
-static bool ShouldCompileSvBarycentricPermutation(EShaderPlatform ShaderPlatform, bool bPixelProgrammable, bool bMeshShaderRasterPath, bool bAllowSvBarycentrics)
-{
-	const ERHIFeatureSupport BarycentricsSemanticSupport = FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsSemantic(ShaderPlatform);
-
-	if (bAllowSvBarycentrics)
-	{
-		// Only used with pixel programmable shaders with the Mesh shaders raster path when intrinsics are not supported
-		if (!bPixelProgrammable || !bMeshShaderRasterPath || FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsIntrinsics(ShaderPlatform))
-		{
-			return false;
-		}
-
-		if (BarycentricsSemanticSupport == ERHIFeatureSupport::Unsupported)
-		{
-			return false;
-		}
-	}
-	else
-	{
-		// We don't want disabled permutations when support is guaranteed
-		if (BarycentricsSemanticSupport == ERHIFeatureSupport::RuntimeGuaranteed)
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
-
-static bool ShouldUseSvBarycentricPermutation(EShaderPlatform ShaderPlatform, bool bPixelProgrammable, bool bMeshShaderRasterPath)
-{
-	// Only used with pixel programmable shaders with the Mesh shaders raster path when intrinsics are not supported
-	if (!bPixelProgrammable || !bMeshShaderRasterPath || FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsIntrinsics(ShaderPlatform))
-	{
-		return false;
-	}
-
-	const ERHIFeatureSupport BarycentricsSemanticSupport = FDataDrivenShaderPlatformInfo::GetSupportsBarycentricsSemantic(ShaderPlatform);
-
-	// Only use the barycentric permutation when support is runtime guaranteed or if we're dependent and the global cap flag is set.
-	if (BarycentricsSemanticSupport == ERHIFeatureSupport::RuntimeGuaranteed ||
-		(BarycentricsSemanticSupport == ERHIFeatureSupport::RuntimeDependent && GRHIGlobals.SupportsBarycentricsSemantic))
-	{
-		return true;
-	}
-
-	return false;
-}
-
 enum class ERasterHardwarePath : uint8
 {
 	VertexShader,
@@ -1577,7 +1528,6 @@ class FHWRasterizeVS : public FNaniteMaterialShader
 		OutEnvironment.SetDefine(TEXT("SOFTWARE_RASTER"), 0);
 		OutEnvironment.SetDefine(TEXT("USE_ANALYTIC_DERIVATIVES"), 0);
 		OutEnvironment.SetDefine(TEXT("NANITE_MULTI_VIEW"), 1);
-		OutEnvironment.SetDefine(TEXT("NANITE_ALLOW_SV_BARYCENTRICS"), 0);
 
 		const bool bIsPrimitiveShader = PermutationVector.Get<FPrimShaderDim>();
 		
@@ -1615,17 +1565,7 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 	class FVertexProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_VERTEX_PROGRAMMABLE");
 	class FPixelProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_PIXEL_PROGRAMMABLE");
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
-	class FAllowSvBarycentricsDim : SHADER_PERMUTATION_BOOL("NANITE_ALLOW_SV_BARYCENTRICS");
-
-	using FPermutationDomain = TShaderPermutationDomain
-	<
-		FDepthOnlyDim,
-		FVirtualTextureTargetDim,
-		FVertexProgrammableDim,
-		FPixelProgrammableDim,
-		FSplineDeformDim,
-		FAllowSvBarycentricsDim
-	>;
+	using FPermutationDomain = TShaderPermutationDomain<FDepthOnlyDim, FVirtualTextureTargetDim, FVertexProgrammableDim, FPixelProgrammableDim, FSplineDeformDim>;
 
 	using FParameters = FRasterizePassParameters;
 
@@ -1671,11 +1611,6 @@ class FHWRasterizeMS : public FNaniteMaterialShader
 			{
 				return false;
 			}
-		}
-
-		if (!ShouldCompileSvBarycentricPermutation(Parameters.Platform, PermutationVector.Get<FPixelProgrammableDim>(), true, PermutationVector.Get<FAllowSvBarycentricsDim>()))
-		{
-			return false;
 		}
 
 		if (!ShouldCompileProgrammablePermutation(Parameters.MaterialParameters, PermutationVector.Get<FVertexProgrammableDim>(), PermutationVector.Get<FPixelProgrammableDim>()))
@@ -1737,7 +1672,6 @@ public:
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
 	class FVertexProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_VERTEX_PROGRAMMABLE");
 	class FPixelProgrammableDim : SHADER_PERMUTATION_BOOL("NANITE_PIXEL_PROGRAMMABLE");
-	class FAllowSvBarycentricsDim : SHADER_PERMUTATION_BOOL("NANITE_ALLOW_SV_BARYCENTRICS");
 
 	using FPermutationDomain = TShaderPermutationDomain
 	<
@@ -1747,8 +1681,7 @@ public:
 		FVisualizeDim,
 		FVirtualTextureTargetDim,
 		FVertexProgrammableDim,
-		FPixelProgrammableDim,
-		FAllowSvBarycentricsDim
+		FPixelProgrammableDim
 	>;
 
 	using FParameters = FRasterizePassParameters;
@@ -1806,11 +1739,6 @@ public:
 
 		// VSM rendering is depth-only and multiview
 		if (PermutationVector.Get<FVirtualTextureTargetDim>() && !PermutationVector.Get<FDepthOnlyDim>())
-		{
-			return false;
-		}
-
-		if (!ShouldCompileSvBarycentricPermutation(Parameters.Platform, PermutationVector.Get<FPixelProgrammableDim>(), PermutationVector.Get<FMeshShaderDim>(), PermutationVector.Get<FAllowSvBarycentricsDim>()))
 		{
 			return false;
 		}
@@ -1927,7 +1855,6 @@ void SetupPermutationVectors(
 }
 
 static void GetMaterialShaderTypes(
-	EShaderPlatform ShaderPlatform,
 	const ERasterHardwarePath HardwarePath,
 	bool bVertexProgrammable,
 	bool bPixelProgrammable,
@@ -1947,16 +1874,12 @@ static void GetMaterialShaderTypes(
 
 	ProgrammableShaderTypes.PipelineType = nullptr;
 
-	const bool bMeshShaderRasterPath = IsMeshShaderRasterPath(HardwarePath);
-	const bool bUseBarycentricPermutation = ShouldUseSvBarycentricPermutation(ShaderPlatform, bPixelProgrammable, bMeshShaderRasterPath);
-
 	// Mesh shader
-	if (bMeshShaderRasterPath)
+	if (IsMeshShaderRasterPath(HardwarePath))
 	{
 		PermutationVectorMS.Set<FHWRasterizeMS::FSplineDeformDim>(bSplineMesh);
 		PermutationVectorMS.Set<FHWRasterizeMS::FVertexProgrammableDim>(bVertexProgrammable);
 		PermutationVectorMS.Set<FHWRasterizeMS::FPixelProgrammableDim>(bPixelProgrammable);
-		PermutationVectorMS.Set<FHWRasterizeMS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
 		if (bVertexProgrammable)
 		{
 			ProgrammableShaderTypes.AddShaderType<FHWRasterizeMS>(PermutationVectorMS.ToDimensionValueId());
@@ -1985,7 +1908,6 @@ static void GetMaterialShaderTypes(
 	// Pixel Shader
 	PermutationVectorPS.Set<FHWRasterizePS::FVertexProgrammableDim>(bVertexProgrammable);
 	PermutationVectorPS.Set<FHWRasterizePS::FPixelProgrammableDim>(bPixelProgrammable);
-	PermutationVectorPS.Set<FHWRasterizePS::FAllowSvBarycentricsDim>(bUseBarycentricPermutation);
 	if (bPixelProgrammable)
 	{
 		ProgrammableShaderTypes.AddShaderType<FHWRasterizePS>(PermutationVectorPS.ToDimensionValueId());
@@ -2024,7 +1946,6 @@ static void GetMaterialShaderTypes(
 }
 
 void GetMaterialShaderTypesNoDisplacement(
-	EShaderPlatform ShaderPlatform,
 	const ERasterHardwarePath HardwarePath,
 	bool bVertexProgrammable,
 	bool bPixelProgrammable,
@@ -2041,7 +1962,6 @@ void GetMaterialShaderTypesNoDisplacement(
 	FMicropolyRasterizeCS::FPermutationDomain PermutationVectorCS_Patch;
 	const bool bDisplacement = false;
 	GetMaterialShaderTypes(
-		ShaderPlatform,
 		HardwarePath,
 		bVertexProgrammable,
 		bPixelProgrammable,
@@ -2061,7 +1981,6 @@ void GetMaterialShaderTypesNoDisplacement(
 
 void CollectRasterPSOInitializersForPermutation(
 	const FMaterial& Material,
-	EShaderPlatform ShaderPlatform,
 	const ERasterHardwarePath HardwarePath,
 	bool bVertexProgrammable,
 	bool bPixelProgrammable,
@@ -2078,7 +1997,6 @@ void CollectRasterPSOInitializersForPermutation(
 	FMaterialShaderTypes NonProgrammableShaderTypes;
 
 	GetMaterialShaderTypesNoDisplacement(
-		ShaderPlatform,
 		HardwarePath,
 		bVertexProgrammable,
 		bPixelProgrammable,
@@ -2178,7 +2096,6 @@ void CollectRasterPSOInitializersForPermutation(
 
 void CollectRasterPSOInitializersForDefaultMaterial(
 	const FMaterial& Material,
-	EShaderPlatform ShaderPlatform,
 	const ERasterHardwarePath HardwarePath,
 	FHWRasterizeVS::FPermutationDomain& PermutationVectorVS,
 	FHWRasterizeMS::FPermutationDomain& PermutationVectorMS,
@@ -2202,7 +2119,7 @@ void CollectRasterPSOInitializersForDefaultMaterial(
 					bool bSplineMesh = SplineMesh > 0;
 					if (!bSplineMesh || NaniteSplineMeshesSupported())
 					{
-						CollectRasterPSOInitializersForPermutation(Material, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh,
+						CollectRasterPSOInitializersForPermutation(Material, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh,
 							PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS, PSOCollectorIndex, PSOInitializers);
 					}
 				}
@@ -2248,7 +2165,7 @@ void CollectRasterPSOInitializersForPipeline(
 
 	if (PreCacheParams.bDefaultMaterial)
 	{
-		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, ShaderPlatform, HardwarePath, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PSOCollectorIndex, PSOInitializers);
+		CollectRasterPSOInitializersForDefaultMaterial(RasterMaterial, HardwarePath, PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PSOCollectorIndex, PSOInitializers);
 	}
 	else
 	{
@@ -2269,7 +2186,7 @@ void CollectRasterPSOInitializersForPipeline(
 			ERasterizerCullMode MeshCullMode = FMeshPassProcessor::ComputeMeshCullMode(RasterMaterial, OverrideSettings);
 			const bool bIsTwoSided = MaterialBitFlags & NANITE_MATERIAL_FLAG_TWO_SIDED;
 
-			CollectRasterPSOInitializersForPermutation(RasterMaterial, ShaderPlatform, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh,
+			CollectRasterPSOInitializersForPermutation(RasterMaterial, HardwarePath, bVertexProgrammable, bPixelProgrammable, bIsTwoSided, bSplineMesh,
 				PermutationVectorVS, PermutationVectorMS, PermutationVectorPS, PermutationVectorCS_Cluster, PSOCollectorIndex, PSOInitializers);
 		};
 
@@ -3937,7 +3854,6 @@ void FRenderer::PrepareRasterizerPasses(
 				FMaterialShaderTypes NonProgrammableShaderTypes;
 				FMaterialShaderTypes PatchShaderType;
 				GetMaterialShaderTypes(
-					GetFeatureLevelShaderPlatform(FeatureLevel),
 					HardwarePath,
 					RasterizerPass.bVertexProgrammable,
 					RasterizerPass.bPixelProgrammable,
