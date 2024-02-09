@@ -95,14 +95,61 @@ void UTG_Expression_Graph::Evaluate(FTG_EvaluationContext* InContext)
 //////////////////////////////////////////////////////////////////////////
 
 #if WITH_EDITOR
+void UTG_Expression_TextureGraph::PreEditChange(FProperty* PropertyAboutToChange)
+{
+	// if Graph changes catch it first
+	if (PropertyAboutToChange->GetName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_TextureGraph, TextureGraph))
+	{	
+		bool bShouldMarkAsDirty;
+		if (GIsTransacting)
+		{
+			// Don't mark the outer package as dirty during an undo/redo operation.
+			bShouldMarkAsDirty = false;
+		}
+		else if (PropertyAboutToChange && PropertyAboutToChange->HasAnyPropertyFlags(CPF_SkipSerialization))
+		{
+			// Don't mark the outer package as dirty if we're about to change a non-serializable property.
+			bShouldMarkAsDirty = false;
+		}
+		else
+		{
+			PreEditTextureGraph = TextureGraph;
+
+			// Don't mark the outer package as dirty if annotated to be deferred (e.g. during propagation).
+			bShouldMarkAsDirty = false;
+		}
+
+		Modify(bShouldMarkAsDirty);
+
+	}
+	else
+	{
+		Super::PreEditChange(PropertyAboutToChange);
+	}
+}
+
 
 void UTG_Expression_TextureGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	// if Graph changes catch it first
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UTG_Expression_TextureGraph, TextureGraph))
 	{
-		UE_LOG(LogTextureGraph, Log, TEXT("TextureGraph Expression PostEditChangeProperty."));
-		SetTextureGraphInternal(TextureGraph);
+		// In the case of TextureGraph changed from detail panel
+		// Validate the TextureGraph assigned here
+		// if it is not passing then fall back to the previous version which should have been captured in the PreEditChange()
+		bool IsValidTextureGraph = CheckDependencies(TextureGraph);
+		UTextureGraph* PreEditTextureGraphPtr = PreEditTextureGraph.Get();
+		PreEditTextureGraph.Reset();
+		if (!IsValidTextureGraph)
+		{
+			// Early exit without changing anything
+			// Restore the TextureGRaph to its pre edit change values
+			TextureGraph = PreEditTextureGraphPtr;
+		}
+		else
+		{
+			SetTextureGraphInternal(TextureGraph);
+		}		
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -185,17 +232,16 @@ bool UTG_Expression_TextureGraph::CheckDependencies(const UTextureGraph* InTextu
 void UTG_Expression_TextureGraph::SetTextureGraphInternal(UTextureGraph* InTextureGraph)
 {
 	// validate that we're allowed to use InTextureGraph as input here
-	if (!CheckDependencies(InTextureGraph))
+	// if dependencies exist, we don't want to use the InTextureGraph so we ll treat it just like a nullptr.
+	// TODO: At the moment we reset TextureGraph to nullptr when a dependency check fails.
+	// Ideally we'd like to revert to the previous valid value. The problem here is that
+	// TextureGraph at this point comes pre-filled with the problematic value 
+	bool IsValidTextureGraph = CheckDependencies(InTextureGraph);
+	if (!IsValidTextureGraph)
 	{
-		// if dependencies exist, we don't want to keep using the problematic TextureGraph
-		// TODO: At the moment we reset TextureGraph to nullptr when a dependency check fails.
-		// Ideally we'd like to revert to the previous valid value. The problem here is that
-		// TextureGraph at this point comes pre-filled with the problematic value 
-		TextureGraph = nullptr;
-		RuntimeGraph = nullptr;
 		return;
 	}
-	
+
 	Modify();
 	if (!InTextureGraph)
 	{

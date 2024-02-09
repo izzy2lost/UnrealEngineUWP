@@ -244,6 +244,12 @@ void VarPropertySerializer_ObjectProperty(FTG_Var::VarPropertySerialInfo& Info)
 		{
 			TObjectPtr<UObject> ObjectPtr = Info.Var->GetAs<TObjectPtr<UObject>>();
 			ObjectPtrProperty->SetObjectPropertyValue_InContainer(Info.Owner, ObjectPtr.Get(), Info.ClampedIndex());
+
+			// If UObject is going through a setter then make sure to feedback the true end value in the var
+			if (Property->HasSetter())
+			{
+				Info.Var->EditAs<TObjectPtr<UObject>>() = ObjectPtrProperty->GetObjectPropertyValue_InContainer(Info.Owner, Info.ClampedIndex());
+			}
 		}
 		else
 		{
