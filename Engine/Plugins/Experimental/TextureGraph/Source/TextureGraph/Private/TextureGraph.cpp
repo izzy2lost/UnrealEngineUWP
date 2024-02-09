@@ -93,10 +93,10 @@ void UTextureGraph::Construct(FString InName)
 
 	const UTG_Node* OutputNode = TextureGraph->CreateExpressionNode(UTG_Expression_Output::StaticClass());
 
-	Settings->GetViewportSettings().InitDefaultSettings(OutputNode->GetNodeName());
+	UTG_Expression_Output* OutputExpression = Cast<UTG_Expression_Output>(OutputNode->GetExpression());
+	OutputExpression->InitializeOutputSettings();
 
-	OutputSettingsSet = NewObject<UTG_OutputSettingsSet>(this, NAME_None, RF_Transactional);
-	OutputSettingsSet->AddOutputSetting(this, OutputNode->GetNodeName(), Cast<UTG_Expression_Output>(OutputNode->GetExpression()));
+	Settings->GetViewportSettings().InitDefaultSettings(OutputNode->GetNodeName());
 }
 
 
@@ -120,22 +120,6 @@ void UTextureGraph::PostLoad()
 
 	Super::PostLoad();
 	bInvalidateTextures = false;
-
-	// Output Settings Set must exist in case it wasn't saved properly
-	if (!OutputSettingsSet)
-	{
-		OutputSettingsSet = NewObject<UTG_OutputSettingsSet>(this, NAME_None, RF_Transactional);
-		TextureGraph->ForEachParams([&](const UTG_Pin* ParamPin, uint32 Index)
-		{
-			if (ParamPin->IsOutput())
-			{
-				UTG_Node* OutputNode = ParamPin->GetNodePtr();
-				UTG_Expression_Output* OutputExpression = Cast<UTG_Expression_Output>(OutputNode->GetExpression());
-				if (OutputExpression)
-					OutputSettingsSet->AddOutputSetting(this, OutputNode->GetNodeName(), Cast<UTG_Expression_Output>(OutputNode->GetExpression()));
-			}
-		});
-	}
 
 	// Settings must exist in case it wasn't saved properly
 	if (!Settings)
@@ -223,6 +207,66 @@ void UTextureGraph::InvalidateAll()
 	InvalidationFrameId = TextureGraphEngine::GetFrameId();
 
 	TextureGraphEngine::GetMixManager()->InvalidateMix(this, Details);
+}
+
+void UTextureGraph::UpdateGlobalTGSettings()
+{
+	check(GetSettings());
+	GetSettings()->SetWidth(GetMaxWidth());
+	GetSettings()->SetHeight(GetMaxHeight());
+
+	int32 Channels = GetMaxBufferChannels();
+	BufferFormat Format = GetMaxBufferFormat();
+	const ETG_TextureFormat TextureFormat = TextureHelper::GetTGTextureFormatFromChannelsAndFormat(Channels, Format);
+	GetSettings()->SetTextureFormat(TextureFormat);
+}
+
+EResolution UTextureGraph::GetMaxWidth()
+{
+	EResolution MaxWidth = EResolution::Auto;
+	Graph()->ForEachOutputSettings( [MaxWidth](const FTG_OutputSettings& OutSettings) mutable
+	{
+		EResolution ItemWidth = OutSettings.Width;
+		MaxWidth = static_cast<EResolution>(FMath::Max(static_cast<int32>(MaxWidth), static_cast<int32>(ItemWidth)));
+	});
+	return MaxWidth;
+}
+
+EResolution UTextureGraph::GetMaxHeight()
+{
+	EResolution MaxHeight = EResolution::Auto;
+	Graph()->ForEachOutputSettings( [MaxHeight](const FTG_OutputSettings& OutSettings) mutable
+	{
+		EResolution ItemHeight = OutSettings.Height;
+		MaxHeight = static_cast<EResolution>(FMath::Max(static_cast<int32>(MaxHeight), static_cast<int32>(ItemHeight)));
+	});
+	return MaxHeight;
+}
+
+int32 UTextureGraph::GetMaxBufferChannels()
+{
+	uint32 MaxBufferChannels = 0;
+	Graph()->ForEachOutputSettings( [MaxBufferChannels](const FTG_OutputSettings& OutSettings) mutable
+	{
+		uint32 Channels = 0;
+		BufferFormat Format = BufferFormat::Auto;
+		TextureHelper::GetBufferFormatAndChannelsFromTGTextureFormat(OutSettings.TextureFormat, Format, Channels);
+		MaxBufferChannels = FMath::Max(MaxBufferChannels, Channels);
+	});
+	return MaxBufferChannels;
+}
+
+BufferFormat UTextureGraph::GetMaxBufferFormat()
+{
+	BufferFormat MaxBufferFormat = BufferFormat::Auto;
+	Graph()->ForEachOutputSettings( [MaxBufferFormat](const FTG_OutputSettings& OutSettings) mutable
+	{
+		uint32 Channels = 0;
+		BufferFormat Format = BufferFormat::Auto;
+		TextureHelper::GetBufferFormatAndChannelsFromTGTextureFormat(OutSettings.TextureFormat, Format, Channels);
+		MaxBufferFormat = static_cast<BufferFormat>(FMath::Max(static_cast<int32>(MaxBufferFormat), static_cast<int32>(Format)));
+	});
+	return MaxBufferFormat;
 }
 
 void UTextureGraph::Log() const

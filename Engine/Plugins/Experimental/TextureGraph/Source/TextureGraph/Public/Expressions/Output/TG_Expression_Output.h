@@ -37,4 +37,8 @@ public:
 	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Uses the node input as a graph output. It can be exported as a texture asset and is automatically exposed as a graph output parameter. ")); } 
 
 	void UpdateBufferDescriptorValues();
+	void InitializeOutputSettings();
+
+	//Sets the Export bool in OutputSettings pin
+	void SetExport(bool bExport);
 };

@@ -16,7 +16,6 @@ class STG_OutputSelectionDlg : public SWindow
 	SLATE_ARGUMENT(FText, Title)
 	SLATE_ARGUMENT(TObjectPtr<UTG_EdGraph>, EdGraph)
 	SLATE_ARGUMENT(TArray<FText>, ExportItems)
-	SLATE_ARGUMENT(TObjectPtr<UTG_OutputSettingsSet>, OutputSettingsSet)
 	SLATE_END_ARGS()
 
 public:
@@ -31,7 +30,6 @@ protected:
 
 private:
 	TSharedPtr<SScrollBox> ScrollBox;
-	TObjectPtr<UTG_OutputSettingsSet> OutputSettingsSet;
 	TObjectPtr<UTG_EdGraph> EdGraph;
 
 	void AddExportItems();

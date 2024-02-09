@@ -18,9 +18,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category="TG_GraphParams")
 	TObjectPtr<class UTG_Graph> TextureGraph;
 
-	UPROPERTY(EditAnywhere, Category = NoCategory)
-	TObjectPtr<UTG_OutputSettingsSet> OutputSettingsSet;
-
 	bool CheckCyclicDependency(const UTextureGraph* InTextureGraph) const;
 	void GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGraphs) const;
 	
@@ -40,16 +37,25 @@ public:
 	// Override PreSave method of UObject
 	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 
-	virtual const UTG_Graph*			Graph() const { return TextureGraph; }
-	virtual UTG_Graph*					Graph() { return TextureGraph; }
-	UTG_OutputSettingsSet*				GetOutputSettingsSet() { return OutputSettingsSet; }
+	virtual const UTG_Graph* Graph() const { return TextureGraph; }
+	virtual UTG_Graph* Graph() { return TextureGraph; }
 
-	void								InvalidateAll() override;
-	void								Update(MixUpdateCyclePtr InCycle) override;
+	void InvalidateAll() override;
+	void Update(MixUpdateCyclePtr InCycle) override;
 
-	void								PostMeshLoad() override;
+	void PostMeshLoad() override;
 
-	void								TriggerUpdate(bool Tweaking);
+	void TriggerUpdate(bool Tweaking);
 
-	void								Log() const;
+	void UpdateGlobalTGSettings();
+
+	EResolution GetMaxWidth();
+
+	EResolution GetMaxHeight();
+
+	int32 GetMaxBufferChannels();
+
+	BufferFormat GetMaxBufferFormat();
+
+	void Log() const;
 };

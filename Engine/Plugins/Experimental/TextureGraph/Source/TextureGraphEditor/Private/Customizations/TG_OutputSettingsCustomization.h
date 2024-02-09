@@ -214,32 +214,4 @@ public:
 	}
 };
 
-class FTG_OutputExpressionInfoCustomization : public IPropertyTypeCustomization
-{
-public:
-	static TSharedRef<IPropertyTypeCustomization> Create()
-	{
-		return MakeShareable(new FTG_OutputExpressionInfoCustomization);
-	}
-
-	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override
-	{
-		
-	}
-
-	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> PropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override
-	{
-		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-		TArray<void*> RawData;
-		PropertyHandle->AccessRawData(RawData);
-
-		FTG_OutputExpressionInfo* OutputExpressionInfo = reinterpret_cast<FTG_OutputExpressionInfo*>(RawData[0]);
-		TArray<UObject*> ExternalObjects;
-		ExternalObjects.Add(OutputExpressionInfo->OutputPtr);
-
-		ChildBuilder.AddExternalObjectProperty(ExternalObjects, FName("OutputSettings"), FAddPropertyParams().HideRootObjectNode(true));
-	}
-};
-
 #undef LOCTEXT_NAMESPACE
