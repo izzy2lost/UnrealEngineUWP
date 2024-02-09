@@ -2299,6 +2299,8 @@ static void DumpObjects(const TMap<FString, IConsoleObject*>& ConsoleObjects, co
 	FString CSVFilename;
 	bool bWriteToCSV = FParse::Value(Params, TEXT("-csv="), CSVFilename);
 	bWriteToCSV = bWriteToCSV || FParse::Param(Params, TEXT("csv"));
+	FString FilterSetBy;
+	FParse::Value(Params, TEXT("-setby="), FilterSetBy);
 	FString Prefix = FParse::Token(Params, false);
 	if (Prefix.StartsWith(TEXT("-")))
 	{
@@ -2371,6 +2373,10 @@ static void DumpObjects(const TMap<FString, IConsoleObject*>& ConsoleObjects, co
 			}
 			if (!bDisplayCommands && CVar != nullptr)
 			{
+				if (FilterSetBy.Len() > 0 && GetConsoleVariableSetByName(CVar->GetFlags()) != FilterSetBy)
+				{
+					continue;
+				}
 				if (bWriteToCSV)
 				{
 					MultiLogf(Log, CSV, TEXT("%s,%s,%s%s"), *Key, *CVar->GetString(), GetConsoleVariableSetByName(CVar->GetFlags()), *Help);
