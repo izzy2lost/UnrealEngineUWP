@@ -339,8 +339,14 @@ void SPCGEditorGraphDebugObjectTree::Tick(const FGeometry& AllottedGeometry, con
 
 	if (bNeedsRefresh)
 	{
-		bNeedsRefresh = false;
-		RefreshTree();
+		// Updating the tree while the inspected component is generating can be bad as the selection can
+		// be lost. Don't change the tree if we're inspecting something that is generating.
+		const UPCGComponent* InspectedComponent = SelectedStack.GetRootComponent();
+		if(InspectedComponent == nullptr || !InspectedComponent->IsGenerating())
+		{
+			bNeedsRefresh = false;
+			RefreshTree();
+		}
 	}
 }
 
