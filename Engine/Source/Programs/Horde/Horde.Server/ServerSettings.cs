@@ -873,7 +873,7 @@ namespace Horde.Server
 		public List<BaseTelemetryConfig> Telemetry { get; set; } = new ();
 
 		/// <summary>
-		/// Tools bundled along with the server. Data for each tool can be produced using the 'bundle create' command, and should be stored in the /tools/{id} directory.
+		/// Tools bundled along with the server. Data for each tool can be produced using the 'bundle create' command, and should be stored in the Tools directory.
 		/// </summary>
 		public List<BundledToolConfig> BundledTools { get; set; } = new List<BundledToolConfig>();
 		
