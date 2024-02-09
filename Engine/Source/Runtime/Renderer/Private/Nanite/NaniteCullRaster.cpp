@@ -454,7 +454,7 @@ BEGIN_SHADER_PARAMETER_STRUCT( FInstanceWorkGroupParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer< uint >, InInstanceWorkArgs)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FInstanceCullingGroupWork >, InInstanceWorkGroups)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< FViewDrawGroup >, InViewDrawRanges)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, InstanceIdBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer< uint >, InstanceIds)
 END_SHADER_PARAMETER_STRUCT()
 
 inline bool IsValid(const FInstanceWorkGroupParameters &InstanceWorkGroupParameters)
@@ -5747,7 +5747,7 @@ FInstanceWorkGroupParameters FInstanceHierarchyDriver::DispatchCullingPass(FRDGB
 	FInstanceWorkGroupParameters InstanceWorkGroupParameters;
 	InstanceWorkGroupParameters.InInstanceWorkArgs = GraphBuilder.CreateSRV(PassInstanceWorkArgs, PF_R32_UINT);
 	InstanceWorkGroupParameters.InInstanceWorkGroups = GraphBuilder.CreateSRV(InstanceWorkGroupsRDG);
-	InstanceWorkGroupParameters.InstanceIdBuffer = ShaderParameters.InstanceHierarchyItems;
+	InstanceWorkGroupParameters.InstanceIds = ShaderParameters.InstanceIds;
 	InstanceWorkGroupParameters.InViewDrawRanges = GraphBuilder.CreateSRV(ViewDrawRangesRDG);
 
 	return InstanceWorkGroupParameters;

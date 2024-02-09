@@ -14,7 +14,7 @@
 #include "NaniteWritePixel.ush"
 #include "NaniteImposter.ush"
 
-#include "/Engine/Shared/SceneCullingDefinitions.h"
+#include "../SceneCulling/SceneCulling.ush"
 
 void DrawImposter( FNaniteView NaniteView, FInstanceSceneData InstanceData, uint InstanceId, float3 BoundsCenter, float3 BoundsExtent, uint ImposterIndex, FScreenRect Rect )
 {
@@ -191,31 +191,9 @@ Buffer<uint>							InOccludedInstancesArgs;
 
 Buffer<uint>								InInstanceWorkArgs;
 StructuredBuffer<FInstanceCullingGroupWork> InInstanceWorkGroups;
-StructuredBuffer<uint> InstanceIdBuffer;
 
 // These paths are coupled for the time being
 StructuredBuffer<FViewDrawGroup> InViewDrawRanges;
-
-uint UnpackChunkInstanceCount(uint PackedItemChunkDesc, inout bool bOutIsRLEPackedChunk)
-{
-	bOutIsRLEPackedChunk = (PackedItemChunkDesc & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_FLAG) != 0u;
-	uint NumInstances =  bOutIsRLEPackedChunk ? 64u : (PackedItemChunkDesc >> INSTANCE_HIERARCHY_ITEM_CHUNK_COUNT_SHIFT);
-	return NumInstances;
-}
-
-uint UnpackChunkInstanceId(bool bIsRLEPackedChunk, FInstanceCullingGroupWork GroupWorkItem, uint GroupThreadIndex)
-{
-	if (bIsRLEPackedChunk)
-	{
-		uint InstanceDataOffset = GroupWorkItem.PackedItemChunkDesc & INSTANCE_HIERARCHY_ITEM_CHUNK_COMPRESSED_PAYLOAD_MASK;
-		return InstanceDataOffset + GroupThreadIndex;
-	}
-	else
-	{
-		uint ChunkId = GroupWorkItem.PackedItemChunkDesc & INSTANCE_HIERARCHY_ITEM_CHUNK_ID_MASK;
-		return InstanceIdBuffer[ChunkId * INSTANCE_HIERARCHY_MAX_CHUNK_SIZE + GroupThreadIndex];
-	}
-}
 
 #endif 
 
@@ -294,7 +272,7 @@ void InstanceCull(
 
 
 	// Unpack compressed ID OR load the instance ID from the buffer (this is the ID buffer prepped during hierarchy build).
-	uint InstanceId = UnpackChunkInstanceId(bIsRLEPackedChunk, GroupWorkItem, GroupThreadIndex);
+	uint InstanceId = UnpackChunkInstanceId(bIsRLEPackedChunk, GroupWorkItem.PackedItemChunkDesc, GroupThreadIndex);
 	{
 
 #else // !INSTANCE_CULL_USE_WORK_GROUP_BUFFER

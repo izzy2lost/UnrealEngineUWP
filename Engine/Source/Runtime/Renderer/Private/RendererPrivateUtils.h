@@ -85,7 +85,18 @@ void AddBufferLockReadbackPass(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPoole
 	});
 }
 
+class FBufferScatterUploader
+{
+public:
+	// Used to capture GPU scatter buffer and num, to use for example to chain a compute shader doing some per-updated-thing work
+	struct FScatterInfo
+	{
+		FRDGBuffer *ScatterOffsetsRDG;
+		int32 NumScatters;
+	};
 
+	void UploadTo(FRDGBuilder& GraphBuilder, FRDGBuffer *DestBuffer, FRDGBuffer *ScatterOffsets, FRDGBuffer *Values, uint32 NumScatters, uint32 NumBytesPerElement, int32 NumValuesPerScatter);
+};
 
 namespace UE::RendererPrivateUtils::Implementation
 {
@@ -110,12 +121,6 @@ protected:
 	const TCHAR *Name = nullptr;
 	bool bRoundUpToPOT = true;
 	TRefCountPtr<FRDGPooledBuffer> PooledBuffer;
-};
-
-class FBufferScatterUploader
-{
-public:
-	void UploadTo(FRDGBuilder& GraphBuilder, FRDGBuffer *DestBuffer, FRDGBuffer *ScatterOffsets, FRDGBuffer *Values, uint32 NumScatters, uint32 NumBytesPerElement, int32 NumValuesPerScatter);
 };
 
 struct FStructuredBufferTraits
@@ -297,20 +302,21 @@ public:
 	 * Resize the destination persistent buffer (if needed) and upload & scatter the collected data to it.
 	 * This locks the uploader to prevent accidental resize (and thus realloc) of the buffer by adding more elements.
 	 */
-	FRDGBuffer *ResizeAndUploadTo(FRDGBuilder& GraphBuilder, TPersistentBuffer<ValueType, BufferTraits> &DestDataBuffer, int32 DestDataMinimumSize)
+	FRDGBuffer *ResizeAndUploadTo(FRDGBuilder& GraphBuilder, TPersistentBuffer<ValueType, BufferTraits> &DestDataBuffer, int32 DestDataMinimumSize, FScatterInfo &OutScatterInfo)
 	{
 		check(UploadDataProxy == nullptr);
 
 		FRDGBuffer *DestBufferRDG = DestDataBuffer.ResizeBufferIfNeeded(GraphBuilder, DestDataMinimumSize);
 
-		uint32 NumScatters = UploadData.ScatterOffsets.Num();
-		if (NumScatters != 0u)
+		OutScatterInfo.NumScatters = UploadData.ScatterOffsets.Num();
+		OutScatterInfo.ScatterOffsetsRDG = nullptr;
+		if (OutScatterInfo.NumScatters != 0u)
 		{
 			// Move the data arrays to a proxy object owned by RDG to guarantee life-times for upload.
 			UploadDataProxy = GraphBuilder.AllocObject<FUploadData>(MoveTemp(UploadData));
 
 			// upload the values & offsets
-			FRDGBuffer *ScatterOffsetsRDG = BufferTraits::CreateUploadBuffer(GraphBuilder, TEXT("ScatterUploader.Offsets"), UploadDataProxy->ScatterOffsets);
+			OutScatterInfo.ScatterOffsetsRDG = BufferTraits::CreateUploadBuffer(GraphBuilder, TEXT("ScatterUploader.Offsets"), UploadDataProxy->ScatterOffsets);
 			FRDGBuffer *ValuesRDG = BufferTraits::CreateUploadBuffer(GraphBuilder, TEXT("ScatterUploader.Values"), UploadDataProxy->Values);
 
 			uint32 ElementSize = sizeof(ValueType);
@@ -321,11 +327,18 @@ public:
 				ElementSize *= ElementsPerScatter;
 				ElementsPerScatter = INDEX_NONE;
 			}
-			FBufferScatterUploader::UploadTo(GraphBuilder, DestBufferRDG, ScatterOffsetsRDG, ValuesRDG, NumScatters, ElementSize, ElementsPerScatter);
+			FBufferScatterUploader::UploadTo(GraphBuilder, DestBufferRDG, OutScatterInfo.ScatterOffsetsRDG, ValuesRDG, OutScatterInfo.NumScatters, ElementSize, ElementsPerScatter);
 		}
 
 		return DestBufferRDG;
 	}
+	
+	FRDGBuffer *ResizeAndUploadTo(FRDGBuilder& GraphBuilder, TPersistentBuffer<ValueType, BufferTraits> &DestDataBuffer, int32 DestDataMinimumSize)
+	{
+		FScatterInfo ScatterInfo = { nullptr, 0 };
+		return ResizeAndUploadTo(GraphBuilder, DestDataBuffer, DestDataMinimumSize, ScatterInfo);
+	}
+
 private:
 	struct FUploadData
 	{

@@ -8,6 +8,10 @@
 #include "HAL/LowLevelMemStats.h"
 #include "InstanceDataSceneProxy.h"
 
+#if !UE_BUILD_SHIPPING
+#include "RenderCaptureInterface.h"
+#endif
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #include "RendererModule.h"
 #include "DynamicPrimitiveDrawing.h"
@@ -162,6 +166,26 @@ static TAutoConsoleVariable<int32> CVarValidateAllInstanceAllocations(
 	0, 
 	TEXT("Perform validation of all instance IDs stored in the grid. This is very slow."), 
 	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarSceneCullingUseExplicitCellBounds(
+	TEXT("r.SceneCulling.ExplicitCellBounds"), 
+	1, 
+	TEXT("Enable to to construct explicit cell bounds by processing the instance bounds as the scene is updated. Adds some GPU cost to the update but this is typically more than paid for by improved culling."),
+	ECVF_RenderThreadSafe);
+
+#if !UE_BUILD_SHIPPING
+
+static int32 GCaptureNextSceneCullingUpdate = -1;
+static FAutoConsoleVariableRef CVarCaptureNextSceneCullingUpdate(
+	TEXT("r.CaptureNextSceneCullingUpdate"),
+	GCaptureNextSceneCullingUpdate,
+	TEXT("0 to capture the immideately next frame using e.g. RenderDoc or PIX.\n")
+	TEXT(" > 0: N frames delay\n")
+	TEXT(" < 0: disabled"),
+	ECVF_RenderThreadSafe);
+
+#endif
+
 
 #if SC_ENABLE_GPU_DATA_VALIDATION
 
@@ -716,9 +740,53 @@ void FSceneCulling::Empty()
 
 	CellHeadersBuffer.Empty();
 	ItemChunksBuffer.Empty();
-	ItemsBuffer.Empty();
+	InstanceIdsBuffer.Empty();
 	CellBlockDataBuffer.Empty();
+	ExplicitCellBoundsBuffer.Empty();
 }
+
+class FComputeExplicitCellBounds_CS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FComputeExplicitCellBounds_CS);
+	SHADER_USE_PARAMETER_STRUCT(FComputeExplicitCellBounds_CS, FGlobalShader);
+
+	class FFullBuildDim : SHADER_PERMUTATION_BOOL("DO_FULL_REBUILD");
+	using FPermutationDomain = TShaderPermutationDomain<FFullBuildDim>;
+
+	static constexpr int32 NumThreadsPerGroup = 64;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
+	{ 
+		return DoesPlatformSupportNanite(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
+		OutEnvironment.SetDefine(TEXT("NUM_THREADS_PER_GROUP"), NumThreadsPerGroup);
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		//SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
+
+		SHADER_PARAMETER(uint32, NumCellsPerBlockLog2)
+		SHADER_PARAMETER(uint32, CellBlockDimLog2)
+		SHADER_PARAMETER(uint32, LocalCellCoordMask) // (1 << NumCellsPerBlockLog2) - 1
+		SHADER_PARAMETER(int32, FirstLevel)
+		SHADER_PARAMETER(int32, MaxCells)
+
+		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FCellBlockData >, InstanceHierarchyCellBlockData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< FPackedCellHeader >, InstanceHierarchyCellHeaders)
+		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >, InstanceHierarchyItemChunks)
+		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >, InstanceIds)
+		SHADER_PARAMETER_RDG_BUFFER_SRV( StructuredBuffer< uint >, UpdatedCellIds)
+		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer<FVector4f>, OutExplicitCellBoundsBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FComputeExplicitCellBounds_CS, "/Engine/Private/SceneCulling/SceneCullingBuildExplicitBounds.usf", "ComputeExplicitCellBounds", SF_Compute);
 
 /**
  * Produce a world-space bounding sphere for an instance given local bounds and transforms.
@@ -2134,9 +2202,16 @@ public:
 		SceneCulling.PublishStats();
 	}
 
-	void UploadToGPU(FRDGBuilder& GraphBuilder)
+	void UploadToGPU(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer)
 	{
 		BUILDER_LOG("UploadToGPU %d", ItemChunkUploader.GetNumScatters());
+
+		bool bValidToCapture = CellHeaderUploader.GetNumScatters() > 0;
+#if !UE_BUILD_SHIPPING
+		RenderCaptureInterface::FScopedCapture RenderCapture(bValidToCapture && GCaptureNextSceneCullingUpdate-- == 0, GraphBuilder, TEXT("UploadToGPU"));
+		// Prevent overflow every 2B frames.
+		GCaptureNextSceneCullingUpdate = FMath::Max(-1, GCaptureNextSceneCullingUpdate);
+#endif
 
 		INC_DWORD_STAT_BY(STAT_SceneCulling_UploadedChunks, ItemChunkUploader.GetNumScatters())
 		INC_DWORD_STAT_BY(STAT_SceneCulling_UploadedCells, CellHeaderUploader.GetNumScatters());
@@ -2144,11 +2219,56 @@ public:
 		INC_DWORD_STAT_BY(STAT_SceneCulling_UploadedBlocks, BlockDataUploader.GetNumScatters());
 
 		//TODO: capture and return the (returned) registered buffers, probably need to do that elsewhere anyway?
-		BlockDataUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.CellBlockDataBuffer, SceneCulling.CellBlockData.Num());
-		ItemChunkDataUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.ItemsBuffer, SceneCulling.PackedCellData.Num());
-		CellHeaderUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.CellHeadersBuffer, SceneCulling.CellHeaders.Num());
-		ItemChunkUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.ItemChunksBuffer, SceneCulling.PackedCellChunkData.Num());
+		FRDGBuffer *CellBlockDataRDG = BlockDataUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.CellBlockDataBuffer, SceneCulling.CellBlockData.Num());
+		FBufferScatterUploader::FScatterInfo UpdatedCellScatterInfo;
+		FRDGBuffer *CellHeadersRDG = CellHeaderUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.CellHeadersBuffer, SceneCulling.CellHeaders.Num(), UpdatedCellScatterInfo);
+		FRDGBuffer *InstanceIdsRDG = ItemChunkDataUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.InstanceIdsBuffer, SceneCulling.PackedCellData.Num());
+		FRDGBuffer *ItemChunksRDG = ItemChunkUploader.ResizeAndUploadTo(GraphBuilder, SceneCulling.ItemChunksBuffer, SceneCulling.PackedCellChunkData.Num());
 		
+		if (SceneCulling.bUseExplictBounds)
+		{
+			bool bFullUpload = !SceneCulling.ExplicitCellBoundsBuffer.GetPooledBuffer().IsValid();
+			SceneCulling.ExplicitCellBoundsBuffer.ResizeBufferIfNeeded(GraphBuilder, SceneCulling.CellHeaders.Num() * 2);
+
+			if (UpdatedCellScatterInfo.NumScatters > 0 || bFullUpload)
+			{
+				RDG_EVENT_SCOPE(GraphBuilder, "SceneCulling_ComputeExplicitCellBounds");
+				FComputeExplicitCellBounds_CS::FParameters* PassParameters = GraphBuilder.AllocParameters<FComputeExplicitCellBounds_CS::FParameters>();
+				//ShaderPrint::SetParameters(GraphBuilder, PassParameters->ShaderPrintUniformBuffer);
+				PassParameters->Scene = SceneUniformBuffer.GetBuffer(GraphBuilder);
+				PassParameters->NumCellsPerBlockLog2 = FSpatialHash::NumCellsPerBlockLog2;
+				PassParameters->CellBlockDimLog2 = FSpatialHash::CellBlockDimLog2;
+				PassParameters->LocalCellCoordMask = (1U << FSpatialHash::CellBlockDimLog2) - 1U;
+				PassParameters->FirstLevel = SceneCulling.SpatialHash.GetFirstLevel();
+				PassParameters->InstanceHierarchyCellBlockData = GraphBuilder.CreateSRV(CellBlockDataRDG);
+				PassParameters->InstanceHierarchyCellHeaders = GraphBuilder.CreateSRV(CellHeadersRDG);
+				PassParameters->InstanceIds = GraphBuilder.CreateSRV(InstanceIdsRDG);
+				PassParameters->InstanceHierarchyItemChunks = GraphBuilder.CreateSRV(ItemChunksRDG);
+				PassParameters->UpdatedCellIds = GraphBuilder.CreateSRV(bFullUpload ? GSystemTextures.GetDefaultStructuredBuffer<uint32>(GraphBuilder) : UpdatedCellScatterInfo.ScatterOffsetsRDG);
+				int32 MaxCellCount = bFullUpload ? SceneCulling.CellHeaders.Num() : UpdatedCellScatterInfo.NumScatters;
+				PassParameters->MaxCells = MaxCellCount;
+				PassParameters->OutExplicitCellBoundsBuffer = GraphBuilder.CreateUAV(SceneCulling.ExplicitCellBoundsBuffer.Register(GraphBuilder));
+
+				FComputeExplicitCellBounds_CS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FComputeExplicitCellBounds_CS::FFullBuildDim>(bFullUpload);
+
+				auto ComputeShader = GetGlobalShaderMap(SceneCulling.Scene.GetFeatureLevel())->GetShader<FComputeExplicitCellBounds_CS>(PermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("ComputeExplicitCellBounds"),
+					ComputeShader,
+					PassParameters,
+					FComputeShaderUtils::GetGroupCountWrapped(MaxCellCount)
+				);
+			}
+		}
+		else
+		{
+			SceneCulling.ExplicitCellBoundsBuffer.Empty();
+		}
+
+
 #if SC_ENABLE_GPU_DATA_VALIDATION
 		if (CVarValidateGPUData.GetValueOnRenderThread() != 0)
 		{
@@ -2160,7 +2280,7 @@ public:
 					check(GPUValue.Pad == HostValue.Pad); 
 					check(GPUValue.Pad == 0xDeafBead); 				
 				});
-			SceneCulling.ItemsBuffer.ValidateGPUData(GraphBuilder, TConstArrayView<const uint32>(SceneCulling.PackedCellData), 
+			SceneCulling.InstanceIdsBuffer.ValidateGPUData(GraphBuilder, TConstArrayView<const uint32>(SceneCulling.PackedCellData), 
 				[this](int32 Index, int32 HostValue, int32 GPUValue) 
 				{
 					check(GPUValue == HostValue); 
@@ -2399,8 +2519,9 @@ FSceneCulling::FSceneCulling(FScene& InScene)
 	, SpatialHash( CVarSceneCullingMinCellSize.GetValueOnAnyThread(), CVarSceneCullingMaxCellSize.GetValueOnAnyThread())
 	, CellHeadersBuffer(16, TEXT("SceneCulling.CellHeaders"))
 	, ItemChunksBuffer(16, TEXT("SceneCulling.ItemChunks"))
-	, ItemsBuffer(16, TEXT("SceneCulling.Items"))
+	, InstanceIdsBuffer(16, TEXT("SceneCulling.Items"))
 	, CellBlockDataBuffer(16, TEXT("SceneCulling.CellBlockData"))
+	, ExplicitCellBoundsBuffer(16, TEXT("SceneCulling.ExplicitCellBounds"))
 {
 #if (!(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 	if (CVarSceneCulling.GetValueOnAnyThread() != 0 && !UseNanite(InScene.GetShaderPlatform()))
@@ -2419,11 +2540,11 @@ FSceneCulling::FUpdater::~FUpdater()
 	}
 }
 
-FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder, bool bAnySceneUpdatesExpected)
+FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, bool bAnySceneUpdatesExpected)
 {	
 	if (Updater.Implementation != nullptr)
 	{
-		Updater.FinalizeAndClear(GraphBuilder, false);
+		Updater.FinalizeAndClear(GraphBuilder, SceneUniformBuffer, false);
 	}
 
 	check(Updater.Implementation == nullptr);
@@ -2436,6 +2557,8 @@ FSceneCulling::FUpdater &FSceneCulling::BeginUpdate(FRDGBuilder& GraphBuilder, b
 #endif
 	// Note: this only works in concert with the FGlobalComponentRecreateRenderStateContext on the CVarSceneCulling callback ensuring all geometry is re-registered
 	bIsEnabled = UseSceneCulling(Scene.GetShaderPlatform());
+
+	bUseExplictBounds = CVarSceneCullingUseExplicitCellBounds.GetValueOnRenderThread() != 0;
 
 	SmallFootprintCellCountThreshold = CVarSmallFootprintCellCountThreshold.GetValueOnRenderThread();
 	bUseAsyncUpdate = CVarSceneCullingAsyncUpdate.GetValueOnRenderThread() != 0;
@@ -2511,7 +2634,7 @@ void FSceneCulling::FUpdater::OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const
 #endif
 }
 
-void FSceneCulling::FUpdater::FinalizeAndClear(FRDGBuilder& GraphBuilder, bool bPublishStats)
+void FSceneCulling::FUpdater::FinalizeAndClear(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, bool bPublishStats)
 {
 	LLM_SCOPE_BYTAG(SceneCulling);
 	if (Implementation != nullptr)
@@ -2523,7 +2646,7 @@ void FSceneCulling::FUpdater::FinalizeAndClear(FRDGBuilder& GraphBuilder, bool b
 
 		PostUpdateTaskHandle.Wait();
 
-		Implementation->UploadToGPU(GraphBuilder);
+		Implementation->UploadToGPU(GraphBuilder, SceneUniformBuffer);
 		
 		if (bPublishStats)
 		{
@@ -2538,11 +2661,11 @@ void FSceneCulling::FUpdater::FinalizeAndClear(FRDGBuilder& GraphBuilder, bool b
 	}
 }
 
-void FSceneCulling::EndUpdate(FRDGBuilder& GraphBuilder, bool bPublishStats)
+void FSceneCulling::EndUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniformBuffer, bool bPublishStats)
 {
 	if (bIsEnabled)
 	{
-		Updater.FinalizeAndClear(GraphBuilder, bPublishStats);
+		Updater.FinalizeAndClear(GraphBuilder, SceneUniformBuffer, bPublishStats);
 #if DO_CHECK
 		ValidateAllInstanceAllocations();
 #endif
