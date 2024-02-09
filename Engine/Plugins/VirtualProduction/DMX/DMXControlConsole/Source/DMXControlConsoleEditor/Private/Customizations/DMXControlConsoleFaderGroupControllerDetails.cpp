@@ -91,27 +91,28 @@ namespace UE::DMX::Private
 	bool FDMXControlConsoleFaderGroupControllerDetails::AreAllFaderGroupControllersUnpatched() const
 	{
 		const TArray<UDMXControlConsoleFaderGroupController*> SelectedFaderGroupControllers = GetValidFaderGroupControllersBeingEdited();
-		for (const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController : SelectedFaderGroupControllers)
-		{
-			if (!SelectedFaderGroupController)
+		const bool bAreAllFaderGroupControllersUnpatched = Algo::AllOf(SelectedFaderGroupControllers,
+			[](const UDMXControlConsoleFaderGroupController* FaderGroupController)
 			{
-				continue;
-			}
+				return FaderGroupController && !FaderGroupController->HasFixturePatch();
+			});
 
-			const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = SelectedFaderGroupController->GetFaderGroups();
-			const bool bAreAllFaderGroupsUnpatched = Algo::AllOf(FaderGroups,
-				[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
-				{
-					return FaderGroup.IsValid() && !FaderGroup->HasFixturePatch();
-				});
+		return bAreAllFaderGroupControllersUnpatched;
+	}
 
-			if (!bAreAllFaderGroupsUnpatched)
+	bool FDMXControlConsoleFaderGroupControllerDetails::IsFaderGroupControllersColorEditable() const
+	{
+		const TArray<UDMXControlConsoleFaderGroupController*> SelectedFaderGroupControllers = GetValidFaderGroupControllersBeingEdited();
+		const bool bAreControllersUnpatchedOrMultiple = Algo::AllOf(SelectedFaderGroupControllers,
+			[](const UDMXControlConsoleFaderGroupController* FaderGroupController)
 			{
-				return false;
-			}
-		}
+				return 
+					FaderGroupController &&
+					(!FaderGroupController->HasFixturePatch() ||
+					FaderGroupController->GetFaderGroups().Num() > 1);
+			});
 
-		return true;
+		return bAreControllersUnpatchedOrMultiple;
 	}
 
 	ECheckBoxState FDMXControlConsoleFaderGroupControllerDetails::IsLockChecked() const
@@ -235,7 +236,7 @@ namespace UE::DMX::Private
 
 	EVisibility FDMXControlConsoleFaderGroupControllerDetails::GetEditorColorVisibility() const
 	{
-		return AreAllFaderGroupControllersUnpatched() ? EVisibility::Visible : EVisibility::Collapsed;
+		return IsFaderGroupControllersColorEditable() ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 
 	EVisibility FDMXControlConsoleFaderGroupControllerDetails::GetClearButtonVisibility() const

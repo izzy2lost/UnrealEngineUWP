@@ -34,6 +34,9 @@ namespace UE::DMX::Private
 		/** True if all the selected controllers have only unpatched fader groups */
 		bool AreAllFaderGroupControllersUnpatched() const;
 
+		/** True if the editor color of the selected controllers can be edited */
+		bool IsFaderGroupControllersColorEditable() const;
+
 		/** Called to toggle the lock state of the selected fader group controllers */
 		void OnLockToggleChanged(ECheckBoxState CheckState);
 

@@ -117,6 +117,9 @@ namespace UE::DMX::Private
 		/** Gets the visibility for the toolbar sections visible only in expanded view mode */
 		EVisibility GetExpandedViewModeVisibility() const;
 
+		/** Gets the visibility for the toolbar serch box */
+		EVisibility GetSearchBoxVisibility() const;
+
 		/** Expander arrow button for showing/hiding the Element Controller views */
 		TSharedPtr<SDMXControlConsoleEditorExpandArrowButton> ExpandArrowButton;
 
