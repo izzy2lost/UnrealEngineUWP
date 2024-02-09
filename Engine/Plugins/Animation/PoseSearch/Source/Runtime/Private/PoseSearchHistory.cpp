@@ -89,9 +89,9 @@ static FComponentSpaceTransformIndex GetRemappedComponentSpaceTransformIndex(con
 	check(BoneIndexType != WorldSpaceIndexType);
 
 	FComponentSpaceTransformIndex BoneTransformIndex = FComponentSpaceTransformIndex(BoneIndexType);
-	if (BoneIndexType != ComponentSpaceIndexType)
+	if (BoneTransformIndex != ComponentSpaceIndexType)
 	{
-		BoneIndexType = GetRemappedBoneIndexType(BoneIndexType, BoneIndexSkeleton, LastUpdateSkeleton);
+		BoneTransformIndex = GetRemappedBoneIndexType(BoneTransformIndex, BoneIndexSkeleton, LastUpdateSkeleton);
 
 		if (!BoneToTransformMap.IsEmpty())
 		{
