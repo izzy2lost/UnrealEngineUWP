@@ -17,10 +17,10 @@ import { getHordeStyling } from "../../styles/Styles";
 
 export abstract class JobDataView {
 
-   constructor(details: JobDetailsV2, initObservable?:boolean) {
+   constructor(details: JobDetailsV2, initObservable?: boolean) {
       if (initObservable === undefined || initObservable) {
-         makeObservable(this);   
-      }      
+         makeObservable(this);
+      }
       this.details = details;
    }
 
@@ -181,6 +181,21 @@ export class JobDetailsV2 extends PollBase {
       this.timing = undefined;
       this.reportData = new Map();
       this.overview = undefined;
+   }
+
+   viewReady(order: number): boolean {
+
+      const views = this.views.sort((a, b) => {
+         return a.order - b.order;
+      });
+
+      for (let i = 0; i < views.length; i++) {
+         if (!views[i].initialized && views[i].order < order) {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    get viewsReady(): boolean {
@@ -743,7 +758,7 @@ export class JobDetailsV2 extends PollBase {
    nodes: NodeData[] = [];
    batches: BatchData[] = [];
    template?: GetTemplateRefResponse;
-   
+
    // stepId => artifacts
    stepArtifacts = new Map<string, GetArtifactResponseV2[]>();
 
@@ -795,7 +810,7 @@ export class JobDetailsV2 extends PollBase {
       getStepsRecursive(stepId);
 
       steps.push(step);
-      
+
       return steps;
 
    }

@@ -178,9 +178,14 @@ export const HealthPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ j
 
    let issues: GetIssueResponse[] = Object.assign([], dataView.issues);
 
-   if (!jobDetails.jobData || !issues.length || !jobDetails?.viewsReady) {
+   if (!jobDetails.jobData || !issues.length) {
       return null;
    }
+
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
+
 
    type HealthItem = {
       issue: GetIssueResponse;

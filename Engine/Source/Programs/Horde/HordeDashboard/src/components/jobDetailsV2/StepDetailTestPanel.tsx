@@ -129,9 +129,13 @@ export const StepTestReportPanel: React.FC<{ jobDetails: JobDetailsV2, stepId?: 
    dataView.set(stepId);
 
    const testdata = dataView.testData;
-   if (!testdata?.length || !jobDetails?.viewsReady) {
+   if (!testdata?.length) {
       return null;
    }   
+
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
 
    const testdataItems: TestDataItem[] = [];
    testdata.forEach((test) => {

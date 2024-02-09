@@ -150,6 +150,9 @@ export const PreflightPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer((
       return null;
    }
 
+   if (!jobDetails.viewReady(preflightView.order)) {
+      return null;
+   }
 
    return (<Stack id={sideRail.url} styles={{ root: { paddingTop: 18, paddingRight: 12 } }}>
       <Stack className={hordeClasses.raised} >

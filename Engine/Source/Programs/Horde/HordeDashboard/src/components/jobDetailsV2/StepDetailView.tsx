@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { Stack } from "@fluentui/react";
+import { Spinner, SpinnerSize, Stack } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -178,6 +178,10 @@ const StepDetailViewInner: React.FC<{ jobDetails: JobDetailsV2, stepId: string }
       {!!step && <Stack>
          <BisectionPanel jobDetails={jobDetails} stepId={stepId} />
       </Stack>}
+      {!jobDetails.viewsReady && <Stack style={{paddingTop: 32}}>
+         <Spinner size={SpinnerSize.large} />
+      </Stack>}
+
    </Stack>
 });
 

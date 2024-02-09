@@ -114,6 +114,10 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
 
    dataView.set(stepId);
 
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
+
    type HistoryItem = {
       ref: GetJobStepRefResponse;
    };

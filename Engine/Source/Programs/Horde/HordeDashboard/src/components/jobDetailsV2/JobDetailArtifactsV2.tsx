@@ -227,6 +227,10 @@ export const JobDetailArtifactsV2: React.FC<{ jobDetails: JobDetailsV2; stepId: 
    dataView.subscribe();
    dataView.set(stepId);
 
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
+
    if (jobDetails.jobData?.useArtifactsV2) {
 
       const imgSrc = dashboard.darktheme ? "/images/notifications/artifacts_moved_dark.png" : "/images/notifications/artifacts_moved_light.png";

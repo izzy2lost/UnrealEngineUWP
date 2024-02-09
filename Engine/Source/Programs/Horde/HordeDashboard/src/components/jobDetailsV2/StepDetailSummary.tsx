@@ -212,6 +212,10 @@ export const StepSummaryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
       return null;
    }
 
+   if (!jobDetails.viewReady(dataView.order)) {
+      return null;
+   }
+
    const jobPrice = jobDetails.jobPrice();
    const stepPrice = jobDetails.stepPrice(stepId);
 
