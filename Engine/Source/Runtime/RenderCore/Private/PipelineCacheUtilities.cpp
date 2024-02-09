@@ -68,8 +68,9 @@ namespace Private
 		enum class EVersion : int32
 		{
 			AddingPipelineCacheVersion = 5,
+			AddingDepthBounds = 6,
 
-			Current = AddingPipelineCacheVersion
+			Current = AddingDepthBounds
 		};
 
 		/** Magic to reject other files */

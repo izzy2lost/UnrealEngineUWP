@@ -1074,6 +1074,8 @@ bool FShaderPipelineCacheTask::Precompile(FRHICommandListImmediate& RHICmdList, 
 				GraphicsInitializer.MultiViewCount = PSO.GraphicsDesc.MultiViewCount;
 				GraphicsInitializer.bHasFragmentDensityAttachment = PSO.GraphicsDesc.bHasFragmentDensityAttachment;
 
+				GraphicsInitializer.bDepthBounds = PSO.GraphicsDesc.bDepthBounds;
+
 				GraphicsInitializer.DepthStencilTargetFormat = PSO.GraphicsDesc.DepthStencilFormat;
 				GraphicsInitializer.DepthStencilTargetFlag = PSO.GraphicsDesc.DepthStencilFlags;
 				GraphicsInitializer.DepthTargetLoadAction = PSO.GraphicsDesc.DepthLoad;
