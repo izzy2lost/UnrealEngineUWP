@@ -139,9 +139,6 @@ protected:
 
 	EVisibility GetEffectsListVisibility() const;
 
-	EVisibility GetNewEffectVisibility() const;
-	TSharedRef<SWidget> CreateNewEffectButton();
-
 	TSharedRef<SWidget> CreateNewEffectMenu();
 
 	FReply OnCreateLayerBypassButtonClicked();

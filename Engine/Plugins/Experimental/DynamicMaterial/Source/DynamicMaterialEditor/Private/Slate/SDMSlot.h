@@ -155,6 +155,9 @@ protected:
 	FText GetLayerButtonsDescription() const;
 	TSharedRef<SWidget> GetLayerButtonsMenuContent();
 
+	bool GetLayerCanAddEffect() const;
+	TSharedRef<SWidget> GetLayerEffectsMenuContent();
+
 	bool GetLayerRowsButtonsCanDuplicate() const;
 	FReply OnLayerRowButtonsDuplicateClicked();
 
