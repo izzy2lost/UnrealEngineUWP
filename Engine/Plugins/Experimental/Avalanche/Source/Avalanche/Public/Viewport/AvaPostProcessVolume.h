@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -22,7 +22,7 @@ public:
 		bUnbound = true;
 
 		Settings.bOverride_AutoExposureBias = 1;
-		Settings.AutoExposureBias = 0.f;
+		Settings.AutoExposureBias = 1.f;
 
 		Settings.bOverride_AutoExposureMinBrightness = 1;
 		Settings.AutoExposureMinBrightness = 1.f;
