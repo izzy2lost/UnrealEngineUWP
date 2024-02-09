@@ -158,6 +158,10 @@ public:
 		return NAME_MeshBuilder;
 	}
 
+	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override
+	{
+	}
+
 	virtual void GetTextureFormatModuleHints(TArray<FName>& OutModuleNames) const override
 	{
 		// these are the default texture format modules, since many platforms 
@@ -243,22 +247,6 @@ public:
 	{
 		// HasEditorOnlyData and RequiresCookedData are mutually exclusive.
 		check(TPlatformProperties::HasEditorOnlyData() != TPlatformProperties::RequiresCookedData());
-	}
-
-	/**
-	 * Constructor that makes a TPCI based solely on TPlatformProperties
-	 */
-	TTargetPlatformControlsBase(ITargetPlatformSettings* TargetPlatformSettings)
-		: TTargetPlatformControlsBase(new PlatformInfo::FTargetPlatformInfo(
-			TPlatformProperties::IniPlatformName(),
-			TPlatformProperties::HasEditorOnlyData() ? EBuildTargetType::Editor :
-			TPlatformProperties::IsServerOnly() ? EBuildTargetType::Server :
-			TPlatformProperties::IsClientOnly() ? EBuildTargetType::Client :
-			EBuildTargetType::Game,
-			TEXT("")),
-			TargetPlatformSettings
-		)
-	{
 	}
 
 	virtual bool HasEditorOnlyData() const override

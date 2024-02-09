@@ -861,7 +861,7 @@ public:
 	}
 	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override 
 	{
-		TargetPlatformSettings->GetShaderFormatModuleHints(OutModuleNames);
+		TargetPlatformControls->GetShaderFormatModuleHints(OutModuleNames);
 	}
 	virtual void GetTextureFormats(const class UTexture* Texture, TArray< TArray<FName> >& OutFormats) const override 
 	{

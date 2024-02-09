@@ -38,10 +38,6 @@ public:
 	TARGETPLATFORM_API virtual void GetRayTracingShaderFormats(TArray<FName>& OutFormats) const override;
 
 #if WITH_ENGINE
-	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const override
-	{
-	}
-
 	virtual void GetReflectionCaptureFormats(TArray<FName>& OutFormats) const override
 	{
 		OutFormats.Add(FName(TEXT("FullHDR")));

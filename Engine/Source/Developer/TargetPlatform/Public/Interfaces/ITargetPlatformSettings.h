@@ -242,13 +242,6 @@ public:
 
 #if WITH_ENGINE
 	/**
-	 * Gets a list of modules that may contain the GetAllTargetedShaderFormats. This is optional -
-	 * if any required shader format isn't found in this list, then it will use the old path
-	 * of loading all shader format modules to gather all available shader formats
-	 */
-	virtual void GetShaderFormatModuleHints(TArray<FName>& OutModuleNames) const = 0;
-
-	/**
 	 * Gets the reflection capture formats this platform needs.
 	 *
 	 * @param OutFormats Will contain the collection of formats.
