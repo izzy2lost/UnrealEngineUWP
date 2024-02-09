@@ -434,7 +434,6 @@ public:
 	uint8 bIsEditorOnlyActor:1;
 
 	/** Indicates the actor was pulled through a seamless travel.  */
-	UPROPERTY()
 	uint8 bActorSeamlessTraveled:1;
 
 	/**
