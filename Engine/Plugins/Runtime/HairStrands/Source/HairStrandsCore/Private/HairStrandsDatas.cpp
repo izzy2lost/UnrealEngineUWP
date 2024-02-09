@@ -689,9 +689,7 @@ float FHairStrandsBulkData::GetCoverageScale(float InCurvePercentage /*[0..1]*/)
 
 void FHairStrandsInterpolationBulkData::Reset()
 {
-	Header.Flags = 0;
-	Header.PointCount = 0;
-	Header.CurveCount = 0;
+	Header = FHeader();
 	
 	// Deallocate memory if needed
 	Data.CurveInterpolation.RemoveBulkData();
