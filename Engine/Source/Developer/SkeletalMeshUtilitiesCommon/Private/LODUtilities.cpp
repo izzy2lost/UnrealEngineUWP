@@ -509,6 +509,27 @@ void FLODUtilities::RemoveLODs(FSkeletalMeshUpdateContext& UpdateContext, const 
 	}
 }
 
+namespace UE::Private
+{
+	struct FScopedLockProperties
+	{
+	public:
+		FScopedLockProperties(USkeletalMesh* SkeletalMesh)
+		{
+			check(SkeletalMesh);
+			Lock = SkeletalMesh->LockPropertiesUntil();
+		}
+
+		~FScopedLockProperties()
+		{
+			Lock->Trigger();
+			Lock = nullptr;
+		}
+	private:
+		FEvent* Lock = nullptr;
+	};
+}
+
 bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkeletalMesh* SourceSkeletalMesh, const int32 LodIndex, const FString& SourceDataFilename)
 {
 	if(!DestinationSkeletalMesh || !SourceSkeletalMesh)
@@ -517,15 +538,18 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 	}
 
 	FScopedSkeletalMeshPostEditChange ScopePostEditChange(DestinationSkeletalMesh);
-
-	//If the imported LOD already exist, we will need to reimport all the skin weight profiles
-	bool bMustReimportAlternateSkinWeightProfile = false;
+	//Lock the skeletal mesh
+	UE::Private::FScopedLockProperties ScopedLock(DestinationSkeletalMesh);
+	FSkinnedAssetAsyncBuildScope AsyncBuildScope(DestinationSkeletalMesh);
 
 	// Get a list of all the clothing assets affecting this LOD so we can re-apply later
 	TArray<ClothingAssetUtils::FClothingAssetMeshBinding> ClothingBindings;
 	TArray<UClothingAssetBase*> ClothingAssetsInUse;
 	TArray<int32> ClothingAssetSectionIndices;
 	TArray<int32> ClothingAssetInternalLodIndices;
+
+	TArray<FSkinWeightProfileInfo> ExistingSkinWeightProfileInfos;
+	TArray<FSkeletalMeshImportData> ExistingAlternateImportDataPerLOD;
 
 	FSkeletalMeshModel* const SourceImportedResource = SourceSkeletalMesh->GetImportedModel();
 	FSkeletalMeshModel* const DestImportedResource = DestinationSkeletalMesh->GetImportedModel();
@@ -535,10 +559,29 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 		return false;
 	}
 
-	if (SourceImportedResource->LODModels.IsValidIndex(LodIndex))
+	if (DestImportedResource->LODModels.IsValidIndex(LodIndex))
 	{
-		bMustReimportAlternateSkinWeightProfile = true;
 		FLODUtilities::UnbindClothingAndBackup(DestinationSkeletalMesh, ClothingBindings, LodIndex);
+
+		int32 ExistingLodCount = DestinationSkeletalMesh->GetLODNum();
+
+		//Extract all LOD Skin weight profiles data, we will re-apply them at the end
+		ExistingSkinWeightProfileInfos = DestinationSkeletalMesh->GetSkinWeightProfiles();
+		DestinationSkeletalMesh->GetSkinWeightProfiles().Reset();
+		for (int32 AllLodIndex = 0; AllLodIndex < ExistingLodCount; ++AllLodIndex)
+		{
+			FSkeletalMeshLODModel& BuildLODModel = DestinationSkeletalMesh->GetImportedModel()->LODModels[AllLodIndex];
+			BuildLODModel.SkinWeightProfiles.Reset();
+
+			//Store the LOD alternate skinning profile data
+			FSkeletalMeshImportData& SkeletalMeshImportData = ExistingAlternateImportDataPerLOD.AddDefaulted_GetRef();
+			if (DestinationSkeletalMesh->HasMeshDescription(AllLodIndex))
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				DestinationSkeletalMesh->LoadLODImportedData(AllLodIndex, SkeletalMeshImportData);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+		}
 	}
 
 	//Lambda to call to re-apply the clothing
@@ -548,6 +591,72 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 		{
 			// Re-apply our clothing assets
 			FLODUtilities::RestoreClothingFromBackup(DestinationSkeletalMesh, ClothingBindings, LodIndex);
+		}
+	};
+
+	auto ReapplyAlternateSkinning = [&DestinationSkeletalMesh, &ExistingSkinWeightProfileInfos, &ExistingAlternateImportDataPerLOD, &LodIndex]()
+	{
+		if (ExistingSkinWeightProfileInfos.Num() > 0)
+		{
+			TArray<FSkinWeightProfileInfo>& SkinProfiles = DestinationSkeletalMesh->GetSkinWeightProfiles();
+			SkinProfiles = ExistingSkinWeightProfileInfos;
+			for (const FSkinWeightProfileInfo& ProfileInfo : SkinProfiles)
+			{
+				const int32 LodCount = DestinationSkeletalMesh->GetLODNum();
+				for(int32 AllLodIndex = 0; AllLodIndex < LodCount; ++AllLodIndex)
+				{
+					if (!ExistingAlternateImportDataPerLOD.IsValidIndex(AllLodIndex))
+					{
+						continue;
+					}
+					if (!DestinationSkeletalMesh->HasMeshDescription(AllLodIndex))
+					{
+						continue;
+					}
+					const FSkeletalMeshLODInfo* LodInfo = DestinationSkeletalMesh->GetLODInfo(AllLodIndex);
+					if (!LodInfo)
+					{
+						continue;
+					}
+
+					const FSkeletalMeshImportData& ExistingImportDataSrc = ExistingAlternateImportDataPerLOD[AllLodIndex];
+
+					const FString ProfileNameStr = ProfileInfo.Name.ToString();
+
+					FSkeletalMeshImportData ImportDataDest;
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					DestinationSkeletalMesh->LoadLODImportedData(AllLodIndex, ImportDataDest);
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+					int32 PointNumberDest = ImportDataDest.Points.Num();
+					int32 VertexNumberDest = ImportDataDest.Points.Num();
+
+					if (ExistingImportDataSrc.Points.Num() != PointNumberDest)
+					{
+						UE_LOG(LogLODUtilities, Error, TEXT("Alternate skinning mesh vertex number is different from the mesh LOD, we cannot apply the existing alternate skinning [%s] on the re-import skeletal mesh LOD %d [%s]"), *ProfileNameStr, LodIndex, *DestinationSkeletalMesh->GetName());
+						continue;
+					}
+
+					//Replace the data into the destination bulk data and save it
+					int32 ProfileIndex = 0;
+					if (ImportDataDest.AlternateInfluenceProfileNames.Find(ProfileNameStr, ProfileIndex))
+					{
+						ImportDataDest.AlternateInfluenceProfileNames.RemoveAt(ProfileIndex);
+						ImportDataDest.AlternateInfluences.RemoveAt(ProfileIndex);
+					}
+					int32 SrcProfileIndex = 0;
+					if (ExistingImportDataSrc.AlternateInfluenceProfileNames.Find(ProfileNameStr, SrcProfileIndex))
+					{
+						ImportDataDest.AlternateInfluenceProfileNames.Add(ProfileNameStr);
+						ImportDataDest.AlternateInfluences.Add(ExistingImportDataSrc.AlternateInfluences[SrcProfileIndex]);
+					}
+
+					//Resave the bulk data with the new or refreshed data
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					DestinationSkeletalMesh->SaveLODImportedData(AllLodIndex, ImportDataDest);
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				}
+			}
 		}
 	};
 
@@ -600,8 +709,6 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 			}
 		}
 	}
-
-	FScopedSkeletalMeshPostEditChange ScopedPostEditChange(DestinationSkeletalMesh);
 
 	FSkeletalMeshLODModel& NewLODModel = SourceImportedResource->LODModels[0];
 
@@ -842,12 +949,7 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 
 	ReapplyClothing();
 
-	//Must be the last step because it cleanup the fbx importer to import the alternate skinning FBX
-	if (bMustReimportAlternateSkinWeightProfile)
-	{
-		//TODO port skin weights utilities outside of UnrealEd module
-		//FSkinWeightsUtilities::ReimportAlternateSkinWeight(DestinationSkeletalMesh, LodIndex);
-	}
+	ReapplyAlternateSkinning();
 	
 	// Notification of success
 	FNotificationInfo NotificationInfo(FText::GetEmpty());
@@ -4158,6 +4260,7 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 			{
 				if (MaterialSlotRemap[MaterialIndex] != INDEX_NONE)
 				{
+					bFoundMatch = true;
 					continue;
 				}
 				int32& RemapIndex = MaterialSlotRemap[MaterialIndex];

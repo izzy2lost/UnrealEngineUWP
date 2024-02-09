@@ -489,7 +489,12 @@ bool FSkeletonSelectionEditMode::IsSelectedBoneRequired() const
 bool FSkeletonSelectionEditMode::ShouldDrawWidget() const
 {
 	UDebugSkelMeshComponent* PreviewMeshComponent = GetAnimPreviewScene().GetPreviewMeshComponent();
-	if (!PreviewMeshComponent->IsAnimBlueprintInstanced())
+	if (PreviewMeshComponent && PreviewMeshComponent->GetSkeletalMeshAsset() && PreviewMeshComponent->GetSkeletalMeshAsset()->IsCompiling())
+	{
+		return false;
+	}
+
+	if (PreviewMeshComponent && !PreviewMeshComponent->IsAnimBlueprintInstanced())
 	{
 		return IsSelectedBoneRequired() || GetAnimPreviewScene().GetSelectedSocket().IsValid() || GetAnimPreviewScene().GetSelectedActor() != nullptr;
 	}

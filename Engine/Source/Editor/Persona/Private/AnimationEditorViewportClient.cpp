@@ -65,6 +65,22 @@ namespace EAnimationPlaybackSpeeds
 	float Values[EAnimationPlaybackSpeeds::NumPlaybackSpeeds] = { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 5.0f, 10.0f, 0.f };
 }
 
+namespace UE::Private
+{
+	bool CanDrawPreviewComponents(TArray<UDebugSkelMeshComponent*> PreviewComponents)
+	{
+		//Avoid drawing if any of the component reference a compiling asset
+		for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewComponents)
+		{
+			if (PreviewMeshComponent && PreviewMeshComponent->GetSkinnedAsset() && PreviewMeshComponent->GetSkinnedAsset()->IsCompiling())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 #define LOCTEXT_NAMESPACE "FAnimationViewportClient"
 
 /////////////////////////////////////////////////////////////////////////
@@ -519,10 +535,15 @@ void FAnimationViewportClient::HandleOnSkelMeshPhysicsCreated()
 
 void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterface* PDI)
 {
+	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
+	if (!UE::Private::CanDrawPreviewComponents(PreviewMeshComponents))
+	{
+		return;
+	}
+
 	FEditorViewportClient::Draw(View, PDI);
 
 	// draw bones for all debug skeletal meshes
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
 	for (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
 	{
 		const bool bValidComponent = PreviewMeshComponent != nullptr;
@@ -620,11 +641,16 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 
 void FAnimationViewportClient::DrawCanvas( FViewport& InViewport, FSceneView& View, FCanvas& Canvas )
 {
+	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
+	if (!UE::Private::CanDrawPreviewComponents(PreviewMeshComponents))
+	{
+		return;
+	}
+
 	FEditorViewportClient::DrawCanvas(InViewport, View, Canvas);
 
 	UWorld* World = nullptr;
 	
-	TArray<UDebugSkelMeshComponent*> PreviewMeshComponents = GetPreviewScene()->GetAllPreviewMeshComponents();
 	for  (UDebugSkelMeshComponent* PreviewMeshComponent : PreviewMeshComponents)
 	{
 		if (!PreviewMeshComponent)

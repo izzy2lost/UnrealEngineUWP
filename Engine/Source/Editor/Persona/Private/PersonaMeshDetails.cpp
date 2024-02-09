@@ -4653,23 +4653,25 @@ FReply FPersonaMeshDetails::OnReimportLodClicked(EReimportButtonType InReimportT
 			}
 		}
 
-		bool bImportSucceeded = FbxMeshUtils::ImportMeshLODDialog(SkelMesh, InLODIndex);
-
-		if(InReimportType == EReimportButtonType::ReimportWithNewFile && !bImportSucceeded)
-		{
-			// Copy old source file back, as this one failed
-			LODInfo->SourceImportFilename = SourceFilenameBackup;
-			if (bRestoreReductionOnfail)
+		FbxMeshUtils::ImportMeshLODDialog(SkelMesh, InLODIndex).Then([this, InReimportType, SkelMesh, InLODIndex, SourceFilenameBackup, bRestoreReductionOnfail, ReductionSettingsBackup](TFuture<bool> Result)
 			{
-				LODInfo->ReductionSettings = ReductionSettingsBackup;
-			}
-		}
-		else if(InReimportType == EReimportButtonType::ReimportWithNewFile)
-		{
-			//Refresh the layout so the BaseLOD min max get recompute
-			RefreshMeshDetailLayout();
-		}
-
+				bool bImportSucceeded = Result.Get();
+				if (InReimportType == EReimportButtonType::ReimportWithNewFile && !bImportSucceeded)
+				{
+					FSkeletalMeshLODInfo* LODInfo = SkelMesh->GetLODInfo(InLODIndex);
+					// Copy old source file back, as this one failed
+					LODInfo->SourceImportFilename = SourceFilenameBackup;
+					if (bRestoreReductionOnfail)
+					{
+						LODInfo->ReductionSettings = ReductionSettingsBackup;
+					}
+				}
+				else if (InReimportType == EReimportButtonType::ReimportWithNewFile)
+				{
+					//Refresh the layout so the BaseLOD min max get recompute
+					RefreshMeshDetailLayout();
+				}
+			});
 		return FReply::Handled();
 	}
 

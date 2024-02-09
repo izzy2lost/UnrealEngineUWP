@@ -13,6 +13,7 @@
 #include "HAL/Thread.h"
 #include "HAL/ThreadSafeBool.h"
 #include "InterchangeAssetImportData.h"
+#include "InterchangeFactoryBase.h"
 #include "InterchangePipelineConfigurationBase.h"
 #include "InterchangeResultsContainer.h"
 #include "InterchangeSourceData.h"
@@ -30,7 +31,6 @@
 
 class FAsyncTaskNotification;
 class UInterchangeBlueprintPipelineBase;
-class UInterchangeFactoryBase;
 class UInterchangeFactoryBaseNode;
 class UInterchangePipelineBase;
 class UInterchangePythonPipelineBase;
@@ -651,6 +651,12 @@ public:
 	 */
 	INTERCHANGEENGINE_API bool IsObjectBeingImported(UObject* Object) const;
 
+	/**
+	 * Queue task that are not directly a import or re-import of assets.
+	 * The post import tasks are execute only when the QueuedTasks is empty (no more import task running)
+	 * Example: if a skeletal mesh re-import cannot apply the existing alternate skinning data, it will enqueue a post import task to re-import those alternate skinning files.
+	 */
+	INTERCHANGEENGINE_API bool EnqueuePostImportTask(TSharedPtr<FInterchangePostImportTask> PostImportTask);
 protected:
 
 	/** Return true if we can show some UI */
@@ -707,9 +713,17 @@ private:
 	TMap<UClass*, bool> NonParallelTranslatorLocks;
 	TMap<UClass*, TArray<FQueuedTaskData>> NonParallelTranslatorQueueTasks;
 	
-	//Queue all incomming tasks if there is more started task then we have cores
+	//Queue all incoming tasks if there is more started task then we have cores
 	TQueue<FQueuedTaskData> QueuedTasks;
 	int32 QueueTaskCount = 0;
+
+	//Queue all incoming task that are not direct import or re-import of assets.
+	// The post import tasks are execute only when all the QueuedTasks are completed and empty
+	//Those task can start an import task (QueuedTasks), one example is the skeletal mesh alternate skinning which require to import several file for each profiles
+	TQueue<TSharedPtr<FInterchangePostImportTask>> QueuedPostImportTasks;
+
+	//Ticker which is on only if we have some QueuedPostImportTasks
+	FTSTicker::FDelegateHandle	QueuedPostImportTasksTickerHandle;
 
 	//By using pointer, there is no issue if the array get resize
 	TArray<TSharedPtr<UE::Interchange::FImportAsyncHelper, ESPMode::ThreadSafe> > ImportTasks;

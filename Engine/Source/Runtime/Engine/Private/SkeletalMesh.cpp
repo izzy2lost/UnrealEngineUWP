@@ -343,6 +343,52 @@ void FScopedSkeletalMeshPostEditChange::SetSkeletalMesh(USkeletalMesh* InSkeleta
 	}
 }
 
+FScopedSkeletalMeshReregisterContexts::FScopedSkeletalMeshReregisterContexts(USkeletalMesh* InSkeletalMesh)
+{
+	check(IsInGameThread());
+	SkeletalMesh = InSkeletalMesh;
+	if (!ensure(SkeletalMesh))
+	{
+		return;
+	}
+
+	//Make sure all components using this skeletalmesh have there render ressources free
+	RecreateExistingRenderStateContext = new FSkinnedMeshComponentRecreateRenderStateContext(SkeletalMesh, false);
+
+	// Now iterate over all skeletal mesh components and unregister them from the world, we will reregister them in the destructor
+	for (TObjectIterator<USkeletalMeshComponent> It; It; ++It)
+	{
+		USkeletalMeshComponent* SkelComp = *It;
+		if (SkelComp->GetSkeletalMeshAsset() == SkeletalMesh)
+		{
+			ComponentReregisterContexts.Add(new FComponentReregisterContext(SkelComp));
+		}
+	}
+}
+
+FScopedSkeletalMeshReregisterContexts::~FScopedSkeletalMeshReregisterContexts()
+{
+	check(IsInGameThread());
+	if (!ensure(SkeletalMesh))
+	{
+		return;
+	}
+
+	if (SkeletalMesh->IsCompiling())
+	{
+		//wait until the compilation is done before reregister the component
+		FSkinnedAssetCompilingManager::Get().FinishCompilation({ SkeletalMesh });
+	}
+
+	//Recreate the render context by calling delete
+	if (RecreateExistingRenderStateContext)
+	{
+		delete RecreateExistingRenderStateContext;
+	}
+
+	//Component will be reregister when going out of scope
+}
+
 const FString& GetSkeletalMeshDerivedDataVersion()
 {
 	static FString CachedVersionString = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().SkeletalMeshDerivedDataVersion).ToString();

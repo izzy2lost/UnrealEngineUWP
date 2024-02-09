@@ -52,6 +52,7 @@ void UInterchangeGenericAnimationPipeline::AdjustSettingsForContext(EInterchange
 		|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
 	{
 		bImportAnimations = false;
+		CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
 		CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
 	}
 	

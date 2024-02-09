@@ -18,6 +18,7 @@
 #include "EditorModeManager.h"
 #include "EditorReimportHandler.h"
 #include "EditorViewportClient.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #include "EngineGlobals.h"
 #include "EngineUtils.h"
 #include "Factories/FbxSkeletalMeshImportData.h"
@@ -1267,164 +1268,191 @@ UObject* FSkeletalMeshEditor::HandleGetAsset()
 	return GetEditingObject();
 }
 
-bool FSkeletalMeshEditor::HandleReimportMeshInternal(int32 SourceFileIndex /*= INDEX_NONE*/, bool bWithNewFile /*= false*/)
+TFuture<bool> FSkeletalMeshEditor::HandleReimportMeshInternal(int32 SourceFileIndex /*= INDEX_NONE*/, bool bWithNewFile /*= false*/)
 {
-	bool bResult = false;
-	//Interchange reimport are asynchronous
-	if (UInterchangeAssetImportData* AssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData()))
-	{
-		UE::Interchange::FAssetImportResultRef Result = FReimportManager::Instance()->ReimportAsync(SkeletalMesh, true, true, TEXT(""), nullptr, SourceFileIndex, bWithNewFile);
-		
-		Result->OnDone([SkeletonTreePtr = SkeletonTree, WeakSkeletalMesh = TWeakObjectPtr<USkeletalMesh>(SkeletalMesh)](UE::Interchange::FImportResult& Result)
-			{
-				auto ResetComponent = [SkeletonTreePtr, WeakSkeletalMesh]()
+	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
+
+	//The reimport will be asynchronous only if the reimport manager use Interchange.
+	UE::Interchange::FAssetImportResultRef Result = FReimportManager::Instance()->ReimportAsync(SkeletalMesh, true, true, TEXT(""), nullptr, SourceFileIndex, bWithNewFile);
+
+	Result->OnDone([Promise, SkeletonTreePtr = SkeletonTree, WeakSkeletalMesh = TWeakObjectPtr<USkeletalMesh>(SkeletalMesh)](UE::Interchange::FImportResult& Result)
+		{
+			auto ResetComponent = [Promise, SkeletonTreePtr, WeakSkeletalMesh, &Result]()
 				{
-					FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(WeakSkeletalMesh.Get());
+					// Refresh skeleton tree
+					SkeletonTreePtr->Refresh();
+
+					const TArray<UInterchangeResult*>& Results = Result.GetResults()->GetResults();
+					for (const UInterchangeResult* InterchangeResult : Results)
 					{
-						constexpr bool bCallPostEditChange = false;
-						constexpr bool bReregisterComponents = true;
-						FScopedSkeletalMeshPostEditChange ScopedPostEditChange = FScopedSkeletalMeshPostEditChange(WeakSkeletalMesh.Get(), bCallPostEditChange, bReregisterComponents);
-						// Refresh skeleton tree
-						SkeletonTreePtr->Refresh();
+						if (InterchangeResult->IsA<UInterchangeResultError_ReimportFail>())
+						{
+							Promise->SetValue(false);
+							return;
+						}
 					}
+					Promise->SetValue(true);
 				};
 
-				if (IsInGameThread())
-				{
-					ResetComponent();
-				}
-				else
-				{
-					Async(EAsyncExecution::TaskGraphMainThread, MoveTemp(ResetComponent));
-				}
-			});
-		
-		if (Result->GetStatus() == UE::Interchange::FImportResult::EStatus::Done)
-		{
-			const TArray<UInterchangeResult*>& Results = Result->GetResults()->GetResults();
-			for (const UInterchangeResult* InterchangeResult : Results)
+			if (IsInGameThread())
 			{
-				if (InterchangeResult->IsA<UInterchangeResultError_ReimportFail>())
-				{
-					return false;
-				}
+				ResetComponent();
 			}
-		}
-		return true;
-	}
-	else
-	{
-		FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
-		{
-			FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkeletalMesh);
-			// Reimport the asset
-			bResult = FReimportManager::Instance()->Reimport(SkeletalMesh, true, true, TEXT(""), nullptr, SourceFileIndex, bWithNewFile);
-			// Refresh skeleton tree
-			SkeletonTree->Refresh();
-		}
-	}
-	return bResult;
+			else
+			{
+				Async(EAsyncExecution::TaskGraphMainThread, MoveTemp(ResetComponent));
+			}
+		});
+	return Promise->GetFuture();
 }
 
 void FSkeletalMeshEditor::HandleReimportMesh(int32 SourceFileIndex /*= INDEX_NONE*/)
 {
-	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
-
-	HandleReimportMeshInternal(SourceFileIndex, false);
+	TSharedPtr<FScopedSuspendAlternateSkinWeightPreview> ScopedSuspendAlternateSkinnWeightPreview = MakeShared<FScopedSuspendAlternateSkinWeightPreview>(SkeletalMesh);
+	TSharedPtr<FScopedSkeletalMeshReregisterContexts> ScopedReregisterComponents = MakeShared<FScopedSkeletalMeshReregisterContexts>(SkeletalMesh);
+	HandleReimportMeshInternal(SourceFileIndex, false).Then([ScopedSuspendAlternateSkinnWeightPreview, ScopedReregisterComponents](TFuture<bool> ReimportResult) {});
 }
 
 void FSkeletalMeshEditor::HandleReimportMeshWithNewFile(int32 SourceFileIndex /*= INDEX_NONE*/)
 {
-	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
-
-	HandleReimportMeshInternal(SourceFileIndex, true);
+	TSharedPtr<FScopedSuspendAlternateSkinWeightPreview> ScopedSuspendAlternateSkinnWeightPreview = MakeShared<FScopedSuspendAlternateSkinWeightPreview>(SkeletalMesh);
+	TSharedPtr<FScopedSkeletalMeshReregisterContexts> ScopedReregisterComponents = MakeShared<FScopedSkeletalMeshReregisterContexts>(SkeletalMesh);
+	HandleReimportMeshInternal(SourceFileIndex, true).Then([ScopedSuspendAlternateSkinnWeightPreview, ScopedReregisterComponents](TFuture<bool> ReimportResult) {});
 }
 
-void ReimportAllCustomLODs(USkeletalMesh* SkeletalMesh, UDebugSkelMeshComponent* PreviewMeshComponent, bool bWithNewFile)
+TFuture<bool> ReimportLodInChain(USkeletalMesh* SkeletalMesh
+	, UDebugSkelMeshComponent* PreviewMeshComponent
+	, bool bWithNewFile
+	, TSharedPtr<TArray<bool>> Dependencies
+	, int32 LodIndex)
 {
-	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
+	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
+
+	if (SkeletalMesh->GetLODNum() <= LodIndex)
 	{
-		FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkeletalMesh);
+		//Nothing to do
+		Promise->SetValue(false);
+		return Promise->GetFuture();
+	}
+	
+	TArray<bool>& DependenciesRef = *Dependencies.Get();
 
-		//Find the dependencies of the generated LOD
-		TArray<bool> Dependencies;
-		Dependencies.AddZeroed(SkeletalMesh->GetLODNum());
-		//Avoid making LOD 0 to true in the dependencies since everything that should be regenerate base on LOD 0 is already regenerate at this point.
-		//But we need to regenerate every generated LOD base on any re-import custom LOD
-		//Reimport all custom LODs
-		for (int32 LodIndex = 1; LodIndex < SkeletalMesh->GetLODNum(); ++LodIndex)
+	//Do not reimport LOD that was re-import with the base mesh
+	if (!SkeletalMesh->GetLODInfo(LodIndex)->bImportWithBaseMesh)
+	{
+		if (SkeletalMesh->GetLODInfo(LodIndex)->bHasBeenSimplified == false)
 		{
-			//Do not reimport LOD that was re-import with the base mesh
-			if (SkeletalMesh->GetLODInfo(LodIndex)->bImportWithBaseMesh)
+			FString SourceFilenameBackup = SkeletalMesh->GetLODInfo(LodIndex)->SourceImportFilename;
+			if (bWithNewFile)
 			{
-				continue;
+				SkeletalMesh->GetLODInfo(LodIndex)->SourceImportFilename.Empty();
 			}
-			if (SkeletalMesh->GetLODInfo(LodIndex)->bHasBeenSimplified == false)
-			{
-				FString SourceFilenameBackup = SkeletalMesh->GetLODInfo(LodIndex)->SourceImportFilename;
-				if (bWithNewFile)
-				{
-					SkeletalMesh->GetLODInfo(LodIndex)->SourceImportFilename.Empty();
-				}
 
-				if (!FbxMeshUtils::ImportMeshLODDialog(SkeletalMesh, LodIndex, false))
+			FbxMeshUtils::ImportMeshLODDialog(SkeletalMesh, LodIndex, false).Then([Promise, SkeletalMesh, bWithNewFile, LodIndex, SourceFilenameBackup, PreviewMeshComponent, Dependencies](TFuture<bool> FutureResult)
 				{
-					if (bWithNewFile)
+					TArray<bool>& DependenciesRef = *Dependencies.Get();
+					const bool bResult = FutureResult.Get();
+					if (!bResult)
 					{
-						SkeletalMesh->GetLODInfo(LodIndex)->SourceImportFilename = SourceFilenameBackup;
+						if (bWithNewFile)
+						{
+							SkeletalMesh->GetLODInfo(LodIndex)->SourceImportFilename = SourceFilenameBackup;
+						}
 					}
-				}
-				else
-				{
-					Dependencies[LodIndex] = true;
-				}
-			}
-			else if (Dependencies[SkeletalMesh->GetLODInfo(LodIndex)->ReductionSettings.BaseLOD])
-			{
-				//Regenerate the LOD
-				FSkeletalMeshUpdateContext UpdateContext;
-				UpdateContext.SkeletalMesh = SkeletalMesh;
-				UpdateContext.AssociatedComponents.Push(PreviewMeshComponent);
-				FLODUtilities::SimplifySkeletalMeshLOD(UpdateContext, LodIndex, GetTargetPlatformManagerRef().GetRunningTargetPlatform(), false);
-				Dependencies[LodIndex] = true;
-			}
+					else
+					{
+						DependenciesRef[LodIndex] = true;
+					}
+
+					//Iterate the next lod chain
+					if (SkeletalMesh->GetLODNum() > LodIndex + 1)
+					{
+						ReimportLodInChain(SkeletalMesh, PreviewMeshComponent, bWithNewFile, Dependencies, LodIndex + 1).Then([Promise](TFuture<bool> ReimportLodInChainFutureResult)
+							{
+								const bool bReimportLodInChainResult = ReimportLodInChainFutureResult.Get();
+								Promise->SetValue(bReimportLodInChainResult);
+							});
+					}
+					else
+					{
+						Promise->SetValue(bResult);
+					}
+				});
+			return Promise->GetFuture();
 		}
+		else if (DependenciesRef[SkeletalMesh->GetLODInfo(LodIndex)->ReductionSettings.BaseLOD])
+		{
+			//Regenerate the LOD
+			FSkeletalMeshUpdateContext UpdateContext;
+			UpdateContext.SkeletalMesh = SkeletalMesh;
+			UpdateContext.AssociatedComponents.Push(PreviewMeshComponent);
+			FLODUtilities::SimplifySkeletalMeshLOD(UpdateContext, LodIndex, GetTargetPlatformManagerRef().GetRunningTargetPlatform(), false);
+			DependenciesRef[LodIndex] = true;
+		}
+	}
+	//Iterate the next Lod in the chain
+	if (SkeletalMesh->GetLODNum() > LodIndex + 1)
+	{
+		ReimportLodInChain(SkeletalMesh, PreviewMeshComponent, bWithNewFile, Dependencies, LodIndex + 1).Then([Promise](TFuture<bool> ReimportLodInChainFutureResult)
+			{
+				const bool bReimportLodInChainResult = ReimportLodInChainFutureResult.Get();
+				Promise->SetValue(bReimportLodInChainResult);
+			});
+	}
+	else
+	{
+		//We have iterate all LodIndex set the promise
+		Promise->SetValue(true);
+	}
+	return Promise->GetFuture();
+}
+
+TFuture<bool> ReimportAllCustomLODs(USkeletalMesh* SkeletalMesh, UDebugSkelMeshComponent* PreviewMeshComponent, bool bWithNewFile)
+{
+	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
+	//Find the dependencies of the generated LOD
+	TSharedPtr<TArray<bool>> Dependencies = MakeShared<TArray<bool>>();
+	Dependencies->AddZeroed(SkeletalMesh->GetLODNum());
+
+	int32 LodIndex = 1;
+	ReimportLodInChain(SkeletalMesh, PreviewMeshComponent, bWithNewFile, Dependencies, LodIndex).Then([Promise](TFuture<bool> FutureResult)
+		{
+			bool bResult = FutureResult.Get();
+			Promise->SetValue(bResult);
+		});
+	return Promise->GetFuture();
+}
+
+void FSkeletalMeshEditor::HandleReimportAllMeshInternal(int32 SourceFileIndex, bool bWithNewFile)
+{
+	// Reimport the asset
+	if (SkeletalMesh)
+	{
+		TSharedPtr<FScopedSuspendAlternateSkinWeightPreview> ScopedSuspendAlternateSkinnWeightPreview = MakeShared<FScopedSuspendAlternateSkinWeightPreview>(SkeletalMesh);
+		TSharedPtr<FScopedSkeletalMeshReregisterContexts> ScopedReregisterComponents = MakeShared<FScopedSkeletalMeshReregisterContexts>(SkeletalMesh);
+		//Reimport base LOD
+		HandleReimportMeshInternal(SourceFileIndex, bWithNewFile).Then([this, bWithNewFile, ScopedSuspendAlternateSkinnWeightPreview, ScopedReregisterComponents](TFuture<bool> Result)
+		{
+			check(IsInGameThread());
+			//import all custom LODs
+			if (Result.Get() && SkeletalMesh->GetLODNum() > 1)
+			{
+				ReimportAllCustomLODs(SkeletalMesh.Get(), GetPersonaToolkit()->GetPreviewMeshComponent(), bWithNewFile);
+			}
+		});
 	}
 }
 
 void FSkeletalMeshEditor::HandleReimportAllMesh(int32 SourceFileIndex /*= INDEX_NONE*/)
 {
-	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
-	// Reimport the asset
-	if (SkeletalMesh)
-	{
-		FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkeletalMesh);
-
-		//Reimport base LOD
-		if (HandleReimportMeshInternal(SourceFileIndex, false))
-		{
-			//Reimport all custom LODs
-			ReimportAllCustomLODs(SkeletalMesh, GetPersonaToolkit()->GetPreviewMeshComponent(), false);
-		}
-	}
+	constexpr bool bWithNewFile = false;
+	HandleReimportAllMeshInternal(SourceFileIndex, bWithNewFile);
 }
 
 void FSkeletalMeshEditor::HandleReimportAllMeshWithNewFile(int32 SourceFileIndex /*= INDEX_NONE*/)
 {
-	FScopedSuspendAlternateSkinWeightPreview ScopedSuspendAlternateSkinnWeightPreview(SkeletalMesh);
-
-	// Reimport the asset
-	if (SkeletalMesh)
-	{
-		FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkeletalMesh);
-		TArray<UObject*> ImportObjs;
-		ImportObjs.Add(SkeletalMesh);
-		if (HandleReimportMeshInternal(SourceFileIndex, true))
-		{
-			//Reimport all custom LODs
-			ReimportAllCustomLODs(SkeletalMesh, GetPersonaToolkit()->GetPreviewMeshComponent(), true);
-		}
-	}
+	constexpr bool bWithNewFile = true;
+	HandleReimportAllMeshInternal(SourceFileIndex, bWithNewFile);
 }
 
 void FSkeletalMeshEditor::HandleOnPreviewSceneSettingsCustomized(IDetailLayoutBuilder& DetailBuilder)

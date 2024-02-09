@@ -620,6 +620,7 @@ void UInterchangeGenericMaterialPipeline::AdjustSettingsForContext(EInterchangeP
 	{
 		bImportMaterials = false;
 		HideCategories.Add(TEXT("Materials"));
+		SearchLocation = EInterchangeMaterialSearchLocation::DoNotSearch;
 	}
 
 	if (UInterchangePipelineBase* OuterMostPipeline = GetMostPipelineOuter())

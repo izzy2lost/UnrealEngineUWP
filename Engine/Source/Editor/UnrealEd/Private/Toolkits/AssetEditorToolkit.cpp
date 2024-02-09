@@ -223,7 +223,7 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 		NewMajorTab->SetContent
 		( 
 			SAssignNew( NewStandaloneHost, SStandaloneAssetEditorToolkitHost, NewTabManager, AppIdentifier )
-			.IsEnabled_Lambda([ObjectsToEditWeak]()
+			.Visibility_Lambda([ObjectsToEditWeak]()
 				{
 					for (const TWeakObjectPtr<UObject> Object : ObjectsToEditWeak)
 					{
@@ -231,11 +231,11 @@ void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const 
 						{
 							if (AsyncAsset->IsCompiling())
 							{
-								return false;
+								return EVisibility::Collapsed;
 							}
 						}
 					}
-					return true;
+					return EVisibility::All;
 				})
 			.OnRequestClose(this, &FAssetEditorToolkit::OnRequestClose, EAssetEditorCloseReason::AssetEditorHostClosed)
 			.OnClose(this, &FAssetEditorToolkit::OnClose)

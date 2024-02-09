@@ -89,18 +89,21 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 				//Avoid temporary package to be saved
 				UPackage* Package = ObjToDelete->GetOutermost();
 				Package->SetDirtyFlag(false);
-				//Avoid temporary asset to be saved by setting the RF_Transient flag
+				//Avoid gc, use keep flags
+				ObjToDelete->ClearFlags(RF_Standalone);
+				ObjToDelete->ClearInternalFlags(EInternalObjectFlags::Async);
+				//Make the object transient to prevent saving
 				ObjToDelete->SetFlags(RF_Transient);
 			}
 		}
-		ObjectTools::DeleteAssets(AssetsToDelete, false);
-		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	};
 
 	DeletePathAssets();
 
 	UObject* ImportedObject = nullptr;
 	UnFbx::FBXImportOptions ImportOptions;
+
+	bool bCreateTransaction = false;
 
 	//Only use interchange if the base skeletal mesh was imported with interchange
 	const UInterchangeAssetImportData* SelectedInterchangeAssetImportData = Cast<UInterchangeAssetImportData>(SkeletalMesh->GetAssetImportData());
@@ -208,6 +211,7 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 		//Factory and task can now be garbage collected
 		Task->RemoveFromRoot();
 		FbxFactory->RemoveFromRoot();
+		bCreateTransaction = true;
 	}
 
 	USkeletalMesh* TmpSkeletalMesh = Cast<USkeletalMesh>(ImportedObject);
@@ -235,10 +239,13 @@ bool FSkinWeightsUtilities::ImportAlternateSkinWeight(USkeletalMesh* SkeletalMes
 				FSkinWeightProfileInfo* Profile = SkeletalMesh->GetSkinWeightProfiles().FindByPredicate([ProfileName](FSkinWeightProfileInfo Profile) { return Profile.Name == ProfileName; });
 
 				const bool bIsReimportLocal = Profile != nullptr;
-				FText TransactionName = bIsReimportLocal ? NSLOCTEXT("UnrealEd", "UpdateAlternateSkinningWeight", "Update Alternate Skinning Weight")
-					: NSLOCTEXT("UnrealEd", "ImportAlternateSkinningWeight", "Import Alternate Skinning Weight");
-				FScopedTransaction ScopedTransaction(TransactionName);
-				SkeletalMesh->Modify();
+				if (bCreateTransaction)
+				{
+					FText TransactionName = bIsReimportLocal ? NSLOCTEXT("UnrealEd", "UpdateAlternateSkinningWeight", "Update Alternate Skinning Weight")
+						: NSLOCTEXT("UnrealEd", "ImportAlternateSkinningWeight", "Import Alternate Skinning Weight");
+					FScopedTransaction ScopedTransaction(TransactionName);
+					SkeletalMesh->Modify();
+				}
 
 				if (bIsReimportLocal)
 				{

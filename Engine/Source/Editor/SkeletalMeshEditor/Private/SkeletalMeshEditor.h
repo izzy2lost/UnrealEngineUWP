@@ -11,6 +11,7 @@
 #include "ISkeletalMeshEditor.h"
 #include "SkeletalMeshNotifier.h"
 #include "Containers/ArrayView.h"
+#include "Async/Future.h"
 
 class IDetailLayoutBuilder;
 class IDetailsView;
@@ -128,10 +129,11 @@ private:
 
 	void HandleReimportMesh(int32 SourceFileIndex = INDEX_NONE);
 	void HandleReimportMeshWithNewFile(int32 SourceFileIndex = INDEX_NONE);
-	
-	bool HandleReimportMeshInternal(int32 SourceFileIndex = INDEX_NONE, bool bWithNewFile = false);
+	TFuture<bool> HandleReimportMeshInternal(int32 SourceFileIndex = INDEX_NONE, bool bWithNewFile = false);
+
 	void HandleReimportAllMesh(int32 SourceFileIndex = INDEX_NONE);
 	void HandleReimportAllMeshWithNewFile(int32 SourceFileIndex = INDEX_NONE);
+	void HandleReimportAllMeshInternal(int32 SourceFileIndex, bool bWithNewFile);
 
 	void HandleOnPreviewSceneSettingsCustomized(IDetailLayoutBuilder& DetailBuilder);
 

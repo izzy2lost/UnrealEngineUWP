@@ -24,7 +24,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeMeshUtilities)
 
-TFuture<bool> UInterchangeMeshUtilities::ImportCustomLodAsync(UObject* MeshObject, const int32 LodIndex)
+TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex)
 {
 	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
 	if (!MeshObject)
@@ -69,7 +69,7 @@ TFuture<bool> UInterchangeMeshUtilities::ImportCustomLodAsync(UObject* MeshObjec
 			if (ensure(Filenames.Num() == 1))
 			{
 				const UInterchangeSourceData* SourceData = InterchangeManager.CreateSourceData(Filenames[0]);
-				return InternalImportCustomLodAsync(Promise, MeshObject, LodIndex, SourceData);
+				return InternalImportCustomLod(Promise, MeshObject, LodIndex, SourceData);
 			}
 		}
 	}
@@ -78,14 +78,14 @@ TFuture<bool> UInterchangeMeshUtilities::ImportCustomLodAsync(UObject* MeshObjec
 	return Promise->GetFuture();
 }
 
-TFuture<bool> UInterchangeMeshUtilities::ImportCustomLodAsync(UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
+TFuture<bool> UInterchangeMeshUtilities::ImportCustomLod(UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
 {
 	TSharedPtr<TPromise<bool>> Promise = MakeShared<TPromise<bool>>();
 	
-	return InternalImportCustomLodAsync(Promise, MeshObject, LodIndex, SourceData);
+	return InternalImportCustomLod(Promise, MeshObject, LodIndex, SourceData);
 }
 
-TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLodAsync(TSharedPtr<TPromise<bool>> Promise, UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
+TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLod(TSharedPtr<TPromise<bool>> Promise, UObject* MeshObject, const int32 LodIndex, const UInterchangeSourceData* SourceData)
 {
 #if WITH_EDITOR
 	UInterchangeManager& InterchangeManager = UInterchangeManager::GetInterchangeManager();
@@ -128,7 +128,7 @@ TFuture<bool> UInterchangeMeshUtilities::InternalImportCustomLodAsync(TSharedPtr
 
 	if (bInvalidLodIndex)
 	{
-		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::InternalImportCustomLodAsync: Invalid mesh LOD index %d, no prior LOD index exists."), LodIndex);
+		UE_LOG(LogInterchangeEngine, Warning, TEXT("FInterchangeMeshUtilities::InternalImportCustomLod: Invalid mesh LOD index %d, no prior LOD index exists."), LodIndex);
 		Promise->SetValue(false);
 		return Promise->GetFuture();
 	}
