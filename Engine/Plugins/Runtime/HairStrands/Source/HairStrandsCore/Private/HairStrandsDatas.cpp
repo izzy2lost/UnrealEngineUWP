@@ -633,12 +633,7 @@ uint32 FHairStrandsBulkData::GetSize() const
 
 void FHairStrandsBulkData::Reset()
 {
-	Header.CurveCount = 0;
-	Header.PointCount = 0;
-	Header.MaxLength = 0;
-	Header.MaxRadius = 0;
-	Header.BoundingBox = FBox(EForceInit::ForceInit);
-	Header.Flags = 0;
+	Header = FHeader();
 	for (uint8 AttributeIt = 0; AttributeIt < HAIR_CURVE_ATTRIBUTE_COUNT; ++AttributeIt)
 	{
 		Header.CurveAttributeOffsets[AttributeIt] = HAIR_ATTRIBUTE_INVALID_OFFSET;
