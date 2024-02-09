@@ -57,8 +57,8 @@ public:
 	UPROPERTY(meta = (TGType = "TG_Input", PinDisplayName = "Y"))
 	FTG_Variant							Input2 = 0;
 
-	// A value that linearly interpolates between X and Y
-	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Setting", PinDisplayName = "S"))
+	// A value that linearly interpolates between X and Y. This can be an image or a Scalar node connected for easier control
+	UPROPERTY(meta = (TGType = "TG_Input", PinDisplayName = "S"))
 	FTG_Variant							LerpValue = 0;
 
 public:
