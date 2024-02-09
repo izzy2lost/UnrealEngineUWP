@@ -59,6 +59,8 @@ namespace HeterogeneousVolumes
 	float GetMaxStepCount();
 	float GetMinimumVoxelSizeInFrustum();
 	float GetMinimumVoxelSizeOutsideFrustum();
+	float GetShadingRateForShadows();
+	float GetOutOfFrustumShadingRateForShadows();
 
 	int32 GetMipLevel();
 	int32 GetDebugMode();
@@ -208,6 +210,7 @@ END_UNIFORM_BUFFER_STRUCT()
 struct FVoxelGridBuildOptions
 {
 	float MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
+	float MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeInFrustum();
 
 	bool bBuildOrthoGrid = true;
 	bool bBuildFrustumGrid = true;
