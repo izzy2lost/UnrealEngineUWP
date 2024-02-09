@@ -15,4 +15,5 @@ public:
 	virtual FText GetAssetDisplayName() const override;
 	virtual TSoftClassPtr<UObject> GetAssetClass() const override;
 	virtual EAssetCommandResult OpenAssets(const FAssetOpenArgs& OpenArgs) const override;
+	virtual EAssetCommandResult PerformAssetDiff(const FAssetDiffArgs& DiffArgs) const override;
 };
