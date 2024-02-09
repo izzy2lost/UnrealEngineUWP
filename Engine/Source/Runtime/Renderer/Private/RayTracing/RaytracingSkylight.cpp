@@ -427,6 +427,7 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 	FSceneTextureParameters SceneTextures = GetSceneTextureParameters(GraphBuilder, Views[0]);
 
 	int32 ViewIndex = 0;
+	int32 LastViewIndex = Views.Num() - 1;
 	for (FViewInfo& View : Views)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
@@ -528,7 +529,11 @@ void FDeferredShadingSceneRenderer::RenderRayTracingSkyLight(
 					DenoiserInputs,
 					RayTracingConfig);
 
-				OutSkyLightTexture = DenoiserOutputs.Color;
+				// Need to set output used by the caller on the last iteration of the view loop
+				if (ViewIndex == LastViewIndex)
+				{
+					OutSkyLightTexture = DenoiserOutputs.Color;
+				}
 			}
 		}
 

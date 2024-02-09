@@ -1288,8 +1288,8 @@ void Denoiser::SetupCommonShaderParameters(
 
 	OutPublicCommonParameters->SceneBufferUVToScreenPosition.X = float(FullResBufferExtent.X) / float(View.ViewRect.Width()) * 2.0f;
 	OutPublicCommonParameters->SceneBufferUVToScreenPosition.Y = -float(FullResBufferExtent.Y) / float(View.ViewRect.Height()) * 2.0f;
-	OutPublicCommonParameters->SceneBufferUVToScreenPosition.Z = float(View.ViewRect.Min.X) / float(View.ViewRect.Width()) * 2.0f - 1.0f;
-	OutPublicCommonParameters->SceneBufferUVToScreenPosition.W = -float(View.ViewRect.Min.Y) / float(View.ViewRect.Height()) * 2.0f + 1.0f;
+	OutPublicCommonParameters->SceneBufferUVToScreenPosition.Z = -float(View.ViewRect.Min.X) / float(View.ViewRect.Width()) * 2.0f - 1.0f;
+	OutPublicCommonParameters->SceneBufferUVToScreenPosition.W = float(View.ViewRect.Min.Y) / float(View.ViewRect.Height()) * 2.0f + 1.0f;
 
 	OutPublicCommonParameters->DenoiserBufferBilinearUVMinMax = FVector4f(
 		float(DenoiserViewport.Min.X + 0.5f) / float(DenoiserBufferExtent.X),
@@ -1922,8 +1922,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 
 			PassParameters->PrevSceneBufferUVToScreenPosition.X = float(PrevFrameBufferExtent.X) / float(ViewportExtent.X) * 2.0f;
 			PassParameters->PrevSceneBufferUVToScreenPosition.Y = -float(PrevFrameBufferExtent.Y) / float(ViewportExtent.Y) * 2.0f;
-			PassParameters->PrevSceneBufferUVToScreenPosition.Z = float(ViewportOffset.X) / float(ViewportExtent.X) * 2.0f - 1.0f;
-			PassParameters->PrevSceneBufferUVToScreenPosition.W = -float(ViewportOffset.Y) / float(ViewportExtent.Y) * 2.0f + 1.0f;
+			PassParameters->PrevSceneBufferUVToScreenPosition.Z = -float(ViewportOffset.X) / float(ViewportExtent.X) * 2.0f - 1.0f;
+			PassParameters->PrevSceneBufferUVToScreenPosition.W = float(ViewportOffset.Y) / float(ViewportExtent.Y) * 2.0f + 1.0f;
 		}
 
 		if (bGlobalCameraCut)
@@ -1966,8 +1966,8 @@ static void DenoiseSignalAtConstantPixelDensity(
 
 			PassParameters->PrevSceneBufferUVToScreenPosition.X = float(PrevFrameBufferExtent.X) / float(ViewportExtent.X) * 2.0f;
 			PassParameters->PrevSceneBufferUVToScreenPosition.Y = -float(PrevFrameBufferExtent.Y) / float(ViewportExtent.Y) * 2.0f;
-			PassParameters->PrevSceneBufferUVToScreenPosition.Z = float(ViewportOffset.X) / float(ViewportExtent.X) * 2.0f - 1.0f;
-			PassParameters->PrevSceneBufferUVToScreenPosition.W = -float(ViewportOffset.Y) / float(ViewportExtent.Y) * 2.0f + 1.0f;
+			PassParameters->PrevSceneBufferUVToScreenPosition.Z = -float(ViewportOffset.X) / float(ViewportExtent.X) * 2.0f - 1.0f;
+			PassParameters->PrevSceneBufferUVToScreenPosition.W = float(ViewportOffset.Y) / float(ViewportExtent.Y) * 2.0f + 1.0f;
 		}
 
 		FScreenSpaceDenoiserHistory DummyPrevFrameHistory;
