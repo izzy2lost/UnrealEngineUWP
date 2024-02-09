@@ -45,9 +45,10 @@ private:
 // FHttpThread
 
 FHttpThreadBase::FHttpThreadBase()
-	:	Thread(nullptr)
-	,	bIsSingleThread(false)
-	,	bIsStopped(true)
+	: Thread(nullptr)
+	, bIsSingleThread(false)
+	, bIsStopped(true)
+	, RunningThreadedRequestLimit(UE_HTTP_DEFAULT_MAX_CONCURRENT_REQUESTS)
 {
 }
 

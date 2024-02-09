@@ -237,11 +237,6 @@
 	}
 	else
 	{
-		UE_LOG(LogHttp, Warning, TEXT("URLSession:task:didCompleteWithError. Http request failed - %s %s: %p"),
-			   *FString([error localizedDescription]),
-			   *FString([[error userInfo] objectForKey:NSURLErrorFailingURLStringErrorKey]),
-			   self);
-		
 		self.RequestStatus = EHttpRequestStatus::Failed;
 		// Determine if the specific error was failing to connect to the host.
 		switch ([error code])
@@ -259,6 +254,12 @@
 				self.FailureReason = EHttpFailureReason::Other;
 				break;
 		}
+
+		UE_CLOG(self.FailureReason != EHttpFailureReason::Cancelled, LogHttp, Warning, TEXT("URLSession:task:didCompleteWithError. Http request failed - %s %s: %p"),
+			   *FString([error localizedDescription]),
+			   *FString([[error userInfo] objectForKey:NSURLErrorFailingURLStringErrorKey]),
+			   self);
+
 		// Log more details if verbose logging is enabled and this is an SSL error
 		if (UE_LOG_ACTIVE(LogHttp, Verbose))
 		{

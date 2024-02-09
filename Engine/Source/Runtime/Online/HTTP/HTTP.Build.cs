@@ -28,6 +28,7 @@ public class HTTP : ModuleRules
 
 	protected virtual bool bPlatformSupportsCurlMultiWait { get { return false; } }
 	protected virtual bool bPlatformSupportsCurlQuickExit { get { return !bPlatformSupportsXCurl; } }
+	protected virtual int DefaultMaxConcurrentRequests { get { return int.MaxValue; } }
 
 	private bool bPlatformSupportsCurl { get { return bPlatformSupportsLibCurl || bPlatformSupportsXCurl; } }
 
@@ -114,5 +115,7 @@ public class HTTP : ModuleRules
 		{
 			PublicFrameworks.Add("Security");
 		}
+
+		PrivateDefinitions.Add("UE_HTTP_DEFAULT_MAX_CONCURRENT_REQUESTS=" + DefaultMaxConcurrentRequests);
 	}
 }

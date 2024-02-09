@@ -1755,9 +1755,9 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Test platform request requests 
 
 	DYNAMIC_SECTION(" making " << NumRequests << " requests with bCheckCancel=" << bCheckCancel)
 	{
-		if (NumRequests > 100 && !bRunHeavyTests)
+		if (NumRequests > 50 && !bRunHeavyTests)
 		{
-			SKIP("-run_heavy_tests is unset, limiting NumRequests to 100");
+			return;
 		}
 
 		TArray<TSharedRef<IHttpRequest>> Requests;

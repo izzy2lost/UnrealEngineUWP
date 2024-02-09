@@ -151,7 +151,7 @@ private:
 	bool bIsStopped;
 
 	/** Limit for threaded http requests running at the same time. If not specified through configuration values, there will be no limit */
-	std::atomic<int32> RunningThreadedRequestLimit = INT_MAX;
+	std::atomic<int32> RunningThreadedRequestLimit;
 
 	/** Last time the thread has been processed. Used in the non-game thread. */
 	double LastTime;
