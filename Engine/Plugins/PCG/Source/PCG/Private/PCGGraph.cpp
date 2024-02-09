@@ -336,11 +336,15 @@ void UPCGGraph::PostLoad()
 
 	// Ensure that all nodes are loaded (& updated their deprecated data)
 	// If a node is null (can happen if an asset was saved with a node that don't exist in the current session), we don't want to crash. So remove the faulty node and warn the user.
+	// Keep track if that ever happen to force an edge cleanup
+	bool bHasInvalidNode = false;
+
 	for (int32 i = Nodes.Num() - 1; i >= 0; --i)
 	{
 		if (!Nodes[i])
 		{
 			UE_LOG(LogPCG, Error, TEXT("Graph %s has a node that doesn't exist anymore. Check if you are missing a plugin or if you saved an asset with an old settings that was removed/renamed."), *GetPathName());
+			bHasInvalidNode = true;
 			Nodes.RemoveAtSwap(i);
 		}
 		else
@@ -396,7 +400,7 @@ void UPCGGraph::PostLoad()
 		}
 	}
 
-	if (PCGGraph::CVarFixInvalidEdgesOnPostLoad.GetValueOnAnyThread())
+	if (bHasInvalidNode || PCGGraph::CVarFixInvalidEdgesOnPostLoad.GetValueOnAnyThread())
 	{
 		FixInvalidEdges();
 	}
@@ -1673,17 +1677,17 @@ void UPCGGraphInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	// We need to be careful and only capture `Graph` if it is our graph and not a graph parameter called `Graph`!
 	if (PropertyChangedEvent.Property->GetOwnerClass() == UPCGGraphInstance::StaticClass() && PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, Graph))
 	{
-		// If the new graph is itself, return to the previous value
-		if (this == Graph)
+		// If the new graph hierarchy has this graph in it, return to the previous value.
+		if (Graph && !CanGraphInterfaceBeSet(Graph))
 		{
-			UE_LOG(LogPCG, Error, TEXT("Try to set the graph of a graph instance to itself, would cause infinite recursion."));
+			UE_LOG(LogPCG, Error, TEXT("Attempting to assign %s would cause infinite recursion in the graph instance hierarchy, this is not allowed."), *Graph->GetPathName());
 			Graph = PreGraphCache;
 		}
 
 		SetupCallbacks();
 
 		// No need to refresh if it is the same graph
-		if (Graph == PreGraphCache)
+		if (Graph != PreGraphCache)
 		{
 			RefreshParameters(EPCGGraphParameterEvent::GraphChanged);
 		}
@@ -1781,9 +1785,9 @@ void UPCGGraphInstance::SetupCallbacks()
 
 void UPCGGraphInstance::SetGraph(UPCGGraphInterface* InGraph)
 {
-	if (InGraph == this)
+	if (InGraph && !CanGraphInterfaceBeSet(InGraph))
 	{
-		UE_LOG(LogPCG, Error, TEXT("Try to set the graph of a graph instance to itself, would cause infinite recursion."));
+		UE_LOG(LogPCG, Error, TEXT("Attempting to assign %s would cause infinite recursion in the graph instance hierarchy, this is not allowed."), *InGraph->GetPathName());
 		return;
 	}
 
@@ -1957,6 +1961,23 @@ bool UPCGGraphInstance::IsPropertyOverriddenAndNotDefault(const FProperty* InPro
 bool UPCGGraphInstance::IsGraphParameterOverridden(const FName PropertyName) const
 {
 	return (ParametersOverrides.Parameters.FindPropertyDescByName(PropertyName) != nullptr);
+}
+
+bool UPCGGraphInstance::CanGraphInterfaceBeSet(const UPCGGraphInterface* GraphInterface) const
+{
+	if (GraphInterface == this)
+	{
+		return false;
+	}
+
+	const UPCGGraphInstance* GraphInstance = Cast<const UPCGGraphInstance>(GraphInterface);
+	// Can always set a normal graph (or null graph)
+	if (!GraphInstance)
+	{
+		return true;
+	}
+	
+	return CanGraphInterfaceBeSet(GraphInstance->Graph);
 }
 
 bool FPCGOverrideInstancedPropertyBag::RefreshParameters(const FInstancedPropertyBag* ParentUserParameters, EPCGGraphParameterEvent InChangeType, FName InChangedPropertyName)
