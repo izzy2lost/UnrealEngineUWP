@@ -237,12 +237,14 @@ namespace Horde.Agent.Execution
 		{
 			using IScope scope = GlobalTracer.Instance.BuildSpan("Conform").StartActive();
 			scope.Span.SetTag("workspaces", String.Join(',', pendingWorkspaces.Select(x => x.Identifier)));
+			scope.Span.SetTag("removeUntrackedFiles", removeUntrackedFiles);
 			
 			// Print out all the workspaces we're going to sync
 			logger.LogInformation("Workspaces:");
 			foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
 			{
-				logger.LogInformation("  Identifier={Identifier}, Stream={StreamName}, Incremental={Incremental}", pendingWorkspace.Identifier, pendingWorkspace.Stream, pendingWorkspace.Incremental);
+				logger.LogInformation("  Identifier={Identifier}, Stream={StreamName}, Incremental={Incremental} Method={Method} Partitioned={Partitioned}", 
+					pendingWorkspace.Identifier, pendingWorkspace.Stream, pendingWorkspace.Incremental, pendingWorkspace.Method ,pendingWorkspace.Partitioned);
 			}
 
 			// Make workspaces for all the unique configurations on this agent
