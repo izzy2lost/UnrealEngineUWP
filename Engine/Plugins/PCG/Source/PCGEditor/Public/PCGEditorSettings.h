@@ -149,6 +149,18 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Node, meta = (HideAlphaChannel))
 	TMap<TSubclassOf<UPCGSettings>, FLinearColor> OverrideNodeColorByClass;
 
+	/** Hover edge size emphasis */
+	UPROPERTY(EditAnywhere, config, Category = Wire, meta = (ClampMin="1", ClampMax="5"))
+	float HoverEdgeEmphasis = 1.5f;
+
+	/** Debug mode edge emphasis on multi-data */
+	UPROPERTY(EditAnywhere, config, Category = Wire, meta = (ClampMin="1", ClampMax="5"))
+	float MultiDataEdgeDebugEmphasis = 2.5f;
+
+	/** Debug mode edge desaturation with empty data */
+	UPROPERTY(EditAnywhere, config, Category = Wire, meta = (ClampMin="0", ClampMax="1"))
+	float EmptyEdgeDebugDesaturateFactor = 0.5f;
+
 	/** Specify if we want to jump to definition in case of double click on native PCG Nodes */
 	UPROPERTY(EditAnywhere, config, Category = Workflow)
 	bool bEnableNavigateToNativeNodes;

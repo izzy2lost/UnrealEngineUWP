@@ -10,7 +10,14 @@
 
 class FPCGEditor;
 class UPCGNode;
+class UPCGPin;
 class UPCGEditorGraphNodeBase;
+
+namespace PCGEditorGraphUtils
+{
+	/** Goes up the graph to the first non-reroute node it can, assuming it's properly connected. */
+	void GetInspectablePin(const UPCGNode* InNode, const UPCGPin* InPin, const UPCGNode*& OutNode, const UPCGPin*& OutPin);
+}
 
 UCLASS()
 class UPCGEditorGraph : public UEdGraph
