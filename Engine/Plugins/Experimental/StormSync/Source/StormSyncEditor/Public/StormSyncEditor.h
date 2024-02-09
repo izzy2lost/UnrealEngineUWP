@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IMessageContext.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
@@ -11,13 +10,14 @@
 class FExtender;
 class FMenuBuilder;
 class FStormSyncAssetFolderContextMenu;
+class IStormSyncImportWizard;
 struct FAssetData;
+struct FStormSyncImportFileInfo;
 
 /** Main entry point and implementation of StormSync Core Editor module. */
 class FStormSyncEditorModule : public IModuleInterface
 {
 public:
-	
 	/**
 	 * Singleton-like access to this module's interface.  This is just for convenience!
 	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
@@ -29,12 +29,15 @@ public:
 		static const FName ModuleName = "StormSyncEditor";
 		return FModuleManager::LoadModuleChecked<FStormSyncEditorModule>(ModuleName);
 	}
-	
+
 	//~ Begin IModuleInterface interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 	//~ End IModuleInterface interface
-	
+
+	/** Opens the dialog in a modal new window */
+	STORMSYNCEDITOR_API TSharedRef<IStormSyncImportWizard> CreateWizard(const TArray<FStormSyncImportFileInfo>& InFilesToImport, const TArray<FStormSyncImportFileInfo>& InBufferFiles);
+
 	/**
 	 * Submenu extension delegate to build submenu for Push and Pull actions (useful for UI extensions)
 	 *

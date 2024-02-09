@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "StormSyncDrivesSettings.generated.h"
 
 /** Holds config for a given Mount Point (eg. /RootPath) to a filesystem directory (can be local, could be networked) */
 USTRUCT()
-struct STORMSYNCDRIVES_API FStormSyncMountPointConfig
+struct FStormSyncMountPointConfig
 {
 	GENERATED_BODY()
 
@@ -53,29 +52,15 @@ struct STORMSYNCDRIVES_API FStormSyncMountPointConfig
  *
  * If successful, mount points will be updated and should be available in the content browser.
  */
-UCLASS(config=Game, defaultconfig)
-class STORMSYNCDRIVES_API UStormSyncDrivesSettings : public UDeveloperSettings
+UCLASS(MinimalAPI, Config=Game, DefaultConfig, DisplayName="Mount Points Settings")
+class UStormSyncDrivesSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
-	
+
 public:
 	UStormSyncDrivesSettings();
-
-	/**
-	 * The category name for our developer settings
-	 *
-	 * @see GetCategoryName
-	 */
-	static constexpr const TCHAR* PluginCategoryName = TEXT("Storm Sync");
 
 	/** List of mounted drives configuration */
 	UPROPERTY(config, EditAnywhere, Category = "Mounted Drives", meta=(TitleProperty="{MountPoint} mapped to {MountDirectory}"))
 	TArray<FStormSyncMountPointConfig> MountPoints;
-	
-	//~ Begin UDeveloperSettings interface
-	virtual FName GetCategoryName() const override;
-#if WITH_EDITOR
-	virtual FText GetSectionText() const override;
-#endif
-	//~ End UDeveloperSettings interface
 };

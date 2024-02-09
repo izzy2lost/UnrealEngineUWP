@@ -29,12 +29,13 @@
 #include "FileHelpers.h"
 #include "ISourceControlModule.h"
 #include "ISourceControlProvider.h"
+#include "IStormSyncImportWizard.h"
 #include "MessageLogModule.h"
 #include "ObjectTools.h"
 #include "PackageTools.h"
 #include "Settings/EditorLoadingSavingSettings.h"
-#include "Slate/SStormSyncImportWizard.h"
 #include "SourceControlHelpers.h"
+#include "StormSyncEditor.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Toolkits/ToolkitManager.h"
 #endif
@@ -192,7 +193,7 @@ bool UStormSyncImportSubsystem::PerformImport(const FStormSyncPackageDescriptor&
 		if (bShowWizard)
 		{
 			// Create file import dialog. This is a modal dialog so it will return only after user selection
-			const TSharedRef<SStormSyncImportWizard> Wizard = SStormSyncImportWizard::CreateWizard(FilesToImport, BufferFiles);
+			const TSharedRef<IStormSyncImportWizard> Wizard = FStormSyncEditorModule::Get().CreateWizard(FilesToImport, BufferFiles);
 
 			// Early out if user canceled the operation
 			if (!Wizard->ShouldImport())

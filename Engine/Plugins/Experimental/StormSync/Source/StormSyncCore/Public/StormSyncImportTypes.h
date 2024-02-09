@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/UnrealString.h"
+#include "Internationalization/Text.h"
 #include "StormSyncCommonTypes.h"
 #include "StormSyncPackageDescriptor.h"
 #include "StormSyncImportTypes.generated.h"
@@ -13,7 +14,7 @@
  * Used to compute a list of files that needs extraction.
  */
 USTRUCT()
-struct STORMSYNCCORE_API FStormSyncImportFileInfo
+struct FStormSyncImportFileInfo
 {
 	GENERATED_BODY()
 	

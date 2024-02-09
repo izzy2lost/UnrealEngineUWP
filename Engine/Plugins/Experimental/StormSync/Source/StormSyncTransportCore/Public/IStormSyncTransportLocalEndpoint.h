@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Templates/SharedPointer.h"
 
 class FMessageEndpoint;
 
@@ -13,9 +13,7 @@ class IStormSyncTransportLocalEndpoint : public TSharedFromThis<IStormSyncTransp
 {
 public:
 	/** Virtual destructor */
-	virtual ~IStormSyncTransportLocalEndpoint()
-	{
-	}
+	virtual ~IStormSyncTransportLocalEndpoint() = default;
 
 	/** Returns whether message endpoint is currently active */
 	virtual bool IsRunning() const = 0;

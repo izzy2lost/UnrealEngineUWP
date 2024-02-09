@@ -1,21 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StormSyncImport.h"
-
 #include "StormSyncImportLog.h"
+#include "Modules/ModuleManager.h"
 
-#define LOCTEXT_NAMESPACE "FStormSyncImportModule"
+DEFINE_LOG_CATEGORY(LogStormSyncImport);
 
-void FStormSyncImportModule::StartupModule()
-{
-	STORM_SYNC_IMPORT_LOG(Verbose, TEXT("Started StormSyncImport module ..."))
-}
-
-void FStormSyncImportModule::ShutdownModule()
-{
-    
-}
-
-#undef LOCTEXT_NAMESPACE
-    
-IMPLEMENT_MODULE(FStormSyncImportModule, StormSyncImport)
+IMPLEMENT_MODULE(FDefaultModuleImpl, StormSyncImport)

@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/Set.h"
+#include "Containers/UnrealString.h"
 #include "Engine/DeveloperSettings.h"
 #include "StormSyncCoreSettings.generated.h"
 
@@ -11,27 +12,13 @@
  *
  * Handle configuration for buffer creation / extraction.
  */
-UCLASS(config=Game, defaultconfig)
-class STORMSYNCCORE_API UStormSyncCoreSettings : public UDeveloperSettings
+UCLASS(MinimalAPI, Config=Game, DefaultConfig, DisplayName="Core Settings")
+class UStormSyncCoreSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
 public:
 	UStormSyncCoreSettings();
-
-	/**
-	 * The category name for our developer settings
-	 *
-	 * @see GetCategoryName
-	 */
-	static constexpr const TCHAR* PluginCategoryName = TEXT("Storm Sync");
-	
-	//~ Begin UDeveloperSettings interface
-	virtual FName GetCategoryName() const override;
-#if WITH_EDITOR
-	virtual FText GetSectionText() const override;
-#endif
-	//~ End UDeveloperSettings interface
 
 	/**
 	 * Whether StormSync should consider packages only within the `/Game` project content when performing

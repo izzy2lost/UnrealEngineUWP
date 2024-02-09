@@ -1,13 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StormSyncCoreModule.h"
+#include "Modules/ModuleManager.h"
+#include "StormSyncCoreLog.h"
 
-void FStormSyncCoreModule::StartupModule()
-{
-}
+DEFINE_LOG_CATEGORY(LogStormSyncCore);
 
-void FStormSyncCoreModule::ShutdownModule()
-{
-}
-
-IMPLEMENT_MODULE(FStormSyncCoreModule, StormSyncCore)
+IMPLEMENT_MODULE(FDefaultModuleImpl, StormSyncCore)

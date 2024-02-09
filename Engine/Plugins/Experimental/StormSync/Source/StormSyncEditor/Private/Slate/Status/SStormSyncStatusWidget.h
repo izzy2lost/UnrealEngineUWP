@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StormSyncPackageDescriptor.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
@@ -12,7 +11,7 @@ struct FStormSyncImportFileInfo;
 struct FStormSyncTransportStatusResponse;
 
 /** A modal dialog to show the status of package names file state between two editor instances  */
-class STORMSYNCEDITOR_API SStormSyncStatusWidget : public SCompoundWidget
+class SStormSyncStatusWidget : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SStormSyncStatusWidget) {}

@@ -2,14 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 
 struct FStormSyncMountPointConfig;
 
 /** Public interface for Storm Sync Drives module and API */
-class STORMSYNCDRIVES_API IStormSyncDrivesModule : public IModuleInterface
+class IStormSyncDrivesModule : public IModuleInterface
 {
 public:
 	static bool IsAvailable()

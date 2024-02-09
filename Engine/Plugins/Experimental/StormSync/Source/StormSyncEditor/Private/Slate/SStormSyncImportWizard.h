@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "IStormSyncImportWizard.h"
 #include "StormSyncImportTypes.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/SListView.h"
@@ -26,7 +26,7 @@ enum class EStormSyncImportWizardActiveTab : uint8
  *
  * Note: UCommonTabListWidgetBase from CommonUI seems to implement a tab-like widget that would fit perfectly for that use case.
  */
-class STORMSYNCEDITOR_API SStormSyncImportWizard : public SCompoundWidget
+class SStormSyncImportWizard : public SCompoundWidget, public IStormSyncImportWizard
 {
 public:
 	SLATE_BEGIN_ARGS(SStormSyncImportWizard) {}
@@ -34,12 +34,11 @@ public:
 
 	/** Constructs this widget with InArgs, list of FStormSyncImportFileInfo to import and full list of FStormSyncImportFileInfo from buffer */
 	void Construct(const FArguments& InArgs, const TArray<FStormSyncImportFileInfo>& InFilesToImport, const TArray<FStormSyncImportFileInfo>& InBufferFiles);
-	
-	/** Opens the dialog in a modal new window */
-	static TSharedRef<SStormSyncImportWizard> CreateWizard(const TArray<FStormSyncImportFileInfo>& InFilesToImport, const TArray<FStormSyncImportFileInfo>& InBufferFiles);
 
-	/** Returns user choice, either import or cancel */
-	bool ShouldImport() const;
+protected:
+	//~ Begin IStormSyncImportWizard
+	virtual bool ShouldImport() const override;
+	//~ End IStormSyncImportWizard
 
 private:
 	/** Main wizard */

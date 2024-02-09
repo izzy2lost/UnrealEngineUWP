@@ -23,7 +23,7 @@ struct FStormSyncTransportHeartbeatMessage
 
 /** Holds data about local project (such as Message Address Ids, Project Name, Hostname, InstanceId, etc.) */
 USTRUCT()
-struct STORMSYNCTRANSPORTCORE_API FStormSyncConnectionInfo
+struct FStormSyncConnectionInfo
 {
 	GENERATED_BODY()
 
@@ -64,18 +64,18 @@ struct STORMSYNCTRANSPORTCORE_API FStormSyncConnectionInfo
 	FString ProjectDir;
 
 	/** Default constructor */
-	FStormSyncConnectionInfo();
+	STORMSYNCTRANSPORTCORE_API FStormSyncConnectionInfo();
 
 	/** Returns debug string for this message */
-	FString ToString() const;
+	STORMSYNCTRANSPORTCORE_API FString ToString() const;
 
 	/** Internal helper to return the last portion of a path, similar to the Unix basename command. Trailing directory separators are ignored */
-	static FString GetBasename(const FString& InPath);
+	STORMSYNCTRANSPORTCORE_API static FString GetBasename(const FString& InPath);
 };
 
 /** Connection message indicating a Connect event with data about local project / application */
 USTRUCT()
-struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportConnectMessage : public FStormSyncConnectionInfo
+struct FStormSyncTransportConnectMessage : public FStormSyncConnectionInfo
 {
 	GENERATED_BODY()
 };
@@ -300,7 +300,7 @@ struct FStormSyncTransportPullResponse : public FStormSyncTransportSyncResponse
 };
 
 USTRUCT()
-struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportStatusRequest
+struct FStormSyncTransportStatusRequest
 {
 	GENERATED_BODY()
 
@@ -332,7 +332,7 @@ struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportStatusRequest
 };
 
 USTRUCT()
-struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportStatusResponse
+struct FStormSyncTransportStatusResponse
 {
 	GENERATED_BODY()
 	
@@ -366,13 +366,13 @@ struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportStatusResponse
 };
 
 USTRUCT()
-struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportStatusPing
+struct FStormSyncTransportStatusPing
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct STORMSYNCTRANSPORTCORE_API FStormSyncTransportStatusPong
+struct FStormSyncTransportStatusPong
 {
 	GENERATED_BODY()
 };

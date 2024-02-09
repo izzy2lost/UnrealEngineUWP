@@ -2,7 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/ContainersFwd.h"
+#include "HAL/Platform.h"
+
+class FName;
 
 /** Provides command line helpers to help in dealing with command parameters */
 class STORMSYNCCORE_API FStormSyncCommandLineUtils

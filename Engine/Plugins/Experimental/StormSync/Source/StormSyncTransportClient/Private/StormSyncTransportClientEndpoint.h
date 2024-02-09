@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncTransportClientLocalEndpoint.h"
 #include "StormSyncTransportMessages.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
@@ -43,7 +42,7 @@ class FStormSyncTransportClientEndpoint : public IStormSyncTransportClientLocalE
 {
 public:
 	FStormSyncTransportClientEndpoint();
-	virtual ~FStormSyncTransportClientEndpoint();
+	virtual ~FStormSyncTransportClientEndpoint() override;
 
 	/** Initializes the message endpoint. */
 	void InitializeMessaging(const FString& InEndpointFriendlyName = TEXT("Client"));

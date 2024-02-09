@@ -1,18 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StormSyncTransportCoreModule.h"
+#include "Modules/ModuleManager.h"
 
-#define LOCTEXT_NAMESPACE "StormSyncTransportCoreModule"
-
-
-void FStormSyncTransportCoreModule::StartupModule()
-{
-}
-
-void FStormSyncTransportCoreModule::ShutdownModule()
-{
-}
-
-IMPLEMENT_MODULE(FStormSyncTransportCoreModule, StormSyncTransportCore)
-
-#undef LOCTEXT_NAMESPACE
+IMPLEMENT_MODULE(FDefaultModuleImpl, StormSyncTransportCore)

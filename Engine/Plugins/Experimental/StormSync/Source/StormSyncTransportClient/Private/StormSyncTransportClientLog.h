@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Logging/LogMacros.h"
 
-STORMSYNCTRANSPORTCLIENT_API DECLARE_LOG_CATEGORY_EXTERN(LogStormSyncClient, Display, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogStormSyncClient, Display, All);
 
 #define STORM_SYNC_CLIENT_LOG(Verbosity, Format, ...) \
 { \

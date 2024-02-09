@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StormSyncPackageDescriptor.generated.h"
 
 /**
@@ -13,7 +12,7 @@
  * for a given ava package.
  */
 USTRUCT()
-struct STORMSYNCCORE_API FStormSyncFileDependency
+struct FStormSyncFileDependency
 {
 	GENERATED_BODY()
 
@@ -65,12 +64,12 @@ struct STORMSYNCCORE_API FStormSyncFileDependency
 	 * @return Destination filepath or empty string if we were not able to determine destination output
 	 * (eg, Plugin package while plugin not installed or enabled in current project)
 	 */
-	static FString GetDestFilepath(const FName& InPackageName, FText& OutFailureReason);
+	STORMSYNCCORE_API static FString GetDestFilepath(const FName& InPackageName, FText& OutFailureReason);
 
 	/** Returns whether file info was properly initialized */
-	bool IsValid() const;
+	STORMSYNCCORE_API bool IsValid() const;
 
-	FString ToString() const;
+	STORMSYNCCORE_API FString ToString() const;
 };
 
 /**
@@ -81,7 +80,7 @@ struct STORMSYNCCORE_API FStormSyncFileDependency
  * their state, timestamp, size, hash, etc.)
  */
 USTRUCT()
-struct STORMSYNCCORE_API FStormSyncPackageDescriptor
+struct FStormSyncPackageDescriptor
 {
 	GENERATED_BODY()
 
@@ -116,7 +115,7 @@ struct STORMSYNCCORE_API FStormSyncPackageDescriptor
 	UPROPERTY(VisibleAnywhere, Category = "Storm Sync")
 	TArray<FStormSyncFileDependency> Dependencies;
 
-	FString ToString() const;
+	STORMSYNCCORE_API FString ToString() const;
 };
 
 /**

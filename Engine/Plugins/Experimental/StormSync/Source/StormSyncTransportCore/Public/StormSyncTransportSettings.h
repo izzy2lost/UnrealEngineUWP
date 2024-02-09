@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "StormSyncTransportSettings.generated.h"
 
@@ -13,7 +12,7 @@ class FStormSyncTransportSettingsDetailsCustomization;
  *
  * Handles config for transport / network related features.
  */
-UCLASS(config=Game, defaultconfig)
+UCLASS(Config=Game, DefaultConfig, DisplayName="Transport & Network")
 class STORMSYNCTRANSPORTCORE_API UStormSyncTransportSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
@@ -26,19 +25,7 @@ public:
 	
 	static const UStormSyncTransportSettings& Get();
 
-	/**
-	 * The category name for our developer settings
-	 *
-	 * @see GetCategoryName
-	 */
-	static constexpr const TCHAR* PluginCategoryName = TEXT("Storm Sync");
-
-	//~ Begin UDeveloperSettings interface
-	virtual FName GetCategoryName() const override;
 #if WITH_EDITOR
-	virtual FText GetSectionText() const override;
-	//~ End UDeveloperSettings interface
-
 	/** Helper to bring focus on transport settings in editor */
 	void OpenEditorSettingsWindow() const;
 #endif

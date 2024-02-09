@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Async/Async.h"
-#include "CoreMinimal.h"
+#include "Delegates/Delegate.h"
 #include "StormSyncCommonTypes.h"
 #include "StormSyncPackageDescriptor.h"
 
@@ -13,7 +13,7 @@
  * Delegates used by the main extract method. Use it to register delegates when you want to be notified
  * from external code.
  */
-struct STORMSYNCCORE_API FStormSyncCoreExtractArgs
+struct FStormSyncCoreExtractArgs
 {
 	/** Delegate type for when one an incoming pak extraction process starts */
 	DECLARE_DELEGATE_OneParam(FOnPakPreExtract, int32);
@@ -52,7 +52,7 @@ struct STORMSYNCCORE_API FStormSyncCoreExtractArgs
 };
 
 /** This class exposes a set of static methods to manipulate Ava Pak files, creation and extraction. */
-class STORMSYNCCORE_API FStormSyncCoreUtils
+class FStormSyncCoreUtils
 {
 public:
 	/** Delegate type triggered on pak buffer creation for each added file */
@@ -69,8 +69,8 @@ public:
 	 * 
 	 * @return Whether the asset data could be retrieved or not
 	 */
-	static bool GetAssetData(const FString& InPackageName, TArray<FAssetData>& OutAssets, TArray<FName>& OutDependencies);
-	
+	STORMSYNCCORE_API static bool GetAssetData(const FString& InPackageName, TArray<FAssetData>& OutAssets, TArray<FName>& OutDependencies);
+
 	/**
 	 * Gathers a list of PackageNames dependencies referenced by the supplied packages.
 	 *
@@ -85,7 +85,7 @@ public:
 	 * @return Returns true if we were able to generate a list of dependencies and false if the operation failed.
 	 * Note that in case of failure, ErrorText is filled with further information.
 	 */
-	static bool GetDependenciesForPackages(const TArray<FName>& InPackageNames, TArray<FName>& OutDependencies, FText& OutErrorText, const bool bInShouldValidatePackages = true);
+	STORMSYNCCORE_API static bool GetDependenciesForPackages(const TArray<FName>& InPackageNames, TArray<FName>& OutDependencies, FText& OutErrorText, const bool bInShouldValidatePackages = true);
 
 	/**
 	 * Similar to GetDependenciesForPackages internally searching for any recursive dependencies.
@@ -101,7 +101,7 @@ public:
 	 * @return Returns true if we were able to generate a list of dependencies and false if the operation failed.
 	 * Note that in case of failure, ErrorText is filled with further information.
 	 */
-	static bool GetAvaFileDependenciesForPackages(const TArray<FName>& InPackageNames, TArray<FStormSyncFileDependency>& OutFileDependencies, FText& OutErrorText, const bool bInShouldValidatePackages = true);
+	STORMSYNCCORE_API static bool GetAvaFileDependenciesForPackages(const TArray<FName>& InPackageNames, TArray<FStormSyncFileDependency>& OutFileDependencies, FText& OutErrorText, const bool bInShouldValidatePackages = true);
 
 	/**
 	 * Creates a list of FStormSyncFileDependency (with info such as asset path, file size, timestamp and file hash)
@@ -111,7 +111,7 @@ public:
 	 *
 	 * @return Returns a list of FStormSyncFileDependency
 	 */
-	static TArray<FStormSyncFileDependency> GetAvaFileDependenciesFromPackageNames(const TArray<FName>& InPackageNames, bool bInShouldIncludeInvalid = false);
+	STORMSYNCCORE_API static TArray<FStormSyncFileDependency> GetAvaFileDependenciesFromPackageNames(const TArray<FName>& InPackageNames, bool bInShouldIncludeInvalid = false);
 
 	/**
 	 * Async version of FStormSyncCoreUtils::GetAvaFileDependenciesFromPackageNames to return a list of
@@ -123,14 +123,14 @@ public:
 	 * @param InThreadType Optional Thread Type to use for the async execution (Default EAsyncExecution::Thread)
 	 * @return A future containing the list of file dependencies.
 	 */
-	static TFuture<TArray<FStormSyncFileDependency>> GetAvaFileDependenciesAsync(const TArray<FName>& InPackageNames, const bool bInShouldValidatePackages = true, EAsyncExecution InThreadType = EAsyncExecution::Thread);
+	STORMSYNCCORE_API static TFuture<TArray<FStormSyncFileDependency>> GetAvaFileDependenciesAsync(const TArray<FName>& InPackageNames, const bool bInShouldValidatePackages = true, EAsyncExecution InThreadType = EAsyncExecution::Thread);
 
 	/**
 	 * Creates a new FStormSyncFileDependency and initialize filesystem related information
 	 *
 	 * Note: Considering renaming FStormSyncFileDependency to FStormSyncFileInfo (to distinguish with file references / dependencies idea)
 	 */
-	static FStormSyncFileDependency CreateStormSyncFile(const FName& InPackageName);
+	STORMSYNCCORE_API static FStormSyncFileDependency CreateStormSyncFile(const FName& InPackageName);
 
 	/**
 	 * Recursively get dependencies for provided list of Package Names and attempts to create an ava pak buffer using a
@@ -149,7 +149,7 @@ public:
 	 * @return Returns true if we were able to generate the pak buffer false if the operation failed.
 	 * Note that in case of failure, ErrorText is filled with further information.
 	 */
-	static bool CreatePakBufferWithDependencies(const TArray<FName>& InPackageNames, TArray<uint8>& OutPakBuffer, FText& OutErrorText, const FOnFileAdded& InOnFileAdded = FOnFileAdded());
+	STORMSYNCCORE_API static bool CreatePakBufferWithDependencies(const TArray<FName>& InPackageNames, TArray<uint8>& OutPakBuffer, FText& OutErrorText, const FOnFileAdded& InOnFileAdded = FOnFileAdded());
 
 	/**
 	 * Attempts to create an ava pak buffer using a memory archive from the provided list of Package Names.
@@ -170,7 +170,7 @@ public:
 	 * @return Returns true if we were able to generate the pak buffer false if the operation failed.
 	 * Note that in case of failure, ErrorText is filled with further information.
 	 */
-	static bool CreatePakBuffer(const TArray<FName>& InPackageNames, TArray<uint8>& OutPakBuffer, FText& OutErrorText, const FOnFileAdded& InOnFileAdded = FOnFileAdded());
+	STORMSYNCCORE_API static bool CreatePakBuffer(const TArray<FName>& InPackageNames, TArray<uint8>& OutPakBuffer, FText& OutErrorText, const FOnFileAdded& InOnFileAdded = FOnFileAdded());
 
 	/**
 	 * Main entry point for unpacking. Extracts an ava pak into the current Unreal project (Game content or Plugins content folder)
@@ -185,7 +185,7 @@ public:
 	 * @return Returns true if we were able to fully import the package and false if the operation failed (even for partial imports).
 	 * Note that in case of failure, Errors array of localized text is filled with further information.
 	 */
-	static bool ExtractPakBuffer(const TArray<uint8>& InPakBuffer, const FStormSyncCoreExtractArgs& InExtractArgs, TMap<FString, FString>& OutSuccessfullyExtractedPackages, TArray<FText>& OutErrors);
+	STORMSYNCCORE_API static bool ExtractPakBuffer(const TArray<uint8>& InPakBuffer, const FStormSyncCoreExtractArgs& InExtractArgs, TMap<FString, FString>& OutSuccessfullyExtractedPackages, TArray<FText>& OutErrors);
 
 	/**
 	 * Converts the provided bytes size into a human readable string.
@@ -194,8 +194,8 @@ public:
 	 *
 	 * @return A string representing the provided size with B, KB, MB of GB suffix.
 	 */
-	static FString GetHumanReadableByteSize(uint64 InSize);
-	
+	STORMSYNCCORE_API static FString GetHumanReadableByteSize(uint64 InSize);
+
 	/**
 	 * Figures out the files that needs to be synced based on local and remote list of dependencies.
 	 *
@@ -215,8 +215,8 @@ public:
 	 *
 	 * @return List of FStormSyncFileModifierInfo indicating files that are either missing or dirty
 	 */
-	static TArray<FStormSyncFileModifierInfo> GetSyncFileModifiers(const TArray<FName>& InPackageNames, const TArray<FStormSyncFileDependency>& InRemoteDependencies);
-	
+	STORMSYNCCORE_API static TArray<FStormSyncFileModifierInfo> GetSyncFileModifiers(const TArray<FName>& InPackageNames, const TArray<FStormSyncFileDependency>& InRemoteDependencies);
+
 private:
 	/**
 	 * Gets the dependencies of the specified package recursively.

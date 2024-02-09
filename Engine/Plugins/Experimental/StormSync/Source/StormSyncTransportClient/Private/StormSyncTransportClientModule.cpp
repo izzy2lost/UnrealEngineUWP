@@ -4,7 +4,6 @@
 
 #include "StormSyncCommandLineUtils.h"
 #include "StormSyncCoreUtils.h"
-#include "IStormSyncTransportCoreModule.h"
 #include "IStormSyncTransportLocalEndpoint.h"
 #include "MessageEndpoint.h"
 #include "Misc/CoreDelegates.h"

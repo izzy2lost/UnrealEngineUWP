@@ -26,17 +26,7 @@ const UStormSyncTransportSettings& UStormSyncTransportSettings::Get()
 	return *Settings;
 }
 
-FName UStormSyncTransportSettings::GetCategoryName() const
-{
-	return PluginCategoryName;
-}
-
 #if WITH_EDITOR
-FText UStormSyncTransportSettings::GetSectionText() const
-{
-	return NSLOCTEXT("StormSyncTransportSettings", "SettingsSection", "Transport & Network");
-}
-
 void UStormSyncTransportSettings::OpenEditorSettingsWindow() const
 {
 	static ISettingsModule& SettingsModule = FModuleManager::LoadModuleChecked<ISettingsModule>("Settings");

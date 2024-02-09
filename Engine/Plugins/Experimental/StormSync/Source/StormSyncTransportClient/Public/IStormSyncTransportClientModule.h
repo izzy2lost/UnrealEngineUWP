@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncTransportClientLocalEndpoint.h"
 #include "StormSyncTransportMessages.h"
 #include "Modules/ModuleInterface.h"
@@ -13,7 +12,7 @@ struct FMessageAddress;
 
 using FMessageEndpointSharedPtr = TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe>;
 
-class STORMSYNCTRANSPORTCLIENT_API IStormSyncTransportClientModule : public IModuleInterface
+class IStormSyncTransportClientModule : public IModuleInterface
 {
 public:
 	/**

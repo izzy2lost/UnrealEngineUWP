@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Containers/Queue.h"
-#include "CoreMinimal.h"
 #include "HAL/Runnable.h"
 #include "Interfaces/IPv4/IPv4Endpoint.h"
 #include "JsonObjectConverter.h"
@@ -59,7 +58,7 @@ class FStormSyncTransportTcpServer : public FRunnable
 {
 public:
 	explicit FStormSyncTransportTcpServer(const FIPv4Address& InEndpointAddress, const uint16 InEndpointPort, const uint32 InInactiveTimeoutSeconds);
-	virtual ~FStormSyncTransportTcpServer();
+	virtual ~FStormSyncTransportTcpServer() override;
 
 	//~ Begin FRunnable interface
 	virtual bool Init() override;

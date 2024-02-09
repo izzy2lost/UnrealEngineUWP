@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "StormSyncTransportTcpPackets.generated.h"
 
 USTRUCT()

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "HAL/Runnable.h"
 #include "MessageEndpoint.h"
 #include "StormSyncTransportMessages.h"

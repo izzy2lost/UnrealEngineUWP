@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IStormSyncTransportClientLocalEndpoint.h"
 #include "IStormSyncTransportMessageService.h"
 #include "MessageEndpoint.h"
