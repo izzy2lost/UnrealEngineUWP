@@ -114,4 +114,25 @@ void UAnimNotifyState_MotionWarping::ValidateAssociatedAssets()
 		}
 	}
 }
+
+void UAnimNotifyState_MotionWarping::DrawInEditor(FPrimitiveDrawInterface* PDI, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* Animation, const FAnimNotifyEvent& NotifyEvent) const
+{
+	if (RootMotionModifier)
+	{
+		FAnimNotifyEvent NotifyEventWithColor = NotifyEvent;
+		NotifyEventWithColor.NotifyColor = NotifyColor;
+		RootMotionModifier->DrawInEditor(PDI, MeshComp, Animation, NotifyEventWithColor);
+	}
+}
+
+void UAnimNotifyState_MotionWarping::DrawCanvasInEditor(FCanvas& Canvas, FSceneView& View, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* Animation, const FAnimNotifyEvent& NotifyEvent) const
+{
+	if (RootMotionModifier)
+	{
+		FAnimNotifyEvent NotifyEventWithColor = NotifyEvent;
+		NotifyEventWithColor.NotifyColor = NotifyColor;
+		RootMotionModifier->DrawCanvasInEditor(Canvas, View, MeshComp, Animation, NotifyEventWithColor);
+	}
+}
+
 #endif

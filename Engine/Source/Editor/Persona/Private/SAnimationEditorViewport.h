@@ -519,6 +519,12 @@ private:
 	/** Whether the supplied mode can be used */
 	bool CanUseProcessRootMotionMode(EProcessRootMotionMode Mode) const;
 
+	void ToggleNotificationVisualizations();
+	bool IsNotificationVisualizationsEnabled() const;
+
+	void ToggleRootMotionVisualizations();
+	bool IsRootMotionVisualizationsEnabled() const;
+
 private:
 	/** Selected Turn Table speed  */
 	EAnimationPlaybackSpeeds::Type SelectedTurnTableSpeed;

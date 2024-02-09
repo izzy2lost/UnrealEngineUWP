@@ -134,6 +134,11 @@ public:
 
 	FORCEINLINE const UAnimSequenceBase* GetAnimation() const { return Animation.Get(); }
 
+#if WITH_EDITOR	
+	virtual void DrawInEditor(class FPrimitiveDrawInterface* PDI, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* InAnimation, const FAnimNotifyEvent& NotifyEvent) const {}
+	virtual void DrawCanvasInEditor(class FCanvas& Canvas, class FSceneView& View, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* InAnimation, const FAnimNotifyEvent& NotifyEvent) const {}
+#endif	
+
 private:
 
 	friend UMotionWarpingComponent;

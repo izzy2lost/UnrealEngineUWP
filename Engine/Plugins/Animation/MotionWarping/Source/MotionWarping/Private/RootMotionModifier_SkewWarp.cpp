@@ -5,6 +5,16 @@
 #include "GameFramework/Character.h"
 #include "Components/CapsuleComponent.h"
 #include "MotionWarpingComponent.h"
+#if WITH_EDITOR
+#include "Animation/AnimInstance.h"
+#include "Animation/DebugSkelMeshComponent.h"
+#include "AnimPreviewInstance.h"
+#include "SceneManagement.h"
+#include "BonePose.h"
+#include "Engine/Font.h"
+#include "CanvasTypes.h"
+#include "Animation/AnimSequenceHelpers.h"
+#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RootMotionModifier_SkewWarp)
 
@@ -241,3 +251,153 @@ URootMotionModifier_SkewWarp* URootMotionModifier_SkewWarp::AddRootMotionModifie
 
 	return nullptr;
 }
+
+#if WITH_EDITOR
+
+FTransform URootMotionModifier_SkewWarp::GetDebugWarpPointTransform(USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* InAnimation, const UMirrorDataTable* MirrorTable, const float NotifyEndTime) const
+{
+	FTransform WarpPointTransform = FTransform::Identity;
+	if (WarpPointAnimProvider == EWarpPointAnimProvider::None)
+	{
+		WarpPointTransform = UE::Anim::ExtractRootMotionFromAnimationAsset(InAnimation, MirrorTable, 0.0, NotifyEndTime);
+	}
+	else if (WarpPointAnimProvider == EWarpPointAnimProvider::Static)
+	{
+		WarpPointTransform = WarpPointAnimTransform;
+	}
+	else if (WarpPointAnimProvider == EWarpPointAnimProvider::Bone)
+	{
+		if (const UAnimInstance* AnimInstance = MeshComp->GetAnimInstance())
+		{
+			const FBoneContainer& FullBoneContainer = AnimInstance->GetRequiredBones();
+			const int32 BoneIndex = FullBoneContainer.GetPoseBoneIndexForBoneName(WarpPointAnimBoneName);
+			if (BoneIndex != INDEX_NONE)
+			{
+				TArray<FBoneIndexType> RequiredBoneIndexArray = { 0, (FBoneIndexType)BoneIndex };
+				FullBoneContainer.GetReferenceSkeleton().EnsureParentsExistAndSort(RequiredBoneIndexArray);
+
+				const FBoneContainer LimitedBoneContainer(RequiredBoneIndexArray, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *FullBoneContainer.GetAsset());
+
+				FCSPose<FCompactPose> Pose;
+				UMotionWarpingUtilities::ExtractComponentSpacePose(InAnimation, LimitedBoneContainer, NotifyEndTime, false, Pose);
+
+				WarpPointTransform = Pose.GetComponentSpaceTransform(FCompactPoseBoneIndex(1));
+			}
+		}
+	}
+	return WarpPointTransform;
+}
+
+void URootMotionModifier_SkewWarp::DrawInEditor(FPrimitiveDrawInterface* PDI, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* InAnimation, const FAnimNotifyEvent& NotifyEvent) const
+{
+	constexpr float DepthBias = 4.0f;
+	constexpr bool bScreenSpace = true;
+
+	check(MeshComp);
+	check(PDI);
+
+	// Early out if the animation does not have root motion.
+	if (!InAnimation || !InAnimation->HasRootMotion())
+	{
+		return;
+	}
+	
+	const float NotifyStartTime = NotifyEvent.GetTriggerTime();
+	const float NotifyEndTime = NotifyEvent.GetEndTriggerTime();
+
+	const UMirrorDataTable* MirrorTable = nullptr;
+	FTransform ReferenceTransform = FTransform::Identity;
+	if (UDebugSkelMeshComponent* DebugMeshComp = Cast<UDebugSkelMeshComponent>(MeshComp))
+	{
+		ReferenceTransform = DebugMeshComp->RootMotionReferenceTransform; // Actors location at the beginning of the animation
+		MirrorTable = DebugMeshComp->PreviewInstance ? DebugMeshComp->PreviewInstance->GetMirrorDataTable() : nullptr;
+	}
+
+	const FTransform WarpPointTransform = GetDebugWarpPointTransform(MeshComp, InAnimation, MirrorTable, NotifyEndTime) * ReferenceTransform;
+
+	// Draw notify duration on root motion track.
+	const FFrameRate FrameRate = InAnimation->GetSamplingFrameRate();
+
+	const int32 StartFrame = FrameRate.AsFrameTime(NotifyStartTime).CeilToFrame().Value;
+	const int32 EndFrame = FrameRate.AsFrameTime(NotifyEndTime).FloorToFrame().Value;
+
+	const FTransform StartRootTransform = UE::Anim::ExtractRootMotionFromAnimationAsset(InAnimation, MirrorTable, 0.0, NotifyStartTime) * ReferenceTransform;
+	const FTransform EndRootTransform = UE::Anim::ExtractRootMotionFromAnimationAsset(InAnimation, MirrorTable, 0.0, NotifyEndTime) * ReferenceTransform;
+
+	constexpr double TrackOffset = 2.0; 
+	
+	FVector PrevLocation = StartRootTransform.GetLocation() + StartRootTransform.GetUnitAxis(EAxis::Z) * TrackOffset;
+	for (int32 Frame = StartFrame; Frame <= EndFrame; Frame++)
+	{
+		const double Time = FMath::Clamp(FrameRate.AsSeconds(Frame), 0., (double)InAnimation->GetPlayLength());
+		const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(InAnimation, MirrorTable, 0.0, Time) * ReferenceTransform;
+		const FVector Location = Transform.GetLocation() + Transform.GetUnitAxis(EAxis::Z) * TrackOffset;
+		
+		PDI->DrawTranslucentLine(PrevLocation, Location, NotifyEvent.NotifyColor, SDPG_World, 1.5f, DepthBias, bScreenSpace);
+
+		PrevLocation = Location;
+	}
+
+	const FVector EndLocation = EndRootTransform.GetLocation() + EndRootTransform.GetUnitAxis(EAxis::Z) * TrackOffset;
+	PDI->DrawTranslucentLine(PrevLocation, EndLocation, NotifyEvent.NotifyColor, SDPG_World, 1.5f, DepthBias, bScreenSpace);
+	PrevLocation = EndLocation;
+	
+	// Draw line connecting root motion segment to the warp target.
+	if (FVector::Distance(PrevLocation, WarpPointTransform.GetLocation()) > 5.0)
+	{
+		DrawDashedLine(PDI, PrevLocation, WarpPointTransform.GetLocation(), NotifyEvent.NotifyColor, 5.0f, SDPG_World, DepthBias);
+	}
+
+	// Draw vertical ticks indicating start and end locations.
+	constexpr double RangeTickSize = 5.0;
+	PDI->DrawTranslucentLine(StartRootTransform.GetLocation(), StartRootTransform.GetLocation() + StartRootTransform.GetUnitAxis(EAxis::Z) * RangeTickSize, FColor::Black.WithAlpha(128), SDPG_World, 1, DepthBias, bScreenSpace);
+	PDI->DrawTranslucentLine(EndRootTransform.GetLocation(), EndRootTransform.GetLocation() + EndRootTransform.GetUnitAxis(EAxis::Z) * RangeTickSize, FColor::Black.WithAlpha(128), SDPG_World, 1, DepthBias, bScreenSpace);
+	
+	// Draw warp target transform
+	constexpr double WarpPointSize = 10.0;
+	const FVector WarpLocation = WarpPointTransform.GetLocation();
+	const FVector WarpAxisX = WarpPointTransform.GetUnitAxis(EAxis::X) * WarpPointSize;
+	const FVector WarpAxisY = WarpPointTransform.GetUnitAxis(EAxis::Y) * WarpPointSize;
+	const FVector WarpAxisZ = WarpPointTransform.GetUnitAxis(EAxis::Z) * WarpPointSize;
+	PDI->DrawLine(WarpLocation, WarpLocation + WarpAxisX, FColor::Red, SDPG_Foreground, 1.0f, DepthBias, bScreenSpace);
+	PDI->DrawLine(WarpLocation, WarpLocation + WarpAxisY, FColor::Green, SDPG_Foreground, 1.0f, DepthBias, bScreenSpace);
+	PDI->DrawLine(WarpLocation, WarpLocation + WarpAxisZ, FColor::Blue, SDPG_Foreground, 1.0f, DepthBias, bScreenSpace);
+	
+
+}
+
+void URootMotionModifier_SkewWarp::DrawCanvasInEditor(FCanvas& Canvas, FSceneView& View, USkeletalMeshComponent* MeshComp, const UAnimSequenceBase* InAnimation, const FAnimNotifyEvent& NotifyEvent) const
+{
+	// Early out if the animation does not have root motion.
+	if (!InAnimation || !InAnimation->HasRootMotion())
+	{
+		return;
+	}
+
+	const float NotifyEndTime = NotifyEvent.GetEndTriggerTime();
+
+	const UMirrorDataTable* MirrorTable = nullptr;
+	FTransform ReferenceTransform = FTransform::Identity;
+	if (UDebugSkelMeshComponent* DebugMeshComp = Cast<UDebugSkelMeshComponent>(MeshComp))
+	{
+		ReferenceTransform = DebugMeshComp->RootMotionReferenceTransform;
+		MirrorTable = DebugMeshComp->PreviewInstance ? DebugMeshComp->PreviewInstance->GetMirrorDataTable() : nullptr;
+	}
+
+	const FTransform WarpPointTransform = GetDebugWarpPointTransform(MeshComp, InAnimation, MirrorTable, NotifyEndTime) * ReferenceTransform;
+
+	FVector2D PixelLocation;
+	if (View.WorldToPixel(WarpPointTransform.GetLocation(),PixelLocation))
+	{
+		PixelLocation.X = FMath::RoundToFloat(PixelLocation.X);
+		PixelLocation.Y = FMath::RoundToFloat(PixelLocation.Y);
+
+		constexpr FColor LabelColor(200, 200, 200);
+		constexpr FLinearColor ShadowColor(0, 0, 0, 0.3f);
+		const UFont* SmallFont = GEngine->GetSmallFont();
+
+		Canvas.DrawShadowedString(PixelLocation.X, PixelLocation.Y, *WarpTargetName.ToString(), SmallFont, NotifyEvent.NotifyColor, ShadowColor);
+		PixelLocation.Y += SmallFont->GetMaxCharHeight();
+	}
+}
+#endif

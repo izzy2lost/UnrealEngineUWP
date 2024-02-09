@@ -71,6 +71,9 @@ void FAnimViewportShowCommands::RegisterCommands()
 	UI_COMMAND(ShowAllSections, "Show All Sections", "Display all sections including cloth mapped sections", EUserInterfaceActionType::RadioButton, FInputChord());
 	UI_COMMAND(ShowOnlyClothSections, "Show Only Cloth Sections", "Display only cloth mapped sections", EUserInterfaceActionType::RadioButton, FInputChord());
 	UI_COMMAND(HideOnlyClothSections, "Hide Only Cloth Sections", "Display all except cloth mapped sections", EUserInterfaceActionType::RadioButton, FInputChord());
+
+	UI_COMMAND(ShowNotificationVisualizations, "Show Notification", "Display animation notifications visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(ShowRootMotionVisualization, "Show Root Motion", "Display root motion visualizations in viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

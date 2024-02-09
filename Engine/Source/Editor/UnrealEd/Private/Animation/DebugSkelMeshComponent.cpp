@@ -40,6 +40,9 @@ UDebugSkelMeshComponent::UDebugSkelMeshComponent(const FObjectInitializer& Objec
 	bMeshSocketsVisible = true;
 	bSkeletonSocketsVisible = true;
 
+	bShowNotificationVisualizations = false;
+	bShowRootMotionVisualizations = false;
+
 	TurnTableSpeedScaling = 1.f;
 	TurnTableMode = EPersonaTurnTableMode::Stopped;
 	TurntableTransform = FTransform::Identity;
@@ -284,13 +287,14 @@ void UDebugSkelMeshComponent::ConsumeRootMotion(const FVector& FloorMin, const F
 			// Loop and Reset Mode: Preview mesh will consume root motion resetting the position back to the origin every time the animation loops
 			else if (ProcessRootMotionMode == EProcessRootMotionMode::LoopAndReset)
 			{
-				RootMotionReferenceTransform = FTransform::Identity;
-				
 				if (bLooped)
 				{
 					const FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, SectionStartPosition);
 					const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
-					RootMotionTransform = InitialTransform * RootMotionDelta;
+					RootMotionTransform = RootMotionDelta * InitialTransform;
+
+					// Reference transform is always relative to the beginning of the animation sequence. 
+					RootMotionReferenceTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, 0.0f);
 				}
 				else
 				{
@@ -431,13 +435,17 @@ void UDebugSkelMeshComponent::SetProcessRootMotionModeInternal(EProcessRootMotio
 	
 		const FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, SectionStartPosition);
 		const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
-		RootMotionTransform = InitialTransform * RootMotionDelta;
+		RootMotionTransform = RootMotionDelta * InitialTransform;
+		
+		// Reference transform is always relative to the beginning of the animation sequence. 
+		RootMotionReferenceTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, 0.0f);
 	}
 	else if (ProcessRootMotionMode == EProcessRootMotionMode::Ignore)
 	{
 		RootMotionTransform = FTransform::Identity;
+		RootMotionReferenceTransform = FTransform::Identity;
 	}
-	
+
 	SetRelativeTransform(RootMotionTransform * TurntableTransform, /*bSweep*/false, /*OutSweepResult*/nullptr, ETeleportType::ResetPhysics);
 }
 
@@ -696,8 +704,11 @@ void UDebugSkelMeshComponent::OnMirrorDataTableChanged()
 	
 		const FTransform InitialTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, SectionStartPosition);
 		const FTransform RootMotionDelta = UE::Anim::ExtractRootMotionFromAnimationAsset(PreviewInstance->CurrentAsset, PreviewInstance->GetMirrorDataTable(), SectionStartPosition, CurrentTime);
-		RootMotionTransform = InitialTransform * RootMotionDelta;
-	
+		RootMotionTransform = RootMotionDelta * InitialTransform;
+
+		// Reference transform is always relative to the beginning of the animation sequence. 
+		RootMotionReferenceTransform = UE::Anim::ExtractRootTransformFromAnimationAsset(PreviewInstance->CurrentAsset, 0.0f);;
+
 		SetRelativeTransform(RootMotionTransform * TurntableTransform, /*bSweep*/false, /*OutSweepResult*/nullptr, ETeleportType::ResetPhysics);
 	}
 }

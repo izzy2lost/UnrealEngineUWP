@@ -753,6 +753,12 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 					}
 
 					{
+						FToolMenuSection& Section = InSubMenu->AddSection("AnimViewportVisualization", LOCTEXT("CharacterMenu_VisualizationsLabel", "Visualizations"));
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowNotificationVisualizations);
+						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowRootMotionVisualization);
+					}
+
+					{
 						FToolMenuSection& Section = InSubMenu->AddSection("AnimViewportAnimation", LOCTEXT("CharacterMenu_Actions_AnimationAsset", "Animation"));
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowRawAnimation);
 						Section.AddMenuEntry(FAnimViewportShowCommands::Get().ShowNonRetargetedAnimation);

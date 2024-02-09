@@ -153,6 +153,12 @@ public:
 
 	TSharedPtr< FUICommandInfo > PauseClothWithAnim;
 
+	/** Show Notification Visualizations */
+	TSharedPtr< FUICommandInfo > ShowNotificationVisualizations;
+
+	/** Show Root motion visualization */
+	TSharedPtr< FUICommandInfo > ShowRootMotionVisualization;
+
 public:
 	/** Registers our commands with the binding system */
 	virtual void RegisterCommands() override;

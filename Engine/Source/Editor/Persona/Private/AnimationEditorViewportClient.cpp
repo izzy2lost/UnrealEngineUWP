@@ -47,6 +47,9 @@
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "Animation/AnimCompositeBase.h"
 #include "AudioEditorSettings.h"
+#include "Animation/AnimNotifies/AnimNotifyState.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimSequenceHelpers.h"
 
 namespace {
 	static const float AnimationEditorViewport_RotateSpeed = 0.02f;
@@ -586,6 +589,11 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 			{
 				DrawAttributes(PreviewMeshComponent, PDI);
 			}
+
+			DrawNotifies(PreviewMeshComponent, PDI);
+
+			DrawRootMotionTrajectory(PreviewMeshComponent, PDI);
+			
 		}
 		else if (bValidComponent && !bValidSkeletalMesh)
 		{
@@ -635,6 +643,8 @@ void FAnimationViewportClient::DrawCanvas( FViewport& InViewport, FSceneView& Vi
 		{
 			ShowAttributeNames(&Canvas, &View, PreviewMeshComponent);
 		}
+
+		DrawCanvasNotifies(PreviewMeshComponent, Canvas, View);
 
 		if (bDrawUVs)
 		{
@@ -1924,6 +1934,109 @@ void FAnimationViewportClient::DrawAttributes(UDebugSkelMeshComponent* MeshCompo
 					//DrawDashedLine(PDI, AttributeTransform.GetLocation(), AttributeParentTransform.GetLocation(), FLinearColor(0.0f, 1.0f, 1.0f), 2.0f, SDPG_World);
 				}
 			}
+		}
+	}
+}
+
+void FAnimationViewportClient::DrawNotifies(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
+{
+	if (MeshComponent
+		&& MeshComponent->IsNotificationVisualizationsEnabled()
+		&& MeshComponent->GetSkeletalMeshAsset())
+	{
+		if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+		{
+			for (const FAnimNotifyEvent& Notify : AnimSequenceBase->Notifies)
+			{
+				if (Notify.Notify)
+				{
+					Notify.Notify->DrawInEditor(PDI, MeshComponent, AnimSequenceBase, Notify);
+				}
+				if (Notify.NotifyStateClass)
+				{
+					Notify.NotifyStateClass->DrawInEditor(PDI, MeshComponent, AnimSequenceBase, Notify);
+				}
+			}
+		}
+	}
+}
+
+void FAnimationViewportClient::DrawCanvasNotifies(UDebugSkelMeshComponent* MeshComponent, FCanvas& Canvas, FSceneView& View) const
+{
+	if (MeshComponent
+		&& MeshComponent->IsNotificationVisualizationsEnabled()
+		&& MeshComponent->GetSkeletalMeshAsset())
+	{
+		if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+		{
+			for (const FAnimNotifyEvent& Notify : AnimSequenceBase->Notifies)
+			{
+				if (Notify.Notify)
+				{
+					Notify.Notify->DrawCanvasInEditor(Canvas, View, MeshComponent, AnimSequenceBase, Notify);
+				}
+				if (Notify.NotifyStateClass)
+				{
+					Notify.NotifyStateClass->DrawCanvasInEditor(Canvas, View, MeshComponent, AnimSequenceBase, Notify);
+				}
+			}
+		}
+	}
+}
+
+void FAnimationViewportClient::DrawRootMotionTrajectory(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
+{
+	constexpr float DepthBias = 2.0f;
+	constexpr bool bScreenSpace = true;
+
+	if (MeshComponent
+		&& MeshComponent->IsRootMotionVisualizationsEnabled()
+		&& MeshComponent->GetSkeletalMeshAsset()
+		&& MeshComponent->DoesCurrentAssetHaveRootMotion())
+	{
+		const FTransform& ReferenceTransform = MeshComponent->RootMotionReferenceTransform;
+		const UMirrorDataTable* MirrorTable = MeshComponent->PreviewInstance ? MeshComponent->PreviewInstance->GetMirrorDataTable() : nullptr;
+		
+		if (const UAnimSequenceBase* AnimSequenceBase = Cast<UAnimSequenceBase>(GetAnimPreviewScene()->GetPreviewAnimationAsset()))
+		{
+			// Draw root motion trajectory
+			const int32 NumFrames = AnimSequenceBase->GetNumberOfSampledKeys();
+			const FFrameRate FrameRate = AnimSequenceBase->GetSamplingFrameRate();
+
+			const FColor TrajectoryColor = FColor::Black.WithAlpha(64);
+
+			FVector PrevLocation;
+			for (int32 Frame = 0; Frame <= NumFrames; Frame++)
+			{
+				const double Time = FMath::Clamp(FrameRate.AsSeconds(Frame), 0., (double)AnimSequenceBase->GetPlayLength());
+				const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(AnimSequenceBase, MirrorTable, 0.0, Time) * ReferenceTransform;
+				const FVector Location = Transform.GetLocation();
+
+				const bool bFirstOrLastPoint = Frame == 0 || Frame == NumFrames;
+				PDI->DrawPoint(Location, TrajectoryColor, bFirstOrLastPoint ? 2.0f : 1.0f, SDPG_World);
+				
+				if (Frame > 0)
+				{
+					PDI->DrawTranslucentLine(PrevLocation, Location, TrajectoryColor, SDPG_World, 1.0f, DepthBias, bScreenSpace);
+				}
+				PrevLocation = Location;
+			}
+
+			// Draw current location on the root motion.
+			{
+				const float CurrentTime = MeshComponent->GetPosition();
+				const FTransform Transform = UE::Anim::ExtractRootMotionFromAnimationAsset(AnimSequenceBase, MirrorTable, 0.0, CurrentTime) * ReferenceTransform;
+
+				constexpr double CurrentPosTickSize = 5.0;
+
+				const FVector Location = Transform.GetLocation();
+				const FVector AxisX = Transform.GetUnitAxis(EAxis::X) * CurrentPosTickSize;
+				const FVector AxisY = Transform.GetUnitAxis(EAxis::Y) * CurrentPosTickSize;
+				const FVector AxisZ = Transform.GetUnitAxis(EAxis::Z) * CurrentPosTickSize;
+				PDI->DrawTranslucentLine(Location, Location + AxisX, FColor::Red.WithAlpha(128), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+				PDI->DrawTranslucentLine(Location, Location + AxisY, FColor::Green.WithAlpha(128), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+				PDI->DrawTranslucentLine(Location, Location + AxisZ, FColor::Blue.WithAlpha(128), SDPG_World, 1.0f, DepthBias, bScreenSpace);
+			}			
 		}
 	}
 }

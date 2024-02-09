@@ -16,14 +16,23 @@ public class MotionWarping : ModuleRules
 				"Engine",
 				"NetCore"
 			}
-			);			
+			);
 		
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Slate",
-				"SlateCore"
-            }
+				"SlateCore",
+			}
 			);
+		
+		if (Target.bBuildEditor)
+		{
+			PublicDependencyModuleNames.AddRange(new string []
+				{
+					"UnrealEd",
+					"AnimGraph",
+				});
+		}
 	}
 }

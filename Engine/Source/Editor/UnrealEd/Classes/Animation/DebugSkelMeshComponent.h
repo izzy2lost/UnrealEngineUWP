@@ -234,6 +234,14 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY(Transient)
 	uint32 bDisplaySourceAnimation:1;
 
+	/** Display Notification visualizations in viewport */
+	UPROPERTY(Transient)
+	uint32 bShowNotificationVisualizations:1;
+
+	/** Display Root motion visualizations in viewport */
+	UPROPERTY(Transient)
+	uint32 bShowRootMotionVisualizations:1;
+
 	/** Display Bound **/
 	UPROPERTY(transient)
 	bool bDisplayBound;
@@ -306,7 +314,7 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Accumulated root motion. */
 	FTransform RootMotionTransform;
 
-	/** Transform representing the actor transform at the beginning of the animation. */
+	/** Transform representing the actor transform at the beginning of the animation sequence. */
 	FTransform RootMotionReferenceTransform;
 
 	/** Array of bones to render bone weights for */
@@ -490,6 +498,14 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 
 	/** Whether the current asset or animation blueprint is using root motion */
 	UNREALED_API bool DoesCurrentAssetHaveRootMotion() const;
+
+	/** Sets flags whether we notification visualizations should be drawn in the viewport. */
+	UNREALED_API void SetShowNotificationVisualizations(const bool bShow) { bShowNotificationVisualizations = bShow; }
+	UNREALED_API bool IsNotificationVisualizationsEnabled() const { return bShowNotificationVisualizations; }
+
+	/** Sets flags whether we root motion visualization should be drawn in the viewport. */
+	UNREALED_API void SetShowRootMotionVisualizations(const bool bShow) { bShowRootMotionVisualizations = bShow; }
+	UNREALED_API bool IsRootMotionVisualizationsEnabled() const { return bShowRootMotionVisualizations; }
 
 	/** Whether the current LOD of the debug mesh is being synced with the attached (preview) mesh instance. */
 	UNREALED_API bool IsTrackingAttachedLOD() const;

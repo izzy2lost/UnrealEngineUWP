@@ -1103,6 +1103,18 @@ void SAnimationEditorViewportTabBody::BindCommands()
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::CanUseProcessRootMotionMode, EProcessRootMotionMode::Loop),
 		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsProcessRootMotionModeSet, EProcessRootMotionMode::Loop));
 
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowNotificationVisualizations,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleNotificationVisualizations),
+		FIsActionChecked(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsNotificationVisualizationsEnabled));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowRootMotionVisualization,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::ToggleRootMotionVisualizations),
+		FIsActionChecked(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsRootMotionVisualizationsEnabled));
+
 	CommandList.EndGroup();
 
 	CommandList.MapAction(
@@ -2138,6 +2150,41 @@ bool SAnimationEditorViewportTabBody::CanUseProcessRootMotionMode(EProcessRootMo
 
 	return false;
 }
+
+void SAnimationEditorViewportTabBody::ToggleNotificationVisualizations()
+{
+	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		PreviewComponent->SetShowNotificationVisualizations(!PreviewComponent->IsNotificationVisualizationsEnabled());
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsNotificationVisualizationsEnabled() const
+{
+	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsNotificationVisualizationsEnabled();
+	}
+	return false;
+}
+
+void SAnimationEditorViewportTabBody::ToggleRootMotionVisualizations()
+{
+	if (UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		PreviewComponent->SetShowRootMotionVisualizations(!PreviewComponent->IsRootMotionVisualizationsEnabled());
+	}
+}
+
+bool SAnimationEditorViewportTabBody::IsRootMotionVisualizationsEnabled() const
+{
+	if (const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent())
+	{
+		return PreviewComponent->IsRootMotionVisualizationsEnabled();
+	}
+	return false;
+}
+
 
 bool SAnimationEditorViewportTabBody::IsClothSimulationEnabled() const
 {
