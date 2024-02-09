@@ -1125,8 +1125,6 @@ TSharedRef<SDockTab> FTG_Editor::SpawnTab_Output(const FSpawnTabArgs& Args)
 				]
 		];
 
-	GetOutputView()->SetObject(EditedTextureGraph->GetOutputSettingsSet(), true);
-
 	return OutputTab.ToSharedRef();
 }
 
@@ -1140,8 +1138,7 @@ FReply FTG_Editor::OnExportClick()
 	TSharedPtr<STG_OutputSelectionDlg> ExportSelectionWidget =
 		SNew(STG_OutputSelectionDlg)
 		.Title(LOCTEXT("Export Selection", "Choose outputs to export"))
-		.EdGraph(TG_EdGraph)
-		.OutputSettingsSet(EditedTextureGraph->GetOutputSettingsSet());
+		.EdGraph(TG_EdGraph);
 
 	if (ExportSelectionWidget->ShowModal() == EAppReturnType::Ok)
 	{
@@ -1803,14 +1800,7 @@ void FTG_Editor::OnGraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweak
 void FTG_Editor::UpdateMixSettings()
 {
 	check(EditedTextureGraph);
-	check(EditedTextureGraph->GetSettings());
-	EditedTextureGraph->GetSettings()->SetWidth(EditedTextureGraph->GetOutputSettingsSet()->GetMaxWidth());
-	EditedTextureGraph->GetSettings()->SetHeight(EditedTextureGraph->GetOutputSettingsSet()->GetMaxHeight());
-
-	int32 Channels = EditedTextureGraph->GetOutputSettingsSet()->GetMaxBufferChannels();
-	BufferFormat Format = EditedTextureGraph->GetOutputSettingsSet()->GetMaxBufferFormat();
-	const ETG_TextureFormat TextureFormat = TextureHelper::GetTGTextureFormatFromChannelsAndFormat(Channels, Format);
-	EditedTextureGraph->GetSettings()->SetTextureFormat(TextureFormat);
+	EditedTextureGraph->UpdateGlobalTGSettings();
 }
 
 void FTG_Editor::OnNodeAdded(UTG_Node* InNode)
@@ -1819,7 +1809,7 @@ void FTG_Editor::OnNodeAdded(UTG_Node* InNode)
 	auto TargetExpression = Cast<UTG_Expression_Output>(InNode->GetExpression());
 	if (TargetExpression != nullptr)
 	{
-		EditedTextureGraph->GetOutputSettingsSet()->AddOutputSetting(EditedTextureGraph, InNode->GetNodeName(), TargetExpression);
+		TargetExpression->InitializeOutputSettings();
 	}
 }
 
@@ -1828,8 +1818,6 @@ void FTG_Editor::OnNodeRemoved(UTG_Node* InNode, FName Title)
 	check(EditedTextureGraph);
 	if (IsOutputNode(InNode))
 	{
-		EditedTextureGraph->GetOutputSettingsSet()->RemoveOutputSetting(Title);
-
 		// Remove output node texture.
 		for (int i = 0; i < EditedTextureGraph->GetSettings()->NumTargets(); i++)
 		{
@@ -1869,8 +1857,6 @@ void FTG_Editor::OnNodeRenamed(UTG_Node* InNode, FName OldName)
 		EditedTextureGraph->GetSettings()->GetViewportSettings().OnTargetRename(OldName, InNode->GetNodeName());
 
 		// update output 
-		EditedTextureGraph->GetOutputSettingsSet()->UpdateTitle(InNode);
-		GetOutputView()->SetObject(EditedTextureGraph->GetOutputSettingsSet(), true);
 	}
 
 	// check on the parameters view, it could have changed

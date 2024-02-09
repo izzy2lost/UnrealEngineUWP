@@ -220,8 +220,11 @@ public:
 	// Iterate through all the VALID Param pins
 	void ForEachParams(std::function<void(const UTG_Pin* /*pin*/, uint32 /*index*/)> visitor) const;
 
-    // Iterate through all the VALID edges
-    void ForEachEdges(std::function<void(const UTG_Pin* /*pinFrom*/, const UTG_Pin* /*pinTo*/)> visitor) const;
+	// Iterate through all the VALID edges
+	void ForEachEdges(std::function<void(const UTG_Pin* /*pinFrom*/, const UTG_Pin* /*pinTo*/)> visitor) const;
+
+	// Iterate through all the output settings
+	void ForEachOutputSettings( std::function<void(const FTG_OutputSettings& /*settings*/)> visitor);
 
 	//////////////////////////////////////////////////////////////////////////
 	// Accessors for output param values after evaluation

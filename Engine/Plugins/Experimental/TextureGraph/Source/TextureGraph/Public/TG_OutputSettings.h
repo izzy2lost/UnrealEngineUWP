@@ -19,7 +19,7 @@ struct TEXTUREGRAPH_API FTG_OutputSettings
 	UPROPERTY(BlueprintReadWrite,EditAnywhere, Category = "Basic", DisplayName = "File Name", Meta = (NoResetToDefault))
 		FName BaseName;
 
-	UPROPERTY(EditAnywhere, Category = "Basic", Meta = (NoResetToDefault))
+	UPROPERTY()
 		FName OutputName;
 
 	// Export path for the textured asset.
@@ -54,12 +54,17 @@ struct TEXTUREGRAPH_API FTG_OutputSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "sRGB", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None"))
 		bool bSRGB = false;
 
+	UPROPERTY()
+	bool bExport = true;
+
 	FString GetFullOutputName() { return  FString::Format(TEXT("{0}"), { BaseName.ToString()});}
 
 	bool operator==(const FTG_OutputSettings& Other) const
 	{
 		return OutputName == Other.OutputName && BaseName == Other.BaseName;
 	}
+
+	void Initialize(FString PathName, FName InName = "Output");
 
 	void InitFromString(const FString& StrVal)
 	{
@@ -78,59 +83,4 @@ struct TEXTUREGRAPH_API FTG_OutputSettings
 		TextureCompressionSettings InCompression = TextureCompressionSettings::TC_Default, TextureGroup InLodGroup = TextureGroup::TEXTUREGROUP_World, bool InbSRGB = false);
 
 	void OnSetTexturePresetType(ETG_TexturePresetType Type);
-};
-
-USTRUCT()
-struct TEXTUREGRAPH_API FTG_OutputExpressionInfo
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY()
-	FName OutputName;
-
-	UPROPERTY()
-	TObjectPtr<UTG_Expression_Output> OutputPtr;
-
-	UPROPERTY()
-	bool bExport = true;
-
-	FTG_OutputSettings* GetOutputSettings();
-
-	bool operator==(const FTG_OutputExpressionInfo& Other) const
-	{
-		return OutputName == Other.OutputName;
-	}
-};
-
-UCLASS()
-class TEXTUREGRAPH_API UTG_OutputSettingsSet : public UObject
-{
-	GENERATED_BODY()
-
-public:
-	UPROPERTY(EditAnywhere, EditFixedSize, DisplayName = "Settings" , Category = NoCategory, meta = (HideItemCount, NoResetToDefault, EditFixedOrder, ShowOnlyInnerProperties, FullyExpand, TitleProperty = "OutputName"))
-	TArray<FTG_OutputExpressionInfo>	OutputExpressionInfos;
-
-	void InitOutputSettings();
-	
-	FTG_OutputExpressionInfo* GetOutputExpressionInfo(FName OutputName);
-
-	FTG_OutputSettings* GetOutputSetting(FName OutputName);
-
-	void AddOutputSetting(UTextureGraph* InTextureGraph, FName OutputName,UTG_Expression_Output* Output);
-
-	void RemoveOutputSetting(FName OutputName);
-
-	void RenameOutputSetting(FName OldName,FName NewName);
-
-	void UpdateTitle(UTG_Node* Output);
-
-	EResolution GetMaxWidth();
-
-	EResolution GetMaxHeight();
-
-	int32 GetMaxBufferChannels();
-
-	BufferFormat GetMaxBufferFormat();
 };

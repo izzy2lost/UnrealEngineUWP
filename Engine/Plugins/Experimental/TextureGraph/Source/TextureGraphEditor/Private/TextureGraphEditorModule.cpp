@@ -36,7 +36,6 @@ void FTextureGraphEditorModule::StartupModule()
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("FloatProperty", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_ScalarCustomization::Create), ScalarIdentifier);
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("MaterialMappingInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_MaterialMappingInfoCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("OutputSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_OutputSettingsCustomization::Create));
-	PropertyEditorModule.RegisterCustomPropertyTypeLayout("OutputExpressionInfo", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_OutputExpressionInfoCustomization::Create));
 	PropertyEditorModule.RegisterCustomPropertyTypeLayout("TG_LevelsSettings", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FTG_LevelsSettingsCustomization::Create));
 
 	// Register slate style overrides
@@ -66,7 +65,6 @@ void FTextureGraphEditorModule::ShutdownModule()
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("FloatProperty", ScalarIdentifier);
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("MaterialMappingInfo");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("OutputSettings");
-	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("OutputExpressionInfo");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("TG_LevelsSettings");
 
 	FEdGraphUtilities::UnregisterVisualPinFactory(GraphPanelPinFactory);

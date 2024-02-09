@@ -3,6 +3,7 @@
 // ReSharper disable All
 #include "TG_Graph.h"
 #include "Expressions/TG_Expression.h"
+#include "Expressions/Output/TG_Expression_Output.h"
 #include "TG_CustomVersion.h"
 
 #include "Algo/Reverse.h"
@@ -164,10 +165,20 @@ void UTG_Graph::RegenerateNode(UTG_Node* InNode)
 	// the element is Invalid if there is no matching existing Pin
 	FTG_Indices NewIdxToOld = FTG_Signature::GenerateMappingArgIdxTable((*OldSignature), (*NewSignature));
 
+	//Save the edited alias name so we can reaply them
+	//Alias names can be edited when used as a title for node
+	TArray<FName> EditedAliasNames;
+	for (int32 i = 0; i < InNode->Pins.Num(); ++i)
+	{
+		FName EditedAlias = InNode->Pins[i]->HasAliasName() ? InNode->Pins[i]->GetAliasName() : NAME_None;
+		EditedAliasNames.Add(EditedAlias);
+	}
+
 	// Go through the allocated pins and reuse the matching arguments
 	// Store the future "Pins" array of the node in the "NewPinArray"
 	FTG_Index InNodeIdx = InNode->GetId().NodeIdx();
 	TArray<TObjectPtr<UTG_Pin>> NewPinArray;
+	
 	for (int32 i = 0; i < NewIdxToOld.Num(); ++i)
 	{
 		FTG_Index OldIdx = NewIdxToOld[i];
@@ -230,6 +241,16 @@ void UTG_Graph::RegenerateNode(UTG_Node* InNode)
 		{
 			auto& Arg = NewSignature->GetArgument(i);
 			AllocatePin(InNode, Arg, i);
+
+			if (i >= 0 && i < EditedAliasNames.Num())
+			{
+				//if the pin reallocated ever had an edited Name we should keep it
+				FName EditedAlias = EditedAliasNames[i];
+				if (!EditedAlias.IsNone())
+				{
+					InNode->Pins[i]->SetAliasName(EditedAlias);
+				}
+			}
 		}
 		// If pin is reused, reassign the new signature argument to update potential changes in the ArgFlags
 		else
@@ -758,6 +779,18 @@ void UTG_Graph::ForEachEdges(std::function<void(const UTG_Pin* /*pinFrom*/, cons
 	);
 }
 
+void UTG_Graph::ForEachOutputSettings( std::function<void(const FTG_OutputSettings& /*settings*/)> visitor)
+{
+		ForEachNodes([visitor](const UTG_Node* Node, uint32 Index)
+		{
+			UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
+			if (TargetExpression)
+			{
+				visitor(TargetExpression->OutputSettings);
+			}
+		});
+}
+
 int UTG_Graph::GetOutputParamTextures(TArray<FName>& OutNames, FTG_Ids& OutPinIds) const
 {
 	int NumFounds = 0;
@@ -955,7 +988,7 @@ void UTG_Graph::EvalTraverseOrder() const
 	while (nodeReservoirs[reservoirIndex].Num())
 	{
 		GatherOuterNodes(sourceNodesArray, nodeReservoirs[reservoirIndex], nodeReservoirs[(pass + 1) % 2]);
-		if (nodeReservoirs[pass].IsEmpty())
+		if (nodeReservoirs[reservoirIndex].IsEmpty())
 			break; /// THis should not happen, means a 
 
 		// Add all the outer nodes in the traverse order

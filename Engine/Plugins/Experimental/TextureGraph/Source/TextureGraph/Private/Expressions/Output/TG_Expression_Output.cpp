@@ -6,6 +6,7 @@
 #include "FxMat/MaterialManager.h"
 #include "Job/Job.h"
 #include "Job/JobArgs.h"
+#include "TG_Graph.h"
 #include "Transform/Expressions/T_FlatColorTexture.h"
 
 void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
@@ -97,6 +98,7 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 void UTG_Expression_Output::SetTitleName(FName NewName)
 {
 	GetParentNode()->GetOutputPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, Output))->SetAliasName(NewName);
+	OutputSettings.OutputName = GetParentNode()->GetOutputPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, Output))->GetAliasName();
 }
 
 FName UTG_Expression_Output::GetTitleName() const
@@ -111,4 +113,20 @@ void UTG_Expression_Output::UpdateBufferDescriptorValues()
 	OutputTexture.Descriptor.Width = OutputSettings.Width;
 	OutputTexture.Descriptor.Height = OutputSettings.Height;
 	OutputTexture.Descriptor.TextureFormat = OutputSettings.TextureFormat;
+}
+
+void UTG_Expression_Output::InitializeOutputSettings()
+{
+	SetTitleName(GetDefaultName());
+	OutputSettings.Initialize(GetParentNode()->GetGraph()->GetPathName(),GetTitleName());
+
+	UTG_Pin* Settings = GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings));
+	Settings->SetValue(OutputSettings.ToString());
+}
+
+void UTG_Expression_Output::SetExport(bool bExport)
+{
+	OutputSettings.bExport = bExport;
+	UTG_Pin* Settings = GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, OutputSettings));
+	Settings->SetValue(OutputSettings.ToString());
 }

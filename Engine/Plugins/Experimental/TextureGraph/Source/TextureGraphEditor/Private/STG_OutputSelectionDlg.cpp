@@ -16,7 +16,6 @@
 #define LOCTEXT_NAMESPACE "STG_OutputSelectionDlg"
 void STG_OutputSelectionDlg::Construct(const FArguments& InArgs)
 {
-	OutputSettingsSet = InArgs._OutputSettingsSet;
 	EdGraph = InArgs._EdGraph;
 	SWindow::Construct(SWindow::FArguments()
 		.Title(InArgs._Title)
@@ -70,71 +69,78 @@ void STG_OutputSelectionDlg::Construct(const FArguments& InArgs)
 void STG_OutputSelectionDlg::AddExportItems()
 {
 	ScrollBox->ClearChildren();
-	for (const auto& Info : OutputSettingsSet->OutputExpressionInfos)
+	UTG_EdGraph* TGEdGraph = Cast<UTG_EdGraph>(EdGraph);
+	TGEdGraph->TextureGraph->Graph()->ForEachNodes([this](const UTG_Node* Node, uint32 Index)
 	{
-		auto OutputSetting = Info.OutputPtr->OutputSettings;
-		auto Node = Cast<UTG_Node>(Info.OutputPtr->GetOuter());
-		auto OutPinIds = Node->GetOutputPinIds();
-		for (auto Id : OutPinIds)
+		UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
+		if (TargetExpression)
 		{
-			//This is a work around for checking the type of the output
-			//Probably we need to have a better solution for checking output type
-			auto Pin = Node->GetGraph()->GetPin(Id);
-			FTG_Variant Variant;
-			Pin->GetValue(Variant);
-			TSharedPtr<SWidget> ThumbnailWidget;
-			if (Variant.IsTexture())
+			FTG_OutputSettings& OutputSetting = TargetExpression->OutputSettings;
+			auto OutPinIds = Node->GetOutputPinIds();
+			for (auto Id : OutPinIds)
 			{
-				UTG_EdGraphNode* EdNode = EdGraph->GetViewModelNode(Node->GetId());
-				TiledBlobPtr ThumbBlob = EdGraph->GetCachedThumbBlob(Id);
+				//This is a work around for checking the type of the output
+				//Probably we need to have a better solution for checking output type
+				auto Pin = Node->GetGraph()->GetPin(Id);
 
-				if (!ThumbBlob)
+				FName OutputName = Pin->GetAliasName();
+
+				FTG_Variant Variant;
+				Pin->GetValue(Variant);
+				TSharedPtr<SWidget> ThumbnailWidget;
+				if (Variant.IsTexture())
 				{
-					ThumbBlob = TextureHelper::GetBlack();
-				}
+					TiledBlobPtr ThumbBlob = EdGraph->GetCachedThumbBlob(Id);
 
-				TSharedPtr<STG_NodeThumbnail> NodeThumbnail = SNew(STG_NodeThumbnail);
-				ThumbBlob->OnFinalise()
-					.then([ThumbBlob, NodeThumbnail]
+					if (!ThumbBlob)
 					{
-						// NOTE: If later, "this" were to be captured here, we should check DoesSharedInstanceExist()
-						// as there is a chance this might be invoked when the slate widgets have already been destroyed
-						if (NodeThumbnail.IsValid())
-						{
-							NodeThumbnail->UpdateBlob(ThumbBlob);
-						}
-					});
+						ThumbBlob = TextureHelper::GetBlack();
+					}
 
-				ThumbnailWidget = NodeThumbnail;
+					TSharedPtr<STG_NodeThumbnail> NodeThumbnail = SNew(STG_NodeThumbnail);
+					ThumbBlob->OnFinalise()
+					.then([ThumbBlob, NodeThumbnail]
+						{
+							// NOTE: If later, "this" were to be captured here, we should check DoesSharedInstanceExist()
+							// as there is a chance this might be invoked when the slate widgets have already been destroyed
+							if (NodeThumbnail.IsValid())
+							{
+								NodeThumbnail->UpdateBlob(ThumbBlob);
+							}
+						});
+
+					ThumbnailWidget = NodeThumbnail;
+				}
+				// else if color do something
+				else if (Variant.IsColor())
+				{
+					FLinearColor ColorValue;
+					Pin->GetValue(ColorValue);
+					ThumbnailWidget = SNew(SColorBlock)
+					.Color(ColorValue);
+				}
+				else
+				{
+					TargetExpression->SetExport(false);
+					continue;
+				}
+				ScrollBox->AddSlot()
+				.Padding(5)
+				[
+					SNew(STG_OutputSelector)
+					.Name(FText::FromString(OutputName.ToString()))
+					.ThumbnailWidget(ThumbnailWidget)
+					.OnOutputSelectionChanged(this, &STG_OutputSelectionDlg::OnOutputSelectionChanged)
+					.bIsSelected(OutputSetting.bExport)
+				];
+				ScrollBox->AddSlot()
+				[
+					SNew(SSeparator)
+					.Thickness(1)
+				];
 			}
-			// else if color do something
-			else if (Variant.IsColor())
-			{
-				FLinearColor ColorValue;
-				Pin->GetValue(ColorValue);
-				ThumbnailWidget = SNew(SColorBlock)
-									.Color(ColorValue); 
-			}
-			else
-			{
-				continue;
-			}
-			ScrollBox->AddSlot()
-			.Padding(5)
-			[
-				SNew(STG_OutputSelector)
-				.Name(FText::FromString(Info.OutputName.ToString()))
-				.ThumbnailWidget(ThumbnailWidget)
-				.OnOutputSelectionChanged(this,&STG_OutputSelectionDlg::OnOutputSelectionChanged)
-				.bIsSelected(Info.bExport)
-			];
-			ScrollBox->AddSlot()
-			[
-				SNew(SSeparator)
-				.Thickness(1)
-			];
 		}
-	}
+	});
 }
 FReply STG_OutputSelectionDlg::OnButtonClick(EAppReturnType::Type ButtonID)
 {
@@ -158,6 +164,17 @@ EAppReturnType::Type STG_OutputSelectionDlg::ShowModal()
 }
 void STG_OutputSelectionDlg::OnOutputSelectionChanged(const FString ItemName, ECheckBoxState NewState)
 {
-	OutputSettingsSet->GetOutputExpressionInfo(*ItemName)->bExport = NewState == ECheckBoxState::Checked;
+	UTG_EdGraph* TGEdGraph = Cast<UTG_EdGraph>(EdGraph);
+	TGEdGraph->TextureGraph->Graph()->ForEachNodes([=](const UTG_Node* Node, uint32 Index)
+	{
+		UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
+		if (TargetExpression)
+		{
+			if (TargetExpression->OutputSettings.OutputName == ItemName)
+			{
+				TargetExpression->SetExport( NewState == ECheckBoxState::Checked);
+			}
+		}
+	});
 }
 #undef LOCTEXT_NAMESPACE
