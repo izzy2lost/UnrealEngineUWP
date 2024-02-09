@@ -7,6 +7,7 @@
 
 #include "MuT/NodeRange.h"
 #include "MuR/MutableMath.h"
+#include "MuR/ParametersPrivate.h"
 
 
 namespace mu
