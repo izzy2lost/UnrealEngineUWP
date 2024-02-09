@@ -497,9 +497,6 @@ struct FShaderCompilerEnvironment
 	FShaderResourceTableMap ResourceTableMap;
 	TMap<FString, FUniformBufferEntry> UniformBufferMap;
 
-	UE_DEPRECATED(5.3, "RemoteServerData field is deprecated (no longer used in compilation backends).")
-	TMap<FString, FString> RemoteServerData;
-
 	const ITargetPlatform* TargetPlatform = nullptr;
 
 	// Used for mobile platforms to allow per shader/material precision modes
@@ -523,7 +520,7 @@ struct FShaderCompilerEnvironment
 	virtual ~FShaderCompilerEnvironment() = default;
 
 	// Explicitly default assignment operator and copy constructor operator with warnings disabled
-	// to avoid warnings in implicitly-generated functions due to deprecation of RemoteServerData. 
+	// to avoid warnings in implicitly-generated functions due to deprecation of IncludeVirtualPathToExternalContentsMap. 
 	// These can be removed entirely (revert to implicitly-generated) when the field itself is.
 	FShaderCompilerEnvironment(const FShaderCompilerEnvironment&) = default;
 	FShaderCompilerEnvironment& operator=(const FShaderCompilerEnvironment&) = default;
@@ -631,12 +628,6 @@ struct FShaderCompilerEnvironment
 			return true;
 		}
 		return false;
-	}
-
-	UE_DEPRECATED(5.3, "GetDefinitions is deprecated; preprocessor defines must now only be accessed by core shader system code. Use Get/SetCompileArgument for generic params instead.")
-	const TMap<FString,FString>& GetDefinitions() const
-	{
-		return UnusedStringDefinitions;
 	}
 
 	void SetRenderTargetOutputFormat(uint32 RenderTargetIndex, EPixelFormat PixelFormat)

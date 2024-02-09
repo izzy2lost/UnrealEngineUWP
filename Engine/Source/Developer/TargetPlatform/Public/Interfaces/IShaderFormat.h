@@ -120,13 +120,6 @@ public:
 	virtual void AppendToKeyString(FString& KeyString) const { }
 
 	/**
-	 * Can the shader compiler use the HLSLcc library when compiling shaders
-	 * @returns True if the shader compiler can use the HLSLcc library when compiling shaders, otherwise false.
-	 */
-	UE_DEPRECATED(5.3, "UsesHLSLcc function is no longer used")
-	virtual bool UsesHLSLcc(const FShaderCompilerInput& Input) const { return false; }
-
-	/**
 	 * Execute all shader preprocessing steps, storing the output in the PreprocessOutput struct
 	 */
 	virtual bool PreprocessShader(const FShaderCompilerInput& Input, const FShaderCompilerEnvironment& Environment, FShaderPreprocessOutput& PreprocessOutput) const { return false; };

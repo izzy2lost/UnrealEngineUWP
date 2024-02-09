@@ -186,20 +186,6 @@ bool BuildResourceTableMapping(
 	return true;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-// Deprecated version of function
-bool BuildResourceTableMapping(
-	const TMap<FString, FResourceTableEntry>& ResourceTableMap,
-	const TMap<FString, FUniformBufferEntry>& UniformBufferMap,
-	TBitArray<>& UsedUniformBufferSlots,
-	FShaderParameterMap& ParameterMap,
-	FShaderCompilerResourceTable& OutSRT)
-{
-	UE_LOG(LogShaders, Error, TEXT("Using unimplemented deprecated version of BuildResourceTableMapping -- use version that accepts FShaderResourceTableMap instead."));
-	return false;
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformBufferMap, FShaderParameterMap& ParameterMap)
 {
 	TArray<FString> ParameterNames;

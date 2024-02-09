@@ -311,8 +311,6 @@ public:
 
 	FShaderPipelineCompileJobKey Key;
 	TArray<TRefCountPtr<FShaderCompileJob>> StageJobs;
-	UE_DEPRECATED(5.3, "bFailedRemovingUnused field is no longer used")
-	bool bFailedRemovingUnused;
 
 	virtual RENDERCORE_API FInputHash GetInputHash() override;
 	virtual RENDERCORE_API void SerializeOutput(FArchive& Ar) override;

@@ -33,17 +33,6 @@ extern SHADERCOMPILERCOMMON_API bool BuildResourceTableMapping(
 		FShaderCompilerResourceTable& OutSRT
 	);
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-UE_DEPRECATED(5.3, "No longer supported; use version of function that accepts a FShaderResourceTableMap instead")
-extern SHADERCOMPILERCOMMON_API bool BuildResourceTableMapping(
-		const TMap<FString,FResourceTableEntry>& ResourceTableMap,
-		const TMap<FString,FUniformBufferEntry>& UniformBufferMap,
-		TBitArray<>& UsedUniformBufferSlots,
-		FShaderParameterMap& ParameterMap,
-		FShaderCompilerResourceTable& OutSRT
-	);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 /** Culls global uniform buffer entries from the parameter map. */
 extern SHADERCOMPILERCOMMON_API void CullGlobalUniformBuffers(const TMap<FString, FUniformBufferEntry>& UniformBufferMap, FShaderParameterMap& ParameterMap);
 
@@ -133,12 +122,7 @@ namespace UE::ShaderCompilerCommon
 		TFunction<FString()> AppendPreSource{};
 		TFunction<FString()> AppendPostSource{};
 		TArray<FAdditionalOutput> AdditionalOutputs;
-		union
-		{
-			bool bSourceOnly = false; // if true, will only output source .usf as directed and skip all other debug data artifacts
-			UE_DEPRECATED(5.3, "bSkipDirectCompileTxt is deprecated, use bSourceOnly flag instead")
-			bool bSkipDirectCompileTxt;
-		};
+		bool bSourceOnly = false; // if true, will only output source .usf as directed and skip all other debug data artifacts
 
 		SHADERCOMPILERCOMMON_API FString GetDebugShaderPath(const FShaderCompilerInput& Input) const;
 	};

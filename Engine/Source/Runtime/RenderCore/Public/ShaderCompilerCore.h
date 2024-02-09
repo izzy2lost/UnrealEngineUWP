@@ -129,8 +129,6 @@ enum ECompilerFlags
 	CFLAG_Wave32,
 	// Enable support of inline raytracing in compute shader.
 	CFLAG_InlineRayTracing,
-	// Force using the SC rewrite functionality before calling DXC on D3D12
-	CFLAG_D3D12ForceShaderConductorRewrite UE_DEPRECATED(5.3, "CFLAG_D3D12ForceShaderConductorRewrite has been deprecated since UE5.3 and the flag is ignored"),
 	// Enable support of C-style data types for platforms that can. Check for PLATFORM_SUPPORTS_REAL_TYPES and FDataDrivenShaderPlatformInfo::GetSupportsRealTypes()
 	CFLAG_AllowRealTypes,
 	// Precompile HLSL to optimized HLSL, then forward to FXC. Speeds up some shaders that take longer with FXC and works around crashes in FXC.
@@ -147,7 +145,6 @@ enum ECompilerFlags
 	CFLAG_ForceBindful,
 	// EXPERIMENTAL: Run the shader re-writer that removes any unused functions/resources/types from source code before compilation.
 	CFLAG_RemoveDeadCode,
-	CFLAG_UseLegacyPreprocessor UE_DEPRECATED(5.3, "Legacy preprocessor has been removed as of UE 5.3; please report any issues with the new preprocessor to the UE rendering team."),
 	// Enable CullBeforeFetch optimization on supported platforms
 	CFLAG_CullBeforeFetch,
 	// Enable WarpCulling optimization on supported platforms
@@ -245,9 +242,6 @@ struct FShaderCompilerInput
 	UE_DEPRECATED(5.4, "bSkipPreprocessedCache member is deprecated; set EShaderDebugInfoFlags::CompileFromDebugUSF on DebugInfoFlags instead.")
 	bool bSkipPreprocessedCache;
 
-	UE_DEPRECATED(5.3, "Use DebugInfoFlags field (EDebugInfoFlags::DirectCompileCommandLine)")
-	bool bGenerateDirectCompileFile;
-
 	// Indicates which additional debug outputs should be written for this compile job.
 	EShaderDebugInfoFlags DebugInfoFlags;
 
@@ -316,8 +310,8 @@ struct FShaderCompilerInput
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Explicitly-defaulted copy/move ctors & assignment operators are needed temporarily due to 
-	// deprecation of bGenerateDirectCompileFile field. These can be removed once the deprecation
-	// window for said field ends.
+	// deprecation of bSkipPreprocessedCache/bIndependentPreprocessed fields. These can be removed once 
+	// the deprecation window for said fields ends.
 	FShaderCompilerInput(FShaderCompilerInput&&) = default;
 	FShaderCompilerInput(const FShaderCompilerInput&) = default;
 	FShaderCompilerInput& operator=(FShaderCompilerInput&&) = default;
@@ -511,18 +505,6 @@ struct FShaderCompilerInput
 
 		return RootParametersStructure != nullptr;
 	}
-
-	/** Returns whether this shader input *can* be compiled with the legacy FXC compiler. */
-	UE_DEPRECATED(5.3, "CanCompileWithLegacyFxc doesn't have enough information to correctly flag the input as requiring FXC. Please use internal shader format code instead.")
-	bool CanCompileWithLegacyFxc() const
-	{
-		return !(Target.GetPlatform() == SP_PCD3D_SM6
-			|| IsRayTracingShader()
-			|| Environment.CompilerFlags.Contains(CFLAG_WaveOperations)
-			|| Environment.CompilerFlags.Contains(CFLAG_ForceDXC)
-			|| Environment.CompilerFlags.Contains(CFLAG_InlineRayTracing)
-			);
-	}
 };
 
 /** A shader compiler error or warning. */
@@ -626,18 +608,14 @@ struct FShaderCompilerOutput
 	double CompileTime;
 	double PreprocessTime;
 	bool bSucceeded;
-	UE_DEPRECATED(5.3, "bFailedRemovingUnused field is no longer used")
-	bool bFailedRemovingUnused;
 	bool bSupportsQueryingUsedAttributes;
-	UE_DEPRECATED(5.3, "bUsedHLSLccCompiler field is no longer used")
-	bool bUsedHLSLccCompiler;
 	bool bSerializeModifiedSource;
 	TArray<FString> UsedAttributes;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Explicitly-defaulted copy/move ctors & assignment operators are needed temporarily due to 
-	// deprecation of bFailedRemovingUnused/bUsedHLSLccCompiler fields. These can be removed once the deprecation
-	// window for said fields ends.
+	// deprecation of OptionalFinalShaderSource field. These can be removed once the deprecation
+	// window for said field ends.
 	FShaderCompilerOutput(FShaderCompilerOutput&&) = default;
 	FShaderCompilerOutput(const FShaderCompilerOutput&) = default;
 	FShaderCompilerOutput& operator=(FShaderCompilerOutput&&) = default;
@@ -750,8 +728,6 @@ extern RENDERCORE_API const IShaderFormat* FindShaderFormat(FName Format, const 
 
 // Executes preprocessing for the given job, if the job is marked to be preprocessed independently prior to compilation.
 extern RENDERCORE_API bool ConditionalPreprocessShader(FShaderCommonCompileJob* Job);
-UE_DEPRECATED(5.3, "Use CompileShader overload which takes an FShaderCompileJob& rather than passing input/output directly.")
-extern RENDERCORE_API void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCompilerInput& Input, FShaderCompilerOutput& Output, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 extern RENDERCORE_API void CompileShader(const TArray<const IShaderFormat*>& ShaderFormats, FShaderCompileJob& Job, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 extern RENDERCORE_API void CompileShaderPipeline(const TArray<const IShaderFormat*>& ShaderFormats, FShaderPipelineCompileJob* PipelineJob, const FString& WorkingDirectory, int32* CompileCount = nullptr);
 
