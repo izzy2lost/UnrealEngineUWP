@@ -2552,7 +2552,7 @@ void UBehaviorTreeComponent::RegisterMessageObserver(const UBTTaskNode* TaskNode
 			);
 
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Message[%s:%d] observer added for %s"),
-			*MessageType.ToString(), RequestID, *UBehaviorTreeTypes::DescribeNodeHelper(TaskNode));
+			*MessageType.ToString(), RequestID.GetID(), *UBehaviorTreeTypes::DescribeNodeHelper(TaskNode));
 	}
 }
 

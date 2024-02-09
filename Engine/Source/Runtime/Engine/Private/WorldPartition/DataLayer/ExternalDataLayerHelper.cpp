@@ -8,7 +8,7 @@
 FString FExternalDataLayerHelper::GetExternalStreamingObjectPackageName(const UExternalDataLayerAsset* InExternalDataLayerAsset)
 {
 	check(InExternalDataLayerAsset);
-	return FString::Printf(TEXT("StreamingObject_%X"), InExternalDataLayerAsset->GetUID());
+	return FString::Printf(TEXT("StreamingObject_%X"), (uint32)InExternalDataLayerAsset->GetUID());
 }
 
 FString FExternalDataLayerHelper::GetExternalStreamingObjectName(const UExternalDataLayerAsset* InExternalDataLayerAsset)

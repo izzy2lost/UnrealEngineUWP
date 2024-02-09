@@ -1310,7 +1310,7 @@ bool UMaterialExpressionTextureProperty::GenerateHLSLExpression(FMaterialHLSLGen
 
 	if (Property < 0 || Property >= TMTM_MAX)
 	{
-		return Generator.Errorf(TEXT("Invalid texture property %d"), Property);
+		return Generator.Errorf(TEXT("Invalid texture property %d"), Property.GetIntValue());
 	}
 
 	const FExpression* TextureExpression = TextureObject.AcquireHLSLExpression(Generator, Scope);

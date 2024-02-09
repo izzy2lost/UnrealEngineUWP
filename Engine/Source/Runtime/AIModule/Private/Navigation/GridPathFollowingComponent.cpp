@@ -178,7 +178,7 @@ void UGridPathFollowingComponent::ResumeMove(FAIRequestID RequestID)
 
 		if (HasActiveGrid())
 		{
-			UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u) is on grid"), RequestID);
+			UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u) is on grid"), RequestID.GetID());
 			Status = EPathFollowingStatus::Moving;
 		}
 		else

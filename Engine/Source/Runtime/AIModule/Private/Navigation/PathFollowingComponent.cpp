@@ -438,7 +438,7 @@ FAIRequestID UPathFollowingComponent::RequestMove(const FAIMoveRequest& RequestD
 			const FVector CurrentLocation = MovementComp ? MovementComp->GetActorFeetLocation() : FVector::ZeroVector;
 			const FVector DestLocation = InPath->GetDestinationLocation();
 			const FVector ToDest = DestLocation - CurrentLocation;
-			UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("RequestMove: accepted, ID(%u) dist2D(%.0f) distZ(%.0f)"), MoveId, ToDest.Size2D(), FMath::Abs(ToDest.Z));
+			UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("RequestMove: accepted, ID(%u) dist2D(%.0f) distZ(%.0f)"), MoveId.GetID(), ToDest.Size2D(), FMath::Abs(ToDest.Z));
 #endif // ENABLE_VISUAL_LOG
 
 			// with async pathfinding paths can be incomplete, movement will start after receiving path event 
@@ -463,7 +463,7 @@ FAIRequestID UPathFollowingComponent::RequestMove(const FAIMoveRequest& RequestD
 
 void UPathFollowingComponent::AbortMove(const UObject& Instigator, FPathFollowingResultFlags::Type AbortFlags, FAIRequestID RequestID, EPathFollowingVelocityMode VelocityMode)
 {
-	UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("AbortMove: RequestID(%u) Instigator(%s)"), RequestID, *Instigator.GetName());
+	UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("AbortMove: RequestID(%u) Instigator(%s)"), RequestID.GetID(), *Instigator.GetName());
 
 	if ((Status != EPathFollowingStatus::Idle) && RequestID.IsEquivalent(GetCurrentRequestId()))
 	{
@@ -489,7 +489,7 @@ FAIRequestID UPathFollowingComponent::RequestMoveWithImmediateFinish(EPathFollow
 
 void UPathFollowingComponent::PauseMove(FAIRequestID RequestID, EPathFollowingVelocityMode VelocityMode)
 {
-	UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("PauseMove: RequestID(%u)"), RequestID);
+	UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("PauseMove: RequestID(%u)"), RequestID.GetID());
 	if (Status == EPathFollowingStatus::Paused)
 	{
 		return;
@@ -514,7 +514,7 @@ void UPathFollowingComponent::ResumeMove(FAIRequestID RequestID)
 {
 	if (RequestID.IsEquivalent(CurrentRequestId) && RequestID.IsValid())
 	{
-		UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u)"), RequestID);
+		UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u)"), RequestID.GetID());
 
 		const bool bMovedDuringPause = ShouldCheckPathOnResume();
 		const bool bIsOnPath = IsOnPath();
@@ -546,7 +546,7 @@ void UPathFollowingComponent::ResumeMove(FAIRequestID RequestID)
 	}
 	else
 	{
-		UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u) is neither \'AnyRequest\' not CurrentRequestId(%u). Ignoring."), RequestID, CurrentRequestId);
+		UE_VLOG(GetOwner(), LogPathFollowing, Log, TEXT("ResumeMove: RequestID(%u) is neither \'AnyRequest\' not CurrentRequestId(%u). Ignoring."), RequestID.GetID(), CurrentRequestId.GetID());
 	}
 }
 
