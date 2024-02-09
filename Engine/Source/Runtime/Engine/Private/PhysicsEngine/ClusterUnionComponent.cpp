@@ -1085,7 +1085,7 @@ void UClusterUnionComponent::HandleAddOrModifiedClusteredComponent(const FMapped
 				NewData.bWasReplicatingMovement = Owner->IsReplicatingMovement();
 				ActorToComponents.Add(Owner, NewData);
 
-				if (IsAuthority())
+				if (IsAuthority() && Owner != GetOwner())
 				{
 					Owner->SetReplicatingMovement(false);
 				}
