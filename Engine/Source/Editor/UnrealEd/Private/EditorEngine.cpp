@@ -110,6 +110,7 @@
 #include "UncontrolledChangelistsModule.h"
 #include "SceneView.h"
 #include "StaticBoundShaderState.h"
+#include "PropertyColorSettings.h"
 
 // needed for the RemotePropagator
 #include "AudioDevice.h"
@@ -508,15 +509,74 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 #if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	if (HasAnyFlags(RF_ClassDefaultObject) && ExactCast<UEditorEngine>(this))
 	{
-		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("PropertyColor"), LOCTEXT("PropertyColor", "Property Color"), [this](const UPrimitiveComponent* InPrimitiveComponent)
-		{
-			FColor PropertyColor(FColor::White);
-			if (AActor* Actor = InPrimitiveComponent->GetOwner())
+		FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(TEXT("PropertyColor"), LOCTEXT("PropertyColor", "Property Color"), 
+			[this](const UPrimitiveComponent* InPrimitiveComponent)
 			{
-				GetPropertyColorationColor(Actor, PropertyColor);
-			}
-			return PropertyColor;
-		});
+				FColor PropertyColor(FColor::White);
+				if (AActor* Actor = InPrimitiveComponent->GetOwner())
+				{
+					if (GetPropertyColorationMatch(Actor))
+					{
+						PropertyColor = FColor::Red;
+					}
+				}
+				return PropertyColor;
+			},
+			[this]()
+			{
+				const FString EmptyString;
+				SetPropertyColorationTarget(GWorld, EmptyString, nullptr, nullptr, nullptr);
+			});
+
+		for (const FPropertyColorCustomProperty& PropertyColorCustomProperty : GetDefault<UPropertyColorSettings>()->CustomProperties)
+		{
+			FActorPrimitiveColorHandler::Get().RegisterPrimitiveColorHandler(PropertyColorCustomProperty.Name, 
+				FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*PropertyColorCustomProperty.Text, TEXT("PropertyColor"), *PropertyColorCustomProperty.Name.ToString()),
+				[this, PropertyColorCustomProperty](const UPrimitiveComponent* InPrimitiveComponent)
+				{
+					FColor PropertyColor(FColor::White);
+					if (AActor* Actor = InPrimitiveComponent->GetOwner())
+					{
+						if (GetPropertyColorationMatch(Actor))
+						{
+							PropertyColor = PropertyColorCustomProperty.PropertyColor;
+						}
+					}
+					return PropertyColor;
+				},
+				[this, PropertyColorCustomProperty]()
+				{
+					TArray<FString> PropertyChainNames;
+					UStruct* PropertyContainer = AActor::StaticClass();
+					if (PropertyColorCustomProperty.PropertyChain.ParseIntoArray(PropertyChainNames, TEXT(".")))
+					{
+						TSharedRef<FEditPropertyChain> PropertyChain = MakeShared<FEditPropertyChain>();
+
+						for (const FString& PropertyName : PropertyChainNames)
+						{
+							if (FProperty* Property = PropertyContainer->FindPropertyByName(*PropertyName))
+							{
+								PropertyChain->AddTail(Property);
+
+								if (FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
+								{
+									PropertyContainer = ObjectProperty->PropertyClass;
+								}
+							}
+							else
+							{
+								UE_LOG(LogEditor, Warning, TEXT("Invalid custom property color %s (%s)"), *PropertyColorCustomProperty.Name.ToString(), *PropertyColorCustomProperty.PropertyChain);
+								break;
+							}
+						}
+
+						if (PropertyChain->Num() == PropertyChainNames.Num())
+						{
+							SetPropertyColorationTarget(GWorld, PropertyColorCustomProperty.PropertyValue, PropertyChain->GetTail()->GetValue(), AActor::StaticClass(), &PropertyChain);
+						}
+					}
+				});
+		}
 	}
 #endif
 }
@@ -974,7 +1034,7 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 				bNewSetEditMenusMode = (Args[0] == TEXT("1")) || FCString::ToBool(*Args[0]);
 			}
 
-			UE_LOG(LogEditor, Log, TEXT("%s menu editing"), bNewSetEditMenusMode ? TEXT("Enable") : TEXT("Disable"));			
+			UE_LOG(LogEditor, Log, TEXT("%s menu editing"), bNewSetEditMenusMode ? TEXT("Enable") : TEXT("Disable"));
 			UToolMenus::Get()->SetEditMenusMode(bNewSetEditMenusMode);
 		}));
 

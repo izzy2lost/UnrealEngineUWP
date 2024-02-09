@@ -25,11 +25,11 @@ FActorPrimitiveColorHandler& FActorPrimitiveColorHandler::Get()
 	return TLazySingleton<FActorPrimitiveColorHandler>::Get();
 }
 
-void FActorPrimitiveColorHandler::RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc)
+void FActorPrimitiveColorHandler::RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InGetColorFunc, const FActivateFunc& InActivateFunc)
 {
 #if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
 	check(!Handlers.Contains(InHandlerName));
-	Handlers.Add(InHandlerName, { InHandlerName, InHandlerText, InHandlerFunc });	
+	Handlers.Add(InHandlerName, { InHandlerName, InHandlerText, InGetColorFunc, InActivateFunc });
 	ActivePrimitiveColorHandler = &Handlers.FindChecked(ActivePrimitiveColorHandlerName);
 #endif
 }
@@ -57,6 +57,7 @@ bool FActorPrimitiveColorHandler::SetActivePrimitiveColorHandler(FName InHandler
 	{
 		ActivePrimitiveColorHandlerName = InHandlerName;
 		ActivePrimitiveColorHandler = NewActivePrimitiveColorHandler;
+		NewActivePrimitiveColorHandler->ActivateFunc();
 		RefreshPrimitiveColorHandler(InHandlerName, InWorld);
 		return true;
 	}
@@ -138,7 +139,7 @@ void FActorPrimitiveColorHandler::GetRegisteredPrimitiveColorHandlers(TArray<FPr
 FLinearColor FActorPrimitiveColorHandler::GetPrimitiveColor(const UPrimitiveComponent* InPrimitiveComponent) const
 {
 #if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
-	return ActivePrimitiveColorHandler->HandlerFunc(InPrimitiveComponent);
+	return ActivePrimitiveColorHandler->GetColorFunc(InPrimitiveComponent);
 #else
 	return FLinearColor::White;
 #endif

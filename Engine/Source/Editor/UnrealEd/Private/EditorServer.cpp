@@ -3681,18 +3681,20 @@ void UEditorEngine::SetPropertyColorationTarget(UWorld* InWorld, const FString& 
 		GPropertyColorationProperty = Property;
 		GPropertyColorationClass = CommonBaseClass;
 		
-		GPropertyColorationChain = PropertyChain ? new TSharedRef<FEditPropertyChain>(*PropertyChain) : nullptr;
-
-		GbColorationClassIsActor = GPropertyColorationClass->IsChildOf( AActor::StaticClass() );
-		GbColorationPropertyIsObjectProperty = CastField<FObjectPropertyBase>(GPropertyColorationProperty) != NULL;
-
-		FActorPrimitiveColorHandler::Get().RefreshPrimitiveColorHandler(TEXT("PropertyColor"), InWorld);
+		if (PropertyChain)
+		{
+			GPropertyColorationChain = new TSharedRef<FEditPropertyChain>(*PropertyChain);
+			GbColorationClassIsActor = GPropertyColorationClass->IsChildOf( AActor::StaticClass() );
+			GbColorationPropertyIsObjectProperty = CastField<FObjectPropertyBase>(GPropertyColorationProperty) != NULL;
+			
+			FActorPrimitiveColorHandler::Get().RefreshPrimitiveColorHandler(TEXT("PropertyColor"), InWorld);
+		}
 
 		RedrawLevelEditingViewports();
 	}
 }
 
-bool UEditorEngine::GetPropertyColorationColor(UObject* Object, FColor& OutColor)
+bool UEditorEngine::GetPropertyColorationMatch(UObject* Object)
 {
 	bool bResult = false;
 	if (GPropertyColorationChain)
@@ -3761,7 +3763,6 @@ bool UEditorEngine::GetPropertyColorationColor(UObject* Object, FColor& OutColor
 				if ( PropertyValue == GPropertyColorationValue )
 				{
 					bResult  = true;
-					OutColor = FColor::Red;
 
 					// Collect actor references.
 					if ( GPropertyColorationActorCollector && Owner )

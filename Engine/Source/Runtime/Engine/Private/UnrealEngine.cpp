@@ -11082,19 +11082,6 @@ bool UEngine::PerformError(const TCHAR* Cmd, FOutputDevice& Ar)
 	return false;
 }
 
-
-/**
-* Computes a color to use for property coloration for the given object.
-*
-* @param	Object		The object for which to compute a property color.
-* @param	OutColor	[out] The returned color.
-* @return				true if a color was successfully set on OutColor, false otherwise.
-*/
-bool UEngine::GetPropertyColorationColor(UObject* Object, FColor& OutColor)
-{
-	return false;
-}
-
 /** Uses StatColorMappings to find a color for this stat's value. */
 bool UEngine::GetStatValueColoration(const FString& StatName, float Value, FColor& OutColor)
 {
