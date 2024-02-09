@@ -474,4 +474,28 @@ uint32 FBitTree::CountOnes(uint32 UpTo) const
 
 #endif
 
+#if UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
+
+int32 GMallocBinnedBundleSize = DEFAULT_GMallocBinnedBundleSize;
+static FAutoConsoleVariableRef GMallocBinned3BundleSizeCVar(
+	TEXT("MallocBinned.BundleSize"),
+	GMallocBinnedBundleSize,
+	TEXT("Max size in bytes of per-block bundles used in the recycling process")
+);
+
+int32 GMallocBinnedBundleCount = DEFAULT_GMallocBinnedBundleCount;
+static FAutoConsoleVariableRef GMallocBinned3BundleCountCVar(
+	TEXT("MallocBinned.BundleCount"),
+	GMallocBinnedBundleCount,
+	TEXT("Max count in blocks per-block bundles used in the recycling process")
+);
+
+#endif
+
+uint32 FMallocBinnedCommonBase::BinnedTlsSlot = FPlatformTLS::InvalidTlsSlot;
+#if UE_BINNEDCOMMON_ALLOCATOR_STATS
+std::atomic<int64> FMallocBinnedCommonBase::TLSMemory(0);
+std::atomic<int64> FMallocBinnedCommonBase::ConsolidatedMemory(0);
+#endif
+
 PRAGMA_RESTORE_UNSAFE_TYPECAST_WARNINGS
