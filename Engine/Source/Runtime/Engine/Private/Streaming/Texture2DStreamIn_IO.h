@@ -10,6 +10,7 @@ Texture2DStreamIn.h: Stream in helper for 2D textures using texture streaming fi
 #include "Texture2DStreamIn.h"
 
 class IBulkDataIORequest;
+class FBulkDataRequest;
 
 // Base StreamIn framework exposing MipData
 class FTexture2DStreamIn_IO : public FTexture2DStreamIn
@@ -62,7 +63,7 @@ private:
 
 
 	// Request for loading into each mip.
-	TArray<IBulkDataIORequest*, TInlineAllocator<MAX_TEXTURE_MIP_COUNT> > IORequests;
+	TArray<IBulkDataIORequest*> IORequests;
 
 	// Whether an IO error was detected (when files do not exists).
 	bool bFailedOnIOError = false;
@@ -70,6 +71,10 @@ private:
 	// Whether the IO request should be created with an higher priority for quicker response time.
 	bool bPrioritizedIORequest = false;
 
+	// Whether to batch IO request(s) 
+	bool bBatchIORequest;
+
 	FBulkDataIORequestCallBack AsyncFileCallBack;
+	FBulkDataBatchRequest BatchRequest;
 };
 
