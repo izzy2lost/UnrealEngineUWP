@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include "Containers/Array.h"
 #include "CoreTypes.h"
 #include "HAL/PlatformMemory.h"
 #include "HAL/PlatformTLS.h"
-#include "Templates/Function.h"
+#include "Templates/AlignmentTemplates.h"
 
 #if PLATFORM_HAS_FPlatformVirtualMemoryBlock
 
@@ -129,7 +128,7 @@ extern CORE_API int32 GMallocBinnedBundleCount;
 #endif
 
 #ifndef UE_BINNEDCOMMON_ALLOCATOR_STATS
-#	define UE_BINNEDCOMMON_ALLOCATOR_STATS (!UE_BUILD_SHIPPING || WITH_EDITOR)
+#	define UE_BINNEDCOMMON_ALLOCATOR_STATS 0
 #endif
 
 

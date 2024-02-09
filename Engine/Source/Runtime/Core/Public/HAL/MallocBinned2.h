@@ -15,7 +15,6 @@
 #include "Math/NumericLimits.h"
 #include "Misc/AssertionMacros.h"
 #include "Misc/Fork.h"
-#include "Templates/AlignmentTemplates.h"
 #include "Templates/Atomic.h"
 
 struct FGenericMemoryStats;
