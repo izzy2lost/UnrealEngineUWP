@@ -2599,8 +2599,21 @@ const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* Visi
 	return nullptr;
 }
 
+bool ShouldAddToVoxelGrid(const FPrimitiveSceneProxy* Proxy, const FViewInfo& View, const FVoxelGridBuildOptions& BuildOptions)
+{
+	switch (BuildOptions.VoxelGridBuildMode)
+	{
+		default:
+		case EVoxelGridBuildMode::PathTracing:
+			return Proxy->IsShown(&View);
+		case EVoxelGridBuildMode::Shadows:
+			return Proxy->IsShadowCast(&View);
+	}
+}
+
 void CollectHeterogeneousVolumeMeshBatches(
 	FRDGBuilder& GraphBuilder,
+	const FVoxelGridBuildOptions& BuildOptions,
 	const FScene* Scene,
 	const TArray<FViewInfo>& Views,
 	const TArray<FVisibleLightInfo, SceneRenderingAllocator> VisibleLightInfos,
@@ -2614,7 +2627,11 @@ void CollectHeterogeneousVolumeMeshBatches(
 		const FViewInfo& View = Views[ViewIndex];
 		for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.HeterogeneousVolumesMeshBatches.Num(); ++MeshBatchIndex)
 		{
-			HeterogeneousVolumesMeshBatches.FindOrAdd(View.HeterogeneousVolumesMeshBatches[MeshBatchIndex]);
+			const FVolumetricMeshBatch& MeshBatch = View.HeterogeneousVolumesMeshBatches[MeshBatchIndex];
+			if (ShouldAddToVoxelGrid(MeshBatch.Proxy, View, BuildOptions))
+			{
+				HeterogeneousVolumesMeshBatches.FindOrAdd(MeshBatch);
+			}
 		}
 	}
 
@@ -2644,7 +2661,11 @@ void CollectHeterogeneousVolumeMeshBatches(
 				const TArray<FMeshBatchAndRelevance, SceneRenderingAllocator>& MeshBatches = ProjectedShadowInfo->GetDynamicSubjectHeterogeneousVolumeMeshElements();
 				for (int32 MeshBatchIndex = 0; MeshBatchIndex < MeshBatches.Num(); ++MeshBatchIndex)
 				{
-					HeterogeneousVolumesMeshBatches.FindOrAdd(FVolumetricMeshBatch(MeshBatches[MeshBatchIndex].Mesh, MeshBatches[MeshBatchIndex].PrimitiveSceneProxy));
+					const FMeshBatchAndRelevance& MeshBatch = MeshBatches[MeshBatchIndex];
+					if (ShouldAddToVoxelGrid(MeshBatch.PrimitiveSceneProxy, *ProjectedShadowInfo->ShadowDepthView, BuildOptions))
+					{
+						HeterogeneousVolumesMeshBatches.FindOrAdd(FVolumetricMeshBatch(MeshBatch.Mesh, MeshBatch.PrimitiveSceneProxy));
+					}
 				}
 			}
 		}
@@ -2673,6 +2694,7 @@ void BuildOrthoVoxelGrid(
 	TSet<FVolumetricMeshBatch> HeterogeneousVolumesMeshBatches;
 	CollectHeterogeneousVolumeMeshBatches(
 		GraphBuilder,
+		BuildOptions,
 		Scene,
 		Views,
 		VisibleLightInfos,

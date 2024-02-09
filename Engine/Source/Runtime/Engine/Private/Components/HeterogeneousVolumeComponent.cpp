@@ -72,6 +72,7 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 #endif
 {
 	bIsHeterogeneousVolume = true;
+	bCastDynamicShadow = InComponent->CastShadow;
 
 	HeterogeneousVolumeData.VoxelResolution = InComponent->VolumeResolution;
 
@@ -183,7 +184,7 @@ void FHeterogeneousVolumeSceneProxy::GetDynamicMeshElements(
 		Mesh.MaterialRenderProxy = MaterialInterface->GetRenderProxy();
 		Mesh.LCI = NULL;
 		Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative() ? true : false;
-		Mesh.CastShadow = false;
+		Mesh.CastShadow = CastsDynamicShadow();
 		//Mesh.DepthPriorityGroup = (ESceneDepthPriorityGroup)GetDepthPriorityGroup(View);
 		Mesh.Type = PT_TriangleStrip;
 		Mesh.bDisableBackfaceCulling = true;
@@ -606,7 +607,6 @@ AHeterogeneousVolume::AHeterogeneousVolume(const FObjectInitializer& ObjectIniti
 
 	PrimaryActorTick.bCanEverTick = true;
 	SetHidden(false);
-	HeterogeneousVolumeComponent->bCastDynamicShadow = true;
 }
 
 #undef LOCTEXT_NAMESPACE

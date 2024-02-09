@@ -207,8 +207,15 @@ END_UNIFORM_BUFFER_STRUCT()
 
 // Render specializations
 
+enum class EVoxelGridBuildMode
+{
+	PathTracing,
+	Shadows,
+};
+
 struct FVoxelGridBuildOptions
 {
+	EVoxelGridBuildMode VoxelGridBuildMode = EVoxelGridBuildMode::PathTracing;
 	float MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeOutsideFrustum();
 	float MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetMinimumVoxelSizeInFrustum();
 
