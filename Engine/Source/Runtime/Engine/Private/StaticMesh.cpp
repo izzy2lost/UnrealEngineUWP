@@ -2257,7 +2257,7 @@ void FStaticMeshLODSettings::Initialize(const ITargetPlatformSettings* TargetPla
 }
 void FStaticMeshLODSettings::Initialize(const ITargetPlatform* TargetPlatform)
 {
-	Initialize(&TargetPlatform->GetPlatformSettings());
+	Initialize(TargetPlatform->GetTargetPlatformSettings());
 }
 
 void FStaticMeshLODSettings::ReadEntry(FStaticMeshLODGroup& Group, FString Entry)

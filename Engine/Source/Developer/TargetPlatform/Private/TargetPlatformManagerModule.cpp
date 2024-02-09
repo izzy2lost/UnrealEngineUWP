@@ -147,11 +147,11 @@ const ITargetPlatformControls* ITargetPlatformControls::GetPlatformFromOrdinal(i
 
 const class ITargetPlatformSettings& ITargetDevice::GetPlatformSettings() const
 {
-	return GetTargetPlatform().GetPlatformSettings();
+	return *(GetTargetPlatform().GetTargetPlatformSettings());
 }
 const class ITargetPlatformControls& ITargetDevice::GetPlatformControls() const
 {
-	return GetTargetPlatform().GetPlatformControls();
+	return *(GetTargetPlatform().GetTargetPlatformControls());
 }
 
 ITargetPlatform::FOnTargetDeviceDiscovered& ITargetPlatform::OnDeviceDiscovered()

@@ -1225,7 +1225,7 @@ void UTexture::PostLoad()
 
 #endif
 
-	if (IsCookPlatformTilingDisabled(nullptr)) // nullptr TargetPlatform means it will use UDeviceProfileManager::Get().GetActiveProfile() to get the tiling settings
+	if (IsCookPlatformTilingDisabled(static_cast<ITargetPlatformSettings*>(nullptr))) // nullptr TargetPlatform means it will use UDeviceProfileManager::Get().GetActiveProfile() to get the tiling settings
 	{
 		// The texture was not processed/tiled during cook, so it has to be tiled when uploaded to the GPU if necessary
 		bNotOfflineProcessed = true;
@@ -1516,15 +1516,15 @@ TextureMipGenSettings UTexture::GetMipGenSettingsFromString(const TCHAR* InStr, 
 	return bTextureGroup ? TMGS_SimpleAverage : TMGS_FromTextureGroup;
 }
 
-bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatform) const
+bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatformSettings* TargetPlatformSettings) const
 {
 	if (CookPlatformTilingSettings.GetValue() == TextureCookPlatformTilingSettings::TCPTS_FromTextureGroup)
 	{
 		const UTextureLODSettings* TextureLODSettings = nullptr;
 
-		if (TargetPlatform)
+		if (TargetPlatformSettings)
 		{
-			TextureLODSettings = &TargetPlatform->GetTextureLODSettings();
+			TextureLODSettings = &TargetPlatformSettings->GetTextureLODSettings();
 		}
 		else
 		{
@@ -1546,6 +1546,11 @@ bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatfor
 	}
 
 	return CookPlatformTilingSettings.GetValue() == TextureCookPlatformTilingSettings::TCPTS_DoNotTile;
+}
+
+bool UTexture::IsCookPlatformTilingDisabled(const ITargetPlatform* TargetPlatform) const
+{
+	return IsCookPlatformTilingDisabled(TargetPlatform ? TargetPlatform->GetTargetPlatformSettings(): static_cast<ITargetPlatformSettings*>(nullptr));
 }
 
 void UTexture::SetDeterministicLightingGuid()
@@ -3551,7 +3556,7 @@ static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITarget
 }
 static FName ConditionalGetPrefixedFormat(FName TextureFormatName, const ITargetPlatform* TargetPlatform, bool bOodleTextureSdkVersionIsNone)
 {
-	return ConditionalGetPrefixedFormat(TextureFormatName, &TargetPlatform->GetPlatformSettings(), bOodleTextureSdkVersionIsNone);
+	return ConditionalGetPrefixedFormat(TextureFormatName, TargetPlatform->GetTargetPlatformSettings(), bOodleTextureSdkVersionIsNone);
 }
 
 void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatformSettings, const ITargetPlatformControls* TargetPlatformControls, int32 & OutSizeX, int32 & OutSizeY ) const
@@ -3651,7 +3656,7 @@ void UTexture::GetBuiltTextureSize(const ITargetPlatformSettings* TargetPlatform
 }
 void UTexture::GetBuiltTextureSize(const ITargetPlatform* TargetPlatform, int32& OutSizeX, int32& OutSizeY) const
 {
-	return GetBuiltTextureSize(&TargetPlatform->GetPlatformSettings(), &TargetPlatform->GetPlatformControls(), OutSizeX, OutSizeY);
+	return GetBuiltTextureSize(TargetPlatform->GetTargetPlatformSettings(), TargetPlatform->GetTargetPlatformControls(), OutSizeX, OutSizeY);
 }
 // this should not be called directly; it is called from TargetPlatform GetTextureFormats
 //	entry point API is GetPlatformTextureFormatNamesWithPrefix
@@ -3947,7 +3952,7 @@ FName GetDefaultTextureFormatName( const ITargetPlatformSettings* TargetPlatform
 FName GetDefaultTextureFormatName(const ITargetPlatform* TargetPlatform, const UTexture* Texture, int32 LayerIndex,
 	bool bSupportCompressedVolumeTexture, int32 Unused_BlockSize, bool bSupportFilteredFloat32Textures)
 {
-	return GetDefaultTextureFormatName(&TargetPlatform->GetPlatformSettings(), &TargetPlatform->GetPlatformControls(), Texture, LayerIndex, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures);
+	return GetDefaultTextureFormatName(TargetPlatform->GetTargetPlatformSettings(), TargetPlatform->GetTargetPlatformControls(), Texture, LayerIndex, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures);
 }
 
 #if WITH_EDITOR
@@ -4029,7 +4034,7 @@ void GetDefaultTextureFormatNamePerLayer(TArray<FName>& OutFormatNames, const cl
 void GetDefaultTextureFormatNamePerLayer(TArray<FName>& OutFormatNames, const class ITargetPlatform* TargetPlatform, const class UTexture* Texture,
 	bool bSupportCompressedVolumeTexture, int32 Unused_BlockSize, bool bSupportFilteredFloat32Textures)
 {
-	GetDefaultTextureFormatNamePerLayer(OutFormatNames, &TargetPlatform->GetPlatformSettings(), &TargetPlatform->GetPlatformControls(), Texture, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures);
+	GetDefaultTextureFormatNamePerLayer(OutFormatNames, TargetPlatform->GetTargetPlatformSettings(), TargetPlatform->GetTargetPlatformControls(), Texture, bSupportCompressedVolumeTexture, Unused_BlockSize, bSupportFilteredFloat32Textures);
 }
 
 void GetAllDefaultTextureFormats(const class ITargetPlatformSettings* TargetPlatformSettings, TArray<FName>& OutFormats)
@@ -4092,7 +4097,7 @@ void GetAllDefaultTextureFormats(const class ITargetPlatformSettings* TargetPlat
 
 void GetAllDefaultTextureFormats(const class ITargetPlatform* TargetPlatform, TArray<FName>& OutFormats)
 {
-	GetAllDefaultTextureFormats(&TargetPlatform->GetPlatformSettings(), OutFormats);
+	GetAllDefaultTextureFormats(TargetPlatform->GetTargetPlatformSettings(), OutFormats);
 }
 
 #if WITH_EDITOR
