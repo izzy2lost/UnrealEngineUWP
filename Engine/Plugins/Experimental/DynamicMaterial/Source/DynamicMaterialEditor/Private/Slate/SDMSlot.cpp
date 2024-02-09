@@ -22,6 +22,7 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "DynamicMaterialModule.h"
+#include "Menus/DMMaterialSlotLayerAddEffectMenus.h"
 #include "Menus/DMMaterialSlotMenus.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -163,6 +164,21 @@ FText SDMSlot::GetLayerButtonsDescription() const
 TSharedRef<SWidget> SDMSlot::GetLayerButtonsMenuContent()
 {
 	return FDMMaterialSlotMenus::MakeAddLayerButtonMenu(SharedThis(this));
+}
+
+bool SDMSlot::GetLayerCanAddEffect() const
+{
+	return !!GetSelectedLayer();
+}
+
+TSharedRef<SWidget> SDMSlot::GetLayerEffectsMenuContent()
+{
+	if (UDMMaterialLayerObject* LayerObject = GetSelectedLayer())
+	{
+		return FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(LayerObject);
+	}
+
+	return SNullWidget::NullWidget;
 }
 
 bool SDMSlot::GetLayerRowsButtonsCanDuplicate() const
@@ -585,7 +601,7 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 			[
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("GenericCommands.Delete"))
-				.DesiredSizeOverride(FVector2D(22.0f))
+				.DesiredSizeOverride(FVector2D(16.0f))
 			]
 		]
 		+ SHorizontalBox::Slot()
@@ -608,6 +624,26 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 			.IsFocusable(true)
 			.ContentPadding(4.0f)
 			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly.Bordered.Dark")
+			.ToolTipText(LOCTEXT("AddLayerEffecTooltip", "Add Layer Effect"))
+			.IsEnabled(this, &SDMSlot::GetLayerCanAddEffect)
+			.OnGetMenuContent(this, &SDMSlot::GetLayerEffectsMenuContent)
+			.ButtonContent()
+			[
+				SNew(SImage)
+				.Image(FDynamicMaterialEditorStyle::GetBrush("EffectsView.Row.Fx"))
+				.DesiredSizeOverride(FVector2D(16.0f))
+			]
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SComboButton)
+			.HasDownArrow(false)
+			.IsFocusable(true)
+			.ContentPadding(4.0f)
+			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly.Bordered.Dark")
 			.ToolTipText(LOCTEXT("AddLayerTooltip", "Add New Layer"))
 			.OnGetMenuContent(this, &SDMSlot::GetLayerButtonsMenuContent)
 			.ButtonContent()
@@ -615,7 +651,7 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("Icons.Plus"))
 				.ColorAndOpacity(FDynamicMaterialEditorStyle::Get().GetColor("Color.Stage.Enabled"))
-				.DesiredSizeOverride(FVector2D(22.0f))
+				.DesiredSizeOverride(FVector2D(16.0f))
 			]
 		]
 		+ SHorizontalBox::Slot()
@@ -633,7 +669,7 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 			[
 				SNew(SImage)
 				.Image(FDynamicMaterialEditorStyle::GetBrush("LayerView.DuplicateIcon"))
-				.DesiredSizeOverride(FVector2D(22.0f))
+				.DesiredSizeOverride(FVector2D(16.0f))
 			]
 		]
 		+ SHorizontalBox::Slot()
@@ -651,7 +687,7 @@ TSharedRef<SWidget> SDMSlot::CreateLayerButtonsRowWidget()
 			[
 				SNew(SImage)
 				.Image(FAppStyle::Get().GetBrush("Icons.Delete"))
-				.DesiredSizeOverride(FVector2D(22.0f))
+				.DesiredSizeOverride(FVector2D(16.0f))
 			]
 		];
 }

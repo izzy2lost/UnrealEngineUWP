@@ -24,6 +24,7 @@ public class DynamicMaterialEditor : ModuleRules
 				"ApplicationCore",
 				"AssetDefinition",
 				"ContentBrowser",
+				"ContentBrowserData",
 				"CustomDetailsView",
 				"DeveloperSettings",
 				"EditorWidgets",

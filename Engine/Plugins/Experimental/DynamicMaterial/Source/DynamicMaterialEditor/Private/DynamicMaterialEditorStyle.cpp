@@ -492,6 +492,7 @@ void FDynamicMaterialEditorStyle::SetupEffectsViewStyles(const TSharedRef<FSlate
 
 	Style->Set("EffectsView.Row.Fx.Closed", new IMAGE_BRUSH_SVG("Icons/Fx_Closed", Icon24x24));
 	Style->Set("EffectsView.Row.Fx.Opened", new IMAGE_BRUSH_SVG("Icons/Fx_Opened", Icon24x24));
+	Style->Set("EffectsView.Row.Fx", new IMAGE_BRUSH_SVG("Icons/Fx", Icon24x24));
 }
 
 void FDynamicMaterialEditorStyle::SetupTextStyles(const TSharedRef<FSlateStyleSet>& Style)

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Slate/Layers/SDMSlotLayerItem.h"
+
+#include "ContentBrowserDataDragDropOp.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
@@ -12,6 +14,7 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Materials/MaterialFunctionInterface.h"
 #include "Menus/DMMaterialSlotLayerAddEffectMenus.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "ScopedTransaction.h"
@@ -19,6 +22,8 @@
 #include "Slate/SDMSlot.h"
 #include "Slate/SDMStage.h"
 #include "SlateOptMacros.h"
+#include "Components/DMMaterialEffectFunction.h"
+#include "Components/DMMaterialEffectStack.h"
 #include "Styling/StyleColors.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
@@ -131,20 +136,6 @@ TSharedRef<SWidget> SDMSlotLayerItem::CreateMainContent()
 			.FillWidth(1.0f)
 			[
 				SAssignNew(EffectsList, SDMLayerEffectsView, SlotWidgetWeak.Pin(), EffectStack)
-			]
-		]
-
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SBox)
-			.HAlign(EHorizontalAlignment::HAlign_Center)
-			.Padding(10.f, 3.f, 5.f, 3.f)
-			.Visibility(this, &SDMSlotLayerItem::GetNewEffectVisibility)
-			[
-				CreateNewEffectButton()
 			]
 		];
 }
@@ -592,38 +583,49 @@ TOptional<EItemDropZone> SDMSlotLayerItem::OnLayerItemCanAcceptDrop(const FDragD
 		return TOptional<EItemDropZone>();
 	}
 
-	TSharedPtr<FDMSlotLayerDragDropOperation> SlotLayerDragDropOp = InDragDropEvent.GetOperationAs<FDMSlotLayerDragDropOperation>();
-	if (!SlotLayerDragDropOp.IsValid())
+	if (TSharedPtr<FDMSlotLayerDragDropOperation> SlotLayerDragDropOp = InDragDropEvent.GetOperationAs<FDMSlotLayerDragDropOperation>())
 	{
-		return TOptional<EItemDropZone>();
-	}
-
-	UDMMaterialLayerObject* DraggedSlotLayer = SlotLayerDragDropOp->GetLayer();
-	if (!DraggedSlotLayer)
-	{
-		return TOptional<EItemDropZone>();
-	}
-
-	SlotLayerDragDropOp->SetToInvalidDropLocation();
-
-	switch (InDropZone)
-	{
-	case EItemDropZone::AboveItem:
-		if (Layer->CanMoveLayerAbove(DraggedSlotLayer))
+		UDMMaterialLayerObject* DraggedSlotLayer = SlotLayerDragDropOp->GetLayer();
+		if (!DraggedSlotLayer)
 		{
-			SlotLayerDragDropOp->SetToValidDropLocation();
-			return InDropZone;
+			return TOptional<EItemDropZone>();
 		}
-		break;
 
-	case EItemDropZone::OntoItem:
-	case EItemDropZone::BelowItem:
-		if (Layer->CanMoveLayerBelow(DraggedSlotLayer))
+		SlotLayerDragDropOp->SetToInvalidDropLocation();
+
+		switch (InDropZone)
 		{
-			SlotLayerDragDropOp->SetToValidDropLocation();
-			return EItemDropZone::BelowItem;
+			case EItemDropZone::AboveItem:
+				if (Layer->CanMoveLayerAbove(DraggedSlotLayer))
+				{
+					SlotLayerDragDropOp->SetToValidDropLocation();
+					return InDropZone;
+				}
+				break;
+
+			case EItemDropZone::OntoItem:
+			case EItemDropZone::BelowItem:
+				if (Layer->CanMoveLayerBelow(DraggedSlotLayer))
+				{
+					SlotLayerDragDropOp->SetToValidDropLocation();
+					return EItemDropZone::BelowItem;
+				}
+				break;
 		}
-		break;
+	}
+	else if (TSharedPtr<FContentBrowserDataDragDropOp> ContentBrowserDragDropOp = InDragDropEvent.GetOperationAs<FContentBrowserDataDragDropOp>())
+	{
+		bool bHasValidItem = false;
+
+		for (const FAssetData& DraggedAsset : ContentBrowserDragDropOp->GetAssets())
+		{
+			UClass* AssetClass = DraggedAsset.GetClass(EResolveClass::Yes);
+
+			if (AssetClass && AssetClass->IsChildOf(UMaterialFunctionInterface::StaticClass()))
+			{
+				return EItemDropZone::OntoItem;
+			}
+		}
 	}
 
 	return TOptional<EItemDropZone>();
@@ -651,29 +653,41 @@ FReply SDMSlotLayerItem::OnLayerItemDragDetected(const FGeometry& InMyGeometry, 
 FReply SDMSlotLayerItem::OnLayerItemAcceptDrop(const FDragDropEvent& InDragDropEvent, EItemDropZone InDropZone, 
 	TSharedPtr<FDMMaterialLayerReference> InSlotLayer)
 {
-	TSharedPtr<FDMSlotLayerDragDropOperation> SlotLayerDragDropOp = InDragDropEvent.GetOperationAs<FDMSlotLayerDragDropOperation>();
-
-	if (SlotLayerDragDropOp.IsValid())
+	if (!InSlotLayer.IsValid())
 	{
-		const UDMMaterialLayerObject* DraggedOverLayer = InSlotLayer.IsValid() ? InSlotLayer->GetLayer() : nullptr;
-		if (!DraggedOverLayer || !DraggedOverLayer->GetStage(EDMMaterialLayerStage::Base))
+		return FReply::Handled();
+	}
+
+	const UDMMaterialLayerObject* DraggedOverLayer = GetLayer();
+
+	if (!DraggedOverLayer)
+	{
+		return FReply::Handled();
+	}
+
+	if (TSharedPtr<FDMSlotLayerDragDropOperation> SlotLayerDragDropOp = InDragDropEvent.GetOperationAs<FDMSlotLayerDragDropOperation>())
+	{
+		if (!DraggedOverLayer->GetStage(EDMMaterialLayerStage::Base))
 		{
 			return FReply::Handled();
 		}
 
 		UDMMaterialLayerObject* DraggedLayer = SlotLayerDragDropOp->GetLayer();
+
 		if (!DraggedLayer || !DraggedLayer->GetStage(EDMMaterialLayerStage::Base))
 		{
 			return FReply::Handled();
 		}
 
 		const int32 ThisLayerIndex = GetLayerItemIndex();
+
 		if (ThisLayerIndex == INDEX_NONE)
 		{
 			return FReply::Handled();
 		}
 		
 		UDMMaterialSlot* const Slot = DraggedLayer->GetSlot();
+
 		if (!Slot)
 		{
 			return FReply::Handled();
@@ -697,6 +711,39 @@ FReply SDMSlotLayerItem::OnLayerItemAcceptDrop(const FDragDropEvent& InDragDropE
 
 		return FReply::Handled();
 	}
+
+	if (TSharedPtr<FContentBrowserDataDragDropOp> ContentBrowserDragDropOp = InDragDropEvent.GetOperationAs<FContentBrowserDataDragDropOp>())
+	{
+		UDMMaterialEffectStack* EffectStack = DraggedOverLayer->GetEffectStack();
+
+		if (!EffectStack)
+		{
+			return FReply::Handled();
+		}
+
+		for (const FAssetData& DraggedAsset : ContentBrowserDragDropOp->GetAssets())
+		{
+			UClass* AssetClass = DraggedAsset.GetClass(EResolveClass::Yes);
+
+			if (AssetClass && AssetClass->IsChildOf(UMaterialFunctionInterface::StaticClass()))
+			{
+				if (UMaterialFunctionInterface* MaterialFunction = Cast<UMaterialFunctionInterface>(DraggedAsset.GetAsset()))
+				{
+					UDMMaterialEffectFunction* EffectFunction = UDMMaterialEffect::CreateEffect<UDMMaterialEffectFunction>(EffectStack);
+					EffectFunction->SetMaterialFunction(MaterialFunction);
+
+					// Will successfully set the function if it's valid
+					if (EffectFunction->GetMaterialFunction() == MaterialFunction)
+					{
+						EffectStack->AddEffect(EffectFunction);
+					}
+				}
+			}
+		}
+
+		return FReply::Handled();
+	}
+
 	return FReply::Unhandled();
 }
 
@@ -967,40 +1014,6 @@ void SDMSlotLayerItem::SaveLayerPreviewSize(const float InNewSize, const TShared
 EVisibility SDMSlotLayerItem::GetEffectsListVisibility() const
 {
 	return EffectsList->GetLayerItemCount() > 0 && bDisplayEffectsList ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-EVisibility SDMSlotLayerItem::GetNewEffectVisibility() const
-{
-	return bDisplayEffectsList ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-TSharedRef<SWidget> SDMSlotLayerItem::CreateNewEffectButton()
-{
-	TSharedRef<SWidget> TextBlock = SNew(STextBlock)
-		.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-		.Text(LOCTEXT("AddNewEffect", "Add New Effect"))
-		.ColorAndOpacity(FSlateColor(EStyleColor::PrimaryHover));
-
-	TextBlock->SetOnMouseButtonDown(FPointerEventHandler::CreateSPLambda(
-		TextBlock,
-		[this, TextBlockWeak = TextBlock->AsShared().ToWeakPtr()](const FGeometry& InGeometry, const FPointerEvent& InPointerEvent)
-		{
-			if (TSharedPtr<SWidget> TextBlock = TextBlockWeak.Pin())
-			{
-				FSlateApplication::Get().PushMenu(
-					TextBlock.ToSharedRef(),
-					FWidgetPath(),
-					CreateNewEffectMenu(),
-					GetTickSpaceGeometry().GetAbsolutePosition(),
-					FPopupTransitionEffect::TopMenu
-				);
-			}
-
-			return FReply::Handled();
-		}
-	));
-
-	return TextBlock;
 }
 
 TSharedRef<SWidget> SDMSlotLayerItem::CreateNewEffectMenu()
