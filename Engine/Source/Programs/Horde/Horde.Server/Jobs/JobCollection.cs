@@ -1643,8 +1643,12 @@ namespace Horde.Server.Jobs
 					INodeGroup group = graph.Groups[batch.GroupIdx];
 					if (!batch.Steps.Any(x => newNodesToExecute.Contains(group.Nodes[x.NodeIdx])))
 					{
-						logger.LogInformation("Job {JobId} batch {BatchId} is being cancelled; no nodes are set to be executed", job.Id, batch.Id);
-						batch.Error = JobStepBatchError.Cancelled;
+						logger.LogInformation("Job {JobId} batch {BatchId} (lease {LeaseId}) is being cancelled; {NodeCount} nodes are not set to be executed", job.Id, batch.Id, batch.LeaseId, batch.Steps.Count);
+						foreach (JobStepDocument step in batch.Steps)
+						{
+							logger.LogInformation("Step {JobId}:{BatchId}:{StepId} is no longer needed ({NodeName})", job.Id, batch.Id, step.Id, group.Nodes[step.NodeIdx].Name);
+						}
+						batch.Error = JobStepBatchError.NoLongerNeeded;
 					}
 				}
 			}

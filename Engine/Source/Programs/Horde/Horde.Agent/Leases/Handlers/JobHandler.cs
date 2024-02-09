@@ -226,7 +226,7 @@ namespace Horde.Agent.Leases.Handlers
 			IJobExecutor executor = executorFactory.CreateExecutor(workspaceInfo, autoSdkWorkspaceInfo, options);
 
 			// Try to initialize the executor
-			logger.LogInformation("Initializing...");
+			logger.LogInformation("Initializing executor...");
 			using (logger.BeginIndentScope("  "))
 			{
 				using IScope scope = GlobalTracer.Instance.BuildSpan("Initialize").StartActive();
@@ -236,6 +236,7 @@ namespace Horde.Agent.Leases.Handlers
 			try
 			{
 				// Execute the steps
+				logger.LogInformation("Executing steps...");
 				for (; ; )
 				{
 					// Get the next step to execute
@@ -248,6 +249,7 @@ namespace Horde.Agent.Leases.Handlers
 					}
 					else if (stepResponse.State == BeginStepResponse.Types.Result.Complete)
 					{
+						logger.LogInformation("No more steps to execute; finalizing lease.");
 						break;
 					}
 					else if (stepResponse.State != BeginStepResponse.Types.Result.Ready)
