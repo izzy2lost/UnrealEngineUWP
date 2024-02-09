@@ -437,17 +437,16 @@ FSmartObjectRuntime* USmartObjectSubsystem::AddCollectionEntryToSimulation(
 		*Definition.GetName(),
 		(OwnerComponent != nullptr) ? *FString::Printf(TEXT(" for '%s'"), *GetNameSafe(OwnerComponent->GetOwner())) : TEXT(""));
 
-	FSmartObjectRuntime* Runtime = CreateRuntimeInstance(Handle, Definition, Entry.GetBounds());
+	FSmartObjectRuntime* Runtime = CreateRuntimeInstance(Handle, Definition, Entry.GetBounds(), OwnerComponent);
 	if (Runtime != nullptr)
 	{
 		Runtime->SetTransform(Entry.GetTransform());
 		Runtime->Tags = Entry.GetTags();
-		Runtime->OwnerComponent = OwnerComponent;
 	}
 	return Runtime;
 }
 
-FSmartObjectRuntime* USmartObjectSubsystem::CreateRuntimeInstance(const FSmartObjectHandle Handle, const USmartObjectDefinition& Definition, const FBox Bounds)
+FSmartObjectRuntime* USmartObjectSubsystem::CreateRuntimeInstance(const FSmartObjectHandle Handle, const USmartObjectDefinition& Definition, const FBox Bounds, USmartObjectComponent* OwnerComponent)
 {
 	if (!ensureMsgf(Handle.IsValid(), TEXT("SmartObject needs a valid Handle to be added to the simulation")))
 	{
@@ -461,6 +460,7 @@ FSmartObjectRuntime* USmartObjectSubsystem::CreateRuntimeInstance(const FSmartOb
 
 	FSmartObjectRuntime& Runtime = RuntimeSmartObjects.Emplace(Handle, FSmartObjectRuntime(Definition));
 	Runtime.SetRegisteredHandle(Handle);
+	Runtime.OwnerComponent = OwnerComponent;
 
 #if UE_ENABLE_DEBUG_DRAWING
 	Runtime.Bounds = Bounds;

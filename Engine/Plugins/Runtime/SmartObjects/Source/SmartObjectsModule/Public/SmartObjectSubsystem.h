@@ -1165,7 +1165,7 @@ protected:
 	 * @param Bounds Bounds used to register the object in the space partition structure
 	 * @return Pointer to the created runtime or nullptr if an error occurs.
 	 */
-	FSmartObjectRuntime* CreateRuntimeInstance(const FSmartObjectHandle Handle, const USmartObjectDefinition& Definition, FBox Bounds);
+	FSmartObjectRuntime* CreateRuntimeInstance(const FSmartObjectHandle Handle, const USmartObjectDefinition& Definition, FBox Bounds, USmartObjectComponent* OwnerComponent = nullptr);
 
 	/**
 	 * Registers a collection entry to the simulation and creates its associated runtime instance.
