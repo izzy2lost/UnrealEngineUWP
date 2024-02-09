@@ -14,13 +14,13 @@ FGameplayDebuggerCategory_SmartObject::FGameplayDebuggerCategory_SmartObject()
 	bShowOnlyWithDebugActor = false;
 
 	const FGameplayDebuggerInputHandlerConfig InstanceTagsKeyConfig(TEXT("ToggleInstanceTags"), EKeys::Add.GetFName(), FGameplayDebuggerInputModifier::Shift);
-	BindKeyPress(InstanceTagsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags);
+	BindKeyPress(InstanceTagsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleInstanceTags, EGameplayDebuggerInputMode::Replicated);
 
 	const FGameplayDebuggerInputHandlerConfig SlotDetailsKeyConfig(TEXT("ToggleSlotDetails"), EKeys::Multiply.GetFName(), FGameplayDebuggerInputModifier::Shift);
-	BindKeyPress(SlotDetailsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleSlotDetails);
+	BindKeyPress(SlotDetailsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleSlotDetails, EGameplayDebuggerInputMode::Replicated);
 
 	const FGameplayDebuggerInputHandlerConfig AnnotationsKeyConfig(TEXT("ToggleAnnotations"), EKeys::Subtract.GetFName(), FGameplayDebuggerInputModifier::Shift);
-	BindKeyPress(AnnotationsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleAnnotations);
+	BindKeyPress(AnnotationsKeyConfig, this, &FGameplayDebuggerCategory_SmartObject::ToggleAnnotations, EGameplayDebuggerInputMode::Replicated);
 }
 
 TSharedRef<FGameplayDebuggerCategory> FGameplayDebuggerCategory_SmartObject::MakeInstance()
