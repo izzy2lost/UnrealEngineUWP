@@ -3,6 +3,7 @@
 #include "Subsystems/RemoteControlComponentsSubsystem.h"
 #include "Engine/Engine.h"
 #include "IRemoteControlModule.h"
+#include "RemoteControlComponentsContext.h"
 #include "RemoteControlComponentsUtils.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"

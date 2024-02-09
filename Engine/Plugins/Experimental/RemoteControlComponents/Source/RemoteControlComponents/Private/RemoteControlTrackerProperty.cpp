@@ -5,6 +5,10 @@
 #include "RemoteControlComponentsUtils.h"
 #include "RemoteControlPreset.h"
 
+FRemoteControlTrackerProperty::FRemoteControlTrackerProperty()
+{
+}
+
 FRemoteControlTrackerProperty::FRemoteControlTrackerProperty(const FRCFieldPathInfo& InFieldPathInfo, const TObjectPtr<UObject>& InOwnerObject, bool bInIsExposed)
 	: FieldPathInfo(InFieldPathInfo)
 	, OwnerObject(InOwnerObject)
@@ -49,6 +53,16 @@ void FRemoteControlTrackerProperty::Resolve() const
 void FRemoteControlTrackerProperty::MarkUnexposed()
 {
 	bIsExposed = false;
+}
+
+bool FRemoteControlTrackerProperty::operator==(const FRemoteControlTrackerProperty& Other) const
+{
+	return FieldPathInfo == Other.FieldPathInfo && OwnerObject == Other.OwnerObject;
+}
+
+bool FRemoteControlTrackerProperty::operator!=(const FRemoteControlTrackerProperty& Other) const
+{
+	return !(*this == Other);
 }
 
 void FRemoteControlTrackerProperty::Expose(URemoteControlPreset* InRemoteControlPreset)
@@ -112,4 +126,9 @@ void FRemoteControlTrackerProperty::WritePropertyIdToPreset() const
 	{
 		FRemoteControlComponentsUtils::SetExposedPropertyId(Preset, OwnerObject.Get(), FieldPathInfo, PropertyId);
 	}
+}
+
+uint32 GetTypeHash(const FRemoteControlTrackerProperty& InBroadcastControlId)
+{
+	return HashCombineFast(InBroadcastControlId.FieldPathInfo.PathHash, GetTypeHash(InBroadcastControlId.OwnerObject));
 }
