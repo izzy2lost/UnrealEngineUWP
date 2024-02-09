@@ -5,6 +5,8 @@
 #include "PCGElement.h"
 #include "PCGSettings.h"
 
+#include "PCGManagedResource.h"
+
 #include "Logging/LogVerbosity.h"
 
 #include "PCGPrintElement.generated.h"
@@ -15,6 +17,23 @@ enum class EPCGPrintVerbosity : uint8
 	Log = ELogVerbosity::Log,
 	Warning = ELogVerbosity::Warning,
 	Error = ELogVerbosity::Error
+};
+
+/** Used to track the debug message to properly remove it upon regen or clean up. */
+UCLASS(ClassGroup = (Procedural))
+class UPCGManagedDebugStringMessageKey : public UPCGManagedResource
+{
+	GENERATED_BODY()
+
+#if WITH_EDITOR
+	// Debug should always be transient
+	virtual void ChangeTransientState(EPCGEditorDirtyMode NewEditingMode) override {}
+	virtual bool Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete) override;
+	virtual bool CanBeUsed() const override { return false; }
+
+public:
+	uint64 HashKey = (uint64)-1;
+#endif // WITH_EDITOR
 };
 
 /**
@@ -60,7 +79,7 @@ public:
 	bool bDisplayOnNode = false;
 
 	/** Use the component as part of the key hash and print a message for each component with this node. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bPrintToScreen", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bPrintPerComponent = true;
 
 #if WITH_EDITORONLY_DATA
@@ -69,7 +88,7 @@ public:
 	bool bPrintToScreen = false;
 
 	/** The duration (in seconds) of the on screen message. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bPrintToScreen", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bPrintToScreen", EditConditionHides, ClampMin = "0.0"))
 	double PrintToScreenDuration = 15.0;
 
 	/** The color of the on screen message. */

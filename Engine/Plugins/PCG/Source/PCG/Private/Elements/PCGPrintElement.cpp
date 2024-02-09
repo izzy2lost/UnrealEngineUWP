@@ -22,6 +22,28 @@ namespace PCGPrintElementConstants
 	FText Delimiter = LOCTEXT("Delimiter", "::");
 }
 
+#if WITH_EDITOR
+
+namespace PCGPrintElementHelpers
+{
+	void CleanUpMessage(uint64& OutMessageHashKey)
+	{
+		if (GEngine && (OutMessageHashKey != (uint64)-1) && GEngine->OnScreenDebugMessageExists(OutMessageHashKey))
+		{
+			GEngine->RemoveOnScreenDebugMessage(OutMessageHashKey);
+			OutMessageHashKey = (uint64)-1;
+		}
+	}
+}
+
+bool UPCGManagedDebugStringMessageKey::Release(bool bHardRelease, TSet<TSoftObjectPtr<AActor>>& OutActorsToDelete)
+{
+	PCGPrintElementHelpers::CleanUpMessage(HashKey);
+	return Super::Release(bHardRelease, OutActorsToDelete);
+}
+
+#endif // WITH_EDITOR
+
 TArray<FPCGPinProperties> UPCGPrintElementSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
@@ -111,14 +133,22 @@ bool FPCGPrintElement::ExecuteInternal(FPCGContext* Context) const
 	{
 		if (UEditorEngine* Editor = static_cast<UEditorEngine*>(GEngine))
 		{
-			uint32 HashKey = HashCombine(GetTypeHash(Context->Node->GetFName()), Context->Node->GetUniqueID());
+			uint32 HashKey32 = HashCombine(GetTypeHash(Context->Node->GetFName()), Context->Node->GetUniqueID());
 
 			if (Settings->bPrintPerComponent)
 			{
-				HashKey = HashCombine(HashKey, Component->GetUniqueID());
+				HashKey32 = HashCombine(HashKey32, Component->GetUniqueID());
 			}
 
-			Editor->AddOnScreenDebugMessage(static_cast<uint64>(HashKey), Settings->PrintToScreenDuration, Settings->PrintToScreenColor, FinalString);
+			check(Context->SourceComponent.IsValid());
+			UPCGManagedDebugStringMessageKey* ManagedMessageKey = NewObject<UPCGManagedDebugStringMessageKey>(Context->SourceComponent.Get());
+			ManagedMessageKey->HashKey = static_cast<uint64>(HashKey32);
+
+			Context->SourceComponent->AddToManagedResources(ManagedMessageKey);
+
+			// Count 0 as infinite duration to match other debug features in PCG
+			const double Duration = Settings->PrintToScreenDuration > 0.0 ? Settings->PrintToScreenDuration : std::numeric_limits<double>::max();
+			Editor->AddOnScreenDebugMessage(ManagedMessageKey->HashKey, Duration, Settings->PrintToScreenColor, FinalString);
 		}
 	}
 #endif // WITH_EDITOR
