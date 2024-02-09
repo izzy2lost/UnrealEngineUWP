@@ -70,7 +70,7 @@ public:
 		Items.Reset(InItems.Num());
 		for (FString& Item : InItems)
 		{
-			Items.Emplace(MakeShared<FLocationItem>(MoveTemp(Item), InSource));
+			Items.Emplace(MakeShared<FLocationItem>(FLocationItem{MoveTemp(Item), InSource}));
 		}
 	}
 	
