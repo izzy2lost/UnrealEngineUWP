@@ -862,7 +862,7 @@ FBodyInstance* FPhysScene_Chaos::GetBodyInstanceFromProxy(const IPhysicsProxyBas
 		if (PhysicsProxy->GetType() == EPhysicsProxyType::SingleParticleProxy)
 		{
 			const Chaos::FRigidBodyHandle_External& RigidBodyHandle = static_cast<const Chaos::FSingleParticlePhysicsProxy*>(PhysicsProxy)->GetGameThreadAPI();
-			BodyInstance = FPhysicsUserData::Get<FBodyInstance>(RigidBodyHandle.UserData());
+			BodyInstance = ChaosInterface::GetUserData(*(static_cast<const Chaos::FSingleParticlePhysicsProxy*>(PhysicsProxy)->GetParticle_LowLevel()));
 		}
 		// found none, let's see if there's an owning component in the scene
 		if (BodyInstance == nullptr)
@@ -2240,7 +2240,7 @@ void FPhysScene_Chaos::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
 			SCOPE_CYCLE_COUNTER(STAT_SyncBodiesSingleParticlePhysicsProxy);
 			FPBDRigidParticle* DirtyParticle = Proxy->GetRigidParticleUnsafe();
 
-			if (FBodyInstance* BodyInstance = FPhysicsUserData::Get<FBodyInstance>(DirtyParticle->UserData()))
+			if (FBodyInstance* BodyInstance = ChaosInterface::GetUserData(*(Proxy->GetParticle_LowLevel())))
 			{
 				if (BodyInstance->OwnerComponent.IsValid())
 				{
@@ -2502,7 +2502,7 @@ void FPhysScene_Chaos::ResimNFrames(const int32 NumFramesRequested)
 					UE_LOG(LogChaos,Log,TEXT("Resim had %d desyncs"),DesyncedParticles.Num());
 					for(const FDesyncedParticleInfo& Info : DesyncedParticles)
 					{
-						const FBodyInstance* BI = FPhysicsUserData_Chaos::Get<FBodyInstance>(Info.Particle->UserData());
+						const FBodyInstance* BI = ChaosInterface::GetUserData(Info.Particle);
 						const FBox Bounds = BI->GetBodyBounds();
 						FVector Center,Extents;
 						Bounds.GetCenterAndExtents(Center,Extents);

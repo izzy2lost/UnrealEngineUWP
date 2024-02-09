@@ -187,6 +187,33 @@ namespace Chaos
 	}
 
 	template<EThreadContext Id>
+	FChaosUserDefinedEntity* FReadPhysicsObjectInterface<Id>::GetUserDefinedEntity(const FConstPhysicsObjectHandle Object)
+	{
+		if constexpr (Id == EThreadContext::External)
+		{
+			if (!Object)
+			{
+				return nullptr;
+			}
+
+			if (FGeometryParticle* Particle = Object->GetParticle<Id>())
+			{
+				// Do we have a user entity appended?
+				FChaosUserEntityAppend* UserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Particle->UserData());
+				if (UserEntityAppend)
+				{
+					return UserEntityAppend->UserDefinedEntity;
+				}
+			}
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("User Defined Entities can only be read by the game thread"));
+		}
+		return nullptr;
+	}
+
+	template<EThreadContext Id>
 	int32 FReadPhysicsObjectInterface<Id>::GetClusterHierarchyLevel(const FConstPhysicsObjectHandle Object)
 	{
 		if (!Object)
@@ -815,6 +842,42 @@ namespace Chaos
 	FAccelerationStructureHandle FReadPhysicsObjectInterface<Id>::CreateAccelerationStructureHandle(const FConstPhysicsObjectHandle InObject)
 	{
 		return FAccelerationStructureHandle{InObject->GetParticle<Id>()};
+	}
+
+	template<EThreadContext Id>
+	void FWritePhysicsObjectInterface<Id>::SetUserDefinedEntity(TArrayView<const FPhysicsObjectHandle> InObjects, FChaosUserDefinedEntity* UserDefinedEntity)
+	{
+		if constexpr (Id == EThreadContext::External)
+		{
+			for (const FPhysicsObjectHandle Object : InObjects)
+			{
+				if (!Object)
+				{
+					continue;
+				}
+
+				if (FGeometryParticle* Particle = Object->GetParticle<Id>())
+				{
+					// Do we already have a user entity appended?
+					FChaosUserEntityAppend* UserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(Particle->UserData());
+					if (!UserEntityAppend)
+					{
+						UserEntityAppend = new FChaosUserEntityAppend;
+						UserEntityAppend->ChaosUserData = reinterpret_cast<FChaosUserData*>(Particle->UserData());
+						UserEntityAppend->UserDefinedEntity = UserDefinedEntity;
+						Particle->SetUserData(UserEntityAppend);
+					}
+					else
+					{
+						UserEntityAppend->UserDefinedEntity = UserDefinedEntity; // Overwrite previous used defined entity
+					}
+				}
+			}
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("User Defined Entities can only be set by the game thread"));
+		}		
 	}
 
 	template<EThreadContext Id>
