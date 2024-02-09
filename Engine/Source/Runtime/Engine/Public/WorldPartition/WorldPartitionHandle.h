@@ -24,6 +24,8 @@ class TActorDescContainerInstanceCollection;
 
 class FWorldPartitionLoadingContext
 {
+	friend struct FWorldPartitionReferenceImpl;
+
 public:
 	/**
 	 * Base class for loading contexts
@@ -97,10 +99,10 @@ public:
 	UE_DEPRECATED(5.4, "Use FWorldPartitionActorDescInstance version instead")
 	static ENGINE_API void UnloadAndUnregisterActor(FWorldPartitionActorDesc* ActorDesc) {}
 
-	static ENGINE_API void LoadAndRegisterActor(FWorldPartitionActorDescInstance* ActorDesc);
-	static ENGINE_API void UnloadAndUnregisterActor(FWorldPartitionActorDescInstance* ActorDesc);
-
 private:
+	static void LoadAndRegisterActor(FWorldPartitionActorDescInstance* ActorDescInstance);
+	static void UnloadAndUnregisterActor(FWorldPartitionActorDescInstance* ActorDescInstance);
+
 	static FImmediate DefaultContext;
 	static IContext* ActiveContext;	
 };

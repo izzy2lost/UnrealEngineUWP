@@ -16,11 +16,12 @@ FWorldPartitionActorDescInstance::FWorldPartitionActorDescInstance()
 	, SoftRefCount(0)
 	, HardRefCount(0)
 	, bIsForcedNonSpatiallyLoaded(false)
+	, bIsRegisteringOrUnregistering(false)
 	, UnloadedReason(nullptr)
+	, AsyncLoadID(INDEX_NONE)
 	, ActorDesc(nullptr)
 	, ChildContainerInstance(nullptr)
-{
-}
+{}
 
 FWorldPartitionActorDescInstance::FWorldPartitionActorDescInstance(UActorDescContainerInstance* InContainerInstance, FWorldPartitionActorDesc* InActorDesc)
 	: FWorldPartitionActorDescInstance()
@@ -49,6 +50,8 @@ bool FWorldPartitionActorDescInstance::IsLoaded(bool bEvenIfPendingKill) const
 
 AActor* FWorldPartitionActorDescInstance::GetActor(bool bEvenIfPendingKill, bool bEvenIfUnreachable) const
 {
+	FlushAsyncLoad();
+
 	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
 	{
 		ActorPtr = FindObject<AActor>(nullptr, *GetActorSoftPath().ToString());
@@ -64,7 +67,7 @@ TWeakObjectPtr<AActor>* FWorldPartitionActorDescInstance::GetActorPtr(bool bEven
 
 FSoftObjectPath FWorldPartitionActorDescInstance::GetActorSoftPath() const
 {
-	return ActorPath.IsSet() ? ActorPath.GetValue() : GetActorDesc()->GetActorSoftPath();
+	return ActorPath.IsSet() ? ActorPath.GetValue() : ActorDesc->GetActorSoftPath();
 }
 
 FName FWorldPartitionActorDescInstance::GetActorName() const
@@ -74,20 +77,30 @@ FName FWorldPartitionActorDescInstance::GetActorName() const
 
 bool FWorldPartitionActorDescInstance::IsValid() const
 {
-	return !!GetActorDesc();
+	return !!ActorDesc;
 }
 
 bool FWorldPartitionActorDescInstance::IsEditorRelevant() const
 {
-	return GetActorDesc()->IsEditorRelevant(this);
+	return ActorDesc->IsEditorRelevant(this);
 }
 
 bool FWorldPartitionActorDescInstance::IsRuntimeRelevant() const
 {
-	return GetActorDesc()->IsRuntimeRelevant(this);
+	return ActorDesc->IsRuntimeRelevant(this);
 }
 
-AActor* FWorldPartitionActorDescInstance::Load()
+FBox FWorldPartitionActorDescInstance::GetEditorBounds() const
+{
+	return ActorDesc->GetEditorBounds().TransformBy(GetContainerInstance()->GetTransform());
+}
+
+FBox FWorldPartitionActorDescInstance::GetRuntimeBounds() const
+{
+	return ActorDesc->GetRuntimeBounds().TransformBy(GetContainerInstance()->GetTransform());
+}
+
+bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 {
 	static FText FailedToLoad(LOCTEXT("FailedToLoadReason", "Failed to load"));
 	UnloadedReason = nullptr;
@@ -95,45 +108,61 @@ AActor* FWorldPartitionActorDescInstance::Load()
 	if (ActorPtr.IsExplicitlyNull() || ActorPtr.IsStale())
 	{
 		// First, try to find the existing actor which could have been loaded by another actor (through standard serialization)
-		ActorPtr = FindObject<AActor>(nullptr, *GetActorSoftPath().ToString());
+		ActorPtr = FindObject<AActor>(nullptr, * GetActorSoftPath().ToString());
 	}
 
 	// Then, if the actor isn't loaded, load it
 	if (ActorPtr.IsExplicitlyNull())
 	{
-		const FLinkerInstancingContext* InstancingContext = GetContainerInstance()->GetInstancingContext();
-		FSoftObjectPath LocalActorPath = GetActorSoftPath();
+		const FName ActorPackage = GetActorPackage();
+		const FLinkerInstancingContext* InstancingContext = GetContainerInstance()->GetInstancingContext();		
+		const FName PackageName = InstancingContext ? InstancingContext->RemapPackage(ActorPackage) : ActorPackage;
+		const FPackagePath PackagePath = FPackagePath::FromPackageNameChecked(ActorPackage);
 
-		UPackage* Package = nullptr;
-
-		if (InstancingContext)
+		AsyncLoadID = LoadPackageAsync(PackagePath, PackageName, FLoadPackageAsyncDelegate::CreateLambda([this, ActorPackage](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
 		{
-			FName RemappedPackageName = InstancingContext->RemapPackage(GetActorPackage());
-			check(RemappedPackageName != LocalActorPath.GetLongPackageFName());
+			check(AsyncLoadID != INDEX_NONE);
+			AsyncLoadID = INDEX_NONE;
 
-			Package = CreatePackage(*RemappedPackageName.ToString());
-		}
+			if ((Result != EAsyncLoadingResult::Succeeded) || !Package)
+			{
+				UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
+				UnloadedReason = &FailedToLoad;
+				return;
+			}
 
-		Package = LoadPackage(Package, *GetActorPackage().ToString(), LOAD_None, nullptr, InstancingContext);
+			ActorPtr = FindObject<AActor>(nullptr, * GetActorSoftPath().ToString());
 
-		if (Package)
-		{
-			ActorPtr = FindObject<AActor>(nullptr, *LocalActorPath.ToString());
 			if (!ActorPtr.IsValid())
 			{
-				UE_LOG(LogWorldPartition, Warning, TEXT("Can't load actor guid `%s` ('%s') from package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *GetActorPackage().ToString());
+				UE_LOG(LogWorldPartition, Warning, TEXT("Can't find actor guid `%s` ('%s') in package '%s'"), *GetGuid().ToString(), *GetActorName().ToString(), *ActorPackage.ToString());
 				UnloadedReason = &FailedToLoad;
+				return;
 			}
-		}
+
+			check(ActorPtr->GetPackage() == Package);
+		})
+		, PKG_None, INDEX_NONE, 0, InstancingContext);
 	}
 
-	return ActorPtr.Get();
+	return (AsyncLoadID != INDEX_NONE) || ActorPtr.IsValid(false);
 }
 
-void FWorldPartitionActorDescInstance::Unload()
+void FWorldPartitionActorDescInstance::FlushAsyncLoad() const
 {
+	if (AsyncLoadID != INDEX_NONE)
+	{
+		FlushAsyncLoading(AsyncLoadID);
+		AsyncLoadID = INDEX_NONE;
+	}
+}
+
+void FWorldPartitionActorDescInstance::MarkUnload()
+{
+	FlushAsyncLoad();
+
 	// Notify Desc as it can have some custom code to run on the actor depending on type
-	GetActorDesc()->OnUnloadingInstance(this);
+	ActorDesc->OnUnloadingInstance(this);
 
 	if (AActor* Actor = GetActor())
 	{
@@ -145,18 +174,18 @@ void FWorldPartitionActorDescInstance::Unload()
 		//
 		// FWorldPartitionCookPackageSplitter:
 		//		should mark each FWorldPartitionActorDesc as moved, and the splitter should take responsbility for calling ClearFlags on every object in 
-		//		the package when it does the move
+		//		the package when it does the move.
 
 		if (Actor->IsPackageExternal())
 		{
 			ForEachObjectWithPackage(Actor->GetPackage(), [](UObject* Object)
+			{
+				if (Object->HasAnyFlags(RF_Public | RF_Standalone))
 				{
-					if (Object->HasAnyFlags(RF_Public | RF_Standalone))
-					{
-						CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
-					}
-					return true;
-				}, false);
+					CastChecked<UMetaData>(Object)->ClearFlags(RF_Public | RF_Standalone);
+				}
+				return true;
+			}, false);
 		}
 
 		ActorPtr = nullptr;
@@ -187,7 +216,7 @@ const FText& FWorldPartitionActorDescInstance::GetUnloadedReason() const
 
 FString FWorldPartitionActorDescInstance::ToString(FWorldPartitionActorDesc::EToStringMode Mode) const
 {
-	return GetActorDesc()->ToString(Mode);
+	return ActorDesc->ToString(Mode);
 }
 
 void FWorldPartitionActorDescInstance::RegisterChildContainerInstance()
@@ -195,7 +224,7 @@ void FWorldPartitionActorDescInstance::RegisterChildContainerInstance()
 	check(IsChildContainerInstance());
 	check(!ChildContainerInstance);
 
-	ChildContainerInstance = GetActorDesc()->CreateChildContainerInstance(this);
+	ChildContainerInstance = ActorDesc->CreateChildContainerInstance(this);
 	check(ChildContainerInstance);
 	ContainerInstance->OnRegisterChildContainerInstance(GetGuid(), ChildContainerInstance);
 }
@@ -212,7 +241,7 @@ void FWorldPartitionActorDescInstance::UpdateChildContainerInstance()
 {
 	// Create before unregistering so that we benefit from shared containers (use GetActorDesc->IsChildContainerInstance as we want to know if our updated desc should be a Container instance or not)
 	// ChildContainerInstance member might be non null and we don't want IsChildContainerInstance() to return true in this case if the ActorDesc isn't a Container anymore
-	UActorDescContainerInstance* NewChildContainerInstance = GetActorDesc()->IsChildContainerInstance() ? GetActorDesc()->CreateChildContainerInstance(this) : nullptr;
+	UActorDescContainerInstance* NewChildContainerInstance = ActorDesc->IsChildContainerInstance() ? ActorDesc->CreateChildContainerInstance(this) : nullptr;
 	
 	// Unregister previous
 	if (ChildContainerInstance)
