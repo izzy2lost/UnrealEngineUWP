@@ -2546,15 +2546,6 @@ public:
 		// Intentionally empty.
 	}
 
-	/**
-	 * Computes a color to use for property coloration for the given object.
-	 *
-	 * @param	Object		The object for which to compute a property color.
-	 * @param	OutColor	[out] The returned color.
-	 * @return				true if a color was successfully set on OutColor, false otherwise.
-	 */
-	ENGINE_API virtual bool GetPropertyColorationColor(class UObject* Object, FColor& OutColor);
-
 	/** Uses StatColorMappings to find a color for this stat's value. */
 	ENGINE_API bool GetStatValueColoration(const FString& StatName, float Value, FColor& OutColor);
 

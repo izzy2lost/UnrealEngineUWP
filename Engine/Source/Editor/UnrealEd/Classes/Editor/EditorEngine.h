@@ -761,7 +761,7 @@ public:
 	UNREALED_API virtual bool ShouldDrawBrushWireframe(AActor* InActor) override;
 	UNREALED_API virtual void NotifyToolsOfObjectReplacement(const TMap<UObject*, UObject*>& OldToNewInstanceMap) override;
 	UNREALED_API virtual bool ShouldThrottleCPUUsage() const override;
-	UNREALED_API virtual bool GetPropertyColorationColor(class UObject* Object, FColor& OutColor) override;
+	UNREALED_API virtual bool GetPropertyColorationMatch(class UObject* Object);
 	UNREALED_API virtual bool WorldIsPIEInNewViewport(UWorld* InWorld) override;
 	UNREALED_API virtual void FocusNextPIEWorld(UWorld* CurrentPieWorld, bool previous = false) override;
 	UNREALED_API virtual void ResetPIEAudioSetting(UWorld *CurrentPieWorld) override;

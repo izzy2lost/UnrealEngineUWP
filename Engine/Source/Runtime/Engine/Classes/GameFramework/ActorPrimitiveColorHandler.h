@@ -16,26 +16,29 @@ class UPrimitiveComponent;
  */
 class ENGINE_API FActorPrimitiveColorHandler
 {
-	using FFunc = TFunction<FLinearColor(const UPrimitiveComponent*)>;
+	using FGetColorFunc = TFunction<FLinearColor(const UPrimitiveComponent*)>;
+	using FActivateFunc = TFunction<void(void)>;
 
 public:
 	struct FPrimitiveColorHandler
 	{
-		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc)
+		FPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InGetColorFunc, const FActivateFunc& InActivateFunc)
 			: HandlerName(InHandlerName)
 			, HandlerText(InHandlerText)
-			, HandlerFunc(InHandlerFunc)
+			, GetColorFunc(InGetColorFunc)
+			, ActivateFunc(InActivateFunc)
 		{}
 
 		FName HandlerName;
 		FText HandlerText;
-		FFunc HandlerFunc;
+		FGetColorFunc GetColorFunc;
+		FActivateFunc ActivateFunc;
 	};	
 
 	FActorPrimitiveColorHandler();
 	static FActorPrimitiveColorHandler& Get();
 
-	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc);
+	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FGetColorFunc& InHandlerFunc, const FActivateFunc& InActivateFunc = []() {});
 	void UnregisterPrimitiveColorHandler(FName InHandlerName);
 	void GetRegisteredPrimitiveColorHandlers(TArray<FPrimitiveColorHandler>& OutPrimitiveColorHandlers) const;
 
