@@ -23,7 +23,4 @@ public:
 
 	UPROPERTY(Config)
 	FString HairCardAssetPathFormat;
-
-	UPROPERTY(Config)
-	TMap<EHairAtlasTextureType, FString> HairCardTextureNameFormats;
 };

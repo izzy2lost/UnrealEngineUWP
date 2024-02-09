@@ -139,6 +139,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Texture Rendering")
 	EHairCardAtlasSize AtlasSize = EHairCardAtlasSize::AtlasSize4096;
 
+	// Texture layout selected (NOTE: This automatically pulls from group 0)
+	UPROPERTY(BlueprintReadOnly, Category="Texture Rendering")
+	EHairTextureLayout ChannelLayout = EHairTextureLayout::Layout0;
+
 	// Percentage of texture atlas space to reserve for higher LODs 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Texture Rendering", meta=(ClampMin="0", ClampMax="75"))
 	int ReserveTextureSpaceLOD = 0;
@@ -223,15 +227,18 @@ public:
 	FString GetTextureImportPath() const;
 	FString GetTextureContentPath() const;
 
-	bool HasValidFullParent() const;
+	TSharedPtr<FJsonObject> GetFullParent() const;
 	bool HasDerivedTextureSettings() const;
 	int GetDerivedReservedTextureSize() const;
+	FString GetDerivedTextureChannelLayout() const;
 	
 	FString GetGroomName() const;
 
 	int32 GetLODIndex() const { return LODIndex; }
 	int32 GetGenerateForGroomGroup() const { return GenerateForGroomGroup; }
 	void SetGenerateForGroomGroup(int GroupIndex) { GenerateForGroomGroup = GroupIndex; }
+	EHairTextureLayout GetChannelLayout() const { return ChannelLayout; }
+	bool ValidChannelLayouts() { return bValidChannelLayouts; }
 
 	TArray<TObjectPtr<UHairCardGeneratorGroupSettings>>& GetFilterGroupSettings() { return FilterGroupGenerationSettings; }
 	const TArray<TObjectPtr<UHairCardGeneratorGroupSettings>>& GetFilterGroupSettings() const { return FilterGroupGenerationSettings; }
@@ -243,6 +250,9 @@ public:
 
 private:
 	void UpdateOutputPaths();
+
+	void UpdateChannelLayout();
+
 	void UpdateParentInfo();
 	void UpdateHairWidths();
 	bool FindDerivedTextureSettings();
@@ -297,6 +307,10 @@ private:
 
 	UPROPERTY(Transient,BlueprintReadOnly, Category="Settings Groups", meta=(AllowPrivateAccess))
 	TArray<int> StrandFilterGroupIndexMap;
+
+	// All group texture layouts are the same (required for current texture generation)
+	UPROPERTY(Transient)
+	bool bValidChannelLayouts;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UGroomAsset> GroomAsset = nullptr;

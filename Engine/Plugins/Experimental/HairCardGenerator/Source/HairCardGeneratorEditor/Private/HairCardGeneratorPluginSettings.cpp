@@ -532,6 +532,7 @@ void UHairCardGeneratorPluginSettings::PostResetUpdates()
 	UpdateOutputPaths();
 	UpdateParentInfo();
 	UpdateHairWidths();
+	UpdateChannelLayout();
 }
 
 void UHairCardGeneratorPluginSettings::UpdateOutputPaths()
@@ -540,6 +541,38 @@ void UHairCardGeneratorPluginSettings::UpdateOutputPaths()
 	OutputPath = GetIntermediatePath() / TEXT("Output") / BaseFilename;
 	for ( int index = 0; index < FilterGroupGenerationSettings.Num(); ++index )
 		FilterGroupGenerationSettings[index]->UpdateGenerateFilename(BaseFilename, index);
+}
+
+void UHairCardGeneratorPluginSettings::UpdateChannelLayout()
+{
+	ChannelLayout = EHairTextureLayout::Layout0;
+
+	bool bFoundDesc = false;
+	bool bAllMatched = true;
+	EHairTextureLayout CheckLayout =  EHairTextureLayout::Layout0;
+	for (const FHairGroupsCardsSourceDescription& Desc : GroomAsset->GetHairGroupsCards())
+	{
+		if (Desc.LODIndex != LODIndex)
+		{
+			continue;
+		}
+
+		if (!bFoundDesc)
+		{
+			bFoundDesc = true;
+			CheckLayout = Desc.Textures.Layout;
+		}
+
+		if (Desc.GroupIndex == GenerateForGroomGroup)
+		{
+			ChannelLayout = Desc.Textures.Layout;
+		}
+
+		bAllMatched = bAllMatched & (CheckLayout == Desc.Textures.Layout);
+		CheckLayout = Desc.Textures.Layout;
+	}
+
+	bValidChannelLayouts = bFoundDesc & bAllMatched;
 }
 
 void UHairCardGeneratorPluginSettings::UpdateParentInfo()
@@ -687,7 +720,7 @@ FString UHairCardGeneratorPluginSettings::GetTextureContentPath() const
 }
 
 
-bool UHairCardGeneratorPluginSettings::HasValidFullParent() const
+TSharedPtr<FJsonObject> UHairCardGeneratorPluginSettings::GetFullParent() const
 {
 	TSharedPtr<FJsonObject> DerivedFullSettings = TraverseSettingsParents(BaseParentName, 
 		[](const TSharedPtr<FJsonObject>& SettingsRoot)
@@ -697,7 +730,7 @@ bool UHairCardGeneratorPluginSettings::HasValidFullParent() const
 		}
 	);
 
-	return DerivedFullSettings.IsValid();
+	return DerivedFullSettings;
 }
 
 bool UHairCardGeneratorPluginSettings::HasDerivedTextureSettings() const
@@ -716,6 +749,17 @@ int UHairCardGeneratorPluginSettings::GetDerivedReservedTextureSize() const
 	}
 
 	return FJsonHelper::GetIntFieldDefault(ParentTextureSettings, TEXT("ReserveTextureSpaceLOD"));
+}
+
+FString UHairCardGeneratorPluginSettings::GetDerivedTextureChannelLayout() const
+{
+	TSharedPtr<FJsonObject> ParentTextureSettings = GetParentTextureSettings();
+	if ( !ParentTextureSettings.IsValid() )
+	{
+		return TEXT("");
+	}
+
+	return FJsonHelper::GetStringFieldDefault(ParentTextureSettings, TEXT("ChannelLayout"));
 }
 
 
@@ -837,6 +881,7 @@ void UHairCardGeneratorPluginSettings::SerializeEditableSettings(FArchive& Ar)
 	Ar << bUseReservedSpaceFromPreviousLOD;
 	Ar << ReserveTextureSpaceLOD;
 	Ar << bUseGroomAssetStrandWidth;
+	Ar << ChannelLayout;
 }
 
 void UHairCardGeneratorPluginSettings::ResetNumFilterGroups(int Count)
