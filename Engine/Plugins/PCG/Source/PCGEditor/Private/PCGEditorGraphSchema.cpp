@@ -604,7 +604,7 @@ void UPCGEditorGraphSchema::DroppedAssetsOnGraph(const TArray<FAssetData>& Asset
 	{
 		if (const UObject* Asset = AssetData.GetAsset())
 		{
-			if (Asset->IsA<UPCGGraph>())
+			if (Asset->IsA<UPCGGraphInterface>())
 			{
 				FPCGEditorGraphSchemaAction_NewSubgraphElement NewSubgraphAction;
 				NewSubgraphAction.SubgraphObjectPath = AssetData.GetSoftObjectPath();
@@ -649,7 +649,7 @@ void UPCGEditorGraphSchema::GetAssetsGraphHoverMessage(const TArray<FAssetData>&
 	{
 		if (const UObject* Asset = AssetData.GetAsset())
 		{
-			if (Asset->IsA<UPCGGraph>() || Asset->IsA<UPCGSettings>() || PCGEditorUtils::IsAssetPCGBlueprint(AssetData))
+			if (Asset->IsA<UPCGGraphInterface>() || Asset->IsA<UPCGSettings>() || PCGEditorUtils::IsAssetPCGBlueprint(AssetData))
 			{
 				OutOkIcon = true;
 				return;
