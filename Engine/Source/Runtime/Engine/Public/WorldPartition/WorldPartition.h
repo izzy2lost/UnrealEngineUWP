@@ -650,6 +650,8 @@ private:
 	static ENGINE_API FAutoConsoleVariableRef CVarUseMakingInvisibleTransactionRequests;
 
 	ENGINE_API void OnWorldMatchStarting();
+	
+	ENGINE_API void OnLevelActorDeleted(AActor* Actor);
 	ENGINE_API void OnPostBugItGoCalled(const FVector& Loc, const FRotator& Rot);
 
 	// Delegates registration
