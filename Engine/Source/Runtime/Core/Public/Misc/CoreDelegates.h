@@ -70,6 +70,19 @@ struct FCrashOverrideParameters
 	CORE_API ~FCrashOverrideParameters();
 };
 
+namespace UE
+{
+struct FMultiprocessCreatedContext
+{
+	int32 Id;
+};
+
+struct FMultiprocessDetachedContext
+{
+	int32 Id;
+};
+}
+
 class FCoreDelegates
 {
 public:
@@ -572,6 +585,13 @@ public:
 	// Extension point for projects to report the URL for a continuous integration job which is currently executing this process. 
 	static CORE_API TDelegate<const TCHAR*()> OnGetExecutingJobURL;
 	
+#if WITH_EDITOR
+	// Called when a subprocess is created for multiprocess operation.
+	static CORE_API TMulticastDelegate<void(const UE::FMultiprocessCreatedContext&)> OnMultiprocessWorkerCreated;
+
+	// Called when a subprocess is detached (but not necessarily terminated) for multiprocess operation.
+	static CORE_API TMulticastDelegate<void(const UE::FMultiprocessDetachedContext&)> OnMultiprocessWorkerDetached;
+#endif
 private:
 
 	// Callbacks for hotfixes
