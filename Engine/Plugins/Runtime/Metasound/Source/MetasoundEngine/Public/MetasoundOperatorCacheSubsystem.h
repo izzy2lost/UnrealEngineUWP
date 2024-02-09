@@ -28,11 +28,11 @@ public:
 	//~ Begin USubsystem interface
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
-	virtual void Update() override; // todo: compile out
+	virtual void Update() override;
 	//~ End USubsystem interface
 	 
 	/* Builds the requested number of MetaSound operators (asynchronously) and puts them in the pool for playback.
-	(If these operators are not yet available when the MetaSound attepmts to play, one will be created Independent of this request.) */
+	(If these operators are not yet available when the MetaSound attempts to play, one will be created Independent of this request.) */
 	UFUNCTION(BlueprintCallable, Category = "MetaSound")
 	void PrecacheMetaSound(UMetaSoundSource* InMetaSound, int32 InNumInstances = 1);
 
