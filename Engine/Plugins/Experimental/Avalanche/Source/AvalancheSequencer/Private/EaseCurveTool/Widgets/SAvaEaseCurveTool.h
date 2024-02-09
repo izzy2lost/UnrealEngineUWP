@@ -14,6 +14,7 @@ class FText;
 class SAvaEaseCurveEditor;
 class SAvaEaseCurvePreset;
 class UCurveBase;
+class UToolMenu;
 struct FKeyHandle;
 struct FRichCurve;
 
@@ -68,7 +69,7 @@ protected:
 	void BindCommands();
 
 	TSharedRef<SWidget> CreateContextMenuContent();
-	void MakeContextMenuSettings(FMenuBuilder& InMenuBuilder);
+	void MakeContextMenuSettings(UToolMenu* const InToolMenu);
 
 	void UndoAction();
 	void RedoAction();
