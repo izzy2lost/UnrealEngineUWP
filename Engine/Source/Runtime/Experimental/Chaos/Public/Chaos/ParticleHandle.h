@@ -2582,7 +2582,8 @@ public:
 	virtual ~TGeometryParticle() //only virtual for easier memory management. Should generally be a static API
 	{
 		SetUniqueIdx(FUniqueIdx{}, false); // Set to an invalid index for dangling handle detection
-		FChaosUserEntityAppend* UserEntityAppend = FChaosUserData::Get<FChaosUserEntityAppend>(MUserData);
+		// TODO: Temporary CI fix: Prevent reading Data on bodyInstances after they may be deallocated, delete custom entities elsewhere
+		FChaosUserEntityAppend* UserEntityAppend = nullptr; // FChaosUserData::Get<FChaosUserEntityAppend>(MUserData); 
 		if (UserEntityAppend)
 		{
 			delete UserEntityAppend;
