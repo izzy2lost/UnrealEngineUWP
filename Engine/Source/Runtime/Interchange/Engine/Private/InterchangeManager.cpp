@@ -769,6 +769,14 @@ void UE::Interchange::FImportResult::AddImportedObject(UObject* ImportedObject)
 void UE::Interchange::FImportResult::OnDone(TFunction< void(FImportResult&) > Callback)
 {
 	DoneCallback = Callback;
+	//In case the import is already done (because it was synchronous) execute the new OnDone callback
+	if (ImportStatus == EStatus::Done)
+	{
+		if (DoneCallback)
+		{
+			DoneCallback(*this);
+		}
+	}
 }
 
 void UE::Interchange::FImportResult::AddReferencedObjects(FReferenceCollector& Collector)
@@ -961,6 +969,13 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 			//Task should have been cancel in the Engine pre exit callback
 			ensure(InterchangeManager->ImportTasks.Num() == 0);
 			InterchangeManager->OnPreDestroyInterchangeManager.Broadcast();
+
+			if (InterchangeManager->QueuedPostImportTasksTickerHandle.IsValid())
+			{
+				FTSTicker::GetCoreTicker().RemoveTicker(InterchangeManager->QueuedPostImportTasksTickerHandle);
+				InterchangeManager->QueuedPostImportTasksTickerHandle.Reset();
+			}
+
 			//Release the InterchangeManager object
 			InterchangeManager.Reset();
 			InterchangeManagerScopeOfLifeEnded = true;
@@ -2019,6 +2034,49 @@ bool UInterchangeManager::IsObjectBeingImported(UObject* Object) const
 	}
 
 	return false;
+}
+
+bool UInterchangeManager::EnqueuePostImportTask(TSharedPtr<FInterchangePostImportTask> PostImportTask)
+{
+	//We can only enqueue on the game thread
+	if (!ensure(IsInGameThread()))
+	{
+		return false;
+	}
+
+	QueuedPostImportTasks.Enqueue(PostImportTask);
+
+	if (!QueuedPostImportTasksTickerHandle.IsValid())
+	{
+		QueuedPostImportTasksTickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([this](float DeltaTime)
+			{
+				check(IsInGameThread());
+				while (!QueuedPostImportTasks.IsEmpty())
+				{
+					//Wait next frame if we are importing assets or scenes
+					if (!QueuedTasks.IsEmpty() || ImportTasks.Num() > 0)
+					{
+						break;
+					}
+					TSharedPtr<FInterchangePostImportTask> PostImportTask;
+					if (QueuedPostImportTasks.Dequeue(PostImportTask))
+					{
+						if (PostImportTask)
+						{
+							PostImportTask->Execute();
+						}
+					}
+				}
+
+				if (QueuedPostImportTasks.IsEmpty())
+				{
+					QueuedPostImportTasksTickerHandle.Reset();
+					return false;
+				}
+				return true;
+			}));
+	}
+	return true;
 }
 
 bool UInterchangeManager::IsInterchangeImportEnabled()

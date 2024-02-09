@@ -43,6 +43,26 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(EInterchangePipel
 	{
 		bCreatePhysicsAsset = false;
 		PhysicsAsset = nullptr;
+		
+		if (ImportType == EInterchangePipelineContext::AssetAlternateSkinningImport
+			|| ImportType == EInterchangePipelineContext::AssetAlternateSkinningReimport)
+		{
+			CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_SkeletalMesh;
+			CommonMeshesProperties->bAutoDetectMeshType = false;
+			CommonMeshesProperties->bBakeMeshes = true;
+			CommonMeshesProperties->bImportLods = false;
+			CommonMeshesProperties->bKeepSectionsSeparate = false;
+			CommonMeshesProperties->VertexColorImportOption = EInterchangeVertexColorImportOption::IVCIO_Ignore;
+			bImportSkeletalMeshes = true;
+			bImportStaticMeshes = false;
+			bBuildNanite = false;
+			bImportMorphTargets = false;
+			bImportVertexAttributes = false;
+			bUpdateSkeletonReferencePose = false;
+			SkeletalMeshImportContentType = EInterchangeSkeletalMeshContentType::All;
+			CommonSkeletalMeshesAndAnimationsProperties->Skeleton = nullptr;
+			CommonSkeletalMeshesAndAnimationsProperties->bImportOnlyAnimations = false;
+		}
 	}
 	const FString CommonMeshesCategory = TEXT("Common Meshes");
 	const FString StaticMeshesCategory = TEXT("Static Meshes");

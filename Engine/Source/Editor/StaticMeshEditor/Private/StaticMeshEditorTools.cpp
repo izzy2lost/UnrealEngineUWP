@@ -4358,16 +4358,18 @@ void FLevelOfDetailSettingsLayout::OnImportLOD(TSharedPtr<FString> NewValue, ESe
 		//This boolean prevent changing the value when the LOD is reimport
 		bool bImportCustomLOD = (LODIndex >= StaticMesh->GetNumSourceModels());
 
-		bool bResult = FbxMeshUtils::ImportMeshLODDialog(StaticMesh, LODIndex);
+		FbxMeshUtils::ImportMeshLODDialog(StaticMesh, LODIndex).Then([this, StaticMesh, bImportCustomLOD, LODIndex](TFuture<bool> FutureResult)
+			{
+				bool bResult = FutureResult.Get();
+				if (bImportCustomLOD && bResult && StaticMesh->IsSourceModelValid(LODIndex))
+				{
+					//Custom LOD should reduce base on them self when they get imported.
+					StaticMesh->GetSourceModel(LODIndex).ReductionSettings.BaseLODModel = LODIndex;
+				}
 
-		if (bImportCustomLOD && bResult && StaticMesh->IsSourceModelValid(LODIndex))
-		{
-			//Custom LOD should reduce base on them self when they get imported.
-			StaticMesh->GetSourceModel(LODIndex).ReductionSettings.BaseLODModel = LODIndex;
-		}
-		
-		StaticMesh->PostEditChange();
-		StaticMeshEditor.RefreshTool();
+				StaticMesh->PostEditChange();
+				StaticMeshEditor.RefreshTool();
+			});
 	}
 
 }

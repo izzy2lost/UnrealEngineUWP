@@ -9,6 +9,7 @@ namespace UnrealBuildTool.Rules
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
+					"ClothingSystemRuntimeCommon",
 					"Core",
 					"CoreUObject",
 					"Engine",

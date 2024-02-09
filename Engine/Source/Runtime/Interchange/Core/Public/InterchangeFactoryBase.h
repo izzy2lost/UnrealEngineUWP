@@ -30,6 +30,17 @@ enum class EInterchangeFactoryAssetType : uint8
 };
 
 /**
+ * Base class for post import task.
+ * Post import tasks are execute by the InterchangeManager when there is no import task to execute.
+ * See more detail in the Interchange manager header.
+ */
+class INTERCHANGECORE_API FInterchangePostImportTask
+{
+public:
+	virtual void Execute() {};
+};
+
+/**
  * Asset factory implementation:
  * 
  * The first 3 steps use the interchange factory node to import/re-import the UObject
@@ -41,7 +52,7 @@ enum class EInterchangeFactoryAssetType : uint8
  * The last two steps are helpful to change the imported/re-imported UObject before and after the PostEditChange (render data build) is call on the asset.
  * 
  * 4. SetupObject_GameThread - Do any UObject setup required before the build (before PostEditChange), the UObject dependencies should exist and have all the source data and properties imported.
- * 5. FinalizeObject_GameThread - Do any final UObject setup after the build (after PostEditChange). Note that the build of an asset can be asynchronous and not finish yet.
+ * 5. FinalizeObject_GameThread - Do any final UObject setup after the build (after PostEditChange). Note that the build of an asset can be asynchronous and this function will be call after the async build is done.
  * 
  * 
  * Scene factory implementation
