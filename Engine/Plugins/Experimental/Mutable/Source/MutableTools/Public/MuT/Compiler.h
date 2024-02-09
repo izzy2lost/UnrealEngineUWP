@@ -7,6 +7,8 @@
 #include "MuR/Image.h"
 #include "Templates/SharedPointer.h"
 #include "HAL/PlatformMath.h"
+#include "MuR/System.h"
+
 
 namespace mu
 {
@@ -119,6 +121,92 @@ namespace mu
     };
 
 
+    //!
+    struct FStateOptimizationOptions
+    {
+		uint8 FirstLOD = 0;
+		uint8 NumExtraLODsToBuildAfterFirstLOD = 0;
+		bool bOnlyFirstLOD = false;
+		ETextureCompressionStrategy TextureCompressionStrategy = ETextureCompressionStrategy::None;
+
+        void Serialise( OutputArchive& arch ) const
+        {
+            const int32_t ver = 4;
+            arch << ver;
+
+			arch << FirstLOD;
+			arch << bOnlyFirstLOD;
+            arch << TextureCompressionStrategy;
+			arch << NumExtraLODsToBuildAfterFirstLOD;
+        }
+
+
+        void Unserialise( InputArchive& arch )
+        {
+            int32_t ver = 0;
+            arch >> ver;
+			check(ver <= 4);
+
+			if (ver >= 2)
+			{
+				arch >> FirstLOD;
+			}
+			else
+			{
+				FirstLOD = 0;
+			}
+
+            arch >> bOnlyFirstLOD;
+
+			if (ver >= 4)
+			{
+				arch >> TextureCompressionStrategy;
+			}
+			else
+			{
+				bool bAvoidRuntimeCompression;
+				arch >> bAvoidRuntimeCompression;
+				TextureCompressionStrategy = bAvoidRuntimeCompression ? ETextureCompressionStrategy::DontCompressRuntime : ETextureCompressionStrategy::None;
+			}
+
+			if (ver == 3)
+			{
+				int32 OldNumExtraLODsToBuildAfterFirstLOD;
+				arch >> OldNumExtraLODsToBuildAfterFirstLOD;
+				NumExtraLODsToBuildAfterFirstLOD = OldNumExtraLODsToBuildAfterFirstLOD;
+			}
+			else if (ver >= 4)
+			{
+				arch >> NumExtraLODsToBuildAfterFirstLOD;
+			}
+			else
+			{
+				NumExtraLODsToBuildAfterFirstLOD = 0;
+			}
+
+		}
+    };
+
+
+	//! Information about an object state in the source data
+	struct FObjectState
+	{
+		//! Name used to identify the state from the code and user interface.
+		FString m_name;
+
+		//! GPU Optimisation options
+		FStateOptimizationOptions m_optimisation;
+
+		//! List of names of the runtime parameters in this state
+		TArray<FString> m_runtimeParams;
+
+		void Serialise( OutputArchive& arch ) const;
+
+
+		void Unserialise( InputArchive& arch );
+	};
+
+	
     //! This utility class compiles two types of expressions: models and transforms.
     //! Model expressions are compiled into run-time usable objects.
     //! Transform expressions are compiled into Transform objects than can be applied to Model

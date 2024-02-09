@@ -233,25 +233,6 @@ namespace mu
 
 		TVariantLoadFromInputArchiveLookup<Ts...>::Load(static_cast<SIZE_T>(Index), Ar, Variant);
 	}
-	
-
-	//---------------------------------------------------------------------------------------------
-	// Bool size is not a standard
-	//---------------------------------------------------------------------------------------------
-	template<>														
-	inline void operator<< <bool>( OutputArchive& arch, const bool& t )
-	{
-        uint8 s = t ? 1 : 0;
-        arch.GetPrivate()->m_pStream->Write( &s, sizeof(uint8) );
-	}
-
-	template<>
-	inline void operator>> <bool>( InputArchive& arch, bool& t )
-	{
-        uint8 s;
-        arch.GetPrivate()->m_pStream->Read( &s, sizeof(uint8) );
-		t = s!=0;
-	}
 
 
 	//---------------------------------------------------------------------------------------------
@@ -372,30 +353,7 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(UE::Math::TIntVector2<int16>);
 	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FVector4f);
 
-	//---------------------------------------------------------------------------------------------
-	//template<>
-	//inline void operator<< <std::string>( OutputArchive& arch, const std::string& v )
-	//{
-	//	arch << (uint32)v.size();
-	//	if ( v.size() )
-	//	{
-	//		arch.GetPrivate()->m_pStream->Write( &v[0], (unsigned)v.size()*sizeof(char) );
-	//	}
-	//}
-
-	template<>
-	inline void operator>> <std::string>( InputArchive& arch, std::string& v )
-	{
-        uint32 size;
-		arch >> size;
-		v.resize( size );
-		if (size)
-		{
-			arch.GetPrivate()->m_pStream->Read( &v[0], (unsigned)size*sizeof(char) );
-		}
-	}
-
-
+	
 	//---------------------------------------------------------------------------------------------
 	template< typename T >
 	inline void operator<< ( OutputArchive& arch, const Ptr<const T>& p )

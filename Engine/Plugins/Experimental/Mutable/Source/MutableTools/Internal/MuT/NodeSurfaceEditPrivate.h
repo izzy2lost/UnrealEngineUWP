@@ -2,15 +2,14 @@
 
 #pragma once
 
-#include "MuT/NodePrivate.h"
 #include "MuT/NodeSurfaceEdit.h"
-#include "MuT/NodePatchImagePrivate.h"
 
+#include "MuT/NodePrivate.h"
 #include "MuT/NodeMesh.h"
 #include "MuT/NodePatchMesh.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodeScalar.h"
-
+#include "MuT/NodePatchImage.h"
 
 namespace mu
 {

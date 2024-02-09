@@ -3,9 +3,9 @@
 #pragma once
 
 #include "MuT/NodeSurfaceSwitch.h"
+
+#include "MuT/NodePrivate.h"
 #include "MuT/NodeScalar.h"
-#include "MuT/NodeMeshPrivate.h"
-#include "MuT/AST.h"
 
 
 namespace mu

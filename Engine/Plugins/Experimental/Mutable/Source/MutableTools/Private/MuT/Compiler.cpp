@@ -34,6 +34,8 @@
 #include "MuT/Table.h"
 #include "Trace/Detail/Channel.h"
 
+#include <string>
+
 
 namespace mu
 {
@@ -164,7 +166,53 @@ namespace mu
 	}
 
 
-    //---------------------------------------------------------------------------------------------
+	void FObjectState::Serialise(OutputArchive& arch) const
+    {
+    	const int32 ver = 6;
+    	arch << ver;
+
+    	arch << m_name;
+    	arch << m_optimisation;
+    	arch << m_runtimeParams;
+    }
+
+
+	void FObjectState::Unserialise(InputArchive& arch)
+    {
+    	int32 ver = 0;
+    	arch >> ver;
+    	check( ver>=5 && ver<=6 );
+
+    	if (ver <= 5)
+    	{
+    		std::string Temp;
+    		arch >> Temp;
+    		m_name = Temp.c_str();
+    	}
+    	else
+    	{
+    		arch >> m_name;
+    	}
+    	arch >> m_optimisation;
+
+    	if (ver <= 5)
+    	{
+    		TArray<std::string> Temp;
+    		arch >> Temp;
+    		m_runtimeParams.SetNum(Temp.Num());
+    		for ( int32 i=0; i<Temp.Num(); ++i)
+    		{
+    			m_runtimeParams[i] = Temp[i].c_str();
+    		}
+    	}
+    	else
+    	{
+    		arch >> m_runtimeParams;
+    	}
+    }
+	
+	
+	//---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     Compiler::Compiler( Ptr<CompilerOptions> options )

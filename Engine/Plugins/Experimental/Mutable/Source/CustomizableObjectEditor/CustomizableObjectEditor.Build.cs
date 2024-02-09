@@ -68,7 +68,6 @@ public class CustomizableObjectEditor : ModuleRules
 				"TextureCompressor",
 				"TextureBuildUtilities",
 				"ImageCore",
-
 			}
 		);
 
@@ -79,8 +78,8 @@ public class CustomizableObjectEditor : ModuleRules
 				"SceneOutliner",
 				"ClassViewer",
 				"WorkspaceMenuStructure",
-				}
-			);
+			}
+		);
 
 
 		PublicDependencyModuleNames.AddRange(
@@ -90,10 +89,6 @@ public class CustomizableObjectEditor : ModuleRules
 				"StructUtils", 
 				"MutableTools",
 			}
-			);
-
-		PrivateIncludePaths.AddRange(new string[] {
-				"MutableTools/Private",
-			});
+		);
 	}
 }
