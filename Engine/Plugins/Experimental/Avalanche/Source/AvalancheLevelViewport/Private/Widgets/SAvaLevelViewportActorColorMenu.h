@@ -4,6 +4,7 @@
 
 #include "Widgets/SCompoundWidget.h"
 #include "AvaDefs.h"
+#include "ColorPicker/AvaLevelColorPicker.h"
 #include "Materials/Material.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/StrongObjectPtr.h"
@@ -67,7 +68,7 @@ protected:
 	TArray<FAvaColorInfo> Colors;
 };
 
-class SAvaLevelViewportActorColorMenu : public SCompoundWidget
+class SAvaLevelViewportActorColorMenu : public SCompoundWidget, public FGCObject
 {
 	SLATE_DECLARE_WIDGET(SAvaLevelViewportActorColorMenu, SCompoundWidget)
 
@@ -79,10 +80,6 @@ public:
 
 	static FAvaColorTheme* FindTheme(const FString& InName, bool bInAddIfNotFound = false);
 	static FAvaColorTheme* GetTheme(int32 InThemeIndex);
-
-	static void BroadcastColorSourceChange(const TSharedRef<IToolkitHost>& InToolkitHost, const FAvaColorChangeData& InNewColorData);
-
-	virtual ~SAvaLevelViewportActorColorMenu() override;
 
 	void Construct(const FArguments& InArgs, const TSharedRef<IToolkitHost>& InToolkitHost);
 
@@ -115,7 +112,7 @@ public:
 	void SetSaturationValue(float InNewValue, bool InbAddToTheme);
 	void SetValueValue(float InNewValue, bool InbAddToTheme);
 
-protected:
+private:
 	static const FVector2f WheelMiddle;
 	static const inline int32 MaxColorsForAutoAdd = 21;
 	static constexpr int32 ColorsPerPaletteRow = 3;
@@ -125,23 +122,28 @@ protected:
 	static void LoadColorThemesFromIni();
 	static void SaveColorThemesToIni();
 
-	TWeakPtr<IToolkitHost> ToolkitHostWeak;
-	TStrongObjectPtr<UMaterial> HueMaterial;
-	TStrongObjectPtr<UMaterial> SatValueMaterial;
-	TStrongObjectPtr<UMaterialInstanceDynamic> SatValueMaterialDynamic;
-	TStrongObjectPtr<UTexture2D> SelectedValueImage;
-	FSlateMaterialBrush* HueBrush;
-	FSlateMaterialBrush* SatValueBrush;
-	FSlateImageBrush* SelectedValueBrush;
+	FAvaLevelColorPicker ColorPicker;
+
+	TObjectPtr<UMaterial> HueMaterial;
+	TObjectPtr<UMaterial> SatValueMaterial;
+	TObjectPtr<UTexture2D> SelectedValueImage;
+	TObjectPtr<UMaterialInstanceDynamic> SatValueMaterialDynamic;
+
+	TSharedPtr<FSlateMaterialBrush> HueBrush;
+	TSharedPtr<FSlateMaterialBrush> SatValueBrush;
+	TSharedPtr<FSlateImageBrush> SelectedValueBrush;
 
 	float Red;
 	float Green;
 	float Blue;
+
 	float Hue;
 	float Saturation;
 	float Value;
+
 	FLinearColor ActiveColor;
 	FLinearColor InactiveColor;
+
 	int32 ActiveThemeIndex;
 	EAvaColorStyle ColorStyle = EAvaColorStyle::Solid;
 	bool bIsUnlit = true;
@@ -149,14 +151,21 @@ protected:
 	bool bIsRGB = true;
 	TSharedPtr<STextBlock> ColorFormatButtonText;
 	TSharedPtr<SBox> ColorTextInputWidgetBox;
-	SConstraintCanvas::FSlot* HueSlot;
-	SConstraintCanvas::FSlot* SatValueSlot;
+
+	SConstraintCanvas::FSlot* HueSlot = nullptr;
+	SConstraintCanvas::FSlot* SatValueSlot = nullptr;
+
 	TSharedPtr<SGridPanel> ColorPalette;
 	TSharedPtr<SButton> ThemesButton;
 	TSharedPtr<SWidgetSwitcher> ColorStyleSwitcher;
 
 	bool bEditingHue;
 	bool bEditingSaturationValue;
+
+	//~ Begin FGCObject
+	virtual FString GetReferencerName() const override;
+	virtual void AddReferencedObjects(FReferenceCollector& InCollector) override;
+	//~ End FGCObject
 
 	void ApplyActiveColor();
 	void UpdateColorPalette();
@@ -212,7 +221,6 @@ protected:
 	
 	void OnColorStyleChanged();
 	void BroadcastColorChange();
-	void OnColorSourceBroadcast(const TSharedRef<IToolkitHost>& InToolkitHost, const FAvaColorChangeData& InNewColorData);
 
 	void SetActiveColorRGB_Direct(FLinearColor InRGB);
 	void SetActiveColorHSV_Direct(FLinearColor InHSV);

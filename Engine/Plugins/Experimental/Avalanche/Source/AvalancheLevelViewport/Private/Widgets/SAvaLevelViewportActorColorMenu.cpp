@@ -3,9 +3,9 @@
 #include "Widgets/SAvaLevelViewportActorColorMenu.h"
 #include "AvaLevelViewportStyle.h"
 #include "Brushes/SlateImageBrush.h"
+#include "ColorPicker/AvaViewportColorPickerActorClassRegistry.h"
 #include "CoreGlobals.h"
 #include "EditorModeManager.h"
-#include "Selection.h"
 #include "Engine/Engine.h"
 #include "Engine/Texture2D.h"
 #include "Framework/Application/SlateApplication.h"
@@ -16,12 +16,11 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Selection.h"
 #include "SlateMaterialBrush.h"
 #include "Styling/StyleColors.h"
 #include "Toolkits/IToolkitHost.h"
 #include "UObject/Package.h"
-#include "Widgets/AvaViewportColorPickerActorClassRegistry.h"
-#include "Widgets/AvaViewportColorPickerDelegates.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SEditableTextBox.h"
@@ -75,41 +74,7 @@ void SAvaLevelViewportActorColorMenu::OnColorStyleChanged()
 
 void SAvaLevelViewportActorColorMenu::BroadcastColorChange()
 {
-	if (FAvaViewportColorPickerDelegates::GetOnColorPicked().IsBound())
-	{
-		if (TSharedPtr<IToolkitHost> ToolkitHost = ToolkitHostWeak.Pin())
-		{
-			FAvaViewportColorPickerDelegates::BroadcastColorPicked(ToolkitHost.ToSharedRef(), {ColorStyle, ActiveColor, InactiveColor, bIsUnlit});
-		}
-	}
-}
-
-void SAvaLevelViewportActorColorMenu::OnColorSourceBroadcast(const TSharedRef<IToolkitHost>& InToolkitHost, const FAvaColorChangeData& InNewColorData)
-{
-	if (!ToolkitHostWeak.HasSameObject(&*InToolkitHost))
-	{
-		return;
-	}
-
-	bIsUnlit = InNewColorData.bIsUnlit;
-
-	switch (InNewColorData.ColorStyle)
-	{
-		case EAvaColorStyle::Solid:
-			SetColorStyle_Direct(EAvaColorStyle::Solid);
-			SetActiveColorRGB(InNewColorData.PrimaryColor);
-			break;
-
-		case EAvaColorStyle::LinearGradient:
-			SetColorStyle_Direct(EAvaColorStyle::LinearGradient);
-			SetActiveColorRGB(InNewColorData.PrimaryColor);
-			SetInactiveColorRGB(InNewColorData.SecondaryColor);
-			break;
-
-		default:
-			// Invalid color
-			return;
-	}
+	ColorPicker.OnColorSelected({ColorStyle, ActiveColor, InactiveColor, bIsUnlit});
 }
 
 void SAvaLevelViewportActorColorMenu::SetActiveColorRGB_Direct(FLinearColor InRGB)
@@ -175,42 +140,7 @@ FSlateColor SAvaLevelViewportActorColorMenu::GetUnlitButtonColor() const
 
 TSharedRef<SAvaLevelViewportActorColorMenu> SAvaLevelViewportActorColorMenu::CreateMenu(const TSharedRef<IToolkitHost>& InToolkitHost)
 {
-	TSharedRef<SAvaLevelViewportActorColorMenu> NewMenu = SNew(SAvaLevelViewportActorColorMenu, InToolkitHost);
-#
-	if (USelection* ActorSelection = InToolkitHost->GetEditorModeManager().GetSelectedActors())
-	{
-		TArray<AActor*> SelectedActors;
-		ActorSelection->GetSelectedObjects(SelectedActors);
-		FAvaColorChangeData NewColorData;
-
-		for (AActor* Actor : SelectedActors)
-		{
-			if (FAvaViewportColorPickerActorClassRegistry::GetColorDataFromActor(Actor, NewColorData))
-			{
-				NewMenu->SetActiveColorRGB_Direct(NewColorData.PrimaryColor);
-				NewMenu->SetInactiveColorRGB_Direct(NewColorData.SecondaryColor);
-				NewMenu->SetColorStyle_Direct(NewColorData.ColorStyle);
-				break;
-			}
-		}
-	}
-
-	return NewMenu;
-}
-
-SAvaLevelViewportActorColorMenu::~SAvaLevelViewportActorColorMenu()
-{
-	if (HueBrush)
-	{
-		delete HueBrush;
-	}
-
-	if (SatValueBrush)
-	{
-		delete SatValueBrush;
-	}
-
-	FAvaViewportColorPickerDelegates::GetOnColorSourceSelected().RemoveAll(this);
+	return SNew(SAvaLevelViewportActorColorMenu, InToolkitHost);
 }
 
 void SAvaLevelViewportActorColorMenu::PrivateRegisterAttributes(struct FSlateAttributeDescriptor::FInitializer&)
@@ -219,30 +149,13 @@ void SAvaLevelViewportActorColorMenu::PrivateRegisterAttributes(struct FSlateAtt
 
 void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const TSharedRef<IToolkitHost>& InToolkitHost)
 {
-	ToolkitHostWeak = InToolkitHost;
+	ColorPicker.SetToolkitHost(InToolkitHost);
 
-	HueMaterial = TStrongObjectPtr<UMaterial>(FindObject<UMaterial>(nullptr, TEXT("Material'/Avalanche/ColorPickerHueMaterial.ColorPickerHueMaterial'")));
+	HueMaterial = LoadObject<UMaterial>(nullptr, TEXT("Material'/Avalanche/ColorPickerHueMaterial.ColorPickerHueMaterial'"));
+	SatValueMaterial = LoadObject<UMaterial>(nullptr, TEXT("Material'/Avalanche/ColorPickerBrightnessSaturdationMaterial.ColorPickerBrightnessSaturdationMaterial'"));
+	SelectedValueImage = LoadObject<UTexture2D>(nullptr, TEXT("Texture2D'/Avalanche/EditorResources/ColorSelectionIcon.ColorSelectionIcon'"));
 
-	if (!HueMaterial.IsValid())
-	{
-		HueMaterial = TStrongObjectPtr<UMaterial>(LoadObject<UMaterial>(nullptr, TEXT("Material'/Avalanche/ColorPickerHueMaterial.ColorPickerHueMaterial'")));
-	}
-
-	SatValueMaterial = TStrongObjectPtr<UMaterial>(FindObject<UMaterial>(nullptr, TEXT("Material'/Avalanche/ColorPickerBrightnessSaturdationMaterial.ColorPickerBrightnessSaturdationMaterial'")));
-
-	if (!SatValueMaterial.IsValid())
-	{
-		SatValueMaterial = TStrongObjectPtr<UMaterial>(LoadObject<UMaterial>(nullptr, TEXT("Material'/Avalanche/ColorPickerBrightnessSaturdationMaterial.ColorPickerBrightnessSaturdationMaterial'")));
-	}
-
-	SelectedValueImage = TStrongObjectPtr<UTexture2D>(FindObject<UTexture2D>(nullptr, TEXT("Texture2D'/Avalanche/EditorResources/ColorSelectionIcon.ColorSelectionIcon'")));
-
-	if (!SelectedValueImage.IsValid())
-	{
-		SelectedValueImage = TStrongObjectPtr<UTexture2D>(LoadObject<UTexture2D>(nullptr, TEXT("Texture2D'/Avalanche/EditorResources/ColorSelectionIcon.ColorSelectionIcon'")));
-	}
-
-	if (!HueMaterial.IsValid() || !SatValueMaterial.IsValid())
+	if (!HueMaterial || !SatValueMaterial)
 	{
 		return;
 	}
@@ -257,14 +170,14 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 	ActiveColor = FLinearColor::White;
 	InactiveColor = FLinearColor::White;
 	ColorStyle = EAvaColorStyle::Solid;
-	
+
 	ActiveThemeIndex = 0;
 
-	SatValueMaterialDynamic = TStrongObjectPtr<UMaterialInstanceDynamic>(UMaterialInstanceDynamic::Create(SatValueMaterial.Get(), GetTransientPackage()));
+	SatValueMaterialDynamic = UMaterialInstanceDynamic::Create(SatValueMaterial.Get(), GetTransientPackage());
 
-	HueBrush = new FSlateMaterialBrush(*HueMaterial.Get(), FVector2f(200.f, 200.f));
-	SatValueBrush = new FSlateMaterialBrush(*SatValueMaterialDynamic.Get(), FVector2f(80.f, 80.f));
-	SelectedValueBrush = new FSlateImageBrush(SelectedValueImage.Get(), FVector2f(32.f, 32.f));
+	HueBrush = MakeShared<FSlateMaterialBrush>(*HueMaterial.Get(), FVector2f(200.f, 200.f));
+	SatValueBrush = MakeShared<FSlateMaterialBrush>(*SatValueMaterialDynamic.Get(), FVector2f(80.f, 80.f));
+	SelectedValueBrush = MakeShared<FSlateImageBrush>(SelectedValueImage.Get(), FVector2f(32.f, 32.f));
 
 	const ISlateStyle& AvaLevelViewportStyle = FAvaLevelViewportStyle::Get();
 
@@ -272,7 +185,6 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 	[
 		SNew(SBox)
 		.Padding(FMargin(3.f, 3.f, 3.f, 10.f))
-		//.HeightOverride(200.f)
 		[
 			SNew(SConstraintCanvas)
 			+ SConstraintCanvas::Slot()
@@ -281,7 +193,7 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 			.Offset(FMargin(0.f, 0.f, 200.f, 200.f))
 			[
 				SNew(SImage)
-				.Image(HueBrush)
+				.Image(HueBrush.Get())
 			]
 			+ SConstraintCanvas::Slot()
 			.Alignment(FVector2D(0.f))
@@ -289,7 +201,7 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 			.Offset(FMargin(60.f, 60.f, 80.f, 80.f))
 			[
 				SNew(SImage)
-				.Image(SatValueBrush)
+				.Image(SatValueBrush.Get())
 			]
 			+ SConstraintCanvas::Slot()
 			.Alignment(FVector2D(0.f))
@@ -298,7 +210,7 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 			.Expose(HueSlot)
 			[
 				SNew(SImage)
-				.Image(SelectedValueBrush)
+				.Image(SelectedValueBrush.Get())
 			]
 			+ SConstraintCanvas::Slot()
 			.Alignment(FVector2D(0.f))
@@ -307,7 +219,7 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 			.Expose(SatValueSlot)
 			[
 				SNew(SImage)
-				.Image(SelectedValueBrush)
+				.Image(SelectedValueBrush.Get())
 			]
 			+ SConstraintCanvas::Slot()
 			.Alignment(FVector2D(0.f))
@@ -423,13 +335,12 @@ void SAvaLevelViewportActorColorMenu::Construct(const FArguments& InArgs, const 
 		]
 	];
 
-	SetColorStyle_Direct(FAvaViewportColorPickerDelegates::GetLastColorData().ColorStyle);
-	SetActiveColorRGB_Direct(FAvaViewportColorPickerDelegates::GetLastColorData().PrimaryColor);
-	SetInactiveColorRGB_Direct(FAvaViewportColorPickerDelegates::GetLastColorData().SecondaryColor);
+	const FAvaColorChangeData& LastColorData = ColorPicker.GetLastColorData();
+	SetColorStyle_Direct(LastColorData.ColorStyle);
+	SetActiveColorRGB_Direct(LastColorData.PrimaryColor);
+	SetInactiveColorRGB_Direct(LastColorData.SecondaryColor);
 
 	UpdateColorPalette();
-
-	FAvaViewportColorPickerDelegates::GetOnColorSourceSelected().AddRaw(this, &SAvaLevelViewportActorColorMenu::OnColorSourceBroadcast);
 }
 
 const FVector2f SAvaLevelViewportActorColorMenu::WheelMiddle = FVector2f(100.f, 100.f);
@@ -556,9 +467,22 @@ FAvaColorTheme* SAvaLevelViewportActorColorMenu::GetTheme(int32 InThemeIndex)
 	return nullptr;
 }
 
+FString SAvaLevelViewportActorColorMenu::GetReferencerName() const
+{
+	return TEXT("SAvaLevelViewportActorColorMenu");
+}
+
+void SAvaLevelViewportActorColorMenu::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	InCollector.AddReferencedObject(HueMaterial);
+	InCollector.AddReferencedObject(SatValueMaterial);
+	InCollector.AddReferencedObject(SatValueMaterialDynamic);
+	InCollector.AddReferencedObject(SelectedValueImage);
+}
+
 void SAvaLevelViewportActorColorMenu::ApplyActiveColor()
 {
-	if (SatValueMaterialDynamic.IsValid())
+	if (IsValid(SatValueMaterialDynamic))
 	{
 		FLinearColor HSVColor(Hue * 360.0f, 1.f, 1.f);
 		HSVColor = HSVColor.HSVToLinearRGB();
@@ -1246,7 +1170,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildRenameColorMenu(int32 
 				}));
 
 		ColorMenuBuilder.AddMenuEntry(LOCTEXT("RemovePaletteColorLabel", "Remove"), LOCTEXT("RemovePaletteColorTooltip", "Remove this color from the palette."), FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([this, Theme, InColorIdx, CurrentColor]()
+			FUIAction(FExecuteAction::CreateSPLambda(this, [this, Theme, InColorIdx, CurrentColor]()
 				{
 					TArray<FAvaColorInfo>& ThemeColors = Theme->GetColors();
 
@@ -1275,8 +1199,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildRenameColorMenu(int32 
 
 TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 {
-	constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder ThemeMenuBuilder(bInShouldCloseWindowAfterMenuSelection, nullptr);
+	FMenuBuilder ThemeMenuBuilder(/*bInShouldCloseWindowAfterMenuSelection*/false, nullptr);
 	{
 		static FText RemoveThemeLabelText = LOCTEXT("RemoveThemeLabel", "Remove");
 		static FText RemoveThemeTooltipText = LOCTEXT("RemoveThemeTooltip", "Remove this theme.");
@@ -1294,7 +1217,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 				.MinDesiredWidth(100.f)
 				.IsReadOnly(false)
 				.ClearKeyboardFocusOnCommit(true)
-				.OnTextCommitted(FOnTextCommitted::CreateLambda(
+				.OnTextCommitted(FOnTextCommitted::CreateSPLambda(this,
 					[this](const FText& NewName, ETextCommit::Type CommitType)
 					{
 						if (!ColorThemes.IsValidIndex(ActiveThemeIndex))
@@ -1310,7 +1233,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 			);
 
 			ThemeMenuBuilder.AddMenuEntry(RemoveThemeLabelText, RemoveThemeTooltipText, FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([this]()
+				FUIAction(FExecuteAction::CreateSPLambda(this, [this]()
 					{
 						if (!ColorThemes.IsValidIndex(ActiveThemeIndex))
 						{
@@ -1327,7 +1250,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 						SaveColorThemesToIni();
 						UpdateColorPalette();
 					}),
-					FCanExecuteAction::CreateLambda([this]() { return ColorThemes.Num() > 1; }))
+					FCanExecuteAction::CreateSPLambda(this, [this]() { return ColorThemes.Num() > 1; }))
 			);
 
 			ThemeMenuBuilder.EndSection();
@@ -1342,12 +1265,12 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 				ActiveThemeIndex == ThemeIdx 
 					? LOCTEXT("CurrentThemeTooltip", "This is the current theme.") 
 					: LOCTEXT("ChangeToTheme", "Change to this theme."),
-				FNewMenuDelegate::CreateLambda([this, ThemeIdx](FMenuBuilder& SubMenuBuilder)
+				FNewMenuDelegate::CreateSPLambda(this, [this, ThemeIdx](FMenuBuilder& SubMenuBuilder)
 					{
 						SubMenuBuilder.BeginSection("ThemeOptions", LOCTEXT("Options", "Options"));
 
 						SubMenuBuilder.AddMenuEntry(RemoveThemeLabelText, RemoveThemeTooltipText, FSlateIcon(),
-							FUIAction(FExecuteAction::CreateLambda([this, ThemeIdx]()
+							FUIAction(FExecuteAction::CreateSPLambda(this, [this, ThemeIdx]()
 								{
 									if (!ColorThemes.IsValidIndex(ThemeIdx))
 									{
@@ -1364,7 +1287,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 									SaveColorThemesToIni();
 									UpdateColorPalette();
 								}),
-								FCanExecuteAction::CreateLambda([this]() { return ColorThemes.Num() > 1; }))
+								FCanExecuteAction::CreateSPLambda(this, [this]() { return ColorThemes.Num() > 1; }))
 						);
 
 						SubMenuBuilder.EndSection();
@@ -1376,7 +1299,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 							for (int32 ColorIdx = 0; ColorIdx < ColorThemes[ThemeIdx].GetColors().Num(); ++ColorIdx)
 							{
 								SubMenuBuilder.AddSubMenu(
-									FUIAction(FExecuteAction::CreateLambda([this, ThemeIdx, ColorIdx]()
+									FUIAction(FExecuteAction::CreateSPLambda(this, [this, ThemeIdx, ColorIdx]()
 										{
 											if (!ColorThemes.IsValidIndex(ThemeIdx))
 											{
@@ -1411,10 +1334,10 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 											SNew(STextBlock)
 											.Text(ColorThemes[ThemeIdx].GetColors()[ColorIdx].Label)
 										],
-									FNewMenuDelegate::CreateLambda([this, ThemeIdx, ColorIdx](FMenuBuilder& SubMenuBuilder)
+									FNewMenuDelegate::CreateSPLambda(this, [this, ThemeIdx, ColorIdx](FMenuBuilder& SubMenuBuilder)
 										{
 											SubMenuBuilder.AddMenuEntry(LOCTEXT("RemoveColorLabel", "Remove"), LOCTEXT("RemoveColorTooltip", "Remove this color."), FSlateIcon(),
-												FUIAction(FExecuteAction::CreateLambda([this, ThemeIdx, ColorIdx]()
+												FUIAction(FExecuteAction::CreateSPLambda(this, [this, ThemeIdx, ColorIdx]()
 													{
 														if (!ColorThemes.IsValidIndex(ThemeIdx))
 														{
@@ -1440,7 +1363,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 					}				
 				),
 				FUIAction(
-					FExecuteAction::CreateLambda([this,ThemeIdx]() 
+					FExecuteAction::CreateSPLambda(this, [this,ThemeIdx]() 
 						{
 							if (!ColorThemes.IsValidIndex(ThemeIdx))
 							{
@@ -1450,17 +1373,20 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 							ActiveThemeIndex = ThemeIdx;
 							UpdateColorPalette();
 						}),
-					FCanExecuteAction::CreateLambda([this, ThemeIdx]()
+					FCanExecuteAction::CreateSPLambda(this, [this, ThemeIdx]()
 						{
 							return ActiveThemeIndex != ThemeIdx;
 						}),
-					FGetActionCheckState::CreateLambda([this, ThemeIdx]()
+					FGetActionCheckState::CreateSPLambda(this, [this, ThemeIdx]()
 						{
 							return ActiveThemeIndex == ThemeIdx ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 						})
 				),
 				FName(ColorThemes[ThemeIdx].GetName()),
-				EUserInterfaceActionType::RadioButton
+				EUserInterfaceActionType::RadioButton,
+				/*bInOpenSubMenuOnClick*/false,
+				FSlateIcon(),
+				/*bInShouldCloseWindowAfterMenuSelection*/false
 			);
 		}
 
@@ -1477,7 +1403,7 @@ TSharedRef<SWidget> SAvaLevelViewportActorColorMenu::BuildThemesMenu()
 			.MinDesiredWidth(100.f)
 			.IsReadOnly(false)
 			.ClearKeyboardFocusOnCommit(true)
-			.OnTextCommitted(FOnTextCommitted::CreateLambda(
+			.OnTextCommitted(FOnTextCommitted::CreateSPLambda(this,
 				[this](const FText& NewName, ETextCommit::Type CommitType)
 				{
 					if (CommitType == ETextCommit::OnEnter)
@@ -1638,21 +1564,6 @@ void SAvaLevelViewportActorColorMenu::SetValueValue(float InNewValue, bool InbAd
 	{
 		AddColorToTheme(ActiveColor);
 	}
-}
-
-void SAvaLevelViewportActorColorMenu::BroadcastColorSourceChange(const TSharedRef<IToolkitHost>& InToolkitHost, const FAvaColorChangeData& InNewColorData)
-{
-	if (InNewColorData.ColorStyle == EAvaColorStyle::None)
-	{
-		return;
-	}
-	
-	if (!FAvaViewportColorPickerDelegates::GetOnColorSourceSelected().IsBound())
-	{
-		return;
-	}
-
-	FAvaViewportColorPickerDelegates::BroadcastColorSourceSelected(InToolkitHost, InNewColorData);
 }
 
 void SAvaLevelViewportActorColorMenu::SetColorStyle(EAvaColorStyle InNewStyle)

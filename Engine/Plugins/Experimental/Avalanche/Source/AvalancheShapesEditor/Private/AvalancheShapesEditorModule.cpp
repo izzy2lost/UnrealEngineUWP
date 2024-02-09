@@ -10,7 +10,10 @@
 #include "IDetailsView.h"
 #include "ISequencerModule.h"
 #include "TrackEditors/AvaShapeRectCornerTrackEditor.h"
-#include "Widgets/AvaViewportColorPickerActorClassRegistry.h"
+
+// Color Picker
+#include "ColorPicker/AvaViewportColorPickerActorClassRegistry.h"
+#include "ColorPicker/AvaViewportColorPickerAdapter.h"
 
 // Meshes
 #include "DynamicMeshes/AvaShape2DArrowDynMesh.h"
@@ -112,7 +115,7 @@ void FAvalancheShapesEditorModule::StartupModule()
 	ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
 	TrackEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FAvaShapeRectCornerTrackEditor::CreateTrackEditor));
 
-	FAvaViewportColorPickerActorClassRegistry::RegisterClassAdapter(AAvaShapeActor::StaticClass(), MakeShared<TAvaViewportColorPickerActorAdapter<AAvaShapeActor>>());
+	FAvaViewportColorPickerActorClassRegistry::RegisterDefaultClassAdapter<AAvaShapeActor>();
 }
 
 void FAvalancheShapesEditorModule::ShutdownModule()

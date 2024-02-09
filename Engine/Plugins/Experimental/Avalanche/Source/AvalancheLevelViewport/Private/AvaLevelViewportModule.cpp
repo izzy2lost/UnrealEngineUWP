@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AvalancheLevelViewportModule.h"
-
+#include "AvaLevelViewportModule.h"
 #include "AvaLevelViewportCommands.h"
 #include "AvaLevelViewportStyle.h"
 #include "AvaViewportCameraHistory.h"
@@ -25,20 +24,20 @@ namespace UE::AvalancheLevelViewport::Private
 	}
 }
 
-void FAvalancheLevelViewportModule::StartupModule()
+void FAvaLevelViewportModule::StartupModule()
 {
 	FAvaLevelViewportCommands::Register();
 
 	ViewportCameraHistory = MakeShared<FAvaViewportCameraHistory>();
 
-	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FAvalancheLevelViewportModule::RegisterMenus));
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FAvaLevelViewportModule::RegisterMenus));
 
 	AvaLevelViewportClientCasterDelegateHandle = FAvaViewportUtils::RegisterViewportClientCaster(
 		&UE::AvalancheLevelViewport::Private::GetAsAvaLevelViewportClient
 	);
 }
 
-void FAvalancheLevelViewportModule::ShutdownModule()
+void FAvaLevelViewportModule::ShutdownModule()
 {
 	UToolMenus::UnRegisterStartupCallback(this);
 	UToolMenus::UnregisterOwner(this);
@@ -54,7 +53,7 @@ void FAvalancheLevelViewportModule::ShutdownModule()
 	}
 }
 
-void FAvalancheLevelViewportModule::RegisterMenus()
+void FAvaLevelViewportModule::RegisterMenus()
 {
 	// Owner will be used for cleanup in call to UToolMenus::UnregisterOwner
 	FToolMenuOwnerScoped OwnerScoped(this);
@@ -68,4 +67,4 @@ void FAvalancheLevelViewportModule::RegisterMenus()
 	}
 }
 
-IMPLEMENT_MODULE(FAvalancheLevelViewportModule, AvalancheLevelViewport)
+IMPLEMENT_MODULE(FAvaLevelViewportModule, AvalancheLevelViewport)
