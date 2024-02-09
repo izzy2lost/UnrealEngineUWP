@@ -200,16 +200,6 @@ void SColorPicker::GenerateDefaultColorPickerContent( bool bAdvancedSectionExpan
 											.UseSRGB(SharedThis(this), &SColorPicker::HandleColorPickerUseSRGB)
 											.OnSelectColor(this, &SColorPicker::HandleThemeBarColorSelected)
 									]
-
-								// hack: need to fix SThemeColorBlocksBar::EmptyText to render properly
-								+ SOverlay::Slot()
-									.HAlign(HAlign_Center)
-									.VAlign(VAlign_Center)
-									[
-										SNew(STextBlock)
-										.Text(LOCTEXT("EmptyBarHint", "Drag & drop colors here to save"))
-										.Visibility(this, &SColorPicker::HandleThemeBarHintVisibility)
-									]
 							]
 
 						+ SHorizontalBox::Slot()

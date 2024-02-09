@@ -743,7 +743,7 @@ void SThemeColorBlocksBar::Construct(const FArguments& InArgs)
 	if (!InArgs._EmptyText.IsEmpty())
 	{
 		EmptyHintTextBlock = SNew(SBorder)
-			.Padding(1.0f)
+			.Padding( 8.0f , 4.0f , 0.0f , 0.0f )
 			.Content()
 			[
 				SNew(STextBlock)
