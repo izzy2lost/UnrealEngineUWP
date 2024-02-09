@@ -154,6 +154,7 @@ void FIKRetargetEditorController::Initialize(TSharedPtr<FIKRetargetEditor> InEdi
 	PreviousMode = ERetargeterOutputMode::EditRetargetPose;
 	PoseExporter = MakeShared<FIKRetargetPoseExporter>();
 	PoseExporter->Initialize(SharedThis(this));
+	RefreshPoseList();
 
 	PlaybackManager = MakeUnique<FRetargetPlaybackManager>(SharedThis(this));
 
@@ -680,7 +681,6 @@ void FIKRetargetEditorController::RefreshHierarchyView() const
 {
 	if (HierarchyView.IsValid())
 	{
-		HierarchyView.Get()->RefreshPoseList();
 		HierarchyView.Get()->RefreshTreeView();
 	}
 }
@@ -766,6 +766,7 @@ void FIKRetargetEditorController::SetSourceOrTargetMode(ERetargetSourceOrTarget 
 	}
 	
 	RefreshAllViews();
+	RefreshPoseList();
 }
 
 void FIKRetargetEditorController::SetSelectedMesh(UPrimitiveComponent* InMeshComponent)

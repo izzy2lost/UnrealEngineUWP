@@ -48,13 +48,11 @@ void SIKRetargetPoseEditor::Construct(
 			[
 				SAssignNew(PoseListComboBox, SComboBox<TSharedPtr<FName>>)
 				.OptionsSource(&PoseNames)
-				.OnComboBoxOpening(this, &SIKRetargetPoseEditor::Refresh)
 				.OnGenerateWidget_Lambda([](TSharedPtr<FName> InItem)
 				{
 					return SNew(STextBlock).Text(FText::FromName(*InItem.Get()));
 				})
 				.OnSelectionChanged(Controller, &FIKRetargetEditorController::OnPoseSelected)
-				.Content()
 				[
 					SNew(STextBlock).Text(Controller, &FIKRetargetEditorController::GetCurrentPoseName)
 				]
@@ -102,8 +100,6 @@ void SIKRetargetPoseEditor::Refresh()
 	{
 		PoseNames.Add(MakeShareable(new FName(Pose.Key)));
 	}
-
-	PoseListComboBox->RefreshOptions();
 }
 
 TSharedRef<SWidget>  SIKRetargetPoseEditor::MakeToolbar(TSharedPtr<FUICommandList> Commands)
