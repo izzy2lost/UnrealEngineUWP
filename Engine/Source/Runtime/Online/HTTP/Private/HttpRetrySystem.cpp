@@ -79,11 +79,13 @@ FHttpRetrySystem::FRequest::FRequest(
 	const FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride,
 	const FHttpRetrySystem::FRetryResponseCodes& InRetryResponseCodes,
 	const FHttpRetrySystem::FRetryVerbs& InRetryVerbs,
-	const FHttpRetrySystem::FRetryDomainsPtr& InRetryDomains
+	const FHttpRetrySystem::FRetryDomainsPtr& InRetryDomains,
+	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride
 	)
     : FHttpRequestAdapterBase(HttpRequest)
     , RetryStatus(FHttpRetrySystem::FRequest::EStatus::NotStarted)
     , RetryLimitCountOverride(InRetryLimitCountOverride)
+    , RetryLimitCountForConnectionErrorOverride(InRetryLimitCountForConnectionErrorOverride)
     , RetryTimeoutRelativeSecondsOverride(InRetryTimeoutRelativeSecondsOverride)
 	, RetryResponseCodes(InRetryResponseCodes)
 	, RetryVerbs(InRetryVerbs)
@@ -290,9 +292,14 @@ void FHttpRetrySystem::FRequest::HttpOnHeaderReceived(FHttpRequestPtr Request, c
 	OnHeaderReceived().ExecuteIfBound(SelfPtr, HeaderName, NewHeaderValue);
 }
 
-FHttpRetrySystem::FManager::FManager(const FRetryLimitCountSetting& InRetryLimitCountDefault, const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault)
+FHttpRetrySystem::FManager::FManager(
+	const FRetryLimitCountSetting& InRetryLimitCountDefault,
+	const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault,
+	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorDefault
+)
     : RandomFailureRate(FRandomFailureRateSetting())
     , RetryLimitCountDefault(InRetryLimitCountDefault)
+    , RetryLimitCountForConnectionErrorDefault(InRetryLimitCountForConnectionErrorDefault)
 	, RetryTimeoutRelativeSecondsDefault(InRetryTimeoutRelativeSecondsDefault)
 {
 	check(FHttpModule::Get().GetHttpManager().GetThread());
@@ -317,7 +324,9 @@ TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> FHttpRetrySystem::FM
 	const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride,
 	const FRetryResponseCodes& InRetryResponseCodes,
 	const FRetryVerbs& InRetryVerbs,
-	const FRetryDomainsPtr& InRetryDomains)
+	const FRetryDomainsPtr& InRetryDomains,
+	const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride
+)
 {
 	return MakeShareable(new FRequest(
 		AsShared(),
@@ -326,7 +335,8 @@ TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe> FHttpRetrySystem::FM
 		InRetryTimeoutRelativeSecondsOverride,
 		InRetryResponseCodes,
 		InRetryVerbs,
-		InRetryDomains
+		InRetryDomains,
+		InRetryLimitCountForConnectionErrorOverride
 		));
 }
 
@@ -377,32 +387,31 @@ bool FHttpRetrySystem::FManager::ShouldRetry(const FHttpRetryRequestEntry& HttpR
     return bResult;
 }
 
+bool FHttpRetrySystem::FManager::RetryLimitForConnectionErrorIsSet(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
+{
+	return HttpRetryRequestEntry.Request->RetryLimitCountForConnectionErrorOverride.IsSet() || RetryLimitCountForConnectionErrorDefault.IsSet();
+}
+
+bool FHttpRetrySystem::FManager::CanRetryForConnectionError(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
+{
+	uint32 RetryLimitForConnectionError = HttpRetryRequestEntry.Request->RetryLimitCountForConnectionErrorOverride.Get(RetryLimitCountForConnectionErrorDefault.Get(0));
+	return HttpRetryRequestEntry.CurrentRetryCountForConnectionError < RetryLimitForConnectionError;
+}
+
+bool FHttpRetrySystem::FManager::CanRetryInGeneral(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
+{
+	uint32 RetryLimit = HttpRetryRequestEntry.Request->RetryLimitCountOverride.Get(RetryLimitCountDefault.Get(0));
+	return HttpRetryRequestEntry.CurrentRetryCount < RetryLimit;
+}
+
 bool FHttpRetrySystem::FManager::CanRetry(const FHttpRetryRequestEntry& HttpRetryRequestEntry)
 {
-    bool bResult = false;
+	if (HttpRetryRequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError && RetryLimitForConnectionErrorIsSet(HttpRetryRequestEntry))
+	{
+		return CanRetryForConnectionError(HttpRetryRequestEntry);
+	}
 
-    bool bShouldTestCurrentRetryCount = false;
-    double RetryLimitCount = 0;
-    if (HttpRetryRequestEntry.Request->RetryLimitCountOverride.IsSet())
-    {
-        bShouldTestCurrentRetryCount = true;
-        RetryLimitCount = HttpRetryRequestEntry.Request->RetryLimitCountOverride.GetValue();
-    }
-    else if (RetryLimitCountDefault.IsSet())
-    {
-        bShouldTestCurrentRetryCount = true;
-        RetryLimitCount = RetryLimitCountDefault.GetValue();
-    }
-
-    if (bShouldTestCurrentRetryCount)
-    {
-        if (HttpRetryRequestEntry.CurrentRetryCount < RetryLimitCount)
-        {
-            bResult = true;
-        }
-    }
-
-    return bResult;
+	return CanRetryInGeneral(HttpRetryRequestEntry);
 }
 
 bool FHttpRetrySystem::FManager::HasTimedOut(const FHttpRetryRequestEntry& HttpRetryRequestEntry, const double NowAbsoluteSeconds)
@@ -441,6 +450,10 @@ void FHttpRetrySystem::FManager::RetryHttpRequest(FHttpRetryRequestEntry& Reques
 		FHttpLogVerbosityTracker::Get().IncrementRetriedRequests();
 	}
 	++RequestEntry.CurrentRetryCount;
+	if (RequestEntry.Request->GetFailureReason() == EHttpFailureReason::ConnectionError)
+	{
+		++RequestEntry.CurrentRetryCountForConnectionError;
+	}
 	RequestEntry.Request->RetryStatus = FRequest::EStatus::Processing;
 	UE_LOG(LogHttp, Warning, TEXT("Retry %d on %s"), RequestEntry.CurrentRetryCount, *(RequestEntry.Request->GetURL()));
 	RequestEntry.Request->HttpRequest->ProcessRequest();
@@ -791,6 +804,7 @@ bool FHttpRetrySystem::FManager::Update(uint32* FileCount, uint32* FailingCount,
 FHttpRetrySystem::FManager::FHttpRetryRequestEntry::FHttpRetryRequestEntry(TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe>& InRequest)
     : bShouldCancel(false)
     , CurrentRetryCount(0)
+    , CurrentRetryCountForConnectionError(0)
 	, RequestStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
 	, Request(InRequest)
 {}
