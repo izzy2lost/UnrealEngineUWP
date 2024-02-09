@@ -38,9 +38,9 @@ struct IKRIG_API FTargetChainSpeedPlantSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, BlueprintReadWrite, Category = "Plant IK by Speed", meta = (ClampMin = "0.0", ClampMax = "100.0", UIMin = "0.0", UIMax = "100.0"))
 	FName SpeedCurveName;
 
-	/** Range 0 to 1000. Default 15. The maximum speed a source bone can be moving while being considered 'planted'.
+	/** Range 0 to 100. Default 15. The maximum speed a source bone can be moving while being considered 'planted'.
 	*  The target IK goal will not be allowed to move whenever the source bone speed drops below this threshold speed. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Plant IK by Speed", meta = (ClampMin = "0.0", ClampMax = "1000.0", UIMin = "0.0", UIMax = "100.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Plant IK by Speed", meta = (ClampMin = "0.0", ClampMax = "100.0", UIMin = "0.0", UIMax = "100.0"))
 	float SpeedThreshold = 15.0f;
 
 	// How stiff the spring model is that smoothly pulls the IK position after unplanting (more stiffness means more oscillation around the target value)
