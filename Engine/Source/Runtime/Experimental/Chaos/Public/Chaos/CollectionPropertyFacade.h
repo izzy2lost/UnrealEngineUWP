@@ -28,6 +28,7 @@ namespace Chaos::Softs
 		Enabled = 1 << 0,  /** Whether this property is enabled(so that it doesn't have to be removed from the collection when not needed). */
 		Animatable = 1 << 1,  /** Whether this property needs to be set at every frame. This flag is ignored when the Intrinsic flag is also set. */
 		Legacy = 1 << 2,  /** Whether this property has been set by a legacy system predating the property collection. Can be useful for overriding/upgrading some properties post conversion. */
+		Interpolable = 1 << 3,  /** Whether this property can be interpolated. Used to allow interpolation when merging float properties */
 		Intrinsic = 1 << 4,  /** Whether this property is intrinsically built into the simulated object model, rather than affecting the simulation itself (see Animatable in this case). Changing this property requires a re-construction of the simulated object model to be effective. Implies non Animatable. */
 		//~ Add new flags above this line
 		StringDirty = 1 << 6,  /** Whether this property's string has changed and needs to be updated at the next frame. */
@@ -100,6 +101,7 @@ namespace Chaos::Softs
 		bool IsIntrinsic(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Intrinsic); }
 		bool IsStringDirty(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::StringDirty); }
 		bool IsDirty(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Dirty); }
+		bool IsInterpolable(int32 KeyIndex) const { return HasAnyFlags(KeyIndex, ECollectionPropertyFlags::Interpolable); }
 
 		//~ Values access per key
 		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
@@ -177,6 +179,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		bool IsDirty(const FString& Key, bool bDefault = false, int32* OutKeyIndex = nullptr) const
 		{
 			return SafeGet(Key, [this](int32 KeyIndex)->bool { return IsDirty(KeyIndex); }, bDefault, OutKeyIndex);
+		}
+		
+		bool IsInterpolable(const FString& Key, bool bDefault = false, int32* OutKeyIndex = nullptr) const
+		{
+			return SafeGet(Key, [this](int32 KeyIndex)->bool { return IsInterpolable(KeyIndex); }, bDefault, OutKeyIndex);
 		}
 
 		friend ::uint32 GetTypeHash(const Chaos::Softs::FCollectionPropertyConstFacade& PropertyFacade)
@@ -281,7 +288,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		void SetStringValue(int32 KeyIndex, const FString& Value) { if (GetStringValueArray()[KeyIndex] != Value) { GetStringValueArray()[KeyIndex] = Value; SetStringDirty(KeyIndex); } }
 
-		/** SetFlags cannot be used to remove Dirty, StringDirty, or Intrinsic flags. Use ClearDirtyFlags to remove dirty flags. */
+		/** SetFlags cannot be used to remove Dirty, StringDirty, Interpolable or Intrinsic flags. Use ClearDirtyFlags to remove dirty flags. */
 		CHAOS_API void SetFlags(int32 KeyIndex, ECollectionPropertyFlags Flags);
 		UE_DEPRECATED(5.3, "Use SetFlags(int32, ECollectionPropertyFlags) instead.")
 		void SetFlags(int32 KeyIndex, uint8 Flags) { return SetFlags(KeyIndex, (ECollectionPropertyFlags)Flags); }
@@ -296,6 +303,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		UE_DEPRECATED(5.3, "SetDirty can only be set, to unset use ClearDirtyFlags instead.")
 		void SetDirty(int32 KeyIndex, bool bDirty) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Dirty, bDirty); }
 		void SetStringDirty(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::StringDirty, true); }
+		void SetInterpolable(int32 KeyIndex) { EnableFlags(KeyIndex, ECollectionPropertyFlags::Interpolable, true); }
 
 		//~ Values set per key
 		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
@@ -376,6 +384,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		int32 SetStringDirty(const FString& Key)
 		{
 			return SafeSet(Key, [this](int32 KeyIndex) { SetStringDirty(KeyIndex); });
+		}
+		
+		int32 SetInterpolable(const FString& Key)
+		{
+			return SafeSet(Key, [this](int32 KeyIndex) { SetInterpolable(KeyIndex); });
 		}
 
 		CHAOS_API void ClearDirtyFlags();

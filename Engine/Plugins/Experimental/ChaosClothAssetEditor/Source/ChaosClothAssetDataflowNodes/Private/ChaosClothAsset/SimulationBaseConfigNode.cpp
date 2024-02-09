@@ -172,6 +172,8 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	{
 		EnumRemoveFlags(PropertyFlags, ECollectionPropertyFlags::Animatable);  // Non-animatable
 	}
+	EnumAddFlags(PropertyFlags, ECollectionPropertyFlags::Interpolable);  // Interpolable
+	
 	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
 	Properties.SetWeightedValue(PropertyKeyIndex, PropertyLow, PropertyHigh);
 	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &WeightMap));
