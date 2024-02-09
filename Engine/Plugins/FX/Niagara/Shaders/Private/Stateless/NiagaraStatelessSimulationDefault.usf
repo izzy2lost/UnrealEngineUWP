@@ -4,6 +4,7 @@
 	PARTICLE_ATTRIBUTE(int,		UniqueID) \
 	PARTICLE_ATTRIBUTE(float3,	Position) \
 	PARTICLE_ATTRIBUTE(float4,	Color) \
+	PARTICLE_ATTRIBUTE(float4,	DynamicMaterialParameter0) \
 	PARTICLE_ATTRIBUTE(float4,	MeshOrientation) \
 	PARTICLE_ATTRIBUTE(float,	RibbonWidth) \
 	PARTICLE_ATTRIBUTE(float3,	Scale) \
@@ -38,5 +39,6 @@
 	PARTICLE_MODULE(ScaleMeshSizeBySpeed) \
 	PARTICLE_MODULE(ScaleSpriteSizeBySpeed) \
 	PARTICLE_MODULE(SubUVAnimation) \
+	PARTICLE_MODULE(DynamicMaterialParameters) \
 
 #include "NiagaraStatelessSimulationTemplate.ush"

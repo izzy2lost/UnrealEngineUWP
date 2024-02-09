@@ -21,6 +21,11 @@ struct FStatelessDistributionFloat
 		RandomOffset		= RandomFloat(Particle);
 	}
 
+	bool IsValid()
+	{
+		return TableLength > 0.0f;
+	}
+	
 	float GetValue(float NormalizedAge)
 	{
 		if ( bRandomDistribution )

@@ -43,7 +43,15 @@ namespace NiagaraStateless
 		SHADER_PARAMETER(float,	RotateAroundPoint_InitialPhaseScale)
 		SHADER_PARAMETER(float,	RotateAroundPoint_InitialPhaseBias)
 	END_SHADER_PARAMETER_STRUCT()
-	
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FDynamicMaterialParametersModule_ShaderParameters, NIAGARASHADER_API)
+		SHADER_PARAMETER(uint32,		DynamicMaterialParameters_ChannelMask)
+		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0X)
+		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0Y)
+		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0Z)
+		SHADER_PARAMETER(FUintVector3,	DynamicMaterialParameters_Parameter0W)
+	END_SHADER_PARAMETER_STRUCT()
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FScaleColorModule_ShaderParameters, NIAGARASHADER_API)
 		SHADER_PARAMETER(FUintVector3,	ScaleColor_Distribution)
 	END_SHADER_PARAMETER_STRUCT()

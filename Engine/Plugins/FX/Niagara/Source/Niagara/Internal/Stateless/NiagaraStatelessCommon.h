@@ -29,6 +29,7 @@ using FNiagaraStatelessRangeColor	= FNiagaraStatelessRange<FLinearColor>;
 struct FNiagaraStatelessGlobals
 {
 	FNiagaraVariableBase	ColorVariable;
+	FNiagaraVariableBase	DynamicMaterialParameters0Variable;
 	FNiagaraVariableBase	MeshOrientationVariable;
 	FNiagaraVariableBase	PositionVariable;
 	FNiagaraVariableBase	RibbonWidthVariable;
@@ -42,6 +43,7 @@ struct FNiagaraStatelessGlobals
 	FNiagaraVariableBase	VelocityVariable;
 
 	//FNiagaraVariableBase	PreviousColorVariable;
+	//FNiagaraVariableBase	PreviousDynamicMaterialParameters0Variable;
 	FNiagaraVariableBase	PreviousMeshOrientationVariable;
 	FNiagaraVariableBase	PreviousPositionVariable;
 	FNiagaraVariableBase	PreviousRibbonWidthVariable;
@@ -53,6 +55,7 @@ struct FNiagaraStatelessGlobals
 	FNiagaraVariableBase	PreviousVelocityVariable;
 
 	inline static FLinearColor	GetDefaultColorValue() { return FLinearColor::White; }
+	inline static FVector4f		GetDefaultDynamicMaterialParameters0Value() { return FVector4f::Zero(); }
 	inline static float			GetDefaultLifetimeValue() { return 1.0f; }
 	inline static float			GetDefaultMassValue() { return 1.0f; }
 	inline static FQuat4f		GetDefaultMeshOrientationValue() { return FQuat4f::Identity; }

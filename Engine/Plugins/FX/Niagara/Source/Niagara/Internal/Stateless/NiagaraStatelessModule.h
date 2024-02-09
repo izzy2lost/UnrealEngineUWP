@@ -120,7 +120,7 @@ public:
 #endif
 
 #if WITH_EDITORONLY_DATA
-	virtual void GetOutputVaruables(TArray<FNiagaraVariableBase>& OutVariables) const {}
+	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const {}
 #endif
 
 	//~UObject interface Begin

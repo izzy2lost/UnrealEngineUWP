@@ -30,9 +30,12 @@ public:
 	template<typename T>
 	T* AllocateBuiltData()
 	{
+		static_assert(TIsTrivial<T>::Value, "Only trivial types can be used for built data");
+
 		const int32 Align = BuiltData.Num() % alignof(T);
 		const int32 Offset = BuiltData.AddZeroed(sizeof(T) + Align);
-		return reinterpret_cast<T*>(BuiltData.GetData() + Offset + Align);
+		void* NewData = BuiltData.GetData() + Offset + Align;
+		return new(NewData) T();
 	}
 
 	template<typename T>
