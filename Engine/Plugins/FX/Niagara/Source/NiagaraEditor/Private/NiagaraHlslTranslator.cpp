@@ -5306,6 +5306,12 @@ bool FNiagaraHlslTranslator::IsWriteAllowedForNamespace(const FNiagaraVariable& 
 	}
 	if (UNiagaraScript::IsParticleScript(TargetUsage) && (Var.IsInNameSpace(FNiagaraConstants::SystemNamespace) || Var.IsInNameSpace(FNiagaraConstants::EmitterNamespace)))
 	{
+		const FNiagaraHlslTranslationStage& ActiveStage = TranslationStages[ActiveStageIdx];
+		if (ActiveStage.IterationSourceType == ENiagaraIterationSource::DataInterface && Var.IsInNameSpace(ActiveStage.IterationDataInterface))
+		{
+			// weird special case where particle script can write to emitter data interface sub properties
+			return true;
+		}
 		ErrorMsg = FText::Format(LOCTEXT("WriteAllowedForNamespaceFail_Particles", "Cannot set variable {0} in particle scripts."), FText::FromName(Var.GetName()));
 		return false;
 	}
