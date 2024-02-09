@@ -358,6 +358,7 @@ void UBaseCreateFromSelectedTool::OnShutdown(EToolShutdownType ShutdownType)
 		// Note: For static meshes, this must be done as a separate transaction due to a long-standing bug where undo/redo 
 		// will crash if an asset updates both its collision and geometry in the same transaction
 		// TODO: If/when that static mesh bug is fixed, this collision updating code can be separated out into the UpdateAsset() method
+		constexpr bool bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction = false;
 		bool bAlreadyOpenedMainTransaction = false;
 		if (SupportsCollisionTransfer() && HandleSourcesProperties->OutputWriteTo != EBaseCreateFromSelectedTargetType::NewObject && Targets.Num() > 1)
 		{
@@ -397,7 +398,8 @@ void UBaseCreateFromSelectedTool::OnShutdown(EToolShutdownType ShutdownType)
 
 				if (bHasAddedShapes)
 				{
-					if (!Cast<UStaticMeshComponent>(TargetComponent))
+					bool bWorkaroundNotNeeded = !bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction | !Cast<UStaticMeshComponent>(TargetComponent); // slightly odd conditional to workaround compiler warning
+					if (bWorkaroundNotNeeded)
 					{
 						// If we're not operating on a static mesh, we can open the main transaction here so the collision transaction becomes part of it ...
 						// for static mesh, we need the collision update to be a separate transaction to avoid crashing on undo/redo :(

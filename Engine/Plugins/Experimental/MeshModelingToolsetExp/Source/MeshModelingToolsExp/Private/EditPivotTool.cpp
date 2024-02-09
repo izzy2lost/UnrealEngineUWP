@@ -417,7 +417,7 @@ void UEditPivotTool::UpdateAssets(const FFrame3d& NewPivotWorldFrame)
 
 	// If the targets have any convex hulls, we need to update those first in a separate transaction to work around a crash
 	// in the handling of convex DDC data
-	constexpr bool bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction = true;
+	constexpr bool bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction = false;
 	bool bNeedSeparateTransactionForSimpleCollision = false;
 	if constexpr (bWorkaroundForCrashIfConvexAndMeshModifiedInSameTransaction)
 	{
