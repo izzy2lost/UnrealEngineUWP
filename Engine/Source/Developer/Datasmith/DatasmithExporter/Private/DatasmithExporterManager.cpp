@@ -238,6 +238,13 @@ void FDatasmithGameThread::RequestExit()
 
 void FDatasmithGameThread::OnInit()
 {
+	// Make sure that external engine path is normalized and ends with a '/'
+	FPaths::NormalizeDirectoryName(ForeignEngineDir);
+	if (!ForeignEngineDir.IsEmpty() && ForeignEngineDir[ForeignEngineDir.Len() - 1] != TEXT('/'))
+	{
+		ForeignEngineDir += TEXT("/");
+	}
+
 	GForeignEngineDir = *ForeignEngineDir;
 	bool bInitSucceded = DatasmithGameThread::InitializeInCurrentThread(PreInitCommandArgs, bSuppressLogs);
 
