@@ -9,6 +9,7 @@
 #include "MeshMaterialShader.h"
 #include "WaterInstanceDataBuffer.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "StereoRenderUtils.h"
 
 
 // ----------------------------------------------------------------------------------
@@ -168,6 +169,16 @@ bool TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ShouldCompilePer
 	const bool bIsCompatibleWithWater = ((Parameters.MaterialParameters.MaterialDomain == MD_Surface) && Parameters.MaterialParameters.bIsUsedWithWater) || Parameters.MaterialParameters.bIsSpecialEngineMaterial;
 	if (bIsCompatibleWithWater)
 	{
+		// Only compile the ISR/non-ISR indirect draw version if ISR is enabled/disabled
+		if (UsesIndirectDraws())
+		{
+			const UE::StereoRenderUtils::FStereoShaderAspects Aspects(Parameters.Platform);
+			const bool bMatchingISRConfig = UsesInstancedStereo() == Aspects.IsInstancedStereoEnabled();
+			if (!bMatchingISRConfig)
+			{
+				return false;
+			}
+		}
 		// Only let the PC platform compile the permutations supporting selection : 
 		return (!bWithWaterSelectionSupport || IsPCPlatform(Parameters.Platform));
 	}
