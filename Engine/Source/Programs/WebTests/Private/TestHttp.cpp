@@ -170,6 +170,8 @@ public:
 	using FHttpRetrySystem::FManager::RequestList;
 	using FHttpRetrySystem::FManager::FHttpRetryRequestEntry;
 	using FHttpRetrySystem::FManager::RetryTimeoutRelativeSecondsDefault;
+	using FHttpRetrySystem::FManager::RetryLimitCountDefault;
+	using FHttpRetrySystem::FManager::RetryLimitCountForConnectionErrorDefault;
 
 	bool IsEmpty()
 	{
@@ -1532,6 +1534,57 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Retry immediately without lock 
 	HttpRequest->OnRequestWillRetry().BindLambda([this](FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, float LockoutPeriod) {
 		--ExpectingExtraCallbacks;
 		CHECK(LockoutPeriod == 0);
+	});
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Optionally retry limit can be set differently for connection error", HTTP_TAG)
+{
+	if (!bRetryEnabled)
+	{
+		return;
+	}
+
+	DisableWarningsInThisTest();
+
+	TSharedRef<IHttpRequest> HttpRequest = HttpRetryManager->CreateRequest(
+		5/*InRetryLimitCountOverride*/,
+		FHttpRetrySystem::FRetryTimeoutRelativeSecondsSetting()/*InRetryTimeoutRelativeSecondsOverride unused*/,
+		{ EHttpResponseCodes::TooManyRequests, EHttpResponseCodes::ServiceUnavail }/*InRetryResponseCodes*/,
+		FHttpRetrySystem::FRetryVerbs(), /*unused*/
+		FHttpRetrySystem::FRetryDomainsPtr(), /*unused*/
+		1 /*InRetryLimitCountForConnectionErrorOverride*/
+	);
+
+	float ExpectedTimeoutDuration = 0.0f;
+	SECTION("RetryLimitCountDefault:5 will be used so retries in general take long")
+	{
+		HttpRequest->SetURL(UrlMockStatus(EHttpResponseCodes::TooManyRequests));
+		HttpRequest->SetHeader(TEXT("Retry-After"), FString::Format(TEXT("{0}"), { 3 }));
+
+		ExpectedTimeoutDuration = 15.0f; // each request will take about 0s, 5 retry back offs, each back off takes 3s;
+	}
+	SECTION("RetryLimitCountForConnectionErrorDefault:1 will be used so retries for connection error take less time")
+	{
+		HttpRequest->SetURL(UrlStreamDownload(2/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/));
+		HttpModule->HttpActivityTimeout = 1.0f;
+
+		ExpectedTimeoutDuration = 2.0f; // each request will take 1s, 1st retry back off takes 0s
+
+#if WITH_CURL_XCURL
+		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
+		// connect. Had to disable that code, make sure not to treat that event as connected
+		// It takes 2s to receive the first chunk to be considered as connected, then start response timer and 
+		// take 1s to time out. So it takes 3s in total for each request instead of 1s
+		ExpectedTimeoutDuration += 4;
+#endif
+	}
+
+	const double StartTime = FPlatformTime::Seconds();
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ExpectedTimeoutDuration](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+		float TimeDiffTolerance = 1.0f;
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ExpectedTimeoutDuration, TimeDiffTolerance));
 	});
 	HttpRequest->ProcessRequest();
 }

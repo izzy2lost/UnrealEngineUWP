@@ -110,7 +110,8 @@ namespace FHttpRetrySystem
 			const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride = FRetryTimeoutRelativeSecondsSetting(),
 			const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
 			const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
-			const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr()
+			const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr(),
+			const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting()
 		);
 
 		void HttpOnRequestProgress(FHttpRequestPtr InHttpRequest, uint64 BytesSent, uint64 BytesRcv);
@@ -126,6 +127,7 @@ namespace FHttpRetrySystem
 		EStatus::Type RetryStatus;
 
 		FRetryLimitCountSetting RetryLimitCountOverride;
+		FRetryLimitCountSetting RetryLimitCountForConnectionErrorOverride;
 		FRetryTimeoutRelativeSecondsSetting  RetryTimeoutRelativeSecondsOverride;
 		FRetryResponseCodes RetryResponseCodes;
 		FRetryVerbs RetryVerbs;
@@ -149,7 +151,11 @@ class FManager : public TSharedFromThis<FManager>
 {
 public:
 	// FManager
-	HTTP_API FManager(const FRetryLimitCountSetting& InRetryLimitCountDefault, const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault);
+	HTTP_API FManager(
+		const FRetryLimitCountSetting& InRetryLimitCountDefault, 
+		const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsDefault,
+		const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorDefault = FRetryLimitCountSetting()
+	);
 
 	/**
 	 * Create a new http request with retries
@@ -159,7 +165,8 @@ public:
 		const FRetryTimeoutRelativeSecondsSetting& InRetryTimeoutRelativeSecondsOverride = FRetryTimeoutRelativeSecondsSetting(),
 		const FRetryResponseCodes& InRetryResponseCodes = FRetryResponseCodes(),
 		const FRetryVerbs& InRetryVerbs = FRetryVerbs(),
-		const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr()
+		const FRetryDomainsPtr& InRetryDomains = FRetryDomainsPtr(),
+		const FRetryLimitCountSetting& InRetryLimitCountForConnectionErrorOverride = FRetryLimitCountSetting()
 	);
 
 	HTTP_API virtual ~FManager();
@@ -190,10 +197,11 @@ protected:
 	{
 		FHttpRetryRequestEntry(TSharedRef<FRequest, ESPMode::ThreadSafe>& InRequest);
 
-		bool                    bShouldCancel;
-		uint32                  CurrentRetryCount;
-		double                  RequestStartTimeAbsoluteSeconds;
-		double                  LockoutEndTimeAbsoluteSeconds;
+		bool bShouldCancel;
+		uint32 CurrentRetryCount;
+		uint32 CurrentRetryCountForConnectionError;
+		double RequestStartTimeAbsoluteSeconds;
+		double LockoutEndTimeAbsoluteSeconds;
 
 		TSharedRef<FRequest, ESPMode::ThreadSafe>	Request;
 	};
@@ -256,9 +264,14 @@ protected:
 	// @return number of seconds to lockout for
 	float GetLockoutPeriodSeconds(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
 
+	bool RetryLimitForConnectionErrorIsSet(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
+	bool CanRetryForConnectionError(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
+	bool CanRetryInGeneral(const FHttpRetryRequestEntry& HttpRetryRequestEntry);
+
 	// Default configuration for the retry system
 	FRandomFailureRateSetting RandomFailureRate;
 	FRetryLimitCountSetting RetryLimitCountDefault;
+	FRetryLimitCountSetting RetryLimitCountForConnectionErrorDefault;
 	FRetryTimeoutRelativeSecondsSetting RetryTimeoutRelativeSecondsDefault;
 
 	TArray<FHttpRetryRequestEntry> RequestList;
