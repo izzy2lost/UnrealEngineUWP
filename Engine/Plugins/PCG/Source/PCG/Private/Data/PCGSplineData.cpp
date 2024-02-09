@@ -13,7 +13,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSplineData)
 
-void UPCGSplineData::Initialize(USplineComponent* InSpline)
+void UPCGSplineData::Initialize(const USplineComponent* InSpline)
 {
 	check(InSpline);
 
@@ -134,11 +134,22 @@ FVector::FReal UPCGSplineData::GetCurvatureAtDistance(int SegmentIndex, FVector:
 	return FMath::Sign(RightVector | CurvatureVector) * Curvature;
 }
 
+float UPCGSplineData::GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const
+{
+	const float FullDistance = GetDistanceAtSegmentStart(SegmentIndex) + Distance;
+	return SplineStruct.SplineCurves.ReparamTable.Eval(FullDistance, 0.0f);
+}
+
 void UPCGSplineData::GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const
 {
 	check(SplineStruct.SplineCurves.Position.Points.IsValidIndex(SegmentIndex));
 	OutArriveTangent = SplineStruct.SplineCurves.Position.Points[SegmentIndex].ArriveTangent;
 	OutLeaveTangent = SplineStruct.SplineCurves.Position.Points[SegmentIndex].LeaveTangent;
+}
+
+FVector::FReal UPCGSplineData::GetDistanceAtSegmentStart(int SegmentIndex) const
+{
+	return SplineStruct.GetDistanceAlongSplineAtSplinePoint(SegmentIndex);
 }
 
 const UPCGPointData* UPCGSplineData::CreatePointData(FPCGContext* Context) const
@@ -209,10 +220,15 @@ UPCGSpatialData* UPCGSplineData::CopyInternal() const
 {
 	UPCGSplineData* NewSplineData = NewObject<UPCGSplineData>();
 
-	NewSplineData->SplineStruct = SplineStruct;
-	NewSplineData->CachedBounds = CachedBounds;
+	CopySplineData(NewSplineData);
 
 	return NewSplineData;
+}
+
+void UPCGSplineData::CopySplineData(UPCGSplineData* InCopy) const
+{
+	InCopy->SplineStruct = SplineStruct;
+	InCopy->CachedBounds = CachedBounds;
 }
 
 bool UPCGSplineProjectionData::SamplePoint(const FTransform& InTransform, const FBox& InBounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const

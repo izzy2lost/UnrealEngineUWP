@@ -124,7 +124,7 @@ struct FPCGDataFromActorContext : public FPCGContext
 #endif
 };
 
-class FPCGDataFromActorElement : public IPCGElement
+class PCG_API FPCGDataFromActorElement : public IPCGElement
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }

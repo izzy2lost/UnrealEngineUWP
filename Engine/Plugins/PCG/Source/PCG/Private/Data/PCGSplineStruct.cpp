@@ -76,7 +76,7 @@ namespace PCGSplineStruct
 	}
 }
 
-void FPCGSplineStruct::Initialize(USplineComponent* InSplineComponent)
+void FPCGSplineStruct::Initialize(const USplineComponent* InSplineComponent)
 {
 	check(InSplineComponent);
 	SplineCurves = InSplineComponent->SplineCurves;
