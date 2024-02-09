@@ -435,7 +435,7 @@ void GameThread_UpdateMIParameter(const UMaterialInstance* Instance, const Param
 		{
 			EMaterialDomain Domain = Material->MaterialDomain;
 			// check if this material has any relevance to path tracing
-			if (Domain != MD_PostProcess && Domain != MD_UI)
+			if (Domain != MD_PostProcess && Domain != MD_UI && !Material->bUsedWithEditorCompositing)
 			{
 				GetRendererModule().InvalidatePathTracedOutput();
 			}
