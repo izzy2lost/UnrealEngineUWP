@@ -6,7 +6,7 @@
 #include "UObject/ObjectMacros.h"
 
 UENUM(BlueprintType)
-enum class EAudioColorMap : uint8
+enum class EAudioColorGradient : uint8
 {
 	BlackToWhite,
 	WhiteToBlack,
@@ -18,7 +18,7 @@ enum class EAudioColorMap : uint8
 class FAudioColorMapper
 {
 public:
-	FAudioColorMapper(const float InMinValue, const float InMaxValue, const EAudioColorMap InColorMap)
+	FAudioColorMapper(const float InMinValue, const float InMaxValue, const EAudioColorGradient InColorMap)
 		: ValueScaling(1.0f / (InMaxValue - InMinValue))
 		, MinValue(InMinValue)
 		, ColorMap(InColorMap)
@@ -34,5 +34,5 @@ public:
 private:
 	const float ValueScaling;
 	const float MinValue;
-	const EAudioColorMap ColorMap;
+	const EAudioColorGradient ColorMap;
 };
