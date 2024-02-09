@@ -1047,6 +1047,7 @@ struct FIoStoreArguments
 struct FContainerTargetSpec
 {
 	FIoContainerId ContainerId;
+	FIoContainerId OptionalSegmentContainerId;
 	FIoContainerHeader Header;
 	FIoContainerHeader OptionalSegmentHeader;
 	FName Name;
@@ -2836,7 +2837,15 @@ void InitializeContainerTargetsAndPackages(
 					ContainerTarget->OptionalSegmentOutputPath = FPaths::Combine(ContainerSource.OptionalOutputPath, FPaths::GetCleanFilename(ContainerTarget->OutputPath) + FPackagePath::GetOptionalSegmentExtensionModifier());
 				}
 
-				UE_LOG(LogIoStore, Display, TEXT("Saving optional container to: '%s'"), *ContainerTarget->OptionalSegmentOutputPath);
+				// The IoContainerId is the hash of the name of the container, which gets returned in the results
+				// as the output path we provide with the extension removed, which for optional containers means
+				// that it contains the .o in the name - so make sure we have a separate id for this.
+				ContainerTarget->OptionalSegmentContainerId = FIoContainerId::FromName(*FPaths::GetCleanFilename(ContainerTarget->OptionalSegmentOutputPath));
+
+				UE_LOG(LogIoStore, Display, TEXT("Saving optional container to: '%s', id: 0x%llx (base container id: 0x%llx)"), 
+					*ContainerTarget->OptionalSegmentOutputPath,
+					ContainerTarget->OptionalSegmentContainerId.Value(),
+					ContainerTarget->ContainerId.Value());
 			}
 		}
 	}
@@ -5276,7 +5285,10 @@ int32 CreateTarget(const FIoStoreArguments& Arguments, const FIoStoreWriterSetti
 
 				if (!ContainerTarget->OptionalSegmentOutputPath.IsEmpty())
 				{
+					ContainerSettings.ContainerId = ContainerTarget->OptionalSegmentContainerId;
 					ContainerTarget->OptionalSegmentIoStoreWriter = IoStoreWriterContext->CreateContainer(*ContainerTarget->OptionalSegmentOutputPath, ContainerSettings);
+					ContainerSettings.ContainerId = ContainerTarget->ContainerId;
+
 					ContainerTarget->OptionalSegmentIoStoreWriter->SetReferenceChunkDatabase(ChunkDatabase);
 					IoStoreWriters.Add(ContainerTarget->OptionalSegmentIoStoreWriter);
 					IoStoreWriterInfos.Add({UE::Cook::EPluginSizeTypes::OptionalSegment, ContainerTarget->Name});
