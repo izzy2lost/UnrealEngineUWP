@@ -1097,7 +1097,10 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 	Id.bInterpolatedSpawn = false;
 	Id.bRequiresPersistentIDs = false;
 	Id.ScriptVersionID = IsVersioningEnabled() ? (VersionGuid.IsValid() ? VersionGuid : ExposedVersion) : FGuid();
-	if (GetDefault<UNiagaraSettings>()->bAccurateQuatInterpolation)
+	
+	const UNiagaraSettings* NiagaraSettings = GetDefault<UNiagaraSettings>();
+	Id.AdditionalDefines.Add(TEXT("InvalidNamespaceWrite=") + FString::FormatAsNumber(static_cast<int32>(NiagaraSettings->InvalidNamespaceWriteSeverity)));
+	if (NiagaraSettings->bAccurateQuatInterpolation)
 	{
 		Id.AdditionalDefines.Add(FNiagaraCompileOptions::AccurateQuatInterpolation);
 	}
@@ -1132,7 +1135,7 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 				Id.AdditionalDefines.Add(TEXT("IgnoreParticleReadsForAttributeTrim"));
 			}
 
-			if (EmitterOwner->ShouldDisableExperimentalVM() || !GetDefault<UNiagaraSettings>()->bExperimentalVMEnabled)
+			if (EmitterOwner->ShouldDisableExperimentalVM() || !NiagaraSettings->bExperimentalVMEnabled)
 			{
 				Id.AdditionalDefines.Add(FNiagaraCompileOptions::ExperimentalVMDisabled);
 			}
@@ -1344,7 +1347,7 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 			Id.AdditionalDefines.Add(TEXT("CompressAttributes"));
 		}
 
-		if (System->ShouldDisableExperimentalVM() || !GetDefault<UNiagaraSettings>()->bExperimentalVMEnabled)
+		if (System->ShouldDisableExperimentalVM() || !NiagaraSettings->bExperimentalVMEnabled)
 		{
 			Id.AdditionalDefines.Add(FNiagaraCompileOptions::ExperimentalVMDisabled);
 		}
