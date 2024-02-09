@@ -10,19 +10,17 @@ struct FOperatorStackEditorContext;
 struct FOperatorStackEditorItem;
 
 /** Context passed in UToolMenu when generating entries with selected items */
-UCLASS()
-class OPERATORSTACKEDITOR_API UOperatorStackEditorMenuContext : public UObject
+UCLASS(MinimalAPI)
+class UOperatorStackEditorMenuContext : public UObject
 {
 	GENERATED_BODY()
 
 public:
-	UOperatorStackEditorMenuContext() = default;
-	
 	TSharedPtr<FOperatorStackEditorContext> GetContext() const
 	{
 		return ContextWeak.Pin();
 	}
-	
+
 	void SetContext(TSharedPtr<FOperatorStackEditorContext> InContext)
 	{
 		ContextWeak = InContext;
@@ -37,7 +35,7 @@ public:
 	{
 		ItemWeak = InItem;
 	}
-	
+
 protected:
 	/** The current context this menu is extending */
 	TWeakPtr<FOperatorStackEditorContext> ContextWeak;
