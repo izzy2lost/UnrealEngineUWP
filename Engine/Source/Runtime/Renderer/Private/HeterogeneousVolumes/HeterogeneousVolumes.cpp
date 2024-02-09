@@ -507,6 +507,7 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumeShadows(
 	SCOPED_NAMED_EVENT(HeterogeneousVolumes, FColor::Emerald);
 
 	FVoxelGridBuildOptions BuildOptions;
+	BuildOptions.VoxelGridBuildMode = EVoxelGridBuildMode::Shadows;
 	BuildOptions.MinimumVoxelSizeOutsideFrustum = HeterogeneousVolumes::GetOutOfFrustumShadingRateForShadows();
 	BuildOptions.MinimumVoxelSizeInFrustum = HeterogeneousVolumes::GetShadingRateForShadows();
 	BuildOptions.bBuildOrthoGrid = true;
