@@ -911,6 +911,9 @@ private:
 	/** True if the outliner should cache changes to column visibility into the config */
 	uint8 bShouldCacheColumnVisibility : 1;
 
+	/** True if we are forcing the underlying tree view to automatically expand all parents when searching */
+	mutable uint8 bForceParentItemsExpanded : 1;
+
 	/** Reentrancy guard */
 	bool bIsReentrant;
 
