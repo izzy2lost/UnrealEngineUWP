@@ -3617,9 +3617,33 @@ public:
 	 * Get all Engine Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachEngineSubsystem or GetEngineSubsystemArrayCopy instead")
 	const TArray<TSubsystemClass*>& GetEngineSubsystemArray() const
 	{
 		return EngineSubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetEngineSubsystemArrayCopy() const
+	{
+		return EngineSubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachEngineSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UEngineSubsystem>::IsDerived, "TSubsystemClass must be derived from UEngineSubsystem");
+		return EngineSubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UEngineSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
 	}
 
 private:

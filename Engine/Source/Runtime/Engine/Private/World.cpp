@@ -2649,11 +2649,9 @@ void UWorld::UpdateWorldComponents(bool bRerunConstructionScripts, bool bCurrent
 		}
 	}
 
-	const TArray<UWorldSubsystem*>& WorldSubsystems = SubsystemCollection.GetSubsystemArray<UWorldSubsystem>(UWorldSubsystem::StaticClass());
-	for (UWorldSubsystem* WorldSubsystem : WorldSubsystems)
-	{
+	SubsystemCollection.ForEachSubsystem([this](UWorldSubsystem* WorldSubsystem){
 		WorldSubsystem->OnWorldComponentsUpdated(*this);
-	}
+	});
 
 	UpdateCullDistanceVolumes();
 }
@@ -4230,11 +4228,9 @@ void UWorld::InternalUpdateStreamingState()
 	}
 
 	// Update World Subsystems required streaming levels
-	const TArray<UWorldSubsystem*>& WorldSubsystems = SubsystemCollection.GetSubsystemArray<UWorldSubsystem>(UWorldSubsystem::StaticClass());
-	for (UWorldSubsystem* WorldSubsystem : WorldSubsystems)
-	{
+	SubsystemCollection.ForEachSubsystem([](UWorldSubsystem* WorldSubsystem){
 	    WorldSubsystem->UpdateStreamingState();
-	}
+	});
 }
 
 bool UWorld::CanAddLoadedLevelToWorld(ULevel* Level) const
@@ -5304,8 +5300,6 @@ void UWorld::InitializeActorsForPlay(const FURL& InURL, bool bResetTime, FRegist
 
 void UWorld::BeginPlay()
 {
-	const TArray<UWorldSubsystem*>& WorldSubsystems = SubsystemCollection.GetSubsystemArray<UWorldSubsystem>(UWorldSubsystem::StaticClass());
-
 	if (SupportsMakingVisibleTransactionRequests() && (IsNetMode(NM_DedicatedServer) || IsNetMode(NM_ListenServer)))
 	{
 		ServerStreamingLevelsVisibility = AServerStreamingLevelsVisibility::SpawnServerActor(this);
@@ -5316,10 +5310,9 @@ void UWorld::BeginPlay()
 	FAssetCompilingManager::Get().ProcessAsyncTasks();
 #endif
 
-	for (UWorldSubsystem* WorldSubsystem : WorldSubsystems)
-	{
+	SubsystemCollection.ForEachSubsystem([this](UWorldSubsystem* WorldSubsystem){
 		WorldSubsystem->OnWorldBeginPlay(*this);
-	}
+	});
 
 	AGameModeBase* const GameMode = GetAuthGameMode();
 	if (GameMode)
@@ -9241,12 +9234,9 @@ void UWorld::PostInitializeSubsystems()
 {
 	check(bIsWorldInitialized);
 
-	const TArray<UWorldSubsystem*>& WorldSubsystems = SubsystemCollection.GetSubsystemArray<UWorldSubsystem>(UWorldSubsystem::StaticClass());
-
-	for (UWorldSubsystem* WorldSubsystem : WorldSubsystems)
-	{
+	SubsystemCollection.ForEachSubsystem([](UWorldSubsystem* WorldSubsystem){
 		WorldSubsystem->PostInitialize();
-	}
+	});
 }
 
 static void DoPostProcessVolume(IInterface_PostProcessVolume* Volume, FVector ViewLocation, FSceneView* SceneView)

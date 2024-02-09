@@ -3918,15 +3918,37 @@ public:
 	/**
 	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
 	 *
-	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the World
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use GetSubsystemArrayCopy or ForEachSubsystem instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray() const
 	{
 		return SubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
 	}
 
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the World
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy() const
+	{
+		return SubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
 
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UWorldSubsystem>::IsDerived, "TSubsystemClass must be derived from UWorldSubsystem");
+		return SubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UWorldSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
+	}
 
 	/** Sets the owning game instance for this world */
 	inline void SetGameInstance(UGameInstance* NewGI)

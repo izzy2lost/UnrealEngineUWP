@@ -726,11 +726,9 @@ void ULocalPlayer::ReceivedPlayerController(APlayerController* NewController)
 	OnPlayerControllerChanged().Broadcast(NewController);
 
 	// Tell any local player subsystems
-	const TArray<ULocalPlayerSubsystem*>& LPSubsystems = SubsystemCollection.GetSubsystemArray<ULocalPlayerSubsystem>(ULocalPlayerSubsystem::StaticClass());
-	for (ULocalPlayerSubsystem* WorldSubsystem : LPSubsystems)
-	{
-		WorldSubsystem->PlayerControllerChanged(NewController);
-	}
+	SubsystemCollection.ForEachSubsystem([NewController](ULocalPlayerSubsystem* Subsystem){
+		Subsystem->PlayerControllerChanged(NewController);
+	});
 }
 
 bool ULocalPlayer::CalcSceneViewInitOptions(

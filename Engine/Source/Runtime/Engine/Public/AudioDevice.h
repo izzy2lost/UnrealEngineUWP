@@ -1987,9 +1987,32 @@ public:
 	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the audio device
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use ForEachSubsystem or GetSubsystemArrayCopy instead")
 	const TArray<TSubsystemClass*>& GetSubsystemArray() const
 	{
 		return SubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Gets all Subsystems of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of the audio device
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetSubsystemArrayCopy() const
+	{
+		return SubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs the given operation on all subsytems of the given class. It's safe to create new subsystems during this operation, but not to remove subsystems.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		((FSubsystemCollection<UAudioEngineSubsystem>&)SubsystemCollection).ForEachSubsystem(
+			[Operation=MoveTemp(Operation)](UAudioEngineSubsystem* Subsystem){
+				Operation(CastChecked<TSubsystemClass>(Subsystem));
+			}, TSubsystemClass::StaticClass());
 	}
 
 public:

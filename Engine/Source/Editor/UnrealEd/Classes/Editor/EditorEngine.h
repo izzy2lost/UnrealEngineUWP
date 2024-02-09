@@ -3112,9 +3112,33 @@ public:
 	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
 	 */
 	template <typename TSubsystemClass>
+	UE_DEPRECATED(5.4, "This function is unsafe for re-entrancy and has been deprecated. Use GetSubsystemArrayCopy or ForEachSubsystem instead")
 	const TArray<TSubsystemClass*>& GetEditorSubsystemArray() const
 	{
 		return EditorSubsystemCollection.GetSubsystemArray<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+	
+	/**
+	 * Get all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 *
+	 * Do not hold onto this Array reference unless you are sure the lifetime is less than that of UGameInstance
+	 */
+	template <typename TSubsystemClass>
+	TArray<TSubsystemClass*> GetEditorSubsystemArrayCopy() const
+	{
+		return EditorSubsystemCollection.GetSubsystemArrayCopy<TSubsystemClass>(TSubsystemClass::StaticClass());
+	}
+
+	/**
+	 * Performs an operation on all all Subsystem of specified type, this is only necessary for interfaces that can have multiple implementations instanced at a time.
+	 */
+	template <typename TSubsystemClass>
+	void ForEachEditorSubsystem(TFunctionRef<void(TSubsystemClass*)> Operation) const
+	{
+		static_assert(TIsDerivedFrom<TSubsystemClass, UEngineSubsystem>::IsDerived, "TSubsystemClass must be derived from UEditorSubsystem");
+		return EditorSubsystemCollection.ForEachSubsystem([Operation=MoveTemp(Operation)](UEditorSubsystem* Subsystem){
+			Operation(CastChecked<TSubsystemClass>(Subsystem));
+		}, TSubsystemClass::StaticClass());
 	}
 
 private:

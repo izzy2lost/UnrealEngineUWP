@@ -4901,14 +4901,12 @@ void FAudioDevice::UpdateAudioVolumeEffects()
 
 void FAudioDevice::UpdateAudioEngineSubsystems()
 {
-	const TArray<UAudioEngineSubsystem*>& Subsystems = GetSubsystemArray<UAudioEngineSubsystem>();
-	for (UAudioEngineSubsystem* Subsystem : Subsystems)
-	{
+	ForEachSubsystem<UAudioEngineSubsystem>([](UAudioEngineSubsystem* Subsystem){
 		if (Subsystem)
 		{
 			Subsystem->Update();
 		}
-	}
+	});
 }
 
 FDelegateHandle FAudioDevice::AddPreRenderDelegate(const FOnAudioDevicePreRender::FDelegate& InDelegate)
